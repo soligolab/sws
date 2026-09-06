@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { QDOT_BUILTIN_TYPES, SvgCanvas, normalizeFaceplateParams, type CanvasViewApi } from "@/canvas/SvgCanvas";
@@ -7,12 +7,23 @@ import { resolvePageBackground } from "@/theme";
 import { EditorToolbar } from "@/editor/EditorToolbar";
 import { LeftPanel } from "@/editor/LeftPanel";
 import { PageTabs } from "@/editor/PageTabs";
-import { FunctionEditor } from "@/editor/FunctionEditor";
+/** L'editor Python si carica **quando si apre una funzione**, non prima.
+ *
+ *  Si porta dietro CodeMirror: **358 kB**, il chunk più grosso del progetto,
+ *  più di tutta la libreria di React. Ma per disegnare un sinottico non serve,
+ *  e chi apre l'IDE per spostare un pulsante non scrive Python — lo pagava
+ *  comunque, a ogni caricamento, sul dispositivo e sul PC.
+ *
+ *  Il ramo che lo rende è già isolato — `if (selectedFn) return (…)` — quindi il
+ *  differimento non cambia niente di quel che si vede: quando serve, il pezzo
+ *  arriva dallo stesso server che ha appena servito la pagina. */
+const FunctionEditor = lazy(() =>
+  import("@/editor/FunctionEditor").then((m) => ({ default: m.FunctionEditor })));
 import { TagInput } from "@/components/TagInput";
 import { BindableInput } from "@/components/BindableInput";
 import { ImageBrowser } from "@/components/ImageBrowser";
 import { SYMBOL_LIST } from "@/symbols/library";
-import { ASPECT_RATIOS, editorFitSize, effectiveSizeMode, getDevicePresets, isOffPage, referenceResolutionFor, STANDARD_DEVICE_PRESETS } from "@/pageLayout";
+import { ASPECT_RATIOS, editorFitSize, effectiveSizeMode, getDevicePresets, isOffPage, referenceResolutionFor, STANDARD_DEVICE_PRESETS, translateObject } from "@/pageLayout";
 import { getBrand } from "@/branding";
 import { genId } from "@/id";
 import type { SymbolMeta } from "@/symbols/library";
@@ -483,9 +494,11 @@ export function EditorShell() {
           ids.forEach((id) => {
             const obj = page.objects.find((o) => o.id === id);
             if (!obj) return;
-            const patch: Partial<SynopticObject> = { x: (obj.x ?? 0) + dx, y: (obj.y ?? 0) + dy };
-            if (obj.type === "line") { patch.x2 = (obj.x2 ?? obj.x + 100) + dx; patch.y2 = (obj.y2 ?? obj.y) + dy; }
-            state.updateObject(id, patch);
+            // F6 — la traslazione sta in `translateObject` e non qui: una pipe
+            // disegna dai `points`, e il ramo che mancava la lasciava ferma
+            // mentre le si cambiavano `x`/`y` sotto, cioè due campi che per lei
+            // non sono la geometria.
+            state.updateObject(id, translateObject(obj, dx, dy));
           });
         }
       } else if (e.key === "?" || (e.shiftKey && e.key === "?")) {
@@ -673,12 +686,21 @@ export function EditorShell() {
           onAddObject={handleAddObject}
           onFunctionsChanged={persistFunctions}
         />
-        <FunctionEditor
-          fn={selectedFn}
-          onPatch={(patch) => updateFunction(selectedFn.id, patch)}
-          onPersist={persistFunctionsAsync}
-          onClose={() => useAppStore.getState().selectFunction(null)}
-        />
+        <Suspense fallback={
+          <div style={{ flex: 1, padding: 24, color: "var(--brand-text-subtle, #94a3b8)", fontSize: 13 }}>
+            {/* Stringa letterale come le altre di questo file (vedi PageProps): qui
+                 `t` non è in scope, e introdurre `useTranslation` in EditorShell
+                 per una riga che si vede per un istante non vale il giro. */}
+            Caricamento editor Python…
+          </div>
+        }>
+          <FunctionEditor
+            fn={selectedFn}
+            onPatch={(patch) => updateFunction(selectedFn.id, patch)}
+            onPersist={persistFunctionsAsync}
+            onClose={() => useAppStore.getState().selectFunction(null)}
+          />
+        </Suspense>
       </div>
     );
   }
@@ -829,7 +851,7 @@ export function EditorShell() {
                       `slot ${pathLabel}`,
                     ]}
                   />
-                  <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginBottom: 6 }}>
+                  <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginBottom: 6 }}>
                     Sub-cella interna ({parentSub.orientation === "rows" ? "alto/basso" : "sinistra/destra"}).
                   </div>
                   <CellStructureActions
@@ -1094,7 +1116,7 @@ function ShortcutHelp({ onClose }: { onClose: () => void }) {
             {SHORTCUTS.map(([key, desc]) =>
               desc === "" ? (
                 <tr key={key}>
-                  <td colSpan={2} style={{ color: "var(--brand-border, #475569)", fontWeight: 700, fontSize: 10,
+                  <td colSpan={2} style={{ color: "var(--brand-text-subtle, #94a3b8)", fontWeight: 700, fontSize: 10,
                     letterSpacing: 0.5, textTransform: "uppercase", paddingTop: 10, paddingBottom: 4 }}>
                     {t(key)}
                   </td>
@@ -1154,7 +1176,7 @@ type BreadcrumbPart = string | { label: string; onClick?: () => void };
 function PanelBreadcrumb({ parts }: { parts: BreadcrumbPart[] }) {
   const { t } = useTranslation();
   return (
-    <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginBottom: 6, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+    <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginBottom: 6, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
       {parts.map((p, i) => {
         const part = typeof p === "string" ? { label: p } : p;
         const isLast = i === parts.length - 1;
@@ -1241,7 +1263,7 @@ function CollapsibleSection({
         {headerExtra}
       </button>
       {!open && hint && (
-        <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", fontStyle: "italic", margin: "0 0 4px 16px" }}>
+        <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", fontStyle: "italic", margin: "0 0 4px 16px" }}>
           {hint}
         </div>
       )}
@@ -1325,7 +1347,7 @@ function SubCellAddChild({ onAdd }: { onAdd: (type: string) => void }) {
           + Aggiungi
         </button>
       </div>
-      <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "4px 0 0" }}>
+      <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "4px 0 0" }}>
         Oppure: copia un oggetto dalla pagina (Ctrl+C) e premi Ctrl+V con la cella padre selezionata.
       </p>
     </div>
@@ -1400,7 +1422,7 @@ function PageProps({
   const ro = !!locked; // read-only when the page is locked
   return (
     <>
-      <div style={{ fontSize: 11, color: "var(--brand-border, #475569)", marginBottom: 4 }}>{t("props.pageT")}</div>
+      <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", marginBottom: 4 }}>{t("props.pageT")}</div>
       {locked && (
         <div style={{ fontSize: 11, color: "var(--brand-warning, #f59e0b)", background: "#451a0322", border: "1px solid #92400e", borderRadius: 4, padding: "4px 8px", marginBottom: 8 }}>
           🔒 Pagina bloccata — sola lettura. Sblocca dall'elenco pagine per modificare.
@@ -1455,7 +1477,7 @@ function PageProps({
           />
         </div>
       </div>
-      <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 4, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
+      <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 4, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
         DIMENSIONI PAGINA
       </div>
       {sizeMode === "fixed" && (
@@ -1506,7 +1528,7 @@ function PageProps({
               />
             </div>
           </div>
-          <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "2px 0 0" }}>
+          <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "2px 0 0" }}>
             Dimensione esatta (1:1, nessuno scaling a runtime). Un bordo tratteggiato blu indica i limiti della pagina.
           </p>
         </>
@@ -1566,7 +1588,7 @@ function PageProps({
           }}
         />
       </div>
-      <p style={{ fontSize: 11, color: "var(--brand-border, #475569)", margin: "8px 0 0" }}>
+      <p style={{ fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", margin: "8px 0 0" }}>
         Seleziona un oggetto sul canvas per modificarne le proprietà.
       </p>
     </>
@@ -1679,7 +1701,7 @@ function ProjectPageLayoutSettings() {
 
       {error && <div style={{ color: "var(--brand-danger, #ef4444)", fontSize: 12 }}>Errore: {error}</div>}
 
-      <button style={{ alignSelf: "flex-start", background: "var(--brand-success-bg, #166534)", color: "#bbf7d0", border: "1px solid #15803d", borderRadius: 4, padding: "5px 12px", cursor: "pointer", fontSize: 13 }} disabled={saving} onClick={handleSave}>
+      <button style={{ alignSelf: "flex-start", background: "var(--brand-success-bg, #166534)", color: "var(--brand-success-soft, #4ade80)", border: "1px solid #15803d", borderRadius: 4, padding: "5px 12px", cursor: "pointer", fontSize: 13 }} disabled={saving} onClick={handleSave}>
         {saving ? "Salvataggio…" : "Salva impostazioni progetto"}
       </button>
     </div>
@@ -1726,14 +1748,14 @@ function MultiSelectionProps({
   };
   return (
     <>
-      <div style={{ fontSize: 11, color: "var(--brand-border, #475569)", marginBottom: 4 }}>
+      <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", marginBottom: 4 }}>
         Selezione multipla
       </div>
       <div style={{ fontSize: 13, color: "var(--brand-text, #e2e8f0)", marginBottom: 4 }}>
         {count} oggetti selezionati
       </div>
 
-      <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 4, fontWeight: 700, letterSpacing: 0.5 }}>
+      <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 4, fontWeight: 700, letterSpacing: 0.5 }}>
         ALLINEA ORIZZONTALE
       </div>
       <div style={{ display: "flex", gap: 4 }}>
@@ -1742,7 +1764,7 @@ function MultiSelectionProps({
         <button style={btn} title={t("props.alignRight")}     onClick={() => onAlign("right")}>⇥</button>
       </div>
 
-      <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 6, fontWeight: 700, letterSpacing: 0.5 }}>
+      <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 6, fontWeight: 700, letterSpacing: 0.5 }}>
         ALLINEA VERTICALE
       </div>
       <div style={{ display: "flex", gap: 4 }}>
@@ -1751,7 +1773,7 @@ function MultiSelectionProps({
         <button style={btn} title={t("props.alignBottom")}     onClick={() => onAlign("bottom")}>⤓</button>
       </div>
 
-      <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 6, fontWeight: 700, letterSpacing: 0.5 }}>
+      <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 6, fontWeight: 700, letterSpacing: 0.5 }}>
         DISTRIBUISCI (≥3 oggetti)
       </div>
       <div style={{ display: "flex", gap: 4 }}>
@@ -1760,7 +1782,7 @@ function MultiSelectionProps({
       </div>
 
       {/* F8.1 — uniforma le dimensioni al primo oggetto selezionato. */}
-      <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 6, fontWeight: 700, letterSpacing: 0.5 }}>
+      <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 6, fontWeight: 700, letterSpacing: 0.5 }}>
         {t("props.matchSize")}
       </div>
       <div style={{ display: "flex", gap: 4 }}>
@@ -1781,10 +1803,10 @@ function MultiSelectionProps({
 
       <div style={{ height: 1, background: "var(--brand-surface-2, #334155)", margin: "8px 0" }} />
 
-      <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", fontWeight: 700, letterSpacing: 0.5 }}>
+      <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", fontWeight: 700, letterSpacing: 0.5 }}>
         PROPRIETÀ COMUNI
       </div>
-      <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "2px 0 6px" }}>
+      <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "2px 0 6px" }}>
         {allSameType
           ? `Tipo "${selectedObjects[0].type}" — campi vuoti = valori diversi (vari).`
           : "Tipi diversi — solo sezioni universali."}
@@ -1808,7 +1830,7 @@ function MultiSelectionProps({
         />
       )}
 
-      <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 8 }}>
+      <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 8 }}>
         Shift+click per aggiungere/togliere dalla selezione. Ctrl-C/V, Ctrl-D,
         Ctrl-Z/Y, Canc come scorciatoie.
       </p>
@@ -1892,7 +1914,7 @@ function CrossTypeProps({
 
   return (
     <>
-      <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 4, fontWeight: 700, letterSpacing: 0.5 }}>POSIZIONE</div>
+      <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 4, fontWeight: 700, letterSpacing: 0.5 }}>POSIZIONE</div>
       <div style={grid2}>
         {field(t("props.xLabel"), numInput("x", 0))}
         {field(t("props.yLabel"), numInput("y", 0))}
@@ -1900,7 +1922,7 @@ function CrossTypeProps({
         {field(t("props.height"), numInput("height", 40))}
       </div>
 
-      <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>ASPETTO</div>
+      <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>ASPETTO</div>
       {field(t("props.fill"), colorInput("fill", "var(--brand-primary, #3b82f6)"))}
       {field(t("props.stroke"), colorInput("stroke", "#ffffff"))}
       <div style={grid2}>
@@ -1908,7 +1930,7 @@ function CrossTypeProps({
         {field(t("props.opacity"), numInput("opacity", 1))}
       </div>
 
-      <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>TRASFORMAZIONE</div>
+      <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>TRASFORMAZIONE</div>
       <div style={grid2}>
         {field(t("props.rotationDegSym"), numInput("rotation", 0))}
         {field(t("props.zIndex"), numInput("z_index", 0))}
@@ -1931,7 +1953,7 @@ function CrossTypeProps({
       </div>
       {field(t("props.transition"), numInput("transition_duration_ms", 0))}
 
-      <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>VISIBILITÀ</div>
+      <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>VISIBILITÀ</div>
       <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
         <input type="checkbox"
           checked={!isMixed("visible") && mergedProps.visible !== false}
@@ -1941,11 +1963,11 @@ function CrossTypeProps({
       </label>
       {field(t("props.tagVisibility"), tagInput("visible_tag", "tag.bool…"))}
 
-      <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>TAG</div>
+      <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>TAG</div>
       {field(t("props.tag"), tagInput("tag", "tag.id…"))}
       {field(t("props.format"), textInput("format", "{value}"))}
 
-      <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>INDICATORE QUALITÀ</div>
+      <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>INDICATORE QUALITÀ</div>
       <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
         <input type="checkbox"
           checked={!isMixed("quality_dot") && mergedProps.quality_dot !== false}
@@ -1961,7 +1983,7 @@ function CrossTypeProps({
         </>
       )}
 
-      <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>EVENTI</div>
+      <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 8, fontWeight: 700, letterSpacing: 0.5 }}>EVENTI</div>
       <EventFunctionPicker
         label="Al click (on_press)"
         fnName={(mergedProps.on_press_fn as string | undefined)}
@@ -2133,7 +2155,7 @@ function ObjectProps({
 
   const textListEntriesField = () => (
     <>
-      <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>VOCI</div>
+      <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>VOCI</div>
       {(obj.text_list_entries ?? []).map((e, i) => {
         const warning = rangeWarning(obj.text_list_entries, i);
         return (
@@ -2160,7 +2182,7 @@ function ObjectProps({
               Notazione [min–max) esplicita: il max è escluso (semi-aperto),
               vedi rangeWarning sopra e props.rangeHint sotto per il perché. */}
           <div style={{ display: "flex", gap: 4, alignItems: "center", paddingLeft: 58 }}>
-            <span style={{ fontSize: 11, color: "var(--brand-border, #475569)" }}>[</span>
+            <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)" }}>[</span>
             <input style={{ ...INPUT, width: 56 }} type="number" placeholder={t("props.rangeMin")}
               value={e.value_min ?? ""}
               onChange={(ev) => {
@@ -2168,7 +2190,7 @@ function ObjectProps({
                 const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, value_min: raw === "" ? undefined : Number(raw) };
                 onChange({ text_list_entries: next });
               }} />
-            <span style={{ fontSize: 10, color: "var(--brand-border, #475569)" }}>–</span>
+            <span style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)" }}>–</span>
             <input style={{ ...INPUT, width: 56 }} type="number" placeholder={t("props.rangeMax")}
               value={e.value_max ?? ""}
               onChange={(ev) => {
@@ -2176,7 +2198,7 @@ function ObjectProps({
                 const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, value_max: raw === "" ? undefined : Number(raw) };
                 onChange({ text_list_entries: next });
               }} />
-            <span style={{ fontSize: 11, color: "var(--brand-border, #475569)" }}>)</span>
+            <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)" }}>)</span>
           </div>
           {warning && (
             <div style={{ fontSize: 10, color: "var(--brand-warning, #f59e0b)", paddingLeft: 58 }}>
@@ -2190,7 +2212,7 @@ function ObjectProps({
         onClick={() => onChange({ text_list_entries: [...(obj.text_list_entries ?? []), { value: 0, label: "Stato", color: "var(--brand-text, #e2e8f0)" }] })}>
         + Aggiungi voce
       </button>
-      <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "-2px 0 4px" }}>
+      <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "-2px 0 4px" }}>
         {t("props.rangeHint")}
       </p>
     </>
@@ -2323,7 +2345,7 @@ function ObjectProps({
             <>
               {field(t("props.gradientLight"), colorInput("gradient_light_color", "#ffffff"))}
               {field(t("props.gradientDark"), colorInput("gradient_dark_color", "#000000"))}
-              <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "-2px 0 4px" }}>
+              <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "-2px 0 4px" }}>
                 {t("props.gradientHint")}
               </p>
             </>
@@ -2361,7 +2383,7 @@ function ObjectProps({
           SvgCanvas.tsx (bgLayer). */}
       {BG_TYPES.includes(obj.type) && (
         <>
-          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 8, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
+          <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 8, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
             {t("props.bgSection")}
           </div>
           {/* 2026-08-23: su rect/button/navbutton/lang_button lo sfondo È il
@@ -2485,7 +2507,7 @@ function ObjectProps({
                 />)
             : field(t("props.textStatic"), <BindableInput obj={obj} propName="text" onChange={onChange}>{textInput("text", "Es. Temperatura caldaia")}</BindableInput>)}
           {field(t("props.formatBound"), <BindableInput obj={obj} propName="format" onChange={onChange}>{textInput("format", "{value:.1f} °C")}</BindableInput>)}
-          <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "0 0 4px" }}>
+          <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 4px" }}>
             Se è impostato un Tag, vince il formato (usa <code>{"{value}"}</code>); altrimenti viene
             mostrato il testo statico.
           </p>
@@ -2513,7 +2535,7 @@ function ObjectProps({
           </label>
           {obj.text_wrap && (
             <>
-              <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "2px 0 4px" }}>
+              <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "2px 0 4px" }}>
                 {t("props.textWrapHint")}
               </p>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
@@ -2585,7 +2607,7 @@ function ObjectProps({
           </label>
           {obj.text_color_by_threshold && (
             <>
-              <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "2px 0 4px" }}>
+              <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "2px 0 4px" }}>
                 {t("props.colorByThresholdHint")}
               </p>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
@@ -2796,7 +2818,7 @@ function ObjectProps({
           </div>
           {field(t("props.unit"), <BindableInput obj={obj} propName="unit" onChange={onChange}>{textInput("unit", "")}</BindableInput>)}
           {field(t("props.decimals"), <BindableInput obj={obj} propName="decimals" onChange={onChange}>{numInput("decimals", 1)}</BindableInput>)}
-          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>SOGLIE</div>
+          <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>SOGLIE</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             <div><div style={LABEL}>{t("props.warnLow")}</div><BindableInput obj={obj} propName="warn_low" onChange={onChange}>{numInput("warn_low", 0)}</BindableInput></div>
             <div><div style={LABEL}>{t("props.warnHigh")}</div><BindableInput obj={obj} propName="warn_high" onChange={onChange}>{numInput("warn_high", 0)}</BindableInput></div>
@@ -2811,7 +2833,7 @@ function ObjectProps({
           {field(t("props.textsColor"), <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color", "#e2e8f0")}</BindableInput>)}
 
           {/* F7.6 — quadrante: apertura dell'arco e tacche numerate. */}
-          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>
+          <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>
             {t("props.dial")}
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
@@ -2819,12 +2841,12 @@ function ObjectProps({
             <div><div style={LABEL}>{t("props.endAngle")}</div>{numInput("gauge_end_angle", 135)}</div>
           </div>
           {field(t("props.ticks"), numInput("gauge_ticks", 0))}
-          <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "-2px 0 4px" }}>
+          <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "-2px 0 4px" }}>
             {t("props.ticksHint")}
           </p>
 
           {/* F7.6 — secondo indicatore (setpoint). */}
-          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>
+          <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>
             {t("props.secondIndicator")}
           </div>
           <TagInput value={obj.gauge_sp_tag ?? ""} onChange={(v) => onChange({ gauge_sp_tag: v || undefined })}
@@ -2832,7 +2854,7 @@ function ObjectProps({
           {obj.gauge_sp_tag && field(t("props.color"), colorInput("gauge_sp_color", "#f59e0b"))}
 
           {/* F7.6 — zone colorate del fondo scala. */}
-          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>
+          <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>
             {t("props.zones")}
           </div>
           {(obj.gauge_zones ?? []).map((z, i) => (
@@ -3031,7 +3053,7 @@ function ObjectProps({
           {field(t("props.unit"), <BindableInput obj={obj} propName="unit" onChange={onChange}>{textInput("unit", "")}</BindableInput>)}
           {field(t("props.decimals"), <BindableInput obj={obj} propName="decimals" onChange={onChange}>{numInput("decimals", 1)}</BindableInput>)}
           {field(t("props.colorBar"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill", "var(--brand-primary, #3b82f6)")}</BindableInput>)}
-          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>SOGLIE</div>
+          <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>SOGLIE</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             <div><div style={LABEL}>{t("props.warnLow")}</div><BindableInput obj={obj} propName="warn_low" onChange={onChange}>{numInput("warn_low", 0)}</BindableInput></div>
             <div><div style={LABEL}>{t("props.warnHigh")}</div><BindableInput obj={obj} propName="warn_high" onChange={onChange}>{numInput("warn_high", 0)}</BindableInput></div>
@@ -3057,7 +3079,7 @@ function ObjectProps({
         };
         return (
           <>
-            <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>
+            <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>
               {t("props.columns")}
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -3084,7 +3106,7 @@ function ObjectProps({
                 {t("props.filterRow")}
               </label>
             </div>
-            <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "4px 0" }}>
+            <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "4px 0" }}>
               {t("props.tableHint")}
             </p>
             <TableRowsEditor
@@ -3185,7 +3207,7 @@ function ObjectProps({
         return (
         <>
           {/* TRACCE — la prima cosa che si configura */}
-          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
+          <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
             {t("props.traces")}
           </div>
           {traces.map(traceRow)}
@@ -3198,12 +3220,12 @@ function ObjectProps({
 
           {field(t("props.windowS"), <BindableInput obj={obj} propName="window_s" onChange={onChange}>{numInput("window_s", 60)}</BindableInput>)}
           {field(t("props.panStepS"), numInput("pan_step_s", Math.round((obj.window_s ?? 60) * 0.25)))}
-          <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "-4px 0 0" }}>
+          <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "-4px 0 0" }}>
             {t("props.panStepSHint")}
           </p>
 
           {/* Formato data/ora (asse X + tooltip) */}
-          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 8, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
+          <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 8, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
             FORMATO DATA/ORA
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
@@ -3265,7 +3287,7 @@ function ObjectProps({
               Mostra sempre la data
             </label>
           </div>
-          <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "2px 0 0" }}>
+          <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "2px 0 0" }}>
             Senza "Mostra sempre la data", la data compare solo quando la finestra visibile supera le 24h.
           </p>
 
@@ -3273,7 +3295,7 @@ function ObjectProps({
             <div><div style={LABEL}>Y min</div><BindableInput obj={obj} propName="y_min" onChange={onChange}>{numInput("y_min", 0)}</BindableInput></div>
             <div><div style={LABEL}>Y max</div><BindableInput obj={obj} propName="y_max" onChange={onChange}>{numInput("y_max", 100)}</BindableInput></div>
           </div>
-          <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "2px 0 0" }}>
+          <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "2px 0 0" }}>
             Lascia Y min/max a 0 per autofit.
           </p>
 
@@ -3304,7 +3326,7 @@ function ObjectProps({
                 <div><div style={LABEL}>Alarm min</div>{numInput("alarm_low", 0)}</div>
                 <div><div style={LABEL}>Alarm max</div>{numInput("alarm_high", 0)}</div>
               </div>
-              <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "2px 0 0" }}>
+              <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "2px 0 0" }}>
                 Le soglie sono valori sulla scala condivisa — non compaiono se ogni traccia ha la propria scala. Lascia vuoto per omettere una soglia.
               </p>
             </>
@@ -3354,7 +3376,7 @@ function ObjectProps({
             <div><div style={LABEL}>Y min</div><BindableInput obj={obj} propName="xy_y_min" onChange={onChange}>{numInput("xy_y_min", 0)}</BindableInput></div>
             <div><div style={LABEL}>Y max</div><BindableInput obj={obj} propName="xy_y_max" onChange={onChange}>{numInput("xy_y_max", 100)}</BindableInput></div>
           </div>
-          <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "2px 0 0" }}>
+          <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "2px 0 0" }}>
             Lascia min/max vuoti per autofit sui campioni osservati.
           </p>
           {field(t("props.colorMainLine"), <BindableInput obj={obj} propName="line_color" onChange={onChange}>{colorInput("line_color", "var(--brand-primary, #3b82f6)")}</BindableInput>)}
@@ -3412,7 +3434,7 @@ function ObjectProps({
       {/* Grid layout */}
       {obj.type === "grid" && (
         <>
-          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 4, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
+          <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 4, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
             GRIGLIA
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 6px" }}>
@@ -3465,7 +3487,7 @@ function ObjectProps({
               </div>
             </div>
           )}
-          <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "6px 0 0" }}>
+          <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "6px 0 0" }}>
             Clicca su una cella nel canvas per modificarne le proprietà.
           </p>
         </>
@@ -3494,7 +3516,7 @@ function ObjectProps({
         <>
           {field(t("props.tag"), tagInput("es. valvola.stato"))}
           {textListEntriesField()}
-          <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "-2px 0 4px" }}>
+          <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "-2px 0 4px" }}>
             {t("props.stateLampHint")}
           </p>
         </>
@@ -3513,7 +3535,7 @@ function ObjectProps({
             <div><div style={LABEL}>Min</div><BindableInput obj={obj} propName="min" onChange={onChange}>{numInput("min", 0)}</BindableInput></div>
             <div><div style={LABEL}>Max</div><BindableInput obj={obj} propName="max" onChange={onChange}>{numInput("max", 100)}</BindableInput></div>
           </div>
-          <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "-2px 0 4px" }}>
+          <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "-2px 0 4px" }}>
             {t("props.barRangeHint")}
           </p>
           {field(t("props.unit"), textInput("unit", ""))}
@@ -3539,7 +3561,7 @@ function ObjectProps({
               </label>
             ))}
           </div>
-          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>SERIE</div>
+          <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>SERIE</div>
           {(obj.bar_series ?? []).map((s, i) => (
             <div key={i} style={{ display: "flex", gap: 4, marginBottom: 4, alignItems: "center" }}>
               <TagInput style={{ ...INPUT, flex: 1 }} placeholder="tag" value={s.tag}
@@ -3556,7 +3578,7 @@ function ObjectProps({
             onClick={() => onChange({ bar_series: [...(obj.bar_series ?? []), { tag: "", label: `Serie ${(obj.bar_series?.length ?? 0) + 1}` }] })}>
             + Aggiungi serie
           </button>
-          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 2, marginBottom: 2, fontWeight: 700 }}>SOGLIE</div>
+          <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 2, marginBottom: 2, fontWeight: 700 }}>SOGLIE</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             <div><div style={LABEL}>{t("props.warnHigh")}</div><BindableInput obj={obj} propName="warn_high" onChange={onChange}>{numInput("warn_high", 0)}</BindableInput></div>
             <div><div style={LABEL}>{t("props.alarmHigh")}</div><BindableInput obj={obj} propName="alarm_high" onChange={onChange}>{numInput("alarm_high", 0)}</BindableInput></div>
@@ -3612,7 +3634,7 @@ function ObjectProps({
             <div><div style={LABEL}>{t("props.groupBelowPct")}</div>{numInput("pie_group_below_pct", 0)}</div>
             <div><div style={LABEL}>{t("props.explodePx")}</div>{numInput("pie_explode_px", 0)}</div>
           </div>
-          <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "-2px 0 4px" }}>
+          <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "-2px 0 4px" }}>
             {t("props.pieGroupHint")}
           </p>
           {!!obj.pie_group_below_pct && (
@@ -3630,7 +3652,7 @@ function ObjectProps({
             />
           )}
           {(obj.pie_mode ?? "pie") === "donut" && obj.pie_center_tag && field(t("props.format"), textInput("pie_center_format", "{value}"))}
-          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>SLICE</div>
+          <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>SLICE</div>
           {(obj.pie_slices ?? []).map((s, i) => (
             <div key={i} style={{ display: "flex", gap: 4, marginBottom: 4, alignItems: "center" }}>
               <TagInput style={{ ...INPUT, flex: 1 }} placeholder="tag" value={s.tag}
@@ -3741,7 +3763,7 @@ function ObjectProps({
                 </label>
               </div>
               {obj.alarm_viewer_show_shelve && field(t("props.shelveMinutes"), numInput("alarm_shelve_minutes", 15))}
-              <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "2px 0 4px" }}>
+              <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "2px 0 4px" }}>
                 {t("props.ackAllHint")}
               </p>
             </>
@@ -3772,7 +3794,7 @@ function ObjectProps({
           {field(t("props.alarmIdPrefix"), <input style={INPUT} placeholder={t("props.exZone")} value={obj.alarm_bell_id_prefix ?? ""} onChange={(e) => onChange({ alarm_bell_id_prefix: e.target.value })} />)}
           {field(t("props.severity"), severityFilterField("alarm_bell_severities"))}
           {/* F7.5 — segnalazione acustica. */}
-          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>
+          <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>
             {t("props.sound")}
           </div>
           <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
@@ -3785,7 +3807,7 @@ function ObjectProps({
             <>
               {field(t("props.soundSeverities"), severityFilterField("alarm_bell_sound_severities"))}
               {field(t("props.soundRepeatS"), numInput("alarm_bell_sound_repeat_s", 20))}
-              <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "2px 0 4px" }}>
+              <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "2px 0 4px" }}>
                 {t("props.soundHint")}
               </p>
             </>
@@ -3851,7 +3873,7 @@ function ObjectProps({
           </div>
           {/* F6.6: stati N — mappa valore→colore/lampeggio/label sul valore di
               state_tag (valore esatto o range, come le VOCI di text_list). */}
-          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 8, marginBottom: 2, fontWeight: 700 }}>
+          <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 8, marginBottom: 2, fontWeight: 700 }}>
             {t("props.symbolStates")}
           </div>
           {(obj.symbol_states ?? []).map((e, i) => {
@@ -3935,7 +3957,7 @@ function ObjectProps({
             )}
             {defn && defn.params.length > 0 && (
               <>
-                <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 6, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
+                <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 6, marginBottom: 2, fontWeight: 700, letterSpacing: 0.5 }}>
                   {t("props.faceplateParams")}
                 </div>
                 {normalizeFaceplateParams(defn).map((p) => {
@@ -4137,7 +4159,7 @@ function ObjectProps({
 
           {/* Connection anchoring */}
           <CollapsibleSection title={t("props.snapObjects")} storageKey="pipe-anchor">
-            <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "0 0 6px" }}>
+            <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 6px" }}>
               Quando impostato, il primo / ultimo waypoint segue l'oggetto collegato.
             </p>
             {field(t("props.sourceObjId"), textInput("from_obj_id", "es. pump-1"))}
@@ -4166,7 +4188,7 @@ function ObjectProps({
 
           {/* Waypoints editor */}
           <CollapsibleSection title={t("props.waypoint")} storageKey="pipe-points">
-            <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "0 0 4px" }}>
+            <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 4px" }}>
               Trascina i punti gialli sul canvas. Usa ± per aggiungere/rimuovere.
             </p>
             {(obj.points ?? []).map((pt, i) => (
@@ -4282,7 +4304,7 @@ function ObjectProps({
               >↺</button>
             </div>
           )}
-          <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "0 0 4px" }}>
+          <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 4px" }}>
             0 = nessuna animazione. Anima fill/stroke/opacity/rotazione bindati. Testo, font-size, src e geometrie restano discreti.
           </p>
         </CollapsibleSection>
@@ -4554,7 +4576,7 @@ function ObjectProps({
                 </div>
               );
             })()}
-            <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "0 0 4px" }}>
+            <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 4px" }}>
               {t("props.motionHint")}
             </p>
           </>
@@ -4587,7 +4609,7 @@ function ObjectProps({
             functions={functions}
             onChange={(fn, args) => onChange({ on_release_fn: fn, on_release_args: args })}
           />
-          <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "0 0 4px" }}>
+          <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 4px" }}>
             Definisci le funzioni nel pannello laterale (sezione FUNZIONI). I valori
             dei parametri sono sostituiti per binding; lascia vuoto per usare il default.
           </p>
@@ -4611,7 +4633,7 @@ function ObjectProps({
           Object.entries(obj.bindings).map(([prop, spec]) => (
             <div key={prop} style={{ display: "flex", gap: 4, alignItems: "center", fontSize: 12, marginBottom: 2 }}>
               <span style={{ color: "var(--brand-text-subtle, #64748b)", flex: "0 0 auto" }}>{prop}</span>
-              <span style={{ color: "var(--brand-border, #475569)" }}>→</span>
+              <span style={{ color: "var(--brand-text-subtle, #94a3b8)" }}>→</span>
               <span style={{ color: "var(--brand-primary, #3b82f6)", flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>
                 {typeof spec === "string"
                   ? (spec || "(nessun tag)")
@@ -4671,7 +4693,7 @@ function RadioOptionsEditor({
 
   return (
     <div>
-      <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 4, marginBottom: 4, fontWeight: 700 }}>
+      <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 4, marginBottom: 4, fontWeight: 700 }}>
         OPZIONI RADIO
       </div>
       {options.map((opt, i) => (
@@ -4723,7 +4745,7 @@ function TableRowsEditor({
 
   return (
     <div>
-      <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", marginTop: 4, marginBottom: 4, fontWeight: 700 }}>
+      <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 4, marginBottom: 4, fontWeight: 700 }}>
         RIGHE TABELLA
       </div>
       {rows.map((row, i) => (
@@ -4855,7 +4877,7 @@ function EventFunctionPicker({
                 <div style={{ ...LABEL, fontSize: 10 }}>
                   {p.name}
                   {p.default !== undefined && (
-                    <span style={{ color: "var(--brand-border, #475569)" }}> (default: {String(p.default)})</span>
+                    <span style={{ color: "var(--brand-text-subtle, #94a3b8)" }}> (default: {String(p.default)})</span>
                   )}
                 </div>
                 <input
@@ -4990,7 +5012,7 @@ function GridCellEditor({
         />
       </div>
 
-      <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>
+      <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>
         EVENTI CELLA
       </div>
       <div style={{ marginBottom: 4 }}>
@@ -5016,7 +5038,7 @@ function GridCellEditor({
         </select>
       </div>
 
-      <div style={{ fontSize: 10, color: "var(--brand-border, #475569)", fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>
+      <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>
         OGGETTO FIGLIO
       </div>
       {cell.child ? (
@@ -5029,7 +5051,7 @@ function GridCellEditor({
               {cell.child.type}{cell.child.name ? ` — ${cell.child.name}` : ""}
             </span>
           </div>
-          <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "0 0 8px" }}>
+          <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 8px" }}>
             Clicca il figlio nel canvas per modificarne le proprietà.
           </p>
           <div style={{ display: "flex", gap: 6 }}>
@@ -5070,7 +5092,7 @@ function GridCellEditor({
               + Aggiungi
             </button>
           </div>
-          <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "0 0 4px" }}>
+          <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 4px" }}>
             Oppure: copia un oggetto dalla pagina (Ctrl+C) e premi Ctrl+V con questa cella selezionata.
           </p>
         </>

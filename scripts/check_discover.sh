@@ -70,21 +70,36 @@ caso() {
     local json
     json=$(curl -sf "http://localhost:$ap/api/discover")
 
-    ATTESO="$forced" python3 - "$json" <<'PY'
+    ATTESO="$forced" PORTA="$ap" python3 - "$json" <<'PY'
 import json, os, sys
 atteso = os.environ["ATTESO"] or None
+porta = os.environ["PORTA"]
 try:
     voci = json.loads(sys.argv[1])
 except Exception:
     print("  ✗ risposta non interpretabile:", sys.argv[1][:200]); sys.exit(1)
 
-if len(voci) != 1:
-    print(f"  ✗ voci attese 1, trovate {len(voci)}:")
+# Si cerca **la propria** voce, riconosciuta dalla porta admin, invece di
+# pretendere di essere soli sulla rete.
+#
+# Prima questa guardia esigeva `len(voci) == 1`, e su una rete di lavoro non
+# poteva passare: in ufficio c'è un pannello vero che si annuncia sullo stesso
+# `_sws._tcp.local.`, quindi le voci erano due e sei controlli su sei fallivano
+# — un difetto dell'ambiente travestito da difetto della scoperta. Che ci siano
+# altri SWS in rete non è un errore: è il caso normale, ed è precisamente ciò
+# per cui la scoperta esiste.
+mie = [v for v in voci if f":{porta}" in v.get("admin_url", "")]
+altre = [v for v in voci if v not in mie]
+if altre:
+    print(f"    ({len(altre)} altri SWS in rete, ignorati: "
+          + ", ".join(v.get("admin_url", "?") for v in altre[:3]) + ")")
+if len(mie) != 1:
+    print(f"  ✗ la voce di questo runtime (porta {porta}) non è stata trovata, o compare più volte: {len(mie)}")
     for v in voci:
         print("      ", v["name"], v["admin_url"], v["container"])
     sys.exit(1)
 
-v = voci[0]
+v = mie[0]
 esito = 0
 if v["container"] != atteso:
     print(f"  ✗ container atteso {atteso!r}, trovato {v['container']!r}"); esito = 1

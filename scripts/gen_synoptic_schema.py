@@ -41,6 +41,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SYNOPTIC_RS = f"{ROOT}/sws-runtime/crates/sws-web/src/synoptic.rs"
 PROJECT_RS = f"{ROOT}/sws-runtime/crates/sws-core/src/project.rs"
 TYPES_TS = f"{ROOT}/sws-editor/src/types/index.ts"
+SYMBOLS_TSX = f"{ROOT}/sws-editor/src/symbols/library.tsx"
 TEMPLATES = f"{ROOT}/examples/templates"
 OUT = f"{ROOT}/sws-runtime/crates/sws-web/src/synoptic_schema.rs"
 
@@ -184,6 +185,23 @@ def field_enums():
         m = re.match(r'\s*([a-z_0-9]+)\??:\s*((?:"[^"]*"\s*\|\s*)+"[^"]*")\s*;', line)
         if m:
             out[m.group(1)] = re.findall(r'"([^"]*)"', m.group(2))
+
+    # `symbol_id` non è una union in TypeScript — i simboli stanno in una
+    # libreria, non nei tipi — quindi qui arrivava come stringa libera **senza
+    # documentazione**. L'assistente non aveva modo di sapere quali simboli
+    # esistono: il 2026-09-06 il maintainer gli ha chiesto una caldaia e si è
+    # sentito rispondere che l'oggetto non esiste, mentre `boiler` è in palette
+    # da sempre.
+    #
+    # La libreria dell'editor è la fonte di ciò che la palette offre davvero, ed
+    # è la stessa che usa `check_lvgl_symbols.sh`. Diventa la quinta fonte di
+    # questo generatore, e `check_synoptic_schema.sh` la tiene allineata come le
+    # altre quattro.
+    simboli = re.findall(r'id:\s*"([a-z_0-9]+)"',
+                         open(SYMBOLS_TSX, encoding="utf-8").read())
+    if len(simboli) < 10:
+        die(f"letti solo {len(simboli)} simboli da {SYMBOLS_TSX}: la forma delle voci è cambiata")
+    out["symbol_id"] = sorted(set(simboli))
     return out
 
 

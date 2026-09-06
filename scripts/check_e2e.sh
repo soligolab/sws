@@ -63,7 +63,8 @@ API="http://localhost:$APORT/api"
 # Un progetto con contenuto: i test cliccano su oggetti del canvas, e su un
 # progetto vuoto fallirebbero per assenza di bersagli, non per una regressione.
 curl -sf -X POST "$API/projects" -H 'Content-Type: application/json' \
-  -d '{"name":"e2e","template":"demo-items"}' > /dev/null
+  -d '{"name":"e2e","template":"demo-items-web"}' > /dev/null
+
 curl -sf -X POST "$API/projects/e2e/open" > /dev/null
 
 echo "== suite e2e (progetto Playwright: $PROJECT) =="

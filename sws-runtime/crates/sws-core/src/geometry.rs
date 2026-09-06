@@ -117,6 +117,12 @@ pub fn is_off_page(bb: &BBox, page_w: Option<f64>, page_h: Option<f64>) -> bool 
 /// `check_lvgl_symbols.sh` e `check_lvgl_types.sh` con le loro tabelle.
 ///
 /// Campi: nome, tipo, x, y, w, h, larghezza pagina, altezza pagina, atteso.
+// La tupla a nove campi resta scritta per esteso, e non dietro un alias:
+// `scripts/check_off_page.sh` estrae questa dichiarazione **testualmente** per
+// confrontarla con la gemella TypeScript, e un alias nasconderebbe le colonne
+// proprio a chi deve verificarne la corrispondenza. La leggibilità qui la fa il
+// commento con i nomi dei campi, non il sistema dei tipi.
+#[allow(clippy::type_complexity)]
 pub const CASI_FUORI_PAGINA: &[(&str, &str, f64, f64, f64, f64, f64, f64, bool)] = &[
     ("dentro",                    "rect", 100.0,  100.0, 120.0,  80.0, 1280.0, 800.0, false),
     ("a filo del bordo destro",   "rect", 1160.0, 100.0, 120.0,  80.0, 1280.0, 800.0, false),

@@ -19,6 +19,7 @@
 5. [Compilare tutto e pubblicare le immagini container](#5-compilare-tutto-e-pubblicare-le-immagini-container)
 6. [Vedere cosa disegna il pannello senza avere il pannello](#6-vedere-cosa-disegna-il-pannello-senza-avere-il-pannello)
 7. [Accendere l'assistente IA nell'editor](#7-accendere-lassistente-ia-nelleditor)
+8. [Confrontare a numeri quello che disegna il browser con quello che disegna il pannello](#8-confrontare-a-numeri-quello-che-disegna-il-browser-con-quello-che-disegna-il-pannello)
 
 ---
 
@@ -603,3 +604,67 @@ curl -s 'localhost:8464/api/schema/source?kind=mqtt'     | jq '.mapping'
 ```
 
 Prima di questi non c'era modo di chiedere «questo progetto è valido?» senza prima rovinarlo.
+
+
+---
+
+## 8. Confrontare a numeri quello che disegna il browser con quello che disegna il pannello
+
+Il capitolo 6 spiega come *vedere* cosa disegna il motore LVGL senza il pannello. Questo spiega
+come **confrontarlo col browser misurando**, invece che guardando due schermate e fidandosi
+dell'occhio.
+
+Serve quando si sospetta una divergenza WYSIWYG: un widget che sui due motori non viene uguale.
+L'occhio, davanti a due immagini vicine, dice «sì, più o meno» — che è esattamente la risposta che
+non serve. È così che è stata misurata la divergenza del grafico a barre (Q28): le barre sono più
+del doppio nel browser, e nessuno se n'era accorto in mesi.
+
+### Il giro completo
+
+Un runtime usa e getta, la stessa pagina, gli stessi valori scritti a mano nei tag, e due misure.
+
+```bash
+W=/tmp/confronto; AP=8690; VP=8691; rm -rf $W; mkdir -p $W/{config,projects}
+./sws-runtime/target/debug/sws-runtime --config $W/config --projects-root $W/projects \
+  --templates-root examples/templates --www sws-editor/dist \
+  --viewer-port $VP --admin-port $AP &
+
+curl -sf -X POST localhost:$AP/api/projects -H 'Content-Type: application/json' -d '{"name":"c"}'
+curl -sf -X POST localhost:$AP/api/projects/c/open
+curl -sf -X PUT localhost:$AP/api/project/tags -H 'Content-Type: application/json' \
+  -d '[{"id":"q.a","data_type":"float"}]'
+curl -sf -X PUT "localhost:$AP/api/synoptics/Pagina%201" -H 'Content-Type: application/json' -d '{...}'
+
+# I valori si SCRIVONO: all'istantanea i tag valgono il loro valore iniziale, che
+# è sempre zero — non esiste un "initial_value" da dichiarare, e nemmeno i tag
+# calcolati aiutano, perché senza acquisizione non vengono valutati.
+curl -sf -X PUT localhost:$AP/api/tags/q.a -H 'Content-Type: application/json' -d '{"value":45}'
+
+# Il pannello: un PPM, che è RGB888 grezzo e si legge in dieci righe di Python.
+./sws-runtime/target/debug/sws-lvgl-viewer --base-url http://localhost:$VP \
+  --page "Pagina 1" --istantanea $W/p.ppm
+```
+
+Per il browser basta Playwright sulla porta **viewer** (`$VP`), leggendo gli attributi degli
+elementi invece dei pixel: `document.querySelectorAll("svg rect")` e il loro `height`.
+
+### Le tre trappole, tutte pagate
+
+1. **I tag valgono zero.** Non perché l'istantanea sia cieca — `--istantanea` legge i valori dal
+   runtime che gli si indica con `--base-url`, ed è per questo che scriverli funziona (è lo
+   *strumento della chat* del capitolo 6 ad avere un banco isolato dal campo, non questo comando).
+   Valgono zero perché un runtime usa e getta non ha nessuna sorgente in acquisizione, e non esiste
+   un valore iniziale da dichiarare: `TagDef::initial_value()` restituisce sempre lo zero del tipo.
+   Nemmeno un tag **calcolato** aiuta — senza acquisizione l'espressione non viene valutata; provato.
+   L'unica strada è `PUT /api/tags/:id` prima di scattare.
+2. **I colori tornano quantizzati in RGB565.** Un `#3b82f6` esce come `rgb(57,129,246)`. Si
+   confronta con una tolleranza (±14 va bene), non con l'uguaglianza.
+3. **Contare i pixel di un colore non è misurare un'altezza.** Gli angoli smussati e
+   l'antialiasing fanno mancare qualche percento. Per un'altezza conviene prendere
+   `max(y) - min(y) + 1` fra i pixel di quel colore.
+
+### Cosa se ne ricava
+
+Numeri confrontabili fra i due motori — «130 px contro 61» — che si possono mettere in una scheda
+di `OPEN_QUESTIONS.md` e su cui si può decidere. `scripts/check_fuori_pagina_lvgl.sh` è un esempio
+completo e funzionante di questo giro, da copiare.

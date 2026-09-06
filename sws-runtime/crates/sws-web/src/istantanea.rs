@@ -125,9 +125,7 @@ pub async fn scatta(r: Richiesta) -> Result<Scatto, String> {
         .spawn()
         .map_err(|e| format!("non riesco ad avviare il runtime di prova: {e}"))?;
 
-    if let Err(e) = attendi_salute(porta, &mut figlio).await {
-        return Err(e);
-    }
+    attendi_salute(porta, &mut figlio).await?;
 
     let base = format!("http://127.0.0.1:{porta}");
     let ppm = tmp.path().join("scatto.ppm");

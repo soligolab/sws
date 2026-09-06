@@ -109,6 +109,9 @@ Open any project. Switch to **edit mode** (the toggle is in the top header).
 
 - [ ] **3.14** Drag an object → moves smoothly. Snap-to-grid (cyan line) appears when aligning with another object's edge/center.
 - [ ] **3.15** Arrow keys → nudge 1 px. Shift+Arrows → nudge by `gridSize` px.
+- [ ] **3.15a** Con una **pipe** selezionata le frecce la muovono davvero (F6: prima
+  cambiavano `x`/`y`, che per una pipe non sono la geometria, e la pipe restava
+  ferma). Provalo anche su una **linea**: si sposta con tutti e due gli estremi.
 
 ### Resize handles
 

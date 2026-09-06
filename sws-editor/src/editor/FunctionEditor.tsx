@@ -124,7 +124,7 @@ export function FunctionEditor({ fn, onPatch, onPersist, onClose }: FunctionEdit
           disabled={saving || !isDirty}
           style={{
             background: isDirty ? "var(--brand-success-bg, #166534)" : "var(--brand-surface-2, #334155)",
-            color:      isDirty ? "#bbf7d0" : "var(--brand-text-muted, #94a3b8)",
+            color:      isDirty ? "var(--brand-success-soft, #4ade80)" : "var(--brand-text-muted, #94a3b8)",
             border: `1px solid ${isDirty ? "#15803d" : "var(--brand-border, #475569)"}`,
             borderRadius: 4,
             padding: "5px 14px",
@@ -203,7 +203,7 @@ export function FunctionEditor({ fn, onPatch, onPersist, onClose }: FunctionEdit
             PARAMETRI
           </div>
           {fn.params.length === 0 && (
-            <p style={{ fontSize: 11, color: "var(--brand-border, #475569)", margin: 0 }}>
+            <p style={{ fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", margin: 0 }}>
               Nessun parametro. La funzione si chiama "nuda".
             </p>
           )}
@@ -253,7 +253,7 @@ export function FunctionEditor({ fn, onPatch, onPersist, onClose }: FunctionEdit
             + Aggiungi parametro
           </button>
 
-          <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "8px 0 0" }}>
+          <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "8px 0 0" }}>
             Bindings: <code>tags.read(id)</code>, <code>tags.write(id, value)</code>, <code>print(...)</code>.
             I parametri della funzione sono disponibili come variabili globali nel corpo Python.
           </p>

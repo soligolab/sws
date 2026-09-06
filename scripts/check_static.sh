@@ -38,6 +38,7 @@ STATICHE=(
     check_session_start     # session_start.sh non deve poter perdere lavoro
     check_off_page          # «fuori pagina»: la stessa tabella in Rust e in TypeScript
     check_versione_progetto # chi riscrive project.yaml e chi se ne accorge (Q30)
+    check_manuale_widget    # il capitolo dei widget nomina tutti i tipi della palette
 )
 
 # Vogliono uno stack in ascolto, podman o un dispositivo: a mano, non qui.
@@ -46,7 +47,8 @@ CON_STACK=(
     check_ack_reason check_database_mgmt check_deploy_preserve check_discover
     check_e2e check_f7 check_f76 check_f8 check_multiselect_drag
     check_project_write_safety check_spa_autoreload check_viewer_layout
-    check_wysiwyg check_no_admin check_istantanea check_soft_edge
+    check_wysiwyg check_no_admin check_istantanea check_soft_edge check_fuori_pagina_lvgl
+    check_simboli_lvgl check_contrasto
 )
 
 # ── nessuna guardia resta fuori in silenzio ───────────────────────────────────

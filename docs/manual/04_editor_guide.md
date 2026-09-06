@@ -35,11 +35,32 @@ SWS  Project: default  [Editor] [Configurazione]  User: admin  Admin  Griglia: 1
 | **Editor / Configurazione** | Alterna tra la vista editor e la configurazione progetto |
 | **User: admin Admin** | Badge utente corrente + ruolo (cliccabile per cambio password) |
 | **Griglia: 10px** | Snap-to-grid — imposta il passo della griglia (10, 20, 5 px o libero) |
-| **● Start / Stop** | Avvia/ferma il loop di polling PLC del runtime |
+| **RUN / STOP** | Avvia o ferma l'acquisizione dal campo — vedi sotto |
 | **Reboot** | Riavvia il runtime (ricarica configurazione) |
 | **● Deploy** | Distribuisce la versione locale su un runtime remoto |
+| **⚠ (contatore)** | Avvisi del runtime: compare solo se c'è qualcosa che non va |
 | **Log** | Apre il pannello log in tempo reale |
 | **≡ Menu** | Salva tutto, importa/esporta progetto, simboli personalizzati |
+
+### RUN e STOP: fermare l'acquisizione
+
+Due pulsanti e non un interruttore, di proposito: su un impianto chi preme deve vedere **lo stato
+che c'è**, non l'azione che farebbe. Quello acceso dice se l'acquisizione sta girando.
+
+Con l'acquisizione ferma il runtime **resta fermo anche se salvi**. Prima non era così: salvare la
+sezione Sorgenti faceva ripartire tutto, perché il salvataggio ricarica le sorgenti — e chi aveva
+fermato l'impianto per lavorarci se lo ritrovava in marcia senza aver premuto niente. Adesso
+«fermo» è uno stato, e ci vuole un RUN esplicito per uscirne.
+
+### Gli avvisi in testata
+
+Il triangolo con un contatore compare **solo quando c'è qualcosa che non va**, e cliccandolo si apre
+un pannello che per ogni voce dice **dove**, **cosa** e **come rimediare**. Serve per i guasti che
+altrimenti vivrebbero solo nel log: uno script globale con una schedulazione illeggibile, per
+esempio, che non partirà mai e prima non lo diceva nessuno.
+
+Un avviso che si accende anche quando va tutto bene insegna a ignorarlo: per questo qui non c'è
+nessun indicatore verde.
 
 ---
 
@@ -100,7 +121,7 @@ Widget divisi per categoria:
 - Bar Chart, Pie/Donut Chart, Sparkline, Alarm Viewer
 
 **SCADA** — simboli industriali:
-- Picker simboli (22 built-in + simboli custom caricati)
+- Picker simboli (40 in libreria — 29 disegnati e ricolorabili, 11 importati che tengono i propri colori — più i simboli custom caricati)
 - Pipe/Tubazione (connettori multi-waypoint)
 - Faceplate (componente parametrizzabile)
 
@@ -250,6 +271,42 @@ Lascia vuoto = nessuna restrizione.
 ### Salva manuale
 
 **≡ Menu → Salva tutto** (o `Ctrl+S`): salva il progetto corrente sul runtime.
+
+### Quando il salvataggio viene rifiutato
+
+Può comparire una banda arancione: **«Il salvataggio è stato rifiutato: qualcun altro ha modificato
+il progetto mentre lavoravi, e le sue modifiche non sono state cancellate.»**
+
+Non è un errore: è una protezione. Ogni sezione della Configurazione salva l'elenco **intero** —
+tutte le variabili, tutti gli allarmi — quindi due schede aperte sullo stesso progetto, che salvano
+una dopo l'altra, si cancellerebbero il lavoro a vicenda senza che nessuno se ne accorga. Il
+runtime tiene una versione del file e rifiuta chi parte da una versione vecchia.
+
+Il rimedio è il pulsante **Ricarica** nella banda: rilegge il progetto e riparte da quello che c'è
+adesso. **Le modifiche non salvate di quella sezione si perdono**, quindi se hai testo a cui tieni
+— un pezzo di codice Python, per esempio — copialo prima di ricaricare.
+
+I casi in cui capita davvero:
+
+- **due schede del browser** aperte sulla stessa Configurazione;
+- **un deploy o un pull GitOps** arrivato mentre lavoravi;
+- qualcuno che ha modificato i file sul dispositivo.
+
+C'è anche una banda simile, senza rifiuto, che dice «il progetto sul runtime è cambiato: questa
+pagina mostra ancora la versione precedente». Quella compare **prima** che tu provi a salvare, e
+l'IDE non ricarica da solo di proposito: se avessi del lavoro non salvato, sovrascriverlo senza
+chiedere sarebbe peggio che mostrarti dati vecchi.
+
+### ⚠ Aggiorna progetto
+
+Se il progetto è stato salvato da una versione di SWS più vecchia di quella che lo sta servendo,
+in testata compare **⚠ Aggiorna progetto**. Il pulsante riscrive i file nel formato corrente,
+**senza perdere niente**: le chiavi che questa versione non conosce vengono conservate così come
+sono, di proposito, perché «normalizzare il formato» non deve mai voler dire «cancellare ciò che
+una versione più nuova ha scritto».
+
+Va premuto una volta sola, e da lì l'avviso sparisce. È l'operazione tipica dopo aver importato un
+progetto vecchio o aver aggiornato il runtime di un dispositivo.
 
 ### Export / Import
 

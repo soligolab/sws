@@ -101,21 +101,46 @@ if (txtFo?.style?.whiteSpace === "pre-wrap") ok("testo: whiteSpace pre-wrap (va 
 else fail(`testo: stile ${JSON.stringify(txtFo?.style)}`);
 if (txtFo?.style?.alignItems === "center") ok("testo: allineamento verticale centrato");
 else fail(`testo: alignItems ${txtFo?.style?.alignItems}`);
-// Il colore deve venire dal token di tema (--brand-text), non essere
-// hardcoded: dentro un foreignObject una var CSS non risolta darebbe il colore
-// ereditato e nessuno se ne accorgerebbe guardando uno screenshot.
-// NB: se il tema attivo è chiaro, il token È scuro — il contrasto con lo
-// sfondo scelto per la PAGINA è un tema aperto, annotato in OPEN_QUESTIONS.
+// Il colore deve venire da una **variabile**, non essere scritto a mano: dentro
+// un foreignObject una var CSS non risolta darebbe il colore ereditato, e
+// guardando uno screenshot nessuno se ne accorgerebbe.
+//
+// La variabile giusta è `--synoptic-text`, non `--brand-text`. Q18 ha deciso che
+// il colore predefinito del testo di un oggetto si ricava dallo **sfondo della
+// pagina** e non dal tema dell'app: un sinottico è un disegno, e i suoi colori
+// seguono il foglio su cui sono disegnati. `SvgCanvas` calcola
+// `--synoptic-text` dal `background` della pagina e lo mette sul nodo `<svg>`.
+//
+// Questa misura confrontava ancora con `--brand-text` sondato sul `body`, cioè
+// col tema dell'app: da Q18 in poi sono due cose diverse per costruzione, e la
+// prova passava solo quando tema e sfondo pagina avevano per caso la stessa
+// polarità. Con tema chiaro e pagina scura falliva pur essendo tutto giusto —
+// un rosso che non indica niente insegna a ignorare i rossi.
 const themeText = await pg.evaluate(() => {
+  // Si sonda **dentro** il canvas, dove la variabile è definita: sul body
+  // `--synoptic-text` non esiste e si ricadrebbe sul fallback.
+  const canvas = [...document.querySelectorAll("svg")].reduce((best, s) => {
+    const r = s.getBoundingClientRect();
+    return !best || r.width * r.height > best.area ? { el: s, area: r.width * r.height } : best;
+  }, null)?.el;
+  if (!canvas) return null;
   const probe = document.createElement("div");
-  probe.style.color = "var(--brand-text, #e2e8f0)";
-  document.body.appendChild(probe);
+  probe.style.color = "var(--synoptic-text, var(--brand-text, #e2e8f0))";
+  canvas.appendChild(probe);
   const c = getComputedStyle(probe).color;
   probe.remove();
-  return c;
+  // Il valore **grezzo** della variabile, non solo il colore risolto: se
+  // `--synoptic-text` non fosse più definita, sonda e oggetto ricadrebbero
+  // entrambi sullo stesso fallback e il confronto qui sotto sarebbe verde
+  // confrontando un valore con se stesso. Una prova che non può fallire è
+  // peggio di nessuna prova.
+  const grezzo = getComputedStyle(canvas).getPropertyValue("--synoptic-text").trim();
+  return { c, grezzo };
 });
-if (txtFo?.style?.color === themeText) ok(`testo: colore dal tema (${themeText})`);
-else fail(`testo: colore ${txtFo?.style?.color}, atteso il token di tema ${themeText}`);
+if (themeText === null) fail("testo: canvas non trovato, colore non misurabile");
+else if (!themeText.grezzo) fail("testo: --synoptic-text non è definita sul canvas — Q18 non è più applicata, e questa prova non starebbe misurando niente");
+else if (txtFo?.style?.color === themeText.c) ok(`testo: colore dalla variabile del foglio (${themeText.c} da --synoptic-text: ${themeText.grezzo})`);
+else fail(`testo: colore ${txtFo?.style?.color}, atteso ${themeText.c} da --synoptic-text`);
 if (txtFo?.style?.lineHeight && parseFloat(txtFo.style.lineHeight) > 18) ok(`testo: interlinea applicata (${txtFo.style.lineHeight} su corpo ${txtFo.style.fontSize})`);
 else fail(`testo: interlinea ${txtFo?.style?.lineHeight}`);
 

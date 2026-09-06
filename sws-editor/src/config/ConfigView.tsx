@@ -162,7 +162,7 @@ const S = {
   btn: (variant: "primary" | "danger" | "ghost" | "success"): React.CSSProperties => {
     const map = {
       primary: { background: "#1d4ed8", color: "#dbeafe", border: "1px solid #1e40af" },
-      success: { background: "var(--brand-success-bg, #166534)", color: "#bbf7d0", border: "1px solid #15803d" },
+      success: { background: "var(--brand-success-bg, #166534)", color: "var(--brand-success-soft, #4ade80)", border: "1px solid #15803d" },
       danger:  { background: "var(--brand-danger-bg, #7f1d1d)", color: "var(--brand-danger-soft, #fca5a5)", border: "1px solid #991b1b" },
       ghost:   { background: "transparent", color: "var(--brand-text-subtle, #64748b)", border: "1px solid var(--brand-surface-2, #334155)" },
     };
@@ -761,7 +761,7 @@ function TagsTab() {
                       ))}
                     </select>
                   ) : (
-                    <span style={{ color: "var(--brand-border, #475569)", fontSize: 11 }}>—</span>
+                    <span style={{ color: "var(--brand-text-subtle, #94a3b8)", fontSize: 11 }}>—</span>
                   )}
                 </td>
                 <td style={{ ...S.td, textAlign: "center" }}>
@@ -781,7 +781,7 @@ function TagsTab() {
                     style={{
                       ...S.btn("ghost"),
                       marginRight: 4,
-                      color: tag.expression ? "#818cf8" : "var(--brand-border, #475569)",
+                      color: tag.expression ? "#818cf8" : "var(--brand-text-subtle, #94a3b8)",
                       fontFamily: "monospace",
                       fontWeight: "bold",
                     }}
@@ -794,7 +794,7 @@ function TagsTab() {
                     style={{
                       ...S.btn("ghost"),
                       marginRight: 4,
-                      color: hasMeta(tag) ? "#38bdf8" : "var(--brand-border, #475569)",
+                      color: hasMeta(tag) ? "#38bdf8" : "var(--brand-text-subtle, #94a3b8)",
                       fontWeight: "bold",
                     }}
                     title={t("cfg.tagMeta")}
@@ -858,7 +858,7 @@ function TagsTab() {
                             {numCell("Hi", "limit_hi")}
                             {numCell("Hi-Hi", "limit_hi_hi")}
                           </div>
-                          <div style={{ fontSize: 10, color: "var(--brand-border, #475569)" }}>
+                          <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)" }}>
                             {t("cfg.tagMetaHint")}
                           </div>
                         </div>
@@ -907,7 +907,7 @@ function TagsTab() {
             <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #64748b)", fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>
               TAG DA SORGENTI — non ancora nella lista variabili
             </div>
-            <div style={{ fontSize: 11, color: "var(--brand-border, #475569)", marginBottom: 8 }}>
+            <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", marginBottom: 8 }}>
               Questi tag sono attivi nei protocolli ma non hanno una definizione variabile.
               "Abilita storico" li aggiunge alla lista con <em>history: true</em> — poi salva.
             </div>
@@ -1430,7 +1430,7 @@ function HaBrowseModal({
             </div>
           )}
           {!loading && !error && filtered.length === 0 && (
-            <div style={{ padding: 24, textAlign: "center", color: "var(--brand-border, #475569)" }}>Nessuna entità trovata.</div>
+            <div style={{ padding: 24, textAlign: "center", color: "var(--brand-text-subtle, #94a3b8)" }}>Nessuna entità trovata.</div>
           )}
           {!loading && !error && filtered.map((ent) => (
             <div key={ent.entity_id} style={{ borderBottom: "1px solid var(--brand-bg, #0f172a)" }}>
@@ -1496,7 +1496,7 @@ function HaBrowseModal({
         </div>
 
         {/* Footer */}
-        <div style={{ padding: "10px 16px", borderTop: "1px solid var(--brand-surface-2, #334155)", fontSize: 11, color: "var(--brand-border, #475569)" }}>
+        <div style={{ padding: "10px 16px", borderTop: "1px solid var(--brand-surface-2, #334155)", fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)" }}>
           {!loading && !error && `${filtered.length} / ${entities.length} entità`}
         </div>
       </div>
@@ -1553,7 +1553,7 @@ function HomeAssistantSourceCard({
           >
             Elimina
           </button>
-          <span style={{ color: "var(--brand-border, #475569)", fontSize: 14 }}>{open ? "▲" : "▼"}</span>
+          <span style={{ color: "var(--brand-text-subtle, #94a3b8)", fontSize: 14 }}>{open ? "▲" : "▼"}</span>
         </div>
       </div>
 
@@ -1574,7 +1574,7 @@ function HomeAssistantSourceCard({
             <div>
               <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>
                 Token accesso{" "}
-                <span style={{ fontWeight: 400, color: "var(--brand-border, #475569)" }}>(oppure usa token_env)</span>
+                <span style={{ fontWeight: 400, color: "var(--brand-text-subtle, #94a3b8)" }}>(oppure usa token_env)</span>
               </label>
               <input style={S.input} type="password" placeholder="long-lived access token"
                 value={source.token ?? ""}
@@ -1609,7 +1609,7 @@ function HomeAssistantSourceCard({
             <tbody>
               {source.entities.length === 0 && (
                 <tr>
-                  <td colSpan={6} style={{ ...S.td, color: "var(--brand-border, #475569)", textAlign: "center", padding: 12 }}>
+                  <td colSpan={6} style={{ ...S.td, color: "var(--brand-text-subtle, #94a3b8)", textAlign: "center", padding: 12 }}>
                     Nessuna entità — aggiungi una mappatura.
                   </td>
                 </tr>
@@ -1785,7 +1785,7 @@ function OpcUaSourceCard({
         onClick={() => setOpen((v) => !v)}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 10, color: "var(--brand-border, #475569)" }}>{open ? "▼" : "▶"}</span>
+          <span style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)" }}>{open ? "▼" : "▶"}</span>
           <span style={{ fontWeight: 600 }}>OPC-UA · {source.id}</span>
           <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>{source.endpoint_url}</span>
         </div>
@@ -2173,7 +2173,7 @@ function OpcUaServerSourceCard({
           >
             Elimina
           </button>
-          <span style={{ color: "var(--brand-border, #475569)", fontSize: 14 }}>{open ? "▲" : "▼"}</span>
+          <span style={{ color: "var(--brand-text-subtle, #94a3b8)", fontSize: 14 }}>{open ? "▲" : "▼"}</span>
         </div>
       </div>
 
@@ -2212,7 +2212,7 @@ function OpcUaServerSourceCard({
             <tbody>
               {source.nodes.length === 0 && (
                 <tr>
-                  <td colSpan={3} style={{ ...S.td, color: "var(--brand-border, #475569)", textAlign: "center", padding: 12 }}>
+                  <td colSpan={3} style={{ ...S.td, color: "var(--brand-text-subtle, #94a3b8)", textAlign: "center", padding: 12 }}>
                     Nessun nodo — aggiungi una mappatura.
                   </td>
                 </tr>
@@ -2362,7 +2362,7 @@ function OpcUaBrowseModal({
       const icon = isFolder ? "📁" : isVariable ? "📊" : n.node_class === "Method" ? "⚙" : "·";
       const labelColor = isVariable
         ? (isImported ? "var(--brand-border, #475569)" : isPicked ? "#5eead4" : "var(--brand-text-2, #cbd5e1)")
-        : isFolder ? "#fde68a"
+        : isFolder ? "var(--brand-warning-soft, #facc15)"
         : "var(--brand-text-subtle, #64748b)";
       return (
         <div key={n.node_id}>
@@ -2396,7 +2396,7 @@ function OpcUaBrowseModal({
             <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {n.display_name || n.browse_name || n.node_id}
             </span>
-            <span style={{ fontSize: 10, fontFamily: "monospace", color: "var(--brand-border, #475569)" }}>
+            <span style={{ fontSize: 10, fontFamily: "monospace", color: "var(--brand-text-subtle, #94a3b8)" }}>
               {n.node_id}
             </span>
           </div>
@@ -2608,7 +2608,7 @@ function OpcUaEuromapModal({
                         borderBottom: "1px solid var(--brand-surface, #1e293b)",
                         cursor: imported ? "not-allowed" : "pointer",
                         background: checked ? "#0f2922" : "transparent",
-                        color: imported ? "var(--brand-border, #475569)" : "var(--brand-text-2, #cbd5e1)",
+                        color: imported ? "var(--brand-text-subtle, #94a3b8)" : "var(--brand-text-2, #cbd5e1)",
                       }}
                     >
                       <td style={{ padding: "6px 12px" }}>
@@ -2722,7 +2722,7 @@ function ModbusSourceCard({
           >
             Elimina
           </button>
-          <span style={{ color: "var(--brand-border, #475569)", fontSize: 14 }}>{open ? "▲" : "▼"}</span>
+          <span style={{ color: "var(--brand-text-subtle, #94a3b8)", fontSize: 14 }}>{open ? "▲" : "▼"}</span>
         </div>
       </div>
 
@@ -2805,7 +2805,7 @@ function ModbusSourceCard({
             <tbody>
               {source.registers.length === 0 && (
                 <tr>
-                  <td colSpan={5} style={{ ...S.td, color: "var(--brand-border, #475569)", textAlign: "center", padding: 12 }}>
+                  <td colSpan={5} style={{ ...S.td, color: "var(--brand-text-subtle, #94a3b8)", textAlign: "center", padding: 12 }}>
                     Nessun registro — aggiungi una mappatura.
                   </td>
                 </tr>
@@ -2926,7 +2926,7 @@ function ModbusRtuSourceCard({
           >
             Elimina
           </button>
-          <span style={{ color: "var(--brand-border, #475569)", fontSize: 14 }}>{open ? "▲" : "▼"}</span>
+          <span style={{ color: "var(--brand-text-subtle, #94a3b8)", fontSize: 14 }}>{open ? "▲" : "▼"}</span>
         </div>
       </div>
 
@@ -3015,7 +3015,7 @@ function ModbusRtuSourceCard({
             <tbody>
               {source.registers.length === 0 && (
                 <tr>
-                  <td colSpan={5} style={{ ...S.td, color: "var(--brand-border, #475569)", textAlign: "center", padding: 12 }}>
+                  <td colSpan={5} style={{ ...S.td, color: "var(--brand-text-subtle, #94a3b8)", textAlign: "center", padding: 12 }}>
                     Nessun registro — aggiungi una mappatura.
                   </td>
                 </tr>
@@ -3143,7 +3143,7 @@ function MqttSourceCard({
           >
             Elimina
           </button>
-          <span style={{ color: "var(--brand-border, #475569)", fontSize: 14 }}>{open ? "▲" : "▼"}</span>
+          <span style={{ color: "var(--brand-text-subtle, #94a3b8)", fontSize: 14 }}>{open ? "▲" : "▼"}</span>
         </div>
       </div>
 
@@ -3240,7 +3240,7 @@ function MqttSourceCard({
             <tbody>
               {source.topics.length === 0 && (
                 <tr>
-                  <td colSpan={6} style={{ ...S.td, color: "var(--brand-border, #475569)", textAlign: "center", padding: 12 }}>
+                  <td colSpan={6} style={{ ...S.td, color: "var(--brand-text-subtle, #94a3b8)", textAlign: "center", padding: 12 }}>
                     Nessun topic — aggiungi una mappatura.
                   </td>
                 </tr>
@@ -3496,7 +3496,7 @@ function MqttBrowseModal({
                 <tbody>
                   {visible.length === 0 && (
                     <tr>
-                      <td colSpan={4} style={{ ...S.td, textAlign: "center", color: "var(--brand-border, #475569)", padding: 12 }}>
+                      <td colSpan={4} style={{ ...S.td, textAlign: "center", color: "var(--brand-text-subtle, #94a3b8)", padding: 12 }}>
                         Nessun topic corrisponde al filtro.
                       </td>
                     </tr>
@@ -3534,7 +3534,7 @@ function MqttBrowseModal({
                               {keys.map(k => <option key={k} value={k}>{k}</option>)}
                             </select>
                           ) : (
-                            <span style={{ color: "var(--brand-border, #475569)", fontSize: 11 }}>—</span>
+                            <span style={{ color: "var(--brand-text-subtle, #94a3b8)", fontSize: 11 }}>—</span>
                           )}
                         </td>
                       </tr>
@@ -3709,7 +3709,7 @@ function MqttJsonExtractModal({
                 </thead>
                 <tbody>
                   {visible.length === 0 && (
-                    <tr><td colSpan={5} style={{ ...S.td, textAlign: "center", color: "var(--brand-border, #475569)", padding: 12 }}>Nessuna variabile corrisponde al filtro.</td></tr>
+                    <tr><td colSpan={5} style={{ ...S.td, textAlign: "center", color: "var(--brand-text-subtle, #94a3b8)", padding: 12 }}>Nessuna variabile corrisponde al filtro.</td></tr>
                   )}
                   {visible.map((l) => (
                     <tr key={l.path} style={{ background: selected.has(l.path) ? "#172554" : "transparent" }}>
@@ -3777,7 +3777,7 @@ function MqttAuthSection({
         <div>
           <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>
             Password{" "}
-            <span style={{ color: "var(--brand-border, #475569)" }}>(lascia "********" per non modificare)</span>
+            <span style={{ color: "var(--brand-text-subtle, #94a3b8)" }}>(lascia "********" per non modificare)</span>
           </label>
           <div style={{ display: "flex", gap: 4 }}>
             <input
@@ -3875,7 +3875,7 @@ function MqttConnectionSection({
             placeholder={t("cfg.maxSilenceSecsPlaceholder")}
             onChange={(e) => onChange({ max_silence_secs: e.target.value === "" ? undefined : Number(e.target.value) })}
           />
-          <p style={{ fontSize: 10, color: "var(--brand-border, #475569)", margin: "4px 0 0" }}>
+          <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "4px 0 0" }}>
             {t("cfg.maxSilenceSecsHint")}
           </p>
         </div>
@@ -4322,7 +4322,7 @@ function ProtocolsTab() {
       </div>
 
       {sources.length === 0 && (
-        <div style={{ color: "var(--brand-border, #475569)", fontSize: 13, marginBottom: 16 }}>
+        <div style={{ color: "var(--brand-text-subtle, #94a3b8)", fontSize: 13, marginBottom: 16 }}>
           Nessuna sorgente configurata.
         </div>
       )}
@@ -4560,7 +4560,7 @@ function AlarmsTab() {
         <tbody>
           {alarms.length === 0 && (
             <tr>
-              <td colSpan={10} style={{ ...S.td, color: "var(--brand-border, #475569)", textAlign: "center", padding: 12 }}>
+              <td colSpan={10} style={{ ...S.td, color: "var(--brand-text-subtle, #94a3b8)", textAlign: "center", padding: 12 }}>
                 Nessun allarme definito.
               </td>
             </tr>
@@ -5055,7 +5055,7 @@ function GitOpsPanel() {
           {gitStatus.author}: {gitStatus.message}
         </div>
         {gitStatus.remote_url && (
-          <div style={{ fontSize: 11, color: "var(--brand-border, #475569)", wordBreak: "break-all" }}>{gitStatus.remote_url}</div>
+          <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", wordBreak: "break-all" }}>{gitStatus.remote_url}</div>
         )}
         <div style={{ display: "flex", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
           <button
@@ -5622,7 +5622,7 @@ function AuditSection() {
           marginBottom: 10, fontSize: 12, borderRadius: 6, padding: "8px 12px",
           background: verify.ok ? "var(--brand-success-bg, #166534)" : "#450a0a",
           border: `1px solid ${verify.ok ? "#15803d" : "#991b1b"}`,
-          color: verify.ok ? "#bbf7d0" : "var(--brand-danger-soft, #fca5a5)",
+          color: verify.ok ? "var(--brand-success-soft, #4ade80)" : "var(--brand-danger-soft, #fca5a5)",
         }}>
           {verify.ok
             ? `✓ Catena integra — ${verify.entries} entry verificate.`
@@ -5646,7 +5646,7 @@ function AuditSection() {
           </thead>
           <tbody>
             {entries.length === 0 && !loading && (
-              <tr><td colSpan={4} style={{ ...S.td, textAlign: "center", color: "var(--brand-border, #475569)", padding: 16 }}>Nessuna entry.</td></tr>
+              <tr><td colSpan={4} style={{ ...S.td, textAlign: "center", color: "var(--brand-text-subtle, #94a3b8)", padding: 16 }}>Nessuna entry.</td></tr>
             )}
             {[...entries].reverse().map((e) => (
               <tr key={e.seq}>
@@ -6219,7 +6219,7 @@ function ResourcesTab() {
           SIMBOLI PROGETTO ({customSymbols.length})
         </div>
         {customSymbols.length === 0 ? (
-          <div style={{ color: "var(--brand-border, #475569)", fontSize: 13 }}>Nessun simbolo custom aggiunto.</div>
+          <div style={{ color: "var(--brand-text-subtle, #94a3b8)", fontSize: 13 }}>Nessun simbolo custom aggiunto.</div>
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
@@ -6377,7 +6377,7 @@ function ResourcesTab() {
               opacity: (!form.label.trim() || !form.url.trim()) ? 0.5 : 1,
             }}
           >{saving ? "Salvataggio…" : "Aggiungi al progetto"}</button>
-          <span style={{ fontSize: 11, color: "var(--brand-border, #475569)" }}>
+          <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)" }}>
             Confermando accetti di rispettare i termini della licenza selezionata.
           </span>
         </div>
@@ -7550,7 +7550,7 @@ function RecipesTab() {
         {/* Right: recipe editor */}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
           {!selected ? (
-            <div style={{ color: "var(--brand-border, #475569)", fontSize: 12, padding: 20 }}>
+            <div style={{ color: "var(--brand-text-subtle, #94a3b8)", fontSize: 12, padding: 20 }}>
               Seleziona o crea una ricetta per modificarla.
             </div>
           ) : (
@@ -7580,7 +7580,7 @@ function RecipesTab() {
                 <tbody>
                   {selected.setpoints.length === 0 && (
                     <tr>
-                      <td colSpan={3} style={{ ...S.td, color: "var(--brand-border, #475569)", textAlign: "center", padding: 12 }}>
+                      <td colSpan={3} style={{ ...S.td, color: "var(--brand-text-subtle, #94a3b8)", textAlign: "center", padding: 12 }}>
                         Nessun setpoint. Clicca "+ Aggiungi" per iniziare.
                       </td>
                     </tr>
@@ -8713,24 +8713,24 @@ function RuntimeConnectionTab() {
                           }}
                         >📦 {r.container}</span>
                       )}
-                      <span style={{ fontSize: 11, color: "var(--brand-border, #475569)" }}>{discoveredAdminUrl(r)}</span>
+                      <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)" }}>{discoveredAdminUrl(r)}</span>
                     </div>
                   ))
               }
             </div>
           )}
-          <span style={{ fontSize: 10, color: "var(--brand-border, #475569)" }}>
+          <span style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)" }}>
             Porta 8444 = accesso admin (deploy). Porta 8443 = viewer operatori.
           </span>
           <div style={{ display: "flex", gap: 8 }}>
             <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 4 }}>{t("cfg.user")} <span style={{ color: "var(--brand-border, #475569)" }}>(opzionale)</span></label>
+              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 4 }}>{t("cfg.user")} <span style={{ color: "var(--brand-text-subtle, #94a3b8)" }}>(opzionale)</span></label>
               <input style={{ ...INPUT, width: "100%", boxSizing: "border-box" }}
                 placeholder={t("cfg.emptyIfNoUsers")} value={targetUser}
                 onChange={(e) => setTargetUser(e.target.value)} />
             </div>
             <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 4 }}>{t("cfg.password")} <span style={{ color: "var(--brand-border, #475569)" }}>(opzionale)</span></label>
+              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 4 }}>{t("cfg.password")} <span style={{ color: "var(--brand-text-subtle, #94a3b8)" }}>(opzionale)</span></label>
               <input style={{ ...INPUT, width: "100%", boxSizing: "border-box" }}
                 type="password" placeholder="••••••••" value={targetPass}
                 onChange={(e) => setTargetPass(e.target.value)}
@@ -8765,7 +8765,7 @@ function RuntimeConnectionTab() {
           </span>
         )}
         {status === "idle" && (
-          <span style={{ color: "var(--brand-border, #475569)", fontSize: 13 }}>{t("cfg.notConnected")}</span>
+          <span style={{ color: "var(--brand-text-subtle, #94a3b8)", fontSize: 13 }}>{t("cfg.notConnected")}</span>
         )}
         {status === "connecting" && (
           <span style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 13 }}>Connessione in corso…</span>
@@ -8784,7 +8784,7 @@ function RuntimeConnectionTab() {
           <div style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>
             Deploy progetto
           </div>
-          <p style={{ fontSize: 12, color: "var(--brand-border, #475569)", margin: "0 0 10px" }}>
+          <p style={{ fontSize: 12, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 10px" }}>
             Esporta il progetto attivo e lo attiva sul runtime target.
           </p>
           {!deployDone && (
@@ -8812,7 +8812,7 @@ function RuntimeConnectionTab() {
 
           {/* Danger: rimuovi il progetto attivo dal runtime */}
           <div style={{ marginTop: 16, paddingTop: 12, borderTop: "1px solid var(--brand-surface, #1e293b)" }}>
-            <p style={{ fontSize: 12, color: "var(--brand-border, #475569)", margin: "0 0 8px" }}>
+            <p style={{ fontSize: 12, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 8px" }}>
               Elimina il progetto attualmente attivo sul runtime (es. per ripartire pulito).
             </p>
             <button style={{ ...BTN, opacity: pushingUsers ? 0.6 : 1 }}
@@ -8841,7 +8841,7 @@ function RuntimeConnectionTab() {
           <div style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>
             Riapri il progetto del dispositivo
           </div>
-          <p style={{ fontSize: 12, color: "var(--brand-border, #475569)", margin: "0 0 10px" }}>
+          <p style={{ fontSize: 12, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 10px" }}>
             Scarica il progetto che gira sul runtime connesso e lo apre qui, al posto di quello
             aperto ora. Prima di toccare qualsiasi cosa ne scarica una copia .zip.
           </p>
@@ -8980,7 +8980,7 @@ function RuntimeConnectionTab() {
             fontFamily: "monospace", fontSize: 11,
           }}>
             {liveTags.size === 0
-              ? <span style={{ color: "var(--brand-border, #475569)" }}>Nessuna variabile ricevuta…</span>
+              ? <span style={{ color: "var(--brand-text-subtle, #94a3b8)" }}>Nessuna variabile ricevuta…</span>
               : Array.from(liveTags.entries()).slice(0, 50).map(([id, t]) => {
                   const qColor = t.quality === "Good" ? "var(--brand-success-soft, #4ade80)" : t.quality === "Bad" ? "var(--brand-danger-soft, #f87171)" : "#fb923c";
                   return (
@@ -9039,7 +9039,7 @@ function RuntimeConnectionTab() {
                   border: `1px solid ${selectedPkg === p.name ? "var(--brand-primary, #3b82f6)" : "transparent"}`,
                 }}>
                 <span style={{ fontSize: 12, color: "var(--brand-text, #e2e8f0)", flex: 1, fontFamily: "monospace" }}>{p.name}</span>
-                <span style={{ fontSize: 11, color: "var(--brand-border, #475569)" }}>
+                <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)" }}>
                   {(p.size_bytes / 1024 / 1024).toFixed(1)} MB
                 </span>
                 <span style={{ fontSize: 10, color: "var(--brand-surface-2, #334155)" }}>
@@ -9177,7 +9177,7 @@ function RuntimeConnectionTab() {
                       placeholder="ghcr.io/soligolab/sws-runtime:2026.7.0-arm64"
                       value={imageRef}
                       onChange={(e) => setImageRef(e.target.value)} />
-                    <span style={{ fontSize: 10, color: "var(--brand-border, #475569)" }}>
+                    <span style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)" }}>
                       {t("cfg.imageRefHint")}
                     </span>
                   </div>
@@ -9250,7 +9250,7 @@ function RuntimeConnectionTab() {
             )}
             {deployMode === "binary" ? (
               <>
-                <span style={{ fontSize: 10, color: "var(--brand-border, #475569)" }}>
+                <span style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)" }}>
                   Richiede <code>sshpass</code> e <code>scp</code> sul sistema locale. Il dispositivo deve avere accesso SSH e <code>sudo</code>.
                 </span>
                 <button
@@ -9273,7 +9273,7 @@ function RuntimeConnectionTab() {
               </>
             ) : (
               <>
-                <span style={{ fontSize: 10, color: "var(--brand-border, #475569)" }}>
+                <span style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)" }}>
                   Richiede <code>sshpass</code> e <code>scp</code> sul sistema locale. Podman rootless sul dispositivo — <strong>nessun <code>sudo</code> richiesto</strong>, a differenza del binario nativo.
                 </span>
                 {/* Vale per entrambe le sorgenti: agisce sui dati del
@@ -9285,7 +9285,7 @@ function RuntimeConnectionTab() {
                       onChange={(e) => setCleanInstall(e.target.checked)} />
                     <span style={{ fontSize: 12, color: cleanInstall ? "var(--brand-danger-soft, #f87171)" : "var(--brand-text-2, #cbd5e1)" }}>
                       {t("cfg.cleanInstall")}
-                      <span style={{ display: "block", fontSize: 10, color: "var(--brand-border, #475569)" }}>
+                      <span style={{ display: "block", fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)" }}>
                         {t("cfg.cleanInstallHint", { path: effectiveDataPath(dataPath) })}
                       </span>
                     </span>
@@ -9371,7 +9371,7 @@ function RuntimeConnectionTab() {
                         onChange={(e) => setUninstallPurge(e.target.checked)} />
                       <span style={{ fontSize: 12, color: uninstallPurge ? "var(--brand-danger-soft, #f87171)" : "var(--brand-text-2, #cbd5e1)" }}>
                         {t("cfg.uninstallPurge")}
-                        <span style={{ display: "block", fontSize: 10, color: "var(--brand-border, #475569)" }}>
+                        <span style={{ display: "block", fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)" }}>
                           {t("cfg.uninstallPurgeHint", { path: effectiveDataPath(dataPath) })}
                         </span>
                       </span>
@@ -9634,7 +9634,7 @@ function DevicesTab() {
 
       {/* Device table */}
       {devices.length === 0 ? (
-        <p style={{ fontSize: 12, color: "var(--brand-border, #475569)", margin: 0 }}>Nessun device salvato. Aggiungine uno qui sotto.</p>
+        <p style={{ fontSize: 12, color: "var(--brand-text-subtle, #94a3b8)", margin: 0 }}>Nessun device salvato. Aggiungine uno qui sotto.</p>
       ) : (
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
@@ -9666,7 +9666,7 @@ function DevicesTab() {
                           : <span style={{ color: "var(--brand-danger-soft, #f87171)" }}>● offline</span>}
                     </td>
                     <td style={{ padding: "8px", textAlign: "center" }}>
-                      {!online ? <span style={{ color: "var(--brand-border, #475569)" }}>—</span>
+                      {!online ? <span style={{ color: "var(--brand-text-subtle, #94a3b8)" }}>—</span>
                         : match === "sync"    ? <span style={{ color: "#34d399" }}>✓ in sync</span>
                         : match === "diff"    ? <span style={{ color: "#fb923c" }}>✗ diff. versione</span>
                         : <span style={{ color: "var(--brand-text-subtle, #64748b)" }}>? n/d</span>}
@@ -9741,7 +9741,7 @@ function DevicesTab() {
           >{t("cfg.add")}</button>
         </div>
         {localFp && (
-          <div style={{ marginTop: 10, fontSize: 11, color: "var(--brand-border, #475569)" }}>
+          <div style={{ marginTop: 10, fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)" }}>
             Firma locale: <span style={{ fontFamily: "monospace", color: "var(--brand-text-subtle, #64748b)" }}>{localFp.substring(0, 16)}…</span>
           </div>
         )}

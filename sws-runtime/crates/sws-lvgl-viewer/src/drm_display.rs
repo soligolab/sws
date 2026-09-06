@@ -261,15 +261,39 @@ impl DrmDisplay {
     /// direttamente nel buffer mappato, rispettando il pitch reale (può
     /// differire da width*4 per allineamento hardware — qui non lo fa,
     /// 1280*4=5120=pitch osservato, ma il codice non lo assume).
-    pub fn flush_rgb888(&mut self, rgb888: &[u8]) {
-        let row_bytes_src = (self.width * 3) as usize;
+    ///
+    /// # F2 — perché prende le misure della sorgente
+    ///
+    /// Prima questa funzione dava per scontato che il frame fosse grande quanto
+    /// il display e iterava su `self.width`/`self.height` leggendo da `rgb888`.
+    /// Con una pagina 800x480 su un display 1280x800 il chiamante passava un
+    /// buffer da 1 152 000 byte e questa ne leggeva fino a 3 072 000: **panic da
+    /// indice fuori range**, cioè la peggior diagnostica possibile su un
+    /// dispositivo senza console — lo schermo resta nero e non lo spiega
+    /// nessuno.
+    ///
+    /// Ora si copia l'**intersezione** fra frame e schermo, alla posizione che
+    /// il chiamante indica: le stesse due regole del backend SDL2, che questo
+    /// caso lo gestiva già (`page_offset` per centrare, ritaglio esplicito per
+    /// non chiedere più pixel di quanti ce ne siano). Due backend che si
+    /// comportano diversamente davanti allo stesso progetto sono una divergenza
+    /// che si paga più tardi.
+    ///
+    /// Cosa c'è **attorno** al foglio quando è più piccolo dello schermo resta
+    /// indefinito: qui non si dipinge, e sul buffer appena aperto è nero perché
+    /// il kernel consegna pagine azzerate. È una decisione di prodotto ancora
+    /// aperta — `docs/OPEN_QUESTIONS.md` Q37 — e non va presa di straforo qui.
+    pub fn flush_rgb888(&mut self, rgb888: &[u8], src_w: u32, src_h: u32, off: (i32, i32)) {
+        let (off_x, off_y, copy_w, copy_h) =
+            ritaglio(src_w, src_h, self.width, self.height, off, rgb888.len());
+        let row_bytes_src = (src_w * 3) as usize;
         let row_bytes_dst = self.pitch as usize;
-        for y in 0..self.height as usize {
+        for y in 0..copy_h as usize {
             let src_row = &rgb888[y * row_bytes_src..(y + 1) * row_bytes_src];
-            let dst_row_off = y * row_bytes_dst;
-            for x in 0..self.width as usize {
+            let dst_row_off = (y + off_y as usize) * row_bytes_dst;
+            for x in 0..copy_w as usize {
                 let s = &src_row[x * 3..x * 3 + 3];
-                let dst_off = dst_row_off + x * 4;
+                let dst_off = dst_row_off + (x + off_x as usize) * 4;
                 unsafe {
                     // XRGB8888 little-endian in memoria: B,G,R,X.
                     *self.map.add(dst_off) = s[2];
@@ -297,5 +321,88 @@ impl Drop for DrmDisplay {
                 &mut dreq as *mut _ as *mut std::os::raw::c_void,
             );
         }
+    }
+}
+
+/// F2 — quanta parte del frame si può copiare sullo schermo, e da dove.
+///
+/// Restituisce `(off_x, off_y, larghezza, altezza)` in pixel. È la parte di
+/// `flush_rgb888` che decide, separata da quella che scrive in memoria: il
+/// difetto stava qui, e qui si può provare senza un framebuffer vero.
+///
+/// Tre limiti, e nessuno è di troppo:
+/// - lo **schermo**: oltre il suo bordo non si scrive, o si torna al panic;
+/// - il **frame**: una pagina più piccola non si stira, si centra e basta;
+/// - i **byte davvero presenti** in `rgb888`. Non è paranoia: il chiamante
+///   dimensiona il buffer sulla pagina e le due misure sono già divergite una
+///   volta. Una funzione che non può andare fuori range non lo farà nemmeno il
+///   giorno in cui qualcuno cambierà il chiamante senza guardare qui.
+pub(crate) fn ritaglio(
+    src_w: u32,
+    src_h: u32,
+    dst_w: u32,
+    dst_h: u32,
+    off: (i32, i32),
+    byte_sorgente: usize,
+) -> (u32, u32, u32, u32) {
+    // Mai negativo, come `page_offset` in main.rs: una pagina più grande dello
+    // schermo parte dall'angolo e viene ritagliata. Spostarla in negativo
+    // taglierebbe anche il lato opposto, nascondendo il doppio delle cose.
+    let off_x = off.0.max(0) as u32;
+    let off_y = off.1.max(0) as u32;
+    let row_bytes = (src_w as usize) * 3;
+    let righe_presenti = if row_bytes == 0 { 0 } else { (byte_sorgente / row_bytes) as u32 };
+    let w = src_w.min(dst_w.saturating_sub(off_x));
+    let h = src_h.min(dst_h.saturating_sub(off_y)).min(righe_presenti);
+    (off_x, off_y, w, h)
+}
+
+#[cfg(test)]
+mod tests_ritaglio {
+    use super::ritaglio;
+
+    /// Il caso che andava in panic: pagina 800x480 su display 1280x800, buffer
+    /// dimensionato sulla pagina. Prima si leggevano 800 righe da un buffer che
+    /// ne conteneva 480.
+    #[test]
+    fn pagina_piu_piccola_del_display() {
+        let byte = 800 * 480 * 3;
+        assert_eq!(ritaglio(800, 480, 1280, 800, (240, 160), byte), (240, 160, 800, 480));
+    }
+
+    /// Pagina più grande: si ritaglia, non si stira, e si parte dall'angolo.
+    #[test]
+    fn pagina_piu_grande_del_display() {
+        let byte = 1920 * 1080 * 3;
+        assert_eq!(ritaglio(1920, 1080, 1280, 800, (0, 0), byte), (0, 0, 1280, 800));
+    }
+
+    /// Offset negativo (pagina più grande, `page_offset` restituisce 0): non
+    /// deve diventare un `as u32` gigantesco.
+    #[test]
+    fn offset_negativo_vale_zero() {
+        let byte = 1920 * 1080 * 3;
+        assert_eq!(ritaglio(1920, 1080, 1280, 800, (-320, -140), byte), (0, 0, 1280, 800));
+    }
+
+    /// Un buffer più corto di quanto le misure dichiarino non fa uscire dai
+    /// bordi: si copia quello che c'è.
+    #[test]
+    fn un_buffer_corto_limita_le_righe() {
+        let byte = 800 * 100 * 3;                       // 100 righe invece di 480
+        assert_eq!(ritaglio(800, 480, 1280, 800, (0, 0), byte), (0, 0, 800, 100));
+    }
+
+    /// Offset che porta il foglio oltre il bordo: zero pixel, non un
+    /// `saturating_sub` che torna a essere enorme.
+    #[test]
+    fn oltre_il_bordo_non_si_copia_niente() {
+        let byte = 800 * 480 * 3;
+        assert_eq!(ritaglio(800, 480, 1280, 800, (2000, 2000), byte), (2000, 2000, 0, 0));
+    }
+
+    #[test]
+    fn misure_a_zero_non_dividono_per_zero() {
+        assert_eq!(ritaglio(0, 0, 1280, 800, (0, 0), 0), (0, 0, 0, 0));
     }
 }

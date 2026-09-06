@@ -1,5 +1,5 @@
 import { test, expect, ensureLoggedIn } from "./fixtures";
-import { ADMIN } from "./_env";
+import { ADMIN, PROGETTO } from "./_env";
 test.use({ ignoreHTTPSErrors: true, viewport: { width: 1440, height: 900 } });
 
 test("bug1: click object does not blank the page", async ({ page }) => {
@@ -42,4 +42,11 @@ test("bug2: new empty project has empty canvas", async ({ page, request }) => {
   const bodyText = await page.evaluate(() => document.body.innerText);
   console.log("empty project svg shapes:", pageObjects, "| has HA content:", bodyText.includes("PANORAMICA") || bodyText.includes("FOTOVOLTAICO"));
   expect(bodyText).not.toContain("FOTOVOLTAICO");
+
+  // Rimette aperto il progetto con contenuto. Quale progetto sia attivo è uno
+  // stato **globale del runtime**, condiviso da tutti gli spec: lasciare aperto
+  // questo, che è vuoto per costruzione, faceva fallire il percorso principale
+  // dell'editor — nessuna pagina, quindi nessun canvas su cui aggiungere un
+  // rettangolo. Un test che cambia lo stato di tutti deve rimetterlo a posto.
+  await request.post(`${ADMIN}/api/projects/${PROGETTO}/open`);
 });

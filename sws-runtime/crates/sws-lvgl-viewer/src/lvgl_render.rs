@@ -1204,7 +1204,7 @@ pub fn geometry_bindings(obj: &SynopticObject) -> Option<serde_json::Value> {
             out.insert(k.to_string(), v.clone());
         }
     }
-    (!out.is_empty()).then(|| serde_json::Value::Object(out))
+    (!out.is_empty()).then_some(serde_json::Value::Object(out))
 }
 
 /// Geometria da applicare in un frame.
@@ -1538,10 +1538,10 @@ unsafe extern "C" fn filtro_grigio_cb(
     opa: lvgl_sys::lv_opa_t,
 ) -> lvgl_sys::lv_color_t {
     let full = c.full;
-    let r = (((full >> 11) & 0x1f) as u32 * 255 / 31) as u32;
-    let g = (((full >> 5) & 0x3f) as u32 * 255 / 63) as u32;
-    let b = ((full & 0x1f) as u32 * 255 / 31) as u32;
-    let lum = ((3 * r + b + 4 * g) / 8).min(255) as u32;
+    let r = ((full >> 11) & 0x1f) as u32 * 255 / 31;
+    let g = ((full >> 5) & 0x3f) as u32 * 255 / 63;
+    let b = (full & 0x1f) as u32 * 255 / 31;
+    let lum = ((3 * r + b + 4 * g) / 8).min(255);
     // Mescola fra originale e grigio secondo `opa`, invece di sostituire: è
     // così che `grayscale(0.9)` lascia un residuo di colore.
     let a = opa as u32;
@@ -5019,6 +5019,18 @@ fn sym_circle(canvas_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>, cx: f64, cy: f
     sym_rect(canvas_ptr, cx - r, cy - r, d, d, 50.0, rgb, w, h);
 }
 
+/// Riempie un poligono **convesso**.
+///
+/// La convessità non è una raccomandazione: `lv_canvas_draw_polygon` in LVGL 8
+/// costruisce la maschera da una serie di semipiani, e su un poligono concavo
+/// non termina. Il 2026-09-06 il simbolo `boiler` — la cui fiamma era uno
+/// zigzag a cinque punti — bloccava il viewer **prima di disegnare qualunque
+/// cosa**: sul pannello, schermo nero e nessun errore. Ci sono voluti una
+/// bisezione e un cronometro per attribuirlo a un simbolo su quaranta.
+///
+/// Una forma concava va spezzata in triangoli dal chiamante, come fa `boiler`.
+/// `scripts/check_simboli_lvgl.sh` disegna tutti i simboli uno per uno con un
+/// limite di tempo: se qualcuno ne aggiunge un altro concavo, se ne accorge lì.
 fn sym_polygon(canvas_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>, pts_design: &[(f64, f64)], rgb: (u8, u8, u8), w: i16, h: i16) {
     let pts: Vec<lvgl_sys::lv_point_t> = pts_design.iter().map(|&(x, y)| sym_pt(x, y, w, h)).collect();
     unsafe {
@@ -5180,7 +5192,21 @@ fn draw_symbol(canvas_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>, id: &str, sta
             sym_rect(canvas_ptr, 46.0, 2.0, 8.0, 12.0, 0.0, SYM_OUTLINE, w, h);
             sym_rect(canvas_ptr, 22.0, 12.0, 56.0, 58.0, 10.0, (30, 41, 59), w, h);
             sym_rect(canvas_ptr, 23.0, 48.0, 54.0, 21.0, 8.0, SYM_DARK, w, h);
-            sym_polygon(canvas_ptr, &[(34.0, 92.0), (44.0, 76.0), (50.0, 92.0), (58.0, 78.0), (66.0, 92.0)], state_c, w, h);
+            // La fiamma è **due triangoli**, non un poligono a cinque punti.
+            //
+            // Quello a cinque punti è concavo (uno zigzag che scende fino alla
+            // base in mezzo), e `lv_canvas_draw_polygon` in LVGL 8 lavora solo
+            // su poligoni **convessi**: con questo entrava in un ciclo che non
+            // finiva, e il viewer si piantava prima di mostrare qualsiasi cosa.
+            // Un `boiler` su una pagina bastava a lasciare il pannello nero,
+            // senza un errore da nessuna parte.
+            //
+            // I due triangoli riempiono **esattamente** la stessa area del
+            // poligono chiuso di prima — la sua base era il segmento da (34,92)
+            // a (66,92), e il punto (50,92) la tocca — quindi il disegno non
+            // cambia, cambia solo il modo di chiederlo.
+            sym_polygon(canvas_ptr, &[(34.0, 92.0), (44.0, 76.0), (50.0, 92.0)], state_c, w, h);
+            sym_polygon(canvas_ptr, &[(50.0, 92.0), (58.0, 78.0), (66.0, 92.0)], state_c, w, h);
             sym_rect(canvas_ptr, 24.0, 70.0, 52.0, 6.0, 3.0, (71, 85, 105), w, h); // #475569
         }
         "cooling_tower" => {
@@ -6133,14 +6159,26 @@ pub fn render_page_objects(
         // prima della risoluzione. Parcheggiare è un gesto di progetto, non uno
         // stato del vivo.
         //
-        // Visivamente è quasi un no-op: gli oggetti sono figli dello screen, e
-        // lo screen è grande come la pagina, quindi LVGL ritagliava già da sé.
-        // Le ragioni per averlo sono altre tre, e la prima è sostanziale:
-        // `set_pos_size` castra a `i16` senza clamp, quindi un oggetto
-        // parcheggiato molto lontano **rientrerebbe per overflow** (x = 66000
-        // diventa 464, cioè dentro la pagina) — improbabile a mano, per niente
-        // improbabile via script o import; non si creano widget che non si
-        // vedranno, e i pannelli sono lenti; e il riepilogo lo dice.
+        // Visivamente è **davvero** un no-op, e va detto con precisione perché
+        // il piano di T-52 diceva altro.
+        //
+        // Il piano sosteneva che senza questo gate un oggetto molto lontano
+        // sarebbe **rientrato per overflow**, perché `set_pos_size` castra a
+        // `i16` senza clamp: x = 66000 → 464, cioè dentro la pagina.
+        // **Misurato il 2026-09-06: non succede.** Il cast lì è da `f64`, e in
+        // Rust `f64 as i16` **satura** (dal 1.45): 66000.0 diventa 32767, non
+        // 464. L'avvolgimento vale per i cast fra interi — `66000_i32 as i16`
+        // fa davvero 464 — ma quella non è la strada che prende una coordinata.
+        // Disattivando questo `if` e ridisegnando la pagina, i pixel sono
+        // identici: gli oggetti fuori pagina non si vedono comunque, perché
+        // sono figli dello screen e LVGL li ritaglia da sé.
+        //
+        // Restano le altre due ragioni, che bastano: non si creano widget che
+        // non si vedranno — e i pannelli sono lenti — e il riepilogo lo dice,
+        // il che è l'unico modo di spiegare una pagina più vuota del previsto
+        // senza aprire l'editor. È anche l'unica cosa che
+        // `check_fuori_pagina_lvgl.sh` può misurare: l'immagine, da sola, non
+        // distingue il gate acceso da quello spento.
         if obj.is_off_page(page) {
             summary.skipped_off_page.push(id.to_string());
             continue;
@@ -6824,7 +6862,7 @@ fn update_alarm_bell(
         map.values()
             .filter(|a| a.active)
             .filter(|a| prefix.is_empty() || a.def.id.starts_with(prefix))
-            .filter(|a| allowed_sev.map_or(true, |sevs| sevs.iter().any(|s| s == &a.def.severity)))
+            .filter(|a| allowed_sev.is_none_or(|sevs| sevs.iter().any(|s| s == &a.def.severity)))
             .cloned()
             .collect()
     };
@@ -6878,7 +6916,7 @@ fn update_alarm_viewer(
         map.values()
             .filter(|a| a.active)
             .filter(|a| prefix.is_empty() || a.def.id.starts_with(prefix))
-            .filter(|a| allowed_sev.map_or(true, |sevs| sevs.iter().any(|s| s == &a.def.severity)))
+            .filter(|a| allowed_sev.is_none_or(|sevs| sevs.iter().any(|s| s == &a.def.severity)))
             .cloned()
             .collect()
     };
@@ -7131,7 +7169,7 @@ fn update_alarm_banner(
         map.values()
             .filter(|a| a.active)
             .filter(|a| prefix.is_empty() || a.def.id.starts_with(prefix))
-            .filter(|a| allowed_sev.map_or(true, |sevs| sevs.iter().any(|s| s == &a.def.severity)))
+            .filter(|a| allowed_sev.is_none_or(|sevs| sevs.iter().any(|s| s == &a.def.severity)))
             .max_by_key(|a| a.activated_at_ms.unwrap_or(0))
             .cloned()
     };

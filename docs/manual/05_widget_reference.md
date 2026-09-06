@@ -142,6 +142,63 @@ Cursore analogico per impostare valori numerici.
 
 ---
 
+### Setpoint (`setpoint`)
+
+Campo numerico con incremento e decremento: l'operatore **imposta** un valore invece di leggerlo. Scrive sul tag a ogni conferma.
+
+| Proprietà | Descrizione |
+|-----------|-------------|
+| `tag` | Tag scritto (e riletto, per mostrare il valore corrente) |
+| `label` | Etichetta sopra il campo |
+| `min` / `max` | Estremi ammessi |
+| `step` | Passo dei pulsanti + e − |
+
+```yaml
+id: o_setpoint
+type: setpoint
+x: 960.0
+y: 254.0
+width: 290.0
+height: 48.0
+label: Consegna
+tag: demo.cmd.setpoint
+min: 0.0
+max: 200.0
+step: 5.0
+```
+
+---
+### Pulsante lingua (`lang_button`)
+
+Cambia la lingua dell'interfaccia con un clic. Serve su un pannello, dove l'operatore non ha un menu di sistema a cui rivolgersi.
+
+| Proprietà | Descrizione |
+|-----------|-------------|
+| `target_lang` | Codice della lingua da attivare (`it`, `en`, …) |
+| `label` | Testo del pulsante |
+
+```yaml
+id: o_langbtn_it
+type: lang_button
+x: 960.0
+y: 202.0
+width: 90.0
+height: 36.0
+label: IT
+target_lang: it
+```
+
+---
+### Selettore lingua (`lang_selector`)
+
+Come il pulsante lingua ma a tendina, con tutte le lingue dichiarate nel progetto. Non ha proprietà proprie: l'elenco lo prende dalla tabella lingue.
+
+| Proprietà | Descrizione |
+|-----------|-------------|
+| `—` | Nessuna proprietà specifica |
+
+---
+
 ## DISPLAY
 
 ### Gauge (`gauge`)
@@ -336,6 +393,181 @@ Due modalità: lista scrollabile o banner ticker orizzontale.
 
 ---
 
+### Spia di stato (`state_lamp`)
+
+Una spia che cambia colore **e testo** secondo il valore del tag: fermo, in marcia, in allarme. È il modo di mostrare uno stato a più valori senza allineare tre LED.
+
+| Proprietà | Descrizione |
+|-----------|-------------|
+| `tag` | Tag che determina lo stato |
+| `text_list_entries` | Elenco valore → testo e colore, nello stesso formato del Text List |
+
+```yaml
+id: o_lamp
+type: state_lamp
+x: 340.0
+y: 96.0
+width: 90.0
+height: 56.0
+tag: demo.sim.mode
+text_list_entries:
+- value: Auto
+  label: Auto
+  color: '#22c55e'
+- value: Manuale
+  label: Manuale
+  color: '#f59e0b'
+- value: Fermo
+  label: Fermo
+  color: '#64748b'
+```
+
+---
+### Riquadro KPI (`kpi_tile`)
+
+Un numero grande con etichetta e unità: la grandezza che si deve leggere da lontano, in sala controllo o da un pannello a parete.
+
+| Proprietà | Descrizione |
+|-----------|-------------|
+| `tag` | Tag mostrato |
+| `label` | Etichetta sopra il numero |
+| `unit` | Unità di misura accanto al valore |
+
+```yaml
+id: o_kpi
+type: kpi_tile
+x: 30.0
+y: 542.0
+width: 290.0
+height: 110.0
+label: Pressione
+tag: demo.sim.pressure
+unit: bar
+```
+
+---
+### Grafico X-Y (`xy_plot`)
+
+Traccia un tag **contro un altro**, non contro il tempo: portata su pressione, coppia su velocità. La scia mostra dov'è stato il punto di lavoro negli ultimi secondi.
+
+| Proprietà | Descrizione |
+|-----------|-------------|
+| `tag` / `y_tag` | I due tag: ascissa e ordinata |
+| `xy_trail_s` | Durata della scia, in secondi |
+| `xy_x_min` … `xy_y_max` | Estremi dei due assi (assenti = automatici) |
+
+```yaml
+id: o_xy
+type: xy_plot
+x: 960.0
+y: 96.0
+width: 290.0
+height: 250.0
+tag: demo.sim.pressure
+y_tag: demo.sim.flow
+xy_x_min: 0.0
+xy_x_max: 120.0
+xy_y_min: 0.0
+xy_y_max: 100.0
+xy_trail_s: 60.0
+```
+
+---
+### Registro dati (`data_log`)
+
+La tabella dei campioni storici di un tag, paginata. Serve a guardare i numeri quando il grafico non basta.
+
+| Proprietà | Descrizione |
+|-----------|-------------|
+| `tag` | Tag di cui si mostrano i campioni |
+| `datalog_page_size` | Righe per pagina |
+
+```yaml
+id: o_datalog
+type: data_log
+x: 30.0
+y: 442.0
+width: 600.0
+height: 320.0
+tag: demo.sim.pressure
+datalog_page_size: 12.0
+```
+
+---
+
+## ALLARMI
+
+Quattro widget per gli allarmi, e conviene sapere quale serve quando: l'**Alarm Viewer** (sopra,
+fra i display) è la tabella completa degli allarmi attivi e vuole spazio; la **banda** ne mostra
+uno solo e sta in una riga; la **campanella** non mostra niente finché non serve, e suona; lo
+**storico** guarda indietro invece che adesso.
+
+### Banda allarmi (`alarm_banner`)
+
+Una riga che mostra l'allarme attivo più grave, col pulsante di riconoscimento. Occupa poco e sta in testa a una pagina.
+
+| Proprietà | Descrizione |
+|-----------|-------------|
+| `alarm_banner_severities` | Quali gravità mostrare (assente = tutte) |
+| `alarm_banner_id_prefix` | Solo gli allarmi il cui id comincia così — per fare una banda per zona |
+
+```yaml
+id: cl1_alarm_banner
+type: alarm_banner
+x: 20.0
+y: 590.0
+width: 760.0
+height: 70.0
+```
+
+---
+### Campanella allarmi (`alarm_bell`)
+
+L'icona col contatore degli allarmi attivi, e il **suono**. Cliccandola si apre l'elenco.
+
+| Proprietà | Descrizione |
+|-----------|-------------|
+| `alarm_bell_sound` | Suona quando c'è un allarme non riconosciuto |
+| `alarm_bell_sound_severities` | Per quali gravità suonare |
+| `alarm_bell_sound_repeat_s` | Ogni quanti secondi ripetere il suono |
+| `alarm_bell_severities` | Quali gravità contare |
+| `alarm_bell_id_prefix` | Conta solo gli allarmi di una zona |
+| `alarm_bell_show_history` | Mostra anche lo storico nel pannello |
+| `alarm_bell_show_shelve` | Permette di mettere a tacere un allarme (shelve) |
+
+```yaml
+id: cl1_alarm_bell
+type: alarm_bell
+x: 20.0
+y: 536.0
+width: 130.0
+height: 34.0
+alarm_bell_show_history: true
+alarm_bell_show_shelve: true
+```
+
+---
+### Storico allarmi (`alarm_history`)
+
+L'elenco degli allarmi passati: quando sono scattati, quando sono rientrati, chi li ha riconosciuti.
+
+| Proprietà | Descrizione |
+|-----------|-------------|
+| `alarm_history_id` | Limita a un allarme specifico |
+| `alarm_viewer_max_rows` | Righe massime mostrate |
+
+```yaml
+id: o_history
+type: alarm_history
+x: 650.0
+y: 182.0
+width: 600.0
+height: 250.0
+alarm_viewer_max_rows: 6.0
+```
+
+---
+
 ## SCADA
 
 ### Simbolo (`symbol`)
@@ -348,7 +580,7 @@ Simbolo SVG industriale dalla libreria built-in o custom.
 | `state_tag` | Tag che controlla lo stato (truthy = acceso/in marcia) |
 | `alarm_tag` | Tag che forza lo stato di allarme |
 | `state_off_color` | Colore stato spento/fermo |
-| `state_on_color` | Colore stato acceso/in marcia |
+| `state_on_color` | Colore stato acceso/in marcia — **solo sui simboli disegnati**, vedi sotto |
 | `state_alarm_color` | Colore stato allarme |
 
 **Simboli built-in disponibili**:
@@ -361,6 +593,25 @@ Simbolo SVG industriale dalla libreria built-in o custom.
 | Serbatoi | Verticale, Orizzontale |
 | Ventilatori | Assiale, Centrifugo |
 | Scambiatori | Tubolare, A piastre |
+
+---
+
+> **Attenzione: non tutti i simboli cambiano colore.** La libreria ne contiene di due specie, e la
+> palette non le distingue.
+>
+> I **simboli disegnati** — pompa, valvola, motore e gli altri: 29 dei 40 in libreria — sono
+> costruiti con primitive grafiche e vengono **ricolorati** secondo `state_tag`: sono quelli per cui
+> `state_on_color` e `state_off_color` funzionano.
+>
+> Gli **11 simboli importati** (`heat_exchanger`, `separator`, `reactor`, `filter`, `solar_panel`,
+> `battery`, `transmission_tower`, `home_lightning`, `garage`, `window_open` e il rimanente)
+> arrivano da librerie esterne come immagini, e **conservano i colori con cui sono disegnati**:
+> impostare `state_on_color` su uno di questi non produce nessun effetto, né nel browser né sul
+> pannello. Almeno i due motori si comportano allo stesso modo — verificato a misura il 2026-09-06.
+>
+> Se serve un simbolo che cambia colore con lo stato e nessuno di quelli disegnati va bene, la
+> strada è un **simbolo personalizzato** con gli `id` degli elementi da ricolorare dichiarati:
+> vedi [04 — Guida all'Editor](04_editor_guide.md).
 
 ---
 
@@ -398,6 +649,25 @@ Istanza di un faceplate parametrico definito nel progetto.
 |-----------|-------------|
 | `faceplate_id` | ID del FaceplateDef da istanziare |
 | `faceplate_params` | Mappa `{parametro: valore}` sostituita nel template |
+
+---
+
+### Pannello ricette (`recipe_panel`)
+
+L'elenco delle ricette del progetto col pulsante per applicarle: l'operatore sceglie un formato e i setpoint vanno al campo in un colpo.
+
+| Proprietà | Descrizione |
+|-----------|-------------|
+| `recipe_panel_id_prefix` | Mostra solo le ricette il cui id comincia così |
+
+```yaml
+id: o_recipe
+type: recipe_panel
+x: 650.0
+y: 474.0
+width: 600.0
+height: 250.0
+```
 
 ---
 

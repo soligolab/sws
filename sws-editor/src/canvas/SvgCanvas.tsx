@@ -2702,7 +2702,7 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
     return (
       <div style={containerStyle}>
         {showEmpty && (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--brand-border, #475569)" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--brand-text-subtle, #94a3b8)" }}>
             Nessun allarme attivo
           </div>
         )}
@@ -2807,7 +2807,7 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
         }}>
           <span style={{ color: sevColor(sev), flexShrink: 0 }}>●</span>
           {showTs && a.activated_at_ms && (
-            <span style={{ color: "var(--brand-border, #475569)", flexShrink: 0 }}>
+            <span style={{ color: "var(--brand-text-subtle, #94a3b8)", flexShrink: 0 }}>
               {new Date(a.activated_at_ms).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
             </span>
           )}

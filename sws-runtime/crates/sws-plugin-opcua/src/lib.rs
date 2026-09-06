@@ -795,7 +795,7 @@ pub async fn detect_euromap(cfg: &OpcUaClientConfig) -> anyhow::Result<EuromapDe
                             display_name,
                         });
                     }
-                } else if depth + 1 <= EUROMAP_MAX_DEPTH {
+                } else if depth < EUROMAP_MAX_DEPTH {
                     queue.push_back((nid, depth + 1));
                 }
             }
@@ -851,7 +851,7 @@ pub async fn run_server(
     use sws_core::{TagValue, TagQuality};
 
     let (server, handle) = match ServerBuilder::new_anonymous("SWS OPC-UA Server")
-        .application_uri(&format!("urn:soligolab:sws:{}", cfg.id))
+        .application_uri(format!("urn:soligolab:sws:{}", cfg.id))
         .host("0.0.0.0")
         .port(cfg.port)
         .trust_client_certs(true)
@@ -1017,9 +1017,9 @@ mod tests {
         assert!(matches!(v, TagValue::Bool(true)));
         assert!(matches!(q, TagQuality::Good));
 
-        let (v, _) = data_value_to_tag(&dv(Some(Variant::Float(3.14_f32)), Some(StatusCode::Good)));
+        let (v, _) = data_value_to_tag(&dv(Some(Variant::Float(2.75_f32)), Some(StatusCode::Good)));
         match v {
-            TagValue::Float(f) => assert!((f - 3.14).abs() < 0.001),
+            TagValue::Float(f) => assert!((f - 2.75).abs() < 0.001),
             other => panic!("expected Float, got {other:?}"),
         }
 

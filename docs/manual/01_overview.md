@@ -120,8 +120,12 @@ SWS avvia **due server distinti** sullo stesso binario:
 
 | Porta | Ruolo | SPA servita |
 |-------|-------|-------------|
-| **8443** | Viewer operatori | RuntimeViewer (~24 kB) |
-| **8444** | Admin IDE | Editor completo (~310 kB) |
+| **8443** | Viewer operatori | RuntimeViewer — 597 kB, 187 kB compressi |
+| **8444** | Admin IDE | Editor completo — 874 kB, 249 kB compressi |
+
+*(Misure del 2026-09-06, contando quello che il browser scarica davvero all'apertura. L'editor
+carica a richiesta le parti che non servono subito: la Configurazione e l'editor Python con
+CodeMirror, che da soli sarebbero altri 639 kB.)*
 
 Questa separazione permette di esporre la porta 8443 agli operatori (pannelli HMI, browser kiosk) e di limitare la porta 8444 ai soli ingegneri autorizzati, anche con firewall differenti.
 

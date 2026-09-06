@@ -423,7 +423,7 @@ export function RuntimeView() {
                 textAlign: "center",
               }}
             />
-            <span style={{ color: "var(--brand-border, #475569)", fontSize: 11 }}>s</span>
+            <span style={{ color: "var(--brand-text-subtle, #94a3b8)", fontSize: 11 }}>s</span>
           </div>
           {/* Recipe apply button */}
           <button

@@ -168,7 +168,7 @@ impl GitDeploy {
     /// `git push` — push to the default remote/branch from git config.
     pub fn push(&self) -> anyhow::Result<String> {
         let out = Command::new("git")
-            .args(["-C", &self.project_dir.to_string_lossy().as_ref(), "push"])
+            .args(["-C", self.project_dir.to_string_lossy().as_ref(), "push"])
             .output()
             .map_err(|e| anyhow::anyhow!("git push: {e}"))?;
         // git push writes progress to stderr even on success

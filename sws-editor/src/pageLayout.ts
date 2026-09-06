@@ -265,6 +265,40 @@ export function isOffPage(obj: GeomObj, pageW?: number, pageH?: number): boolean
   return bb.x2 < 0 || bb.y2 < 0 || bb.x1 > pageW || bb.y1 > pageH;
 }
 
+/** F6 — sposta un oggetto di `dx`/`dy`, restituendo la sola patch da salvare.
+ *
+ *  Esiste perché la geometria di un oggetto **non è sempre `x`/`y`**, e chi lo
+ *  sposta se ne deve ricordare in tre posti diversi. Una `line` porta anche il
+ *  secondo estremo; una `pipe` disegna dai `points`, e per lei `x`/`y` non sono
+ *  la geometria ma un riflesso del primo waypoint — cambiarli e basta la lascia
+ *  ferma, che era il difetto delle frecce della tastiera.
+ *
+ *  I `points` si traslano **senza snap**: qui si sposta di un passo deciso da
+ *  chi preme, e riallineare alla griglia dopo un movimento di un pixel
+ *  vanificherebbe proprio il gesto che si sta facendo. È la differenza voluta
+ *  rispetto al trascinamento col mouse, dove lo snap serve.
+ *
+ *  Non trattiene al bordo pagina di proposito: la resistenza di T-52 è una
+ *  proprietà del **trascinamento**, dove il dito supera il bordo per sbaglio.
+ *  Una freccia è un gesto deliberato da un pixel, ed è anche il modo preciso di
+ *  parcheggiare un oggetto fuori dal foglio. */
+export function translateObject(obj: GeomObj, dx: number, dy: number): Partial<SynopticObject> {
+  const patch: Partial<SynopticObject> = { x: (obj.x ?? 0) + dx, y: (obj.y ?? 0) + dy };
+  if (obj.type === "line") {
+    patch.x2 = (obj.x2 ?? (obj.x ?? 0) + 100) + dx;
+    patch.y2 = (obj.y2 ?? obj.y ?? 0) + dy;
+  }
+  if (obj.type === "pipe" && obj.points && obj.points.length >= 1) {
+    patch.points = obj.points.map((p) => ({ ...p, x: p.x + dx, y: p.y + dy }));
+    // Come fa il trascinamento: `x`/`y` di una pipe seguono il primo waypoint,
+    // o le due misure divergono e il pannello proprietà mostra un punto in cui
+    // la pipe non passa.
+    patch.x = patch.points[0].x;
+    patch.y = patch.points[0].y;
+  }
+  return patch;
+}
+
 /** La tabella di verità del fuori pagina, **duplicata in Rust** in
  *  `sws-core/src/geometry.rs` e tenuta allineata da `scripts/check_off_page.sh`.
  *

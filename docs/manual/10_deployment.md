@@ -90,7 +90,29 @@ curl -k https://localhost:8443/health
 | URL | Ruolo |
 |-----|-------|
 | `https://<ip>:8443` | Viewer operatori |
-| `https://<ip>:8444` | Admin IDE |
+| `https://<ip>:8444` | Gestione remota (deploy, pull, backup, utenti) — **non l'IDE**, vedi sotto |
+
+### L'IDE non c'è, sul dispositivo — e si può accendere
+
+Dalla versione 2.4.0 tutti i pacchetti di installazione partono con **`--no-admin`**. La porta 8444
+resta aperta, ma serve solo la gestione remota che l'editor sul PC chiama: deploy, pull, backup,
+utenti, datastore — tutto autenticato. **Non c'è nessuna interfaccia da aprire nel browser, e il
+progetto del dispositivo non si può modificare da lì.**
+
+È voluto: un impianto in servizio non deve avere un editor completo raggiungibile in rete, e
+`/api/script/exec` o `/api/fs/*` su un dispositivo di campo sono una superficie che non serve a
+nessuno.
+
+Per la messa in servizio o l'assistenza si riaccende, sul dispositivo:
+
+```bash
+sudo systemctl edit sws-runtime      # Environment=SWS_ENABLE_IDE=1
+sudo systemctl restart sws-runtime
+```
+
+Da quel momento `https://<ip>:8444` serve l'IDE completo, e l'IDE mostra in testata il marcatore
+**«Impianto in servizio»**: quello che si modifica è il progetto vero, e il salvataggio ne ricarica
+sorgenti e allarmi senza riavvio. Finita l'assistenza, si toglie la variabile e si riavvia.
 
 ### Aggiornamento
 
@@ -173,11 +195,13 @@ Lo script:
 
 ```
 https://<device-ip>:8443   → Viewer operatori
-https://<device-ip>:8444   → Admin IDE (solo per ingegneria)
+https://<device-ip>:8444   → Gestione remota (deploy/pull/backup/utenti)
+                             L'IDE completo solo con SWS_ENABLE_IDE=1
 ```
 
 **Raccomandazione**: non esporre la porta 8444 agli operatori in produzione.
-Usa firewall o VPN per limitare l'accesso alla porta 8444.
+Usa firewall o VPN per limitare l'accesso alla porta 8444 — vale anche senza IDE,
+perché da lì passano deploy e gestione utenti.
 
 ---
 

@@ -1635,6 +1635,14 @@ dopo — testo ricaricato in "Hello operator"/"Motor", EN evidenziato, dropdown 
 completo click→cambio `SharedLang`→`nav_tx`→ricarica pagina→`resolve_msg` con la lingua nuova
 funziona end-to-end, non solo per lettura del codice.
 
+> **Nota di freschezza, 2026-09-05**: il numero «31/32» è quello del momento in cui la decisione fu
+> presa. Oggi `SUPPORTED_TYPES` in `lvgl_render.rs` elenca **35 tipi**, e `image` **è dentro** —
+> quindi la frase «resta fuori solo image» qui sotto non descrive più il codice. Cosa `image` sappia
+> davvero disegnare è un'altra questione, ed è Q16: i decoder raster restano spenti in `lv_conf.h`
+> (`LV_USE_PNG/BMP/SJPG/GIF` a 0, verificato). Il conteggio vero lo tiene `check_lvgl_types.sh`, che
+> confronta l'elenco del motore con i badge della palette ed è verde: non fidarsi dei numeri scritti
+> in prosa, nemmeno qui.
+
 **Decided**: 31/32 tipi supportati. Resta fuori solo `image` (nessuna pipeline di decodifica
 immagine configurata in questo motore — genuinamente bloccato, non un errore di analisi come
 `lang_selector`/`lang_button` si sono rivelati essere).
@@ -1805,6 +1813,25 @@ permette — può quindi scrivere via ricetta un tag protetto Admin.
 3. Lasciare com'è e documentare: le ricette sono già un'azione deliberata di supervisione.
 
 **Default for PoC**: opzione 3 (stato attuale), da rivedere insieme alla Q8-E.
+
+### Riverificato il 2026-09-05 — la descrizione regge, e l'esposizione reale è zero
+
+`apply_recipe` (`router.rs:4132`) non ha ancora `Extension<AuthUser>`: la firma prende solo
+`State`, `Path` e `Json`, quindi non ha modo di sapere chi sta chiedendo. La descrizione qui sopra
+è ancora esatta a un anno di distanza dai fatti che l'hanno generata.
+
+Due misure che la scheda non aveva, e che cambiano l'urgenza senza cambiare la sostanza:
+
+- **Nessun template del repo contiene ricette.** Niente le esercita, quindi non c'è un progetto di
+  prova su cui il difetto si veda — ed è anche il motivo per cui non l'ha ritrovato nessuno.
+- **La soglia esiste per davvero sull'altra strada**: `write_min_role` è applicata da
+  `tag_write_allowed` sulle scritture REST e WS, e i template la dichiarano. Quindi il buco non è
+  «la soglia non c'è», è «c'è una porta che non la guarda».
+
+Non cambia la scelta — resta una decisione di prodotto fra le tre opzioni — ma dice che si può
+prendere con calma, e che chi la prenderà dovrà **anche** scrivere un progetto di prova con una
+ricetta e un tag protetto, perché oggi non esiste e nessuna guardia potrebbe accorgersi di una
+regressione.
 
 **Decided**: not yet.
 
@@ -2477,6 +2504,51 @@ stesso intervallo**, e in caso contrario non si disegna e il registro dice
 perché — meglio una soglia mancante che una sbagliata. Ma è una toppa sul
 sintomo, non una risposta.
 
+### Seguito, 2026-09-05 — misurato: la divergenza è già visibile **con i valori predefiniti**
+
+La scheda descrive la divergenza fra chi *dichiara* `obj.min/max` e chi dichiara
+`bar_series[].min/max`. Misurando i template del repo, il caso che esiste davvero è un altro, e
+riguarda il **default**.
+
+Nel repo ci sono **due soli `bar_chart`** — le pagine «Grafici e tabelle» dei due gemelli
+`demo-items-web` e `demo-items-lvgl` — e **nessuno dei due dichiara una scala**, né sull'oggetto né
+sulle serie. In quel caso:
+
+| | Scala effettiva senza dichiarazioni |
+|---|---|
+| **Web** (`SvgCanvas.tsx:4805-4806`) | `0 .. max(valori, 1)` — **si muove coi dati** |
+| **Pannello** (`lvgl_render.rs:2457-2458`) | `0 .. 100` — **fissa** |
+
+**Misurato il 2026-09-06 sui pixel**, non dedotto dal codice: stessa pagina 800×480, stesso
+`bar_chart` 400×340 senza scala dichiarata, stessi tre tag scritti a 20, 45 e 30, disegnata una
+volta dal browser e una dal motore LVGL con `--istantanea`.
+
+| serie (valore) | browser | pannello LVGL |
+|---|---|---|
+| A (20) | 130 px | 61 px |
+| B (45) | **292 px** | **138 px** |
+| C (30) | 195 px | 92 px |
+
+Le barre sono **più del doppio** nel browser. B riempie tutta l'area del grafico (292 px su ~292
+disponibili) perché il web scala su `0..max(valori)`; sul pannello la stessa B è al 45% perché la
+scala è `0..100` fissa.
+
+**Una precisazione che conta per la decisione**: il *rapporto* fra le barre è identico nei due
+motori (130/292 = 61/138 = 20/45), perché entrambe le scale partono da zero. Quindi chi **confronta
+le barre fra loro** legge la stessa cosa di qua e di là; chi legge **quanto è pieno** il grafico —
+che è come si guarda un livello o una percentuale da lontano — legge due cose molto diverse. La
+scelta fra le due letture è una scelta su *quale delle due domande* il grafico a barre debba
+rispondere.
+
+Ne segue una domanda che la scheda non poneva: qualunque delle due letture vinca, **anche il
+default deve coincidere**. Scegliere «scala comune» e lasciare `0..100` sul pannello lascerebbe la
+divergenza esattamente dov'è per tutti i grafici che non dichiarano niente — cioè, oggi, per tutti.
+
+Nota di copertura, perché spiega perché nessuno se n'era accorto: `check_demo_templates.sh`
+confronta i due gemelli **fra loro nello YAML**, non nel disegno, e `check_wysiwyg.sh` confronta
+editor e runtime **web**. Nessuna guardia confronta il disegno web con quello LVGL — è il buco che
+`istantanea_pagina` (T-51, fase 3) potrebbe chiudere quando un modello la userà davvero.
+
 ### Le domande
 
 1. **Quale delle due è il comportamento voluto?** È una scelta di prodotto:
@@ -2514,6 +2586,36 @@ Lo stesso tag porta **una posizione numerica in lettura** e **un comando testual
 scrittura**. Funziona: il server non fa rispettare il `data_type` (Q27) e il plugin MQTT
 pubblica il valore così com'è. Ma il tipo dichiarato è falso metà del tempo, e il valore che
 sta nel `TagDb` subito dopo il comando non è una posizione.
+
+### Misurato il 2026-09-05 — l'estensione è **esattamente** dodici oggetti, e il modello è già a metà strada
+
+Due misure che restringono molto la domanda.
+
+**Uno**: passando tutti i template e confrontando ogni `write_value` col `data_type` del suo tag,
+le scritture fuori tipo sono **12, tutte in `casa-locale`, tutte dello stesso genere**
+(`float ← stringa`), e sono i dodici pulsanti delle tapparelle. Nessun altro template ha il
+problema. Quindi non è una pratica diffusa da sanare: è **un idioma solo**, in un progetto solo.
+
+**Due, e conta di più**: quel tag **è già dichiarato come due canali**. La mappatura MQTT ha
+`topic` per la lettura e `publish_topic` per la scrittura, e sono due argomenti diversi:
+
+```yaml
+- tag: shutter.garage
+  topic: "shellies/SHELLY_GARAGE_ID/roller/0/pos"          # legge una posizione 0-100
+  publish_topic: "shellies/SHELLY_GARAGE_ID/roller/0/command"  # scrive open/stop/close
+```
+
+Il modello, cioè, **ammette già** che un tag legga da una parte e scriva dall'altra. Quello che non
+ammette è che le due parti abbiano **tipi** diversi: `data_type` è dichiarato una volta e vale per
+entrambe. La domanda «un tag può servire due direzioni con due tipi?» ha quindi una risposta
+parziale già scritta nel formato — le due direzioni ci sono — e resta aperta solo sull'ultimo
+pezzo.
+
+Da cui una quarta strada, che non era nell'elenco e che è simmetrica a ciò che esiste:
+**`write_data_type` accanto a `publish_topic`**, dichiarato dove è già dichiarata l'asimmetria. Non
+la propongo come la migliore — è una decisione di prodotto — ma va valutata insieme alle altre,
+perché è l'unica che non chiede né di mentire sul tipo né di spezzare in due un tag che l'utente
+pensa come uno.
 
 ### Perché è emersa adesso
 
@@ -2706,6 +2808,37 @@ di ricaricare) e nessuna per i sinottici.
 
 ## Q31 — La chat non funziona quando l'IDE è collegato a un runtime remoto, e non è chiaro cosa dovrebbe fare
 
+### ⚠ Riverificata il 2026-09-05: **il codice è cambiato e la scheda è invecchiata**
+
+Rileggendo il codice di `main`, due delle tre cose descritte qui sotto non sono più vere, e la
+terza — la più preoccupante — **partiva da una premessa sbagliata**. Chi legge questa scheda per
+decidere deve saperlo prima di leggerla.
+
+1. **Il 404 non c'è più.** `buildWsUrl` ora dirotta sul relay **solo** i tre canali dello stato del
+   dispositivo (`CANALI_DEL_DISPOSITIVO = ["tags", "alarms", "logs"]`); `/ws/ai` resta locale, e il
+   commento accanto spiega perché non deve entrare in quell'elenco, citando questa Q. La whitelist
+   del client e quella del relay ora coincidono di proposito.
+2. **Il pannello lo dice.** `ChatPanel.tsx:196` mostra un avviso quando `remoteConnected`: il
+   progetto che si sta modificando è quello locale, e l'assistente legge e propone su quello.
+3. **La premessa del rischio peggiore era sbagliata.** La scheda diceva che «l'umano modifica il
+   progetto del dispositivo e l'agente leggerebbe quello locale». Non è così: con un runtime remoto
+   collegato **l'umano modifica comunque il progetto locale** — `remote_deploy` ne manda una copia
+   al device, il pull fa il verso opposto, e le chiamate HTTP di progetto non sanno nemmeno che
+   esista un remoto. Quindi l'agente che legge il locale sta leggendo **il progetto giusto**, e
+   sarebbe dirottarlo sul dispositivo a fargli leggere una copia che nessuno sta editando.
+
+**Cosa resta davvero aperto**, e vale la pena riformularlo così: non «la chat è rotta col remoto»,
+ma **«quando l'IDE è collegato a un impianto, l'assistente deve poter guardare l'impianto?»**. Oggi
+no, e per una ragione buona (la chiave API e la sessione dell'agente restano sul PC). L'opzione 2
+qui sotto — far leggere gli strumenti attraverso l'API del runtime remoto col token dell'umano —
+resta la via a regime per quando servirà, per esempio per far diagnosticare all'assistente un
+allarme che sta suonando adesso sul pannello.
+
+Resta anche il pezzo che la scheda già dichiarava: **nessuna di queste righe è stata provata dal
+vivo** con un runtime remoto vero. La verifica nel codice non sostituisce quella a schermo.
+
+
+
 *Aperta il 2026-09-01 rileggendo `feat/T-50-chat-ai` su frodo. **Verificata nel codice**, non
 provata dal vivo: manca la conferma a schermo.*
 
@@ -2792,6 +2925,46 @@ dispositivo — i suoi tag dal vivo, il suo storico, i suoi log — quello è il
 strumenti di cui si parla in `docs/plans/2026-08-31-chat-ai-nelleditor.md`, non questo.
 
 ## Q32 — Dove deve vivere il progetto che si sta modificando?
+
+### ⚠ Riverificata il 2026-09-06: la premessa è superata, e questo sposta le opzioni
+
+La scheda dice che si modifica il progetto dell'impianto in presa diretta con «l'IDE sulla porta
+admin di un dispositivo (`start_runtime.sh`, e **tutti** i deploy che si spediscono: yocto,
+generic-linux, container)». **Oggi non è più così**, e il cambiamento è del **2026-09-02** — lo
+stesso giorno in cui questa domanda è stata scritta, il che spiega perché non se ne tiene conto.
+
+Verificato su tutti e tre i percorsi di deploy: partono con **`--no-admin`**
+(`deploy/generic-linux/sws-runtime-launch.sh`, `deploy/yocto/sws-runtime-launch.sh`, i tre
+`Containerfile`). E `--no-admin` non è un dettaglio di porte:
+
+> «Cade l'IDE — nessuna interfaccia servita, **nessuna modifica del progetto sul dispositivo**,
+> nessun `/api/script/exec`, nessun `/api/fs/*`. […] Per riaccendere l'IDE completo su questo
+> dispositivo — messa in servizio, assistenza — basta `SWS_ENABLE_IDE=1` nell'env del servizio e un
+> restart.»
+
+Quel che resta sulla porta admin è la sola gestione remota che l'editor chiama (deploy, pull,
+backup, utenti, datastore), autenticata.
+
+**Perché sposta le opzioni.** L'opzione 2 — «presa diretta = deliberata, serve un passo esplicito»
+— è in buona parte **già realizzata**, ma un livello più sotto di dove la scheda la cerca: non una
+conferma nell'interfaccia, bensì una variabile d'ambiente sul servizio e un riavvio. È un passo
+molto più esplicito di una finestra di conferma, e lo compie chi ha accesso al dispositivo, non chi
+ha il browser aperto.
+
+Ne segue che la domanda si restringe a due casi, e vale la pena riscriverla così:
+
+1. **Il dispositivo con `SWS_ENABLE_IDE=1`** — chi l'ha acceso sa cosa sta facendo. Serve altra
+   cerimonia oltre al marcatore in testata già aggiunto? Probabilmente no, ed è l'opzione 1.
+2. **`start_runtime.sh` in locale**, che l'IDE ce l'ha sempre — è lo strumento di sviluppo del
+   maintainer, e lì la presa diretta *è* il punto.
+
+Cioè: la configurazione rischiosa che la scheda temeva — un impianto in servizio con l'IDE aperto
+per default — **non viene più spedita**. Resta da decidere solo se il caso «acceso apposta» voglia
+qualcosa in più.
+
+*(Nessuna decisione presa qui: cambiano i fatti, non la scelta.)*
+
+
 
 **Context**: emerso il 2026-09-02 da una domanda del maintainer («l'editor lavora in locale o
 direttamente nella cartella del dispositivo?»). La risposta è **entrambi, e dipende da quale porta
@@ -3175,3 +3348,129 @@ tempo diverge.
    validatore, così le due domande restano distinte.
 
 **Default for PoC**: opzione 1. **Decided**: not yet.
+
+---
+
+## Q40 — `state_on_color` non fa niente sugli undici simboli importati, e niente lo dice
+
+*Aperta il 2026-09-06. **Misurata su entrambi i motori**, non dedotta.*
+
+La libreria dei simboli contiene due specie di oggetti che la palette presenta allo stesso modo:
+
+- i **simboli disegnati** (29 dei 40 in libreria: pompa, valvola, motore…), costruiti con
+  primitive grafiche e **ricolorati** secondo `state_tag`;
+- gli **11 simboli importati** da librerie esterne (`reactor`, `heat_exchanger`, `solar_panel`,
+  `battery`…), che sono immagini SVG e **conservano i propri colori**.
+
+Su questi ultimi `state_on_color` e `state_off_color` **non producono alcun effetto**. Il pannello
+proprietà li offre lo stesso, il validatore non dice niente, e chi lega un `state_tag` a un
+`reactor` aspettandosi che diventi verde quando l'impianto parte non vede nessun cambiamento e non
+ha modo di capire perché.
+
+**Misurato** disegnando la stessa pagina — un `pump` e un `reactor`, entrambi con
+`state_on_color` esplicito — nei due motori:
+
+| | pump (disegnato) | reactor (importato) |
+|---|---|---|
+| **Browser** | ricolorato | `<image href="/symbols/reactor.svg">`, coi suoi colori |
+| **Pannello LVGL** | ricolorato (5211 px del colore chiesto) | disegnato, coi suoi colori (0 px del colore chiesto) |
+
+**Buona notizia**: i due motori si comportano **allo stesso modo**, quindi non è una divergenza
+WYSIWYG. È una funzione che non c'è e che l'interfaccia non dichiara.
+
+Il limite tecnico è dichiarato nel codice (`svg_assets.rs`: *«una bitmap non saprebbe cambiare
+colore con lo stato senza rasterizzare una variante per colore»*), ma non arriva a chi disegna.
+
+### Misurato il 2026-09-06: **13 simboli su 40 non esistono sul pannello**
+
+Disegnando ogni simbolo della libreria col motore LVGL e guardando l'immagine, tredici rendono il
+**riquadro rosso d'errore** — cioè il motore non conosce il loro `symbol_id`:
+
+`valve_motorized`, `valve_pneumatic`, `check_valve`, `valve_3way`, `relief_valve`, `strainer`,
+`blower`, `silo`, `conveyor`, `cyclone`, `column`, `furnace`, `chiller`
+
+Sono la serie **valvole e processo**, aggiunta dopo che Q15 era stata decisa: l'opzione B
+(«riscrittura a mano dei soli 16 simboli») è stata eseguita sui simboli che esistevano allora, e
+questi tredici non sono mai stati portati. Nel browser si vedono giusti; sul pannello sono un
+rettangolo rosso, e **chi disegna non ha modo di accorgersene** — il badge «L» della palette dice
+che il *tipo* `symbol` è supportato, non quali simboli lo siano.
+
+Da oggi `scripts/check_simboli_lvgl.sh` li tiene in un elenco dichiarato: un simbolo **nuovo** che
+non arriva sul pannello fa fallire la guardia, e uno che viene implementato va tolto dall'elenco.
+Il gap non cresce più in silenzio, che è il minimo finché non si decide se colmarlo.
+
+**Una cosa da controllare mentre si decide**: i tre posti che contano i simboli davano tre numeri
+diversi il 2026-09-06 — `svg_assets.rs` dice «i **17** simboli builtin non passano di qui», il
+manuale diceva «**22** built-in», e la libreria dell'editor (`symbols/library.tsx`) ne dichiara
+**40**, di cui 11 importati. Il manuale è stato allineato a quest'ultimo, che è la fonte di ciò che
+la palette offre; e il **17** del motore LVGL adesso si spiega: sono i simboli disegnati che LVGL
+implementa davvero (16 misurati, 29 disegnati sul web meno i 13 qui sopra). La divergenza è reale,
+ed è misurata.
+
+**Options**
+
+1. **Dirlo nell'interfaccia**: la palette distingue le due specie, e il pannello proprietà nasconde
+   — o marca come inefficaci — i due campi colore quando il simbolo scelto è importato. Costa poco
+   e chiude il caso in cui la persona sta guardando lo schermo.
+2. **Dirlo nel validatore**: un avviso su ogni `symbol` importato che dichiara `state_tag` o un
+   colore di stato. Copre anche i progetti scritti a mano o dall'assistente, ma inaugura una
+   famiglia di rilievi «campo dichiarato e inefficace» che oggi non esiste (parente di Q39).
+3. **Farlo funzionare**: rasterizzare una variante per colore, o convertire gli 11 importati in
+   simboli disegnati come si è fatto per i 17 (Q15 opzione B). È il lavoro vero, e va valutato
+   contro quanto quei simboli servano davvero colorati.
+4. **Lasciare com'è**, ora che il manuale lo dice.
+
+**Default for PoC**: opzione 4 — il manuale lo dice da oggi. **Decided**: not yet.
+
+---
+
+## Q41 — La chat IA deve mostrare consumo di token e credito residuo?
+
+*Aperta il 2026-09-06 su richiesta del maintainer.*
+
+**Richiesta.** Una sezione nel pannello della chat che mostri **l'uso delle risorse** (token
+consumati) e **lo stato dell'account** (credito disponibile). Entrambe **presenti per
+impostazione predefinita**, ed entrambe **nascondibili**.
+
+### Cosa c'è già, verificato sul codice
+
+Le due metà della richiesta non costano affatto uguale, e conviene saperlo prima di decidere.
+
+**I token ci sono già.** Il client li riceve dalla risposta in streaming e li tiene:
+`Risposta.usage` (`sws-web/src/ai/client.rs:317`), riempito dagli eventi `usage` del flusso
+(`:565-566`). Oggi finiscono **solo nel log**: `tracing::info!(giro, usage = …)` in
+`ai/mod.rs:188`. Portarli allo schermo è un salto solo — attraversare il WebSocket della chat e
+sommarli per conversazione — e non richiede nessuna chiamata in più a nessuno.
+
+**Il credito no, e dipende dal fornitore.** I fornitori sono due, entrambi sulla stessa forma di
+API (`Fornitore::Anthropic` e `Fornitore::Kimi`, `client.rs:52-63`), ma il saldo **non viaggia
+nella risposta dei messaggi**: è un'informazione di account, che vive su un altro endpoint quando
+esiste. Va verificato per ciascuno prima di promettere il campo, perché è probabile che uno dei due
+non lo esponga affatto per una chiave d'uso normale — e una casella «credito» che per metà degli
+utenti resta vuota è peggio che non averla.
+
+### Le domande
+
+1. **Token: per conversazione, per sessione, o cumulativi?** Il dato per conversazione è quello che
+   il client ha già in mano. Un totale storico vorrebbe che qualcuno lo persista, e allora dove —
+   nella configurazione dell'IDE, nel datastore, in un file a parte?
+2. **Token: contarli o tradurli in soldi?** Un numero di token non dice niente a chi non conosce il
+   listino; un costo stimato dice di più ma richiede un prezzario per modello, che invecchia — e
+   invecchiando mente, che in questo progetto è il difetto che si cerca di evitare ovunque.
+3. **Credito: cosa si fa dove non c'è?** Nascondere la voce per quel fornitore, mostrarla con un
+   «non disponibile», o non mostrarla mai a nessuno finché non è disponibile per tutti.
+4. **Ogni quanto si chiede il saldo?** A ogni messaggio è una chiamata in più per ogni risposta; a
+   ogni apertura del pannello è il compromesso probabile; a comando è il più onesto e il meno utile.
+5. **Dove vive la preferenza «nascondi»?** C'è già una scheda **Preferenze IDE** in Configurazione,
+   ed è il posto naturale. Da decidere se la scelta sia per-utente (browser) o del progetto: la
+   prima è una preferenza, la seconda una decisione di chi allestisce il pannello.
+
+### Perché non è solo un pannellino
+
+Il credito residuo è **un dato dell'account**, non del progetto: chi guarda l'IDE su un impianto
+vedrebbe lo stato commerciale di chi ha comprato la chiave. Con `--no-admin` sui deploy la
+questione è più piccola di quanto sembri (sul dispositivo l'IDE non c'è), ma va detta: la
+possibilità di nascondere le voci, che il maintainer chiede, è anche la risposta a questo.
+
+**Default for PoC**: i **token per conversazione** sono la metà a costo quasi zero e si possono
+fare subito; il **credito** aspetta la verifica per fornitore. **Decided**: not yet.

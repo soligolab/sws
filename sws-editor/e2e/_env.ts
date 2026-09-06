@@ -25,3 +25,14 @@ export const VIEWER = (process.env.SWS_E2E_VIEWER ?? "http://localhost:8443").re
  *  no-auth e non c'è login da fare. */
 export const ADMIN_USER = process.env.SWS_ADMIN_USER ?? "admin";
 export const ADMIN_PASS = process.env.SWS_ADMIN_PASSWORD ?? "admin";
+
+/** Il progetto con contenuto su cui girano i test che hanno bisogno di una
+ *  pagina vera. Lo crea `scripts/check_e2e.sh` dal template `demo-items-web`.
+ *
+ *  Esiste perché i test **condividono un runtime**, e quale progetto sia
+ *  «aperto» è uno stato globale di quel runtime: un test che ne apre un altro
+ *  lo cambia per tutti quelli che vengono dopo. È successo davvero — il
+ *  percorso principale dell'editor girava sul progetto vuoto lasciato aperto da
+ *  `bugcheck.spec.ts` e falliva perché in un progetto senza pagine non c'è
+ *  nessun canvas su cui aggiungere un rettangolo. */
+export const PROGETTO = process.env.SWS_E2E_PROJECT ?? "e2e";

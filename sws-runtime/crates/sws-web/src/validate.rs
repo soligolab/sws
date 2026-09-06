@@ -360,7 +360,7 @@ fn suggerisci(sbagliato: &str, validi: &HashSet<&str>) -> String {
     let mut best: Option<(usize, &str)> = None;
     for v in validi {
         let d = distanza(sbagliato, v);
-        if d <= sbagliato.len() / 2 + 1 && best.map_or(true, |(bd, _)| d < bd) {
+        if d <= sbagliato.len() / 2 + 1 && best.is_none_or(|(bd, _)| d < bd) {
             best = Some((d, v));
         }
     }

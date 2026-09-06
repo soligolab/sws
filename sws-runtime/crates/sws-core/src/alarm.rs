@@ -29,15 +29,14 @@ use crate::tag::{TagId, TagState, TagValue};
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Default)]
 pub enum AlarmSeverity {
     Info,
+    #[default]
     Warning,
     Critical,
 }
 
-impl Default for AlarmSeverity {
-    fn default() -> Self { Self::Warning }
-}
 
 /// ISA-18.2 alarm state — four states.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -96,8 +95,8 @@ impl AlarmCondition {
 
     pub fn evaluate(&self, value: &TagValue) -> bool {
         match self {
-            Self::Above { threshold }        => Self::as_f64(value).map_or(false, |v| v >  *threshold),
-            Self::Below { threshold }        => Self::as_f64(value).map_or(false, |v| v <  *threshold),
+            Self::Above { threshold }        => Self::as_f64(value).is_some_and(|v| v >  *threshold),
+            Self::Below { threshold }        => Self::as_f64(value).is_some_and(|v| v <  *threshold),
             Self::BoolEquals { value: want } => matches!(value, TagValue::Bool(b) if b == want),
             Self::BoolTrue                   => matches!(value, TagValue::Bool(true)),
             Self::BoolFalse                  => matches!(value, TagValue::Bool(false)),
@@ -113,9 +112,9 @@ impl AlarmCondition {
     pub fn evaluate_clear(&self, value: &TagValue, dead_band: f64) -> bool {
         match self {
             Self::Above { threshold } =>
-                Self::as_f64(value).map_or(true, |v| v < threshold - dead_band),
+                Self::as_f64(value).is_none_or(|v| v < threshold - dead_band),
             Self::Below { threshold } =>
-                Self::as_f64(value).map_or(true, |v| v > threshold + dead_band),
+                Self::as_f64(value).is_none_or(|v| v > threshold + dead_band),
             Self::BoolEquals { value: want } =>
                 !matches!(value, TagValue::Bool(b) if b == want),
             Self::BoolTrue  => !matches!(value, TagValue::Bool(true)),
@@ -571,7 +570,7 @@ fn eval_one(
     let raw_fired = s.def.condition.evaluate(tag_value);
 
     // ── Apply on_delay / off_delay ─────────────────────────────────────────────
-    let timer = timers.entry(id.to_string()).or_insert_with(AlarmTimer::default);
+    let timer = timers.entry(id.to_string()).or_default();
     let fired = if raw_fired {
         // Condition is currently true.
         timer.condition_false_since_ms = None;

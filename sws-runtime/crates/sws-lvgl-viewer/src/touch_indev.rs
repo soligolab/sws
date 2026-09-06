@@ -64,7 +64,7 @@ fn eviocgabs(abs: u16) -> u64 {
     let size_shift = 16u32;
     ((IOC_READ << dir_shift)
         | ((b'E' as u32) << type_shift)
-        | ((0x40 + abs as u32) << 0)
+        | (0x40 + abs as u32)
         | (SIZE << size_shift)) as u64
 }
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, AuthError, NoProjectError, PasswordChangeRequiredError, RuntimeUnavailableError } from "@/api/client";
 import { ChangePasswordScreen } from "@/components/ChangePasswordScreen";
@@ -17,8 +17,24 @@ import { riassumi } from "@/ai/riassunto";
 import { LoginScreen } from "@/components/LoginScreen";
 import { ReAuthModal } from "@/components/ReAuthModal";
 import { WelcomeScreen } from "@/components/WelcomeScreen";
-import { ConfigView } from "@/config/ConfigView";
 import { EditorShell } from "@/editor/EditorShell";
+
+/** La Configurazione si carica **quando serve**, non all'avvio.
+ *
+ *  `ConfigView.tsx` è il file più grande del progetto — diecimila righe, con
+ *  dentro tutte le schede: variabili, protocolli, allarmi, utenti, backup,
+ *  dispositivi, ricette. L'IDE però apre in modalità **Editor**, e chi disegna
+ *  un sinottico può non aprire mai la Configurazione in tutta la sessione:
+ *  metterla nel bundle iniziale fa pagare a tutti il costo di una schermata che
+ *  molti non guardano.
+ *
+ *  Conta soprattutto sul dispositivo, dove la SPA arriva dal pannello e non da
+ *  una CDN, e su una macchina che ha altro da fare.
+ *
+ *  Il modulo espone un export **nominato**, quindi va rimappato su `default`:
+ *  `React.lazy` vuole un modulo con quello. */
+const ConfigView = lazy(() =>
+  import("@/config/ConfigView").then((m) => ({ default: m.ConfigView })));
 import { getBrand } from "@/branding";
 import { selectIsDirty, useAppStore } from "@/store";
 import { pickInitialPageId } from "@/pageLayout";
@@ -608,7 +624,7 @@ export function App() {
             qualcosa. Lo stato del runtime remoto **vero** — quello collegato da
             Configurazione → Runtime, che passa dal server — lo mostrano il
             marcatore di `RuntimeCtrl` e la scheda Stato. */}
-        <span style={{ color: "var(--brand-border, #475569)", fontSize: 13 }}>
+        <span style={{ color: "var(--brand-text-subtle, #94a3b8)", fontSize: 13 }}>
           {t("app.project")}: {project?.meta.name ?? "—"}
         </span>
         <DirtyIndicator />
@@ -767,20 +783,20 @@ export function App() {
         <div style={{
           background: "var(--brand-warning-bg, #78350f)", borderBottom: "1px solid var(--brand-warning, #f59e0b)",
           padding: "6px 16px", display: "flex", alignItems: "center", gap: 12,
-          fontSize: 12, color: "#fde68a", flexShrink: 0,
+          fontSize: 12, color: "var(--brand-warning-soft, #facc15)", flexShrink: 0,
         }}>
           <span>⟳</span>
           <span style={{ flex: 1 }}>
             {saveConflict ? t("app.saveConflict") : t("app.projectChangedOutside")}
           </span>
           <button
-            style={{ ...HDR_BTN, background: "transparent", color: "#fde68a", borderColor: "var(--brand-warning, #f59e0b)" }}
+            style={{ ...HDR_BTN, background: "transparent", color: "var(--brand-warning-soft, #facc15)", borderColor: "var(--brand-warning, #f59e0b)" }}
             onClick={() => window.location.reload()}
           >
             {t("app.reloadNow")}
           </button>
           <button
-            style={{ ...HDR_BTN, background: "transparent", color: "#fde68a", border: "none" }}
+            style={{ ...HDR_BTN, background: "transparent", color: "var(--brand-warning-soft, #facc15)", border: "none" }}
             onClick={() => { setProjectChangedOutside(false); setSaveConflict(false); }}
             title={t("app.dismiss")}
           >
@@ -863,7 +879,19 @@ export function App() {
       {/* Main area */}
       <main style={{ display: "flex", flex: 1, overflow: "hidden" }}>
         {effectiveMode === "edit"   && <EditorShell />}
-        {effectiveMode === "config" && <ConfigView />}
+        {effectiveMode === "config" && (
+          // Il fallback è volutamente scarno: il pezzo arriva dallo stesso
+          // server che ha appena servito la pagina, quindi si vede per un
+          // istante o non si vede affatto. Uno scheletro elaborato
+          // lampeggerebbe, che è peggio di una riga di testo.
+          <Suspense fallback={
+            <div style={{ padding: 24, color: "var(--brand-text-subtle, #94a3b8)", fontSize: 13 }}>
+              {t("config.loading", { defaultValue: "Caricamento configurazione…" })}
+            </div>
+          }>
+            <ConfigView />
+          </Suspense>
+        )}
         {/* Chat drawer (right) — dentro <main> così sta accanto al canvas
             invece che sotto: una conversazione è alta, non larga. */}
         {/* `!chatStaccata`: con la chat in una finestra propria il cassetto non

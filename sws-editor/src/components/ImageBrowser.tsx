@@ -173,7 +173,7 @@ export function ImageBrowser({ onSelect, onClose }: Props) {
         {cat && (
           <div style={{
             padding: "6px 16px", borderTop: "1px solid var(--brand-surface, #1e293b)",
-            fontSize: 10, color: "var(--brand-border, #475569)",
+            fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)",
             display: "flex", gap: 12,
           }}>
             <span>{items.length} di {cat.items.length} simboli</span>

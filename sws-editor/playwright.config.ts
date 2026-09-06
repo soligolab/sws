@@ -33,6 +33,22 @@ export default defineConfig({
   timeout: 60_000,
   expect: { timeout: 10_000 },
   fullyParallel: false,
+  // Un worker solo, e non è una precauzione generica: **il runtime ha un
+  // progetto attivo per volta**, ed è stato globale del server. `fullyParallel:
+  // false` impedisce ai test dello stesso file di sovrapporsi, ma Playwright
+  // distribuisce comunque i **file** su più worker, quindi due spec finivano per
+  // contendersi quel progetto.
+  //
+  // È successo davvero: `bugcheck.spec.ts` apre un progetto vuoto per provare
+  // che il canvas resti vuoto, e nel frattempo il percorso principale di
+  // `editor.spec.ts` si trovava sotto i piedi un progetto senza pagine — quindi
+  // nessun canvas su cui aggiungere un rettangolo, e un rosso che parlava di
+  // rettangoli mentre il difetto era di isolamento. Riaprire il progetto giusto
+  // all'inizio del test non basta: l'altro worker lo richiude un istante dopo.
+  //
+  // Il costo è qualche secondo in più; il beneficio è un rosso che significa
+  // qualcosa.
+  workers: 1,
   reporter: process.env.CI ? "github" : "list",
   use: {
     baseURL: process.env.SWS_E2E_BASE_URL ?? "http://localhost:8444",

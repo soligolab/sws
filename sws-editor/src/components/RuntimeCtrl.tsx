@@ -82,7 +82,7 @@ export function RuntimeCtrl() {
         display: "inline-flex", alignItems: "center", gap: 4,
         padding: "2px 7px", borderRadius: 4, fontSize: 11, fontWeight: 600,
         whiteSpace: "nowrap",
-        color: "#fde68a",
+        color: "var(--brand-warning-soft, #facc15)",
         background: "var(--brand-warning-bg, #78350f)",
         border: "1px solid var(--brand-warning, #f59e0b)",
       }}
@@ -108,7 +108,7 @@ export function RuntimeCtrl() {
           ...HDR_BTN,
           background: errori > 0 ? "var(--brand-danger, #dc2626)" : "var(--brand-warning-bg, #78350f)",
           border: `1px solid ${errori > 0 ? "var(--brand-danger, #ef4444)" : "var(--brand-warning, #f59e0b)"}`,
-          color: errori > 0 ? "#fff" : "#fde68a",
+          color: errori > 0 ? "var(--brand-on-danger, #fff)" : "var(--brand-warning-soft, #facc15)",
           fontWeight: 600,
         }}
       >
@@ -210,13 +210,19 @@ export function RuntimeCtrl() {
     ? t("header.acqUnknown")
     : running ? t("header.acqRunning") : t("header.acqStopped");
 
-  const seg = (attivo: boolean, colore: string): React.CSSProperties => ({
+  /** Un segmento RUN/STOP. `suColore` è il testo da usare **sopra** `colore`
+   *  quando il segmento è attivo: bianco fisso non va bene su tutte le tinte —
+   *  su `#22c55e` (il verde del tema scuro) dava 2,28:1, cioè sotto la soglia
+   *  di leggibilità proprio sul pulsante che dice se l'impianto sta girando.
+   *  I token `--brand-on-*` li calcola `readableOn` sul colore vero, quindi
+   *  restano giusti anche se il brand cambia le tinte. */
+  const seg = (attivo: boolean, colore: string, suColore: string): React.CSSProperties => ({
     padding: "4px 10px",
     fontSize: 12,
     fontWeight: attivo ? 700 : 400,
     border: "1px solid var(--brand-border, #475569)",
     background: attivo ? colore : "var(--brand-surface-2, #334155)",
-    color: attivo ? "#fff" : "var(--brand-text-2, #cbd5e1)",
+    color: attivo ? suColore : "var(--brand-text-2, #cbd5e1)",
     cursor: busy || !statoNoto ? "default" : "pointer",
     opacity: busy || !statoNoto ? 0.6 : 1,
     whiteSpace: "nowrap",
@@ -228,7 +234,7 @@ export function RuntimeCtrl() {
       {pannelloAvvisi}
       {needsUpdate && (
         <button
-          style={{ ...HDR_BTN, background: "var(--brand-warning-bg, #78350f)", border: "1px solid var(--brand-warning, #f59e0b)", color: "#fde68a", opacity: migrating ? 0.6 : 1 }}
+          style={{ ...HDR_BTN, background: "var(--brand-warning-bg, #78350f)", border: "1px solid var(--brand-warning, #f59e0b)", color: "var(--brand-warning-soft, #facc15)", opacity: migrating ? 0.6 : 1 }}
           disabled={migrating}
           onClick={handleMigrate}
           title={t("header.updateProjectTitle", { savedBy: savedBy ?? t("header.unknownVersion"), runtime: runtimeVersion })}
@@ -238,7 +244,7 @@ export function RuntimeCtrl() {
       )}
       <div style={{ display: "flex", alignItems: "center" }} title={titolo}>
         <button
-          style={{ ...seg(running === true, "var(--brand-success, #16a34a)"),
+          style={{ ...seg(running === true, "var(--brand-success, #16a34a)", "var(--brand-on-success, #052e16)"),
                    borderRadius: "4px 0 0 4px", borderRight: "none" }}
           disabled={busy || !statoNoto}
           onClick={() => comanda(true)}
@@ -247,7 +253,7 @@ export function RuntimeCtrl() {
           {busy && running === false ? "…" : t("header.acqRunLabel")}
         </button>
         <button
-          style={{ ...seg(running === false, "var(--brand-danger, #dc2626)"),
+          style={{ ...seg(running === false, "var(--brand-danger, #dc2626)", "var(--brand-on-danger, #fff)"),
                    borderRadius: "0 4px 4px 0" }}
           disabled={busy || !statoNoto}
           onClick={() => comanda(false)}

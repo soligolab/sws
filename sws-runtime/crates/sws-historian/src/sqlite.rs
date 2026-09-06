@@ -65,8 +65,8 @@ impl SqliteStore {
             }
             let c = Connection::open(&path_for_open)?;
             // WAL mode keeps reads (restore) unblocked by writes (recording).
-            c.pragma_update(None, "journal_mode", &"WAL")?;
-            c.pragma_update(None, "synchronous", &"NORMAL")?;
+            c.pragma_update(None, "journal_mode", "WAL")?;
+            c.pragma_update(None, "synchronous", "NORMAL")?;
             c.execute_batch(SCHEMA)?;
             Ok(c)
         }).await??;
@@ -199,7 +199,7 @@ impl SqliteStore {
         let conn = self.conn.clone();
         let n = task::spawn_blocking(move || -> rusqlite::Result<usize> {
             let c = conn.blocking_lock();
-            Ok(c.execute("DELETE FROM samples WHERE ts_ms < ?1", params![cutoff_ms as i64])?)
+            c.execute("DELETE FROM samples WHERE ts_ms < ?1", params![cutoff_ms as i64])
         }).await??;
         Ok(n)
     }

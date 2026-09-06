@@ -80,14 +80,22 @@ interface StatusColors {
 
 // text-muted/text-subtle affinati per raggiungere WCAG AA (contrasto verificato
 // su bg/surface/surface-2 in entrambi i temi).
+//
+// **Riverificato il 2026-09-06, misurando**: `textSubtle` non ci arrivava.
+// Valeva `#8b9bb5` in scuro (3,68 su `surface2`) e `#6b7890` in chiaro (4,26 su
+// `bg`, 4,07 su `surface2`) — sotto la soglia 4,5 di AA per il testo normale,
+// mentre il commento qui sopra dichiarava il contrario. Ora `#9fb0c7` e
+// `#5b6779`: il minimo sulle tre superfici passa da 3,68 a **4,69** in scuro e
+// da 4,07 a **5,24** in chiaro. `textMuted` e `text2` erano già a posto
+// (5,5 e 4,82 i minimi), e non si toccano.
 const DARK_NEUTRALS: Neutrals = {
   bg: "#0f172a", surface: "#1e293b", surface2: "#334155", border: "#475569",
-  text: "#e2e8f0", text2: "#cbd5e1", textMuted: "#a3b2c9", textSubtle: "#8b9bb5",
+  text: "#e2e8f0", text2: "#cbd5e1", textMuted: "#a3b2c9", textSubtle: "#9fb0c7",
 };
 
 const LIGHT_NEUTRALS: Neutrals = {
   bg: "#f8fafc", surface: "#ffffff", surface2: "#f1f5f9", border: "#cbd5e1",
-  text: "#0f172a", text2: "#334155", textMuted: "#576475", textSubtle: "#6b7890",
+  text: "#0f172a", text2: "#334155", textMuted: "#576475", textSubtle: "#5b6779",
 };
 
 // Il tavolo del canvas (T-52). Fuori da `Neutrals` perché non lo si può
@@ -101,7 +109,8 @@ const LIGHT_DESK = "#e2e8f0";
 
 const DARK_STATUS: StatusColors = {
   danger: "#ef4444",  dangerSoft: "#fca5a5",  dangerBg: "#7f1d1d",
-  success: "#22c55e", successSoft: "#4ade80", successBg: "#166534",
+  // successSoft schiarito da #4ade80: su successBg dava 4,09, sotto AA.
+  success: "#22c55e", successSoft: "#86efac", successBg: "#166534",
   warning: "#f59e0b", warningSoft: "#facc15", warningBg: "#78350f",
 };
 
@@ -218,6 +227,15 @@ export function defaultObjectTextColor(pageBackground: string | undefined): stri
  * inline su :root (l'accento resta quello del brand), imposta data-theme,
  * color-scheme e il meta theme-color, e persiste la preferenza.
  */
+/** L'ultimo tema **applicato** in questo documento.
+ *
+ *  Serve a spezzare il rimbalzo fra finestre: `applyAppearance` persiste in
+ *  `localStorage`, e la finestra che riceve un evento `storage` e riapplica
+ *  finirebbe per riscrivere lo stesso valore, generando un evento nell'altra
+ *  finestra, che riapplica, e così via. Con questo, il secondo passaggio è un
+ *  no-op e il giro si ferma dopo un salto. */
+let modoApplicato: ThemeMode | null = null;
+
 export function applyAppearance(mode: ThemeMode): ResolvedTheme {
   const resolved = resolveMode(mode);
   // Q12: un brand può fare override dei neutri per variante (brand.json →
@@ -275,6 +293,7 @@ export function applyAppearance(mode: ThemeMode): ResolvedTheme {
   if (meta) meta.content = neutrals.bg;
 
   storeMode(mode);
+  modoApplicato = mode;
   return resolved;
 }
 
@@ -288,5 +307,30 @@ export function initThemeSystemListener(getMode: () => ThemeMode): void {
   if (!mql) mql = window.matchMedia("(prefers-color-scheme: dark)");
   mql.addEventListener("change", () => {
     if (getMode() === "system") applyAppearance("system");
+  });
+}
+
+/** Segue il tema scelto in **un'altra finestra** della stessa applicazione.
+ *
+ *  Le finestre staccate — il log e l'assistente — sono documenti a sé: montano,
+ *  applicano il tema una volta e poi non ne sanno più niente. Cambiando tema
+ *  dalla finestra principale restavano com'erano, segnalato dal maintainer il
+ *  2026-09-06, e l'unico modo di allinearle era chiuderle e riaprirle.
+ *
+ *  L'evento `storage` è fatto per questo: il browser lo consegna a **tutti** i
+ *  documenti della stessa origine **tranne** quello che ha scritto, quindi non
+ *  serve nessun canale nostro e non c'è il rischio di rincorrersi fra finestre.
+ *
+ *  Vale anche al contrario: se si aggiungesse un selettore del tema nella
+ *  finestra del log, la principale lo seguirebbe. */
+export function initThemeStorageListener(onChange?: (mode: ThemeMode) => void): void {
+  if (typeof window === "undefined") return;
+  window.addEventListener("storage", (e) => {
+    if (e.key !== STORAGE_KEY) return;
+    const mode = e.newValue === "light" || e.newValue === "dark" || e.newValue === "system"
+      ? e.newValue : "system";
+    if (mode === modoApplicato) return;   // vedi `modoApplicato`: ferma il rimbalzo
+    applyAppearance(mode);
+    onChange?.(mode);
   });
 }

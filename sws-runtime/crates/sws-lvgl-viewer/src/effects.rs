@@ -139,6 +139,13 @@ pub fn fase_accesa(now_ms: u64, rate_ms: u32) -> bool {
 /// gli allarmi inventati costano quanto quelli mancati.
 pub fn stantio(stale_after_s: Option<f64>, ts: u64, now_ms: u64) -> bool {
     let Some(s) = stale_after_s else { return false };
+    // `!(s > 0.0)` e non `s <= 0.0`, e non è una svista: con `s` **NaN** il
+    // primo è vero e il secondo è falso. Scritto come vuole clippy, un
+    // `stale_after_s` NaN — che arriva da un YAML scritto a mano o da un
+    // binding — supererebbe la guardia, e `(NaN * 1000.0) as u64` vale 0:
+    // ogni valore risulterebbe stantio, cioè esattamente l'allarme inventato
+    // che il commento qui sopra dice di non voler produrre.
+    #[allow(clippy::neg_cmp_op_on_partial_ord)]
     if !(s > 0.0) || ts == 0 {
         return false;
     }

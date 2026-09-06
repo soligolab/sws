@@ -6,6 +6,7 @@ import { findObjects } from "@/search/findObjects";
 import { buildTagUsage, type TagUse } from "@/search/tagUsage";
 import { SvgCanvas } from "@/canvas/SvgCanvas";
 import { findBrokenNavLinks, findOrphanPageIds } from "@/pageLayout";
+import { resolvePageBackground } from "@/theme";
 import type { ObjectGroup, ProjectInfo, SynopticObject, SynopticPage } from "@/types";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
@@ -41,7 +42,7 @@ const S = {
     transform: open ? "rotate(90deg)" : "rotate(0deg)",
     transition: "transform 0.15s",
     fontSize: 10,
-    color: "var(--brand-border, #475569)",
+    color: "var(--brand-text-subtle, #94a3b8)",
   }),
   body: {
     overflowY: "auto" as const,
@@ -61,7 +62,7 @@ const S = {
   iconBtn: {
     background: "transparent",
     border: "none",
-    color: "var(--brand-border, #475569)",
+    color: "var(--brand-text-subtle, #94a3b8)",
     cursor: "pointer",
     fontSize: 12,
     padding: "0 2px",
@@ -119,6 +120,9 @@ function Section({
 function PagesSection() {
   const { t } = useTranslation();
   const pages         = useAppStore((s) => s.pages);
+  // F8 — serve alla miniatura: il colore della pagina dipende dal tema, e
+  // qui era l'unico punto dell'IDE che non lo risolveva.
+  const themeMode     = useAppStore((s) => s.themeMode);
   const currentPageId = useAppStore((s) => s.currentPageId);
   const setCurrentPage = useAppStore((s) => s.setCurrentPage);
   const addPage       = useAppStore((s) => s.addPage);
@@ -256,7 +260,13 @@ function PagesSection() {
           >
             <div style={{
               width: 32, height: 20, flexShrink: 0, borderRadius: 2, overflow: "hidden",
-              background: p.background || "var(--brand-bg, #0f172a)",
+              // F8 — il colore lo dipinge il canvas, non questo contenitore: qui
+              // resta solo la cornice. Prima il `<div>` portava `p.background`
+              // **grezzo**, cioè il campo del tema chiaro, e con il tema scuro
+              // una pagina che dichiara `background_dark` mostrava in miniatura
+              // il colore sbagliato — l'unico punto dell'IDE dove il colore
+              // della pagina non passava da `resolvePageBackground`.
+              background: "var(--brand-bg, #0f172a)",
               border: "1px solid var(--brand-surface-2, #334155)",
               pointerEvents: "none",
             }}>
@@ -267,6 +277,7 @@ function PagesSection() {
                   up this tiny box). */}
               <SvgCanvas
                 objects={p.objects}
+                background={resolvePageBackground(p.background, p.background_dark, themeMode)}
                 pageWidth={p.width || 1920}
                 pageHeight={p.height || 1080}
                 sizeMode="ratio"
@@ -456,17 +467,25 @@ function LinkReportModal({
 // ── Objects palette section ───────────────────────────────────────────────────
 
 interface PaletteItem { type: SynopticObject["type"]; label: string; icon: string }
-interface PaletteGroup { category: string; color: string; defaultOpen?: boolean; items: PaletteItem[] }
+/** Un gruppo della palette, con **due** colori d'accento.
+ *
+ *  Quello scuro non è un lusso: i pastelli scelti per lo sfondo scuro
+ *  (`#60a5fa`, `#34d399`…) su una superficie chiara arrivano a **1,8:1** di
+ *  contrasto — le intestazioni «CONTROLLI», «DISPLAY», «FORME» erano quasi
+ *  invisibili col tema chiaro, segnalate dal maintainer il 2026-09-06. Le
+ *  tinte `colorLight` sono gli stessi colori due gradini più scuri, e stanno
+ *  sopra 4,5:1 su `#f8fafc`. */
+interface PaletteGroup { category: string; color: string; colorLight: string; defaultOpen?: boolean; items: PaletteItem[] }
 
 const PALETTE_GROUPS: PaletteGroup[] = [
-  { category: "Forme", color: "#60a5fa", defaultOpen: true, items: [
+  { category: "Forme", color: "#60a5fa", colorLight: "#2563eb", defaultOpen: true, items: [
     { type: "rect",    label: "Rettangolo", icon: "▭" },
     { type: "ellipse", label: "Ellisse",    icon: "○" },
     { type: "line",    label: "Linea",      icon: "╱" },
     { type: "text",    label: "Testo",      icon: "T" },
     { type: "image",   label: "Immagine",   icon: "🖼" },
   ]},
-  { category: "Controlli", color: "#34d399", items: [
+  { category: "Controlli", color: "#34d399", colorLight: "#047857", items: [
     { type: "button",    label: "Bottone",  icon: "⊡" },
     { type: "navbutton", label: "Nav page", icon: "↗" },
     { type: "checkbox",  label: "Checkbox", icon: "☑" },
@@ -476,7 +495,7 @@ const PALETTE_GROUPS: PaletteGroup[] = [
     { type: "lang_selector", label: "Lingua ▾", icon: "🌐" },
     { type: "lang_button",   label: "Lingua btn", icon: "🏳" },
   ]},
-  { category: "Display", color: "#fb923c", items: [
+  { category: "Display", color: "#fb923c", colorLight: "#c2410c", items: [
     { type: "gauge",        label: "Gauge",      icon: "◔" },
     { type: "led",          label: "LED",        icon: "●" },
     { type: "state_lamp",   label: "Lampada multi-stato", icon: "🔴" },
@@ -496,18 +515,36 @@ const PALETTE_GROUPS: PaletteGroup[] = [
     { type: "alarm_history", label: "Storico allarmi", icon: "🕘" },
     { type: "recipe_panel", label: "Ricette",     icon: "📋" },
   ]},
-  { category: "SCADA", color: "#f472b6", items: [
+  { category: "SCADA", color: "#f472b6", colorLight: "#be185d", items: [
     { type: "symbol",    label: "Simbolo",   icon: "⚙" },
     { type: "pipe",      label: "Tubazione", icon: "⋯" },
     { type: "faceplate", label: "Faceplate", icon: "🧩" },
   ]},
-  { category: "Layout", color: "#a78bfa", items: [
+  { category: "Layout", color: "#a78bfa", colorLight: "#6d28d9", items: [
     { type: "grid", label: "Griglia", icon: "⊞" },
   ]},
 ];
 
+/** Il colore d'accento del gruppo, scelto sul tema **risolto**.
+ *
+ *  `themeMode` può valere "system": chiedere allo store non basta, bisogna
+ *  guardare cosa il tema ha effettivamente applicato. L'attributo
+ *  `data-theme` sul `<html>` lo dice, ed è lo stesso che usa il CSS. */
+function coloreGruppo(group: PaletteGroup, _mode: unknown): string {
+  // `_mode` non si legge: serve a **far ri-renderizzare** il componente quando
+  // il tema cambia. Il valore vero lo dà `data-theme` sul `<html>`, perché
+  // `themeMode` può essere "system" e allora lo store non sa quale dei due sia
+  // stato applicato. Senza la dipendenza dallo store, commutare il tema
+  // lasciava le intestazioni del colore di prima fino al primo re-render per
+  // altri motivi — cioè a volte sì e a volte no.
+  const chiaro = typeof document !== "undefined"
+    && document.documentElement.getAttribute("data-theme") === "light";
+  return chiaro ? group.colorLight : group.color;
+}
+
 function PaletteGroupAccordion({ group, onAdd, showLvglBadge }: { group: PaletteGroup; onAdd: (type: SynopticObject["type"]) => void; showLvglBadge: boolean }) {
   const { t } = useTranslation();
+  const themeMode = useAppStore((s) => s.themeMode);
   const [open, setOpen] = useState(group.defaultOpen ?? false);
   return (
     <div>
@@ -515,10 +552,10 @@ function PaletteGroupAccordion({ group, onAdd, showLvglBadge }: { group: Palette
         style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 10px", cursor: "pointer", background: "var(--brand-bg, #0a111e)", borderBottom: "1px solid var(--brand-surface, #1e293b)" }}
         onClick={() => setOpen((v) => !v)}
       >
-        <span style={{ fontSize: 10, fontWeight: 700, color: group.color, letterSpacing: 0.5 }}>
+        <span style={{ fontSize: 10, fontWeight: 700, color: coloreGruppo(group, themeMode), letterSpacing: 0.5 }}>
           {t(`editor.palette.group.${group.category}`).toUpperCase()}
         </span>
-        <span style={{ fontSize: 9, color: "var(--brand-border, #475569)" }}>{open ? "▼" : "▶"}</span>
+        <span style={{ fontSize: 9, color: "var(--brand-text-subtle, #94a3b8)" }}>{open ? "▼" : "▶"}</span>
       </div>
       {open && (
         <div style={{ padding: "4px 8px", display: "flex", flexDirection: "column", gap: 2 }}>
@@ -528,7 +565,7 @@ function PaletteGroupAccordion({ group, onAdd, showLvglBadge }: { group: Palette
               onClick={() => onAdd(type)}
               style={{ ...S.objBtn, flex: "none", width: "100%", display: "flex", alignItems: "center", gap: 6 }}
             >
-              <span style={{ position: "relative", fontSize: 14, color: group.color, flexShrink: 0, width: 18, textAlign: "center" as const }}>
+              <span style={{ position: "relative", fontSize: 14, color: coloreGruppo(group, themeMode), flexShrink: 0, width: 18, textAlign: "center" as const }}>
                 {icon}
                 {showLvglBadge && LVGL_SUPPORTED_TYPES.has(type) && (
                   <span
@@ -948,7 +985,7 @@ function ObjectsSection() {
           {o.locked && (
             <span title={t("editor.locked")} style={{ fontSize: 10, flexShrink: 0, opacity: 0.7 }}>🔒</span>
           )}
-          <span style={{ fontSize: 9, color: "var(--brand-border, #475569)", width: 34, flexShrink: 0, textTransform: "uppercase", letterSpacing: 0.5 }}>
+          <span style={{ fontSize: 9, color: "var(--brand-text-subtle, #94a3b8)", width: 34, flexShrink: 0, textTransform: "uppercase", letterSpacing: 0.5 }}>
             {o.type.slice(0, 5)}
           </span>
           {isRen ? (
@@ -986,8 +1023,8 @@ function ObjectsSection() {
               style={{ ...S.row(isChildSel), paddingLeft: indent + 24, paddingRight: 4, gap: 4, color: isChildSel ? "#5eead4" : "var(--brand-text-subtle, #64748b)", background: isChildSel ? "#0f2922" : "transparent" }}
               title={`Cella R${c.row + 1}, C${c.col + 1}`}
             >
-              <span style={{ fontSize: 10, flexShrink: 0, color: "var(--brand-border, #475569)" }}>↳</span>
-              <span style={{ fontSize: 9, color: "var(--brand-border, #475569)", width: 34, flexShrink: 0, textTransform: "uppercase", letterSpacing: 0.5 }}>
+              <span style={{ fontSize: 10, flexShrink: 0, color: "var(--brand-text-subtle, #94a3b8)" }}>↳</span>
+              <span style={{ fontSize: 9, color: "var(--brand-text-subtle, #94a3b8)", width: 34, flexShrink: 0, textTransform: "uppercase", letterSpacing: 0.5 }}>
                 {c.child!.type.slice(0, 5)}
               </span>
               <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11 }}>
@@ -1038,7 +1075,7 @@ function ObjectsSection() {
       {allPagesSearch && fq && (
         <div style={{ ...S.body, maxHeight: 300 }}>
           {globalHits.length === 0 ? (
-            <p style={{ padding: "8px 12px", fontSize: 11, color: "var(--brand-border, #475569)", margin: 0 }}>
+            <p style={{ padding: "8px 12px", fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", margin: 0 }}>
               {t("editor.noMatch")}
             </p>
           ) : [...hitsByPage.entries()].map(([pageId, hits]) => (
@@ -1082,7 +1119,7 @@ function ObjectsSection() {
       )}
       <div style={{ ...S.body, maxHeight: 280, display: allPagesSearch && fq ? "none" : undefined }}>
         {tree.length === 0 && (
-          <p style={{ padding: "8px 12px", fontSize: 11, color: "var(--brand-border, #475569)", margin: 0 }}>
+          <p style={{ padding: "8px 12px", fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", margin: 0 }}>
             {fq ? t("editor.noMatch") : t("editor.noObjects")}
           </p>
         )}
@@ -1289,7 +1326,7 @@ function ObjectsContextMenu({
           <div style={sep} />
           <div style={{ ...item, color: "var(--brand-text-subtle, #64748b)", cursor: "default" }}>{t("editor.moveToGroup")}</div>
           {groups.length === 0 && (
-            <div style={{ ...sub, color: "var(--brand-border, #475569)", fontStyle: "italic" }}>nessun gruppo</div>
+            <div style={{ ...sub, color: "var(--brand-text-subtle, #94a3b8)", fontStyle: "italic" }}>nessun gruppo</div>
           )}
           {groups.map((g) => (
             <div key={g.id} style={sub} onClick={() => { actions.moveToGroup(state.id, g.id); close(); }}>
@@ -1371,7 +1408,7 @@ function FunctionsSection({ onFunctionsChanged }: { onFunctionsChanged: () => vo
     <Section title={`${t("editor.sectionFunctions")} (${functions.length})`} defaultOpen={false}>
       <div style={{ ...S.body, maxHeight: 240 }}>
         {functions.length === 0 && (
-          <p style={{ padding: "8px 12px", fontSize: 11, color: "var(--brand-border, #475569)", margin: 0 }}>
+          <p style={{ padding: "8px 12px", fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", margin: 0 }}>
             Nessuna funzione. Crea una funzione qui sotto e collegala agli
             eventi degli oggetti.
           </p>
@@ -1508,7 +1545,7 @@ function TagsSection() {
   if (tags.length === 0) {
     return (
       <Section title="TAG" defaultOpen={false}>
-        <p style={{ padding: "8px 12px", fontSize: 11, color: "var(--brand-border, #475569)", margin: 0 }}>
+        <p style={{ padding: "8px 12px", fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", margin: 0 }}>
           Nessun tag — carica un progetto.
         </p>
       </Section>
@@ -1553,7 +1590,7 @@ function TagsSection() {
               {open && (
                 <div style={{ padding: "2px 12px 4px 22px", background: "var(--brand-bg, #0f172a)" }}>
                   {uses.length === 0 ? (
-                    <div style={{ fontSize: 10, color: "var(--brand-border, #475569)" }}>
+                    <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)" }}>
                       {t2("editor.tagUnused")}
                     </div>
                   ) : uses.map((u: TagUse, i: number) => (
@@ -1566,7 +1603,7 @@ function TagsSection() {
                       · {u.where}
                     </div>
                   ))}
-                  <div style={{ fontSize: 9, color: "var(--brand-border, #475569)", marginTop: 2 }}>
+                  <div style={{ fontSize: 9, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 2 }}>
                     {t2("editor.tagUsageScope")}
                   </div>
                 </div>
@@ -1590,7 +1627,7 @@ function SourcesSection({ project }: { project: ProjectInfo | null }) {
     <Section title={`${t("editor.sectionSources")} (${sources.length})`} defaultOpen={false}>
       <div style={{ ...S.body, maxHeight: 200 }}>
         {sources.length === 0 ? (
-          <p style={{ padding: "8px 12px", fontSize: 11, color: "var(--brand-border, #475569)", margin: 0 }}>
+          <p style={{ padding: "8px 12px", fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", margin: 0 }}>
             Nessuna sorgente configurata.
           </p>
         ) : (
@@ -1624,7 +1661,7 @@ function SourcesSection({ project }: { project: ProjectInfo | null }) {
         <div style={{ padding: "4px 12px" }}>
           <span
             onClick={() => navigateToConfig("protocols")}
-            style={{ fontSize: 10, color: "var(--brand-border, #475569)", fontStyle: "italic", cursor: "pointer" }}
+            style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", fontStyle: "italic", cursor: "pointer" }}
           >
             Vai alla configurazione →
           </span>
@@ -1731,7 +1768,7 @@ function HistorySection() {
   const btn = (enabled: boolean): React.CSSProperties => ({
     flex: 1,
     background: enabled ? "var(--brand-bg, #0f172a)" : "var(--brand-surface, #1e293b)",
-    color: enabled ? "var(--brand-text-2, #cbd5e1)" : "var(--brand-border, #475569)",
+    color: enabled ? "var(--brand-text-2, #cbd5e1)" : "var(--brand-text-subtle, #94a3b8)",
     border: "1px solid var(--brand-surface-2, #334155)",
     borderRadius: 4,
     padding: "3px 0",
@@ -1749,7 +1786,7 @@ function HistorySection() {
         <>
           <div style={{ overflowY: "auto", maxHeight: 180 }}>
             {/* Stato iniziale */}
-            <div style={{ ...S.row(false), fontSize: 11, color: "var(--brand-border, #475569)", fontStyle: "italic" }}>
+            <div style={{ ...S.row(false), fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", fontStyle: "italic" }}>
               Stato iniziale
             </div>
             {/* Past entries — oldest to newest, clicking jumps to that state */}

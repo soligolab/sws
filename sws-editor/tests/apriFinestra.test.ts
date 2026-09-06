@@ -6,10 +6,16 @@
 // contrario di quello che serve.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { MockInstance } from "vitest";
 import { apriFinestra, sorvegliaChiusura } from "@/apriFinestra";
 
 describe("apriFinestra", () => {
-  let openSpy: ReturnType<typeof vi.spyOn>;
+  // `ReturnType<typeof vi.spyOn>` risolveva il generico sul suo vincolo, cioè
+  // `(...args: unknown[]) => unknown`, e non accettava la spia vera di
+  // `window.open`. `pnpm type-check` falliva per questo — un comando di verifica
+  // che non può passare non lo lancia più nessuno, ed è il motivo per cui i
+  // test end-to-end sono rimasti fuori dal controllo dei tipi tanto a lungo.
+  let openSpy: MockInstance<typeof window.open>;
   let assignSpy: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {

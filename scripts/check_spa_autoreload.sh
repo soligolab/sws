@@ -52,7 +52,7 @@ done
 
 API="http://localhost:$APORT/api"
 curl -sf -X POST "$API/projects" -H 'Content-Type: application/json' \
-  -d '{"name":"spa-autoreload","template":"demo-items"}' > /dev/null
+  -d '{"name":"spa-autoreload","template":"demo-items-web"}' > /dev/null
 curl -sf -X POST "$API/projects/spa-autoreload/open" > /dev/null
 
 VIEWER="http://localhost:$VPORT" SERVED="$WORK/served" \

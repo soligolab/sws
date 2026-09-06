@@ -71,9 +71,9 @@ export function AlarmHistory({ alarmId }: AlarmHistoryProps) {
       </div>
 
       {loading && events.length === 0 ? (
-        <div style={{ color: "var(--brand-border, #475569)", fontSize: 12, textAlign: "center", padding: 16 }}>{t("alarmHist.loading")}</div>
+        <div style={{ color: "var(--brand-text-subtle, #94a3b8)", fontSize: 12, textAlign: "center", padding: 16 }}>{t("alarmHist.loading")}</div>
       ) : events.length === 0 ? (
-        <div style={{ color: "var(--brand-border, #475569)", fontSize: 12, textAlign: "center", padding: 16 }}>{t("alarmHist.noEvents")}</div>
+        <div style={{ color: "var(--brand-text-subtle, #94a3b8)", fontSize: 12, textAlign: "center", padding: 16 }}>{t("alarmHist.noEvents")}</div>
       ) : (
         <>
           <div style={{ overflowX: "auto" }}>
@@ -106,7 +106,7 @@ export function AlarmHistory({ alarmId }: AlarmHistoryProps) {
                       {ev.ts_acked_ms ? (
                         <span>
                           <span style={{ color: "var(--brand-success, #22c55e)" }}>{ev.acked_by ?? "—"}</span>
-                          <span style={{ color: "var(--brand-border, #475569)", fontSize: 10 }}> {fmtTs(ev.ts_acked_ms)}</span>
+                          <span style={{ color: "var(--brand-text-subtle, #94a3b8)", fontSize: 10 }}> {fmtTs(ev.ts_acked_ms)}</span>
                         </span>
                       ) : (
                         <span style={{ color: "var(--brand-danger, #ef4444)" }}>{t("alarmHist.unacked")}</span>

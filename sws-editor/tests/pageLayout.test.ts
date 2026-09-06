@@ -8,6 +8,7 @@ import {
   pageFillEnabled,
   softClampToPage,
   softEdgeAxis,
+  translateObject,
   viewerFitScale,
 } from "../src/pageLayout";
 
@@ -296,5 +297,53 @@ describe("isOffPage", () => {
   it("le linee si misurano sui due estremi", () => {
     expect(isOffPage({ type: "line", x: 1200, y: 100, x2: 2000, y2: 100 }, 1280, 800)).toBe(false);
     expect(isOffPage({ type: "line", x: 1400, y: 100, x2: 2000, y2: 100 }, 1280, 800)).toBe(true);
+  });
+});
+
+// ── F6: spostare un oggetto di un passo ─────────────────────────────────────
+describe("translateObject", () => {
+  it("un rettangolo si sposta di x/y", () => {
+    expect(translateObject({ type: "rect", x: 100, y: 50, width: 20, height: 20 }, 5, -3))
+      .toEqual({ x: 105, y: 47 });
+  });
+
+  it("una linea porta con sé il secondo estremo", () => {
+    expect(translateObject({ type: "line", x: 10, y: 10, x2: 60, y2: 40 }, 5, 5))
+      .toEqual({ x: 15, y: 15, x2: 65, y2: 45 });
+  });
+
+  // Il difetto: la pipe disegna dai `points`, e cambiarle x/y la lasciava
+  // ferma. Premere una freccia con una pipe selezionata non la muoveva.
+  it("una pipe muove tutti i waypoint, non solo x/y", () => {
+    const pipe = { type: "pipe" as const, x: 50, y: 100,
+                   points: [{ x: 50, y: 100 }, { x: 50, y: 300 }, { x: 250, y: 300 }] };
+    expect(translateObject(pipe, 10, 0)).toEqual({
+      x: 60, y: 100,
+      points: [{ x: 60, y: 100 }, { x: 60, y: 300 }, { x: 260, y: 300 }],
+    });
+  });
+
+  // `x`/`y` di una pipe seguono il primo waypoint, come nel trascinamento: se
+  // divergono, il pannello proprietà mostra un punto in cui la pipe non passa.
+  it("x/y di una pipe seguono il primo waypoint anche se partivano sbagliate", () => {
+    const pipe = { type: "pipe" as const, x: 0, y: 0,
+                   points: [{ x: 400, y: 200 }, { x: 400, y: 260 }] };
+    const patch = translateObject(pipe, 0, 20);
+    expect(patch.x).toBe(400);
+    expect(patch.y).toBe(220);
+  });
+
+  // Le proprietà dei waypoint che non sono coordinate — il raggio di raccordo,
+  // per dirne una — sopravvivono allo spostamento.
+  it("i waypoint non perdono i loro altri campi", () => {
+    const pipe = { type: "pipe" as const, x: 0, y: 0,
+                   points: [{ x: 10, y: 10, r: 8 } as never] };
+    expect((translateObject(pipe, 1, 1).points as never[])[0]).toEqual({ x: 11, y: 11, r: 8 });
+  });
+
+  // Una pipe senza waypoint non è una pipe a metà da trattare a parte: si
+  // comporta come qualunque altro oggetto.
+  it("una pipe senza waypoint si sposta come un rettangolo", () => {
+    expect(translateObject({ type: "pipe", x: 7, y: 7 }, 3, 3)).toEqual({ x: 10, y: 10 });
   });
 });

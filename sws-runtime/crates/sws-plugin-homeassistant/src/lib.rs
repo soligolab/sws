@@ -105,7 +105,7 @@ async fn run_session(
     }
 
     write.send(Message::Text(
-        json!({ "type": "auth", "access_token": token }).to_string().into(),
+        json!({ "type": "auth", "access_token": token }).to_string(),
     )).await?;
 
     let auth_resp = read.next().await
@@ -120,7 +120,7 @@ async fn run_session(
 
     write.send(Message::Text(
         json!({ "id": 1, "type": "subscribe_events", "event_type": "state_changed" })
-            .to_string().into(),
+            .to_string(),
     )).await?;
 
     // Register writable tags on the bus.
@@ -134,7 +134,7 @@ async fn run_session(
         bus.register(tag.clone(), write_tx.clone()).await;
     }
     let tag_to_entity: HashMap<String, EntityMapping> =
-        writable.into_iter().map(|(t, e)| (t, e)).collect();
+        writable.into_iter().collect();
 
     let mut msg_id = 2u64;
 
@@ -155,7 +155,7 @@ async fn run_session(
                             "service_data": data,
                         });
                         msg_id += 1;
-                        write.send(Message::Text(payload.to_string().into())).await?;
+                        write.send(Message::Text(payload.to_string())).await?;
                         db.ingest(tag, value, TagQuality::Good).await;
                     }
                 }

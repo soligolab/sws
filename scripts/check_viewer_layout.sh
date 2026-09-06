@@ -36,6 +36,17 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Su pyenv il `python3` nel PATH è uno shim e il runtime muore all'avvio con
+# «libpython3.11.so.1.0: cannot open shared object file». Senza questa toppa
+# questa guardia usciva **7 senza una riga di output**: `set -eu` più un `curl`
+# che non trova nessuno in ascolto: un fallimento dell'ambiente travestito da
+# fallimento della misura. Stessa toppa di `check_project_write_safety.sh` e
+# degli script `start_*`.
+if [[ "$(command -v python3)" == *".pyenv/shims"* ]]; then
+  pv="$(pyenv version 2>/dev/null | awk '{print $1}')"
+  [ -n "$pv" ] && export LD_LIBRARY_PATH="$HOME/.pyenv/versions/$pv/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+fi
+
 "$BIN" --config "$WORK/config" --projects-root "$WORK/projects" \
   --templates-root "$REPO/examples/templates" --www "$DIST" \
   --viewer-port "$VPORT" --admin-port "$APORT" > "$WORK/rt.log" 2>&1 &
@@ -47,10 +58,19 @@ for _ in $(seq 1 40); do
   curl -sf -o /dev/null "http://localhost:$APORT/health" && break
   sleep 0.5
 done
+# E se non risponde lo dice, invece di lasciare che il primo `curl` faccia
+# uscire lo script muto: chi legge deve sapere che il guasto è nell'avvio e non
+# in quello che questa guardia misura.
+if ! curl -sf -o /dev/null "http://localhost:$APORT/health"; then
+  echo "✗ il runtime di prova non risponde su :$APORT — non è la misura che fallisce, è l'avvio" >&2
+  echo "  ultime righe di $WORK/rt.log:" >&2
+  tail -20 "$WORK/rt.log" >&2 || true
+  exit 1
+fi
 
 API="http://localhost:$APORT/api"
 curl -sf -X POST "$API/projects" -H 'Content-Type: application/json' \
-  -d '{"name":"viewer-layout","template":"demo-items"}' > /dev/null
+  -d '{"name":"viewer-layout","template":"demo-items-web"}' > /dev/null
 
 # La dimensione della pagina in modalità "fisso" viene dal synoptic, non da
 # page_layout: si portano le pagine a 1280×800 così la pagina è esattamente

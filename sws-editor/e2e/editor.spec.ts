@@ -49,6 +49,26 @@ async function openProjectFromWelcomeIfNeeded(page: Page) {
   }
 }
 
+/** Se la banda «il progetto sul runtime è cambiato» è comparsa, la si onora.
+ *
+ *  Aprire un progetto è a tutti gli effetti una modifica esterna, e la suite ne
+ *  apre uno: `bugcheck.spec.ts` prova il canvas di un progetto vuoto e poi
+ *  rimette aperto quello con contenuto. Se l'avviso arriva a pagina già
+ *  montata, il canvas resta sulla versione di prima e ogni oggetto aggiunto non
+ *  compare — un rosso che parla di rettangoli mentre il problema è che la
+ *  pagina sta mostrando dati vecchi, e lo dice pure, in cima allo schermo.
+ *
+ *  Si fa quello che farebbe una persona: si preme «Ricarica», che è l'unica
+ *  cosa che l'app offre in quel momento. Aspettare e sperare renderebbe il test
+ *  intermittente, che è come stava prima. */
+async function dismissStaleBanner(page: Page) {
+  const ricarica = page.getByRole("button", { name: /^Ricarica$/ }).first();
+  if (await ricarica.isVisible().catch(() => false)) {
+    await ricarica.click();
+    await expect(page.locator('button:has-text("☰ Menu")')).toBeVisible({ timeout: 15_000 });
+  }
+}
+
 async function ensureEditMode(page: Page) {
   // The app boots in edit mode; if a previous test left it in runtime mode
   // the header shows "Modifica" → click to flip back.
@@ -105,13 +125,62 @@ async function saveAll(page: Page) {
 
 test.describe("editor golden path", () => {
   test("login → add rect → save → reload preserves the rect", async ({ page }) => {
+    // **Niente `POST /projects/:name/open` qui.** Il progetto giusto lo rimette
+    // aperto `bugcheck.spec.ts` alla fine, *prima* che questo test carichi la
+    // pagina — ed è l'unico momento in cui si può fare.
+    //
+    // Aprire un progetto è a tutti gli effetti una **modifica esterna**: la SPA
+    // se ne accorge e mostra la banda «il progetto sul runtime è cambiato,
+    // questa pagina mostra ancora la versione precedente». Farlo all'inizio del
+    // test sembrava prudente e invece lo rendeva intermittente: a seconda di
+    // quando l'avviso arrivava rispetto al montaggio, il canvas restava sulla
+    // versione di prima e il rettangolo aggiunto non compariva. Due giri su
+    // quattro passavano, ed è il genere di rosso che si dà alla sfortuna.
     await login(page);
     await openProjectFromWelcomeIfNeeded(page);
+    await dismissStaleBanner(page);
     await ensureEditMode(page);
 
+    // Si aspetta che la pagina sia **davvero** disegnata prima di toccare la
+    // palette: la shell dell'IDE compare prima che il progetto sia caricato, e
+    // una clic che arriva in mezzo finisce su nessuna pagina — `addObject` in
+    // quel caso ne inventa una nuova, quindi non fallisce, semplicemente mette
+    // l'oggetto altrove.
+    await expect.poll(() => page.evaluate(() => {
+      const c = [...document.querySelectorAll("svg")].reduce(
+        (b: { el: Element; a: number } | null, s) => {
+          const r = s.getBoundingClientRect(); const a = r.width * r.height;
+          return !b || a > b.a ? { el: s, a } : b;
+        }, null);
+      return c ? c.el.querySelectorAll("rect").length : 0;
+    }), { timeout: 15_000 }).toBeGreaterThan(0);
+
     const before = await countCanvasRects(page);
-    await addRect(page);
-    await expect.poll(() => countCanvasRects(page)).toBe(before + 1);
+
+    // Due tentativi, e la ragione è scritta perché non sembri superstizione:
+    // la banda «il progetto è cambiato» può ricomparire **dopo** che l'abbiamo
+    // congedata — la suite apre un progetto, e ogni apertura è una modifica
+    // esterna — e quando compare sposta tutto in basso di una riga. Una clic
+    // partita un istante prima atterra dove il pulsante non è più, Playwright
+    // la considera riuscita (il bersaglio era attuabile quando ha guardato) e
+    // il rettangolo non nasce.
+    //
+    // Riprovare una volta, congedando di nuovo l'avviso, è quello che farebbe
+    // una persona. Non è mascherare un difetto del prodotto: il difetto è che
+    // questo test guida una UI che si muove sotto le mani, e lo si dichiara.
+    let aggiunto = false;
+    for (let tentativo = 1; tentativo <= 2 && !aggiunto; tentativo++) {
+      await dismissStaleBanner(page);
+      await addRect(page);
+      // `> before` e non `== before + tentativo`: se la prima clic non ha
+      // aggiunto niente, la seconda deve portare a `before + 1`, non a
+      // `before + 2`. Contare i tentativi invece degli oggetti era un errore
+      // mio, e faceva fallire proprio il caso che questo giro doveva salvare.
+      aggiunto = await expect.poll(() => countCanvasRects(page), { timeout: 6_000 })
+        .toBeGreaterThan(before)
+        .then(() => true).catch(() => false);
+    }
+    expect(aggiunto, "il rettangolo non è comparso nemmeno al secondo tentativo").toBe(true);
 
     await saveAll(page);
 

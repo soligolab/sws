@@ -607,12 +607,25 @@ fn run_drm(
     }
 
     let mut drm = drm_display::DrmDisplay::open(card_path)?;
+    // F2 — la pagina e il display possono non coincidere, e prima questo era un
+    // avviso seguito da un panic: il buffer si dimensionava sulla **pagina** e
+    // `flush_rgb888` iterava sul **display**. Ora il frame si centra e si
+    // ritaglia come già fa il backend SDL2, e l'avviso dice cosa succede invece
+    // di dire che «potrebbe» succedere qualcosa.
+    let drm_off = page_offset(hor_res, ver_res, drm.width, drm.height);
     if drm.width != hor_res || drm.height != ver_res {
-        eprintln!(
-            "[drm] attenzione: risoluzione pagina {hor_res}x{ver_res} diversa da quella del \
-             display {}x{} — il rendering potrebbe non riempire lo schermo",
-            drm.width, drm.height
-        );
+        let (dw, dh) = (drm.width, drm.height);
+        if hor_res > dw || ver_res > dh {
+            eprintln!(
+                "[drm] la pagina {hor_res}x{ver_res} è più grande del display {dw}x{dh}: \
+                 quello che avanza NON si vede (vedi Q37)"
+            );
+        } else {
+            eprintln!(
+                "[drm] la pagina {hor_res}x{ver_res} è più piccola del display {dw}x{dh}: \
+                 viene centrata, e attorno resta il nero del framebuffer"
+            );
+        }
     }
     eprintln!(
         "[drm] framebuffer aperto su {card_path}: {}x{}",
@@ -675,7 +688,7 @@ fn run_drm(
         }
 
         if lvgl_display::copy_frame_rgb888(&mut frame_buf) {
-            drm.flush_rgb888(&frame_buf);
+            drm.flush_rgb888(&frame_buf, hor_res, ver_res, drm_off);
         }
 
         let elapsed = frame_start.elapsed();

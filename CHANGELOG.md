@@ -11,6 +11,67 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Il tema chiaro era inutilizzabile in diversi punti
+
+Con il tema chiaro molte scritte dell'IDE sparivano: restavano del colore
+pensato per lo sfondo scuro mentre lo sfondo diventava chiaro. Misurando, i testi
+sotto la soglia di leggibilità erano **63**, alcuni esattamente dello stesso
+colore dello sfondo — fra questi la banda d'avviso «il progetto è cambiato» e i
+pulsanti verdi. Adesso sono **zero**, in entrambi i temi, e una verifica
+automatica lo controlla a ogni giro: misura ogni testo dell'interfaccia e fa
+comparire apposta la banda d'avviso, che altrimenti non si vedrebbe mai.
+
+Corretti nello stesso giro due colori della tavolozza che dichiaravano di
+rispettare lo standard di contrasto senza rispettarlo, e il pulsante **RUN**,
+che scriveva bianco su verde chiaro proprio sul comando che dice se l'impianto
+sta girando.
+
+### Le finestre staccate seguono il tema
+
+Cambiando tema nella finestra principale, quelle del log e dell'assistente
+restavano com'erano: l'unico modo di allinearle era chiuderle e riaprirle. Ora si
+aggiornano da sole, in tutte e due le direzioni.
+
+### L'assistente conosce i simboli
+
+Chiedendogli di aggiungere una caldaia rispondeva che l'oggetto non esiste. Nel
+vocabolario che gli diamo il campo del simbolo era una stringa libera, senza
+elenco: ora ci sono tutti e quaranta i simboli della libreria, e la descrizione
+dice anche quali non vengono disegnati sul pannello.
+
+### Il simbolo «caldaia» bloccava il pannello
+
+Un `boiler` su una pagina impediva al viewer LVGL di partire: non un errore, non
+un riavvio — lo schermo restava nero e basta. La fiamma del simbolo era disegnata
+con un poligono concavo, e la primitiva di LVGL che la riempie, su una forma
+concava, non finisce mai. È l'unico dei quaranta simboli con quella forma, e per
+questo non se n'era accorto nessuno.
+
+Adesso la fiamma è disegnata come due triangoli — stessa identica forma — e una
+verifica automatica prova ogni simbolo della libreria uno per uno, col
+cronometro: un blocco non fallisce, aspetta, e nessuna prova normale poteva
+vederlo.
+
+### Tre difetti minori dell'editor e del pannello
+
+Erano stati trovati durante l'analisi di T-52 e tenuti fuori di proposito, per
+non mescolarli con la verifica del bordo pagina.
+
+**Il pannello non va più in crash se la pagina non è grande come lo schermo.**
+Con il backend DRM, una pagina 800×480 su un display 1280×800 faceva morire il
+viewer con un errore di memoria — schermo nero, nessuna spiegazione, che su un
+dispositivo senza console è la peggior diagnostica possibile. Ora il foglio
+viene centrato e ritagliato come già faceva l'altro backend, e l'avviso
+all'avvio dice cosa succede invece di dire che «potrebbe» succedere qualcosa.
+
+**Le frecce della tastiera muovono anche le tubazioni.** Con una pipe
+selezionata non si spostava niente: le si cambiavano `x`/`y`, che per lei non
+sono la geometria, mentre i waypoint restavano dov'erano.
+
+**La miniatura delle pagine segue il tema.** Era l'unico punto dell'IDE in cui
+il colore della pagina non veniva risolto: con il tema scuro, una pagina che
+dichiara uno sfondo scuro proprio mostrava in miniatura il colore chiaro.
+
 ### «Aggiorna progetto» non blocca più i salvataggi (Q30)
 
 Dopo aver premuto **⚠ Aggiorna progetto** ogni salvataggio di sezione veniva

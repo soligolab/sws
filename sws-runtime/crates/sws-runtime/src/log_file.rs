@@ -143,11 +143,10 @@ async fn prune_old(
         };
         let Some(rest) = name.strip_prefix("runtime-") else { continue };
         let Some(date) = rest.strip_suffix(".jsonl") else { continue };
-        if date.len() == 10 && date < cutoff.as_str() {
-            if tokio::fs::remove_file(entry.path()).await.is_ok() {
+        if date.len() == 10 && date < cutoff.as_str()
+            && tokio::fs::remove_file(entry.path()).await.is_ok() {
                 removed += 1;
             }
-        }
     }
     if removed > 0 {
         eprintln!(

@@ -1047,7 +1047,7 @@ async fn login(
                     .and_then(|v| v.split(',').next())
                     .and_then(|ip| ip.trim().parse().ok())
             });
-        let allowed = peer_ip.map_or(false, |ip| {
+        let allowed = peer_ip.is_some_and(|ip| {
             s.ip_allowlist.iter().any(|(net, prefix)| ip_in_cidr(ip, *net, *prefix))
         });
         if !allowed {
@@ -4340,7 +4340,7 @@ async fn handle_ws(
     // Helper: build + send snapshot for the current subscription.
     let send_snapshot = |sub: &Option<HashSet<String>>, snapshot: Vec<(TagId, TagState)>, seq: u64, tx: &tokio::sync::mpsc::Sender<Message>| {
         let tags: Vec<_> = snapshot.iter()
-            .filter(|(id, _)| sub.as_ref().map_or(true, |s| s.contains(id)))
+            .filter(|(id, _)| sub.as_ref().is_none_or(|s| s.contains(id)))
             .map(|(id, st)| (id.clone(), st.clone()))
             .collect();
         let entries: Vec<WsTagEntry> = tags.iter().map(|(id, st)| WsTagEntry {
@@ -4427,7 +4427,7 @@ async fn handle_ws(
                     if pending.is_empty() { continue; }
                     let sub = sub_cell_batcher.read().await;
                     let changed: Vec<(String, TagState)> = pending.drain()
-                        .filter(|(id, _)| sub.as_ref().map_or(true, |s| s.contains(id)))
+                        .filter(|(id, _)| sub.as_ref().is_none_or(|s| s.contains(id)))
                         .collect();
                     drop(sub);
                     if changed.is_empty() { continue; }
@@ -4676,7 +4676,7 @@ async fn opcua_browse_handler(
     // path. Only `UsernamePassword` carries a password.
     if let Some(sws_core::OpcUaAuth::UsernamePassword { password: Some(ref p), .. }) = req.auth {
         if p == MASKED_PASSWORD {
-            if let (Some(ref sid), Ok(dir)) = (req.source_id.as_ref(), active_dir(&s).await) {
+            if let (Some(sid), Ok(dir)) = (req.source_id.as_ref(), active_dir(&s).await) {
                 if let Ok(project) = Project::load(&dir) {
                     for src in &project.sources {
                         if let SourceDef::OpcUaClient(c) = src {
@@ -4737,7 +4737,7 @@ async fn opcua_detect_euromap_handler(
     // Same masked-password sentinel resolution pattern as opcua_browse.
     if let Some(sws_core::OpcUaAuth::UsernamePassword { password: Some(ref p), .. }) = req.auth {
         if p == MASKED_PASSWORD {
-            if let (Some(ref sid), Ok(dir)) = (req.source_id.as_ref(), active_dir(&s).await) {
+            if let (Some(sid), Ok(dir)) = (req.source_id.as_ref(), active_dir(&s).await) {
                 if let Ok(project) = Project::load(&dir) {
                     for src in &project.sources {
                         if let SourceDef::OpcUaClient(c) = src {
@@ -4811,7 +4811,7 @@ async fn opcua_history_handler(
 ) -> Response {
     // Resolve masked credentials from project.yaml (same pattern as browse).
     if let Some(ref sid) = req.source_id.clone() {
-        if req.auth.as_ref().map_or(true, |a| {
+        if req.auth.as_ref().is_none_or(|a| {
             matches!(a, sws_core::OpcUaAuth::UsernamePassword { password: Some(p), .. } if p == MASKED_PASSWORD)
         }) {
             if let Ok(dir) = active_dir(&s).await {

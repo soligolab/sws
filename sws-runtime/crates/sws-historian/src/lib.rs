@@ -173,8 +173,8 @@ impl Historian {
             Some(q) => {
                 let oldest = q.front().map(|s| s.ts_ms);
                 let filtered = q.iter()
-                    .filter(|s| from_ms.map_or(true, |f| s.ts_ms >= f))
-                    .filter(|s| to_ms.map_or(true, |t| s.ts_ms <= t))
+                    .filter(|s| from_ms.is_none_or(|f| s.ts_ms >= f))
+                    .filter(|s| to_ms.is_none_or(|t| s.ts_ms <= t))
                     .cloned()
                     .collect();
                 (filtered, oldest)

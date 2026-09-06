@@ -391,7 +391,7 @@ function NewProjectModal({
             </div>
             <div style={{ marginBottom: 16 }}>
               <label style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 6 }}>
-                {t("welcome.projectNameLabel")} <span style={{ color: "var(--brand-border, #475569)" }}>{t("welcome.projectNameZipOptional")}</span>
+                {t("welcome.projectNameLabel")} <span style={{ color: "var(--brand-text-subtle, #94a3b8)" }}>{t("welcome.projectNameZipOptional")}</span>
               </label>
               <input
                 style={INPUT}

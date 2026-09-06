@@ -224,6 +224,11 @@ cosa che autorizza il reset, e `check_session_start.sh` la difende fabbricando
 sette stati in un repo temporaneo — il caso che conta è il quinto, che verifica
 che del lavoro vero **non** venga resettato.
 
+> Le guardie che vogliono uno stack acceso non le lancia nessuno, ed è così che tre di loro sono
+> rimaste rotte per mesi senza che si sapesse. **`./scripts/verifica_completa.sh`** le lancia tutte
+> (`--solo-stack` per le sole con stack): dura minuti, non secondi, e gli elenchi li legge da
+> `check_static.sh` invece di copiarli.
+
 ## `check_static.sh` — le guardie che girano su file fermi
 
 Una parte gira su file fermi (YAML, sorgenti, tabelle, unit systemd, e un repo
@@ -261,6 +266,9 @@ Quelle che girano su file fermi:
 | `check_synoptic_schema.sh` | `synoptic_schema.rs` resta indietro rispetto alle sue quattro fonti, e l'assistente IA riceve un vocabolario che non è più quello vero |
 | `check_session_start.sh` | `session_start.sh` perde lavoro: reset su commit locali che origin non ha, tag lasciati sulla storia vecchia, avanzamenti ad albero sporco |
 | `check_off_page.sh` | «fuori pagina» diventa due definizioni diverse: la tabella di casi di `sws-core/src/geometry.rs` e quella di `sws-editor/src/pageLayout.ts` devono coincidere, e i due crate devono chiamare `is_off_page` invece di riscriverlo |
+| `check_contrasto.sh` | una scritta dell'IDE diventa illeggibile in uno dei due temi. Nasce da una segnalazione del maintainer: col tema chiaro sparivano **63 testi**, alcuni con contrasto 1,0 — dello stesso identico colore dello sfondo. Provoca anche la banda d'avviso, che in un caricamento normale non compare e quindi non verrebbe mai misurata |
+| `check_simboli_lvgl.sh` | un simbolo della libreria **blocca** il viewer LVGL o non disegna niente. Nasce dal `boiler`, che da solo su una pagina piantava il viewer per sempre — schermo nero sul pannello, nessun errore — perché la sua fiamma era un poligono concavo e `lv_canvas_draw_polygon` di LVGL 8 su un concavo non termina. Un blocco non fallisce: **aspetta**, quindi serve un limite di tempo, e nessun test normale poteva vederlo |
+| `check_manuale_widget.sh` | il capitolo dei widget del manuale smette di nominare un tipo che la palette offre — si presenta come «elenco completo», e quando ha trovato la lacuna ne mancavano undici su trentacinque |
 | `check_versione_progetto.sh` | client e server non sono d'accordo su chi riscrive `project.yaml`: una sezione senza `If-Match` (due schede si cancellano a vicenda), o una rotta che riscrive senza che il client incassi la versione nuova — e allora il salvataggio dopo prende un 409 «qualcun altro ha modificato il progetto» dove il qualcun altro è lui stesso |
 
 `check_static.sh` **fallisce anche** se in `scripts/` compare un `check_*.sh` che

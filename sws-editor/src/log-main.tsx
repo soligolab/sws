@@ -8,7 +8,7 @@ import ReactDOM from "react-dom/client";
 import "./i18n/index";
 import { setForceLocalApi } from "@/api/client";
 import { applyBranding, loadBranding } from "@/branding";
-import { applyAppearance, getStoredMode, initThemeSystemListener } from "@/theme";
+import { applyAppearance, getStoredMode, initThemeStorageListener, initThemeSystemListener } from "@/theme";
 import { useAppStore } from "@/store";
 import { LogWindow } from "@/components/LogWindow";
 
@@ -23,6 +23,12 @@ async function bootstrap() {
   applyBranding(await loadBranding());
   applyAppearance(getStoredMode());
   initThemeSystemListener(() => useAppStore.getState().themeMode);
+  // Questa è una finestra a sé: senza questo, il tema scelto nella finestra
+  // principale non arriva mai qui e l'unico modo di allinearla è chiuderla.
+  // Si aggiorna anche lo store, o i componenti che leggono `themeMode` — le
+  // tinte della palette, per dirne una — resterebbero indietro rispetto ai
+  // token CSS appena riapplicati.
+  initThemeStorageListener((mode) => useAppStore.setState({ themeMode: mode }));
   ReactDOM.createRoot(document.getElementById("root")!).render(
     <React.StrictMode>
       <LogWindow />

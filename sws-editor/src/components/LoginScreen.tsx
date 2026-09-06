@@ -159,7 +159,7 @@ export function LoginScreen({ onCancel }: { onCancel?: () => void } = {}) {
             ← Torna all'elenco progetti
           </button>
         )}
-        <p style={{ fontSize: 11, color: "var(--brand-border, #475569)", margin: 0 }}>
+        <p style={{ fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", margin: 0 }}>
           Sessioni in-memory: un riavvio del runtime ti disconnette automaticamente.
         </p>
       </form>

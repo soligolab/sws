@@ -1,0 +1,21 @@
+{
+  // I test end-to-end sono TypeScript che **nessuno controllava**: il
+  // `tsconfig.json` principale include solo `src` e `tests`, quindi `e2e/`
+  // restava fuori e un errore di tipo — un import dimenticato, una funzione
+  // rinominata — si scopriva solo eseguendo la suite, che gira di rado e su uno
+  // stack acceso. È così che questa cartella ha potuto derivare: il commento in
+  // testa a `e2e/_env.ts` racconta la volta in cui tutte le spec puntavano a un
+  // indirizzo su cui il runtime non risponde.
+  //
+  // Serve un file a parte e non un `include` in più: queste spec girano in
+  // **Node**, non nel browser, e vogliono `@types/node` — aggiungerlo al
+  // progetto principale darebbe a tutto il codice della SPA l'illusione di
+  // avere `process` e `fs`.
+  "extends": "./tsconfig.json",
+  "include": ["e2e", "scripts"],
+  "compilerOptions": {
+    "types": ["node"],
+    "allowJs": true,
+    "checkJs": false
+  }
+}

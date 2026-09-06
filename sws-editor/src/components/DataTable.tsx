@@ -144,7 +144,7 @@ export function DataTable<T>({
         <tbody>
           {sorted.length === 0 ? (
             <tr>
-              <td colSpan={columns.length} style={{ padding: 16, textAlign: "center", color: "var(--brand-border, #475569)" }}>
+              <td colSpan={columns.length} style={{ padding: 16, textAlign: "center", color: "var(--brand-text-subtle, #94a3b8)" }}>
                 {emptyLabel}
               </td>
             </tr>
