@@ -241,6 +241,12 @@ ssh-copy-id -i ~/.ssh/id_ed25519.pub pixsys@<host>
 L'agente non esegue questi due comandi: deve aspettare che il maintainer li abbia fatti
 e poi può procedere con `ssh pixsys@<host>` per i comandi successivi.
 
+Se il sintomo compare **durante il deploy dell'immagine container dall'IDE** — muro di
+`REMOTE HOST IDENTIFICATION HAS CHANGED!` che finisce in `ssh fallito (exit 255)` — il caso è
+trattato per esteso in [`HOWTO.md` §9](HOWTO.md#9-il-deploy-dellimmagine-fallisce-dopo-un-factory-reset-del-dispositivo):
+lì `StrictHostKeyChecking=no` non basta, perché con una host key **cambiata** OpenSSH disabilita
+l'autenticazione a password.
+
 ---
 
 ## Convenzioni

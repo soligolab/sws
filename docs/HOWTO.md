@@ -20,6 +20,7 @@
 6. [Vedere cosa disegna il pannello senza avere il pannello](#6-vedere-cosa-disegna-il-pannello-senza-avere-il-pannello)
 7. [Accendere l'assistente IA nell'editor](#7-accendere-lassistente-ia-nelleditor)
 8. [Confrontare a numeri quello che disegna il browser con quello che disegna il pannello](#8-confrontare-a-numeri-quello-che-disegna-il-browser-con-quello-che-disegna-il-pannello)
+9. [Il deploy dell'immagine fallisce dopo un factory reset del dispositivo](#9-il-deploy-dellimmagine-fallisce-dopo-un-factory-reset-del-dispositivo)
 
 ---
 
@@ -668,3 +669,78 @@ elementi invece dei pixel: `document.querySelectorAll("svg rect")` e il loro `he
 Numeri confrontabili fra i due motori — «130 px contro 61» — che si possono mettere in una scheda
 di `OPEN_QUESTIONS.md` e su cui si può decidere. `scripts/check_fuori_pagina_lvgl.sh` è un esempio
 completo e funzionante di questo giro, da copiare.
+
+---
+
+## 9. Il deploy dell'immagine fallisce dopo un factory reset del dispositivo
+
+**Il sintomo.** Dal pannello Runtime dell'IDE, «Deploy» dell'immagine container si ferma e nel
+registro compare un muro di testo allarmante, che finisce così:
+
+```
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+IT IS POSSIBLE THAT SOMEONE IS DOING SOMETHING NASTY!
+...
+Offending ECDSA key in /home/ut1/.ssh/known_hosts:53
+Password authentication is disabled to avoid man-in-the-middle attacks.
+user@192.168.1.16: Permission denied (publickey,password).
+ERROR: ssh fallito (exit 255)
+```
+
+**Non è un attacco.** Un **factory reset rigenera le chiavi host SSH** del dispositivo: la macchina
+è la stessa, ma si presenta con un'identità nuova, e il tuo `known_hosts` ha ancora quella vecchia.
+
+### Perché `StrictHostKeyChecking=no` non ti salva
+
+Il deploy invoca ssh con `-o StrictHostKeyChecking=no` (`sws-web/src/packaging.rs`), e viene
+naturale pensare che quell'opzione ignori il problema. **Non in questo caso**, ed è la parte che
+costa tempo capire.
+
+Con una chiave **nuova** (primo contatto) quell'opzione la accetta in silenzio. Con una chiave
+**cambiata** OpenSSH non rifiuta la connessione, ma applica delle restrizioni — ed è scritto nel
+registro qui sopra:
+
+```
+Password authentication is disabled to avoid man-in-the-middle attacks.
+Keyboard-interactive authentication is disabled to avoid man-in-the-middle attacks.
+```
+
+Cioè: **la password che hai scritto nel modulo di deploy diventa inutilizzabile.** Resta solo
+l'autenticazione a chiave pubblica — che lo stesso factory reset ha cancellato, insieme a
+`authorized_keys`. Da qui `Permission denied (publickey,password)`.
+
+Sono quindi **due** guasti sovrapposti, e sistemarne uno solo non basta.
+
+### Come si rimette a posto
+
+Sul dev server (non sul dispositivo), nell'ordine:
+
+```sh
+# 1. Togli l'identità vecchia. Il comando esatto è nel messaggio d'errore.
+ssh-keygen -f ~/.ssh/known_hosts -R 192.168.1.16
+
+# 2. Riaccetta la nuova e reinstalla la chiave pubblica (chiede la password una volta).
+ssh-copy-id -o StrictHostKeyChecking=accept-new -i ~/.ssh/id_ed25519.pub user@192.168.1.16
+
+# 3. Verifica che entri senza password, PRIMA di rifare il deploy.
+ssh -o BatchMode=yes user@192.168.1.16 'echo ok'
+```
+
+Il passo 3 non è cerimoniale: se risponde `ok`, il deploy funzionerà; se chiede ancora qualcosa, il
+deploy fallirà nello stesso modo e avrai perso un altro giro.
+
+### Due trappole collegate
+
+- **L'indirizzo può essere cambiato anche lui.** Dopo un reset il dispositivo può prendere un IP
+  diverso: se `192.168.1.16` era di un'altra macchina, la riga incriminata in `known_hosts`
+  appartiene a quella, non a questa. Meglio ragionare sul nome mDNS
+  (`<modello>-<seriale>.local`) che sull'indirizzo.
+- **L'utente conta.** Il deploy usa `user@`; l'accesso di servizio è `pixsys@`. Reinstallare la
+  chiave per uno non la installa per l'altro.
+
+Il rituale pre-sessione più generale (host key cambiata dopo un re-flash) è in
+[`TEST_SETUPS.md`](TEST_SETUPS.md#procedura-ricorrente-del-maintainer-non-automatizzata).
+Questo capitolo è il caso specifico del deploy container, che fallisce in un modo diverso e più
+difficile da leggere.
