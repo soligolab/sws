@@ -1205,13 +1205,93 @@ cose che oggi funzionano perché c'è un solo cliente smettono di funzionare tut
    storico cresce da solo è un'altra cosa. E cosa succede quando si supera: si blocca la scrittura?
    si ferma lo storico? Un impianto che smette di registrare perché è finito lo spazio è un guasto.
 4. **Backup e ripristino per azienda**, non per progetto come oggi.
-5. **AGPL-3.0-only** (`sws-runtime/Cargo.toml:24`, `LICENSE`). Offrire il software **come servizio in
-   rete** è esattamente il caso che questa licenza copre: gli utenti del servizio acquisiscono il
-   diritto di ricevere il sorgente. È una conseguenza da conoscere prima, non un ostacolo — ma è una
-   decisione di prodotto e non tecnica, e riguarda il proprietario del codice (Soligonet).
+5. **La licenza.** Vedi la sezione dedicata qui sotto: è la parte che il maintainer ha portato
+   avanti per prima, e la premessa da cui era partita si è rivelata sbagliata.
 6. **Il perimetro del «minimo per iniziare».** Il maintainer ha detto numero di progetti e spazio per
    utente, poi si estende. Vale la pena scrivere quali estensioni si prevedono, perché lo schema dei
    dati si progetta una volta sola.
+
+### La licenza — verificato il 2026-09-07
+
+Il maintainer ha chiesto se esistano licenze che permettano di offrire il servizio **senza obbligo
+di rilasciare il sorgente**. Quello che segue sono fatti misurati, non un parere legale: prima di
+muoversi serve un avvocato.
+
+#### La premessa della domanda non regge
+
+**L'AGPL vincola chi *riceve* il software, non chi lo possiede.** Il titolare dei diritti non può
+violare una licenza che è lui a concedere: Soligonet che ospita codice di Soligonet non deve niente
+a nessuno. L'obbligo scatterebbe per *altri* che avessero ricevuto il codice sotto AGPL e lo
+ospitassero a loro volta.
+
+Quindi, per il solo scopo «ospitare senza pubblicare», **non serve cambiare licenza**.
+
+#### E il codice è già stato distribuito
+
+Il maintainer riteneva di non aver distribuito nulla. Misurato il 2026-09-07:
+
+| | |
+|---|---|
+| `github.com/soligolab/sws` | **pubblico** dal 2026-05-10 (`visibility: public`, licenza dichiarata AGPL-3.0) |
+| `ghcr.io/soligolab/sws-runtime:latest-arm64` | **scaricabile da chiunque** con un token anonimo (HTTP 200) |
+| Fork | **0** — stelle 2, watcher 0 |
+
+Chiunque abbia preso una copia conserva i diritti AGPL **su quelle versioni, in modo
+irrevocabile**: non si può richiamare indietro. In pratica però l'esposizione è teorica — nessuno
+ha forkato in quattro mesi.
+
+Questo **non** impedisce di cambiare licenza alle versioni **future**: chi è titolare unico può
+rilasciare la 2.7.0 sotto qualunque licenza voglia. Il passato resta com'è.
+
+#### Titolarità e dipendenze: nessun ostacolo tecnico
+
+- **Un solo autore umano.** 382 commit `Mauro Soligo <mauro@soligo.net>` più 2 `pixsysedp
+  <edp@pixsys.net>`, che sono la stessa persona su due macchine. Nessun contributore esterno.
+- **Nessuna dipendenza impone AGPL o GPL.** Scansionati **577 crate** Rust e **319 pacchetti** npm:
+
+  | Licenza | Dove | Effetto |
+  |---|---|---|
+  | MIT / Apache-2.0 / ISC / BSD | la grande maggioranza | nessun vincolo |
+  | MPL-2.0 | `async-opcua*` (9 crate), `serialport` | copyleft **per file**: si pubblicano le modifiche *a quei file*, ma si possono collegare a software proprietario. **Non blocca** |
+  | `unescaper` — `GPL-3.0/MIT` | 1 crate | doppia: si sceglie MIT |
+  | `r-efi` — `MIT OR Apache-2.0 OR LGPL` | 2 crate | si sceglie MIT |
+  | npm | 319 pacchetti | **zero copyleft** |
+
+#### Le opzioni, e cosa comprano davvero
+
+| | Cosa | Cosa ottieni | Cosa perdi |
+|---|---|---|---|
+| 1 | **Lasciare AGPL** | Ospiti lo stesso: sei il titolare | Chi vuole includere SWS in un prodotto proprietario non può, e molti uffici legali industriali vietano l'AGPL in blocco |
+| 2 | **Doppia licenza** (AGPL + commerciale) | Il pubblico resta AGPL; vendi la commerciale a chi la vuole | Richiede di restare titolare unico: servirebbe un CLA al primo contributore esterno |
+| 3 | **MIT sulle versioni future** | Chiunque può usarlo e includerlo ovunque, senza attriti legali | **Chiunque può anche ospitarlo come servizio concorrente e non deve niente** |
+| 4 | **Proprietaria sulle versioni future** | Controllo massimo | Nessuna adozione esterna; e il fork AGPL pubblico resta comunque disponibile |
+
+#### Orientamento del maintainer (2026-09-07)
+
+**MIT**, motivato dall'essere unico autore. Registrato come orientamento, non come decisione.
+
+Due cose da pesare prima di renderlo definitivo, dette una volta e senza insistere:
+
+- **MIT concede molto più di quanto lo scopo richiedesse.** L'obiettivo era «ospitare senza
+  pubblicare», che la titolarità già garantisce (opzione 1). Con MIT, chiunque — un concorrente,
+  un cliente, Pixsys — può prendere SWS, ospitarlo come servizio a pagamento e non restituire
+  niente. Se un domani Q44 diventa un prodotto, è la licenza che protegge meno.
+- **Ma c'è un argomento pratico forte a favore**, in questo settore: molti reparti acquisti e uffici
+  legali industriali **vietano l'AGPL** per contratto. Se l'obiettivo è che i clienti possano
+  integrare SWS senza una revisione legale, MIT toglie un attrito reale che l'AGPL crea. Vale la
+  pena dire a voce alta se è *questa* la ragione, perché allora MIT è la scelta giusta e non un
+  eccesso.
+
+#### Cosa resta da chiedere a un avvocato
+
+1. **Esiste un contratto con Pixsys** che renda parte del lavoro commissionato? La nota di progetto
+   dice che Pixsys è cliente e non proprietaria, ma è un fatto contrattuale non verificabile dal
+   codice.
+2. **I contributi generati dall'IA**: i termini di Anthropic assegnano l'output all'utente, ma lo
+   stato del diritto d'autore su output di IA non è uniforme fra giurisdizioni. Tende a *ridurre* la
+   protezione, non a creare un terzo che rivendica.
+3. **Il cambio di licenza va fatto bene**: `LICENSE`, il campo `license` nei quattro manifesti, le
+   intestazioni dei file se ce ne sono, e una nota che dica da quale versione vale.
 
 ### Rapporto con le altre voci
 
