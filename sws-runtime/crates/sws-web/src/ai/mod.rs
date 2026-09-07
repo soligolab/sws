@@ -112,6 +112,19 @@ async fn sessione(socket: WebSocket, s: AppState) {
                   } else { Value::Null },
     }));
 
+    // Q41 — il saldo dell'account, per chi lo espone (oggi solo Kimi: vedi
+    // `Fornitore::url_saldo`). Chiesto UNA volta, all'apertura del pannello —
+    // a ogni messaggio sarebbe una chiamata in più per risposta (scheda,
+    // domanda 4) — e in un task suo: la chat non aspetta il saldo.
+    if let Some(sc) = scelta.clone().filter(|sc| sc.fornitore.url_saldo().is_some()) {
+        let tx_saldo = tx.clone();
+        tokio::spawn(async move {
+            if let Some(disponibile) = client::saldo(&sc).await {
+                invia(&tx_saldo, json!({ "t": "saldo", "disponibile": disponibile }));
+            }
+        });
+    }
+
     // La conversazione vive quanto il socket.
     let mut messaggi: Vec<Value> = Vec::new();
 
@@ -187,6 +200,16 @@ async fn vero_giro(
         // Il costo del turno nel registro, mai il contenuto.
         tracing::info!(giro, usage = %risposta.usage, stop = %risposta.stop_reason,
                        "turno assistente");
+
+        // Q41 — il costo del turno anche allo SCHERMO: il pannello somma per
+        // conversazione. Il dato è già in mano (usage della risposta), quindi
+        // zero chiamate in più. I token di cache viaggiano separati: contarli
+        // come ingresso pieno mentirebbe sul costo.
+        let tok = |campo: &str| risposta.usage.get(campo).and_then(Value::as_u64).unwrap_or(0);
+        invia(tx, json!({ "t": "risorse",
+            "input": tok("input_tokens"), "output": tok("output_tokens"),
+            "cache_lettura": tok("cache_read_input_tokens"),
+            "cache_scrittura": tok("cache_creation_input_tokens") }));
 
         messaggi.push(json!({ "role": "assistant", "content": risposta.content }));
 

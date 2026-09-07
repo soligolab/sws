@@ -124,6 +124,24 @@ export class RuntimeUnavailableError extends Error {
   }
 }
 
+/** Segnala che **noi** abbiamo cambiato il progetto attivo (aperto, creato,
+ *  importato o chiuso), cosi' i sorveglianti possono rifissare la loro linea di
+ *  base invece di leggere il cambio come una modifica esterna.
+ *
+ *  Perche' sta qui e non nei punti di chiamata: i modi di cambiare progetto sono
+ *  otto, sparsi fra WelcomeScreen, ConfigView, MainMenu e App. Un elenco di otto
+ *  punti da ricordare e' un elenco che prima o poi diverge — ed e' esattamente la
+ *  classe di difetto che questo evento ripara: il banner «il progetto sul runtime
+ *  e' cambiato (deploy o modifica esterna)» compariva appena si creava un
+ *  progetto, perche' la guardia esistente in `App.tsx` copriva solo i
+ *  *salvataggi* (`saveStatus === "ok"`) e una creazione non passa da li'.
+ *
+ *  Qui invece non si puo' dimenticare: chiunque cambi progetto passa da questo
+ *  client, quindi passa da questa funzione. */
+function segnalaCambioProgettoNostro(): void {
+  try { window.dispatchEvent(new CustomEvent("sws:project-switched")); } catch { /* SSR/test */ }
+}
+
 /** Server signals an authenticated user must change their password before
  *  reaching any non-self-service endpoint. The runtime returns 403 with
  *  `{ error: "password_change_required" }`; the UI lifts the
@@ -581,6 +599,7 @@ export const api = {
       try { body = await res.text(); } catch { /* ignore */ }
       throw new Error(`API /api/project/import: ${res.status} ${res.statusText}${body ? ` — ${body}` : ""}`);
     }
+    segnalaCambioProgettoNostro();
   },
 
   // Synoptics
@@ -924,12 +943,15 @@ export const api = {
   listProjects: () =>
     request<ProjectListEntry[]>("/api/projects"),
 
-  createProject: (req: { name: string; template?: string; parent_path?: string; target?: ProjectTarget }) =>
-    request<{ name: string }>("/api/projects", {
+  createProject: async (req: { name: string; template?: string; parent_path?: string; target?: ProjectTarget }) => {
+    const r = await request<{ name: string }>("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(req),
-    }),
+    });
+    segnalaCambioProgettoNostro();
+    return r;
+  },
 
   browseDirs: (path?: string) =>
     request<BrowseDirsResponse>(
@@ -944,14 +966,19 @@ export const api = {
       body: JSON.stringify({ parent, name }),
     }),
 
-  openProject: (name: string) =>
-    request<{ name: string; must_login: boolean }>(
+  openProject: async (name: string) => {
+    const r = await request<{ name: string; must_login: boolean }>(
       `/api/projects/${encodeURIComponent(name)}/open`,
       { method: "POST" },
-    ),
+    );
+    segnalaCambioProgettoNostro();
+    return r;
+  },
 
-  closeProject: () =>
-    request<void>("/api/projects/close", { method: "POST" }),
+  closeProject: async () => {
+    await request<void>("/api/projects/close", { method: "POST" });
+    segnalaCambioProgettoNostro();
+  },
 
   deleteProject: (name: string) =>
     request<void>(`/api/projects/${encodeURIComponent(name)}`, { method: "DELETE" }),

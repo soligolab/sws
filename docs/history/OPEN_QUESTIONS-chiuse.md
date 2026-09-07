@@ -1684,6 +1684,85 @@ immagine configurata in questo motore — genuinamente bloccato, non un errore d
 
 ---
 
+## Q17 — `apply_recipe` scrive i tag senza contesto utente: la soglia `write_min_role` non si applica
+
+> **Archiviata il 2026-09-06** — decisa (opzione 1: soglia per-tag, all-or-nothing) e
+> realizzata lo stesso giorno, verificata sul codice prima di archiviare: pre-controllo
+> `tag_write_allowed` + audit firmato in `apply_recipe` (`sws-web/src/router.rs`), guardia
+> `scripts/check_ricette.sh` verde e provata rossa.
+
+**Context**: emerso il 2026-08-22 implementando F3.1 (piano SCADA-widgets). Le scritture via
+REST (`PUT /api/tags/:id`) e WS onorano `TagDef.write_min_role`; `POST /api/recipes/:id/apply`
+invece non ha `Extension<AuthUser>` (deve funzionare anche per il viewer anonimo/kiosk) e scrive
+i setpoint della ricetta senza controllo per-tag. Un Operator — o un anonimo, dove il viewer lo
+permette — può quindi scrivere via ricetta un tag protetto Admin.
+
+**Options**:
+1. Aggiungere l'utente opzionale all'endpoint (optional_auth) e applicare la soglia per-tag:
+   anonimo = sotto Viewer, ricette con tag protetti falliscono con elenco chiaro.
+2. Soglia di ruolo a livello di RICETTA (`RecipeDef.min_role`), più grossolana ma più semplice
+   da capire per l'operatore.
+3. Lasciare com'è e documentare: le ricette sono già un'azione deliberata di supervisione.
+
+**Default for PoC**: opzione 3 (stato attuale), da rivedere insieme alla Q8-E.
+
+### Riverificato il 2026-09-05 — la descrizione regge, e l'esposizione reale è zero
+
+`apply_recipe` (`router.rs:4132`) non ha ancora `Extension<AuthUser>`: la firma prende solo
+`State`, `Path` e `Json`, quindi non ha modo di sapere chi sta chiedendo. La descrizione qui sopra
+è ancora esatta a un anno di distanza dai fatti che l'hanno generata.
+
+Due misure che la scheda non aveva, e che cambiano l'urgenza senza cambiare la sostanza:
+
+- **Nessun template del repo contiene ricette.** Niente le esercita, quindi non c'è un progetto di
+  prova su cui il difetto si veda — ed è anche il motivo per cui non l'ha ritrovato nessuno.
+- **La soglia esiste per davvero sull'altra strada**: `write_min_role` è applicata da
+  `tag_write_allowed` sulle scritture REST e WS, e i template la dichiarano. Quindi il buco non è
+  «la soglia non c'è», è «c'è una porta che non la guarda».
+
+Non cambia la scelta — resta una decisione di prodotto fra le tre opzioni — ma dice che si può
+prendere con calma, e che chi la prenderà dovrà **anche** scrivere un progetto di prova con una
+ricetta e un tag protetto, perché oggi non esiste e nessuna guardia potrebbe accorgersi di una
+regressione.
+
+**Decided**: not yet.
+
+### Decisa e realizzata il 2026-09-06 — opzione 1, all-or-nothing
+
+Scelta col maintainer: **la soglia per-tag vale anche per le ricette**, con una semantica più
+severa delle altre porte — **all-or-nothing**: un solo setpoint sopra il ruolo del chiamante e
+la ricetta viene rifiutata intera (403 con l'elenco dei tag vietati), perché il ruolo è
+conoscibile *prima* di toccare l'impianto e applicare mezza ricetta è peggio che rifiutarla.
+Gli errori di runtime (tipo Q27, canale chiuso) restano per-setpoint come prima: quelli prima
+non si possono sapere.
+
+Due precisazioni emerse implementando, che la scheda non aveva:
+
+- Il timore dell'«anonimo» era sovrastimato: `apply_recipe` stava **già** dietro
+  `require_operator` su entrambi i router — un anonimo è Viewer e prendeva 403 al cancello.
+  Il buco vero era l'Operator sul tag `write_min_role: Admin`. E l'`Extension<AuthUser>` era
+  già iniettata dal layer: «deve funzionare anche per il viewer anonimo» non era il motivo
+  vero dell'assenza, era solo mai stata aggiunta.
+- **L'apply non lasciava traccia nell'audit** — unico percorso di scrittura senza — e lo
+  storico ricette si fidava dell'`applied_by` autodichiarato dal client. Ora l'audit
+  hash-chained porta `recipe.apply` e `recipe.apply_denied` firmati dall'utente autenticato;
+  lo storico conserva l'`applied_by` libero («chi era al pannello»), ma la verità firmata sta
+  nell'audit.
+- Correzione alla riverifica del 09-05: «i template la dichiarano» era falso — **nessuno**
+  YAML del repo dichiara `write_min_role` (grep fatto). Per questo la guardia si porta il suo
+  progetto.
+
+Prova: `scripts/check_ricette.sh` (21ª con stack) — runtime scratch con utenti veri
+(admin + Operator creato via API), due ricette seminate su disco, otto controlli: 403 con
+elenco, all-or-nothing misurato sul tag lecito rimasto a 0, ricetta libera applicabile,
+Admin che applica tutto, audit firmato. **Provata rossa** spegnendo il pre-controllo:
+l'Operator tornava a scrivere il tag protetto (200, `applied: 2`) e la guardia lo dice.
+Trovata e documentata anche la trappola `auth.swap_store`: aprire un progetto invalida le
+sessioni, il login va rifatto dopo la `open`.
+
+
+---
+
 ## Q18 — Colori del testo dai token di tema su pagine con sfondo scelto a mano
 
 > **Archiviata il 2026-09-06** — decisione del maintainer realizzata, e l'affermazione è
@@ -2069,6 +2148,83 @@ subito.
 Nel frattempo i template della demo restano com'è: **riscriverli per aggirare il problema lo
 nasconderebbe**, ed è il difetto stesso che va visto.
 
+## Q27 — Il server non fa rispettare il `data_type` dei tag in scrittura
+
+> **Archiviata il 2026-09-06** — decisa (coercizione senza perdita) e realizzata lo stesso
+> giorno, verificata sul codice prima di archiviare: `TagDb::coerce_for_write` +
+> mappa `data_types` in `sws-core/src/tag.rs`, applicata da PUT/WS/ricette/script;
+> guardia `scripts/check_tipo_scrittura.sh` verde (e provata rossa).
+
+*Aperta il 2026-08-31. Misurata, non decisa.*
+
+`PUT /api/tags/:id` accetta un valore di **qualunque** tipo e lo conserva così com'è, anche quando
+il tag dichiara un `data_type` diverso. Misurato sul runtime locale:
+
+```
+PUT /api/tags/demo.cmd.button  {"value": "true"}   → 204
+GET → {"value": "true", ...}        # stringa, su un tag dichiarato `bool`
+```
+
+Nessun errore, nessun avviso: il tag resta di tipo dichiarato `bool` e contiene una stringa.
+
+### Perché è emerso adesso
+
+Il pulsante dei due modelli "Demo Items" aveva `write_value: 'true'` — in YAML una **stringa**, non
+un booleano. Funzionava per caso: chi rilegge quel tag tratta una stringa non vuota come vera. Il
+modello è stato corretto e una guardia (`check_templates.sh`) impedisce che rientri, ma la guardia
+copre solo *i nostri* modelli: un progetto di un cliente può fare la stessa cosa e nessuno lo dirà.
+
+### Le domande
+
+1. **Rifiutare o convertire?** Rifiutare (400) è onesto e rompe i progetti che oggi funzionano per
+   caso. Convertire (`"true"` → `true`) è indulgente ma sceglie al posto dell'utente, e su
+   `"1.5"` → `int` la scelta non è ovvia.
+2. **Dove**: nel `PUT`, nel `TagDb`, o in entrambi? Gli script Python e i driver scrivono per altre
+   strade.
+3. **Cosa fare dei valori già sbagliati** su un impianto in servizio, che si romperebbero al primo
+   riavvio con il controllo acceso.
+4. **`data_type` è una dichiarazione o un contratto?** Oggi è documentazione. Se diventa un
+   contratto va detto, perché cambia cosa significa scrivere un tag.
+
+### Rapporto con le altre voci
+
+Stessa famiglia di **Q17** (`/api/recipes/:id/apply` che scrive senza controllo per-tag): in
+entrambi i casi il server accetta una scrittura che avrebbe gli elementi per rifiutare.
+
+### Decisa e realizzata il 2026-09-06 — coercizione senza perdita
+
+Politica scelta col maintainer fra le tre della scheda: **convertire ciò che non perde
+informazione, rifiutare il resto con 400 e il motivo**. Rifiutare e basta avrebbe rotto anche i
+client corretti (il JSON non distingue `5` da `5.0`: un int su un tag `float` arriva a ogni
+scrittura); il solo warning avrebbe lasciato il buco.
+
+Risposte alle quattro domande della scheda:
+
+1. **Coercizione senza perdita**: Int→float sempre; Float intero→int (con controllo di range
+   i64 — `f as i64` satura, e consegnare `i64::MAX` al PLC *è* una perdita); `"true"`/`"false"`
+   →bool e stringhe numeriche parse esatto; tutto il resto → 400 con tag, tipo dichiarato e
+   valore ricevuto nel messaggio.
+2. **Dove**: un solo punto, `TagDb::coerce_for_write` (`sws-core/src/tag.rs`), con la mappa
+   `data_types` popolata negli stessi punti di refresh di `scales`/`write_roles`. Lo chiamano
+   tutti e quattro i percorsi utente: `PUT /api/tags/:id` (400 + audit
+   `tag.write_rejected_type`), la scrittura WebSocket (ack negativo col motivo — il toast
+   c'era già, F3.7), `apply_recipe` (nel suo `errors[]`), gli script Python (`ValueError`).
+   `ingest()` — i plugin che *leggono* dal campo — resta fuori: lì il tipo lo dà il protocollo.
+3. **Gli impianti in servizio non si rompono**: i valori seminati al boot sono già tipati
+   (`initial_value()`), e il caso storico `write_value: 'true'` continua a funzionare —
+   da oggi per contratto, non per caso.
+4. **`data_type` è un contratto** sui percorsi di scrittura utente, e sta scritto sul metodo.
+   Un tipo dichiarato ignoto (refuso YAML) non vincola: rifiutare lì renderebbe il tag non
+   scrivibile, e il refuso è mestiere del validatore.
+
+Prova: unit test in `sws-core` (`coerce_lossless_pass_lossy_reject`,
+`coerce_for_write_uses_declared_map`) + guardia end-to-end `scripts/check_tipo_scrittura.sh`,
+provata anche rossa (spenta la coercizione: 4 controlli rossi, compreso il `str 'true'`
+conservato su un tag bool — il difetto originale della scheda).
+
+
+---
+
 ## Q33 — `POST /api/system/stop` viene annullato in silenzio dal salvataggio delle Sorgenti
 
 > **Archiviata il 2026-09-06** — decisione del maintainer realizzata, e l'affermazione è
@@ -2256,6 +2412,334 @@ posto solo, e qui si vede il ritorno.
 **Decided**: opzione 1 (più il non-silenzio dell'opzione 2) il 2026-09-03, e la spia nell'IDE il
 2026-09-04. (Questa scheda portava anche una riga «Decided: not yet» rimasta appesa sotto la prima:
 due verdetti in contraddizione sulla stessa domanda, rimossa il 2026-09-04.)
+
+
+---
+
+## Q35 — «fuori pagina» è implicito nelle coordinate o è un campo `disabled` esplicito?
+
+> **Archiviata il 2026-09-06** — decisa: il campo esplicito esiste già (`visible` +
+> `visible_tag`, in tutti e tre gli specchi, col pannello e il supporto LVGL) e coesiste in
+> OR col parcheggio implicito di T-52. Verificata sul codice prima di archiviare:
+> `check_off_page.sh` verde, `visible` in `types/index.ts:84` / `synoptic.rs:210` /
+> `model.rs:91`, checkbox in `EditorShell.tsx:4331`, manuale 04 §pannello.
+
+*Aperta il 2026-09-05, lavorando a T-52 (punto 3: un oggetto fuori pagina è ignorato a runtime ma
+resta nel progetto).*
+
+Il comportamento chiesto dal maintainer è «togliere qualcosa dalla grafica temporaneamente senza
+cancellarlo»: si trascina l'oggetto fuori dal foglio e sparisce dal viewer, dal pannello e dal
+validatore, ma resta nel file. Il **come** si scrive questo stato è una scelta di modello, ed è
+stata presa per il PoC senza chiudere la domanda.
+
+**Options**
+
+1. **Implicito nelle coordinate** (scelto per il PoC). Nessun campo nuovo: una funzione condivisa
+   `isOffPage` / `is_off_page` guarda la bbox contro il rettangolo pagina, e quattro chiamanti la
+   consultano. Il file YAML non cambia, quindi non cambia niente per LVGL, per la parità di
+   modello, per l'import/export.
+2. **Campo `disabled: true` esplicito** sull'oggetto. Lo stato è dichiarato invece che dedotto:
+   si può disabilitare un oggetto senza spostarlo, e un oggetto parcheggiato fuori pagina per
+   comodità di lavoro non viene disabilitato per sbaglio.
+
+**Il costo dell'opzione 1**, che è la ragione per cui la domanda resta aperta: *posizione* e
+*intenzione* diventano la stessa cosa. Chi rimpicciolisce una pagina da 1280 a 800 disabilita in
+silenzio tutto quello che stava a destra — vedi il rischio R8 del piano, e l'avviso di pagina che
+è stato aggiunto proprio per non lasciare quel cambiamento muto. E non esiste modo di parcheggiare
+un oggetto fuori dal foglio *senza* disabilitarlo.
+
+**Il costo dell'opzione 2**: un campo in più nei due mirror di struct (web e LVGL) e nello schema
+dato all'assistente, più la domanda di cosa vinca quando i due stati non concordano — un oggetto
+`disabled: false` trascinato fuori pagina si disegna o no?
+
+**Default for PoC**: opzione 1, implicito nelle coordinate. La definizione sta in un posto solo
+(`sws-editor/src/pageLayout.ts` e `sws-core/src/geometry.rs`) e una guardia statica tiene allineate
+le due tabelle di casi, quindi il passaggio all'opzione 2 non sarebbe una riscrittura.
+
+**Decided**: not yet.
+
+### Decisa il 2026-09-06 — l'esplicito esiste già, e si chiama `visible`
+
+Il maintainer ha scelto l'opzione 2 (campo esplicito)… e verificandola sul codice è emerso che
+**è già realizzata da anni di F-lavori, sotto il nome `visible`**: campo statico
+`visible: bool` + gemello dinamico `visible_tag` in tutti e tre gli specchi
+(`types/index.ts:84`, `synoptic.rs:210`, `model.rs:91`), checkbox e input tag nel pannello
+proprietà (`EditorShell.tsx:4331`, anche in multi-selezione), fantasma a opacità 0.35 in
+editor (`SvgCanvas.tsx:1654`), applicazione dal vivo su LVGL (`applied_visible`, in
+`GEOM_KEYS`), voci nel manuale (04_editor_guide §pannello, 05_widget_reference).
+Aggiungere un `disabled` accanto avrebbe violato la regola UI n. 2 (mai due punti del
+pannello che scrivono lo stesso dato). Decisione finale, presa su queste premesse:
+**la scheda si chiude constatando che i due meccanismi coesistono e bastano.**
+
+La semantica, che era la parte davvero aperta, resta registrata qui:
+
+- **Fuori-pagina e visibilità sono in OR**: il parcheggio salta l'oggetto *prima* di
+  risolvere la visibilità (`SvgCanvas.tsx:1624`, e l'ordine equivalente su LVGL). Un
+  `visible: true` trascinato fuori dal foglio NON si disegna — il contratto T-52 vince.
+- **Sono due intenzioni diverse e il modello le distingue**: il parcheggio (posizione)
+  esenta anche dal validatore — l'oggetto è *accantonato*; `visible: false` invece è
+  *nascosto ma vivo*: viene ancora validato, e un `visible_tag` può resuscitarlo da runtime
+  (il tag, quando presente, vince sul flag statico — `SvgCanvas.tsx:341-348`).
+- Il «disabilitare senza spostare» chiesto dall'opzione 2 si fa con la checkbox Visibile;
+  il «parcheggiare senza disabilitare» resta impossibile per costruzione, ed è il costo
+  dichiarato e accettato dell'implicito di T-52.
+
+Se un giorno servirà un terzo stato (nascosto E esente dal validatore E non resuscitabile
+da tag), sarà una scheda nuova con quel caso d'uso in mano.
+
+
+---
+
+## Q37 — Cosa c'è attorno alla pagina sul pannello, e cosa succede se il foglio non ci sta
+
+> **Archiviata il 2026-09-06** — decisa (cornice riempita col neutro del letterbox web,
+> taglio dichiarato dall'avviso esistente, niente scaling) e realizzata lo stesso giorno:
+> `fill_rect` condizionale nel loop SDL2 e `DrmDisplay::riempi()` all'avvio
+> (`sws-lvgl-viewer`). Prova visiva rimandata al pannello vero, dichiarato nella scheda.
+
+*Aperta il 2026-09-05, lavorando a T-52. Due fatti verificati che sono la stessa domanda.*
+
+**Attorno.** Il backend SDL2 (il default sui pannelli) apre una finestra `fullscreen_desktop`, che
+può essere più grande della pagina; `page_offset` centra il foglio e il loop di presentazione fa
+**solo** il blit del rettangolo pagina. `grep "fill_rect\|clear()\|set_draw_color"` su `main.rs`:
+zero risultati. La cornice attorno al foglio non è né riempita né azzerata per frame: **il suo
+contenuto non è definito da noi**. In editor, dopo T-52, attorno al foglio c'è un tavolo neutro
+dichiarato; sul dispositivo c'è quel che capita.
+
+**Se non ci sta.** Nel viewer web `size_mode: fixed` con una pagina più grande dello spazio
+disponibile **riduce** mantenendo le proporzioni (`viewerFitScale`, con cap a 1: nasce sul WP620,
+dove le barre rubavano 90 px). In LVGL non esiste **nessuno** scale factor — nessun
+`lv_disp_set_zoom`, nessuna trasformazione — e la pagina viene **tagliata**, con un avviso a
+console che dice «quello che avanza NON si vede». Lo stesso progetto sullo stesso dispositivo si
+vede intero nel browser e mutilato sul pannello: è una divergenza WYSIWYG molto più visibile del
+bordo pagina che T-52 è andato a sistemare.
+
+**Options**
+
+1. **Dichiarare il limite** e basta: il pannello vuole una pagina della misura del suo schermo, e
+   l'IDE lo dice quando non lo è.
+2. **Riempire la cornice** con un colore dichiarato (il colore pagina? un tavolo? nero?) e
+   **ritagliare/centrare** il blit come già fa SDL2, così almeno il taglio è deliberato.
+3. **Scalare davvero in LVGL**, che è per-widget e non per-screen: è una riscrittura del motore di
+   render, non una correzione.
+
+**Default for PoC**: opzione 1 + l'avviso che già c'è. **Decided**: not yet.
+
+### Decisa e realizzata il 2026-09-06 — cornice deliberata, taglio dichiarato
+
+Scelta col maintainer: **opzione 2 per la cornice, opzione 1 per il taglio**, e l'opzione 3
+(scalare in LVGL) rifiutata — è una riscrittura del motore, non una correzione.
+
+- **La cornice ora è un colore deliberato**: il neutro scuro che il viewer web usa per le
+  bande del letterbox (`#0f172a`, il `--brand-bg` del tema scuro). Su SDL2 il `fill_rect`
+  avviene solo quando la cornice esiste (pagina ≠ finestra) — sul pannello tipico non si paga
+  niente; su DRM `riempi()` viene chiamata **una volta** all'avvio (la pagina sovrascrive il
+  suo rettangolo a ogni flush, la cornice resta). Il dumb buffer del kernel nasceva azzerato —
+  nero — ma nero-per-caso e dichiarato sono due cose diverse, ed era il punto della scheda.
+- **Il taglio resta dichiarato**: l'avviso «quello che avanza NON si vede» c'era già ed è la
+  risposta scelta; nessuno scaling per-widget.
+
+Prova: `cargo check` e i 163 test del crate verdi; la prova **visiva** della cornice vuole un
+pannello vero (il ramo di validazione del 2026-09-06 la include) — l'`--istantanea` non può
+vederla perché rende il solo rettangolo pagina.
+
+
+---
+
+## Q38 — `size_mode: ratio` senza dimensioni esplicite: il bordo esiste ma non arriva al canvas
+
+> **Archiviata il 2026-09-06** — decisa (opzione 2: materializzare le misure nel file) e
+> realizzata lo stesso giorno, verificata sul codice prima di archiviare: semina in
+> `addPage` (store), sanatoria all'apertura in `useMaterializzaRatio` (EditorShell),
+> vitest dedicati, `check_off_page` verde.
+
+*Aperta il 2026-09-05, lavorando a T-52.*
+
+`editorFitSize()` ricade sulla risoluzione di riferimento quando la pagina non ha `width`/`height`
+proprie ma la modalità è `ratio`; `EditorShell` però passa a `SvgCanvas` il `currentPage.width`
+**grezzo**. Quindi «adatta pagina» inquadra 1920×1080 mentre il rettangolo tratteggiato non viene
+disegnato — la sua condizione richiede `pageWidth && pageHeight`.
+
+Per T-52 la conseguenza è che in quella configurazione il colore non si limita, il bordo non
+trattiene e niente è mai «fuori pagina». Coerente con la regola «nessun bordo ⇒ nessun limite», ma
+per il motivo sbagliato: il bordo *esiste*, semplicemente non arriva al componente.
+
+**Options**
+
+1. **Passare `fitPageSize` come bordi** al canvas. Una riga — e in un colpo cambia fill,
+   resistenza e fuori-pagina per **tutti** i progetti in `ratio` senza dimensioni esplicite.
+2. **Materializzare le dimensioni** sulla pagina quando si sceglie `ratio`, così il file dice
+   quello che l'editor mostra.
+3. **Lasciare com'è**: `ratio` senza dimensioni significa «non so quanto è grande», e un foglio
+   senza misura non ha un bordo.
+
+**Default for PoC**: opzione 3, cioè nessun cambiamento. Non è un fix silenzioso da fare di
+passaggio. **Decided**: not yet.
+
+### Decisa e realizzata il 2026-09-06 — opzione 2, materializzare (e mezza c'era già)
+
+Scelta col maintainer: **le misure si scrivono nel file**. L'analisi ha smontato l'opzione 1
+della scheda: quella «una riga» avrebbe sistemato solo l'editor, mentre i motori runtime (web
+`synoptic.rs`, LVGL `model.rs`) leggono le misure grezze dal file — l'editor avrebbe
+parcheggiato oggetti che il runtime disegna, una divergenza WYSIWYG creata dal fix. L'opzione 1
+onesta erano quattro consumatori più una guardia; l'opzione 2 ha **un solo scrittore**.
+
+E scavando: **metà materializzazione esisteva già** — il salvataggio del pannello layout in
+`ratio` scrive la risoluzione di riferimento su tutte le pagine (`ProjectPageLayoutSettings`,
+con il commento sul letterbox contro il rapporto sbagliato). I due buchi rimasti, chiusi:
+
+- **pagine nuove**: `addPage` nello store ora semina le misure di riferimento quando il layout
+  effettivo è `ratio` (`makePage` le creava sempre senza);
+- **progetti vecchi**: `useMaterializzaRatio()` in `EditorShell` sana all'apertura le pagine
+  senza misure — vive lì e non in `App.tsx` perché lì progetto e pagine sono entrambi arrivati
+  (le due catene di caricamento sono dichiaratamente in corsa). Le pagine toccate marcano il
+  progetto sporco: è una modifica vera, la salva il maintainer col salvataggio esplicito.
+
+Prova: due vitest su `addPage` (semina in ratio a 1920×1080; NON inventa misure in fixed),
+build e 172 test editor verdi, `check_off_page` verde.
+
+
+---
+
+## Q42 — Gli script Python scrivono i tag senza lo scaling inverso
+
+> **Archiviata il 2026-09-06** — aperta, decisa e realizzata lo stesso giorno (nata
+> dall'analisi di Q27), verificata sul codice prima di archiviare: `scale_to_raw` in
+> `TagApi::write` (`sws-pyscript/src/lib.rs`), unit test provato rosso e verde.
+
+*Aperta il 2026-09-06. Trovata implementando Q27, misurata sul codice e non decisa.*
+
+Tutti i percorsi di scrittura utente convertono il valore ingegneristico in raw prima di
+consegnarlo al plugin: `PUT /api/tags/:id`, la scrittura WebSocket e `apply_recipe` chiamano
+`db.scale_to_raw(...)` prima di `bus.write(...)`. Il percorso degli script **no**:
+`tags.write()` in `sws-pyscript/src/lib.rs` passa il valore così com'è a `bus.write`, benché il
+suo commento dichiari «same semantics as `PUT /api/tags/:id`».
+
+Conseguenza: uno script che scrive un tag **con scaling definito e posseduto da un plugin**
+manda al device il valore ingegneristico come se fosse raw — su un tag 4-20 mA scalato 0-100,
+`tags.write("x", 50.0)` consegna 50 al PLC invece di 12. Il fallback sui tag virtuali
+(`db.set`) è invece corretto: lì il valore resta ingegneristico per costruzione.
+
+Perché nessuno l'ha visto: i progetti d'esempio usano gli script solo su tag virtuali o senza
+scaling, dove i due percorsi coincidono.
+
+### Le domande
+
+1. **Aggiungere `scale_to_raw` al percorso script** è la correzione ovvia — ma esiste uno
+   script *in servizio* che abbia già compensato a mano lo scaling? Correggere il motore
+   raddoppierebbe la sua compensazione. Va deciso se è un fix silenzioso o un cambio di
+   comportamento da annunciare.
+2. Gli script hanno anche una **lettura**: `tags.read` restituisce il valore ingegneristico
+   (giusto). Se la scrittura diventa simmetrica, va detto nel manuale che lo script vive
+   interamente nel mondo ingegneristico.
+
+### Rapporto con le altre voci
+
+Nata dall'analisi di Q27 (in archivio): il tipo ora è un contratto su tutti e quattro i
+percorsi, lo scaling lo è solo su tre.
+
+### Decisa e realizzata il 2026-09-06 — gli script vivono nel mondo ingegneristico
+
+Risposte alle due domande della scheda, decise col maintainer:
+
+1. **Correzione diretta, annunciata nel CHANGELOG.** Prima si è misurato il rischio della
+   doppia compensazione: **nessun template del repo definisce scaling** (`raw_min` non compare
+   in alcun `project.yaml`), quindi in tutto ciò che si spedisce i due percorsi coincidevano
+   già; e il maintainer ha confermato che i suoi progetti reali non hanno script che compensano
+   a mano. Il fix: `db.scale_to_raw` prima di `bus.write` in `TagApi::write`
+   (`sws-pyscript/src/lib.rs`), speculare a `write_tag` in sws-web. Il fallback dei tag
+   virtuali resta ingegneristico — scalarlo sarebbe il bug opposto.
+2. **Il contratto è sul metodo**: `tags.read` restituisce eng, `tags.write` accetta eng, la
+   conversione in raw è mestiere del motore. Il manuale non documentava né `tags.write` né lo
+   scaling, quindi non c'era prosa da correggere; il contratto sta nel docstring del metodo.
+
+Prova: unit test `la_scrittura_dello_script_scala_verso_il_device` (4-20 mA scalati 0-100:
+eng 50 → raw 12 sul bus, eng 50 nel fallback), **provato anche rosso** togliendo la
+conversione — fallisce esattamente su «al device deve arrivare il raw».
+
+
+---
+
+## Q41 — La chat IA deve mostrare consumo di token e credito residuo?
+
+> **Archiviata il 2026-09-06** — decisa (token per conversazione; credito solo dove l'API lo
+> espone, cioè Kimi; nascondibile per-utente) e realizzata lo stesso giorno: frame `risorse`
+> e `saldo` sul WS della chat, riga risorse in `ChatPanel` col toggle ◔.
+> Prova a schermo con la chiave vera in coda al ramo di validazione.
+
+*Aperta il 2026-09-06 su richiesta del maintainer.*
+
+**Richiesta.** Una sezione nel pannello della chat che mostri **l'uso delle risorse** (token
+consumati) e **lo stato dell'account** (credito disponibile). Entrambe **presenti per
+impostazione predefinita**, ed entrambe **nascondibili**.
+
+### Cosa c'è già, verificato sul codice
+
+Le due metà della richiesta non costano affatto uguale, e conviene saperlo prima di decidere.
+
+**I token ci sono già.** Il client li riceve dalla risposta in streaming e li tiene:
+`Risposta.usage` (`sws-web/src/ai/client.rs:317`), riempito dagli eventi `usage` del flusso
+(`:565-566`). Oggi finiscono **solo nel log**: `tracing::info!(giro, usage = …)` in
+`ai/mod.rs:188`. Portarli allo schermo è un salto solo — attraversare il WebSocket della chat e
+sommarli per conversazione — e non richiede nessuna chiamata in più a nessuno.
+
+**Il credito no, e dipende dal fornitore.** I fornitori sono due, entrambi sulla stessa forma di
+API (`Fornitore::Anthropic` e `Fornitore::Kimi`, `client.rs:52-63`), ma il saldo **non viaggia
+nella risposta dei messaggi**: è un'informazione di account, che vive su un altro endpoint quando
+esiste. Va verificato per ciascuno prima di promettere il campo, perché è probabile che uno dei due
+non lo esponga affatto per una chiave d'uso normale — e una casella «credito» che per metà degli
+utenti resta vuota è peggio che non averla.
+
+### Le domande
+
+1. **Token: per conversazione, per sessione, o cumulativi?** Il dato per conversazione è quello che
+   il client ha già in mano. Un totale storico vorrebbe che qualcuno lo persista, e allora dove —
+   nella configurazione dell'IDE, nel datastore, in un file a parte?
+2. **Token: contarli o tradurli in soldi?** Un numero di token non dice niente a chi non conosce il
+   listino; un costo stimato dice di più ma richiede un prezzario per modello, che invecchia — e
+   invecchiando mente, che in questo progetto è il difetto che si cerca di evitare ovunque.
+3. **Credito: cosa si fa dove non c'è?** Nascondere la voce per quel fornitore, mostrarla con un
+   «non disponibile», o non mostrarla mai a nessuno finché non è disponibile per tutti.
+4. **Ogni quanto si chiede il saldo?** A ogni messaggio è una chiamata in più per ogni risposta; a
+   ogni apertura del pannello è il compromesso probabile; a comando è il più onesto e il meno utile.
+5. **Dove vive la preferenza «nascondi»?** C'è già una scheda **Preferenze IDE** in Configurazione,
+   ed è il posto naturale. Da decidere se la scelta sia per-utente (browser) o del progetto: la
+   prima è una preferenza, la seconda una decisione di chi allestisce il pannello.
+
+### Perché non è solo un pannellino
+
+Il credito residuo è **un dato dell'account**, non del progetto: chi guarda l'IDE su un impianto
+vedrebbe lo stato commerciale di chi ha comprato la chiave. Con `--no-admin` sui deploy la
+questione è più piccola di quanto sembri (sul dispositivo l'IDE non c'è), ma va detta: la
+possibilità di nascondere le voci, che il maintainer chiede, è anche la risposta a questo.
+
+**Default for PoC**: i **token per conversazione** sono la metà a costo quasi zero e si possono
+fare subito; il **credito** aspetta la verifica per fornitore. **Decided**: not yet.
+
+### Decisa e realizzata il 2026-09-06 — token per conversazione, credito solo dove esiste
+
+Risposte del maintainer alle cinque domande della scheda:
+
+1. **Per conversazione**: il pannello somma i frame `risorse` che il server manda dopo ogni
+   turno (il dato era già in mano — `Risposta.usage` — quindi zero chiamate in più); un socket
+   nuovo azzera, come la conversazione. Nessuna persistenza storica.
+2. **Token, non soldi**: un prezzario nel codice invecchia, e invecchiando mente.
+3. **Il credito esiste solo dove l'API lo espone.** Verificato per fornitore: Kimi/Moonshot ha
+   `GET /v1/users/me/balance` con la stessa chiave d'uso (`Fornitore::url_saldo`); Anthropic
+   NON espone il saldo con la chiave d'uso — l'Admin API ha solo report di costo, con una
+   chiave diversa — quindi per Anthropic la voce semplicemente non compare, come voleva la
+   scheda («una casella vuota per metà degli utenti è peggio che non averla»).
+4. **All'apertura del pannello**, una volta per socket, in un task suo (la chat non aspetta il
+   saldo, e ogni errore diventa silenzio: il saldo è cortesia, non funzione).
+5. **Preferenza per-utente nel browser** (`localStorage`): il credito è un dato dell'account,
+   non del progetto, e chi guarda l'IDE su un impianto non deve vederlo per forza. La riga è
+   presente di default e si nasconde/riattiva col pulsante ◔ nell'intestazione del pannello —
+   che vale anche per la finestra staccata, che monta lo stesso componente.
+
+I token di cache viaggiano separati da input/output: contarli come ingresso pieno mentirebbe
+sul costo. Prova: build e 172 test editor verdi, 450 test workspace, clippy 0; la prova a
+schermo con la chiave vera è in coda al ramo di validazione del 2026-09-06 (la modalità
+`SWS_AI_FAKE` non produce `usage`).
 
 
 ---

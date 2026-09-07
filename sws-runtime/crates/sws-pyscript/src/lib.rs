@@ -170,7 +170,14 @@ impl TagApi {
 
     /// Write `value` into the tag. Routes through `TagWriteBus` if a plugin
     /// owns the tag, otherwise falls back to a direct `TagDb` set (same
-    /// semantics as `PUT /api/tags/:id`).
+    /// semantics as `PUT /api/tags/:id`, scaling inverso compreso — Q42).
+    ///
+    /// Lo script vive interamente nel mondo INGEGNERISTICO: `tags.read`
+    /// restituisce eng, e qui si scrive eng; la conversione in raw verso il
+    /// device è mestiere di questo metodo, come negli altri tre percorsi
+    /// (API, WebSocket, ricette). Fino al 2026-09-06 mancava: uno script che
+    /// scriveva un tag scalato posseduto da un plugin consegnava al PLC il
+    /// valore ingegneristico come se fosse raw.
     fn write(&self, py: Python<'_>, id: &str, value: &Bound<'_, PyAny>) -> PyResult<()> {
         let v = py_to_tagvalue(value)?;
         let db = self.db.clone();
@@ -178,7 +185,21 @@ impl TagApi {
         let id_owned = id.to_string();
         py.allow_threads(|| {
             self.handle.block_on(async move {
-                match bus.write(&id_owned, v.clone()).await {
+                // Q27: stesso contratto del PUT — allo script arriva un
+                // ValueError col motivo, non una scrittura del tipo sbagliato.
+                let v = match db.coerce_for_write(&id_owned, v).await {
+                    Ok(v) => v,
+                    Err(msg) => {
+                        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                            format!("tags.write: {msg}"),
+                        ))
+                    }
+                };
+                // Verso il device viaggia il RAW; il fallback TagDb (tag
+                // virtuali) resta in unità ingegneristiche — nessuno lo
+                // ri-scala in lettura. Speculare a write_tag in sws-web.
+                let raw = db.scale_to_raw(&id_owned, v.clone()).await;
+                match bus.write(&id_owned, raw).await {
                     Ok(()) => Ok(()),
                     Err(sws_core::WriteError::NoWriter(_)) => {
                         db.set(id_owned, v, TagQuality::Good).await;
@@ -867,5 +888,34 @@ mod tests_check {
         let v = dopo.get("t").map(|s| s.value.clone());
         assert_ne!(v, Some(sws_core::TagValue::Int(42)),
                    "check ha ESEGUITO il codice: ha scritto il tag");
+    }
+
+    /// Q42 — lo script scrive in unità INGEGNERISTICHE e al device arriva il
+    /// RAW, come negli altri tre percorsi (API, WS, ricette). Fino al
+    /// 2026-09-06 il raw non veniva calcolato: al plugin arrivava l'eng.
+    #[tokio::test]
+    async fn la_scrittura_dello_script_scala_verso_il_device() {
+        let db = Arc::new(TagDb::new(16));
+        let bus = Arc::new(TagWriteBus::new());
+        // 4-20 mA scalati 0-100: eng 50 → raw 12. Stessa scala su un tag
+        // posseduto da un finto plugin («s») e su uno virtuale («v»).
+        let scala = sws_core::LinearScale { raw_min: 4.0, raw_max: 20.0, eng_min: 0.0, eng_max: 100.0 };
+        db.set_scales([("s".to_string(), scala), ("v".to_string(), scala)].into()).await;
+        let (tx, mut rx) = mpsc::channel(4);
+        bus.register("s".to_string(), tx).await;
+        let e = Engine::new(db.clone(), bus);
+
+        e.execute("tags.write('s', 50.0)\ntags.write('v', 50.0)\n".into())
+            .await.expect("script fallito");
+
+        let (id, valore) = rx.recv().await.expect("nessuna scrittura sul bus");
+        assert_eq!(id, "s");
+        assert_eq!(valore, sws_core::TagValue::Float(12.0), "al device deve arrivare il raw");
+
+        // Il fallback dei tag virtuali resta ingegneristico: nessuno lo
+        // ri-scala in lettura, e scalarlo qui sarebbe il bug opposto.
+        let dopo = db.snapshot().await;
+        assert_eq!(dopo.get("v").map(|s| s.value.clone()),
+                   Some(sws_core::TagValue::Float(50.0)));
     }
 }

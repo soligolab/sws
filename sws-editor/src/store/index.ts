@@ -4,6 +4,7 @@ import { applyAppearance, getStoredMode, type ThemeMode } from "@/theme";
 import { genId } from "@/id";
 import { getStoredProjectLang, setStoredProjectLang, getStoredEditorPreviewLang, setStoredEditorPreviewLang } from "@/i18n/projectI18n";
 import { normalizeTrendObjects } from "@/canvas/trendModel";
+import { effectiveSizeMode, referenceResolutionFor } from "@/pageLayout";
 import { uguale } from "@/ai/confronto";
 import type {
   AlarmDef,
@@ -888,6 +889,18 @@ export const useAppStore = create<AppState>((set, get) => {
     addPage: () => {
       pushHistory("Nuova pagina");
       const page = makePage(`Page ${get().pages.length + 1}`);
+      // Q38 — in modalità «ratio» la pagina nasce già con la risoluzione di
+      // riferimento scritta: le misure nel file sono ciò che TUTTI i motori
+      // leggono (editor, viewer web, LVGL, validatore), e una pagina senza
+      // misure in ratio è un foglio senza bordo per il motivo sbagliato.
+      // Stessa materializzazione che il salvataggio del layout fa già su
+      // tutte le pagine (EditorShell, ProjectPageLayoutSettings).
+      const layout = get().project?.page_layout;
+      if (effectiveSizeMode(layout) === "ratio") {
+        const ref = referenceResolutionFor(layout?.aspect_ratio);
+        page.width = ref.width;
+        page.height = ref.height;
+      }
       set((s) => ({
         pages: [...s.pages, page],
         currentPageId: page.id,

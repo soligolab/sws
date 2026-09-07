@@ -621,9 +621,13 @@ fn run_drm(
                  quello che avanza NON si vede (vedi Q37)"
             );
         } else {
+            // Q37 — la cornice è un colore deliberato, lo stesso neutro delle
+            // bande del letterbox nel viewer web (#0f172a). Una volta sola:
+            // la pagina la sovrascrive a ogni flush, la cornice resta.
+            drm.riempi(0x0f, 0x17, 0x2a);
             eprintln!(
                 "[drm] la pagina {hor_res}x{ver_res} è più piccola del display {dw}x{dh}: \
-                 viene centrata, e attorno resta il nero del framebuffer"
+                 viene centrata, con attorno il neutro dichiarato (Q37)"
             );
         }
     }
@@ -1014,6 +1018,17 @@ fn run_window(
             // browser e schiacciata nell'angolo sul dispositivo — la stessa
             // pagina, due posti diversi.
             let (off_x, off_y) = page_offset(hor_res, ver_res, dst_w, dst_h);
+            // Q37 — la cornice attorno al foglio è DELIBERATA: il neutro scuro
+            // che il viewer web usa per le bande del letterbox (#0f172a,
+            // `--brand-bg`). Prima nessuno la riempiva né azzerava: il suo
+            // contenuto era la memoria della finestra, «quel che capita».
+            // Si paga il fill solo quando la cornice esiste — sul pannello
+            // tipico (pagina = schermo) non si entra mai in questo ramo.
+            if off_x > 0 || off_y > 0 || dst_w > hor_res || dst_h > ver_res {
+                window_surface
+                    .fill_rect(None, sdl2::pixels::Color::RGB(0x0f, 0x17, 0x2a))
+                    .map_err(|e| anyhow::anyhow!("fill_rect cornice: {e}"))?;
+            }
             let dst_rect = sdl2::rect::Rect::new(off_x, off_y, src_rect.width(), src_rect.height());
             src_surface
                 .blit(src_rect, &mut window_surface, dst_rect)

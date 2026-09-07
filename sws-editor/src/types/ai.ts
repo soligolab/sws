@@ -32,6 +32,8 @@ export type MsgIn =
       project?: ProjectInfo | null; pages?: SynopticPage[] | null;
       impronta?: string | null; giudizio: Giudizio }
   | { t: "errore"; messaggio: string }
+  | { t: "risorse"; input: number; output: number; cache_lettura: number; cache_scrittura: number }
+  | { t: "saldo"; disponibile: number }
   | { t: "fine" };
 
 /** Quello che si manda. */

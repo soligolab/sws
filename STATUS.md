@@ -62,6 +62,111 @@
 
 ## ▶ Da fare nella prossima sessione
 
+### 🧪 `test/validazione-2026-09-06` — il ramo da provare, poi merge su main + push
+
+**Tutto pushato su origin il 2026-09-07** (main con la revisione documenti, i sei rami Q,
+`fix/revisione-documenti` e questo ramo): da qualunque macchina, `git fetch` e
+`git checkout test/validazione-2026-09-06` bastano per il collaudo.
+
+Contiene **tutte e sette le questioni chiuse il 2026-09-06** (la pila è lineare, la cima
+contiene tutto): Q27 tipo, Q42 scaling script, Q17 ricette, Q35 (solo docs), Q38 ratio,
+Q37 cornice, Q41 risorse chat. Verificato sul ramo: 450 test workspace, 172 vitest, clippy 0,
+13 statiche + 8 guardie con stack dell'area toccata, tutte verdi.
+
+**Collaudo a mano (in ordine di valore):**
+
+1. ✅ **Q41 — confermata dal maintainer il 2026-09-07.** La riga ◔ coi token compare e cresce
+   a ogni risposta con la chiave vera. Niente da rifare.
+2. **Q38** — apri un progetto in «solo proporzioni» con pagine senza misure (o creane una
+   nuova): la pagina mostra subito bordo/riempimento T-52, il progetto risulta da salvare,
+   e dopo il salvataggio le misure stanno nel file.
+3. ✅ **Q27 — verde il 2026-09-07** con `./scripts/check_tipo_scrittura.sh` (10 controlli su 10,
+   compreso il difetto storico: `"true"` ora arriva come booleano, non come stringa).
+
+   > **Il testo di prima mandava su una strada senza uscita**: diceva di scrivere «abc» in un
+   > setpoint, ma quel widget filtra già a monte (`<input type="number">` sul web,
+   > `lv_textarea_set_accepted_chars` su LVGL) e non è nessuno dei quattro percorsi che Q27
+   > protegge (`PUT /api/tags/:id`, WebSocket, ricette, script Python). Per provarlo a mano serve
+   > un `button` con `write_value: abc`, uno script, o una ricetta — e un progetto che **dichiari**
+   > i tag: su un progetto senza tag il tipo è ignoto e per disegno non vincola.
+4. ✅ **Q17 — verde il 2026-09-07** con `./scripts/check_ricette.sh` (8 controlli su 8: il 403
+   nomina il tag vietato, l'all-or-nothing regge, e l'audit firma l'utente autenticato).
+5. **Q37** — sul TC620 (quando capita): pagina più piccola dello schermo → cornice neutra
+   scura uniforme, non spazzatura video.
+
+Dopo il tuo ok: squash merge su `main` (un merge per ramo, nomi già in questa sezione) e push
+— **su tua istruzione**, come da regola.
+
+
+### ✅ Q41 + Q37 + Q38 — il terzo giro di questioni, sui rami impilati (2026-09-06, sera)
+
+- **Q41 — la chat mostra token e credito** (`feat/Q41-risorse-chat`): frame `risorse` dopo ogni
+  turno (il dato era già in `Risposta.usage`, zero chiamate extra) sommati per conversazione;
+  frame `saldo` all'apertura, solo per chi lo espone (Kimi ha `/v1/users/me/balance`; Anthropic
+  non espone il saldo con la chiave d'uso — verificato). Riga presente di default, nascondibile
+  col ◔ (preferenza per-utente nel browser); vale anche per la finestra staccata.
+  **Da provare con la chiave vera**: `SWS_AI_FAKE` non produce `usage`.
+- **Q37 — la cornice attorno al foglio sul pannello è deliberata** (`fix/Q37-cornice-lvgl`):
+  il neutro delle bande web (#0f172a) — `fill_rect` condizionale su SDL2, `riempi()` una volta
+  su DRM. Il taglio resta dichiarato. **Prova visiva da pannello vero.**
+- **Q38 — in `ratio` le misure si scrivono nel file** (`fix/Q38-ratio-materializza`): `addPage`
+  semina la risoluzione di riferimento, `useMaterializzaRatio` sana i progetti vecchi
+  all'apertura (marcandoli sporchi: modifica vera, salvataggio esplicito).
+
+Stato: 450 test workspace, 172 vitest, clippy 0, build verdi. **14 vive + 28 archiviate = Q1..Q42.**
+
+### ✅ Q35 — chiusa senza codice: l'esplicito esisteva già (`visible`)
+
+Il maintainer aveva scelto l'opzione 2 (campo `disabled` esplicito); la verifica pre-implementazione
+ha scoperto che **è già realizzata sotto il nome `visible`** — campo statico + `visible_tag`
+dinamico in tutti e tre gli specchi, checkbox nel pannello, fantasma 0.35 in editor, applicazione
+live su LVGL, voci nel manuale. Aggiungere `disabled` avrebbe violato la regola UI n. 2 (mai due
+punti del pannello per lo stesso dato). Deciso su queste premesse: si chiude constatando la
+coesistenza — fuori-pagina e visibilità in OR, parcheggio esente dal validatore, `visible: false`
+ancora validato e resuscitabile da tag. La semantica completa è nella scheda archiviata.
+Zero righe di codice: il valore della sessione è la scoperta, registrata prima che qualcuno
+implementasse un doppione. 17 vive + 25 archiviate = Q1..Q42.
+
+### ✅ Q17 — la soglia per-tag vale anche per le ricette, su `fix/Q17-ricette-soglia` (impilato su Q42)
+
+Terza della famiglia dei confini di scrittura (Q27 il tipo, Q42 lo scaling, Q17 il **chi**).
+Opzione 1 scelta dal maintainer, con semantica **all-or-nothing**: un setpoint sopra il ruolo
+→ 403 con l'elenco, niente applicato. In più l'apply ora firma l'audit hash-chained
+(`recipe.apply` / `recipe.apply_denied` con l'utente autenticato — prima era l'unico percorso
+di scrittura senza traccia, e lo storico si fidava dell'`applied_by` autodichiarato).
+Guardia nuova `check_ricette.sh` (21ª con stack, si porta il suo progetto perché nessun
+template ha ricette né `write_min_role`), 8 controlli, **provata rossa**. 209 test sws-web,
+clippy 0. Scheda archiviata: 18 vive + 24 archiviate = Q1..Q42.
+
+### ✅ Q42 — gli script scrivono in unità ingegneristiche, su `fix/Q42-scaling-script` (impilato su Q27)
+
+La scoperta collaterale di Q27, chiusa il giorno stesso col giro «proponi → decidi → implementa
+→ archivia». `tags.write` era l'unico dei quattro percorsi senza `scale_to_raw`: uno script che
+scriveva un tag scalato posseduto da un plugin consegnava al PLC l'eng come raw. Prima di
+toccare il motore si è misurato il rischio della doppia compensazione (nessun template del repo
+definisce scaling; il maintainer ha confermato per i progetti reali). Fix di una riga speculare
+a `write_tag`, contratto nel docstring, unit test 4-20 mA (eng 50 → raw 12 sul bus, eng 50 nel
+fallback virtuale) **provato rosso e verde**. 450 test workspace, clippy 0. Scheda archiviata:
+19 vive + 23 archiviate = Q1..Q42.
+
+### ✅ Q27 — il `data_type` è un contratto, su `fix/Q27-tipo-in-scrittura` (da confermare e mergiare)
+
+Prima questione chiusa col nuovo giro «proponi → decidi → implementa → archivia». Politica
+scelta dal maintainer: **coercizione senza perdita** (Int→float, Float intero→int,
+`"true"`/`"false"` e stringhe numeriche; il resto 400 col motivo). Un solo punto di verità —
+`TagDb::coerce_for_write` + mappa `data_types` in `sws-core` — chiamato da PUT, WebSocket,
+ricette e script Python; l'editor mostra già gli errori (toast F3.7), zero modifiche client.
+Prove: 2 unit test nuovi (449 totali workspace), guardia `check_tipo_scrittura.sh` (20ª con
+stack) **provata rossa** spegnendo la coercizione — vede anche il difetto originale, la stringa
+`"true"` conservata su un tag bool. Scheda archiviata con la decisione; **scoperta collaterale
+Q42**: gli script scrivono senza `scale_to_raw`, unico percorso dei quattro — aperta, non decisa.
+
+Verifica rapida a mano, con lo stack su:
+```bash
+curl -s -X PUT localhost:8444/api/tags/demo.cmd.enable -H 'Content-Type: application/json' -d '{"value":"abc"}'
+# → 400 {"error":"il tag «demo.cmd.enable» è dichiarato bool, ricevuto string («abc»)"}
+```
+
 ### 🧹 Revisione dei documenti — fatta il 2026-09-06, su `fix/revisione-documenti`
 
 Cinque mesi di pianificazione rimessi a dire il vero, col piano approvato in

@@ -11,6 +11,76 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### La chat dell'assistente mostra token e credito (Q41)
+
+Una riga risorse in testa al pannello: i token della conversazione (ingresso, uscita
+e cache separata — contare la cache come ingresso pieno mentirebbe sul costo),
+sommati dai dati che il server aveva già in mano, senza chiamate in più. Dove il
+fornitore espone il saldo dell'account (Kimi) compare anche il credito residuo,
+chiesto una volta all'apertura del pannello; Anthropic non lo espone con la chiave
+d'uso e la voce non compare, invece di restare vuota. La riga c'è di default e si
+nasconde col pulsante ◔ — preferenza per-utente del browser, perché il credito è un
+dato dell'account e non del progetto. Vale anche per la finestra staccata.
+
+### Sul pannello, attorno alla pagina, c'è un colore deciso da noi (Q37)
+
+La cornice attorno al foglio (pagina più piccola dello schermo) non era mai riempita:
+su SDL2 era memoria della finestra «come capita», su DRM il nero del buffer del
+kernel — definito, ma per caso. Ora è il neutro scuro che il viewer web usa per le
+bande del letterbox. Il taglio quando il foglio non ci sta resta dichiarato a
+console; nessuno scaling.
+
+### In modalità «solo proporzioni» le misure della pagina si scrivono nel file (Q38)
+
+Una pagina in `ratio` senza `width`/`height` aveva il bordo T-52 «che esiste ma non
+arriva al canvas»: niente riempimento, resistenza né fuori-pagina — e un ripiego solo
+in editor avrebbe fatto divergere editor e runtime, che leggono le misure dal file.
+Ora le pagine nuove nascono con la risoluzione di riferimento scritta e i progetti
+vecchi si sanano all'apertura dell'editor (segnati come modificati: li salva il
+maintainer, esplicitamente).
+
+
+### Le ricette rispettano la soglia di scrittura per-tag, tutta o niente (Q17)
+
+Un Operator poteva applicare una ricetta che scriveva tag protetti `write_min_role:
+Admin`: il cancello di rotta (Operator+) c'era, la soglia per-tag non veniva mai
+consultata — il buco chiuso su PUT e WebSocket dal F3.1 era rimasto aperto su questa
+porta. Ora l'apply controlla ogni setpoint con l'utente autenticato e rifiuta la
+ricetta **intera** se anche uno solo è sopra il ruolo (403 con l'elenco dei tag
+vietati): il ruolo si conosce prima di toccare l'impianto, e applicare mezza ricetta
+è peggio che rifiutarla. L'apply inoltre firma l'audit hash-chained (`recipe.apply`,
+`recipe.apply_denied`) con l'utente vero: prima era l'unico percorso di scrittura
+senza traccia, e lo storico ricette si fidava del nome autodichiarato dal client.
+Guardia nuova `check_ricette.sh` con utenti e ricette veri, provata anche rossa.
+
+
+### Gli script Python scrivono in unità ingegneristiche, sempre (Q42)
+
+`tags.write` era l'unico dei quattro percorsi di scrittura a non convertire il valore
+in raw prima di consegnarlo al plugin: uno script che scriveva un tag **con scaling
+definito e posseduto da un driver** mandava al device il valore ingegneristico come se
+fosse raw — su un 4-20 mA scalato 0-100, `tags.write("x", 50.0)` consegnava 50 al PLC
+invece di 12. Nessun progetto spedito era toccato (nessun template definisce scaling)
+e il maintainer ha confermato che nessuno script in servizio compensava a mano: ora lo
+script vive interamente nel mondo ingegneristico — legge eng, scrive eng — come l'API,
+il WebSocket e le ricette. Chi avesse uno script che moltiplicava a mano per aggirare
+il difetto deve toglierne la compensazione.
+
+
+### Il tipo dichiarato di un tag ora è un contratto in scrittura (Q27)
+
+Fino a oggi `PUT /api/tags/:id` accettava un valore di qualunque tipo: una stringa su
+un tag `bool` passava con 204 e arrivava fino al plugin, cioè al PLC. Ora tutti e
+quattro i percorsi di scrittura utente (API, WebSocket, ricette, script Python)
+passano da un unico punto che converte ciò che non perde informazione — `5` su un tag
+float, `5.0` su un int, `"true"` su un bool, che è il caso coi cui i vecchi progetti
+funzionavano per caso — e rifiuta il resto con un messaggio che nomina tag, tipo
+dichiarato e valore ricevuto (400 sull'API, ack negativo sul WS, `ValueError` nello
+script, riga d'errore nella ricetta). I rifiuti finiscono nell'audit. Una guardia
+end-to-end nuova (`check_tipo_scrittura.sh`) prova rifiuti, coercizioni e — il punto
+dove stava il difetto — che il valore riletto abbia il tipo dichiarato.
+
+
 ### I documenti tornano a dire il vero — revisione di cinque mesi di pianificazione
 
 `docs/OPEN_QUESTIONS.md` passa da 3476 a 1366 righe e `STATUS.md` da 4022 a ~810:

@@ -479,6 +479,12 @@ pub(crate) fn build_tag_write_roles(tags: &[sws_core::TagDef]) -> std::collectio
         .collect()
 }
 
+/// Mappa tag→`data_type` dichiarato (Q27), stessi punti di refresh di
+/// `build_tag_scales`. Tutti i tag ci finiscono: il default serde è "float".
+pub(crate) fn build_tag_data_types(tags: &[sws_core::TagDef]) -> std::collections::HashMap<String, String> {
+    tags.iter().map(|t| (t.id.clone(), t.data_type.clone())).collect()
+}
+
 pub async fn apply_loaded_project(
     project_dir: &StdPath,
     mut project: Project,
@@ -509,6 +515,7 @@ pub async fn apply_loaded_project(
     }
     db.set_scales(build_tag_scales(&project.tags)).await;
     db.set_write_roles(build_tag_write_roles(&project.tags)).await;
+    db.set_data_types(build_tag_data_types(&project.tags)).await;
     project.populate_tags(db).await;
     // Init datastore registry before consuming the project fields.
     match DatastoreRegistry::from_project(&project, project_dir).await {
@@ -712,6 +719,7 @@ pub async fn close_project(State(s): State<AppState>) -> Response {
     s.db.clear().await;
     s.db.set_scales(Default::default()).await;
     s.db.set_write_roles(Default::default()).await;
+    s.db.set_data_types(Default::default()).await;
     s.historian.swap_store(None).await; // RAM-only between projects
     s.alarms.load(vec![]).await;
     s.functions.write().await.clear();

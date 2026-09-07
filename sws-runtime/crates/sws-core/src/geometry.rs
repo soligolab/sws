@@ -98,8 +98,9 @@ pub fn bbox_of(
 ///
 /// Pagina senza dimensioni (modalità fluida) ⇒ nessun bordo ⇒ niente è fuori.
 ///
-/// TODO(open-question): Q35 — questo stato è implicito nelle coordinate; il
-/// campo `disabled` esplicito è l'alternativa, non ancora decisa.
+/// Q35 (decisa il 2026-09-06, in archivio): lo stato resta implicito nelle
+/// coordinate e coesiste in OR col campo `visible` — il «disabilitare senza
+/// spostare» si fa con quello, non con un campo nuovo.
 pub fn is_off_page(bb: &BBox, page_w: Option<f64>, page_h: Option<f64>) -> bool {
     let (Some(pw), Some(ph)) = (page_w, page_h) else { return false };
     if pw <= 0.0 || ph <= 0.0 {

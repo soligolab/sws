@@ -77,6 +77,18 @@ impl Fornitore {
         match self { Fornitore::Anthropic => "anthropic.key", Fornitore::Kimi => "kimi.key" }
     }
 
+    /// Dove chiedere il saldo dell'account, per chi lo espone (Q41).
+    /// Anthropic NON lo espone con la chiave d'uso — l'Admin API ha solo
+    /// report di costo, con una chiave diversa — quindi qui è `None` e la
+    /// voce «credito» semplicemente non esiste per quel fornitore: una
+    /// casella vuota per metà degli utenti è peggio che non averla (scheda).
+    pub fn url_saldo(self) -> Option<&'static str> {
+        match self {
+            Fornitore::Anthropic => None,
+            Fornitore::Kimi => Some("https://api.moonshot.ai/v1/users/me/balance"),
+        }
+    }
+
     /// Anthropic vuole `x-api-key` + `anthropic-version`; Kimi vuole
     /// `Authorization: Bearer` e **rifiuta** di aver bisogno degli altri due.
     fn bearer(self) -> bool {
@@ -102,6 +114,23 @@ impl Fornitore {
 
 /// Con chi si parla e con che chiave. `modello` è già risolto: il default del
 /// fornitore, o quello che ha imposto `SWS_AI_MODELLO`.
+/// Il saldo disponibile sull'account del fornitore, se il fornitore lo
+/// espone (Q41). Forma Moonshot: `{"data": {"available_balance": …}}`.
+/// Ogni errore diventa `None`: il saldo è un'informazione di cortesia e non
+/// deve mai bloccare o sporcare la chat.
+pub async fn saldo(scelta: &Scelta) -> Option<f64> {
+    let url = scelta.fornitore.url_saldo()?;
+    let http = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build().ok()?;
+    let v: Value = http.get(url)
+        .header("Authorization", format!("Bearer {}", scelta.chiave))
+        .send().await.ok()?
+        .error_for_status().ok()?
+        .json().await.ok()?;
+    v.get("data")?.get("available_balance")?.as_f64()
+}
+
 #[derive(Clone, Debug)]
 pub struct Scelta {
     pub fornitore: Fornitore,

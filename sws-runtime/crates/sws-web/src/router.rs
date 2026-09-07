@@ -1280,32 +1280,41 @@ async fn write_tag(
     Extension(user): Extension<AuthUser>,
     Path(id): Path<String>,
     Json(body): Json<WriteTagBody>,
-) -> StatusCode {
+) -> axum::response::Response {
     // F3.1: ruolo minimo di scrittura per-tag (default storico: Operator+,
     // già garantito dal layer di route — qui si applica l'eventuale soglia
     // più alta dichiarata sul TagDef).
     if !tag_write_allowed(&s.db, &id, user.role).await {
         s.audit.log("tag.write_denied", Some(user.username), serde_json::json!({"tag": id.clone(), "role": user.role.as_str()}));
-        return StatusCode::FORBIDDEN;
+        return StatusCode::FORBIDDEN.into_response();
     }
+    // Q27: il `data_type` dichiarato è un contratto sui percorsi di scrittura
+    // utente — coercizione senza perdita, rifiuto motivato del resto.
+    let value = match s.db.coerce_for_write(&id, body.value).await {
+        Ok(v) => v,
+        Err(msg) => {
+            s.audit.log("tag.write_rejected_type", Some(user.username), serde_json::json!({"tag": id, "error": msg.clone()}));
+            return (StatusCode::BAD_REQUEST, Json(serde_json::json!({"error": msg}))).into_response();
+        }
+    };
     s.audit.log("tag.write", Some(user.username), serde_json::json!({
-        "tag": id.clone(), "value": body.value.clone(), "reason": body.reason,
+        "tag": id.clone(), "value": value.clone(), "reason": body.reason,
     }));
     // Prefer routing through a plugin (so the value is pushed to the device).
     // If no plugin owns the tag (purely virtual / scripted tags), fall back to
     // setting the TagDb directly so the UI write path keeps working.
     // F1: verso il device viaggia il valore RAW (scaling inverso); il
     // fallback TagDb resta in unità ingegneristiche (nessuno lo ri-scala).
-    let raw = s.db.scale_to_raw(&id, body.value.clone()).await;
+    let raw = s.db.scale_to_raw(&id, value.clone()).await;
     match s.bus.write(&id, raw).await {
-        Ok(()) => StatusCode::ACCEPTED,
+        Ok(()) => StatusCode::ACCEPTED.into_response(),
         Err(WriteError::NoWriter(_)) => {
-            s.db.set(id, body.value, TagQuality::Good).await;
-            StatusCode::NO_CONTENT
+            s.db.set(id, value, TagQuality::Good).await;
+            StatusCode::NO_CONTENT.into_response()
         }
         Err(e @ WriteError::ChannelClosed(_)) => {
             warn!("write_tag: {e}");
-            StatusCode::SERVICE_UNAVAILABLE
+            StatusCode::SERVICE_UNAVAILABLE.into_response()
         }
     }
 }
@@ -2630,6 +2639,7 @@ async fn update_project_tags(
     // F1/F3.1: scaling e ruoli di scrittura seguono ogni modifica delle variabili.
     let scales = crate::projects::build_tag_scales(&tags);
     let write_roles = crate::projects::build_tag_write_roles(&tags);
+    let data_types = crate::projects::build_tag_data_types(&tags);
 
     let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
     let res = patch_project_se(&s.project_write_lock, &dir, versione_attesa(&headers), |p| p.tags = tags).await;
@@ -2645,6 +2655,7 @@ async fn update_project_tags(
     *s.derived_tags.write().await = derived;
     s.db.set_scales(scales).await;
     s.db.set_write_roles(write_roles).await;
+    s.db.set_data_types(data_types).await;
     res
 }
 
@@ -3326,6 +3337,7 @@ async fn import_project_zip(State(s): State<AppState>, body: Bytes) -> Response 
     }
     s.db.set_scales(crate::projects::build_tag_scales(&project.tags)).await;
     s.db.set_write_roles(crate::projects::build_tag_write_roles(&project.tags)).await;
+    s.db.set_data_types(crate::projects::build_tag_data_types(&project.tags)).await;
     s.alarms.load(project.alarms.clone()).await;
     crate::projects::resolve_mqtt_client_ids(&project.meta.name, &mut project.sources, &s.config_dir, &s.instance_id);
     s.supervisor.reload(project.sources.clone()).await;
@@ -4131,6 +4143,7 @@ fn default_applied_by() -> String { "operator".to_string() }
 
 async fn apply_recipe(
     State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
     Path(id): Path<String>,
     Json(body): Json<ApplyRecipeBody>,
 ) -> Response {
@@ -4148,6 +4161,27 @@ async fn apply_recipe(
         }
     };
 
+    // Q17 — la soglia per-tag vale anche qui, come su PUT e WS (F3.1), e
+    // vale ALL-OR-NOTHING: il ruolo di ogni setpoint è conoscibile prima di
+    // toccare l'impianto, e applicare mezza ricetta è peggio che rifiutarla.
+    // (Gli errori di *runtime* — tipo, canale chiuso — restano per-setpoint
+    // più sotto: quelli prima non si possono sapere.)
+    let mut vietati: Vec<String> = Vec::new();
+    for sp in &recipe.setpoints {
+        if !tag_write_allowed(&s.db, &sp.tag, user.role).await {
+            vietati.push(sp.tag.clone());
+        }
+    }
+    if !vietati.is_empty() {
+        s.audit.log("recipe.apply_denied", Some(user.username), serde_json::json!({
+            "recipe": recipe.id, "role": user.role.as_str(), "tags": vietati,
+        }));
+        return (StatusCode::FORBIDDEN, Json(serde_json::json!({
+            "error": format!("la ricetta «{}» scrive tag sopra il tuo ruolo ({}) — nessun setpoint applicato", recipe.id, user.role.as_str()),
+            "denied": vietati,
+        }))).into_response();
+    }
+
     let mut applied = 0usize;
     let mut errors: Vec<String> = Vec::new();
     for sp in &recipe.setpoints {
@@ -4155,6 +4189,14 @@ async fn apply_recipe(
             Some(v) => v,
             None => {
                 errors.push(format!("{}: unsupported value type", sp.tag));
+                continue;
+            }
+        };
+        // Q27: le ricette sono un percorso di scrittura utente come gli altri.
+        let tv = match s.db.coerce_for_write(&sp.tag, tv).await {
+            Ok(v) => v,
+            Err(msg) => {
+                errors.push(msg);
                 continue;
             }
         };
@@ -4180,6 +4222,15 @@ async fn apply_recipe(
         applied_by:      body.applied_by.clone(),
         setpoints_count: applied,
     });
+    // Q17 — lo storico ricette tiene l'`applied_by` del body (campo libero,
+    // «chi era al pannello»); la verità firmata sta nell'audit hash-chained,
+    // dove prima l'apply non lasciava traccia — unico percorso di scrittura
+    // senza. `errors` qui è il conteggio dei setpoint falliti a runtime.
+    s.audit.log("recipe.apply", Some(user.username), serde_json::json!({
+        "recipe": recipe.id, "applied": applied,
+        "total": recipe.setpoints.len(), "errors": errors.len(),
+        "applied_by": body.applied_by,
+    }));
 
     Json(serde_json::json!({
         "recipe_id": recipe.id,
@@ -4471,6 +4522,15 @@ async fn handle_ws(
                             let _ = out_tx.send(Message::Text(serde_json::to_string(&ack).unwrap_or_default())).await;
                             continue;
                         }
+                        // Q27: stesso contratto del PUT — l'ack negativo porta il motivo.
+                        let value = match db.coerce_for_write(&tag, value).await {
+                            Ok(v) => v,
+                            Err(msg) => {
+                                let ack = WriteAck { ty: "ack", req_id, tag, ok: false, error: Some(msg) };
+                                let _ = out_tx.send(Message::Text(serde_json::to_string(&ack).unwrap_or_default())).await;
+                                continue;
+                            }
+                        };
                         let raw = db.scale_to_raw(&tag, value.clone()).await;
                         let (ok, err) = match bus.write(&tag, raw).await {
                             Ok(()) => (true, None),

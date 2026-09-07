@@ -291,7 +291,13 @@
     "diffWorking": "calcolo delle modifiche…",
     "diffUnavailable": "Modifiche non calcolabili: {{err}}. Non significa «nessuna modifica» — non applicare senza sapere cosa cambia.",
     "noConfirm": "Nessuna conferma dall'editor. La proposta potrebbe essere stata applicata comunque: controlla il canvas prima di riprovare.",
-    "applyBlocked": "La finestra dell'editor non risponde: non c'è dove applicare."
+    "applyBlocked": "La finestra dell'editor non risponde: non c'è dove applicare.",
+    "risorseHide": "Nascondi la riga risorse (si riattiva da qui)",
+    "risorseShow": "Mostra token e credito",
+    "risorseIn": "in",
+    "risorseOut": "out",
+    "risorseCache": "cache",
+    "risorseSaldo": "credito"
   },
   "viewer": {
     "maintenance": "Manutenzione",

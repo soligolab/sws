@@ -30,6 +30,13 @@ import type { MsgIn, Riga } from "@/types/ai";
  * finestra, `editorViaPonte` chiede alla finestra dell'editor. Nel cassetto
  * dell'IDE non cambia niente.
  */
+/** 1234 → "1.2k": la riga risorse deve restare una riga. */
+function kTok(n: number): string {
+  return n >= 10000 ? `${Math.round(n / 1000)}k`
+       : n >= 1000  ? `${(n / 1000).toFixed(1)}k`
+       : String(n);
+}
+
 export function ChatPanel({ open, onClose, editor = editorLocale, avviso, bloccaInvio, variant = "drawer" }: {
   open: boolean;
   onClose: () => void;
@@ -59,6 +66,18 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
   const [bozza, setBozza]     = useState("");
   const [attesa, setAttesa]   = useState(false);
   const [stato, setStato]     = useState<{ attivo: boolean; modello: string; motivo?: string | null } | null>(null);
+  // Q41 — token della conversazione e saldo dell'account, con la preferenza
+  // «nascondi» per-utente nel browser (è una preferenza di chi guarda, non
+  // una decisione del progetto — scheda, domanda 5).
+  const [risorse, setRisorse] = useState({ input: 0, output: 0, cache: 0 });
+  const [saldo, setSaldo]     = useState<number | null>(null);
+  const [mostraRisorse, setMostraRisorse] = useState(() => {
+    try { return localStorage.getItem("sws.chat.risorse") !== "no"; } catch { return true; }
+  });
+  const toggleRisorse = () => setMostraRisorse((m) => {
+    try { localStorage.setItem("sws.chat.risorse", m ? "no" : "si"); } catch { /* per-sessione */ }
+    return !m;
+  });
   const fondo = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -67,6 +86,19 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
       switch (m.t) {
         case "pronto":
           setStato({ attivo: m.attivo, modello: m.modello, motivo: m.motivo });
+          // Socket nuovo = conversazione nuova: i contatori ripartono (il
+          // server dice «la conversazione vive quanto il socket»).
+          setRisorse({ input: 0, output: 0, cache: 0 });
+          break;
+        case "risorse":
+          setRisorse((r) => ({
+            input: r.input + m.input,
+            output: r.output + m.output,
+            cache: r.cache + m.cache_lettura + m.cache_scrittura,
+          }));
+          break;
+        case "saldo":
+          setSaldo(m.disponibile);
           break;
         case "testo":
           setRighe((r) => appendiTesto(r, m.delta));
@@ -170,9 +202,34 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
           {stato?.modello ?? "…"}
         </span>
         <div style={{ flex: 1 }} />
+        <button style={BTN} onClick={toggleRisorse}
+                title={mostraRisorse ? t("chat.risorseHide") : t("chat.risorseShow")}>◔</button>
         <button style={BTN} onClick={() => setRighe([])} title={t("chat.clear")}>⌫</button>
         <button style={BTN} onClick={onClose} title={t("chat.close")}>✕</button>
       </div>
+
+      {/* Q41 — la riga risorse: token della conversazione (sommati dai frame
+          `risorse`, zero chiamate extra) e, dove il fornitore lo espone, il
+          saldo dell'account. Presente di default, nascondibile col ◔ in alto:
+          il credito è un dato dell'ACCOUNT, non del progetto, e chi allestisce
+          un pannello può non volerlo in vista (scheda Q41). */}
+      {mostraRisorse && (
+        <div style={{ display: "flex", gap: 10, alignItems: "baseline",
+                      padding: "3px 10px", fontSize: 11,
+                      color: "var(--brand-text-subtle, #64748b)",
+                      borderBottom: "1px solid var(--brand-surface-2, #1e293b)" }}>
+          <span title="token della conversazione">
+            ◔ {kTok(risorse.input)} {t("chat.risorseIn")} · {kTok(risorse.output)} {t("chat.risorseOut")}
+            {risorse.cache > 0 && <> · {kTok(risorse.cache)} {t("chat.risorseCache")}</>}
+          </span>
+          <div style={{ flex: 1 }} />
+          {saldo !== null && (
+            <span title="saldo dell'account presso il fornitore">
+              {t("chat.risorseSaldo")} {saldo.toFixed(2)}
+            </span>
+          )}
+        </div>
+      )}
 
       {stato && !stato.attivo && (
         <div style={AVVISO}>{stato.motivo ?? t("chat.inactive")}</div>

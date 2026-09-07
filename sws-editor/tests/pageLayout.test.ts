@@ -347,3 +347,30 @@ describe("translateObject", () => {
     expect(translateObject({ type: "pipe", x: 7, y: 7 }, 3, 3)).toEqual({ x: 10, y: 10 });
   });
 });
+
+// ── Q38 — le pagine nuove in «ratio» nascono con le misure scritte ──────────
+import { useAppStore } from "@/store";
+
+describe("Q38 — materializzazione delle misure in ratio", () => {
+  it("addPage scrive la risoluzione di riferimento quando il layout è ratio", () => {
+    useAppStore.setState({
+      project: { name: "t", page_layout: { size_mode: "ratio", aspect_ratio: "16:9" } } as never,
+      pages: [], currentPageId: "",
+    });
+    useAppStore.getState().addPage();
+    const p = useAppStore.getState().pages[0];
+    expect(p.width).toBe(1920);
+    expect(p.height).toBe(1080);
+  });
+
+  it("addPage NON inventa misure fuori da ratio", () => {
+    useAppStore.setState({
+      project: { name: "t", page_layout: { size_mode: "fixed" } } as never,
+      pages: [], currentPageId: "",
+    });
+    useAppStore.getState().addPage();
+    const p = useAppStore.getState().pages[0];
+    expect(p.width).toBeUndefined();
+    expect(p.height).toBeUndefined();
+  });
+});

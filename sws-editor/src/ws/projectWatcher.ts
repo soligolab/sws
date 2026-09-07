@@ -21,6 +21,12 @@ import { api } from "@/api/client";
  * server, e questo intercetta anche i cambi che non passano dalle API (pull
  * GitOps, modifica dei file sul dispositivo).
  *
+ * La baseline si rifissa anche quando **noi** cambiamo progetto (aperto, creato,
+ * importato, chiuso): il client API emette `sws:project-switched` e qui si
+ * riparte da capo, senza notificare. Senza, l'azione piu' tua che esista —
+ * creare un progetto — veniva letta come un deploy esterno e faceva comparire
+ * l'avviso appena si entrava nel progetto nuovo.
+ *
  * @param onChange invocato ai cambi successivi al primo rilevamento, mai al
  *                 primo (che serve solo a fissare la baseline).
  * @param intervalMs periodo di polling (default 3 s, scelto dal maintainer:
@@ -62,8 +68,24 @@ export function useProjectWatcher(
       }
     };
 
+    // Cambio di progetto voluto da noi: si riparte dalla baseline invece di
+    // segnalarlo. `undefined` fa si' che il prossimo tick la rifissi in
+    // silenzio, esattamente come al montaggio.
+    //
+    // La finestra scoperta e' il periodo di polling (3 s): un deploy esterno
+    // che cadesse fra il nostro cambio e il tick successivo verrebbe assorbito
+    // nella nuova baseline. E' un caso molto piu' raro del falso positivo che
+    // questo ripara, e la finestra e' un settimo di quella (20 s) che la
+    // guardia dei salvataggi in App.tsx accetta gia' per la stessa ragione.
+    const riparti = () => { lastFp.current = undefined; };
+    window.addEventListener("sws:project-switched", riparti);
+
     void tick();
     const id = setInterval(tick, intervalMs);
-    return () => { alive = false; clearInterval(id); };
+    return () => {
+      alive = false;
+      clearInterval(id);
+      window.removeEventListener("sws:project-switched", riparti);
+    };
   }, [intervalMs]);
 }

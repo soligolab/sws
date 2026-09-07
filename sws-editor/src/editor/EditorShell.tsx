@@ -230,6 +230,7 @@ function buildMixedKeys(objs: SynopticObject[]): Set<keyof SynopticObject> {
 // ── EditorShell ───────────────────────────────────────────────────────────────
 
 export function EditorShell() {
+  useMaterializzaRatio(); // Q38 — vedi il commento sulla funzione
   const pages           = useAppStore((s) => s.pages);
   const currentPageId   = useAppStore((s) => s.currentPageId);
   const selectedId      = useAppStore((s) => s.selectedObjectId);
@@ -1605,6 +1606,35 @@ function PageProps({
 // stesso store dichiara (store/index.ts) che i setter `updateProject*` sono
 // deliberatamente non dirty-tracked, per non rompere il tracking pensato per
 // `pagesRev`/`savedPagesRev`.
+/** Q38 — materializza la risoluzione di riferimento sulle pagine che non
+ *  hanno misure quando il progetto è in modalità «ratio».
+ *
+ *  Il buco che chiude: `editorFitSize()` ricadeva sul riferimento ma il canvas
+ *  riceveva `currentPage.width` grezzo, quindi «adatta pagina» inquadrava
+ *  1920×1080 mentre bordo, riempimento e fuori-pagina di T-52 non esistevano —
+ *  il bordo c'era, semplicemente non arrivava al componente. E un ripiego solo
+ *  in editor avrebbe creato una divergenza WYSIWYG: i motori runtime leggono
+ *  le misure dal file. Un solo scrittore: si scrive nel file (decisione Q38).
+ *
+ *  Vive qui e non in App.tsx perché qui progetto e pagine sono ENTRAMBI
+ *  arrivati — le due catene di caricamento sono dichiaratamente in corsa fra
+ *  loro (App.tsx, commento su pickInitialPageId). Le pagine toccate marcano
+ *  il progetto sporco: è una modifica vera, e la salva il maintainer col
+ *  salvataggio esplicito, come per la materializzazione del pannello layout. */
+function useMaterializzaRatio() {
+  const project = useAppStore((s) => s.project);
+  const pages = useAppStore((s) => s.pages);
+  const updatePageProps = useAppStore((s) => s.updatePageProps);
+  useEffect(() => {
+    const layout = project?.page_layout;
+    if (effectiveSizeMode(layout) !== "ratio") return;
+    const ref = referenceResolutionFor(layout?.aspect_ratio);
+    for (const p of pages) {
+      if (!p.width || !p.height) updatePageProps(p.id, { width: ref.width, height: ref.height });
+    }
+  }, [project?.page_layout, pages, updatePageProps]);
+}
+
 function ProjectPageLayoutSettings() {
   const project = useAppStore((s) => s.project);
   const pages = useAppStore((s) => s.pages);

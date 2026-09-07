@@ -291,7 +291,13 @@
     "diffWorking": "computing changes…",
     "diffUnavailable": "Changes could not be computed: {{err}}. This does not mean «no changes» — don't apply without knowing what changes.",
     "noConfirm": "No confirmation from the editor. The proposal may have been applied anyway: check the canvas before retrying.",
-    "applyBlocked": "The editor window is not responding: there is nowhere to apply."
+    "applyBlocked": "The editor window is not responding: there is nowhere to apply.",
+    "risorseHide": "Hide the resources row (re-enable from here)",
+    "risorseShow": "Show tokens and credit",
+    "risorseIn": "in",
+    "risorseOut": "out",
+    "risorseCache": "cache",
+    "risorseSaldo": "credit"
   },
   "viewer": {
     "maintenance": "Maintenance",

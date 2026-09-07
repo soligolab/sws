@@ -75,6 +75,11 @@ pub struct TagDb {
     /// Stringhe grezze: sws-core non conosce i tipi di sws-auth — il web
     /// layer le interpreta. Aggiornata insieme a `scales`.
     write_roles: Arc<RwLock<HashMap<TagId, String>>>,
+    /// `data_type` dichiarato per-tag (`TagDef.data_type`, Q27): "bool",
+    /// "int", "float", "string", come nello YAML. Aggiornata insieme a
+    /// `scales`. Un tag assente dalla mappa non viene vincolato — succede ai
+    /// tag creati al volo dagli script e nei test.
+    data_types: Arc<RwLock<HashMap<TagId, String>>>,
 }
 
 impl TagDb {
@@ -85,6 +90,7 @@ impl TagDb {
             tx,
             scales: Arc::new(RwLock::new(HashMap::new())),
             write_roles: Arc::new(RwLock::new(HashMap::new())),
+            data_types: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -96,6 +102,27 @@ impl TagDb {
     /// Ruolo minimo di scrittura del tag, se definito.
     pub async fn write_role_of(&self, id: &str) -> Option<String> {
         self.write_roles.read().await.get(id).cloned()
+    }
+
+    /// Sostituisce la mappa dei `data_type` dichiarati (Q27). Stessi punti
+    /// di refresh di `set_scales`.
+    pub async fn set_data_types(&self, types: HashMap<TagId, String>) {
+        *self.data_types.write().await = types;
+    }
+
+    /// Q27 — il `data_type` è un contratto sui percorsi di scrittura UTENTE
+    /// (API, WebSocket, ricette, script Python). Converte ciò che non perde
+    /// informazione (Int→float; Float intero→int; le stringhe "true"/"false"
+    /// e numeriche, che i vecchi progetti usano davvero) e rifiuta il resto
+    /// con un messaggio che nomina tag, tipo dichiarato e valore ricevuto.
+    /// Il percorso inverso — i plugin che leggono dal campo via `ingest` —
+    /// non passa di qui: lì il tipo lo determina il protocollo.
+    pub async fn coerce_for_write(&self, id: &str, value: TagValue) -> Result<TagValue, String> {
+        let Some(want) = self.data_types.read().await.get(id).cloned() else {
+            return Ok(value);
+        };
+        coerce_value(&want, value)
+            .map_err(|got| format!("il tag «{id}» è dichiarato {want}, ricevuto {got}"))
     }
 
     /// Sostituisce la mappa degli scaling. Chiamata a ogni apertura/chiusura
@@ -191,6 +218,50 @@ impl fmt::Display for WriteError {
 
 impl std::error::Error for WriteError {}
 
+/// La conversione di Q27, pura e testabile. `Err` porta la descrizione del
+/// valore ricevuto (il chiamante ci antepone tag e tipo dichiarato).
+///
+/// Un `want` fuori dai quattro tipi noti passa tutto invariato: `initial_value`
+/// tratta i tipi ignoti come float, e rifiutare qui trasformerebbe un refuso
+/// nello YAML in un tag non scrivibile — quello lo deve dire il validatore.
+fn coerce_value(want: &str, v: TagValue) -> Result<TagValue, String> {
+    use TagValue::*;
+    fn descrivi(v: &TagValue) -> String {
+        match v {
+            Bool(b)  => format!("bool ({b})"),
+            Int(i)   => format!("int ({i})"),
+            Float(f) => format!("float ({f})"),
+            Str(s)   => format!("string («{s}»)"),
+        }
+    }
+    match (want, v) {
+        ("bool", Bool(b)) => Ok(Bool(b)),
+        ("bool", Str(s)) => match s.to_ascii_lowercase().as_str() {
+            "true"  => Ok(Bool(true)),
+            "false" => Ok(Bool(false)),
+            _ => Err(descrivi(&Str(s))),
+        },
+        ("int", Int(i)) => Ok(Int(i)),
+        // `f as i64` satura invece di sbagliare, ma un fuori-range È una
+        // perdita: si rifiuta invece di consegnare i64::MAX al PLC.
+        ("int", Float(f)) if f.is_finite() && f.fract() == 0.0
+            && f >= i64::MIN as f64 && f <= i64::MAX as f64 => Ok(Int(f as i64)),
+        ("int", Str(s)) => match s.trim().parse::<i64>() {
+            Ok(i) => Ok(Int(i)),
+            Err(_) => Err(descrivi(&Str(s))),
+        },
+        ("float", Float(f)) => Ok(Float(f)),
+        ("float", Int(i))   => Ok(Float(i as f64)),
+        ("float", Str(s)) => match s.trim().parse::<f64>() {
+            Ok(f) if f.is_finite() => Ok(Float(f)),
+            _ => Err(descrivi(&Str(s))),
+        },
+        ("string", Str(s)) => Ok(Str(s)),
+        ("bool" | "int" | "float" | "string", v) => Err(descrivi(&v)),
+        (_, v) => Ok(v),
+    }
+}
+
 /// One write request flowing through the bus: which tag, what value.
 /// A single plugin can own many tags by sharing one receiver and one
 /// sender clone across its routes.
@@ -243,6 +314,46 @@ impl TagWriteBus {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Q27 — le conversioni senza perdita passano, il resto no.
+    #[test]
+    fn coerce_lossless_pass_lossy_reject() {
+        use TagValue::*;
+        // le tre conversioni che i client fanno davvero
+        assert_eq!(coerce_value("float", Int(5)), Ok(Float(5.0)));
+        assert_eq!(coerce_value("int", Float(5.0)), Ok(Int(5)));
+        assert_eq!(coerce_value("bool", Str("true".into())), Ok(Bool(true)));
+        assert_eq!(coerce_value("bool", Str("False".into())), Ok(Bool(false)));
+        assert_eq!(coerce_value("int", Str(" 42 ".into())), Ok(Int(42)));
+        assert_eq!(coerce_value("float", Str("1.5".into())), Ok(Float(1.5)));
+        // le perdite e le ambiguità
+        assert!(coerce_value("int", Float(1.5)).is_err());
+        assert!(coerce_value("int", Float(1e30)).is_err());       // fuori range i64
+        assert!(coerce_value("int", Float(f64::NAN)).is_err());
+        assert!(coerce_value("bool", Str("abc".into())).is_err()); // il caso della scheda
+        assert!(coerce_value("bool", Int(1)).is_err());
+        assert!(coerce_value("string", Int(5)).is_err());
+        assert!(coerce_value("float", Str("no".into())).is_err());
+        // tipo dichiarato ignoto = nessun vincolo (lo segnala il validatore)
+        assert_eq!(coerce_value("double", Str("x".into())), Ok(Str("x".into())));
+        // identità
+        assert_eq!(coerce_value("bool", Bool(true)), Ok(Bool(true)));
+        assert_eq!(coerce_value("string", Str("s".into())), Ok(Str("s".into())));
+    }
+
+    /// Q27 — un tag fuori mappa non è vincolato; uno in mappa sì, e il
+    /// messaggio nomina tag, tipo dichiarato e valore ricevuto.
+    #[tokio::test]
+    async fn coerce_for_write_uses_declared_map() {
+        let db = TagDb::new(16);
+        db.set_data_types([("b1".to_string(), "bool".to_string())].into()).await;
+        assert_eq!(db.coerce_for_write("sconosciuto", TagValue::Str("x".into())).await,
+                   Ok(TagValue::Str("x".into())));
+        assert_eq!(db.coerce_for_write("b1", TagValue::Str("true".into())).await,
+                   Ok(TagValue::Bool(true)));
+        let err = db.coerce_for_write("b1", TagValue::Str("abc".into())).await.unwrap_err();
+        assert!(err.contains("b1") && err.contains("bool") && err.contains("abc"), "{err}");
+    }
 
     #[tokio::test]
     async fn set_and_get() {

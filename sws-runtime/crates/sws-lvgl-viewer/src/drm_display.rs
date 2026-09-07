@@ -283,6 +283,27 @@ impl DrmDisplay {
     /// indefinito: qui non si dipinge, e sul buffer appena aperto è nero perché
     /// il kernel consegna pagine azzerate. È una decisione di prodotto ancora
     /// aperta — `docs/OPEN_QUESTIONS.md` Q37 — e non va presa di straforo qui.
+    /// Q37 — riempie l'INTERO framebuffer col colore dato (XRGB8888).
+    /// Chiamata una volta all'avvio, prima del primo frame: la pagina la
+    /// sovrascrive a ogni flush, il resto è la cornice, che così è un colore
+    /// deliberato (il neutro delle bande del viewer web) e non «memoria come
+    /// capita». Il dumb buffer del kernel nasce azzerato — nero — ma nero e
+    /// dichiarato sono due cose diverse, ed era il punto della scheda.
+    pub fn riempi(&mut self, r: u8, g: u8, b: u8) {
+        let row_bytes = self.pitch as usize;
+        for y in 0..self.height as usize {
+            for x in 0..self.width as usize {
+                let off = y * row_bytes + x * 4;
+                unsafe {
+                    *self.map.add(off) = b;
+                    *self.map.add(off + 1) = g;
+                    *self.map.add(off + 2) = r;
+                    *self.map.add(off + 3) = 0;
+                }
+            }
+        }
+    }
+
     pub fn flush_rgb888(&mut self, rgb888: &[u8], src_w: u32, src_h: u32, off: (i32, i32)) {
         let (off_x, off_y, copy_w, copy_h) =
             ritaglio(src_w, src_h, self.width, self.height, off, rgb888.len());

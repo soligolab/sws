@@ -183,44 +183,6 @@ per questa metà.
 
 ---
 
-## Q17 — `apply_recipe` scrive i tag senza contesto utente: la soglia `write_min_role` non si applica
-
-**Context**: emerso il 2026-08-22 implementando F3.1 (piano SCADA-widgets). Le scritture via
-REST (`PUT /api/tags/:id`) e WS onorano `TagDef.write_min_role`; `POST /api/recipes/:id/apply`
-invece non ha `Extension<AuthUser>` (deve funzionare anche per il viewer anonimo/kiosk) e scrive
-i setpoint della ricetta senza controllo per-tag. Un Operator — o un anonimo, dove il viewer lo
-permette — può quindi scrivere via ricetta un tag protetto Admin.
-
-**Options**:
-1. Aggiungere l'utente opzionale all'endpoint (optional_auth) e applicare la soglia per-tag:
-   anonimo = sotto Viewer, ricette con tag protetti falliscono con elenco chiaro.
-2. Soglia di ruolo a livello di RICETTA (`RecipeDef.min_role`), più grossolana ma più semplice
-   da capire per l'operatore.
-3. Lasciare com'è e documentare: le ricette sono già un'azione deliberata di supervisione.
-
-**Default for PoC**: opzione 3 (stato attuale), da rivedere insieme alla Q8-E.
-
-### Riverificato il 2026-09-05 — la descrizione regge, e l'esposizione reale è zero
-
-`apply_recipe` (`router.rs:4132`) non ha ancora `Extension<AuthUser>`: la firma prende solo
-`State`, `Path` e `Json`, quindi non ha modo di sapere chi sta chiedendo. La descrizione qui sopra
-è ancora esatta a un anno di distanza dai fatti che l'hanno generata.
-
-Due misure che la scheda non aveva, e che cambiano l'urgenza senza cambiare la sostanza:
-
-- **Nessun template del repo contiene ricette.** Niente le esercita, quindi non c'è un progetto di
-  prova su cui il difetto si veda — ed è anche il motivo per cui non l'ha ritrovato nessuno.
-- **La soglia esiste per davvero sull'altra strada**: `write_min_role` è applicata da
-  `tag_write_allowed` sulle scritture REST e WS, e i template la dichiarano. Quindi il buco non è
-  «la soglia non c'è», è «c'è una porta che non la guarda».
-
-Non cambia la scelta — resta una decisione di prodotto fra le tre opzioni — ma dice che si può
-prendere con calma, e che chi la prenderà dovrà **anche** scrivere un progetto di prova con una
-ricetta e un tag protetto, perché oggi non esiste e nessuna guardia potrebbe accorgersi di una
-regressione.
-
-**Decided**: not yet.
-
 ## Q23 — Collegare lo SCADA a un robot ROS 2
 
 **Aperta** — segnalata dal maintainer il 2026-08-26, da analizzare più avanti.
@@ -462,46 +424,6 @@ sopra, e va letto prima di decidere. In sintesi:
 
 **La domanda resta aperta**: il piano propone, non decide. Le cinque scelte che spettano al
 maintainer sono nel §9 del piano.
-
----
-
-## Q27 — Il server non fa rispettare il `data_type` dei tag in scrittura
-
-*Aperta il 2026-08-31. Misurata, non decisa.*
-
-`PUT /api/tags/:id` accetta un valore di **qualunque** tipo e lo conserva così com'è, anche quando
-il tag dichiara un `data_type` diverso. Misurato sul runtime locale:
-
-```
-PUT /api/tags/demo.cmd.button  {"value": "true"}   → 204
-GET → {"value": "true", ...}        # stringa, su un tag dichiarato `bool`
-```
-
-Nessun errore, nessun avviso: il tag resta di tipo dichiarato `bool` e contiene una stringa.
-
-### Perché è emerso adesso
-
-Il pulsante dei due modelli "Demo Items" aveva `write_value: 'true'` — in YAML una **stringa**, non
-un booleano. Funzionava per caso: chi rilegge quel tag tratta una stringa non vuota come vera. Il
-modello è stato corretto e una guardia (`check_templates.sh`) impedisce che rientri, ma la guardia
-copre solo *i nostri* modelli: un progetto di un cliente può fare la stessa cosa e nessuno lo dirà.
-
-### Le domande
-
-1. **Rifiutare o convertire?** Rifiutare (400) è onesto e rompe i progetti che oggi funzionano per
-   caso. Convertire (`"true"` → `true`) è indulgente ma sceglie al posto dell'utente, e su
-   `"1.5"` → `int` la scelta non è ovvia.
-2. **Dove**: nel `PUT`, nel `TagDb`, o in entrambi? Gli script Python e i driver scrivono per altre
-   strade.
-3. **Cosa fare dei valori già sbagliati** su un impianto in servizio, che si romperebbero al primo
-   riavvio con il controllo acceso.
-4. **`data_type` è una dichiarazione o un contratto?** Oggi è documentazione. Se diventa un
-   contratto va detto, perché cambia cosa significa scrivere un tag.
-
-### Rapporto con le altre voci
-
-Stessa famiglia di **Q17** (`/api/recipes/:id/apply` che scrive senza controllo per-tag): in
-entrambi i casi il server accetta una scrittura che avrebbe gli elementi per rifiutare.
 
 ---
 
@@ -1038,44 +960,6 @@ serve un impianto). Questa domanda è l'altra metà.
 
 **Decided**: not yet.
 
-## Q35 — «fuori pagina» è implicito nelle coordinate o è un campo `disabled` esplicito?
-
-*Aperta il 2026-09-05, lavorando a T-52 (punto 3: un oggetto fuori pagina è ignorato a runtime ma
-resta nel progetto).*
-
-Il comportamento chiesto dal maintainer è «togliere qualcosa dalla grafica temporaneamente senza
-cancellarlo»: si trascina l'oggetto fuori dal foglio e sparisce dal viewer, dal pannello e dal
-validatore, ma resta nel file. Il **come** si scrive questo stato è una scelta di modello, ed è
-stata presa per il PoC senza chiudere la domanda.
-
-**Options**
-
-1. **Implicito nelle coordinate** (scelto per il PoC). Nessun campo nuovo: una funzione condivisa
-   `isOffPage` / `is_off_page` guarda la bbox contro il rettangolo pagina, e quattro chiamanti la
-   consultano. Il file YAML non cambia, quindi non cambia niente per LVGL, per la parità di
-   modello, per l'import/export.
-2. **Campo `disabled: true` esplicito** sull'oggetto. Lo stato è dichiarato invece che dedotto:
-   si può disabilitare un oggetto senza spostarlo, e un oggetto parcheggiato fuori pagina per
-   comodità di lavoro non viene disabilitato per sbaglio.
-
-**Il costo dell'opzione 1**, che è la ragione per cui la domanda resta aperta: *posizione* e
-*intenzione* diventano la stessa cosa. Chi rimpicciolisce una pagina da 1280 a 800 disabilita in
-silenzio tutto quello che stava a destra — vedi il rischio R8 del piano, e l'avviso di pagina che
-è stato aggiunto proprio per non lasciare quel cambiamento muto. E non esiste modo di parcheggiare
-un oggetto fuori dal foglio *senza* disabilitarlo.
-
-**Il costo dell'opzione 2**: un campo in più nei due mirror di struct (web e LVGL) e nello schema
-dato all'assistente, più la domanda di cosa vinca quando i due stati non concordano — un oggetto
-`disabled: false` trascinato fuori pagina si disegna o no?
-
-**Default for PoC**: opzione 1, implicito nelle coordinate. La definizione sta in un posto solo
-(`sws-editor/src/pageLayout.ts` e `sws-core/src/geometry.rs`) e una guardia statica tiene allineate
-le due tabelle di casi, quindi il passaggio all'opzione 2 non sarebbe una riscrittura.
-
-**Decided**: not yet.
-
----
-
 ## Q36 — `min_role` non esiste sul pannello LVGL
 
 *Aperta il 2026-09-05. Il sospetto era scritto in `docs/plans/2026-08-21-scada-widgets.md:122-126`
@@ -1107,65 +991,6 @@ scritture, non solo quelle sotto `min_role`, con un fallimento muto per chi tocc
    tira dentro l'autenticazione su un pannello senza tastiera.
 
 **Default for PoC**: opzione 1. **Decided**: not yet.
-
----
-
-## Q37 — Cosa c'è attorno alla pagina sul pannello, e cosa succede se il foglio non ci sta
-
-*Aperta il 2026-09-05, lavorando a T-52. Due fatti verificati che sono la stessa domanda.*
-
-**Attorno.** Il backend SDL2 (il default sui pannelli) apre una finestra `fullscreen_desktop`, che
-può essere più grande della pagina; `page_offset` centra il foglio e il loop di presentazione fa
-**solo** il blit del rettangolo pagina. `grep "fill_rect\|clear()\|set_draw_color"` su `main.rs`:
-zero risultati. La cornice attorno al foglio non è né riempita né azzerata per frame: **il suo
-contenuto non è definito da noi**. In editor, dopo T-52, attorno al foglio c'è un tavolo neutro
-dichiarato; sul dispositivo c'è quel che capita.
-
-**Se non ci sta.** Nel viewer web `size_mode: fixed` con una pagina più grande dello spazio
-disponibile **riduce** mantenendo le proporzioni (`viewerFitScale`, con cap a 1: nasce sul WP620,
-dove le barre rubavano 90 px). In LVGL non esiste **nessuno** scale factor — nessun
-`lv_disp_set_zoom`, nessuna trasformazione — e la pagina viene **tagliata**, con un avviso a
-console che dice «quello che avanza NON si vede». Lo stesso progetto sullo stesso dispositivo si
-vede intero nel browser e mutilato sul pannello: è una divergenza WYSIWYG molto più visibile del
-bordo pagina che T-52 è andato a sistemare.
-
-**Options**
-
-1. **Dichiarare il limite** e basta: il pannello vuole una pagina della misura del suo schermo, e
-   l'IDE lo dice quando non lo è.
-2. **Riempire la cornice** con un colore dichiarato (il colore pagina? un tavolo? nero?) e
-   **ritagliare/centrare** il blit come già fa SDL2, così almeno il taglio è deliberato.
-3. **Scalare davvero in LVGL**, che è per-widget e non per-screen: è una riscrittura del motore di
-   render, non una correzione.
-
-**Default for PoC**: opzione 1 + l'avviso che già c'è. **Decided**: not yet.
-
----
-
-## Q38 — `size_mode: ratio` senza dimensioni esplicite: il bordo esiste ma non arriva al canvas
-
-*Aperta il 2026-09-05, lavorando a T-52.*
-
-`editorFitSize()` ricade sulla risoluzione di riferimento quando la pagina non ha `width`/`height`
-proprie ma la modalità è `ratio`; `EditorShell` però passa a `SvgCanvas` il `currentPage.width`
-**grezzo**. Quindi «adatta pagina» inquadra 1920×1080 mentre il rettangolo tratteggiato non viene
-disegnato — la sua condizione richiede `pageWidth && pageHeight`.
-
-Per T-52 la conseguenza è che in quella configurazione il colore non si limita, il bordo non
-trattiene e niente è mai «fuori pagina». Coerente con la regola «nessun bordo ⇒ nessun limite», ma
-per il motivo sbagliato: il bordo *esiste*, semplicemente non arriva al componente.
-
-**Options**
-
-1. **Passare `fitPageSize` come bordi** al canvas. Una riga — e in un colpo cambia fill,
-   resistenza e fuori-pagina per **tutti** i progetti in `ratio` senza dimensioni esplicite.
-2. **Materializzare le dimensioni** sulla pagina quando si sceglie `ratio`, così il file dice
-   quello che l'editor mostra.
-3. **Lasciare com'è**: `ratio` senza dimensioni significa «non so quanto è grande», e un foglio
-   senza misura non ha un bordo.
-
-**Default for PoC**: opzione 3, cioè nessun cambiamento. Non è un fix silenzioso da fare di
-passaggio. **Decided**: not yet.
 
 ---
 
@@ -1275,56 +1100,134 @@ ed è misurata.
 
 ---
 
-## Q41 — La chat IA deve mostrare consumo di token e credito residuo?
+## Q43 — Traduzione automatica dei contenuti di progetto (Google Translate)
 
-*Aperta il 2026-09-06 su richiesta del maintainer.*
+*Aperta il 2026-09-07 su richiesta del maintainer. Nessuna decisione presa.*
 
-**Richiesta.** Una sezione nel pannello della chat che mostri **l'uso delle risorse** (token
-consumati) e **lo stato dell'account** (credito disponibile). Entrambe **presenti per
-impostazione predefinita**, ed entrambe **nascondibili**.
+**Richiesta.** Tradurre automaticamente da una lingua nota a una desiderata, usando le API di
+Google Translator.
 
 ### Cosa c'è già, verificato sul codice
 
-Le due metà della richiesta non costano affatto uguale, e conviene saperlo prima di decidere.
+La richiesta **non** è «aggiungere il multilingua»: c'è. Quello che manca è riempire da soli una
+struttura che esiste.
 
-**I token ci sono già.** Il client li riceve dalla risposta in streaming e li tiene:
-`Risposta.usage` (`sws-web/src/ai/client.rs:317`), riempito dagli eventi `usage` del flusso
-(`:565-566`). Oggi finiscono **solo nel log**: `tracing::info!(giro, usage = …)` in
-`ai/mod.rs:188`. Portarli allo schermo è un salto solo — attraversare il WebSocket della chat e
-sommarli per conversazione — e non richiede nessuna chiamata in più a nessuno.
+- `LanguageTable` in `sws-core/src/project.rs:966` ha un campo `default` — **il codice della lingua
+  sorgente** — e la mappa token → traduzioni per codice lingua.
+- L'autore scrive `{{token}}` nei campi testo degli oggetti; il viewer e l'anteprima dell'editor li
+  risolvono nella lingua corrente (`sws-editor/src/i18n/projectI18n.ts`, T-40).
+- Si scrive con `PUT /api/project/languages` (Admin).
+- Sono **due assi indipendenti**: la lingua dell'interfaccia (`i18n/it.json`, `en.json`,
+  react-i18next) e la lingua dei **contenuti di progetto**. Questa richiesta riguarda il secondo;
+  confonderli produrrebbe un'interfaccia tradotta a metà.
 
-**Il credito no, e dipende dal fornitore.** I fornitori sono due, entrambi sulla stessa forma di
-API (`Fornitore::Anthropic` e `Fornitore::Kimi`, `client.rs:52-63`), ma il saldo **non viaggia
-nella risposta dei messaggi**: è un'informazione di account, che vive su un altro endpoint quando
-esiste. Va verificato per ciascuno prima di promettere il campo, perché è probabile che uno dei due
-non lo esponga affatto per una chiave d'uso normale — e una casella «credito» che per metà degli
-utenti resta vuota è peggio che non averla.
+### Opzioni
 
-### Le domande
+1. **Nel runtime, con un endpoint dedicato.** L'editor chiede «traduci da `it` a `de`», il runtime
+   chiama Google e riempie `languages`. La chiave sta dove stanno già gli altri segreti.
+2. **Nell'editor, col runtime come solo tramite.** Stessa cosa ma il controllo dell'operazione (cosa
+   tradurre, cosa no) resta nell'IDE. Il browser non vede mai la chiave.
+3. **Fuori linea, uno strumento a riga di comando** che prende un progetto e restituisce il progetto
+   tradotto. Nessuna chiave nel prodotto, ma nessuna traduzione dall'IDE.
 
-1. **Token: per conversazione, per sessione, o cumulativi?** Il dato per conversazione è quello che
-   il client ha già in mano. Un totale storico vorrebbe che qualcuno lo persista, e allora dove —
-   nella configurazione dell'IDE, nel datastore, in un file a parte?
-2. **Token: contarli o tradurli in soldi?** Un numero di token non dice niente a chi non conosce il
-   listino; un costo stimato dice di più ma richiede un prezzario per modello, che invecchia — e
-   invecchiando mente, che in questo progetto è il difetto che si cerca di evitare ovunque.
-3. **Credito: cosa si fa dove non c'è?** Nascondere la voce per quel fornitore, mostrarla con un
-   «non disponibile», o non mostrarla mai a nessuno finché non è disponibile per tutti.
-4. **Ogni quanto si chiede il saldo?** A ogni messaggio è una chiamata in più per ogni risposta; a
-   ogni apertura del pannello è il compromesso probabile; a comando è il più onesto e il meno utile.
-5. **Dove vive la preferenza «nascondi»?** C'è già una scheda **Preferenze IDE** in Configurazione,
-   ed è il posto naturale. Da decidere se la scelta sia per-utente (browser) o del progetto: la
-   prima è una preferenza, la seconda una decisione di chi allestisce il pannello.
+### Le domande da sciogliere
 
-### Perché non è solo un pannellino
+1. **Dove sta la chiave Google.** Stesso nodo di Q26: i segreti viaggiano col progetto in chiaro
+   (decisione del 2026-08-20). Una chiave a consumo dentro un progetto che si esporta e si spedisce
+   è un problema diverso da una password di driver.
+2. **Chi rilegge.** Un allarme tradotto male su un pannello d'impianto non è una questione di stile.
+   Serve un passaggio umano prima che una traduzione automatica raggiunga un dispositivo in
+   servizio, e va deciso **dove** sta quel passaggio.
+3. **Cosa NON si traduce.** I segnaposto di formato (`%.1f`, `{value}`), i nomi di macchina, le
+   sigle e i codici di impianto. Tradurre `%.1f bar` in una lingua che sposta l'unità rompe il
+   formato, non la frase.
+4. **Riproducibilità.** La stessa stringa tradotta due volte può tornare diversa: serve decidere se
+   si ritraduce tutto ogni volta o solo ciò che manca, e se una traduzione corretta a mano deve
+   essere protetta dalla successiva passata automatica.
+5. **Rete.** È un'operazione di **progettazione**, non di runtime: il dispositivo è spesso senza
+   Internet. Va escluso che qualcosa la invochi a impianto acceso.
+6. **Google o un'astrazione.** Il maintainer ha nominato Google; vincolarsi a un fornitore è una
+   scelta legittima ma va detta, perché il costo di cambiarlo dopo non è zero.
 
-Il credito residuo è **un dato dell'account**, non del progetto: chi guarda l'IDE su un impianto
-vedrebbe lo stato commerciale di chi ha comprato la chiave. Con `--no-admin` sui deploy la
-questione è più piccola di quanto sembri (sul dispositivo l'IDE non c'è), ma va detta: la
-possibilità di nascondere le voci, che il maintainer chiede, è anche la risposta a questo.
+### Default per il PoC
 
-**Default for PoC**: i **token per conversazione** sono la metà a costo quasi zero e si possono
-fare subito; il **credito** aspetta la verifica per fornitore. **Decided**: not yet.
+Nessuno: oggi le traduzioni si scrivono a mano nella tabella lingue.
+
+### Decisa
+
+`not yet`
+
+---
+
+## Q44 — Ospitare l'editor come servizio, con aziende, utenti e quote
+
+*Aperta il 2026-09-07 su richiesta del maintainer. Nessuna decisione presa.*
+
+**Richiesta.** Poter ospitare l'editor su un sito web, con una pagina di configurazione
+dell'hosting: utenti, il concetto di **azienda** e dei suoi utenti, il **branding** relativo, e un
+minimo di parametrizzazione — numero di progetti e spazio per utente — da estendere in seguito.
+
+### Perché è la questione più grande aperta finora
+
+Non aggiunge una funzione: cambia **cosa è** SWS. Oggi è un programma che si installa accanto a un
+impianto; questo lo rende un servizio che ospita gli impianti di più clienti sullo stesso server. Le
+cose che oggi funzionano perché c'è un solo cliente smettono di funzionare tutte insieme.
+
+### Cosa il modello attuale dà per scontato, verificato sul codice
+
+| Oggi | Perché non regge in multi-azienda |
+|---|---|
+| `users.yaml` sta **dentro la directory del progetto** (`sws-auth/src/lib.rs:5`) | Gli utenti appartengono a un progetto. Qui devono stare **sopra** i progetti: un utente dell'azienda A ha più progetti |
+| Ruoli `Viewer < Operator < Supervisor < Admin`, per progetto | Manca del tutto il livello «di chi è questo progetto» |
+| **Modalità senza utenti**: nessun `users.yaml` ⇒ tutto è Admin senza token (`router.rs:663-673`) | Su un host pubblico è fatale. Va resa impossibile, non solo sconsigliata |
+| Un runtime ha **un** progetto attivo (`--projects-root`, `.active-project`) | N aziende × M progetti non entrano in «un progetto attivo» |
+| Il branding è **per installazione**: `public/branding/active.json` sceglie un marchio per tutta la SPA servita | La richiesta è branding **per azienda**: la stessa SPA deve mostrarsi diversa a clienti diversi |
+| Nessuna nozione di quota | Da costruire: dove si contano i progetti, dove si misura lo spazio, e cosa succede al superamento |
+| I segreti viaggiano col progetto in chiaro (decisione 2026-08-20) | Su un disco condiviso fra clienti è una decisione da riesaminare, non da ereditare |
+
+### Opzioni
+
+1. **Un piano di controllo separato**, davanti a N runtime (uno per azienda o per progetto): la
+   tenancy, le quote e il branding vivono lì; il runtime resta quello che è. Isolamento forte,
+   pezzo nuovo da scrivere e da mantenere.
+2. **Estendere il runtime a multi-progetto e multi-utente**: un solo processo che serve tutti.
+   Meno parti, ma tocca autenticazione, storage e ogni endpoint, e un difetto di isolamento diventa
+   un incidente fra clienti.
+3. **Ibrido**: un piano di controllo sottile solo per aziende/utenti/quote/branding, con i runtime
+   per progetto avviati su richiesta.
+
+### Le domande da sciogliere
+
+1. **Isolamento**: oggi la separazione fra progetti è il filesystem e un processo. Quale garanzia si
+   promette a un cliente sul fatto che un altro non veda i suoi dati?
+2. **Dove vive lo stato di tenancy.** Non dentro un progetto — sta sopra. Serve un archivio nuovo.
+3. **Le quote dove si fanno rispettare.** Contare i progetti è facile; misurare lo spazio mentre uno
+   storico cresce da solo è un'altra cosa. E cosa succede quando si supera: si blocca la scrittura?
+   si ferma lo storico? Un impianto che smette di registrare perché è finito lo spazio è un guasto.
+4. **Backup e ripristino per azienda**, non per progetto come oggi.
+5. **AGPL-3.0-only** (`sws-runtime/Cargo.toml:24`, `LICENSE`). Offrire il software **come servizio in
+   rete** è esattamente il caso che questa licenza copre: gli utenti del servizio acquisiscono il
+   diritto di ricevere il sorgente. È una conseguenza da conoscere prima, non un ostacolo — ma è una
+   decisione di prodotto e non tecnica, e riguarda il proprietario del codice (Soligonet).
+6. **Il perimetro del «minimo per iniziare».** Il maintainer ha detto numero di progetti e spazio per
+   utente, poi si estende. Vale la pena scrivere quali estensioni si prevedono, perché lo schema dei
+   dati si progetta una volta sola.
+
+### Rapporto con le altre voci
+
+- **Q26** (server MCP) e il piano della chat IA: entrambi partono dal presupposto «la chat vive solo
+  sul PC di sviluppo». Se l'editor diventa ospitato, quel presupposto cade e va rifatto il ragionamento.
+- **Q17**, **Q27**: i confini di scrittura sono stati chiusi assumendo un solo cliente.
+
+### Default per il PoC
+
+Nessuno: oggi l'editor si installa, non si ospita.
+
+### Decisa
+
+`not yet`
+
+---
 
 ## Adding new questions
 
@@ -1356,11 +1259,18 @@ prende il numero successivo all'ultimo mai assegnato, archivio compreso.
 | Q11 | Estendere `BrandColors` con `secondary`/`accent`, o tenerli solo nell'artwork? | 2026-08-21 |
 | Q12 | I neutri di `theme.ts` restano condivisi fra tutti i brand, o diventano override per-brand? | 2026-08-21 |
 | Q14 | Binding Rust↔LVGL e sequenza dei backend di output | 2026-08 (15 seguiti) |
+| Q17 | `apply_recipe` scrive i tag senza contesto utente | 2026-09-06 |
 | Q18 | Colori del testo dai token di tema su pagine con sfondo scelto a mano | 2026-08-25 |
 | Q19 | Il backend DRM del viewer LVGL apre i device a mano, mentre PixsysOS li distribuisce con `seatd` | 2026-08-25 |
 | Q20 | Il viewer LVGL non si accorge che il progetto è cambiato | 2026-08-25 |
 | Q21 | Due superfici Python nel progetto, in due punti lontani dell'interfaccia | 2026-08-25 |
 | Q22 | La `sparkline` fa crashare il viewer LVGL quando la pagina ha altri widget | 2026-08-25 |
 | Q24 | Il font del viewer LVGL non ha le lettere accentate | 2026-08-27 |
+| Q27 | Il server non fa rispettare il `data_type` dei tag in scrittura | 2026-09-06 |
+| Q42 | Gli script Python scrivono i tag senza lo scaling inverso | 2026-09-06 |
 | Q33 | `POST /api/system/stop` viene annullato in silenzio dal salvataggio delle Sorgenti | 2026-09-04 |
 | Q34 | Il cron degli script globali non capisce `*/5`, e non parte in silenzio | 2026-09-03/04 |
+| Q35 | «fuori pagina» implicito nelle coordinate o campo esplicito? | 2026-09-06 |
+| Q37 | Cosa c'è attorno alla pagina sul pannello, e se il foglio non ci sta | 2026-09-06 |
+| Q38 | `size_mode: ratio` senza dimensioni esplicite: il bordo non arriva al canvas | 2026-09-06 |
+| Q41 | La chat IA deve mostrare consumo di token e credito residuo? | 2026-09-06 |
