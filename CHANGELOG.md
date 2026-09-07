@@ -11,6 +11,8 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.6.0] — 2026-09-07
+
 ### La chat dell'assistente mostra token e credito (Q41)
 
 Una riga risorse in testa al pannello: i token della conversazione (ingresso, uscita
