@@ -1266,6 +1266,27 @@ rilasciare la 2.7.0 sotto qualunque licenza voglia. Il passato resta com'è.
 | 3 | **MIT sulle versioni future** | Chiunque può usarlo e includerlo ovunque, senza attriti legali | **Chiunque può anche ospitarlo come servizio concorrente e non deve niente** |
 | 4 | **Proprietaria sulle versioni future** | Controllo massimo | Nessuna adozione esterna; e il fork AGPL pubblico resta comunque disponibile |
 
+#### L'esigenza, precisata dal maintainer (2026-09-07)
+
+> «La mia esigenza è offrire il **servizio**, non offrire i sorgenti: gli utenti useranno il mio
+> servizio e stop.»
+
+Con questa precisazione la questione licenza **esce dal percorso critico di Q44**: l'esigenza è già
+soddisfatta oggi, senza cambiare niente.
+
+- Gli utenti del servizio **non ricevono codice** — è software come servizio, non distribuzione.
+- L'unico appiglio dell'AGPL su questo caso è l'uso in rete (§13), e ricade su **chi opera sotto
+  licenza**, cioè su un licenziatario. Il titolare dei diritti non è licenziatario di se stesso.
+
+Quindi Q44 si può progettare e costruire **senza aspettare la decisione sulla licenza**. Restano da
+decidere solo cose che riguardano altri scopi:
+
+| Se un domani si vuole… | Serve |
+|---|---|
+| impedire ad **altri** di ospitare SWS come servizio | non MIT — semmai doppia licenza o proprietaria sulle future |
+| togliere attrito ai clienti che vogliono **integrare** il codice | MIT o simile |
+| solo ospitare, come oggi | **niente** |
+
 #### Orientamento del maintainer (2026-09-07)
 
 **MIT**, motivato dall'essere unico autore. Registrato come orientamento, non come decisione.
@@ -1301,7 +1322,8 @@ Due cose da pesare prima di renderlo definitivo, dette una volta e senza insiste
 
 ### Default per il PoC
 
-Nessuno: oggi l'editor si installa, non si ospita.
+Nessuno: oggi l'editor si installa, non si ospita. **La licenza non è un prerequisito**: vedi la
+precisazione del 2026-09-07 qui sopra.
 
 ### Decisa
 
