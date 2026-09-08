@@ -1143,7 +1143,10 @@
     "useUsed": "Used only",
     "unusedLegend": "● amber = variable not referenced by pages, alarms, expressions or scripts (recipes and functions not checked)",
     "unusedHint": "Not referenced by pages, alarms, expressions or scripts. Recipes and Python functions are not checked: verify before deleting.",
-    "usedIn": "Used in"
+    "usedIn": "Used in",
+    "hostKeyChanged": "The host key of {{host}} does not match the one stored on this PC. This happens after every factory reset or reinstall of the panel, which generates new ones. If you just reset the device yourself, you can forget the old key and retry; otherwise stop and check you are talking to the right machine.",
+    "hostKeyForget": "Forget the old key and retry",
+    "hostKeyForgetting": "Removing…"
   },
   "langtab": {
     "intro": "Translate the messages you write into objects. In text fields use {{key}}; here you define the translations for each language.",

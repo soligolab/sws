@@ -437,6 +437,24 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
                 "il supervisor tiene l'ultima e scarta la prima, senza dirlo"));
         }
         for (i, m) in topic_mappings(src).into_iter().enumerate() {
+            // Trovato su Sandokan il 2026-09-07: una riga col topic vuoto fa
+            // chiudere la connessione al broker (filtro a lunghezza zero =
+            // errore di protocollo) e si porta dietro TUTTI gli altri topic
+            // della sorgente. Nei log si legge solo «broken pipe».
+            if m.topic.trim().is_empty() {
+                out.push(Finding::err(
+                    format!("project.sources[{id}].topics[{i}].topic"),
+                    "riga senza topic".to_string(),
+                    "togli la riga: il broker chiude la connessione appena riceve una \
+                     sottoscrizione con un filtro vuoto, e muore l'intera sorgente — \
+                     non solo questa riga"));
+            } else if m.tag.trim().is_empty() {
+                out.push(Finding::warn(
+                    format!("project.sources[{id}].topics[{i}].tag"),
+                    format!("la riga sottoscrive `{}` ma non ha un tag", m.topic),
+                    "scegli il tag di destinazione, oppure togli la riga: così si \
+                     riceve e si butta"));
+            }
             if !m.tag.is_empty() && !per_id.contains_key(m.tag.as_str()) {
                 out.push(Finding::err(
                     format!("project.sources[{id}].topics[{i}].tag"),

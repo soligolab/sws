@@ -981,6 +981,32 @@ function emptyRegister(): RegisterMapping {
   return { tag: "", address: 0, scale: 1 };
 }
 
+/** Le righe MQTT senza topic non si salvano.
+ *
+ *  Sandokan, 2026-09-07: una riga lasciata vuota dallo sfoglia-broker faceva
+ *  mandare al broker una sottoscrizione con un filtro a lunghezza zero — errore
+ *  di protocollo — e mosquitto chiudeva la connessione 2 ms dopo, uccidendo
+ *  **tutti** gli altri 27 topic della sorgente. Nei log si leggeva solo
+ *  «broken pipe», che manda a cercare la rete o il broker.
+ *
+ *  Il server fa la stessa potatura (`PUT /api/project/sources`), perché passano
+ *  di lì anche l'assistente IA e le chiamate dirette all'API. Qui serve perché
+ *  il salvataggio non rilegge dal server: senza, la tabella continuerebbe a
+ *  mostrare una riga che sul disco non c'è più. */
+export function sorgentiSenzaRigheVuote(sources: SourceDef[]): SourceDef[] {
+  let potato = false;
+  const out = sources.map((s) => {
+    if (s.kind === "mqtt" && s.topics?.some((t) => !(t.topic ?? "").trim())) {
+      potato = true;
+      return { ...s, topics: s.topics.filter((t) => (t.topic ?? "").trim()) };
+    }
+    return s;
+  });
+  // Stessa referenza quando non c'è niente da togliere: il chiamante la usa
+  // per non ridisegnare la tabella a ogni salvataggio.
+  return potato ? out : sources;
+}
+
 function emptyMqtt(): MqttSource {
   return {
     kind: "mqtt",
@@ -4279,8 +4305,12 @@ function ProtocolsTab() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await api.updateSources(sources);
-      updateProjectSources(sources);
+      // La tabella mostra quello che è stato davvero salvato, non quello che
+      // c'era prima della potatura.
+      const puliti = sorgentiSenzaRigheVuote(sources);
+      if (puliti !== sources) setSources(puliti);
+      await api.updateSources(puliti);
+      updateProjectSources(puliti);
       if (pendingTags.length > 0) {
         const allTags = [...(storeProject?.tags ?? []), ...pendingTags];
         await api.updateTags(allTags);
@@ -8101,6 +8131,11 @@ function RuntimeConnectionTab() {
   const [selectedContainerPkg, setSelectedContainerPkg] = useState("");
   const [containerLog, setContainerLog]       = useState<string[]>([]);
   const [containerDeploying, setContainerDeploying] = useState(false);
+  // Il deploy si è fermato perché la chiave host del dispositivo non combacia
+  // (tipicamente dopo un factory reset). Non si toglie da soli: compare un
+  // pulsante, e il gesto resta di chi guarda.
+  const [chiaveHostCambiata, setChiaveHostCambiata] = useState(false);
+  const [dimenticandoChiave, setDimenticandoChiave] = useState(false);
   // Percorso dati sul device (install-container.sh --data): vuoto = default
   // dello script. Il modello scelto dal dropdown brand-aware pre-compila
   // questo campo, che resta comunque sempre editabile — è anche il "modello
@@ -8154,7 +8189,9 @@ function RuntimeConnectionTab() {
       const result = await api.remoteConnect(target, user, pass);
       if (!result.ok) throw new Error(result.error ?? "Connessione fallita");
       setStatus("connected");
-      setStatusMsg(null);
+      // La nota dice cosa è successo quando è riuscita ma non come chiedevi:
+      // p.es. il dispositivo non ha utenti e le credenziali sono state ignorate.
+      setStatusMsg(result.nota ?? null);
       setRemoteConnected(true, target);
       window.dispatchEvent(new CustomEvent("sws:runtime-connected", { detail: { url: target } }));
     } catch (e: any) {
@@ -8322,6 +8359,36 @@ function RuntimeConnectionTab() {
     }
   };
 
+  /** Toglie dal known_hosts di questo PC le chiavi del dispositivo e rilancia
+   *  il deploy. Ci si arriva solo dal pulsante che compare quando ssh si è
+   *  fermato per quel motivo: la chiave non si cancella mai da sola. */
+  const handleDimenticaChiaveHost = async () => {
+    if (!deviceHost) return;
+    setDimenticandoChiave(true);
+    try {
+      const token = getAuthToken() ?? "";
+      const res = await fetch("/api/device/hostkey/forget", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ host: deviceHost, port: devicePort }),
+      });
+      const testo = await res.text();
+      if (!res.ok) {
+        setContainerLog((l) => [...l, `ERROR: ${testo.trim() || res.statusText}`]);
+        return;
+      }
+      let messaggio = testo;
+      try { messaggio = (JSON.parse(testo) as { messaggio?: string }).messaggio ?? testo; } catch { /* testo grezzo */ }
+      setContainerLog((l) => [...l, `==> ${messaggio}`]);
+      setChiaveHostCambiata(false);
+      await handleContainerDeploy();
+    } catch (e: unknown) {
+      setContainerLog((l) => [...l, `ERROR: ${String(e)}`]);
+    } finally {
+      setDimenticandoChiave(false);
+    }
+  };
+
   const handleContainerDeploy = async () => {
     if (!deviceHost || !deviceUser) return;
     if (containerSource === "archive" && !selectedContainerPkg) return;
@@ -8331,6 +8398,7 @@ function RuntimeConnectionTab() {
         !window.confirm(t("cfg.cleanInstallConfirm", { path: effectiveDataPath(dataPath) }))) return;
     setContainerDeploying(true);
     setContainerLog([]);
+    setChiaveHostCambiata(false);
     try {
       const token = getAuthToken() ?? "";
       const res = await fetch("/api/deploy/device-container", {
@@ -8359,7 +8427,11 @@ function RuntimeConnectionTab() {
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
-        dec.decode(value).split("\n").filter(Boolean).forEach((line) => setContainerLog((l) => [...l, line]));
+        dec.decode(value).split("\n").filter(Boolean).forEach((line) => {
+          // Riga a macchina: accende il pulsante e non si mostra nel log.
+          if (line === "AZIONE: chiave-host-cambiata") { setChiaveHostCambiata(true); return; }
+          setContainerLog((l) => [...l, line]);
+        });
       }
     } catch (e: unknown) {
       setContainerLog((l) => [...l, `ERROR: ${String(e)}`]);
@@ -9308,6 +9380,28 @@ function RuntimeConnectionTab() {
                     {containerLog.map((l, i) => (
                       <div key={i} style={{ color: l.startsWith("ERROR") ? "var(--brand-danger-soft, #f87171)" : l === "DONE" ? "var(--brand-success-soft, #4ade80)" : l.startsWith("WARN") ? "#fb923c" : "var(--brand-text-muted, #94a3b8)" }}>{l}</div>
                     ))}
+                  </div>
+                )}
+
+                {/* La chiave host non combacia: quasi sempre è il factory reset
+                    del pannello, che se ne rigenera di nuove. Il pulsante c'è
+                    perché la rimozione resta un gesto umano — automatizzarla
+                    spegnerebbe per sempre la protezione che ci ha fermati. */}
+                {chiaveHostCambiata && (
+                  <div style={{
+                    border: "1px solid var(--brand-warning, #f59e0b)", borderRadius: 4,
+                    background: "var(--brand-warning-bg, #78350f)",
+                    padding: "8px 10px", display: "flex", flexDirection: "column", gap: 6,
+                  }}>
+                    <div style={{ fontSize: 12, color: "var(--brand-warning-soft, #facc15)" }}>
+                      {t("cfg.hostKeyChanged", { host: deviceHost })}
+                    </div>
+                    <button
+                      style={{ ...BTN_PRIMARY, opacity: dimenticandoChiave ? 0.6 : 1, alignSelf: "flex-start" }}
+                      disabled={dimenticandoChiave}
+                      onClick={() => void handleDimenticaChiaveHost()}>
+                      {dimenticandoChiave ? t("cfg.hostKeyForgetting") : t("cfg.hostKeyForget")}
+                    </button>
                   </div>
                 )}
 

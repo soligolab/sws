@@ -33,6 +33,11 @@ pub struct ConnectResult {
     pub ok: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+    /// Riuscito, ma c'è qualcosa da sapere (es. il dispositivo non ha utenti e
+    /// le credenziali sono state ignorate). Separata da `error` perché una
+    /// connessione riuscita non deve comparire come fallita.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub nota: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -54,8 +59,8 @@ pub async fn connect_remote(
     let url = body.url.trim().trim_end_matches('/').to_string();
 
     if !url.starts_with("http://") && !url.starts_with("https://") {
-        return (StatusCode::BAD_REQUEST, Json(ConnectResult {
-            ok: false,
+        return (StatusCode::OK, Json(ConnectResult {
+            ok: false, nota: None,
             error: Some("URL must start with http:// or https://".into()),
         }));
     }
@@ -68,8 +73,8 @@ pub async fn connect_remote(
         .build()
     {
         Ok(c) => c,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(ConnectResult {
-            ok: false,
+        Err(e) => return (StatusCode::OK, Json(ConnectResult {
+            ok: false, nota: None,
             error: Some(format!("HTTP client error: {e}")),
         })),
     };
@@ -77,6 +82,7 @@ pub async fn connect_remote(
     // If credentials are provided, authenticate against the remote; otherwise
     // connect without a token (the remote is in no-auth / no-users mode).
     let username = body.username.as_deref().unwrap_or("").trim().to_string();
+    let mut nota: Option<String> = None;
     let token = if username.is_empty() {
         String::new()
     } else {
@@ -89,40 +95,61 @@ pub async fn connect_remote(
             .await
         {
             Ok(r) => r,
-            Err(e) => return (StatusCode::BAD_GATEWAY, Json(ConnectResult {
-                ok: false,
+            Err(e) => return (StatusCode::OK, Json(ConnectResult {
+                ok: false, nota: None,
                 error: Some(format!("Cannot reach {url}: {e}")),
             })),
         };
 
         if res.status() == 401 {
-            return (StatusCode::UNAUTHORIZED, Json(ConnectResult {
-                ok: false,
-                error: Some("Wrong credentials for the remote runtime".into()),
-            }));
-        }
+            // Prima di dare del bugiardo all'utente: il dispositivo potrebbe
+            // semplicemente non avere utenti definiti. Succede appena si
+            // distribuisce un progetto senza `users.yaml` — e allora il login
+            // fallisce non perché la password è sbagliata, ma perché non c'è
+            // nessuna password al mondo che vada bene.
+            //
+            // Segnalato il 2026-09-08: credenziali rimaste nel modulo da un
+            // dispositivo precedente, «unauthorized» sullo schermo, e nessun
+            // indizio su cosa fare.
+            if senza_utenti(&client, &url).await {
+                nota = Some(format!(
+                    "{url} non ha utenti definiti: connesso senza autenticazione \
+                     (utente e password sono stati ignorati)."
+                ));
+                String::new()
+            } else {
+                return (StatusCode::OK, Json(ConnectResult {
+                    ok: false, nota: None,
+                    error: Some(format!(
+                        "credenziali rifiutate da {url}: l'utente «{username}» non esiste \
+                         o la password è sbagliata."
+                    )),
+                }));
+            }
+        } else {
         if !res.status().is_success() {
             let code = res.status();
-            return (StatusCode::BAD_GATEWAY, Json(ConnectResult {
-                ok: false,
+            return (StatusCode::OK, Json(ConnectResult {
+                ok: false, nota: None,
                 error: Some(format!("Remote login returned {code}")),
             }));
         }
 
         let payload: serde_json::Value = match res.json().await {
             Ok(j) => j,
-            Err(e) => return (StatusCode::BAD_GATEWAY, Json(ConnectResult {
-                ok: false,
+            Err(e) => return (StatusCode::OK, Json(ConnectResult {
+                ok: false, nota: None,
                 error: Some(format!("Bad JSON from remote login: {e}")),
             })),
         };
 
         match payload.get("token").and_then(|t| t.as_str()) {
             Some(t) => t.to_string(),
-            None => return (StatusCode::BAD_GATEWAY, Json(ConnectResult {
-                ok: false,
+            None => return (StatusCode::OK, Json(ConnectResult {
+                ok: false, nota: None,
                 error: Some("Remote login response has no 'token' field".into()),
             })),
+        }
         }
     };
 
@@ -145,8 +172,8 @@ pub async fn connect_remote(
     match probe.send().await {
         Ok(r) if r.status().is_success() => {}
         Ok(r) if r.status() == StatusCode::NOT_FOUND => {
-            return (StatusCode::BAD_GATEWAY, Json(ConnectResult {
-                ok: false,
+            return (StatusCode::OK, Json(ConnectResult {
+                ok: false, nota: None,
                 error: Some(format!(
                     "{url} answers but exposes no project API — this looks like the \
                      viewer port. Use the IDE/admin port instead (8444 by default)."
@@ -155,14 +182,14 @@ pub async fn connect_remote(
         }
         Ok(r) => {
             let code = r.status();
-            return (StatusCode::BAD_GATEWAY, Json(ConnectResult {
-                ok: false,
+            return (StatusCode::OK, Json(ConnectResult {
+                ok: false, nota: None,
                 error: Some(format!("Target returned {code} on /api/projects")),
             }));
         }
         Err(e) => {
-            return (StatusCode::BAD_GATEWAY, Json(ConnectResult {
-                ok: false,
+            return (StatusCode::OK, Json(ConnectResult {
+                ok: false, nota: None,
                 error: Some(format!("Cannot reach {url}: {e}")),
             }));
         }
@@ -176,7 +203,21 @@ pub async fn connect_remote(
     *s.remote_target.write().await = Some(RemoteTarget { url: url.clone(), token, connected_at_ms });
     tracing::info!(remote = %url, "connected to remote runtime");
 
-    (StatusCode::OK, Json(ConnectResult { ok: true, error: None }))
+    (StatusCode::OK, Json(ConnectResult { ok: true, error: None, nota }))
+}
+
+/// Il runtime all'altro capo ha utenti definiti, o è in modalità no-auth?
+///
+/// `GET /api/auth/whoami` senza token è il discriminatore: dove non ci sono
+/// utenti il server inietta un Admin sintetico e risponde 200; dove ci sono,
+/// la rotta è protetta e risponde 401. Qualunque altro esito (rete, 5xx) si
+/// tratta come «ha utenti»: nel dubbio non si dichiara aperto un dispositivo
+/// che potrebbe non esserlo.
+async fn senza_utenti(client: &reqwest::Client, url: &str) -> bool {
+    match client.get(format!("{url}/api/auth/whoami")).send().await {
+        Ok(r) => r.status().is_success(),
+        Err(_) => false,
+    }
 }
 
 /// `DELETE /api/remote/connect` — clear the remote target state.

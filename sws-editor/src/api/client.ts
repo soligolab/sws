@@ -389,6 +389,12 @@ export function dimenticaVersioneProgetto() {
   VERSIONI_FILE.clear();
 }
 
+/** Le rotte il cui 401 arriva da un runtime DIVERSO da quello che serve questa
+ *  pagina — un dispositivo remoto raggiunto per relay. Il loro 401 non dice
+ *  niente sulla nostra sessione, e trattarlo come tale chiude l'editor dietro
+ *  un modale di riautenticazione che non c'entra. */
+const PARLA_CON_UN_ALTRO_RUNTIME = (path: string) => path.startsWith("/api/remote/");
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   if (TOKEN) headers.set("Authorization", `Bearer ${TOKEN}`);
@@ -428,7 +434,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (res.status === 401) {
     // If we had a token, the session expired mid-use — signal the UI to show
     // a re-auth overlay rather than fully clearing and redirecting.
-    if (TOKEN) window.dispatchEvent(new CustomEvent("sws:session-expired"));
+    //
+    // Tranne sulle rotte che parlano con un ALTRO runtime: lì un 401 è del
+    // dispositivo remoto, non nostro, e l'overlay «Sessione scaduta» sbatteva
+    // in faccia una richiesta di password che non poteva riuscire mentre la
+    // sessione locale era perfettamente viva. Segnalato il 2026-09-08:
+    // connessione a un pannello senza utenti → 401 dal pannello → «✗
+    // unauthorized» *e* il modale di riautenticazione, insieme.
+    if (TOKEN && !PARLA_CON_UN_ALTRO_RUNTIME(path)) {
+      window.dispatchEvent(new CustomEvent("sws:session-expired"));
+    }
     throw new AuthError();
   }
   if (res.status === 503) {
@@ -1377,7 +1392,7 @@ export const api = {
   // The local runtime handles the actual connection to the remote device.
 
   remoteConnect: (url: string, username?: string, password?: string) =>
-    request<{ ok: boolean; error?: string }>("/api/remote/connect", {
+    request<{ ok: boolean; error?: string; nota?: string }>("/api/remote/connect", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url, username: username || undefined, password: password || undefined }),

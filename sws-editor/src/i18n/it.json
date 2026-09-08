@@ -1143,7 +1143,10 @@
     "useUsed": "Solo usate",
     "unusedLegend": "● ambra = variabile non referenziata da pagine, allarmi, espressioni o script (ricette e funzioni non verificate)",
     "unusedHint": "Non referenziata da pagine, allarmi, espressioni o script. Ricette e funzioni Python non sono verificate: controlla prima di eliminarla.",
-    "usedIn": "Usata in"
+    "usedIn": "Usata in",
+    "hostKeyChanged": "La chiave host di {{host}} non combacia con quella memorizzata su questo PC. Succede a ogni factory reset o reinstallazione del pannello, che se ne genera di nuove. Se hai appena resettato tu il dispositivo, puoi dimenticare la vecchia chiave e riprovare; altrimenti fermati e verifica di stare parlando con la macchina giusta.",
+    "hostKeyForget": "Dimentica la vecchia chiave e riprova",
+    "hostKeyForgetting": "Rimozione in corso…"
   },
   "langtab": {
     "intro": "Traduci i messaggi che scrivi negli oggetti. Nei campi testo usa {{chiave}}; qui definisci le traduzioni per ogni lingua.",

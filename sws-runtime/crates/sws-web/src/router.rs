@@ -286,6 +286,11 @@ pub fn build(
             get(crate::packaging::list_container_packages))
         .route("/api/deploy/device-container",
             post(crate::packaging::deploy_device_container))
+        // Toglie dal known_hosts di questo PC le chiavi di un dispositivo che
+        // ha cambiato identità (factory reset). Mai automatico: ci si arriva
+        // solo dal pulsante che compare quando il deploy si ferma per questo.
+        .route("/api/device/hostkey/forget",
+            post(crate::packaging::dimentica_chiave_host))
         // Lifecycle on an already-installed container (status/start/stop/
         // restart/enable/disable/restart-policy/uninstall) — locally on this
         // host or over SSH, independent of any prior deploy's remote_dir.
@@ -2818,6 +2823,34 @@ async fn update_project_sources(
                 }
             }
         }
+    }
+
+    // 2026-09-07 — le righe MQTT senza topic non arrivano al disco.
+    //
+    // Perché si scartano invece di rifiutare il salvataggio con un 400, come
+    // si fa qui sopra per gli id duplicati: un id duplicato farebbe perdere una
+    // sorgente **configurata** (c'è del lavoro dentro, e va detto); una riga con
+    // il topic vuoto non porta alcuna informazione — non c'è niente da perdere,
+    // e rifiutare bloccherebbe il salvataggio di tutto il resto. Lasciarla
+    // passare invece costa carissimo: il broker chiude la connessione appena
+    // riceve una SUBSCRIBE con un filtro a lunghezza zero, e muore l'intera
+    // sorgente (Sandokan, 2026-09-07: 27 topic buoni uccisi dal ventottesimo
+    // vuoto). Il runtime ormai le tollera; qui si evita che tornino sul disco
+    // e finiscano nel deploy.
+    let mut righe_tolte: Vec<String> = Vec::new();
+    for src in &mut sources {
+        if let SourceDef::Mqtt(cfg) = src {
+            let prima = cfg.topics.len();
+            cfg.topics.retain(|t| !t.topic.trim().is_empty());
+            let tolte = prima - cfg.topics.len();
+            if tolte > 0 {
+                righe_tolte.push(format!("{} ({tolte})", cfg.id));
+            }
+        }
+    }
+    if !righe_tolte.is_empty() {
+        warn!(sorgenti = %righe_tolte.join(", "),
+              "salvataggio sorgenti: righe senza topic tolte prima di scrivere");
     }
 
     // Hot-reload: persist first, then diff against the supervisor's current

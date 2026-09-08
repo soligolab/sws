@@ -14,6 +14,32 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, warn};
 
+// ── Righe di `topics` utilizzabili ──────────────────────────────────────────
+//
+// Trovato il 2026-09-07 su Sandokan, e costato una serata di caccia al broker:
+// una riga con il **topic vuoto**, lasciata dallo sfoglia-broker, faceva
+// mandare una SUBSCRIBE con un filtro a lunghezza zero. MQTT 3.1.1 §4.7.3
+// pretende almeno un carattere, e mosquitto tratta il filtro vuoto come errore
+// di protocollo: chiude la connessione appena la riceve. Nei log si vedeva solo
+// «Broken pipe» 2 ms dopo il subscribe, ogni 5 secondi per sempre — un
+// messaggio che manda a cercare la rete, il broker o il container.
+//
+// Il danno non è la riga persa: è che muore la SORGENTE INTERA, tutti gli altri
+// topic compresi. Per questo qui si salta la riga e si continua, invece di
+// lasciar cadere la sessione.
+
+/// Una riga si può sottoscrivere solo con un filtro non vuoto.
+fn sottoscrivibile(topic: &str) -> bool {
+    !topic.trim().is_empty()
+}
+
+/// Una riga senza tag riceve e non ha dove mettere: ingerirla creerebbe un tag
+/// con **id vuoto** nel TagDb — succedeva davvero a ogni ciclo di retry, che
+/// marca Bad tutte le righe della sorgente.
+fn mappata(tag: &str) -> bool {
+    !tag.trim().is_empty()
+}
+
 mod sparkplug;
 
 /// Verifica del certificato del broker **disattivata**, per `insecure_skip_verify`.
@@ -131,6 +157,7 @@ pub async fn run(cfg: MqttConfig, db: Arc<TagDb>, bus: Arc<TagWriteBus>, cancel:
     }
     // Pre-build a (tag → publish_topic) lookup for the writable subset.
     let writers: Vec<(String, String)> = cfg.topics.iter()
+        .filter(|t| mappata(&t.tag))
         .filter_map(|t| t.publish_topic.as_ref().map(|pt| (t.tag.clone(), pt.clone())))
         .collect();
 
@@ -140,7 +167,7 @@ pub async fn run(cfg: MqttConfig, db: Arc<TagDb>, bus: Arc<TagWriteBus>, cancel:
             Err(e) => {
                 if cancel.is_cancelled() { break; }
                 warn!(source = %cfg.id, "MQTT session ended: {e:#} — retry in 5s");
-                for topic in &cfg.topics {
+                for topic in cfg.topics.iter().filter(|t| mappata(&t.tag)) {
                     db.ingest(topic.tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
                 }
                 tokio::select! {
@@ -233,7 +260,16 @@ async fn run_session(
     // Subscribe with per-topic QoS, falling back to the source-level QoS,
     // then to 0.
     let source_qos = qos_from_u8(cfg.qos.unwrap_or(0));
-    for topic in &cfg.topics {
+    let senza_filtro = cfg.topics.iter().filter(|t| !sottoscrivibile(&t.topic)).count();
+    if senza_filtro > 0 {
+        warn!(
+            source = %cfg.id, righe = senza_filtro,
+            "MQTT: {senza_filtro} riga/e senza topic, ignorate. Sottoscriverle farebbe \
+             chiudere la connessione al broker (filtro a lunghezza zero: errore di \
+             protocollo) e morirebbe l'intera sorgente. Toglile in Configurazione → Sorgenti."
+        );
+    }
+    for topic in cfg.topics.iter().filter(|t| sottoscrivibile(&t.topic)) {
         let qos = topic.qos.map(qos_from_u8).unwrap_or(source_qos);
         client
             .subscribe(&topic.topic, qos)
@@ -312,6 +348,10 @@ async fn run_session(
                     let mut matched = false;
                     for topic in &cfg.topics {
                         if topic.topic == p.topic {
+                            matched = true;
+                            // Sottoscritta ma senza tag: si è ricevuto davvero
+                            // (matched sopra), solo non c'è dove mettere.
+                            if !mappata(&topic.tag) { continue; }
                             let value = decode_payload(&p.payload, topic.json_path.as_deref());
                             debug!(
                                 source = %cfg.id,
@@ -321,7 +361,6 @@ async fn run_session(
                                 "MQTT recv",
                             );
                             db.ingest(topic.tag.clone(), value, TagQuality::Good).await;
-                            matched = true;
                         }
                     }
                     if !matched {
@@ -514,4 +553,34 @@ pub async fn browse(params: BrowseParams) -> Vec<BrowsedTopic> {
         .collect();
     result.sort_by(|a, b| a.topic.cmp(&b.topic));
     result
+}
+
+#[cfg(test)]
+mod tests_righe {
+    use super::{mappata, sottoscrivibile};
+
+    /// Il caso vero, dal progetto Sandokan del 2026-09-07: la prima riga della
+    /// sorgente `mqtt-casa` aveva `topic: ''` (28 righe in tutto). Sottoscriverla
+    /// faceva chiudere la connessione al broker 2 ms dopo la SUBSCRIBE, in loop
+    /// ogni 5 s, portandosi dietro gli altri 27 topic.
+    #[test]
+    fn una_riga_senza_topic_non_si_sottoscrive() {
+        assert!(!sottoscrivibile(""), "il filtro a lunghezza zero è un errore di protocollo");
+        assert!(!sottoscrivibile("   "), "solo spazi: idem, e il broker chiude");
+        assert!(sottoscrivibile("zigbee2mqtt/presa.sandokan"));
+        assert!(sottoscrivibile("homeassistant/binary_sensor/x/config"));
+        // I caratteri jolly restano legittimi: qui si scarta il vuoto, non si
+        // giudica la forma del filtro.
+        assert!(sottoscrivibile("casa/+/stato"));
+        assert!(sottoscrivibile("#"));
+    }
+
+    /// Una riga senza tag riceveva e finiva in `db.ingest("")`, creando un tag
+    /// con id vuoto — a ogni retry, per ogni riga della sorgente.
+    #[test]
+    fn una_riga_senza_tag_non_crea_un_tag_vuoto() {
+        assert!(!mappata(""));
+        assert!(!mappata("  "));
+        assert!(mappata("sandokan.power"));
+    }
 }

@@ -756,6 +756,102 @@ fn container_deploy_sources(repo: &std::path::Path) -> Result<Vec<std::path::Pat
 /// Con `clean_install` l'immagine viene procurata **prima** di cancellare i
 /// dati (`--pull-only`), non dopo: altrimenti un pull fallito su un purge già
 /// eseguito lascerebbe il dispositivo senza dati e senza runtime.
+#[derive(Deserialize)]
+pub struct DimenticaChiaveBody {
+    pub host: String,
+    #[serde(default)]
+    pub port: Option<u16>,
+}
+
+/// Un nome host che si può passare a `ssh-keygen -R` senza sorprese: niente
+/// barre, spazi o trattino iniziale (un argomento che comincia per `-` verrebbe
+/// letto come un'opzione). Copre nomi mDNS e IPv4; un IPv6 letterale no, ed è
+/// dichiarato invece che scoperto.
+fn host_sicuro(h: &str) -> bool {
+    !h.is_empty()
+        && h.len() <= 253
+        && !h.starts_with('-')
+        && h.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'))
+}
+
+/// `POST /api/device/hostkey/forget` — toglie dal `known_hosts` di **questo PC**
+/// le chiavi memorizzate per un dispositivo.
+///
+/// Esiste per il factory reset: il pannello rigenera le chiavi host e ogni
+/// deploy successivo si ferma. La rimozione **non** è automatica e non deve
+/// diventarlo: si arriva qui solo dopo che una persona ha letto l'avviso e ha
+/// premuto il pulsante. Disattivare il controllo (`StrictHostKeyChecking=no`)
+/// sarebbe la scorciatoia, e spegnerebbe per sempre la protezione che ci ha
+/// fermati; questo la spegne una volta, per un host, su richiesta esplicita.
+///
+/// Admin-only per posizione nel router, e registrato nell'audit.
+pub async fn dimentica_chiave_host(
+    State(s): State<AppState>,
+    axum::Extension(user): axum::Extension<crate::router::AuthUser>,
+    EJson(req): EJson<DimenticaChiaveBody>,
+) -> Response {
+    if !host_sicuro(&req.host) {
+        return (StatusCode::BAD_REQUEST,
+            format!("nome host non valido: «{}»\n", req.host)).into_response();
+    }
+    let Some(home) = std::env::var_os("HOME").map(PathBuf::from) else {
+        return (StatusCode::INTERNAL_SERVER_ERROR,
+            "HOME non impostata: non so dove sia il known_hosts\n").into_response();
+    };
+    let known = home.join(".ssh/known_hosts");
+    if !known.exists() {
+        return (StatusCode::NOT_FOUND,
+            format!("{} non esiste: niente da dimenticare\n", known.display())).into_response();
+    }
+
+    // Le due forme in cui OpenSSH memorizza un host: nuda sulla porta 22, fra
+    // parentesi quadre con la porta quando è un'altra.
+    let mut bersagli = vec![req.host.clone()];
+    if let Some(p) = req.port.filter(|p| *p != 22) {
+        bersagli.push(format!("[{}]:{}", req.host, p));
+    }
+
+    let mut tolte: Vec<String> = Vec::new();
+    for b in &bersagli {
+        match Command::new("ssh-keygen")
+            .arg("-f").arg(&known)
+            .arg("-R").arg(b)
+            .output().await
+        {
+            Ok(o) if o.status.success() => {
+                // `ssh-keygen -R` esce 0 anche quando non trova niente: la
+                // differenza è nel testo, e serve per non dire «fatto» a vuoto.
+                let testo = String::from_utf8_lossy(&o.stdout);
+                if testo.contains("found") || testo.contains("updated") {
+                    tolte.push(b.clone());
+                }
+            }
+            Ok(o) => warn!(host = %b, "ssh-keygen -R fallito: {}",
+                           String::from_utf8_lossy(&o.stderr).trim()),
+            Err(e) => {
+                return (StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("impossibile eseguire ssh-keygen: {e}\n")).into_response();
+            }
+        }
+    }
+
+    s.audit.log("device.hostkey_forget", Some(user.username), serde_json::json!({
+        "host": req.host, "port": req.port, "tolte": tolte,
+    }));
+    info!(host = %req.host, tolte = tolte.len(), "chiave host dimenticata su richiesta");
+
+    axum::Json(serde_json::json!({
+        "host": req.host,
+        "tolte": tolte,
+        "messaggio": if tolte.is_empty() {
+            "nessuna chiave memorizzata per questo host: il blocco viene da altro".to_string()
+        } else {
+            format!("{} voce/i tolte da known_hosts (l'originale resta in known_hosts.old)",
+                    tolte.len())
+        },
+    })).into_response()
+}
+
 pub async fn deploy_device_container(
     State(s): State<AppState>,
     EJson(req): EJson<DeviceContainerDeployRequest>,
@@ -972,6 +1068,11 @@ pub async fn deploy_device_container(
 /// so a single constant here is enough (no per-install naming to track).
 const CONTAINER_NAME: &str = "sws-runtime";
 
+/// Il companion LVGL: unit separata, installata solo su richiesta, ma se c'è
+/// fa parte dello stato del dispositivo tanto quanto il runtime. Uno status
+/// che non la nomina lascia credere che non esista.
+const LVGL_CONTAINER_NAME: &str = "sws-lvgl-viewer";
+
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
 pub struct ContainerManageRequest {
@@ -1026,6 +1127,7 @@ fn build_manage_cmd(
     data_path: &str,
 ) -> Result<String, String> {
     let name = CONTAINER_NAME;
+    let lvgl = LVGL_CONTAINER_NAME;
     match action {
         // NOTA: `systemctl --user is-enabled` risponde sempre "generated" per
         // una unit quadlet — è generata da zero a ogni daemon-reload/boot
@@ -1035,13 +1137,32 @@ fn build_manage_cmd(
         // `is-enabled` non cambia. L'unico segnale vero è la riga `WantedBy=`
         // nel file sorgente stesso — la stessa che `enable`/`disable` sotto
         // commentano/scommentano.
+        // Lo status deve rispondere a «cosa c'è su questa macchina», non solo
+        // a «come sta la unit che mi aspetto». Prima filtrava i container per
+        // nome `sws-runtime`: sul dispositivo non mostrava il companion LVGL,
+        // e su una macchina senza quel container stampava l'intestazione nuda
+        // di `podman ps` — che si legge come «non funziona», non come
+        // «non c'è niente». Segnalato dal maintainer il 2026-09-07.
         "status" => Ok(format!(
             "echo '== systemctl --user status =='; systemctl --user status {name} --no-pager -l || true; \
+             echo; echo '== companion LVGL =='; \
+             (test -f ~/.config/containers/systemd/{lvgl}.container \
+                && systemctl --user status {lvgl} --no-pager -l \
+                || echo 'non installato'); \
              echo; echo '== avvio automatico al boot =='; \
              (grep -q '^WantedBy=' ~/.config/containers/systemd/{name}.container 2>/dev/null \
                 && echo 'abilitato' || echo 'disabilitato'); \
              echo; echo '== linger =='; loginctl show-user \"$USER\" --property=Linger || true; \
-             echo; echo '== container =='; podman ps -a --filter name={name} || true"
+             echo; echo '== container sws =='; \
+             (podman ps -a --filter name=sws | tail -n +2 | grep -q . \
+                && podman ps -a --filter name=sws \
+                || echo 'nessun container sws su questa macchina'); \
+             echo; echo '== altri container =='; \
+             (podman ps -a --format '{{{{.Names}}}}  {{{{.Status}}}}' 2>/dev/null \
+                | grep -v '^sws' | grep . || echo 'nessuno'); \
+             echo; echo '== immagini sws =='; \
+             (podman images 2>/dev/null | grep -i sws | head -10 \
+                || echo 'nessuna immagine sws')"
         )),
         "start" | "stop" | "restart" => Ok(format!("systemctl --user {action} {name}")),
         // `systemctl --user enable/disable` è un no-op per una unit generata da
@@ -1118,10 +1239,17 @@ pub async fn manage_device_container(EJson(req): EJson<ContainerManageRequest>) 
             log_deploy_line!("sws_web::manage_container", msg);
         };
 
+        // Il «dove» per esteso: uno status che non trova niente su questa
+        // macchina e uno che non trova niente sul pannello si leggono uguali,
+        // e la differenza è tutta lì.
         send(&format!(
-            "==> azione: {} ({})",
+            "==> azione: {} — {}",
             req.action,
-            if req.local { "locale" } else { "remoto" }
+            if req.local {
+                "su QUESTA macchina (nessun SSH)".to_string()
+            } else {
+                format!("sul dispositivo {}@{}:{}", req.user, req.host, req.port)
+            }
         ));
 
         let ok = if req.local {
@@ -1174,6 +1302,15 @@ async fn run_ssh_cmd(
 /// `sudo` to prompt on, and the SSH login password (consumed by sshpass)
 /// only authenticates the SSH session itself — the separate sudo prompt on
 /// the remote end needs the same password fed some other way.
+/// Le righe con cui OpenSSH dice «la chiave host non è quella che mi aspettavo».
+/// Sono due perché arrivano in coppia o da sole a seconda della versione e del
+/// motivo: l'urlo in maiuscolo quando la chiave è cambiata, la riga secca
+/// quando la verifica fallisce e basta.
+fn e_chiave_host_cambiata(line: &str) -> bool {
+    line.contains("REMOTE HOST IDENTIFICATION HAS CHANGED")
+        || line.contains("Host key verification failed")
+}
+
 async fn run_ssh_cmd_stdin(
     use_sshpass: bool,
     password: &str,
@@ -1247,10 +1384,19 @@ async fn run_ssh_cmd_stdin(
             }
         }
     };
+    // Dopo un factory reset il dispositivo rigenera le proprie chiavi host e
+    // ssh si ferma: quella memorizzata non combacia più. È indistinguibile da
+    // un attacco — ssh fa bene a fermarsi — ma il deploy finiva con un «exit
+    // 255» che non dice cosa fare, con la riga utile sepolta quindici righe
+    // più su. Qui il caso si riconosce e si dichiara.
+    let chiave_host_cambiata = std::sync::atomic::AtomicBool::new(false);
     let drain_stderr = async {
         if let Some(s) = stderr {
             let mut lines = BufReader::new(s).lines();
             while let Ok(Some(line)) = lines.next_line().await {
+                if e_chiave_host_cambiata(&line) {
+                    chiave_host_cambiata.store(true, std::sync::atomic::Ordering::Relaxed);
+                }
                 send(&format!("    {line}"));
             }
         }
@@ -1264,6 +1410,13 @@ async fn run_ssh_cmd_stdin(
         Ok(s) if s.success() => true,
         Ok(s) => {
             send(&format!("ERROR: {} fallito (exit {})", prog, s.code().unwrap_or(-1)));
+            if chiave_host_cambiata.load(std::sync::atomic::Ordering::Relaxed) {
+                send("ERROR: la chiave host del dispositivo non combacia con quella memorizzata su questo PC. Succede a ogni factory reset o reinstallazione: il dispositivo se ne genera di nuove. Se hai appena resettato tu il pannello è questo; altrimenti fermati e verifica di stare parlando con la macchina giusta.");
+                // Riga a macchina: la UI ci attacca il pulsante che toglie la
+                // vecchia chiave. Il gesto resta dell'operatore — cancellarla
+                // da soli spegnerebbe per sempre la protezione che ci ha fermati.
+                send("AZIONE: chiave-host-cambiata");
+            }
             false
         }
         Err(e) => {
@@ -1635,7 +1788,23 @@ mod tests {
         // dal file sorgente.
         assert!(cmd.contains("grep -q '^WantedBy=' ~/.config/containers/systemd/sws-runtime.container"));
         assert!(cmd.contains("loginctl show-user \"$USER\" --property=Linger"));
-        assert!(cmd.contains("podman ps -a --filter name=sws-runtime"));
+        // 2026-09-07 — lo status deve rispondere a «cosa c'è su questa
+        // macchina», non solo «come sta la unit che mi aspetto»: prima
+        // filtrava i container sul nome esatto, quindi non mostrava il
+        // companion LVGL e su una macchina pulita stampava l'intestazione
+        // nuda di podman, che si legge come un guasto invece che come
+        // «non c'è niente».
+        assert!(cmd.contains("systemctl --user status sws-lvgl-viewer"));
+        assert!(cmd.contains("podman ps -a --filter name=sws"));
+        assert!(!cmd.contains("--filter name=sws-runtime"),
+                "il filtro sul nome esatto nasconde il companion e gli estranei");
+        assert!(cmd.contains("nessun container sws su questa macchina"));
+        assert!(cmd.contains("nessuna immagine sws"));
+        // La trappola di `format!`: per far arrivare `{{.Names}}` a podman
+        // servono quattro graffe nel sorgente. Se qualcuno le riduce, il
+        // template esce come `{.Names}` e podman stampa una riga vuota.
+        assert!(cmd.contains("{{.Names}}"),
+                "il template Go deve arrivare a podman con le graffe doppie");
     }
 
     #[test]
@@ -1732,5 +1901,37 @@ mod tests {
     #[test]
     fn build_manage_cmd_rifiuta_azione_sconosciuta() {
         assert!(build_manage_cmd("reboot", "", false, "").is_err());
+    }
+}
+
+#[cfg(test)]
+mod tests_chiave_host {
+    use super::{e_chiave_host_cambiata, host_sicuro};
+
+    /// Le righe vere, copiate da un tentativo fallito sul TC620 dopo un
+    /// factory reset (2026-09-07).
+    #[test]
+    fn riconosce_le_righe_di_openssh() {
+        assert!(e_chiave_host_cambiata(
+            "@ WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED! @"));
+        assert!(e_chiave_host_cambiata("Host key verification failed."));
+        // Il resto del rumore di quel log NON deve accendere il pulsante.
+        assert!(!e_chiave_host_cambiata(
+            "user@tc620-a-p3-c6-07aff9.local: Permission denied (publickey,password)."));
+        assert!(!e_chiave_host_cambiata("==> mkdir -p /tmp/sws-deploy sul device"));
+        assert!(!e_chiave_host_cambiata(""));
+    }
+
+    /// L'host arriva dalla UI e finisce in `ssh-keygen -R`: un trattino
+    /// iniziale lo trasformerebbe in un'opzione.
+    #[test]
+    fn il_nome_host_e_controllato() {
+        assert!(host_sicuro("tc620-a-p3-c6-07aff9.local"));
+        assert!(host_sicuro("192.168.1.179"));
+        assert!(!host_sicuro("-oProxyCommand=cosa"));
+        assert!(!host_sicuro("host con spazi"));
+        assert!(!host_sicuro("a/b"));
+        assert!(!host_sicuro("host;rm -rf /"));
+        assert!(!host_sicuro(""));
     }
 }

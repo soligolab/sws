@@ -62,6 +62,118 @@
 
 ## ▶ Da fare nella prossima sessione
 
+### 🔒 «Connetti» a un pannello senza utenti chiudeva fuori dall'editor (2026-09-08)
+
+Segnalato con schermata: pannello con un progetto **senza utenti**, credenziali rimaste nel
+modulo, e all'atto di connettersi comparivano **insieme** «✗ unauthorized» e il modale
+«Sessione scaduta — inserisci la password per continuare come admin / Password errata». Due
+vicoli ciechi in uno: la sessione locale era viva, e quella password non poteva funzionare.
+
+Catena: `connect_remote` rispondeva **401** quando il login sul dispositivo falliva; `request()`
+in `client.ts` tratta *qualunque* 401 come scadenza della propria sessione e apre l'overlay.
+Ma la UI controllava `result.ok` — cioè era progettata per un **200 con `ok:false`**, e quel
+ramo non veniva mai raggiunto perché `request()` lanciava prima.
+
+Tre correzioni:
+1. **`connect_remote` non usa più lo stato HTTP per gli esiti remoti**: tutto nel corpo
+   (`ok`/`error`/`nota`), che è ciò che la schermata sa già leggere.
+2. **Il 401 di un altro runtime non è il nostro**: in `client.ts` le rotte `/api/remote/*` non
+   scatenano più `sws:session-expired` (lista dichiarata, nello stile di `PATH_RIPORTANO_VERSIONE`).
+3. **Il no-auth si riconosce**: se il login remoto dà 401, si sonda `GET /api/auth/whoami` senza
+   token — 200 significa «nessun utente» — e allora ci si connette **senza** credenziali,
+   dicendolo nella nota. Con credenziali davvero sbagliate il messaggio nomina utente e URL.
+
+Scoperto strada facendo e utile saperlo: **gli utenti appartengono al progetto** (aprirne uno
+scambia lo user store), quindi un runtime senza progetto è per forza in no-auth — è il motivo
+per cui la guardia deve seminare un progetto per avere un admin.
+
+Prove: `check_connessione_remota.sh` (25ª con stack) con **due runtime veri**, uno con utenti e
+uno senza, 7 controlli sul caso esatto della segnalazione; **provata rossa** ripristinando il 401.
+
+### 📺 Il pannello mostrava Cockpit dopo il deploy — e lo Stato non diceva niente
+
+Due segnalazioni del maintainer del 2026-09-07 sera, stesso ramo.
+
+**Il browser del pannello — due difetti, non uno.** Misurato sul dispositivo: `GetUrl`
+rispondeva `http://127.0.0.1:9443`, cioè il **valore di fabbrica** — quindi il `SetUrl`
+dell'installer *non era mai andato a buon fine*, e il blocco non aveva un ramo `else`: una
+chiamata rifiutata si leggeva come un successo. Inoltre stava **dentro** il ramo «/health ha
+risposto», quindi qualunque intoppo nell'attesa se lo portava via. Ora il `SetUrl` sta prima
+dell'attesa, indipendente, e **stampa l'errore** col comando da rifare a mano.
+Secondo difetto, sotto: `chromium-start main-app` legge l'URL **solo all'avvio**: col browser
+già in esecuzione — dopo un factory reset lo è, sulla pagina di configurazione, che è il valore
+di fabbrica — l'installazione riusciva e lo schermo non cambiava. Ora l'installer riavvia
+`chromium@main-app.service` dopo il `SetUrl`, **solo se era già attivo** (con STOP premuto il
+launcher tiene Cockpit su `wp-control` e non avvia main-app: avviarlo noi coprirebbe la via di
+fuga). Copre anche il caso dell'aggiornamento: una SPA già caricata resta quella finché il
+browser non riparte. Tre regole nuove in `check_systemd_units.sh` (riavvio presente, condizionato a
+`is-active`, e `SetUrl` che riporta il fallimento), **tutte provate rosse** — e la prima
+versione di una era un falso negativo, perché trovava la stringa dentro un `echo` di aiuto
+invece del comando eseguito. Corretto anche il controllo `/health`, che provava solo HTTP:
+su un aggiornamento sopra una config con TLS avrebbe dichiarato «il runtime non risponde»
+a installazione riuscita.
+
+**Lo Stato della Gestione container.** Filtrava i container sul nome esatto `sws-runtime`:
+niente companion LVGL, e su una macchina pulita l'intestazione nuda di `podman ps`, che si
+legge come un guasto. Ora elenca container SWS ed estranei, immagini (le 10 più recenti),
+stato del companion, e dice «nessuno» a parole; in testa dichiara **dove** ha guardato
+(questa macchina, oppure `utente@host:porta`). Il test che sorveglia quel comando ora
+verifica anche l'escaping delle graffe del template Go — `format!` le dimezza, e con
+`{.Names}` podman stamperebbe righe vuote.
+
+### 🔑 Il factory reset che bloccava il deploy — stesso ramo `fix/mqtt-topic-vuoto`
+
+Inciampato due volte nello stesso giorno dal maintainer: dopo il factory reset del TC620, il
+deploy container si fermava con «ERROR: ssh fallito (exit 255)» e la riga utile (la chiave host
+cambiata) era sepolta nello stderr di ssh. Il `known_hosts` di questa macchina è già stato
+ripulito a mano (3 voci stantie: ECDSA, ED25519, RSA — backup in `known_hosts.old`).
+
+Ora è gestito dall'editor: `run_ssh_cmd_stdin` riconosce le due righe di OpenSSH e manda alla UI
+un marcatore, il pannello Container mostra un avviso che nomina il factory reset e un pulsante
+«Dimentica la vecchia chiave e riprova» → `POST /api/device/hostkey/forget` (Admin, audit,
+`ssh-keygen -R` sul `known_hosts` di **questo PC**, anche nella forma `[host]:porta`).
+
+**Scelta deliberata**: la chiave non si toglie mai da sola e `StrictHostKeyChecking=no` non entra
+nel codice — spegnerebbe la protezione per sempre; così la si spegne una volta, per un host, con
+un gesto umano.
+
+Prove: 2 unit test (le righe vere di OpenSSH; la validazione dell'host, che finisce in
+`ssh-keygen -R`), guardia `check_chiave_host.sh` (24ª con stack, gira con una **HOME finta**:
+non tocca il `known_hosts` di chi la lancia) con 12 controlli, **provata rossa** su due fronti.
+
+### 🐛 La riga MQTT vuota che uccideva la sorgente — `fix/mqtt-topic-vuoto` (2026-09-07)
+
+Segnalato dal maintainer: `mqtt-casa` di Sandokan in loop di riconnessione ogni 5 s con
+«Broken pipe». **Non era il container, né la rete, né il broker.**
+
+Diagnosi (fatta dai file, senza SSH sul dispositivo): il client che flappava era il runtime
+**dell'editor di questa macchina** — `.run-editor/config/instance_id` = `1778ef` combacia col
+client_id del log (`sws-mtkk4cm8g33iz-1778ef`), e `topics: 28` combacia con la copia editor di
+Sandokan (quella in `.run/` ne ha 25). Causa: la **prima riga di `mqtt-casa` ha `topic: ''`** —
+filtro a lunghezza zero, errore di protocollo MQTT 3.1.1 §4.7.3, il broker chiude appena riceve
+la SUBSCRIBE. Non muore la riga: muore l'intera sorgente, e infatti i tag di casa erano fermi
+mentre `mqtt-sandokan` (6 topic, pulita) funzionava — da cui «il dispositivo sembra funzionare».
+
+**Escluso** il difetto di client_id che aveva morso questo stesso dispositivo due volte in
+agosto (archivio `STATUS-2026-07_08.md`): tutti e cinque i punti che riavviano le sorgenti
+chiamano `resolve_mqtt_client_ids`, e le tre sorgenti hanno `random_client_id` attivo.
+
+Tre strati, perché ognuno copre un caso che gli altri non coprono:
+1. **runtime** (`sws-plugin-mqtt`): salta le righe senza topic con un WARN che dice cosa fare →
+   *un progetto già installato riparte senza toccarlo*; e non crea più il tag con id vuoto a
+   ogni retry (`db.ingest("")`, succedeva davvero);
+2. **salvataggio** (`PUT /api/project/sources` + `ConfigView`): le righe vuote non arrivano al
+   disco → *e quindi non finiscono nel deploy*. Si potano invece di rifiutare con 400 (come si
+   fa per gli id duplicati) perché una riga vuota non contiene lavoro da perdere;
+3. **validatore**: errore sulla riga senza topic (col perché), avviso su quella senza tag.
+
+Prove: 2 unit test nel plugin, 4 vitest, guardia `check_mqtt_topic_vuoto.sh` (23ª con stack)
+**provata rossa**. 452 test Rust, 181 vitest, clippy 0, 13 statiche verdi.
+
+**Da fare col maintainer**: il progetto è rimasto rotto apposta — apri Sorgenti, salva, ridistribuisci
+sul dispositivo (dopo il factory reset + 2.1.1) e verifica che `mqtt-casa` si colleghi e resti su.
+
+
 ### 🧪 `test/validazione-2026-09-06` — il ramo da provare, poi merge su main + push
 
 **Tutto pushato su origin il 2026-09-07** (main con la revisione documenti, i sei rami Q,

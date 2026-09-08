@@ -487,26 +487,80 @@ IPS="$(lan_ips)"
 IPS="${IPS% }"
 [ -n "$IPS" ] || IPS="localhost"
 
+# ── Il browser del pannello Pixsys punta al viewer SWS ────────────────────────
+#
+# `chromium-start main-app` legge l'URL da D-Bus, quindi è lì che va scritto.
+# Senza, il pannello mostra la pagina di configurazione (9443): è il valore di
+# fabbrica, e un factory reset ce lo riporta.
+#
+# STA QUI, PRIMA DELL'ATTESA, e non dentro il ramo «/health ha risposto» dove
+# stava: l'indirizzo a cui puntare il browser non dipende dal fatto che il
+# runtime abbia risposto entro trenta secondi. Nel ramo vecchio, qualunque
+# intoppo nell'attesa si portava via anche questo — senza dirlo.
+#
+# E NON E' PIU' MUTO: prima era un `if` senza `else` con gli errori buttati in
+# /dev/null, quindi un SetUrl rifiutato (permessi, utente sbagliato, D-Bus
+# assente) era indistinguibile da un successo. Il 2026-09-07 il maintainer ha
+# installato il container e ha trovato il pannello ancora su Cockpit: GetUrl
+# rispondeva 9443, cioè il valore di fabbrica — la chiamata non era mai andata
+# a buon fine, e nel log dell'installazione non c'era una riga a dirlo.
+URL_VIEWER="http://127.0.0.1:8443"
+if ! command -v busctl >/dev/null 2>&1; then
+    echo "    browser del pannello: busctl assente, non è un dispositivo Pixsys — salto"
+elif ERR_URL="$(busctl --system call net.pixsys.Config1 /net/pixsys/Config1/WebBrowser/MainApp \
+        net.pixsys.Config1.WebBrowser SetUrl s "$URL_VIEWER" 2>&1)"; then
+    echo "    browser del pannello puntato su $URL_VIEWER"
+else
+    echo "    ATTENZIONE: non ho potuto puntare il browser del pannello su $URL_VIEWER" >&2
+    echo "                ${ERR_URL:-(nessun messaggio)}" >&2
+    echo "                Il runtime funziona e resta raggiungibile dalla rete, ma sullo" >&2
+    echo "                schermo del pannello resta la pagina di prima. Sul dispositivo:" >&2
+    echo "                busctl --system call net.pixsys.Config1 \\" >&2
+    echo "                    /net/pixsys/Config1/WebBrowser/MainApp \\" >&2
+    echo "                    net.pixsys.Config1.WebBrowser SetUrl s \"$URL_VIEWER\"" >&2
+fi
+
 for i in $(seq 1 30); do
-    if curl -fs --max-time 2 http://localhost:8443/health >/dev/null 2>&1; then
+    # Anche HTTPS: il container parte in HTTP finché non c'è un certificato in
+    # config/, ma su un aggiornamento sopra una config che il TLS ce l'ha già
+    # riparte in HTTPS — e un controllo solo-HTTP fallirebbe per trenta secondi
+    # per poi dichiarare «il runtime non risponde» su un'installazione riuscita.
+    # Stesso ragionamento (e stesso ordine) dell'health check in packaging.rs.
+    if curl -fs --max-time 2 http://localhost:8443/health >/dev/null 2>&1 \
+       || curl -sk --max-time 2 https://localhost:8443/health >/dev/null 2>&1; then
         echo "    /health ok dopo ${i}s"
 
-        # Il browser del pannello Pixsys punta al viewer SWS.
+        # Ricaricare il browser, altrimenti l'URL nuovo non lo vede nessuno.
         #
-        # `chromium-start main-app` legge l'URL da D-Bus a ogni avvio, quindi è
-        # lì che va scritto. Senza, il pannello continua a mostrare la pagina di
-        # configurazione (9443): è il valore di fabbrica, e un factory reset ce
-        # lo riporta. Finora lo si impostava a mano, e chi non lo sapeva
-        # installava SWS senza vederlo sullo schermo.
+        # `chromium-start main-app` legge l'URL da D-Bus **all'avvio**: se il
+        # browser sta già girando — e dopo un factory reset gira, sulla pagina
+        # di configurazione — resta lì, e l'installazione sembra non aver
+        # funzionato mentre e' perfettamente riuscita. Vale anche per gli
+        # aggiornamenti: una SPA già caricata resta quella finché il browser non
+        # riparte (docs/TEST_SETUPS.md).
         #
-        # Polkit lo consente a chiunque, niente sudo. Se fallisce (dispositivo
-        # non Pixsys, D-Bus assente) si prosegue: l'installazione è riuscita
-        # comunque, e il viewer resta raggiungibile dalla rete.
-        if command -v busctl >/dev/null 2>&1 && \
-           busctl --system call net.pixsys.Config1 /net/pixsys/Config1/WebBrowser/MainApp \
-               net.pixsys.Config1.WebBrowser SetUrl s "http://127.0.0.1:8443" >/dev/null 2>&1; then
-            echo "    browser del pannello puntato su http://127.0.0.1:8443"
+        # L'URL l'ha impostato la sezione prima dell'attesa; il ricaricamento
+        # sta qui, nel ramo del successo, di proposito: si ricarica quando c'è
+        # qualcosa da mostrare, altrimenti il pannello sbatte su un errore.
+        #
+        # E solo se il browser è GIÀ attivo: tenendo premuto STOP all'accensione
+        # il launcher apre Cockpit su `chromium@wp-control.service` e non
+        # raggiunge mai `desktop.target`. Avviare noi `main-app` coprirebbe la
+        # via di fuga con cui si sistema un dispositivo mal configurato: chi
+        # decide è il launcher. Niente sudo, lo concede la regola polkit
+        # 17-chromium.rules (stesso meccanismo di sws-display-apply.sh).
+        if systemctl is-active --quiet chromium@main-app.service 2>/dev/null; then
+            if systemctl restart chromium@main-app.service 2>/dev/null; then
+                echo "    browser del pannello ricaricato sul nuovo URL"
+            else
+                echo "    ATTENZIONE: URL impostato ma browser non ricaricato — il pannello" >&2
+                echo "                mostra ancora la pagina di prima. Sul dispositivo:" >&2
+                echo "                systemctl restart chromium@main-app.service" >&2
+            fi
+        else
+            echo "    browser del pannello non attivo (modalità configurazione?): non lo tocco"
         fi
+
         # La commutazione web/LVGL è viva, o è già morta?
         #
         # `systemctl --user enable --now sws-display.path` riesce anche quando

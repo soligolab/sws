@@ -11,6 +11,86 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Collegarsi a un dispositivo senza utenti non chiude più fuori chi lavora
+
+Distribuendo su un pannello un progetto senza utenti, il pannello resta senza
+autenticazione: le credenziali eventualmente rimaste nel modulo non possono
+funzionare, perché non esiste nessun utente a cui corrispondano. Premendo
+«Connetti» comparivano insieme due cose sbagliate — «unauthorized», e il
+modale «Sessione scaduta» che chiedeva la password dell'amministratore
+**locale**, che non poteva riuscire e che con quell'errore non c'entrava
+niente. Il motivo: il rifiuto arrivava dal dispositivo remoto ma viaggiava
+come un 401 dell'API locale, e il client lo leggeva come la fine della propria
+sessione.
+
+Ora l'esito della connessione viaggia nel corpo della risposta, dove la
+schermata lo sa già leggere, e un rifiuto che arriva da un altro runtime non
+tocca più la sessione locale. In più, quando il dispositivo non ha utenti la
+connessione riesce comunque, ignorando le credenziali e dicendolo: *«non ha
+utenti definiti: connesso senza autenticazione»*. Quando invece le credenziali
+sono davvero sbagliate, il messaggio ora dice quale utente e su quale
+indirizzo, invece di un «unauthorized» secco.
+
+
+### Dopo l'installazione il pannello mostra davvero SWS, non la pagina di prima
+
+L'installer puntava già il browser del pannello sul viewer SWS, ma
+`chromium-start` legge quell'indirizzo **solo quando parte**: con il browser
+già in esecuzione — e dopo un factory reset è in esecuzione, sulla pagina di
+configurazione, che è il valore di fabbrica — l'installazione riusciva e sullo
+schermo non cambiava niente. Ora l'installer ricarica il browser dopo aver
+cambiato l'indirizzo, il che risolve anche il caso dell'aggiornamento (una
+pagina già caricata resta quella finché il browser non riparte). Lo fa solo se
+il browser era già attivo: tenendo premuto STOP all'accensione il pannello apre
+la pagina di configurazione, ed è la via con cui si sistema un dispositivo mal
+configurato — coprirla sarebbe il danno peggiore del difetto.
+
+### Lo stato del container dice cosa c'è davvero sulla macchina
+
+Il pulsante «Stato» della Gestione container elencava solo il container
+chiamato `sws-runtime`: sul dispositivo non mostrava il companion LVGL, e su
+una macchina senza quel container stampava l'intestazione nuda della tabella —
+che si legge come un guasto, non come «non c'è niente». Ora elenca i container
+SWS e quelli estranei, le immagini presenti, lo stato del companion LVGL, e
+quando non trova niente lo scrive a parole. In testa dice anche **dove** ha
+guardato: su questa macchina o sul dispositivo, col suo indirizzo.
+
+
+### Il factory reset di un pannello non blocca più il deploy senza spiegazioni
+
+Dopo un factory reset il dispositivo si rigenera le chiavi host, e ssh si
+rifiuta di collegarsi: fa bene, perché quel caso è indistinguibile da un
+attacco. Il deploy però finiva con «ERROR: ssh fallito (exit 255)» e la riga
+che spiegava tutto restava sepolta quindici righe più su, nello stderr di ssh.
+Ora l'editor riconosce il caso, lo dice in italiano — nominando il factory
+reset come causa probabile e invitando a fermarsi se invece non si è resettato
+niente — e offre un pulsante che dimentica la vecchia chiave e riprova il
+deploy. La chiave **non** viene mai rimossa automaticamente: disattivare il
+controllo sarebbe la scorciatoia, e spegnerebbe per sempre la protezione che
+ci ha fermati; qui la si spegne una volta, per un dispositivo, con un gesto
+esplicito, e la rimozione finisce nell'audit.
+
+
+### Una riga MQTT senza topic non uccide più l'intera sorgente
+
+Su un progetto reale una sorgente MQTT con 28 topic non riusciva più a
+collegarsi: si connetteva, sottoscriveva e il broker chiudeva la connessione
+due millisecondi dopo, ogni cinque secondi, all'infinito. Nei log si leggeva
+solo «Broken pipe», che manda a cercare la rete, il broker o il container.
+
+La causa era una riga con il **topic vuoto**, lasciata dallo sfoglia-broker:
+una sottoscrizione con un filtro a lunghezza zero è un errore di protocollo, e
+il broker chiude la connessione — portandosi dietro gli altri 27 topic, che
+non avevano alcun problema. Ora tre cose diverse impediscono che succeda:
+il runtime salta le righe senza topic e lo scrive nel log dicendo cosa fare
+(così anche un progetto già installato riprende a funzionare senza toccarlo);
+il salvataggio delle Sorgenti toglie quelle righe prima di scrivere il file,
+quindi non finiscono nel deploy; il validatore le segnala come errore
+spiegando che il danno è l'intera sorgente. Insieme a queste, una riga con un
+topic valido ma senza tag non crea più un tag con il nome vuoto a ogni
+tentativo di riconnessione, e il validatore la segnala come avviso.
+
+
 ## [2.6.0] — 2026-09-07
 
 ### La chat dell'assistente mostra token e credito (Q41)
