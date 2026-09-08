@@ -62,6 +62,70 @@
 
 ## ▶ Da fare nella prossima sessione
 
+### 🎯 Rilasciata la 2.6.5 — pronta da compilare e installare (2026-09-08)
+
+`main` contiene tutto: il lavoro notturno (`fix/mqtt-topic-vuoto`, squash) più
+l'allineamento SSH descritto sotto. Tag annotato `2.6.5`, pushato.
+
+**Le prove che restano al maintainer**, in ordine di valore:
+
+1. **WP630 appena resettato (ufficio)** — è il banco di prova della modifica SSH. Dopo il
+   factory reset il deploy **deve** fermarsi con l'avviso e il pulsante «Dimentica la vecchia
+   chiave e riprova»; il pulsante toglie la chiave vecchia ma **non installa** quella nuova,
+   quindi serve comunque `ssh-copy-id`. Poi: il pannello deve mostrare SWS e non Cockpit.
+2. **Sandokan / MQTT — solo a casa.** Il progetto è rimasto rotto apposta: apri Sorgenti,
+   salva (la potatura toglie la riga senza topic), ridistribuisci, e verifica che `mqtt-casa`
+   si colleghi e **resti su**.
+3. **Q38** (materializzazione ratio) e **Q37** (cornice del pannello, sul dispositivo).
+
+**Rami**: in locale è rimasto solo `main`. `feat/lvgl-gap`, `fix/sws-display-path-loop` e
+`test/validazione-2026-09-06` erano già dentro `main` **per contenuto** — verificato file per
+file, non per ancestry — e mergiarli avrebbe fatto tornare indietro il repo (il ramo di
+validazione dichiarava ancora `2.5.0`). Cancellati in locale; su origin lo erano già.
+**Resta da cancellare su origin `fix/mqtt-topic-vuoto`**, quando vuoi.
+
+### 🔐 La specifica SSH, e il punto in cui non la rispettavamo (2026-09-08)
+
+Tre regole dichiarate dal maintainer: `user` sono le credenziali **limitate** dell'utente
+finale (`user`/`123456` è solo di prova, il cliente definirà le sue); `pixsys` è l'accesso
+**privilegiato**, utile solo ora in test, e nessun comando di produzione può presupporlo; la
+chiave SSH **non si cancella mai da sola** — se cambia dopo un factory reset la connessione
+deve fallire, e l'utente si agevola con un pulsante, non si scavalca.
+
+Sui primi due punti eravamo a posto, ed è stato verificato: `123456` non compare come
+credenziale da nessuna parte, `pixsys@` non è cablato in nessun comando eseguito (solo nella
+documentazione e nella riga d'uso di `scripts/yocto/deploy.sh`), e il percorso di produzione —
+il container — non esegue **un solo `sudo`**.
+
+Sul terzo **no**. Il pulsante era stato scritto il 2026-09-07, ma
+`StrictHostKeyChecking=no` era rimasto in **sedici** invocazioni. E quell'opzione non fa
+quello che sembra: da `ssh_config(5)`, con `no` una chiave *cambiata* lascia proseguire la
+connessione disabilitando password e keyboard-interactive — **non** la chiave pubblica. Su un
+dispositivo con `ssh-copy-id` già fatto, il deploy verso un host che aveva cambiato identità
+sarebbe passato in silenzio, e il pulsante non sarebbe mai comparso. Il 2026-09-07 il guasto
+si è visto **solo** perché il reset aveva cancellato anche `authorized_keys`.
+
+Ora è `accept-new` ovunque: primo contatto invariato, chiave cambiata rifiutata.
+`check_chiave_host.sh` ha una regola che lo sorveglia, **provata rossa** su un'invocazione
+vera — la prima prova era un falso negativo perché `sed` aveva colpito la citazione in un
+commento invece del codice.
+
+### ⚠️ Due controlli della CI sono rossi, e non da oggi
+
+Trovati durante il collaudo di questa sessione, in file che **né io né il lavoro notturno**
+abbiamo toccato:
+
+- `cargo fmt --check` fallisce su **~70 file** — praticamente tutto il workspace. La CI lo
+  esegue (`ci.yml:38`).
+- `cargo clippy -- -D warnings` fallisce con due lint in `sws-core`:
+  `type_complexity` (`alarm.rs:312`) e `too_many_arguments` (`geometry.rs:53`).
+
+Non li ho corretti: sono fuori dallo scopo di questa release e `cargo fmt` produrrebbe un
+diff di settanta file in mezzo a un rilascio. Da sapere: la CI usa la toolchain **1.75**
+mentre qui c'è la **1.94**, e solo la stable è installata — non ho potuto verificare se sulla
+1.75 i due lint scattino davvero. Da decidere in una sessione dedicata: correggere, o
+dichiarare gli `allow` con il perché accanto.
+
 ### 🔒 «Connetti» a un pannello senza utenti chiudeva fuori dall'editor (2026-09-08)
 
 Segnalato con schermata: pannello con un progetto **senza utenti**, credenziali rimaste nel

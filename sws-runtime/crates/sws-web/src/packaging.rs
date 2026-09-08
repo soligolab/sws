@@ -418,7 +418,7 @@ pub async fn deploy_device(
         let mkdir_ok = run_ssh_cmd(
             use_sshpass, &req.password,
             "ssh",
-            &["-p", &port_str, "-o", "StrictHostKeyChecking=no",
+            &["-p", &port_str, "-o", "StrictHostKeyChecking=accept-new",
               &host_str, &format!("mkdir -p {}", req.remote_dir)],
             &send,
         ).await;
@@ -430,7 +430,7 @@ pub async fn deploy_device(
         let scp_ok = run_ssh_cmd(
             use_sshpass, &req.password,
             "scp",
-            &["-P", &port_str, "-o", "StrictHostKeyChecking=no",
+            &["-P", &port_str, "-o", "StrictHostKeyChecking=accept-new",
               tarball_path.to_str().unwrap_or(""), &format!("{host_str}:{remote_tar}")],
             &send,
         ).await;
@@ -444,7 +444,7 @@ pub async fn deploy_device(
         let ok = run_ssh_cmd(
             use_sshpass, &req.password,
             "ssh",
-            &["-p", &port_str, "-o", "StrictHostKeyChecking=no",
+            &["-p", &port_str, "-o", "StrictHostKeyChecking=accept-new",
               &host_str, &extract_cmd],
             &send,
         ).await;
@@ -464,7 +464,7 @@ pub async fn deploy_device(
         let ok = run_ssh_cmd_stdin(
             use_sshpass, &req.password,
             "ssh",
-            &["-p", &port_str, "-o", "StrictHostKeyChecking=no",
+            &["-p", &port_str, "-o", "StrictHostKeyChecking=accept-new",
               &host_str, &install_cmd],
             Some(&sudo_stdin),
             &send,
@@ -485,7 +485,7 @@ pub async fn deploy_device(
         let ok = run_ssh_cmd(
             use_sshpass, &req.password,
             "ssh",
-            &["-p", &port_str, "-o", "StrictHostKeyChecking=no",
+            &["-p", &port_str, "-o", "StrictHostKeyChecking=accept-new",
               &host_str, hc_cmd],
             &send,
         ).await;
@@ -780,11 +780,23 @@ fn host_sicuro(h: &str) -> bool {
 /// Esiste per il factory reset: il pannello rigenera le chiavi host e ogni
 /// deploy successivo si ferma. La rimozione **non** è automatica e non deve
 /// diventarlo: si arriva qui solo dopo che una persona ha letto l'avviso e ha
-/// premuto il pulsante. Disattivare il controllo (`StrictHostKeyChecking=no`)
-/// sarebbe la scorciatoia, e spegnerebbe per sempre la protezione che ci ha
-/// fermati; questo la spegne una volta, per un host, su richiesta esplicita.
+/// premuto il pulsante.
 ///
-/// Admin-only per posizione nel router, e registrato nell'audit.
+/// La scorciatoia sarebbe `StrictHostKeyChecking=no` (o peggio,
+/// `UserKnownHostsFile=/dev/null`): spegnerebbe la protezione **per sempre e per
+/// ogni host**. Fino al 2026-09-08 era proprio quello che facevamo — vedi il
+/// commento accanto alle invocazioni ssh — ed era una falla, non una comodità:
+/// con `no` una chiave cambiata lascia passare la connessione e in cambio
+/// disabilita solo password e keyboard-interactive, **non** la chiave pubblica.
+/// Su un dispositivo dove `ssh-copy-id` era già stato fatto, il deploy sarebbe
+/// proseguito in silenzio verso una macchina di cui non avevamo verificato
+/// l'identità. Il 2026-09-07 ci siamo accorti del problema solo perché il
+/// factory reset aveva cancellato **anche** `authorized_keys`.
+///
+/// Questo endpoint invece la spegne una volta, per un host, su richiesta
+/// esplicita di una persona — e lo scrive nell'audit.
+///
+/// Admin-only per posizione nel router.
 pub async fn dimentica_chiave_host(
     State(s): State<AppState>,
     axum::Extension(user): axum::Extension<crate::router::AuthUser>,
@@ -937,7 +949,7 @@ pub async fn deploy_device_container(
         let ok = run_ssh_cmd(
             use_sshpass, &req.password,
             "ssh",
-            &["-p", &port_str, "-o", "StrictHostKeyChecking=no",
+            &["-p", &port_str, "-o", "StrictHostKeyChecking=accept-new",
               &host_str, &format!("mkdir -p {}", req.remote_dir)],
             &send,
         ).await;
@@ -964,7 +976,7 @@ pub async fn deploy_device_container(
             let ok = run_ssh_cmd(
                 use_sshpass, &req.password,
                 "scp",
-                &["-P", &port_str, "-o", "StrictHostKeyChecking=no",
+                &["-P", &port_str, "-o", "StrictHostKeyChecking=accept-new",
                   local.to_str().unwrap_or(""), &format!("{host_str}:{}/", req.remote_dir)],
                 &send,
             ).await;
@@ -984,7 +996,7 @@ pub async fn deploy_device_container(
                 let ok = run_ssh_cmd(
                     use_sshpass, &req.password,
                     "ssh",
-                    &["-p", &port_str, "-o", "StrictHostKeyChecking=no",
+                    &["-p", &port_str, "-o", "StrictHostKeyChecking=accept-new",
                       &host_str, &pull_cmd],
                     &send,
                 ).await;
@@ -1000,7 +1012,7 @@ pub async fn deploy_device_container(
             let ok = run_ssh_cmd(
                 use_sshpass, &req.password,
                 "ssh",
-                &["-p", &port_str, "-o", "StrictHostKeyChecking=no",
+                &["-p", &port_str, "-o", "StrictHostKeyChecking=accept-new",
                   &host_str, &purge_cmd],
                 &send,
             ).await;
@@ -1020,7 +1032,7 @@ pub async fn deploy_device_container(
         let ok = run_ssh_cmd(
             use_sshpass, &req.password,
             "ssh",
-            &["-p", &port_str, "-o", "StrictHostKeyChecking=no",
+            &["-p", &port_str, "-o", "StrictHostKeyChecking=accept-new",
               &host_str, &install_cmd],
             &send,
         ).await;
@@ -1037,7 +1049,7 @@ pub async fn deploy_device_container(
         let ok = run_ssh_cmd(
             use_sshpass, &req.password,
             "ssh",
-            &["-p", &port_str, "-o", "StrictHostKeyChecking=no",
+            &["-p", &port_str, "-o", "StrictHostKeyChecking=accept-new",
               &host_str, hc_cmd],
             &send,
         ).await;
@@ -1264,7 +1276,7 @@ pub async fn manage_device_container(EJson(req): EJson<ContainerManageRequest>) 
             run_ssh_cmd(
                 use_sshpass, &req.password,
                 "ssh",
-                &["-p", &port_str, "-o", "StrictHostKeyChecking=no", &host_str, &cmd],
+                &["-p", &port_str, "-o", "StrictHostKeyChecking=accept-new", &host_str, &cmd],
                 &send,
             ).await
         };
@@ -1319,6 +1331,26 @@ async fn run_ssh_cmd_stdin(
     stdin_data: Option<&str>,
     send: &impl Fn(&str),
 ) -> bool {
+    // ── perché `StrictHostKeyChecking=accept-new` e non `no` (2026-09-08) ──────
+    //
+    // `accept-new` accetta e memorizza la chiave di un dispositivo mai visto —
+    // il primo deploy non chiede niente a nessuno — ma **rifiuta** un host la cui
+    // chiave è CAMBIATA. È la differenza che conta, ed è documentata in
+    // ssh_config(5): con `no` una chiave cambiata «allow connections to proceed,
+    // subject to some restrictions», e quelle restrizioni sono password e
+    // keyboard-interactive — la CHIAVE PUBBLICA continua a funzionare.
+    //
+    // Tradotto: fino al 2026-09-08, su un dispositivo dove `ssh-copy-id` era già
+    // stato fatto, un deploy verso un host che aveva cambiato identità sarebbe
+    // passato IN SILENZIO. Il 2026-09-07 ce ne siamo accorti solo perché il
+    // factory reset aveva cancellato anche `authorized_keys` e quindi non
+    // restava nessun metodo di autenticazione.
+    //
+    // Ora il rifiuto è netto, `e_chiave_host_cambiata` lo riconosce («Host key
+    // verification failed») e la UI offre il pulsante che chiama
+    // `dimentica_chiave_host`. La chiave non si toglie mai da sola: la decisione
+    // resta di chi guarda lo schermo. Vedi `docs/HOWTO.md` §9.
+    //
     // ConnectTimeout copre l'host irraggiungibile in entrambi i casi. BatchMode=yes
     // va aggiunto SOLO quando non usiamo sshpass: forza ssh/scp a fallire subito
     // invece di restare appesi in un prompt interattivo (password o

@@ -1331,6 +1331,47 @@ precisazione del 2026-09-07 qui sopra.
 
 ---
 
+---
+
+## Q45 — Il container di produzione non riparte dopo un reboot senza un permesso che l'utente finale non ha
+
+*Aperta il 2026-09-08 durante l'allineamento alla specifica SSH. Nessuna decisione presa.*
+
+**Il fatto.** `deploy/container/install-container.sh` è rootless da cima a fondo — verificato: non
+esegue un solo `sudo` — ma a un certo punto deve abilitare il **linger** dell'utente, altrimenti i
+servizi `systemd --user` muoiono al logout e **non ripartono al boot**. Lo script ci prova
+(`loginctl enable-linger "$USER"`), e se non ci riesce stampa:
+
+```
+ATTENZIONE: non ho potuto abilitare il linger (serve un permesso).
+            Esegui:  sudo loginctl enable-linger user
+            Senza, il container NON riparte dopo il reboot.
+```
+
+**Perché è una questione e non un dettaglio.** La specifica dice che `user` sono le credenziali
+**limitate** dell'utente finale e che `pixsys` — l'accesso privilegiato — serve solo in fase di test:
+nessun comando di produzione può presupporlo. Ma quel `sudo loginctl` è esattamente un comando di
+produzione che lo presuppone. Oggi il caso non si vede perché in laboratorio si installa con un
+account che può fare `sudo`; su un dispositivo consegnato al cliente, l'installazione riesce, il
+messaggio scorre via nel registro, e il guasto si manifesta **al primo riavvio** — settimane dopo,
+lontano da chi ha installato. È la forma di guasto più cara: silenziosa e differita.
+
+**Le strade, senza sceglierne una.**
+
+1. **Il linger è già attivo di fabbrica** per l'account utente dell'immagine Pixsys. Da verificare
+   sul dispositivo (`loginctl show-user user | grep Linger`) — se è così, non c'è niente da fare se
+   non documentarlo e far fallire l'installazione quando non lo è.
+2. **Una regola polkit nell'immagine**, come `17-chromium.rules` fa già per il riavvio del browser:
+   concede quel singolo verbo senza dare `sudo`. Va chiesto a chi costruisce l'immagine Yocto.
+3. **Un'unità di sistema** al posto di quella utente, il che però riapre tutto il tema dei permessi
+   che il rootless serviva a chiudere.
+4. **Installazione che si rifiuta di riuscire a metà**: senza linger, errore invece di avviso.
+   Onesto, ma blocca chi sta solo provando.
+
+**Da misurare prima di decidere**: sul WP630 appena resettato, `loginctl show-user user`.
+
+---
+
 ## Adding new questions
 
 When Claude Code adds a new question, follow the format above:

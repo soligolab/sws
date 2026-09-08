@@ -242,10 +242,12 @@ L'agente non esegue questi due comandi: deve aspettare che il maintainer li abbi
 e poi può procedere con `ssh pixsys@<host>` per i comandi successivi.
 
 Se il sintomo compare **durante il deploy dell'immagine container dall'IDE** — muro di
-`REMOTE HOST IDENTIFICATION HAS CHANGED!` che finisce in `ssh fallito (exit 255)` — il caso è
-trattato per esteso in [`HOWTO.md` §9](HOWTO.md#9-il-deploy-dellimmagine-fallisce-dopo-un-factory-reset-del-dispositivo):
-lì `StrictHostKeyChecking=no` non basta, perché con una host key **cambiata** OpenSSH disabilita
-l'autenticazione a password.
+`REMOTE HOST IDENTIFICATION HAS CHANGED!` che finisce in `ssh fallito (exit 255)` — non serve il
+terminale: l'editor mostra un avviso col pulsante «Dimentica la vecchia chiave e riprova», che fa
+il passo 1 da solo. Il passo 2 (`ssh-copy-id`) resta necessario, perché il factory reset cancella
+anche `authorized_keys`. Per esteso in
+[`HOWTO.md` §9](HOWTO.md#9-il-deploy-dellimmagine-fallisce-dopo-un-factory-reset-del-dispositivo),
+compreso perché dalla 2.6.5 il deploy usa `StrictHostKeyChecking=accept-new` e non più `no`.
 
 ---
 

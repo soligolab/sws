@@ -675,7 +675,7 @@ completo e funzionante di questo giro, da copiare.
 ## 9. Il deploy dell'immagine fallisce dopo un factory reset del dispositivo
 
 **Il sintomo.** Dal pannello Runtime dell'IDE, «Deploy» dell'immagine container si ferma e nel
-registro compare un muro di testo allarmante, che finisce così:
+registro compare un muro di testo allarmante:
 
 ```
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -684,52 +684,78 @@ registro compare un muro di testo allarmante, che finisce così:
 IT IS POSSIBLE THAT SOMEONE IS DOING SOMETHING NASTY!
 ...
 Offending ECDSA key in /home/ut1/.ssh/known_hosts:53
-Password authentication is disabled to avoid man-in-the-middle attacks.
-user@192.168.1.16: Permission denied (publickey,password).
+Host key verification failed.
 ERROR: ssh fallito (exit 255)
 ```
 
-**Non è un attacco.** Un **factory reset rigenera le chiavi host SSH** del dispositivo: la macchina
-è la stessa, ma si presenta con un'identità nuova, e il tuo `known_hosts` ha ancora quella vecchia.
+**Non è un attacco, ed ssh fa bene a fermarsi.** Un **factory reset rigenera le chiavi host SSH**
+del dispositivo: la macchina è la stessa, ma si presenta con un'identità nuova, e il tuo
+`known_hosts` ha ancora quella vecchia. Visto da fuori, questo e un attacco man-in-the-middle sono
+indistinguibili — solo tu sai di aver premuto «factory reset».
 
-### Perché `StrictHostKeyChecking=no` non ti salva
+### Il rimedio, dall'editor
 
-Il deploy invoca ssh con `-o StrictHostKeyChecking=no` (`sws-web/src/packaging.rs`), e viene
-naturale pensare che quell'opzione ignori il problema. **Non in questo caso**, ed è la parte che
-costa tempo capire.
+Sotto il registro compare un avviso che nomina il factory reset, con il pulsante **«Dimentica la
+vecchia chiave e riprova»**. Preme `POST /api/device/hostkey/forget` (solo Admin, registrato
+nell'audit), che esegue `ssh-keygen -R` sul `known_hosts` **di questo PC** — anche nella forma
+`[host]:porta` che OpenSSH usa fuori dalla porta 22 — e rilancia il deploy.
 
-Con una chiave **nuova** (primo contatto) quell'opzione la accetta in silenzio. Con una chiave
-**cambiata** OpenSSH non rifiuta la connessione, ma applica delle restrizioni — ed è scritto nel
-registro qui sopra:
+Tiene un backup in `known_hosts.old`, e tocca **solo** l'host in questione: le altre righe restano.
 
-```
-Password authentication is disabled to avoid man-in-the-middle attacks.
-Keyboard-interactive authentication is disabled to avoid man-in-the-middle attacks.
-```
+**Non è automatico, ed è una scelta.** Il pulsante esiste per risparmiarti il terminale, non per
+decidere al posto tuo: se non hai resettato niente, quell'avviso è l'unico posto in cui il sistema
+può dirti che stai parlando con una macchina diversa da quella di ieri. Fermati e verifica.
 
-Cioè: **la password che hai scritto nel modulo di deploy diventa inutilizzabile.** Resta solo
-l'autenticazione a chiave pubblica — che lo stesso factory reset ha cancellato, insieme a
-`authorized_keys`. Da qui `Permission denied (publickey,password)`.
+### Il pulsante non basta se hai appena resettato
 
-Sono quindi **due** guasti sovrapposti, e sistemarne uno solo non basta.
-
-### Come si rimette a posto
-
-Sul dev server (non sul dispositivo), nell'ordine:
+Toglie la chiave **vecchia**; non installa quella **nuova**. E il factory reset ha cancellato anche
+`authorized_keys` sul dispositivo. Quindi dopo un reset vero servono **due** gesti, e sistemarne uno
+solo lascia il deploy fermo:
 
 ```sh
-# 1. Togli l'identità vecchia. Il comando esatto è nel messaggio d'errore.
+# 1. (equivale al pulsante — usalo se il deploy non parte dall'IDE)
 ssh-keygen -f ~/.ssh/known_hosts -R 192.168.1.16
 
-# 2. Riaccetta la nuova e reinstalla la chiave pubblica (chiede la password una volta).
+# 2. Reinstalla la chiave pubblica: chiede la password una volta.
 ssh-copy-id -o StrictHostKeyChecking=accept-new -i ~/.ssh/id_ed25519.pub user@192.168.1.16
 
 # 3. Verifica che entri senza password, PRIMA di rifare il deploy.
 ssh -o BatchMode=yes user@192.168.1.16 'echo ok'
 ```
 
-Il passo 3 non è cerimoniale: se risponde `ok`, il deploy funzionerà; se chiede ancora qualcosa, il
-deploy fallirà nello stesso modo e avrai perso un altro giro.
+Il passo 3 non è cerimoniale: se risponde `ok` il deploy funzionerà; se chiede ancora qualcosa
+fallirà allo stesso modo e avrai perso un altro giro.
+
+### Perché ssh si ferma davvero, e prima non lo faceva
+
+Fino alla 2.6.0 il deploy invocava ssh con `-o StrictHostKeyChecking=no`, e la cosa sembrava
+prudente: «accetta e vai». **Era una falla**, e conviene sapere perché, perché è controintuitivo.
+
+Da `ssh_config(5)`, alla voce `StrictHostKeyChecking`:
+
+> If this flag is set to `no` or `off`, ssh will automatically add new host keys to the user known
+> hosts files and **allow connections to hosts with changed hostkeys to proceed**, subject to some
+> restrictions.
+
+Quelle «restrizioni» sono la disabilitazione di password e keyboard-interactive — **non** della
+chiave pubblica. Tradotto: su un dispositivo dove `ssh-copy-id` era già stato fatto, un deploy verso
+un host che aveva cambiato identità sarebbe **passato in silenzio**.
+
+Il 2026-09-07 ce ne siamo accorti solo per una coincidenza: il factory reset aveva cancellato anche
+`authorized_keys`, quindi non restava nessun metodo di autenticazione e il comando falliva con
+`Permission denied (publickey,password)`. Senza quella coincidenza, nessun errore e nessun avviso.
+
+Dalla 2.6.5 l'opzione è **`accept-new`**, che è la differenza che conta:
+
+| | `no` (prima) | `accept-new` (ora) |
+|---|---|---|
+| Dispositivo mai visto | accettato in silenzio | accettato in silenzio |
+| Chiave **cambiata**, accesso a password | fallisce, per effetto collaterale | **rifiuta**, con l'avviso |
+| Chiave **cambiata**, accesso a chiave | **prosegue in silenzio** | **rifiuta**, con l'avviso |
+
+Il primo deploy verso un pannello nuovo quindi non cambia. A cambiare è che il caso pericoloso ora
+si vede sempre. La guardia `scripts/check_chiave_host.sh` fallisce se `StrictHostKeyChecking=no`
+ricompare in un'invocazione.
 
 ### Due trappole collegate
 
@@ -737,10 +763,10 @@ deploy fallirà nello stesso modo e avrai perso un altro giro.
   diverso: se `192.168.1.16` era di un'altra macchina, la riga incriminata in `known_hosts`
   appartiene a quella, non a questa. Meglio ragionare sul nome mDNS
   (`<modello>-<seriale>.local`) che sull'indirizzo.
-- **L'utente conta.** Il deploy usa `user@`; l'accesso di servizio è `pixsys@`. Reinstallare la
-  chiave per uno non la installa per l'altro.
+- **L'utente conta.** Il deploy del container usa l'utente limitato (`user@`); `pixsys@` è
+  l'accesso privilegiato che serve solo in fase di test. Reinstallare la chiave per uno non la
+  installa per l'altro, e nessun comando di produzione deve presupporre il secondo.
 
 Il rituale pre-sessione più generale (host key cambiata dopo un re-flash) è in
 [`TEST_SETUPS.md`](TEST_SETUPS.md#procedura-ricorrente-del-maintainer-non-automatizzata).
-Questo capitolo è il caso specifico del deploy container, che fallisce in un modo diverso e più
-difficile da leggere.
+Questo capitolo è il caso specifico del deploy container, che ha un rimedio suo dentro l'editor.

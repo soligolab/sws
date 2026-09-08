@@ -680,7 +680,7 @@ function DeploySection() {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
         <div>
           <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 3 }}>{t("welcome.sshUser")}</label>
-          <input style={INPUT} placeholder="root" value={user} onChange={(e) => setUser(e.target.value)} />
+          <input style={INPUT} placeholder="user" value={user} onChange={(e) => setUser(e.target.value)} />
         </div>
         <div>
           <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 3 }}>{t("welcome.sshPassword")}</label>

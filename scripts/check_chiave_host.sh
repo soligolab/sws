@@ -15,6 +15,12 @@
 # quello che deve, che lasci il resto, e che non si faccia infilare un host
 # malevolo (finisce in `ssh-keygen -R`).
 #
+# E si sorveglia il codice, non solo il comportamento: `StrictHostKeyChecking=no`
+# non deve tornare. È la parte che si dimentica — il pulsante è stato scritto il
+# 2026-09-07 mentre l'opzione restava in sedici invocazioni ssh, e con quella
+# attiva il pulsante non sarebbe quasi mai comparso: `no` lascia PASSARE una
+# chiave cambiata, disabilitando solo l'auth a password e non quella a chiave.
+#
 # Uso:
 #   cargo build -p sws-runtime
 #   ./scripts/check_chiave_host.sh
@@ -43,6 +49,35 @@ tc620-prova.local ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFAKE2
 altro-dispositivo.local ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFAKE4
 EOF
 
+echo "== l'opzione che vanificherebbe tutto non deve tornare nel codice =="
+STATICI_ROSSI=0
+# Si cercano le INVOCAZIONI, non le citazioni: la forma con le virgolette
+# (`"StrictHostKeyChecking=no"` in Rust/TS) o preceduta da `-o` nello shell.
+# Nominarla in un commento o in questa guardia deve restare lecito — altrimenti
+# la regola vieterebbe di spiegare perché la regola esiste.
+if colpe="$(grep -rnE '"StrictHostKeyChecking=no"|-o[= ]StrictHostKeyChecking=no' \
+        "$REPO/sws-runtime/crates" "$REPO/sws-editor/src" "$REPO/scripts" \
+        --include='*.rs' --include='*.ts' --include='*.tsx' --include='*.sh' \
+        --exclude='check_chiave_host.sh' 2>/dev/null)"; then
+    echo "  ✗ StrictHostKeyChecking=no è tornato:"
+    echo "$colpe" | sed 's|^|      |'
+    echo "      Va usato accept-new: accetta un dispositivo mai visto, RIFIUTA"
+    echo "      un host la cui chiave è cambiata. Con «no» il deploy prosegue in"
+    echo "      silenzio verso una macchina non verificata quando l'accesso è a"
+    echo "      chiave — vedi run_ssh_cmd_stdin in packaging.rs e HOWTO.md §9."
+    STATICI_ROSSI=1
+else
+    echo "  ✓ nessun StrictHostKeyChecking=no nel codice"
+fi
+n_an="$(grep -rc 'StrictHostKeyChecking=accept-new' "$REPO/sws-runtime/crates/sws-web/src/packaging.rs" || echo 0)"
+if [ "$n_an" -gt 0 ]; then
+    echo "  ✓ il deploy usa accept-new ($n_an occorrenze in packaging.rs)"
+else
+    echo "  ✗ packaging.rs non passa StrictHostKeyChecking: il primo deploy verso un"
+    echo "    dispositivo mai visto resterebbe appeso a una domanda che nessuno legge."
+    STATICI_ROSSI=1
+fi
+
 # HOME finta: l'endpoint legge $HOME/.ssh/known_hosts, e non vogliamo che una
 # guardia tocchi il file vero di chi la lancia.
 HOME="$WORK" "$BIN" --config "$WORK/config" --projects-root "$WORK/projects" \
@@ -51,7 +86,7 @@ HOME="$WORK" "$BIN" --config "$WORK/config" --projects-root "$WORK/projects" \
 echo $! > "$WORK/rt.pid"
 for _ in $(seq 1 60); do curl -sf -o /dev/null "http://localhost:$APORT/health" && break; sleep 0.5; done
 
-ROSSI=0
+ROSSI=$STATICI_ROSSI
 caso() { # caso <descrizione> <atteso> <ricevuto>
   if [ "$2" = "$3" ]; then echo "  ✓ $1"; else echo "  ✗ $1 — atteso «$2», ricevuto «$3»"; ROSSI=$((ROSSI+1)); fi
 }

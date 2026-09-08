@@ -9274,7 +9274,7 @@ function RuntimeConnectionTab() {
               <div style={{ flex: 1 }}>
                 <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 4 }}>{t("cfg.sshUser")}</label>
                 <input style={{ ...INPUT, width: "100%", boxSizing: "border-box" as const }}
-                  placeholder="root" value={deviceUser}
+                  placeholder="user" value={deviceUser}
                   onChange={(e) => setDeviceUser(e.target.value)} />
               </div>
               <div style={{ flex: 1 }}>
@@ -9323,7 +9323,10 @@ function RuntimeConnectionTab() {
             {deployMode === "binary" ? (
               <>
                 <span style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)" }}>
-                  Richiede <code>sshpass</code> e <code>scp</code> sul sistema locale. Il dispositivo deve avere accesso SSH e <code>sudo</code>.
+                  Richiede <code>sshpass</code> e <code>scp</code> sul sistema locale, e sul dispositivo un
+                  account <strong>con <code>sudo</code></strong>: <code>install.sh</code> scrive fuori dalla home.
+                  È il percorso di <strong>sviluppo</strong> — in produzione si usa il container qui sotto,
+                  che gira rootless con le credenziali limitate dell'utente.
                 </span>
                 <button
                   style={{ ...BTN_PRIMARY, opacity: (deviceDeploying || !deviceHost || !selectedPkg) ? 0.6 : 1 }}

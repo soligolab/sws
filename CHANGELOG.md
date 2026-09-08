@@ -11,6 +11,33 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.6.5] — 2026-09-08
+
+### Una chiave host cambiata ora ferma il deploy, invece di lasciarlo passare
+
+Il deploy invocava ssh con `StrictHostKeyChecking=no` in sedici punti fra `packaging.rs`
+e `deploy.rs`. Sembrava prudente e non lo era. Da `ssh_config(5)`: con `no` una chiave
+**cambiata** «allow connections to proceed, subject to some restrictions», e quelle
+restrizioni sono password e keyboard-interactive — **non** la chiave pubblica. Tradotto:
+su un dispositivo dove `ssh-copy-id` era già stato fatto, un deploy verso un host che
+aveva cambiato identità sarebbe passato **in silenzio**.
+
+Il 2026-09-07 il guasto si è visto solo per una coincidenza: il factory reset aveva
+cancellato **anche** `authorized_keys`, quindi non restava alcun metodo di
+autenticazione e il comando falliva. Senza quella coincidenza, nessun errore e nessun
+avviso — e nemmeno il pulsante nuovo, che compare solo quando ssh si ferma.
+
+Ora l'opzione è `accept-new`: un dispositivo mai visto si accetta come prima, quindi il
+primo deploy non cambia; una chiave **cambiata** viene rifiutata, e allora compare
+l'avviso col pulsante. `check_chiave_host.sh` fallisce se `StrictHostKeyChecking=no`
+ricompare in un'invocazione — la citazione in un commento resta lecita, altrimenti la
+regola vieterebbe di spiegare perché esiste.
+
+Nella stessa direzione, due punti dell'interfaccia: «Installa su dispositivo» (binario
+nativo) dichiara di volere un account **con sudo** ed essere il percorso di *sviluppo* —
+in produzione si usa il container, che gira rootless con le credenziali limitate
+dell'utente finale — e il campo utente non suggerisce più `root`.
+
 ### Collegarsi a un dispositivo senza utenti non chiude più fuori chi lavora
 
 Distribuendo su un pannello un progetto senza utenti, il pannello resta senza

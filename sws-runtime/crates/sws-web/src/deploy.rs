@@ -118,6 +118,14 @@ pub async fn deploy_remote(EJson(req): EJson<DeployRequest>) -> Response {
             send("WARN: sshpass non trovato — il deploy userà SSH senza password (richiede chiave SSH preconfigurata)");
         }
 
+        // `StrictHostKeyChecking=accept-new` nelle quattro invocazioni qui sotto:
+        // accetta un dispositivo mai visto, RIFIUTA un host la cui chiave è
+        // cambiata. Con `no` (com'era fino al 2026-09-08) una chiave cambiata
+        // lasciava passare la connessione disabilitando solo l'auth a password,
+        // non quella a chiave — quindi il deploy poteva proseguire in silenzio
+        // verso una macchina non verificata. La spiegazione lunga sta accanto a
+        // `run_ssh_cmd_stdin` in packaging.rs.
+
         // SCP the binary
         let remote_file = format!("{remote_path}/sws-runtime");
         send(&format!("INFO: carico {tmp_path} → {user}@{host}:{remote_file}"));
@@ -126,7 +134,7 @@ pub async fn deploy_remote(EJson(req): EJson<DeployRequest>) -> Response {
             Command::new("sshpass")
                 .args(["-p", &password, "scp",
                     "-P", &port.to_string(),
-                    "-o", "StrictHostKeyChecking=no",
+                    "-o", "StrictHostKeyChecking=accept-new",
                     &tmp_path,
                     &format!("{user}@{host}:{remote_file}"),
                 ])
@@ -135,7 +143,7 @@ pub async fn deploy_remote(EJson(req): EJson<DeployRequest>) -> Response {
             Command::new("scp")
                 .args([
                     "-P", &port.to_string(),
-                    "-o", "StrictHostKeyChecking=no",
+                    "-o", "StrictHostKeyChecking=accept-new",
                     &tmp_path,
                     &format!("{user}@{host}:{remote_file}"),
                 ])
@@ -157,14 +165,14 @@ pub async fn deploy_remote(EJson(req): EJson<DeployRequest>) -> Response {
                 "-p".into(), password.clone(),
                 "ssh".into(),
                 "-p".into(), port.to_string(),
-                "-o".into(), "StrictHostKeyChecking=no".into(),
+                "-o".into(), "StrictHostKeyChecking=accept-new".into(),
                 format!("{user}@{host}"),
                 restart_cmd.into(),
             ]
         } else {
             vec![
                 "-p".into(), port.to_string(),
-                "-o".into(), "StrictHostKeyChecking=no".into(),
+                "-o".into(), "StrictHostKeyChecking=accept-new".into(),
                 format!("{user}@{host}"),
                 restart_cmd.into(),
             ]
