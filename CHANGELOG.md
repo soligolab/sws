@@ -11,8 +11,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
-> Tutto quanto segue vive sul ramo **`fix/relay-ws-dispositivo`**, non su `main`.
-> Verificato in laboratorio e in parte sul WP630; manca la conferma del maintainer.
+## [2.6.6] — 2026-09-09
 
 ### Il pannello LVGL restava congelato dopo ogni riavvio del runtime
 
@@ -58,6 +57,17 @@ raccontava il falso: il browser è disabilitato apposta. Ora si guarda
 `display-target` invece di tirare a indovinare, e i comandi di diagnosi
 avvertono di lanciarli come utente `user` — interrogate da root, quelle unit
 rispondono «No entries» e sembrano assenti.
+
+### Il testo compariva sopra e fuori dal suo riquadro
+
+Per un testo senza «Testo multiriga», `y` è la **linea di base** e non il bordo
+alto, e l'oggetto non ha larghezza né altezza: il pannello proprietà lo sa e
+nasconde quei campi, ma la tela mostrava comunque le otto maniglie, calcolate su
+un rettangolo che parte *sotto* le lettere — e di area zero su un testo appena
+creato. Le due metà dell'interfaccia si contraddicevano. Ora le maniglie
+avvolgono le lettere, e trascinarne una **accende il ritorno a capo**: l'oggetto
+diventa un riquadro vero e il testo ci sta dentro, che è quello che si stava
+provando a fare. I testi dei progetti esistenti non si spostano.
 
 ### `docs/HOWTO.md` §10 — provare una modifica sul dispositivo senza pubblicare
 

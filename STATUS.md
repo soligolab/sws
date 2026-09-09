@@ -62,59 +62,48 @@
 
 ## ▶ Da fare nella prossima sessione
 
-### 🌙 Dove riprendere (2026-09-08 sera)
+### 🎯 Rilasciata la 2.6.6 — da compilare e collaudare (2026-09-09)
 
-**Il lavoro sta su due rami, `main` è pulito e allineato a origin.** La 2.6.5 è
-taggata e pushata; tutto quello che è venuto dopo **non è ancora su origin**.
+I due rami del 2026-09-08 sono su `main` in squash e la versione è taggata. In
+locale restano `fix/relay-ws-dispositivo` e `fix/testo-riquadro`: il contenuto è
+dentro `main`, si possono cancellare quando vuoi (anche su origin).
 
-```bash
-git checkout fix/relay-ws-dispositivo     # f30d2ba — 7 commit
-git checkout fix/testo-riquadro           # 5b59b41 — 1 commit
-```
+Verde su `main`: **463 test Rust, 194 vitest, 13 guardie statiche**,
+`cargo check --workspace` e `pnpm build`.
 
-| Ramo | Cosa contiene | Come si prova |
-|---|---|---|
-| `fix/relay-ws-dispositivo` | WebSocket sulla porta di gestione, relay che si arrende, i tre difetti del pannello LVGL, la variabile che spariva, HOWTO §10 | serve una **nuova immagine** sul WP630 per la parte LVGL; il resto si prova con l'editor locale |
-| `fix/testo-riquadro` | il testo che compariva fuori dal suo riquadro | solo editor, nessun dispositivo |
+**Il collaudo generale**, in ordine di valore:
 
-`cargo check --workspace`, `pnpm build`, `pnpm test` (189) e le 13 guardie
-statiche sono verdi su entrambi. **Nessuno dei due è confermato dal maintainer**:
-è il passo che manca prima del merge su `main` e di una 2.6.6.
-
-#### Le prove che aspettano
-
-1. **La variabile che spariva** — ricaricare forzando la pagina (il bundle è
-   cambiato), aggiungere una variabile, salvare le **Sorgenti**, tornare alle
-   variabili: la riga deve esserci ancora, con la barra gialla che chiede cosa
-   fare. Prima spariva in silenzio.
-2. **Il pannello LVGL** — deploy di un'immagine costruita dal ramo con un
-   progetto LVGL attivo: il companion deve **ripartire da solo** e mostrare il
-   progetto NUOVO. La procedura per costruire una sola immagine senza pubblicare
-   è in [`docs/HOWTO.md` §10](docs/HOWTO.md).
+1. **Il pannello LVGL** — è la correzione che vale di più e l'unica che richiede
+   una nuova immagine sul dispositivo. Deploy con un progetto LVGL attivo: il
+   companion deve **ripartire da solo** e mostrare il progetto NUOVO. Poi
+   riavviare il runtime e verificare che il pannello **non si congeli**: prima
+   restava sull'ultimo fotogramma per sempre.
+2. **La variabile che spariva** — aggiungerne una, salvare le **Sorgenti**,
+   tornare alle variabili: la riga deve esserci ancora, con la barra che chiede
+   cosa fare. Serve un ricaricamento forzato della pagina.
 3. **Il testo nel riquadro** — trascinare una maniglia su un testo: diventa un
    riquadro vero e le lettere ci stanno dentro.
-4. **Sandokan / MQTT** — solo a casa, il progetto è rimasto rotto apposta.
-5. **Q38** (materializzazione ratio) e **Q37** (cornice del pannello).
+4. **I valori vivi da remoto** — «Connetti» a un pannello: i tag si devono
+   popolare, e nel registro deve restare **una sola riga INFO** sui log non
+   disponibili (è deliberato), non un muro di 404.
+5. **Sandokan / MQTT** — solo a casa, il progetto è rimasto rotto apposta.
+6. **Q38** (materializzazione ratio) e **Q37** (cornice del pannello).
 
-#### Lo stato del WP630, che non è pulito
-
-Ci ho lavorato in SSH con il permesso del maintainer. Sul pannello adesso:
-
-- runtime `localhost/sws-runtime:2.6.5-arm64` (build da `main`, installazione
-  **pulita**: progetti, configurazione e storico azzerati);
-- `sws-lvgl-viewer` **riavviato a mano** alle 17:15 — prima girava ancora
-  sull'immagine di due ore prima. Le correzioni che lo riguardano **non sono
-  ancora sul dispositivo**: servono una nuova immagine e un nuovo deploy;
-- il progetto caricato ha una pagina con **un solo oggetto testo**, quindi lo
-  schermo è quasi vuoto anche quando funziona. Resta da confermare se il nero
-  visto era il congelamento o se c'è dell'altro fra LVGL e Weston.
+**Lo stato del WP630, che non è pulito.** Ci si è lavorato in SSH con il permesso
+del maintainer: runtime `2.6.5-arm64` con installazione **pulita** (progetti,
+configurazione e storico azzerati) e `sws-lvgl-viewer` **riavviato a mano** alle
+17:15 del 2026-09-08, perché girava ancora sull'immagine di due ore prima. Il
+progetto lì caricato ha una pagina con **un solo oggetto testo**, quindi lo
+schermo è quasi vuoto anche quando funziona: resta da confermare se il nero visto
+era solo il congelamento o se c'è dell'altro fra LVGL e Weston.
 
 Ambiente del pannello, misurato: `desktop.target` attivo, Weston con
 `xwayland=true`, il viewer connesso davvero a Xwayland (4 socket X11),
 `card1-LVDS-1` a 1920×1080 — coerente con la geometria SDL2. Il browser
-disabilitato è corretto: è la funzione nuova di PixsysOS 2.1.0 per i progetti
-LVGL. **Le unit sono `systemctl --user` dell'utente `user`**: interrogate da
-root rispondono «No entries» e sembrano assenti — ci si perde mezz'ora.
+disabilitato è **corretto**: è la funzione nuova di PixsysOS 2.1.0 per i progetti
+LVGL. E la trappola che è costata mezz'ora: quelle unit sono `systemctl --user`
+dell'utente **`user`** — interrogate da root rispondono «No entries» e sembrano
+assenti.
 
 ### 🎯 Rilasciata la 2.6.5 — pronta da compilare e installare (2026-09-08)
 
