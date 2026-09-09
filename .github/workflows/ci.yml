@@ -20,6 +20,17 @@ jobs:
       - uses: tisonkun/action-dco@v1
 
   # ── Rust lint ─────────────────────────────────────────────────────────────
+  #
+  # La toolchain è pinnata alla versione delle macchine di sviluppo, non alla
+  # MSRV: `cargo fmt --check` deve dare lo stesso verdetto qui e in locale, e
+  # rustfmt cambia leggermente fra una versione e l'altra. La MSRV vera è in
+  # `Cargo.toml` (`rust-version`), e cargo la fa rispettare da sé.
+  #
+  # Storia: era "1.75" (dicembre 2023) ed è rimasta lì mentre le dipendenze
+  # salivano; dal 2026-09 il lockfile è in formato 4 (serve cargo ≥ 1.78) e
+  # `time`/`icu` vogliono ≥ 1.88. Risultato: i quattro job Rust morivano in
+  # tredici secondi senza compilare niente, «exit code 101», e nessuno leggeva
+  # il perché. Scoperto il 2026-09-09 dalla mail di GitHub sul push della 2.7.0.
   rust-lint:
     name: Rust lint
     runs-on: ubuntu-latest
@@ -27,10 +38,10 @@ jobs:
       run:
         working-directory: sws-runtime
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: "1.75"
+          toolchain: "1.94"
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
         with:
@@ -47,10 +58,10 @@ jobs:
       run:
         working-directory: sws-runtime
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: "1.75"
+          toolchain: "1.94"
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: sws-runtime
@@ -65,15 +76,20 @@ jobs:
       run:
         working-directory: sws-runtime
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: "1.75"
+          toolchain: "1.94"
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: sws-runtime
+      # 0.21 non legge più il database degli avvisi: dal 2026 le voci portano
+      # punteggi CVSS 4.0 e la 0.21 si ferma con «unsupported CVSS version»
+      # prima di guardare una sola dipendenza (visto il 2026-09-09, sul push
+      # della 2.7.0). La 0.22 li legge. Le vulnerabilità che non possiamo
+      # correggere sono dichiarate una per una in `sws-runtime/.cargo/audit.toml`.
       - name: Install cargo-audit
-        run: cargo install cargo-audit --version "0.21.0" --locked
+        run: cargo install cargo-audit --version "0.22.2" --locked
       - run: cargo audit
 
   # ── Rust SBOM ─────────────────────────────────────────────────────────────
@@ -85,17 +101,17 @@ jobs:
       run:
         working-directory: sws-runtime
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: "1.75"
+          toolchain: "1.94"
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: sws-runtime
       - name: Install cargo-cyclonedx
         run: cargo install cargo-cyclonedx --locked
       - run: cargo cyclonedx --format json --output-file sbom.cdx.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: sbom-runtime
           path: sws-runtime/sbom.cdx.json
@@ -108,13 +124,13 @@ jobs:
       run:
         working-directory: sws-editor
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v3
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
         with:
           version: 9
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: "20"
+          node-version: "22"
           cache: pnpm
           cache-dependency-path: sws-editor/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
@@ -130,13 +146,13 @@ jobs:
       run:
         working-directory: sws-editor
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v3
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
         with:
           version: 9
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: "20"
+          node-version: "22"
           cache: pnpm
           cache-dependency-path: sws-editor/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
@@ -151,13 +167,13 @@ jobs:
       run:
         working-directory: sws-editor
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v3
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
         with:
           version: 9
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: "20"
+          node-version: "22"
           cache: pnpm
           cache-dependency-path: sws-editor/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile

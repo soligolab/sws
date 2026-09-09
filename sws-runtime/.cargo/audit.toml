@@ -1,0 +1,35 @@
+# Cosa `cargo audit` può ignorare, e perché — letto dalla CI (job «Rust audit»)
+# e da chi lo lancia a mano da `sws-runtime/`.
+#
+# Ogni voce qui è una vulnerabilità **nota, valutata e senza via d'uscita da
+# parte nostra**: non si aggiunge una riga per far diventare verde un job, si
+# aggiunge quando la correzione non esiste o non dipende da noi. Il referto
+# della revisione pre-2.7.0 (`docs/plans/2026-09-09-revisione-pre-2.7.0.md`)
+# racconta i tentativi. Un avviso NUOVO fa fallire il job come deve.
+#
+# Da rivedere a ogni aggiornamento delle dipendenze: se `rumqttc` o
+# `async-opcua` si muovono, queste righe vanno tolte e il job deve tornare a
+# dire la sua.
+
+[advisories]
+ignore = [
+    # rsa 0.9 — «Marvin attack», canale laterale temporale sulle operazioni con
+    # chiave privata RSA. Lo tira `async-opcua` (plugin OPC UA). Il crate `rsa`
+    # NON ha una versione corretta: «No fixed upgrade is available». Esposizione
+    # reale: solo la firma/decifratura con la chiave privata del client OPC UA,
+    # su LAN, verso server che scegliamo noi.
+    "RUSTSEC-2023-0071",
+
+    # rustls-webpki 0.102 — quattro avvisi (vincoli sui nomi, CRL, panic nel
+    # parsing CRL). Lo tira `rumqttc` 0.25 (plugin MQTT); la 0.103 corretta
+    # arriva solo con un rumqttc che porta webpki 0.103 accanto al nostro
+    # rustls 0.23 e rompe il provider `crypto::ring` (provato il 2026-09-09,
+    # tornati indietro). Esposizione reale: la verifica del certificato del
+    # broker MQTT quando la TLS è accesa — oggi il plugin gira con
+    # `insecure_skip_verify` (Q49, ancora aperto per MQTT), quindi la catena
+    # non viene comunque validata da webpki.
+    "RUSTSEC-2026-0098",
+    "RUSTSEC-2026-0099",
+    "RUSTSEC-2026-0049",
+    "RUSTSEC-2026-0104",
+]

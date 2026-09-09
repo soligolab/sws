@@ -11,6 +11,15 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### La CI Rust ripartiva da una toolchain di tre anni prima
+
+I quattro job Rust morivano in tredici secondi: `ci.yml` pinnava Rust 1.75, che non legge il
+lockfile in formato 4 né compila `time`/`icu`. Toolchain CI 1.94, `rust-version = "1.88"`
+verificata, e `cargo audit` con le cinque vulnerabilità a monte dichiarate una per una in
+`.cargo/audit.toml` con il perché — un avviso nuovo fa ancora fallire il job. cargo-audit 0.21 → 0.22
+(la 0.21 non legge più il database degli avvisi), azioni GitHub aggiornate a Node 24, Node 22 per
+l'editor.
+
 ## [2.7.0] — 2026-09-09
 
 > La release della revisione generale (referto in

@@ -59,7 +59,7 @@ generic Linux and x86_64 hosts for development and evaluation.
 
 | Tool | Minimum version | Install |
 |------|-----------------|---------|
-| Rust | 1.75 | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh` |
+| Rust | 1.88 (MSRV); le macchine di sviluppo e la CI usano 1.94 | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh` |
 | Node.js | 20 | [nodejs.org/download](https://nodejs.org/en/download) |
 | pnpm | 9 | `npm install -g pnpm` |
 | Python | 3.10+ | usually already present on Linux |

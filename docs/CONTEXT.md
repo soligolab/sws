@@ -202,7 +202,7 @@ These were settled in the spec design rounds and confirmed at bootstrap. **Not u
 
 | Decision | Choice | Crate / library |
 |---|---|---|
-| Backend language | Rust (stable, edition 2021, MSRV 1.75) | — |
+| Backend language | Rust (stable, edition 2021, MSRV 1.88 — CI su 1.94) | — |
 | Async runtime | Tokio | `tokio` |
 | HTTP/WS server | Axum + Tower + hyper-util TLS loop | `axum`, `tower`, `tower-http`, `hyper-util` |
 | TLS | rustls (no OpenSSL), self-signed via rcgen | `rustls`, `tokio-rustls`, `rcgen`, `rustls-pemfile` |

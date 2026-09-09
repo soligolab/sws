@@ -155,7 +155,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Rust
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
-    sh -s -- -y --default-toolchain 1.75 --profile minimal
+    sh -s -- -y --default-toolchain 1.94 --profile minimal
 ENV PATH="/root/.cargo/bin:${PATH}"
 
 # Node + pnpm

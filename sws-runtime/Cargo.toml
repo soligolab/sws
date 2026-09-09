@@ -20,7 +20,12 @@ exclude = ["crates/sws-kiosk"]
 [workspace.package]
 version = "2.7.0"
 edition      = "2021"
-rust-version = "1.75"
+# Minima versione di Rust con cui il workspace compila: verificata con
+# `cargo +1.88 check --workspace` il 2026-09-09 (è il massimo richiesto dalle
+# dipendenze: time 0.3.55 e icu 2.3). Con una toolchain più vecchia cargo si
+# ferma con un messaggio chiaro invece di fallire a metà. La CI gira sulla
+# versione delle macchine di sviluppo (1.94), non su questa: vedi ci.yml.
+rust-version = "1.88"
 license      = "AGPL-3.0-only"
 authors      = ["Soligo Lab <hello@soligolab.example>"]
 repository   = "https://github.com/soligolab/sws"

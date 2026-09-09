@@ -14,7 +14,7 @@
 
 ## 0. Prerequisites
 
-- [ ] Rust toolchain — stable, edition 2021 (`rustup show` shows ≥ 1.75).
+- [ ] Rust toolchain — stable, edition 2021 (`rustup show` shows ≥ 1.88).
 - [ ] Node.js 21+ with `corepack` (or `pnpm` directly).
 - [ ] System `python3` (`PYO3_PYTHON=python3` is set by the launcher scripts).
 - [ ] A browser able to ignore self-signed cert warnings (Firefox / Chrome / Chromium / Edge).

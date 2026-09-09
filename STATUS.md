@@ -253,21 +253,47 @@ Ora è `accept-new` ovunque: primo contatto invariato, chiave cambiata rifiutata
 vera — la prima prova era un falso negativo perché `sed` aveva colpito la citazione in un
 commento invece del codice.
 
-### ⚠️ Due controlli della CI sono rossi, e non da oggi
+### ⚠️ La CI era rossa da tempo, e adesso si sa perché — ramo `fix/ci-toolchain` (2026-09-09)
 
-Trovati durante il collaudo di questa sessione, in file che **né io né il lavoro notturno**
-abbiamo toccato:
+Il maintainer ha ricevuto la mail di GitHub sul push della 2.7.0: **Rust lint** e **Rust
+audit** rossi, **Rust build & test** e **SBOM** mai partiti (dipendono dal lint), tutto il
+lato TypeScript verde (208 vitest anche là), DCO «saltato» perché gira solo sulle pull request.
 
-- `cargo fmt --check` fallisce su **~70 file** — praticamente tutto il workspace. La CI lo
-  esegue (`ci.yml:38`).
-- `cargo clippy -- -D warnings` fallisce con due lint in `sws-core`:
-  `type_complexity` (`alarm.rs:312`) e `too_many_arguments` (`geometry.rs:53`).
+**Rust lint moriva in 13 secondi, senza compilare niente.** `ci.yml` pinnava la toolchain
+**1.75** (dicembre 2023). Il `Cargo.lock` è in formato 4 (serve cargo ≥ 1.78) e le
+dipendenze `time`/`icu` vogliono ≥ 1.88: cargo 1.75 non riusciva nemmeno a leggere il
+lockfile, «exit code 101». Quindi il «fmt e clippy rossi» annotato qui sotto il 2026-09-08 era
+solo la metà: anche dopo il `cargo fmt` quei job non potevano passare. Rimedio sul ramo:
+toolchain CI **1.94** (quella delle macchine di sviluppo, così `cargo fmt --check` dice la
+stessa cosa qui e là), `rust-version = "1.88"` in `Cargo.toml` (la MSRV vera, verificata con
+`cargo +1.88 check --workspace`), documenti allineati (README, CONTEXT, TESTING_GUIDE,
+CLAUDE_CODE_SETUP).
 
-Non li ho corretti: sono fuori dallo scopo di questa release e `cargo fmt` produrrebbe un
-diff di settanta file in mezzo a un rilascio. Da sapere: la CI usa la toolchain **1.75**
-mentre qui c'è la **1.94**, e solo la stable è installata — non ho potuto verificare se sulla
-1.75 i due lint scattino davvero. Da decidere in una sessione dedicata: correggere, o
-dichiarare gli `allow` con il perché accanto.
+**Rust audit non arrivava nemmeno a guardare le dipendenze.** Il registro del job, letto dal
+maintainer: cargo-audit **0.21.0** (pinnato in `ci.yml`) non sa leggere il database degli avvisi,
+che dal 2026 porta punteggi CVSS 4.0 — «unsupported CVSS version: 4.0», exit 1. Rimedio:
+cargo-audit 0.22.2, che è quello che gira in locale. Passato quello, il job avrebbe detto la
+verità: **5 vulnerabilità**, le stesse cinque «a monte» del referto
+(`rsa` via async-opcua senza correzione esistente; `rustls-webpki` 0.102 via rumqttc, la cui
+correzione rompe il provider ring). Ora `sws-runtime/.cargo/audit.toml` le dichiara ignorate
+**una per una, con il perché accanto** — un avviso nuovo fa fallire il job come deve. Da
+rivedere quando rumqttc o async-opcua si aggiornano.
+
+**Gli avvisi gialli «Node.js 20 is deprecated»** riguardano le *azioni* di GitHub (checkout,
+setup-node, pnpm), non il nostro codice: GitHub le esegue su Node 24 comunque, sono avvisi e
+non errori. Alzate a `checkout@v5`, `setup-node@v5`, `upload-artifact@v5`,
+`pnpm/action-setup@v4`; Node del progetto in CI da 20 (fine vita aprile 2026) a 22.
+
+**Il disco di theobroma era al 100 %** (503 MB liberi su 1,5 TB) — la verifica della MSRV è
+fallita al primo colpo per «No space left on device», e la build delle immagini sarebbe morta
+allo stesso modo. Tolto `target/debug` del workspace con `cargo clean --profile dev` (57,8 GiB,
+rigenerabile: il prossimo `cargo build` ricompila da zero, HOWTO §2). Liberato quello si è
+**ancora al 97 %**: c'è qualcos'altro da 1,4 TB fuori da `sws/`, da guardare a mano. Restano
+da togliere, quando si vuole: la toolchain `1.88` installata per la verifica
+(`rustup toolchain uninstall 1.88`) e la cartella `target-msrv` nello scratchpad della sessione.
+
+**La CI non si può provare in locale**: il verdetto arriva al prossimo push su `main`. Se resta
+rosso, la mail di GitHub dice quale job, e il registro del job dice la riga.
 
 ### 🔒 «Connetti» a un pannello senza utenti chiudeva fuori dall'editor (2026-09-08)
 
