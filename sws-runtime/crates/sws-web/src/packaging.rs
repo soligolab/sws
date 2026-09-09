@@ -56,7 +56,7 @@ macro_rules! log_deploy_line {
     }};
 }
 
-fn sshpass_available() -> bool {
+pub(crate) fn sshpass_available() -> bool {
     std::process::Command::new("which")
         .arg("sshpass")
         .output()
@@ -91,6 +91,20 @@ pub type RepoRoot = Arc<Option<PathBuf>>;
 
 pub fn new_repo_root() -> RepoRoot {
     Arc::new(resolve_repo_root())
+}
+
+/// Q51: c'è il repo accanto al runtime? È il fatto da cui l'editor decide se
+/// mostrare «Pacchetto runtime» e il deploy binario, che senza repo falliscono
+/// sempre (`build_package` risponde 503, `list_packages` lista vuota — e una
+/// lista vuota non si distingue da un `dist/` vuoto, per questo serve una
+/// risposta a sé).
+pub(crate) fn stato_build_json(repo: &Option<PathBuf>) -> serde_json::Value {
+    serde_json::json!({ "repo": repo.is_some() })
+}
+
+/// `GET /api/build/stato` → `{ "repo": bool }`. Admin per posizione nel router.
+pub async fn stato_build(State(s): State<AppState>) -> axum::Json<serde_json::Value> {
+    axum::Json(stato_build_json(s.repo_root.as_ref()))
 }
 
 // ── POST /api/build/package ───────────────────────────────────────────────────
@@ -1638,7 +1652,7 @@ fn e_chiave_host_cambiata(line: &str) -> bool {
         || line.contains("Host key verification failed")
 }
 
-async fn run_ssh_cmd_stdin(
+pub(crate) async fn run_ssh_cmd_stdin(
     use_sshpass: bool,
     password: &str,
     prog: &str,
@@ -1705,6 +1719,12 @@ async fn run_ssh_cmd_stdin(
     if stdin_data.is_some() {
         cmd.stdin(std::process::Stdio::piped());
     }
+    // La sonda (`sonda.rs`) avvolge questa chiamata in un `tokio::time::timeout`:
+    // se scade, il future viene lasciato cadere e senza questo flag l'ssh
+    // resterebbe vivo, orfano, fino al proprio ConnectTimeout o per sempre se
+    // il comando remoto è bloccato. Per i gestori streaming, che girano in
+    // `tokio::spawn` fino alla fine, non cambia niente.
+    cmd.kill_on_drop(true);
 
     let mut child = match cmd.spawn() {
         Ok(c) => c,
@@ -1901,6 +1921,20 @@ mod tests {
             ),
             Ok(_) => panic!("una directory vuota non può risolvere i sorgenti"),
         }
+    }
+
+    /// Q51: il fatto è uno solo e binario; l'editor ci costruisce sopra la
+    /// differenza fra «sviluppatore» e «utente».
+    #[test]
+    fn q51_stato_build_dice_se_il_repo_c_e() {
+        assert_eq!(
+            stato_build_json(&None),
+            serde_json::json!({ "repo": false })
+        );
+        assert_eq!(
+            stato_build_json(&Some(PathBuf::from("/x"))),
+            serde_json::json!({ "repo": true })
+        );
     }
 
     /// Q48: i file incorporati sono ESATTAMENTE quelli del repo — `include_str!`

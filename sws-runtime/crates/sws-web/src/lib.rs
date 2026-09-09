@@ -18,6 +18,7 @@ pub mod remote;
 pub mod remote_relay;
 pub mod router;
 pub mod schema_api;
+pub mod sonda;
 pub mod source_supervisor;
 pub mod synoptic;
 pub mod synoptic_schema;

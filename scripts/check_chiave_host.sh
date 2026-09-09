@@ -69,7 +69,7 @@ if colpe="$(grep -rnE '"StrictHostKeyChecking=no"|-o[= ]StrictHostKeyChecking=no
 else
     echo "  ✓ nessun StrictHostKeyChecking=no nel codice"
 fi
-n_an="$(grep -rc 'StrictHostKeyChecking=accept-new' "$REPO/sws-runtime/crates/sws-web/src/packaging.rs" || echo 0)"
+n_an="$(cat "$REPO/sws-runtime/crates/sws-web/src/packaging.rs" "$REPO/sws-runtime/crates/sws-web/src/sonda.rs" | grep -c 'StrictHostKeyChecking=accept-new' || echo 0)"
 
 # ── 2026-09-09: la password non va su argv, e user@host va controllato ───────
 #
@@ -91,13 +91,16 @@ rm -f /tmp/sshpass_p.$$
 
 # `{user}@{host}` è un argomento POSIZIONALE di ssh: se comincia per `-` diventa
 # un'opzione, e `-oProxyCommand=…` è un comando eseguito su questa macchina.
-# Ogni handler che fa ssh deve passare da `destinazione_ssh_sicura`. Sono tre
-# (deploy_device, deploy_device_container, manage_device_container, tutti in
-# packaging.rs — deploy_remote in deploy.rs è stato tolto con Q48): se il
-# conteggio scende, uno è rimasto scoperto.
-n_dest="$(grep -rhc 'destinazione_ssh_sicura(&' "$REPO/sws-runtime/crates/sws-web/src/packaging.rs" | awk '{s+=$1} END{print s+0}')"
-n_ssh="$(grep -rhcE '^pub async fn (deploy_device|deploy_device_container|manage_device_container)\(' "$REPO/sws-runtime/crates/sws-web/src/packaging.rs" | awk '{s+=$1} END{print s+0}')"
-if [ "$n_dest" -ge "$n_ssh" ] && [ "$n_ssh" -ge 3 ]; then
+# Ogni handler che fa ssh deve passare da `destinazione_ssh_sicura`. Sono
+# quattro: deploy_device, deploy_device_container, manage_device_container in
+# packaging.rs e sonda_dispositivo in sonda.rs (Q52) — deploy_remote in
+# deploy.rs è stato tolto con Q48. Se il conteggio scende, uno è scoperto.
+SSH_RS="$REPO/sws-runtime/crates/sws-web/src/packaging.rs $REPO/sws-runtime/crates/sws-web/src/sonda.rs"
+# shellcheck disable=SC2086
+n_dest="$(cat $SSH_RS | grep -c 'destinazione_ssh_sicura(&' || echo 0)"
+# shellcheck disable=SC2086
+n_ssh="$(cat $SSH_RS | grep -cE '^pub async fn (deploy_device|deploy_device_container|manage_device_container|sonda_dispositivo)\(' || echo 0)"
+if [ "$n_dest" -ge "$n_ssh" ] && [ "$n_ssh" -ge 4 ]; then
     echo "  ✓ ogni handler che fa ssh controlla user@host ($n_dest controlli, $n_ssh handler)"
 else
     echo "  ✗ handler ssh: $n_ssh, controlli su user@host: $n_dest — uno è scoperto"
@@ -105,7 +108,7 @@ else
     STATICI_ROSSI=1
 fi
 if [ "$n_an" -gt 0 ]; then
-    echo "  ✓ il deploy usa accept-new ($n_an occorrenze in packaging.rs)"
+    echo "  ✓ deploy e sonda usano accept-new ($n_an occorrenze in packaging.rs e sonda.rs)"
 else
     echo "  ✗ packaging.rs non passa StrictHostKeyChecking: il primo deploy verso un"
     echo "    dispositivo mai visto resterebbe appeso a una domanda che nessuno legge."

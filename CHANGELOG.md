@@ -11,6 +11,36 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+> Ramo `feat/Q51-Q52-installa-guidata`, non ancora su `main`.
+
+### Gli strumenti di sviluppo compaiono solo dove c'è il repo (Q51)
+
+«Pacchetto runtime» e il deploy del binario nativo richiedono il checkout del repo: per chi usa
+un editor installato erano pulsanti che fallivano sempre. Il server ora dice se gira da un
+checkout (`GET /api/build/stato`) e l'editor, finché non lo sa, non disegna nulla di sviluppo;
+senza repo restano il container e il registry.
+
+### «Installa su dispositivo» è un flusso guidato, e guarda il dispositivo prima di installare (Q52)
+
+Cinque passi: destinazione (a mano, dal dispositivo a cui l'editor è collegato, o da «Cerca
+dispositivi in rete», che elenca **qualunque** macchina mDNS della LAN con i servizi che
+annuncia e se SWS c'è già), credenziali con `user` predefinito e mai salvate, «Verifica
+dispositivo» — una sessione ssh che riporta architettura, sistema, podman e versione,
+mappature rootless, linger, sessione systemd, spazio, cartella dati, un SWS già presente, ogni
+controllo con il rimedio accanto e la variante immagine proposta — poi immagine e «Installa» o
+«Aggiorna», spento solo se la verifica ha trovato errori. Container per primo; il binario nativo
+è «solo sviluppo». Il pulsante «Dimentica la vecchia chiave» rilancia ciò che si era fermato.
+Nuova guardia `check_sonda.sh`; le due lingue dell'editor hanno ora un test di parità.
+
+### Il runtime dice architettura, nome e motore, e l'installer controlla i prerequisiti prima di toccare
+
+`/api/system` riporta `arch`, `hostname` e `container`: l'editor collegato a un dispositivo
+propone la variante immagine senza aspettare la verifica via ssh. Il modale «Installa runtime»
+della schermata iniziale ha la stessa «Verifica dispositivo». `install-container.sh` verifica
+podman ≥ 4.4 (con `--no-autostart` diventa una nota: senza quadlet si può solo `podman run`) e le
+mappature subuid/subgid all'inizio, con il rimedio scritto — prima erano solo un commento e
+l'installazione moriva a metà.
+
 ## [2.7.1] — 2026-09-09
 
 > Stesso codice della 2.7.0, più la catena CI/CD che funziona: è la versione da cui si

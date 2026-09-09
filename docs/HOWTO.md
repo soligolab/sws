@@ -23,6 +23,7 @@
 9. [Il deploy dell'immagine fallisce dopo un factory reset del dispositivo](#9-il-deploy-dellimmagine-fallisce-dopo-un-factory-reset-del-dispositivo)
 10. [Provare una modifica su un dispositivo senza pubblicare niente](#10-provare-una-modifica-su-un-dispositivo-senza-pubblicare-niente)
 11. [Leggere la mail di GitHub che dice «CI failed»](#11-leggere-la-mail-di-github-che-dice-ci-failed)
+12. [Installare il runtime su un dispositivo dall'editor](#12-installare-il-runtime-su-un-dispositivo-dalleditor)
 
 ---
 
@@ -891,3 +892,39 @@ dipende da noi, e si scrive accanto perché.
 **Da qui.** Un run verde su `main` è la prova che il codice compila e passa i test su una
 macchina che non è la nostra — la prima volta è stata il 2026-09-09, `bf46d06`. Non sostituisce
 il collaudo sul dispositivo: la CI non ha un pannello.
+
+---
+
+## 12. Installare il runtime su un dispositivo dall'editor
+
+Configurazione → Runtime → «Installa su dispositivo», dal 2026-09-09 (Q52) un flusso in cinque
+passi. Vale per **qualunque** macchina Linux raggiungibile via ssh con podman: SWS non guarda la
+marca.
+
+1. **Destinazione.** Scrivi host o IP, oppure «Cerca dispositivi in rete»: la tabella elenca ciò
+   che mDNS vede sulla LAN — nome, indirizzo, servizi annunciati (ssh, sftp, workstation) e «SWS
+   vX» se un runtime c'è già. Clicca la riga giusta. Se l'editor è già collegato a un dispositivo,
+   il campo è precompilato con il suo hostname. **Chi non si annuncia via mDNS non compare**:
+   molte distro pubblicano solo `_workstation`, alcune niente — l'IP a mano funziona sempre.
+2. **Credenziali.** Utente `user` (quello limitato dell'utente finale, mai `root`) e password. La
+   password resta nel modulo finché la pagina è aperta e non viene salvata da nessuna parte.
+3. **Verifica dispositivo.** Una sessione ssh, fino a 30 secondi, che **guarda senza toccare**:
+   architettura e sistema, podman e versione (serve ≥ 4.4), mappature subuid/subgid, linger,
+   sessione systemd dell'utente, spazio nello storage di podman (~1,5 GB), cartella dati, un SWS
+   già installato. Ogni riga è ✓, ⚠ o ✗ con il rimedio accanto; ⚠ non ferma (il linger, per
+   esempio, l'installer prova ad abilitarlo da solo), ✗ sì. Se la chiave host è cambiata compare
+   il pulsante «Dimentica la vecchia chiave e riprova» (§9): la verifica riparte da sola dopo.
+4. **Immagine.** Registry per default; la variante (`latest-arm64` per un Pixsys, `latest-arm64-generic`
+   per un altro aarch64, `latest-amd64` per x86) la propone la verifica e finisce nel campo
+   «riferimento immagine», che resta modificabile. «Archivio locale» compare solo se l'editor gira
+   dal repo (ha `dist/`).
+5. **Installa** (o **Aggiorna**, se SWS c'è già). Spento solo quando la verifica ha trovato ✗: il
+   titolo del pulsante dice di leggere la lista. Il registro scorre come prima.
+
+Cosa NON vedi se l'editor non gira da un checkout del repo (Q51): «Pacchetto runtime», il
+selettore Binario/Container e «Archivio locale». Non è un guasto: sono strumenti di sviluppo che
+senza `scripts/` e `dist/` non possono funzionare, e il server lo dice (`GET /api/build/stato`).
+
+Da riga di comando la stessa sonda si lancia con
+`ssh user@<host> 'sh -s' < deploy/container/sonda-dispositivo.sh`: stampa i fatti grezzi,
+`SONDA chiave=valore`, senza giudizio.

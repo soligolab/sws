@@ -366,6 +366,10 @@ pub fn build(
         // T-28: local package build + SSH device deploy.
         .route("/api/build/package", post(crate::packaging::build_package))
         .route("/api/build/packages", get(crate::packaging::list_packages))
+        // Q51: dice all'editor se gira da un checkout (`repo_root`). Con `false`
+        // l'editor nasconde build e deploy binario, che senza repo falliscono
+        // sempre. Non sta in `deploy_only_app`: un dispositivo non ha repo.
+        .route("/api/build/stato", get(crate::packaging::stato_build))
         .route("/api/deploy/device", post(crate::packaging::deploy_device))
         // Container install via SSH — stesso deploy del binario nudo sopra,
         // ma installa il runtime come container Podman rootless (nessun sudo).
@@ -388,6 +392,17 @@ pub fn build(
         .route(
             "/api/device/cert/forget",
             post(crate::remote::dimentica_certificato),
+        )
+        // Q52: sonda il dispositivo via ssh PRIMA di installare (podman, subuid,
+        // linger, spazio, architettura → variante immagine). La password è solo
+        // in transito: mai salvata, mai nell'audit.
+        .route("/api/device/probe", post(crate::sonda::sonda_dispositivo))
+        // Q52: tabella dei dispositivi in rete (ssh/sftp/workstation/sws), non
+        // solo runtime SWS. Admin perché serve a installare; `/api/discover`
+        // (supervisor, solo runtime SWS) resta com'è per «Connetti».
+        .route(
+            "/api/discover/dispositivi",
+            get(crate::discover::discover_dispositivi),
         )
         // Lifecycle on an already-installed container (status/start/stop/
         // restart/enable/disable/restart-policy/uninstall) — locally on this

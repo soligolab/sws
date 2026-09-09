@@ -1337,64 +1337,10 @@ fn single_project_dir(projects_root: &std::path::Path) -> Option<std::path::Path
     found
 }
 
-/// Decide the container engine from the markers a container runtime leaves in
-/// the filesystem. Pure so it can be tested without actually being in a
-/// container — the caller does the I/O.
-///
-/// `/run/.containerenv` è il marcatore di podman, `/.dockerenv` quello di
-/// docker; entrambi sono creati dal motore, non dall'immagine, quindi
-/// funzionano anche con l'immagine legacy e senza ricostruire niente.
-/// Il cgroup è il ripiego: su alcune configurazioni rootless il file di podman
-/// non c'è, ma la gerarchia cgroup nomina comunque `libpod`/`docker`.
-fn container_engine_from_markers(
-    has_containerenv: bool,
-    has_dockerenv: bool,
-    cgroup: &str,
-) -> Option<&'static str> {
-    // Docker per primo: un docker può montare `/run/.containerenv` per
-    // compatibilità, mentre `/.dockerenv` non compare mai sotto podman.
-    if has_dockerenv {
-        return Some("docker");
-    }
-    if has_containerenv {
-        return Some("podman");
-    }
-    if cgroup.contains("libpod") {
-        return Some("podman");
-    }
-    if cgroup.contains("docker") {
-        return Some("docker");
-    }
-    // `containerd` da solo non dice quale motore c'è sopra: si dichiara
-    // container senza inventare un nome.
-    if cgroup.contains("containerd") {
-        return Some("container");
-    }
-    None
-}
-
-/// `Some("podman" | "docker" | "container")` quando il runtime gira dentro un
-/// container, `None` quando gira nudo sull'host.
-///
-/// `SWS_CONTAINER_ENGINE` forza il valore per i casi che il rilevamento non
-/// copre. Deliberatamente **non** impostata nei nostri Containerfile: la stessa
-/// immagine può essere eseguita da motori diversi, e un valore cotto
-/// nell'immagine mentirebbe.
-fn detect_container_engine() -> Option<String> {
-    if let Ok(forced) = std::env::var("SWS_CONTAINER_ENGINE") {
-        let forced = forced.trim().to_string();
-        if !forced.is_empty() {
-            return Some(forced);
-        }
-    }
-    let cgroup = std::fs::read_to_string("/proc/self/cgroup").unwrap_or_default();
-    container_engine_from_markers(
-        std::path::Path::new("/run/.containerenv").exists(),
-        std::path::Path::new("/.dockerenv").exists(),
-        &cgroup,
-    )
-    .map(str::to_string)
-}
+// `container_engine_from_markers` e `detect_container_engine` stanno in
+// `sws_web::system` dal 2026-09-09: le legge anche `/api/system`, e due copie
+// avrebbero divergito. I test sono andati con loro.
+use sws_web::system::detect_container_engine;
 
 /// Announce this runtime as `_sws._tcp.local.` via mDNS.
 /// The ServiceDaemon must stay alive for the announcement to remain visible;
@@ -1407,12 +1353,8 @@ fn announce_mdns(viewer_port: u16, admin_port: u16, tls: bool) -> Option<mdns_sd
         .map_err(|e| warn!("mDNS: daemon create failed: {e}"))
         .ok()?;
 
-    let hostname = std::process::Command::new("hostname")
-        .output()
-        .ok()
-        .and_then(|o| String::from_utf8(o.stdout).ok())
-        .map(|s| s.trim().to_string())
-        .unwrap_or_else(|| "sws-runtime".to_string());
+    // Lo stesso nome che `/api/system` riporta in `hostname`.
+    let hostname = sws_web::system::hostname_locale();
 
     let host_fqdn = format!("{}.local.", hostname);
     let admin_port_str = admin_port.to_string();
@@ -1633,63 +1575,4 @@ fn build_tls_acceptor(config_dir: &PathBuf) -> anyhow::Result<TlsAcceptor> {
     info!(path = %cert_path.display(), "self-signed TLS certificate saved (import to trust)");
 
     try_load_existing_tls(&cert_path, &key_path)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::container_engine_from_markers;
-
-    /// Host nudo: nessun marcatore, cgroup della macchina.
-    #[test]
-    fn nessun_marcatore_significa_nativo() {
-        assert_eq!(
-            container_engine_from_markers(false, false, "0::/user.slice/user-1000.slice"),
-            None
-        );
-    }
-
-    #[test]
-    fn riconosce_podman_e_docker_dai_file_marcatori() {
-        assert_eq!(
-            container_engine_from_markers(true, false, ""),
-            Some("podman")
-        );
-        assert_eq!(
-            container_engine_from_markers(false, true, ""),
-            Some("docker")
-        );
-    }
-
-    /// Un docker che monta anche `/run/.containerenv` non deve passare per
-    /// podman: `/.dockerenv` è il segnale più specifico dei due.
-    #[test]
-    fn docker_vince_quando_ci_sono_entrambi_i_marcatori() {
-        assert_eq!(
-            container_engine_from_markers(true, true, ""),
-            Some("docker")
-        );
-    }
-
-    /// Ripiego per le configurazioni rootless dove il file di podman non c'è.
-    #[test]
-    fn ricade_sul_cgroup_quando_i_file_mancano() {
-        assert_eq!(
-            container_engine_from_markers(false, false, "0::/machine.slice/libpod-abc123.scope"),
-            Some("podman")
-        );
-        assert_eq!(
-            container_engine_from_markers(false, false, "0::/docker/abc123"),
-            Some("docker")
-        );
-    }
-
-    /// `containerd` non dice quale motore c'è sopra: si dichiara container
-    /// senza inventare un nome che finirebbe nella UI.
-    #[test]
-    fn containerd_da_solo_resta_generico() {
-        assert_eq!(
-            container_engine_from_markers(false, false, "0::/system.slice/containerd.service"),
-            Some("container")
-        );
-    }
 }

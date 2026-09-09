@@ -121,6 +121,93 @@ pub struct SystemStatus {
     pub mem_total_mb: u64,
     pub disk_used_gb: u64,
     pub disk_total_gb: u64,
+    /// Architettura del binario (`aarch64`, `x86_64`): quella per cui è stato
+    /// compilato, che è l'unica che conta per scegliere l'immagine con cui
+    /// aggiornarlo. Q52 (2026-09-09): l'editor collegato a un dispositivo
+    /// precompila la variante immagine da qui, senza dover prima fare il
+    /// sondaggio via ssh.
+    pub arch: &'static str,
+    /// Nome della macchina, lo stesso che il runtime annuncia via mDNS.
+    pub hostname: String,
+    /// Motore del container (`podman`, `docker`, `container`) quando il runtime
+    /// gira in un container; `None` quando gira nudo sull'host. Stesso valore
+    /// della TXT mDNS `container`, ma qui lo si ha anche senza discovery.
+    pub container: Option<String>,
+}
+
+/// Il nome della macchina, come lo dà `hostname`; `sws-runtime` se non c'è
+/// nemmeno quello. Usato dall'annuncio mDNS e da `SystemStatus`, così i due
+/// dicono lo stesso nome.
+pub fn hostname_locale() -> String {
+    std::process::Command::new("hostname")
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "sws-runtime".to_string())
+}
+
+/// Decide the container engine from the markers a container runtime leaves in
+/// the filesystem. Pure so it can be tested without actually being in a
+/// container — the caller does the I/O.
+///
+/// `/run/.containerenv` è il marcatore di podman, `/.dockerenv` quello di
+/// docker; entrambi sono creati dal motore, non dall'immagine, quindi
+/// funzionano anche con l'immagine legacy e senza ricostruire niente.
+/// Il cgroup è il ripiego: su alcune configurazioni rootless il file di podman
+/// non c'è, ma la gerarchia cgroup nomina comunque `libpod`/`docker`.
+pub fn container_engine_from_markers(
+    has_containerenv: bool,
+    has_dockerenv: bool,
+    cgroup: &str,
+) -> Option<&'static str> {
+    // Docker per primo: un docker può montare `/run/.containerenv` per
+    // compatibilità, mentre `/.dockerenv` non compare mai sotto podman.
+    if has_dockerenv {
+        return Some("docker");
+    }
+    if has_containerenv {
+        return Some("podman");
+    }
+    if cgroup.contains("libpod") {
+        return Some("podman");
+    }
+    if cgroup.contains("docker") {
+        return Some("docker");
+    }
+    // `containerd` da solo non dice quale motore c'è sopra: si dichiara
+    // container senza inventare un nome.
+    if cgroup.contains("containerd") {
+        return Some("container");
+    }
+    None
+}
+
+/// `Some("podman" | "docker" | "container")` quando il runtime gira dentro un
+/// container, `None` quando gira nudo sull'host.
+///
+/// `SWS_CONTAINER_ENGINE` forza il valore per i casi che il rilevamento non
+/// copre. Deliberatamente **non** impostata nei nostri Containerfile: la stessa
+/// immagine può essere eseguita da motori diversi, e un valore cotto
+/// nell'immagine mentirebbe.
+///
+/// Viveva in `main.rs` (solo per l'annuncio mDNS); dal 2026-09-09 sta qui
+/// perché lo legge anche `SystemStatus`, e due copie avrebbero divergito.
+pub fn detect_container_engine() -> Option<String> {
+    if let Ok(forced) = std::env::var("SWS_CONTAINER_ENGINE") {
+        let forced = forced.trim().to_string();
+        if !forced.is_empty() {
+            return Some(forced);
+        }
+    }
+    let cgroup = std::fs::read_to_string("/proc/self/cgroup").unwrap_or_default();
+    container_engine_from_markers(
+        std::path::Path::new("/run/.containerenv").exists(),
+        std::path::Path::new("/.dockerenv").exists(),
+        &cgroup,
+    )
+    .map(str::to_string)
 }
 
 /// Il valore del campo `mode` a partire da `AppState::ide_only`.
@@ -217,6 +304,9 @@ pub async fn compute_system_status(
             .map(|d| (d.total_space() - d.available_space()) / 1_073_741_824)
             .unwrap_or(0),
         disk_total_gb: disk.map(|d| d.total_space() / 1_073_741_824).unwrap_or(0),
+        arch: std::env::consts::ARCH,
+        hostname: hostname_locale(),
+        container: detect_container_engine(),
     }
 }
 
@@ -901,5 +991,72 @@ mod tests_avvisi {
     async fn un_trigger_non_cron_non_avvisa() {
         let p = progetto("  - { id: a_intervallo, trigger: { kind: interval, interval_s: 5 }, code: \"x = 1\" }\n");
         assert!(calcola_avvisi(Some(&p), &supervisore()).is_empty());
+    }
+}
+
+#[cfg(test)]
+mod tests_container_engine {
+    use super::container_engine_from_markers;
+
+    /// Host nudo: nessun marcatore, cgroup della macchina.
+    #[test]
+    fn nessun_marcatore_significa_nativo() {
+        assert_eq!(
+            container_engine_from_markers(false, false, "0::/user.slice/user-1000.slice"),
+            None
+        );
+    }
+
+    #[test]
+    fn riconosce_podman_e_docker_dai_file_marcatori() {
+        assert_eq!(
+            container_engine_from_markers(true, false, ""),
+            Some("podman")
+        );
+        assert_eq!(
+            container_engine_from_markers(false, true, ""),
+            Some("docker")
+        );
+    }
+
+    /// Un docker che monta anche `/run/.containerenv` non deve passare per
+    /// podman: `/.dockerenv` è il segnale più specifico dei due.
+    #[test]
+    fn docker_vince_quando_ci_sono_entrambi_i_marcatori() {
+        assert_eq!(
+            container_engine_from_markers(true, true, ""),
+            Some("docker")
+        );
+    }
+
+    /// Ripiego per le configurazioni rootless dove il file di podman non c'è.
+    #[test]
+    fn ricade_sul_cgroup_quando_i_file_mancano() {
+        assert_eq!(
+            container_engine_from_markers(false, false, "0::/machine.slice/libpod-abc123.scope"),
+            Some("podman")
+        );
+        assert_eq!(
+            container_engine_from_markers(false, false, "0::/docker/abc123"),
+            Some("docker")
+        );
+    }
+
+    /// `containerd` non dice quale motore c'è sopra: si dichiara container
+    /// senza inventare un nome che finirebbe nella UI.
+    #[test]
+    fn containerd_da_solo_resta_generico() {
+        assert_eq!(
+            container_engine_from_markers(false, false, "0::/system.slice/containerd.service"),
+            Some("container")
+        );
+    }
+
+    /// L'architettura è quella del binario e non è mai vuota: è ciò da cui
+    /// l'editor sceglie l'immagine con cui aggiornare il dispositivo.
+    #[test]
+    fn l_architettura_e_quella_del_binario() {
+        assert!(!std::env::consts::ARCH.is_empty());
+        assert!(!super::hostname_locale().is_empty());
     }
 }

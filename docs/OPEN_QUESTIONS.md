@@ -1573,8 +1573,8 @@ progetti», (2) è un cambio di una riga: il percorso.
 ## Q51 — «Pacchetto runtime» e il deploy binario sono strumenti di sviluppo: nascosti quando il repo non c'è
 
 *Aperta il 2026-09-09 su osservazione del maintainer («è una funzione pensata per un uso di
-sviluppo, cosa mia, più che per l'utente finale: valutare se nasconderla»). Nessuna decisione
-presa.*
+sviluppo, cosa mia, più che per l'utente finale: valutare se nasconderla»). Decisa lo stesso
+giorno.*
 
 **Context.** In Configurazione → Runtime due sezioni parlano al maintainer e non all'utente:
 **Pacchetto runtime** (`POST /api/build/package` → `scripts/package.sh`: cargo, pnpm, tarball in
@@ -1604,14 +1604,20 @@ preferenza. Lavoro: una rotta, un hook nell'editor, tre condizioni di rendering,
 la sonda in `check_no_admin` (`--no-admin` non monta le rotte build: la sonda verifica che la
 nuova rotta stia dietro l'admin come le sorelle).
 
-**Decided:** not yet.
+**Decided (2026-09-09, maintainer):** (1), insieme a Q52 sul ramo
+`feat/Q51-Q52-installa-guidata`. `GET /api/build/stato` → `{ repo: bool }` (admin, assente su
+`--no-admin`); l'editor lo chiede al montaggio della scheda Runtime e finché non sa la risposta
+non disegna nulla di sviluppo. Con `false`: niente «Pacchetto runtime», niente selettore
+Binario/Container (resta il container), niente «archivio locale» (resta il registry), e i due
+elenchi di pacchetti non si chiedono nemmeno. Con `true` tutto come prima, ma il container è
+comunque la scelta iniziale e il binario si chiama «solo sviluppo». Sonda in
+`check_no_admin.sh`.
 
 ---
 
 ## Q52 — «Installa su dispositivo»: container per primo, campi dal dispositivo connesso, e un discovery che trova **qualunque** macchina in rete
 
-*Aperta il 2026-09-09 su richiesta del maintainer, precisata lo stesso giorno. Nessuna decisione
-presa.*
+*Aperta il 2026-09-09 su richiesta del maintainer, precisata e decisa lo stesso giorno.*
 
 **Context.** In Configurazione → Runtime → «Installa su dispositivo» il modulo parte oggi in
 modalità **Binario** (`deployMode` predefinito `"binary"`, il percorso nativo «solo sviluppo» di
@@ -1673,7 +1679,43 @@ tabella mDNS — che si lega a Q50 (stessa lista, stesso «+ Dispositivi») e so
 «Cerca runtime» invece di affiancarlo. Indipendentemente dalla decisione, il predefinito `root`
 è un difetto rispetto alla specifica e si può correggere subito.
 
-**Decided:** not yet.
+**Decided (2026-09-09, maintainer):** (1), il flusso intero, un ramo solo con Q51, la tabella nel
+modulo Installa («Cerca runtime» della connessione resta com'è). Realizzato:
+
+- **Server.** `POST /api/device/probe` (`sonda.rs`): una sessione ssh, la sonda
+  `deploy/container/sonda-dispositivo.sh` (POSIX, incorporata nel binario) su stdin a `sh -s`,
+  risposta JSON con dispositivo, controlli (`ok`/`avviso`/`errore` + rimedio), variante immagine
+  proposta, SWS già presente, `pronto`. Il giudizio è in Rust (`valuta_sonda`, 17 test), la sonda
+  stampa solo fatti. Stessa politica ssh del deploy (`run_ssh_cmd_stdin`: `sshpass -e`,
+  `accept-new`, chiave cambiata → `chiave_host_cambiata: true`), timeout 30 s con `kill_on_drop`,
+  audit `device.probe` senza password. `GET /api/discover/dispositivi` (`discover.rs`): quattro
+  `browse` mDNS concorrenti (`_ssh`, `_sftp-ssh`, `_workstation`, `_sws`), 3 s, una riga per host
+  con servizi visti e «SWS presente» dalle TXT. Entrambe admin, assenti su `--no-admin`.
+- **Editor.** La sezione «Installa su dispositivo» è un flusso in cinque passi: destinazione
+  (a mano, precompilata dall'URL del dispositivo connesso finché il campo non è toccato, o dalla
+  tabella «Cerca dispositivi in rete»), credenziali (`user` predefinito, password solo nello stato),
+  «Verifica dispositivo» con la lista di controlli e la variante che finisce nel riferimento
+  immagine se il campo era vuoto o nostro, immagine, «Installa/Aggiorna» — spento solo quando la
+  verifica ha trovato errori. «Dimentica la vecchia chiave» rilancia ciò che si era fermato,
+  sondaggio o deploy. `root` sparito.
+- **Guardie e prove.** `check_sonda.sh` (statica, la sonda gira con `sh -s` su questo PC),
+  `check_no_admin.sh` con le tre rotte, `tests/i18nParita.test.ts` (it/en stesse chiavi),
+  `tests/sondaggio.test.ts`. 15 test Rust in `discover.rs`.
+
+**Limiti dichiarati.** mDNS mostra solo chi si annuncia (`_ssh._tcp` lo pubblica Avahi con
+`publish-ssh`, o macOS; molti Linux annunciano solo `_workstation`): la tabella è incompleta per
+costruzione, e host o IP si scrivono a mano. La variante arm64 (SDK Pixsys) contro arm64-generic
+si propone leggendo `os-release` (contiene «pixsys»?): euristica non ancora vista sul campo,
+modificabile con un click. La versione di un SWS già installato si legge dal tag dell'immagine e
+solo se è una versione (`latest-*` → sconosciuta).
+
+**Seguito, stessa sera (per dare senso alla ricompilazione delle immagini):** `/api/system`
+dichiara `arch`, `hostname` e `container` (il rilevamento del motore è passato da `main.rs` a
+`sws_web::system`, con i suoi test) e l'editor collegato a un dispositivo propone la variante
+immagine dall'architettura senza aspettare il sondaggio, dicendo da dove viene; il modale «Installa
+runtime» della WelcomeScreen ha la stessa «Verifica dispositivo» e usa la variante che ne esce;
+`install-container.sh` controlla podman ≥ 4.4 (errore, o nota con `--no-autostart`) e le mappature
+subuid/subgid **prima** di toccare qualcosa, con gli stessi rimedi della sonda.
 
 ---
 

@@ -93,7 +93,8 @@ echo "=== 2. le rotte dell'IDE NON devono esserci — e il confronto lo dimostra
 # due e la guardia sarebbe verde senza aver verificato nulla.
 for r in "GET /api/build/packages" "GET /api/fs/browse-dirs" "PUT /api/project/tags" \
          "GET /api/logs" "GET /api/discover" "GET /api/schema/synoptic" \
-         "GET /api/audit" "POST /api/projects/pippo/duplicate"; do
+         "GET /api/audit" "POST /api/projects/pippo/duplicate" \
+         "GET /api/build/stato" "POST /api/device/probe" "GET /api/discover/dispositivi"; do
     m=${r% *}; u=${r#* }
     cs=$(codice "$m" 8597 "$u")
     cn=$(codice "$m" 8599 "$u")

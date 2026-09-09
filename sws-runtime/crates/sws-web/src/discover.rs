@@ -1,6 +1,6 @@
 use axum::{response::IntoResponse, Json};
 use serde::Serialize;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::time::{Duration, Instant};
 
 #[derive(Serialize)]
@@ -327,5 +327,270 @@ mod tests {
         assert!(!prefer_new_address("192.168.0.201", "127.0.0.1"));
         assert!(!prefer_new_address("192.168.0.201", "192.168.60.200"));
         assert!(!prefer_new_address("127.0.0.1", "127.0.0.1"));
+    }
+}
+
+// ── Q52: la tabella dei dispositivi in rete, non solo i runtime SWS ────────────
+//
+// «SWS è agnostico: il runtime devo poterlo installare su un qualsiasi dispositivo
+// che trovo in rete. Con mDNS mi dai una tabella dei dispositivi, se lo riconosco
+// lo seleziono» (maintainer, 2026-09-09). Quindi niente filtro per produttore e
+// niente elenco di modelli: si ascoltano i tipi di servizio che una macchina
+// Linux annuncia di solito (ssh e sftp con Avahi `publish-ssh`, `workstation`
+// che Avahi annuncia di default), più `_sws._tcp` per dire «qui SWS c'è già».
+// La macchina la riconosce l'utente dal nome; a dire se è pronta ci pensa la
+// sonda (`sonda.rs`), dopo, con le credenziali.
+//
+// Limite dichiarato: mDNS mostra solo chi si annuncia. Una macchina senza Avahi
+// né systemd-resolved non compare e si inserisce a mano, come oggi.
+//
+// Niente meta-query `_services._dns-sd._udp`: mdns-sd la accetta, ma poi
+// tratta i tipi trovati come istanze da risolvere, e la lista che interessa è
+// comunque fissa. Quattro `browse` concorrenti sullo stesso daemon bastano.
+
+/// Tipo mDNS → nome breve in tabella.
+const TIPI_SERVIZIO: &[(&str, &str)] = &[
+    ("_ssh._tcp.local.", "ssh"),
+    ("_sftp-ssh._tcp.local.", "sftp"),
+    ("_workstation._tcp.local.", "workstation"),
+    ("_sws._tcp.local.", "sws"),
+];
+
+/// Un `ServiceResolved` ridotto a ciò che serve al raggruppamento. È un tipo a
+/// sé, e non l'oggetto di mdns-sd, perché così `raggruppa_per_host` è pura e si
+/// prova senza rete.
+pub(crate) struct Osservazione {
+    pub servizio: &'static str,
+    pub host: String,
+    pub port: u16,
+    pub v4: Vec<String>,
+    pub any: Vec<String>,
+    pub txt: HashMap<String, String>,
+}
+
+#[derive(Serialize, Debug, PartialEq, Default)]
+pub struct SwsPresente {
+    pub presente: bool,
+    pub versione: Option<String>,
+    pub container: Option<String>,
+    pub admin_url: Option<String>,
+}
+
+#[derive(Serialize, Debug, PartialEq)]
+pub struct DispositivoLan {
+    pub hostname: String,
+    pub indirizzo: String,
+    pub servizi: Vec<&'static str>,
+    pub sws: SwsPresente,
+}
+
+/// GET /api/discover/dispositivi — ~3 s di ascolto, tutti gli host che
+/// annunciano ssh/sftp/workstation/sws, uno per riga.
+pub async fn discover_dispositivi() -> impl IntoResponse {
+    let dispositivi = tokio::task::spawn_blocking(|| browse_dispositivi_blocking(3))
+        .await
+        .unwrap_or_default();
+    Json(dispositivi)
+}
+
+fn browse_dispositivi_blocking(timeout_secs: u64) -> Vec<DispositivoLan> {
+    use mdns_sd::{ServiceDaemon, ServiceEvent};
+
+    let daemon = match ServiceDaemon::new() {
+        Ok(d) => d,
+        Err(_) => return vec![],
+    };
+    let ricevitori: Vec<(&'static str, _)> = TIPI_SERVIZIO
+        .iter()
+        .filter_map(|(tipo, nome)| daemon.browse(tipo).ok().map(|r| (*nome, r)))
+        .collect();
+    if ricevitori.is_empty() {
+        let _ = daemon.shutdown();
+        return vec![];
+    }
+
+    let mut oss: Vec<Osservazione> = Vec::new();
+    let deadline = Instant::now() + Duration::from_secs(timeout_secs);
+    // Quattro ricevitori e nessun `select` esportato da mdns-sd: si passano in
+    // giro con `try_recv` e ci si ferma un attimo quando nessuno ha niente.
+    while Instant::now() < deadline {
+        let mut fermo = true;
+        for (nome, r) in &ricevitori {
+            while let Ok(ev) = r.try_recv() {
+                fermo = false;
+                if let ServiceEvent::ServiceResolved(info) = ev {
+                    oss.push(Osservazione {
+                        servizio: nome,
+                        host: info.get_hostname().to_string(),
+                        port: info.get_port(),
+                        v4: info
+                            .get_addresses_v4()
+                            .into_iter()
+                            .map(|a| a.to_string())
+                            .collect(),
+                        any: info.get_addresses().iter().map(|a| a.to_string()).collect(),
+                        txt: info
+                            .get_properties()
+                            .iter()
+                            .map(|p| (p.key().to_string(), p.val_str().to_string()))
+                            .collect(),
+                    });
+                }
+            }
+        }
+        if fermo {
+            std::thread::sleep(Duration::from_millis(25));
+        }
+    }
+    let _ = daemon.shutdown();
+    raggruppa_per_host(oss, &crate::netif::local_nets())
+}
+
+/// Le TXT di un runtime SWS, con le stesse regole di `browse_mdns_blocking`:
+/// porta admin 8444 e schema https se non dichiarati, `container` solo se non
+/// vuoto.
+fn sws_da_txt(txt: &HashMap<String, String>, ip: &str) -> SwsPresente {
+    let admin_port: u16 = txt
+        .get("admin_port")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(8444);
+    let scheme = txt.get("scheme").map(String::as_str).unwrap_or("https");
+    SwsPresente {
+        presente: true,
+        versione: txt.get("version").cloned(),
+        container: txt
+            .get("container")
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty()),
+        admin_url: Some(format!("{scheme}://{ip}:{admin_port}")),
+    }
+}
+
+/// Un host, una riga: unione dei servizi visti e degli indirizzi, l'indirizzo
+/// scelto con le stesse preferenze di `pick_address` (rete locale prima), chi
+/// non ha indirizzo si scarta come oggi. Uscita ordinata per nome, così due
+/// scansioni uguali danno la stessa tabella.
+pub(crate) fn raggruppa_per_host(
+    oss: Vec<Osservazione>,
+    local: &[crate::netif::LocalNet],
+) -> Vec<DispositivoLan> {
+    struct Acc {
+        hostname: String,
+        v4: Vec<String>,
+        any: Vec<String>,
+        servizi: Vec<&'static str>,
+        sws_txt: Option<HashMap<String, String>>,
+    }
+    let mut per_host: BTreeMap<String, Acc> = BTreeMap::new();
+    for o in oss {
+        let hostname = o.host.trim_end_matches('.').to_string();
+        let chiave = hostname.to_lowercase();
+        let acc = per_host.entry(chiave).or_insert_with(|| Acc {
+            hostname,
+            v4: Vec::new(),
+            any: Vec::new(),
+            servizi: Vec::new(),
+            sws_txt: None,
+        });
+        acc.v4.extend(o.v4);
+        acc.any.extend(o.any);
+        if !acc.servizi.contains(&o.servizio) {
+            acc.servizi.push(o.servizio);
+        }
+        if o.servizio == "sws" {
+            let _ = o.port; // la porta del viewer non serve in tabella
+            acc.sws_txt = Some(o.txt);
+        }
+    }
+    per_host
+        .into_values()
+        .filter_map(|mut acc| {
+            let ip = pick_address_from(&acc.v4, &acc.any, local)?;
+            acc.servizi.sort_unstable();
+            let sws = acc
+                .sws_txt
+                .as_ref()
+                .map(|t| sws_da_txt(t, &ip))
+                .unwrap_or_default();
+            Some(DispositivoLan {
+                hostname: acc.hostname,
+                indirizzo: ip,
+                servizi: acc.servizi,
+                sws,
+            })
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests_dispositivi {
+    use super::*;
+
+    fn oss(servizio: &'static str, host: &str, v4: &[&str]) -> Osservazione {
+        Osservazione {
+            servizio,
+            host: host.to_string(),
+            port: 22,
+            v4: v4.iter().map(|s| s.to_string()).collect(),
+            any: v4.iter().map(|s| s.to_string()).collect(),
+            txt: HashMap::new(),
+        }
+    }
+
+    #[test]
+    fn raggruppa_i_servizi_dello_stesso_host_anche_con_maiuscole_diverse() {
+        let d = raggruppa_per_host(
+            vec![
+                oss("ssh", "TC620.local.", &["192.168.1.20"]),
+                oss("workstation", "tc620.local.", &["192.168.1.20"]),
+                oss("ssh", "tc620.local.", &["192.168.1.20"]),
+            ],
+            &[],
+        );
+        assert_eq!(d.len(), 1);
+        assert_eq!(d[0].hostname, "TC620.local");
+        assert_eq!(d[0].servizi, vec!["ssh", "workstation"]);
+        assert_eq!(d[0].indirizzo, "192.168.1.20");
+        assert!(!d[0].sws.presente);
+    }
+
+    #[test]
+    fn sws_presente_porta_versione_container_e_admin_url() {
+        let mut o = oss("sws", "wp630.local.", &["192.168.1.50"]);
+        o.txt.insert("version".into(), "2.7.1".into());
+        o.txt.insert("container".into(), "podman".into());
+        o.txt.insert("admin_port".into(), "8444".into());
+        o.txt.insert("scheme".into(), "https".into());
+        let d = raggruppa_per_host(vec![oss("ssh", "wp630.local.", &["192.168.1.50"]), o], &[]);
+        assert_eq!(d.len(), 1);
+        assert_eq!(
+            d[0].sws,
+            SwsPresente {
+                presente: true,
+                versione: Some("2.7.1".into()),
+                container: Some("podman".into()),
+                admin_url: Some("https://192.168.1.50:8444".into()),
+            }
+        );
+        assert_eq!(d[0].servizi, vec!["ssh", "sws"]);
+    }
+
+    #[test]
+    fn host_senza_indirizzo_non_compare() {
+        let d = raggruppa_per_host(vec![oss("ssh", "fantasma.local.", &[])], &[]);
+        assert!(d.is_empty());
+    }
+
+    #[test]
+    fn l_uscita_e_ordinata_per_hostname() {
+        let d = raggruppa_per_host(
+            vec![
+                oss("ssh", "zeta.local.", &["10.0.0.2"]),
+                oss("ssh", "alfa.local.", &["10.0.0.1"]),
+            ],
+            &[],
+        );
+        let nomi: Vec<&str> = d.iter().map(|x| x.hostname.as_str()).collect();
+        assert_eq!(nomi, vec!["alfa.local", "zeta.local"]);
     }
 }

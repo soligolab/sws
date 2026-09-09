@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api, dimenticaVersioneProgetto } from "@/api/client";
+import { api, dimenticaVersioneProgetto, type SondaggioDispositivo } from "@/api/client";
+import { ListaControlli } from "@/config/installazione/ListaControlli";
+import { imageRefDaVariante, installazioneConsentita } from "@/config/installazione/sondaggio";
 import type { BrowseDirEntry, ProjectListEntry, ProjectTargetKind, TemplateEntry } from "@/types";
 import { containerDeployPayload } from "@/containerDeploy";
 
@@ -572,7 +574,32 @@ function DeploySection() {
   // stesso pulsante di ConfigView, stesso endpoint, stesso gesto umano.
   const [chiaveHostCambiata, setChiaveHostCambiata] = useState(false);
   const [dimenticandoChiave, setDimenticandoChiave] = useState(false);
+  // Q52: «Verifica dispositivo» anche qui — una sessione ssh che dice che
+  // macchina è e se è pronta, prima di installare. La variante immagine che
+  // propone finisce nel deploy; senza verifica il riferimento resta vuoto e
+  // l'architettura la decide il dispositivo, come prima.
+  const [sondaggio, setSondaggio] = useState<SondaggioDispositivo | null>(null);
+  const [sondando, setSondando]   = useState(false);
+  const ultimaAzione              = useRef<"sondaggio" | "deploy">("deploy");
   const logsRef                   = useRef<HTMLDivElement>(null);
+
+  // Un altro host, porta o utente: la lista di controlli non parla più di questo caso.
+  useEffect(() => { setSondaggio(null); }, [host, port, user]);
+
+  const eseguiSondaggio = async () => {
+    if (!host || !user) return;
+    ultimaAzione.current = "sondaggio";
+    setSondando(true); setChiaveHostCambiata(false);
+    try {
+      const s = await api.deviceProbe({ host, port, user, password });
+      setSondaggio(s);
+      if (s.chiave_host_cambiata) setChiaveHostCambiata(true);
+    } catch (e: any) {
+      setLogs((l) => [...l, `ERROR: ${e?.message ?? e}`]);
+    } finally {
+      setSondando(false);
+    }
+  };
 
   useEffect(() => {
     if (logsRef.current) logsRef.current.scrollTop = logsRef.current.scrollHeight;
@@ -580,14 +607,18 @@ function DeploySection() {
 
   const handleDeploy = async () => {
     if (!host || !user) return;
+    ultimaAzione.current = "deploy";
     setDeploying(true);
     setChiaveHostCambiata(false);
-    setLogs([`Avvio installazione → ${user}@${host}:${port} (container, registry)`]);
+    // La variante la propone la verifica (os-release compreso); senza verifica il
+    // riferimento resta vuoto e il dispositivo sceglie latest-<arch> da `uname -m`.
+    const imageRef = imageRefDaVariante(sondaggio?.variante_immagine ?? null);
+    setLogs([`Avvio installazione → ${user}@${host}:${port} (container, registry${imageRef ? `, ${imageRef}` : ""})`]);
     try {
       const res = await api.deployDeviceContainer(containerDeployPayload({
         source: "registry",
         imageTarball: "",
-        imageRef: "",          // vuoto: latest-<arch>, l'architettura la decide il dispositivo
+        imageRef,
         cleanInstall: false,
         host, port, user, password,
         remoteDir: "/tmp/sws-deploy",
@@ -623,7 +654,9 @@ function DeploySection() {
       const r = await api.deviceHostKeyForget(host, port);
       setLogs((l) => [...l, `==> ${r.messaggio}`]);
       setChiaveHostCambiata(false);
-      await handleDeploy();
+      // Si riprende da dove ci si era fermati: verifica o installazione.
+      if (ultimaAzione.current === "sondaggio") await eseguiSondaggio();
+      else await handleDeploy();
     } catch (e: any) {
       setLogs((l) => [...l, `ERROR: ${e?.message ?? e}`]);
     } finally {
@@ -660,6 +693,17 @@ function DeploySection() {
           <input style={INPUT} type="password" autoComplete="off" placeholder="••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
         </div>
       </div>
+      {/* 3 · Verifica, prima di installare. Spegne Installa solo se trova errori. */}
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <button
+          style={{ ...BTN_PRIMARY, background: "var(--brand-surface, #1e293b)", opacity: (sondando || !host || !user) ? 0.5 : 1 }}
+          disabled={sondando || !host || !user}
+          onClick={() => void eseguiSondaggio()}>
+          {sondando ? t("cfg.probeRunning") : t("cfg.probeRun")}
+        </button>
+        <span style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)" }}>{t("cfg.probeHint")}</span>
+      </div>
+      {sondaggio && <ListaControlli sondaggio={sondaggio} />}
       {logs.length > 0 && (
         <div
           ref={logsRef}
@@ -695,13 +739,24 @@ function DeploySection() {
           </button>
         </div>
       )}
-      <button
-        style={{ ...BTN_PRIMARY, opacity: (!host || !user || deploying) ? 0.5 : 1 }}
-        disabled={!host || !user || deploying}
-        onClick={handleDeploy}
-      >
-        {deploying ? t("welcome.deploying") : done ? t("welcome.deployDone") : hasError ? t("welcome.retryDeploy") : t("welcome.deploy")}
-      </button>
+      {(() => {
+        const bloccato = !installazioneConsentita(sondaggio);
+        const spento = !host || !user || deploying || bloccato;
+        return (
+          <button
+            style={{ ...BTN_PRIMARY, opacity: spento ? 0.5 : 1 }}
+            disabled={spento}
+            title={bloccato ? t("cfg.installBlockedByProbe") : undefined}
+            onClick={handleDeploy}
+          >
+            {deploying ? t("welcome.deploying")
+              : done ? t("welcome.deployDone")
+              : hasError ? t("welcome.retryDeploy")
+              : sondaggio?.sws.installato ? t("cfg.installUpdateBtn")
+              : t("welcome.deploy")}
+          </button>
+        );
+      })()}
     </div>
   );
 }

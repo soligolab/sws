@@ -177,6 +177,41 @@ fi
 if [ -n "$IMAGE_ARCHIVE" ] && [ ! -f "$IMAGE_ARCHIVE" ]; then
     echo "ERRORE: archivio immagine non trovato: $IMAGE_ARCHIVE" >&2; exit 1
 fi
+# Prerequisiti del rootless, verificati PRIMA di toccare qualcosa (2026-09-09).
+# Erano solo dichiarati nel commento in testa: con podman < 4.4 il passo quadlet
+# falliva a metà, e senza subuid/subgid `podman run` moriva con un messaggio
+# sulle mappature che non dice cosa fare. Gli stessi controlli, con gli stessi
+# rimedi, li fa prima l'editor via ssh (sonda-dispositivo.sh, Q52): qui sono la
+# rete di sicurezza per chi installa a mano. Qui e non prima perché --uninstall
+# esce sopra e deve funzionare anche con un podman vecchio.
+PODMAN_VER="$(podman version --format '{{.Client.Version}}' 2>/dev/null || podman --version 2>/dev/null | awk '{print $3}')"
+PODMAN_MAJ="${PODMAN_VER%%.*}"; PODMAN_MIN="${PODMAN_VER#*.}"; PODMAN_MIN="${PODMAN_MIN%%[!0-9]*}"
+case "$PODMAN_MAJ" in ''|*[!0-9]*) PODMAN_MAJ=0 ;; esac
+case "$PODMAN_MIN" in ''|*[!0-9]*) PODMAN_MIN=0 ;; esac
+if [ "$PODMAN_MAJ" -lt 4 ] || { [ "$PODMAN_MAJ" -eq 4 ] && [ "$PODMAN_MIN" -lt 4 ]; }; then
+    if [ "$AUTOSTART" -eq 1 ]; then
+        echo "ERRORE: podman ${PODMAN_VER:-?}: serve >= 4.4 (quadlet, per l'avvio automatico)." >&2
+        echo "        Aggiorna podman dal gestore pacchetti del sistema, oppure --no-autostart" >&2
+        echo "        (solo podman run, nessuna unit: il container non riparte al riavvio)." >&2
+        echo "        Nessuna modifica effettuata." >&2
+        exit 1
+    fi
+    # Con --no-autostart la unit quadlet non si scrive: un podman vecchio basta
+    # per `podman run`, e chi lo chiede sa cosa perde (es. la macchina di
+    # sviluppo, Debian 12 con podman 4.3).
+    echo "NOTA: podman ${PODMAN_VER:-?} < 4.4: senza quadlet, --no-autostart è l'unica strada ed è quella scelta."
+fi
+# `grep -qs` sui due file, per nome utente o per uid: una funzione, perché la
+# catena di && e || a mano si legge male e in shell hanno la stessa precedenza.
+ha_mappatura() { grep -qs "^$(id -un):" "$1" || grep -qs "^$(id -u):" "$1"; }
+if ! ha_mappatura /etc/subuid || ! ha_mappatura /etc/subgid; then
+    echo "ERRORE: mancano le mappature subuid/subgid per $(id -un): podman senza root non può partire." >&2
+    echo "        Da un amministratore:" >&2
+    echo "          sudo usermod --add-subuids 100000-165535 --add-subgids 100000-165535 $(id -un)" >&2
+    echo "          podman system migrate" >&2
+    echo "        Nessuna modifica effettuata." >&2
+    exit 1
+fi
 # L'architettura la sa il dispositivo, non chi lancia l'installazione: dall'IDE
 # si installa su macchine diverse da quella di sviluppo. Qui e non prima perché
 # --uninstall esce sopra e non deve mai pretendere un'architettura nota.

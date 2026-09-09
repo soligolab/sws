@@ -76,7 +76,46 @@
 
 ## ▶ Da fare nella prossima sessione
 
-### 🎯 Rilasciata la 2.7.1 — è questa che si compila (2026-09-09, sera)
+### 🔧 Q51 + Q52 — la scheda Runtime per l'utente, sul ramo `feat/Q51-Q52-installa-guidata` (2026-09-09, sera)
+
+Decise dal maintainer (un ramo solo, tutto il flusso, tabella nel modulo Installa) e realizzate;
+**non mergiato, non pushato**. Server: `GET /api/build/stato`, `POST /api/device/probe`
+(`sonda.rs` + `deploy/container/sonda-dispositivo.sh` incorporata), `GET /api/discover/dispositivi`
+(`discover.rs`), tutte admin e assenti su `--no-admin`. Editor: «Pacchetto runtime» e il deploy
+binario solo con il repo; «Installa su dispositivo» in cinque passi con tabella mDNS di tutta la
+LAN, credenziali `user`, «Verifica dispositivo» con lista di controlli, immagine proposta,
+«Installa/Aggiorna». Componenti nuovi in `src/config/installazione/`. Gate: 17+15+1 test Rust
+nuovi, 220 vitest (parità it/en e helper puri), tsc/lint/build, clippy `-D warnings`, fmt,
+**15 guardie statiche** (nuova `check_sonda`), `check_no_admin` (27 prove), smoke test del probe
+con password sbagliata su 127.0.0.1 (risposta in 4 s, «Permission denied», niente password
+nell'audit) e del discovery (tre host della LAN in 3 s, uno con SWS).
+
+**Seguito nella stessa serata**, su richiesta («task utili per una compilazione che abbia senso»):
+`/api/system` con `arch`/`hostname`/`container` (rilevamento del motore spostato in
+`sws_web::system`), variante immagine proposta dal dispositivo connesso, «Verifica dispositivo»
+anche nel modale della WelcomeScreen, `install-container.sh` con i controlli podman ≥ 4.4 e
+subuid/subgid in testa. Tutto nel binario o nell'immagine: la ricompilazione le porta sul WP630.
+
+**Il maintainer non vedeva le modifiche perché il ramo non è su origin**: l'IDE che ha avviato
+non è su questo checkout (nessun processo qui, binario mai eseguito dopo la build), quindi è
+un'altra macchina, su `main`. Il ramo si pusha solo su istruzione.
+
+**Per provarlo serve il binario nuovo**: l'editor sulla 8460 gira ancora sul vecchio, che non ha
+le tre rotte — dopo un ricaricamento vedrebbe la UI nuova ma con `build/stato` a 404, quindi
+niente sezione sviluppo, e «Cerca dispositivi»/«Verifica» falliti. Riavviare `start_editor.sh`.
+
+**Da provare a mano** (piano in `~/.claude/plans/…installa…md`, copiato in
+`docs/plans/2026-09-09-q51-q52-installa-guidata.md`): (1) con il repo: «Pacchetto runtime» c'è,
+Container preselezionato, «Archivio locale» c'è; (2) da una cartella senza `scripts/`: nessuna
+UI di sviluppo, nessun lampeggio; (3) connesso al WP630: Host SSH precompilato, un valore scritto
+a mano resta; (4) «Cerca dispositivi in rete»: il WP630 con i servizi e «SWS v2.7.1», click →
+host; (5) «Verifica dispositivo» con `user`: riga «wp630 · aarch64 · …», lista, «SWS già
+installato», riferimento → `…:latest-arm64` con nota; pulsante «Aggiorna»; (6) password
+sbagliata: «Connessione SSH non riuscita», Installa spento con il perché; (7) dopo factory
+reset: box giallo → «Dimentica» rilancia la verifica; (8) cambiare porta/utente azzera la lista;
+(9) un deploy vero, log in streaming, «Gestione container» intatto. **Da fissare dopo il primo
+sondaggio reale**: `os_id`/`os_name` di Pixsys OS, per il test dell'euristica arm64/generic.
+
 
 **Immagini pubblicate** (verificato sull'API di ghcr.io): `2.7.1-arm64`, `2.7.1-arm64-generic`,
 `2.7.1-amd64`, i tre `latest-*` e i tre `d1fde9e-*`. Lo sha è `d1fde9e` e non `4d22de8` (il tag

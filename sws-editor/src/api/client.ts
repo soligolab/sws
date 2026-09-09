@@ -182,6 +182,44 @@ export class RateLimitedError extends Error {
 
 export type UserRole = "Viewer" | "Operator" | "Supervisor" | "Admin";
 
+/** Q51: `GET /api/build/stato`. `repo` vero solo quando il runtime gira da un
+ *  checkout del repo (c'è `scripts/package.sh`): è il fatto da cui l'editor
+ *  decide se mostrare gli strumenti di sviluppo (build, deploy binario). */
+export interface BuildStato { repo: boolean }
+
+// ── Q52: sondaggio del dispositivo e tabella dei dispositivi in rete ──────────
+export type EsitoControllo = "ok" | "avviso" | "errore";
+export interface ControlloDispositivo {
+  id: string;
+  esito: EsitoControllo;
+  titolo: string;
+  dettaglio: string;
+  rimedio: string | null;
+}
+export type VarianteImmagine = "latest-arm64" | "latest-arm64-generic" | "latest-amd64";
+export interface SondaggioDispositivo {
+  ok_ssh: boolean;
+  chiave_host_cambiata: boolean;
+  /** sshpass presente sul PC dell'editor: senza, la password viene ignorata. */
+  sshpass: boolean;
+  dispositivo: {
+    hostname: string; arch: string; os: { name: string; version: string };
+    kernel: string; utente: string; uid: number | null;
+  } | null;
+  controlli: ControlloDispositivo[];
+  variante_immagine: VarianteImmagine | null;
+  sws: { installato: boolean; versione: string | null; immagine: string | null; attivo: boolean | null; data_path: string | null };
+  pronto: boolean;
+  /** Righe di ssh quando il collegamento non è riuscito. */
+  diagnostica: string[];
+}
+export interface DispositivoRete {
+  hostname: string;
+  indirizzo: string;
+  servizi: string[];
+  sws: { presente: boolean; versione: string | null; container: string | null; admin_url: string | null };
+}
+
 export interface DiscoveredRuntime {
   name: string;
   /** Hostname mDNS pulito (es. "tc620-a-p3-c6-07aff9.local", senza punto
@@ -216,6 +254,12 @@ export interface AvvisoRuntime {
 export interface SystemStatus {
   runtime_version: string;
   uptime_s: number;
+  /** Q52 (dal 2.7.2): architettura del binario (`aarch64`, `x86_64`), nome
+   *  della macchina, motore del container o null se nativo. Opzionali perché
+   *  un runtime più vecchio non li manda. */
+  arch?: string;
+  hostname?: string;
+  container?: string | null;
   /** `"runtime"` = questa istanza ha un viewer operatori, quindi il progetto che
    *  si sta modificando è quello dell'impianto in servizio e il salvataggio ne
    *  ricarica sorgenti e allarmi. `"ide"` = istanza di sola progettazione, il
@@ -1313,6 +1357,20 @@ export const api = {
   /** GET /api/discover — browse mDNS for SWS runtimes on the LAN (~2 s). */
   discoverRuntimes: () => request<DiscoveredRuntime[]>("/api/discover"),
 
+  /** Q52: GET /api/discover/dispositivi — tutti gli host mDNS della LAN che
+   *  annunciano ssh/sftp/workstation/sws, con o senza SWS (~3 s). Admin. */
+  discoverDispositivi: () => request<DispositivoRete[]>("/api/discover/dispositivi"),
+
+  /** Q52: POST /api/device/probe — una sessione ssh che guarda che macchina è e
+   *  se è pronta per il container (fino a 30 s, risposta unica). La password
+   *  viaggia solo in questa richiesta. */
+  deviceProbe: (b: { host: string; port: number; user: string; password: string }) =>
+    request<SondaggioDispositivo>("/api/device/probe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(b),
+    }),
+
   /** GET /api/project/fingerprint — SHA256 of project.yaml + all synoptics. */
   getProjectFingerprint: () => request<import("../types").ProjectFingerprint>("/api/project/fingerprint"),
 
@@ -1357,6 +1415,9 @@ export const api = {
   /** DELETE /api/project/git/tags/:name — elimina un tag (locale + remote se configurato). */
   deleteGitTag: (name: string) =>
     request<void>(`/api/project/git/tags/${encodeURIComponent(name)}`, { method: "DELETE" }),
+
+  /** Q51: GET /api/build/stato — il runtime gira da un checkout del repo? */
+  buildStato: () => request<BuildStato>("/api/build/stato"),
 
   /** GET /api/build/packages — list built tarballs in dist/. */
   listPackages: () =>
