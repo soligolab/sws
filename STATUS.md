@@ -292,6 +292,15 @@ rigenerabile: il prossimo `cargo build` ricompila da zero, HOWTO §2). Liberato 
 da togliere, quando si vuole: la toolchain `1.88` installata per la verifica
 (`rustup toolchain uninstall 1.88`) e la cartella `target-msrv` nello scratchpad della sessione.
 
+**Primo giro con la toolchain nuova (`6a8ce23`): fmt verde, clippy rosso, exit 101.** I
+registri dei job richiedono un token e non si leggono dall'API pubblica; l'annotazione dice solo
+«exit code 101». La causa più probabile, e l'unica coerente con «fmt passa, clippy no»: il
+runner `ubuntu-latest` non ha le librerie di sistema che il README elenca come prerequisiti non
+opzionali (SDL2, libdrm, FreeType, libclang per bindgen, python3-dev per pyo3) — il build
+script di `sws-lvgl-viewer` muore prima di qualunque riga Rust. Aggiunto un passo `apt-get`
+ai due job che compilano (lint e build & test). Se anche questo giro è rosso, serve il registro
+del job: dalla pagina Actions, «Rust lint» → il passo rosso → copiare le ultime righe.
+
 **La CI non si può provare in locale**: il verdetto arriva al prossimo push su `main`. Se resta
 rosso, la mail di GitHub dice quale job, e il registro del job dice la riga.
 
