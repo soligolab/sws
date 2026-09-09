@@ -1570,6 +1570,44 @@ progetti», (2) è un cambio di una riga: il percorso.
 
 ---
 
+## Q51 — «Pacchetto runtime» e il deploy binario sono strumenti di sviluppo: nascosti quando il repo non c'è
+
+*Aperta il 2026-09-09 su osservazione del maintainer («è una funzione pensata per un uso di
+sviluppo, cosa mia, più che per l'utente finale: valutare se nasconderla»). Nessuna decisione
+presa.*
+
+**Context.** In Configurazione → Runtime due sezioni parlano al maintainer e non all'utente:
+**Pacchetto runtime** (`POST /api/build/package` → `scripts/package.sh`: cargo, pnpm, tarball in
+`dist/`) e **Installa su dispositivo → Binario** (deploy nativo con `systemctl` e sudo, già
+marcato «solo in sviluppo» nel testo dall'8 settembre, che prende i pacchetti da `dist/`).
+Entrambe **richiedono il checkout del repo**: senza, la prima risponde «Build non disponibile» e la
+seconda mostra una lista vuota — pulsanti che falliscono sempre, per chi non è lo sviluppatore.
+Il resto della scheda (connessione, deploy del progetto, log, variabili live, container dal
+registry) è per l'utente e resta com'è. Il server sa già se gira da un checkout: `repo_root`
+(`packaging.rs`), reso opzionale da Q48. Oggi però l'editor **non può distinguere** «niente repo»
+da «repo con `dist/` vuota»: `GET /api/build/packages` risponde lista vuota in entrambi i casi.
+
+**Options.**
+1. **Il repo come segnale.** Una rotta leggera `GET /api/build/stato` → `{ repo: bool }`. Con
+   `repo: false` l'editor non disegna «Pacchetto runtime», il selettore Binario/Container sparisce
+   (resta il container) e in «Sorgente immagine» sparisce «archivio locale» (vuole il repo, Q48 lo
+   dice con un 400). Con `repo: true` tutto come oggi. Niente da impostare né da ricordare: lo
+   sviluppatore lancia `start_editor.sh` dalla radice del repo, l'utente ha un editor installato o
+   in container senza `scripts/`.
+2. **Un'impostazione «modalità sviluppo»** in Configurazione → IDE. Esplicita, ma è un interruttore
+   in più da spiegare, e l'utente che lo accende per curiosità trova pulsanti che falliscono.
+3. **Lasciare tutto visibile**, con il testo «solo sviluppo» già presente. Zero lavoro; la scheda
+   Runtime resta piena di cose che per l'utente non funzionano.
+
+**Default for PoC.** Com'è (3). Raccomandazione: **(1)** — è un fatto del server, non una
+preferenza. Lavoro: una rotta, un hook nell'editor, tre condizioni di rendering, un test Rust e
+la sonda in `check_no_admin` (`--no-admin` non monta le rotte build: la sonda verifica che la
+nuova rotta stia dietro l'admin come le sorelle).
+
+**Decided:** not yet.
+
+---
+
 ## Adding new questions
 
 When Claude Code adds a new question, follow the format above:
