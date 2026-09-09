@@ -1608,6 +1608,55 @@ nuova rotta stia dietro l'admin come le sorelle).
 
 ---
 
+## Q52 — «Installa su dispositivo»: container per primo, campi precompilati dal dispositivo connesso, destinazione trovata via mDNS
+
+*Aperta il 2026-09-09 su richiesta del maintainer. Nessuna decisione presa.*
+
+**Context.** In Configurazione → Runtime → «Installa su dispositivo» il modulo parte oggi in
+modalità **Binario** (`deployMode` predefinito `"binary"`, il percorso nativo «solo sviluppo» di
+Q51) e con utente SSH predefinito **`root`** — contro la specifica delle credenziali dell'8
+settembre (`user` è l'utente finale, nessun comando di produzione presuppone un accesso
+privilegiato; il container è rootless). I campi (variante immagine, riferimento, host SSH, porta,
+utente, password, cartella temporanea, cartella dati, installazione pulita) sono tutti vuoti o
+generici anche quando l'editor **è già connesso** a un dispositivo: l'unica precompilazione
+esiste nel pulsante «Usa» dei risultati di «Cerca runtime» (imposta URL di connessione e host
+SSH). Il maintainer: «privilegiare il container; se sono connesso dovrebbe già popolare tutti i
+campi possibili; provare mDNS per il discovery dei dispositivi dove fare l'installazione».
+
+**Cosa si può precompilare dal dispositivo connesso, e cosa no.**
+
+| Campo | Da dove | Note |
+|---|---|---|
+| Host SSH | hostname dell'URL di connessione (`sws.runtime.targetUrl`) | se l'URL è un IP, l'IP; se l'ha trovato mDNS, l'hostname `.local` che è stabile |
+| Porta SSH | 22 | non c'è modo di saperla dal runtime; 22 è giusto sui Pixsys |
+| Utente SSH | **`user`** | predefinito della specifica; mai `root` |
+| Password | vuota, **mai memorizzata** | regola «nessuna password nel browser» |
+| Variante immagine | `arch` + `container` che il runtime remoto già dichiara (`/api/system/info`, discovery) | aarch64 in container → registry `latest-arm64`; se non è in container, il caso è «prima installazione» e si propone comunque il container |
+| Riferimento immagine | vuoto → il dispositivo sceglie `latest-<arch>` | come Q48 |
+| Cartella dati | vuota → default dello script | il runtime remoto potrebbe dichiararla; oggi non lo fa |
+
+**Options.**
+1. **Container per primo e precompilazione dal connesso.** `deployMode` predefinito `container`,
+   `deviceUser` predefinito `user`; quando `remoteConnected` è vero e il campo host è vuoto, lo si
+   riempie dall'URL di connessione (e dall'ultimo risultato mDNS se combacia). Nessuna nuova API.
+2. **(1) + discovery mDNS dentro il modulo.** Un pulsante «Cerca dispositivi» accanto a Host SSH che
+   riusa `GET /api/discover` e propone i pannelli trovati (hostname, versione, se in container):
+   scegliendone uno si compila host e variante. Limite onesto: mDNS **trova solo runtime SWS già
+   in ascolto** (`_sws._tcp`); un pannello appena resettato, senza SWS, non si annuncia — per la
+   prima installazione resta l'hostname `wp630-…​.local` che Pixsys stampa sull'etichetta, o l'IP.
+   Un discovery generico (`_ssh._tcp`, `_workstation._tcp`) direbbe «c'è un Linux con ssh» senza
+   dire se è un Pixsys: da valutare come seconda lista, separata e dichiarata tale.
+3. **Solo il default a container**, il resto com'è. Il minimo.
+
+**Default for PoC.** Com'è (binario, `root`). Raccomandazione: **(2)**, in due passi mergiabili
+separatamente — (1) è una sera, (2) riusa il discovery esistente e si lega a Q50 (stessa lista
+di dispositivi, stesso pulsante «+ Dispositivi»). Indipendentemente dalla decisione, il
+predefinito `root` è un difetto rispetto alla specifica e si può correggere subito.
+
+**Decided:** not yet.
+
+---
+
 ## Adding new questions
 
 When Claude Code adds a new question, follow the format above:
