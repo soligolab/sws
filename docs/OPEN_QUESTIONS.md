@@ -1608,50 +1608,70 @@ nuova rotta stia dietro l'admin come le sorelle).
 
 ---
 
-## Q52 — «Installa su dispositivo»: container per primo, campi precompilati dal dispositivo connesso, destinazione trovata via mDNS
+## Q52 — «Installa su dispositivo»: container per primo, campi dal dispositivo connesso, e un discovery che trova **qualunque** macchina in rete
 
-*Aperta il 2026-09-09 su richiesta del maintainer. Nessuna decisione presa.*
+*Aperta il 2026-09-09 su richiesta del maintainer, precisata lo stesso giorno. Nessuna decisione
+presa.*
 
 **Context.** In Configurazione → Runtime → «Installa su dispositivo» il modulo parte oggi in
 modalità **Binario** (`deployMode` predefinito `"binary"`, il percorso nativo «solo sviluppo» di
 Q51) e con utente SSH predefinito **`root`** — contro la specifica delle credenziali dell'8
 settembre (`user` è l'utente finale, nessun comando di produzione presuppone un accesso
 privilegiato; il container è rootless). I campi (variante immagine, riferimento, host SSH, porta,
-utente, password, cartella temporanea, cartella dati, installazione pulita) sono tutti vuoti o
-generici anche quando l'editor **è già connesso** a un dispositivo: l'unica precompilazione
-esiste nel pulsante «Usa» dei risultati di «Cerca runtime» (imposta URL di connessione e host
-SSH). Il maintainer: «privilegiare il container; se sono connesso dovrebbe già popolare tutti i
-campi possibili; provare mDNS per il discovery dei dispositivi dove fare l'installazione».
+utente, password, cartella temporanea, cartella dati, installazione pulita) sono vuoti o generici
+anche quando l'editor **è già connesso** a un dispositivo; l'unica precompilazione è il pulsante
+«Usa» dei risultati di «Cerca runtime», che però cerca **solo runtime SWS** (`_sws._tcp`) — utile
+per aggiornare, inutile per la prima installazione su una macchina che SWS non l'ha ancora.
 
-**Cosa si può precompilare dal dispositivo connesso, e cosa no.**
+**La precisazione del maintainer, che è la specifica.** «SWS è agnostico e il runtime devo
+poterlo installare su un qualsiasi dispositivo che trovo in rete. L'idea è che con mDNS mi dai
+una tabella dei dispositivi e se lo riconosco lo seleziono, tu mi chiedi le credenziali e
+connettendoti cerchi di capire che dispositivo è e se è pronto a ricevere il container.» Quindi
+niente marca, niente elenco di modelli: la macchina la riconosce l'utente dal nome che vede in
+rete; SWS la **interroga** dopo, con le credenziali che gli vengono date.
 
-| Campo | Da dove | Note |
-|---|---|---|
-| Host SSH | hostname dell'URL di connessione (`sws.runtime.targetUrl`) | se l'URL è un IP, l'IP; se l'ha trovato mDNS, l'hostname `.local` che è stabile |
-| Porta SSH | 22 | non c'è modo di saperla dal runtime; 22 è giusto sui Pixsys |
-| Utente SSH | **`user`** | predefinito della specifica; mai `root` |
-| Password | vuota, **mai memorizzata** | regola «nessuna password nel browser» |
-| Variante immagine | `arch` + `container` che il runtime remoto già dichiara (`/api/system/info`, discovery) | aarch64 in container → registry `latest-arm64`; se non è in container, il caso è «prima installazione» e si propone comunque il container |
-| Riferimento immagine | vuoto → il dispositivo sceglie `latest-<arch>` | come Q48 |
-| Cartella dati | vuota → default dello script | il runtime remoto potrebbe dichiararla; oggi non lo fa |
+**Il flusso, in tre passi.**
+
+1. **Tabella dei dispositivi in rete**, via mDNS generico e non solo `_sws._tcp`: si enumerano i
+   servizi annunciati (`_services._dns-sd._udp`) e si raccolgono gli host che espongono `_ssh._tcp`,
+   `_sftp-ssh._tcp`, `_workstation._tcp`, più i runtime SWS già noti. Colonne: nome host, IP,
+   servizi visti, «SWS già presente» quando `_sws._tcp` risponde. Nessun filtro per produttore: è
+   l'utente che riconosce la sua macchina dal nome. Limite onesto: mDNS mostra solo chi si
+   annuncia; una macchina senza Avahi/systemd-resolved resta invisibile e si inserisce a mano
+   come oggi (host o IP).
+2. **Credenziali**, chieste al momento e **mai memorizzate** (regola del 2026-09-09): utente
+   predefinito `user`, porta 22, password nel modulo. Stessa politica ssh del deploy:
+   `StrictHostKeyChecking=accept-new`, `sshpass -e`, chiave cambiata → pulsante, mai automatico.
+3. **Sondaggio del dispositivo** (`POST /api/device/probe {host, port, user, password}`): una
+   sola sessione ssh che legge `uname -m`, `/etc/os-release`, `podman --version`, `id`,
+   `/etc/subuid` per l'utente, `loginctl show-user` (linger), `systemctl --user` raggiungibile,
+   spazio libero nella cartella dati prevista, e se c'è già un container `sws-runtime`. Risposta:
+   una **lista di controlli** verde/rosso con il rimedio accanto («podman non installato»,
+   «manca la mappatura subuid: `usermod --add-subuids …` da un amministratore», «linger spento:
+   il container non riparte al riavvio», «spazio: 300 MB, ne servono ~1 GB»), l'architettura
+   rilevata e quindi la variante immagine proposta (`latest-arm64`, `latest-arm64-generic`,
+   `latest-amd64`), e «già installato: versione X» quando c'è. `install-container.sh` fa già molti
+   di questi controlli al momento dell'installazione: il sondaggio li **anticipa** e li mostra
+   prima di lanciare qualcosa, e la logica si può tenere in un solo posto (uno script
+   `sws-probe.sh` incorporato nel binario come i sei file di Q48, eseguito via ssh).
+
+**Cosa si precompila dal dispositivo connesso** (quando l'editor è già collegato a un runtime):
+host SSH dall'URL di connessione, utente `user`, variante dall'architettura che il runtime
+dichiara; il sondaggio conferma o corregge.
 
 **Options.**
-1. **Container per primo e precompilazione dal connesso.** `deployMode` predefinito `container`,
-   `deviceUser` predefinito `user`; quando `remoteConnected` è vero e il campo host è vuoto, lo si
-   riempie dall'URL di connessione (e dall'ultimo risultato mDNS se combacia). Nessuna nuova API.
-2. **(1) + discovery mDNS dentro il modulo.** Un pulsante «Cerca dispositivi» accanto a Host SSH che
-   riusa `GET /api/discover` e propone i pannelli trovati (hostname, versione, se in container):
-   scegliendone uno si compila host e variante. Limite onesto: mDNS **trova solo runtime SWS già
-   in ascolto** (`_sws._tcp`); un pannello appena resettato, senza SWS, non si annuncia — per la
-   prima installazione resta l'hostname `wp630-…​.local` che Pixsys stampa sull'etichetta, o l'IP.
-   Un discovery generico (`_ssh._tcp`, `_workstation._tcp`) direbbe «c'è un Linux con ssh» senza
-   dire se è un Pixsys: da valutare come seconda lista, separata e dichiarata tale.
-3. **Solo il default a container**, il resto com'è. Il minimo.
+1. **Il flusso intero**: tabella mDNS generica + credenziali + sondaggio + modulo precompilato,
+   con container per primo e `root` sparito.
+2. **Sondaggio e precompilazione, senza il discovery generico**: si inserisce host o IP a mano,
+   poi il resto del flusso è identico. È il flusso (1) senza il passo 1, e il passo 1 si aggiunge
+   dopo senza toccare gli altri due.
+3. **Solo il default a container e `user`**, il resto com'è.
 
-**Default for PoC.** Com'è (binario, `root`). Raccomandazione: **(2)**, in due passi mergiabili
-separatamente — (1) è una sera, (2) riusa il discovery esistente e si lega a Q50 (stessa lista
-di dispositivi, stesso pulsante «+ Dispositivi»). Indipendentemente dalla decisione, il
-predefinito `root` è un difetto rispetto alla specifica e si può correggere subito.
+**Default for PoC.** Com'è. Raccomandazione: **(1)** costruito nell'ordine 3 → 2 → 1: prima il
+sondaggio (è quello che dà valore: «è pronto o no, e perché»), poi la precompilazione, infine la
+tabella mDNS — che si lega a Q50 (stessa lista, stesso «+ Dispositivi») e sostituisce l'attuale
+«Cerca runtime» invece di affiancarlo. Indipendentemente dalla decisione, il predefinito `root`
+è un difetto rispetto alla specifica e si può correggere subito.
 
 **Decided:** not yet.
 
