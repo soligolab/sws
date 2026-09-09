@@ -76,10 +76,13 @@
 
 ## ▶ Da fare nella prossima sessione
 
-### 🔧 Q51 + Q52 — la scheda Runtime per l'utente, sul ramo `feat/Q51-Q52-installa-guidata` (2026-09-09, sera)
+### 🔧 Q51 + Q52 — la scheda Runtime per l'utente — **su `main`** (`a68802e`, 2026-09-09 sera), da collaudare
 
-Decise dal maintainer (un ramo solo, tutto il flusso, tabella nel modulo Installa) e realizzate;
-**non mergiato, non pushato**. Server: `GET /api/build/stato`, `POST /api/device/probe`
+Decise dal maintainer (un ramo solo, tutto il flusso, tabella nel modulo Installa), realizzate sul
+ramo `feat/Q51-Q52-installa-guidata`, **mergiate in squash e pushate** su sua istruzione («ok
+mergia e pusha»). Il ramo resta in locale su theobroma, cancellabile. Prossimo passo, a casa:
+`session_start.sh` → `start_editor.sh` → prove qui sotto → se regge, «tagga la 2.7.2» e build
+delle immagini (NON ricompilare sulla 2.7.1: le `2.7.1-*` su ghcr sono quelle del pomeriggio). Server: `GET /api/build/stato`, `POST /api/device/probe`
 (`sonda.rs` + `deploy/container/sonda-dispositivo.sh` incorporata), `GET /api/discover/dispositivi`
 (`discover.rs`), tutte admin e assenti su `--no-admin`. Editor: «Pacchetto runtime» e il deploy
 binario solo con il repo; «Installa su dispositivo» in cinque passi con tabella mDNS di tutta la
@@ -95,10 +98,6 @@ nell'audit) e del discovery (tre host della LAN in 3 s, uno con SWS).
 `sws_web::system`), variante immagine proposta dal dispositivo connesso, «Verifica dispositivo»
 anche nel modale della WelcomeScreen, `install-container.sh` con i controlli podman ≥ 4.4 e
 subuid/subgid in testa. Tutto nel binario o nell'immagine: la ricompilazione le porta sul WP630.
-
-**Il maintainer non vedeva le modifiche perché il ramo non è su origin**: l'IDE che ha avviato
-non è su questo checkout (nessun processo qui, binario mai eseguito dopo la build), quindi è
-un'altra macchina, su `main`. Il ramo si pusha solo su istruzione.
 
 **Per provarlo serve il binario nuovo**: l'editor sulla 8460 gira ancora sul vecchio, che non ha
 le tre rotte — dopo un ricaricamento vedrebbe la UI nuova ma con `build/stato` a 404, quindi

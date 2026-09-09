@@ -11,7 +11,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
-> Ramo `feat/Q51-Q52-installa-guidata`, non ancora su `main`.
+> Su `main` dalla sera del 2026-09-09 (`a68802e`), non ancora rilasciato.
 
 ### Gli strumenti di sviluppo compaiono solo dove c'è il repo (Q51)
 
