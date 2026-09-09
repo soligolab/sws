@@ -24,6 +24,7 @@ import {
   isOffPage,
   objectBBox as objBBox,
   pageFillEnabled,
+  riquadroTestoSemplice,
   softClampToPage,
 } from "@/pageLayout";
 import type { AlarmSeverity, AlarmState, CustomSymbol, FaceplateDef, FaceplateParamDef, GridCell, PageSizeMode, PipePoint, Sample, SynopticObject, TableRow, TagDef, TagState, TextListEntry } from "@/types";
@@ -156,6 +157,12 @@ interface ResizeState {
   startX: number;
   startY: number;
   startObj: { x: number; y: number; width: number; height: number; x2?: number; y2?: number };
+  /** Testo semplice preso per una maniglia: al primo movimento diventa un
+   *  riquadro vero (`text_wrap`), perché senza wrap `width`/`height` non li
+   *  legge nessuno e il ridimensionamento non farebbe niente. Si accende sul
+   *  MOVIMENTO e non sulla pressione: un clic senza trascinare non deve
+   *  cambiare il tipo di oggetto sotto le mani di chi voleva solo selezionarlo. */
+  accendiWrap?: boolean;
   /** F8.4 — rotazione dell'oggetto in gradi al momento della presa: il
    *  movimento del mouse va proiettato sugli assi LOCALI dell'oggetto,
    *  altrimenti trascinare la maniglia destra di un oggetto ruotato di 90°
@@ -414,6 +421,17 @@ function formatValue(value: number | string | boolean, format?: string): string 
     }
   }
   return String(value);
+}
+
+/** Il testo che un oggetto `text` mostra davvero: valore del tag formattato se
+ *  ce n'è uno, altrimenti il testo statico, altrimenti il segnaposto. Estratto
+ *  perché lo usano sia il disegno sia il riquadro delle maniglie, e devono
+ *  concordare. */
+function contenutoTesto(obj: SynopticObject, tagValues: Record<string, TagState>): string {
+  const tv = obj.tag ? tagValues[obj.tag] : undefined;
+  return tv != null
+    ? formatValue(tv.value, obj.format ?? "{value}")
+    : (obj.text ?? obj.tag ?? "Testo");
 }
 
 // ── Binding resolver ─────────────────────────────────────────────────────────
@@ -1133,13 +1151,19 @@ export function SvgCanvas({
           setSnapLines({ x: sX, y: sY });
         }
         if (width >= 4 && height >= 4) {
+          // Il testo preso per una maniglia diventa qui un riquadro vero: senza
+          // `text_wrap` il disegno ignora `width`/`height` e il trascinamento
+          // non avrebbe alcun effetto visibile — che è esattamente il difetto
+          // segnalato. Va nella stessa patch delle misure, così l'annulla lo
+          // riporta indietro in un colpo solo.
+          const patchWrap = resizeRef.current?.accendiWrap ? { text_wrap: true } : {};
           // T-52 — niente clamp qui. Il magnete a `0`/`pageW/2`/`pageW` di
           // poco sopra è già il trattenimento morbido di un bordo, mentre il
           // clamp che c'era prima era un difetto: spostava **x** per far stare
           // dentro `x + width`, quindi trascinando la maniglia destra oltre il
           // bordo il lato **sinistro** dell'oggetto scivolava a sinistra
           // (x=1000 w=200 su pagina 1280, w→400 ⇒ x=880).
-          onMove(objId, { x, y, width, height });
+          onMove(objId, { x, y, width, height, ...patchWrap });
         }
       }
     } else if (dragRef.current && onMove) {
@@ -1891,7 +1915,15 @@ export function SvgCanvas({
       {onMove && selIds.length === 1 && (() => {
         const obj = objects.find((o) => o.id === selIds[0]);
         if (!obj || obj.type === "line" || obj.type === "grid" || obj.type === "pipe") return null;
-        const bb = objBBox(obj);
+        // Un testo senza wrap non ha `width`/`height` e la sua `y` è la linea di
+        // base: `objBBox` darebbe un rettangolo che parte SOTTO le lettere (e di
+        // area zero su un testo appena creato, con le otto maniglie sovrapposte
+        // in un punto). Qui si usa il riquadro che il testo occupa davvero.
+        const testoSemplice = obj.type === "text" && !obj.text_wrap;
+        const rt = testoSemplice ? riquadroTestoSemplice(obj, contenutoTesto(obj, tagValues)) : null;
+        const bb = rt
+          ? { x1: rt.x, y1: rt.y, x2: rt.x + rt.w, y2: rt.y + rt.h }
+          : objBBox(obj);
         const cx = (bb.x1 + bb.x2) / 2;
         const cy = (bb.y1 + bb.y2) / 2;
         const hs = 4 / viewT.zoom;
@@ -1936,10 +1968,16 @@ export function SvgCanvas({
                     handle: id,
                     startX: e.clientX,
                     startY: e.clientY,
-                    startObj: {
-                      x: obj.x ?? 0, y: obj.y ?? 0,
-                      width: obj.width ?? 0, height: obj.height ?? 0,
-                    },
+                    // Sul testo semplice si parte dal riquadro delle lettere, non
+                    // da `x`/`y`/`width`/`height`: la `y` è la linea di base e le
+                    // misure non esistono. Così il box nasce esattamente dove il
+                    // testo è già, e il primo trascinamento lo allarga invece di
+                    // farlo saltare.
+                    startObj: rt
+                      ? { x: rt.x, y: rt.y, width: rt.w, height: rt.h }
+                      : { x: obj.x ?? 0, y: obj.y ?? 0,
+                          width: obj.width ?? 0, height: obj.height ?? 0 },
+                    accendiWrap: testoSemplice,
                     rotation: rot,
                   };
                 }}

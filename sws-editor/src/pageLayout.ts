@@ -238,6 +238,44 @@ export function objectBBox(obj: GeomObj): BBox {
   return { x1: ox, y1: oy, x2: ox + (obj.width ?? 0), y2: oy + (obj.height ?? 0) };
 }
 
+/** Il riquadro che un testo **senza** `text_wrap` occupa davvero sullo schermo.
+ *
+ *  Esiste perché per quel tipo `x`/`y` **non sono l'angolo in alto a sinistra**:
+ *  in SVG `<text y=…>` è la **linea di base**, e l'oggetto non ha `width` né
+ *  `height` — il pannello proprietà nasconde apposta quei campi, perché «non
+ *  farebbero niente».
+ *
+ *  Usare `objectBBox` per le maniglie disegnava quindi un rettangolo che parte
+ *  *sotto* le lettere e scende: il testo compariva **sopra e fuori** dal
+ *  riquadro. E su un testo appena creato quel box ha area zero, quindi le otto
+ *  maniglie si sovrappongono in un punto; trascinandone una si scrivevano
+ *  `width`/`height` che il disegno non legge, e non succedeva niente di
+ *  visibile. Segnalato dal maintainer con schermata il 2026-09-08.
+ *
+ *  `content` arriva già risolto (valore del tag formattato, oppure il testo
+ *  statico) perché qui dentro non deve entrare né lo stato dei tag né la
+ *  formattazione: questa funzione è solo geometria.
+ *
+ *  La larghezza è una **stima**: SVG non la dà senza misurare il testo, e la
+ *  stessa formula sta nel ramo di disegno in `SvgCanvas.tsx`. Le due devono
+ *  restare identiche — se cambia una sola, il riquadro smette di combaciare con
+ *  le lettere ed è di nuovo il difetto di partenza. */
+export function riquadroTestoSemplice(
+  obj: Pick<SynopticObject, "x" | "y" | "font_size" | "text_anchor">,
+  content: string,
+): { x: number; y: number; w: number; h: number } {
+  const size = obj.font_size ?? 14;
+  const anchor = obj.text_anchor ?? "start";
+  const approxW = Math.max(40, content.length * size * 0.6);
+  const dx = anchor === "middle" ? -approxW / 2 : anchor === "end" ? -approxW : 0;
+  return {
+    x: (obj.x ?? 0) + dx - 2,
+    y: (obj.y ?? 0) - size + 2,
+    w: approxW + 4,
+    h: size + 6,
+  };
+}
+
 /** «Fuori pagina»: la bbox dell'oggetto non tocca **affatto** il rettangolo
  *  pagina. Un oggetto a cavallo del bordo resta attivo — si spegne solo ciò che
  *  è stato portato via del tutto.

@@ -6,6 +6,7 @@ import {
   isOffPage,
   objectBBox,
   pageFillEnabled,
+  riquadroTestoSemplice,
   softClampToPage,
   softEdgeAxis,
   translateObject,
@@ -372,5 +373,65 @@ describe("Q38 — materializzazione delle misure in ratio", () => {
     const p = useAppStore.getState().pages[0];
     expect(p.width).toBeUndefined();
     expect(p.height).toBeUndefined();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Il riquadro di un testo senza wrap (difetto segnalato il 2026-09-08)
+//
+// Sintomo: si piazzava un testo e le lettere comparivano SOPRA e FUORI dal
+// riquadro di selezione, e trascinare una maniglia non le muoveva. Causa: per
+// un `text` senza `text_wrap` la `y` è la LINEA DI BASE e non il bordo alto, e
+// l'oggetto non ha `width`/`height` — `objectBBox` restituiva quindi un
+// rettangolo di area zero che parte sotto le lettere.
+//
+// Questi controlli falliscono tutti su `objectBBox`: è il punto.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("riquadroTestoSemplice", () => {
+  const testo = { x: 100, y: 200, font_size: 14, text_anchor: "start" as const };
+
+  it("contiene la linea di base invece di partire da lì", () => {
+    const r = riquadroTestoSemplice(testo, "Testo");
+    // La base delle lettere sta DENTRO il riquadro, non sul suo bordo alto.
+    expect(r.y).toBeLessThan(testo.y);
+    expect(r.y + r.h).toBeGreaterThan(testo.y);
+    // Ed è alto abbastanza da contenere il corpo del carattere.
+    expect(r.h).toBeGreaterThanOrEqual(testo.font_size);
+  });
+
+  it("ha area non nulla anche su un testo appena creato", () => {
+    // objectBBox darebbe 0×0 (niente width/height): le otto maniglie
+    // finirebbero sovrapposte in un punto.
+    const r = riquadroTestoSemplice(testo, "Testo");
+    expect(r.w).toBeGreaterThan(0);
+    expect(r.h).toBeGreaterThan(0);
+    expect(objectBBox({ type: "text", ...testo }).x2 - objectBBox({ type: "text", ...testo }).x1).toBe(0);
+  });
+
+  it("segue l'ancoraggio, come fanno le lettere", () => {
+    const start  = riquadroTestoSemplice({ ...testo, text_anchor: "start"  }, "Testo");
+    const middle = riquadroTestoSemplice({ ...testo, text_anchor: "middle" }, "Testo");
+    const end    = riquadroTestoSemplice({ ...testo, text_anchor: "end"    }, "Testo");
+    expect(middle.x).toBeLessThan(start.x);
+    expect(end.x).toBeLessThan(middle.x);
+    // `end` finisce dove il testo finisce: sulla x dichiarata.
+    expect(end.x + end.w).toBeCloseTo(testo.x + 2, 6);
+    // `middle` è centrato sulla x dichiarata.
+    expect(middle.x + middle.w / 2).toBeCloseTo(testo.x, 6);
+  });
+
+  it("cresce col contenuto e col corpo del carattere", () => {
+    const corto = riquadroTestoSemplice(testo, "Testo");
+    const lungo = riquadroTestoSemplice(testo, "Testo molto piu lungo di prima");
+    expect(lungo.w).toBeGreaterThan(corto.w);
+    const grande = riquadroTestoSemplice({ ...testo, font_size: 48 }, "Testo");
+    expect(grande.w).toBeGreaterThan(corto.w);
+    expect(grande.h).toBeGreaterThan(corto.h);
+  });
+
+  it("non scende sotto una larghezza minima afferrabile", () => {
+    // Un testo vuoto o di un carattere deve restare selezionabile col mouse.
+    expect(riquadroTestoSemplice(testo, "").w).toBeGreaterThanOrEqual(40);
+    expect(riquadroTestoSemplice(testo, "x").w).toBeGreaterThanOrEqual(40);
   });
 });
