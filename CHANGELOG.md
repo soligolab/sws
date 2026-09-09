@@ -11,7 +11,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
-### La CI Rust ripartiva da una toolchain di tre anni prima
+### La CI è verde per la prima volta: ripartiva da una toolchain di tre anni prima
 
 I quattro job Rust morivano in tredici secondi: `ci.yml` pinnava Rust 1.75, che non legge il
 lockfile in formato 4 né compila `time`/`icu`. Toolchain CI 1.94, `rust-version = "1.88"`

@@ -308,7 +308,9 @@ cargo-cyclonedx` senza versione prende la 0.5.9, dove `--output-file` non esiste
 0.5.9, `--override-filename sbom`, e l'artefatto raccoglie gli `sbom.json` di tutti i crate
 (provato in locale: 14 file, uno per crate). Aggiunti a `.gitignore`.
 
-**La CI non si può provare in locale**: il verdetto arriva al prossimo push su `main`. Se resta
+**Terzo giro (`bf46d06`): tutto verde**, confermato dal maintainer sulla pagina Actions — la
+prima CI verde del progetto. HOWTO §11 spiega come leggere la mail e la pagina, e la tabella
+delle quattro cause. Regola: ogni strumento della CI è pinnato a una versione. Se resta
 rosso, la mail di GitHub dice quale job, e il registro del job dice la riga.
 
 ### 🔒 «Connetti» a un pannello senza utenti chiudeva fuori dall'editor (2026-09-08)

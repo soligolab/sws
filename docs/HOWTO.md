@@ -22,6 +22,7 @@
 8. [Confrontare a numeri quello che disegna il browser con quello che disegna il pannello](#8-confrontare-a-numeri-quello-che-disegna-il-browser-con-quello-che-disegna-il-pannello)
 9. [Il deploy dell'immagine fallisce dopo un factory reset del dispositivo](#9-il-deploy-dellimmagine-fallisce-dopo-un-factory-reset-del-dispositivo)
 10. [Provare una modifica su un dispositivo senza pubblicare niente](#10-provare-una-modifica-su-un-dispositivo-senza-pubblicare-niente)
+11. [Leggere la mail di GitHub che dice «CI failed»](#11-leggere-la-mail-di-github-che-dice-ci-failed)
 
 ---
 
@@ -840,3 +841,46 @@ mv "dist/sws-runtime-$V-aarch64-image.tar.gz.rilascio" \
 E un dettaglio che sorprende: `build_container.sh` ricostruisce anche la SPA in
 `sws-editor/dist`, che è la stessa che il tuo editor locale sta servendo. Le correzioni lato
 browser le vedi con un ricaricamento forzato della pagina, senza riavviare niente.
+
+---
+
+## 11. Leggere la mail di GitHub che dice «CI failed»
+
+Nata il 2026-09-09, quando il maintainer ha ricevuto la mail sul push della 2.7.0 e ha detto
+«di CI/CD non so nulla». La CI era rossa **da mesi** e nessuno lo aveva letto.
+
+**Cos'è.** A ogni push su `main` GitHub esegue `.github/workflows/ci.yml` su una macchina
+pulita: otto «job», ognuno una colonna di passi. Se un job fallisce arriva la mail. La pagina
+è `github.com/soligolab/sws/actions`: il run in testa è l'ultimo push.
+
+**I simboli.** Verde: passato. Rosso: un passo è fallito. **Cerchio grigio barrato: saltato,
+non fallito** — «DCO sign-off» gira solo sulle pull request, quindi sui push è sempre grigio;
+«Rust build & test» e «Rust SBOM» dipendono da «Rust lint» e restano grigi se quello cade.
+
+**Cosa leggere, in ordine.**
+
+1. Nel riepilogo, la colonna a sinistra: quali job sono rossi.
+2. Cliccare il job rosso: la lista dei passi, uno è rosso. Cliccarlo: il registro. Le ultime
+   trenta righe dicono quasi sempre tutto; `exit code 101` è cargo che si è fermato, la riga
+   che comincia per `error:` sopra dice perché.
+3. Gli **avvisi gialli** in fondo («Node.js 20 is deprecated…») riguardano le azioni di GitHub,
+   non il nostro codice: non fanno fallire niente.
+
+**Cosa c'era di rotto, perché non torni.** Tre cose che il codice non c'entrava:
+
+| Job | Causa | Rimedio |
+|---|---|---|
+| Rust lint, 13 secondi | toolchain **1.75** (2023): non leggeva il lockfile v4, non compilava `time`/`icu` | toolchain **1.94** in `ci.yml`, `rust-version = "1.88"` in `Cargo.toml` |
+| Rust lint, dopo | il runner non ha SDL2, libdrm, FreeType, libclang, python3-dev (prerequisiti del README) | passo `apt-get` nei job che compilano |
+| Rust audit | cargo-audit **0.21** non legge più il database (CVSS 4.0) | 0.22.2; le 5 vulnerabilità a monte in `sws-runtime/.cargo/audit.toml`, ognuna col perché |
+| Rust SBOM | `cargo install` senza versione → 0.5.9, dove `--output-file` non esiste | pinnata la 0.5.9, `--override-filename`, un `sbom.json` per crate |
+
+La regola che ne esce: **ogni strumento della CI è pinnato a una versione**, e la versione
+Rust della CI è quella delle macchine di sviluppo — così `cargo fmt --check` dice la stessa cosa
+qui e là. Quando `cargo audit` si accende su una vulnerabilità nuova, il job fallisce: è quello
+che deve fare. Si aggiunge una riga a `audit.toml` **solo** se la correzione non esiste o non
+dipende da noi, e si scrive accanto perché.
+
+**Da qui.** Un run verde su `main` è la prova che il codice compila e passa i test su una
+macchina che non è la nostra — la prima volta è stata il 2026-09-09, `bf46d06`. Non sostituisce
+il collaudo sul dispositivo: la CI non ha un pannello.
