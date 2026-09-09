@@ -78,6 +78,13 @@
 
 ### 🎯 Rilasciata la 2.7.1 — è questa che si compila (2026-09-09, sera)
 
+**La prima build è morta per colpa mia**: ho modificato il commento in testa a
+`build_container_aarch64_generic.sh` mentre girava; bash legge per offset e dopo 51 minuti ha
+letto un frammento di riga (`build: command not found`). Nessuna immagine prodotta né pushata:
+quello script è il primo della sequenza. Il binario aarch64 di sws-runtime è compilato e
+incrementale, il rilancio di `build_containers_all.sh --push` lo riusa. Trappola aggiunta a
+HOWTO §5 e in memoria.
+
 Stesso codice della 2.7.0 più la catena CI/CD verde (toolchain 1.94, librerie di sistema,
 cargo-audit 0.22 con `audit.toml`, SBOM). Taggata su richiesta del maintainer perché il tag git
 e il commit da cui nascono le immagini coincidano. Il tag `2.7.0` resta su `45c8221`.

@@ -355,6 +355,13 @@ Tre trappole, tutte già incontrate dal vivo:
   restano generica + x86_64. Passa `--require-sdk` per farne un errore bloccante.
 - **Emulazione arm64** registrata sull'host, una volta per macchina: se
   `/proc/sys/fs/binfmt_misc/qemu-aarch64` non esiste, `sudo apt install qemu-user-static`.
+- **Nessuno deve modificare gli script mentre girano** — nemmeno un commento. Bash legge il
+  file a blocchi, per offset: il 2026-09-09 un edit al commento in testa a
+  `build_container_aarch64_generic.sh`, fatto durante la build, l'ha uccisa dopo 51 minuti con
+  `line 381: build: command not found` (un frammento di `podman build` letto a metà riga). Il
+  rilancio riusa la compilazione già fatta (`target-container-aarch64-generic` è incrementale),
+  ma la sequenza va rifatta da capo. Chi lavora sullo stesso checkout controlli
+  `pgrep -af build_container` prima di toccare `scripts/`.
 
 Sul dispositivo, poi, si aggiorna con `install-container.sh --pull <riferimento>` — attenzione
 al tag: senza argomento sceglie `latest-arm64` (percorso SDK), che è un'immagine **diversa**
