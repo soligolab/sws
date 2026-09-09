@@ -76,6 +76,14 @@
 
 ## ▶ Da fare nella prossima sessione
 
+### 🎯 Rilasciata la 2.7.0 — da compilare, pubblicare e collaudare (2026-09-09)
+
+Tutto ciò che segue (revisione pre-2.7.0, Q46–Q49, Q48, password nel browser, identità git)
+è su `main` e taggato `2.7.0`. Il maintainer compila e pubblica con
+`./scripts/build_containers_all.sh --push` (più `--with-lvgl` per il viewer del WP630).
+Verde su `main`: **474 test Rust, 208 vitest, 14 guardie statiche**, clippy `-D warnings`,
+fmt. Il collaudo generale è l'elenco delle sezioni sotto, «Da provare a mano».
+
 ### 🔧 Q48 — «Installa runtime» ripuntato al container, sul ramo `feat/Q48-installa-dalla-welcome` (2026-09-09)
 
 Decisa dal maintainer («ok, parti con Q48») e realizzata; **non mergiata, non pushata**.

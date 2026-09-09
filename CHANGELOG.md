@@ -11,9 +11,14 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
-> Ramo `chore/revisione-pre-2.7.0` — la revisione generale prima della 2.7.0. Referto
-> completo in `docs/plans/2026-09-09-revisione-pre-2.7.0.md`; le decisioni aperte sono
-> Q46–Q49. La revisione è su `main`; Q48 è sul ramo `feat/Q48-installa-dalla-welcome`.
+## [2.7.0] — 2026-09-09
+
+> La release della revisione generale (referto in
+> `docs/plans/2026-09-09-revisione-pre-2.7.0.md`, decisioni Q46–Q49). Due endpoint in meno
+> (`/api/script/exec`, `/api/deploy/remote`), la cartella dei progetti dichiarata e fuori dal
+> repo, il certificato del dispositivo memorizzato al primo contatto, nessuna password nel
+> browser, e le correzioni di sicurezza elencate sotto. Nessun dato utente si sposta: il
+> container passa `--projects-root /var/sws/projects` esplicito.
 
 ### Il certificato del dispositivo si memorizza al primo contatto, e se cambia ci si ferma (Q49)
 
