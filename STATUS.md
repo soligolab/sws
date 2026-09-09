@@ -78,6 +78,14 @@
 
 ### 🎯 Rilasciata la 2.7.1 — è questa che si compila (2026-09-09, sera)
 
+**Immagini pubblicate** (verificato sull'API di ghcr.io): `2.7.1-arm64`, `2.7.1-arm64-generic`,
+`2.7.1-amd64`, i tre `latest-*` e i tre `d1fde9e-*`. Lo sha è `d1fde9e` e non `4d22de8` (il tag
+git) perché fra i due ci sono solo commit di documenti; il codice è identico. Il riepilogo diceva
+«caricata nel deposito di root» per la generica senza la riga «pubblicata»: era solo che
+`podman images` da utente non la vede — su ghcr c'è. Lo stesso riepilogo suggeriva
+`scp … root@<device>` e `podman load` come root: contro la specifica delle credenziali, corretto
+con il percorso rootless (editor, o `install-container.sh --pull` come `user`).
+
 **La prima build è morta per colpa mia**: ho modificato il commento in testa a
 `build_container_aarch64_generic.sh` mentre girava; bash legge per offset e dopo 51 minuti ha
 letto un frammento di riga (`build: command not found`). Nessuna immagine prodotta né pushata:

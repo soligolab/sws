@@ -159,8 +159,15 @@ cat <<'FINE'
                nell'editor e si deploya
     dentro     binario runtime + SPA + template; niente sorgenti, niente toolchain
 
-  Per installarne una su un dispositivo:
-    scp dist/sws-runtime-<versione>-<arch>-image.tar.gz  root@<device>:/tmp/
-    ssh root@<device> 'podman load -i /tmp/sws-runtime-*-image.tar.gz'
+  Per installarne una su un dispositivo (rootless, con l'utente limitato):
+    dall'editor   Configurazione → Runtime → «Installa su dispositivo», oppure
+                  dalla schermata iniziale «Installa runtime»: registry, l'arch
+                  la sceglie il dispositivo
+    a mano        ssh user@<device> e poi
+                  ./install-container.sh --pull ghcr.io/soligolab/sws-runtime:<versione>-arm64
+    senza rete    scp dist/sws-runtime-<versione>-<arch>-image.tar.gz user@<device>:/tmp/
+                  e ./install-container.sh --image /tmp/sws-runtime-<versione>-<arch>-image.tar.gz
+    Mai come root: il container gira nell'utente e il percorso di produzione
+    non prevede accessi privilegiati (docs/HOWTO.md §9, CONTEXT).
 FINE
 echo
