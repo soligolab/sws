@@ -70,7 +70,10 @@ corretto, da decidere tu, lasciato stare e perché. Le decisioni sono **Q46–Q4
 `OPEN_QUESTIONS.md`: Q46, Q47 e Q49 decise dal maintainer e realizzate lo stesso giorno;
 Q48 in discussione. Il ramo è stato **mergiato in squash su `main`** (`b032d9d`) su
 istruzione del maintainer, seguito dal commit `cargo fmt` da solo: la CI ora ha fmt e
-clippy verdi. `main` **non è pushato**. Il ramo `chore/revisione-pre-2.7.0` resta in locale.
+clippy verdi. `main` **non è pushato**. In locale resta solo `main`: i rami `chore/revisione-pre-2.7.0`,
+`fix/relay-ws-dispositivo` e `fix/testo-riquadro` sono stati cancellati dopo aver verificato per
+contenuto che fossero dentro. **Su origin si possono cancellare** `fix/mqtt-topic-vuoto`,
+`fix/relay-ws-dispositivo` e `fix/testo-riquadro`: tutto il loro contenuto è in `main`.
 
 Numeri: `cargo audit` 16 → 5 (le cinque a monte, senza correzione), `pnpm audit` 25 → 0,
 clippy `-D warnings` da 43 avvisi a **0** in entrambe le forme, 9 dipendenze mai usate
