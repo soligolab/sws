@@ -11,6 +11,11 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.7.1] — 2026-09-09
+
+> Stesso codice della 2.7.0, più la catena CI/CD che funziona: è la versione da cui si
+> compilano le immagini, così il tag `<sha>` sulle immagini e il tag git dicono la stessa cosa.
+
 ### La CI è verde per la prima volta: ripartiva da una toolchain di tre anni prima
 
 I quattro job Rust morivano in tredici secondi: `ci.yml` pinnava Rust 1.75, che non legge il

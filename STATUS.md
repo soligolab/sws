@@ -76,7 +76,12 @@
 
 ## ▶ Da fare nella prossima sessione
 
-### 🎯 Rilasciata la 2.7.0 — da compilare, pubblicare e collaudare (2026-09-09)
+### 🎯 Rilasciata la 2.7.1 — è questa che si compila (2026-09-09, sera)
+
+Stesso codice della 2.7.0 più la catena CI/CD verde (toolchain 1.94, librerie di sistema,
+cargo-audit 0.22 con `audit.toml`, SBOM). Taggata su richiesta del maintainer perché il tag git
+e il commit da cui nascono le immagini coincidano. Il tag `2.7.0` resta su `45c8221`.
+
 
 Tutto ciò che segue (revisione pre-2.7.0, Q46–Q49, Q48, password nel browser, identità git)
 è su `main` e taggato `2.7.0`. Il maintainer compila e pubblica con

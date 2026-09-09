@@ -18,7 +18,7 @@ members = ["crates/*"]
 exclude = ["crates/sws-kiosk"]
 
 [workspace.package]
-version = "2.7.0"
+version = "2.7.1"
 edition      = "2021"
 # Minima versione di Rust con cui il workspace compila: verificata con
 # `cargo +1.88 check --workspace` il 2026-09-09 (è il massimo richiesto dalle
