@@ -83,44 +83,53 @@ async fn sessione(socket: WebSocket, s: AppState) {
 
     let finto = std::env::var("SWS_AI_FAKE").ok();
     let scelta = client::carica(&s.config_dir);
-    invia(&tx, json!({
-        "t": "pronto",
-        "modello": match (&finto, &scelta) {
-            (Some(_), _) => "finto".to_string(),
-            (None, Some(sc)) => sc.modello.clone(),
-            (None, None) => "-".to_string(),
-        },
-        // Quale fornitore, e non solo quale modello: la stessa chat può parlare
-        // con Anthropic o con Kimi, e chi guarda una proposta ha diritto di
-        // sapere chi l'ha scritta.
-        "fornitore": match (&finto, &scelta) {
-            (Some(_), _) => "finto".to_string(),
-            (None, Some(sc)) => sc.fornitore.nome().to_string(),
-            (None, None) => "-".to_string(),
-        },
-        // Il pannello deve poter dire «manca la chiave» invece di sembrare rotto.
-        "attivo": finto.is_some() || scelta.is_some(),
-        "motivo": if finto.is_some() { Value::Null }
-                  else if scelta.is_none() {
-                      json!(format!("nessuna chiave: metti ANTHROPIC_API_KEY o \
-                                     MOONSHOT_API_KEY nell'ambiente, oppure la chiave in {}. \
-                                     Con due chiavi vince Anthropic; per l'altro, \
-                                     SWS_AI_FORNITORE=kimi",
-                                    client::percorsi_chiave(&s.config_dir).iter()
-                                        .map(|p| p.display().to_string())
-                                        .collect::<Vec<_>>().join(" o ")))
-                  } else { Value::Null },
-    }));
+    invia(
+        &tx,
+        json!({
+            "t": "pronto",
+            "modello": match (&finto, &scelta) {
+                (Some(_), _) => "finto".to_string(),
+                (None, Some(sc)) => sc.modello.clone(),
+                (None, None) => "-".to_string(),
+            },
+            // Quale fornitore, e non solo quale modello: la stessa chat può parlare
+            // con Anthropic o con Kimi, e chi guarda una proposta ha diritto di
+            // sapere chi l'ha scritta.
+            "fornitore": match (&finto, &scelta) {
+                (Some(_), _) => "finto".to_string(),
+                (None, Some(sc)) => sc.fornitore.nome().to_string(),
+                (None, None) => "-".to_string(),
+            },
+            // Il pannello deve poter dire «manca la chiave» invece di sembrare rotto.
+            "attivo": finto.is_some() || scelta.is_some(),
+            "motivo": if finto.is_some() { Value::Null }
+                      else if scelta.is_none() {
+                          json!(format!("nessuna chiave: metti ANTHROPIC_API_KEY o \
+                                         MOONSHOT_API_KEY nell'ambiente, oppure la chiave in {}. \
+                                         Con due chiavi vince Anthropic; per l'altro, \
+                                         SWS_AI_FORNITORE=kimi",
+                                        client::percorsi_chiave(&s.config_dir).iter()
+                                            .map(|p| p.display().to_string())
+                                            .collect::<Vec<_>>().join(" o ")))
+                      } else { Value::Null },
+        }),
+    );
 
     // Q41 — il saldo dell'account, per chi lo espone (oggi solo Kimi: vedi
     // `Fornitore::url_saldo`). Chiesto UNA volta, all'apertura del pannello —
     // a ogni messaggio sarebbe una chiamata in più per risposta (scheda,
     // domanda 4) — e in un task suo: la chat non aspetta il saldo.
-    if let Some(sc) = scelta.clone().filter(|sc| sc.fornitore.url_saldo().is_some()) {
+    if let Some(sc) = scelta
+        .clone()
+        .filter(|sc| sc.fornitore.url_saldo().is_some())
+    {
         let tx_saldo = tx.clone();
         tokio::spawn(async move {
             if let Some(disponibile) = client::saldo(&sc).await {
-                invia(&tx_saldo, json!({ "t": "saldo", "disponibile": disponibile }));
+                invia(
+                    &tx_saldo,
+                    json!({ "t": "saldo", "disponibile": disponibile }),
+                );
             }
         });
     }
@@ -131,13 +140,20 @@ async fn sessione(socket: WebSocket, s: AppState) {
     while let Some(Ok(msg)) = ws_rx.next().await {
         let Message::Text(testo) = msg else { continue };
         let Ok(v): Result<Value, _> = serde_json::from_str(&testo) else {
-            invia(&tx, json!({ "t": "errore", "messaggio": "messaggio non JSON" }));
+            invia(
+                &tx,
+                json!({ "t": "errore", "messaggio": "messaggio non JSON" }),
+            );
             continue;
         };
         if v.get("t").and_then(Value::as_str) != Some("chiedi") {
             continue;
         }
-        let domanda = v.get("testo").and_then(Value::as_str).unwrap_or("").to_string();
+        let domanda = v
+            .get("testo")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
         if domanda.trim().is_empty() {
             continue;
         }
@@ -167,7 +183,10 @@ fn invia(tx: &mpsc::UnboundedSender<String>, v: Value) {
 
 async fn impronta(s: &AppState) -> Option<String> {
     let dir = active_dir(s).await.ok()?;
-    tokio::task::spawn_blocking(move || calcola_impronta(&dir)).await.ok()?.ok()
+    tokio::task::spawn_blocking(move || calcola_impronta(&dir))
+        .await
+        .ok()?
+        .ok()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -188,14 +207,17 @@ async fn vero_giro(
 
     for giro in 0..MAX_GIRI {
         let tx2 = tx.clone();
-        let risposta = cliente.turno(sistema.clone(), messaggi, &strumenti, move |e| {
-            match e {
+        let risposta = cliente
+            .turno(sistema.clone(), messaggi, &strumenti, move |e| match e {
                 client::Evento::Testo(t) => invia(&tx2, json!({ "t": "testo", "delta": t })),
                 client::Evento::Pensiero(t) => invia(&tx2, json!({ "t": "pensiero", "delta": t })),
-                client::Evento::StrumentoInizio { nome } =>
-                    invia(&tx2, json!({ "t": "strumento", "nome": nome, "stato": "inizio" })),
-            }
-        }).await.map_err(|e| format!("{e:#}"))?;
+                client::Evento::StrumentoInizio { nome } => invia(
+                    &tx2,
+                    json!({ "t": "strumento", "nome": nome, "stato": "inizio" }),
+                ),
+            })
+            .await
+            .map_err(|e| format!("{e:#}"))?;
 
         // Il costo del turno nel registro, mai il contenuto.
         tracing::info!(giro, usage = %risposta.usage, stop = %risposta.stop_reason,
@@ -205,11 +227,20 @@ async fn vero_giro(
         // conversazione. Il dato è già in mano (usage della risposta), quindi
         // zero chiamate in più. I token di cache viaggiano separati: contarli
         // come ingresso pieno mentirebbe sul costo.
-        let tok = |campo: &str| risposta.usage.get(campo).and_then(Value::as_u64).unwrap_or(0);
-        invia(tx, json!({ "t": "risorse",
+        let tok = |campo: &str| {
+            risposta
+                .usage
+                .get(campo)
+                .and_then(Value::as_u64)
+                .unwrap_or(0)
+        };
+        invia(
+            tx,
+            json!({ "t": "risorse",
             "input": tok("input_tokens"), "output": tok("output_tokens"),
             "cache_lettura": tok("cache_read_input_tokens"),
-            "cache_scrittura": tok("cache_creation_input_tokens") }));
+            "cache_scrittura": tok("cache_creation_input_tokens") }),
+        );
 
         messaggi.push(json!({ "role": "assistant", "content": risposta.content }));
 
@@ -239,31 +270,49 @@ async fn vero_giro(
             // rappresentare. Metterla là dentro avrebbe voluto dire cambiare la
             // firma di tutti gli undici strumenti per il caso di uno.
             if nome == "istantanea_pagina" {
-                invia(tx, json!({ "t": "strumento", "nome": nome, "stato": "eseguo" }));
+                invia(
+                    tx,
+                    json!({ "t": "strumento", "nome": nome, "stato": "eseguo" }),
+                );
                 match istantanea_per_il_modello(s, input).await {
                     Ok(blocchi) => {
-                        invia(tx, json!({ "t": "strumento", "nome": nome, "stato": "fatto" }));
+                        invia(
+                            tx,
+                            json!({ "t": "strumento", "nome": nome, "stato": "fatto" }),
+                        );
                         risultati.push(json!({
                             "type": "tool_result", "tool_use_id": id, "content": blocchi,
                         }));
                     }
                     Err(e) => {
-                        invia(tx, json!({ "t": "strumento", "nome": nome, "stato": "errore",
-                                          "messaggio": e }));
+                        invia(
+                            tx,
+                            json!({ "t": "strumento", "nome": nome, "stato": "errore",
+                                          "messaggio": e }),
+                        );
                         risultati.push(risultato(id, &json!({ "errore": e }), true));
                     }
                 }
                 continue;
             }
-            invia(tx, json!({ "t": "strumento", "nome": nome, "stato": "eseguo" }));
+            invia(
+                tx,
+                json!({ "t": "strumento", "nome": nome, "stato": "eseguo" }),
+            );
             match tools::esegui(s, nome, input).await {
                 Ok(v) => {
-                    invia(tx, json!({ "t": "strumento", "nome": nome, "stato": "fatto" }));
+                    invia(
+                        tx,
+                        json!({ "t": "strumento", "nome": nome, "stato": "fatto" }),
+                    );
                     risultati.push(risultato(id, &v, false));
                 }
                 Err(e) => {
-                    invia(tx, json!({ "t": "strumento", "nome": nome, "stato": "errore",
-                                      "messaggio": e }));
+                    invia(
+                        tx,
+                        json!({ "t": "strumento", "nome": nome, "stato": "errore",
+                                      "messaggio": e }),
+                    );
                     risultati.push(risultato(id, &json!({ "errore": e }), true));
                 }
             }
@@ -271,8 +320,10 @@ async fn vero_giro(
         messaggi.push(json!({ "role": "user", "content": risultati }));
     }
 
-    Err(format!("l'assistente ha fatto {MAX_GIRI} giri senza concludere: la richiesta \
-                 probabilmente va spezzata in due"))
+    Err(format!(
+        "l'assistente ha fatto {MAX_GIRI} giri senza concludere: la richiesta \
+                 probabilmente va spezzata in due"
+    ))
 }
 
 /// Scatta e impacchetta per il modello: il blocco immagine più una riga di
@@ -288,8 +339,14 @@ async fn istantanea_per_il_modello(s: &AppState, input: &Value) -> Result<Value,
         .map_err(|_| "nessun progetto aperto: non c'è niente da fotografare".to_string())?;
     let scatto = crate::istantanea::scatta(crate::istantanea::Richiesta {
         progetto: dir,
-        pagina: input.get("nome").and_then(Value::as_str).map(str::to_string),
-        tocca: input.get("tocca").and_then(Value::as_str).map(str::to_string),
+        pagina: input
+            .get("nome")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+        tocca: input
+            .get("tocca")
+            .and_then(Value::as_str)
+            .map(str::to_string),
         ms: input.get("ms").and_then(Value::as_u64),
     })
     .await?;
@@ -305,7 +362,10 @@ async fn istantanea_per_il_modello(s: &AppState, input: &Value) -> Result<Value,
 fn blocchi_istantanea(scatto: &crate::istantanea::Scatto) -> Value {
     use base64::Engine as _;
 
-    let mut testo = format!("Istantanea LVGL: {}x{} px.", scatto.larghezza, scatto.altezza);
+    let mut testo = format!(
+        "Istantanea LVGL: {}x{} px.",
+        scatto.larghezza, scatto.altezza
+    );
     if scatto.note.is_empty() {
         // Dirlo esplicitamente: col silenzio, un modello che ha chiesto dei
         // tocchi non sa se non hanno prodotto comandi o se non li abbiamo
@@ -358,10 +418,14 @@ async fn proponi(
     // essere il progetto **ricomposto**, cioè quello che è stato davvero
     // validato. Con il grezzo, una proposta che ometteva `functions` passava la
     // validazione e arrivava all'editor senza funzioni: il Salva le cancellava.
-    let (giudizio, normalizzato) = tools::valida_interna(s, input).await
-        .unwrap_or_else(|e| (json!({ "ok": false, "errori_nuovi": 1,
+    let (giudizio, normalizzato) = tools::valida_interna(s, input).await.unwrap_or_else(|e| {
+        (
+            json!({ "ok": false, "errori_nuovi": 1,
                                      "rilievi": [{ "severity": "error", "path": "proposta",
-                                                   "message": e }] }), None));
+                                                   "message": e }] }),
+            None,
+        )
+    });
     let ok = giudizio.get("ok").and_then(Value::as_bool).unwrap_or(false);
 
     if !ok && correzioni < MAX_CORREZIONI {
@@ -372,21 +436,27 @@ async fn proponi(
         }));
     }
 
-    invia(tx, json!({
-        "t": "proposta",
-        "id": uuid_breve(),
-        "motivo": input.get("motivo").and_then(Value::as_str).unwrap_or("modifica"),
-        "project": normalizzato.as_ref().or_else(|| input.get("project")),
-        "pages": input.get("pages"),
-        "impronta": impronta_iniziale,
-        "giudizio": giudizio,
-    }));
+    invia(
+        tx,
+        json!({
+            "t": "proposta",
+            "id": uuid_breve(),
+            "motivo": input.get("motivo").and_then(Value::as_str).unwrap_or("modifica"),
+            "project": normalizzato.as_ref().or_else(|| input.get("project")),
+            "pages": input.get("pages"),
+            "impronta": impronta_iniziale,
+            "giudizio": giudizio,
+        }),
+    );
     Proposta::Inviata
 }
 
 fn uuid_breve() -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
-    let n = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+    let n = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
     format!("p{:x}", n & 0xffff_ffff)
 }
 
@@ -407,11 +477,13 @@ async fn finto_giro(
     tx: &mpsc::UnboundedSender<String>,
     percorso: &str,
 ) -> Result<(), String> {
-    let testo = std::fs::read_to_string(percorso)
-        .map_err(|e| format!("copione {percorso}: {e}"))?;
-    let copione: Value = serde_json::from_str(&testo)
-        .map_err(|e| format!("copione {percorso} non è JSON: {e}"))?;
-    let turni = copione.get("turni").and_then(Value::as_array)
+    let testo =
+        std::fs::read_to_string(percorso).map_err(|e| format!("copione {percorso}: {e}"))?;
+    let copione: Value =
+        serde_json::from_str(&testo).map_err(|e| format!("copione {percorso} non è JSON: {e}"))?;
+    let turni = copione
+        .get("turni")
+        .and_then(Value::as_array)
         .ok_or("il copione deve avere `turni`")?;
     let impronta_iniziale = impronta(s).await;
 
@@ -424,7 +496,12 @@ async fn finto_giro(
                 tokio::time::sleep(std::time::Duration::from_millis(12)).await;
             }
         }
-        for st in turno.get("strumenti").and_then(Value::as_array).into_iter().flatten() {
+        for st in turno
+            .get("strumenti")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+        {
             let nome = st.get("nome").and_then(Value::as_str).unwrap_or("");
             let input = st.get("input").cloned().unwrap_or(json!({}));
             if nome == "proponi_modifica" {
@@ -444,12 +521,21 @@ async fn finto_giro(
                     }
                 }
             }
-            invia(tx, json!({ "t": "strumento", "nome": nome, "stato": "eseguo" }));
+            invia(
+                tx,
+                json!({ "t": "strumento", "nome": nome, "stato": "eseguo" }),
+            );
             match tools::esegui(s, nome, &input).await {
-                Ok(_) => invia(tx, json!({ "t": "strumento", "nome": nome, "stato": "fatto" })),
+                Ok(_) => invia(
+                    tx,
+                    json!({ "t": "strumento", "nome": nome, "stato": "fatto" }),
+                ),
                 Err(e) => {
-                    invia(tx, json!({ "t": "strumento", "nome": nome, "stato": "errore",
-                                      "messaggio": e.clone() }));
+                    invia(
+                        tx,
+                        json!({ "t": "strumento", "nome": nome, "stato": "errore",
+                                      "messaggio": e.clone() }),
+                    );
                     return Err(format!("lo strumento `{nome}` del copione è fallito: {e}"));
                 }
             }
@@ -468,18 +554,23 @@ async fn finto_giro(
 /// col modello vero.
 async fn componi_da_patch(s: &AppState, input: &Value, patch: &Value) -> Result<Value, String> {
     use sws_core::Project;
-    let dir = active_dir(s).await.map_err(|_| "nessun progetto aperto".to_string())?;
-    let mut progetto = serde_json::to_value(
-        Project::load(&dir).map_err(|e| format!("progetto: {e:#}"))?
-    ).map_err(|e| e.to_string())?;
+    let dir = active_dir(s)
+        .await
+        .map_err(|_| "nessun progetto aperto".to_string())?;
+    let mut progetto =
+        serde_json::to_value(Project::load(&dir).map_err(|e| format!("progetto: {e:#}"))?)
+            .map_err(|e| e.to_string())?;
 
     if let Some(nuove) = patch.get("sorgenti_aggiunte").and_then(Value::as_array) {
-        let elenco = progetto["sources"].as_array_mut()
+        let elenco = progetto["sources"]
+            .as_array_mut()
             .ok_or("il progetto non ha `sources`")?;
         elenco.extend(nuove.iter().cloned());
     }
     if let Some(nuovi) = patch.get("tag_aggiunti").and_then(Value::as_array) {
-        let elenco = progetto["tags"].as_array_mut().ok_or("il progetto non ha `tags`")?;
+        let elenco = progetto["tags"]
+            .as_array_mut()
+            .ok_or("il progetto non ha `tags`")?;
         elenco.extend(nuovi.iter().cloned());
     }
 
@@ -487,23 +578,31 @@ async fn componi_da_patch(s: &AppState, input: &Value, patch: &Value) -> Result<
     if let Some(agg) = patch.get("oggetti_aggiunti").and_then(Value::as_array) {
         let tutte = tools::carica_pagine(s).await?;
         for voce in agg {
-            let nome = voce.get("pagina").and_then(Value::as_str)
+            let nome = voce
+                .get("pagina")
+                .and_then(Value::as_str)
                 .ok_or("ogni voce di `oggetti_aggiunti` vuole `pagina`")?;
-            let oggetto = voce.get("oggetto").cloned()
+            let oggetto = voce
+                .get("oggetto")
+                .cloned()
                 .ok_or("ogni voce di `oggetti_aggiunti` vuole `oggetto`")?;
             // Se la pagina è già fra quelle toccate si continua su quella, così
             // due oggetti sulla stessa pagina non si cancellano a vicenda.
-            let gia = pagine_toccate.iter().position(|p|
-                p.get("name").and_then(Value::as_str) == Some(nome));
+            let gia = pagine_toccate
+                .iter()
+                .position(|p| p.get("name").and_then(Value::as_str) == Some(nome));
             let mut pagina = match gia {
                 Some(i) => pagine_toccate.remove(i),
                 None => {
-                    let p = tutte.iter().find(|p| p.name == nome)
+                    let p = tutte
+                        .iter()
+                        .find(|p| p.name == nome)
                         .ok_or_else(|| format!("la pagina `{nome}` non esiste"))?;
                     serde_json::to_value(p).map_err(|e| e.to_string())?
                 }
             };
-            pagina["objects"].as_array_mut()
+            pagina["objects"]
+                .as_array_mut()
                 .ok_or("la pagina non ha `objects`")?
                 .push(oggetto);
             pagine_toccate.push(pagina);
@@ -544,7 +643,9 @@ mod tests_istantanea {
         // Il base64 deve tornare indietro identico: un'immagine che si decodifica
         // in qualcosa d'altro il modello la riceve come rumore.
         let dati = img["source"]["data"].as_str().unwrap();
-        let tornati = base64::engine::general_purpose::STANDARD.decode(dati).unwrap();
+        let tornati = base64::engine::general_purpose::STANDARD
+            .decode(dati)
+            .unwrap();
         assert_eq!(tornati, scatto(vec![]).png);
     }
 

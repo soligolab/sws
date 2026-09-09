@@ -221,7 +221,14 @@ fn page_offset(page_w: u32, page_h: u32, win_w: u32, win_h: u32) -> (i32, i32) {
 /// `None` per i tocchi fuori dalla pagina: sono i margini attorno, dove non c'è
 /// niente da toccare. Consegnarli comunque a LVGL produceva i 314 avvisi
 /// `X is 1631 which is greater than hor. res` per sessione.
-fn pointer_to_page(x: i32, y: i32, off_x: i32, off_y: i32, page_w: u32, page_h: u32) -> Option<(i32, i32)> {
+fn pointer_to_page(
+    x: i32,
+    y: i32,
+    off_x: i32,
+    off_y: i32,
+    page_w: u32,
+    page_h: u32,
+) -> Option<(i32, i32)> {
     let (px, py) = (x - off_x, y - off_y);
     if px < 0 || py < 0 || px >= page_w as i32 || py >= page_h as i32 {
         return None;
@@ -244,8 +251,6 @@ fn main() -> anyhow::Result<()> {
 
     let args = Args::parse();
 
-
-
     // Il runtime tokio NON viene droppato dopo block_on: il task di lettura
     // WS in background (avviato dentro spawn_tag_subscription) deve restare
     // vivo per tutta la finestra, non solo per la fetch iniziale.
@@ -265,14 +270,20 @@ fn main() -> anyhow::Result<()> {
         let lang_table = client::fetch_languages(&args.base_url)
             .await
             .unwrap_or_else(|e| {
-                eprintln!("[lang] impossibile leggere project.languages, nessuna traduzione attiva: {e}");
+                eprintln!(
+                    "[lang] impossibile leggere project.languages, nessuna traduzione attiva: {e}"
+                );
                 model::LanguageTable::default()
             });
         anyhow::Ok((page, shared_tags, reload_flag, shared_alarms, lang_table))
     })?;
-    let shared_lang: client::SharedLang = std::sync::Arc::new(std::sync::Mutex::new(lang_table.default.clone()));
+    let shared_lang: client::SharedLang =
+        std::sync::Arc::new(std::sync::Mutex::new(lang_table.default.clone()));
 
-    let initial_tags = shared_tags.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    let initial_tags = shared_tags
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
     eprintln!(
         "pagina '{}' caricata: {} oggetti, {} tag nello snapshot iniziale",
         page.name,
@@ -284,7 +295,15 @@ fn main() -> anyhow::Result<()> {
     let (nav_tx, nav_rx) = mpsc::channel::<String>();
     let (ack_tx, ack_rx) = mpsc::channel::<String>();
     let (summary, styles, mut live_bindings, hor_res, ver_res) = lvgl_render::interpret_page(
-        &page, &initial_tags, &tag_tx, &nav_tx, &args.base_url, rt.handle(), &shared_alarms, &ack_tx, &lang_table,
+        &page,
+        &initial_tags,
+        &tag_tx,
+        &nav_tx,
+        &args.base_url,
+        rt.handle(),
+        &shared_alarms,
+        &ack_tx,
+        &lang_table,
         &shared_lang,
     )?;
 
@@ -331,8 +350,15 @@ fn main() -> anyhow::Result<()> {
         // Il puntatore serve a `--tocca`, ed è già registrato qui sopra:
         // `init_pointer_indev` va chiamata una volta sola (e lo dice).
         scrivi_istantanea(
-            &percorso, hor_res, ver_res, args.istantanea_ms, args.tocca.as_deref(),
-            &shared_tags, &mut live_bindings, &tag_rx, &nav_rx,
+            &percorso,
+            hor_res,
+            ver_res,
+            args.istantanea_ms,
+            args.tocca.as_deref(),
+            &shared_tags,
+            &mut live_bindings,
+            &tag_rx,
+            &nav_rx,
         )?;
         drop(rt);
         return Ok(());
@@ -478,7 +504,10 @@ fn scrivi_istantanea(
             }
         }
         {
-            let tags = shared_tags.lock().unwrap_or_else(|e| e.into_inner()).clone();
+            let tags = shared_tags
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .clone();
             lvgl_render::update_bindings(live_bindings, &tags);
         }
         lvgl::task_handler();
@@ -522,7 +551,9 @@ fn scrivi_istantanea(
         out.len() / 1024,
         giri * PASSO_MS
     );
-    eprintln!("            convertila con `convert {percorso} out.png` o `pnmtopng {percorso} > out.png`");
+    eprintln!(
+        "            convertila con `convert {percorso} out.png` o `pnmtopng {percorso} > out.png`"
+    );
     Ok(())
 }
 
@@ -643,7 +674,10 @@ fn run_drm(
         let frame_start = Instant::now();
 
         let tags_now = {
-            let tags = shared_tags.lock().unwrap_or_else(|e| e.into_inner()).clone();
+            let tags = shared_tags
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .clone();
             lvgl_render::update_bindings(&mut live_bindings, &tags);
             tags
         };
@@ -672,8 +706,16 @@ fn run_drm(
         if let Ok(target_page) = nav_rx.try_recv() {
             match rt_handle.block_on(client::resolve_page_by_id(&base_url, &target_page)) {
                 Ok(new_page) => match lvgl_render::render_page_objects(
-                    &new_page, &tags_now, &tag_tx, &nav_tx, &base_url, &rt_handle, &shared_alarms, &ack_tx,
-                    &lang_table, &shared_lang,
+                    &new_page,
+                    &tags_now,
+                    &tag_tx,
+                    &nav_tx,
+                    &base_url,
+                    &rt_handle,
+                    &shared_alarms,
+                    &ack_tx,
+                    &lang_table,
+                    &shared_lang,
                 ) {
                     Ok((summary, new_styles, new_live)) => {
                         eprintln!(
@@ -750,7 +792,9 @@ fn run_window(
     shared_lang: client::SharedLang,
 ) -> anyhow::Result<()> {
     let sdl_context = sdl2::init().map_err(|e| anyhow::anyhow!("sdl2::init: {e}"))?;
-    let video = sdl_context.video().map_err(|e| anyhow::anyhow!("sdl2 video subsystem: {e}"))?;
+    let video = sdl_context
+        .video()
+        .map_err(|e| anyhow::anyhow!("sdl2 video subsystem: {e}"))?;
     // Storia completa di questa finestra, verificata su hardware reale
     // (tc620-a-p3-c6-07aff9.local, 2026-08-09) perché nessuna delle scelte
     // sotto è ovvia — vedi anche docs/OPEN_QUESTIONS.md Q14:
@@ -795,7 +839,9 @@ fn run_window(
         .fullscreen_desktop()
         .borderless()
         .build()?;
-    let mut event_pump = sdl_context.event_pump().map_err(|e| anyhow::anyhow!("event_pump: {e}"))?;
+    let mut event_pump = sdl_context
+        .event_pump()
+        .map_err(|e| anyhow::anyhow!("event_pump: {e}"))?;
 
     let mut frame_buf = vec![0u8; (hor_res * ver_res * 3) as usize];
     let pitch = (hor_res * 3) as usize;
@@ -830,7 +876,9 @@ fn run_window(
     // sessione (è a schermo intero su un pannello).
     let (off_x, off_y) = page_offset(hor_res, ver_res, win_w, win_h);
     if (off_x, off_y) != (0, 0) {
-        eprintln!("[sdl2] pagina centrata con un margine di ({off_x},{off_y}) px — come fa il viewer web");
+        eprintln!(
+            "[sdl2] pagina centrata con un margine di ({off_x},{off_y}) px — come fa il viewer web"
+        );
     }
     eprintln!("finestra SDL2 aperta — click/drag sui widget interattivi, chiudi la finestra o premi Esc per uscire");
 
@@ -842,22 +890,39 @@ fn run_window(
         // più fresco possibile per questo frame, non quello di un frame fa.
         for event in event_pump.poll_iter() {
             match event {
-                Event::Quit { .. } | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => break 'running,
-                Event::MouseButtonDown { x, y, mouse_btn: MouseButton::Left, .. } => {
+                Event::Quit { .. }
+                | Event::KeyDown {
+                    keycode: Some(Keycode::Escape),
+                    ..
+                } => break 'running,
+                Event::MouseButtonDown {
+                    x,
+                    y,
+                    mouse_btn: MouseButton::Left,
+                    ..
+                } => {
                     if let Some((px, py)) = pointer_to_page(x, y, off_x, off_y, hor_res, ver_res) {
                         mouse_pressed = true;
                         lvgl_indev::set_pointer_state(px, py, mouse_pressed);
                     }
                 }
-                Event::MouseButtonUp { x, y, mouse_btn: MouseButton::Left, .. } => {
+                Event::MouseButtonUp {
+                    x,
+                    y,
+                    mouse_btn: MouseButton::Left,
+                    ..
+                } => {
                     // Il rilascio si consegna SEMPRE, anche fuori dalla pagina:
                     // trascinando uno slider fuori dal bordo e rilasciando lì,
                     // ignorare il rilascio lascerebbe LVGL convinto che il dito
                     // sia ancora premuto — e lo slider seguirebbe il puntatore
                     // per il resto della sessione.
                     mouse_pressed = false;
-                    let (px, py) = pointer_to_page(x, y, off_x, off_y, hor_res, ver_res)
-                        .unwrap_or(((x - off_x).clamp(0, hor_res as i32 - 1), (y - off_y).clamp(0, ver_res as i32 - 1)));
+                    let (px, py) =
+                        pointer_to_page(x, y, off_x, off_y, hor_res, ver_res).unwrap_or((
+                            (x - off_x).clamp(0, hor_res as i32 - 1),
+                            (y - off_y).clamp(0, ver_res as i32 - 1),
+                        ));
                     lvgl_indev::set_pointer_state(px, py, mouse_pressed);
                 }
                 Event::MouseMotion { x, y, .. } => {
@@ -872,7 +937,10 @@ fn run_window(
         let tags_now = {
             // Lock breve: solo per clonare lo stato corrente, mai tenuto
             // durante le chiamate FFI a LVGL più sotto.
-            let tags = shared_tags.lock().unwrap_or_else(|e| e.into_inner()).clone();
+            let tags = shared_tags
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .clone();
             lvgl_render::update_bindings(&mut live_bindings, &tags);
             tags
         };
@@ -918,8 +986,16 @@ fn run_window(
         if let Ok(target_page) = nav_rx.try_recv() {
             match rt_handle.block_on(client::resolve_page_by_id(&base_url, &target_page)) {
                 Ok(new_page) => match lvgl_render::render_page_objects(
-                    &new_page, &tags_now, &tag_tx, &nav_tx, &base_url, &rt_handle, &shared_alarms, &ack_tx,
-                    &lang_table, &shared_lang,
+                    &new_page,
+                    &tags_now,
+                    &tag_tx,
+                    &nav_tx,
+                    &base_url,
+                    &rt_handle,
+                    &shared_alarms,
+                    &ack_tx,
+                    &lang_table,
+                    &shared_lang,
                 ) {
                     Ok((summary, new_styles, new_live)) => {
                         eprintln!(
@@ -970,8 +1046,16 @@ fn run_window(
             };
             match letta {
                 Ok(new_page) => match lvgl_render::render_page_objects(
-                    &new_page, &tags_now, &tag_tx, &nav_tx, &base_url, &rt_handle, &shared_alarms, &ack_tx,
-                    &lang_table, &shared_lang,
+                    &new_page,
+                    &tags_now,
+                    &tag_tx,
+                    &nav_tx,
+                    &base_url,
+                    &rt_handle,
+                    &shared_alarms,
+                    &ack_tx,
+                    &lang_table,
+                    &shared_lang,
                 ) {
                     Ok((summary, new_styles, new_live)) => {
                         eprintln!(
@@ -984,12 +1068,16 @@ fn run_window(
                         styles = new_styles;
                         live_bindings = new_live;
                     }
-                    Err(e) => eprintln!("[reload] rendering fallito: {e} — resto sulla pagina di prima"),
+                    Err(e) => {
+                        eprintln!("[reload] rendering fallito: {e} — resto sulla pagina di prima")
+                    }
                 },
                 // La pagina può essere sparita insieme al progetto vecchio: si
                 // resta su quella che c'è, sbagliata ma visibile, invece di
                 // lasciare lo schermo vuoto.
-                Err(e) => eprintln!("[reload] impossibile rileggere '{nome}': {e} — resto sulla pagina di prima"),
+                Err(e) => eprintln!(
+                    "[reload] impossibile rileggere '{nome}': {e} — resto sulla pagina di prima"
+                ),
             }
         }
 
@@ -1081,18 +1169,32 @@ mod tests {
     #[test]
     fn il_tocco_viene_traslato_nello_spazio_pagina() {
         // Il centro dello schermo è il centro della pagina.
-        assert_eq!(super::pointer_to_page(960, 540, 320, 140, 1280, 800), Some((640, 400)));
+        assert_eq!(
+            super::pointer_to_page(960, 540, 320, 140, 1280, 800),
+            Some((640, 400))
+        );
         // L'angolo in alto a sinistra della pagina disegnata.
-        assert_eq!(super::pointer_to_page(320, 140, 320, 140, 1280, 800), Some((0, 0)));
+        assert_eq!(
+            super::pointer_to_page(320, 140, 320, 140, 1280, 800),
+            Some((0, 0))
+        );
     }
 
     /// I margini attorno alla pagina non contengono niente da toccare.
     /// Consegnarli comunque produceva 314 avvisi per sessione sul WP630.
     #[test]
     fn i_tocchi_fuori_dalla_pagina_si_scartano() {
-        for (x, y, dove) in [(10, 540, "margine sinistro"), (1900, 540, "margine destro"),
-                             (960, 10, "margine alto"), (960, 1070, "margine basso")] {
-            assert_eq!(super::pointer_to_page(x, y, 320, 140, 1280, 800), None, "{dove}");
+        for (x, y, dove) in [
+            (10, 540, "margine sinistro"),
+            (1900, 540, "margine destro"),
+            (960, 10, "margine alto"),
+            (960, 1070, "margine basso"),
+        ] {
+            assert_eq!(
+                super::pointer_to_page(x, y, 320, 140, 1280, 800),
+                None,
+                "{dove}"
+            );
         }
     }
 
@@ -1101,8 +1203,14 @@ mod tests {
     /// togliere.
     #[test]
     fn il_bordo_e_esclusivo() {
-        assert_eq!(super::pointer_to_page(320 + 1279, 140 + 799, 320, 140, 1280, 800), Some((1279, 799)));
-        assert_eq!(super::pointer_to_page(320 + 1280, 140 + 799, 320, 140, 1280, 800), None);
+        assert_eq!(
+            super::pointer_to_page(320 + 1279, 140 + 799, 320, 140, 1280, 800),
+            Some((1279, 799))
+        );
+        assert_eq!(
+            super::pointer_to_page(320 + 1280, 140 + 799, 320, 140, 1280, 800),
+            None
+        );
     }
 
     use super::{drm_backend_blocker, resolve_touch_device};
@@ -1150,7 +1258,12 @@ mod tests {
     // ── Diagnosi del backend DRM (Q19) ──────────────────────────────────
 
     fn amb<'a>(pairs: &'a [(&'a str, &'a str)]) -> impl Fn(&str) -> Option<String> + 'a {
-        move |k| pairs.iter().find(|(n, _)| *n == k).map(|(_, v)| v.to_string())
+        move |k| {
+            pairs
+                .iter()
+                .find(|(n, _)| *n == k)
+                .map(|(_, v)| v.to_string())
+        }
     }
 
     /// Il caso del WP630: compositore acceso. Il messaggio deve parlare del DRM
@@ -1159,7 +1272,10 @@ mod tests {
     fn un_compositore_wayland_blocca_il_drm() {
         let m = drm_backend_blocker("/dev/dri/card0", amb(&[("WAYLAND_DISPLAY", "wayland-1")]))
             .expect("dovrebbe segnalare un ostacolo");
-        assert!(m.contains("DRM master"), "il messaggio deve dire di chi è il master: {m}");
+        assert!(
+            m.contains("DRM master"),
+            "il messaggio deve dire di chi è il master: {m}"
+        );
         assert!(m.contains("wayland-1"), "e quale compositore: {m}");
     }
 
@@ -1172,16 +1288,24 @@ mod tests {
     /// Una variabile presente ma vuota non è un compositore acceso.
     #[test]
     fn variabili_vuote_non_contano_come_compositore() {
-        let r = drm_backend_blocker("/dev/dri/card-inesistente",
-            amb(&[("WAYLAND_DISPLAY", ""), ("DISPLAY", "   ")]));
+        let r = drm_backend_blocker(
+            "/dev/dri/card-inesistente",
+            amb(&[("WAYLAND_DISPLAY", ""), ("DISPLAY", "   ")]),
+        );
         let m = r.expect("il device non esiste, quindi un ostacolo c'è");
-        assert!(m.contains("non esiste"), "l'ostacolo dev'essere il device, non il compositore: {m}");
+        assert!(
+            m.contains("non esiste"),
+            "l'ostacolo dev'essere il device, non il compositore: {m}"
+        );
     }
 
     #[test]
     fn un_device_mancante_viene_detto_chiaramente() {
         let m = drm_backend_blocker("/dev/dri/card-inesistente", amb(&[])).unwrap();
-        assert!(m.contains("/dev/dri/card-inesistente") && m.contains("non esiste"), "{m}");
+        assert!(
+            m.contains("/dev/dri/card-inesistente") && m.contains("non esiste"),
+            "{m}"
+        );
     }
 
     #[test]

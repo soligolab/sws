@@ -2,7 +2,10 @@
 //! `tracing::Event` into the shared `LogBus`. The fmt layer keeps
 //! writing JSON to stdout in parallel; this layer is purely additive.
 
-use std::{sync::Arc, time::{SystemTime, UNIX_EPOCH}};
+use std::{
+    sync::Arc,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use sws_core::{LogBus, LogEvent};
 use tracing::{
@@ -38,10 +41,10 @@ where
 
         self.bus.record(LogEvent {
             ts_ms,
-            level:   meta.level().to_string(),
-            target:  meta.target().to_string(),
+            level: meta.level().to_string(),
+            target: meta.target().to_string(),
             message: visitor.message.unwrap_or_default(),
-            fields:  visitor.fields,
+            fields: visitor.fields,
         });
     }
 }
@@ -52,7 +55,7 @@ where
 #[derive(Default)]
 struct FieldVisitor {
     message: Option<String>,
-    fields:  serde_json::Map<String, serde_json::Value>,
+    fields: serde_json::Map<String, serde_json::Value>,
 }
 
 impl Visit for FieldVisitor {
@@ -60,25 +63,36 @@ impl Visit for FieldVisitor {
         if field.name() == "message" {
             self.message = Some(value.to_string());
         } else {
-            self.fields.insert(field.name().to_string(), serde_json::Value::String(value.to_string()));
+            self.fields.insert(
+                field.name().to_string(),
+                serde_json::Value::String(value.to_string()),
+            );
         }
     }
 
     fn record_bool(&mut self, field: &Field, value: bool) {
-        self.fields.insert(field.name().to_string(), serde_json::Value::Bool(value));
+        self.fields
+            .insert(field.name().to_string(), serde_json::Value::Bool(value));
     }
 
     fn record_i64(&mut self, field: &Field, value: i64) {
-        self.fields.insert(field.name().to_string(), serde_json::Value::Number(value.into()));
+        self.fields.insert(
+            field.name().to_string(),
+            serde_json::Value::Number(value.into()),
+        );
     }
 
     fn record_u64(&mut self, field: &Field, value: u64) {
-        self.fields.insert(field.name().to_string(), serde_json::Value::Number(value.into()));
+        self.fields.insert(
+            field.name().to_string(),
+            serde_json::Value::Number(value.into()),
+        );
     }
 
     fn record_f64(&mut self, field: &Field, value: f64) {
         if let Some(n) = serde_json::Number::from_f64(value) {
-            self.fields.insert(field.name().to_string(), serde_json::Value::Number(n));
+            self.fields
+                .insert(field.name().to_string(), serde_json::Value::Number(n));
         }
     }
 
@@ -87,7 +101,10 @@ impl Visit for FieldVisitor {
         if field.name() == "message" {
             self.message = Some(rendered);
         } else {
-            self.fields.insert(field.name().to_string(), serde_json::Value::String(rendered));
+            self.fields.insert(
+                field.name().to_string(),
+                serde_json::Value::String(rendered),
+            );
         }
     }
 }

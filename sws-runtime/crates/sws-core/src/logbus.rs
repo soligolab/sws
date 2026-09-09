@@ -8,10 +8,7 @@
 //! `tracing::Event` → `LogEvent` lives in `sws-runtime/src/log_layer.rs`
 //! to keep `sws-core` free of a `tracing-subscriber` dependency.
 
-use std::{
-    collections::VecDeque,
-    sync::Mutex,
-};
+use std::{collections::VecDeque, sync::Mutex};
 
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
@@ -21,12 +18,12 @@ use tokio::sync::broadcast;
 /// schema churn.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct LogEvent {
-    pub ts_ms:   u64,
-    pub level:   String, // "TRACE" | "DEBUG" | "INFO" | "WARN" | "ERROR"
-    pub target:  String,
+    pub ts_ms: u64,
+    pub level: String, // "TRACE" | "DEBUG" | "INFO" | "WARN" | "ERROR"
+    pub target: String,
     pub message: String,
     #[serde(default, skip_serializing_if = "serde_json::Map::is_empty")]
-    pub fields:  serde_json::Map<String, serde_json::Value>,
+    pub fields: serde_json::Map<String, serde_json::Value>,
 }
 
 /// Default ring-buffer + broadcast capacity. Sized for ~30 s at 30 ev/s
@@ -34,16 +31,16 @@ pub struct LogEvent {
 pub const DEFAULT_LOG_CAPACITY: usize = 1000;
 
 pub struct LogBus {
-    cap:    usize,
+    cap: usize,
     buffer: Mutex<VecDeque<LogEvent>>,
-    tx:     broadcast::Sender<LogEvent>,
+    tx: broadcast::Sender<LogEvent>,
 }
 
 impl LogBus {
     pub fn new(capacity: usize) -> Self {
         let (tx, _) = broadcast::channel(capacity.max(16));
         Self {
-            cap:    capacity,
+            cap: capacity,
             buffer: Mutex::new(VecDeque::with_capacity(capacity)),
             tx,
         }
@@ -81,11 +78,11 @@ mod tests {
 
     fn ev(msg: &str) -> LogEvent {
         LogEvent {
-            ts_ms:   1,
-            level:   "INFO".into(),
-            target:  "test".into(),
+            ts_ms: 1,
+            level: "INFO".into(),
+            target: "test".into(),
             message: msg.into(),
-            fields:  Default::default(),
+            fields: Default::default(),
         }
     }
 

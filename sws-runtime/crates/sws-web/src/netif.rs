@@ -96,7 +96,10 @@ mod tests {
     use super::*;
 
     fn net(addr: &str, mask: &str) -> LocalNet {
-        LocalNet { addr: addr.parse().unwrap(), netmask: mask.parse().unwrap() }
+        LocalNet {
+            addr: addr.parse().unwrap(),
+            netmask: mask.parse().unwrap(),
+        }
     }
 
     /// Il caso del WP630: /23 significa che 192.168.0.x e 192.168.1.x sono la
@@ -126,10 +129,24 @@ mod tests {
 
     #[test]
     fn le_interfacce_dei_container_sono_impalcatura() {
-        for name in ["veth58fbd0f", "docker0", "podman1", "cni-podman0", "br-1a2b", "virbr0"] {
+        for name in [
+            "veth58fbd0f",
+            "docker0",
+            "podman1",
+            "cni-podman0",
+            "br-1a2b",
+            "virbr0",
+        ] {
             assert!(is_plumbing(name), "{name} andrebbe scartata");
         }
-        for name in ["eth0", "ethernet0", "ethernet1", "ens192", "wlan0", "enp3s0"] {
+        for name in [
+            "eth0",
+            "ethernet0",
+            "ethernet1",
+            "ens192",
+            "wlan0",
+            "enp3s0",
+        ] {
             assert!(!is_plumbing(name), "{name} è una rete vera");
         }
     }

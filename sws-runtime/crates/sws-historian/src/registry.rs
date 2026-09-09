@@ -6,11 +6,7 @@
 //!
 //! The registry is `Arc`-wrapped by the caller; `spawn_recorder` takes an `Arc<Self>`.
 
-use std::{
-    collections::HashMap,
-    path::Path,
-    sync::Arc,
-};
+use std::{collections::HashMap, path::Path, sync::Arc};
 
 use sws_core::{Project, TagId};
 use tokio::sync::RwLock;
@@ -30,7 +26,12 @@ struct TagFilter {
 
 impl TagFilter {
     fn new(deadband: Option<f64>, min_interval_ms: Option<u64>) -> Self {
-        Self { deadband, min_interval_ms, last_value: None, last_ts_ms: 0 }
+        Self {
+            deadband,
+            min_interval_ms,
+            last_value: None,
+            last_ts_ms: 0,
+        }
     }
 
     /// Returns true if the sample should be recorded (passes deadband + interval).
@@ -46,9 +47,15 @@ impl TagFilter {
             if let Some(last_v) = self.last_value {
                 let current = match &sample.value {
                     sws_core::TagValue::Float(v) => *v,
-                    sws_core::TagValue::Int(v)   => *v as f64,
-                    sws_core::TagValue::Bool(v)  => if *v { 1.0 } else { 0.0 },
-                    sws_core::TagValue::Str(_)   => {
+                    sws_core::TagValue::Int(v) => *v as f64,
+                    sws_core::TagValue::Bool(v) => {
+                        if *v {
+                            1.0
+                        } else {
+                            0.0
+                        }
+                    }
+                    sws_core::TagValue::Str(_) => {
                         // Strings: always record (no meaningful deadband).
                         self.last_ts_ms = sample.ts_ms;
                         return true;
@@ -62,9 +69,9 @@ impl TagFilter {
                 // First sample — always record, seed last_value.
                 self.last_value = match &sample.value {
                     sws_core::TagValue::Float(v) => Some(*v),
-                    sws_core::TagValue::Int(v)   => Some(*v as f64),
-                    sws_core::TagValue::Bool(v)  => Some(if *v { 1.0 } else { 0.0 }),
-                    sws_core::TagValue::Str(_)   => None,
+                    sws_core::TagValue::Int(v) => Some(*v as f64),
+                    sws_core::TagValue::Bool(v) => Some(if *v { 1.0 } else { 0.0 }),
+                    sws_core::TagValue::Str(_) => None,
                 };
             }
         }
@@ -143,7 +150,9 @@ impl DatastoreRegistry {
     /// correct backend. No-op for tags not in the route table (history disabled).
     pub async fn record(&self, tag_id: &str, sample: &Sample) {
         let mut routes = self.routes.write().await;
-        let Some(route) = routes.get_mut(tag_id) else { return };
+        let Some(route) = routes.get_mut(tag_id) else {
+            return;
+        };
         if !route.filter.should_record(sample) {
             return;
         }
@@ -253,7 +262,8 @@ impl DatastoreRegistry {
 
     /// Path del file database del backend indicato (solo SQLite).
     pub fn backend_db_path(&self, id: &str) -> Option<std::path::PathBuf> {
-        self.backends.iter()
+        self.backends
+            .iter()
             .find(|(bid, _)| bid == id)
             .and_then(|(_, b)| b.db_path().ok())
     }
@@ -270,7 +280,11 @@ impl DatastoreRegistry {
     /// Sostituisce il file database del backend indicato con `bytes` (backup
     /// automatico del precedente, nessun hot-swap della connessione live —
     /// serve un riavvio). Ritorna il path del backup creato.
-    pub async fn replace_backend_file(&self, id: &str, bytes: Vec<u8>) -> anyhow::Result<std::path::PathBuf> {
+    pub async fn replace_backend_file(
+        &self,
+        id: &str,
+        bytes: Vec<u8>,
+    ) -> anyhow::Result<std::path::PathBuf> {
         match self.backends.iter().find(|(bid, _)| bid == id) {
             Some((_, b)) => b.replace_file(bytes).await,
             None => anyhow::bail!("datastore '{id}' not found"),
@@ -289,7 +303,10 @@ impl DatastoreRegistry {
     }
 
     /// Spawn a recorder task that subscribes to `tag_db` and routes every update.
-    pub fn spawn_recorder(self: Arc<Self>, tag_db: Arc<sws_core::TagDb>) -> tokio::task::JoinHandle<()> {
+    pub fn spawn_recorder(
+        self: Arc<Self>,
+        tag_db: Arc<sws_core::TagDb>,
+    ) -> tokio::task::JoinHandle<()> {
         let mut rx = tag_db.subscribe();
         tokio::spawn(async move {
             loop {

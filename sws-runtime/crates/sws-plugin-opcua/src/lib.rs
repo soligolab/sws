@@ -24,7 +24,9 @@ use opcua::types::{
     Variant, WriteValue,
 };
 use serde::{Deserialize, Serialize};
-use sws_core::{OpcUaAuth, OpcUaClientConfig, TagDb, TagQuality, TagValue, TagWriteBus, WriteRequest};
+use sws_core::{
+    OpcUaAuth, OpcUaClientConfig, TagDb, TagQuality, TagValue, TagWriteBus, WriteRequest,
+};
 use tokio::sync::mpsc;
 use tracing::{info, warn};
 
@@ -34,11 +36,11 @@ use tracing::{info, warn};
 /// downgrade to "no security" without telling the operator.
 fn parse_security_policy(s: &str) -> Option<SecurityPolicy> {
     match s {
-        "None"               => Some(SecurityPolicy::None),
-        "Basic128Rsa15"      => Some(SecurityPolicy::Basic128Rsa15),
-        "Basic256"           => Some(SecurityPolicy::Basic256),
-        "Basic256Sha256"     => Some(SecurityPolicy::Basic256Sha256),
-        "Aes128Sha256RsaOaep"=> Some(SecurityPolicy::Aes128Sha256RsaOaep),
+        "None" => Some(SecurityPolicy::None),
+        "Basic128Rsa15" => Some(SecurityPolicy::Basic128Rsa15),
+        "Basic256" => Some(SecurityPolicy::Basic256),
+        "Basic256Sha256" => Some(SecurityPolicy::Basic256Sha256),
+        "Aes128Sha256RsaOaep" => Some(SecurityPolicy::Aes128Sha256RsaOaep),
         "Aes256Sha256RsaPss" => Some(SecurityPolicy::Aes256Sha256RsaPss),
         _ => None,
     }
@@ -51,7 +53,7 @@ fn parse_security_policy(s: &str) -> Option<SecurityPolicy> {
 fn security_mode_for(policy: SecurityPolicy) -> MessageSecurityMode {
     match policy {
         SecurityPolicy::None => MessageSecurityMode::None,
-        _                    => MessageSecurityMode::SignAndEncrypt,
+        _ => MessageSecurityMode::SignAndEncrypt,
     }
 }
 
@@ -86,7 +88,9 @@ pub async fn run(cfg: OpcUaClientConfig, db: Arc<TagDb>, bus: Arc<TagWriteBus>, 
     let source_pki = pki_dir.join(&cfg.id);
     match run_once(&cfg, &db, &bus, &source_pki).await {
         Ok(()) => info!(source = %cfg.id, "opcua: session ended cleanly"),
-        Err(e) => warn!(source = %cfg.id, "opcua: session error: {e} — stopped (save config to retry)"),
+        Err(e) => {
+            warn!(source = %cfg.id, "opcua: session error: {e} — stopped (save config to retry)")
+        }
     }
     for n in &cfg.nodes {
         if let Some(state) = db.get(&n.tag).await {
@@ -131,13 +135,18 @@ async fn run_once(
         security_policy.to_uri(),
         security_mode,
         UserTokenPolicy::anonymous(),
-    ).into();
+    )
+        .into();
 
     // Resolve credentials. password_env wins over password so secrets can
     // stay out of project.yaml.
     let identity = match &cfg.auth {
         OpcUaAuth::Anonymous => IdentityToken::Anonymous,
-        OpcUaAuth::UsernamePassword { username, password, password_env } => {
+        OpcUaAuth::UsernamePassword {
+            username,
+            password,
+            password_env,
+        } => {
             let pwd = password_env
                 .as_ref()
                 .and_then(|k| std::env::var(k).ok())
@@ -196,11 +205,11 @@ async fn run_once(
     let subscription_id = session
         .create_subscription(
             publishing_interval,
-            10,    // lifetime count
-            30,    // max keep-alive count
-            0,     // max notifications per publish (0 = server picks)
-            0,     // priority
-            true,  // publishing enabled
+            10,   // lifetime count
+            30,   // max keep-alive count
+            0,    // max notifications per publish (0 = server picks)
+            0,    // priority
+            true, // publishing enabled
             DataChangeCallback::new(move |value, item| {
                 let nid = item.item_to_monitor().node_id.clone();
                 let _ = tx.send((nid, value));
@@ -223,7 +232,9 @@ async fn run_once(
     let source_id = cfg.id.clone();
     let dispatcher = tokio::spawn(async move {
         while let Some((node_id, dv)) = rx.recv().await {
-            let Some(tag_id) = routing_clone.get(&node_id) else { continue };
+            let Some(tag_id) = routing_clone.get(&node_id) else {
+                continue;
+            };
             let (value, quality) = data_value_to_tag(&dv);
             db_clone.set(tag_id.clone(), value, quality).await;
             tracing::trace!(source = %source_id, tag = %tag_id, "opcua: tag update");
@@ -259,13 +270,18 @@ async fn run_once(
                 value: DataValue {
                     value: Some(variant.clone()),
                     status: Some(StatusCode::Good),
-                    source_timestamp: None, source_picoseconds: None,
-                    server_timestamp: None, server_picoseconds: None,
+                    source_timestamp: None,
+                    source_picoseconds: None,
+                    server_timestamp: None,
+                    server_picoseconds: None,
                 },
             }];
             match session_for_writes.write(&to_write).await {
                 Ok(codes) => {
-                    let ok = codes.first().map(|c| c == &StatusCode::Good).unwrap_or(false);
+                    let ok = codes
+                        .first()
+                        .map(|c| c == &StatusCode::Good)
+                        .unwrap_or(false);
                     if ok {
                         // Echo the new value into TagDb at Good quality so
                         // the UI sees the change immediately, instead of
@@ -305,10 +321,10 @@ async fn run_once(
 /// failure path for future additions).
 fn tag_value_to_variant(v: &TagValue) -> Option<Variant> {
     match v {
-        TagValue::Bool(b)  => Some(Variant::Boolean(*b)),
-        TagValue::Int(n)   => Some(Variant::Int64(*n)),
+        TagValue::Bool(b) => Some(Variant::Boolean(*b)),
+        TagValue::Int(n) => Some(Variant::Int64(*n)),
         TagValue::Float(f) => Some(Variant::Double(*f)),
-        TagValue::Str(s)   => Some(Variant::String(s.as_str().into())),
+        TagValue::Str(s) => Some(Variant::String(s.as_str().into())),
     }
 }
 
@@ -322,18 +338,18 @@ fn data_value_to_tag(dv: &DataValue) -> (TagValue, TagQuality) {
         None => TagQuality::Uncertain,
     };
     let value = match &dv.value {
-        Some(Variant::Boolean(b))   => TagValue::Bool(*b),
-        Some(Variant::Byte(n))      => TagValue::Int(*n as i64),
-        Some(Variant::SByte(n))     => TagValue::Int(*n as i64),
-        Some(Variant::Int16(n))     => TagValue::Int(*n as i64),
-        Some(Variant::UInt16(n))    => TagValue::Int(*n as i64),
-        Some(Variant::Int32(n))     => TagValue::Int(*n as i64),
-        Some(Variant::UInt32(n))    => TagValue::Int(*n as i64),
-        Some(Variant::Int64(n))     => TagValue::Int(*n),
-        Some(Variant::UInt64(n))    => TagValue::Int(*n as i64),
-        Some(Variant::Float(f))     => TagValue::Float(*f as f64),
-        Some(Variant::Double(d))    => TagValue::Float(*d),
-        Some(Variant::String(s))    => TagValue::Str(s.as_ref().to_string()),
+        Some(Variant::Boolean(b)) => TagValue::Bool(*b),
+        Some(Variant::Byte(n)) => TagValue::Int(*n as i64),
+        Some(Variant::SByte(n)) => TagValue::Int(*n as i64),
+        Some(Variant::Int16(n)) => TagValue::Int(*n as i64),
+        Some(Variant::UInt16(n)) => TagValue::Int(*n as i64),
+        Some(Variant::Int32(n)) => TagValue::Int(*n as i64),
+        Some(Variant::UInt32(n)) => TagValue::Int(*n as i64),
+        Some(Variant::Int64(n)) => TagValue::Int(*n),
+        Some(Variant::UInt64(n)) => TagValue::Int(*n as i64),
+        Some(Variant::Float(f)) => TagValue::Float(*f as f64),
+        Some(Variant::Double(d)) => TagValue::Float(*d),
+        Some(Variant::String(s)) => TagValue::Str(s.as_ref().to_string()),
         Some(Variant::LocalizedText(t)) => TagValue::Str(t.text.as_ref().to_string()),
         Some(_other) => {
             // Unsupported variant — emit Uncertain so the UI flags it but
@@ -388,14 +404,14 @@ pub async fn read_history(
         .unwrap_or_default()
         .as_millis() as u64;
     let from_ms = from_ms.unwrap_or(now_ms.saturating_sub(86_400_000));
-    let to_ms   = to_ms.unwrap_or(now_ms);
+    let to_ms = to_ms.unwrap_or(now_ms);
 
     let ms_to_opc = |ms: u64| -> opcua::types::DateTime {
         let ticks = (ms as i64) * 10_000 + EPOCH_OFFSET_TICKS;
         ticks.into()
     };
     let start_time = ms_to_opc(from_ms);
-    let end_time   = ms_to_opc(to_ms);
+    let end_time = ms_to_opc(to_ms);
 
     let nid = NodeId::from_str(node_id)
         .map_err(|e| anyhow::anyhow!("invalid NodeId '{node_id}': {e}"))?;
@@ -407,8 +423,8 @@ pub async fn read_history(
         .client()
         .map_err(|e| anyhow::anyhow!("opcua client builder: {e:?}"))?;
 
-    let security_policy = parse_security_policy(&cfg.security_policy)
-        .unwrap_or(SecurityPolicy::None);
+    let security_policy =
+        parse_security_policy(&cfg.security_policy).unwrap_or(SecurityPolicy::None);
     let security_mode = security_mode_for(security_policy);
 
     let endpoint: opcua::types::EndpointDescription = (
@@ -416,11 +432,16 @@ pub async fn read_history(
         security_policy.to_uri(),
         security_mode,
         UserTokenPolicy::anonymous(),
-    ).into();
+    )
+        .into();
 
     let identity = match &cfg.auth {
         OpcUaAuth::Anonymous => IdentityToken::Anonymous,
-        OpcUaAuth::UsernamePassword { username, password, password_env } => {
+        OpcUaAuth::UsernamePassword {
+            username,
+            password,
+            password_env,
+        } => {
             let pwd = password_env
                 .as_ref()
                 .and_then(|k| std::env::var(k).ok())
@@ -471,9 +492,12 @@ pub async fn read_history(
             warn!(node = %node_id, code = ?result.status_code, "opcua history_read: bad status");
             continue;
         }
-        let Some(hd) = result.history_data.inner_as::<HistoryData>() else { continue };
+        let Some(hd) = result.history_data.inner_as::<HistoryData>() else {
+            continue;
+        };
         for dv in hd.data_values.iter().flatten() {
-            let ts_ms = dv.source_timestamp
+            let ts_ms = dv
+                .source_timestamp
                 .or(dv.server_timestamp)
                 .map(|dt| {
                     // Convert OPC-UA ticks (since 1601-01-01) to Unix ms.
@@ -483,23 +507,33 @@ pub async fn read_history(
             let quality = match dv.status {
                 Some(s) if s == StatusCode::Good => "Good",
                 Some(_) => "Bad",
-                None     => "Uncertain",
+                None => "Uncertain",
             };
             let value = match &dv.value {
-                Some(Variant::Boolean(b))   => if *b { 1.0 } else { 0.0 },
-                Some(Variant::Byte(n))      => *n as f64,
-                Some(Variant::SByte(n))     => *n as f64,
-                Some(Variant::Int16(n))     => *n as f64,
-                Some(Variant::UInt16(n))    => *n as f64,
-                Some(Variant::Int32(n))     => *n as f64,
-                Some(Variant::UInt32(n))    => *n as f64,
-                Some(Variant::Int64(n))     => *n as f64,
-                Some(Variant::UInt64(n))    => *n as f64,
-                Some(Variant::Float(f))     => *f as f64,
-                Some(Variant::Double(d))    => *d,
+                Some(Variant::Boolean(b)) => {
+                    if *b {
+                        1.0
+                    } else {
+                        0.0
+                    }
+                }
+                Some(Variant::Byte(n)) => *n as f64,
+                Some(Variant::SByte(n)) => *n as f64,
+                Some(Variant::Int16(n)) => *n as f64,
+                Some(Variant::UInt16(n)) => *n as f64,
+                Some(Variant::Int32(n)) => *n as f64,
+                Some(Variant::UInt32(n)) => *n as f64,
+                Some(Variant::Int64(n)) => *n as f64,
+                Some(Variant::UInt64(n)) => *n as f64,
+                Some(Variant::Float(f)) => *f as f64,
+                Some(Variant::Double(d)) => *d,
                 _ => continue, // skip strings, extension objects, nulls
             };
-            out.push(HistoricalSample { ts_ms, value, quality });
+            out.push(HistoricalSample {
+                ts_ms,
+                value,
+                quality,
+            });
         }
     }
     Ok(out)
@@ -552,8 +586,8 @@ pub async fn browse_one_level(
         .client()
         .map_err(|e| anyhow::anyhow!("opcua client builder: {e:?}"))?;
 
-    let security_policy = parse_security_policy(&cfg.security_policy)
-        .unwrap_or(SecurityPolicy::None);
+    let security_policy =
+        parse_security_policy(&cfg.security_policy).unwrap_or(SecurityPolicy::None);
     let security_mode = security_mode_for(security_policy);
 
     let endpoint: opcua::types::EndpointDescription = (
@@ -561,11 +595,16 @@ pub async fn browse_one_level(
         security_policy.to_uri(),
         security_mode,
         UserTokenPolicy::anonymous(),
-    ).into();
+    )
+        .into();
 
     let identity = match &cfg.auth {
         OpcUaAuth::Anonymous => IdentityToken::Anonymous,
-        OpcUaAuth::UsernamePassword { username, password, password_env } => {
+        OpcUaAuth::UsernamePassword {
+            username,
+            password,
+            password_env,
+        } => {
             let pwd = password_env
                 .as_ref()
                 .and_then(|k| std::env::var(k).ok())
@@ -582,15 +621,16 @@ pub async fn browse_one_level(
     session.wait_for_connection().await;
 
     let parent = match parent_node_id {
-        Some(s) => NodeId::from_str(s)
-            .map_err(|e| anyhow::anyhow!("invalid parent NodeId '{s}': {e}"))?,
+        Some(s) => {
+            NodeId::from_str(s).map_err(|e| anyhow::anyhow!("invalid parent NodeId '{s}': {e}"))?
+        }
         None => ObjectId::ObjectsFolder.into(),
     };
 
     let browse_direction = match direction {
         BrowseDir::Forward => BrowseDirection::Forward,
         BrowseDir::Inverse => BrowseDirection::Inverse,
-        BrowseDir::Both    => BrowseDirection::Both,
+        BrowseDir::Both => BrowseDirection::Both,
     };
 
     // BrowseDescription: configurable direction; HierarchicalReferences with
@@ -606,7 +646,9 @@ pub async fn browse_one_level(
         result_mask: 0x3f,
     };
 
-    let results = session.browse(&[req], 1000, None).await
+    let results = session
+        .browse(&[req], 1000, None)
+        .await
         .map_err(|e| anyhow::anyhow!("browse: {e}"))?;
 
     let mut out: Vec<BrowsedNode> = Vec::new();
@@ -614,10 +656,10 @@ pub async fn browse_one_level(
         let Some(refs) = r.references else { continue };
         for rd in refs {
             out.push(BrowsedNode {
-                node_id:      rd.node_id.node_id.to_string(),
-                browse_name:  rd.browse_name.name.as_ref().to_string(),
+                node_id: rd.node_id.node_id.to_string(),
+                browse_name: rd.browse_name.name.as_ref().to_string(),
                 display_name: rd.display_name.text.as_ref().to_string(),
-                node_class:   node_class_label(rd.node_class).to_string(),
+                node_class: node_class_label(rd.node_class).to_string(),
             });
         }
     }
@@ -681,18 +723,58 @@ pub struct EuromapDetection {
 /// the UI proposes (operator can still rename in the table).
 const EUROMAP_VARIABLES: &[(&str, &str, &str, &str)] = &[
     // Euromap 77 — injection moulding
-    ("77", "MachineState",                  "machine_state",     "Stato macchina (int)"),
-    ("77", "ActiveErrors",                  "active_errors",     "Errori attivi (int)"),
-    ("77", "CycleTime",                     "cycle_time",        "Tempo ciclo (s, float)"),
-    ("77", "InjectionTime",                 "injection_time",    "Tempo iniezione (s, float)"),
-    ("77", "MeltTemperature",               "melt_temp",         "Temperatura fuso (°C, float)"),
-    ("77", "ClampingForce",                 "clamping_force",    "Forza di chiusura (kN, float)"),
-    ("77", "ProductionActiveParts",         "parts_produced",    "Pezzi prodotti (int)"),
-    ("77", "ProductionActiveDefectiveParts","parts_defective",   "Pezzi difettosi (int)"),
+    (
+        "77",
+        "MachineState",
+        "machine_state",
+        "Stato macchina (int)",
+    ),
+    ("77", "ActiveErrors", "active_errors", "Errori attivi (int)"),
+    ("77", "CycleTime", "cycle_time", "Tempo ciclo (s, float)"),
+    (
+        "77",
+        "InjectionTime",
+        "injection_time",
+        "Tempo iniezione (s, float)",
+    ),
+    (
+        "77",
+        "MeltTemperature",
+        "melt_temp",
+        "Temperatura fuso (°C, float)",
+    ),
+    (
+        "77",
+        "ClampingForce",
+        "clamping_force",
+        "Forza di chiusura (kN, float)",
+    ),
+    (
+        "77",
+        "ProductionActiveParts",
+        "parts_produced",
+        "Pezzi prodotti (int)",
+    ),
+    (
+        "77",
+        "ProductionActiveDefectiveParts",
+        "parts_defective",
+        "Pezzi difettosi (int)",
+    ),
     // Euromap 83 — temperature control unit
-    ("83", "TbcActualTemperature",          "temp_actual",       "Temperatura attuale (°C, float)"),
-    ("83", "TbcSetTemperature",             "temp_set",          "Temperatura set (°C, float)"),
-    ("83", "TbcState",                      "tcu_state",         "Stato TCU (int)"),
+    (
+        "83",
+        "TbcActualTemperature",
+        "temp_actual",
+        "Temperatura attuale (°C, float)",
+    ),
+    (
+        "83",
+        "TbcSetTemperature",
+        "temp_set",
+        "Temperatura set (°C, float)",
+    ),
+    ("83", "TbcState", "tcu_state", "Stato TCU (int)"),
 ];
 
 const EUROMAP_MAX_NODES: usize = 500;
@@ -711,18 +793,23 @@ pub async fn detect_euromap(cfg: &OpcUaClientConfig) -> anyhow::Result<EuromapDe
         .client()
         .map_err(|e| anyhow::anyhow!("opcua client builder: {e:?}"))?;
 
-    let security_policy = parse_security_policy(&cfg.security_policy)
-        .unwrap_or(SecurityPolicy::None);
+    let security_policy =
+        parse_security_policy(&cfg.security_policy).unwrap_or(SecurityPolicy::None);
     let security_mode = security_mode_for(security_policy);
     let endpoint: opcua::types::EndpointDescription = (
         cfg.endpoint_url.as_str(),
         security_policy.to_uri(),
         security_mode,
         UserTokenPolicy::anonymous(),
-    ).into();
+    )
+        .into();
     let identity = match &cfg.auth {
         OpcUaAuth::Anonymous => IdentityToken::Anonymous,
-        OpcUaAuth::UsernamePassword { username, password, password_env } => {
+        OpcUaAuth::UsernamePassword {
+            username,
+            password,
+            password_env,
+        } => {
             let pwd = password_env
                 .as_ref()
                 .and_then(|k| std::env::var(k).ok())
@@ -778,7 +865,9 @@ pub async fn detect_euromap(cfg: &OpcUaClientConfig) -> anyhow::Result<EuromapDe
             let Some(refs) = r.references else { continue };
             for rd in refs {
                 let nid = rd.node_id.node_id.clone();
-                if visited.contains(&nid) { continue; }
+                if visited.contains(&nid) {
+                    continue;
+                }
                 visited.insert(nid.clone());
                 let browse_name = rd.browse_name.name.as_ref().to_string();
                 let display_name = rd.display_name.text.as_ref().to_string();
@@ -806,20 +895,24 @@ pub async fn detect_euromap(cfg: &OpcUaClientConfig) -> anyhow::Result<EuromapDe
     loop_handle.abort();
     drop(tmpdir);
 
-    Ok(EuromapDetection { nodes_scanned: scanned, truncated, variables: matched })
+    Ok(EuromapDetection {
+        nodes_scanned: scanned,
+        truncated,
+        variables: matched,
+    })
 }
 
 fn node_class_label(c: NodeClass) -> &'static str {
     match c {
-        NodeClass::Object        => "Object",
-        NodeClass::Variable      => "Variable",
-        NodeClass::Method        => "Method",
-        NodeClass::ObjectType    => "ObjectType",
-        NodeClass::VariableType  => "VariableType",
+        NodeClass::Object => "Object",
+        NodeClass::Variable => "Variable",
+        NodeClass::Method => "Method",
+        NodeClass::ObjectType => "ObjectType",
+        NodeClass::VariableType => "VariableType",
         NodeClass::ReferenceType => "ReferenceType",
-        NodeClass::DataType      => "DataType",
-        NodeClass::View          => "View",
-        NodeClass::Unspecified   => "Unspecified",
+        NodeClass::DataType => "DataType",
+        NodeClass::View => "View",
+        NodeClass::Unspecified => "Unspecified",
     }
 }
 
@@ -843,12 +936,10 @@ pub async fn run_server(
 ) {
     use opcua::nodes::{AccessLevel, VariableBuilder};
     use opcua::server::{
-        ServerBuilder,
-        node_manager::memory::simple_node_manager,
-        diagnostics::NamespaceMetadata,
+        diagnostics::NamespaceMetadata, node_manager::memory::simple_node_manager, ServerBuilder,
     };
     use opcua::types::{DataTypeId, DataValue, NodeId, ObjectId};
-    use sws_core::{TagValue, TagQuality};
+    use sws_core::{TagQuality, TagValue};
 
     let (server, handle) = match ServerBuilder::new_anonymous("SWS OPC-UA Server")
         .application_uri(format!("urn:soligolab:sws:{}", cfg.id))
@@ -890,14 +981,18 @@ pub async fn run_server(
 
         for mapping in &cfg.nodes {
             let nid = NodeId::new(ns, mapping.effective_node_id());
-            VariableBuilder::new(&nid, mapping.effective_node_id(), mapping.effective_node_id())
-                .data_type(DataTypeId::Double)
-                .value(0.0_f64)
-                .access_level(AccessLevel::CURRENT_READ | AccessLevel::CURRENT_WRITE)
-                .user_access_level(AccessLevel::CURRENT_READ | AccessLevel::CURRENT_WRITE)
-                .writable()
-                .organized_by(folder_id.clone())
-                .insert(&mut *address_space);
+            VariableBuilder::new(
+                &nid,
+                mapping.effective_node_id(),
+                mapping.effective_node_id(),
+            )
+            .data_type(DataTypeId::Double)
+            .value(0.0_f64)
+            .access_level(AccessLevel::CURRENT_READ | AccessLevel::CURRENT_WRITE)
+            .user_access_level(AccessLevel::CURRENT_READ | AccessLevel::CURRENT_WRITE)
+            .writable()
+            .organized_by(folder_id.clone())
+            .insert(&mut *address_space);
         }
     }
 
@@ -905,8 +1000,7 @@ pub async fn run_server(
     // an unbounded mpsc channel: callback posts to channel; a spawned task
     // drains it and calls db.ingest() (bypassing the write bus — the OPC-UA
     // server is the authoritative source for these tags while running).
-    let (write_tx, mut write_rx) =
-        tokio::sync::mpsc::unbounded_channel::<(String, TagValue)>();
+    let (write_tx, mut write_rx) = tokio::sync::mpsc::unbounded_channel::<(String, TagValue)>();
     {
         let impl_ = node_mgr.inner();
         for mapping in &cfg.nodes {
@@ -917,11 +1011,13 @@ pub async fn run_server(
                 if let Some(v) = &dv.value {
                     let tv: Option<TagValue> = match v {
                         opcua::types::Variant::Boolean(b) => Some(TagValue::Bool(*b)),
-                        opcua::types::Variant::Float(f)   => Some(TagValue::Float(*f as f64)),
-                        opcua::types::Variant::Double(f)  => Some(TagValue::Float(*f)),
-                        opcua::types::Variant::Int32(i)   => Some(TagValue::Int(*i as i64)),
-                        opcua::types::Variant::Int64(i)   => Some(TagValue::Int(*i)),
-                        opcua::types::Variant::String(s)  => Some(TagValue::Str(s.as_ref().to_string())),
+                        opcua::types::Variant::Float(f) => Some(TagValue::Float(*f as f64)),
+                        opcua::types::Variant::Double(f) => Some(TagValue::Float(*f)),
+                        opcua::types::Variant::Int32(i) => Some(TagValue::Int(*i as i64)),
+                        opcua::types::Variant::Int64(i) => Some(TagValue::Int(*i)),
+                        opcua::types::Variant::String(s) => {
+                            Some(TagValue::Str(s.as_ref().to_string()))
+                        }
                         _ => None,
                     };
                     if let Some(tv) = tv {
@@ -933,7 +1029,7 @@ pub async fn run_server(
         }
     }
     drop(write_tx); // callbacks hold clones; drop our copy so the channel closes when they all drop
-    // Write-drain task: receives (tag, value) pairs from OPC-UA write callbacks.
+                    // Write-drain task: receives (tag, value) pairs from OPC-UA write callbacks.
     let db_for_writes = db.clone();
     let write_drainer = tokio::spawn(async move {
         while let Some((tag, value)) = write_rx.recv().await {
@@ -965,7 +1061,9 @@ pub async fn run_server(
                         let dv = DataValue::new_now(v);
                         let _ = node_mgr_for_update.set_value(
                             handle_for_update.subscriptions(),
-                            &nid, None, dv,
+                            &nid,
+                            None,
+                            dv,
                         );
                     }
                 }
@@ -1005,9 +1103,12 @@ mod tests {
 
     fn dv(value: Option<Variant>, status: Option<StatusCode>) -> DataValue {
         DataValue {
-            value, status,
-            source_timestamp: None, source_picoseconds: None,
-            server_timestamp: None, server_picoseconds: None,
+            value,
+            status,
+            source_timestamp: None,
+            source_picoseconds: None,
+            server_timestamp: None,
+            server_picoseconds: None,
         }
     }
 
@@ -1029,7 +1130,10 @@ mod tests {
 
     #[test]
     fn data_value_quality_propagates_status() {
-        let (_, q) = data_value_to_tag(&dv(Some(Variant::Int32(0)), Some(StatusCode::BadDeviceFailure)));
+        let (_, q) = data_value_to_tag(&dv(
+            Some(Variant::Int32(0)),
+            Some(StatusCode::BadDeviceFailure),
+        ));
         assert!(matches!(q, TagQuality::Bad));
     }
 
@@ -1049,9 +1153,18 @@ mod tests {
 
     #[test]
     fn parse_security_policy_known_values() {
-        assert!(matches!(parse_security_policy("None"), Some(SecurityPolicy::None)));
-        assert!(matches!(parse_security_policy("Basic256Sha256"), Some(SecurityPolicy::Basic256Sha256)));
-        assert!(matches!(parse_security_policy("Aes256Sha256RsaPss"), Some(SecurityPolicy::Aes256Sha256RsaPss)));
+        assert!(matches!(
+            parse_security_policy("None"),
+            Some(SecurityPolicy::None)
+        ));
+        assert!(matches!(
+            parse_security_policy("Basic256Sha256"),
+            Some(SecurityPolicy::Basic256Sha256)
+        ));
+        assert!(matches!(
+            parse_security_policy("Aes256Sha256RsaPss"),
+            Some(SecurityPolicy::Aes256Sha256RsaPss)
+        ));
         assert!(parse_security_policy("Bogus").is_none());
     }
 
@@ -1059,7 +1172,10 @@ mod tests {
     fn security_mode_pairs_none_with_none_and_else_signencrypt() {
         // The plugin treats every non-None policy as SignAndEncrypt — that
         // matches what most industrial servers expose.
-        assert_eq!(security_mode_for(SecurityPolicy::None), MessageSecurityMode::None);
+        assert_eq!(
+            security_mode_for(SecurityPolicy::None),
+            MessageSecurityMode::None
+        );
         assert_eq!(
             security_mode_for(SecurityPolicy::Basic256Sha256),
             MessageSecurityMode::SignAndEncrypt,
@@ -1078,8 +1194,10 @@ mod tests {
             assert!(!canonical.is_empty(), "canonical name empty in {spec}");
             assert!(!suffix.is_empty(), "suffix empty for {canonical}");
             assert!(!desc.is_empty(), "description empty for {canonical}");
-            assert!(seen.insert((*spec, *suffix)),
-                "duplicate (spec, suffix) = ({spec}, {suffix})");
+            assert!(
+                seen.insert((*spec, *suffix)),
+                "duplicate (spec, suffix) = ({spec}, {suffix})"
+            );
         }
     }
 
@@ -1087,7 +1205,10 @@ mod tests {
     fn tag_value_to_variant_roundtrip_int_float_str() {
         // Int → Int64 (widest signed); Float → Double (widest unsigned-ish);
         // Str → UAString. Callers can rely on these mappings being stable.
-        assert!(matches!(tag_value_to_variant(&TagValue::Int(42)), Some(Variant::Int64(42))));
+        assert!(matches!(
+            tag_value_to_variant(&TagValue::Int(42)),
+            Some(Variant::Int64(42))
+        ));
         assert!(matches!(tag_value_to_variant(&TagValue::Float(3.5)),
             Some(Variant::Double(d)) if (d - 3.5).abs() < 1e-9));
         match tag_value_to_variant(&TagValue::Str("hi".into())) {

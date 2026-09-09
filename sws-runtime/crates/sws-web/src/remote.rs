@@ -1,4 +1,4 @@
-use std::time::{SystemTime, UNIX_EPOCH};
+use crate::router::{AppState, AuthUser};
 use axum::{
     body::{Body, Bytes},
     extract::{Extension, Path, Query, State},
@@ -8,16 +8,16 @@ use axum::{
 };
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
-use crate::router::{AppState, AuthUser};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Credentials for a connected remote runtime. Stored in AppState and used
 /// by the WS relay handlers to proxy `/ws/remote/{tags,alarms,logs}`.
 /// Volatile — cleared on local runtime restart.
 #[derive(Clone, Debug)]
 pub struct RemoteTarget {
-    pub url: String,           // "http://192.168.1.10:8444" — no trailing slash
-    pub token: String,         // UUID session token issued by the remote
-    pub connected_at_ms: u64,  // Unix epoch ms
+    pub url: String,          // "http://192.168.1.10:8444" — no trailing slash
+    pub token: String,        // UUID session token issued by the remote
+    pub connected_at_ms: u64, // Unix epoch ms
 }
 
 #[derive(Deserialize)]
@@ -64,10 +64,15 @@ pub async fn connect_remote(
     let url = body.url.trim().trim_end_matches('/').to_string();
 
     if !url.starts_with("http://") && !url.starts_with("https://") {
-        return (StatusCode::OK, Json(ConnectResult {
-            ok: false, nota: None, azione: None,
-            error: Some("URL must start with http:// or https://".into()),
-        }));
+        return (
+            StatusCode::OK,
+            Json(ConnectResult {
+                ok: false,
+                nota: None,
+                azione: None,
+                error: Some("URL must start with http:// or https://".into()),
+            }),
+        );
     }
 
     // Q49: fiducia al primo contatto. Il certificato del pannello è self-signed,
@@ -75,10 +80,17 @@ pub async fn connect_remote(
     // e si pretende la stessa le volte dopo. Se cambia, si rifiuta e si dice.
     let client = match costruisci_client(&s, &url, 8) {
         Ok(c) => c,
-        Err(e) => return (StatusCode::OK, Json(ConnectResult {
-            ok: false, nota: None, azione: None,
-            error: Some(format!("HTTP client error: {e}")),
-        })),
+        Err(e) => {
+            return (
+                StatusCode::OK,
+                Json(ConnectResult {
+                    ok: false,
+                    nota: None,
+                    azione: None,
+                    error: Some(format!("HTTP client error: {e}")),
+                }),
+            )
+        }
     };
 
     // If credentials are provided, authenticate against the remote; otherwise
@@ -111,10 +123,15 @@ pub async fn connect_remote(
                         )),
                     }));
                 }
-                return (StatusCode::OK, Json(ConnectResult {
-                    ok: false, nota: None, azione: None,
-                    error: Some(format!("Cannot reach {url}: {e}")),
-                }));
+                return (
+                    StatusCode::OK,
+                    Json(ConnectResult {
+                        ok: false,
+                        nota: None,
+                        azione: None,
+                        error: Some(format!("Cannot reach {url}: {e}")),
+                    }),
+                );
             }
         };
 
@@ -135,38 +152,62 @@ pub async fn connect_remote(
                 ));
                 String::new()
             } else {
-                return (StatusCode::OK, Json(ConnectResult {
-                    ok: false, nota: None, azione: None,
-                    error: Some(format!(
-                        "credenziali rifiutate da {url}: l'utente «{username}» non esiste \
+                return (
+                    StatusCode::OK,
+                    Json(ConnectResult {
+                        ok: false,
+                        nota: None,
+                        azione: None,
+                        error: Some(format!(
+                            "credenziali rifiutate da {url}: l'utente «{username}» non esiste \
                          o la password è sbagliata."
-                    )),
-                }));
+                        )),
+                    }),
+                );
             }
         } else {
-        if !res.status().is_success() {
-            let code = res.status();
-            return (StatusCode::OK, Json(ConnectResult {
-                ok: false, nota: None, azione: None,
-                error: Some(format!("Remote login returned {code}")),
-            }));
-        }
+            if !res.status().is_success() {
+                let code = res.status();
+                return (
+                    StatusCode::OK,
+                    Json(ConnectResult {
+                        ok: false,
+                        nota: None,
+                        azione: None,
+                        error: Some(format!("Remote login returned {code}")),
+                    }),
+                );
+            }
 
-        let payload: serde_json::Value = match res.json().await {
-            Ok(j) => j,
-            Err(e) => return (StatusCode::OK, Json(ConnectResult {
-                ok: false, nota: None, azione: None,
-                error: Some(format!("Bad JSON from remote login: {e}")),
-            })),
-        };
+            let payload: serde_json::Value = match res.json().await {
+                Ok(j) => j,
+                Err(e) => {
+                    return (
+                        StatusCode::OK,
+                        Json(ConnectResult {
+                            ok: false,
+                            nota: None,
+                            azione: None,
+                            error: Some(format!("Bad JSON from remote login: {e}")),
+                        }),
+                    )
+                }
+            };
 
-        match payload.get("token").and_then(|t| t.as_str()) {
-            Some(t) => t.to_string(),
-            None => return (StatusCode::OK, Json(ConnectResult {
-                ok: false, nota: None, azione: None,
-                error: Some("Remote login response has no 'token' field".into()),
-            })),
-        }
+            match payload.get("token").and_then(|t| t.as_str()) {
+                Some(t) => t.to_string(),
+                None => {
+                    return (
+                        StatusCode::OK,
+                        Json(ConnectResult {
+                            ok: false,
+                            nota: None,
+                            azione: None,
+                            error: Some("Remote login response has no 'token' field".into()),
+                        }),
+                    )
+                }
+            }
         }
     };
 
@@ -189,26 +230,41 @@ pub async fn connect_remote(
     match probe.send().await {
         Ok(r) if r.status().is_success() => {}
         Ok(r) if r.status() == StatusCode::NOT_FOUND => {
-            return (StatusCode::OK, Json(ConnectResult {
-                ok: false, nota: None, azione: None,
-                error: Some(format!(
-                    "{url} answers but exposes no project API — this looks like the \
+            return (
+                StatusCode::OK,
+                Json(ConnectResult {
+                    ok: false,
+                    nota: None,
+                    azione: None,
+                    error: Some(format!(
+                        "{url} answers but exposes no project API — this looks like the \
                      viewer port. Use the IDE/admin port instead (8444 by default)."
-                )),
-            }));
+                    )),
+                }),
+            );
         }
         Ok(r) => {
             let code = r.status();
-            return (StatusCode::OK, Json(ConnectResult {
-                ok: false, nota: None, azione: None,
-                error: Some(format!("Target returned {code} on /api/projects")),
-            }));
+            return (
+                StatusCode::OK,
+                Json(ConnectResult {
+                    ok: false,
+                    nota: None,
+                    azione: None,
+                    error: Some(format!("Target returned {code} on /api/projects")),
+                }),
+            );
         }
         Err(e) => {
-            return (StatusCode::OK, Json(ConnectResult {
-                ok: false, nota: None, azione: None,
-                error: Some(format!("Cannot reach {url}: {e}")),
-            }));
+            return (
+                StatusCode::OK,
+                Json(ConnectResult {
+                    ok: false,
+                    nota: None,
+                    azione: None,
+                    error: Some(format!("Cannot reach {url}: {e}")),
+                }),
+            );
         }
     }
 
@@ -217,10 +273,22 @@ pub async fn connect_remote(
         .unwrap_or_default()
         .as_millis() as u64;
 
-    *s.remote_target.write().await = Some(RemoteTarget { url: url.clone(), token, connected_at_ms });
+    *s.remote_target.write().await = Some(RemoteTarget {
+        url: url.clone(),
+        token,
+        connected_at_ms,
+    });
     tracing::info!(remote = %url, "connected to remote runtime");
 
-    (StatusCode::OK, Json(ConnectResult { ok: true, error: None, nota, azione: None }))
+    (
+        StatusCode::OK,
+        Json(ConnectResult {
+            ok: true,
+            error: None,
+            nota,
+            azione: None,
+        }),
+    )
 }
 
 /// Il runtime all'altro capo ha utenti definiti, o è in modalità no-auth?
@@ -252,11 +320,19 @@ fn make_remote_client(s: &AppState, url: &str) -> reqwest::Client {
     costruisci_client(s, url, 60).expect("reqwest client")
 }
 
-fn costruisci_client(s: &AppState, url: &str, timeout_s: u64) -> Result<reqwest::Client, reqwest::Error> {
+fn costruisci_client(
+    s: &AppState,
+    url: &str,
+    timeout_s: u64,
+) -> Result<reqwest::Client, reqwest::Error> {
     let mut b = reqwest::Client::builder().timeout(std::time::Duration::from_secs(timeout_s));
     if url.starts_with("https://") {
-        let host_port = crate::certificati::host_port_da_url(url).unwrap_or_else(|| url.to_string());
-        b = b.use_preconfigured_tls(crate::certificati::client_config_pinnato(&host_port, s.certificati.clone()));
+        let host_port =
+            crate::certificati::host_port_da_url(url).unwrap_or_else(|| url.to_string());
+        b = b.use_preconfigured_tls(crate::certificati::client_config_pinnato(
+            &host_port,
+            s.certificati.clone(),
+        ));
     }
     b.build()
 }
@@ -302,13 +378,19 @@ async fn report_user_divergence(
     send: &impl Fn(&str),
 ) {
     let mut r = client.get(format!("{base}/api/auth/users"));
-    if let Some(h) = auth_hdr { r = r.header("Authorization", h); }
+    if let Some(h) = auth_hdr {
+        r = r.header("Authorization", h);
+    }
     let device_users: Vec<String> = match r.send().await {
         Ok(resp) if resp.status().is_success() => {
             let v: serde_json::Value = resp.json().await.unwrap_or_default();
-            v.as_array().map(|a| a.iter()
-                .filter_map(|u| u["username"].as_str().map(|s| s.to_string()))
-                .collect()).unwrap_or_default()
+            v.as_array()
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|u| u["username"].as_str().map(|s| s.to_string()))
+                        .collect()
+                })
+                .unwrap_or_default()
         }
         // Lista non leggibile: il dispositivo ha utenti configurati e la
         // connessione non ha un token admin. Il confronto non si può fare, ma
@@ -321,24 +403,48 @@ async fn report_user_divergence(
             return;
         }
     };
-    if bundle_users.is_empty() && device_users.is_empty() { return; }
+    if bundle_users.is_empty() && device_users.is_empty() {
+        return;
+    }
 
-    let mut only_project: Vec<&String> = bundle_users.iter().filter(|u| !device_users.contains(u)).collect();
-    let mut only_device:  Vec<&String> = device_users.iter().filter(|u| !bundle_users.contains(u)).collect();
-    only_project.sort(); only_device.sort();
-    if only_project.is_empty() && only_device.is_empty() { return; }
+    let mut only_project: Vec<&String> = bundle_users
+        .iter()
+        .filter(|u| !device_users.contains(u))
+        .collect();
+    let mut only_device: Vec<&String> = device_users
+        .iter()
+        .filter(|u| !bundle_users.contains(u))
+        .collect();
+    only_project.sort();
+    only_device.sort();
+    if only_project.is_empty() && only_device.is_empty() {
+        return;
+    }
 
     send("⚠ Gli utenti del progetto e quelli del dispositivo differiscono:");
     if !only_project.is_empty() {
-        send(&format!("    solo nel progetto: {}", only_project.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", ")));
+        send(&format!(
+            "    solo nel progetto: {}",
+            only_project
+                .iter()
+                .map(|s| s.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
     }
     if !only_device.is_empty() {
-        send(&format!("    solo sul dispositivo: {}", only_device.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", ")));
+        send(&format!(
+            "    solo sul dispositivo: {}",
+            only_device
+                .iter()
+                .map(|s| s.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
     }
     send("    Il deploy NON modifica gli account del dispositivo.");
     send("    Per allinearli: Configurazione → Runtime → \"Aggiorna utenti sul dispositivo\".");
 }
-
 
 /// `POST /api/remote/users` — spedisce `users.yaml` del progetto locale al
 /// runtime remoto connesso, sostituendo gli account del dispositivo.
@@ -365,10 +471,13 @@ pub async fn remote_push_users(
     let users_path = proj_dir.join("users.yaml");
     let yaml = match tokio::fs::read_to_string(&users_path).await {
         Ok(y) => y,
-        Err(_) => return (
-            StatusCode::BAD_REQUEST,
-            "Il progetto locale non ha utenti definiti: non c'è nulla da inviare.",
-        ).into_response(),
+        Err(_) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                "Il progetto locale non ha utenti definiti: non c'è nulla da inviare.",
+            )
+                .into_response()
+        }
     };
     let count = read_usernames(&yaml).len();
     if count == 0 {
@@ -377,12 +486,17 @@ pub async fn remote_push_users(
         return (
             StatusCode::BAD_REQUEST,
             "Il progetto locale non ha utenti: inviarli lascerebbe il dispositivo senza account.",
-        ).into_response();
+        )
+            .into_response();
     }
 
-    s.audit.log("remote.push_users", Some(user.username), serde_json::json!({
-        "url": target.url, "users": count,
-    }));
+    s.audit.log(
+        "remote.push_users",
+        Some(user.username),
+        serde_json::json!({
+            "url": target.url, "users": count,
+        }),
+    );
 
     let client = make_remote_client(&s, &target.url);
     let base = target.url.trim_end_matches('/');
@@ -441,34 +555,50 @@ pub async fn remote_push_mqtt_client_id(
         None => return (StatusCode::BAD_REQUEST, "Nessun runtime remoto connesso").into_response(),
     };
 
-    s.audit.log("remote.push_mqtt_client_id", Some(user.username), serde_json::json!({
-        "url": target.url, "source_id": body.source_id, "client_id": body.client_id,
-    }));
+    s.audit.log(
+        "remote.push_mqtt_client_id",
+        Some(user.username),
+        serde_json::json!({
+            "url": target.url, "source_id": body.source_id, "client_id": body.client_id,
+        }),
+    );
 
     let client = make_remote_client(&s, &target.url);
     let base = target.url.trim_end_matches('/');
     let mut req = client
-        .put(format!("{base}/api/mqtt/source/{}/client-id-override", body.source_id))
+        .put(format!(
+            "{base}/api/mqtt/source/{}/client-id-override",
+            body.source_id
+        ))
         .json(&serde_json::json!({ "client_id": body.client_id }));
     if !target.token.is_empty() {
         req = req.header("Authorization", format!("Bearer {}", target.token));
     }
     match req.send().await {
-        Ok(r) if r.status().is_success() => (
-            StatusCode::OK,
-            Json(serde_json::json!({ "applied": true })),
-        ).into_response(),
+        Ok(r) if r.status().is_success() => {
+            (StatusCode::OK, Json(serde_json::json!({ "applied": true }))).into_response()
+        }
         Ok(r) if r.status() == StatusCode::UNAUTHORIZED || r.status() == StatusCode::FORBIDDEN => (
             StatusCode::BAD_GATEWAY,
             "Il dispositivo ha rifiutato la richiesta (non autorizzato). Riconnettiti con \
-             credenziali admin e riprova.".to_string(),
-        ).into_response(),
+             credenziali admin e riprova."
+                .to_string(),
+        )
+            .into_response(),
         Ok(r) => {
             let code = r.status();
             let body = r.text().await.unwrap_or_default();
-            (StatusCode::BAD_GATEWAY, format!("Il dispositivo ha risposto {code}: {body}")).into_response()
+            (
+                StatusCode::BAD_GATEWAY,
+                format!("Il dispositivo ha risposto {code}: {body}"),
+            )
+                .into_response()
         }
-        Err(e) => (StatusCode::BAD_GATEWAY, format!("Richiesta al dispositivo fallita: {e}")).into_response(),
+        Err(e) => (
+            StatusCode::BAD_GATEWAY,
+            format!("Richiesta al dispositivo fallita: {e}"),
+        )
+            .into_response(),
     }
 }
 
@@ -486,13 +616,20 @@ pub async fn remote_download_database(
         Some(t) => t,
         None => return (StatusCode::BAD_REQUEST, "Nessun runtime remoto connesso").into_response(),
     };
-    s.audit.log("remote.database_download", Some(user.username), serde_json::json!({
-        "url": target.url, "id": id,
-    }));
+    s.audit.log(
+        "remote.database_download",
+        Some(user.username),
+        serde_json::json!({
+            "url": target.url, "id": id,
+        }),
+    );
 
     let client = make_remote_client(&s, &target.url);
     let base = target.url.trim_end_matches('/');
-    let mut req = client.get(format!("{base}/api/datastores/{}/download", pct_encode(&id)));
+    let mut req = client.get(format!(
+        "{base}/api/datastores/{}/download",
+        pct_encode(&id)
+    ));
     if !target.token.is_empty() {
         req = req.header("Authorization", format!("Bearer {}", target.token));
     }
@@ -500,24 +637,38 @@ pub async fn remote_download_database(
         Ok(r) if r.status().is_success() => {
             let bytes = match r.bytes().await {
                 Ok(b) => b,
-                Err(e) => return (
-                    StatusCode::BAD_GATEWAY,
-                    format!("Lettura della risposta dal dispositivo fallita: {e}"),
-                ).into_response(),
+                Err(e) => {
+                    return (
+                        StatusCode::BAD_GATEWAY,
+                        format!("Lettura della risposta dal dispositivo fallita: {e}"),
+                    )
+                        .into_response()
+                }
             };
             Response::builder()
                 .status(StatusCode::OK)
                 .header("Content-Type", "application/octet-stream")
-                .header("Content-Disposition", format!("attachment; filename=\"{id}.db\""))
+                .header(
+                    "Content-Disposition",
+                    format!("attachment; filename=\"{id}.db\""),
+                )
                 .body(Body::from(bytes))
                 .unwrap()
         }
         Ok(r) => {
             let code = r.status();
             let body = r.text().await.unwrap_or_default();
-            (StatusCode::BAD_GATEWAY, format!("Il dispositivo ha risposto {code}: {body}")).into_response()
+            (
+                StatusCode::BAD_GATEWAY,
+                format!("Il dispositivo ha risposto {code}: {body}"),
+            )
+                .into_response()
         }
-        Err(e) => (StatusCode::BAD_GATEWAY, format!("Richiesta al dispositivo fallita: {e}")).into_response(),
+        Err(e) => (
+            StatusCode::BAD_GATEWAY,
+            format!("Richiesta al dispositivo fallita: {e}"),
+        )
+            .into_response(),
     }
 }
 
@@ -537,9 +688,13 @@ pub async fn remote_upload_database(
         Some(t) => t,
         None => return (StatusCode::BAD_REQUEST, "Nessun runtime remoto connesso").into_response(),
     };
-    s.audit.log("remote.database_upload", Some(user.username), serde_json::json!({
-        "url": target.url, "id": id, "bytes": body.len(),
-    }));
+    s.audit.log(
+        "remote.database_upload",
+        Some(user.username),
+        serde_json::json!({
+            "url": target.url, "id": id, "bytes": body.len(),
+        }),
+    );
 
     let client = make_remote_client(&s, &target.url);
     let base = target.url.trim_end_matches('/');
@@ -558,14 +713,24 @@ pub async fn remote_upload_database(
         Ok(r) if r.status() == StatusCode::UNAUTHORIZED || r.status() == StatusCode::FORBIDDEN => (
             StatusCode::BAD_GATEWAY,
             "Il dispositivo ha rifiutato la richiesta (non autorizzato). Riconnettiti con \
-             credenziali admin e riprova.".to_string(),
-        ).into_response(),
+             credenziali admin e riprova."
+                .to_string(),
+        )
+            .into_response(),
         Ok(r) => {
             let code = r.status();
             let body = r.text().await.unwrap_or_default();
-            (StatusCode::BAD_GATEWAY, format!("Il dispositivo ha risposto {code}: {body}")).into_response()
+            (
+                StatusCode::BAD_GATEWAY,
+                format!("Il dispositivo ha risposto {code}: {body}"),
+            )
+                .into_response()
         }
-        Err(e) => (StatusCode::BAD_GATEWAY, format!("Richiesta al dispositivo fallita: {e}")).into_response(),
+        Err(e) => (
+            StatusCode::BAD_GATEWAY,
+            format!("Richiesta al dispositivo fallita: {e}"),
+        )
+            .into_response(),
     }
 }
 
@@ -592,9 +757,17 @@ pub async fn remote_list_backups(State(s): State<AppState>) -> Response {
         Ok(r) => {
             let code = r.status();
             let body = r.text().await.unwrap_or_default();
-            (StatusCode::BAD_GATEWAY, format!("Il dispositivo ha risposto {code}: {body}")).into_response()
+            (
+                StatusCode::BAD_GATEWAY,
+                format!("Il dispositivo ha risposto {code}: {body}"),
+            )
+                .into_response()
         }
-        Err(e) => (StatusCode::BAD_GATEWAY, format!("Richiesta al dispositivo fallita: {e}")).into_response(),
+        Err(e) => (
+            StatusCode::BAD_GATEWAY,
+            format!("Richiesta al dispositivo fallita: {e}"),
+        )
+            .into_response(),
     }
 }
 
@@ -609,9 +782,13 @@ pub async fn remote_download_backup(
         Some(t) => t,
         None => return (StatusCode::BAD_REQUEST, "Nessun runtime remoto connesso").into_response(),
     };
-    s.audit.log("remote.backup_download", Some(user.username), serde_json::json!({
-        "url": target.url, "name": name,
-    }));
+    s.audit.log(
+        "remote.backup_download",
+        Some(user.username),
+        serde_json::json!({
+            "url": target.url, "name": name,
+        }),
+    );
 
     let client = make_remote_client(&s, &target.url);
     let base = target.url.trim_end_matches('/');
@@ -623,24 +800,38 @@ pub async fn remote_download_backup(
         Ok(r) if r.status().is_success() => {
             let bytes = match r.bytes().await {
                 Ok(b) => b,
-                Err(e) => return (
-                    StatusCode::BAD_GATEWAY,
-                    format!("Lettura della risposta dal dispositivo fallita: {e}"),
-                ).into_response(),
+                Err(e) => {
+                    return (
+                        StatusCode::BAD_GATEWAY,
+                        format!("Lettura della risposta dal dispositivo fallita: {e}"),
+                    )
+                        .into_response()
+                }
             };
             Response::builder()
                 .status(StatusCode::OK)
                 .header("Content-Type", "application/zip")
-                .header("Content-Disposition", format!("attachment; filename=\"{name}.zip\""))
+                .header(
+                    "Content-Disposition",
+                    format!("attachment; filename=\"{name}.zip\""),
+                )
                 .body(Body::from(bytes))
                 .unwrap()
         }
         Ok(r) => {
             let code = r.status();
             let body = r.text().await.unwrap_or_default();
-            (StatusCode::BAD_GATEWAY, format!("Il dispositivo ha risposto {code}: {body}")).into_response()
+            (
+                StatusCode::BAD_GATEWAY,
+                format!("Il dispositivo ha risposto {code}: {body}"),
+            )
+                .into_response()
         }
-        Err(e) => (StatusCode::BAD_GATEWAY, format!("Richiesta al dispositivo fallita: {e}")).into_response(),
+        Err(e) => (
+            StatusCode::BAD_GATEWAY,
+            format!("Richiesta al dispositivo fallita: {e}"),
+        )
+            .into_response(),
     }
 }
 
@@ -674,9 +865,13 @@ pub async fn remote_export_project(
         Some(t) => t,
         None => return (StatusCode::BAD_REQUEST, "Nessun runtime remoto connesso").into_response(),
     };
-    s.audit.log("remote.project_pull", Some(user.username), serde_json::json!({
-        "url": target.url,
-    }));
+    s.audit.log(
+        "remote.project_pull",
+        Some(user.username),
+        serde_json::json!({
+            "url": target.url,
+        }),
+    );
 
     let client = make_remote_client(&s, &target.url);
     let base = target.url.trim_end_matches('/');
@@ -688,10 +883,13 @@ pub async fn remote_export_project(
         Ok(r) if r.status().is_success() => {
             let bytes = match r.bytes().await {
                 Ok(b) => b,
-                Err(e) => return (
-                    StatusCode::BAD_GATEWAY,
-                    format!("Lettura della risposta dal dispositivo fallita: {e}"),
-                ).into_response(),
+                Err(e) => {
+                    return (
+                        StatusCode::BAD_GATEWAY,
+                        format!("Lettura della risposta dal dispositivo fallita: {e}"),
+                    )
+                        .into_response()
+                }
             };
             // Il nome esce dal manifest del bundle, non dallo stato locale: è
             // *questo* il progetto che il client sta per importare.
@@ -705,7 +903,10 @@ pub async fn remote_export_project(
                 // il client consuma con fetch(): senza questo, `X-Project-Name`
                 // esiste ma `res.headers.get()` torna null.
                 .header("Access-Control-Expose-Headers", "X-Project-Name")
-                .header("Content-Disposition", format!("attachment; filename=\"{name}.zip\""))
+                .header(
+                    "Content-Disposition",
+                    format!("attachment; filename=\"{name}.zip\""),
+                )
                 .body(Body::from(bytes))
                 .unwrap()
         }
@@ -714,13 +915,22 @@ pub async fn remote_export_project(
         Ok(r) if r.status() == StatusCode::SERVICE_UNAVAILABLE => (
             StatusCode::BAD_GATEWAY,
             "Il dispositivo non ha un progetto attivo da scaricare.".to_string(),
-        ).into_response(),
+        )
+            .into_response(),
         Ok(r) => {
             let code = r.status();
             let body = r.text().await.unwrap_or_default();
-            (StatusCode::BAD_GATEWAY, format!("Il dispositivo ha risposto {code}: {body}")).into_response()
+            (
+                StatusCode::BAD_GATEWAY,
+                format!("Il dispositivo ha risposto {code}: {body}"),
+            )
+                .into_response()
         }
-        Err(e) => (StatusCode::BAD_GATEWAY, format!("Richiesta al dispositivo fallita: {e}")).into_response(),
+        Err(e) => (
+            StatusCode::BAD_GATEWAY,
+            format!("Richiesta al dispositivo fallita: {e}"),
+        )
+            .into_response(),
     }
 }
 
@@ -752,9 +962,17 @@ pub async fn remote_system_status(State(s): State<AppState>) -> Response {
         Ok(r) => {
             let code = r.status();
             let body = r.text().await.unwrap_or_default();
-            (StatusCode::BAD_GATEWAY, format!("Il dispositivo ha risposto {code}: {body}")).into_response()
+            (
+                StatusCode::BAD_GATEWAY,
+                format!("Il dispositivo ha risposto {code}: {body}"),
+            )
+                .into_response()
         }
-        Err(e) => (StatusCode::BAD_GATEWAY, format!("Richiesta al dispositivo fallita: {e}")).into_response(),
+        Err(e) => (
+            StatusCode::BAD_GATEWAY,
+            format!("Richiesta al dispositivo fallita: {e}"),
+        )
+            .into_response(),
     }
 }
 
@@ -783,12 +1001,24 @@ pub async fn remote_create_backup(
         Ok(r) => {
             let code = r.status();
             let body = r.text().await.unwrap_or_default();
-            (StatusCode::BAD_GATEWAY, format!("Il dispositivo ha risposto {code}: {body}")).into_response()
+            (
+                StatusCode::BAD_GATEWAY,
+                format!("Il dispositivo ha risposto {code}: {body}"),
+            )
+                .into_response()
         }
-        Err(e) => (StatusCode::BAD_GATEWAY, format!("Richiesta al dispositivo fallita: {e}")).into_response(),
+        Err(e) => (
+            StatusCode::BAD_GATEWAY,
+            format!("Richiesta al dispositivo fallita: {e}"),
+        )
+            .into_response(),
     };
     if res.status().is_success() {
-        s.audit.log("remote.backup_create", Some(user.username), serde_json::json!({ "url": target.url }));
+        s.audit.log(
+            "remote.backup_create",
+            Some(user.username),
+            serde_json::json!({ "url": target.url }),
+        );
     }
     res
 }
@@ -806,9 +1036,13 @@ pub async fn remote_restore_backup(
         Some(t) => t,
         None => return (StatusCode::BAD_REQUEST, "Nessun runtime remoto connesso").into_response(),
     };
-    s.audit.log("remote.backup_restore", Some(user.username), serde_json::json!({
-        "url": target.url, "name": name,
-    }));
+    s.audit.log(
+        "remote.backup_restore",
+        Some(user.username),
+        serde_json::json!({
+            "url": target.url, "name": name,
+        }),
+    );
 
     let client = make_remote_client(&s, &target.url);
     let base = target.url.trim_end_matches('/');
@@ -821,9 +1055,17 @@ pub async fn remote_restore_backup(
         Ok(r) => {
             let code = r.status();
             let body = r.text().await.unwrap_or_default();
-            (StatusCode::BAD_GATEWAY, format!("Il dispositivo ha risposto {code}: {body}")).into_response()
+            (
+                StatusCode::BAD_GATEWAY,
+                format!("Il dispositivo ha risposto {code}: {body}"),
+            )
+                .into_response()
         }
-        Err(e) => (StatusCode::BAD_GATEWAY, format!("Richiesta al dispositivo fallita: {e}")).into_response(),
+        Err(e) => (
+            StatusCode::BAD_GATEWAY,
+            format!("Richiesta al dispositivo fallita: {e}"),
+        )
+            .into_response(),
     }
 }
 
@@ -838,9 +1080,13 @@ pub async fn remote_delete_backup(
         Some(t) => t,
         None => return (StatusCode::BAD_REQUEST, "Nessun runtime remoto connesso").into_response(),
     };
-    s.audit.log("remote.backup_delete", Some(user.username), serde_json::json!({
-        "url": target.url, "name": name,
-    }));
+    s.audit.log(
+        "remote.backup_delete",
+        Some(user.username),
+        serde_json::json!({
+            "url": target.url, "name": name,
+        }),
+    );
 
     let client = make_remote_client(&s, &target.url);
     let base = target.url.trim_end_matches('/');
@@ -853,9 +1099,17 @@ pub async fn remote_delete_backup(
         Ok(r) => {
             let code = r.status();
             let body = r.text().await.unwrap_or_default();
-            (StatusCode::BAD_GATEWAY, format!("Il dispositivo ha risposto {code}: {body}")).into_response()
+            (
+                StatusCode::BAD_GATEWAY,
+                format!("Il dispositivo ha risposto {code}: {body}"),
+            )
+                .into_response()
         }
-        Err(e) => (StatusCode::BAD_GATEWAY, format!("Richiesta al dispositivo fallita: {e}")).into_response(),
+        Err(e) => (
+            StatusCode::BAD_GATEWAY,
+            format!("Richiesta al dispositivo fallita: {e}"),
+        )
+            .into_response(),
     }
 }
 
@@ -863,9 +1117,13 @@ pub async fn remote_delete_backup(
 pub fn read_usernames(yaml: &str) -> Vec<String> {
     serde_yaml::from_str::<serde_yaml::Value>(yaml)
         .ok()
-        .and_then(|v| v["users"].as_sequence().map(|seq| {
-            seq.iter().filter_map(|u| u["username"].as_str().map(|s| s.to_string())).collect()
-        }))
+        .and_then(|v| {
+            v["users"].as_sequence().map(|seq| {
+                seq.iter()
+                    .filter_map(|u| u["username"].as_str().map(|s| s.to_string()))
+                    .collect()
+            })
+        })
         .unwrap_or_default()
 }
 
@@ -895,9 +1153,17 @@ pub async fn remote_cert(
 ) -> Response {
     let url = q.url.trim().trim_end_matches('/').to_string();
     if !url.starts_with("http://") && !url.starts_with("https://") {
-        return (StatusCode::BAD_REQUEST, "url deve iniziare con http:// o https://").into_response();
+        return (
+            StatusCode::BAD_REQUEST,
+            "url deve iniziare con http:// o https://",
+        )
+            .into_response();
     }
-    s.audit.log("remote.cert_download", Some(user.username), serde_json::json!({ "url": url }));
+    s.audit.log(
+        "remote.cert_download",
+        Some(user.username),
+        serde_json::json!({ "url": url }),
+    );
 
     // Q49: scaricare il certificato da un runtime mai visto È il primo contatto:
     // l'impronta si memorizza qui, e «Connetti» la troverà uguale.
@@ -906,10 +1172,13 @@ pub async fn remote_cert(
         Ok(r) if r.status().is_success() => {
             let bytes = match r.bytes().await {
                 Ok(b) => b,
-                Err(e) => return (
-                    StatusCode::BAD_GATEWAY,
-                    format!("Lettura della risposta dal dispositivo fallita: {e}"),
-                ).into_response(),
+                Err(e) => {
+                    return (
+                        StatusCode::BAD_GATEWAY,
+                        format!("Lettura della risposta dal dispositivo fallita: {e}"),
+                    )
+                        .into_response()
+                }
             };
             Response::builder()
                 .status(StatusCode::OK)
@@ -924,15 +1193,21 @@ pub async fn remote_cert(
                 "Il dispositivo ha risposto {code} a /cert — il runtime remoto ha il TLS attivo? (in HTTP semplice non c'è nessun certificato da scaricare)"
             )).into_response()
         }
-        Err(e) => (StatusCode::BAD_GATEWAY, format!("Richiesta al dispositivo fallita: {e}")).into_response(),
+        Err(e) => (
+            StatusCode::BAD_GATEWAY,
+            format!("Richiesta al dispositivo fallita: {e}"),
+        )
+            .into_response(),
     }
 }
 
 fn pct_encode(s: &str) -> String {
-    s.chars().map(|c| match c {
-        'A'..='Z' | 'a'..='z' | '0'..='9' | '-' | '_' | '.' | '~' => c.to_string(),
-        _ => format!("%{:02X}", c as u32),
-    }).collect()
+    s.chars()
+        .map(|c| match c {
+            'A'..='Z' | 'a'..='z' | '0'..='9' | '-' | '_' | '.' | '~' => c.to_string(),
+            _ => format!("%{:02X}", c as u32),
+        })
+        .collect()
 }
 
 /// `POST /api/remote/deploy` — export the active local project as a ZIP and
@@ -955,21 +1230,33 @@ pub async fn remote_deploy(
     // Un deploy alla volta: la guardia viaggia nel task e si rilascia da sola
     // alla fine (anche su errore), qualunque sia il ramo di uscita.
     let Ok(deploy_guard) = s.deploy_lock.clone().try_lock_owned() else {
-        return (StatusCode::CONFLICT, "Un deploy è già in corso — attendi che finisca").into_response();
+        return (
+            StatusCode::CONFLICT,
+            "Un deploy è già in corso — attendi che finisca",
+        )
+            .into_response();
     };
 
     let (tx, rx) = tokio::sync::mpsc::channel::<String>(64);
 
     tokio::spawn(async move {
         let _deploy_guard = deploy_guard;
-        let send = |msg: &str| { let _ = tx.try_send(format!("{msg}\n")); };
+        let send = |msg: &str| {
+            let _ = tx.try_send(format!("{msg}\n"));
+        };
 
         send("Esportazione progetto locale…");
         let zip = match crate::router::build_project_zip(&proj_dir).await {
             Ok(z) => z,
-            Err(e) => { send(&format!("✗ {e}")); return; }
+            Err(e) => {
+                send(&format!("✗ {e}"));
+                return;
+            }
         };
-        send(&format!("✓ Esportato ({:.1} KB)", zip.len() as f64 / 1024.0));
+        send(&format!(
+            "✓ Esportato ({:.1} KB)",
+            zip.len() as f64 / 1024.0
+        ));
 
         // Nome con cui il progetto arriverà sul target: si legge dal manifest
         // dello ZIP appena costruito, così è esattamente quello che userà
@@ -978,8 +1265,11 @@ pub async fn remote_deploy(
 
         let client = make_remote_client(&s, &target.url);
         let base = target.url.trim_end_matches('/').to_string();
-        let auth_hdr: Option<String> = if target.token.is_empty() { None }
-            else { Some(format!("Bearer {}", target.token)) };
+        let auth_hdr: Option<String> = if target.token.is_empty() {
+            None
+        } else {
+            Some(format!("Bearer {}", target.token))
+        };
 
         // Single-project runtime: wipe every existing project on the target so
         // the deploy fully overwrites it (not just the same-named one).
@@ -989,7 +1279,9 @@ pub async fn remote_deploy(
         let mut preserved_same_name = false;
         send("Aggiornamento progetto sul target…");
         let mut r = client.get(format!("{base}/api/projects"));
-        if let Some(h) = &auth_hdr { r = r.header("Authorization", h); }
+        if let Some(h) = &auth_hdr {
+            r = r.header("Authorization", h);
+        }
         match r.send().await {
             Ok(resp) if resp.status().is_success() => {
                 let list: serde_json::Value = resp.json().await.unwrap_or_default();
@@ -997,7 +1289,9 @@ pub async fn remote_deploy(
                     if !arr.is_empty() {
                         // Close any active project first so delete isn't rejected (409).
                         let mut rc = client.post(format!("{base}/api/projects/close"));
-                        if let Some(h) = &auth_hdr { rc = rc.header("Authorization", h); }
+                        if let Some(h) = &auth_hdr {
+                            rc = rc.header("Authorization", h);
+                        }
                         let _ = rc.send().await;
                     }
                     for item in arr {
@@ -1014,7 +1308,9 @@ pub async fn remote_deploy(
                                 format!("{base}/api/projects/{}", pct_encode(n))
                             };
                             let mut rd = client.delete(url);
-                            if let Some(h) = &auth_hdr { rd = rd.header("Authorization", h); }
+                            if let Some(h) = &auth_hdr {
+                                rd = rd.header("Authorization", h);
+                            }
                             match rd.send().await {
                                 Ok(d) if d.status().is_success() => {
                                     if same {
@@ -1031,8 +1327,11 @@ pub async fn remote_deploy(
                     }
                 }
             }
-            Ok(resp) => send(&format!("⚠ Lista progetti non disponibile: {}", resp.status())),
-            Err(e)   => send(&format!("⚠ Lista progetti non disponibile: {e}")),
+            Ok(resp) => send(&format!(
+                "⚠ Lista progetti non disponibile: {}",
+                resp.status()
+            )),
+            Err(e) => send(&format!("⚠ Lista progetti non disponibile: {e}")),
         }
 
         // Upload ZIP
@@ -1042,19 +1341,28 @@ pub async fn remote_deploy(
             // progettazione), `users.yaml` dello ZIP va ignorato e un errore non
             // deve cancellare la cartella.
             match &deploy_name {
-                Some(n) => format!("{base}/api/projects/upload?deploy=true&name={}", pct_encode(n)),
-                None    => format!("{base}/api/projects/upload?deploy=true"),
+                Some(n) => format!(
+                    "{base}/api/projects/upload?deploy=true&name={}",
+                    pct_encode(n)
+                ),
+                None => format!("{base}/api/projects/upload?deploy=true"),
             }
         } else {
             format!("{base}/api/projects/upload")
         };
-        let mut req = client.post(upload_url)
+        let mut req = client
+            .post(upload_url)
             .header("Content-Type", "application/zip")
             .body(zip.clone());
-        if let Some(h) = &auth_hdr { req = req.header("Authorization", h); }
+        if let Some(h) = &auth_hdr {
+            req = req.header("Authorization", h);
+        }
         let upload_res = match req.send().await {
             Ok(r) => r,
-            Err(e) => { send(&format!("✗ {e}")); return; }
+            Err(e) => {
+                send(&format!("✗ {e}"));
+                return;
+            }
         };
 
         // Handle 409 conflict: close + delete old project, then retry
@@ -1065,15 +1373,22 @@ pub async fn remote_deploy(
 
             // close active project on remote (ignore errors — might already be closed)
             let mut r = client.post(format!("{base}/api/projects/close"));
-            if let Some(h) = &auth_hdr { r = r.header("Authorization", h); }
+            if let Some(h) = &auth_hdr {
+                r = r.header("Authorization", h);
+            }
             let _ = r.send().await;
 
             // delete the conflicting project
             let mut r = client.delete(format!("{base}/api/projects/{}", pct_encode(&existing)));
-            if let Some(h) = &auth_hdr { r = r.header("Authorization", h); }
+            if let Some(h) = &auth_hdr {
+                r = r.header("Authorization", h);
+            }
             let del = match r.send().await {
                 Ok(d) => d,
-                Err(e) => { send(&format!("✗ {e}")); return; }
+                Err(e) => {
+                    send(&format!("✗ {e}"));
+                    return;
+                }
             };
             if !del.status().is_success() {
                 send(&format!("✗ Delete fallito: {}", del.status()));
@@ -1082,13 +1397,19 @@ pub async fn remote_deploy(
             send(&format!("✓ Rimosso \"{existing}\""));
 
             // retry upload
-            let mut req = client.post(format!("{base}/api/projects/upload"))
+            let mut req = client
+                .post(format!("{base}/api/projects/upload"))
                 .header("Content-Type", "application/zip")
                 .body(zip.clone());
-            if let Some(h) = &auth_hdr { req = req.header("Authorization", h); }
+            if let Some(h) = &auth_hdr {
+                req = req.header("Authorization", h);
+            }
             match req.send().await {
                 Ok(u) => u,
-                Err(e) => { send(&format!("✗ {e}")); return; }
+                Err(e) => {
+                    send(&format!("✗ {e}"));
+                    return;
+                }
             }
         } else {
             upload_res
@@ -1104,8 +1425,13 @@ pub async fn remote_deploy(
 
         // Open (activate) the uploaded project on the remote
         send("Attivazione progetto…");
-        let mut r = client.post(format!("{base}/api/projects/{}/open", pct_encode(&uploaded_name)));
-        if let Some(h) = &auth_hdr { r = r.header("Authorization", h); }
+        let mut r = client.post(format!(
+            "{base}/api/projects/{}/open",
+            pct_encode(&uploaded_name)
+        ));
+        if let Some(h) = &auth_hdr {
+            r = r.header("Authorization", h);
+        }
         match r.send().await {
             Ok(o) if o.status().is_success() => {
                 send(&format!("✓ \"{uploaded_name}\" attivo sul runtime"));
@@ -1144,38 +1470,59 @@ pub async fn delete_remote_project(
     };
     let client = make_remote_client(&s, &target.url);
     let base = target.url.trim_end_matches('/').to_string();
-    let auth_hdr: Option<String> = if target.token.is_empty() { None }
-        else { Some(format!("Bearer {}", target.token)) };
+    let auth_hdr: Option<String> = if target.token.is_empty() {
+        None
+    } else {
+        Some(format!("Bearer {}", target.token))
+    };
 
     // Resolve the active project name from the remote system status.
     let mut r = client.get(format!("{base}/api/system"));
-    if let Some(h) = &auth_hdr { r = r.header("Authorization", h); }
+    if let Some(h) = &auth_hdr {
+        r = r.header("Authorization", h);
+    }
     let active = match r.send().await {
         Ok(resp) if resp.status().is_success() => {
             let v: serde_json::Value = resp.json().await.unwrap_or_default();
             v["active_project"].as_str().map(|s| s.to_string())
         }
-        Ok(resp) => return (StatusCode::BAD_GATEWAY, format!("Stato runtime: {}", resp.status())).into_response(),
-        Err(e)   => return (StatusCode::BAD_GATEWAY, format!("Stato runtime: {e}")).into_response(),
+        Ok(resp) => {
+            return (
+                StatusCode::BAD_GATEWAY,
+                format!("Stato runtime: {}", resp.status()),
+            )
+                .into_response()
+        }
+        Err(e) => return (StatusCode::BAD_GATEWAY, format!("Stato runtime: {e}")).into_response(),
     };
     let name = match active {
         Some(n) => n,
-        None => return (StatusCode::CONFLICT, "Nessun progetto attivo sul runtime").into_response(),
+        None => {
+            return (StatusCode::CONFLICT, "Nessun progetto attivo sul runtime").into_response()
+        }
     };
 
     // Close (so delete isn't rejected with 409) then delete.
     let mut rc = client.post(format!("{base}/api/projects/close"));
-    if let Some(h) = &auth_hdr { rc = rc.header("Authorization", h); }
+    if let Some(h) = &auth_hdr {
+        rc = rc.header("Authorization", h);
+    }
     let _ = rc.send().await;
 
     let mut rd = client.delete(format!("{base}/api/projects/{}", pct_encode(&name)));
-    if let Some(h) = &auth_hdr { rd = rd.header("Authorization", h); }
+    if let Some(h) = &auth_hdr {
+        rd = rd.header("Authorization", h);
+    }
     match rd.send().await {
         Ok(d) if d.status().is_success() => {
             tracing::info!(project = %name, "deleted active project on remote runtime");
             StatusCode::NO_CONTENT.into_response()
         }
-        Ok(d) => (StatusCode::BAD_GATEWAY, format!("Delete fallito: {}", d.status())).into_response(),
+        Ok(d) => (
+            StatusCode::BAD_GATEWAY,
+            format!("Delete fallito: {}", d.status()),
+        )
+            .into_response(),
         Err(e) => (StatusCode::BAD_GATEWAY, format!("{e}")).into_response(),
     }
 }
@@ -1190,7 +1537,11 @@ pub async fn remote_status(State(s): State<AppState>) -> Json<RemoteStatus> {
             url: Some(t.url.clone()),
             connected_at_ms: Some(t.connected_at_ms),
         }),
-        None => Json(RemoteStatus { connected: false, url: None, connected_at_ms: None }),
+        None => Json(RemoteStatus {
+            connected: false,
+            url: None,
+            connected_at_ms: None,
+        }),
     }
 }
 
@@ -1232,7 +1583,10 @@ mod tests {
         );
         let (name, users) = read_bundle_meta(&z);
         assert_eq!(name.as_deref(), Some("impianto"));
-        assert_eq!(users, vec!["admin_ide".to_string(), "operatore".to_string()]);
+        assert_eq!(
+            users,
+            vec!["admin_ide".to_string(), "operatore".to_string()]
+        );
     }
 
     #[test]
@@ -1271,15 +1625,35 @@ pub async fn dimentica_certificato(
 ) -> Response {
     let host = req.host.trim();
     if !crate::packaging::host_sicuro(host) {
-        return (StatusCode::BAD_REQUEST, format!("nome host non valido: «{host}»\n")).into_response();
+        return (
+            StatusCode::BAD_REQUEST,
+            format!("nome host non valido: «{host}»\n"),
+        )
+            .into_response();
     }
     let tolte = match s.certificati.dimentica_host(host) {
         Ok(t) => t,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR,
-            format!("impossibile aggiornare {}: {e}\n", s.certificati.path().display())).into_response(),
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!(
+                    "impossibile aggiornare {}: {e}\n",
+                    s.certificati.path().display()
+                ),
+            )
+                .into_response()
+        }
     };
-    s.audit.log("device.cert_forget", Some(user.username), serde_json::json!({ "host": host, "tolte": tolte }));
-    tracing::info!(host, tolte = tolte.len(), "certificato dimenticato su richiesta");
+    s.audit.log(
+        "device.cert_forget",
+        Some(user.username),
+        serde_json::json!({ "host": host, "tolte": tolte }),
+    );
+    tracing::info!(
+        host,
+        tolte = tolte.len(),
+        "certificato dimenticato su richiesta"
+    );
     Json(serde_json::json!({
         "tolte": tolte,
         "messaggio": if tolte.is_empty() {

@@ -515,7 +515,6 @@ pub struct SynopticObject {
     pub from_port: Option<String>,
     pub to_obj_id: Option<String>,
     pub to_port: Option<String>,
-
 }
 
 // ── T-52: il fuori pagina ────────────────────────────────────────────────────
@@ -739,8 +738,8 @@ mod tests_fuori_pagina {
     use super::*;
 
     fn pagina(w: Option<f64>, h: Option<f64>) -> SynopticPage {
-        let mut p: SynopticPage = serde_json::from_str(r#"{"id":"p","name":"P","objects":[]}"#)
-            .expect("pagina minima");
+        let mut p: SynopticPage =
+            serde_json::from_str(r#"{"id":"p","name":"P","objects":[]}"#).expect("pagina minima");
         p.width = w;
         p.height = h;
         p
@@ -759,16 +758,25 @@ mod tests_fuori_pagina {
     #[test]
     fn le_coordinate_estreme_sono_fuori_pagina() {
         let pg = pagina(Some(1280.0), Some(800.0));
-        assert!(oggetto(r#"{"id":"a","type":"rect","x":66000,"y":10,"width":100,"height":50}"#)
-            .is_off_page(&pg), "66000 castrato a i16 rientrerebbe a 464: deve essere fuori prima");
-        assert!(oggetto(r#"{"id":"a","type":"rect","x":-5000,"y":10,"width":100,"height":50}"#)
-            .is_off_page(&pg));
-        assert!(!oggetto(r#"{"id":"a","type":"rect","x":100,"y":100,"width":100,"height":50}"#)
-            .is_off_page(&pg));
+        assert!(
+            oggetto(r#"{"id":"a","type":"rect","x":66000,"y":10,"width":100,"height":50}"#)
+                .is_off_page(&pg),
+            "66000 castrato a i16 rientrerebbe a 464: deve essere fuori prima"
+        );
+        assert!(
+            oggetto(r#"{"id":"a","type":"rect","x":-5000,"y":10,"width":100,"height":50}"#)
+                .is_off_page(&pg)
+        );
+        assert!(
+            !oggetto(r#"{"id":"a","type":"rect","x":100,"y":100,"width":100,"height":50}"#)
+                .is_off_page(&pg)
+        );
         // A cavallo del bordo resta dentro: si spegne solo ciò che è stato
         // portato via del tutto.
-        assert!(!oggetto(r#"{"id":"a","type":"rect","x":1250,"y":100,"width":100,"height":50}"#)
-            .is_off_page(&pg));
+        assert!(
+            !oggetto(r#"{"id":"a","type":"rect","x":1250,"y":100,"width":100,"height":50}"#)
+                .is_off_page(&pg)
+        );
     }
 
     #[test]
@@ -779,7 +787,8 @@ mod tests_fuori_pagina {
         // stiano davvero i suoi estremi.
         let sciolta = r#"{"id":"p1","type":"pipe","points":[{"x":9000,"y":9000}]}"#;
         assert!(oggetto(sciolta).is_off_page(&pg));
-        let agganciata = r#"{"id":"p1","type":"pipe","points":[{"x":9000,"y":9000}],"from_obj_id":"pump"}"#;
+        let agganciata =
+            r#"{"id":"p1","type":"pipe","points":[{"x":9000,"y":9000}],"from_obj_id":"pump"}"#;
         assert!(!oggetto(agganciata).is_off_page(&pg));
     }
 
@@ -787,7 +796,9 @@ mod tests_fuori_pagina {
     #[test]
     fn una_pagina_fluida_non_ha_un_fuori() {
         let pg = pagina(None, None);
-        assert!(!oggetto(r#"{"id":"a","type":"rect","x":9000,"y":9000,"width":10,"height":10}"#)
-            .is_off_page(&pg));
+        assert!(
+            !oggetto(r#"{"id":"a","type":"rect","x":9000,"y":9000,"width":10,"height":10}"#)
+                .is_off_page(&pg)
+        );
     }
 }

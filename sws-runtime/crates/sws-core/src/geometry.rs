@@ -72,7 +72,12 @@ pub fn bbox_of(
         };
     }
     if obj_type == "pipe" && !points.is_empty() {
-        let mut bb = BBox { x1: f64::MAX, y1: f64::MAX, x2: f64::MIN, y2: f64::MIN };
+        let mut bb = BBox {
+            x1: f64::MAX,
+            y1: f64::MAX,
+            x2: f64::MIN,
+            y2: f64::MIN,
+        };
         for (px, py) in points {
             bb.x1 = bb.x1.min(*px);
             bb.y1 = bb.y1.min(*py);
@@ -81,7 +86,12 @@ pub fn bbox_of(
         }
         return bb;
     }
-    BBox { x1: x, y1: y, x2: x + w, y2: y + h }
+    BBox {
+        x1: x,
+        y1: y,
+        x2: x + w,
+        y2: y + h,
+    }
 }
 
 /// «Fuori pagina»: la bbox non tocca **affatto** il rettangolo pagina.
@@ -103,7 +113,9 @@ pub fn bbox_of(
 /// coordinate e coesiste in OR col campo `visible` — il «disabilitare senza
 /// spostare» si fa con quello, non con un campo nuovo.
 pub fn is_off_page(bb: &BBox, page_w: Option<f64>, page_h: Option<f64>) -> bool {
-    let (Some(pw), Some(ph)) = (page_w, page_h) else { return false };
+    let (Some(pw), Some(ph)) = (page_w, page_h) else {
+        return false;
+    };
     if pw <= 0.0 || ph <= 0.0 {
         return false;
     }
@@ -126,19 +138,141 @@ pub fn is_off_page(bb: &BBox, page_w: Option<f64>, page_h: Option<f64>) -> bool 
 // commento con i nomi dei campi, non il sistema dei tipi.
 #[allow(clippy::type_complexity)]
 pub const CASI_FUORI_PAGINA: &[(&str, &str, f64, f64, f64, f64, f64, f64, bool)] = &[
-    ("dentro",                    "rect", 100.0,  100.0, 120.0,  80.0, 1280.0, 800.0, false),
-    ("a filo del bordo destro",   "rect", 1160.0, 100.0, 120.0,  80.0, 1280.0, 800.0, false),
-    ("a cavallo del bordo destro","rect", 1200.0, 100.0, 120.0,  80.0, 1280.0, 800.0, false),
-    ("esattamente sul bordo",     "rect", 1280.0, 100.0, 120.0,  80.0, 1280.0, 800.0, false),
-    ("un pixel oltre il bordo",   "rect", 1281.0, 100.0, 120.0,  80.0, 1280.0, 800.0, true),
-    ("oltre il bordo destro",     "rect", 1400.0, 100.0, 120.0,  80.0, 1280.0, 800.0, true),
-    ("oltre il bordo inferiore",  "rect", 100.0,  900.0, 120.0,  80.0, 1280.0, 800.0, true),
-    ("tutto a sinistra",          "rect", -300.0, 100.0, 120.0,  80.0, 1280.0, 800.0, true),
-    ("a cavallo del bordo sinistro","rect", -60.0, 100.0, 120.0,  80.0, 1280.0, 800.0, false),
-    ("area zero sul bordo",       "rect", 0.0,    0.0,    0.0,   0.0, 1280.0, 800.0, false),
-    ("area zero fuori",           "rect", -10.0,  0.0,    0.0,   0.0, 1280.0, 800.0, true),
-    ("piu grande della pagina",   "rect", -100.0, -100.0, 2000.0, 1200.0, 1280.0, 800.0, false),
-    ("pagina fluida",             "rect", 5000.0, 5000.0, 120.0,  80.0,    0.0,   0.0, false),
+    (
+        "dentro", "rect", 100.0, 100.0, 120.0, 80.0, 1280.0, 800.0, false,
+    ),
+    (
+        "a filo del bordo destro",
+        "rect",
+        1160.0,
+        100.0,
+        120.0,
+        80.0,
+        1280.0,
+        800.0,
+        false,
+    ),
+    (
+        "a cavallo del bordo destro",
+        "rect",
+        1200.0,
+        100.0,
+        120.0,
+        80.0,
+        1280.0,
+        800.0,
+        false,
+    ),
+    (
+        "esattamente sul bordo",
+        "rect",
+        1280.0,
+        100.0,
+        120.0,
+        80.0,
+        1280.0,
+        800.0,
+        false,
+    ),
+    (
+        "un pixel oltre il bordo",
+        "rect",
+        1281.0,
+        100.0,
+        120.0,
+        80.0,
+        1280.0,
+        800.0,
+        true,
+    ),
+    (
+        "oltre il bordo destro",
+        "rect",
+        1400.0,
+        100.0,
+        120.0,
+        80.0,
+        1280.0,
+        800.0,
+        true,
+    ),
+    (
+        "oltre il bordo inferiore",
+        "rect",
+        100.0,
+        900.0,
+        120.0,
+        80.0,
+        1280.0,
+        800.0,
+        true,
+    ),
+    (
+        "tutto a sinistra",
+        "rect",
+        -300.0,
+        100.0,
+        120.0,
+        80.0,
+        1280.0,
+        800.0,
+        true,
+    ),
+    (
+        "a cavallo del bordo sinistro",
+        "rect",
+        -60.0,
+        100.0,
+        120.0,
+        80.0,
+        1280.0,
+        800.0,
+        false,
+    ),
+    (
+        "area zero sul bordo",
+        "rect",
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1280.0,
+        800.0,
+        false,
+    ),
+    (
+        "area zero fuori",
+        "rect",
+        -10.0,
+        0.0,
+        0.0,
+        0.0,
+        1280.0,
+        800.0,
+        true,
+    ),
+    (
+        "piu grande della pagina",
+        "rect",
+        -100.0,
+        -100.0,
+        2000.0,
+        1200.0,
+        1280.0,
+        800.0,
+        false,
+    ),
+    (
+        "pagina fluida",
+        "rect",
+        5000.0,
+        5000.0,
+        120.0,
+        80.0,
+        0.0,
+        0.0,
+        false,
+    ),
 ];
 
 #[cfg(test)]
@@ -162,24 +296,74 @@ mod tests {
     fn linee_sui_due_estremi() {
         // Disegnata da destra a sinistra: il box è comunque il min/max.
         let bb = bbox_of("line", 300.0, 200.0, 0.0, 0.0, Some(100.0), Some(50.0), &[]);
-        assert_eq!(bb, BBox { x1: 100.0, y1: 50.0, x2: 300.0, y2: 200.0 });
+        assert_eq!(
+            bb,
+            BBox {
+                x1: 100.0,
+                y1: 50.0,
+                x2: 300.0,
+                y2: 200.0
+            }
+        );
         // Parte dentro e finisce lontano: resta dentro.
-        let bb = bbox_of("line", 1200.0, 100.0, 0.0, 0.0, Some(2000.0), Some(100.0), &[]);
+        let bb = bbox_of(
+            "line",
+            1200.0,
+            100.0,
+            0.0,
+            0.0,
+            Some(2000.0),
+            Some(100.0),
+            &[],
+        );
         assert!(!is_off_page(&bb, Some(1280.0), Some(800.0)));
         // Interamente oltre il bordo: fuori.
-        let bb = bbox_of("line", 1400.0, 100.0, 0.0, 0.0, Some(2000.0), Some(100.0), &[]);
+        let bb = bbox_of(
+            "line",
+            1400.0,
+            100.0,
+            0.0,
+            0.0,
+            Some(2000.0),
+            Some(100.0),
+            &[],
+        );
         assert!(is_off_page(&bb, Some(1280.0), Some(800.0)));
     }
 
     #[test]
     fn pipe_sull_inviluppo_dei_waypoint() {
-        let bb = bbox_of("pipe", 0.0, 0.0, 0.0, 0.0, None, None,
-                         &[(50.0, 400.0), (50.0, 100.0), (250.0, 100.0)]);
-        assert_eq!(bb, BBox { x1: 50.0, y1: 100.0, x2: 250.0, y2: 400.0 });
+        let bb = bbox_of(
+            "pipe",
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            None,
+            None,
+            &[(50.0, 400.0), (50.0, 100.0), (250.0, 100.0)],
+        );
+        assert_eq!(
+            bb,
+            BBox {
+                x1: 50.0,
+                y1: 100.0,
+                x2: 250.0,
+                y2: 400.0
+            }
+        );
         // Senza waypoint si ricade su x/y + w/h invece di restituire un box
         // degenere con f64::MAX dentro.
         let bb = bbox_of("pipe", 10.0, 20.0, 30.0, 40.0, None, None, &[]);
-        assert_eq!(bb, BBox { x1: 10.0, y1: 20.0, x2: 40.0, y2: 60.0 });
+        assert_eq!(
+            bb,
+            BBox {
+                x1: 10.0,
+                y1: 20.0,
+                x2: 40.0,
+                y2: 60.0
+            }
+        );
     }
 
     /// La pagina fluida è la regola unica dei tre punti di T-52: nessun bordo

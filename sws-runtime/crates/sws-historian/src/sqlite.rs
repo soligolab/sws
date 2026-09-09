@@ -12,8 +12,8 @@
 //! All rusqlite calls run on `tokio::task::spawn_blocking` because the
 //! library is sync; the wrapper hides the boilerplate.
 
-use std::{path::PathBuf, sync::Arc};
 use rusqlite::{params, Connection, OptionalExtension};
+use std::{path::PathBuf, sync::Arc};
 use sws_core::{AlarmEvent, AlarmSeverity, TagQuality, TagValue};
 use tokio::{sync::Mutex, task};
 use tracing::{info, warn};
@@ -73,12 +73,18 @@ impl SqliteStore {
             c.pragma_update(None, "synchronous", "NORMAL")?;
             c.execute_batch(SCHEMA)?;
             Ok(c)
-        }).await??;
+        })
+        .await??;
         info!(path = %path.display(), "historian: SQLite store opened");
-        Ok(Self { conn: Arc::new(Mutex::new(conn)), path })
+        Ok(Self {
+            conn: Arc::new(Mutex::new(conn)),
+            path,
+        })
     }
 
-    pub fn path(&self) -> &std::path::Path { &self.path }
+    pub fn path(&self) -> &std::path::Path {
+        &self.path
+    }
 
     /// Append one sample. Best-effort: errors are logged, not propagated, so
     /// a transient disk hiccup never breaks the live tag stream.
@@ -86,11 +92,10 @@ impl SqliteStore {
         let conn = self.conn.clone();
         let tag = tag.to_string();
         let ts = sample.ts_ms as i64;
-        let value = serde_json::to_string(&sample.value)
-            .unwrap_or_else(|_| "null".to_string());
+        let value = serde_json::to_string(&sample.value).unwrap_or_else(|_| "null".to_string());
         let quality = match sample.quality {
-            TagQuality::Good      => "Good",
-            TagQuality::Bad       => "Bad",
+            TagQuality::Good => "Good",
+            TagQuality::Bad => "Bad",
             TagQuality::Uncertain => "Uncertain",
         };
         let res = task::spawn_blocking(move || -> rusqlite::Result<()> {
@@ -104,15 +109,13 @@ impl SqliteStore {
         match res {
             Ok(Ok(())) => {}
             Ok(Err(e)) => warn!("historian: sqlite append failed: {e}"),
-            Err(e)     => warn!("historian: sqlite append task panicked: {e}"),
+            Err(e) => warn!("historian: sqlite append task panicked: {e}"),
         }
     }
 
     /// Load up to `limit` most-recent samples per tag from SQLite.
     /// Returns a map `tag → samples` (chronological order within each).
-    pub async fn restore_recent(&self, limit: usize)
-        -> anyhow::Result<Vec<(String, Vec<Sample>)>>
-    {
+    pub async fn restore_recent(&self, limit: usize) -> anyhow::Result<Vec<(String, Vec<Sample>)>> {
         let conn = self.conn.clone();
         let out = task::spawn_blocking(move || -> rusqlite::Result<Vec<(String, Vec<Sample>)>> {
             let c = conn.blocking_lock();
@@ -122,7 +125,9 @@ impl SqliteStore {
             {
                 let mut stmt = c.prepare("SELECT DISTINCT tag FROM samples")?;
                 let rows = stmt.query_map([], |r| r.get::<_, String>(0))?;
-                for r in rows { tags.push(r?); }
+                for r in rows {
+                    tags.push(r?);
+                }
             }
 
             let mut out: Vec<(String, Vec<Sample>)> = Vec::with_capacity(tags.len());
@@ -132,29 +137,38 @@ impl SqliteStore {
                        FROM samples
                       WHERE tag = ?1
                       ORDER BY ts_ms DESC
-                      LIMIT ?2"
+                      LIMIT ?2",
                 )?;
                 let rows = stmt.query_map(params![tag, limit as i64], |r| {
-                    Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?))
+                    Ok((
+                        r.get::<_, i64>(0)?,
+                        r.get::<_, String>(1)?,
+                        r.get::<_, String>(2)?,
+                    ))
                 })?;
                 let mut samples: Vec<Sample> = Vec::new();
                 for r in rows {
                     let (ts, value_json, q) = r?;
-                    let value: TagValue = serde_json::from_str(&value_json)
-                        .unwrap_or(TagValue::Float(0.0));
+                    let value: TagValue =
+                        serde_json::from_str(&value_json).unwrap_or(TagValue::Float(0.0));
                     let quality = match q.as_str() {
                         "Good" => TagQuality::Good,
-                        "Bad"  => TagQuality::Bad,
-                        _      => TagQuality::Uncertain,
+                        "Bad" => TagQuality::Bad,
+                        _ => TagQuality::Uncertain,
                     };
-                    samples.push(Sample { ts_ms: ts as u64, value, quality });
+                    samples.push(Sample {
+                        ts_ms: ts as u64,
+                        value,
+                        quality,
+                    });
                 }
                 // Restore chronological order (we fetched DESC for the LIMIT)
                 samples.reverse();
                 out.push((tag, samples));
             }
             Ok(out)
-        }).await??;
+        })
+        .await??;
         Ok(out)
     }
 
@@ -162,8 +176,8 @@ impl SqliteStore {
     /// ordered chronologically. Used by `Historian::query` as a fallback
     /// for ranges older than the in-memory ring.
     pub async fn query_range(&self, tag: &str, from_ms: u64, to_ms: u64) -> Vec<Sample> {
-        let conn  = self.conn.clone();
-        let tag   = tag.to_string();
+        let conn = self.conn.clone();
+        let tag = tag.to_string();
         let res = task::spawn_blocking(move || -> rusqlite::Result<Vec<Sample>> {
             let c = conn.blocking_lock();
             let mut stmt = c.prepare(
@@ -172,28 +186,42 @@ impl SqliteStore {
                   WHERE tag = ?1 AND ts_ms >= ?2 AND ts_ms <= ?3
                   ORDER BY ts_ms ASC",
             )?;
-            let rows = stmt.query_map(
-                params![tag, from_ms as i64, to_ms as i64],
-                |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?)),
-            )?;
+            let rows = stmt.query_map(params![tag, from_ms as i64, to_ms as i64], |r| {
+                Ok((
+                    r.get::<_, i64>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, String>(2)?,
+                ))
+            })?;
             let mut samples = Vec::new();
             for r in rows {
                 let (ts, value_json, q) = r?;
-                let value: TagValue = serde_json::from_str(&value_json)
-                    .unwrap_or(TagValue::Float(0.0));
+                let value: TagValue =
+                    serde_json::from_str(&value_json).unwrap_or(TagValue::Float(0.0));
                 let quality = match q.as_str() {
                     "Good" => TagQuality::Good,
-                    "Bad"  => TagQuality::Bad,
-                    _      => TagQuality::Uncertain,
+                    "Bad" => TagQuality::Bad,
+                    _ => TagQuality::Uncertain,
                 };
-                samples.push(Sample { ts_ms: ts as u64, value, quality });
+                samples.push(Sample {
+                    ts_ms: ts as u64,
+                    value,
+                    quality,
+                });
             }
             Ok(samples)
-        }).await;
+        })
+        .await;
         match res {
             Ok(Ok(v)) => v,
-            Ok(Err(e)) => { warn!("historian: query_range db error: {e}"); vec![] }
-            Err(e)     => { warn!("historian: query_range task panicked: {e}"); vec![] }
+            Ok(Err(e)) => {
+                warn!("historian: query_range db error: {e}");
+                vec![]
+            }
+            Err(e) => {
+                warn!("historian: query_range task panicked: {e}");
+                vec![]
+            }
         }
     }
 
@@ -203,8 +231,12 @@ impl SqliteStore {
         let conn = self.conn.clone();
         let n = task::spawn_blocking(move || -> rusqlite::Result<usize> {
             let c = conn.blocking_lock();
-            c.execute("DELETE FROM samples WHERE ts_ms < ?1", params![cutoff_ms as i64])
-        }).await??;
+            c.execute(
+                "DELETE FROM samples WHERE ts_ms < ?1",
+                params![cutoff_ms as i64],
+            )
+        })
+        .await??;
         Ok(n)
     }
 
@@ -216,7 +248,8 @@ impl SqliteStore {
             c.query_row("SELECT COUNT(*) FROM samples", [], |r| r.get(0))
                 .optional()
                 .map(|v| v.unwrap_or(0))
-        }).await??;
+        })
+        .await??;
         Ok(n)
     }
 
@@ -228,16 +261,20 @@ impl SqliteStore {
             let c = conn.blocking_lock();
             let sample_count: i64 = c
                 .query_row("SELECT COUNT(*) FROM samples", [], |r| r.get(0))
-                .optional()?.unwrap_or(0);
+                .optional()?
+                .unwrap_or(0);
             let oldest_ms: Option<i64> = c
                 .query_row("SELECT MIN(ts_ms) FROM samples", [], |r| r.get(0))
-                .optional()?.flatten();
+                .optional()?
+                .flatten();
             let newest_ms: Option<i64> = c
                 .query_row("SELECT MAX(ts_ms) FROM samples", [], |r| r.get(0))
-                .optional()?.flatten();
+                .optional()?
+                .flatten();
             let tag_count: i64 = c
                 .query_row("SELECT COUNT(DISTINCT tag) FROM samples", [], |r| r.get(0))
-                .optional()?.unwrap_or(0);
+                .optional()?
+                .unwrap_or(0);
             let size_bytes = std::fs::metadata(&path).ok().map(|m| m.len());
             Ok((
                 sample_count as u64,
@@ -246,22 +283,23 @@ impl SqliteStore {
                 size_bytes,
                 tag_count as u64,
             ))
-        }).await?
+        })
+        .await?
     }
 
     // ── Alarm event journal ───────────────────────────────────────────────────
 
     /// Persist one completed alarm event.
     pub async fn append_alarm_event(&self, ev: &AlarmEvent) {
-        let conn         = self.conn.clone();
-        let alarm_id     = ev.alarm_id.clone();
-        let msg          = ev.alarm_message.clone();
-        let sev          = format!("{:?}", ev.severity);
-        let ts_act       = ev.ts_activated_ms as i64;
-        let ts_ack       = ev.ts_acked_ms.map(|v| v as i64);
-        let ts_norm      = ev.ts_normalized_ms.map(|v| v as i64);
-        let duration     = ev.duration_s;
-        let acked_by     = ev.acked_by.clone();
+        let conn = self.conn.clone();
+        let alarm_id = ev.alarm_id.clone();
+        let msg = ev.alarm_message.clone();
+        let sev = format!("{:?}", ev.severity);
+        let ts_act = ev.ts_activated_ms as i64;
+        let ts_ack = ev.ts_acked_ms.map(|v| v as i64);
+        let ts_norm = ev.ts_normalized_ms.map(|v| v as i64);
+        let duration = ev.duration_s;
+        let acked_by = ev.acked_by.clone();
         let res = task::spawn_blocking(move || -> rusqlite::Result<()> {
             let c = conn.blocking_lock();
             c.execute(
@@ -275,7 +313,7 @@ impl SqliteStore {
         match res {
             Ok(Ok(())) => {}
             Ok(Err(e)) => warn!("historian: alarm_event insert failed: {e}"),
-            Err(e)     => warn!("historian: alarm_event task panicked: {e}"),
+            Err(e) => warn!("historian: alarm_event task panicked: {e}"),
         }
     }
 
@@ -287,7 +325,7 @@ impl SqliteStore {
         to_ms: Option<u64>,
         limit: usize,
     ) -> Vec<AlarmEvent> {
-        let conn     = self.conn.clone();
+        let conn = self.conn.clone();
         let alarm_id = alarm_id.map(str::to_string);
         let res = task::spawn_blocking(move || -> rusqlite::Result<Vec<AlarmEvent>> {
             let c = conn.blocking_lock();
@@ -300,7 +338,7 @@ impl SqliteStore {
                     AND (?3 IS NULL OR ts_activated_ms >= ?3) \
                     AND (?4 IS NULL OR ts_activated_ms <= ?4) \
                   ORDER BY ts_activated_ms DESC \
-                  LIMIT ?1"
+                  LIMIT ?1",
             )?;
             let rows = stmt.query_map(
                 params![
@@ -309,24 +347,26 @@ impl SqliteStore {
                     from_ms.map(|v| v as i64),
                     to_ms.map(|v| v as i64),
                 ],
-                |r| Ok((
-                    r.get::<_, String>(0)?,
-                    r.get::<_, String>(1)?,
-                    r.get::<_, String>(2)?,
-                    r.get::<_, i64>(3)?,
-                    r.get::<_, Option<i64>>(4)?,
-                    r.get::<_, Option<i64>>(5)?,
-                    r.get::<_, Option<f64>>(6)?,
-                    r.get::<_, Option<String>>(7)?,
-                )),
+                |r| {
+                    Ok((
+                        r.get::<_, String>(0)?,
+                        r.get::<_, String>(1)?,
+                        r.get::<_, String>(2)?,
+                        r.get::<_, i64>(3)?,
+                        r.get::<_, Option<i64>>(4)?,
+                        r.get::<_, Option<i64>>(5)?,
+                        r.get::<_, Option<f64>>(6)?,
+                        r.get::<_, Option<String>>(7)?,
+                    ))
+                },
             )?;
             let mut events = Vec::new();
             for r in rows {
                 let (aid, msg, sev_str, ts_act, ts_ack, ts_norm, dur, acked_by) = r?;
                 let severity = match sev_str.as_str() {
-                    "Info"     => AlarmSeverity::Info,
+                    "Info" => AlarmSeverity::Info,
                     "Critical" => AlarmSeverity::Critical,
-                    _          => AlarmSeverity::Warning,
+                    _ => AlarmSeverity::Warning,
                 };
                 events.push(AlarmEvent {
                     alarm_id: aid,
@@ -340,11 +380,18 @@ impl SqliteStore {
                 });
             }
             Ok(events)
-        }).await;
+        })
+        .await;
         match res {
             Ok(Ok(v)) => v,
-            Ok(Err(e)) => { warn!("historian: query_alarm_events db error: {e}"); vec![] }
-            Err(e)     => { warn!("historian: query_alarm_events task panicked: {e}"); vec![] }
+            Ok(Err(e)) => {
+                warn!("historian: query_alarm_events db error: {e}");
+                vec![]
+            }
+            Err(e) => {
+                warn!("historian: query_alarm_events task panicked: {e}");
+                vec![]
+            }
         }
     }
 
@@ -360,9 +407,12 @@ impl SqliteStore {
             let mut stmt = c.prepare("SELECT DISTINCT tag FROM samples ORDER BY tag")?;
             let rows = stmt.query_map([], |r| r.get::<_, String>(0))?;
             let mut out = Vec::new();
-            for r in rows { out.push(r?); }
+            for r in rows {
+                out.push(r?);
+            }
             Ok(out)
-        }).await?
+        })
+        .await?
     }
 
     /// Cancella tutti i campioni di un tag. Ritorna quante righe sono sparite.
@@ -377,7 +427,8 @@ impl SqliteStore {
             let c = conn.blocking_lock();
             let n = c.execute("DELETE FROM samples WHERE tag = ?1", params![tag])?;
             Ok(n as u64)
-        }).await?
+        })
+        .await?
     }
 
     /// `VACUUM` + checkpoint del WAL. Ritorna la dimensione del file prima e dopo.
@@ -387,7 +438,9 @@ impl SqliteStore {
     pub async fn vacuum(&self) -> anyhow::Result<(u64, u64)> {
         let file_size = |p: &std::path::Path| -> u64 {
             let main = std::fs::metadata(p).map(|m| m.len()).unwrap_or(0);
-            let wal  = std::fs::metadata(p.with_extension("db-wal")).map(|m| m.len()).unwrap_or(0);
+            let wal = std::fs::metadata(p.with_extension("db-wal"))
+                .map(|m| m.len())
+                .unwrap_or(0);
             main + wal
         };
         // Il checkpoint va fatto PRIMA di misurare, non insieme al VACUUM.
@@ -402,7 +455,8 @@ impl SqliteStore {
                 let c = conn.blocking_lock();
                 c.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")?;
                 Ok(())
-            }).await??;
+            })
+            .await??;
         }
         let before = file_size(&self.path);
         task::spawn_blocking(move || -> anyhow::Result<()> {
@@ -413,7 +467,8 @@ impl SqliteStore {
             // cresciuto di mezzo megabyte dopo aver liberato spazio.
             c.execute_batch("VACUUM; PRAGMA wal_checkpoint(TRUNCATE);")?;
             Ok(())
-        }).await??;
+        })
+        .await??;
         Ok((before, file_size(&self.path)))
     }
 
@@ -430,7 +485,8 @@ impl SqliteStore {
             let dest_str = dest.to_string_lossy().into_owned();
             c.execute("VACUUM INTO ?1", params![dest_str])?;
             Ok(())
-        }).await??;
+        })
+        .await??;
         Ok(())
     }
 
@@ -443,7 +499,10 @@ impl SqliteStore {
     /// `path`. Callers must surface that a restart is required; this
     /// function only performs the on-disk swap. Also drops the old file's
     /// stale `-wal`/`-shm` sidecars, which don't apply to the new database.
-    pub async fn replace_file_at(path: &std::path::Path, bytes: Vec<u8>) -> anyhow::Result<std::path::PathBuf> {
+    pub async fn replace_file_at(
+        path: &std::path::Path,
+        bytes: Vec<u8>,
+    ) -> anyhow::Result<std::path::PathBuf> {
         let path = path.to_path_buf();
         task::spawn_blocking(move || -> anyhow::Result<std::path::PathBuf> {
             let backup = std::path::PathBuf::from(format!(
@@ -461,7 +520,8 @@ impl SqliteStore {
             let _ = std::fs::remove_file(path.with_extension("db-wal"));
             let _ = std::fs::remove_file(path.with_extension("db-shm"));
             Ok(backup)
-        }).await?
+        })
+        .await?
     }
 
     /// Delete excess rows per tag, keeping only the `max_rows` most-recent.
@@ -506,7 +566,10 @@ mod tests {
 
     #[tokio::test]
     async fn vacuum_into_produces_a_consistent_copy() {
-        let dir = std::env::temp_dir().join(format!("sws-historian-vacuum-into-test-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!(
+            "sws-historian-vacuum-into-test-{}",
+            std::process::id()
+        ));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let src_path = dir.join("src.db");
@@ -514,7 +577,11 @@ mod tests {
 
         let store = SqliteStore::open(&src_path).await.unwrap();
         for i in 0..5u64 {
-            let sample = Sample { ts_ms: i * 10, value: TagValue::Float(i as f64), quality: TagQuality::Good };
+            let sample = Sample {
+                ts_ms: i * 10,
+                value: TagValue::Float(i as f64),
+                quality: TagQuality::Good,
+            };
             store.append("t", &sample).await;
         }
 

@@ -1,10 +1,10 @@
+use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     fmt,
     sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
-use serde::{Deserialize, Serialize};
 use tokio::sync::{broadcast, mpsc, RwLock};
 
 pub type TagId = String;
@@ -57,12 +57,18 @@ pub struct LinearScale {
 
 impl LinearScale {
     pub fn to_eng(&self, raw: f64) -> f64 {
-        if self.raw_max == self.raw_min { return raw; }
-        self.eng_min + (raw - self.raw_min) * (self.eng_max - self.eng_min) / (self.raw_max - self.raw_min)
+        if self.raw_max == self.raw_min {
+            return raw;
+        }
+        self.eng_min
+            + (raw - self.raw_min) * (self.eng_max - self.eng_min) / (self.raw_max - self.raw_min)
     }
     pub fn to_raw(&self, eng: f64) -> f64 {
-        if self.eng_max == self.eng_min { return eng; }
-        self.raw_min + (eng - self.eng_min) * (self.raw_max - self.raw_min) / (self.eng_max - self.eng_min)
+        if self.eng_max == self.eng_min {
+            return eng;
+        }
+        self.raw_min
+            + (eng - self.eng_min) * (self.raw_max - self.raw_min) / (self.eng_max - self.eng_min)
     }
 }
 
@@ -135,10 +141,12 @@ impl TagDb {
     /// device, se il tag ha uno scaling. Usato dai percorsi di scrittura
     /// (API/WS/ricette) prima di consegnare al TagWriteBus.
     pub async fn scale_to_raw(&self, id: &str, value: TagValue) -> TagValue {
-        let Some(scale) = self.scales.read().await.get(id).copied() else { return value };
+        let Some(scale) = self.scales.read().await.get(id).copied() else {
+            return value;
+        };
         match value {
             TagValue::Float(v) => TagValue::Float(scale.to_raw(v)),
-            TagValue::Int(v)   => TagValue::Float(scale.to_raw(v as f64)),
+            TagValue::Int(v) => TagValue::Float(scale.to_raw(v as f64)),
             other => other,
         }
     }
@@ -150,7 +158,7 @@ impl TagDb {
     pub async fn ingest(&self, id: TagId, value: TagValue, quality: TagQuality) {
         let scaled = match (self.scales.read().await.get(&id).copied(), value) {
             (Some(s), TagValue::Float(v)) => TagValue::Float(s.to_eng(v)),
-            (Some(s), TagValue::Int(v))   => TagValue::Float(s.to_eng(v as f64)),
+            (Some(s), TagValue::Int(v)) => TagValue::Float(s.to_eng(v as f64)),
             (_, v) => v,
         };
         self.set(id, scaled, quality).await;
@@ -161,7 +169,11 @@ impl TagDb {
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_millis() as u64;
-        let state = TagState { value, quality, timestamp_ms: ts };
+        let state = TagState {
+            value,
+            quality,
+            timestamp_ms: ts,
+        };
         self.store.write().await.insert(id.clone(), state.clone());
         let _ = self.tx.send(TagUpdate { id, state }); // no subscribers is fine
     }
@@ -210,7 +222,7 @@ pub enum WriteError {
 impl fmt::Display for WriteError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            WriteError::NoWriter(t)      => write!(f, "no writer registered for tag '{t}'"),
+            WriteError::NoWriter(t) => write!(f, "no writer registered for tag '{t}'"),
             WriteError::ChannelClosed(t) => write!(f, "write channel for tag '{t}' closed"),
         }
     }
@@ -228,30 +240,36 @@ fn coerce_value(want: &str, v: TagValue) -> Result<TagValue, String> {
     use TagValue::*;
     fn descrivi(v: &TagValue) -> String {
         match v {
-            Bool(b)  => format!("bool ({b})"),
-            Int(i)   => format!("int ({i})"),
+            Bool(b) => format!("bool ({b})"),
+            Int(i) => format!("int ({i})"),
             Float(f) => format!("float ({f})"),
-            Str(s)   => format!("string («{s}»)"),
+            Str(s) => format!("string («{s}»)"),
         }
     }
     match (want, v) {
         ("bool", Bool(b)) => Ok(Bool(b)),
         ("bool", Str(s)) => match s.to_ascii_lowercase().as_str() {
-            "true"  => Ok(Bool(true)),
+            "true" => Ok(Bool(true)),
             "false" => Ok(Bool(false)),
             _ => Err(descrivi(&Str(s))),
         },
         ("int", Int(i)) => Ok(Int(i)),
         // `f as i64` satura invece di sbagliare, ma un fuori-range È una
         // perdita: si rifiuta invece di consegnare i64::MAX al PLC.
-        ("int", Float(f)) if f.is_finite() && f.fract() == 0.0
-            && f >= i64::MIN as f64 && f <= i64::MAX as f64 => Ok(Int(f as i64)),
+        ("int", Float(f))
+            if f.is_finite()
+                && f.fract() == 0.0
+                && f >= i64::MIN as f64
+                && f <= i64::MAX as f64 =>
+        {
+            Ok(Int(f as i64))
+        }
         ("int", Str(s)) => match s.trim().parse::<i64>() {
             Ok(i) => Ok(Int(i)),
             Err(_) => Err(descrivi(&Str(s))),
         },
         ("float", Float(f)) => Ok(Float(f)),
-        ("float", Int(i))   => Ok(Float(i as f64)),
+        ("float", Int(i)) => Ok(Float(i as f64)),
         ("float", Str(s)) => match s.trim().parse::<f64>() {
             Ok(f) if f.is_finite() => Ok(Float(f)),
             _ => Err(descrivi(&Str(s))),
@@ -272,12 +290,16 @@ pub struct TagWriteBus {
 }
 
 impl Default for TagWriteBus {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl TagWriteBus {
     pub fn new() -> Self {
-        Self { routes: RwLock::new(HashMap::new()) }
+        Self {
+            routes: RwLock::new(HashMap::new()),
+        }
     }
 
     /// A plugin that owns `tag_id` registers its sender. Latest registration wins
@@ -305,7 +327,9 @@ impl TagWriteBus {
         };
         match sender {
             None => Err(WriteError::NoWriter(tag_id.to_string())),
-            Some(s) => s.send((tag_id.to_string(), value)).await
+            Some(s) => s
+                .send((tag_id.to_string(), value))
+                .await
                 .map_err(|_| WriteError::ChannelClosed(tag_id.to_string())),
         }
     }
@@ -328,7 +352,7 @@ mod tests {
         assert_eq!(coerce_value("float", Str("1.5".into())), Ok(Float(1.5)));
         // le perdite e le ambiguità
         assert!(coerce_value("int", Float(1.5)).is_err());
-        assert!(coerce_value("int", Float(1e30)).is_err());       // fuori range i64
+        assert!(coerce_value("int", Float(1e30)).is_err()); // fuori range i64
         assert!(coerce_value("int", Float(f64::NAN)).is_err());
         assert!(coerce_value("bool", Str("abc".into())).is_err()); // il caso della scheda
         assert!(coerce_value("bool", Int(1)).is_err());
@@ -346,19 +370,37 @@ mod tests {
     #[tokio::test]
     async fn coerce_for_write_uses_declared_map() {
         let db = TagDb::new(16);
-        db.set_data_types([("b1".to_string(), "bool".to_string())].into()).await;
-        assert_eq!(db.coerce_for_write("sconosciuto", TagValue::Str("x".into())).await,
-                   Ok(TagValue::Str("x".into())));
-        assert_eq!(db.coerce_for_write("b1", TagValue::Str("true".into())).await,
-                   Ok(TagValue::Bool(true)));
-        let err = db.coerce_for_write("b1", TagValue::Str("abc".into())).await.unwrap_err();
-        assert!(err.contains("b1") && err.contains("bool") && err.contains("abc"), "{err}");
+        db.set_data_types([("b1".to_string(), "bool".to_string())].into())
+            .await;
+        assert_eq!(
+            db.coerce_for_write("sconosciuto", TagValue::Str("x".into()))
+                .await,
+            Ok(TagValue::Str("x".into()))
+        );
+        assert_eq!(
+            db.coerce_for_write("b1", TagValue::Str("true".into()))
+                .await,
+            Ok(TagValue::Bool(true))
+        );
+        let err = db
+            .coerce_for_write("b1", TagValue::Str("abc".into()))
+            .await
+            .unwrap_err();
+        assert!(
+            err.contains("b1") && err.contains("bool") && err.contains("abc"),
+            "{err}"
+        );
     }
 
     #[tokio::test]
     async fn set_and_get() {
         let db = TagDb::new(16);
-        db.set("pump1.speed".into(), TagValue::Float(42.5), TagQuality::Good).await;
+        db.set(
+            "pump1.speed".into(),
+            TagValue::Float(42.5),
+            TagQuality::Good,
+        )
+        .await;
         let s = db.get("pump1.speed").await.unwrap();
         assert_eq!(s.value, TagValue::Float(42.5));
         assert_eq!(s.quality, TagQuality::Good);
@@ -368,7 +410,8 @@ mod tests {
     async fn subscribe_receives_update() {
         let db = TagDb::new(16);
         let mut rx = db.subscribe();
-        db.set("valve1.open".into(), TagValue::Bool(true), TagQuality::Good).await;
+        db.set("valve1.open".into(), TagValue::Bool(true), TagQuality::Good)
+            .await;
         let upd = rx.recv().await.unwrap();
         assert_eq!(upd.id, "valve1.open");
         assert_eq!(upd.state.value, TagValue::Bool(true));
@@ -379,7 +422,9 @@ mod tests {
         let bus = TagWriteBus::new();
         let (tx, mut rx) = mpsc::channel(8);
         bus.register("pump1.speed".into(), tx).await;
-        bus.write("pump1.speed", TagValue::Float(75.0)).await.unwrap();
+        bus.write("pump1.speed", TagValue::Float(75.0))
+            .await
+            .unwrap();
         let got = rx.recv().await.unwrap();
         assert_eq!(got, ("pump1.speed".to_string(), TagValue::Float(75.0)));
     }

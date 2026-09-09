@@ -7,12 +7,19 @@ use hyper::body::Incoming;
 use hyper_util::rt::{TokioExecutor, TokioIo};
 use hyper_util::server::conn::auto::Builder as ConnBuilder;
 use rcgen::{CertificateParams, KeyPair, SanType};
-use std::{net::{IpAddr, SocketAddr}, path::PathBuf, sync::Arc};
+use std::{
+    net::{IpAddr, SocketAddr},
+    path::PathBuf,
+    sync::Arc,
+};
 use sws_auth::{AuthState, Role};
 use sws_core::{AlarmDb, LogBus, TagDb, TagQuality, TagWriteBus, DEFAULT_LOG_CAPACITY};
 use sws_historian::Historian;
 use sws_pyscript::Engine as PyEngine;
-use sws_web::{router::{DerivedTagsRegistry, RegistryCell, ScriptSupervisorCell}, SourceSupervisor};
+use sws_web::{
+    router::{DerivedTagsRegistry, RegistryCell, ScriptSupervisorCell},
+    SourceSupervisor,
+};
 use tokio::net::TcpListener;
 use tokio_rustls::{
     rustls::{
@@ -312,8 +319,7 @@ async fn main() -> anyhow::Result<()> {
     // rejects every event — that silently disabled the log panel until now.
     // Fall back to INFO so the launcher scripts and the container both produce logs out
     // of the box; power users still override with RUST_LOG=debug etc.
-    let env_filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("info"));
+    let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
     tracing_subscriber::registry()
         .with(env_filter)
         .with(fmt::layer().json())
@@ -373,9 +379,9 @@ async fn main() -> anyhow::Result<()> {
     let instance_id = Arc::new(load_or_create_instance_id(&config_dir));
     info!(instance_id = %instance_id, "runtime instance id (used for random MQTT client ids)");
 
-    let tag_db    = Arc::new(TagDb::new(256));
-    let bus       = Arc::new(TagWriteBus::new());
-    let alarm_db  = Arc::new(AlarmDb::new(64));
+    let tag_db = Arc::new(TagDb::new(256));
+    let bus = Arc::new(TagWriteBus::new());
+    let alarm_db = Arc::new(AlarmDb::new(64));
     // 5_000 samples × ~100 tags ≈ a few MB. Adjust per-tag cap when we learn
     // realistic project sizes — for now this is the PoC sizing.
     // Historian starts RAM-only. open_project calls historian.swap_store() to
@@ -386,20 +392,16 @@ async fn main() -> anyhow::Result<()> {
     // Empty registries — populated below from project.yaml (if present).
     let functions: sws_web::router::FunctionsRegistry =
         Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new()));
-    let derived_tags: DerivedTagsRegistry =
-        Arc::new(tokio::sync::RwLock::new(Vec::new()));
-    let script_supervisor: ScriptSupervisorCell =
-        Arc::new(tokio::sync::RwLock::new(None));
+    let derived_tags: DerivedTagsRegistry = Arc::new(tokio::sync::RwLock::new(Vec::new()));
+    let script_supervisor: ScriptSupervisorCell = Arc::new(tokio::sync::RwLock::new(None));
 
     // Env-var credentials are optional. When SWS_ADMIN_PASSWORD is not set
     // (and users.yaml is absent or empty), the runtime starts in no-auth mode:
     // all routes are open without a token. Set SWS_ADMIN_PASSWORD to seed an
     // admin account and enable authentication.
     let admin_user = std::env::var("SWS_ADMIN_USER").unwrap_or_else(|_| "admin".into());
-    let admin_pwd  = std::env::var("SWS_ADMIN_PASSWORD").unwrap_or_default();
-    let mut accounts: Vec<(String, Role, String)> = vec![
-        (admin_user, Role::Admin, admin_pwd),
-    ];
+    let admin_pwd = std::env::var("SWS_ADMIN_PASSWORD").unwrap_or_default();
+    let mut accounts: Vec<(String, Role, String)> = vec![(admin_user, Role::Admin, admin_pwd)];
     if let Ok(pwd) = std::env::var("SWS_SUPERVISOR_PASSWORD") {
         let user = std::env::var("SWS_SUPERVISOR_USER").unwrap_or_else(|_| "supervisor".into());
         accounts.push((user, Role::Supervisor, pwd));
@@ -412,16 +414,24 @@ async fn main() -> anyhow::Result<()> {
         let user = std::env::var("SWS_VIEWER_USER").unwrap_or_else(|_| "viewer".into());
         accounts.push((user, Role::Viewer, pwd));
     }
-    let ttl_secs    = std::env::var("SWS_SESSION_TTL_SECS").ok().and_then(|s| s.parse().ok()).unwrap_or(8 * 3600);
-    let rate_limit  = std::env::var("SWS_LOGIN_RATE_LIMIT").ok().and_then(|s| s.parse().ok()).unwrap_or(5);
-    let rate_window = std::env::var("SWS_LOGIN_RATE_WINDOW_SECS").ok().and_then(|s| s.parse().ok()).unwrap_or(60);
+    let ttl_secs = std::env::var("SWS_SESSION_TTL_SECS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(8 * 3600);
+    let rate_limit = std::env::var("SWS_LOGIN_RATE_LIMIT")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(5);
+    let rate_window = std::env::var("SWS_LOGIN_RATE_WINDOW_SECS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(60);
     let ttl = std::time::Duration::from_secs(ttl_secs);
     let rate_window_dur = std::time::Duration::from_secs(rate_window);
 
     // Active project handle — None until the user opens one (or until
     // --project auto-opens below for legacy single-project deploys).
-    let active_dir: sws_web::router::ActiveProjectDir =
-        Arc::new(tokio::sync::RwLock::new(None));
+    let active_dir: sws_web::router::ActiveProjectDir = Arc::new(tokio::sync::RwLock::new(None));
 
     // Datastore registry: hot-swappable cell initialised empty.
     // Populated below from project.yaml (if --project was passed) or later
@@ -474,7 +484,10 @@ async fn main() -> anyhow::Result<()> {
 
     // Servizi da avviare dopo router::build() per il progetto aperto al boot:
     // (notifiche, script globali). `None` = nessun progetto auto-aperto.
-    let mut boot_services: Option<(Option<sws_core::NotificationConfig>, Vec<sws_core::GlobalScriptDef>)> = None;
+    let mut boot_services: Option<(
+        Option<sws_core::NotificationConfig>,
+        Vec<sws_core::GlobalScriptDef>,
+    )> = None;
 
     if let Some(project_path) = project_arg {
         // Legacy auto-open path: bootstrap exactly as the single-project
@@ -485,7 +498,9 @@ async fn main() -> anyhow::Result<()> {
         // migration `open_project` runs, see its doc comment for why these
         // two call sites are the only ones that need it.
         sws_web::projects::migrate_legacy_project_dirs(&project_path);
-        supervisor.set_pki_root(project_path.join("opcua-pki")).await;
+        supervisor
+            .set_pki_root(project_path.join("opcua-pki"))
+            .await;
         match sws_core::project::Project::load(&project_path) {
             Ok(mut project) => {
                 // Notifiche e script globali si mettono da parte: i loro
@@ -509,21 +524,37 @@ async fn main() -> anyhow::Result<()> {
                 // silenzio: nessuno store SQLite, nessun `journal_callback`
                 // agganciato in `apply_loaded_project`.
                 if project.datastores.is_empty() {
-                    project.datastores.push(sws_web::projects::default_datastore());
+                    project
+                        .datastores
+                        .push(sws_web::projects::default_datastore());
                 }
                 let (notifications, global_scripts) = sws_web::projects::apply_loaded_project(
-                    &project_path, project,
-                    &tag_db, &registry, &historian, &alarm_db, &supervisor,
-                    &derived_tags, &functions, &config_dir, &instance_id,
-                ).await;
+                    &project_path,
+                    project,
+                    &tag_db,
+                    &registry,
+                    &historian,
+                    &alarm_db,
+                    &supervisor,
+                    &derived_tags,
+                    &functions,
+                    &config_dir,
+                    &instance_id,
+                )
+                .await;
                 boot_services = Some((notifications, global_scripts));
             }
             Err(e) => {
-                warn!("project.yaml not found or invalid — starting with empty tag database: {e:#}");
+                warn!(
+                    "project.yaml not found or invalid — starting with empty tag database: {e:#}"
+                );
             }
         }
         // Swap auth to point at this project's users.yaml, seeded from env.
-        if let Err(e) = auth.swap_store(project_path.join("users.yaml"), accounts).await {
+        if let Err(e) = auth
+            .swap_store(project_path.join("users.yaml"), accounts)
+            .await
+        {
             anyhow::bail!("failed to bootstrap auth from --project: {e}");
         }
         // Persist the choice so a plain restart reopens the same project.
@@ -556,45 +587,65 @@ async fn main() -> anyhow::Result<()> {
             loop {
                 tick.tick().await;
                 let dir_opt = dir_handle.read().await.clone();
-                let Some(dir) = dir_opt else { last_fired = None; continue }; // no project open
+                let Some(dir) = dir_opt else {
+                    last_fired = None;
+                    continue;
+                }; // no project open
 
                 let dir_for_load = dir.clone();
                 let project = tokio::task::spawn_blocking(move || {
                     sws_core::Project::load(&dir_for_load).ok()
-                }).await.unwrap_or(None);
-                let interval_min = project.as_ref()
+                })
+                .await
+                .unwrap_or(None);
+                let interval_min = project
+                    .as_ref()
                     .and_then(|p| p.auto_backup_interval_minutes)
                     .unwrap_or(cli_interval_min);
-                if interval_min == 0 { last_fired = None; continue; } // disabled for this project
-                let retention = project.as_ref()
+                if interval_min == 0 {
+                    last_fired = None;
+                    continue;
+                } // disabled for this project
+                let retention = project
+                    .as_ref()
                     .and_then(|p| p.auto_backup_retention)
                     .map(|v| v as usize)
                     .unwrap_or(cli_retention);
 
                 let due = match &last_fired {
-                    Some((last_dir, at)) if *last_dir == dir =>
-                        at.elapsed() >= std::time::Duration::from_secs(interval_min * 60),
+                    Some((last_dir, at)) if *last_dir == dir => {
+                        at.elapsed() >= std::time::Duration::from_secs(interval_min * 60)
+                    }
                     // Project just became active (or first tick since open):
                     // start the clock now rather than firing immediately, same
                     // "don't snapshot the moment it starts" spirit as before.
-                    _ => { last_fired = Some((dir.clone(), std::time::Instant::now())); false }
+                    _ => {
+                        last_fired = Some((dir.clone(), std::time::Instant::now()));
+                        false
+                    }
                 };
-                if !due { continue; }
+                if !due {
+                    continue;
+                }
 
                 let dir2 = dir.clone();
-                let result = tokio::task::spawn_blocking(move || {
-                    sws_web::backups::backup_now(&dir2)
-                }).await;
+                let result =
+                    tokio::task::spawn_blocking(move || sws_web::backups::backup_now(&dir2)).await;
                 last_fired = Some((dir.clone(), std::time::Instant::now()));
                 match result {
                     Ok(Ok(path)) => {
-                        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("?").to_string();
+                        let name = path
+                            .file_name()
+                            .and_then(|n| n.to_str())
+                            .unwrap_or("?")
+                            .to_string();
                         info!(backup = %name, interval_min, retention, "auto-backup created");
                         if retention > 0 {
                             let dir3 = dir.clone();
                             let _ = tokio::task::spawn_blocking(move || {
                                 sws_web::backups::prune_backups(&dir3, retention);
-                            }).await;
+                            })
+                            .await;
                         }
                     }
                     Ok(Err(e)) => warn!("auto-backup failed: {e}"),
@@ -604,7 +655,7 @@ async fn main() -> anyhow::Result<()> {
         });
         info!(
             cli_interval_min = args.auto_backup_interval_minutes,
-            cli_retention    = args.auto_backup_retention,
+            cli_retention = args.auto_backup_retention,
             "auto-backup loop started (per-project override via project.yaml checked every tick)",
         );
     }
@@ -655,11 +706,13 @@ async fn main() -> anyhow::Result<()> {
                             std::collections::HashSet::new();
                         changed.insert(first.id);
                         while let Ok(u) = tag_rx.try_recv() {
-                                changed.insert(u.id);
-                            }
+                            changed.insert(u.id);
+                        }
 
                         let pairs = derived.read().await.clone();
-                        if pairs.is_empty() { continue; }
+                        if pairs.is_empty() {
+                            continue;
+                        }
 
                         // Skip if every trigger is itself a derived tag — prevents
                         // the db.set() → broadcast → re-eval feedback loop.
@@ -669,8 +722,12 @@ async fn main() -> anyhow::Result<()> {
                             continue;
                         }
 
-                        let snapshot: std::collections::HashMap<String, sws_core::TagValue> =
-                            db.snapshot().await.into_iter().map(|(k, v)| (k, v.value)).collect();
+                        let snapshot: std::collections::HashMap<String, sws_core::TagValue> = db
+                            .snapshot()
+                            .await
+                            .into_iter()
+                            .map(|(k, v)| (k, v.value))
+                            .collect();
                         for (id, expr) in pairs {
                             match sws_pyscript::eval_expression(expr, snapshot.clone()).await {
                                 Ok(value) => {
@@ -710,16 +767,27 @@ async fn main() -> anyhow::Result<()> {
                         // observe (active or recovery), labelled by direction
                         // + severity. This is the single broadcast all alarms
                         // flow through, so it's the right spot for the metric.
-                        let direction = if state.active { "activated" } else { "recovered" };
+                        let direction = if state.active {
+                            "activated"
+                        } else {
+                            "recovered"
+                        };
                         let severity = format!("{:?}", state.def.severity);
                         metrics::counter!("sws_alarm_transitions_total",
                             "direction" => direction.to_string(),
                             "severity"  => severity,
-                        ).increment(1);
+                        )
+                        .increment(1);
                         // Only notify on fresh activation (not ack or recovery).
-                        if !state.active { continue; }
-                        let Some(url) = &state.def.notify_url else { continue };
-                        if url.trim().is_empty() { continue; }
+                        if !state.active {
+                            continue;
+                        }
+                        let Some(url) = &state.def.notify_url else {
+                            continue;
+                        };
+                        if url.trim().is_empty() {
+                            continue;
+                        }
                         let payload = serde_json::json!({
                             "id":       state.def.id,
                             "message":  state.def.message,
@@ -732,8 +800,12 @@ async fn main() -> anyhow::Result<()> {
                         let client = http.clone();
                         tokio::spawn(async move {
                             match client.post(&url).json(&payload).send().await {
-                                Ok(r)  => info!(alarm = %payload["id"], status = r.status().as_u16(), "alarm webhook sent"),
-                                Err(e) => warn!(alarm = %payload["id"], url, "alarm webhook failed: {e}"),
+                                Ok(r) => {
+                                    info!(alarm = %payload["id"], status = r.status().as_u16(), "alarm webhook sent")
+                                }
+                                Err(e) => {
+                                    warn!(alarm = %payload["id"], url, "alarm webhook failed: {e}")
+                                }
                             }
                         });
                     }
@@ -766,9 +838,11 @@ async fn main() -> anyhow::Result<()> {
             .split(',')
             .filter_map(|entry| {
                 let entry = entry.trim();
-                if entry.is_empty() { return None; }
+                if entry.is_empty() {
+                    return None;
+                }
                 let (addr_str, prefix_str) = if let Some(pos) = entry.find('/') {
-                    (&entry[..pos], &entry[pos+1..])
+                    (&entry[..pos], &entry[pos + 1..])
                 } else {
                     (entry, "32")
                 };
@@ -776,29 +850,40 @@ async fn main() -> anyhow::Result<()> {
                 let prefix: u8 = prefix_str.parse().ok()?;
                 Some((addr, prefix))
             })
-            .collect()
+            .collect(),
     );
     if !ip_allowlist.is_empty() {
-        info!(entries = ip_allowlist.len(), "IP allowlist active for /api/auth/login");
+        info!(
+            entries = ip_allowlist.len(),
+            "IP allowlist active for /api/auth/login"
+        );
     }
 
-    let cert_path: Option<Arc<PathBuf>> = acceptor.as_ref()
+    let cert_path: Option<Arc<PathBuf>> = acceptor
+        .as_ref()
         .map(|_| Arc::new(args.config.join("tls.crt")));
     let http_cert_path: Option<PathBuf> = cert_path.as_ref().map(|p| (**p).clone());
 
     // Append-only audit log (OPEN_QUESTIONS Q8). One file spanning the process
     // lifetime (not per-project) so the trail survives project switches.
     // SWS_AUDIT_KEY (if set) enables HMAC signing on top of the hash chain.
-    let audit_key = std::env::var("SWS_AUDIT_KEY").ok().filter(|k| !k.is_empty()).map(|k| k.into_bytes());
+    let audit_key = std::env::var("SWS_AUDIT_KEY")
+        .ok()
+        .filter(|k| !k.is_empty())
+        .map(|k| k.into_bytes());
     if audit_key.is_none() {
         info!("SWS_AUDIT_KEY not set — audit log is hash-chained but unsigned (tamper-evident, not tamper-resistant)");
     }
-    let audit = Arc::new(sws_audit::AuditLog::open(config_dir.join("audit.jsonl"), audit_key));
+    let audit = Arc::new(sws_audit::AuditLog::open(
+        config_dir.join("audit.jsonl"),
+        audit_key,
+    ));
 
     // Known-projects registry (recent projects list + custom-path projects
     // outside projects_root). Borrows config_dir; build() below takes it by
     // value afterward, so this must load first.
-    let known_projects = Arc::new(sws_web::project_registry::ProjectRegistry::load(&config_dir).await);
+    let known_projects =
+        Arc::new(sws_web::project_registry::ProjectRegistry::load(&config_dir).await);
 
     let (runtime_app, admin_app, app_state) = sws_web::router::build(
         tag_db,
@@ -886,7 +971,9 @@ async fn main() -> anyhow::Result<()> {
     // poteva più aggiornare dall'editor, e non c'era niente che lo dicesse —
     // l'errore arrivava come una connessione rifiutata.
     if args.no_admin && args.viewer_port.is_none() {
-        anyhow::bail!("--no-admin richiede --viewer-port (altrimenti nessuna porta verrebbe servita)");
+        anyhow::bail!(
+            "--no-admin richiede --viewer-port (altrimenti nessuna porta verrebbe servita)"
+        );
     }
     let admin_listener: Option<TcpListener> = {
         let admin_addr: SocketAddr = format!("0.0.0.0:{}", args.admin_port).parse()?;
@@ -905,60 +992,78 @@ async fn main() -> anyhow::Result<()> {
     // page so users can approve the self-signed cert without knowing the /health URL.
     // Only useful (and only started) when TLS is active — in plain HTTP mode the main
     // ports are already plain HTTP so no companion is needed.
-    let http_listener: Option<TcpListener> = if let (Some(hp), true) = (args.http_port, acceptor.is_some()) {
-        let addr: SocketAddr = format!("0.0.0.0:{hp}").parse()?;
-        let l = TcpListener::bind(addr).await?;
-        info!(addr = %addr, "HTTP cert-acceptance listener ready");
-        Some(l)
-    } else {
-        None
-    };
+    let http_listener: Option<TcpListener> =
+        if let (Some(hp), true) = (args.http_port, acceptor.is_some()) {
+            let addr: SocketAddr = format!("0.0.0.0:{hp}").parse()?;
+            let l = TcpListener::bind(addr).await?;
+            info!(addr = %addr, "HTTP cert-acceptance listener ready");
+            Some(l)
+        } else {
+            None
+        };
 
     // Build the HTTP app: cert-acceptance page at "/" and cert download at "/cert".
     let http_app: Option<axum::Router> = http_listener.as_ref().map(|_| {
         let page = CERT_PAGE_TEMPLATE
             .replace("__ADMIN_PORT__", &args.admin_port.to_string())
-            .replace("__VIEWER_PORT__", &args.viewer_port.map(|p| p.to_string()).unwrap_or_default());
+            .replace(
+                "__VIEWER_PORT__",
+                &args.viewer_port.map(|p| p.to_string()).unwrap_or_default(),
+            );
         let cert_file = http_cert_path.clone();
         axum::Router::new()
-            .route("/", axum::routing::get(move || {
-                let body = page.clone();
-                async move {
-                    axum::response::Response::builder()
-                        .header(axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8")
-                        .header(axum::http::header::CACHE_CONTROL, "no-store")
-                        .body(axum::body::Body::from(body))
-                        .unwrap()
-                }
-            }))
-            .route("/cert", axum::routing::get(move || {
-                let path = cert_file.clone();
-                async move {
-                    match path {
-                        Some(p) => match tokio::fs::read(&p).await {
-                            Ok(bytes) => axum::response::Response::builder()
-                                .header(axum::http::header::CONTENT_TYPE, "application/x-x509-ca-cert")
-                                .header("Content-Disposition", "attachment; filename=\"sws.crt\"")
-                                .header(axum::http::header::CACHE_CONTROL, "no-store")
-                                .body(axum::body::Body::from(bytes))
-                                .unwrap(),
-                            Err(e) => axum::response::Response::builder()
-                                .status(500)
-                                .body(axum::body::Body::from(format!("cert not found: {e}")))
-                                .unwrap(),
-                        },
-                        None => axum::response::Response::builder()
-                            .status(404)
-                            .body(axum::body::Body::from("no TLS certificate"))
-                            .unwrap(),
+            .route(
+                "/",
+                axum::routing::get(move || {
+                    let body = page.clone();
+                    async move {
+                        axum::response::Response::builder()
+                            .header(axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8")
+                            .header(axum::http::header::CACHE_CONTROL, "no-store")
+                            .body(axum::body::Body::from(body))
+                            .unwrap()
                     }
-                }
-            }))
+                }),
+            )
+            .route(
+                "/cert",
+                axum::routing::get(move || {
+                    let path = cert_file.clone();
+                    async move {
+                        match path {
+                            Some(p) => match tokio::fs::read(&p).await {
+                                Ok(bytes) => axum::response::Response::builder()
+                                    .header(
+                                        axum::http::header::CONTENT_TYPE,
+                                        "application/x-x509-ca-cert",
+                                    )
+                                    .header(
+                                        "Content-Disposition",
+                                        "attachment; filename=\"sws.crt\"",
+                                    )
+                                    .header(axum::http::header::CACHE_CONTROL, "no-store")
+                                    .body(axum::body::Body::from(bytes))
+                                    .unwrap(),
+                                Err(e) => axum::response::Response::builder()
+                                    .status(500)
+                                    .body(axum::body::Body::from(format!("cert not found: {e}")))
+                                    .unwrap(),
+                            },
+                            None => axum::response::Response::builder()
+                                .status(404)
+                                .body(axum::body::Body::from("no TLS certificate"))
+                                .unwrap(),
+                        }
+                    }
+                }),
+            )
     });
 
     // Announce this runtime on the local network via mDNS (viewer port only).
     // Skipped in IDE-only mode (no viewer port = no service to discover).
-    let _mdns_svc = args.viewer_port.map(|vp| announce_mdns(vp, args.admin_port, acceptor.is_some()));
+    let _mdns_svc = args
+        .viewer_port
+        .map(|vp| announce_mdns(vp, args.admin_port, acceptor.is_some()));
 
     // Kiosk-mode browser spawn: once /health answers OK, run the operator-
     // provided shell command (typically a kiosk browser). Fire-and-forget —
@@ -977,7 +1082,10 @@ async fn main() -> anyhow::Result<()> {
             let mut ready = false;
             for _ in 0..50 {
                 if let Ok(r) = client.get(&health_url).send().await {
-                    if r.status().is_success() { ready = true; break; }
+                    if r.status().is_success() {
+                        ready = true;
+                        break;
+                    }
                 }
                 tokio::time::sleep(std::time::Duration::from_millis(100)).await;
             }
@@ -987,12 +1095,13 @@ async fn main() -> anyhow::Result<()> {
             }
             info!(kiosk = %cmd, "kiosk: spawning browser");
             match tokio::process::Command::new("sh")
-                .arg("-c").arg(&cmd)
+                .arg("-c")
+                .arg(&cmd)
                 .stdin(std::process::Stdio::null())
                 .spawn()
             {
                 Ok(_child) => { /* fire-and-forget, child inherits stdout/stderr */ }
-                Err(e)     => warn!(kiosk = %cmd, "kiosk: spawn failed: {e}"),
+                Err(e) => warn!(kiosk = %cmd, "kiosk: spawn failed: {e}"),
             }
         });
     }
@@ -1008,7 +1117,10 @@ async fn main() -> anyhow::Result<()> {
             let mut ready = false;
             for _ in 0..50 {
                 if let Ok(r) = client.get(&health_url).send().await {
-                    if r.status().is_success() { ready = true; break; }
+                    if r.status().is_success() {
+                        ready = true;
+                        break;
+                    }
                 }
                 tokio::time::sleep(std::time::Duration::from_millis(100)).await;
             }
@@ -1098,20 +1210,29 @@ async fn main() -> anyhow::Result<()> {
 
         // Pick the right Axum app, then serve — with TLS if a cert is configured,
         // otherwise as plain HTTP (localhost is a "secure context" in modern browsers).
-        let svc = if kind == 0 { runtime_app.clone() } else { admin_app.clone() };
+        let svc = if kind == 0 {
+            runtime_app.clone()
+        } else {
+            admin_app.clone()
+        };
 
         match acceptor.clone() {
             Some(tls_acceptor) => {
                 tokio::spawn(async move {
                     let tls_stream = match tls_acceptor.accept(stream).await {
-                        Ok(s)  => s,
-                        Err(e) => { warn!(%peer, "TLS handshake failed: {e}"); return; }
+                        Ok(s) => s,
+                        Err(e) => {
+                            warn!(%peer, "TLS handshake failed: {e}");
+                            return;
+                        }
                     };
                     let io = TokioIo::new(tls_stream);
-                    let hyper_svc = hyper::service::service_fn(move |mut req: axum::extract::Request<Incoming>| {
-                        req.extensions_mut().insert(peer);
-                        svc.clone().call(req)
-                    });
+                    let hyper_svc = hyper::service::service_fn(
+                        move |mut req: axum::extract::Request<Incoming>| {
+                            req.extensions_mut().insert(peer);
+                            svc.clone().call(req)
+                        },
+                    );
                     if let Err(e) = ConnBuilder::new(TokioExecutor::new())
                         .serve_connection_with_upgrades(io, hyper_svc)
                         .await
@@ -1123,10 +1244,12 @@ async fn main() -> anyhow::Result<()> {
             None => {
                 tokio::spawn(async move {
                     let io = TokioIo::new(stream);
-                    let hyper_svc = hyper::service::service_fn(move |mut req: axum::extract::Request<Incoming>| {
-                        req.extensions_mut().insert(peer);
-                        svc.clone().call(req)
-                    });
+                    let hyper_svc = hyper::service::service_fn(
+                        move |mut req: axum::extract::Request<Incoming>| {
+                            req.extensions_mut().insert(peer);
+                            svc.clone().call(req)
+                        },
+                    );
                     if let Err(e) = ConnBuilder::new(TokioExecutor::new())
                         .serve_connection_with_upgrades(io, hyper_svc)
                         .await
@@ -1195,7 +1318,11 @@ fn single_project_dir(projects_root: &std::path::Path) -> Option<std::path::Path
             continue;
         }
         // Skip dot-dirs (logs, .history, markers) and anything without project.yaml.
-        if path.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.starts_with('.')) {
+        if path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .is_some_and(|n| n.starts_with('.'))
+        {
             continue;
         }
         if !path.join("project.yaml").is_file() {
@@ -1328,7 +1455,10 @@ fn announce_mdns(viewer_port: u16, admin_port: u16, tls: bool) -> Option<mdns_sd
     // resta come ripiego se l'enumerazione non riesce.
     let nets = sws_web::netif::local_nets();
     let announced: Vec<String> = if nets.is_empty() {
-        detect_lan_ip().map(|ip| ip.to_string()).into_iter().collect()
+        detect_lan_ip()
+            .map(|ip| ip.to_string())
+            .into_iter()
+            .collect()
     } else {
         nets.iter().map(|n| n.addr.to_string()).collect()
     };
@@ -1344,7 +1474,13 @@ fn announce_mdns(viewer_port: u16, admin_port: u16, tls: bool) -> Option<mdns_sd
     ) {
         // Nessun indirizzo trovato in nessun modo: meglio l'annuncio
         // approssimativo di `enable_addr_auto()` che nessun annuncio.
-        Ok(info) => if ip_arg.is_empty() { info.enable_addr_auto() } else { info },
+        Ok(info) => {
+            if ip_arg.is_empty() {
+                info.enable_addr_auto()
+            } else {
+                info
+            }
+        }
         Err(e) => {
             warn!("mDNS: ServiceInfo build failed: {e}");
             return None;
@@ -1388,15 +1524,13 @@ fn try_load_existing_tls(
     key_path: &std::path::Path,
 ) -> anyhow::Result<TlsAcceptor> {
     let cert_pem = std::fs::read(cert_path).context("reading tls.crt")?;
-    let key_pem  = std::fs::read(key_path).context("reading tls.key")?;
-    let certs: Vec<CertificateDer<'static>> =
-        rustls_pemfile::certs(&mut cert_pem.as_slice())
-            .collect::<Result<_, _>>()
-            .context("parsing certificate PEM")?;
-    let key: PrivateKeyDer<'static> =
-        rustls_pemfile::private_key(&mut key_pem.as_slice())
-            .context("parsing private key PEM")?
-            .ok_or_else(|| anyhow::anyhow!("no private key found in tls.key"))?;
+    let key_pem = std::fs::read(key_path).context("reading tls.key")?;
+    let certs: Vec<CertificateDer<'static>> = rustls_pemfile::certs(&mut cert_pem.as_slice())
+        .collect::<Result<_, _>>()
+        .context("parsing certificate PEM")?;
+    let key: PrivateKeyDer<'static> = rustls_pemfile::private_key(&mut key_pem.as_slice())
+        .context("parsing private key PEM")?
+        .ok_or_else(|| anyhow::anyhow!("no private key found in tls.key"))?;
     let tls_cfg = ServerConfig::builder()
         .with_no_client_auth()
         .with_single_cert(certs, key)
@@ -1427,9 +1561,7 @@ fn load_or_create_instance_id(config_dir: &std::path::Path) -> String {
     let id = {
         use std::io::Read as _;
         let mut buf = [0u8; 3];
-        match std::fs::File::open("/dev/urandom")
-            .and_then(|mut f| f.read_exact(&mut buf))
-        {
+        match std::fs::File::open("/dev/urandom").and_then(|mut f| f.read_exact(&mut buf)) {
             Ok(()) => format!("{:02x}{:02x}{:02x}", buf[0], buf[1], buf[2]),
             Err(e) => {
                 // Fallback (piattaforme senza /dev/urandom): clock + PID,
@@ -1444,9 +1576,7 @@ fn load_or_create_instance_id(config_dir: &std::path::Path) -> String {
             }
         }
     };
-    if let Err(e) = std::fs::create_dir_all(config_dir)
-        .and_then(|()| std::fs::write(&path, &id))
-    {
+    if let Err(e) = std::fs::create_dir_all(config_dir).and_then(|()| std::fs::write(&path, &id)) {
         warn!("could not persist instance_id ({e}) — using it for this run only");
     }
     id
@@ -1463,7 +1593,7 @@ fn load_or_create_instance_id(config_dir: &std::path::Path) -> String {
 /// The cert file is saved to `config_dir/tls.crt` for manual browser import.
 fn build_tls_acceptor(config_dir: &PathBuf) -> anyhow::Result<TlsAcceptor> {
     let cert_path = config_dir.join("tls.crt");
-    let key_path  = config_dir.join("tls.key");
+    let key_path = config_dir.join("tls.key");
 
     std::fs::create_dir_all(config_dir).context("creating config directory")?;
 
@@ -1483,16 +1613,20 @@ fn build_tls_acceptor(config_dir: &PathBuf) -> anyhow::Result<TlsAcceptor> {
     let lan_ip = detect_lan_ip();
     let mut params = CertificateParams::new(vec!["localhost".to_string()])
         .context("rcgen: CertificateParams::new")?;
-    params.subject_alt_names.push(SanType::IpAddress(
-        std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
-    ));
+    params
+        .subject_alt_names
+        .push(SanType::IpAddress(std::net::IpAddr::V4(
+            std::net::Ipv4Addr::LOCALHOST,
+        )));
     if let Some(ip) = lan_ip {
         params.subject_alt_names.push(SanType::IpAddress(ip));
         info!(%ip, "TLS cert will include LAN IP SAN");
     }
 
     let key_pair = KeyPair::generate().context("rcgen: KeyPair::generate")?;
-    let cert = params.self_signed(&key_pair).context("rcgen: self_signed")?;
+    let cert = params
+        .self_signed(&key_pair)
+        .context("rcgen: self_signed")?;
 
     std::fs::write(&cert_path, cert.pem()).context("writing tls.crt")?;
     std::fs::write(&key_path, key_pair.serialize_pem()).context("writing tls.key")?;
@@ -1516,15 +1650,24 @@ mod tests {
 
     #[test]
     fn riconosce_podman_e_docker_dai_file_marcatori() {
-        assert_eq!(container_engine_from_markers(true, false, ""), Some("podman"));
-        assert_eq!(container_engine_from_markers(false, true, ""), Some("docker"));
+        assert_eq!(
+            container_engine_from_markers(true, false, ""),
+            Some("podman")
+        );
+        assert_eq!(
+            container_engine_from_markers(false, true, ""),
+            Some("docker")
+        );
     }
 
     /// Un docker che monta anche `/run/.containerenv` non deve passare per
     /// podman: `/.dockerenv` è il segnale più specifico dei due.
     #[test]
     fn docker_vince_quando_ci_sono_entrambi_i_marcatori() {
-        assert_eq!(container_engine_from_markers(true, true, ""), Some("docker"));
+        assert_eq!(
+            container_engine_from_markers(true, true, ""),
+            Some("docker")
+        );
     }
 
     /// Ripiego per le configurazioni rootless dove il file di podman non c'è.

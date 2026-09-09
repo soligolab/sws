@@ -47,7 +47,11 @@ fn pick_address(v4: &[String], any: &[String]) -> Option<String> {
     pick_address_from(v4, any, &crate::netif::local_nets())
 }
 
-fn pick_address_from(v4: &[String], any: &[String], local: &[crate::netif::LocalNet]) -> Option<String> {
+fn pick_address_from(
+    v4: &[String],
+    any: &[String],
+    local: &[crate::netif::LocalNet],
+) -> Option<String> {
     let mut routable: Vec<&String> = v4.iter().filter(|a| !is_loopback(a)).collect();
     routable.sort();
     // Stessa sottorete di una nostra interfaccia: è raggiungibile senza passare
@@ -210,7 +214,10 @@ mod tests {
     use crate::netif::LocalNet;
 
     fn lan(addr: &str, mask: &str) -> LocalNet {
-        LocalNet { addr: addr.parse().unwrap(), netmask: mask.parse().unwrap() }
+        LocalNet {
+            addr: addr.parse().unwrap(),
+            netmask: mask.parse().unwrap(),
+        }
     }
 
     fn v(items: &[&str]) -> Vec<String> {

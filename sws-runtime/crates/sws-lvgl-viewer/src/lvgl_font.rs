@@ -46,7 +46,10 @@ const CANDIDATI: &[&str] = &[
 /// `SWS_LVGL_FONT` ha la precedenza: serve a chi ha un font suo, e a provare
 /// senza ricompilare.
 pub fn find_font(exists: impl Fn(&str) -> bool) -> Option<String> {
-    if let Some(esplicito) = std::env::var("SWS_LVGL_FONT").ok().filter(|s| !s.trim().is_empty()) {
+    if let Some(esplicito) = std::env::var("SWS_LVGL_FONT")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+    {
         // Un percorso esplicito che non esiste è un errore di chi l'ha scritto,
         // e va detto: ripiegare in silenzio su un altro font gli farebbe
         // credere che il suo sia stato usato.
@@ -190,7 +193,10 @@ mod tests {
     #[test]
     fn prende_il_primo_candidato_che_esiste() {
         let trovato = find_font(|p| p == "/usr/share/fonts/truetype/DejaVuSans.ttf");
-        assert_eq!(trovato.as_deref(), Some("/usr/share/fonts/truetype/DejaVuSans.ttf"));
+        assert_eq!(
+            trovato.as_deref(),
+            Some("/usr/share/fonts/truetype/DejaVuSans.ttf")
+        );
     }
 
     /// L'ordine conta: dove ci sono entrambi si prende il primo dell'elenco,
@@ -214,7 +220,13 @@ mod tests {
     /// stesso font in due posti diversi.
     #[test]
     fn i_candidati_coprono_dispositivo_e_immagine() {
-        assert!(CANDIDATI.contains(&"/usr/share/fonts/truetype/DejaVuSans.ttf"), "percorso del pannello Pixsys");
-        assert!(CANDIDATI.contains(&"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"), "percorso Ubuntu");
+        assert!(
+            CANDIDATI.contains(&"/usr/share/fonts/truetype/DejaVuSans.ttf"),
+            "percorso del pannello Pixsys"
+        );
+        assert!(
+            CANDIDATI.contains(&"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+            "percorso Ubuntu"
+        );
     }
 }

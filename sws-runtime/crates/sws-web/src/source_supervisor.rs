@@ -12,13 +12,13 @@
 //! to those tags fall back to the direct `TagDb` path (or 503 if the bus
 //! was the only path).
 
-use std::{collections::HashMap, sync::Arc, time::Duration};
 use serde_json::Value as Json;
+use std::{collections::HashMap, sync::Arc, time::Duration};
+use sws_core::now_ms;
 use sws_core::{SourceDef, TagDb, TagWriteBus};
 use tokio::{sync::Mutex, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
-use sws_core::now_ms;
 
 struct RunningSource {
     handle: JoinHandle<()>,
@@ -133,7 +133,9 @@ impl SourceSupervisor {
         };
         let now_ms = now_ms();
         for (id, def, owned_tags, max_silence) in candidates {
-            let Some(last_update) = self.most_recent_update(&owned_tags).await else { continue };
+            let Some(last_update) = self.most_recent_update(&owned_tags).await else {
+                continue;
+            };
             let silence = Duration::from_millis(now_ms.saturating_sub(last_update));
             if silence > max_silence {
                 warn!(source = %id, ?silence, ?max_silence,
@@ -172,7 +174,8 @@ impl SourceSupervisor {
     /// `POST /api/system/start` e `POST /api/system/stop`: è l'intenzione
     /// dell'operatore, e nessun altro percorso ha il diritto di cambiarla.
     pub fn set_armed(&self, armed: bool) {
-        self.armed.store(armed, std::sync::atomic::Ordering::Relaxed);
+        self.armed
+            .store(armed, std::sync::atomic::Ordering::Relaxed);
     }
 
     /// Apply `desired` as the new source list. Returns the number of
@@ -247,11 +250,19 @@ impl SourceSupervisor {
             let id = source_id(&def).to_string();
             let was_replacement = to_stop.iter().any(|x| x == &id);
             self.start_one(def).await;
-            if was_replacement { replaced += 1; } else { started += 1; }
+            if was_replacement {
+                replaced += 1;
+            } else {
+                started += 1;
+            }
         }
 
-        info!(started, stopped = stopped.saturating_sub(replaced), replaced,
-              "source supervisor reload complete");
+        info!(
+            started,
+            stopped = stopped.saturating_sub(replaced),
+            replaced,
+            "source supervisor reload complete"
+        );
         (started, stopped.saturating_sub(replaced), replaced)
     }
 
@@ -326,7 +337,14 @@ impl SourceSupervisor {
 
         let previous = self.sources.lock().await.insert(
             id.clone(),
-            RunningSource { handle, cancel, config_json, owned_tags, def: def_for_store, max_silence },
+            RunningSource {
+                handle,
+                cancel,
+                config_json,
+                owned_tags,
+                def: def_for_store,
+                max_silence,
+            },
         );
         // Difesa in profondità: se qui c'era già un task registrato con lo
         // stesso id, sovrascriverlo lo renderebbe un fantasma — droppare il
@@ -379,14 +397,14 @@ impl SourceSupervisor {
 
 pub(crate) fn source_id(s: &SourceDef) -> &str {
     match s {
-        SourceDef::ModbusTcp(c)      => &c.id,
-        SourceDef::ModbusRtu(c)      => &c.id,
-        SourceDef::OpcUaServer(c)    => &c.id,
-        SourceDef::Mqtt(c)           => &c.id,
-        SourceDef::OpcUaClient(c)    => &c.id,
-        SourceDef::HomeAssistant(c)  => &c.id,
-        SourceDef::S7(c)             => &c.id,
-        SourceDef::EnIp(c)           => &c.id,
+        SourceDef::ModbusTcp(c) => &c.id,
+        SourceDef::ModbusRtu(c) => &c.id,
+        SourceDef::OpcUaServer(c) => &c.id,
+        SourceDef::Mqtt(c) => &c.id,
+        SourceDef::OpcUaClient(c) => &c.id,
+        SourceDef::HomeAssistant(c) => &c.id,
+        SourceDef::S7(c) => &c.id,
+        SourceDef::EnIp(c) => &c.id,
     }
 }
 
@@ -405,14 +423,14 @@ fn max_silence_of(s: &SourceDef) -> Option<Duration> {
 
 fn tags_of(s: &SourceDef) -> Vec<String> {
     match s {
-        SourceDef::ModbusTcp(c)      => c.registers.iter().map(|r| r.tag.clone()).collect(),
-        SourceDef::ModbusRtu(c)      => c.registers.iter().map(|r| r.tag.clone()).collect(),
-        SourceDef::OpcUaServer(c)    => c.nodes.iter().map(|n| n.tag.clone()).collect(),
-        SourceDef::Mqtt(c)           => c.topics.iter().map(|t| t.tag.clone()).collect(),
-        SourceDef::OpcUaClient(c)    => c.nodes.iter().map(|n| n.tag.clone()).collect(),
-        SourceDef::HomeAssistant(c)  => c.entities.iter().map(|e| e.tag.clone()).collect(),
-        SourceDef::S7(c)             => c.tags.iter().map(|t| t.tag.clone()).collect(),
-        SourceDef::EnIp(c)           => c.tags.iter().map(|t| t.tag.clone()).collect(),
+        SourceDef::ModbusTcp(c) => c.registers.iter().map(|r| r.tag.clone()).collect(),
+        SourceDef::ModbusRtu(c) => c.registers.iter().map(|r| r.tag.clone()).collect(),
+        SourceDef::OpcUaServer(c) => c.nodes.iter().map(|n| n.tag.clone()).collect(),
+        SourceDef::Mqtt(c) => c.topics.iter().map(|t| t.tag.clone()).collect(),
+        SourceDef::OpcUaClient(c) => c.nodes.iter().map(|n| n.tag.clone()).collect(),
+        SourceDef::HomeAssistant(c) => c.entities.iter().map(|e| e.tag.clone()).collect(),
+        SourceDef::S7(c) => c.tags.iter().map(|t| t.tag.clone()).collect(),
+        SourceDef::EnIp(c) => c.tags.iter().map(|t| t.tag.clone()).collect(),
     }
 }
 
@@ -436,15 +454,21 @@ mod tests {
     #[tokio::test]
     async fn most_recent_update_prende_il_timestamp_piu_recente() {
         let sup = supervisor();
-        sup.db.set("a".into(), TagValue::Int(1), TagQuality::Good).await;
+        sup.db
+            .set("a".into(), TagValue::Int(1), TagQuality::Good)
+            .await;
         tokio::time::sleep(Duration::from_millis(5)).await;
-        sup.db.set("b".into(), TagValue::Int(2), TagQuality::Good).await;
+        sup.db
+            .set("b".into(), TagValue::Int(2), TagQuality::Good)
+            .await;
 
         let a = sup.db.get("a").await.unwrap().timestamp_ms;
         let b = sup.db.get("b").await.unwrap().timestamp_ms;
         assert!(b >= a, "il secondo set deve avere un timestamp >= al primo");
 
-        let latest = sup.most_recent_update(&["a".to_string(), "b".to_string()]).await;
+        let latest = sup
+            .most_recent_update(&["a".to_string(), "b".to_string()])
+            .await;
         assert_eq!(latest, Some(b));
     }
 
@@ -458,10 +482,14 @@ mod tests {
     #[tokio::test]
     async fn most_recent_update_ignora_le_tag_sconosciute_fra_quelle_note() {
         let sup = supervisor();
-        sup.db.set("nota".into(), TagValue::Bool(true), TagQuality::Good).await;
+        sup.db
+            .set("nota".into(), TagValue::Bool(true), TagQuality::Good)
+            .await;
         let known = sup.db.get("nota").await.unwrap().timestamp_ms;
 
-        let latest = sup.most_recent_update(&["nota".to_string(), "ignota".to_string()]).await;
+        let latest = sup
+            .most_recent_update(&["nota".to_string(), "ignota".to_string()])
+            .await;
         assert_eq!(latest, Some(known));
     }
 }
@@ -498,7 +526,10 @@ mod tests_q33 {
         let s = supervisore();
         s.set_armed(false);
         let (started, _, _) = s.reload(vec![sorgente("a"), sorgente("b")]).await;
-        assert_eq!(started, 0, "a impianto fermo non deve partire nessuna sorgente");
+        assert_eq!(
+            started, 0,
+            "a impianto fermo non deve partire nessuna sorgente"
+        );
         assert_eq!(s.running_count().await, 0);
     }
 
@@ -531,7 +562,10 @@ mod tests_q33 {
 
         s.set_armed(false);
         let (_, stopped, _) = s.reload(vec![]).await;
-        assert_eq!(stopped, 1, "lo Stop deve spegnere anche a flag già abbassato");
+        assert_eq!(
+            stopped, 1,
+            "lo Stop deve spegnere anche a flag già abbassato"
+        );
         assert_eq!(s.running_count().await, 0);
     }
 }

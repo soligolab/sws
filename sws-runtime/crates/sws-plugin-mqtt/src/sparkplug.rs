@@ -13,14 +13,16 @@
 //! Protobuf structs are hand-written (no protoc/build.rs needed — the schema
 //! is small and stable).
 
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use prost::Message as ProstMessage;
 use rumqttc::{AsyncClient, Event, MqttOptions, Packet, QoS};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, warn};
-use prost::Message as ProstMessage;
 
-use sws_core::{MqttConfig, SparkplugConfig, TagDb, TagQuality, TagValue, TagWriteBus, WriteRequest};
+use sws_core::{
+    MqttConfig, SparkplugConfig, TagDb, TagQuality, TagValue, TagWriteBus, WriteRequest,
+};
 
 // ── Sparkplug B protobuf structs (hand-written, matching sparkplug_b.proto v1.0) ──
 
@@ -82,7 +84,9 @@ pub async fn run_sparkplug(
         match session(&cfg, &spb, &db, &bus, cancel.clone()).await {
             Ok(()) => break,
             Err(e) => {
-                if cancel.is_cancelled() { break; }
+                if cancel.is_cancelled() {
+                    break;
+                }
                 warn!(source = %cfg.id, "Sparkplug B session error: {e:#} — retry in 5s");
                 tokio::select! {
                     _ = cancel.cancelled() => break,
@@ -93,7 +97,8 @@ pub async fn run_sparkplug(
     }
     // Mark all mapped tags Bad on exit.
     for m in &spb.metrics {
-        db.ingest(m.tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
+        db.ingest(m.tag.clone(), TagValue::Float(0.0), TagQuality::Bad)
+            .await;
     }
 }
 
@@ -106,11 +111,17 @@ async fn session(
 ) -> anyhow::Result<()> {
     let mut opts = MqttOptions::new(&cfg.client_id, &cfg.host, cfg.port);
     opts.set_max_packet_size(crate::MAX_PACKET_SIZE_BYTES, crate::MAX_PACKET_SIZE_BYTES);
-    opts.set_keep_alive(Duration::from_secs(u64::from(cfg.keep_alive_secs.unwrap_or(10))));
-    if let Some(clean) = cfg.clean_session { opts.set_clean_session(clean); }
+    opts.set_keep_alive(Duration::from_secs(u64::from(
+        cfg.keep_alive_secs.unwrap_or(10),
+    )));
+    if let Some(clean) = cfg.clean_session {
+        opts.set_clean_session(clean);
+    }
 
     if let Some(user) = cfg.username.clone() {
-        let pw = cfg.password_env.as_deref()
+        let pw = cfg
+            .password_env
+            .as_deref()
             .and_then(|n| std::env::var(n).ok())
             .or_else(|| cfg.password.clone())
             .unwrap_or_default();
@@ -130,11 +141,15 @@ async fn session(
 
     // Subscribe to the entire group namespace.
     let group_topic = format!("spBv1.0/{}/#", spb.group_id);
-    client.subscribe(&group_topic, QoS::AtLeastOnce).await
+    client
+        .subscribe(&group_topic, QoS::AtLeastOnce)
+        .await
         .map_err(|e| anyhow::anyhow!("subscribe '{group_topic}': {e}"))?;
 
     // Publish SCADA Host online STATE.
-    client.publish(&state_topic, QoS::AtLeastOnce, true, "ONLINE").await
+    client
+        .publish(&state_topic, QoS::AtLeastOnce, true, "ONLINE")
+        .await
         .map_err(|e| anyhow::anyhow!("publish STATE ONLINE: {e}"))?;
 
     info!(source = %cfg.id, group = %spb.group_id, host = %spb.host_id,
@@ -144,11 +159,16 @@ async fn session(
     // resolves (neither Ok nor Err) bypasses the retry-with-backoff in
     // run_sparkplug entirely, since this function would just never return.
     let poll_timeout = Duration::from_secs(
-        u64::from(cfg.keep_alive_secs.unwrap_or(10)).saturating_mul(3).max(30)
+        u64::from(cfg.keep_alive_secs.unwrap_or(10))
+            .saturating_mul(3)
+            .max(30),
     );
 
     // Build metric-name → index lookup for fast dispatch.
-    let metric_idx: HashMap<String, usize> = spb.metrics.iter().enumerate()
+    let metric_idx: HashMap<String, usize> = spb
+        .metrics
+        .iter()
+        .enumerate()
         .map(|(i, m)| (m.metric_name.clone(), i))
         .collect();
 
@@ -209,30 +229,33 @@ async fn handle_message(
 ) {
     // Topic format: spBv1.0/{group}/{msg_type}/{edge_node}[/{device}]
     let parts: Vec<&str> = topic.splitn(6, '/').collect();
-    if parts.len() < 4 { return; }
+    if parts.len() < 4 {
+        return;
+    }
     let msg_type = parts[2];
 
     match msg_type {
-        "NBIRTH" | "NDATA" | "DBIRTH" | "DDATA" => {
-            match Payload::decode(payload) {
-                Ok(pl) => {
-                    for metric in &pl.metrics {
-                        let Some(name) = metric.name.as_deref() else { continue };
-                        let Some(&idx) = metric_idx.get(name) else {
-                            debug!(topic, metric = name, "Sparkplug metric not mapped");
-                            continue;
-                        };
-                        let tag = &spb.metrics[idx].tag;
-                        let value = metric_to_tagvalue(metric);
-                        db.ingest(tag.clone(), value, TagQuality::Good).await;
-                    }
+        "NBIRTH" | "NDATA" | "DBIRTH" | "DDATA" => match Payload::decode(payload) {
+            Ok(pl) => {
+                for metric in &pl.metrics {
+                    let Some(name) = metric.name.as_deref() else {
+                        continue;
+                    };
+                    let Some(&idx) = metric_idx.get(name) else {
+                        debug!(topic, metric = name, "Sparkplug metric not mapped");
+                        continue;
+                    };
+                    let tag = &spb.metrics[idx].tag;
+                    let value = metric_to_tagvalue(metric);
+                    db.ingest(tag.clone(), value, TagQuality::Good).await;
                 }
-                Err(e) => warn!(topic, "Sparkplug proto decode error: {e}"),
             }
-        }
+            Err(e) => warn!(topic, "Sparkplug proto decode error: {e}"),
+        },
         "NDEATH" | "DDEATH" => {
             for m in &spb.metrics {
-                db.ingest(m.tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
+                db.ingest(m.tag.clone(), TagValue::Float(0.0), TagQuality::Bad)
+                    .await;
             }
         }
         _ => {}
@@ -242,17 +265,17 @@ async fn handle_message(
 fn metric_to_tagvalue(m: &Metric) -> TagValue {
     match &m.value {
         Some(MetricValue::BooleanValue(b)) => TagValue::Bool(*b),
-        Some(MetricValue::IntValue(i))     => TagValue::Int(*i as i64),
-        Some(MetricValue::LongValue(l))    => TagValue::Int(*l as i64),
-        Some(MetricValue::FloatValue(f))   => TagValue::Float(*f as f64),
-        Some(MetricValue::DoubleValue(d))  => TagValue::Float(*d),
-        Some(MetricValue::StringValue(s))  => TagValue::Str(s.clone()),
+        Some(MetricValue::IntValue(i)) => TagValue::Int(*i as i64),
+        Some(MetricValue::LongValue(l)) => TagValue::Int(*l as i64),
+        Some(MetricValue::FloatValue(f)) => TagValue::Float(*f as f64),
+        Some(MetricValue::DoubleValue(d)) => TagValue::Float(*d),
+        Some(MetricValue::StringValue(s)) => TagValue::Str(s.clone()),
         None => {
             // Datatype-only (e.g. in BIRTH with null value) — default to 0.
             match m.datatype.unwrap_or(0) {
                 11 => TagValue::Bool(false),
                 12 => TagValue::Str(String::new()),
-                _  => TagValue::Float(0.0),
+                _ => TagValue::Float(0.0),
             }
         }
     }
@@ -261,10 +284,10 @@ fn metric_to_tagvalue(m: &Metric) -> TagValue {
 /// Build a minimal Sparkplug B payload with a single metric command value.
 fn build_cmd_payload(metric_name: &str, value: &TagValue) -> Vec<u8> {
     let metric_value = match value {
-        TagValue::Bool(b)  => Some(MetricValue::BooleanValue(*b)),
-        TagValue::Int(i)   => Some(MetricValue::LongValue(*i as u64)),
+        TagValue::Bool(b) => Some(MetricValue::BooleanValue(*b)),
+        TagValue::Int(i) => Some(MetricValue::LongValue(*i as u64)),
         TagValue::Float(f) => Some(MetricValue::DoubleValue(*f)),
-        TagValue::Str(s)   => Some(MetricValue::StringValue(s.clone())),
+        TagValue::Str(s) => Some(MetricValue::StringValue(s.clone())),
     };
     let payload = Payload {
         timestamp: None,

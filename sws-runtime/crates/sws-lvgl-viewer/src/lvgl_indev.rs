@@ -41,7 +41,10 @@ unsafe extern "C" fn sws_pointer_read_cb(
     _indev_drv: *mut lvgl_sys::_lv_indev_drv_t,
     data: *mut lvgl_sys::lv_indev_data_t,
 ) {
-    let s = POINTER.get().map(|m| *m.lock().unwrap_or_else(|e| e.into_inner())).unwrap_or_default();
+    let s = POINTER
+        .get()
+        .map(|m| *m.lock().unwrap_or_else(|e| e.into_inner()))
+        .unwrap_or_default();
     unsafe {
         (*data).point = lvgl_sys::lv_point_t { x: s.x, y: s.y };
         (*data).state = if s.pressed {

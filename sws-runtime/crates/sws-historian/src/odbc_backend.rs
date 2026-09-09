@@ -36,13 +36,19 @@ impl OdbcBackend {
         col_ts: String,
     ) -> Self {
         Self {
-            dsn, connection_string, table, col_tag, col_value, col_ts,
+            dsn,
+            connection_string,
+            table,
+            col_tag,
+            col_value,
+            col_ts,
             connected: Arc::new(RwLock::new(false)),
         }
     }
 
     fn target_label(&self) -> String {
-        self.dsn.as_deref()
+        self.dsn
+            .as_deref()
             .or(self.connection_string.as_deref())
             .unwrap_or("<no DSN/connection string>")
             .to_string()
@@ -52,7 +58,12 @@ impl OdbcBackend {
         warn!("odbc: record ignored — ODBC backend not compiled in");
     }
 
-    pub async fn query(&self, _tag_id: &str, _from_ms: Option<u64>, _to_ms: Option<u64>) -> Vec<Sample> {
+    pub async fn query(
+        &self,
+        _tag_id: &str,
+        _from_ms: Option<u64>,
+        _to_ms: Option<u64>,
+    ) -> Vec<Sample> {
         vec![]
     }
 

@@ -111,13 +111,18 @@ pub async fn scatta(r: Richiesta) -> Result<Scatto, String> {
     // muore con questa funzione. Senza, un errore a metà lascerebbe un processo
     // in ascolto su una porta casuale, e nessuno saprebbe che c'è.
     let mut figlio = tokio::process::Command::new(&runtime_bin)
-        .arg("--config").arg(tmp.path().join("config"))
-        .arg("--projects-root").arg(&radice)
-        .arg("--project").arg(&copia)
-        .arg("--viewer-port").arg(porta.to_string())
+        .arg("--config")
+        .arg(tmp.path().join("config"))
+        .arg("--projects-root")
+        .arg(&radice)
+        .arg("--project")
+        .arg(&copia)
+        .arg("--viewer-port")
+        .arg(porta.to_string())
         // Anche l'admin va spostato: il default è 8444, cioè la porta di chi ci
         // ha chiamato, e il banco di prova non deve rubargliela.
-        .arg("--admin-port").arg(porta_libera()?.to_string())
+        .arg("--admin-port")
+        .arg(porta_libera()?.to_string())
         .env("RUST_LOG", "warn")
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::piped())
@@ -130,9 +135,12 @@ pub async fn scatta(r: Richiesta) -> Result<Scatto, String> {
     let base = format!("http://127.0.0.1:{porta}");
     let ppm = tmp.path().join("scatto.ppm");
     let mut cmd = tokio::process::Command::new(&viewer_bin);
-    cmd.arg("--base-url").arg(&base)
-        .arg("--istantanea").arg(&ppm)
-        .arg("--istantanea-ms").arg(r.ms.unwrap_or(500).clamp(50, 10_000).to_string());
+    cmd.arg("--base-url")
+        .arg(&base)
+        .arg("--istantanea")
+        .arg(&ppm)
+        .arg("--istantanea-ms")
+        .arg(r.ms.unwrap_or(500).clamp(50, 10_000).to_string());
     if let Some(p) = &r.pagina {
         cmd.arg("--page").arg(p);
     }
@@ -142,7 +150,10 @@ pub async fn scatta(r: Richiesta) -> Result<Scatto, String> {
     let uscita = tokio::time::timeout(ATTESA_VIEWER, cmd.output())
         .await
         .map_err(|_| {
-            format!("il viewer non ha finito entro {} s", ATTESA_VIEWER.as_secs())
+            format!(
+                "il viewer non ha finito entro {} s",
+                ATTESA_VIEWER.as_secs()
+            )
         })?
         .map_err(|e| format!("non riesco ad avviare il viewer LVGL: {e}"))?;
 
@@ -186,8 +197,8 @@ pub async fn scatta(r: Richiesta) -> Result<Scatto, String> {
 /// `bin/sws-runtime`, quindi sull'immagine amd64 questo strumento non funziona.
 /// Meglio dirlo con un messaggio che nominare un file misterioso.
 fn binari() -> Result<(PathBuf, PathBuf), String> {
-    let mio = std::env::current_exe()
-        .map_err(|e| format!("non trovo il mio stesso binario: {e}"))?;
+    let mio =
+        std::env::current_exe().map_err(|e| format!("non trovo il mio stesso binario: {e}"))?;
     let mut cercate = Vec::new();
     let mut d = mio.parent();
     for _ in 0..2 {
@@ -242,7 +253,13 @@ async fn attendi_salute(porta: u16, figlio: &mut tokio::process::Child) -> Resul
                 "il runtime di prova è uscito subito ({stato}) senza mettersi in ascolto"
             ));
         }
-        if client.get(&url).send().await.map(|r| r.status().is_success()).unwrap_or(false) {
+        if client
+            .get(&url)
+            .send()
+            .await
+            .map(|r| r.status().is_success())
+            .unwrap_or(false)
+        {
             return Ok(());
         }
         if tokio::time::Instant::now() >= scadenza {
@@ -264,7 +281,13 @@ async fn attendi_salute(porta: u16, figlio: &mut tokio::process::Child) -> Resul
 ///
 /// E **non le sorgenti**: vedi [`sterilizza`], che è la parte importante.
 async fn copia_progetto(da: &Path, a: &Path) -> Result<(), String> {
-    const SERVE: &[&str] = &["project.yaml", "synoptics", "faceplates", "images", "recipes"];
+    const SERVE: &[&str] = &[
+        "project.yaml",
+        "synoptics",
+        "faceplates",
+        "images",
+        "recipes",
+    ];
     tokio::fs::create_dir_all(a)
         .await
         .map_err(|e| format!("non riesco a creare {}: {e}", a.display()))?;
@@ -273,8 +296,7 @@ async fn copia_progetto(da: &Path, a: &Path) -> Result<(), String> {
         if !src.exists() {
             continue;
         }
-        copia_ricorsiva(&src, &a.join(voce))
-            .map_err(|e| format!("copia di {voce}: {e}"))?;
+        copia_ricorsiva(&src, &a.join(voce)).map_err(|e| format!("copia di {voce}: {e}"))?;
     }
     let yaml = a.join("project.yaml");
     if !yaml.exists() {
@@ -526,13 +548,28 @@ datastores:\n  - { id: default, backend: { kind: sqlite, path: history/h.db } }\
 page_layout: { navbar: true }\n";
         let pulito = sterilizza(vero).unwrap();
         for k in ["sources", "global_scripts", "notifications", "datastores"] {
-            assert!(!pulito.contains(k), "`{k}` è rimasto nel progetto di prova:\n{pulito}");
+            assert!(
+                !pulito.contains(k),
+                "`{k}` è rimasto nel progetto di prova:\n{pulito}"
+            );
         }
-        assert!(!pulito.contains("10.0.0.9"), "l'indirizzo del campo è rimasto:\n{pulito}");
-        assert!(!pulito.contains("mail.example.com"), "lo SMTP è rimasto:\n{pulito}");
+        assert!(
+            !pulito.contains("10.0.0.9"),
+            "l'indirizzo del campo è rimasto:\n{pulito}"
+        );
+        assert!(
+            !pulito.contains("mail.example.com"),
+            "lo SMTP è rimasto:\n{pulito}"
+        );
         // E quello che serve a disegnare resta.
-        assert!(pulito.contains("t1"), "i tag servono a disegnare:\n{pulito}");
-        assert!(pulito.contains("page_layout"), "il layout serve a disegnare:\n{pulito}");
+        assert!(
+            pulito.contains("t1"),
+            "i tag servono a disegnare:\n{pulito}"
+        );
+        assert!(
+            pulito.contains("page_layout"),
+            "il layout serve a disegnare:\n{pulito}"
+        );
         assert!(pulito.contains("impianto"));
     }
 
@@ -567,19 +604,35 @@ page_layout: { navbar: true }\n";
         )
         .unwrap();
         std::fs::create_dir_all(da.path().join("synoptics")).unwrap();
-        std::fs::write(da.path().join("synoptics/P.yaml"), "id: p\nname: P\nobjects: []\n").unwrap();
+        std::fs::write(
+            da.path().join("synoptics/P.yaml"),
+            "id: p\nname: P\nobjects: []\n",
+        )
+        .unwrap();
 
         let dest = a.path().join("copia");
         copia_progetto(da.path(), &dest).await.unwrap();
 
         let testo = std::fs::read_to_string(dest.join("project.yaml")).unwrap();
-        assert!(!testo.contains("10.0.0.9"), "la copia porta ancora il campo:\n{testo}");
-        assert!(!testo.contains("sources"), "la copia porta ancora le sorgenti:\n{testo}");
+        assert!(
+            !testo.contains("10.0.0.9"),
+            "la copia porta ancora il campo:\n{testo}"
+        );
+        assert!(
+            !testo.contains("sources"),
+            "la copia porta ancora le sorgenti:\n{testo}"
+        );
         assert!(testo.contains("t1"), "i tag devono restare:\n{testo}");
-        assert!(dest.join("synoptics/P.yaml").is_file(), "le pagine devono essere copiate");
+        assert!(
+            dest.join("synoptics/P.yaml").is_file(),
+            "le pagine devono essere copiate"
+        );
         // L'originale non si tocca: è il progetto in servizio.
         let originale = std::fs::read_to_string(da.path().join("project.yaml")).unwrap();
-        assert!(originale.contains("10.0.0.9"), "l'originale è stato modificato!");
+        assert!(
+            originale.contains("10.0.0.9"),
+            "l'originale è stato modificato!"
+        );
     }
 
     #[test]
@@ -631,8 +684,10 @@ navigazione richiesta: pagina 'demo_p2'\n\
         assert!(n[0].contains("comando prodotto"));
         assert!(n[1].contains("navigazione richiesta"));
         assert!(n[2].contains("[Warn]"));
-        assert!(!n.iter().any(|l| l.contains("lv_obj_update_layout")),
-                "il rumore di LVGL non deve arrivare al modello");
+        assert!(
+            !n.iter().any(|l| l.contains("lv_obj_update_layout")),
+            "il rumore di LVGL non deve arrivare al modello"
+        );
     }
 
     /// I binari si trovano davvero, da dove girano i test — cioè
@@ -646,11 +701,18 @@ navigazione richiesta: pagina 'demo_p2'\n\
         match binari() {
             Ok((rt, vw)) => {
                 assert!(rt.is_file() && vw.is_file());
-                assert_eq!(rt.parent(), vw.parent(), "devono stare nella stessa directory");
+                assert_eq!(
+                    rt.parent(),
+                    vw.parent(),
+                    "devono stare nella stessa directory"
+                );
             }
             Err(e) => {
                 assert!(e.contains("cercati in"), "{e}");
-                assert!(e.contains("x86_64"), "il messaggio deve dire dell'immagine: {e}");
+                assert!(
+                    e.contains("x86_64"),
+                    "il messaggio deve dire dell'immagine: {e}"
+                );
                 eprintln!("(salto: {e})");
             }
         }

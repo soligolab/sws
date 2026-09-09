@@ -118,7 +118,8 @@ pub fn spawn(device_path: &str, hor_res: u32, ver_res: u32) -> anyhow::Result<()
             // device — evdev non è un formato di rete). read_unaligned, non
             // read: [u8; 24] non garantisce l'allineamento a 8 byte che i
             // campi i64 di InputEvent richiederebbero.
-            let ev: InputEvent = unsafe { std::ptr::read_unaligned(buf.as_ptr() as *const InputEvent) };
+            let ev: InputEvent =
+                unsafe { std::ptr::read_unaligned(buf.as_ptr() as *const InputEvent) };
 
             match ev.type_ {
                 EV_ABS if ev.code == ABS_X => x_raw = ev.value,

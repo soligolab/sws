@@ -21,14 +21,17 @@
 //! - Install: `pip install RestrictedPython` (also documented in the
 //!   project README / OPEN_QUESTIONS Q1).
 
-use std::{
-    ffi::CString,
-    sync::{atomic::{AtomicBool, Ordering}, Arc, Mutex},
-    time::Duration,
-};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use serde::Serialize;
+use std::{
+    ffi::CString,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
+    time::Duration,
+};
 use sws_core::{TagDb, TagQuality, TagValue, TagWriteBus};
 use tokio::runtime::Handle;
 use tokio::sync::mpsc;
@@ -41,10 +44,28 @@ use tokio::sync::mpsc;
 fn tag_value_to_py(py: Python<'_>, v: &TagValue) -> Py<PyAny> {
     use pyo3::IntoPyObject;
     match v {
-        TagValue::Bool(b)  => b.into_pyobject(py).expect("bool → Python non fallisce").to_owned().into_any().unbind(),
-        TagValue::Int(i)   => i.into_pyobject(py).expect("i64 → Python non fallisce").into_any().unbind(),
-        TagValue::Float(f) => f.into_pyobject(py).expect("f64 → Python non fallisce").into_any().unbind(),
-        TagValue::Str(s)   => s.as_str().into_pyobject(py).expect("str → Python non fallisce").into_any().unbind(),
+        TagValue::Bool(b) => b
+            .into_pyobject(py)
+            .expect("bool → Python non fallisce")
+            .to_owned()
+            .into_any()
+            .unbind(),
+        TagValue::Int(i) => i
+            .into_pyobject(py)
+            .expect("i64 → Python non fallisce")
+            .into_any()
+            .unbind(),
+        TagValue::Float(f) => f
+            .into_pyobject(py)
+            .expect("f64 → Python non fallisce")
+            .into_any()
+            .unbind(),
+        TagValue::Str(s) => s
+            .as_str()
+            .into_pyobject(py)
+            .expect("str → Python non fallisce")
+            .into_any()
+            .unbind(),
     }
 }
 
@@ -54,16 +75,31 @@ fn tag_value_to_py(py: Python<'_>, v: &TagValue) -> Py<PyAny> {
 fn json_to_py(py: Python<'_>, v: &serde_json::Value) -> Py<PyAny> {
     use pyo3::IntoPyObject;
     let s: String = match v {
-        serde_json::Value::Bool(b) => return b.into_pyobject(py).expect("bool").to_owned().into_any().unbind(),
+        serde_json::Value::Bool(b) => {
+            return b
+                .into_pyobject(py)
+                .expect("bool")
+                .to_owned()
+                .into_any()
+                .unbind()
+        }
         serde_json::Value::Number(n) => {
-            if let Some(i) = n.as_i64() { return i.into_pyobject(py).expect("i64").into_any().unbind(); }
-            if let Some(f) = n.as_f64() { return f.into_pyobject(py).expect("f64").into_any().unbind(); }
+            if let Some(i) = n.as_i64() {
+                return i.into_pyobject(py).expect("i64").into_any().unbind();
+            }
+            if let Some(f) = n.as_f64() {
+                return f.into_pyobject(py).expect("f64").into_any().unbind();
+            }
             n.to_string()
         }
         serde_json::Value::String(t) => t.clone(),
         other => other.to_string(),
     };
-    s.as_str().into_pyobject(py).expect("str").into_any().unbind()
+    s.as_str()
+        .into_pyobject(py)
+        .expect("str")
+        .into_any()
+        .unbind()
 }
 use tracing::{debug, info, warn};
 
@@ -210,9 +246,9 @@ impl TagApi {
                 let v = match db.coerce_for_write(&id_owned, v).await {
                     Ok(v) => v,
                     Err(msg) => {
-                        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                            format!("tags.write: {msg}"),
-                        ))
+                        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                            "tags.write: {msg}"
+                        )))
                     }
                 };
                 // Verso il device viaggia il RAW; il fallback TagDb (tag
@@ -225,9 +261,9 @@ impl TagApi {
                         db.set(id_owned, v, TagQuality::Good).await;
                         Ok(())
                     }
-                    Err(e) => Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                        format!("tags.write: {e}"),
-                    )),
+                    Err(e) => Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                        "tags.write: {e}"
+                    ))),
                 }
             })
         })
@@ -251,10 +287,18 @@ impl KillSwitch {
 
 fn py_to_tagvalue(any: &Bound<'_, PyAny>) -> PyResult<TagValue> {
     // Order matters: bool extracts as int in Python (True == 1), so check it first.
-    if let Ok(b) = any.extract::<bool>()   { return Ok(TagValue::Bool(b)); }
-    if let Ok(i) = any.extract::<i64>()    { return Ok(TagValue::Int(i)); }
-    if let Ok(f) = any.extract::<f64>()    { return Ok(TagValue::Float(f)); }
-    if let Ok(s) = any.extract::<String>() { return Ok(TagValue::Str(s)); }
+    if let Ok(b) = any.extract::<bool>() {
+        return Ok(TagValue::Bool(b));
+    }
+    if let Ok(i) = any.extract::<i64>() {
+        return Ok(TagValue::Int(i));
+    }
+    if let Ok(f) = any.extract::<f64>() {
+        return Ok(TagValue::Float(f));
+    }
+    if let Ok(s) = any.extract::<String>() {
+        return Ok(TagValue::Str(s));
+    }
     Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
         "tags.write: value must be bool, int, float or str",
     ))
@@ -290,10 +334,16 @@ impl Engine {
             .unwrap_or(DEFAULT_TIMEOUT_MS);
         let sandbox = probe_restricted_python();
         if sandbox {
-            info!(timeout_ms, "pyscript: RestrictedPython available — scripts will run sandboxed");
+            info!(
+                timeout_ms,
+                "pyscript: RestrictedPython available — scripts will run sandboxed"
+            );
         } else {
-            warn!(timeout_ms, "pyscript: RestrictedPython NOT available — scripts run with full \
-                privileges (install with `pip install RestrictedPython` to enable sandboxing)");
+            warn!(
+                timeout_ms,
+                "pyscript: RestrictedPython NOT available — scripts run with full \
+                privileges (install with `pip install RestrictedPython` to enable sandboxing)"
+            );
         }
         Self {
             db,
@@ -314,7 +364,9 @@ impl Engine {
     }
 
     /// True if scripts are compiled+exec'd through RestrictedPython.
-    pub fn is_sandboxed(&self) -> bool { self.sandbox.load(Ordering::Relaxed) }
+    pub fn is_sandboxed(&self) -> bool {
+        self.sandbox.load(Ordering::Relaxed)
+    }
 
     /// Execute `code` and return its captured stdout/stderr.
     /// On a Python error, returns Err(msg) with the formatted traceback.
@@ -332,9 +384,9 @@ impl Engine {
         code: String,
         args: serde_json::Map<String, serde_json::Value>,
     ) -> Result<ExecOutput, String> {
-        let handle  = Handle::current();
-        let db      = self.db.clone();
-        let bus     = self.bus.clone();
+        let handle = Handle::current();
+        let db = self.db.clone();
+        let bus = self.bus.clone();
         let sandbox = self.is_sandboxed();
         let timeout = self.timeout;
         let telegram = self.telegram_tx.lock().ok().and_then(|g| g.clone());
@@ -344,7 +396,7 @@ impl Engine {
         });
 
         match tokio::time::timeout(timeout, work).await {
-            Ok(Ok(Ok(out)))  => {
+            Ok(Ok(Ok(out))) => {
                 // Un'esecuzione riuscita e muta non è una notizia: uno script
                 // globale a intervallo di 1 s ne produrrebbe **86.400 al
                 // giorno**, tutte identiche, e sommergerebbe qualunque altra
@@ -380,8 +432,8 @@ impl Engine {
                 debug!("python script failed: {msg}");
                 Err(msg)
             }
-            Ok(Err(e))       => Err(format!("python task panicked: {e}")),
-            Err(_)           => Err(format!("script timed out after {} ms", timeout.as_millis())),
+            Ok(Err(e)) => Err(format!("python task panicked: {e}")),
+            Err(_) => Err(format!("script timed out after {} ms", timeout.as_millis())),
         }
     }
 }
@@ -439,8 +491,12 @@ pub async fn eval_expression(
                 tags_dict.set_item(k, py_v).map_err(|e| e.to_string())?;
             }
             let globals = PyDict::new(py);
-            globals.set_item("tags", &tags_dict).map_err(|e| e.to_string())?;
-            globals.set_item("__sws_expr_code__", &expr).map_err(|e| e.to_string())?;
+            globals
+                .set_item("tags", &tags_dict)
+                .map_err(|e| e.to_string())?;
+            globals
+                .set_item("__sws_expr_code__", &expr)
+                .map_err(|e| e.to_string())?;
 
             let c_harness = std::ffi::CString::new(EVAL_HARNESS)
                 .map_err(|e| format!("invalid harness bytes: {e}"))?;
@@ -450,7 +506,10 @@ pub async fn eval_expression(
             let result = globals
                 .get_item("__sws_result__")
                 .map_err(|e| e.to_string())?
-                .ok_or_else(|| "expression returned no value — last statement must be an expression".to_string())?;
+                .ok_or_else(|| {
+                    "expression returned no value — last statement must be an expression"
+                        .to_string()
+                })?;
 
             // bool must be checked before i64 (Python bool is a subclass of int)
             if let Ok(b) = result.extract::<bool>() {
@@ -462,15 +521,21 @@ pub async fn eval_expression(
             } else if let Ok(s) = result.extract::<String>() {
                 Ok(TagValue::Str(s))
             } else {
-                Err(format!("expression result has unsupported Python type: {}",
-                    result.get_type().name().map(|s| s.to_string()).unwrap_or_else(|_| "?".into())))
+                Err(format!(
+                    "expression result has unsupported Python type: {}",
+                    result
+                        .get_type()
+                        .name()
+                        .map(|s| s.to_string())
+                        .unwrap_or_else(|_| "?".into())
+                ))
             }
         })
     });
     match work.await {
-        Ok(Ok(v))  => Ok(v),
+        Ok(Ok(v)) => Ok(v),
         Ok(Err(e)) => Err(e),
-        Err(e)     => Err(format!("eval task panicked: {e}")),
+        Err(e) => Err(format!("eval task panicked: {e}")),
     }
 }
 
@@ -500,9 +565,9 @@ fn run_in_python(
     });
 
     Python::attach(|py| -> PyResult<ExecOutput> {
-        let api          = Py::new(py, TagApi { db, bus, handle })?;
-        let notifier     = Py::new(py, Notifier { tx: telegram_tx })?;
-        let kill_switch  = Py::new(py, KillSwitch { flag: kill_flag })?;
+        let api = Py::new(py, TagApi { db, bus, handle })?;
+        let notifier = Py::new(py, Notifier { tx: telegram_tx })?;
+        let kill_switch = Py::new(py, KillSwitch { flag: kill_flag })?;
         let globals = PyDict::new(py);
         globals.set_item("tags", api)?;
         globals.set_item("send_telegram", notifier)?;
@@ -511,24 +576,35 @@ fn run_in_python(
         globals.set_item("__sws_sandbox__", sandbox)?;
         globals.set_item("__sws_args__", json_map_to_pydict(py, &args)?)?;
 
-        let c_code = CString::new(HARNESS)
-            .expect("HARNESS contains a NUL byte — should not happen");
+        let c_code =
+            CString::new(HARNESS).expect("HARNESS contains a NUL byte — should not happen");
         py.run(c_code.as_c_str(), Some(&globals), None)?;
 
-        let stdout = globals.get_item("__sws_stdout_capture__")?
+        let stdout = globals
+            .get_item("__sws_stdout_capture__")?
             .map(|v| v.extract::<String>().unwrap_or_default())
             .unwrap_or_default();
-        let stderr = globals.get_item("__sws_stderr_capture__")?
+        let stderr = globals
+            .get_item("__sws_stderr_capture__")?
             .map(|v| v.extract::<String>().unwrap_or_default())
             .unwrap_or_default();
-        let error: Option<String> = globals.get_item("__sws_error__")?
-            .and_then(|v| if v.is_none() { None } else { v.extract::<String>().ok() });
+        let error: Option<String> = globals.get_item("__sws_error__")?.and_then(|v| {
+            if v.is_none() {
+                None
+            } else {
+                v.extract::<String>().ok()
+            }
+        });
 
         if let Some(err) = error {
             return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err));
         }
 
-        Ok(ExecOutput { stdout, stderr, sandboxed: sandbox })
+        Ok(ExecOutput {
+            stdout,
+            stderr,
+            sandboxed: sandbox,
+        })
     })
     .map_err(|e| Python::attach(|py| e.value(py).to_string()))
 }
@@ -701,7 +777,9 @@ impl Engine {
                 ok: false,
                 sandbox_verificata: false,
                 rilievi: vec![CheckRilievo {
-                    riga: None, colonna: None, vietato: false,
+                    riga: None,
+                    colonna: None,
+                    vietato: false,
                     messaggio: format!("il controllo non è potuto girare: {e}"),
                 }],
             },
@@ -715,9 +793,12 @@ fn check_in_python(sandbox: bool, code: String) -> CheckOutput {
         // Un corpo vuoto compila e non fa niente. Dirlo è più utile di un `ok`
         // silenzioso: chi ha chiesto il controllo si aspettava del codice.
         return CheckOutput {
-            ok: true, sandbox_verificata: sandbox,
+            ok: true,
+            sandbox_verificata: sandbox,
             rilievi: vec![CheckRilievo {
-                riga: None, colonna: None, vietato: false,
+                riga: None,
+                colonna: None,
+                vietato: false,
                 messaggio: "il codice è vuoto: compila, ma non fa niente.".into(),
             }],
         };
@@ -733,12 +814,22 @@ fn check_in_python(sandbox: bool, code: String) -> CheckOutput {
         py.run(c.as_c_str(), Some(&globals), None)?;
 
         let leggi_str = |k: &str| -> Option<String> {
-            globals.get_item(k).ok().flatten()
-                .and_then(|v| if v.is_none() { None } else { v.extract::<String>().ok() })
+            globals.get_item(k).ok().flatten().and_then(|v| {
+                if v.is_none() {
+                    None
+                } else {
+                    v.extract::<String>().ok()
+                }
+            })
         };
         let leggi_u32 = |k: &str| -> Option<u32> {
-            globals.get_item(k).ok().flatten()
-                .and_then(|v| if v.is_none() { None } else { v.extract::<u32>().ok() })
+            globals.get_item(k).ok().flatten().and_then(|v| {
+                if v.is_none() {
+                    None
+                } else {
+                    v.extract::<u32>().ok()
+                }
+            })
         };
 
         let riga = leggi_u32("__sws_riga__");
@@ -746,20 +837,37 @@ fn check_in_python(sandbox: bool, code: String) -> CheckOutput {
 
         let mut rilievi = Vec::new();
         if let Some(m) = leggi_str("__sws_syntax__") {
-            rilievi.push(CheckRilievo { riga, colonna, messaggio: m, vietato: false });
+            rilievi.push(CheckRilievo {
+                riga,
+                colonna,
+                messaggio: m,
+                vietato: false,
+            });
         } else if let Some(m) = leggi_str("__sws_vietato__") {
-            rilievi.push(CheckRilievo { riga, colonna: None, messaggio: m, vietato: true });
+            rilievi.push(CheckRilievo {
+                riga,
+                colonna: None,
+                messaggio: m,
+                vietato: true,
+            });
         }
 
-        Ok(CheckOutput { ok: rilievi.is_empty(), sandbox_verificata: sandbox, rilievi })
+        Ok(CheckOutput {
+            ok: rilievi.is_empty(),
+            sandbox_verificata: sandbox,
+            rilievi,
+        })
     });
 
     r.unwrap_or_else(|e| {
         let msg = Python::attach(|py| e.value(py).to_string());
         CheckOutput {
-            ok: false, sandbox_verificata: false,
+            ok: false,
+            sandbox_verificata: false,
             rilievi: vec![CheckRilievo {
-                riga: None, colonna: None, vietato: false,
+                riga: None,
+                colonna: None,
+                vietato: false,
                 messaggio: format!("il controllo non è potuto girare: {msg}"),
             }],
         }
@@ -793,7 +901,10 @@ mod tests_check {
         assert_eq!(out.rilievi.len(), 1);
         let r = &out.rilievi[0];
         assert_eq!(r.riga, Some(3), "riga sbagliata in {r:?}");
-        assert!(!r.vietato, "un errore di sintassi non è un divieto della sandbox");
+        assert!(
+            !r.vietato,
+            "un errore di sintassi non è un divieto della sandbox"
+        );
         assert!(r.messaggio.contains("SyntaxError"), "{}", r.messaggio);
     }
 
@@ -831,8 +942,10 @@ mod tests_check {
         assert!(!out.ok, "un import va rifiutato: {:?}", out.rilievi);
         assert_eq!(out.rilievi.len(), 1);
         let r = &out.rilievi[0];
-        assert!(r.vietato,
-                "deve risultare **vietato**, non un errore di sintassi: {r:?}");
+        assert!(
+            r.vietato,
+            "deve risultare **vietato**, non un errore di sintassi: {r:?}"
+        );
         assert_eq!(r.riga, Some(1), "e portare la riga: {r:?}");
         // Il messaggio deve dire cosa fare invece, non solo che è proibito.
         assert!(r.messaggio.contains("tags"), "{}", r.messaggio);
@@ -849,9 +962,17 @@ mod tests_check {
     async fn un_nome_che_la_sandbox_non_fornisce_e_un_divieto() {
         let e = motore();
         let out = e.check("d = open('/etc/passwd')\n".into()).await;
-        assert!(!out.ok, "`open` non esiste nella sandbox: {:?}", out.rilievi);
+        assert!(
+            !out.ok,
+            "`open` non esiste nella sandbox: {:?}",
+            out.rilievi
+        );
         assert!(out.rilievi[0].vietato);
-        assert!(out.rilievi[0].messaggio.contains("open"), "{}", out.rilievi[0].messaggio);
+        assert!(
+            out.rilievi[0].messaggio.contains("open"),
+            "{}",
+            out.rilievi[0].messaggio
+        );
     }
 
     /// E il verso che protegge dai falsi allarmi: i nomi che **ci sono** devono
@@ -860,8 +981,9 @@ mod tests_check {
     #[tokio::test]
     async fn i_nomi_forniti_non_sono_divieti() {
         let e = motore();
-        let out = e.check(
-            "print('ciao')\nx = tags['t']\ntags['t'] = x + 1\ny = len('abc')\n".into()).await;
+        let out = e
+            .check("print('ciao')\nx = tags['t']\ntags['t'] = x + 1\ny = len('abc')\n".into())
+            .await;
         assert!(out.ok, "nessun rilievo atteso: {:?}", out.rilievi);
     }
 
@@ -880,16 +1002,26 @@ mod tests_check {
         // La prova che conta: se `check` eseguisse, questo scriverebbe il tag.
         let db = Arc::new(TagDb::new(16));
         let bus = Arc::new(TagWriteBus::new());
-        db.set("t".into(), sws_core::TagValue::Int(0), sws_core::TagQuality::Good).await;
+        db.set(
+            "t".into(),
+            sws_core::TagValue::Int(0),
+            sws_core::TagQuality::Good,
+        )
+        .await;
         let e = Engine::new(db.clone(), bus);
 
-        let out = e.check("tags['t'] = 42\nprint('sono girato')\n".into()).await;
+        let out = e
+            .check("tags['t'] = 42\nprint('sono girato')\n".into())
+            .await;
         assert!(out.ok, "il codice è valido: {:?}", out.rilievi);
 
         let dopo = db.snapshot().await;
         let v = dopo.get("t").map(|s| s.value.clone());
-        assert_ne!(v, Some(sws_core::TagValue::Int(42)),
-                   "check ha ESEGUITO il codice: ha scritto il tag");
+        assert_ne!(
+            v,
+            Some(sws_core::TagValue::Int(42)),
+            "check ha ESEGUITO il codice: ha scritto il tag"
+        );
     }
 
     /// Q42 — lo script scrive in unità INGEGNERISTICHE e al device arriva il
@@ -901,23 +1033,36 @@ mod tests_check {
         let bus = Arc::new(TagWriteBus::new());
         // 4-20 mA scalati 0-100: eng 50 → raw 12. Stessa scala su un tag
         // posseduto da un finto plugin («s») e su uno virtuale («v»).
-        let scala = sws_core::LinearScale { raw_min: 4.0, raw_max: 20.0, eng_min: 0.0, eng_max: 100.0 };
-        db.set_scales([("s".to_string(), scala), ("v".to_string(), scala)].into()).await;
+        let scala = sws_core::LinearScale {
+            raw_min: 4.0,
+            raw_max: 20.0,
+            eng_min: 0.0,
+            eng_max: 100.0,
+        };
+        db.set_scales([("s".to_string(), scala), ("v".to_string(), scala)].into())
+            .await;
         let (tx, mut rx) = mpsc::channel(4);
         bus.register("s".to_string(), tx).await;
         let e = Engine::new(db.clone(), bus);
 
         e.execute("tags.write('s', 50.0)\ntags.write('v', 50.0)\n".into())
-            .await.expect("script fallito");
+            .await
+            .expect("script fallito");
 
         let (id, valore) = rx.recv().await.expect("nessuna scrittura sul bus");
         assert_eq!(id, "s");
-        assert_eq!(valore, sws_core::TagValue::Float(12.0), "al device deve arrivare il raw");
+        assert_eq!(
+            valore,
+            sws_core::TagValue::Float(12.0),
+            "al device deve arrivare il raw"
+        );
 
         // Il fallback dei tag virtuali resta ingegneristico: nessuno lo
         // ri-scala in lettura, e scalarlo qui sarebbe il bug opposto.
         let dopo = db.snapshot().await;
-        assert_eq!(dopo.get("v").map(|s| s.value.clone()),
-                   Some(sws_core::TagValue::Float(50.0)));
+        assert_eq!(
+            dopo.get("v").map(|s| s.value.clone()),
+            Some(sws_core::TagValue::Float(50.0))
+        );
     }
 }

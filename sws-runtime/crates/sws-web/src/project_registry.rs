@@ -10,11 +10,14 @@
 //! pre-existing root-scoped projects are still found by the legacy scan even
 //! before they ever get a registry entry.
 
-use std::{collections::HashMap, path::{Path, PathBuf}};
 use serde::{Deserialize, Serialize};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
+use sws_core::now_ms;
 use tokio::sync::RwLock;
 use tracing::warn;
-use sws_core::now_ms;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KnownProjectEntry {
@@ -36,17 +39,23 @@ impl ProjectRegistry {
             Ok(text) => serde_json::from_str(&text).unwrap_or_default(),
             Err(_) => HashMap::new(),
         };
-        Self { file, entries: RwLock::new(entries) }
+        Self {
+            file,
+            entries: RwLock::new(entries),
+        }
     }
 
     /// Record (or update) that `name` at `path` was just created/opened.
     pub async fn touch(&self, name: &str, path: &Path) {
         {
             let mut map = self.entries.write().await;
-            map.insert(name.to_string(), KnownProjectEntry {
-                path: path.to_path_buf(),
-                last_opened_ms: now_ms(),
-            });
+            map.insert(
+                name.to_string(),
+                KnownProjectEntry {
+                    path: path.to_path_buf(),
+                    last_opened_ms: now_ms(),
+                },
+            );
         }
         self.persist().await;
     }
@@ -54,7 +63,9 @@ impl ProjectRegistry {
     /// Remove an entry (external "remove from list", or cleanup after a
     /// root-scoped delete).
     pub async fn remove(&self, name: &str) {
-        { self.entries.write().await.remove(name); }
+        {
+            self.entries.write().await.remove(name);
+        }
         self.persist().await;
     }
 

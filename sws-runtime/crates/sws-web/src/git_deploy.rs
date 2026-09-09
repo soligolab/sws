@@ -19,10 +19,7 @@
 //!   POST   /api/project/git/tags/:name/push   — push a single tag
 //!   DELETE /api/project/git/tags/:name    — delete a tag (local + remote)
 
-use std::{
-    path::PathBuf,
-    process::Command,
-};
+use std::{path::PathBuf, process::Command};
 use tracing::{info, warn};
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -69,7 +66,12 @@ impl GitDeploy {
             Err(_) => return false,
         };
         let toplevel = match Command::new("git")
-            .args(["-C", &self.project_dir.to_string_lossy(), "rev-parse", "--show-toplevel"])
+            .args([
+                "-C",
+                &self.project_dir.to_string_lossy(),
+                "rev-parse",
+                "--show-toplevel",
+            ])
             .output()
         {
             Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).trim().to_string(),
@@ -87,7 +89,8 @@ impl GitDeploy {
         let author = git_out(&dir, &["log", "-1", "--format=%an"])?;
         let message = git_out(&dir, &["log", "-1", "--format=%s"])?;
         let commit_date = git_out(&dir, &["log", "-1", "--format=%cI"])?;
-        let branch = git_out(&dir, &["rev-parse", "--abbrev-ref", "HEAD"]).unwrap_or_else(|_| "unknown".into());
+        let branch = git_out(&dir, &["rev-parse", "--abbrev-ref", "HEAD"])
+            .unwrap_or_else(|_| "unknown".into());
         let remote_url = git_out(&dir, &["remote", "get-url", "origin"]).ok();
         let clean = Command::new("git")
             .args(["-C", &dir, "status", "--porcelain"])
@@ -112,7 +115,12 @@ impl GitDeploy {
     /// `git pull` in the project directory.
     pub fn pull(&self) -> anyhow::Result<String> {
         let output = Command::new("git")
-            .args(["-C", &self.project_dir.to_string_lossy(), "pull", "--ff-only"])
+            .args([
+                "-C",
+                &self.project_dir.to_string_lossy(),
+                "pull",
+                "--ff-only",
+            ])
             .output()
             .map_err(|e| anyhow::anyhow!("git pull: {e}"))?;
         let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -128,7 +136,13 @@ impl GitDeploy {
     /// `git reset --hard HEAD~1` — revert to previous commit.
     pub fn rollback(&self) -> anyhow::Result<String> {
         let output = Command::new("git")
-            .args(["-C", &self.project_dir.to_string_lossy(), "reset", "--hard", "HEAD~1"])
+            .args([
+                "-C",
+                &self.project_dir.to_string_lossy(),
+                "reset",
+                "--hard",
+                "HEAD~1",
+            ])
             .output()
             .map_err(|e| anyhow::anyhow!("git reset: {e}"))?;
         let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -149,7 +163,10 @@ impl GitDeploy {
             .output()
             .map_err(|e| anyhow::anyhow!("git add: {e}"))?;
         if !add.status.success() {
-            return Err(anyhow::anyhow!("git add failed: {}", String::from_utf8_lossy(&add.stderr).trim()));
+            return Err(anyhow::anyhow!(
+                "git add failed: {}",
+                String::from_utf8_lossy(&add.stderr).trim()
+            ));
         }
         let out = Command::new("git")
             .args(["-C", &dir, "commit", "-m", message])
@@ -174,7 +191,11 @@ impl GitDeploy {
         // git push writes progress to stderr even on success
         let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
         let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
-        let msg = if stdout.is_empty() { stderr.clone() } else { stdout };
+        let msg = if stdout.is_empty() {
+            stderr.clone()
+        } else {
+            stdout
+        };
         if out.status.success() {
             info!(dir = %self.project_dir.display(), "git push: {msg}");
             Ok(msg)
@@ -210,7 +231,9 @@ impl GitDeploy {
             && !name.ends_with(".lock")
             && !name.contains("..")
             && !name.contains("@{")
-            && name.chars().all(|c| !c.is_control() && !matches!(c, ' ' | '~' | '^' | ':' | '?' | '*' | '[' | '\\'))
+            && name.chars().all(|c| {
+                !c.is_control() && !matches!(c, ' ' | '~' | '^' | ':' | '?' | '*' | '[' | '\\')
+            })
     }
 
     /// Un URL di remote che non è un'opzione travestita. Il trasporto `ext::`
@@ -233,7 +256,9 @@ impl GitDeploy {
                 anyhow::bail!("URL del remote non valido");
             }
             // Rimuove l'eventuale remote esistente, ignora l'errore (non c'era).
-            let _ = Command::new("git").args(["-C", &dir, "remote", "remove", "origin"]).output();
+            let _ = Command::new("git")
+                .args(["-C", &dir, "remote", "remove", "origin"])
+                .output();
             run_git(&dir, &["remote", "add", "origin", "--", url])?;
         }
         Ok(())
@@ -243,7 +268,11 @@ impl GitDeploy {
     pub fn list_tags(&self) -> anyhow::Result<Vec<String>> {
         let dir = self.project_dir.to_string_lossy().to_string();
         let out = git_out(&dir, &["tag", "--sort=-creatordate"])?;
-        Ok(out.lines().map(|s| s.to_string()).filter(|s| !s.is_empty()).collect())
+        Ok(out
+            .lines()
+            .map(|s| s.to_string())
+            .filter(|s| !s.is_empty())
+            .collect())
     }
 
     /// Crea un tag — annotato (`-a -m`) se `message` è fornito, altrimenti
@@ -288,21 +317,33 @@ impl GitDeploy {
 
 fn git_out(dir: &str, args: &[&str]) -> anyhow::Result<String> {
     let output = Command::new("git")
-        .arg("-C").arg(dir)
+        .arg("-C")
+        .arg(dir)
         .args(args)
         .output()
         .map_err(|e| anyhow::anyhow!("git {}: {e}", args.join(" ")))?;
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
     } else {
-        Err(anyhow::anyhow!("{}", String::from_utf8_lossy(&output.stderr).trim()))
+        Err(anyhow::anyhow!(
+            "{}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ))
     }
 }
 
 fn run_git(dir: &str, args: &[&str]) -> anyhow::Result<()> {
-    let status = Command::new("git").arg("-C").arg(dir).args(args).status()
+    let status = Command::new("git")
+        .arg("-C")
+        .arg(dir)
+        .args(args)
+        .status()
         .map_err(|e| anyhow::anyhow!("git {}: {e}", args.join(" ")))?;
-    if status.success() { Ok(()) } else { Err(anyhow::anyhow!("git {} failed", args.join(" "))) }
+    if status.success() {
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!("git {} failed", args.join(" ")))
+    }
 }
 
 #[cfg(test)]
@@ -361,7 +402,9 @@ mod tests {
 
     #[test]
     fn l_url_del_remote_non_puo_essere_una_flag() {
-        assert!(GitDeploy::url_remote_sicuro("git@github.com:soligolab/sws.git"));
+        assert!(GitDeploy::url_remote_sicuro(
+            "git@github.com:soligolab/sws.git"
+        ));
         assert!(GitDeploy::url_remote_sicuro("https://example.com/r.git"));
         assert!(!GitDeploy::url_remote_sicuro("--mirror=fetch"));
         assert!(!GitDeploy::url_remote_sicuro(""));

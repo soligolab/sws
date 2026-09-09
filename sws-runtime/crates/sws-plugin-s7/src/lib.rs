@@ -13,8 +13,9 @@ use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 
 use s7::{client, tcp, transport};
-use sws_core::{S7Config, S7DataType, S7TagMapping, TagDb, TagQuality, TagValue, TagWriteBus,
-               WriteRequest};
+use sws_core::{
+    S7Config, S7DataType, S7TagMapping, TagDb, TagQuality, TagValue, TagWriteBus, WriteRequest,
+};
 
 /// Entry point. Runs the S7 polling loop for `cfg` until `cancel` fires.
 pub async fn run(cfg: S7Config, db: Arc<TagDb>, bus: Arc<TagWriteBus>, cancel: CancellationToken) {
@@ -28,7 +29,8 @@ pub async fn run(cfg: S7Config, db: Arc<TagDb>, bus: Arc<TagWriteBus>, cancel: C
     if let Err(e) = session(&cfg, &db, &mut write_rx, cancel).await {
         warn!(source = %cfg.id, "S7 error: {e:#} — stopped (save config to retry)");
         for tm in &cfg.tags {
-            db.ingest(tm.tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
+            db.ingest(tm.tag.clone(), TagValue::Float(0.0), TagQuality::Bad)
+                .await;
         }
     }
 }
@@ -39,7 +41,9 @@ async fn session(
     write_rx: &mut mpsc::Receiver<WriteRequest>,
     cancel: CancellationToken,
 ) -> anyhow::Result<()> {
-    let ip: IpAddr = cfg.ip.parse()
+    let ip: IpAddr = cfg
+        .ip
+        .parse()
         .map_err(|e| anyhow::anyhow!("invalid IP '{}': {e}", cfg.ip))?;
     let rack = cfg.rack;
     let slot = cfg.slot;
@@ -49,8 +53,7 @@ async fn session(
         let opts = tcp::Options::new(ip, rack, slot, transport::Connection::PG);
         let transport = tcp::Transport::connect(opts)
             .map_err(|e| anyhow::anyhow!("S7 connect to {ip}: {e}"))?;
-        client::Client::new(transport)
-            .map_err(|e| anyhow::anyhow!("S7 negotiate with {ip}: {e}"))
+        client::Client::new(transport).map_err(|e| anyhow::anyhow!("S7 negotiate with {ip}: {e}"))
     })
     .await
     .map_err(|e| anyhow::anyhow!("spawn_blocking panic: {e}"))??;
@@ -73,7 +76,9 @@ async fn session(
     ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
     // Build writable-tag lookup.
-    let write_map: HashMap<String, usize> = tags.iter().enumerate()
+    let write_map: HashMap<String, usize> = tags
+        .iter()
+        .enumerate()
         .filter(|(_, t)| t.writable)
         .map(|(i, t)| (t.tag.clone(), i))
         .collect();
@@ -113,8 +118,18 @@ async fn session(
 // ── Blocking worker bridge ────────────────────────────────────────────────────
 
 enum S7Request {
-    Read { area: String, db_num: i32, byte_offset: i32, len: i32 },
-    Write { area: String, db_num: i32, byte_offset: i32, data: Vec<u8> },
+    Read {
+        area: String,
+        db_num: i32,
+        byte_offset: i32,
+        len: i32,
+    },
+    Write {
+        area: String,
+        db_num: i32,
+        byte_offset: i32,
+        data: Vec<u8>,
+    },
     Stop,
 }
 
@@ -132,31 +147,55 @@ fn s7_worker<T: s7::transport::Transport>(
     for req in rx {
         match req {
             S7Request::Stop => break,
-            S7Request::Read { area, db_num, byte_offset, len } => {
+            S7Request::Read {
+                area,
+                db_num,
+                byte_offset,
+                len,
+            } => {
                 let mut buf = vec![0u8; len as usize];
                 let result = match area.as_str() {
                     "db" => cl.ag_read(db_num, byte_offset, len, &mut buf),
-                    "m"  => cl.mb_read(byte_offset, len, &mut buf),
-                    "i"  => cl.eb_read(byte_offset, len, &mut buf),
-                    "q"  => cl.ab_read(byte_offset, len, &mut buf),
-                    other => { let _ = tx.send(S7Response::Err(format!("unknown area '{other}'"))); continue; }
+                    "m" => cl.mb_read(byte_offset, len, &mut buf),
+                    "i" => cl.eb_read(byte_offset, len, &mut buf),
+                    "q" => cl.ab_read(byte_offset, len, &mut buf),
+                    other => {
+                        let _ = tx.send(S7Response::Err(format!("unknown area '{other}'")));
+                        continue;
+                    }
                 };
                 match result {
-                    Ok(()) => { let _ = tx.send(S7Response::Data(buf)); }
-                    Err(e) => { let _ = tx.send(S7Response::Err(format!("{e:?}"))); }
+                    Ok(()) => {
+                        let _ = tx.send(S7Response::Data(buf));
+                    }
+                    Err(e) => {
+                        let _ = tx.send(S7Response::Err(format!("{e:?}")));
+                    }
                 }
             }
-            S7Request::Write { area, db_num, byte_offset, mut data } => {
+            S7Request::Write {
+                area,
+                db_num,
+                byte_offset,
+                mut data,
+            } => {
                 let len = data.len() as i32;
                 let result = match area.as_str() {
                     "db" => cl.ag_write(db_num, byte_offset, len, &mut data),
-                    "m"  => cl.mb_write(byte_offset, len, &mut data),
-                    "q"  => cl.ab_write(byte_offset, len, &mut data),
-                    other => { let _ = tx.send(S7Response::Err(format!("unknown area '{other}'"))); continue; }
+                    "m" => cl.mb_write(byte_offset, len, &mut data),
+                    "q" => cl.ab_write(byte_offset, len, &mut data),
+                    other => {
+                        let _ = tx.send(S7Response::Err(format!("unknown area '{other}'")));
+                        continue;
+                    }
                 };
                 match result {
-                    Ok(()) => { let _ = tx.send(S7Response::Ok); }
-                    Err(e) => { let _ = tx.send(S7Response::Err(format!("{e:?}"))); }
+                    Ok(()) => {
+                        let _ = tx.send(S7Response::Ok);
+                    }
+                    Err(e) => {
+                        let _ = tx.send(S7Response::Err(format!("{e:?}")));
+                    }
                 }
             }
         }
@@ -168,7 +207,7 @@ fn s7_worker<T: s7::transport::Transport>(
 fn tag_byte_len(tm: &S7TagMapping) -> i32 {
     match tm.data_type {
         S7DataType::Bool | S7DataType::Byte => 1,
-        S7DataType::Int | S7DataType::Word  => 2,
+        S7DataType::Int | S7DataType::Word => 2,
         S7DataType::Dint | S7DataType::Real => 4,
     }
 }
@@ -183,9 +222,13 @@ fn read_tag(
         db_num: tm.db_num,
         byte_offset: tm.byte_offset,
         len: tag_byte_len(tm),
-    }).map_err(|_| anyhow::anyhow!("worker thread gone"))?;
+    })
+    .map_err(|_| anyhow::anyhow!("worker thread gone"))?;
 
-    match rx.recv().map_err(|_| anyhow::anyhow!("worker thread gone"))? {
+    match rx
+        .recv()
+        .map_err(|_| anyhow::anyhow!("worker thread gone"))?
+    {
         S7Response::Data(b) => Ok(b),
         S7Response::Err(e) => Err(anyhow::anyhow!("{e}")),
         S7Response::Ok => Err(anyhow::anyhow!("unexpected Ok on read")),
@@ -203,9 +246,13 @@ fn write_tag(
         db_num: tm.db_num,
         byte_offset: tm.byte_offset,
         data,
-    }).map_err(|_| anyhow::anyhow!("worker thread gone"))?;
+    })
+    .map_err(|_| anyhow::anyhow!("worker thread gone"))?;
 
-    match rx.recv().map_err(|_| anyhow::anyhow!("worker thread gone"))? {
+    match rx
+        .recv()
+        .map_err(|_| anyhow::anyhow!("worker thread gone"))?
+    {
         S7Response::Ok => Ok(()),
         S7Response::Err(e) => Err(anyhow::anyhow!("{e}")),
         S7Response::Data(_) => Err(anyhow::anyhow!("unexpected data on write")),
@@ -221,21 +268,11 @@ fn bytes_to_tagvalue(buf: &[u8], tm: &S7TagMapping) -> TagValue {
             let bit = (buf.first().copied().unwrap_or(0) >> tm.bit_offset) & 1;
             TagValue::Bool(bit != 0)
         }
-        S7DataType::Byte => {
-            TagValue::Int(buf.first().copied().unwrap_or(0) as i64)
-        }
-        S7DataType::Int if buf.len() >= 2 => {
-            TagValue::Int(BigEndian::read_i16(buf) as i64)
-        }
-        S7DataType::Word if buf.len() >= 2 => {
-            TagValue::Int(BigEndian::read_u16(buf) as i64)
-        }
-        S7DataType::Dint if buf.len() >= 4 => {
-            TagValue::Int(BigEndian::read_i32(buf) as i64)
-        }
-        S7DataType::Real if buf.len() >= 4 => {
-            TagValue::Float(BigEndian::read_f32(buf) as f64)
-        }
+        S7DataType::Byte => TagValue::Int(buf.first().copied().unwrap_or(0) as i64),
+        S7DataType::Int if buf.len() >= 2 => TagValue::Int(BigEndian::read_i16(buf) as i64),
+        S7DataType::Word if buf.len() >= 2 => TagValue::Int(BigEndian::read_u16(buf) as i64),
+        S7DataType::Dint if buf.len() >= 4 => TagValue::Int(BigEndian::read_i32(buf) as i64),
+        S7DataType::Real if buf.len() >= 4 => TagValue::Float(BigEndian::read_f32(buf) as f64),
         _ => TagValue::Float(0.0),
     }
 }
@@ -247,10 +284,10 @@ fn tagvalue_to_bytes(val: &TagValue, tm: &S7TagMapping) -> Vec<u8> {
     match tm.data_type {
         S7DataType::Bool => {
             let b: bool = match val {
-                TagValue::Bool(b)  => *b,
-                TagValue::Int(i)   => *i != 0,
+                TagValue::Bool(b) => *b,
+                TagValue::Int(i) => *i != 0,
                 TagValue::Float(f) => *f != 0.0,
-                TagValue::Str(s)   => !s.is_empty() && s != "0",
+                TagValue::Str(s) => !s.is_empty() && s != "0",
             };
             // Set or clear the single bit — read-modify-write is the safe way,
             // but for PoC we write the full byte (existing bits cleared).
@@ -258,7 +295,7 @@ fn tagvalue_to_bytes(val: &TagValue, tm: &S7TagMapping) -> Vec<u8> {
         }
         S7DataType::Byte => {
             let v: u8 = match val {
-                TagValue::Int(i)   => *i as u8,
+                TagValue::Int(i) => *i as u8,
                 TagValue::Float(f) => *f as u8,
                 _ => 0,
             };
@@ -266,18 +303,30 @@ fn tagvalue_to_bytes(val: &TagValue, tm: &S7TagMapping) -> Vec<u8> {
         }
         S7DataType::Int | S7DataType::Word => {
             let v: u16 = match val {
-                TagValue::Int(i)   => *i as u16,
+                TagValue::Int(i) => *i as u16,
                 TagValue::Float(f) => *f as u16,
-                TagValue::Bool(b)  => if *b { 1 } else { 0 },
+                TagValue::Bool(b) => {
+                    if *b {
+                        1
+                    } else {
+                        0
+                    }
+                }
                 _ => 0,
             };
             BigEndian::write_u16(&mut buf, v);
         }
         S7DataType::Dint => {
             let v: i32 = match val {
-                TagValue::Int(i)   => *i as i32,
+                TagValue::Int(i) => *i as i32,
                 TagValue::Float(f) => *f as i32,
-                TagValue::Bool(b)  => if *b { 1 } else { 0 },
+                TagValue::Bool(b) => {
+                    if *b {
+                        1
+                    } else {
+                        0
+                    }
+                }
                 _ => 0,
             };
             BigEndian::write_i32(&mut buf, v);
@@ -285,8 +334,14 @@ fn tagvalue_to_bytes(val: &TagValue, tm: &S7TagMapping) -> Vec<u8> {
         S7DataType::Real => {
             let v: f32 = match val {
                 TagValue::Float(f) => *f as f32,
-                TagValue::Int(i)   => *i as f32,
-                TagValue::Bool(b)  => if *b { 1.0 } else { 0.0 },
+                TagValue::Int(i) => *i as f32,
+                TagValue::Bool(b) => {
+                    if *b {
+                        1.0
+                    } else {
+                        0.0
+                    }
+                }
                 _ => 0.0,
             };
             BigEndian::write_f32(&mut buf, v);

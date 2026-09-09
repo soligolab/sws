@@ -1,32 +1,40 @@
-use std::{collections::HashMap, io::{Cursor, Read, Write}, path::PathBuf, sync::Arc};
+use crate::global_scripts::GlobalScriptSupervisor;
+use crate::notifications::NotificationSupervisor;
+use crate::recipe::{RecipeApplyEvent, RecipeDef};
+use crate::source_supervisor::SourceSupervisor;
+use crate::synoptic::{safe_filename, FaceplateDef, SynopticPage};
 use axum::{
     body::{Body, Bytes},
-    extract::{ws::{Message, WebSocket, WebSocketUpgrade}, Extension, Path, Query, Request, State},
+    extract::{
+        ws::{Message, WebSocket, WebSocketUpgrade},
+        Extension, Path, Query, Request, State,
+    },
     http::{header, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{delete, get, post, put},
     Json, Router,
 };
-use tower_http::cors::{Any, CorsLayer};
-use tower_http::services::{ServeDir, ServeFile};
 use serde::{Deserialize, Serialize};
+use std::{
+    collections::HashMap,
+    io::{Cursor, Read, Write},
+    path::PathBuf,
+    sync::Arc,
+};
 use sws_auth::{AuthState, Credentials, LoginError, Role};
 use sws_core::{
     AlarmDb, AlarmDef, AlarmEvent, AlarmState, CustomSymbol, FunctionDef, GlobalScriptDef,
-    LanguageTable, LogBus, LogEvent, NotificationConfig, PageLayoutConfig, Project, ProjectMeta, SourceDef, TagDb, TagDef,
-    TagId, TagQuality, TagState, TagValue, TagWriteBus, WriteError,
+    LanguageTable, LogBus, LogEvent, NotificationConfig, PageLayoutConfig, Project, ProjectMeta,
+    SourceDef, TagDb, TagDef, TagId, TagQuality, TagState, TagValue, TagWriteBus, WriteError,
     MAX_FUNCTION_CODE_BYTES,
 };
 use sws_historian::{DatastoreRegistry, Historian, Sample};
 use sws_pyscript::{Engine as PyEngine, ExecOutput};
 use tokio::sync::RwLock;
+use tower_http::cors::{Any, CorsLayer};
+use tower_http::services::{ServeDir, ServeFile};
 use tracing::{info, warn};
-use crate::global_scripts::GlobalScriptSupervisor;
-use crate::notifications::NotificationSupervisor;
-use crate::recipe::{RecipeApplyEvent, RecipeDef};
-use crate::source_supervisor::SourceSupervisor;
-use crate::synoptic::{safe_filename, FaceplateDef, SynopticPage};
 
 /// Resolved function registry keyed by name. Hot-swapped on every
 /// `PUT /api/project/functions` so the run endpoint always sees the
@@ -168,7 +176,11 @@ pub struct AppState {
 /// F3.1: la scrittura di `tag` è consentita a `role`? La mappa per-tag vive
 /// in TagDb (riempita con lo scaling a open/import/PUT-tags); un tag senza
 /// `write_min_role` segue la regola storica (Operator+).
-pub(crate) async fn tag_write_allowed(db: &sws_core::TagDb, tag: &str, role: sws_auth::Role) -> bool {
+pub(crate) async fn tag_write_allowed(
+    db: &sws_core::TagDb,
+    tag: &str,
+    role: sws_auth::Role,
+) -> bool {
     let min = match db.write_role_of(tag).await.as_deref() {
         Some("Viewer") => sws_auth::Role::Viewer,
         Some("Supervisor") => sws_auth::Role::Supervisor,
@@ -181,7 +193,12 @@ pub(crate) async fn tag_write_allowed(db: &sws_core::TagDb, tag: &str, role: sws
 /// Resolve the active project directory or return 503. Used at the top
 /// of every handler that needs a project dir (most of them).
 pub async fn active_dir(state: &AppState) -> Result<PathBuf, StatusCode> {
-    state.project_dir.read().await.clone().ok_or(StatusCode::SERVICE_UNAVAILABLE)
+    state
+        .project_dir
+        .read()
+        .await
+        .clone()
+        .ok_or(StatusCode::SERVICE_UNAVAILABLE)
 }
 
 // 26 argomenti: e' il vero odore di questo file, da rifare con una struct di configurazione (referto 2026-09-09).
@@ -228,86 +245,162 @@ pub fn build(
 
     // Q49: l'archivio delle impronte vive accanto alla configurazione, come known_hosts.
     let certificati = Arc::new(crate::certificati::ImprontaStore::in_config(&config_dir));
-    let state = AppState { db, bus, alarms, historian, registry, py, auth, supervisor, script_supervisor, ide_only, project_epoch, functions, derived_tags, project_dir, projects_root, templates_root, logs, logs_dir, started_at, ip_allowlist, recipe_log: Arc::new(RwLock::new(Vec::new())), notification_supervisor: Arc::new(RwLock::new(None)), telegram_sender: Arc::new(RwLock::new(None)), config_dir, cert_path, build_running: crate::packaging::new_build_lock(), repo_root: crate::packaging::new_repo_root(), remote_target: Arc::new(RwLock::new(None)), certificati, audit, known_projects, instance_id, project_switch_lock: Arc::new(tokio::sync::Mutex::new(())), deploy_lock: Arc::new(tokio::sync::Mutex::new(())), project_write_lock: Arc::new(tokio::sync::Mutex::new(())) };
+    let state = AppState {
+        db,
+        bus,
+        alarms,
+        historian,
+        registry,
+        py,
+        auth,
+        supervisor,
+        script_supervisor,
+        ide_only,
+        project_epoch,
+        functions,
+        derived_tags,
+        project_dir,
+        projects_root,
+        templates_root,
+        logs,
+        logs_dir,
+        started_at,
+        ip_allowlist,
+        recipe_log: Arc::new(RwLock::new(Vec::new())),
+        notification_supervisor: Arc::new(RwLock::new(None)),
+        telegram_sender: Arc::new(RwLock::new(None)),
+        config_dir,
+        cert_path,
+        build_running: crate::packaging::new_build_lock(),
+        repo_root: crate::packaging::new_repo_root(),
+        remote_target: Arc::new(RwLock::new(None)),
+        certificati,
+        audit,
+        known_projects,
+        instance_id,
+        project_switch_lock: Arc::new(tokio::sync::Mutex::new(())),
+        deploy_lock: Arc::new(tokio::sync::Mutex::new(())),
+        project_write_lock: Arc::new(tokio::sync::Mutex::new(())),
+    };
     // Build the runtime router (8443) before consuming state for admin.
     let runtime_app = build_runtime_inner(state.clone(), www_dir.clone());
 
     // Routes that need Admin privileges (PUT /api/project/* — schema edits,
     // plus the multi-user CRUD).
     let admin_routes = Router::new()
-        .route("/api/project/tags",           put(update_project_tags))
+        .route("/api/project/tags", put(update_project_tags))
         .route("/api/project/tags/import-csv", post(import_tags_csv))
-        .route("/api/project/languages",      put(update_project_languages))
-        .route("/api/project/sources",        put(update_project_sources))
-        .route("/api/project/alarms",         put(update_project_alarms))
-        .route("/api/project/functions",      put(update_project_functions))
-        .route("/api/project/custom-symbols", put(update_project_custom_symbols))
-        .route("/api/project/datastores",      put(update_project_datastores))
-        .route("/api/project/global-scripts",  put(update_project_global_scripts))
-        .route("/api/project/notifications",   put(update_project_notifications))
-        .route("/api/project/page-layout",     put(update_project_page_layout))
-        .route("/api/project/backup-config",   put(update_project_backup_config))
+        .route("/api/project/languages", put(update_project_languages))
+        .route("/api/project/sources", put(update_project_sources))
+        .route("/api/project/alarms", put(update_project_alarms))
+        .route("/api/project/functions", put(update_project_functions))
+        .route(
+            "/api/project/custom-symbols",
+            put(update_project_custom_symbols),
+        )
+        .route("/api/project/datastores", put(update_project_datastores))
+        .route(
+            "/api/project/global-scripts",
+            put(update_project_global_scripts),
+        )
+        .route(
+            "/api/project/notifications",
+            put(update_project_notifications),
+        )
+        .route("/api/project/page-layout", put(update_project_page_layout))
+        .route(
+            "/api/project/backup-config",
+            put(update_project_backup_config),
+        )
         .route("/api/notifications/test-telegram", post(test_telegram))
-        .route("/api/notifications/telegram-chats", post(detect_telegram_chats))
-        .route("/api/project/rollback",        post(trigger_rollback))
+        .route(
+            "/api/notifications/telegram-chats",
+            post(detect_telegram_chats),
+        )
+        .route("/api/project/rollback", post(trigger_rollback))
         // Bulk project export/import (single ZIP carrying project.yaml +
         // every synoptic). Destructive on the import side — Admin only.
-        .route("/api/project/export",     get(export_project_zip))
-        .route("/api/project/import",     put(import_project_zip))
+        .route("/api/project/export", get(export_project_zip))
+        .route("/api/project/import", put(import_project_zip))
         // Backup management (admin-only; restore is destructive).
-        .route("/api/backups",
-            get(crate::backups::list_backups_handler).post(crate::backups::create_backup_handler))
-        .route("/api/backups/:name",
-            delete(crate::backups::delete_backup_handler))
-        .route("/api/backups/:name/restore",
-            post(crate::backups::restore_backup_handler))
-        .route("/api/backups/:name/download",
-            get(crate::backups::download_backup_handler))
-        .route("/api/auth/users",         get(list_users).post(create_user))
+        .route(
+            "/api/backups",
+            get(crate::backups::list_backups_handler).post(crate::backups::create_backup_handler),
+        )
+        .route(
+            "/api/backups/:name",
+            delete(crate::backups::delete_backup_handler),
+        )
+        .route(
+            "/api/backups/:name/restore",
+            post(crate::backups::restore_backup_handler),
+        )
+        .route(
+            "/api/backups/:name/download",
+            get(crate::backups::download_backup_handler),
+        )
+        .route("/api/auth/users", get(list_users).post(create_user))
         // Lato ricevente di "Aggiorna utenti sul dispositivo".
-        .route("/api/auth/users-file",    put(crate::projects::replace_users_file))
+        .route(
+            "/api/auth/users-file",
+            put(crate::projects::replace_users_file),
+        )
         // Lato ricevente di "Invia Client ID al dispositivo connesso" —
         // override per-device del client_id MQTT, esterno a project.yaml.
-        .route("/api/mqtt/source/:id/client-id-override",
-            put(crate::projects::set_mqtt_client_id_override))
-        .route("/api/auth/users/:username",
-            axum::routing::put(update_user).delete(delete_user))
+        .route(
+            "/api/mqtt/source/:id/client-id-override",
+            put(crate::projects::set_mqtt_client_id_override),
+        )
+        .route(
+            "/api/auth/users/:username",
+            axum::routing::put(update_user).delete(delete_user),
+        )
         // Remote deploy: download binary from GitHub Releases + SCP to device.
-        .route("/api/deploy/remote",       post(crate::deploy::deploy_remote))
+        .route("/api/deploy/remote", post(crate::deploy::deploy_remote))
         // Git push: push to default remote/branch. Admin-only (risk of exposing credentials).
-        .route("/api/project/git/push",    post(git_push))
+        .route("/api/project/git/push", post(git_push))
         // Aggancia il progetto a un repository (init + set/replace origin) — stessa
         // classe di rischio del push (configura dove finiscono commit/tag).
-        .route("/api/project/git/init",    post(git_init))
+        .route("/api/project/git/init", post(git_init))
         // Push/elimina un tag — stessa classe di rischio di push/rollback.
         .route("/api/project/git/tags/:name/push", post(push_git_tag))
-        .route("/api/project/git/tags/:name",      delete(delete_git_tag))
+        .route("/api/project/git/tags/:name", delete(delete_git_tag))
         // T-28: local package build + SSH device deploy.
-        .route("/api/build/package",       post(crate::packaging::build_package))
-        .route("/api/build/packages",      get(crate::packaging::list_packages))
-        .route("/api/deploy/device",       post(crate::packaging::deploy_device))
+        .route("/api/build/package", post(crate::packaging::build_package))
+        .route("/api/build/packages", get(crate::packaging::list_packages))
+        .route("/api/deploy/device", post(crate::packaging::deploy_device))
         // Container install via SSH — stesso deploy del binario nudo sopra,
         // ma installa il runtime come container Podman rootless (nessun sudo).
-        .route("/api/build/container-packages",
-            get(crate::packaging::list_container_packages))
-        .route("/api/deploy/device-container",
-            post(crate::packaging::deploy_device_container))
+        .route(
+            "/api/build/container-packages",
+            get(crate::packaging::list_container_packages),
+        )
+        .route(
+            "/api/deploy/device-container",
+            post(crate::packaging::deploy_device_container),
+        )
         // Toglie dal known_hosts di questo PC le chiavi di un dispositivo che
         // ha cambiato identità (factory reset). Mai automatico: ci si arriva
         // solo dal pulsante che compare quando il deploy si ferma per questo.
-        .route("/api/device/hostkey/forget",
-            post(crate::packaging::dimentica_chiave_host))
+        .route(
+            "/api/device/hostkey/forget",
+            post(crate::packaging::dimentica_chiave_host),
+        )
         // Q49: gemello per il certificato TLS del dispositivo.
-        .route("/api/device/cert/forget",
-            post(crate::remote::dimentica_certificato))
+        .route(
+            "/api/device/cert/forget",
+            post(crate::remote::dimentica_certificato),
+        )
         // Lifecycle on an already-installed container (status/start/stop/
         // restart/enable/disable/restart-policy/uninstall) — locally on this
         // host or over SSH, independent of any prior deploy's remote_dir.
-        .route("/api/deploy/device-container/manage",
-            post(crate::packaging::manage_device_container))
+        .route(
+            "/api/deploy/device-container/manage",
+            post(crate::packaging::manage_device_container),
+        )
         // Audit log (OPEN_QUESTIONS Q8): who-did-what trail, tamper-evident.
-        .route("/api/audit",               get(get_audit_tail))
-        .route("/api/audit/verify",        get(get_audit_verify))
+        .route("/api/audit", get(get_audit_tail))
+        .route("/api/audit/verify", get(get_audit_verify))
         // T-50 — lo schema del progetto e il giudizio su una modifica proposta.
         //
         // `POST /api/project/validate` riceve un progetto e **non lo salva**:
@@ -316,13 +409,19 @@ pub fn build(
         // che è il ciclo con cui un assistente si corregge da solo invece di
         // lasciare il difetto al pannello. Vale anche senza IA: prima non
         // c'era modo di chiedere «questo progetto è valido?» senza rovinarlo.
-        .route("/api/project/validate",    post(crate::schema_api::validate_project))
-        .route("/api/schema/synoptic",     get(crate::schema_api::schema_synoptic))
-        .route("/api/schema/source",       get(crate::schema_api::schema_source))
+        .route(
+            "/api/project/validate",
+            post(crate::schema_api::validate_project),
+        )
+        .route(
+            "/api/schema/synoptic",
+            get(crate::schema_api::schema_synoptic),
+        )
+        .route("/api/schema/source", get(crate::schema_api::schema_source))
         // La chat dell'assistente. Admin come tutto ciò che riguarda il
         // progetto: chi non può modificarlo non ha motivo di farsi proporre
         // modifiche. Non scrive niente — manda proposte al browser.
-        .route("/ws/ai",                   get(crate::ai::ws_ai_handler))
+        .route("/ws/ai", get(crate::ai::ws_ai_handler))
         .route_layer(middleware::from_fn(require_admin));
 
     // Routes that need Operator+ (tag writes, alarm ACK, script exec,
@@ -330,76 +429,121 @@ pub fn build(
     // can't change state. Synoptic writes moved to supervisor_routes
     // below — Operators are runtime users, not project editors.
     let operator_routes = Router::new()
-        .route("/api/tags/:id",           put(write_tag))
-        .route("/api/alarms/:id/ack",     post(ack_alarm))
-        .route("/api/alarms/:id/shelve",  post(shelve_alarm).delete(unshelve_alarm))
-        .route("/api/alarms/shelved",     get(list_shelved_alarms))
+        .route("/api/tags/:id", put(write_tag))
+        .route("/api/alarms/:id/ack", post(ack_alarm))
+        .route(
+            "/api/alarms/:id/shelve",
+            post(shelve_alarm).delete(unshelve_alarm),
+        )
+        .route("/api/alarms/shelved", get(list_shelved_alarms))
         // Recipe apply — writes multiple tags atomically
-        .route("/api/recipes/:id/apply",  post(apply_recipe))
+        .route("/api/recipes/:id/apply", post(apply_recipe))
         // Compila e non esegue: strumento di progettazione, nessun effetto.
-        .route("/api/script/check",    post(check_script))
+        .route("/api/script/check", post(check_script))
         .route("/api/script/run/:name", post(run_function))
         // Logs — read-only but Operator+ so the audit surface stays
         // narrow (logs may include schema/secret hints).
-        .route("/api/logs",            get(get_logs))
-        .route("/api/logs/files",      get(list_log_files))
-        .route("/api/logs/file",       get(get_log_file))
-        .route("/ws/logs",             get(ws_logs_handler))
+        .route("/api/logs", get(get_logs))
+        .route("/api/logs/files", get(list_log_files))
+        .route("/api/logs/file", get(get_log_file))
+        .route("/ws/logs", get(ws_logs_handler))
         // MQTT broker browse: temporary connection, subscribe #, return topics.
         .route("/api/sources/mqtt/browse", post(mqtt_browse_handler))
         // OPC-UA server browse: one level under a NodeId (default Objects).
         .route("/api/sources/opcua/browse", post(opcua_browse_handler))
         // OPC-UA Euromap 77/83 companion-spec auto-detect.
-        .route("/api/sources/opcua/detect-euromap", post(opcua_detect_euromap_handler))
+        .route(
+            "/api/sources/opcua/detect-euromap",
+            post(opcua_detect_euromap_handler),
+        )
         // OPC-UA historical read — fetches raw data directly from the server's historian.
         .route("/api/sources/opcua/history", post(opcua_history_handler))
         // HomeAssistant entity browse: proxy GET /api/states to HA and return entities.
         .route("/api/sources/ha/browse", post(ha_browse_handler))
-        .route("/api/system",             get(crate::system::get_system_status))
-        .route("/api/project/deploy",     post(trigger_deploy))
+        .route("/api/system", get(crate::system::get_system_status))
+        .route("/api/project/deploy", post(trigger_deploy))
         .route_layer(middleware::from_fn(require_operator));
 
     let system_ctrl_routes = Router::new()
-        .route("/api/project/migrate",     post(crate::system::migrate_project))
-        .route("/api/system/stop",         post(crate::system::system_stop))
-        .route("/api/system/start",        post(crate::system::system_start))
-        .route("/api/system/reboot",       post(crate::system::system_reboot))
+        .route("/api/project/migrate", post(crate::system::migrate_project))
+        .route("/api/system/stop", post(crate::system::system_stop))
+        .route("/api/system/start", post(crate::system::system_start))
+        .route("/api/system/reboot", post(crate::system::system_reboot))
         // La configurazione dell'assistente IA. Esistono **solo** su un'istanza
         // IDE-only (il gate è dentro gli handler, `ai/config_api.rs`): su un
         // runtime che serve un impianto rispondono 404. Stanno qui perché sono
         // configurazione del runtime, come il TLS, e non del progetto.
-        .route("/api/ai/config",
+        .route(
+            "/api/ai/config",
             get(crate::ai::config_api::get_ai_config)
                 .put(crate::ai::config_api::put_ai_config)
-                .delete(crate::ai::config_api::delete_ai_config))
-        .route("/api/system/tls",          get(crate::system::get_tls_status))
-        .route("/api/system/tls/generate", post(crate::system::generate_tls_cert))
-        .route("/api/system/tls",          put(crate::system::upload_tls_cert))
-        .route("/api/system/tls",          delete(crate::system::remove_tls_cert))
+                .delete(crate::ai::config_api::delete_ai_config),
+        )
+        .route("/api/system/tls", get(crate::system::get_tls_status))
+        .route(
+            "/api/system/tls/generate",
+            post(crate::system::generate_tls_cert),
+        )
+        .route("/api/system/tls", put(crate::system::upload_tls_cert))
+        .route("/api/system/tls", delete(crate::system::remove_tls_cert))
         // Remote runtime bridge: connect/disconnect/status + WS relay
-        .route("/api/remote/connect",      post(crate::remote::connect_remote)
-                                           .delete(crate::remote::disconnect_remote))
-        .route("/api/remote/status",       get(crate::remote::remote_status))
-        .route("/api/remote/deploy",       post(crate::remote::remote_deploy))
-        .route("/api/remote/project/delete", post(crate::remote::delete_remote_project))
-        .route("/api/remote/project/export", get(crate::remote::remote_export_project))
+        .route(
+            "/api/remote/connect",
+            post(crate::remote::connect_remote).delete(crate::remote::disconnect_remote),
+        )
+        .route("/api/remote/status", get(crate::remote::remote_status))
+        .route("/api/remote/deploy", post(crate::remote::remote_deploy))
+        .route(
+            "/api/remote/project/delete",
+            post(crate::remote::delete_remote_project),
+        )
+        .route(
+            "/api/remote/project/export",
+            get(crate::remote::remote_export_project),
+        )
         // Allineamento esplicito degli account: il deploy non li tocca.
-        .route("/api/remote/users",        post(crate::remote::remote_push_users))
+        .route("/api/remote/users", post(crate::remote::remote_push_users))
         // "Invia Client ID al dispositivo connesso" — override per-device del
         // client_id MQTT, esterno a project.yaml.
-        .route("/api/remote/mqtt-client-id", post(crate::remote::remote_push_mqtt_client_id))
+        .route(
+            "/api/remote/mqtt-client-id",
+            post(crate::remote::remote_push_mqtt_client_id),
+        )
         // Stato RUNTIME/SISTEMA del dispositivo connesso — non del backend locale.
-        .route("/api/remote/system", get(crate::remote::remote_system_status))
+        .route(
+            "/api/remote/system",
+            get(crate::remote::remote_system_status),
+        )
         // Database del datastore sul dispositivo connesso — non quello locale.
-        .route("/api/remote/database/:id/download", get(crate::remote::remote_download_database))
-        .route("/api/remote/database/:id/upload",   post(crate::remote::remote_upload_database))
+        .route(
+            "/api/remote/database/:id/download",
+            get(crate::remote::remote_download_database),
+        )
+        .route(
+            "/api/remote/database/:id/upload",
+            post(crate::remote::remote_upload_database),
+        )
         // Backup del dispositivo connesso — non quelli del progetto locale.
-        .route("/api/remote/backups",
-            get(crate::remote::remote_list_backups).post(crate::remote::remote_create_backup))
-        .route("/api/remote/backups/:name/download", get(crate::remote::remote_download_backup))
-        .route("/api/remote/backups/:name/restore",  post(crate::remote::remote_restore_backup))
-        .route("/api/remote/backups/:name",          delete(crate::remote::remote_delete_backup))
-        .route("/ws/remote/:sub",          get(crate::remote_relay::ws_relay_handler))
+        .route(
+            "/api/remote/backups",
+            get(crate::remote::remote_list_backups).post(crate::remote::remote_create_backup),
+        )
+        .route(
+            "/api/remote/backups/:name/download",
+            get(crate::remote::remote_download_backup),
+        )
+        .route(
+            "/api/remote/backups/:name/restore",
+            post(crate::remote::remote_restore_backup),
+        )
+        .route(
+            "/api/remote/backups/:name",
+            delete(crate::remote::remote_delete_backup),
+        )
+        .route(
+            "/ws/remote/:sub",
+            get(crate::remote_relay::ws_relay_handler),
+        )
         .route_layer(middleware::from_fn(require_admin));
 
     // Routes that need Supervisor+ — project editing surface that
@@ -408,7 +552,10 @@ pub fn build(
     // admin_routes above; this group only covers what the frontend
     // editor saves.
     let supervisor_routes = Router::new()
-        .route("/api/synoptics/:name", put(save_synoptic).delete(delete_synoptic))
+        .route(
+            "/api/synoptics/:name",
+            put(save_synoptic).delete(delete_synoptic),
+        )
         .route("/api/synoptics/import", post(import_synoptic_yaml))
         // mDNS discovery: scan LAN for _sws._tcp.local. services (~2 s).
         // Supervisor+ only — used from the RuntimeConnectionTab deploy panel.
@@ -418,50 +565,61 @@ pub fn build(
         .route("/api/remote/cert", get(crate::remote::remote_cert))
         // Upload/rimozione immagini di progetto (le letture stanno nei tier
         // read-only di entrambe le porte).
-        .route("/api/project/images/:name", post(upload_project_image).delete(delete_project_image))
+        .route(
+            "/api/project/images/:name",
+            post(upload_project_image).delete(delete_project_image),
+        )
         // Git commit: stage all changes and create a commit.
         .route("/api/project/git/commit", post(git_commit))
         // Crea un tag — stessa classe di rischio del commit (scrittura locale).
-        .route("/api/project/git/tags",   post(create_git_tag))
+        .route("/api/project/git/tags", post(create_git_tag))
         .route_layer(middleware::from_fn(require_supervisor));
 
     // Routes any authenticated user (incl. Viewer) can hit.
     let read_routes = Router::new()
         // Tag REST (reads)
-        .route("/api/tags",      get(get_all_tags))
-        .route("/api/tags/:id",  get(get_tag))
+        .route("/api/tags", get(get_all_tags))
+        .route("/api/tags/:id", get(get_tag))
         // Alarm REST (reads)
-        .route("/api/alarms",         get(get_alarms))
+        .route("/api/alarms", get(get_alarms))
         .route("/api/alarms/history", get(get_alarm_history))
         // Historian
-        .route("/api/history/export",      get(export_history_csv))   // literal before :tag
-        .route("/api/history/:tag/stats",  get(tag_history_stats))
-        .route("/api/history/:tag",        get(get_history))
+        .route("/api/history/export", get(export_history_csv)) // literal before :tag
+        .route("/api/history/:tag/stats", get(tag_history_stats))
+        .route("/api/history/:tag", get(get_history))
         // (Datastore routes are in a dedicated router below — see datastore_routes)
         // Synoptic REST (reads)
-        .route("/api/synoptics",       get(list_synoptics))
+        .route("/api/synoptics", get(list_synoptics))
         .route("/api/synoptics/:name", get(get_synoptic))
         // Immagini di progetto (letture — servite anche al viewer, vedi sotto)
-        .route("/api/project/images",       get(list_project_images))
+        .route("/api/project/images", get(list_project_images))
         .route("/api/project/images/:name", get(get_project_image))
         // Per-page export — raw YAML download. Same shape as the file on disk,
         // small enough to skip the ZIP wrapper used by the bulk export.
         .route("/api/synoptics/:name/export", get(export_synoptic_yaml))
         // Faceplate REST (read + write — Operator+ can read, Configurator+ can write)
-        .route("/api/faceplates",       get(list_faceplates))
-        .route("/api/faceplates/:id",   get(get_faceplate).put(save_faceplate).delete(delete_faceplate))
+        .route("/api/faceplates", get(list_faceplates))
+        .route(
+            "/api/faceplates/:id",
+            get(get_faceplate)
+                .put(save_faceplate)
+                .delete(delete_faceplate),
+        )
         // Recipe REST (read)
-        .route("/api/recipes",          get(list_recipes))
-        .route("/api/recipes/history",  get(get_recipe_history))
-        .route("/api/recipes/:id",      get(get_recipe).put(save_recipe).delete(delete_recipe))
+        .route("/api/recipes", get(list_recipes))
+        .route("/api/recipes/history", get(get_recipe_history))
+        .route(
+            "/api/recipes/:id",
+            get(get_recipe).put(save_recipe).delete(delete_recipe),
+        )
         // GitOps status (read-only — any authenticated user)
         .route("/api/project/git-status", get(get_git_status))
-        .route("/api/project/git/tags",   get(list_git_tags))
+        .route("/api/project/git/tags", get(list_git_tags))
         // Project fingerprint: SHA256 of project.yaml + all synoptics.
         // Clients compare local vs. remote fingerprint to verify deployment sync.
         .route("/api/project/fingerprint", get(get_project_fingerprint))
         // WebSocket streams
-        .route("/ws/tags",   get(ws_tags_handler))
+        .route("/ws/tags", get(ws_tags_handler))
         .route("/ws/alarms", get(ws_alarms_handler));
 
     // Datastore routes — all in ONE router to avoid Axum v0.7 matchit
@@ -470,33 +628,49 @@ pub fn build(
     // shared route_layer so they coexist with the read routes.
     let require_admin_layer = middleware::from_fn(require_admin);
     let datastore_routes = Router::new()
-        .route("/api/datastores",           get(list_datastores))
+        .route("/api/datastores", get(list_datastores))
         .route("/api/datastores/:id/stats", get(datastore_stats))
-        .route("/api/datastores/:id/test",
-            post(datastore_test).route_layer(require_admin_layer.clone()))
-        .route("/api/datastores/:id/tags",  get(datastore_tags))
+        .route(
+            "/api/datastores/:id/test",
+            post(datastore_test).route_layer(require_admin_layer.clone()),
+        )
+        .route("/api/datastores/:id/tags", get(datastore_tags))
         .route("/api/datastores/:id/delete-tag", post(datastore_delete_tag))
         .route("/api/datastores/:id/vacuum", post(datastore_vacuum))
-        .route("/api/datastores/:id/purge",
-            post(datastore_purge).route_layer(require_admin_layer.clone()))
-        .route("/api/datastores/:id/export",
-            get(datastore_export).route_layer(require_admin_layer.clone()))
-        .route("/api/datastores/:id/download",
-            get(datastore_download).route_layer(require_admin_layer.clone()))
-        .route("/api/datastores/:id/upload",
-            post(datastore_upload).route_layer(require_admin_layer.clone()));
+        .route(
+            "/api/datastores/:id/purge",
+            post(datastore_purge).route_layer(require_admin_layer.clone()),
+        )
+        .route(
+            "/api/datastores/:id/export",
+            get(datastore_export).route_layer(require_admin_layer.clone()),
+        )
+        .route(
+            "/api/datastores/:id/download",
+            get(datastore_download).route_layer(require_admin_layer.clone()),
+        )
+        .route(
+            "/api/datastores/:id/upload",
+            post(datastore_upload).route_layer(require_admin_layer.clone()),
+        );
 
     // OPC-UA cert trust management — separate router to avoid matchit
     // conflicts with /api/sources/opcua/browse (literal) vs :id (param).
     // GET list is Supervisor+; POST trust and DELETE are Admin-only.
     let require_supervisor_layer = middleware::from_fn(require_supervisor);
     let opcua_cert_routes = Router::new()
-        .route("/api/sources/:id/opcua/certs",
-            get(opcua_list_certs).route_layer(require_supervisor_layer))
-        .route("/api/sources/:id/opcua/certs/:filename/trust",
-            post(opcua_trust_cert).route_layer(require_admin_layer.clone()))
-        .route("/api/sources/:id/opcua/certs/:filename",
-            delete(opcua_delete_cert).route_layer(require_admin_layer));
+        .route(
+            "/api/sources/:id/opcua/certs",
+            get(opcua_list_certs).route_layer(require_supervisor_layer),
+        )
+        .route(
+            "/api/sources/:id/opcua/certs/:filename/trust",
+            post(opcua_trust_cert).route_layer(require_admin_layer.clone()),
+        )
+        .route(
+            "/api/sources/:id/opcua/certs/:filename",
+            delete(opcua_delete_cert).route_layer(require_admin_layer),
+        );
 
     // The "blocking" set — all routes above plus all the operator/admin
     // routes — is gated by the must_change_password flag in addition to
@@ -514,11 +688,11 @@ pub fn build(
     // Self-service endpoints: any authenticated user, including one with
     // must_change_password=true, can hit these.
     let self_service = Router::new()
-        .route("/api/auth/whoami",          get(whoami))
-        .route("/api/auth/logout",          post(logout))
+        .route("/api/auth/whoami", get(whoami))
+        .route("/api/auth/logout", post(logout))
         .route("/api/auth/change-password", post(change_password))
         .route("/api/auth/verify-password", post(verify_password_handler))
-        .route("/api/auth/refresh",         post(refresh_session));
+        .route("/api/auth/refresh", post(refresh_session));
 
     let protected = blocking
         .merge(self_service)
@@ -530,32 +704,40 @@ pub fn build(
     // GET /api/project is also pre-auth: the WelcomeScreen needs to know
     // whether a project is active (503 = none) before any session exists.
     let project_lifecycle = Router::new()
-        .route("/api/project",   get(get_project))
-        .route("/api/projects",
-            get(crate::projects::list_projects).post(crate::projects::create_project))
-        .route("/api/projects/:name/open",
-            post(crate::projects::open_project))
-        .route("/api/projects/:name/rename",
-            post(crate::projects::rename_project))
-        .route("/api/projects/:name/duplicate",
-            post(crate::projects::duplicate_project))
-        .route("/api/projects/:name",
-            delete(crate::projects::delete_project))
-        .route("/api/projects/close",
-            post(crate::projects::close_project))
-        .route("/api/projects/upload",
-            post(crate::projects::upload_project_zip))
-        .route("/api/templates",
-            get(crate::templates::list_templates))
+        .route("/api/project", get(get_project))
+        .route(
+            "/api/projects",
+            get(crate::projects::list_projects).post(crate::projects::create_project),
+        )
+        .route(
+            "/api/projects/:name/open",
+            post(crate::projects::open_project),
+        )
+        .route(
+            "/api/projects/:name/rename",
+            post(crate::projects::rename_project),
+        )
+        .route(
+            "/api/projects/:name/duplicate",
+            post(crate::projects::duplicate_project),
+        )
+        .route(
+            "/api/projects/:name",
+            delete(crate::projects::delete_project),
+        )
+        .route("/api/projects/close", post(crate::projects::close_project))
+        .route(
+            "/api/projects/upload",
+            post(crate::projects::upload_project_zip),
+        )
+        .route("/api/templates", get(crate::templates::list_templates))
         // Mini directory browser backing the "choose a destination folder"
         // picker in the New Project dialog. Pre-auth like the rest of this
         // group — no session exists yet when creating the first project.
-        .route("/api/fs/browse-dirs",
-            get(crate::projects::browse_dirs))
+        .route("/api/fs/browse-dirs", get(crate::projects::browse_dirs))
         // "New folder" inside that picker. Same pre-auth posture — see the
         // handler doc comment for why this adds no new capability.
-        .route("/api/fs/mkdir",
-            post(crate::projects::create_dir));
+        .route("/api/fs/mkdir", post(crate::projects::create_dir));
 
     // Install the Prometheus recorder once. Calling this multiple times in
     // the same process (e.g. tests that build several routers) is safe.
@@ -567,8 +749,10 @@ pub fn build(
     // SPA and load index-admin.html instead.
     let sw_unregister = get(|| async {
         (
-            [(axum::http::header::CONTENT_TYPE,  "application/javascript"),
-             (axum::http::header::CACHE_CONTROL, "no-store")],
+            [
+                (axum::http::header::CONTENT_TYPE, "application/javascript"),
+                (axum::http::header::CACHE_CONTROL, "no-store"),
+            ],
             "self.addEventListener('install',()=>self.skipWaiting());\
              self.addEventListener('activate',e=>e.waitUntil(self.registration.unregister()));",
         )
@@ -576,10 +760,10 @@ pub fn build(
 
     // Always-open routes: liveness probes + login + cert download + project lifecycle.
     let open = Router::new()
-        .route("/health",  get(|| async { "ok" }))
+        .route("/health", get(|| async { "ok" }))
         .route("/metrics", get(crate::metrics::get_metrics))
-        .route("/cert",    get(get_cert))
-        .route("/sw.js",   sw_unregister)
+        .route("/cert", get(get_cert))
+        .route("/sw.js", sw_unregister)
         .route("/api/auth/login", post(login))
         .merge(project_lifecycle);
 
@@ -626,7 +810,11 @@ pub fn build(
         // "index-admin.html" is the Vite output for the admin entry point.
         // Falls back to index.html when the admin bundle hasn't been built.
         let admin_html = dir.join("index-admin.html");
-        let fallback_html = if admin_html.exists() { admin_html } else { dir.join("index.html") };
+        let fallback_html = if admin_html.exists() {
+            admin_html
+        } else {
+            dir.join("index.html")
+        };
         // Disable ServeDir's automatic directory-index (which would serve
         // index.html for "/"), so that "/" also falls into not_found_service
         // and gets served index-admin.html instead.
@@ -712,39 +900,48 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
 
     let gestione = Router::new()
         // ── Deploy: la ragione per cui questa porta esiste ──────────────────
-        .route("/api/projects",              get(pj::list_projects))
-        .route("/api/projects/upload",       post(pj::upload_project_zip))
-        .route("/api/projects/:name/open",   post(pj::open_project))
-        .route("/api/projects/close",        post(pj::close_project))
-        .route("/api/projects/:name",        delete(pj::delete_project))
+        .route("/api/projects", get(pj::list_projects))
+        .route("/api/projects/upload", post(pj::upload_project_zip))
+        .route("/api/projects/:name/open", post(pj::open_project))
+        .route("/api/projects/close", post(pj::close_project))
+        .route("/api/projects/:name", delete(pj::delete_project))
         // ── Pull: il verso opposto ─────────────────────────────────────────
-        .route("/api/project/export",        get(export_project_zip))
+        .route("/api/project/export", get(export_project_zip))
         // ── Stato, che l'IDE legge per dire com'è il dispositivo ───────────
-        .route("/api/project",               get(get_project))
-        .route("/api/system",                get(crate::system::get_system_status))
+        .route("/api/project", get(get_project))
+        .route("/api/system", get(crate::system::get_system_status))
         // ── Utenti: azione deliberata, il deploy non li tocca ──────────────
         //
         // I verbi sono quelli che `remote.rs` usa davvero (`PUT`, non `POST`):
         // sbagliarli farebbe 405 dove l'editor si aspetta 204, e il messaggio
         // d'errore non direbbe perché.
-        .route("/api/auth/users",            get(list_users).post(create_user))
-        .route("/api/auth/users-file",       put(pj::replace_users_file))
+        .route("/api/auth/users", get(list_users).post(create_user))
+        .route("/api/auth/users-file", put(pj::replace_users_file))
         // ── Backup ─────────────────────────────────────────────────────────
-        .route("/api/backups",
-            get(crate::backups::list_backups_handler)
-                .post(crate::backups::create_backup_handler))
-        .route("/api/backups/:name/download",
-            get(crate::backups::download_backup_handler))
-        .route("/api/backups/:name/restore",
-            post(crate::backups::restore_backup_handler))
-        .route("/api/backups/:name",
-            delete(crate::backups::delete_backup_handler))
+        .route(
+            "/api/backups",
+            get(crate::backups::list_backups_handler).post(crate::backups::create_backup_handler),
+        )
+        .route(
+            "/api/backups/:name/download",
+            get(crate::backups::download_backup_handler),
+        )
+        .route(
+            "/api/backups/:name/restore",
+            post(crate::backups::restore_backup_handler),
+        )
+        .route(
+            "/api/backups/:name",
+            delete(crate::backups::delete_backup_handler),
+        )
         // ── Datastore ──────────────────────────────────────────────────────
         .route("/api/datastores/:id/download", get(datastore_download))
-        .route("/api/datastores/:id/upload",   post(datastore_upload))
+        .route("/api/datastores/:id/upload", post(datastore_upload))
         // ── Override per-dispositivo del client id MQTT ────────────────────
-        .route("/api/mqtt/source/:id/client-id-override",
-               put(pj::set_mqtt_client_id_override))
+        .route(
+            "/api/mqtt/source/:id/client-id-override",
+            put(pj::set_mqtt_client_id_override),
+        )
         .route_layer(middleware::from_fn(require_admin))
         .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
 
@@ -768,14 +965,14 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
     // stanno su nessuna delle due porte. Se un giorno servisse, è una decisione
     // da prendere, non da far scivolare dentro insieme ai tag.
     let flussi = Router::new()
-        .route("/ws/tags",   get(ws_tags_handler))
+        .route("/ws/tags", get(ws_tags_handler))
         .route("/ws/alarms", get(ws_alarms_handler))
         .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
 
     let aperte = Router::new()
-        .route("/health",         get(|| async { "ok" }))
-        .route("/metrics",        get(crate::metrics::get_metrics))
-        .route("/cert",           get(get_cert))
+        .route("/health", get(|| async { "ok" }))
+        .route("/metrics", get(crate::metrics::get_metrics))
+        .route("/cert", get(get_cert))
         .route("/api/auth/login", post(login));
 
     // Lo stato **non** si applica qui: lo fa il chiamante alla fine, insieme al
@@ -787,13 +984,16 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
 fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
     // Operator-required routes: tag writes, alarm ops, recipe apply, scripts.
     let operator_routes = Router::new()
-        .route("/api/tags/:id",          put(write_tag))
-        .route("/api/alarms/:id/ack",    post(ack_alarm))
-        .route("/api/alarms/:id/shelve", post(shelve_alarm).delete(unshelve_alarm))
-        .route("/api/alarms/shelved",    get(list_shelved_alarms))
+        .route("/api/tags/:id", put(write_tag))
+        .route("/api/alarms/:id/ack", post(ack_alarm))
+        .route(
+            "/api/alarms/:id/shelve",
+            post(shelve_alarm).delete(unshelve_alarm),
+        )
+        .route("/api/alarms/shelved", get(list_shelved_alarms))
         .route("/api/recipes/:id/apply", post(apply_recipe))
-        .route("/api/script/run/:name",  post(run_function))
-        .route("/api/system",            get(crate::system::get_system_status));
+        .route("/api/script/run/:name", post(run_function))
+        .route("/api/system", get(crate::system::get_system_status));
     // Q47 (2026-09-09): `/api/script/exec` — esecuzione di Python arbitrario —
     // non c'è più, da nessuna parte: nessuna interfaccia lo chiamava e gli
     // script di progetto non passano da HTTP. Resta `/api/script/run/:name`,
@@ -802,35 +1002,35 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
 
     // Anonymous-readable routes: synoptic, tags, alarms, history, WS streams.
     let read_routes = Router::new()
-        .route("/api/tags",               get(get_all_tags))
-        .route("/api/tags/:id",           get(get_tag))
-        .route("/api/alarms",             get(get_alarms))
-        .route("/api/alarms/history",     get(get_alarm_history))
-        .route("/api/history/export",     get(export_history_csv))
+        .route("/api/tags", get(get_all_tags))
+        .route("/api/tags/:id", get(get_tag))
+        .route("/api/alarms", get(get_alarms))
+        .route("/api/alarms/history", get(get_alarm_history))
+        .route("/api/history/export", get(export_history_csv))
         .route("/api/history/:tag/stats", get(tag_history_stats))
-        .route("/api/history/:tag",       get(get_history))
-        .route("/api/synoptics",          get(list_synoptics))
-        .route("/api/synoptics/:name",    get(get_synoptic))
-        .route("/api/project/images",       get(list_project_images))
+        .route("/api/history/:tag", get(get_history))
+        .route("/api/synoptics", get(list_synoptics))
+        .route("/api/synoptics/:name", get(get_synoptic))
+        .route("/api/project/images", get(list_project_images))
         .route("/api/project/images/:name", get(get_project_image))
-        .route("/api/faceplates",         get(list_faceplates))
-        .route("/api/faceplates/:id",     get(get_faceplate))
-        .route("/api/recipes",            get(list_recipes))
-        .route("/api/recipes/history",    get(get_recipe_history))
-        .route("/api/recipes/:id",        get(get_recipe))
-        .route("/api/datastores",         get(list_datastores))
+        .route("/api/faceplates", get(list_faceplates))
+        .route("/api/faceplates/:id", get(get_faceplate))
+        .route("/api/recipes", get(list_recipes))
+        .route("/api/recipes/history", get(get_recipe_history))
+        .route("/api/recipes/:id", get(get_recipe))
+        .route("/api/datastores", get(list_datastores))
         .route("/api/datastores/:id/stats", get(datastore_stats))
         .route("/api/project/fingerprint", get(get_project_fingerprint))
-        .route("/ws/tags",                get(ws_tags_handler))
-        .route("/ws/alarms",              get(ws_alarms_handler));
+        .route("/ws/tags", get(ws_tags_handler))
+        .route("/ws/alarms", get(ws_alarms_handler));
 
     // Self-service: token must be valid but not blocked by password-change flag.
     let self_service = Router::new()
-        .route("/api/auth/whoami",          get(whoami))
-        .route("/api/auth/logout",          post(logout))
+        .route("/api/auth/whoami", get(whoami))
+        .route("/api/auth/logout", post(logout))
         .route("/api/auth/change-password", post(change_password))
         .route("/api/auth/verify-password", post(verify_password_handler))
-        .route("/api/auth/refresh",         post(refresh_session));
+        .route("/api/auth/refresh", post(refresh_session));
 
     // Wrap all gated routes with optional_auth so every request has AuthUser.
     let gated = read_routes
@@ -841,18 +1041,19 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
     // Open: no auth needed. Only /api/project (current active project status)
     // is exposed on the runtime port — project management routes live on 8444 only.
     let open = Router::new()
-        .route("/health",         get(|| async { "ok" }))
-        .route("/metrics",        get(crate::metrics::get_metrics))
-        .route("/cert",           get(get_cert))
+        .route("/health", get(|| async { "ok" }))
+        .route("/metrics", get(crate::metrics::get_metrics))
+        .route("/cert", get(get_cert))
         .route("/api/auth/login", post(login))
-        .route("/api/project",    get(get_project));
+        .route("/api/project", get(get_project));
 
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods(Any)
         .allow_headers(Any);
 
-    let mut router = open.merge(gated)
+    let mut router = open
+        .merge(gated)
         .layer(middleware::from_fn(crate::metrics::track_http_metrics))
         .layer(cors)
         .with_state(state);
@@ -872,11 +1073,7 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
 /// or the `?token=...` query string (the latter is for browser WebSocket
 /// upgrades, which cannot set custom headers). Inserts the resolved
 /// username into request extensions for downstream handlers.
-async fn require_auth(
-    State(s): State<AppState>,
-    mut req: Request,
-    next: Next,
-) -> Response {
+async fn require_auth(State(s): State<AppState>, mut req: Request, next: Next) -> Response {
     // No users defined (no project, or project without users) → open / no-auth mode.
     // Inject a synthetic AuthUser so all downstream handlers see an Admin-level
     // caller — the frontend never shows the login screen and all routes work.
@@ -899,7 +1096,8 @@ async fn require_auth(
         .or_else(|| {
             let uri = req.uri();
             let q = uri.query().unwrap_or("");
-            url_form_decode(q).into_iter()
+            url_form_decode(q)
+                .into_iter()
                 .find(|(k, _)| k == "token")
                 .map(|(_, v)| v)
         });
@@ -943,7 +1141,8 @@ async fn require_password_changed(req: Request, next: Next) -> Response {
                     "error":  "password_change_required",
                     "detail": "you must change your password before using the API",
                 })),
-            ).into_response();
+            )
+                .into_response();
         }
     }
     next.run(req).await
@@ -955,7 +1154,11 @@ fn check_role(req: &Request, min: Role) -> Option<StatusCode> {
     let Some(user) = req.extensions().get::<AuthUser>() else {
         return Some(StatusCode::UNAUTHORIZED);
     };
-    if user.role < min { Some(StatusCode::FORBIDDEN) } else { None }
+    if user.role < min {
+        Some(StatusCode::FORBIDDEN)
+    } else {
+        None
+    }
 }
 
 async fn require_operator(req: Request, next: Next) -> Response {
@@ -987,11 +1190,7 @@ async fn require_admin(req: Request, next: Next) -> Response {
 ///
 /// Used by the runtime router (port 8443) to allow anonymous read-only access
 /// to the synoptic SPA without removing the role-check guards on write routes.
-async fn optional_auth(
-    State(s): State<AppState>,
-    mut req: Request,
-    next: Next,
-) -> Response {
+async fn optional_auth(State(s): State<AppState>, mut req: Request, next: Next) -> Response {
     // No users defined → no-auth mode: inject synthetic Admin (mirrors require_auth).
     if !s.auth.has_users().await {
         req.extensions_mut().insert(AuthUser {
@@ -1011,7 +1210,8 @@ async fn optional_auth(
         .map(|t| t.to_string())
         .or_else(|| {
             let q = req.uri().query().unwrap_or("");
-            url_form_decode(q).into_iter()
+            url_form_decode(q)
+                .into_iter()
                 .find(|(k, _)| k == "token")
                 .map(|(_, v)| v)
         });
@@ -1026,11 +1226,21 @@ async fn optional_auth(
             }
         } else {
             // Expired / unknown token → anonymous
-            AuthUser { username: String::new(), role: Role::Viewer, must_change_password: false, allowed_zones: vec![] }
+            AuthUser {
+                username: String::new(),
+                role: Role::Viewer,
+                must_change_password: false,
+                allowed_zones: vec![],
+            }
         }
     } else {
         // No token → anonymous read-only
-        AuthUser { username: String::new(), role: Role::Viewer, must_change_password: false, allowed_zones: vec![] }
+        AuthUser {
+            username: String::new(),
+            role: Role::Viewer,
+            must_change_password: false,
+            allowed_zones: vec![],
+        }
     };
     req.extensions_mut().insert(auth_user);
     next.run(req).await
@@ -1062,7 +1272,10 @@ async fn get_cert(State(s): State<AppState>) -> Response {
         Ok(bytes) => Response::builder()
             .status(StatusCode::OK)
             .header(header::CONTENT_TYPE, "application/x-pem-file")
-            .header(header::CONTENT_DISPOSITION, "attachment; filename=\"sws.crt\"")
+            .header(
+                header::CONTENT_DISPOSITION,
+                "attachment; filename=\"sws.crt\"",
+            )
             .body(axum::body::Body::from(bytes))
             .unwrap(),
         Err(_) => StatusCode::NOT_FOUND.into_response(),
@@ -1082,13 +1295,16 @@ async fn login(
         let peer_ip: Option<std::net::IpAddr> = peer
             .map(|axum::extract::Extension(sa)| sa.ip())
             .or_else(|| {
-                headers.get("x-forwarded-for")
+                headers
+                    .get("x-forwarded-for")
                     .and_then(|v| v.to_str().ok())
                     .and_then(|v| v.split(',').next())
                     .and_then(|ip| ip.trim().parse().ok())
             });
         let allowed = peer_ip.is_some_and(|ip| {
-            s.ip_allowlist.iter().any(|(net, prefix)| ip_in_cidr(ip, *net, *prefix))
+            s.ip_allowlist
+                .iter()
+                .any(|(net, prefix)| ip_in_cidr(ip, *net, *prefix))
         });
         if !allowed {
             warn!(peer = ?peer_ip, "login blocked by IP allowlist");
@@ -1097,17 +1313,29 @@ async fn login(
     }
     match s.auth.login(&creds).await {
         Ok(ok) => {
-            s.audit.log("auth.login", Some(creds.username.clone()), serde_json::json!({"role": ok.role}));
+            s.audit.log(
+                "auth.login",
+                Some(creds.username.clone()),
+                serde_json::json!({"role": ok.role}),
+            );
             Json(ok).into_response()
         }
         Err(LoginError::BadCredentials) => {
-            s.audit.log("auth.login_failed", Some(creds.username.clone()), serde_json::json!({}));
+            s.audit.log(
+                "auth.login_failed",
+                Some(creds.username.clone()),
+                serde_json::json!({}),
+            );
             StatusCode::UNAUTHORIZED.into_response()
         }
         Err(LoginError::RateLimited { retry_after_secs }) => (
             StatusCode::TOO_MANY_REQUESTS,
-            [(axum::http::header::RETRY_AFTER, retry_after_secs.to_string())],
-        ).into_response(),
+            [(
+                axum::http::header::RETRY_AFTER,
+                retry_after_secs.to_string(),
+            )],
+        )
+            .into_response(),
     }
 }
 
@@ -1116,12 +1344,16 @@ fn ip_in_cidr(ip: std::net::IpAddr, network: std::net::IpAddr, prefix_len: u8) -
     use std::net::IpAddr;
     match (ip, network) {
         (IpAddr::V4(ip4), IpAddr::V4(net4)) => {
-            if prefix_len == 0 { return true; }
+            if prefix_len == 0 {
+                return true;
+            }
             let shift = 32u32.saturating_sub(prefix_len as u32);
             u32::from(ip4) >> shift == u32::from(net4) >> shift
         }
         (IpAddr::V6(ip6), IpAddr::V6(net6)) => {
-            if prefix_len == 0 { return true; }
+            if prefix_len == 0 {
+                return true;
+            }
             let shift = 128u128.saturating_sub(prefix_len as u128);
             u128::from(ip6) >> shift == u128::from(net6) >> shift
         }
@@ -1129,11 +1361,10 @@ fn ip_in_cidr(ip: std::net::IpAddr, network: std::net::IpAddr, prefix_len: u8) -
     }
 }
 
-async fn logout(
-    State(s): State<AppState>,
-    req: Request,
-) -> StatusCode {
-    let token = req.headers().get(header::AUTHORIZATION)
+async fn logout(State(s): State<AppState>, req: Request) -> StatusCode {
+    let token = req
+        .headers()
+        .get(header::AUTHORIZATION)
         .and_then(|h| h.to_str().ok())
         .and_then(|h| h.strip_prefix("Bearer "));
     if let Some(t) = token {
@@ -1147,19 +1378,20 @@ async fn logout(
 /// Slide the session TTL and return the refreshed expiry timestamp.
 /// The client uses this to reschedule its proactive refresh timer.
 /// Returns 401 when the token is already expired (client should re-login).
-async fn refresh_session(
-    State(s): State<AppState>,
-    req: Request,
-) -> Response {
-    let token = req.headers().get(header::AUTHORIZATION)
+async fn refresh_session(State(s): State<AppState>, req: Request) -> Response {
+    let token = req
+        .headers()
+        .get(header::AUTHORIZATION)
         .and_then(|h| h.to_str().ok())
         .and_then(|h| h.strip_prefix("Bearer "));
     let Some(token) = token else {
         return StatusCode::UNAUTHORIZED.into_response();
     };
     match s.auth.touch(token).await {
-        Some(expires_at_ms) => Json(serde_json::json!({ "expires_at_ms": expires_at_ms })).into_response(),
-        None                => StatusCode::UNAUTHORIZED.into_response(),
+        Some(expires_at_ms) => {
+            Json(serde_json::json!({ "expires_at_ms": expires_at_ms })).into_response()
+        }
+        None => StatusCode::UNAUTHORIZED.into_response(),
     }
 }
 
@@ -1172,8 +1404,16 @@ struct Whoami {
 
 async fn whoami(req: Request) -> Json<Whoami> {
     // require_auth has already inserted AuthUser; missing here would be a bug.
-    let user = req.extensions().get::<AuthUser>().cloned()
-        .unwrap_or(AuthUser { username: String::new(), role: Role::Viewer, must_change_password: false, allowed_zones: vec![] });
+    let user = req
+        .extensions()
+        .get::<AuthUser>()
+        .cloned()
+        .unwrap_or(AuthUser {
+            username: String::new(),
+            role: Role::Viewer,
+            must_change_password: false,
+            allowed_zones: vec![],
+        });
     Json(Whoami {
         username: user.username,
         role: user.role,
@@ -1192,7 +1432,7 @@ async fn create_user(
     Json(body): Json<sws_auth::CreateUser>,
 ) -> Response {
     match s.auth.create_user(body).await {
-        Ok(u)  => (StatusCode::CREATED, Json(u)).into_response(),
+        Ok(u) => (StatusCode::CREATED, Json(u)).into_response(),
         Err(e) => user_error_to_response(e),
     }
 }
@@ -1203,7 +1443,7 @@ async fn update_user(
     Json(patch): Json<sws_auth::UserPatch>,
 ) -> Response {
     match s.auth.update_user(&username, patch).await {
-        Ok(u)  => Json(u).into_response(),
+        Ok(u) => Json(u).into_response(),
         Err(e) => user_error_to_response(e),
     }
 }
@@ -1217,20 +1457,24 @@ async fn delete_user(
     // this would lock the operator out of their own session immediately.
     if let Some(caller) = req.extensions().get::<AuthUser>() {
         if caller.username == username {
-            return (StatusCode::CONFLICT,
-                    Json(serde_json::json!({"error": "cannot_delete_self"})))
+            return (
+                StatusCode::CONFLICT,
+                Json(serde_json::json!({"error": "cannot_delete_self"})),
+            )
                 .into_response();
         }
     }
     match s.auth.delete_user(&username).await {
-        Ok(())  => StatusCode::NO_CONTENT.into_response(),
-        Err(e)  => user_error_to_response(e),
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => user_error_to_response(e),
     }
 }
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)] // Q9
-struct VerifyPasswordBody { password: String }
+struct VerifyPasswordBody {
+    password: String,
+}
 
 /// `POST /api/auth/verify-password` — re-autenticazione per i comandi
 /// critici (F3.3): conferma che chi sta al terminale è ancora il titolare
@@ -1244,32 +1488,40 @@ async fn verify_password_handler(
     if !s.auth.has_users().await {
         return StatusCode::NO_CONTENT;
     }
-    if s.auth.verify_user_password(&user.username, &body.password).await {
-        s.audit.log("auth.reverify", Some(user.username), serde_json::json!({"ok": true}));
+    if s.auth
+        .verify_user_password(&user.username, &body.password)
+        .await
+    {
+        s.audit.log(
+            "auth.reverify",
+            Some(user.username),
+            serde_json::json!({"ok": true}),
+        );
         StatusCode::NO_CONTENT
     } else {
-        s.audit.log("auth.reverify", Some(user.username), serde_json::json!({"ok": false}));
+        s.audit.log(
+            "auth.reverify",
+            Some(user.username),
+            serde_json::json!({"ok": false}),
+        );
         StatusCode::FORBIDDEN
     }
 }
 
-async fn change_password(
-    State(s): State<AppState>,
-    req: Request,
-) -> Response {
+async fn change_password(State(s): State<AppState>, req: Request) -> Response {
     let user = match req.extensions().get::<AuthUser>().cloned() {
         Some(u) => u,
-        None    => return StatusCode::UNAUTHORIZED.into_response(),
+        None => return StatusCode::UNAUTHORIZED.into_response(),
     };
     // Re-read the JSON body manually since we already consumed `req` for
     // extensions. axum 0.7 doesn't let us pass both req and Json by value
     // without re-architecting the handler — extract the body manually.
     let bytes = match axum::body::to_bytes(req.into_body(), 64 * 1024).await {
-        Ok(b)  => b,
+        Ok(b) => b,
         Err(e) => return (StatusCode::BAD_REQUEST, format!("body: {e}")).into_response(),
     };
     let body: sws_auth::ChangePassword = match serde_json::from_slice(&bytes) {
-        Ok(b)  => b,
+        Ok(b) => b,
         Err(e) => return (StatusCode::BAD_REQUEST, format!("json: {e}")).into_response(),
     };
     match s.auth.change_password(&user.username, body).await {
@@ -1281,16 +1533,20 @@ async fn change_password(
 fn user_error_to_response(e: sws_auth::UserError) -> Response {
     use sws_auth::UserError::*;
     let (code, msg) = match &e {
-        NotFound          => (StatusCode::NOT_FOUND,           "not_found"),
-        AlreadyExists     => (StatusCode::CONFLICT,            "already_exists"),
-        LastAdmin         => (StatusCode::CONFLICT,            "last_admin"),
-        InvalidPassword   => (StatusCode::UNPROCESSABLE_ENTITY,"invalid_password"),
-        StorageError(_)   => (StatusCode::INTERNAL_SERVER_ERROR,"storage_error"),
+        NotFound => (StatusCode::NOT_FOUND, "not_found"),
+        AlreadyExists => (StatusCode::CONFLICT, "already_exists"),
+        LastAdmin => (StatusCode::CONFLICT, "last_admin"),
+        InvalidPassword => (StatusCode::UNPROCESSABLE_ENTITY, "invalid_password"),
+        StorageError(_) => (StatusCode::INTERNAL_SERVER_ERROR, "storage_error"),
     };
-    (code, Json(serde_json::json!({
-        "error":  msg,
-        "detail": e.to_string(),
-    }))).into_response()
+    (
+        code,
+        Json(serde_json::json!({
+            "error":  msg,
+            "detail": e.to_string(),
+        })),
+    )
+        .into_response()
 }
 
 // ── Tag endpoints ────────────────────────────────────────────────────────────
@@ -1325,7 +1581,11 @@ async fn write_tag(
     // già garantito dal layer di route — qui si applica l'eventuale soglia
     // più alta dichiarata sul TagDef).
     if !tag_write_allowed(&s.db, &id, user.role).await {
-        s.audit.log("tag.write_denied", Some(user.username), serde_json::json!({"tag": id.clone(), "role": user.role.as_str()}));
+        s.audit.log(
+            "tag.write_denied",
+            Some(user.username),
+            serde_json::json!({"tag": id.clone(), "role": user.role.as_str()}),
+        );
         return StatusCode::FORBIDDEN.into_response();
     }
     // Q27: il `data_type` dichiarato è un contratto sui percorsi di scrittura
@@ -1333,13 +1593,25 @@ async fn write_tag(
     let value = match s.db.coerce_for_write(&id, body.value).await {
         Ok(v) => v,
         Err(msg) => {
-            s.audit.log("tag.write_rejected_type", Some(user.username), serde_json::json!({"tag": id, "error": msg.clone()}));
-            return (StatusCode::BAD_REQUEST, Json(serde_json::json!({"error": msg}))).into_response();
+            s.audit.log(
+                "tag.write_rejected_type",
+                Some(user.username),
+                serde_json::json!({"tag": id, "error": msg.clone()}),
+            );
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"error": msg})),
+            )
+                .into_response();
         }
     };
-    s.audit.log("tag.write", Some(user.username), serde_json::json!({
-        "tag": id.clone(), "value": value.clone(), "reason": body.reason,
-    }));
+    s.audit.log(
+        "tag.write",
+        Some(user.username),
+        serde_json::json!({
+            "tag": id.clone(), "value": value.clone(), "reason": body.reason,
+        }),
+    );
     // Prefer routing through a plugin (so the value is pushed to the device).
     // If no plugin owns the tag (purely virtual / scripted tags), fall back to
     // setting the TagDb directly so the UI write path keeps working.
@@ -1390,7 +1662,6 @@ struct ScriptResult {
     error: Option<String>,
 }
 
-
 /// `POST /api/script/check` — compila senza eseguire.
 ///
 /// # Perché serviva
@@ -1422,7 +1693,7 @@ async fn check_script(
 #[derive(Deserialize)]
 struct HistoryQuery {
     from: Option<u64>,
-    to:   Option<u64>,
+    to: Option<u64>,
     /// If provided, returns at most the last `limit` samples in the range.
     /// Legacy: tronca la coda senza decimare — per le finestre lunghe usare
     /// `bucket_ms` (F5.1), che aggrega invece di buttare l'inizio.
@@ -1472,7 +1743,7 @@ struct ExportCsvQuery {
     /// Comma-separated list of tag IDs.
     tags: Option<String>,
     from_ms: Option<u64>,
-    to_ms:   Option<u64>,
+    to_ms: Option<u64>,
 }
 
 /// GET /api/history/export?tags=a,b&from_ms=&to_ms=
@@ -1482,7 +1753,8 @@ async fn export_history_csv(
     State(s): State<AppState>,
     Query(q): Query<ExportCsvQuery>,
 ) -> impl IntoResponse {
-    let tag_list: Vec<String> = q.tags
+    let tag_list: Vec<String> = q
+        .tags
         .as_deref()
         .unwrap_or("")
         .split(',')
@@ -1495,7 +1767,12 @@ async fn export_history_csv(
         return (StatusCode::BAD_REQUEST, "tag parameter 'tags' required").into_response();
     }
 
-    struct Row { ts_ms: u64, tag: String, val: String, quality: &'static str }
+    struct Row {
+        ts_ms: u64,
+        tag: String,
+        val: String,
+        quality: &'static str,
+    }
     let mut rows: Vec<Row> = Vec::new();
 
     for tag in &tag_list {
@@ -1503,16 +1780,27 @@ async fn export_history_csv(
         for sample in samples {
             let val = match &sample.value {
                 TagValue::Float(f) => format!("{f}"),
-                TagValue::Int(i)   => format!("{i}"),
-                TagValue::Bool(b)  => if *b { "1".into() } else { "0".into() },
-                TagValue::Str(s)   => format!("\"{s}\""),
+                TagValue::Int(i) => format!("{i}"),
+                TagValue::Bool(b) => {
+                    if *b {
+                        "1".into()
+                    } else {
+                        "0".into()
+                    }
+                }
+                TagValue::Str(s) => format!("\"{s}\""),
             };
             let quality = match sample.quality {
-                TagQuality::Good      => "Good",
-                TagQuality::Bad       => "Bad",
+                TagQuality::Good => "Good",
+                TagQuality::Bad => "Bad",
                 TagQuality::Uncertain => "Uncertain",
             };
-            rows.push(Row { ts_ms: sample.ts_ms, tag: tag.clone(), val, quality });
+            rows.push(Row {
+                ts_ms: sample.ts_ms,
+                tag: tag.clone(),
+                val,
+                quality,
+            });
         }
     }
 
@@ -1521,17 +1809,24 @@ async fn export_history_csv(
     let mut csv = String::from("ts_ms,ts_iso,tag_id,value,quality\n");
     for r in &rows {
         let iso = ms_to_iso(r.ts_ms);
-        csv.push_str(&format!("{},{},{},{},{}\n", r.ts_ms, iso, r.tag, r.val, r.quality));
+        csv.push_str(&format!(
+            "{},{},{},{},{}\n",
+            r.ts_ms, iso, r.tag, r.val, r.quality
+        ));
     }
 
     (
         StatusCode::OK,
         [
-            (header::CONTENT_TYPE,        "text/csv; charset=utf-8"),
-            (header::CONTENT_DISPOSITION, "attachment; filename=\"export.csv\""),
+            (header::CONTENT_TYPE, "text/csv; charset=utf-8"),
+            (
+                header::CONTENT_DISPOSITION,
+                "attachment; filename=\"export.csv\"",
+            ),
         ],
         csv,
-    ).into_response()
+    )
+        .into_response()
 }
 
 /// Convert a Unix millisecond timestamp to a compact ISO 8601 UTC string
@@ -1546,8 +1841,12 @@ fn ms_to_iso(ts_ms: u64) -> String {
             let mo = dt.month() as u8;
             format!(
                 "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}.{:03}Z",
-                dt.year(), mo, dt.day(),
-                dt.hour(), dt.minute(), dt.second(),
+                dt.year(),
+                mo,
+                dt.day(),
+                dt.hour(),
+                dt.minute(),
+                dt.second(),
                 millis
             )
         }
@@ -1560,7 +1859,7 @@ fn ms_to_iso(ts_ms: u64) -> String {
 #[derive(Deserialize)]
 struct StatsQuery {
     from_ms: Option<u64>,
-    to_ms:   Option<u64>,
+    to_ms: Option<u64>,
 }
 
 #[derive(serde::Serialize)]
@@ -1572,7 +1871,7 @@ struct HistoryStats {
     avg: f64,
     stddev: f64,
     first_ts: Option<u64>,
-    last_ts:  Option<u64>,
+    last_ts: Option<u64>,
 }
 
 /// GET /api/history/:tag/stats?from_ms=&to_ms=
@@ -1583,19 +1882,28 @@ async fn tag_history_stats(
 ) -> impl IntoResponse {
     let samples = s.historian.query(&tag, q.from_ms, q.to_ms).await;
 
-    let nums: Vec<f64> = samples.iter().filter_map(|s| match &s.value {
-        TagValue::Float(f) => Some(*f),
-        TagValue::Int(i)   => Some(*i as f64),
-        TagValue::Bool(b)  => Some(if *b { 1.0 } else { 0.0 }),
-        TagValue::Str(v)   => v.trim().parse().ok(),
-    }).collect();
+    let nums: Vec<f64> = samples
+        .iter()
+        .filter_map(|s| match &s.value {
+            TagValue::Float(f) => Some(*f),
+            TagValue::Int(i) => Some(*i as f64),
+            TagValue::Bool(b) => Some(if *b { 1.0 } else { 0.0 }),
+            TagValue::Str(v) => v.trim().parse().ok(),
+        })
+        .collect();
 
     if nums.is_empty() {
         return Json(HistoryStats {
             tag,
-            count: 0, min: 0.0, max: 0.0, avg: 0.0, stddev: 0.0,
-            first_ts: None, last_ts: None,
-        }).into_response();
+            count: 0,
+            min: 0.0,
+            max: 0.0,
+            avg: 0.0,
+            stddev: 0.0,
+            first_ts: None,
+            last_ts: None,
+        })
+        .into_response();
     }
 
     let count = nums.len();
@@ -1613,8 +1921,9 @@ async fn tag_history_stats(
         avg,
         stddev,
         first_ts: samples.first().map(|s| s.ts_ms),
-        last_ts:  samples.last().map(|s| s.ts_ms),
-    }).into_response()
+        last_ts: samples.last().map(|s| s.ts_ms),
+    })
+    .into_response()
 }
 
 /// If `tag` is subscribed from an OPC-UA source, query that server's historian
@@ -1624,16 +1933,24 @@ async fn opcua_backfill_history(
     s: &AppState,
     tag: &str,
     from_ms: Option<u64>,
-    to_ms:   Option<u64>,
+    to_ms: Option<u64>,
     mut local: Vec<Sample>,
 ) -> Vec<Sample> {
-    let Ok(dir) = active_dir(s).await else { return local };
-    let Ok(project) = sws_core::project::Project::load(&dir) else { return local };
+    let Ok(dir) = active_dir(s).await else {
+        return local;
+    };
+    let Ok(project) = sws_core::project::Project::load(&dir) else {
+        return local;
+    };
 
     // Find the OPC-UA source that maps this tag to a node_id.
     for source in &project.sources {
-        let SourceDef::OpcUaClient(cfg) = source else { continue };
-        let Some(mapping) = cfg.nodes.iter().find(|n| n.tag == tag) else { continue };
+        let SourceDef::OpcUaClient(cfg) = source else {
+            continue;
+        };
+        let Some(mapping) = cfg.nodes.iter().find(|n| n.tag == tag) else {
+            continue;
+        };
 
         match sws_plugin_opcua::read_history(cfg, &mapping.node_id, from_ms, to_ms, 1000).await {
             Ok(hist) => {
@@ -1642,14 +1959,16 @@ async fn opcua_backfill_history(
                 let local_ts: std::collections::HashSet<u64> =
                     local.iter().map(|s| s.ts_ms).collect();
                 for h in hist {
-                    if local_ts.contains(&h.ts_ms) { continue; }
+                    if local_ts.contains(&h.ts_ms) {
+                        continue;
+                    }
                     local.push(Sample {
-                        ts_ms:   h.ts_ms,
-                        value:   TagValue::Float(h.value),
+                        ts_ms: h.ts_ms,
+                        value: TagValue::Float(h.value),
                         quality: match h.quality {
-                            "Good"      => TagQuality::Good,
-                            "Bad"       => TagQuality::Bad,
-                            _           => TagQuality::Uncertain,
+                            "Good" => TagQuality::Good,
+                            "Bad" => TagQuality::Bad,
+                            _ => TagQuality::Uncertain,
                         },
                     });
                 }
@@ -1677,11 +1996,16 @@ struct DatastoreListItem {
 async fn list_datastores(State(s): State<AppState>) -> Json<Vec<DatastoreListItem>> {
     if let Some(reg) = s.registry.read().await.as_ref().map(Arc::clone) {
         let stats = reg.all_stats().await;
-        return Json(stats.into_iter().map(|(id, st)| DatastoreListItem {
-            id,
-            connected: st.connected,
-            error: st.error,
-        }).collect());
+        return Json(
+            stats
+                .into_iter()
+                .map(|(id, st)| DatastoreListItem {
+                    id,
+                    connected: st.connected,
+                    error: st.error,
+                })
+                .collect(),
+        );
     }
     Json(vec![])
 }
@@ -1692,21 +2016,26 @@ async fn backend_from_project(
     id: &str,
 ) -> Result<sws_historian::DatastoreBackend, Response> {
     let dir = active_dir(s).await.map_err(|c| c.into_response())?;
-    let project = sws_core::project::Project::load(&dir)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR,
-                      format!("cannot load project: {e}")).into_response())?;
-    let cfg = project.datastores.into_iter().find(|d| d.id == id)
-        .ok_or_else(|| (StatusCode::NOT_FOUND,
-                        format!("datastore '{id}' not found")).into_response())?;
-    sws_historian::DatastoreBackend::from_config(&cfg.backend, &dir).await
-        .map_err(|e| (StatusCode::BAD_GATEWAY,
-                      format!("cannot connect: {e}")).into_response())
+    let project = sws_core::project::Project::load(&dir).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("cannot load project: {e}"),
+        )
+            .into_response()
+    })?;
+    let cfg = project
+        .datastores
+        .into_iter()
+        .find(|d| d.id == id)
+        .ok_or_else(|| {
+            (StatusCode::NOT_FOUND, format!("datastore '{id}' not found")).into_response()
+        })?;
+    sws_historian::DatastoreBackend::from_config(&cfg.backend, &dir)
+        .await
+        .map_err(|e| (StatusCode::BAD_GATEWAY, format!("cannot connect: {e}")).into_response())
 }
 
-async fn datastore_stats(
-    State(s): State<AppState>,
-    Path(id): Path<String>,
-) -> Response {
+async fn datastore_stats(State(s): State<AppState>, Path(id): Path<String>) -> Response {
     // Live registry first; fall back to one-shot query from project config.
     if let Some(reg) = s.registry.read().await.as_ref().map(Arc::clone) {
         if let Some(stats) = reg.backend_stats(&id).await {
@@ -1728,16 +2057,13 @@ async fn datastore_stats(
     }
 }
 
-async fn datastore_test(
-    State(s): State<AppState>,
-    Path(id): Path<String>,
-) -> Response {
+async fn datastore_test(State(s): State<AppState>, Path(id): Path<String>) -> Response {
     // Live registry first.
     if let Some(reg) = s.registry.read().await.as_ref().map(Arc::clone) {
         if reg.backend_ids().contains(&id) {
             return match reg.test_backend(&id).await {
-                Ok(msg)  => Json(msg).into_response(),
-                Err(e)   => {
+                Ok(msg) => Json(msg).into_response(),
+                Err(e) => {
                     warn!(datastore_id = %id, "datastore test failed: {e}");
                     (StatusCode::BAD_GATEWAY, e.to_string()).into_response()
                 }
@@ -1748,8 +2074,8 @@ async fn datastore_test(
     // user just saved a new datastore and clicks Test before restarting).
     match backend_from_project(&s, &id).await {
         Ok(backend) => match backend.test().await {
-            Ok(msg)  => Json(msg).into_response(),
-            Err(e)   => {
+            Ok(msg) => Json(msg).into_response(),
+            Err(e) => {
                 warn!(datastore_id = %id, "datastore test failed: {e}");
                 (StatusCode::BAD_GATEWAY, e.to_string()).into_response()
             }
@@ -1773,8 +2099,11 @@ async fn datastore_purge(
     let Some(reg) = s.registry.read().await.as_ref().map(Arc::clone) else {
         return (StatusCode::NOT_FOUND, "no datastores configured").into_response();
     };
-    match reg.purge_backend(&id, body.retention_rows, body.retention_days).await {
-        Ok(n)  => Json(serde_json::json!({ "deleted": n })).into_response(),
+    match reg
+        .purge_backend(&id, body.retention_rows, body.retention_days)
+        .await
+    {
+        Ok(n) => Json(serde_json::json!({ "deleted": n })).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
 }
@@ -1788,10 +2117,7 @@ async fn datastore_purge(
 /// solo `project.tags`: in molti progetti i tag nascono dalle mappature delle
 /// sorgenti, e confrontarsi con la sola lista dichiarata marcherebbe come orfani
 /// tag perfettamente in uso.
-async fn datastore_tags(
-    State(s): State<AppState>,
-    Path(id): Path<String>,
-) -> Response {
+async fn datastore_tags(State(s): State<AppState>, Path(id): Path<String>) -> Response {
     let Some(reg) = s.registry.read().await.as_ref().map(Arc::clone) else {
         return (StatusCode::NOT_FOUND, "no datastores configured").into_response();
     };
@@ -1799,15 +2125,20 @@ async fn datastore_tags(
         Ok(t) => t,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     };
-    let live: std::collections::HashSet<String> =
-        s.db.snapshot().await.keys().cloned().collect();
-    let orphan: Vec<String> = db_tags.iter().filter(|t| !live.contains(*t)).cloned().collect();
+    let live: std::collections::HashSet<String> = s.db.snapshot().await.keys().cloned().collect();
+    let orphan: Vec<String> = db_tags
+        .iter()
+        .filter(|t| !live.contains(*t))
+        .cloned()
+        .collect();
     Json(serde_json::json!({ "db_tags": db_tags, "orphan_tags": orphan })).into_response()
 }
 
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
-struct DeleteTagBody { tag: String }
+struct DeleteTagBody {
+    tag: String,
+}
 
 /// `POST /api/datastores/:id/delete-tag` — cancella lo storico di un tag.
 /// Irreversibile e audit-logged: è una cancellazione di dati su richiesta admin.
@@ -1820,11 +2151,15 @@ async fn datastore_delete_tag(
     let Some(reg) = s.registry.read().await.as_ref().map(Arc::clone) else {
         return (StatusCode::NOT_FOUND, "no datastores configured").into_response();
     };
-    s.audit.log("datastore.delete_tag", Some(user.username), serde_json::json!({
-        "datastore": id.clone(), "tag": body.tag.clone(),
-    }));
+    s.audit.log(
+        "datastore.delete_tag",
+        Some(user.username),
+        serde_json::json!({
+            "datastore": id.clone(), "tag": body.tag.clone(),
+        }),
+    );
     match reg.delete_backend_tag(&id, &body.tag).await {
-        Ok(n)  => Json(serde_json::json!({ "deleted": n })).into_response(),
+        Ok(n) => Json(serde_json::json!({ "deleted": n })).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
 }
@@ -1840,21 +2175,26 @@ async fn datastore_vacuum(
     let Some(reg) = s.registry.read().await.as_ref().map(Arc::clone) else {
         return (StatusCode::NOT_FOUND, "no datastores configured").into_response();
     };
-    s.audit.log("datastore.vacuum", Some(user.username), serde_json::json!({ "datastore": id.clone() }));
+    s.audit.log(
+        "datastore.vacuum",
+        Some(user.username),
+        serde_json::json!({ "datastore": id.clone() }),
+    );
     match reg.vacuum_backend(&id).await {
         Ok((before, after)) => Json(serde_json::json!({
             "bytes_before": before, "bytes_after": after,
             "bytes_freed": before.saturating_sub(after),
-        })).into_response(),
+        }))
+        .into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
 }
 
 #[derive(serde::Deserialize)]
 struct ExportQuery {
-    tags:    Option<String>, // comma-separated tag ids
+    tags: Option<String>, // comma-separated tag ids
     from_ms: Option<u64>,
-    to_ms:   Option<u64>,
+    to_ms: Option<u64>,
 }
 
 #[derive(serde::Serialize)]
@@ -1871,14 +2211,17 @@ async fn datastore_export(
     let Some(reg) = s.registry.read().await.as_ref().map(Arc::clone) else {
         return (StatusCode::NOT_FOUND, "no datastores configured").into_response();
     };
-    let tags: Vec<String> = q.tags.unwrap_or_default()
+    let tags: Vec<String> = q
+        .tags
+        .unwrap_or_default()
         .split(',')
         .map(|t| t.trim().to_string())
         .filter(|t| !t.is_empty())
         .collect();
     match reg.export_backend(&id, &tags, q.from_ms, q.to_ms).await {
         Ok(pairs) => {
-            let out: Vec<ExportTagResult> = pairs.into_iter()
+            let out: Vec<ExportTagResult> = pairs
+                .into_iter()
                 .map(|(tag_id, samples)| ExportTagResult { tag_id, samples })
                 .collect();
             Json(out).into_response()
@@ -1892,10 +2235,7 @@ async fn datastore_export(
 /// consistent point-in-time copy in a temp file instead of reading the live
 /// file directly — the live file is in WAL mode with continuous writes, so a
 /// plain byte-copy could capture a torn/inconsistent snapshot.
-async fn datastore_download(
-    State(s): State<AppState>,
-    Path(id): Path<String>,
-) -> Response {
+async fn datastore_download(State(s): State<AppState>, Path(id): Path<String>) -> Response {
     let Some(reg) = s.registry.read().await.as_ref().map(Arc::clone) else {
         return (StatusCode::NOT_FOUND, "no datastores configured").into_response();
     };
@@ -1952,7 +2292,8 @@ async fn datastore_upload(
             bytes_written: body.len(),
             backup_path: backup_path.display().to_string(),
             requires_restart: true,
-        }).into_response(),
+        })
+        .into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
 }
@@ -1987,10 +2328,18 @@ async fn ack_alarm(
     };
     // Registrato prima dell'esito: un ack su un id inesistente è comunque un
     // tentativo che vale la pena vedere nel journal.
-    s.audit.log("alarm.ack", by.clone(), serde_json::json!({
-        "alarm": id.clone(), "reason": reason,
-    }));
-    if s.alarms.ack(&id, by).await { StatusCode::NO_CONTENT } else { StatusCode::NOT_FOUND }
+    s.audit.log(
+        "alarm.ack",
+        by.clone(),
+        serde_json::json!({
+            "alarm": id.clone(), "reason": reason,
+        }),
+    );
+    if s.alarms.ack(&id, by).await {
+        StatusCode::NO_CONTENT
+    } else {
+        StatusCode::NOT_FOUND
+    }
 }
 
 // ── Audit log (OPEN_QUESTIONS Q8) ────────────────────────────────────────────
@@ -2000,7 +2349,9 @@ struct AuditQuery {
     #[serde(default = "default_audit_limit")]
     limit: usize,
 }
-fn default_audit_limit() -> usize { 200 }
+fn default_audit_limit() -> usize {
+    200
+}
 
 /// `GET /api/audit?limit=N` (Admin) — most recent N entries of the append-only
 /// audit trail, oldest first within the window.
@@ -2020,12 +2371,14 @@ async fn get_audit_verify(State(s): State<AppState>) -> Json<sws_audit::VerifyRe
 #[derive(serde::Deserialize, Default)]
 struct AlarmHistoryQuery {
     alarm_id: Option<String>,
-    from_ms:  Option<u64>,
-    to_ms:    Option<u64>,
+    from_ms: Option<u64>,
+    to_ms: Option<u64>,
     #[serde(default = "default_limit")]
-    limit:    usize,
+    limit: usize,
 }
-fn default_limit() -> usize { 200 }
+fn default_limit() -> usize {
+    200
+}
 
 async fn get_alarm_history(
     State(s): State<AppState>,
@@ -2033,12 +2386,9 @@ async fn get_alarm_history(
 ) -> Json<Vec<AlarmEvent>> {
     // Try SQLite first; fall back to in-memory journal.
     let events = if let Some(store) = s.historian.sqlite_store().await {
-        store.query_alarm_events(
-            q.alarm_id.as_deref(),
-            q.from_ms,
-            q.to_ms,
-            q.limit,
-        ).await
+        store
+            .query_alarm_events(q.alarm_id.as_deref(), q.from_ms, q.to_ms, q.limit)
+            .await
     } else {
         s.alarms.journal_snapshot(q.limit).await
     };
@@ -2061,7 +2411,10 @@ async fn shelve_alarm(
     Path(id): Path<String>,
     Json(body): Json<ShelveRequest>,
 ) -> StatusCode {
-    if s.alarms.shelve(&id, body.reason, body.duration_ms, body.shelved_by).await {
+    if s.alarms
+        .shelve(&id, body.reason, body.duration_ms, body.shelved_by)
+        .await
+    {
         StatusCode::NO_CONTENT
     } else {
         StatusCode::NOT_FOUND
@@ -2086,7 +2439,9 @@ async fn handle_alarms_ws(mut socket: WebSocket, alarms: Arc<AlarmDb>) {
     // then forward live broadcasts.
     for state in alarms.snapshot().await {
         if let Ok(text) = serde_json::to_string(&state) {
-            if socket.send(Message::Text(text)).await.is_err() { return; }
+            if socket.send(Message::Text(text)).await.is_err() {
+                return;
+            }
         }
     }
     let mut rx = alarms.subscribe();
@@ -2094,7 +2449,9 @@ async fn handle_alarms_ws(mut socket: WebSocket, alarms: Arc<AlarmDb>) {
         match rx.recv().await {
             Ok(state) => {
                 if let Ok(text) = serde_json::to_string(&state) {
-                    if socket.send(Message::Text(text)).await.is_err() { break; }
+                    if socket.send(Message::Text(text)).await.is_err() {
+                        break;
+                    }
                 }
             }
             Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
@@ -2212,7 +2569,9 @@ async fn get_project(State(s): State<AppState>) -> Response {
     // che ha in mano — cioè un salvataggio che passa quando doveva essere
     // rifiutato. È il difetto che un `GET /api/project/versione` separato
     // avrebbe avuto per costruzione.
-    let testo = tokio::fs::read_to_string(dir.join("project.yaml")).await.ok();
+    let testo = tokio::fs::read_to_string(dir.join("project.yaml"))
+        .await
+        .ok();
     let versione = testo.as_deref().map(versione_di);
     // `Project::load` è read_to_string + `serde_yaml::from_str`: qui si fa la
     // seconda metà sul testo che abbiamo già, così i dati e la versione vengono
@@ -2236,8 +2595,11 @@ async fn get_project(State(s): State<AppState>) -> Response {
         }
         Err(e) => {
             tracing::error!("project load failed: {e:#}");
-            (StatusCode::INTERNAL_SERVER_ERROR,
-             format!("project parse error: {e}")).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("project parse error: {e}"),
+            )
+                .into_response()
         }
     }
 }
@@ -2374,12 +2736,16 @@ where
                          sovrascriverlo: il file su disco è intatto.\n\nErrore: {e}\n\nCorreggi il \
                          file a mano oppure ripristina un backup dalla tab Backup.",
                     ),
-                ).into_response();
+                )
+                    .into_response();
             }
         },
         // Nessun file: progetto nuovo, si crea.
         None => Project {
-            meta: ProjectMeta { name: "default".into(), version: "0.1.0".into() },
+            meta: ProjectMeta {
+                name: "default".into(),
+                version: "0.1.0".into(),
+            },
             tags: vec![],
             sources: vec![],
             alarms: vec![],
@@ -2513,10 +2879,7 @@ pub(crate) fn scrivi_atomico_sync(path: &std::path::Path, dati: &[u8]) -> std::i
     Ok(())
 }
 
-pub(crate) async fn scrivi_atomico(
-    path: &std::path::Path,
-    dati: &[u8],
-) -> std::io::Result<()> {
+pub(crate) async fn scrivi_atomico(path: &std::path::Path, dati: &[u8]) -> std::io::Result<()> {
     use tokio::io::AsyncWriteExt;
 
     let tmp = temporaneo_unico(path);
@@ -2524,7 +2887,8 @@ pub(crate) async fn scrivi_atomico(
         let mut f = tokio::fs::File::create(&tmp).await?;
         f.write_all(dati).await?;
         f.sync_all().await
-    }.await;
+    }
+    .await;
     if let Err(e) = scritto {
         // Un temporaneo scritto a metà non va lasciato in giro.
         let _ = tokio::fs::remove_file(&tmp).await;
@@ -2568,7 +2932,11 @@ fn merge_preserved(
         .and_then(|v| v.as_sequence())
         .map(|seq| {
             seq.iter()
-                .filter_map(|e| e.get("name").and_then(|n| n.as_str()).map(|s| s.to_string()))
+                .filter_map(|e| {
+                    e.get("name")
+                        .and_then(|n| n.as_str())
+                        .map(|s| s.to_string())
+                })
                 .collect()
         })
         .unwrap_or_default();
@@ -2588,9 +2956,11 @@ fn merge_preserved(
             seq.iter()
                 .filter(|entry| serde_yaml::from_value::<SourceDef>((*entry).clone()).is_err())
                 .filter(|entry| {
-                    entry.get("name").and_then(|n| n.as_str())
+                    entry
+                        .get("name")
+                        .and_then(|n| n.as_str())
                         .map(|n| !typed_names.contains(n))
-                        .unwrap_or(true)   // senza nome non si può dedurre: si conserva
+                        .unwrap_or(true) // senza nome non si può dedurre: si conserva
                 })
                 .cloned()
                 .collect()
@@ -2600,11 +2970,18 @@ fn merge_preserved(
     let out = typed.as_mapping_mut().expect("verificato sopra");
     if !unparsed.is_empty() {
         let key = serde_yaml::Value::from("sources");
-        let mut seq = out.get(&key).and_then(|v| v.as_sequence()).cloned().unwrap_or_default();
+        let mut seq = out
+            .get(&key)
+            .and_then(|v| v.as_sequence())
+            .cloned()
+            .unwrap_or_default();
         let kept = unparsed.len();
         seq.extend(unparsed);
         out.insert(key, serde_yaml::Value::Sequence(seq));
-        info!(kept, "patch_project: sorgenti non riconosciute conservate nel salvataggio");
+        info!(
+            kept,
+            "patch_project: sorgenti non riconosciute conservate nel salvataggio"
+        );
     }
 
     // Chiavi di primo livello che il file aveva e la struttura non conosce.
@@ -2623,7 +3000,10 @@ fn merge_preserved(
         extra += 1;
     }
     if extra > 0 {
-        info!(extra, "patch_project: chiavi di primo livello sconosciute conservate");
+        info!(
+            extra,
+            "patch_project: chiavi di primo livello sconosciute conservate"
+        );
     }
 
     serde_yaml::to_string(&typed).unwrap_or_else(|_| typed_yaml.to_string())
@@ -2635,24 +3015,25 @@ async fn update_project_tags(
     headers: axum::http::HeaderMap,
     Json(tags): Json<Vec<TagDef>>,
 ) -> Response {
-    s.audit.log("project.change", Some(user.username), serde_json::json!({"what": "tags", "count": tags.len()}));
+    s.audit.log(
+        "project.change",
+        Some(user.username),
+        serde_json::json!({"what": "tags", "count": tags.len()}),
+    );
     // Compute diff against current TagDb so newly-defined tags get seeded
     // and orphans get evicted — no runtime restart required.
-    let current_ids: std::collections::HashSet<TagId> =
-        s.db.snapshot().await.into_keys().collect();
-    let new_ids: std::collections::HashSet<TagId> =
-        tags.iter().map(|t| t.id.clone()).collect();
+    let current_ids: std::collections::HashSet<TagId> = s.db.snapshot().await.into_keys().collect();
+    let new_ids: std::collections::HashSet<TagId> = tags.iter().map(|t| t.id.clone()).collect();
 
-    let to_add: Vec<TagDef> = tags.iter()
+    let to_add: Vec<TagDef> = tags
+        .iter()
         .filter(|t| !current_ids.contains(&t.id))
         .cloned()
         .collect();
-    let to_remove: Vec<TagId> = current_ids
-        .difference(&new_ids)
-        .cloned()
-        .collect();
+    let to_remove: Vec<TagId> = current_ids.difference(&new_ids).cloned().collect();
     // Collect derived pairs before tags is consumed by patch_project closure.
-    let derived: Vec<(String, String)> = tags.iter()
+    let derived: Vec<(String, String)> = tags
+        .iter()
         .filter_map(|t| t.expression.as_ref().map(|e| (t.id.clone(), e.clone())))
         .collect();
     // F1/F3.1: scaling e ruoli di scrittura seguono ogni modifica delle variabili.
@@ -2660,13 +3041,23 @@ async fn update_project_tags(
     let write_roles = crate::projects::build_tag_write_roles(&tags);
     let data_types = crate::projects::build_tag_data_types(&tags);
 
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
-    let res = patch_project_se(&s.project_write_lock, &dir, versione_attesa(&headers), |p| p.tags = tags).await;
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
+    let res = patch_project_se(
+        &s.project_write_lock,
+        &dir,
+        versione_attesa(&headers),
+        |p| p.tags = tags,
+    )
+    .await;
     if res.status() != StatusCode::NO_CONTENT {
         return res;
     }
     for t in &to_add {
-        s.db.set(t.id.clone(), t.initial_value(), TagQuality::Uncertain).await;
+        s.db.set(t.id.clone(), t.initial_value(), TagQuality::Uncertain)
+            .await;
     }
     for id in &to_remove {
         s.db.remove(id).await;
@@ -2687,8 +3078,17 @@ async fn update_project_languages(
     headers: axum::http::HeaderMap,
     Json(table): Json<LanguageTable>,
 ) -> Response {
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
-    patch_project_se(&s.project_write_lock, &dir, versione_attesa(&headers), |p| p.languages = table).await
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
+    patch_project_se(
+        &s.project_write_lock,
+        &dir,
+        versione_attesa(&headers),
+        |p| p.languages = table,
+    )
+    .await
 }
 
 /// POST /api/project/tags/import-csv
@@ -2710,7 +3110,7 @@ async fn import_tags_csv(
     let mut lines = text.lines();
     let header_line = match lines.next() {
         Some(h) => h,
-        None    => return (StatusCode::BAD_REQUEST, "Empty CSV").into_response(),
+        None => return (StatusCode::BAD_REQUEST, "Empty CSV").into_response(),
     };
 
     // Parse header to find column indices.
@@ -2719,7 +3119,7 @@ async fn import_tags_csv(
     let Some(id_col) = col("id") else {
         return (StatusCode::BAD_REQUEST, "CSV missing 'id' column").into_response();
     };
-    let dt_col   = col("data_type");
+    let dt_col = col("data_type");
     let desc_col = col("description");
     let hist_col = col("history");
     let expr_col = col("expression");
@@ -2728,26 +3128,44 @@ async fn import_tags_csv(
     let mut imported: Vec<TagDef> = Vec::new();
     for (line_no, line) in lines.enumerate() {
         let line = line.trim();
-        if line.is_empty() { continue; }
+        if line.is_empty() {
+            continue;
+        }
         let fields: Vec<&str> = line.split(',').collect();
         let get = |idx: usize| fields.get(idx).map(|s| s.trim()).unwrap_or("");
         let id = get(id_col);
-        if id.is_empty() { continue; }
+        if id.is_empty() {
+            continue;
+        }
         let tag = TagDef {
             id: id.to_string(),
             description: desc_col.map(|i| get(i).to_string()).unwrap_or_default(),
-            data_type: dt_col.map(|i| get(i).to_string())
+            data_type: dt_col
+                .map(|i| get(i).to_string())
                 .filter(|s| !s.is_empty())
                 .unwrap_or_else(|| "float".into()),
-            history: hist_col.map(|i| matches!(get(i).to_lowercase().as_str(), "true" | "1" | "yes")).unwrap_or(false),
+            history: hist_col
+                .map(|i| matches!(get(i).to_lowercase().as_str(), "true" | "1" | "yes"))
+                .unwrap_or(false),
             datastore_id: None,
             history_deadband: None,
             history_min_interval_ms: None,
-            expression: expr_col.map(|i| get(i).to_string()).filter(|s| !s.is_empty()),
-            unit: None, decimals: None,
-            raw_min: None, raw_max: None, eng_min: None, eng_max: None,
-            range_lo: None, range_hi: None, write_min_role: None,
-            limit_lo_lo: None, limit_lo: None, limit_hi: None, limit_hi_hi: None,
+            expression: expr_col
+                .map(|i| get(i).to_string())
+                .filter(|s| !s.is_empty()),
+            unit: None,
+            decimals: None,
+            raw_min: None,
+            raw_max: None,
+            eng_min: None,
+            eng_max: None,
+            range_lo: None,
+            range_hi: None,
+            write_min_role: None,
+            limit_lo_lo: None,
+            limit_lo: None,
+            limit_hi: None,
+            limit_hi_hi: None,
         };
         let _ = line_no; // suppress warning
         imported.push(tag);
@@ -2758,16 +3176,25 @@ async fn import_tags_csv(
     }
 
     // Merge: load current, upsert imported.
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
-    let res = patch_project_se(&s.project_write_lock, &dir, versione_attesa(&headers), |p| {
-        for new_tag in &imported {
-            if let Some(existing) = p.tags.iter_mut().find(|t| t.id == new_tag.id) {
-                *existing = new_tag.clone();
-            } else {
-                p.tags.push(new_tag.clone());
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
+    let res = patch_project_se(
+        &s.project_write_lock,
+        &dir,
+        versione_attesa(&headers),
+        |p| {
+            for new_tag in &imported {
+                if let Some(existing) = p.tags.iter_mut().find(|t| t.id == new_tag.id) {
+                    *existing = new_tag.clone();
+                } else {
+                    p.tags.push(new_tag.clone());
+                }
             }
-        }
-    }).await;
+        },
+    )
+    .await;
     if res.status() != StatusCode::NO_CONTENT {
         return res;
     }
@@ -2775,14 +3202,17 @@ async fn import_tags_csv(
     let current_ids: std::collections::HashSet<TagId> = s.db.snapshot().await.into_keys().collect();
     for t in &imported {
         if !current_ids.contains(&t.id) {
-            s.db.set(t.id.clone(), t.initial_value(), TagQuality::Uncertain).await;
+            s.db.set(t.id.clone(), t.initial_value(), TagQuality::Uncertain)
+                .await;
         }
     }
     // Re-sync derived tags (re-load updated project from disk).
     let dir2 = active_dir(&s).await.ok();
     if let Some(dir2) = dir2 {
         if let Ok(proj) = Project::load(&dir2) {
-            let derived: Vec<(String, String)> = proj.tags.iter()
+            let derived: Vec<(String, String)> = proj
+                .tags
+                .iter()
                 .filter_map(|t| t.expression.as_ref().map(|e| (t.id.clone(), e.clone())))
                 .collect();
             *s.derived_tags.write().await = derived;
@@ -2797,8 +3227,15 @@ async fn update_project_sources(
     headers: axum::http::HeaderMap,
     Json(mut sources): Json<Vec<SourceDef>>,
 ) -> Response {
-    s.audit.log("project.change", Some(user.username), serde_json::json!({"what": "sources", "count": sources.len()}));
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    s.audit.log(
+        "project.change",
+        Some(user.username),
+        serde_json::json!({"what": "sources", "count": sources.len()}),
+    );
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
 
     // Q8-C, validate-before-apply: si valida PRIMA di persistere e ricaricare.
     // Il supervisor indicizza le sorgenti per id: un id duplicato non è un
@@ -2809,13 +3246,21 @@ async fn update_project_sources(
         for src in &sources {
             let id = crate::source_supervisor::source_id(src);
             if id.trim().is_empty() {
-                return (StatusCode::BAD_REQUEST,
-                    "una sorgente ha id vuoto — ogni sorgente deve avere un id univoco").into_response();
+                return (
+                    StatusCode::BAD_REQUEST,
+                    "una sorgente ha id vuoto — ogni sorgente deve avere un id univoco",
+                )
+                    .into_response();
             }
             if !seen.insert(id.to_string()) {
-                return (StatusCode::BAD_REQUEST,
-                    format!("id sorgente duplicato: \"{id}\" — gli id devono essere univoci, \
-                             altrimenti una delle due sorgenti verrebbe scartata in silenzio")).into_response();
+                return (
+                    StatusCode::BAD_REQUEST,
+                    format!(
+                        "id sorgente duplicato: \"{id}\" — gli id devono essere univoci, \
+                             altrimenti una delle due sorgenti verrebbe scartata in silenzio"
+                    ),
+                )
+                    .into_response();
             }
         }
     }
@@ -2871,17 +3316,30 @@ async fn update_project_sources(
     // set. New/removed sources are spawned/cancelled in-place — no runtime
     // restart needed.
     let mut clone = sources.clone();
-    let res = patch_project_se(&s.project_write_lock, &dir, versione_attesa(&headers), |p| p.sources = sources).await;
+    let res = patch_project_se(
+        &s.project_write_lock,
+        &dir,
+        versione_attesa(&headers),
+        |p| p.sources = sources,
+    )
+    .await;
     if res.status() == StatusCode::NO_CONTENT {
         // Stessa risoluzione degli altri percorsi di reload (open/import/
         // system_start): senza, dopo un salvataggio dall'IDE i client MQTT
         // con random_client_id si connettevano col client_id BASE (niente
         // suffisso instance) fino alla riapertura del progetto — id diverso
         // a seconda di quale percorso ha fatto l'ultimo reload.
-        let project_name = previous.as_ref().map(|p| p.meta.name.clone())
+        let project_name = previous
+            .as_ref()
+            .map(|p| p.meta.name.clone())
             .or_else(|| Project::load(&dir).ok().map(|p| p.meta.name))
             .unwrap_or_default();
-        crate::projects::resolve_mqtt_client_ids(&project_name, &mut clone, &s.config_dir, &s.instance_id);
+        crate::projects::resolve_mqtt_client_ids(
+            &project_name,
+            &mut clone,
+            &s.config_dir,
+            &s.instance_id,
+        );
         s.supervisor.reload(clone).await;
     }
     res
@@ -2893,13 +3351,26 @@ async fn update_project_alarms(
     headers: axum::http::HeaderMap,
     Json(alarms): Json<Vec<AlarmDef>>,
 ) -> Response {
-    s.audit.log("project.change", Some(user.username), serde_json::json!({"what": "alarms", "count": alarms.len()}));
+    s.audit.log(
+        "project.change",
+        Some(user.username),
+        serde_json::json!({"what": "alarms", "count": alarms.len()}),
+    );
     // Hot-reload: AlarmDb::load fully replaces the registry (clear + insert).
     // In-flight active alarms are reset; the next TagDb update will re-evaluate
     // and re-fire any still-tripped conditions.
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
     let clone = alarms.clone();
-    let res = patch_project_se(&s.project_write_lock, &dir, versione_attesa(&headers), |p| p.alarms = alarms).await;
+    let res = patch_project_se(
+        &s.project_write_lock,
+        &dir,
+        versione_attesa(&headers),
+        |p| p.alarms = alarms,
+    )
+    .await;
     if res.status() == StatusCode::NO_CONTENT {
         s.alarms.load(clone).await;
     }
@@ -2916,9 +3387,16 @@ async fn update_project_functions(
     // 1. Code-size cap — keeps `project.yaml` from ballooning.
     for f in &functions {
         if f.code.len() > MAX_FUNCTION_CODE_BYTES {
-            return (StatusCode::PAYLOAD_TOO_LARGE,
-                format!("function '{}' code is {} bytes; max {}",
-                    f.name, f.code.len(), MAX_FUNCTION_CODE_BYTES)).into_response();
+            return (
+                StatusCode::PAYLOAD_TOO_LARGE,
+                format!(
+                    "function '{}' code is {} bytes; max {}",
+                    f.name,
+                    f.code.len(),
+                    MAX_FUNCTION_CODE_BYTES
+                ),
+            )
+                .into_response();
         }
     }
 
@@ -2926,9 +3404,14 @@ async fn update_project_functions(
     for f in &functions {
         for p in &f.params {
             if !is_valid_python_identifier(&p.name) {
-                return (StatusCode::UNPROCESSABLE_ENTITY,
-                    format!("function '{}': param '{}' is not a valid Python identifier",
-                        f.name, p.name)).into_response();
+                return (
+                    StatusCode::UNPROCESSABLE_ENTITY,
+                    format!(
+                        "function '{}': param '{}' is not a valid Python identifier",
+                        f.name, p.name
+                    ),
+                )
+                    .into_response();
             }
         }
     }
@@ -2938,18 +3421,32 @@ async fn update_project_functions(
     let mut seen = std::collections::HashSet::new();
     for f in &functions {
         if !seen.insert(f.name.as_str()) {
-            return (StatusCode::UNPROCESSABLE_ENTITY,
-                format!("duplicate function name '{}'", f.name)).into_response();
+            return (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                format!("duplicate function name '{}'", f.name),
+            )
+                .into_response();
         }
     }
 
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
     let clone = functions.clone();
-    let res = patch_project_se(&s.project_write_lock, &dir, versione_attesa(&headers), |p| p.functions = functions).await;
+    let res = patch_project_se(
+        &s.project_write_lock,
+        &dir,
+        versione_attesa(&headers),
+        |p| p.functions = functions,
+    )
+    .await;
     if res.status() == StatusCode::NO_CONTENT {
         let mut map = s.functions.write().await;
         map.clear();
-        for f in clone { map.insert(f.name.clone(), f); }
+        for f in clone {
+            map.insert(f.name.clone(), f);
+        }
     }
     res
 }
@@ -2968,9 +3465,15 @@ pub(crate) fn svg_ostile(svg: &str) -> Option<&'static str> {
     let basso = svg.to_ascii_lowercase();
     // tolgo gli spazi bianchi dentro i valori per prendere `java\nscript:` e simili
     let compatto: String = basso.chars().filter(|c| !c.is_whitespace()).collect();
-    if basso.contains("<script") { return Some("contiene <script>"); }
-    if compatto.contains("javascript:") { return Some("contiene un URL javascript:"); }
-    if basso.contains("<foreignobject") { return Some("contiene <foreignObject>"); }
+    if basso.contains("<script") {
+        return Some("contiene <script>");
+    }
+    if compatto.contains("javascript:") {
+        return Some("contiene un URL javascript:");
+    }
+    if basso.contains("<foreignobject") {
+        return Some("contiene <foreignObject>");
+    }
     if basso.contains("<iframe") || basso.contains("<embed") || basso.contains("<object") {
         return Some("contiene un elemento che incorpora un documento esterno");
     }
@@ -2978,8 +3481,13 @@ pub(crate) fn svg_ostile(svg: &str) -> Option<&'static str> {
     let mut resto = compatto.as_str();
     while let Some(i) = resto.find("on") {
         let dopo = &resto[i + 2..];
-        let nome: String = dopo.chars().take_while(|c| c.is_ascii_alphabetic()).collect();
-        if !nome.is_empty() && dopo[nome.len()..].starts_with('=') && i > 0
+        let nome: String = dopo
+            .chars()
+            .take_while(|c| c.is_ascii_alphabetic())
+            .collect();
+        if !nome.is_empty()
+            && dopo[nome.len()..].starts_with('=')
+            && i > 0
             && matches!(resto.as_bytes()[i - 1], b'<' | b'"' | b'\'' | b'/' | b'>' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_')
         {
             // `<rect onload=` compattato diventa `<rectonload=`: il carattere prima di
@@ -3000,14 +3508,28 @@ async fn update_project_custom_symbols(
     for sym in &symbols {
         if let Some(svg) = sym.svg.as_deref() {
             if let Some(motivo) = svg_ostile(svg) {
-                return (StatusCode::BAD_REQUEST,
-                    format!("simbolo «{}» rifiutato: il markup {motivo}. Un simbolo è solo grafica.\n", sym.id)
-                ).into_response();
+                return (
+                    StatusCode::BAD_REQUEST,
+                    format!(
+                        "simbolo «{}» rifiutato: il markup {motivo}. Un simbolo è solo grafica.\n",
+                        sym.id
+                    ),
+                )
+                    .into_response();
             }
         }
     }
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
-    patch_project_se(&s.project_write_lock, &dir, versione_attesa(&headers), |p| p.custom_symbols = symbols).await
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
+    patch_project_se(
+        &s.project_write_lock,
+        &dir,
+        versione_attesa(&headers),
+        |p| p.custom_symbols = symbols,
+    )
+    .await
 }
 
 async fn update_project_datastores(
@@ -3015,8 +3537,17 @@ async fn update_project_datastores(
     headers: axum::http::HeaderMap,
     Json(datastores): Json<Vec<sws_core::DatastoreConfig>>,
 ) -> Response {
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
-    patch_project_se(&s.project_write_lock, &dir, versione_attesa(&headers), |p| p.datastores = datastores).await
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
+    patch_project_se(
+        &s.project_write_lock,
+        &dir,
+        versione_attesa(&headers),
+        |p| p.datastores = datastores,
+    )
+    .await
 }
 
 // ── Project import / export (Admin only) ─────────────────────────────────────
@@ -3042,10 +3573,10 @@ const BUNDLE_FORMAT_VERSION: &str = "1.0";
 
 #[derive(serde::Serialize, serde::Deserialize)]
 struct BundleManifest {
-    format_version:  String,
-    name:            String,
-    exported_at_ms:  u64,
-    secrets_masked:  bool,
+    format_version: String,
+    name: String,
+    exported_at_ms: u64,
+    secrets_masked: bool,
 }
 
 /// Build a ZIP of the active project from `dir` (same logic as the export
@@ -3053,9 +3584,9 @@ struct BundleManifest {
 pub(crate) async fn build_project_zip(dir: &std::path::Path) -> anyhow::Result<Vec<u8>> {
     // Segreti inclusi: il dispositivo che riceve il deploy deve potersi
     // collegare al broker, e prima la password MQTT veniva spogliata proprio qui.
-    let project = Project::load(dir)
-        .map_err(|e| anyhow::anyhow!("cannot load project: {e}"))?;
-    let pages = load_all_synoptics(&synoptics_dir_at(dir)).await
+    let project = Project::load(dir).map_err(|e| anyhow::anyhow!("cannot load project: {e}"))?;
+    let pages = load_all_synoptics(&synoptics_dir_at(dir))
+        .await
         .map_err(|e| anyhow::anyhow!("cannot read synoptics: {e}"))?;
     let faceplates = read_yaml_dir(&faceplates_dir_at(dir)).await;
     let recipes = read_yaml_dir(&recipes_dir_at(dir)).await;
@@ -3067,20 +3598,31 @@ pub(crate) async fn build_project_zip(dir: &std::path::Path) -> anyhow::Result<V
         .unwrap_or(0);
     let manifest = BundleManifest {
         format_version: BUNDLE_FORMAT_VERSION.into(),
-        name:           project_name,
+        name: project_name,
         exported_at_ms,
         secrets_masked: false,
     };
     let users_yaml = std::fs::read_to_string(dir.join("users.yaml")).ok();
-    build_export_zip(&manifest, &project, &pages, users_yaml.as_deref(), &faceplates, &recipes, &images)
+    build_export_zip(
+        &manifest,
+        &project,
+        &pages,
+        users_yaml.as_deref(),
+        &faceplates,
+        &recipes,
+        &images,
+    )
 }
 
 async fn export_project_zip(State(s): State<AppState>) -> Response {
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
     // 1. Load the project from disk, secrets included (see the bundle notes
     //    above): un export che li perde non è un backup ripristinabile.
     let project = match Project::load(&dir) {
-        Ok(p)  => p,
+        Ok(p) => p,
         Err(e) => {
             warn!("export: cannot load project: {e}");
             return (StatusCode::INTERNAL_SERVER_ERROR, "cannot load project").into_response();
@@ -3089,7 +3631,7 @@ async fn export_project_zip(State(s): State<AppState>) -> Response {
 
     // 2. Load every synoptic page from disk.
     let pages = match load_all_synoptics(&synoptics_dir_at(&dir)).await {
-        Ok(v)  => v,
+        Ok(v) => v,
         Err(e) => {
             warn!("export: cannot read synoptics: {e}");
             return (StatusCode::INTERNAL_SERVER_ERROR, "cannot read synoptics").into_response();
@@ -3107,7 +3649,7 @@ async fn export_project_zip(State(s): State<AppState>) -> Response {
         .unwrap_or(0);
     let manifest = BundleManifest {
         format_version: BUNDLE_FORMAT_VERSION.into(),
-        name:           project_name.clone(),
+        name: project_name.clone(),
         exported_at_ms,
         secrets_masked: false,
     };
@@ -3115,8 +3657,16 @@ async fn export_project_zip(State(s): State<AppState>) -> Response {
     // Include users.yaml if present so credentials travel with the project.
     let users_yaml = std::fs::read_to_string(dir.join("users.yaml")).ok();
 
-    let buf = match build_export_zip(&manifest, &project, &pages, users_yaml.as_deref(), &faceplates, &recipes, &images) {
-        Ok(b)  => b,
+    let buf = match build_export_zip(
+        &manifest,
+        &project,
+        &pages,
+        users_yaml.as_deref(),
+        &faceplates,
+        &recipes,
+        &images,
+    ) {
+        Ok(b) => b,
         Err(e) => {
             warn!("export: zip build failed: {e}");
             return (StatusCode::INTERNAL_SERVER_ERROR, "zip build failed").into_response();
@@ -3135,10 +3685,14 @@ async fn export_project_zip(State(s): State<AppState>) -> Response {
         StatusCode::OK,
         [
             (header::CONTENT_TYPE, "application/zip".to_string()),
-            (header::CONTENT_DISPOSITION, format!("attachment; filename=\"{filename}\"")),
+            (
+                header::CONTENT_DISPOSITION,
+                format!("attachment; filename=\"{filename}\""),
+            ),
         ],
         buf,
-    ).into_response()
+    )
+        .into_response()
 }
 
 fn build_export_zip(
@@ -3211,7 +3765,9 @@ async fn read_images_dir(dir: &std::path::Path) -> Vec<(String, Vec<u8>)> {
     if let Ok(mut rd) = tokio::fs::read_dir(dir).await {
         while let Ok(Some(entry)) = rd.next_entry().await {
             let name = entry.file_name().to_string_lossy().into_owned();
-            if image_content_type(&name).is_none() { continue; }
+            if image_content_type(&name).is_none() {
+                continue;
+            }
             if let Ok(bytes) = tokio::fs::read(entry.path()).await {
                 out.push((name, bytes));
             }
@@ -3232,7 +3788,9 @@ async fn read_yaml_dir(dir: &std::path::Path) -> Vec<(String, String)> {
         if path.extension().and_then(|e| e.to_str()) != Some("yaml") {
             continue;
         }
-        let Some(fname) = path.file_name().and_then(|s| s.to_str()) else { continue };
+        let Some(fname) = path.file_name().and_then(|s| s.to_str()) else {
+            continue;
+        };
         if let Ok(content) = tokio::fs::read_to_string(&path).await {
             out.push((fname.to_string(), content));
         }
@@ -3263,38 +3821,56 @@ async fn load_all_synoptics(dir: &std::path::Path) -> std::io::Result<Vec<Synopt
 }
 
 async fn import_project_zip(State(s): State<AppState>, body: Bytes) -> Response {
-    let active_project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let active_project_dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
     // 1. Parse the ZIP from raw bytes.
     let mut archive = match zip::ZipArchive::new(Cursor::new(body.as_ref())) {
-        Ok(a)  => a,
-        Err(e) => return (StatusCode::BAD_REQUEST, format!("not a valid zip: {e}")).into_response(),
+        Ok(a) => a,
+        Err(e) => {
+            return (StatusCode::BAD_REQUEST, format!("not a valid zip: {e}")).into_response()
+        }
     };
 
     // 2. Read manifest.json and validate format_version.
     let manifest: BundleManifest = match read_zip_text(&mut archive, "manifest.json") {
         Ok(Some(text)) => match serde_json::from_str(&text) {
             Ok(m) => m,
-            Err(e) => return (StatusCode::BAD_REQUEST,
-                format!("manifest.json parse error: {e}")).into_response(),
+            Err(e) => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    format!("manifest.json parse error: {e}"),
+                )
+                    .into_response()
+            }
         },
         Ok(None) => return (StatusCode::BAD_REQUEST, "missing manifest.json").into_response(),
-        Err(e)   => return (StatusCode::BAD_REQUEST, format!("zip read error: {e}")).into_response(),
+        Err(e) => return (StatusCode::BAD_REQUEST, format!("zip read error: {e}")).into_response(),
     };
     if manifest.format_version != BUNDLE_FORMAT_VERSION {
-        return (StatusCode::BAD_REQUEST,
-            format!("unsupported format_version: {}", manifest.format_version)).into_response();
+        return (
+            StatusCode::BAD_REQUEST,
+            format!("unsupported format_version: {}", manifest.format_version),
+        )
+            .into_response();
     }
 
     // 3. Read project.yaml.
     let project_text = match read_zip_text(&mut archive, "project.yaml") {
         Ok(Some(t)) => t,
-        Ok(None)    => return (StatusCode::BAD_REQUEST, "missing project.yaml").into_response(),
-        Err(e)      => return (StatusCode::BAD_REQUEST, format!("zip read error: {e}")).into_response(),
+        Ok(None) => return (StatusCode::BAD_REQUEST, "missing project.yaml").into_response(),
+        Err(e) => return (StatusCode::BAD_REQUEST, format!("zip read error: {e}")).into_response(),
     };
     let mut project: Project = match serde_yaml::from_str(&project_text) {
-        Ok(p)  => p,
-        Err(e) => return (StatusCode::BAD_REQUEST,
-            format!("project.yaml parse error: {e}")).into_response(),
+        Ok(p) => p,
+        Err(e) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                format!("project.yaml parse error: {e}"),
+            )
+                .into_response()
+        }
     };
     // Defensive: scrub the "********" sentinel in case a client built the bundle
     // from a masked GET response. Treat as "no password set" — persisting the
@@ -3317,14 +3893,21 @@ async fn import_project_zip(State(s): State<AppState>, body: Bytes) -> Response 
         }
         let text = match read_zip_text(&mut archive, &name) {
             Ok(Some(t)) => t,
-            Ok(None)    => continue,
-            Err(e)      => return (StatusCode::BAD_REQUEST,
-                format!("zip read error on {name}: {e}")).into_response(),
+            Ok(None) => continue,
+            Err(e) => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    format!("zip read error on {name}: {e}"),
+                )
+                    .into_response()
+            }
         };
         match serde_yaml::from_str::<SynopticPage>(&text) {
-            Ok(p)  => pages.push(p),
-            Err(e) => return (StatusCode::BAD_REQUEST,
-                format!("{name} parse error: {e}")).into_response(),
+            Ok(p) => pages.push(p),
+            Err(e) => {
+                return (StatusCode::BAD_REQUEST, format!("{name} parse error: {e}"))
+                    .into_response()
+            }
         }
     }
 
@@ -3332,7 +3915,11 @@ async fn import_project_zip(State(s): State<AppState>, body: Bytes) -> Response 
     let project_dir: &std::path::Path = active_project_dir.as_path();
     if let Err(e) = tokio::fs::create_dir_all(project_dir).await {
         warn!("import: cannot create project dir: {e}");
-        return (StatusCode::INTERNAL_SERVER_ERROR, "cannot create project dir").into_response();
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "cannot create project dir",
+        )
+            .into_response();
     }
     let project_path = project_dir.join("project.yaml");
     // Q30: l'import sostituisce project.yaml per intero. Non è un
@@ -3341,9 +3928,14 @@ async fn import_project_zip(State(s): State<AppState>, body: Bytes) -> Response 
     // sovrascrivere l'import, o scrivere sopra il progetto appena importato.
     let _scrittura = s.project_write_lock.lock().await;
     let serialized_project = match project.stamp_and_serialize() {
-        Ok(y)  => y,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR,
-            format!("project.yaml serialize: {e}")).into_response(),
+        Ok(y) => y,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("project.yaml serialize: {e}"),
+            )
+                .into_response()
+        }
     };
     // Q10: il project.yaml del bundle può contenere sorgenti che questo
     // binario non sa parsare (scritte da una versione più nuova) e chiavi di
@@ -3352,8 +3944,11 @@ async fn import_project_zip(State(s): State<AppState>, body: Bytes) -> Response 
     // Insieme vuoto: qui non c'è un "prima" da cui dedurre una cancellazione
     // voluta — il progetto È quello importato. Tutto ciò che il bundle ha e la
     // struttura non produce è per definizione da conservare.
-    let serialized_project =
-        merge_preserved(&serialized_project, &project_text, &std::collections::HashSet::new());
+    let serialized_project = merge_preserved(
+        &serialized_project,
+        &project_text,
+        &std::collections::HashSet::new(),
+    );
     if let Err(e) = scrivi_atomico(&project_path, serialized_project.as_bytes()).await {
         warn!("import: write project.yaml: {e}");
         return (StatusCode::INTERNAL_SERVER_ERROR, "write project.yaml").into_response();
@@ -3362,11 +3957,16 @@ async fn import_project_zip(State(s): State<AppState>, body: Bytes) -> Response 
     let syn_dir = synoptics_dir_at(project_dir);
     if let Err(e) = tokio::fs::create_dir_all(&syn_dir).await {
         warn!("import: cannot create synoptics dir: {e}");
-        return (StatusCode::INTERNAL_SERVER_ERROR, "cannot create synoptics dir").into_response();
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "cannot create synoptics dir",
+        )
+            .into_response();
     }
 
     // 5a. Compute the set of filenames the bundle declares (after sanitising).
-    let kept_files: std::collections::HashSet<String> = pages.iter()
+    let kept_files: std::collections::HashSet<String> = pages
+        .iter()
         .map(|p| format!("{}.yaml", safe_filename(&p.name)))
         .collect();
 
@@ -3377,7 +3977,11 @@ async fn import_project_zip(State(s): State<AppState>, body: Bytes) -> Response 
             if path.extension().and_then(|e| e.to_str()) != Some("yaml") {
                 continue;
             }
-            let fname = path.file_name().and_then(|s| s.to_str()).unwrap_or("").to_string();
+            let fname = path
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .to_string();
             if !kept_files.contains(&fname) {
                 if let Err(e) = tokio::fs::remove_file(&path).await {
                     warn!("import: cannot delete orphan synoptic {:?}: {e}", path);
@@ -3390,17 +3994,23 @@ async fn import_project_zip(State(s): State<AppState>, body: Bytes) -> Response 
     for page in &pages {
         let path = syn_dir.join(format!("{}.yaml", safe_filename(&page.name)));
         let yaml = match serde_yaml::to_string(page) {
-            Ok(y)  => y,
+            Ok(y) => y,
             Err(e) => {
                 warn!("import: serialize synoptic '{}': {e}", page.name);
-                return (StatusCode::INTERNAL_SERVER_ERROR,
-                    format!("serialize synoptic '{}'", page.name)).into_response();
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("serialize synoptic '{}'", page.name),
+                )
+                    .into_response();
             }
         };
         if let Err(e) = tokio::fs::write(&path, yaml).await {
             warn!("import: write synoptic '{}': {e}", page.name);
-            return (StatusCode::INTERNAL_SERVER_ERROR,
-                format!("write synoptic '{}'", page.name)).into_response();
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("write synoptic '{}'", page.name),
+            )
+                .into_response();
         }
     }
 
@@ -3408,32 +4018,44 @@ async fn import_project_zip(State(s): State<AppState>, body: Bytes) -> Response 
     //     5a-5c sopra, mancava del tutto: il bundle non li portava, quindi un
     //     faceplate/recipe modificato o cancellato in locale non si
     //     rifletteva mai sul device dopo un deploy.
-    if let Err(e) = sync_yaml_dir_from_zip(&mut archive, "faceplates", &faceplates_dir_at(project_dir)).await {
+    if let Err(e) =
+        sync_yaml_dir_from_zip(&mut archive, "faceplates", &faceplates_dir_at(project_dir)).await
+    {
         warn!("import: sync faceplates: {e}");
         return (StatusCode::INTERNAL_SERVER_ERROR, "sync faceplates").into_response();
     }
-    if let Err(e) = sync_yaml_dir_from_zip(&mut archive, "recipes", &recipes_dir_at(project_dir)).await {
+    if let Err(e) =
+        sync_yaml_dir_from_zip(&mut archive, "recipes", &recipes_dir_at(project_dir)).await
+    {
         warn!("import: sync recipes: {e}");
         return (StatusCode::INTERNAL_SERVER_ERROR, "sync recipes").into_response();
     }
 
     // 6. Hot-reload — mirror the per-section PUT handlers' side effects so
     //    the runtime reflects the new project without a restart.
-    let current_ids: std::collections::HashSet<TagId> =
-        s.db.snapshot().await.into_keys().collect();
+    let current_ids: std::collections::HashSet<TagId> = s.db.snapshot().await.into_keys().collect();
     let new_ids: std::collections::HashSet<TagId> =
         project.tags.iter().map(|t| t.id.clone()).collect();
     for t in project.tags.iter().filter(|t| !current_ids.contains(&t.id)) {
-        s.db.set(t.id.clone(), t.initial_value(), TagQuality::Uncertain).await;
+        s.db.set(t.id.clone(), t.initial_value(), TagQuality::Uncertain)
+            .await;
     }
     for id in current_ids.difference(&new_ids) {
         s.db.remove(id).await;
     }
-    s.db.set_scales(crate::projects::build_tag_scales(&project.tags)).await;
-    s.db.set_write_roles(crate::projects::build_tag_write_roles(&project.tags)).await;
-    s.db.set_data_types(crate::projects::build_tag_data_types(&project.tags)).await;
+    s.db.set_scales(crate::projects::build_tag_scales(&project.tags))
+        .await;
+    s.db.set_write_roles(crate::projects::build_tag_write_roles(&project.tags))
+        .await;
+    s.db.set_data_types(crate::projects::build_tag_data_types(&project.tags))
+        .await;
     s.alarms.load(project.alarms.clone()).await;
-    crate::projects::resolve_mqtt_client_ids(&project.meta.name, &mut project.sources, &s.config_dir, &s.instance_id);
+    crate::projects::resolve_mqtt_client_ids(
+        &project.meta.name,
+        &mut project.sources,
+        &s.config_dir,
+        &s.instance_id,
+    );
     s.supervisor.reload(project.sources.clone()).await;
     {
         let mut map = s.functions.write().await;
@@ -3443,7 +4065,9 @@ async fn import_project_zip(State(s): State<AppState>, body: Bytes) -> Response 
         }
     }
     {
-        let derived: Vec<(String, String)> = project.tags.iter()
+        let derived: Vec<(String, String)> = project
+            .tags
+            .iter()
             .filter_map(|t| t.expression.as_ref().map(|e| (t.id.clone(), e.clone())))
             .collect();
         *s.derived_tags.write().await = derived;
@@ -3468,7 +4092,7 @@ fn read_zip_text(
     name: &str,
 ) -> std::io::Result<Option<String>> {
     let mut file = match archive.by_name(name) {
-        Ok(f)  => f,
+        Ok(f) => f,
         Err(zip::result::ZipError::FileNotFound) => return Ok(None),
         Err(e) => return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, e)),
     };
@@ -3492,7 +4116,9 @@ async fn sync_yaml_dir_from_zip(
     let bundle_prefix = format!("{prefix}/");
     let mut kept: std::collections::HashSet<String> = std::collections::HashSet::new();
     for name in &file_names {
-        let Some(fname) = name.strip_prefix(&bundle_prefix) else { continue };
+        let Some(fname) = name.strip_prefix(&bundle_prefix) else {
+            continue;
+        };
         // Solo file diretti dentro prefix/ — nessuna sottocartella attesa.
         if !fname.ends_with(".yaml") || fname.contains('/') {
             continue;
@@ -3508,7 +4134,11 @@ async fn sync_yaml_dir_from_zip(
             if path.extension().and_then(|e| e.to_str()) != Some("yaml") {
                 continue;
             }
-            let fname = path.file_name().and_then(|s| s.to_str()).unwrap_or("").to_string();
+            let fname = path
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .to_string();
             if !kept.contains(&fname) {
                 let _ = tokio::fs::remove_file(&path).await;
             }
@@ -3539,8 +4169,8 @@ fn unix_to_ymdhm(secs: i64) -> (i32, u32, u32, u32, u32) {
     // Days since 1970-01-01.
     let total_minutes = secs.div_euclid(60);
     let mi = (total_minutes.rem_euclid(60)) as u32;
-    let total_hours   = total_minutes.div_euclid(60);
-    let h  = (total_hours.rem_euclid(24)) as u32;
+    let total_hours = total_minutes.div_euclid(60);
+    let h = (total_hours.rem_euclid(24)) as u32;
     let mut days = total_hours.div_euclid(24);
 
     // Forward-walk through years from 1970. Works fine for any reasonable
@@ -3560,7 +4190,16 @@ fn unix_to_ymdhm(secs: i64) -> (i32, u32, u32, u32, u32) {
     let months: [i64; 12] = [
         31,
         if leap { 29 } else { 28 },
-        31, 30, 31, 30, 31, 31, 30, 31, 30, 31,
+        31,
+        30,
+        31,
+        30,
+        31,
+        31,
+        30,
+        31,
+        30,
+        31,
     ];
     let mut mo: u32 = 1;
     for (i, n) in months.iter().enumerate() {
@@ -3593,27 +4232,49 @@ async fn run_function(
     Path(name): Path<String>,
     body: Option<Json<RunBody>>,
 ) -> Response {
-    s.audit.log("script.run", Some(user.username), serde_json::json!({"name": name.clone()}));
+    s.audit.log(
+        "script.run",
+        Some(user.username),
+        serde_json::json!({"name": name.clone()}),
+    );
     let code = {
         let map = s.functions.read().await;
         match map.get(&name) {
             Some(f) => f.code.clone(),
-            None    => return (StatusCode::NOT_FOUND,
-                format!("no function named '{name}'")).into_response(),
+            None => {
+                return (StatusCode::NOT_FOUND, format!("no function named '{name}'"))
+                    .into_response()
+            }
         }
     };
     let args = body.map(|Json(b)| b.args).unwrap_or_default();
     match s.py.execute_with_args(code, args).await {
-        Ok(ExecOutput { stdout, stderr, sandboxed }) => {
-            metrics::counter!("sws_script_exec_total", "endpoint" => "run", "status" => "ok").increment(1);
-            Json(ScriptResult { ok: true, stdout, stderr, sandboxed, error: None }).into_response()
+        Ok(ExecOutput {
+            stdout,
+            stderr,
+            sandboxed,
+        }) => {
+            metrics::counter!("sws_script_exec_total", "endpoint" => "run", "status" => "ok")
+                .increment(1);
+            Json(ScriptResult {
+                ok: true,
+                stdout,
+                stderr,
+                sandboxed,
+                error: None,
+            })
+            .into_response()
         }
         Err(e) => {
-            metrics::counter!("sws_script_exec_total", "endpoint" => "run", "status" => "error").increment(1);
+            metrics::counter!("sws_script_exec_total", "endpoint" => "run", "status" => "error")
+                .increment(1);
             Json(ScriptResult {
-                ok: false, error: Some(e), sandboxed: s.py.is_sandboxed(),
+                ok: false,
+                error: Some(e),
+                sandboxed: s.py.is_sandboxed(),
                 ..Default::default()
-            }).into_response()
+            })
+            .into_response()
         }
     }
 }
@@ -3622,17 +4283,22 @@ async fn run_function(
 /// hard-coded keyword list (a subset of `keyword.kwlist` — covers everything
 /// you'd reasonably shadow as a parameter).
 fn is_valid_python_identifier(s: &str) -> bool {
-    if s.is_empty() { return false; }
+    if s.is_empty() {
+        return false;
+    }
     let mut chars = s.chars();
     let first = chars.next().unwrap();
-    if !(first.is_ascii_alphabetic() || first == '_') { return false; }
-    if !chars.all(|c| c.is_ascii_alphanumeric() || c == '_') { return false; }
+    if !(first.is_ascii_alphabetic() || first == '_') {
+        return false;
+    }
+    if !chars.all(|c| c.is_ascii_alphanumeric() || c == '_') {
+        return false;
+    }
     const KEYWORDS: &[&str] = &[
-        "False", "None", "True", "and", "as", "assert", "async", "await",
-        "break", "class", "continue", "def", "del", "elif", "else", "except",
-        "finally", "for", "from", "global", "if", "import", "in", "is",
-        "lambda", "nonlocal", "not", "or", "pass", "raise", "return", "try",
-        "while", "with", "yield", "match", "case",
+        "False", "None", "True", "and", "as", "assert", "async", "await", "break", "class",
+        "continue", "def", "del", "elif", "else", "except", "finally", "for", "from", "global",
+        "if", "import", "in", "is", "lambda", "nonlocal", "not", "or", "pass", "raise", "return",
+        "try", "while", "with", "yield", "match", "case",
     ];
     !KEYWORDS.contains(&s)
 }
@@ -3652,7 +4318,9 @@ fn zone_allowed(user_zones: &[String], page_zones: &Option<Vec<String>>) -> bool
         Some(pz) if pz.is_empty() => true,
         Some(pz) => {
             // user_zones empty = user has no zone restriction → can access any page
-            if user_zones.is_empty() { return true; }
+            if user_zones.is_empty() {
+                return true;
+            }
             user_zones.iter().any(|z| pz.contains(z))
         }
     }
@@ -3662,7 +4330,10 @@ async fn list_synoptics(
     State(s): State<AppState>,
     axum::extract::Extension(user): axum::extract::Extension<AuthUser>,
 ) -> Response {
-    let project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let project_dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
     let dir = synoptics_dir_at(&project_dir);
     let mut names = Vec::new();
     if let Ok(mut entries) = tokio::fs::read_dir(&dir).await {
@@ -3676,8 +4347,12 @@ async fn list_synoptics(
                     } else if let Ok(text) = tokio::fs::read_to_string(&path).await {
                         if let Ok(page) = serde_yaml::from_str::<SynopticPage>(&text) {
                             zone_allowed(&user.allowed_zones, &page.zones)
-                        } else { true }
-                    } else { true };
+                        } else {
+                            true
+                        }
+                    } else {
+                        true
+                    };
                     if allowed {
                         names.push(stem.to_owned());
                     }
@@ -3694,7 +4369,10 @@ async fn get_synoptic(
     axum::extract::Extension(user): axum::extract::Extension<AuthUser>,
     Path(name): Path<String>,
 ) -> Response {
-    let project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let project_dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
     let path = synoptics_dir_at(&project_dir).join(format!("{}.yaml", safe_filename(&name)));
     match tokio::fs::read_to_string(&path).await {
         Ok(text) => match serde_yaml::from_str::<SynopticPage>(&text) {
@@ -3720,11 +4398,11 @@ async fn get_synoptic(
 /// with a `Content-Disposition: attachment` header so browsers download it.
 /// Same content as `/api/synoptics/:name` (the file on disk), just bytes —
 /// no JSON round-trip — and Content-Type set to `application/x-yaml`.
-async fn export_synoptic_yaml(
-    State(s): State<AppState>,
-    Path(name): Path<String>,
-) -> Response {
-    let project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+async fn export_synoptic_yaml(State(s): State<AppState>, Path(name): Path<String>) -> Response {
+    let project_dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
     let safe = safe_filename(&name);
     let path = synoptics_dir_at(&project_dir).join(format!("{}.yaml", safe));
     match tokio::fs::read(&path).await {
@@ -3733,11 +4411,18 @@ async fn export_synoptic_yaml(
             (
                 StatusCode::OK,
                 [
-                    (header::CONTENT_TYPE, "application/x-yaml; charset=utf-8".to_string()),
-                    (header::CONTENT_DISPOSITION, format!("attachment; filename=\"{filename}\"")),
+                    (
+                        header::CONTENT_TYPE,
+                        "application/x-yaml; charset=utf-8".to_string(),
+                    ),
+                    (
+                        header::CONTENT_DISPOSITION,
+                        format!("attachment; filename=\"{filename}\""),
+                    ),
                 ],
                 bytes,
-            ).into_response()
+            )
+                .into_response()
         }
         Err(_) => StatusCode::NOT_FOUND.into_response(),
     }
@@ -3750,11 +4435,11 @@ async fn export_synoptic_yaml(
 ///
 /// Returns 200 + `{ id, name, filename }` on success so the editor can
 /// jump to the imported page.
-async fn import_synoptic_yaml(
-    State(s): State<AppState>,
-    body: Bytes,
-) -> Response {
-    let project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+async fn import_synoptic_yaml(State(s): State<AppState>, body: Bytes) -> Response {
+    let project_dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
     let dir = synoptics_dir_at(&project_dir);
     if let Err(e) = tokio::fs::create_dir_all(&dir).await {
         warn!("import_synoptic: cannot create synoptics dir: {e}");
@@ -3762,12 +4447,18 @@ async fn import_synoptic_yaml(
     }
 
     let text = match std::str::from_utf8(&body) {
-        Ok(t)  => t,
+        Ok(t) => t,
         Err(_) => return (StatusCode::BAD_REQUEST, "body is not UTF-8").into_response(),
     };
     let mut page: SynopticPage = match serde_yaml::from_str(text) {
-        Ok(p)  => p,
-        Err(e) => return (StatusCode::BAD_REQUEST, format!("invalid synoptic YAML: {e}")).into_response(),
+        Ok(p) => p,
+        Err(e) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                format!("invalid synoptic YAML: {e}"),
+            )
+                .into_response()
+        }
     };
 
     // Always allocate a fresh id so imports never collide with existing pages.
@@ -3796,12 +4487,16 @@ async fn import_synoptic_yaml(
         }
         suffix += 1;
         if suffix > 100 {
-            return (StatusCode::INTERNAL_SERVER_ERROR, "too many name collisions").into_response();
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "too many name collisions",
+            )
+                .into_response();
         }
     }
 
     let yaml = match serde_yaml::to_string(&page) {
-        Ok(y)  => y,
+        Ok(y) => y,
         Err(e) => {
             warn!("import_synoptic: serialize: {e}");
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
@@ -3817,7 +4512,8 @@ async fn import_synoptic_yaml(
         "id":       new_id,
         "name":     page.name,
         "filename": filename,
-    })).into_response()
+    }))
+    .into_response()
 }
 
 async fn save_synoptic(
@@ -3826,7 +4522,10 @@ async fn save_synoptic(
     headers: axum::http::HeaderMap,
     Json(page): Json<SynopticPage>,
 ) -> Response {
-    let project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let project_dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
     let dir = synoptics_dir_at(&project_dir);
     if let Err(e) = tokio::fs::create_dir_all(&dir).await {
         warn!("cannot create synoptics dir: {e}");
@@ -3850,7 +4549,10 @@ async fn save_synoptic(
 
     let yaml = match serde_yaml::to_string(&page) {
         Ok(y) => y,
-        Err(e) => { warn!("serialize synoptic: {e}"); return StatusCode::INTERNAL_SERVER_ERROR.into_response(); }
+        Err(e) => {
+            warn!("serialize synoptic: {e}");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
     };
     // Atomica come `project.yaml`, e per lo stesso motivo: una pagina troncata
     // da un processo ucciso a metà scrittura non si carica più, e il progetto
@@ -3872,7 +4574,9 @@ async fn save_synoptic(
             // Only remove if this stale file has the same internal id.
             if let Ok(text) = tokio::fs::read_to_string(entry.path()).await {
                 #[derive(serde::Deserialize)]
-                struct IdOnly { id: String }
+                struct IdOnly {
+                    id: String,
+                }
                 if let Ok(p) = serde_yaml::from_str::<IdOnly>(&text) {
                     if p.id == page.id {
                         if let Err(e) = tokio::fs::remove_file(entry.path()).await {
@@ -3898,11 +4602,11 @@ async fn save_synoptic(
 /// so a page removed only from the in-memory array reappeared on the next
 /// load (project reopen, deploy zip, viewer refresh) because its file was
 /// never actually removed. Same pattern as `delete_faceplate`/`delete_recipe`.
-async fn delete_synoptic(
-    State(s): State<AppState>,
-    Path(name): Path<String>,
-) -> StatusCode {
-    let project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c };
+async fn delete_synoptic(State(s): State<AppState>, Path(name): Path<String>) -> StatusCode {
+    let project_dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c,
+    };
     let path = synoptics_dir_at(&project_dir).join(format!("{}.yaml", safe_filename(&name)));
     match tokio::fs::remove_file(&path).await {
         Ok(()) => StatusCode::NO_CONTENT,
@@ -3914,9 +4618,18 @@ async fn delete_synoptic(
 
 // Built-in faceplates embedded at compile time — always available.
 const BUILTIN_FACEPLATES: &[(&str, &str)] = &[
-    ("motor_basic",  include_str!("../../../assets/faceplates/motor_basic.yaml")),
-    ("valve_basic",  include_str!("../../../assets/faceplates/valve_basic.yaml")),
-    ("tank_level",   include_str!("../../../assets/faceplates/tank_level.yaml")),
+    (
+        "motor_basic",
+        include_str!("../../../assets/faceplates/motor_basic.yaml"),
+    ),
+    (
+        "valve_basic",
+        include_str!("../../../assets/faceplates/valve_basic.yaml"),
+    ),
+    (
+        "tank_level",
+        include_str!("../../../assets/faceplates/tank_level.yaml"),
+    ),
 ];
 
 // ── Project images ────────────────────────────────────────────────────────────
@@ -3934,16 +4647,25 @@ pub fn images_dir_at(project_dir: &std::path::Path) -> PathBuf {
 /// Whitelist deliberata: la cartella è servita al viewer anonimo, non deve
 /// poter ospitare contenuti arbitrari (html/js) caricati da un supervisor.
 fn image_content_type(name: &str) -> Option<&'static str> {
-    if name.is_empty() || name.len() > 128 { return None; }
-    if !name.chars().all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '.' | '-' | '_')) { return None; }
-    if name.starts_with('.') || name.contains("..") { return None; }
+    if name.is_empty() || name.len() > 128 {
+        return None;
+    }
+    if !name
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '.' | '-' | '_'))
+    {
+        return None;
+    }
+    if name.starts_with('.') || name.contains("..") {
+        return None;
+    }
     let ext = name.rsplit('.').next().unwrap_or("").to_ascii_lowercase();
     match ext.as_str() {
-        "png"          => Some("image/png"),
+        "png" => Some("image/png"),
         "jpg" | "jpeg" => Some("image/jpeg"),
-        "gif"          => Some("image/gif"),
-        "svg"          => Some("image/svg+xml"),
-        "webp"         => Some("image/webp"),
+        "gif" => Some("image/gif"),
+        "svg" => Some("image/svg+xml"),
+        "webp" => Some("image/webp"),
         _ => None,
     }
 }
@@ -3958,14 +4680,22 @@ struct ProjectImageInfo {
 
 /// `GET /api/project/images` — elenco delle immagini del progetto attivo.
 async fn list_project_images(State(s): State<AppState>) -> Response {
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
     let mut out: Vec<ProjectImageInfo> = Vec::new();
     if let Ok(mut rd) = tokio::fs::read_dir(images_dir_at(&dir)).await {
         while let Ok(Some(entry)) = rd.next_entry().await {
             let name = entry.file_name().to_string_lossy().into_owned();
-            if image_content_type(&name).is_none() { continue; }
+            if image_content_type(&name).is_none() {
+                continue;
+            }
             let size = entry.metadata().await.map(|m| m.len()).unwrap_or(0);
-            out.push(ProjectImageInfo { name, size_bytes: size });
+            out.push(ProjectImageInfo {
+                name,
+                size_bytes: size,
+            });
         }
     }
     out.sort_by(|a, b| a.name.cmp(&b.name));
@@ -3979,7 +4709,10 @@ async fn get_project_image(State(s): State<AppState>, Path(name): Path<String>) 
     let Some(ctype) = image_content_type(&name) else {
         return (StatusCode::BAD_REQUEST, "nome immagine non valido").into_response();
     };
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
     match tokio::fs::read(images_dir_at(&dir).join(&name)).await {
         Ok(bytes) => Response::builder()
             .status(StatusCode::OK)
@@ -4001,28 +4734,54 @@ async fn upload_project_image(
     body: Bytes,
 ) -> Response {
     if image_content_type(&name).is_none() {
-        return (StatusCode::BAD_REQUEST,
-            "nome non valido: solo lettere/numeri/._- ed estensioni png, jpg, jpeg, gif, svg, webp").into_response();
+        return (
+            StatusCode::BAD_REQUEST,
+            "nome non valido: solo lettere/numeri/._- ed estensioni png, jpg, jpeg, gif, svg, webp",
+        )
+            .into_response();
     }
     if body.is_empty() {
         return (StatusCode::BAD_REQUEST, "file vuoto").into_response();
     }
     if body.len() > MAX_IMAGE_BYTES {
-        return (StatusCode::PAYLOAD_TOO_LARGE,
-            format!("immagine troppo grande ({} KB, max {} KB)", body.len() / 1024, MAX_IMAGE_BYTES / 1024)).into_response();
+        return (
+            StatusCode::PAYLOAD_TOO_LARGE,
+            format!(
+                "immagine troppo grande ({} KB, max {} KB)",
+                body.len() / 1024,
+                MAX_IMAGE_BYTES / 1024
+            ),
+        )
+            .into_response();
     }
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
     let images = images_dir_at(&dir);
     if let Err(e) = tokio::fs::create_dir_all(&images).await {
-        return (StatusCode::INTERNAL_SERVER_ERROR, format!("mkdir images: {e}")).into_response();
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("mkdir images: {e}"),
+        )
+            .into_response();
     }
     if let Err(e) = tokio::fs::write(images.join(&name), &body).await {
-        return (StatusCode::INTERNAL_SERVER_ERROR, format!("scrittura fallita: {e}")).into_response();
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("scrittura fallita: {e}"),
+        )
+            .into_response();
     }
-    s.audit.log("project.image_upload", Some(user.username), serde_json::json!({
-        "name": name, "size_bytes": body.len(),
-    }));
-    Json(serde_json::json!({ "name": name, "url": format!("/api/project/images/{name}") })).into_response()
+    s.audit.log(
+        "project.image_upload",
+        Some(user.username),
+        serde_json::json!({
+            "name": name, "size_bytes": body.len(),
+        }),
+    );
+    Json(serde_json::json!({ "name": name, "url": format!("/api/project/images/{name}") }))
+        .into_response()
 }
 
 /// `DELETE /api/project/images/:name` — rimozione. Supervisor+.
@@ -4034,10 +4793,17 @@ async fn delete_project_image(
     if image_content_type(&name).is_none() {
         return (StatusCode::BAD_REQUEST, "nome immagine non valido").into_response();
     }
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
     match tokio::fs::remove_file(images_dir_at(&dir).join(&name)).await {
         Ok(()) => {
-            s.audit.log("project.image_delete", Some(user.username), serde_json::json!({ "name": name }));
+            s.audit.log(
+                "project.image_delete",
+                Some(user.username),
+                serde_json::json!({ "name": name }),
+            );
             StatusCode::NO_CONTENT.into_response()
         }
         Err(_) => (StatusCode::NOT_FOUND, "immagine non trovata").into_response(),
@@ -4049,10 +4815,15 @@ fn faceplates_dir_at(project_dir: &std::path::Path) -> PathBuf {
 }
 
 async fn list_faceplates(State(s): State<AppState>) -> Response {
-    let project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let project_dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
     let dir = faceplates_dir_at(&project_dir);
-    let mut ids: std::collections::HashSet<String> = BUILTIN_FACEPLATES.iter()
-        .map(|(id, _)| id.to_string()).collect();
+    let mut ids: std::collections::HashSet<String> = BUILTIN_FACEPLATES
+        .iter()
+        .map(|(id, _)| id.to_string())
+        .collect();
     if let Ok(mut entries) = tokio::fs::read_dir(&dir).await {
         while let Ok(Some(entry)) = entries.next_entry().await {
             let path = entry.path();
@@ -4068,18 +4839,21 @@ async fn list_faceplates(State(s): State<AppState>) -> Response {
     Json(sorted).into_response()
 }
 
-async fn get_faceplate(
-    State(s): State<AppState>,
-    Path(id): Path<String>,
-) -> Response {
-    let project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+async fn get_faceplate(State(s): State<AppState>, Path(id): Path<String>) -> Response {
+    let project_dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
     let path = faceplates_dir_at(&project_dir).join(format!("{}.yaml", safe_filename(&id)));
     // Project-specific faceplate wins over built-in.
     let text = match tokio::fs::read_to_string(&path).await {
         Ok(t) => t,
         Err(_) => {
             // Fall back to built-in.
-            match BUILTIN_FACEPLATES.iter().find(|(bid, _)| *bid == id.as_str()) {
+            match BUILTIN_FACEPLATES
+                .iter()
+                .find(|(bid, _)| *bid == id.as_str())
+            {
                 Some((_, yaml)) => yaml.to_string(),
                 None => return StatusCode::NOT_FOUND.into_response(),
             }
@@ -4101,7 +4875,10 @@ async fn save_faceplate(
     headers: axum::http::HeaderMap,
     Json(mut fp): Json<FaceplateDef>,
 ) -> Response {
-    let project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let project_dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
     let dir = faceplates_dir_at(&project_dir);
     if let Err(e) = tokio::fs::create_dir_all(&dir).await {
         warn!("cannot create faceplates dir: {e}");
@@ -4122,17 +4899,23 @@ async fn save_faceplate(
     match serde_yaml::to_string(&fp) {
         Ok(yaml) => match scrivi_atomico(&path, yaml.as_bytes()).await {
             Ok(()) => con_versione(StatusCode::NO_CONTENT.into_response(), &yaml),
-            Err(e) => { warn!("cannot write faceplate {id}: {e}"); StatusCode::INTERNAL_SERVER_ERROR.into_response() }
+            Err(e) => {
+                warn!("cannot write faceplate {id}: {e}");
+                StatusCode::INTERNAL_SERVER_ERROR.into_response()
+            }
         },
-        Err(e) => { warn!("cannot serialize faceplate {id}: {e}"); StatusCode::INTERNAL_SERVER_ERROR.into_response() }
+        Err(e) => {
+            warn!("cannot serialize faceplate {id}: {e}");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
     }
 }
 
-async fn delete_faceplate(
-    State(s): State<AppState>,
-    Path(id): Path<String>,
-) -> StatusCode {
-    let project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c };
+async fn delete_faceplate(State(s): State<AppState>, Path(id): Path<String>) -> StatusCode {
+    let project_dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c,
+    };
     let path = faceplates_dir_at(&project_dir).join(format!("{}.yaml", safe_filename(&id)));
     match tokio::fs::remove_file(&path).await {
         Ok(()) => StatusCode::NO_CONTENT,
@@ -4147,7 +4930,10 @@ fn recipes_dir_at(project_dir: &std::path::Path) -> PathBuf {
 }
 
 async fn list_recipes(State(s): State<AppState>) -> Response {
-    let project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let project_dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
     let dir = recipes_dir_at(&project_dir);
     let mut recipes: Vec<serde_json::Value> = Vec::new();
     if let Ok(mut entries) = tokio::fs::read_dir(&dir).await {
@@ -4171,7 +4957,10 @@ async fn list_recipes(State(s): State<AppState>) -> Response {
 }
 
 async fn get_recipe(State(s): State<AppState>, Path(id): Path<String>) -> Response {
-    let project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let project_dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
     let path = recipes_dir_at(&project_dir).join(format!("{}.yaml", safe_filename(&id)));
     match tokio::fs::read_to_string(&path).await {
         Err(_) => StatusCode::NOT_FOUND.into_response(),
@@ -4192,7 +4981,10 @@ async fn save_recipe(
     headers: axum::http::HeaderMap,
     Json(mut recipe): Json<RecipeDef>,
 ) -> Response {
-    let project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let project_dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
     let dir = recipes_dir_at(&project_dir);
     if let Err(e) = tokio::fs::create_dir_all(&dir).await {
         warn!("cannot create recipes dir: {e}");
@@ -4212,14 +5004,23 @@ async fn save_recipe(
     match serde_yaml::to_string(&recipe) {
         Ok(yaml) => match scrivi_atomico(&path, yaml.as_bytes()).await {
             Ok(()) => con_versione(StatusCode::NO_CONTENT.into_response(), &yaml),
-            Err(e) => { warn!("cannot write recipe {id}: {e}"); StatusCode::INTERNAL_SERVER_ERROR.into_response() }
+            Err(e) => {
+                warn!("cannot write recipe {id}: {e}");
+                StatusCode::INTERNAL_SERVER_ERROR.into_response()
+            }
         },
-        Err(e) => { warn!("cannot serialize recipe {id}: {e}"); StatusCode::INTERNAL_SERVER_ERROR.into_response() }
+        Err(e) => {
+            warn!("cannot serialize recipe {id}: {e}");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
     }
 }
 
 async fn delete_recipe(State(s): State<AppState>, Path(id): Path<String>) -> StatusCode {
-    let project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c };
+    let project_dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c,
+    };
     let path = recipes_dir_at(&project_dir).join(format!("{}.yaml", safe_filename(&id)));
     match tokio::fs::remove_file(&path).await {
         Ok(()) => StatusCode::NO_CONTENT,
@@ -4233,7 +5034,9 @@ struct ApplyRecipeBody {
     #[serde(default = "default_applied_by")]
     applied_by: String,
 }
-fn default_applied_by() -> String { "operator".to_string() }
+fn default_applied_by() -> String {
+    "operator".to_string()
+}
 
 async fn apply_recipe(
     State(s): State<AppState>,
@@ -4241,7 +5044,10 @@ async fn apply_recipe(
     Path(id): Path<String>,
     Json(body): Json<ApplyRecipeBody>,
 ) -> Response {
-    let project_dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let project_dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
     let path = recipes_dir_at(&project_dir).join(format!("{}.yaml", safe_filename(&id)));
     let text = match tokio::fs::read_to_string(&path).await {
         Ok(t) => t,
@@ -4267,9 +5073,13 @@ async fn apply_recipe(
         }
     }
     if !vietati.is_empty() {
-        s.audit.log("recipe.apply_denied", Some(user.username), serde_json::json!({
-            "recipe": recipe.id, "role": user.role.as_str(), "tags": vietati,
-        }));
+        s.audit.log(
+            "recipe.apply_denied",
+            Some(user.username),
+            serde_json::json!({
+                "recipe": recipe.id, "role": user.role.as_str(), "tags": vietati,
+            }),
+        );
         return (StatusCode::FORBIDDEN, Json(serde_json::json!({
             "error": format!("la ricetta «{}» scrive tag sopra il tuo ruolo ({}) — nessun setpoint applicato", recipe.id, user.role.as_str()),
             "denied": vietati,
@@ -4310,21 +5120,25 @@ async fn apply_recipe(
         .unwrap_or_default()
         .as_millis() as u64;
     s.recipe_log.write().await.push(RecipeApplyEvent {
-        recipe_id:       recipe.id.clone(),
-        recipe_name:     recipe.name.clone(),
-        ts_ms:           now,
-        applied_by:      body.applied_by.clone(),
+        recipe_id: recipe.id.clone(),
+        recipe_name: recipe.name.clone(),
+        ts_ms: now,
+        applied_by: body.applied_by.clone(),
         setpoints_count: applied,
     });
     // Q17 — lo storico ricette tiene l'`applied_by` del body (campo libero,
     // «chi era al pannello»); la verità firmata sta nell'audit hash-chained,
     // dove prima l'apply non lasciava traccia — unico percorso di scrittura
     // senza. `errors` qui è il conteggio dei setpoint falliti a runtime.
-    s.audit.log("recipe.apply", Some(user.username), serde_json::json!({
-        "recipe": recipe.id, "applied": applied,
-        "total": recipe.setpoints.len(), "errors": errors.len(),
-        "applied_by": body.applied_by,
-    }));
+    s.audit.log(
+        "recipe.apply",
+        Some(user.username),
+        serde_json::json!({
+            "recipe": recipe.id, "applied": applied,
+            "total": recipe.setpoints.len(), "errors": errors.len(),
+            "applied_by": body.applied_by,
+        }),
+    );
 
     Json(serde_json::json!({
         "recipe_id": recipe.id,
@@ -4333,7 +5147,8 @@ async fn apply_recipe(
         "errors": errors,
         "applied_by": body.applied_by,
         "ts_ms": now,
-    })).into_response()
+    }))
+    .into_response()
 }
 
 async fn get_recipe_history(State(s): State<AppState>) -> impl IntoResponse {
@@ -4344,10 +5159,13 @@ async fn get_recipe_history(State(s): State<AppState>) -> impl IntoResponse {
 
 fn json_to_tag_value(v: &serde_json::Value) -> Option<TagValue> {
     match v {
-        serde_json::Value::Bool(b)   => Some(TagValue::Bool(*b)),
+        serde_json::Value::Bool(b) => Some(TagValue::Bool(*b)),
         serde_json::Value::Number(n) => {
-            if let Some(i) = n.as_i64() { Some(TagValue::Int(i)) }
-            else { n.as_f64().map(TagValue::Float) }
+            if let Some(i) = n.as_i64() {
+                Some(TagValue::Int(i))
+            } else {
+                n.as_f64().map(TagValue::Float)
+            }
         }
         serde_json::Value::String(s) => Some(TagValue::Str(s.clone())),
         _ => None,
@@ -4377,9 +5195,7 @@ enum InboundMsg {
         req_id: Option<String>,
     },
     /// Replace the subscription filter. ["*"] or empty = all tags (default).
-    Subscribe {
-        tags: Vec<String>,
-    },
+    Subscribe { tags: Vec<String> },
 }
 
 #[derive(serde::Serialize)]
@@ -4483,18 +5299,29 @@ async fn handle_ws(
     let mut seq: u64 = 0;
 
     // Helper: build + send snapshot for the current subscription.
-    let send_snapshot = |sub: &Option<HashSet<String>>, snapshot: Vec<(TagId, TagState)>, seq: u64, tx: &tokio::sync::mpsc::Sender<Message>| {
-        let tags: Vec<_> = snapshot.iter()
+    let send_snapshot = |sub: &Option<HashSet<String>>,
+                         snapshot: Vec<(TagId, TagState)>,
+                         seq: u64,
+                         tx: &tokio::sync::mpsc::Sender<Message>| {
+        let tags: Vec<_> = snapshot
+            .iter()
             .filter(|(id, _)| sub.as_ref().is_none_or(|s| s.contains(id)))
             .map(|(id, st)| (id.clone(), st.clone()))
             .collect();
-        let entries: Vec<WsTagEntry> = tags.iter().map(|(id, st)| WsTagEntry {
-            id,
-            value: &st.value,
-            quality: &st.quality,
-            ts: st.timestamp_ms,
-        }).collect();
-        let msg = WsSnapshotMsg { ty: "snapshot", tags: entries, seq };
+        let entries: Vec<WsTagEntry> = tags
+            .iter()
+            .map(|(id, st)| WsTagEntry {
+                id,
+                value: &st.value,
+                quality: &st.quality,
+                ts: st.timestamp_ms,
+            })
+            .collect();
+        let msg = WsSnapshotMsg {
+            ty: "snapshot",
+            tags: entries,
+            seq,
+        };
         if let Ok(text) = serde_json::to_string(&msg) {
             let _ = tx.try_send(Message::Text(text));
         }
@@ -4503,25 +5330,37 @@ async fn handle_ws(
     // Initial snapshot.
     let snapshot = db.snapshot().await;
     {
-        let entries: Vec<_> = snapshot.iter()
+        let entries: Vec<_> = snapshot
+            .iter()
             .map(|(id, st)| (id.clone(), st.clone()))
             .collect();
-        let ws_entries: Vec<WsTagEntry> = entries.iter().map(|(id, st)| WsTagEntry {
-            id,
-            value: &st.value,
-            quality: &st.quality,
-            ts: st.timestamp_ms,
-        }).collect();
-        let msg = WsSnapshotMsg { ty: "snapshot", tags: ws_entries, seq };
+        let ws_entries: Vec<WsTagEntry> = entries
+            .iter()
+            .map(|(id, st)| WsTagEntry {
+                id,
+                value: &st.value,
+                quality: &st.quality,
+                ts: st.timestamp_ms,
+            })
+            .collect();
+        let msg = WsSnapshotMsg {
+            ty: "snapshot",
+            tags: ws_entries,
+            seq,
+        };
         if let Ok(text) = serde_json::to_string(&msg) {
-            if out_tx.send(Message::Text(text)).await.is_err() { return; }
+            if out_tx.send(Message::Text(text)).await.is_err() {
+                return;
+            }
         }
     }
 
     // Forwarder: pumps mpsc → socket.
     let forward_task = tokio::spawn(async move {
         while let Some(msg) = out_rx.recv().await {
-            if ws_tx.send(msg).await.is_err() { break; }
+            if ws_tx.send(msg).await.is_err() {
+                break;
+            }
         }
     });
 
@@ -4594,34 +5433,77 @@ async fn handle_ws(
 
     // Inbound loop: writes and subscribe messages.
     while let Some(frame) = ws_rx.next().await {
-        let frame = match frame { Ok(f) => f, Err(_) => break };
+        let frame = match frame {
+            Ok(f) => f,
+            Err(_) => break,
+        };
         match frame {
             Message::Text(text) => {
                 let parsed: Result<InboundMsg, _> = serde_json::from_str(&text);
                 let Ok(msg) = parsed else {
-                    let ack = WriteAck { ty: "ack", req_id: None, tag: String::new(), ok: false, error: Some("invalid frame".into()) };
-                    let _ = out_tx.send(Message::Text(serde_json::to_string(&ack).unwrap_or_default())).await;
+                    let ack = WriteAck {
+                        ty: "ack",
+                        req_id: None,
+                        tag: String::new(),
+                        ok: false,
+                        error: Some("invalid frame".into()),
+                    };
+                    let _ = out_tx
+                        .send(Message::Text(
+                            serde_json::to_string(&ack).unwrap_or_default(),
+                        ))
+                        .await;
                     continue;
                 };
                 match msg {
                     InboundMsg::Write { tag, value, req_id } => {
                         if role < Role::Operator {
-                            let ack = WriteAck { ty: "ack", req_id, tag, ok: false, error: Some("forbidden: Operator+ required".into()) };
-                            let _ = out_tx.send(Message::Text(serde_json::to_string(&ack).unwrap_or_default())).await;
+                            let ack = WriteAck {
+                                ty: "ack",
+                                req_id,
+                                tag,
+                                ok: false,
+                                error: Some("forbidden: Operator+ required".into()),
+                            };
+                            let _ = out_tx
+                                .send(Message::Text(
+                                    serde_json::to_string(&ack).unwrap_or_default(),
+                                ))
+                                .await;
                             continue;
                         }
                         // F3.1: soglia per-tag (TagDef.write_min_role) sopra la regola storica.
                         if !tag_write_allowed(&db, &tag, role).await {
-                            let ack = WriteAck { ty: "ack", req_id, tag, ok: false, error: Some("forbidden: ruolo insufficiente per questo tag".into()) };
-                            let _ = out_tx.send(Message::Text(serde_json::to_string(&ack).unwrap_or_default())).await;
+                            let ack = WriteAck {
+                                ty: "ack",
+                                req_id,
+                                tag,
+                                ok: false,
+                                error: Some("forbidden: ruolo insufficiente per questo tag".into()),
+                            };
+                            let _ = out_tx
+                                .send(Message::Text(
+                                    serde_json::to_string(&ack).unwrap_or_default(),
+                                ))
+                                .await;
                             continue;
                         }
                         // Q27: stesso contratto del PUT — l'ack negativo porta il motivo.
                         let value = match db.coerce_for_write(&tag, value).await {
                             Ok(v) => v,
                             Err(msg) => {
-                                let ack = WriteAck { ty: "ack", req_id, tag, ok: false, error: Some(msg) };
-                                let _ = out_tx.send(Message::Text(serde_json::to_string(&ack).unwrap_or_default())).await;
+                                let ack = WriteAck {
+                                    ty: "ack",
+                                    req_id,
+                                    tag,
+                                    ok: false,
+                                    error: Some(msg),
+                                };
+                                let _ = out_tx
+                                    .send(Message::Text(
+                                        serde_json::to_string(&ack).unwrap_or_default(),
+                                    ))
+                                    .await;
                                 continue;
                             }
                         };
@@ -4634,16 +5516,27 @@ async fn handle_ws(
                             }
                             Err(e @ WriteError::ChannelClosed(_)) => (false, Some(e.to_string())),
                         };
-                        let ack = WriteAck { ty: "ack", req_id, tag, ok, error: err };
-                        let _ = out_tx.send(Message::Text(serde_json::to_string(&ack).unwrap_or_default())).await;
+                        let ack = WriteAck {
+                            ty: "ack",
+                            req_id,
+                            tag,
+                            ok,
+                            error: err,
+                        };
+                        let _ = out_tx
+                            .send(Message::Text(
+                                serde_json::to_string(&ack).unwrap_or_default(),
+                            ))
+                            .await;
                     }
                     InboundMsg::Subscribe { tags } => {
                         // Update subscription filter.
-                        let new_sub: Option<HashSet<String>> = if tags.is_empty() || tags.iter().any(|t| t == "*") {
-                            None // all tags
-                        } else {
-                            Some(tags.into_iter().collect())
-                        };
+                        let new_sub: Option<HashSet<String>> =
+                            if tags.is_empty() || tags.iter().any(|t| t == "*") {
+                                None // all tags
+                            } else {
+                                Some(tags.into_iter().collect())
+                            };
                         // Update shared filter for the batcher task.
                         *sub_cell.write().await = new_sub.clone();
                         // Send fresh snapshot for the new subscription.
@@ -4674,7 +5567,10 @@ async fn get_logs(State(s): State<AppState>) -> Json<Vec<LogEvent>> {
 /// Returns `[{ date: "YYYY-MM-DD", size_bytes }]` sorted newest-first.
 async fn list_log_files(State(s): State<AppState>) -> Response {
     #[derive(serde::Serialize)]
-    struct FileEntry { date: String, size_bytes: u64 }
+    struct FileEntry {
+        date: String,
+        size_bytes: u64,
+    }
 
     let dir = s.logs_dir.as_path();
     let mut out: Vec<FileEntry> = Vec::new();
@@ -4691,7 +5587,10 @@ async fn list_log_files(State(s): State<AppState>) -> Response {
                 // Validate date format: YYYY-MM-DD (10 chars, digits and dashes)
                 if date.len() == 10 && date.chars().all(|c| c.is_ascii_digit() || c == '-') {
                     let size_bytes = entry.metadata().await.map(|m| m.len()).unwrap_or(0);
-                    out.push(FileEntry { date: date.to_string(), size_bytes });
+                    out.push(FileEntry {
+                        date: date.to_string(),
+                        size_bytes,
+                    });
                 }
             }
         }
@@ -4708,11 +5607,17 @@ async fn get_log_file(
 ) -> Response {
     let date = match q.get("date") {
         Some(d) if d.len() == 10 && d.chars().all(|c| c.is_ascii_digit() || c == '-') => d.clone(),
-        _ => return (StatusCode::BAD_REQUEST, "missing or invalid ?date=YYYY-MM-DD").into_response(),
+        _ => {
+            return (
+                StatusCode::BAD_REQUEST,
+                "missing or invalid ?date=YYYY-MM-DD",
+            )
+                .into_response()
+        }
     };
     let path = s.logs_dir.join(format!("runtime-{date}.jsonl"));
     let text = match tokio::fs::read_to_string(&path).await {
-        Ok(t)  => t,
+        Ok(t) => t,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
             return (StatusCode::NOT_FOUND, "log file not found").into_response();
         }
@@ -4739,7 +5644,9 @@ async fn handle_logs_ws(mut socket: WebSocket, logs: Arc<LogBus>) {
     // Snapshot first so a fresh client sees recent history before the live tail.
     for ev in logs.snapshot() {
         if let Ok(text) = serde_json::to_string(&ev) {
-            if socket.send(Message::Text(text)).await.is_err() { return; }
+            if socket.send(Message::Text(text)).await.is_err() {
+                return;
+            }
         }
     }
     let mut rx = logs.subscribe();
@@ -4747,7 +5654,9 @@ async fn handle_logs_ws(mut socket: WebSocket, logs: Arc<LogBus>) {
         match rx.recv().await {
             Ok(ev) => {
                 if let Ok(text) = serde_json::to_string(&ev) {
-                    if socket.send(Message::Text(text)).await.is_err() { break; }
+                    if socket.send(Message::Text(text)).await.is_err() {
+                        break;
+                    }
                 }
             }
             Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
@@ -4828,7 +5737,11 @@ async fn opcua_browse_handler(
     // Resolve a masked password from project.yaml when the editor sends
     // the sentinel — keeps secrets out of round-trips just like the MQTT
     // path. Only `UsernamePassword` carries a password.
-    if let Some(sws_core::OpcUaAuth::UsernamePassword { password: Some(ref p), .. }) = req.auth {
+    if let Some(sws_core::OpcUaAuth::UsernamePassword {
+        password: Some(ref p),
+        ..
+    }) = req.auth
+    {
         if p == MASKED_PASSWORD {
             if let (Some(sid), Ok(dir)) = (req.source_id.as_ref(), active_dir(&s).await) {
                 if let Ok(project) = Project::load(&dir) {
@@ -4836,11 +5749,14 @@ async fn opcua_browse_handler(
                         if let SourceDef::OpcUaClient(c) = src {
                             if c.id.as_str() == sid.as_str() {
                                 if let sws_core::OpcUaAuth::UsernamePassword {
-                                    password: Some(stored), ..
-                                } = &c.auth {
+                                    password: Some(stored),
+                                    ..
+                                } = &c.auth
+                                {
                                     if let sws_core::OpcUaAuth::UsernamePassword {
                                         password, ..
-                                    } = &mut req.auth.as_mut().unwrap() {
+                                    } = &mut req.auth.as_mut().unwrap()
+                                    {
                                         *password = Some(stored.clone());
                                     }
                                 }
@@ -4889,7 +5805,11 @@ async fn opcua_detect_euromap_handler(
     Json(mut req): Json<OpcUaDetectEuromapRequest>,
 ) -> Response {
     // Same masked-password sentinel resolution pattern as opcua_browse.
-    if let Some(sws_core::OpcUaAuth::UsernamePassword { password: Some(ref p), .. }) = req.auth {
+    if let Some(sws_core::OpcUaAuth::UsernamePassword {
+        password: Some(ref p),
+        ..
+    }) = req.auth
+    {
         if p == MASKED_PASSWORD {
             if let (Some(sid), Ok(dir)) = (req.source_id.as_ref(), active_dir(&s).await) {
                 if let Ok(project) = Project::load(&dir) {
@@ -4897,11 +5817,14 @@ async fn opcua_detect_euromap_handler(
                         if let SourceDef::OpcUaClient(c) = src {
                             if c.id.as_str() == sid.as_str() {
                                 if let sws_core::OpcUaAuth::UsernamePassword {
-                                    password: Some(stored), ..
-                                } = &c.auth {
+                                    password: Some(stored),
+                                    ..
+                                } = &c.auth
+                                {
                                     if let sws_core::OpcUaAuth::UsernamePassword {
                                         password, ..
-                                    } = &mut req.auth.as_mut().unwrap() {
+                                    } = &mut req.auth.as_mut().unwrap()
+                                    {
                                         *password = Some(stored.clone());
                                     }
                                 }
@@ -4926,7 +5849,11 @@ async fn opcua_detect_euromap_handler(
 
     match sws_plugin_opcua::detect_euromap(&cfg).await {
         Ok(det) => Json(det).into_response(),
-        Err(e) => (StatusCode::BAD_GATEWAY, format!("opcua euromap detection failed: {e}")).into_response(),
+        Err(e) => (
+            StatusCode::BAD_GATEWAY,
+            format!("opcua euromap detection failed: {e}"),
+        )
+            .into_response(),
     }
 }
 
@@ -4992,11 +5919,17 @@ async fn opcua_history_handler(
 
     let max_values = req.max_values.unwrap_or(500).min(2000);
 
-    match sws_plugin_opcua::read_history(&cfg, &req.node_id, req.from_ms, req.to_ms, max_values).await {
+    match sws_plugin_opcua::read_history(&cfg, &req.node_id, req.from_ms, req.to_ms, max_values)
+        .await
+    {
         Ok(samples) => Json(samples).into_response(),
         Err(e) => {
             warn!(node = %req.node_id, "opcua history read failed: {e}");
-            (StatusCode::BAD_GATEWAY, format!("opcua history read failed: {e}")).into_response()
+            (
+                StatusCode::BAD_GATEWAY,
+                format!("opcua history read failed: {e}"),
+            )
+                .into_response()
         }
     }
 }
@@ -5037,9 +5970,13 @@ async fn mqtt_browse_handler(
         duration_secs: duration,
     };
 
-    let topics = sws_plugin_mqtt::browse(params).await
+    let topics = sws_plugin_mqtt::browse(params)
+        .await
         .into_iter()
-        .map(|t| BrowsedTopicDto { topic: t.topic, sample_payload: t.sample_payload })
+        .map(|t| BrowsedTopicDto {
+            topic: t.topic,
+            sample_payload: t.sample_payload,
+        })
         .collect();
 
     Json(MqttBrowseResponse { topics }).into_response()
@@ -5056,16 +5993,13 @@ async fn mqtt_browse_handler(
 #[derive(serde::Serialize)]
 struct OpcUaCertEntry {
     filename: String,
-    status:   &'static str, // "trusted" | "rejected"
+    status: &'static str, // "trusted" | "rejected"
     size_bytes: u64,
 }
 
 /// List certs in the per-source trust store.
 /// Returns all .der files from trusted/certs and rejected/certs directories.
-async fn opcua_list_certs(
-    State(s): State<AppState>,
-    Path(source_id): Path<String>,
-) -> Response {
+async fn opcua_list_certs(State(s): State<AppState>, Path(source_id): Path<String>) -> Response {
     let Ok(dir) = active_dir(&s).await else {
         return (StatusCode::SERVICE_UNAVAILABLE, "no active project").into_response();
     };
@@ -5073,12 +6007,20 @@ async fn opcua_list_certs(
     let mut entries: Vec<OpcUaCertEntry> = vec![];
     for (subdir, status) in [("trusted/certs", "trusted"), ("rejected/certs", "rejected")] {
         let cert_dir = pki_root.join(subdir);
-        let Ok(mut rd) = tokio::fs::read_dir(&cert_dir).await else { continue };
+        let Ok(mut rd) = tokio::fs::read_dir(&cert_dir).await else {
+            continue;
+        };
         while let Ok(Some(ent)) = rd.next_entry().await {
             let name = ent.file_name().to_string_lossy().into_owned();
-            if !name.ends_with(".der") { continue; }
+            if !name.ends_with(".der") {
+                continue;
+            }
             let size = ent.metadata().await.map(|m| m.len()).unwrap_or(0);
-            entries.push(OpcUaCertEntry { filename: name, status, size_bytes: size });
+            entries.push(OpcUaCertEntry {
+                filename: name,
+                status,
+                size_bytes: size,
+            });
         }
     }
     Json(entries).into_response()
@@ -5096,8 +6038,8 @@ async fn opcua_trust_cert(
         return (StatusCode::SERVICE_UNAVAILABLE, "no active project").into_response();
     };
     let pki_root = dir.join("opcua-pki").join(&source_id);
-    let rejected  = pki_root.join("rejected/certs").join(&filename);
-    let trusted   = pki_root.join("trusted/certs");
+    let rejected = pki_root.join("rejected/certs").join(&filename);
+    let trusted = pki_root.join("trusted/certs");
     if rejected.exists() {
         if let Err(e) = tokio::fs::create_dir_all(&trusted).await {
             return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
@@ -5160,11 +6102,11 @@ struct HaBrowseRequest {
 
 #[derive(serde::Serialize)]
 struct HaBrowsedEntity {
-    entity_id:     String,
-    state:         String,
+    entity_id: String,
+    state: String,
     friendly_name: Option<String>,
     /// Non-empty attribute names for this entity (sorted, for UI display).
-    attributes:    Vec<String>,
+    attributes: Vec<String>,
 }
 
 async fn ha_browse_handler(
@@ -5178,12 +6120,20 @@ async fn ha_browse_handler(
     };
     let project = match Project::load(&dir) {
         Ok(p) => p,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("project load: {e}")).into_response(),
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("project load: {e}"),
+            )
+                .into_response()
+        }
     };
 
     let (url, token) = match project.sources.iter().find_map(|src| {
         if let SourceDef::HomeAssistant(c) = src {
-            if c.id == req.source_id { return Some((c.url.clone(), c.token.clone(), c.token_env.clone())); }
+            if c.id == req.source_id {
+                return Some((c.url.clone(), c.token.clone(), c.token_env.clone()));
+            }
         }
         None
     }) {
@@ -5199,7 +6149,11 @@ async fn ha_browse_handler(
     };
 
     if token.is_empty() {
-        return (StatusCode::BAD_REQUEST, "HomeAssistant token not configured").into_response();
+        return (
+            StatusCode::BAD_REQUEST,
+            "HomeAssistant token not configured",
+        )
+            .into_response();
     }
 
     let states_url = format!("{}/api/states", url.trim_end_matches('/'));
@@ -5219,7 +6173,8 @@ async fn ha_browse_handler(
         return (
             StatusCode::BAD_GATEWAY,
             format!("HA returned {}", resp.status()),
-        ).into_response();
+        )
+            .into_response();
     }
 
     let raw: Vec<serde_json::Value> = match resp.json().await {
@@ -5228,13 +6183,18 @@ async fn ha_browse_handler(
     };
 
     let domain_filter = req.domain_filter.as_deref().unwrap_or("");
-    let mut entities: Vec<HaBrowsedEntity> = raw.into_iter()
+    let mut entities: Vec<HaBrowsedEntity> = raw
+        .into_iter()
         .filter_map(|v| {
             let entity_id = v.get("entity_id")?.as_str()?.to_string();
             if !domain_filter.is_empty() && !entity_id.starts_with(domain_filter) {
                 return None;
             }
-            let state = v.get("state").and_then(|s| s.as_str()).unwrap_or("").to_string();
+            let state = v
+                .get("state")
+                .and_then(|s| s.as_str())
+                .unwrap_or("")
+                .to_string();
             let attrs = v.get("attributes").and_then(|a| a.as_object());
             let friendly_name = attrs
                 .and_then(|a| a.get("friendly_name"))
@@ -5242,7 +6202,8 @@ async fn ha_browse_handler(
                 .map(|s| s.to_string());
             let mut attribute_names: Vec<String> = attrs
                 .map(|a| {
-                    let mut names: Vec<String> = a.keys()
+                    let mut names: Vec<String> = a
+                        .keys()
                         .filter(|k| *k != "friendly_name")
                         .cloned()
                         .collect();
@@ -5251,7 +6212,12 @@ async fn ha_browse_handler(
                 })
                 .unwrap_or_default();
             attribute_names.sort();
-            Some(HaBrowsedEntity { entity_id, state, friendly_name, attributes: attribute_names })
+            Some(HaBrowsedEntity {
+                entity_id,
+                state,
+                friendly_name,
+                attributes: attribute_names,
+            })
         })
         .collect();
 
@@ -5269,9 +6235,22 @@ async fn update_project_global_scripts(
     headers: axum::http::HeaderMap,
     Json(scripts): Json<Vec<GlobalScriptDef>>,
 ) -> Response {
-    s.audit.log("project.change", Some(user.username), serde_json::json!({"what": "global_scripts", "count": scripts.len()}));
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
-    let res = patch_project_se(&s.project_write_lock, &dir, versione_attesa(&headers), |p| p.global_scripts = scripts.clone()).await;
+    s.audit.log(
+        "project.change",
+        Some(user.username),
+        serde_json::json!({"what": "global_scripts", "count": scripts.len()}),
+    );
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
+    let res = patch_project_se(
+        &s.project_write_lock,
+        &dir,
+        versione_attesa(&headers),
+        |p| p.global_scripts = scripts.clone(),
+    )
+    .await;
     if res.status() == StatusCode::NO_CONTENT {
         // Hot-swap: cancel running scripts, start new set.
         if let Some(old) = s.script_supervisor.write().await.take() {
@@ -5280,7 +6259,12 @@ async fn update_project_global_scripts(
         if !scripts.is_empty() {
             // Reuse the running Telegram sink (if any) so restarted scripts keep
             // the send_telegram binding.
-            let telegram_tx = s.telegram_sender.read().await.as_ref().map(|ts| ts.text_sender());
+            let telegram_tx = s
+                .telegram_sender
+                .read()
+                .await
+                .as_ref()
+                .map(|ts| ts.text_sender());
             let sc = crate::global_scripts::GlobalScriptSupervisor::start(
                 scripts,
                 s.db.clone(),
@@ -5326,14 +6310,17 @@ pub(crate) fn calcola_impronta(dir: &std::path::Path) -> anyhow::Result<String> 
             if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
                 hasher.update(name.as_bytes());
             }
-            let content = std::fs::read(path)
-                .map_err(|e| anyhow::anyhow!("{}: {e}", path.display()))?;
+            let content =
+                std::fs::read(path).map_err(|e| anyhow::anyhow!("{}: {e}", path.display()))?;
             hasher.update(&content);
         }
     }
 
     let digest = hasher.finalize();
-    Ok(digest.iter().fold(String::new(), |mut s, b| { s.push_str(&format!("{:02x}", b)); s }))
+    Ok(digest.iter().fold(String::new(), |mut s, b| {
+        s.push_str(&format!("{:02x}", b));
+        s
+    }))
 }
 
 /// `GET /api/project/fingerprint` — SHA-256 of project.yaml + all synoptic YAMLs.
@@ -5343,7 +6330,10 @@ pub(crate) fn calcola_impronta(dir: &std::path::Path) -> anyhow::Result<String> 
 async fn get_project_fingerprint(State(s): State<AppState>) -> impl IntoResponse {
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
     let result = tokio::task::spawn_blocking(move || calcola_impronta(&dir)).await;
 
     match result {
@@ -5352,10 +6342,11 @@ async fn get_project_fingerprint(State(s): State<AppState>) -> impl IntoResponse
                 .duration_since(UNIX_EPOCH)
                 .map(|d| d.as_millis() as u64)
                 .unwrap_or(0);
-            Json(serde_json::json!({ "sha256": sha256, "computed_at_ms": computed_at_ms })).into_response()
+            Json(serde_json::json!({ "sha256": sha256, "computed_at_ms": computed_at_ms }))
+                .into_response()
         }
         Ok(Err(e)) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
-        Err(e)     => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
 }
 
@@ -5363,7 +6354,10 @@ async fn get_project_fingerprint(State(s): State<AppState>) -> impl IntoResponse
 
 /// `GET /api/project/git-status` — git commit info for the active project dir.
 async fn get_git_status(State(s): State<AppState>) -> impl IntoResponse {
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
     let gd = crate::git_deploy::GitDeploy::new(dir);
     if !gd.is_git_repo() {
         return StatusCode::NOT_FOUND.into_response();
@@ -5376,7 +6370,10 @@ async fn get_git_status(State(s): State<AppState>) -> impl IntoResponse {
 
 /// `POST /api/project/deploy` — `git pull --ff-only` then soft-reload.
 async fn trigger_deploy(State(s): State<AppState>) -> impl IntoResponse {
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
     let gd = crate::git_deploy::GitDeploy::new(dir.clone());
     if !gd.is_git_repo() {
         return (StatusCode::BAD_REQUEST, "not a git repository").into_response();
@@ -5393,7 +6390,10 @@ async fn trigger_deploy(State(s): State<AppState>) -> impl IntoResponse {
 
 /// `POST /api/project/rollback` — `git reset --hard HEAD~1` then soft-reload.
 async fn trigger_rollback(State(s): State<AppState>) -> impl IntoResponse {
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
     let gd = crate::git_deploy::GitDeploy::new(dir.clone());
     if !gd.is_git_repo() {
         return (StatusCode::BAD_REQUEST, "not a git repository").into_response();
@@ -5416,8 +6416,14 @@ struct GitCommitBody {
 }
 
 /// `POST /api/project/git/commit` — `git add -A && git commit -m <message>`.
-async fn git_commit(State(s): State<AppState>, Json(body): Json<GitCommitBody>) -> impl IntoResponse {
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+async fn git_commit(
+    State(s): State<AppState>,
+    Json(body): Json<GitCommitBody>,
+) -> impl IntoResponse {
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
     let gd = crate::git_deploy::GitDeploy::new(dir);
     if !gd.is_git_repo() {
         return (StatusCode::BAD_REQUEST, "not a git repository").into_response();
@@ -5429,13 +6435,16 @@ async fn git_commit(State(s): State<AppState>, Json(body): Json<GitCommitBody>) 
     match tokio::task::spawn_blocking(move || gd.commit(&message)).await {
         Ok(Ok(msg)) => Json(serde_json::json!({ "message": msg })).into_response(),
         Ok(Err(e)) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
-        Err(e)     => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
 }
 
 /// `POST /api/project/git/push` — `git push` to default remote/branch.
 async fn git_push(State(s): State<AppState>) -> impl IntoResponse {
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
     let gd = crate::git_deploy::GitDeploy::new(dir);
     if !gd.is_git_repo() {
         return (StatusCode::BAD_REQUEST, "not a git repository").into_response();
@@ -5443,7 +6452,7 @@ async fn git_push(State(s): State<AppState>) -> impl IntoResponse {
     match tokio::task::spawn_blocking(move || gd.push()).await {
         Ok(Ok(msg)) => Json(serde_json::json!({ "message": msg })).into_response(),
         Ok(Err(e)) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
-        Err(e)     => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
 }
 
@@ -5462,19 +6471,30 @@ struct GitInitBody {
 /// endpoint `GitOpsPanel` restava vuoto per un progetto senza `.git` — non
 /// c'era modo di iniziare da qui.
 async fn git_init(State(s): State<AppState>, Json(body): Json<GitInitBody>) -> impl IntoResponse {
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
     let gd = crate::git_deploy::GitDeploy::new(dir);
-    let remote_url = body.remote_url.as_deref().map(str::trim).filter(|u| !u.is_empty()).map(String::from);
+    let remote_url = body
+        .remote_url
+        .as_deref()
+        .map(str::trim)
+        .filter(|u| !u.is_empty())
+        .map(String::from);
     match tokio::task::spawn_blocking(move || gd.init_remote(remote_url.as_deref())).await {
         Ok(Ok(())) => StatusCode::NO_CONTENT.into_response(),
         Ok(Err(e)) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
-        Err(e)     => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
 }
 
 /// `GET /api/project/git/tags` — elenco tag del progetto, più recente prima.
 async fn list_git_tags(State(s): State<AppState>) -> impl IntoResponse {
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
     let gd = crate::git_deploy::GitDeploy::new(dir);
     if !gd.is_git_repo() {
         return (StatusCode::BAD_REQUEST, "not a git repository").into_response();
@@ -5482,7 +6502,7 @@ async fn list_git_tags(State(s): State<AppState>) -> impl IntoResponse {
     match tokio::task::spawn_blocking(move || gd.list_tags()).await {
         Ok(Ok(tags)) => Json(tags).into_response(),
         Ok(Err(e)) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
-        Err(e)     => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
 }
 
@@ -5495,8 +6515,14 @@ struct CreateTagBody {
 }
 
 /// `POST /api/project/git/tags` — crea un tag (annotato se `message` è dato).
-async fn create_git_tag(State(s): State<AppState>, Json(body): Json<CreateTagBody>) -> impl IntoResponse {
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+async fn create_git_tag(
+    State(s): State<AppState>,
+    Json(body): Json<CreateTagBody>,
+) -> impl IntoResponse {
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
     let gd = crate::git_deploy::GitDeploy::new(dir);
     if !gd.is_git_repo() {
         return (StatusCode::BAD_REQUEST, "not a git repository").into_response();
@@ -5505,17 +6531,25 @@ async fn create_git_tag(State(s): State<AppState>, Json(body): Json<CreateTagBod
     if name.is_empty() {
         return (StatusCode::BAD_REQUEST, "tag name is required").into_response();
     }
-    let message = body.message.as_deref().map(str::trim).filter(|m| !m.is_empty()).map(String::from);
+    let message = body
+        .message
+        .as_deref()
+        .map(str::trim)
+        .filter(|m| !m.is_empty())
+        .map(String::from);
     match tokio::task::spawn_blocking(move || gd.create_tag(&name, message.as_deref())).await {
         Ok(Ok(())) => StatusCode::NO_CONTENT.into_response(),
         Ok(Err(e)) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
-        Err(e)     => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
 }
 
 /// `POST /api/project/git/tags/:name/push` — pubblica un tag esistente su `origin`.
 async fn push_git_tag(State(s): State<AppState>, Path(name): Path<String>) -> impl IntoResponse {
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
     let gd = crate::git_deploy::GitDeploy::new(dir);
     if !gd.is_git_repo() {
         return (StatusCode::BAD_REQUEST, "not a git repository").into_response();
@@ -5523,13 +6557,16 @@ async fn push_git_tag(State(s): State<AppState>, Path(name): Path<String>) -> im
     match tokio::task::spawn_blocking(move || gd.push_tag(&name)).await {
         Ok(Ok(msg)) => Json(serde_json::json!({ "message": msg })).into_response(),
         Ok(Err(e)) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
-        Err(e)     => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
 }
 
 /// `DELETE /api/project/git/tags/:name` — elimina un tag (locale + remote se configurato).
 async fn delete_git_tag(State(s): State<AppState>, Path(name): Path<String>) -> impl IntoResponse {
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
     let gd = crate::git_deploy::GitDeploy::new(dir);
     if !gd.is_git_repo() {
         return (StatusCode::BAD_REQUEST, "not a git repository").into_response();
@@ -5537,7 +6574,7 @@ async fn delete_git_tag(State(s): State<AppState>, Path(name): Path<String>) -> 
     match tokio::task::spawn_blocking(move || gd.delete_tag(&name)).await {
         Ok(Ok(())) => StatusCode::NO_CONTENT.into_response(),
         Ok(Err(e)) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
-        Err(e)     => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
 }
 
@@ -5546,10 +6583,15 @@ async fn delete_git_tag(State(s): State<AppState>, Path(name): Path<String>) -> 
 async fn soft_reload_project(s: &AppState, dir: &std::path::Path) {
     let project = match Project::load(dir) {
         Ok(p) => p,
-        Err(e) => { warn!("git deploy: project reload failed: {e:#}"); return; }
+        Err(e) => {
+            warn!("git deploy: project reload failed: {e:#}");
+            return;
+        }
     };
     {
-        let derived: Vec<(String, String)> = project.tags.iter()
+        let derived: Vec<(String, String)> = project
+            .tags
+            .iter()
             .filter_map(|t| t.expression.as_ref().map(|e| (t.id.clone(), e.clone())))
             .collect();
         *s.derived_tags.write().await = derived;
@@ -5574,8 +6616,15 @@ async fn update_project_notifications(
     headers: axum::http::HeaderMap,
     Json(config): Json<Option<NotificationConfig>>,
 ) -> Response {
-    s.audit.log("project.change", Some(user.username), serde_json::json!({"what": "notifications", "enabled": config.is_some()}));
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    s.audit.log(
+        "project.change",
+        Some(user.username),
+        serde_json::json!({"what": "notifications", "enabled": config.is_some()}),
+    );
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
 
     // Difesa in profondità: se stiamo per perdere un bot_token già salvato,
     // dirlo. Non è ipotetico — un client che manda `notifications` senza la
@@ -5584,11 +6633,16 @@ async fn update_project_notifications(
     // Qui non si cambia semantica (disabilitare Telegram deve poterlo
     // rimuovere), si rende l'evento visibile nel log invece che invisibile.
     if let Ok(existing) = Project::load(&dir) {
-        let had_token = existing.notifications.as_ref()
+        let had_token = existing
+            .notifications
+            .as_ref()
             .and_then(|n| n.telegram.as_ref())
             .map(|t| !t.bot_token.trim().is_empty())
             .unwrap_or(false);
-        let keeps_telegram = config.as_ref().map(|c| c.telegram.is_some()).unwrap_or(false);
+        let keeps_telegram = config
+            .as_ref()
+            .map(|c| c.telegram.is_some())
+            .unwrap_or(false);
         if had_token && !keeps_telegram {
             warn!(
                 "notifications: la nuova configurazione non contiene Telegram —                  il bot_token salvato viene rimosso. Se non era intenzionale,                  ri-inseriscilo in Configurazione → Notifiche."
@@ -5599,20 +6653,34 @@ async fn update_project_notifications(
     // Preserve existing secrets when the UI sends the masked placeholder
     // (SMTP password, Telegram bot token).
     let config = if let Some(mut cfg) = config {
-        let needs_smtp = cfg.smtp.as_ref().map(|s| s.password.as_deref() == Some(MASKED_PASSWORD)).unwrap_or(false);
-        let needs_tg   = cfg.telegram.as_ref().map(|t| t.bot_token == MASKED_PASSWORD).unwrap_or(false);
+        let needs_smtp = cfg
+            .smtp
+            .as_ref()
+            .map(|s| s.password.as_deref() == Some(MASKED_PASSWORD))
+            .unwrap_or(false);
+        let needs_tg = cfg
+            .telegram
+            .as_ref()
+            .map(|t| t.bot_token == MASKED_PASSWORD)
+            .unwrap_or(false);
         if needs_smtp || needs_tg {
             if let Ok(existing) = Project::load(&dir) {
                 let existing_notif = existing.notifications;
                 if needs_smtp {
                     if let Some(smtp) = &mut cfg.smtp {
-                        smtp.password = existing_notif.as_ref().and_then(|n| n.smtp.as_ref()).and_then(|s| s.password.clone());
+                        smtp.password = existing_notif
+                            .as_ref()
+                            .and_then(|n| n.smtp.as_ref())
+                            .and_then(|s| s.password.clone());
                     }
                 }
                 if needs_tg {
                     if let (Some(tg), Some(tok)) = (
                         cfg.telegram.as_mut(),
-                        existing_notif.as_ref().and_then(|n| n.telegram.as_ref()).map(|t| t.bot_token.clone()),
+                        existing_notif
+                            .as_ref()
+                            .and_then(|n| n.telegram.as_ref())
+                            .map(|t| t.bot_token.clone()),
                     ) {
                         tg.bot_token = tok;
                     }
@@ -5625,13 +6693,19 @@ async fn update_project_notifications(
     };
 
     let config_clone = config.clone();
-    let res = patch_project_se(&s.project_write_lock, &dir, versione_attesa(&headers), |p| p.notifications = config_clone).await;
+    let res = patch_project_se(
+        &s.project_write_lock,
+        &dir,
+        versione_attesa(&headers),
+        |p| p.notifications = config_clone,
+    )
+    .await;
     if res.status() == StatusCode::NO_CONTENT {
         // Hot-swap the Telegram sender (config swap keeps the script `tx` alive)
         // then restart the notification supervisor with the shared sink.
-        let sinks = crate::telegram::restart_sender(
-            &s, config.as_ref().and_then(|n| n.telegram.clone()),
-        ).await;
+        let sinks =
+            crate::telegram::restart_sender(&s, config.as_ref().and_then(|n| n.telegram.clone()))
+                .await;
         // Aggiorna anche il sink delle funzioni (engine condiviso) senza reopen.
         s.py.set_telegram_sink(sinks.as_ref().map(|k| k.text.clone()));
         if let Some(old) = s.notification_supervisor.write().await.take() {
@@ -5687,11 +6761,24 @@ async fn update_project_page_layout(
     Json(config): Json<Option<PageLayoutBody>>,
 ) -> Response {
     let config: Option<PageLayoutConfig> = config.map(Into::into);
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
     let config_clone = config.clone();
-    let res = patch_project_se(&s.project_write_lock, &dir, versione_attesa(&headers), |p| p.page_layout = config_clone).await;
+    let res = patch_project_se(
+        &s.project_write_lock,
+        &dir,
+        versione_attesa(&headers),
+        |p| p.page_layout = config_clone,
+    )
+    .await;
     if res.status() == StatusCode::NO_CONTENT {
-        s.audit.log("project.change", Some(user.username), serde_json::json!({"what": "page_layout"}));
+        s.audit.log(
+            "project.change",
+            Some(user.username),
+            serde_json::json!({"what": "page_layout"}),
+        );
     }
     res
 }
@@ -5714,18 +6801,31 @@ async fn update_project_backup_config(
     headers: axum::http::HeaderMap,
     Json(body): Json<BackupConfigBody>,
 ) -> Response {
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
     let body_clone = body.clone();
-    let res = patch_project_se(&s.project_write_lock, &dir, versione_attesa(&headers), |p| {
-        p.auto_backup_interval_minutes = body_clone.interval_minutes;
-        p.auto_backup_retention = body_clone.retention;
-    }).await;
+    let res = patch_project_se(
+        &s.project_write_lock,
+        &dir,
+        versione_attesa(&headers),
+        |p| {
+            p.auto_backup_interval_minutes = body_clone.interval_minutes;
+            p.auto_backup_retention = body_clone.retention;
+        },
+    )
+    .await;
     if res.status() == StatusCode::NO_CONTENT {
-        s.audit.log("project.change", Some(user.username), serde_json::json!({
-            "what": "backup_config",
-            "interval_minutes": body.interval_minutes,
-            "retention": body.retention,
-        }));
+        s.audit.log(
+            "project.change",
+            Some(user.username),
+            serde_json::json!({
+                "what": "backup_config",
+                "interval_minutes": body.interval_minutes,
+                "retention": body.retention,
+            }),
+        );
     }
     res
 }
@@ -5758,14 +6858,22 @@ async fn detect_telegram_chats(
     if token == MASKED_PASSWORD || token.trim().is_empty() {
         if let Ok(dir) = active_dir(&s).await {
             if let Ok(existing) = Project::load(&dir) {
-                if let Some(tok) = existing.notifications.and_then(|n| n.telegram).map(|t| t.bot_token) {
+                if let Some(tok) = existing
+                    .notifications
+                    .and_then(|n| n.telegram)
+                    .map(|t| t.bot_token)
+                {
                     token = tok;
                 }
             }
         }
     }
     if token.trim().is_empty() {
-        return (StatusCode::BAD_REQUEST, "nessun bot token salvato né fornito").into_response();
+        return (
+            StatusCode::BAD_REQUEST,
+            "nessun bot token salvato né fornito",
+        )
+            .into_response();
     }
 
     let client = reqwest::Client::new();
@@ -5773,36 +6881,76 @@ async fn detect_telegram_chats(
     let body: serde_json::Value = match client.get(&url).send().await {
         Ok(r) => match r.json().await {
             Ok(j) => j,
-            Err(e) => return (StatusCode::BAD_GATEWAY, format!("risposta non valida da Telegram: {e}")).into_response(),
+            Err(e) => {
+                return (
+                    StatusCode::BAD_GATEWAY,
+                    format!("risposta non valida da Telegram: {e}"),
+                )
+                    .into_response()
+            }
         },
-        Err(e) => return (StatusCode::BAD_GATEWAY, format!("impossibile raggiungere Telegram: {e}")).into_response(),
+        Err(e) => {
+            return (
+                StatusCode::BAD_GATEWAY,
+                format!("impossibile raggiungere Telegram: {e}"),
+            )
+                .into_response()
+        }
     };
     if body.get("ok").and_then(|v| v.as_bool()) != Some(true) {
-        let desc = body.get("description").and_then(|v| v.as_str()).unwrap_or("errore sconosciuto");
+        let desc = body
+            .get("description")
+            .and_then(|v| v.as_str())
+            .unwrap_or("errore sconosciuto");
         return (StatusCode::BAD_GATEWAY, format!("Telegram: {desc}")).into_response();
     }
 
     // Un update può portare la chat in campi diversi a seconda del tipo di
     // evento; si guardano tutti quelli che nella pratica compaiono.
     let mut seen: std::collections::BTreeMap<String, DetectedChat> = Default::default();
-    for upd in body.get("result").and_then(|v| v.as_array()).map(|a| a.as_slice()).unwrap_or(&[]) {
-        let chat = ["message", "edited_message", "channel_post", "edited_channel_post", "my_chat_member", "chat_member"]
-            .iter()
-            .filter_map(|k| upd.get(*k))
-            .filter_map(|c| c.get("chat"))
-            .next();
+    for upd in body
+        .get("result")
+        .and_then(|v| v.as_array())
+        .map(|a| a.as_slice())
+        .unwrap_or(&[])
+    {
+        let chat = [
+            "message",
+            "edited_message",
+            "channel_post",
+            "edited_channel_post",
+            "my_chat_member",
+            "chat_member",
+        ]
+        .iter()
+        .filter_map(|k| upd.get(*k))
+        .filter_map(|c| c.get("chat"))
+        .next();
         let Some(chat) = chat else { continue };
-        let Some(id) = chat.get("id").and_then(|v| v.as_i64()) else { continue };
+        let Some(id) = chat.get("id").and_then(|v| v.as_i64()) else {
+            continue;
+        };
         let id = id.to_string();
-        let str_of = |k: &str| chat.get(k).and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let str_of = |k: &str| {
+            chat.get(k)
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string()
+        };
         let title = str_of("title");
         let label = if !title.is_empty() {
             title
         } else {
-            let name = format!("{} {}", str_of("first_name"), str_of("last_name")).trim().to_string();
-            if !name.is_empty() { name }
-            else if !str_of("username").is_empty() { format!("@{}", str_of("username")) }
-            else { id.clone() }
+            let name = format!("{} {}", str_of("first_name"), str_of("last_name"))
+                .trim()
+                .to_string();
+            if !name.is_empty() {
+                name
+            } else if !str_of("username").is_empty() {
+                format!("@{}", str_of("username"))
+            } else {
+                id.clone()
+            }
         };
         seen.entry(id.clone()).or_insert(DetectedChat {
             id,
@@ -5839,13 +6987,19 @@ async fn test_telegram(
     if token == MASKED_PASSWORD || token.trim().is_empty() {
         if let Ok(dir) = active_dir(&s).await {
             if let Ok(existing) = Project::load(&dir) {
-                if let Some(tok) = existing.notifications.and_then(|n| n.telegram).map(|t| t.bot_token) {
+                if let Some(tok) = existing
+                    .notifications
+                    .and_then(|n| n.telegram)
+                    .map(|t| t.bot_token)
+                {
                     token = tok;
                 }
             }
         }
     }
-    let text = req.text.filter(|t| !t.trim().is_empty())
+    let text = req
+        .text
+        .filter(|t| !t.trim().is_empty())
         .unwrap_or_else(|| "✅ Messaggio di test da SWS.".to_string());
     let client = reqwest::Client::new();
     match crate::telegram::send_message(&client, &token, &req.chat_ids, &text).await {
@@ -5861,7 +7015,9 @@ mod bundle_tests {
     /// Un progetto minimo su disco con dentro tutti i tipi di segreto che il
     /// modello prevede: password MQTT, bot token Telegram, password SMTP.
     fn project_with_secrets(dir: &std::path::Path) {
-        std::fs::write(dir.join("project.yaml"), r#"
+        std::fs::write(
+            dir.join("project.yaml"),
+            r#"
 meta:
   name: segreti
   version: "1"
@@ -5882,13 +7038,17 @@ notifications:
   telegram:
     bot_token: "1234567890:TOKEN-TELEGRAM-VERO"
     chat_ids: ["-100999"]
-"#).unwrap();
+"#,
+        )
+        .unwrap();
         std::fs::create_dir_all(dir.join("synoptics")).unwrap();
     }
 
     fn zip_entry(zip: &[u8], name: &str) -> String {
         let mut a = zip::ZipArchive::new(Cursor::new(zip.to_vec())).unwrap();
-        let mut f = a.by_name(name).unwrap_or_else(|_| panic!("{name} assente dal bundle"));
+        let mut f = a
+            .by_name(name)
+            .unwrap_or_else(|_| panic!("{name} assente dal bundle"));
         let mut s = String::new();
         std::io::Read::read_to_string(&mut f, &mut s).unwrap();
         s
@@ -5911,16 +7071,32 @@ notifications:
         let zip = build_project_zip(tmp.path()).await.expect("build zip");
         let yaml = zip_entry(&zip, "project.yaml");
 
-        assert!(yaml.contains("password-mqtt-vera"), "password MQTT persa:\n{yaml}");
-        assert!(yaml.contains("TOKEN-TELEGRAM-VERO"), "bot token Telegram perso:\n{yaml}");
-        assert!(yaml.contains("password-smtp-vera"), "password SMTP persa:\n{yaml}");
+        assert!(
+            yaml.contains("password-mqtt-vera"),
+            "password MQTT persa:\n{yaml}"
+        );
+        assert!(
+            yaml.contains("TOKEN-TELEGRAM-VERO"),
+            "bot token Telegram perso:\n{yaml}"
+        );
+        assert!(
+            yaml.contains("password-smtp-vera"),
+            "password SMTP persa:\n{yaml}"
+        );
         // Nessun segreto sostituito dal sentinella della UI.
-        assert!(!yaml.contains(MASKED_PASSWORD), "un segreto è stato mascherato:\n{yaml}");
+        assert!(
+            !yaml.contains(MASKED_PASSWORD),
+            "un segreto è stato mascherato:\n{yaml}"
+        );
 
         // Il manifest deve dirlo, così chi riceve il bundle sa cosa ha in mano.
         let manifest = zip_entry(&zip, "manifest.json");
         let m: serde_json::Value = serde_json::from_str(&manifest).unwrap();
-        assert_eq!(m["secrets_masked"], serde_json::json!(false), "manifest: {manifest}");
+        assert_eq!(
+            m["secrets_masked"],
+            serde_json::json!(false),
+            "manifest: {manifest}"
+        );
     }
 }
 
@@ -5951,8 +7127,14 @@ mod write_safety_tests {
         // salvataggio di una qualunque altra sezione.
         let raw = "meta:\n  name: impianto\n  version: '1'\nsources:\n- kind: mqtt\n  name: broker\n  url: mqtt://localhost:1883\n- kind: protocollo_futuro\n  name: misterioso\n  parametro: 42\n";
         let out = merge_preserved(TYPED, raw, &niente_da_cancellare());
-        assert!(out.contains("protocollo_futuro"), "sorgente sconosciuta persa:\n{out}");
-        assert!(out.contains("misterioso"), "nome della sorgente sconosciuta perso:\n{out}");
+        assert!(
+            out.contains("protocollo_futuro"),
+            "sorgente sconosciuta persa:\n{out}"
+        );
+        assert!(
+            out.contains("misterioso"),
+            "nome della sorgente sconosciuta perso:\n{out}"
+        );
         assert!(out.contains("broker"), "sorgente conosciuta persa:\n{out}");
     }
 
@@ -5964,7 +7146,10 @@ mod write_safety_tests {
         let typed_svuotato = "meta:\n  name: impianto\n  version: '1'\nsources: []\ntags: []\n";
         let raw = "meta:\n  name: impianto\n  version: '1'\nsources:\n- kind: protocollo_futuro\n  name: misterioso\n";
         let out = merge_preserved(typed_svuotato, raw, &niente_da_cancellare());
-        assert!(out.contains("protocollo_futuro"), "conservazione mancata su lista svuotata:\n{out}");
+        assert!(
+            out.contains("protocollo_futuro"),
+            "conservazione mancata su lista svuotata:\n{out}"
+        );
     }
 
     /// Il rovescio della conservazione: una chiave che la struttura **conosce**
@@ -5985,7 +7170,10 @@ mod write_safety_tests {
             !out.contains("page_layout"),
             "page_layout azzerato ma rimesso dalla conservazione:\n{out}"
         );
-        assert!(!out.contains("home_page_id"), "il valore vecchio è tornato:\n{out}");
+        assert!(
+            !out.contains("home_page_id"),
+            "il valore vecchio è tornato:\n{out}"
+        );
     }
 
     /// La conservazione deve restare selettiva: le chiavi davvero sconosciute
@@ -5994,16 +7182,28 @@ mod write_safety_tests {
     fn cancellare_una_conosciuta_non_butta_via_le_sconosciute() {
         let raw = "meta:\n  name: impianto\n  version: '1'\nsources: []\npage_layout:\n  size_mode: fixed\nimpostazioni_future:\n  qualcosa: vero\n";
         let out = merge_preserved(TYPED, raw, &prima_conteneva(&["page_layout"]));
-        assert!(!out.contains("page_layout"), "la conosciuta doveva sparire:\n{out}");
-        assert!(out.contains("impostazioni_future"), "la sconosciuta doveva restare:\n{out}");
+        assert!(
+            !out.contains("page_layout"),
+            "la conosciuta doveva sparire:\n{out}"
+        );
+        assert!(
+            out.contains("impostazioni_future"),
+            "la sconosciuta doveva restare:\n{out}"
+        );
     }
 
     #[test]
     fn conserva_le_chiavi_di_primo_livello_sconosciute() {
         let raw = "meta:\n  name: impianto\n  version: '1'\nsources: []\nimpostazioni_future:\n  qualcosa: vero\n";
         let out = merge_preserved(TYPED, raw, &niente_da_cancellare());
-        assert!(out.contains("impostazioni_future"), "chiave sconosciuta persa:\n{out}");
-        assert!(out.contains("qualcosa"), "contenuto della chiave sconosciuta perso:\n{out}");
+        assert!(
+            out.contains("impostazioni_future"),
+            "chiave sconosciuta persa:\n{out}"
+        );
+        assert!(
+            out.contains("qualcosa"),
+            "contenuto della chiave sconosciuta perso:\n{out}"
+        );
     }
 
     #[test]
@@ -6011,11 +7211,12 @@ mod write_safety_tests {
         // Il caso che ha originato Q9: PUT /api/project/page-layout con
         // width/height rispondeva 204 scartandoli in silenzio. Col DTO
         // deny_unknown_fields la stessa chiamata deve fallire il parse.
-        let ok = serde_json::from_str::<PageLayoutBody>(
-            r#"{"size_mode":"fixed","home_page_id":"p1"}"#);
+        let ok =
+            serde_json::from_str::<PageLayoutBody>(r#"{"size_mode":"fixed","home_page_id":"p1"}"#);
         assert!(ok.is_ok(), "payload valido rifiutato: {:?}", ok.err());
         let bad = serde_json::from_str::<PageLayoutBody>(
-            r#"{"size_mode":"fixed","width":1920,"height":1080}"#);
+            r#"{"size_mode":"fixed","width":1920,"height":1080}"#,
+        );
         assert!(bad.is_err(), "campi sconosciuti accettati in silenzio");
     }
 
@@ -6025,7 +7226,11 @@ mod write_safety_tests {
         // comparire una volta sola, altrimenti ogni salvataggio raddoppierebbe.
         let raw = "meta:\n  name: impianto\n  version: '1'\nsources:\n- kind: mqtt\n  name: broker\n  url: mqtt://localhost:1883\ntags: []\n";
         let out = merge_preserved(TYPED, raw, &niente_da_cancellare());
-        assert_eq!(out.matches("name: broker").count(), 1, "sorgente duplicata:\n{out}");
+        assert_eq!(
+            out.matches("name: broker").count(),
+            1,
+            "sorgente duplicata:\n{out}"
+        );
     }
 
     #[test]
@@ -6035,14 +7240,24 @@ mod write_safety_tests {
         let raw = "meta:\n  name: nome_vecchio\n  version: '1'\nsources: []\n";
         let out = merge_preserved(TYPED, raw, &niente_da_cancellare());
         assert!(out.contains("impianto"), "la patch non ha vinto:\n{out}");
-        assert!(!out.contains("nome_vecchio"), "il valore vecchio è sopravvissuto:\n{out}");
+        assert!(
+            !out.contains("nome_vecchio"),
+            "il valore vecchio è sopravvissuto:\n{out}"
+        );
     }
 
     #[test]
     fn un_file_grezzo_illeggibile_non_fa_fallire_il_salvataggio() {
         // merge_preserved può solo aggiungere: se il grezzo non si parsa,
         // restituisce il tipizzato invariato invece di rompere la scrittura.
-        assert_eq!(merge_preserved(TYPED, "questo: [non è: yaml valido", &niente_da_cancellare()), TYPED);
+        assert_eq!(
+            merge_preserved(
+                TYPED,
+                "questo: [non è: yaml valido",
+                &niente_da_cancellare()
+            ),
+            TYPED
+        );
     }
 }
 
@@ -6155,14 +7370,23 @@ mod q30_tests {
     async fn la_scrittura_sostituisce_e_non_tronca() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("project.yaml");
-        std::fs::write(&path, "meta:\n  name: vecchio\n  version: \"1\"\ntags: []\n").unwrap();
+        std::fs::write(
+            &path,
+            "meta:\n  name: vecchio\n  version: \"1\"\ntags: []\n",
+        )
+        .unwrap();
 
         // Il contenuto nuovo è più corto del vecchio: con una scrittura in
         // luogo senza troncamento resterebbe della coda del precedente.
-        scrivi_atomico(&path, b"meta:\n  name: n\n  version: \"1\"\n").await.unwrap();
+        scrivi_atomico(&path, b"meta:\n  name: n\n  version: \"1\"\n")
+            .await
+            .unwrap();
 
         let testo = std::fs::read_to_string(&path).unwrap();
-        assert!(!testo.contains("vecchio"), "coda del file precedente:\n{testo}");
+        assert!(
+            !testo.contains("vecchio"),
+            "coda del file precedente:\n{testo}"
+        );
         let doc: serde_yaml::Value = serde_yaml::from_str(&testo).unwrap();
         assert_eq!(doc["meta"]["name"].as_str(), Some("n"));
     }
@@ -6217,7 +7441,10 @@ mod q30_versione_tests {
         let lock = tokio::sync::Mutex::new(());
 
         let v0 = versione_su_disco(dir.path());
-        let r = patch_project_se(&lock, dir.path(), Some(v0.clone()), |p| p.tags.push(tag("a"))).await;
+        let r = patch_project_se(&lock, dir.path(), Some(v0.clone()), |p| {
+            p.tags.push(tag("a"))
+        })
+        .await;
         assert_eq!(r.status(), StatusCode::NO_CONTENT);
         let v1 = etag(&r).expect("la risposta deve portare la versione nuova");
         assert_ne!(v1, v0, "la versione deve cambiare dopo una scrittura");
@@ -6239,20 +7466,31 @@ mod q30_versione_tests {
 
         let vista_da_entrambe = versione_su_disco(dir.path());
 
-        let prima = patch_project_se(&lock, dir.path(), Some(vista_da_entrambe.clone()),
-            |p| p.tags = vec![tag("della_prima")]).await;
+        let prima = patch_project_se(&lock, dir.path(), Some(vista_da_entrambe.clone()), |p| {
+            p.tags = vec![tag("della_prima")]
+        })
+        .await;
         assert_eq!(prima.status(), StatusCode::NO_CONTENT);
 
-        let seconda = patch_project_se(&lock, dir.path(), Some(vista_da_entrambe),
-            |p| p.tags = vec![tag("della_seconda")]).await;
-        assert_eq!(seconda.status(), StatusCode::CONFLICT,
-            "la seconda scheda partiva da dati vecchi e va rifiutata");
+        let seconda = patch_project_se(&lock, dir.path(), Some(vista_da_entrambe), |p| {
+            p.tags = vec![tag("della_seconda")]
+        })
+        .await;
+        assert_eq!(
+            seconda.status(),
+            StatusCode::CONFLICT,
+            "la seconda scheda partiva da dati vecchi e va rifiutata"
+        );
 
         let testo = std::fs::read_to_string(dir.path().join("project.yaml")).unwrap();
-        assert!(testo.contains("della_prima"),
-            "il lavoro della prima scheda deve essere ancora là:\n{testo}");
-        assert!(!testo.contains("della_seconda"),
-            "e quello rifiutato non deve essere finito sul disco:\n{testo}");
+        assert!(
+            testo.contains("della_prima"),
+            "il lavoro della prima scheda deve essere ancora là:\n{testo}"
+        );
+        assert!(
+            !testo.contains("della_seconda"),
+            "e quello rifiutato non deve essere finito sul disco:\n{testo}"
+        );
     }
 
     /// Il 409 deve **spiegarsi**: senza il rimedio, chi lo riceve non sa cosa
@@ -6262,7 +7500,10 @@ mod q30_versione_tests {
         let dir = tempfile::tempdir().unwrap();
         progetto_minimo(dir.path());
         let lock = tokio::sync::Mutex::new(());
-        let r = patch_project_se(&lock, dir.path(), Some("non-combacia".into()), |p| p.tags.push(tag("x"))).await;
+        let r = patch_project_se(&lock, dir.path(), Some("non-combacia".into()), |p| {
+            p.tags.push(tag("x"))
+        })
+        .await;
         assert_eq!(r.status(), StatusCode::CONFLICT);
         let corpo = axum::body::to_bytes(r.into_body(), 8192).await.unwrap();
         let testo = String::from_utf8_lossy(&corpo);
@@ -6289,13 +7530,18 @@ mod q30_file_tests {
             .expect("doveva rifiutare");
         assert_eq!(r.status(), StatusCode::CONFLICT);
         assert_eq!(
-            r.headers().get("x-sws-conflitto").and_then(|v| v.to_str().ok()),
+            r.headers()
+                .get("x-sws-conflitto")
+                .and_then(|v| v.to_str().ok()),
             Some("versione"),
             "il client riconosce questo 409 dall'header, non dal testo tradotto"
         );
         let corpo = axum::body::to_bytes(r.into_body(), 8192).await.unwrap();
         let testo = String::from_utf8_lossy(&corpo);
-        assert!(testo.contains("Questa pagina"), "deve dire COSA è cambiato: {testo}");
+        assert!(
+            testo.contains("Questa pagina"),
+            "deve dire COSA è cambiato: {testo}"
+        );
         assert!(testo.contains("Ricarica"), "e cosa fare: {testo}");
     }
 
@@ -6346,6 +7592,11 @@ mod q30_file_tests {
         let ok = r##"<svg viewBox="0 0 100 100"><g id="body"><rect x="1" y="2" width="10" height="20" fill="#f00"/><path d="M0 0L10 10" stroke="#000"/><text>on</text></g></svg>"##;
         assert_eq!(svg_ostile(ok), None);
         // `stop-color`, `stroke-linejoin`: contengono "on" senza essere handler.
-        assert_eq!(svg_ostile(r##"<svg><stop offset="0" stop-color="#fff"/><path stroke-linejoin="round"/></svg>"##), None);
+        assert_eq!(
+            svg_ostile(
+                r##"<svg><stop offset="0" stop-color="#fff"/><path stroke-linejoin="round"/></svg>"##
+            ),
+            None
+        );
     }
 }

@@ -72,7 +72,9 @@ fn sshpass_available() -> bool {
 fn validate_remote_path(path: &str) -> bool {
     path.starts_with('/')
         && !path.contains("..")
-        && path.chars().all(|c| c.is_ascii_alphanumeric() || "-_./".contains(c))
+        && path
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || "-_./".contains(c))
 }
 
 /// Resolve the repository root: current_dir() if scripts/package.sh exists there.
@@ -102,10 +104,7 @@ pub struct BuildRequest {
     pub no_spa: bool,
 }
 
-pub async fn build_package(
-    State(s): State<AppState>,
-    EJson(req): EJson<BuildRequest>,
-) -> Response {
+pub async fn build_package(State(s): State<AppState>, EJson(req): EJson<BuildRequest>) -> Response {
     let repo = match s.repo_root.as_ref() {
         Some(p) => p.clone(),
         None => {
@@ -113,7 +112,8 @@ pub async fn build_package(
                 StatusCode::SERVICE_UNAVAILABLE,
                 "Build non disponibile: scripts/package.sh non trovato nella directory corrente.\n\
                  Esegui il runtime dalla radice del repository (./scripts/start_runtime.sh).",
-            ).into_response();
+            )
+                .into_response();
         }
     };
 
@@ -138,8 +138,12 @@ pub async fn build_package(
         let script = repo.join("scripts/package.sh");
         let mut cmd = Command::new("bash");
         cmd.arg(script.as_os_str());
-        if req.no_rust { cmd.arg("--no-rust"); }
-        if req.no_spa  { cmd.arg("--no-spa");  }
+        if req.no_rust {
+            cmd.arg("--no-rust");
+        }
+        if req.no_spa {
+            cmd.arg("--no-spa");
+        }
         // Merge stdout + stderr so both appear in the log stream.
         cmd.stdout(std::process::Stdio::piped());
         cmd.stderr(std::process::Stdio::piped());
@@ -148,7 +152,9 @@ pub async fn build_package(
         let mut child = match cmd.spawn() {
             Ok(c) => c,
             Err(e) => {
-                send(&format!("ERROR: impossibile avviare scripts/package.sh: {e}"));
+                send(&format!(
+                    "ERROR: impossibile avviare scripts/package.sh: {e}"
+                ));
                 *lock.lock().unwrap() = false;
                 return;
             }
@@ -179,7 +185,10 @@ pub async fn build_package(
 
         match child.wait().await {
             Ok(status) if status.success() => send("DONE"),
-            Ok(status) => send(&format!("ERROR: package.sh terminato con codice {}", status.code().unwrap_or(-1))),
+            Ok(status) => send(&format!(
+                "ERROR: package.sh terminato con codice {}",
+                status.code().unwrap_or(-1)
+            )),
             Err(e) => send(&format!("ERROR: wait fallito: {e}")),
         }
 
@@ -218,20 +227,27 @@ pub async fn list_packages(State(s): State<AppState>) -> impl IntoResponse {
     if let Ok(mut rd) = tokio::fs::read_dir(&dist).await {
         while let Ok(Some(entry)) = rd.next_entry().await {
             let path = entry.path();
-            let name = path.file_name()
+            let name = path
+                .file_name()
                 .and_then(|n| n.to_str())
                 .unwrap_or("")
                 .to_string();
-            if !name.ends_with(".tar.gz") { continue; }
+            if !name.ends_with(".tar.gz") {
+                continue;
+            }
             // Le immagini container (sws-runtime-<versione>-<arch>-image.tar.gz,
             // per podman load) hanno un layout interno completamente diverso da
             // un pacchetto nativo (niente install.sh) — mischiarle in questa
             // lista ha fatto scegliere per sbaglio un'immagine per il deploy
             // via SSH nativo, che poi falliva cercando install.sh dentro un
             // archivio OCI. list_container_packages le elenca a parte.
-            if parse_image_tarball(&name).is_some() { continue; }
+            if parse_image_tarball(&name).is_some() {
+                continue;
+            }
             if let Ok(meta) = tokio::fs::metadata(&path).await {
-                let mtime_ms = meta.modified().ok()
+                let mtime_ms = meta
+                    .modified()
+                    .ok()
                     .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
                     .map(|d| d.as_millis() as u64)
                     .unwrap_or(0);
@@ -285,10 +301,20 @@ pub async fn list_container_packages(State(s): State<AppState>) -> impl IntoResp
     if let Ok(mut rd) = tokio::fs::read_dir(&dist).await {
         while let Ok(Some(entry)) = rd.next_entry().await {
             let path = entry.path();
-            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("").to_string();
-            let Some((version, arch)) = parse_image_tarball(&name) else { continue };
-            let Ok(meta) = tokio::fs::metadata(&path).await else { continue };
-            let mtime_ms = meta.modified().ok()
+            let name = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("")
+                .to_string();
+            let Some((version, arch)) = parse_image_tarball(&name) else {
+                continue;
+            };
+            let Ok(meta) = tokio::fs::metadata(&path).await else {
+                continue;
+            };
+            let mtime_ms = meta
+                .modified()
+                .ok()
                 .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
                 .map(|d| d.as_millis() as u64)
                 .unwrap_or(0);
@@ -327,8 +353,12 @@ pub struct DeviceDeployRequest {
     pub remote_dir: String,
 }
 
-fn default_ssh_port() -> u16 { 22 }
-fn default_remote_dir() -> String { "/tmp/sws-deploy".to_string() }
+fn default_ssh_port() -> u16 {
+    22
+}
+fn default_remote_dir() -> String {
+    "/tmp/sws-deploy".to_string()
+}
 
 pub async fn deploy_device(
     State(s): State<AppState>,
@@ -337,8 +367,11 @@ pub async fn deploy_device(
     let repo = match s.repo_root.as_ref() {
         Some(p) => p.clone(),
         None => {
-            return (StatusCode::SERVICE_UNAVAILABLE,
-                "repo_root non disponibile\n").into_response();
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                "repo_root non disponibile\n",
+            )
+                .into_response();
         }
     };
 
@@ -375,8 +408,11 @@ pub async fn deploy_device(
     let dist_dir = repo.join("dist");
     let tarball_path = dist_dir.join(&basename);
     if !tarball_path.exists() {
-        return (StatusCode::NOT_FOUND,
-            format!("tarball non trovato: dist/{basename}\n")).into_response();
+        return (
+            StatusCode::NOT_FOUND,
+            format!("tarball non trovato: dist/{basename}\n"),
+        )
+            .into_response();
     }
     let canon = match tarball_path.canonicalize() {
         Ok(p) => p,
@@ -384,7 +420,9 @@ pub async fn deploy_device(
     };
     let canon_dist = match dist_dir.canonicalize() {
         Ok(p) => p,
-        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "dist/ non trovata\n").into_response(),
+        Err(_) => {
+            return (StatusCode::INTERNAL_SERVER_ERROR, "dist/ non trovata\n").into_response()
+        }
     };
     if !canon.starts_with(&canon_dist) {
         return (StatusCode::BAD_REQUEST, "tarball fuori da dist/\n").into_response();
@@ -419,39 +457,77 @@ pub async fn deploy_device(
         // arrivare all'estrazione. Stesso ordine già usato da deploy_device_container.
         send(&format!("==> mkdir -p {} sul device", req.remote_dir));
         let mkdir_ok = run_ssh_cmd(
-            use_sshpass, &req.password,
+            use_sshpass,
+            &req.password,
             "ssh",
-            &["-p", &port_str, "-o", "StrictHostKeyChecking=accept-new",
-              &host_str, &format!("mkdir -p {}", req.remote_dir)],
+            &[
+                "-p",
+                &port_str,
+                "-o",
+                "StrictHostKeyChecking=accept-new",
+                &host_str,
+                &format!("mkdir -p {}", req.remote_dir),
+            ],
             &send,
-        ).await;
-        if !mkdir_ok { return; }
+        )
+        .await;
+        if !mkdir_ok {
+            return;
+        }
 
         // ── 2. SCP upload ─────────────────────────────────────────────────
-        send(&format!("==> SCP: {} → {}:{}", tarball_path.display(), host_str, remote_tar));
+        send(&format!(
+            "==> SCP: {} → {}:{}",
+            tarball_path.display(),
+            host_str,
+            remote_tar
+        ));
 
         let scp_ok = run_ssh_cmd(
-            use_sshpass, &req.password,
+            use_sshpass,
+            &req.password,
             "scp",
-            &["-P", &port_str, "-o", "StrictHostKeyChecking=accept-new",
-              tarball_path.to_str().unwrap_or(""), &format!("{host_str}:{remote_tar}")],
+            &[
+                "-P",
+                &port_str,
+                "-o",
+                "StrictHostKeyChecking=accept-new",
+                tarball_path.to_str().unwrap_or(""),
+                &format!("{host_str}:{remote_tar}"),
+            ],
             &send,
-        ).await;
-        if !scp_ok { return; }
+        )
+        .await;
+        if !scp_ok {
+            return;
+        }
         send("==> SCP completato");
 
         // ── 3. Estrai il tarball ──────────────────────────────────────────
         send("==> Estrazione tarball...");
-        let extract_cmd = format!("tar xzf {tar} -C {dir}",
-            dir = req.remote_dir, tar = remote_tar);
+        let extract_cmd = format!(
+            "tar xzf {tar} -C {dir}",
+            dir = req.remote_dir,
+            tar = remote_tar
+        );
         let ok = run_ssh_cmd(
-            use_sshpass, &req.password,
+            use_sshpass,
+            &req.password,
             "ssh",
-            &["-p", &port_str, "-o", "StrictHostKeyChecking=accept-new",
-              &host_str, &extract_cmd],
+            &[
+                "-p",
+                &port_str,
+                "-o",
+                "StrictHostKeyChecking=accept-new",
+                &host_str,
+                &extract_cmd,
+            ],
             &send,
-        ).await;
-        if !ok { return; }
+        )
+        .await;
+        if !ok {
+            return;
+        }
 
         // ── 4. Esegui install.sh ──────────────────────────────────────────
         // `sudo -S` legge la password da stdin invece di provare ad aprire un
@@ -465,14 +541,24 @@ pub async fn deploy_device(
         let install_cmd = format!("chmod +x {remote_install} && sudo -S {remote_install}");
         let sudo_stdin = format!("{}\n", req.password);
         let ok = run_ssh_cmd_stdin(
-            use_sshpass, &req.password,
+            use_sshpass,
+            &req.password,
             "ssh",
-            &["-p", &port_str, "-o", "StrictHostKeyChecking=accept-new",
-              &host_str, &install_cmd],
+            &[
+                "-p",
+                &port_str,
+                "-o",
+                "StrictHostKeyChecking=accept-new",
+                &host_str,
+                &install_cmd,
+            ],
             Some(&sudo_stdin),
             &send,
-        ).await;
-        if !ok { return; }
+        )
+        .await;
+        if !ok {
+            return;
+        }
 
         // ── 5. Health check ───────────────────────────────────────────────
         // Il TLS è opt-in (main.rs: si attiva solo se config/tls.crt esiste,
@@ -486,12 +572,20 @@ pub async fn deploy_device(
         send("==> Health check...");
         let hc_cmd = "sleep 3 && (curl -sk https://localhost:8443/health || curl -s http://localhost:8443/health)";
         let ok = run_ssh_cmd(
-            use_sshpass, &req.password,
+            use_sshpass,
+            &req.password,
             "ssh",
-            &["-p", &port_str, "-o", "StrictHostKeyChecking=accept-new",
-              &host_str, hc_cmd],
+            &[
+                "-p",
+                &port_str,
+                "-o",
+                "StrictHostKeyChecking=accept-new",
+                &host_str,
+                hc_cmd,
+            ],
             &send,
-        ).await;
+        )
+        .await;
         if ok {
             send("==> Health check: OK");
         } else {
@@ -532,8 +626,12 @@ fn resolve_dist_file(repo: &std::path::Path, name: &str) -> Result<PathBuf, Stri
     if !path.exists() {
         return Err(format!("file non trovato: dist/{basename}"));
     }
-    let canon = path.canonicalize().map_err(|_| "file non trovato".to_string())?;
-    let canon_dist = dist_dir.canonicalize().map_err(|_| "dist/ non trovata".to_string())?;
+    let canon = path
+        .canonicalize()
+        .map_err(|_| "file non trovato".to_string())?;
+    let canon_dist = dist_dir
+        .canonicalize()
+        .map_err(|_| "dist/ non trovata".to_string())?;
     if !canon.starts_with(&canon_dist) {
         return Err(format!("{basename} è fuori da dist/"));
     }
@@ -774,7 +872,8 @@ pub(crate) fn host_sicuro(h: &str) -> bool {
     !h.is_empty()
         && h.len() <= 253
         && !h.starts_with('-')
-        && h.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'))
+        && h.chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'))
 }
 
 /// Un nome utente Unix che si può mettere davanti a `@host` in un argomento di
@@ -790,7 +889,8 @@ pub(crate) fn utente_sicuro(u: &str) -> bool {
     !u.is_empty()
         && u.len() <= 32
         && !u.starts_with('-')
-        && u.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'))
+        && u.chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'))
 }
 
 /// `Err` con il messaggio da restituire al client se `user@host` non è sicuro.
@@ -833,17 +933,26 @@ pub async fn dimentica_chiave_host(
     EJson(req): EJson<DimenticaChiaveBody>,
 ) -> Response {
     if !host_sicuro(&req.host) {
-        return (StatusCode::BAD_REQUEST,
-            format!("nome host non valido: «{}»\n", req.host)).into_response();
+        return (
+            StatusCode::BAD_REQUEST,
+            format!("nome host non valido: «{}»\n", req.host),
+        )
+            .into_response();
     }
     let Some(home) = std::env::var_os("HOME").map(PathBuf::from) else {
-        return (StatusCode::INTERNAL_SERVER_ERROR,
-            "HOME non impostata: non so dove sia il known_hosts\n").into_response();
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "HOME non impostata: non so dove sia il known_hosts\n",
+        )
+            .into_response();
     };
     let known = home.join(".ssh/known_hosts");
     if !known.exists() {
-        return (StatusCode::NOT_FOUND,
-            format!("{} non esiste: niente da dimenticare\n", known.display())).into_response();
+        return (
+            StatusCode::NOT_FOUND,
+            format!("{} non esiste: niente da dimenticare\n", known.display()),
+        )
+            .into_response();
     }
 
     // Le due forme in cui OpenSSH memorizza un host: nuda sulla porta 22, fra
@@ -856,9 +965,12 @@ pub async fn dimentica_chiave_host(
     let mut tolte: Vec<String> = Vec::new();
     for b in &bersagli {
         match Command::new("ssh-keygen")
-            .arg("-f").arg(&known)
-            .arg("-R").arg(b)
-            .output().await
+            .arg("-f")
+            .arg(&known)
+            .arg("-R")
+            .arg(b)
+            .output()
+            .await
         {
             Ok(o) if o.status.success() => {
                 // `ssh-keygen -R` esce 0 anche quando non trova niente: la
@@ -871,15 +983,22 @@ pub async fn dimentica_chiave_host(
             Ok(o) => warn!(host = %b, "ssh-keygen -R fallito: {}",
                            String::from_utf8_lossy(&o.stderr).trim()),
             Err(e) => {
-                return (StatusCode::INTERNAL_SERVER_ERROR,
-                    format!("impossibile eseguire ssh-keygen: {e}\n")).into_response();
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("impossibile eseguire ssh-keygen: {e}\n"),
+                )
+                    .into_response();
             }
         }
     }
 
-    s.audit.log("device.hostkey_forget", Some(user.username), serde_json::json!({
-        "host": req.host, "port": req.port, "tolte": tolte,
-    }));
+    s.audit.log(
+        "device.hostkey_forget",
+        Some(user.username),
+        serde_json::json!({
+            "host": req.host, "port": req.port, "tolte": tolte,
+        }),
+    );
     info!(host = %req.host, tolte = tolte.len(), "chiave host dimenticata su richiesta");
 
     axum::Json(serde_json::json!({
@@ -891,7 +1010,8 @@ pub async fn dimentica_chiave_host(
             format!("{} voce/i tolte da known_hosts (l'originale resta in known_hosts.old)",
                     tolte.len())
         },
-    })).into_response()
+    }))
+    .into_response()
 }
 
 pub async fn deploy_device_container(
@@ -901,8 +1021,11 @@ pub async fn deploy_device_container(
     let repo = match s.repo_root.as_ref() {
         Some(p) => p.clone(),
         None => {
-            return (StatusCode::SERVICE_UNAVAILABLE,
-                "repo_root non disponibile\n").into_response();
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                "repo_root non disponibile\n",
+            )
+                .into_response();
         }
     };
 
@@ -943,17 +1066,21 @@ pub async fn deploy_device_container(
     let deploy_srcs = match container_deploy_sources(&repo) {
         Ok(v) => v,
         Err(mancante) => {
-            return (StatusCode::INTERNAL_SERVER_ERROR,
-                format!("{mancante} mancante nel repo\n")
-            ).into_response();
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("{mancante} mancante nel repo\n"),
+            )
+                .into_response();
         }
     };
 
     // Riga di riepilogo composta qui, dove i dati ci sono ancora tutti.
     let source_line = match &image_spec {
         ImageSpec::Archive(name) => format!("==> immagine: archivio {name}"),
-        ImageSpec::Registry(r) if r.is_empty() =>
-            "==> immagine: registry (latest-<arch>, l'architettura la decide il dispositivo)".to_string(),
+        ImageSpec::Registry(r) if r.is_empty() => {
+            "==> immagine: registry (latest-<arch>, l'architettura la decide il dispositivo)"
+                .to_string()
+        }
         ImageSpec::Registry(r) => format!("==> immagine: registry ({r})"),
     };
 
@@ -980,13 +1107,23 @@ pub async fn deploy_device_container(
         // dei tre scp che seguono, non solo prima dell'estrazione.
         send(&format!("==> mkdir -p {} sul device", req.remote_dir));
         let ok = run_ssh_cmd(
-            use_sshpass, &req.password,
+            use_sshpass,
+            &req.password,
             "ssh",
-            &["-p", &port_str, "-o", "StrictHostKeyChecking=accept-new",
-              &host_str, &format!("mkdir -p {}", req.remote_dir)],
+            &[
+                "-p",
+                &port_str,
+                "-o",
+                "StrictHostKeyChecking=accept-new",
+                &host_str,
+                &format!("mkdir -p {}", req.remote_dir),
+            ],
             &send,
-        ).await;
-        if !ok { return; }
+        )
+        .await;
+        if !ok {
+            return;
+        }
 
         // ── 2. SCP ─────────────────────────────────────────────────────────
         // Installer e unit sempre: l'installer legge la unit da una posizione
@@ -995,8 +1132,7 @@ pub async fn deploy_device_container(
         // dispositivo, ed è lì che si risparmiano i 59 MB.
         // La SPA non è fra questi in nessuno dei due casi: viaggia dentro
         // l'immagine dal 2026-07-30.
-        let mut uploads: Vec<(&str, &std::path::Path)> =
-            Vec::with_capacity(deploy_srcs.len() + 1);
+        let mut uploads: Vec<(&str, &std::path::Path)> = Vec::with_capacity(deploy_srcs.len() + 1);
         if let Some(p) = image_path.as_deref() {
             uploads.push(("immagine", p));
         }
@@ -1005,15 +1141,30 @@ pub async fn deploy_device_container(
             uploads.push((nome, p.as_path()));
         }
         for (label, local) in uploads {
-            send(&format!("==> SCP {label}: {} → {}:{}", local.display(), host_str, req.remote_dir));
+            send(&format!(
+                "==> SCP {label}: {} → {}:{}",
+                local.display(),
+                host_str,
+                req.remote_dir
+            ));
             let ok = run_ssh_cmd(
-                use_sshpass, &req.password,
+                use_sshpass,
+                &req.password,
                 "scp",
-                &["-P", &port_str, "-o", "StrictHostKeyChecking=accept-new",
-                  local.to_str().unwrap_or(""), &format!("{host_str}:{}/", req.remote_dir)],
+                &[
+                    "-P",
+                    &port_str,
+                    "-o",
+                    "StrictHostKeyChecking=accept-new",
+                    local.to_str().unwrap_or(""),
+                    &format!("{host_str}:{}/", req.remote_dir),
+                ],
                 &send,
-            ).await;
-            if !ok { return; }
+            )
+            .await;
+            if !ok {
+                return;
+            }
         }
         send("==> SCP completato");
 
@@ -1027,49 +1178,83 @@ pub async fn deploy_device_container(
             if let Some(pull_cmd) = build_pull_only_cmd(&req.remote_dir, &image_spec) {
                 send("==> Procuro l'immagine PRIMA di azzerare i dati...");
                 let ok = run_ssh_cmd(
-                    use_sshpass, &req.password,
+                    use_sshpass,
+                    &req.password,
                     "ssh",
-                    &["-p", &port_str, "-o", "StrictHostKeyChecking=accept-new",
-                      &host_str, &pull_cmd],
+                    &[
+                        "-p",
+                        &port_str,
+                        "-o",
+                        "StrictHostKeyChecking=accept-new",
+                        &host_str,
+                        &pull_cmd,
+                    ],
                     &send,
-                ).await;
+                )
+                .await;
                 if !ok {
                     send("ERROR: immagine non procurata. Nessun dato è stato cancellato e il runtime è intatto.");
                     return;
                 }
             }
 
-            let purged = if req.data_path.is_empty() { "/data/user/sws" } else { &req.data_path };
+            let purged = if req.data_path.is_empty() {
+                "/data/user/sws"
+            } else {
+                &req.data_path
+            };
             send(&format!("WARN: installazione pulita — azzero progetti, configurazione e storico in {purged}"));
             let purge_cmd = build_purge_cmd(&req.remote_dir, &req.data_path);
             let ok = run_ssh_cmd(
-                use_sshpass, &req.password,
+                use_sshpass,
+                &req.password,
                 "ssh",
-                &["-p", &port_str, "-o", "StrictHostKeyChecking=accept-new",
-                  &host_str, &purge_cmd],
+                &[
+                    "-p",
+                    &port_str,
+                    "-o",
+                    "StrictHostKeyChecking=accept-new",
+                    &host_str,
+                    &purge_cmd,
+                ],
                 &send,
-            ).await;
+            )
+            .await;
             if !ok {
                 // Fermarsi e dichiarare lo stato reale: installare sopra una
                 // directory dati in stato ignoto sarebbe peggio del fallimento.
-                send("ERROR: azzeramento fallito. Il servizio è stato rimosso e i dati potrebbero \
+                send(
+                    "ERROR: azzeramento fallito. Il servizio è stato rimosso e i dati potrebbero \
                       essere cancellati solo in parte. Ripeti SENZA \"installazione pulita\" per \
-                      rimettere in servizio il runtime.");
+                      rimettere in servizio il runtime.",
+                );
                 return;
             }
         }
 
         // ── 3. Esegui install-container.sh (NESSUN sudo: podman rootless) ──
-        send("==> Installazione (install-container.sh, podman rootless — nessun sudo richiesto)...");
+        send(
+            "==> Installazione (install-container.sh, podman rootless — nessun sudo richiesto)...",
+        );
         let install_cmd = build_install_cmd(&req.remote_dir, &image_spec, &req.data_path);
         let ok = run_ssh_cmd(
-            use_sshpass, &req.password,
+            use_sshpass,
+            &req.password,
             "ssh",
-            &["-p", &port_str, "-o", "StrictHostKeyChecking=accept-new",
-              &host_str, &install_cmd],
+            &[
+                "-p",
+                &port_str,
+                "-o",
+                "StrictHostKeyChecking=accept-new",
+                &host_str,
+                &install_cmd,
+            ],
             &send,
-        ).await;
-        if !ok { return; }
+        )
+        .await;
+        if !ok {
+            return;
+        }
 
         // ── 4. Health check ─────────────────────────────────────────────────
         // Il container parte in HTTP finché non c'è un certificato TLS in
@@ -1080,12 +1265,20 @@ pub async fn deploy_device_container(
         send("==> Health check...");
         let hc_cmd = "sleep 3 && (curl -sk https://localhost:8443/health || curl -fs http://localhost:8443/health)";
         let ok = run_ssh_cmd(
-            use_sshpass, &req.password,
+            use_sshpass,
+            &req.password,
             "ssh",
-            &["-p", &port_str, "-o", "StrictHostKeyChecking=accept-new",
-              &host_str, hc_cmd],
+            &[
+                "-p",
+                &port_str,
+                "-o",
+                "StrictHostKeyChecking=accept-new",
+                &host_str,
+                hc_cmd,
+            ],
             &send,
-        ).await;
+        )
+        .await;
         if ok {
             send("==> Health check: OK");
         } else {
@@ -1309,11 +1502,20 @@ pub async fn manage_device_container(EJson(req): EJson<ContainerManageRequest>) 
             let host_str = format!("{}@{}", req.user, req.host);
             let port_str = req.port.to_string();
             run_ssh_cmd(
-                use_sshpass, &req.password,
+                use_sshpass,
+                &req.password,
                 "ssh",
-                &["-p", &port_str, "-o", "StrictHostKeyChecking=accept-new", &host_str, &cmd],
+                &[
+                    "-p",
+                    &port_str,
+                    "-o",
+                    "StrictHostKeyChecking=accept-new",
+                    &host_str,
+                    &cmd,
+                ],
                 &send,
-            ).await
+            )
+            .await
         };
 
         send(if ok { "DONE" } else { "ERROR: azione fallita" });
@@ -1482,7 +1684,11 @@ async fn run_ssh_cmd_stdin(
     match child.wait().await {
         Ok(s) if s.success() => true,
         Ok(s) => {
-            send(&format!("ERROR: {} fallito (exit {})", prog, s.code().unwrap_or(-1)));
+            send(&format!(
+                "ERROR: {} fallito (exit {})",
+                prog,
+                s.code().unwrap_or(-1)
+            ));
             if chiave_host_cambiata.load(std::sync::atomic::Ordering::Relaxed) {
                 send("ERROR: la chiave host del dispositivo non combacia con quella memorizzata su questo PC. Succede a ogni factory reset o reinstallazione: il dispositivo se ne genera di nuove. Se hai appena resettato tu il pannello è questo; altrimenti fermati e verifica di stare parlando con la macchina giusta.");
                 // Riga a macchina: la UI ci attacca il pulsante che toglie la
@@ -1545,7 +1751,10 @@ async fn run_local_cmd(cmd: &str, send: &impl Fn(&str)) -> bool {
     match child.wait().await {
         Ok(s) if s.success() => true,
         Ok(s) => {
-            send(&format!("ERROR: comando fallito (exit {})", s.code().unwrap_or(-1)));
+            send(&format!(
+                "ERROR: comando fallito (exit {})",
+                s.code().unwrap_or(-1)
+            ));
             false
         }
         Err(e) => {
@@ -1608,7 +1817,10 @@ mod tests {
     fn un_file_mancante_viene_nominato() {
         let vuota = tempfile::tempdir().expect("tempdir");
         match container_deploy_sources(vuota.path()) {
-            Err(e) => assert!(e.contains(CONTAINER_DEPLOY_FILES[0]), "atteso il nome del file, ottenuto: {e}"),
+            Err(e) => assert!(
+                e.contains(CONTAINER_DEPLOY_FILES[0]),
+                "atteso il nome del file, ottenuto: {e}"
+            ),
             Ok(_) => panic!("una directory vuota non può risolvere i sorgenti"),
         }
     }
@@ -1617,7 +1829,8 @@ mod tests {
     #[test]
     fn nel_repo_i_file_ci_sono_tutti() {
         let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
-        let srcs = container_deploy_sources(&repo).expect("i file di deploy devono esistere nel repo");
+        let srcs =
+            container_deploy_sources(&repo).expect("i file di deploy devono esistere nel repo");
         assert_eq!(srcs.len(), CONTAINER_DEPLOY_FILES.len());
     }
 
@@ -1661,10 +1874,16 @@ mod tests {
     #[test]
     fn parse_image_tarball_rejects_unrelated_files() {
         assert_eq!(parse_image_tarball("sws-www-0.1.0-dev.tar.gz"), None);
-        assert_eq!(parse_image_tarball("sws-0.1.0-dev-linux-x86_64.tar.gz"), None);
+        assert_eq!(
+            parse_image_tarball("sws-0.1.0-dev-linux-x86_64.tar.gz"),
+            None
+        );
         assert_eq!(parse_image_tarball("random-file.tar.gz"), None);
         // arch presente ma senza il suffisso -image: non è un'immagine container.
-        assert_eq!(parse_image_tarball("sws-runtime-0.1.0-dev-x86_64.tar.gz"), None);
+        assert_eq!(
+            parse_image_tarball("sws-runtime-0.1.0-dev-x86_64.tar.gz"),
+            None
+        );
     }
 
     #[test]
@@ -1681,8 +1900,12 @@ mod tests {
         assert!(!validate_remote_path("/tmp/$(whoami)"));
     }
 
-    fn archive(f: &str) -> ImageSpec { ImageSpec::Archive(f.to_string()) }
-    fn registry(r: &str) -> ImageSpec { ImageSpec::Registry(r.to_string()) }
+    fn archive(f: &str) -> ImageSpec {
+        ImageSpec::Archive(f.to_string())
+    }
+    fn registry(r: &str) -> ImageSpec {
+        ImageSpec::Registry(r.to_string())
+    }
 
     /// Il percorso offline è già stato collaudato su un dispositivo vero: la
     /// stringa che produce non deve cambiare di un carattere.
@@ -1769,7 +1992,10 @@ mod tests {
     #[test]
     fn build_purge_cmd_omette_data_se_vuoto_ma_purga_sempre() {
         let cmd = build_purge_cmd("/tmp/sws-deploy", "");
-        assert!(cmd.ends_with("--uninstall --purge"), "comando inatteso: {cmd}");
+        assert!(
+            cmd.ends_with("--uninstall --purge"),
+            "comando inatteso: {cmd}"
+        );
         assert!(!cmd.contains("--data"));
     }
 
@@ -1780,7 +2006,9 @@ mod tests {
         assert_eq!(build_pull_only_cmd("/tmp/d", &archive("img.tar.gz")), None);
         assert_eq!(
             build_pull_only_cmd("/tmp/d", &registry("")).as_deref(),
-            Some("cd /tmp/d && chmod +x install-container.sh && ./install-container.sh --pull-only")
+            Some(
+                "cd /tmp/d && chmod +x install-container.sh && ./install-container.sh --pull-only"
+            )
         );
         assert_eq!(
             build_pull_only_cmd("/tmp/d", &registry("reg:tag")).as_deref(),
@@ -1790,7 +2018,10 @@ mod tests {
 
     #[test]
     fn resolve_image_spec_senza_sorgente_e_senza_archivio_va_al_registry() {
-        assert_eq!(resolve_image_spec(None, "", ""), Ok(ImageSpec::Registry(String::new())));
+        assert_eq!(
+            resolve_image_spec(None, "", ""),
+            Ok(ImageSpec::Registry(String::new()))
+        );
     }
 
     /// Compatibilità: un IDE più vecchio manda solo `image_tarball`. Non deve
@@ -1815,7 +2046,12 @@ mod tests {
 
     #[test]
     fn resolve_image_spec_accetta_tag_e_digest() {
-        assert!(resolve_image_spec(Some("registry"), "", "ghcr.io/soligolab/sws-runtime:latest-arm64").is_ok());
+        assert!(resolve_image_spec(
+            Some("registry"),
+            "",
+            "ghcr.io/soligolab/sws-runtime:latest-arm64"
+        )
+        .is_ok());
         assert!(resolve_image_spec(
             Some("registry"), "",
             "ghcr.io/soligolab/sws-runtime@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
@@ -1859,7 +2095,9 @@ mod tests {
         // Non `is-enabled` (sempre "generated" per una unit quadlet, vedi nota
         // sopra build_manage_cmd) — il segnale vero è la riga WantedBy= letta
         // dal file sorgente.
-        assert!(cmd.contains("grep -q '^WantedBy=' ~/.config/containers/systemd/sws-runtime.container"));
+        assert!(
+            cmd.contains("grep -q '^WantedBy=' ~/.config/containers/systemd/sws-runtime.container")
+        );
         assert!(cmd.contains("loginctl show-user \"$USER\" --property=Linger"));
         // 2026-09-07 — lo status deve rispondere a «cosa c'è su questa
         // macchina», non solo «come sta la unit che mi aspetto»: prima
@@ -1869,15 +2107,19 @@ mod tests {
         // «non c'è niente».
         assert!(cmd.contains("systemctl --user status sws-lvgl-viewer"));
         assert!(cmd.contains("podman ps -a --filter name=sws"));
-        assert!(!cmd.contains("--filter name=sws-runtime"),
-                "il filtro sul nome esatto nasconde il companion e gli estranei");
+        assert!(
+            !cmd.contains("--filter name=sws-runtime"),
+            "il filtro sul nome esatto nasconde il companion e gli estranei"
+        );
         assert!(cmd.contains("nessun container sws su questa macchina"));
         assert!(cmd.contains("nessuna immagine sws"));
         // La trappola di `format!`: per far arrivare `{{.Names}}` a podman
         // servono quattro graffe nel sorgente. Se qualcuno le riduce, il
         // template esce come `{.Names}` e podman stampa una riga vuota.
-        assert!(cmd.contains("{{.Names}}"),
-                "il template Go deve arrivare a podman con le graffe doppie");
+        assert!(
+            cmd.contains("{{.Names}}"),
+            "il template Go deve arrivare a podman con le graffe doppie"
+        );
     }
 
     #[test]
@@ -1893,7 +2135,10 @@ mod tests {
 
     #[test]
     fn build_manage_cmd_prune_images() {
-        assert_eq!(build_manage_cmd("prune_images", "", false, "").unwrap(), "podman image prune -a -f");
+        assert_eq!(
+            build_manage_cmd("prune_images", "", false, "").unwrap(),
+            "podman image prune -a -f"
+        );
     }
 
     /// `systemctl --user enable/disable` è un no-op per una unit generata da
@@ -1902,12 +2147,18 @@ mod tests {
     #[test]
     fn build_manage_cmd_enable_disable_editano_wantedby_non_systemctl() {
         let en = build_manage_cmd("enable", "", false, "").unwrap();
-        assert!(!en.contains("systemctl --user enable"), "deve editare il file, non chiamare enable: {en}");
+        assert!(
+            !en.contains("systemctl --user enable"),
+            "deve editare il file, non chiamare enable: {en}"
+        );
         assert!(en.contains("WantedBy"));
         assert!(en.contains("daemon-reload"));
 
         let dis = build_manage_cmd("disable", "", false, "").unwrap();
-        assert!(!dis.contains("systemctl --user disable"), "deve editare il file, non chiamare disable: {dis}");
+        assert!(
+            !dis.contains("systemctl --user disable"),
+            "deve editare il file, non chiamare disable: {dis}"
+        );
         assert!(dis.contains("WantedBy"));
         assert!(dis.contains("daemon-reload"));
     }
@@ -1916,8 +2167,12 @@ mod tests {
     /// l'abilitazione al boot, non lo stato corrente del servizio.
     #[test]
     fn build_manage_cmd_enable_disable_non_toccano_now() {
-        assert!(!build_manage_cmd("enable", "", false, "").unwrap().contains("--now"));
-        assert!(!build_manage_cmd("disable", "", false, "").unwrap().contains("--now"));
+        assert!(!build_manage_cmd("enable", "", false, "")
+            .unwrap()
+            .contains("--now"));
+        assert!(!build_manage_cmd("disable", "", false, "")
+            .unwrap()
+            .contains("--now"));
     }
 
     #[test]
@@ -1946,7 +2201,10 @@ mod tests {
         assert!(cmd.contains("rm -f ~/.config/containers/systemd/sws-runtime.container"));
         assert!(cmd.contains("systemctl --user daemon-reload"));
         assert!(cmd.contains("podman rm -f sws-runtime"));
-        assert!(!cmd.contains("rm -rf"), "senza purge non deve cancellare dati: {cmd}");
+        assert!(
+            !cmd.contains("rm -rf"),
+            "senza purge non deve cancellare dati: {cmd}"
+        );
     }
 
     /// Stesso principio di `build_purge_cmd_porta_lo_stesso_data`: il percorso
@@ -1954,13 +2212,19 @@ mod tests {
     #[test]
     fn build_manage_cmd_uninstall_con_purge_usa_il_data_path_scelto() {
         let cmd = build_manage_cmd("uninstall", "", true, "/opt/sws-data").unwrap();
-        assert!(cmd.ends_with("rm -rf /opt/sws-data"), "comando inatteso: {cmd}");
+        assert!(
+            cmd.ends_with("rm -rf /opt/sws-data"),
+            "comando inatteso: {cmd}"
+        );
     }
 
     #[test]
     fn build_manage_cmd_uninstall_con_purge_e_data_path_vuoto_usa_il_default() {
         let cmd = build_manage_cmd("uninstall", "", true, "").unwrap();
-        assert!(cmd.ends_with("rm -rf /data/user/sws"), "comando inatteso: {cmd}");
+        assert!(
+            cmd.ends_with("rm -rf /data/user/sws"),
+            "comando inatteso: {cmd}"
+        );
     }
 
     /// Stessa classe di rischio di `validate_remote_path`: il path finisce
@@ -1979,19 +2243,23 @@ mod tests {
 
 #[cfg(test)]
 mod tests_chiave_host {
-    use super::{utente_sicuro, destinazione_ssh_sicura, e_chiave_host_cambiata, host_sicuro};
+    use super::{destinazione_ssh_sicura, e_chiave_host_cambiata, host_sicuro, utente_sicuro};
 
     /// Le righe vere, copiate da un tentativo fallito sul TC620 dopo un
     /// factory reset (2026-09-07).
     #[test]
     fn riconosce_le_righe_di_openssh() {
         assert!(e_chiave_host_cambiata(
-            "@ WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED! @"));
+            "@ WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED! @"
+        ));
         assert!(e_chiave_host_cambiata("Host key verification failed."));
         // Il resto del rumore di quel log NON deve accendere il pulsante.
         assert!(!e_chiave_host_cambiata(
-            "user@tc620-a-p3-c6-07aff9.local: Permission denied (publickey,password)."));
-        assert!(!e_chiave_host_cambiata("==> mkdir -p /tmp/sws-deploy sul device"));
+            "user@tc620-a-p3-c6-07aff9.local: Permission denied (publickey,password)."
+        ));
+        assert!(!e_chiave_host_cambiata(
+            "==> mkdir -p /tmp/sws-deploy sul device"
+        ));
         assert!(!e_chiave_host_cambiata(""));
     }
 

@@ -23,7 +23,12 @@
 //! prima di scrivere questo modulo — quella parte è identica indipendentemente
 //! da legacy/atomico, cambia solo come si aggancia il framebuffer al CRTC.
 
-#![allow(non_camel_case_types, non_snake_case, non_upper_case_globals, dead_code)]
+#![allow(
+    non_camel_case_types,
+    non_snake_case,
+    non_upper_case_globals,
+    dead_code
+)]
 
 include!(concat!(env!("OUT_DIR"), "/drm_bindings.rs"));
 
@@ -96,7 +101,9 @@ impl DrmDisplay {
                 continue;
             }
             let conn_ref = unsafe { &*conn };
-            if conn_ref.connection == drmModeConnection_DRM_MODE_CONNECTED && conn_ref.count_modes > 0 {
+            if conn_ref.connection == drmModeConnection_DRM_MODE_CONNECTED
+                && conn_ref.count_modes > 0
+            {
                 let modes = unsafe {
                     std::slice::from_raw_parts(conn_ref.modes, conn_ref.count_modes as usize)
                 };
@@ -154,7 +161,8 @@ impl DrmDisplay {
         let ret = unsafe {
             drmIoctl(
                 fd,
-                drm_iowr(0xB2, std::mem::size_of::<drm_mode_create_dumb>()) as std::os::raw::c_ulong,
+                drm_iowr(0xB2, std::mem::size_of::<drm_mode_create_dumb>())
+                    as std::os::raw::c_ulong,
                 &mut creq as *mut _ as *mut std::os::raw::c_void,
             )
         };
@@ -195,7 +203,10 @@ impl DrmDisplay {
             )
         };
         if map == libc::MAP_FAILED {
-            anyhow::bail!("mmap del dumb buffer fallita: {}", std::io::Error::last_os_error());
+            anyhow::bail!(
+                "mmap del dumb buffer fallita: {}",
+                std::io::Error::last_os_error()
+            );
         }
         let map = map as *mut u8;
 
@@ -239,7 +250,10 @@ impl DrmDisplay {
             )
         };
         if ret != 0 {
-            anyhow::bail!("drmModeSetCrtc fallita: {}", std::io::Error::last_os_error());
+            anyhow::bail!(
+                "drmModeSetCrtc fallita: {}",
+                std::io::Error::last_os_error()
+            );
         }
 
         Ok(Self {
@@ -332,10 +346,13 @@ impl Drop for DrmDisplay {
         unsafe {
             libc::munmap(self.map as *mut libc::c_void, self.map_size);
             drmModeRmFB(self.fd, self.fb_handle);
-            let mut dreq = drm_mode_destroy_dumb { handle: self.dumb_handle };
+            let mut dreq = drm_mode_destroy_dumb {
+                handle: self.dumb_handle,
+            };
             drmIoctl(
                 self.fd,
-                drm_iowr(0xB4, std::mem::size_of::<drm_mode_destroy_dumb>()) as std::os::raw::c_ulong,
+                drm_iowr(0xB4, std::mem::size_of::<drm_mode_destroy_dumb>())
+                    as std::os::raw::c_ulong,
                 &mut dreq as *mut _ as *mut std::os::raw::c_void,
             );
         }
@@ -369,7 +386,11 @@ pub(crate) fn ritaglio(
     let off_x = off.0.max(0) as u32;
     let off_y = off.1.max(0) as u32;
     let row_bytes = (src_w as usize) * 3;
-    let righe_presenti = if row_bytes == 0 { 0 } else { (byte_sorgente / row_bytes) as u32 };
+    let righe_presenti = if row_bytes == 0 {
+        0
+    } else {
+        (byte_sorgente / row_bytes) as u32
+    };
     let w = src_w.min(dst_w.saturating_sub(off_x));
     let h = src_h.min(dst_h.saturating_sub(off_y)).min(righe_presenti);
     (off_x, off_y, w, h)
@@ -385,14 +406,20 @@ mod tests_ritaglio {
     #[test]
     fn pagina_piu_piccola_del_display() {
         let byte = 800 * 480 * 3;
-        assert_eq!(ritaglio(800, 480, 1280, 800, (240, 160), byte), (240, 160, 800, 480));
+        assert_eq!(
+            ritaglio(800, 480, 1280, 800, (240, 160), byte),
+            (240, 160, 800, 480)
+        );
     }
 
     /// Pagina più grande: si ritaglia, non si stira, e si parte dall'angolo.
     #[test]
     fn pagina_piu_grande_del_display() {
         let byte = 1920 * 1080 * 3;
-        assert_eq!(ritaglio(1920, 1080, 1280, 800, (0, 0), byte), (0, 0, 1280, 800));
+        assert_eq!(
+            ritaglio(1920, 1080, 1280, 800, (0, 0), byte),
+            (0, 0, 1280, 800)
+        );
     }
 
     /// Offset negativo (pagina più grande, `page_offset` restituisce 0): non
@@ -400,15 +427,21 @@ mod tests_ritaglio {
     #[test]
     fn offset_negativo_vale_zero() {
         let byte = 1920 * 1080 * 3;
-        assert_eq!(ritaglio(1920, 1080, 1280, 800, (-320, -140), byte), (0, 0, 1280, 800));
+        assert_eq!(
+            ritaglio(1920, 1080, 1280, 800, (-320, -140), byte),
+            (0, 0, 1280, 800)
+        );
     }
 
     /// Un buffer più corto di quanto le misure dichiarino non fa uscire dai
     /// bordi: si copia quello che c'è.
     #[test]
     fn un_buffer_corto_limita_le_righe() {
-        let byte = 800 * 100 * 3;                       // 100 righe invece di 480
-        assert_eq!(ritaglio(800, 480, 1280, 800, (0, 0), byte), (0, 0, 800, 100));
+        let byte = 800 * 100 * 3; // 100 righe invece di 480
+        assert_eq!(
+            ritaglio(800, 480, 1280, 800, (0, 0), byte),
+            (0, 0, 800, 100)
+        );
     }
 
     /// Offset che porta il foglio oltre il bordo: zero pixel, non un
@@ -416,7 +449,10 @@ mod tests_ritaglio {
     #[test]
     fn oltre_il_bordo_non_si_copia_niente() {
         let byte = 800 * 480 * 3;
-        assert_eq!(ritaglio(800, 480, 1280, 800, (2000, 2000), byte), (2000, 2000, 0, 0));
+        assert_eq!(
+            ritaglio(800, 480, 1280, 800, (2000, 2000), byte),
+            (2000, 2000, 0, 0)
+        );
     }
 
     #[test]

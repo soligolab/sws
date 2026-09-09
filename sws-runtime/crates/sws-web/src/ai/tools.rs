@@ -37,49 +37,56 @@ use crate::validate::{semantic, unknown_fields};
 /// cache, e un ordine che cambia butterebbe la cache a ogni turno.
 pub fn definizioni() -> Vec<Value> {
     vec![
-        strumento("elenca_pagine",
+        strumento(
+            "elenca_pagine",
             "Le pagine sinottiche del progetto: id, nome, dimensioni, quanti oggetti. \
              Da chiamare per prima: senza, non sai su quale pagina lavorare.",
-            json!({ "type": "object", "properties": {}, "additionalProperties": false })),
-
-        strumento("leggi_pagina",
+            json!({ "type": "object", "properties": {}, "additionalProperties": false }),
+        ),
+        strumento(
+            "leggi_pagina",
             "Tutti gli oggetti di una pagina, come sono su disco. Serve prima di \
              modificarla: una proposta deve contenere la pagina INTERA, non solo \
              l'oggetto aggiunto.",
             json!({ "type": "object", "required": ["nome"], "additionalProperties": false,
                     "properties": { "nome": { "type": "string",
-                        "description": "Il nome della pagina, come da elenca_pagine." } } })),
-
-        strumento("leggi_progetto",
+                        "description": "Il nome della pagina, come da elenca_pagine." } } }),
+        ),
+        strumento(
+            "leggi_progetto",
             "Il progetto senza le pagine: tag, sorgenti, allarmi, funzioni, lingue. \
              Le password sono mascherate e restano tali: se ne rimandi indietro una \
              mascherata, il server ricompone quella vera al salvataggio.",
-            json!({ "type": "object", "properties": {}, "additionalProperties": false })),
-
-        strumento("elenca_tag",
+            json!({ "type": "object", "properties": {}, "additionalProperties": false }),
+        ),
+        strumento(
+            "elenca_tag",
             "I tag dichiarati, con tipo e descrizione. Un tag con `expression` è \
              calcolato: le scritture su di esso vengono rifiutate.",
             json!({ "type": "object", "properties": {
                         "filtro": { "type": "string",
                             "description": "Sottostringa dell'id, per non leggerli tutti." } },
-                    "additionalProperties": false })),
-
-        strumento("schema_oggetto",
+                    "additionalProperties": false }),
+        ),
+        strumento(
+            "schema_oggetto",
             "I campi validi per un tipo di oggetto sinottico, con la loro \
              documentazione, i valori ammessi degli enum e un esempio YAML preso da \
              un progetto vero. CHIAMALO SEMPRE prima di scrivere un oggetto di un \
              tipo che non hai già guardato in questa conversazione.",
             json!({ "type": "object", "required": ["tipo"], "additionalProperties": false,
-                    "properties": { "tipo": { "type": "string", "enum": sch::OBJECT_TYPES } } })),
-
-        strumento("schema_sorgente",
+                    "properties": { "tipo": { "type": "string", "enum": sch::OBJECT_TYPES } } }),
+        ),
+        strumento(
+            "schema_sorgente",
             "I campi validi per un tipo di sorgente dati e per il suo mapping \
              tag↔device, con un esempio reale. Per MQTT è qui che si scopre \
              `publish_topic`, senza il quale un comando non esce dal broker.",
             json!({ "type": "object", "required": ["kind"], "additionalProperties": false,
-                    "properties": { "kind": { "type": "string", "enum": sch::SOURCE_KINDS } } })),
-
-        strumento("valida",
+                    "properties": { "kind": { "type": "string", "enum": sch::SOURCE_KINDS } } }),
+        ),
+        strumento(
+            "valida",
             "Dice se una modifica sta in piedi, SENZA salvarla. Restituisce rilievi \
              con il percorso del campo e come si aggiusta. I rilievi marcati \
              `preesistente` c'erano già prima della tua proposta: non sono compito \
@@ -88,9 +95,10 @@ pub fn definizioni() -> Vec<Value> {
                         "project": { "type": "object",
                             "description": "Il progetto intero, modificato. Ometti se non lo tocchi." },
                         "pages": { "type": "array", "items": { "type": "object" },
-                            "description": "Le pagine intere, modificate. Ometti quelle che non tocchi." } } })),
-
-        strumento("proponi_modifica",
+                            "description": "Le pagine intere, modificate. Ometti quelle che non tocchi." } } }),
+        ),
+        strumento(
+            "proponi_modifica",
             "Manda la proposta alla persona che sta chattando, che la vede come diff \
              e decide se applicarla. NON salva e NON applica niente. Chiude il tuo \
              turno: dopo questa chiamata aspetti una risposta umana. Valida da sola \
@@ -104,17 +112,19 @@ pub fn definizioni() -> Vec<Value> {
                         "project": { "type": "object",
                             "description": "Il progetto intero, modificato. Ometti se non lo tocchi." },
                         "pages": { "type": "array", "items": { "type": "object" },
-                            "description": "Le pagine intere, modificate." } } })),
-
+                            "description": "Le pagine intere, modificate." } } }),
+        ),
         // In coda, e non in mezzo: l'ordine entra nel prefisso della cache.
-        strumento("schema_tag",
+        strumento(
+            "schema_tag",
             "I campi validi di una definizione di tag, con i valori ammessi. \
              CHIAMALO prima di dichiarare un tag nuovo: il campo del tipo si chiama \
              `data_type` e non `type`, ed è l'errore che costa un giro di validazione.",
-            json!({ "type": "object", "properties": {}, "additionalProperties": false })),
-
+            json!({ "type": "object", "properties": {}, "additionalProperties": false }),
+        ),
         // ── Python. Aggiunti in coda per la stessa ragione di sopra. ─────────
-        strumento("leggi_script",
+        strumento(
+            "leggi_script",
             "Il codice Python di una funzione di progetto o di uno script globale. \
              `leggi_progetto` NON lo restituisce (e' lungo e quasi mai utile per \
              disegnare): per modificare del codice esistente devi leggerlo da qui \
@@ -123,16 +133,18 @@ pub fn definizioni() -> Vec<Value> {
                         "funzione": { "type": "string",
                             "description": "Nome della funzione di progetto (come da leggi_progetto)." },
                         "script_globale": { "type": "string",
-                            "description": "Id dello script globale." } } })),
-
-        strumento("schema_python",
+                            "description": "Id dello script globale." } } }),
+        ),
+        strumento(
+            "schema_python",
             "Cosa si puo' scrivere negli script: le variabili disponibili, cosa la \
              sandbox vieta, i tipi di trigger degli script globali e i limiti. \
              CHIAMALO prima di scrivere Python: qui non e' Python normale — non ci \
              sono `import`, e i tag si leggono e scrivono da `tags`.",
-            json!({ "type": "object", "properties": {}, "additionalProperties": false })),
-
-        strumento("istantanea_pagina",
+            json!({ "type": "object", "properties": {}, "additionalProperties": false }),
+        ),
+        strumento(
+            "istantanea_pagina",
             "GUARDA come il motore LVGL disegna una pagina: restituisce \
              un'IMMAGINE. E' l'unico modo di verificare quello che hai \
              disegnato invece di dichiararlo fatto — il motore del pannello e \
@@ -163,9 +175,10 @@ pub fn definizioni() -> Vec<Value> {
                                     comando, un pulsante premuto. Con i tocchi alza `ms`." },
                 "ms": { "type": "integer",
                     "description": "Millisecondi di rendering prima dello scatto (default 500). \
-                                    Con i tocchi 800-1500." } } })),
-
-        strumento("controlla_python",
+                                    Con i tocchi 800-1500." } } }),
+        ),
+        strumento(
+            "controlla_python",
             "Compila del codice Python e dice se sta in piedi, SENZA eseguirlo: \
              nessun tag scritto, nessun effetto. Distingue un errore di sintassi \
              (con la riga) da una cosa che la sandbox vieta pur essendo Python \
@@ -173,7 +186,8 @@ pub fn definizioni() -> Vec<Value> {
              Python che non compila fa perdere un giro a chi legge il diff.",
             json!({ "type": "object", "required": ["codice"], "additionalProperties": false,
                     "properties": { "codice": { "type": "string",
-                        "description": "Il corpo Python, come lo metteresti in `code`." } } })),
+                        "description": "Il corpo Python, come lo metteresti in `code`." } } }),
+        ),
     ]
 }
 
@@ -207,12 +221,16 @@ pub async fn esegui(s: &AppState, nome: &str, input: &Value) -> Esito {
 }
 
 fn arg_str<'a>(input: &'a Value, nome: &str) -> Result<&'a str, String> {
-    input.get(nome).and_then(Value::as_str)
+    input
+        .get(nome)
+        .and_then(Value::as_str)
         .ok_or_else(|| format!("manca l'argomento obbligatorio `{nome}`"))
 }
 
 async fn dir_progetto(s: &AppState) -> Result<std::path::PathBuf, String> {
-    active_dir(s).await.map_err(|_| "nessun progetto aperto".to_string())
+    active_dir(s)
+        .await
+        .map_err(|_| "nessun progetto aperto".to_string())
 }
 
 async fn carica_progetto(s: &AppState) -> Result<Project, String> {
@@ -224,7 +242,9 @@ pub async fn carica_pagine(s: &AppState) -> Result<Vec<SynopticPage>, String> {
     let dir = dir_progetto(s).await?;
     let sdir = synoptics_dir_at(&dir);
     let mut out = Vec::new();
-    let Ok(mut entries) = tokio::fs::read_dir(&sdir).await else { return Ok(out) };
+    let Ok(mut entries) = tokio::fs::read_dir(&sdir).await else {
+        return Ok(out);
+    };
     while let Ok(Some(e)) = entries.next_entry().await {
         let path = e.path();
         if path.extension().and_then(|x| x.to_str()) != Some("yaml") {
@@ -242,20 +262,28 @@ pub async fn carica_pagine(s: &AppState) -> Result<Vec<SynopticPage>, String> {
 
 async fn elenca_pagine(s: &AppState) -> Esito {
     let pagine = carica_pagine(s).await?;
-    Ok(json!(pagine.iter().map(|p| json!({
-        "id": p.id, "nome": p.name,
-        "width": p.width, "height": p.height,
-        "oggetti": p.objects.len(),
-    })).collect::<Vec<_>>()))
+    Ok(json!(pagine
+        .iter()
+        .map(|p| json!({
+            "id": p.id, "nome": p.name,
+            "width": p.width, "height": p.height,
+            "oggetti": p.objects.len(),
+        }))
+        .collect::<Vec<_>>()))
 }
 
 async fn leggi_pagina(s: &AppState, nome: &str) -> Esito {
     let pagine = carica_pagine(s).await?;
     match pagine.iter().find(|p| p.name == nome) {
         Some(p) => serde_json::to_value(p).map_err(|e| e.to_string()),
-        None => Err(format!("la pagina `{nome}` non esiste. Ci sono: {}",
-                            pagine.iter().map(|p| p.name.as_str())
-                                  .collect::<Vec<_>>().join(", "))),
+        None => Err(format!(
+            "la pagina `{nome}` non esiste. Ci sono: {}",
+            pagine
+                .iter()
+                .map(|p| p.name.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )),
     }
 }
 
@@ -279,20 +307,27 @@ async fn leggi_progetto(s: &AppState) -> Esito {
 async fn elenca_tag(s: &AppState, filtro: Option<&str>) -> Esito {
     let p = carica_progetto(s).await?;
     let f = filtro.unwrap_or("");
-    Ok(json!(p.tags.iter()
+    Ok(json!(p
+        .tags
+        .iter()
         .filter(|t| f.is_empty() || t.id.contains(f))
         .map(|t| {
             let mut o = serde_json::Map::new();
             o.insert("id".into(), json!(t.id));
             o.insert("data_type".into(), json!(t.data_type));
-            if !t.description.is_empty() { o.insert("descrizione".into(), json!(t.description)); }
-            if let Some(u) = &t.unit { o.insert("unit".into(), json!(u)); }
+            if !t.description.is_empty() {
+                o.insert("descrizione".into(), json!(t.description));
+            }
+            if let Some(u) = &t.unit {
+                o.insert("unit".into(), json!(u));
+            }
             if t.expression.is_some() {
                 o.insert("calcolato".into(), json!(true));
                 o.insert("scrivibile".into(), json!(false));
             }
             Value::Object(o)
-        }).collect::<Vec<_>>()))
+        })
+        .collect::<Vec<_>>()))
 }
 
 /// I campi di un tag.
@@ -318,8 +353,10 @@ fn schema_tag() -> Esito {
 
 fn schema_oggetto(tipo: &str) -> Esito {
     if !sch::OBJECT_TYPES.contains(&tipo) {
-        return Err(format!("`{tipo}` non è un tipo di oggetto. Sono: {}",
-                           sch::OBJECT_TYPES.join(", ")));
+        return Err(format!(
+            "`{tipo}` non è un tipo di oggetto. Sono: {}",
+            sch::OBJECT_TYPES.join(", ")
+        ));
     }
     // Stessa regola dell'endpoint HTTP, e la ragione per cui è una funzione sola
     // sta nel suo commento: `TYPE_USAGE` da solo aveva convinto un modello che
@@ -339,8 +376,10 @@ fn schema_oggetto(tipo: &str) -> Esito {
 
 fn schema_sorgente(kind: &str) -> Esito {
     let Some((_, campi)) = sch::SOURCE_FIELDS.iter().find(|(k, _)| *k == kind) else {
-        return Err(format!("`{kind}` non è un tipo di sorgente. Sono: {}",
-                           sch::SOURCE_KINDS.join(", ")));
+        return Err(format!(
+            "`{kind}` non è un tipo di sorgente. Sono: {}",
+            sch::SOURCE_KINDS.join(", ")
+        ));
     };
     Ok(json!({
         "kind": kind,
@@ -354,8 +393,12 @@ fn campo(f: &sch::Field) -> Value {
     let mut o = serde_json::Map::new();
     o.insert("nome".into(), json!(f.name));
     o.insert("tipo".into(), json!(f.ty));
-    if f.required { o.insert("obbligatorio".into(), json!(true)); }
-    if !f.doc.is_empty() { o.insert("doc".into(), json!(f.doc)); }
+    if f.required {
+        o.insert("obbligatorio".into(), json!(true));
+    }
+    if !f.doc.is_empty() {
+        o.insert("doc".into(), json!(f.doc));
+    }
     Value::Object(o)
 }
 
@@ -376,28 +419,36 @@ pub async fn valida(s: &AppState, input: &Value) -> Esito {
 /// del disco e non c'è niente da spedire.
 pub async fn valida_interna(s: &AppState, input: &Value) -> Result<(Value, Option<Value>), String> {
     let dir = dir_progetto(s).await?;
-    let raw_pages: Vec<Value> = input.get("pages").and_then(Value::as_array)
-        .cloned().unwrap_or_default();
+    let raw_pages: Vec<Value> = input
+        .get("pages")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
 
     // Sul grezzo **originale**, prima di ricomporre: dopo, un `codice:` scritto
     // male non si distinguerebbe più da un corpo che il modello non ha mandato.
     let mut findings = unknown_fields(input.get("project"), &raw_pages);
 
-    let disco = Project::load(&dir)
-        .map_err(|e| format!("il progetto sul disco non si carica: {e:#}"))?;
+    let disco =
+        Project::load(&dir).map_err(|e| format!("il progetto sul disco non si carica: {e:#}"))?;
 
     let (project, normalizzato): (Project, Option<Value>) = match input.get("project") {
         // Ricaricato invece di clonato: `Project` non è `Clone`, e `disco`
         // serve ancora sotto per i rilievi preesistenti.
-        None => (Project::load(&dir)
-                     .map_err(|e| format!("il progetto non si carica: {e:#}"))?, None),
+        None => (
+            Project::load(&dir).map_err(|e| format!("il progetto non si carica: {e:#}"))?,
+            None,
+        ),
         Some(v) => {
             let mut grezzo = v.clone();
             findings.extend(crate::validate::ricomponi_script(&mut grezzo, &disco));
-            let p = serde_json::from_value(grezzo.clone())
-                .map_err(|e| format!("il progetto proposto non si legge: {e}. Deve essere il \
+            let p = serde_json::from_value(grezzo.clone()).map_err(|e| {
+                format!(
+                    "il progetto proposto non si legge: {e}. Deve essere il \
                                       progetto INTERO come te l'ha dato leggi_progetto, con la \
-                                      tua modifica dentro — non solo la parte cambiata."))?;
+                                      tua modifica dentro — non solo la parte cambiata."
+                )
+            })?;
             (p, Some(grezzo))
         }
     };
@@ -409,8 +460,12 @@ pub async fn valida_interna(s: &AppState, input: &Value) -> Result<(Value, Optio
                 Some(k) => pagine[k] = p,
                 None => pagine.push(p),
             },
-            Err(e) => return Err(format!("pages[{i}] non si legge come pagina: {e}. Una \
-                                          pagina ha bisogno di `id`, `name` e `objects`.")),
+            Err(e) => {
+                return Err(format!(
+                    "pages[{i}] non si legge come pagina: {e}. Una \
+                                          pagina ha bisogno di `id`, `name` e `objects`."
+                ))
+            }
         }
     }
 
@@ -425,24 +480,38 @@ pub async fn valida_interna(s: &AppState, input: &Value) -> Result<(Value, Optio
     }
 
     let mut nuovi = 0usize;
-    let elenco: Vec<Value> = findings.iter().map(|f| {
-        let vecchio = prima.contains(&format!("{}\u{1}{}", f.path, f.message));
-        if !vecchio { nuovi += 1; }
-        let mut v = serde_json::to_value(f).unwrap_or(Value::Null);
-        if vecchio { v["preesistente"] = Value::Bool(true); }
-        v
-    }).collect();
+    let elenco: Vec<Value> = findings
+        .iter()
+        .map(|f| {
+            let vecchio = prima.contains(&format!("{}\u{1}{}", f.path, f.message));
+            if !vecchio {
+                nuovi += 1;
+            }
+            let mut v = serde_json::to_value(f).unwrap_or(Value::Null);
+            if vecchio {
+                v["preesistente"] = Value::Bool(true);
+            }
+            v
+        })
+        .collect();
 
-    let errori_nuovi = findings.iter().filter(|f|
-        f.severity == crate::validate::Severity::Error
-        && !prima.contains(&format!("{}\u{1}{}", f.path, f.message))).count();
+    let errori_nuovi = findings
+        .iter()
+        .filter(|f| {
+            f.severity == crate::validate::Severity::Error
+                && !prima.contains(&format!("{}\u{1}{}", f.path, f.message))
+        })
+        .count();
 
-    Ok((json!({
-        "ok": errori_nuovi == 0,
-        "errori_nuovi": errori_nuovi,
-        "rilievi_nuovi": nuovi,
-        "rilievi": elenco,
-    }), normalizzato))
+    Ok((
+        json!({
+            "ok": errori_nuovi == 0,
+            "errori_nuovi": errori_nuovi,
+            "rilievi_nuovi": nuovi,
+            "rilievi": elenco,
+        }),
+        normalizzato,
+    ))
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -460,7 +529,7 @@ pub async fn valida_interna(s: &AppState, input: &Value) -> Result<(Value, Optio
 async fn leggi_script(s: &AppState, input: &Value) -> Esito {
     let p = carica_progetto(s).await?;
     let funzione = input.get("funzione").and_then(Value::as_str);
-    let globale  = input.get("script_globale").and_then(Value::as_str);
+    let globale = input.get("script_globale").and_then(Value::as_str);
 
     match (funzione, globale) {
         (Some(nome), None) => match p.functions.iter().find(|f| f.name == nome) {
@@ -473,7 +542,8 @@ async fn leggi_script(s: &AppState, input: &Value) -> Esito {
             })),
             None => Err(format!(
                 "la funzione `{nome}` non esiste. Ci sono: {}",
-                elenco_o_nessuno(p.functions.iter().map(|f| f.name.as_str())))),
+                elenco_o_nessuno(p.functions.iter().map(|f| f.name.as_str()))
+            )),
         },
         (None, Some(id)) => match p.global_scripts.iter().find(|g| g.id == id) {
             Some(g) => Ok(json!({
@@ -484,19 +554,28 @@ async fn leggi_script(s: &AppState, input: &Value) -> Esito {
             })),
             None => Err(format!(
                 "lo script globale `{id}` non esiste. Ci sono: {}",
-                elenco_o_nessuno(p.global_scripts.iter().map(|g| g.id.as_str())))),
+                elenco_o_nessuno(p.global_scripts.iter().map(|g| g.id.as_str()))
+            )),
         },
-        (Some(_), Some(_)) => Err("passa `funzione` **oppure** `script_globale`, non entrambi: \
+        (Some(_), Some(_)) => Err(
+            "passa `funzione` **oppure** `script_globale`, non entrambi: \
                                    sono due cose diverse e leggerne due in una volta \
-                                   nasconderebbe quale hai chiesto".into()),
+                                   nasconderebbe quale hai chiesto"
+                .into(),
+        ),
         (None, None) => Err("manca l'argomento: `funzione` (per nome) oppure \
-                            `script_globale` (per id)".into()),
+                            `script_globale` (per id)"
+            .into()),
     }
 }
 
 fn elenco_o_nessuno<'a>(it: impl Iterator<Item = &'a str>) -> String {
     let v: Vec<&str> = it.collect();
-    if v.is_empty() { "nessuno".into() } else { v.join(", ") }
+    if v.is_empty() {
+        "nessuno".into()
+    } else {
+        v.join(", ")
+    }
 }
 
 /// L'ambiente in cui gli script girano.
@@ -573,11 +652,15 @@ async fn controlla_python(s: &AppState, codice: &str) -> Esito {
     let esito = s.py.check(codice.to_string()).await;
     let mut v = serde_json::to_value(&esito).map_err(|e| e.to_string())?;
     if let Some(o) = v.as_object_mut() {
-        o.insert("come_leggerlo".into(), json!(
-            "`vietato: false` = errore di sintassi, guarda `riga`. \
+        o.insert(
+            "come_leggerlo".into(),
+            json!(
+                "`vietato: false` = errore di sintassi, guarda `riga`. \
              `vietato: true` = Python valido ma proibito dalla sandbox: cambia strada, \
              non la virgola. `sandbox_verificata: false` = i divieti non sono stati \
-             controllati su questa istanza, ma sul dispositivo valgono."));
+             controllati su questa istanza, ma sul dispositivo valgono."
+            ),
+        );
     }
     Ok(v)
 }
@@ -595,13 +678,24 @@ mod tests {
     #[test]
     fn lo_schema_del_bottone_dice_come_si_fa_un_toggle() {
         let v = schema_oggetto("button").expect("button è un tipo valido");
-        let campi: Vec<&str> = v["campi"].as_array().unwrap().iter()
-            .map(|c| c["nome"].as_str().or_else(|| c["name"].as_str()).unwrap_or(""))
+        let campi: Vec<&str> = v["campi"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|c| {
+                c["nome"]
+                    .as_str()
+                    .or_else(|| c["name"].as_str())
+                    .unwrap_or("")
+            })
             .collect();
-        assert!(campi.contains(&"button_mode"),
-                "senza button_mode il modello ripiega su un altro widget: {campi:?}");
+        assert!(
+            campi.contains(&"button_mode"),
+            "senza button_mode il modello ripiega su un altro widget: {campi:?}"
+        );
         // Il campo senza i suoi valori ammessi non basta: `toggle` va nominato.
-        let e = v["enum"]["button_mode"].as_array()
+        let e = v["enum"]["button_mode"]
+            .as_array()
             .expect("button_mode deve portare il suo enum");
         assert!(e.iter().any(|x| x == "toggle"), "enum: {e:?}");
     }
@@ -611,11 +705,27 @@ mod tests {
     #[test]
     fn ma_non_mostra_i_campi_degli_altri_tipi() {
         let v = schema_oggetto("button").unwrap();
-        let campi: Vec<&str> = v["campi"].as_array().unwrap().iter()
-            .map(|c| c["nome"].as_str().or_else(|| c["name"].as_str()).unwrap_or(""))
+        let campi: Vec<&str> = v["campi"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|c| {
+                c["nome"]
+                    .as_str()
+                    .or_else(|| c["name"].as_str())
+                    .unwrap_or("")
+            })
             .collect();
-        for estraneo in ["gauge_min", "spark_points", "trend_dt_format", "pie_show_labels"] {
-            assert!(!campi.contains(&estraneo), "`{estraneo}` non riguarda un bottone");
+        for estraneo in [
+            "gauge_min",
+            "spark_points",
+            "trend_dt_format",
+            "pie_show_labels",
+        ] {
+            assert!(
+                !campi.contains(&estraneo),
+                "`{estraneo}` non riguarda un bottone"
+            );
         }
     }
 
@@ -624,8 +734,16 @@ mod tests {
     #[test]
     fn lo_schema_del_tag_esiste_e_nomina_data_type() {
         let v = schema_tag().unwrap();
-        let campi: Vec<&str> = v["campi"].as_array().unwrap().iter()
-            .map(|c| c["nome"].as_str().or_else(|| c["name"].as_str()).unwrap_or(""))
+        let campi: Vec<&str> = v["campi"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|c| {
+                c["nome"]
+                    .as_str()
+                    .or_else(|| c["name"].as_str())
+                    .unwrap_or("")
+            })
             .collect();
         assert!(campi.contains(&"data_type"), "campi: {campi:?}");
         assert!(campi.contains(&"id"));
@@ -642,15 +760,24 @@ mod tests {
     #[test]
     fn il_prefisso_degli_strumenti_non_si_muove() {
         const PREFISSO: [&str; 9] = [
-            "elenca_pagine", "leggi_pagina", "leggi_progetto", "elenca_tag",
-            "schema_oggetto", "schema_sorgente", "valida", "proponi_modifica",
+            "elenca_pagine",
+            "leggi_pagina",
+            "leggi_progetto",
+            "elenca_tag",
+            "schema_oggetto",
+            "schema_sorgente",
+            "valida",
+            "proponi_modifica",
             "schema_tag",
         ];
         let d = definizioni();
         let nomi: Vec<&str> = d.iter().map(|x| x["name"].as_str().unwrap()).collect();
         assert!(nomi.len() >= PREFISSO.len(), "strumenti spariti: {nomi:?}");
-        assert_eq!(&nomi[..PREFISSO.len()], &PREFISSO[..],
-                   "il prefisso della cache si è mosso: {nomi:?}");
+        assert_eq!(
+            &nomi[..PREFISSO.len()],
+            &PREFISSO[..],
+            "il prefisso della cache si è mosso: {nomi:?}"
+        );
     }
 
     /// Lo schema Python nomina le tre cose su cui un modello sbaglia.
@@ -665,15 +792,25 @@ mod tests {
         let tutto = serde_json::to_string(&v).unwrap();
 
         // 1. Gli `import` sono vietati: e' la differenza piu' grossa da Python.
-        assert!(tutto.contains("import"), "i divieti devono nominare `import`");
+        assert!(
+            tutto.contains("import"),
+            "i divieti devono nominare `import`"
+        );
         // 2. I tag si leggono da `tags`, non sono variabili globali.
-        assert!(v["disponibili"].as_array().unwrap().iter()
-                    .any(|d| d["nome"] == "tags"),
-                "`tags` deve essere fra le cose disponibili: {tutto}");
+        assert!(
+            v["disponibili"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|d| d["nome"] == "tags"),
+            "`tags` deve essere fra le cose disponibili: {tutto}"
+        );
         // 3. Il cron ha CINQUE campi, e un solo campo non e' valido: e'
         //    l'errore che STATUS registra come da prevenire.
-        assert!(tutto.contains("CINQUE") || tutto.contains("cinque"),
-                "la forma del cron va detta: {tutto}");
+        assert!(
+            tutto.contains("CINQUE") || tutto.contains("cinque"),
+            "la forma del cron va detta: {tutto}"
+        );
         // Il tetto di byte viene dalla costante, non da un numero copiato.
         assert!(tutto.contains(&sws_core::project::MAX_FUNCTION_CODE_BYTES.to_string()));
     }
@@ -685,17 +822,25 @@ mod tests {
     #[test]
     fn senza_sandbox_lo_schema_avverte_invece_di_tacere() {
         let acceso = schema_python(true).unwrap();
-        let spento  = schema_python(false).unwrap();
+        let spento = schema_python(false).unwrap();
 
         assert_eq!(acceso["sandbox_attiva"], serde_json::json!(true));
         assert_eq!(spento["sandbox_attiva"], serde_json::json!(false));
 
         let nota = spento["nota_sandbox"].as_str().unwrap();
-        assert!(nota.contains("ATTENZIONE"), "l'avviso deve essere visibile: {nota}");
-        assert!(nota.contains("dispositivo"),
-                "deve dire che sul dispositivo i divieti valgono: {nota}");
+        assert!(
+            nota.contains("ATTENZIONE"),
+            "l'avviso deve essere visibile: {nota}"
+        );
+        assert!(
+            nota.contains("dispositivo"),
+            "deve dire che sul dispositivo i divieti valgono: {nota}"
+        );
         // E il ramo acceso non deve portare lo stesso avviso, altrimenti e' rumore.
-        assert!(!acceso["nota_sandbox"].as_str().unwrap().contains("ATTENZIONE"));
+        assert!(!acceso["nota_sandbox"]
+            .as_str()
+            .unwrap()
+            .contains("ATTENZIONE"));
     }
 
     /// Gli strumenti Python sono dichiarati e raggiungibili dal dispatch.
@@ -707,10 +852,15 @@ mod tests {
     /// un errore che il modello ripete.
     #[test]
     fn gli_strumenti_python_sono_dichiarati() {
-        let nomi: Vec<String> = definizioni().iter()
-            .map(|x| x["name"].as_str().unwrap().to_string()).collect();
+        let nomi: Vec<String> = definizioni()
+            .iter()
+            .map(|x| x["name"].as_str().unwrap().to_string())
+            .collect();
         for atteso in ["leggi_script", "schema_python", "controlla_python"] {
-            assert!(nomi.iter().any(|n| n == atteso), "manca `{atteso}`: {nomi:?}");
+            assert!(
+                nomi.iter().any(|n| n == atteso),
+                "manca `{atteso}`: {nomi:?}"
+            );
         }
     }
 }

@@ -9,7 +9,11 @@
 //! primo posto in cui si può chiedere «questo progetto è valido?» senza
 //! prima rovinarlo.
 
-use axum::{extract::{Query, State}, response::{IntoResponse, Response}, Json};
+use axum::{
+    extract::{Query, State},
+    response::{IntoResponse, Response},
+    Json,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -59,21 +63,25 @@ fn chiave(f: &Finding) -> String {
     format!("{}\u{1}{}", f.path, f.message)
 }
 
-fn con_preesistenza(findings: Vec<Finding>, prima: &std::collections::HashSet<String>)
-    -> (Vec<Value>, usize)
-{
+fn con_preesistenza(
+    findings: Vec<Finding>,
+    prima: &std::collections::HashSet<String>,
+) -> (Vec<Value>, usize) {
     let mut nuovi = 0;
-    let out = findings.into_iter().map(|f| {
-        let vecchio = prima.contains(&chiave(&f));
-        if !vecchio {
-            nuovi += 1;
-        }
-        let mut v = serde_json::to_value(&f).unwrap_or(Value::Null);
-        if vecchio {
-            v["preesistente"] = Value::Bool(true);
-        }
-        v
-    }).collect();
+    let out = findings
+        .into_iter()
+        .map(|f| {
+            let vecchio = prima.contains(&chiave(&f));
+            if !vecchio {
+                nuovi += 1;
+            }
+            let mut v = serde_json::to_value(&f).unwrap_or(Value::Null);
+            if vecchio {
+                v["preesistente"] = Value::Bool(true);
+            }
+            v
+        })
+        .collect();
     (out, nuovi)
 }
 
@@ -86,8 +94,14 @@ fn con_preesistenza(findings: Vec<Finding>, prima: &std::collections::HashSet<St
 /// un errore di protocollo: è una risposta con dentro cosa non va. Il 400 resta
 /// per una richiesta malformata — cioè per chi sbaglia a chiedere, non a
 /// progettare.
-pub async fn validate_project(State(s): State<AppState>, Json(body): Json<ValidateBody>) -> Response {
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+pub async fn validate_project(
+    State(s): State<AppState>,
+    Json(body): Json<ValidateBody>,
+) -> Response {
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
 
     let mut findings: Vec<Finding> = Vec::new();
 
@@ -105,8 +119,13 @@ pub async fn validate_project(State(s): State<AppState>, Json(body): Json<Valida
     // leggeva affatto. Vedi `validate::ricomponi_script`.
     let disco = match Project::load(&dir) {
         Ok(p) => p,
-        Err(e) => return (axum::http::StatusCode::SERVICE_UNAVAILABLE,
-                          format!("il progetto su disco non si carica: {e:#}")).into_response(),
+        Err(e) => {
+            return (
+                axum::http::StatusCode::SERVICE_UNAVAILABLE,
+                format!("il progetto su disco non si carica: {e:#}"),
+            )
+                .into_response()
+        }
     };
     let mut grezzo = body.project.clone();
     if let Some(v) = grezzo.as_mut() {
@@ -121,12 +140,20 @@ pub async fn validate_project(State(s): State<AppState>, Json(body): Json<Valida
                     severity: Severity::Error,
                     path: "project".into(),
                     message: format!("il progetto non si legge: {e}"),
-                    hint: Some("manca un campo obbligatorio o un tipo non torna; il progetto \
-                                deve essere completo, non una modifica parziale".into()),
+                    hint: Some(
+                        "manca un campo obbligatorio o un tipo non torna; il progetto \
+                                deve essere completo, non una modifica parziale"
+                            .into(),
+                    ),
                 });
                 let (findings, nuovi) = con_preesistenza(findings, &Default::default());
-                return Json(ValidateOut { ok: false, findings, nuovi, checked: json!({}) })
-                    .into_response();
+                return Json(ValidateOut {
+                    ok: false,
+                    findings,
+                    nuovi,
+                    checked: json!({}),
+                })
+                .into_response();
             }
         },
     };
@@ -138,12 +165,10 @@ pub async fn validate_project(State(s): State<AppState>, Json(body): Json<Valida
     };
     for (i, raw) in raw_pages.iter().enumerate() {
         match serde_json::from_value::<SynopticPage>(raw.clone()) {
-            Ok(p) => {
-                match pages.iter().position(|x| x.name == p.name) {
-                    Some(k) => pages[k] = p,
-                    None => pages.push(p),
-                }
-            }
+            Ok(p) => match pages.iter().position(|x| x.name == p.name) {
+                Some(k) => pages[k] = p,
+                None => pages.push(p),
+            },
             Err(e) => findings.push(Finding {
                 severity: Severity::Error,
                 path: format!("pages[{i}]"),
@@ -161,7 +186,9 @@ pub async fn validate_project(State(s): State<AppState>, Json(body): Json<Valida
             severity: Severity::Error,
             path: "project".into(),
             message: format!("il progetto non si può scrivere in YAML: {e}"),
-            hint: Some("è la forma in cui vive su disco: se non si serializza, non si salva".into()),
+            hint: Some(
+                "è la forma in cui vive su disco: se non si serializza, non si salva".into(),
+            ),
         });
     }
 
@@ -178,7 +205,8 @@ pub async fn validate_project(State(s): State<AppState>, Json(body): Json<Valida
         }
     }
 
-    let ok = !findings.iter()
+    let ok = !findings
+        .iter()
         .any(|f| f.severity == Severity::Error && !prima.contains(&chiave(f)));
     let checked = json!({
         "pages": pages.len(),
@@ -188,19 +216,28 @@ pub async fn validate_project(State(s): State<AppState>, Json(body): Json<Valida
         "alarms": project.alarms.len(),
     });
     let (findings, nuovi) = con_preesistenza(findings, &prima);
-    Json(ValidateOut { ok, findings, nuovi, checked }).into_response()
+    Json(ValidateOut {
+        ok,
+        findings,
+        nuovi,
+        checked,
+    })
+    .into_response()
 }
 
 async fn carica_pagine(dir: &std::path::Path) -> Result<Vec<SynopticPage>, String> {
     let sdir = synoptics_dir_at(dir);
     let mut out = Vec::new();
-    let Ok(mut entries) = tokio::fs::read_dir(&sdir).await else { return Ok(out) };
+    let Ok(mut entries) = tokio::fs::read_dir(&sdir).await else {
+        return Ok(out);
+    };
     while let Ok(Some(e)) = entries.next_entry().await {
         let path = e.path();
         if path.extension().and_then(|x| x.to_str()) != Some("yaml") {
             continue;
         }
-        let testo = tokio::fs::read_to_string(&path).await
+        let testo = tokio::fs::read_to_string(&path)
+            .await
             .map_err(|err| format!("{}: {err}", path.display()))?;
         // Una pagina su disco illeggibile non è colpa della proposta: la si
         // salta e si valida il resto, invece di rifiutare tutto.
@@ -252,10 +289,14 @@ pub struct TipoQuery {
 /// `pipe_flow`, `spark_*`). Ai campi usati si aggiungono quelli col prefisso del
 /// tipo, che per il bottone sono due e includono quello che serviva.
 pub fn campi_del_tipo(tipo: &str) -> Vec<&'static sch::Field> {
-    let usati: &[&str] = sch::TYPE_USAGE.iter()
-        .find(|(t, _)| *t == tipo).map(|(_, f)| *f).unwrap_or(&[]);
+    let usati: &[&str] = sch::TYPE_USAGE
+        .iter()
+        .find(|(t, _)| *t == tipo)
+        .map(|(_, f)| *f)
+        .unwrap_or(&[]);
     let prefisso = format!("{tipo}_");
-    sch::OBJECT_FIELDS.iter()
+    sch::OBJECT_FIELDS
+        .iter()
         .filter(|f| usati.contains(&f.name) || f.name.starts_with(&prefisso))
         .collect()
 }
@@ -264,7 +305,8 @@ pub fn campi_del_tipo(tipo: &str) -> Vec<&'static sch::Field> {
 /// mostrato senza i suoi valori ammessi non esiste.
 pub fn enum_del_tipo(tipo: &str) -> serde_json::Map<String, Value> {
     let nomi: Vec<&str> = campi_del_tipo(tipo).iter().map(|f| f.name).collect();
-    sch::FIELD_ENUMS.iter()
+    sch::FIELD_ENUMS
+        .iter()
         .filter(|(k, _)| nomi.contains(k))
         .map(|(k, v)| (k.to_string(), json!(v)))
         .collect()
@@ -272,9 +314,11 @@ pub fn enum_del_tipo(tipo: &str) -> serde_json::Map<String, Value> {
 
 pub async fn schema_synoptic(Query(q): Query<TipoQuery>) -> Response {
     let campi: Vec<Value> = sch::OBJECT_FIELDS.iter().map(campo_json).collect();
-    let enums: Value = sch::FIELD_ENUMS.iter()
+    let enums: Value = sch::FIELD_ENUMS
+        .iter()
         .map(|(k, v)| (k.to_string(), json!(v)))
-        .collect::<serde_json::Map<_, _>>().into();
+        .collect::<serde_json::Map<_, _>>()
+        .into();
 
     let Some(tipo) = q.tipo.as_deref() else {
         return Json(json!({
@@ -283,18 +327,26 @@ pub async fn schema_synoptic(Query(q): Query<TipoQuery>) -> Response {
             "campi_pagina": sch::PAGE_FIELDS.iter().map(campo_json).collect::<Vec<_>>(),
             "campi_tag": sch::TAG_FIELDS.iter().map(campo_json).collect::<Vec<_>>(),
             "enum": enums,
-        })).into_response();
+        }))
+        .into_response();
     };
 
     if !sch::OBJECT_TYPES.contains(&tipo) {
-        return (axum::http::StatusCode::NOT_FOUND, Json(json!({
-            "errore": format!("`{tipo}` non è un tipo di oggetto"),
-            "tipi": sch::OBJECT_TYPES,
-        }))).into_response();
+        return (
+            axum::http::StatusCode::NOT_FOUND,
+            Json(json!({
+                "errore": format!("`{tipo}` non è un tipo di oggetto"),
+                "tipi": sch::OBJECT_TYPES,
+            })),
+        )
+            .into_response();
     }
 
     let campi_tipo: Vec<Value> = campi_del_tipo(tipo).into_iter().map(campo_json).collect();
-    let esempio = sch::TYPE_EXAMPLES.iter().find(|(t, _)| *t == tipo).map(|(_, e)| *e);
+    let esempio = sch::TYPE_EXAMPLES
+        .iter()
+        .find(|(t, _)| *t == tipo)
+        .map(|(_, e)| *e);
 
     Json(json!({
         "tipo": tipo,
@@ -304,7 +356,8 @@ pub async fn schema_synoptic(Query(q): Query<TipoQuery>) -> Response {
         "nota": "«campi» sono quelli che questo tipo usa nei progetti reali, non un elenco \
                  chiuso: il modello dati è piatto. Se ti serve un campo che non c'è qui, \
                  cercalo nell'elenco completo (GET /api/schema/synoptic senza ?tipo).",
-    })).into_response()
+    }))
+    .into_response()
 }
 
 /// `GET /api/schema/source[?kind=mqtt]` — Admin.
@@ -317,17 +370,22 @@ pub async fn schema_source(Query(q): Query<KindQuery>) -> Response {
         return Json(json!({ "kinds": sch::SOURCE_KINDS })).into_response();
     };
     let Some((_, campi)) = sch::SOURCE_FIELDS.iter().find(|(k, _)| *k == kind) else {
-        return (axum::http::StatusCode::NOT_FOUND, Json(json!({
-            "errore": format!("`{kind}` non è un tipo di sorgente"),
-            "kinds": sch::SOURCE_KINDS,
-        }))).into_response();
+        return (
+            axum::http::StatusCode::NOT_FOUND,
+            Json(json!({
+                "errore": format!("`{kind}` non è un tipo di sorgente"),
+                "kinds": sch::SOURCE_KINDS,
+            })),
+        )
+            .into_response();
     };
     Json(json!({
         "kind": kind,
         "campi": campi.iter().map(campo_json).collect::<Vec<_>>(),
         "mapping": mapping_json(kind),
         "esempio_yaml": sch::SOURCE_EXAMPLES.iter().find(|(k, _)| *k == kind).map(|(_, e)| *e),
-    })).into_response()
+    }))
+    .into_response()
 }
 
 #[derive(Debug, Deserialize)]

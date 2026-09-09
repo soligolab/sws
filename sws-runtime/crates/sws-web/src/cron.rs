@@ -44,10 +44,20 @@ pub struct Problema {
 
 impl Problema {
     fn errore(campo: &'static str, messaggio: String, suggerimento: impl Into<String>) -> Self {
-        Self { gravita: Gravita::Errore, campo, messaggio, suggerimento: suggerimento.into() }
+        Self {
+            gravita: Gravita::Errore,
+            campo,
+            messaggio,
+            suggerimento: suggerimento.into(),
+        }
     }
     fn avviso(campo: &'static str, messaggio: String, suggerimento: impl Into<String>) -> Self {
-        Self { gravita: Gravita::Avviso, campo, messaggio, suggerimento: suggerimento.into() }
+        Self {
+            gravita: Gravita::Avviso,
+            campo,
+            messaggio,
+            suggerimento: suggerimento.into(),
+        }
     }
 }
 
@@ -102,7 +112,10 @@ pub fn analizza(expr: &str) -> (Option<Cron>, Vec<Problema>) {
     if parti.len() != 5 {
         problemi.push(Problema::avviso(
             "espressione",
-            format!("l'espressione cron ha {} campi invece di cinque", parti.len()),
+            format!(
+                "l'espressione cron ha {} campi invece di cinque",
+                parti.len()
+            ),
             "l'ordine è `minuto ora giorno mese giorno-settimana`; i campi che \
              mancano valgono `*`, quindi un'espressione corta parte molto più \
              spesso di quanto sembri",
@@ -111,7 +124,10 @@ pub fn analizza(expr: &str) -> (Option<Cron>, Vec<Problema>) {
     if parti.len() > 5 {
         problemi.push(Problema::avviso(
             "espressione",
-            format!("i campi dal sesto in poi vengono ignorati: {:?}", &parti[5..]),
+            format!(
+                "i campi dal sesto in poi vengono ignorati: {:?}",
+                &parti[5..]
+            ),
             "un cron a sei campi (con i secondi) non è questo formato: qui il \
              primo campo è il minuto",
         ));
@@ -235,7 +251,11 @@ fn elemento(
         // fra le implementazioni di cron: qui vale «da 5 al massimo, ogni 10»,
         // che è ciò che fanno Vixie cron e systemd. Lo diciamo nel manuale
         // invece di inventarci un errore.
-        if passo > 1 { (n, max) } else { (n, n) }
+        if passo > 1 {
+            (n, max)
+        } else {
+            (n, n)
+        }
     };
 
     if da < min || a > max {
@@ -340,9 +360,15 @@ mod tests {
 
     fn errori(expr: &str) -> Vec<Problema> {
         let (c, p) = analizza(expr);
-        let e: Vec<_> = p.into_iter().filter(|p| p.gravita == Gravita::Errore).collect();
+        let e: Vec<_> = p
+            .into_iter()
+            .filter(|p| p.gravita == Gravita::Errore)
+            .collect();
         assert!(!e.is_empty(), "`{expr}` doveva dare errore, e invece no");
-        assert!(c.is_none(), "`{expr}` ha dato errore ma anche un cron usabile");
+        assert!(
+            c.is_none(),
+            "`{expr}` ha dato errore ma anche un cron usabile"
+        );
         e
     }
 
@@ -430,9 +456,15 @@ mod tests {
     fn quanto_manca_al_prossimo() {
         let capodanno_2026 = 1_767_225_600u64;
         // Ogni 5 minuti: dal minuto 0 il prossimo è a 5 minuti.
-        assert_eq!(ok("*/5 * * * *").secondi_al_prossimo(capodanno_2026), Some(300));
+        assert_eq!(
+            ok("*/5 * * * *").secondi_al_prossimo(capodanno_2026),
+            Some(300)
+        );
         // Ogni minuto: 60 secondi.
-        assert_eq!(ok("* * * * *").secondi_al_prossimo(capodanno_2026), Some(60));
+        assert_eq!(
+            ok("* * * * *").secondi_al_prossimo(capodanno_2026),
+            Some(60)
+        );
         // Alle 4:30: 4 ore e mezza.
         assert_eq!(
             ok("30 4 * * *").secondi_al_prossimo(capodanno_2026),

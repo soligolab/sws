@@ -49,7 +49,10 @@ pub enum Fornitore {
 
 impl Fornitore {
     pub fn nome(self) -> &'static str {
-        match self { Fornitore::Anthropic => "anthropic", Fornitore::Kimi => "kimi" }
+        match self {
+            Fornitore::Anthropic => "anthropic",
+            Fornitore::Kimi => "kimi",
+        }
     }
 
     fn endpoint(self) -> &'static str {
@@ -60,7 +63,10 @@ impl Fornitore {
     }
 
     pub fn modello_default(self) -> &'static str {
-        match self { Fornitore::Anthropic => MODEL, Fornitore::Kimi => "kimi-k3" }
+        match self {
+            Fornitore::Anthropic => MODEL,
+            Fornitore::Kimi => "kimi-k3",
+        }
     }
 
     /// La variabile d'ambiente da cui si prende la chiave. Per Kimi sono due:
@@ -74,7 +80,10 @@ impl Fornitore {
     }
 
     pub fn file_chiave(self) -> &'static str {
-        match self { Fornitore::Anthropic => "anthropic.key", Fornitore::Kimi => "kimi.key" }
+        match self {
+            Fornitore::Anthropic => "anthropic.key",
+            Fornitore::Kimi => "kimi.key",
+        }
     }
 
     /// Dove chiedere il saldo dell'account, per chi lo espone (Q41).
@@ -122,12 +131,19 @@ pub async fn saldo(scelta: &Scelta) -> Option<f64> {
     let url = scelta.fornitore.url_saldo()?;
     let http = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(5))
-        .build().ok()?;
-    let v: Value = http.get(url)
+        .build()
+        .ok()?;
+    let v: Value = http
+        .get(url)
         .header("Authorization", format!("Bearer {}", scelta.chiave))
-        .send().await.ok()?
-        .error_for_status().ok()?
-        .json().await.ok()?;
+        .send()
+        .await
+        .ok()?
+        .error_for_status()
+        .ok()?
+        .json()
+        .await
+        .ok()?;
     v.get("data")?.get("available_balance")?.as_f64()
 }
 
@@ -154,7 +170,11 @@ pub struct Cliente {
 pub fn percorsi_chiave_di(config_dir: &Path, f: Fornitore) -> Vec<PathBuf> {
     let mut v = vec![config_dir.join(f.file_chiave())];
     if let Some(home) = std::env::var_os("HOME") {
-        v.push(PathBuf::from(home).join(".config/sws").join(f.file_chiave()));
+        v.push(
+            PathBuf::from(home)
+                .join(".config/sws")
+                .join(f.file_chiave()),
+        );
     }
     v
 }
@@ -246,12 +266,16 @@ pub fn carica(config_dir: &Path) -> Option<Scelta> {
     // e non si capisce perché. La precedenza è questa e non l'inversa perché
     // una variabile d'ambiente è un'intenzione di chi ha avviato il processo —
     // uno script, un servizio systemd — e non va scavalcata da un file.
-    let modello_imposto = std::env::var("SWS_AI_MODELLO").ok()
-        .map(|m| m.trim().to_string()).filter(|m| !m.is_empty())
+    let modello_imposto = std::env::var("SWS_AI_MODELLO")
+        .ok()
+        .map(|m| m.trim().to_string())
+        .filter(|m| !m.is_empty())
         .or_else(|| salvata.modello.clone());
 
-    let da_ambiente = std::env::var("SWS_AI_FORNITORE").ok()
-        .map(|v| v.trim().to_string()).filter(|v| !v.is_empty());
+    let da_ambiente = std::env::var("SWS_AI_FORNITORE")
+        .ok()
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty());
 
     let candidati: Vec<Fornitore> = match da_ambiente {
         Some(v) => match Fornitore::da_nome(&v) {
@@ -273,9 +297,14 @@ pub fn carica(config_dir: &Path) -> Option<Scelta> {
 
     for f in candidati {
         if let Some(chiave) = chiave_di(config_dir, f) {
-            let modello = modello_imposto.clone()
+            let modello = modello_imposto
+                .clone()
                 .unwrap_or_else(|| f.modello_default().to_string());
-            return Some(Scelta { fornitore: f, chiave, modello });
+            return Some(Scelta {
+                fornitore: f,
+                chiave,
+                modello,
+            });
         }
     }
     None
@@ -349,19 +378,23 @@ pub struct Risposta {
 impl Risposta {
     /// Le chiamate a strumento di questo turno, nell'ordine.
     pub fn tool_uses(&self) -> Vec<(&str, &str, &Value)> {
-        self.content.iter()
+        self.content
+            .iter()
             .filter(|b| b.get("type").and_then(Value::as_str) == Some("tool_use"))
-            .filter_map(|b| Some((
-                b.get("id")?.as_str()?,
-                b.get("name")?.as_str()?,
-                b.get("input")?,
-            )))
+            .filter_map(|b| {
+                Some((
+                    b.get("id")?.as_str()?,
+                    b.get("name")?.as_str()?,
+                    b.get("input")?,
+                ))
+            })
             .collect()
     }
 
     /// Il testo visibile, concatenato.
     pub fn testo(&self) -> String {
-        self.content.iter()
+        self.content
+            .iter()
             .filter(|b| b.get("type").and_then(Value::as_str) == Some("text"))
             .filter_map(|b| b.get("text").and_then(Value::as_str))
             .collect::<Vec<_>>()
@@ -377,7 +410,9 @@ pub enum Evento {
     /// Riassunto del ragionamento, quando è acceso.
     Pensiero(String),
     /// Il modello ha cominciato a comporre una chiamata a strumento.
-    StrumentoInizio { nome: String },
+    StrumentoInizio {
+        nome: String,
+    },
 }
 
 /// Il corpo della richiesta. Fuori dal metodo perché è la parte che può
@@ -440,15 +475,21 @@ impl Cliente {
         let body = corpo_richiesta(&self.scelta, system, messages, tools);
         let f = self.scelta.fornitore;
 
-        let mut req = self.http.post(f.endpoint()).header("content-type", "application/json");
+        let mut req = self
+            .http
+            .post(f.endpoint())
+            .header("content-type", "application/json");
         req = if f.bearer() {
             req.header("authorization", format!("Bearer {}", self.scelta.chiave))
         } else {
             req.header("x-api-key", &self.scelta.chiave)
-               .header("anthropic-version", VERSIONE)
+                .header("anthropic-version", VERSIONE)
         };
 
-        let resp = req.json(&body).send().await
+        let resp = req
+            .json(&body)
+            .send()
+            .await
             .with_context(|| format!("la richiesta a {} non è partita", f.endpoint()))?;
 
         let stato = resp.status();
@@ -486,14 +527,27 @@ impl Cliente {
             // dopo l'ultima riga vuota è un evento a metà: resta nel buffer.
             while let Some(fine) = buf.find("\n\n") {
                 let grezzo: String = buf.drain(..fine + 2).collect();
-                let Some(dati) = grezzo.lines()
-                    .find_map(|l| l.strip_prefix("data:").map(str::trim)) else { continue };
+                let Some(dati) = grezzo
+                    .lines()
+                    .find_map(|l| l.strip_prefix("data:").map(str::trim))
+                else {
+                    continue;
+                };
                 if dati == "[DONE]" {
                     continue;
                 }
-                let Ok(ev): Result<Value, _> = serde_json::from_str(dati) else { continue };
-                applica_evento(&ev, &mut blocchi, &mut parziali, &mut stop_reason,
-                               &mut stop_details, &mut usage, on_event);
+                let Ok(ev): Result<Value, _> = serde_json::from_str(dati) else {
+                    continue;
+                };
+                applica_evento(
+                    &ev,
+                    &mut blocchi,
+                    &mut parziali,
+                    &mut stop_reason,
+                    &mut stop_details,
+                    &mut usage,
+                    on_event,
+                );
             }
         }
 
@@ -505,21 +559,29 @@ impl Cliente {
                     json!({})
                 } else {
                     // Mai confrontare la stringa grezza: l'escaping varia.
-                    serde_json::from_str(&testo)
-                        .with_context(|| format!("argomenti dello strumento illeggibili: {testo}"))?
+                    serde_json::from_str(&testo).with_context(|| {
+                        format!("argomenti dello strumento illeggibili: {testo}")
+                    })?
                 };
                 b["input"] = parsed;
             }
         }
 
         if stop_reason == "refusal" {
-            let categoria = stop_details.as_ref()
-                .and_then(|d| d.get("category")).and_then(Value::as_str)
+            let categoria = stop_details
+                .as_ref()
+                .and_then(|d| d.get("category"))
+                .and_then(Value::as_str)
                 .unwrap_or("non specificata");
             bail!("il modello ha rifiutato la richiesta (categoria: {categoria})");
         }
 
-        Ok(Risposta { content: blocchi, stop_reason, stop_details, usage })
+        Ok(Risposta {
+            content: blocchi,
+            stop_reason,
+            stop_details,
+            usage,
+        })
     }
 }
 
@@ -537,7 +599,9 @@ fn applica_evento(
 
     match tipo {
         "content_block_start" => {
-            let Some(blocco) = ev.get("content_block") else { return };
+            let Some(blocco) = ev.get("content_block") else {
+                return;
+            };
             while blocchi.len() <= idx {
                 blocchi.push(json!({}));
             }
@@ -545,13 +609,17 @@ fn applica_evento(
             if blocco.get("type").and_then(Value::as_str) == Some("tool_use") {
                 parziali.insert(idx, String::new());
                 if let Some(nome) = blocco.get("name").and_then(Value::as_str) {
-                    on_event(Evento::StrumentoInizio { nome: nome.to_string() });
+                    on_event(Evento::StrumentoInizio {
+                        nome: nome.to_string(),
+                    });
                 }
             }
         }
         "content_block_delta" => {
             let Some(delta) = ev.get("delta") else { return };
-            let Some(b) = blocchi.get_mut(idx) else { return };
+            let Some(b) = blocchi.get_mut(idx) else {
+                return;
+            };
             match delta.get("type").and_then(Value::as_str).unwrap_or("") {
                 "text_delta" => {
                     if let Some(t) = delta.get("text").and_then(Value::as_str) {
@@ -638,7 +706,15 @@ mod tests {
             json!({"type":"message_delta","delta":{"stop_reason":"tool_use"},
                    "usage":{"output_tokens":42}}),
         ] {
-            applica_evento(&ev, &mut blocchi, &mut parziali, &mut sr, &mut sd, &mut us, &mut on);
+            applica_evento(
+                &ev,
+                &mut blocchi,
+                &mut parziali,
+                &mut sr,
+                &mut sd,
+                &mut us,
+                &mut on,
+            );
         }
 
         for (i, testo) in parziali {
@@ -666,7 +742,15 @@ mod tests {
             json!({"type":"content_block_delta","index":0,
                    "delta":{"type":"signature_delta","signature":"abc123"}}),
         ] {
-            applica_evento(&ev, &mut blocchi, &mut parziali, &mut sr, &mut sd, &mut us, &mut on);
+            applica_evento(
+                &ev,
+                &mut blocchi,
+                &mut parziali,
+                &mut sr,
+                &mut sd,
+                &mut us,
+                &mut on,
+            );
         }
         assert_eq!(blocchi[0]["thinking"], "rifletto");
         assert_eq!(blocchi[0]["signature"], "abc123");
@@ -679,9 +763,12 @@ mod tests {
     /// vero, ma il corpo sì.
     #[test]
     fn il_corpo_della_richiesta_non_ha_trappole() {
-        let b = corpo_richiesta(&scelta(Fornitore::Anthropic), prompt_finto(),
-                                &[json!({"role":"user","content":"ciao"})],
-                                &[json!({"name":"x"})]);
+        let b = corpo_richiesta(
+            &scelta(Fornitore::Anthropic),
+            prompt_finto(),
+            &[json!({"role":"user","content":"ciao"})],
+            &[json!({"name":"x"})],
+        );
 
         assert_eq!(b["model"], "claude-opus-5");
         assert_eq!(b["stream"], true);
@@ -707,7 +794,6 @@ mod tests {
         assert_eq!(b["system"][0]["cache_control"]["type"], "ephemeral");
     }
 
-
     /// Assente e malformato non sono errori: significano «nessuna preferenza»,
     /// che è la condizione iniziale di ogni installazione. Un file malformato
     /// però va segnalato nel log, perché lì qualcuno ha scritto qualcosa
@@ -722,10 +808,16 @@ mod tests {
         // Malformato.
         std::fs::write(Impostazioni::percorso(d.path()), "questo: [non\nchiude").unwrap();
         let i = Impostazioni::carica(d.path());
-        assert!(i.fornitore.is_none(), "un file rotto non deve inventare un fornitore");
+        assert!(
+            i.fornitore.is_none(),
+            "un file rotto non deve inventare un fornitore"
+        );
 
         // E il giro completo.
-        let i = Impostazioni { fornitore: Some("kimi".into()), modello: Some("kimi-k3".into()) };
+        let i = Impostazioni {
+            fornitore: Some("kimi".into()),
+            modello: Some("kimi-k3".into()),
+        };
         i.salva(d.path()).unwrap();
         let letta = Impostazioni::carica(d.path());
         assert_eq!(letta.fornitore.as_deref(), Some("kimi"));
@@ -745,10 +837,16 @@ mod tests {
 
         let p = d.path().join("kimi.key");
         let modo = std::fs::metadata(&p).unwrap().permissions().mode() & 0o777;
-        assert_eq!(modo, 0o600, "permessi {modo:o}: la chiave sarebbe leggibile da altri");
+        assert_eq!(
+            modo, 0o600,
+            "permessi {modo:o}: la chiave sarebbe leggibile da altri"
+        );
         // Gli spazi intorno si tolgono: una chiave copiata da un terminale ne
         // porta spesso uno, e il fornitore rifiuterebbe l'intestazione.
-        assert_eq!(std::fs::read_to_string(&p).unwrap(), "unachiaveabbastanzalunga");
+        assert_eq!(
+            std::fs::read_to_string(&p).unwrap(),
+            "unachiaveabbastanzalunga"
+        );
         assert!(ha_chiave(d.path(), Fornitore::Kimi));
         // E non finisce nel file dell'altro fornitore.
         assert!(!ha_chiave(d.path(), Fornitore::Anthropic));
@@ -758,14 +856,27 @@ mod tests {
     #[test]
     fn cancellare_una_chiave_che_non_c_e_non_e_un_errore() {
         let d = tempfile::tempdir().unwrap();
-        assert!(!cancella_chiave(d.path(), Fornitore::Kimi).unwrap(), "non c'era: false");
+        assert!(
+            !cancella_chiave(d.path(), Fornitore::Kimi).unwrap(),
+            "non c'era: false"
+        );
         salva_chiave(d.path(), Fornitore::Kimi, "unachiaveabbastanzalunga").unwrap();
-        assert!(cancella_chiave(d.path(), Fornitore::Kimi).unwrap(), "c'era: true");
-        assert!(!cancella_chiave(d.path(), Fornitore::Kimi).unwrap(), "e ora non più");
+        assert!(
+            cancella_chiave(d.path(), Fornitore::Kimi).unwrap(),
+            "c'era: true"
+        );
+        assert!(
+            !cancella_chiave(d.path(), Fornitore::Kimi).unwrap(),
+            "e ora non più"
+        );
     }
 
     fn scelta(f: Fornitore) -> Scelta {
-        Scelta { fornitore: f, chiave: "k".into(), modello: f.modello_default().into() }
+        Scelta {
+            fornitore: f,
+            chiave: "k".into(),
+            modello: f.modello_default().into(),
+        }
     }
 
     /// A Kimi non si manda `thinking`.
@@ -785,8 +896,10 @@ mod tests {
         // endpoint compatibile: stream, strumenti, blocchi, system in cache.
         let a = corpo_richiesta(&scelta(Fornitore::Anthropic), prompt_finto(), &[], &[]);
         for campo in ["stream", "max_tokens", "system", "messages", "tools"] {
-            assert_eq!(k[campo], a[campo],
-                       "il campo `{campo}` non dovrebbe dipendere dal fornitore");
+            assert_eq!(
+                k[campo], a[campo],
+                "il campo `{campo}` non dovrebbe dipendere dal fornitore"
+            );
         }
     }
 
@@ -796,9 +909,13 @@ mod tests {
     fn ognuno_ha_il_suo_header() {
         assert!(!Fornitore::Anthropic.bearer(), "Anthropic vuole x-api-key");
         assert!(Fornitore::Kimi.bearer(), "Kimi vuole Authorization: Bearer");
-        assert!(Fornitore::Kimi.endpoint().ends_with("/anthropic/v1/messages"),
-                "l'endpoint compatibile di Kimi non è /v1/messages: {}",
-                Fornitore::Kimi.endpoint());
+        assert!(
+            Fornitore::Kimi
+                .endpoint()
+                .ends_with("/anthropic/v1/messages"),
+            "l'endpoint compatibile di Kimi non è /v1/messages: {}",
+            Fornitore::Kimi.endpoint()
+        );
     }
 
     #[test]
@@ -806,7 +923,10 @@ mod tests {
         assert_eq!(Fornitore::da_nome("kimi"), Some(Fornitore::Kimi));
         assert_eq!(Fornitore::da_nome("MOONSHOT"), Some(Fornitore::Kimi));
         assert_eq!(Fornitore::da_nome("claude"), Some(Fornitore::Anthropic));
-        assert_eq!(Fornitore::da_nome(" Anthropic "), Some(Fornitore::Anthropic));
+        assert_eq!(
+            Fornitore::da_nome(" Anthropic "),
+            Some(Fornitore::Anthropic)
+        );
         // E un nome sconosciuto non diventa silenziosamente il default: chi
         // scrive `SWS_AI_FORNITORE=gemini` deve accorgersene.
         assert_eq!(Fornitore::da_nome("gemini"), None);
@@ -837,7 +957,9 @@ mod tests {
                 json!({"type":"text","text":"ecco"}),
                 json!({"type":"tool_use","id":"t1","name":"valida","input":{"a":1}}),
             ],
-            stop_reason: "tool_use".into(), stop_details: None, usage: json!({}),
+            stop_reason: "tool_use".into(),
+            stop_details: None,
+            usage: json!({}),
         };
         assert_eq!(r.testo(), "ecco");
         let usi = r.tool_uses();

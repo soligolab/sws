@@ -54,28 +54,25 @@ pub async fn get_metrics(State(state): State<AppState>) -> impl IntoResponse {
 
     // Emit gauges via the global recorder — these calls become numbers in
     // the rendered output below.
-    metrics::gauge!("sws_uptime_seconds")
-        .set(state.started_at.elapsed().as_secs_f64());
+    metrics::gauge!("sws_uptime_seconds").set(state.started_at.elapsed().as_secs_f64());
     metrics::gauge!("sws_tag_count").set(tag_count);
     metrics::gauge!("sws_alarm_active_count").set(alarm_active);
     metrics::gauge!("sws_alarm_total").set(alarm_total);
-    metrics::gauge!("sws_cpu_usage_pct")
-        .set(sys.global_cpu_info().cpu_usage() as f64);
-    metrics::gauge!("sws_memory_used_bytes")
-        .set(sys.used_memory() as f64);
-    metrics::gauge!("sws_memory_total_bytes")
-        .set(sys.total_memory() as f64);
+    metrics::gauge!("sws_cpu_usage_pct").set(sys.global_cpu_info().cpu_usage() as f64);
+    metrics::gauge!("sws_memory_used_bytes").set(sys.used_memory() as f64);
+    metrics::gauge!("sws_memory_total_bytes").set(sys.total_memory() as f64);
     if let Some(d) = disk {
-        metrics::gauge!("sws_disk_used_bytes")
-            .set((d.total_space() - d.available_space()) as f64);
-        metrics::gauge!("sws_disk_total_bytes")
-            .set(d.total_space() as f64);
+        metrics::gauge!("sws_disk_used_bytes").set((d.total_space() - d.available_space()) as f64);
+        metrics::gauge!("sws_disk_total_bytes").set(d.total_space() as f64);
     }
 
     let handle = install_recorder();
     let body = handle.render();
     (
-        [(header::CONTENT_TYPE, "text/plain; version=0.0.4; charset=utf-8")],
+        [(
+            header::CONTENT_TYPE,
+            "text/plain; version=0.0.4; charset=utf-8",
+        )],
         body,
     )
 }
@@ -88,7 +85,8 @@ pub async fn get_metrics(State(state): State<AppState>) -> impl IntoResponse {
 /// numbers.
 pub async fn track_http_metrics(req: Request, next: Next) -> Response {
     let method = req.method().clone();
-    let matched = req.extensions()
+    let matched = req
+        .extensions()
         .get::<MatchedPath>()
         .map(|m| m.as_str().to_string())
         .unwrap_or_else(|| "<unmatched>".to_string());
@@ -99,7 +97,8 @@ pub async fn track_http_metrics(req: Request, next: Next) -> Response {
             "path"   => matched,
             "method" => method.as_str().to_string(),
             "status" => status.to_string(),
-        ).increment(1);
+        )
+        .increment(1);
     }
     response
 }

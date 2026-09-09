@@ -204,7 +204,9 @@ impl FailureThrottle {
         self.consecutivi += 1;
         // Potenze di due: 10.000 fallimenti costano 14 righe invece di 10.000,
         // e ognuna dice a che punto siamo. Stessa regola di `lvgl_log.rs`.
-        self.consecutivi.is_power_of_two().then_some(self.consecutivi)
+        self.consecutivi
+            .is_power_of_two()
+            .then_some(self.consecutivi)
     }
 
     /// Quanti fallimenti si erano accumulati prima che tornasse a funzionare.
@@ -267,10 +269,10 @@ fn should_fire_on_edge(edge: &str, prev: &Option<TagValue>, curr: &TagValue) -> 
 
 fn is_falsy(v: &TagValue) -> bool {
     match v {
-        TagValue::Bool(b)  => !b,
-        TagValue::Int(i)   => *i == 0,
+        TagValue::Bool(b) => !b,
+        TagValue::Int(i) => *i == 0,
         TagValue::Float(f) => *f == 0.0,
-        TagValue::Str(s)   => s.is_empty() || s == "0" || s.eq_ignore_ascii_case("false"),
+        TagValue::Str(s) => s.is_empty() || s == "0" || s.eq_ignore_ascii_case("false"),
     }
 }
 

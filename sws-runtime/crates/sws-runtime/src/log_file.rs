@@ -13,12 +13,12 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use sws_core::now_ms;
 use sws_core::LogBus;
 use time::OffsetDateTime;
 use tokio::fs::{File, OpenOptions};
 use tokio::io::AsyncWriteExt;
 use tokio::sync::broadcast::error::RecvError;
-use sws_core::now_ms;
 
 /// Spawn a tokio task that persists every event from `bus` to a daily JSONL
 /// file under `dir`. Returns the join handle; the task lives until the
@@ -54,24 +54,21 @@ pub fn spawn_file_writer(
             };
             let date = date_from_ts_ms(ev.ts_ms);
 
-            let needs_open = open
-                .as_ref()
-                .map(|(d, _)| d != &date)
-                .unwrap_or(true);
+            let needs_open = open.as_ref().map(|(d, _)| d != &date).unwrap_or(true);
             if needs_open {
                 match open_log(&dir, &date).await {
                     Ok(f) => open = Some((date.clone(), f)),
                     Err(e) => {
-                        eprintln!(
-                            "log_file: cannot open {dir:?}/runtime-{date}.jsonl: {e}"
-                        );
+                        eprintln!("log_file: cannot open {dir:?}/runtime-{date}.jsonl: {e}");
                         open = None;
                         continue;
                     }
                 }
             }
 
-            let Some((_, file)) = open.as_mut() else { continue };
+            let Some((_, file)) = open.as_mut() else {
+                continue;
+            };
 
             let line = match serde_json::to_string(&ev) {
                 Ok(s) => s,
@@ -119,11 +116,7 @@ pub(crate) fn date_from_ts_ms(ts_ms: u64) -> String {
 
 /// Delete `runtime-YYYY-MM-DD.jsonl` files strictly older than
 /// `today - retention_days`. The cutoff itself is kept.
-async fn prune_old(
-    dir: &Path,
-    today: &str,
-    retention_days: u32,
-) -> std::io::Result<()> {
+async fn prune_old(dir: &Path, today: &str, retention_days: u32) -> std::io::Result<()> {
     let Some(cutoff) = date_minus_days(today, retention_days) else {
         return Ok(());
     };
@@ -134,17 +127,21 @@ async fn prune_old(
             Ok(s) => s,
             Err(_) => continue,
         };
-        let Some(rest) = name.strip_prefix("runtime-") else { continue };
-        let Some(date) = rest.strip_suffix(".jsonl") else { continue };
-        if date.len() == 10 && date < cutoff.as_str()
-            && tokio::fs::remove_file(entry.path()).await.is_ok() {
-                removed += 1;
-            }
+        let Some(rest) = name.strip_prefix("runtime-") else {
+            continue;
+        };
+        let Some(date) = rest.strip_suffix(".jsonl") else {
+            continue;
+        };
+        if date.len() == 10
+            && date < cutoff.as_str()
+            && tokio::fs::remove_file(entry.path()).await.is_ok()
+        {
+            removed += 1;
+        }
     }
     if removed > 0 {
-        eprintln!(
-            "log_file: pruned {removed} old log file(s) older than {cutoff}"
-        );
+        eprintln!("log_file: pruned {removed} old log file(s) older than {cutoff}");
     }
     Ok(())
 }
@@ -188,8 +185,7 @@ mod tests {
                 .duration_since(std::time::UNIX_EPOCH)
                 .map(|d| d.as_nanos())
                 .unwrap_or(0);
-            let p = std::env::temp_dir()
-                .join(format!("sws-log-test-{label}-{nanos}"));
+            let p = std::env::temp_dir().join(format!("sws-log-test-{label}-{nanos}"));
             std::fs::create_dir_all(&p).unwrap();
             TestDir(p)
         }
@@ -215,13 +211,25 @@ mod tests {
 
     #[test]
     fn date_minus_days_handles_month_and_year_boundaries() {
-        assert_eq!(date_minus_days("2024-03-15", 7).as_deref(), Some("2024-03-08"));
+        assert_eq!(
+            date_minus_days("2024-03-15", 7).as_deref(),
+            Some("2024-03-08")
+        );
         // Leap year: March 1 minus 1 day → Feb 29.
-        assert_eq!(date_minus_days("2024-03-01", 1).as_deref(), Some("2024-02-29"));
+        assert_eq!(
+            date_minus_days("2024-03-01", 1).as_deref(),
+            Some("2024-02-29")
+        );
         // Non-leap: March 1 minus 1 day → Feb 28.
-        assert_eq!(date_minus_days("2023-03-01", 1).as_deref(), Some("2023-02-28"));
+        assert_eq!(
+            date_minus_days("2023-03-01", 1).as_deref(),
+            Some("2023-02-28")
+        );
         // Year crossing.
-        assert_eq!(date_minus_days("2024-01-01", 1).as_deref(), Some("2023-12-31"));
+        assert_eq!(
+            date_minus_days("2024-01-01", 1).as_deref(),
+            Some("2023-12-31")
+        );
     }
 
     #[tokio::test]

@@ -1,3 +1,13 @@
+use crate::router::AppState;
+use axum::{
+    extract::{
+        ws::{Message, WebSocket, WebSocketUpgrade},
+        Path, State,
+    },
+    http::StatusCode,
+    response::{IntoResponse, Response},
+};
+use futures_util::{SinkExt, StreamExt};
 /// WebSocket relay: proxies `/ws/remote/{tags,alarms,logs}` on the local IDE
 /// runtime to the corresponding `/ws/{path}?token=…` endpoint on the connected
 /// remote runtime.
@@ -12,17 +22,9 @@
 /// Limitation (PoC): the relay for `wss://` targets uses a custom TLS verifier
 /// that accepts any certificate — appropriate only on a trusted LAN.
 use std::sync::Arc;
-use axum::{
-    extract::{ws::{Message, WebSocket, WebSocketUpgrade}, Path, State},
-    http::StatusCode,
-    response::{IntoResponse, Response},
-};
-use futures_util::{SinkExt, StreamExt};
 use tokio_tungstenite::tungstenite::Message as TMsg;
-use crate::router::AppState;
 
 // ── TLS verifier that accepts any cert (PoC only — trusted LAN) ──────────────
-
 
 // ── Handler ───────────────────────────────────────────────────────────────────
 
@@ -82,10 +84,12 @@ const CHIUSURA_CERTIFICATO_CAMBIATO: u16 = 4495;
 /// viene, ed è esattamente per questo che il client ritentava all'infinito.
 async fn chiudi_spiegando(mut local: WebSocket, code: u16, motivo: String) {
     use axum::extract::ws::{CloseFrame, Message};
-    let _ = local.send(Message::Close(Some(CloseFrame {
-        code,
-        reason: motivo.into(),
-    }))).await;
+    let _ = local
+        .send(Message::Close(Some(CloseFrame {
+            code,
+            reason: motivo.into(),
+        })))
+        .await;
     // Chiusura ORDINATA, non semplice caduta del socket: lasciando morire la
     // connessione subito dopo aver messo in coda il frame, il browser può
     // vedere 1006 («chiusa in modo anomalo») al posto del codice appena
@@ -124,17 +128,23 @@ const MAX_MOTIVO_BYTE: usize = 123;
 /// non c'è per scelta — si è visto raccontare una falsità al primo collaudo.
 fn motivo_rifiuto(sub: &str, stato: u16) -> (bool, String, String) {
     if stato == 404 && sub == "logs" {
-        return (false,
+        return (
+            false,
             "i log del pannello non si leggono da remoto: è deliberato".to_string(),
             "il pannello non espone i log da remoto: è deliberato (i log possono \
              contenere segreti). Il registro del dispositivo si legge sul dispositivo."
-                .to_string());
+                .to_string(),
+        );
     }
     if stato == 404 {
-        return (true,
+        return (
+            true,
             format!("rotta /ws/{sub} assente sul runtime remoto"),
-            format!("il runtime remoto non ha la rotta /ws/{sub}: probabile versione più \
-                     vecchia dell'editor, oppure l'indirizzo non è un runtime SWS"));
+            format!(
+                "il runtime remoto non ha la rotta /ws/{sub}: probabile versione più \
+                     vecchia dell'editor, oppure l'indirizzo non è un runtime SWS"
+            ),
+        );
     }
     let m = format!("il runtime remoto ha rifiutato il collegamento: {stato}");
     (true, m.clone(), m)
@@ -147,9 +157,13 @@ fn motivo_rifiuto(sub: &str, stato: u16) -> (bool, String, String) {
 /// Tagliare a metà di una sequenza UTF-8 produrrebbe un frame invalido esattamente
 /// come essere troppo lunghi.
 fn accorcia(mut m: String) -> String {
-    if m.len() <= MAX_MOTIVO_BYTE { return m; }
+    if m.len() <= MAX_MOTIVO_BYTE {
+        return m;
+    }
     let mut n = MAX_MOTIVO_BYTE;
-    while n > 0 && !m.is_char_boundary(n) { n -= 1; }
+    while n > 0 && !m.is_char_boundary(n) {
+        n -= 1;
+    }
     m.truncate(n);
     m
 }
@@ -184,8 +198,12 @@ async fn fallito(
     if crate::certificati::e_certificato_cambiato(&format!("{e:?}")) {
         tracing::warn!(url = %remote_url,
             "ws relay: certificato del dispositivo cambiato, non ritento — usa «dimentica il certificato» in Connetti");
-        chiudi_spiegando(local, CHIUSURA_CERTIFICATO_CAMBIATO,
-            "certificato del dispositivo cambiato: dimenticalo da Connetti e ricollega".to_string()).await;
+        chiudi_spiegando(
+            local,
+            CHIUSURA_CERTIFICATO_CAMBIATO,
+            "certificato del dispositivo cambiato: dimenticalo da Connetti e ricollega".to_string(),
+        )
+        .await;
         return;
     }
     tracing::warn!(url = %remote_url, "ws relay: collegamento fallito (riprovo): {e}");
@@ -202,8 +220,13 @@ async fn run_relay(
     // Build the remote WS URL. Tokens are UUID strings (hex + hyphens) — no
     // percent-encoding needed. If the token is empty the remote is in no-auth
     // mode and we omit the ?token= parameter.
-    let ws_scheme = if target.url.starts_with("https://") { "wss" } else { "ws" };
-    let host_path = target.url
+    let ws_scheme = if target.url.starts_with("https://") {
+        "wss"
+    } else {
+        "ws"
+    };
+    let host_path = target
+        .url
         .trim_start_matches("https://")
         .trim_start_matches("http://");
     let remote_url = if target.token.is_empty() {
@@ -215,15 +238,21 @@ async fn run_relay(
     // Q49: per wss:// la fiducia è per impronta, la stessa che ha memorizzato
     // «Connetti» — non «accetta tutto» come fino al 2026-09-09.
     let remote = if ws_scheme == "wss" {
-        let host_port = crate::certificati::host_port_da_url(&target.url).unwrap_or_else(|| host_path.to_string());
-        let tls = Arc::new(crate::certificati::client_config_pinnato(&host_port, certificati));
+        let host_port = crate::certificati::host_port_da_url(&target.url)
+            .unwrap_or_else(|| host_path.to_string());
+        let tls = Arc::new(crate::certificati::client_config_pinnato(
+            &host_port,
+            certificati,
+        ));
         let connector = tokio_tungstenite::Connector::Rustls(tls);
         match tokio_tungstenite::connect_async_tls_with_config(
             &remote_url,
             None,
             false,
             Some(connector),
-        ).await {
+        )
+        .await
+        {
             Ok((ws, _)) => ws,
             Err(e) => return fallito(local, &sub, &remote_url, e).await,
         }
@@ -245,7 +274,9 @@ async fn run_relay(
             match item {
                 Ok(msg) => {
                     if let Some(axum_msg) = tung_to_axum(msg) {
-                        if local_tx.send(axum_msg).await.is_err() { break; }
+                        if local_tx.send(axum_msg).await.is_err() {
+                            break;
+                        }
                     }
                 }
                 Err(e) => {
@@ -262,7 +293,9 @@ async fn run_relay(
             match item {
                 Ok(msg) => {
                     if let Some(tung_msg) = axum_to_tung(msg) {
-                        if remote_tx.send(tung_msg).await.is_err() { break; }
+                        if remote_tx.send(tung_msg).await.is_err() {
+                            break;
+                        }
                     }
                 }
                 Err(e) => {
@@ -281,21 +314,21 @@ async fn run_relay(
 
 fn tung_to_axum(msg: TMsg) -> Option<Message> {
     match msg {
-        TMsg::Text(t)   => Some(Message::Text(t)),
+        TMsg::Text(t) => Some(Message::Text(t)),
         TMsg::Binary(b) => Some(Message::Binary(b)),
-        TMsg::Ping(p)   => Some(Message::Ping(p)),
-        TMsg::Pong(p)   => Some(Message::Pong(p)),
+        TMsg::Ping(p) => Some(Message::Ping(p)),
+        TMsg::Pong(p) => Some(Message::Pong(p)),
         TMsg::Close(_) | TMsg::Frame(_) => None,
     }
 }
 
 fn axum_to_tung(msg: Message) -> Option<TMsg> {
     match msg {
-        Message::Text(t)   => Some(TMsg::Text(t)),
+        Message::Text(t) => Some(TMsg::Text(t)),
         Message::Binary(b) => Some(TMsg::Binary(b)),
-        Message::Ping(p)   => Some(TMsg::Ping(p)),
-        Message::Pong(p)   => Some(TMsg::Pong(p)),
-        Message::Close(_)  => None,
+        Message::Ping(p) => Some(TMsg::Ping(p)),
+        Message::Pong(p) => Some(TMsg::Pong(p)),
+        Message::Close(_) => None,
     }
 }
 
@@ -317,10 +350,14 @@ mod tests {
         for sub in ["tags", "alarms"] {
             let (guasto, breve, lungo) = motivo_rifiuto(sub, 404);
             assert!(guasto, "{sub}: un 404 qui è un guasto vero");
-            assert!(lungo.contains(&format!("/ws/{sub}")),
-                "il registro deve dire QUALE rotta manca: {lungo}");
-            assert!(breve.contains(&format!("/ws/{sub}")),
-                "anche il motivo breve deve nominarla: {breve}");
+            assert!(
+                lungo.contains(&format!("/ws/{sub}")),
+                "il registro deve dire QUALE rotta manca: {lungo}"
+            );
+            assert!(
+                breve.contains(&format!("/ws/{sub}")),
+                "anche il motivo breve deve nominarla: {breve}"
+            );
             assert!(lungo.contains("versione"), "{lungo}");
         }
     }
@@ -330,8 +367,10 @@ mod tests {
         let (guasto, _breve, lungo) = motivo_rifiuto("tags", 401);
         assert!(guasto);
         assert!(lungo.contains("401"), "{lungo}");
-        assert!(!lungo.contains("non ha la rotta"),
-            "401 è autenticazione, non rotta assente: {lungo}");
+        assert!(
+            !lungo.contains("non ha la rotta"),
+            "401 è autenticazione, non rotta assente: {lungo}"
+        );
     }
 
     /// Il difetto misurato sul WP630 il 2026-09-08: il motivo era di 142 byte,
@@ -339,7 +378,12 @@ mod tests {
     /// codice che gli diceva di non ritentare.
     #[test]
     fn ogni_motivo_breve_entra_in_un_frame_di_controllo() {
-        for sub in ["logs", "tags", "alarms", "qualcosa-di-molto-molto-piu-lungo"] {
+        for sub in [
+            "logs",
+            "tags",
+            "alarms",
+            "qualcosa-di-molto-molto-piu-lungo",
+        ] {
             for stato in [404u16, 401, 500, 503] {
                 let (_, breve, _) = motivo_rifiuto(sub, stato);
                 // SENZA `accorcia`: i messaggi devono nascere corti. Misurarli
@@ -348,9 +392,11 @@ mod tests {
                 // lungo, che è esattamente il difetto da sorvegliare. `accorcia`
                 // è la rete di sicurezza, provata a parte.
                 let n = breve.len();
-                assert!(n <= MAX_MOTIVO_BYTE,
+                assert!(
+                    n <= MAX_MOTIVO_BYTE,
                     "sub={sub} stato={stato}: {n} byte, il frame ne ammette {MAX_MOTIVO_BYTE} — \
-                     sopra il limite il frame è invalido e il codice di chiusura non arriva");
+                     sopra il limite il frame è invalido e il codice di chiusura non arriva"
+                );
             }
         }
     }

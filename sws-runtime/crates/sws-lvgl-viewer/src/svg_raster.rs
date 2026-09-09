@@ -62,8 +62,7 @@ impl Raster {
                 let un = |c: u8| ((c as u16 * 255) / a as u16).min(255) as u8;
                 (un(r), un(g), un(b))
             };
-            let rgb565: u16 =
-                ((r as u16 & 0xF8) << 8) | ((g as u16 & 0xFC) << 3) | (b as u16 >> 3);
+            let rgb565: u16 = ((r as u16 & 0xF8) << 8) | ((g as u16 & 0xFC) << 3) | (b as u16 >> 3);
             out.push((rgb565 & 0xFF) as u8);
             out.push((rgb565 >> 8) as u8);
             out.push(a);
@@ -102,11 +101,14 @@ pub fn rasterize(svg: &[u8], w: u32, h: u32) -> Option<Raster> {
     let scale = (w as f32 / size.width()).min(h as f32 / size.height());
     let dx = (w as f32 - size.width() * scale) / 2.0;
     let dy = (h as f32 - size.height() * scale) / 2.0;
-    let transform = resvg::tiny_skia::Transform::from_translate(dx, dy)
-        .pre_scale(scale, scale);
+    let transform = resvg::tiny_skia::Transform::from_translate(dx, dy).pre_scale(scale, scale);
     resvg::render(&tree, transform, &mut pixmap.as_mut());
 
-    Some(Raster { width: w, height: h, pixels: pixmap.take() })
+    Some(Raster {
+        width: w,
+        height: h,
+        pixels: pixmap.take(),
+    })
 }
 
 #[cfg(test)]
@@ -125,8 +127,11 @@ mod tests {
         // una bitmap vuota senza accorgercene, che è il modo in cui un
         // rasterizzatore "funziona" e non disegna niente.
         let c = (32 * 64 + 32) * 4;
-        assert!(r.pixels[c] > 200 && r.pixels[c + 3] > 200,
-                "il centro dovrebbe essere rosso opaco, invece è {:?}", &r.pixels[c..c + 4]);
+        assert!(
+            r.pixels[c] > 200 && r.pixels[c + 3] > 200,
+            "il centro dovrebbe essere rosso opaco, invece è {:?}",
+            &r.pixels[c..c + 4]
+        );
     }
 
     #[test]
@@ -144,7 +149,10 @@ mod tests {
         assert!(rasterize(CERCHIO, 32, 0).is_none());
         assert!(rasterize(CERCHIO, MAX_SIDE + 1, 32).is_none());
         assert!(rasterize(CERCHIO, 32, MAX_SIDE + 1).is_none());
-        assert!(rasterize(CERCHIO, MAX_SIDE, MAX_SIDE).is_some(), "il limite stesso deve passare");
+        assert!(
+            rasterize(CERCHIO, MAX_SIDE, MAX_SIDE).is_some(),
+            "il limite stesso deve passare"
+        );
     }
 
     /// Le proporzioni si mantengono: un quadrato in un rettangolo largo resta
@@ -154,20 +162,35 @@ mod tests {
         let r = rasterize(CERCHIO, 128, 64).expect("deve rasterizzarsi");
         // Colonna al bordo sinistro: fuori dal cerchio centrato, quindi vuota.
         let bordo = (32 * 128 + 2) * 4;
-        assert_eq!(r.pixels[bordo + 3], 0, "il margine laterale dovrebbe restare trasparente");
+        assert_eq!(
+            r.pixels[bordo + 3],
+            0,
+            "il margine laterale dovrebbe restare trasparente"
+        );
         // Centro: dentro il cerchio.
         let centro = (32 * 128 + 64) * 4;
-        assert!(r.pixels[centro + 3] > 200, "il centro dovrebbe essere pieno");
+        assert!(
+            r.pixels[centro + 3] > 200,
+            "il centro dovrebbe essere pieno"
+        );
     }
 
     #[test]
     fn la_conversione_per_lvgl_usa_tre_byte_per_pixel() {
         let r = rasterize(CERCHIO, 16, 16).expect("deve rasterizzarsi");
         let buf = r.to_lvgl_true_color_alpha();
-        assert_eq!(buf.len(), 16 * 16 * 3, "LV_IMG_CF_TRUE_COLOR_ALPHA a 16 bit = 3 byte/pixel");
+        assert_eq!(
+            buf.len(),
+            16 * 16 * 3,
+            "LV_IMG_CF_TRUE_COLOR_ALPHA a 16 bit = 3 byte/pixel"
+        );
         // Centro rosso: RGB565 di #ff0000 è 0xF800, little-endian 00 F8, alfa piena.
         let c = (8 * 16 + 8) * 3;
-        assert_eq!(&buf[c..c + 3], &[0x00, 0xF8, 0xFF], "il centro dovrebbe essere rosso opaco");
+        assert_eq!(
+            &buf[c..c + 3],
+            &[0x00, 0xF8, 0xFF],
+            "il centro dovrebbe essere rosso opaco"
+        );
         // Angolo fuori dal cerchio: trasparente.
         assert_eq!(buf[2], 0, "l'angolo dovrebbe avere alfa 0");
     }
@@ -185,7 +208,11 @@ mod tests {
             height: 1,
         };
         let buf = r.to_lvgl_true_color_alpha();
-        assert_eq!(buf[1] & 0xF8, 0xF8, "il rosso deve tornare pieno, non dimezzato: {buf:?}");
+        assert_eq!(
+            buf[1] & 0xF8,
+            0xF8,
+            "il rosso deve tornare pieno, non dimezzato: {buf:?}"
+        );
         assert_eq!(buf[2], 128, "l'alfa deve restare quella di partenza");
     }
 
@@ -209,8 +236,8 @@ mod tests {
             let file = radice.join(path.trim_start_matches("/symbols/"));
             let svg = std::fs::read(&file)
                 .unwrap_or_else(|e| panic!("{id}: {} non leggibile: {e}", file.display()));
-            let r = rasterize(&svg, 96, 96)
-                .unwrap_or_else(|| panic!("{id}: resvg non lo interpreta"));
+            let r =
+                rasterize(&svg, 96, 96).unwrap_or_else(|| panic!("{id}: resvg non lo interpreta"));
             let pieni = r.pixels.chunks_exact(4).filter(|p| p[3] > 16).count();
             // Soglia al 10%: misurato il 2026-08-26, gli undici stanno fra il
             // 23% (transmission_tower) e il 55% (reactor). Il 10% lascia
@@ -224,6 +251,9 @@ mod tests {
             visti += 1;
         }
         assert_eq!(visti, crate::svg_assets::VENDORED.len());
-        assert!(visti >= 11, "attesi almeno gli 11 simboli noti, trovati {visti}");
+        assert!(
+            visti >= 11,
+            "attesi almeno gli 11 simboli noti, trovati {visti}"
+        );
     }
 }

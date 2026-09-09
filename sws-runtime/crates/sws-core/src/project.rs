@@ -1,10 +1,10 @@
 // Hot-reload (notify crate) deferred — not needed for PoC happy path.
 
+use crate::alarm::AlarmDef;
+use crate::tag::{TagDb, TagQuality, TagValue};
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
-use crate::alarm::AlarmDef;
-use crate::tag::{TagDb, TagQuality, TagValue};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectMeta {
@@ -162,24 +162,40 @@ pub struct DatastoreConfig {
     pub retention_days: Option<u64>,
 }
 
-fn default_sqlite_history_path() -> String { "history/historian.db".into() }
-fn default_pg_port() -> u16 { 5432 }
-fn default_pg_ssl_mode() -> String { "prefer".into() }
-fn default_pg_schema() -> String { "public".into() }
-fn default_odbc_table() -> String { "sws_samples".into() }
-fn default_odbc_col_tag() -> String { "tag_id".into() }
-fn default_odbc_col_value() -> String { "value".into() }
-fn default_odbc_col_ts() -> String { "ts_ms".into() }
+fn default_sqlite_history_path() -> String {
+    "history/historian.db".into()
+}
+fn default_pg_port() -> u16 {
+    5432
+}
+fn default_pg_ssl_mode() -> String {
+    "prefer".into()
+}
+fn default_pg_schema() -> String {
+    "public".into()
+}
+fn default_odbc_table() -> String {
+    "sws_samples".into()
+}
+fn default_odbc_col_tag() -> String {
+    "tag_id".into()
+}
+fn default_odbc_col_value() -> String {
+    "value".into()
+}
+fn default_odbc_col_ts() -> String {
+    "ts_ms".into()
+}
 
 impl TagDef {
     /// Initial `TagValue` to seed the TagDb with for this definition.
     /// Used at startup (`populate_tags`) and on hot-reload of newly-added tags.
     pub fn initial_value(&self) -> TagValue {
         match self.data_type.as_str() {
-            "bool"   => TagValue::Bool(false),
-            "int"    => TagValue::Int(0),
+            "bool" => TagValue::Bool(false),
+            "int" => TagValue::Int(0),
             "string" => TagValue::Str(String::new()),
-            _        => TagValue::Float(0.0),
+            _ => TagValue::Float(0.0),
         }
     }
 
@@ -428,7 +444,9 @@ pub struct SparkplugConfig {
     pub metrics: Vec<SparkplugMetricMapping>,
 }
 
-fn default_spb_host_id() -> String { "SWS-SCADA".to_string() }
+fn default_spb_host_id() -> String {
+    "SWS-SCADA".to_string()
+}
 
 /// Map one Sparkplug B metric name to an SWS tag.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -555,29 +573,67 @@ pub enum OpcUaAuth {
     },
 }
 
-fn default_opcua_security_policy() -> String { "None".into() }
-fn default_opcua_subscription_interval_ms() -> u64 { 500 }
-fn default_true() -> bool { true }
-fn default_opcua_server_port() -> u16 { 4840 }
-fn default_opcua_namespace_uri() -> String { "urn:soligolab:sws".into() }
+fn default_opcua_security_policy() -> String {
+    "None".into()
+}
+fn default_opcua_subscription_interval_ms() -> u64 {
+    500
+}
+fn default_true() -> bool {
+    true
+}
+fn default_opcua_server_port() -> u16 {
+    4840
+}
+fn default_opcua_namespace_uri() -> String {
+    "urn:soligolab:sws".into()
+}
 
-fn default_modbus_port() -> u16 { 502 }
-fn default_unit_id() -> u8 { 1 }
-fn default_poll_interval_ms() -> u64 { 1000 }
-fn default_scale() -> f64 { 1.0 }
-fn default_baud_rate() -> u32 { 9600 }
-fn default_parity() -> String { "N".into() }
-fn default_data_bits() -> u8 { 8 }
-fn default_stop_bits() -> u8 { 1 }
-fn default_data_type() -> String { "float".to_string() }
-fn default_mqtt_port() -> u16 { 1883 }
-fn default_mqtt_client_id() -> String { "sws-runtime".to_string() }
+fn default_modbus_port() -> u16 {
+    502
+}
+fn default_unit_id() -> u8 {
+    1
+}
+fn default_poll_interval_ms() -> u64 {
+    1000
+}
+fn default_scale() -> f64 {
+    1.0
+}
+fn default_baud_rate() -> u32 {
+    9600
+}
+fn default_parity() -> String {
+    "N".into()
+}
+fn default_data_bits() -> u8 {
+    8
+}
+fn default_stop_bits() -> u8 {
+    1
+}
+fn default_data_type() -> String {
+    "float".to_string()
+}
+fn default_mqtt_port() -> u16 {
+    1883
+}
+fn default_mqtt_client_id() -> String {
+    "sws-runtime".to_string()
+}
 
 // ── Siemens S7 config ─────────────────────────────────────────────────────────
 
-fn default_s7_slot() -> u16 { 1 }
-fn default_s7_poll_ms() -> u64 { 500 }
-fn default_s7_area() -> String { "db".into() }
+fn default_s7_slot() -> u16 {
+    1
+}
+fn default_s7_poll_ms() -> u64 {
+    500
+}
+fn default_s7_area() -> String {
+    "db".into()
+}
 
 /// Data type of a tag mapped from the S7 PLC.
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
@@ -637,7 +693,9 @@ pub struct S7Config {
 
 // ── EtherNet/IP (Allen-Bradley / CIP) config ─────────────────────────────────
 
-fn default_enip_poll_ms() -> u64 { 500 }
+fn default_enip_poll_ms() -> u64 {
+    500
+}
 
 /// CIP data type for an EtherNet/IP tag.
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
@@ -752,7 +810,11 @@ where
     let raw: Vec<serde_yaml::Value> = Vec::deserialize(d)?;
     let mut out = Vec::with_capacity(raw.len());
     for val in raw {
-        let kind = val.get("kind").and_then(|k| k.as_str()).unwrap_or("?").to_string();
+        let kind = val
+            .get("kind")
+            .and_then(|k| k.as_str())
+            .unwrap_or("?")
+            .to_string();
         match serde_yaml::from_value::<SourceDef>(val) {
             Ok(src) => out.push(src),
             Err(e) => tracing::warn!(%kind, "skipping unrecognized source kind: {e}"),
@@ -772,10 +834,16 @@ pub enum ScriptTrigger {
     /// Run on a cron schedule (5-field: min hour day month weekday).
     Cron { schedule: String },
     /// Run when `tag` changes. `edge`: "rising", "falling", or "any" (default).
-    TagChange { tag: String, #[serde(default = "default_edge")] edge: String },
+    TagChange {
+        tag: String,
+        #[serde(default = "default_edge")]
+        edge: String,
+    },
 }
 
-fn default_edge() -> String { "any".into() }
+fn default_edge() -> String {
+    "any".into()
+}
 
 /// A globally-scoped Python script with a trigger.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -789,7 +857,9 @@ pub struct GlobalScriptDef {
     pub enabled: bool,
 }
 
-fn bool_true() -> bool { true }
+fn bool_true() -> bool {
+    true
+}
 
 // ── Notification config ───────────────────────────────────────────────────────
 
@@ -999,8 +1069,7 @@ impl Project {
         let path = project_dir.join("project.yaml");
         let text = std::fs::read_to_string(&path)
             .with_context(|| format!("reading {}", path.display()))?;
-        serde_yaml::from_str(&text)
-            .with_context(|| format!("parsing {}", path.display()))
+        serde_yaml::from_str(&text).with_context(|| format!("parsing {}", path.display()))
     }
 
     /// True when this project was last saved by a different runtime version
@@ -1022,8 +1091,7 @@ impl Project {
     pub fn save_to(&mut self, project_dir: &Path) -> anyhow::Result<()> {
         let yaml = self.stamp_and_serialize()?;
         let path = project_dir.join("project.yaml");
-        std::fs::write(&path, yaml)
-            .with_context(|| format!("writing {}", path.display()))
+        std::fs::write(&path, yaml).with_context(|| format!("writing {}", path.display()))
     }
 
     /// Register every tag from the definition list in `db` with an initial
@@ -1031,11 +1099,11 @@ impl Project {
     /// will overwrite this as soon as they get a real reading.
     pub async fn populate_tags(&self, db: &TagDb) {
         for tag in &self.tags {
-            db.set(tag.id.clone(), tag.initial_value(), TagQuality::Uncertain).await;
+            db.set(tag.id.clone(), tag.initial_value(), TagQuality::Uncertain)
+                .await;
         }
     }
 }
-
 
 #[cfg(test)]
 mod template_tests {
@@ -1055,7 +1123,8 @@ mod template_tests {
     /// perché non è una copia.
     #[test]
     fn tutti_i_template_si_caricano() {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../examples/templates");
+        let dir =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../examples/templates");
         let mut visti = 0;
         let mut rotti = Vec::new();
         for e in std::fs::read_dir(&dir).expect("examples/templates deve esistere") {

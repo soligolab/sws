@@ -6,16 +6,17 @@
 
 use crate::global_scripts::GlobalScriptSupervisor;
 use crate::notifications::NotificationSupervisor;
-use crate::router::{active_dir, AppState, AuthUser, DerivedTagsRegistry, FunctionsRegistry, RegistryCell};
+use crate::router::{
+    active_dir, AppState, AuthUser, DerivedTagsRegistry, FunctionsRegistry, RegistryCell,
+};
 use crate::source_supervisor::SourceSupervisor;
 use crate::templates::copy_dir_all;
 use axum::{
     body::Bytes,
     extract::{Path, Query, State},
-    Extension,
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
+    Extension, Json,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -88,17 +89,19 @@ pub async fn start_project_services(
     // spegnere quello che trova, altrimenti un salvataggio lascerebbe vivi i
     // servizi del progetto precedente.
     if !s.supervisor.is_armed() {
-        info!("acquisizione ferma dall'operatore: script globali, notifiche e Telegram \
-               NON riavviati (premi Avvia)");
+        info!(
+            "acquisizione ferma dall'operatore: script globali, notifiche e Telegram \
+               NON riavviati (premi Avvia)"
+        );
         s.py.set_telegram_sink(None);
         return;
     }
 
     // Il canale Telegram si crea prima dei due supervisori, così condividono
     // lo stesso sink e una riconfigurazione a caldo li aggiorna entrambi.
-    let sinks = crate::telegram::restart_sender(
-        s, notifications.as_ref().and_then(|n| n.telegram.clone()),
-    ).await;
+    let sinks =
+        crate::telegram::restart_sender(s, notifications.as_ref().and_then(|n| n.telegram.clone()))
+            .await;
     // Il send_telegram delle FUNZIONI passa dall'engine condiviso s.py.
     s.py.set_telegram_sink(sinks.as_ref().map(|k| k.text.clone()));
     if !global_scripts.is_empty() {
@@ -169,7 +172,6 @@ pub struct OpenProjectResponse {
 
 // ── safe_project_name ────────────────────────────────────────────────────────
 
-
 /// `p` sta dentro `radice`? Restituisce il percorso **canonico** di `p`, o il
 /// motivo del rifiuto.
 ///
@@ -183,8 +185,13 @@ pub struct OpenProjectResponse {
 /// simbolico dentro la radice che punta fuori idem. Il percorso deve esistere
 /// per essere canonicalizzato — è voluto: qui si elencano e si scelgono cartelle
 /// che ci sono, e chi ne crea una passa da `dentro_radice_nuovo`.
-pub(crate) fn dentro_radice(radice: &std::path::Path, p: &std::path::Path) -> Result<PathBuf, &'static str> {
-    let radice_c = radice.canonicalize().map_err(|_| "la cartella dei progetti non esiste")?;
+pub(crate) fn dentro_radice(
+    radice: &std::path::Path,
+    p: &std::path::Path,
+) -> Result<PathBuf, &'static str> {
+    let radice_c = radice
+        .canonicalize()
+        .map_err(|_| "la cartella dei progetti non esiste")?;
     let p_c = p.canonicalize().map_err(|_| "la cartella non esiste")?;
     if p_c == radice_c || p_c.starts_with(&radice_c) {
         Ok(p_c)
@@ -196,9 +203,14 @@ pub(crate) fn dentro_radice(radice: &std::path::Path, p: &std::path::Path) -> Re
 /// Come `dentro_radice`, per un percorso che **non esiste ancora**: si
 /// canonicalizza il genitore (che deve esistere) e si riattacca l'ultimo
 /// segmento, che deve essere un nome semplice.
-pub(crate) fn dentro_radice_nuovo(radice: &std::path::Path, p: &std::path::Path) -> Result<PathBuf, &'static str> {
+pub(crate) fn dentro_radice_nuovo(
+    radice: &std::path::Path,
+    p: &std::path::Path,
+) -> Result<PathBuf, &'static str> {
     let nome = p.file_name().ok_or("nome della cartella mancante")?;
-    if nome == ".." || nome == "." { return Err("nome della cartella non valido"); }
+    if nome == ".." || nome == "." {
+        return Err("nome della cartella non valido");
+    }
     let genitore = p.parent().ok_or("percorso senza genitore")?;
     let genitore_c = dentro_radice(radice, genitore)?;
     Ok(genitore_c.join(nome))
@@ -220,7 +232,10 @@ pub fn safe_project_name(name: &str) -> Result<String, &'static str> {
         return Err("project name is too long (max 64 chars)");
     }
     for c in trimmed.chars() {
-        if matches!(c, '/' | '\\' | '\0' | ':' | '*' | '?' | '"' | '<' | '>' | '|') {
+        if matches!(
+            c,
+            '/' | '\\' | '\0' | ':' | '*' | '?' | '"' | '<' | '>' | '|'
+        ) {
             return Err("project name contains an invalid character");
         }
     }
@@ -345,7 +360,11 @@ pub async fn create_project(
         Some(p) => {
             let parent = PathBuf::from(p);
             if !parent.is_absolute() {
-                return (StatusCode::BAD_REQUEST, "parent_path must be an absolute path").into_response();
+                return (
+                    StatusCode::BAD_REQUEST,
+                    "parent_path must be an absolute path",
+                )
+                    .into_response();
             }
             // Q46: il genitore deve ESISTERE e stare nella cartella dei progetti.
             // Prima qui c'era un `create_dir_all` su qualunque percorso assoluto:
@@ -353,7 +372,9 @@ pub async fn create_project(
             // ovunque il processo potesse scrivere.
             match dentro_radice(s.projects_root.as_ref(), &parent) {
                 Ok(c) => c,
-                Err(m) => return (StatusCode::BAD_REQUEST, format!("parent_path: {m}")).into_response(),
+                Err(m) => {
+                    return (StatusCode::BAD_REQUEST, format!("parent_path: {m}")).into_response()
+                }
             }
         }
         None => s.projects_root.as_ref().clone(),
@@ -371,7 +392,11 @@ pub async fn create_project(
 
     if let Err(e) = tokio::fs::create_dir_all(&target).await {
         warn!("create_project: mkdir {}: {e}", target.display());
-        return (StatusCode::INTERNAL_SERVER_ERROR, "cannot create project dir").into_response();
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "cannot create project dir",
+        )
+            .into_response();
     }
 
     match req.template.as_deref().filter(|t| !t.is_empty()) {
@@ -385,8 +410,7 @@ pub async fn create_project(
             if let Err(e) = copy_dir_all(&source, &target, &["template.yaml"]).await {
                 warn!("create_project: copy template: {e}");
                 let _ = tokio::fs::remove_dir_all(&target).await;
-                return (StatusCode::INTERNAL_SERVER_ERROR, "copy template failed")
-                    .into_response();
+                return (StatusCode::INTERNAL_SERVER_ERROR, "copy template failed").into_response();
             }
             // Update meta.name in the copied project.yaml to match the user's
             // chosen name instead of the template's internal id.
@@ -444,13 +468,15 @@ pub async fn create_project(
                 Ok(y) => y,
                 Err(e) => {
                     warn!("create_project: serialize: {e}");
-                    return (StatusCode::INTERNAL_SERVER_ERROR, "serialize failed")
-                        .into_response();
+                    return (StatusCode::INTERNAL_SERVER_ERROR, "serialize failed").into_response();
                 }
             };
             if let Err(e) = tokio::fs::write(target.join("project.yaml"), yaml).await {
                 warn!("create_project: write project.yaml: {e}");
-                return (StatusCode::INTERNAL_SERVER_ERROR, "write project.yaml failed")
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "write project.yaml failed",
+                )
                     .into_response();
             }
             info!(name = %safe_name, "project created (empty)");
@@ -498,11 +524,21 @@ pub async fn create_project(
 /// Mappa tag→scaling lineare dai `TagDef` che definiscono tutti e quattro i
 /// campi raw/eng (F1). Riusata da open/import/PUT-tags per tenere allineata
 /// la mappa in `TagDb` a ogni modifica delle variabili.
-pub(crate) fn build_tag_scales(tags: &[sws_core::TagDef]) -> std::collections::HashMap<String, sws_core::LinearScale> {
+pub(crate) fn build_tag_scales(
+    tags: &[sws_core::TagDef],
+) -> std::collections::HashMap<String, sws_core::LinearScale> {
     tags.iter()
         .filter_map(|t| match (t.raw_min, t.raw_max, t.eng_min, t.eng_max) {
             (Some(raw_min), Some(raw_max), Some(eng_min), Some(eng_max)) if raw_max != raw_min => {
-                Some((t.id.clone(), sws_core::LinearScale { raw_min, raw_max, eng_min, eng_max }))
+                Some((
+                    t.id.clone(),
+                    sws_core::LinearScale {
+                        raw_min,
+                        raw_max,
+                        eng_min,
+                        eng_max,
+                    },
+                ))
             }
             _ => None,
         })
@@ -511,7 +547,9 @@ pub(crate) fn build_tag_scales(tags: &[sws_core::TagDef]) -> std::collections::H
 
 /// Mappa tag→ruolo minimo di scrittura (F3.1), stessi punti di refresh
 /// di `build_tag_scales`.
-pub(crate) fn build_tag_write_roles(tags: &[sws_core::TagDef]) -> std::collections::HashMap<String, String> {
+pub(crate) fn build_tag_write_roles(
+    tags: &[sws_core::TagDef],
+) -> std::collections::HashMap<String, String> {
     tags.iter()
         .filter_map(|t| t.write_min_role.as_ref().map(|r| (t.id.clone(), r.clone())))
         .collect()
@@ -519,8 +557,12 @@ pub(crate) fn build_tag_write_roles(tags: &[sws_core::TagDef]) -> std::collectio
 
 /// Mappa tag→`data_type` dichiarato (Q27), stessi punti di refresh di
 /// `build_tag_scales`. Tutti i tag ci finiscono: il default serde è "float".
-pub(crate) fn build_tag_data_types(tags: &[sws_core::TagDef]) -> std::collections::HashMap<String, String> {
-    tags.iter().map(|t| (t.id.clone(), t.data_type.clone())).collect()
+pub(crate) fn build_tag_data_types(
+    tags: &[sws_core::TagDef],
+) -> std::collections::HashMap<String, String> {
+    tags.iter()
+        .map(|t| (t.id.clone(), t.data_type.clone()))
+        .collect()
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -547,20 +589,26 @@ pub async fn apply_loaded_project(
     // Seed derived tags before populate_tags so they start Uncertain until
     // the evaluator task computes the first real value.
     {
-        let derived: Vec<(String, String)> = project.tags.iter()
+        let derived: Vec<(String, String)> = project
+            .tags
+            .iter()
             .filter_map(|t| t.expression.as_ref().map(|e| (t.id.clone(), e.clone())))
             .collect();
         *derived_tags.write().await = derived;
     }
     db.set_scales(build_tag_scales(&project.tags)).await;
-    db.set_write_roles(build_tag_write_roles(&project.tags)).await;
+    db.set_write_roles(build_tag_write_roles(&project.tags))
+        .await;
     db.set_data_types(build_tag_data_types(&project.tags)).await;
     project.populate_tags(db).await;
     // Init datastore registry before consuming the project fields.
     match DatastoreRegistry::from_project(&project, project_dir).await {
         Ok(Some(reg)) => {
             reg.clone().spawn_recorder(db.clone());
-            info!(backends = project.datastores.len(), "datastore registry initialised");
+            info!(
+                backends = project.datastores.len(),
+                "datastore registry initialised"
+            );
             *registry.write().await = Some(reg);
         }
         Ok(None) => {
@@ -574,19 +622,31 @@ pub async fn apply_loaded_project(
     // Swap the global historian's SQLite to this project's primary store.
     // All history reads/writes now go to <project>/history/historian.db.
     {
-        let hist_store = registry.read().await.as_ref()
+        let hist_store = registry
+            .read()
+            .await
+            .as_ref()
             .and_then(|r| r.primary_sqlite_store());
         historian.swap_store(hist_store).await;
     }
     alarms.load(project.alarms).await;
     // Wire the alarm journal → SQLite if a store is open.
     if let Some(store) = historian.sqlite_store().await {
-        alarms.set_journal_callback(move |ev| {
-            let store = store.clone();
-            tokio::spawn(async move { store.append_alarm_event(&ev).await; });
-        }).await;
+        alarms
+            .set_journal_callback(move |ev| {
+                let store = store.clone();
+                tokio::spawn(async move {
+                    store.append_alarm_event(&ev).await;
+                });
+            })
+            .await;
     }
-    resolve_mqtt_client_ids(&project.meta.name, &mut project.sources, config_dir, instance_id);
+    resolve_mqtt_client_ids(
+        &project.meta.name,
+        &mut project.sources,
+        config_dir,
+        instance_id,
+    );
     supervisor.reload(project.sources).await;
     {
         let mut map = functions.write().await;
@@ -597,10 +657,7 @@ pub async fn apply_loaded_project(
     (project.notifications, project.global_scripts)
 }
 
-pub async fn open_project(
-    State(s): State<AppState>,
-    Path(name): Path<String>,
-) -> Response {
+pub async fn open_project(State(s): State<AppState>, Path(name): Path<String>) -> Response {
     // Un solo cambio-progetto alla volta: vedi `AppState::project_switch_lock`.
     let _switch = s.project_switch_lock.lock().await;
     let safe_name = match safe_project_name(&name) {
@@ -640,7 +697,7 @@ pub async fn open_project(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 format!("project parse error: {e}"),
             )
-            .into_response();
+                .into_response();
         }
     };
     // Retroactively add the per-project default datastore for legacy projects
@@ -684,18 +741,33 @@ pub async fn open_project(
 
     // Point the OPC-UA plugin at this project's PKI dir so cert + key
     // travel with the project (back up + restore included).
-    s.supervisor.set_pki_root(project_dir.join("opcua-pki")).await;
+    s.supervisor
+        .set_pki_root(project_dir.join("opcua-pki"))
+        .await;
 
     // 3. Apply the new project.
     let (notifications, global_scripts) = apply_loaded_project(
-        &project_dir, project,
-        &s.db, &s.registry, &s.historian, &s.alarms, &s.supervisor,
-        &s.derived_tags, &s.functions, &s.config_dir, &s.instance_id,
-    ).await;
+        &project_dir,
+        project,
+        &s.db,
+        &s.registry,
+        &s.historian,
+        &s.alarms,
+        &s.supervisor,
+        &s.derived_tags,
+        &s.functions,
+        &s.config_dir,
+        &s.instance_id,
+    )
+    .await;
     start_project_services(&s, notifications, global_scripts).await;
 
     // 4. Swap auth store. Drops all sessions → forces re-login.
-    if let Err(e) = s.auth.swap_store(project_dir.join("users.yaml"), seed).await {
+    if let Err(e) = s
+        .auth
+        .swap_store(project_dir.join("users.yaml"), seed)
+        .await
+    {
         warn!("open_project: swap_store failed: {e:#}");
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -844,7 +916,10 @@ pub async fn delete_project(
     // Reject if the project is currently open.
     if let Ok(active) = active_dir(&s).await {
         if active == target {
-            return (StatusCode::CONFLICT, "project is currently open — close it first")
+            return (
+                StatusCode::CONFLICT,
+                "project is currently open — close it first",
+            )
                 .into_response();
         }
     }
@@ -863,7 +938,11 @@ pub async fn delete_project(
     if q.preserve_state {
         for name in DESIGN_ARTIFACTS {
             let path = target.join(name);
-            let res = if tokio::fs::metadata(&path).await.map(|m| m.is_dir()).unwrap_or(false) {
+            let res = if tokio::fs::metadata(&path)
+                .await
+                .map(|m| m.is_dir())
+                .unwrap_or(false)
+            {
                 tokio::fs::remove_dir_all(&path).await
             } else {
                 match tokio::fs::remove_file(&path).await {
@@ -872,8 +951,14 @@ pub async fn delete_project(
                 }
             };
             if let Err(e) = res {
-                warn!("delete_project(preserve_state): remove {}: {e}", path.display());
-                return (StatusCode::INTERNAL_SERVER_ERROR, "cannot clear design files")
+                warn!(
+                    "delete_project(preserve_state): remove {}: {e}",
+                    path.display()
+                );
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "cannot clear design files",
+                )
                     .into_response();
             }
         }
@@ -883,7 +968,11 @@ pub async fn delete_project(
 
     if let Err(e) = tokio::fs::remove_dir_all(&target).await {
         warn!("delete_project: remove {}: {e}", target.display());
-        return (StatusCode::INTERNAL_SERVER_ERROR, "cannot delete project dir").into_response();
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "cannot delete project dir",
+        )
+            .into_response();
     }
     s.known_projects.remove(&safe_name).await;
     // Clear the auto-open marker if it pointed at the deleted project, so the
@@ -918,7 +1007,11 @@ pub async fn rename_project(
         Err(msg) => return (StatusCode::BAD_REQUEST, msg).into_response(),
     };
     if old_name == new_name {
-        return (StatusCode::BAD_REQUEST, "new name is the same as the current name").into_response();
+        return (
+            StatusCode::BAD_REQUEST,
+            "new name is the same as the current name",
+        )
+            .into_response();
     }
     let old_dir = resolve_project_dir(&s, &old_name).await;
     if !tokio::fs::try_exists(&old_dir).await.unwrap_or(false) {
@@ -926,7 +1019,11 @@ pub async fn rename_project(
     }
     // The new name must be free both in the registry and in projects_root.
     if s.known_projects.get_path(&new_name).await.is_some() {
-        return (StatusCode::CONFLICT, "a project with the new name already exists").into_response();
+        return (
+            StatusCode::CONFLICT,
+            "a project with the new name already exists",
+        )
+            .into_response();
     }
 
     if is_external(&old_dir, s.projects_root.as_path()) {
@@ -936,8 +1033,15 @@ pub async fn rename_project(
         // sullo stesso file.
         let _scrittura = s.project_write_lock.lock().await;
         if let Err(e) = patch_project_name(&yaml_path, &new_name).await {
-            warn!("rename_project: patch meta.name {}: {e}", yaml_path.display());
-            return (StatusCode::INTERNAL_SERVER_ERROR, "cannot update project.yaml").into_response();
+            warn!(
+                "rename_project: patch meta.name {}: {e}",
+                yaml_path.display()
+            );
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "cannot update project.yaml",
+            )
+                .into_response();
         }
         s.known_projects.rename_key(&old_name, &new_name).await;
         info!(old = %old_name, new = %new_name, path = %old_dir.display(), "external project renamed (folder unchanged)");
@@ -946,7 +1050,11 @@ pub async fn rename_project(
 
     let new_dir = s.projects_root.join(&new_name);
     if tokio::fs::try_exists(&new_dir).await.unwrap_or(false) {
-        return (StatusCode::CONFLICT, "a project with the new name already exists").into_response();
+        return (
+            StatusCode::CONFLICT,
+            "a project with the new name already exists",
+        )
+            .into_response();
     }
     // Q30: il lock parte **prima** dello spostamento della cartella, non solo
     // attorno al `patch_project_name` che segue. Un salvataggio in volo scrive
@@ -958,7 +1066,11 @@ pub async fn rename_project(
     let _scrittura = s.project_write_lock.lock().await;
     if let Err(e) = tokio::fs::rename(&old_dir, &new_dir).await {
         warn!("rename_project: rename {old_name} → {new_name}: {e}");
-        return (StatusCode::INTERNAL_SERVER_ERROR, "cannot rename project dir").into_response();
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "cannot rename project dir",
+        )
+            .into_response();
     }
     // Keep meta.name in sync with the folder/registry name — otherwise a
     // project renamed while open would keep showing its old name in the UI
@@ -966,7 +1078,10 @@ pub async fn rename_project(
     // the folder it lives in).
     let yaml_path = new_dir.join("project.yaml");
     if let Err(e) = patch_project_name(&yaml_path, &new_name).await {
-        warn!("rename_project: patch meta.name {}: {e}", yaml_path.display());
+        warn!(
+            "rename_project: patch meta.name {}: {e}",
+            yaml_path.display()
+        );
     }
     // If the renamed project was open, update the active pointer.
     {
@@ -1003,18 +1118,32 @@ pub async fn duplicate_project(
         return StatusCode::NOT_FOUND.into_response();
     }
     if s.known_projects.get_path(&dst_name).await.is_some() {
-        return (StatusCode::CONFLICT, "a project with the new name already exists").into_response();
+        return (
+            StatusCode::CONFLICT,
+            "a project with the new name already exists",
+        )
+            .into_response();
     }
     let dst_dir = if is_external(&src_dir, s.projects_root.as_path()) {
         match src_dir.parent() {
             Some(parent) => parent.join(&dst_name),
-            None => return (StatusCode::INTERNAL_SERVER_ERROR, "source project has no parent directory").into_response(),
+            None => {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "source project has no parent directory",
+                )
+                    .into_response()
+            }
         }
     } else {
         s.projects_root.join(&dst_name)
     };
     if tokio::fs::try_exists(&dst_dir).await.unwrap_or(false) {
-        return (StatusCode::CONFLICT, "a project with the new name already exists").into_response();
+        return (
+            StatusCode::CONFLICT,
+            "a project with the new name already exists",
+        )
+            .into_response();
     }
     // Q30: come `create_backup_handler`, qui il lock protegge un **lettore** —
     // duplicare mentre un salvataggio è a metà produrrebbe una copia con un
@@ -1027,7 +1156,11 @@ pub async fn duplicate_project(
     }
     s.known_projects.touch(&dst_name, &dst_dir).await;
     info!(src = %src_name, dst = %dst_name, "project duplicated");
-    (StatusCode::CREATED, Json(serde_json::json!({ "name": dst_name }))).into_response()
+    (
+        StatusCode::CREATED,
+        Json(serde_json::json!({ "name": dst_name })),
+    )
+        .into_response()
 }
 
 // ── Mini file-browser (choose a project parent directory) ────────────────────
@@ -1058,10 +1191,7 @@ pub struct BrowseDirsResponse {
 /// pre-auth/LAN-trusted posture as the rest of the project-lifecycle
 /// endpoints; the maintainer explicitly wants free navigation, not a
 /// restricted picker.
-pub async fn browse_dirs(
-    State(s): State<AppState>,
-    Query(q): Query<BrowseDirsQuery>,
-) -> Response {
+pub async fn browse_dirs(State(s): State<AppState>, Query(q): Query<BrowseDirsQuery>) -> Response {
     let radice: &std::path::Path = s.projects_root.as_ref();
     let richiesto: PathBuf = match q.path.as_deref().filter(|p| !p.trim().is_empty()) {
         Some(p) => {
@@ -1079,7 +1209,9 @@ pub async fn browse_dirs(
         Ok(c) => c,
         Err(m) => return (StatusCode::BAD_REQUEST, m).into_response(),
     };
-    let radice_c = radice.canonicalize().unwrap_or_else(|_| radice.to_path_buf());
+    let radice_c = radice
+        .canonicalize()
+        .unwrap_or_else(|_| radice.to_path_buf());
 
     let mut dir = match tokio::fs::read_dir(&current).await {
         Ok(d) => d,
@@ -1106,12 +1238,19 @@ pub async fn browse_dirs(
             Ok(m) if m.is_dir() => {}
             _ => continue,
         }
-        dirs.push(BrowseDirEntry { name, path: path.to_string_lossy().to_string() });
+        dirs.push(BrowseDirEntry {
+            name,
+            path: path.to_string_lossy().to_string(),
+        });
     }
     dirs.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
 
     // Alla radice niente «su»: la UI nasconde il pulsante quando è None.
-    let parent = if current == radice_c { None } else { current.parent().map(|p| p.to_string_lossy().to_string()) };
+    let parent = if current == radice_c {
+        None
+    } else {
+        current.parent().map(|p| p.to_string_lossy().to_string())
+    };
     Json(BrowseDirsResponse {
         path: current.to_string_lossy().to_string(),
         parent,
@@ -1154,10 +1293,7 @@ fn resolve_new_dir(parent: &str, name: &str) -> Result<PathBuf, &'static str> {
 /// before any session exists, which is precisely when the first project (and
 /// its folder) gets created. Da Q46 (2026-09-09) né questa né `parent_path`
 /// escono dalla cartella dei progetti: pre-auth resta, ma il perimetro è quello.
-pub async fn create_dir(
-    State(s): State<AppState>,
-    Json(req): Json<CreateDirRequest>,
-) -> Response {
+pub async fn create_dir(State(s): State<AppState>, Json(req): Json<CreateDirRequest>) -> Response {
     let target = match resolve_new_dir(&req.parent, &req.name) {
         Ok(p) => p,
         Err(e) => return (StatusCode::BAD_REQUEST, e).into_response(),
@@ -1180,16 +1316,25 @@ pub async fn create_dir(
             info!(path = %target.display(), "directory created");
             (
                 StatusCode::CREATED,
-                Json(CreateDirResponse { path: target.to_string_lossy().to_string() }),
+                Json(CreateDirResponse {
+                    path: target.to_string_lossy().to_string(),
+                }),
             )
                 .into_response()
         }
-        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists =>
-            (StatusCode::CONFLICT, "directory already exists").into_response(),
-        Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied =>
-            (StatusCode::FORBIDDEN, format!("cannot create {}: {e}", target.display())).into_response(),
-        Err(e) =>
-            (StatusCode::BAD_REQUEST, format!("cannot create {}: {e}", target.display())).into_response(),
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+            (StatusCode::CONFLICT, "directory already exists").into_response()
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => (
+            StatusCode::FORBIDDEN,
+            format!("cannot create {}: {e}", target.display()),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            format!("cannot create {}: {e}", target.display()),
+        )
+            .into_response(),
     }
 }
 
@@ -1245,8 +1390,10 @@ pub async fn upload_project_zip(
     let _switch = s.project_switch_lock.lock().await;
     // 1. Parse the ZIP.
     let mut archive = match zip::ZipArchive::new(Cursor::new(body.as_ref())) {
-        Ok(a)  => a,
-        Err(e) => return (StatusCode::BAD_REQUEST, format!("not a valid zip: {e}")).into_response(),
+        Ok(a) => a,
+        Err(e) => {
+            return (StatusCode::BAD_REQUEST, format!("not a valid zip: {e}")).into_response()
+        }
     };
 
     // 2. Determine the project name.
@@ -1265,13 +1412,25 @@ pub async fn upload_project_zip(
             match read_zip_entry(&mut archive, "manifest.json") {
                 Ok(Some(bytes)) => match serde_json::from_slice::<UploadManifest>(&bytes) {
                     Ok(m) => m.name,
-                    Err(e) => return (StatusCode::BAD_REQUEST,
-                        format!("manifest.json parse error: {e}")).into_response(),
+                    Err(e) => {
+                        return (
+                            StatusCode::BAD_REQUEST,
+                            format!("manifest.json parse error: {e}"),
+                        )
+                            .into_response()
+                    }
                 },
-                Ok(None) => return (StatusCode::BAD_REQUEST,
-                    "ZIP has no manifest.json — supply ?name= query param").into_response(),
-                Err(e) => return (StatusCode::BAD_REQUEST,
-                    format!("zip read error: {e}")).into_response(),
+                Ok(None) => {
+                    return (
+                        StatusCode::BAD_REQUEST,
+                        "ZIP has no manifest.json — supply ?name= query param",
+                    )
+                        .into_response()
+                }
+                Err(e) => {
+                    return (StatusCode::BAD_REQUEST, format!("zip read error: {e}"))
+                        .into_response()
+                }
             }
         }
     };
@@ -1289,11 +1448,19 @@ pub async fn upload_project_zip(
         Some(p) => {
             let parent = PathBuf::from(p);
             if !parent.is_absolute() {
-                return (StatusCode::BAD_REQUEST, "parent_path must be an absolute path").into_response();
+                return (
+                    StatusCode::BAD_REQUEST,
+                    "parent_path must be an absolute path",
+                )
+                    .into_response();
             }
             if let Err(e) = tokio::fs::create_dir_all(&parent).await {
                 warn!("upload_project_zip: mkdir parent {}: {e}", parent.display());
-                return (StatusCode::BAD_REQUEST, format!("cannot create/access parent_path: {e}")).into_response();
+                return (
+                    StatusCode::BAD_REQUEST,
+                    format!("cannot create/access parent_path: {e}"),
+                )
+                    .into_response();
             }
             parent
         }
@@ -1304,18 +1471,24 @@ pub async fn upload_project_zip(
         return (
             StatusCode::CONFLICT,
             axum::Json(serde_json::json!({ "name": safe_name })),
-        ).into_response();
+        )
+            .into_response();
     }
     let target = parent_dir.join(&safe_name);
     if !q.deploy && tokio::fs::try_exists(&target).await.unwrap_or(false) {
         return (
             StatusCode::CONFLICT,
             axum::Json(serde_json::json!({ "name": safe_name })),
-        ).into_response();
+        )
+            .into_response();
     }
     if let Err(e) = tokio::fs::create_dir_all(&target).await {
         warn!("upload_project_zip: mkdir {}: {e}", target.display());
-        return (StatusCode::INTERNAL_SERVER_ERROR, "cannot create project dir").into_response();
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "cannot create project dir",
+        )
+            .into_response();
     }
 
     // 4. Extract every file from the ZIP into the project folder.
@@ -1352,7 +1525,10 @@ pub async fn upload_project_zip(
             if let Err(e) = tokio::fs::create_dir_all(parent).await {
                 warn!("upload_project_zip: mkdir {}: {e}", parent.display());
                 rollback(target.clone(), q.deploy).await;
-                return (StatusCode::INTERNAL_SERVER_ERROR, "cannot create subdirectory")
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "cannot create subdirectory",
+                )
                     .into_response();
             }
         }
@@ -1420,7 +1596,11 @@ pub async fn upload_project_zip(
 
     s.known_projects.touch(&safe_name, &target).await;
     info!(name = %safe_name, "project created from uploaded ZIP");
-    (StatusCode::CREATED, Json(serde_json::json!({ "name": safe_name }))).into_response()
+    (
+        StatusCode::CREATED,
+        Json(serde_json::json!({ "name": safe_name })),
+    )
+        .into_response()
 }
 
 /// Read a named entry from a ZipArchive into a byte vector.
@@ -1441,7 +1621,6 @@ fn read_zip_entry<R: Read + std::io::Seek>(
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
 
 /// `PUT /api/auth/users-file` — sostituisce `users.yaml` del progetto attivo con
 /// il corpo della richiesta (YAML), poi ricarica lo store di autenticazione.
@@ -1470,22 +1649,39 @@ pub async fn replace_users_file(
             "users.yaml non valido o senza utenti: rifiutato per non lasciare il dispositivo senza account.",
         ).into_response();
     }
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
     let path = dir.join("users.yaml");
     if let Err(e) = tokio::fs::write(&path, body.as_bytes()).await {
         warn!("replace_users_file: write {}: {e}", path.display());
         return (StatusCode::INTERNAL_SERVER_ERROR, "cannot write users.yaml").into_response();
     }
-    s.audit.log("auth.users_replaced", Some(user.username), serde_json::json!({
-        "count": names.len(), "users": names.clone(),
-    }));
+    s.audit.log(
+        "auth.users_replaced",
+        Some(user.username),
+        serde_json::json!({
+            "count": names.len(), "users": names.clone(),
+        }),
+    );
     if let Err(e) = s.auth.swap_store(path, build_seed_accounts()).await {
         warn!("replace_users_file: swap_store: {e:#}");
-        return (StatusCode::INTERNAL_SERVER_ERROR, format!("utenti scritti ma non ricaricati: {e}"))
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("utenti scritti ma non ricaricati: {e}"),
+        )
             .into_response();
     }
-    info!(count = names.len(), "users.yaml replaced from remote — all sessions invalidated");
-    (StatusCode::OK, Json(serde_json::json!({ "users": names.len() }))).into_response()
+    info!(
+        count = names.len(),
+        "users.yaml replaced from remote — all sessions invalidated"
+    );
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({ "users": names.len() })),
+    )
+        .into_response()
 }
 
 // ── MQTT client_id resolution ───────────────────────────────────────────────
@@ -1524,8 +1720,7 @@ fn save_client_id_overrides(
     overrides: &std::collections::HashMap<String, String>,
 ) -> std::io::Result<()> {
     std::fs::create_dir_all(config_dir)?;
-    let yaml = serde_yaml::to_string(overrides)
-        .unwrap_or_default();
+    let yaml = serde_yaml::to_string(overrides).unwrap_or_default();
     std::fs::write(client_id_overrides_path(config_dir), yaml)
 }
 
@@ -1579,11 +1774,17 @@ pub async fn set_mqtt_client_id_override(
     Path(source_id): Path<String>,
     Json(body): Json<ClientIdOverrideBody>,
 ) -> Response {
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
     let mut project = match Project::load(&dir) {
         Ok(p) => p,
         Err(e) => {
-            return (StatusCode::INTERNAL_SERVER_ERROR, format!("project parse error: {e}"))
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("project parse error: {e}"),
+            )
                 .into_response();
         }
     };
@@ -1605,15 +1806,28 @@ pub async fn set_mqtt_client_id_override(
     let key = format!("{}/{source_id}", project.meta.name);
     let mut overrides = load_client_id_overrides(&s.config_dir);
     match body.client_id.as_deref().map(str::trim) {
-        Some(v) if !v.is_empty() => { overrides.insert(key, v.to_string()); }
-        _ => { overrides.remove(&key); }
+        Some(v) if !v.is_empty() => {
+            overrides.insert(key, v.to_string());
+        }
+        _ => {
+            overrides.remove(&key);
+        }
     }
     if let Err(e) = save_client_id_overrides(&s.config_dir, &overrides) {
         warn!("set_mqtt_client_id_override: write failed: {e}");
-        return (StatusCode::INTERNAL_SERVER_ERROR, "impossibile salvare l'override").into_response();
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "impossibile salvare l'override",
+        )
+            .into_response();
     }
 
-    resolve_mqtt_client_ids(&project.meta.name, &mut project.sources, &s.config_dir, &s.instance_id);
+    resolve_mqtt_client_ids(
+        &project.meta.name,
+        &mut project.sources,
+        &s.config_dir,
+        &s.instance_id,
+    );
     let (started, stopped, replaced) = s.supervisor.reload(project.sources).await;
     info!(source = %source_id, started, stopped, replaced, "mqtt client_id override applied");
     (StatusCode::OK, Json(serde_json::json!({ "applied": true }))).into_response()
@@ -1660,7 +1874,6 @@ fn build_seed_accounts() -> Vec<(String, sws_auth::Role, String)> {
     }
     accounts
 }
-
 
 /// Rewrite `meta.name` in a copied `project.yaml` to match the user-chosen
 /// project folder name, so the ConfigView title reflects the real project
@@ -1736,8 +1949,12 @@ pub fn migrate_legacy_project_dirs(project_dir: &StdPath) {
             continue;
         }
         match std::fs::rename(&old_path, &new_path) {
-            Ok(()) => info!(project = %project_dir.display(), old, new, "migrated legacy hidden directory"),
-            Err(e) => warn!(project = %project_dir.display(), old, new, "migrate_legacy_project_dirs: rename failed: {e}"),
+            Ok(()) => {
+                info!(project = %project_dir.display(), old, new, "migrated legacy hidden directory")
+            }
+            Err(e) => {
+                warn!(project = %project_dir.display(), old, new, "migrate_legacy_project_dirs: rename failed: {e}")
+            }
         }
     }
     migrate_legacy_sqlite_path(project_dir);
@@ -1751,12 +1968,20 @@ pub fn migrate_legacy_project_dirs(project_dir: &StdPath) {
 /// untouched — this only follows the one rename this migration performs.
 fn migrate_legacy_sqlite_path(project_dir: &StdPath) {
     let yaml_path = project_dir.join("project.yaml");
-    let Ok(raw) = std::fs::read_to_string(&yaml_path) else { return };
-    let Ok(mut doc) = serde_yaml::from_str::<serde_yaml::Value>(&raw) else { return };
-    let Some(datastores) = doc.get_mut("datastores").and_then(|d| d.as_sequence_mut()) else { return };
+    let Ok(raw) = std::fs::read_to_string(&yaml_path) else {
+        return;
+    };
+    let Ok(mut doc) = serde_yaml::from_str::<serde_yaml::Value>(&raw) else {
+        return;
+    };
+    let Some(datastores) = doc.get_mut("datastores").and_then(|d| d.as_sequence_mut()) else {
+        return;
+    };
     let mut changed = false;
     for ds in datastores {
-        let Some(backend) = ds.get_mut("backend") else { continue };
+        let Some(backend) = ds.get_mut("backend") else {
+            continue;
+        };
         if backend.get("kind").and_then(|k| k.as_str()) != Some("sqlite") {
             continue;
         }
@@ -1771,10 +1996,16 @@ fn migrate_legacy_sqlite_path(project_dir: &StdPath) {
     match serde_yaml::to_string(&doc) {
         Ok(updated) => {
             if let Err(e) = crate::router::scrivi_atomico_sync(&yaml_path, updated.as_bytes()) {
-                warn!("migrate_legacy_sqlite_path: write {}: {e}", yaml_path.display());
+                warn!(
+                    "migrate_legacy_sqlite_path: write {}: {e}",
+                    yaml_path.display()
+                );
             }
         }
-        Err(e) => warn!("migrate_legacy_sqlite_path: serialize {}: {e}", yaml_path.display()),
+        Err(e) => warn!(
+            "migrate_legacy_sqlite_path: serialize {}: {e}",
+            yaml_path.display()
+        ),
     }
 }
 
@@ -1802,18 +2033,24 @@ mod tests {
 
     #[test]
     fn resolve_new_dir_accepts_and_joins() {
-        assert_eq!(resolve_new_dir("/tmp", "nuova").unwrap(), PathBuf::from("/tmp/nuova"));
+        assert_eq!(
+            resolve_new_dir("/tmp", "nuova").unwrap(),
+            PathBuf::from("/tmp/nuova")
+        );
         // both sides are trimmed
-        assert_eq!(resolve_new_dir("  /tmp  ", " nuova ").unwrap(), PathBuf::from("/tmp/nuova"));
+        assert_eq!(
+            resolve_new_dir("  /tmp  ", " nuova ").unwrap(),
+            PathBuf::from("/tmp/nuova")
+        );
     }
 
     #[test]
     fn resolve_new_dir_rejects_relative_parent_and_bad_names() {
-        assert!(resolve_new_dir("tmp", "x").is_err());        // not absolute
+        assert!(resolve_new_dir("tmp", "x").is_err()); // not absolute
         assert!(resolve_new_dir("", "x").is_err());
         assert!(resolve_new_dir("/tmp", "").is_err());
-        assert!(resolve_new_dir("/tmp", "..").is_err());      // traversal
-        assert!(resolve_new_dir("/tmp", "a/b").is_err());     // no nesting
+        assert!(resolve_new_dir("/tmp", "..").is_err()); // traversal
+        assert!(resolve_new_dir("/tmp", "a/b").is_err()); // no nesting
         assert!(resolve_new_dir("/tmp", ".hidden").is_err());
     }
 
@@ -1831,7 +2068,10 @@ mod tests {
         assert!(!project.join(".history").exists());
         assert!(!project.join(".bak").exists());
         assert!(!project.join(".opcua-pki").exists());
-        assert_eq!(std::fs::read(project.join("history/historian.db")).unwrap(), b"db");
+        assert_eq!(
+            std::fs::read(project.join("history/historian.db")).unwrap(),
+            b"db"
+        );
         assert!(project.join("backups/2026-01-01T00-00-00Z").is_dir());
         assert!(project.join("opcua-pki/mysource").is_dir());
     }
@@ -1847,7 +2087,10 @@ mod tests {
         migrate_legacy_project_dirs(project); // idempotent on a second run too
 
         assert!(!project.join(".history").exists());
-        assert_eq!(std::fs::read(project.join("history/historian.db")).unwrap(), b"already-migrated");
+        assert_eq!(
+            std::fs::read(project.join("history/historian.db")).unwrap(),
+            b"already-migrated"
+        );
     }
 
     #[test]
@@ -1864,15 +2107,23 @@ mod tests {
 
         migrate_legacy_project_dirs(project);
 
-        assert_eq!(std::fs::read(project.join(".history/historian.db")).unwrap(), b"old");
-        assert_eq!(std::fs::read(project.join("history/historian.db")).unwrap(), b"new");
+        assert_eq!(
+            std::fs::read(project.join(".history/historian.db")).unwrap(),
+            b"old"
+        );
+        assert_eq!(
+            std::fs::read(project.join("history/historian.db")).unwrap(),
+            b"new"
+        );
     }
 
     #[test]
     fn migrate_legacy_project_dirs_rewrites_the_default_sqlite_path_in_project_yaml() {
         let tmp = tempfile::TempDir::new().unwrap();
         let project = tmp.path();
-        std::fs::write(project.join("project.yaml"), "\
+        std::fs::write(
+            project.join("project.yaml"),
+            "\
 meta:
   name: test
   version: \"0.1.0\"
@@ -1882,7 +2133,9 @@ datastores:
     backend:
       kind: sqlite
       path: .history/historian.db
-").unwrap();
+",
+        )
+        .unwrap();
 
         migrate_legacy_project_dirs(project);
 
@@ -1896,7 +2149,9 @@ datastores:
     fn migrate_legacy_project_dirs_leaves_a_custom_sqlite_path_untouched() {
         let tmp = tempfile::TempDir::new().unwrap();
         let project = tmp.path();
-        std::fs::write(project.join("project.yaml"), "\
+        std::fs::write(
+            project.join("project.yaml"),
+            "\
 meta:
   name: test
   version: \"0.1.0\"
@@ -1906,7 +2161,9 @@ datastores:
     backend:
       kind: sqlite
       path: /custom/altrove/storico.db
-").unwrap();
+",
+        )
+        .unwrap();
 
         migrate_legacy_project_dirs(project);
 
@@ -1924,13 +2181,25 @@ datastores:
         let dir = tempfile::tempdir().expect("tempdir");
         let yaml = dir.path().join("project.yaml");
         // Come un template: nessun `saved_by`.
-        std::fs::write(&yaml, "meta:\n  name: da-template\n  version: '1'\ntags: []\n").unwrap();
+        std::fs::write(
+            &yaml,
+            "meta:\n  name: da-template\n  version: '1'\ntags: []\n",
+        )
+        .unwrap();
 
         super::stamp_saved_by(&yaml).await.expect("timbro");
 
-        let doc: serde_yaml::Value = serde_yaml::from_str(&std::fs::read_to_string(&yaml).unwrap()).unwrap();
-        assert_eq!(doc["saved_by"].as_str(), Some(sws_core::project::runtime_version()));
-        assert_eq!(doc["meta"]["name"].as_str(), Some("da-template"), "il resto non si tocca");
+        let doc: serde_yaml::Value =
+            serde_yaml::from_str(&std::fs::read_to_string(&yaml).unwrap()).unwrap();
+        assert_eq!(
+            doc["saved_by"].as_str(),
+            Some(sws_core::project::runtime_version())
+        );
+        assert_eq!(
+            doc["meta"]["name"].as_str(),
+            Some("da-template"),
+            "il resto non si tocca"
+        );
     }
 
     /// Il timbro non deve cadere dentro `patch_project_name`: rinominare un
@@ -1940,14 +2209,24 @@ datastores:
     async fn rinominare_non_cambia_il_timbro() {
         let dir = tempfile::tempdir().expect("tempdir");
         let yaml = dir.path().join("project.yaml");
-        std::fs::write(&yaml, "meta:\n  name: vecchio\n  version: '1'\nsaved_by: 2.1.0\ntags: []\n").unwrap();
+        std::fs::write(
+            &yaml,
+            "meta:\n  name: vecchio\n  version: '1'\nsaved_by: 2.1.0\ntags: []\n",
+        )
+        .unwrap();
 
-        super::patch_project_name(&yaml, "nuovo-nome").await.expect("rinomina");
+        super::patch_project_name(&yaml, "nuovo-nome")
+            .await
+            .expect("rinomina");
 
-        let doc: serde_yaml::Value = serde_yaml::from_str(&std::fs::read_to_string(&yaml).unwrap()).unwrap();
+        let doc: serde_yaml::Value =
+            serde_yaml::from_str(&std::fs::read_to_string(&yaml).unwrap()).unwrap();
         assert_eq!(doc["meta"]["name"].as_str(), Some("nuovo-nome"));
-        assert_eq!(doc["saved_by"].as_str(), Some("2.1.0"),
-                   "rinominare ha cancellato la provenienza: l'avviso di deriva sparirebbe");
+        assert_eq!(
+            doc["saved_by"].as_str(),
+            Some("2.1.0"),
+            "rinominare ha cancellato la provenienza: l'avviso di deriva sparirebbe"
+        );
     }
 
     /// I campi che questo build non conosce devono sopravvivere al timbro —
@@ -1956,13 +2235,23 @@ datastores:
     async fn il_timbro_non_perde_i_campi_sconosciuti() {
         let dir = tempfile::tempdir().expect("tempdir");
         let yaml = dir.path().join("project.yaml");
-        std::fs::write(&yaml, "meta:\n  name: x\n  version: '1'\ntags: []\nroba_futura:\n  chiave: valore\n").unwrap();
+        std::fs::write(
+            &yaml,
+            "meta:\n  name: x\n  version: '1'\ntags: []\nroba_futura:\n  chiave: valore\n",
+        )
+        .unwrap();
 
         super::stamp_saved_by(&yaml).await.expect("timbro");
 
         let testo = std::fs::read_to_string(&yaml).unwrap();
-        assert!(testo.contains("roba_futura"), "chiave sconosciuta persa:\n{testo}");
-        assert!(testo.contains("valore"), "contenuto della chiave sconosciuta perso:\n{testo}");
+        assert!(
+            testo.contains("roba_futura"),
+            "chiave sconosciuta persa:\n{testo}"
+        );
+        assert!(
+            testo.contains("valore"),
+            "contenuto della chiave sconosciuta perso:\n{testo}"
+        );
     }
 
     /// Q46: il confine è la cartella dei progetti, e si misura dopo
@@ -1977,10 +2266,16 @@ datastores:
 
         assert!(dentro_radice(&radice, &radice).is_ok(), "la radice stessa");
         assert!(dentro_radice(&radice, &radice.join("impianto_a")).is_ok());
-        assert!(dentro_radice(&radice, &radice.join("impianto_a/../..")).is_err(), "risale fuori");
+        assert!(
+            dentro_radice(&radice, &radice.join("impianto_a/../..")).is_err(),
+            "risale fuori"
+        );
         assert!(dentro_radice(&radice, &tmp.path().join("altrove")).is_err());
         assert!(dentro_radice(&radice, std::path::Path::new("/etc")).is_err());
-        assert!(dentro_radice(&radice, &radice.join("non_esiste")).is_err(), "deve esistere");
+        assert!(
+            dentro_radice(&radice, &radice.join("non_esiste")).is_err(),
+            "deve esistere"
+        );
     }
 
     #[test]
@@ -1990,8 +2285,10 @@ datastores:
         std::fs::create_dir_all(&radice).unwrap();
         std::fs::create_dir_all(tmp.path().join("fuori")).unwrap();
         std::os::unix::fs::symlink(tmp.path().join("fuori"), radice.join("scorciatoia")).unwrap();
-        assert!(dentro_radice(&radice, &radice.join("scorciatoia")).is_err(),
-            "un link dentro la radice che punta fuori è fuori");
+        assert!(
+            dentro_radice(&radice, &radice.join("scorciatoia")).is_err(),
+            "un link dentro la radice che punta fuori è fuori"
+        );
     }
 
     #[test]
@@ -2000,8 +2297,14 @@ datastores:
         let radice = tmp.path().join("progetti");
         std::fs::create_dir_all(&radice).unwrap();
         assert!(dentro_radice_nuovo(&radice, &radice.join("nuova")).is_ok());
-        assert!(dentro_radice_nuovo(&radice, &radice.join("manca/nuova")).is_err(), "genitore inesistente");
-        assert!(dentro_radice_nuovo(&radice, &tmp.path().join("nuova")).is_err(), "genitore fuori");
+        assert!(
+            dentro_radice_nuovo(&radice, &radice.join("manca/nuova")).is_err(),
+            "genitore inesistente"
+        );
+        assert!(
+            dentro_radice_nuovo(&radice, &tmp.path().join("nuova")).is_err(),
+            "genitore fuori"
+        );
         assert!(dentro_radice_nuovo(&radice, &radice.join("..")).is_err());
     }
 }

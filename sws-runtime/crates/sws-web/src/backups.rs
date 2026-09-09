@@ -34,9 +34,9 @@ const BACKED_UP: &[&str] = &[
     "project.yaml",
     "synoptics",
     "users.yaml",
-    "history",   // per-project SQLite historian — needed to restore on another host
-    "recipes",   // recipe files (skipped silently if absent)
-    "images",    // user-uploaded images referenced by synoptics (bg_image & co.)
+    "history", // per-project SQLite historian — needed to restore on another host
+    "recipes", // recipe files (skipped silently if absent)
+    "images",  // user-uploaded images referenced by synoptics (bg_image & co.)
 ];
 
 #[derive(Serialize, Debug, Clone)]
@@ -60,8 +60,12 @@ fn timestamp_name() -> String {
     // `Z` so the format is still recognisable as UTC ISO 8601.
     format!(
         "{:04}-{:02}-{:02}T{:02}-{:02}-{:02}Z",
-        now.year(), now.month() as u8, now.day(),
-        now.hour(), now.minute(), now.second(),
+        now.year(),
+        now.month() as u8,
+        now.day(),
+        now.hour(),
+        now.minute(),
+        now.second(),
     )
 }
 
@@ -109,7 +113,9 @@ pub fn backup_now(project_dir: &Path) -> std::io::Result<PathBuf> {
     std::fs::create_dir_all(&dst)?;
     for name in BACKED_UP {
         let src = project_dir.join(name);
-        if !src.exists() { continue; }
+        if !src.exists() {
+            continue;
+        }
         let to = dst.join(name);
         copy_recursive(&src, &to)?;
     }
@@ -119,18 +125,31 @@ pub fn backup_now(project_dir: &Path) -> std::io::Result<PathBuf> {
 /// Enumerate every backup directory in `<project>/backups/`, newest first.
 pub fn list_backups(project_dir: &Path) -> Vec<BackupInfo> {
     let dir = bak_dir(project_dir);
-    let Ok(entries) = std::fs::read_dir(&dir) else { return Vec::new(); };
-    let mut out: Vec<BackupInfo> = entries.filter_map(|e| e.ok()).filter_map(|entry| {
-        if !entry.file_type().ok()?.is_dir() { return None; }
-        let name = entry.file_name().to_string_lossy().into_owned();
-        let meta = entry.metadata().ok()?;
-        let created_at_ms = meta.modified().ok()
-            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-            .map(|d| d.as_millis() as i128)
-            .unwrap_or(0);
-        let size_bytes = dir_size(&entry.path());
-        Some(BackupInfo { name, created_at_ms, size_bytes })
-    }).collect();
+    let Ok(entries) = std::fs::read_dir(&dir) else {
+        return Vec::new();
+    };
+    let mut out: Vec<BackupInfo> = entries
+        .filter_map(|e| e.ok())
+        .filter_map(|entry| {
+            if !entry.file_type().ok()?.is_dir() {
+                return None;
+            }
+            let name = entry.file_name().to_string_lossy().into_owned();
+            let meta = entry.metadata().ok()?;
+            let created_at_ms = meta
+                .modified()
+                .ok()
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_millis() as i128)
+                .unwrap_or(0);
+            let size_bytes = dir_size(&entry.path());
+            Some(BackupInfo {
+                name,
+                created_at_ms,
+                size_bytes,
+            })
+        })
+        .collect();
     // Names sort lexicographically = chronologically thanks to the
     // YYYY-MM-DDTHH-MM-SSZ format. Newest first.
     out.sort_by(|a, b| b.name.cmp(&a.name));
@@ -145,12 +164,17 @@ pub fn list_backups(project_dir: &Path) -> Vec<BackupInfo> {
 pub fn restore_backup(project_dir: &Path, name: &str) -> std::io::Result<()> {
     let src_root = bak_dir(project_dir).join(name);
     if !src_root.is_dir() {
-        return Err(std::io::Error::new(std::io::ErrorKind::NotFound, "backup not found"));
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "backup not found",
+        ));
     }
     for entry in BACKED_UP {
         let live = project_dir.join(entry);
         let snap = src_root.join(entry);
-        if !snap.exists() { continue; }
+        if !snap.exists() {
+            continue;
+        }
         if live.exists() {
             if live.is_dir() {
                 std::fs::remove_dir_all(&live)?;
@@ -192,7 +216,8 @@ fn add_dir_to_zip<W: std::io::Write + std::io::Seek>(
     for entry in std::fs::read_dir(dir)? {
         let entry = entry?;
         let path = entry.path();
-        let rel = path.strip_prefix(base)
+        let rel = path
+            .strip_prefix(base)
             .map_err(std::io::Error::other)?
             .to_string_lossy()
             .replace('\\', "/");
@@ -210,7 +235,10 @@ fn add_dir_to_zip<W: std::io::Write + std::io::Seek>(
 pub fn delete_backup(project_dir: &Path, name: &str) -> std::io::Result<()> {
     let path = bak_dir(project_dir).join(name);
     if !path.is_dir() {
-        return Err(std::io::Error::new(std::io::ErrorKind::NotFound, "backup not found"));
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "backup not found",
+        ));
     }
     std::fs::remove_dir_all(&path)
 }
@@ -218,7 +246,9 @@ pub fn delete_backup(project_dir: &Path, name: &str) -> std::io::Result<()> {
 /// Trim the backup list to the most recent `keep` entries.
 pub fn prune_backups(project_dir: &Path, keep: usize) {
     let backups = list_backups(project_dir);
-    if backups.len() <= keep { return; }
+    if backups.len() <= keep {
+        return;
+    }
     for b in backups.into_iter().skip(keep) {
         if let Err(e) = delete_backup(project_dir, &b.name) {
             warn!("backups: cannot prune {}: {e}", b.name);
@@ -231,12 +261,18 @@ pub fn prune_backups(project_dir: &Path, keep: usize) {
 // ── HTTP handlers ────────────────────────────────────────────────────────────
 
 pub async fn list_backups_handler(State(s): State<AppState>) -> Response {
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
     Json(list_backups(&dir)).into_response()
 }
 
 pub async fn create_backup_handler(State(s): State<AppState>) -> Response {
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
     // Q30: qui il lock protegge un **lettore**. `backup_now` copia project.yaml
     // e i sinottici uno per uno: senza, uno snapshot preso mentre un
     // salvataggio è a metà archivia un progetto che non è mai esistito — e un
@@ -244,13 +280,21 @@ pub async fn create_backup_handler(State(s): State<AppState>) -> Response {
     let _scrittura = s.project_write_lock.lock().await;
     match backup_now(&dir) {
         Ok(path) => {
-            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("").to_string();
+            let name = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("")
+                .to_string();
             info!(backup = %name, "backup created");
             Json(serde_json::json!({ "name": name })).into_response()
         }
         Err(e) => {
             warn!("backup create failed: {e}");
-            (StatusCode::INTERNAL_SERVER_ERROR, format!("backup failed: {e}")).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("backup failed: {e}"),
+            )
+                .into_response()
         }
     }
 }
@@ -271,7 +315,10 @@ pub async fn restore_backup_handler(
     State(s): State<AppState>,
     AxPath(name): AxPath<String>,
 ) -> Response {
-    let dir = match progetto_e_nome_backup(&s, &name).await { Ok(d) => d, Err(r) => return r };
+    let dir = match progetto_e_nome_backup(&s, &name).await {
+        Ok(d) => d,
+        Err(r) => return r,
+    };
     // Q30: il restore riscrive project.yaml, i sinottici e users.yaml. Un
     // salvataggio concorrente scriverebbe dentro un progetto a metà ripristino.
     let _scrittura = s.project_write_lock.lock().await;
@@ -285,7 +332,11 @@ pub async fn restore_backup_handler(
         }
         Err(e) => {
             warn!("backup restore {name} failed: {e}");
-            (StatusCode::INTERNAL_SERVER_ERROR, format!("restore failed: {e}")).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("restore failed: {e}"),
+            )
+                .into_response()
         }
     }
 }
@@ -298,7 +349,10 @@ pub async fn download_backup_handler(
     State(s): State<AppState>,
     AxPath(name): AxPath<String>,
 ) -> Response {
-    let dir = match progetto_e_nome_backup(&s, &name).await { Ok(d) => d, Err(r) => return r };
+    let dir = match progetto_e_nome_backup(&s, &name).await {
+        Ok(d) => d,
+        Err(r) => return r,
+    };
     let backup_dir = bak_dir(&dir).join(&name);
     if !backup_dir.is_dir() {
         return (StatusCode::NOT_FOUND, "backup not found").into_response();
@@ -307,12 +361,19 @@ pub async fn download_backup_handler(
         Ok(bytes) => Response::builder()
             .status(StatusCode::OK)
             .header(header::CONTENT_TYPE, "application/zip")
-            .header(header::CONTENT_DISPOSITION, format!("attachment; filename=\"{name}.zip\""))
+            .header(
+                header::CONTENT_DISPOSITION,
+                format!("attachment; filename=\"{name}.zip\""),
+            )
             .body(Body::from(bytes))
             .unwrap(),
         Err(e) => {
             warn!("backup download {name} failed: {e}");
-            (StatusCode::INTERNAL_SERVER_ERROR, format!("zip failed: {e}")).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("zip failed: {e}"),
+            )
+                .into_response()
         }
     }
 }
@@ -321,7 +382,10 @@ pub async fn delete_backup_handler(
     State(s): State<AppState>,
     AxPath(name): AxPath<String>,
 ) -> Response {
-    let dir = match progetto_e_nome_backup(&s, &name).await { Ok(d) => d, Err(r) => return r };
+    let dir = match progetto_e_nome_backup(&s, &name).await {
+        Ok(d) => d,
+        Err(r) => return r,
+    };
     match delete_backup(&dir, &name) {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => (StatusCode::NOT_FOUND, format!("not found: {e}")).into_response(),
@@ -333,7 +397,9 @@ pub async fn delete_backup_handler(
 fn safe_backup_name(name: &str) -> bool {
     !name.is_empty()
         && name.len() <= 32
-        && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == 'T' || c == 'Z')
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == 'T' || c == 'Z')
         && !name.contains("..")
 }
 
@@ -355,7 +421,11 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let project = tmp.path();
         write(project, "project.yaml", "name: test\n");
-        write(project, "synoptics/Page 1.yaml", "id: a\nname: Page 1\nobjects: []\n");
+        write(
+            project,
+            "synoptics/Page 1.yaml",
+            "id: a\nname: Page 1\nobjects: []\n",
+        );
         write(project, "users.yaml", "users: []\n");
 
         let snap = backup_now(project).unwrap();
@@ -393,11 +463,14 @@ mod tests {
             .map(|i| archive.by_index(i).unwrap().name().to_string())
             .collect();
         names.sort();
-        assert_eq!(names, vec![
-            "history/historian.db",
-            "project.yaml",
-            "synoptics/Page 1.yaml",
-        ]);
+        assert_eq!(
+            names,
+            vec![
+                "history/historian.db",
+                "project.yaml",
+                "synoptics/Page 1.yaml",
+            ]
+        );
 
         let mut db_entry = archive.by_name("history/historian.db").unwrap();
         let mut out = Vec::new();
@@ -411,7 +484,11 @@ mod tests {
         let project = tmp.path();
         write(project, "project.yaml", "x: 1");
         // Manually create three backups with predictable names.
-        for name in ["2026-01-01T00-00-00Z", "2026-02-01T00-00-00Z", "2026-03-01T00-00-00Z"] {
+        for name in [
+            "2026-01-01T00-00-00Z",
+            "2026-02-01T00-00-00Z",
+            "2026-03-01T00-00-00Z",
+        ] {
             let p = bak_dir(project).join(name);
             std::fs::create_dir_all(&p).unwrap();
             std::fs::write(p.join("project.yaml"), "x: 1").unwrap();

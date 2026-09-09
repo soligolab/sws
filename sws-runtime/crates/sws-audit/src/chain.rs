@@ -6,8 +6,8 @@
 //! configured, `sig = HMAC-SHA256(key, hash)` makes it tamper-*resistant* too
 //! (an attacker without the key can't recompute a valid chain).
 
-use sha2::{Digest, Sha256};
 use hmac::{Hmac, Mac};
+use sha2::{Digest, Sha256};
 
 type HmacSha256 = Hmac<Sha256>;
 

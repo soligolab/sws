@@ -50,13 +50,17 @@ pub struct ImprontaStore {
 }
 
 impl ImprontaStore {
-    pub fn new(path: PathBuf) -> Self { Self { path } }
+    pub fn new(path: PathBuf) -> Self {
+        Self { path }
+    }
 
     pub fn in_config(config_dir: &Path) -> Self {
         Self::new(config_dir.join("dispositivi_conosciuti.yaml"))
     }
 
-    pub fn path(&self) -> &Path { &self.path }
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
 
     fn carica(&self) -> BTreeMap<String, Voce> {
         match std::fs::read_to_string(&self.path) {
@@ -66,7 +70,9 @@ impl ImprontaStore {
     }
 
     fn salva(&self, m: &BTreeMap<String, Voce>) -> std::io::Result<()> {
-        if let Some(dir) = self.path.parent() { std::fs::create_dir_all(dir)?; }
+        if let Some(dir) = self.path.parent() {
+            std::fs::create_dir_all(dir)?;
+        }
         let testo = serde_yaml::to_string(m).map_err(std::io::Error::other)?;
         std::fs::write(&self.path, testo)
     }
@@ -77,7 +83,13 @@ impl ImprontaStore {
 
     pub fn memorizza(&self, host_port: &str, impronta: &str) -> std::io::Result<()> {
         let mut m = self.carica();
-        m.insert(host_port.to_string(), Voce { impronta: impronta.to_string(), visto_il_ms: sws_core::now_ms() });
+        m.insert(
+            host_port.to_string(),
+            Voce {
+                impronta: impronta.to_string(),
+                visto_il_ms: sws_core::now_ms(),
+            },
+        );
         self.salva(&m)
     }
 
@@ -85,7 +97,9 @@ impl ImprontaStore {
     pub fn dimentica(&self, host_port: &str) -> std::io::Result<bool> {
         let mut m = self.carica();
         let c = m.remove(host_port).is_some();
-        if c { self.salva(&m)?; }
+        if c {
+            self.salva(&m)?;
+        }
         Ok(c)
     }
 
@@ -93,9 +107,21 @@ impl ImprontaStore {
     /// UI conosce l'host, non sempre la porta con cui era stato salvato.
     pub fn dimentica_host(&self, host: &str) -> std::io::Result<Vec<String>> {
         let mut m = self.carica();
-        let chiavi: Vec<String> = m.keys().filter(|k| k.rsplit_once(':').map(|(h, _)| h == host).unwrap_or(*k == host)).cloned().collect();
-        for k in &chiavi { m.remove(k); }
-        if !chiavi.is_empty() { self.salva(&m)?; }
+        let chiavi: Vec<String> = m
+            .keys()
+            .filter(|k| {
+                k.rsplit_once(':')
+                    .map(|(h, _)| h == host)
+                    .unwrap_or(*k == host)
+            })
+            .cloned()
+            .collect();
+        for k in &chiavi {
+            m.remove(k);
+        }
+        if !chiavi.is_empty() {
+            self.salva(&m)?;
+        }
         Ok(chiavi)
     }
 }
@@ -104,7 +130,9 @@ pub fn impronta_sha256(der: &[u8]) -> String {
     let h = Sha256::digest(der);
     let mut s = String::with_capacity(7 + 64);
     s.push_str("sha256:");
-    for b in h { s.push_str(&format!("{b:02x}")); }
+    for b in h {
+        s.push_str(&format!("{b:02x}"));
+    }
     s
 }
 
@@ -152,7 +180,10 @@ impl ServerCertVerifier for VerificatorePin {
                 // Primo contatto: si memorizza. Se il disco rifiuta, meglio
                 // fermarsi che fidarsi senza poterselo ricordare.
                 self.store.memorizza(&self.host_port, &vista).map_err(|e| {
-                    rustls::Error::General(format!("impossibile memorizzare l'impronta di {}: {e}", self.host_port))
+                    rustls::Error::General(format!(
+                        "impossibile memorizzare l'impronta di {}: {e}",
+                        self.host_port
+                    ))
                 })?;
                 tracing::info!(host = %self.host_port, impronta = %vista, "certificato memorizzato al primo contatto");
                 Ok(ServerCertVerified::assertion())
@@ -161,26 +192,48 @@ impl ServerCertVerifier for VerificatorePin {
     }
 
     fn verify_tls12_signature(
-        &self, message: &[u8], cert: &CertificateDer<'_>, dss: &DigitallySignedStruct,
+        &self,
+        message: &[u8],
+        cert: &CertificateDer<'_>,
+        dss: &DigitallySignedStruct,
     ) -> Result<HandshakeSignatureValid, rustls::Error> {
-        rustls::crypto::verify_tls12_signature(message, cert, dss, &self.provider.signature_verification_algorithms)
+        rustls::crypto::verify_tls12_signature(
+            message,
+            cert,
+            dss,
+            &self.provider.signature_verification_algorithms,
+        )
     }
 
     fn verify_tls13_signature(
-        &self, message: &[u8], cert: &CertificateDer<'_>, dss: &DigitallySignedStruct,
+        &self,
+        message: &[u8],
+        cert: &CertificateDer<'_>,
+        dss: &DigitallySignedStruct,
     ) -> Result<HandshakeSignatureValid, rustls::Error> {
-        rustls::crypto::verify_tls13_signature(message, cert, dss, &self.provider.signature_verification_algorithms)
+        rustls::crypto::verify_tls13_signature(
+            message,
+            cert,
+            dss,
+            &self.provider.signature_verification_algorithms,
+        )
     }
 
     fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
-        self.provider.signature_verification_algorithms.supported_schemes()
+        self.provider
+            .signature_verification_algorithms
+            .supported_schemes()
     }
 }
 
 /// `ClientConfig` rustls che si fida di `host_port` per impronta.
 pub fn client_config_pinnato(host_port: &str, store: Arc<ImprontaStore>) -> rustls::ClientConfig {
     let provider = Arc::new(rustls::crypto::ring::default_provider());
-    let verificatore = Arc::new(VerificatorePin { host_port: host_port.to_string(), store, provider: provider.clone() });
+    let verificatore = Arc::new(VerificatorePin {
+        host_port: host_port.to_string(),
+        store,
+        provider: provider.clone(),
+    });
     rustls::ClientConfig::builder_with_provider(provider)
         .with_safe_default_protocol_versions()
         .expect("versioni TLS predefinite")
@@ -201,11 +254,21 @@ mod tests {
 
     fn verifica(v: &VerificatorePin, der: &[u8]) -> Result<ServerCertVerified, rustls::Error> {
         let sn = ServerName::try_from("pannello.local").unwrap();
-        v.verify_server_cert(&CertificateDer::from(der.to_vec()), &[], &sn, &[], UnixTime::now())
+        v.verify_server_cert(
+            &CertificateDer::from(der.to_vec()),
+            &[],
+            &sn,
+            &[],
+            UnixTime::now(),
+        )
     }
 
     fn verificatore(store: Arc<ImprontaStore>) -> VerificatorePin {
-        VerificatorePin { host_port: "pannello.local:8444".into(), store, provider: Arc::new(rustls::crypto::ring::default_provider()) }
+        VerificatorePin {
+            host_port: "pannello.local:8444".into(),
+            store,
+            provider: Arc::new(rustls::crypto::ring::default_provider()),
+        }
     }
 
     #[test]
@@ -213,7 +276,10 @@ mod tests {
         let (_d, store) = store_prova();
         let v = verificatore(store.clone());
         assert!(verifica(&v, b"cert-A").is_ok());
-        assert_eq!(store.impronta_di("pannello.local:8444"), Some(impronta_sha256(b"cert-A")));
+        assert_eq!(
+            store.impronta_di("pannello.local:8444"),
+            Some(impronta_sha256(b"cert-A"))
+        );
     }
 
     #[test]
@@ -225,7 +291,10 @@ mod tests {
         let err = verifica(&v, b"cert-B").unwrap_err().to_string();
         assert!(e_certificato_cambiato(&err), "{err}");
         // e NON ha sovrascritto la voce: la decisione resta a una persona
-        assert_eq!(store.impronta_di("pannello.local:8444"), Some(impronta_sha256(b"cert-A")));
+        assert_eq!(
+            store.impronta_di("pannello.local:8444"),
+            Some(impronta_sha256(b"cert-A"))
+        );
     }
 
     #[test]
@@ -234,16 +303,34 @@ mod tests {
         let v = verificatore(store.clone());
         verifica(&v, b"cert-A").unwrap();
         assert!(verifica(&v, b"cert-B").is_err());
-        assert_eq!(store.dimentica_host("pannello.local").unwrap(), vec!["pannello.local:8444".to_string()]);
-        assert!(verifica(&v, b"cert-B").is_ok(), "dopo «dimentica» il nuovo certificato è il primo contatto");
-        assert_eq!(store.impronta_di("pannello.local:8444"), Some(impronta_sha256(b"cert-B")));
+        assert_eq!(
+            store.dimentica_host("pannello.local").unwrap(),
+            vec!["pannello.local:8444".to_string()]
+        );
+        assert!(
+            verifica(&v, b"cert-B").is_ok(),
+            "dopo «dimentica» il nuovo certificato è il primo contatto"
+        );
+        assert_eq!(
+            store.impronta_di("pannello.local:8444"),
+            Some(impronta_sha256(b"cert-B"))
+        );
     }
 
     #[test]
     fn la_chiave_e_host_e_porta_insieme() {
-        assert_eq!(host_port_da_url("https://wp630.local:8444/api"), Some("wp630.local:8444".into()));
-        assert_eq!(host_port_da_url("https://wp630.local"), Some("wp630.local:443".into()));
-        assert_eq!(host_port_da_url("http://192.168.1.34:8444"), Some("192.168.1.34:8444".into()));
+        assert_eq!(
+            host_port_da_url("https://wp630.local:8444/api"),
+            Some("wp630.local:8444".into())
+        );
+        assert_eq!(
+            host_port_da_url("https://wp630.local"),
+            Some("wp630.local:443".into())
+        );
+        assert_eq!(
+            host_port_da_url("http://192.168.1.34:8444"),
+            Some("192.168.1.34:8444".into())
+        );
         assert_eq!(host_port_da_url("non è un url"), None);
     }
 
@@ -265,6 +352,10 @@ mod tests {
         let p = d.path().join("dispositivi_conosciuti.yaml");
         std::fs::write(&p, "{ non: [yaml valido").unwrap();
         let store = ImprontaStore::new(p);
-        assert_eq!(store.impronta_di("x:1"), None, "corrotto = vuoto, quindi primo contatto, mai «passa»");
+        assert_eq!(
+            store.impronta_di("x:1"),
+            None,
+            "corrotto = vuoto, quindi primo contatto, mai «passa»"
+        );
     }
 }

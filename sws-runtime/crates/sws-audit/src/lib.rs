@@ -6,9 +6,9 @@
 
 pub mod chain;
 
+use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 use tracing::warn;
 
@@ -48,12 +48,21 @@ impl AuditLog {
     /// last valid line of an existing file. `key` enables HMAC signing.
     pub fn open(path: PathBuf, key: Option<Vec<u8>>) -> Self {
         let (seq, last_hash) = read_tail(&path).unwrap_or((0, GENESIS_HASH.to_string()));
-        AuditLog { path, key, state: Mutex::new(State { seq, last_hash }) }
+        AuditLog {
+            path,
+            key,
+            state: Mutex::new(State { seq, last_hash }),
+        }
     }
 
     /// Fire-and-forget append. Never blocks the caller beyond spawning a task;
     /// failures are logged, never propagated (audit must not break the request).
-    pub fn log(self: &Arc<Self>, action: impl Into<String>, actor: Option<String>, detail: serde_json::Value) {
+    pub fn log(
+        self: &Arc<Self>,
+        action: impl Into<String>,
+        actor: Option<String>,
+        detail: serde_json::Value,
+    ) {
         let this = Arc::clone(self);
         let action = action.into();
         tokio::spawn(async move {
@@ -63,7 +72,12 @@ impl AuditLog {
         });
     }
 
-    async fn append(&self, action: String, actor: Option<String>, detail: serde_json::Value) -> anyhow::Result<()> {
+    async fn append(
+        &self,
+        action: String,
+        actor: Option<String>,
+        detail: serde_json::Value,
+    ) -> anyhow::Result<()> {
         use tokio::io::AsyncWriteExt;
         let mut st = self.state.lock().await;
         let seq = st.seq + 1;
@@ -71,9 +85,22 @@ impl AuditLog {
         let prev_hash = st.last_hash.clone();
         let hash = chain::entry_hash(seq, ts_ms, actor.as_deref(), &action, &detail, &prev_hash);
         let sig = self.key.as_ref().map(|k| chain::hmac_sign(k, &hash));
-        let entry = AuditEntry { seq, ts_ms, actor, action, detail, prev_hash, hash: hash.clone(), sig };
+        let entry = AuditEntry {
+            seq,
+            ts_ms,
+            actor,
+            action,
+            detail,
+            prev_hash,
+            hash: hash.clone(),
+            sig,
+        };
         let line = serde_json::to_string(&entry)? + "\n";
-        let mut f = tokio::fs::OpenOptions::new().create(true).append(true).open(&self.path).await?;
+        let mut f = tokio::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&self.path)
+            .await?;
         f.write_all(line.as_bytes()).await?;
         f.flush().await?;
         st.seq = seq;
@@ -83,8 +110,13 @@ impl AuditLog {
 
     /// Most-recent `limit` entries (oldest first within the window).
     pub async fn tail(&self, limit: usize) -> Vec<AuditEntry> {
-        let content = tokio::fs::read_to_string(&self.path).await.unwrap_or_default();
-        let mut all: Vec<AuditEntry> = content.lines().filter_map(|l| serde_json::from_str(l).ok()).collect();
+        let content = tokio::fs::read_to_string(&self.path)
+            .await
+            .unwrap_or_default();
+        let mut all: Vec<AuditEntry> = content
+            .lines()
+            .filter_map(|l| serde_json::from_str(l).ok())
+            .collect();
         let n = all.len();
         if n > limit {
             all.drain(0..n - limit);
@@ -129,7 +161,14 @@ pub fn verify(path: &Path, key: Option<&[u8]>) -> VerifyReport {
         if e.prev_hash != prev {
             return broken(count, e.seq, "prev_hash non concatenato");
         }
-        let h = chain::entry_hash(e.seq, e.ts_ms, e.actor.as_deref(), &e.action, &e.detail, &e.prev_hash);
+        let h = chain::entry_hash(
+            e.seq,
+            e.ts_ms,
+            e.actor.as_deref(),
+            &e.action,
+            &e.detail,
+            &e.prev_hash,
+        );
         if h != e.hash {
             return broken(count, e.seq, "hash non valido (entry alterata)");
         }
@@ -142,11 +181,21 @@ pub fn verify(path: &Path, key: Option<&[u8]>) -> VerifyReport {
         expected_seq += 1;
         count += 1;
     }
-    VerifyReport { ok: true, entries: count, broken_at: None, reason: None }
+    VerifyReport {
+        ok: true,
+        entries: count,
+        broken_at: None,
+        reason: None,
+    }
 }
 
 fn broken(count: u64, seq: u64, reason: &str) -> VerifyReport {
-    VerifyReport { ok: false, entries: count, broken_at: Some(seq), reason: Some(reason.to_string()) }
+    VerifyReport {
+        ok: false,
+        entries: count,
+        broken_at: Some(seq),
+        reason: Some(reason.to_string()),
+    }
 }
 
 fn read_tail(path: &Path) -> Option<(u64, String)> {
@@ -176,9 +225,23 @@ mod tests {
         let log = Arc::new(AuditLog::open(path.clone(), Some(b"secret".to_vec())));
 
         // Append 3 entries directly (await, not fire-and-forget, for determinism).
-        log.append("auth.login".into(), Some("mauro".into()), json!({"role":"Admin"})).await.unwrap();
-        log.append("project.change".into(), Some("mauro".into()), json!({"what":"tags"})).await.unwrap();
-        log.append("script.exec".into(), None, json!({"bytes":42})).await.unwrap();
+        log.append(
+            "auth.login".into(),
+            Some("mauro".into()),
+            json!({"role":"Admin"}),
+        )
+        .await
+        .unwrap();
+        log.append(
+            "project.change".into(),
+            Some("mauro".into()),
+            json!({"what":"tags"}),
+        )
+        .await
+        .unwrap();
+        log.append("script.exec".into(), None, json!({"bytes":42}))
+            .await
+            .unwrap();
 
         let rep = verify(&path, Some(b"secret"));
         assert!(rep.ok, "expected ok, got {rep:?}");

@@ -15,9 +15,9 @@
 //! 0.55 da attenuato — questo modulo usa lo stesso.
 
 use crate::client::{AlarmStateLite, TagSnapshot, TagSnapshotValue};
-use sws_core::tag::{TagQuality, TagValue};
 use crate::model::SynopticObject;
 use std::collections::HashMap;
+use sws_core::tag::{TagQuality, TagValue};
 
 /// Opacità della fase "spenta" del lampeggio: `opacity: 0.15` nei keyframes
 /// `sws-obj-blink` del web. Non zero — un oggetto che sparisce del tutto
@@ -219,7 +219,11 @@ mod tests {
     use crate::client::{AlarmDefLite, TagSnapshotValue};
 
     fn tag_bool(v: bool) -> TagSnapshotValue {
-        TagSnapshotValue { value: TagValue::Bool(v), quality: TagQuality::Good, ts: 1_000 }
+        TagSnapshotValue {
+            value: TagValue::Bool(v),
+            quality: TagQuality::Good,
+            ts: 1_000,
+        }
     }
 
     fn allarme(id: &str, tag: &str, sev: &str, attivo: bool, ack: bool) -> AlarmStateLite {
@@ -249,8 +253,11 @@ mod tests {
             blink_tag: None,
             ..Default::default()
         };
-        assert_eq!(lampeggio_di(&obj), Lampeggio::Mai,
-                   "un progetto incompleto non deve diventare un allarme permanente");
+        assert_eq!(
+            lampeggio_di(&obj),
+            Lampeggio::Mai,
+            "un progetto incompleto non deve diventare un allarme permanente"
+        );
     }
 
     #[test]
@@ -258,7 +265,10 @@ mod tests {
         let l = Lampeggio::SeTag("p".into());
         let mut t = TagSnapshot::new();
         let vuoto = HashMap::new();
-        assert!(!deve_lampeggiare(&l, None, &t, &vuoto), "tag assente: fermo");
+        assert!(
+            !deve_lampeggiare(&l, None, &t, &vuoto),
+            "tag assente: fermo"
+        );
         t.insert("p".into(), tag_bool(true));
         assert!(deve_lampeggiare(&l, None, &t, &vuoto));
         t.insert("p".into(), tag_bool(false));
@@ -281,10 +291,16 @@ mod tests {
     /// visto non deve zittire quello che nessuno ha ancora guardato.
     #[test]
     fn fra_due_allarmi_sullo_stesso_tag_vince_quello_non_riconosciuto() {
-        for ordine in [vec![("a1", true), ("a2", false)], vec![("a1", false), ("a2", true)]] {
-            let m = mappa(ordine.iter()
-                .map(|(id, ack)| allarme(id, "t", "Warning", true, *ack))
-                .collect());
+        for ordine in [
+            vec![("a1", true), ("a2", false)],
+            vec![("a1", false), ("a2", true)],
+        ] {
+            let m = mappa(
+                ordine
+                    .iter()
+                    .map(|(id, ack)| allarme(id, "t", "Warning", true, *ack))
+                    .collect(),
+            );
             let a = allarme_su_tag(&m, "t").expect("uno c'è");
             assert!(!a.riconosciuto, "ordine {ordine:?}");
         }
@@ -328,7 +344,10 @@ mod tests {
     fn il_dato_diventa_vecchio_dopo_il_tempo_dichiarato() {
         assert!(!stantio(Some(10.0), 100_000, 105_000), "5 s su 10: fresco");
         assert!(stantio(Some(10.0), 100_000, 111_000), "11 s su 10: vecchio");
-        assert!(!stantio(None, 100_000, 999_999), "non dichiarato: mai vecchio");
+        assert!(
+            !stantio(None, 100_000, 999_999),
+            "non dichiarato: mai vecchio"
+        );
         assert!(!stantio(Some(0.0), 100_000, 999_999), "zero = disattivato");
     }
 
@@ -341,7 +360,10 @@ mod tests {
 
     #[test]
     fn un_orologio_che_va_indietro_non_esplode() {
-        assert!(!stantio(Some(1.0), 500_000, 100), "now < ts: saturating, non panico");
+        assert!(
+            !stantio(Some(1.0), 500_000, 100),
+            "now < ts: saturating, non panico"
+        );
     }
 
     // ── attenuazione ──────────────────────────────────────────────────────
@@ -349,10 +371,14 @@ mod tests {
     #[test]
     fn la_qualita_cattiva_attenua_solo_se_richiesto() {
         let cattivo = TagSnapshotValue {
-            value: TagValue::Float(1.0), quality: TagQuality::Bad, ts: 1_000,
+            value: TagValue::Float(1.0),
+            quality: TagQuality::Bad,
+            ts: 1_000,
         };
-        assert!(!attenuato(None, false, Some(&cattivo), 1_100),
-                "opt-in: senza bad_value_style non si tocca");
+        assert!(
+            !attenuato(None, false, Some(&cattivo), 1_100),
+            "opt-in: senza bad_value_style non si tocca"
+        );
         assert!(attenuato(None, true, Some(&cattivo), 1_100));
     }
 
@@ -367,7 +393,9 @@ mod tests {
     #[test]
     fn un_dato_vecchio_attenua_anche_con_qualita_buona() {
         let buono_ma_fermo = TagSnapshotValue {
-            value: TagValue::Float(1.0), quality: TagQuality::Good, ts: 1_000,
+            value: TagValue::Float(1.0),
+            quality: TagQuality::Good,
+            ts: 1_000,
         };
         assert!(attenuato(Some(5.0), false, Some(&buono_ma_fermo), 20_000));
     }
@@ -384,8 +412,11 @@ mod tests {
     #[test]
     fn lattenuazione_sostituisce_lopacita_dichiarata() {
         assert_eq!(opa_finale(255, true, false), OPA_ATTENUATO);
-        assert_eq!(opa_finale(200, true, false), OPA_ATTENUATO,
-                   "come sul web, dove 0.55 scrive sopra invece di moltiplicare");
+        assert_eq!(
+            opa_finale(200, true, false),
+            OPA_ATTENUATO,
+            "come sul web, dove 0.55 scrive sopra invece di moltiplicare"
+        );
     }
 
     /// Nella fase piena un oggetto semitrasparente che lampeggia resta come
@@ -399,16 +430,28 @@ mod tests {
 
     #[test]
     fn i_colori_di_qualita_sono_quelli_del_web() {
-        assert_eq!(colore_qualita(&TagQuality::Good, None, None, None), (0x22, 0xc5, 0x5e));
-        assert_eq!(colore_qualita(&TagQuality::Bad, None, None, None), (0xef, 0x44, 0x44));
-        assert_eq!(colore_qualita(&TagQuality::Good, Some("#000000"), None, None), (0, 0, 0),
-                   "il colore dichiarato dall'oggetto vince");
+        assert_eq!(
+            colore_qualita(&TagQuality::Good, None, None, None),
+            (0x22, 0xc5, 0x5e)
+        );
+        assert_eq!(
+            colore_qualita(&TagQuality::Bad, None, None, None),
+            (0xef, 0x44, 0x44)
+        );
+        assert_eq!(
+            colore_qualita(&TagQuality::Good, Some("#000000"), None, None),
+            (0, 0, 0),
+            "il colore dichiarato dall'oggetto vince"
+        );
     }
 
     #[test]
     fn un_colore_illeggibile_non_fa_sparire_il_pallino() {
-        assert_eq!(colore_qualita(&TagQuality::Good, Some("verde acqua"), None, None),
-                   (148, 163, 184), "ripiega su un grigio, non su niente");
+        assert_eq!(
+            colore_qualita(&TagQuality::Good, Some("verde acqua"), None, None),
+            (148, 163, 184),
+            "ripiega su un grigio, non su niente"
+        );
     }
 
     #[test]
@@ -416,6 +459,10 @@ mod tests {
         assert_eq!(colore_severita("Critical"), (0xef, 0x44, 0x44));
         assert_eq!(colore_severita("Warning"), (0xea, 0xb3, 0x08));
         assert_eq!(colore_severita("Info"), (0x3b, 0x82, 0xf6));
-        assert_eq!(colore_severita("boh"), (0xea, 0xb3, 0x08), "l'ignoto vale Warning");
+        assert_eq!(
+            colore_severita("boh"),
+            (0xea, 0xb3, 0x08),
+            "l'ignoto vale Warning"
+        );
     }
 }

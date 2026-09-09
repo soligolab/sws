@@ -75,7 +75,9 @@ pub async fn fetch_recipes(base_url: &str) -> anyhow::Result<Vec<RecipeListEntry
         .map_err(|_| anyhow::anyhow!("base URL non può avere path segments (cannot-be-a-base)"))?
         .push("api")
         .push("recipes");
-    let client = reqwest::Client::builder().danger_accept_invalid_certs(true).build()?;
+    let client = reqwest::Client::builder()
+        .danger_accept_invalid_certs(true)
+        .build()?;
     let resp = client.get(url).send().await?.error_for_status()?;
     let list = resp.json::<Vec<RecipeListEntry>>().await?;
     Ok(list)
@@ -95,7 +97,9 @@ pub async fn apply_recipe(base_url: String, id: String) -> anyhow::Result<()> {
         .push("recipes")
         .push(&id)
         .push("apply");
-    let client = reqwest::Client::builder().danger_accept_invalid_certs(true).build()?;
+    let client = reqwest::Client::builder()
+        .danger_accept_invalid_certs(true)
+        .build()?;
     client
         .post(url)
         .json(&serde_json::json!({ "applied_by": "lvgl" }))
@@ -123,7 +127,9 @@ pub async fn fetch_languages(base_url: &str) -> anyhow::Result<LanguageTable> {
         .map_err(|_| anyhow::anyhow!("base URL non può avere path segments (cannot-be-a-base)"))?
         .push("api")
         .push("project");
-    let client = reqwest::Client::builder().danger_accept_invalid_certs(true).build()?;
+    let client = reqwest::Client::builder()
+        .danger_accept_invalid_certs(true)
+        .build()?;
     let resp = client.get(url).send().await?.error_for_status()?;
     let wrapper = resp.json::<ProjectLanguagesOnly>().await?;
     Ok(wrapper.languages)
@@ -139,7 +145,9 @@ async fn list_synoptics(base_url: &str) -> anyhow::Result<Vec<String>> {
         .map_err(|_| anyhow::anyhow!("base URL non può avere path segments (cannot-be-a-base)"))?
         .push("api")
         .push("synoptics");
-    let client = reqwest::Client::builder().danger_accept_invalid_certs(true).build()?;
+    let client = reqwest::Client::builder()
+        .danger_accept_invalid_certs(true)
+        .build()?;
     let resp = client.get(url).send().await?.error_for_status()?;
     Ok(resp.json::<Vec<String>>().await?)
 }
@@ -202,11 +210,14 @@ pub async fn fetch_alarm_history(
         .push("api")
         .push("alarms")
         .push("history");
-    url.query_pairs_mut().append_pair("limit", &limit.to_string());
+    url.query_pairs_mut()
+        .append_pair("limit", &limit.to_string());
     if let Some(id) = alarm_id {
         url.query_pairs_mut().append_pair("alarm_id", id);
     }
-    let client = reqwest::Client::builder().danger_accept_invalid_certs(true).build()?;
+    let client = reqwest::Client::builder()
+        .danger_accept_invalid_certs(true)
+        .build()?;
     let resp = client.get(url).send().await?.error_for_status()?;
     Ok(resp.json::<Vec<AlarmHistoryEvent>>().await?)
 }
@@ -257,12 +268,22 @@ async fn fetch_home_page_id(base_url: &str) -> Option<String> {
         page_layout: Option<Layout>,
     }
     let url = format!("{}/api/project", base_url.trim_end_matches('/'));
-    let client = reqwest::Client::builder().danger_accept_invalid_certs(true).build().ok()?;
+    let client = reqwest::Client::builder()
+        .danger_accept_invalid_certs(true)
+        .build()
+        .ok()?;
     let resp = client.get(&url).send().await.ok()?;
-    resp.json::<Progetto>().await.ok()?.page_layout?.home_page_id
+    resp.json::<Progetto>()
+        .await
+        .ok()?
+        .page_layout?
+        .home_page_id
 }
 
-pub async fn resolve_page_by_id(base_url: &str, target_page_id: &str) -> anyhow::Result<SynopticPage> {
+pub async fn resolve_page_by_id(
+    base_url: &str,
+    target_page_id: &str,
+) -> anyhow::Result<SynopticPage> {
     let names = list_synoptics(base_url).await?;
     for name in &names {
         if let Ok(page) = fetch_page(base_url, name).await {
@@ -292,8 +313,15 @@ pub async fn put_tag(base_url: &str, tag: &str, value: TagValue) -> anyhow::Resu
         value: TagValue,
     }
 
-    let client = reqwest::Client::builder().danger_accept_invalid_certs(true).build()?;
-    client.put(url).json(&WriteTagBody { value }).send().await?.error_for_status()?;
+    let client = reqwest::Client::builder()
+        .danger_accept_invalid_certs(true)
+        .build()?;
+    client
+        .put(url)
+        .json(&WriteTagBody { value })
+        .send()
+        .await?
+        .error_for_status()?;
     Ok(())
 }
 
@@ -334,7 +362,9 @@ pub async fn fetch_history(
             q.append_pair("backfill", "true");
         }
     }
-    let client = reqwest::Client::builder().danger_accept_invalid_certs(true).build()?;
+    let client = reqwest::Client::builder()
+        .danger_accept_invalid_certs(true)
+        .build()?;
     let resp = client.get(url).send().await?.error_for_status()?;
     Ok(resp.json::<Vec<HistorySample>>().await?)
 }
@@ -461,7 +491,14 @@ pub type SharedTagSnapshot = Arc<Mutex<TagSnapshot>>;
 
 fn apply_entries(map: &mut TagSnapshot, entries: Vec<WsTagEntry>) {
     for t in entries {
-        map.insert(t.id, TagSnapshotValue { value: t.value, quality: t.quality, ts: t.ts });
+        map.insert(
+            t.id,
+            TagSnapshotValue {
+                value: t.value,
+                quality: t.quality,
+                ts: t.ts,
+            },
+        );
     }
 }
 
@@ -509,17 +546,20 @@ const ATTESA_MAX: std::time::Duration = std::time::Duration::from_secs(30);
 
 fn prossima_attesa(a: std::time::Duration) -> std::time::Duration {
     let doppia = a.saturating_mul(2);
-    if doppia > ATTESA_MAX { ATTESA_MAX } else { doppia }
+    if doppia > ATTESA_MAX {
+        ATTESA_MAX
+    } else {
+        doppia
+    }
 }
 
-type FlussoWs = tokio_tungstenite::WebSocketStream<
-    tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
->;
+type FlussoWs =
+    tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
 
 async fn apri_ws(url: &str) -> anyhow::Result<FlussoWs> {
     let connector = tokio_tungstenite::Connector::Rustls(insecure_client_config());
-    let (stream, _resp) = tokio_tungstenite::connect_async_tls_with_config(
-        url, None, false, Some(connector)).await?;
+    let (stream, _resp) =
+        tokio_tungstenite::connect_async_tls_with_config(url, None, false, Some(connector)).await?;
     Ok(stream)
 }
 
@@ -528,8 +568,13 @@ pub async fn spawn_tag_subscription(
 ) -> anyhow::Result<(SharedTagSnapshot, ReloadFlag)> {
     let url = ws_url(base_url, "/ws/tags")?;
     let connector = tokio_tungstenite::Connector::Rustls(insecure_client_config());
-    let (mut stream, _resp) =
-        tokio_tungstenite::connect_async_tls_with_config(url.as_str(), None, false, Some(connector)).await?;
+    let (mut stream, _resp) = tokio_tungstenite::connect_async_tls_with_config(
+        url.as_str(),
+        None,
+        false,
+        Some(connector),
+    )
+    .await?;
 
     // Blocca finché non arriva lo snapshot iniziale — i widget non possono
     // essere creati con valori mancanti.
@@ -544,7 +589,9 @@ pub async fn spawn_tag_subscription(
             }
             continue;
         };
-        let Ok(parsed) = serde_json::from_str::<WsSnapshotMsg>(&text) else { continue };
+        let Ok(parsed) = serde_json::from_str::<WsSnapshotMsg>(&text) else {
+            continue;
+        };
         if parsed.ty != "snapshot" {
             continue;
         }
@@ -565,74 +612,77 @@ pub async fn spawn_tag_subscription(
     tokio::spawn(async move {
         let mut attesa = ATTESA_MIN;
         loop {
-        while let Some(msg) = stream.next().await {
-            let msg = match msg {
-                Ok(m) => m,
-                Err(e) => {
-                    eprintln!("[ws] errore su /ws/tags: {e}");
-                    break;
-                }
-            };
-            let Message::Text(text) = msg else {
-                if matches!(msg, Message::Close(_)) {
-                    eprintln!("[ws] /ws/tags chiuso dal server");
-                    break;
-                }
-                continue;
-            };
-            // Un delta e uno snapshot hanno campi diversi (`changed` vs
-            // `tags`) ma lo stesso discriminante "type" — proviamo prima il
-            // delta (il caso comune dopo l'avvio), poi lo snapshot (caso raro:
-            // il server ne rimanda uno, es. dopo una riconnessione interna).
-            if let Ok(delta) = serde_json::from_str::<WsDeltaMsg>(&text) {
-                if delta.ty == "delta" {
-                    let mut map = shared_bg.lock().unwrap_or_else(|e| e.into_inner());
-                    apply_entries(&mut map, delta.changed);
+            while let Some(msg) = stream.next().await {
+                let msg = match msg {
+                    Ok(m) => m,
+                    Err(e) => {
+                        eprintln!("[ws] errore su /ws/tags: {e}");
+                        break;
+                    }
+                };
+                let Message::Text(text) = msg else {
+                    if matches!(msg, Message::Close(_)) {
+                        eprintln!("[ws] /ws/tags chiuso dal server");
+                        break;
+                    }
                     continue;
-                }
-            }
-            // Il progetto è cambiato sul disco: la pagina che stiamo
-            // disegnando non è più quella giusta. Si alza un flag e basta —
-            // ricaricare da qui vorrebbe dire toccare LVGL da un thread che
-            // non è quello del rendering, e LVGL non è thread-safe.
-            if text.contains("\"project_changed\"") {
-                if let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) {
-                    if v.get("type").and_then(|t| t.as_str()) == Some("project_changed") {
-                        eprintln!("[ws] il progetto è cambiato: ricarico la pagina");
-                        reload_bg.store(true, std::sync::atomic::Ordering::Relaxed);
+                };
+                // Un delta e uno snapshot hanno campi diversi (`changed` vs
+                // `tags`) ma lo stesso discriminante "type" — proviamo prima il
+                // delta (il caso comune dopo l'avvio), poi lo snapshot (caso raro:
+                // il server ne rimanda uno, es. dopo una riconnessione interna).
+                if let Ok(delta) = serde_json::from_str::<WsDeltaMsg>(&text) {
+                    if delta.ty == "delta" {
+                        let mut map = shared_bg.lock().unwrap_or_else(|e| e.into_inner());
+                        apply_entries(&mut map, delta.changed);
                         continue;
                     }
                 }
-            }
-            if let Ok(snap) = serde_json::from_str::<WsSnapshotMsg>(&text) {
-                if snap.ty == "snapshot" {
-                    let mut map = shared_bg.lock().unwrap_or_else(|e| e.into_inner());
-                    apply_entries(&mut map, snap.tags);
+                // Il progetto è cambiato sul disco: la pagina che stiamo
+                // disegnando non è più quella giusta. Si alza un flag e basta —
+                // ricaricare da qui vorrebbe dire toccare LVGL da un thread che
+                // non è quello del rendering, e LVGL non è thread-safe.
+                if text.contains("\"project_changed\"") {
+                    if let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) {
+                        if v.get("type").and_then(|t| t.as_str()) == Some("project_changed") {
+                            eprintln!("[ws] il progetto è cambiato: ricarico la pagina");
+                            reload_bg.store(true, std::sync::atomic::Ordering::Relaxed);
+                            continue;
+                        }
+                    }
+                }
+                if let Ok(snap) = serde_json::from_str::<WsSnapshotMsg>(&text) {
+                    if snap.ty == "snapshot" {
+                        let mut map = shared_bg.lock().unwrap_or_else(|e| e.into_inner());
+                        apply_entries(&mut map, snap.tags);
+                    }
                 }
             }
-        }
-        // Qui si arriva quando il flusso è finito, in un modo o nell'altro.
-        // Non si esce dal task: si riprova, perché il runtime che è stato
-        // sostituito fra un istante sarà di nuovo lì.
-        eprintln!("[ws] /ws/tags interrotto — riprovo fra {}s", attesa.as_secs());
-        tokio::time::sleep(attesa).await;
-        match apri_ws(&url_bg).await {
-            Ok(nuovo) => {
-                stream = nuovo;
-                attesa = ATTESA_MIN;
-                // Ricaricare la pagina, non solo riprendere i valori: se il
-                // runtime è ripartito è perché qualcosa è cambiato, e molto
-                // spesso è il PROGETTO. Senza questo, il pannello riprenderebbe
-                // ad aggiornare i tag di una pagina che non esiste più — che è
-                // peggio di uno schermo fermo, perché sembra funzionare.
-                eprintln!("[ws] /ws/tags riconnesso — ricarico la pagina");
-                reload_bg.store(true, std::sync::atomic::Ordering::Relaxed);
+            // Qui si arriva quando il flusso è finito, in un modo o nell'altro.
+            // Non si esce dal task: si riprova, perché il runtime che è stato
+            // sostituito fra un istante sarà di nuovo lì.
+            eprintln!(
+                "[ws] /ws/tags interrotto — riprovo fra {}s",
+                attesa.as_secs()
+            );
+            tokio::time::sleep(attesa).await;
+            match apri_ws(&url_bg).await {
+                Ok(nuovo) => {
+                    stream = nuovo;
+                    attesa = ATTESA_MIN;
+                    // Ricaricare la pagina, non solo riprendere i valori: se il
+                    // runtime è ripartito è perché qualcosa è cambiato, e molto
+                    // spesso è il PROGETTO. Senza questo, il pannello riprenderebbe
+                    // ad aggiornare i tag di una pagina che non esiste più — che è
+                    // peggio di uno schermo fermo, perché sembra funzionare.
+                    eprintln!("[ws] /ws/tags riconnesso — ricarico la pagina");
+                    reload_bg.store(true, std::sync::atomic::Ordering::Relaxed);
+                }
+                Err(e) => {
+                    eprintln!("[ws] riconnessione a /ws/tags fallita: {e}");
+                    attesa = prossima_attesa(attesa);
+                }
             }
-            Err(e) => {
-                eprintln!("[ws] riconnessione a /ws/tags fallita: {e}");
-                attesa = prossima_attesa(attesa);
-            }
-        }
         }
     });
 
@@ -701,8 +751,13 @@ pub type SharedAlarms = Arc<Mutex<HashMap<String, AlarmStateLite>>>;
 pub async fn spawn_alarm_subscription(base_url: &str) -> anyhow::Result<SharedAlarms> {
     let url = ws_url(base_url, "/ws/alarms")?;
     let connector = tokio_tungstenite::Connector::Rustls(insecure_client_config());
-    let (mut stream, _resp) =
-        tokio_tungstenite::connect_async_tls_with_config(url.as_str(), None, false, Some(connector)).await?;
+    let (mut stream, _resp) = tokio_tungstenite::connect_async_tls_with_config(
+        url.as_str(),
+        None,
+        false,
+        Some(connector),
+    )
+    .await?;
 
     let shared: SharedAlarms = Arc::new(Mutex::new(HashMap::new()));
     let shared_bg = shared.clone();
@@ -713,7 +768,10 @@ pub async fn spawn_alarm_subscription(base_url: &str) -> anyhow::Result<SharedAl
             while let Some(msg) = stream.next().await {
                 let msg = match msg {
                     Ok(m) => m,
-                    Err(e) => { eprintln!("[ws] errore su /ws/alarms: {e}"); break; }
+                    Err(e) => {
+                        eprintln!("[ws] errore su /ws/alarms: {e}");
+                        break;
+                    }
                 };
                 let Message::Text(text) = msg else {
                     if matches!(msg, Message::Close(_)) {
@@ -722,13 +780,18 @@ pub async fn spawn_alarm_subscription(base_url: &str) -> anyhow::Result<SharedAl
                     }
                     continue;
                 };
-                let Ok(state) = serde_json::from_str::<AlarmStateLite>(&text) else { continue };
+                let Ok(state) = serde_json::from_str::<AlarmStateLite>(&text) else {
+                    continue;
+                };
                 let mut map = shared_bg.lock().unwrap_or_else(|e| e.into_inner());
                 map.insert(state.def.id.clone(), state);
             }
             // Un pannello che smette di mostrare gli allarmi senza dirlo è la
             // cosa peggiore che possa fare: si riprova, sempre.
-            eprintln!("[ws] /ws/alarms interrotto — riprovo fra {}s", attesa.as_secs());
+            eprintln!(
+                "[ws] /ws/alarms interrotto — riprovo fra {}s",
+                attesa.as_secs()
+            );
             tokio::time::sleep(attesa).await;
             match apri_ws(&url_bg).await {
                 Ok(nuovo) => {
@@ -761,7 +824,9 @@ pub async fn ack_alarm(base_url: &str, alarm_id: &str) -> anyhow::Result<()> {
         .push("alarms")
         .push(alarm_id)
         .push("ack");
-    let client = reqwest::Client::builder().danger_accept_invalid_certs(true).build()?;
+    let client = reqwest::Client::builder()
+        .danger_accept_invalid_certs(true)
+        .build()?;
     client
         .post(url)
         .json(&serde_json::json!({ "by": "lvgl-viewer" }))
@@ -808,7 +873,10 @@ mod tests_riconnessione {
         // non lasciare uno schermo fermo per ore.
         let mut a = ATTESA_MIN;
         let mut n = 0;
-        while a < ATTESA_MAX { a = prossima_attesa(a); n += 1; }
+        while a < ATTESA_MAX {
+            a = prossima_attesa(a);
+            n += 1;
+        }
         assert!(n <= 6, "servono {n} tentativi per arrivare al tetto");
     }
 }

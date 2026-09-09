@@ -3,7 +3,7 @@
 
 use std::path::PathBuf;
 
-use crate::backend::{DatastoreStats, now_ms};
+use crate::backend::{now_ms, DatastoreStats};
 use crate::sqlite::SqliteStore;
 use crate::Sample;
 
@@ -36,7 +36,7 @@ impl SqliteBackend {
         to_ms: Option<u64>,
     ) -> Vec<Sample> {
         let from = from_ms.unwrap_or(0);
-        let to   = to_ms.unwrap_or(u64::MAX);
+        let to = to_ms.unwrap_or(u64::MAX);
         self.store.query_range(tag_id, from, to).await
     }
 
@@ -105,7 +105,7 @@ impl SqliteBackend {
         to_ms: Option<u64>,
     ) -> Vec<(String, Vec<Sample>)> {
         let from = from_ms.unwrap_or(0);
-        let to   = to_ms.unwrap_or(u64::MAX);
+        let to = to_ms.unwrap_or(u64::MAX);
         let mut out = Vec::new();
         for tag in tags {
             let samples = self.store.query_range(tag, from, to).await;

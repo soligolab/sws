@@ -20,10 +20,10 @@
 //!     avoids threading a `sws-web` type into the script crate.
 
 use std::sync::Arc;
+use sws_core::TelegramConfig;
 use tokio::sync::{mpsc, RwLock};
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
-use sws_core::TelegramConfig;
 
 use crate::router::AppState;
 
@@ -38,11 +38,17 @@ pub struct TelegramMessage {
 impl TelegramMessage {
     /// To the globally configured chats.
     pub fn global(text: String) -> Self {
-        Self { text, chat_ids: None }
+        Self {
+            text,
+            chat_ids: None,
+        }
     }
     /// To specific chats only.
     pub fn to_chats(text: String, chat_ids: Vec<String>) -> Self {
-        Self { text, chat_ids: Some(chat_ids) }
+        Self {
+            text,
+            chat_ids: Some(chat_ids),
+        }
     }
 }
 
@@ -121,7 +127,12 @@ impl TelegramSender {
                 }
             }
         });
-        Self { tx, text_tx, cfg, cancel }
+        Self {
+            tx,
+            text_tx,
+            cfg,
+            cancel,
+        }
     }
 
     /// Cloneable handle for text-only senders (scripts): always the configured
@@ -157,7 +168,10 @@ pub struct TelegramSinks {
 
 impl TelegramSinks {
     fn of(sender: &TelegramSender) -> Self {
-        Self { text: sender.text_sender(), messages: sender.message_sender() }
+        Self {
+            text: sender.text_sender(),
+            messages: sender.message_sender(),
+        }
     }
 }
 

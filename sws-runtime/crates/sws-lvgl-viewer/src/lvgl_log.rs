@@ -67,7 +67,9 @@ fn signature(msg: &str) -> String {
         // che non è una cifra e faceva fallire il controllo sempre.
         (Some(a), Some(b))
             if b > a + 1
-                && msg[a + 1..b].chars().all(|c| c.is_ascii_digit() || ".,+- ".contains(c)) =>
+                && msg[a + 1..b]
+                    .chars()
+                    .all(|c| c.is_ascii_digit() || ".,+- ".contains(c)) =>
         {
             let mut s = String::with_capacity(msg.len());
             s.push_str(&msg[..a]);
@@ -125,7 +127,9 @@ unsafe extern "C" fn print_cb(buf: *const std::os::raw::c_char) {
 /// taciuto 9.000 volte" si somigliano troppo. Si stampa all'uscita del viewer.
 pub fn summary() -> Vec<(String, u64)> {
     let guard = VISTI.lock().unwrap_or_else(|e| e.into_inner());
-    let Some(seen) = guard.as_ref() else { return Vec::new() };
+    let Some(seen) = guard.as_ref() else {
+        return Vec::new();
+    };
     let mut soppressi: Vec<(String, u64)> = seen
         .iter()
         .filter(|(_, &n)| n > 1)
@@ -165,7 +169,11 @@ mod tests {
 
         let mut seen = HashMap::new();
         assert_eq!(should_print(&mut seen, a), Some(1));
-        assert_eq!(should_print(&mut seen, b), Some(2), "la seconda deve contare come ripetizione");
+        assert_eq!(
+            should_print(&mut seen, b),
+            Some(2),
+            "la seconda deve contare come ripetizione"
+        );
     }
 
     /// Non si tocca ciò che parentesi tonde le ha per conto suo: un messaggio
@@ -192,7 +200,10 @@ mod tests {
         let stampate: Vec<u64> = (0..10_000)
             .filter_map(|_| should_print(&mut seen, "glyph dsc. not found for U+2014"))
             .collect();
-        assert_eq!(stampate, vec![1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192]);
+        assert_eq!(
+            stampate,
+            vec![1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192]
+        );
     }
 
     /// Messaggi diversi si contano separatamente: `U+2014` e `U+00F9` dicono
@@ -216,7 +227,11 @@ mod tests {
         for _ in 0..5 {
             should_print(&mut seen, "ripetuto");
         }
-        let ripetuti: Vec<_> = seen.iter().filter(|(_, &n)| n > 1).map(|(m, _)| m.clone()).collect();
+        let ripetuti: Vec<_> = seen
+            .iter()
+            .filter(|(_, &n)| n > 1)
+            .map(|(m, _)| m.clone())
+            .collect();
         assert_eq!(ripetuti, vec!["ripetuto".to_string()]);
     }
 }

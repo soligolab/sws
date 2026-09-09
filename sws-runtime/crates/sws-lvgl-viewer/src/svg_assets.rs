@@ -70,7 +70,10 @@ pub fn source_for(obj: &SynopticObject, custom: &[CustomSymbol]) -> Option<SvgSo
                     _ => None,
                 }
             } else {
-                VENDORED.iter().find(|(k, _)| *k == id).map(|(_, p)| SvgSource::Url(p.to_string()))
+                VENDORED
+                    .iter()
+                    .find(|(k, _)| *k == id)
+                    .map(|(_, p)| SvgSource::Url(p.to_string()))
             }
         }
         "image" => {
@@ -97,7 +100,11 @@ pub fn absolutize(base_url: &str, url: &str) -> String {
     if url.starts_with("http://") || url.starts_with("https://") || url.starts_with("data:") {
         return url.to_string();
     }
-    format!("{}/{}", base_url.trim_end_matches('/'), url.trim_start_matches('/'))
+    format!(
+        "{}/{}",
+        base_url.trim_end_matches('/'),
+        url.trim_start_matches('/')
+    )
 }
 
 /// Gli SVG già scaricati, per URL assoluto.
@@ -145,7 +152,10 @@ pub fn source_for_project(
     rt: &tokio::runtime::Handle,
 ) -> Option<SvgSource> {
     let serve_progetto = obj.obj_type.as_deref() == Some("symbol")
-        && obj.symbol_id.as_deref().is_some_and(|i| i.starts_with("custom:"));
+        && obj
+            .symbol_id
+            .as_deref()
+            .is_some_and(|i| i.starts_with("custom:"));
     if !serve_progetto {
         return source_for(obj, &[]);
     }
@@ -168,7 +178,10 @@ fn fetch_custom_symbols(base_url: &str, rt: &tokio::runtime::Handle) -> Vec<Cust
     }
     let url = format!("{}/api/project", base_url.trim_end_matches('/'));
     let esito: Option<Vec<CustomSymbol>> = rt.block_on(async {
-        let client = reqwest::Client::builder().danger_accept_invalid_certs(true).build().ok()?;
+        let client = reqwest::Client::builder()
+            .danger_accept_invalid_certs(true)
+            .build()
+            .ok()?;
         let resp = client.get(&url).send().await.ok()?;
         resp.json::<Progetto>().await.ok().map(|p| p.custom_symbols)
     });
@@ -191,11 +204,7 @@ fn fetch_custom_symbols(base_url: &str, rt: &tokio::runtime::Handle) -> Vec<Cust
 /// Un fallimento viene messo in cache **come fallimento**: un URL che non
 /// risponde non va richiesto di nuovo a ogni cambio pagina, e il messaggio
 /// nel log si stampa una volta sola invece che a raffica.
-pub fn bytes_for(
-    base_url: &str,
-    rt: &tokio::runtime::Handle,
-    src: &SvgSource,
-) -> Option<Vec<u8>> {
+pub fn bytes_for(base_url: &str, rt: &tokio::runtime::Handle, src: &SvgSource) -> Option<Vec<u8>> {
     let url = match src {
         SvgSource::Inline(svg) => return Some(svg.clone().into_bytes()),
         SvgSource::Url(u) => absolutize(base_url, u),
@@ -218,7 +227,10 @@ pub fn bytes_for(
     if scaricato.is_none() {
         eprintln!("[svg] {url}: non scaricato, l'oggetto mostrerà il segnaposto");
     }
-    cache().lock().unwrap_or_else(|e| e.into_inner()).insert(url, scaricato.clone());
+    cache()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .insert(url, scaricato.clone());
     scaricato
 }
 
@@ -227,7 +239,10 @@ mod tests {
     use super::*;
 
     fn obj(t: &str) -> SynopticObject {
-        SynopticObject { obj_type: Some(t.to_string()), ..Default::default() }
+        SynopticObject {
+            obj_type: Some(t.to_string()),
+            ..Default::default()
+        }
     }
 
     fn custom_inline(id: &str, svg: &str) -> CustomSymbol {
@@ -235,14 +250,18 @@ mod tests {
             id: id.to_string(),
             svg: Some(svg.to_string()),
             url: String::new(),
-            }
+        }
     }
 
     #[test]
     fn un_simbolo_builtin_non_passa_di_qui() {
         let mut o = obj("symbol");
         o.symbol_id = Some("pump".into());
-        assert_eq!(source_for(&o, &[]), None, "i builtin li disegna LVGL con le primitive");
+        assert_eq!(
+            source_for(&o, &[]),
+            None,
+            "i builtin li disegna LVGL con le primitive"
+        );
     }
 
     /// Il caso che rompe la convenzione: 7 vendored su 11 hanno il file con un
@@ -272,8 +291,15 @@ mod tests {
     fn un_simbolo_custom_senza_inline_ripiega_sullurl() {
         let mut o = obj("symbol");
         o.symbol_id = Some("custom:mio".into());
-        let c = CustomSymbol { id: "mio".into(), url: "https://e.example/x.svg".into(), svg: None };
-        assert_eq!(source_for(&o, &[c]), Some(SvgSource::Url("https://e.example/x.svg".into())));
+        let c = CustomSymbol {
+            id: "mio".into(),
+            url: "https://e.example/x.svg".into(),
+            svg: None,
+        };
+        assert_eq!(
+            source_for(&o, &[c]),
+            Some(SvgSource::Url("https://e.example/x.svg".into()))
+        );
     }
 
     #[test]
@@ -287,17 +313,30 @@ mod tests {
     fn limmagine_passa_solo_se_e_un_svg() {
         let mut o = obj("image");
         o.src = Some("/images/equinor/cat.svg".into());
-        assert_eq!(source_for(&o, &[]), Some(SvgSource::Url("/images/equinor/cat.svg".into())));
+        assert_eq!(
+            source_for(&o, &[]),
+            Some(SvgSource::Url("/images/equinor/cat.svg".into()))
+        );
         o.src = Some("/images/foto.png".into());
-        assert_eq!(source_for(&o, &[]), None, "un png non è roba per il rasterizzatore SVG");
+        assert_eq!(
+            source_for(&o, &[]),
+            None,
+            "un png non è roba per il rasterizzatore SVG"
+        );
         o.src = Some("   ".into());
         assert_eq!(source_for(&o, &[]), None);
     }
 
     #[test]
     fn gli_url_relativi_si_agganciano_al_runtime() {
-        assert_eq!(absolutize("https://pannello:8443", "/symbols/x.svg"), "https://pannello:8443/symbols/x.svg");
-        assert_eq!(absolutize("https://pannello:8443/", "symbols/x.svg"), "https://pannello:8443/symbols/x.svg");
+        assert_eq!(
+            absolutize("https://pannello:8443", "/symbols/x.svg"),
+            "https://pannello:8443/symbols/x.svg"
+        );
+        assert_eq!(
+            absolutize("https://pannello:8443/", "symbols/x.svg"),
+            "https://pannello:8443/symbols/x.svg"
+        );
     }
 
     /// L'inline non passa dalla rete: deve funzionare anche su un pannello
@@ -305,17 +344,26 @@ mod tests {
     #[test]
     fn linline_non_richiede_la_rete() {
         let rt = tokio::runtime::Runtime::new().expect("runtime");
-        let b = bytes_for("https://irraggiungibile.invalid", rt.handle(), &SvgSource::Inline("<svg/>".into()));
+        let b = bytes_for(
+            "https://irraggiungibile.invalid",
+            rt.handle(),
+            &SvgSource::Inline("<svg/>".into()),
+        );
         assert_eq!(b.as_deref(), Some(&b"<svg/>"[..]));
     }
 
     #[test]
     fn gli_url_assoluti_restano_intatti() {
-        for u in ["https://e.example/x.svg", "http://e.example/x.svg", "data:image/svg+xml,<svg/>"] {
-            assert_eq!(absolutize("https://pannello:8443", u), u, "{u} non va riscritto");
+        for u in [
+            "https://e.example/x.svg",
+            "http://e.example/x.svg",
+            "data:image/svg+xml,<svg/>",
+        ] {
+            assert_eq!(
+                absolutize("https://pannello:8443", u),
+                u,
+                "{u} non va riscritto"
+            );
         }
     }
-
-
-
 }

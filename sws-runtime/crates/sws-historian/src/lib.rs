@@ -22,21 +22,21 @@
 //! - LTTB (Largest Triangle Three Buckets) decimation — uniform stride is good
 //!   enough for the PoC; LTTB preserves extrema better for sparse spiky data.
 
-pub mod sqlite;
 pub mod backend;
-pub mod sqlite_backend;
-pub mod postgres_backend;
 pub mod odbc_backend;
+pub mod postgres_backend;
 pub mod registry;
+pub mod sqlite;
+pub mod sqlite_backend;
 
 pub use backend::{DatastoreBackend, DatastoreStats};
 pub use registry::DatastoreRegistry;
 
+use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, VecDeque},
     sync::Arc,
 };
-use serde::{Deserialize, Serialize};
 use sws_core::{TagDb, TagId, TagQuality, TagState, TagValue};
 use tokio::sync::RwLock;
 use tracing::{info, warn};
@@ -51,7 +51,9 @@ const DECIMATION_THRESHOLD: usize = 1_000;
 /// Thin `samples` to at most `max` points using uniform stride.
 /// Keeps the first and last samples so the chart ends are always accurate.
 fn decimate(samples: Vec<Sample>, max: usize) -> Vec<Sample> {
-    if samples.len() <= max { return samples; }
+    if samples.len() <= max {
+        return samples;
+    }
     let n = samples.len();
     // Always include the first and last; distribute the rest uniformly.
     let stride = (n - 1) as f64 / (max - 1) as f64;
@@ -172,7 +174,8 @@ impl Historian {
         let (mem_samples, oldest_mem_ts): (Vec<Sample>, Option<u64>) = match buf.get(tag) {
             Some(q) => {
                 let oldest = q.front().map(|s| s.ts_ms);
-                let filtered = q.iter()
+                let filtered = q
+                    .iter()
                     .filter(|s| from_ms.is_none_or(|f| s.ts_ms >= f))
                     .filter(|s| to_ms.is_none_or(|t| s.ts_ms <= t))
                     .cloned()
@@ -215,8 +218,8 @@ impl Historian {
         if let Some(store) = self.store.read().await.as_ref() {
             match store.prune_older_than_ms(cutoff_ms).await {
                 Ok(n) if n > 0 => info!(rows = n, "historian: pruned old SQLite samples"),
-                Ok(_)          => {}
-                Err(e)         => warn!("historian: prune failed: {e}"),
+                Ok(_) => {}
+                Err(e) => warn!("historian: prune failed: {e}"),
             }
         }
     }
@@ -244,7 +247,11 @@ mod tests {
     use super::*;
 
     fn st(ts: u64, v: f64) -> TagState {
-        TagState { value: TagValue::Float(v), quality: TagQuality::Good, timestamp_ms: ts }
+        TagState {
+            value: TagValue::Float(v),
+            quality: TagQuality::Good,
+            timestamp_ms: ts,
+        }
     }
 
     #[tokio::test]
@@ -298,7 +305,11 @@ mod tests {
     #[test]
     fn decimate_keeps_first_and_last() {
         let samples: Vec<Sample> = (0..100u64)
-            .map(|i| Sample { ts_ms: i, value: TagValue::Float(i as f64), quality: TagQuality::Good })
+            .map(|i| Sample {
+                ts_ms: i,
+                value: TagValue::Float(i as f64),
+                quality: TagQuality::Good,
+            })
             .collect();
         let out = decimate(samples, 10);
         assert_eq!(out.len(), 10);
@@ -309,7 +320,11 @@ mod tests {
     #[test]
     fn decimate_noop_when_under_threshold() {
         let samples: Vec<Sample> = (0..5u64)
-            .map(|i| Sample { ts_ms: i, value: TagValue::Float(i as f64), quality: TagQuality::Good })
+            .map(|i| Sample {
+                ts_ms: i,
+                value: TagValue::Float(i as f64),
+                quality: TagQuality::Good,
+            })
             .collect();
         let out = decimate(samples, 10);
         assert_eq!(out.len(), 5);
@@ -319,10 +334,22 @@ mod tests {
     async fn query_decimates_large_result() {
         let h = Historian::new(2_000);
         for i in 0..1_200u64 {
-            h.record("t", &TagState { value: TagValue::Float(i as f64), quality: TagQuality::Good, timestamp_ms: i }).await;
+            h.record(
+                "t",
+                &TagState {
+                    value: TagValue::Float(i as f64),
+                    quality: TagQuality::Good,
+                    timestamp_ms: i,
+                },
+            )
+            .await;
         }
         let all = h.query("t", None, None).await;
-        assert!(all.len() <= DECIMATION_THRESHOLD, "expected decimation, got {}", all.len());
+        assert!(
+            all.len() <= DECIMATION_THRESHOLD,
+            "expected decimation, got {}",
+            all.len()
+        );
         // First and last should be preserved
         assert_eq!(all[0].ts_ms, 0);
         assert_eq!(all.last().unwrap().ts_ms, 1_199);
@@ -379,7 +406,13 @@ pub fn aggregate_samples(samples: &[Sample], bucket_ms: u64) -> Vec<BucketSample
                 b.count += 1;
             }
             _ => out.push(BucketSample {
-                ts_ms: bucket_start, min: v, max: v, avg: v, first: v, last: v, count: 1,
+                ts_ms: bucket_start,
+                min: v,
+                max: v,
+                avg: v,
+                first: v,
+                last: v,
+                count: 1,
             }),
         }
     }
@@ -392,24 +425,44 @@ mod aggregate_tests {
     use sws_core::TagQuality;
 
     fn s(ts_ms: u64, v: f64) -> Sample {
-        Sample { ts_ms, value: TagValue::Float(v), quality: TagQuality::Good }
+        Sample {
+            ts_ms,
+            value: TagValue::Float(v),
+            quality: TagQuality::Good,
+        }
     }
 
     #[test]
     fn bucket_min_max_avg() {
-        let samples = vec![s(0, 10.0), s(400, 20.0), s(900, 30.0), s(1000, 5.0), s(1500, 15.0)];
+        let samples = vec![
+            s(0, 10.0),
+            s(400, 20.0),
+            s(900, 30.0),
+            s(1000, 5.0),
+            s(1500, 15.0),
+        ];
         let b = aggregate_samples(&samples, 1000);
         assert_eq!(b.len(), 2);
-        assert_eq!((b[0].ts_ms, b[0].min, b[0].max, b[0].count), (0, 10.0, 30.0, 3));
+        assert_eq!(
+            (b[0].ts_ms, b[0].min, b[0].max, b[0].count),
+            (0, 10.0, 30.0, 3)
+        );
         assert!((b[0].avg - 20.0).abs() < 1e-9);
         assert_eq!((b[0].first, b[0].last), (10.0, 30.0));
-        assert_eq!((b[1].ts_ms, b[1].min, b[1].max, b[1].count), (1000, 5.0, 15.0, 2));
+        assert_eq!(
+            (b[1].ts_ms, b[1].min, b[1].max, b[1].count),
+            (1000, 5.0, 15.0, 2)
+        );
     }
 
     #[test]
     fn bucket_vuoti_assenti_e_stringhe_ignorate() {
         let mut samples = vec![s(0, 1.0), s(10_000, 2.0)];
-        samples.push(Sample { ts_ms: 10_100, value: TagValue::Str("x".into()), quality: TagQuality::Good });
+        samples.push(Sample {
+            ts_ms: 10_100,
+            value: TagValue::Str("x".into()),
+            quality: TagQuality::Good,
+        });
         let b = aggregate_samples(&samples, 1000);
         assert_eq!(b.len(), 2, "i bucket intermedi vuoti non compaiono");
         assert_eq!(b[1].count, 1, "la stringa non conta");

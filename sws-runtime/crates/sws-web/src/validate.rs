@@ -63,12 +63,20 @@ pub struct Finding {
 
 impl Finding {
     fn err(path: impl Into<String>, message: impl Into<String>, hint: impl Into<String>) -> Self {
-        Finding { severity: Severity::Error, path: path.into(), message: message.into(),
-                  hint: Some(hint.into()) }
+        Finding {
+            severity: Severity::Error,
+            path: path.into(),
+            message: message.into(),
+            hint: Some(hint.into()),
+        }
     }
     fn warn(path: impl Into<String>, message: impl Into<String>, hint: impl Into<String>) -> Self {
-        Finding { severity: Severity::Warning, path: path.into(), message: message.into(),
-                  hint: Some(hint.into()) }
+        Finding {
+            severity: Severity::Warning,
+            path: path.into(),
+            message: message.into(),
+            hint: Some(hint.into()),
+        }
     }
 }
 
@@ -80,9 +88,19 @@ const INTERATTIVI: &[&str] = &["button", "checkbox", "radio", "slider", "setpoin
 /// perché il mirror non li distingue da qualunque altra stringa — ma sbagliarne
 /// uno costa un riferimento morto che nessuno segnala.
 const CAMPI_TAG: &[&str] = &[
-    "tag", "blink_tag", "visible_tag", "state_tag", "alarm_tag", "motion_tag",
-    "pipe_flow_tag", "symbol_spin_tag", "fill_level_tag", "gauge_sp_tag",
-    "pie_center_tag", "pipe_label_tag", "y_tag",
+    "tag",
+    "blink_tag",
+    "visible_tag",
+    "state_tag",
+    "alarm_tag",
+    "motion_tag",
+    "pipe_flow_tag",
+    "symbol_spin_tag",
+    "fill_level_tag",
+    "gauge_sp_tag",
+    "pie_center_tag",
+    "pipe_label_tag",
+    "y_tag",
 ];
 
 /// Un id di tag che contiene `{` è un segnaposto di faceplate (`{motore}.stato`),
@@ -120,7 +138,12 @@ pub fn unknown_fields(raw_project: Option<&Value>, raw_pages: &[Value]) -> Vec<F
                 }
             }
         }
-        for obj in page.get("objects").and_then(Value::as_array).into_iter().flatten() {
+        for obj in page
+            .get("objects")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+        {
             let id = obj.get("id").and_then(Value::as_str).unwrap_or("?");
             let Some(map) = obj.as_object() else { continue };
             for k in map.keys() {
@@ -135,7 +158,10 @@ pub fn unknown_fields(raw_project: Option<&Value>, raw_pages: &[Value]) -> Vec<F
         }
     }
 
-    if let Some(tags) = raw_project.and_then(|p| p.get("tags")).and_then(Value::as_array) {
+    if let Some(tags) = raw_project
+        .and_then(|p| p.get("tags"))
+        .and_then(Value::as_array)
+    {
         for t in tags {
             let id = t.get("id").and_then(Value::as_str).unwrap_or("?");
             let Some(map) = t.as_object() else { continue };
@@ -171,15 +197,24 @@ const CAMPI_SCRIPT_GLOBALE: &[&str] = &["id", "trigger", "code", "enabled"];
 /// scritto male sarebbe indistinguibile da un corpo non mandato).
 fn campi_inventati_script(raw_project: Option<&Value>) -> Vec<Finding> {
     let mut out = Vec::new();
-    let coppie: [(&str, &[&str]); 2] =
-        [("functions", CAMPI_FUNZIONE), ("global_scripts", CAMPI_SCRIPT_GLOBALE)];
+    let coppie: [(&str, &[&str]); 2] = [
+        ("functions", CAMPI_FUNZIONE),
+        ("global_scripts", CAMPI_SCRIPT_GLOBALE),
+    ];
     for (collezione, validi) in coppie {
         let validi: HashSet<&str> = validi.iter().copied().collect();
-        let Some(arr) = raw_project.and_then(|p| p.get(collezione)).and_then(Value::as_array)
-        else { continue };
+        let Some(arr) = raw_project
+            .and_then(|p| p.get(collezione))
+            .and_then(Value::as_array)
+        else {
+            continue;
+        };
         for e in arr {
-            let id = e.get("id").and_then(Value::as_str)
-                .or_else(|| e.get("name").and_then(Value::as_str)).unwrap_or("?");
+            let id = e
+                .get("id")
+                .and_then(Value::as_str)
+                .or_else(|| e.get("name").and_then(Value::as_str))
+                .unwrap_or("?");
             let Some(map) = e.as_object() else { continue };
             for k in map.keys() {
                 if !validi.contains(k.as_str()) {
@@ -240,15 +275,19 @@ fn campi_inventati_script(raw_project: Option<&Value>) -> Vec<Finding> {
 /// e alla persona che approva; `campi_inventati_script` prende il refuso.
 pub fn ricomponi_script(proposta: &mut Value, disco: &Project) -> Vec<Finding> {
     let mut out = Vec::new();
-    let Some(obj) = proposta.as_object_mut() else { return out };
+    let Some(obj) = proposta.as_object_mut() else {
+        return out;
+    };
 
     // ── functions ────────────────────────────────────────────────────────────
     if !obj.contains_key("functions") {
         if !disco.functions.is_empty() {
             out.push(Finding::warn(
                 "project.functions",
-                format!("la proposta non conteneva `functions`: restano le {} del progetto",
-                        disco.functions.len()),
+                format!(
+                    "la proposta non conteneva `functions`: restano le {} del progetto",
+                    disco.functions.len()
+                ),
                 "se volevi cambiarle, mandale nel progetto; se volevi cancellarle tutte, \
                  scrivi `functions: []` — omettere significa «non ne ho parlato»",
             ));
@@ -259,7 +298,10 @@ pub fn ricomponi_script(proposta: &mut Value, disco: &Project) -> Vec<Finding> {
     } else if let Some(arr) = obj.get_mut("functions").and_then(Value::as_array_mut) {
         for e in arr.iter_mut() {
             let (id, nome) = (stringa(e, "id"), stringa(e, "name"));
-            let etichetta = id.clone().or_else(|| nome.clone()).unwrap_or_else(|| "?".into());
+            let etichetta = id
+                .clone()
+                .or_else(|| nome.clone())
+                .unwrap_or_else(|| "?".into());
             if e.get("code").and_then(Value::as_str).is_some() {
                 continue;
             }
@@ -304,8 +346,10 @@ pub fn ricomponi_script(proposta: &mut Value, disco: &Project) -> Vec<Finding> {
         if !disco.global_scripts.is_empty() {
             out.push(Finding::warn(
                 "project.global_scripts",
-                format!("la proposta non conteneva `global_scripts`: restano i {} del progetto",
-                        disco.global_scripts.len()),
+                format!(
+                    "la proposta non conteneva `global_scripts`: restano i {} del progetto",
+                    disco.global_scripts.len()
+                ),
                 "come per `functions`: omettere significa «non ne ho parlato», \
                  `global_scripts: []` significa «via tutti»",
             ));
@@ -320,7 +364,9 @@ pub fn ricomponi_script(proposta: &mut Value, disco: &Project) -> Vec<Finding> {
             if e.get("code").and_then(Value::as_str).is_some() {
                 continue;
             }
-            let sul_disco = disco.global_scripts.iter()
+            let sul_disco = disco
+                .global_scripts
+                .iter()
                 .find(|g| id.as_deref().is_some_and(|i| g.id == i));
             match sul_disco {
                 Some(g) => {
@@ -365,8 +411,10 @@ fn suggerisci(sbagliato: &str, validi: &HashSet<&str>) -> String {
         }
     }
     match best {
-        Some((_, v)) => format!("il campo esistente più simile è `{v}` — se intendevi altro, \
-                                 chiedi lo schema del tipo prima di riscriverlo"),
+        Some((_, v)) => format!(
+            "il campo esistente più simile è `{v}` — se intendevi altro, \
+                                 chiedi lo schema del tipo prima di riscriverlo"
+        ),
         None => "chiedi lo schema del tipo: i campi validi sono solo quelli".to_string(),
     }
 }
@@ -399,9 +447,12 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
     let mut per_id: HashMap<&str, &sws_core::TagDef> = HashMap::new();
     for t in &project.tags {
         if t.id.trim().is_empty() {
-            out.push(Finding::err("project.tags[]", "un tag ha id vuoto",
+            out.push(Finding::err(
+                "project.tags[]",
+                "un tag ha id vuoto",
                 "ogni tag deve avere un id non vuoto: è la chiave con cui lo cercano \
-                 gli oggetti, gli allarmi e i driver"));
+                 gli oggetti, gli allarmi e i driver",
+            ));
             continue;
         }
         if per_id.insert(t.id.as_str(), t).is_some() {
@@ -409,14 +460,16 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
                 format!("project.tags[{}]", t.id),
                 format!("il tag `{}` è dichiarato due volte", t.id),
                 "gli id dei tag sono chiavi: la seconda dichiarazione sovrascrive la prima \
-                 in silenzio, e uno dei due comportamenti sparisce"));
+                 in silenzio, e uno dei due comportamenti sparisce",
+            ));
         }
         const TIPI_DATO: &[&str] = &["bool", "int", "float", "string"];
         if !TIPI_DATO.contains(&t.data_type.as_str()) {
             out.push(Finding::err(
                 format!("project.tags[{}].data_type", t.id),
                 format!("`{}` non è un tipo di dato valido", t.data_type),
-                "i tipi sono bool, int, float, string"));
+                "i tipi sono bool, int, float, string",
+            ));
         }
     }
 
@@ -427,14 +480,18 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
     for src in &project.sources {
         let id = source_id(src);
         if id.trim().is_empty() {
-            out.push(Finding::err("project.sources[]", "una sorgente ha id vuoto",
+            out.push(Finding::err(
+                "project.sources[]",
+                "una sorgente ha id vuoto",
                 "il supervisor indicizza le sorgenti per id: un id vuoto è una chiave \
-                 inutilizzabile"));
+                 inutilizzabile",
+            ));
         } else if !visti_src.insert(id.to_string()) {
             out.push(Finding::err(
                 format!("project.sources[{id}]"),
                 format!("id sorgente duplicato: `{id}`"),
-                "il supervisor tiene l'ultima e scarta la prima, senza dirlo"));
+                "il supervisor tiene l'ultima e scarta la prima, senza dirlo",
+            ));
         }
         for (i, m) in topic_mappings(src).into_iter().enumerate() {
             // Trovato su Sandokan il 2026-09-07: una riga col topic vuoto fa
@@ -447,20 +504,26 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
                     "riga senza topic".to_string(),
                     "togli la riga: il broker chiude la connessione appena riceve una \
                      sottoscrizione con un filtro vuoto, e muore l'intera sorgente — \
-                     non solo questa riga"));
+                     non solo questa riga",
+                ));
             } else if m.tag.trim().is_empty() {
                 out.push(Finding::warn(
                     format!("project.sources[{id}].topics[{i}].tag"),
                     format!("la riga sottoscrive `{}` ma non ha un tag", m.topic),
                     "scegli il tag di destinazione, oppure togli la riga: così si \
-                     riceve e si butta"));
+                     riceve e si butta",
+                ));
             }
             if !m.tag.is_empty() && !per_id.contains_key(m.tag.as_str()) {
                 out.push(Finding::err(
                     format!("project.sources[{id}].topics[{i}].tag"),
-                    format!("la sorgente scrive nel tag `{}`, che non è dichiarato", m.tag),
+                    format!(
+                        "la sorgente scrive nel tag `{}`, che non è dichiarato",
+                        m.tag
+                    ),
                     "dichiara il tag in project.tags, oppure correggi il riferimento: \
-                     un mapping verso un tag inesistente riceve dati e li butta"));
+                     un mapping verso un tag inesistente riceve dati e li butta",
+                ));
             }
             let scrive = m.publish_topic.is_some();
             let e = mqtt_per_tag.entry(m.tag.as_str()).or_insert(false);
@@ -474,7 +537,8 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
             out.push(Finding::err(
                 format!("project.alarms[{}].tag", a.id),
                 format!("l'allarme osserva il tag `{}`, che non è dichiarato", a.tag),
-                "un allarme su un tag inesistente non scatterà mai, e non lo dirà"));
+                "un allarme su un tag inesistente non scatterà mai, e non lo dirà",
+            ));
         }
     }
 
@@ -489,65 +553,83 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
         let base = format!("project.global_scripts[{}]", g.id);
 
         if g.id.trim().is_empty() {
-            out.push(Finding::err("project.global_scripts[]",
+            out.push(Finding::err(
+                "project.global_scripts[]",
                 "uno script globale ha id vuoto",
-                "l'id è la chiave con cui il supervisore lo indicizza e lo ferma"));
+                "l'id è la chiave con cui il supervisore lo indicizza e lo ferma",
+            ));
         } else if !visti_gs.insert(g.id.as_str()) {
-            out.push(Finding::err(format!("{base}.id"),
+            out.push(Finding::err(
+                format!("{base}.id"),
                 format!("lo script globale `{}` è dichiarato due volte", g.id),
                 "il supervisore ne avvia due con lo stesso nome: fermarne uno \
-                 diventa ambiguo"));
+                 diventa ambiguo",
+            ));
         }
 
         if g.code.trim().is_empty() && g.enabled {
-            out.push(Finding::warn(format!("{base}.code"),
+            out.push(Finding::warn(
+                format!("{base}.code"),
                 "lo script è abilitato ma il corpo è vuoto",
                 "verrà schedulato e non farà niente: metti del codice, oppure \
-                 `enabled: false`"));
+                 `enabled: false`",
+            ));
         }
 
         // Il cap sui byte è imposto dal `PUT /api/project/functions`, ma **solo
         // per le funzioni**: sui `global_scripts` nessuno lo controlla. Qui si
         // dice, così l'asimmetria non resta invisibile.
         if g.code.len() > sws_core::MAX_FUNCTION_CODE_BYTES {
-            out.push(Finding::err(format!("{base}.code"),
-                format!("il corpo è {} byte, oltre il tetto di {}",
-                        g.code.len(), sws_core::MAX_FUNCTION_CODE_BYTES),
+            out.push(Finding::err(
+                format!("{base}.code"),
+                format!(
+                    "il corpo è {} byte, oltre il tetto di {}",
+                    g.code.len(),
+                    sws_core::MAX_FUNCTION_CODE_BYTES
+                ),
                 "è lo stesso tetto delle funzioni, e serve a non far gonfiare \
-                 project.yaml: spezza lo script o spostane una parte in una funzione"));
+                 project.yaml: spezza lo script o spostane una parte in una funzione",
+            ));
         }
 
         match &g.trigger {
             sws_core::ScriptTrigger::Startup => {}
             sws_core::ScriptTrigger::Interval { interval_s } => {
                 if *interval_s == 0 {
-                    out.push(Finding::err(format!("{base}.trigger.interval_s"),
+                    out.push(Finding::err(
+                        format!("{base}.trigger.interval_s"),
                         "un intervallo di 0 secondi",
-                        "il supervisore girerebbe senza pause: metti almeno 1"));
+                        "il supervisore girerebbe senza pause: metti almeno 1",
+                    ));
                 }
             }
             sws_core::ScriptTrigger::TagChange { tag, edge } => {
                 if !tag.is_empty() && !per_id.contains_key(tag.as_str()) {
-                    out.push(Finding::err(format!("{base}.trigger.tag"),
+                    out.push(Finding::err(
+                        format!("{base}.trigger.tag"),
                         format!("lo script osserva il tag `{tag}`, che non è dichiarato"),
                         "non scatterà mai, e non lo dirà: dichiara il tag o correggi \
-                         il riferimento"));
+                         il riferimento",
+                    ));
                 }
                 const EDGE: &[&str] = &["rising", "falling", "any"];
                 if !EDGE.contains(&edge.as_str()) {
-                    out.push(Finding::err(format!("{base}.trigger.edge"),
+                    out.push(Finding::err(
+                        format!("{base}.trigger.edge"),
                         format!("`{edge}` non è un fronte valido"),
-                        "i valori sono \"rising\", \"falling\" e \"any\" (default)"));
+                        "i valori sono \"rising\", \"falling\" e \"any\" (default)",
+                    ));
                 }
             }
             sws_core::ScriptTrigger::Cron { schedule } => {
-                for f in cron_rilievi(&base, schedule) { out.push(f); }
+                for f in cron_rilievi(&base, schedule) {
+                    out.push(f);
+                }
             }
         }
     }
 
-    let funzioni: HashSet<&str> =
-        project.functions.iter().map(|f| f.name.as_str()).collect();
+    let funzioni: HashSet<&str> = project.functions.iter().map(|f| f.name.as_str()).collect();
 
     // Pagine: nomi e id univoci, e ogni pagina è un bersaglio di navigazione.
     let mut nomi_pagina: HashSet<&str> = HashSet::new();
@@ -557,7 +639,8 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
             out.push(Finding::err(
                 format!("pages[{}]", p.name),
                 format!("due pagine si chiamano `{}`", p.name),
-                "il nome è il nome del file su disco: la seconda sovrascrive la prima"));
+                "il nome è il nome del file su disco: la seconda sovrascrive la prima",
+            ));
         }
         id_pagina.insert(p.id.as_str());
     }
@@ -570,7 +653,8 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
                     format!("pages[{}].objects[{}]", p.name, o.id),
                     format!("due oggetti hanno lo stesso id `{}`", o.id),
                     "gli id devono essere univoci nella pagina: le pipe e i gruppi si \
-                     ancorano per id, e con un doppione si ancorano al primo che capita"));
+                     ancorano per id, e con un doppione si ancorano al primo che capita",
+                ));
             }
         }
         let ids: HashSet<&str> = p.objects.iter().map(|o| o.id.as_str()).collect();
@@ -591,8 +675,19 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
                 fuori += 1;
                 continue;
             }
-            controlla_oggetto(&mut out, p, o, &tipi, &enums, &per_id, &ids,
-                              &id_pagina, &nomi_pagina, &funzioni, &mqtt_per_tag);
+            controlla_oggetto(
+                &mut out,
+                p,
+                o,
+                &tipi,
+                &enums,
+                &per_id,
+                &ids,
+                &id_pagina,
+                &nomi_pagina,
+                &funzioni,
+                &mqtt_per_tag,
+            );
         }
         // Rischio R8 — e la ragione per cui questo avviso esiste. Rimpicciolire
         // una pagina, o aggiornare un progetto disegnato quando il fuori pagina
@@ -659,7 +754,9 @@ fn cron_rilievi(base: &str, schedule: &str) -> Vec<Finding> {
                     format!("{messaggio} — lo script NON verrebbe schedulato"),
                     p.suggerimento,
                 ),
-                crate::cron::Gravita::Avviso => Finding::warn(campo.clone(), messaggio, p.suggerimento),
+                crate::cron::Gravita::Avviso => {
+                    Finding::warn(campo.clone(), messaggio, p.suggerimento)
+                }
             }
         })
         .collect()
@@ -686,7 +783,8 @@ fn controlla_oggetto(
         out.push(Finding::err(
             format!("{base}.type"),
             format!("`{t}` non è un tipo di oggetto conosciuto"),
-            "l'editor non lo disegnerà affatto: i tipi validi sono quelli dello schema"));
+            "l'editor non lo disegnerà affatto: i tipi validi sono quelli dello schema",
+        ));
         return; // senza il tipo, le regole che dipendono dal tipo non dicono niente
     }
 
@@ -698,12 +796,15 @@ fn controlla_oggetto(
     if let Some(map) = map {
         for (k, v) in map {
             let Some(s) = v.as_str() else { continue };
-            let Some(validi) = enums.get(k.as_str()) else { continue };
+            let Some(validi) = enums.get(k.as_str()) else {
+                continue;
+            };
             if !validi.contains(&s) {
                 out.push(Finding::err(
                     format!("{base}.{k}"),
                     format!("`{s}` non è un valore ammesso per `{k}`"),
-                    format!("i valori sono: {}", validi.join(", "))));
+                    format!("i valori sono: {}", validi.join(", ")),
+                ));
             }
         }
     }
@@ -711,7 +812,9 @@ fn controlla_oggetto(
     // Riferimenti a tag.
     if let Some(map) = map {
         for campo in CAMPI_TAG {
-            let Some(v) = map.get(*campo).and_then(Value::as_str) else { continue };
+            let Some(v) = map.get(*campo).and_then(Value::as_str) else {
+                continue;
+            };
             if v.is_empty() || e_segnaposto(v) {
                 continue;
             }
@@ -720,7 +823,8 @@ fn controlla_oggetto(
                     format!("{base}.{campo}"),
                     format!("il tag `{v}` non è dichiarato nel progetto"),
                     "dichiaralo in project.tags oppure usa un tag esistente: un oggetto \
-                     legato a un tag inesistente resta fermo e non dice perché"));
+                     legato a un tag inesistente resta fermo e non dice perché",
+                ));
             }
         }
     }
@@ -729,7 +833,8 @@ fn controlla_oggetto(
             out.push(Finding::err(
                 format!("{base}.extra_tags"),
                 format!("il tag `{extra}` non è dichiarato nel progetto"),
-                "ogni traccia in più deve puntare a un tag che esiste"));
+                "ogni traccia in più deve puntare a un tag che esiste",
+            ));
         }
     }
 
@@ -748,12 +853,18 @@ fn controlla_oggetto(
         ("checked_value", &o.checked_value),
         ("unchecked_value", &o.unchecked_value),
     ] {
-        let (Some(v), Some(td)) = (valore.as_ref(), tag_def) else { continue };
+        let (Some(v), Some(td)) = (valore.as_ref(), tag_def) else {
+            continue;
+        };
         if let Some(msg) = incompatibile(v, &td.data_type) {
             out.push(Finding::err(
                 format!("{base}.{campo}"),
-                format!("{msg} ma il tag `{}` è dichiarato `{}`", td.id, td.data_type),
-                atteso_per(&td.data_type)));
+                format!(
+                    "{msg} ma il tag `{}` è dichiarato `{}`",
+                    td.id, td.data_type
+                ),
+                atteso_per(&td.data_type),
+            ));
         }
     }
 
@@ -773,12 +884,17 @@ fn controlla_oggetto(
                 format!("{base}.on_value"),
                 format!("`{}` è un tag bool ma il confronto è su una stringa", td.id),
                 "scrivi `true` senza virgolette: funziona anche così, ma solo perché i due \
-                 motori stringificano un booleano allo stesso modo"));
+                 motori stringificano un booleano allo stesso modo",
+            ));
         } else if let Some(msg) = incompatibile(v, &td.data_type) {
             out.push(Finding::warn(
                 format!("{base}.on_value"),
-                format!("{msg} ma il tag `{}` è dichiarato `{}`", td.id, td.data_type),
-                "il confronto avverrà fra stringhe: assicurati che sia quello che vuoi"));
+                format!(
+                    "{msg} ma il tag `{}` è dichiarato `{}`",
+                    td.id, td.data_type
+                ),
+                "il confronto avverrà fra stringhe: assicurati che sia quello che vuoi",
+            ));
         }
     }
 
@@ -787,13 +903,18 @@ fn controlla_oggetto(
         match tag_def {
             Some(td) if td.expression.is_some() => out.push(Finding::err(
                 format!("{base}.tag"),
-                format!("`{}` è un tag calcolato (ha un'espressione): le scritture su di \
-                         esso vengono rifiutate", td.id),
-                "lega il comando al tag che il driver scrive davvero, non al derivato")),
+                format!(
+                    "`{}` è un tag calcolato (ha un'espressione): le scritture su di \
+                         esso vengono rifiutate",
+                    td.id
+                ),
+                "lega il comando al tag che il driver scrive davvero, non al derivato",
+            )),
             None if o.tag.as_deref().unwrap_or("").is_empty() => out.push(Finding::warn(
                 format!("{base}.tag"),
                 format!("un `{t}` senza tag non comanda niente"),
-                "indica il tag su cui scrivere")),
+                "indica il tag su cui scrivere",
+            )),
             _ => {}
         }
         // Il bersaglio: un comando MQTT senza canale di ritorno.
@@ -801,10 +922,13 @@ fn controlla_oggetto(
             if mqtt_scrivibile.get(id) == Some(&false) {
                 out.push(Finding::warn(
                     format!("{base}.tag"),
-                    format!("il tag `{id}` arriva da MQTT ma il suo mapping non ha \
-                             `publish_topic`: il comando resta dentro SWS"),
+                    format!(
+                        "il tag `{id}` arriva da MQTT ma il suo mapping non ha \
+                             `publish_topic`: il comando resta dentro SWS"
+                    ),
                     "aggiungi `publish_topic` al mapping della sorgente, altrimenti il \
-                     valore cambia sullo schermo e il device non lo sa"));
+                     valore cambia sullo schermo e il device non lo sa",
+                ));
             }
         }
     }
@@ -817,29 +941,37 @@ fn controlla_oggetto(
                 format!("{base}.target_page"),
                 format!("la pagina `{target}` non esiste"),
                 "premendo il pulsante lo schermo diventa nero, senza nessun messaggio: \
-                 usa l'id di una pagina esistente"));
+                 usa l'id di una pagina esistente",
+            ));
         }
     }
 
     // Funzioni agganciate agli eventi.
-    for (campo, nome) in [("on_press_fn", &o.on_press_fn), ("on_release_fn", &o.on_release_fn)] {
+    for (campo, nome) in [
+        ("on_press_fn", &o.on_press_fn),
+        ("on_release_fn", &o.on_release_fn),
+    ] {
         let Some(n) = nome.as_deref() else { continue };
         if !n.is_empty() && !funzioni.contains(n) {
             out.push(Finding::err(
                 format!("{base}.{campo}"),
                 format!("la funzione `{n}` non esiste nel progetto"),
-                "il gesto non farà niente: usa il nome di una funzione dichiarata"));
+                "il gesto non farà niente: usa il nome di una funzione dichiarata",
+            ));
         }
     }
 
     // Ancoraggi delle pipe.
     for (campo, riferimento) in [("from_obj_id", &o.from_obj_id), ("to_obj_id", &o.to_obj_id)] {
-        let Some(r) = riferimento.as_deref() else { continue };
+        let Some(r) = riferimento.as_deref() else {
+            continue;
+        };
         if !r.is_empty() && !ids_pagina.contains(r) {
             out.push(Finding::err(
                 format!("{base}.{campo}"),
                 format!("l'oggetto `{r}` non esiste in questa pagina"),
-                "la pipe finirà dove capita, di solito nell'angolo"));
+                "la pipe finirà dove capita, di solito nell'angolo",
+            ));
         }
     }
 
@@ -849,7 +981,8 @@ fn controlla_oggetto(
         out.push(Finding::err(
             format!("{base}.points"),
             "una `line` non legge `points`: nessun motore lo disegna",
-            "una linea va da (x,y) a (x2,y2); per una spezzata serve una `pipe`"));
+            "una linea va da (x,y) a (x2,y2); per una spezzata serve una `pipe`",
+        ));
     }
 
     // Celle di griglia che non disegnano niente: il campo è `child`, non
@@ -861,7 +994,8 @@ fn controlla_oggetto(
                 out.push(Finding::err(
                     format!("{base}.grid_cells[{i}].objects"),
                     "`objects` non è un campo di una cella di griglia: la cella resta vuota",
-                    "il campo è `child`, e contiene UN oggetto"));
+                    "il campo è `child`, e contiene UN oggetto",
+                ));
             }
             // # E l'oggetto DENTRO la cella, che prima nessuno guardava
             //
@@ -876,16 +1010,31 @@ fn controlla_oggetto(
             // Qui si scende, e ricorsivamente: una cella può contenere un'altra
             // griglia, e fermarsi al primo livello lascerebbe lo stesso buco un
             // gradino più sotto.
-            let Some(child) = cm.get("child") else { continue };
-            if child.is_null() { continue; }
+            let Some(child) = cm.get("child") else {
+                continue;
+            };
+            if child.is_null() {
+                continue;
+            }
             match serde_json::from_value::<SynopticObject>(child.clone()) {
-                Ok(figlio) => controlla_oggetto(out, page, &figlio, tipi, enums, tags,
-                                                ids_pagina, id_pagine, nomi_pagine,
-                                                funzioni, mqtt_scrivibile),
+                Ok(figlio) => controlla_oggetto(
+                    out,
+                    page,
+                    &figlio,
+                    tipi,
+                    enums,
+                    tags,
+                    ids_pagina,
+                    id_pagine,
+                    nomi_pagine,
+                    funzioni,
+                    mqtt_scrivibile,
+                ),
                 Err(e) => out.push(Finding::warn(
                     format!("{base}.grid_cells[{i}].child"),
                     format!("il contenuto della cella non si legge come oggetto: {e}"),
-                    "la cella non disegnerà niente; controlla `type` e i campi obbligatori")),
+                    "la cella non disegnerà niente; controlla `type` e i campi obbligatori",
+                )),
             }
         }
     }
@@ -908,17 +1057,24 @@ fn incompatibile(v: &Value, data_type: &str) -> Option<String> {
         "string" => v.is_string(),
         _ => true,
     };
-    if ok { None } else { Some(format!("il valore è un {descrizione}")) }
+    if ok {
+        None
+    } else {
+        Some(format!("il valore è un {descrizione}"))
+    }
 }
 
 fn atteso_per(data_type: &str) -> String {
     match data_type {
-        "bool" => "scrivi `true` / `false` senza virgolette: in YAML `'true'` è una stringa, \
-                   e un tag bool che contiene una stringa funziona per caso finché smette",
+        "bool" => {
+            "scrivi `true` / `false` senza virgolette: in YAML `'true'` è una stringa, \
+                   e un tag bool che contiene una stringa funziona per caso finché smette"
+        }
         "int" => "scrivi un intero senza virgolette",
         "float" => "scrivi un numero senza virgolette",
         _ => "scrivi una stringa",
-    }.to_string()
+    }
+    .to_string()
 }
 
 /// I mapping tag↔topic di una sorgente, per le sole sorgenti che ne hanno.
@@ -954,7 +1110,8 @@ mod tests {
         let mut pages = Vec::new();
         let sdir = dir.join("synoptics");
         if sdir.is_dir() {
-            let mut files: Vec<_> = std::fs::read_dir(&sdir).unwrap()
+            let mut files: Vec<_> = std::fs::read_dir(&sdir)
+                .unwrap()
                 .filter_map(|e| e.ok().map(|e| e.path()))
                 .filter(|p| p.extension().is_some_and(|x| x == "yaml"))
                 .collect();
@@ -1003,21 +1160,32 @@ global_scripts:
 
         let rilievi = ricomponi_script(&mut proposta, &disco);
         let dopo: Project = serde_json::from_value(proposta).expect("si deve leggere");
-        assert_eq!(dopo.functions.len(), 2, "le funzioni del disco devono restare");
+        assert_eq!(
+            dopo.functions.len(),
+            2,
+            "le funzioni del disco devono restare"
+        );
         assert_eq!(dopo.global_scripts.len(), 1, "e anche gli script globali");
-        assert!(rilievi.iter().any(|f| f.path == "project.functions"
-                                    && f.severity == Severity::Warning),
-                "e la ricomposizione deve dirlo, altrimenti la modifica sparita è invisibile");
+        assert!(
+            rilievi
+                .iter()
+                .any(|f| f.path == "project.functions" && f.severity == Severity::Warning),
+            "e la ricomposizione deve dirlo, altrimenti la modifica sparita è invisibile"
+        );
 
         // Il verso rotto: senza ricomposizione, `#[serde(default)]` su
         // `Project.functions` le fa diventare zero. Da lì `applyAiProposal` le
         // mette nello store e il Salva scrive `updateFunctions([])`.
         let crudo: Project = serde_json::from_value(serde_json::json!({
             "meta": { "name": "prova", "version": "1.0" }, "tags": [],
-        })).unwrap();
-        assert_eq!(crudo.functions.len(), 0,
-                   "se questo cambia, `serde(default)` è stato toccato: rileggi il commento \
-                    di ricomponi_script prima di cancellare il test");
+        }))
+        .unwrap();
+        assert_eq!(
+            crudo.functions.len(),
+            0,
+            "se questo cambia, `serde(default)` è stato toccato: rileggi il commento \
+                    di ricomponi_script prima di cancellare il test"
+        );
     }
 
     /// Il difetto gemello, quello che bloccava: `leggi_progetto` toglie il corpo
@@ -1040,18 +1208,28 @@ global_scripts:
         // Il verso rotto, prima: senza ricomposizione non si legge affatto.
         let e = serde_json::from_value::<Project>(come_le_legge_il_modello.clone())
             .expect_err("senza ricomposizione deve fallire");
-        assert!(e.to_string().contains("missing field `code`"),
-                "la dizione di serde è cambiata: era «missing field `code`», ora «{e}»");
+        assert!(
+            e.to_string().contains("missing field `code`"),
+            "la dizione di serde è cambiata: era «missing field `code`», ora «{e}»"
+        );
 
         let mut proposta = come_le_legge_il_modello;
         let rilievi = ricomponi_script(&mut proposta, &disco);
         let dopo: Project = serde_json::from_value(proposta).expect("ora si deve leggere");
-        assert_eq!(dopo.functions[0].code, "tags.write('v', True)",
-                   "il corpo deve tornare quello del disco, non una stringa vuota");
+        assert_eq!(
+            dopo.functions[0].code, "tags.write('v', True)",
+            "il corpo deve tornare quello del disco, non una stringa vuota"
+        );
         assert_eq!(dopo.global_scripts[0].code, "pass");
-        assert_eq!(rilievi.iter().filter(|f| f.severity == Severity::Warning).count(), 3,
-                   "un avviso per ogni corpo rimesso: senza, un `codice:` storpiato \
-                    rimetterebbe il corpo vecchio in silenzio");
+        assert_eq!(
+            rilievi
+                .iter()
+                .filter(|f| f.severity == Severity::Warning)
+                .count(),
+            3,
+            "un avviso per ogni corpo rimesso: senza, un `codice:` storpiato \
+                    rimetterebbe il corpo vecchio in silenzio"
+        );
     }
 
     /// Una funzione che il progetto non ha e che non porta il corpo è un errore,
@@ -1064,9 +1242,12 @@ global_scripts:
             "functions": [{ "id": "f9", "name": "nuova" }],
         });
         let rilievi = ricomponi_script(&mut proposta, &disco);
-        assert!(rilievi.iter().any(|f| f.severity == Severity::Error
-                                    && f.path == "project.functions[f9].code"),
-                "rilievi: {rilievi:?}");
+        assert!(
+            rilievi
+                .iter()
+                .any(|f| f.severity == Severity::Error && f.path == "project.functions[f9].code"),
+            "rilievi: {rilievi:?}"
+        );
 
         // Il verso giusto: con il corpo, nessun rilievo.
         let mut ok = serde_json::json!({
@@ -1089,7 +1270,10 @@ global_scripts:
         let rilievi = ricomponi_script(&mut proposta, &disco);
         let dopo: Project = serde_json::from_value(proposta).unwrap();
         assert!(dopo.functions.is_empty(), "svuotare deve restare possibile");
-        assert!(rilievi.is_empty(), "e non deve produrre rilievi: {rilievi:?}");
+        assert!(
+            rilievi.is_empty(),
+            "e non deve produrre rilievi: {rilievi:?}"
+        );
     }
 
     /// Le due costanti dei campi sono scritte a mano perché `synoptic_schema.rs`
@@ -1098,28 +1282,46 @@ global_scripts:
     #[test]
     fn i_campi_degli_script_sono_tutti_elencati() {
         let f = sws_core::FunctionDef {
-            id: "i".into(), name: "n".into(), description: Some("d".into()),
+            id: "i".into(),
+            name: "n".into(),
+            description: Some("d".into()),
             code: "c".into(),
-            params: vec![sws_core::FunctionParam { name: "p".into(), default: None }],
+            params: vec![sws_core::FunctionParam {
+                name: "p".into(),
+                default: None,
+            }],
         };
         let v = serde_json::to_value(&f).unwrap();
         let mut chiavi: Vec<&str> = v.as_object().unwrap().keys().map(String::as_str).collect();
         chiavi.sort();
         let mut attesi: Vec<&str> = CAMPI_FUNZIONE.to_vec();
         attesi.sort();
-        assert_eq!(chiavi, attesi, "CAMPI_FUNZIONE non combacia con FunctionDef");
+        assert_eq!(
+            chiavi, attesi,
+            "CAMPI_FUNZIONE non combacia con FunctionDef"
+        );
 
         let g = sws_core::GlobalScriptDef {
-            id: "i".into(), trigger: sws_core::ScriptTrigger::Startup,
-            code: "c".into(), enabled: true,
+            id: "i".into(),
+            trigger: sws_core::ScriptTrigger::Startup,
+            code: "c".into(),
+            enabled: true,
         };
         let v = serde_json::to_value(&g).unwrap();
-        let mut chiavi: Vec<&str> = v.as_object().unwrap().keys()
-            .map(String::as_str).filter(|k| *k != "kind").collect();
+        let mut chiavi: Vec<&str> = v
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .filter(|k| *k != "kind")
+            .collect();
         chiavi.sort();
         let mut attesi: Vec<&str> = CAMPI_SCRIPT_GLOBALE.to_vec();
         attesi.sort();
-        assert_eq!(chiavi, attesi, "CAMPI_SCRIPT_GLOBALE non combacia con GlobalScriptDef");
+        assert_eq!(
+            chiavi, attesi,
+            "CAMPI_SCRIPT_GLOBALE non combacia con GlobalScriptDef"
+        );
     }
 
     /// Il buco che la ricomposizione stessa apre: un `codice:` invece di `code:`
@@ -1130,9 +1332,12 @@ global_scripts:
             "functions": [{ "id": "f1", "name": "apri", "codice": "pass" }],
         });
         let rilievi = unknown_fields(Some(&raw), &[]);
-        assert!(rilievi.iter().any(|f| f.path == "project.functions[f1].codice"
-                                    && f.severity == Severity::Error),
-                "rilievi: {rilievi:?}");
+        assert!(
+            rilievi
+                .iter()
+                .any(|f| f.path == "project.functions[f1].codice" && f.severity == Severity::Error),
+            "rilievi: {rilievi:?}"
+        );
         // Verso giusto.
         let raw = serde_json::json!({
             "functions": [{ "id": "f1", "name": "apri", "code": "pass" }],
@@ -1141,14 +1346,19 @@ global_scripts:
     }
 
     fn templates() -> Vec<std::path::PathBuf> {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../examples/templates");
+        let dir =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../examples/templates");
         let mut out: Vec<_> = std::fs::read_dir(&dir)
             .expect("examples/templates deve esistere")
             .filter_map(|e| e.ok().map(|e| e.path()))
             .filter(|p| p.is_dir() && p.join("project.yaml").exists())
             .collect();
         out.sort();
-        assert!(out.len() >= 10, "trovati solo {} template: il percorso è sbagliato", out.len());
+        assert!(
+            out.len() >= 10,
+            "trovati solo {} template: il percorso è sbagliato",
+            out.len()
+        );
         out
     }
 
@@ -1205,17 +1415,26 @@ global_scripts:
                 }
             }
         }
-        assert!(rotti.is_empty(),
-            "{} errori nei template che spediamo:\n  {}", rotti.len(), rotti.join("\n  "));
+        assert!(
+            rotti.is_empty(),
+            "{} errori nei template che spediamo:\n  {}",
+            rotti.len(),
+            rotti.join("\n  ")
+        );
 
         // Un'eccezione che non scatta più è un'eccezione da togliere: se il
         // template è stato sistemato, l'elenco qui sopra mente e va accorciato.
-        let mancanti: Vec<&&str> = ECCEZIONI_NOTE.iter()
+        let mancanti: Vec<&&str> = ECCEZIONI_NOTE
+            .iter()
             .filter(|e| !eccezioni_viste.contains(&e.to_string()))
             .collect();
-        assert!(mancanti.is_empty(),
+        assert!(
+            mancanti.is_empty(),
             "{} eccezioni non scattano più — il template è stato corretto, togli queste \
-             righe da ECCEZIONI_NOTE:\n  {:?}", mancanti.len(), mancanti);
+             righe da ECCEZIONI_NOTE:\n  {:?}",
+            mancanti.len(),
+            mancanti
+        );
     }
 
     /// Gli avvisi non fanno fallire nulla, ma restare ciechi su quanti sono è
@@ -1232,8 +1451,12 @@ global_scripts:
                 }
             }
         }
-        assert!(avvisi.len() <= 40,
-            "{} avvisi nei template (soglia 40):\n  {}", avvisi.len(), avvisi.join("\n  "));
+        assert!(
+            avvisi.len() <= 40,
+            "{} avvisi nei template (soglia 40):\n  {}",
+            avvisi.len(),
+            avvisi.join("\n  ")
+        );
     }
 }
 
@@ -1268,12 +1491,18 @@ alarms: []
     /// Il rilievo nomina questo pezzo da qualche parte — percorso, messaggio o
     /// suggerimento. Il suggerimento conta: spesso è lì che sta il nome giusto.
     fn cita(rs: &[Finding], pezzo: &str) -> bool {
-        rs.iter().any(|f| f.path.contains(pezzo) || f.message.contains(pezzo)
-                          || f.hint.as_deref().is_some_and(|h| h.contains(pezzo)))
+        rs.iter().any(|f| {
+            f.path.contains(pezzo)
+                || f.message.contains(pezzo)
+                || f.hint.as_deref().is_some_and(|h| h.contains(pezzo))
+        })
     }
 
     fn errori(rs: &[Finding]) -> Vec<Finding> {
-        rs.iter().filter(|f| f.severity == Severity::Error).cloned().collect()
+        rs.iter()
+            .filter(|f| f.severity == Severity::Error)
+            .cloned()
+            .collect()
     }
 
     // ── T-52: il fuori pagina spegne i rilievi semantici ────────────────────
@@ -1300,12 +1529,23 @@ alarms: []
     /// viewer.
     #[test]
     fn la_pagina_avvisa_di_quanti_ne_sono_fuori() {
-        let rs = rilievi(PROGETTO, &format!(
-            "id: pg1\nname: Prova\nwidth: 1280\nheight: 800\nobjects:\n{}{}",
-            "  - { id: r1, type: rect, x: 3000, y: 100, width: 120, height: 40 }\n",
-            "  - { id: r2, type: rect, x: 100, y: 3000, width: 120, height: 40 }\n"));
-        let avvisi: Vec<_> = rs.iter().filter(|f| f.severity == Severity::Warning).collect();
-        assert_eq!(avvisi.len(), 1, "un avviso per pagina, non uno per oggetto: {rs:?}");
+        let rs = rilievi(
+            PROGETTO,
+            &format!(
+                "id: pg1\nname: Prova\nwidth: 1280\nheight: 800\nobjects:\n{}{}",
+                "  - { id: r1, type: rect, x: 3000, y: 100, width: 120, height: 40 }\n",
+                "  - { id: r2, type: rect, x: 100, y: 3000, width: 120, height: 40 }\n"
+            ),
+        );
+        let avvisi: Vec<_> = rs
+            .iter()
+            .filter(|f| f.severity == Severity::Warning)
+            .collect();
+        assert_eq!(
+            avvisi.len(),
+            1,
+            "un avviso per pagina, non uno per oggetto: {rs:?}"
+        );
         assert_eq!(avvisi[0].path, "pages[Prova]");
         assert!(avvisi[0].message.contains('2'), "{:?}", avvisi[0].message);
     }
@@ -1315,11 +1555,18 @@ alarms: []
     /// parcheggiata insieme all'oggetto.
     #[test]
     fn gli_id_duplicati_si_vedono_anche_fuori_pagina() {
-        let rs = rilievi(PROGETTO, &format!(
-            "id: pg1\nname: Prova\nwidth: 1280\nheight: 800\nobjects:\n{}{}",
-            "  - { id: dop, type: rect, x: 3000, y: 100, width: 120, height: 40 }\n",
-            "  - { id: dop, type: rect, x: 3200, y: 100, width: 120, height: 40 }\n"));
-        assert!(errori(&rs).iter().any(|f| f.message.contains("stesso id")), "{rs:?}");
+        let rs = rilievi(
+            PROGETTO,
+            &format!(
+                "id: pg1\nname: Prova\nwidth: 1280\nheight: 800\nobjects:\n{}{}",
+                "  - { id: dop, type: rect, x: 3000, y: 100, width: 120, height: 40 }\n",
+                "  - { id: dop, type: rect, x: 3200, y: 100, width: 120, height: 40 }\n"
+            ),
+        );
+        assert!(
+            errori(&rs).iter().any(|f| f.message.contains("stesso id")),
+            "{rs:?}"
+        );
     }
 
     /// Pagina fluida: nessun bordo ⇒ niente è fuori ⇒ i rilievi restano tutti.
@@ -1329,7 +1576,10 @@ alarms: []
         let rs = rilievi(PROGETTO, &pagina(
             "  - { id: v1, type: text, x: 9000, y: 9000, width: 120, height: 40, tag: non.esiste }\n"));
         assert!(cita(&errori(&rs), "non.esiste"), "{rs:?}");
-        assert!(!rs.iter().any(|f| f.message.contains("fuori dal foglio")), "{rs:?}");
+        assert!(
+            !rs.iter().any(|f| f.message.contains("fuori dal foglio")),
+            "{rs:?}"
+        );
     }
 
     #[test]
@@ -1353,7 +1603,11 @@ alarms: []
         })];
         let rs = unknown_fields(None, &pagine);
         assert_eq!(rs.len(), 1, "{rs:?}");
-        assert!(rs[0].hint.as_ref().unwrap().contains("`label`"), "{:?}", rs[0].hint);
+        assert!(
+            rs[0].hint.as_ref().unwrap().contains("`label`"),
+            "{:?}",
+            rs[0].hint
+        );
     }
 
     /// E una parola tutta diversa NON deve ricevere un suggerimento a caso:
@@ -1366,7 +1620,11 @@ alarms: []
             "objects": [{ "id": "b1", "type": "button", "x": 0, "y": 0, "etichetta": "Luce" }]
         })];
         let rs = unknown_fields(None, &pagine);
-        assert!(rs[0].hint.as_ref().unwrap().starts_with("chiedi lo schema"), "{:?}", rs[0].hint);
+        assert!(
+            rs[0].hint.as_ref().unwrap().starts_with("chiedi lo schema"),
+            "{:?}",
+            rs[0].hint
+        );
     }
 
     #[test]
@@ -1387,21 +1645,31 @@ alarms: []
 
     #[test]
     fn un_tag_non_dichiarato_non_passa() {
-        let rs = rilievi(PROGETTO, &pagina("- { id: x, type: led, x: 0, y: 0, tag: inesistente }"));
+        let rs = rilievi(
+            PROGETTO,
+            &pagina("- { id: x, type: led, x: 0, y: 0, tag: inesistente }"),
+        );
         assert!(cita(&errori(&rs), "inesistente"), "{rs:?}");
     }
 
     #[test]
     fn un_segnaposto_di_faceplate_non_e_un_tag_rotto() {
-        let rs = rilievi(PROGETTO, &pagina("- { id: x, type: led, x: 0, y: 0, tag: '{motore}.stato' }"));
+        let rs = rilievi(
+            PROGETTO,
+            &pagina("- { id: x, type: led, x: 0, y: 0, tag: '{motore}.stato' }"),
+        );
         assert!(errori(&rs).is_empty(), "{rs:?}");
     }
 
     /// Il difetto del 2026-08-31, quello che ha aperto Q27.
     #[test]
     fn una_stringa_su_un_tag_bool_non_passa() {
-        let rs = rilievi(PROGETTO, &pagina(
-            "- { id: x, type: button, x: 0, y: 0, tag: luce.salotto, write_value: 'true' }"));
+        let rs = rilievi(
+            PROGETTO,
+            &pagina(
+                "- { id: x, type: button, x: 0, y: 0, tag: luce.salotto, write_value: 'true' }",
+            ),
+        );
         let e = errori(&rs);
         assert!(cita(&e, "write_value"), "{rs:?}");
         assert!(e[0].hint.as_ref().unwrap().contains("senza virgolette"));
@@ -1409,8 +1677,10 @@ alarms: []
 
     #[test]
     fn un_booleano_vero_su_un_tag_bool_passa() {
-        let rs = rilievi(PROGETTO, &pagina(
-            "- { id: x, type: button, x: 0, y: 0, tag: luce.salotto, write_value: true }"));
+        let rs = rilievi(
+            PROGETTO,
+            &pagina("- { id: x, type: button, x: 0, y: 0, tag: luce.salotto, write_value: true }"),
+        );
         assert!(errori(&rs).is_empty(), "{rs:?}");
     }
 
@@ -1421,27 +1691,38 @@ alarms: []
         let e = errori(&rs);
         assert!(cita(&e, "button_mode"), "{rs:?}");
         // L'elenco dei valori validi è la parte che permette di correggersi.
-        assert!(e[0].hint.as_ref().unwrap().contains("toggle"), "{:?}", e[0].hint);
+        assert!(
+            e[0].hint.as_ref().unwrap().contains("toggle"),
+            "{:?}",
+            e[0].hint
+        );
     }
 
     /// I sedici pulsanti rotti dei modelli demo, il 2026-08-28.
     #[test]
     fn una_navigazione_verso_il_nulla_non_passa() {
-        let rs = rilievi(PROGETTO, &pagina(
-            "- { id: x, type: navbutton, x: 0, y: 0, target_page: pagina_che_non_ce }"));
+        let rs = rilievi(
+            PROGETTO,
+            &pagina("- { id: x, type: navbutton, x: 0, y: 0, target_page: pagina_che_non_ce }"),
+        );
         assert!(cita(&errori(&rs), "pagina_che_non_ce"), "{rs:?}");
     }
 
     #[test]
     fn una_navigazione_verso_la_propria_pagina_passa() {
-        let rs = rilievi(PROGETTO, &pagina("- { id: x, type: navbutton, x: 0, y: 0, target_page: pg1 }"));
+        let rs = rilievi(
+            PROGETTO,
+            &pagina("- { id: x, type: navbutton, x: 0, y: 0, target_page: pg1 }"),
+        );
         assert!(errori(&rs).is_empty(), "{rs:?}");
     }
 
     #[test]
     fn points_su_una_line_non_passa() {
-        let rs = rilievi(PROGETTO, &pagina(
-            "- { id: x, type: line, x: 0, y: 0, points: [[0,0],[10,10]] }"));
+        let rs = rilievi(
+            PROGETTO,
+            &pagina("- { id: x, type: line, x: 0, y: 0, points: [[0,0],[10,10]] }"),
+        );
         assert!(cita(&errori(&rs), "points"), "{rs:?}");
     }
 
@@ -1454,15 +1735,19 @@ alarms: []
 
     #[test]
     fn una_pipe_ancorata_al_nulla_non_passa() {
-        let rs = rilievi(PROGETTO, &pagina(
-            "- { id: p, type: pipe, x: 0, y: 0, from_obj_id: fantasma }"));
+        let rs = rilievi(
+            PROGETTO,
+            &pagina("- { id: p, type: pipe, x: 0, y: 0, from_obj_id: fantasma }"),
+        );
         assert!(cita(&errori(&rs), "fantasma"), "{rs:?}");
     }
 
     #[test]
     fn un_comando_su_un_tag_calcolato_non_passa() {
-        let rs = rilievi(PROGETTO, &pagina(
-            "- { id: x, type: button, x: 0, y: 0, tag: calcolato }"));
+        let rs = rilievi(
+            PROGETTO,
+            &pagina("- { id: x, type: button, x: 0, y: 0, tag: calcolato }"),
+        );
         assert!(cita(&errori(&rs), "calcolato"), "{rs:?}");
     }
 
@@ -1483,7 +1768,10 @@ alarms: []
     fn un_cron_con_i_passi_ora_passa_pulito() {
         let prog = format!("{PROGETTO}global_scripts:\n              - {{ id: ogni5, trigger: {{ kind: cron, schedule: \"*/5 * * * *\" }},                  code: \"print(1)\" }}\n");
         let rs = rilievi(&prog, &pagina("- { id: t, type: text, x: 0, y: 0 }"));
-        assert!(!cita(&rs, "schedule"), "nessun rilievo atteso su `*/5`: {rs:?}");
+        assert!(
+            !cita(&rs, "schedule"),
+            "nessun rilievo atteso su `*/5`: {rs:?}"
+        );
     }
 
     /// Ciò che il parser **non** capisce resta un errore, e deve dire la
@@ -1494,8 +1782,10 @@ alarms: []
         let prog = format!("{PROGETTO}global_scripts:\n              - {{ id: rotto, trigger: {{ kind: cron, schedule: \"*/0 pippo * * *\" }},                  code: \"print(1)\" }}\n");
         let rs = rilievi(&prog, &pagina("- { id: t, type: text, x: 0, y: 0 }"));
         let e = errori(&rs);
-        assert!(cita(&e, "NON verrebbe schedulato"),
-                "deve dire la conseguenza, non solo che è invalido: {rs:?}");
+        assert!(
+            cita(&e, "NON verrebbe schedulato"),
+            "deve dire la conseguenza, non solo che è invalido: {rs:?}"
+        );
     }
 
     /// Il verso opposto, altrettanto importante: la forma che il parser capisce
@@ -1505,7 +1795,10 @@ alarms: []
     fn un_cron_a_lista_di_interi_passa_pulito() {
         let prog = format!("{PROGETTO}global_scripts:\n              - {{ id: ogni5, trigger: {{ kind: cron,                  schedule: \"0,5,10,15,20,25,30,35,40,45,50,55 * * * *\" }},                  code: \"print(1)\" }}\n");
         let rs = rilievi(&prog, &pagina("- { id: t, type: text, x: 0, y: 0 }"));
-        assert!(!cita(&rs, "schedule"), "nessun rilievo atteso sul cron: {rs:?}");
+        assert!(
+            !cita(&rs, "schedule"),
+            "nessun rilievo atteso sul cron: {rs:?}"
+        );
     }
 
     /// Un cron corto è un **avviso**, non un errore: `30 4` gira davvero, solo
@@ -1517,8 +1810,10 @@ alarms: []
         let prog = format!("{PROGETTO}global_scripts:\n              - {{ id: corto, trigger: {{ kind: cron, schedule: \"30 4\" }},                  code: \"print(1)\" }}\n");
         let rs = rilievi(&prog, &pagina("- { id: t, type: text, x: 0, y: 0 }"));
         assert!(cita(&rs, "cinque"), "l'avviso ci deve essere: {rs:?}");
-        assert!(!cita(&errori(&rs), "cinque"),
-                "ma non come errore, o si blocca un salvataggio buono: {rs:?}");
+        assert!(
+            !cita(&errori(&rs), "cinque"),
+            "ma non come errore, o si blocca un salvataggio buono: {rs:?}"
+        );
     }
 
     #[test]
@@ -1549,8 +1844,10 @@ alarms: []
     fn una_funzione_inesistente_dentro_una_cella_di_griglia_non_passa() {
         let rs = rilievi(PROGETTO, &pagina(
             "- { id: g, type: grid, x: 0, y: 0, grid_cells: [{ row: 0, col: 0, child: { id: b, type: button, x: 0, y: 0, tag: luce.salotto, on_press_fn: mai_scritta } }] }"));
-        assert!(cita(&errori(&rs), "mai_scritta"),
-                "l'oggetto dentro la cella deve essere controllato: {rs:?}");
+        assert!(
+            cita(&errori(&rs), "mai_scritta"),
+            "l'oggetto dentro la cella deve essere controllato: {rs:?}"
+        );
     }
 
     /// E lo stesso per un tag: dentro una cella non c'è nessuna ragione per cui
@@ -1597,11 +1894,19 @@ sources:
     topics: [{ tag: luce.salotto, topic: casa/salotto/luce/stato }]
 alarms: []
 "#;
-        let rs = rilievi(prog, &pagina(
-            "- { id: x, type: button, x: 0, y: 0, tag: luce.salotto, write_value: true }"));
-        assert!(errori(&rs).is_empty(), "non è un errore, il progetto è valido: {rs:?}");
-        assert!(rs.iter().any(|f| f.severity == Severity::Warning
-                                  && f.message.contains("publish_topic")), "{rs:?}");
+        let rs = rilievi(
+            prog,
+            &pagina("- { id: x, type: button, x: 0, y: 0, tag: luce.salotto, write_value: true }"),
+        );
+        assert!(
+            errori(&rs).is_empty(),
+            "non è un errore, il progetto è valido: {rs:?}"
+        );
+        assert!(
+            rs.iter()
+                .any(|f| f.severity == Severity::Warning && f.message.contains("publish_topic")),
+            "{rs:?}"
+        );
     }
 
     /// E nel verso giusto: con `publish_topic`, silenzio.
@@ -1621,9 +1926,16 @@ sources:
         publish_topic: casa/salotto/luce/set
 alarms: []
 "#;
-        let rs = rilievi(prog, &pagina(
-            "- { id: btn_luce, type: button, x: 40, y: 40, width: 120, height: 48, \
-                 label: Luce salotto, tag: luce.salotto, button_mode: toggle }"));
-        assert!(rs.is_empty(), "il bersaglio deve passare pulito, invece: {rs:?}");
+        let rs = rilievi(
+            prog,
+            &pagina(
+                "- { id: btn_luce, type: button, x: 40, y: 40, width: 120, height: 48, \
+                 label: Luce salotto, tag: luce.salotto, button_mode: toggle }",
+            ),
+        );
+        assert!(
+            rs.is_empty(),
+            "il bersaglio deve passare pulito, invece: {rs:?}"
+        );
     }
 }

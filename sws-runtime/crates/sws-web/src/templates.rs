@@ -70,7 +70,11 @@ pub async fn list_templates(State(s): State<AppState>) -> Response {
             },
             Err(_) => (id.clone(), None),
         };
-        out.push(TemplateEntry { id, label, description });
+        out.push(TemplateEntry {
+            id,
+            label,
+            description,
+        });
     }
 
     out.sort_by(|a, b| a.id.cmp(&b.id));
@@ -122,11 +126,19 @@ mod tests {
     async fn copy_dir_all_copies_recursively() {
         let src = TempDir::new().unwrap();
         let dst = TempDir::new().unwrap();
-        tokio::fs::write(src.path().join("a.yaml"), "a").await.unwrap();
+        tokio::fs::write(src.path().join("a.yaml"), "a")
+            .await
+            .unwrap();
         tokio::fs::create_dir(src.path().join("sub")).await.unwrap();
-        tokio::fs::write(src.path().join("sub").join("b.yaml"), "b").await.unwrap();
-        tokio::fs::write(src.path().join("template.yaml"), "skip me").await.unwrap();
-        copy_dir_all(src.path(), dst.path(), &["template.yaml"]).await.unwrap();
+        tokio::fs::write(src.path().join("sub").join("b.yaml"), "b")
+            .await
+            .unwrap();
+        tokio::fs::write(src.path().join("template.yaml"), "skip me")
+            .await
+            .unwrap();
+        copy_dir_all(src.path(), dst.path(), &["template.yaml"])
+            .await
+            .unwrap();
         assert!(dst.path().join("a.yaml").exists());
         assert!(dst.path().join("sub").join("b.yaml").exists());
         assert!(!dst.path().join("template.yaml").exists());

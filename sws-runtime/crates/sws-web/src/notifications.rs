@@ -11,21 +11,19 @@
 //! The supervisor is started by `open_project` and stopped on `close_project`.
 //! SMTP credentials are read from `NotificationConfig.smtp`.
 
-use std::{
-    collections::HashSet,
-    sync::Arc,
-};
+use crate::telegram::TelegramMessage;
 use lettre::{
-    Message, SmtpTransport, Transport,
-    message::header::ContentType,
-    transport::smtp::authentication::Credentials,
+    message::header::ContentType, transport::smtp::authentication::Credentials, Message,
+    SmtpTransport, Transport,
+};
+use std::{collections::HashSet, sync::Arc};
+use sws_core::now_ms;
+use sws_core::{
+    AlarmDb, AlarmState, IsaState, NotificationConfig, SmtpConfig, TagValue, TelegramRouting,
 };
 use tokio::sync::{broadcast, mpsc, RwLock};
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
-use sws_core::{AlarmDb, AlarmState, IsaState, NotificationConfig, SmtpConfig, TagValue, TelegramRouting};
-use crate::telegram::TelegramMessage;
-use sws_core::now_ms;
 
 /// Build a lettre `SmtpTransport` from the project's `SmtpConfig`.
 fn build_transport(cfg: &SmtpConfig) -> anyhow::Result<SmtpTransport> {
@@ -43,7 +41,9 @@ fn build_transport(cfg: &SmtpConfig) -> anyhow::Result<SmtpTransport> {
     };
 
     let transport = if let (Some(user), Some(pass)) = (&cfg.username, &cfg.password) {
-        builder.credentials(Credentials::new(user.clone(), pass.clone())).build()
+        builder
+            .credentials(Credentials::new(user.clone(), pass.clone()))
+            .build()
     } else {
         builder.build()
     };
@@ -58,17 +58,27 @@ fn send_email_sync(
     subject: &str,
     body: &str,
 ) -> anyhow::Result<()> {
-    if to.is_empty() { return Ok(()); }
+    if to.is_empty() {
+        return Ok(());
+    }
     let transport = build_transport(cfg)?;
     for addr in to {
         let msg = Message::builder()
-            .from(cfg.from.parse().map_err(|e| anyhow::anyhow!("invalid From: {e}"))?)
-            .to(addr.parse().map_err(|e| anyhow::anyhow!("invalid To {addr}: {e}"))?)
+            .from(
+                cfg.from
+                    .parse()
+                    .map_err(|e| anyhow::anyhow!("invalid From: {e}"))?,
+            )
+            .to(addr
+                .parse()
+                .map_err(|e| anyhow::anyhow!("invalid To {addr}: {e}"))?)
             .subject(subject)
             .header(ContentType::TEXT_PLAIN)
             .body(body.to_string())
             .map_err(|e| anyhow::anyhow!("build message: {e}"))?;
-        transport.send(&msg).map_err(|e| anyhow::anyhow!("send to {addr}: {e}"))?;
+        transport
+            .send(&msg)
+            .map_err(|e| anyhow::anyhow!("send to {addr}: {e}"))?;
     }
     Ok(())
 }
@@ -77,10 +87,16 @@ fn send_email_sync(
 /// (which would show e.g. `Float(230.6)` instead of `230.6`).
 fn fmt_value(v: &TagValue) -> String {
     match v {
-        TagValue::Bool(b)  => if *b { "true".into() } else { "false".into() },
-        TagValue::Int(i)   => i.to_string(),
+        TagValue::Bool(b) => {
+            if *b {
+                "true".into()
+            } else {
+                "false".into()
+            }
+        }
+        TagValue::Int(i) => i.to_string(),
         TagValue::Float(f) => f.to_string(),
-        TagValue::Str(s)   => s.clone(),
+        TagValue::Str(s) => s.clone(),
     }
 }
 
@@ -93,7 +109,12 @@ fn fmt_activated_at(ms: Option<u64>) -> String {
     match ms.and_then(|ms| time::OffsetDateTime::from_unix_timestamp((ms / 1000) as i64).ok()) {
         Some(dt) => format!(
             "{:02}/{:02}/{:04} {:02}:{:02}:{:02} UTC",
-            dt.day(), u8::from(dt.month()), dt.year(), dt.hour(), dt.minute(), dt.second(),
+            dt.day(),
+            u8::from(dt.month()),
+            dt.year(),
+            dt.hour(),
+            dt.minute(),
+            dt.second(),
         ),
         None => "—".into(),
     }
@@ -117,11 +138,7 @@ fn alarm_body(state: &AlarmState, kind: &str) -> String {
 /// picked "specific chats" and hasn't listed any, and either alternative —
 /// dropping without a word, or falling back to every chat — hides a
 /// half-finished setting behind behaviour they didn't ask for.
-fn send_telegram(
-    tx: &mpsc::UnboundedSender<TelegramMessage>,
-    state: &AlarmState,
-    body: String,
-) {
+fn send_telegram(tx: &mpsc::UnboundedSender<TelegramMessage>, state: &AlarmState, body: String) {
     match state.def.telegram_routing() {
         TelegramRouting::Skip => {}
         TelegramRouting::GlobalChats => {
@@ -221,7 +238,8 @@ impl NotificationSupervisor {
             // activation when past `escalate_after_s`.
             let smtp_b = smtp.clone();
             let tg_b = telegram.clone();
-            let escalated: Arc<RwLock<HashSet<(String, u64)>>> = Arc::new(RwLock::new(HashSet::new()));
+            let escalated: Arc<RwLock<HashSet<(String, u64)>>> =
+                Arc::new(RwLock::new(HashSet::new()));
             loop {
                 tokio::select! {
                     _ = tokio::time::sleep(std::time::Duration::from_secs(60)) => {}
@@ -231,27 +249,48 @@ impl NotificationSupervisor {
                 let snapshot = alarm_db.snapshot().await;
                 let mut guard = escalated.write().await;
                 for state in &snapshot {
-                    if state.isa_state != IsaState::ActiveUnacked { continue; }
+                    if state.isa_state != IsaState::ActiveUnacked {
+                        continue;
+                    }
                     // Timing gate: escalation only makes sense with a delay set.
-                    let delay_s = match state.def.escalate_after_s { Some(d) if d > 0.0 => d, _ => continue };
-                    let act_ms = match state.activated_at_ms { Some(ms) => ms, None => continue };
-                    if now < act_ms + (delay_s * 1000.0) as u64 { continue; }
+                    let delay_s = match state.def.escalate_after_s {
+                        Some(d) if d > 0.0 => d,
+                        _ => continue,
+                    };
+                    let act_ms = match state.activated_at_ms {
+                        Some(ms) => ms,
+                        None => continue,
+                    };
+                    if now < act_ms + (delay_s * 1000.0) as u64 {
+                        continue;
+                    }
                     let key = (state.def.id.clone(), act_ms);
-                    if guard.contains(&key) { continue; }
+                    if guard.contains(&key) {
+                        continue;
+                    }
                     guard.insert(key);
                     let body = alarm_body(state, "⏫ ESCALATION: allarme non riconosciuto");
                     // Email escalation (only if escalate_to recipients set).
                     if let Some(smtp) = &smtp_b {
                         if let Some(to) = state.def.escalate_to.clone().filter(|v| !v.is_empty()) {
-                            let subject = format!("[SWS ESCALATION] {} — {}", state.def.id, state.def.message);
+                            let subject = format!(
+                                "[SWS ESCALATION] {} — {}",
+                                state.def.id, state.def.message
+                            );
                             let body = body.clone();
                             let smtp = Arc::clone(smtp);
                             let id = state.def.id.clone();
                             tokio::spawn(async move {
-                                match tokio::task::spawn_blocking(move || send_email_sync(&smtp, &to, &subject, &body)).await {
+                                match tokio::task::spawn_blocking(move || {
+                                    send_email_sync(&smtp, &to, &subject, &body)
+                                })
+                                .await
+                                {
                                     Ok(Ok(())) => info!(alarm = %id, "escalation email sent"),
-                                    Ok(Err(e)) => warn!(alarm = %id, "escalation email failed: {e}"),
-                                    Err(e)     => warn!("escalation task panicked: {e}"),
+                                    Ok(Err(e)) => {
+                                        warn!(alarm = %id, "escalation email failed: {e}")
+                                    }
+                                    Err(e) => warn!("escalation task panicked: {e}"),
                                 }
                             });
                         }

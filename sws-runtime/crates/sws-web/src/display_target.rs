@@ -91,7 +91,9 @@ pub async fn publish(config_dir: &Path, project_dir: &Path) {
     // Con la newline finale: il file è pensato per essere letto anche da uno
     // script di shell, e un file senza newline finale fa inciampare `read`.
     match tokio::fs::write(&path, format!("{voluto}\n")).await {
-        Ok(()) => tracing::info!(engine = voluto, path = %path.display(), "display-target aggiornato"),
+        Ok(()) => {
+            tracing::info!(engine = voluto, path = %path.display(), "display-target aggiornato")
+        }
         Err(e) => tracing::warn!(path = %path.display(), "display-target: scrittura fallita: {e}"),
     }
 }
@@ -107,8 +109,10 @@ mod tests {
     /// `target` arriva da `project.yaml`, quindi il test verifica anche che si
     /// deserializzi come si crede.
     fn progetto(target_yaml: &str) -> Project {
-        let yaml = format!("meta:\n  name: prova\n  version: '1'\ntags: []\nsources: []\n{target_yaml}");
-        serde_yaml::from_str(&yaml).unwrap_or_else(|e| panic!("YAML di prova non valido: {e}\n{yaml}"))
+        let yaml =
+            format!("meta:\n  name: prova\n  version: '1'\ntags: []\nsources: []\n{target_yaml}");
+        serde_yaml::from_str(&yaml)
+            .unwrap_or_else(|e| panic!("YAML di prova non valido: {e}\n{yaml}"))
     }
 
     /// Un progetto senza `target` è precedente al campo, e quei progetti sono
@@ -127,8 +131,14 @@ mod tests {
     /// programma mandare a schermo.
     #[test]
     fn entrambe_le_varianti_lvgl_danno_lvgl() {
-        assert_eq!(wanted_engine(&progetto("target:\n  kind: lvgl_framebuffer\n")), LVGL);
-        assert_eq!(wanted_engine(&progetto("target:\n  kind: lvgl_wayland\n")), LVGL);
+        assert_eq!(
+            wanted_engine(&progetto("target:\n  kind: lvgl_framebuffer\n")),
+            LVGL
+        );
+        assert_eq!(
+            wanted_engine(&progetto("target:\n  kind: lvgl_wayland\n")),
+            LVGL
+        );
     }
 
     /// I due valori scritti sul file sono un contratto con lo script lato host:

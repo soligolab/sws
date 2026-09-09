@@ -25,16 +25,22 @@
 use std::cell::RefCell;
 use std::sync::mpsc;
 
-use cstr_core::CString;
 use crate::effects;
 use crate::lvgl_font;
+use cstr_core::CString;
 use lvgl::style::Style;
 use lvgl::widgets::{Bar, Btn, Chart, Checkbox, Label, Led, Line, Meter, Slider, Table};
 use lvgl::{Color, LvError, NativeObject, Part, Widget};
 use sws_core::tag::{TagQuality, TagValue};
 
-use crate::client::{self, AlarmStateLite, HistorySample, SharedAlarms, SharedHistory, SharedLang, TagSnapshot, TagSnapshotValue};
-use crate::model::{LanguageTable, OnValue, PipePoint, PieSlice, SubGrid, SynopticObject, SynopticPage, TableRow, TextListEntry};
+use crate::client::{
+    self, AlarmStateLite, HistorySample, SharedAlarms, SharedHistory, SharedLang, TagSnapshot,
+    TagSnapshotValue,
+};
+use crate::model::{
+    LanguageTable, OnValue, PieSlice, PipePoint, SubGrid, SynopticObject, SynopticPage, TableRow,
+    TextListEntry,
+};
 
 /// Risoluzione di default se la pagina non specifica `width`/`height` — non
 /// più un vincolo a compile-time (`lvgl_display::init_display` prende
@@ -60,11 +66,41 @@ fn resolve_resolution(page: &SynopticPage) -> (u32, u32) {
 }
 
 const SUPPORTED_TYPES: &[&str] = &[
-    "rect", "ellipse", "line", "text", "button", "led", "slider", "progress_bar", "checkbox", "radio", "gauge",
-    "state_lamp", "table", "navbutton", "trend", "alarm_viewer",
-    "text_list", "bar_chart", "sparkline", "alarm_banner", "faceplate",
-    "symbol", "grid", "pipe", "alarm_bell", "recipe_panel", "setpoint", "xy_plot", "pie_chart",
-    "lang_button", "lang_selector", "image", "kpi_tile", "data_log", "alarm_history",
+    "rect",
+    "ellipse",
+    "line",
+    "text",
+    "button",
+    "led",
+    "slider",
+    "progress_bar",
+    "checkbox",
+    "radio",
+    "gauge",
+    "state_lamp",
+    "table",
+    "navbutton",
+    "trend",
+    "alarm_viewer",
+    "text_list",
+    "bar_chart",
+    "sparkline",
+    "alarm_banner",
+    "faceplate",
+    "symbol",
+    "grid",
+    "pipe",
+    "alarm_bell",
+    "recipe_panel",
+    "setpoint",
+    "xy_plot",
+    "pie_chart",
+    "lang_button",
+    "lang_selector",
+    "image",
+    "kpi_tile",
+    "data_log",
+    "alarm_history",
 ];
 
 #[derive(Default, Debug)]
@@ -308,9 +344,7 @@ pub enum LiveKind {
     /// `"vertical"` del web: barre verticali una accanto all'altra — vedi
     /// `render_bar_chart` per perché l'orientamento `"horizontal"` non è
     /// distinto qui). `value_ptr` è la label col valore sopra la barra.
-    BarChart {
-        bars: Vec<BarChartBarBinding>,
-    },
+    BarChart { bars: Vec<BarChartBarBinding> },
     /// Grafico compatto senza assi/griglia, stesso principio del `trend`
     /// (poller REST in background, non `/ws/tags`) ma una sola serie e senza
     /// range Y fisso — sempre autofit, come `SparklineWidget` in
@@ -662,7 +696,10 @@ unsafe extern "C" fn sws_button_clicked_cb(e: *mut lvgl_sys::lv_event_t) {
     }
     let ctx = unsafe { &*(user_data as *const ButtonClickCtx) };
     let Some(c) = &ctx.conferma else {
-        let _ = ctx.tx.send(TagCommand { tag: ctx.tag.clone(), value: ctx.write_value.clone() });
+        let _ = ctx.tx.send(TagCommand {
+            tag: ctx.tag.clone(),
+            value: ctx.write_value.clone(),
+        });
         return;
     };
     // La finestra si crea al click e si distrugge alla risposta: tenerne una
@@ -683,10 +720,18 @@ unsafe extern "C" fn sws_button_clicked_cb(e: *mut lvgl_sys::lv_event_t) {
             // Non si può chiedere conferma: **non** si scrive. Eseguire un
             // comando critico perché la finestra non si è aperta sarebbe il
             // peggiore dei due esiti possibili.
-            eprintln!("[conferma] impossibile creare la finestra per '{}': comando non eseguito", ctx.tag);
+            eprintln!(
+                "[conferma] impossibile creare la finestra per '{}': comando non eseguito",
+                ctx.tag
+            );
             return;
         }
-        lvgl_sys::lv_obj_align(mbox, lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
+        lvgl_sys::lv_obj_align(
+            mbox,
+            lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t,
+            0,
+            0,
+        );
         lvgl_sys::lv_obj_add_event_cb(
             mbox,
             Some(sws_conferma_cb),
@@ -733,7 +778,10 @@ unsafe extern "C" fn sws_conferma_cb(e: *mut lvgl_sys::lv_event_t) {
     let ctx = unsafe { &*(user_data as *const ButtonClickCtx) };
     let scelta = unsafe { lvgl_sys::lv_msgbox_get_active_btn(mbox) };
     if scelta == 1 {
-        let _ = ctx.tx.send(TagCommand { tag: ctx.tag.clone(), value: ctx.write_value.clone() });
+        let _ = ctx.tx.send(TagCommand {
+            tag: ctx.tag.clone(),
+            value: ctx.write_value.clone(),
+        });
     }
     unsafe { lvgl_sys::lv_msgbox_close(mbox) };
 }
@@ -782,9 +830,18 @@ unsafe extern "C" fn sws_checkbox_toggled_cb(e: *mut lvgl_sys::lv_event_t) {
         return;
     }
     let ctx = unsafe { &*(user_data as *const CheckboxToggleCtx) };
-    let checked = unsafe { lvgl_sys::lv_obj_has_state(target, lvgl_sys::LV_STATE_CHECKED as lvgl_sys::lv_state_t) };
-    let value = if checked { ctx.checked_value.clone() } else { ctx.unchecked_value.clone() };
-    let _ = ctx.tx.send(TagCommand { tag: ctx.tag.clone(), value });
+    let checked = unsafe {
+        lvgl_sys::lv_obj_has_state(target, lvgl_sys::LV_STATE_CHECKED as lvgl_sys::lv_state_t)
+    };
+    let value = if checked {
+        ctx.checked_value.clone()
+    } else {
+        ctx.unchecked_value.clone()
+    };
+    let _ = ctx.tx.send(TagCommand {
+        tag: ctx.tag.clone(),
+        value,
+    });
 }
 
 /// `LV_EVENT_VALUE_CHANGED` su uno slider: fires ripetutamente durante il
@@ -801,7 +858,10 @@ unsafe extern "C" fn sws_slider_changed_cb(e: *mut lvgl_sys::lv_event_t) {
     }
     let ctx = unsafe { &*(user_data as *const WidgetChangeCtx) };
     let v = unsafe { lvgl_sys::lv_bar_get_value(target) };
-    let _ = ctx.tx.send(TagCommand { tag: ctx.tag.clone(), value: TagValue::Int(v as i64) });
+    let _ = ctx.tx.send(TagCommand {
+        tag: ctx.tag.clone(),
+        value: TagValue::Int(v as i64),
+    });
 }
 
 pub(crate) fn parse_hex_color(s: &str) -> Option<(u8, u8, u8)> {
@@ -818,12 +878,12 @@ pub(crate) fn parse_hex_color(s: &str) -> Option<(u8, u8, u8)> {
 /// Porta `PALETTE` di `TrendCanvas.tsx` — colori di fallback per le serie
 /// oltre la 0 quando non c'è uno stile esplicito.
 const TREND_PALETTE: [(u8, u8, u8); 6] = [
-    (59, 130, 246),  // #3b82f6
-    (34, 197, 94),   // #22c55e
-    (234, 179, 8),   // #eab308
-    (239, 68, 68),   // #ef4444
-    (168, 85, 247),  // #a855f7
-    (6, 182, 212),   // #06b6d4
+    (59, 130, 246), // #3b82f6
+    (34, 197, 94),  // #22c55e
+    (234, 179, 8),  // #eab308
+    (239, 68, 68),  // #ef4444
+    (168, 85, 247), // #a855f7
+    (6, 182, 212),  // #06b6d4
 ];
 
 /// Porta `resolveSeriesColor()` di `TrendCanvas.tsx` (riga ~28): stile
@@ -856,7 +916,10 @@ pub fn resolve_trend_traces(obj: &SynopticObject) -> Vec<ResolvedTrace> {
             .iter()
             .filter(|t| !t.hidden.unwrap_or(false))
             .filter(|t| !t.tag.trim().is_empty())
-            .map(|t| ResolvedTrace { tag: t.tag.clone(), color: t.color.clone() })
+            .map(|t| ResolvedTrace {
+                tag: t.tag.clone(),
+                color: t.color.clone(),
+            })
             .collect();
     }
 
@@ -866,14 +929,21 @@ pub fn resolve_trend_traces(obj: &SynopticObject) -> Vec<ResolvedTrace> {
     let mut out = Vec::new();
     if let Some(t) = obj.tag.as_deref() {
         if !t.trim().is_empty() {
-            out.push(ResolvedTrace { tag: t.to_string(), color: None });
+            out.push(ResolvedTrace {
+                tag: t.to_string(),
+                color: None,
+            });
         }
     }
     if let Some(extra) = &obj.extra_tags {
         out.extend(
-            extra.iter()
+            extra
+                .iter()
                 .filter(|t| !t.trim().is_empty())
-                .map(|t| ResolvedTrace { tag: t.clone(), color: None }),
+                .map(|t| ResolvedTrace {
+                    tag: t.clone(),
+                    color: None,
+                }),
         );
     }
     out
@@ -932,9 +1002,9 @@ fn trend_series_color(i: usize, obj: &SynopticObject) -> (u8, u8, u8) {
 /// motore non ha un tema CSS da risolvere, quindi solo l'hex conta).
 fn severity_color(sev: &str) -> (u8, u8, u8) {
     match sev {
-        "Critical" => (239, 68, 68),  // #ef4444
-        "Warning" => (234, 179, 8),   // #eab308
-        _ => (59, 130, 246),          // #3b82f6 — "Info" e qualunque valore ignoto
+        "Critical" => (239, 68, 68), // #ef4444
+        "Warning" => (234, 179, 8),  // #eab308
+        _ => (59, 130, 246),         // #3b82f6 — "Info" e qualunque valore ignoto
     }
 }
 
@@ -978,13 +1048,20 @@ fn text_cstring(s: &str) -> CString {
     CString::new(s).unwrap_or_else(|_| CString::new("?").unwrap())
 }
 
-fn set_pos_size(w: &mut impl Widget, obj: &SynopticObject, default_w: f64, default_h: f64) -> anyhow::Result<()> {
+fn set_pos_size(
+    w: &mut impl Widget,
+    obj: &SynopticObject,
+    default_w: f64,
+    default_h: f64,
+) -> anyhow::Result<()> {
     let x = obj.x.unwrap_or(0.0).round() as i16;
     let y = obj.y.unwrap_or(0.0).round() as i16;
     let width = obj.width.unwrap_or(default_w).round() as i16;
     let height = obj.height.unwrap_or(default_h).round() as i16;
-    w.set_pos(x, y).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-    w.set_size(width, height).map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
+    w.set_pos(x, y)
+        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    w.set_size(width, height)
+        .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
     Ok(())
 }
 
@@ -993,7 +1070,13 @@ fn set_pos_size(w: &mut impl Widget, obj: &SynopticObject, default_w: f64, defau
 /// senza propagare NaN dentro chiamate FFI che si aspettano `i32`).
 fn tag_value_as_f64(v: &TagValue) -> f64 {
     match v {
-        TagValue::Bool(b) => if *b { 1.0 } else { 0.0 },
+        TagValue::Bool(b) => {
+            if *b {
+                1.0
+            } else {
+                0.0
+            }
+        }
         TagValue::Int(i) => *i as f64,
         TagValue::Float(f) => *f,
         TagValue::Str(s) => s.trim().parse::<f64>().unwrap_or(0.0),
@@ -1108,7 +1191,11 @@ fn scale_binding(v: f64, in_min: f64, in_max: f64, out_min: f64, out_max: f64, c
     }
     let scaled = out_min + (v - in_min) * (out_max - out_min) / (in_max - in_min);
     if clamp {
-        let (lo, hi) = if out_min <= out_max { (out_min, out_max) } else { (out_max, out_min) };
+        let (lo, hi) = if out_min <= out_max {
+            (out_min, out_max)
+        } else {
+            (out_max, out_min)
+        };
         scaled.clamp(lo, hi)
     } else {
         scaled
@@ -1120,10 +1207,15 @@ fn scale_binding(v: f64, in_min: f64, in_max: f64, out_min: f64, out_max: f64, c
 /// `None` = "tieni il valore statico": tag assente, spec malformata, o `expr`
 /// (non valutabile qui). Mai un default inventato — un oggetto che resta dov'era
 /// è meno sbagliato di uno che salta a zero.
-pub fn resolve_binding_value(spec: &serde_json::Value, tags: &TagSnapshot) -> Option<serde_json::Value> {
+pub fn resolve_binding_value(
+    spec: &serde_json::Value,
+    tags: &TagSnapshot,
+) -> Option<serde_json::Value> {
     use serde_json::Value;
     match spec {
-        Value::String(tag) => tags.get(tag.as_str()).map(|tv| tag_value_to_json(&tv.value)),
+        Value::String(tag) => tags
+            .get(tag.as_str())
+            .map(|tv| tag_value_to_json(&tv.value)),
         Value::Object(m) => {
             if m.contains_key("expr") {
                 return None; // nessun valutatore di espressioni sul motore LVGL
@@ -1137,8 +1229,10 @@ pub fn resolve_binding_value(spec: &serde_json::Value, tags: &TagSnapshot) -> Op
                 m.get("out_max")?.as_f64()?,
             );
             let clamp = m.get("clamp").and_then(|c| c.as_bool()).unwrap_or(true);
-            serde_json::Number::from_f64(scale_binding(num, in_min, in_max, out_min, out_max, clamp))
-                .map(Value::Number)
+            serde_json::Number::from_f64(scale_binding(
+                num, in_min, in_max, out_min, out_max, clamp,
+            ))
+            .map(Value::Number)
         }
         _ => None,
     }
@@ -1160,7 +1254,9 @@ pub fn apply_bindings(obj: &SynopticObject, tags: &TagSnapshot) -> Option<Synopt
     let mut out = obj.clone();
     let mut touched = false;
     for (prop, spec) in map {
-        let Some(v) = resolve_binding_value(spec, tags) else { continue };
+        let Some(v) = resolve_binding_value(spec, tags) else {
+            continue;
+        };
         match prop.as_str() {
             "x" | "y" | "width" | "height" => {
                 let Some(n) = v.as_f64() else { continue };
@@ -1254,8 +1350,12 @@ pub fn resolve_geometry(
     ResolvedGeom {
         dx: delta(num("x"), start_bound_x, prev.dx),
         dy: delta(num("y"), start_bound_y, prev.dy),
-        w: num("width").map(|n| n.round().clamp(0.0, i16::MAX as f64) as i16).unwrap_or(prev.w),
-        h: num("height").map(|n| n.round().clamp(0.0, i16::MAX as f64) as i16).unwrap_or(prev.h),
+        w: num("width")
+            .map(|n| n.round().clamp(0.0, i16::MAX as f64) as i16)
+            .unwrap_or(prev.w),
+        h: num("height")
+            .map(|n| n.round().clamp(0.0, i16::MAX as f64) as i16)
+            .unwrap_or(prev.h),
         // Stessa coercizione di `apply_bindings` e del web (BOOL_PROPS).
         visible: bindings
             .get("visible")
@@ -1299,7 +1399,10 @@ fn checkbox_is_checked(tv: Option<&TagSnapshotValue>, checked_value: &serde_json
 /// `min <= v < max`), altrimenti per uguaglianza esatta (confronto stringa,
 /// stessa semantica lasca di `String(a) === String(b)` in JS). Prima entry
 /// che fa match vince.
-fn match_text_list_entry<'a>(entries: &'a [TextListEntry], tv: Option<&TagSnapshotValue>) -> Option<&'a TextListEntry> {
+fn match_text_list_entry<'a>(
+    entries: &'a [TextListEntry],
+    tv: Option<&TagSnapshotValue>,
+) -> Option<&'a TextListEntry> {
     let tv = tv?;
     let live_str = tag_value_as_string(&tv.value);
     let live_num = tag_value_as_f64(&tv.value);
@@ -1439,16 +1542,33 @@ unsafe fn apply_opacity_from(screen_ptr: *mut lvgl_sys::lv_obj_t, da: u32, opa: 
 /// porta sconosciuta vale `center`, come sul web.
 fn ancora_di(obj: &SynopticObject, porta: Option<&str>) -> PipePoint {
     let e_linea = obj.obj_type.as_deref() == Some("line");
-    let w = if e_linea { 0.0 } else { obj.width.unwrap_or(80.0) };
-    let h = if e_linea { 0.0 } else { obj.height.unwrap_or(80.0) };
+    let w = if e_linea {
+        0.0
+    } else {
+        obj.width.unwrap_or(80.0)
+    };
+    let h = if e_linea {
+        0.0
+    } else {
+        obj.height.unwrap_or(80.0)
+    };
     let x = obj.x.unwrap_or(0.0);
     let y = obj.y.unwrap_or(0.0);
     match porta.unwrap_or("center") {
         "top" => PipePoint { x: x + w / 2.0, y },
-        "bottom" => PipePoint { x: x + w / 2.0, y: y + h },
+        "bottom" => PipePoint {
+            x: x + w / 2.0,
+            y: y + h,
+        },
         "left" => PipePoint { x, y: y + h / 2.0 },
-        "right" => PipePoint { x: x + w, y: y + h / 2.0 },
-        _ => PipePoint { x: x + w / 2.0, y: y + h / 2.0 },
+        "right" => PipePoint {
+            x: x + w,
+            y: y + h / 2.0,
+        },
+        _ => PipePoint {
+            x: x + w / 2.0,
+            y: y + h / 2.0,
+        },
     }
 }
 
@@ -1571,8 +1691,10 @@ fn crea_effetti(
     let lampeggio = effects::lampeggio_di(obj);
     let vuole_bordo = obj.show_alarm_state == Some(true);
     let vuole_pallino = obj.quality_dot == Some(true);
-    let vuole_attenuazione = obj.stale_after_s.is_some() || obj.bad_value_style.as_deref() == Some("gray");
-    if lampeggio == effects::Lampeggio::Mai && !vuole_bordo && !vuole_pallino && !vuole_attenuazione {
+    let vuole_attenuazione =
+        obj.stale_after_s.is_some() || obj.bad_value_style.as_deref() == Some("gray");
+    if lampeggio == effects::Lampeggio::Mai && !vuole_bordo && !vuole_pallino && !vuole_attenuazione
+    {
         return None;
     }
 
@@ -1667,7 +1789,10 @@ fn crea_effetti(
             figli,
             opa_base: opa_from_opacity(obj.opacity).unwrap_or(255),
             lampeggio,
-            rate_ms: obj.blink_rate_ms.map(|v| v as u32).filter(|v| *v > 0)
+            rate_ms: obj
+                .blink_rate_ms
+                .map(|v| v as u32)
+                .filter(|v| *v > 0)
                 .unwrap_or(effects::BLINK_MS_DEFAULT),
             tag: obj.tag.clone(),
             stale_after_s: obj.stale_after_s,
@@ -1739,7 +1864,10 @@ fn crea_movimento(
     let ancora = if obj.motion_anchor.as_deref() == Some("top_left") {
         (x, y)
     } else {
-        (x + obj.width.unwrap_or(80.0) / 2.0, y + obj.height.unwrap_or(80.0) / 2.0)
+        (
+            x + obj.width.unwrap_or(80.0) / 2.0,
+            y + obj.height.unwrap_or(80.0) / 2.0,
+        )
     };
 
     Some(LiveBinding {
@@ -1771,12 +1899,17 @@ fn create_child_obj(parent: &mut impl NativeObject) -> anyhow::Result<lvgl::Obj>
                 .map_err(|e: LvError| anyhow::anyhow!("raw: {e:?}"))?
                 .as_mut(),
         );
-        let nn = core::ptr::NonNull::new(ptr).ok_or_else(|| anyhow::anyhow!("lv_obj_create ha restituito null"))?;
+        let nn = core::ptr::NonNull::new(ptr)
+            .ok_or_else(|| anyhow::anyhow!("lv_obj_create ha restituito null"))?;
         Ok(<lvgl::Obj as Widget>::from_raw(nn))
     }
 }
 
-fn render_rect(screen: &mut lvgl::Obj, obj: &SynopticObject, styles: &mut Vec<Style>) -> anyhow::Result<()> {
+fn render_rect(
+    screen: &mut lvgl::Obj,
+    obj: &SynopticObject,
+    styles: &mut Vec<Style>,
+) -> anyhow::Result<()> {
     let mut o = create_child_obj(screen)?;
     set_pos_size(&mut o, obj, 100.0, 50.0)?;
     apply_bg_color(&mut o, obj.fill.as_deref().unwrap_or("#555555"), styles)?;
@@ -1790,7 +1923,11 @@ fn render_rect(screen: &mut lvgl::Obj, obj: &SynopticObject, styles: &mut Vec<St
 fn relative_luminance((r, g, b): (u8, u8, u8)) -> f64 {
     let ch = |v: u8| {
         let v = v as f64 / 255.0;
-        if v <= 0.04045 { v / 12.92 } else { ((v + 0.055) / 1.055).powf(2.4) }
+        if v <= 0.04045 {
+            v / 12.92
+        } else {
+            ((v + 0.055) / 1.055).powf(2.4)
+        }
     };
     0.2126 * ch(r) + 0.7152 * ch(g) + 0.0722 * ch(b)
 }
@@ -1924,7 +2061,10 @@ fn create_anchored_label(
     obj: &SynopticObject,
     styles: &mut Vec<Style>,
 ) -> anyhow::Result<Label> {
-    let (x, y) = (obj.x.unwrap_or(0.0).round() as i16, obj.y.unwrap_or(0.0).round() as i16);
+    let (x, y) = (
+        obj.x.unwrap_or(0.0).round() as i16,
+        obj.y.unwrap_or(0.0).round() as i16,
+    );
 
     // ── `text_wrap`: il testo va a capo dentro il riquadro dichiarato ──────
     //
@@ -1953,19 +2093,38 @@ fn create_anchored_label(
             );
             lvgl_sys::lv_obj_clear_flag(riquadro_ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
         }
-        riquadro.set_pos(x, y).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-        riquadro.set_size(w, h).map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
+        riquadro
+            .set_pos(x, y)
+            .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+        riquadro
+            .set_size(w, h)
+            .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
 
-        let label = Label::create(&mut riquadro).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-        let lptr = label.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+        let label =
+            Label::create(&mut riquadro).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+        let lptr = label
+            .raw()
+            .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+            .as_ptr();
         let corpo = obj.font_size.unwrap_or(lvgl_font::CORPO_PX as f64);
         unsafe {
-            lvgl_sys::lv_label_set_long_mode(lptr, lvgl_sys::LV_LABEL_LONG_WRAP as lvgl_sys::lv_label_long_mode_t);
+            lvgl_sys::lv_label_set_long_mode(
+                lptr,
+                lvgl_sys::LV_LABEL_LONG_WRAP as lvgl_sys::lv_label_long_mode_t,
+            );
             // Larghezza fissa e altezza dal contenuto: è la larghezza a
             // decidere dove si va a capo, l'altezza la decide il testo.
             lvgl_sys::lv_obj_set_width(lptr, w);
-            lvgl_sys::lv_obj_set_style_text_align(lptr, allineamento_righe(obj.text_anchor.as_deref()), 0);
-            lvgl_sys::lv_obj_set_style_text_line_space(lptr, spazio_fra_righe(obj.line_height, corpo), 0);
+            lvgl_sys::lv_obj_set_style_text_align(
+                lptr,
+                allineamento_righe(obj.text_anchor.as_deref()),
+                0,
+            );
+            lvgl_sys::lv_obj_set_style_text_line_space(
+                lptr,
+                spazio_fra_righe(obj.line_height, corpo),
+                0,
+            );
             lvgl_sys::lv_obj_set_align(
                 lptr,
                 allineamento_riquadro(obj.text_valign.as_deref(), obj.text_anchor.as_deref())
@@ -1982,19 +2141,32 @@ fn create_anchored_label(
         // sempre, l'etichetta parte da `x`. Un valore sconosciuto non deve far
         // sparire il testo.
         _ => {
-            let mut label = Label::create(screen).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-            label.set_pos(x, y).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+            let mut label =
+                Label::create(screen).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+            label
+                .set_pos(x, y)
+                .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
             return Ok(label);
         }
     };
 
     let mut ancora = create_child_obj(screen)?;
-    ancora.set_pos(x, y).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-    ancora.set_size(0, 0).map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
+    ancora
+        .set_pos(x, y)
+        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    ancora
+        .set_size(0, 0)
+        .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
     let ancora_ptr = ancora.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     unsafe {
-        lvgl_sys::lv_obj_add_flag(ancora_ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_OVERFLOW_VISIBLE as lvgl_sys::lv_obj_flag_t);
-        lvgl_sys::lv_obj_clear_flag(ancora_ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_SCROLLABLE as lvgl_sys::lv_obj_flag_t);
+        lvgl_sys::lv_obj_add_flag(
+            ancora_ptr.as_ptr(),
+            lvgl_sys::LV_OBJ_FLAG_OVERFLOW_VISIBLE as lvgl_sys::lv_obj_flag_t,
+        );
+        lvgl_sys::lv_obj_clear_flag(
+            ancora_ptr.as_ptr(),
+            lvgl_sys::LV_OBJ_FLAG_SCROLLABLE as lvgl_sys::lv_obj_flag_t,
+        );
         // Padding a zero: lo stile predefinito ne mette, e su un contenitore
         // largo zero sposterebbe l'etichetta di qualche pixel dal punto di
         // ancoraggio — un disallineamento piccolo e costante, difficile da
@@ -2013,12 +2185,17 @@ fn create_anchored_label(
     st.set_border_width(0);
     styles.push(st);
     let st = styles.last_mut().expect("appena inserito");
-    ancora.add_style(Part::Main, st).map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
+    ancora
+        .add_style(Part::Main, st)
+        .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
 
     let label = Label::create(&mut ancora).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
     unsafe {
         lvgl_sys::lv_obj_set_align(
-            label.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr(),
+            label
+                .raw()
+                .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+                .as_ptr(),
             align as lvgl_sys::lv_align_t,
         );
     }
@@ -2026,12 +2203,16 @@ fn create_anchored_label(
 }
 
 fn apply_font_size(widget: &impl NativeObject, obj: &SynopticObject) -> anyhow::Result<()> {
-    let Some(px) = obj.font_size else { return Ok(()) };
+    let Some(px) = obj.font_size else {
+        return Ok(());
+    };
     let px = px.round();
     if !(1.0..=1000.0).contains(&px) {
         return Ok(());
     }
-    let Some(font) = lvgl_font::at_size(px as u16) else { return Ok(()) };
+    let Some(font) = lvgl_font::at_size(px as u16) else {
+        return Ok(());
+    };
     let ptr = widget.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     unsafe {
         lvgl_sys::lv_obj_set_style_text_font(ptr.as_ptr(), font, 0);
@@ -2117,10 +2298,22 @@ fn conferma_di(obj: &SynopticObject, valore: &TagValue) -> Option<Conferma> {
     if obj.require_confirm != Some(true) && !critico {
         return None;
     }
-    let messaggio_obj = obj.confirm_message.as_deref().map(str::trim).filter(|m| !m.is_empty());
-    let cosa = format!("Scrivere {} su {}?", tag_value_as_string(valore), obj.tag.as_deref().unwrap_or("?"));
+    let messaggio_obj = obj
+        .confirm_message
+        .as_deref()
+        .map(str::trim)
+        .filter(|m| !m.is_empty());
+    let cosa = format!(
+        "Scrivere {} su {}?",
+        tag_value_as_string(valore),
+        obj.tag.as_deref().unwrap_or("?")
+    );
     Some(Conferma {
-        titolo: if critico { "Comando critico".to_string() } else { "Conferma".to_string() },
+        titolo: if critico {
+            "Comando critico".to_string()
+        } else {
+            "Conferma".to_string()
+        },
         messaggio: match messaggio_obj {
             Some(m) => format!("{m}\n\n{cosa}"),
             None => cosa,
@@ -2186,12 +2379,18 @@ fn render_navbutton(
     set_pos_size(&mut btn, obj, 140.0, 36.0)?;
     apply_bg_color(&mut btn, obj.fill.as_deref().unwrap_or("#0f172a"), styles)?;
     let mut lbl = Label::create(&mut btn).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-    lbl.set_text(&text_cstring(&format!("> {}", obj.label.as_deref().unwrap_or("Go to page"))))
-        .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+    lbl.set_text(&text_cstring(&format!(
+        "> {}",
+        obj.label.as_deref().unwrap_or("Go to page")
+    )))
+    .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
 
     if let Some(target_page) = &obj.target_page {
         let ptr = btn.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
-        let ctx = leak_ctx(NavClickCtx { target_page: target_page.clone(), tx: nav_tx.clone() });
+        let ctx = leak_ctx(NavClickCtx {
+            target_page: target_page.clone(),
+            tx: nav_tx.clone(),
+        });
         unsafe {
             lvgl_sys::lv_obj_add_event_cb(
                 ptr.as_ptr(),
@@ -2241,8 +2440,14 @@ fn render_led(
     set_pos_size(&mut led, obj, d, d)?;
 
     let on_value = obj.on_value.clone().unwrap_or(OnValue::Bool(true));
-    let on_color = obj.on_color.clone().unwrap_or_else(|| "#22c55e".to_string());
-    let off_color = obj.off_color.clone().unwrap_or_else(|| "#334155".to_string());
+    let on_color = obj
+        .on_color
+        .clone()
+        .unwrap_or_else(|| "#22c55e".to_string());
+    let off_color = obj
+        .off_color
+        .clone()
+        .unwrap_or_else(|| "#334155".to_string());
 
     let tv = lookup(tags, &obj.tag);
     let (is_on, bad_quality, color_hex) = led_state(tv, &on_value, &on_color, &off_color);
@@ -2263,7 +2468,13 @@ fn render_led(
     }
 
     Ok(LiveBinding {
-        kind: LiveKind::Led { ptr, tag: obj.tag.clone(), on_value, on_color, off_color },
+        kind: LiveKind::Led {
+            ptr,
+            tag: obj.tag.clone(),
+            on_value,
+            on_color,
+            off_color,
+        },
     })
 }
 
@@ -2273,7 +2484,8 @@ fn render_slider(
     tags: &TagSnapshot,
     tx: &mpsc::Sender<TagCommand>,
 ) -> anyhow::Result<LiveBinding> {
-    let mut slider = Slider::create(screen).map_err(|e| anyhow::anyhow!("Slider::create: {e:?}"))?;
+    let mut slider =
+        Slider::create(screen).map_err(|e| anyhow::anyhow!("Slider::create: {e:?}"))?;
 
     // lv_slider disegna la traccia grande quanto l'intero oggetto (nessun
     // padding "di sfondo" che la assottigli, a differenza di come appare
@@ -2315,7 +2527,10 @@ fn render_slider(
     // init_bar_like ma resta un indicatore read-only (nessuna callback
     // registrata lì): la wiring va qui, non dentro init_bar_like.
     if let Some(tag) = &obj.tag {
-        let ctx = leak_ctx(WidgetChangeCtx { tag: tag.clone(), tx: tx.clone() });
+        let ctx = leak_ctx(WidgetChangeCtx {
+            tag: tag.clone(),
+            tx: tx.clone(),
+        });
         unsafe {
             lvgl_sys::lv_obj_add_event_cb(
                 ptr.as_ptr(),
@@ -2328,7 +2543,11 @@ fn render_slider(
     Ok(binding)
 }
 
-fn render_progress_bar(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnapshot) -> anyhow::Result<LiveBinding> {
+fn render_progress_bar(
+    screen: &mut lvgl::Obj,
+    obj: &SynopticObject,
+    tags: &TagSnapshot,
+) -> anyhow::Result<LiveBinding> {
     let mut bar = Bar::create(screen).map_err(|e| anyhow::anyhow!("Bar::create: {e:?}"))?;
     set_pos_size(&mut bar, obj, 200.0, 24.0)?;
     let ptr = bar.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
@@ -2348,9 +2567,20 @@ fn init_bar_like(
         .clamp(min.min(max), min.max(max));
     unsafe {
         lvgl_sys::lv_bar_set_range(ptr.as_ptr(), min.round() as i32, max.round() as i32);
-        lvgl_sys::lv_bar_set_value(ptr.as_ptr(), raw.round() as i32, lvgl::Animation::OFF.into());
+        lvgl_sys::lv_bar_set_value(
+            ptr.as_ptr(),
+            raw.round() as i32,
+            lvgl::Animation::OFF.into(),
+        );
     }
-    Ok(LiveBinding { kind: LiveKind::BarLike { ptr, tag: obj.tag.clone(), min, max } })
+    Ok(LiveBinding {
+        kind: LiveKind::BarLike {
+            ptr,
+            tag: obj.tag.clone(),
+            min,
+            max,
+        },
+    })
 }
 
 /// `bar_chart`: una `lv_bar` per serie, affiancate. Solo l'orientamento
@@ -2459,8 +2689,11 @@ fn render_bar_chart(
         let bx = obj.x.unwrap_or(0.0) + i as f64 * slot_w + (slot_w - bar_w) / 2.0;
 
         let mut bar = Bar::create(screen).map_err(|e| anyhow::anyhow!("Bar::create: {e:?}"))?;
-        bar.set_pos(bx.round() as i16, (obj.y.unwrap_or(0.0) + pad_t).round() as i16)
-            .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+        bar.set_pos(
+            bx.round() as i16,
+            (obj.y.unwrap_or(0.0) + pad_t).round() as i16,
+        )
+        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
         bar.set_size(bar_w.round() as i16, plot_h.round() as i16)
             .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
         let bar_ptr = bar.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
@@ -2476,20 +2709,27 @@ fn render_bar_chart(
         }
 
         let value_ptr = if show_values {
-            let mut lbl = Label::create(screen).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+            let mut lbl =
+                Label::create(screen).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
             lbl.set_pos(bx.round() as i16, obj.y.unwrap_or(0.0).round() as i16)
                 .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-            lbl.set_text(&text_cstring("")).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+            lbl.set_text(&text_cstring(""))
+                .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
             Some(lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?)
         } else {
             None
         };
 
         if show_labels {
-            let mut lbl = Label::create(screen).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-            lbl.set_pos(bx.round() as i16, (obj.y.unwrap_or(0.0) + pad_t + plot_h + 2.0).round() as i16)
-                .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-            lbl.set_text(&text_cstring(&s.label)).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+            let mut lbl =
+                Label::create(screen).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+            lbl.set_pos(
+                bx.round() as i16,
+                (obj.y.unwrap_or(0.0) + pad_t + plot_h + 2.0).round() as i16,
+            )
+            .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+            lbl.set_text(&text_cstring(&s.label))
+                .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
         }
 
         bars.push(BarChartBarBinding {
@@ -2511,9 +2751,16 @@ fn render_bar_chart(
             .unwrap_or(b.min)
             .clamp(b.min.min(b.max), b.min.max(b.max));
         unsafe {
-            lvgl_sys::lv_bar_set_value(b.bar_ptr.as_ptr(), raw.round() as i32, lvgl::Animation::OFF.into());
+            lvgl_sys::lv_bar_set_value(
+                b.bar_ptr.as_ptr(),
+                raw.round() as i32,
+                lvgl::Animation::OFF.into(),
+            );
             if let Some(vp) = b.value_ptr {
-                lvgl_sys::lv_label_set_text(vp.as_ptr(), text_cstring(&format!("{raw:.1}{}", b.unit)).as_ptr());
+                lvgl_sys::lv_label_set_text(
+                    vp.as_ptr(),
+                    text_cstring(&format!("{raw:.1}{}", b.unit)).as_ptr(),
+                );
             }
         }
     }
@@ -2524,8 +2771,10 @@ fn render_bar_chart(
     // mostra se quei numeri vanno bene. È la differenza che serve a chi guarda
     // il pannello da lontano.
     if obj.bar_show_thresholds != Some(false) {
-        let intervalli: Vec<(f64, f64)> =
-            series.iter().map(|s| (s.min.unwrap_or(0.0), s.max.unwrap_or(100.0))).collect();
+        let intervalli: Vec<(f64, f64)> = series
+            .iter()
+            .map(|s| (s.min.unwrap_or(0.0), s.max.unwrap_or(100.0)))
+            .collect();
         match scala_comune(obj, &intervalli) {
             Some(scala) => {
                 let x0 = obj.x.unwrap_or(0.0);
@@ -2533,24 +2782,31 @@ fn render_bar_chart(
                 for (valore, rgb) in soglie_da_disegnare(obj, scala) {
                     let frazione = (valore - scala.0) / (scala.1 - scala.0);
                     let y = y0 + plot_h * (1.0 - frazione);
-                    let mut ln = Line::create(screen).map_err(|e| anyhow::anyhow!("Line::create: {e:?}"))?;
+                    let mut ln =
+                        Line::create(screen).map_err(|e| anyhow::anyhow!("Line::create: {e:?}"))?;
                     ln.set_pos(x0.round() as i16, y.round() as i16)
                         .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
                     let pts: &'static [lvgl_sys::lv_point_t; 2] = Box::leak(Box::new([
                         lvgl_sys::lv_point_t { x: 0, y: 0 },
-                        lvgl_sys::lv_point_t { x: w.round() as i16, y: 0 },
+                        lvgl_sys::lv_point_t {
+                            x: w.round() as i16,
+                            y: 0,
+                        },
                     ]));
                     let lp = ln.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
                     unsafe { lvgl_sys::lv_line_set_points(lp.as_ptr(), pts.as_ptr(), 2) };
                     let mut st = Style::default();
                     st.set_line_color(Color::from_rgb(rgb));
                     st.set_line_width(1);
-                    ln.add_style(Part::Main, &mut st).map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
+                    ln.add_style(Part::Main, &mut st)
+                        .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
                     styles.push(st);
                 }
             }
-            None if obj.alarm_high.is_some() || obj.warn_high.is_some()
-                || obj.alarm_low.is_some() || obj.warn_low.is_some() =>
+            None if obj.alarm_high.is_some()
+                || obj.warn_high.is_some()
+                || obj.alarm_low.is_some()
+                || obj.warn_low.is_some() =>
             {
                 // Detto, non taciuto: chi ha dichiarato delle soglie e non le
                 // vede deve poter capire perché in una riga di registro,
@@ -2566,7 +2822,9 @@ fn render_bar_chart(
         }
     }
 
-    Ok(LiveBinding { kind: LiveKind::BarChart { bars } })
+    Ok(LiveBinding {
+        kind: LiveKind::BarChart { bars },
+    })
 }
 
 fn render_checkbox(
@@ -2575,12 +2833,16 @@ fn render_checkbox(
     tags: &TagSnapshot,
     tx: &mpsc::Sender<TagCommand>,
 ) -> anyhow::Result<LiveBinding> {
-    let mut cb = Checkbox::create(screen).map_err(|e| anyhow::anyhow!("Checkbox::create: {e:?}"))?;
+    let mut cb =
+        Checkbox::create(screen).map_err(|e| anyhow::anyhow!("Checkbox::create: {e:?}"))?;
     // Niente set_size: la checkbox LVGL si dimensiona sul proprio testo, come
     // la stragrande maggioranza delle implementazioni checkbox — forzare una
     // size esplicita rischierebbe solo di tagliare l'etichetta.
-    cb.set_pos(obj.x.unwrap_or(0.0).round() as i16, obj.y.unwrap_or(0.0).round() as i16)
-        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    cb.set_pos(
+        obj.x.unwrap_or(0.0).round() as i16,
+        obj.y.unwrap_or(0.0).round() as i16,
+    )
+    .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
     cb.set_text(&text_cstring(obj.label.as_deref().unwrap_or("Checkbox")))
         .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
     let ptr = cb.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
@@ -2588,13 +2850,24 @@ fn render_checkbox(
     // Stessa semantica di SvgCanvas.tsx: checked_value/unchecked_value
     // default a true/false ma possono essere qualunque scalare (es. stringhe
     // "ON"/"OFF") — vedi checkbox_is_checked e CheckboxToggleCtx.
-    let checked_value = obj.checked_value.clone().unwrap_or(serde_json::Value::Bool(true));
-    let unchecked_value = obj.unchecked_value.clone().unwrap_or(serde_json::Value::Bool(false));
-    apply_checked_state(ptr, checkbox_is_checked(lookup(tags, &obj.tag), &checked_value));
+    let checked_value = obj
+        .checked_value
+        .clone()
+        .unwrap_or(serde_json::Value::Bool(true));
+    let unchecked_value = obj
+        .unchecked_value
+        .clone()
+        .unwrap_or(serde_json::Value::Bool(false));
+    apply_checked_state(
+        ptr,
+        checkbox_is_checked(lookup(tags, &obj.tag), &checked_value),
+    );
 
     if let Some(tag) = &obj.tag {
-        let checked_tag_value = serde_json::from_value::<TagValue>(checked_value.clone()).unwrap_or(TagValue::Bool(true));
-        let unchecked_tag_value = serde_json::from_value::<TagValue>(unchecked_value.clone()).unwrap_or(TagValue::Bool(false));
+        let checked_tag_value = serde_json::from_value::<TagValue>(checked_value.clone())
+            .unwrap_or(TagValue::Bool(true));
+        let unchecked_tag_value = serde_json::from_value::<TagValue>(unchecked_value.clone())
+            .unwrap_or(TagValue::Bool(false));
         let ctx = leak_ctx(CheckboxToggleCtx {
             tag: tag.clone(),
             checked_value: checked_tag_value,
@@ -2610,7 +2883,13 @@ fn render_checkbox(
             );
         }
     }
-    Ok(LiveBinding { kind: LiveKind::Checkbox { ptr, tag: obj.tag.clone(), checked_value } })
+    Ok(LiveBinding {
+        kind: LiveKind::Checkbox {
+            ptr,
+            tag: obj.tag.clone(),
+            checked_value,
+        },
+    })
 }
 
 /// Approssimazione dichiarata: LVGL non ha un widget "radio" nativo (solo
@@ -2630,9 +2909,15 @@ fn render_radio(
 fn apply_checked_state(ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>, checked: bool) {
     unsafe {
         if checked {
-            lvgl_sys::lv_obj_add_state(ptr.as_ptr(), lvgl_sys::LV_STATE_CHECKED as lvgl_sys::lv_state_t);
+            lvgl_sys::lv_obj_add_state(
+                ptr.as_ptr(),
+                lvgl_sys::LV_STATE_CHECKED as lvgl_sys::lv_state_t,
+            );
         } else {
-            lvgl_sys::lv_obj_clear_state(ptr.as_ptr(), lvgl_sys::LV_STATE_CHECKED as lvgl_sys::lv_state_t);
+            lvgl_sys::lv_obj_clear_state(
+                ptr.as_ptr(),
+                lvgl_sys::LV_STATE_CHECKED as lvgl_sys::lv_state_t,
+            );
         }
     }
 }
@@ -2642,7 +2927,11 @@ fn apply_checked_state(ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>, checked: boo
 /// `render_rect`) quando `width == height`, altrimenti una "pillola"
 /// stadium-shaped per aspect ratio diversi. Non pixel-perfect ma riconoscibile
 /// — stesso compromesso accettato nel brief originale.
-fn render_ellipse(screen: &mut lvgl::Obj, obj: &SynopticObject, styles: &mut Vec<Style>) -> anyhow::Result<()> {
+fn render_ellipse(
+    screen: &mut lvgl::Obj,
+    obj: &SynopticObject,
+    styles: &mut Vec<Style>,
+) -> anyhow::Result<()> {
     let mut o = create_child_obj(screen)?;
     set_pos_size(&mut o, obj, 100.0, 100.0)?;
     apply_bg_color(&mut o, obj.fill.as_deref().unwrap_or("#555555"), styles)?;
@@ -2662,7 +2951,11 @@ fn render_ellipse(screen: &mut lvgl::Obj, obj: &SynopticObject, styles: &mut Vec
 /// `(x2-x1, y2-y1)` invece di `(x1,y1)`/`(x2,y2)`. Niente `set_size`: la classe
 /// `lv_line` si auto-dimensiona sul contenuto (`LV_SIZE_CONTENT`), chiamato da
 /// `lv_line_set_points` stesso.
-fn render_line(screen: &mut lvgl::Obj, obj: &SynopticObject, styles: &mut Vec<Style>) -> anyhow::Result<()> {
+fn render_line(
+    screen: &mut lvgl::Obj,
+    obj: &SynopticObject,
+    styles: &mut Vec<Style>,
+) -> anyhow::Result<()> {
     let mut line = Line::create(screen).map_err(|e| anyhow::anyhow!("Line::create: {e:?}"))?;
     let x1 = obj.x.unwrap_or(0.0);
     let y1 = obj.y.unwrap_or(0.0);
@@ -2678,7 +2971,10 @@ fn render_line(screen: &mut lvgl::Obj, obj: &SynopticObject, styles: &mut Vec<St
     // per tutta la vita del widget.
     let points: &'static [lvgl_sys::lv_point_t; 2] = Box::leak(Box::new([
         lvgl_sys::lv_point_t { x: 0, y: 0 },
-        lvgl_sys::lv_point_t { x: (x2 - x1).round() as i16, y: (y2 - y1).round() as i16 },
+        lvgl_sys::lv_point_t {
+            x: (x2 - x1).round() as i16,
+            y: (y2 - y1).round() as i16,
+        },
     ]));
     let ptr = line.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     unsafe {
@@ -2736,34 +3032,75 @@ fn render_gauge(
     let x = (box_x + (box_w - side) / 2.0).round() as i16;
     let y = (box_y + (box_h - side) / 2.0).round() as i16;
     let side = side.round() as i16;
-    meter.set_pos(x, y).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-    meter.set_size(side, side).map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
+    meter
+        .set_pos(x, y)
+        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    meter
+        .set_size(side, side)
+        .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
     let ptr = meter.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
 
     let min = obj.min.unwrap_or(0.0);
     let max = obj.max.unwrap_or(100.0);
     let tv = lookup(tags, &obj.tag);
-    let raw = tv.map(|t| tag_value_as_f64(&t.value)).unwrap_or(min).clamp(min.min(max), min.max(max));
+    let raw = tv
+        .map(|t| tag_value_as_f64(&t.value))
+        .unwrap_or(min)
+        .clamp(min.min(max), min.max(max));
 
     // Colore di partenza dell'arco. Non è più l'unico che avrà: dal
     // 2026-08-31 `update_bindings` lo ricalcola a ogni cambio di fascia, così
     // un gauge che entra in allarme cambia colore anche sul pannello.
-    let arc_rgb = threshold_color(raw, obj.alarm_low, obj.warn_low, obj.warn_high, obj.alarm_high)
-        .or_else(|| obj.fill.as_deref().and_then(parse_hex_color))
-        .unwrap_or((34, 197, 94)); // #22c55e, stesso default del web
+    let arc_rgb = threshold_color(
+        raw,
+        obj.alarm_low,
+        obj.warn_low,
+        obj.warn_high,
+        obj.alarm_high,
+    )
+    .or_else(|| obj.fill.as_deref().and_then(parse_hex_color))
+    .unwrap_or((34, 197, 94)); // #22c55e, stesso default del web
 
     let (needle_indic, arc_indic) = unsafe {
         let scale = lvgl_sys::lv_meter_add_scale(ptr.as_ptr());
-        lvgl_sys::lv_meter_set_scale_range(ptr.as_ptr(), scale, min.round() as i32, max.round() as i32, 270, 135);
-        lvgl_sys::lv_meter_set_scale_ticks(ptr.as_ptr(), scale, 21, 2, 6, lvgl_sys::lv_palette_main(lvgl_sys::lv_palette_t_LV_PALETTE_GREY));
-        lvgl_sys::lv_meter_set_scale_major_ticks(ptr.as_ptr(), scale, 4, 3, 10, Color::from_rgb((148, 163, 184)).into(), 10);
+        lvgl_sys::lv_meter_set_scale_range(
+            ptr.as_ptr(),
+            scale,
+            min.round() as i32,
+            max.round() as i32,
+            270,
+            135,
+        );
+        lvgl_sys::lv_meter_set_scale_ticks(
+            ptr.as_ptr(),
+            scale,
+            21,
+            2,
+            6,
+            lvgl_sys::lv_palette_main(lvgl_sys::lv_palette_t_LV_PALETTE_GREY),
+        );
+        lvgl_sys::lv_meter_set_scale_major_ticks(
+            ptr.as_ptr(),
+            scale,
+            4,
+            3,
+            10,
+            Color::from_rgb((148, 163, 184)).into(),
+            10,
+        );
 
-        let arc = lvgl_sys::lv_meter_add_arc(ptr.as_ptr(), scale, 6, Color::from_rgb(arc_rgb).into(), 0);
+        let arc =
+            lvgl_sys::lv_meter_add_arc(ptr.as_ptr(), scale, 6, Color::from_rgb(arc_rgb).into(), 0);
         lvgl_sys::lv_meter_set_indicator_start_value(ptr.as_ptr(), arc, min.round() as i32);
         lvgl_sys::lv_meter_set_indicator_end_value(ptr.as_ptr(), arc, raw.round() as i32);
 
-        let needle =
-            lvgl_sys::lv_meter_add_needle_line(ptr.as_ptr(), scale, 3, Color::from_rgb((226, 232, 240)).into(), -8);
+        let needle = lvgl_sys::lv_meter_add_needle_line(
+            ptr.as_ptr(),
+            scale,
+            3,
+            Color::from_rgb((226, 232, 240)).into(),
+            -8,
+        );
         lvgl_sys::lv_meter_set_indicator_value(ptr.as_ptr(), needle, raw.round() as i32);
 
         (needle, arc)
@@ -2786,20 +3123,30 @@ fn render_gauge(
     // `LV_ALIGN_TOP_MID` lo centra sulla larghezza vera, qualunque essa sia;
     // l'offset verticale resta quello di prima, ma calcolato sul lato del
     // quadrato, che è ciò che il cerchio occupa davvero.
-    let mut value_label = Label::create(&mut meter).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+    let mut value_label =
+        Label::create(&mut meter).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
     unsafe {
         lvgl_sys::lv_obj_align(
-            value_label.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr(),
+            value_label
+                .raw()
+                .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+                .as_ptr(),
             lvgl_sys::LV_ALIGN_TOP_MID as lvgl_sys::lv_align_t,
             0,
             (side as f64 * 0.72) as lvgl_sys::lv_coord_t,
         );
     }
-    let unit_suffix = obj.unit.as_deref().map(|u| format!(" {u}")).unwrap_or_default();
+    let unit_suffix = obj
+        .unit
+        .as_deref()
+        .map(|u| format!(" {u}"))
+        .unwrap_or_default();
     value_label
         .set_text(&text_cstring(&format!("{raw:.1}{unit_suffix}")))
         .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
-    let value_ptr = value_label.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    let value_ptr = value_label
+        .raw()
+        .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
 
     Ok(LiveBinding {
         kind: LiveKind::Gauge {
@@ -2812,7 +3159,11 @@ fn render_gauge(
             max,
             unit: obj.unit.clone(),
             soglie: (obj.alarm_low, obj.warn_low, obj.warn_high, obj.alarm_high),
-            rgb_base: obj.fill.as_deref().and_then(parse_hex_color).unwrap_or((34, 197, 94)),
+            rgb_base: obj
+                .fill
+                .as_deref()
+                .and_then(parse_hex_color)
+                .unwrap_or((34, 197, 94)),
             rgb_arco: arc_rgb,
         },
     })
@@ -2841,11 +3192,20 @@ fn render_state_lamp(
         .map(|e| e.label.clone())
         .or_else(|| obj.text_list_default.clone())
         .unwrap_or_default();
-    let label_hex = if entry.is_some() { lamp_hex.clone() } else { obj.text_list_default_color.clone().unwrap_or("#94a3b8".to_string()) };
+    let label_hex = if entry.is_some() {
+        lamp_hex.clone()
+    } else {
+        obj.text_list_default_color
+            .clone()
+            .unwrap_or("#94a3b8".to_string())
+    };
 
     let mut lamp = create_child_obj(screen)?;
-    lamp.set_pos(obj.x.unwrap_or(0.0).round() as i16, obj.y.unwrap_or(0.0).round() as i16)
-        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    lamp.set_pos(
+        obj.x.unwrap_or(0.0).round() as i16,
+        obj.y.unwrap_or(0.0).round() as i16,
+    )
+    .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
     lamp.set_size(h.round() as i16, h.round() as i16)
         .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
     let mut lamp_style = Style::default();
@@ -2859,7 +3219,10 @@ fn render_state_lamp(
 
     let mut label = Label::create(screen).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
     label
-        .set_pos((obj.x.unwrap_or(0.0) + h + 6.0).round() as i16, obj.y.unwrap_or(0.0).round() as i16)
+        .set_pos(
+            (obj.x.unwrap_or(0.0) + h + 6.0).round() as i16,
+            obj.y.unwrap_or(0.0).round() as i16,
+        )
         .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
     label
         .set_text(&text_cstring(&label_text))
@@ -2890,7 +3253,11 @@ fn render_state_lamp(
 /// `text_list`: stessa logica dati di `state_lamp` (`match_text_list_entry`
 /// contro `text_list_entries`), ma senza il cerchio colorato — solo
 /// un'etichetta, il cui colore segue quello dell'entry quando c'è.
-fn render_text_list(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnapshot) -> anyhow::Result<LiveBinding> {
+fn render_text_list(
+    screen: &mut lvgl::Obj,
+    obj: &SynopticObject,
+    tags: &TagSnapshot,
+) -> anyhow::Result<LiveBinding> {
     let entries = obj.text_list_entries.clone().unwrap_or_default();
     let tv = lookup(tags, &obj.tag);
     let entry = match_text_list_entry(&entries, tv);
@@ -2905,7 +3272,10 @@ fn render_text_list(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnap
 
     let mut label = Label::create(screen).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
     label
-        .set_pos(obj.x.unwrap_or(0.0).round() as i16, obj.y.unwrap_or(0.0).round() as i16)
+        .set_pos(
+            obj.x.unwrap_or(0.0).round() as i16,
+            obj.y.unwrap_or(0.0).round() as i16,
+        )
         .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
     label
         .set_text(&text_cstring(&label_text))
@@ -2945,16 +3315,27 @@ fn render_text_list(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnap
 /// una lettera per riga). La combinazione che funziona è crop + contenuto
 /// garantito corto: colonna qualità a una sola lettera (`quality_abbrev`),
 /// non un'abbreviazione a 2-3 lettere.
-fn render_table(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnapshot) -> anyhow::Result<LiveBinding> {
+fn render_table(
+    screen: &mut lvgl::Obj,
+    obj: &SynopticObject,
+    tags: &TagSnapshot,
+) -> anyhow::Result<LiveBinding> {
     let mut table = Table::create(screen).map_err(|e| anyhow::anyhow!("Table::create: {e:?}"))?;
     table
-        .set_pos(obj.x.unwrap_or(0.0).round() as i16, obj.y.unwrap_or(0.0).round() as i16)
+        .set_pos(
+            obj.x.unwrap_or(0.0).round() as i16,
+            obj.y.unwrap_or(0.0).round() as i16,
+        )
         .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
 
     let rows = obj.table_rows.clone().unwrap_or_default();
     let row_cnt = (rows.len() + 1) as u16;
-    table.set_col_cnt(3).map_err(|e| anyhow::anyhow!("set_col_cnt: {e:?}"))?;
-    table.set_row_cnt(row_cnt).map_err(|e| anyhow::anyhow!("set_row_cnt: {e:?}"))?;
+    table
+        .set_col_cnt(3)
+        .map_err(|e| anyhow::anyhow!("set_col_cnt: {e:?}"))?;
+    table
+        .set_row_cnt(row_cnt)
+        .map_err(|e| anyhow::anyhow!("set_row_cnt: {e:?}"))?;
 
     let w = obj.width.unwrap_or(300.0);
     let ptr = table.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
@@ -2990,20 +3371,38 @@ fn render_table(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnapshot
     }
     update_table_data_cells(ptr, &rows, tags);
 
-    Ok(LiveBinding { kind: LiveKind::Table { ptr, rows } })
+    Ok(LiveBinding {
+        kind: LiveKind::Table { ptr, rows },
+    })
 }
 
 /// Colonne valore/qualità di una riga tabella — condivisa tra creazione e
 /// aggiornamento (stesso principio di `led_state`/`text_color_hex`) così le
 /// due strade non possono divergere.
-fn update_table_data_cells(ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>, rows: &[TableRow], tags: &TagSnapshot) {
+fn update_table_data_cells(
+    ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    rows: &[TableRow],
+    tags: &TagSnapshot,
+) {
     for (i, row) in rows.iter().enumerate() {
         let tv = tags.get(&row.tag);
-        let val_text = tv.map(|t| format_value(&t.value, row.format.as_deref())).unwrap_or_else(|| "-".to_string());
+        let val_text = tv
+            .map(|t| format_value(&t.value, row.format.as_deref()))
+            .unwrap_or_else(|| "-".to_string());
         let qual_text = tv.map(|t| quality_abbrev(&t.quality)).unwrap_or("-");
         unsafe {
-            lvgl_sys::lv_table_set_cell_value(ptr.as_ptr(), (i + 1) as u16, 1, text_cstring(&val_text).as_ptr());
-            lvgl_sys::lv_table_set_cell_value(ptr.as_ptr(), (i + 1) as u16, 2, text_cstring(qual_text).as_ptr());
+            lvgl_sys::lv_table_set_cell_value(
+                ptr.as_ptr(),
+                (i + 1) as u16,
+                1,
+                text_cstring(&val_text).as_ptr(),
+            );
+            lvgl_sys::lv_table_set_cell_value(
+                ptr.as_ptr(),
+                (i + 1) as u16,
+                2,
+                text_cstring(qual_text).as_ptr(),
+            );
         }
     }
 }
@@ -3038,13 +3437,20 @@ fn render_trend(
     let ptr = chart.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
 
     // Stesso range accettato da lv_coord_t (i16) — vedi commento sopra.
-    let window_s = obj.window_s.unwrap_or(60.0).round().clamp(1.0, i16::MAX as f64) as u64;
+    let window_s = obj
+        .window_s
+        .unwrap_or(60.0)
+        .round()
+        .clamp(1.0, i16::MAX as f64) as u64;
     let autofit = obj.y_min.is_none() && obj.y_max.is_none();
 
     let traces = resolve_trend_traces(obj);
 
     unsafe {
-        lvgl_sys::lv_chart_set_type(ptr.as_ptr(), lvgl_sys::LV_CHART_TYPE_SCATTER as lvgl_sys::lv_chart_type_t);
+        lvgl_sys::lv_chart_set_type(
+            ptr.as_ptr(),
+            lvgl_sys::LV_CHART_TYPE_SCATTER as lvgl_sys::lv_chart_type_t,
+        );
         lvgl_sys::lv_chart_set_div_line_count(ptr.as_ptr(), 3, 3);
         lvgl_sys::lv_chart_set_range(
             ptr.as_ptr(),
@@ -3056,7 +3462,12 @@ fn render_trend(
             (Some(lo), Some(hi)) => (lo.round() as i16, hi.round() as i16),
             _ => (0, 100), // placeholder prima del primo poll quando in autofit
         };
-        lvgl_sys::lv_chart_set_range(ptr.as_ptr(), lvgl_sys::LV_CHART_AXIS_PRIMARY_Y as lvgl_sys::lv_chart_axis_t, y_lo, y_hi);
+        lvgl_sys::lv_chart_set_range(
+            ptr.as_ptr(),
+            lvgl_sys::LV_CHART_AXIS_PRIMARY_Y as lvgl_sys::lv_chart_axis_t,
+            y_lo,
+            y_hi,
+        );
     }
 
     let backfill = obj.opcua_backfill.unwrap_or(false);
@@ -3072,11 +3483,29 @@ fn render_trend(
             .unwrap_or_else(|| trend_series_color(i, obj));
         let tag = &trace.tag;
         let ser = unsafe { chart_add_series(ptr, rgb) };
-        let shared = client::spawn_history_poller(rt_handle, base_url.to_string(), tag.clone(), window_s, backfill);
-        series.push(TrendSeriesBinding { ser, shared, last_seen_version: 0, last_samples: Vec::new() });
+        let shared = client::spawn_history_poller(
+            rt_handle,
+            base_url.to_string(),
+            tag.clone(),
+            window_s,
+            backfill,
+        );
+        series.push(TrendSeriesBinding {
+            ser,
+            shared,
+            last_seen_version: 0,
+            last_samples: Vec::new(),
+        });
     }
 
-    Ok(LiveBinding { kind: LiveKind::Trend { ptr, series, window_s, autofit } })
+    Ok(LiveBinding {
+        kind: LiveKind::Trend {
+            ptr,
+            series,
+            window_s,
+            autofit,
+        },
+    })
 }
 
 /// `sparkline`: stesso principio del `trend` (poller REST in background via
@@ -3109,9 +3538,16 @@ fn render_sparkline(
         .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
     styles.push(bg_style);
 
-    let window_s = obj.spark_window_s.unwrap_or(60.0).round().clamp(1.0, i16::MAX as f64) as u64;
+    let window_s = obj
+        .spark_window_s
+        .unwrap_or(60.0)
+        .round()
+        .clamp(1.0, i16::MAX as f64) as u64;
     unsafe {
-        lvgl_sys::lv_chart_set_type(ptr.as_ptr(), lvgl_sys::LV_CHART_TYPE_SCATTER as lvgl_sys::lv_chart_type_t);
+        lvgl_sys::lv_chart_set_type(
+            ptr.as_ptr(),
+            lvgl_sys::LV_CHART_TYPE_SCATTER as lvgl_sys::lv_chart_type_t,
+        );
         lvgl_sys::lv_chart_set_div_line_count(ptr.as_ptr(), 0, 0);
         lvgl_sys::lv_chart_set_range(
             ptr.as_ptr(),
@@ -3122,16 +3558,30 @@ fn render_sparkline(
         // Placeholder prima del primo poll — sempre autofit dopo, come trend
         // quando y_min/y_max sono assenti (qui non esistono affatto nello
         // schema, quindi è l'unico comportamento).
-        lvgl_sys::lv_chart_set_range(ptr.as_ptr(), lvgl_sys::LV_CHART_AXIS_PRIMARY_Y as lvgl_sys::lv_chart_axis_t, 0, 100);
+        lvgl_sys::lv_chart_set_range(
+            ptr.as_ptr(),
+            lvgl_sys::LV_CHART_AXIS_PRIMARY_Y as lvgl_sys::lv_chart_axis_t,
+            0,
+            100,
+        );
     }
 
-    let rgb = parse_hex_color(obj.spark_color.as_deref().unwrap_or("#3b82f6")).unwrap_or((59, 130, 246));
+    let rgb =
+        parse_hex_color(obj.spark_color.as_deref().unwrap_or("#3b82f6")).unwrap_or((59, 130, 246));
     let ser = unsafe { chart_add_series(ptr, rgb) };
     let tag = obj.tag.clone().unwrap_or_default();
-    let shared = client::spawn_history_poller(rt_handle, base_url.to_string(), tag, window_s, false);
+    let shared =
+        client::spawn_history_poller(rt_handle, base_url.to_string(), tag, window_s, false);
 
     Ok(LiveBinding {
-        kind: LiveKind::Sparkline { ptr, ser, shared, last_seen_version: 0, last_samples: Vec::new(), window_s },
+        kind: LiveKind::Sparkline {
+            ptr,
+            ser,
+            shared,
+            last_seen_version: 0,
+            last_samples: Vec::new(),
+            window_s,
+        },
     })
 }
 
@@ -3162,7 +3612,11 @@ fn render_alarm_viewer(
 
     let width = obj.width.unwrap_or(360.0);
     let height = obj.height.unwrap_or(160.0);
-    let max_rows = obj.alarm_viewer_max_rows.unwrap_or(5.0).round().clamp(1.0, 50.0) as usize;
+    let max_rows = obj
+        .alarm_viewer_max_rows
+        .unwrap_or(5.0)
+        .round()
+        .clamp(1.0, 50.0) as usize;
     let show_ack = obj.alarm_viewer_show_ack.unwrap_or(true);
     let show_ts = obj.alarm_viewer_show_ts.unwrap_or(true);
     let show_empty = obj.alarm_viewer_show_empty.unwrap_or(true);
@@ -3171,7 +3625,11 @@ fn render_alarm_viewer(
 
     let mut container = create_child_obj(screen)?;
     set_pos_size(&mut container, obj, width, height)?;
-    apply_bg_color(&mut container, obj.alarm_viewer_bg_color.as_deref().unwrap_or("#0f172a"), styles)?;
+    apply_bg_color(
+        &mut container,
+        obj.alarm_viewer_bg_color.as_deref().unwrap_or("#0f172a"),
+        styles,
+    )?;
     let container_ptr = container.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     unsafe {
         // Niente scroll (vedi commento di funzione) — non solo estetico:
@@ -3179,7 +3637,10 @@ fn render_alarm_viewer(
         // dito/mouse anche se il contenuto in eccesso resta semplicemente
         // tagliato, un'affordance fuorviante per qualcosa che non scrolla
         // davvero.
-        lvgl_sys::lv_obj_clear_flag(container_ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_SCROLLABLE as lvgl_sys::lv_obj_flag_t);
+        lvgl_sys::lv_obj_clear_flag(
+            container_ptr.as_ptr(),
+            lvgl_sys::LV_OBJ_FLAG_SCROLLABLE as lvgl_sys::lv_obj_flag_t,
+        );
     }
     // Il tema di default applica un padding interno non nullo ai container
     // (verificato dal vivo: il pulsante ACK, posizionato assumendo tutta la
@@ -3200,8 +3661,11 @@ fn render_alarm_viewer(
     let row_h = (height / max_rows as f64).max(16.0);
     let hidden = lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t;
 
-    let mut empty_label = Label::create(&mut container).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-    empty_label.set_pos(4, 4).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    let mut empty_label =
+        Label::create(&mut container).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+    empty_label
+        .set_pos(4, 4)
+        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
     empty_label
         .set_text(&text_cstring("Nessun allarme attivo"))
         .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
@@ -3211,7 +3675,9 @@ fn render_alarm_viewer(
         .add_style(Part::Main, &mut empty_style)
         .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
     styles.push(empty_style);
-    let empty_ptr = empty_label.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    let empty_ptr = empty_label
+        .raw()
+        .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     // Stato iniziale nascosto: il primo update_bindings (che gira prima del
     // primo frame visibile — vedi main.rs) decide la visibilità corretta
     // rispettando show_empty, niente da anticipare qui.
@@ -3234,18 +3700,26 @@ fn render_alarm_viewer(
         let center_y = |elem_h: f64| (row_top + (row_h - elem_h) / 2.0).round() as i16;
 
         let mut dot = create_child_obj(&mut container)?;
-        dot.set_pos(4, center_y(dot_h)).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-        dot.set_size(10, 10).map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
+        dot.set_pos(4, center_y(dot_h))
+            .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+        dot.set_size(10, 10)
+            .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
         let mut dot_style = Style::default();
         dot_style.set_radius(lvgl_sys::LV_RADIUS_CIRCLE as i16);
-        dot.add_style(Part::Main, &mut dot_style).map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
+        dot.add_style(Part::Main, &mut dot_style)
+            .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
         let dot_ptr = dot.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
 
         let mut x_cursor: i16 = 20;
         let ts_ptr = if show_ts {
-            let mut ts_lbl = Label::create(&mut container).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-            ts_lbl.set_pos(x_cursor, center_y(text_h)).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-            ts_lbl.set_text(&text_cstring("")).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+            let mut ts_lbl = Label::create(&mut container)
+                .map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+            ts_lbl
+                .set_pos(x_cursor, center_y(text_h))
+                .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+            ts_lbl
+                .set_text(&text_cstring(""))
+                .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
             let mut ts_style = Style::default();
             ts_style.set_text_color(Color::from_rgb((71, 85, 105))); // #475569
             ts_lbl
@@ -3261,8 +3735,11 @@ fn render_alarm_viewer(
 
         let ack_w: i16 = if show_ack { 40 } else { 0 };
         let msg_w = (width as i16 - x_cursor - ack_w - 8).max(20);
-        let mut msg_lbl = Label::create(&mut container).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-        msg_lbl.set_pos(x_cursor, center_y(text_h)).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+        let mut msg_lbl =
+            Label::create(&mut container).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+        msg_lbl
+            .set_pos(x_cursor, center_y(text_h))
+            .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
         // Altezza fissa a una riga (non row_h, spesso più alta): verificato in
         // lv_label.c che LV_LABEL_LONG_DOT tronca con "…" solo quando il testo
         // "a capo" supererebbe l'altezza dichiarata — con un'altezza generosa
@@ -3270,20 +3747,31 @@ fn render_alarm_viewer(
         // invece di troncare, il contrario di quanto serve qui (una riga sola,
         // come il `text-overflow: ellipsis` del web). Provato dal vivo:
         // un'altezza pari a row_h mostrava il messaggio spezzato su due righe.
-        msg_lbl.set_size(msg_w, text_h as i16).map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
-        msg_lbl.set_text(&text_cstring("")).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+        msg_lbl
+            .set_size(msg_w, text_h as i16)
+            .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
+        msg_lbl
+            .set_text(&text_cstring(""))
+            .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
         let msg_ptr = msg_lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
         unsafe {
-            lvgl_sys::lv_label_set_long_mode(msg_ptr.as_ptr(), lvgl_sys::LV_LABEL_LONG_DOT as lvgl_sys::lv_label_long_mode_t);
+            lvgl_sys::lv_label_set_long_mode(
+                msg_ptr.as_ptr(),
+                lvgl_sys::LV_LABEL_LONG_DOT as lvgl_sys::lv_label_long_mode_t,
+            );
         }
 
         let (ack_btn_ptr, ack_ctx) = if show_ack {
-            let mut btn = Btn::create(&mut container).map_err(|e| anyhow::anyhow!("Btn::create: {e:?}"))?;
+            let mut btn =
+                Btn::create(&mut container).map_err(|e| anyhow::anyhow!("Btn::create: {e:?}"))?;
             btn.set_pos(x_cursor + msg_w + 4, center_y(btn_h))
                 .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-            btn.set_size(ack_w, btn_h as i16).map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
-            let mut lbl = Label::create(&mut btn).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-            lbl.set_text(&text_cstring("ACK")).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+            btn.set_size(ack_w, btn_h as i16)
+                .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
+            let mut lbl =
+                Label::create(&mut btn).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+            lbl.set_text(&text_cstring("ACK"))
+                .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
             let ptr = btn.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
             let ctx: &'static AlarmAckCtx = Box::leak(Box::new(AlarmAckCtx {
                 current_id: RefCell::new(String::new()),
@@ -3313,7 +3801,14 @@ fn render_alarm_viewer(
             }
         }
 
-        rows.push(AlarmRowBinding { dot_ptr, dot_style, ts_ptr, msg_ptr, ack_btn_ptr, ack_ctx });
+        rows.push(AlarmRowBinding {
+            dot_ptr,
+            dot_style,
+            ts_ptr,
+            msg_ptr,
+            ack_btn_ptr,
+            ack_ctx,
+        });
     }
 
     Ok(LiveBinding {
@@ -3349,7 +3844,10 @@ fn render_alarm_banner(
     apply_bg_color(&mut container, "#1e293b", styles)?;
     let container_ptr = container.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     unsafe {
-        lvgl_sys::lv_obj_clear_flag(container_ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_SCROLLABLE as lvgl_sys::lv_obj_flag_t);
+        lvgl_sys::lv_obj_clear_flag(
+            container_ptr.as_ptr(),
+            lvgl_sys::LV_OBJ_FLAG_SCROLLABLE as lvgl_sys::lv_obj_flag_t,
+        );
     }
     let mut pad_style = Style::default();
     pad_style.set_pad_left(8);
@@ -3363,29 +3861,45 @@ fn render_alarm_banner(
 
     let dot_y = ((height - 10.0) / 2.0).round() as i16;
     let mut dot = create_child_obj(&mut container)?;
-    dot.set_pos(0, dot_y).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-    dot.set_size(10, 10).map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
+    dot.set_pos(0, dot_y)
+        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    dot.set_size(10, 10)
+        .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
     let mut dot_style = Style::default();
     dot_style.set_radius(lvgl_sys::LV_RADIUS_CIRCLE as i16);
-    dot.add_style(Part::Main, &mut dot_style).map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
+    dot.add_style(Part::Main, &mut dot_style)
+        .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
     let dot_ptr = dot.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
 
-    let mut msg_lbl = Label::create(&mut container).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+    let mut msg_lbl =
+        Label::create(&mut container).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
     msg_lbl
         .set_pos(18, ((height - 16.0) / 2.0).round() as i16)
         .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
     msg_lbl
         .set_size((width as i16 - 26).max(20), 16)
         .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
-    msg_lbl.set_text(&text_cstring("")).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+    msg_lbl
+        .set_text(&text_cstring(""))
+        .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
     let msg_ptr = msg_lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     unsafe {
-        lvgl_sys::lv_label_set_long_mode(msg_ptr.as_ptr(), lvgl_sys::LV_LABEL_LONG_DOT as lvgl_sys::lv_label_long_mode_t);
-        lvgl_sys::lv_obj_add_flag(dot_ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t);
-        lvgl_sys::lv_obj_add_flag(msg_ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t);
+        lvgl_sys::lv_label_set_long_mode(
+            msg_ptr.as_ptr(),
+            lvgl_sys::LV_LABEL_LONG_DOT as lvgl_sys::lv_label_long_mode_t,
+        );
+        lvgl_sys::lv_obj_add_flag(
+            dot_ptr.as_ptr(),
+            lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t,
+        );
+        lvgl_sys::lv_obj_add_flag(
+            msg_ptr.as_ptr(),
+            lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t,
+        );
     }
 
-    let mut empty_label = Label::create(&mut container).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+    let mut empty_label =
+        Label::create(&mut container).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
     empty_label
         .set_pos(0, ((height - 16.0) / 2.0).round() as i16)
         .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
@@ -3398,10 +3912,20 @@ fn render_alarm_banner(
         .add_style(Part::Main, &mut empty_style)
         .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
     styles.push(empty_style);
-    let empty_ptr = empty_label.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    let empty_ptr = empty_label
+        .raw()
+        .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
 
     Ok(LiveBinding {
-        kind: LiveKind::AlarmBanner { shared: shared_alarms.clone(), dot_ptr, dot_style, msg_ptr, empty_ptr, prefix, allowed_sev },
+        kind: LiveKind::AlarmBanner {
+            shared: shared_alarms.clone(),
+            dot_ptr,
+            dot_style,
+            msg_ptr,
+            empty_ptr,
+            prefix,
+            allowed_sev,
+        },
     })
 }
 
@@ -3410,7 +3934,11 @@ fn render_alarm_banner(
 /// frame (nessun poller REST: i valori sono già lì), throttled in
 /// `update_xy_plot`. Range fisso quando `xy_x_min`/`xy_x_max` (risp. Y) sono
 /// entrambi impostati, altrimenti autofit sui campioni nella scia.
-fn render_xy_plot(screen: &mut lvgl::Obj, obj: &SynopticObject, styles: &mut Vec<Style>) -> anyhow::Result<LiveBinding> {
+fn render_xy_plot(
+    screen: &mut lvgl::Obj,
+    obj: &SynopticObject,
+    styles: &mut Vec<Style>,
+) -> anyhow::Result<LiveBinding> {
     let mut chart = Chart::create(screen).map_err(|e| anyhow::anyhow!("Chart::create: {e:?}"))?;
     set_pos_size(&mut chart, obj, 200.0, 200.0)?;
     let ptr = chart.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
@@ -3420,31 +3948,42 @@ fn render_xy_plot(screen: &mut lvgl::Obj, obj: &SynopticObject, styles: &mut Vec
     bg_style.set_pad_right(4);
     bg_style.set_pad_top(4);
     bg_style.set_pad_bottom(4);
-    chart.add_style(Part::Main, &mut bg_style).map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
+    chart
+        .add_style(Part::Main, &mut bg_style)
+        .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
     styles.push(bg_style);
 
     let trail_s = obj.xy_trail_s.unwrap_or(30.0).round().clamp(1.0, 600.0) as u64;
     let (x_lo, x_hi) = (obj.xy_x_min.unwrap_or(0.0), obj.xy_x_max.unwrap_or(100.0));
     let (y_lo, y_hi) = (obj.xy_y_min.unwrap_or(0.0), obj.xy_y_max.unwrap_or(100.0));
     unsafe {
-        lvgl_sys::lv_chart_set_type(ptr.as_ptr(), lvgl_sys::LV_CHART_TYPE_SCATTER as lvgl_sys::lv_chart_type_t);
+        lvgl_sys::lv_chart_set_type(
+            ptr.as_ptr(),
+            lvgl_sys::LV_CHART_TYPE_SCATTER as lvgl_sys::lv_chart_type_t,
+        );
         lvgl_sys::lv_chart_set_div_line_count(ptr.as_ptr(), 3, 3);
         lvgl_sys::lv_chart_set_range(
-            ptr.as_ptr(), lvgl_sys::LV_CHART_AXIS_PRIMARY_X as lvgl_sys::lv_chart_axis_t,
-            x_lo.round() as i16, x_hi.round() as i16,
+            ptr.as_ptr(),
+            lvgl_sys::LV_CHART_AXIS_PRIMARY_X as lvgl_sys::lv_chart_axis_t,
+            x_lo.round() as i16,
+            x_hi.round() as i16,
         );
         lvgl_sys::lv_chart_set_range(
-            ptr.as_ptr(), lvgl_sys::LV_CHART_AXIS_PRIMARY_Y as lvgl_sys::lv_chart_axis_t,
-            y_lo.round() as i16, y_hi.round() as i16,
+            ptr.as_ptr(),
+            lvgl_sys::LV_CHART_AXIS_PRIMARY_Y as lvgl_sys::lv_chart_axis_t,
+            y_lo.round() as i16,
+            y_hi.round() as i16,
         );
         lvgl_sys::lv_chart_set_point_count(ptr.as_ptr(), 64);
     }
-    let rgb = parse_hex_color(obj.line_color.as_deref().unwrap_or("#3b82f6")).unwrap_or((59, 130, 246));
+    let rgb =
+        parse_hex_color(obj.line_color.as_deref().unwrap_or("#3b82f6")).unwrap_or((59, 130, 246));
     let ser = unsafe { chart_add_series(ptr, rgb) };
 
     Ok(LiveBinding {
         kind: LiveKind::XyPlot {
-            ptr, ser,
+            ptr,
+            ser,
             x_tag: obj.tag.clone(),
             y_tag: obj.y_tag.clone(),
             trail_s,
@@ -3549,7 +4088,13 @@ pub fn raggruppa_spicchi(
 /// torta, ed è mezza unità sull'ultima cifra mostrata. Nominata qui perché chi
 /// affianca i due schermi e vede `12` contro `13` sappia che non è un difetto
 /// di lettura del dato.
-pub fn etichetta_spicchio(modo: Option<&str>, frazione: f64, valore: f64, etichetta: &str, decimali: usize) -> String {
+pub fn etichetta_spicchio(
+    modo: Option<&str>,
+    frazione: f64,
+    valore: f64,
+    etichetta: &str,
+    decimali: usize,
+) -> String {
     let pct = format!("{:.0}%", frazione * 100.0);
     match modo.unwrap_or("percent") {
         "value" => format!("{valore:.decimali$}"),
@@ -3559,7 +4104,11 @@ pub fn etichetta_spicchio(modo: Option<&str>, frazione: f64, valore: f64, etiche
     }
 }
 
-fn render_pie_chart(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnapshot) -> anyhow::Result<LiveBinding> {
+fn render_pie_chart(
+    screen: &mut lvgl::Obj,
+    obj: &SynopticObject,
+    tags: &TagSnapshot,
+) -> anyhow::Result<LiveBinding> {
     let mode = obj.pie_mode.as_deref().unwrap_or("pie");
     if mode != "donut" {
         anyhow::bail!("pie_mode '{mode}' non supportato da LVGL (solo 'donut' — LVGL 8.x non ha un widget torta nativo)");
@@ -3570,12 +4119,21 @@ fn render_pie_chart(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnap
     let slices = obj.pie_slices.clone().unwrap_or_default();
 
     let mut canvas = unsafe {
-        let ptr = lvgl_sys::lv_canvas_create(screen.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr());
-        let nn = core::ptr::NonNull::new(ptr).ok_or_else(|| anyhow::anyhow!("lv_canvas_create ha restituito null"))?;
+        let ptr = lvgl_sys::lv_canvas_create(
+            screen
+                .raw()
+                .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+                .as_ptr(),
+        );
+        let nn = core::ptr::NonNull::new(ptr)
+            .ok_or_else(|| anyhow::anyhow!("lv_canvas_create ha restituito null"))?;
         <lvgl::Obj as Widget>::from_raw(nn)
     };
     canvas
-        .set_pos(obj.x.unwrap_or(0.0).round() as i16, obj.y.unwrap_or(0.0).round() as i16)
+        .set_pos(
+            obj.x.unwrap_or(0.0).round() as i16,
+            obj.y.unwrap_or(0.0).round() as i16,
+        )
         .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
     let canvas_ptr = canvas.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
 
@@ -3589,7 +4147,10 @@ fn render_pie_chart(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnap
     let mut buf = vec![0u8; buf_size];
     unsafe {
         lvgl_sys::lv_canvas_set_buffer(
-            canvas_ptr.as_ptr(), buf.as_mut_ptr() as *mut std::ffi::c_void, w as lvgl_sys::lv_coord_t, h as lvgl_sys::lv_coord_t,
+            canvas_ptr.as_ptr(),
+            buf.as_mut_ptr() as *mut std::ffi::c_void,
+            w as lvgl_sys::lv_coord_t,
+            h as lvgl_sys::lv_coord_t,
             lvgl_sys::LV_IMG_CF_TRUE_COLOR_ALPHA as lvgl_sys::lv_img_cf_t,
         );
         lvgl_sys::lv_canvas_fill_bg(canvas_ptr.as_ptr(), Color::from_rgb((0, 0, 0)).into(), 0);
@@ -3597,7 +4158,12 @@ fn render_pie_chart(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnap
 
     let values: Vec<f64> = slices
         .iter()
-        .map(|s| lookup(tags, &Some(s.tag.clone())).map(|t| tag_value_as_f64(&t.value)).unwrap_or(0.0).max(0.0))
+        .map(|s| {
+            lookup(tags, &Some(s.tag.clone()))
+                .map(|t| tag_value_as_f64(&t.value))
+                .unwrap_or(0.0)
+                .max(0.0)
+        })
         .collect();
     let gruppo = (
         obj.pie_group_below_pct,
@@ -3605,7 +4171,16 @@ fn render_pie_chart(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnap
         obj.pie_group_color.clone(),
     );
     let foro = obj.pie_hole_color.as_deref().and_then(parse_hex_color);
-    draw_pie_donut(canvas_ptr, w, h, &slices, &values, inner_ratio, &gruppo, foro);
+    draw_pie_donut(
+        canvas_ptr,
+        w,
+        h,
+        &slices,
+        &values,
+        inner_ratio,
+        &gruppo,
+        foro,
+    );
 
     // Un'etichetta per spicchio dichiarato, più una di scorta per l'eventuale
     // voce "altro": si creano tutte adesso e si nascondono quelle che non
@@ -3614,12 +4189,18 @@ fn render_pie_chart(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnap
     let mut etichette = Vec::new();
     if mostra_etichette {
         for _ in 0..=slices.len() {
-            let mut l = Label::create(&mut canvas).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-            l.set_text(&text_cstring("")).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+            let mut l =
+                Label::create(&mut canvas).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+            l.set_text(&text_cstring(""))
+                .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
             let lp = l.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
             unsafe {
                 lvgl_sys::lv_obj_add_flag(lp.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN);
-                lvgl_sys::lv_obj_set_style_text_color(lp.as_ptr(), Color::from_rgb((255, 255, 255)).into(), 0);
+                lvgl_sys::lv_obj_set_style_text_color(
+                    lp.as_ptr(),
+                    Color::from_rgb((255, 255, 255)).into(),
+                    0,
+                );
                 if let Some(f) = lvgl_font::at_size(11) {
                     lvgl_sys::lv_obj_set_style_text_font(lp.as_ptr(), f, 0);
                 }
@@ -3630,12 +4211,18 @@ fn render_pie_chart(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnap
 
     // Testo al centro del foro.
     let centro = if obj.pie_center_tag.is_some() || obj.pie_center_text.is_some() {
-        let mut l = Label::create(&mut canvas).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+        let mut l =
+            Label::create(&mut canvas).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
         l.set_text(&text_cstring(obj.pie_center_text.as_deref().unwrap_or("")))
             .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
         let lp = l.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
         unsafe {
-            lvgl_sys::lv_obj_align(lp.as_ptr(), lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
+            lvgl_sys::lv_obj_align(
+                lp.as_ptr(),
+                lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t,
+                0,
+                0,
+            );
             if let Some(f) = lvgl_font::at_size(16) {
                 lvgl_sys::lv_obj_set_style_text_font(lp.as_ptr(), f, 0);
             }
@@ -3646,11 +4233,18 @@ fn render_pie_chart(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnap
     };
 
     let binding = LiveKind::PieChart {
-        canvas_ptr, buf, w, h, slices, inner_ratio,
+        canvas_ptr,
+        buf,
+        w,
+        h,
+        slices,
+        inner_ratio,
         // Valori impossibili: il primo `update_bindings` posiziona le etichette
         // e scrive il centro, invece di lasciarli vuoti fino al primo cambio.
         last_values: vec![f64::NAN; values.len()],
-        gruppo, foro, etichette,
+        gruppo,
+        foro,
+        etichette,
         modo_etichetta: obj.pie_label_mode.clone(),
         decimali: obj.decimals.unwrap_or(1) as usize,
         centro,
@@ -3690,7 +4284,13 @@ fn draw_pie_donut(
     unsafe {
         lvgl_sys::lv_canvas_fill_bg(canvas_ptr.as_ptr(), Color::from_rgb((0, 0, 0)).into(), 0);
     }
-    let spicchi = raggruppa_spicchi(slices, values, gruppo.0, gruppo.1.as_deref(), gruppo.2.as_deref());
+    let spicchi = raggruppa_spicchi(
+        slices,
+        values,
+        gruppo.0,
+        gruppo.1.as_deref(),
+        gruppo.2.as_deref(),
+    );
     let total: f64 = spicchi.iter().map(|s| s.valore).sum();
     if total <= 0.0 || spicchi.is_empty() {
         return Vec::new();
@@ -3724,8 +4324,12 @@ fn draw_pie_donut(
             // dall'alto, non dalle ore 3 — verificato leggendo il blocco
             // pie_chart prima di assumerlo).
             lvgl_sys::lv_canvas_draw_arc(
-                canvas_ptr.as_ptr(), cx, cy, r,
-                (start_deg - 90.0).round() as i32, (end_deg - 90.0).round() as i32,
+                canvas_ptr.as_ptr(),
+                cx,
+                cy,
+                r,
+                (start_deg - 90.0).round() as i32,
+                (end_deg - 90.0).round() as i32,
                 &dsc,
             );
         }
@@ -3755,8 +4359,10 @@ fn draw_pie_donut(
             dsc.border_width = 0;
             lvgl_sys::lv_canvas_draw_rect(
                 canvas_ptr.as_ptr(),
-                cx - raggio_foro, cy - raggio_foro,
-                raggio_foro * 2, raggio_foro * 2,
+                cx - raggio_foro,
+                cy - raggio_foro,
+                raggio_foro * 2,
+                raggio_foro * 2,
                 &dsc,
             );
         }
@@ -3790,7 +4396,10 @@ unsafe extern "C" fn sws_setpoint_edit_clicked_cb(e: *mut lvgl_sys::lv_event_t) 
     unsafe {
         let current = lvgl_sys::lv_label_get_text(ctx.value_ptr.as_ptr());
         lvgl_sys::lv_textarea_set_text(ctx.textarea_ptr.as_ptr(), current);
-        lvgl_sys::lv_obj_clear_flag(ctx.overlay_ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t);
+        lvgl_sys::lv_obj_clear_flag(
+            ctx.overlay_ptr.as_ptr(),
+            lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t,
+        );
     }
 }
 
@@ -3811,8 +4420,14 @@ unsafe extern "C" fn sws_setpoint_ready_cb(e: *mut lvgl_sys::lv_event_t) {
         if !c_text.is_null() {
             if let Ok(text) = std::ffi::CStr::from_ptr(c_text).to_str() {
                 if let Ok(n) = text.trim().parse::<f64>() {
-                    let _ = ctx.tx.send(TagCommand { tag: ctx.tag.clone(), value: TagValue::Float(n) });
-                    lvgl_sys::lv_obj_add_flag(ctx.overlay_ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t);
+                    let _ = ctx.tx.send(TagCommand {
+                        tag: ctx.tag.clone(),
+                        value: TagValue::Float(n),
+                    });
+                    lvgl_sys::lv_obj_add_flag(
+                        ctx.overlay_ptr.as_ptr(),
+                        lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t,
+                    );
                 }
             }
         }
@@ -3828,7 +4443,10 @@ unsafe extern "C" fn sws_setpoint_cancel_cb(e: *mut lvgl_sys::lv_event_t) {
     }
     let ctx = unsafe { &*(user_data as *const SetpointCtx) };
     unsafe {
-        lvgl_sys::lv_obj_add_flag(ctx.overlay_ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t);
+        lvgl_sys::lv_obj_add_flag(
+            ctx.overlay_ptr.as_ptr(),
+            lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t,
+        );
     }
 }
 
@@ -3907,18 +4525,26 @@ fn render_setpoint(
     // motori, ma due ci stanno, e il valore è la riga che conta.
     let mut y_cursor: i16 = 0;
     if let Some(label) = &obj.label {
-        let mut lbl = Label::create(&mut container).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-        lbl.set_pos(2, y_cursor).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-        lbl.set_text(&text_cstring(label)).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+        let mut lbl =
+            Label::create(&mut container).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+        lbl.set_pos(2, y_cursor)
+            .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+        lbl.set_text(&text_cstring(label))
+            .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
         let mut lbl_style = Style::default();
         // Attenuata come sul web (`--brand-text-muted`): l'etichetta accompagna
         // il valore, non compete con lui.
         lbl_style.set_text_color(Color::from_rgb((148, 163, 184)));
-        lbl.add_style(Part::Main, &mut lbl_style).map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
+        lbl.add_style(Part::Main, &mut lbl_style)
+            .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
         if let Some(px) = lvgl_font::at_size(11) {
             unsafe {
                 lvgl_sys::lv_obj_set_style_text_font(
-                    lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr(), px, 0,
+                    lbl.raw()
+                        .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+                        .as_ptr(),
+                    px,
+                    0,
                 )
             };
         }
@@ -3926,9 +4552,14 @@ fn render_setpoint(
         y_cursor += 15;
     }
 
-    let mut value_lbl = Label::create(&mut container).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-    value_lbl.set_pos(2, y_cursor).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-    let initial = lookup(tags, &obj.tag).map(|t| tag_value_as_f64(&t.value)).unwrap_or(0.0);
+    let mut value_lbl =
+        Label::create(&mut container).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+    value_lbl
+        .set_pos(2, y_cursor)
+        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    let initial = lookup(tags, &obj.tag)
+        .map(|t| tag_value_as_f64(&t.value))
+        .unwrap_or(0.0);
     let decimali = obj.decimals.unwrap_or(1) as usize;
     value_lbl
         .set_text(&text_cstring(&format!("{initial:.decimali$}{unit}")))
@@ -3955,11 +4586,16 @@ fn render_setpoint(
 
     let mut textarea = unsafe {
         let ptr = lvgl_sys::lv_textarea_create(overlay_ptr.as_ptr());
-        let nn = core::ptr::NonNull::new(ptr).ok_or_else(|| anyhow::anyhow!("lv_textarea_create ha restituito null"))?;
+        let nn = core::ptr::NonNull::new(ptr)
+            .ok_or_else(|| anyhow::anyhow!("lv_textarea_create ha restituito null"))?;
         <lvgl::Obj as Widget>::from_raw(nn)
     };
-    textarea.set_pos(20, 20).map_err(|e| anyhow::anyhow!("set_pos textarea: {e:?}"))?;
-    textarea.set_size((HOR_RES as i16) - 40, 50).map_err(|e| anyhow::anyhow!("set_size textarea: {e:?}"))?;
+    textarea
+        .set_pos(20, 20)
+        .map_err(|e| anyhow::anyhow!("set_pos textarea: {e:?}"))?;
+    textarea
+        .set_size((HOR_RES as i16) - 40, 50)
+        .map_err(|e| anyhow::anyhow!("set_size textarea: {e:?}"))?;
     let textarea_ptr = textarea.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     unsafe {
         lvgl_sys::lv_textarea_set_accepted_chars(textarea_ptr.as_ptr(), c"0123456789.-".as_ptr());
@@ -3968,12 +4604,19 @@ fn render_setpoint(
 
     let keyboard_ptr = unsafe {
         let ptr = lvgl_sys::lv_keyboard_create(overlay_ptr.as_ptr());
-        core::ptr::NonNull::new(ptr).ok_or_else(|| anyhow::anyhow!("lv_keyboard_create ha restituito null"))?
+        core::ptr::NonNull::new(ptr)
+            .ok_or_else(|| anyhow::anyhow!("lv_keyboard_create ha restituito null"))?
     };
     unsafe {
         lvgl_sys::lv_keyboard_set_textarea(keyboard_ptr.as_ptr(), textarea_ptr.as_ptr());
-        lvgl_sys::lv_keyboard_set_mode(keyboard_ptr.as_ptr(), lvgl_sys::LV_KEYBOARD_MODE_NUMBER as lvgl_sys::lv_keyboard_mode_t);
-        lvgl_sys::lv_obj_add_flag(overlay_ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t);
+        lvgl_sys::lv_keyboard_set_mode(
+            keyboard_ptr.as_ptr(),
+            lvgl_sys::LV_KEYBOARD_MODE_NUMBER as lvgl_sys::lv_keyboard_mode_t,
+        );
+        lvgl_sys::lv_obj_add_flag(
+            overlay_ptr.as_ptr(),
+            lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t,
+        );
     }
 
     let ctx: &'static SetpointCtx = Box::leak(Box::new(SetpointCtx {
@@ -3985,27 +4628,40 @@ fn render_setpoint(
     }));
     unsafe {
         lvgl_sys::lv_obj_add_event_cb(
-            keyboard_ptr.as_ptr(), Some(sws_setpoint_ready_cb), lvgl_sys::lv_event_code_t_LV_EVENT_READY,
+            keyboard_ptr.as_ptr(),
+            Some(sws_setpoint_ready_cb),
+            lvgl_sys::lv_event_code_t_LV_EVENT_READY,
             ctx as *const SetpointCtx as *mut std::ffi::c_void,
         );
         lvgl_sys::lv_obj_add_event_cb(
-            keyboard_ptr.as_ptr(), Some(sws_setpoint_cancel_cb), lvgl_sys::lv_event_code_t_LV_EVENT_CANCEL,
+            keyboard_ptr.as_ptr(),
+            Some(sws_setpoint_cancel_cb),
+            lvgl_sys::lv_event_code_t_LV_EVENT_CANCEL,
             ctx as *const SetpointCtx as *mut std::ffi::c_void,
         );
     }
 
     if !read_only {
-        let mut edit_btn = Btn::create(&mut container).map_err(|e| anyhow::anyhow!("Btn::create: {e:?}"))?;
+        let mut edit_btn =
+            Btn::create(&mut container).map_err(|e| anyhow::anyhow!("Btn::create: {e:?}"))?;
         edit_btn
             .set_pos((w - 46.0).round() as i16, y_cursor.saturating_sub(2))
             .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
         // Largo abbastanza da contenere la scritta: a 22x22 il tema lo
         // arrotondava in un cerchio e la lettera restava tagliata.
-        edit_btn.set_size(44, 24).map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
-        let mut edit_lbl = Label::create(&mut edit_btn).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-        edit_lbl.set_text(&text_cstring("Scrivi")).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+        edit_btn
+            .set_size(44, 24)
+            .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
+        let mut edit_lbl =
+            Label::create(&mut edit_btn).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+        edit_lbl
+            .set_text(&text_cstring("Scrivi"))
+            .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
         unsafe {
-            let l = edit_lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+            let l = edit_lbl
+                .raw()
+                .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+                .as_ptr();
             lvgl_sys::lv_obj_align(l, lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
             if let Some(f) = lvgl_font::at_size(11) {
                 lvgl_sys::lv_obj_set_style_text_font(l, f, 0);
@@ -4014,14 +4670,22 @@ fn render_setpoint(
         let edit_ptr = edit_btn.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
         unsafe {
             lvgl_sys::lv_obj_add_event_cb(
-                edit_ptr.as_ptr(), Some(sws_setpoint_edit_clicked_cb), lvgl_sys::lv_event_code_t_LV_EVENT_CLICKED,
+                edit_ptr.as_ptr(),
+                Some(sws_setpoint_edit_clicked_cb),
+                lvgl_sys::lv_event_code_t_LV_EVENT_CLICKED,
                 ctx as *const SetpointCtx as *mut std::ffi::c_void,
             );
         }
     }
     let _ = container_ptr;
 
-    Ok(LiveBinding { kind: LiveKind::Setpoint { value_ptr, tag: obj.tag.clone(), unit } })
+    Ok(LiveBinding {
+        kind: LiveKind::Setpoint {
+            value_ptr,
+            tag: obj.tag.clone(),
+            unit,
+        },
+    })
 }
 
 /// Click sulla campanella: apre/chiude il pannello elenco allarmi attivi
@@ -4064,15 +4728,20 @@ fn render_alarm_bell(
 
     let mut btn = Btn::create(screen).map_err(|e| anyhow::anyhow!("Btn::create: {e:?}"))?;
     set_pos_size(&mut btn, obj, w, h)?;
-    let mut bell_lbl = Label::create(&mut btn).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-    bell_lbl.set_text(&text_cstring("Allarmi")).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+    let mut bell_lbl =
+        Label::create(&mut btn).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+    bell_lbl
+        .set_text(&text_cstring("Allarmi"))
+        .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
     let btn_ptr = btn.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
 
     let mut badge = create_child_obj(&mut btn)?;
     badge
         .set_pos((w - 20.0).round() as i16, -6)
         .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-    badge.set_size(18, 18).map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
+    badge
+        .set_size(18, 18)
+        .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
     let mut badge_style = Style::default();
     badge_style.set_radius(lvgl_sys::LV_RADIUS_CIRCLE as i16);
     badge_style.set_bg_color(Color::from_rgb((239, 68, 68))); // #ef4444
@@ -4080,11 +4749,17 @@ fn render_alarm_bell(
         .add_style(Part::Main, &mut badge_style)
         .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
     styles.push(badge_style);
-    let mut count_lbl = Label::create(&mut badge).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-    count_lbl.set_text(&text_cstring("0")).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+    let mut count_lbl =
+        Label::create(&mut badge).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+    count_lbl
+        .set_text(&text_cstring("0"))
+        .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
     let badge_ptr = badge.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     unsafe {
-        lvgl_sys::lv_obj_add_flag(badge_ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t);
+        lvgl_sys::lv_obj_add_flag(
+            badge_ptr.as_ptr(),
+            lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t,
+        );
     }
 
     // Pannello elenco, figlio dello `screen` (non del bottone: deve poter
@@ -4094,15 +4769,25 @@ fn render_alarm_bell(
     let panel_h = 160.0;
     let mut panel = create_child_obj(screen)?;
     panel
-        .set_pos(obj.x.unwrap_or(0.0).round() as i16, (obj.y.unwrap_or(0.0) + h + 4.0).round() as i16)
+        .set_pos(
+            obj.x.unwrap_or(0.0).round() as i16,
+            (obj.y.unwrap_or(0.0) + h + 4.0).round() as i16,
+        )
         .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-    panel.set_size(panel_w as i16, panel_h as i16).map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
+    panel
+        .set_size(panel_w as i16, panel_h as i16)
+        .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
     apply_bg_color(&mut panel, "#1e293b", styles)?;
     let panel_ptr = panel.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     unsafe {
-        lvgl_sys::lv_obj_add_flag(panel_ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t);
+        lvgl_sys::lv_obj_add_flag(
+            panel_ptr.as_ptr(),
+            lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t,
+        );
         lvgl_sys::lv_obj_add_event_cb(
-            btn_ptr.as_ptr(), Some(sws_alarm_bell_clicked_cb), lvgl_sys::lv_event_code_t_LV_EVENT_CLICKED,
+            btn_ptr.as_ptr(),
+            Some(sws_alarm_bell_clicked_cb),
+            lvgl_sys::lv_event_code_t_LV_EVENT_CLICKED,
             panel_ptr.as_ptr() as *mut std::ffi::c_void,
         );
     }
@@ -4111,24 +4796,40 @@ fn render_alarm_bell(
     let row_h = panel_h / max_rows as f64;
     let mut rows = Vec::with_capacity(max_rows);
     for i in 0..max_rows {
-        let mut msg_lbl = Label::create(&mut panel).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+        let mut msg_lbl =
+            Label::create(&mut panel).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
         msg_lbl
             .set_pos(4, (i as f64 * row_h + 4.0).round() as i16)
             .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
         msg_lbl
             .set_size((panel_w - 8.0) as i16, (row_h - 2.0) as i16)
             .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
-        msg_lbl.set_text(&text_cstring("")).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+        msg_lbl
+            .set_text(&text_cstring(""))
+            .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
         let ptr = msg_lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
         unsafe {
-            lvgl_sys::lv_label_set_long_mode(ptr.as_ptr(), lvgl_sys::LV_LABEL_LONG_DOT as lvgl_sys::lv_label_long_mode_t);
-            lvgl_sys::lv_obj_add_flag(ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t);
+            lvgl_sys::lv_label_set_long_mode(
+                ptr.as_ptr(),
+                lvgl_sys::LV_LABEL_LONG_DOT as lvgl_sys::lv_label_long_mode_t,
+            );
+            lvgl_sys::lv_obj_add_flag(
+                ptr.as_ptr(),
+                lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t,
+            );
         }
         rows.push(ptr);
     }
 
     Ok(LiveBinding {
-        kind: LiveKind::AlarmBell { shared: shared_alarms.clone(), badge_ptr, row_ptrs: rows, prefix, allowed_sev, last_count: usize::MAX },
+        kind: LiveKind::AlarmBell {
+            shared: shared_alarms.clone(),
+            badge_ptr,
+            row_ptrs: rows,
+            prefix,
+            allowed_sev,
+            last_count: usize::MAX,
+        },
     })
 }
 
@@ -4229,7 +4930,11 @@ fn render_alarm_history(
     let righe_max = ((altezza as f64 - 20.0) / 22.0).floor().clamp(1.0, 100.0) as usize;
 
     let eventi = rt_handle
-        .block_on(client::fetch_alarm_history(base_url, obj.alarm_history_id.as_deref(), righe_max))
+        .block_on(client::fetch_alarm_history(
+            base_url,
+            obj.alarm_history_id.as_deref(),
+            righe_max,
+        ))
         .unwrap_or_else(|e| {
             eprintln!("[alarm_history] storico non disponibile ({e})");
             Vec::new()
@@ -4237,7 +4942,10 @@ fn render_alarm_history(
 
     let mut table = Table::create(screen).map_err(|e| anyhow::anyhow!("Table::create: {e:?}"))?;
     table
-        .set_pos(obj.x.unwrap_or(0.0).round() as i16, obj.y.unwrap_or(0.0).round() as i16)
+        .set_pos(
+            obj.x.unwrap_or(0.0).round() as i16,
+            obj.y.unwrap_or(0.0).round() as i16,
+        )
         .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
     let ptr = table.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
 
@@ -4246,7 +4954,11 @@ fn render_alarm_history(
         lvgl_sys::lv_table_set_col_cnt(ptr.as_ptr(), 3);
         lvgl_sys::lv_table_set_row_cnt(ptr.as_ptr(), (n + 1) as u16);
         lvgl_sys::lv_table_set_col_width(ptr.as_ptr(), 0, (larghezza / 5) as lvgl_sys::lv_coord_t);
-        lvgl_sys::lv_table_set_col_width(ptr.as_ptr(), 1, (larghezza * 3 / 5) as lvgl_sys::lv_coord_t);
+        lvgl_sys::lv_table_set_col_width(
+            ptr.as_ptr(),
+            1,
+            (larghezza * 3 / 5) as lvgl_sys::lv_coord_t,
+        );
         lvgl_sys::lv_table_set_col_width(ptr.as_ptr(), 2, (larghezza / 5) as lvgl_sys::lv_coord_t);
         set_cell(ptr, 0, 0, "Ora");
         set_cell(ptr, 0, 1, "Allarme");
@@ -4256,7 +4968,11 @@ fn render_alarm_history(
             set_cell(ptr, r, 0, &ora_utc(e.ts_activated_ms));
             // Il messaggio se c'è, altrimenti l'id: un evento senza messaggio
             // è comunque un evento, e una riga vuota non direbbe quale.
-            let testo = if e.alarm_message.trim().is_empty() { &e.alarm_id } else { &e.alarm_message };
+            let testo = if e.alarm_message.trim().is_empty() {
+                &e.alarm_id
+            } else {
+                &e.alarm_message
+            };
             set_cell(ptr, r, 1, testo);
             set_cell(ptr, r, 2, if e.ts_acked_ms.is_some() { "sì" } else { "no" });
         }
@@ -4285,10 +5001,18 @@ fn render_data_log(
     let Some(tag) = obj.tag.clone() else {
         anyhow::bail!("data_log senza tag");
     };
-    let righe_max = obj.datalog_page_size.unwrap_or(25.0).round().clamp(1.0, 200.0) as usize;
+    let righe_max = obj
+        .datalog_page_size
+        .unwrap_or(25.0)
+        .round()
+        .clamp(1.0, 200.0) as usize;
     let finestra_s = obj.window_s.unwrap_or(3600.0).max(1.0);
     let decimali = obj.decimals.unwrap_or(1) as usize;
-    let unita = obj.unit.as_deref().map(|u| format!(" {u}")).unwrap_or_default();
+    let unita = obj
+        .unit
+        .as_deref()
+        .map(|u| format!(" {u}"))
+        .unwrap_or_default();
 
     let ora_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -4307,7 +5031,10 @@ fn render_data_log(
 
     let mut table = Table::create(screen).map_err(|e| anyhow::anyhow!("Table::create: {e:?}"))?;
     table
-        .set_pos(obj.x.unwrap_or(0.0).round() as i16, obj.y.unwrap_or(0.0).round() as i16)
+        .set_pos(
+            obj.x.unwrap_or(0.0).round() as i16,
+            obj.y.unwrap_or(0.0).round() as i16,
+        )
         .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
     let ptr = table.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
 
@@ -4379,9 +5106,17 @@ fn render_kpi_tile(
 
     // Il pannello di sfondo.
     let mut sfondo = create_child_obj(screen)?;
-    sfondo.set_pos(x.round() as i16, y.round() as i16).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-    sfondo.set_size(w.round() as i16, h.round() as i16).map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
-    apply_bg_color(&mut sfondo, obj.bg_color.as_deref().unwrap_or("#0f172a"), styles)?;
+    sfondo
+        .set_pos(x.round() as i16, y.round() as i16)
+        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    sfondo
+        .set_size(w.round() as i16, h.round() as i16)
+        .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
+    apply_bg_color(
+        &mut sfondo,
+        obj.bg_color.as_deref().unwrap_or("#0f172a"),
+        styles,
+    )?;
 
     // Etichetta: il nome del KPI, non un valore. `text` statico, nessun tag —
     // altrimenti `render_text` mostrerebbe il valore anche qui.
@@ -4389,7 +5124,12 @@ fn render_kpi_tile(
         obj_type: Some("text".into()),
         x: Some(x + 10.0),
         y: Some(y + 6.0),
-        text: Some(obj.label.clone().or_else(|| obj.tag.clone()).unwrap_or_else(|| "KPI".into())),
+        text: Some(
+            obj.label
+                .clone()
+                .or_else(|| obj.tag.clone())
+                .unwrap_or_else(|| "KPI".into()),
+        ),
         color: Some("#94a3b8".into()),
         ..Default::default()
     };
@@ -4398,13 +5138,20 @@ fn render_kpi_tile(
 
     // Valore: eredita soglie e formato dall'oggetto vero, così la colorazione
     // per soglia è la stessa di un `text` qualunque.
-    let unita = obj.unit.as_deref().map(|u| format!(" {u}")).unwrap_or_default();
+    let unita = obj
+        .unit
+        .as_deref()
+        .map(|u| format!(" {u}"))
+        .unwrap_or_default();
     let valore = SynopticObject {
         obj_type: Some("text".into()),
         x: Some(x + 10.0),
         y: Some(y + 28.0),
         tag: obj.tag.clone(),
-        format: Some(format!("{}{unita}", obj.format.clone().unwrap_or_else(|| "{value}".into()))),
+        format: Some(format!(
+            "{}{unita}",
+            obj.format.clone().unwrap_or_else(|| "{value}".into())
+        )),
         text_color_by_threshold: obj.text_color_by_threshold,
         alarm_low: obj.alarm_low,
         warn_low: obj.warn_low,
@@ -4434,7 +5181,10 @@ fn render_kpi_tile(
         // e sono la parte che conta.
         match render_sparkline(screen, &spark, styles, base_url, rt_handle) {
             Ok(b) => live.push(b),
-            Err(e) => eprintln!("[kpi] {}: sparkline non disegnata ({e})", obj.id.as_deref().unwrap_or("?")),
+            Err(e) => eprintln!(
+                "[kpi] {}: sparkline non disegnata ({e})",
+                obj.id.as_deref().unwrap_or("?")
+            ),
         }
     }
     Ok(())
@@ -4456,7 +5206,11 @@ fn punto_a_frazione(punti: &[(f64, f64)], t: f64) -> Option<(f64, f64)> {
     if punti.len() < 2 {
         return punti.first().copied();
     }
-    let t = if t.is_finite() { t.clamp(0.0, 1.0) } else { 0.0 };
+    let t = if t.is_finite() {
+        t.clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
     let lunghezze: Vec<f64> = punti
         .windows(2)
         .map(|w| ((w[1].0 - w[0].0).powi(2) + (w[1].1 - w[0].1).powi(2)).sqrt())
@@ -4470,7 +5224,11 @@ fn punto_a_frazione(punti: &[(f64, f64)], t: f64) -> Option<(f64, f64)> {
     let mut rimanente = t * totale;
     for (i, len) in lunghezze.iter().enumerate() {
         if rimanente <= *len || i == lunghezze.len() - 1 {
-            let f = if *len > 0.0 { (rimanente / len).clamp(0.0, 1.0) } else { 0.0 };
+            let f = if *len > 0.0 {
+                (rimanente / len).clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
             let (x0, y0) = punti[i];
             let (x1, y1) = punti[i + 1];
             return Some((x0 + (x1 - x0) * f, y0 + (y1 - y0) * f));
@@ -4503,7 +5261,9 @@ fn frazione_movimento(v: f64, min: Option<f64>, max: Option<f64>) -> Option<f64>
 /// `[{"x": …, "y": …}, …]` — perché è quello che si trova nei progetti veri, e
 /// rifiutarne una vorrebbe dire un oggetto fermo senza spiegazioni.
 fn punti_movimento(v: &serde_json::Value) -> Vec<(f64, f64)> {
-    let Some(arr) = v.as_array() else { return Vec::new() };
+    let Some(arr) = v.as_array() else {
+        return Vec::new();
+    };
     arr.iter()
         .filter_map(|p| {
             if let Some(pair) = p.as_array() {
@@ -4529,7 +5289,11 @@ fn punti_movimento(v: &serde_json::Value) -> Vec<(f64, f64)> {
 /// la prima pipe agganciata, che dal gauge sale verso la barra — guardando
 /// un'istantanea, non il codice.
 fn origine_polilinea(punti: &[(f64, f64)]) -> (f64, f64) {
-    punti.iter().fold((f64::INFINITY, f64::INFINITY), |(ax, ay), (x, y)| (ax.min(*x), ay.min(*y)))
+    punti
+        .iter()
+        .fold((f64::INFINITY, f64::INFINITY), |(ax, ay), (x, y)| {
+            (ax.min(*x), ay.min(*y))
+        })
 }
 
 fn render_pipe(
@@ -4561,12 +5325,19 @@ fn render_pipe(
         .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
     let body_pts: Vec<lvgl_sys::lv_point_t> = assoluti
         .iter()
-        .map(|(x, y)| lvgl_sys::lv_point_t { x: (x - ox).round() as i16, y: (y - oy).round() as i16 })
+        .map(|(x, y)| lvgl_sys::lv_point_t {
+            x: (x - ox).round() as i16,
+            y: (y - oy).round() as i16,
+        })
         .collect();
     let body_leaked: &'static [lvgl_sys::lv_point_t] = Box::leak(body_pts.into_boxed_slice());
     let body_ptr = body.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     unsafe {
-        lvgl_sys::lv_line_set_points(body_ptr.as_ptr(), body_leaked.as_ptr(), body_leaked.len() as u16);
+        lvgl_sys::lv_line_set_points(
+            body_ptr.as_ptr(),
+            body_leaked.as_ptr(),
+            body_leaked.len() as u16,
+        );
     }
     let mut body_style = Style::default();
     if let Some(rgb) = parse_hex_color(obj.stroke.as_deref().unwrap_or("#64748b")) {
@@ -4574,7 +5345,8 @@ fn render_pipe(
     }
     body_style.set_line_width(sw);
     body_style.set_line_rounded(true);
-    body.add_style(Part::Main, &mut body_style).map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
+    body.add_style(Part::Main, &mut body_style)
+        .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
     styles.push(body_style);
 
     // ── Riempimento: una seconda linea, più sottile, lunga quanto il livello ──
@@ -4596,7 +5368,8 @@ fn render_pipe(
     // resta visibile attorno al liquido invece di essere coperto del tutto.
     fill_style.set_line_width((sw - 2).max(1));
     fill_style.set_line_rounded(true);
-    fill.add_style(Part::Main, &mut fill_style).map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
+    fill.add_style(Part::Main, &mut fill_style)
+        .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
     styles.push(fill_style);
 
     let spec = PipeFill {
@@ -4604,7 +5377,10 @@ fn render_pipe(
         origin: (ox, oy),
         tag: obj.fill_level_tag.clone(),
         statico: obj.fill_level,
-        scale: obj.fill_level_scale.clone().unwrap_or_else(|| "0-100".to_string()),
+        scale: obj
+            .fill_level_scale
+            .clone()
+            .unwrap_or_else(|| "0-100".to_string()),
         from_start: obj.fill_direction.as_deref().unwrap_or("start-to-end") == "start-to-end",
     };
     let mut buf: Vec<lvgl_sys::lv_point_t> = Vec::new();
@@ -4612,7 +5388,12 @@ fn render_pipe(
     apply_pipe_fill(fill_ptr, &spec, &mut buf, level);
 
     Ok(LiveBinding {
-        kind: LiveKind::PipeFill { fill_ptr, spec, buf, last_level: level },
+        kind: LiveKind::PipeFill {
+            fill_ptr,
+            spec,
+            buf,
+            last_level: level,
+        },
     })
 }
 
@@ -4662,9 +5443,15 @@ fn apply_pipe_fill(
         if buf.len() < 2 {
             // Niente da riempire: si nasconde invece di disegnare una linea
             // degenere, che LVGL renderebbe come un puntino.
-            lvgl_sys::lv_obj_add_flag(fill_ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t);
+            lvgl_sys::lv_obj_add_flag(
+                fill_ptr.as_ptr(),
+                lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t,
+            );
         } else {
-            lvgl_sys::lv_obj_clear_flag(fill_ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t);
+            lvgl_sys::lv_obj_clear_flag(
+                fill_ptr.as_ptr(),
+                lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t,
+            );
             lvgl_sys::lv_line_set_points(fill_ptr.as_ptr(), buf.as_ptr(), buf.len() as u16);
             lvgl_sys::lv_obj_invalidate(fill_ptr.as_ptr());
         }
@@ -4716,7 +5503,11 @@ fn render_grid(
     let col_widths_def = obj.col_widths.clone().unwrap_or_default();
     let used_col_w: f64 = col_widths_def.iter().take(n_cols).sum();
     let remaining_cols = n_cols.saturating_sub(col_widths_def.len().min(n_cols));
-    let default_col_w = if remaining_cols > 0 { (w - used_col_w).max(0.0) / remaining_cols as f64 } else { 0.0 };
+    let default_col_w = if remaining_cols > 0 {
+        (w - used_col_w).max(0.0) / remaining_cols as f64
+    } else {
+        0.0
+    };
     let mut col_x = Vec::with_capacity(n_cols + 1);
     let mut col_w = Vec::with_capacity(n_cols);
     {
@@ -4733,7 +5524,11 @@ fn render_grid(
     let row_heights_def = obj.row_heights.clone().unwrap_or_default();
     let used_row_h: f64 = row_heights_def.iter().take(n_rows).sum();
     let remaining_rows = n_rows.saturating_sub(row_heights_def.len().min(n_rows));
-    let default_row_h = if remaining_rows > 0 { (h - used_row_h).max(0.0) / remaining_rows as f64 } else { 0.0 };
+    let default_row_h = if remaining_rows > 0 {
+        (h - used_row_h).max(0.0) / remaining_rows as f64
+    } else {
+        0.0
+    };
     let mut row_y = Vec::with_capacity(n_rows + 1);
     let mut row_h = Vec::with_capacity(n_rows);
     {
@@ -4748,12 +5543,22 @@ fn render_grid(
     }
 
     if obj.grid_show_borders.unwrap_or(true) {
-        let border_hex = obj.grid_border_color.clone().unwrap_or_else(|| "#64748b".to_string());
+        let border_hex = obj
+            .grid_border_color
+            .clone()
+            .unwrap_or_else(|| "#64748b".to_string());
         for cx in col_x.iter().copied().take(n_cols + 1) {
-            let mut ln = Line::create(screen).map_err(|e| anyhow::anyhow!("Line::create: {e:?}"))?;
-            ln.set_pos(cx.round() as i16, origin_y.round() as i16).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-            let pts: &'static [lvgl_sys::lv_point_t; 2] =
-                Box::leak(Box::new([lvgl_sys::lv_point_t { x: 0, y: 0 }, lvgl_sys::lv_point_t { x: 0, y: h.round() as i16 }]));
+            let mut ln =
+                Line::create(screen).map_err(|e| anyhow::anyhow!("Line::create: {e:?}"))?;
+            ln.set_pos(cx.round() as i16, origin_y.round() as i16)
+                .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+            let pts: &'static [lvgl_sys::lv_point_t; 2] = Box::leak(Box::new([
+                lvgl_sys::lv_point_t { x: 0, y: 0 },
+                lvgl_sys::lv_point_t {
+                    x: 0,
+                    y: h.round() as i16,
+                },
+            ]));
             let ptr = ln.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
             unsafe { lvgl_sys::lv_line_set_points(ptr.as_ptr(), pts.as_ptr(), 2) };
             let mut style = Style::default();
@@ -4761,14 +5566,22 @@ fn render_grid(
                 style.set_line_color(Color::from_rgb(rgb));
             }
             style.set_line_width(1);
-            ln.add_style(Part::Main, &mut style).map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
+            ln.add_style(Part::Main, &mut style)
+                .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
             styles.push(style);
         }
         for ry in row_y.iter().copied().take(n_rows + 1) {
-            let mut ln = Line::create(screen).map_err(|e| anyhow::anyhow!("Line::create: {e:?}"))?;
-            ln.set_pos(origin_x.round() as i16, ry.round() as i16).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-            let pts: &'static [lvgl_sys::lv_point_t; 2] =
-                Box::leak(Box::new([lvgl_sys::lv_point_t { x: 0, y: 0 }, lvgl_sys::lv_point_t { x: w.round() as i16, y: 0 }]));
+            let mut ln =
+                Line::create(screen).map_err(|e| anyhow::anyhow!("Line::create: {e:?}"))?;
+            ln.set_pos(origin_x.round() as i16, ry.round() as i16)
+                .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+            let pts: &'static [lvgl_sys::lv_point_t; 2] = Box::leak(Box::new([
+                lvgl_sys::lv_point_t { x: 0, y: 0 },
+                lvgl_sys::lv_point_t {
+                    x: w.round() as i16,
+                    y: 0,
+                },
+            ]));
             let ptr = ln.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
             unsafe { lvgl_sys::lv_line_set_points(ptr.as_ptr(), pts.as_ptr(), 2) };
             let mut style = Style::default();
@@ -4776,7 +5589,8 @@ fn render_grid(
                 style.set_line_color(Color::from_rgb(rgb));
             }
             style.set_line_width(1);
-            ln.add_style(Part::Main, &mut style).map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
+            ln.add_style(Part::Main, &mut style)
+                .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
             styles.push(style);
         }
     }
@@ -4797,7 +5611,11 @@ fn render_grid(
             && cell
                 .visible_tag
                 .as_ref()
-                .map(|t| lookup(tags, &Some(t.clone())).map(|tv| tag_value_as_f64(&tv.value) != 0.0).unwrap_or(true))
+                .map(|t| {
+                    lookup(tags, &Some(t.clone()))
+                        .map(|tv| tag_value_as_f64(&tv.value) != 0.0)
+                        .unwrap_or(true)
+                })
                 .unwrap_or(true);
         if !visible {
             continue;
@@ -4805,14 +5623,33 @@ fn render_grid(
 
         if let Some(bg) = &cell.bg_color {
             let mut rect = create_child_obj(screen)?;
-            rect.set_pos(cell_x.round() as i16, cell_y.round() as i16).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-            rect.set_size(cell_w.round() as i16, cell_h.round() as i16).map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
+            rect.set_pos(cell_x.round() as i16, cell_y.round() as i16)
+                .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+            rect.set_size(cell_w.round() as i16, cell_h.round() as i16)
+                .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
             apply_bg_color(&mut rect, bg, styles)?;
         }
 
         render_grid_slot(
-            screen, cell_x, cell_y, cell_w, cell_h, cell.child.as_deref(), cell.sub.as_deref(), styles, tags, tag_tx, nav_tx,
-            base_url, rt_handle, shared_alarms, ack_tx, lang_table, shared_lang, own_page_id, live,
+            screen,
+            cell_x,
+            cell_y,
+            cell_w,
+            cell_h,
+            cell.child.as_deref(),
+            cell.sub.as_deref(),
+            styles,
+            tags,
+            tag_tx,
+            nav_tx,
+            base_url,
+            rt_handle,
+            shared_alarms,
+            ack_tx,
+            lang_table,
+            shared_lang,
+            own_page_id,
+            live,
         )?;
     }
     Ok(())
@@ -4848,9 +5685,15 @@ fn render_grid_slot(
     if let Some(sub) = sub {
         let ratio = sub.ratio.clamp(0.05, 0.95);
         let (a_geom, b_geom) = if sub.orientation == "cols" {
-            ((x, y, w * ratio, h), (x + w * ratio, y, w * (1.0 - ratio), h))
+            (
+                (x, y, w * ratio, h),
+                (x + w * ratio, y, w * (1.0 - ratio), h),
+            )
         } else {
-            ((x, y, w, h * ratio), (x, y + h * ratio, w, h * (1.0 - ratio)))
+            (
+                (x, y, w, h * ratio),
+                (x, y + h * ratio, w, h * (1.0 - ratio)),
+            )
         };
         for (entry, geom) in [(&sub.a, a_geom), (&sub.b, b_geom)] {
             let Some(entry) = entry else { continue };
@@ -4858,26 +5701,51 @@ fn render_grid_slot(
                 && entry
                     .visible_tag
                     .as_ref()
-                    .map(|t| lookup(tags, &Some(t.clone())).map(|tv| tag_value_as_f64(&tv.value) != 0.0).unwrap_or(true))
+                    .map(|t| {
+                        lookup(tags, &Some(t.clone()))
+                            .map(|tv| tag_value_as_f64(&tv.value) != 0.0)
+                            .unwrap_or(true)
+                    })
                     .unwrap_or(true);
             if !visible {
                 continue;
             }
             if let Some(bg) = &entry.bg_color {
                 let mut rect = create_child_obj(screen)?;
-                rect.set_pos(geom.0.round() as i16, geom.1.round() as i16).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-                rect.set_size(geom.2.round() as i16, geom.3.round() as i16).map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
+                rect.set_pos(geom.0.round() as i16, geom.1.round() as i16)
+                    .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+                rect.set_size(geom.2.round() as i16, geom.3.round() as i16)
+                    .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
                 apply_bg_color(&mut rect, bg, styles)?;
             }
             render_grid_slot(
-                screen, geom.0, geom.1, geom.2, geom.3, entry.child.as_deref(), entry.sub.as_deref(), styles, tags, tag_tx,
-                nav_tx, base_url, rt_handle, shared_alarms, ack_tx, lang_table, shared_lang, own_page_id, live,
+                screen,
+                geom.0,
+                geom.1,
+                geom.2,
+                geom.3,
+                entry.child.as_deref(),
+                entry.sub.as_deref(),
+                styles,
+                tags,
+                tag_tx,
+                nav_tx,
+                base_url,
+                rt_handle,
+                shared_alarms,
+                ack_tx,
+                lang_table,
+                shared_lang,
+                own_page_id,
+                live,
             )?;
         }
         return Ok(());
     }
     let Some(child) = child else { return Ok(()) };
-    let Some(child_type) = child.obj_type.clone() else { return Ok(()) };
+    let Some(child_type) = child.obj_type.clone() else {
+        return Ok(());
+    };
     if !SUPPORTED_TYPES.contains(&child_type.as_str()) || child_type == "grid" {
         return Ok(()); // niente grid dentro grid, stesso principio di faceplate-dentro-faceplate
     }
@@ -4885,8 +5753,21 @@ fn render_grid_slot(
     positioned.x = Some(x + child.x.unwrap_or(0.0));
     positioned.y = Some(y + child.y.unwrap_or(0.0));
     let _ = dispatch_render(
-        screen, &child_type, &positioned, styles, tags, tag_tx, nav_tx, base_url, rt_handle, shared_alarms, ack_tx,
-        lang_table, shared_lang, own_page_id, live,
+        screen,
+        &child_type,
+        &positioned,
+        styles,
+        tags,
+        tag_tx,
+        nav_tx,
+        base_url,
+        rt_handle,
+        shared_alarms,
+        ack_tx,
+        lang_table,
+        shared_lang,
+        own_page_id,
+        live,
     );
     Ok(())
 }
@@ -4911,7 +5792,8 @@ unsafe extern "C" fn sws_recipe_apply_clicked_cb(e: *mut lvgl_sys::lv_event_t) {
         return;
     }
     let ctx = unsafe { &*(user_data as *const RecipeApplyCtx) };
-    ctx.rt_handle.spawn(client::apply_recipe(ctx.base_url.clone(), ctx.id.clone()));
+    ctx.rt_handle
+        .spawn(client::apply_recipe(ctx.base_url.clone(), ctx.id.clone()));
 }
 
 /// `recipe_panel`: elenco statico di ricette (`GET /api/recipes`, chiamata
@@ -4933,44 +5815,69 @@ fn render_recipe_panel(
     let prefix = obj.recipe_panel_id_prefix.clone().unwrap_or_default();
 
     let recipes = rt_handle.block_on(client::fetch_recipes(base_url))?;
-    let filtered: Vec<_> = recipes.into_iter().filter(|r| prefix.is_empty() || r.id.starts_with(&prefix)).collect();
+    let filtered: Vec<_> = recipes
+        .into_iter()
+        .filter(|r| prefix.is_empty() || r.id.starts_with(&prefix))
+        .collect();
 
     let mut container = create_child_obj(screen)?;
     set_pos_size(&mut container, obj, w, h)?;
     apply_bg_color(&mut container, "#1e293b", styles)?;
     let container_ptr = container.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     unsafe {
-        lvgl_sys::lv_obj_clear_flag(container_ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_SCROLLABLE as lvgl_sys::lv_obj_flag_t);
+        lvgl_sys::lv_obj_clear_flag(
+            container_ptr.as_ptr(),
+            lvgl_sys::LV_OBJ_FLAG_SCROLLABLE as lvgl_sys::lv_obj_flag_t,
+        );
     }
 
     let max_rows = ((h / 28.0).floor().max(1.0)) as usize;
     for (i, recipe) in filtered.iter().take(max_rows).enumerate() {
         let row_y = (i as f64 * 28.0 + 4.0).round() as i16;
-        let mut name_lbl = Label::create(&mut container).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-        name_lbl.set_pos(4, row_y + 4).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+        let mut name_lbl =
+            Label::create(&mut container).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+        name_lbl
+            .set_pos(4, row_y + 4)
+            .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
         name_lbl
             .set_size((w - 90.0) as i16, 20)
             .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
-        name_lbl.set_text(&text_cstring(&recipe.name)).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+        name_lbl
+            .set_text(&text_cstring(&recipe.name))
+            .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
         let name_ptr = name_lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
         unsafe {
-            lvgl_sys::lv_label_set_long_mode(name_ptr.as_ptr(), lvgl_sys::LV_LABEL_LONG_DOT as lvgl_sys::lv_label_long_mode_t);
+            lvgl_sys::lv_label_set_long_mode(
+                name_ptr.as_ptr(),
+                lvgl_sys::LV_LABEL_LONG_DOT as lvgl_sys::lv_label_long_mode_t,
+            );
         }
 
-        let mut apply_btn = Btn::create(&mut container).map_err(|e| anyhow::anyhow!("Btn::create: {e:?}"))?;
+        let mut apply_btn =
+            Btn::create(&mut container).map_err(|e| anyhow::anyhow!("Btn::create: {e:?}"))?;
         apply_btn
             .set_pos((w - 80.0).round() as i16, row_y)
             .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-        apply_btn.set_size(76, 24).map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
-        let mut apply_lbl = Label::create(&mut apply_btn).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-        apply_lbl.set_text(&text_cstring("Applica")).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+        apply_btn
+            .set_size(76, 24)
+            .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
+        let mut apply_lbl =
+            Label::create(&mut apply_btn).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+        apply_lbl
+            .set_text(&text_cstring("Applica"))
+            .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
         let apply_ptr = apply_btn.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
 
-        let ctx: &'static RecipeApplyCtx =
-            Box::leak(Box::new(RecipeApplyCtx { base_url: base_url.to_string(), id: recipe.id.clone(), rt_handle: rt_handle.clone() }));
+        let ctx: &'static RecipeApplyCtx = Box::leak(Box::new(RecipeApplyCtx {
+            base_url: base_url.to_string(),
+            id: recipe.id.clone(),
+            rt_handle: rt_handle.clone(),
+        }));
         unsafe {
             lvgl_sys::lv_obj_add_event_cb(
-                apply_ptr.as_ptr(), Some(sws_recipe_apply_clicked_cb), lvgl_sys::lv_event_code_t_LV_EVENT_CLICKED,
+                apply_ptr.as_ptr(),
+                Some(sws_recipe_apply_clicked_cb),
+                lvgl_sys::lv_event_code_t_LV_EVENT_CLICKED,
                 ctx as *const RecipeApplyCtx as *mut std::ffi::c_void,
             );
         }
@@ -5003,7 +5910,17 @@ fn sym_pt(x: f64, y: f64, w: i16, h: i16) -> lvgl_sys::lv_point_t {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn sym_rect(canvas_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>, x: f64, y: f64, ww: f64, hh: f64, radius: f64, rgb: (u8, u8, u8), w: i16, h: i16) {
+fn sym_rect(
+    canvas_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    x: f64,
+    y: f64,
+    ww: f64,
+    hh: f64,
+    radius: f64,
+    rgb: (u8, u8, u8),
+    w: i16,
+    h: i16,
+) {
     let p0 = sym_pt(x, y, w, h);
     let p1 = sym_pt(x + ww, y + hh, w, h);
     unsafe {
@@ -5012,11 +5929,26 @@ fn sym_rect(canvas_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>, x: f64, y: f64, 
         dsc.bg_color = Color::from_rgb(rgb).into();
         dsc.bg_opa = 255;
         dsc.radius = (radius / 100.0 * w.min(h) as f64).round() as lvgl_sys::lv_coord_t;
-        lvgl_sys::lv_canvas_draw_rect(canvas_ptr.as_ptr(), p0.x, p0.y, (p1.x - p0.x).max(1), (p1.y - p0.y).max(1), &dsc);
+        lvgl_sys::lv_canvas_draw_rect(
+            canvas_ptr.as_ptr(),
+            p0.x,
+            p0.y,
+            (p1.x - p0.x).max(1),
+            (p1.y - p0.y).max(1),
+            &dsc,
+        );
     }
 }
 
-fn sym_circle(canvas_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>, cx: f64, cy: f64, r: f64, rgb: (u8, u8, u8), w: i16, h: i16) {
+fn sym_circle(
+    canvas_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    cx: f64,
+    cy: f64,
+    r: f64,
+    rgb: (u8, u8, u8),
+    w: i16,
+    h: i16,
+) {
     let d = r * 2.0;
     sym_rect(canvas_ptr, cx - r, cy - r, d, d, 50.0, rgb, w, h);
 }
@@ -5033,8 +5965,17 @@ fn sym_circle(canvas_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>, cx: f64, cy: f
 /// Una forma concava va spezzata in triangoli dal chiamante, come fa `boiler`.
 /// `scripts/check_simboli_lvgl.sh` disegna tutti i simboli uno per uno con un
 /// limite di tempo: se qualcuno ne aggiunge un altro concavo, se ne accorge lì.
-fn sym_polygon(canvas_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>, pts_design: &[(f64, f64)], rgb: (u8, u8, u8), w: i16, h: i16) {
-    let pts: Vec<lvgl_sys::lv_point_t> = pts_design.iter().map(|&(x, y)| sym_pt(x, y, w, h)).collect();
+fn sym_polygon(
+    canvas_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    pts_design: &[(f64, f64)],
+    rgb: (u8, u8, u8),
+    w: i16,
+    h: i16,
+) {
+    let pts: Vec<lvgl_sys::lv_point_t> = pts_design
+        .iter()
+        .map(|&(x, y)| sym_pt(x, y, w, h))
+        .collect();
     unsafe {
         let mut dsc = lvgl_sys::lv_draw_rect_dsc_t::default();
         lvgl_sys::lv_draw_rect_dsc_init(&mut dsc);
@@ -5044,8 +5985,18 @@ fn sym_polygon(canvas_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>, pts_design: &
     }
 }
 
-fn sym_line(canvas_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>, pts_design: &[(f64, f64)], width: f64, rgb: (u8, u8, u8), w: i16, h: i16) {
-    let pts: Vec<lvgl_sys::lv_point_t> = pts_design.iter().map(|&(x, y)| sym_pt(x, y, w, h)).collect();
+fn sym_line(
+    canvas_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    pts_design: &[(f64, f64)],
+    width: f64,
+    rgb: (u8, u8, u8),
+    w: i16,
+    h: i16,
+) {
+    let pts: Vec<lvgl_sys::lv_point_t> = pts_design
+        .iter()
+        .map(|&(x, y)| sym_pt(x, y, w, h))
+        .collect();
     unsafe {
         let mut dsc = lvgl_sys::lv_draw_line_dsc_t::default();
         lvgl_sys::lv_draw_line_dsc_init(&mut dsc);
@@ -5060,35 +6011,60 @@ fn sym_line(canvas_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>, pts_design: &[(f
 
 const SYM_DARK: (u8, u8, u8) = (15, 23, 42); // #0f172a
 const SYM_OUTLINE: (u8, u8, u8) = (203, 213, 225); // #cbd5e1
-// Corpo/vasca/telaio di un simbolo (tank, level_sensor, fan, mixer,
-// agitator...) — **non** `SYM_DARK`: il web li disegna sempre con uno
-// `stroke` chiaro che li rende visibili anche su sfondo scuro, ma
-// `lv_canvas_draw_rect`/`draw_polygon` di questo motore non hanno un bordo
-// impostato (semplificazione dichiarata) — un riempimento identico allo
-// sfondo pagina (`SYM_DARK` ≈ #0f172a, lo stesso sfondo usato ovunque in
-// questo motore) li renderebbe invisibili. Trovato dal vivo sullo
-// screenshot di verifica: il corpo del tank spariva, restava visibile solo
-// il liquido colorato sopra.
+                                                   // Corpo/vasca/telaio di un simbolo (tank, level_sensor, fan, mixer,
+                                                   // agitator...) — **non** `SYM_DARK`: il web li disegna sempre con uno
+                                                   // `stroke` chiaro che li rende visibili anche su sfondo scuro, ma
+                                                   // `lv_canvas_draw_rect`/`draw_polygon` di questo motore non hanno un bordo
+                                                   // impostato (semplificazione dichiarata) — un riempimento identico allo
+                                                   // sfondo pagina (`SYM_DARK` ≈ #0f172a, lo stesso sfondo usato ovunque in
+                                                   // questo motore) li renderebbe invisibili. Trovato dal vivo sullo
+                                                   // screenshot di verifica: il corpo del tank spariva, restava visibile solo
+                                                   // il liquido colorato sopra.
 const SYM_PANEL: (u8, u8, u8) = (30, 41, 59); // #1e293b
 
 /// Disegna il simbolo `id` sul canvas — dispatcher analogo a `dispatch_render`
 /// ma per le 16 forme builtin invece che per i tipi di oggetto. `state_c` è
 /// il colore di stato già risolto (`off`/`on`/`alarm`), stesso principio di
 /// `stateFill()` in `library.tsx`.
-fn draw_symbol(canvas_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>, id: &str, state: SymbolState, state_c: (u8, u8, u8), w: i16, h: i16) {
+fn draw_symbol(
+    canvas_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    id: &str,
+    state: SymbolState,
+    state_c: (u8, u8, u8),
+    w: i16,
+    h: i16,
+) {
     unsafe {
         lvgl_sys::lv_canvas_fill_bg(canvas_ptr.as_ptr(), Color::from_rgb((0, 0, 0)).into(), 0);
     }
     match id {
         "pump" => {
             sym_circle(canvas_ptr, 50.0, 50.0, 36.0, state_c, w, h);
-            sym_polygon(canvas_ptr, &[(50.0, 24.0), (66.0, 56.0), (34.0, 56.0)], SYM_DARK, w, h);
+            sym_polygon(
+                canvas_ptr,
+                &[(50.0, 24.0), (66.0, 56.0), (34.0, 56.0)],
+                SYM_DARK,
+                w,
+                h,
+            );
             sym_rect(canvas_ptr, 84.0, 42.0, 14.0, 16.0, 0.0, state_c, w, h);
             sym_rect(canvas_ptr, 20.0, 86.0, 60.0, 6.0, 0.0, SYM_DARK, w, h);
         }
         "valve" => {
-            sym_polygon(canvas_ptr, &[(10.0, 30.0), (50.0, 50.0), (10.0, 70.0)], state_c, w, h);
-            sym_polygon(canvas_ptr, &[(90.0, 30.0), (50.0, 50.0), (90.0, 70.0)], state_c, w, h);
+            sym_polygon(
+                canvas_ptr,
+                &[(10.0, 30.0), (50.0, 50.0), (10.0, 70.0)],
+                state_c,
+                w,
+                h,
+            );
+            sym_polygon(
+                canvas_ptr,
+                &[(90.0, 30.0), (50.0, 50.0), (90.0, 70.0)],
+                state_c,
+                w,
+                h,
+            );
             sym_rect(canvas_ptr, 46.0, 6.0, 8.0, 26.0, 0.0, SYM_DARK, w, h);
         }
         "motor" => {
@@ -5103,7 +6079,17 @@ fn draw_symbol(canvas_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>, id: &str, sta
                 SymbolState::Off => 0.2,
             };
             let liquid_h = 76.0 * fill_ratio;
-            sym_rect(canvas_ptr, 22.0, 90.0 - liquid_h, 56.0, liquid_h - 2.0, 10.0, state_c, w, h);
+            sym_rect(
+                canvas_ptr,
+                22.0,
+                90.0 - liquid_h,
+                56.0,
+                liquid_h - 2.0,
+                10.0,
+                state_c,
+                w,
+                h,
+            );
         }
         "fan" => {
             sym_rect(canvas_ptr, 6.0, 6.0, 88.0, 88.0, 9.0, SYM_PANEL, w, h);
@@ -5111,19 +6097,41 @@ fn draw_symbol(canvas_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>, id: &str, sta
                 let rad = deg.to_radians();
                 let rot = |x: f64, y: f64| -> (f64, f64) {
                     let (dx, dy) = (x - 50.0, y - 50.0);
-                    (50.0 + dx * rad.cos() - dy * rad.sin(), 50.0 + dx * rad.sin() + dy * rad.cos())
+                    (
+                        50.0 + dx * rad.cos() - dy * rad.sin(),
+                        50.0 + dx * rad.sin() + dy * rad.cos(),
+                    )
                 };
-                sym_polygon(canvas_ptr, &[rot(50.0, 50.0), rot(50.0, 20.0), rot(60.0, 30.0)], state_c, w, h);
+                sym_polygon(
+                    canvas_ptr,
+                    &[rot(50.0, 50.0), rot(50.0, 20.0), rot(60.0, 30.0)],
+                    state_c,
+                    w,
+                    h,
+                );
             }
             sym_circle(canvas_ptr, 50.0, 50.0, 6.0, state_c, w, h);
         }
         "compressor" => {
-            sym_polygon(canvas_ptr, &[(10.0, 22.0), (80.0, 50.0), (10.0, 78.0)], state_c, w, h);
+            sym_polygon(
+                canvas_ptr,
+                &[(10.0, 22.0), (80.0, 50.0), (10.0, 78.0)],
+                state_c,
+                w,
+                h,
+            );
             sym_circle(canvas_ptr, 84.0, 50.0, 10.0, state_c, w, h);
         }
         "level_sensor" => {
             sym_rect(canvas_ptr, 28.0, 12.0, 44.0, 76.0, 8.0, SYM_PANEL, w, h);
-            sym_line(canvas_ptr, &[(50.0, 14.0), (50.0, 84.0)], 4.0, state_c, w, h);
+            sym_line(
+                canvas_ptr,
+                &[(50.0, 14.0), (50.0, 84.0)],
+                4.0,
+                state_c,
+                w,
+                h,
+            );
             let float_y = match state {
                 SymbolState::On => 32.0,
                 SymbolState::Alarm => 20.0,
@@ -5132,11 +6140,39 @@ fn draw_symbol(canvas_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>, id: &str, sta
             sym_circle(canvas_ptr, 50.0, float_y, 6.0, state_c, w, h);
         }
         "flow_meter" => {
-            sym_line(canvas_ptr, &[(4.0, 50.0), (28.0, 50.0)], 4.0, SYM_OUTLINE, w, h);
-            sym_line(canvas_ptr, &[(72.0, 50.0), (96.0, 50.0)], 4.0, SYM_OUTLINE, w, h);
+            sym_line(
+                canvas_ptr,
+                &[(4.0, 50.0), (28.0, 50.0)],
+                4.0,
+                SYM_OUTLINE,
+                w,
+                h,
+            );
+            sym_line(
+                canvas_ptr,
+                &[(72.0, 50.0), (96.0, 50.0)],
+                4.0,
+                SYM_OUTLINE,
+                w,
+                h,
+            );
             sym_circle(canvas_ptr, 50.0, 50.0, 22.0, state_c, w, h);
-            sym_line(canvas_ptr, &[(38.0, 50.0), (60.0, 50.0)], 3.0, SYM_DARK, w, h);
-            sym_line(canvas_ptr, &[(52.0, 42.0), (60.0, 50.0), (52.0, 58.0)], 3.0, SYM_DARK, w, h);
+            sym_line(
+                canvas_ptr,
+                &[(38.0, 50.0), (60.0, 50.0)],
+                3.0,
+                SYM_DARK,
+                w,
+                h,
+            );
+            sym_line(
+                canvas_ptr,
+                &[(52.0, 42.0), (60.0, 50.0), (52.0, 58.0)],
+                3.0,
+                SYM_DARK,
+                w,
+                h,
+            );
         }
         "pressure_indicator" => {
             sym_circle(canvas_ptr, 50.0, 50.0, 40.0, (30, 41, 59), w, h); // #1e293b
@@ -5156,30 +6192,100 @@ fn draw_symbol(canvas_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>, id: &str, sta
             let closed = matches!(state, SymbolState::On);
             let (ex, ey) = if closed { (82.0, 50.0) } else { (70.0, 18.0) };
             sym_line(canvas_ptr, &[(18.0, 50.0), (ex, ey)], 4.0, state_c, w, h);
-            sym_line(canvas_ptr, &[(82.0, 50.0), (70.0, 50.0)], 4.0, state_c, w, h);
+            sym_line(
+                canvas_ptr,
+                &[(82.0, 50.0), (70.0, 50.0)],
+                4.0,
+                state_c,
+                w,
+                h,
+            );
         }
         "mixer" | "agitator" => {
-            let (vx, vy, vw, vh) = if id == "mixer" { (20.0, 14.0, 60.0, 76.0) } else { (30.0, 8.0, 58.0, 84.0) };
+            let (vx, vy, vw, vh) = if id == "mixer" {
+                (20.0, 14.0, 60.0, 76.0)
+            } else {
+                (30.0, 8.0, 58.0, 84.0)
+            };
             sym_rect(canvas_ptr, vx, vy, vw, vh, 8.0, SYM_PANEL, w, h);
             if id == "mixer" {
                 sym_rect(canvas_ptr, 42.0, 4.0, 16.0, 12.0, 0.0, state_c, w, h);
-                sym_line(canvas_ptr, &[(50.0, 16.0), (50.0, 70.0)], 3.0, SYM_OUTLINE, w, h);
-                sym_line(canvas_ptr, &[(30.0, 70.0), (70.0, 70.0)], 4.0, state_c, w, h);
-                sym_line(canvas_ptr, &[(50.0, 62.0), (50.0, 78.0)], 4.0, state_c, w, h);
+                sym_line(
+                    canvas_ptr,
+                    &[(50.0, 16.0), (50.0, 70.0)],
+                    3.0,
+                    SYM_OUTLINE,
+                    w,
+                    h,
+                );
+                sym_line(
+                    canvas_ptr,
+                    &[(30.0, 70.0), (70.0, 70.0)],
+                    4.0,
+                    state_c,
+                    w,
+                    h,
+                );
+                sym_line(
+                    canvas_ptr,
+                    &[(50.0, 62.0), (50.0, 78.0)],
+                    4.0,
+                    state_c,
+                    w,
+                    h,
+                );
             } else {
                 sym_rect(canvas_ptr, 4.0, 40.0, 20.0, 20.0, 8.0, state_c, w, h);
-                sym_line(canvas_ptr, &[(24.0, 50.0), (58.0, 50.0)], 3.0, SYM_OUTLINE, w, h);
-                sym_line(canvas_ptr, &[(58.0, 32.0), (58.0, 68.0)], 4.0, state_c, w, h);
-                sym_line(canvas_ptr, &[(40.0, 50.0), (76.0, 50.0)], 4.0, state_c, w, h);
+                sym_line(
+                    canvas_ptr,
+                    &[(24.0, 50.0), (58.0, 50.0)],
+                    3.0,
+                    SYM_OUTLINE,
+                    w,
+                    h,
+                );
+                sym_line(
+                    canvas_ptr,
+                    &[(58.0, 32.0), (58.0, 68.0)],
+                    4.0,
+                    state_c,
+                    w,
+                    h,
+                );
+                sym_line(
+                    canvas_ptr,
+                    &[(40.0, 50.0), (76.0, 50.0)],
+                    4.0,
+                    state_c,
+                    w,
+                    h,
+                );
             }
         }
         "heat_pump" => {
             sym_rect(canvas_ptr, 18.0, 16.0, 64.0, 10.0, 30.0, state_c, w, h);
             sym_circle(canvas_ptr, 50.0, 50.0, 13.0, state_c, w, h);
-            sym_rect(canvas_ptr, 18.0, 70.0, 64.0, 10.0, 30.0, (100, 116, 139), w, h); // #64748b
+            sym_rect(
+                canvas_ptr,
+                18.0,
+                70.0,
+                64.0,
+                10.0,
+                30.0,
+                (100, 116, 139),
+                w,
+                h,
+            ); // #64748b
         }
         "temperature_sensor" => {
-            sym_line(canvas_ptr, &[(50.0, 4.0), (50.0, 24.0)], 4.0, SYM_OUTLINE, w, h);
+            sym_line(
+                canvas_ptr,
+                &[(50.0, 4.0), (50.0, 24.0)],
+                4.0,
+                SYM_OUTLINE,
+                w,
+                h,
+            );
             sym_circle(canvas_ptr, 50.0, 50.0, 24.0, state_c, w, h);
             let fill_h = match state {
                 SymbolState::Alarm => 34.0,
@@ -5187,7 +6293,17 @@ fn draw_symbol(canvas_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>, id: &str, sta
                 SymbolState::Off => 10.0,
             };
             sym_rect(canvas_ptr, 46.0, 32.0, 8.0, 26.0, 30.0, (15, 23, 42), w, h);
-            sym_rect(canvas_ptr, 47.0, 58.0 - fill_h, 6.0, fill_h, 30.0, SYM_DARK, w, h);
+            sym_rect(
+                canvas_ptr,
+                47.0,
+                58.0 - fill_h,
+                6.0,
+                fill_h,
+                30.0,
+                SYM_DARK,
+                w,
+                h,
+            );
             sym_circle(canvas_ptr, 50.0, 64.0, 7.0, SYM_DARK, w, h);
         }
         "boiler" => {
@@ -5207,20 +6323,47 @@ fn draw_symbol(canvas_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>, id: &str, sta
             // poligono chiuso di prima — la sua base era il segmento da (34,92)
             // a (66,92), e il punto (50,92) la tocca — quindi il disegno non
             // cambia, cambia solo il modo di chiederlo.
-            sym_polygon(canvas_ptr, &[(34.0, 92.0), (44.0, 76.0), (50.0, 92.0)], state_c, w, h);
-            sym_polygon(canvas_ptr, &[(50.0, 92.0), (58.0, 78.0), (66.0, 92.0)], state_c, w, h);
-            sym_rect(canvas_ptr, 24.0, 70.0, 52.0, 6.0, 3.0, (71, 85, 105), w, h); // #475569
+            sym_polygon(
+                canvas_ptr,
+                &[(34.0, 92.0), (44.0, 76.0), (50.0, 92.0)],
+                state_c,
+                w,
+                h,
+            );
+            sym_polygon(
+                canvas_ptr,
+                &[(50.0, 92.0), (58.0, 78.0), (66.0, 92.0)],
+                state_c,
+                w,
+                h,
+            );
+            sym_rect(canvas_ptr, 24.0, 70.0, 52.0, 6.0, 3.0, (71, 85, 105), w, h);
+            // #475569
         }
         "cooling_tower" => {
-            sym_polygon(canvas_ptr, &[(18.0, 92.0), (28.0, 16.0), (72.0, 16.0), (82.0, 92.0)], (30, 41, 59), w, h);
+            sym_polygon(
+                canvas_ptr,
+                &[(18.0, 92.0), (28.0, 16.0), (72.0, 16.0), (82.0, 92.0)],
+                (30, 41, 59),
+                w,
+                h,
+            );
             sym_rect(canvas_ptr, 28.0, 12.0, 44.0, 8.0, 4.0, SYM_DARK, w, h);
-            sym_line(canvas_ptr, &[(36.0, 16.0), (64.0, 16.0)], 2.0, state_c, w, h);
+            sym_line(
+                canvas_ptr,
+                &[(36.0, 16.0), (64.0, 16.0)],
+                2.0,
+                state_c,
+                w,
+                h,
+            );
             sym_line(canvas_ptr, &[(50.0, 8.0), (50.0, 24.0)], 2.0, state_c, w, h);
         }
         _ => {
             // symbol_id sconosciuto (né builtin né "custom:"): riquadro
             // d'errore, stesso principio del placeholder web ("simbolo?").
-            sym_rect(canvas_ptr, 4.0, 4.0, 92.0, 92.0, 4.0, (127, 29, 29), w, h); // #7f1d1d
+            sym_rect(canvas_ptr, 4.0, 4.0, 92.0, 92.0, 4.0, (127, 29, 29), w, h);
+            // #7f1d1d
         }
     }
     unsafe {
@@ -5259,7 +6402,11 @@ fn colore_simbolo(
             }
         }
     }
-    let hex = if state == SymbolState::On { on_color } else { off_color };
+    let hex = if state == SymbolState::On {
+        on_color
+    } else {
+        off_color
+    };
     parse_hex_color(hex).unwrap_or((100, 116, 139))
 }
 
@@ -5304,9 +6451,15 @@ fn angolo_rotazione(now_ms: u64, spin_s: f64) -> i16 {
     ((fase * 360.0).round() as i16 % 360) * 10
 }
 
-fn resolve_symbol_state(tags: &TagSnapshot, state_tag: &Option<String>, alarm_tag: &Option<String>) -> SymbolState {
+fn resolve_symbol_state(
+    tags: &TagSnapshot,
+    state_tag: &Option<String>,
+    alarm_tag: &Option<String>,
+) -> SymbolState {
     let truthy = |tag: &Option<String>| -> bool {
-        lookup(tags, tag).map(|t| tag_value_as_f64(&t.value) != 0.0).unwrap_or(false)
+        lookup(tags, tag)
+            .map(|t| tag_value_as_f64(&t.value) != 0.0)
+            .unwrap_or(false)
     };
     if truthy(alarm_tag) {
         SymbolState::Alarm
@@ -5358,12 +6511,21 @@ fn render_svg_raster(
     let (w, h) = (raster.width as i16, raster.height as i16);
 
     let mut canvas = unsafe {
-        let ptr = lvgl_sys::lv_canvas_create(screen.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr());
-        let nn = core::ptr::NonNull::new(ptr).ok_or_else(|| anyhow::anyhow!("lv_canvas_create ha restituito null"))?;
+        let ptr = lvgl_sys::lv_canvas_create(
+            screen
+                .raw()
+                .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+                .as_ptr(),
+        );
+        let nn = core::ptr::NonNull::new(ptr)
+            .ok_or_else(|| anyhow::anyhow!("lv_canvas_create ha restituito null"))?;
         <lvgl::Obj as Widget>::from_raw(nn)
     };
     canvas
-        .set_pos(obj.x.unwrap_or(0.0).round() as i16, obj.y.unwrap_or(0.0).round() as i16)
+        .set_pos(
+            obj.x.unwrap_or(0.0).round() as i16,
+            obj.y.unwrap_or(0.0).round() as i16,
+        )
         .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
     let canvas_ptr = canvas.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     unsafe {
@@ -5379,7 +6541,9 @@ fn render_svg_raster(
     // `buf` sopravvive nel LiveBinding, che vive quanto la finestra: LVGL
     // continuerà a leggere da quel puntatore a ogni redraw, e un `Vec`
     // rilasciato qui lascerebbe il canvas a leggere memoria liberata.
-    Ok(LiveBinding { kind: LiveKind::SvgRaster { canvas_ptr, buf } })
+    Ok(LiveBinding {
+        kind: LiveKind::SvgRaster { canvas_ptr, buf },
+    })
 }
 
 /// Segnaposto per un SVG che non si è potuto disegnare — non scaricato, non
@@ -5397,37 +6561,57 @@ fn render_svg_placeholder(
     let w = obj.width.unwrap_or(80.0).round().clamp(8.0, 500.0) as i16;
     let h = obj.height.unwrap_or(80.0).round().clamp(8.0, 500.0) as i16;
     let mut ph = create_child_obj(screen)?;
-    ph.set_pos(obj.x.unwrap_or(0.0).round() as i16, obj.y.unwrap_or(0.0).round() as i16)
-        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-    ph.set_size(w, h).map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
+    ph.set_pos(
+        obj.x.unwrap_or(0.0).round() as i16,
+        obj.y.unwrap_or(0.0).round() as i16,
+    )
+    .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    ph.set_size(w, h)
+        .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
     let mut st = Style::default();
     st.set_bg_opa(lvgl::style::Opacity::OPA_0);
     st.set_border_color(Color::from_rgb((0x64, 0x74, 0x8b)));
     st.set_border_width(1);
     styles.push(st);
     let st = styles.last_mut().expect("appena inserito");
-    ph.add_style(Part::Main, st).map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
+    ph.add_style(Part::Main, st)
+        .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
     Ok(())
 }
 
 /// `symbol`: canvas quadrato, ridisegnato solo quando lo stato cambia
 /// davvero (`update_bindings` confronta con `last_state`) — un redraw
 /// completo del canvas costa più di un semplice refresh di `Style`.
-fn render_symbol(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnapshot) -> anyhow::Result<LiveBinding> {
+fn render_symbol(
+    screen: &mut lvgl::Obj,
+    obj: &SynopticObject,
+    tags: &TagSnapshot,
+) -> anyhow::Result<LiveBinding> {
     let symbol_id = obj.symbol_id.clone().unwrap_or_default();
     if symbol_id.starts_with("custom:") {
-        anyhow::bail!("simboli 'vendored'/custom non supportati da LVGL (solo i 16 builtin, Q15 opzione B)");
+        anyhow::bail!(
+            "simboli 'vendored'/custom non supportati da LVGL (solo i 16 builtin, Q15 opzione B)"
+        );
     }
     let w = obj.width.unwrap_or(80.0).round().clamp(8.0, 500.0) as i16;
     let h = obj.height.unwrap_or(80.0).round().clamp(8.0, 500.0) as i16;
 
     let mut canvas = unsafe {
-        let ptr = lvgl_sys::lv_canvas_create(screen.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr());
-        let nn = core::ptr::NonNull::new(ptr).ok_or_else(|| anyhow::anyhow!("lv_canvas_create ha restituito null"))?;
+        let ptr = lvgl_sys::lv_canvas_create(
+            screen
+                .raw()
+                .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+                .as_ptr(),
+        );
+        let nn = core::ptr::NonNull::new(ptr)
+            .ok_or_else(|| anyhow::anyhow!("lv_canvas_create ha restituito null"))?;
         <lvgl::Obj as Widget>::from_raw(nn)
     };
     canvas
-        .set_pos(obj.x.unwrap_or(0.0).round() as i16, obj.y.unwrap_or(0.0).round() as i16)
+        .set_pos(
+            obj.x.unwrap_or(0.0).round() as i16,
+            obj.y.unwrap_or(0.0).round() as i16,
+        )
         .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
     let canvas_ptr = canvas.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
 
@@ -5435,14 +6619,26 @@ fn render_symbol(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnapsho
     let mut buf = vec![0u8; buf_size];
     unsafe {
         lvgl_sys::lv_canvas_set_buffer(
-            canvas_ptr.as_ptr(), buf.as_mut_ptr() as *mut std::ffi::c_void, w as lvgl_sys::lv_coord_t, h as lvgl_sys::lv_coord_t,
+            canvas_ptr.as_ptr(),
+            buf.as_mut_ptr() as *mut std::ffi::c_void,
+            w as lvgl_sys::lv_coord_t,
+            h as lvgl_sys::lv_coord_t,
             lvgl_sys::LV_IMG_CF_TRUE_COLOR_ALPHA as lvgl_sys::lv_img_cf_t,
         );
     }
 
-    let off_color = obj.state_off_color.clone().unwrap_or_else(|| "#64748b".to_string());
-    let on_color = obj.state_on_color.clone().unwrap_or_else(|| "#22c55e".to_string());
-    let alarm_color = obj.state_alarm_color.clone().unwrap_or_else(|| "#ef4444".to_string());
+    let off_color = obj
+        .state_off_color
+        .clone()
+        .unwrap_or_else(|| "#64748b".to_string());
+    let on_color = obj
+        .state_on_color
+        .clone()
+        .unwrap_or_else(|| "#22c55e".to_string());
+    let alarm_color = obj
+        .state_alarm_color
+        .clone()
+        .unwrap_or_else(|| "#ef4444".to_string());
     // `symbol_states` resta `serde_json::Value` nel modello e si converte qui,
     // con tolleranza. Tipizzarlo nel modello significherebbe che un progetto
     // con una voce malformata non apre più **la pagina intera** — e finché il
@@ -5463,7 +6659,15 @@ fn render_symbol(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnapsho
         },
     };
     let state = resolve_symbol_state(tags, &obj.state_tag, &obj.alarm_tag);
-    let state_c = colore_simbolo(state, &stati, tags, &obj.state_tag, &off_color, &on_color, &alarm_color);
+    let state_c = colore_simbolo(
+        state,
+        &stati,
+        tags,
+        &obj.state_tag,
+        &off_color,
+        &on_color,
+        &alarm_color,
+    );
     draw_symbol(canvas_ptr, &symbol_id, state, state_c, w, h);
 
     // Il perno della rotazione al centro del simbolo: senza, LVGL ruota
@@ -5476,9 +6680,17 @@ fn render_symbol(screen: &mut lvgl::Obj, obj: &SynopticObject, tags: &TagSnapsho
 
     Ok(LiveBinding {
         kind: LiveKind::Symbol {
-            canvas_ptr, buf, w, h, symbol_id,
-            state_tag: obj.state_tag.clone(), alarm_tag: obj.alarm_tag.clone(),
-            off_color, on_color, alarm_color, last_state: Some(state),
+            canvas_ptr,
+            buf,
+            w,
+            h,
+            symbol_id,
+            state_tag: obj.state_tag.clone(),
+            alarm_tag: obj.alarm_tag.clone(),
+            off_color,
+            on_color,
+            alarm_color,
+            last_state: Some(state),
             stati,
             last_rgb: Some(state_c),
             spin: obj.symbol_spin.clone(),
@@ -5557,11 +6769,25 @@ fn localize_object(obj: &SynopticObject, lang: &str, table: &LanguageTable) -> S
         out.text_list_default = Some(resolve_msg(v, lang, table));
     }
     if let Some(rows) = &out.table_rows {
-        out.table_rows = Some(rows.iter().map(|r| TableRow { label: resolve_msg(&r.label, lang, table), ..r.clone() }).collect());
+        out.table_rows = Some(
+            rows.iter()
+                .map(|r| TableRow {
+                    label: resolve_msg(&r.label, lang, table),
+                    ..r.clone()
+                })
+                .collect(),
+        );
     }
     if let Some(entries) = &out.text_list_entries {
-        out.text_list_entries =
-            Some(entries.iter().map(|e| TextListEntry { label: resolve_msg(&e.label, lang, table), ..e.clone() }).collect());
+        out.text_list_entries = Some(
+            entries
+                .iter()
+                .map(|e| TextListEntry {
+                    label: resolve_msg(&e.label, lang, table),
+                    ..e.clone()
+                })
+                .collect(),
+        );
     }
     out
 }
@@ -5607,7 +6833,10 @@ fn render_lang_button(
     let w = obj.width.unwrap_or(80.0);
     let h = obj.height.unwrap_or(32.0);
     let target_lang = obj.target_lang.clone().unwrap_or_default();
-    let current = shared_lang.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    let current = shared_lang
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
     let active = !target_lang.is_empty() && target_lang == current;
 
     let mut btn = Btn::create(screen).map_err(|e| anyhow::anyhow!("Btn::create: {e:?}"))?;
@@ -5623,12 +6852,17 @@ fn render_lang_button(
         let mut style = Style::default();
         let rgb = if active { (59, 130, 246) } else { (51, 65, 85) }; // #3b82f6 attivo, #334155 inattivo
         style.set_bg_color(Color::from_rgb(rgb));
-        btn.add_style(Part::Main, &mut style).map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
+        btn.add_style(Part::Main, &mut style)
+            .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
         styles.push(style);
     }
-    let label_text = obj.label.clone().unwrap_or_else(|| target_lang.to_uppercase());
+    let label_text = obj
+        .label
+        .clone()
+        .unwrap_or_else(|| target_lang.to_uppercase());
     let mut lbl = Label::create(&mut btn).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-    lbl.set_text(&text_cstring(&label_text)).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+    lbl.set_text(&text_cstring(&label_text))
+        .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
     let btn_ptr = btn.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
 
     let ctx: &'static LangButtonCtx = Box::leak(Box::new(LangButtonCtx {
@@ -5639,7 +6873,9 @@ fn render_lang_button(
     }));
     unsafe {
         lvgl_sys::lv_obj_add_event_cb(
-            btn_ptr.as_ptr(), Some(sws_lang_button_clicked_cb), lvgl_sys::lv_event_code_t_LV_EVENT_CLICKED,
+            btn_ptr.as_ptr(),
+            Some(sws_lang_button_clicked_cb),
+            lvgl_sys::lv_event_code_t_LV_EVENT_CLICKED,
             ctx as *const LangButtonCtx as *mut std::ffi::c_void,
         );
     }
@@ -5668,8 +6904,11 @@ unsafe extern "C" fn sws_lang_selector_changed_cb(e: *mut lvgl_sys::lv_event_t) 
         return;
     }
     let ctx = unsafe { &*(user_data as *const LangSelectorCtx) };
-    let sel = unsafe { lvgl_sys::lv_dropdown_get_selected(target as *const lvgl_sys::lv_obj_t) } as usize;
-    let Some(code) = ctx.langs.get(sel) else { return };
+    let sel =
+        unsafe { lvgl_sys::lv_dropdown_get_selected(target as *const lvgl_sys::lv_obj_t) } as usize;
+    let Some(code) = ctx.langs.get(sel) else {
+        return;
+    };
     *ctx.shared_lang.lock().unwrap_or_else(|e| e.into_inner()) = code.clone();
     let _ = ctx.nav_tx.send(ctx.own_page_id.clone());
 }
@@ -5695,14 +6934,23 @@ fn render_lang_selector(
     let langs = lang_table.langs.clone();
 
     let mut dd = unsafe {
-        let ptr = lvgl_sys::lv_dropdown_create(screen.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr());
-        let nn = core::ptr::NonNull::new(ptr).ok_or_else(|| anyhow::anyhow!("lv_dropdown_create ha restituito null"))?;
+        let ptr = lvgl_sys::lv_dropdown_create(
+            screen
+                .raw()
+                .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+                .as_ptr(),
+        );
+        let nn = core::ptr::NonNull::new(ptr)
+            .ok_or_else(|| anyhow::anyhow!("lv_dropdown_create ha restituito null"))?;
         <lvgl::Obj as Widget>::from_raw(nn)
     };
     set_pos_size(&mut dd, obj, w, h)?;
     let dd_ptr = dd.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     let options = std::ffi::CString::new(langs.join("\n")).unwrap_or_default();
-    let current = shared_lang.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    let current = shared_lang
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
     let selected = langs.iter().position(|l| l == &current).unwrap_or(0);
     unsafe {
         lvgl_sys::lv_dropdown_set_options(dd_ptr.as_ptr(), options.as_ptr());
@@ -5718,7 +6966,9 @@ fn render_lang_selector(
     }));
     unsafe {
         lvgl_sys::lv_obj_add_event_cb(
-            dd_ptr.as_ptr(), Some(sws_lang_selector_changed_cb), lvgl_sys::lv_event_code_t_LV_EVENT_VALUE_CHANGED,
+            dd_ptr.as_ptr(),
+            Some(sws_lang_selector_changed_cb),
+            lvgl_sys::lv_event_code_t_LV_EVENT_VALUE_CHANGED,
             ctx as *const LangSelectorCtx as *mut std::ffi::c_void,
         );
     }
@@ -5756,7 +7006,10 @@ fn dispatch_render(
     // `grid` — senza dover ripetere la stessa logica in tre punti diversi.
     // Clona solo se serve (nessun token trovato → stesso oggetto, stesso
     // principio di `localizeObject` in `projectI18n.ts`).
-    let current_lang = shared_lang.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    let current_lang = shared_lang
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
     let localized = localize_object(obj, &current_lang, lang_table);
     let obj = &localized;
 
@@ -5776,7 +7029,10 @@ fn dispatch_render(
     // Limite noto: un renderer che creasse widget su un padre diverso da
     // `screen` sfuggirebbe al conteggio e resterebbe fermo. Oggi nessuno lo fa.
     let geom_spec = geometry_bindings(obj);
-    let parent_ptr = screen.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+    let parent_ptr = screen
+        .raw()
+        .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+        .as_ptr();
     let children_before = if geom_spec.is_some() {
         unsafe { lvgl_sys::lv_obj_get_child_cnt(parent_ptr) }
     } else {
@@ -5799,21 +7055,43 @@ fn dispatch_render(
         "state_lamp" => render_state_lamp(screen, obj, tags).map(|b| live.push(b)),
         "table" => render_table(screen, obj, tags).map(|b| live.push(b)),
         "trend" => render_trend(screen, obj, base_url, rt_handle).map(|b| live.push(b)),
-        "alarm_viewer" => render_alarm_viewer(screen, obj, styles, shared_alarms, ack_tx).map(|b| live.push(b)),
+        "alarm_viewer" => {
+            render_alarm_viewer(screen, obj, styles, shared_alarms, ack_tx).map(|b| live.push(b))
+        }
         "text_list" => render_text_list(screen, obj, tags).map(|b| live.push(b)),
         "bar_chart" => render_bar_chart(screen, obj, styles, tags).map(|b| live.push(b)),
-        "sparkline" => render_sparkline(screen, obj, styles, base_url, rt_handle).map(|b| live.push(b)),
-        "alarm_banner" => render_alarm_banner(screen, obj, styles, shared_alarms).map(|b| live.push(b)),
+        "sparkline" => {
+            render_sparkline(screen, obj, styles, base_url, rt_handle).map(|b| live.push(b))
+        }
+        "alarm_banner" => {
+            render_alarm_banner(screen, obj, styles, shared_alarms).map(|b| live.push(b))
+        }
         "faceplate" => render_faceplate(
-            screen, obj, styles, tags, tag_tx, nav_tx, base_url, rt_handle, shared_alarms, ack_tx, lang_table,
-            shared_lang, own_page_id, live,
+            screen,
+            obj,
+            styles,
+            tags,
+            tag_tx,
+            nav_tx,
+            base_url,
+            rt_handle,
+            shared_alarms,
+            ack_tx,
+            lang_table,
+            shared_lang,
+            own_page_id,
+            live,
         ),
         // Un simbolo è o una forma builtin disegnata con le primitive
         // (ricolorabile per stato), o un SVG da rasterizzare. `source_for`
         // distingue i due casi; lo stesso ramo serve il widget `image`.
-        "symbol" | "image" => match crate::svg_assets::source_for_project(obj, base_url, rt_handle) {
+        "symbol" | "image" => match crate::svg_assets::source_for_project(obj, base_url, rt_handle)
+        {
             Some(src) => match render_svg_raster(screen, obj, &src, base_url, rt_handle) {
-                Ok(b) => { live.push(b); Ok(()) }
+                Ok(b) => {
+                    live.push(b);
+                    Ok(())
+                }
                 Err(e) => {
                     eprintln!("[svg] {}: {e}", obj.id.as_deref().unwrap_or("?"));
                     render_svg_placeholder(screen, obj, styles)
@@ -5823,8 +7101,20 @@ fn dispatch_render(
             None => render_symbol(screen, obj, tags).map(|b| live.push(b)),
         },
         "grid" => render_grid(
-            screen, obj, styles, tags, tag_tx, nav_tx, base_url, rt_handle, shared_alarms, ack_tx, lang_table,
-            shared_lang, own_page_id, live,
+            screen,
+            obj,
+            styles,
+            tags,
+            tag_tx,
+            nav_tx,
+            base_url,
+            rt_handle,
+            shared_alarms,
+            ack_tx,
+            lang_table,
+            shared_lang,
+            own_page_id,
+            live,
         ),
         "pipe" => render_pipe(screen, obj, styles, tags).map(|b| live.push(b)),
         "kpi_tile" => render_kpi_tile(screen, obj, styles, tags, base_url, rt_handle, live),
@@ -5836,7 +7126,15 @@ fn dispatch_render(
         "xy_plot" => render_xy_plot(screen, obj, styles).map(|b| live.push(b)),
         "pie_chart" => render_pie_chart(screen, obj, tags).map(|b| live.push(b)),
         "lang_button" => render_lang_button(screen, obj, styles, nav_tx, shared_lang, own_page_id),
-        "lang_selector" => render_lang_selector(screen, obj, styles, nav_tx, lang_table, shared_lang, own_page_id),
+        "lang_selector" => render_lang_selector(
+            screen,
+            obj,
+            styles,
+            nav_tx,
+            lang_table,
+            shared_lang,
+            own_page_id,
+        ),
         _ => unreachable!("filtrato da SUPPORTED_TYPES sopra"),
     };
 
@@ -5869,7 +7167,11 @@ fn dispatch_render(
                             obj.id.as_deref().unwrap_or("?"), i, obj.x, obj.y
                         );
                     }
-                    widgets.push(GeomWidget { ptr, start_x: sx, start_y: sy });
+                    widgets.push(GeomWidget {
+                        ptr,
+                        start_x: sx,
+                        start_y: sy,
+                    });
                 }
             }
         }
@@ -5878,13 +7180,22 @@ fn dispatch_render(
             // geometria dell'oggetto (gli altri sono decorazioni interne).
             let (w0, h0) = unsafe {
                 let p = widgets[0].ptr.as_ptr();
-                (lvgl_sys::lv_obj_get_width(p), lvgl_sys::lv_obj_get_height(p))
+                (
+                    lvgl_sys::lv_obj_get_width(p),
+                    lvgl_sys::lv_obj_get_height(p),
+                )
             };
             // `obj` qui è già passato da `apply_bindings`, quindi `x`/`y` sono
             // i valori RISOLTI alla creazione: sono loro l'origine da cui
             // misurare lo scostamento, non le coordinate statiche del synottico.
-            let start_bound_x = bindings.get("x").and_then(|s| resolve_binding_value(s, tags)).and_then(|v| v.as_f64());
-            let start_bound_y = bindings.get("y").and_then(|s| resolve_binding_value(s, tags)).and_then(|v| v.as_f64());
+            let start_bound_x = bindings
+                .get("x")
+                .and_then(|s| resolve_binding_value(s, tags))
+                .and_then(|v| v.as_f64());
+            let start_bound_y = bindings
+                .get("y")
+                .and_then(|s| resolve_binding_value(s, tags))
+                .and_then(|v| v.as_f64());
             live.push(LiveBinding {
                 kind: LiveKind::Geometry {
                     widgets,
@@ -5982,7 +7293,9 @@ fn render_faceplate(
         let Ok(mut child) = serde_json::from_value::<SynopticObject>(raw_child.clone()) else {
             continue; // figlio malformato: ignorato silenziosamente, stesso principio del resto del parser
         };
-        let Some(child_type) = child.obj_type.clone() else { continue };
+        let Some(child_type) = child.obj_type.clone() else {
+            continue;
+        };
         if !SUPPORTED_TYPES.contains(&child_type.as_str()) || child_type == "faceplate" {
             continue;
         }
@@ -6002,8 +7315,21 @@ fn render_faceplate(
         // render_page_objects, un widget rotto non deve far sparire
         // l'intera istanza.
         let _ = dispatch_render(
-            screen, &child_type, &child, styles, tags, tag_tx, nav_tx, base_url, rt_handle, shared_alarms, ack_tx,
-            lang_table, shared_lang, own_page_id, live,
+            screen,
+            &child_type,
+            &child,
+            styles,
+            tags,
+            tag_tx,
+            nav_tx,
+            base_url,
+            rt_handle,
+            shared_alarms,
+            ack_tx,
+            lang_table,
+            shared_lang,
+            own_page_id,
+            live,
         );
     }
     Ok(())
@@ -6031,7 +7357,16 @@ pub fn interpret_page(
     let (hor_res, ver_res) = resolve_resolution(page);
     crate::lvgl_display::init_display(hor_res, ver_res)?;
     let (summary, styles, live) = render_page_objects(
-        page, tags, tag_tx, nav_tx, base_url, rt_handle, shared_alarms, ack_tx, lang_table, shared_lang,
+        page,
+        tags,
+        tag_tx,
+        nav_tx,
+        base_url,
+        rt_handle,
+        shared_alarms,
+        ack_tx,
+        lang_table,
+        shared_lang,
     )?;
     Ok((summary, styles, live, hor_res, ver_res))
 }
@@ -6103,7 +7438,8 @@ pub fn render_page_objects(
     // lv_disp_load_scr più sotto, quando tutti i widget sono già a posto.
     let mut screen: lvgl::Obj = unsafe {
         let ptr = lvgl_sys::lv_obj_create(core::ptr::null_mut());
-        let nn = core::ptr::NonNull::new(ptr).ok_or_else(|| anyhow::anyhow!("lv_obj_create(NULL) ha restituito null"))?;
+        let nn = core::ptr::NonNull::new(ptr)
+            .ok_or_else(|| anyhow::anyhow!("lv_obj_create(NULL) ha restituito null"))?;
         <lvgl::Obj as Widget>::from_raw(nn)
     };
 
@@ -6111,7 +7447,12 @@ pub fn render_page_objects(
     // crea uno nuovo a ogni pagina, e uno stile impostato sul precedente non
     // segue. `text_font` è ereditabile, quindi lo raccolgono tutti i widget
     // che finiranno dentro (Q24).
-    lvgl_font::apply_to(screen.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr());
+    lvgl_font::apply_to(
+        screen
+            .raw()
+            .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+            .as_ptr(),
+    );
     if let Some(bg) = &page.background {
         apply_bg_color(&mut screen, bg, &mut styles)?;
     }
@@ -6144,7 +7485,10 @@ pub fn render_page_objects(
     // Lo schermo come puntatore grezzo, preso una volta: serve dentro il ciclo
     // per contare i figli, e prenderlo lì significherebbe un secondo prestito
     // mutabile mentre `dispatch_render` tiene il suo.
-    let screen_ptr = screen.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+    let screen_ptr = screen
+        .raw()
+        .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+        .as_ptr();
 
     // Ordine di sovrapposizione: vedi `sort_by_z`. Va fatto qui e non dentro
     // `dispatch_render`, perché è una proprietà della pagina — l'ordine di
@@ -6211,7 +7555,9 @@ pub fn render_page_objects(
             continue;
         }
         if !SUPPORTED_TYPES.contains(&obj_type) {
-            summary.skipped_unsupported.push(format!("{id} ({obj_type})"));
+            summary
+                .skipped_unsupported
+                .push(format!("{id} ({obj_type})"));
             continue;
         }
         // Quanti figli aveva lo schermo prima: quelli che compaiono dopo sono
@@ -6219,8 +7565,21 @@ pub fn render_page_objects(
         // che ogni `render_*` debba restituire i propri widget.
         let figli_prima = unsafe { lvgl_sys::lv_obj_get_child_cnt(screen_ptr) };
         let result: anyhow::Result<()> = dispatch_render(
-            &mut screen, obj_type, obj, &mut styles, tags, tag_tx, nav_tx, base_url, rt_handle, shared_alarms, ack_tx,
-            lang_table, shared_lang, &own_page_id, &mut live,
+            &mut screen,
+            obj_type,
+            obj,
+            &mut styles,
+            tags,
+            tag_tx,
+            nav_tx,
+            base_url,
+            rt_handle,
+            shared_alarms,
+            ack_tx,
+            lang_table,
+            shared_lang,
+            &own_page_id,
+            &mut live,
         );
         // Anche quando il render è fallito a metà: se qualche figlio è già
         // nato, deve avere l'opacità che l'oggetto dichiara, non essere
@@ -6241,7 +7600,9 @@ pub fn render_page_objects(
         }
         match result {
             Ok(()) => summary.rendered.push(format!("{id} ({obj_type})")),
-            Err(e) => summary.skipped_unsupported.push(format!("{id} ({obj_type}) — errore: {e}")),
+            Err(e) => summary
+                .skipped_unsupported
+                .push(format!("{id} ({obj_type}) — errore: {e}")),
         }
     }
 
@@ -6313,7 +7674,11 @@ fn update_effects(
                 // in più senza cambiare il risultato.
                 lvgl_sys::lv_obj_set_style_color_filter_opa(
                     *f,
-                    if attenuato { effects::FILTRO_GRIGIO_OPA } else { 0 },
+                    if attenuato {
+                        effects::FILTRO_GRIGIO_OPA
+                    } else {
+                        0
+                    },
                     0,
                 );
             }
@@ -6323,7 +7688,9 @@ fn update_effects(
 
     // ── bordo d'allarme ───────────────────────────────────────────────────
     if let Some(b) = bordo {
-        let a = tag.as_deref().and_then(|t| effects::allarme_su_tag(&allarmi, t));
+        let a = tag
+            .as_deref()
+            .and_then(|t| effects::allarme_su_tag(&allarmi, t));
         let visibile = a.is_some();
         if visibile != ultimo.bordo_visibile {
             unsafe {
@@ -6347,12 +7714,17 @@ fn update_effects(
             // anche quando l'oggetto incorniciato sta fermo — è il
             // comportamento del web, e serve: un allarme nuovo si distingue da
             // uno già visto senza leggere niente.
-            let bordo_acceso = a.riconosciuto || effects::fase_accesa(now_ms, effects::BLINK_MS_DEFAULT);
+            let bordo_acceso =
+                a.riconosciuto || effects::fase_accesa(now_ms, effects::BLINK_MS_DEFAULT);
             if bordo_acceso != ultimo.bordo_acceso {
                 unsafe {
                     lvgl_sys::lv_obj_set_style_border_opa(
                         b,
-                        if bordo_acceso { 255 } else { effects::OPA_LAMPEGGIO_SPENTO },
+                        if bordo_acceso {
+                            255
+                        } else {
+                            effects::OPA_LAMPEGGIO_SPENTO
+                        },
                         0,
                     )
                 };
@@ -6396,13 +7768,36 @@ pub fn svg_bitmap_bytes(bindings: &[LiveBinding]) -> usize {
 pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
     for b in bindings {
         if let LiveKind::Effects {
-            figli, opa_base, lampeggio, rate_ms, tag, stale_after_s, bad_gray, shared,
-            bordo, pallino, dot_buono, dot_cattivo, dot_incerto, ultimo,
+            figli,
+            opa_base,
+            lampeggio,
+            rate_ms,
+            tag,
+            stale_after_s,
+            bad_gray,
+            shared,
+            bordo,
+            pallino,
+            dot_buono,
+            dot_cattivo,
+            dot_incerto,
+            ultimo,
         } = &mut b.kind
         {
             update_effects(
-                figli, *opa_base, lampeggio, *rate_ms, tag, *stale_after_s, *bad_gray, shared,
-                *bordo, *pallino, (dot_buono, dot_cattivo, dot_incerto), ultimo, tags,
+                figli,
+                *opa_base,
+                lampeggio,
+                *rate_ms,
+                tag,
+                *stale_after_s,
+                *bad_gray,
+                shared,
+                *bordo,
+                *pallino,
+                (dot_buono, dot_cattivo, dot_incerto),
+                ultimo,
+                tags,
             );
             continue;
         }
@@ -6412,12 +7807,25 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
             // `_ => {}`, che zittirebbe il compilatore anche sulle varianti che
             // verranno.
             LiveKind::Effects { .. } => {}
-            LiveKind::Motion { widgets, percorso, tag, min, max, ancora, applied_dx, applied_dy } => {
-                let Some(tv) = tags.get(tag.as_str()) else { continue };
+            LiveKind::Motion {
+                widgets,
+                percorso,
+                tag,
+                min,
+                max,
+                ancora,
+                applied_dx,
+                applied_dy,
+            } => {
+                let Some(tv) = tags.get(tag.as_str()) else {
+                    continue;
+                };
                 let Some(t) = frazione_movimento(tag_value_as_f64(&tv.value), *min, *max) else {
                     continue;
                 };
-                let Some((px, py)) = punto_a_frazione(percorso, t) else { continue };
+                let Some((px, py)) = punto_a_frazione(percorso, t) else {
+                    continue;
+                };
                 let dx = (px - ancora.0).round() as i16;
                 let dy = (py - ancora.1).round() as i16;
                 if dx == *applied_dx && dy == *applied_dy {
@@ -6432,7 +7840,12 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
                 *applied_dx = dx;
                 *applied_dy = dy;
             }
-            LiveKind::PipeFill { fill_ptr, spec, buf, last_level } => {
+            LiveKind::PipeFill {
+                fill_ptr,
+                spec,
+                buf,
+                last_level,
+            } => {
                 let level = spec.level(tags);
                 // Si ridisegna solo a variazione percettibile: ricostruire la
                 // polilinea a ogni frame costerebbe senza cambiare un pixel.
@@ -6446,7 +7859,13 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
             // Sta fra i binding solo perché `buf` deve restare vivo quanto il
             // canvas.
             LiveKind::SvgRaster { .. } => {}
-            LiveKind::Led { ptr, tag, on_value, on_color, off_color } => {
+            LiveKind::Led {
+                ptr,
+                tag,
+                on_value,
+                on_color,
+                off_color,
+            } => {
                 let tv = lookup(tags, tag);
                 let (is_on, bad_quality, color_hex) = led_state(tv, on_value, on_color, off_color);
                 unsafe {
@@ -6471,7 +7890,10 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
                 // progress_bar (stesso binding, mai in stato PRESSED in uso
                 // normale) questo controllo è un no-op innocuo.
                 let dragging = unsafe {
-                    lvgl_sys::lv_obj_has_state(ptr.as_ptr(), lvgl_sys::LV_STATE_PRESSED as lvgl_sys::lv_state_t)
+                    lvgl_sys::lv_obj_has_state(
+                        ptr.as_ptr(),
+                        lvgl_sys::LV_STATE_PRESSED as lvgl_sys::lv_state_t,
+                    )
                 };
                 if dragging {
                     continue;
@@ -6481,10 +7903,18 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
                     .unwrap_or(*min)
                     .clamp(min.min(*max), min.max(*max));
                 unsafe {
-                    lvgl_sys::lv_bar_set_value(ptr.as_ptr(), raw.round() as i32, lvgl::Animation::OFF.into());
+                    lvgl_sys::lv_bar_set_value(
+                        ptr.as_ptr(),
+                        raw.round() as i32,
+                        lvgl::Animation::OFF.into(),
+                    );
                 }
             }
-            LiveKind::Checkbox { ptr, tag, checked_value } => {
+            LiveKind::Checkbox {
+                ptr,
+                tag,
+                checked_value,
+            } => {
                 apply_checked_state(*ptr, checkbox_is_checked(lookup(tags, tag), checked_value));
             }
             LiveKind::Text {
@@ -6534,8 +7964,17 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
                 }
             }
             LiveKind::Gauge {
-                ptr, needle_indic, arc_indic, value_ptr, tag, min, max, unit,
-                soglie, rgb_base, rgb_arco,
+                ptr,
+                needle_indic,
+                arc_indic,
+                value_ptr,
+                tag,
+                min,
+                max,
+                unit,
+                soglie,
+                rgb_base,
+                rgb_arco,
             } => {
                 let raw = lookup(tags, tag)
                     .map(|t| tag_value_as_f64(&t.value))
@@ -6554,8 +7993,16 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
                 let voluto = threshold_color(raw, soglie.0, soglie.1, soglie.2, soglie.3)
                     .unwrap_or(*rgb_base);
                 unsafe {
-                    lvgl_sys::lv_meter_set_indicator_value(ptr.as_ptr(), *needle_indic, raw.round() as i32);
-                    lvgl_sys::lv_meter_set_indicator_end_value(ptr.as_ptr(), *arc_indic, raw.round() as i32);
+                    lvgl_sys::lv_meter_set_indicator_value(
+                        ptr.as_ptr(),
+                        *needle_indic,
+                        raw.round() as i32,
+                    );
+                    lvgl_sys::lv_meter_set_indicator_end_value(
+                        ptr.as_ptr(),
+                        *arc_indic,
+                        raw.round() as i32,
+                    );
                     if voluto != *rgb_arco && !arc_indic.is_null() {
                         (**arc_indic).type_data.arc.color = Color::from_rgb(voluto).into();
                         lvgl_sys::lv_obj_invalidate(ptr.as_ptr());
@@ -6567,10 +8014,22 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
                     );
                 }
             }
-            LiveKind::StateLamp { lamp_ptr, lamp_style, label_ptr, label_style, tag, entries, default_label, default_color } => {
+            LiveKind::StateLamp {
+                lamp_ptr,
+                lamp_style,
+                label_ptr,
+                label_style,
+                tag,
+                entries,
+                default_label,
+                default_color,
+            } => {
                 let tv = lookup(tags, tag);
                 let entry = match_text_list_entry(entries, tv);
-                let lamp_hex = entry.and_then(|e| e.color.as_deref()).unwrap_or("#334155").to_string();
+                let lamp_hex = entry
+                    .and_then(|e| e.color.as_deref())
+                    .unwrap_or("#334155")
+                    .to_string();
                 let label_text = entry
                     .map(|e| e.label.clone())
                     .or_else(|| default_label.clone())
@@ -6578,7 +8037,9 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
                 let label_hex = if entry.is_some() {
                     lamp_hex.clone()
                 } else {
-                    default_color.clone().unwrap_or_else(|| "#94a3b8".to_string())
+                    default_color
+                        .clone()
+                        .unwrap_or_else(|| "#94a3b8".to_string())
                 };
                 unsafe {
                     if let Some(rgb) = parse_hex_color(&lamp_hex) {
@@ -6589,7 +8050,10 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
                             lvgl_sys::lv_style_prop_t_LV_STYLE_BG_COLOR,
                         );
                     }
-                    lvgl_sys::lv_label_set_text(label_ptr.as_ptr(), text_cstring(&label_text).as_ptr());
+                    lvgl_sys::lv_label_set_text(
+                        label_ptr.as_ptr(),
+                        text_cstring(&label_text).as_ptr(),
+                    );
                     if let Some(rgb) = parse_hex_color(&label_hex) {
                         label_style.set_text_color(Color::from_rgb(rgb));
                         lvgl_sys::lv_obj_refresh_style(
@@ -6603,13 +8067,39 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
             LiveKind::Table { ptr, rows } => {
                 update_table_data_cells(*ptr, rows, tags);
             }
-            LiveKind::Trend { ptr, series, window_s, autofit } => {
+            LiveKind::Trend {
+                ptr,
+                series,
+                window_s,
+                autofit,
+            } => {
                 update_trend(*ptr, series, *window_s, *autofit);
             }
-            LiveKind::AlarmViewer { shared, empty_ptr, show_empty, rows, prefix, allowed_sev } => {
-                update_alarm_viewer(shared, *empty_ptr, *show_empty, rows, prefix, allowed_sev.as_deref());
+            LiveKind::AlarmViewer {
+                shared,
+                empty_ptr,
+                show_empty,
+                rows,
+                prefix,
+                allowed_sev,
+            } => {
+                update_alarm_viewer(
+                    shared,
+                    *empty_ptr,
+                    *show_empty,
+                    rows,
+                    prefix,
+                    allowed_sev.as_deref(),
+                );
             }
-            LiveKind::TextList { label_ptr, label_style, tag, entries, default_label, default_color } => {
+            LiveKind::TextList {
+                label_ptr,
+                label_style,
+                tag,
+                entries,
+                default_label,
+                default_color,
+            } => {
                 let tv = lookup(tags, tag);
                 let entry = match_text_list_entry(entries, tv);
                 let label_text = entry
@@ -6621,7 +8111,10 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
                     .or_else(|| default_color.clone())
                     .unwrap_or_else(|| "#f1f5f9".to_string());
                 unsafe {
-                    lvgl_sys::lv_label_set_text(label_ptr.as_ptr(), text_cstring(&label_text).as_ptr());
+                    lvgl_sys::lv_label_set_text(
+                        label_ptr.as_ptr(),
+                        text_cstring(&label_text).as_ptr(),
+                    );
                     if let Some(rgb) = parse_hex_color(&label_hex) {
                         label_style.set_text_color(Color::from_rgb(rgb));
                         lvgl_sys::lv_obj_refresh_style(
@@ -6633,25 +8126,107 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
                 }
             }
             LiveKind::BarChart { bars } => update_bar_chart(bars, tags),
-            LiveKind::Sparkline { ptr, ser, shared, last_seen_version, last_samples, window_s } => {
-                update_sparkline(*ptr, *ser, shared, last_seen_version, last_samples, *window_s);
+            LiveKind::Sparkline {
+                ptr,
+                ser,
+                shared,
+                last_seen_version,
+                last_samples,
+                window_s,
+            } => {
+                update_sparkline(
+                    *ptr,
+                    *ser,
+                    shared,
+                    last_seen_version,
+                    last_samples,
+                    *window_s,
+                );
             }
-            LiveKind::AlarmBanner { shared, dot_ptr, dot_style, msg_ptr, empty_ptr, prefix, allowed_sev } => {
-                update_alarm_banner(shared, *dot_ptr, dot_style, *msg_ptr, *empty_ptr, prefix, allowed_sev.as_deref());
+            LiveKind::AlarmBanner {
+                shared,
+                dot_ptr,
+                dot_style,
+                msg_ptr,
+                empty_ptr,
+                prefix,
+                allowed_sev,
+            } => {
+                update_alarm_banner(
+                    shared,
+                    *dot_ptr,
+                    dot_style,
+                    *msg_ptr,
+                    *empty_ptr,
+                    prefix,
+                    allowed_sev.as_deref(),
+                );
             }
-            LiveKind::XyPlot { ptr, ser, x_tag, y_tag, trail_s, samples, last_sample_ms, x_min, x_max, y_min, y_max } => {
-                update_xy_plot(*ptr, *ser, tags, x_tag, y_tag, *trail_s, samples, last_sample_ms, *x_min, *x_max, *y_min, *y_max);
+            LiveKind::XyPlot {
+                ptr,
+                ser,
+                x_tag,
+                y_tag,
+                trail_s,
+                samples,
+                last_sample_ms,
+                x_min,
+                x_max,
+                y_min,
+                y_max,
+            } => {
+                update_xy_plot(
+                    *ptr,
+                    *ser,
+                    tags,
+                    x_tag,
+                    y_tag,
+                    *trail_s,
+                    samples,
+                    last_sample_ms,
+                    *x_min,
+                    *x_max,
+                    *y_min,
+                    *y_max,
+                );
             }
             LiveKind::PieChart {
-                canvas_ptr, w, h, slices, inner_ratio, last_values, gruppo, foro,
-                etichette, modo_etichetta, decimali, centro, centro_tag, centro_formato, ..
+                canvas_ptr,
+                w,
+                h,
+                slices,
+                inner_ratio,
+                last_values,
+                gruppo,
+                foro,
+                etichette,
+                modo_etichetta,
+                decimali,
+                centro,
+                centro_tag,
+                centro_formato,
+                ..
             } => {
                 let values: Vec<f64> = slices
                     .iter()
-                    .map(|s| lookup(tags, &Some(s.tag.clone())).map(|t| tag_value_as_f64(&t.value)).unwrap_or(0.0).max(0.0))
+                    .map(|s| {
+                        lookup(tags, &Some(s.tag.clone()))
+                            .map(|t| tag_value_as_f64(&t.value))
+                            .unwrap_or(0.0)
+                            .max(0.0)
+                    })
                     .collect();
                 if values != *last_values {
-                    let posti = draw_pie_donut(*canvas_ptr, *w, *h, slices, &values, *inner_ratio, gruppo, *foro);
+                    let posti = draw_pie_donut(
+                        *canvas_ptr,
+                        *w,
+                        *h,
+                        slices,
+                        &values,
+                        *inner_ratio,
+                        gruppo,
+                        *foro,
+                    );
                     // Le etichette seguono gli spicchi: quelle in più (o tutte,
                     // se il grafico è a zero) si nascondono invece di restare
                     // dov'erano con l'ultimo testo buono — un numero fermo su un
@@ -6662,17 +8237,29 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
                                 // Sotto il 5% l'etichetta non ci sta nello
                                 // spicchio e si sovrappone a quella accanto:
                                 // meglio nessuna che due illeggibili.
-                                lvgl_sys::lv_obj_clear_flag(l.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN);
-                                let testo = etichetta_spicchio(
-                                    modo_etichetta.as_deref(), p.frazione, p.valore, &p.etichetta, *decimali,
+                                lvgl_sys::lv_obj_clear_flag(
+                                    l.as_ptr(),
+                                    lvgl_sys::LV_OBJ_FLAG_HIDDEN,
                                 );
-                                lvgl_sys::lv_label_set_text(l.as_ptr(), text_cstring(&testo).as_ptr());
+                                let testo = etichetta_spicchio(
+                                    modo_etichetta.as_deref(),
+                                    p.frazione,
+                                    p.valore,
+                                    &p.etichetta,
+                                    *decimali,
+                                );
+                                lvgl_sys::lv_label_set_text(
+                                    l.as_ptr(),
+                                    text_cstring(&testo).as_ptr(),
+                                );
                                 lvgl_sys::lv_obj_update_layout(l.as_ptr());
                                 let lw = lvgl_sys::lv_obj_get_width(l.as_ptr());
                                 let lh = lvgl_sys::lv_obj_get_height(l.as_ptr());
                                 lvgl_sys::lv_obj_set_pos(l.as_ptr(), p.x - lw / 2, p.y - lh / 2);
                             },
-                            _ => unsafe { lvgl_sys::lv_obj_add_flag(l.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN) },
+                            _ => unsafe {
+                                lvgl_sys::lv_obj_add_flag(l.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN)
+                            },
                         }
                     }
                     *last_values = values;
@@ -6686,11 +8273,17 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
                             Some(f) => f.replace("{value}", &grezzo),
                             None => grezzo,
                         };
-                        unsafe { lvgl_sys::lv_label_set_text(c.as_ptr(), text_cstring(&testo).as_ptr()) };
+                        unsafe {
+                            lvgl_sys::lv_label_set_text(c.as_ptr(), text_cstring(&testo).as_ptr())
+                        };
                     }
                 }
             }
-            LiveKind::Setpoint { value_ptr, tag, unit } => {
+            LiveKind::Setpoint {
+                value_ptr,
+                tag,
+                unit,
+            } => {
                 // Se l'overlay di modifica è visibile, non sovrascrivere:
                 // stesso principio della guardia "dragging" di `BarLike`,
                 // altrimenti il valore digitato verrebbe rimpiazzato dal
@@ -6698,19 +8291,59 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
                 let raw = lookup(tags, tag).map(|t| tag_value_as_f64(&t.value));
                 if let Some(v) = raw {
                     unsafe {
-                        lvgl_sys::lv_label_set_text(value_ptr.as_ptr(), text_cstring(&format!("{v:.1}{unit}")).as_ptr());
+                        lvgl_sys::lv_label_set_text(
+                            value_ptr.as_ptr(),
+                            text_cstring(&format!("{v:.1}{unit}")).as_ptr(),
+                        );
                     }
                 }
             }
-            LiveKind::AlarmBell { shared, badge_ptr, row_ptrs, prefix, allowed_sev, last_count } => {
-                update_alarm_bell(shared, *badge_ptr, row_ptrs, prefix, allowed_sev.as_deref(), last_count);
+            LiveKind::AlarmBell {
+                shared,
+                badge_ptr,
+                row_ptrs,
+                prefix,
+                allowed_sev,
+                last_count,
+            } => {
+                update_alarm_bell(
+                    shared,
+                    *badge_ptr,
+                    row_ptrs,
+                    prefix,
+                    allowed_sev.as_deref(),
+                    last_count,
+                );
             }
             LiveKind::Symbol {
-                canvas_ptr, w, h, symbol_id, state_tag, alarm_tag, off_color, on_color, alarm_color,
-                last_state, stati, last_rgb, spin, spin_tag, spin_s, last_angolo, buf: _,
+                canvas_ptr,
+                w,
+                h,
+                symbol_id,
+                state_tag,
+                alarm_tag,
+                off_color,
+                on_color,
+                alarm_color,
+                last_state,
+                stati,
+                last_rgb,
+                spin,
+                spin_tag,
+                spin_s,
+                last_angolo,
+                buf: _,
             } => {
                 let state = resolve_symbol_state(tags, state_tag, alarm_tag);
-                let rgb = colore_simbolo(state, stati, tags, state_tag, off_color, on_color, alarm_color);
+                let rgb = colore_simbolo(
+                    state,
+                    stati,
+                    tags,
+                    state_tag,
+                    off_color,
+                    on_color,
+                    alarm_color,
+                );
                 // Si ridisegna se cambia lo **stato** o il **colore**: con gli
                 // stati multipli due stati diversi possono essere entrambi
                 // "acceso" con colori diversi, e guardare solo lo stato
@@ -6727,17 +8360,28 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
                     0
                 };
                 if angolo != *last_angolo {
-                    unsafe { lvgl_sys::lv_obj_set_style_transform_angle(canvas_ptr.as_ptr(), angolo, 0) };
+                    unsafe {
+                        lvgl_sys::lv_obj_set_style_transform_angle(canvas_ptr.as_ptr(), angolo, 0)
+                    };
                     *last_angolo = angolo;
                 }
             }
             LiveKind::Geometry {
-                widgets, bindings, start_bound_x, start_bound_y,
-                applied_dx, applied_dy, applied_w, applied_h, applied_visible,
+                widgets,
+                bindings,
+                start_bound_x,
+                start_bound_y,
+                applied_dx,
+                applied_dy,
+                applied_w,
+                applied_h,
+                applied_visible,
             } => {
                 let prev = ResolvedGeom {
-                    dx: *applied_dx, dy: *applied_dy,
-                    w: *applied_w, h: *applied_h,
+                    dx: *applied_dx,
+                    dy: *applied_dy,
+                    w: *applied_w,
+                    h: *applied_h,
                     visible: *applied_visible,
                 };
                 let next = resolve_geometry(bindings, tags, *start_bound_x, *start_bound_y, &prev);
@@ -6769,9 +8413,15 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
                     if next.visible != prev.visible {
                         for g in widgets.iter() {
                             if next.visible {
-                                lvgl_sys::lv_obj_clear_flag(g.ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN);
+                                lvgl_sys::lv_obj_clear_flag(
+                                    g.ptr.as_ptr(),
+                                    lvgl_sys::LV_OBJ_FLAG_HIDDEN,
+                                );
                             } else {
-                                lvgl_sys::lv_obj_add_flag(g.ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN);
+                                lvgl_sys::lv_obj_add_flag(
+                                    g.ptr.as_ptr(),
+                                    lvgl_sys::LV_OBJ_FLAG_HIDDEN,
+                                );
                             }
                         }
                     }
@@ -6810,9 +8460,15 @@ fn update_xy_plot(
     if now_ms.saturating_sub(*last_sample_ms) < 200 {
         return;
     }
-    let (Some(xv), Some(yv)) = (lookup(tags, x_tag), lookup(tags, y_tag)) else { return };
+    let (Some(xv), Some(yv)) = (lookup(tags, x_tag), lookup(tags, y_tag)) else {
+        return;
+    };
     *last_sample_ms = now_ms;
-    samples.push((now_ms, tag_value_as_f64(&xv.value), tag_value_as_f64(&yv.value)));
+    samples.push((
+        now_ms,
+        tag_value_as_f64(&xv.value),
+        tag_value_as_f64(&yv.value),
+    ));
     let cutoff = now_ms.saturating_sub(trail_s.saturating_mul(1000));
     samples.retain(|(ts, _, _)| *ts >= cutoff);
 
@@ -6831,22 +8487,52 @@ fn update_xy_plot(
         y_lo = y_lo.min(*y);
         y_hi = y_hi.max(*y);
         unsafe {
-            lvgl_sys::lv_chart_set_value_by_id2(ptr.as_ptr(), ser, i as u16, x.round() as i16, y.round() as i16);
+            lvgl_sys::lv_chart_set_value_by_id2(
+                ptr.as_ptr(),
+                ser,
+                i as u16,
+                x.round() as i16,
+                y.round() as i16,
+            );
         }
     }
     unsafe {
         let (xl, xh) = match (x_min, x_max) {
             (Some(lo), Some(hi)) => (lo, hi),
-            _ if x_lo.is_finite() => (x_lo, if (x_hi - x_lo).abs() < 1.0 { x_lo + 1.0 } else { x_hi }),
+            _ if x_lo.is_finite() => (
+                x_lo,
+                if (x_hi - x_lo).abs() < 1.0 {
+                    x_lo + 1.0
+                } else {
+                    x_hi
+                },
+            ),
             _ => (0.0, 100.0),
         };
         let (yl, yh) = match (y_min, y_max) {
             (Some(lo), Some(hi)) => (lo, hi),
-            _ if y_lo.is_finite() => (y_lo, if (y_hi - y_lo).abs() < 1.0 { y_lo + 1.0 } else { y_hi }),
+            _ if y_lo.is_finite() => (
+                y_lo,
+                if (y_hi - y_lo).abs() < 1.0 {
+                    y_lo + 1.0
+                } else {
+                    y_hi
+                },
+            ),
             _ => (0.0, 100.0),
         };
-        lvgl_sys::lv_chart_set_range(ptr.as_ptr(), lvgl_sys::LV_CHART_AXIS_PRIMARY_X as lvgl_sys::lv_chart_axis_t, xl.round() as i16, xh.round() as i16);
-        lvgl_sys::lv_chart_set_range(ptr.as_ptr(), lvgl_sys::LV_CHART_AXIS_PRIMARY_Y as lvgl_sys::lv_chart_axis_t, yl.round() as i16, yh.round() as i16);
+        lvgl_sys::lv_chart_set_range(
+            ptr.as_ptr(),
+            lvgl_sys::LV_CHART_AXIS_PRIMARY_X as lvgl_sys::lv_chart_axis_t,
+            xl.round() as i16,
+            xh.round() as i16,
+        );
+        lvgl_sys::lv_chart_set_range(
+            ptr.as_ptr(),
+            lvgl_sys::LV_CHART_AXIS_PRIMARY_Y as lvgl_sys::lv_chart_axis_t,
+            yl.round() as i16,
+            yh.round() as i16,
+        );
         lvgl_sys::lv_chart_refresh(ptr.as_ptr());
     }
 }
@@ -6872,7 +8558,11 @@ fn update_alarm_bell(
             .cloned()
             .collect()
     };
-    alarms.sort_by(|a, b| b.activated_at_ms.unwrap_or(0).cmp(&a.activated_at_ms.unwrap_or(0)));
+    alarms.sort_by(|a, b| {
+        b.activated_at_ms
+            .unwrap_or(0)
+            .cmp(&a.activated_at_ms.unwrap_or(0))
+    });
     let count = alarms.len();
     unsafe {
         let hidden = lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t;
@@ -6894,7 +8584,10 @@ fn update_alarm_bell(
         unsafe {
             match alarms.get(i) {
                 Some(a) => {
-                    lvgl_sys::lv_label_set_text(row_ptr.as_ptr(), text_cstring(&a.def.message).as_ptr());
+                    lvgl_sys::lv_label_set_text(
+                        row_ptr.as_ptr(),
+                        text_cstring(&a.def.message).as_ptr(),
+                    );
                     lvgl_sys::lv_obj_clear_flag(row_ptr.as_ptr(), hidden);
                 }
                 None => lvgl_sys::lv_obj_add_flag(row_ptr.as_ptr(), hidden),
@@ -6926,7 +8619,11 @@ fn update_alarm_viewer(
             .cloned()
             .collect()
     };
-    alarms.sort_by(|a, b| b.activated_at_ms.unwrap_or(0).cmp(&a.activated_at_ms.unwrap_or(0)));
+    alarms.sort_by(|a, b| {
+        b.activated_at_ms
+            .unwrap_or(0)
+            .cmp(&a.activated_at_ms.unwrap_or(0))
+    });
     alarms.truncate(rows.len());
 
     let hidden = lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t;
@@ -6951,11 +8648,17 @@ fn update_alarm_viewer(
                 );
                 lvgl_sys::lv_obj_clear_flag(row.dot_ptr.as_ptr(), hidden);
 
-                lvgl_sys::lv_label_set_text(row.msg_ptr.as_ptr(), text_cstring(&a.def.message).as_ptr());
+                lvgl_sys::lv_label_set_text(
+                    row.msg_ptr.as_ptr(),
+                    text_cstring(&a.def.message).as_ptr(),
+                );
                 lvgl_sys::lv_obj_clear_flag(row.msg_ptr.as_ptr(), hidden);
 
                 if let Some(ts_ptr) = row.ts_ptr {
-                    let ts_text = a.activated_at_ms.map(|ts| format_alarm_age(ts, now_ms)).unwrap_or_default();
+                    let ts_text = a
+                        .activated_at_ms
+                        .map(|ts| format_alarm_age(ts, now_ms))
+                        .unwrap_or_default();
                     lvgl_sys::lv_label_set_text(ts_ptr.as_ptr(), text_cstring(&ts_text).as_ptr());
                     lvgl_sys::lv_obj_clear_flag(ts_ptr.as_ptr(), hidden);
                 }
@@ -7026,7 +8729,12 @@ fn update_trend(
         return;
     }
 
-    let point_count = series.iter().map(|sb| sb.last_samples.len()).max().unwrap_or(0).max(1);
+    let point_count = series
+        .iter()
+        .map(|sb| sb.last_samples.len())
+        .max()
+        .unwrap_or(0)
+        .max(1);
     unsafe {
         lvgl_sys::lv_chart_set_point_count(ptr.as_ptr(), point_count as u16);
     }
@@ -7044,7 +8752,13 @@ fn update_trend(
                     y_lo = y_lo.min(y_f);
                     y_hi = y_hi.max(y_f);
                     unsafe {
-                        lvgl_sys::lv_chart_set_value_by_id2(ptr.as_ptr(), sb.ser, i as u16, x, y_f.round() as i16);
+                        lvgl_sys::lv_chart_set_value_by_id2(
+                            ptr.as_ptr(),
+                            sb.ser,
+                            i as u16,
+                            x,
+                            y_f.round() as i16,
+                        );
                     }
                 }
                 None => unsafe {
@@ -7061,7 +8775,11 @@ fn update_trend(
     }
 
     if autofit && y_lo.is_finite() && y_hi.is_finite() {
-        let (lo, hi) = if (y_hi - y_lo) < 1.0 { (y_lo - 1.0, y_hi + 1.0) } else { (y_lo, y_hi) };
+        let (lo, hi) = if (y_hi - y_lo) < 1.0 {
+            (y_lo - 1.0, y_hi + 1.0)
+        } else {
+            (y_lo, y_hi)
+        };
         unsafe {
             lvgl_sys::lv_chart_set_range(
                 ptr.as_ptr(),
@@ -7114,7 +8832,13 @@ fn update_sparkline(
                 y_lo = y_lo.min(y_f);
                 y_hi = y_hi.max(y_f);
                 unsafe {
-                    lvgl_sys::lv_chart_set_value_by_id2(ptr.as_ptr(), ser, i as u16, x, y_f.round() as i16);
+                    lvgl_sys::lv_chart_set_value_by_id2(
+                        ptr.as_ptr(),
+                        ser,
+                        i as u16,
+                        x,
+                        y_f.round() as i16,
+                    );
                 }
             }
             None => unsafe {
@@ -7124,7 +8848,11 @@ fn update_sparkline(
         }
     }
     if y_lo.is_finite() && y_hi.is_finite() {
-        let (lo, hi) = if (y_hi - y_lo) < 1.0 { (y_lo - 1.0, y_hi + 1.0) } else { (y_lo, y_hi) };
+        let (lo, hi) = if (y_hi - y_lo) < 1.0 {
+            (y_lo - 1.0, y_hi + 1.0)
+        } else {
+            (y_lo, y_hi)
+        };
         unsafe {
             lvgl_sys::lv_chart_set_range(
                 ptr.as_ptr(),
@@ -7149,10 +8877,17 @@ fn update_bar_chart(bars: &mut [BarChartBarBinding], tags: &TagSnapshot) {
             .unwrap_or(b.min)
             .clamp(b.min.min(b.max), b.min.max(b.max));
         unsafe {
-            lvgl_sys::lv_bar_set_value(b.bar_ptr.as_ptr(), raw.round() as i32, lvgl::Animation::OFF.into());
+            lvgl_sys::lv_bar_set_value(
+                b.bar_ptr.as_ptr(),
+                raw.round() as i32,
+                lvgl::Animation::OFF.into(),
+            );
             if b.show_values {
                 if let Some(vp) = b.value_ptr {
-                    lvgl_sys::lv_label_set_text(vp.as_ptr(), text_cstring(&format!("{raw:.1}{}", b.unit)).as_ptr());
+                    lvgl_sys::lv_label_set_text(
+                        vp.as_ptr(),
+                        text_cstring(&format!("{raw:.1}{}", b.unit)).as_ptr(),
+                    );
                 }
             }
         }
@@ -7185,9 +8920,16 @@ fn update_alarm_banner(
             Some(a) => {
                 let rgb = severity_color(&a.def.severity);
                 dot_style.set_bg_color(Color::from_rgb(rgb));
-                lvgl_sys::lv_obj_refresh_style(dot_ptr.as_ptr(), Part::Main.into(), lvgl_sys::lv_style_prop_t_LV_STYLE_BG_COLOR);
+                lvgl_sys::lv_obj_refresh_style(
+                    dot_ptr.as_ptr(),
+                    Part::Main.into(),
+                    lvgl_sys::lv_style_prop_t_LV_STYLE_BG_COLOR,
+                );
                 lvgl_sys::lv_obj_clear_flag(dot_ptr.as_ptr(), hidden);
-                lvgl_sys::lv_label_set_text(msg_ptr.as_ptr(), text_cstring(&a.def.message).as_ptr());
+                lvgl_sys::lv_label_set_text(
+                    msg_ptr.as_ptr(),
+                    text_cstring(&a.def.message).as_ptr(),
+                );
                 lvgl_sys::lv_obj_clear_flag(msg_ptr.as_ptr(), hidden);
                 lvgl_sys::lv_obj_add_flag(empty_ptr.as_ptr(), hidden);
             }
@@ -7209,7 +8951,14 @@ mod binding_tests {
         pairs
             .iter()
             .map(|(k, v)| {
-                (k.to_string(), TagSnapshotValue { value: v.clone(), quality: TagQuality::Good, ts: 0 })
+                (
+                    k.to_string(),
+                    TagSnapshotValue {
+                        value: v.clone(),
+                        quality: TagQuality::Good,
+                        ts: 0,
+                    },
+                )
             })
             .collect()
     }
@@ -7219,21 +8968,30 @@ mod binding_tests {
     #[test]
     fn spec_stringa_prende_il_valore_del_tag() {
         let t = snapshot(&[("slideX", TagValue::Int(640))]);
-        assert_eq!(resolve_binding_value(&json!("slideX"), &t), Some(json!(640)));
+        assert_eq!(
+            resolve_binding_value(&json!("slideX"), &t),
+            Some(json!(640))
+        );
     }
 
     /// Tag assente = si tiene il valore statico. Un oggetto che resta dov'era
     /// è meno sbagliato di uno che salta a zero.
     #[test]
     fn tag_assente_non_produce_valore() {
-        assert_eq!(resolve_binding_value(&json!("nessuno"), &snapshot(&[])), None);
+        assert_eq!(
+            resolve_binding_value(&json!("nessuno"), &snapshot(&[])),
+            None
+        );
     }
 
     #[test]
     fn spec_con_scalatura_mappa_e_limita() {
         let t = snapshot(&[("lvl", TagValue::Float(50.0))]);
         let spec = json!({"tag":"lvl","in_min":0,"in_max":100,"out_min":0,"out_max":1000});
-        assert_eq!(resolve_binding_value(&spec, &t).and_then(|v| v.as_f64()), Some(500.0));
+        assert_eq!(
+            resolve_binding_value(&spec, &t).and_then(|v| v.as_f64()),
+            Some(500.0)
+        );
     }
 
     /// Il clamp è attivo salvo `clamp: false`, come sul web: un tag fuori
@@ -7242,9 +9000,16 @@ mod binding_tests {
     fn il_clamp_e_attivo_per_default_e_disattivabile() {
         let t = snapshot(&[("lvl", TagValue::Float(150.0))]);
         let base = json!({"tag":"lvl","in_min":0,"in_max":100,"out_min":0,"out_max":1000});
-        assert_eq!(resolve_binding_value(&base, &t).and_then(|v| v.as_f64()), Some(1000.0));
-        let libero = json!({"tag":"lvl","in_min":0,"in_max":100,"out_min":0,"out_max":1000,"clamp":false});
-        assert_eq!(resolve_binding_value(&libero, &t).and_then(|v| v.as_f64()), Some(1500.0));
+        assert_eq!(
+            resolve_binding_value(&base, &t).and_then(|v| v.as_f64()),
+            Some(1000.0)
+        );
+        let libero =
+            json!({"tag":"lvl","in_min":0,"in_max":100,"out_min":0,"out_max":1000,"clamp":false});
+        assert_eq!(
+            resolve_binding_value(&libero, &t).and_then(|v| v.as_f64()),
+            Some(1500.0)
+        );
     }
 
     /// Intervallo di ingresso degenere: nessuna divisione per zero, si
@@ -7265,7 +9030,10 @@ mod binding_tests {
     #[test]
     fn apply_bindings_sposta_la_geometria() {
         let t = snapshot(&[("slideX", TagValue::Int(640))]);
-        let mut obj = SynopticObject { x: Some(0.0), ..Default::default() };
+        let mut obj = SynopticObject {
+            x: Some(0.0),
+            ..Default::default()
+        };
         obj.bindings = Some([("x".to_string(), json!("slideX"))].into_iter().collect());
         let out = apply_bindings(&obj, &t).expect("dovrebbe produrre una copia");
         assert_eq!(out.x, Some(640.0));
@@ -7275,7 +9043,10 @@ mod binding_tests {
     /// usare l'oggetto originale senza allocare per niente.
     #[test]
     fn senza_binding_risolvibili_non_copia() {
-        let obj = SynopticObject { x: Some(10.0), ..Default::default() };
+        let obj = SynopticObject {
+            x: Some(10.0),
+            ..Default::default()
+        };
         assert!(apply_bindings(&obj, &snapshot(&[])).is_none());
     }
 
@@ -7285,9 +9056,9 @@ mod binding_tests {
         let t = snapshot(&[("z", TagValue::Int(0)), ("uno", TagValue::Int(1))]);
         for (tag, atteso) in [("z", false), ("uno", true)] {
             let obj = SynopticObject {
-                    bindings: Some([("visible".to_string(), json!(tag))].into_iter().collect()),
-                    ..Default::default()
-                };
+                bindings: Some([("visible".to_string(), json!(tag))].into_iter().collect()),
+                ..Default::default()
+            };
             assert_eq!(apply_bindings(&obj, &t).unwrap().visible, Some(atteso));
         }
     }
@@ -7324,7 +9095,10 @@ mod binding_tests {
         assert_eq!(o.trend_show_thresholds, Some(true));
         assert_eq!(o.pie_show_legend, Some(true));
         assert_eq!(o.corner_radius, Some(8.0));
-        assert!(o.gauge_zones.is_some(), "le zone del gauge non devono sparire");
+        assert!(
+            o.gauge_zones.is_some(),
+            "le zone del gauge non devono sparire"
+        );
         assert!(o.table_columns.is_some());
         assert!(o.motion_path.is_some());
     }
@@ -7409,22 +9183,35 @@ mod binding_tests {
     // proprio perché sia verificabile senza un display.
 
     fn fermo() -> ResolvedGeom {
-        ResolvedGeom { dx: 0, dy: 0, w: 100, h: 50, visible: true }
+        ResolvedGeom {
+            dx: 0,
+            dy: 0,
+            w: 100,
+            h: 50,
+            visible: true,
+        }
     }
 
     #[test]
     fn geometry_bindings_prende_solo_la_geometria() {
         let obj = SynopticObject {
-            bindings: Some([
-                ("x".to_string(), json!("a")),
-                ("visible".to_string(), json!("b")),
-                ("fill".to_string(), json!("c")), // non è geometria
-            ].into_iter().collect()),
+            bindings: Some(
+                [
+                    ("x".to_string(), json!("a")),
+                    ("visible".to_string(), json!("b")),
+                    ("fill".to_string(), json!("c")), // non è geometria
+                ]
+                .into_iter()
+                .collect(),
+            ),
             ..Default::default()
         };
         let g = geometry_bindings(&obj).expect("x e visible sono geometria");
         assert!(g.get("x").is_some() && g.get("visible").is_some());
-        assert!(g.get("fill").is_none(), "le proprietà non geometriche non vanno catturate");
+        assert!(
+            g.get("fill").is_none(),
+            "le proprietà non geometriche non vanno catturate"
+        );
     }
 
     #[test]
@@ -7457,9 +9244,25 @@ mod binding_tests {
     #[test]
     fn tag_assente_tiene_la_posizione_invece_di_saltare_a_zero() {
         let t = snapshot(&[]);
-        let prev = ResolvedGeom { dx: 42, dy: 7, w: 100, h: 50, visible: true };
-        let g = resolve_geometry(&json!({ "x": "manca", "y": "manca" }), &t, Some(0.0), Some(0.0), &prev);
-        assert_eq!((g.dx, g.dy), (42, 7), "un tag che sparisce non deve far saltare l'oggetto all'origine");
+        let prev = ResolvedGeom {
+            dx: 42,
+            dy: 7,
+            w: 100,
+            h: 50,
+            visible: true,
+        };
+        let g = resolve_geometry(
+            &json!({ "x": "manca", "y": "manca" }),
+            &t,
+            Some(0.0),
+            Some(0.0),
+            &prev,
+        );
+        assert_eq!(
+            (g.dx, g.dy),
+            (42, 7),
+            "un tag che sparisce non deve far saltare l'oggetto all'origine"
+        );
     }
 
     #[test]
@@ -7474,7 +9277,13 @@ mod binding_tests {
     #[test]
     fn larghezza_e_altezza_sono_assolute_non_relative() {
         let t = snapshot(&[("w", TagValue::Int(250)), ("h", TagValue::Int(80))]);
-        let g = resolve_geometry(&json!({ "width": "w", "height": "h" }), &t, None, None, &fermo());
+        let g = resolve_geometry(
+            &json!({ "width": "w", "height": "h" }),
+            &t,
+            None,
+            None,
+            &fermo(),
+        );
         assert_eq!((g.w, g.h), (250, 80));
     }
 
@@ -7482,7 +9291,10 @@ mod binding_tests {
     fn dimensioni_negative_non_arrivano_a_lvgl() {
         let t = snapshot(&[("w", TagValue::Int(-40))]);
         let g = resolve_geometry(&json!({ "width": "w" }), &t, None, None, &fermo());
-        assert_eq!(g.w, 0, "una larghezza negativa va tagliata a 0, non passata a lv_obj_set_width");
+        assert_eq!(
+            g.w, 0,
+            "una larghezza negativa va tagliata a 0, non passata a lv_obj_set_width"
+        );
     }
 
     #[test]
@@ -7519,7 +9331,10 @@ mod binding_tests {
     #[test]
     fn il_formato_nuovo_viene_letto() {
         let obj = SynopticObject {
-            trend_tags: Some(vec![traccia("t1", None, Some("#ff0000")), traccia("t2", None, None)]),
+            trend_tags: Some(vec![
+                traccia("t1", None, Some("#ff0000")),
+                traccia("t2", None, None),
+            ]),
             ..Default::default()
         };
         let r = resolve_trend_traces(&obj);
@@ -7539,8 +9354,10 @@ mod binding_tests {
             ..Default::default()
         };
         let r = resolve_trend_traces(&obj);
-        assert_eq!(r.iter().map(|t| t.tag.as_str()).collect::<Vec<_>>(),
-                   vec!["principale", "secondo", "terzo"]);
+        assert_eq!(
+            r.iter().map(|t| t.tag.as_str()).collect::<Vec<_>>(),
+            vec!["principale", "secondo", "terzo"]
+        );
     }
 
     #[test]
@@ -7572,7 +9389,10 @@ mod binding_tests {
     #[test]
     fn i_tag_vuoti_vengono_scartati_in_entrambi_i_formati() {
         let nuovo = SynopticObject {
-            trend_tags: Some(vec![traccia("  ", None, None), traccia("buono", None, None)]),
+            trend_tags: Some(vec![
+                traccia("  ", None, None),
+                traccia("buono", None, None),
+            ]),
             ..Default::default()
         };
         assert_eq!(resolve_trend_traces(&nuovo).len(), 1);
@@ -7598,23 +9418,37 @@ mod binding_tests {
         let b = json!({ "x": "slideX" });
         let prev = resolve_geometry(&b, &t, Some(100.0), None, &fermo());
         let next = resolve_geometry(&b, &t, Some(100.0), None, &prev);
-        assert_eq!(prev, next, "a tag fermo il risultato deve essere identico, così update_bindings salta");
+        assert_eq!(
+            prev, next,
+            "a tag fermo il risultato deve essere identico, così update_bindings salta"
+        );
     }
 
     /// Il riempimento progressivo delle pipe. La L della demo: due tratti
     /// orizzontali da 140 e uno verticale da 70, totale 350.
     fn elle() -> Vec<(f64, f64)> {
-        vec![(650.0, 242.0), (790.0, 242.0), (790.0, 312.0), (930.0, 312.0)]
+        vec![
+            (650.0, 242.0),
+            (790.0, 242.0),
+            (790.0, 312.0),
+            (930.0, 312.0),
+        ]
     }
 
     fn lunghezza(p: &[(f64, f64)]) -> f64 {
-        p.windows(2).map(|w| ((w[1].0 - w[0].0).powi(2) + (w[1].1 - w[0].1).powi(2)).sqrt()).sum()
+        p.windows(2)
+            .map(|w| ((w[1].0 - w[0].0).powi(2) + (w[1].1 - w[0].1).powi(2)).sqrt())
+            .sum()
     }
 
     #[test]
     fn a_meta_riempie_meta_della_lunghezza() {
         let p = partial_polyline(&elle(), 0.5, true);
-        assert!((lunghezza(&p) - 175.0).abs() < 0.001, "atteso 175, ottenuto {}", lunghezza(&p));
+        assert!(
+            (lunghezza(&p) - 175.0).abs() < 0.001,
+            "atteso 175, ottenuto {}",
+            lunghezza(&p)
+        );
         assert_eq!(p[0], (650.0, 242.0), "deve partire dall'inizio");
         // 175 = 140 del primo tratto + 35 sul verticale
         assert_eq!(*p.last().unwrap(), (790.0, 277.0));
@@ -7622,10 +9456,23 @@ mod binding_tests {
 
     #[test]
     fn pieno_e_vuoto_sono_i_casi_limite() {
-        assert_eq!(partial_polyline(&elle(), 1.0, true), elle(), "pieno = tutta la polilinea");
-        assert!(partial_polyline(&elle(), 1.5, true) == elle(), "oltre il pieno resta pieno");
-        assert!(partial_polyline(&elle(), 0.0, true).is_empty(), "vuoto = niente da disegnare");
-        assert!(partial_polyline(&elle(), -0.3, true).is_empty(), "negativo = vuoto, non un errore");
+        assert_eq!(
+            partial_polyline(&elle(), 1.0, true),
+            elle(),
+            "pieno = tutta la polilinea"
+        );
+        assert!(
+            partial_polyline(&elle(), 1.5, true) == elle(),
+            "oltre il pieno resta pieno"
+        );
+        assert!(
+            partial_polyline(&elle(), 0.0, true).is_empty(),
+            "vuoto = niente da disegnare"
+        );
+        assert!(
+            partial_polyline(&elle(), -0.3, true).is_empty(),
+            "negativo = vuoto, non un errore"
+        );
     }
 
     #[test]
@@ -7633,7 +9480,11 @@ mod binding_tests {
         let p = partial_polyline(&elle(), 0.5, false);
         assert!((lunghezza(&p) - 175.0).abs() < 0.001);
         assert_eq!(p[0], (930.0, 312.0), "deve partire dalla fine");
-        assert_eq!(*p.last().unwrap(), (790.0, 277.0), "e arrivare allo stesso punto di mezzo");
+        assert_eq!(
+            *p.last().unwrap(),
+            (790.0, 277.0),
+            "e arrivare allo stesso punto di mezzo"
+        );
     }
 
     /// Una frazione piccolissima non deve produrre una polilinea di un punto
@@ -7648,7 +9499,10 @@ mod binding_tests {
     #[test]
     fn casi_degeneri_non_esplodono() {
         assert!(partial_polyline(&[], 0.5, true).is_empty());
-        assert!(partial_polyline(&[(1.0, 1.0)], 0.5, true).is_empty(), "un punto solo non è una linea");
+        assert!(
+            partial_polyline(&[(1.0, 1.0)], 0.5, true).is_empty(),
+            "un punto solo non è una linea"
+        );
         assert!(
             partial_polyline(&[(5.0, 5.0), (5.0, 5.0)], 0.5, true).is_empty(),
             "waypoint coincidenti: lunghezza zero, niente da riempire"
@@ -7667,12 +9521,19 @@ mod binding_tests {
     }
 
     fn ordine(objs: &[SynopticObject]) -> Vec<String> {
-        sort_by_z(objs).iter().map(|o| o.id.clone().unwrap()).collect()
+        sort_by_z(objs)
+            .iter()
+            .map(|o| o.id.clone().unwrap())
+            .collect()
     }
 
     #[test]
     fn lo_z_index_decide_chi_sta_sopra() {
-        let objs = vec![ogg("sopra", Some(10)), ogg("sotto", Some(-5)), ogg("mezzo", Some(0))];
+        let objs = vec![
+            ogg("sopra", Some(10)),
+            ogg("sotto", Some(-5)),
+            ogg("mezzo", Some(0)),
+        ];
         // Ultimo creato = disegnato sopra, come SVG con l'ordine del documento.
         assert_eq!(ordine(&objs), vec!["sotto", "mezzo", "sopra"]);
     }
@@ -7681,7 +9542,7 @@ mod binding_tests {
     /// `sortByZ` in `SvgCanvas.tsx`, e senza stabilità due oggetti sovrapposti
     /// si scambierebbero di posto fra una pagina e l'altra senza motivo.
     #[test]
-    fn a_parita_di_z_lordine_della_lista_resta()  {
+    fn a_parita_di_z_lordine_della_lista_resta() {
         let objs = vec![ogg("a", Some(1)), ogg("b", Some(1)), ogg("c", Some(1))];
         assert_eq!(ordine(&objs), vec!["a", "b", "c"]);
     }
@@ -7691,7 +9552,11 @@ mod binding_tests {
     /// farsi scavalcare da tutti quelli che non lo dichiarano.
     #[test]
     fn chi_non_dichiara_z_sta_nella_fascia_dello_zero() {
-        let objs = vec![ogg("negativo", Some(-1)), ogg("muto", None), ogg("positivo", Some(1))];
+        let objs = vec![
+            ogg("negativo", Some(-1)),
+            ogg("muto", None),
+            ogg("positivo", Some(1)),
+        ];
         assert_eq!(ordine(&objs), vec!["negativo", "muto", "positivo"]);
     }
 
@@ -7699,7 +9564,11 @@ mod binding_tests {
     fn lopacita_del_web_diventa_quella_di_lvgl() {
         assert_eq!(opa_from_opacity(Some(0.0)), Some(0), "trasparente");
         assert_eq!(opa_from_opacity(Some(0.5)), Some(128), "mezzo velo");
-        assert_eq!(opa_from_opacity(Some(1.0)), None, "opaco: nessun layer da pagare");
+        assert_eq!(
+            opa_from_opacity(Some(1.0)),
+            None,
+            "opaco: nessun layer da pagare"
+        );
         assert_eq!(opa_from_opacity(None), None, "non dichiarata: opaco");
     }
 
@@ -7708,8 +9577,16 @@ mod binding_tests {
     /// rifiutare l'oggetto.
     #[test]
     fn unopacita_fuori_scala_non_rompe_la_pagina() {
-        assert_eq!(opa_from_opacity(Some(1.5)), None, "oltre l'opaco resta opaco");
-        assert_eq!(opa_from_opacity(Some(-0.2)), Some(0), "sotto zero resta trasparente");
+        assert_eq!(
+            opa_from_opacity(Some(1.5)),
+            None,
+            "oltre l'opaco resta opaco"
+        );
+        assert_eq!(
+            opa_from_opacity(Some(-0.2)),
+            Some(0),
+            "sotto zero resta trasparente"
+        );
         assert_eq!(opa_from_opacity(Some(f64::NAN)), None);
         assert_eq!(opa_from_opacity(Some(f64::INFINITY)), None);
     }
@@ -7720,13 +9597,21 @@ mod binding_tests {
         SynopticObject {
             id: Some(id.into()),
             obj_type: Some(tipo.into()),
-            x: Some(x), y: Some(y), width: Some(w), height: Some(h),
+            x: Some(x),
+            y: Some(y),
+            width: Some(w),
+            height: Some(h),
             ..Default::default()
         }
     }
 
-    fn tubo(from: Option<&str>, fp: Option<&str>, to: Option<&str>, tp: Option<&str>,
-            punti: Option<Vec<(f64, f64)>>) -> SynopticObject {
+    fn tubo(
+        from: Option<&str>,
+        fp: Option<&str>,
+        to: Option<&str>,
+        tp: Option<&str>,
+        punti: Option<Vec<(f64, f64)>>,
+    ) -> SynopticObject {
         SynopticObject {
             id: Some("t".into()),
             obj_type: Some("pipe".into()),
@@ -7742,13 +9627,41 @@ mod binding_tests {
     #[test]
     fn le_porte_cadono_sui_lati_del_riquadro() {
         let o = scatola("a", "rect", 100.0, 200.0, 60.0, 40.0);
-        assert_eq!((ancora_di(&o, Some("top")).x, ancora_di(&o, Some("top")).y), (130.0, 200.0));
-        assert_eq!((ancora_di(&o, Some("bottom")).x, ancora_di(&o, Some("bottom")).y), (130.0, 240.0));
-        assert_eq!((ancora_di(&o, Some("left")).x, ancora_di(&o, Some("left")).y), (100.0, 220.0));
-        assert_eq!((ancora_di(&o, Some("right")).x, ancora_di(&o, Some("right")).y), (160.0, 220.0));
-        assert_eq!((ancora_di(&o, None).x, ancora_di(&o, None).y), (130.0, 220.0), "senza porta: centro");
-        assert_eq!((ancora_di(&o, Some("nord-ovest")).x, ancora_di(&o, Some("nord-ovest")).y), (130.0, 220.0),
-                   "porta sconosciuta: centro, come sul web");
+        assert_eq!(
+            (ancora_di(&o, Some("top")).x, ancora_di(&o, Some("top")).y),
+            (130.0, 200.0)
+        );
+        assert_eq!(
+            (
+                ancora_di(&o, Some("bottom")).x,
+                ancora_di(&o, Some("bottom")).y
+            ),
+            (130.0, 240.0)
+        );
+        assert_eq!(
+            (ancora_di(&o, Some("left")).x, ancora_di(&o, Some("left")).y),
+            (100.0, 220.0)
+        );
+        assert_eq!(
+            (
+                ancora_di(&o, Some("right")).x,
+                ancora_di(&o, Some("right")).y
+            ),
+            (160.0, 220.0)
+        );
+        assert_eq!(
+            (ancora_di(&o, None).x, ancora_di(&o, None).y),
+            (130.0, 220.0),
+            "senza porta: centro"
+        );
+        assert_eq!(
+            (
+                ancora_di(&o, Some("nord-ovest")).x,
+                ancora_di(&o, Some("nord-ovest")).y
+            ),
+            (130.0, 220.0),
+            "porta sconosciuta: centro, come sul web"
+        );
     }
 
     /// Una `line` non ha riquadro, ha punti: larghezza e altezza valgono zero e
@@ -7758,8 +9671,11 @@ mod binding_tests {
     #[test]
     fn una_linea_non_ha_riquadro_su_cui_agganciarsi() {
         let l = SynopticObject {
-            id: Some("l".into()), obj_type: Some("line".into()),
-            x: Some(10.0), y: Some(20.0), ..Default::default()
+            id: Some("l".into()),
+            obj_type: Some("line".into()),
+            x: Some(10.0),
+            y: Some(20.0),
+            ..Default::default()
         };
         for porta in ["top", "bottom", "left", "right", "center"] {
             let a = ancora_di(&l, Some(porta));
@@ -7773,11 +9689,20 @@ mod binding_tests {
             scatola("pompa", "rect", 0.0, 0.0, 100.0, 100.0),
             scatola("serbatoio", "rect", 400.0, 200.0, 200.0, 100.0),
         ];
-        let t = tubo(Some("pompa"), Some("right"), Some("serbatoio"), Some("left"),
-                     Some(vec![(0.0, 0.0), (200.0, 50.0), (0.0, 0.0)]));
+        let t = tubo(
+            Some("pompa"),
+            Some("right"),
+            Some("serbatoio"),
+            Some("left"),
+            Some(vec![(0.0, 0.0), (200.0, 50.0), (0.0, 0.0)]),
+        );
         let p = punti_ancorati(&t, &oggetti).expect("agganciata");
         assert_eq!((p[0].x, p[0].y), (100.0, 50.0), "capo su pompa/right");
-        assert_eq!((p[1].x, p[1].y), (200.0, 50.0), "il waypoint di mezzo non si tocca");
+        assert_eq!(
+            (p[1].x, p[1].y),
+            (200.0, 50.0),
+            "il waypoint di mezzo non si tocca"
+        );
         assert_eq!((p[2].x, p[2].y), (400.0, 250.0), "capo su serbatoio/left");
     }
 
@@ -7802,18 +9727,29 @@ mod binding_tests {
     #[test]
     fn un_riferimento_rotto_non_fa_sparire_la_pipe() {
         let oggetti = vec![scatola("a", "rect", 0.0, 0.0, 50.0, 50.0)];
-        let t = tubo(Some("fantasma"), None, Some("a"), Some("top"),
-                     Some(vec![(7.0, 7.0), (9.0, 9.0)]));
+        let t = tubo(
+            Some("fantasma"),
+            None,
+            Some("a"),
+            Some("top"),
+            Some(vec![(7.0, 7.0), (9.0, 9.0)]),
+        );
         let p = punti_ancorati(&t, &oggetti).expect("resta disegnabile");
         assert_eq!((p[0].x, p[0].y), (7.0, 7.0), "il capo rotto resta dov'era");
-        assert_eq!((p[1].x, p[1].y), (25.0, 0.0), "l'altro si aggancia lo stesso");
+        assert_eq!(
+            (p[1].x, p[1].y),
+            (25.0, 0.0),
+            "l'altro si aggancia lo stesso"
+        );
     }
 
     #[test]
     fn una_pipe_senza_ancoraggi_non_viene_clonata() {
         let t = tubo(None, None, None, None, Some(vec![(1.0, 2.0), (3.0, 4.0)]));
-        assert!(punti_ancorati(&t, &[]).is_none(),
-                "niente da agganciare: nessun lavoro e nessuna copia");
+        assert!(
+            punti_ancorati(&t, &[]).is_none(),
+            "niente da agganciare: nessun lavoro e nessuna copia"
+        );
     }
 
     /// Un capo solo agganciato e nessun punto esplicito: non c'è un segmento
@@ -7824,16 +9760,24 @@ mod binding_tests {
         assert!(punti_ancorati(&tubo(Some("a"), None, None, None, None), &oggetti).is_none());
     }
 
-
     #[test]
     fn lorigine_di_una_polilinea_e_langolo_in_alto_a_sinistra() {
         // Scende e va a destra: il primo punto È l'angolo, ed è il caso che
         // nascondeva il difetto.
-        assert_eq!(origine_polilinea(&[(10.0, 10.0), (50.0, 80.0)]), (10.0, 10.0));
+        assert_eq!(
+            origine_polilinea(&[(10.0, 10.0), (50.0, 80.0)]),
+            (10.0, 10.0)
+        );
         // Sale: l'angolo non è il primo punto.
-        assert_eq!(origine_polilinea(&[(280.0, 297.0), (340.0, 230.0)]), (280.0, 230.0));
+        assert_eq!(
+            origine_polilinea(&[(280.0, 297.0), (340.0, 230.0)]),
+            (280.0, 230.0)
+        );
         // Va indietro e in su.
-        assert_eq!(origine_polilinea(&[(500.0, 500.0), (100.0, 200.0), (300.0, 50.0)]), (100.0, 50.0));
+        assert_eq!(
+            origine_polilinea(&[(500.0, 500.0), (100.0, 200.0), (300.0, 50.0)]),
+            (100.0, 50.0)
+        );
     }
 
     /// Con l'origine sbagliata i punti relativi diventano negativi, e `lv_line`
@@ -7847,11 +9791,13 @@ mod binding_tests {
         ] {
             let (ox, oy) = origine_polilinea(&polilinea);
             for (x, y) in &polilinea {
-                assert!(x - ox >= 0.0 && y - oy >= 0.0, "{polilinea:?} → origine ({ox},{oy})");
+                assert!(
+                    x - ox >= 0.0 && y - oy >= 0.0,
+                    "{polilinea:?} → origine ({ox},{oy})"
+                );
             }
         }
     }
-
 
     // ── testo a capo, allineamento verticale, interlinea (passo 7) ────────
 
@@ -7859,18 +9805,22 @@ mod binding_tests {
     fn le_nove_combinazioni_di_allineamento_corrispondono_al_web() {
         use lvgl_sys::*;
         let casi = [
-            (None,           None,           LV_ALIGN_TOP_LEFT),
-            (None,           Some("middle"), LV_ALIGN_TOP_MID),
-            (None,           Some("end"),    LV_ALIGN_TOP_RIGHT),
-            (Some("middle"), None,           LV_ALIGN_LEFT_MID),
+            (None, None, LV_ALIGN_TOP_LEFT),
+            (None, Some("middle"), LV_ALIGN_TOP_MID),
+            (None, Some("end"), LV_ALIGN_TOP_RIGHT),
+            (Some("middle"), None, LV_ALIGN_LEFT_MID),
             (Some("middle"), Some("middle"), LV_ALIGN_CENTER),
-            (Some("middle"), Some("end"),    LV_ALIGN_RIGHT_MID),
-            (Some("bottom"), None,           LV_ALIGN_BOTTOM_LEFT),
+            (Some("middle"), Some("end"), LV_ALIGN_RIGHT_MID),
+            (Some("bottom"), None, LV_ALIGN_BOTTOM_LEFT),
             (Some("bottom"), Some("middle"), LV_ALIGN_BOTTOM_MID),
-            (Some("bottom"), Some("end"),    LV_ALIGN_BOTTOM_RIGHT),
+            (Some("bottom"), Some("end"), LV_ALIGN_BOTTOM_RIGHT),
         ];
         for (v, a, atteso) in casi {
-            assert_eq!(allineamento_riquadro(v, a), atteso, "valign={v:?} anchor={a:?}");
+            assert_eq!(
+                allineamento_riquadro(v, a),
+                atteso,
+                "valign={v:?} anchor={a:?}"
+            );
         }
     }
 
@@ -7878,7 +9828,10 @@ mod binding_tests {
     /// invisibile: si ricade su alto/sinistra, il default del web.
     #[test]
     fn un_allineamento_sconosciuto_ricade_in_alto_a_sinistra() {
-        assert_eq!(allineamento_riquadro(Some("centro"), Some("destra")), lvgl_sys::LV_ALIGN_TOP_LEFT);
+        assert_eq!(
+            allineamento_riquadro(Some("centro"), Some("destra")),
+            lvgl_sys::LV_ALIGN_TOP_LEFT
+        );
     }
 
     #[test]
@@ -7887,7 +9840,11 @@ mod binding_tests {
         assert_eq!(spazio_fra_righe(Some(1.25), 14.0), 4);
         assert_eq!(spazio_fra_righe(None, 14.0), 4, "il default del web è 1.25");
         assert_eq!(spazio_fra_righe(Some(2.0), 20.0), 20);
-        assert_eq!(spazio_fra_righe(Some(1.0), 14.0), 0, "righe attaccate: nessuno spazio in più");
+        assert_eq!(
+            spazio_fra_righe(Some(1.0), 14.0),
+            0,
+            "righe attaccate: nessuno spazio in più"
+        );
     }
 
     /// In CSS un `line-height` sotto 1 stringe le righe; LVGL non accetta
@@ -7903,12 +9860,20 @@ mod binding_tests {
 
     #[test]
     fn lallineamento_delle_righe_segue_lancoraggio() {
-        assert_eq!(allineamento_righe(Some("middle")), lvgl_sys::LV_TEXT_ALIGN_CENTER as u8);
-        assert_eq!(allineamento_righe(Some("end")), lvgl_sys::LV_TEXT_ALIGN_RIGHT as u8);
+        assert_eq!(
+            allineamento_righe(Some("middle")),
+            lvgl_sys::LV_TEXT_ALIGN_CENTER as u8
+        );
+        assert_eq!(
+            allineamento_righe(Some("end")),
+            lvgl_sys::LV_TEXT_ALIGN_RIGHT as u8
+        );
         assert_eq!(allineamento_righe(None), lvgl_sys::LV_TEXT_ALIGN_LEFT as u8);
-        assert_eq!(allineamento_righe(Some("boh")), lvgl_sys::LV_TEXT_ALIGN_LEFT as u8);
+        assert_eq!(
+            allineamento_righe(Some("boh")),
+            lvgl_sys::LV_TEXT_ALIGN_LEFT as u8
+        );
     }
-
 
     // ── simboli animati e movimento su percorso (passo 8) ─────────────────
 
@@ -7927,23 +9892,37 @@ mod binding_tests {
         let p = [(10.0, 20.0), (50.0, 20.0), (50.0, 60.0)];
         assert_eq!(punto_a_frazione(&p, 0.0).unwrap(), (10.0, 20.0));
         let fine = punto_a_frazione(&p, 1.0).unwrap();
-        assert!((fine.0 - 50.0).abs() < 0.001 && (fine.1 - 60.0).abs() < 0.001, "{fine:?}");
+        assert!(
+            (fine.0 - 50.0).abs() < 0.001 && (fine.1 - 60.0).abs() < 0.001,
+            "{fine:?}"
+        );
     }
 
     /// Un percorso con tutti i punti coincidenti non ha un "dove": restituire
     /// il primo punto è più onesto che dividere per zero.
     #[test]
     fn un_percorso_degenere_non_divide_per_zero() {
-        assert_eq!(punto_a_frazione(&[(5.0, 5.0), (5.0, 5.0)], 0.7).unwrap(), (5.0, 5.0));
+        assert_eq!(
+            punto_a_frazione(&[(5.0, 5.0), (5.0, 5.0)], 0.7).unwrap(),
+            (5.0, 5.0)
+        );
         assert_eq!(punto_a_frazione(&[(1.0, 2.0)], 0.5).unwrap(), (1.0, 2.0));
         assert_eq!(punto_a_frazione(&[], 0.5), None);
     }
 
     #[test]
     fn la_frazione_di_movimento_segue_la_scala_dichiarata() {
-        assert_eq!(frazione_movimento(50.0, None, None), Some(0.5), "default 0..100");
+        assert_eq!(
+            frazione_movimento(50.0, None, None),
+            Some(0.5),
+            "default 0..100"
+        );
         assert_eq!(frazione_movimento(15.0, Some(10.0), Some(20.0)), Some(0.5));
-        assert_eq!(frazione_movimento(999.0, Some(0.0), Some(10.0)), Some(1.0), "fuori scala: agli estremi");
+        assert_eq!(
+            frazione_movimento(999.0, Some(0.0), Some(10.0)),
+            Some(1.0),
+            "fuori scala: agli estremi"
+        );
         assert_eq!(frazione_movimento(-5.0, Some(0.0), Some(10.0)), Some(0.0));
         assert_eq!(frazione_movimento(f64::NAN, None, None), None);
     }
@@ -7962,21 +9941,39 @@ mod binding_tests {
         assert_eq!(punti_movimento(&coppie), vec![(10.0, 20.0), (30.0, 40.0)]);
         assert_eq!(punti_movimento(&oggetti), vec![(10.0, 20.0), (30.0, 40.0)]);
         assert!(punti_movimento(&serde_json::json!("non un percorso")).is_empty());
-        assert_eq!(punti_movimento(&serde_json::json!([[1, 2], "spazzatura", [3, 4]])),
-                   vec![(1.0, 2.0), (3.0, 4.0)], "una voce illeggibile non butta via le altre");
+        assert_eq!(
+            punti_movimento(&serde_json::json!([[1, 2], "spazzatura", [3, 4]])),
+            vec![(1.0, 2.0), (3.0, 4.0)],
+            "una voce illeggibile non butta via le altre"
+        );
     }
 
     #[test]
     fn i_tre_modi_di_far_girare_un_simbolo() {
         let mut t = TagSnapshot::new();
-        t.insert("v".into(), TagSnapshotValue {
-            value: TagValue::Bool(true), quality: TagQuality::Good, ts: 1,
-        });
+        t.insert(
+            "v".into(),
+            TagSnapshotValue {
+                value: TagValue::Bool(true),
+                quality: TagQuality::Good,
+                ts: 1,
+            },
+        );
         assert!(deve_girare(Some("always"), &None, SymbolState::Off, &t));
         assert!(deve_girare(Some("on_state"), &None, SymbolState::On, &t));
         assert!(!deve_girare(Some("on_state"), &None, SymbolState::Off, &t));
-        assert!(deve_girare(Some("tag"), &Some("v".into()), SymbolState::Off, &t));
-        assert!(!deve_girare(Some("tag"), &Some("assente".into()), SymbolState::Off, &t));
+        assert!(deve_girare(
+            Some("tag"),
+            &Some("v".into()),
+            SymbolState::Off,
+            &t
+        ));
+        assert!(!deve_girare(
+            Some("tag"),
+            &Some("assente".into()),
+            SymbolState::Off,
+            &t
+        ));
         assert!(!deve_girare(None, &None, SymbolState::On, &t));
     }
 
@@ -7984,16 +9981,34 @@ mod binding_tests {
     /// deve diventare un'animazione perpetua.
     #[test]
     fn spin_tag_senza_tag_non_gira() {
-        assert!(!deve_girare(Some("tag"), &None, SymbolState::On, &TagSnapshot::new()));
-        assert!(!deve_girare(Some("tag"), &Some(String::new()), SymbolState::On, &TagSnapshot::new()));
+        assert!(!deve_girare(
+            Some("tag"),
+            &None,
+            SymbolState::On,
+            &TagSnapshot::new()
+        ));
+        assert!(!deve_girare(
+            Some("tag"),
+            &Some(String::new()),
+            SymbolState::On,
+            &TagSnapshot::new()
+        ));
     }
 
     #[test]
     fn langolo_compie_un_giro_nel_periodo_dichiarato() {
         assert_eq!(angolo_rotazione(0, 2.0), 0);
-        assert_eq!(angolo_rotazione(500, 2.0), 900, "un quarto di giro = 90° = 900 decimi");
+        assert_eq!(
+            angolo_rotazione(500, 2.0),
+            900,
+            "un quarto di giro = 90° = 900 decimi"
+        );
         assert_eq!(angolo_rotazione(1000, 2.0), 1800);
-        assert_eq!(angolo_rotazione(2000, 2.0), 0, "giro completo: si ricomincia");
+        assert_eq!(
+            angolo_rotazione(2000, 2.0),
+            0,
+            "giro completo: si ricomincia"
+        );
     }
 
     /// Due simboli allo stesso ritmo restano in fase perché guardano lo stesso
@@ -8014,36 +10029,71 @@ mod binding_tests {
     #[test]
     fn lallarme_vince_sugli_stati_multipli() {
         let stati = vec![TextListEntry {
-            value: serde_json::json!("Auto"), label: "A".into(),
-            color: Some("#00ff00".into()), value_min: None, value_max: None,
+            value: serde_json::json!("Auto"),
+            label: "A".into(),
+            color: Some("#00ff00".into()),
+            value_min: None,
+            value_max: None,
         }];
         let mut t = TagSnapshot::new();
-        t.insert("s".into(), TagSnapshotValue {
-            value: TagValue::Str("Auto".into()), quality: TagQuality::Good, ts: 1,
-        });
+        t.insert(
+            "s".into(),
+            TagSnapshotValue {
+                value: TagValue::Str("Auto".into()),
+                quality: TagQuality::Good,
+                ts: 1,
+            },
+        );
         let st = Some("s".to_string());
         assert_eq!(
-            colore_simbolo(SymbolState::Alarm, &stati, &t, &st, "#111111", "#222222", "#ef4444"),
+            colore_simbolo(
+                SymbolState::Alarm,
+                &stati,
+                &t,
+                &st,
+                "#111111",
+                "#222222",
+                "#ef4444"
+            ),
             (0xef, 0x44, 0x44),
             "un allarme coperto da uno stato è il difetto peggiore che uno SCADA possa avere"
         );
         assert_eq!(
-            colore_simbolo(SymbolState::On, &stati, &t, &st, "#111111", "#222222", "#ef4444"),
+            colore_simbolo(
+                SymbolState::On,
+                &stati,
+                &t,
+                &st,
+                "#111111",
+                "#222222",
+                "#ef4444"
+            ),
             (0, 255, 0),
             "senza allarme vince lo stato dichiarato"
         );
         assert_eq!(
-            colore_simbolo(SymbolState::On, &[], &t, &st, "#111111", "#222222", "#ef4444"),
+            colore_simbolo(
+                SymbolState::On,
+                &[],
+                &t,
+                &st,
+                "#111111",
+                "#222222",
+                "#ef4444"
+            ),
             (0x22, 0x22, 0x22),
             "senza stati dichiarati, il colore di acceso"
         );
     }
 
-
     // ── torta: raggruppamento ed etichette (passo 10) ─────────────────────
 
     fn fetta(label: &str, colore: &str) -> PieSlice {
-        PieSlice { tag: format!("t.{label}"), label: label.into(), color: colore.into() }
+        PieSlice {
+            tag: format!("t.{label}"),
+            label: label.into(),
+            color: colore.into(),
+        }
     }
 
     #[test]
@@ -8056,7 +10106,11 @@ mod binding_tests {
 
     #[test]
     fn le_fette_sotto_soglia_diventano_una_sola() {
-        let s = vec![fetta("a", "#111111"), fetta("b", "#222222"), fetta("c", "#333333")];
+        let s = vec![
+            fetta("a", "#111111"),
+            fetta("b", "#222222"),
+            fetta("c", "#333333"),
+        ];
         // Totale 100: a=90, b=6, c=4. Soglia 10% → b e c finiscono in "altro".
         let r = raggruppa_spicchi(&s, &[90.0, 6.0, 4.0], Some(10.0), None, None);
         assert_eq!(r.len(), 2);
@@ -8089,7 +10143,11 @@ mod binding_tests {
     /// dall'ordine in cui si guardano le fette.
     #[test]
     fn la_soglia_si_misura_sul_totale_grezzo() {
-        let s = vec![fetta("a", "#111111"), fetta("b", "#222222"), fetta("c", "#333333")];
+        let s = vec![
+            fetta("a", "#111111"),
+            fetta("b", "#222222"),
+            fetta("c", "#333333"),
+        ];
         // 80/11/9 su 100: con soglia 10% esce solo c. Se il totale si
         // ricalcolasse dopo aver tolto c, b (11/91=12%) resterebbe comunque —
         // ma su una soglia più alta la differenza si vedrebbe.
@@ -8119,23 +10177,44 @@ mod binding_tests {
     #[test]
     fn i_quattro_modi_di_etichettare_una_fetta() {
         assert_eq!(etichetta_spicchio(None, 0.25, 12.5, "Pompa", 1), "25%");
-        assert_eq!(etichetta_spicchio(Some("percent"), 0.25, 12.5, "Pompa", 1), "25%");
-        assert_eq!(etichetta_spicchio(Some("value"), 0.25, 12.5, "Pompa", 1), "12.5");
+        assert_eq!(
+            etichetta_spicchio(Some("percent"), 0.25, 12.5, "Pompa", 1),
+            "25%"
+        );
+        assert_eq!(
+            etichetta_spicchio(Some("value"), 0.25, 12.5, "Pompa", 1),
+            "12.5"
+        );
         // 12, non 13: Rust arrotonda la metà esatta al pari, JavaScript la
         // arrotonda per eccesso. Vale per ogni `{:.n}` di questo motore, non
         // solo qui — vedi la nota su `etichetta_spicchio`.
-        assert_eq!(etichetta_spicchio(Some("value"), 0.25, 12.5, "Pompa", 0), "12");
-        assert_eq!(etichetta_spicchio(Some("label"), 0.25, 12.5, "Pompa", 1), "Pompa");
-        assert_eq!(etichetta_spicchio(Some("label_percent"), 0.25, 12.5, "Pompa", 1), "Pompa 25%");
-        assert_eq!(etichetta_spicchio(Some("boh"), 0.25, 12.5, "Pompa", 1), "25%",
-                   "un modo sconosciuto vale percentuale, come sul web");
+        assert_eq!(
+            etichetta_spicchio(Some("value"), 0.25, 12.5, "Pompa", 0),
+            "12"
+        );
+        assert_eq!(
+            etichetta_spicchio(Some("label"), 0.25, 12.5, "Pompa", 1),
+            "Pompa"
+        );
+        assert_eq!(
+            etichetta_spicchio(Some("label_percent"), 0.25, 12.5, "Pompa", 1),
+            "Pompa 25%"
+        );
+        assert_eq!(
+            etichetta_spicchio(Some("boh"), 0.25, 12.5, "Pompa", 1),
+            "25%",
+            "un modo sconosciuto vale percentuale, come sul web"
+        );
     }
-
 
     // ── soglie del grafico a barre ────────────────────────────────────────
 
     fn obj_scala(min: Option<f64>, max: Option<f64>) -> SynopticObject {
-        SynopticObject { min, max, ..Default::default() }
+        SynopticObject {
+            min,
+            max,
+            ..Default::default()
+        }
     }
 
     /// La scala è quella delle **serie**, perché è su quella che le barre sono
@@ -8144,13 +10223,19 @@ mod binding_tests {
     #[test]
     fn la_scala_e_quella_su_cui_le_barre_sono_disegnate() {
         let o = obj_scala(Some(0.0), Some(200.0));
-        assert_eq!(scala_comune(&o, &[(0.0, 100.0), (0.0, 100.0)]), Some((0.0, 100.0)));
+        assert_eq!(
+            scala_comune(&o, &[(0.0, 100.0), (0.0, 100.0)]),
+            Some((0.0, 100.0))
+        );
     }
 
     #[test]
     fn la_scala_e_comune_se_tutte_le_serie_dicono_la_stessa() {
         let o = obj_scala(None, None);
-        assert_eq!(scala_comune(&o, &[(0.0, 100.0), (0.0, 100.0)]), Some((0.0, 100.0)));
+        assert_eq!(
+            scala_comune(&o, &[(0.0, 100.0), (0.0, 100.0)]),
+            Some((0.0, 100.0))
+        );
     }
 
     /// Con scale diverse la stessa altezza vale numeri diversi: una riga sola
@@ -8161,25 +10246,48 @@ mod binding_tests {
         assert_eq!(scala_comune(&o, &[(0.0, 100.0), (0.0, 50.0)]), None);
         // Nemmeno dichiarandola sull'oggetto: le barre restano su scale
         // diverse, e la riga mentirebbe comunque.
-        assert_eq!(scala_comune(&obj_scala(Some(0.0), Some(100.0)), &[(0.0, 100.0), (0.0, 50.0)]), None);
+        assert_eq!(
+            scala_comune(
+                &obj_scala(Some(0.0), Some(100.0)),
+                &[(0.0, 100.0), (0.0, 50.0)]
+            ),
+            None
+        );
     }
 
     #[test]
     fn una_scala_degenere_non_e_una_scala() {
-        assert_eq!(scala_comune(&obj_scala(None, None), &[(3.0, 3.0)]), None, "intervallo vuoto");
-        assert_eq!(scala_comune(&obj_scala(None, None), &[(10.0, 1.0)]), None, "invertito");
-        assert_eq!(scala_comune(&obj_scala(None, None), &[]), None, "nessuna serie");
+        assert_eq!(
+            scala_comune(&obj_scala(None, None), &[(3.0, 3.0)]),
+            None,
+            "intervallo vuoto"
+        );
+        assert_eq!(
+            scala_comune(&obj_scala(None, None), &[(10.0, 1.0)]),
+            None,
+            "invertito"
+        );
+        assert_eq!(
+            scala_comune(&obj_scala(None, None), &[]),
+            None,
+            "nessuna serie"
+        );
     }
 
     #[test]
     fn le_soglie_escono_ordinate_dallalto_al_basso() {
         let o = SynopticObject {
-            alarm_low: Some(10.0), warn_low: Some(20.0),
-            warn_high: Some(70.0), alarm_high: Some(90.0),
+            alarm_low: Some(10.0),
+            warn_low: Some(20.0),
+            warn_high: Some(70.0),
+            alarm_high: Some(90.0),
             ..Default::default()
         };
         let s = soglie_da_disegnare(&o, (0.0, 100.0));
-        assert_eq!(s.iter().map(|(v, _)| *v).collect::<Vec<_>>(), vec![90.0, 70.0, 20.0, 10.0]);
+        assert_eq!(
+            s.iter().map(|(v, _)| *v).collect::<Vec<_>>(),
+            vec![90.0, 70.0, 20.0, 10.0]
+        );
         assert_eq!(s[0].1, (239, 68, 68), "allarme in rosso");
         assert_eq!(s[1].1, (245, 158, 11), "avviso in ambra");
     }
@@ -8189,7 +10297,9 @@ mod binding_tests {
     #[test]
     fn le_soglie_fuori_scala_non_si_disegnano() {
         let o = SynopticObject {
-            alarm_high: Some(500.0), alarm_low: Some(-10.0), warn_high: Some(70.0),
+            alarm_high: Some(500.0),
+            alarm_low: Some(-10.0),
+            warn_high: Some(70.0),
             ..Default::default()
         };
         let s = soglie_da_disegnare(&o, (0.0, 100.0));

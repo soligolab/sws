@@ -30,7 +30,9 @@ static FRAME_DIMS: OnceLock<(u32, u32)> = OnceLock::new();
 /// `init_display`). Restituisce `false` se il display non è ancora stato
 /// inizializzato.
 pub fn copy_frame_rgb888(out: &mut [u8]) -> bool {
-    let Some(frame) = FRAME.get() else { return false };
+    let Some(frame) = FRAME.get() else {
+        return false;
+    };
     let buf = frame.lock().unwrap_or_else(|e| e.into_inner());
     let n = out.len().min(buf.len());
     out[..n].copy_from_slice(&buf[..n]);

@@ -2,7 +2,9 @@
 // deferred until third-party plugin support is needed (OPEN_QUESTIONS Q3).
 
 use std::{collections::HashMap, sync::Arc, time::Duration};
-use sws_core::{ModbusRtuConfig, ModbusTcpConfig, TagDb, TagQuality, TagValue, TagWriteBus, WriteRequest};
+use sws_core::{
+    ModbusRtuConfig, ModbusTcpConfig, TagDb, TagQuality, TagValue, TagWriteBus, WriteRequest,
+};
 use tokio::sync::mpsc;
 use tokio_modbus::prelude::*;
 use tokio_serial::{DataBits, Parity, SerialPortBuilderExt, StopBits};
@@ -13,7 +15,12 @@ use tracing::{info, warn};
 /// error. Each tag in `cfg.registers` is registered with the write bus so a
 /// `PUT /api/tags/:id` is forwarded as `write_single_register` (raw_u16 =
 /// value / scale, clamped).
-pub async fn run(cfg: ModbusTcpConfig, db: Arc<TagDb>, bus: Arc<TagWriteBus>, cancel: CancellationToken) {
+pub async fn run(
+    cfg: ModbusTcpConfig,
+    db: Arc<TagDb>,
+    bus: Arc<TagWriteBus>,
+    cancel: CancellationToken,
+) {
     // One mpsc channel feeds all write requests for the tags this source owns.
     let (write_tx, mut write_rx) = mpsc::channel::<WriteRequest>(32);
     for reg in &cfg.registers {
@@ -22,14 +29,17 @@ pub async fn run(cfg: ModbusTcpConfig, db: Arc<TagDb>, bus: Arc<TagWriteBus>, ca
     drop(write_tx); // we keep the receiver; bus entries hold their own clones
 
     // Build an address+scale lookup for the write path (tag → register).
-    let routes: HashMap<String, (u16, f64)> = cfg.registers.iter()
+    let routes: HashMap<String, (u16, f64)> = cfg
+        .registers
+        .iter()
         .map(|r| (r.tag.clone(), (r.address, r.scale)))
         .collect();
 
     if let Err(e) = session(&cfg, &db, &routes, &mut write_rx, cancel).await {
         warn!(source = %cfg.id, "Modbus error: {e:#} — stopped (save config to retry)");
         for reg in &cfg.registers {
-            db.ingest(reg.tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
+            db.ingest(reg.tag.clone(), TagValue::Float(0.0), TagQuality::Bad)
+                .await;
         }
     }
 }
@@ -106,10 +116,16 @@ async fn session(
 /// Applies the inverse scale; rejects non-finite, out-of-range, or non-numeric.
 fn tagvalue_to_register(value: &TagValue, scale: f64) -> Option<u16> {
     let f: f64 = match value {
-        TagValue::Bool(b)  => if *b { 1.0 } else { 0.0 },
-        TagValue::Int(i)   => *i as f64,
+        TagValue::Bool(b) => {
+            if *b {
+                1.0
+            } else {
+                0.0
+            }
+        }
+        TagValue::Int(i) => *i as f64,
         TagValue::Float(f) => *f,
-        TagValue::Str(s)   => s.trim().parse().ok()?,
+        TagValue::Str(s) => s.trim().parse().ok()?,
     };
     let raw = (f / scale).round();
     if raw.is_finite() && raw >= 0.0 && raw <= u16::MAX as f64 {
@@ -122,21 +138,29 @@ fn tagvalue_to_register(value: &TagValue, scale: f64) -> Option<u16> {
 /// Runs the Modbus RTU (serial) polling loop until `cancel` fires, reconnecting
 /// on any error. Same structure as `run()` but uses `rtu::connect_slave` with a
 /// `tokio_serial::SerialStream` as transport.
-pub async fn run_rtu(cfg: ModbusRtuConfig, db: Arc<TagDb>, bus: Arc<TagWriteBus>, cancel: CancellationToken) {
+pub async fn run_rtu(
+    cfg: ModbusRtuConfig,
+    db: Arc<TagDb>,
+    bus: Arc<TagWriteBus>,
+    cancel: CancellationToken,
+) {
     let (write_tx, mut write_rx) = mpsc::channel::<WriteRequest>(32);
     for reg in &cfg.registers {
         bus.register(reg.tag.clone(), write_tx.clone()).await;
     }
     drop(write_tx);
 
-    let routes: HashMap<String, (u16, f64)> = cfg.registers.iter()
+    let routes: HashMap<String, (u16, f64)> = cfg
+        .registers
+        .iter()
         .map(|r| (r.tag.clone(), (r.address, r.scale)))
         .collect();
 
     if let Err(e) = session_rtu(&cfg, &db, &routes, &mut write_rx, cancel).await {
         warn!(source = %cfg.id, "Modbus RTU error: {e:#} — stopped (save config to retry)");
         for reg in &cfg.registers {
-            db.ingest(reg.tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
+            db.ingest(reg.tag.clone(), TagValue::Float(0.0), TagQuality::Bad)
+                .await;
         }
     }
 }
@@ -151,7 +175,7 @@ async fn session_rtu(
     let parity = match cfg.parity.to_ascii_uppercase().as_str() {
         "E" => Parity::Even,
         "O" => Parity::Odd,
-        _   => Parity::None,
+        _ => Parity::None,
     };
     let data_bits = match cfg.data_bits {
         7 => DataBits::Seven,

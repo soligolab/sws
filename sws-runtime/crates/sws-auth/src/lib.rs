@@ -13,17 +13,17 @@
 //! Out of scope: refresh tokens, OAuth/LDAP, per-zone ABAC, audit trail
 //! of user mutations (the existing audit-log v1 covers it).
 
+use argon2::{
+    password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
+    Argon2,
+};
+use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     path::PathBuf,
     sync::Arc,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
-use argon2::{
-    password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
-    Argon2,
-};
-use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use tracing::{info, warn};
 
@@ -49,22 +49,21 @@ fn carica_users_file(path: &std::path::Path) -> anyhow::Result<UserFile> {
     if !path.exists() {
         return Ok(UserFile::default());
     }
-    let text = std::fs::read_to_string(path)
-        .map_err(|e| anyhow::anyhow!("read users.yaml: {e}"))?;
+    let text =
+        std::fs::read_to_string(path).map_err(|e| anyhow::anyhow!("read users.yaml: {e}"))?;
     if text.trim().is_empty() {
         return Ok(UserFile::default());
     }
-    serde_yaml::from_str::<UserFile>(&text)
-        .map_err(|e| anyhow::anyhow!("parse users.yaml: {e}"))
+    serde_yaml::from_str::<UserFile>(&text).map_err(|e| anyhow::anyhow!("parse users.yaml: {e}"))
 }
 
 impl Role {
     pub fn as_str(&self) -> &'static str {
         match self {
-            Role::Viewer     => "Viewer",
-            Role::Operator   => "Operator",
+            Role::Viewer => "Viewer",
+            Role::Operator => "Operator",
             Role::Supervisor => "Supervisor",
-            Role::Admin      => "Admin",
+            Role::Admin => "Admin",
         }
     }
 }
@@ -133,7 +132,9 @@ pub struct CreateUser {
     #[serde(default)]
     pub allowed_zones: Vec<String>,
 }
-fn yes() -> bool { true }
+fn yes() -> bool {
+    true
+}
 
 /// Payload for `POST /api/auth/change-password`.
 #[derive(Debug, Clone, Deserialize)]
@@ -180,9 +181,9 @@ impl StoredUser {
     /// Returns `None` when the session should never expire.
     fn effective_ttl(&self, global: Duration) -> Option<Duration> {
         match self.session_ttl_secs {
-            None        => Some(global),               // use system default
-            Some(0)     => None,                        // never expires
-            Some(secs)  => Some(Duration::from_secs(secs)),
+            None => Some(global), // use system default
+            Some(0) => None,      // never expires
+            Some(secs) => Some(Duration::from_secs(secs)),
         }
     }
 }
@@ -223,7 +224,9 @@ pub fn hash_password(password: &str) -> anyhow::Result<String> {
 
 /// Verify `password` against a PHC-formatted Argon2id hash.
 pub fn verify_password(password: &str, hash: &str) -> bool {
-    let Ok(parsed) = PasswordHash::new(hash) else { return false };
+    let Ok(parsed) = PasswordHash::new(hash) else {
+        return false;
+    };
     Argon2::default()
         .verify_password(password.as_bytes(), &parsed)
         .is_ok()
@@ -239,7 +242,7 @@ pub struct AuthState {
     sessions: RwLock<HashMap<String, Session>>,
     failures: RwLock<HashMap<String, LoginFailures>>,
     ttl: Duration,
-    rate_limit:  u32,
+    rate_limit: u32,
     rate_window: Duration,
 }
 
@@ -247,7 +250,9 @@ pub struct AuthState {
 pub enum LoginError {
     BadCredentials,
     /// Account temporarily locked. `retry_after_secs` is the remaining lockout.
-    RateLimited { retry_after_secs: u64 },
+    RateLimited {
+        retry_after_secs: u64,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -262,9 +267,9 @@ pub enum UserError {
 impl std::fmt::Display for UserError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            UserError::NotFound        => write!(f, "user not found"),
-            UserError::AlreadyExists   => write!(f, "user already exists"),
-            UserError::LastAdmin       => write!(f, "cannot remove the last admin"),
+            UserError::NotFound => write!(f, "user not found"),
+            UserError::AlreadyExists => write!(f, "user already exists"),
+            UserError::LastAdmin => write!(f, "cannot remove the last admin"),
             UserError::InvalidPassword => write!(f, "current password is wrong"),
             UserError::StorageError(s) => write!(f, "storage error: {s}"),
         }
@@ -287,7 +292,8 @@ impl AuthState {
     ) -> anyhow::Result<Arc<Self>> {
         let on_disk = carica_users_file(&store_path)?;
 
-        let mut users: HashMap<String, StoredUser> = on_disk.users
+        let mut users: HashMap<String, StoredUser> = on_disk
+            .users
             .into_iter()
             .map(|u| (u.username.clone(), u))
             .collect();
@@ -299,16 +305,19 @@ impl AuthState {
             if !users.contains_key(&name) {
                 let hash = hash_password(&pwd)?;
                 info!(user = %name, role = role.as_str(), "auth: seeded account from env");
-                users.insert(name.clone(), StoredUser {
-                    username: name,
-                    password_hash: hash,
-                    role,
-                    must_change_password: false,
-                    created_at_ms: now,
-                    updated_at_ms: now,
-                    session_ttl_secs: None,
-                    allowed_zones: vec![],
-                });
+                users.insert(
+                    name.clone(),
+                    StoredUser {
+                        username: name,
+                        password_hash: hash,
+                        role,
+                        must_change_password: false,
+                        created_at_ms: now,
+                        updated_at_ms: now,
+                        session_ttl_secs: None,
+                        allowed_zones: vec![],
+                    },
+                );
             }
         }
 
@@ -316,7 +325,9 @@ impl AuthState {
             info!("no users defined — starting in no-auth mode (all routes open)");
         } else {
             // Flush the seeded set so subsequent restarts find them on disk.
-            let to_write = UserFile { users: users.values().cloned().collect() };
+            let to_write = UserFile {
+                users: users.values().cloned().collect(),
+            };
             if let Some(parent) = store_path.parent() {
                 std::fs::create_dir_all(parent).ok();
             }
@@ -345,7 +356,8 @@ impl AuthState {
         rate_limit: u32,
         rate_window: Duration,
     ) -> anyhow::Result<Arc<Self>> {
-        let usable: Vec<_> = accounts.into_iter()
+        let usable: Vec<_> = accounts
+            .into_iter()
             .filter(|(_, _, p)| !p.is_empty())
             .collect();
         if usable.is_empty() {
@@ -355,16 +367,19 @@ impl AuthState {
         let mut users: HashMap<String, StoredUser> = HashMap::new();
         for (user, role, pwd) in usable {
             let hash = hash_password(&pwd)?;
-            users.insert(user.clone(), StoredUser {
-                username: user,
-                password_hash: hash,
-                role,
-                must_change_password: false,
-                created_at_ms: now,
-                updated_at_ms: now,
-                session_ttl_secs: None,
-                allowed_zones: vec![],
-            });
+            users.insert(
+                user.clone(),
+                StoredUser {
+                    username: user,
+                    password_hash: hash,
+                    role,
+                    must_change_password: false,
+                    created_at_ms: now,
+                    updated_at_ms: now,
+                    session_ttl_secs: None,
+                    allowed_zones: vec![],
+                },
+            );
         }
         Ok(Arc::new(Self {
             store_path: RwLock::new(None),
@@ -413,16 +428,19 @@ impl AuthState {
             if !new_users.contains_key(&name) {
                 let hash = hash_password(&pwd)?;
                 info!(user = %name, role = role.as_str(), "auth: seeded account from env");
-                new_users.insert(name.clone(), StoredUser {
-                    username: name,
-                    password_hash: hash,
-                    role,
-                    must_change_password: false,
-                    created_at_ms: now,
-                    updated_at_ms: now,
-                    session_ttl_secs: None,
-                    allowed_zones: vec![],
-                });
+                new_users.insert(
+                    name.clone(),
+                    StoredUser {
+                        username: name,
+                        password_hash: hash,
+                        role,
+                        must_change_password: false,
+                        created_at_ms: now,
+                        updated_at_ms: now,
+                        session_ttl_secs: None,
+                        allowed_zones: vec![],
+                    },
+                );
             }
         }
         if new_users.is_empty() {
@@ -431,7 +449,9 @@ impl AuthState {
             if let Some(parent) = new_path.parent() {
                 std::fs::create_dir_all(parent).ok();
             }
-            let to_write = UserFile { users: new_users.values().cloned().collect() };
+            let to_write = UserFile {
+                users: new_users.values().cloned().collect(),
+            };
             let yaml = serde_yaml::to_string(&to_write)
                 .map_err(|e| anyhow::anyhow!("serialise users.yaml: {e}"))?;
             std::fs::write(&new_path, yaml)
@@ -471,7 +491,7 @@ impl AuthState {
         let user = self.users.read().await.get(&creds.username).cloned();
         let ok = match &user {
             Some(u) => verify_password(&creds.password, &u.password_hash),
-            None    => false,
+            None => false,
         };
 
         if !ok {
@@ -485,12 +505,15 @@ impl AuthState {
         let token = uuid::Uuid::new_v4().to_string();
         let expires_at = effective_ttl.map(|d| Instant::now() + d);
         let expires_at_ms = effective_ttl.map(|d| now_unix_ms() + d.as_millis() as u64);
-        self.sessions.write().await.insert(token.clone(), Session {
-            username: user.username.clone(),
-            role: user.role,
-            expires_at,
-            effective_ttl,
-        });
+        self.sessions.write().await.insert(
+            token.clone(),
+            Session {
+                username: user.username.clone(),
+                role: user.role,
+                expires_at,
+                effective_ttl,
+            },
+        );
         self.failures.write().await.remove(&creds.username);
         info!(user = %user.username, role = user.role.as_str(), "login: session issued");
         Ok(LoginOk {
@@ -538,7 +561,7 @@ impl AuthState {
             }
         }
         let username = session.username.clone();
-        let role     = session.role;
+        let role = session.role;
         drop(sessions);
 
         let (must_change, allowed_zones) = {
@@ -549,7 +572,12 @@ impl AuthState {
                 u.map(|u| u.allowed_zones.clone()).unwrap_or_default(),
             )
         };
-        Some(SessionInfo { username, role, must_change_password: must_change, allowed_zones })
+        Some(SessionInfo {
+            username,
+            role,
+            must_change_password: must_change,
+            allowed_zones,
+        })
     }
 
     pub async fn logout(&self, token: &str) -> bool {
@@ -585,8 +613,13 @@ impl AuthState {
     // ── User CRUD ─────────────────────────────────────────────────────
 
     pub async fn list_users(&self) -> Vec<UserSummary> {
-        let mut v: Vec<UserSummary> = self.users.read().await.values()
-            .map(|u| u.to_summary()).collect();
+        let mut v: Vec<UserSummary> = self
+            .users
+            .read()
+            .await
+            .values()
+            .map(|u| u.to_summary())
+            .collect();
         v.sort_by(|a, b| a.username.cmp(&b.username));
         v
     }
@@ -599,8 +632,8 @@ impl AuthState {
         if users.contains_key(&p.username) {
             return Err(UserError::AlreadyExists);
         }
-        let hash = hash_password(&p.password)
-            .map_err(|e| UserError::StorageError(e.to_string()))?;
+        let hash =
+            hash_password(&p.password).map_err(|e| UserError::StorageError(e.to_string()))?;
         let now = now_unix_ms();
         let u = StoredUser {
             username: p.username.clone(),
@@ -618,7 +651,11 @@ impl AuthState {
         Ok(u.to_summary())
     }
 
-    pub async fn update_user(&self, username: &str, patch: UserPatch) -> Result<UserSummary, UserError> {
+    pub async fn update_user(
+        &self,
+        username: &str,
+        patch: UserPatch,
+    ) -> Result<UserSummary, UserError> {
         let mut users = self.users.write().await;
         let was_admin_count = users.values().filter(|u| u.role == Role::Admin).count();
 
@@ -634,8 +671,8 @@ impl AuthState {
             if pwd.is_empty() {
                 return Err(UserError::InvalidPassword);
             }
-            user.password_hash = hash_password(pwd)
-                .map_err(|e| UserError::StorageError(e.to_string()))?;
+            user.password_hash =
+                hash_password(pwd).map_err(|e| UserError::StorageError(e.to_string()))?;
             // Admin-driven password reset → force a change on next login,
             // unless the patch explicitly overrides.
             user.must_change_password = patch.must_change_password.unwrap_or(true);
@@ -690,8 +727,8 @@ impl AuthState {
         if !verify_password(&cp.old_password, &user.password_hash) {
             return Err(UserError::InvalidPassword);
         }
-        user.password_hash = hash_password(&cp.new_password)
-            .map_err(|e| UserError::StorageError(e.to_string()))?;
+        user.password_hash =
+            hash_password(&cp.new_password).map_err(|e| UserError::StorageError(e.to_string()))?;
         user.must_change_password = false;
         user.updated_at_ms = now_unix_ms();
         self.flush_locked(&users).await?;
@@ -701,8 +738,12 @@ impl AuthState {
 
     async fn flush_locked(&self, users: &HashMap<String, StoredUser>) -> Result<(), UserError> {
         let path_guard = self.store_path.read().await;
-        let Some(path) = path_guard.as_ref() else { return Ok(()); };
-        let file = UserFile { users: users.values().cloned().collect() };
+        let Some(path) = path_guard.as_ref() else {
+            return Ok(());
+        };
+        let file = UserFile {
+            users: users.values().cloned().collect(),
+        };
         let yaml = serde_yaml::to_string(&file)
             .map_err(|e| UserError::StorageError(format!("serialise: {e}")))?;
         std::fs::write(path, yaml)
@@ -730,7 +771,10 @@ impl AuthState {
         // Accumulate within the sliding window.
         match entry.window_start {
             Some(t) if now.duration_since(t) <= self.rate_window => entry.count += 1,
-            _ => { entry.window_start = Some(now); entry.count = 1; }
+            _ => {
+                entry.window_start = Some(now);
+                entry.count = 1;
+            }
         }
 
         // Trigger lockout when the failure budget is exhausted.
@@ -765,7 +809,10 @@ pub struct SessionInfo {
 }
 
 fn now_unix_ms() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
 }
 
 #[cfg(test)]
@@ -778,7 +825,8 @@ mod tests {
             Duration::from_secs(60),
             5,
             Duration::from_secs(60),
-        ).unwrap()
+        )
+        .unwrap()
     }
 
     #[test]
@@ -796,9 +844,21 @@ mod tests {
     #[tokio::test]
     async fn login_validate_logout_flow() {
         let auth = admin_only("s3cret");
-        assert!(matches!(auth.login(&Credentials { username: "admin".into(), password: "nope".into() }).await,
-            Err(LoginError::BadCredentials)));
-        let ok = auth.login(&Credentials { username: "admin".into(), password: "s3cret".into() }).await.unwrap();
+        assert!(matches!(
+            auth.login(&Credentials {
+                username: "admin".into(),
+                password: "nope".into()
+            })
+            .await,
+            Err(LoginError::BadCredentials)
+        ));
+        let ok = auth
+            .login(&Credentials {
+                username: "admin".into(),
+                password: "s3cret".into(),
+            })
+            .await
+            .unwrap();
         assert_eq!(ok.username, "admin");
         assert_eq!(ok.role, Role::Admin);
         assert!(!ok.must_change_password);
@@ -822,12 +882,23 @@ mod tests {
         let auth = AuthState::new(
             vec![("admin".into(), Role::Admin, "x".into())],
             Duration::from_millis(50),
-            10, Duration::from_secs(60),
-        ).unwrap();
-        let ok = auth.login(&Credentials { username: "admin".into(), password: "x".into() }).await.unwrap();
+            10,
+            Duration::from_secs(60),
+        )
+        .unwrap();
+        let ok = auth
+            .login(&Credentials {
+                username: "admin".into(),
+                password: "x".into(),
+            })
+            .await
+            .unwrap();
         assert!(auth.validate(&ok.token).await.is_some());
         tokio::time::sleep(Duration::from_millis(80)).await;
-        assert!(auth.validate(&ok.token).await.is_none(), "session should have expired");
+        assert!(
+            auth.validate(&ok.token).await.is_none(),
+            "session should have expired"
+        );
     }
 
     #[tokio::test]
@@ -835,16 +906,26 @@ mod tests {
         let auth = AuthState::new(
             vec![("admin".into(), Role::Admin, "x".into())],
             Duration::from_secs(60),
-            3, Duration::from_secs(60),
-        ).unwrap();
+            3,
+            Duration::from_secs(60),
+        )
+        .unwrap();
         for _ in 0..3 {
             assert!(matches!(
-                auth.login(&Credentials { username: "admin".into(), password: "bad".into() }).await,
+                auth.login(&Credentials {
+                    username: "admin".into(),
+                    password: "bad".into()
+                })
+                .await,
                 Err(LoginError::BadCredentials)
             ));
         }
         assert!(matches!(
-            auth.login(&Credentials { username: "admin".into(), password: "x".into() }).await,
+            auth.login(&Credentials {
+                username: "admin".into(),
+                password: "x".into()
+            })
+            .await,
             Err(LoginError::RateLimited { .. })
         ));
     }
@@ -860,34 +941,55 @@ mod tests {
     async fn create_update_delete_user() {
         let auth = admin_only("admin");
 
-        let s = auth.create_user(CreateUser {
-            username: "alice".into(), password: "p4ss".into(),
-            role: Role::Operator, must_change_password: true,
-            allowed_zones: vec![],
-        }).await.unwrap();
+        let s = auth
+            .create_user(CreateUser {
+                username: "alice".into(),
+                password: "p4ss".into(),
+                role: Role::Operator,
+                must_change_password: true,
+                allowed_zones: vec![],
+            })
+            .await
+            .unwrap();
         assert_eq!(s.username, "alice");
         assert!(s.must_change_password);
 
         // Duplicate refused
         assert!(matches!(
             auth.create_user(CreateUser {
-                username: "alice".into(), password: "x".into(),
-                role: Role::Operator, must_change_password: true,
+                username: "alice".into(),
+                password: "x".into(),
+                role: Role::Operator,
+                must_change_password: true,
                 allowed_zones: vec![],
-            }).await,
+            })
+            .await,
             Err(UserError::AlreadyExists)
         ));
 
         // Update role
-        let s = auth.update_user("alice", UserPatch {
-            role: Some(Role::Supervisor), password: None, must_change_password: None,
-            session_ttl_secs: None, allowed_zones: None,
-        }).await.unwrap();
+        let s = auth
+            .update_user(
+                "alice",
+                UserPatch {
+                    role: Some(Role::Supervisor),
+                    password: None,
+                    must_change_password: None,
+                    session_ttl_secs: None,
+                    allowed_zones: None,
+                },
+            )
+            .await
+            .unwrap();
         assert_eq!(s.role, Role::Supervisor);
 
         // Delete
         auth.delete_user("alice").await.unwrap();
-        assert!(auth.list_users().await.iter().all(|u| u.username != "alice"));
+        assert!(auth
+            .list_users()
+            .await
+            .iter()
+            .all(|u| u.username != "alice"));
     }
 
     #[tokio::test]
@@ -903,10 +1005,17 @@ mod tests {
     async fn cant_demote_last_admin() {
         let auth = admin_only("admin");
         assert!(matches!(
-            auth.update_user("admin", UserPatch {
-                role: Some(Role::Viewer), password: None, must_change_password: None,
-                session_ttl_secs: None, allowed_zones: None,
-            }).await,
+            auth.update_user(
+                "admin",
+                UserPatch {
+                    role: Some(Role::Viewer),
+                    password: None,
+                    must_change_password: None,
+                    session_ttl_secs: None,
+                    allowed_zones: None,
+                }
+            )
+            .await,
             Err(UserError::LastAdmin)
         ));
     }
@@ -915,26 +1024,45 @@ mod tests {
     async fn change_password_clears_flag() {
         let auth = admin_only("admin");
         auth.create_user(CreateUser {
-            username: "bob".into(), password: "init".into(),
-            role: Role::Viewer, must_change_password: true,
+            username: "bob".into(),
+            password: "init".into(),
+            role: Role::Viewer,
+            must_change_password: true,
             allowed_zones: vec![],
-        }).await.unwrap();
+        })
+        .await
+        .unwrap();
 
         // Wrong old password is refused
         assert!(matches!(
-            auth.change_password("bob", ChangePassword {
-                old_password: "nope".into(), new_password: "new".into(),
-            }).await,
+            auth.change_password(
+                "bob",
+                ChangePassword {
+                    old_password: "nope".into(),
+                    new_password: "new".into(),
+                }
+            )
+            .await,
             Err(UserError::InvalidPassword)
         ));
 
-        auth.change_password("bob", ChangePassword {
-            old_password: "init".into(), new_password: "new".into(),
-        }).await.unwrap();
+        auth.change_password(
+            "bob",
+            ChangePassword {
+                old_password: "init".into(),
+                new_password: "new".into(),
+            },
+        )
+        .await
+        .unwrap();
 
-        let ok = auth.login(&Credentials {
-            username: "bob".into(), password: "new".into(),
-        }).await.unwrap();
+        let ok = auth
+            .login(&Credentials {
+                username: "bob".into(),
+                password: "new".into(),
+            })
+            .await
+            .unwrap();
         assert!(!ok.must_change_password);
     }
 }

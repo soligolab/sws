@@ -7,8 +7,8 @@
 //   - publish on tag-write for any TopicMapping with `publish_topic: Some(...)`
 //   - Sparkplug B encoding is Phase 3, not handled here
 
-use std::{sync::Arc, time::Duration};
 use rumqttc::{AsyncClient, Event, MqttOptions, Packet, QoS};
+use std::{sync::Arc, time::Duration};
 use sws_core::{MqttConfig, TagDb, TagQuality, TagValue, TagWriteBus, WriteRequest};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
@@ -94,7 +94,10 @@ impl rumqttc::tokio_rustls::rustls::client::danger::ServerCertVerifier for NoCer
         rumqttc::tokio_rustls::rustls::Error,
     > {
         rumqttc::tokio_rustls::rustls::crypto::verify_tls12_signature(
-            message, cert, dss, &self.provider.signature_verification_algorithms,
+            message,
+            cert,
+            dss,
+            &self.provider.signature_verification_algorithms,
         )
     }
 
@@ -108,12 +111,17 @@ impl rumqttc::tokio_rustls::rustls::client::danger::ServerCertVerifier for NoCer
         rumqttc::tokio_rustls::rustls::Error,
     > {
         rumqttc::tokio_rustls::rustls::crypto::verify_tls13_signature(
-            message, cert, dss, &self.provider.signature_verification_algorithms,
+            message,
+            cert,
+            dss,
+            &self.provider.signature_verification_algorithms,
         )
     }
 
     fn supported_verify_schemes(&self) -> Vec<rumqttc::tokio_rustls::rustls::SignatureScheme> {
-        self.provider.signature_verification_algorithms.supported_schemes()
+        self.provider
+            .signature_verification_algorithms
+            .supported_schemes()
     }
 }
 
@@ -149,26 +157,40 @@ pub(crate) const MAX_PACKET_SIZE_BYTES: usize = 5 * 1024 * 1024;
 /// publishes (raw string payload).
 ///
 /// When `cfg.sparkplug` is set, delegates to the Sparkplug B handler instead.
-pub async fn run(cfg: MqttConfig, db: Arc<TagDb>, bus: Arc<TagWriteBus>, cancel: CancellationToken) {
+pub async fn run(
+    cfg: MqttConfig,
+    db: Arc<TagDb>,
+    bus: Arc<TagWriteBus>,
+    cancel: CancellationToken,
+) {
     // Sparkplug B mode: fully different subscription + protobuf decode path.
     if let Some(spb) = cfg.sparkplug.clone() {
         sparkplug::run_sparkplug(cfg, spb, db, bus, cancel).await;
         return;
     }
     // Pre-build a (tag → publish_topic) lookup for the writable subset.
-    let writers: Vec<(String, String)> = cfg.topics.iter()
+    let writers: Vec<(String, String)> = cfg
+        .topics
+        .iter()
         .filter(|t| mappata(&t.tag))
-        .filter_map(|t| t.publish_topic.as_ref().map(|pt| (t.tag.clone(), pt.clone())))
+        .filter_map(|t| {
+            t.publish_topic
+                .as_ref()
+                .map(|pt| (t.tag.clone(), pt.clone()))
+        })
         .collect();
 
     loop {
         match run_session(&cfg, &db, &bus, &writers, cancel.clone()).await {
             Ok(()) => break,
             Err(e) => {
-                if cancel.is_cancelled() { break; }
+                if cancel.is_cancelled() {
+                    break;
+                }
                 warn!(source = %cfg.id, "MQTT session ended: {e:#} — retry in 5s");
                 for topic in cfg.topics.iter().filter(|t| mappata(&t.tag)) {
-                    db.ingest(topic.tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
+                    db.ingest(topic.tag.clone(), TagValue::Float(0.0), TagQuality::Bad)
+                        .await;
                 }
                 tokio::select! {
                     _ = cancel.cancelled() => break,
@@ -188,7 +210,9 @@ async fn run_session(
 ) -> anyhow::Result<()> {
     let mut opts = MqttOptions::new(&cfg.client_id, &cfg.host, cfg.port);
     opts.set_max_packet_size(MAX_PACKET_SIZE_BYTES, MAX_PACKET_SIZE_BYTES);
-    opts.set_keep_alive(Duration::from_secs(u64::from(cfg.keep_alive_secs.unwrap_or(10))));
+    opts.set_keep_alive(Duration::from_secs(u64::from(
+        cfg.keep_alive_secs.unwrap_or(10),
+    )));
     if let Some(clean) = cfg.clean_session {
         opts.set_clean_session(clean);
     }
@@ -198,10 +222,11 @@ async fn run_session(
     // plain `password` field and finally log a warning if neither is present
     // alongside a non-empty username.
     if let Some(user) = cfg.username.clone() {
-        let password = cfg.password_env
+        let password = cfg
+            .password_env
             .as_deref()
             .and_then(|name| match std::env::var(name) {
-                Ok(v)  => Some(v),
+                Ok(v) => Some(v),
                 Err(_) => {
                     warn!(source = %cfg.id, env = %name,
                           "MQTT password_env not set in process environment");
@@ -211,7 +236,7 @@ async fn run_session(
             .or_else(|| cfg.password.clone());
         match password {
             Some(p) => opts.set_credentials(user, p),
-            None    => {
+            None => {
                 warn!(source = %cfg.id, %user, "MQTT username set without password — broker may reject");
                 opts.set_credentials(user, "")
             }
@@ -230,12 +255,14 @@ async fn run_session(
             if tls.insecure_skip_verify {
                 opts.set_transport(insecure_tls_transport(&cfg.id));
             } else {
-                let path = tls.ca_cert_path.as_ref().ok_or_else(|| anyhow::anyhow!(
-                    "MQTT TLS enabled but ca_cert_path is empty — provide a PEM-encoded \
+                let path = tls.ca_cert_path.as_ref().ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "MQTT TLS enabled but ca_cert_path is empty — provide a PEM-encoded \
                      CA file to trust"
-                ))?;
-                let ca = std::fs::read(path)
-                    .map_err(|e| anyhow::anyhow!("read CA cert {path}: {e}"))?;
+                    )
+                })?;
+                let ca =
+                    std::fs::read(path).map_err(|e| anyhow::anyhow!("read CA cert {path}: {e}"))?;
                 opts.set_transport(rumqttc::Transport::Tls(rumqttc::TlsConfiguration::Simple {
                     ca,
                     alpn: None,
@@ -260,7 +287,11 @@ async fn run_session(
     // Subscribe with per-topic QoS, falling back to the source-level QoS,
     // then to 0.
     let source_qos = qos_from_u8(cfg.qos.unwrap_or(0));
-    let senza_filtro = cfg.topics.iter().filter(|t| !sottoscrivibile(&t.topic)).count();
+    let senza_filtro = cfg
+        .topics
+        .iter()
+        .filter(|t| !sottoscrivibile(&t.topic))
+        .count();
     if senza_filtro > 0 {
         warn!(
             source = %cfg.id, righe = senza_filtro,
@@ -278,10 +309,14 @@ async fn run_session(
     }
 
     // Per-tag publish_qos lookup so we don't iterate cfg.topics on every write.
-    let pub_qos: std::collections::HashMap<String, QoS> = cfg.topics.iter()
-        .filter_map(|t| t.publish_topic.as_ref().map(|_| {
-            (t.tag.clone(), t.qos.map(qos_from_u8).unwrap_or(source_qos))
-        }))
+    let pub_qos: std::collections::HashMap<String, QoS> = cfg
+        .topics
+        .iter()
+        .filter_map(|t| {
+            t.publish_topic
+                .as_ref()
+                .map(|_| (t.tag.clone(), t.qos.map(qos_from_u8).unwrap_or(source_qos)))
+        })
         .collect();
 
     // Register the writable tags on the bus. We use ONE mpsc channel for all
@@ -314,7 +349,9 @@ async fn run_session(
     // that as a backstop against poll() hanging for whatever reason, not a
     // replacement for it.
     let poll_timeout = Duration::from_secs(
-        u64::from(cfg.keep_alive_secs.unwrap_or(10)).saturating_mul(3).max(30)
+        u64::from(cfg.keep_alive_secs.unwrap_or(10))
+            .saturating_mul(3)
+            .max(30),
     );
 
     loop {
@@ -381,10 +418,16 @@ async fn run_session(
 /// Bool: "true"/"false". Numbers: plain decimal. Strings: as-is.
 fn stringify(v: &TagValue) -> String {
     match v {
-        TagValue::Bool(b)  => if *b { "true".into() } else { "false".into() },
-        TagValue::Int(i)   => i.to_string(),
+        TagValue::Bool(b) => {
+            if *b {
+                "true".into()
+            } else {
+                "false".into()
+            }
+        }
+        TagValue::Int(i) => i.to_string(),
         TagValue::Float(f) => f.to_string(),
-        TagValue::Str(s)   => s.clone(),
+        TagValue::Str(s) => s.clone(),
     }
 }
 
@@ -399,9 +442,15 @@ fn decode_payload(bytes: &[u8], json_path: Option<&str>) -> TagValue {
         }
     }
     let text = std::str::from_utf8(bytes).unwrap_or("").trim();
-    if let Ok(b) = text.parse::<bool>() { return TagValue::Bool(b); }
-    if let Ok(i) = text.parse::<i64>()  { return TagValue::Int(i); }
-    if let Ok(f) = text.parse::<f64>()  { return TagValue::Float(f); }
+    if let Ok(b) = text.parse::<bool>() {
+        return TagValue::Bool(b);
+    }
+    if let Ok(i) = text.parse::<i64>() {
+        return TagValue::Int(i);
+    }
+    if let Ok(f) = text.parse::<f64>() {
+        return TagValue::Float(f);
+    }
     TagValue::Str(text.to_string())
 }
 
@@ -417,9 +466,13 @@ fn tagvalue_from_json(v: &serde_json::Value) -> TagValue {
     match v {
         serde_json::Value::Bool(b) => TagValue::Bool(*b),
         serde_json::Value::Number(n) => {
-            if let Some(i) = n.as_i64() { TagValue::Int(i) }
-            else if let Some(f) = n.as_f64() { TagValue::Float(f) }
-            else { TagValue::Str(n.to_string()) }
+            if let Some(i) = n.as_i64() {
+                TagValue::Int(i)
+            } else if let Some(f) = n.as_f64() {
+                TagValue::Float(f)
+            } else {
+                TagValue::Str(n.to_string())
+            }
         }
         serde_json::Value::String(s) => TagValue::Str(s.clone()),
         _ => TagValue::Str(v.to_string()),
@@ -549,7 +602,10 @@ pub async fn browse(params: BrowseParams) -> Vec<BrowsedTopic> {
 
     let mut result: Vec<BrowsedTopic> = map
         .into_iter()
-        .map(|(topic, sample_payload)| BrowsedTopic { topic, sample_payload })
+        .map(|(topic, sample_payload)| BrowsedTopic {
+            topic,
+            sample_payload,
+        })
         .collect();
     result.sort_by(|a, b| a.topic.cmp(&b.topic));
     result
@@ -565,8 +621,14 @@ mod tests_righe {
     /// ogni 5 s, portandosi dietro gli altri 27 topic.
     #[test]
     fn una_riga_senza_topic_non_si_sottoscrive() {
-        assert!(!sottoscrivibile(""), "il filtro a lunghezza zero è un errore di protocollo");
-        assert!(!sottoscrivibile("   "), "solo spazi: idem, e il broker chiude");
+        assert!(
+            !sottoscrivibile(""),
+            "il filtro a lunghezza zero è un errore di protocollo"
+        );
+        assert!(
+            !sottoscrivibile("   "),
+            "solo spazi: idem, e il broker chiude"
+        );
         assert!(sottoscrivibile("zigbee2mqtt/presa.sandokan"));
         assert!(sottoscrivibile("homeassistant/binary_sensor/x/config"));
         // I caratteri jolly restano legittimi: qui si scarta il vuoto, non si

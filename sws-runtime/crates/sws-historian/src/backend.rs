@@ -6,10 +6,10 @@
 use serde::Serialize;
 use sws_core::DatastoreBackendConfig;
 
-use crate::Sample;
-use crate::sqlite_backend::SqliteBackend;
-use crate::postgres_backend::PostgresBackend;
 use crate::odbc_backend::OdbcBackend;
+use crate::postgres_backend::PostgresBackend;
+use crate::sqlite_backend::SqliteBackend;
+use crate::Sample;
 
 /// Statistics reported by `GET /api/datastores/:id/stats`.
 #[derive(Debug, Clone, Serialize)]
@@ -52,18 +52,44 @@ impl DatastoreBackend {
                 let backend = SqliteBackend::open(resolved).await?;
                 Ok(DatastoreBackend::Sqlite(backend))
             }
-            DatastoreBackendConfig::Postgres { host, port, database, username, password, ssl_mode, schema } => {
+            DatastoreBackendConfig::Postgres {
+                host,
+                port,
+                database,
+                username,
+                password,
+                ssl_mode,
+                schema,
+            } => {
                 let backend = PostgresBackend::connect(
-                    host, *port, database, username,
-                    password.as_deref(), ssl_mode, schema,
-                ).await?;
+                    host,
+                    *port,
+                    database,
+                    username,
+                    password.as_deref(),
+                    ssl_mode,
+                    schema,
+                )
+                .await?;
                 Ok(DatastoreBackend::Postgres(backend))
             }
-            DatastoreBackendConfig::Odbc { dsn, connection_string, table, col_tag, col_value, col_ts } => {
+            DatastoreBackendConfig::Odbc {
+                dsn,
+                connection_string,
+                table,
+                col_tag,
+                col_value,
+                col_ts,
+            } => {
                 let backend = OdbcBackend::new(
-                    dsn.clone(), connection_string.clone(),
-                    table.clone(), col_tag.clone(), col_value.clone(), col_ts.clone(),
-                ).await;
+                    dsn.clone(),
+                    connection_string.clone(),
+                    table.clone(),
+                    col_tag.clone(),
+                    col_value.clone(),
+                    col_ts.clone(),
+                )
+                .await;
                 Ok(DatastoreBackend::Odbc(backend))
             }
         }
@@ -71,17 +97,17 @@ impl DatastoreBackend {
 
     pub fn kind_str(&self) -> &'static str {
         match self {
-            DatastoreBackend::Sqlite(_)   => "sqlite",
+            DatastoreBackend::Sqlite(_) => "sqlite",
             DatastoreBackend::Postgres(_) => "postgres",
-            DatastoreBackend::Odbc(_)     => "odbc",
+            DatastoreBackend::Odbc(_) => "odbc",
         }
     }
 
     pub async fn record(&self, tag_id: &str, sample: &Sample) {
         match self {
-            DatastoreBackend::Sqlite(b)   => b.record(tag_id, sample).await,
+            DatastoreBackend::Sqlite(b) => b.record(tag_id, sample).await,
             DatastoreBackend::Postgres(b) => b.record(tag_id, sample).await,
-            DatastoreBackend::Odbc(b)     => b.record(tag_id, sample).await,
+            DatastoreBackend::Odbc(b) => b.record(tag_id, sample).await,
         }
     }
 
@@ -92,26 +118,26 @@ impl DatastoreBackend {
         to_ms: Option<u64>,
     ) -> Vec<Sample> {
         match self {
-            DatastoreBackend::Sqlite(b)   => b.query(tag_id, from_ms, to_ms).await,
+            DatastoreBackend::Sqlite(b) => b.query(tag_id, from_ms, to_ms).await,
             DatastoreBackend::Postgres(b) => b.query(tag_id, from_ms, to_ms).await,
-            DatastoreBackend::Odbc(b)     => b.query(tag_id, from_ms, to_ms).await,
+            DatastoreBackend::Odbc(b) => b.query(tag_id, from_ms, to_ms).await,
         }
     }
 
     /// Verify the connection is alive. Returns Ok(description) or an error.
     pub async fn test(&self) -> anyhow::Result<String> {
         match self {
-            DatastoreBackend::Sqlite(b)   => b.test().await,
+            DatastoreBackend::Sqlite(b) => b.test().await,
             DatastoreBackend::Postgres(b) => b.test().await,
-            DatastoreBackend::Odbc(b)     => b.test().await,
+            DatastoreBackend::Odbc(b) => b.test().await,
         }
     }
 
     pub async fn stats(&self) -> DatastoreStats {
         match self {
-            DatastoreBackend::Sqlite(b)   => b.stats().await,
+            DatastoreBackend::Sqlite(b) => b.stats().await,
             DatastoreBackend::Postgres(b) => b.stats().await,
-            DatastoreBackend::Odbc(b)     => b.stats().await,
+            DatastoreBackend::Odbc(b) => b.stats().await,
         }
     }
 
@@ -121,9 +147,9 @@ impl DatastoreBackend {
         retention_days: Option<u64>,
     ) -> anyhow::Result<u64> {
         match self {
-            DatastoreBackend::Sqlite(b)   => b.purge(retention_rows, retention_days).await,
+            DatastoreBackend::Sqlite(b) => b.purge(retention_rows, retention_days).await,
             DatastoreBackend::Postgres(b) => b.purge(retention_rows, retention_days).await,
-            DatastoreBackend::Odbc(b)     => b.purge(retention_rows, retention_days).await,
+            DatastoreBackend::Odbc(b) => b.purge(retention_rows, retention_days).await,
         }
     }
 
@@ -165,9 +191,9 @@ impl DatastoreBackend {
         to_ms: Option<u64>,
     ) -> Vec<(String, Vec<Sample>)> {
         match self {
-            DatastoreBackend::Sqlite(b)   => b.export(tags, from_ms, to_ms).await,
+            DatastoreBackend::Sqlite(b) => b.export(tags, from_ms, to_ms).await,
             DatastoreBackend::Postgres(b) => b.export(tags, from_ms, to_ms).await,
-            DatastoreBackend::Odbc(b)     => b.export(tags, from_ms, to_ms).await,
+            DatastoreBackend::Odbc(b) => b.export(tags, from_ms, to_ms).await,
         }
     }
 

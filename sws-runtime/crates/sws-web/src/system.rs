@@ -2,7 +2,12 @@ use std::net::IpAddr;
 use std::path::Path;
 use std::time::Instant;
 
-use axum::{extract::State, http::StatusCode, response::{IntoResponse, Response}, Json};
+use axum::{
+    extract::State,
+    http::StatusCode,
+    response::{IntoResponse, Response},
+    Json,
+};
 use rcgen::{CertificateParams, KeyPair, SanType};
 use serde::{Deserialize, Serialize};
 use sws_core::{AlarmDb, TagDb};
@@ -124,7 +129,11 @@ pub struct SystemStatus {
 /// stringhe sono un contratto con la SPA, e averle in un posto solo evita che
 /// un domani una diventi `"IDE"` e l'altra `"ide"`.
 pub fn mode_label(ide_only: bool) -> &'static str {
-    if ide_only { "ide" } else { "runtime" }
+    if ide_only {
+        "ide"
+    } else {
+        "runtime"
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -177,7 +186,12 @@ pub async fn compute_system_status(
     // a 0 (mai calcolato). `all_stats()` è lo stesso metodo già usato da
     // `/api/datastores` per la card di ciascun backend.
     let historian_samples = match registry {
-        Some(reg) => reg.all_stats().await.iter().map(|(_, s)| s.sample_count).sum(),
+        Some(reg) => reg
+            .all_stats()
+            .await
+            .iter()
+            .map(|(_, s)| s.sample_count)
+            .sum(),
         None => 0,
     };
 
@@ -199,7 +213,9 @@ pub async fn compute_system_status(
         cpu_usage_pct: sys.global_cpu_info().cpu_usage(),
         mem_used_mb: sys.used_memory() / 1_048_576,
         mem_total_mb: sys.total_memory() / 1_048_576,
-        disk_used_gb: disk.map(|d| (d.total_space() - d.available_space()) / 1_073_741_824).unwrap_or(0),
+        disk_used_gb: disk
+            .map(|d| (d.total_space() - d.available_space()) / 1_073_741_824)
+            .unwrap_or(0),
         disk_total_gb: disk.map(|d| d.total_space() / 1_073_741_824).unwrap_or(0),
     }
 }
@@ -222,9 +238,11 @@ fn calcola_avvisi(
             gravita: "avviso",
             dove: "acquisizione".into(),
             messaggio: "L'acquisizione è ferma: driver, script globali, notifiche e Telegram \
-                        non stanno girando.".into(),
+                        non stanno girando."
+                .into(),
             rimedio: "Un salvataggio viene scritto sul disco ma non fa ripartire niente: \
-                      premi RUN quando vuoi rimettere in marcia l'impianto.".into(),
+                      premi RUN quando vuoi rimettere in marcia l'impianto."
+                .into(),
         });
     }
 
@@ -241,7 +259,9 @@ fn calcola_avvisi(
         if !gs.enabled {
             continue; // disabilitato è una scelta, non un difetto.
         }
-        let sws_core::ScriptTrigger::Cron { schedule } = &gs.trigger else { continue };
+        let sws_core::ScriptTrigger::Cron { schedule } = &gs.trigger else {
+            continue;
+        };
         let (cron, problemi) = crate::cron::analizza(schedule);
         let errori: Vec<&crate::cron::Problema> = problemi
             .iter()
@@ -269,11 +289,17 @@ fn calcola_avvisi(
             // Gli avvisi del parser (campi mancanti, campi di troppo) non
             // impediscono di partire, ma cambiano *quando*: `30 4` gira ogni
             // giorno di ogni mese, che non è quasi mai ciò che si intendeva.
-            for a in problemi.iter().filter(|x| x.gravita == crate::cron::Gravita::Avviso) {
+            for a in problemi
+                .iter()
+                .filter(|x| x.gravita == crate::cron::Gravita::Avviso)
+            {
                 out.push(Avviso {
                     gravita: "avviso",
                     dove: format!("script globale «{}»", gs.id),
-                    messaggio: format!("Il cron `{schedule}` parte, ma forse non quando credi: {}", a.messaggio),
+                    messaggio: format!(
+                        "Il cron `{schedule}` parte, ma forse non quando credi: {}",
+                        a.messaggio
+                    ),
                     rimedio: a.suggerimento.clone(),
                 });
             }
@@ -285,16 +311,19 @@ fn calcola_avvisi(
 pub async fn get_system_status(State(state): State<AppState>) -> Json<SystemStatus> {
     let dir_guard = state.project_dir.read().await;
     let registry = state.registry.read().await.clone();
-    Json(compute_system_status(
-        &state.db,
-        &state.alarms,
-        &state.supervisor,
-        registry.as_deref(),
-        dir_guard.as_deref(),
-        state.started_at,
-        state.ide_only,
-        state.auth.has_users().await,
-    ).await)
+    Json(
+        compute_system_status(
+            &state.db,
+            &state.alarms,
+            &state.supervisor,
+            registry.as_deref(),
+            dir_guard.as_deref(),
+            state.started_at,
+            state.ide_only,
+            state.auth.has_users().await,
+        )
+        .await,
+    )
 }
 
 /// `POST /api/project/migrate` — re-save the active project in the current
@@ -355,7 +384,12 @@ pub async fn system_start(State(s): State<AppState>) -> StatusCode {
             return StatusCode::INTERNAL_SERVER_ERROR;
         }
     };
-    crate::projects::resolve_mqtt_client_ids(&project.meta.name, &mut project.sources, &s.config_dir, &s.instance_id);
+    crate::projects::resolve_mqtt_client_ids(
+        &project.meta.name,
+        &mut project.sources,
+        &s.config_dir,
+        &s.instance_id,
+    );
     // Q33: si arma **qui** — dopo che il progetto si è caricato, e prima del
     // reload, che altrimenti rifiuterebbe di avviare le sorgenti che gli stiamo
     // passando. Non in testa alla funzione: i due `return` sopra la
@@ -367,7 +401,8 @@ pub async fn system_start(State(s): State<AppState>) -> StatusCode {
     // flag: è l'intenzione dell'operatore, non l'effetto di un salvataggio.
     s.supervisor.set_armed(true);
     s.supervisor.reload(project.sources).await;
-    crate::projects::start_project_services(&s, project.notifications, project.global_scripts).await;
+    crate::projects::start_project_services(&s, project.notifications, project.global_scripts)
+        .await;
     tracing::info!("runtime acquisition started by operator");
     StatusCode::NO_CONTENT
 }
@@ -381,7 +416,7 @@ pub async fn system_start(State(s): State<AppState>) -> StatusCode {
 pub async fn system_reboot(State(s): State<AppState>) -> StatusCode {
     // Snapshot state before the async block moves ownership.
     let projects_root = (*s.projects_root).clone();
-    let project_dir   = s.project_dir.read().await.clone();
+    let project_dir = s.project_dir.read().await.clone();
 
     tokio::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_millis(400)).await;
@@ -449,7 +484,7 @@ pub async fn generate_tls_cert(State(s): State<AppState>) -> StatusCode {
 /// `DELETE /api/system/tls` — remove the TLS cert files and reboot into plain HTTP.
 pub async fn remove_tls_cert(State(s): State<AppState>) -> StatusCode {
     let cert_path = s.config_dir.join("tls.crt");
-    let key_path  = s.config_dir.join("tls.key");
+    let key_path = s.config_dir.join("tls.key");
     for path in [&cert_path, &key_path] {
         if path.exists() {
             if let Err(e) = tokio::fs::remove_file(path).await {
@@ -543,19 +578,24 @@ fn generate_cert_files(config_dir: &std::path::Path) -> anyhow::Result<()> {
 
     let mut params = CertificateParams::new(vec!["localhost".to_string()])
         .context("rcgen: CertificateParams::new")?;
-    params.subject_alt_names.push(SanType::IpAddress(
-        std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
-    ));
+    params
+        .subject_alt_names
+        .push(SanType::IpAddress(std::net::IpAddr::V4(
+            std::net::Ipv4Addr::LOCALHOST,
+        )));
     if let Some(ip) = lan_ip {
         params.subject_alt_names.push(SanType::IpAddress(ip));
         tracing::info!(%ip, "TLS cert will include LAN IP SAN");
     }
 
     let key_pair = KeyPair::generate().context("rcgen: KeyPair::generate")?;
-    let cert = params.self_signed(&key_pair).context("rcgen: self_signed")?;
+    let cert = params
+        .self_signed(&key_pair)
+        .context("rcgen: self_signed")?;
 
     std::fs::write(config_dir.join("tls.crt"), cert.pem()).context("writing tls.crt")?;
-    std::fs::write(config_dir.join("tls.key"), key_pair.serialize_pem()).context("writing tls.key")?;
+    std::fs::write(config_dir.join("tls.key"), key_pair.serialize_pem())
+        .context("writing tls.key")?;
     tracing::info!(path = %config_dir.display(), "self-signed TLS certificate saved");
     Ok(())
 }
@@ -564,8 +604,10 @@ fn generate_cert_files(config_dir: &std::path::Path) -> anyhow::Result<()> {
 mod tests {
     use super::*;
     use std::path::PathBuf;
-    use sws_core::{AlarmCondition, AlarmDb, AlarmDef, AlarmSeverity, TagDb, TagQuality, TagState, TagValue};
     use sws_core::TagWriteBus;
+    use sws_core::{
+        AlarmCondition, AlarmDb, AlarmDef, AlarmSeverity, TagDb, TagQuality, TagState, TagValue,
+    };
 
     fn make_supervisor() -> std::sync::Arc<crate::source_supervisor::SourceSupervisor> {
         let db = std::sync::Arc::new(TagDb::new(64));
@@ -576,9 +618,12 @@ mod tests {
     #[tokio::test]
     async fn compute_system_status_reflects_inputs() {
         let db = TagDb::new(64);
-        db.set("t1".into(), TagValue::Float(1.0), TagQuality::Good).await;
-        db.set("t2".into(), TagValue::Float(2.0), TagQuality::Good).await;
-        db.set("t3".into(), TagValue::Bool(true), TagQuality::Good).await;
+        db.set("t1".into(), TagValue::Float(1.0), TagQuality::Good)
+            .await;
+        db.set("t2".into(), TagValue::Float(2.0), TagQuality::Good)
+            .await;
+        db.set("t3".into(), TagValue::Bool(true), TagQuality::Good)
+            .await;
 
         let alarms = AlarmDb::new(64);
         alarms.load(vec![]).await;
@@ -587,7 +632,17 @@ mod tests {
         let started = Instant::now() - std::time::Duration::from_secs(5);
         let project_path = PathBuf::from("/tmp/demo-project");
 
-        let status = compute_system_status(&db, &alarms, &supervisor, None, Some(&project_path), started, false, false).await;
+        let status = compute_system_status(
+            &db,
+            &alarms,
+            &supervisor,
+            None,
+            Some(&project_path),
+            started,
+            false,
+            false,
+        )
+        .await;
 
         assert_eq!(status.tag_count, 3);
         assert_eq!(status.active_project.as_deref(), Some("demo-project"));
@@ -604,7 +659,17 @@ mod tests {
         let alarms = AlarmDb::new(64);
         alarms.load(vec![]).await;
         let supervisor = make_supervisor();
-        let status = compute_system_status(&db, &alarms, &supervisor, None, None, Instant::now(), false, false).await;
+        let status = compute_system_status(
+            &db,
+            &alarms,
+            &supervisor,
+            None,
+            None,
+            Instant::now(),
+            false,
+            false,
+        )
+        .await;
         assert!(status.active_project.is_none());
         assert_eq!(status.tag_count, 0);
         assert_eq!(status.alarm_active_count, 0);
@@ -625,12 +690,33 @@ mod tests {
         let supervisor = make_supervisor();
 
         let ide = compute_system_status(
-            &db, &alarms, &supervisor, None, None, Instant::now(), true, false).await;
+            &db,
+            &alarms,
+            &supervisor,
+            None,
+            None,
+            Instant::now(),
+            true,
+            false,
+        )
+        .await;
         assert_eq!(ide.mode, "ide", "senza viewer l'istanza è un IDE");
 
         let runtime = compute_system_status(
-            &db, &alarms, &supervisor, None, None, Instant::now(), false, false).await;
-        assert_eq!(runtime.mode, "runtime", "con un viewer l'istanza serve un impianto");
+            &db,
+            &alarms,
+            &supervisor,
+            None,
+            None,
+            Instant::now(),
+            false,
+            false,
+        )
+        .await;
+        assert_eq!(
+            runtime.mode, "runtime",
+            "con un viewer l'istanza serve un impianto"
+        );
 
         // Le due stringhe sono un contratto con la SPA: se cambiano qui senza
         // cambiare là, il badge non si accende più e nessun test lo nota.
@@ -641,27 +727,30 @@ mod tests {
     #[tokio::test]
     async fn alarm_active_count_includes_only_active() {
         let db = TagDb::new(64);
-        db.set("temp".into(), TagValue::Float(100.0), TagQuality::Good).await;
+        db.set("temp".into(), TagValue::Float(100.0), TagQuality::Good)
+            .await;
 
         let alarms = AlarmDb::new(64);
-        alarms.load(vec![AlarmDef {
-            id: "hi".into(),
-            tag: "temp".into(),
-            condition: AlarmCondition::Above { threshold: 50.0 },
-            severity: AlarmSeverity::Warning,
-            message: "too hot".into(),
-            notify_url: None,
-            dead_band: None,
-            on_delay_s: None,
-            off_delay_s: None,
-            inhibit_tag: None,
-            inhibit_condition: None,
-            notify_email: None,
-            escalate_after_s: None,
-            escalate_to: None,
-            telegram_mode: None,
-            telegram_chat_ids: None,
-        }]).await;
+        alarms
+            .load(vec![AlarmDef {
+                id: "hi".into(),
+                tag: "temp".into(),
+                condition: AlarmCondition::Above { threshold: 50.0 },
+                severity: AlarmSeverity::Warning,
+                message: "too hot".into(),
+                notify_url: None,
+                dead_band: None,
+                on_delay_s: None,
+                off_delay_s: None,
+                inhibit_tag: None,
+                inhibit_condition: None,
+                notify_email: None,
+                escalate_after_s: None,
+                escalate_to: None,
+                telegram_mode: None,
+                telegram_chat_ids: None,
+            }])
+            .await;
 
         let state = TagState {
             value: TagValue::Float(100.0),
@@ -671,7 +760,17 @@ mod tests {
         alarms.evaluate("temp", &state).await;
 
         let supervisor = make_supervisor();
-        let status = compute_system_status(&db, &alarms, &supervisor, None, None, Instant::now(), false, false).await;
+        let status = compute_system_status(
+            &db,
+            &alarms,
+            &supervisor,
+            None,
+            None,
+            Instant::now(),
+            false,
+            false,
+        )
+        .await;
         assert_eq!(status.alarm_active_count, 1);
     }
 
@@ -696,7 +795,10 @@ mod tests {
     fn validate_cert_key_rejects_garbage() {
         assert!(validate_cert_key("not a cert", "not a key").is_err());
         let (cert, _) = make_cert_key();
-        assert!(validate_cert_key(&cert, "").is_err(), "missing key must fail");
+        assert!(
+            validate_cert_key(&cert, "").is_err(),
+            "missing key must fail"
+        );
     }
 
     #[test]
@@ -745,7 +847,8 @@ mod tests_avvisi {
         assert!(a[0].rimedio.contains("RUN"), "manca il rimedio: {:?}", a[0]);
         assert!(
             a[0].rimedio.contains("non fa ripartire"),
-            "l'avviso deve dire che un salvataggio non avvia: {:?}", a[0]
+            "l'avviso deve dire che un salvataggio non avvia: {:?}",
+            a[0]
         );
     }
 
@@ -767,14 +870,18 @@ mod tests_avvisi {
     /// insegna a ignorarlo.
     #[tokio::test]
     async fn un_cron_valido_non_avvisa() {
-        let p = progetto("  - { id: ok, trigger: { kind: cron, schedule: \"*/5 * * * *\" }, code: \"x = 1\" }\n");
+        let p = progetto(
+            "  - { id: ok, trigger: { kind: cron, schedule: \"*/5 * * * *\" }, code: \"x = 1\" }\n",
+        );
         assert!(calcola_avvisi(Some(&p), &supervisore()).is_empty());
     }
 
     /// Un cron corto parte, ma non quando si crede: è un avviso, non un errore.
     #[tokio::test]
     async fn un_cron_corto_avvisa_senza_essere_un_errore() {
-        let p = progetto("  - { id: corto, trigger: { kind: cron, schedule: \"30 4\" }, code: \"x = 1\" }\n");
+        let p = progetto(
+            "  - { id: corto, trigger: { kind: cron, schedule: \"30 4\" }, code: \"x = 1\" }\n",
+        );
         let a = calcola_avvisi(Some(&p), &supervisore());
         assert_eq!(a.len(), 1, "{a:?}");
         assert_eq!(a[0].gravita, "avviso");

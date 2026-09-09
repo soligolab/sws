@@ -39,8 +39,12 @@
 //! riuscito, e la risposta lo dice con `riconnetti: true` invece di lasciarlo
 //! dedurre.
 
-use axum::{extract::State, response::{IntoResponse, Response}, Extension, Json};
 use axum::http::StatusCode;
+use axum::{
+    extract::State,
+    response::{IntoResponse, Response},
+    Extension, Json,
+};
 use serde::Deserialize;
 use serde_json::json;
 
@@ -55,10 +59,14 @@ fn solo_ide(s: &AppState) -> Result<(), Response> {
     if s.ide_only {
         Ok(())
     } else {
-        Err((StatusCode::NOT_FOUND, Json(json!({
-            "errore": "la configurazione dell'assistente esiste solo sull'istanza IDE \
-                       (quella avviata senza viewer)",
-        }))).into_response())
+        Err((
+            StatusCode::NOT_FOUND,
+            Json(json!({
+                "errore": "la configurazione dell'assistente esiste solo sull'istanza IDE \
+                           (quella avviata senza viewer)",
+            })),
+        )
+            .into_response())
     }
 }
 
@@ -67,7 +75,9 @@ fn solo_ide(s: &AppState) -> Result<(), Response> {
 /// Non restituisce **niente** della chiave, nemmeno mascherata: al pannello
 /// serve sapere *se* è configurata, non com'è fatta.
 pub async fn get_ai_config(State(s): State<AppState>) -> Response {
-    if let Err(r) = solo_ide(&s) { return r; }
+    if let Err(r) = solo_ide(&s) {
+        return r;
+    }
 
     let imp = Impostazioni::carica(&s.config_dir);
     let scelta = client::carica(&s.config_dir);
@@ -75,11 +85,20 @@ pub async fn get_ai_config(State(s): State<AppState>) -> Response {
     // Quale variabile d'ambiente sta scavalcando il file, se ce n'è una. Serve
     // al pannello per dirlo: senza, si configura dall'IDE, non cambia niente, e
     // sembra un difetto nostro.
-    let ambiente: Vec<&str> = ["SWS_AI_FORNITORE", "SWS_AI_MODELLO",
-                               "ANTHROPIC_API_KEY", "MOONSHOT_API_KEY", "KIMI_API_KEY"]
-        .into_iter()
-        .filter(|v| std::env::var(v).map(|x| !x.trim().is_empty()).unwrap_or(false))
-        .collect();
+    let ambiente: Vec<&str> = [
+        "SWS_AI_FORNITORE",
+        "SWS_AI_MODELLO",
+        "ANTHROPIC_API_KEY",
+        "MOONSHOT_API_KEY",
+        "KIMI_API_KEY",
+    ]
+    .into_iter()
+    .filter(|v| {
+        std::env::var(v)
+            .map(|x| !x.trim().is_empty())
+            .unwrap_or(false)
+    })
+    .collect();
 
     Json(json!({
         "configurato": scelta.is_some(),
@@ -100,7 +119,8 @@ pub async fn get_ai_config(State(s): State<AppState>) -> Response {
         "da_ambiente": ambiente,
         "percorsi": client::percorsi_chiave(&s.config_dir).iter()
             .map(|p| p.display().to_string()).collect::<Vec<_>>(),
-    })).into_response()
+    }))
+    .into_response()
 }
 
 #[derive(Debug, Deserialize)]
@@ -123,17 +143,25 @@ pub async fn put_ai_config(
     Extension(user): Extension<AuthUser>,
     Json(body): Json<AiConfigBody>,
 ) -> Response {
-    if let Err(r) = solo_ide(&s) { return r; }
+    if let Err(r) = solo_ide(&s) {
+        return r;
+    }
 
     let Some(f) = Fornitore::da_nome(&body.fornitore) else {
-        return (StatusCode::BAD_REQUEST, Json(json!({
-            "errore": format!("fornitore `{}` sconosciuto: sono `anthropic` o `kimi`",
-                              body.fornitore),
-        }))).into_response();
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({
+                "errore": format!("fornitore `{}` sconosciuto: sono `anthropic` o `kimi`",
+                                  body.fornitore),
+            })),
+        )
+            .into_response();
     };
 
     // ── La chiave, se ne è arrivata una nuova ────────────────────────────────
-    let nuova = body.chiave.as_deref()
+    let nuova = body
+        .chiave
+        .as_deref()
         .map(str::trim)
         .filter(|k| !k.is_empty() && *k != MASKED_PASSWORD);
 
@@ -143,35 +171,57 @@ pub async fn put_ai_config(
         // rifiuta una chiave valida è peggio di nessun controllo. Si rifiuta
         // solo ciò che non può essere una chiave.
         if k.len() < 16 || k.split_whitespace().count() > 1 {
-            return (StatusCode::BAD_REQUEST, Json(json!({
-                "errore": "la chiave non sembra una chiave: deve essere una sola parola \
-                           di almeno 16 caratteri",
-            }))).into_response();
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({
+                    "errore": "la chiave non sembra una chiave: deve essere una sola parola \
+                               di almeno 16 caratteri",
+                })),
+            )
+                .into_response();
         }
         if let Err(e) = client::salva_chiave(&s.config_dir, f, k) {
-            return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({
-                "errore": format!("la chiave non si è potuta scrivere: {e}"),
-            }))).into_response();
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({
+                    "errore": format!("la chiave non si è potuta scrivere: {e}"),
+                })),
+            )
+                .into_response();
         }
         // Solo metadati nel registro, mai la chiave — come `script.exec`, che
         // registra quanti byte di codice e non il codice.
-        s.audit.log("ai.key_set", Some(user.username.clone()),
-                    json!({ "fornitore": f.nome() }));
+        s.audit.log(
+            "ai.key_set",
+            Some(user.username.clone()),
+            json!({ "fornitore": f.nome() }),
+        );
     }
 
     // ── Fornitore e modello ─────────────────────────────────────────────────
-    let modello = body.modello.as_deref().map(str::trim).filter(|m| !m.is_empty());
+    let modello = body
+        .modello
+        .as_deref()
+        .map(str::trim)
+        .filter(|m| !m.is_empty());
     let imp = Impostazioni {
         fornitore: Some(f.nome().to_string()),
         modello: modello.map(str::to_string),
     };
     if let Err(e) = imp.salva(&s.config_dir) {
-        return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({
-            "errore": format!("le impostazioni non si sono potute scrivere: {e}"),
-        }))).into_response();
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({
+                "errore": format!("le impostazioni non si sono potute scrivere: {e}"),
+            })),
+        )
+            .into_response();
     }
-    s.audit.log("ai.config_changed", Some(user.username),
-                json!({ "fornitore": f.nome(), "modello": modello }));
+    s.audit.log(
+        "ai.config_changed",
+        Some(user.username),
+        json!({ "fornitore": f.nome(), "modello": modello }),
+    );
 
     Json(json!({
         "ok": true,
@@ -179,7 +229,8 @@ pub async fn put_ai_config(
         // Il pannello deve riaprire il socket: la chiave si legge all'apertura
         // della sessione, non a ogni turno.
         "riconnetti": true,
-    })).into_response()
+    }))
+    .into_response()
 }
 
 #[derive(Debug, Deserialize)]
@@ -196,23 +247,37 @@ pub async fn delete_ai_config(
     Extension(user): Extension<AuthUser>,
     Json(body): Json<AiDeleteBody>,
 ) -> Response {
-    if let Err(r) = solo_ide(&s) { return r; }
+    if let Err(r) = solo_ide(&s) {
+        return r;
+    }
 
     let Some(f) = Fornitore::da_nome(&body.fornitore) else {
-        return (StatusCode::BAD_REQUEST, Json(json!({
-            "errore": format!("fornitore `{}` sconosciuto", body.fornitore),
-        }))).into_response();
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({
+                "errore": format!("fornitore `{}` sconosciuto", body.fornitore),
+            })),
+        )
+            .into_response();
     };
 
     match client::cancella_chiave(&s.config_dir, f) {
         Ok(cera) => {
             if cera {
-                s.audit.log("ai.key_removed", Some(user.username), json!({ "fornitore": f.nome() }));
+                s.audit.log(
+                    "ai.key_removed",
+                    Some(user.username),
+                    json!({ "fornitore": f.nome() }),
+                );
             }
             Json(json!({ "ok": true, "cera": cera, "riconnetti": true })).into_response()
         }
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({
-            "errore": format!("la chiave non si è potuta cancellare: {e}"),
-        }))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({
+                "errore": format!("la chiave non si è potuta cancellare: {e}"),
+            })),
+        )
+            .into_response(),
     }
 }
