@@ -797,6 +797,43 @@ fn build_purge_cmd(remote_dir: &str, data_path: &str) -> String {
     cmd
 }
 
+/// Gli stessi sei file, **dentro il binario** (Q48, 2026-09-09).
+///
+/// `container_deploy_sources` li cerca nel repo, e il repo c'è solo quando
+/// l'editor gira da un checkout (`resolve_repo_root`: cwd con
+/// `scripts/package.sh`). Un editor installato come container — o da pacchetto,
+/// o il servizio ospitato di Q44 — rispondeva «repo_root non disponibile» e il
+/// deploy del container non esisteva. Con `include_str!` i file viaggiano col
+/// binario e non possono divergere da quelli del repo: sono letteralmente gli
+/// stessi byte al momento della compilazione. Il repo, quando c'è, ha ancora la
+/// precedenza — così una modifica a un file di deploy si prova senza ricompilare.
+const CONTAINER_DEPLOY_EMBEDDED: &[(&str, &str)] = &[
+    (
+        "install-container.sh",
+        include_str!("../../../../deploy/container/install-container.sh"),
+    ),
+    (
+        "sws-runtime.container",
+        include_str!("../../../../deploy/container/sws-runtime.container"),
+    ),
+    (
+        "sws-lvgl-viewer.container",
+        include_str!("../../../../deploy/container/sws-lvgl-viewer.container"),
+    ),
+    (
+        "sws-display.service",
+        include_str!("../../../../deploy/container/sws-display.service"),
+    ),
+    (
+        "sws-display.path",
+        include_str!("../../../../deploy/container/sws-display.path"),
+    ),
+    (
+        "sws-display-apply.sh",
+        include_str!("../../../../deploy/container/sws-display-apply.sh"),
+    ),
+];
+
 /// I file di `deploy/container/` che l'installer legge **dalla propria
 /// directory**, e che quindi devono atterrare tutti nella stessa `remote_dir`.
 ///
@@ -835,6 +872,30 @@ fn container_deploy_sources(repo: &std::path::Path) -> Result<Vec<std::path::Pat
             // precedente li nominava tutti qualunque fosse l'assente, e
             // lasciava a chi legge il compito di cercare quale.
             return Err(format!("deploy/container/{f}"));
+        }
+        out.push(p);
+    }
+    Ok(out)
+}
+
+/// Scrive i file incorporati in `dir` e ne restituisce i percorsi, nello stesso
+/// ordine di `CONTAINER_DEPLOY_FILES`. Gli `.sh` escono eseguibili: l'installer
+/// viene lanciato sul dispositivo dopo un `chmod +x`, ma un file già giusto non
+/// dipende da quel passo.
+fn container_deploy_sources_incorporati(
+    dir: &std::path::Path,
+) -> Result<Vec<std::path::PathBuf>, String> {
+    let mut out = Vec::with_capacity(CONTAINER_DEPLOY_FILES.len());
+    for nome in CONTAINER_DEPLOY_FILES {
+        let (_, testo) = CONTAINER_DEPLOY_EMBEDDED
+            .iter()
+            .find(|(n, _)| n == nome)
+            .ok_or_else(|| format!("{nome} non è fra i file incorporati"))?;
+        let p = dir.join(nome);
+        std::fs::write(&p, testo).map_err(|e| format!("scrivo {}: {e}", p.display()))?;
+        if nome.ends_with(".sh") {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o755));
         }
         out.push(p);
     }
@@ -1018,16 +1079,9 @@ pub async fn deploy_device_container(
     State(s): State<AppState>,
     EJson(req): EJson<DeviceContainerDeployRequest>,
 ) -> Response {
-    let repo = match s.repo_root.as_ref() {
-        Some(p) => p.clone(),
-        None => {
-            return (
-                StatusCode::SERVICE_UNAVAILABLE,
-                "repo_root non disponibile\n",
-            )
-                .into_response();
-        }
-    };
+    // Q48: il repo non è più un prerequisito. Serve solo per gli ARCHIVI in
+    // dist/; i sei file di deploy, se il repo non c'è, escono dal binario.
+    let repo: Option<PathBuf> = s.repo_root.as_ref().clone();
 
     if let Err(m) = destinazione_ssh_sicura(&req.user, &req.host) {
         return (StatusCode::BAD_REQUEST, m).into_response();
@@ -1056,22 +1110,43 @@ pub async fn deploy_device_container(
     // `dist/` può non esistere affatto, ed è il caso di chi installa senza aver
     // mai fatto una build.
     let image_path = match &image_spec {
-        ImageSpec::Archive(name) => match resolve_dist_file(&repo, name) {
+        ImageSpec::Archive(name) => match repo.as_deref().ok_or_else(|| {
+            "sorgente 'archivio' non disponibile: questo editor non gira da un checkout del repo, \
+             quindi non ha una cartella dist/. Usa la sorgente 'registry'.".to_string()
+        }).and_then(|r| resolve_dist_file(r, name)) {
             Ok(p) => Some(p),
             Err(e) => return (StatusCode::BAD_REQUEST, format!("{e}\n")).into_response(),
         },
         ImageSpec::Registry(_) => None,
     };
 
-    let deploy_srcs = match container_deploy_sources(&repo) {
-        Ok(v) => v,
-        Err(mancante) => {
+    // La cartella temporanea vive fino alla fine del deploy: viene spostata nel
+    // task qui sotto, altrimenti i file sparirebbero prima dello scp.
+    let cartella_incorporati = match tempfile::tempdir() {
+        Ok(d) => d,
+        Err(e) => {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                format!("{mancante} mancante nel repo\n"),
+                format!("cartella temporanea per i file di deploy: {e}\n"),
             )
-                .into_response();
+                .into_response()
         }
+    };
+    let (deploy_srcs, origine_file) = match repo.as_deref() {
+        Some(r) => match container_deploy_sources(r) {
+            Ok(v) => (v, "dal repo"),
+            Err(mancante) => {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("{mancante} mancante nel repo\n"),
+                )
+                    .into_response();
+            }
+        },
+        None => match container_deploy_sources_incorporati(cartella_incorporati.path()) {
+            Ok(v) => (v, "incorporati nel binario"),
+            Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("{e}\n")).into_response(),
+        },
     };
 
     // Riga di riepilogo composta qui, dove i dati ci sono ancora tutti.
@@ -1087,6 +1162,8 @@ pub async fn deploy_device_container(
     let (tx, rx) = tokio::sync::mpsc::channel::<String>(128);
 
     tokio::spawn(async move {
+        // Tiene viva la cartella dei file incorporati fino alla fine (vedi sopra).
+        let _cartella_incorporati = cartella_incorporati;
         let send = |msg: &str| {
             let _ = tx.try_send(format!("{msg}\n"));
             log_deploy_line!("sws_web::deploy_container", msg);
@@ -1100,6 +1177,7 @@ pub async fn deploy_device_container(
         let host_str = format!("{}@{}", req.user, req.host);
         let port_str = req.port.to_string();
         send(&source_line);
+        send(&format!("==> file di deploy: {origine_file}"));
 
         // ── 1. Crea remote_dir ──────────────────────────────────────────────
         // A differenza di deploy_device (che scp-a dentro /tmp/..., quasi
@@ -1822,6 +1900,39 @@ mod tests {
                 "atteso il nome del file, ottenuto: {e}"
             ),
             Ok(_) => panic!("una directory vuota non può risolvere i sorgenti"),
+        }
+    }
+
+    /// Q48: i file incorporati sono ESATTAMENTE quelli del repo — `include_str!`
+    /// lo garantisce a compilazione, ma l'elenco dei nomi è scritto due volte e
+    /// una svista lì passerebbe.
+    #[test]
+    fn i_file_incorporati_sono_quelli_dell_elenco_e_identici_al_repo() {
+        let nomi: Vec<&str> = CONTAINER_DEPLOY_EMBEDDED.iter().map(|(n, _)| *n).collect();
+        assert_eq!(nomi, CONTAINER_DEPLOY_FILES.to_vec());
+        let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+        for (nome, testo) in CONTAINER_DEPLOY_EMBEDDED {
+            let dal_repo =
+                std::fs::read_to_string(repo.join("deploy/container").join(nome)).unwrap();
+            assert_eq!(&dal_repo, testo, "{nome} incorporato diverge dal repo");
+        }
+    }
+
+    #[test]
+    fn i_file_incorporati_si_materializzano_e_gli_sh_sono_eseguibili() {
+        use std::os::unix::fs::PermissionsExt;
+        let d = tempfile::tempdir().unwrap();
+        let out = container_deploy_sources_incorporati(d.path()).unwrap();
+        assert_eq!(out.len(), CONTAINER_DEPLOY_FILES.len());
+        for p in &out {
+            assert!(p.exists());
+            if p.extension().and_then(|e| e.to_str()) == Some("sh") {
+                assert!(
+                    std::fs::metadata(p).unwrap().permissions().mode() & 0o111 != 0,
+                    "{} non eseguibile",
+                    p.display()
+                );
+            }
         }
     }
 

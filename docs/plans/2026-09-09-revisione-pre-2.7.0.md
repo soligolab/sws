@@ -93,6 +93,8 @@ i 25 avvisi erano in dipendenze di **sviluppo**, niente nel bundle servito.
   — la postura opposta al container rootless di produzione. Ed è una seconda implementazione
   di ssh/scp accanto a `packaging.rs` (`validate_remote_path` identica in entrambi).
   Raccomandazione: **togliere endpoint e modale**, o ripuntare al deploy container.
+  *Deciso il 2026-09-09: ripuntato al deploy container, `deploy.rs` rimosso, file di
+  deploy incorporati nel binario — ramo `feat/Q48-installa-dalla-welcome`.*
 - **Q49 — TLS senza verifica del certificato, in quattro posti.** `remote.rs`
   (`danger_accept_invalid_certs`), `remote_relay.rs` e `viewer/tls.rs` (verificatore che
   accetta tutto, copiato in due crate), plugin MQTT (`insecure_skip_verify` con WARN). È una

@@ -40,6 +40,7 @@ STATICHE=(
     check_documenti         # le domande aperte: vivo + archivio senza buchi, rimandi che risolvono
     check_versione_progetto # chi riscrive project.yaml e chi se ne accorge (Q30)
     check_manuale_widget    # il capitolo dei widget nomina tutti i tipi della palette
+    check_password_browser  # nessuna password salvata in localStorage/sessionStorage
 )
 
 # Vogliono uno stack in ascolto, podman o un dispositivo: a mano, non qui.

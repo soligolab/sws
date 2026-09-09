@@ -10,12 +10,16 @@ import "./i18n/index";
 import { setForceLocalApi } from "@/api/client";
 import { applyBranding, loadBranding } from "@/branding";
 import { applyAppearance, getStoredMode, initThemeStorageListener, initThemeSystemListener } from "@/theme";
+import { dimenticaPasswordLegacy } from "@/passwordNelBrowser";
 import { useAppStore } from "@/store";
 
 export async function avvia(Radice: React.ComponentType, opzioni: { apiLocale?: boolean } = {}): Promise<void> {
   // Le pagine dell'IDE parlano sempre con il runtime che le serve, anche se
   // l'editor è collegato a uno remoto: il remoto lo si raggiunge dal server.
   if (opzioni.apiLocale) setForceLocalApi(true);
+  // Le versioni fino alla 2.6.6 lasciavano password in chiaro nel profilo del
+  // browser: si tolgono prima di disegnare qualunque cosa.
+  dimenticaPasswordLegacy();
   applyBranding(await loadBranding());
   applyAppearance(getStoredMode());
   initThemeSystemListener(() => useAppStore.getState().themeMode);

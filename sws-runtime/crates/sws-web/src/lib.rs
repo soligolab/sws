@@ -2,7 +2,6 @@ pub mod ai;
 pub mod backups;
 pub mod certificati;
 pub mod cron;
-pub mod deploy;
 pub mod discover;
 pub mod display_target;
 pub mod git_deploy;

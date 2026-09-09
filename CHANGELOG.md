@@ -13,7 +13,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 > Ramo `chore/revisione-pre-2.7.0` — la revisione generale prima della 2.7.0. Referto
 > completo in `docs/plans/2026-09-09-revisione-pre-2.7.0.md`; le decisioni aperte sono
-> Q46–Q49. Non ancora su `main`.
+> Q46–Q49. La revisione è su `main`; Q48 è sul ramo `feat/Q48-installa-dalla-welcome`.
 
 ### Il certificato del dispositivo si memorizza al primo contatto, e se cambia ci si ferma (Q49)
 
@@ -25,6 +25,45 @@ reset e offre «Dimentica il vecchio certificato e riprova» (registrato nell'au
 dei valori vivi chiude con un codice definitivo invece di ritentare. La firma del
 certificato si verifica davvero; solo la catena no, perché è self-signed. Viewer LVGL e
 broker MQTT restano da fare con lo stesso modulo.
+
+### «Installa runtime» dalla schermata iniziale ora installa il container (Q48)
+
+Il pulsante chiamava `/api/deploy/remote`, che scaricava un binario dalle release GitHub —
+un asset che non esiste (404 per entrambe le architetture): falliva sempre. Ora chiama lo
+stesso deploy container di Configurazione → Runtime, dal registry, con l'architettura
+decisa dal dispositivo; niente più campi architettura e percorso, utente predefinito `user`
+e **la password SSH non viene più salvata in `localStorage`**. Se la chiave host è
+cambiata compare lo stesso pulsante «Dimentica la vecchia chiave» di ConfigView. I sei
+file di `deploy/container/` sono incorporati nel binario: il deploy funziona anche da un
+runtime senza il checkout del repo (prima: 503). `deploy.rs` e l'endpoint sono rimossi.
+
+### Due guardie rosse dopo il `cargo fmt`, e la causa tolta
+
+`cargo fmt` aveva spezzato la tabella `CASI_FUORI_PAGINA` di `geometry.rs` in dieci righe
+per caso (la guardia `check_off_page` la leggeva con un'espressione regolare e trovava zero
+righe) e riformattato il file generato `synoptic_schema.rs` (la guardia lo confrontava col
+generatore e non coincideva più). La tabella torna allineata a mano con `#[rustfmt::skip]`;
+il generatore passa da `rustfmt`, così le due copie escono dallo stesso strumento.
+
+### `session_start.sh` controlla l'identità git
+
+Quindici commit dal 7 al 9 settembre erano usciti come `pixsysedp`: l'identità è locale al
+repo e su una macchina nessuno l'aveva impostata. Sono stati riscritti (alberi identici, tag
+`2.6.0`/`2.6.5`/`2.6.6` ricreati) e lo script di inizio sessione ora avvisa, stampando il
+comando, se `git config user.email` non è quella del maintainer.
+
+### Nessuna password resta nel browser
+
+Configurazione → Runtime salvava la password del dispositivo in `localStorage`
+(`sws.runtime.targetPass`), e Configurazione → Dispositivi salvava quella di ogni
+dispositivo registrato (`sws.saved-devices`, campo `pass`): in chiaro, leggibili da qualunque
+script della stessa origine, su disco anche dopo la chiusura del browser. Ora la password
+vive solo nello stato del modulo e sparisce al reload: nel pannello Dispositivi la riga
+mostra un campo «password (non salvata)» finché non la si reinserisce, e Connetti/Deploy
+restano spenti fino ad allora; il «riconnetti» a un click nell'intestazione funziona solo
+verso un dispositivo senza utenti, altrimenti porta al modulo. All'avvio l'IDE **toglie**
+dal profilo le password lasciate dalle versioni precedenti (tutte e tre le famiglie,
+compresa `sws.deploy.<host>` del Q48). Nuova guardia statica `check_password_browser.sh`.
 
 ### La cartella dei progetti è dichiarata, sta fuori dal repo, ed è il confine (Q46)
 

@@ -353,8 +353,6 @@
     "noFileSelected": "No file selected",
     "zipNamePlaceholder": "Leave empty to use the name from the ZIP",
     "namePlaceholder": "e.g. north-plant",
-    "targetArch": "Target architecture",
-    "remotePath": "Remote path",
     "sshHost": "SSH host",
     "port": "Port",
     "sshUser": "SSH user",
@@ -413,7 +411,8 @@
     "openFromZip": "📂 Open from ZIP file…",
     "openFromZipTitle": "Create a new project from a ZIP copy stored on your PC",
     "installRuntimeTitle": "Install the runtime on a device",
-    "installRuntime": "Install the runtime on a device"
+    "installRuntime": "Install the runtime on a device",
+    "installIntro": "Installs the SWS runtime as a container (rootless podman, no sudo) on a device reachable over SSH, pulling the image from the registry: the device picks its architecture. The password stays in this form and is not saved."
   },
   "logs": {
     "history": "History…",
@@ -1152,7 +1151,9 @@
     "sezioneRicarica": "Reload from project",
     "sezioneConflittoHint": "Until you choose, yours are kept: nothing has been overwritten.",
     "certForget": "Forget the old certificate and retry",
-    "certForgetting": "Removing…"
+    "certForgetting": "Removing…",
+    "passwordSession": "password (not saved)",
+    "passwordSessionTitle": "The password stays in memory while the page is open: it is never saved in the browser. You will be asked again next time."
   },
   "langtab": {
     "intro": "Translate the messages you write into objects. In text fields use {{key}}; here you define the translations for each language.",

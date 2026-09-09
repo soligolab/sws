@@ -355,8 +355,6 @@ pub fn build(
             "/api/auth/users/:username",
             axum::routing::put(update_user).delete(delete_user),
         )
-        // Remote deploy: download binary from GitHub Releases + SCP to device.
-        .route("/api/deploy/remote", post(crate::deploy::deploy_remote))
         // Git push: push to default remote/branch. Admin-only (risk of exposing credentials).
         .route("/api/project/git/push", post(git_push))
         // Aggancia il progetto a un repository (init + set/replace origin) — stessa

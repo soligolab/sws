@@ -1438,7 +1438,7 @@ non l'assistente, non il viewer, non gli script del repo. Realizzato lo stesso g
 
 ## Q48 — `/api/deploy/remote` scarica un binario che non esiste, e duplica il deploy
 
-*Aperta il 2026-09-09 dalla revisione pre-2.7.0. Nessuna decisione presa.*
+*Aperta il 2026-09-09 dalla revisione pre-2.7.0. Decisa lo stesso giorno.*
 
 **Context.** La WelcomeScreen ha «Installa runtime» → `POST /api/deploy/remote`
 (`deploy.rs`), che scarica
@@ -1463,7 +1463,27 @@ per l'**endpoint**.
 **Default for PoC.** Com'è (rotto). Raccomandazione: (1) subito — è un pulsante che
 fallisce sempre — e (2) se la prima installazione da WelcomeScreen serve davvero.
 
-**Decided:** not yet.
+**Decided (2026-09-09, maintainer):** (2), dopo aver analizzato le conseguenze di (1):
+togliere il modale avrebbe lasciato la «macchina nuova» senza un modo di installare dall'IDE,
+e ConfigView richiede un progetto aperto solo per convenzione del pannello. Realizzata sul
+ramo `feat/Q48-installa-dalla-welcome`:
+
+- il modale della WelcomeScreen chiama **`/api/deploy/device-container`** — lo stesso
+  endpoint di Configurazione → Runtime — in modalità registry, con `imageRef` vuoto: è il
+  dispositivo a decidere `latest-<arch>`. Via i campi architettura e percorso remoto, utente
+  predefinito `user` (era `root`), **nessuna password in `localStorage`** (prima:
+  `sws.deploy.<host>` in chiaro). Chiave host cambiata → stesso pulsante di ConfigView,
+  mai automatico;
+- i sei file di `deploy/container/` sono **incorporati nel binario** (`include_str!`), così
+  il deploy container funziona anche da un runtime che non ha il checkout del repo — prima
+  rispondeva 503. Il sorgente «archivio locale» continua a volere il repo (400 se manca);
+- `deploy.rs` e `/api/deploy/remote` sono **rimossi**; `scripts/check_chiave_host.sh` conta
+  ora tre handler ssh, tutti in `packaging.rs`.
+
+Lo stesso giorno, su richiesta del maintainer, anche ConfigView ha smesso di salvare
+password in `localStorage` (`sws.runtime.targetPass`, campo `pass` di `sws.saved-devices`):
+regola generale «nessuna password nel browser», pulizia del profilo all'avvio
+(`passwordNelBrowser.ts`) e guardia statica `check_password_browser.sh`.
 
 ---
 

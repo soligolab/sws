@@ -688,10 +688,12 @@ export function App() {
                     setRemoteConnected(false);
                   }
                 } else if (lastTargetUrl) {
+                  // La password non si salva nel browser (2026-09-09): il
+                  // riconnetti a un click funziona solo verso un dispositivo
+                  // senza utenti; con gli utenti fallisce e porta al modulo.
                   const user = localStorage.getItem("sws.runtime.targetUser") || undefined;
-                  const pass = localStorage.getItem("sws.runtime.targetPass") || undefined;
                   try {
-                    const result = await api.remoteConnect(lastTargetUrl, user, pass);
+                    const result = await api.remoteConnect(lastTargetUrl, user, undefined);
                     if (!result.ok) throw new Error(result.error ?? "Connessione fallita");
                     setRemoteConnected(true, lastTargetUrl);
                   } catch {

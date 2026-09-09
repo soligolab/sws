@@ -1277,17 +1277,17 @@ export const api = {
   triggerRollback: () =>
     request<{ message: string }>("/api/project/rollback", { method: "POST" }),
 
-  // Remote deploy: POST /api/deploy/remote (admin-only on port 8444).
-  // Returns the raw Response so the caller can stream the body.
-  deployRemote: async (req: {
-    arch: string; host: string; port: number; user: string; password: string; remote_path?: string;
-  }): Promise<Response> => {
+  /** Q48: installa il runtime come container rootless su un dispositivo, via
+   *  ssh — lo stesso endpoint di Configurazione → Runtime. Restituisce la
+   *  Response grezza perché il corpo è un registro in streaming; il chiamante
+   *  legge le righe e riconosce quelle «a macchina» (AZIONE: …). */
+  deployDeviceContainer: async (payload: Record<string, unknown>): Promise<Response> => {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (TOKEN) headers["Authorization"] = `Bearer ${TOKEN}`;
-    return fetch(`${getBaseUrl()}/api/deploy/remote`, {
+    return fetch(`${getBaseUrl()}/api/deploy/device-container`, {
       method: "POST",
       headers,
-      body: JSON.stringify(req),
+      body: JSON.stringify(payload),
     });
   },
 
@@ -1375,6 +1375,15 @@ export const api = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url, username: username || undefined, password: password || undefined }),
+    }),
+
+  /** Toglie dal known_hosts di QUESTO PC la chiave di un dispositivo che ha
+   *  cambiato identità (factory reset). Mai automatico. */
+  deviceHostKeyForget: (host: string, port: number) =>
+    request<{ tolte: string[]; messaggio: string }>("/api/device/hostkey/forget", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ host, port }),
     }),
 
   /** Q49: dimentica l'impronta TLS memorizzata per un dispositivo (tutte le

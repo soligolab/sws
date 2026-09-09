@@ -11,6 +11,20 @@
 > in [`docs/history/STATUS-2026-07_08.md`](docs/history/STATUS-2026-07_08.md) — una riga ciascuna
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
+> **⚠️ Seconda riscrittura, 2026-09-09.** I **15 commit dal 7 al 9 settembre** su `main`
+> (da `e7b47fc` a `9244bba`, storia vecchia) erano usciti come `pixsysedp <edp@pixsys.net>`
+> perché su theobroma nessuno aveva impostato l'identità locale al repo. Su istruzione del
+> maintainer sono stati riscritti con `git filter-branch` (autore, committer e
+> `Signed-off-by` → `Mauro Soligo <mauro@soligo.net>`), **alberi byte-identici** (verificato
+> con `git diff --quiet` vecchio/nuovo), e i tag **`2.6.0`, `2.6.5`, `2.6.6`** sono stati
+> ricreati sui commit nuovi con lo stesso messaggio; il tutto **force-pushato**. Corrispondenza
+> vecchio → nuovo: `7cf3fd1→c9cec6a` (2.6.0), `14bd6f6→ac8a93e` (2.6.5), `c6b7aa3→bf0901c`
+> (2.6.6), `9244bba→0a4a242` (punta prima di Q48). Su theobroma il ramo
+> `backup/main-pre-riscrittura-2026-09-09` conserva la storia vecchia. **Sulle altre macchine**
+> `session_start.sh` vedrà `main` divergente con albero identico e offrirà il reset, e i tre tag
+> vanno ripresi con `git fetch --tags --force` — è esattamente il caso per cui esiste. Da oggi
+> lo script controlla anche l'identità git e stampa il rimedio se non è quella giusta.
+>
 > **⚠️ La storia di git è stata riscritta il 2026-08-31.** Un `git filter-branch` ha
 > normalizzato autore e committer di **tutti i 342 commit** precedenti a
 > `Mauro Soligo <mauro@soligo.net>` (prima convivevano `pixsysedp <edp@pixsys.net>` e
@@ -62,13 +76,50 @@
 
 ## ▶ Da fare nella prossima sessione
 
+### 🔧 Q48 — «Installa runtime» ripuntato al container, sul ramo `feat/Q48-installa-dalla-welcome` (2026-09-09)
+
+Decisa dal maintainer («ok, parti con Q48») e realizzata; **non mergiata, non pushata**.
+Cosa contiene: i sei file di `deploy/container/` incorporati nel binario
+(`CONTAINER_DEPLOY_EMBEDDED` in `packaging.rs`, così il deploy container non richiede il
+checkout del repo — prima 503; l'archivio locale continua a volerlo, 400 se manca);
+`deploy.rs` e `/api/deploy/remote` rimossi; la `DeploySection` della WelcomeScreen riscritta
+su `/api/deploy/device-container` (registry, `imageRef` vuoto → il dispositivo sceglie
+`latest-<arch>`, utente predefinito `user`, **niente password in localStorage**, pulsante
+«Dimentica la vecchia chiave» come in ConfigView). Gate: 474 test Rust, 204 vitest, clippy
+`-D warnings` 0, fmt verde, 13 guardie statiche verdi, `check_chiave_host` e
+`check_no_admin` verdi sul binario di debug.
+
+**Trovato per strada — e corretto sullo stesso ramo:** il commit `cargo fmt` di stamattina
+(`7084524`) aveva messo in rosso **due guardie statiche**, `check_off_page` (tabella
+`CASI_FUORI_PAGINA` spezzata, la regex non la leggeva più) e `check_synoptic_schema` (file
+generato riformattato, il generatore diceva un'altra forma). Il «13 guardie verdi» scritto
+qui sotto era stato misurato *prima* del fmt. Rimedio: `#[rustfmt::skip]` sulla tabella e
+il generatore che passa da `rustfmt`.
+
+**Da provare a mano:** dalla WelcomeScreen dell'IDE (`:8460`), «Installa runtime» verso il
+WP630 con `user`: deve tirare `latest-aarch64` dal registry e finire con `DONE`; poi
+riprovare dopo aver cancellato la riga da `known_hosts` sul dispositivo resettato — deve
+comparire il pulsante e non deve procedere da solo.
+
+**Fatto nello stesso ramo, su richiesta («finiamo»):** anche ConfigView non salva più
+password in `localStorage` — `sws.runtime.targetPass` e il campo `pass` di
+`sws.saved-devices` sono spariti; nel pannello Dispositivi la riga chiede la password
+(campo «non salvata») e tiene spenti Connetti/Deploy finché manca; il riconnetti a un click
+dell'intestazione vale solo per dispositivi senza utenti. All'avvio `dimenticaPasswordLegacy`
+pulisce il profilo dalle tre famiglie di password vecchie (4 vitest). Guardia statica nuova
+`check_password_browser.sh`, provata rossa; ora le guardie statiche sono **14**. Editor: 208
+vitest, tsc/lint/build verdi. **Da provare a mano:** aprire l'IDE con un profilo che aveva
+le password salvate → in DevTools `localStorage` non deve più contenerle; nel pannello
+Dispositivi inserire la password nella riga e verificare che la firma si legga e Deploy si
+accenda.
+
 ### 🔍 Revisione pre-2.7.0 — **su `main`** dal pomeriggio del 2026-09-09, da collaudare
 
 Giornata autonoma su richiesta del maintainer: sicurezza, funzioni a metà o non usate,
 duplicati. **Il referto è `docs/plans/2026-09-09-revisione-pre-2.7.0.md`** — tre colonne:
 corretto, da decidere tu, lasciato stare e perché. Le decisioni sono **Q46–Q49** in
 `OPEN_QUESTIONS.md`: Q46, Q47 e Q49 decise dal maintainer e realizzate lo stesso giorno;
-Q48 in discussione. Il ramo è stato **mergiato in squash su `main`** (`b032d9d`) su
+Q48 decisa e realizzata sul suo ramo (sezione sopra). Il ramo è stato **mergiato in squash su `main`** (`b032d9d`) su
 istruzione del maintainer, seguito dal commit `cargo fmt` da solo: la CI ora ha fmt e
 clippy verdi. `main` **non è pushato**. In locale resta solo `main`: i rami `chore/revisione-pre-2.7.0`,
 `fix/relay-ws-dispositivo` e `fix/testo-riquadro` sono stati cancellati dopo aver verificato per

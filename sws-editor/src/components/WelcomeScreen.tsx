@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, dimenticaVersioneProgetto } from "@/api/client";
 import type { BrowseDirEntry, ProjectListEntry, ProjectTargetKind, TemplateEntry } from "@/types";
+import { containerDeployPayload } from "@/containerDeploy";
 
 // ── styles ────────────────────────────────────────────────────────────────────
 
@@ -548,75 +549,85 @@ function NewProjectModal({
 // from the previous runtime are cleared cleanly.
 
 // ── DeploySection ─────────────────────────────────────────────────────────────
-
-const DEPLOY_KEY = (host: string) => `sws.deploy.${host}`;
-
-function loadDeployCreds(host: string) {
-  try {
-    const raw = localStorage.getItem(DEPLOY_KEY(host));
-    if (raw) return JSON.parse(raw) as { port: number; user: string; password: string };
-  } catch { /* ignore */ }
-  return null;
-}
-
-function saveDeployCreds(host: string, creds: { port: number; user: string; password: string }) {
-  try { localStorage.setItem(DEPLOY_KEY(host), JSON.stringify(creds)); } catch { /* ignore */ }
-}
-
+//
+// Q48 (2026-09-09). Fino a oggi questo modulo chiamava `/api/deploy/remote`, che
+// scaricava un binario dalle release GitHub — un asset che NON esiste (404 per
+// entrambe le architetture): il pulsante falliva sempre. Installava poi un
+// binario nativo con `systemctl restart` di sistema, la postura opposta al
+// container rootless di produzione, e salvava la password SSH in localStorage.
+//
+// Ora chiama lo stesso deploy container di Configurazione → Runtime: registry,
+// architettura decisa dal dispositivo, niente password nel browser. È qui e non
+// solo in ConfigView perché questo è il caso «macchina nuova, nessun progetto
+// ancora»: ConfigView richiede un progetto aperto per convenzione del pannello.
 function DeploySection() {
   const { t } = useTranslation();
-  const [arch, setArch]           = useState<"amd64" | "arm64">("arm64");
   const [host, setHost]           = useState("");
   const [port, setPort]           = useState(22);
-  const [user, setUser]           = useState("root");
+  const [user, setUser]           = useState("user");
   const [password, setPassword]   = useState("");
-  const [remotePath, setRemotePath] = useState("/data/user/sws");
   const [deploying, setDeploying] = useState(false);
   const [logs, setLogs]           = useState<string[]>([]);
+  // La chiave host del dispositivo non è quella memorizzata (factory reset):
+  // stesso pulsante di ConfigView, stesso endpoint, stesso gesto umano.
+  const [chiaveHostCambiata, setChiaveHostCambiata] = useState(false);
+  const [dimenticandoChiave, setDimenticandoChiave] = useState(false);
   const logsRef                   = useRef<HTMLDivElement>(null);
 
-  // Restore saved credentials when host changes
-  useEffect(() => {
-    if (!host) return;
-    const saved = loadDeployCreds(host);
-    if (saved) { setPort(saved.port); setUser(saved.user); setPassword(saved.password); }
-  }, [host]);
-
-  // Auto-scroll log panel
   useEffect(() => {
     if (logsRef.current) logsRef.current.scrollTop = logsRef.current.scrollHeight;
   }, [logs]);
 
   const handleDeploy = async () => {
     if (!host || !user) return;
-    saveDeployCreds(host, { port, user, password });
     setDeploying(true);
-    setLogs([`Avvio deploy → ${user}@${host}:${port} (${arch}) ${remotePath}`]);
-
+    setChiaveHostCambiata(false);
+    setLogs([`Avvio installazione → ${user}@${host}:${port} (container, registry)`]);
     try {
-      const res = await api.deployRemote({ arch, host, port, user, password, remote_path: remotePath });
+      const res = await api.deployDeviceContainer(containerDeployPayload({
+        source: "registry",
+        imageTarball: "",
+        imageRef: "",          // vuoto: latest-<arch>, l'architettura la decide il dispositivo
+        cleanInstall: false,
+        host, port, user, password,
+        remoteDir: "/tmp/sws-deploy",
+        dataPath: "",
+      }));
       if (!res.ok) {
-        setLogs((l) => [...l, `ERROR: HTTP ${res.status} ${res.statusText}`]);
-        setDeploying(false);
+        // Il corpo porta la frase del backend: mostrare solo lo stato la butterebbe via.
+        const detail = await res.text().catch(() => "");
+        setLogs((l) => [...l, `ERROR: HTTP ${res.status} ${res.statusText}${detail.trim() ? ` — ${detail.trim()}` : ""}`]);
         return;
       }
       const reader = res.body?.getReader();
-      if (!reader) { setLogs((l) => [...l, "ERROR: streaming non supportato"]); setDeploying(false); return; }
+      if (!reader) { setLogs((l) => [...l, "ERROR: streaming non supportato"]); return; }
       const dec = new TextDecoder();
-      let done = false;
-      while (!done) {
-        const { value, done: d } = await reader.read();
-        done = d;
-        if (value) {
-          const text = dec.decode(value);
-          const lines = text.split("\n").filter((s) => s.trim());
-          setLogs((l) => [...l, ...lines]);
-        }
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        dec.decode(value).split("\n").filter((x) => x.trim()).forEach((line) => {
+          if (line === "AZIONE: chiave-host-cambiata") { setChiaveHostCambiata(true); return; }
+          setLogs((l) => [...l, line]);
+        });
       }
     } catch (e: any) {
       setLogs((l) => [...l, `ERROR: ${e?.message ?? e}`]);
     } finally {
       setDeploying(false);
+    }
+  };
+
+  const handleDimenticaChiaveHost = async () => {
+    setDimenticandoChiave(true);
+    try {
+      const r = await api.deviceHostKeyForget(host, port);
+      setLogs((l) => [...l, `==> ${r.messaggio}`]);
+      setChiaveHostCambiata(false);
+      await handleDeploy();
+    } catch (e: any) {
+      setLogs((l) => [...l, `ERROR: ${e?.message ?? e}`]);
+    } finally {
+      setDimenticandoChiave(false);
     }
   };
 
@@ -626,57 +637,18 @@ function DeploySection() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)", lineHeight: 1.5 }}>
-        Scarica il binario <code>sws-runtime</code> da GitHub Releases e lo
-        installa sul dispositivo remoto via SCP. Richiede <code>sshpass</code>
-        e <code>scp</code> installati sulla macchina locale.
+        {t("welcome.installIntro")}
       </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-        <div>
-          <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 3 }}>{t("welcome.targetArch")}</label>
-          <select
-            style={{ ...INPUT, cursor: "pointer" }}
-            value={arch}
-            onChange={(e) => setArch(e.target.value as "amd64" | "arm64")}
-          >
-            <option value="arm64">linux/arm64 (PX30, Pi)</option>
-            <option value="amd64">linux/amd64 (x86-64)</option>
-          </select>
-        </div>
-        <div>
-          <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 3 }}>{t("welcome.remotePath")}</label>
-          <input
-            style={INPUT}
-            placeholder="/data/user/sws"
-            value={remotePath}
-            onChange={(e) => setRemotePath(e.target.value)}
-          />
-        </div>
-      </div>
-
       <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8 }}>
         <div>
           <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 3 }}>{t("welcome.sshHost")}</label>
-          <input
-            style={INPUT}
-            placeholder="192.168.1.59"
-            value={host}
-            onChange={(e) => setHost(e.target.value)}
-          />
+          <input style={INPUT} placeholder="wp630-xxxx.local" value={host} onChange={(e) => setHost(e.target.value)} />
         </div>
         <div>
           <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 3 }}>{t("welcome.port")}</label>
-          <input
-            style={{ ...INPUT, width: 60 }}
-            type="number"
-            min={1}
-            max={65535}
-            value={port}
-            onChange={(e) => setPort(Number(e.target.value))}
-          />
+          <input style={{ ...INPUT, width: 60 }} type="number" min={1} max={65535} value={port} onChange={(e) => setPort(Number(e.target.value))} />
         </div>
       </div>
-
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
         <div>
           <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 3 }}>{t("welcome.sshUser")}</label>
@@ -684,36 +656,45 @@ function DeploySection() {
         </div>
         <div>
           <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 3 }}>{t("welcome.sshPassword")}</label>
-          <input style={INPUT} type="password" placeholder="••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
+          {/* Non si salva da nessuna parte: resta nel modulo finché la finestra è aperta. */}
+          <input style={INPUT} type="password" autoComplete="off" placeholder="••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
         </div>
       </div>
-
       {logs.length > 0 && (
         <div
           ref={logsRef}
           style={{
             background: "#0a0f1a", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6,
-            padding: "8px 10px", maxHeight: 140, overflowY: "auto",
+            padding: "8px 10px", maxHeight: 160, overflowY: "auto",
             fontFamily: "monospace", fontSize: 11, lineHeight: 1.6,
           }}
         >
           {logs.map((line, i) => (
-            <div
-              key={i}
-              style={{
-                color: line.startsWith("ERROR:") ? "var(--brand-danger-soft, #fca5a5)"
-                  : line.startsWith("WARN:") ? "var(--brand-warning-soft, #fbbf24)"
-                  : line === "DONE" ? "var(--brand-success, #22c55e)"
-                  : "var(--brand-text-muted, #94a3b8)",
-              }}
-            >
-              {line}
-            </div>
+            <div key={i} style={{
+              color: line.startsWith("ERROR:") ? "var(--brand-danger-soft, #fca5a5)"
+                : line.startsWith("WARN:") ? "var(--brand-warning-soft, #fbbf24)"
+                : line === "DONE" ? "var(--brand-success, #22c55e)"
+                : "var(--brand-text-muted, #94a3b8)",
+            }}>{line}</div>
           ))}
           {deploying && <div style={{ color: "#60a5fa" }}>…</div>}
         </div>
       )}
-
+      {chiaveHostCambiata && (
+        <div style={{
+          border: "1px solid var(--brand-warning, #f59e0b)", borderRadius: 4,
+          background: "var(--brand-warning-bg, #78350f)", padding: "8px 10px",
+          display: "flex", flexDirection: "column", gap: 6,
+        }}>
+          <div style={{ fontSize: 12, color: "var(--brand-warning-soft, #facc15)" }}>{t("cfg.hostKeyChanged", { host })}</div>
+          <button
+            style={{ ...BTN_PRIMARY, opacity: dimenticandoChiave ? 0.6 : 1, alignSelf: "flex-start" }}
+            disabled={dimenticandoChiave}
+            onClick={() => void handleDimenticaChiaveHost()}>
+            {dimenticandoChiave ? t("cfg.hostKeyForgetting") : t("cfg.hostKeyForget")}
+          </button>
+        </div>
+      )}
       <button
         style={{ ...BTN_PRIMARY, opacity: (!host || !user || deploying) ? 0.5 : 1 }}
         disabled={!host || !user || deploying}
@@ -744,10 +725,11 @@ function DeploySection() {
  *
  * # Perché la schermata iniziale ha comunque una sua installazione
  *
- * `ConfigView` ne ha una (`Installa su dispositivo`, `/api/deploy/device`), ma
  * ConfigView richiede un progetto aperto. Qui non c'è nessun progetto: è il caso
- * «macchina nuova, niente ancora configurato», e usa un endpoint diverso
- * (`/api/deploy/remote`). Non è un doppione.
+ * «macchina nuova, niente ancora configurato». Da Q48 (2026-09-09) i due usano lo
+ * STESSO endpoint (`/api/deploy/device-container`): la schermata è diversa,
+ * l'operazione no — prima qui c'era `/api/deploy/remote`, che scaricava un
+ * binario inesistente.
  */
 function InstallaRuntimeModal({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();

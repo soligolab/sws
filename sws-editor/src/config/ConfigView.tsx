@@ -8052,7 +8052,6 @@ function NotificationsTab() {
 
 const RT_URL_KEY  = "sws.runtime.targetUrl";
 const RT_USER_KEY = "sws.runtime.targetUser";
-const RT_PASS_KEY = "sws.runtime.targetPass";
 const RT_CONN_KEY = "sws.runtime.connected";
 
 /** URL admin di un device scoperto, con l'host sostituito dall'hostname mDNS
@@ -8108,7 +8107,8 @@ function RuntimeConnectionTab() {
 
   const [targetUrl,  setTargetUrl]  = useState(() => localStorage.getItem(RT_URL_KEY)  ?? "");
   const [targetUser, setTargetUser] = useState(() => localStorage.getItem(RT_USER_KEY) ?? "");
-  const [targetPass, setTargetPass] = useState(() => localStorage.getItem(RT_PASS_KEY) ?? "");
+  // La password resta qui, nello stato: mai in localStorage (2026-09-09).
+  const [targetPass, setTargetPass] = useState("");
   const [status, setStatus]         = useState<"idle" | "connecting" | "connected" | "error">("idle");
   const [statusMsg, setStatusMsg]   = useState<string | null>(null);
   // Q49: «Connetti» si è fermato perché il certificato del dispositivo non è
@@ -8228,7 +8228,6 @@ function RuntimeConnectionTab() {
   const saveForm = () => {
     localStorage.setItem(RT_URL_KEY,  target);
     localStorage.setItem(RT_USER_KEY, targetUser.trim());
-    localStorage.setItem(RT_PASS_KEY, targetPass);
   };
 
   const handleDisconnect = useCallback(() => {
@@ -9720,6 +9719,12 @@ function DevicesTab() {
     catch { return []; }
   });
   const [states, setStates] = useState<Record<string, DeviceState>>({});
+  // Le password dei dispositivi, per URL: **solo in memoria**. Al reload si
+  // richiedono, con il campo nella riga. Il controllo periodico le legge da una
+  // ref perché la sua callback non deve rinascere a ogni tasto battuto.
+  const [passwords, setPasswords] = useState<Record<string, string>>({});
+  const passwordsRef = useRef(passwords);
+  passwordsRef.current = passwords;
   const [localFp, setLocalFp] = useState<string | null>(null);
   const [addForm, setAddForm] = useState({ label: "", url: "", user: "admin", pass: "" });
   const [deployingUrl, setDeployingUrl] = useState<string | null>(null);
@@ -9745,11 +9750,18 @@ function DevicesTab() {
     }
 
     let fingerprint: string | null = null;
+    // Con un utente ma senza password in memoria non si tenta il login: la
+    // firma resta «n/d» finché non la si inserisce nella riga.
+    const password = passwordsRef.current[url];
+    if (device.user && password === undefined) {
+      setStates((s) => ({ ...s, [url]: { checking: false, online: true, fingerprint: null } }));
+      return;
+    }
     try {
       const loginR = await fetch(`${url}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: device.user, password: device.pass }),
+        body: JSON.stringify({ username: device.user, password: password ?? "" }),
         signal: AbortSignal.timeout(5000),
       });
       if (loginR.ok) {
@@ -9783,15 +9795,15 @@ function DevicesTab() {
   }, [devices, checkAll]);
 
   const handleConnect = async (device: SavedDevice) => {
+    const pass = passwords[device.url];
     localStorage.setItem(RT_URL_KEY, device.url);
     localStorage.setItem(RT_USER_KEY, device.user);
-    localStorage.setItem(RT_PASS_KEY, device.pass);
     // Prima non chiamava mai l'API di connessione — scriveva solo le
     // credenziali in localStorage e sparava l'evento, quindi "Connetti" non
     // connetteva davvero nulla (vedi anche RuntimeConnectionTab.handleConnect,
     // stesso schema).
     try {
-      const result = await api.remoteConnect(device.url, device.user || undefined, device.pass || undefined);
+      const result = await api.remoteConnect(device.url, device.user || undefined, pass || undefined);
       if (!result.ok) throw new Error(result.error ?? "Connessione fallita");
       setRemoteConnected(true, device.url);
       window.dispatchEvent(new CustomEvent("sws:runtime-connected", { detail: { url: device.url } }));
@@ -9803,7 +9815,7 @@ function DevicesTab() {
   const handleDeploy = async (device: SavedDevice) => {
     setDeployingUrl(device.url);
     setDeployLog([]);
-    await deployToTarget(device.url, device.user, device.pass, (msg) =>
+    await deployToTarget(device.url, device.user, passwords[device.url] ?? "", (msg) =>
       setDeployLog((l) => [...l, msg])
     );
     setDeployingUrl(null);
@@ -9848,6 +9860,7 @@ function DevicesTab() {
                 const online = st?.online ?? null;
                 const fp = st?.fingerprint ?? null;
                 const match = localFp && fp ? (localFp === fp ? "sync" : "diff") : "unknown";
+                const mancaPassword = !!d.user && passwords[d.url] === undefined;
                 return (
                   <tr key={d.url} style={{ borderBottom: "1px solid var(--brand-surface, #1e293b)" }}>
                     <td style={{ padding: "8px", color: "var(--brand-text, #e2e8f0)", fontWeight: 600 }}>{d.label}</td>
@@ -9866,10 +9879,24 @@ function DevicesTab() {
                         : <span style={{ color: "var(--brand-text-subtle, #64748b)" }}>? n/d</span>}
                     </td>
                     <td style={{ padding: "8px", textAlign: "right" }}>
-                      <div style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
-                        <button style={BTN} onClick={() => handleConnect(d)} title={t("cfg.setTargetConnect")}>{t("cfg.connect")}</button>
+                      <div style={{ display: "flex", gap: 4, justifyContent: "flex-end", alignItems: "center" }}>
+                        {mancaPassword && (
+                          <input style={{ ...INPUT, width: 120 }} type="password" autoComplete="off"
+                            placeholder={t("cfg.passwordSession")} title={t("cfg.passwordSessionTitle")}
+                            onKeyDown={(e) => {
+                              if (e.key !== "Enter") return;
+                              const v = (e.target as HTMLInputElement).value;
+                              if (!v) return;
+                              setPasswords((p) => ({ ...p, [d.url]: v }));
+                              // Con la password si può anche leggere la firma.
+                              setTimeout(() => void checkDevice(d), 0);
+                            }} />
+                        )}
+                        <button style={BTN} disabled={mancaPassword} onClick={() => handleConnect(d)}
+                          title={mancaPassword ? t("cfg.passwordSessionTitle") : t("cfg.setTargetConnect")}>{t("cfg.connect")}</button>
                         <button style={{ ...BTN, background: "#1e3a5f", borderColor: "var(--brand-primary-hover, #2563eb)", color: "#93c5fd" }}
-                          disabled={deployingUrl === d.url}
+                          disabled={deployingUrl === d.url || mancaPassword}
+                          title={mancaPassword ? t("cfg.passwordSessionTitle") : undefined}
                           onClick={() => void handleDeploy(d)}>
                           {deployingUrl === d.url ? "Deploy…" : "Deploy"}
                         </button>
@@ -9917,8 +9944,8 @@ function DevicesTab() {
               value={addForm.user} onChange={(e) => setAddForm((f) => ({ ...f, user: e.target.value }))} />
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>{t("cfg.password")}</label>
-            <input style={{ ...INPUT, width: 110 }} type="password" placeholder="••••••••"
+            <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }} title={t("cfg.passwordSessionTitle")}>{t("cfg.passwordSession")}</label>
+            <input style={{ ...INPUT, width: 110 }} type="password" autoComplete="off" placeholder="••••••••"
               value={addForm.pass} onChange={(e) => setAddForm((f) => ({ ...f, pass: e.target.value }))} />
           </div>
           <button
@@ -9926,8 +9953,10 @@ function DevicesTab() {
             disabled={!addForm.url || !addForm.user}
             onClick={() => {
               const label = addForm.label.trim() || addForm.url;
-              const newDevice: SavedDevice = { label, url: addForm.url, user: addForm.user, pass: addForm.pass };
+              const newDevice: SavedDevice = { label, url: addForm.url, user: addForm.user };
               const updated = [...devices.filter((d) => d.url !== newDevice.url), newDevice];
+              // La password resta in memoria, non nella lista salvata.
+              setPasswords((p) => ({ ...p, [newDevice.url]: addForm.pass }));
               saveDevices(updated);
               setAddForm({ label: "", url: "", user: "admin", pass: "" });
               void checkDevice(newDevice);

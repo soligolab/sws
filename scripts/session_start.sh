@@ -122,6 +122,26 @@ info "$(whoami)@$(hostname)  —  $REPO"
 RAMO="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?')"
 info "ramo: ${B}${RAMO}${Z}"
 
+# L'identità con cui usciranno i commit. È **locale al repo** e non viaggia con
+# git, quindi ogni macchina e ogni clone nuovo partono con quella globale — che
+# qui è quella dell'ufficio. Il 2026-09-09 il maintainer si è accorto che
+# quindici commit, dal 7 al 9 settembre, erano usciti e stati pushati come
+# `pixsysedp <edp@pixsys.net>`: nessuno aveva impostato l'identità su questa
+# macchina, e nessuno se n'era accorto per tre giorni. La regola, decisa quel
+# giorno: i commit sono di **Mauro Soligo <mauro@soligo.net>**, sempre; se ne
+# escono altri si riscrivono. Qui si controlla prima che accada. Non si imposta
+# da soli: il comando è stampato, e lo si lancia sapendo cosa fa.
+EMAIL_ATTESA="mauro@soligo.net"
+EMAIL_GIT="$(git config user.email 2>/dev/null || true)"
+if [ "$EMAIL_GIT" = "$EMAIL_ATTESA" ]; then
+  info "identità git: $(git config user.name) <${EMAIL_GIT}>"
+else
+  avviso "identità git: ${EMAIL_GIT:-nessuna} — i commit uscirebbero con il nome sbagliato"
+  info "   rimedio, locale al repo (non --global: la macchina ospita anche lavoro Pixsys):"
+  info "   git config --local user.name \"Mauro Soligo\" && git config --local user.email ${EMAIL_ATTESA}"
+  da_guardare=$((da_guardare+1))
+fi
+
 # ── 2. Aggiorna i riferimenti remoti ─────────────────────────────────────────
 titolo "Confronto con origin"
 RETE=1

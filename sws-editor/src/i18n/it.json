@@ -353,8 +353,6 @@
     "noFileSelected": "Nessun file selezionato",
     "zipNamePlaceholder": "Lascia vuoto per usare il nome dal ZIP",
     "namePlaceholder": "es. impianto-nord",
-    "targetArch": "Architettura target",
-    "remotePath": "Path remoto",
     "sshHost": "Host SSH",
     "port": "Porta",
     "sshUser": "Utente SSH",
@@ -413,7 +411,8 @@
     "openFromZip": "📂 Apri da file ZIP…",
     "openFromZipTitle": "Crea un nuovo progetto da una copia ZIP che hai sul PC",
     "installRuntimeTitle": "Installa il runtime su un dispositivo",
-    "installRuntime": "Installa il runtime su un dispositivo"
+    "installRuntime": "Installa il runtime su un dispositivo",
+    "installIntro": "Installa il runtime SWS come container (podman rootless, nessun sudo) su un dispositivo raggiungibile via SSH, prendendo l'immagine dal registry: l'architettura la decide il dispositivo. La password resta in questo modulo e non viene salvata."
   },
   "logs": {
     "history": "Storico…",
@@ -1152,7 +1151,9 @@
     "sezioneRicarica": "Ricarica dal progetto",
     "sezioneConflittoHint": "Finché non scegli, restano le tue: non è stato sovrascritto niente.",
     "certForget": "Dimentica il vecchio certificato e riprova",
-    "certForgetting": "Rimozione in corso…"
+    "certForgetting": "Rimozione in corso…",
+    "passwordSession": "password (non salvata)",
+    "passwordSessionTitle": "La password resta in memoria finché la pagina è aperta: non viene salvata nel browser. Al prossimo avvio si richiede."
   },
   "langtab": {
     "intro": "Traduci i messaggi che scrivi negli oggetti. Nei campi testo usa {{chiave}}; qui definisci le traduzioni per ogni lingua.",

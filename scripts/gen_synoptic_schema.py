@@ -353,6 +353,26 @@ def emit_fields(const_name, fields, doc):
     return "\n".join(out)
 
 
+def formatta(text):
+    """Passa il sorgente da `rustfmt`, se c'è.
+
+    Il 2026-09-09 un `cargo fmt` su tutto il workspace ha riformattato il file
+    generato; da quel momento il generatore diceva una forma e il disco un'altra,
+    e la guardia era rossa senza che nessun campo fosse cambiato. Formattare qui
+    toglie il disaccordo alla radice: le due copie hanno lo stesso stile perché
+    escono dallo stesso strumento. Senza rustfmt si emette com'è, avvisando —
+    la guardia allora può fallire per solo stile, ed è detto sopra."""
+    import shutil, subprocess
+    if shutil.which("rustfmt") is None:
+        print("gen_synoptic_schema: rustfmt non trovato, uscita non formattata", file=sys.stderr)
+        return text
+    r = subprocess.run(["rustfmt", "--edition", "2021", "--emit", "stdout"],
+                       input=text, capture_output=True, text=True)
+    if r.returncode != 0:
+        print("gen_synoptic_schema: rustfmt ha rifiutato il sorgente:\n" + r.stderr, file=sys.stderr)
+        sys.exit(1)
+    return r.stdout
+
 def main():
     obj_fields = fields_of(SYNOPTIC_RS, "SynopticObject")
     page_fields = fields_of(SYNOPTIC_RS, "SynopticPage")
@@ -459,6 +479,7 @@ def main():
     p.append("")
 
     text = "\n".join(p) + "\n"
+    text = formatta(text)
     if "--stdout" in sys.argv:
         sys.stdout.write(text)
     else:
