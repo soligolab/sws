@@ -54,6 +54,10 @@ pub struct SqliteStore {
     path: PathBuf,
 }
 
+/// (campioni, primo ts, ultimo ts, byte su disco… — vedi `stats`): il tipo grezzo
+/// che il thread bloccante restituisce prima di diventare `DatastoreStats`.
+type StatsGrezze = (u64, Option<u64>, Option<u64>, Option<u64>, u64);
+
 impl SqliteStore {
     /// Open (creating if absent) a SQLite db at `path` and prepare the schema.
     pub async fn open(path: impl Into<PathBuf>) -> anyhow::Result<Self> {
@@ -217,10 +221,10 @@ impl SqliteStore {
     }
 
     /// Aggregate stats: (sample_count, oldest_ms, newest_ms, size_bytes, tag_count).
-    pub async fn full_stats(&self) -> anyhow::Result<(u64, Option<u64>, Option<u64>, Option<u64>, u64)> {
+    pub async fn full_stats(&self) -> anyhow::Result<StatsGrezze> {
         let conn = self.conn.clone();
         let path = self.path.clone();
-        task::spawn_blocking(move || -> anyhow::Result<(u64, Option<u64>, Option<u64>, Option<u64>, u64)> {
+        task::spawn_blocking(move || -> anyhow::Result<StatsGrezze> {
             let c = conn.blocking_lock();
             let sample_count: i64 = c
                 .query_row("SELECT COUNT(*) FROM samples", [], |r| r.get(0))

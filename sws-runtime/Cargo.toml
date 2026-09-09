@@ -80,18 +80,17 @@ argon2 = { version = "0.5", features = ["std"] }
 uuid   = { version = "1", features = ["v4"] }
 
 # CLI
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", features = ["derive", "env"] }
 
 # Protocols
 tokio-modbus      = "0.6"
 tokio-serial      = "5.4"
 async-opcua       = { version = "0.18", features = ["client", "server"] }
 rumqttc           = "0.24"
-rumqttd           = "0.19"
 tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
 
 # Python scripting
-pyo3 = { version = "0.23", features = ["auto-initialize"] }
+pyo3 = { version = "0.29", features = ["auto-initialize"] }
 
 # Observability
 metrics                      = "0.23"

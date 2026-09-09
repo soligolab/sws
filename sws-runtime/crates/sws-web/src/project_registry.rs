@@ -14,6 +14,7 @@ use std::{collections::HashMap, path::{Path, PathBuf}};
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use tracing::warn;
+use sws_core::now_ms;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KnownProjectEntry {
@@ -24,13 +25,6 @@ pub struct KnownProjectEntry {
 pub struct ProjectRegistry {
     file: PathBuf,
     entries: RwLock<HashMap<String, KnownProjectEntry>>,
-}
-
-fn now_ms() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64
 }
 
 impl ProjectRegistry {

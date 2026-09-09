@@ -23,38 +23,15 @@
 //      per un PoC è la scelta giusta — un avviso che si legge batte una
 //      sincronizzazione che si dimentica.
 
-import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api } from "@/api/client";
 import { LogPanel } from "@/components/LogPanel";
-import { useAppStore } from "@/store";
+import { useAccessoSenzaUtenti } from "@/auth/useAccessoSenzaUtenti";
+import { SchermataSenzaAccesso, avviso, vuoto } from "@/components/finestraStaccata";
 import { useLogStream } from "@/ws/logStream";
 
 export function LogWindow() {
   const { t } = useTranslation();
-  const authRole = useAppStore((s) => s.authRole);
-  const authToken = useAppStore((s) => s.authToken);
-  const setAuth = useAppStore((s) => s.setAuth);
-  const [sondaggio, setSondaggio] = useState(true);
-
-  // La modalità **senza utenti** è la normalità sul PC di sviluppo: nessun
-  // `users.yaml`, il runtime inietta un Admin sintetico, e l'IDE non mostra
-  // nessun login. Lo store di questa finestra si idrata da `localStorage
-  // sws.auth`, che in quel caso è vuoto — quindi senza questa sonda la finestra
-  // direbbe «accedi» su ogni istanza di sviluppo, cioè quasi sempre.
-  //
-  // Stesso giro di `App.tsx:283-290`: se `whoami()` risponde, si è senza
-  // utenti e si mette il token sentinella; se rifiuta, gli utenti esistono e
-  // serve un login vero — che va fatto nella finestra dell'editor.
-  useEffect(() => {
-    if (authToken) { setSondaggio(false); return; }
-    let vivo = true;
-    api.whoami()
-      .then((me) => { if (vivo) setAuth("no-auth", me.username, me.role, me.must_change_password); })
-      .catch(() => { /* ci sono utenti: si mostra la schermata sotto */ })
-      .finally(() => { if (vivo) setSondaggio(false); });
-    return () => { vivo = false; };
-  }, [authToken, setAuth]);
+  const { sondaggio, authRole } = useAccessoSenzaUtenti();
 
   // Lo stream locale, che nell'IDE è registrato in `App`.
   useLogStream();
@@ -67,17 +44,7 @@ export function LogWindow() {
   // login in questo browser. Un secondo login aprirebbe una seconda sessione,
   // che è peggio del problema.
   if (!authRole) {
-    return (
-      <div style={vuoto}>
-        <div style={{ fontWeight: 600, marginBottom: 6 }}>{t("logWindow.noAuth")}</div>
-        <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 12 }}>
-          {t("logWindow.noAuthHint")}
-        </div>
-        <button style={bottone} onClick={() => window.location.reload()}>
-          {t("logWindow.reload")}
-        </button>
-      </div>
-    );
+    return <SchermataSenzaAccesso titolo={t("logWindow.noAuth")} suggerimento={t("logWindow.noAuthHint")} ricarica={t("logWindow.reload")} />;
   }
 
   return (
@@ -91,33 +58,5 @@ export function LogWindow() {
   );
 }
 
-const vuoto: React.CSSProperties = {
-  height: "100%",
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: 24,
-  textAlign: "center",
-  color: "var(--brand-text, #e2e8f0)",
-  background: "var(--brand-bg, #0b1220)",
-};
 
-const avviso: React.CSSProperties = {
-  flexShrink: 0,
-  padding: "4px 10px",
-  fontSize: 11,
-  color: "var(--brand-text-subtle, #64748b)",
-  background: "var(--brand-surface, #131c2e)",
-  borderBottom: "1px solid var(--brand-surface-2, #334155)",
-};
 
-const bottone: React.CSSProperties = {
-  padding: "6px 14px",
-  fontSize: 13,
-  cursor: "pointer",
-  color: "var(--brand-text, #e2e8f0)",
-  background: "var(--brand-surface-2, #334155)",
-  border: "1px solid var(--brand-surface-2, #334155)",
-  borderRadius: 6,
-};

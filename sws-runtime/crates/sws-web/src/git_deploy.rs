@@ -193,6 +193,34 @@ impl GitDeploy {
             .unwrap_or(0)
     }
 
+    /// Un nome di tag che si può passare a `git tag` come argomento posizionale.
+    ///
+    /// git legge le opzioni in ordine: `git tag -d --delete` o `git push origin
+    /// --mirror` con un nome scelto dall'utente sarebbero opzioni, non nomi. Le
+    /// regole sono quelle di `git check-ref-format --allow-onelevel`, ridotte a
+    /// quelle che contano qui: niente trattino iniziale, niente `..`, niente
+    /// caratteri che git rifiuta (` ~^:?*[\`), niente controllo, non termina
+    /// con `.lock` né con `/`.
+    pub fn ref_sicuro(name: &str) -> bool {
+        !name.is_empty()
+            && name.len() <= 200
+            && !name.starts_with('-')
+            && !name.starts_with('/')
+            && !name.ends_with('/')
+            && !name.ends_with(".lock")
+            && !name.contains("..")
+            && !name.contains("@{")
+            && name.chars().all(|c| !c.is_control() && !matches!(c, ' ' | '~' | '^' | ':' | '?' | '*' | '[' | '\\'))
+    }
+
+    /// Un URL di remote che non è un'opzione travestita. Il trasporto `ext::`
+    /// (esecuzione di un comando locale) è già spento da git per default; qui si
+    /// chiude il caso del trattino iniziale, che `git remote add origin` leggerebbe
+    /// come flag.
+    pub fn url_remote_sicuro(url: &str) -> bool {
+        !url.is_empty() && !url.starts_with('-') && !url.chars().any(|c| c.is_control())
+    }
+
     /// Aggancia il progetto a un repository: `git init` (idempotente — non
     /// distrugge la history se il progetto è già un repo) e, se `remote_url`
     /// è fornito, imposta/sostituisce `origin`. Copre sia un progetto mai
@@ -201,9 +229,12 @@ impl GitDeploy {
         let dir = self.project_dir.to_string_lossy().to_string();
         run_git(&dir, &["init"])?;
         if let Some(url) = remote_url {
+            if !Self::url_remote_sicuro(url) {
+                anyhow::bail!("URL del remote non valido");
+            }
             // Rimuove l'eventuale remote esistente, ignora l'errore (non c'era).
             let _ = Command::new("git").args(["-C", &dir, "remote", "remove", "origin"]).output();
-            run_git(&dir, &["remote", "add", "origin", url])?;
+            run_git(&dir, &["remote", "add", "origin", "--", url])?;
         }
         Ok(())
     }
@@ -218,6 +249,9 @@ impl GitDeploy {
     /// Crea un tag — annotato (`-a -m`) se `message` è fornito, altrimenti
     /// leggero (solo un puntatore, come `git tag <name>`).
     pub fn create_tag(&self, name: &str, message: Option<&str>) -> anyhow::Result<()> {
+        if !Self::ref_sicuro(name) {
+            anyhow::bail!("nome del tag non valido: «{name}»");
+        }
         let dir = self.project_dir.to_string_lossy().to_string();
         match message {
             Some(msg) => run_git(&dir, &["tag", "-a", name, "-m", msg]),
@@ -227,6 +261,9 @@ impl GitDeploy {
 
     /// `git push origin <name>` — pubblica un tag già esistente localmente.
     pub fn push_tag(&self, name: &str) -> anyhow::Result<String> {
+        if !Self::ref_sicuro(name) {
+            anyhow::bail!("nome del tag non valido: «{name}»");
+        }
         let dir = self.project_dir.to_string_lossy().to_string();
         git_out(&dir, &["push", "origin", name])
     }
@@ -235,6 +272,9 @@ impl GitDeploy {
     /// uno — un fallimento della sola parte remota (es. il tag non era mai
     /// stato pushato) non fa fallire l'operazione, viene solo loggato.
     pub fn delete_tag(&self, name: &str) -> anyhow::Result<()> {
+        if !Self::ref_sicuro(name) {
+            anyhow::bail!("nome del tag non valido: «{name}»");
+        }
         let dir = self.project_dir.to_string_lossy().to_string();
         run_git(&dir, &["tag", "-d", name])?;
         if git_out(&dir, &["remote", "get-url", "origin"]).is_ok() {
@@ -297,5 +337,42 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let gd = GitDeploy::new(tmp.path().to_path_buf());
         assert!(!gd.is_git_repo());
+    }
+
+    /// Un nome che comincia per `-` è un'opzione per `git tag`, `git push` e
+    /// `git remote add`: `--delete`, `--mirror`, `--force`. Trovato nella
+    /// revisione del 2026-09-09: il nome arrivava dall'URL all'invocazione
+    /// senza controlli, e l'unico test era che non fosse vuoto.
+    #[test]
+    fn i_nomi_dei_tag_che_sarebbero_opzioni_vengono_rifiutati() {
+        assert!(GitDeploy::ref_sicuro("v2.6.6"));
+        assert!(GitDeploy::ref_sicuro("release/2026-09"));
+        assert!(GitDeploy::ref_sicuro("impianto_A-1"));
+        assert!(!GitDeploy::ref_sicuro("--delete"));
+        assert!(!GitDeploy::ref_sicuro("-d"));
+        assert!(!GitDeploy::ref_sicuro("a..b"));
+        assert!(!GitDeploy::ref_sicuro("con spazio"));
+        assert!(!GitDeploy::ref_sicuro("a:b"));
+        assert!(!GitDeploy::ref_sicuro("x.lock"));
+        assert!(!GitDeploy::ref_sicuro("dir/"));
+        assert!(!GitDeploy::ref_sicuro("a@{1}"));
+        assert!(!GitDeploy::ref_sicuro(""));
+    }
+
+    #[test]
+    fn l_url_del_remote_non_puo_essere_una_flag() {
+        assert!(GitDeploy::url_remote_sicuro("git@github.com:soligolab/sws.git"));
+        assert!(GitDeploy::url_remote_sicuro("https://example.com/r.git"));
+        assert!(!GitDeploy::url_remote_sicuro("--mirror=fetch"));
+        assert!(!GitDeploy::url_remote_sicuro(""));
+    }
+
+    #[test]
+    fn create_tag_rifiuta_prima_di_toccare_git() {
+        let tmp = tempfile::tempdir().unwrap();
+        run_git(&tmp.path().to_string_lossy(), &["init"]).unwrap();
+        let gd = GitDeploy::new(tmp.path().to_path_buf());
+        let err = gd.create_tag("--delete", None).unwrap_err().to_string();
+        assert!(err.contains("non valido"), "{err}");
     }
 }

@@ -1,12 +1,12 @@
 //! Email notification + escalation for alarm activation.
 //!
 //! `NotificationSupervisor` subscribes to the AlarmDb broadcast channel and:
-//!   1. Sends email to `def.notify_email` recipients on transition to ActiveUnacked.
-//!   1b. Sends a Telegram message per `def.telegram_routing()` — global chats
-//!       (the default, and what alarms did before the setting existed), the
-//!       alarm's own chats, or nothing.
-//!   2. Every 60 s, scans for ActiveUnacked alarms past `escalate_after_s` and
-//!      sends escalation email to `def.escalate_to` recipients (once per activation).
+//! 1. Sends email to `def.notify_email` recipients on transition to ActiveUnacked.
+//! 2. Sends a Telegram message per `def.telegram_routing()` — global chats
+//!    (the default, and what alarms did before the setting existed), the
+//!    alarm's own chats, or nothing.
+//! 3. Every 60 s, scans for ActiveUnacked alarms past `escalate_after_s` and
+//!    sends escalation email to `def.escalate_to` recipients (once per activation).
 //!
 //! The supervisor is started by `open_project` and stopped on `close_project`.
 //! SMTP credentials are read from `NotificationConfig.smtp`.
@@ -14,7 +14,6 @@
 use std::{
     collections::HashSet,
     sync::Arc,
-    time::{SystemTime, UNIX_EPOCH},
 };
 use lettre::{
     Message, SmtpTransport, Transport,
@@ -26,10 +25,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 use sws_core::{AlarmDb, AlarmState, IsaState, NotificationConfig, SmtpConfig, TagValue, TelegramRouting};
 use crate::telegram::TelegramMessage;
-
-fn now_ms() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as u64
-}
+use sws_core::now_ms;
 
 /// Build a lettre `SmtpTransport` from the project's `SmtpConfig`.
 fn build_transport(cfg: &SmtpConfig) -> anyhow::Result<SmtpTransport> {

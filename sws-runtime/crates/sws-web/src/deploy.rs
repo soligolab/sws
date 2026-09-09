@@ -70,6 +70,10 @@ pub async fn deploy_remote(EJson(req): EJson<DeployRequest>) -> Response {
             let _ = tx.try_send(line);
         };
 
+        if let Err(m) = crate::packaging::destinazione_ssh_sicura(&user, &host) {
+            send(&format!("ERROR: {}", m.trim_end()));
+            return;
+        }
         // Validate arch
         if arch != "amd64" && arch != "arm64" {
             send(&format!("ERROR: architettura non supportata: {arch}. Usa 'amd64' o 'arm64'."));
@@ -130,9 +134,12 @@ pub async fn deploy_remote(EJson(req): EJson<DeployRequest>) -> Response {
         let remote_file = format!("{remote_path}/sws-runtime");
         send(&format!("INFO: carico {tmp_path} → {user}@{host}:{remote_file}"));
 
+        // `-e` + SSHPASS nell'ambiente: con `-p` la password stava in argv, cioè
+        // in `ps aux` per chiunque sulla macchina (vedi run_ssh_cmd_stdin).
         let scp_status = if use_sshpass {
             Command::new("sshpass")
-                .args(["-p", &password, "scp",
+                .env("SSHPASS", &password)
+                .args(["-e", "scp",
                     "-P", &port.to_string(),
                     "-o", "StrictHostKeyChecking=accept-new",
                     &tmp_path,
@@ -162,7 +169,7 @@ pub async fn deploy_remote(EJson(req): EJson<DeployRequest>) -> Response {
         let restart_cmd = "systemctl restart sws-runtime.service";
         let ssh_args: Vec<String> = if use_sshpass {
             vec![
-                "-p".into(), password.clone(),
+                "-e".into(),
                 "ssh".into(),
                 "-p".into(), port.to_string(),
                 "-o".into(), "StrictHostKeyChecking=accept-new".into(),
@@ -179,7 +186,7 @@ pub async fn deploy_remote(EJson(req): EJson<DeployRequest>) -> Response {
         };
 
         let ssh_prog = if use_sshpass { "sshpass" } else { "ssh" };
-        let restart_status = Command::new(ssh_prog).args(&ssh_args).status().await;
+        let restart_status = Command::new(ssh_prog).env("SSHPASS", &password).args(&ssh_args).status().await;
 
         match restart_status {
             Ok(s) if s.success() => send("INFO: servizio riavviato con successo"),

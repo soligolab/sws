@@ -48,6 +48,9 @@ use crate::ai::client::{self, Fornitore, Impostazioni};
 use crate::router::{AppState, AuthUser, MASKED_PASSWORD};
 
 /// Le rotte esistono solo dove hanno senso. Vedi il commento in testa.
+// `Response` come Err è grande, ma è un ritorno anticipato che il chiamante
+// restituisce così com'è: incartarlo in un Box aggiungerebbe solo rumore.
+#[allow(clippy::result_large_err)]
 fn solo_ide(s: &AppState) -> Result<(), Response> {
     if s.ide_only {
         Ok(())

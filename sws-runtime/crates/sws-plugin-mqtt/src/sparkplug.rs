@@ -49,6 +49,9 @@ pub struct Metric {
     pub value: Option<MetricValue>,
 }
 
+// I nomi delle varianti sono quelli della specifica Sparkplug B (`int_value`,
+// `long_value`, …): il suffisso comune è del protocollo, non una svista nostra.
+#[allow(clippy::enum_variant_names)]
 #[derive(Clone, PartialEq, prost::Oneof)]
 pub enum MetricValue {
     #[prost(uint32, tag = "7")]

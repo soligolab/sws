@@ -18,6 +18,7 @@ use time::OffsetDateTime;
 use tokio::fs::{File, OpenOptions};
 use tokio::io::AsyncWriteExt;
 use tokio::sync::broadcast::error::RecvError;
+use sws_core::now_ms;
 
 /// Spawn a tokio task that persists every event from `bus` to a daily JSONL
 /// file under `dir`. Returns the join handle; the task lives until the
@@ -114,14 +115,6 @@ pub(crate) fn date_from_ts_ms(ts_ms: u64) -> String {
         ),
         Err(_) => "1970-01-01".into(),
     }
-}
-
-fn now_ms() -> u64 {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or(0)
 }
 
 /// Delete `runtime-YYYY-MM-DD.jsonl` files strictly older than

@@ -394,7 +394,7 @@
     "errRename": "Error renaming \"{{name}}\": {{err}}",
     "errDuplicate": "Error duplicating \"{{name}}\": {{err}}",
     "destinationFolder": "Destination folder",
-    "destinationDefault": "Default (editor's projects folder)",
+    "destinationDefault": "Default (the projects folder)",
     "browse": "Browse…",
     "finalPathPreview": "Will be created at: {{path}}",
     "directoryBrowserTitle": "Choose a folder",
@@ -1150,7 +1150,9 @@
     "sezioneConflitto": "The project changed while you were editing this section.",
     "sezioneMantieni": "Keep my changes",
     "sezioneRicarica": "Reload from project",
-    "sezioneConflittoHint": "Until you choose, yours are kept: nothing has been overwritten."
+    "sezioneConflittoHint": "Until you choose, yours are kept: nothing has been overwritten.",
+    "certForget": "Forget the old certificate and retry",
+    "certForgetting": "Removing…"
   },
   "langtab": {
     "intro": "Translate the messages you write into objects. In text fields use {{key}}; here you define the translations for each language.",

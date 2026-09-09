@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { useAppStore } from "@/store";
+import { paginaCentrata, schedaModulo } from "@/components/schermataAccesso";
 
 /**
  * Shown when the session user still has `must_change_password = true`.
@@ -60,26 +61,8 @@ export function ChangePasswordScreen() {
   };
 
   return (
-    <div style={{
-      height: "100vh",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      background: "var(--brand-bg, #0f172a)",
-      color: "var(--brand-text, #e2e8f0)",
-      fontFamily: "system-ui, sans-serif",
-    }}>
-      <form onSubmit={submit} style={{
-        background: "var(--brand-surface, #1e293b)",
-        border: "1px solid var(--brand-surface-2, #334155)",
-        borderRadius: 10,
-        padding: "32px 36px",
-        width: 360,
-        display: "flex",
-        flexDirection: "column",
-        gap: 14,
-        boxShadow: "0 10px 30px rgba(0,0,0,0.4)",
-      }}>
+    <div style={paginaCentrata}>
+      <form onSubmit={submit} style={schedaModulo(360)}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
           <strong style={{ fontSize: 18, letterSpacing: 1 }}>{t("auth.changeTitle")}</strong>
         </div>

@@ -349,7 +349,7 @@ Axum router (8443/8444). The core crates (`sws-core`, `sws-historian`, `sws-pysc
 `sws-auth`, `sws-audit`, and every `sws-plugin-*`) have no dependency on it; they publish to and
 read from a shared `TagDb` over `tokio::sync::broadcast` channels. The REST surface
 (`/api/project*`, `/api/synoptics/:name`, `/api/tags*`, `/api/alarms*`, `/api/history/:tag`,
-`/api/recipes/*`, `/api/script/exec`, `/api/deploy/*`, `/api/discover`, …) and the WebSocket
+`/api/recipes/*`, `/api/deploy/*`, `/api/discover`, …) and the WebSocket
 endpoints (`/ws/tags`, `/ws/alarms`, `/ws/logs`) are consumed identically by the browser SPA,
 `sws-kiosk`, and `sws-lvgl-viewer` — the LVGL engine is a separate Rust binary that talks to
 `sws-web` purely as a REST/WS client, with zero changes required in the runtime itself (see

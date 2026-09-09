@@ -62,6 +62,41 @@
 
 ## ▶ Da fare nella prossima sessione
 
+### 🔍 Revisione pre-2.7.0 — sul ramo `chore/revisione-pre-2.7.0`, da leggere e mergiare (2026-09-09)
+
+Giornata autonoma su richiesta del maintainer: sicurezza, funzioni a metà o non usate,
+duplicati. **Il referto è `docs/plans/2026-09-09-revisione-pre-2.7.0.md`** — tre colonne:
+corretto, da decidere tu, lasciato stare e perché. Le decisioni sono **Q46–Q49** in
+`OPEN_QUESTIONS.md`, ciascuna con una raccomandazione.
+
+Numeri: `cargo audit` 16 → 5 (le cinque a monte, senza correzione), `pnpm audit` 25 → 0,
+clippy `-D warnings` da 43 avvisi a **0** in entrambe le forme, 9 dipendenze mai usate
+tolte, 470 test Rust, 204 vitest, 13 guardie statiche verdi. 17 commit, `main` intatto.
+
+**Decisioni prese dal maintainer nel pomeriggio, e già realizzate sul ramo:** Q46 (cartella
+dei progetti dichiarata, default `~/sws_projects`, confine per `browse-dirs`/`mkdir`/
+`parent_path`), Q47 (`/api/script/exec` rimosso), Q49 (pinning del certificato TLS alla prima
+connessione, con «dimentica e riprova» — per ora editor ↔ dispositivo; viewer LVGL e MQTT
+restano). Q48 è in discussione: il maintainer propende per ripuntare la WelcomeScreen al
+deploy container — vedi l'analisi in chat del 2026-09-09 e la Q.
+
+**Da provare a mano su Q49**: «Connetti» a un pannello in **HTTPS** due volte (la seconda
+deve passare in silenzio), poi rigenerare il certificato sul pannello (o cancellare
+`dispositivi_conosciuti.yaml` a metà): «Connetti» deve fermarsi con il pulsante, e il pulsante
+deve sbloccare. In HTTP non cambia niente.
+
+**Le correzioni di sicurezza, in ordine di peso:** `sshpass -p` → `-e` (la password stava in
+`ps aux`); `user@host` validato nei quattro handler ssh (prima solo in `ssh-keygen -R`);
+nomi dei tag git che potevano essere opzioni; sanificazione SVG via DOM con lista di
+ammessi + rifiuto lato server (e l'anteprima simboli non la chiamava affatto).
+
+**Da provare a mano prima di fidarsi** (referto §5): un deploy container sul WP630 dopo il
+cambio a `sshpass -e`; un simbolo SVG custom esistente deve rendersi identico; le finestre
+staccate (chat, log) dopo il refactor.
+
+**Dopo il merge:** un commit `cargo fmt` da solo — la CI è rossa su ~70 file per il solo
+formato, da prima di questa revisione — così ogni file ha un solo commit «rumore».
+
 ### 🎯 Rilasciata la 2.6.6 — da compilare e collaudare (2026-09-09)
 
 I due rami del 2026-09-08 sono su `main` in squash e la versione è taggata. In

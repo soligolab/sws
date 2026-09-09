@@ -255,14 +255,23 @@ pub async fn create_backup_handler(State(s): State<AppState>) -> Response {
     }
 }
 
+/// Prologo comune ai tre handler `/api/backups/:name/*`: progetto attivo e
+/// nome del backup nella forma che produciamo noi (niente `..`, niente `/`).
+/// Era copiato tre volte; una regola di validazione scritta in tre punti è una
+/// regola che prima o poi cambia in due.
+async fn progetto_e_nome_backup(s: &AppState, name: &str) -> Result<PathBuf, Response> {
+    let dir = active_dir(s).await.map_err(|c| c.into_response())?;
+    if !safe_backup_name(name) {
+        return Err((StatusCode::BAD_REQUEST, "invalid backup name").into_response());
+    }
+    Ok(dir)
+}
+
 pub async fn restore_backup_handler(
     State(s): State<AppState>,
     AxPath(name): AxPath<String>,
 ) -> Response {
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
-    if !safe_backup_name(&name) {
-        return (StatusCode::BAD_REQUEST, "invalid backup name").into_response();
-    }
+    let dir = match progetto_e_nome_backup(&s, &name).await { Ok(d) => d, Err(r) => return r };
     // Q30: il restore riscrive project.yaml, i sinottici e users.yaml. Un
     // salvataggio concorrente scriverebbe dentro un progetto a metà ripristino.
     let _scrittura = s.project_write_lock.lock().await;
@@ -289,10 +298,7 @@ pub async fn download_backup_handler(
     State(s): State<AppState>,
     AxPath(name): AxPath<String>,
 ) -> Response {
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
-    if !safe_backup_name(&name) {
-        return (StatusCode::BAD_REQUEST, "invalid backup name").into_response();
-    }
+    let dir = match progetto_e_nome_backup(&s, &name).await { Ok(d) => d, Err(r) => return r };
     let backup_dir = bak_dir(&dir).join(&name);
     if !backup_dir.is_dir() {
         return (StatusCode::NOT_FOUND, "backup not found").into_response();
@@ -315,10 +321,7 @@ pub async fn delete_backup_handler(
     State(s): State<AppState>,
     AxPath(name): AxPath<String>,
 ) -> Response {
-    let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
-    if !safe_backup_name(&name) {
-        return (StatusCode::BAD_REQUEST, "invalid backup name").into_response();
-    }
+    let dir = match progetto_e_nome_backup(&s, &name).await { Ok(d) => d, Err(r) => return r };
     match delete_backup(&dir, &name) {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => (StatusCode::NOT_FOUND, format!("not found: {e}")).into_response(),

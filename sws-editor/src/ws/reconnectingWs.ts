@@ -22,7 +22,7 @@ const STABILE_MS = 3_000;
 // rifiutato per un motivo che il tempo non cambia (rotta assente, versione
 // incompatibile). Sono nell'intervallo privato 4000-4999 di RFC 6455 e li manda
 // `remote_relay.rs`. Un guasto di rete usa i codici normali e resta ritentabile.
-const CHIUSURE_DEFINITIVE = new Set([4404]);
+const CHIUSURE_DEFINITIVE = new Set([4404, 4495]); // 4495 = certificato del dispositivo cambiato (Q49)
 
 // Dopo quanti collegamenti consecutivi **mai stabili** si smette di provare.
 //

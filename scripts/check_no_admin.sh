@@ -91,7 +91,7 @@ echo "=== 2. le rotte dell'IDE NON devono esserci — e il confronto lo dimostra
 # qualcosa-di-diverso-da-404 sulla normale. Il secondo controllo è quello che
 # rende la prova onesta: senza, un percorso scritto male darebbe 404 da tutte
 # due e la guardia sarebbe verde senza aver verificato nulla.
-for r in "POST /api/script/exec" "GET /api/fs/browse-dirs" "PUT /api/project/tags" \
+for r in "GET /api/build/packages" "GET /api/fs/browse-dirs" "PUT /api/project/tags" \
          "GET /api/logs" "GET /api/discover" "GET /api/schema/synoptic" \
          "GET /api/audit" "POST /api/projects/pippo/duplicate"; do
     m=${r% *}; u=${r#* }
@@ -128,6 +128,22 @@ done
 c=$(ws 8597 /ws/logs)
 [ "$c" = "404" ] && esito ok "/ws/logs resta fuori dalla porta di gestione (404)" \
                  || esito no "/ws/logs è comparso sulla porta di gestione ($c): decisione mai presa"
+
+echo "=== 2c. il selettore di cartelle non esce dalla cartella dei progetti (Q46) ==="
+# Sull'istanza NORMALE (8599) la rotta c'è: senza percorso elenca la radice,
+# con un percorso fuori dalla radice risponde 400 e lo dice. Prima partiva da
+# $HOME e accettava qualunque percorso assoluto — pre-auth.
+c=$(codice GET 8599 "/api/fs/browse-dirs")
+[ "$c" = "200" ] && esito ok "browse-dirs senza percorso elenca la radice (200)" \
+                 || esito no "browse-dirs senza percorso: $c (atteso 200)"
+c=$(codice GET 8599 "/api/fs/browse-dirs?path=/etc")
+[ "$c" = "400" ] && esito ok "browse-dirs su /etc è rifiutato (400)" \
+                 || esito no "browse-dirs su /etc: $c — il disco è di nuovo leggibile senza sessione"
+c=$(curl -s -o /dev/null -w '%{http_code}' -m 5 -X POST -H 'content-type: application/json' \
+      -d '{"parent":"/tmp","name":"sws_prova_q46"}' "http://localhost:8599/api/fs/mkdir")
+[ "$c" = "400" ] && esito ok "mkdir fuori dalla radice è rifiutato (400)" \
+                 || esito no "mkdir in /tmp: $c — si creano cartelle ovunque senza sessione"
+rmdir /tmp/sws_prova_q46 2>/dev/null || true
 
 echo "=== 3. la SPA dell'IDE non viene servita ==="
 if [ ${#WWW_ARGS[@]} -eq 0 ]; then

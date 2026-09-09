@@ -106,6 +106,8 @@ pub struct AppState {
     pub telegram_sender: Arc<RwLock<Option<crate::telegram::TelegramSender>>>,
     /// Runtime config directory (where tls.crt/tls.key live). Used by TLS management endpoints.
     pub config_dir: Arc<PathBuf>,
+    /// Q49: le impronte dei certificati dei dispositivi già visti (`known_hosts` per TLS).
+    pub certificati: Arc<crate::certificati::ImprontaStore>,
     /// Path to the TLS certificate PEM for `GET /cert` (browser import).
     /// `None` when running in plain HTTP mode (no TLS configured).
     pub cert_path: Option<Arc<PathBuf>>,
@@ -182,6 +184,8 @@ pub async fn active_dir(state: &AppState) -> Result<PathBuf, StatusCode> {
     state.project_dir.read().await.clone().ok_or(StatusCode::SERVICE_UNAVAILABLE)
 }
 
+// 26 argomenti: e' il vero odore di questo file, da rifare con una struct di configurazione (referto 2026-09-09).
+#[allow(clippy::too_many_arguments)]
 pub fn build(
     db: Arc<TagDb>,
     bus: Arc<TagWriteBus>,
@@ -204,8 +208,8 @@ pub fn build(
     config_dir: Arc<PathBuf>,
     cert_path: Option<Arc<PathBuf>>,
     www_dir: Option<PathBuf>,
-    // Operator-only hardening (--no-admin): drop `/api/script/exec` (ad-hoc code
-    // execution) from the viewer. Button-bound `/api/script/run/:name` stays.
+    // Operator-only hardening (--no-admin): la porta admin porta solo la gestione
+    // remota e il viewer non serve la SPA dell'IDE. Vedi `deploy_only_app`.
     lockdown: bool,
     // Istanza IDE-only (nessun `--viewer-port`): vedi `AppState::ide_only`.
     ide_only: bool,
@@ -222,9 +226,11 @@ pub fn build(
     let (project_epoch, _) = tokio::sync::watch::channel(0u64);
     let project_epoch = Arc::new(project_epoch);
 
-    let state = AppState { db, bus, alarms, historian, registry, py, auth, supervisor, script_supervisor, ide_only, project_epoch, functions, derived_tags, project_dir, projects_root, templates_root, logs, logs_dir, started_at, ip_allowlist, recipe_log: Arc::new(RwLock::new(Vec::new())), notification_supervisor: Arc::new(RwLock::new(None)), telegram_sender: Arc::new(RwLock::new(None)), config_dir, cert_path, build_running: crate::packaging::new_build_lock(), repo_root: crate::packaging::new_repo_root(), remote_target: Arc::new(RwLock::new(None)), audit, known_projects, instance_id, project_switch_lock: Arc::new(tokio::sync::Mutex::new(())), deploy_lock: Arc::new(tokio::sync::Mutex::new(())), project_write_lock: Arc::new(tokio::sync::Mutex::new(())) };
+    // Q49: l'archivio delle impronte vive accanto alla configurazione, come known_hosts.
+    let certificati = Arc::new(crate::certificati::ImprontaStore::in_config(&config_dir));
+    let state = AppState { db, bus, alarms, historian, registry, py, auth, supervisor, script_supervisor, ide_only, project_epoch, functions, derived_tags, project_dir, projects_root, templates_root, logs, logs_dir, started_at, ip_allowlist, recipe_log: Arc::new(RwLock::new(Vec::new())), notification_supervisor: Arc::new(RwLock::new(None)), telegram_sender: Arc::new(RwLock::new(None)), config_dir, cert_path, build_running: crate::packaging::new_build_lock(), repo_root: crate::packaging::new_repo_root(), remote_target: Arc::new(RwLock::new(None)), certificati, audit, known_projects, instance_id, project_switch_lock: Arc::new(tokio::sync::Mutex::new(())), deploy_lock: Arc::new(tokio::sync::Mutex::new(())), project_write_lock: Arc::new(tokio::sync::Mutex::new(())) };
     // Build the runtime router (8443) before consuming state for admin.
-    let runtime_app = build_runtime_inner(state.clone(), www_dir.clone(), lockdown);
+    let runtime_app = build_runtime_inner(state.clone(), www_dir.clone());
 
     // Routes that need Admin privileges (PUT /api/project/* — schema edits,
     // plus the multi-user CRUD).
@@ -291,6 +297,9 @@ pub fn build(
         // solo dal pulsante che compare quando il deploy si ferma per questo.
         .route("/api/device/hostkey/forget",
             post(crate::packaging::dimentica_chiave_host))
+        // Q49: gemello per il certificato TLS del dispositivo.
+        .route("/api/device/cert/forget",
+            post(crate::remote::dimentica_certificato))
         // Lifecycle on an already-installed container (status/start/stop/
         // restart/enable/disable/restart-policy/uninstall) — locally on this
         // host or over SSH, independent of any prior deploy's remote_dir.
@@ -327,7 +336,6 @@ pub fn build(
         .route("/api/alarms/shelved",     get(list_shelved_alarms))
         // Recipe apply — writes multiple tags atomically
         .route("/api/recipes/:id/apply",  post(apply_recipe))
-        .route("/api/script/exec",     post(exec_script))
         // Compila e non esegue: strumento di progettazione, nessun effetto.
         .route("/api/script/check",    post(check_script))
         .route("/api/script/run/:name", post(run_function))
@@ -587,8 +595,8 @@ pub fn build(
     // Quindi con `--no-admin` la porta resta, ma porta **solo la gestione
     // remota**: quello che l'editor chiama sul dispositivo, e nient'altro.
     // Cade tutto ciò che è «IDE servito dal dispositivo» — nessuna SPA admin,
-    // nessuna rotta di editing dei sinottici, nessun `/api/script/exec`,
-    // nessuna build dei pacchetti, nessun `/api/fs/*`.
+    // nessuna rotta di editing dei sinottici, nessuna build dei pacchetti,
+    // nessun `/api/fs/*`.
     //
     // E una cosa **più stretta** di prima: qui il ciclo di vita del progetto è
     // dietro `require_admin`, mentre sul router completo è pre-auth per
@@ -684,7 +692,7 @@ pub fn build(
 ///
 /// Nessuna SPA admin. Nessuna `PUT /api/project/*` e nessuna
 /// `PUT /api/synoptics/*`: il progetto non si modifica **sul** dispositivo, si
-/// deploya. Nessun `/api/script/exec`. Nessuna build dei pacchetti. Nessun
+/// deploya. Nessuna build dei pacchetti. Nessun
 /// `/api/fs/*` — che sul router completo naviga il filesystem **senza
 /// autenticazione**, per una necessità (la WelcomeScreen al primo avvio) che su
 /// un dispositivo senza IDE non esiste. Nessun `/ws/ai`, e nessun `/ws/logs`:
@@ -776,9 +784,9 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
     aperte.merge(gestione).merge(flussi)
 }
 
-fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>, lockdown: bool) -> Router {
+fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
     // Operator-required routes: tag writes, alarm ops, recipe apply, scripts.
-    let mut operator_routes = Router::new()
+    let operator_routes = Router::new()
         .route("/api/tags/:id",          put(write_tag))
         .route("/api/alarms/:id/ack",    post(ack_alarm))
         .route("/api/alarms/:id/shelve", post(shelve_alarm).delete(unshelve_alarm))
@@ -786,11 +794,10 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>, lockdown: bool
         .route("/api/recipes/:id/apply", post(apply_recipe))
         .route("/api/script/run/:name",  post(run_function))
         .route("/api/system",            get(crate::system::get_system_status));
-    // Ad-hoc arbitrary-code execution: dropped in operator-only mode (--no-admin).
-    // Button-bound `/api/script/run/:name` (named FunctionDef) stays available.
-    if !lockdown {
-        operator_routes = operator_routes.route("/api/script/exec", post(exec_script));
-    }
+    // Q47 (2026-09-09): `/api/script/exec` — esecuzione di Python arbitrario —
+    // non c'è più, da nessuna parte: nessuna interfaccia lo chiamava e gli
+    // script di progetto non passano da HTTP. Resta `/api/script/run/:name`,
+    // che esegue solo funzioni con un nome, dichiarate nel progetto.
     let operator_routes = operator_routes.route_layer(middleware::from_fn(require_operator));
 
     // Anonymous-readable routes: synoptic, tags, alarms, history, WS streams.
@@ -1383,33 +1390,13 @@ struct ScriptResult {
     error: Option<String>,
 }
 
-async fn exec_script(
-    State(s): State<AppState>,
-    Extension(user): Extension<AuthUser>,
-    Json(body): Json<ScriptBody>,
-) -> Json<ScriptResult> {
-    s.audit.log("script.exec", Some(user.username), serde_json::json!({"bytes": body.code.len()}));
-    match s.py.execute(body.code).await {
-        Ok(ExecOutput { stdout, stderr, sandboxed }) => {
-            metrics::counter!("sws_script_exec_total", "endpoint" => "exec", "status" => "ok").increment(1);
-            Json(ScriptResult { ok: true, stdout, stderr, sandboxed, error: None })
-        }
-        Err(e) => {
-            metrics::counter!("sws_script_exec_total", "endpoint" => "exec", "status" => "error").increment(1);
-            Json(ScriptResult {
-                ok: false, error: Some(e), sandboxed: s.py.is_sandboxed(),
-                ..Default::default()
-            })
-        }
-    }
-}
 
 /// `POST /api/script/check` — compila senza eseguire.
 ///
 /// # Perché serviva
 ///
 /// Prima di questo, l'unico modo di sapere se uno script Python stava in piedi
-/// era **eseguirlo** (`/api/script/exec`): su un dispositivo in servizio vuol
+/// era **eseguirlo** (l'allora `/api/script/exec`, tolto con Q47): su un dispositivo in servizio vuol
 /// dire accettare che una prova scriva i tag e faccia partire quel che lo script
 /// fa partire. Qui non gira niente — nessun tag letto o scritto, nessun `print`,
 /// nessun `send_telegram`, nessun timeout da armare.
@@ -1417,11 +1404,10 @@ async fn exec_script(
 /// Serve all'assistente per correggersi da sé, come già fa `valida` per la
 /// struttura del progetto, e serve al maintainer anche senza assistente.
 ///
-/// # Perché non è dietro il gate di `--no-admin`
+/// # Perché sta solo sul router admin
 ///
-/// `/api/script/exec` viene tolto in modalità operator-only perché esegue codice
-/// arbitrario. Questo no: non ha effetti. Sta comunque solo sul router admin,
-/// perché è uno strumento di progettazione e il viewer non ne ha bisogno.
+/// Non ha effetti — niente gira — ma è uno strumento di progettazione e il
+/// viewer non ne ha bisogno.
 async fn check_script(
     State(s): State<AppState>,
     Json(body): Json<ScriptBody>,
@@ -2968,11 +2954,58 @@ async fn update_project_functions(
     res
 }
 
+/// Il markup SVG di un simbolo custom contiene qualcosa che esegue codice o
+/// carica risorse da fuori? `Some(motivo)` se sì.
+///
+/// Difesa in profondità, non sostituto della sanificazione lato browser
+/// (`customSvg.ts`): quella toglie e disegna, questa RIFIUTA il salvataggio.
+/// Un simbolo è grafica — se arriva con `<script>` dentro, o è un errore di
+/// chi incolla o è un tentativo, e in entrambi i casi non va sul disco: da lì
+/// finirebbe nel viewer di operatori anonimi, e in un deploy. Regex volutamente
+/// larghe: un falso positivo qui costa un messaggio d'errore, un falso negativo
+/// costa uno script eseguito nel browser di qualcun altro.
+pub(crate) fn svg_ostile(svg: &str) -> Option<&'static str> {
+    let basso = svg.to_ascii_lowercase();
+    // tolgo gli spazi bianchi dentro i valori per prendere `java\nscript:` e simili
+    let compatto: String = basso.chars().filter(|c| !c.is_whitespace()).collect();
+    if basso.contains("<script") { return Some("contiene <script>"); }
+    if compatto.contains("javascript:") { return Some("contiene un URL javascript:"); }
+    if basso.contains("<foreignobject") { return Some("contiene <foreignObject>"); }
+    if basso.contains("<iframe") || basso.contains("<embed") || basso.contains("<object") {
+        return Some("contiene un elemento che incorpora un documento esterno");
+    }
+    // handler inline: `onload=`, `onclick=`, con o senza spazi
+    let mut resto = compatto.as_str();
+    while let Some(i) = resto.find("on") {
+        let dopo = &resto[i + 2..];
+        let nome: String = dopo.chars().take_while(|c| c.is_ascii_alphabetic()).collect();
+        if !nome.is_empty() && dopo[nome.len()..].starts_with('=') && i > 0
+            && matches!(resto.as_bytes()[i - 1], b'<' | b'"' | b'\'' | b'/' | b'>' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_')
+        {
+            // `<rect onload=` compattato diventa `<rectonload=`: il carattere prima di
+            // `on` è una lettera. Accettiamo il falso positivo su attributi che
+            // finiscono in ...on= (es. `data-version=`): costa un messaggio.
+            return Some("contiene un gestore di eventi (on*=)");
+        }
+        resto = &resto[i + 2..];
+    }
+    None
+}
+
 async fn update_project_custom_symbols(
     State(s): State<AppState>,
     headers: axum::http::HeaderMap,
     Json(symbols): Json<Vec<CustomSymbol>>,
 ) -> Response {
+    for sym in &symbols {
+        if let Some(svg) = sym.svg.as_deref() {
+            if let Some(motivo) = svg_ostile(svg) {
+                return (StatusCode::BAD_REQUEST,
+                    format!("simbolo «{}» rifiutato: il markup {motivo}. Un simbolo è solo grafica.\n", sym.id)
+                ).into_response();
+            }
+        }
+    }
     let dir = match active_dir(&s).await { Ok(d) => d, Err(c) => return c.into_response() };
     patch_project_se(&s.project_write_lock, &dir, versione_attesa(&headers), |p| p.custom_symbols = symbols).await
 }
@@ -3553,7 +3586,7 @@ struct RunBody {
 }
 
 /// Execute a named function with the provided argument bindings.
-/// Returns the same shape as `/api/script/exec` so callers share a path.
+/// Restituisce `ScriptResult`, la forma che aveva anche `/api/script/exec` (tolto, Q47).
 async fn run_function(
     State(s): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -4937,13 +4970,11 @@ async fn opcua_history_handler(
         }) {
             if let Ok(dir) = active_dir(&s).await {
                 if let Ok(project) = Project::load(&dir) {
-                    if let Some(src) = project.sources.iter().find(|src| {
-                        matches!(src, sws_core::SourceDef::OpcUaClient(c) if c.id == *sid)
-                    }) {
-                        if let sws_core::SourceDef::OpcUaClient(c) = src {
+                    if let Some(sws_core::SourceDef::OpcUaClient(c)) = project.sources.iter().find(|src| {
+                            matches!(src, sws_core::SourceDef::OpcUaClient(c) if c.id == *sid)
+                        }) {
                             req.auth = Some(c.auth.clone());
                         }
-                    }
                 }
             }
         }
@@ -6293,5 +6324,28 @@ mod q30_file_tests {
         assert_eq!(versione_di("a"), versione_di("a"));
         assert_ne!(versione_di("a"), versione_di("b"));
         assert_eq!(versione_di("a").len(), 16, "otto byte in esadecimale");
+    }
+
+    /// Difesa in profondità sui simboli SVG: il browser sanifica, il server
+    /// rifiuta. Revisione del 2026-09-09.
+    #[test]
+    fn un_simbolo_con_codice_dentro_viene_rifiutato() {
+        use super::svg_ostile;
+        assert!(svg_ostile("<svg><script>alert(1)</script></svg>").is_some());
+        assert!(svg_ostile("<svg><SCRIPT src=x></svg>").is_some());
+        assert!(svg_ostile("<svg><rect onload=\"alert(1)\"/></svg>").is_some());
+        assert!(svg_ostile("<svg><rect onload=alert(1) /></svg>").is_some());
+        assert!(svg_ostile("<svg><a href=\"java\nscript:alert(1)\"/></svg>").is_some());
+        assert!(svg_ostile("<svg><foreignObject><body/></foreignObject></svg>").is_some());
+        assert!(svg_ostile("<svg><iframe src=x/></svg>").is_some());
+    }
+
+    #[test]
+    fn un_simbolo_normale_passa() {
+        use super::svg_ostile;
+        let ok = r##"<svg viewBox="0 0 100 100"><g id="body"><rect x="1" y="2" width="10" height="20" fill="#f00"/><path d="M0 0L10 10" stroke="#000"/><text>on</text></g></svg>"##;
+        assert_eq!(svg_ostile(ok), None);
+        // `stop-color`, `stroke-linejoin`: contengono "on" senza essere handler.
+        assert_eq!(svg_ostile(r##"<svg><stop offset="0" stop-color="#fff"/><path stroke-linejoin="round"/></svg>"##), None);
     }
 }

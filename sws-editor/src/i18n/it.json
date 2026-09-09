@@ -394,7 +394,7 @@
     "errRename": "Errore rinomina \"{{name}}\": {{err}}",
     "errDuplicate": "Errore duplicazione \"{{name}}\": {{err}}",
     "destinationFolder": "Cartella di destinazione",
-    "destinationDefault": "Predefinita (cartella progetti dell'editor)",
+    "destinationDefault": "Predefinita (la cartella dei progetti)",
     "browse": "Sfoglia…",
     "finalPathPreview": "Verrà creato in: {{path}}",
     "directoryBrowserTitle": "Scegli una cartella",
@@ -1150,7 +1150,9 @@
     "sezioneConflitto": "Il progetto è cambiato mentre stavi modificando questa sezione.",
     "sezioneMantieni": "Tieni le mie modifiche",
     "sezioneRicarica": "Ricarica dal progetto",
-    "sezioneConflittoHint": "Finché non scegli, restano le tue: non è stato sovrascritto niente."
+    "sezioneConflittoHint": "Finché non scegli, restano le tue: non è stato sovrascritto niente.",
+    "certForget": "Dimentica il vecchio certificato e riprova",
+    "certForgetting": "Rimozione in corso…"
   },
   "langtab": {
     "intro": "Traduci i messaggi che scrivi negli oggetti. Nei campi testo usa {{chiave}}; qui definisci le traduzioni per ogni lingua.",

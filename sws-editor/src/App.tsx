@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, AuthError, NoProjectError, PasswordChangeRequiredError, RuntimeUnavailableError } from "@/api/client";
+import { BarraAvviso } from "@/components/BarraAvviso";
 import { ChangePasswordScreen } from "@/components/ChangePasswordScreen";
 import { BrandLogo } from "@/components/BrandLogo";
 import { DirtyIndicator } from "@/components/DirtyIndicator";
@@ -727,51 +728,17 @@ export function App() {
 
       {/* Alarm banner */}
       {runtimeBackReload && (
-        <div style={{
-          background: "var(--brand-success-bg, #166534)", borderBottom: "1px solid var(--brand-success, #22c55e)",
-          padding: "6px 16px", display: "flex", alignItems: "center", gap: 12,
-          fontSize: 12, color: "#fff", flexShrink: 0,
-        }}>
-          <span>🔓</span>
-          <span style={{ flex: 1 }}>{t("app.runtimeReachableReload")}</span>
-          <button
-            style={{ ...HDR_BTN, background: "transparent", color: "#fff", borderColor: "#fff" }}
-            onClick={() => window.location.reload()}
-          >
-            {t("app.reloadNow")}
-          </button>
-          <button
-            style={{ ...HDR_BTN, background: "transparent", color: "#fff", border: "none" }}
-            onClick={() => setRuntimeBackReload(false)}
-            title={t("app.dismiss")}
-          >
-            ✕
-          </button>
-        </div>
-      )}
+          <BarraAvviso tono="successo" icona="🔓" stileBottone={HDR_BTN}
+            ricarica={t("app.reloadNow")} onChiudi={() => setRuntimeBackReload(false)} titoloChiudi={t("app.dismiss")}>
+            {t("app.runtimeReachableReload")}
+          </BarraAvviso>
+        )}
       {newBuildAvailable && (
-        <div style={{
-          background: "var(--brand-primary, #3b82f6)", borderBottom: "1px solid var(--brand-primary-hover, #2563eb)",
-          padding: "6px 16px", display: "flex", alignItems: "center", gap: 12,
-          fontSize: 12, color: "#fff", flexShrink: 0,
-        }}>
-          <span>⬆</span>
-          <span style={{ flex: 1 }}>{t("app.newBuildAvailable")}</span>
-          <button
-            style={{ ...HDR_BTN, background: "transparent", color: "#fff", borderColor: "#fff" }}
-            onClick={() => window.location.reload()}
-          >
-            {t("app.reloadNow")}
-          </button>
-          <button
-            style={{ ...HDR_BTN, background: "transparent", color: "#fff", border: "none" }}
-            onClick={() => setNewBuildAvailable(false)}
-            title={t("app.dismiss")}
-          >
-            ✕
-          </button>
-        </div>
-      )}
+          <BarraAvviso tono="primario" icona="⬆" stileBottone={HDR_BTN}
+            ricarica={t("app.reloadNow")} onChiudi={() => setNewBuildAvailable(false)} titoloChiudi={t("app.dismiss")}>
+            {t("app.newBuildAvailable")}
+          </BarraAvviso>
+        )}
       {/* Q30: lo stesso banner serve i due modi di scoprire che il progetto è
           cambiato sotto i piedi — il watcher se l'accorge da sé, il 409 lo
           scopre perché un salvataggio è stato rifiutato. Il rimedio è identico
@@ -780,66 +747,28 @@ export function App() {
           nel secondo caso c'è una modifica appena rifiutata di cui rendere
           conto. */}
       {(projectChangedOutside || saveConflict) && (
-        <div style={{
-          background: "var(--brand-warning-bg, #78350f)", borderBottom: "1px solid var(--brand-warning, #f59e0b)",
-          padding: "6px 16px", display: "flex", alignItems: "center", gap: 12,
-          fontSize: 12, color: "var(--brand-warning-soft, #facc15)", flexShrink: 0,
-        }}>
-          <span>⟳</span>
-          <span style={{ flex: 1 }}>
+          <BarraAvviso tono="attenzione" icona="⟳" stileBottone={HDR_BTN}
+            ricarica={t("app.reloadNow")}
+            onChiudi={() => { setProjectChangedOutside(false); setSaveConflict(false); }} titoloChiudi={t("app.dismiss")}>
             {saveConflict ? t("app.saveConflict") : t("app.projectChangedOutside")}
-          </span>
-          <button
-            style={{ ...HDR_BTN, background: "transparent", color: "var(--brand-warning-soft, #facc15)", borderColor: "var(--brand-warning, #f59e0b)" }}
-            onClick={() => window.location.reload()}
-          >
-            {t("app.reloadNow")}
-          </button>
-          <button
-            style={{ ...HDR_BTN, background: "transparent", color: "var(--brand-warning-soft, #facc15)", border: "none" }}
-            onClick={() => { setProjectChangedOutside(false); setSaveConflict(false); }}
-            title={t("app.dismiss")}
-          >
-            ✕
-          </button>
-        </div>
-      )}
+          </BarraAvviso>
+        )}
 
       {/* La finestra staccata dei log è stata bloccata dal browser. Un avviso
           visibile e non un `console.warn`: un popup bloccato è la cosa più
           facile da non notare, e senza questa riga il clic sembrerebbe non
           aver fatto niente. Si chiude da sé quando l'apertura riesce. */}
       {chatStaccataErrore && (
-        <div style={{
-          background: "var(--brand-danger-soft, #451a1a)",
-          borderBottom: "1px solid var(--brand-danger, #ef4444)",
-          padding: "5px 16px", display: "flex", alignItems: "center",
-          gap: 12, fontSize: 12, color: "var(--brand-text, #e2e8f0)", flexShrink: 0,
-        }}>
-          <span>⚠</span>
-          <span style={{ flex: 1 }}>{chatStaccataErrore}</span>
-          <button style={{ ...HDR_BTN, padding: "2px 8px" }}
-                  onClick={() => setChatStaccataErrore(null)}>✕</button>
-        </div>
-      )}
+          <BarraAvviso tono="pericolo" icona="⚠" stileBottone={HDR_BTN} compatta onChiudi={() => setChatStaccataErrore(null)}>
+            {chatStaccataErrore}
+          </BarraAvviso>
+        )}
 
       {logStaccatoErrore && (
-        <div style={{
-          background: "var(--brand-danger-soft, #451a1a)",
-          borderBottom: "1px solid var(--brand-danger, #ef4444)",
-          padding: "5px 16px", display: "flex", alignItems: "center",
-          gap: 12, fontSize: 12, color: "var(--brand-text, #e2e8f0)", flexShrink: 0,
-        }}>
-          <span>⚠</span>
-          <span style={{ flex: 1 }}>{logStaccatoErrore}</span>
-          <button
-            style={{ ...HDR_BTN, padding: "2px 8px" }}
-            onClick={() => setLogStaccatoErrore(null)}
-          >
-            ✕
-          </button>
-        </div>
-      )}
+          <BarraAvviso tono="pericolo" icona="⚠" stileBottone={HDR_BTN} compatta onChiudi={() => setLogStaccatoErrore(null)}>
+            {logStaccatoErrore}
+          </BarraAvviso>
+        )}
 
       {/* Dev-mode TTL banner: suggests disabling session expiry during development */}
       {devTtlBanner && (

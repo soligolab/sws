@@ -1,5 +1,6 @@
 pub mod ai;
 pub mod backups;
+pub mod certificati;
 pub mod cron;
 pub mod istantanea;
 pub mod deploy;

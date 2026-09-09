@@ -665,6 +665,7 @@ fn cron_rilievi(base: &str, schedule: &str) -> Vec<Finding> {
         .collect()
 }
 
+#[allow(clippy::too_many_arguments)]
 fn controlla_oggetto(
     out: &mut Vec<Finding>,
     page: &SynopticPage,

@@ -235,8 +235,7 @@ mod tests {
             id: id.to_string(),
             svg: Some(svg.to_string()),
             url: String::new(),
-            ..Default::default()
-        }
+            }
     }
 
     #[test]
@@ -273,7 +272,7 @@ mod tests {
     fn un_simbolo_custom_senza_inline_ripiega_sullurl() {
         let mut o = obj("symbol");
         o.symbol_id = Some("custom:mio".into());
-        let c = CustomSymbol { id: "mio".into(), url: "https://e.example/x.svg".into(), svg: None, ..Default::default() };
+        let c = CustomSymbol { id: "mio".into(), url: "https://e.example/x.svg".into(), svg: None };
         assert_eq!(source_for(&o, &[c]), Some(SvgSource::Url("https://e.example/x.svg".into())));
     }
 

@@ -50,6 +50,7 @@ pub struct BBox {
 /// default. Un oggetto senza larghezza a x = -60 risulta quindi «fuori» pur
 /// essendo disegnato a metà in editor. Editor e runtime restano d'accordo fra
 /// loro; la divergenza è solo con l'occhio.
+#[allow(clippy::too_many_arguments)]
 pub fn bbox_of(
     obj_type: &str,
     x: f64,

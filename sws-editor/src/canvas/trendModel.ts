@@ -13,11 +13,6 @@
 
 import type { SynopticObject, TrendTrace } from "@/types";
 
-/** True se l'oggetto trend usa ancora il formato legacy. */
-export function isLegacyTrend(obj: SynopticObject): boolean {
-  return obj.type === "trend" && obj.trend_tags === undefined;
-}
-
 /** Tracce effettive di un trend (dal formato nuovo; legacy convertito al volo
  *  come fallback di sicurezza per oggetti non passati dallo store). */
 export function trendTraces(obj: SynopticObject): TrendTrace[] {

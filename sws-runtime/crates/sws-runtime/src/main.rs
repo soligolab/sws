@@ -34,10 +34,16 @@ struct Args {
     #[arg(long, default_value = "/var/sws/config")]
     config: PathBuf,
 
-    /// Root directory containing all projects (one subfolder per project).
-    /// The editor's WelcomeScreen lists subfolders of this path; create /
-    /// open / close operate inside it.
-    #[arg(long, default_value = "/var/sws/projects")]
+    /// La cartella dei progetti (una sottocartella per progetto). La
+    /// WelcomeScreen ne elenca il contenuto; creare / aprire / chiudere lavorano
+    /// dentro di essa — e da Q46 (2026-09-09) **solo** dentro di essa: il
+    /// selettore di cartelle e `parent_path` non escono da qui.
+    ///
+    /// Si imposta anche con `SWS_PROJECTS_ROOT` (è la chiave che `runtime.env`
+    /// usa sui dispositivi). Il default è `~/sws_projects`: **fuori dal repo**,
+    /// così un clone pulito non porta con sé i progetti di qualcuno e un `git
+    /// clean` non li cancella. Container e script passano il flag esplicito.
+    #[arg(long, env = "SWS_PROJECTS_ROOT", default_value_os_t = projects_root_predefinita())]
     projects_root: PathBuf,
 
     /// Root directory containing bundled project templates (one subfolder
@@ -108,10 +114,9 @@ struct Args {
     admin_port: u16,
 
     /// Operator-only hardening (CRA attack-surface reduction, OPEN_QUESTIONS Q8):
-    /// do NOT bind the admin/IDE port at all and drop the ad-hoc `/api/script/exec`
-    /// endpoint from the viewer. Only the operator viewer + button-bound functions
-    /// remain. Requires --viewer-port. Config edits, project management and
-    /// arbitrary script execution become unavailable on the device.
+    /// la porta admin porta solo la gestione remota (`deploy_only_app`), niente
+    /// IDE servito dal dispositivo. Only the operator viewer + button-bound
+    /// functions remain. Requires --viewer-port.
     #[arg(long)]
     no_admin: bool,
 
@@ -277,6 +282,15 @@ const CERT_PAGE_TEMPLATE: &str = r##"<!DOCTYPE html>
 </body>
 </html>"##;
 
+/// `~/sws_projects`, o `./sws_projects` se HOME non c'è (container spogli,
+/// servizi senza home): mai una cartella dentro il repo, mai `/var/sws` a caso.
+fn projects_root_predefinita() -> PathBuf {
+    match std::env::var_os("HOME") {
+        Some(h) if !h.is_empty() => PathBuf::from(h).join("sws_projects"),
+        _ => PathBuf::from("sws_projects"),
+    }
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Rustls 0.23 panics if multiple crypto providers end up in the dep graph
@@ -341,6 +355,10 @@ async fn main() -> anyhow::Result<()> {
     // modern browsers, so the editor works without any cert acceptance step.
     // Users can enable TLS from ConfigView → Stato → Certificato TLS.
     std::fs::create_dir_all(&args.config).context("creating config directory")?;
+    // La cartella dei progetti deve esistere prima che qualcuno la elenchi: il
+    // default è fuori dal repo (Q46) e su una macchina nuova non c'è ancora.
+    std::fs::create_dir_all(&args.projects_root)
+        .with_context(|| format!("creating projects root {}", args.projects_root.display()))?;
     let acceptor: Option<TlsAcceptor> = if args.config.join("tls.crt").exists() {
         Some(build_tls_acceptor(&args.config)?)
     } else {
@@ -636,12 +654,9 @@ async fn main() -> anyhow::Result<()> {
                         let mut changed: std::collections::HashSet<String> =
                             std::collections::HashSet::new();
                         changed.insert(first.id);
-                        loop {
-                            match tag_rx.try_recv() {
-                                Ok(u)  => { changed.insert(u.id); }
-                                Err(_) => break,
+                        while let Ok(u) = tag_rx.try_recv() {
+                                changed.insert(u.id);
                             }
-                        }
 
                         let pairs = derived.read().await.clone();
                         if pairs.is_empty() { continue; }
@@ -1122,6 +1137,14 @@ async fn main() -> anyhow::Result<()> {
             }
         }
     }
+
+    // Uscita ORDINATA: chiude le sorgenti (MQTT manda DISCONNECT invece di far
+    // cadere il socket — così il broker non registra un «socket error» e non
+    // pubblica il Last Will come se fossimo morti; Modbus/S7/OPC UA chiudono la
+    // sessione). `stop_all` esisteva da tempo e nessuno la chiamava: il processo
+    // usciva lasciando ai peer il compito di accorgersene.
+    supervisor.stop_all().await;
+    info!("sorgenti chiuse, esco");
 
     Ok(())
 }

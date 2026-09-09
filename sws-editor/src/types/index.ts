@@ -1219,11 +1219,6 @@ export interface DatastoreStats {
   error: string | null;
 }
 
-export interface DatastoreListItem {
-  id: string;
-  connected: boolean;
-  error: string | null;
-}
 
 export interface SmtpConfig {
   host: string;

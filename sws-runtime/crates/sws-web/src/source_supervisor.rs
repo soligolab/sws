@@ -12,12 +12,13 @@
 //! to those tags fall back to the direct `TagDb` path (or 503 if the bus
 //! was the only path).
 
-use std::{collections::HashMap, sync::Arc, time::{Duration, SystemTime, UNIX_EPOCH}};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 use serde_json::Value as Json;
 use sws_core::{SourceDef, TagDb, TagWriteBus};
 use tokio::{sync::Mutex, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
+use sws_core::now_ms;
 
 struct RunningSource {
     handle: JoinHandle<()>,
@@ -374,10 +375,6 @@ impl SourceSupervisor {
     pub async fn running_count(&self) -> usize {
         self.sources.lock().await.len()
     }
-}
-
-fn now_ms() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as u64
 }
 
 pub(crate) fn source_id(s: &SourceDef) -> &str {

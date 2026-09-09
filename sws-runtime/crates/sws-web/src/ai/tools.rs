@@ -19,7 +19,7 @@
 //!
 //! # Cosa NON c'è
 //!
-//! Niente esecuzione di Python (`/api/script/exec` gira senza sandbox quando
+//! Niente esecuzione di Python (l'endpoint che la offriva è stato tolto — Q47; e comunque gira senza sandbox quando
 //! RestrictedPython manca, che sul PC di sviluppo è la norma), niente export
 //! del progetto (lo ZIP porta i segreti in chiaro, decisione del 2026-07-29),
 //! nessun `PUT`, nessun deploy, nessun accesso al filesystem. L'unico strumento

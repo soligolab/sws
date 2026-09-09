@@ -1372,6 +1372,139 @@ lontano da chi ha installato. È la forma di guasto più cara: silenziosa e diff
 
 ---
 
+---
+
+## Q46 — `/api/fs/browse-dirs` e `/api/fs/mkdir` rispondono senza autenticazione
+
+*Aperta il 2026-09-09 dalla revisione pre-2.7.0 (`docs/plans/2026-09-09-revisione-pre-2.7.0.md`). Nessuna decisione presa.*
+
+**Context.** Sul router completo (porta admin dello stack di sviluppo e dell'IDE) le due rotte
+sono **pre-auth**: elencano le sottodirectory di **qualunque** percorso assoluto del server e
+ne creano di nuove. Il codice lo dichiara e lo giustifica — la WelcomeScreen sceglie dove
+salvare il primo progetto prima che esista una sessione, e `POST /api/projects` con
+`parent_path` fa già `create_dir_all`. Sul dispositivo (`--no-admin`) non ci sono.
+Resta che un runtime di sviluppo raggiungibile in rete espone la struttura del filesystem a
+chiunque, e Q44 (hosting) lo renderebbe un problema vero.
+
+**Options.**
+1. Restringere a una **radice**: la home dell'utente del processo, o l'antenato di
+   `projects_root`. La WelcomeScreen continua a funzionare; il resto del disco no.
+2. Metterle dietro `optional_auth` con ruolo Admin quando esistono utenti: in modalità
+   senza utenti non cambia niente, con utenti serve una sessione (e la WelcomeScreen
+   dovrebbe fare login prima di creare il primo progetto).
+3. Lasciare com'è, dichiarandolo nel modello di minaccia: «l'IDE gira su una macchina
+   fidata».
+
+**Default for PoC.** Com'è (3). Raccomandazione: (1), che chiude la lettura del disco senza
+toccare il flusso della prima installazione.
+
+**Decided:** 2026-09-09 dal maintainer — una chiave che dichiara la cartella dei progetti,
+con default **fuori dal repo**. Realizzato lo stesso giorno (ramo `chore/revisione-pre-2.7.0`):
+`--projects-root` / `SWS_PROJECTS_ROOT`, default `~/sws_projects`, creata all'avvio;
+`browse-dirs`, `mkdir` e `parent_path` non escono dalla radice (confronto dopo
+`canonicalize`, anche contro i link simbolici). Container e script passano il flag esplicito
+come prima; `start_runtime.sh`/`start_editor.sh` onorano `SWS_PROJECTS_ROOT` se impostata.
+Da verificare dal maintainer prima di archiviare.
+
+---
+
+## Q47 — `/api/script/exec` esegue codice arbitrario e nessuno lo chiama più
+
+*Aperta il 2026-09-09 dalla revisione pre-2.7.0. Nessuna decisione presa.*
+
+**Context.** La rotta esegue un frammento Python passato nel corpo. Il client
+`api.execScript` non era chiamato da nessuna parte (il suo stesso commento diceva che gli
+oggetti non portano più codice inline) ed è stato tolto. La rotta server resta, montata due
+volte: sul router admin e — sullo stack di sviluppo, non in `--no-admin` — sul viewer a
+livello **Operator**. Un endpoint che esegue codice e che nessuna interfaccia usa è
+superficie d'attacco pura, e `RestrictedPython` è spesso assente (lo dice il log a ogni
+avvio), quindi «codice arbitrario» va letto alla lettera.
+
+**Options.**
+1. **Rimuovere** rotta e handler (19 righe). Se un giorno serve una console Python, si
+   riprogetta con la sandbox come prerequisito.
+2. Tenerla, ma solo Admin, solo sul router admin, e solo se `RestrictedPython` è presente.
+3. Lasciare com'è.
+
+**Default for PoC.** Com'è (3). Raccomandazione: (1).
+
+**Decided:** 2026-09-09 dal maintainer — rimuovere, dopo aver verificato che nessuno la
+usasse: non l'editor, non gli script di progetto (girano dentro il runtime e non fanno HTTP),
+non l'assistente, non il viewer, non gli script del repo. Realizzato lo stesso giorno (ramo
+`chore/revisione-pre-2.7.0`): rotta e handler tolti, `check_no_admin.sh` sonda
+`/api/build/packages` al suo posto. Restano `/api/script/run/:name` e `/api/script/check`.
+
+---
+
+## Q48 — `/api/deploy/remote` scarica un binario che non esiste, e duplica il deploy
+
+*Aperta il 2026-09-09 dalla revisione pre-2.7.0. Nessuna decisione presa.*
+
+**Context.** La WelcomeScreen ha «Installa runtime» → `POST /api/deploy/remote`
+(`deploy.rs`), che scarica
+`github.com/soligolab/sws/releases/latest/download/sws-runtime-linux-{arch}`, lo copia via
+scp e fa `systemctl restart sws-runtime.service` **di sistema**. Verificato il 2026-09-09:
+**404 per entrambe le architetture** — le release su GitHub non hanno asset, il progetto
+pubblica immagini container. Quindi il pulsante fallisce sempre («download fallito», visto
+anche nei log del maintainer), installa un binario nativo con privilegi di sistema — la
+postura opposta al container rootless con l'utente limitato — ed è una **seconda
+implementazione** di ssh/scp/sshpass accanto a `packaging.rs` (`validate_remote_path`
+identica nei due file). Il commento in WelcomeScreen sostiene che «non è un doppione»
+perché ConfigView richiede un progetto aperto; l'argomento vale per la **schermata**, non
+per l'**endpoint**.
+
+**Options.**
+1. Togliere endpoint, `deploy.rs` e il modale della WelcomeScreen; rimandare a
+   ConfigView → Runtime per il deploy container.
+2. Ripuntare il modale al deploy **container** (`/api/deploy/device-container`), che oggi
+   richiede un progetto aperto solo per convenzione del pannello.
+3. Pubblicare i binari nelle release e mantenere due percorsi di deploy.
+
+**Default for PoC.** Com'è (rotto). Raccomandazione: (1) subito — è un pulsante che
+fallisce sempre — e (2) se la prima installazione da WelcomeScreen serve davvero.
+
+**Decided:** not yet.
+
+---
+
+## Q49 — TLS senza verifica del certificato, in quattro posti
+
+*Aperta il 2026-09-09 dalla revisione pre-2.7.0. Nessuna decisione presa.*
+
+**Context.** L'editor parla con il runtime remoto con `danger_accept_invalid_certs(true)`
+(`remote.rs`); il relay WebSocket e il viewer LVGL hanno un verificatore che accetta
+qualunque certificato (`remote_relay.rs`, `viewer/tls.rs`, copiato in due crate); il plugin
+MQTT ha `insecure_skip_verify` con un WARN esplicito. È una scelta PoC documentata: i
+dispositivi hanno certificati self-signed su LAN fidata. Ma è esattamente il caso in cui la
+cifratura c'è e l'identità no — la stessa classe di problema che il maintainer ha appena
+chiuso su SSH scegliendo `accept-new` invece di `no`.
+
+**Options.**
+1. **Pinning alla prima connessione** (TOFU): al primo «Connetti» si memorizza l'impronta del
+   certificato del dispositivo; se cambia, si rifiuta e si offre il pulsante «dimentica»,
+   come per la chiave host SSH. Stesso modello mentale, stesso pulsante.
+2. Distribuire un certificato per dispositivo firmato da una CA del progetto, e verificare
+   quella.
+3. Lasciare com'è, dichiarando «LAN fidata» nel modello di minaccia. Con Q44 (servizio
+   ospitato) non regge più.
+
+**Default for PoC.** Com'è (3). Raccomandazione: (1), riusando ciò che esiste per SSH.
+
+**Decided:** 2026-09-09 dal maintainer — opzione 1, pinning alla prima connessione.
+Realizzato lo stesso giorno per **editor ↔ dispositivo** (`sws-web/src/certificati.rs`):
+al primo «Connetti» si memorizza l'impronta SHA-256 del certificato in
+`<config>/dispositivi_conosciuti.yaml`; se cambia, «Connetti» si ferma con l'azione
+`certificato-cambiato` e il pulsante «Dimentica il vecchio certificato e riprova»
+(`POST /api/device/cert/forget`, Admin, audit); il relay WebSocket usa la stessa impronta e
+chiude con 4495, definitivo. Il verificatore controlla la **firma** del certificato con
+gli algoritmi del provider; solo la catena non si verifica (self-signed).
+**Restano da fare**, con lo stesso modulo: il viewer LVGL (`viewer/tls.rs`, che parla con
+`127.0.0.1` e ha un rischio diverso) e il plugin MQTT (`insecure_skip_verify` è un'opzione
+per sorgente, va ripensata come «impronta del broker»). Da verificare dal maintainer prima di
+archiviare.
+
+---
+
 ## Adding new questions
 
 When Claude Code adds a new question, follow the format above:

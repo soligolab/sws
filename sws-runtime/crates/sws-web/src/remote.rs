@@ -38,6 +38,11 @@ pub struct ConnectResult {
     /// connessione riuscita non deve comparire come fallita.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub nota: Option<String>,
+    /// Q49: cosa può fare l'utente per sbloccarsi, quando esiste un gesto
+    /// preciso. Oggi solo `certificato-cambiato` → il pulsante «dimentica il
+    /// certificato e riprova», gemello di quello per la chiave host SSH.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub azione: Option<&'static str>,
 }
 
 #[derive(Serialize)]
@@ -60,21 +65,18 @@ pub async fn connect_remote(
 
     if !url.starts_with("http://") && !url.starts_with("https://") {
         return (StatusCode::OK, Json(ConnectResult {
-            ok: false, nota: None,
+            ok: false, nota: None, azione: None,
             error: Some("URL must start with http:// or https://".into()),
         }));
     }
 
-    // Use reqwest (already a dep) to authenticate against the remote. Accept
-    // self-signed certs — on a trusted LAN this is the right default for PoC.
-    let client = match reqwest::Client::builder()
-        .danger_accept_invalid_certs(true)
-        .timeout(std::time::Duration::from_secs(8))
-        .build()
-    {
+    // Q49: fiducia al primo contatto. Il certificato del pannello è self-signed,
+    // quindi non si verifica una catena: si memorizza l'impronta la prima volta
+    // e si pretende la stessa le volte dopo. Se cambia, si rifiuta e si dice.
+    let client = match costruisci_client(&s, &url, 8) {
         Ok(c) => c,
         Err(e) => return (StatusCode::OK, Json(ConnectResult {
-            ok: false, nota: None,
+            ok: false, nota: None, azione: None,
             error: Some(format!("HTTP client error: {e}")),
         })),
     };
@@ -95,10 +97,25 @@ pub async fn connect_remote(
             .await
         {
             Ok(r) => r,
-            Err(e) => return (StatusCode::OK, Json(ConnectResult {
-                ok: false, nota: None,
-                error: Some(format!("Cannot reach {url}: {e}")),
-            })),
+            Err(e) => {
+                let testo = format!("{e:?}");
+                if crate::certificati::e_certificato_cambiato(&testo) {
+                    return (StatusCode::OK, Json(ConnectResult {
+                        ok: false, nota: None,
+                        azione: Some(crate::certificati::AZIONE_CERTIFICATO_CAMBIATO),
+                        error: Some(format!(
+                            "Il certificato TLS di {url} non è quello memorizzato su questo PC. \
+                             Succede a ogni factory reset o reinstallazione del pannello. Se l'hai \
+                             appena resettato tu, dimentica il vecchio certificato e riprova; \
+                             altrimenti fermati e verifica di stare parlando con la macchina giusta."
+                        )),
+                    }));
+                }
+                return (StatusCode::OK, Json(ConnectResult {
+                    ok: false, nota: None, azione: None,
+                    error: Some(format!("Cannot reach {url}: {e}")),
+                }));
+            }
         };
 
         if res.status() == 401 {
@@ -119,7 +136,7 @@ pub async fn connect_remote(
                 String::new()
             } else {
                 return (StatusCode::OK, Json(ConnectResult {
-                    ok: false, nota: None,
+                    ok: false, nota: None, azione: None,
                     error: Some(format!(
                         "credenziali rifiutate da {url}: l'utente «{username}» non esiste \
                          o la password è sbagliata."
@@ -130,7 +147,7 @@ pub async fn connect_remote(
         if !res.status().is_success() {
             let code = res.status();
             return (StatusCode::OK, Json(ConnectResult {
-                ok: false, nota: None,
+                ok: false, nota: None, azione: None,
                 error: Some(format!("Remote login returned {code}")),
             }));
         }
@@ -138,7 +155,7 @@ pub async fn connect_remote(
         let payload: serde_json::Value = match res.json().await {
             Ok(j) => j,
             Err(e) => return (StatusCode::OK, Json(ConnectResult {
-                ok: false, nota: None,
+                ok: false, nota: None, azione: None,
                 error: Some(format!("Bad JSON from remote login: {e}")),
             })),
         };
@@ -146,7 +163,7 @@ pub async fn connect_remote(
         match payload.get("token").and_then(|t| t.as_str()) {
             Some(t) => t.to_string(),
             None => return (StatusCode::OK, Json(ConnectResult {
-                ok: false, nota: None,
+                ok: false, nota: None, azione: None,
                 error: Some("Remote login response has no 'token' field".into()),
             })),
         }
@@ -173,7 +190,7 @@ pub async fn connect_remote(
         Ok(r) if r.status().is_success() => {}
         Ok(r) if r.status() == StatusCode::NOT_FOUND => {
             return (StatusCode::OK, Json(ConnectResult {
-                ok: false, nota: None,
+                ok: false, nota: None, azione: None,
                 error: Some(format!(
                     "{url} answers but exposes no project API — this looks like the \
                      viewer port. Use the IDE/admin port instead (8444 by default)."
@@ -183,13 +200,13 @@ pub async fn connect_remote(
         Ok(r) => {
             let code = r.status();
             return (StatusCode::OK, Json(ConnectResult {
-                ok: false, nota: None,
+                ok: false, nota: None, azione: None,
                 error: Some(format!("Target returned {code} on /api/projects")),
             }));
         }
         Err(e) => {
             return (StatusCode::OK, Json(ConnectResult {
-                ok: false, nota: None,
+                ok: false, nota: None, azione: None,
                 error: Some(format!("Cannot reach {url}: {e}")),
             }));
         }
@@ -203,7 +220,7 @@ pub async fn connect_remote(
     *s.remote_target.write().await = Some(RemoteTarget { url: url.clone(), token, connected_at_ms });
     tracing::info!(remote = %url, "connected to remote runtime");
 
-    (StatusCode::OK, Json(ConnectResult { ok: true, error: None, nota }))
+    (StatusCode::OK, Json(ConnectResult { ok: true, error: None, nota, azione: None }))
 }
 
 /// Il runtime all'altro capo ha utenti definiti, o è in modalità no-auth?
@@ -228,12 +245,20 @@ pub async fn disconnect_remote(State(s): State<AppState>) -> StatusCode {
     StatusCode::NO_CONTENT
 }
 
-fn make_remote_client() -> reqwest::Client {
-    reqwest::Client::builder()
-        .danger_accept_invalid_certs(true)
-        .timeout(std::time::Duration::from_secs(60))
-        .build()
-        .expect("reqwest client")
+/// Il client HTTP verso il runtime remoto. Q49: per `https://` la fiducia è per
+/// impronta (`certificati::client_config_pinnato`), non «accetta tutto» come
+/// era fino al 2026-09-09. Per `http://` non c'è niente da verificare.
+fn make_remote_client(s: &AppState, url: &str) -> reqwest::Client {
+    costruisci_client(s, url, 60).expect("reqwest client")
+}
+
+fn costruisci_client(s: &AppState, url: &str, timeout_s: u64) -> Result<reqwest::Client, reqwest::Error> {
+    let mut b = reqwest::Client::builder().timeout(std::time::Duration::from_secs(timeout_s));
+    if url.starts_with("https://") {
+        let host_port = crate::certificati::host_port_da_url(url).unwrap_or_else(|| url.to_string());
+        b = b.use_preconfigured_tls(crate::certificati::client_config_pinnato(&host_port, s.certificati.clone()));
+    }
+    b.build()
 }
 
 /// Nome del progetto e utenti contenuti in un bundle di export.
@@ -359,7 +384,7 @@ pub async fn remote_push_users(
         "url": target.url, "users": count,
     }));
 
-    let client = make_remote_client();
+    let client = make_remote_client(&s, &target.url);
     let base = target.url.trim_end_matches('/');
     let mut req = client
         .put(format!("{base}/api/auth/users-file"))
@@ -420,7 +445,7 @@ pub async fn remote_push_mqtt_client_id(
         "url": target.url, "source_id": body.source_id, "client_id": body.client_id,
     }));
 
-    let client = make_remote_client();
+    let client = make_remote_client(&s, &target.url);
     let base = target.url.trim_end_matches('/');
     let mut req = client
         .put(format!("{base}/api/mqtt/source/{}/client-id-override", body.source_id))
@@ -465,7 +490,7 @@ pub async fn remote_download_database(
         "url": target.url, "id": id,
     }));
 
-    let client = make_remote_client();
+    let client = make_remote_client(&s, &target.url);
     let base = target.url.trim_end_matches('/');
     let mut req = client.get(format!("{base}/api/datastores/{}/download", pct_encode(&id)));
     if !target.token.is_empty() {
@@ -516,7 +541,7 @@ pub async fn remote_upload_database(
         "url": target.url, "id": id, "bytes": body.len(),
     }));
 
-    let client = make_remote_client();
+    let client = make_remote_client(&s, &target.url);
     let base = target.url.trim_end_matches('/');
     let mut req = client
         .post(format!("{base}/api/datastores/{}/upload", pct_encode(&id)))
@@ -553,7 +578,7 @@ pub async fn remote_list_backups(State(s): State<AppState>) -> Response {
         Some(t) => t,
         None => return (StatusCode::BAD_REQUEST, "Nessun runtime remoto connesso").into_response(),
     };
-    let client = make_remote_client();
+    let client = make_remote_client(&s, &target.url);
     let base = target.url.trim_end_matches('/');
     let mut req = client.get(format!("{base}/api/backups"));
     if !target.token.is_empty() {
@@ -588,7 +613,7 @@ pub async fn remote_download_backup(
         "url": target.url, "name": name,
     }));
 
-    let client = make_remote_client();
+    let client = make_remote_client(&s, &target.url);
     let base = target.url.trim_end_matches('/');
     let mut req = client.get(format!("{base}/api/backups/{}/download", pct_encode(&name)));
     if !target.token.is_empty() {
@@ -653,7 +678,7 @@ pub async fn remote_export_project(
         "url": target.url,
     }));
 
-    let client = make_remote_client();
+    let client = make_remote_client(&s, &target.url);
     let base = target.url.trim_end_matches('/');
     let mut req = client.get(format!("{base}/api/project/export"));
     if !target.token.is_empty() {
@@ -713,7 +738,7 @@ pub async fn remote_system_status(State(s): State<AppState>) -> Response {
         Some(t) => t,
         None => return (StatusCode::BAD_REQUEST, "Nessun runtime remoto connesso").into_response(),
     };
-    let client = make_remote_client();
+    let client = make_remote_client(&s, &target.url);
     let base = target.url.trim_end_matches('/');
     let mut req = client.get(format!("{base}/api/system"));
     if !target.token.is_empty() {
@@ -744,7 +769,7 @@ pub async fn remote_create_backup(
         Some(t) => t,
         None => return (StatusCode::BAD_REQUEST, "Nessun runtime remoto connesso").into_response(),
     };
-    let client = make_remote_client();
+    let client = make_remote_client(&s, &target.url);
     let base = target.url.trim_end_matches('/');
     let mut req = client.post(format!("{base}/api/backups"));
     if !target.token.is_empty() {
@@ -785,7 +810,7 @@ pub async fn remote_restore_backup(
         "url": target.url, "name": name,
     }));
 
-    let client = make_remote_client();
+    let client = make_remote_client(&s, &target.url);
     let base = target.url.trim_end_matches('/');
     let mut req = client.post(format!("{base}/api/backups/{}/restore", pct_encode(&name)));
     if !target.token.is_empty() {
@@ -817,7 +842,7 @@ pub async fn remote_delete_backup(
         "url": target.url, "name": name,
     }));
 
-    let client = make_remote_client();
+    let client = make_remote_client(&s, &target.url);
     let base = target.url.trim_end_matches('/');
     let mut req = client.delete(format!("{base}/api/backups/{}", pct_encode(&name)));
     if !target.token.is_empty() {
@@ -874,7 +899,9 @@ pub async fn remote_cert(
     }
     s.audit.log("remote.cert_download", Some(user.username), serde_json::json!({ "url": url }));
 
-    let client = make_remote_client();
+    // Q49: scaricare il certificato da un runtime mai visto È il primo contatto:
+    // l'impronta si memorizza qui, e «Connetti» la troverà uguale.
+    let client = make_remote_client(&s, &url);
     match client.get(format!("{url}/cert")).send().await {
         Ok(r) if r.status().is_success() => {
             let bytes = match r.bytes().await {
@@ -949,7 +976,7 @@ pub async fn remote_deploy(
         // l'upload — e non una ricostruzione dal nome della cartella locale.
         let (deploy_name, bundle_users) = read_bundle_meta(&zip);
 
-        let client = make_remote_client();
+        let client = make_remote_client(&s, &target.url);
         let base = target.url.trim_end_matches('/').to_string();
         let auth_hdr: Option<String> = if target.token.is_empty() { None }
             else { Some(format!("Bearer {}", target.token)) };
@@ -1115,7 +1142,7 @@ pub async fn delete_remote_project(
         Some(t) => t,
         None => return (StatusCode::BAD_REQUEST, "Nessun runtime remoto connesso").into_response(),
     };
-    let client = make_remote_client();
+    let client = make_remote_client(&s, &target.url);
     let base = target.url.trim_end_matches('/').to_string();
     let auth_hdr: Option<String> = if target.token.is_empty() { None }
         else { Some(format!("Bearer {}", target.token)) };
@@ -1223,4 +1250,42 @@ mod tests {
         assert_eq!(read_bundle_meta(b"non uno zip").0, None);
         assert_eq!(read_bundle_meta(&bundle(None, None)).0, None);
     }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DimenticaCertificatoBody {
+    pub host: String,
+}
+
+/// `POST /api/device/cert/forget` — toglie dall'archivio di **questo PC**
+/// l'impronta del certificato di un dispositivo, per tutte le porte.
+///
+/// Gemello di `dimentica_chiave_host`: esiste per il factory reset (il pannello
+/// si rigenera un certificato), non è mai automatico, e resta nell'audit.
+/// Admin per posizione nel router.
+pub async fn dimentica_certificato(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Json(req): Json<DimenticaCertificatoBody>,
+) -> Response {
+    let host = req.host.trim();
+    if !crate::packaging::host_sicuro(host) {
+        return (StatusCode::BAD_REQUEST, format!("nome host non valido: «{host}»\n")).into_response();
+    }
+    let tolte = match s.certificati.dimentica_host(host) {
+        Ok(t) => t,
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR,
+            format!("impossibile aggiornare {}: {e}\n", s.certificati.path().display())).into_response(),
+    };
+    s.audit.log("device.cert_forget", Some(user.username), serde_json::json!({ "host": host, "tolte": tolte }));
+    tracing::info!(host, tolte = tolte.len(), "certificato dimenticato su richiesta");
+    Json(serde_json::json!({
+        "tolte": tolte,
+        "messaggio": if tolte.is_empty() {
+            format!("nessun certificato memorizzato per {host}")
+        } else {
+            format!("dimenticato il certificato di {host}: al prossimo collegamento si memorizza quello nuovo")
+        },
+    })).into_response()
 }

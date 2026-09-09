@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, RateLimitedError, RuntimeUnavailableError } from "@/api/client";
 import { useAppStore } from "@/store";
+import { paginaCentrata, schedaModulo } from "@/components/schermataAccesso";
 
 /**
  * Minimal login screen shown when the store has no auth token.
@@ -77,26 +78,8 @@ export function LoginScreen({ onCancel }: { onCancel?: () => void } = {}) {
   };
 
   return (
-    <div style={{
-      height: "100vh",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      background: "var(--brand-bg, #0f172a)",
-      color: "var(--brand-text, #e2e8f0)",
-      fontFamily: "system-ui, sans-serif",
-    }}>
-      <form onSubmit={submit} style={{
-        background: "var(--brand-surface, #1e293b)",
-        border: "1px solid var(--brand-surface-2, #334155)",
-        borderRadius: 10,
-        padding: "32px 36px",
-        width: 320,
-        display: "flex",
-        flexDirection: "column",
-        gap: 14,
-        boxShadow: "0 10px 30px rgba(0,0,0,0.4)",
-      }}>
+    <div style={paginaCentrata}>
+      <form onSubmit={submit} style={schedaModulo(320)}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
           <strong style={{ fontSize: 20, letterSpacing: 1 }}>SWS</strong>
           <span style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 13 }}>Soligo Web SCADA</span>

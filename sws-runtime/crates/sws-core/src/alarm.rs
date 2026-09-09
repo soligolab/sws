@@ -297,6 +297,9 @@ struct AlarmTimer {
 
 // ── AlarmDb ───────────────────────────────────────────────────────────────────
 
+/// Callback opzionale chiamata a ogni evento (il giornale degli allarmi).
+type JournalCb = Arc<RwLock<Option<Box<dyn Fn(AlarmEvent) + Send + Sync + 'static>>>>;
+
 pub struct AlarmDb {
     states:         Arc<RwLock<HashMap<String, AlarmState>>>,
     by_tag:         Arc<RwLock<HashMap<TagId, Vec<String>>>>,
@@ -309,7 +312,7 @@ pub struct AlarmDb {
     open_events:    Arc<RwLock<HashMap<String, OpenEvent>>>,
     journal:        Arc<RwLock<Vec<AlarmEvent>>>,
     tx:             broadcast::Sender<AlarmState>,
-    journal_cb:     Arc<RwLock<Option<Box<dyn Fn(AlarmEvent) + Send + Sync + 'static>>>>,
+    journal_cb:     JournalCb,
 }
 
 impl AlarmDb {
@@ -672,7 +675,13 @@ fn eval_one(
     }
 }
 
-fn now_ms() -> u64 {
+/// Adesso, in millisecondi dall'epoca Unix.
+///
+/// Vive qui perché è il minimo comune di tutto il workspace: fino al
+/// 2026-09-09 la stessa funzione era scritta **nove volte** in sette crate
+/// (con due nomi diversi). Un orologio solo è anche l'unico modo di poterlo
+/// un giorno sostituire — per i test, o per un tempo monotono — in un punto.
+pub fn now_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()

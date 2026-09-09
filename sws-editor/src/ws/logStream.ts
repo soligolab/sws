@@ -6,27 +6,13 @@
 // without opening the socket and the LogPanel renders a "no access" state.
 
 import { useEffect } from "react";
-import { api, getAuthToken } from "@/api/client";
+import { api } from "@/api/client";
 import { useAppStore } from "@/store";
 import type { LogEvent } from "@/types";
 import { buildWsUrl } from "@/ws/wsUrl";
-import { ReconnectingWs } from "@/ws/reconnectingWs";
+import { socketCondiviso } from "@/ws/singletonWs";
 
-let rws: ReconnectingWs | null = null;
-let currentToken: string | null = null;
-
-function getStream(): ReconnectingWs {
-  const token = getAuthToken();
-  if (rws && currentToken !== token) {
-    rws.destroy();
-    rws = null;
-  }
-  if (!rws) {
-    currentToken = token;
-    rws = new ReconnectingWs(() => buildWsUrl("/ws/logs", "VITE_LOGS_WS_URL"));
-  }
-  return rws;
-}
+const socket = socketCondiviso(() => buildWsUrl("/ws/logs", "VITE_LOGS_WS_URL"));
 
 export function useLogStream(): void {
   const authRole  = useAppStore((s) => s.authRole);
@@ -36,15 +22,13 @@ export function useLogStream(): void {
 
   useEffect(() => {
     if (!authToken || authRole === "Viewer" || authRole === null) {
-      rws?.destroy();
-      rws = null;
-      currentToken = null;
+      socket.chiudi();
       return;
     }
 
     api.getLogs().then(setLogs).catch(() => {});
 
-    const stream = getStream();
+    const stream = socket.prendi();
 
     const onMessage = (ev: MessageEvent) => {
       try {

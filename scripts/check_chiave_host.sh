@@ -70,6 +70,40 @@ else
     echo "  ✓ nessun StrictHostKeyChecking=no nel codice"
 fi
 n_an="$(grep -rc 'StrictHostKeyChecking=accept-new' "$REPO/sws-runtime/crates/sws-web/src/packaging.rs" || echo 0)"
+
+# ── 2026-09-09: la password non va su argv, e user@host va controllato ───────
+#
+# `sshpass -p <password>` mette la password in chiaro in `ps aux` e in
+# /proc/<pid>/cmdline per tutta la durata di scp/ssh, leggibile da qualunque
+# utente della macchina dell'editor. Con `-e` la legge da SSHPASS nell'ambiente,
+# che vede solo lo stesso uid (o root).
+if grep -rnE 'sshpass"?\)?\s*\.?\s*(args\(\[)?\s*"-p"|vec!\["-p", password' \
+        "$REPO/sws-runtime/crates/sws-web/src" --include='*.rs' >/tmp/sshpass_p.$$ 2>/dev/null \
+   && [ -s /tmp/sshpass_p.$$ ]; then
+    echo "  ✗ sshpass con la password su argv:"
+    sed 's|^|      |' /tmp/sshpass_p.$$
+    echo "      Usa -e con SSHPASS nell'ambiente: con -p la password si legge in ps aux."
+    STATICI_ROSSI=1
+else
+    echo "  ✓ sshpass non riceve la password su argv"
+fi
+rm -f /tmp/sshpass_p.$$
+
+# `{user}@{host}` è un argomento POSIZIONALE di ssh: se comincia per `-` diventa
+# un'opzione, e `-oProxyCommand=…` è un comando eseguito su questa macchina.
+# Ogni handler che fa ssh deve passare da `destinazione_ssh_sicura`. Sono
+# quattro (deploy_device, deploy_device_container, manage_device_container in
+# packaging.rs; deploy_remote in deploy.rs): se il conteggio scende, uno è
+# rimasto scoperto.
+n_dest="$(grep -rhc 'destinazione_ssh_sicura(&' "$REPO/sws-runtime/crates/sws-web/src/packaging.rs" "$REPO/sws-runtime/crates/sws-web/src/deploy.rs" | awk '{s+=$1} END{print s+0}')"
+n_ssh="$(grep -rhcE '^pub async fn (deploy_device|deploy_device_container|manage_device_container|deploy_remote)\(' "$REPO/sws-runtime/crates/sws-web/src/packaging.rs" "$REPO/sws-runtime/crates/sws-web/src/deploy.rs" | awk '{s+=$1} END{print s+0}')"
+if [ "$n_dest" -ge "$n_ssh" ] && [ "$n_ssh" -ge 4 ]; then
+    echo "  ✓ ogni handler che fa ssh controlla user@host ($n_dest controlli, $n_ssh handler)"
+else
+    echo "  ✗ handler ssh: $n_ssh, controlli su user@host: $n_dest — uno è scoperto"
+    echo "      Un utente o host che comincia per '-' diventa un'opzione di ssh."
+    STATICI_ROSSI=1
+fi
 if [ "$n_an" -gt 0 ]; then
     echo "  ✓ il deploy usa accept-new ($n_an occorrenze in packaging.rs)"
 else
@@ -118,5 +152,37 @@ grep -q "device.hostkey_forget" <(curl -s "http://localhost:$APORT/api/audit") \
   && echo "  ✓ la rimozione è nell'audit" \
   || { echo "  ✗ non risulta nell'audit"; ROSSI=$((ROSSI+1)); }
 
+echo "== Q49: il certificato TLS del dispositivo si dimentica solo su richiesta =="
+# L'archivio vive accanto alla configurazione, come known_hosts per ssh.
+ARCH="$WORK/config/dispositivi_conosciuti.yaml"
+cat > "$ARCH" <<'EOF'
+tc620-prova.local:8444:
+  impronta: sha256:aaaa
+  visto_il_ms: 1
+tc620-prova.local:8443:
+  impronta: sha256:bbbb
+  visto_il_ms: 1
+altro-dispositivo.local:8444:
+  impronta: sha256:cccc
+  visto_il_ms: 1
+EOF
+chiama_cert() { curl -s -o "$WORK/out" -w '%{http_code}' -X POST \
+  "http://localhost:$APORT/api/device/cert/forget" \
+  -H 'Content-Type: application/json' -d "$1"; }
+caso "host che sarebbe un'opzione → 400" 400 "$(chiama_cert '{"host":"-oProxyCommand=x"}')"
+caso "host vuoto → 400"                  400 "$(chiama_cert '{"host":""}')"
+st="$(chiama_cert '{"host":"mai-visto.local"}')"
+caso "host mai visto → 200" 200 "$st"
+grep -q "nessun certificato memorizzato" "$WORK/out" \
+  && echo "  ✓ lo dichiara invece di dire «fatto»" \
+  || { echo "  ✗ risposta: $(cat "$WORK/out")"; ROSSI=$((ROSSI+1)); }
+st="$(chiama_cert '{"host":"tc620-prova.local"}')"
+caso "il pannello resettato → 200" 200 "$st"
+caso "tolte entrambe le porte di quell'host" 0 "$(grep -c "tc620-prova" "$ARCH" || true)"
+caso "l'altro dispositivo è intatto"         1 "$(grep -c "altro-dispositivo" "$ARCH" || true)"
+grep -q "device.cert_forget" <(curl -s "http://localhost:$APORT/api/audit") \
+  && echo "  ✓ la rimozione è nell'audit" \
+  || { echo "  ✗ non risulta nell'audit"; ROSSI=$((ROSSI+1)); }
+
 [ "$ROSSI" -gt 0 ] && { echo "FALLITO — $ROSSI controlli rossi"; exit 1; }
-echo "chiave host: tutto verde."
+echo "chiave host e certificati: tutto verde."

@@ -342,6 +342,9 @@ pub async fn deploy_device(
         }
     };
 
+    if let Err(m) = destinazione_ssh_sicura(&req.user, &req.host) {
+        return (StatusCode::BAD_REQUEST, m).into_response();
+    }
     // Validate remote_dir before accepting the request.
     if !validate_remote_path(&req.remote_dir) {
         return (StatusCode::BAD_REQUEST,
@@ -767,11 +770,38 @@ pub struct DimenticaChiaveBody {
 /// barre, spazi o trattino iniziale (un argomento che comincia per `-` verrebbe
 /// letto come un'opzione). Copre nomi mDNS e IPv4; un IPv6 letterale no, ed è
 /// dichiarato invece che scoperto.
-fn host_sicuro(h: &str) -> bool {
+pub(crate) fn host_sicuro(h: &str) -> bool {
     !h.is_empty()
         && h.len() <= 253
         && !h.starts_with('-')
         && h.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'))
+}
+
+/// Un nome utente Unix che si può mettere davanti a `@host` in un argomento di
+/// ssh/scp. Stesso principio di `host_sicuro`: la stringa `{user}@{host}` è un
+/// argomento **posizionale** di ssh, e ssh legge le opzioni in ordine — un utente
+/// che comincia per `-` (`-oProxyCommand=…`) verrebbe eseguito come opzione,
+/// cioè come comando locale su QUESTA macchina, prima ancora di collegarsi.
+///
+/// Fino al 2026-09-09 nessuno dei quattro handler che fanno ssh lo controllava:
+/// `host_sicuro` era applicato solo a `ssh-keygen -R`. Gli endpoint sono Admin,
+/// ma in modalità senza utenti Admin è chiunque raggiunga la porta.
+pub(crate) fn utente_sicuro(u: &str) -> bool {
+    !u.is_empty()
+        && u.len() <= 32
+        && !u.starts_with('-')
+        && u.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'))
+}
+
+/// `Err` con il messaggio da restituire al client se `user@host` non è sicuro.
+pub(crate) fn destinazione_ssh_sicura(user: &str, host: &str) -> Result<(), &'static str> {
+    if !utente_sicuro(user) {
+        return Err("utente SSH non valido: solo lettere, numeri, punto, trattino e sottolineato, senza trattino iniziale\n");
+    }
+    if !host_sicuro(host) {
+        return Err("host non valido: solo lettere, numeri, punto, trattino e sottolineato, senza trattino iniziale\n");
+    }
+    Ok(())
 }
 
 /// `POST /api/device/hostkey/forget` — toglie dal `known_hosts` di **questo PC**
@@ -876,6 +906,9 @@ pub async fn deploy_device_container(
         }
     };
 
+    if let Err(m) = destinazione_ssh_sicura(&req.user, &req.host) {
+        return (StatusCode::BAD_REQUEST, m).into_response();
+    }
     if !validate_remote_path(&req.remote_dir) {
         return (StatusCode::BAD_REQUEST,
             "remote_dir non valido: deve essere un percorso assoluto senza '..' né caratteri speciali\n"
@@ -1239,8 +1272,10 @@ pub async fn manage_device_container(EJson(req): EJson<ContainerManageRequest>) 
         Ok(c) => c,
         Err(e) => return (StatusCode::BAD_REQUEST, format!("{e}\n")).into_response(),
     };
-    if !req.local && (req.host.is_empty() || req.user.is_empty()) {
-        return (StatusCode::BAD_REQUEST, "host e user sono obbligatori in modalità remota\n").into_response();
+    if !req.local {
+        if let Err(m) = destinazione_ssh_sicura(&req.user, &req.host) {
+            return (StatusCode::BAD_REQUEST, m).into_response();
+        }
     }
 
     let (tx, rx) = tokio::sync::mpsc::channel::<String>(128);
@@ -1360,10 +1395,16 @@ async fn run_ssh_cmd_stdin(
     // (è quello che sshpass intercetta), quindi BatchMode=yes andrebbe a
     // rompere proprio il meccanismo che dovrebbe abilitare.
     let mut cmd = if use_sshpass {
-        let mut full_args = vec!["-p", password, prog, "-o", "ConnectTimeout=10"];
+        // `-e` legge la password da SSHPASS nell'ambiente, non da argv. Con `-p`
+        // la password compariva in chiaro in `ps aux` e in /proc/<pid>/cmdline
+        // per tutta la durata di scp/ssh, leggibile da QUALUNQUE utente locale
+        // della macchina dell'editor. L'ambiente di un processo lo legge solo
+        // lo stesso uid (o root). Trovato nella revisione del 2026-09-09.
+        let mut full_args = vec!["-e", prog, "-o", "ConnectTimeout=10"];
         full_args.extend_from_slice(args);
         let mut c = Command::new("sshpass");
         c.args(&full_args);
+        c.env("SSHPASS", password);
         c
     } else {
         let mut full_args = vec!["-o", "BatchMode=yes", "-o", "ConnectTimeout=10"];
@@ -1938,7 +1979,7 @@ mod tests {
 
 #[cfg(test)]
 mod tests_chiave_host {
-    use super::{e_chiave_host_cambiata, host_sicuro};
+    use super::{utente_sicuro, destinazione_ssh_sicura, e_chiave_host_cambiata, host_sicuro};
 
     /// Le righe vere, copiate da un tentativo fallito sul TC620 dopo un
     /// factory reset (2026-09-07).
@@ -1965,5 +2006,28 @@ mod tests_chiave_host {
         assert!(!host_sicuro("a/b"));
         assert!(!host_sicuro("host;rm -rf /"));
         assert!(!host_sicuro(""));
+    }
+
+    /// `{user}@{host}` è un argomento POSIZIONALE di ssh: un utente che comincia
+    /// per `-` diventa un'opzione, e `-oProxyCommand=…` è un comando eseguito su
+    /// questa macchina prima ancora di collegarsi.
+    #[test]
+    fn l_utente_ssh_e_controllato_come_l_host() {
+        assert!(utente_sicuro("user"));
+        assert!(utente_sicuro("pixsys"));
+        assert!(utente_sicuro("svc.deploy_01"));
+        assert!(!utente_sicuro("-oProxyCommand=touch${IFS}/tmp/pwn"));
+        assert!(!utente_sicuro("user name"));
+        assert!(!utente_sicuro("user@evil"));
+        assert!(!utente_sicuro(""));
+        assert!(!utente_sicuro(&"u".repeat(40)));
+    }
+
+    #[test]
+    fn la_destinazione_rifiuta_se_uno_dei_due_e_cattivo() {
+        assert!(destinazione_ssh_sicura("user", "wp630.local").is_ok());
+        assert!(destinazione_ssh_sicura("-oProxyCommand=x", "wp630.local").is_err());
+        assert!(destinazione_ssh_sicura("user", "-oProxyCommand=x").is_err());
+        assert!(destinazione_ssh_sicura("", "wp630.local").is_err());
     }
 }

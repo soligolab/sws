@@ -42,6 +42,22 @@ pub enum Role {
     Admin,
 }
 
+/// Legge `users.yaml` dal disco: assente o vuoto vale «nessun utente», non un
+/// errore. Estratta perché la stessa lettura viveva in due punti (avvio e
+/// cambio di store al cambio progetto) e una correzione andava fatta due volte.
+fn carica_users_file(path: &std::path::Path) -> anyhow::Result<UserFile> {
+    if !path.exists() {
+        return Ok(UserFile::default());
+    }
+    let text = std::fs::read_to_string(path)
+        .map_err(|e| anyhow::anyhow!("read users.yaml: {e}"))?;
+    if text.trim().is_empty() {
+        return Ok(UserFile::default());
+    }
+    serde_yaml::from_str::<UserFile>(&text)
+        .map_err(|e| anyhow::anyhow!("parse users.yaml: {e}"))
+}
+
 impl Role {
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -269,18 +285,7 @@ impl AuthState {
         rate_limit: u32,
         rate_window: Duration,
     ) -> anyhow::Result<Arc<Self>> {
-        let on_disk = if store_path.exists() {
-            let text = std::fs::read_to_string(&store_path)
-                .map_err(|e| anyhow::anyhow!("read users.yaml: {e}"))?;
-            if text.trim().is_empty() {
-                UserFile::default()
-            } else {
-                serde_yaml::from_str::<UserFile>(&text)
-                    .map_err(|e| anyhow::anyhow!("parse users.yaml: {e}"))?
-            }
-        } else {
-            UserFile::default()
-        };
+        let on_disk = carica_users_file(&store_path)?;
 
         let mut users: HashMap<String, StoredUser> = on_disk.users
             .into_iter()
@@ -396,18 +401,7 @@ impl AuthState {
         new_path: PathBuf,
         seed: Vec<(String, Role, String)>,
     ) -> anyhow::Result<()> {
-        let on_disk = if new_path.exists() {
-            let text = std::fs::read_to_string(&new_path)
-                .map_err(|e| anyhow::anyhow!("read users.yaml: {e}"))?;
-            if text.trim().is_empty() {
-                UserFile::default()
-            } else {
-                serde_yaml::from_str::<UserFile>(&text)
-                    .map_err(|e| anyhow::anyhow!("parse users.yaml: {e}"))?
-            }
-        } else {
-            UserFile::default()
-        };
+        let on_disk = carica_users_file(&new_path)?;
 
         let mut new_users: HashMap<String, StoredUser> = on_disk
             .users

@@ -332,10 +332,7 @@ impl Drop for DrmDisplay {
         unsafe {
             libc::munmap(self.map as *mut libc::c_void, self.map_size);
             drmModeRmFB(self.fd, self.fb_handle);
-            let mut dreq = drm_mode_destroy_dumb {
-                handle: self.dumb_handle,
-                ..Default::default()
-            };
+            let mut dreq = drm_mode_destroy_dumb { handle: self.dumb_handle };
             drmIoctl(
                 self.fd,
                 drm_iowr(0xB4, std::mem::size_of::<drm_mode_destroy_dumb>()) as std::os::raw::c_ulong,

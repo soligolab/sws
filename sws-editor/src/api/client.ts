@@ -8,7 +8,6 @@ import type {
   BrowseDirsResponse,
   CustomSymbol,
   DatastoreConfig,
-  DatastoreListItem,
   DatastoreStats,
   FaceplateDef,
   FunctionDef,
@@ -922,24 +921,6 @@ export const api = {
     );
   },
 
-  // Script execution
-  //
-  // `execScript` runs a raw Python body. Today it stays available for
-  // ad-hoc tooling (the FunctionEditor "Esegui" button) but synoptic
-  // objects no longer carry inline code — they reference a named
-  // FunctionDef and call `runFunction` instead.
-  execScript: (code: string) =>
-    request<{
-      ok: boolean;
-      stdout: string;
-      stderr: string;
-      sandboxed: boolean;
-      error?: string;
-    }>("/api/script/exec", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code }),
-    }),
 
   runFunction: (name: string, args?: Record<string, string | number | boolean>) =>
     request<{
@@ -1118,8 +1099,6 @@ export const api = {
     request("/api/audit/verify"),
 
   // Datastores (runtime stats + admin ops)
-  listDatastores: () => request<DatastoreListItem[]>("/api/datastores"),
-
   datastoreStats: (id: string) =>
     request<DatastoreStats>(`/api/datastores/${encodeURIComponent(id)}/stats`),
 
@@ -1392,10 +1371,19 @@ export const api = {
   // The local runtime handles the actual connection to the remote device.
 
   remoteConnect: (url: string, username?: string, password?: string) =>
-    request<{ ok: boolean; error?: string; nota?: string }>("/api/remote/connect", {
+    request<{ ok: boolean; error?: string; nota?: string; azione?: string }>("/api/remote/connect", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url, username: username || undefined, password: password || undefined }),
+    }),
+
+  /** Q49: dimentica l'impronta TLS memorizzata per un dispositivo (tutte le
+   *  porte). Gemello di /api/device/hostkey/forget: mai automatico. */
+  remoteCertForget: (host: string) =>
+    request<{ tolte: string[]; messaggio: string }>("/api/device/cert/forget", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ host }),
     }),
 
   remoteDisconnect: () =>

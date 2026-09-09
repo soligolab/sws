@@ -127,6 +127,7 @@ pub fn mode_label(ide_only: bool) -> &'static str {
     if ide_only { "ide" } else { "runtime" }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn compute_system_status(
     db: &TagDb,
     alarms: &AlarmDb,

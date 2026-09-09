@@ -583,8 +583,9 @@ progetto intero, così vale per qualunque progetto aperto.
 
 ### Cosa l'assistente non può fare, per costruzione
 
-Niente esecuzione di Python (`/api/script/exec` gira senza sandbox quando RestrictedPython
-manca, che sul PC di sviluppo è la norma), niente export del progetto (lo ZIP porta i segreti
+Niente esecuzione di Python (l'endpoint che la offriva, `/api/script/exec`, è stato tolto con
+Q47; e comunque girava senza sandbox quando RestrictedPython manca, che sul PC di sviluppo è la
+norma), niente export del progetto (lo ZIP porta i segreti
 in chiaro — decisione del 2026-07-29), nessun `PUT`, nessun deploy, nessun accesso al
 filesystem. Legge il progetto **mascherato**, come lo vede il browser: le password dei driver
 non entrano nel contesto del modello.

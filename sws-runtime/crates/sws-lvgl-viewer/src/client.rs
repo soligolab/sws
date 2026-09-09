@@ -2,12 +2,11 @@
 //! che oggi ha il browser (o `sws-kiosk`): legge lo schema della pagina via
 //! REST e resta iscritto a `/ws/tags` per tutta la durata della finestra,
 //! aggiornando uno stato condiviso (`SharedTagSnapshot`) via snapshot iniziale
-//! + delta successivi. Vedi ADR 0002: nessuna modifica al runtime, questo
+//! e delta successivi. Vedi ADR 0002: nessuna modifica al runtime, questo
 //! client consuma solo il contratto REST/WS già esistente per il browser.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use futures_util::StreamExt;
 use serde::Deserialize;
@@ -298,13 +297,8 @@ pub async fn put_tag(base_url: &str, tag: &str, value: TagValue) -> anyhow::Resu
     Ok(())
 }
 
-/// Timestamp Unix in millisecondi — usato per calcolare la finestra
-/// `from`/`to` di `fetch_history` e, in `lvgl_render`'s Trend, per convertire
-/// i timestamp assoluti dei campioni in coordinate X relative alla finestra
-/// (`lv_coord_t` è un `i16`: non regge un Unix ms assoluto, vedi `render_trend`).
-pub fn now_unix_ms() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
-}
+/// Lo stesso orologio del resto del workspace (`sws_core::now_ms`).
+pub use sws_core::now_ms as now_unix_ms;
 
 /// Un campione storico — porta `Sample` di `sws-historian` (`ts_ms`, `value`,
 /// `quality`) ma senza `quality`: il trend LVGL non la disegna (il web

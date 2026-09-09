@@ -432,6 +432,7 @@ fn punto_tocco(s: &str) -> Option<(i32, i32)> {
 /// `update_bindings` gira dentro il ciclo perché la pagina mostri i valori tag
 /// veri e non quelli con cui è nata — è il compito che nel loop normale svolge
 /// a ogni frame.
+#[allow(clippy::too_many_arguments)]
 fn scrivi_istantanea(
     percorso: &str,
     hor_res: u32,
@@ -1143,9 +1144,9 @@ mod tests {
         );
     }
 
-    /// `off` e la stringa vuota disattivano il touch. La stringa vuota era il
-    /// vecchio default: chi la passa ancora da uno script non deve trovarsi
-    /// un comportamento diverso da prima.
+    // `off` e la stringa vuota disattivano il touch. La stringa vuota era il
+    // vecchio default: chi la passa ancora da uno script non deve trovarsi
+    // un comportamento diverso da prima.
     // ── Diagnosi del backend DRM (Q19) ──────────────────────────────────
 
     fn amb<'a>(pairs: &'a [(&'a str, &'a str)]) -> impl Fn(&str) -> Option<String> + 'a {

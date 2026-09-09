@@ -1,27 +1,14 @@
 import { useEffect } from "react";
-import { getAuthToken } from "@/api/client";
 import { useAppStore } from "@/store";
 import type { TagQuality } from "@/types";
 import { buildWsUrl } from "@/ws/wsUrl";
-import { ReconnectingWs } from "@/ws/reconnectingWs";
+import { socketCondiviso } from "@/ws/singletonWs";
 
-let rws: ReconnectingWs | null = null;
-let currentToken: string | null = null;
-let currentRemoteConnected: boolean = false;
-
-function getStream(remoteConnected: boolean): ReconnectingWs {
-  const token = getAuthToken();
-  // Recreate if token OR remoteConnected changed: the target URL is different.
-  if (rws && (currentToken !== token || currentRemoteConnected !== remoteConnected)) {
-    rws.destroy();
-    rws = null;
-  }
-  if (!rws) {
-    currentToken = token;
-    currentRemoteConnected = remoteConnected;
-    rws = new ReconnectingWs(() => buildWsUrl("/ws/tags", "VITE_RUNTIME_WS_URL"));
-  }
-  return rws;
+const socket = socketCondiviso(() => buildWsUrl("/ws/tags", "VITE_RUNTIME_WS_URL"));
+/** Il socket dei tag: cambia anche quando ci si collega/scollega da un runtime
+ *  remoto, perché `buildWsUrl` lo dirotta nel relay. */
+function getStream(remoteConnected: boolean) {
+  return socket.prendi(remoteConnected ? "remoto" : "locale");
 }
 
 // Protocol v2 types
@@ -63,6 +50,7 @@ export function tryTagWriteWs(
   tag: string,
   value: number | string | boolean,
 ): boolean {
+  const rws = socket.corrente();
   if (!rws || rws.readyState !== WebSocket.OPEN) return false;
   rws.send(JSON.stringify({ type: "write", tag, value }));
   return true;
@@ -73,7 +61,7 @@ export function tryTagWriteWs(
  * Pass specific tag IDs to receive only those tags in delta frames.
  */
 export function sendSubscribe(tags: string[]): void {
-  rws?.send(JSON.stringify({ type: "subscribe", tags }));
+  socket.corrente()?.send(JSON.stringify({ type: "subscribe", tags }));
 }
 
 export function useTagStream(): void {
@@ -83,14 +71,12 @@ export function useTagStream(): void {
 
   useEffect(() => {
     if (!authToken) {
-      rws?.destroy();
-      rws = null;
-      currentToken = null;
+      socket.chiudi();
       lastSeq = -1;
       return;
     }
 
-    // getStream recreates rws when remoteConnected changes (different URL).
+    // getStream riapre il socket quando remoteConnected cambia (URL diversa).
     const stream = getStream(remoteConnected);
 
     // Both the local /ws/tags and the /ws/remote/* relay need a subscribe

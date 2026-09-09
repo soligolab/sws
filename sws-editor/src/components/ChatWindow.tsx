@@ -28,11 +28,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api } from "@/api/client";
 import { editorViaPonte } from "@/ai/editor";
 import { nuovoId, Ponte } from "@/ai/ponte";
 import { ChatPanel } from "@/components/ChatPanel";
-import { useAppStore } from "@/store";
+import { useAccessoSenzaUtenti } from "@/auth/useAccessoSenzaUtenti";
+import { SchermataSenzaAccesso, vuoto } from "@/components/finestraStaccata";
 
 /** L'id dell'editor a cui questa finestra è legata, da `#e=<id>`.
  *
@@ -51,29 +51,12 @@ type Legame =
 
 export function ChatWindow() {
   const { t } = useTranslation();
-  const authRole  = useAppStore((s) => s.authRole);
-  const authToken = useAppStore((s) => s.authToken);
-  const setAuth   = useAppStore((s) => s.setAuth);
-  const [sondaggio, setSondaggio] = useState(true);
+  const { sondaggio, authRole } = useAccessoSenzaUtenti();
   const [legame, setLegame] = useState<Legame>({ s: "attendo" });
 
   const bersaglio = useRef(idEditoreDaUrl());
   const ponte = useMemo(() => new Ponte(nuovoId()), []);
   const editor = useMemo(() => editorViaPonte(ponte, () => bersaglio.current), [ponte]);
-
-  // Stessa sonda di `LogWindow`: la modalità **senza utenti** è la normalità sul
-  // PC di sviluppo, e lo store di questa finestra si idrata da `localStorage
-  // sws.auth`, che in quel caso è vuoto. Senza questa sonda la finestra direbbe
-  // «accedi» su quasi ogni istanza di sviluppo.
-  useEffect(() => {
-    if (authToken) { setSondaggio(false); return; }
-    let vivo = true;
-    api.whoami()
-      .then((me) => { if (vivo) setAuth("no-auth", me.username, me.role, me.must_change_password); })
-      .catch(() => { /* ci sono utenti: si mostra la schermata sotto */ })
-      .finally(() => { if (vivo) setSondaggio(false); });
-    return () => { vivo = false; };
-  }, [authToken, setAuth]);
 
   // Il ciclo di vita del legame con l'editor.
   useEffect(() => {
@@ -124,13 +107,7 @@ export function ChatWindow() {
   // Qui il ruolo manca per davvero: gli utenti esistono e nessuno ha fatto login
   // in questo browser. Un secondo login aprirebbe una seconda sessione.
   if (!authRole) {
-    return (
-      <div style={vuoto}>
-        <div style={{ fontWeight: 600, marginBottom: 6 }}>{t("chatWindow.noAuth")}</div>
-        <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 12 }}>{t("chatWindow.noAuthHint")}</div>
-        <button style={bottone} onClick={() => window.location.reload()}>{t("chatWindow.reload")}</button>
-      </div>
-    );
+    return <SchermataSenzaAccesso titolo={t("chatWindow.noAuth")} suggerimento={t("chatWindow.noAuthHint")} ricarica={t("chatWindow.reload")} />;
   }
 
   if (!bersaglio.current) {
@@ -166,11 +143,6 @@ export function ChatWindow() {
   );
 }
 
-const vuoto: React.CSSProperties = {
-  height: "100%", display: "flex", flexDirection: "column",
-  alignItems: "center", justifyContent: "center", padding: 24, textAlign: "center",
-  color: "var(--brand-text, #e2e8f0)", background: "var(--brand-bg, #0b1220)",
-};
 
 const striscia: React.CSSProperties = {
   flexShrink: 0, padding: "4px 10px", fontSize: 11,
@@ -179,8 +151,3 @@ const striscia: React.CSSProperties = {
   borderBottom: "1px solid var(--brand-surface-2, #334155)",
 };
 
-const bottone: React.CSSProperties = {
-  padding: "6px 14px", fontSize: 13, cursor: "pointer",
-  color: "var(--brand-text, #e2e8f0)", background: "var(--brand-surface-2, #334155)",
-  border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 6,
-};

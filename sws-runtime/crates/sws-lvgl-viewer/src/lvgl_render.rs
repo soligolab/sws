@@ -3676,6 +3676,7 @@ pub struct PostoEtichetta {
     pub etichetta: String,
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_pie_donut(
     canvas_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
     w: i16,
@@ -4748,9 +4749,9 @@ fn render_grid(
 
     if obj.grid_show_borders.unwrap_or(true) {
         let border_hex = obj.grid_border_color.clone().unwrap_or_else(|| "#64748b".to_string());
-        for c in 0..=n_cols {
+        for cx in col_x.iter().copied().take(n_cols + 1) {
             let mut ln = Line::create(screen).map_err(|e| anyhow::anyhow!("Line::create: {e:?}"))?;
-            ln.set_pos(col_x[c].round() as i16, origin_y.round() as i16).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+            ln.set_pos(cx.round() as i16, origin_y.round() as i16).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
             let pts: &'static [lvgl_sys::lv_point_t; 2] =
                 Box::leak(Box::new([lvgl_sys::lv_point_t { x: 0, y: 0 }, lvgl_sys::lv_point_t { x: 0, y: h.round() as i16 }]));
             let ptr = ln.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
@@ -4763,9 +4764,9 @@ fn render_grid(
             ln.add_style(Part::Main, &mut style).map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
             styles.push(style);
         }
-        for r in 0..=n_rows {
+        for ry in row_y.iter().copied().take(n_rows + 1) {
             let mut ln = Line::create(screen).map_err(|e| anyhow::anyhow!("Line::create: {e:?}"))?;
-            ln.set_pos(origin_x.round() as i16, row_y[r].round() as i16).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+            ln.set_pos(origin_x.round() as i16, ry.round() as i16).map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
             let pts: &'static [lvgl_sys::lv_point_t; 2] =
                 Box::leak(Box::new([lvgl_sys::lv_point_t { x: 0, y: 0 }, lvgl_sys::lv_point_t { x: w.round() as i16, y: 0 }]));
             let ptr = ln.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
@@ -5001,6 +5002,7 @@ fn sym_pt(x: f64, y: f64, w: i16, h: i16) -> lvgl_sys::lv_point_t {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn sym_rect(canvas_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>, x: f64, y: f64, ww: f64, hh: f64, radius: f64, rgb: (u8, u8, u8), w: i16, h: i16) {
     let p0 = sym_pt(x, y, w, h);
     let p1 = sym_pt(x + ww, y + hh, w, h);
@@ -6014,7 +6016,6 @@ fn render_faceplate(
 /// finestra SDL2 (`main.rs`), che deve combaciare con quanto passato a
 /// `init_display`.
 #[allow(clippy::too_many_arguments)]
-#[allow(clippy::too_many_arguments)]
 pub fn interpret_page(
     page: &SynopticPage,
     tags: &TagSnapshot,
@@ -6026,7 +6027,7 @@ pub fn interpret_page(
     ack_tx: &mpsc::Sender<String>,
     lang_table: &LanguageTable,
     shared_lang: &SharedLang,
-) -> anyhow::Result<(RenderSummary, Vec<Style>, Vec<LiveBinding>, u32, u32)> {
+) -> anyhow::Result<PaginaResa> {
     let (hor_res, ver_res) = resolve_resolution(page);
     crate::lvgl_display::init_display(hor_res, ver_res)?;
     let (summary, styles, live) = render_page_objects(
@@ -6067,6 +6068,11 @@ pub fn interpret_page(
 /// `update_bindings` a ogni frame per riflettere i valori tag correnti senza
 /// ricreare nulla, e li sostituisce per intero (non li accumula) alla
 /// prossima chiamata di questa funzione, quando naviga altrove.
+#[allow(clippy::too_many_arguments)]
+/// Quello che `render_page` consegna al chiamante: il riepilogo, gli stili e i
+/// binding vivi da tenere in vita, e la risoluzione (hor, ver) del display.
+type PaginaResa = (RenderSummary, Vec<Style>, Vec<LiveBinding>, u32, u32);
+
 #[allow(clippy::too_many_arguments)]
 pub fn render_page_objects(
     page: &SynopticPage,
@@ -6810,7 +6816,7 @@ fn update_xy_plot(
     let cutoff = now_ms.saturating_sub(trail_s.saturating_mul(1000));
     samples.retain(|(ts, _, _)| *ts >= cutoff);
 
-    let point_count = samples.len().min(64).max(1);
+    let point_count = samples.len().clamp(1, 64);
     unsafe {
         lvgl_sys::lv_chart_set_point_count(ptr.as_ptr(), point_count as u16);
     }
@@ -7278,8 +7284,10 @@ mod binding_tests {
     fn visible_coercisce_come_sul_web() {
         let t = snapshot(&[("z", TagValue::Int(0)), ("uno", TagValue::Int(1))]);
         for (tag, atteso) in [("z", false), ("uno", true)] {
-            let mut obj = SynopticObject::default();
-            obj.bindings = Some([("visible".to_string(), json!(tag))].into_iter().collect());
+            let obj = SynopticObject {
+                    bindings: Some([("visible".to_string(), json!(tag))].into_iter().collect()),
+                    ..Default::default()
+                };
             assert_eq!(apply_bindings(&obj, &t).unwrap().visible, Some(atteso));
         }
     }
@@ -7406,12 +7414,14 @@ mod binding_tests {
 
     #[test]
     fn geometry_bindings_prende_solo_la_geometria() {
-        let mut obj = SynopticObject::default();
-        obj.bindings = Some([
-            ("x".to_string(), json!("a")),
-            ("visible".to_string(), json!("b")),
-            ("fill".to_string(), json!("c")), // non è geometria
-        ].into_iter().collect());
+        let obj = SynopticObject {
+            bindings: Some([
+                ("x".to_string(), json!("a")),
+                ("visible".to_string(), json!("b")),
+                ("fill".to_string(), json!("c")), // non è geometria
+            ].into_iter().collect()),
+            ..Default::default()
+        };
         let g = geometry_bindings(&obj).expect("x e visible sono geometria");
         assert!(g.get("x").is_some() && g.get("visible").is_some());
         assert!(g.get("fill").is_none(), "le proprietà non geometriche non vanno catturate");
@@ -7419,8 +7429,10 @@ mod binding_tests {
 
     #[test]
     fn senza_binding_di_geometria_non_si_cattura_niente() {
-        let mut obj = SynopticObject::default();
-        obj.bindings = Some([("fill".to_string(), json!("c"))].into_iter().collect());
+        let obj = SynopticObject {
+            bindings: Some([("fill".to_string(), json!("c"))].into_iter().collect()),
+            ..Default::default()
+        };
         assert!(geometry_bindings(&obj).is_none());
         assert!(geometry_bindings(&SynopticObject::default()).is_none());
     }

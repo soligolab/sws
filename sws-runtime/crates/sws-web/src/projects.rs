@@ -169,6 +169,41 @@ pub struct OpenProjectResponse {
 
 // ── safe_project_name ────────────────────────────────────────────────────────
 
+
+/// `p` sta dentro `radice`? Restituisce il percorso **canonico** di `p`, o il
+/// motivo del rifiuto.
+///
+/// Q46 (2026-09-09): il selettore di cartelle della WelcomeScreen e `parent_path`
+/// non escono più dalla cartella dei progetti. Prima `browse-dirs` partiva da
+/// `$HOME` e accettava qualunque percorso assoluto — pre-auth, sul router
+/// completo: chiunque raggiungesse la porta poteva elencare il disco.
+///
+/// Si confronta dopo `canonicalize`, non sulle stringhe: `radice/../etc` è una
+/// stringa che «comincia con» la radice e un percorso che ne esce; un link
+/// simbolico dentro la radice che punta fuori idem. Il percorso deve esistere
+/// per essere canonicalizzato — è voluto: qui si elencano e si scelgono cartelle
+/// che ci sono, e chi ne crea una passa da `dentro_radice_nuovo`.
+pub(crate) fn dentro_radice(radice: &std::path::Path, p: &std::path::Path) -> Result<PathBuf, &'static str> {
+    let radice_c = radice.canonicalize().map_err(|_| "la cartella dei progetti non esiste")?;
+    let p_c = p.canonicalize().map_err(|_| "la cartella non esiste")?;
+    if p_c == radice_c || p_c.starts_with(&radice_c) {
+        Ok(p_c)
+    } else {
+        Err("fuori dalla cartella dei progetti")
+    }
+}
+
+/// Come `dentro_radice`, per un percorso che **non esiste ancora**: si
+/// canonicalizza il genitore (che deve esistere) e si riattacca l'ultimo
+/// segmento, che deve essere un nome semplice.
+pub(crate) fn dentro_radice_nuovo(radice: &std::path::Path, p: &std::path::Path) -> Result<PathBuf, &'static str> {
+    let nome = p.file_name().ok_or("nome della cartella mancante")?;
+    if nome == ".." || nome == "." { return Err("nome della cartella non valido"); }
+    let genitore = p.parent().ok_or("percorso senza genitore")?;
+    let genitore_c = dentro_radice(radice, genitore)?;
+    Ok(genitore_c.join(nome))
+}
+
 /// Sanitize a user-supplied project name into a safe folder name.
 /// Rejects empty / dot-prefixed / parent-traversal / slash-bearing inputs.
 /// Also used to validate plain folder names (see `POST /api/fs/mkdir`) — the
@@ -312,11 +347,14 @@ pub async fn create_project(
             if !parent.is_absolute() {
                 return (StatusCode::BAD_REQUEST, "parent_path must be an absolute path").into_response();
             }
-            if let Err(e) = tokio::fs::create_dir_all(&parent).await {
-                warn!("create_project: mkdir parent {}: {e}", parent.display());
-                return (StatusCode::BAD_REQUEST, format!("cannot create/access parent_path: {e}")).into_response();
+            // Q46: il genitore deve ESISTERE e stare nella cartella dei progetti.
+            // Prima qui c'era un `create_dir_all` su qualunque percorso assoluto:
+            // un caller senza sessione poteva materializzare alberi di directory
+            // ovunque il processo potesse scrivere.
+            match dentro_radice(s.projects_root.as_ref(), &parent) {
+                Ok(c) => c,
+                Err(m) => return (StatusCode::BAD_REQUEST, format!("parent_path: {m}")).into_response(),
             }
-            parent
         }
         None => s.projects_root.as_ref().clone(),
     };
@@ -485,6 +523,7 @@ pub(crate) fn build_tag_data_types(tags: &[sws_core::TagDef]) -> std::collection
     tags.iter().map(|t| (t.id.clone(), t.data_type.clone())).collect()
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn apply_loaded_project(
     project_dir: &StdPath,
     mut project: Project,
@@ -1023,7 +1062,8 @@ pub async fn browse_dirs(
     State(s): State<AppState>,
     Query(q): Query<BrowseDirsQuery>,
 ) -> Response {
-    let current: PathBuf = match q.path.as_deref().filter(|p| !p.trim().is_empty()) {
+    let radice: &std::path::Path = s.projects_root.as_ref();
+    let richiesto: PathBuf = match q.path.as_deref().filter(|p| !p.trim().is_empty()) {
         Some(p) => {
             let p = PathBuf::from(p);
             if !p.is_absolute() {
@@ -1031,10 +1071,15 @@ pub async fn browse_dirs(
             }
             p
         }
-        None => std::env::var("HOME")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| s.projects_root.as_ref().clone()),
+        None => radice.to_path_buf(),
     };
+    // Q46: non si esce dalla cartella dei progetti. Il rifiuto è un 400 che dice
+    // il perché, non un elenco vuoto che sembra una cartella vuota.
+    let current = match dentro_radice(radice, &richiesto) {
+        Ok(c) => c,
+        Err(m) => return (StatusCode::BAD_REQUEST, m).into_response(),
+    };
+    let radice_c = radice.canonicalize().unwrap_or_else(|_| radice.to_path_buf());
 
     let mut dir = match tokio::fs::read_dir(&current).await {
         Ok(d) => d,
@@ -1065,7 +1110,8 @@ pub async fn browse_dirs(
     }
     dirs.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
 
-    let parent = current.parent().map(|p| p.to_string_lossy().to_string());
+    // Alla radice niente «su»: la UI nasconde il pulsante quando è None.
+    let parent = if current == radice_c { None } else { current.parent().map(|p| p.to_string_lossy().to_string()) };
     Json(BrowseDirsResponse {
         path: current.to_string_lossy().to_string(),
         parent,
@@ -1106,16 +1152,20 @@ fn resolve_new_dir(parent: &str, name: &str) -> Result<PathBuf, &'static str> {
 /// the destination picker. Pre-auth like `browse_dirs` and the rest of the
 /// project-lifecycle group: the picker is reachable from the WelcomeScreen
 /// before any session exists, which is precisely when the first project (and
-/// its folder) gets created. This adds no new capability class — an
-/// unauthenticated caller can already materialise arbitrary directory trees
-/// via `POST /api/projects` / `?parent_path=` (both `create_dir_all`).
+/// its folder) gets created. Da Q46 (2026-09-09) né questa né `parent_path`
+/// escono dalla cartella dei progetti: pre-auth resta, ma il perimetro è quello.
 pub async fn create_dir(
-    State(_s): State<AppState>,
+    State(s): State<AppState>,
     Json(req): Json<CreateDirRequest>,
 ) -> Response {
     let target = match resolve_new_dir(&req.parent, &req.name) {
         Ok(p) => p,
         Err(e) => return (StatusCode::BAD_REQUEST, e).into_response(),
+    };
+    // Q46: la nuova cartella deve nascere dentro la cartella dei progetti.
+    let target = match dentro_radice_nuovo(s.projects_root.as_ref(), &target) {
+        Ok(p) => p,
+        Err(m) => return (StatusCode::BAD_REQUEST, m).into_response(),
     };
 
     // The parent must already exist: `create_dir` (not `create_dir_all`) so a
@@ -1611,6 +1661,123 @@ fn build_seed_accounts() -> Vec<(String, sws_auth::Role, String)> {
     accounts
 }
 
+
+/// Rewrite `meta.name` in a copied `project.yaml` to match the user-chosen
+/// project folder name, so the ConfigView title reflects the real project
+/// name instead of the template's internal id.
+async fn patch_project_name(yaml_path: &StdPath, name: &str) -> anyhow::Result<()> {
+    let raw = tokio::fs::read_to_string(yaml_path).await?;
+    let mut doc: serde_yaml::Value = serde_yaml::from_str(&raw)?;
+    if let Some(meta) = doc.get_mut("meta") {
+        meta["name"] = serde_yaml::Value::String(name.to_string());
+    }
+    let updated = serde_yaml::to_string(&doc)?;
+    crate::router::scrivi_atomico(yaml_path, updated.as_bytes()).await?;
+    Ok(())
+}
+
+/// Scrive `saved_by` con la versione di questo runtime.
+///
+/// Serve al progetto creato **da template**: i file del template si copiano
+/// così come sono, e i template non hanno `saved_by` — giustamente, perché un
+/// template non è "stato salvato da" una versione. Il progetto però sì: è
+/// prodotto adesso, da questo runtime. Senza il timbro, `needs_update()` lo
+/// confronta con `None` e l'IDE lo segnala «da aggiornare» al primo minuto di
+/// vita, per una deriva che non esiste.
+///
+/// **Deliberatamente separata da `patch_project_name`**, che è usata anche da
+/// `rename_project` e `duplicate_project`: lì il timbro sarebbe sbagliato. Un
+/// progetto salvato dalla 2.1.0 e rinominato oggi *è ancora* della 2.1.0, e
+/// azzerarne l'avviso nasconderebbe una deriva vera.
+///
+/// Lavora sullo YAML **grezzo** e non sulla struct tipizzata: passare di lì
+/// farebbe cadere i campi che questo build non conosce, che è il difetto di Q10
+/// per cui esiste `merge_preserved`.
+async fn stamp_saved_by(yaml_path: &StdPath) -> anyhow::Result<()> {
+    let raw = tokio::fs::read_to_string(yaml_path).await?;
+    let mut doc: serde_yaml::Value = serde_yaml::from_str(&raw)?;
+    if let Some(map) = doc.as_mapping_mut() {
+        map.insert(
+            serde_yaml::Value::from("saved_by"),
+            serde_yaml::Value::from(sws_core::project::runtime_version()),
+        );
+    }
+    let updated = serde_yaml::to_string(&doc)?;
+    crate::router::scrivi_atomico(yaml_path, updated.as_bytes()).await?;
+    Ok(())
+}
+
+/// Dot-prefixed working directories this codebase used to create inside a
+/// project, mapped to the visible name they migrate to. `.git` is
+/// deliberately absent: it's not ours to rename — git itself hardcodes that
+/// name, and a project versioned via "Versionamento progetto" needs it
+/// exactly as-is.
+const LEGACY_HIDDEN_DIRS: &[(&str, &str)] = &[
+    (".history", "history"),
+    (".bak", "backups"),
+    (".opcua-pki", "opcua-pki"),
+];
+
+/// Migrates a project's legacy dot-prefixed working directories (historian
+/// DB, backup snapshots, OPC-UA PKI store) to their new visible names, and
+/// keeps the SQLite datastore path in `project.yaml` in sync so it doesn't
+/// keep pointing at a folder that no longer exists. Idempotent — a project
+/// already migrated (or one that never had these directories) is untouched.
+///
+/// Called once whenever a project directory becomes the active one (runtime
+/// boot auto-open in `main.rs`, and `open_project` here) — the only two
+/// places that resolve the historian/PKI paths for a project, see their
+/// call sites for why nothing else needs to run this.
+pub fn migrate_legacy_project_dirs(project_dir: &StdPath) {
+    for (old, new) in LEGACY_HIDDEN_DIRS {
+        let old_path = project_dir.join(old);
+        let new_path = project_dir.join(new);
+        if !old_path.exists() || new_path.exists() {
+            continue;
+        }
+        match std::fs::rename(&old_path, &new_path) {
+            Ok(()) => info!(project = %project_dir.display(), old, new, "migrated legacy hidden directory"),
+            Err(e) => warn!(project = %project_dir.display(), old, new, "migrate_legacy_project_dirs: rename failed: {e}"),
+        }
+    }
+    migrate_legacy_sqlite_path(project_dir);
+}
+
+/// The `.history` → `history` rename above only moves the folder; if
+/// `project.yaml` stores the exact legacy default path (`.history/historian.db`
+/// — written whenever a project ever got the default datastore injected and
+/// then saved), the datastore would keep looking for the old location.
+/// Any other value (custom path, absolute path, non-SQLite backend) is left
+/// untouched — this only follows the one rename this migration performs.
+fn migrate_legacy_sqlite_path(project_dir: &StdPath) {
+    let yaml_path = project_dir.join("project.yaml");
+    let Ok(raw) = std::fs::read_to_string(&yaml_path) else { return };
+    let Ok(mut doc) = serde_yaml::from_str::<serde_yaml::Value>(&raw) else { return };
+    let Some(datastores) = doc.get_mut("datastores").and_then(|d| d.as_sequence_mut()) else { return };
+    let mut changed = false;
+    for ds in datastores {
+        let Some(backend) = ds.get_mut("backend") else { continue };
+        if backend.get("kind").and_then(|k| k.as_str()) != Some("sqlite") {
+            continue;
+        }
+        if backend.get("path").and_then(|p| p.as_str()) == Some(".history/historian.db") {
+            backend["path"] = serde_yaml::Value::String("history/historian.db".into());
+            changed = true;
+        }
+    }
+    if !changed {
+        return;
+    }
+    match serde_yaml::to_string(&doc) {
+        Ok(updated) => {
+            if let Err(e) = crate::router::scrivi_atomico_sync(&yaml_path, updated.as_bytes()) {
+                warn!("migrate_legacy_sqlite_path: write {}: {e}", yaml_path.display());
+            }
+        }
+        Err(e) => warn!("migrate_legacy_sqlite_path: serialize {}: {e}", yaml_path.display()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1797,123 +1964,44 @@ datastores:
         assert!(testo.contains("roba_futura"), "chiave sconosciuta persa:\n{testo}");
         assert!(testo.contains("valore"), "contenuto della chiave sconosciuta perso:\n{testo}");
     }
-}
 
-/// Rewrite `meta.name` in a copied `project.yaml` to match the user-chosen
-/// project folder name, so the ConfigView title reflects the real project
-/// name instead of the template's internal id.
-async fn patch_project_name(yaml_path: &StdPath, name: &str) -> anyhow::Result<()> {
-    let raw = tokio::fs::read_to_string(yaml_path).await?;
-    let mut doc: serde_yaml::Value = serde_yaml::from_str(&raw)?;
-    if let Some(meta) = doc.get_mut("meta") {
-        meta["name"] = serde_yaml::Value::String(name.to_string());
-    }
-    let updated = serde_yaml::to_string(&doc)?;
-    crate::router::scrivi_atomico(yaml_path, updated.as_bytes()).await?;
-    Ok(())
-}
+    /// Q46: il confine è la cartella dei progetti, e si misura dopo
+    /// `canonicalize` — `radice/../altro` è una stringa che comincia con la
+    /// radice e un percorso che ne esce.
+    #[test]
+    fn dentro_radice_tiene_dentro_e_rifiuta_fuori() {
+        let tmp = tempfile::tempdir().unwrap();
+        let radice = tmp.path().join("progetti");
+        std::fs::create_dir_all(radice.join("impianto_a")).unwrap();
+        std::fs::create_dir_all(tmp.path().join("altrove")).unwrap();
 
-/// Scrive `saved_by` con la versione di questo runtime.
-///
-/// Serve al progetto creato **da template**: i file del template si copiano
-/// così come sono, e i template non hanno `saved_by` — giustamente, perché un
-/// template non è "stato salvato da" una versione. Il progetto però sì: è
-/// prodotto adesso, da questo runtime. Senza il timbro, `needs_update()` lo
-/// confronta con `None` e l'IDE lo segnala «da aggiornare» al primo minuto di
-/// vita, per una deriva che non esiste.
-///
-/// **Deliberatamente separata da `patch_project_name`**, che è usata anche da
-/// `rename_project` e `duplicate_project`: lì il timbro sarebbe sbagliato. Un
-/// progetto salvato dalla 2.1.0 e rinominato oggi *è ancora* della 2.1.0, e
-/// azzerarne l'avviso nasconderebbe una deriva vera.
-///
-/// Lavora sullo YAML **grezzo** e non sulla struct tipizzata: passare di lì
-/// farebbe cadere i campi che questo build non conosce, che è il difetto di Q10
-/// per cui esiste `merge_preserved`.
-async fn stamp_saved_by(yaml_path: &StdPath) -> anyhow::Result<()> {
-    let raw = tokio::fs::read_to_string(yaml_path).await?;
-    let mut doc: serde_yaml::Value = serde_yaml::from_str(&raw)?;
-    if let Some(map) = doc.as_mapping_mut() {
-        map.insert(
-            serde_yaml::Value::from("saved_by"),
-            serde_yaml::Value::from(sws_core::project::runtime_version()),
-        );
+        assert!(dentro_radice(&radice, &radice).is_ok(), "la radice stessa");
+        assert!(dentro_radice(&radice, &radice.join("impianto_a")).is_ok());
+        assert!(dentro_radice(&radice, &radice.join("impianto_a/../..")).is_err(), "risale fuori");
+        assert!(dentro_radice(&radice, &tmp.path().join("altrove")).is_err());
+        assert!(dentro_radice(&radice, std::path::Path::new("/etc")).is_err());
+        assert!(dentro_radice(&radice, &radice.join("non_esiste")).is_err(), "deve esistere");
     }
-    let updated = serde_yaml::to_string(&doc)?;
-    crate::router::scrivi_atomico(yaml_path, updated.as_bytes()).await?;
-    Ok(())
-}
 
-/// Dot-prefixed working directories this codebase used to create inside a
-/// project, mapped to the visible name they migrate to. `.git` is
-/// deliberately absent: it's not ours to rename — git itself hardcodes that
-/// name, and a project versioned via "Versionamento progetto" needs it
-/// exactly as-is.
-const LEGACY_HIDDEN_DIRS: &[(&str, &str)] = &[
-    (".history", "history"),
-    (".bak", "backups"),
-    (".opcua-pki", "opcua-pki"),
-];
+    #[test]
+    fn dentro_radice_non_si_fa_ingannare_da_un_link_simbolico() {
+        let tmp = tempfile::tempdir().unwrap();
+        let radice = tmp.path().join("progetti");
+        std::fs::create_dir_all(&radice).unwrap();
+        std::fs::create_dir_all(tmp.path().join("fuori")).unwrap();
+        std::os::unix::fs::symlink(tmp.path().join("fuori"), radice.join("scorciatoia")).unwrap();
+        assert!(dentro_radice(&radice, &radice.join("scorciatoia")).is_err(),
+            "un link dentro la radice che punta fuori è fuori");
+    }
 
-/// Migrates a project's legacy dot-prefixed working directories (historian
-/// DB, backup snapshots, OPC-UA PKI store) to their new visible names, and
-/// keeps the SQLite datastore path in `project.yaml` in sync so it doesn't
-/// keep pointing at a folder that no longer exists. Idempotent — a project
-/// already migrated (or one that never had these directories) is untouched.
-///
-/// Called once whenever a project directory becomes the active one (runtime
-/// boot auto-open in `main.rs`, and `open_project` here) — the only two
-/// places that resolve the historian/PKI paths for a project, see their
-/// call sites for why nothing else needs to run this.
-pub fn migrate_legacy_project_dirs(project_dir: &StdPath) {
-    for (old, new) in LEGACY_HIDDEN_DIRS {
-        let old_path = project_dir.join(old);
-        let new_path = project_dir.join(new);
-        if !old_path.exists() || new_path.exists() {
-            continue;
-        }
-        match std::fs::rename(&old_path, &new_path) {
-            Ok(()) => info!(project = %project_dir.display(), old, new, "migrated legacy hidden directory"),
-            Err(e) => warn!(project = %project_dir.display(), old, new, "migrate_legacy_project_dirs: rename failed: {e}"),
-        }
-    }
-    migrate_legacy_sqlite_path(project_dir);
-}
-
-/// The `.history` → `history` rename above only moves the folder; if
-/// `project.yaml` stores the exact legacy default path (`.history/historian.db`
-/// — written whenever a project ever got the default datastore injected and
-/// then saved), the datastore would keep looking for the old location.
-/// Any other value (custom path, absolute path, non-SQLite backend) is left
-/// untouched — this only follows the one rename this migration performs.
-fn migrate_legacy_sqlite_path(project_dir: &StdPath) {
-    let yaml_path = project_dir.join("project.yaml");
-    let Ok(raw) = std::fs::read_to_string(&yaml_path) else { return };
-    let Ok(mut doc) = serde_yaml::from_str::<serde_yaml::Value>(&raw) else { return };
-    let Some(datastores) = doc.get_mut("datastores").and_then(|d| d.as_sequence_mut()) else { return };
-    let mut changed = false;
-    for ds in datastores {
-        let Some(backend) = ds.get_mut("backend") else { continue };
-        if backend.get("kind").and_then(|k| k.as_str()) != Some("sqlite") {
-            continue;
-        }
-        if backend.get("path").and_then(|p| p.as_str()) == Some(".history/historian.db") {
-            backend["path"] = serde_yaml::Value::String("history/historian.db".into());
-            changed = true;
-        }
-    }
-    if !changed {
-        return;
-    }
-    match serde_yaml::to_string(&doc) {
-        Ok(updated) => {
-            if let Err(e) = crate::router::scrivi_atomico_sync(&yaml_path, updated.as_bytes()) {
-                warn!("migrate_legacy_sqlite_path: write {}: {e}", yaml_path.display());
-            }
-        }
-        Err(e) => warn!("migrate_legacy_sqlite_path: serialize {}: {e}", yaml_path.display()),
+    #[test]
+    fn dentro_radice_nuovo_accetta_solo_un_nome_semplice_sotto_un_genitore_esistente() {
+        let tmp = tempfile::tempdir().unwrap();
+        let radice = tmp.path().join("progetti");
+        std::fs::create_dir_all(&radice).unwrap();
+        assert!(dentro_radice_nuovo(&radice, &radice.join("nuova")).is_ok());
+        assert!(dentro_radice_nuovo(&radice, &radice.join("manca/nuova")).is_err(), "genitore inesistente");
+        assert!(dentro_radice_nuovo(&radice, &tmp.path().join("nuova")).is_err(), "genitore fuori");
+        assert!(dentro_radice_nuovo(&radice, &radice.join("..")).is_err());
     }
 }
-
-#[allow(unused_imports)]
-use PathBuf as _; // keep PathBuf import discoverable for future extensions

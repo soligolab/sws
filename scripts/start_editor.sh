@@ -48,7 +48,9 @@ else
 fi
 
 CONFIG_DIR="$RUN_DIR/config"
-PROJECTS_ROOT="$RUN_DIR/projects"
+# Q46: la stessa chiave che il runtime legge da solo. Se non la imposti, lo stack
+# di sviluppo tiene i progetti in .run*/projects come sempre (gitignored).
+PROJECTS_ROOT="${SWS_PROJECTS_ROOT:-$RUN_DIR/projects}"
 TEMPLATES_ROOT="$REPO_ROOT/examples/templates"
 LOG_DIR="$RUN_DIR/logs"
 

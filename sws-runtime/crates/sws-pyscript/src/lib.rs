@@ -32,6 +32,39 @@ use serde::Serialize;
 use sws_core::{TagDb, TagQuality, TagValue, TagWriteBus};
 use tokio::runtime::Handle;
 use tokio::sync::mpsc;
+
+/// `TagValue` → oggetto Python. Una sola conversione per i quattro tipi: prima
+/// la stessa `match` viveva in due punti del file, e ogni cambio di API pyo3
+/// andava fatto due volte (pyo3 0.25: `into_py` è sparito a favore di
+/// `IntoPyObject`, che può fallire — qui non fallisce mai per scalari, e
+/// l'`expect` lo dichiara invece di nasconderlo in un `unwrap`).
+fn tag_value_to_py(py: Python<'_>, v: &TagValue) -> Py<PyAny> {
+    use pyo3::IntoPyObject;
+    match v {
+        TagValue::Bool(b)  => b.into_pyobject(py).expect("bool → Python non fallisce").to_owned().into_any().unbind(),
+        TagValue::Int(i)   => i.into_pyobject(py).expect("i64 → Python non fallisce").into_any().unbind(),
+        TagValue::Float(f) => f.into_pyobject(py).expect("f64 → Python non fallisce").into_any().unbind(),
+        TagValue::Str(s)   => s.as_str().into_pyobject(py).expect("str → Python non fallisce").into_any().unbind(),
+    }
+}
+
+/// `serde_json::Value` → oggetto Python, scalari soli: array/oggetti/null
+/// diventano la loro resa testuale, così lo script vede *qualcosa* (il contratto
+/// dei parametri delle funzioni è già validato lato server come scalari).
+fn json_to_py(py: Python<'_>, v: &serde_json::Value) -> Py<PyAny> {
+    use pyo3::IntoPyObject;
+    let s: String = match v {
+        serde_json::Value::Bool(b) => return b.into_pyobject(py).expect("bool").to_owned().into_any().unbind(),
+        serde_json::Value::Number(n) => {
+            if let Some(i) = n.as_i64() { return i.into_pyobject(py).expect("i64").into_any().unbind(); }
+            if let Some(f) = n.as_f64() { return f.into_pyobject(py).expect("f64").into_any().unbind(); }
+            n.to_string()
+        }
+        serde_json::Value::String(t) => t.clone(),
+        other => other.to_string(),
+    };
+    s.as_str().into_pyobject(py).expect("str").into_any().unbind()
+}
 use tracing::{debug, info, warn};
 
 const DEFAULT_TIMEOUT_MS: u64 = 5_000;
@@ -148,24 +181,11 @@ impl Notifier {
 impl TagApi {
     /// Read the current value of `id`. Returns the Python-native type
     /// matching the tag's `TagValue` variant, or None if the tag is unknown.
-    // `into_py` è deprecata da pyo3 0.23 in favore di `into_pyobject`.
-    //
-    // Deciso il 2026-08-25: **si migra quando si aggiorna pyo3**, non prima.
-    // Oggi è solo un avviso di deprecazione su una API che funziona; migrare
-    // adesso significherebbe toccare ogni conversione di questo file senza
-    // ottenere niente, e rifarlo comunque all'aggiornamento. `#[allow]` qui
-    // sotto tiene il rumore fuori dalla build nel frattempo.
-    #[allow(deprecated)]
-    fn read(&self, py: Python<'_>, id: &str) -> Option<PyObject> {
+    fn read(&self, py: Python<'_>, id: &str) -> Option<Py<PyAny>> {
         let db = self.db.clone();
         let id_owned = id.to_string();
-        let state = py.allow_threads(|| self.handle.block_on(async move { db.get(&id_owned).await }))?;
-        Some(match state.value {
-            TagValue::Bool(b)  => b.into_py(py),
-            TagValue::Int(i)   => i.into_py(py),
-            TagValue::Float(f) => f.into_py(py),
-            TagValue::Str(s)   => s.into_py(py),
-        })
+        let state = py.detach(|| self.handle.block_on(async move { db.get(&id_owned).await }))?;
+        Some(tag_value_to_py(py, &state.value))
     }
 
     /// Write `value` into the tag. Routes through `TagWriteBus` if a plugin
@@ -183,7 +203,7 @@ impl TagApi {
         let db = self.db.clone();
         let bus = self.bus.clone();
         let id_owned = id.to_string();
-        py.allow_threads(|| {
+        py.detach(|| {
             self.handle.block_on(async move {
                 // Q27: stesso contratto del PUT — allo script arriva un
                 // ValueError col motivo, non una scrittura del tipo sbagliato.
@@ -349,7 +369,7 @@ impl Engine {
                 // `debug` e non `warn`: l'errore torna comunque al chiamante, e
                 // **tutti e due** i chiamanti lo mostrano già.
                 // `global_scripts::exec_once` lo registra a ERROR (strozzato per
-                // ripetizione), e `POST /api/script/exec` lo restituisce nella
+                // ripetizione), e `POST /api/script/run/:name` lo restituisce nella
                 // risposta HTTP, dove l'IDE lo mette sotto gli occhi di chi ha
                 // premuto il pulsante.
                 //
@@ -407,21 +427,15 @@ exec(compile(__tree, '<expr>', 'exec'), globals())
 /// Supports both single-line expressions and multi-line code blocks (see
 /// `EVAL_HARNESS`). The last expression or if/else branch value is used as
 /// the result. Runs in a `spawn_blocking` thread.
-#[allow(deprecated)]
 pub async fn eval_expression(
     expr: String,
     snapshot: std::collections::HashMap<String, TagValue>,
 ) -> Result<TagValue, String> {
     let work = tokio::task::spawn_blocking(move || {
-        Python::with_gil(|py| -> Result<TagValue, String> {
+        Python::attach(|py| -> Result<TagValue, String> {
             let tags_dict = PyDict::new(py);
             for (k, v) in &snapshot {
-                let py_v: PyObject = match v {
-                    TagValue::Bool(b)  => b.into_py(py),
-                    TagValue::Int(i)   => i.into_py(py),
-                    TagValue::Float(f) => f.into_py(py),
-                    TagValue::Str(s)   => s.clone().into_py(py),
-                };
+                let py_v: Py<PyAny> = tag_value_to_py(py, v);
                 tags_dict.set_item(k, py_v).map_err(|e| e.to_string())?;
             }
             let globals = PyDict::new(py);
@@ -461,7 +475,7 @@ pub async fn eval_expression(
 }
 
 fn probe_restricted_python() -> bool {
-    Python::with_gil(|py| py.import("RestrictedPython").is_ok())
+    Python::attach(|py| py.import("RestrictedPython").is_ok())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -485,7 +499,7 @@ fn run_in_python(
         kf.store(true, Ordering::Relaxed);
     });
 
-    Python::with_gil(|py| -> PyResult<ExecOutput> {
+    Python::attach(|py| -> PyResult<ExecOutput> {
         let api          = Py::new(py, TagApi { db, bus, handle })?;
         let notifier     = Py::new(py, Notifier { tx: telegram_tx })?;
         let kill_switch  = Py::new(py, KillSwitch { flag: kill_flag })?;
@@ -516,32 +530,20 @@ fn run_in_python(
 
         Ok(ExecOutput { stdout, stderr, sandboxed: sandbox })
     })
-    .map_err(|e| Python::with_gil(|py| e.value(py).to_string()))
+    .map_err(|e| Python::attach(|py| e.value(py).to_string()))
 }
 
 /// Convert a `serde_json::Map` into a Python dict whose values use the
 /// natural Python type for each scalar (bool / int / float / str). Lists,
 /// nested objects and null all collapse to their string form — we expect
 /// the function param contract to be scalars-only (validated server-side).
-#[allow(deprecated)]
 fn json_map_to_pydict<'py>(
     py: Python<'py>,
     map: &serde_json::Map<String, serde_json::Value>,
 ) -> PyResult<Bound<'py, PyDict>> {
     let out = PyDict::new(py);
     for (k, v) in map {
-        let py_v: PyObject = match v {
-            serde_json::Value::Bool(b)   => b.into_py(py),
-            serde_json::Value::Number(n) => {
-                if let Some(i) = n.as_i64() { i.into_py(py) }
-                else if let Some(f) = n.as_f64() { f.into_py(py) }
-                else { n.to_string().into_py(py) }
-            }
-            serde_json::Value::String(s) => s.clone().into_py(py),
-            // Null / array / object — fall back to a string rendering so the
-            // function script can still see *something*.
-            other => other.to_string().into_py(py),
-        };
+        let py_v: Py<PyAny> = json_to_py(py, v);
         out.set_item(k, py_v)?;
     }
     Ok(out)
@@ -721,7 +723,7 @@ fn check_in_python(sandbox: bool, code: String) -> CheckOutput {
         };
     }
 
-    let r = Python::with_gil(|py| -> PyResult<CheckOutput> {
+    let r = Python::attach(|py| -> PyResult<CheckOutput> {
         let globals = PyDict::new(py);
         globals.set_item("__sws_user_source__", &code)?;
         globals.set_item("__sws_sandbox__", sandbox)?;
@@ -753,7 +755,7 @@ fn check_in_python(sandbox: bool, code: String) -> CheckOutput {
     });
 
     r.unwrap_or_else(|e| {
-        let msg = Python::with_gil(|py| e.value(py).to_string());
+        let msg = Python::attach(|py| e.value(py).to_string());
         CheckOutput {
             ok: false, sandbox_verificata: false,
             rilievi: vec![CheckRilievo {

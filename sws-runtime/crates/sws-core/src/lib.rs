@@ -4,7 +4,7 @@ pub mod logbus;
 pub mod project;
 pub mod tag;
 
-pub use alarm::{AlarmCondition, AlarmDb, AlarmDef, AlarmEvent, AlarmSeverity, AlarmState, AlarmTelegramMode, IsaState, ShelvedAlarm, TelegramRouting};
+pub use alarm::{now_ms, AlarmCondition, AlarmDb, AlarmDef, AlarmEvent, AlarmSeverity, AlarmState, AlarmTelegramMode, IsaState, ShelvedAlarm, TelegramRouting};
 pub use geometry::{bbox_of, is_off_page, BBox, CASI_FUORI_PAGINA};
 pub use logbus::{LogBus, LogEvent, DEFAULT_LOG_CAPACITY};
 pub use project::{

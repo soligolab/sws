@@ -1,25 +1,11 @@
 import { useEffect } from "react";
-import { api, getAuthToken } from "@/api/client";
+import { api } from "@/api/client";
 import { useAppStore } from "@/store";
 import type { AlarmState } from "@/types";
 import { buildWsUrl } from "@/ws/wsUrl";
-import { ReconnectingWs } from "@/ws/reconnectingWs";
+import { socketCondiviso } from "@/ws/singletonWs";
 
-let rws: ReconnectingWs | null = null;
-let currentToken: string | null = null;
-
-function getStream(): ReconnectingWs {
-  const token = getAuthToken();
-  if (rws && currentToken !== token) {
-    rws.destroy();
-    rws = null;
-  }
-  if (!rws) {
-    currentToken = token;
-    rws = new ReconnectingWs(() => buildWsUrl("/ws/alarms", "VITE_ALARMS_WS_URL"));
-  }
-  return rws;
-}
+const socket = socketCondiviso(() => buildWsUrl("/ws/alarms", "VITE_ALARMS_WS_URL"));
 
 export function useAlarmStream(): void {
   const setAlarms   = useAppStore((s) => s.setAlarms);
@@ -28,16 +14,14 @@ export function useAlarmStream(): void {
 
   useEffect(() => {
     if (!authToken) {
-      rws?.destroy();
-      rws = null;
-      currentToken = null;
+      socket.chiudi();
       return;
     }
 
     // Prime with a snapshot via HTTP, then subscribe to live transitions.
     api.getAlarms().then(setAlarms).catch(() => {});
 
-    const stream = getStream();
+    const stream = socket.prendi();
 
     const onMessage = (ev: MessageEvent) => {
       try {

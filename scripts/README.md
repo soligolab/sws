@@ -40,6 +40,16 @@ In entrambi i casi il motore gira per intero: anche l'editor sul PC apre le
 sorgenti del progetto che carica, valuta gli allarmi e manda le notifiche. Non è un
 «editor spento» — vedi `OPEN_QUESTIONS.md` Q8.
 
+## Dove stanno i progetti (Q46)
+
+Il runtime legge `--projects-root`, oppure la variabile `SWS_PROJECTS_ROOT`; senza né
+l'uno né l'altra usa **`~/sws_projects`** — fuori dal repo, così un clone pulito non porta
+con sé i progetti di qualcuno e un `git clean` non li cancella. Il selettore di cartelle
+della WelcomeScreen, «nuova cartella» e `parent_path` non escono da lì.
+
+I due script di sviluppo qui sotto passano `.run/projects` e `.run-editor/projects`
+(gitignored) come sempre; se imposti `SWS_PROJECTS_ROOT` nell'ambiente la usano.
+
 ## `start_runtime.sh` — runtime sul dispositivo
 
 Avvia il binario Rust con **tutte e tre** le porte:

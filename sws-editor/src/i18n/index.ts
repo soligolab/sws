@@ -37,6 +37,4 @@ export function setUiLang(code: string): void {
   void i18n.changeLanguage(code);
 }
 
-export function getUiLang(): string { return i18n.language; }
-
 export default i18n;

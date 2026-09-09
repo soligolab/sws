@@ -18,70 +18,11 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use futures_util::{SinkExt, StreamExt};
-use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
-use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
-use rustls::{DigitallySignedStruct, SignatureScheme};
 use tokio_tungstenite::tungstenite::Message as TMsg;
 use crate::router::AppState;
 
 // ── TLS verifier that accepts any cert (PoC only — trusted LAN) ──────────────
 
-#[derive(Debug)]
-struct AcceptAnyCert;
-
-impl ServerCertVerifier for AcceptAnyCert {
-    fn verify_server_cert(
-        &self,
-        _end: &CertificateDer<'_>,
-        _chain: &[CertificateDer<'_>],
-        _name: &ServerName<'_>,
-        _ocsp: &[u8],
-        _now: UnixTime,
-    ) -> Result<ServerCertVerified, rustls::Error> {
-        Ok(ServerCertVerified::assertion())
-    }
-
-    fn verify_tls12_signature(
-        &self,
-        _msg: &[u8],
-        _cert: &CertificateDer<'_>,
-        _dss: &DigitallySignedStruct,
-    ) -> Result<HandshakeSignatureValid, rustls::Error> {
-        Ok(HandshakeSignatureValid::assertion())
-    }
-
-    fn verify_tls13_signature(
-        &self,
-        _msg: &[u8],
-        _cert: &CertificateDer<'_>,
-        _dss: &DigitallySignedStruct,
-    ) -> Result<HandshakeSignatureValid, rustls::Error> {
-        Ok(HandshakeSignatureValid::assertion())
-    }
-
-    fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
-        vec![
-            SignatureScheme::RSA_PKCS1_SHA256,
-            SignatureScheme::RSA_PKCS1_SHA384,
-            SignatureScheme::RSA_PKCS1_SHA512,
-            SignatureScheme::ECDSA_NISTP256_SHA256,
-            SignatureScheme::ECDSA_NISTP384_SHA384,
-            SignatureScheme::ECDSA_NISTP521_SHA512,
-            SignatureScheme::RSA_PSS_SHA256,
-            SignatureScheme::RSA_PSS_SHA384,
-            SignatureScheme::RSA_PSS_SHA512,
-            SignatureScheme::ED25519,
-        ]
-    }
-}
-
-fn make_tls_config() -> Arc<rustls::ClientConfig> {
-    let config = rustls::ClientConfig::builder()
-        .dangerous()
-        .with_custom_certificate_verifier(Arc::new(AcceptAnyCert))
-        .with_no_client_auth();
-    Arc::new(config)
-}
 
 // ── Handler ───────────────────────────────────────────────────────────────────
 
@@ -118,7 +59,8 @@ pub async fn ws_relay_handler(
             return StatusCode::NOT_FOUND.into_response();
         }
     };
-    ws.on_upgrade(move |local| run_relay(local, target, sub))
+    let certificati = s.certificati.clone();
+    ws.on_upgrade(move |local| run_relay(local, target, sub, certificati))
 }
 
 /// Codice di chiusura per «il remoto ha risposto, ma quella rotta non c'è».
@@ -131,6 +73,8 @@ pub async fn ws_relay_handler(
 /// si apriva — e quell'apertura azzerava l'attesa crescente del client — mentre
 /// quello verso il pannello moriva subito.
 const CHIUSURA_ROTTA_ASSENTE: u16 = 4404;
+/// Q49: l'impronta del certificato del dispositivo non è quella memorizzata.
+const CHIUSURA_CERTIFICATO_CAMBIATO: u16 = 4495;
 
 /// Chiude il socket locale dicendo **perché**, invece di lasciarlo cadere.
 ///
@@ -234,6 +178,16 @@ async fn fallito(
         chiudi_spiegando(local, CHIUSURA_ROTTA_ASSENTE, accorcia(breve)).await;
         return;
     }
+    // Q49: impronta del certificato diversa da quella memorizzata. Definitivo
+    // come un 404: riprovare fra un secondo non cambia il certificato; serve
+    // il gesto umano di «Connetti» → «dimentica il certificato».
+    if crate::certificati::e_certificato_cambiato(&format!("{e:?}")) {
+        tracing::warn!(url = %remote_url,
+            "ws relay: certificato del dispositivo cambiato, non ritento — usa «dimentica il certificato» in Connetti");
+        chiudi_spiegando(local, CHIUSURA_CERTIFICATO_CAMBIATO,
+            "certificato del dispositivo cambiato: dimenticalo da Connetti e ricollega".to_string()).await;
+        return;
+    }
     tracing::warn!(url = %remote_url, "ws relay: collegamento fallito (riprovo): {e}");
     // Chiusura normale: per il client è un guasto passeggero e ritenta.
     chiudi_spiegando(local, 1011, accorcia(format!("{e}"))).await;
@@ -243,6 +197,7 @@ async fn run_relay(
     local: WebSocket,
     target: crate::remote::RemoteTarget,
     sub: String,
+    certificati: Arc<crate::certificati::ImprontaStore>,
 ) {
     // Build the remote WS URL. Tokens are UUID strings (hex + hyphens) — no
     // percent-encoding needed. If the token is empty the remote is in no-auth
@@ -257,9 +212,11 @@ async fn run_relay(
         format!("{ws_scheme}://{host_path}/ws/{sub}?token={}", target.token)
     };
 
-    // For wss:// targets use the accept-any-cert TLS connector (PoC / trusted LAN).
+    // Q49: per wss:// la fiducia è per impronta, la stessa che ha memorizzato
+    // «Connetti» — non «accetta tutto» come fino al 2026-09-09.
     let remote = if ws_scheme == "wss" {
-        let tls = make_tls_config();
+        let host_port = crate::certificati::host_port_da_url(&target.url).unwrap_or_else(|| host_path.to_string());
+        let tls = Arc::new(crate::certificati::client_config_pinnato(&host_port, certificati));
         let connector = tokio_tungstenite::Connector::Rustls(tls);
         match tokio_tungstenite::connect_async_tls_with_config(
             &remote_url,

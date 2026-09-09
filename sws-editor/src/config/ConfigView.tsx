@@ -6401,7 +6401,9 @@ function ResourcesTab() {
                 </div>
                 <div style={{ display: "flex", gap: 8 }}>
                   {(["#64748b", "#22c55e", "#ef4444"] as const).map((color, i) => {
-                    const { viewBox, inner } = parseSvg(sym.svg!);
+                      // Stessa sanificazione del canvas: questo pannello la saltava, e un
+                      // simbolo appena incollato finiva nel DOM così com'era.
+                    const { viewBox, inner } = parseSvg(sanitizeSvg(sym.svg!));
                     const colored = (sym.colorable_ids ?? []).length > 0
                       ? applyStateColor(inner, sym.colorable_ids!, color) : inner;
                     return (
@@ -8109,6 +8111,11 @@ function RuntimeConnectionTab() {
   const [targetPass, setTargetPass] = useState(() => localStorage.getItem(RT_PASS_KEY) ?? "");
   const [status, setStatus]         = useState<"idle" | "connecting" | "connected" | "error">("idle");
   const [statusMsg, setStatusMsg]   = useState<string | null>(null);
+  // Q49: «Connetti» si è fermato perché il certificato del dispositivo non è
+  // quello memorizzato. Il pulsante che segue è l'unico modo di andare avanti,
+  // ed è un gesto umano: la fiducia non si rinnova da sola.
+  const [certificatoCambiato, setCertificatoCambiato] = useState(false);
+  const [dimenticandoCert, setDimenticandoCert] = useState(false);
   const [deployLog, setDeployLog]   = useState<string[]>([]);
   const [deploying, setDeploying]   = useState(false);
   const [deployDone, setDeployDone] = useState(false);
@@ -8231,6 +8238,22 @@ function RuntimeConnectionTab() {
     window.dispatchEvent(new CustomEvent("sws:runtime-disconnected"));
   }, [setRemoteConnected]);
 
+  const handleDimenticaCertificato = async () => {
+    const host = (() => { try { return new URL(target).hostname; } catch { return ""; } })();
+    if (!host) return;
+    setDimenticandoCert(true);
+    try {
+      const r = await api.remoteCertForget(host);
+      setStatusMsg(r.messaggio);
+      setCertificatoCambiato(false);
+      await handleConnect();
+    } catch (e: any) {
+      setStatusMsg(String(e?.message ?? e));
+    } finally {
+      setDimenticandoCert(false);
+    }
+  };
+
   const handleConnect = async () => {
     if (!target) { setStatusMsg("Inserisci l'URL del runtime."); return; }
     saveForm();
@@ -8241,6 +8264,7 @@ function RuntimeConnectionTab() {
       const user = targetUser.trim() || undefined;
       const pass = targetPass || undefined;
       const result = await api.remoteConnect(target, user, pass);
+      setCertificatoCambiato(result.azione === "certificato-cambiato");
       if (!result.ok) throw new Error(result.error ?? "Connessione fallita");
       setStatus("connected");
       // La nota dice cosa è successo quando è riuscita ma non come chiedevi:
@@ -8908,6 +8932,16 @@ function RuntimeConnectionTab() {
         {status === "error" && (
           <span style={{ color: "var(--brand-danger-soft, #fca5a5)", fontSize: 13, whiteSpace: "pre-wrap" }}>✗ {statusMsg}</span>
         )}
+          {status === "error" && certificatoCambiato && (
+            <div style={{ marginTop: 8 }}>
+              <button
+                style={{ ...BTN_PRIMARY, opacity: dimenticandoCert ? 0.6 : 1 }}
+                disabled={dimenticandoCert}
+                onClick={() => void handleDimenticaCertificato()}>
+                {dimenticandoCert ? t("cfg.certForgetting") : t("cfg.certForget")}
+              </button>
+            </div>
+          )}
         {status !== "error" && statusMsg && (
           <span style={{ color: "var(--brand-danger-soft, #fca5a5)", fontSize: 12, display: "block", marginTop: 4, whiteSpace: "pre-wrap" }}>{statusMsg}</span>
         )}

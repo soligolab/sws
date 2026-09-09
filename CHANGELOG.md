@@ -11,6 +11,82 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+> Ramo `chore/revisione-pre-2.7.0` — la revisione generale prima della 2.7.0. Referto
+> completo in `docs/plans/2026-09-09-revisione-pre-2.7.0.md`; le decisioni aperte sono
+> Q46–Q49. Non ancora su `main`.
+
+### Il certificato del dispositivo si memorizza al primo contatto, e se cambia ci si ferma (Q49)
+
+Fino a oggi l'editor accettava **qualunque** certificato dal runtime remoto: cifratura sì,
+identità no. Ora al primo «Connetti» si memorizza l'impronta SHA-256 in
+`<config>/dispositivi_conosciuti.yaml` — come `known_hosts` per ssh — e le volte dopo si
+pretende la stessa. Se cambia, «Connetti» si ferma spiegando che succede a ogni factory
+reset e offre «Dimentica il vecchio certificato e riprova» (registrato nell'audit); il relay
+dei valori vivi chiude con un codice definitivo invece di ritentare. La firma del
+certificato si verifica davvero; solo la catena no, perché è self-signed. Viewer LVGL e
+broker MQTT restano da fare con lo stesso modulo.
+
+### La cartella dei progetti è dichiarata, sta fuori dal repo, ed è il confine (Q46)
+
+`--projects-root` o `SWS_PROJECTS_ROOT`, default `~/sws_projects`. Il selettore di cartelle
+della WelcomeScreen, «nuova cartella» e `parent_path` non ne escono più: prima
+`browse-dirs` partiva da `$HOME` e accettava qualunque percorso assoluto, senza sessione.
+Il confine si misura dopo `canonicalize`, anche contro i link simbolici. Container e script
+passano il flag esplicito come prima.
+
+### Via `/api/script/exec` (Q47)
+
+Eseguiva Python arbitrario e nessuno lo chiamava più — verificato: non l'editor, non gli
+script di progetto (girano dentro il runtime, non fanno HTTP), non l'assistente. Restano
+`/api/script/run/:name` (funzioni con un nome, dichiarate nel progetto) e
+`/api/script/check` (compila senza eseguire).
+
+### La password SSH non è più leggibile in `ps`, e `user@host` è controllato ovunque
+
+`sshpass -p <password>` metteva la password in chiaro in `ps aux` e in
+`/proc/<pid>/cmdline` per tutta la durata del deploy, leggibile da qualunque utente della
+macchina dell'editor. Ora `sshpass -e` con la password nell'ambiente. E `{user}@{host}` —
+argomento posizionale di ssh, dove un valore che comincia per `-` è un'opzione eseguita
+localmente — è validato in tutti e quattro gli handler che fanno ssh, non solo in
+`ssh-keygen -R`.
+
+### Un nome di tag git che comincia per «-» non è più un'opzione
+
+`git tag -a NAME`, `git push origin NAME`, `git tag -d NAME` con NAME dall'URL e l'unico
+controllo «non vuoto». Ora le regole di `check-ref-format`, e `--` prima dei posizionali.
+
+### I simboli SVG si sanificano passando dal DOM, e il server rifiuta il markup ostile
+
+Cinque regex lasciavano passare `onload=alert(1)` senza virgolette, `xlink:href`,
+`href='javascript:…'`, `<script src=x>` senza chiusura, le animazioni che riscrivono
+`href` — e l'anteprima nel pannello simboli non le chiamava affatto. Ora una lista di
+elementi e attributi ammessi via `DOMParser`, e un 400 dal server per un simbolo con codice
+dentro.
+
+### Dipendenze: 16 → 5 vulnerabilità Rust, 25 → 0 npm
+
+`cargo update`, nove dipendenze dichiarate e mai usate tolte (fra cui `rumqttd`, un broker
+MQTT embedded che nessuna riga di codice menzionava e che portava tre CVE), pyo3 0.23 →
+0.29, vitest 3 → 4. Le cinque che restano sono a monte e non hanno correzione (`rsa` via
+async-opcua, `rustls-webpki` via rumqttc).
+
+### Clippy verde con `-D warnings`: la CI torna a dire qualcosa
+
+43 avvisi, la metà corretti davvero e il resto con un allow motivato accanto. Resta
+`cargo fmt --check`, rosso su ~70 file: un commit a sé dopo il merge.
+
+### Meno copie
+
+L'orologio Unix scritto nove volte in sette crate è `sws_core::now_ms`; le finestre
+staccate condividono sonda e telaio; i tre socket condivisi un solo ciclo di vita; le cinque
+barre di avviso di `App.tsx` un componente; le quattro pagine un solo avvio; login e cambio
+password lo stesso telaio; e due blocchi copiati in `sws-auth` e `backups.rs` sono funzioni.
+
+### Allo spegnimento le sorgenti si chiudono
+
+`stop_all` esisteva e nessuno la chiamava: il processo usciva lasciando ai peer il compito
+di accorgersene (niente DISCONNECT MQTT → il broker pubblicava il Last Will). Ora si chiama.
+
 ## [2.6.6] — 2026-09-09
 
 ### Il pannello LVGL restava congelato dopo ogni riavvio del runtime

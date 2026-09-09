@@ -201,10 +201,5 @@ impl DatastoreBackend {
     }
 }
 
-/// Helper: current Unix timestamp in milliseconds.
-pub fn now_ms() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or(0)
-}
+/// Riesportata da sws-core: un orologio solo per tutto il workspace.
+pub use sws_core::now_ms;
