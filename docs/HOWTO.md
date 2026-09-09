@@ -339,7 +339,7 @@ Varianti:
 ./scripts/build_containers_all.sh                    # solo archivi in dist/, nessun push
 ./scripts/build_containers_all.sh --no-save --push    # solo push, nessun .tar.gz
 ./scripts/build_containers_all.sh --no-rust --push    # riusa i binari già compilati (niente sudo)
-./scripts/build_containers_all.sh --with-lvgl --push  # include anche sws-lvgl-viewer
+./scripts/build_containers_all.sh --no-lvgl --push    # SENZA sws-lvgl-viewer (il viewer c'è per default dal 2026-08-24)
 ./scripts/build_container_x86_64.sh --push            # una sola architettura
 ```
 

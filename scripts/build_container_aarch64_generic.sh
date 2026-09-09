@@ -35,12 +35,13 @@
 #   ./scripts/build_container_aarch64_generic.sh --out DIR       # directory di output (default dist/)
 #   ./scripts/build_container_aarch64_generic.sh --with-lvgl     # include anche sws-lvgl-viewer
 #
-# --with-lvgl è opt-in, non il default: costruisce un secondo strato builder
-# (Containerfile.aarch64-generic-lvgl.builder, clang/libclang/libsdl2-dev in
-# più) e compila anche sws-lvgl-viewer sotto la stessa emulazione QEMU — non
-# ancora provato in questa forma (bindgen contro libclang sotto emulazione è
-# un'incognita in più rispetto al solo sws-runtime). Senza il flag, questo
-# script si comporta esattamente come prima che quel crate esistesse.
+# Il viewer LVGL c'è PER DEFAULT dal 2026-08-24 (WITH_LVGL=1 sotto): costruisce
+# un secondo strato builder (Containerfile.aarch64-generic-lvgl.builder,
+# clang/libclang/libsdl2-dev in più) e compila anche sws-lvgl-viewer sotto la
+# stessa emulazione QEMU. `--with-lvgl` è accettato per compatibilità e non
+# cambia niente; `--no-lvgl` lo toglie ed è l'uscita di sicurezza se una
+# dipendenza del viewer manca. Questo commento diceva il contrario fino al
+# 2026-09-09, e il maintainer si è chiesto perché dovesse chiederlo ogni volta.
 #
 # Requisiti: podman, emulazione QEMU per arm64 registrata sull'host (una
 #            tantum, es. `sudo apt install qemu-user-static` o `sudo podman
