@@ -19,7 +19,7 @@ verificata, e `cargo audit` con le cinque vulnerabilità a monte dichiarate una 
 `.cargo/audit.toml` con il perché — un avviso nuovo fa ancora fallire il job. cargo-audit 0.21 → 0.22
 (la 0.21 non legge più il database degli avvisi), azioni GitHub aggiornate a Node 24, Node 22 per
 l'editor, e le librerie di sistema del README (SDL2, libdrm, FreeType, libclang, python3-dev)
-installate nei job che compilano.
+installate nei job che compilano; cargo-cyclonedx pinnato alla 0.5.9 con la sua interfaccia vera.
 
 ## [2.7.0] — 2026-09-09
 

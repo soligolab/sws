@@ -302,6 +302,12 @@ script di `sws-lvgl-viewer` muore prima di qualunque riga Rust. Aggiunto un pass
 ai due job che compilano (lint e build & test). Se anche questo giro è rosso, serve il registro
 del job: dalla pagina Actions, «Rust lint» → il passo rosso → copiare le ultime righe.
 
+**Secondo giro (`071861a`): lint, build & test, audit e tutto il TypeScript verdi** — le librerie
+di sistema erano la causa. È caduto solo **SBOM**, che partiva per la prima volta: `cargo install
+cargo-cyclonedx` senza versione prende la 0.5.9, dove `--output-file` non esiste. Pinnata la
+0.5.9, `--override-filename sbom`, e l'artefatto raccoglie gli `sbom.json` di tutti i crate
+(provato in locale: 14 file, uno per crate). Aggiunti a `.gitignore`.
+
 **La CI non si può provare in locale**: il verdetto arriva al prossimo push su `main`. Se resta
 rosso, la mail di GitHub dice quale job, e il registro del job dice la riga.
 

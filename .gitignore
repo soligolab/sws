@@ -56,3 +56,6 @@ REMOVED_DOC.md
 /sws-runtime/target-container-aarch64-generic/
 /.cargo-container-aarch64-generic/
 .scratch-check*/
+
+# SBOM CycloneDX generati da `cargo cyclonedx` (CI e prove locali): uno per crate
+sws-runtime/crates/*/sbom.json

@@ -132,13 +132,19 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: sws-runtime
+      # Versione pinnata: senza, `cargo install` prende l'ultima e il passo
+      # dopo eredita un'interfaccia che nessuno ha provato. È successo il
+      # 2026-09-09, la prima volta che questo job è partito: `--output-file`
+      # non esiste nella 0.5 (c'è `--override-filename`), e il job è morto.
+      # La 0.5.9 scrive un `sbom.json` accanto al Cargo.toml di OGNI crate del
+      # workspace, anche con --manifest-path: l'artefatto li raccoglie tutti.
       - name: Install cargo-cyclonedx
-        run: cargo install cargo-cyclonedx --locked
-      - run: cargo cyclonedx --format json --output-file sbom.cdx.json
+        run: cargo install cargo-cyclonedx --version "0.5.9" --locked
+      - run: cargo cyclonedx --format json --override-filename sbom
       - uses: actions/upload-artifact@v5
         with:
           name: sbom-runtime
-          path: sws-runtime/sbom.cdx.json
+          path: sws-runtime/crates/*/sbom.json
 
   # ── TypeScript lint ───────────────────────────────────────────────────────
   ts-lint:
