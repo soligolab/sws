@@ -21,6 +21,7 @@
 7. [Accendere l'assistente IA nell'editor](#7-accendere-lassistente-ia-nelleditor)
 8. [Confrontare a numeri quello che disegna il browser con quello che disegna il pannello](#8-confrontare-a-numeri-quello-che-disegna-il-browser-con-quello-che-disegna-il-pannello)
 9. [Il deploy dell'immagine fallisce dopo un factory reset del dispositivo](#9-il-deploy-dellimmagine-fallisce-dopo-un-factory-reset-del-dispositivo)
+10. [Provare una modifica su un dispositivo senza pubblicare niente](#10-provare-una-modifica-su-un-dispositivo-senza-pubblicare-niente)
 
 ---
 
@@ -770,3 +771,71 @@ ricompare in un'invocazione.
 Il rituale pre-sessione più generale (host key cambiata dopo un re-flash) è in
 [`TEST_SETUPS.md`](TEST_SETUPS.md#procedura-ricorrente-del-maintainer-non-automatizzata).
 Questo capitolo è il caso specifico del deploy container, che ha un rimedio suo dentro l'editor.
+
+---
+
+## 10. Provare una modifica su un dispositivo senza pubblicare niente
+
+Sei su un ramo, hai toccato il Rust, e vuoi vedere se funziona **sul pannello** — non
+pubblicare una release. Il capitolo 5 costruisce e pubblica tutte e tre le immagini: qui ne
+serve una sola, e il registry non va toccato.
+
+### Perché non `--push`
+
+`build_container.sh --push` pubblica **tre** tag, e uno è `latest-arm64`: è il default di
+`install-container.sh --pull` e quello che il deploy dall'IDE usa se lasci «Registry». Puntarlo
+a una build di ramo significa che il prossimo deploy — anche di qualcun altro, anche fra un
+mese — prende in silenzio il tuo esperimento. Per una prova si usa l'**archivio locale**, che
+non lascia tracce fuori da questa macchina.
+
+### La sequenza
+
+```bash
+cd ~/sws                                     # sul tuo ramo, niente da cambiare
+
+# 1. Metti da parte l'archivio della release, se ha la stessa versione.
+#    La build lo SOVRASCRIVE — il nome dipende da `version` in Cargo.toml, non
+#    dal ramo — e nel menu dell'IDE i due sarebbero indistinguibili: stesso
+#    nome, nessuna data. È già successo (2026-07-31, un archivio del giorno
+#    prima finito su un dispositivo).
+V=$(grep -m1 '^version' sws-runtime/Cargo.toml | cut -d'"' -f2)
+mv "dist/sws-runtime-$V-aarch64-image.tar.gz" \
+   "dist/sws-runtime-$V-aarch64-image.tar.gz.rilascio" 2>/dev/null || true
+
+# 2. Una sola immagine, quella del pannello Pixsys. Niente --push.
+./scripts/build_container.sh
+```
+
+Il grosso del tempo è la cross-compilazione Rust per aarch64. Due leve, se ti servono:
+
+- `--no-spa` se hai toccato **solo** il Rust — riusa `sws-editor/dist` com'è;
+- `--no-lvgl` se stai provando qualcosa che col pannello LVGL non c'entra. **Attenzione**: il
+  companion `sws-lvgl-viewer` esce dall'immagine, quindi su un dispositivo che lo usa il
+  container LVGL non parte più. Per una prova sul viewer web va bene; per un progetto LVGL no.
+
+### Il deploy dall'IDE
+
+Nell'IDE: **Runtime → Gestione container → Deploy**, e poi
+
+| Campo | Valore |
+|---|---|
+| Sorgente immagine | **Archivio locale (offline)** — non «Registry (consigliato)» |
+| Immagine | `sws-runtime-<versione>-aarch64-image.tar.gz` |
+| Host | il nome mDNS del pannello (`<modello>-<seriale>.local`) |
+| Utente | `user` — le credenziali limitate; `pixsys` è privilegiato e non va usato qui |
+
+L'archivio viaggia intero via `scp` (~150 MB) e viene caricato sul dispositivo: più lento del
+registry, che manderebbe il solo layer cambiato, ma non pubblica niente.
+
+Se la chiave host è cambiata da un reset, vale il capitolo 9.
+
+### Dopo la prova
+
+```bash
+mv "dist/sws-runtime-$V-aarch64-image.tar.gz.rilascio" \
+   "dist/sws-runtime-$V-aarch64-image.tar.gz"
+```
+
+E un dettaglio che sorprende: `build_container.sh` ricostruisce anche la SPA in
+`sws-editor/dist`, che è la stessa che il tuo editor locale sta servendo. Le correzioni lato
+browser le vedi con un ricaricamento forzato della pagina, senza riavviare niente.

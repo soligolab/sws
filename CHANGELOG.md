@@ -11,6 +11,60 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+> Tutto quanto segue vive sul ramo **`fix/relay-ws-dispositivo`**, non su `main`.
+> Verificato in laboratorio e in parte sul WP630; manca la conferma del maintainer.
+
+### Il pannello LVGL restava congelato dopo ogni riavvio del runtime
+
+Schermo nero con la retroilluminazione accesa, mentre il processo girava al 43%
+di CPU ridisegnando dati di due ore prima. Tre difetti sovrapposti, trovati sul
+WP630: il viewer non riconnetteva il WebSocket (`return` al primo errore, e da
+lì in poi un fotogramma fermo per sempre); il deploy non riavviava il companion,
+che restava sull'immagine precedente — due versioni diverse sullo stesso
+pannello; e `sws-display-apply.sh` faceva `viewer start`, che su un'unit già
+attiva non fa nulla e non lo dice, quindi il progetto nuovo non veniva mai
+caricato. Ora: riconnessione con attesa 1→30 s che alla ripresa **ricarica la
+pagina**, riavvio del companion dopo la sostituzione dell'immagine, e `restart`
+al posto di `start`.
+
+### I valori vivi di un pannello collegato, e il relay che ritentava per sempre
+
+`/ws/tags` e `/ws/alarms` non erano montati sulla porta di gestione del
+dispositivo — che è quella a cui l'editor si collega — quindi nessun valore vivo
+e 404 a ripetizione, due al secondo. Ora ci sono, autenticati ma non admin-only;
+`/ws/logs` resta fuori di proposito. Il relay distingue un rifiuto definitivo da
+un guasto di rete e lo dice; il client si arrende invece di insistere.
+
+Tre difetti nel dirlo, corretti a loro volta: il messaggio accusava «una versione
+più vecchia dell'editor» anche quando la causa era una scelta deliberata; la resa
+non scattava perché il motivo superava i **123 byte** che un frame di chiusura
+WebSocket ammette (RFC 6455 §5.5), quindi il browser vedeva `1006` e il codice si
+perdeva; e il test che sorvegliava quella dimensione era una tautologia.
+
+### Una variabile nuova spariva se salvavi un'altra sezione
+
+«Creo una variabile pippo, dice di aver salvato, cambio tab e non c'è più». Il
+pannello variabili si risincronizzava sull'**intero** oggetto progetto, che
+cambia identità a ogni salvataggio di qualunque altra sezione: la riga in corso
+di scrittura veniva cancellata e l'indicatore di «non salvato» azzerato, così
+niente avvisava e il salvataggio scriveva onestamente la lista vuota. Ora il
+progetto può sovrascrivere una sezione **ma lo deve chiedere**, con un avviso in
+linea e due pulsanti; finché non si risponde vincono le modifiche locali.
+
+### Il deploy non indovina più perché il browser è spento
+
+«(modalità configurazione?)» era una supposizione, e su un progetto LVGL
+raccontava il falso: il browser è disabilitato apposta. Ora si guarda
+`display-target` invece di tirare a indovinare, e i comandi di diagnosi
+avvertono di lanciarli come utente `user` — interrogate da root, quelle unit
+rispondono «No entries» e sembrano assenti.
+
+### `docs/HOWTO.md` §10 — provare una modifica sul dispositivo senza pubblicare
+
+Una sola immagine invece di tre, e l'archivio locale al posto del registry:
+`--push` riscriverebbe `latest-arm64`, che è il default del deploy dall'IDE.
+Con la trappola del nome, che prende la versione da `Cargo.toml` e non dal ramo.
+
 ## [2.6.5] — 2026-09-08
 
 ### Una chiave host cambiata ora ferma il deploy, invece di lasciarlo passare

@@ -18,6 +18,14 @@
 #   2. una rotta del deploy che sparisce — e allora il dispositivo torna
 #      inaggiornabile, senza che niente lo dica.
 #
+# Dal 2026-09-08 difende anche un terzo caso, scoperto sul campo: i **flussi
+# WebSocket** `/ws/tags` e `/ws/alarms` non erano montati su questa porta. Non
+# rompevano il deploy, quindi i primi due controlli restavano verdi, ma l'editor
+# collegato al pannello non mostrava un solo valore vivo — e `remote_relay`
+# ritentava per sempre, due volte al secondo, riempiendo il registro di 404. È il
+# tipo di buco che si vede solo su un dispositivo vero: sullo stack di sviluppo
+# la porta admin serve il router completo e le rotte ci sono.
+#
 # Il confronto è con un'istanza **normale** sullo stesso binario, non con un
 # elenco scritto a mano: un elenco invecchia, e un 404 da solo non distingue
 # «rotta assente» da «percorso che ho sbagliato a scrivere».
@@ -97,6 +105,29 @@ for r in "POST /api/script/exec" "GET /api/fs/browse-dirs" "PUT /api/project/tag
         esito no "$u è RAGGIUNGIBILE sulla stretta ($cs): l'IDE è rientrato"
     fi
 done
+
+echo "=== 2b. i flussi che l'editor collegato apre su QUESTA porta ==="
+# L'handshake vero, non una GET: senza gli header di upgrade una rotta WebSocket
+# risponde comunque diverso da 404, e la prova non distinguerebbe «c'è» da «non
+# c'è». 101 = commutato, che è la sola risposta che dimostra la rotta viva.
+ws() { curl -s -o /dev/null -w '%{http_code}' -m 5 \
+         -H 'Connection: Upgrade' -H 'Upgrade: websocket' \
+         -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' \
+         "http://localhost:$1$2"; }
+
+for u in /ws/tags /ws/alarms; do
+    c=$(ws 8597 "$u")
+    [ "$c" = "101" ] && esito ok "$u commuta sulla porta di gestione ($c)" \
+                     || esito no "$u NON c'è sulla porta di gestione ($c): l'editor collegato resta senza valori vivi e il relay ritenta all'infinito"
+done
+
+# `/ws/logs` è escluso di proposito: i log possono contenere segreti e su un
+# dispositivo non stanno su nessuna delle due porte. Se un giorno servisse è una
+# decisione da prendere, non da far scivolare dentro insieme ai tag — quindi qui
+# si pretende che resti fuori.
+c=$(ws 8597 /ws/logs)
+[ "$c" = "404" ] && esito ok "/ws/logs resta fuori dalla porta di gestione (404)" \
+                 || esito no "/ws/logs è comparso sulla porta di gestione ($c): decisione mai presa"
 
 echo "=== 3. la SPA dell'IDE non viene servita ==="
 if [ ${#WWW_ARGS[@]} -eq 0 ]; then

@@ -1146,7 +1146,11 @@
     "usedIn": "Used in",
     "hostKeyChanged": "The host key of {{host}} does not match the one stored on this PC. This happens after every factory reset or reinstall of the panel, which generates new ones. If you just reset the device yourself, you can forget the old key and retry; otherwise stop and check you are talking to the right machine.",
     "hostKeyForget": "Forget the old key and retry",
-    "hostKeyForgetting": "Removing…"
+    "hostKeyForgetting": "Removing…",
+    "sezioneConflitto": "The project changed while you were editing this section.",
+    "sezioneMantieni": "Keep my changes",
+    "sezioneRicarica": "Reload from project",
+    "sezioneConflittoHint": "Until you choose, yours are kept: nothing has been overwritten."
   },
   "langtab": {
     "intro": "Translate the messages you write into objects. In text fields use {{key}}; here you define the translations for each language.",

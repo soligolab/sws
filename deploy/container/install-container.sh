@@ -454,6 +454,30 @@ if [ "$AUTOSTART" -eq 1 ]; then
 
     systemctl --user daemon-reload
     systemctl --user start "$NAME"
+
+    # Il companion LVGL, se sta girando, va RIAVVIATO: il suo quadlet punta
+    # all'immagine appena sostituita, ma un container già avviato continua con
+    # quella vecchia finché qualcuno non lo ferma.
+    #
+    # Misurato sul WP630 il 2026-09-08: dopo l'aggiornamento il runtime girava
+    # sull'immagine nuova e `sws-lvgl-viewer` su quella di due ore prima —
+    # due versioni diverse sullo stesso pannello, e niente lo diceva. In più il
+    # viewer aveva perso il WebSocket quando il runtime è stato sostituito e non
+    # riconnetteva: lo schermo mostrava un fotogramma congelato, con la
+    # retroilluminazione accesa. Un'ora di diagnosi.
+    #
+    # Solo se era già attivo: se il progetto non è LVGL non deve partire ora —
+    # chi decide è `sws-display`, che scatta sul file del progetto.
+    if systemctl --user is-active --quiet sws-lvgl-viewer.service 2>/dev/null; then
+        if systemctl --user restart sws-lvgl-viewer.service 2>/dev/null; then
+            echo "        companion LVGL riavviato sull'immagine nuova"
+        else
+            echo "    ATTENZIONE: companion LVGL non riavviato — resta sull'immagine" >&2
+            echo "                precedente. Sul dispositivo, come utente user:" >&2
+            echo "                systemctl --user restart sws-lvgl-viewer.service" >&2
+        fi
+    fi
+
     if [ "${INSTALL_DISPLAY:-0}" -eq 1 ]; then
         # `enable` e non `start` sulla .path: deve esserci anche dopo un
         # riavvio, ed è il suo scatto — non questo comando — a mandare a
@@ -558,7 +582,21 @@ for i in $(seq 1 30); do
                 echo "                systemctl restart chromium@main-app.service" >&2
             fi
         else
-            echo "    browser del pannello non attivo (modalità configurazione?): non lo tocco"
+            # Non si indovina la causa. La prima stesura scriveva «(modalità
+            # configurazione?)» e il 2026-09-08 ha sviato: il browser era
+            # inattivo perché il progetto è LVGL e PixsysOS 2.1.0 lo tiene
+            # DISABILITATO apposta — configurazione giusta, non un guasto. Un
+            # messaggio che tira a indovinare manda a cercare dalla parte
+            # sbagliata, e costa più del silenzio.
+            if [ "$(cat "$DATA/config/display-target" 2>/dev/null || true)" = "lvgl" ]; then
+                echo "    browser del pannello non attivo: giusto così, il progetto è LVGL"
+                echo "                (lo schermo lo prende sws-lvgl-viewer)"
+            else
+                echo "    browser del pannello non attivo: non lo tocco." >&2
+                echo "                Se lo schermo resta nero, sul dispositivo COME UTENTE user:" >&2
+                echo "                  systemctl status desktop.target" >&2
+                echo "                  systemctl --user status sws-lvgl-viewer sws-display.path" >&2
+            fi
         fi
 
         # La commutazione web/LVGL è viva, o è già morta?

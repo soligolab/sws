@@ -500,6 +500,35 @@ fn ws_url(base_url: &str, path: &str) -> anyhow::Result<String> {
 /// Tre salvataggi in rapida successione devono produrre una ricarica sola.
 pub type ReloadFlag = Arc<std::sync::atomic::AtomicBool>;
 
+/// Attesa fra un tentativo di riconnessione e il successivo: 1 s che raddoppia
+/// fino a 30 s.
+///
+/// **Perché la riconnessione esiste.** Fino al 2026-09-08 questi task facevano
+/// `return` al primo errore: il pannello restava con l'ultimo fotogramma
+/// disegnato, per sempre. Sul WP630 è successo alle 15:17:14, quando
+/// l'installazione ha sostituito il container del runtime — e lo schermo è
+/// rimasto congelato due ore, con la retroilluminazione accesa, mentre il
+/// processo girava al 43% di CPU disegnando dati fermi. Un pannello davanti a
+/// un impianto non ha nessuno che se ne accorga.
+const ATTESA_MIN: std::time::Duration = std::time::Duration::from_secs(1);
+const ATTESA_MAX: std::time::Duration = std::time::Duration::from_secs(30);
+
+fn prossima_attesa(a: std::time::Duration) -> std::time::Duration {
+    let doppia = a.saturating_mul(2);
+    if doppia > ATTESA_MAX { ATTESA_MAX } else { doppia }
+}
+
+type FlussoWs = tokio_tungstenite::WebSocketStream<
+    tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+>;
+
+async fn apri_ws(url: &str) -> anyhow::Result<FlussoWs> {
+    let connector = tokio_tungstenite::Connector::Rustls(insecure_client_config());
+    let (stream, _resp) = tokio_tungstenite::connect_async_tls_with_config(
+        url, None, false, Some(connector)).await?;
+    Ok(stream)
+}
+
 pub async fn spawn_tag_subscription(
     base_url: &str,
 ) -> anyhow::Result<(SharedTagSnapshot, ReloadFlag)> {
@@ -536,22 +565,24 @@ pub async fn spawn_tag_subscription(
     let reload_bg = reload.clone();
 
     // Task in background: vive quanto il runtime tokio (main.rs lo tiene in
-    // vita per tutto il programma). Nessun canale di shutdown esplicito —
-    // il task termina da solo quando la connessione si chiude (es. runtime
-    // fermato) e il processo comunque esce quando si chiude la finestra.
+    // vita per tutto il programma) e **riconnette da solo**. Nessun canale di
+    // shutdown esplicito: il processo esce quando si chiude la finestra.
+    let url_bg = url.clone();
     tokio::spawn(async move {
+        let mut attesa = ATTESA_MIN;
+        loop {
         while let Some(msg) = stream.next().await {
             let msg = match msg {
                 Ok(m) => m,
                 Err(e) => {
-                    eprintln!("[ws] errore su /ws/tags: {e} — interrotto l'aggiornamento live");
-                    return;
+                    eprintln!("[ws] errore su /ws/tags: {e}");
+                    break;
                 }
             };
             let Message::Text(text) = msg else {
                 if matches!(msg, Message::Close(_)) {
-                    eprintln!("[ws] /ws/tags chiuso dal server — interrotto l'aggiornamento live");
-                    return;
+                    eprintln!("[ws] /ws/tags chiuso dal server");
+                    break;
                 }
                 continue;
             };
@@ -586,7 +617,29 @@ pub async fn spawn_tag_subscription(
                 }
             }
         }
-        eprintln!("[ws] connessione /ws/tags terminata — i valori non si aggiorneranno più");
+        // Qui si arriva quando il flusso è finito, in un modo o nell'altro.
+        // Non si esce dal task: si riprova, perché il runtime che è stato
+        // sostituito fra un istante sarà di nuovo lì.
+        eprintln!("[ws] /ws/tags interrotto — riprovo fra {}s", attesa.as_secs());
+        tokio::time::sleep(attesa).await;
+        match apri_ws(&url_bg).await {
+            Ok(nuovo) => {
+                stream = nuovo;
+                attesa = ATTESA_MIN;
+                // Ricaricare la pagina, non solo riprendere i valori: se il
+                // runtime è ripartito è perché qualcosa è cambiato, e molto
+                // spesso è il PROGETTO. Senza questo, il pannello riprenderebbe
+                // ad aggiornare i tag di una pagina che non esiste più — che è
+                // peggio di uno schermo fermo, perché sembra funzionare.
+                eprintln!("[ws] /ws/tags riconnesso — ricarico la pagina");
+                reload_bg.store(true, std::sync::atomic::Ordering::Relaxed);
+            }
+            Err(e) => {
+                eprintln!("[ws] riconnessione a /ws/tags fallita: {e}");
+                attesa = prossima_attesa(attesa);
+            }
+        }
+        }
     });
 
     Ok((shared, reload))
@@ -659,27 +712,42 @@ pub async fn spawn_alarm_subscription(base_url: &str) -> anyhow::Result<SharedAl
 
     let shared: SharedAlarms = Arc::new(Mutex::new(HashMap::new()));
     let shared_bg = shared.clone();
+    let url_bg = url.clone();
     tokio::spawn(async move {
-        while let Some(msg) = stream.next().await {
-            let msg = match msg {
-                Ok(m) => m,
+        let mut attesa = ATTESA_MIN;
+        loop {
+            while let Some(msg) = stream.next().await {
+                let msg = match msg {
+                    Ok(m) => m,
+                    Err(e) => { eprintln!("[ws] errore su /ws/alarms: {e}"); break; }
+                };
+                let Message::Text(text) = msg else {
+                    if matches!(msg, Message::Close(_)) {
+                        eprintln!("[ws] /ws/alarms chiuso dal server");
+                        break;
+                    }
+                    continue;
+                };
+                let Ok(state) = serde_json::from_str::<AlarmStateLite>(&text) else { continue };
+                let mut map = shared_bg.lock().unwrap_or_else(|e| e.into_inner());
+                map.insert(state.def.id.clone(), state);
+            }
+            // Un pannello che smette di mostrare gli allarmi senza dirlo è la
+            // cosa peggiore che possa fare: si riprova, sempre.
+            eprintln!("[ws] /ws/alarms interrotto — riprovo fra {}s", attesa.as_secs());
+            tokio::time::sleep(attesa).await;
+            match apri_ws(&url_bg).await {
+                Ok(nuovo) => {
+                    stream = nuovo;
+                    attesa = ATTESA_MIN;
+                    eprintln!("[ws] /ws/alarms riconnesso");
+                }
                 Err(e) => {
-                    eprintln!("[ws] errore su /ws/alarms: {e} — interrotto l'aggiornamento allarmi");
-                    return;
+                    eprintln!("[ws] riconnessione a /ws/alarms fallita: {e}");
+                    attesa = prossima_attesa(attesa);
                 }
-            };
-            let Message::Text(text) = msg else {
-                if matches!(msg, Message::Close(_)) {
-                    eprintln!("[ws] /ws/alarms chiuso dal server — interrotto l'aggiornamento allarmi");
-                    return;
-                }
-                continue;
-            };
-            let Ok(state) = serde_json::from_str::<AlarmStateLite>(&text) else { continue };
-            let mut map = shared_bg.lock().unwrap_or_else(|e| e.into_inner());
-            map.insert(state.def.id.clone(), state);
+            }
         }
-        eprintln!("[ws] connessione /ws/alarms terminata — gli allarmi non si aggiorneranno più");
     });
 
     Ok(shared)
@@ -707,4 +775,46 @@ pub async fn ack_alarm(base_url: &str, alarm_id: &str) -> anyhow::Result<()> {
         .await?
         .error_for_status()?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests_riconnessione {
+    use super::{prossima_attesa, ATTESA_MAX, ATTESA_MIN};
+    use std::time::Duration;
+
+    #[test]
+    fn raddoppia_e_si_ferma_al_tetto() {
+        let mut a = ATTESA_MIN;
+        let mut viste = vec![a];
+        for _ in 0..10 {
+            a = prossima_attesa(a);
+            viste.push(a);
+        }
+        assert_eq!(viste[0], Duration::from_secs(1));
+        assert_eq!(viste[1], Duration::from_secs(2));
+        assert_eq!(viste[2], Duration::from_secs(4));
+        // Non cresce all'infinito: un pannello deve riprovare spesso abbastanza
+        // da tornare su da solo quando il runtime riparte.
+        assert_eq!(*viste.last().unwrap(), ATTESA_MAX);
+        assert!(viste.iter().all(|d| *d <= ATTESA_MAX));
+    }
+
+    #[test]
+    fn non_va_mai_in_overflow() {
+        // `saturating_mul` e non `*`: una durata enorme moltiplicata per due
+        // andrebbe in panico in debug, e un panico in questo task spegnerebbe
+        // proprio la riconnessione che deve tenere vivo il pannello.
+        assert_eq!(prossima_attesa(Duration::MAX), ATTESA_MAX);
+    }
+
+    #[test]
+    fn il_tetto_e_raggiungibile_in_pochi_tentativi() {
+        // Sei raddoppi da 1 s: 1,2,4,8,16,30. Circa un minuto per arrivare al
+        // ritmo di regime — abbastanza rado da non pesare, abbastanza fitto da
+        // non lasciare uno schermo fermo per ore.
+        let mut a = ATTESA_MIN;
+        let mut n = 0;
+        while a < ATTESA_MAX { a = prossima_attesa(a); n += 1; }
+        assert!(n <= 6, "servono {n} tentativi per arrivare al tetto");
+    }
 }

@@ -1146,7 +1146,11 @@
     "usedIn": "Usata in",
     "hostKeyChanged": "La chiave host di {{host}} non combacia con quella memorizzata su questo PC. Succede a ogni factory reset o reinstallazione del pannello, che se ne genera di nuove. Se hai appena resettato tu il dispositivo, puoi dimenticare la vecchia chiave e riprovare; altrimenti fermati e verifica di stare parlando con la macchina giusta.",
     "hostKeyForget": "Dimentica la vecchia chiave e riprova",
-    "hostKeyForgetting": "Rimozione in corso…"
+    "hostKeyForgetting": "Rimozione in corso…",
+    "sezioneConflitto": "Il progetto è cambiato mentre stavi modificando questa sezione.",
+    "sezioneMantieni": "Tieni le mie modifiche",
+    "sezioneRicarica": "Ricarica dal progetto",
+    "sezioneConflittoHint": "Finché non scegli, restano le tue: non è stato sovrascritto niente."
   },
   "langtab": {
     "intro": "Traduci i messaggi che scrivi negli oggetti. Nei campi testo usa {{chiave}}; qui definisci le traduzioni per ogni lingua.",

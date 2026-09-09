@@ -687,7 +687,11 @@ pub fn build(
 /// deploya. Nessun `/api/script/exec`. Nessuna build dei pacchetti. Nessun
 /// `/api/fs/*` — che sul router completo naviga il filesystem **senza
 /// autenticazione**, per una necessità (la WelcomeScreen al primo avvio) che su
-/// un dispositivo senza IDE non esiste. Nessun `/ws/ai`.
+/// un dispositivo senza IDE non esiste. Nessun `/ws/ai`, e nessun `/ws/logs`:
+/// i log possono contenere segreti e non stanno su nessuna delle due porte del
+/// dispositivo. `/ws/tags` e `/ws/alarms` invece **ci sono** dal 2026-09-08 —
+/// l'editor collegato li apre su questa porta, ed erano l'unica cosa mancante
+/// che nessuno aveva dichiarato.
 ///
 /// # Tutto autenticato, che è più stretto di prima
 ///
@@ -736,6 +740,30 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         .route_layer(middleware::from_fn(require_admin))
         .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
 
+    // ── Flussi in sola lettura (2026-09-08) ────────────────────────────────
+    //
+    // L'editor collegato a un pannello apre `/ws/tags` e `/ws/alarms` **su
+    // questa porta**, perché è quella che gli hai dato in «Connetti». Non
+    // c'erano: `remote_relay` prendeva 404 su ogni tentativo e ritentava per
+    // sempre, due volte al secondo, senza che niente mostrasse valori vivi.
+    // Il difetto non si vedeva sullo stack di sviluppo, dove la porta admin
+    // serve il router completo e le rotte ci sono.
+    //
+    // Autenticati come tutto il resto di questa porta, ma **non** admin-only:
+    // sono gli stessi dati in sola lettura che la porta viewer espone già, e
+    // pretendere l'admin rimetterebbe un editor collegato come operatore
+    // esattamente nel loop che questo blocco chiude. `require_auth` accetta il
+    // token anche in query (`?token=`), che è come un WebSocket lo manda.
+    //
+    // `/ws/logs` resta **fuori**, deliberatamente: i log possono contenere
+    // segreti (URL con credenziali, corpi di richieste) e su un dispositivo non
+    // stanno su nessuna delle due porte. Se un giorno servisse, è una decisione
+    // da prendere, non da far scivolare dentro insieme ai tag.
+    let flussi = Router::new()
+        .route("/ws/tags",   get(ws_tags_handler))
+        .route("/ws/alarms", get(ws_alarms_handler))
+        .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
+
     let aperte = Router::new()
         .route("/health",         get(|| async { "ok" }))
         .route("/metrics",        get(crate::metrics::get_metrics))
@@ -745,7 +773,7 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
     // Lo stato **non** si applica qui: lo fa il chiamante alla fine, insieme al
     // CORS e al contatore HTTP. Applicarlo due volte non compila, e applicarlo
     // qui salterebbe quel tratto comune.
-    aperte.merge(gestione)
+    aperte.merge(gestione).merge(flussi)
 }
 
 fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>, lockdown: bool) -> Router {

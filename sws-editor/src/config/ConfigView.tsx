@@ -73,6 +73,35 @@ import type {
   PackageFile,
   ContainerPackage,
 } from "@/types";
+import { useSezioneSincronizzata } from "@/config/useSezioneSincronizzata";
+
+/** Avviso in linea quando il progetto cambia mentre stai modificando una
+ *  sezione. Due pulsanti e nessun modale: un modale in mezzo al lavoro va
+ *  chiuso per forza, questo si può ignorare — e finché lo si ignora vincono le
+ *  modifiche locali, che è il verso giusto (un avviso che aspetta è
+ *  recuperabile, una riga cancellata no). */
+function BarraConflittoSezione(
+  { sync, t }: { sync: { conflitto: boolean; mantieni: () => void; ricarica: () => void };
+                 t: (k: string) => string },
+) {
+  if (!sync.conflitto) return null;
+  return (
+    <div style={{
+      margin: "8px 0", padding: "8px 10px", borderRadius: 6,
+      background: "var(--brand-warning-bg, #422006)",
+      border: "1px solid var(--brand-warning, #f59e0b)",
+      display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap",
+    }}>
+      <span style={{ fontSize: 12, color: "var(--brand-warning-soft, #fcd34d)" }}>
+        {t("cfg.sezioneConflitto")}{" "}
+        <span style={{ opacity: 0.85 }}>{t("cfg.sezioneConflittoHint")}</span>
+      </span>
+      <span style={{ flex: 1 }} />
+      <button style={S.btn("ghost")} onClick={sync.mantieni}>{t("cfg.sezioneMantieni")}</button>
+      <button style={S.btn("ghost")} onClick={sync.ricarica}>{t("cfg.sezioneRicarica")}</button>
+    </div>
+  );
+}
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -421,9 +450,16 @@ function TagsTab() {
   const [touched, setTouched] = useState(false);
 
   // Depend on the full project object so content changes (not just count) trigger a refresh.
-  useEffect(() => {
-    if (storeProject?.tags) { setTags(storeProject.tags); setTouched(false); }
-  }, [storeProject]);
+  // Vedi `useSezioneSincronizzata`: prima questo effetto dipendeva
+  // dall'INTERO `storeProject`, che cambia identità a ogni salvataggio di
+  // qualunque altra sezione — e cancellava la riga in corso di scrittura
+  // azzerando anche `touched`, così niente avvisava.
+  const sync = useSezioneSincronizzata<TagDef[]>({
+    remoto: storeProject?.tags,
+    applica: (v) => { setTags(v); setTouched(false); },
+    modificato: touched,
+    progetto: storeProject?.meta?.name,
+  });
 
   const addTag = () => {
     setTouched(true);
@@ -890,6 +926,8 @@ function TagsTab() {
           })}
         </tbody>
       </table>
+
+      <BarraConflittoSezione sync={sync} t={t} />
 
       <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
         <button style={S.btn("ghost")} onClick={addTag}>+ Aggiungi variabile</button>
@@ -4246,6 +4284,7 @@ function SparkplugSection({
 // ── PROTOCOLS tab ─────────────────────────────────────────────────────────────
 
 function ProtocolsTab() {
+  const { t }                  = useTranslation();
   const storeProject           = useAppStore((s) => s.project);
   const updateProjectSources   = useAppStore((s) => s.updateProjectSources);
   const updateProjectTags      = useAppStore((s) => s.updateProjectTags);
@@ -4257,9 +4296,18 @@ function ProtocolsTab() {
   // Tags created via QuickCreate inside this tab, pending save.
   const [pendingTags, setPendingTags] = useState<TagDef[]>([]);
 
-  useEffect(() => {
-    if (storeProject?.sources) setSources(storeProject.sources);
-  }, [storeProject?.sources?.length]);
+  // Dipendere dalla sola LUNGHEZZA copriva il caso comune ma non tutti: un
+  // progetto ricaricato con lo stesso numero di sorgenti non si
+  // risincronizzava, e uno con un numero diverso cancellava le modifiche in
+  // corso senza dire niente. Qui «modificato» si deduce dal riferimento:
+  // `applica` assegna proprio l'array dello store, quindi finché nessuno ha
+  // toccato niente i due sono lo stesso oggetto.
+  const sync = useSezioneSincronizzata<SourceDef[]>({
+    remoto: storeProject?.sources,
+    applica: setSources,
+    modificato: sources !== storeProject?.sources,
+    progetto: storeProject?.meta?.name,
+  });
 
   const addModbus = () =>
     setSources((prev) => [...prev, emptyModbus()]);
@@ -4337,6 +4385,7 @@ function ProtocolsTab() {
         saved={saved}
         savedNotice="✓ Salvato — sorgenti ricollegate al volo."
       />
+      <BarraConflittoSezione sync={sync} t={t} />
       <div style={S.sectionTitle}>SORGENTI DATI / PROTOCOLLI</div>
       <div style={S.notice}>
         Configura le connessioni ai dispositivi di campo. Supportati: <strong>Modbus TCP</strong>
@@ -4514,9 +4563,12 @@ function AlarmsTab() {
   // 2026-07-28 che aveva fatto escludere entrambe le tab da "Salva tutto".
   const [touched, setTouched] = useState(false);
 
-  useEffect(() => {
-    if (storeProject?.alarms) { setAlarms(storeProject.alarms); setTouched(false); }
-  }, [storeProject?.alarms?.length]);
+  const sync = useSezioneSincronizzata<AlarmDef[]>({
+    remoto: storeProject?.alarms,
+    applica: (v) => { setAlarms(v); setTouched(false); },
+    modificato: touched,
+    progetto: storeProject?.meta?.name,
+  });
 
   const addAlarm = () => {
     setTouched(true);
@@ -4854,6 +4906,8 @@ function AlarmsTab() {
           })}
         </tbody>
       </table>
+
+      <BarraConflittoSezione sync={sync} t={t} />
 
       <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
         <button style={S.btn("ghost")} onClick={addAlarm}>+ Aggiungi allarme</button>
@@ -8502,7 +8556,16 @@ function RuntimeConnectionTab() {
         headers: authToken ? { "Authorization": `Bearer ${authToken}` } : {},
       });
       if (!res.ok || !res.body) {
-        throw new Error(`Deploy fallito: ${res.status} ${res.statusText}`);
+        // Il corpo è dove il server mette la frase utile: «Un deploy è già in
+        // corso», «Nessun runtime remoto connesso», «Nessun progetto attivo».
+        // Buttarlo via lasciava a schermo un «409 Conflict» che non dice niente
+        // a nessuno — successo il 2026-09-08, e la diagnosi è costata più della
+        // causa. Lo stato resta, in coda: serve a chi legge un registro.
+        const dett = await res.text().catch(() => "");
+        const spiegazione = dett.trim();
+        throw new Error(spiegazione
+          ? `Deploy fallito: ${spiegazione} (${res.status})`
+          : `Deploy fallito: ${res.status} ${res.statusText}`);
       }
       const reader = res.body.getReader();
       const dec = new TextDecoder();

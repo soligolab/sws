@@ -222,7 +222,21 @@ case "$VOLUTO" in
         # Solo `chromium@main-app`: `chromium@wp-control` è la via alla
         # configurazione e non si tocca mai.
         browser_spegni
-        viewer start
+        # `restart` e non `start`: questo script scatta quando `display-target`
+        # cambia, e cambia perché è cambiato il PROGETTO. Con `start` un viewer
+        # già in esecuzione resta con il progetto di prima — `systemctl start`
+        # su un'unit attiva non fa nulla e non lo dice.
+        #
+        # Misurato sul WP630 il 2026-09-08: alle 15:20 questo script ha
+        # scritto «il progetto chiede LVGL … fatto: lvgl» mentre il viewer
+        # continuava a mostrare quello caricato due ore prima, i cui file
+        # nel frattempo erano stati cancellati. Successo dichiarato, schermo
+        # fermo: il modo più caro di sbagliare.
+        #
+        # Il prezzo è un lampo dello schermo quando il file viene riscritto
+        # senza che il progetto sia cambiato. Si paga volentieri: uno schermo
+        # che sfarfalla si vede, uno che mente no.
+        viewer restart
         ;;
     web)
         log "il progetto chiede il web"

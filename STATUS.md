@@ -62,6 +62,60 @@
 
 ## ▶ Da fare nella prossima sessione
 
+### 🌙 Dove riprendere (2026-09-08 sera)
+
+**Il lavoro sta su due rami, `main` è pulito e allineato a origin.** La 2.6.5 è
+taggata e pushata; tutto quello che è venuto dopo **non è ancora su origin**.
+
+```bash
+git checkout fix/relay-ws-dispositivo     # f30d2ba — 7 commit
+git checkout fix/testo-riquadro           # 5b59b41 — 1 commit
+```
+
+| Ramo | Cosa contiene | Come si prova |
+|---|---|---|
+| `fix/relay-ws-dispositivo` | WebSocket sulla porta di gestione, relay che si arrende, i tre difetti del pannello LVGL, la variabile che spariva, HOWTO §10 | serve una **nuova immagine** sul WP630 per la parte LVGL; il resto si prova con l'editor locale |
+| `fix/testo-riquadro` | il testo che compariva fuori dal suo riquadro | solo editor, nessun dispositivo |
+
+`cargo check --workspace`, `pnpm build`, `pnpm test` (189) e le 13 guardie
+statiche sono verdi su entrambi. **Nessuno dei due è confermato dal maintainer**:
+è il passo che manca prima del merge su `main` e di una 2.6.6.
+
+#### Le prove che aspettano
+
+1. **La variabile che spariva** — ricaricare forzando la pagina (il bundle è
+   cambiato), aggiungere una variabile, salvare le **Sorgenti**, tornare alle
+   variabili: la riga deve esserci ancora, con la barra gialla che chiede cosa
+   fare. Prima spariva in silenzio.
+2. **Il pannello LVGL** — deploy di un'immagine costruita dal ramo con un
+   progetto LVGL attivo: il companion deve **ripartire da solo** e mostrare il
+   progetto NUOVO. La procedura per costruire una sola immagine senza pubblicare
+   è in [`docs/HOWTO.md` §10](docs/HOWTO.md).
+3. **Il testo nel riquadro** — trascinare una maniglia su un testo: diventa un
+   riquadro vero e le lettere ci stanno dentro.
+4. **Sandokan / MQTT** — solo a casa, il progetto è rimasto rotto apposta.
+5. **Q38** (materializzazione ratio) e **Q37** (cornice del pannello).
+
+#### Lo stato del WP630, che non è pulito
+
+Ci ho lavorato in SSH con il permesso del maintainer. Sul pannello adesso:
+
+- runtime `localhost/sws-runtime:2.6.5-arm64` (build da `main`, installazione
+  **pulita**: progetti, configurazione e storico azzerati);
+- `sws-lvgl-viewer` **riavviato a mano** alle 17:15 — prima girava ancora
+  sull'immagine di due ore prima. Le correzioni che lo riguardano **non sono
+  ancora sul dispositivo**: servono una nuova immagine e un nuovo deploy;
+- il progetto caricato ha una pagina con **un solo oggetto testo**, quindi lo
+  schermo è quasi vuoto anche quando funziona. Resta da confermare se il nero
+  visto era il congelamento o se c'è dell'altro fra LVGL e Weston.
+
+Ambiente del pannello, misurato: `desktop.target` attivo, Weston con
+`xwayland=true`, il viewer connesso davvero a Xwayland (4 socket X11),
+`card1-LVDS-1` a 1920×1080 — coerente con la geometria SDL2. Il browser
+disabilitato è corretto: è la funzione nuova di PixsysOS 2.1.0 per i progetti
+LVGL. **Le unit sono `systemctl --user` dell'utente `user`**: interrogate da
+root rispondono «No entries» e sembrano assenti — ci si perde mezz'ora.
+
 ### 🎯 Rilasciata la 2.6.5 — pronta da compilare e installare (2026-09-08)
 
 `main` contiene tutto: il lavoro notturno (`fix/mqtt-topic-vuoto`, squash) più
