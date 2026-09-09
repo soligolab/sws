@@ -1525,6 +1525,51 @@ archiviare.
 
 ---
 
+## Q50 — I dispositivi registrati: dal browser al server, e popolati dal discovery mDNS
+
+*Aperta il 2026-09-09 su proposta del maintainer. Nessuna decisione presa.*
+
+**Context.** Configurazione → Dispositivi (T-24) tiene la lista dei pannelli in `localStorage`
+(`sws.saved-devices`): del browser, non del progetto né dell'installazione. Su un altro PC, o
+dopo aver svuotato il profilo, la lista è vuota. Si compila solo a mano, un modulo per
+dispositivo, mentre Configurazione → Runtime → «Cerca runtime» **trova già** i pannelli via mDNS
+(`_sws._tcp`, `discover.rs`: hostname stabile, `admin_url`, versione, se è in container) e li
+butta via dopo averne usato uno. Il maintainer: «quando fai il discovery vorrei poter aggiungere
+il dispositivo alla lista» e «la lista sarebbe da valutare se salvarla in `~/sws_projects`».
+Dalla stessa giornata la lista **non porta più la password** (regola «nessuna password nel
+browser»): spostarla lato server non riapre quel tema, purché il file non la contenga.
+
+**Options.**
+1. **Lista sul server, nella cartella di configurazione** (`<config>/dispositivi.yaml`, accanto a
+   `dispositivi_conosciuti.yaml` delle impronte TLS e a `known_projects.json`): `GET/PUT
+   /api/devices` solo admin, `{label, url, user}` senza password. È «ciò che questa
+   installazione sa del mondo», stessa famiglia delle impronte pinnate: un domani la riga del
+   dispositivo può mostrare se il certificato è memorizzato. Migrazione: al primo avvio, se il
+   server ha lista vuota e il browser ne ha una, si carica una volta e si toglie dal browser.
+2. **Lista sul server, nella cartella dei progetti** (`<projects_root>/dispositivi.yaml`), come
+   propone il maintainer: è la cartella dell'utente, sopravvive a un clone nuovo del repo e
+   viaggia con i backup dei progetti. Contro: i progetti sono dati che si esportano e si
+   deployano, la lista dei pannelli no — un `dispositivi.yaml` in mezzo alle cartelle dei
+   progetti è un corpo estraneo che `browse-dirs` e la WelcomeScreen devono imparare a
+   ignorare; e sull'IDE di sviluppo (`start_editor.sh`) config e progetti stanno comunque
+   entrambi in `.run-editor/`, quindi la differenza pratica oggi è nulla.
+3. **Restare nel browser**, ma aggiungere il pulsante dal discovery. Il minimo; non risolve la
+   lista che sparisce.
+
+In tutte: nei risultati di «Cerca runtime» un pulsante «+ Dispositivi» per riga (etichetta =
+hostname, URL = `admin_url`, utente vuoto), e in Dispositivi un «Cerca runtime» che mostra i
+trovati non ancora in lista con lo stesso pulsante. Il discovery è già lì: si tratta di non
+buttarne via il risultato.
+
+**Default for PoC.** Com'è (browser, solo a mano). Raccomandazione: **(1)** con il pulsante dal
+discovery — la lista è conoscenza dell'installazione, e il posto delle altre conoscenze
+dell'installazione è la cartella di configurazione. Se invece pesa di più «viaggia con i miei
+progetti», (2) è un cambio di una riga: il percorso.
+
+**Decided:** not yet.
+
+---
+
 ## Adding new questions
 
 When Claude Code adds a new question, follow the format above:
