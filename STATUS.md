@@ -288,7 +288,8 @@ non errori. Alzate a `checkout@v5`, `setup-node@v5`, `upload-artifact@v5`,
 fallita al primo colpo per «No space left on device», e la build delle immagini sarebbe morta
 allo stesso modo. Tolto `target/debug` del workspace con `cargo clean --profile dev` (57,8 GiB,
 rigenerabile: il prossimo `cargo build` ricompila da zero, HOWTO §2). Liberato quello si è
-**ancora al 97 %**: c'è qualcos'altro da 1,4 TB fuori da `sws/`, da guardare a mano. Restano
+**ancora al 97 %**: il resto è `~/yocto` (la build Yocto Pixsys), voluta e **da non toccare** —
+parola del maintainer, che non aveva chiesto indagini sul disco. Restano
 da togliere, quando si vuole: la toolchain `1.88` installata per la verifica
 (`rustup toolchain uninstall 1.88`) e la cartella `target-msrv` nello scratchpad della sessione.
 
