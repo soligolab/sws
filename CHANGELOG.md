@@ -11,7 +11,11 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
-> Su `main` dalla sera del 2026-09-09 (`a68802e`), non ancora rilasciato.
+## [2.7.2] — 2026-09-10
+
+> La scheda Runtime per l'utente e un'immagine aarch64 sola. Q51, Q52, Q53 e Q50 decise e
+> realizzate fra il 9 e il 10 settembre. Da qui le immagini sono due (aarch64 cross-compilata,
+> x86_64); `latest-arm64-generic` è un alias di `latest-arm64`.
 
 ### Un'immagine aarch64 sola, cross-compilata e ottimizzata (Q53)
 

@@ -76,6 +76,15 @@
 
 ## ▶ Da fare nella prossima sessione
 
+### 🎯 Rilasciata la 2.7.2 — da compilare, pubblicare e collaudare (2026-09-10)
+
+Q51, Q52, Q53 e Q50 su `main`, taggata. **Due immagini** da qui: `./scripts/build_containers_all.sh
+--push` costruisce aarch64 (cross, niente SDK né sudo) e x86_64, e pubblica anche gli alias
+`-arm64-generic`. La prima build aarch64 costruisce il builder (qualche centinaio di MB da
+ports.ubuntu.com) e compila da zero (~8 + 3 minuti); poi incrementale. Sul TC620/WP630:
+«Aggiorna» dall'editor, e la misura che decide la fase due di Q53: CPU del viewer LVGL e tempo
+di avvio contro la 2.7.1.
+
 ### 🔧 Q50 — i dispositivi registrati sul server: ramo `feat/Q50-dispositivi-sul-server` (2026-09-10)
 
 Decisa dal maintainer («in sws_projects prevederei una cartella di configurazione…»): la lista
@@ -83,7 +92,7 @@ sta in `<cartella progetti>/.ambiente/dispositivi.yaml`, `GET`/`PUT /api/devices
 password. La scheda legge dal server, migra la vecchia lista del browser una volta sola, ha
 «Cerca dispositivi in rete» con «+», e «Cerca runtime» ha «+ Dispositivi». Provato qui su un
 runtime di prova: PUT con `pass` → 422, URL rotto → 400, lista scritta e riletta, `.ambiente`
-non compare fra i progetti, riga nell'audit. **Non mergiato, non pushato**. Da provare a mano a
+non compare fra i progetti, riga nell'audit. **Su `main`, nella 2.7.2.** Da provare a mano a
 casa: aprire Configurazione → Dispositivi con la vecchia lista nel browser → messaggio «spostata
 sul server»; «Cerca dispositivi in rete» → «+» sul TC620 → compare in lista; «Cerca runtime» →
 «+ Dispositivi». Il file: `cat ~/sws_projects/.ambiente/dispositivi.yaml` (con `start_editor.sh`
@@ -96,7 +105,7 @@ e **provato su theobroma**: il builder Ubuntu multiarch si costruisce, `sws-runt
 `[optimized]` in 8 minuti con `GLIBC_2.39` e `libpython3.12`, l'immagine `2.7.1-arm64` si
 assembla con lo stesso `Containerfile.aarch64` di prima. Due intoppi trovati e risolti nel
 Containerfile del builder: pyo3 (`_sysconfigdata` del target, → `PYO3_CONFIG_FILE`) e FreeType
-per l'host (build script di `lvgl`). **Non mergiato, non pushato.**
+per l'host (build script di `lvgl`). **Su `main`, nella 2.7.2.**
 
 Aggiunte prima del tag, sullo stesso ramo: `sws-runtime --version`, la sonda che controlla la
 cartella dati scelta nel modulo (`sh -s -- <cartella>`, validata come i percorsi del deploy), le
