@@ -404,6 +404,13 @@ pub fn build(
             "/api/discover/dispositivi",
             get(crate::discover::discover_dispositivi),
         )
+        // Q50: la lista dei dispositivi registrati (Configurazione → Dispositivi),
+        // sul server in <progetti>/.ambiente/dispositivi.yaml invece che nel
+        // browser. Etichetta, URL, utente: mai la password.
+        .route(
+            "/api/devices",
+            get(crate::dispositivi::elenca_dispositivi).put(crate::dispositivi::salva_dispositivi),
+        )
         // Lifecycle on an already-installed container (status/start/stop/
         // restart/enable/disable/restart-policy/uninstall) — locally on this
         // host or over SSH, independent of any prior deploy's remote_dir.

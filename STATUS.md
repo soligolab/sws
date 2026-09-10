@@ -76,6 +76,19 @@
 
 ## ▶ Da fare nella prossima sessione
 
+### 🔧 Q50 — i dispositivi registrati sul server: ramo `feat/Q50-dispositivi-sul-server` (2026-09-10)
+
+Decisa dal maintainer («in sws_projects prevederei una cartella di configurazione…»): la lista
+sta in `<cartella progetti>/.ambiente/dispositivi.yaml`, `GET`/`PUT /api/devices`, mai la
+password. La scheda legge dal server, migra la vecchia lista del browser una volta sola, ha
+«Cerca dispositivi in rete» con «+», e «Cerca runtime» ha «+ Dispositivi». Provato qui su un
+runtime di prova: PUT con `pass` → 422, URL rotto → 400, lista scritta e riletta, `.ambiente`
+non compare fra i progetti, riga nell'audit. **Non mergiato, non pushato**. Da provare a mano a
+casa: aprire Configurazione → Dispositivi con la vecchia lista nel browser → messaggio «spostata
+sul server»; «Cerca dispositivi in rete» → «+» sul TC620 → compare in lista; «Cerca runtime» →
+«+ Dispositivi». Il file: `cat ~/sws_projects/.ambiente/dispositivi.yaml` (con `start_editor.sh`
+è `.run-editor/project/.ambiente/`).
+
 ### 🔧 Q53 — un'immagine aarch64 sola, cross-compilata: ramo `feat/Q53-crossbuild-arm64` (2026-09-10)
 
 Decisa dal maintainer la mattina («vale la pena percorrere la strada del crossbuild»). Realizzato

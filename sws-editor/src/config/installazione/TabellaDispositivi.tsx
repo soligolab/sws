@@ -20,9 +20,14 @@ export function TabellaDispositivi(props: {
   inCorso: boolean;
   errore: "unreachable" | "generic" | null;
   onScegli: (host: string) => void;
+  /** Q50: se c'è, ogni riga ha un «+» che registra il dispositivo nella lista
+   *  di Configurazione → Dispositivi; `giaPresenti` (URL normalizzati) segna
+   *  quelli che ci sono già. */
+  onAggiungi?: (d: DispositivoRete) => void;
+  giaPresenti?: (d: DispositivoRete) => boolean;
 }) {
   const { t } = useTranslation();
-  const { dispositivi, inCorso, errore, onScegli } = props;
+  const { dispositivi, inCorso, errore, onScegli, onAggiungi, giaPresenti } = props;
   if (errore) {
     return (
       <div style={{ fontSize: 11, color: "var(--brand-danger-soft, #f87171)" }}>
@@ -42,6 +47,7 @@ export function TabellaDispositivi(props: {
             <th style={{ textAlign: "left", padding: "4px 6px", fontWeight: 600, fontSize: 11 }}>{t("cfg.devicesColHost")}</th>
             <th style={{ textAlign: "left", padding: "4px 6px", fontWeight: 600, fontSize: 11 }}>{t("cfg.devicesColAddress")}</th>
             <th style={{ textAlign: "left", padding: "4px 6px", fontWeight: 600, fontSize: 11 }}>{t("cfg.devicesColServices")}</th>
+            {onAggiungi && <th style={{ padding: "4px 6px" }} />}
           </tr>
         </thead>
         <tbody>
@@ -58,6 +64,20 @@ export function TabellaDispositivi(props: {
                   <span style={PILL_SWS}>{t("cfg.devicesSwsPresent", { ver: d.sws.versione ?? "?" })}</span>
                 )}
               </td>
+              {onAggiungi && (
+                <td style={{ padding: "3px 6px", textAlign: "right", whiteSpace: "nowrap" }}>
+                  {giaPresenti?.(d) ? (
+                    <span style={{ fontSize: 10, color: "var(--brand-text-subtle, #64748b)" }}>{t("cfg.devicesAlreadyIn")}</span>
+                  ) : (
+                    <button
+                      style={{ padding: "2px 8px", borderRadius: 4, cursor: "pointer", fontSize: 11, border: "1px solid var(--brand-primary-hover, #2563eb)", background: "#1e3a5f", color: "#93c5fd" }}
+                      title={t("cfg.devicesAddToListTitle")}
+                      onClick={(e) => { e.stopPropagation(); onAggiungi(d); }}>
+                      {t("cfg.devicesAddToList")}
+                    </button>
+                  )}
+                </td>
+              )}
             </tr>
           ))}
         </tbody>

@@ -1416,6 +1416,17 @@ export const api = {
   deleteGitTag: (name: string) =>
     request<void>(`/api/project/git/tags/${encodeURIComponent(name)}`, { method: "DELETE" }),
 
+  /** Q50: la lista dei dispositivi registrati, sul server
+   *  (<cartella progetti>/.ambiente/dispositivi.yaml). Etichetta, URL, utente:
+   *  mai la password — il server rifiuta un campo in più. Admin. */
+  listDevices: () => request<import("../types").SavedDevice[]>("/api/devices"),
+  saveDevices: (lista: import("../types").SavedDevice[]) =>
+    request<import("../types").SavedDevice[]>("/api/devices", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(lista),
+    }),
+
   /** Q51: GET /api/build/stato — il runtime gira da un checkout del repo? */
   buildStato: () => request<BuildStato>("/api/build/stato"),
 

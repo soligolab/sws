@@ -4,6 +4,7 @@ import { api, getAuthToken, getBaseUrl, RuntimeUnavailableError, type CreateUser
 import { ListaControlli } from "@/config/installazione/ListaControlli";
 import { TabellaDispositivi } from "@/config/installazione/TabellaDispositivi";
 import { hostDaUrl, imageRefAutomatico, imageRefDaVariante, installazioneConsentita, varianteDaArch } from "@/config/installazione/sondaggio";
+import { CHIAVE_LEGACY, dispositivoDaRete, dispositivoDaRuntime, eGiaInLista, leggiListaLegacy, unisciDispositivo } from "@/config/dispositiviRegistrati";
 import { getBrand } from "@/branding";
 import { containerDeployPayload, effectiveDataPath, type ContainerSource } from "@/containerDeploy";
 import { containerManagePayload, type ManageAction, type RestartPolicy } from "@/containerManage";
@@ -8980,6 +8981,19 @@ function RuntimeConnectionTab() {
                         >📦 {r.container}</span>
                       )}
                       <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)" }}>{discoveredAdminUrl(r)}</span>
+                      {/* Q50: il discovery non butta più via quello che trova. */}
+                      <button
+                        style={{ padding: "1px 8px", borderRadius: 4, cursor: "pointer", fontSize: 11, flexShrink: 0, border: "1px solid var(--brand-primary-hover, #2563eb)", background: "#1e3a5f", color: "#93c5fd" }}
+                        title={t("cfg.devicesAddToListTitle")}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const n = dispositivoDaRuntime(r, discoveredAdminUrl(r));
+                          registraDispositivo(n)
+                            .then(() => setStatusMsg(t("cfg.devicesAdded", { label: n.label })))
+                            .catch((err) => setStatusMsg(t("cfg.devicesSaveFailed", { err: String(err) })));
+                        }}>
+                        {t("cfg.devicesAddToList")}
+                      </button>
                     </div>
                   ))
               }
@@ -9719,7 +9733,13 @@ function RuntimeConnectionTab() {
 
 // ── T-24 DevicesTab ───────────────────────────────────────────────────────────
 
-const DEVICES_KEY = "sws.saved-devices";
+// Q50: la lista sta sul server (`/api/devices`). Chi la aggiunge da fuori la
+// scheda (i pulsanti «+ Dispositivi» del discovery) passa da qui: legge, unisce,
+// scrive. Piccola e rara: due richieste vanno bene.
+async function registraDispositivo(nuovo: SavedDevice): Promise<SavedDevice[]> {
+  const attuale = await api.listDevices();
+  return api.saveDevices(unisciDispositivo(attuale, nuovo));
+}
 
 /** Core deploy logic, reusable from RuntimeConnectionTab and DevicesTab. */
 /**
@@ -9833,10 +9853,36 @@ interface DeviceState {
 function DevicesTab() {
   const { t } = useTranslation();
   const setRemoteConnected = useAppStore((s) => s.setRemoteConnected);
-  const [devices, setDevices] = useState<SavedDevice[]>(() => {
-    try { return JSON.parse(localStorage.getItem(DEVICES_KEY) ?? "[]"); }
-    catch { return []; }
-  });
+  // Q50: la lista arriva dal server. Al primo avvio dopo l'aggiornamento, se il
+  // server non ha niente e il browser ha la vecchia lista, la si porta su una
+  // volta sola (senza il campo password) e si toglie dal browser.
+  const [devices, setDevices] = useState<SavedDevice[]>([]);
+  const [avvisoLista, setAvvisoLista] = useState<string | null>(null);
+  const [caricata, setCaricata] = useState(false);
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      try {
+        let lista = await api.listDevices();
+        const legacy = leggiListaLegacy(localStorage.getItem(CHIAVE_LEGACY));
+        if (lista.length === 0 && legacy.length > 0) {
+          lista = await api.saveDevices(legacy);
+          if (vivo) setAvvisoLista(t("cfg.devicesMigrated", { n: lista.length }));
+        }
+        if (legacy.length > 0 || localStorage.getItem(CHIAVE_LEGACY) !== null) localStorage.removeItem(CHIAVE_LEGACY);
+        if (vivo) setDevices(lista);
+      } catch (e) {
+        if (vivo) setAvvisoLista(t("cfg.devicesLoadFailed", { err: String(e) }));
+      } finally {
+        if (vivo) setCaricata(true);
+      }
+    })();
+    return () => { vivo = false; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Q50: «Cerca dispositivi in rete» anche qui, per registrare ciò che si trova.
+  const [rete, setRete] = useState<DispositivoRete[] | null>(null);
+  const [cercandoRete, setCercandoRete] = useState(false);
+  const [erroreRete, setErroreRete] = useState<"unreachable" | "generic" | null>(null);
   const [states, setStates] = useState<Record<string, DeviceState>>({});
   // Le password dei dispositivi, per URL: **solo in memoria**. Al reload si
   // richiedono, con il campo nella riga. Il controllo periodico le legge da una
@@ -9849,9 +9895,22 @@ function DevicesTab() {
   const [deployingUrl, setDeployingUrl] = useState<string | null>(null);
   const [deployLog, setDeployLog] = useState<string[]>([]);
 
+  // Ottimista: la lista si aggiorna subito, e se il server rifiuta (URL non
+  // valido, doppione) si torna a quella di prima e si dice perché.
   const saveDevices = (list: SavedDevice[]) => {
+    const prima = devices;
     setDevices(list);
-    localStorage.setItem(DEVICES_KEY, JSON.stringify(list));
+    setAvvisoLista(null);
+    api.saveDevices(list)
+      .then((salvata) => setDevices(salvata))
+      .catch((e) => { setDevices(prima); setAvvisoLista(t("cfg.devicesSaveFailed", { err: String(e) })); });
+  };
+
+  const cercaRete = async () => {
+    setCercandoRete(true); setRete(null); setErroreRete(null);
+    try { setRete(await api.discoverDispositivi()); }
+    catch (e) { setErroreRete(e instanceof RuntimeUnavailableError ? "unreachable" : "generic"); }
+    finally { setCercandoRete(false); }
   };
 
   const checkDevice = useCallback(async (device: SavedDevice) => {
@@ -9954,12 +10013,18 @@ function DevicesTab() {
   return (
     <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 20, maxWidth: 800 }}>
       <div style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text-muted, #94a3b8)", textTransform: "uppercase", letterSpacing: 1 }}>
-        Device registrati
+        {t("cfg.devicesRegistered")}
       </div>
+      <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: -12 }}>{t("cfg.devicesStoredWhere")}</div>
+      {avvisoLista && (
+        <div style={{ fontSize: 12, color: "var(--brand-warning-soft, #fbbf24)" }}>{avvisoLista}</div>
+      )}
 
       {/* Device table */}
       {devices.length === 0 ? (
-        <p style={{ fontSize: 12, color: "var(--brand-text-subtle, #94a3b8)", margin: 0 }}>Nessun device salvato. Aggiungine uno qui sotto.</p>
+        <p style={{ fontSize: 12, color: "var(--brand-text-subtle, #94a3b8)", margin: 0 }}>
+          {caricata ? t("cfg.devicesNoneSaved") : "…"}
+        </p>
       ) : (
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
@@ -10017,7 +10082,7 @@ function DevicesTab() {
                           disabled={deployingUrl === d.url || mancaPassword}
                           title={mancaPassword ? t("cfg.passwordSessionTitle") : undefined}
                           onClick={() => void handleDeploy(d)}>
-                          {deployingUrl === d.url ? "Deploy…" : "Deploy"}
+                          {deployingUrl === d.url ? t("cfg.deployRunning") : "Deploy"}
                         </button>
                         <button style={{ ...BTN, color: "var(--brand-danger-soft, #f87171)", borderColor: "var(--brand-danger-bg, #7f1d1d)" }}
                           onClick={() => saveDevices(devices.filter((x) => x.url !== d.url))}>✕</button>
@@ -10044,7 +10109,20 @@ function DevicesTab() {
       {/* Add device form */}
       <div>
         <div style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text-muted, #94a3b8)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>
-          Aggiungi device
+          {t("cfg.devicesAdd")}
+        </div>
+        {/* Q50: ciò che c'è in rete, con un «+» per registrarlo. Stessa tabella
+            di «Installa su dispositivo» (Q52). */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+          <div>
+            <button style={BTN} disabled={cercandoRete} onClick={() => void cercaRete()}>
+              {cercandoRete ? t("cfg.devicesSearching") : t("cfg.devicesSearch")}
+            </button>
+          </div>
+          <TabellaDispositivi dispositivi={rete} inCorso={cercandoRete} errore={erroreRete}
+            onScegli={(h) => setAddForm((f) => ({ ...f, url: f.url || `https://${h}:8444`, label: f.label || h.replace(/\.local$/i, "") }))}
+            onAggiungi={(d) => { const n = dispositivoDaRete(d); saveDevices(unisciDispositivo(devices, n)); void checkDevice(n); }}
+            giaPresenti={(d) => eGiaInLista(devices, dispositivoDaRete(d).url)} />
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>

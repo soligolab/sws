@@ -24,6 +24,7 @@
 10. [Provare una modifica su un dispositivo senza pubblicare niente](#10-provare-una-modifica-su-un-dispositivo-senza-pubblicare-niente)
 11. [Leggere la mail di GitHub che dice «CI failed»](#11-leggere-la-mail-di-github-che-dice-ci-failed)
 12. [Installare il runtime su un dispositivo dall'editor](#12-installare-il-runtime-su-un-dispositivo-dalleditor)
+13. [Dove sta la lista dei dispositivi registrati](#13-dove-sta-la-lista-dei-dispositivi-registrati)
 
 ---
 
@@ -936,3 +937,28 @@ senza `scripts/` e `dist/` non possono funzionare, e il server lo dice (`GET /ap
 Da riga di comando la stessa sonda si lancia con
 `ssh user@<host> 'sh -s' < deploy/container/sonda-dispositivo.sh`: stampa i fatti grezzi,
 `SONDA chiave=valore`, senza giudizio.
+
+---
+
+## 13. Dove sta la lista dei dispositivi registrati
+
+Dal 2026-09-10 (Q50) la lista di Configurazione → Dispositivi non è più nel browser: la tiene il
+runtime che serve l'editor, nel file
+
+```
+<cartella progetti>/.ambiente/dispositivi.yaml      # di solito ~/sws_projects/.ambiente/
+```
+
+con etichetta, URL della porta di gestione e utente. **Mai la password**: quella si chiede nella
+riga della scheda e resta in memoria finché la pagina è aperta. `.ambiente` è la cartella, dentro
+quella dei progetti, per ciò che descrive l'ambiente di lavoro e non è un progetto; il punto
+davanti la tiene fuori dall'elenco dei progetti. Fa parte del backup della cartella dei progetti.
+
+Come si riempie: a mano dal modulo in fondo alla scheda; da «Cerca dispositivi in rete», che
+elenca ciò che mDNS vede con un «+» per riga; da «+ Dispositivi» accanto a ogni runtime trovato da
+«Cerca runtime» in Configurazione → Runtime. La vecchia lista del browser si sposta sul server da
+sola la prima volta che apri la scheda dopo l'aggiornamento, senza le password.
+
+Da riga di comando: `curl -s http://localhost:8460/api/devices` (o la porta del tuo editor) la
+mostra; il file si può anche scrivere a mano, purché non contenga campi in più — un `pass:` lo fa
+rifiutare, apposta.

@@ -33,6 +33,15 @@ del dispositivo controlla la cartella dati **scelta nel modulo**, non solo quell
 (una partizione piena o non scrivibile si scopre prima di installare). I Containerfile e lo
 script del percorso QEMU dichiarano in testa di essere storici.
 
+### La lista dei dispositivi vive sul server, e si riempie dal discovery (Q50)
+
+Configurazione → Dispositivi salvava la lista nel browser: su un altro PC era vuota. Ora sta in
+`<cartella progetti>/.ambiente/dispositivi.yaml` (`GET`/`PUT /api/devices`, admin): etichetta,
+URL e utente, mai la password — il server rifiuta un campo in più. La vecchia lista del browser
+si sposta sul server da sola al primo avvio, senza le password. «Cerca dispositivi in rete» anche
+in questa scheda, con un «+» per registrare ciò che si trova, e «+ Dispositivi» su ogni runtime
+trovato da «Cerca runtime».
+
 ### Gli strumenti di sviluppo compaiono solo dove c'è il repo (Q51)
 
 «Pacchetto runtime» e il deploy del binario nativo richiedono il checkout del repo: per chi usa

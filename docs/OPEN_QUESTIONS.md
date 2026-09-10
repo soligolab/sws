@@ -1527,7 +1527,7 @@ archiviare.
 
 ## Q50 — I dispositivi registrati: dal browser al server, e popolati dal discovery mDNS
 
-*Aperta il 2026-09-09 su proposta del maintainer. Nessuna decisione presa.*
+*Aperta il 2026-09-09 su proposta del maintainer. Decisa il 2026-09-10.*
 
 **Context.** Configurazione → Dispositivi (T-24) tiene la lista dei pannelli in `localStorage`
 (`sws.saved-devices`): del browser, non del progetto né dell'installazione. Su un altro PC, o
@@ -1566,7 +1566,29 @@ discovery — la lista è conoscenza dell'installazione, e il posto delle altre 
 dell'installazione è la cartella di configurazione. Se invece pesa di più «viaggia con i miei
 progetti», (2) è un cambio di una riga: il percorso.
 
-**Decided:** not yet.
+**Decided (2026-09-10, maintainer):** una variante di (2): «in sws_projects prevederei una
+cartella di configurazione dove tenere questo file e i file di setup dell'ambiente». Quindi
+**`<cartella progetti>/.ambiente/dispositivi.yaml`** — la cartella dei progetti è quella che
+l'utente conosce e salva; `.ambiente` è il suo angolo per ciò che descrive l'ambiente di lavoro e
+non è un progetto (questa lista oggi, altro domani). Il punto davanti la tiene fuori dall'elenco
+dei progetti e dai nomi ammessi per un progetto, senza toccare `list_projects` né `browse-dirs`.
+La password resta come il 2026-09-09: nella riga, in memoria finché la pagina è aperta, mai nel
+file. Realizzato sul ramo `feat/Q50-dispositivi-sul-server`:
+
+- **Server** (`dispositivi.rs`): `GET`/`PUT /api/devices`, admin, assenti su `--no-admin`. Il PUT
+  sostituisce la lista intera, valida (etichetta, URL `http(s)://host[:porta]`, nessun URL
+  doppio), normalizza (spazi, slash finale), scrive in modo atomico (file accanto e `rename`) e
+  lo annota nell'audit (`devices.save`). `deny_unknown_fields`: un client che manda `pass` riceve
+  422, un file scritto a mano con `pass` non si legge. 6 test.
+- **Editor**: la scheda Dispositivi legge dal server; al primo avvio dopo l'aggiornamento, se il
+  server è vuoto e il browser ha la vecchia lista, la porta su una volta sola (senza `pass`) e
+  toglie la chiave `sws.saved-devices`. Salvataggio ottimista con ripristino e messaggio se il
+  server rifiuta. **«Cerca dispositivi in rete»** anche qui (la tabella di Q52 con un «+» per riga,
+  «già in lista» per chi c'è), e **«+ Dispositivi»** su ogni runtime trovato da «Cerca runtime»
+  nella sezione connessione. `dispositiviRegistrati.ts` con i test delle parti pure.
+
+**Limite dichiarato**: «l'ultimo che salva vince» — due editor sullo stesso runtime che salvano
+insieme si sovrascrivono, com'era già con il browser.
 
 ---
 

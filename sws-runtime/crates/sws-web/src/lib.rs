@@ -4,6 +4,7 @@ pub mod certificati;
 pub mod cron;
 pub mod discover;
 pub mod display_target;
+pub mod dispositivi;
 pub mod git_deploy;
 pub mod global_scripts;
 pub mod istantanea;

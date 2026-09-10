@@ -1195,7 +1195,18 @@
     "deployRunning": "Deploy in corso…",
     "installBlockedByProbe": "La verifica ha trovato errori: leggi la lista sopra e correggi prima di installare",
     "noRuntimeFound": "Nessun runtime trovato sulla rete locale.",
-    "imageVariantFromConnected": "Variante {{variant}} proposta dall'architettura del dispositivo collegato — la verifica può correggerla"
+    "imageVariantFromConnected": "Variante {{variant}} proposta dall'architettura del dispositivo collegato — la verifica può correggerla",
+    "devicesRegistered": "Dispositivi registrati",
+    "devicesStoredWhere": "La lista è salvata dal runtime in «cartella progetti»/.ambiente/dispositivi.yaml: etichetta, URL e utente, mai la password.",
+    "devicesNoneSaved": "Nessun dispositivo salvato. Cercalo in rete o aggiungilo qui sotto.",
+    "devicesAdd": "Aggiungi dispositivo",
+    "devicesAddToList": "+ Dispositivi",
+    "devicesAddToListTitle": "Registra in Configurazione → Dispositivi",
+    "devicesAlreadyIn": "già in lista",
+    "devicesAdded": "«{{label}}» registrato fra i dispositivi",
+    "devicesSaveFailed": "Lista dei dispositivi non salvata: {{err}}",
+    "devicesLoadFailed": "Lista dei dispositivi non letta dal server: {{err}}",
+    "devicesMigrated": "Lista spostata dal browser al server: {{n}} dispositivi, senza le password."
   },
   "langtab": {
     "intro": "Traduci i messaggi che scrivi negli oggetti. Nei campi testo usa {{chiave}}; qui definisci le traduzioni per ogni lingua.",
