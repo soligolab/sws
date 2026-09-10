@@ -148,6 +148,32 @@ sede di realizzazione risulta più a portata). Le chiavi `editor.historyBack`/`h
 Rifai» sono oggi stringhe fisse e passano alle chiavi mentre si sposta il componente. Ramo:
 `feat/T-55-cronologia-fuori-dal-pannello`. Piccolo: si può fare insieme a T-54.
 
+### 🎨 T-56 — i due pannelli dell'editor: una vista per volta a sinistra, sezioni canoniche a destra (2026-09-10)
+
+Richiesta del maintainer: «non è molto chiara la divisione pagine/oggetti… si fondono un po' tutte
+le sezioni, e a destra le proprietà andrebbero riorganizzate in modo più ordinato». **Piano scritto
+e deciso, non realizzato: `docs/plans/2026-09-10-T56-pannelli-editor.md`.**
+
+Decisioni prese: a sinistra **una vista per volta** (barra di icone verticale — Pagine, Oggetti,
+Struttura, Tag, Sorgenti, Funzioni — e la vista scelta occupa tutta l'altezza); a destra **sezioni
+canoniche** nello stesso ordine per ogni tipo, senza più controlli sciolti sopra; **struttura e
+stile insieme**, con una scala condivisa di spaziature e dimensioni in `src/editor/stilePannelli.ts`
+usata da entrambi i pannelli.
+
+Perché si fondono, misurato: le sette fisarmoniche di sinistra hanno tutte la stessa intestazione
+(che ignora perfino il proprio parametro `open`), l'unico separatore vero è quello della
+Cronologia, e nessuna ricorda se era aperta; la palette annida una terza intestazione ancora
+diversa; a destra due terzi del pannello sono controlli sciolti (~14 per un `rect`, ~20 per un
+`text`) con micro-titoli in linea ripetuti in dieci punti; i due pannelli non condividono nessuno
+stile, e la selezione multipla ha una seconda tassonomia di sezioni con altri nomi.
+
+Tre passi mergiabili separatamente: (1) fondamenta — scala e componenti condivisi, adottati senza
+spostare niente; (2) sinistra — dipende da **T-55** (la Cronologia deve uscire prima); (3) destra —
+il più lungo, `ObjectProps` è una catena di ~65 rami. Rete di sicurezza per il passo 3: un test che
+per ognuno dei 35 tipi verifica che l'insieme dei campi resi sia identico a prima. Vincolo che non
+si tocca: «una sezione per dato» (`CLAUDE.md`) — le sezioni si rinominano e si riordinano, un campo
+resta in un posto solo. Ramo: `feat/T-56-pannelli-editor`.
+
 
 ### 📏 La 2.7.2 cross sul WP630: misure del 2026-09-10 pomeriggio
 
