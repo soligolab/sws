@@ -90,7 +90,11 @@ for g in "${GUSTI[@]}"; do
     archivio="$REPO_ROOT/dist/sws-runtime-${VERSION}-${arch_file}-image.tar.gz"
 
     if [ ! -f "$archivio" ]; then
-        mancanti+=("$immagine")
+        # La aarch64 via QEMU è storica (Q53): dalla 2.7.2 `-arm64-generic` è un
+        # alias della `-arm64` e non si costruisce, quindi la sua assenza non è
+        # una mancanza da segnalare. Compare solo se qualcuno l'ha costruita
+        # davvero con --with-generic.
+        [ "$suff" = "arm64-generic" ] || mancanti+=("$immagine")
         continue
     fi
     trovate=$((trovate + 1))
@@ -142,7 +146,7 @@ if [ "${#mancanti[@]}" -gt 0 ]; then
     # sbagliata è peggio che non spiegare niente — manda a cercare un SDK a
     # chi ha solo saltato la x86_64.
     case " ${mancanti[*]} " in
-        *"-arm64-generic "*) echo "  (la aarch64 via QEMU si costruisce solo con --with-generic: dalla 2.7.2 è un alias della -arm64)" ;;
+        *"-arm64 "*) echo "  (la aarch64 la costruisce build_container.sh, cross-build in container: niente SDK, niente sudo)" ;;
     esac
 fi
 
@@ -150,7 +154,7 @@ fi
 # aggiornare un pannello: dalla 2.4.0 l'IDE sul dispositivo non c'è più.
 cat <<'FINE'
 
-  Tutte e tre, uguali in questo:
+  Tutte, uguali in questo:
     porte      8443 viewer, 8444 gestione remota
     dati       montare /var/sws/{config,projects,logs}
     IDE        NON c'è: il CMD porta --no-admin (dalla 2.4.0). Sulla 8444
