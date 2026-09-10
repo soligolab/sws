@@ -721,6 +721,13 @@ mod tests {
 
     #[test]
     fn arch_diventa_variante_immagine() {
+        // Valori veri, letti da un TC620 con Pixsys OS 2.1.1 il 2026-09-09: il
+        // PRETTY_NAME dice «Pixsys OS 2.1.1»; l'ID non è stato registrato, e
+        // l'euristica deve reggere anche se fosse vuoto o generico.
+        assert_eq!(
+            variante_immagine("aarch64", "", "Pixsys OS 2.1.1"),
+            Some("latest-arm64")
+        );
         assert_eq!(
             variante_immagine("aarch64", "pixsys", "Pixsys OS"),
             Some("latest-arm64")

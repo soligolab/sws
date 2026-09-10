@@ -1705,8 +1705,9 @@ modulo Installa («Cerca runtime» della connessione resta com'è). Realizzato:
 **Limiti dichiarati.** mDNS mostra solo chi si annuncia (`_ssh._tcp` lo pubblica Avahi con
 `publish-ssh`, o macOS; molti Linux annunciano solo `_workstation`): la tabella è incompleta per
 costruzione, e host o IP si scrivono a mano. La variante arm64 (SDK Pixsys) contro arm64-generic
-si propone leggendo `os-release` (contiene «pixsys»?): euristica non ancora vista sul campo,
-modificabile con un click. La versione di un SWS già installato si legge dal tag dell'immagine e
+si propone leggendo `os-release` (contiene «pixsys»?): **vista sul campo la sera stessa** su un
+TC620 con Pixsys OS 2.1.1 (`PRETTY_NAME` «Pixsys OS 2.1.1» → `latest-arm64`, podman 5.0.2,
+storage in `/mnt/data/state/user/containers/storage`), modificabile con un click. La versione di un SWS già installato si legge dal tag dell'immagine e
 solo se è una versione (`latest-*` → sconosciuta).
 
 **Seguito, stessa sera (per dare senso alla ricompilazione delle immagini):** `/api/system`

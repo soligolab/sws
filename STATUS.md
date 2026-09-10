@@ -112,8 +112,11 @@ host; (5) «Verifica dispositivo» con `user`: riga «wp630 · aarch64 · …»,
 installato», riferimento → `…:latest-arm64` con nota; pulsante «Aggiorna»; (6) password
 sbagliata: «Connessione SSH non riuscita», Installa spento con il perché; (7) dopo factory
 reset: box giallo → «Dimentica» rilancia la verifica; (8) cambiare porta/utente azzera la lista;
-(9) un deploy vero, log in streaming, «Gestione container» intatto. **Da fissare dopo il primo
-sondaggio reale**: `os_id`/`os_name` di Pixsys OS, per il test dell'euristica arm64/generic.
+(9) un deploy vero, log in streaming, «Gestione container» intatto. **Primo sondaggio reale
+fatto a casa la sera stessa** su un TC620 (`tc620-a-p3-c6-07aff9`, Pixsys OS 2.1.1, podman
+5.0.2, tutto ✓, SWS `latest-arm64` attivo): l'euristica arm64 ha scelto giusto ed è fissata nel
+test con il `PRETTY_NAME` vero. Unico difetto visto: «Pixsys OS 2.1.1 2.1.1», la versione ripetuta
+nell'etichetta — corretto (`etichettaDispositivo`).
 
 
 **Immagini pubblicate** (verificato sull'API di ghcr.io): `2.7.1-arm64`, `2.7.1-arm64-generic`,

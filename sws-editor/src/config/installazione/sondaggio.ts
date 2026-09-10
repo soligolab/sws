@@ -45,9 +45,14 @@ export function esitoComplessivo(c: ControlloDispositivo[]): EsitoControllo {
   return "ok";
 }
 
-/** «wp630 · aarch64 · Pixsys OS 2.1 · user (uid 1000)», saltando i pezzi vuoti. */
+/** «tc620 · aarch64 · Pixsys OS 2.1.1 · user (uid 1000)», saltando i pezzi vuoti.
+ *  Il PRETTY_NAME di os-release spesso contiene già la versione («Pixsys OS
+ *  2.1.1», «Debian GNU/Linux 12 (bookworm)»): in quel caso non si ripete —
+ *  visto sul campo il 2026-09-09: «Pixsys OS 2.1.1 2.1.1». */
 export function etichettaDispositivo(d: NonNullable<SondaggioDispositivo["dispositivo"]>): string {
-  const os = [d.os.name, d.os.version].filter(Boolean).join(" ");
+  const os = d.os.version && !d.os.name.includes(d.os.version)
+    ? [d.os.name, d.os.version].filter(Boolean).join(" ")
+    : d.os.name;
   const utente = d.utente ? (d.uid === null ? d.utente : `${d.utente} (uid ${d.uid})`) : "";
   return [d.hostname, d.arch, os, utente].filter(Boolean).join(" · ");
 }
