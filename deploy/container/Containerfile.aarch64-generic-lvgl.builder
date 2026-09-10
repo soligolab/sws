@@ -1,3 +1,9 @@
+# STORICO (Q53, 2026-09-10): l'immagine aarch64 si costruisce ora con
+# build_container.sh cross-compilando da x86_64 (Containerfile.aarch64-cross.builder).
+# Questo percorso via QEMU produceva un binario NON ottimizzato (opt-level 0) e
+# resta solo per confronto (`build_containers_all.sh --with-generic`), finché il
+# cross-build non avrà girato abbastanza sui dispositivi. Poi sparisce.
+#
 # Estende Containerfile.aarch64-generic.builder con ciò che sws-lvgl-viewer
 # richiede oltre a sws-runtime: clang/libclang (bindgen, per lvgl-sys),
 # libfreetype-dev: `LV_USE_FREETYPE 1` fa compilare `lv_freetype.c`, che

@@ -1723,7 +1723,7 @@ subuid/subgid **prima** di toccare qualcosa, con gli stessi rimedi della sonda.
 ## Q53 — Due immagini aarch64 (SDK Pixsys e generica): tenerle entrambe, o convergere su una?
 
 *Aperta il 2026-09-10 su domanda del maintainer («ha senso tenere il container Pixsys? ho provato
-spesso quello generico e non ho riscontrato problemi»). Nessuna decisione presa.*
+spesso quello generico e non ho riscontrato problemi»). Decisa lo stesso giorno.*
 
 **Context.** Si pubblicano tre immagini: `-amd64`, `-arm64` (binario cross-compilato con l'SDK
 Yocto Pixsys, `build_container.sh`) e `-arm64-generic` (compilato **dentro** un container arm64
@@ -1780,7 +1780,32 @@ regge, rimuovere sia l'SDK sia il QEMU. Nel frattempo correggere le frasi su «l
 dispositivo», che oggi dicono il falso, e lasciare `latest-arm64` (SDK) come default
 dell'installer perché è l'unica ottimizzata.
 
-**Decided:** not yet.
+**Decided (2026-09-10, maintainer):** (2) — «vale la pena percorrere la strada del crossbuild
+così da ridurre il numero di immagini da compilare a ogni iterazione e aspettarmi comportamenti
+omogenei nelle architetture arm64 a prescindere dal dispositivo». Realizzato sul ramo
+`feat/Q53-crossbuild-arm64`:
+
+- `deploy/container/Containerfile.aarch64-cross.builder`: immagine x86_64 con
+  `crossbuild-essential-arm64` e i pacchetti `:arm64` di Ubuntu 24.04 in multiarch (libc,
+  libpython3.12, SDL2, libdrm, FreeType), rustup con il target aarch64, e l'ambiente cross
+  per-target (linker, `CC_*`, pkg-config, bindgen). pyo3 con `PYO3_CONFIG_FILE` scritto a mano
+  (il `_sysconfigdata` del target su Ubuntu collide con quello dell'host); FreeType anche per
+  l'host (il build script di `lvgl` linka lvgl-sys per x86_64).
+- `build_container.sh` costruisce così per default: `[optimized]`, runtime in 8 minuti la prima
+  volta e incrementale dopo, binario aarch64 con `GLIBC_2.39` e `libpython3.12.so.1.0`
+  (controllati da `readelf` prima di incartarlo). `--sdk` è il percorso storico con l'SDK Pixsys.
+  Con `--push` pubblica anche gli alias `-arm64-generic`, così i dispositivi installati con quel
+  riferimento continuano ad aggiornarsi.
+- `build_containers_all.sh`: due immagini per default (aarch64, x86_64); `--with-generic` aggiunge
+  la vecchia via QEMU per confronto; `--require-sdk` è diventato `--sdk`.
+- Q52: la sonda propone `latest-arm64` per qualunque aarch64 (l'euristica su `os-release` non
+  serve più) e l'editor non ha più i due pulsanti SDK/generica. Il riepilogo delle immagini e i
+  documenti non dicono più «linka la libc del dispositivo».
+
+**Da misurare sul campo prima di togliere SDK e QEMU** (fase due): CPU del viewer LVGL e tempo di
+avvio con l'immagine cross sul TC620/WP630, a confronto con la `2.7.1-arm64` (SDK) di ieri.
+Quando regge, spariscono `scripts/yocto/build.sh` dal percorso container, `--sdk`,
+`build_container_aarch64_generic.sh`, i due builder QEMU e gli alias `-generic`.
 
 ---
 

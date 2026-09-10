@@ -21,7 +21,11 @@
 # anticipa i controlli.
 set -u
 
-DATA=/data/user/sws                       # stesso default dell'installer (L64)
+# La cartella dati: quella scelta nel modulo dell'editor se arriva come primo
+# argomento (`sh -s -- /altro/percorso`), altrimenti il default dell'installer
+# (L64). Controllare quella giusta conta: un percorso su una partizione piena
+# o non scrivibile si scopre qui, non a metà installazione.
+DATA="${1:-/data/user/sws}"
 T=""
 command -v timeout >/dev/null 2>&1 && T="timeout 15"
 

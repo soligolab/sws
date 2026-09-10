@@ -1364,7 +1364,7 @@ export const api = {
   /** Q52: POST /api/device/probe — una sessione ssh che guarda che macchina è e
    *  se è pronta per il container (fino a 30 s, risposta unica). La password
    *  viaggia solo in questa richiesta. */
-  deviceProbe: (b: { host: string; port: number; user: string; password: string }) =>
+  deviceProbe: (b: { host: string; port: number; user: string; password: string; data_path?: string }) =>
     request<SondaggioDispositivo>("/api/device/probe", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

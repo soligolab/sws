@@ -35,6 +35,13 @@ tecnici dietro ogni passo qui sotto). Questo capitolo presume un device Pixsys d
 mostra oggi la SPA web, e sostituisce quel display layer con un container LVGL — senza toccare
 `sws-runtime`, che resta acceso per tutto il test.
 
+> **Nota del 2026-09-10 (Q53).** Da oggi l'immagine aarch64 è **una sola**, costruita da
+> `./scripts/build_container.sh` con un cross-build in container (niente SDK, niente QEMU,
+> ottimizzata), e `latest-arm64-generic` è un alias di `latest-arm64`. Il «percorso generico»
+> descritto in questo capitolo è quello storico via QEMU, che produceva un binario **non
+> ottimizzato**: i comandi restano validi con `--with-generic`, ma non c'è più motivo di usarli.
+> Il racconto sotto è di agosto e lo si lascia com'era.
+
 **Due percorsi per costruire l'immagine**, scelta esplicita del maintainer (2026-08-09): per ora
 si preferisce il percorso **generico** (nessun SDK Pixsys, build sotto emulazione QEMU) invece di
 quello Pixsys-tuned, anche se più lento — non lega il container a un device specifico. Il percorso
@@ -324,15 +331,17 @@ podman login ghcr.io
 ./scripts/build_containers_all.sh --push
 ```
 
-Compila la SPA e il Rust, poi costruisce e pubblica le tre immagini su
-`ghcr.io/soligolab/sws-runtime`, ognuna con tre tag — versione dal `Cargo.toml`, sha del
-commit, e `latest-*`:
+Compila la SPA e il Rust, poi costruisce e pubblica le **due** immagini su
+`ghcr.io/soligolab/sws-runtime` (dal 2026-09-10, Q53: prima erano tre), ognuna con tre tag —
+versione dal `Cargo.toml`, sha del commit, e `latest-*`:
 
 | Immagine | Percorso di build | Tag |
 |---|---|---|
-| aarch64 Pixsys-tuned | SDK Yocto (`build_container.sh`) | `<ver>-arm64`, `<sha>-arm64`, `latest-arm64` |
-| aarch64 generica | QEMU, nessun SDK (`build_container_aarch64_generic.sh`) | `<ver>-arm64-generic`, `<sha>-arm64-generic`, `latest-arm64-generic` |
+| aarch64 (Pixsys e qualunque board arm64) | cross-build da x86_64 in container Ubuntu (`build_container.sh`) | `<ver>-arm64`, `<sha>-arm64`, `latest-arm64`, più gli alias `<ver>-arm64-generic` e `latest-arm64-generic` |
 | x86_64 | build nativa (`build_container_x86_64.sh`) | `<ver>-amd64`, `<sha>-amd64`, `latest-amd64` |
+
+Storici, solo su richiesta: `--sdk` (SDK Yocto Pixsys) e `--with-generic` (QEMU, ~50 minuti,
+binario non ottimizzato). Spariranno quando il cross-build avrà girato abbastanza sui dispositivi.
 
 Varianti:
 
@@ -344,16 +353,15 @@ Varianti:
 ./scripts/build_container_x86_64.sh --push            # una sola architettura
 ```
 
-Tre trappole, tutte già incontrate dal vivo:
+Le trappole, tutte già incontrate dal vivo:
 
-- **Non lanciarlo con `sudo`.** Chiede la password da solo per il solo passo che richiede root
-  (aarch64 generica). Lanciato interamente da root, sotto podman rootful la rete bridge non
-  passa il DNS dell'host ai container e il builder x86_64 fallisce risolvendo
-  `archive.ubuntu.com` pur risolvendo benissimo sull'host (2026-08-07). Lo script si accorge
-  se gira da root e riabbassa i privilegi, ma è meglio non contarci.
-- **Senza SDK Yocto Pixsys** (`/usr/local/oecore-x86_64/environment-setup-cortexa35-pixsys-linux`,
-  assente sul dev server d'ufficio) l'immagine `*-arm64` tuned viene **saltata con un avviso** e
-  restano generica + x86_64. Passa `--require-sdk` per farne un errore bloccante.
+- **Non lanciarlo con `sudo`.** Nessun passo lo richiede più (lo richiedeva solo la vecchia
+  aarch64 via QEMU, oggi dietro `--with-generic`). Lanciato da root, sotto podman rootful la rete
+  bridge non passa il DNS dell'host ai container e il builder x86_64 fallisce risolvendo
+  `archive.ubuntu.com` pur risolvendo benissimo sull'host (2026-08-07).
+- **La prima build aarch64 è lunga** (~8 minuti il runtime, poi il viewer), le successive
+  incrementali: `target-container-aarch64-cross/` resta fra una build e l'altra. Se sembra ferma
+  su «Compiling», sta compilando.
 - **Emulazione arm64** registrata sull'host, una volta per macchina: se
   `/proc/sys/fs/binfmt_misc/qemu-aarch64` non esiste, `sudo apt install qemu-user-static`.
 - **Nessuno deve modificare gli script mentre girano** — nemmeno un commento. Bash legge il
@@ -364,9 +372,9 @@ Tre trappole, tutte già incontrate dal vivo:
   ma la sequenza va rifatta da capo. Chi lavora sullo stesso checkout controlli
   `pgrep -af build_container` prima di toccare `scripts/`.
 
-Sul dispositivo, poi, si aggiorna con `install-container.sh --pull <riferimento>` — attenzione
-al tag: senza argomento sceglie `latest-arm64` (percorso SDK), che è un'immagine **diversa**
-da `latest-arm64-generic`. Dettagli nel capitolo 1 e in `docs/DEPLOY_CONTAINER_AARCH64.md`.
+Sul dispositivo, poi, si aggiorna con `install-container.sh --pull` (senza argomento sceglie
+`latest-<arch>`), o dall'editor: Configurazione → Runtime → Installa su dispositivo (§12).
+Dettagli in `docs/DEPLOY_CONTAINER_AARCH64.md`.
 
 ---
 
@@ -914,9 +922,9 @@ marca.
    già installato. Ogni riga è ✓, ⚠ o ✗ con il rimedio accanto; ⚠ non ferma (il linger, per
    esempio, l'installer prova ad abilitarlo da solo), ✗ sì. Se la chiave host è cambiata compare
    il pulsante «Dimentica la vecchia chiave e riprova» (§9): la verifica riparte da sola dopo.
-4. **Immagine.** Registry per default; la variante (`latest-arm64` per un Pixsys, `latest-arm64-generic`
-   per un altro aarch64, `latest-amd64` per x86) la propone la verifica e finisce nel campo
-   «riferimento immagine», che resta modificabile. «Archivio locale» compare solo se l'editor gira
+4. **Immagine.** Registry per default; il riferimento (`latest-arm64` per qualunque aarch64,
+   `latest-amd64` per x86: un'immagine per architettura, Q53) lo propone la verifica e finisce nel
+   campo «riferimento immagine», che resta modificabile. «Archivio locale» compare solo se l'editor gira
    dal repo (ha `dist/`).
 5. **Installa** (o **Aggiorna**, se SWS c'è già). Spento solo quando la verifica ha trovato ✗: il
    titolo del pulsante dice di leggere la lista. Il registro scorre come prima.

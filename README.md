@@ -144,8 +144,10 @@ update — is in [docs/DEPLOY_CONTAINER_AARCH64.md](docs/DEPLOY_CONTAINER_AARCH6
 reach the registry, the same install can be pushed from the IDE over SSH (*ConfigView → Runtime
 → Installa su dispositivo*), which copies the archive instead of pulling.
 
-**c) Yocto cross-compile** — the preferred path for Pixsys hardware (PX30, RK3399, RK3588):
-produces a native `aarch64` binary, no container involved.
+**c) Yocto cross-compile** — the historical native path for Pixsys hardware (PX30, RK3399,
+RK3588): a native `aarch64` binary as a systemd service, no container involved. Since
+2026-09-10 the container image for aarch64 is built without the Pixsys SDK (cross-compiled in
+an Ubuntu container), so the SDK is only needed for this native path.
 
 ```bash
 ./scripts/yocto/build.sh                 # cross-compile with the Pixsys Yocto SDK

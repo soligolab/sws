@@ -74,6 +74,8 @@ while [ $# -gt 0 ]; do
         # --with-lvgl, che docs/HOWTO.md documentava in un comando che quindi
         # non poteva funzionare.
         --with-lvgl|--no-lvgl) shift ;;
+        # Idem: --sdk riguarda solo l'immagine aarch64 (build_container.sh).
+        --sdk) shift ;;
         --registry) REGISTRY="$2"; shift 2 ;;
         --out)      OUT_DIR="$2"; shift 2 ;;
         *) echo "Flag non riconosciuta: $1 (--help per l'elenco)" >&2; exit 1 ;;

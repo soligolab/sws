@@ -49,6 +49,18 @@ for k in sonda_versione hostname arch utente uid podman spazio_kb subuid subgid 
     printf '%s\n' "$out_file" | grep -q "^SONDA $k=" || male "manca il fatto «$k»"
 done
 printf '%s\n' "$out_file" | grep -q '^SONDA fine=1$' && ok "arriva in fondo (fine=1)" || male "non arriva a fine=1"
+# La cartella dati arriva come $1 (l'editor passa quella del modulo): deve
+# comparire nell'uscita, e per una cartella inesistente non creabile lo stato
+# deve dirlo.
+out_arg=$(sh -s -- /nonesiste/sws < "$SONDA" 2>/dev/null)
+printf '%s\n' "$out_arg" | grep -q '^SONDA data_path=/nonesiste/sws$' && ok "la cartella dati passata come argomento è quella controllata" \
+                                                                      || male "la cartella dati passata come argomento non viene usata"
+if [ "$(id -u)" -eq 0 ]; then
+    ok "eseguita da root: per root ogni cartella è creabile, il controllo sullo stato si salta"
+else
+    printf '%s\n' "$out_arg" | grep -q '^SONDA data_stato=assente-non-creabile$' && ok "una cartella impossibile risulta assente-non-creabile" \
+                                                                                 || male "stato inatteso per una cartella impossibile: $(printf '%s\n' "$out_arg" | grep '^SONDA data_stato=')"
+fi
 [ -s /tmp/sonda-stderr.$$ ] && { male "scrive su stderr:"; sed 's/^/      /' /tmp/sonda-stderr.$$; } || ok "stderr vuoto"
 rm -f /tmp/sonda-stderr.$$
 

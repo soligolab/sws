@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 #
+# STORICO (Q53, 2026-09-10): l'immagine aarch64 si costruisce ora con
+# build_container.sh cross-compilando da x86_64 (Containerfile.aarch64-cross.builder).
+# Questo percorso via QEMU produceva un binario NON ottimizzato (opt-level 0) e
+# resta solo per confronto (`build_containers_all.sh --with-generic`), finché il
+# cross-build non avrà girato abbastanza sui dispositivi. Poi sparisce.
+#
 # Costruisce l'immagine container aarch64 "generica" (senza SDK Pixsys) del
 # runtime SWS e — con --push — la pubblica sul registry. Gemello di
 # scripts/build_container_x86_64.sh: stesso flusso, stesso builder
@@ -149,6 +155,9 @@ while [ $# -gt 0 ]; do
         # Accettata e senza effetto: era il modo di chiederlo.
         --with-lvgl) WITH_LVGL=1;  shift ;;
         --no-lvgl)   WITH_LVGL=0;  shift ;;
+        # build_containers_all.sh inoltra gli argomenti identici a tutti: --sdk
+        # riguarda build_container.sh e qui non significa niente.
+        --sdk)       shift ;;
         --registry)  REGISTRY="$2"; shift 2 ;;
         --out)       OUT_DIR="$2"; shift 2 ;;
         *) echo "Flag non riconosciuta: $1 (--help per l'elenco)" >&2; exit 1 ;;

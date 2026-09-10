@@ -17,10 +17,9 @@ export function imageRefDaVariante(v: VarianteImmagine | null): string {
 }
 
 /** La variante immagine dalla sola architettura, quando l'editor è collegato a
- *  un runtime che la dichiara (`/api/system`). Su aarch64 si propone
- *  `latest-arm64`, che è ciò che l'installer sceglie da solo con un riferimento
- *  vuoto; la verifica via ssh, che vede anche il sistema operativo, può poi
- *  correggerla in `-generic`. Architetture senza immagine → null. */
+ *  un runtime che la dichiara (`/api/system`). Dalla 2.7.2 (Q53) l'immagine
+ *  aarch64 è una sola, `latest-arm64`: la stessa che l'installer sceglie da solo
+ *  con un riferimento vuoto. Architetture senza immagine → null. */
 export function varianteDaArch(arch: string | undefined | null): VarianteImmagine | null {
   switch ((arch ?? "").trim()) {
     case "aarch64": case "arm64": return "latest-arm64";

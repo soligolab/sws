@@ -3,49 +3,57 @@
 # Costruisce l'immagine container aarch64 del runtime SWS e — con --push — la
 # pubblica sul registry, che è la strada normale per portarla sui dispositivi.
 #
-# L'immagine NON compila nulla: incarta il binario prodotto dal cross-compile
-# con l'SDK Yocto Pixsys (scripts/yocto/build.sh) e la SPA già buildata.
-# Compilare Rust dentro un'immagine arm64 emulata richiederebbe ore.
+# L'immagine NON compila nulla: incarta il binario aarch64 già compilato e la SPA
+# già buildata. Compilare Rust dentro un'immagine arm64 emulata richiederebbe
+# ore (è quello che faceva build_container_aarch64_generic.sh: 51 minuti, e per
+# giunta a opt-level 0 — vedi Q53).
+#
+# COME NASCE IL BINARIO (Q53, 2026-09-10): per default in un container di build
+# x86_64 con la toolchain Ubuntu per arm64 (deploy/container/
+# Containerfile.aarch64-cross.builder): cross-compilazione nativa, ottimizzata,
+# in minuti, senza SDK Pixsys e senza QEMU, contro le stesse librerie
+# (ubuntu:24.04, glibc 2.39, Python 3.12) dell'immagine finale. L'unica
+# immagine aarch64: vale per i pannelli Pixsys e per qualunque board arm64.
+# Con --sdk si usa il percorso storico con l'SDK Yocto Pixsys
+# (scripts/yocto/build.sh): resta finché il cross-build non è stato provato a
+# sufficienza sul campo, poi sparisce.
 #
 # La SPA è DENTRO l'immagine dal 2026-07-30: col registry i layer si
-# deduplicano, quindi un frontend nuovo trasferisce ~0,4 MB e non i 59 MB
-# dell'immagine intera, e sul dispositivo non c'è più un secondo artefatto da
-# copiare né il rischio di SPA e binario di versioni diverse.
+# deduplicano, quindi un frontend nuovo trasferisce ~0,4 MB e non l'immagine
+# intera, e sul dispositivo non c'è un secondo artefatto da copiare.
 #
 # Due modi di consegnare l'immagine:
 #
 #   --push        → registry (default ghcr.io/soligolab/sws-runtime), poi sul
 #                   dispositivo `install-container.sh --pull`. Un aggiornamento
-#                   scarica il solo layer cambiato (~14 MB il binario).
+#                   scarica il solo layer cambiato.
 #   (default)     → archivio dist/sws-runtime-<versione>-aarch64-image.tar.gz
-#                   (~59 MB) da copiare via scp: il ripiego per un dispositivo
-#                   senza rete verso il registry.
+#                   da copiare via scp: il ripiego per un dispositivo senza
+#                   rete verso il registry.
 #
 # Uso:
-#   ./scripts/build_container.sh                    # cross-build + immagine + archivio
+#   ./scripts/build_container.sh                    # cross-build in container + immagine + archivio
 #   ./scripts/build_container.sh --push             # ...e pubblica sul registry
 #   ./scripts/build_container.sh --no-save --push    # solo pubblicazione, nessun archivio
 #   ./scripts/build_container.sh --no-rust          # riusa il binario aarch64 esistente
 #   ./scripts/build_container.sh --no-spa           # riusa sws-editor/dist così com'è
+#   ./scripts/build_container.sh --sdk              # percorso storico: SDK Yocto Pixsys
 #   ./scripts/build_container.sh --registry REF     # altro repository di destinazione
 #   ./scripts/build_container.sh --out DIR          # directory di output (default dist/)
 #   ./scripts/build_container.sh --no-lvgl          # NON includere sws-lvgl-viewer
 #
 # L'immagine porta ENTRAMBI i runtime per default dal 2026-08-24 (decisione del
-# maintainer): sui prodotti Pixsys si deve poter provare sia il runtime web sia
+# maintainer): sui dispositivi si deve poter provare sia il runtime web sia
 # quello LVGL, e pubblicarne una senza viewer costringerebbe a un secondo giro.
 # L'ENTRYPOINT resta sws-runtime; il viewer si lancia come secondo container con
-# `--entrypoint sws-lvgl-viewer`.
+# `--entrypoint sws-lvgl-viewer`. `--no-lvgl` resta come uscita di sicurezza.
 #
-# Era opt-in perché il crate collega SDL2 di sistema e il sysroot Pixsys era
-# dichiarato "non verificato": misurato il 2026-08-24, header, .so e sdl2.pc ci
-# sono. `--no-lvgl` resta come uscita di sicurezza, perché una dipendenza di
-# sviluppo mancante non deve far fallire la build di sws-runtime.
-#
-# Requisiti: SDK Yocto Pixsys in /usr/local/oecore-x86_64/ (salvo --no-rust),
-#            clang/libclang sull'host (bindgen, per il viewer LVGL),
-#            podman, rete per scaricare ubuntu:24.04 e — con --push — un
-#            `podman login` già fatto sul registry.
+# Requisiti: podman e rete (ubuntu:24.04, ports.ubuntu.com, crates.io); pnpm
+#            per la SPA (salvo --no-spa); emulazione QEMU per arm64 registrata
+#            sull'host per il solo passo `apt-get` dell'immagine finale
+#            (`ls /proc/sys/fs/binfmt_misc/qemu-aarch64`); con --push un
+#            `podman login` già fatto. Con --sdk: l'SDK Yocto Pixsys in
+#            /usr/local/oecore-x86_64/ e clang/libclang sull'host.
 
 set -euo pipefail
 
@@ -53,7 +61,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 usage() {
-    sed -n '2,48p' "${BASH_SOURCE[0]}" | sed 's/^#//; s/^ //'
+    sed -n '2,56p' "${BASH_SOURCE[0]}" | sed 's/^#//; s/^ //'
 }
 
 BUILD_RUST=1
@@ -61,20 +69,18 @@ BUILD_SPA=1
 SAVE=1
 PUSH=0
 WITH_LVGL=1
+BUILDER="cross"     # cross (default, Q53) | sdk (storico)
 REGISTRY="ghcr.io/soligolab/sws-runtime"
 OUT_DIR="$REPO/dist"
 SDK_ENV="/usr/local/oecore-x86_64/environment-setup-cortexa35-pixsys-linux"
-BIN="$REPO/sws-runtime/target/aarch64-unknown-linux-gnu/release/sws-runtime"
-# Stesso target dir del runtime: dal 2026-08-25 sws-lvgl-viewer fa parte del
-# workspace, quindi cargo scrive qui e non più in un target locale al crate.
-#
-# Il percorso vecchio è rimasto valido finché la cartella stantia esisteva
-# ancora — e in quella finestra questo script avrebbe copiato nell'immagine un
-# binario di ore prima senza un avviso. È già successo con scripts/yocto/build.sh
-# lo stesso giorno, ed è costato un giro di deploy a caccia di modifiche che
-# "non funzionavano".
-LVGL_BIN="$REPO/sws-runtime/target/aarch64-unknown-linux-gnu/release/sws-lvgl-viewer"
 SPA_DIST="$REPO/sws-editor/dist"
+TARGET_TRIPLE="aarch64-unknown-linux-gnu"
+BUILDER_IMAGE="sws-runtime-builder:aarch64-cross"
+# Cartelle di lavoro del cross-build, dentro il repo e in .gitignore: cargo le
+# tiene incrementali fra una build e l'altra (la prima è lunga, le altre no).
+CROSS_TARGET="$REPO/sws-runtime/target-container-aarch64-cross"
+CROSS_TARGET_LVGL="$REPO/sws-runtime/crates/sws-lvgl-viewer/target-container-aarch64-cross"
+CROSS_CARGO_HOME="$REPO/.cargo-container-aarch64-cross"
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -83,6 +89,7 @@ while [ $# -gt 0 ]; do
         --no-spa)    BUILD_SPA=0;  shift ;;
         --no-save)   SAVE=0;       shift ;;
         --push)      PUSH=1;       shift ;;
+        --sdk)       BUILDER="sdk"; shift ;;
         # Accettata e senza effetto: era il modo di chiederlo.
         --with-lvgl) WITH_LVGL=1;  shift ;;
         --no-lvgl)   WITH_LVGL=0;  shift ;;
@@ -92,13 +99,20 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-if [ "$BUILD_RUST" -eq 1 ] && [ ! -f "$SDK_ENV" ]; then
-    echo "ERRORE: SDK Yocto Pixsys non trovato ($SDK_ENV)." >&2
-    echo "        Installalo, oppure passa --no-rust per riusare un binario esistente." >&2
-    echo "        Questa immagine (Pixsys-tuned) richiede sempre l'SDK: non ha un ripiego" >&2
-    echo "        automatico. Per le altre due immagini (aarch64-generico, x86_64), che non" >&2
-    echo "        lo richiedono, usa:" >&2
-    echo "          ./scripts/build_containers_all.sh   # salta questa in automatico se manca l'SDK" >&2
+# Dove sta il binario dipende da chi lo compila. Sono due alberi distinti di
+# proposito: un --sdk dopo un cross (o viceversa) non deve poter incartare il
+# binario dell'altro percorso credendolo aggiornato.
+if [ "$BUILDER" = "sdk" ]; then
+    BIN="$REPO/sws-runtime/target/$TARGET_TRIPLE/release/sws-runtime"
+    LVGL_BIN="$REPO/sws-runtime/target/$TARGET_TRIPLE/release/sws-lvgl-viewer"
+else
+    BIN="$CROSS_TARGET/$TARGET_TRIPLE/release/sws-runtime"
+    LVGL_BIN="$CROSS_TARGET_LVGL/$TARGET_TRIPLE/release/sws-lvgl-viewer"
+fi
+
+if [ "$BUILDER" = "sdk" ] && [ "$BUILD_RUST" -eq 1 ] && [ ! -f "$SDK_ENV" ]; then
+    echo "ERRORE: --sdk richiede l'SDK Yocto Pixsys ($SDK_ENV), che qui non c'è." >&2
+    echo "        Senza --sdk il binario si cross-compila in un container Ubuntu: è il default." >&2
     exit 1
 fi
 
@@ -139,22 +153,77 @@ VERSION=$(cd "$REPO/sws-runtime" && cargo metadata --no-deps --format-version 1 
 # Capitato davvero il 2026-07-31, costruendo le due immagini di seguito.
 IMAGE="sws-runtime:${VERSION}-arm64"
 
-echo "==> SWS runtime container image ${VERSION} (linux/arm64)"
+echo "==> SWS runtime container image ${VERSION} (linux/arm64, binario da: $BUILDER)"
 
-# ── 1. Cross-compile ──────────────────────────────────────────────────────────
-# In a subprocess on purpose: yocto/build.sh sources the SDK environment into
-# its own shell, which would otherwise clobber PATH/pkg-config for the rest of
-# this script. Same reasoning as scripts/build_deploy.sh.
-if [ "$BUILD_RUST" -eq 1 ]; then
+# ── 1. Il binario aarch64 ─────────────────────────────────────────────────────
+if [ "$BUILD_RUST" -eq 1 ] && [ "$BUILDER" = "sdk" ]; then
+    # In a subprocess on purpose: yocto/build.sh sources the SDK environment into
+    # its own shell, which would otherwise clobber PATH/pkg-config for the rest of
+    # this script. Same reasoning as scripts/build_deploy.sh.
     YOCTO_FLAGS=( release )
     [ "$BUILD_SPA" -eq 1 ]  || YOCTO_FLAGS+=( --no-spa )
     # Va propagato il NEGATIVO, non il positivo: da quando LVGL è il default
-    # anche in build.sh, non passare niente significa "costruiscilo". Con la
-    # forma precedente un --no-lvgl qui avrebbe cross-compilato il viewer lo
-    # stesso, per poi non metterlo nell'immagine.
+    # anche in build.sh, non passare niente significa "costruiscilo".
     [ "$WITH_LVGL" -eq 1 ]  || YOCTO_FLAGS+=( --no-lvgl )
-    echo "==> [1/4] cross-compile (${YOCTO_FLAGS[*]})"
+    echo "==> [1/4] cross-compile con l'SDK Pixsys (${YOCTO_FLAGS[*]})"
     bash "$REPO/scripts/yocto/build.sh" "${YOCTO_FLAGS[@]}"
+
+elif [ "$BUILD_RUST" -eq 1 ]; then
+    # Il builder: un'immagine x86_64 con gcc per aarch64 e le librerie :arm64 di
+    # Ubuntu 24.04 in multiarch. Si ricostruisce solo se il Containerfile cambia
+    # (podman usa la cache dei layer); la prima volta scarica qualche centinaio
+    # di MB da ports.ubuntu.com.
+    echo "==> [1a/4] immagine builder $BUILDER_IMAGE (x86_64 → aarch64, toolchain Ubuntu)"
+    podman build -t "$BUILDER_IMAGE" \
+        -f "$REPO/deploy/container/Containerfile.aarch64-cross.builder" \
+        "$REPO/deploy/container"
+
+    if [ "$BUILD_SPA" -eq 1 ]; then
+        echo "==> [1b/4] pnpm build (SPA)"
+        if [ ! -d "$REPO/sws-editor/node_modules" ]; then
+            (cd "$REPO/sws-editor" && pnpm install)
+        fi
+        (cd "$REPO/sws-editor" && pnpm build)
+    fi
+
+    # Stesso invito del percorso SDK (scripts/yocto/build.sh): le patch al
+    # codice LVGL vendorizzato devono essere applicate, perché cargo non si
+    # accorge se qualcuno le toglie — vedi Q22.
+    if [ "$WITH_LVGL" -eq 1 ]; then
+        echo "==> [1c/4] verifica delle patch al codice vendorizzato"
+        "$REPO/scripts/check_vendor_patches.sh" || {
+            echo "ERRORE: patch al codice vendorizzato mancanti — build interrotta." >&2
+            echo "        Riapplica con: ./scripts/check_vendor_patches.sh --apply" >&2
+            exit 1
+        }
+    fi
+
+    # Rootless va bene: qui non si esegue niente di arm64, si compila soltanto.
+    # `--network host` per crates.io e per il DNS: la rete bridge di podman
+    # rootless a volte non risolve, e una build che muore su un download non
+    # dice niente di utile. `:Z` per gli host con SELinux, innocuo altrove.
+    echo "==> [1d/4] cargo build --release --target $TARGET_TRIPLE -p sws-runtime (nel builder)"
+    podman run --rm --network host \
+        -v "$REPO":/src:Z \
+        -w /src/sws-runtime \
+        -e CARGO_HOME=/src/.cargo-container-aarch64-cross \
+        -e CARGO_TARGET_DIR=/src/sws-runtime/target-container-aarch64-cross \
+        "$BUILDER_IMAGE" \
+        cargo build --release --target "$TARGET_TRIPLE" -p sws-runtime
+
+    if [ "$WITH_LVGL" -eq 1 ]; then
+        # Con la cartella del crate come working directory, non da --manifest-path:
+        # il suo .cargo/config.toml imposta DEP_LV_CONFIG_PATH relativo alla cwd,
+        # e cargo lo cerca risalendo da lì (stessa cosa in yocto/build.sh).
+        echo "==> [1e/4] cargo build --release --target $TARGET_TRIPLE (sws-lvgl-viewer, nel builder)"
+        podman run --rm --network host \
+            -v "$REPO":/src:Z \
+            -w /src/sws-runtime/crates/sws-lvgl-viewer \
+            -e CARGO_HOME=/src/.cargo-container-aarch64-cross \
+            -e CARGO_TARGET_DIR=/src/sws-runtime/crates/sws-lvgl-viewer/target-container-aarch64-cross \
+            "$BUILDER_IMAGE" \
+            cargo build --release --target "$TARGET_TRIPLE"
+    fi
 else
     echo "==> [1/4] skipped (--no-rust)"
 fi
@@ -167,15 +236,30 @@ fi
 
 # Guard against the classic mistake of feeding the host binary to an arm64
 # image: it would build fine and fail only at `podman run` on the device.
-if ! file "$BIN" | grep -q "ARM aarch64"; then
-    echo "ERROR: $BIN is not an aarch64 binary:" >&2
-    file "$BIN" >&2
-    exit 1
-fi
-if [ "$WITH_LVGL" -eq 1 ] && ! file "$LVGL_BIN" | grep -q "ARM aarch64"; then
-    echo "ERROR: $LVGL_BIN is not an aarch64 binary:" >&2
-    file "$LVGL_BIN" >&2
-    exit 1
+for b in "$BIN" $( [ "$WITH_LVGL" -eq 1 ] && echo "$LVGL_BIN" ); do
+    if ! file "$b" | grep -q "ARM aarch64"; then
+        echo "ERROR: $b is not an aarch64 binary:" >&2
+        file "$b" >&2
+        exit 1
+    fi
+done
+
+# Il binario deve girare sulla base dell'immagine finale (ubuntu:24.04: glibc
+# 2.39, Python 3.12): un simbolo più nuovo o una libpython diversa passerebbero
+# la build e fallirebbero al primo `podman run` sul dispositivo. Il controllo
+# è lo stesso di docs/DEPLOY_CONTAINER_AARCH64.md §«Perché ubuntu:24.04».
+if command -v readelf >/dev/null 2>&1; then
+    GLIBC_MAX="$(readelf -V "$BIN" | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1)"
+    if [ -n "$GLIBC_MAX" ] && [ "$(printf '%s\n' "${GLIBC_MAX#GLIBC_}" 2.39 | sort -V | tail -1)" != "2.39" ]; then
+        echo "ERROR: $BIN richiede $GLIBC_MAX, l'immagine (ubuntu:24.04) ha glibc 2.39." >&2
+        exit 1
+    fi
+    if ! readelf -d "$BIN" | grep -q 'libpython3\.12'; then
+        echo "ERROR: $BIN non linka libpython3.12 (readelf -d), l'immagine ha Python 3.12:" >&2
+        readelf -d "$BIN" | grep NEEDED >&2
+        exit 1
+    fi
+    echo "    binario: aarch64, glibc ≤ ${GLIBC_MAX:-?}, libpython3.12 — combacia con ubuntu:24.04"
 fi
 
 # ── 2. Stage the build context ────────────────────────────────────────────────
@@ -219,8 +303,16 @@ if [ "$PUSH" -eq 1 ]; then
     # dispositivo prende l'ultima pubblicata senza che qualcuno debba ricordarsi
     # di aggiornare un numero dentro lo script a ogni release.
     TAG_LATEST="${REGISTRY}:latest-arm64"
+    TAGS=( "$TAG_VERSION" "$TAG_COMMIT" "$TAG_LATEST" )
+    # Q53: `-arm64-generic` era un'immagine a parte (QEMU, non ottimizzata). Da
+    # oggi è la STESSA immagine con un altro nome, così un dispositivo installato
+    # con quel riferimento continua ad aggiornarsi. Alias di transizione: cade
+    # quando nessun dispositivo lo usa più.
+    if [ "$BUILDER" = "cross" ]; then
+        TAGS+=( "${REGISTRY}:${VERSION}-arm64-generic" "${REGISTRY}:latest-arm64-generic" )
+    fi
     echo "==> [4/4] pubblicazione su $REGISTRY"
-    for t in "$TAG_VERSION" "$TAG_COMMIT" "$TAG_LATEST"; do
+    for t in "${TAGS[@]}"; do
         podman tag "$IMAGE" "$t"
         echo "    push $t"
         podman push "$t"

@@ -13,6 +13,26 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 > Su `main` dalla sera del 2026-09-09 (`a68802e`), non ancora rilasciato.
 
+### Un'immagine aarch64 sola, cross-compilata e ottimizzata (Q53)
+
+Fino alla 2.7.1 le immagini arm64 erano due: quella compilata con l'SDK Yocto Pixsys e quella
+«generica» compilata dentro un container arm64 emulato con QEMU — in 51 minuti e, per un crash
+di `aws-lc-sys` sotto emulazione, **senza ottimizzazioni**. La differenza fra le due non era la
+libc (entrambe girano contro quella di `ubuntu:24.04`) ma l'ottimizzazione. Ora il binario si
+cross-compila da x86_64 in un container Ubuntu con la toolchain arm64 e i pacchetti multiarch:
+niente SDK, niente QEMU, ottimizzato, otto minuti la prima volta e incrementale dopo.
+`build_containers_all.sh` costruisce due immagini (aarch64, x86_64); `latest-arm64-generic` è
+un alias di `latest-arm64`. La verifica del dispositivo propone `latest-arm64` per qualunque
+aarch64 e i due pulsanti SDK/generica sono spariti. I percorsi storici restano dietro `--sdk`
+e `--with-generic` finché il cross-build non avrà girato abbastanza sui pannelli.
+
+### Piccole cose prima del tag
+
+`sws-runtime --version` risponde con la versione invece che con l'uso del comando. La verifica
+del dispositivo controlla la cartella dati **scelta nel modulo**, non solo quella predefinita
+(una partizione piena o non scrivibile si scopre prima di installare). I Containerfile e lo
+script del percorso QEMU dichiarano in testa di essere storici.
+
 ### Gli strumenti di sviluppo compaiono solo dove c'è il repo (Q51)
 
 «Pacchetto runtime» e il deploy del binario nativo richiedono il checkout del repo: per chi usa

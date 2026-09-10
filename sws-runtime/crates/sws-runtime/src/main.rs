@@ -35,7 +35,11 @@ use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, Env
 use crate::log_layer::LogBusLayer;
 
 #[derive(Parser, Debug)]
-#[command(name = "sws-runtime", about = "Soligo Web SCADA runtime")]
+// `version`: `sws-runtime --version` stampa la versione del Cargo.toml. Serve a
+// chi ha in mano un'immagine o un binario e vuole sapere cos'è senza avviarlo
+// (`podman run --rm <immagine> --version`); fino al 2026-09-10 rispondeva con
+// l'uso del comando, come se fosse un errore.
+#[command(name = "sws-runtime", about = "Soligo Web SCADA runtime", version)]
 struct Args {
     /// Runtime config directory (TLS certificates stored here)
     #[arg(long, default_value = "/var/sws/config")]

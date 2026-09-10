@@ -76,6 +76,25 @@
 
 ## ▶ Da fare nella prossima sessione
 
+### 🔧 Q53 — un'immagine aarch64 sola, cross-compilata: ramo `feat/Q53-crossbuild-arm64` (2026-09-10)
+
+Decisa dal maintainer la mattina («vale la pena percorrere la strada del crossbuild»). Realizzato
+e **provato su theobroma**: il builder Ubuntu multiarch si costruisce, `sws-runtime` aarch64 esce
+`[optimized]` in 8 minuti con `GLIBC_2.39` e `libpython3.12`, l'immagine `2.7.1-arm64` si
+assembla con lo stesso `Containerfile.aarch64` di prima. Due intoppi trovati e risolti nel
+Containerfile del builder: pyo3 (`_sysconfigdata` del target, → `PYO3_CONFIG_FILE`) e FreeType
+per l'host (build script di `lvgl`). **Non mergiato, non pushato.**
+
+Aggiunte prima del tag, sullo stesso ramo: `sws-runtime --version`, la sonda che controlla la
+cartella dati scelta nel modulo (`sh -s -- <cartella>`, validata come i percorsi del deploy), le
+intestazioni «storico» sui file del percorso QEMU. **Il tag `2.7.2` è libero** (su origin e su
+ghcr ci sono solo 2.7.0 e 2.7.1).
+
+**Prossimo passo, tuo**: `git pull` del ramo quando lo pusho (o merge), poi
+`./scripts/build_containers_all.sh --push` — due immagini, niente sudo — e sul TC620 «Aggiorna»
+dall'editor: `latest-arm64` è ora la cross. **Da misurare** contro la 2.7.1 di ieri: CPU del viewer
+LVGL (`top` sul pannello) e tempo di avvio. Se regge, fase due: via SDK, QEMU e alias.
+
 ### 🔧 Q51 + Q52 — la scheda Runtime per l'utente — **su `main`** (`a68802e`, 2026-09-09 sera), da collaudare
 
 Decise dal maintainer (un ramo solo, tutto il flusso, tabella nel modulo Installa), realizzate sul

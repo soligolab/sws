@@ -69,7 +69,7 @@ pub(crate) fn sshpass_available() -> bool {
 /// alphanumeric characters plus `-`, `_`, `.`, `/`.
 /// This prevents shell injection when the path is interpolated into a
 /// remote command string (e.g. `mkdir -p <dir> && tar xzf ... -C <dir>`).
-fn validate_remote_path(path: &str) -> bool {
+pub(crate) fn validate_remote_path(path: &str) -> bool {
     path.starts_with('/')
         && !path.contains("..")
         && path

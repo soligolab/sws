@@ -411,10 +411,10 @@ chi ha lanciato il comando legge «done. Image: sws-runtime:2.5.0-amd64» e non 
 due, né le dimensioni, né quale immagine copiare su quale pezzo di ferro. È anche il punto in cui
 si nota una build **saltata** (SDK Pixsys assente) invece di scoprirlo installando.
 
-**Legge `dist/` e non solo `podman images`**, e non è un dettaglio: le tre immagini non stanno tutte
-nello stesso deposito. `arm64-generic` si costruisce con `sudo`, quindi finisce nel deposito di
-root, e un `podman images` da utente normale **non la vede** — un riepilogo ingenuo la darebbe per
-mancante appena costruita. Gli archivi in `dist/` invece sono tutti là, e sono anche la cosa che si
+**Legge `dist/` e non solo `podman images`**, e non è un dettaglio: le immagini non stanno per forza
+nello stesso deposito. La vecchia `arm64-generic` (solo con `--with-generic`, Q53) si costruisce con
+`sudo`, quindi finisce nel deposito di root, e un `podman images` da utente normale **non la vede** —
+un riepilogo ingenuo la darebbe per mancante appena costruita. Gli archivi in `dist/` invece sono tutti là, e sono anche la cosa che si
 copia davvero su un dispositivo.
 
 Non chiede mai `sudo`: un riepilogo che chiede una password non è un riepilogo. Se `sudo -n` passa

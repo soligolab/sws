@@ -51,8 +51,8 @@ REGISTRY="ghcr.io/soligolab/sws-runtime"
 #
 # Campi: <suffisso-immagine>|<suffisso-archivio>|<a cosa serve>|<come è costruita>
 GUSTI=(
-  "arm64|aarch64|pannelli Pixsys (PX30, RK3399, RK3588)|SDK Yocto Pixsys: linka la libc del dispositivo, e porta anche sws-lvgl-viewer"
-  "arm64-generic|aarch64-generic|board arm64 non Pixsys (Debian/Ubuntu)|in container con QEMU, senza SDK: gira dove la libc è quella della distro"
+  "arm64|aarch64|qualunque dispositivo arm64: pannelli Pixsys (PX30, RK3399, RK3588) e board generiche|cross-compilata da x86_64 con la toolchain Ubuntu arm64, ottimizzata; base ubuntu:24.04 come tutte; porta anche sws-lvgl-viewer. latest-arm64-generic è un alias di questa"
+  "arm64-generic|aarch64-generic|(storica, solo con --with-generic) confronto durante la transizione a Q53|in container arm64 emulato con QEMU, NON ottimizzata (opt-level 0)"
   "amd64|x86_64|PC, VM, prove in locale|in container su ubuntu:24.04, nessuna emulazione"
 )
 
@@ -142,7 +142,7 @@ if [ "${#mancanti[@]}" -gt 0 ]; then
     # sbagliata è peggio che non spiegare niente — manda a cercare un SDK a
     # chi ha solo saltato la x86_64.
     case " ${mancanti[*]} " in
-        *"-arm64 "*) echo "  (l'SDK Yocto Pixsys mancante salta questa build con un avviso; --require-sdk la rende un errore)" ;;
+        *"-arm64-generic "*) echo "  (la aarch64 via QEMU si costruisce solo con --with-generic: dalla 2.7.2 è un alias della -arm64)" ;;
     esac
 fi
 

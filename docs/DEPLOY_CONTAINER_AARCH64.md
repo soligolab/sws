@@ -11,8 +11,11 @@
 > Per un device **x86_64** (non aarch64), stesso installer e stessa esperienza, vedi
 > `docs/DEPLOY_CONTAINER_X86_64.md`.
 >
-> Per una board **ARM64 generica** (Raspberry Pi, Jetson, VM cloud arm64) c'è la
-> §«Percorso generico (senza SDK Pixsys)» in questo stesso documento.
+> **Dal 2026-09-10 (Q53) l'immagine aarch64 è una sola** e vale per qualunque
+> dispositivo arm64, Pixsys o no: il binario si cross-compila da x86_64 in un
+> container Ubuntu (§«Come nasce il binario»), senza SDK Pixsys e senza QEMU.
+> `latest-arm64-generic` è un alias della stessa immagine, per i dispositivi
+> installati con quel riferimento.
 >
 > Non sostituisce il percorso **binario nativo Yocto**
 > (`docs/YOCTO_CROSSCOMPILE.md`) — resta preferibile quando si può installare come
@@ -94,9 +97,10 @@ l'archivio resta, per i dispositivi che il registry non lo vedono.
 
 ## 1. Compilare
 
-Prerequisiti: SDK Pixsys in `/usr/local/oecore-x86_64/`, `podman`, binfmt
-aarch64 registrato (`ls /proc/sys/fs/binfmt_misc/qemu-aarch64`), rete verso
-Docker Hub per `ubuntu:24.04`.
+Prerequisiti: `podman`, binfmt aarch64 registrato per il solo `apt-get`
+dell'immagine finale (`ls /proc/sys/fs/binfmt_misc/qemu-aarch64`), `pnpm` per la
+SPA, rete verso Docker Hub (`ubuntu:24.04`), `ports.ubuntu.com` e crates.io.
+Nessun SDK: vedi §«Come nasce il binario».
 
 ```bash
 ./scripts/build_container.sh                     # cross-build + immagine + archivio
@@ -115,10 +119,45 @@ viaggiavano separate.
 | immagine sul registry | strada normale (`--push`) | 64,8 MB in totale, ma vedi sotto |
 | `dist/sws-runtime-<versione>-aarch64-image.tar.gz` | dispositivi senza rete | ~59 MB |
 
-Lo script rifiuta di procedere se il binario in
-`target/aarch64-unknown-linux-gnu/release/` non è ARM aarch64: senza quel
-controllo un binario host finirebbe nell'immagine e l'errore salterebbe fuori
-solo al `podman run` sul device.
+Lo script rifiuta di procedere se il binario non è ARM aarch64, se richiede una
+glibc più nuova della 2.39 dell'immagine o se non linka `libpython3.12`: senza
+quei controlli un binario sbagliato finirebbe nell'immagine e l'errore salterebbe
+fuori solo al `podman run` sul device.
+
+### Come nasce il binario: cross-build da x86_64 (Q53, 2026-09-10)
+
+`deploy/container/Containerfile.aarch64-cross.builder` è un'immagine **x86_64**
+con `crossbuild-essential-arm64` (gcc per aarch64) e i pacchetti `:arm64` di
+Ubuntu 24.04 installati in multiarch: `libc6-dev`, `libpython3.12-dev`,
+`libsdl2-dev`, `libdrm-dev`, `libfreetype-dev`. È lo stesso sysroot che l'SDK
+Pixsys forniva, ma da Ubuntu, riproducibile su qualunque PC — e identico alla
+base dell'immagine finale (glibc 2.39, Python 3.12). `build_container.sh` monta il
+repo in `/src` e lancia `cargo build --release --target aarch64-unknown-linux-gnu`
+per `sws-runtime` e, con la cartella del crate come cwd, per `sws-lvgl-viewer`.
+Il compilatore gira nativo: il runtime in ~8 minuti la prima volta, poi
+incrementale (`target-container-aarch64-cross/`, `.cargo-container-aarch64-cross/`,
+in `.gitignore`). Ottimizzato: `[optimized]` nel registro, non `[unoptimized]`.
+
+Le tre cose che hanno richiesto una scelta, tutte nel Containerfile con il perché:
+
+- **pyo3** in cross vuole il `_sysconfigdata*.py` del target, che su Ubuntu sta
+  nella stessa cartella di quello dell'host: si dà a pyo3 la configurazione
+  scritta (`PYO3_CONFIG_FILE=/opt/pyo3-aarch64.cfg`) invece di `PYO3_CROSS_LIB_DIR`.
+- **bindgen** per libdrm: `BINDGEN_EXTRA_CLANG_ARGS_aarch64_unknown_linux_gnu`
+  con `--target` e l'include multiarch, per-target e non globale perché
+  `lvgl-sys` si compila anche per l'host (stessa lezione dell'SDK, 2026-09-03).
+- **FreeType anche per l'host**: il build script di `lvgl` linka lvgl-sys per
+  x86_64 e lvgl-sys linka `-lfreetype`.
+
+**I due percorsi storici restano, per ora.** `build_container.sh --sdk` usa
+l'SDK Yocto Pixsys (`scripts/yocto/build.sh`, `target/aarch64-unknown-linux-gnu/`);
+`build_container_aarch64_generic.sh` compila **dentro** un container arm64
+emulato con QEMU, in ~51 minuti e — per il crash di `aws-lc-sys` sotto
+emulazione — a `opt-level 0`: il binario `-arm64-generic` pubblicato fino alla
+2.7.1 era **non ottimizzato**. Entrambi spariranno quando il cross-build avrà
+girato abbastanza sui dispositivi. Nessuno dei tre «linka la libc del
+dispositivo»: in un container il binario gira contro la glibc dell'immagine, e
+del pannello conta solo il kernel.
 
 ### L'ordine dei layer non è estetico
 
@@ -204,18 +243,18 @@ dal default automatico di `install-container.sh --pull` (che senza argomento
 cerca `latest-arm64`, l'immagine Pixsys-tuned) — vanno installati sempre con un
 riferimento esplicito.
 
-### Costruire tutte e tre le immagini in un colpo solo
+### Costruire tutte le immagini in un colpo solo
 
 `scripts/build_containers_all.sh` richiama in sequenza `build_container.sh`
-(SDK Pixsys), `build_container_aarch64_generic.sh` e `build_container_x86_64.sh`,
-inoltrando a ciascuno gli stessi argomenti (`--push`, `--no-rust`, `--no-spa`,
-`--registry`, `--out`). Su una macchina senza l'SDK Pixsys — es. l'ufficio —
-salta automaticamente `build_container.sh` con un avviso, e prosegue comunque
-con le altre due (`--require-sdk` per farne invece un errore bloccante).
+(aarch64, cross-build) e `build_container_x86_64.sh`, inoltrando a ciascuno gli
+stessi argomenti (`--push`, `--no-rust`, `--no-spa`, `--sdk`, `--registry`,
+`--out`). Con `--with-generic` costruisce anche la vecchia immagine aarch64 via
+QEMU, solo per confronto durante la transizione.
 
 ```bash
-./scripts/build_containers_all.sh              # tutte e tre, salta l'SDK Pixsys se manca
-./scripts/build_containers_all.sh --require-sdk # ...ma fallisce se l'SDK Pixsys manca
+./scripts/build_containers_all.sh                # aarch64 + x86_64
+./scripts/build_containers_all.sh --push         # ...e pubblica
+./scripts/build_containers_all.sh --sdk          # aarch64 con l'SDK Pixsys (storico)
 ```
 
 Ogni script (compreso questo) accetta anche `-h`/`--help` per un riepilogo

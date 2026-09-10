@@ -1,9 +1,11 @@
-# SWS runtime — immagine container aarch64 per device Pixsys OS con podman.
+# SWS runtime — immagine container aarch64 (Pixsys OS e qualunque board arm64) con podman.
 #
-# NON compila nulla: il binario arriva già cross-compilato da
-# `scripts/yocto/build.sh` (SDK Pixsys), che è la catena di build preferita
-# del progetto. Compilare Rust dentro un'immagine arm64 in emulazione QEMU
-# richiederebbe ore; qui la build dura secondi.
+# NON compila nulla: il binario arriva già cross-compilato — dal 2026-09-10
+# (Q53) nel container di build x86_64 `Containerfile.aarch64-cross.builder`,
+# con la toolchain Ubuntu per arm64; storicamente da `scripts/yocto/build.sh`
+# (SDK Pixsys, `build_container.sh --sdk`). Compilare Rust dentro un'immagine
+# arm64 in emulazione QEMU richiederebbe ore; qui la build dura secondi.
+# È la sola immagine aarch64: vale per i Pixsys e per qualunque board arm64.
 #
 # Il contesto di build è la directory staging preparata da
 # `scripts/build_container.sh` (bin/, templates/, www/), non la radice del

@@ -28,7 +28,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
-use crate::packaging::{destinazione_ssh_sicura, run_ssh_cmd_stdin, sshpass_available};
+use crate::packaging::{
+    destinazione_ssh_sicura, run_ssh_cmd_stdin, sshpass_available, validate_remote_path,
+};
 use crate::router::AppState;
 
 /// La sonda, dentro il binario come i file di deploy di Q48: un editor senza
@@ -53,6 +55,10 @@ pub struct ProbeBody {
     pub user: String,
     #[serde(default)]
     pub password: String,
+    /// La cartella dati scelta nel modulo (`install-container.sh --data`);
+    /// vuota = il default dello script. La sonda controlla quella.
+    #[serde(default)]
+    pub data_path: String,
 }
 
 fn porta_ssh_default() -> u16 {
@@ -138,24 +144,19 @@ pub(crate) fn analizza_righe_sonda(righe: &[String]) -> Fatti {
     f
 }
 
-/// L'architettura decide l'immagine. Le regole sono quelle di
-/// install-container.sh L183-199, con una scelta in più su aarch64: l'immagine
-/// `latest-arm64` è compilata con l'SDK Yocto Pixsys e linka la libc di quel
-/// sistema; `latest-arm64-generic` gira dove la libc è quella della distro. Si
-/// guarda `os-release`: se dice «pixsys» si propone la prima, altrimenti la
-/// generica. È una **proposta**: finisce nel campo «riferimento immagine» e
-/// l'utente la cambia con un click. Le altre architetture (armv7l, riscv…) non
-/// hanno un'immagine pubblicata e il controllo lo dice.
-pub(crate) fn variante_immagine(arch: &str, os_id: &str, os_name: &str) -> Option<&'static str> {
+/// L'architettura decide l'immagine, con le regole di install-container.sh
+/// L183-199. Dalla 2.7.2 (Q53) l'immagine aarch64 è **una sola**,
+/// `latest-arm64`, cross-compilata e valida per qualunque board arm64;
+/// `latest-arm64-generic` è solo un alias di transizione e non si propone più.
+/// Fino al 2026-09-09 qui si sceglieva fra SDK Pixsys e generica leggendo
+/// `os-release`: i due parametri restano nella firma per il giorno in cui un
+/// sistema dovesse davvero volere un'immagine diversa, oggi non li usa nessuno.
+/// È una **proposta**: finisce nel campo «riferimento immagine» e l'utente la
+/// cambia. Le altre architetture (armv7l, riscv…) non hanno un'immagine
+/// pubblicata e il controllo lo dice.
+pub(crate) fn variante_immagine(arch: &str, _os_id: &str, _os_name: &str) -> Option<&'static str> {
     match arch.trim() {
-        "aarch64" | "arm64" => {
-            let os = format!("{os_id} {os_name}").to_lowercase();
-            if os.contains("pixsys") {
-                Some("latest-arm64")
-            } else {
-                Some("latest-arm64-generic")
-            }
-        }
+        "aarch64" | "arm64" => Some("latest-arm64"),
         "x86_64" | "amd64" => Some("latest-amd64"),
         _ => None,
     }
@@ -517,6 +518,16 @@ pub async fn sonda_dispositivo(
     if req.port == 0 {
         return (StatusCode::BAD_REQUEST, "porta SSH non valida\n").into_response();
     }
+    // Stesse regole del deploy (`validate_remote_path`): assoluto, niente `..`,
+    // solo caratteri innocui — finisce in una riga di comando remota.
+    let data_path = req.data_path.trim().to_string();
+    if !data_path.is_empty() && !validate_remote_path(&data_path) {
+        return (
+            StatusCode::BAD_REQUEST,
+            "cartella dati non valida: percorso assoluto, senza «..», solo lettere, numeri, - _ . /\n",
+        )
+            .into_response();
+    }
 
     let use_sshpass = sshpass_available();
     let righe: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
@@ -526,6 +537,12 @@ pub async fn sonda_dispositivo(
     };
     let host_str = format!("{}@{}", req.user, req.host);
     let port_str = req.port.to_string();
+    // `sh -s -- <cartella>`: lo script su stdin, la cartella dati come $1.
+    let comando_remoto = if data_path.is_empty() {
+        "sh -s".to_string()
+    } else {
+        format!("sh -s -- {data_path}")
+    };
 
     let esito = tokio::time::timeout(
         TEMPO_MASSIMO,
@@ -539,7 +556,7 @@ pub async fn sonda_dispositivo(
                 "-o",
                 "StrictHostKeyChecking=accept-new",
                 &host_str,
-                "sh -s",
+                &comando_remoto,
             ],
             Some(SONDA_DISPOSITIVO_SH),
             &send,
@@ -721,20 +738,15 @@ mod tests {
 
     #[test]
     fn arch_diventa_variante_immagine() {
-        // Valori veri, letti da un TC620 con Pixsys OS 2.1.1 il 2026-09-09: il
-        // PRETTY_NAME dice «Pixsys OS 2.1.1»; l'ID non è stato registrato, e
-        // l'euristica deve reggere anche se fosse vuoto o generico.
+        // Q53: una sola immagine aarch64, qualunque sia il sistema. Valori veri
+        // del TC620 (Pixsys OS 2.1.1, 2026-09-09) e di una Debian generica.
         assert_eq!(
             variante_immagine("aarch64", "", "Pixsys OS 2.1.1"),
             Some("latest-arm64")
         );
         assert_eq!(
-            variante_immagine("aarch64", "pixsys", "Pixsys OS"),
-            Some("latest-arm64")
-        );
-        assert_eq!(
             variante_immagine("aarch64", "debian", "Debian"),
-            Some("latest-arm64-generic")
+            Some("latest-arm64")
         );
         assert_eq!(
             variante_immagine("x86_64", "ubuntu", "Ubuntu"),
@@ -912,6 +924,10 @@ mod tests {
         let b: ProbeBody = serde_json::from_str(r#"{"host":"wp630","user":"user"}"#).unwrap();
         assert_eq!(b.port, 22);
         assert_eq!(b.password, "");
+        assert_eq!(b.data_path, "");
+        let b: ProbeBody =
+            serde_json::from_str(r#"{"host":"h","user":"u","data_path":"/mnt/dati/sws"}"#).unwrap();
+        assert_eq!(b.data_path, "/mnt/dati/sws");
         assert!(serde_json::from_str::<ProbeBody>(r#"{"host":"h","user":"u","pw":"x"}"#).is_err());
     }
 }

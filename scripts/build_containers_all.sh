@@ -1,30 +1,29 @@
 #!/usr/bin/env bash
 #
-# Richiama in sequenza tutti e tre gli script di build container (SDK Pixsys
-# aarch64, aarch64 generico senza SDK, x86_64), per costruire tutte le
+# Richiama in sequenza gli script di build container per costruire tutte le
 # immagini in un colpo solo invece di lanciarle una a una a mano.
 #
+# DALLA 2.7.2 (Q53, 2026-09-10) LE IMMAGINI SONO DUE: aarch64 e x86_64.
+# L'aarch64 la costruisce build_container.sh cross-compilando in un container
+# Ubuntu (niente SDK Pixsys, niente QEMU, ottimizzata) e vale per qualunque
+# board arm64; `latest-arm64-generic` è ora un alias della stessa immagine.
+# Il vecchio percorso QEMU (build_container_aarch64_generic.sh, opt-level 0)
+# si lancia solo con --with-generic, e resta finché il cross-build non è
+# collaudato; poi sparisce.
+#
 # Tutti gli argomenti passati a questo script vengono inoltrati IDENTICI a
-# ciascuno dei tre script (--push, --no-rust, --no-spa, --registry, --out,
+# ciascuno degli script (--push, --no-rust, --no-spa, --sdk, --registry, --out,
 # ecc.) — stesso set di flag di scripts/build_container.sh, vedi quello
 # script per il significato di ciascuna flag. Si ferma al primo script che
 # fallisce (set -e) senza proseguire con gli altri.
 #
-# Due eccezioni, gestite SOLO da questo script (non inoltrate ai tre):
+# Due eccezioni, gestite SOLO da questo script (non inoltrate):
 #
-#   -h, --help     Stampa questo testo ed esce, senza toccare nulla.
+#   -h, --help      Stampa questo testo ed esce, senza toccare nulla.
 #
-#   --require-sdk  Se l'SDK Yocto Pixsys non è installato, ferma l'intera
-#                  sequenza con errore (comportamento dello script singolo).
-#                  Di default, invece, l'SDK mancante salta SOLO
-#                  build_container.sh (il percorso Pixsys-tuned) — con un
-#                  avviso ben visibile, non in silenzio — e prosegue comunque
-#                  con aarch64-generico e x86_64: sulle macchine senza SDK
-#                  (es. l'ufficio) non serve ricordarsi un flag per ottenere
-#                  le altre due immagini. Usa --require-sdk quando l'SDK
-#                  mancante deve essere un errore bloccante (es. automazione
-#                  di release che deve accorgersi di una macchina configurata
-#                  male).
+#   --with-generic  Costruisce ANCHE la vecchia immagine aarch64 via QEMU
+#                   (chiede sudo da sola, dura ~50 minuti, binario non
+#                   ottimizzato). Solo per confronto durante la transizione.
 #
 # Lanciare SENZA sudo, anche se aarch64-generico (a differenza degli altri
 # due) richiede root: questo script chiede la password da solo con `sudo`
@@ -40,44 +39,40 @@
 # (`$SUDO_USER`) per i due passi che non devono essere root.
 #
 # Uso:
-#   ./scripts/build_containers_all.sh                      # build + archivio per tutte e tre
-#                                                            # (salta l'SDK Pixsys se manca, con avviso;
-#                                                            #  chiede sudo da solo per aarch64-generico)
-#   ./scripts/build_containers_all.sh --require-sdk         # ...ma fallisce se l'SDK Pixsys manca
-#   ./scripts/build_containers_all.sh --push                # ...e pubblica tutte e tre sul registry
-#   ./scripts/build_containers_all.sh --no-rust              # riusa i binari già compilati (tutti e tre,
-#                                                            # niente sudo: aarch64-generico non lo richiede)
+#   ./scripts/build_containers_all.sh                      # aarch64 (cross) + x86_64: build + archivio
+#   ./scripts/build_containers_all.sh --push                # ...e pubblica sul registry
+#   ./scripts/build_containers_all.sh --no-rust              # riusa i binari già compilati
 #   ./scripts/build_containers_all.sh --no-save --push       # solo pubblicazione, nessun archivio
+#   ./scripts/build_containers_all.sh --sdk                 # aarch64 con l'SDK Pixsys (storico)
+#   ./scripts/build_containers_all.sh --with-generic        # anche la vecchia aarch64 via QEMU
 #
-# Requisiti: l'unione di quelli dei tre script singoli — SDK Yocto Pixsys
-# (salvo --no-rust, o se manca e non si passa --require-sdk), podman,
-# emulazione QEMU per arm64 registrata sull'host (una tantum), pnpm per la
-# SPA, rete per ubuntu:24.04 e — con --push — un `podman login` già fatto.
+# Requisiti: podman, pnpm per la SPA, emulazione QEMU per arm64 registrata
+# sull'host (una tantum, per l'apt-get dell'immagine aarch64), rete verso
+# ubuntu:24.04, ports.ubuntu.com e crates.io, e — con --push — un `podman
+# login` già fatto. Con --sdk: l'SDK Yocto Pixsys.
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
-    sed -n '2,55p' "${BASH_SOURCE[0]}" | sed 's/^#//; s/^ //'
+    sed -n '2,45p' "${BASH_SOURCE[0]}" | sed 's/^#//; s/^ //'
 }
 
-# Stesso percorso cablato in build_container.sh: usato solo per decidere se
-# saltare quello script per default, non per validare nient'altro (la
-# validazione vera resta dentro build_container.sh stesso).
-SDK_ENV="/usr/local/oecore-x86_64/environment-setup-cortexa35-pixsys-linux"
-
-REQUIRE_SDK=0
+WITH_GENERIC=0
 ARGS=()
 for arg in "$@"; do
     case "$arg" in
-        -h|--help)     usage; exit 0 ;;
-        --require-sdk) REQUIRE_SDK=1 ;;
+        -h|--help)      usage; exit 0 ;;
+        --with-generic) WITH_GENERIC=1 ;;
+        # Storico: l'SDK ora si chiede a build_container.sh con --sdk, che
+        # fallisce da sé se l'SDK manca. Accettata per chi la ha nelle dita.
+        --require-sdk)  ARGS+=("--sdk") ;;
         *) ARGS+=("$arg") ;;
     esac
 done
 
-# Lancia uno dei tre script col livello di privilegio giusto per lui, non per
+# Lancia uno degli script col livello di privilegio giusto per lui, non per
 # noi. aarch64-generico vuole root (QEMU sotto podman rootless non attraversa
 # la user namespace, vedi quello script); gli altri due NON lo vogliono (vedi
 # il commento in testa al file). `id -u`/`$SUDO_USER` decidono l'azione:
@@ -106,33 +101,14 @@ run_script() {
     fi
 }
 
-# L'ordine conta, e non è alfabetico: **per prima quella che chiede `sudo`**.
-#
-# `build_container_aarch64_generic.sh` è l'unica delle tre a richiedere la
-# password (QEMU sotto podman rootless non attraversa la user namespace). Stando
-# in mezzo, la richiesta arrivava DOPO `build_container.sh`, che è la più lunga:
-# chi lanciava il comando doveva restare a guardare per sapere quando digitarla.
-# Ora si digita subito e il resto prosegue non supervisionato.
-#
-# Perché non un `sudo -v` all'avvio tenendo l'ordine di prima: la cache delle
-# credenziali scade dopo ~15 minuti e la prima build dura molto di più, quindi la
-# password verrebbe chiesta lo stesso a metà — con l'aria di un difetto nuovo.
-#
-# Conseguenza da conoscere: una build interrotta lascia ora risultati parziali
-# diversi (si ottiene la generic invece della Pixsys-tuned).
-SCRIPTS=(
-    "build_container_aarch64_generic.sh"
-    "build_container.sh"
-    "build_container_x86_64.sh"
-)
+# Due immagini per default (Q53). Con --with-generic la vecchia aarch64 via QEMU
+# va PER PRIMA: è l'unica che chiede `sudo`, e la password si digita subito
+# invece che a metà di una build lunga (la cache di sudo scade in ~15 minuti).
+SCRIPTS=()
+[ "$WITH_GENERIC" -eq 1 ] && SCRIPTS+=( "build_container_aarch64_generic.sh" )
+SCRIPTS+=( "build_container.sh" "build_container_x86_64.sh" )
 
 for s in "${SCRIPTS[@]}"; do
-    if [ "$s" = "build_container.sh" ] && [ "$REQUIRE_SDK" -eq 0 ] && [ ! -f "$SDK_ENV" ]; then
-        echo
-        echo "==> $s SALTATO: SDK Yocto Pixsys non trovato ($SDK_ENV)."
-        echo "    Proseguo con le altre due immagini (--require-sdk per bloccarsi qui)."
-        continue
-    fi
     echo
     echo "════════════════════════════════════════════════════════════════════"
     echo "  $s ${ARGS[*]-}"

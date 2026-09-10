@@ -8481,7 +8481,7 @@ function RuntimeConnectionTab() {
     ultimaAzione.current = "sondaggio";
     setSondando(true); setErroreSondaggio(null); setChiaveHostCambiata(false);
     try {
-      const s = await api.deviceProbe({ host: deviceHost, port: devicePort, user: deviceUser, password: devicePass });
+      const s = await api.deviceProbe({ host: deviceHost, port: devicePort, user: deviceUser, password: devicePass, data_path: dataPath.trim() });
       setSondaggio(s);
       if (s.chiave_host_cambiata) setChiaveHostCambiata(true);
       // La variante proposta finisce nel campo solo se il campo è «nostro»:
@@ -9496,31 +9496,17 @@ function RuntimeConnectionTab() {
                 </div>
               ) : (
                 <div>
-                  {/* Su aarch64 esistono due immagini distinte (generic via
-                      QEMU, SDK-tuned): un image_ref vuoto lascia decidere al
-                      dispositivo via `uname -m`, che sceglie sempre la
-                      SDK-tuned. Il sondaggio propone la variante giusta; i due
-                      pulsanti la cambiano a mano. Lo stato si deduce dal campo:
-                      `-arm64-generic` va provato PRIMA di `-arm64`. */}
-                  <div style={{ display: "flex", gap: 4, marginBottom: 6, alignItems: "center", flexWrap: "wrap" }}>
-                    <button
-                      style={{ ...(imageRef.endsWith("-arm64-generic") ? BTN_PRIMARY : BTN), padding: "4px 10px", fontSize: 11 }}
-                      title={t("cfg.imageVariantGenericTitle")}
-                      onClick={() => { setImageRef(imageRefDaVariante("latest-arm64-generic")); setVarianteSuggerita(null); }}>
-                      {t("cfg.imageVariantGeneric")}
-                    </button>
-                    <button
-                      style={{ ...(imageRef.endsWith("-arm64") ? BTN_PRIMARY : BTN), padding: "4px 10px", fontSize: 11 }}
-                      title={t("cfg.imageVariantSdkTitle")}
-                      onClick={() => { setImageRef(imageRefDaVariante("latest-arm64")); setVarianteSuggerita(null); }}>
-                      {t("cfg.imageVariantSdk")}
-                    </button>
-                    {varianteSuggerita && (
-                      <span style={{ fontSize: 10, color: "var(--brand-success-soft, #4ade80)" }}>
-                        {t(varianteDaConnesso ? "cfg.imageVariantFromConnected" : "cfg.imageVariantSuggested", { variant: varianteSuggerita })}
-                      </span>
-                    )}
-                  </div>
+                  {/* Un'immagine per architettura (Q53): il riferimento lo
+                      propone la verifica del dispositivo o il runtime
+                      collegato; vuoto, lo decide il dispositivo da `uname -m`.
+                      Fino al 2026-09-10 qui c'erano due pulsanti per scegliere
+                      fra l'immagine SDK Pixsys e quella generica: non esistono
+                      più due immagini. */}
+                  {varianteSuggerita && (
+                    <div style={{ fontSize: 10, color: "var(--brand-success-soft, #4ade80)", marginBottom: 6 }}>
+                      {t(varianteDaConnesso ? "cfg.imageVariantFromConnected" : "cfg.imageVariantSuggested", { variant: varianteSuggerita })}
+                    </div>
+                  )}
                   <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 4 }}>{t("cfg.imageRef")}</label>
                   <input style={{ ...INPUT, width: "100%", boxSizing: "border-box" as const }}
                     placeholder="ghcr.io/soligolab/sws-runtime:2.7.1-arm64"
