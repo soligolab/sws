@@ -1,5 +1,5 @@
 # Builder per l'immagine aarch64: cross-compilazione da x86_64, senza SDK
-# Pixsys e senza QEMU (Q53, 2026-09-10).
+# Pixsys e senza QEMU per la compilazione (Q53, 2026-09-10).
 #
 # PERCHÉ ESISTE
 #
@@ -13,45 +13,58 @@
 # glibc e la libpython dell'immagine, non del pannello: la «libc del
 # dispositivo» non è mai stata la differenza. L'ottimizzazione sì.
 #
-# Qui il compilatore gira nativo su x86_64 e produce codice aarch64 con la
-# toolchain Ubuntu (`crossbuild-essential-arm64`); le librerie contro cui si
-# linka sono i pacchetti `:arm64` di Ubuntu 24.04 installati in multiarch — lo
-# stesso sysroot che l'SDK forniva, ma da Ubuntu, riproducibile su qualunque
-# PC, e identico alla base dell'immagine finale (Containerfile.aarch64):
-# glibc 2.39, Python 3.12. Ottimizzato, in minuti.
+# COME È FATTO: due stadi.
 #
-# COME SI USA: solo da scripts/build_container_aarch64_cross.sh, che monta il
-# repo in /src e lancia `cargo build --target aarch64-unknown-linux-gnu`.
-FROM ubuntu:24.04
+#  1. `sysroot` — un `ubuntu:24.04` **arm64** (emulato con QEMU, solo per
+#     `apt-get`: pochi minuti, una volta) in cui si installano le librerie di
+#     sviluppo contro cui il binario linka: libc, libpython3.12, SDL2, libdrm,
+#     FreeType. È lo stesso ruolo del sysroot dell'SDK Pixsys, ma da Ubuntu — e
+#     la stessa base dell'immagine finale (Containerfile.aarch64), quindi glibc
+#     2.39 e Python 3.12 combaciano per costruzione.
+#  2. il builder **x86_64**, con la toolchain Ubuntu per arm64
+#     (`crossbuild-essential-arm64`), che riceve l'intero stadio 1 in
+#     /sysroot/aarch64 e lo passa a gcc, clang (bindgen), pkg-config e pyo3 con
+#     `--sysroot`. Il compilatore gira nativo: ottimizzato, in minuti.
+#
+# PERCHÉ NON IL MULTIARCH (`apt-get install libc6-dev:arm64 …` nello stesso
+# sistema x86_64), che era la prima forma: i pacchetti `Multi-Arch: same`
+# (libc6, libpython3.12-stdlib, …) si installano per due architetture solo se
+# la versione è IDENTICA, e amd64 e arm64 stanno su due mirror diversi
+# (archive.ubuntu.com e ports.ubuntu.com) che ricevono gli aggiornamenti in
+# momenti diversi. Il 2026-09-10 a mezzogiorno `libpython3.12-stdlib` era alla
+# 0.17 su archive e alla 0.16 su ports: «Unable to correct problems, you have
+# held broken packages». La stessa mattina funzionava. Con il sysroot separato
+# ogni architettura viene dal proprio mirror e nessuno deve combaciare.
+#
+# COME SI USA: solo da scripts/build_container.sh, che lo costruisce con
+# `--platform linux/amd64` (il tag locale `ubuntu:24.04` cambia architettura a
+# ogni pull, e senza dirlo podman prenderebbe la base sbagliata — successo),
+# monta il repo in /src e lancia `cargo build --target aarch64-unknown-linux-gnu`.
 
-# Multiarch: i pacchetti arm64 stanno su ports.ubuntu.com, non su
-# archive.ubuntu.com. Il file deb822 dell'immagine base va limitato ad amd64
-# (altrimenti apt cerca arm64 anche là e fallisce), e si aggiunge la sorgente
-# ports per arm64.
-RUN dpkg --add-architecture arm64 && \
-    sed -i 's/^Types: deb$/Types: deb\nArchitectures: amd64/' /etc/apt/sources.list.d/ubuntu.sources && \
-    printf 'Types: deb\nURIs: http://ports.ubuntu.com/ubuntu-ports\nSuites: noble noble-updates noble-security\nComponents: main universe restricted multiverse\nArchitectures: arm64\nSigned-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg\n' \
-      > /etc/apt/sources.list.d/ubuntu-ports-arm64.sources
+# ── Stadio 1: il sysroot arm64 ───────────────────────────────────────────────
+FROM --platform=linux/arm64 ubuntu:24.04 AS sysroot
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        libc6-dev \
+        linux-libc-dev \
+        libpython3.12-dev \
+        libsdl2-dev \
+        libdrm-dev \
+        libfreetype-dev && \
+    rm -rf /var/lib/apt/lists/*
 
-# Lato host (x86_64):
-#   build-essential, clang, libclang-dev, cmake, pkg-config: i build script dei
-#     crate (rusqlite bundled, ring, aws-lc-sys, lvgl-sys con bindgen). `lvgl`
-#     dichiara `lvgl-sys` fra le build-dependencies, quindi LVGL si compila
-#     ANCHE per l'host: serve un gcc x86_64 normale.
-#   crossbuild-essential-arm64: gcc/g++/binutils per aarch64-linux-gnu.
-#   python3: pyo3-build-config lo esegue per leggere la configurazione; con
-#     PYO3_CONFIG_FILE non gli serve una libpython host.
-#   libfreetype-dev (host): il build script di `lvgl` linka lvgl-sys PER L'HOST
-#     e lvgl-sys linka `-lfreetype` (LVGL_EXTRA_LINK nel .cargo/config del
-#     viewer): senza la FreeType x86_64 il link del build script muore con
-#     «unable to find library -lfreetype». Visto al primo giro (2026-09-10).
-# Lato target (:arm64), le librerie contro cui si linka il binario:
-#   libc6-dev, linux-libc-dev: header e libc aarch64 in layout multiarch
-#     (/usr/include/aarch64-linux-gnu, /usr/lib/aarch64-linux-gnu) — è dove
-#     clang, per bindgen, li cerca con --target aarch64.
-#   libpython3.12-dev: pyo3 linka libpython3.12 (auto-initialize).
-#   libsdl2-dev, libdrm-dev, libfreetype-dev: il viewer LVGL (SDL2 di sistema,
-#     libdrm via bindgen, FreeType per il testo — Q24).
+# ── Stadio 2: il builder x86_64 ──────────────────────────────────────────────
+FROM --platform=linux/amd64 ubuntu:24.04
+
+# build-essential, clang, libclang-dev, cmake, pkg-config: i build script dei
+#   crate (rusqlite bundled, ring, aws-lc-sys, lvgl-sys con bindgen). `lvgl`
+#   dichiara `lvgl-sys` fra le build-dependencies, quindi LVGL si compila ANCHE
+#   per l'host: serve un gcc x86_64 normale — e libfreetype-dev x86_64, perché
+#   lvgl-sys linka `-lfreetype` (LVGL_EXTRA_LINK nel .cargo/config del viewer):
+#   senza, il build script di `lvgl` muore con «unable to find library
+#   -lfreetype» (visto al primo giro).
+# crossbuild-essential-arm64: gcc/g++/binutils per aarch64-linux-gnu.
+# Niente python3 host: pyo3 legge PYO3_CONFIG_FILE e non esegue interpreti.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         build-essential \
@@ -63,15 +76,13 @@ RUN apt-get update && \
         file \
         libclang-dev \
         libfreetype-dev \
-        pkg-config \
-        python3 \
-        libc6-dev:arm64 \
-        linux-libc-dev:arm64 \
-        libpython3.12-dev:arm64 \
-        libsdl2-dev:arm64 \
-        libdrm-dev:arm64 \
-        libfreetype-dev:arm64 && \
+        pkg-config && \
     rm -rf /var/lib/apt/lists/*
+
+# L'intero stadio 1, com'è: con i symlink di merged-usr (/lib → usr/lib), le
+# .so, gli header, i .pc. Qualche centinaio di MB nell'immagine builder, che
+# non viaggia da nessuna parte.
+COPY --from=sysroot / /sysroot/aarch64
 
 # rustup e non il pacchetto di Ubuntu: il workspace dichiara rust-version 1.88
 # e la CI gira sulla 1.94. Toolchain stable più il target aarch64.
@@ -85,34 +96,41 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
 
 # ── pyo3 in cross ─────────────────────────────────────────────────────────────
 # `PYO3_CROSS_LIB_DIR` da solo non basta: pyo3-build-config vuole trovare il
-# `_sysconfigdata*.py` del target accanto alla libpython, e su Ubuntu quel file
-# sta in /usr/lib/python3.12/ (libpython3.12-stdlib), nella STESSA cartella di
-# quello dell'host — installarlo per arm64 darebbe due file e «found multiple».
-# Primo tentativo fallito con «Could not find _sysconfigdata*.py» (2026-09-10).
-# Si dà a pyo3 la configurazione già scritta: è ciò che il sysconfigdata gli
-# direbbe, e qui è nota — Python 3.12 condiviso di ubuntu:24.04, 64 bit.
-RUN printf 'implementation=CPython\nversion=3.12\nshared=true\nabi3=false\nlib_name=python3.12\nlib_dir=/usr/lib/aarch64-linux-gnu\npointer_width=64\nbuild_flags=\nsuppress_build_script_link_lines=false\n' \
+# `_sysconfigdata*.py` del target accanto alla libpython (primo tentativo
+# fallito con «Could not find _sysconfigdata*.py»). Si dà a pyo3 la
+# configurazione già scritta: è ciò che il sysconfigdata gli direbbe, e qui è
+# nota — Python 3.12 condiviso di ubuntu:24.04, 64 bit, nel sysroot.
+RUN printf 'implementation=CPython\nversion=3.12\nshared=true\nabi3=false\nlib_name=python3.12\nlib_dir=/sysroot/aarch64/usr/lib/aarch64-linux-gnu\npointer_width=64\nbuild_flags=\nsuppress_build_script_link_lines=false\n' \
       > /opt/pyo3-aarch64.cfg && cat /opt/pyo3-aarch64.cfg
 
 # ── L'ambiente della cross-compilazione ──────────────────────────────────────
 # Le stesse cose che scripts/yocto/build.sh esporta per l'SDK, tradotte per la
-# toolchain Ubuntu. Per-target (suffisso `_aarch64_unknown_linux_gnu`) e non
-# globali: `lvgl-sys` si compila anche per l'host, e un CC globale aarch64 lo
-# farebbe morire su `-m64` (visto il 2026-08-24 con l'SDK).
+# toolchain Ubuntu e il sysroot in /sysroot/aarch64. Per-target (suffisso
+# `_aarch64_unknown_linux_gnu`) e non globali: `lvgl-sys` si compila anche per
+# l'host, e un CC o un --sysroot globali lo farebbero morire (visto il
+# 2026-08-24 con l'SDK: `-m64` al gcc aarch64).
 #
-# Il linker: il gcc cross di Ubuntu cerca da sé in /usr/lib/aarch64-linux-gnu
-# (layout multiarch), ma lo si dice anche a rustc con -L, per i crate che
-# passano `-l` senza pkg-config (sdl2-sys).
-ENV CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
-    CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-L /usr/lib/aarch64-linux-gnu" \
+# gcc e il linker ricevono `--sysroot`: cercano header e librerie là, con il
+# layout multiarch di Ubuntu (usr/lib/aarch64-linux-gnu) che gcc conosce.
+# `-L` esplicito per i crate che passano `-l` senza pkg-config (sdl2-sys).
+# pkg-config legge i .pc del sysroot e riscrive i percorsi con
+# PKG_CONFIG_SYSROOT_DIR. bindgen (libdrm nel viewer, lvgl-sys) riceve target
+# e sysroot; OECORE_TARGET_SYSROOT è il nome che il build.rs del viewer già
+# conosce dall'SDK, e vale identico qui.
+ENV SYSROOT_AARCH64=/sysroot/aarch64 \
+    CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
+    CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C link-arg=--sysroot=/sysroot/aarch64 -L /sysroot/aarch64/usr/lib/aarch64-linux-gnu" \
     CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
     CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++ \
     AR_aarch64_unknown_linux_gnu=aarch64-linux-gnu-ar \
+    CFLAGS_aarch64_unknown_linux_gnu="--sysroot=/sysroot/aarch64" \
+    CXXFLAGS_aarch64_unknown_linux_gnu="--sysroot=/sysroot/aarch64" \
     HOST_CC=gcc \
     PKG_CONFIG_ALLOW_CROSS=1 \
-    PKG_CONFIG_PATH_aarch64_unknown_linux_gnu=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig \
+    PKG_CONFIG_SYSROOT_DIR_aarch64_unknown_linux_gnu=/sysroot/aarch64 \
+    PKG_CONFIG_PATH_aarch64_unknown_linux_gnu=/sysroot/aarch64/usr/lib/aarch64-linux-gnu/pkgconfig:/sysroot/aarch64/usr/share/pkgconfig \
     PYO3_CONFIG_FILE=/opt/pyo3-aarch64.cfg \
-    PYO3_PYTHON=/usr/bin/python3 \
-    BINDGEN_EXTRA_CLANG_ARGS_aarch64_unknown_linux_gnu="--target=aarch64-unknown-linux-gnu -I/usr/include/aarch64-linux-gnu"
+    OECORE_TARGET_SYSROOT=/sysroot/aarch64 \
+    BINDGEN_EXTRA_CLANG_ARGS_aarch64_unknown_linux_gnu="--target=aarch64-unknown-linux-gnu --sysroot=/sysroot/aarch64"
 
 WORKDIR /src/sws-runtime

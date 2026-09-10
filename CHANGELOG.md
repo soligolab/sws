@@ -24,7 +24,10 @@ Fino alla 2.7.1 le immagini arm64 erano due: quella compilata con l'SDK Yocto Pi
 di `aws-lc-sys` sotto emulazione, **senza ottimizzazioni**. La differenza fra le due non era la
 libc (entrambe girano contro quella di `ubuntu:24.04`) ma l'ottimizzazione. Ora il binario si
 cross-compila da x86_64 in un container Ubuntu con la toolchain arm64 e i pacchetti multiarch:
-niente SDK, niente QEMU, ottimizzato, otto minuti la prima volta e incrementale dopo.
+niente SDK, niente QEMU per compilare, ottimizzato, otto minuti la prima volta e incrementale
+dopo. Il builder ha due stadi — un sysroot arm64 da `ubuntu:24.04` e la toolchain x86_64 — così
+nessuna versione deve combaciare fra i mirror amd64 e arm64 di Ubuntu (il multiarch nello stesso
+sistema si è rotto al primo giro, per un aggiornamento di Python arrivato su un mirror solo).
 `build_containers_all.sh` costruisce due immagini (aarch64, x86_64); `latest-arm64-generic` è
 un alias di `latest-arm64`. La verifica del dispositivo propone `latest-arm64` per qualunque
 aarch64 e i due pulsanti SDK/generica sono spariti. I percorsi storici restano dietro `--sdk`

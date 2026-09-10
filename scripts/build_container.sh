@@ -173,8 +173,14 @@ elif [ "$BUILD_RUST" -eq 1 ]; then
     # Ubuntu 24.04 in multiarch. Si ricostruisce solo se il Containerfile cambia
     # (podman usa la cache dei layer); la prima volta scarica qualche centinaio
     # di MB da ports.ubuntu.com.
+    # `--platform linux/amd64` anche qui, oltre che nel FROM del Containerfile:
+    # il tag locale `ubuntu:24.04` cambia architettura a ogni pull con
+    # `--platform` diverso (l'immagine finale lo tira per arm64), e senza
+    # dirlo podman costruirebbe il builder sulla base sbagliata — successo al
+    # primo giro del maintainer, 2026-09-10. `--network host` come gli altri
+    # builder: la rete bridge rootless a volte non risolve ports.ubuntu.com.
     echo "==> [1a/4] immagine builder $BUILDER_IMAGE (x86_64 → aarch64, toolchain Ubuntu)"
-    podman build -t "$BUILDER_IMAGE" \
+    podman build --platform linux/amd64 --network host -t "$BUILDER_IMAGE" \
         -f "$REPO/deploy/container/Containerfile.aarch64-cross.builder" \
         "$REPO/deploy/container"
 

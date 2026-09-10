@@ -78,7 +78,12 @@
 
 ### 🎯 Rilasciata la 2.7.2 — da compilare, pubblicare e collaudare (2026-09-10)
 
-Q51, Q52, Q53 e Q50 su `main`, taggata. **Due immagini** da qui: `./scripts/build_containers_all.sh
+Q51, Q52, Q53 e Q50 su `main`, taggata. **Il primo giro del maintainer sul builder è fallito
+due volte**, e il tag `2.7.2` è stato spostato sul commit con la correzione prima che qualcosa
+fosse pubblicato: (1) `FROM ubuntu:24.04` senza `--platform` prendeva la base arm64 in cache;
+(2) il multiarch nello stesso sistema pretende versioni identiche fra archive (amd64) e ports
+(arm64), e `libpython3.12-stdlib` era 0.17 su uno e 0.16 sull'altro. Rimedio: builder a due
+stadi, sysroot arm64 separato. **Due immagini** da qui: `./scripts/build_containers_all.sh
 --push` costruisce aarch64 (cross, niente SDK né sudo) e x86_64, e pubblica anche gli alias
 `-arm64-generic`. La prima build aarch64 costruisce il builder (qualche centinaio di MB da
 ports.ubuntu.com) e compila da zero (~8 + 3 minuti); poi incrementale. Sul TC620/WP630:

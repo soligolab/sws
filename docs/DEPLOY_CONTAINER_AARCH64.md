@@ -126,26 +126,42 @@ fuori solo al `podman run` sul device.
 
 ### Come nasce il binario: cross-build da x86_64 (Q53, 2026-09-10)
 
-`deploy/container/Containerfile.aarch64-cross.builder` è un'immagine **x86_64**
-con `crossbuild-essential-arm64` (gcc per aarch64) e i pacchetti `:arm64` di
-Ubuntu 24.04 installati in multiarch: `libc6-dev`, `libpython3.12-dev`,
-`libsdl2-dev`, `libdrm-dev`, `libfreetype-dev`. È lo stesso sysroot che l'SDK
-Pixsys forniva, ma da Ubuntu, riproducibile su qualunque PC — e identico alla
-base dell'immagine finale (glibc 2.39, Python 3.12). `build_container.sh` monta il
-repo in `/src` e lancia `cargo build --release --target aarch64-unknown-linux-gnu`
-per `sws-runtime` e, con la cartella del crate come cwd, per `sws-lvgl-viewer`.
-Il compilatore gira nativo: il runtime in ~8 minuti la prima volta, poi
-incrementale (`target-container-aarch64-cross/`, `.cargo-container-aarch64-cross/`,
-in `.gitignore`). Ottimizzato: `[optimized]` nel registro, non `[unoptimized]`.
+`deploy/container/Containerfile.aarch64-cross.builder` ha **due stadi**. Il primo
+è un `ubuntu:24.04` **arm64** (emulato con QEMU solo per `apt-get`, pochi minuti,
+una volta) con le librerie di sviluppo contro cui il binario linka: `libc6-dev`,
+`libpython3.12-dev`, `libsdl2-dev`, `libdrm-dev`, `libfreetype-dev`. Il secondo
+è il builder **x86_64** con `crossbuild-essential-arm64` (gcc per aarch64), che
+riceve l'intero primo stadio in `/sysroot/aarch64` e lo passa a gcc, clang
+(bindgen), pkg-config e pyo3 con `--sysroot`. È lo stesso ruolo del sysroot
+dell'SDK Pixsys, ma da Ubuntu, riproducibile su qualunque PC — e la stessa base
+dell'immagine finale (glibc 2.39, Python 3.12), quindi combaciano per
+costruzione. `build_container.sh` costruisce il builder con `--platform
+linux/amd64`, monta il repo in `/src` e lancia `cargo build --release --target
+aarch64-unknown-linux-gnu` per `sws-runtime` e, con la cartella del crate come
+cwd, per `sws-lvgl-viewer`. Il compilatore gira nativo: il runtime in ~8 minuti
+la prima volta, poi incrementale (`target-container-aarch64-cross/`,
+`.cargo-container-aarch64-cross/`, in `.gitignore`). Ottimizzato: `[optimized]`
+nel registro, non `[unoptimized]`.
 
-Le tre cose che hanno richiesto una scelta, tutte nel Containerfile con il perché:
+Le cose che hanno richiesto una scelta, tutte nel Containerfile con il perché:
 
-- **pyo3** in cross vuole il `_sysconfigdata*.py` del target, che su Ubuntu sta
-  nella stessa cartella di quello dell'host: si dà a pyo3 la configurazione
-  scritta (`PYO3_CONFIG_FILE=/opt/pyo3-aarch64.cfg`) invece di `PYO3_CROSS_LIB_DIR`.
-- **bindgen** per libdrm: `BINDGEN_EXTRA_CLANG_ARGS_aarch64_unknown_linux_gnu`
-  con `--target` e l'include multiarch, per-target e non globale perché
-  `lvgl-sys` si compila anche per l'host (stessa lezione dell'SDK, 2026-09-03).
+- **Perché due stadi e non il multiarch** (`apt-get install libc6-dev:arm64 …`
+  nello stesso sistema x86_64, la prima forma): i pacchetti `Multi-Arch: same`
+  si installano per due architetture solo alla **stessa versione**, e amd64 e
+  arm64 stanno su mirror diversi (archive e ports) che ricevono gli aggiornamenti
+  in momenti diversi. Il 2026-09-10 a mezzogiorno `libpython3.12-stdlib` era già
+  alla 0.17 su archive e ancora alla 0.16 su ports: «held broken packages». La
+  mattina funzionava. Con il sysroot separato nessuna versione deve combaciare.
+- **`--platform` esplicito**, nel `FROM` e nello script: il tag locale
+  `ubuntu:24.04` cambia architettura a ogni pull (l'immagine finale lo tira per
+  arm64), e senza dirlo podman ha costruito il builder sulla base arm64 e apt ha
+  chiesto pacchetti amd64 a ports (quattro 404, 2026-09-10).
+- **pyo3** in cross vuole il `_sysconfigdata*.py` del target: si dà a pyo3 la
+  configurazione scritta (`PYO3_CONFIG_FILE=/opt/pyo3-aarch64.cfg`).
+- **bindgen**: `BINDGEN_EXTRA_CLANG_ARGS_aarch64_unknown_linux_gnu` con `--target`
+  e `--sysroot`, per-target e non globale perché `lvgl-sys` si compila anche per
+  l'host (stessa lezione dell'SDK, 2026-09-03); `OECORE_TARGET_SYSROOT` è il nome
+  che il `build.rs` del viewer già conosce dall'SDK.
 - **FreeType anche per l'host**: il build script di `lvgl` linka lvgl-sys per
   x86_64 e lvgl-sys linka `-lfreetype`.
 
