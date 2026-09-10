@@ -76,6 +76,37 @@
 
 ## ▶ Da fare nella prossima sessione
 
+### 🧭 T-53 — i waypoint del percorso di movimento si modificano sul canvas (richiesta del maintainer, 2026-09-10)
+
+Riguarda **MOVIMENTO su percorso** (F6.10, `motion_path` di un oggetto: `types/index.ts` L269,
+sezione MOVIMENTO in `EditorShell.tsx` ~L4514, cattura ＋ e crocino in `SvgCanvas.tsx` ~L636 e
+~L1820). Oggi i waypoint si vedono solo come **tabella** di coordinate nel pannello proprietà,
+il canvas mostra un crocino soltanto per la riga in modifica, e si aggiungono solo con la
+cattura ＋ (click sul canvas, Esc per uscire). Il maintainer vuole che il percorso si veda e si
+modifichi **direttamente sul disegno**, e che la tabella smetta di occupare spazio:
+
+1. **«Mostra tracciato»**, opzione **attiva di default**: con l'oggetto selezionato si vedono i
+   crocini di tutti i waypoint e una linea che li collega **nell'ordine logico** (da `min` a
+   `max` del tag di movimento), non solo il crocino della riga in modifica.
+2. **Trascinare i crocini** per riposizionarli; la tabella si aggiorna da sola.
+3. **Eliminare un crocino dal canvas**: si seleziona e si preme **Canc**.
+4. **Aggiungere un crocino dalla linea**: si seleziona un segmento del tracciato e si sceglie
+   «Aggiungi» (in coda) o «Dividi» (nel punto cliccato, fra i due waypoint del segmento).
+5. **La tabella delle coordinate è nascosta di default** e si apre solo quando serve correggere
+   un waypoint a mano, digitando le coordinate.
+
+Vincoli che valgono già: WYSIWYG (le regole UI dell'editor in `CLAUDE.md`: il ramo edit-mode
+usa lo stesso rendering del runtime, gli effetti — il movimento compreso — con «Anteprima
+effetti»), **una sezione per dato** (la tabella e i crocini scrivono lo stesso `motion_path`:
+un solo punto di verità nello store, la tabella è una vista), niente polling. Da guardare come
+modello le **maniglie dei waypoint delle pipe** già presenti (`SvgCanvas.tsx` ~L1878: pipe
+singola selezionata in edit mode, drag con `openInteraction`), che fanno metà del lavoro per un
+altro oggetto: il tracciato del movimento è la stessa cosa con un ordine e un tag.
+
+Non ancora pianificato nel dettaglio: quando si parte, piano in `docs/plans/` e ramo
+`feat/T-53-waypoint-sul-canvas`.
+
+
 ### 📏 La 2.7.2 cross sul WP630: misure del 2026-09-10 pomeriggio
 
 Il maintainer ha aggiornato il WP630 (`wp630-a-p3-07a077`, Pixsys OS 2.1.1, `ID=pixsys`, 6 core,
