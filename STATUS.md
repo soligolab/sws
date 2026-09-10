@@ -76,6 +76,32 @@
 
 ## ▶ Da fare nella prossima sessione
 
+### 📏 La 2.7.2 cross sul WP630: misure del 2026-09-10 pomeriggio
+
+Il maintainer ha aggiornato il WP630 (`wp630-a-p3-07a077`, Pixsys OS 2.1.1, `ID=pixsys`, 6 core,
+podman 5.0.2) con `latest-arm64` = `2.7.2-arm64` cross (digest `bb48386…`, lo stesso di
+`latest-arm64-generic`) e caricato un progetto LVGL minimo. Letto via ssh come `pixsys`, solo
+comandi di lettura, con il suo permesso:
+
+| Misura | Valore |
+|---|---|
+| runtime, da start del container a «runtime listener ready» (log JSONL) | **0,30 s** |
+| runtime, CPU a regime (`podman stats`) / RSS | 1,2 % di un core / 9,8 MB |
+| viewer LVGL, CPU a regime (`podman stats`) / RSS | 39 % di un core / 19 MB |
+| Xwayland + weston sull'host (il viewer disegna via SDL2 → X11) | ~60 % + ~20 % di un core |
+| load average | ~6 su 6 core, con CPU al 75 % idle: processi Pixsys (portal, connhex, CodeMeter), non nostri |
+
+Lettura: il binario cross è ottimizzato e il runtime lo mostra (0,3 s, 1 %). Il costo del viewer
+non è della build: è la catena SDL2 → Xwayland → weston, `SDL_VIDEODRIVER=x11` perché il Wayland
+nativo va in SIGSEGV (quadlet). Non c'è una baseline 2.7.1 sullo stesso pannello da confrontare
+(il 43 % di ieri era il pannello congelato). Per la fase due di Q53 i numeri bastano: il runtime
+non ha nulla da invidiare all'SDK. Il costo del rendering del viewer merita una Q a sé (DRM/KMS
+diretto invece di SDL2 via Xwayland).
+
+I log dei container vanno a journald (`LogDriver=journald`) ma `podman logs` e `journalctl
+_UID=1000` non mostrano niente su Pixsys OS: la sola fonte è il JSONL del runtime in
+`/data/user/sws/logs/`. Da tenere a mente per la prossima diagnosi.
+
 ### 🎯 Rilasciata la 2.7.2 — da compilare, pubblicare e collaudare (2026-09-10)
 
 Q51, Q52, Q53 e Q50 su `main`, taggata. **Il primo giro del maintainer sul builder è fallito
