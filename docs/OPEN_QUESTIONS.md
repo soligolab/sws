@@ -1720,6 +1720,70 @@ subuid/subgid **prima** di toccare qualcosa, con gli stessi rimedi della sonda.
 
 ---
 
+## Q53 — Due immagini aarch64 (SDK Pixsys e generica): tenerle entrambe, o convergere su una?
+
+*Aperta il 2026-09-10 su domanda del maintainer («ha senso tenere il container Pixsys? ho provato
+spesso quello generico e non ho riscontrato problemi»). Nessuna decisione presa.*
+
+**Context.** Si pubblicano tre immagini: `-amd64`, `-arm64` (binario cross-compilato con l'SDK
+Yocto Pixsys, `build_container.sh`) e `-arm64-generic` (compilato **dentro** un container arm64
+emulato con QEMU, `build_container_aarch64_generic.sh`). Tre tag per release, due script, due
+righe nell'installer, un selettore nell'editor (Q52 propone la variante da `os-release`), e un
+incidente già avuto (2026-07-31: un rebuild della sola generica installava la SDK vecchia,
+perché `install-container.sh --pull` senza argomento sceglie `latest-arm64`).
+
+**I fatti, misurati nel repo, che la domanda merita.**
+
+1. **La «libc del dispositivo» non c'entra.** Entrambe le immagini partono da `ubuntu:24.04`
+   (`Containerfile.aarch64` L27, `Containerfile.aarch64-generic` L24): il binario gira contro la
+   glibc 2.39 e la libpython 3.12 **dell'immagine**, non del pannello. Il binario SDK richiede
+   `GLIBC_2.39` (`DEPLOY_CONTAINER_AARCH64.md` §«Perché ubuntu:24.04») — è per questo che la base
+   è quella. In un container, del sistema ospite conta solo il kernel. L'«ABI pinning a Pixsys OS»
+   e «linka la libc del dispositivo» (riepilogo delle immagini) descrivono il binario nativo, non
+   il container: sono frasi rimaste da prima.
+2. **La differenza vera è l'ottimizzazione.** La generica è compilata con
+   `CARGO_PROFILE_RELEASE_OPT_LEVEL=0` — nel registro del maintainer: «Finished `release` profile
+   **[unoptimized]**» — perché `aws-lc-sys` (dietro `rustls`, via reqwest/lettre/tokio-rustls)
+   manda in SIGSEGV l'assemblatore sotto QEMU, e il ripiego `AWS_LC_SYS_NO_ASM` è accettato dal
+   builder CMake solo a opt-level 0 (`DEPLOY_CONTAINER_AARCH64.md` §«Percorso generico»). Vale
+   anche per `sws-lvgl-viewer`. Un binario Rust non ottimizzato è più lento di molte volte nei
+   percorsi caldi: rendering LVGL, TagDb, storico. «Non ho riscontrato problemi» è vero su un
+   PoC con poche variabili; il pannello che disegna a 43 % di CPU (2026-09-09) lo si nota dopo.
+3. **Il tuning cortex-a35** dell'SDK vale per il PX30; su RK3399 (A72/A53) e RK3588 (A76/A55) il
+   codice generico aarch64 va altrettanto bene. Non è un motivo per tenere l'SDK.
+4. **Costi di build.** SDK: secondi (cross nativa) ma richiede l'SDK installato (c'è su theobroma,
+   non sul server d'ufficio). Generica: 51 minuti di QEMU per il runtime più il viewer, e serve
+   `sudo`.
+5. `aws-lc-rs` **non serve**: il workspace usa il provider `ring` (`rustls = { features = ["ring"] }`)
+   ma le feature di default di `rustls` lo tirano lo stesso. Toglierlo (`default-features = false`
+   su rustls e sui crate che lo riesportano) leverebbe la causa dell'opt-level 0. Da verificare
+   che nessun crate lo richieda per nome.
+
+**Options.**
+1. **Tenere entrambe**, com'è. Costo: tre tag, due script, il selettore, la confusione.
+2. **Una sola immagine aarch64, costruita senza SDK e senza QEMU**: cross-compilazione da x86_64
+   in un container `ubuntu:24.04` con `crossbuild-essential-arm64` e i pacchetti `:arm64`
+   (libpython3.12-dev, libsdl2-dev, libdrm-dev, libfreetype-dev) come sysroot — è quello che l'SDK
+   fornisce, ma da Ubuntu, riproducibile su qualunque PC. `cargo build --target
+   aarch64-unknown-linux-gnu`, optimizzato, in minuti; il `build.rs` del viewer legge già un
+   sysroot per bindgen (`OECORE_TARGET_SYSROOT`, da generalizzare). Poi `latest-arm64` è l'unico
+   tag, `-generic` sparisce, e l'installer, Q52 e il riepilogo si semplificano. Prima di buttare la
+   SDK: misurare sul pannello CPU del viewer e tempo di avvio con la nuova immagine.
+3. **Una sola immagine, ma la generica di oggi** (QEMU, opt-level 0) dopo aver tolto `aws-lc-rs`
+   così da poter compilare ottimizzato — ma a opt-level 3 sotto QEMU la build passa da 51 minuti
+   a ore. Non regge.
+4. **Solo la SDK.** Lega ogni build a una macchina con l'SDK Pixsys e contraddice «SWS è agnostico».
+
+**Default for PoC.** (1). Raccomandazione: **(2)**, in due passi: prima il cross-build Ubuntu
+ottimizzato come *terzo* percorso, misurato su TC620/WP630 accanto alle due esistenti; poi, se
+regge, rimuovere sia l'SDK sia il QEMU. Nel frattempo correggere le frasi su «libc del
+dispositivo», che oggi dicono il falso, e lasciare `latest-arm64` (SDK) come default
+dell'installer perché è l'unica ottimizzata.
+
+**Decided:** not yet.
+
+---
+
 ## Adding new questions
 
 When Claude Code adds a new question, follow the format above:
