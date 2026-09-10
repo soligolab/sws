@@ -106,6 +106,48 @@ altro oggetto: il tracciato del movimento è la stessa cosa con un ordine e un t
 Non ancora pianificato nel dettaglio: quando si parte, piano in `docs/plans/` e ramo
 `feat/T-53-waypoint-sul-canvas`.
 
+### 🪟 T-54 — il log staccato sparisce dal fondo, si sgancia dalla sua barra, si nasconde e si riaggancia (richiesta del maintainer, 2026-09-10)
+
+Oggi «Log in una finestra» (menu ☰ → `staccaLog`, `App.tsx` ~L126, via `apriFinestra`) apre
+`index-log.html`, ma il cassetto in basso **resta**: `App.tsx` ~L837 rende `<LogPanel open={logOpen}>`
+senza guardia. La chat, che è il modello, fa già la cosa giusta: `open={chatOpen && !chatStaccata}`
+(~L830) e `staccaChat` chiude il cassetto (~L233-236). Lo sgancio del log si raggiunge solo dal
+menu, non dalla barra del pannello (`LogPanel.tsx` ~L137-242: i pulsanti dei livelli a ~L213-237,
+la ✕ a ~L239-241). La finestra separata (`LogWindow.tsx`) non ha né «Nascondi» né «Riaggancia», e
+alla sua chiusura nessuno riporta il cassetto: `sorvegliaChiusura` annulla solo una ref
+(`App.tsx` ~L140), che non è reattiva. Il maintainer vuole:
+
+1. **Staccato il log, il cassetto sparisce dal fondo pagina** (e la voce «Pannello log» del menu si
+   spegne con un suggerimento, come `menu.chatDetachedHint`).
+2. **Il pulsante di sgancio sta nella barra del log**, fra i pulsanti dei livelli (…ERROR) e la ✕ in
+   alto a destra.
+3. **Nella finestra separata**: «**Nascondi**» riporta il fuoco all'editor e lascia la finestra
+   dietro senza chiuderla (i browser non hanno minimize; il log continua a scorrere);
+   «**Riaggancia**» chiude la finestra e riapre il cassetto in basso.
+
+Come farlo, in breve: uno stato `logStaccato` al posto della ref, messo a `true` in `staccaLog`
+(che chiude anche il cassetto, come `staccaChat`) e a `false` nel callback di `sorvegliaChiusura`;
+la guardia `open={logOpen && !logStaccato}`; «Riaggancia» = la finestra si chiude da sé
+(`window.close()`) e l'editor, al `sorvegliaChiusura`, riapre il cassetto solo se era stato
+riagganciato e non semplicemente chiuso — serve un segnale: basta un `localStorage` flag
+`sws.log.riaggancia` scritto dalla finestra prima di chiudersi, o il ponte `BroadcastChannel` che la
+chat già usa (`ai/ponte.ts`) se si vuole anche sopravvivere al reload dell'editor. Chiavi i18n
+nuove (it **e** en, c'è il test di parità): `logs.detach`, `logWindow.hide`, `logWindow.reattach`,
+`menu.logDetachedHint`. Test: `tests/apriFinestra.test.ts` è il posto per le regole nuove sul
+riaggancio. Ramo: `feat/T-54-log-staccato`.
+
+### 🧹 T-55 — la sezione CRONOLOGIA esce dal pannello sinistro (richiesta del maintainer, 2026-09-10)
+
+`HistorySection` (`LeftPanel.tsx` ~L1750-1856, montata a ~L1737) è aperta di default, alta fino a
+180 px più i pulsanti Annulla/Rifai: «troppo invasiva». Decisione del maintainer: **toglierla dal
+pannello**. Annulla e Rifai restano dove sono già, con Ctrl-Z / Ctrl-Y (`EditorShell.tsx` ~L393-396,
+elenco scorciatoie ~L1073); l'elenco visuale dei passi (`past`/`future` dello store, `jumpToPast`/
+`jumpToFuture`) resta raggiungibile **dal menu** (o da un popover sui pulsanti Annulla/Rifai, se in
+sede di realizzazione risulta più a portata). Le chiavi `editor.historyBack`/`historyRestore` e
+`shortcut.undo`/`redo` ci sono già; «CRONOLOGIA», «Stato iniziale», «▶ CORRENTE», «↶ Annulla», «↷
+Rifai» sono oggi stringhe fisse e passano alle chiavi mentre si sposta il componente. Ramo:
+`feat/T-55-cronologia-fuori-dal-pannello`. Piccolo: si può fare insieme a T-54.
+
 
 ### 📏 La 2.7.2 cross sul WP630: misure del 2026-09-10 pomeriggio
 
