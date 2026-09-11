@@ -76,6 +76,44 @@
 
 ## ▶ Da fare nella prossima sessione
 
+### 🔑 T-68 — il Deploy dalla scheda Dispositivi non ha credenziali da usare (2026-09-11)
+
+Segnalato dal maintainer provando: «Connetti» riesce, e subito dopo **Deploy** risponde
+`✗ Login target fallito: 429 Too Many Requests`. La domanda che l'accompagna è quella giusta:
+«come faccio il deploy qua se non posso inserire le credenziali?». **Oggi non puoi.**
+
+Quattro cose, in fila, che si sono sommate:
+
+1. **Un dispositivo registrato dal discovery nasce senza utente.** `dispositivoDaRete` e
+   `dispositivoDaRuntime` (`dispositiviRegistrati.ts:72,78`) mettono `user: ""` — giustamente, chi
+   fa il discovery non sa come è configurato quel pannello.
+2. **E non c'è modo di aggiungerlo dopo.** Il campo password nella riga compare solo se
+   `mancaPassword`, che è `!!d.user && …` (`ConfigView.tsx:10118`): con l'utente vuoto è **sempre
+   falso**, quindi il campo non appare mai. La riga non mostra nemmeno **quale** utente è
+   registrato, quindi non si vede che è vuoto. L'unica via è cancellare il dispositivo e
+   riaggiungerlo dal modulo in basso, che i campi ce li ha.
+3. **Il deploy fa comunque il login**, con utente e password vuoti
+   (`deployToTarget`, `ConfigView.tsx:9840-9845`) — e non ha la lezione di T-57: su un pannello
+   **senza utenti** il login non serve affatto, e fallisce comunque perché quell'utente non esiste.
+   È la stessa divergenza già vista oggi fra i due percorsi di deploy: questo è un secondo deploy,
+   scritto nel browser, separato da `remote_deploy`.
+4. **I tentativi falliti bloccano l'account.** Cinque in 60 s (`main.rs:425-432`) e scatta il
+   lockout; e «*while already locked: extend lockout on every new attempt*»
+   (`sws-auth/src/lib.rs:772`) — quindi **riprovare lo tiene bloccato**. Il messaggio dice solo
+   «429 Too Many Requests», che non spiega né la causa né che basta aspettare un minuto **senza**
+   ritentare.
+
+Da fare: rendere modificabili utente e password di un dispositivo già in lista (e mostrarli nella
+riga); far saltare il login al deploy quando il dispositivo dichiara `auth_required: false`, come
+fa già «Connetti»; e tradurre il 429 in una frase che dica di aspettare **senza** ritentare. Da
+valutare se questo secondo percorso di deploy debba esistere o confluire in `remote_deploy`.
+
+**Nel frattempo**, per sbloccarsi: cancellare il dispositivo e riaggiungerlo dal modulo
+«Aggiungi dispositivo» compilando Utente SWS e password, oppure usare «Deploy progetto attivo»
+nella sezione Runtime, che passa dall'altro percorso. Il lockout si scioglie da sé in 60 s se non
+si ritenta.
+
+
 ### 🔌 La scheda Dispositivi registrati: tre asperità tolte (2026-09-11)
 
 Viste dal maintainer provandola.
@@ -357,7 +395,7 @@ pannello **pretende** gli utenti del progetto. È il comportamento voluto, ma è
 in cui la connessione può sembrare rompersi da sola.
 
 
-### 🧭 T-53 — i waypoint del percorso di movimento si modificano sul canvas (richiesta del maintainer, 2026-09-10)
+### ✅ T-53 — i waypoint del percorso di movimento si modificano sul canvas — **FATTO** (2026-09-11)
 
 Riguarda **MOVIMENTO su percorso** (F6.10, `motion_path` di un oggetto: `types/index.ts` L269,
 sezione MOVIMENTO in `EditorShell.tsx` ~L4514, cattura ＋ e crocino in `SvgCanvas.tsx` ~L636 e
@@ -387,8 +425,8 @@ altro oggetto: il tracciato del movimento è la stessa cosa con un ordine e un t
 Non ancora pianificato nel dettaglio: quando si parte, piano in `docs/plans/` e ramo
 `feat/T-53-waypoint-sul-canvas`.
 
-**Realizzato l'11-09-2026**, ramo `feat/T-53-waypoint-sul-canvas`, piano in
-[`docs/plans/2026-09-11-T53-waypoint-sul-canvas.md`](docs/plans/2026-09-11-T53-waypoint-sul-canvas.md).
+**Confermato dal maintainer l'11-09-2026** («funziona come mi aspettavo»). Piano archiviato in
+[`docs/archive/2026-09-11-T53-waypoint-sul-canvas.md`](docs/archive/2026-09-11-T53-waypoint-sul-canvas.md).
 Tutti e cinque i punti. Due scelte del maintainer: i comandi «Dividi qui»/«Aggiungi in coda» sono
 una **barretta sul canvas** accanto al segmento scelto, e la **cattura ＋ resta** (serve a posare
 molti punti di fila) con l'overlay che si fa da parte mentre è attiva.
@@ -408,14 +446,15 @@ precedenza del tasto Canc, che senza si porterebbe via l'oggetto intero (con un 
 l'oggetto è selezionato anche lui).
 
 24 test dove non ce n'era **nessuno**. ⚠️ **Un anello resta scoperto**: che l'handler della
-tastiera chiami `cancellaWaypointScelto()`. La funzione è provata contro lo store vero, il
-suo unico punto di chiamata no — va verificato a mano, ed è il primo della lista qui sotto.
+tastiera chiami `cancellaWaypointScelto()`. La funzione è provata contro lo store vero, il suo
+unico punto di chiamata no — servirebbe montare `EditorShell`. Verificato a mano dal maintainer.
 
-**Da provare a mano** (`./scripts/start_editor.sh`, oggetto con `motion_path`):
-Canc su un crocino scelto toglie **il crocino**, non l'oggetto; trascinando un crocino un solo
-annulla riporta il punto dov'era; «Dividi qui» mette il punto fra i due e non in fondo; con la ＋
-attiva i clic posano punti e le maniglie non danno fastidio; zoom al 25 % e al 400 %. **Non
-mergiato, non pushato.**
+**Due difetti trovati al primo uso, corretti subito** (`9c44e8a7`): il tracciato spariva durante
+la cattura ＋, quindi si posavano punti alla cieca — nel codice era finito `!captureTarget` invece
+dello stile inerte che il piano diceva; e rilasciando un crocino si perdeva la selezione, perché il
+`click` risaliva all'`<svg>` e deselezionava. Il secondo **era più vecchio di T-53**: vale anche
+per i waypoint delle pipe e per le maniglie di ridimensionamento, e i crocini l'hanno solo reso
+facile da incontrare.
 
 
 ### 🪟 T-54 — il log staccato sparisce dal fondo, si sgancia dalla sua barra, si nasconde e si riaggancia (richiesta del maintainer, 2026-09-10)

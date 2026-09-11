@@ -156,3 +156,34 @@ A mano, con `./scripts/start_editor.sh`, su un oggetto con `motion_path`:
 - **«Anteprima effetti» accesa**: l'oggetto si muove lungo `offset-path` e non è più dove dicono
   `obj.x/obj.y` (L1745-1754). Le maniglie stanno nell'overlay e usano coordinate di pagina, quindi
   non si muovono con lui — ed è giusto così: si sta modificando il percorso, non l'oggetto.
+
+---
+
+## Esito — 2026-09-11
+
+**Fatto e confermato dal maintainer** («funziona come mi aspettavo»). Tutti e cinque i punti della
+richiesta, con le due scelte confermate in corso d'opera: barretta mobile sul canvas, e cattura ＋
+che resta.
+
+Due difetti trovati dal maintainer al primo uso, corretti subito:
+
+1. **Il tracciato spariva durante la cattura ＋.** Il piano diceva «l'overlay diventa
+   `pointerEvents: "none"`»; nel codice era finito `!captureTarget` nella condizione, cioè non si
+   disegnava affatto — e si posavano punti alla cieca proprio quando serviva vederli. Scarto fra
+   quello che il piano diceva e quello che ho scritto, non fra il piano e la realtà.
+2. **Rilasciando un crocino si perdeva la selezione.** Rilasciando lontano dall'elemento
+   trascinato il `mouseup` cade sullo sfondo, quindi il `click` risale all'`<svg>` e `onSelect(null)`
+   deseleziona l'oggetto: l'overlay spariva e il pannello saltava alle proprietà di pagina.
+   `suppressClick` si alzava **solo** per la selezione a rettangolo. **Era un difetto più vecchio
+   di T-53** — vale anche per i waypoint delle pipe e per le maniglie di ridimensionamento — che i
+   crocini hanno solo reso facile da incontrare, perché trascinandoli si finisce quasi sempre
+   lontano dal punto di partenza.
+
+### Quello che questo lavoro ha lasciato come debito
+
+L'anello non coperto dichiarato nel commit: **che l'handler della tastiera chiami
+`cancellaWaypointScelto()`**. La funzione è provata contro lo store vero, il suo unico punto di
+chiamata no — servirebbe montare `EditorShell`. Verificato a mano dal maintainer insieme al resto.
+
+È la stessa forma di lacuna che lo stesso giorno aveva lasciato passare il `Provider` dei gruppi
+del pannello destro: test che provano le due metà e nessuno il punto in cui si incontrano.
