@@ -85,7 +85,7 @@ All commits use `-s` (`Signed-off-by:` trailer).
 
 ## Plans
 
-Planning-mode plans live in `~/.claude/plans/`, which is per-machine and doesn't travel with git. The maintainer works from two machines (office server, home PC): on 2026-07-30 an analysis written at home never made it to the office, while the code did. So if a plan covers work that continues in another session or on another machine, copy it to `docs/plans/<date>-<slug>.md` and commit it. Throwaways stay in the home dir. When a plan is finished or overtaken, move it to `docs/archive/` and add a row to that folder's README — `docs/plans/` should list only what's still in play. Keep the finished plan: it is the record of why things are the way they are.
+**Plans go in `docs/plans/<date>-<slug>.md`, committed — never left in `~/.claude/plans/`.** That directory is per-machine and doesn't travel with git, and the maintainer works from two machines (office server, home PC): on 2026-07-30 an analysis written at home never made it to the office while the code did. Instruction of 2026-09-11: «i plan, non tenerli in ~/.claude/plans/ perché altrimenti li perdo tra casa e lavoro». Write the plan there as soon as it's approved — earlier if it's long — and commit it with the work. When a plan is finished or overtaken, move it to `docs/archive/` and add a row to that folder's README — `docs/plans/` should list only what's still in play. Keep the finished plan: it is the record of why things are the way they are.
 
 ## Session end — and whenever context is running low
 

@@ -962,3 +962,48 @@ sola la prima volta che apri la scheda dopo l'aggiornamento, senza le password.
 Da riga di comando: `curl -s http://localhost:8460/api/devices` (o la porta del tuo editor) la
 mostra; il file si può anche scrivere a mano, purché non contenga campi in più — un `pass:` lo fa
 rifiutare, apposta.
+
+---
+
+## 14. Convertire un progetto da LVGL a Web (o viceversa)
+
+**Risposta corta: oggi non c'è un pulsante.** Il tipo di destinazione si sceglie **alla
+creazione** del progetto, nella WelcomeScreen (`POST /api/projects` porta il campo `target`), e
+nessuna rotta lo cambia dopo: fra le `PUT /api/project/*` non ce n'è una per `target`. Si cambia
+a mano nel file.
+
+### Come si fa
+
+1. **Chiudi il progetto nell'editor** (o ferma il runtime che lo tiene aperto). Non è pignoleria:
+   il runtime carica `project.yaml` all'apertura e lo riscrive **dalla memoria** al primo
+   salvataggio. Se modifichi il file con il progetto aperto, il primo salvataggio rimette il
+   valore di prima e sembra che la modifica non abbia attecchito.
+2. Apri `<cartella progetti>/<nome progetto>/project.yaml` e cambia il blocco:
+   ```yaml
+   target:
+     kind: lvgl_wayland     # → web
+   ```
+   In alternativa **cancella tutto il blocco `target:`**: un progetto senza `target` vale `web`.
+   Non è una scorciatoia, è la regola — i progetti creati prima che il campo esistesse sono tutti
+   web, e `wanted_engine` (`sws-web/src/display_target.rs`) tratta `None` e `Web` allo stesso modo.
+3. Riapri il progetto.
+
+### Che cosa succede dopo, sul dispositivo
+
+Il campo non è decorativo: all'apertura e a ogni salvataggio il runtime scrive `web` o `lvgl` nel
+file `display-target` (`display_target::publish`), e sul pannello `sws-display-apply.sh` commuta
+lo schermo — spegne il viewer LVGL e accende il browser, o il contrario. Quindi convertire un
+progetto **cambia che cosa si vede sul pannello** al primo deploy successivo.
+
+### La direzione conta
+
+**LVGL → web è la direzione sicura**: il renderer web disegna più tipi di oggetto di quello LVGL,
+quindi tutto ciò che si vedeva sul pannello si vedrà anche nel browser.
+
+**Web → LVGL no**: un progetto web può contenere oggetti che il motore LVGL non sa disegnare. La
+palette dell'editor li distingue — in un progetto LVGL i tipi supportati portano un distintivo
+«L» — ma un progetto già disegnato per il web non viene ricontrollato quando cambi `target`. Dopo
+la conversione conviene aprire ogni pagina e guardarla sul pannello, non solo nel browser.
+
+*(Se un giorno questo diventa un'operazione frequente, il posto giusto per un pulsante è
+Configurazione → Progetto, con l'avviso sulla direzione rischiosa. Oggi non c'è.)*
