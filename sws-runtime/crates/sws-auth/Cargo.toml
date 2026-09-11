@@ -12,3 +12,8 @@ serde_yaml.workspace = true
 tracing.workspace    = true
 anyhow.workspace     = true
 uuid.workspace       = true
+
+[dev-dependencies]
+# I test del seed di recupero scrivono e rileggono un `users.yaml` vero: la
+# regola è «entra solo se non resterebbe nessuno», e si prova solo su disco.
+tempfile = "3"

@@ -1325,6 +1325,31 @@ export const api = {
    *  ssh — lo stesso endpoint di Configurazione → Runtime. Restituisce la
    *  Response grezza perché il corpo è un registro in streaming; il chiamante
    *  legge le righe e riconosce quelle «a macchina» (AZIONE: …). */
+  /** POST /api/remote/deploy — distribuisce il progetto al runtime remoto
+   *  connesso. Restituisce la `Response` **grezza**: il corpo è un registro in
+   *  streaming che il chiamante legge riga per riga.
+   *
+   *  Non lancia sul 428: quello non è un errore ma «serve una conferma» — il
+   *  progetto non ha utenti e il dispositivo ne ha, quindi il deploy lo
+   *  lascerebbe accessibile senza password. Il corpo porta l'elenco che
+   *  sparirebbe. Vedi `cfg.deployNoUsersConfirm`.
+   *
+   *  Unico punto in cui si compone il corpo: prima la `fetch` era scritta due
+   *  volte (qui e nell'auto-deploy dello store), ed è così che i due percorsi
+   *  divergono senza che nessuno se ne accorga. */
+  deployToRuntime: async (opts: { replaceUsers: boolean; confirmNoUsers?: boolean }): Promise<Response> => {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (TOKEN) headers["Authorization"] = `Bearer ${TOKEN}`;
+    return fetch(`${getBaseUrl()}/api/remote/deploy`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        replace_users: opts.replaceUsers,
+        confirm_no_users: opts.confirmNoUsers ?? false,
+      }),
+    });
+  },
+
   deployDeviceContainer: async (payload: Record<string, unknown>): Promise<Response> => {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (TOKEN) headers["Authorization"] = `Bearer ${TOKEN}`;
@@ -1504,10 +1529,10 @@ export const api = {
   /** POST /api/remote/users — invia `users.yaml` del progetto locale al runtime
    *  remoto connesso, sostituendo gli account del dispositivo.
    *
-   *  Azione separata dal deploy di proposito: il deploy non tocca gli account,
-   *  perché cambiare chi può accedere a un pannello in servizio non deve essere
-   *  un effetto collaterale. Trasferisce il file (hash Argon2 inclusi), non le
-   *  password in chiaro. Invalida le sessioni aperte sul dispositivo. */
+   *  Dall'11-09-2026 il deploy porta già gli utenti (appartengono al progetto);
+   *  questa resta la via per mandarli **da soli**, senza ridistribuire il
+   *  progetto. Trasferisce il file (hash Argon2 inclusi), non le password in
+   *  chiaro. Invalida le sessioni aperte sul dispositivo. */
   pushUsersToRuntime: () =>
     request<{ users: number; note?: string }>("/api/remote/users", { method: "POST" }),
 

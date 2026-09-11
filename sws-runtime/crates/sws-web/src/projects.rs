@@ -899,6 +899,25 @@ pub struct DeleteQuery {
 // deploy (il bundle le riporta tutte, ma non cancella quelle orfane).
 const DESIGN_ARTIFACTS: &[&str] = &["project.yaml", "synoptics", "images"];
 
+/// L'entry `users.yaml` del bundle va ignorata in estrazione?
+///
+/// Solo quando il chiamante l'ha chiesto esplicitamente. `None` (import) e
+/// `Some(true)` (deploy che sostituisce) la scrivono entrambi.
+pub(crate) fn salta_users_yaml(replace_users: Option<bool>) -> bool {
+    replace_users == Some(false)
+}
+
+/// Il deploy deve **togliere** `users.yaml` dal dispositivo?
+///
+/// `build_export_zip` scrive l'entry solo se il file esiste (`router.rs`),
+/// quindi il bundle di un progetto senza utenti non ne ha nessuna: l'estrazione
+/// non può togliere niente, e senza questo passo il dispositivo terrebbe per
+/// sempre gli account di un progetto precedente. «Il progetto non ha utenti» è
+/// un fatto da propagare, non un'assenza da ignorare.
+pub(crate) fn deve_svuotare_utenti(replace_users: Option<bool>, bundle_ha_utenti: bool) -> bool {
+    replace_users == Some(true) && !bundle_ha_utenti
+}
+
 pub async fn delete_project(
     State(s): State<AppState>,
     Path(name): Path<String>,
@@ -931,8 +950,13 @@ pub async fn delete_project(
     }
 
     // Deploy: si rimuovono solo gli artefatti di progettazione. `history/` (il
-    // database), `backups/`, `recipes/`, `opcua-pki/` e `users.yaml` restano dove
-    // sono — sono stato del dispositivo, non del progetto che stai distribuendo.
+    // database), `backups/`, `recipes/` e `opcua-pki/` restano dove sono: sono
+    // stato del dispositivo, non del progetto che stai distribuendo.
+    //
+    // `users.yaml` non si tocca **qui** (dall'11-09-2026 non è più stato locale:
+    // gli utenti appartengono al progetto). A deciderne è l'upload, con
+    // `replace_users`, così fra la cancellazione e la scrittura il dispositivo
+    // non resta mai senza account.
     // Il progetto NON viene rimosso da `known_projects`: la cartella esiste
     // ancora e sta per ricevere i file nuovi.
     if q.preserve_state {
@@ -1359,14 +1383,35 @@ pub struct UploadQuery {
     /// Cambia tre comportamenti, tutti necessari perché lo stato locale sopravviva:
     ///   - i due controlli di conflitto (progetto già noto / cartella esistente)
     ///     non si applicano;
-    ///   - `users.yaml` presente nello ZIP viene **saltato**: gli account del
-    ///     dispositivo sono stato locale e si aggiornano solo su richiesta
-    ///     esplicita (Configurazione → Runtime), non di straforo con un deploy;
     ///   - in caso di errore **non** si fa `remove_dir_all` della cartella —
     ///     il rollback distruttivo cancellerebbe proprio il database che stiamo
     ///     cercando di preservare.
+    ///
+    /// Degli utenti non decide più questo flag: vedi `replace_users`.
     #[serde(default)]
     pub deploy: bool,
+
+    /// Che fare di `users.yaml` del bundle. Dall'11-09-2026 **gli utenti
+    /// appartengono al progetto**: il deploy li porta sul dispositivo come porta
+    /// i sinottici (rovescia la decisione del 2026-07-30, che li dichiarava
+    /// stato locale del dispositivo).
+    ///
+    ///   - **assente** → import normale: il bundle arriva com'è, `users.yaml`
+    ///     compreso. È la WelcomeScreen che importa uno ZIP, non un deploy.
+    ///   - **`Some(true)`** → sostituisci: il file del bundle vince e, se il
+    ///     bundle **non** ha l'entry (progetto senza utenti), quello del
+    ///     dispositivo va **rimosso** — vedi `deve_svuotare_utenti`.
+    ///   - **`Some(false)`** → casella «Sostituisci anche gli utenti» spenta:
+    ///     gli account del dispositivo restano intatti. Serve al caso futuro in
+    ///     cui è una vista del progetto a creare utenti sul dispositivo (Q54).
+    ///
+    /// Il parametro sta qui e non sulla `DELETE …?preserve_state=true` di
+    /// proposito: se la cancellazione togliesse `users.yaml` e poi l'upload
+    /// fallisse, il pannello resterebbe senza account per un errore invece che
+    /// per una scelta. Così gli account vecchi ci sono fino all'istante in cui
+    /// arrivano i nuovi.
+    #[serde(default)]
+    pub replace_users: Option<bool>,
 }
 
 // Minimal manifest — we only need `name` to derive the folder name.
@@ -1506,12 +1551,9 @@ pub async fn upload_project_zip(
         if entry_name == "manifest.json" {
             continue; // metadata only — not needed on disk
         }
-        // Deploy: gli utenti del dispositivo non si toccano. Preservarli alla
-        // cancellazione non basterebbe — il bundle contiene `users.yaml` e
-        // l'estrazione lo riscriverebbe comunque, chiudendo fuori dal pannello
-        // chi lo stava usando.
-        if q.deploy && entry_name == "users.yaml" {
-            info!("deploy: users.yaml dello ZIP ignorato — account del dispositivo preservati");
+        // Gli utenti arrivano col progetto, salvo richiesta contraria.
+        if entry_name == "users.yaml" && salta_users_yaml(q.replace_users) {
+            info!("deploy: users.yaml dello ZIP ignorato — «Sostituisci anche gli utenti» spenta");
             continue;
         }
         // Safety: reject traversal paths.
@@ -1546,6 +1588,28 @@ pub async fn upload_project_zip(
                 rollback(target.clone(), q.deploy).await;
                 return (StatusCode::INTERNAL_SERVER_ERROR, "zip read failed").into_response();
             }
+        }
+    }
+
+    // 4b. Progetto senza utenti ⇒ dispositivo senza utenti: il pannello
+    //     rispecchia il progetto (decisione del maintainer, 2026-09-11).
+    //     Conseguenza dichiarata: senza nemmeno un account di recupero da
+    //     variabili d'ambiente il runtime riparte in no-auth, cioè accessibile
+    //     senza password. L'editor lo fa confermare prima di arrivare qui.
+    if deve_svuotare_utenti(
+        q.replace_users,
+        file_names.iter().any(|n| n == "users.yaml"),
+    ) {
+        let path = target.join("users.yaml");
+        match tokio::fs::remove_file(&path).await {
+            Ok(()) => {
+                info!("deploy: il progetto non ha utenti — users.yaml rimosso dal dispositivo")
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            // Non fatale: il progetto è già arrivato tutto. Fallire qui
+            // lascerebbe il dispositivo con le pagine nuove e nessun modo di
+            // saperlo; l'incoerenza si vede dal log e dagli account rimasti.
+            Err(e) => warn!("upload_project_zip: remove {}: {e}", path.display()),
         }
     }
 
@@ -1625,10 +1689,12 @@ fn read_zip_entry<R: Read + std::io::Seek>(
 /// `PUT /api/auth/users-file` — sostituisce `users.yaml` del progetto attivo con
 /// il corpo della richiesta (YAML), poi ricarica lo store di autenticazione.
 ///
-/// È il lato ricevente di "Aggiorna utenti sul dispositivo": il deploy non tocca
-/// più gli account, quindi serve un modo dichiarato per allinearli. Si trasferisce
-/// il file, che contiene gli hash Argon2 — le password restano ignote a chi lo
-/// spedisce.
+/// È il lato ricevente di "Aggiorna utenti sul dispositivo". Dall'11-09-2026 gli
+/// utenti viaggiano già col deploy (appartengono al progetto); questa resta la
+/// via per mandarli **da soli**, senza ridistribuire il progetto — utile quando
+/// sul dispositivo gira lo stesso progetto e sono cambiate solo le password. Si
+/// trasferisce il file, che contiene gli hash Argon2: le password restano ignote
+/// a chi lo spedisce.
 ///
 /// Due rifiuti deliberati, entrambi perché il danno sarebbe irreversibile e
 /// scoperto tardi (nessuno riesce più a entrare nel pannello):
@@ -2012,6 +2078,40 @@ fn migrate_legacy_sqlite_path(project_dir: &StdPath) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ── Chi decide di `users.yaml` in un upload (2026-09-11) ────────────────
+    //
+    // La matrice completa dei tre stati, perché è la regola su cui si regge
+    // «gli utenti appartengono al progetto» e l'errore possibile è lasciare un
+    // pannello senza account.
+
+    #[test]
+    fn import_normale_scrive_gli_utenti_del_bundle_e_non_svuota_mai() {
+        // `None` = WelcomeScreen che importa uno ZIP: comportamento storico.
+        assert!(!salta_users_yaml(None));
+        assert!(!deve_svuotare_utenti(None, true));
+        assert!(
+            !deve_svuotare_utenti(None, false),
+            "un import non deve poter svuotare"
+        );
+    }
+
+    #[test]
+    fn casella_spenta_non_tocca_gli_account_del_dispositivo() {
+        assert!(salta_users_yaml(Some(false)));
+        assert!(!deve_svuotare_utenti(Some(false), true));
+        assert!(!deve_svuotare_utenti(Some(false), false));
+    }
+
+    #[test]
+    fn casella_accesa_sostituisce_e_se_il_progetto_e_vuoto_svuota() {
+        // Bundle con utenti: si estrae e basta, l'estrazione sovrascrive.
+        assert!(!salta_users_yaml(Some(true)));
+        assert!(!deve_svuotare_utenti(Some(true), true));
+        // Bundle senza utenti: l'estrazione non può togliere niente, serve il
+        // passo esplicito. È il caso che lascia il pannello senza password.
+        assert!(deve_svuotare_utenti(Some(true), false));
+    }
 
     #[test]
     fn safe_project_name_accepts_basic() {

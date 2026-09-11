@@ -76,6 +76,49 @@
 
 ## ▶ Da fare nella prossima sessione
 
+### 👥 Gli utenti appartengono al progetto: ramo `feat/utenti-nel-progetto` (2026-09-11)
+
+**Ramo impilato su `feat/T-57-credenziali-sws-vs-ssh`**, non su `main`: il log nuovo del deploy
+usa `senza_utenti()`, che T-57 ha riscritto. T-57 va mergiato per primo.
+
+Decisione del maintainer, che **rovescia** quella del 2026-07-30: *«gli utenti partono dal
+progetto e se ricarico il progetto sul pannello devo poterli sovrascrivere»*. Quella vecchia,
+oltretutto, non era mai stata una regola: `users.yaml` veniva saltato solo ridistribuendo un
+progetto con lo **stesso nome**, quindi il comportamento dipendeva da una coincidenza di nomi
+invisibile a chi premeva il pulsante.
+
+Cinque scelte, tutte del maintainer: sostituisce per default con casella per saltare; progetto
+senza utenti ⇒ dispositivo senza utenti (pannello aperto, conseguenza accettata); il seed da env
+diventa di **solo recupero**; conferma esplicita quando il deploy toglierebbe ogni account a un
+dispositivo che ne ha; l'auto-deploy del salvataggio **non** porta gli utenti.
+
+Fatto, in quattro commit: `sws-auth` con `applica_seed_di_recupero` (5 test nuovi, 16 in tutto);
+`replace_users` a tre stati in `UploadQuery` con due funzioni pure; `DeployBody` e il **428**
+deciso sul server prima di toccare qualcosa, con l'elenco degli account che sparirebbero;
+`api.deployToRuntime()` unica per ConfigView e store, casella e `window.confirm` che si richiama
+una volta sola. `report_user_divergence` smontata: girava dopo `open_project`, prendeva 401 e
+stampava lo stesso «Il deploy non ha modificato gli account del dispositivo».
+
+⚠️ **`scripts/check_deploy_preserve.sh` ha un'asserzione rovesciata di proposito**: dove
+pretendeva «utenti del dispositivo conservati» ora pretende il contrario. È scritto in testa al
+file — non è una regressione. Tre casi nuovi (casella spenta, 428 senza conferma, rimozione con
+conferma) più il codice d'uscita, che prima mancava: lo script stampava e usciva 0 comunque.
+
+Gate: 523 test Rust, 231 vitest, clippy `-D warnings`, fmt, tsc, eslint, build;
+`check_deploy_preserve.sh` 7/7 casi, `test_t34.sh` 21/21, `check_no_admin.sh` 31/31,
+`check_static.sh` 15/15, `check_password_browser.sh`, `check_documenti.sh`. Q54 aperta (un
+dispositivo che crea utenti propri). **Non mergiato, non pushato.**
+
+**Da provare a mano** con i due runtime locali: casella accesa da un progetto con utenti → sul
+dispositivo si entra con le credenziali **del progetto**; casella spenta → valgono ancora le
+vecchie; salvataggio a connessione attiva → gli utenti del dispositivo non cambiano; progetto
+senza utenti → la conferma compare **una volta sola** e non riparte in ciclo. Poi un giro vero
+sul WP630.
+
+⚠️ **Compatibilità**: un dispositivo non aggiornato ignora `replace_users` e tiene i suoi utenti;
+l'IDE dirà «sostituiti» e non lo saranno. Va aggiornato prima il runtime del dispositivo.
+
+
 ### 🔌 T-57 — il pannello appena installato rifiutava la connessione: ramo `feat/T-57-credenziali-sws-vs-ssh` (2026-09-11)
 
 Il maintainer, da casa, aveva preparato `docs/plans/2026-09-11-diagnosi-login-8444.md` con

@@ -1210,7 +1210,11 @@
     "swsUser": "Utente SWS",
     "swsPassword": "Password SWS",
     "swsCredentialsHint": "Utente applicativo definito nel progetto SWS, non l'utente SSH del dispositivo. Lascia vuoto se il pannello non ha ancora utenti (appena installato, o senza progetto).",
-    "sshCredentialsHint": "Utente del sistema operativo del dispositivo, lo stesso di «ssh»: non l'utente applicativo SWS del pannello «Connessione runtime remoto»."
+    "sshCredentialsHint": "Utente del sistema operativo del dispositivo, lo stesso di «ssh»: non l'utente applicativo SWS del pannello «Connessione runtime remoto».",
+    "deployReplaceUsers": "Sostituisci anche gli utenti",
+    "deployReplaceUsersHint": "Gli utenti appartengono al progetto: il deploy li porta sul dispositivo come le pagine. Spegni per lasciare intatti gli account del dispositivo.",
+    "deployNoUsersConfirm": "QUESTO PROGETTO NON HA UTENTI\n\nSul dispositivo verranno rimossi gli account esistenti ({{utenti}}) e il pannello resterà accessibile SENZA PASSWORD a chiunque raggiunga la sua rete.\n\nProcedere?",
+    "deployNoUsersUnknown": "elenco non leggibile da qui"
   },
   "langtab": {
     "intro": "Traduci i messaggi che scrivi negli oggetti. Nei campi testo usa {{chiave}}; qui definisci le traduzioni per ogni lingua.",

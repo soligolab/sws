@@ -8101,7 +8101,6 @@ function downloadBlob(blob: Blob, filename: string) {
 
 function RuntimeConnectionTab() {
   const { t } = useTranslation();
-  const authToken = useAppStore((s) => s.authToken);
   const setRemoteConnected = useAppStore((s) => s.setRemoteConnected);
   const remoteConnectedStore = useAppStore((s) => s.remoteConnected);
   // Rientro nell'editor dopo il pull: stesse due azioni che App.tsx usa in
@@ -8121,6 +8120,11 @@ function RuntimeConnectionTab() {
   const [certificatoCambiato, setCertificatoCambiato] = useState(false);
   const [dimenticandoCert, setDimenticandoCert] = useState(false);
   const [deployLog, setDeployLog]   = useState<string[]>([]);
+  // Gli utenti appartengono al progetto: il deploy li porta sul dispositivo come
+  // porta le pagine (2026-09-11). La casella serve al caso futuro in cui è una
+  // vista del progetto a creare utenti sul dispositivo (Q54) — accesa di
+  // default, perché il default è il progetto.
+  const [sostituisciUtenti, setSostituisciUtenti] = useState(true);
   const [deploying, setDeploying]   = useState(false);
   const [deployDone, setDeployDone] = useState(false);
   const [deletingRemote, setDeletingRemote] = useState(false);
@@ -8677,16 +8681,32 @@ function RuntimeConnectionTab() {
     }
   };
 
-  const handleDeploy = async () => {
-    setDeploying(true); setDeployLog([]); setDeployDone(false);
-    try {
-      const ok = await flushBeforeDeploy((m) => setDeployLog((l) => [...l, m]));
-      if (!ok) { setDeploying(false); return; }
-
-      const res = await fetch("/api/remote/deploy", {
-        method: "POST",
-        headers: authToken ? { "Authorization": `Bearer ${authToken}` } : {},
+  /** La metà che parla col server. `confermato` diventa vero solo dopo che
+   *  l'utente ha risposto al `window.confirm` del 428, e allora la funzione si
+   *  richiama **una sola volta**: il flag è già a `true` e il server non può
+   *  chiedere di nuovo. */
+  const eseguiDeploy = async (confermato: boolean): Promise<void> => {
+      const res = await api.deployToRuntime({
+        replaceUsers: sostituisciUtenti,
+        confirmNoUsers: confermato,
       });
+
+      // 428: il server ha guardato e si è fermato **prima** di toccare qualcosa.
+      // Il progetto non ha utenti e il dispositivo ne ha: proseguire lo
+      // lascerebbe accessibile senza password. La decisione è di chi guarda lo
+      // schermo, non del codice.
+      if (res.status === 428 && !confermato) {
+        const d = await res.json().catch(() => ({} as any));
+        const elenco = Array.isArray(d?.utenti_dispositivo) && d.utenti_dispositivo.length
+          ? d.utenti_dispositivo.join(", ")
+          : t("cfg.deployNoUsersUnknown");
+        if (!window.confirm(t("cfg.deployNoUsersConfirm", { utenti: elenco }))) {
+          setDeployLog((l) => [...l, "✗ Deploy annullato."]);
+          return;
+        }
+        return eseguiDeploy(true);
+      }
+
       if (!res.ok || !res.body) {
         // Il corpo è dove il server mette la frase utile: «Un deploy è già in
         // corso», «Nessun runtime remoto connesso», «Nessun progetto attivo».
@@ -8708,6 +8728,14 @@ function RuntimeConnectionTab() {
           setDeployLog((l) => [...l, line])
         );
       }
+  };
+
+  const handleDeploy = async () => {
+    setDeploying(true); setDeployLog([]); setDeployDone(false);
+    try {
+      const ok = await flushBeforeDeploy((m) => setDeployLog((l) => [...l, m]));
+      if (!ok) { setDeploying(false); return; }
+      await eseguiDeploy(false);
       setDeployDone(true);
     } catch (e: any) {
       setDeployLog((l) => [...l, `✗ ${e?.message ?? String(e)}`]);
@@ -8847,10 +8875,11 @@ function RuntimeConnectionTab() {
     }
   };
 
-  // Allineamento esplicito degli account. Il deploy non li tocca — cambiare chi
-  // entra in un pannello in servizio non deve essere un effetto collaterale —
-  // quindi questo è l'unico percorso. Chiede conferma perché invalida le
-  // sessioni aperte sul dispositivo.
+  // Allinea gli account **senza** ridistribuire il progetto: dall'11-09-2026 il
+  // deploy li porta già (gli utenti appartengono al progetto), ma qui si mandano
+  // da soli — utile quando sul dispositivo gira lo stesso progetto e sono
+  // cambiate solo le password. Chiede conferma perché invalida le sessioni
+  // aperte sul dispositivo.
   const handlePushUsers = async () => {
     if (!window.confirm(
       "Sostituire gli utenti del dispositivo con quelli di questo progetto?\n\n" +
@@ -9086,6 +9115,16 @@ function RuntimeConnectionTab() {
           <p style={{ fontSize: 12, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 10px" }}>
             Esporta il progetto attivo e lo attiva sul runtime target.
           </p>
+          <label style={{ display: "flex", alignItems: "flex-start", gap: 6, cursor: "pointer", margin: "0 0 10px" }}>
+            <input type="checkbox" checked={sostituisciUtenti}
+              onChange={(e) => setSostituisciUtenti(e.target.checked)} />
+            <span style={{ fontSize: 12, color: "var(--brand-text-2, #cbd5e1)" }}>
+              {t("cfg.deployReplaceUsers")}
+              <span style={{ display: "block", fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)" }}>
+                {t("cfg.deployReplaceUsersHint")}
+              </span>
+            </span>
+          </label>
           {!deployDone && (
             <button style={{ ...BTN_PRIMARY, opacity: deploying ? 0.6 : 1 }}
               onClick={handleDeploy} disabled={deploying}>
@@ -9115,7 +9154,7 @@ function RuntimeConnectionTab() {
               Elimina il progetto attualmente attivo sul runtime (es. per ripartire pulito).
             </p>
             <button style={{ ...BTN, opacity: pushingUsers ? 0.6 : 1 }}
-              title="Sostituisce gli utenti del dispositivo con quelli di questo progetto. Il deploy, da solo, non li modifica."
+              title="Invia solo gli utenti di questo progetto, senza ridistribuirlo. Il deploy completo li porta già, se la casella «Sostituisci anche gli utenti» è accesa."
               onClick={handlePushUsers} disabled={pushingUsers}>
               {pushingUsers ? "Invio…" : "Aggiorna utenti sul dispositivo"}
             </button>

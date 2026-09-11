@@ -400,85 +400,119 @@ fn read_bundle_meta(zip: &[u8]) -> (Option<String>, Vec<String>) {
     (name, users)
 }
 
-/// Confronta gli utenti del bundle con quelli sul dispositivo e lo riferisce nel
-/// log del deploy. Non modifica nulla: allineare gli account è un'azione
-/// esplicita ("Aggiorna utenti sul dispositivo" in Configurazione → Runtime),
-/// perché un deploy che cambia chi può accedere a un pannello in servizio è
-/// esattamente il genere di effetto collaterale che non si vuole scoprire dopo.
-async fn report_user_divergence(
+/// Username configurati sul dispositivo, o `None` se l'elenco non è leggibile
+/// (dispositivo con utenti e connessione senza credenziali admin).
+///
+/// Va chiamata **prima** di toccare il progetto sul dispositivo: `open_project`
+/// passa da `auth.swap_store`, che azzera ogni sessione, e da lì in poi questa
+/// GET risponde 401 qualunque token si presenti.
+async fn leggi_utenti_dispositivo(
     client: &reqwest::Client,
     base: &str,
     auth_hdr: &Option<String>,
-    bundle_users: &[String],
-    send: &impl Fn(&str),
-) {
+) -> Option<Vec<String>> {
     let mut r = client.get(format!("{base}/api/auth/users"));
     if let Some(h) = auth_hdr {
         r = r.header("Authorization", h);
     }
-    let device_users: Vec<String> = match r.send().await {
+    match r.send().await {
         Ok(resp) if resp.status().is_success() => {
             let v: serde_json::Value = resp.json().await.unwrap_or_default();
-            v.as_array()
-                .map(|a| {
-                    a.iter()
-                        .filter_map(|u| u["username"].as_str().map(|s| s.to_string()))
-                        .collect()
-                })
-                .unwrap_or_default()
+            Some(
+                v.as_array()
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(|u| u["username"].as_str().map(|s| s.to_string()))
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+            )
         }
-        // Lista non leggibile: il dispositivo ha utenti configurati e la
-        // connessione non ha un token admin. Il confronto non si può fare, ma
-        // **tacere è la scelta peggiore**: è il caso in cui il dispositivo ha
-        // account veri, cioè quello in cui sapere che il deploy non li ha
-        // toccati conta di più.
-        _ => {
-            send("ⓘ Il deploy non ha modificato gli account del dispositivo.");
-            send("    Elenco non verificabile da qui: connettiti con credenziali admin per confrontarlo.");
-            return;
+        _ => None,
+    }
+}
+
+/// Chi c'è solo di qua e chi solo di là, in ordine. Pura: è il confronto, non
+/// la rete.
+pub(crate) fn differenza_utenti(
+    progetto: &[String],
+    dispositivo: &[String],
+) -> (Vec<String>, Vec<String>) {
+    let mut solo_progetto: Vec<String> = progetto
+        .iter()
+        .filter(|u| !dispositivo.contains(u))
+        .cloned()
+        .collect();
+    let mut solo_dispositivo: Vec<String> = dispositivo
+        .iter()
+        .filter(|u| !progetto.contains(u))
+        .cloned()
+        .collect();
+    solo_progetto.sort();
+    solo_dispositivo.sort();
+    (solo_progetto, solo_dispositivo)
+}
+
+/// Dice nel log cosa il deploy **sta per fare** agli account, prima di farlo.
+///
+/// Si stampa prima della cancellazione, quando l'elenco del dispositivo è stato
+/// letto con un token ancora valido. La versione precedente confrontava **dopo**
+/// l'attivazione del progetto e, siccome `open_project` aveva già invalidato il
+/// token, finiva sempre nel ramo «elenco non leggibile» dichiarando «il deploy
+/// non ha modificato gli account» — che era falso due volte: il deploy con nome
+/// diverso li sostituiva già, e la 401 che portava lì era causata dal deploy
+/// stesso.
+fn riferisci_piano_utenti(
+    sostituisci: bool,
+    utenti_progetto: &[String],
+    utenti_dispositivo: Option<&Vec<String>>,
+    send: &impl Fn(&str),
+) {
+    if !sostituisci {
+        send("ⓘ Utenti: non toccati («Sostituisci anche gli utenti» è spenta).");
+        if let Some(dispositivo) = utenti_dispositivo {
+            let (solo_progetto, solo_dispositivo) = differenza_utenti(utenti_progetto, dispositivo);
+            if !solo_progetto.is_empty() || !solo_dispositivo.is_empty() {
+                send(&format!(
+                    "    solo nel progetto: {} — solo sul dispositivo: {}",
+                    elenco(&solo_progetto),
+                    elenco(&solo_dispositivo)
+                ));
+                send("    Per allinearli: accendi la casella, oppure Configurazione → Runtime → \"Aggiorna utenti sul dispositivo\".");
+            }
         }
-    };
-    if bundle_users.is_empty() && device_users.is_empty() {
         return;
     }
-
-    let mut only_project: Vec<&String> = bundle_users
-        .iter()
-        .filter(|u| !device_users.contains(u))
-        .collect();
-    let mut only_device: Vec<&String> = device_users
-        .iter()
-        .filter(|u| !bundle_users.contains(u))
-        .collect();
-    only_project.sort();
-    only_device.sort();
-    if only_project.is_empty() && only_device.is_empty() {
+    if utenti_progetto.is_empty() {
+        send("⚠ Il progetto non ha utenti: il dispositivo resterà senza account.");
         return;
     }
+    send(&format!(
+        "Utenti: verranno sostituiti con quelli del progetto ({}).",
+        elenco(utenti_progetto)
+    ));
+    match utenti_dispositivo {
+        Some(dispositivo) => {
+            let (solo_progetto, solo_dispositivo) = differenza_utenti(utenti_progetto, dispositivo);
+            if !solo_dispositivo.is_empty() {
+                send(&format!("    spariranno dal dispositivo: {}", elenco(&solo_dispositivo)));
+            }
+            if !solo_progetto.is_empty() {
+                send(&format!("    arriveranno: {}", elenco(&solo_progetto)));
+            }
+        }
+        None => send(
+            "    Elenco del dispositivo non leggibile (serve una connessione con credenziali admin): non posso dire quali spariranno.",
+        ),
+    }
+}
 
-    send("⚠ Gli utenti del progetto e quelli del dispositivo differiscono:");
-    if !only_project.is_empty() {
-        send(&format!(
-            "    solo nel progetto: {}",
-            only_project
-                .iter()
-                .map(|s| s.as_str())
-                .collect::<Vec<_>>()
-                .join(", ")
-        ));
+fn elenco(v: &[String]) -> String {
+    if v.is_empty() {
+        "nessuno".to_string()
+    } else {
+        v.join(", ")
     }
-    if !only_device.is_empty() {
-        send(&format!(
-            "    solo sul dispositivo: {}",
-            only_device
-                .iter()
-                .map(|s| s.as_str())
-                .collect::<Vec<_>>()
-                .join(", ")
-        ));
-    }
-    send("    Il deploy NON modifica gli account del dispositivo.");
-    send("    Per allinearli: Configurazione → Runtime → \"Aggiorna utenti sul dispositivo\".");
 }
 
 /// `POST /api/remote/users` — spedisce `users.yaml` del progetto locale al
@@ -1246,13 +1280,80 @@ fn pct_encode(s: &str) -> String {
 }
 
 /// `POST /api/remote/deploy` — export the active local project as a ZIP and
+/// Le opzioni del deploy. Corpo assente = tutti i default: `remote_deploy`
+/// veniva chiamata senza corpo dall'auto-deploy dello store, e un corpo mancante
+/// non deve voler dire «tutto spento».
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DeployBody {
+    /// Casella «Sostituisci anche gli utenti», **accesa di default**: gli utenti
+    /// appartengono al progetto e viaggiano col deploy (2026-09-11).
+    #[serde(default = "vero")]
+    pub replace_users: bool,
+    /// L'editor ha mostrato la conferma «il pannello resterà accessibile senza
+    /// password» e l'utente ha detto sì. Senza, il caso si ferma con un 428.
+    #[serde(default)]
+    pub confirm_no_users: bool,
+}
+
+fn vero() -> bool {
+    true
+}
+
+impl Default for DeployBody {
+    fn default() -> Self {
+        Self {
+            replace_users: true,
+            confirm_no_users: false,
+        }
+    }
+}
+
+/// Serve la conferma esplicita dell'editor?
+///
+/// Solo quando il deploy toglierebbe **ogni** account a un dispositivo che ne
+/// ha. `utenti_dispositivo = None` significa elenco non leggibile (dispositivo
+/// con utenti, connessione senza credenziali admin): nel dubbio si chiede,
+/// perché l'errore da evitare è lasciare un pannello aperto senza saperlo.
+pub(crate) fn serve_conferma(
+    sostituisci: bool,
+    utenti_progetto: usize,
+    utenti_dispositivo: Option<usize>,
+) -> bool {
+    sostituisci && utenti_progetto == 0 && utenti_dispositivo.is_none_or(|n| n > 0)
+}
+
+/// L'URL di upload verso il dispositivo. **Unico punto** in cui i parametri del
+/// deploy si compongono: `deploy`, `name` e `replace_users` devono viaggiare
+/// insieme, e il ritentativo dopo un 409 è il posto in cui storicamente se ne
+/// perde uno.
+pub(crate) fn url_upload(
+    base: &str,
+    nome: Option<&str>,
+    preserva: bool,
+    sostituisci: bool,
+) -> String {
+    let mut u = format!("{base}/api/projects/upload?replace_users={sostituisci}");
+    if preserva {
+        u.push_str("&deploy=true");
+        if let Some(n) = nome {
+            u.push_str(&format!("&name={}", pct_encode(n)));
+        }
+    }
+    u
+}
+
 /// upload it to the connected remote runtime server-side (AcceptAnyCert,
 /// reuses the existing session token from `remote_target`).
 /// Returns a streaming newline-delimited text log.
 pub async fn remote_deploy(
     State(s): State<AppState>,
     Extension(_user): Extension<AuthUser>,
+    // Ultimo, com'è obbligatorio per un estrattore di corpo. `Option<_>` perché
+    // l'auto-deploy dello store chiama senza corpo.
+    corpo: Option<Json<DeployBody>>,
 ) -> Response {
+    let opz = corpo.map(|Json(b)| b).unwrap_or_default();
     let target = match s.remote_target.read().await.clone() {
         Some(t) => t,
         None => return (StatusCode::BAD_REQUEST, "Nessun runtime remoto connesso").into_response(),
@@ -1271,6 +1372,45 @@ pub async fn remote_deploy(
         )
             .into_response();
     };
+
+    // ── Precheck, prima di toccare qualunque cosa ────────────────────────────
+    //
+    // Si legge qui, e non dentro il task, per due motivi: l'elenco degli utenti
+    // del dispositivo va letto mentre il token è ancora valido (dopo
+    // `open_project` non lo è più), e se il deploy lascerebbe il pannello senza
+    // account bisogna potersi fermare **prima** di aver cancellato qualcosa.
+    let client = make_remote_client(&s, &target.url);
+    let base = target.url.trim_end_matches('/').to_string();
+    let auth_hdr: Option<String> =
+        (!target.token.is_empty()).then(|| format!("Bearer {}", target.token));
+
+    // Utenti del PROGETTO: si legge il file, perché è il file che viaggia nel
+    // bundle (`build_export_zip` lo copia così com'è).
+    let utenti_progetto = read_usernames(
+        &tokio::fs::read_to_string(proj_dir.join("users.yaml"))
+            .await
+            .unwrap_or_default(),
+    );
+    let utenti_dispositivo = leggi_utenti_dispositivo(&client, &base, &auth_hdr).await;
+
+    if !opz.confirm_no_users
+        && serve_conferma(
+            opz.replace_users,
+            utenti_progetto.len(),
+            utenti_dispositivo.as_ref().map(Vec::len),
+        )
+    {
+        // Niente è stato toccato. 428 e non 409: il 409 qui significa già «un
+        // deploy è in corso», e i due casi non devono confondersi.
+        return (
+            StatusCode::PRECONDITION_REQUIRED,
+            Json(serde_json::json!({
+                "conferma": "utenti-vuoti",
+                "utenti_dispositivo": utenti_dispositivo,
+            })),
+        )
+            .into_response();
+    }
 
     let (tx, rx) = tokio::sync::mpsc::channel::<String>(64);
 
@@ -1298,13 +1438,16 @@ pub async fn remote_deploy(
         // l'upload — e non una ricostruzione dal nome della cartella locale.
         let (deploy_name, bundle_users) = read_bundle_meta(&zip);
 
-        let client = make_remote_client(&s, &target.url);
-        let base = target.url.trim_end_matches('/').to_string();
-        let auth_hdr: Option<String> = if target.token.is_empty() {
-            None
-        } else {
-            Some(format!("Bearer {}", target.token))
-        };
+        // Cosa sta per succedere agli account, detto prima di farlo e mentre
+        // l'elenco del dispositivo è ancora quello vero.
+        // `bundle_users` e non la lettura fatta nel precheck: è ciò che sta
+        // davvero nello ZIP appena costruito, cioè quello che arriverà.
+        riferisci_piano_utenti(
+            opz.replace_users,
+            &bundle_users,
+            utenti_dispositivo.as_ref(),
+            &send,
+        );
 
         // Single-project runtime: wipe every existing project on the target so
         // the deploy fully overwrites it (not just the same-named one).
@@ -1371,20 +1514,15 @@ pub async fn remote_deploy(
 
         // Upload ZIP
         send("Upload ZIP al target…");
-        let upload_url = if preserved_same_name {
-            // `deploy=true`: la cartella esiste già (svuotata dei soli file di
-            // progettazione), `users.yaml` dello ZIP va ignorato e un errore non
-            // deve cancellare la cartella.
-            match &deploy_name {
-                Some(n) => format!(
-                    "{base}/api/projects/upload?deploy=true&name={}",
-                    pct_encode(n)
-                ),
-                None => format!("{base}/api/projects/upload?deploy=true"),
-            }
-        } else {
-            format!("{base}/api/projects/upload")
-        };
+        // `deploy=true` quando la cartella esiste già (svuotata dei soli file di
+        // progettazione): i conflitti non si applicano e un errore non deve
+        // cancellarla. Degli utenti decide `replace_users`, non questo flag.
+        let upload_url = url_upload(
+            &base,
+            deploy_name.as_deref(),
+            preserved_same_name,
+            opz.replace_users,
+        );
         let mut req = client
             .post(upload_url)
             .header("Content-Type", "application/zip")
@@ -1431,9 +1569,11 @@ pub async fn remote_deploy(
             }
             send(&format!("✓ Rimosso \"{existing}\""));
 
-            // retry upload
+            // Ritentativo: la cartella è stata appena rimossa, quindi niente
+            // `deploy=true` — ma `replace_users` deve esserci lo stesso, ed è
+            // per questo che l'URL si compone in un posto solo.
             let mut req = client
-                .post(format!("{base}/api/projects/upload"))
+                .post(url_upload(&base, None, false, opz.replace_users))
                 .header("Content-Type", "application/zip")
                 .body(zip.clone());
             if let Some(h) = &auth_hdr {
@@ -1470,11 +1610,27 @@ pub async fn remote_deploy(
         match r.send().await {
             Ok(o) if o.status().is_success() => {
                 send(&format!("✓ \"{uploaded_name}\" attivo sul runtime"));
-                // Gli account del dispositivo non vengono toccati dal deploy. Se
-                // differiscono da quelli del progetto lo si dice qui: la scelta è
-                // deliberata, ma se resta invisibile chi aggiunge un utente
-                // nell'IDE si aspetta di trovarlo sul dispositivo e non lo trova.
-                report_user_divergence(&client, &base, &auth_hdr, &bundle_users, &send).await;
+                // Lo stato degli account **dopo**, dichiarato invece che dedotto.
+                // Qui il token non vale più — `open_project` passa da
+                // `swap_store`, che azzera le sessioni — quindi si usa la sonda
+                // senza token: `/api/system` risponde 200 con
+                // `auth_required:false` solo dove non c'è nessun utente.
+                send("ⓘ Le sessioni aperte sul dispositivo sono decadute: chi era collegato rifà il login.");
+                if opz.replace_users && !bundle_users.is_empty() {
+                    send("ⓘ Da adesso valgono le credenziali del progetto: se un'azione risponde 401, riconnettiti con quelle.");
+                }
+                if senza_utenti(&client, &base).await {
+                    // Copre anche il caso del seed di recupero: se sul
+                    // dispositivo c'è SWS_ADMIN_PASSWORD, un progetto senza
+                    // utenti fa ripartire l'account d'ambiente e qui si legge
+                    // «richiede il login» invece che «aperto», senza che il
+                    // deploy debba indovinare l'ambiente del dispositivo.
+                    send(
+                        "⚠ Il dispositivo non ha utenti: il pannello è accessibile senza password.",
+                    );
+                } else {
+                    send("✓ Il dispositivo richiede il login.");
+                }
                 send("🚀 Deploy completato!");
             }
             Ok(o) => send(&format!("✗ Attivazione fallita: {}", o.status())),
@@ -1584,6 +1740,73 @@ pub async fn remote_status(State(s): State<AppState>) -> Json<RemoteStatus> {
 mod tests {
     use super::*;
     use std::io::Write;
+
+    // ── Gli utenti viaggiano col progetto (2026-09-11) ───────────────────────
+
+    /// La conferma serve **solo** quando il deploy toglierebbe ogni account a un
+    /// dispositivo che ne ha: è l'unico esito che lascia un pannello aperto.
+    #[test]
+    fn la_conferma_serve_solo_se_il_pannello_resta_senza_account() {
+        // Progetto con utenti: si sostituisce e basta, niente da confermare.
+        assert!(!serve_conferma(true, 2, Some(3)));
+        // Progetto vuoto e dispositivo già vuoto: non si toglie niente a nessuno.
+        assert!(!serve_conferma(true, 0, Some(0)));
+        // Progetto vuoto, dispositivo con account: è il caso.
+        assert!(serve_conferma(true, 0, Some(1)));
+        // Elenco non leggibile: nel dubbio si chiede.
+        assert!(serve_conferma(true, 0, None));
+        // Casella spenta: gli account non si toccano, quindi mai.
+        assert!(!serve_conferma(false, 0, Some(3)));
+        assert!(!serve_conferma(false, 0, None));
+    }
+
+    /// `replace_users` deve esserci in **tutte** le forme dell'URL, compreso il
+    /// ritentativo dopo un 409, che non ha `deploy=true`: è il punto in cui
+    /// storicamente si perdeva un parametro.
+    #[test]
+    fn l_url_di_upload_porta_sempre_replace_users() {
+        let a = url_upload("http://d:8444", Some("impianto"), true, true);
+        assert!(
+            a.contains("replace_users=true")
+                && a.contains("deploy=true")
+                && a.contains("name=impianto")
+        );
+        let b = url_upload("http://d:8444", Some("impianto"), true, false);
+        assert!(b.contains("replace_users=false"));
+        // Ritentativo: niente deploy, niente nome — ma il flag resta.
+        let c = url_upload("http://d:8444", None, false, true);
+        assert_eq!(c, "http://d:8444/api/projects/upload?replace_users=true");
+        assert!(!c.contains("deploy=true"));
+        let d = url_upload("http://d:8444", Some("ignorato"), false, false);
+        assert_eq!(d, "http://d:8444/api/projects/upload?replace_users=false");
+    }
+
+    #[test]
+    fn la_differenza_fra_gli_elenchi_e_ordinata_e_simmetrica() {
+        let progetto = vec!["zeta".to_string(), "admin".to_string()];
+        let dispositivo = vec!["admin".to_string(), "vecchio".to_string()];
+        let (solo_p, solo_d) = differenza_utenti(&progetto, &dispositivo);
+        assert_eq!(solo_p, vec!["zeta".to_string()]);
+        assert_eq!(solo_d, vec!["vecchio".to_string()]);
+        // Elenchi uguali: nessuna differenza da riferire.
+        let (a, b) = differenza_utenti(&progetto, &progetto);
+        assert!(a.is_empty() && b.is_empty());
+    }
+
+    /// Corpo assente = default, non «tutto spento»: l'auto-deploy dello store
+    /// chiama senza corpo, e un default a `false` gli farebbe fare una cosa
+    /// diversa da quella dichiarata.
+    #[test]
+    fn il_corpo_del_deploy_ha_i_default_giusti() {
+        let d = DeployBody::default();
+        assert!(d.replace_users && !d.confirm_no_users);
+        let vuoto: DeployBody = serde_json::from_str("{}").unwrap();
+        assert!(vuoto.replace_users, "senza campo, si sostituisce");
+        let spento: DeployBody = serde_json::from_str(r#"{"replace_users":false}"#).unwrap();
+        assert!(!spento.replace_users && !spento.confirm_no_users);
+        // Q9: un campo sconosciuto è un errore, non un silenzio.
+        assert!(serde_json::from_str::<DeployBody>(r#"{"replace_userz":true}"#).is_err());
+    }
 
     /// Il caso che ha rotto il primo deploy dopo un'installazione pulita
     /// (2026-09-11, WP630): il dispositivo non ha utenti, la sonda passa e

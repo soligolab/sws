@@ -521,7 +521,8 @@ pub fn build(
             "/api/remote/project/export",
             get(crate::remote::remote_export_project),
         )
-        // Allineamento esplicito degli account: il deploy non li tocca.
+        // Allineamento esplicito degli account, senza ridistribuire il
+        // progetto. Dall'11-09-2026 anche il deploy li porta.
         .route("/api/remote/users", post(crate::remote::remote_push_users))
         // "Invia Client ID al dispositivo connesso" — override per-device del
         // client_id MQTT, esterno a project.yaml.
@@ -930,7 +931,7 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         // ── Stato, che l'IDE legge per dire com'è il dispositivo ───────────
         .route("/api/project", get(get_project))
         .route("/api/system", get(crate::system::get_system_status))
-        // ── Utenti: azione deliberata, il deploy non li tocca ──────────────
+        // ── Utenti: azione deliberata, separata dal deploy ─────────────────
         //
         // I verbi sono quelli che `remote.rs` usa davvero (`PUT`, non `POST`):
         // sbagliarli farebbe 405 dove l'editor si aspetta 204, e il messaggio

@@ -276,6 +276,70 @@ impl std::fmt::Display for UserError {
     }
 }
 
+/// Applica il seed da variabili d'ambiente come **recupero**, non come aggiunta.
+///
+/// Fino all'11-09-2026 il seed entrava a ogni avvio e a ogni apertura di
+/// progetto, per ogni account il cui nome mancasse. Due conseguenze, entrambe
+/// contro la regola «gli utenti appartengono al progetto»: un progetto da cui
+/// `admin` era stato tolto apposta se lo vedeva tornare, e un deploy che porta
+/// gli utenti del progetto veniva silenziosamente contraddetto dall'ambiente
+/// del dispositivo — che su un'installazione nativa è `admin`/`admin`
+/// (`deploy/yocto/install.sh`).
+///
+/// Ora entra **solo se il risultato sarebbe zero utenti**, cioè quando è l'unica
+/// cosa che tiene il pannello raggiungibile. Senza seed, zero utenti significa
+/// no-auth: tutto aperto.
+///
+/// Ritorna `true` se ha aggiunto qualcosa — solo allora il file va riscritto.
+fn applica_seed_di_recupero(
+    users: &mut HashMap<String, StoredUser>,
+    seed: Vec<(String, Role, String)>,
+) -> anyhow::Result<bool> {
+    if !users.is_empty() {
+        return Ok(false);
+    }
+    let now = now_unix_ms();
+    let mut aggiunti = false;
+    for (name, role, pwd) in seed.into_iter().filter(|(_, _, p)| !p.is_empty()) {
+        let hash = hash_password(&pwd)?;
+        warn!(
+            user = %name, role = role.as_str(),
+            "auth: nessun utente nel progetto — account di recupero creato dalle variabili d'ambiente"
+        );
+        users.insert(
+            name.clone(),
+            StoredUser {
+                username: name,
+                password_hash: hash,
+                role,
+                must_change_password: false,
+                created_at_ms: now,
+                updated_at_ms: now,
+                session_ttl_secs: None,
+                allowed_zones: vec![],
+            },
+        );
+        aggiunti = true;
+    }
+    Ok(aggiunti)
+}
+
+/// Scrive `users.yaml`, creando la cartella se manca.
+fn scrivi_users_file(
+    store_path: &std::path::Path,
+    users: &HashMap<String, StoredUser>,
+) -> anyhow::Result<()> {
+    if let Some(parent) = store_path.parent() {
+        std::fs::create_dir_all(parent).ok();
+    }
+    let to_write = UserFile {
+        users: users.values().cloned().collect(),
+    };
+    let yaml = serde_yaml::to_string(&to_write)
+        .map_err(|e| anyhow::anyhow!("serialise users.yaml: {e}"))?;
+    std::fs::write(store_path, yaml).map_err(|e| anyhow::anyhow!("write users.yaml: {e}"))
+}
+
 impl AuthState {
     /// Bootstrap from `users.yaml` at `store_path`. When the file is missing
     /// or empty, fall back to the legacy `(username, role, password)` seed
@@ -298,43 +362,15 @@ impl AuthState {
             .map(|u| (u.username.clone(), u))
             .collect();
 
-        // Seed any account that isn't already present on disk (idempotent
-        // restart, useful when the env vars are reset across deployments).
-        let now = now_unix_ms();
-        for (name, role, pwd) in seed.into_iter().filter(|(_, _, p)| !p.is_empty()) {
-            if !users.contains_key(&name) {
-                let hash = hash_password(&pwd)?;
-                info!(user = %name, role = role.as_str(), "auth: seeded account from env");
-                users.insert(
-                    name.clone(),
-                    StoredUser {
-                        username: name,
-                        password_hash: hash,
-                        role,
-                        must_change_password: false,
-                        created_at_ms: now,
-                        updated_at_ms: now,
-                        session_ttl_secs: None,
-                        allowed_zones: vec![],
-                    },
-                );
-            }
-        }
+        let seminati = applica_seed_di_recupero(&mut users, seed)?;
 
         if users.is_empty() {
             info!("no users defined — starting in no-auth mode (all routes open)");
-        } else {
-            // Flush the seeded set so subsequent restarts find them on disk.
-            let to_write = UserFile {
-                users: users.values().cloned().collect(),
-            };
-            if let Some(parent) = store_path.parent() {
-                std::fs::create_dir_all(parent).ok();
-            }
-            let yaml = serde_yaml::to_string(&to_write)
-                .map_err(|e| anyhow::anyhow!("serialise users.yaml: {e}"))?;
-            std::fs::write(&store_path, yaml)
-                .map_err(|e| anyhow::anyhow!("write users.yaml: {e}"))?;
+        } else if seminati {
+            // Si scrive SOLO se il seed ha aggiunto qualcosa. Prima si riscriveva
+            // a ogni avvio anche senza cambiamenti: `users` è una HashMap, quindi
+            // l'ordine degli account nel file cambiava da solo a ogni giro.
+            scrivi_users_file(&store_path, &users)?;
         }
 
         Ok(Arc::new(Self {
@@ -423,39 +459,14 @@ impl AuthState {
             .into_iter()
             .map(|u| (u.username.clone(), u))
             .collect();
-        let now = now_unix_ms();
-        for (name, role, pwd) in seed.into_iter().filter(|(_, _, p)| !p.is_empty()) {
-            if !new_users.contains_key(&name) {
-                let hash = hash_password(&pwd)?;
-                info!(user = %name, role = role.as_str(), "auth: seeded account from env");
-                new_users.insert(
-                    name.clone(),
-                    StoredUser {
-                        username: name,
-                        password_hash: hash,
-                        role,
-                        must_change_password: false,
-                        created_at_ms: now,
-                        updated_at_ms: now,
-                        session_ttl_secs: None,
-                        allowed_zones: vec![],
-                    },
-                );
-            }
-        }
+        let seminati = applica_seed_di_recupero(&mut new_users, seed)?;
         if new_users.is_empty() {
             info!("no users defined — starting in no-auth mode (all routes open)");
-        } else {
-            if let Some(parent) = new_path.parent() {
-                std::fs::create_dir_all(parent).ok();
-            }
-            let to_write = UserFile {
-                users: new_users.values().cloned().collect(),
-            };
-            let yaml = serde_yaml::to_string(&to_write)
-                .map_err(|e| anyhow::anyhow!("serialise users.yaml: {e}"))?;
-            std::fs::write(&new_path, yaml)
-                .map_err(|e| anyhow::anyhow!("write users.yaml: {e}"))?;
+        } else if seminati {
+            // Come in `new_persistent`: si scrive solo se il seed ha aggiunto
+            // qualcosa. Un progetto appena arrivato col deploy non si vede
+            // riscrivere `users.yaml` (e riordinare) alla prima apertura.
+            scrivi_users_file(&new_path, &new_users)?;
         }
 
         *self.users.write().await = new_users;
@@ -818,6 +829,120 @@ fn now_unix_ms() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ── Seed da variabili d'ambiente: di solo recupero (2026-09-11) ──────────
+    //
+    // «Gli utenti appartengono al progetto»: l'ambiente del dispositivo non
+    // aggiunge più account a un progetto che ne ha già. Entra solo quando
+    // altrimenti non resterebbe nessuno, cioè quando è l'unica cosa che tiene
+    // il pannello raggiungibile.
+
+    fn seed_admin() -> Vec<(String, Role, String)> {
+        vec![("admin".into(), Role::Admin, "segreta".into())]
+    }
+
+    /// Scrive un `users.yaml` con un solo account, con un hash vero.
+    fn users_yaml_con(dir: &std::path::Path, username: &str) -> PathBuf {
+        let p = dir.join("users.yaml");
+        let u = StoredUser {
+            username: username.into(),
+            password_hash: hash_password("x").unwrap(),
+            role: Role::Operator,
+            must_change_password: false,
+            created_at_ms: 1,
+            updated_at_ms: 1,
+            session_ttl_secs: None,
+            allowed_zones: vec![],
+        };
+        let f = UserFile { users: vec![u] };
+        std::fs::write(&p, serde_yaml::to_string(&f).unwrap()).unwrap();
+        p
+    }
+
+    fn stato(path: PathBuf, seed: Vec<(String, Role, String)>) -> Arc<AuthState> {
+        AuthState::new_persistent(
+            path,
+            seed,
+            Duration::from_secs(60),
+            5,
+            Duration::from_secs(60),
+        )
+        .unwrap()
+    }
+
+    /// Il progetto ha i suoi utenti: l'ambiente non ne aggiunge. Prima di oggi
+    /// qui ce ne sarebbero stati due.
+    #[tokio::test]
+    async fn il_seed_non_entra_se_il_file_ha_utenti() {
+        let d = tempfile::tempdir().unwrap();
+        let p = users_yaml_con(d.path(), "operatore");
+        let a = stato(p, seed_admin());
+        let nomi: Vec<String> = a.users.read().await.keys().cloned().collect();
+        assert_eq!(
+            nomi,
+            vec!["operatore".to_string()],
+            "l'admin da env non deve entrare"
+        );
+    }
+
+    /// Nessun utente da nessuna parte: il seed è la rete di sicurezza e scatta.
+    #[tokio::test]
+    async fn il_seed_entra_se_non_resterebbe_nessuno() {
+        let d = tempfile::tempdir().unwrap();
+        let p = d.path().join("users.yaml");
+        let a = stato(p.clone(), seed_admin());
+        assert!(a.has_users().await);
+        assert!(a.users.read().await.contains_key("admin"));
+        // E viene scritto su disco, così il riavvio lo ritrova.
+        assert!(p.exists());
+    }
+
+    /// Senza seed e senza file si resta in no-auth: è lo stato di un pannello
+    /// appena installato, e deve restare riconoscibile.
+    #[tokio::test]
+    async fn senza_seed_e_senza_file_si_resta_in_no_auth() {
+        let d = tempfile::tempdir().unwrap();
+        let a = stato(
+            d.path().join("users.yaml"),
+            vec![("admin".into(), Role::Admin, String::new())],
+        );
+        assert!(!a.has_users().await);
+    }
+
+    /// Cambiare progetto non reintroduce l'admin che il progetto nuovo non ha:
+    /// è il caso che si presenta a ogni deploy, perché `open_project` chiama
+    /// `swap_store` col seed letto dall'ambiente del dispositivo.
+    #[tokio::test]
+    async fn swap_store_non_reintroduce_l_admin_tolto_dal_progetto() {
+        let d = tempfile::tempdir().unwrap();
+        let a_dir = d.path().join("a");
+        let b_dir = d.path().join("b");
+        std::fs::create_dir_all(&a_dir).unwrap();
+        std::fs::create_dir_all(&b_dir).unwrap();
+        let pa = users_yaml_con(&a_dir, "admin");
+        let pb = users_yaml_con(&b_dir, "operatore");
+        let a = stato(pa, seed_admin());
+        a.swap_store(pb, seed_admin()).await.unwrap();
+        let nomi: Vec<String> = a.users.read().await.keys().cloned().collect();
+        assert_eq!(nomi, vec!["operatore".to_string()]);
+    }
+
+    /// Senza il seed non c'è niente da scrivere, e il file non si tocca. Prima
+    /// veniva riscritto a ogni apertura: `users` è una HashMap, quindi l'ordine
+    /// degli account cambiava da solo e il file "risultava modificato" senza
+    /// che nessuno l'avesse modificato.
+    #[tokio::test]
+    async fn il_file_non_viene_riscritto_se_non_cambia_nulla() {
+        let d = tempfile::tempdir().unwrap();
+        let p = users_yaml_con(d.path(), "operatore");
+        let prima = std::fs::read(&p).unwrap();
+        let _ = stato(p.clone(), seed_admin());
+        assert_eq!(
+            prima,
+            std::fs::read(&p).unwrap(),
+            "users.yaml riscritto senza motivo"
+        );
+    }
 
     fn admin_only(pwd: &str) -> Arc<AuthState> {
         AuthState::new(

@@ -11,6 +11,46 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Gli utenti appartengono al progetto: il deploy li porta sul dispositivo
+
+Rovescia la decisione del 2026-07-30 («il deploy non tocca gli account del dispositivo»), su
+richiesta del maintainer: *«gli utenti partono dal progetto e se ricarico il progetto sul
+pannello devo poterli sovrascrivere»*. Quella decisione, in più, **non è mai stata una regola**:
+`users.yaml` veniva saltato solo ridistribuendo un progetto con lo **stesso nome**. Al primo
+deploy, o con un nome diverso, gli utenti del progetto finivano già sul dispositivo — il
+comportamento dipendeva da una coincidenza di nomi invisibile a chi premeva il pulsante.
+
+- **Casella «Sostituisci anche gli utenti»** nella sezione Deploy progetto, **accesa di default**
+  perché il default è il progetto. Spenta, gli account del dispositivo restano intatti: serve al
+  caso in cui sia una vista del progetto a crearli sul dispositivo (Q54, aperta).
+- **Progetto senza utenti ⇒ dispositivo senza utenti.** Il dispositivo rispecchia il progetto.
+  Conseguenza accettata e dichiarata: il pannello resta accessibile **senza password**. Prima di
+  arrivarci il server risponde **`428`** con l'elenco degli account che sparirebbero, **senza
+  toccare niente**, e l'editor chiede conferma una volta sola. La decisione sta sul server perché
+  è lì che si conoscono i due lati, e la lettura usa il token finché è ancora valido.
+- **Il salvataggio non porta gli utenti**: l'auto-deploy a connessione attiva manda
+  `replace_users: false`. Salvare una pagina non deve cambiare chi entra nel pannello.
+- **Il seed dalle variabili d'ambiente (`SWS_ADMIN_PASSWORD` e simili) diventa di solo recupero**:
+  entra solo se il risultato sarebbe zero utenti, non più additivo a ogni apertura di progetto.
+  Senza questo, un admin **tolto** dal progetto sarebbe rientrato dalla finestra al primo
+  `open_project`, e la scelta qui sopra non avrebbe avuto effetto. Dove il seed è configurato, il
+  pannello resta quindi protetto anche con un progetto senza utenti; su un dispositivo in
+  container, dove il seed non c'è, no.
+- **`POST /api/projects/upload` prende `replace_users` a tre stati**: assente = import storico
+  (la WelcomeScreen non cambia comportamento), `true` = sostituisci e, se il bundle non ha
+  l'entry, **rimuovi** quella del dispositivo, `false` = non toccare.
+- **Il log del deploy diceva il falso.** «Il deploy non ha modificato gli account del
+  dispositivo» veniva stampato dopo `open_project`, che azzera le sessioni: la lettura che doveva
+  confermarlo prendeva 401 e il messaggio usciva lo stesso. Ora il piano si dichiara **prima**, e
+  dopo l'attivazione tre righe dicono i fatti: sessioni decadute, credenziali possibilmente
+  cambiate, e se il dispositivo chiede il login oppure no — letto, non dedotto.
+- **Compatibilità**: un dispositivo **non aggiornato** ignora `replace_users` e tiene i suoi
+  utenti. L'IDE dirà «sostituiti» e non lo saranno: aggiornare prima il runtime del dispositivo.
+- Storico, backup, ricette e PKI OPC UA restano intoccati come prima — quelli non si ricreano.
+  `scripts/check_deploy_preserve.sh` ha l'asserzione sugli utenti **rovesciata di proposito** e
+  tre casi nuovi (casella spenta, 428 senza conferma, rimozione con conferma), verdi su due
+  runtime veri.
+
 ### Un pannello appena installato rifiutava la connessione (T-57)
 
 Con un dispositivo installato pulito — nessun progetto, nessun utente — «Connetti» rispondeva
@@ -2777,6 +2817,7 @@ parte più consistente è il passaggio del container alla distribuzione da regis
 
 
 - **"Aggiorna utenti sul dispositivo"** in Configurazione → Runtime, seconda metà della decisione sugli account: il deploy non li tocca, quindi serve un percorso **dichiarato** per allinearli. Nuovi `POST /api/remote/users` (lato IDE: legge `users.yaml` del progetto e lo spedisce) e `PUT /api/auth/users-file` (lato dispositivo: sostituisce il file e ricarica lo store, audit-logged con l'elenco degli username). Si trasferisce il **file**, non le password: contiene gli hash Argon2, quindi gli account arrivano funzionanti senza che l'IDE o la richiesta vedano mai una password in chiaro.
+  - *Premessa **rovesciata l'11-09-2026**: dall'[Unreleased] di quel giorno gli utenti appartengono al progetto e il deploy li porta. Questo pulsante resta, ora come via per mandarli **da soli** senza ridistribuire il progetto.*
   - **Due rifiuti deliberati**, perché il danno sarebbe irreversibile e scoperto tardi — nessuno riesce più a entrare nel pannello: una lista **vuota** (bloccata già lato IDE, con messaggio esplicito) e uno YAML non valido o senza la chiave `users` (bloccato lato dispositivo).
   - Un 401/403 dal dispositivo non riporta più il codice grezzo ma dice cosa fare: riconnettersi con le credenziali admin. È il caso normale quando il dispositivo ha account veri.
   - Ricaricare lo store invalida le sessioni aperte: la risposta lo dichiara e la conferma nell'IDE lo dice prima di procedere.
@@ -2802,7 +2843,7 @@ parte più consistente è il passaggio del container alla distribuzione da regis
   - `POST /api/projects/upload?deploy=true` accetta una cartella già esistente, **salta `users.yaml`** dello ZIP e — punto meno ovvio — **non fa `remove_dir_all` in caso di errore**: il rollback distruttivo avrebbe cancellato proprio il database che il fix preserva.
   - `remote_deploy` distingue per **nome**: stesso nome (ridistribuzione dello stesso progetto) → percorso che preserva; nome diverso (sostituzione con un progetto differente) → comportamento distruttivo di prima, invariato. Il nome si legge dal manifest dello ZIP appena costruito, non dalla cartella locale, così è esattamente quello che userà l'upload. Tre test (`remote::tests`) coprono quella lettura, perché se fallisse in silenzio il deploy tornerebbe a cancellare il database.
   - **Nessuna migrazione di schema necessaria**: la tabella `samples` è generica (una riga per campione), quindi un tag nuovo inizia semplicemente a scrivere. La "migrazione per aggiungere valori" chiesta dal maintainer è gratis una volta che si smette di cancellare il DB.
-  - **Gli account del dispositivo non vengono più sostituiti dal deploy** (decisione del maintainer). Il log del deploy dice sempre che non li ha toccati e, quando può leggere la lista, elenca le differenze; quando **non** può (dispositivo con utenti e connessione senza credenziali admin) lo dichiara invece di tacere — è il caso in cui il dispositivo ha account veri, quindi quello in cui l'informazione conta di più.
+  - **Gli account del dispositivo non vengono più sostituiti dal deploy** (decisione del maintainer). *(**Rovesciata l'11-09-2026**: oggi il deploy li sostituisce per default. Non era neanche una regola — lo skip valeva solo ridistribuendo un progetto con lo stesso nome.)* Il log del deploy dice sempre che non li ha toccati e, quando può leggere la lista, elenca le differenze; quando **non** può (dispositivo con utenti e connessione senza credenziali admin) lo dichiara invece di tacere — è il caso in cui il dispositivo ha account veri, quindi quello in cui l'informazione conta di più.
   - **Verificato con due runtime veri** (`scripts/check_deploy_preserve.sh`, nuovo): sul target un progetto omonimo con 500 campioni di storico, un `users.yaml` proprio, ricette e un backup; dopo il deploy → storico 500→500, utenti intatti, ricette e `.bak` intatti, e la pagina nuova arrivata dall'IDE. Prima del fix quel database sarebbe stato azzerato.
 
 

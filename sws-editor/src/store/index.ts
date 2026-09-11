@@ -549,13 +549,19 @@ const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 /**
  * After a successful save, push the project to the connected remote runtime.
  * Fire-and-forget: the header Deploy button reflects `remoteDeployStatus`.
+ *
+ * **Non porta gli utenti** (`replaceUsers: false`), a differenza del pulsante
+ * Deploy. Decisione del maintainer dell'11-09-2026: cambiare chi accede a un
+ * pannello resta un gesto voluto, non l'effetto di un salvataggio. E c'è un
+ * motivo pratico: un progetto senza utenti farebbe rispondere 428 al server
+ * («conferma che il pannello resti senza password»), conferma che qui nessuno
+ * può dare — ogni salvataggio finirebbe col pallino rosso.
  */
 function autoDeployIfConnected() {
-  const { remoteConnected, authToken: tok } = useAppStore.getState();
+  const { remoteConnected } = useAppStore.getState();
   if (!remoteConnected) return;
   useAppStore.setState({ remoteDeployStatus: "syncing" });
-  const hdrs: HeadersInit = tok ? { "Authorization": `Bearer ${tok}` } : {};
-  fetch("/api/remote/deploy", { method: "POST", headers: hdrs })
+  api.deployToRuntime({ replaceUsers: false })
     .then(async (res) => {
       if (res.body) {
         const rdr = res.body.getReader();

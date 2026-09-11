@@ -1831,6 +1831,48 @@ Quando regge, spariscono `scripts/yocto/build.sh` dal percorso container, `--sdk
 
 ---
 
+## Q54 — Un dispositivo che crea utenti propri: cosa succede al deploy successivo?
+
+*Aperta l'11-09-2026, come conseguenza dichiarata della decisione dello stesso giorno («gli
+utenti appartengono al progetto, il deploy li porta»). Il maintainer l'ha nominata lui stesso:
+«esiste il caso futuro in cui nel progetto utente sia implementata una vista per
+creare/modificare gli utenti, e in quel caso gli utenti del dispositivo potrebbero differire da
+quelli del progetto».*
+
+**Context.** Dall'11-09-2026 il deploy sostituisce `users.yaml` sul dispositivo con quello del
+progetto, con una casella per saltarlo. Oggi gli account nascono in un solo posto — la tab
+Utenti dell'IDE, dentro il progetto — quindi il dispositivo non ha nulla di suo e sostituire non
+perde niente. Il giorno in cui esisterà il componente sinottico «gestione utenti», un capo turno
+creerà un operatore **sul pannello**: quell'account vive solo lì, e il deploy successivo lo
+cancella. La casella «Sostituisci anche gli utenti» copre il caso solo se chi preme il pulsante
+**sa** che sul pannello sono nati account — cioè si ricorda di una cosa che non ha fatto lui.
+
+**Options.**
+
+1. **Come oggi: la casella, a mano.** Zero codice in più. Il deploy resta una scelta consapevole,
+   ma dipende dalla memoria di chi lo fa; l'errore è silenzioso e irreversibile.
+2. **Fusione per username.** Il deploy porta gli utenti del progetto e **tiene** quelli del
+   dispositivo che il progetto non nomina. Nessuna perdita accidentale, ma un utente **rimosso**
+   dal progetto non sparisce più dal pannello: una revoca non arriva a destinazione, che è il
+   caso in cui contare sul deploy serve di più.
+3. **Marcatura «utente locale».** `users.yaml` distingue chi è nato dal progetto da chi è nato sul
+   dispositivo (un campo, es. `origine: dispositivo`); il deploy sostituisce i primi e non tocca i
+   secondi. Copre entrambi i casi — la revoca arriva, l'operatore creato in reparto resta — al
+   prezzo di un campo nel formato e della sua migrazione, e della domanda «di chi è la password»
+   quando un username esiste da tutt'e due le parti.
+4. **Il pannello rifiuta il deploy** finché qualcuno non riconcilia a mano, mostrando le
+   differenze. Nessuna perdita, ma un deploy che si blocca su un impianto in servizio è peggio
+   del problema.
+
+**Default for PoC.** Opzione 1: la casella esiste, il componente «gestione utenti» no. Finché gli
+account nascono solo nel progetto, il caso non si presenta. La scheda serve a non decidere per
+inerzia quando quel componente si farà: è **quella** la sessione in cui va scelta la 2 o la 3,
+non dopo il primo account perso.
+
+**Decided:** not yet.
+
+---
+
 ## Adding new questions
 
 When Claude Code adds a new question, follow the format above:
