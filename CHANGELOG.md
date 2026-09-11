@@ -11,15 +11,31 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### La scheda «Dispositivi registrati» dice quello che fa
+
+- **L'URL di un dispositivo registrato dal discovery preferisce il nome mDNS** all'indirizzo:
+  l'indirizzo lo assegna il DHCP e cambia, il nome `.local` segue il dispositivo. Una lista
+  registrata per indirizzo invecchia da sola, e non si scopre finché «Connetti» non risponde più.
+- **«Utente» e «password» si chiamano ora «Utente SWS» e «Password SWS»**, con la riga che spiega
+  la differenza dalle credenziali SSH: la stessa distinzione fatta altrove da T-57, in un pannello
+  che allora era rimasto fuori.
+- **«Connetti» dice se ha funzionato**: prima un fallimento finiva nella console del browser e a
+  schermo non cambiava nulla. Ora l'esito si vede, e sul dispositivo connesso il pulsante diventa
+  **Disconnetti**.
+
 ### Anche il pannello destro ha la barra delle viste (T-56)
 
 Il seguito del riordino: i due pannelli erano ordinati ma ancora diversi nella forma. Ora il destro
 è lo specchio del sinistro — barra di icone sul bordo, un gruppo di sezioni per volta a tutta
 altezza, intestazione ferma mentre scorre solo il contenuto.
 
-- Le tredici sezioni canoniche si raccolgono in **quattro gruppi**: 🧩 Oggetto, 📊 Dato,
+- Le sezioni canoniche si raccolgono in **cinque gruppi**: 🧩 Oggetto, 🅣 Testo, 📊 Dato,
   ⚡ Comportamento, 👁 Resa. Su un `rect` erano undici sezioni in colonna: per arrivare a «Eventi»
-  si passava oltre le altre dieci.
+  si passava oltre le altre dieci. «Testo» ha una scheda sua perché è il blocco più fitto del
+  pannello, ed è l'unico gruppo che non vale per tutti i tipi: cinque icone su un testo, quattro
+  altrove — una scheda vuota è peggio di una assente.
+- **«Identità» e «Posizione e dimensioni» sono una sezione sola**, con le etichette a fianco dei
+  campi invece che sopra: una settantina di pixel recuperati in cima al pannello.
 - La barra è **la stessa** dei due lati (`BarraIcone` in `stilePannelli.tsx`): un parametro decide
   da che parte cade il bordo.
 - La barra non compare con la selezione multipla né quando di una griglia è selezionata una cella:

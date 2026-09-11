@@ -76,13 +76,37 @@
 
 ## ▶ Da fare nella prossima sessione
 
-### 🎨 Il pannello destro prende la forma di quello sinistro — ramo `feat/T-56-pannello-destro`
+### 🔌 La scheda Dispositivi registrati: tre asperità tolte (2026-09-11)
+
+Viste dal maintainer provandola.
+
+- **L'URL preferisce il nome mDNS.** In lista finiva l'indirizzo (`http://192.168.1.61:8444`) col
+  nome `.local` lì accanto e inutilizzato. L'indirizzo lo assegna il DHCP e cambia; il nome segue
+  il dispositivo, e una lista registrata per indirizzo invecchia da sola senza che nessuno se ne
+  accorga finché «Connetti» non risponde più. `preferisciMdns` sostituisce il solo host numerico
+  IPv4: un dispositivo che annuncia già un nome suo lo tiene.
+- **«Utente» e «password» non dicevano quali fossero**: sono le credenziali applicative SWS, non
+  quelle SSH. Ora si chiamano così e portano la stessa riga di spiegazione di T-57 — era proprio
+  la confusione che T-57 aveva tolto altrove, in un pannello che allora non era stato guardato.
+- **«Connetti» non rispondeva**: un fallimento finiva in `console.warn`. Ora dice «Connessione…»
+  mentre lavora, l'esito compare sotto la tabella in verde o rosso col motivo, e sul dispositivo
+  connesso il pulsante diventa **Disconnetti** verde — solo per quello a cui si è davvero
+  connessi, non per tutti quando una connessione è aperta da qualche parte.
+
+
+### 🎨 Il pannello destro prende la forma di quello sinistro — **su `main`** (2026-09-11)
 
 Seguito di T-56, chiesto dal maintainer dopo la prova rapida: «completerei l'IDE con il menù a
-destra nello stile di quello sinistro». Le tredici sezioni canoniche si raccolgono in quattro
-gruppi (🧩 Oggetto, 📊 Dato, ⚡ Comportamento, 👁 Resa) e se ne vede uno per volta, con la stessa
+destra nello stile di quello sinistro». Le sezioni canoniche si raccolgono in **cinque** gruppi
+(🧩 Oggetto, 🅣 Testo, 📊 Dato, ⚡ Comportamento, 👁 Resa) e se ne vede uno per volta, con la stessa
 barra di icone del pannello sinistro — `BarraIcone` è ora un componente solo in `stilePannelli`,
 `lato` decide da che parte cade il bordo.
+
+Due aggiunte chieste guardando il pannello nuovo: **«Testo» ha una scheda sua** (è il blocco più
+fitto e su un `text` soffocava il resto) ed è l'unico gruppo che non vale per tutti i tipi — cinque
+icone su un testo, quattro altrove, perché una scheda vuota è peggio di una assente; **«Identità»
+e «Posizione e dimensioni» sono una sezione sola** con le etichette a fianco dei campi invece che
+sopra, circa 70 px recuperati.
 
 Scelte prese in corsa, tutte scritte nel codice: «Elimina oggetto» resta nel solo gruppo Oggetto
 (in gruppi corti finirebbe sotto il pollice in tutti e quattro); la barra non compare con la
@@ -93,7 +117,17 @@ gruppo rendono `null` invece di nascondersi col CSS.
 **Il criterio di accettazione è stato rispettato**: il test d'inventario ora gira i quattro gruppi
 e `tests/fixtures/campiPannelloProprieta.json` è rimasto **byte-identico** — ogni sezione è finita
 in un gruppo, e in uno solo. Provato rosso assegnando una sezione a un gruppo inesistente.
-Gate: tsc, eslint, 286 vitest, `pnpm build`, 17/17 guardie statiche. **Non mergiato, non pushato.**
+⚠️ **Un difetto trovato dal maintainer e la lacuna che l'ha lasciato passare.** Alla prima stesura
+il `Provider` del contesto non c'era: la barra si illuminava, il titolo cambiava da OGGETTO a DATO,
+e sotto restavano le sezioni del gruppo Oggetto perché `CollapsibleSection` leggeva il valore di
+default. Il contesto aveva **due consumatori e zero fornitori**. Nessun test se n'era accorto: quello
+dell'inventario **fornisce lui** il contesto per girare i gruppi, quindi provava l'assegnazione
+delle sezioni e non il cablaggio; gli altri provavano funzioni pure e la barra isolata. Nessuno
+guardava il punto in cui le due metà si incontrano. Il guscio è diventato un componente,
+`PannelloDestro`, con il `Provider` dentro, e tre test nuovi con un figlio-spia — provati rossi
+rimettendo il difetto.
+
+Gate: tsc, eslint, 299 vitest, `pnpm build`, 17/17 guardie statiche.
 
 **Da provare a mano**: le quattro icone e la scelta che sopravvive al ricaricamento; su
 `rect`/`text`/`trend`/`symbol`/`grid` girando i gruppi si ritrovano tutte le sezioni di prima;

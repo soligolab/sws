@@ -36,20 +36,46 @@ export function eGiaInLista(lista: SavedDevice[], url: string): boolean {
   return lista.some((d) => chiaveUrl(d.url) === k);
 }
 
+/** Mette il nome mDNS al posto dell'indirizzo numerico, quando c'è.
+ *
+ *  **Perché il nome batte l'indirizzo**: l'indirizzo lo assegna il DHCP e
+ *  cambia — al riavvio del router, cambiando rete, o semplicemente allo scadere
+ *  del lease — mentre il nome `.local` segue il dispositivo. Una lista di
+ *  dispositivi registrati per indirizzo invecchia da sola e nessuno se ne
+ *  accorge finché «Connetti» non risponde più.
+ *
+ *  Si sostituisce **solo** un host numerico IPv4: se il dispositivo annuncia
+ *  già un nome, quello è il suo e non si tocca. Gli IPv6 restano come sono —
+ *  il caso non si è mai presentato su questi pannelli, e indovinare sarebbe
+ *  peggio che lasciar stare. Schema, porta e percorso restano quelli. */
+export function preferisciMdns(url: string, hostname: string | undefined | null): string {
+  const nome = (hostname ?? "").trim();
+  if (!nome) return url;
+  try {
+    const u = new URL(url);
+    if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(u.hostname)) return url;
+    u.hostname = nome;
+    return u.toString().replace(/\/+$/, "");
+  } catch {
+    return url;
+  }
+}
+
 /** Da una riga della tabella mDNS (Q52) a un dispositivo da registrare: se SWS
- *  c'è già, l'URL è quello che annuncia; altrimenti si propone la porta di
- *  gestione standard sull'indirizzo visto. Utente vuoto: lo compila chi sa
- *  com'è configurato quel pannello. */
+ *  c'è già, l'URL è quello che annuncia — con il nome mDNS al posto
+ *  dell'indirizzo, vedi `preferisciMdns`; altrimenti si propone la porta di
+ *  gestione standard. Utente vuoto: lo compila chi sa com'è configurato quel
+ *  pannello. */
 export function dispositivoDaRete(d: DispositivoRete): SavedDevice {
   const label = d.hostname.replace(/\.local$/i, "") || d.indirizzo;
-  const url = d.sws.admin_url ?? `https://${d.indirizzo}:8444`;
+  const url = preferisciMdns(d.sws.admin_url ?? `https://${d.indirizzo}:8444`, d.hostname);
   return { label, url, user: "" };
 }
 
 /** Da un runtime trovato da «Cerca runtime» (sezione connessione). */
 export function dispositivoDaRuntime(r: DiscoveredRuntime, adminUrl: string): SavedDevice {
   const label = (r.hostname || r.name).replace(/\.local$/i, "");
-  return { label, url: adminUrl, user: "" };
+  return { label, url: preferisciMdns(adminUrl, r.hostname), user: "" };
 }
 
 /** La vecchia lista del browser, se c'è, senza il campo `pass` che le versioni

@@ -4,7 +4,7 @@ import { api, getAuthToken, getBaseUrl, RuntimeUnavailableError, type CreateUser
 import { ListaControlli } from "@/config/installazione/ListaControlli";
 import { TabellaDispositivi } from "@/config/installazione/TabellaDispositivi";
 import { hostDaUrl, imageRefAutomatico, imageRefDaVariante, installazioneConsentita, varianteDaArch } from "@/config/installazione/sondaggio";
-import { CHIAVE_LEGACY, dispositivoDaRete, dispositivoDaRuntime, eGiaInLista, leggiListaLegacy, unisciDispositivo } from "@/config/dispositiviRegistrati";
+import { CHIAVE_LEGACY, chiaveUrl, dispositivoDaRete, dispositivoDaRuntime, eGiaInLista, leggiListaLegacy, unisciDispositivo } from "@/config/dispositiviRegistrati";
 import { getBrand } from "@/branding";
 import { containerDeployPayload, effectiveDataPath, type ContainerSource } from "@/containerDeploy";
 import { containerManagePayload, type ManageAction, type RestartPolicy } from "@/containerManage";
@@ -9906,6 +9906,8 @@ interface DeviceState {
 function DevicesTab() {
   const { t } = useTranslation();
   const setRemoteConnected = useAppStore((s) => s.setRemoteConnected);
+  const remoteConnected = useAppStore((s) => s.remoteConnected);
+  const remoteUrl = useAppStore((s) => s.remoteUrl);
   // Q50: la lista arriva dal server. Al primo avvio dopo l'aggiornamento, se il
   // server non ha niente e il browser ha la vecchia lista, la si porta su una
   // volta sola (senza il campo password) e si toglie dal browser.
@@ -9946,6 +9948,8 @@ function DevicesTab() {
   const [localFp, setLocalFp] = useState<string | null>(null);
   const [addForm, setAddForm] = useState({ label: "", url: "", user: "admin", pass: "" });
   const [deployingUrl, setDeployingUrl] = useState<string | null>(null);
+  const [connettendo, setConnettendo] = useState<string | null>(null);
+  const [esitoConnessione, setEsitoConnessione] = useState<{ url: string; testo: string | null; errore: boolean } | null>(null);
   const [deployLog, setDeployLog] = useState<string[]>([]);
 
   // Ottimista: la lista si aggiorna subito, e se il server rifiuta (URL non
@@ -10033,14 +10037,28 @@ function DevicesTab() {
     // credenziali in localStorage e sparava l'evento, quindi "Connetti" non
     // connetteva davvero nulla (vedi anche RuntimeConnectionTab.handleConnect,
     // stesso schema).
+    setConnettendo(device.url); setEsitoConnessione(null);
     try {
       const result = await api.remoteConnect(device.url, device.user || undefined, pass || undefined);
       if (!result.ok) throw new Error(result.error ?? "Connessione fallita");
       setRemoteConnected(true, device.url);
+      setEsitoConnessione({ url: device.url, testo: result.nota ?? null, errore: false });
       window.dispatchEvent(new CustomEvent("sws:runtime-connected", { detail: { url: device.url } }));
-    } catch (e) {
-      console.warn("DevicesTab: connessione fallita", e);
+    } catch (e: any) {
+      // Prima finiva in `console.warn` e a schermo non cambiava niente: si
+      // premeva «Connetti» e non si capiva se avesse fatto qualcosa.
+      setEsitoConnessione({ url: device.url, testo: String(e?.message ?? e), errore: true });
+      setRemoteConnected(false);
+    } finally {
+      setConnettendo(null);
     }
+  };
+
+  const handleDisconnect = async () => {
+    await api.remoteDisconnect().catch(() => {});
+    setRemoteConnected(false);
+    setEsitoConnessione(null);
+    window.dispatchEvent(new CustomEvent("sws:runtime-disconnected"));
   };
 
   const handleDeploy = async (device: SavedDevice) => {
@@ -10098,6 +10116,9 @@ function DevicesTab() {
                 const fp = st?.fingerprint ?? null;
                 const match = localFp && fp ? (localFp === fp ? "sync" : "diff") : "unknown";
                 const mancaPassword = !!d.user && passwords[d.url] === undefined;
+                // Verde solo per il dispositivo a cui si è davvero connessi,
+                // non per tutti quando una connessione è aperta da qualche parte.
+                const connessoQui = remoteConnected && chiaveUrl(remoteUrl ?? "") === chiaveUrl(d.url);
                 return (
                   <tr key={d.url} style={{ borderBottom: "1px solid var(--brand-surface, #1e293b)" }}>
                     <td style={{ padding: "8px", color: "var(--brand-text, #e2e8f0)", fontWeight: 600 }}>{d.label}</td>
@@ -10129,8 +10150,18 @@ function DevicesTab() {
                               setTimeout(() => void checkDevice(d), 0);
                             }} />
                         )}
-                        <button style={BTN} disabled={mancaPassword} onClick={() => handleConnect(d)}
-                          title={mancaPassword ? t("cfg.passwordSessionTitle") : t("cfg.setTargetConnect")}>{t("cfg.connect")}</button>
+                        {connessoQui ? (
+                          <button
+                            style={{ ...BTN, background: "var(--brand-success-bg, #14532d)", borderColor: "var(--brand-success, #22c55e)", color: "var(--brand-success-soft, #86efac)" }}
+                            onClick={() => void handleDisconnect()}
+                            title={t("cfg.disconnect")}>● {t("cfg.disconnect")}</button>
+                        ) : (
+                          <button style={BTN} disabled={mancaPassword || connettendo === d.url}
+                            onClick={() => void handleConnect(d)}
+                            title={mancaPassword ? t("cfg.passwordSessionTitle") : t("cfg.setTargetConnect")}>
+                            {connettendo === d.url ? t("cfg.connecting") : t("cfg.connect")}
+                          </button>
+                        )}
                         <button style={{ ...BTN, background: "#1e3a5f", borderColor: "var(--brand-primary-hover, #2563eb)", color: "#93c5fd" }}
                           disabled={deployingUrl === d.url || mancaPassword}
                           title={mancaPassword ? t("cfg.passwordSessionTitle") : undefined}
@@ -10146,6 +10177,20 @@ function DevicesTab() {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* L'esito dell'ultima connessione. Prima finiva in console.warn: si
+          premeva «Connetti» e a schermo non cambiava niente. */}
+      {esitoConnessione && (
+        <div style={{
+          fontSize: 11, lineHeight: 1.4, padding: "6px 10px", borderRadius: 4,
+          background: esitoConnessione.errore ? "var(--brand-danger-bg, #7f1d1d)" : "var(--brand-success-bg, #14532d)",
+          color: esitoConnessione.errore ? "var(--brand-danger-soft, #fca5a5)" : "var(--brand-success-soft, #86efac)",
+        }}>
+          {esitoConnessione.errore ? `✗ ${t("cfg.connectFailed")}` : `✓ ${t("cfg.connectOk")}`}
+          {esitoConnessione.testo ? ` ${esitoConnessione.testo}` : ""}
+          <span style={{ opacity: 0.8 }}> — {esitoConnessione.url}</span>
         </div>
       )}
 
@@ -10188,14 +10233,19 @@ function DevicesTab() {
             <input style={{ ...INPUT, width: 200 }} placeholder="https://192.168.1.10:8444"
               value={addForm.url} onChange={(e) => setAddForm((f) => ({ ...f, url: e.target.value.trim() }))} />
           </div>
+          {/* «Utente»/«password» non dicevano quali: sono le credenziali
+              applicative SWS, non quelle SSH del sistema — stessa distinzione
+              già fatta nei pannelli «Connetti» e «Installa» (T-57). */}
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>{t("cfg.user")}</label>
-            <input style={{ ...INPUT, width: 90 }} placeholder="admin"
+            <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>{t("cfg.swsUser")}</label>
+            <input style={{ ...INPUT, width: 110 }} placeholder="admin"
               value={addForm.user} onChange={(e) => setAddForm((f) => ({ ...f, user: e.target.value }))} />
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }} title={t("cfg.passwordSessionTitle")}>{t("cfg.passwordSession")}</label>
-            <input style={{ ...INPUT, width: 110 }} type="password" autoComplete="off" placeholder="••••••••"
+            <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }} title={t("cfg.passwordSessionTitle")}>
+              {t("cfg.swsPassword")} <span style={{ color: "var(--brand-text-subtle, #94a3b8)" }}>({t("cfg.passwordSession")})</span>
+            </label>
+            <input style={{ ...INPUT, width: 130 }} type="password" autoComplete="off" placeholder="••••••••"
               value={addForm.pass} onChange={(e) => setAddForm((f) => ({ ...f, pass: e.target.value }))} />
           </div>
           <button
@@ -10213,6 +10263,9 @@ function DevicesTab() {
             }}
           >{t("cfg.add")}</button>
         </div>
+        <span style={{ display: "block", marginTop: 6, fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", lineHeight: 1.4 }}>
+          {t("cfg.swsCredentialsHint")}
+        </span>
         {localFp && (
           <div style={{ marginTop: 10, fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)" }}>
             Firma locale: <span style={{ fontFamily: "monospace", color: "var(--brand-text-subtle, #64748b)" }}>{localFp.substring(0, 16)}…</span>

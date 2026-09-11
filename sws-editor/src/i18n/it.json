@@ -1244,7 +1244,10 @@
     "deployReplaceUsers": "Sostituisci anche gli utenti",
     "deployReplaceUsersHint": "Gli utenti appartengono al progetto: il deploy li porta sul dispositivo come le pagine. Spegni per lasciare intatti gli account del dispositivo.",
     "deployNoUsersConfirm": "QUESTO PROGETTO NON HA UTENTI\n\nSul dispositivo verranno rimossi gli account esistenti ({{utenti}}) e il pannello resterà accessibile SENZA PASSWORD a chiunque raggiunga la sua rete.\n\nProcedere?",
-    "deployNoUsersUnknown": "elenco non leggibile da qui"
+    "deployNoUsersUnknown": "elenco non leggibile da qui",
+    "connecting": "Connessione…",
+    "connectOk": "Connesso.",
+    "connectFailed": "Connessione fallita"
   },
   "langtab": {
     "intro": "Traduci i messaggi che scrivi negli oggetti. Nei campi testo usa {{chiave}}; qui definisci le traduzioni per ogni lingua.",
