@@ -11,6 +11,27 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### `alarm_banner` mostrava cose diverse nel browser e sul pannello
+
+Lo stesso widget, disegnato da due motori, selezionava due insiemi di allarmi: nel browser quelli
+**da confermare** (`active_unacked` + `normal_unacked`), nel viewer LVGL quelli **attivi**. Stesso
+progetto, stesso banner, due comportamenti a seconda di dove girava — segnalato dall'audit del
+2026-08-06 come incoerenza fra widget, risultato essere una divergenza fra i motori.
+
+- **Decisione del maintainer: vince la semantica ISA-18.2**, cioè gli allarmi da confermare. La
+  barra dice «cosa richiede un intervento», e un allarme rientrato che nessuno ha confermato lo
+  richiede ancora. `alarm_bell` e `alarm_viewer` restano sugli allarmi **attivi**: tre widget con
+  tre mestieri, invece di tre copie della stessa lista.
+- Il viewer LVGL si allinea al browser. `AlarmStateLite` acquista `isa_state`: la scelta **non era
+  derivabile** dai due booleani di compatibilità, perché un allarme rientrato e confermato
+  (`normal`) arriva con `acknowledged: false` — così `AlarmState::sync_compat` li deriva in
+  `sws-core`. Un payload senza `isa_state` (server più vecchio del viewer) ripiega sul
+  comportamento precedente invece di svuotare la barra.
+- La decisione è una funzione pura per parte — `nella_barra` in Rust, `nellaBarra` in TypeScript —
+  con 4 test di qua e 3 di là, e una guardia nuova `scripts/check_barra_allarmi.sh` che verifica
+  che le due continuino a nominare gli stessi stati, perché è la deriva fra i due motori il difetto
+  che nessun test di un solo linguaggio può vedere.
+
 ### I piani conclusi sono passati in `docs/archive/`
 
 `docs/plans/` mescolava lavoro fatto e lavoro da fare: 25 file, 19 dei quali finiti o superati.

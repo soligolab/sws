@@ -14,6 +14,7 @@ venga riletto come vero.
 |---|---|---|
 | [2026-07-30-ripresa-deploy-db-gestione-db-multiselect.md](2026-07-30-ripresa-deploy-db-gestione-db-multiselect.md) | **FATTO** | deploy-preserve, gestione database e multiselect drag in CHANGELOG §2026.7-2.0; `check_multiselect_drag.sh` esiste |
 | [2026-07-31-installa-da-registry.md](2026-07-31-installa-da-registry.md) | **FATTO** | sezione dedicata nello storico di STATUS (2026-07-31) |
+| [2026-08-06-audit-widget-e-codice.md](2026-08-06-audit-widget-e-codice.md) | **CHIUSO l'11-09-2026** | referto d'audit mai trasformato in lavoro: riverificato sezione per sezione, sei delle sette erano già chiuse dal lavoro ordinario, la settima (quali allarmi contano) è stata decisa dal maintainer e fatta. Vedi «Esito» in coda al file |
 | [2026-08-06-piano-allarmi-datatable-trend.md](2026-08-06-piano-allarmi-datatable-trend.md) | **FATTO** | T-41…T-48 chiusi (storico di STATUS, CHANGELOG 2.1.x) |
 | [2026-08-07-lvgl-engine.md](2026-08-07-lvgl-engine.md) | **FATTO** | fasi 1-3 del motore LVGL nello storico di STATUS; CHANGELOG 2.0.0; ADR 0002 |
 | [2026-08-23-editor-coerente.md](2026-08-23-editor-coerente.md) | **FATTO** | voce «Editor coerente» nella 2.1.0 |

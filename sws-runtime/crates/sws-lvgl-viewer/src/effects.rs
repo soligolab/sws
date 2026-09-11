@@ -234,6 +234,13 @@ mod tests {
                 severity: sev.to_string(),
                 tag: tag.to_string(),
             },
+            isa_state: match (attivo, ack) {
+                (true, false) => "active_unacked",
+                (true, true) => "active_acked",
+                (false, false) => "normal_unacked",
+                (false, true) => "normal",
+            }
+            .to_string(),
             active: attivo,
             acknowledged: ack,
             activated_at_ms: None,

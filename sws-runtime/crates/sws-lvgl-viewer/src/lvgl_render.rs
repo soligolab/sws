@@ -8894,8 +8894,33 @@ fn update_bar_chart(bars: &mut [BarChartBarBinding], tags: &TagSnapshot) {
     }
 }
 
-/// Aggiorna `alarm_banner`: stesso `SharedAlarms`/filtro di `alarm_viewer`
-/// ma un solo slot (l'allarme attivo più recente, non una lista).
+/// Chi finisce nella barra allarmi: gli allarmi **da confermare**, cioè attivi
+/// non confermati *e* rientrati non confermati (ISA-18.2). Diverge di proposito
+/// da `alarm_bell` e `alarm_viewer`, che contano gli allarmi **attivi**: la
+/// barra dice «cosa richiede un intervento», e un allarme rientrato che nessuno
+/// ha confermato lo richiede ancora.
+///
+/// Deciso dal maintainer l'11-09-2026, chiudendo l'audit del 2026-08-06: i due
+/// motori si erano allineati per caso su due risposte diverse — il web mostrava
+/// i non confermati, questo mostrava gli attivi. Stesso progetto, stesso
+/// banner, due comportamenti a seconda del pannello.
+///
+/// **Non si può derivare dai due booleani** `active`/`acknowledged`: un allarme
+/// rientrato e confermato (`normal`) arriva con `acknowledged: false`, per come
+/// `AlarmState::sync_compat` li deriva in `sws-core`. Serve lo stato ISA vero.
+/// `isa_state` vuoto significa un server più vecchio di questo viewer: si
+/// ripiega su `active`, che è ciò che questa funzione faceva prima.
+pub(crate) fn nella_barra(isa_state: &str, active: bool) -> bool {
+    match isa_state {
+        "active_unacked" | "normal_unacked" => true,
+        "" => active,
+        _ => false,
+    }
+}
+
+/// Aggiorna `alarm_banner`: stesso `SharedAlarms` e stessi filtri per prefisso
+/// e severità di `alarm_viewer`, ma un solo slot (il più recente, non una
+/// lista) e una selezione diversa — vedi `nella_barra`.
 fn update_alarm_banner(
     shared: &SharedAlarms,
     dot_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
@@ -8908,7 +8933,7 @@ fn update_alarm_banner(
     let top: Option<AlarmStateLite> = {
         let map = shared.lock().unwrap_or_else(|e| e.into_inner());
         map.values()
-            .filter(|a| a.active)
+            .filter(|a| nella_barra(&a.isa_state, a.active))
             .filter(|a| prefix.is_empty() || a.def.id.starts_with(prefix))
             .filter(|a| allowed_sev.is_none_or(|sevs| sevs.iter().any(|s| s == &a.def.severity)))
             .max_by_key(|a| a.activated_at_ms.unwrap_or(0))
@@ -8946,6 +8971,42 @@ fn update_alarm_banner(
 mod binding_tests {
     use super::*;
     use serde_json::json;
+
+    // ── chi finisce nella barra allarmi (audit 2026-08-06 §3, chiuso l'11-09-2026) ──
+
+    #[test]
+    fn la_barra_mostra_gli_allarmi_da_confermare() {
+        assert!(nella_barra("active_unacked", true));
+        assert!(nella_barra("normal_unacked", false));
+    }
+
+    #[test]
+    fn la_barra_tace_su_quelli_confermati() {
+        // Attivo ma confermato: qualcuno l'ha già preso in carico, la barra si
+        // libera per il prossimo. Resta contato da campanella e viewer.
+        assert!(!nella_barra("active_acked", true));
+        assert!(!nella_barra("normal", false));
+    }
+
+    #[test]
+    fn i_due_booleani_non_bastavano() {
+        // La ragione per cui `isa_state` è stato aggiunto ad `AlarmStateLite`:
+        // `normal` e `normal_unacked` hanno gli stessi `active`/`acknowledged`
+        // (false/false, vedi `sync_compat` in sws-core) ma esiti opposti.
+        assert!(nella_barra("normal_unacked", false));
+        assert!(!nella_barra("normal", false));
+    }
+
+    #[test]
+    fn un_server_piu_vecchio_non_svuota_la_barra() {
+        // Payload senza `isa_state`: si ripiega sul comportamento precedente
+        // invece di mostrare una barra sempre vuota.
+        assert!(nella_barra("", true));
+        assert!(!nella_barra("", false));
+        // Uno stato che questo viewer non conosce non viene mostrato: meglio
+        // una riga in meno che una riga di significato ignoto.
+        assert!(!nella_barra("shelved", true));
+    }
 
     fn snapshot(pairs: &[(&str, TagValue)]) -> TagSnapshot {
         pairs

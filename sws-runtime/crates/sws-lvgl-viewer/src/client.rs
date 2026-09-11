@@ -722,6 +722,16 @@ pub struct AlarmDefLite {
 #[derive(Debug, Deserialize, Clone)]
 pub struct AlarmStateLite {
     pub def: AlarmDefLite,
+    /// Stato ISA-18.2 così come arriva dal server (`normal`, `active_unacked`,
+    /// `active_acked`, `normal_unacked`). Stringa e non enum come `severity`,
+    /// per la stessa ragione: questo è un mirror deliberatamente povero, e uno
+    /// stato sconosciuto non deve far fallire il parsing di tutto il messaggio.
+    /// Serve ad `alarm_banner`, che mostra gli allarmi **da confermare** e non
+    /// può derivarlo dai due booleani qui sotto: un allarme rientrato e
+    /// confermato (`normal`) ha `acknowledged: false` per come `sync_compat`
+    /// li deriva in `sws-core`.
+    #[serde(default)]
+    pub isa_state: String,
     #[serde(default)]
     pub active: bool,
     #[serde(default)]

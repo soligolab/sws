@@ -14,7 +14,6 @@
 
 | Piano | Stato | Cosa resta |
 |---|---|---|
-| [2026-08-06-audit-widget-e-codice.md](2026-08-06-audit-widget-e-codice.md) | **MEZZO VIVO** | referto di audit, mai trasformato in lavoro. Delle quattro domande, due sono state risolte altrove (color picker per `slider`/`checkbox`/`radio`, `faceplate` nella palette) e **due sono ancora aperte, qui e in nessun altro posto**: il binding sui campi di `pipe` (verificato l'11-09-2026: zero `BindableInput`) e il disallineamento fra `alarm_banner` (mostra anche i `normal_unacked`) e `alarm_bell`/`alarm_viewer` (filtrano su `active`) |
 | [2026-08-21-scada-widgets.md](2026-08-21-scada-widgets.md) | **PARZIALE** | F0-F8 in 2.1.0; aperti F5.3x (XY multi-coppia) e i residui di parità in STATUS «da fare» |
 | [2026-08-31-chat-ai-nelleditor.md](2026-08-31-chat-ai-nelleditor.md) | **PARZIALE — vivo** | sostituito in parte dal piano T-50 (archiviato); i passi 3-6 e la chat staccata restano da fare |
 | [2026-09-03-via-di-fuga-stop-pixsys.md](2026-09-03-via-di-fuga-stop-pixsys.md) | **NON È UN PIANO** | vincoli riusabili per un altro progetto; rimanda a TEST_SETUPS e Q25 |

@@ -76,6 +76,32 @@
 
 ## ▶ Da fare nella prossima sessione
 
+### 🔔 `alarm_banner` si comportava in due modi — audit del 2026-08-06 chiuso (2026-09-11)
+
+Riverificando l'audit prima di archiviarlo, sei sezioni su sette erano già chiuse dal lavoro
+ordinario (binding, color picker, `faceplate` nella palette, i quattro tipi widget mancanti,
+`check_synoptic_schema.sh` come specchio automatico, `src/id.ts`). La settima era **peggio** di
+come il piano la descriveva: non un'incoerenza fra widget ma una **divergenza fra i due motori** —
+il `alarm_banner` del browser mostrava gli allarmi da confermare (`active_unacked` +
+`normal_unacked`), quello del viewer LVGL gli allarmi **attivi**. Stesso progetto, stesso banner,
+due comportamenti a seconda del pannello; nessun test poteva notarlo, sono due linguaggi e due
+crate.
+
+**Decisione del maintainer: la barra mostra quelli da confermare** (ISA-18.2) e il viewer LVGL si
+allinea. Campanella e viewer restano sugli **attivi**: tre widget, tre mestieri.
+
+`AlarmStateLite` acquista `isa_state`, perché la decisione **non è derivabile** dai due booleani
+di compatibilità — un allarme rientrato e confermato (`normal`) arriva con `acknowledged: false`,
+per come `sync_compat` li deriva in `sws-core`. La scelta è una funzione pura per parte
+(`nella_barra`, `nellaBarra`), 4 test Rust + 3 vitest, e la guardia nuova
+`scripts/check_barra_allarmi.sh` (statica, la 16ª) verifica che le due nominino gli stessi stati —
+**provata rossa in due modi**: rimettendo il filtro `a.active`, e facendo nominare a un motore un
+insieme diverso. Gate: 527 test Rust, 234 vitest, clippy, fmt, tsc, eslint, 16/16 guardie statiche.
+
+**Da provare a mano sul pannello**: far scattare un allarme, farlo rientrare **senza** confermarlo
+— deve restare nella barra del pannello LVGL, come già faceva nel browser.
+
+
 ### 🗂️ I piani conclusi sono passati in `docs/archive/` (2026-09-11)
 
 `docs/plans/` era diventato un misto di lavoro fatto e lavoro da fare: 25 file, di cui 19 finiti o
@@ -86,13 +112,16 @@ continua a seguirli. La regola «i file di `docs/plans/` non si spostano», scri
 proprio per via di quei riferimenti, è decaduta con l'instruzione del maintainer; CLAUDE.md ora
 dice di archiviare un piano quando finisce.
 
-Restano vivi sei piani: `2026-08-06-audit-widget-e-codice` (**mezzo vivo**: delle sue quattro
-domande due sono state risolte altrove, due sono ancora aperte qui e in nessun altro posto — il
-binding sui campi di `pipe` e il disallineamento fra `alarm_banner` e `alarm_bell`/`alarm_viewer`,
-verificati nel codice l'11-09-2026), `2026-08-21-scada-widgets` (F5.3x), `2026-08-31-chat-ai-nelleditor`
+Restano vivi cinque piani: `2026-08-21-scada-widgets` (F5.3x), `2026-08-31-chat-ai-nelleditor`
 (passi 3-6 e chat staccata), `2026-09-03-via-di-fuga-stop-pixsys` (vincoli, non lavoro),
 `2026-09-10-T56-pannelli-editor` (da fare) e `2026-09-11-utenti-nel-progetto` (realizzato, non
 ancora collaudato né mergiato).
+
+⚠️ **Una correzione a quanto avevo scritto qui il mattino dell'11-09.** Avevo tenuto fuori
+dall'archivio `2026-08-06-audit-widget-e-codice` dicendo che il binding sui campi di `pipe`
+mancava: **era falso**, la mia finestra di `grep` era troppo corta. `pipe` è bindable su tutti e
+cinque i campi. Riverificando l'audit per intero (vedi la voce sotto) sei sezioni su sette erano
+già chiuse, e il piano è ora archiviato.
 
 
 ### 👥 Gli utenti appartengono al progetto: ramo `feat/utenti-nel-progetto` (2026-09-11)

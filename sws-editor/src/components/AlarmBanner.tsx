@@ -29,6 +29,21 @@ function sev(state: AlarmState): AlarmSeverity {
   return state.def.severity ?? "Warning";
 }
 
+/** Chi finisce nella barra: gli allarmi **da confermare**, cioè attivi non
+ *  confermati *e* rientrati non confermati (ISA-18.2). Diverge di proposito da
+ *  `alarm_bell` e `alarm_viewer`, che contano gli allarmi **attivi**: la barra
+ *  dice «cosa richiede un intervento», e un allarme rientrato che nessuno ha
+ *  confermato lo richiede ancora.
+ *
+ *  Estratta ed esportata l'11-09-2026 chiudendo l'audit del 2026-08-06 §3, dove
+ *  la divergenza fu segnalata: il gemello LVGL (`nella_barra` in
+ *  `lvgl_render.rs`) mostrava invece gli **attivi**, quindi lo stesso banner si
+ *  comportava in due modi a seconda del pannello. `scripts/check_barra_allarmi.sh`
+ *  verifica che le due funzioni continuino a nominare gli stessi stati. */
+export function nellaBarra(isaState: IsaState): boolean {
+  return isaState === "active_unacked" || isaState === "normal_unacked";
+}
+
 export interface AlarmBannerProps {
   idPrefix?: string;
   allowedSev?: AlarmSeverity[];
@@ -54,7 +69,7 @@ export function AlarmBanner({ idPrefix = "", allowedSev }: AlarmBannerProps = {}
     const list = Object.values(alarms).filter((a) => {
       if (idPrefix && !a.def.id.startsWith(idPrefix)) return false;
       if (allowedSev && allowedSev.length > 0 && !allowedSev.includes(a.def.severity!)) return false;
-      return a.isa_state === "active_unacked" || a.isa_state === "normal_unacked";
+      return nellaBarra(a.isa_state);
     });
     // Priority order: active_unacked before normal_unacked, most recent first.
     const priority = (s: AlarmState) => (s.isa_state === "active_unacked" ? 0 : 1);

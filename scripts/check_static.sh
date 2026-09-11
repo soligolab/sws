@@ -42,6 +42,7 @@ STATICHE=(
     check_manuale_widget    # il capitolo dei widget nomina tutti i tipi della palette
     check_password_browser  # nessuna password salvata in localStorage/sessionStorage
     check_sonda             # la sonda del dispositivo (Q52) gira con sh -s e stampa solo fatti
+    check_barra_allarmi     # alarm_banner: web e LVGL selezionano gli stessi stati ISA
 )
 
 # Vogliono uno stack in ascolto, podman o un dispositivo: a mano, non qui.

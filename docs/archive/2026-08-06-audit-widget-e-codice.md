@@ -128,3 +128,51 @@ Rischio pratico basso (editor single-user, finestra di collisione di 1ms), ma un
 Tutto quanto sopra è **osservazione**, non impegno — nessuna di queste voci blocca
 niente. Se vuoi procedere con una di queste, converti la sezione corrispondente in un
 piano vero (o chiedi di farlo) prima di implementare.
+
+---
+
+## Esito — chiusura dell'11-09-2026
+
+Riverificato sezione per sezione contro il codice di oggi, cinque settimane dopo. **Sei
+sezioni su sette erano già chiuse**, non da un lavoro su questo piano ma dal lavoro
+ordinario che le ha attraversate; la settima è stata decisa e fatta oggi.
+
+| § | Allora | Oggi |
+|---|---|---|
+| 1 · binding incoerenti | `bar_chart`, `sparkline`, `pipe`, `alarm_viewer_max_rows`, `pie_*` non bindable | **chiusa**: tutti bindable. `pipe` ha `BindableInput` su tutti e cinque i campi che il piano nominava (`stroke`, i due `gradient_*`, `fill_color`, `marker_size`) |
+| 2 · color picker mancante | `slider`/`checkbox`/`radio` senza color picker | **chiusa**: `colorInput("fill", …)` per tutti e tre in `EditorShell.tsx` |
+| 3 · quali allarmi contano | `alarm_banner` filtrava diversamente da `alarm_bell`/`alarm_viewer` | **decisa e fatta oggi** — vedi sotto |
+| 4 · `faceplate` non piazzabile | assente da palette e pannello proprietà | **chiusa**: è nella palette (`LeftPanel.tsx`) |
+| 5 · tipi widget mancanti | setpoint, editor ricette, lampada multi-stato, XY | **chiusa**: `setpoint`, `recipe_panel`, `state_lamp`, `xy_plot` esistono; `thresholdColor` è usato anche da `text` |
+| 6 · specchio Rust↔TS senza rete | «vale la pena uno script di confronto» | **chiusa**: `check_synoptic_schema.sh` e `check_lvgl_parity.sh` sono quello script |
+| 7 · generazione ID duplicata | 4-6 reimplementazioni | **chiusa**: esiste `src/id.ts`; resta solo `ai/ponte.ts`, che genera id di messaggio, un altro mestiere |
+
+### La §3 era peggio di come la descriveva il piano
+
+Il piano parlava di un'incoerenza fra widget. Misurando oggi si è visto che è una
+**divergenza fra i due motori di rendering**:
+
+| Widget | Web (`AlarmBanner.tsx`, editor e runtime nel browser) | LVGL (`lvgl_render.rs`, pannello) |
+|---|---|---|
+| `alarm_bell` | `active` | `active` |
+| `alarm_viewer` | `active` | `active` |
+| **`alarm_banner`** | **`active_unacked` \|\| `normal_unacked`** | **`active`** |
+
+Stesso progetto, stesso banner, due comportamenti a seconda di dove gira — che è
+esattamente ciò che la regola WYSIWYG di `CLAUDE.md` vieta, e che nessun test poteva
+notare: due linguaggi, due crate, due file lontani.
+
+**Decisione del maintainer (11-09-2026): la barra mostra gli allarmi da confermare**
+(`active_unacked` + `normal_unacked`, ISA-18.2). La barra dice «cosa richiede un
+intervento», e un allarme rientrato che nessuno ha confermato lo richiede ancora;
+campanella e viewer restano sugli allarmi **attivi**, così i tre widget hanno tre
+mestieri distinti invece di tre copie della stessa lista.
+
+Fatto: il viewer LVGL si allinea al web. `AlarmStateLite` acquista `isa_state` — la
+decisione **non era derivabile** dai due booleani di compatibilità, perché un allarme
+rientrato e confermato (`normal`) arriva con `acknowledged: false` per come
+`AlarmState::sync_compat` li deriva in `sws-core`. La scelta è una funzione pura per
+parte (`nella_barra` in Rust, `nellaBarra` in TypeScript), con quattro test di qua e tre
+di là, e `scripts/check_barra_allarmi.sh` che verifica che le due continuino a nominare
+gli stessi stati — provata rossa in due modi: rimettendo il filtro `a.active` di prima, e
+facendo nominare a un motore un insieme diverso dall'altro.
