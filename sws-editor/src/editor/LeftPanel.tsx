@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { useAppStore } from "@/store";
@@ -7,6 +7,7 @@ import { buildTagUsage, type TagUse } from "@/search/tagUsage";
 import { SvgCanvas } from "@/canvas/SvgCanvas";
 import { findBrokenNavLinks, findOrphanPageIds } from "@/pageLayout";
 import { resolvePageBackground } from "@/theme";
+import { IntestazioneSezione, PREFISSO_MEMORIA, SPAZIO, TESTO, useSezioneAperta } from "./stilePannelli";
 import type { ObjectGroup, ProjectInfo, SynopticObject, SynopticPage } from "@/types";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
@@ -21,33 +22,6 @@ const S = {
     borderRight: "1px solid var(--brand-surface-2, #334155)",
     overflow: "hidden" as const,
     flexShrink: 0,
-  },
-  sectionHead: (_open: boolean): React.CSSProperties => ({
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: "6px 10px",
-    background: "var(--brand-bg, #0f172a)",
-    borderBottom: "1px solid var(--brand-surface-2, #334155)",
-    cursor: "pointer",
-    fontSize: 11,
-    fontWeight: 700,
-    color: "var(--brand-text-subtle, #64748b)",
-    letterSpacing: 1,
-    userSelect: "none",
-    flexShrink: 0,
-  }),
-  chevron: (open: boolean): React.CSSProperties => ({
-    display: "inline-block",
-    transform: open ? "rotate(90deg)" : "rotate(0deg)",
-    transition: "transform 0.15s",
-    fontSize: 10,
-    color: "var(--brand-text-subtle, #94a3b8)",
-  }),
-  body: {
-    overflowY: "auto" as const,
-    maxHeight: 220,
-    padding: "4px 0",
   },
   row: (active?: boolean): React.CSSProperties => ({
     display: "flex",
@@ -85,6 +59,46 @@ const S = {
   } as React.CSSProperties,
 };
 
+/** Vero quando la sezione è **la** vista del pannello, non una delle sette
+ *  fisarmoniche in colonna (T-56 passo 2). Cambia due cose: l'intestazione non
+ *  si può chiudere — chiudere l'unica vista lascerebbe un pannello vuoto — e il
+ *  corpo prende tutta l'altezza invece del suo tetto in pixel. */
+const ModoVista = createContext(false);
+
+/** L'altezza del corpo di una sezione.
+ *
+ *  In colonna ogni sezione ha il suo tetto (220, 300, 240… a seconda di quanto
+ *  contenuto tipico ha), altrimenti una sola lista lunga spingerebbe le altre
+ *  sei fuori dallo schermo. Come vista quei tetti sono il contrario di quel che
+ *  serve: la lista deve arrivare in fondo al pannello. */
+function useCorpo(tetto = 220): React.CSSProperties {
+  const vista = useContext(ModoVista);
+  return vista
+    ? { overflowY: "auto", padding: "4px 0", flex: 1, minHeight: 0 }
+    : { overflowY: "auto", padding: "4px 0", maxHeight: tetto };
+}
+
+/** L'intestazione di una vista: stessa scala dell'intestazione di sezione, ma
+ *  senza freccia e senza click — non c'è niente da aprire, la vista è già
+ *  aperta, e sceglierne un'altra si fa dalla barra delle icone. */
+function TitoloVista({ titolo, azione }: { titolo: string; azione?: React.ReactNode }) {
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: SPAZIO.s, flexShrink: 0,
+      padding: `${SPAZIO.s}px ${SPAZIO.m}px`,
+      fontSize: TESTO.titoloSezione, fontWeight: 700, letterSpacing: 0.5,
+      textTransform: "uppercase", color: "var(--brand-text-muted, #94a3b8)",
+      background: "var(--brand-bg, #0f172a)",
+      borderBottom: "1px solid var(--brand-surface-2, #334155)",
+    }}>
+      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {titolo}
+      </span>
+      {azione}
+    </div>
+  );
+}
+
 // ── Section accordion ─────────────────────────────────────────────────────────
 
 function Section({
@@ -92,6 +106,7 @@ function Section({
   children,
   defaultOpen = true,
   headerAction,
+  memoria,
 }: {
   title: string;
   children: React.ReactNode;
@@ -99,17 +114,27 @@ function Section({
   /** Optional extra control rendered in the header, before the chevron
    *  (e.g. a ⚙ settings button). Clicks on it don't toggle the section. */
   headerAction?: React.ReactNode;
+  /** Chiave sotto cui ricordare aperta/chiusa (senza prefisso: lo mette
+   *  `stilePannelli`). Fino al 2026-09-11 nessuna sezione di questo pannello
+   *  ricordava niente: si ripartiva dai default a ogni montaggio, e i default
+   *  aprivano Pagine, Oggetti e Cronologia insieme. */
+  memoria?: string;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
+  const vista = useContext(ModoVista);
+  const [open, commuta] = useSezioneAperta(memoria, defaultOpen);
+  if (vista) {
+    return (
+      <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+        <TitoloVista titolo={title} azione={headerAction} />
+        <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          {children}
+        </div>
+      </div>
+    );
+  }
   return (
     <div style={{ flexShrink: 0 }}>
-      <div style={S.sectionHead(open)} onClick={() => setOpen((v) => !v)}>
-        <span>{title}</span>
-        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          {headerAction && <span onClick={(e) => e.stopPropagation()}>{headerAction}</span>}
-          <span style={S.chevron(open)}>▶</span>
-        </span>
-      </div>
+      <IntestazioneSezione titolo={title} aperta={open} onToggle={commuta} azione={headerAction} rilievo />
       {open && <div>{children}</div>}
     </div>
   );
@@ -118,6 +143,7 @@ function Section({
 // ── Pages section ─────────────────────────────────────────────────────────────
 
 function PagesSection() {
+  const corpo = useCorpo();
   const { t } = useTranslation();
   const pages         = useAppStore((s) => s.pages);
   // F8 — serve alla miniatura: il colore della pagina dipende dal tema, e
@@ -221,6 +247,7 @@ function PagesSection() {
   return (
     <Section
       title={t("editor.sectionPages")}
+      memoria="sinistra.pagine"
       headerAction={
         <button style={S.iconBtn} title="Verifica collegamenti (link rotti + pagine orfane)"
           onClick={() => setLinkReportOpen(true)}>🔗</button>
@@ -238,7 +265,7 @@ function PagesSection() {
           }}
         />
       )}
-      <div style={S.body}>
+      <div style={corpo}>
         {pages.map((p, pi) => (
           <div
             key={p.id}
@@ -477,7 +504,10 @@ interface PaletteItem { type: SynopticObject["type"]; label: string; icon: strin
  *  sopra 4,5:1 su `#f8fafc`. */
 interface PaletteGroup { category: string; color: string; colorLight: string; defaultOpen?: boolean; items: PaletteItem[] }
 
-const PALETTE_GROUPS: PaletteGroup[] = [
+/** Esportata perché è **l'elenco autorevole dei tipi piazzabili**: il test
+ *  d'inventario dei campi (T-56) e chiunque debba iterare sui tipi deve
+ *  leggerlo da qui, non riscriverlo — un secondo elenco diverge in silenzio. */
+export const PALETTE_GROUPS: PaletteGroup[] = [
   { category: "Forme", color: "#60a5fa", colorLight: "#2563eb", defaultOpen: true, items: [
     { type: "rect",    label: "Rettangolo", icon: "▭" },
     { type: "ellipse", label: "Ellisse",    icon: "○" },
@@ -660,7 +690,7 @@ function ObjectPalette({ onAdd }: { onAdd: (type: SynopticObject["type"]) => voi
   const isLvgl = targetKind === "lvgl_framebuffer" || targetKind === "lvgl_wayland";
   const groups = paletteForTarget(isLvgl);
   return (
-    <Section title={t("editor.sectionObjects")}>
+    <Section title={t("editor.sectionObjects")} memoria="sinistra.palette">
       {isLvgl && (
         <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", padding: "0 4px 8px" }}>
           {t("editor.paletteLvglHint")}
@@ -705,6 +735,8 @@ type ContextMenuState =
   | { kind: "group";  id: string; x: number; y: number };
 
 function ObjectsSection() {
+  const corpo = useCorpo(300);
+  const corpoPagina = useCorpo(280);
   const { t } = useTranslation();
   const pages               = useAppStore((s) => s.pages);
   const currentPageId       = useAppStore((s) => s.currentPageId);
@@ -1050,7 +1082,7 @@ function ObjectsSection() {
   }
 
   return (
-    <Section title={`${t("editor.sectionPageObjects")} (${allObjects.length})`} defaultOpen={false}>
+    <Section title={`${t("editor.sectionPageObjects")} (${allObjects.length})`} defaultOpen={false} memoria="sinistra.struttura">
       <div style={{ padding: "4px 8px", borderBottom: "1px solid var(--brand-surface, #1e293b)" }}>
         <input
           type="text"
@@ -1073,7 +1105,7 @@ function ObjectsSection() {
       </div>
       {/* Risultati cross-pagina: un click porta alla pagina e seleziona. */}
       {allPagesSearch && fq && (
-        <div style={{ ...S.body, maxHeight: 300 }}>
+        <div style={corpo}>
           {globalHits.length === 0 ? (
             <p style={{ padding: "8px 12px", fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", margin: 0 }}>
               {t("editor.noMatch")}
@@ -1117,7 +1149,7 @@ function ObjectsSection() {
           </button>
         </div>
       )}
-      <div style={{ ...S.body, maxHeight: 280, display: allPagesSearch && fq ? "none" : undefined }}>
+      <div style={{ ...corpoPagina, display: allPagesSearch && fq ? "none" : undefined }}>
         {tree.length === 0 && (
           <p style={{ padding: "8px 12px", fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", margin: 0 }}>
             {fq ? t("editor.noMatch") : t("editor.noObjects")}
@@ -1364,6 +1396,7 @@ function ObjectsContextMenu({
 // host can persist the new list to PUT /api/project/functions.
 
 function FunctionsSection({ onFunctionsChanged }: { onFunctionsChanged: () => void }) {
+  const corpo = useCorpo(240);
   const { t } = useTranslation();
   const project          = useAppStore((s) => s.project);
   const selectedFnId     = useAppStore((s) => s.selectedFunctionId);
@@ -1405,8 +1438,8 @@ function FunctionsSection({ onFunctionsChanged }: { onFunctionsChanged: () => vo
   };
 
   return (
-    <Section title={`${t("editor.sectionFunctions")} (${functions.length})`} defaultOpen={false}>
-      <div style={{ ...S.body, maxHeight: 240 }}>
+    <Section title={`${t("editor.sectionFunctions")} (${functions.length})`} defaultOpen={false} memoria="sinistra.funzioni">
+      <div style={corpo}>
         {functions.length === 0 && (
           <p style={{ padding: "8px 12px", fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", margin: 0 }}>
             Nessuna funzione. Crea una funzione qui sotto e collegala agli
@@ -1509,6 +1542,7 @@ function FunctionsSection({ onFunctionsChanged }: { onFunctionsChanged: () => vo
 // ── Tags section ──────────────────────────────────────────────────────────────
 
 function TagsSection() {
+  const corpo = useCorpo();
   const { t: t2 }   = useTranslation();
   const project     = useAppStore((s) => s.project);
   const tagValues   = useAppStore((s) => s.tagValues);
@@ -1544,7 +1578,7 @@ function TagsSection() {
 
   if (tags.length === 0) {
     return (
-      <Section title="TAG" defaultOpen={false}>
+      <Section title={t2("editor.sectionTags")} defaultOpen={false} memoria="sinistra.tag">
         <p style={{ padding: "8px 12px", fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", margin: 0 }}>
           Nessun tag — carica un progetto.
         </p>
@@ -1553,8 +1587,8 @@ function TagsSection() {
   }
 
   return (
-    <Section title={`TAG (${tags.length})`} defaultOpen={false}>
-      <div style={S.body}>
+    <Section title={`${t2("editor.sectionTags")} (${tags.length})`} defaultOpen={false} memoria="sinistra.tag">
+      <div style={corpo}>
         {tags.map((t) => {
           const tv = tagValues[t.id];
           // F8.3 — "dove è usato questo tag": click sulla riga per espandere
@@ -1619,13 +1653,14 @@ function TagsSection() {
 // ── Sources section ───────────────────────────────────────────────────────────
 
 function SourcesSection({ project }: { project: ProjectInfo | null }) {
+  const corpo = useCorpo(200);
   const { t } = useTranslation();
   const navigateToConfig = useAppStore((s) => s.navigateToConfig);
   const sources = project?.sources ?? [];
 
   return (
-    <Section title={`${t("editor.sectionSources")} (${sources.length})`} defaultOpen={false}>
-      <div style={{ ...S.body, maxHeight: 200 }}>
+    <Section title={`${t("editor.sectionSources")} (${sources.length})`} defaultOpen={false} memoria="sinistra.sorgenti">
+      <div style={corpo}>
         {sources.length === 0 ? (
           <p style={{ padding: "8px 12px", fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", margin: 0 }}>
             Nessuna sorgente configurata.
@@ -1685,9 +1720,88 @@ const LEFT_PANEL_WIDTH_KEY = "sws.leftPanelWidth";
 const LEFT_PANEL_MIN = 160;
 const LEFT_PANEL_MAX = 480;
 
+/** Le sei viste del pannello (T-56 passo 2).
+ *
+ *  Fino all'11-09-2026 erano sette fisarmoniche in colonna: aprendone più di
+ *  una il pannello si allungava e le altre uscivano dallo schermo, e le
+ *  intestazioni di sezioni diverse finivano appiccicate — «si fondono un po'
+ *  tutte le sezioni». Ora se ne vede **una per volta**, a tutta altezza.
+ *
+ *  Il costo dichiarato: chi guardava insieme l'albero degli oggetti e la
+ *  palette ora paga un clic. Da provare sul campo; se dà fastidio, la seconda
+ *  opzione (due zone fisse) resta a portata. */
+const VISTE = [
+  { id: "pagine",    icona: "📄", chiave: "editor.sectionPages" },
+  { id: "palette",   icona: "➕", chiave: "editor.sectionObjects" },
+  { id: "struttura", icona: "🗂", chiave: "editor.sectionPageObjects" },
+  { id: "tag",       icona: "🏷", chiave: "editor.sectionTags" },
+  { id: "sorgenti",  icona: "🔌", chiave: "editor.sectionSources" },
+  { id: "funzioni",  icona: "ƒ",  chiave: "editor.sectionFunctions" },
+] as const;
+type IdVista = (typeof VISTE)[number]["id"];
+
+/** Sotto il prefisso unico di `stilePannelli`, non `sws.leftPanel.vista` come
+ *  proponeva il piano: le memorie dei pannelli devono poter essere azzerate
+ *  tutte insieme, ed è lo stesso piano a chiederlo fra i rischi. */
+const CHIAVE_VISTA = PREFISSO_MEMORIA + "sinistra.vista";
+
+/** La colonna di icone: sempre visibile, fuori dal ridimensionamento. */
+function BarraViste({ attiva, onScegli }: { attiva: IdVista; onScegli: (v: IdVista) => void }) {
+  const { t } = useTranslation();
+  return (
+    <div
+      role="tablist"
+      aria-orientation="vertical"
+      style={{
+        width: 40, flexShrink: 0, display: "flex", flexDirection: "column",
+        alignItems: "center", gap: SPAZIO.xs, padding: `${SPAZIO.s}px 0`,
+        background: "var(--brand-bg, #0f172a)",
+        borderRight: "1px solid var(--brand-surface-2, #334155)",
+      }}
+    >
+      {VISTE.map((v) => {
+        const scelta = v.id === attiva;
+        return (
+          <button
+            key={v.id}
+            role="tab"
+            aria-selected={scelta}
+            title={t(v.chiave)}
+            onClick={() => onScegli(v.id)}
+            style={{
+              width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 15, lineHeight: 1, cursor: "pointer", borderRadius: 4,
+              background: scelta ? "var(--brand-surface-2, #334155)" : "transparent",
+              // Il bordo c'è sempre, trasparente quando non serve: senza, la
+              // scelta sposterebbe le icone di un pixel a ogni clic.
+              border: `1px solid ${scelta ? "var(--brand-border, #475569)" : "transparent"}`,
+              color: scelta ? "var(--brand-text, #e2e8f0)" : "var(--brand-text-subtle, #94a3b8)",
+            }}
+          >
+            <span aria-hidden="true">{v.icona}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function LeftPanel({ onAddObject, onFunctionsChanged }: LeftPanelProps) {
+  const { t } = useTranslation();
   const project    = useAppStore((s) => s.project);
   const setProject = useAppStore((s) => s.setProject);
+
+  const [vista, setVista] = useState<IdVista>(() => {
+    try {
+      const v = localStorage.getItem(CHIAVE_VISTA);
+      if (VISTE.some((x) => x.id === v)) return v as IdVista;
+    } catch { /* senza memoria si riparte da Pagine */ }
+    return "pagine";
+  });
+  const scegliVista = (v: IdVista) => {
+    setVista(v);
+    try { localStorage.setItem(CHIAVE_VISTA, v); } catch { /* vedi sopra */ }
+  };
 
   const [panelWidth, setPanelWidth] = useState<number>(() => {
     const stored = Number(localStorage.getItem(LEFT_PANEL_WIDTH_KEY));
@@ -1724,128 +1838,26 @@ export function LeftPanel({ onAddObject, onFunctionsChanged }: LeftPanelProps) {
   };
 
   return (
-    <div style={{ ...S.panel, width: panelWidth, position: "relative" }}>
-      <div style={{ overflowY: "auto" as const, flex: 1 }}>
-        <PagesSection />
-        <ObjectPalette onAdd={onAddObject} />
-        <ObjectsSection />
-        <FunctionsSection onFunctionsChanged={onFunctionsChanged} />
-        <TagsSection />
-        <SourcesSection project={project} />
+    // La barra delle icone sta **fuori** dal pannello ridimensionabile: la sua
+    // larghezza è fissa, e il trascinamento cambia solo lo spazio del contenuto.
+    <div style={{ display: "flex", flexShrink: 0, position: "relative" }}>
+      <BarraViste attiva={vista} onScegli={scegliVista} />
+      <div style={{ ...S.panel, width: panelWidth }}>
+        <ModoVista.Provider value={true}>
+          {vista === "pagine"    && <PagesSection />}
+          {vista === "palette"   && <ObjectPalette onAdd={onAddObject} />}
+          {vista === "struttura" && <ObjectsSection />}
+          {vista === "funzioni"  && <FunctionsSection onFunctionsChanged={onFunctionsChanged} />}
+          {vista === "tag"       && <TagsSection />}
+          {vista === "sorgenti"  && <SourcesSection project={project} />}
+        </ModoVista.Provider>
       </div>
-
-      <HistorySection />
-
       <div
         onMouseDown={onResizeStart}
-        title="Trascina per ridimensionare"
+        title={t("editor.dragToResize")}
         style={{ position: "absolute", top: 0, right: -3, bottom: 0, width: 6, cursor: "ew-resize", zIndex: 10 }}
       />
     </div>
   );
 }
 
-// ── History section (cronologia visuale) ──────────────────────────────────────
-
-function HistorySection() {
-  const { t } = useTranslation();
-  const past         = useAppStore((s) => s.past);
-  const future       = useAppStore((s) => s.future);
-  const undo         = useAppStore((s) => s.undo);
-  const redo         = useAppStore((s) => s.redo);
-  const jumpToPast   = useAppStore((s) => s.jumpToPast);
-  const jumpToFuture = useAppStore((s) => s.jumpToFuture);
-
-  const currentRef = useRef<HTMLDivElement>(null);
-  const totalSteps = past.length + future.length;
-
-  const [open, setOpen] = useState(true);
-
-  useEffect(() => {
-    currentRef.current?.scrollIntoView({ block: "nearest" });
-  }, [past.length, future.length]);
-
-  const btn = (enabled: boolean): React.CSSProperties => ({
-    flex: 1,
-    background: enabled ? "var(--brand-bg, #0f172a)" : "var(--brand-surface, #1e293b)",
-    color: enabled ? "var(--brand-text-2, #cbd5e1)" : "var(--brand-text-subtle, #94a3b8)",
-    border: "1px solid var(--brand-surface-2, #334155)",
-    borderRadius: 4,
-    padding: "3px 0",
-    cursor: enabled ? "pointer" : "not-allowed",
-    fontSize: 11,
-  });
-
-  return (
-    <div style={{ borderTop: "1px solid var(--brand-surface-2, #334155)", flexShrink: 0 }}>
-      <div style={S.sectionHead(open)} onClick={() => setOpen((v) => !v)}>
-        <span>CRONOLOGIA ({totalSteps} step)</span>
-        <span style={S.chevron(open)}>▶</span>
-      </div>
-      {open && (
-        <>
-          <div style={{ overflowY: "auto", maxHeight: 180 }}>
-            {/* Stato iniziale */}
-            <div style={{ ...S.row(false), fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", fontStyle: "italic" }}>
-              Stato iniziale
-            </div>
-            {/* Past entries — oldest to newest, clicking jumps to that state */}
-            {past.map((entry, idx) => (
-              <div
-                key={idx}
-                onClick={() => jumpToPast(idx)}
-                style={{ ...S.row(false), fontSize: 11, paddingLeft: 16, cursor: "pointer" }}
-                title={t("editor.historyBack", { label: entry.label })}
-              >
-                {entry.label}
-              </div>
-            ))}
-            {/* Current marker */}
-            <div
-              ref={currentRef}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                padding: "3px 12px",
-                background: "#134e4a",
-                color: "#5eead4",
-                fontSize: 11,
-                fontWeight: 700,
-                borderTop: "1px solid #0f3d38",
-                borderBottom: "1px solid #0f3d38",
-              }}
-            >
-              ▶ CORRENTE
-            </div>
-            {/* Future entries — next redo target first */}
-            {future.map((entry, idx) => (
-              <div
-                key={idx}
-                onClick={() => jumpToFuture(idx)}
-                style={{
-                  ...S.row(false),
-                  fontSize: 11,
-                  paddingLeft: 16,
-                  cursor: "pointer",
-                  opacity: 0.5,
-                  fontStyle: "italic",
-                }}
-                title={t("editor.historyRestore", { label: entry.label })}
-              >
-                {entry.label}
-              </div>
-            ))}
-          </div>
-          <div style={{ padding: "5px 8px", display: "flex", gap: 5 }}>
-            <button style={btn(past.length > 0)} onClick={undo} disabled={past.length === 0} title="Ctrl-Z">
-              ↶ Annulla
-            </button>
-            <button style={btn(future.length > 0)} onClick={redo} disabled={future.length === 0} title="Ctrl-Y">
-              ↷ Rifai
-            </button>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}

@@ -11,6 +11,37 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### I due pannelli dell'editor si leggono, e si assomigliano (T-56, T-55)
+
+Richiesta del maintainer: «non è molto chiara la divisione pagine/oggetti… si fondono un po' tutte
+le sezioni, e a destra le proprietà andrebbero riorganizzate in modo più ordinato». Non era
+un'impressione: era la somma di scelte prese in momenti diversi.
+
+- **Una scala sola per i due pannelli** (`src/editor/stilePannelli.tsx`). Prima le intestazioni di
+  sinistra e di destra avevano colore, spaziatura, `letterSpacing`, glifo della freccia e
+  comportamento diversi, e righe dello stesso rango erano scritte a 10, 11 o 12 px a seconda di chi
+  le aveva aggiunte. L'intestazione condivisa è un `<button>`: a sinistra era un `<div>`, cioè una
+  fisarmonica che non si apriva da tastiera.
+- **A sinistra una vista per volta**, scelta da una barra di icone sul bordo: Pagine, Oggetti,
+  Struttura, Tag, Sorgenti, Funzioni. Prima erano sette fisarmoniche in colonna — aprendone più di
+  una le altre uscivano dallo schermo. La scelta si ricorda, e tutte le memorie dei pannelli stanno
+  ora sotto un prefisso unico.
+- **A destra tredici sezioni canoniche**, nello stesso ordine per ogni tipo di oggetto, e quelle che
+  non si applicano non compaiono. Prima due terzi del pannello erano controlli sciolti (~14 per un
+  `rect`, ~20 per un `text`) separati da micro-titoli in linea ripetuti in dieci punti. Le sezioni
+  si ricordano **per tipo**: chi lavora sui trend tiene aperte Tracce e Dato senza riaprirle a ogni
+  selezione. Selezione multipla e multi-tipo usano gli stessi nomi di sezione invece di una
+  tassonomia propria.
+- **La Cronologia esce dal pannello sinistro** (T-55): era aperta di default e alta fino a 180 px
+  per una cosa che si guarda di rado. L'elenco dei passi è una tendina accanto a ↶/↷ nella barra —
+  dove i due pulsanti stavano già, quindi non si è perso nessun comando.
+- **Venti stringhe passano a i18n** in entrambe le lingue; erano fisse in italiano.
+- Rete di sicurezza: un test monta il pannello proprietà per ognuno dei **35 tipi** della palette,
+  apre ogni sezione e confronta l'elenco dei campi con quello catturato prima del riordino. Zero
+  campi persi. Il test ha avuto a sua volta un difetto istruttivo — apriva le sezioni con un evento
+  nativo fuori da `act()`, ha smesso di funzionare col nuovo annidamento e **continuava a passare**
+  confrontando un inventario dimezzato con sé stesso; ora fallisce se una sezione resta chiusa.
+
 ### La via di fuga STOP del pannello non dipende più dalla memoria di chi l'ha scritta
 
 Tenendo premuta l'icona STOP durante l'avvio, il launcher Pixsys apre Cockpit sulla 9443: è

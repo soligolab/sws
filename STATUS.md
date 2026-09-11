@@ -76,6 +76,15 @@
 
 ## ▶ Da fare nella prossima sessione
 
+### 🎨 T-56 e T-55 realizzati — tutto impilato su un ramo solo (2026-09-11)
+
+⚠️ **Da sapere prima di mergiare.** La giornata dell'11-09 è finita tutta su
+`feat/utenti-nel-progetto`, in sequenza: utenti nel progetto (4 commit) → archiviazione dei piani →
+`alarm_banner` → via di fuga STOP → T-56 passo 1 → T-55 → T-56 passi 2 e 3. Sono cinque lavori
+distinti su un ramo solo, quindi un `merge --squash` li impacchetta insieme. Se servono separati,
+vanno spacchettati prima del merge — i commit sono lineari e toccano file quasi disgiunti, tranne
+`STATUS.md` e `CHANGELOG.md` che li attraversano tutti.
+
 ### 🛟 La via di fuga STOP ora ha una guardia (2026-09-11)
 
 Il piano del 2026-09-03 (vincoli riusabili per un secondo progetto) è stato riverificato vincolo
@@ -292,6 +301,12 @@ sede di realizzazione risulta più a portata). Le chiavi `editor.historyBack`/`h
 Rifai» sono oggi stringhe fisse e passano alle chiavi mentre si sposta il componente. Ramo:
 `feat/T-55-cronologia-fuori-dal-pannello`. Piccolo: si può fare insieme a T-54.
 
+**Fatto l'11-09-2026**, dentro il lavoro su T-56 (ne era il prerequisito). L'elenco dei passi è
+una tendina `▾` accanto a ↶/↷ nella barra dell'editor: **i due pulsanti c'erano già lì**, quindi
+togliendo la sezione non si è perso nessun comando, solo la lista — che ora sta accanto ai comandi
+che fanno la stessa cosa. Le cinque stringhe fisse sono passate a i18n in entrambe le lingue.
+
+
 ### 🎨 T-56 — i due pannelli dell'editor: una vista per volta a sinistra, sezioni canoniche a destra (2026-09-10)
 
 Richiesta del maintainer: «non è molto chiara la divisione pagine/oggetti… si fondono un po' tutte
@@ -317,6 +332,35 @@ il più lungo, `ObjectProps` è una catena di ~65 rami. Rete di sicurezza per il
 per ognuno dei 35 tipi verifica che l'insieme dei campi resi sia identico a prima. Vincolo che non
 si tocca: «una sezione per dato» (`CLAUDE.md`) — le sezioni si rinominano e si riordinano, un campo
 resta in un posto solo. Ramo: `feat/T-56-pannelli-editor`.
+
+**Realizzato l'11-09-2026, tutti e tre i passi** — non ancora collaudato dal maintainer né
+mergiato. Il ramo **non** è `feat/T-56-pannelli-editor`: il lavoro è impilato su
+`feat/utenti-nel-progetto` insieme a T-55 e al resto della giornata (vedi la voce di sessione).
+
+- **Passo 1** `src/editor/stilePannelli.tsx`: scala (spaziature 4/6/8/12; testo per rango 11 titolo,
+  11 etichetta, 12 riga, 10 nota) più `IntestazioneSezione` e `RigaProprieta`, adottati da entrambi
+  i pannelli senza spostare niente. L'intestazione è un `<button>`: a sinistra era un `<div>`, cioè
+  inaccessibile da tastiera. Memorie tutte sotto `sws.pannelli.`, con migrazione delle
+  `sws.objprops.*`.
+- **Passo 2** barra di icone da 40 px fuori dal ridimensionamento, una vista per volta a tutta
+  altezza, scelta ricordata. I tetti in pixel dei corpi valgono solo in colonna (`useCorpo`). «OGGETTI
+  PAGINA» → «STRUTTURA». Cinque test, compreso il caso della vista memorizzata che non esiste più.
+- **Passo 3** tredici sezioni canoniche nello stesso ordine per ogni tipo; «Parametri» solo per i 31
+  tipi che ne hanno una; memoria **per tipo**; `CrossTypeProps`/`MultiSelectionProps` coi nomi
+  canonici; 12 micro-titoli ricondotti a un `SottoTitolo` solo; 20 stringhe a i18n.
+
+⚠️ **Il test d'inventario aveva un difetto che lo rendeva inutile proprio quando serviva**: apriva
+le sezioni con `nodo.click()`, evento nativo fuori da `act()`. Con l'annidamento del passo 3 ha
+smesso di aprirle e **continuava a passare**, confrontando un inventario dimezzato con sé stesso.
+Ora usa `fireEvent.click` e lancia se dopo otto giri restano sezioni chiuse. La base di confronto è
+stata rigenerata dal codice del passo 2 con l'aiutante corretto: **zero campi persi** su 35 tipi.
+
+**Da provare a mano** (`./scripts/start_editor.sh`): le sei viste a sinistra e la scelta che
+sopravvive al ricaricamento; su `rect`, `text`, `trend`, `symbol`, `grid` le sezioni nell'ordine
+della tabella, ogni campo presente una volta sola; selezione multipla e multi-tipo con gli stessi
+nomi di sezione; tema chiaro e scuro; larghezze ancora regolabili. E il costo dichiarato dal piano:
+chi guardava insieme albero e palette ora paga un clic — se dà fastidio, la seconda opzione (due
+zone fisse) resta a portata.
 
 
 ### 📏 La 2.7.2 cross sul WP630: misure del 2026-09-10 pomeriggio

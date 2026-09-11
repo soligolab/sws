@@ -1,6 +1,8 @@
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { CanvasViewApi } from "@/canvas/SvgCanvas";
 import { useAppStore } from "@/store";
+import { SPAZIO, TESTO } from "./stilePannelli";
 
 /**
  * Contextual toolbar for the editor: drawing tools only, no project-level
@@ -8,6 +10,13 @@ import { useAppStore } from "@/store";
  *
  * Undo/redo were previously reachable only from the keyboard or the history
  * list in the left panel; the zoom controls did not exist at all.
+ *
+ * Dall'11-09-2026 l'**elenco** dei passi vive qui, nel menu a tendina accanto
+ * a ↶/↷ (T-55): stava nel pannello sinistro, aperto di default, alto fino a
+ * 180 px più i due pulsanti — «troppo invasivo», e occupava permanentemente
+ * spazio per una cosa che si guarda di rado. Accanto ai pulsanti che comandano
+ * la stessa cosa è dove uno lo cerca; i due pulsanti c'erano già qui, quindi
+ * togliendo la sezione non si è perso nessun comando, solo la lista.
  */
 
 /** Discrete zoom steps, 10% → 400%. The slider moves over the *index*. */
@@ -63,6 +72,12 @@ const SELECT: React.CSSProperties = {
   cursor: "pointer",
 };
 
+/** Un pulsante disabilitato resta visibile ma spento: toglierlo farebbe
+ *  ballare la barra a ogni modifica. */
+function dim(disabled: boolean): React.CSSProperties {
+  return disabled ? { opacity: 0.35, cursor: "default" } : {};
+}
+
 function toggled(active: boolean): React.CSSProperties {
   return active
     ? { background: "var(--brand-surface-2, #334155)", borderColor: "var(--brand-border, #475569)" }
@@ -103,15 +118,13 @@ export function EditorToolbar({
   const showRulers   = useAppStore((s) => s.showRulers);
   const toggleRulers = useAppStore((s) => s.toggleRulers);
 
-  const dim = (disabled: boolean): React.CSSProperties =>
-    disabled ? { opacity: 0.35, cursor: "default" } : {};
-
   return (
     <div style={BAR}>
       <button style={{ ...BTN, ...dim(past === 0) }} disabled={past === 0}
         onClick={undo} title={t("toolbar.undoTitle")}>↶</button>
       <button style={{ ...BTN, ...dim(future === 0) }} disabled={future === 0}
         onClick={redo} title={t("toolbar.redoTitle")}>↷</button>
+      <CronologiaTendina />
 
       <div style={SEP} />
 
@@ -191,3 +204,120 @@ export function EditorToolbar({
     </div>
   );
 }
+
+/** L'elenco dei passi, a tendina sotto ↶/↷.
+ *
+ *  Ogni voce è un salto: `jumpToPast(i)` torna a quello stato, `jumpToFuture(i)`
+ *  lo ripristina. Il segno «sei qui» sta fra i due elenchi, ed è il motivo per
+ *  cui una lista serve ancora: i due pulsanti dicono *avanti* e *indietro*, non
+ *  *dove*.
+ */
+function CronologiaTendina() {
+  const { t } = useTranslation();
+  const past         = useAppStore((s) => s.past);
+  const future       = useAppStore((s) => s.future);
+  const jumpToPast   = useAppStore((s) => s.jumpToPast);
+  const jumpToFuture = useAppStore((s) => s.jumpToFuture);
+  const [aperta, setAperta] = useState(false);
+  const guscio = useRef<HTMLDivElement>(null);
+  const correnteRef = useRef<HTMLDivElement>(null);
+  const totale = past.length + future.length;
+
+  // Chiude su click fuori e su Esc: una tendina che resta aperta mentre si
+  // lavora sul canvas copre proprio ciò che si sta guardando.
+  useEffect(() => {
+    if (!aperta) return;
+    const fuori = (e: MouseEvent) => {
+      if (guscio.current && !guscio.current.contains(e.target as Node)) setAperta(false);
+    };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setAperta(false); };
+    document.addEventListener("mousedown", fuori);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("mousedown", fuori);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [aperta]);
+
+  // All'apertura porta in vista il punto in cui si è: con molti passi il
+  // segno «sei qui» sarebbe fuori dalla finestra di scorrimento.
+  useEffect(() => {
+    if (aperta) correnteRef.current?.scrollIntoView({ block: "center" });
+  }, [aperta]);
+
+  const voce = (chiaro: boolean): React.CSSProperties => ({
+    display: "block",
+    width: "100%",
+    textAlign: "left",
+    background: "transparent",
+    border: "none",
+    cursor: "pointer",
+    padding: `3px ${SPAZIO.l}px`,
+    fontSize: TESTO.titoloSezione,
+    color: chiaro ? "var(--brand-text-2, #cbd5e1)" : "var(--brand-text-subtle, #94a3b8)",
+    fontStyle: chiaro ? "normal" : "italic",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  });
+
+  return (
+    <div ref={guscio} style={{ position: "relative" }}>
+      <button
+        style={{ ...BTN, ...dim(totale === 0), ...toggled(aperta) }}
+        disabled={totale === 0}
+        aria-expanded={aperta}
+        aria-haspopup="true"
+        onClick={() => setAperta((v) => !v)}
+        title={t("editor.historyList", { n: totale })}
+      >
+        ▾
+      </button>
+      {aperta && (
+        <div
+          style={{
+            position: "absolute", top: "100%", left: 0, zIndex: 40, minWidth: 220, maxWidth: 320,
+            background: "var(--brand-surface, #1e293b)",
+            border: "1px solid var(--brand-surface-2, #334155)",
+            borderRadius: 4, boxShadow: "0 6px 18px rgba(0,0,0,0.35)",
+            padding: `${SPAZIO.xs}px 0`,
+          }}
+        >
+          <div style={{ padding: `2px ${SPAZIO.l}px ${SPAZIO.xs}px`, fontSize: TESTO.nota, fontWeight: 700,
+                        letterSpacing: 0.5, textTransform: "uppercase", color: "var(--brand-text-subtle, #64748b)" }}>
+            {t("editor.historyTitle")}
+          </div>
+          <div style={{ maxHeight: 260, overflowY: "auto" }}>
+            <div style={{ ...voce(false), cursor: "default" }}>{t("editor.historyInitial")}</div>
+            {past.map((entry, idx) => (
+              <button key={`p${idx}`} style={voce(true)} onClick={() => { jumpToPast(idx); setAperta(false); }}
+                title={t("editor.historyBack", { label: entry.label })}>
+                {entry.label}
+              </button>
+            ))}
+            <div
+              ref={correnteRef}
+              style={{
+                display: "flex", alignItems: "center", gap: SPAZIO.s,
+                padding: `3px ${SPAZIO.l}px`, margin: `${SPAZIO.xs}px 0`,
+                background: "var(--brand-surface-2, #334155)",
+                color: "var(--brand-text, #e2e8f0)",
+                fontSize: TESTO.titoloSezione, fontWeight: 700,
+              }}
+            >
+              <span aria-hidden="true">▶</span>{t("editor.historyCurrent")}
+            </div>
+            {future.map((entry, idx) => (
+              <button key={`f${idx}`} style={{ ...voce(false), opacity: 0.7 }}
+                onClick={() => { jumpToFuture(idx); setAperta(false); }}
+                title={t("editor.historyRestore", { label: entry.label })}>
+                {entry.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
