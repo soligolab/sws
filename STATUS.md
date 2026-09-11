@@ -221,6 +221,8 @@ soprainsiemi esatti). Le punte, se un giorno servissero:
 | `feat/utenti-nel-progetto` | `9d2eb119` |
 | `main-pre-merge-2026-09-11` | `afbbbc43` |
 | `feat/T-56-pannello-destro` | `6ef970ff` |
+| `feat/T-53-waypoint-sul-canvas` | `5ef99e72` |
+| `fix/T-68-credenziali-dispositivi` | `b938f675` |
 
 ⚠️ **Quei rami non andavano mergiati, solo cancellati**, ed è il motivo per cui li ho provati in un
 worktree isolato prima di decidere: sono più vecchi di `main`, e un merge «per sicurezza» avrebbe
