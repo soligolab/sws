@@ -104,14 +104,13 @@ riportato indietro il codice. Misurato: `feat/Q50` avrebbe **tolto** `data_path`
 arrivato dopo con Q53. E tutti tengono ancora i piani al vecchio percorso `docs/plans/`: mergiarne
 uno avrebbe fatto ricomparire venti file accanto ai loro gemelli in `docs/archive/`.
 
-**Tenuti apposta tre rami:**
+**Tenuto un ramo solo**: `backup/main-pre-riscrittura-2026-09-09` — l'unica copia della storia dei
+15 commit usciti come `pixsysedp`; su `origin` è stata force-pushata via. Ha un file che `main` non
+ha più (`sws-web/src/deploy.rs`, rimosso da Q48). **Non si tocca.**
 
-- `backup/main-pre-riscrittura-2026-09-09` — l'unica copia della storia dei 15 commit usciti come
-  `pixsysedp`; su `origin` è stata force-pushata via. Ha un file che `main` non ha più
-  (`sws-web/src/deploy.rs`, rimosso da Q48).
-- `main-pre-merge-2026-09-11` (`afbbbc43`) — la punta di `main` prima del merge di oggi.
-- `feat/utenti-nel-progetto` — i 13 commit originali della giornata, prima che fossero ricostruiti
-  in sei. Si può cancellare dopo il push.
+Dopo il push sono stati cancellati anche gli altri due, che il maintainer teneva come rete:
+`feat/utenti-nel-progetto` (`9d2eb119`, i 13 commit originali prima della ricostruzione in sei) e
+`main-pre-merge-2026-09-11` (`afbbbc43`, la punta di `main` prima del merge).
 
 Il lavoro era cresciuto tutto su `feat/utenti-nel-progetto`, in sequenza. Invece di impacchettarlo
 in un `merge --squash` solo, è stato **ricostruito su `main` come sei commit distinti**, uno per
@@ -131,8 +130,8 @@ perso o aggiunto):
 Gate su `main` dopo il merge: `cargo fmt/clippy -D warnings`, 26 suite Rust verdi, 275 vitest,
 tsc, eslint, `pnpm build`, 17/17 guardie statiche.
 
-**`main` non è stato pushato**: `origin/main` è sei commit indietro. La rete di sicurezza è il ramo
-`main-pre-merge-2026-09-11`, che punta alla vecchia punta `afbbbc43`.
+**Pushato** l'11-09-2026 in fast-forward, `afbbbc43..1d3f3997` (otto commit, i sei più due meta);
+locale e `origin/main` verificati allineati dopo il fetch.
 
 **Resta da collaudare a mano** (il maintainer ha fatto solo una prova rapida dell'editor): il
 deploy con e senza la casella utenti, la conferma 428 che non deve ripartire in ciclo, le sei viste
