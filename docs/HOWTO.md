@@ -6,6 +6,12 @@
 > indice di procedure puntuali, ognuna autosufficiente. Nuovi capitoli si aggiungono in fondo,
 > numerati in ordine di comparsa.
 >
+> **Metà di questi capitoli esiste perché manca una funzione.** L'11-09-2026 sono stati riletti
+> tutti insieme con una domanda sola — «perché devo farlo a mano?» — e dieci hanno prodotto una
+> traccia di lavoro, registrata in `STATUS.md` come `T-58`…`T-67`. Dove c'è, il capitolo la nomina
+> in coda: senza quel rimando si rilegge la ricetta e si riesegue il rituale senza sapere che è
+> già registrato come lavoro da fare.
+>
 > Indirizzi/utenti dei device fisici citati nei capitoli **cambiano da sessione a sessione** —
 > trattarli come l'ultimo valore noto, non come una costante, e verificare/chiedere prima di
 > riusarli alla lettera in una sessione futura.
@@ -25,10 +31,16 @@
 11. [Leggere la mail di GitHub che dice «CI failed»](#11-leggere-la-mail-di-github-che-dice-ci-failed)
 12. [Installare il runtime su un dispositivo dall'editor](#12-installare-il-runtime-su-un-dispositivo-dalleditor)
 13. [Dove sta la lista dei dispositivi registrati](#13-dove-sta-la-lista-dei-dispositivi-registrati)
+14. [Convertire un progetto da LVGL a Web (o viceversa)](#14-convertire-un-progetto-da-lvgl-a-web-o-viceversa)
 
 ---
 
 ## 1. Testare `sws-lvgl-viewer` su un Pixsys reale, sostituendo Chromium
+
+> ⚠️ **Capitolo scaduto** (constatato l'11-09-2026, traccia **T-67**). Il `podman run` di quindici
+> flag che segue è oggi la quadlet `deploy/container/sws-lvgl-viewer.container`, e lo
+> spegni-browser/accendi-viewer è `sws-display-apply.sh` guidato dal `target` del progetto (Q25).
+> Resta valido solo per provare un **binario di sviluppo**, non un'immagine installata.
 
 Contesto: `sws-lvgl-viewer` è un companion opzionale di `sws-runtime`, non un fork (vedi
 `docs/OPEN_QUESTIONS.md` Q14, seguito 9, e `docs/DEPLOY_CONTAINER_AARCH64.md` §4 per i dettagli
@@ -261,6 +273,8 @@ incrementale) — un paio di minuti, normale, non un errore.
 
 ---
 
+*Traccia: **T-65 — nessuno avvisa **prima**: il disco pieno si presenta come un «Bus error» del linker, e `session_start.sh` potrebbe dirlo all'avvio**.*
+
 ## 3. Il browser non vede il runtime dopo aver installato il certificato
 
 Sintomi visti dal vivo (2026-08-21): "Cerca runtime" non trova niente anche dopo aver importato
@@ -323,6 +337,8 @@ Note pratiche:
 
 ---
 
+*Traccia: **T-59 — le tre azioni sono solo web e sul pannello LVGL **spariscono in silenzio**: è il referto di compatibilità che deve dirlo**.*
+
 ## 5. Compilare tutto e pubblicare le immagini container
 
 Un comando solo. Il `podman login` serve una volta per macchina (senza, il push muore a metà):
@@ -378,6 +394,8 @@ Sul dispositivo, poi, si aggiorna con `install-container.sh --pull` (senza argom
 Dettagli in `docs/DEPLOY_CONTAINER_AARCH64.md`.
 
 ---
+
+*Traccia: **T-66 — «non modificare uno script mentre gira» è affidato alla disciplina, ed è già costato una build di 51 minuti: un lock lo toglie di mezzo**.*
 
 ## 6. Vedere cosa disegna il pannello senza avere il pannello
 
@@ -485,6 +503,8 @@ Serve a trovare i difetti *di disegno* prima che arrivino sul dispositivo, non a
 sostituire la prova sul dispositivo.
 
 ---
+
+*Traccia: **T-62 — `istantanea.rs` fa già tutto questo per l'assistente IA; manca lo stesso pulsante per la persona**.*
 
 ## 7. Accendere l'assistente IA nell'editor
 
@@ -692,6 +712,8 @@ completo e funzionante di questo giro, da copiare.
 
 ---
 
+*Traccia: **T-63 — questa procedura si riscrive da capo a ogni sospetto: va incapsulata in una guardia riusabile**.*
+
 ## 9. Il deploy dell'immagine fallisce dopo un factory reset del dispositivo
 
 **Il sintomo.** Dal pannello Runtime dell'IDE, «Deploy» dell'immagine container si ferma e nel
@@ -793,6 +815,8 @@ Questo capitolo è il caso specifico del deploy container, che ha un rimedio suo
 
 ---
 
+*Traccia: **T-64 — il passo 3 («verifica che entri senza password») è una sonda che esiste già e che nessuno lancia dopo il «dimentica la chiave»**.*
+
 ## 10. Provare una modifica su un dispositivo senza pubblicare niente
 
 Sei su un ramo, hai toccato il Rust, e vuoi vedere se funziona **sul pannello** — non
@@ -861,6 +885,8 @@ browser le vedi con un ricaricamento forzato della pagina, senza riavviare nient
 
 ---
 
+*Traccia: **T-61 — i due `mv` esistono solo perché il nome dell'archivio non dice da quale ramo viene**.*
+
 ## 11. Leggere la mail di GitHub che dice «CI failed»
 
 Nata il 2026-09-09, quando il maintainer ha ricevuto la mail sul push della 2.7.0 e ha detto
@@ -903,6 +929,8 @@ macchina che non è la nostra — la prima volta è stata il 2026-09-09, `bf46d0
 il collaudo sul dispositivo: la CI non ha un pannello.
 
 ---
+
+*Traccia: **T-65 — la CI è stata rossa **per mesi** senza che nessuno lo leggesse: `session_start.sh` può dirlo a ogni sessione**.*
 
 ## 12. Installare il runtime su un dispositivo dall'editor
 
@@ -1007,3 +1035,5 @@ la conversione conviene aprire ogni pagina e guardarla sul pannello, non solo ne
 
 *(Se un giorno questo diventa un'operazione frequente, il posto giusto per un pulsante è
 Configurazione → Progetto, con l'avviso sulla direzione rischiosa. Oggi non c'è.)*
+
+*Traccia: **T-58 (il pulsante) e T-59 (il referto che sostituisce «apri ogni pagina e guardala sul pannello»)**.*

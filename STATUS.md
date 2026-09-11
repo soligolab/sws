@@ -76,6 +76,57 @@
 
 ## ▶ Da fare nella prossima sessione
 
+### 📋 Dieci tracce dall'HOWTO — T-58…T-67 (2026-09-11)
+
+`docs/HOWTO.md` è cresciuto a 14 capitoli, uno per ogni «come faccio a…» posto al vivo. Riletti
+tutti insieme con una domanda sola — **«perché devo farlo a mano?»** — dieci hanno prodotto una
+traccia. Ogni capitolo la nomina in coda, così il rimando vale nei due sensi.
+
+Quattro capitoli **non** producono niente ed è giusto così, altrimenti qualcuno ci ritorna: §3
+(certificato), §7 (chiave IA), §12 (installazione) e §13 (lista dispositivi) toccano hardware,
+credenziali o scelte umane — o sono già diventati funzioni.
+
+| # | Traccia | Costa oggi | Dove guardare |
+|---|---|---|---|
+| **T-58** | Il target del progetto si cambia dall'IDE | 3 passi su `project.yaml` + la trappola del salvataggio che rimette il valore di prima | `router.rs:310` (`page-layout` è il gemello), `display_target.rs:71` |
+| **T-59** | Referto di compatibilità LVGL, chiesto al motore | «apri ogni pagina e guardala sul pannello» | `istantanea.rs:429` (`note_utili`), `main.rs:311-330` del viewer |
+| **T-60** | Una fonte di verità sola su cosa il pannello disegna | quattro copie tenute insieme da quattro guardie | `lvgl_render.rs:68`, `LeftPanel.tsx:612`, `check_lvgl_types.sh` |
+| **T-61** | L'archivio di release dice da quale ramo viene | due `mv` rituali a ogni prova su ramo | HOWTO §10; il nome dipende da `version`, non dal ramo |
+| **T-62** | «Mostrami questa pagina come la disegna il pannello», nell'IDE | 4-5 comandi a scatto | `istantanea.rs` fa già tutto, per l'assistente |
+| **T-63** | Una guardia di parità di rendering riusabile | 30-60 min riscritti da capo a ogni sospetto | `check_fuori_pagina_lvgl.sh` è l'esempio da parametrizzare |
+| **T-64** | Dopo «dimentica la chiave», il software prova se entra | un giro di deploy perso se si sbaglia l'ordine | `sonda-dispositivo.sh` esiste e nessuno la lancia lì |
+| **T-65** | `session_start.sh` dice stato della CI e spazio su disco | la CI è stata rossa **per mesi** senza che nessuno leggesse | `gh run list --limit 1`, `df -h` |
+| **T-66** | Un lock negli script di build | è già costato una build di 51 minuti | `scripts/build_container*.sh` |
+| **T-67** | Riscrivere HOWTO §1 | descrive un `podman run` che oggi è una quadlet | `sws-lvgl-viewer.container`, Q25 |
+
+**Le tre della conversione, in dettaglio, perché sono legate.**
+
+**T-58** è la più piccola e sblocca le altre. `PUT /api/project/target` accanto a
+`/api/project/page-layout`, stesso genere di campo, più un selettore in Configurazione → Progetto —
+oggi `target.kind` è letto in **un punto solo** dell'editor (`LeftPanel.tsx:668`) e `ConfigView` non
+lo mostra affatto. Passando dalla rotta **sparisce la trappola**: il progetto in memoria si aggiorna
+e `display_target::publish` riscrive `display-target` da sé.
+
+**T-59** è il referto **chiesto al motore vero** (decisione del maintainer). Attenzione a una cosa
+che ribalta l'idea ovvia: `SUPPORTED_TYPES` contiene **già tutti e 35 i tipi**, quindi un referto
+costruito sul *tipo* direbbe sempre «zero problemi» — mentirebbe per omissione. Le incompatibilità
+vere sono a livello di **campo e valore** (`bar_orientation: horizontal`, `pie_mode` ≠ donut,
+`symbol_id: custom:*`, le immagini PNG, `button_action` che sul pannello non fa nulla) e sono già
+tutte nei `bail!` e nei «gap dichiarato». Il referto **esiste già**: il viewer stampa
+`non supportati/ignorati (N)` a ogni pagina, e `istantanea.rs` sa già avviare un runtime usa e getta
+e filtrare lo stderr utile — manca una costante e un giro sulle pagine. La finestra da copiare è
+«Verifica collegamenti» (`LinkReportModal`), che ha già il pulsante «Vai» che salta alla pagina e
+seleziona l'oggetto.
+
+**T-60** è quella che rende inutili le altre due se fatta male: se il referto diventasse una lista
+di limiti scritta a mano sarebbe la **quinta** copia della verità sul motore, e il giorno che il
+motore cambia il referto mente.
+
+⚠️ **Dieci tracce sono un debito dichiarato, non pagato.** Il valore è che smettano di essere
+invisibili dentro una ricetta; il rischio è che questa sezione diventi un cimitero. Quelle che non
+si faranno mai è meglio cancellarle che lasciarle a fare numero.
+
+
 ### ✅ T-68 — il Deploy dalla scheda Dispositivi non aveva credenziali da usare — **FATTO** (2026-09-11)
 
 Segnalato dal maintainer provando: «Connetti» riesce, e subito dopo **Deploy** risponde
