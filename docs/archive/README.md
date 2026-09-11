@@ -25,6 +25,7 @@ venga riletto come vero.
 | [2026-08-31-trasloco-frodo.md](2026-08-31-trasloco-frodo.md) | **FATTO** | è il referto del trasloco, citato da `docs/TEST_SETUPS.md` |
 | [2026-09-01-editor-runtime.md](2026-09-01-editor-runtime.md) | **FATTO** | mergiato (`e98138b`), release 2.4.0, ADR 0003; l'appendice sulla chat staccata resta il disegno di riferimento |
 | [2026-09-02-session-start.md](2026-09-02-session-start.md) | **FATTO** | `scripts/session_start.sh` esiste, guardato da `check_session_start.sh` |
+| [2026-09-03-via-di-fuga-stop-pixsys.md](2026-09-03-via-di-fuga-stop-pixsys.md) | **CHIUSO l'11-09-2026** | vincoli riusabili per un secondo progetto, non lavoro da fare: tutti e undici erano già rispettati in SWS, mancava chi se ne accorgesse se smettessero. Ora li difendono `check_via_di_fuga.sh` (1-7, 11), quattro test in `display_target.rs` (8) e `check_systemd_units.sh` (9-10). Vedi «Esito» |
 | [2026-09-04-limite-pagina-morbido.md](2026-09-04-limite-pagina-morbido.md) | **FATTO** | T-52 mergiato in main (`27f19ac`) il 2026-09-05 |
 | [2026-09-05-T-52-sessioni-B-E.md](2026-09-05-T-52-sessioni-B-E.md) | **FATTO** | stesso merge; contiene le nove correzioni al piano del 04 |
 | [2026-09-06-revisione-documenti.md](2026-09-06-revisione-documenti.md) | **FATTO** | tutti i file dichiarati esistono: `docs/history/` con i due estratti e il suo README, `check_documenti.sh`, i due indici |

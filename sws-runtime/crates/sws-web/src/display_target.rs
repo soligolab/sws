@@ -141,6 +141,100 @@ mod tests {
         );
     }
 
+    /// Scrive un progetto vero su disco: `publish` passa da `Project::load`,
+    /// quindi un letterale di struct proverebbe un percorso che non esiste.
+    fn progetto_su_disco(dir: &std::path::Path, target_yaml: &str) {
+        std::fs::write(
+            dir.join("project.yaml"),
+            format!("meta:\n  name: prova\n  version: '1'\ntags: []\nsources: []\n{target_yaml}"),
+        )
+        .unwrap();
+    }
+
+    /// **Il vincolo più facile da rompere senza accorgersene** (piano del
+    /// 2026-09-03, vincolo 8): lo script lato host scatta su `PathChanged=`,
+    /// che guarda la *scrittura*, non il contenuto. Riscrivere lo stesso valore
+    /// fermerebbe e riavvierebbe il programma a schermo — un lampeggio del
+    /// pannello a ogni salvataggio di una qualunque sezione del progetto.
+    ///
+    /// Il file di partenza è senza newline finale di proposito: `publish`
+    /// scrive sempre `"{valore}\n"`, quindi se toccasse il file la newline
+    /// comparirebbe. È il modo di distinguere «non ha scritto» da «ha
+    /// riscritto identico» senza dipendere dalla risoluzione dell'mtime.
+    #[tokio::test]
+    async fn non_riscrive_un_valore_identico() {
+        let t = tempfile::tempdir().unwrap();
+        let cfg = t.path().join("config");
+        let proj = t.path().join("progetto");
+        std::fs::create_dir_all(&cfg).unwrap();
+        std::fs::create_dir_all(&proj).unwrap();
+        progetto_su_disco(&proj, "target:\n  kind: web\n");
+        std::fs::write(cfg.join(FILE_NAME), "web").unwrap();
+
+        publish(&cfg, &proj).await;
+
+        assert_eq!(
+            std::fs::read_to_string(cfg.join(FILE_NAME)).unwrap(),
+            "web",
+            "il file è stato riscritto: sul pannello questo è uno sfarfallio a ogni salvataggio"
+        );
+    }
+
+    #[tokio::test]
+    async fn scrive_quando_il_progetto_cambia_motore() {
+        let t = tempfile::tempdir().unwrap();
+        let cfg = t.path().join("config");
+        let proj = t.path().join("progetto");
+        std::fs::create_dir_all(&cfg).unwrap();
+        std::fs::create_dir_all(&proj).unwrap();
+        progetto_su_disco(&proj, "target:\n  kind: lvgl_framebuffer\n");
+        std::fs::write(cfg.join(FILE_NAME), "web\n").unwrap();
+
+        publish(&cfg, &proj).await;
+
+        assert_eq!(
+            std::fs::read_to_string(cfg.join(FILE_NAME)).unwrap(),
+            "lvgl\n"
+        );
+    }
+
+    /// La directory di configurazione può non esistere ancora al primo avvio.
+    #[tokio::test]
+    async fn crea_il_file_e_la_cartella_se_mancano() {
+        let t = tempfile::tempdir().unwrap();
+        let cfg = t.path().join("config-che-non-ce");
+        let proj = t.path().join("progetto");
+        std::fs::create_dir_all(&proj).unwrap();
+        progetto_su_disco(&proj, "target:\n  kind: lvgl_wayland\n");
+
+        publish(&cfg, &proj).await;
+
+        assert_eq!(
+            std::fs::read_to_string(cfg.join(FILE_NAME)).unwrap(),
+            "lvgl\n"
+        );
+    }
+
+    /// Un progetto illeggibile non è un motivo per cambiare quello che il
+    /// pannello sta mostrando: nel dubbio non si tocca lo schermo (vincolo 3).
+    #[tokio::test]
+    async fn un_progetto_illeggibile_lascia_il_file_com_era() {
+        let t = tempfile::tempdir().unwrap();
+        let cfg = t.path().join("config");
+        let proj = t.path().join("progetto");
+        std::fs::create_dir_all(&cfg).unwrap();
+        std::fs::create_dir_all(&proj).unwrap();
+        std::fs::write(proj.join("project.yaml"), "questo: [non è: yaml valido").unwrap();
+        std::fs::write(cfg.join(FILE_NAME), "lvgl\n").unwrap();
+
+        publish(&cfg, &proj).await;
+
+        assert_eq!(
+            std::fs::read_to_string(cfg.join(FILE_NAME)).unwrap(),
+            "lvgl\n"
+        );
+    }
+
     /// I due valori scritti sul file sono un contratto con lo script lato host:
     /// cambiarli lo romperebbe in silenzio, perché quello script non fallisce —
     /// semplicemente non riconosce il valore e non commuta.

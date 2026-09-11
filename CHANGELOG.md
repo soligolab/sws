@@ -11,6 +11,28 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### La via di fuga STOP del pannello non dipende più dalla memoria di chi l'ha scritta
+
+Tenendo premuta l'icona STOP durante l'avvio, il launcher Pixsys apre Cockpit sulla 9443: è
+l'unico modo di rimettere a posto un pannello con la rete sbagliata, e chi gli ruba lo schermo
+lì rende il dispositivo **non configurabile**. In SWS era già successo nella 2.3.0.
+
+I vincoli scritti il 2026-09-03 erano tutti rispettati dal codice, ma nessuna guardia li teneva:
+un refactoring che togliesse il controllo di modalità passava ogni test, e il difetto si sarebbe
+visto solo su un pannello, con un gesto che nessuno fa per caso.
+
+- **`scripts/check_via_di_fuga.sh`** (nuova, fra le statiche) legge i file che spediamo e verifica
+  che nessuna azione sullo schermo preceda il controllo di modalità, che l'attesa resti un ciclo
+  con un limite e non una lettura sola, che i quattro rami «nel dubbio non commuto» ci siano, che
+  `chromium@wp-control` compaia solo in letture e `weston` non venga mai abilitato, che il backend
+  resti su `default.target`, che il browser si comandi per politica D-Bus col ripiego marcato, e
+  che l'URL si imposti **prima** dello start. Provata rossa in tre modi, il primo dei quali è il
+  guasto vero della 2.3.0.
+- **Quattro test nuovi su `display_target::publish`**, il vincolo che era rimasto senza rete:
+  riscrivere `display-target` con lo stesso valore farebbe scattare `PathChanged=` e riavviare il
+  programma a schermo — un lampeggio del pannello a ogni salvataggio, di quelli che si
+  attribuiscono al dispositivo invece che al software.
+
 ### `alarm_banner` mostrava cose diverse nel browser e sul pannello
 
 Lo stesso widget, disegnato da due motori, selezionava due insiemi di allarmi: nel browser quelli

@@ -89,3 +89,50 @@ normale**: in quello stato ogni prova di commutazione schermo è inutile.
 `deploy/container/sws-display.service` / `.path`, `deploy/container/sws-runtime.container`
 (`WantedBy=default.target` deliberato), `scripts/check_systemd_units.sh` (guardia contro
 la trappola `PathExists`).
+
+---
+
+## Esito — chiusura dell'11-09-2026
+
+Riverificato vincolo per vincolo contro il codice che spediamo. **Tutti e undici erano
+rispettati**; a mancare era il modo di accorgersi se smettessero di esserlo. Questo
+documento nasceva come nota trasferibile a un altro progetto e diceva «non rompetela»,
+ma in SWS la via di fuga era tenuta in piedi solo dalla memoria di chi l'aveva scritta:
+un refactoring che togliesse il controllo di modalità passava ogni test, e il difetto si
+sarebbe visto solo su un pannello, con un gesto che nessuno fa per caso.
+
+| Vincolo | Dov'è rispettato | Chi lo difende, da oggi |
+|---|---|---|
+| 1 · non prendere lo schermo prima di conoscere la modalità | `sws-display-apply.sh`, `in_configurazione`/`in_modalita_normale` | `check_via_di_fuga.sh` §1 |
+| 2 · aspettare un esito, non un tempo | `attendi_decisione()`, 1 s × 60 | §2 |
+| 3 · nel dubbio non si tocca | quattro rami che escono `0` senza commutare | §3 |
+| 4 · mai `chromium@wp-control`, mai `weston` al boot | compare solo in `is-active` | §4, esteso a installer e unit |
+| 5 · backend in entrambe le modalità | `sws-runtime.container`, `WantedBy=default.target` | §5 |
+| 6 · browser per politica D-Bus, ripiego dichiarato | `SetEnabled` + `stop`, `GetEnabled` come sonda, `RIPIEGO` | §6 |
+| 7 · URL prima dello start | `imposta_url_sws` prima di `browser_accendi`; l'installer lo imposta | §7 |
+| 8 · non riscrivere un valore identico | `display_target::publish`, uscita anticipata | **quattro test nuovi** in `display_target.rs` |
+| 9 · trappole systemd | nessun `PathExists`, `ExecStart` assoluto, wrapper `"$@"` | `check_systemd_units.sh` (già c'era) |
+| 10 · l'installer verifica dopo l'`enable --now` | `is-failed` sulle due unit | `check_systemd_units.sh` |
+| 11 · log espliciti e `--dry-run` | 29 chiamate a `log`, `--dry-run` | `check_via_di_fuga.sh` §11 |
+
+Il vincolo 8 era **il più esposto**: nessun test lo copriva, e il suo guasto — un lampeggio
+del pannello a ogni salvataggio — è di quelli che si attribuiscono al dispositivo invece
+che al software. Il test nuovo parte da un file senza newline finale, così distingue «non
+ha scritto» da «ha riscritto identico» senza dipendere dalla risoluzione dell'mtime;
+provato rosso togliendo l'uscita anticipata.
+
+`check_via_di_fuga.sh` è provata rossa in tre modi, il primo dei quali è il guasto vero
+della 2.3.0: un'azione sullo schermo spostata prima del controllo di modalità; poi una
+lettura sola al posto del ciclo; poi un `systemctl stop chromium@wp-control`.
+
+### Cosa resta aperto, e di proposito
+
+- **Il `RIPIEGO` pre-PixsysOS 2.1.0** (`systemctl disable --now` quando `SetEnabled` non
+  c'è) va tolto quando 2.1.0 sarà su tutti i prodotti. È una decisione sul parco
+  installato, non sul codice: si toglie quando lo dice il maintainer, e si trova cercando
+  `RIPIEGO`.
+- **Q25** resta aperta: quale interruttore decide fra web e LVGL, e quando si valuta. Il
+  meccanismo descritto qui la serve ma non la chiude.
+- **Il collaudo è un gesto**, e questa guardia legge solo file fermi: riavviare tenendo
+  premuta l'icona STOP oltre 10 s resta l'unica prova che vale. Superata il 2026-08-29 sul
+  WP630.

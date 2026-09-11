@@ -76,6 +76,27 @@
 
 ## ▶ Da fare nella prossima sessione
 
+### 🛟 La via di fuga STOP ora ha una guardia (2026-09-11)
+
+Il piano del 2026-09-03 (vincoli riusabili per un secondo progetto) è stato riverificato vincolo
+per vincolo: **tutti e undici erano rispettati**. A mancare era chi se ne accorgesse se
+smettessero — la via di fuga era tenuta in piedi dalla memoria di chi l'aveva scritta.
+
+Due aggiunte: `scripts/check_via_di_fuga.sh` (17ª guardia statica, vincoli 1-7 e 11, **provata
+rossa in tre modi** — l'azione sullo schermo prima del controllo di modalità, cioè il guasto vero
+della 2.3.0; una lettura sola al posto del ciclo; un `systemctl stop chromium@wp-control`) e
+quattro test su `display_target::publish` per il vincolo 8, che era l'unico senza rete: riscrivere
+`display-target` identico farebbe scattare `PathChanged=` e riavviare il programma a schermo, cioè
+un lampeggio del pannello a ogni salvataggio. Il test parte da un file senza newline finale, così
+distingue «non ha scritto» da «ha riscritto identico» senza dipendere dall'mtime.
+
+Restano aperti di proposito: il `RIPIEGO` pre-PixsysOS 2.1.0 (si toglie quando 2.1.0 è su tutto il
+parco installato — decisione del maintainer, si trova cercando `RIPIEGO`) e **Q25**, che questo
+meccanismo serve ma non chiude.
+
+Il piano è archiviato. In `docs/plans/` restano quattro piani.
+
+
 ### 🔔 `alarm_banner` si comportava in due modi — audit del 2026-08-06 chiuso (2026-09-11)
 
 Riverificando l'audit prima di archiviarlo, sei sezioni su sette erano già chiuse dal lavoro
