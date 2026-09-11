@@ -9002,21 +9002,30 @@ function RuntimeConnectionTab() {
           <span style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)" }}>
             Porta 8444 = accesso admin (deploy). Porta 8443 = viewer operatori.
           </span>
+          {/* «SWS» nell'etichetta, e il perché sotto: questi sono gli utenti
+              applicativi del progetto (users.yaml), non l'utente SSH del
+              dispositivo che il wizard di installazione chiede poche righe più
+              giù. Le due coppie di campi si chiamavano tutte «Utente» e
+              «Password»: il 2026-09-11 il maintainer ha messo qui le credenziali
+              SSH e si è visto rifiutare la connessione. */}
           <div style={{ display: "flex", gap: 8 }}>
             <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 4 }}>{t("cfg.user")} <span style={{ color: "var(--brand-text-subtle, #94a3b8)" }}>(opzionale)</span></label>
+              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 4 }}>{t("cfg.swsUser")} <span style={{ color: "var(--brand-text-subtle, #94a3b8)" }}>{t("cfg.optional")}</span></label>
               <input style={{ ...INPUT, width: "100%", boxSizing: "border-box" }}
                 placeholder={t("cfg.emptyIfNoUsers")} value={targetUser}
                 onChange={(e) => setTargetUser(e.target.value)} />
             </div>
             <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 4 }}>{t("cfg.password")} <span style={{ color: "var(--brand-text-subtle, #94a3b8)" }}>(opzionale)</span></label>
+              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 4 }}>{t("cfg.swsPassword")} <span style={{ color: "var(--brand-text-subtle, #94a3b8)" }}>{t("cfg.optional")}</span></label>
               <input style={{ ...INPUT, width: "100%", boxSizing: "border-box" }}
                 type="password" placeholder="••••••••" value={targetPass}
                 onChange={(e) => setTargetPass(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && !connected && handleConnect()} />
             </div>
           </div>
+          <span style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", lineHeight: 1.4 }}>
+            {t("cfg.swsCredentialsHint")}
+          </span>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             {!connected && (
               <button style={BTN_PRIMARY} onClick={handleConnect} disabled={status === "connecting"}>
@@ -9413,6 +9422,11 @@ function RuntimeConnectionTab() {
                 onChange={(e) => setDevicePass(e.target.value)} />
             </div>
           </div>
+          {/* Speculare alla riga del pannello «Connetti»: le due coppie di
+              credenziali si somigliavano troppo. */}
+          <span style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", lineHeight: 1.4 }}>
+            {t("cfg.sshCredentialsHint")}
+          </span>
 
           {/* 3 · Sondaggio */}
           <div style={{ fontSize: 12, fontWeight: 700, color: "var(--brand-text-2, #cbd5e1)", marginTop: 6 }}>{t("cfg.stepProbe")}</div>

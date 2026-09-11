@@ -291,18 +291,53 @@ pub async fn connect_remote(
     )
 }
 
+/// La decisione di `senza_utenti`, separata dalla rete perché è la parte che
+/// può sbagliare e va provata.
+///
+/// `passata` = la richiesta senza token ha ricevuto 2xx; `auth_required` = il
+/// campo omonimo di `SystemStatus`, quando la risposta si è potuta leggere.
+/// Nel dubbio si risponde «ha utenti»: dichiarare aperto un dispositivo che non
+/// lo è sarebbe l'errore peggiore dei due.
+pub(crate) fn niente_autenticazione(passata: bool, auth_required: Option<bool>) -> bool {
+    passata && auth_required != Some(true)
+}
+
 /// Il runtime all'altro capo ha utenti definiti, o è in modalità no-auth?
 ///
-/// `GET /api/auth/whoami` senza token è il discriminatore: dove non ci sono
-/// utenti il server inietta un Admin sintetico e risponde 200; dove ci sono,
-/// la rotta è protetta e risponde 401. Qualunque altro esito (rete, 5xx) si
-/// tratta come «ha utenti»: nel dubbio non si dichiara aperto un dispositivo
-/// che potrebbe non esserlo.
+/// Si sonda `GET /api/system` **senza token**: la rotta sta dietro
+/// `require_auth` su tutti i router, quindi dove non ci sono utenti l'Admin
+/// sintetico la fa rispondere 200, e dove ci sono risponde 401. Il corpo porta
+/// anche `auth_required`, che è il fatto dichiarato invece che dedotto — ed è
+/// nato apposta per non farlo indovinare da un codice di stato.
+///
+/// # Perché non più `/api/auth/whoami`
+///
+/// Perché **non è montata** in `deploy_only_app`, cioè sulla porta di gestione
+/// di ogni runtime in container, che gira sempre con `--no-admin`. Là rispondeva
+/// 404, questa funzione leggeva «non riuscita» e concludeva che il dispositivo
+/// avesse utenti: un pannello appena installato — nessun progetto, nessun
+/// `users.yaml` — rifiutava la connessione dicendo «l'utente «X» non esiste o la
+/// password è sbagliata», mentre avrebbe accettato una connessione senza
+/// autenticazione. La protezione scritta il 2026-09-08 non ha quindi mai
+/// funzionato sui container, che sono tutti i dispositivi veri.
+///
+/// Misurato sul WP630 il 2026-09-11, prima della correzione: `whoami` → 404,
+/// `/api/system` → 200 con `auth_required: false`, `login` → 401.
 async fn senza_utenti(client: &reqwest::Client, url: &str) -> bool {
-    match client.get(format!("{url}/api/auth/whoami")).send().await {
-        Ok(r) => r.status().is_success(),
-        Err(_) => false,
-    }
+    let Ok(r) = client.get(format!("{url}/api/system")).send().await else {
+        return false;
+    };
+    let passata = r.status().is_success();
+    // Il corpo si legge solo se serve: a 401 non c'è niente da leggere.
+    let auth_required = if passata {
+        r.json::<serde_json::Value>()
+            .await
+            .ok()
+            .and_then(|v| v.get("auth_required").and_then(|b| b.as_bool()))
+    } else {
+        None
+    };
+    niente_autenticazione(passata, auth_required)
 }
 
 /// `DELETE /api/remote/connect` — clear the remote target state.
@@ -1549,6 +1584,33 @@ pub async fn remote_status(State(s): State<AppState>) -> Json<RemoteStatus> {
 mod tests {
     use super::*;
     use std::io::Write;
+
+    /// Il caso che ha rotto il primo deploy dopo un'installazione pulita
+    /// (2026-09-11, WP630): il dispositivo non ha utenti, la sonda passa e
+    /// dichiara `auth_required: false` → ci si collega senza autenticazione,
+    /// invece di dare del bugiardo a chi ha digitato una password.
+    #[test]
+    fn un_dispositivo_senza_utenti_si_riconosce() {
+        assert!(niente_autenticazione(true, Some(false)));
+    }
+
+    /// Con utenti definiti `/api/system` risponde 401 senza token: la sonda non
+    /// passa, e le credenziali sbagliate restano credenziali sbagliate.
+    #[test]
+    fn un_dispositivo_con_utenti_resta_protetto() {
+        assert!(!niente_autenticazione(false, None));
+        // Difesa in profondità: se un domani la rotta rispondesse 200 anche a
+        // chi ha utenti, il campo dichiarato vince sul codice di stato.
+        assert!(!niente_autenticazione(true, Some(true)));
+    }
+
+    /// Runtime più vecchio del campo `auth_required`: vale il fatto che la
+    /// richiesta senza token è passata.
+    #[test]
+    fn senza_il_campo_vale_l_esito_della_richiesta() {
+        assert!(niente_autenticazione(true, None));
+        assert!(!niente_autenticazione(false, Some(false)));
+    }
 
     /// Costruisce uno ZIP di export minimo in memoria.
     fn bundle(manifest: Option<&str>, users: Option<&str>) -> Vec<u8> {

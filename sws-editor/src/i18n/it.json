@@ -1206,7 +1206,11 @@
     "devicesAdded": "«{{label}}» registrato fra i dispositivi",
     "devicesSaveFailed": "Lista dei dispositivi non salvata: {{err}}",
     "devicesLoadFailed": "Lista dei dispositivi non letta dal server: {{err}}",
-    "devicesMigrated": "Lista spostata dal browser al server: {{n}} dispositivi, senza le password."
+    "devicesMigrated": "Lista spostata dal browser al server: {{n}} dispositivi, senza le password.",
+    "swsUser": "Utente SWS",
+    "swsPassword": "Password SWS",
+    "swsCredentialsHint": "Utente applicativo definito nel progetto SWS, non l'utente SSH del dispositivo. Lascia vuoto se il pannello non ha ancora utenti (appena installato, o senza progetto).",
+    "sshCredentialsHint": "Utente del sistema operativo del dispositivo, lo stesso di «ssh»: non l'utente applicativo SWS del pannello «Connessione runtime remoto»."
   },
   "langtab": {
     "intro": "Traduci i messaggi che scrivi negli oggetti. Nei campi testo usa {{chiave}}; qui definisci le traduzioni per ogni lingua.",

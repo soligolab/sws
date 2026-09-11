@@ -11,6 +11,23 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Un pannello appena installato rifiutava la connessione (T-57)
+
+Con un dispositivo installato pulito — nessun progetto, nessun utente — «Connetti» rispondeva
+«l'utente «X» non esiste o la password è sbagliata» e non si collegava, bloccando il primo
+deploy. Il controllo che deve riconoscere un dispositivo senza utenti sondava
+`/api/auth/whoami`, che **non esiste** sulla porta di gestione di un runtime in container
+(`--no-admin`): il 404 veniva letto come «ha utenti». Ora sonda `/api/system`, che c'è su tutti
+i router e dichiara `auth_required`. Con un dispositivo senza utenti ci si collega e lo si dice,
+come era previsto dal 2026-09-08 — protezione che sui container non aveva mai funzionato.
+
+### Le credenziali SWS e quelle SSH non si chiamano più allo stesso modo
+
+«Connessione runtime remoto» chiede l'utente applicativo del progetto, il wizard di
+installazione chiede l'utente SSH del dispositivo, e fino a ieri entrambi i campi si chiamavano
+«Utente» e «Password». Ora sono «Utente SWS» e «Utente SSH», ognuno con una riga che dice quale
+serve e quando lasciarlo vuoto.
+
 ## [2.7.2] — 2026-09-10
 
 > La scheda Runtime per l'utente e un'immagine aarch64 sola. Q51, Q52, Q53 e Q50 decise e

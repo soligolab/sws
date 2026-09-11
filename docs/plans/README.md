@@ -29,5 +29,5 @@
 | [2026-09-04-limite-pagina-morbido.md](2026-09-04-limite-pagina-morbido.md) | **FATTO** | T-52 mergiato in main (27f19ac) il 2026-09-05 |
 | [2026-09-05-T-52-sessioni-B-E.md](2026-09-05-T-52-sessioni-B-E.md) | **FATTO** | stesso merge; contiene le nove correzioni al piano del 04 |
 | [2026-09-06-revisione-documenti.md](2026-09-06-revisione-documenti.md) | **IN CORSO** | questa revisione |
-| [2026-09-11-diagnosi-login-8444.md](2026-09-11-diagnosi-login-8444.md) | **DA VERIFICARE** | diagnosi da codice fatta, azione (leggere `users.yaml` sul TC620 e riprovare con l'utente app giusto) non ancora eseguita |
+| [2026-09-11-diagnosi-login-8444.md](2026-09-11-diagnosi-login-8444.md) | **CHIUSO — diagnosi corretta in coda** | l'ipotesi «credenziali sbagliate» non reggeva: era un bug (`senza_utenti` sondava una rotta assente su `--no-admin`), corretto in T-57. Le due affermazioni su seed e deploy di `users.yaml` sono errate: vedi §Esito |
 | [global-scripts-template-snippets.md](global-scripts-template-snippets.md) | **MAI INIZIATO — stantio** | senza data; il file bersaglio GlobalScriptsTab.tsx non esiste (gli script globali vivono in ConfigView) |

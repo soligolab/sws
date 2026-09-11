@@ -1206,7 +1206,11 @@
     "devicesAdded": "“{{label}}” registered among the devices",
     "devicesSaveFailed": "Device list not saved: {{err}}",
     "devicesLoadFailed": "Device list not read from the server: {{err}}",
-    "devicesMigrated": "List moved from the browser to the server: {{n}} devices, without passwords."
+    "devicesMigrated": "List moved from the browser to the server: {{n}} devices, without passwords.",
+    "swsUser": "SWS user",
+    "swsPassword": "SWS password",
+    "swsCredentialsHint": "Application user defined in the SWS project, not the device's SSH user. Leave empty when the panel has no users yet (freshly installed, or with no project).",
+    "sshCredentialsHint": "The device's operating-system user, the same one you use with “ssh”: not the SWS application user of the “Remote runtime connection” panel."
   },
   "langtab": {
     "intro": "Translate the messages you write into objects. In text fields use {{key}}; here you define the translations for each language.",

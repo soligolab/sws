@@ -147,6 +147,47 @@ c=$(curl -s -o /dev/null -w '%{http_code}' -m 5 -X POST -H 'content-type: applic
                  || esito no "mkdir in /tmp: $c — si creano cartelle ovunque senza sessione"
 rmdir /tmp/sws_prova_q46 2>/dev/null || true
 
+echo "=== 2d. la sonda «questo dispositivo ha utenti?» funziona anche qui (T-57) ==="
+# L'istanza stretta gira senza utenti: è la condizione di un pannello appena
+# installato — nessun progetto, nessun `users.yaml`. Quando l'editor ci prova a
+# collegarsi e il login fallisce, `senza_utenti` (remote.rs) chiede al
+# dispositivo se pretende autenticazione, per non dare del bugiardo a chi ha
+# digitato una password che non poteva servire.
+#
+# La rotta NON è scritta qui: si legge dal sorgente. È il punto della guardia —
+# chiunque cambi la sonda in remote.rs la prova su questa porta senza saperlo.
+# Fino al 2026-09-11 era `/api/auth/whoami`, che su `--no-admin` non è montata:
+# 404, letto come «ha utenti», e un pannello vuoto rifiutava la connessione
+# dicendo che l'utente non esisteva o la password era sbagliata. Segnalato dal
+# maintainer al primo deploy dopo un'installazione pulita, misurato sul WP630.
+SONDA=$(sed -n '/async fn senza_utenti/,/^}/p' "$REPO/sws-runtime/crates/sws-web/src/remote.rs" \
+        | grep -o '{url}/[A-Za-z0-9/_-]*' | head -1 | sed 's/{url}//')
+if [ -z "$SONDA" ]; then
+    esito no "non trovo quale rotta sonda `senza_utenti` in remote.rs: la guardia non sta verificando niente"
+else
+    c=$(codice GET 8597 "$SONDA")
+    if [ "$c" = "404" ]; then
+        esito no "la sonda $SONDA non esiste sulla porta di gestione (404): l'editor non distingue «nessun utente» da «password sbagliata», e un pannello appena installato rifiuta la connessione"
+    elif [ "$c" = "200" ]; then
+        esito ok "la sonda $SONDA passa senza token su un'istanza senza utenti ($c)"
+    else
+        esito no "la sonda $SONDA risponde $c su un'istanza SENZA utenti: l'editor concluderà che ne ha"
+    fi
+    # Il fatto dichiarato, non dedotto dal codice di stato: è il campo su cui
+    # `senza_utenti` decide quando la risposta si può leggere.
+    if curl -s -m 5 "http://localhost:8597$SONDA" | grep -q '"auth_required":false'; then
+        esito ok "e dichiara auth_required:false"
+    else
+        esito no "$SONDA non dichiara auth_required:false su un'istanza senza utenti"
+    fi
+    # L'altro verso: con utenti la stessa sonda deve chiudere. L'istanza normale
+    # non ne ha, quindi qui si verifica solo che la rotta esista anche là — il
+    # caso «con utenti» è coperto dai test di `niente_autenticazione`.
+    cn=$(codice GET 8599 "$SONDA")
+    [ "$cn" != "404" ] && esito ok "e c'è anche sul router completo ($cn)" \
+                       || esito no "la sonda $SONDA non esiste sul router completo: l'editor collegato a un PC di sviluppo non la troverebbe"
+fi
+
 echo "=== 3. la SPA dell'IDE non viene servita ==="
 if [ ${#WWW_ARGS[@]} -eq 0 ]; then
     echo "  – salto: manca $WWW/index-admin.html (cd sws-editor && pnpm build)"

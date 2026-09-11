@@ -76,6 +76,38 @@
 
 ## ▶ Da fare nella prossima sessione
 
+### 🔌 T-57 — il pannello appena installato rifiutava la connessione: ramo `feat/T-57-credenziali-sws-vs-ssh` (2026-09-11)
+
+Il maintainer, da casa, aveva preparato `docs/plans/2026-09-11-diagnosi-login-8444.md` con
+l'ipotesi «credenziali applicative SWS confuse con quelle SSH». In ufficio la precisazione che
+ha cambiato tutto: **il pannello era appena installato pulito, senza progetto** — utenti residui
+non ce ne potevano essere, e il primo deploy doveva passare.
+
+Misurato sul WP630 prima di scrivere codice: `whoami` → **404**, `/api/system` → 200 con
+`auth_required: false`, `login` → 401. `senza_utenti()` (`remote.rs`) sondava
+`/api/auth/whoami`, che non è montata in `deploy_only_app`, cioè la porta di gestione di **ogni**
+runtime in container. Il 404 diventava «ha utenti» e l'editor rifiutava una connessione che
+sarebbe passata. La protezione del 2026-09-08 non ha mai funzionato sui dispositivi veri.
+
+Fatto sul ramo: sonda `/api/system` con la decisione estratta in `niente_autenticazione()`
+(pura, 3 test); etichette «Utente SWS»/«Password SWS» e «Utente SSH»/«Password SSH» con due
+righe di spiegazione speculari; `check_no_admin.sh` §2d **legge dal sorgente quale rotta sonda
+`senza_utenti`** e la prova sulla porta stretta — provata rossa rimettendo `whoami`, dice il
+guasto con le parole giuste. Gate: 513 test Rust, 231 vitest, clippy, fmt, lint, build, guardie.
+
+Prova end-to-end contro il WP630 con le stesse credenziali del caso reale: `ok: true` più la
+nota «non ha utenti definiti: connesso senza autenticazione». **Non mergiato, non pushato.**
+
+**Da provare a mano**: dall'editor, «Connetti» al pannello appena installato scrivendo un utente
+qualsiasi → si collega e mostra la nota; poi il deploy. E guardare che le due coppie di campi
+ora si distinguano a colpo d'occhio.
+
+**Nota per dopo**: dopo il primo deploy su un dispositivo vuoto, `users.yaml` del progetto viene
+estratto (solo al primo upload di un nome nuovo; i ri-deploy lo saltano) e da quel momento il
+pannello **pretende** gli utenti del progetto. È il comportamento voluto, ma è il prossimo punto
+in cui la connessione può sembrare rompersi da sola.
+
+
 ### 🧭 T-53 — i waypoint del percorso di movimento si modificano sul canvas (richiesta del maintainer, 2026-09-10)
 
 Riguarda **MOVIMENTO su percorso** (F6.10, `motion_path` di un oggetto: `types/index.ts` L269,

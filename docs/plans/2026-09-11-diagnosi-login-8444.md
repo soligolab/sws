@@ -104,3 +104,45 @@ verosimilmente rimasto da un provisioning precedente e non coincide con `user`.
 Nessuna modifica al codice è necessaria per risolvere il problema attuale: è un
 mismatch di credenziali tra due sistemi di auth distinti, non un bug. Il passo 1-2
 sopra è probabilmente sufficiente a sbloccare la connessione.
+
+---
+
+## Esito — verifica in ufficio, 2026-09-11
+
+**La diagnosi qui sopra non regge, e il guasto era un bug nostro.** Il maintainer ha
+precisato che il pannello era appena stato installato pulito, senza progetto: in quel
+caso utenti residui non ce ne possono essere, e «Connetti» doveva collegarsi senza
+autenticazione.
+
+Misurato sul WP630 (`wp630-a-p3-07a077.local`, 2.7.2 in container), porta 8444:
+
+| Richiesta | Risposta |
+|---|---|
+| `GET /api/auth/whoami` | **404** |
+| `GET /api/system` | 200, `auth_required: false` |
+| `POST /api/auth/login` (utente inesistente) | 401 |
+
+`senza_utenti()` (`remote.rs`) sondava `/api/auth/whoami`, che **non è montata** in
+`deploy_only_app` — la porta di gestione di ogni runtime in container, che gira sempre
+con `--no-admin`. Il 404 veniva letto come «non riuscita» e quindi «il dispositivo ha
+utenti»: da lì il messaggio «l'utente «X» non esiste o la password è sbagliata» su un
+pannello che non aveva alcun utente. La protezione scritta il 2026-09-08 non ha mai
+funzionato sui container, cioè su tutti i dispositivi veri; funzionava solo sullo stack
+di sviluppo, dove la porta admin serve il router completo.
+
+Corretto in `feat/T-57-credenziali-sws-vs-ssh`: la sonda è `/api/system`, che esiste su
+tutti i router e dichiara `auth_required`. Prova end-to-end contro il WP630 con le stesse
+credenziali del caso reale: `ok: true` più la nota «non ha utenti definiti: connesso senza
+autenticazione».
+
+**Due affermazioni del piano da non riusare, verificate nel codice:**
+
+1. «Il bootstrap scrive gli account solo se `users.yaml` non esiste ancora» — no: il seed
+   è **per-account** (`sws-auth/src/lib.rs:303` e `:427`, `if !users.contains_key(&name)`).
+   Un `users.yaml` esistente non impedisce di seminare un utente con nome nuovo.
+2. Il deploy **non** sovrascrive `users.yaml` (`projects.rs:1513`, decisione del
+   maintainer). Lo estrae solo al **primo** upload di un nome di progetto nuovo; i
+   ri-deploy lo saltano.
+
+Resta valida, ed è stata fatta, la nota UX del punto 4: le due coppie di credenziali ora
+si chiamano «Utente SWS» e «Utente SSH», ognuna con la propria riga di spiegazione.
