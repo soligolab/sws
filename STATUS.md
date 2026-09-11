@@ -78,6 +78,41 @@
 
 ### ✅ La giornata dell'11-09 è su `main`, in sei commit (2026-09-11)
 
+**Pulizia dei rami, stesso giorno.** Cancellati gli undici rami il cui contenuto era già in `main`,
+dopo tre verifiche: nessun file esclusivo, contenuto identico al rispettivo commit di squash, e —
+per i piani, che nel frattempo si erano spostati in `docs/archive/` — confronto riga per riga fra la
+versione sul ramo e quella archiviata (zero righe perse; le tre che ho ampliato sono
+soprainsiemi esatti). Le punte, se un giorno servissero:
+
+| Ramo | Punta |
+|---|---|
+| `docs/lvgl-default` | `f2c59588` |
+| `fix/ci-librerie-di-sistema` | `071861a0` |
+| `fix/ci-sbom` | `bf46d06e` |
+| `fix/riepilogo-senza-root` | `a98abac7` |
+| `fix/ci-toolchain` | `8d16718f` |
+| `fix/etichetta-os-doppia` | `2ec42344` |
+| `feat/Q48-installa-dalla-welcome` | `21664404` |
+| `feat/Q50-dispositivi-sul-server` | `28baefcd` |
+| `feat/Q51-Q52-installa-guidata` | `bfa0bd47` |
+| `feat/Q53-crossbuild-arm64` | `0079cf67` |
+| `feat/T-57-credenziali-sws-vs-ssh` | `c4084cfe` |
+
+⚠️ **Quei rami non andavano mergiati, solo cancellati**, ed è il motivo per cui li ho provati in un
+worktree isolato prima di decidere: sono più vecchi di `main`, e un merge «per sicurezza» avrebbe
+riportato indietro il codice. Misurato: `feat/Q50` avrebbe **tolto** `data_path` da `deviceProbe`,
+arrivato dopo con Q53. E tutti tengono ancora i piani al vecchio percorso `docs/plans/`: mergiarne
+uno avrebbe fatto ricomparire venti file accanto ai loro gemelli in `docs/archive/`.
+
+**Tenuti apposta tre rami:**
+
+- `backup/main-pre-riscrittura-2026-09-09` — l'unica copia della storia dei 15 commit usciti come
+  `pixsysedp`; su `origin` è stata force-pushata via. Ha un file che `main` non ha più
+  (`sws-web/src/deploy.rs`, rimosso da Q48).
+- `main-pre-merge-2026-09-11` (`afbbbc43`) — la punta di `main` prima del merge di oggi.
+- `feat/utenti-nel-progetto` — i 13 commit originali della giornata, prima che fossero ricostruiti
+  in sei. Si può cancellare dopo il push.
+
 Il lavoro era cresciuto tutto su `feat/utenti-nel-progetto`, in sequenza. Invece di impacchettarlo
 in un `merge --squash` solo, è stato **ricostruito su `main` come sei commit distinti**, uno per
 lavoro, ognuno con l'albero esatto del punto corrispondente del ramo (verificato: i sei alberi
