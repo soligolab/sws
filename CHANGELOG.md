@@ -17,7 +17,9 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 `project.yaml` a mano, con una trappola: il runtime riscrive il file **dalla memoria** al primo
 salvataggio, quindi la modifica fatta a progetto aperto spariva senza dire niente.
 
-- Selettore in **Configurazione → Progetto**, con `PUT /api/project/target`. Passando dalla rotta
+- Selettore nel **pannello destro, sezione «IMPOSTAZIONI PROGETTO»** — dove vivono già le
+  impostazioni di pagina, che sono l'altra cosa di livello progetto — con
+  `PUT /api/project/target`. Passando dalla rotta
   il progetto in memoria si aggiorna e `display-target` si riscrive subito: la conversione arriva
   al pannello al deploy successivo, invece di restare senza effetto fino a una modifica qualsiasi.
 - **«Web» si scrive come assenza del campo**, non come `{kind: "web"}`: è la stessa cosa per chi

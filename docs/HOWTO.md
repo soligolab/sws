@@ -995,12 +995,19 @@ rifiutare, apposta.
 
 ## 14. Convertire un progetto da LVGL a Web (o viceversa)
 
-**Risposta corta: oggi non c'è un pulsante.** Il tipo di destinazione si sceglie **alla
-creazione** del progetto, nella WelcomeScreen (`POST /api/projects` porta il campo `target`), e
-nessuna rotta lo cambia dopo: fra le `PUT /api/project/*` non ce n'è una per `target`. Si cambia
-a mano nel file.
+**Dall'editor**, con il progetto aperto: deseleziona tutto (un clic sullo sfondo del canvas), e
+nel pannello destro, in fondo, sezione **«IMPOSTAZIONI PROGETTO» → «Motore di rendering»**.
 
-### Come si fa
+Sta lì e non in Configurazione perché è lì che vivono già le altre impostazioni di livello
+progetto — modalità pagina, home page — e tenerne due case è il modo di farle divergere.
+
+Passando da qui **la trappola del percorso manuale non esiste**: il progetto in memoria si
+aggiorna, `display-target` si riscrive subito, e convertendo **verso** LVGL compare l'avviso su
+cosa può sparire. *(Fino all'11-09-2026 il pulsante non c'era: T-58.)*
+
+### A mano, a progetto chiuso
+
+Serve ancora quando il progetto non è aperto nell'editor, o da riga di comando.
 
 1. **Chiudi il progetto nell'editor** (o ferma il runtime che lo tiene aperto). Non è pignoleria:
    il runtime carica `project.yaml` all'apertura e lo riscrive **dalla memoria** al primo
@@ -1033,7 +1040,7 @@ palette dell'editor li distingue — in un progetto LVGL i tipi supportati porta
 «L» — ma un progetto già disegnato per il web non viene ricontrollato quando cambi `target`. Dopo
 la conversione conviene aprire ogni pagina e guardarla sul pannello, non solo nel browser.
 
-*(Se un giorno questo diventa un'operazione frequente, il posto giusto per un pulsante è
-Configurazione → Progetto, con l'avviso sulla direzione rischiosa. Oggi non c'è.)*
+*Traccia: **T-59** — l'avviso sulla conversione verso LVGL è oggi generico; il referto di
+compatibilità lo sostituirà con l'elenco vero degli oggetti che quel pannello non disegna.*
 
 *Traccia: **T-58 (il pulsante) e T-59 (il referto che sostituisce «apri ogni pagina e guardala sul pannello»)**.*

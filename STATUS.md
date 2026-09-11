@@ -147,7 +147,7 @@ credenziali o scelte umane — o sono già diventati funzioni.
 
 | # | Traccia | Costa oggi | Dove guardare |
 |---|---|---|---|
-| **T-58** | ✅ **FATTO** l'11-09-2026 — il target si cambia da Configurazione → Progetto |
+| **T-58** | ✅ **FATTO** l'11-09-2026 — il target si cambia dal pannello destro, sezione «IMPOSTAZIONI PROGETTO» |
 | **T-59** | Referto di compatibilità LVGL, chiesto al motore | «apri ogni pagina e guardala sul pannello» | `istantanea.rs:429` (`note_utili`), `main.rs:311-330` del viewer |
 | **T-60** | Una fonte di verità sola su cosa il pannello disegna | quattro copie tenute insieme da quattro guardie | `lvgl_render.rs:68`, `LeftPanel.tsx:612`, `check_lvgl_types.sh` |
 | **T-61** | L'archivio di release dice da quale ramo viene | due `mv` rituali a ogni prova su ramo | HOWTO §10; il nome dipende da `version`, non dal ramo |
@@ -161,9 +161,12 @@ credenziali o scelte umane — o sono già diventati funzioni.
 **Le tre della conversione, in dettaglio, perché sono legate.**
 
 **T-58** è la più piccola e sblocca le altre. `PUT /api/project/target` accanto a
-`/api/project/page-layout`, stesso genere di campo, più un selettore in Configurazione → Progetto —
-oggi `target.kind` è letto in **un punto solo** dell'editor (`LeftPanel.tsx:668`) e `ConfigView` non
-lo mostra affatto. Passando dalla rotta **sparisce la trappola**: il progetto in memoria si aggiorna
+`/api/project/page-layout`, stesso genere di campo, più un selettore nel **pannello destro**, sezione
+«IMPOSTAZIONI PROGETTO», accanto alle impostazioni di pagina: è lì che vivono già le cose di livello
+progetto, e tenerne due case sarebbe il modo di farle divergere. ⚠️ Il piano diceva «Configurazione →
+Progetto», ma **quella voce non esiste**: `ConfigView` ha sedici schede e nessuna è «Progetto».
+Prima `target.kind` era letto in **un punto solo** dell'editor (`LeftPanel.tsx:668`) e non si vedeva
+da nessuna parte. Passando dalla rotta **sparisce la trappola**: il progetto in memoria si aggiorna
 e `display_target::publish` riscrive `display-target` da sé.
 
 **T-59** è il referto **chiesto al motore vero** (decisione del maintainer). Attenzione a una cosa
