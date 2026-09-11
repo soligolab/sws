@@ -7,7 +7,7 @@ import { buildTagUsage, type TagUse } from "@/search/tagUsage";
 import { SvgCanvas } from "@/canvas/SvgCanvas";
 import { findBrokenNavLinks, findOrphanPageIds } from "@/pageLayout";
 import { resolvePageBackground } from "@/theme";
-import { IntestazioneSezione, PREFISSO_MEMORIA, SPAZIO, TESTO, useSezioneAperta } from "./stilePannelli";
+import { BarraIcone, IntestazioneSezione, PREFISSO_MEMORIA, TitoloVista, useSezioneAperta } from "./stilePannelli";
 import type { ObjectGroup, ProjectInfo, SynopticObject, SynopticPage } from "@/types";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
@@ -76,27 +76,6 @@ function useCorpo(tetto = 220): React.CSSProperties {
   return vista
     ? { overflowY: "auto", padding: "4px 0", flex: 1, minHeight: 0 }
     : { overflowY: "auto", padding: "4px 0", maxHeight: tetto };
-}
-
-/** L'intestazione di una vista: stessa scala dell'intestazione di sezione, ma
- *  senza freccia e senza click — non c'è niente da aprire, la vista è già
- *  aperta, e sceglierne un'altra si fa dalla barra delle icone. */
-function TitoloVista({ titolo, azione }: { titolo: string; azione?: React.ReactNode }) {
-  return (
-    <div style={{
-      display: "flex", alignItems: "center", gap: SPAZIO.s, flexShrink: 0,
-      padding: `${SPAZIO.s}px ${SPAZIO.m}px`,
-      fontSize: TESTO.titoloSezione, fontWeight: 700, letterSpacing: 0.5,
-      textTransform: "uppercase", color: "var(--brand-text-muted, #94a3b8)",
-      background: "var(--brand-bg, #0f172a)",
-      borderBottom: "1px solid var(--brand-surface-2, #334155)",
-    }}>
-      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-        {titolo}
-      </span>
-      {azione}
-    </div>
-  );
 }
 
 // ── Section accordion ─────────────────────────────────────────────────────────
@@ -1745,46 +1724,6 @@ type IdVista = (typeof VISTE)[number]["id"];
  *  tutte insieme, ed è lo stesso piano a chiederlo fra i rischi. */
 const CHIAVE_VISTA = PREFISSO_MEMORIA + "sinistra.vista";
 
-/** La colonna di icone: sempre visibile, fuori dal ridimensionamento. */
-function BarraViste({ attiva, onScegli }: { attiva: IdVista; onScegli: (v: IdVista) => void }) {
-  const { t } = useTranslation();
-  return (
-    <div
-      role="tablist"
-      aria-orientation="vertical"
-      style={{
-        width: 40, flexShrink: 0, display: "flex", flexDirection: "column",
-        alignItems: "center", gap: SPAZIO.xs, padding: `${SPAZIO.s}px 0`,
-        background: "var(--brand-bg, #0f172a)",
-        borderRight: "1px solid var(--brand-surface-2, #334155)",
-      }}
-    >
-      {VISTE.map((v) => {
-        const scelta = v.id === attiva;
-        return (
-          <button
-            key={v.id}
-            role="tab"
-            aria-selected={scelta}
-            title={t(v.chiave)}
-            onClick={() => onScegli(v.id)}
-            style={{
-              width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 15, lineHeight: 1, cursor: "pointer", borderRadius: 4,
-              background: scelta ? "var(--brand-surface-2, #334155)" : "transparent",
-              // Il bordo c'è sempre, trasparente quando non serve: senza, la
-              // scelta sposterebbe le icone di un pixel a ogni clic.
-              border: `1px solid ${scelta ? "var(--brand-border, #475569)" : "transparent"}`,
-              color: scelta ? "var(--brand-text, #e2e8f0)" : "var(--brand-text-subtle, #94a3b8)",
-            }}
-          >
-            <span aria-hidden="true">{v.icona}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 
 export function LeftPanel({ onAddObject, onFunctionsChanged }: LeftPanelProps) {
   const { t } = useTranslation();
@@ -1841,7 +1780,7 @@ export function LeftPanel({ onAddObject, onFunctionsChanged }: LeftPanelProps) {
     // La barra delle icone sta **fuori** dal pannello ridimensionabile: la sua
     // larghezza è fissa, e il trascinamento cambia solo lo spazio del contenuto.
     <div style={{ display: "flex", flexShrink: 0, position: "relative" }}>
-      <BarraViste attiva={vista} onScegli={scegliVista} />
+      <BarraIcone voci={VISTE} attiva={vista} onScegli={scegliVista} lato="sinistra" />
       <div style={{ ...S.panel, width: panelWidth }}>
         <ModoVista.Provider value={true}>
           {vista === "pagine"    && <PagesSection />}

@@ -11,6 +11,25 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Anche il pannello destro ha la barra delle viste (T-56)
+
+Il seguito del riordino: i due pannelli erano ordinati ma ancora diversi nella forma. Ora il destro
+è lo specchio del sinistro — barra di icone sul bordo, un gruppo di sezioni per volta a tutta
+altezza, intestazione ferma mentre scorre solo il contenuto.
+
+- Le tredici sezioni canoniche si raccolgono in **quattro gruppi**: 🧩 Oggetto, 📊 Dato,
+  ⚡ Comportamento, 👁 Resa. Su un `rect` erano undici sezioni in colonna: per arrivare a «Eventi»
+  si passava oltre le altre dieci.
+- La barra è **la stessa** dei due lati (`BarraIcone` in `stilePannelli.tsx`): un parametro decide
+  da che parte cade il bordo.
+- La barra non compare con la selezione multipla né quando di una griglia è selezionata una cella:
+  lì il pannello mostra un altro editor, e una barra che non governa niente è peggio di una
+  assente.
+- «Elimina oggetto» resta nel solo gruppo Oggetto: stava in fondo a una colonna lunga, quindi
+  lontano da tutto, e in gruppi da due o tre sezioni finirebbe subito sotto il pollice.
+- L'inventario dei campi dei 35 tipi ora gira tutti e quattro i gruppi, e il suo file di confronto
+  è rimasto **byte-identico**: ogni sezione è finita in un gruppo, e in uno solo.
+
 ### I due pannelli dell'editor si leggono, e si assomigliano (T-56, T-55)
 
 Richiesta del maintainer: «non è molto chiara la divisione pagine/oggetti… si fondono un po' tutte

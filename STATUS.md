@@ -76,6 +76,36 @@
 
 ## ▶ Da fare nella prossima sessione
 
+### 🎨 Il pannello destro prende la forma di quello sinistro — ramo `feat/T-56-pannello-destro`
+
+Seguito di T-56, chiesto dal maintainer dopo la prova rapida: «completerei l'IDE con il menù a
+destra nello stile di quello sinistro». Le tredici sezioni canoniche si raccolgono in quattro
+gruppi (🧩 Oggetto, 📊 Dato, ⚡ Comportamento, 👁 Resa) e se ne vede uno per volta, con la stessa
+barra di icone del pannello sinistro — `BarraIcone` è ora un componente solo in `stilePannelli`,
+`lato` decide da che parte cade il bordo.
+
+Scelte prese in corsa, tutte scritte nel codice: «Elimina oggetto» resta nel solo gruppo Oggetto
+(in gruppi corti finirebbe sotto il pollice in tutti e quattro); la barra non compare con la
+selezione multipla né su una cella di griglia, e quella decisione è una funzione pura
+(`barraGruppiVisibile`) perché le condizioni sulla griglia vivono in due punti; le sezioni fuori
+gruppo rendono `null` invece di nascondersi col CSS.
+
+**Il criterio di accettazione è stato rispettato**: il test d'inventario ora gira i quattro gruppi
+e `tests/fixtures/campiPannelloProprieta.json` è rimasto **byte-identico** — ogni sezione è finita
+in un gruppo, e in uno solo. Provato rosso assegnando una sezione a un gruppo inesistente.
+Gate: tsc, eslint, 286 vitest, `pnpm build`, 17/17 guardie statiche. **Non mergiato, non pushato.**
+
+**Da provare a mano**: le quattro icone e la scelta che sopravvive al ricaricamento; su
+`rect`/`text`/`trend`/`symbol`/`grid` girando i gruppi si ritrovano tutte le sezioni di prima;
+selezione multipla, cella di griglia e nessuna selezione senza barra; tema chiaro e scuro;
+larghezza ancora regolabile; pagina bloccata che disabilita ancora tutto.
+
+⚠️ **Una guardia statica è fallita una volta sola e non si è più ripetuta**: `check_static.sh` ha
+dato `check_demo_templates` come «non classificata» pur essendo in `STATICHE`, subito dopo un
+`pnpm build`; tre esecuzioni successive sono verdi. Non l'ho inseguita perché non l'ho riprodotta —
+se ricapita, vale la pena guardarci.
+
+
 ### ✅ La giornata dell'11-09 è su `main`, in sei commit (2026-09-11)
 
 **Pulizia dei rami, stesso giorno.** Cancellati gli undici rami il cui contenuto era già in `main`,

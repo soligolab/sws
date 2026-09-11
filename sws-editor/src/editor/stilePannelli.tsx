@@ -22,6 +22,7 @@
  *  loro. Qui ci sono solo misure, e i componenti che le applicano.
  */
 import React, { useCallback, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 /** Spaziature. Quattro valori, non un continuo: la scala serve a togliere le
  *  decisioni, non a spostarle da `padding: 5px` a `SPAZIO.cinque`. */
@@ -201,17 +202,128 @@ export function IntestazioneSezione({
   );
 }
 
+/** L'intestazione di una **vista**: stessa scala dell'intestazione di sezione,
+ *  ma senza freccia e senza click — non c'è niente da aprire, la vista è già
+ *  aperta, e sceglierne un'altra si fa dalla barra delle icone.
+ *
+ *  Resta ferma mentre scorre solo il contenuto sotto: è il pezzo che dà ai due
+ *  pannelli la stessa forma. */
+export function TitoloVista({ titolo, azione }: { titolo: string; azione?: React.ReactNode }) {
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: SPAZIO.s, flexShrink: 0,
+      padding: `${SPAZIO.s}px ${SPAZIO.m}px`,
+      fontSize: TESTO.titoloSezione, fontWeight: 700, letterSpacing: 0.5,
+      textTransform: "uppercase", color: "var(--brand-text-muted, #94a3b8)",
+      background: "var(--brand-bg, #0f172a)",
+      borderBottom: "1px solid var(--brand-surface-2, #334155)",
+    }}>
+      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {titolo}
+      </span>
+      {azione}
+    </div>
+  );
+}
+
+/** Una voce della barra delle icone. `chiave` è una chiave i18n, non un testo:
+ *  la barra la risolve da sé, così i chiamanti non devono passarsi `t`. */
+export interface VoceBarra {
+  readonly id: string;
+  readonly icona: string;
+  readonly chiave: string;
+}
+
+/** La colonna di icone che sceglie la vista: sempre visibile, **fuori** dalla
+ *  zona che si ridimensiona e da quella che scorre.
+ *
+ *  Una sola, per tutti e due i pannelli: `lato` decide soltanto da che parte
+ *  cade il bordo. Nata a sinistra l'11-09-2026 (T-56 passo 2) ed estratta qui
+ *  il giorno stesso, quando il pannello destro ha preso la stessa forma. */
+export function BarraIcone<T extends string>({
+  voci, attiva, onScegli, lato,
+}: {
+  voci: readonly VoceBarra[];
+  attiva: T;
+  onScegli: (v: T) => void;
+  lato: "sinistra" | "destra";
+}) {
+  const { t } = useTranslation();
+  return (
+    <div
+      role="tablist"
+      aria-orientation="vertical"
+      style={{
+        width: 40, flexShrink: 0, display: "flex", flexDirection: "column",
+        alignItems: "center", gap: SPAZIO.xs, padding: `${SPAZIO.s}px 0`,
+        background: "var(--brand-bg, #0f172a)",
+        [lato === "sinistra" ? "borderRight" : "borderLeft"]:
+          "1px solid var(--brand-surface-2, #334155)",
+      }}
+    >
+      {voci.map((v) => {
+        const scelta = v.id === attiva;
+        return (
+          <button
+            key={v.id}
+            role="tab"
+            aria-selected={scelta}
+            title={t(v.chiave)}
+            onClick={() => onScegli(v.id as T)}
+            style={{
+              width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 15, lineHeight: 1, cursor: "pointer", borderRadius: 4,
+              background: scelta ? "var(--brand-surface-2, #334155)" : "transparent",
+              // Il bordo c'è sempre, trasparente quando non serve: senza, la
+              // scelta sposterebbe le icone di un pixel a ogni clic.
+              border: `1px solid ${scelta ? "var(--brand-border, #475569)" : "transparent"}`,
+              color: scelta ? "var(--brand-text, #e2e8f0)" : "var(--brand-text-subtle, #94a3b8)",
+            }}
+          >
+            <span aria-hidden="true">{v.icona}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /** Una riga del pannello proprietà: etichetta sopra, controllo sotto.
  *
  *  Oggi ogni `field()` locale la ridefinisce, e sono tre: due in `EditorShell`
  *  e una implicita nei blocchi scritti a mano. La `key` resta l'etichetta, come
  *  nei `field()` che sostituisce: sono righe di una lista statica per tipo. */
-export function RigaProprieta({ etichetta, children }: { etichetta: string; children: React.ReactNode }) {
+export function RigaProprieta({
+  etichetta, inLinea = false, larghezzaEtichetta = 38, children,
+}: {
+  etichetta: string;
+  /** Etichetta **a fianco** del controllo invece che sopra: recupera una riga
+   *  per campo. Si usa dove i campi sono corti e l'etichetta è una parola o una
+   *  lettera (nome, X, Y, W, H); sopra i campi lunghi resta il default, perché
+   *  a pannello stretto l'etichetta a fianco mangerebbe larghezza al controllo. */
+  inLinea?: boolean;
+  /** Larghezza fissa della colonna dell'etichetta quando è in linea: senza,
+   *  «Nome» e «X» allineerebbero i controlli in due punti diversi. */
+  larghezzaEtichetta?: number;
+  children: React.ReactNode;
+}) {
+  const stileEtichetta: React.CSSProperties = {
+    fontSize: TESTO.etichetta,
+    color: "var(--brand-text-muted, #94a3b8)",
+  };
+  if (inLinea) {
+    // `<label>`: il click sul testo porta il fuoco nel campo, che con
+    // etichette di una lettera è l'unico bersaglio comodo che resti.
+    return (
+      <label style={{ display: "flex", alignItems: "center", gap: SPAZIO.s, marginBottom: 2 }}>
+        <div style={{ ...stileEtichetta, flex: `0 0 ${larghezzaEtichetta}px` }}>{etichetta}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>{children}</div>
+      </label>
+    );
+  }
   return (
     <div>
-      <div style={{ fontSize: TESTO.etichetta, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 2 }}>
-        {etichetta}
-      </div>
+      <div style={{ ...stileEtichetta, marginBottom: 2 }}>{etichetta}</div>
       {children}
     </div>
   );

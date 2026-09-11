@@ -267,7 +267,8 @@
     "historyInitial": "Initial state",
     "historyCurrent": "You are here",
     "sectionTags": "TAGS",
-    "dragToResize": "Drag to resize"
+    "dragToResize": "Drag to resize",
+    "loadingPythonEditor": "Loading Python editor…"
   },
   "canvas": {
     "empty": "No objects on this page.",
@@ -906,7 +907,13 @@
     "dateTimeFormat": "Date/time format",
     "gridSection": "Grid",
     "cellEvents": "Cell events",
-    "childObject": "Child object"
+    "childObject": "Child object",
+    "gruppoOggetto": "Object",
+    "gruppoDato": "Data",
+    "gruppoComportamento": "Behaviour",
+    "gruppoResa": "Rendering",
+    "deleteObject": "Delete object",
+    "sectionIdentityGeometry": "Identity & position"
   },
   "shortcut": {
     "navCanvas": "Canvas navigation",

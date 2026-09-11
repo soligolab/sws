@@ -267,7 +267,8 @@
     "historyInitial": "Stato iniziale",
     "historyCurrent": "Qui sei ora",
     "sectionTags": "TAG",
-    "dragToResize": "Trascina per ridimensionare"
+    "dragToResize": "Trascina per ridimensionare",
+    "loadingPythonEditor": "Caricamento editor Python…"
   },
   "canvas": {
     "empty": "Nessun oggetto in questa pagina.",
@@ -906,7 +907,13 @@
     "dateTimeFormat": "Formato data/ora",
     "gridSection": "Griglia",
     "cellEvents": "Eventi cella",
-    "childObject": "Oggetto figlio"
+    "childObject": "Oggetto figlio",
+    "gruppoOggetto": "Oggetto",
+    "gruppoDato": "Dato",
+    "gruppoComportamento": "Comportamento",
+    "gruppoResa": "Resa",
+    "deleteObject": "Elimina oggetto",
+    "sectionIdentityGeometry": "Identità e posizione"
   },
   "shortcut": {
     "navCanvas": "Navigazione canvas",
