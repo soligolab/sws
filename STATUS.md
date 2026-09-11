@@ -76,14 +76,34 @@
 
 ## ▶ Da fare nella prossima sessione
 
-### 🎨 T-56 e T-55 realizzati — tutto impilato su un ramo solo (2026-09-11)
+### ✅ La giornata dell'11-09 è su `main`, in sei commit (2026-09-11)
 
-⚠️ **Da sapere prima di mergiare.** La giornata dell'11-09 è finita tutta su
-`feat/utenti-nel-progetto`, in sequenza: utenti nel progetto (4 commit) → archiviazione dei piani →
-`alarm_banner` → via di fuga STOP → T-56 passo 1 → T-55 → T-56 passi 2 e 3. Sono cinque lavori
-distinti su un ramo solo, quindi un `merge --squash` li impacchetta insieme. Se servono separati,
-vanno spacchettati prima del merge — i commit sono lineari e toccano file quasi disgiunti, tranne
-`STATUS.md` e `CHANGELOG.md` che li attraversano tutti.
+Il lavoro era cresciuto tutto su `feat/utenti-nel-progetto`, in sequenza. Invece di impacchettarlo
+in un `merge --squash` solo, è stato **ricostruito su `main` come sei commit distinti**, uno per
+lavoro, ognuno con l'albero esatto del punto corrispondente del ramo (verificato: i sei alberi
+coincidono con quelli del ramo, e la punta di `main` coincide con la punta del ramo — nessun file
+perso o aggiunto):
+
+| Commit | Lavoro |
+|---|---|
+| `fdc7d63f` | T-57 — il pannello appena installato rifiutava la connessione |
+| `64c1b0db` | gli utenti appartengono al progetto |
+| `80fc4e3d` | i 19 piani conclusi escono da `docs/plans/` |
+| `8ff30255` | `alarm_banner` divergeva fra browser e pannello (chiude l'audit 2026-08-06) |
+| `0367ddfe` | la via di fuga STOP ha una guardia |
+| `bd26c74f` | T-56 + T-55 — i due pannelli dell'editor |
+
+Gate su `main` dopo il merge: `cargo fmt/clippy -D warnings`, 26 suite Rust verdi, 275 vitest,
+tsc, eslint, `pnpm build`, 17/17 guardie statiche.
+
+**`main` non è stato pushato**: `origin/main` è sei commit indietro. La rete di sicurezza è il ramo
+`main-pre-merge-2026-09-11`, che punta alla vecchia punta `afbbbc43`.
+
+**Resta da collaudare a mano** (il maintainer ha fatto solo una prova rapida dell'editor): il
+deploy con e senza la casella utenti, la conferma 428 che non deve ripartire in ciclo, le sei viste
+del pannello sinistro, le sezioni canoniche su `rect`/`text`/`trend`/`symbol`/`grid`, e sul
+pannello un allarme rientrato **non** confermato, che deve restare nella barra LVGL.
+
 
 ### 🛟 La via di fuga STOP ora ha una guardia (2026-09-11)
 
@@ -142,7 +162,7 @@ continua a seguirli. La regola «i file di `docs/plans/` non si spostano», scri
 proprio per via di quei riferimenti, è decaduta con l'instruzione del maintainer; CLAUDE.md ora
 dice di archiviare un piano quando finisce.
 
-Restano vivi cinque piani: `2026-08-21-scada-widgets` (F5.3x), `2026-08-31-chat-ai-nelleditor`
+Restano vivi quattro piani: `2026-08-21-scada-widgets` (F5.3x), `2026-08-31-chat-ai-nelleditor`
 (passi 3-6 e chat staccata), `2026-09-03-via-di-fuga-stop-pixsys` (vincoli, non lavoro),
 `2026-09-10-T56-pannelli-editor` (da fare) e `2026-09-11-utenti-nel-progetto` (realizzato, non
 ancora collaudato né mergiato).
@@ -154,10 +174,10 @@ cinque i campi. Riverificando l'audit per intero (vedi la voce sotto) sei sezion
 già chiuse, e il piano è ora archiviato.
 
 
-### 👥 Gli utenti appartengono al progetto: ramo `feat/utenti-nel-progetto` (2026-09-11)
+### 👥 Gli utenti appartengono al progetto — su `main` (2026-09-11)
 
-**Ramo impilato su `feat/T-57-credenziali-sws-vs-ssh`**, non su `main`: il log nuovo del deploy
-usa `senza_utenti()`, che T-57 ha riscritto. T-57 va mergiato per primo.
+Sviluppato su un ramo impilato su T-57, perché il log nuovo del deploy usa `senza_utenti()`, che
+T-57 ha riscritto; su `main` i due sono due commit in fila, `fdc7d63f` poi `64c1b0db`.
 
 Decisione del maintainer, che **rovescia** quella del 2026-07-30: *«gli utenti partono dal
 progetto e se ricarico il progetto sul pannello devo poterli sovrascrivere»*. Quella vecchia,
@@ -185,7 +205,7 @@ conferma) più il codice d'uscita, che prima mancava: lo script stampava e usciv
 Gate: 523 test Rust, 231 vitest, clippy `-D warnings`, fmt, tsc, eslint, build;
 `check_deploy_preserve.sh` 7/7 casi, `test_t34.sh` 21/21, `check_no_admin.sh` 31/31,
 `check_static.sh` 15/15, `check_password_browser.sh`, `check_documenti.sh`. Q54 aperta (un
-dispositivo che crea utenti propri). **Non mergiato, non pushato.**
+dispositivo che crea utenti propri). **Su `main` dall'11-09-2026** (`64c1b0db`), non pushato.
 
 **Da provare a mano** con i due runtime locali: casella accesa da un progetto con utenti → sul
 dispositivo si entra con le credenziali **del progetto**; casella spenta → valgono ancora le
@@ -217,7 +237,8 @@ righe di spiegazione speculari; `check_no_admin.sh` §2d **legge dal sorgente qu
 guasto con le parole giuste. Gate: 513 test Rust, 231 vitest, clippy, fmt, lint, build, guardie.
 
 Prova end-to-end contro il WP630 con le stesse credenziali del caso reale: `ok: true` più la
-nota «non ha utenti definiti: connesso senza autenticazione». **Non mergiato, non pushato.**
+nota «non ha utenti definiti: connesso senza autenticazione». **Su `main` dall'11-09-2026**
+(`fdc7d63f`), non pushato.
 
 **Da provare a mano**: dall'editor, «Connetti» al pannello appena installato scrivendo un utente
 qualsiasi → si collega e mostra la nota; poi il deploy. E guardare che le due coppie di campi
@@ -333,9 +354,8 @@ per ognuno dei 35 tipi verifica che l'insieme dei campi resi sia identico a prim
 si tocca: «una sezione per dato» (`CLAUDE.md`) — le sezioni si rinominano e si riordinano, un campo
 resta in un posto solo. Ramo: `feat/T-56-pannelli-editor`.
 
-**Realizzato l'11-09-2026, tutti e tre i passi** — non ancora collaudato dal maintainer né
-mergiato. Il ramo **non** è `feat/T-56-pannelli-editor`: il lavoro è impilato su
-`feat/utenti-nel-progetto` insieme a T-55 e al resto della giornata (vedi la voce di sessione).
+**Realizzato l'11-09-2026, tutti e tre i passi, e su `main`** (`bd26c74f`, insieme a T-55) —
+non ancora collaudato a fondo dal maintainer, che ha fatto solo una prova rapida.
 
 - **Passo 1** `src/editor/stilePannelli.tsx`: scala (spaziature 4/6/8/12; testo per rango 11 titolo,
   11 etichetta, 12 riga, 10 nota) più `IntestazioneSezione` e `RigaProprieta`, adottati da entrambi
