@@ -11,6 +11,27 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Il motore di rendering di un progetto si cambia dall'IDE (T-58)
+
+`target.kind` si sceglieva solo alla creazione del progetto; cambiarlo voleva dire editare
+`project.yaml` a mano, con una trappola: il runtime riscrive il file **dalla memoria** al primo
+salvataggio, quindi la modifica fatta a progetto aperto spariva senza dire niente.
+
+- Selettore in **Configurazione → Progetto**, con `PUT /api/project/target`. Passando dalla rotta
+  il progetto in memoria si aggiorna e `display-target` si riscrive subito: la conversione arriva
+  al pannello al deploy successivo, invece di restare senza effetto fino a una modifica qualsiasi.
+- **«Web» si scrive come assenza del campo**, non come `{kind: "web"}`: è la stessa cosa per chi
+  legge, ed è come stanno tutti i progetti creati prima che il campo esistesse.
+- **Il verso rischioso si dichiara prima.** LVGL → web non perde niente, perché il browser disegna
+  più tipi del pannello; web → LVGL sì, e l'editor lo dice elencando cosa può sparire — simboli
+  personalizzati, immagini PNG/JPG, barre orizzontali, torte non ad anello, le azioni dei pulsanti.
+  Finché non c'è il referto di compatibilità (T-59) l'avviso è generico, ma è meglio che scoprirlo
+  aprendo le pagine una per una sul pannello.
+- `scripts/check_target_progetto.sh` prova la catena intera — rotta → `project.yaml` →
+  `display-target` — perché è lì che un cablaggio dimenticato non si vede: la rotta risponde 204, il
+  file cambia, e lo schermo del pannello resta quello di prima. Provata rossa togliendo la
+  riscrittura.
+
 ### Il deploy dalla scheda Dispositivi non è più un vicolo cieco (T-68)
 
 Un dispositivo registrato dal discovery nasce senza utente, e non c'era modo di aggiungerlo: il

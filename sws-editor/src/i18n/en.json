@@ -918,7 +918,13 @@
     "motionSplitHere": "Split here",
     "motionAppend": "Append",
     "motionCoordinates": "Coordinates",
-    "motionCoordinatesHint": "Open these to fix a point by typing the numbers: on the canvas you drag the crosses."
+    "motionCoordinatesHint": "Open these to fix a point by typing the numbers: on the canvas you drag the crosses.",
+    "targetKind": "Rendering engine",
+    "targetWeb": "Web (browser)",
+    "targetLvglFramebuffer": "LVGL — framebuffer/DRM",
+    "targetLvglWayland": "LVGL — Wayland (Pixsys panels)",
+    "targetHint": "Decides what the panel puts on screen at the next deploy: the browser or the LVGL viewer. A project with no declared engine is web.",
+    "targetRiskyConfirm": "SWITCHING TO LVGL\\n\\nThe LVGL engine draws fewer things than the browser: some objects in this project may not appear on the panel — custom symbols, PNG/JPG images, horizontal bars, non-donut pies, and the «Open URL / Login / Logout» button actions.\\n\\nThe other way round (LVGL → web) never loses anything.\\n\\nProceed?"
   },
   "shortcut": {
     "navCanvas": "Canvas navigation",

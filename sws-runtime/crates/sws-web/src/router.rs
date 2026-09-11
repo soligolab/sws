@@ -308,6 +308,13 @@ pub fn build(
             put(update_project_notifications),
         )
         .route("/api/project/page-layout", put(update_project_page_layout))
+        // T-58 — il motore di rendering del progetto. Fino all'11-09-2026 si
+        // sceglieva solo alla creazione e poi si cambiava editando
+        // `project.yaml` a mano, con una trappola: il runtime riscrive il file
+        // **dalla memoria** al primo salvataggio, quindi la modifica fatta a
+        // progetto aperto spariva. Passando di qui il progetto in memoria si
+        // aggiorna, e `display_target::publish` riscrive `display-target` da sé.
+        .route("/api/project/target", put(update_project_target))
         .route(
             "/api/project/backup-config",
             put(update_project_backup_config),
@@ -6800,6 +6807,75 @@ async fn update_project_page_layout(
             Some(user.username),
             serde_json::json!({"what": "page_layout"}),
         );
+    }
+    res
+}
+
+/// Il motore di rendering del progetto. `None` significa **togliere** il
+/// campo, cioè tornare al default: un progetto senza `target` è web, come
+/// tutti quelli creati prima che il campo esistesse (`wanted_engine`).
+#[derive(serde::Deserialize, Clone)]
+#[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
+struct ProjectTargetBody {
+    kind: sws_core::project::ProjectTargetKind,
+    /// Significativo solo per `lvgl_framebuffer`; ignorato altrimenti.
+    #[serde(default)]
+    framebuffer_device: Option<String>,
+}
+
+impl From<ProjectTargetBody> for sws_core::project::ProjectTarget {
+    fn from(b: ProjectTargetBody) -> Self {
+        sws_core::project::ProjectTarget {
+            kind: b.kind,
+            framebuffer_device: b.framebuffer_device,
+        }
+    }
+}
+
+/// `PUT /api/project/target` — cambia il motore di rendering del progetto
+/// attivo. Corpo `null` = torna al default (web), togliendo il campo.
+///
+/// **Non è un campo decorativo**: all'apertura e a ogni salvataggio il runtime
+/// scrive `web` o `lvgl` nel file `display-target`, e sul pannello
+/// `sws-display-apply.sh` commuta lo schermo fra browser e viewer LVGL. Quindi
+/// convertire un progetto cambia che cosa si vede sul pannello al deploy
+/// successivo.
+///
+/// **Il verso rischioso è uno solo.** LVGL → web non perde niente: il browser
+/// disegna più tipi di quanti ne disegni il pannello. web → LVGL sì, e finché
+/// non c'è il referto di compatibilità (T-59) la rotta non può dirlo — lo dice
+/// l'editor, che avvisa prima di chiamarla.
+async fn update_project_target(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    headers: axum::http::HeaderMap,
+    Json(body): Json<Option<ProjectTargetBody>>,
+) -> Response {
+    let target: Option<sws_core::project::ProjectTarget> = body.map(Into::into);
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
+    let kind = target.as_ref().map(|t| t.kind);
+    let target_clone = target.clone();
+    let res = patch_project_se(
+        &s.project_write_lock,
+        &dir,
+        versione_attesa(&headers),
+        |p| p.target = target_clone,
+    )
+    .await;
+    if res.status() == StatusCode::NO_CONTENT {
+        s.audit.log(
+            "project.change",
+            Some(user.username),
+            serde_json::json!({"what": "target", "kind": kind.map(|k| format!("{k:?}"))}),
+        );
+        // Il file che fa commutare lo schermo del pannello: si riscrive subito,
+        // non al prossimo salvataggio, altrimenti la conversione resterebbe
+        // senza effetto fino a una modifica qualsiasi.
+        let config_dir = s.config_dir.clone();
+        crate::display_target::publish(&config_dir, &dir).await;
     }
     res
 }

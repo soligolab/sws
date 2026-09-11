@@ -88,7 +88,7 @@ credenziali o scelte umane — o sono già diventati funzioni.
 
 | # | Traccia | Costa oggi | Dove guardare |
 |---|---|---|---|
-| **T-58** | Il target del progetto si cambia dall'IDE | 3 passi su `project.yaml` + la trappola del salvataggio che rimette il valore di prima | `router.rs:310` (`page-layout` è il gemello), `display_target.rs:71` |
+| **T-58** | ✅ **FATTO** l'11-09-2026 — il target si cambia da Configurazione → Progetto |
 | **T-59** | Referto di compatibilità LVGL, chiesto al motore | «apri ogni pagina e guardala sul pannello» | `istantanea.rs:429` (`note_utili`), `main.rs:311-330` del viewer |
 | **T-60** | Una fonte di verità sola su cosa il pannello disegna | quattro copie tenute insieme da quattro guardie | `lvgl_render.rs:68`, `LeftPanel.tsx:612`, `check_lvgl_types.sh` |
 | **T-61** | L'archivio di release dice da quale ramo viene | due `mv` rituali a ogni prova su ramo | HOWTO §10; il nome dipende da `version`, non dal ramo |

@@ -918,7 +918,13 @@
     "motionSplitHere": "Dividi qui",
     "motionAppend": "Aggiungi in coda",
     "motionCoordinates": "Coordinate",
-    "motionCoordinatesHint": "Si aprono per correggere un punto digitando le cifre: sul canvas si trascinano i crocini."
+    "motionCoordinatesHint": "Si aprono per correggere un punto digitando le cifre: sul canvas si trascinano i crocini.",
+    "targetKind": "Motore di rendering",
+    "targetWeb": "Web (browser)",
+    "targetLvglFramebuffer": "LVGL — framebuffer/DRM",
+    "targetLvglWayland": "LVGL — Wayland (pannelli Pixsys)",
+    "targetHint": "Decide che cosa il pannello manda a schermo al prossimo deploy: il browser o il viewer LVGL. Un progetto senza motore dichiarato è web.",
+    "targetRiskyConfirm": "PASSARE A LVGL\\n\\nIl motore LVGL disegna meno cose del browser: alcuni oggetti di questo progetto potrebbero non comparire sul pannello — simboli personalizzati, immagini PNG/JPG, barre orizzontali, torte non ad anello, e le azioni «Naviga a URL / Login / Logout» dei pulsanti.\\n\\nIl verso contrario (LVGL → web) non perde mai niente.\\n\\nProcedere?"
   },
   "shortcut": {
     "navCanvas": "Navigazione canvas",

@@ -29,6 +29,7 @@ import type {
   OpcUaHistoryRequest,
   ProjectInfo,
   ProjectListEntry,
+  ProjectTargetKind,
   ProjectTarget,
   Sample,
   SourceDef,
@@ -385,7 +386,7 @@ const PATH_VERSIONATI = [
   "/api/project/tags", "/api/project/languages", "/api/project/sources",
   "/api/project/alarms", "/api/project/functions", "/api/project/custom-symbols",
   "/api/project/datastores", "/api/project/global-scripts",
-  "/api/project/notifications", "/api/project/page-layout",
+  "/api/project/notifications", "/api/project/page-layout", "/api/project/target",
   "/api/project/backup-config", "/api/project/tags/import-csv",
 ];
 
@@ -1283,6 +1284,20 @@ export const api = {
       method: "PUT",
       headers: { "Content-Type": "application/json", ...seVersionato("/api/project/notifications") },
       body: JSON.stringify(config),
+    }),
+
+  /** PUT /api/project/target — il motore di rendering del progetto (T-58).
+   *  `null` toglie il campo, cioè torna al default: un progetto senza `target`
+   *  è web, come tutti quelli creati prima che il campo esistesse.
+   *
+   *  Non è decorativo: il runtime scrive `web`/`lvgl` in `display-target`, e
+   *  sul pannello `sws-display-apply.sh` commuta lo schermo fra browser e
+   *  viewer LVGL al deploy successivo. */
+  updateProjectTarget: (target: { kind: ProjectTargetKind; framebuffer_device?: string } | null) =>
+    request<void>("/api/project/target", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...seVersionato("/api/project/target") },
+      body: JSON.stringify(target),
     }),
 
   updatePageLayout: (config: PageLayoutConfig | null) =>

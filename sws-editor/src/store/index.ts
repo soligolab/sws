@@ -19,6 +19,7 @@ import type {
   NotificationConfig,
   ObjectGroup,
   PageLayoutConfig,
+  ProjectTarget,
   ProjectInfo,
   SourceDef,
   SubCellEntry,
@@ -358,6 +359,9 @@ interface AppState {
   updateProjectAlarms: (alarms: AlarmDef[]) => void;
   updateProjectNotifications: (notifications: NotificationConfig | null) => void;
   updateProjectPageLayout: (pageLayout: PageLayoutConfig | null) => void;
+  /** T-58 — il motore di rendering del progetto, cambiato dall'IDE. `null`
+   *  toglie il campo: un progetto senza `target` è web. */
+  updateProjectTarget: (target: ProjectTarget | null) => void;
   updateProjectFunctions: (functions: FunctionDef[]) => void;
   updateProjectCustomSymbols: (symbols: CustomSymbol[]) => void;
   setFaceplates: (faceplates: FaceplateDef[]) => void;
@@ -751,6 +755,9 @@ export const useAppStore = create<AppState>((set, get) => {
 
     updateProjectPageLayout: (pageLayout) =>
       set((s) => ({ project: s.project ? { ...s.project, page_layout: pageLayout ?? undefined } : s.project })),
+
+    updateProjectTarget: (target) =>
+      set((s) => ({ project: s.project ? { ...s.project, target: target ?? undefined } : s.project })),
 
     updateProjectFunctions: (functions) =>
       set((s) => ({ project: s.project ? { ...s.project, functions } : s.project })),

@@ -30,9 +30,10 @@ import type { SymbolMeta } from "@/symbols/library";
 import { useAppStore } from "@/store";
 import { BarraIcone, IntestazioneSezione, PREFISSO_MEMORIA, RigaProprieta, SPAZIO, TESTO, TitoloVista, migraMemorieVecchie, useSezioneAperta } from "./stilePannelli";
 import { cosaCancella, eliminaWaypoint, percorsoDaSalvare, puntiMovimento } from "@/canvas/percorsoMovimento";
+import { targetDaSalvare, versoRischioso } from "./targetProgetto";
 import { localizeObjects } from "@/i18n/projectI18n";
 import type { AlignMode } from "@/store";
-import type { AlarmSeverity, ButtonAction, FunctionDef, GridCell, PageLayoutConfig, PageSizeMode, RadioOption, SubCellEntry, SubGrid, SynopticObject, TableRow, TextListEntry, TrendTrace } from "@/types";
+import type { AlarmSeverity, ButtonAction, FunctionDef, GridCell, PageLayoutConfig, PageSizeMode, ProjectTargetKind, RadioOption, SubCellEntry, SubGrid, SynopticObject, TableRow, TextListEntry, TrendTrace } from "@/types";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -1064,6 +1065,7 @@ export function EditorShell() {
             <span style={{ fontSize: 11, fontWeight: 700, color: "var(--brand-text-subtle, #64748b)", letterSpacing: 1, marginTop: 8, display: "block" }}>
               IMPOSTAZIONI PROGETTO
             </span>
+            <ProjectTargetSettings />
             <ProjectPageLayoutSettings />
           </>
         )}
@@ -1815,6 +1817,62 @@ function useMaterializzaRatio() {
       if (!p.width || !p.height) updatePageProps(p.id, { width: ref.width, height: ref.height });
     }
   }, [project?.page_layout, pages, updatePageProps]);
+}
+
+/** Il motore di rendering del progetto (T-58).
+ *
+ *  Si sceglieva solo alla creazione, e cambiarlo voleva dire editare
+ *  `project.yaml` a mano — con una trappola: il runtime riscrive il file
+ *  **dalla memoria** al primo salvataggio, quindi la modifica fatta a progetto
+ *  aperto spariva senza dire niente. Passando dalla rotta il progetto in
+ *  memoria si aggiorna e `display-target` si riscrive da sé.
+ *
+ *  **Il verso rischioso è uno solo** e va detto prima, non dopo: LVGL → web non
+ *  perde niente, perché il browser disegna più tipi di quanti ne disegni il
+ *  pannello; web → LVGL sì. Finché non c'è il referto di compatibilità (T-59)
+ *  qui si può solo avvisare — e si avvisa, invece di lasciar scoprire la cosa
+ *  aprendo le pagine una per una sul pannello. */
+function ProjectTargetSettings() {
+  const { t } = useTranslation();
+  const project = useAppStore((s) => s.project);
+  const updateProjectTarget = useAppStore((s) => s.updateProjectTarget);
+  const attuale: ProjectTargetKind = project?.target?.kind ?? "web";
+  const [salvando, setSalvando] = useState(false);
+  const [errore, setErrore] = useState<string | null>(null);
+
+  const cambia = async (nuovo: ProjectTargetKind) => {
+    if (nuovo === attuale) return;
+    if (versoRischioso(attuale, nuovo) && !window.confirm(t("props.targetRiskyConfirm"))) return;
+    setSalvando(true); setErrore(null);
+    const target = targetDaSalvare(nuovo);
+    try {
+      await api.updateProjectTarget(target);
+      updateProjectTarget(target);
+    } catch (e: any) {
+      setErrore(String(e?.message ?? e));
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  return (
+    <div style={{ marginTop: 6 }}>
+      <RigaProprieta etichetta={t("props.targetKind")}>
+        <select style={{ ...INPUT, cursor: "pointer" }} value={attuale} disabled={salvando}
+          onChange={(e) => void cambia(e.target.value as ProjectTargetKind)}>
+          <option value="web">{t("props.targetWeb")}</option>
+          <option value="lvgl_framebuffer">{t("props.targetLvglFramebuffer")}</option>
+          <option value="lvgl_wayland">{t("props.targetLvglWayland")}</option>
+        </select>
+      </RigaProprieta>
+      <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "2px 0 0" }}>
+        {t("props.targetHint")}
+      </p>
+      {errore && (
+        <p style={{ fontSize: 10, color: "var(--brand-danger-soft, #f87171)", margin: "4px 0 0" }}>{errore}</p>
+      )}
+    </div>
+  );
 }
 
 function ProjectPageLayoutSettings() {
