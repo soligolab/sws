@@ -1252,7 +1252,9 @@
     "deployNoUsersUnknown": "list not readable from here",
     "connecting": "Connecting…",
     "connectOk": "Connected.",
-    "connectFailed": "Connection failed"
+    "connectFailed": "Connection failed",
+    "swsUserPlaceholder": "admin",
+    "deviceUserMissing": "This device has no registered user: if the panel wants one, the deploy cannot start."
   },
   "langtab": {
     "intro": "Translate the messages you write into objects. In text fields use {{key}}; here you define the translations for each language.",

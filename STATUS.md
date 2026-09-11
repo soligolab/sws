@@ -76,7 +76,7 @@
 
 ## ▶ Da fare nella prossima sessione
 
-### 🔑 T-68 — il Deploy dalla scheda Dispositivi non ha credenziali da usare (2026-09-11)
+### ✅ T-68 — il Deploy dalla scheda Dispositivi non aveva credenziali da usare — **FATTO** (2026-09-11)
 
 Segnalato dal maintainer provando: «Connetti» riesce, e subito dopo **Deploy** risponde
 `✗ Login target fallito: 429 Too Many Requests`. La domanda che l'accompagna è quella giusta:
@@ -112,6 +112,25 @@ valutare se questo secondo percorso di deploy debba esistere o confluire in `rem
 «Aggiungi dispositivo» compilando Utente SWS e password, oppure usare «Deploy progetto attivo»
 nella sezione Runtime, che passa dall'altro percorso. Il lockout si scioglie da sé in 60 s se non
 si ritenta.
+
+**Fatto l'11-09-2026**, ramo `fix/T-68-credenziali-dispositivi`. I punti 1-4 sono chiusi:
+l'utente ha una colonna sua nella riga, modificabile, col bordo giallo quando manca — e cambiarlo
+scarta la password in memoria, che è quella *di quell'utente*; il deploy guarda `auth_required` in
+`/api/system` e su un pannello senza utenti non fa il login né manda l'header; con le credenziali
+davvero mancanti non tenta affatto, perché un login a vuoto è un fallimento sicuro su un budget di
+cinque; e il 429 ora dice quanto aspettare e **di non riprovare**, che è la cosa che dal codice di
+stato non si indovina.
+
+Le decisioni stanno in `src/config/credenzialiDispositivo.ts` con 11 test: quando serve il login
+(«non lo so» vale prudenza, si prova) e come si spiega un rifiuto.
+
+⚠️ **Resta aperta la domanda più grossa**, di proposito: se questo **secondo percorso di deploy** —
+scritto nel browser, separato da `remote_deploy` — debba esistere o confluire. Due implementazioni
+della stessa operazione sono il modo in cui si diverge, e oggi divergono già: `remote_deploy` ha la
+casella «Sostituisci anche gli utenti» e la conferma 428, questo no.
+
+**Da provare a mano**: dispositivo preso dal discovery → scrivere l'utente nella riga → Deploy. E
+su un pannello appena installato senza utenti, il deploy deve partire **senza** chiedere nulla.
 
 
 ### 🔌 La scheda Dispositivi registrati: tre asperità tolte (2026-09-11)

@@ -4,6 +4,7 @@ import { api, getAuthToken, getBaseUrl, RuntimeUnavailableError, type CreateUser
 import { ListaControlli } from "@/config/installazione/ListaControlli";
 import { TabellaDispositivi } from "@/config/installazione/TabellaDispositivi";
 import { hostDaUrl, imageRefAutomatico, imageRefDaVariante, installazioneConsentita, varianteDaArch } from "@/config/installazione/sondaggio";
+import { modoAccesso, spiegaCredenzialiMancanti, spiegaLoginFallito } from "@/config/credenzialiDispositivo";
 import { CHIAVE_LEGACY, chiaveUrl, dispositivoDaRete, dispositivoDaRuntime, eGiaInLista, leggiListaLegacy, unisciDispositivo } from "@/config/dispositiviRegistrati";
 import { getBrand } from "@/branding";
 import { containerDeployPayload, effectiveDataPath, type ContainerSource } from "@/containerDeploy";
@@ -9836,20 +9837,49 @@ async function deployToTarget(
     const zipBlob = await exportRes.blob();
     onLog(`✓ Esportato: ${zipName} (${(zipBlob.size / 1024).toFixed(1)} KB)`);
 
-    onLog("Login al target…");
-    const loginRes = await fetch(`${target}/api/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: user, password: pass }),
-    });
-    if (!loginRes.ok) throw new Error(`Login target fallito: ${loginRes.status} ${loginRes.statusText}`);
-    const { token: remoteToken } = await loginRes.json();
-    onLog("✓ Login OK");
+    // T-68 — si chiede prima al pannello se il login serve. Su un pannello
+    // appena installato non ci sono utenti: tentare il login fallisce per
+    // forza (quell'utente non esiste) e **cinque fallimenti bloccano
+    // l'account per un minuto**, con ogni nuovo tentativo che allunga il
+    // blocco. È la stessa lezione di T-57, che era stata applicata a
+    // «Connetti» e non a questo percorso.
+    const authRequired = await fetch(`${target}/api/system`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => (typeof j?.auth_required === "boolean" ? (j.auth_required as boolean) : undefined))
+      .catch(() => undefined);
+
+    let remoteToken: string | null = null;
+    switch (modoAccesso(authRequired, user, pass)) {
+      case "senza-login":
+        onLog("ⓘ Il pannello non ha utenti: nessun login necessario.");
+        break;
+      case "credenziali-mancanti":
+        throw new Error(spiegaCredenzialiMancanti());
+      case "login": {
+        onLog("Login al target…");
+        const loginRes = await fetch(`${target}/api/auth/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username: user, password: pass }),
+        });
+        if (!loginRes.ok) {
+          throw new Error(spiegaLoginFallito(loginRes.status, loginRes.headers.get("Retry-After")));
+        }
+        remoteToken = (await loginRes.json()).token;
+        onLog("✓ Login OK");
+        break;
+      }
+    }
+    // Senza token non si manda l'header: su un pannello senza utenti un
+    // `Bearer null` sarebbe una credenziale finta, e il runtime la
+    // tratterebbe come tale.
+    const autorizzazione: Record<string, string> =
+      remoteToken ? { "Authorization": `Bearer ${remoteToken}` } : {};
 
     onLog("Upload ZIP al target…");
     let uploadRes = await fetch(`${target}/api/projects/upload`, {
       method: "POST",
-      headers: { "Content-Type": "application/zip", "Authorization": `Bearer ${remoteToken}` },
+      headers: { "Content-Type": "application/zip", ...autorizzazione },
       body: zipBlob,
     });
     if (uploadRes.status === 409) {
@@ -9858,9 +9888,9 @@ async function deployToTarget(
       const ok = window.confirm(`Sul target esiste già il progetto "${realName}".\nSostituirlo con la versione corrente?`);
       if (!ok) throw new Error("Deploy annullato dall'utente.");
       onLog(`Rimozione di "${realName}" dal target…`);
-      await fetch(`${target}/api/projects/close`, { method: "POST", headers: { "Authorization": `Bearer ${remoteToken}` } }).catch(() => {});
+      await fetch(`${target}/api/projects/close`, { method: "POST", headers: autorizzazione }).catch(() => {});
       const delRes = await fetch(`${target}/api/projects/${encodeURIComponent(realName)}`,
-        { method: "DELETE", headers: { "Authorization": `Bearer ${remoteToken}` } });
+        { method: "DELETE", headers: autorizzazione });
       if (!delRes.ok) {
         const body = await delRes.text().catch(() => "");
         throw new Error(`Impossibile rimuovere "${realName}": ${delRes.status}${body ? ` — ${body}` : ""}`);
@@ -9868,7 +9898,7 @@ async function deployToTarget(
       onLog(`✓ Rimosso "${realName}"`);
       uploadRes = await fetch(`${target}/api/projects/upload`, {
         method: "POST",
-        headers: { "Content-Type": "application/zip", "Authorization": `Bearer ${remoteToken}` },
+        headers: { "Content-Type": "application/zip", ...autorizzazione },
         body: zipBlob,
       });
     }
@@ -9882,7 +9912,7 @@ async function deployToTarget(
     onLog("Attivazione progetto…");
     const openRes = await fetch(`${target}/api/projects/${encodeURIComponent(uploadedName)}/open`, {
       method: "POST",
-      headers: { "Authorization": `Bearer ${remoteToken}` },
+      headers: autorizzazione,
     });
     if (!openRes.ok) {
       const body = await openRes.text().catch(() => "");
@@ -10103,6 +10133,11 @@ function DevicesTab() {
               <tr style={{ borderBottom: "1px solid var(--brand-surface-2, #334155)", color: "var(--brand-text-subtle, #64748b)" }}>
                 <th style={{ textAlign: "left", padding: "6px 8px" }}>{t("cfg.labelWord")}</th>
                 <th style={{ textAlign: "left", padding: "6px 8px" }}>URL</th>
+                {/* T-68 — l'utente si vede e si cambia qui. Prima non
+                    compariva affatto: un dispositivo preso dal discovery nasce
+                    senza utente, e non c'era modo di accorgersene né di
+                    aggiungerlo se non cancellandolo e rifacendolo. */}
+                <th style={{ textAlign: "left", padding: "6px 8px" }}>{t("cfg.swsUser")}</th>
                 <th style={{ textAlign: "center", padding: "6px 8px" }}>{t("cfg.state")}</th>
                 <th style={{ textAlign: "center", padding: "6px 8px" }}>{t("cfg.fingerprint")}</th>
                 <th style={{ textAlign: "right", padding: "6px 8px" }}>{t("cfg.actions")}</th>
@@ -10115,7 +10150,11 @@ function DevicesTab() {
                 const online = st?.online ?? null;
                 const fp = st?.fingerprint ?? null;
                 const match = localFp && fp ? (localFp === fp ? "sync" : "diff") : "unknown";
+                // La password serve solo se un utente c'è: senza utente il
+                // problema da risolvere è l'utente, e chiederla prima sarebbe
+                // chiedere la seconda metà di una cosa che non ha la prima.
                 const mancaPassword = !!d.user && passwords[d.url] === undefined;
+                const mancaUtente = !d.user;
                 // Verde solo per il dispositivo a cui si è davvero connessi,
                 // non per tutti quando una connessione è aperta da qualche parte.
                 const connessoQui = remoteConnected && chiaveUrl(remoteUrl ?? "") === chiaveUrl(d.url);
@@ -10123,6 +10162,24 @@ function DevicesTab() {
                   <tr key={d.url} style={{ borderBottom: "1px solid var(--brand-surface, #1e293b)" }}>
                     <td style={{ padding: "8px", color: "var(--brand-text, #e2e8f0)", fontWeight: 600 }}>{d.label}</td>
                     <td style={{ padding: "8px", color: "var(--brand-text-muted, #94a3b8)", fontFamily: "monospace", fontSize: 11 }}>{d.url}</td>
+                    <td style={{ padding: "8px" }}>
+                      <input
+                        style={{ ...INPUT, width: 100, borderColor: mancaUtente ? "var(--brand-warning, #f59e0b)" : undefined }}
+                        placeholder={t("cfg.swsUserPlaceholder")}
+                        title={mancaUtente ? t("cfg.deviceUserMissing") : t("cfg.swsCredentialsHint")}
+                        defaultValue={d.user}
+                        onBlur={(e) => {
+                          const v = e.target.value.trim();
+                          if (v === d.user) return;
+                          // Cambiare utente invalida la password tenuta in
+                          // memoria: è la password *di quell'utente*, e
+                          // riusarla sarebbe un tentativo fallito in più su un
+                          // budget che dopo cinque si esaurisce.
+                          setPasswords((p) => { const n = { ...p }; delete n[d.url]; return n; });
+                          saveDevices(devices.map((x) => (x.url === d.url ? { ...x, user: v } : x)));
+                        }}
+                      />
+                    </td>
                     <td style={{ padding: "8px", textAlign: "center" }}>
                       {online === null || checking
                         ? <span style={{ color: "var(--brand-text-subtle, #64748b)" }}>…</span>

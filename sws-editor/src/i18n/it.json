@@ -1252,7 +1252,9 @@
     "deployNoUsersUnknown": "elenco non leggibile da qui",
     "connecting": "Connessione…",
     "connectOk": "Connesso.",
-    "connectFailed": "Connessione fallita"
+    "connectFailed": "Connessione fallita",
+    "swsUserPlaceholder": "admin",
+    "deviceUserMissing": "Questo dispositivo non ha un utente registrato: se il pannello ne vuole uno, il deploy non può partire."
   },
   "langtab": {
     "intro": "Traduci i messaggi che scrivi negli oggetti. Nei campi testo usa {{chiave}}; qui definisci le traduzioni per ogni lingua.",

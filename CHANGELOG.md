@@ -11,6 +11,24 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Il deploy dalla scheda Dispositivi non è più un vicolo cieco (T-68)
+
+Un dispositivo registrato dal discovery nasce senza utente, e non c'era modo di aggiungerlo: il
+campo compariva solo se un utente c'era già. Il deploy tentava comunque il login con credenziali
+vuote, falliva, e dopo cinque tentativi il pannello bloccava l'account — rispondendo `429 Too Many
+Requests` a chi non poteva farci niente.
+
+- **L'utente ha una colonna sua** nella riga del dispositivo, modificabile, con il bordo giallo
+  quando manca. Cambiarlo scarta la password tenuta in memoria: è la password di quell'utente.
+- **Il deploy chiede prima se il login serve.** Su un pannello senza utenti non lo fa e non manda
+  l'header: è la stessa lezione di T-57, che era stata applicata a «Connetti» e non a questo
+  percorso.
+- **Con le credenziali mancanti non si tenta affatto**: un login a vuoto è un fallimento sicuro, e
+  il budget è di cinque in sessanta secondi.
+- **Il 429 dice cosa fare** — quanto aspettare e, soprattutto, di aspettare *senza* riprovare,
+  perché ogni nuovo tentativo allunga il blocco. Il 401 chiarisce che le credenziali sono quelle
+  SWS e non quelle SSH.
+
 ### Il percorso di movimento si disegna sul canvas (T-53)
 
 `motion_path` è la polilinea lungo cui un oggetto trasla al variare di un tag. Esisteva solo come
