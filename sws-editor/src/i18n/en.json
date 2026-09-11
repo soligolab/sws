@@ -913,7 +913,12 @@
     "gruppoComportamento": "Behaviour",
     "gruppoResa": "Rendering",
     "deleteObject": "Delete object",
-    "sectionIdentityGeometry": "Identity & position"
+    "sectionIdentityGeometry": "Identity & position",
+    "motionShowTrack": "Show track on canvas",
+    "motionSplitHere": "Split here",
+    "motionAppend": "Append",
+    "motionCoordinates": "Coordinates",
+    "motionCoordinatesHint": "Open these to fix a point by typing the numbers: on the canvas you drag the crosses."
   },
   "shortcut": {
     "navCanvas": "Canvas navigation",

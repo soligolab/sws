@@ -387,6 +387,37 @@ altro oggetto: il tracciato del movimento è la stessa cosa con un ordine e un t
 Non ancora pianificato nel dettaglio: quando si parte, piano in `docs/plans/` e ramo
 `feat/T-53-waypoint-sul-canvas`.
 
+**Realizzato l'11-09-2026**, ramo `feat/T-53-waypoint-sul-canvas`, piano in
+[`docs/plans/2026-09-11-T53-waypoint-sul-canvas.md`](docs/plans/2026-09-11-T53-waypoint-sul-canvas.md).
+Tutti e cinque i punti. Due scelte del maintainer: i comandi «Dividi qui»/«Aggiungi in coda» sono
+una **barretta sul canvas** accanto al segmento scelto, e la **cattura ＋ resta** (serve a posare
+molti punti di fila) con l'overlay che si fa da parte mentre è attiva.
+
+Tre cose decise scrivendo, tutte motivate nel codice: il tracciato **non** dipende da «Anteprima
+effetti» né da `motion_tag` — quello accende il movimento, e un percorso si modifica guardandolo
+fermo; il tag è la variabile che lo percorre e la geometria esiste prima. Il drag apre
+`openInteraction` come i waypoint delle pipe, altrimenti `updateObject` riempirebbe la cronologia
+di un passo per pixel. La barretta è in SVG puro, non in `foreignObject`: tutto diviso per lo
+zoom, come le maniglie.
+
+`src/canvas/percorsoMovimento.ts` raccoglie le decisioni: `puntiMovimento` legge anche la forma
+`[[x,y]]` che il viewer LVGL accetta «perché è quello che si trova nei progetti veri» — senza,
+le maniglie uscirebbero a NaN proprio sui progetti vecchi; `dividiSegmento` è uno `splice` perché
+l'ordine dell'array **è** l'ordine da `motion_min` a `motion_max`; `cosaCancella` dichiara la
+precedenza del tasto Canc, che senza si porterebbe via l'oggetto intero (con un waypoint scelto
+l'oggetto è selezionato anche lui).
+
+24 test dove non ce n'era **nessuno**. ⚠️ **Un anello resta scoperto**: che l'handler della
+tastiera chiami `cancellaWaypointScelto()`. La funzione è provata contro lo store vero, il
+suo unico punto di chiamata no — va verificato a mano, ed è il primo della lista qui sotto.
+
+**Da provare a mano** (`./scripts/start_editor.sh`, oggetto con `motion_path`):
+Canc su un crocino scelto toglie **il crocino**, non l'oggetto; trascinando un crocino un solo
+annulla riporta il punto dov'era; «Dividi qui» mette il punto fra i due e non in fondo; con la ＋
+attiva i clic posano punti e le maniglie non danno fastidio; zoom al 25 % e al 400 %. **Non
+mergiato, non pushato.**
+
+
 ### 🪟 T-54 — il log staccato sparisce dal fondo, si sgancia dalla sua barra, si nasconde e si riaggancia (richiesta del maintainer, 2026-09-10)
 
 Oggi «Log in una finestra» (menu ☰ → `staccaLog`, `App.tsx` ~L126, via `apriFinestra`) apre

@@ -29,6 +29,7 @@ import { genId } from "@/id";
 import type { SymbolMeta } from "@/symbols/library";
 import { useAppStore } from "@/store";
 import { BarraIcone, IntestazioneSezione, PREFISSO_MEMORIA, RigaProprieta, SPAZIO, TESTO, TitoloVista, migraMemorieVecchie, useSezioneAperta } from "./stilePannelli";
+import { cosaCancella, eliminaWaypoint, percorsoDaSalvare, puntiMovimento } from "@/canvas/percorsoMovimento";
 import { localizeObjects } from "@/i18n/projectI18n";
 import type { AlignMode } from "@/store";
 import type { AlarmSeverity, ButtonAction, FunctionDef, GridCell, PageLayoutConfig, PageSizeMode, RadioOption, SubCellEntry, SubGrid, SynopticObject, TableRow, TextListEntry, TrendTrace } from "@/types";
@@ -421,7 +422,9 @@ export function EditorShell() {
       if (inField) return;
       const ctrl = e.ctrlKey || e.metaKey;
       const ids  = useAppStore.getState().selectedObjectIds;
-      if ((e.key === "Delete" || e.key === "Backspace") && ids.length > 0) {
+      if (e.key === "Delete" || e.key === "Backspace") {
+        if (cancellaWaypointScelto()) { e.preventDefault(); return; }
+        if (ids.length === 0) return;
         e.preventDefault(); deleteSelection();
       } else if (ctrl && (e.key === "z" || e.key === "Z") && !e.shiftKey) {
         e.preventDefault(); undo();
@@ -1360,6 +1363,32 @@ export function PannelloDestro({
   );
 }
 
+/** Il Canc quando sul canvas è scelto un waypoint del percorso di movimento:
+ *  toglie **quel punto** e non l'oggetto. Restituisce `true` se ha gestito lui.
+ *
+ *  Serve una precedenza esplicita perché con un waypoint scelto l'oggetto è
+ *  selezionato anche lui — è il suo percorso — e l'handler di `EditorShell`
+ *  guarda solo `selectedObjectIds`: fino a T-53 si sarebbe portato via tutto
+ *  l'oggetto.
+ *
+ *  Esportata per il test: `cosaCancella` prova la **decisione**, questa prova
+ *  il **cablaggio** — che il punto sparisca davvero dallo store e che la
+ *  scelta si sciolga. Sono due cose diverse, e stamattina è passato un difetto
+ *  proprio nello spazio fra le due (il `Provider` dei gruppi, mai fornito).
+ */
+export function cancellaWaypointScelto(): boolean {
+  const st = useAppStore.getState();
+  if (cosaCancella(st.waypointScelto, st.selectedObjectIds) !== "waypoint") return false;
+  const w = st.waypointScelto!;
+  const obj = st.pages
+    .find((p) => p.id === st.currentPageId)?.objects
+    .find((o) => o.id === w.objectId);
+  const rimasti = eliminaWaypoint(puntiMovimento(obj?.motion_path), w.index);
+  st.updateObject(w.objectId, { motion_path: percorsoDaSalvare(rimasti) });
+  st.setWaypointScelto(null);
+  return true;
+}
+
 export function barraGruppiVisibile(
   selezionato: { id: string; type: string } | null,
   multi: boolean,
@@ -2218,6 +2247,8 @@ export function ObjectProps({
   const gruppoAttivo = useContext(GruppoAttivo);
   // D (2026-08-23): cattura waypoint dal canvas — stato condiviso nello store.
   const capturePathTarget = useAppStore((st) => st.capturePathTarget);
+  const mostraTracciato    = useAppStore((st) => st.mostraTracciato);
+  const setMostraTracciato = useAppStore((st) => st.setMostraTracciato);
   const setCapturePathTarget = useAppStore((st) => st.setCapturePathTarget);
   const setMotionMarker = useAppStore((st) => st.setMotionMarker);
   const [imgBrowserOpen, setImgBrowserOpen] = useState(false);
@@ -4456,6 +4487,16 @@ export function ObjectProps({
         storageKey="motion" gruppo="comportamento"
         headerExtra={obj.motion_tag ? <span style={{ fontSize: 10, color: "var(--brand-primary, #3b82f6)", fontWeight: 700 }}>●</span> : undefined}
       >
+        {/* T-53 — fuori dalla guardia su `motion_tag`: il tracciato è
+            geometria e si disegna prima di scegliere la variabile che lo
+            percorre, che è l'ordine in cui si lavora davvero. */}
+        <label style={{ display: "flex", alignItems: "center", gap: SPAZIO.s, cursor: "pointer", marginBottom: SPAZIO.xs }}>
+          <input type="checkbox" checked={mostraTracciato}
+            onChange={(e) => setMostraTracciato(e.target.checked)} />
+          <span style={{ fontSize: TESTO.etichetta, color: "var(--brand-text-muted, #94a3b8)" }}>
+            {t("props.motionShowTrack")}
+          </span>
+        </label>
         {field(t("props.motionTag"),
           <TagInput style={INPUT} placeholder="es. carrello.posizione" value={obj.motion_tag ?? ""}
             onChange={(v) => onChange({ motion_tag: v || undefined })} />
@@ -4482,6 +4523,12 @@ export function ObjectProps({
                 onChange({ motion_path: next.length > 0 ? next : undefined });
               const capturing = capturePathTarget === obj.id;
               return (
+                // T-53 — la tabella è **chiusa di default**: dopo che i
+                // crocini si trascinano sul canvas serve solo per correggere
+                // un punto digitando le cifre, e aperta occupava il pannello
+                // per una cosa che si fa di rado.
+                <CollapsibleSection title={t("props.motionCoordinates")} storageKey="motion-coord"
+                  hint={t("props.motionCoordinatesHint")}>
                 <div style={{ marginBottom: 4 }}>
                   <div style={{ ...LABEL, display: "flex", alignItems: "center", gap: 6 }}>
                     {t("props.motionPathTable")}
@@ -4543,6 +4590,7 @@ export function ObjectProps({
                     onClick={() => setPts([...pts, { x: (pts[pts.length - 1]?.x ?? obj.x) + 50, y: pts[pts.length - 1]?.y ?? obj.y }])}
                   >+ {t("props.motionAddRow")}</button>
                 </div>
+                </CollapsibleSection>
               );
             })()}
             <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 4px" }}>

@@ -11,6 +11,27 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Il percorso di movimento si disegna sul canvas (T-53)
+
+`motion_path` è la polilinea lungo cui un oggetto trasla al variare di un tag. Esisteva solo come
+**tabella di coordinate** nel pannello: sul disegno si vedeva un crocino soltanto per la riga che
+si stava scrivendo, e disegnare un percorso voleva dire immaginarlo e batterlo a macchina.
+
+- Con l'oggetto selezionato si vedono **la polilinea e un crocino per waypoint**, nell'ordine
+  logico da `motion_min` a `motion_max`.
+- I crocini **si trascinano**; la tabella si aggiorna da sé.
+- **Canc** toglie il crocino scelto — non l'oggetto, che con un waypoint scelto è selezionato
+  anche lui.
+- Scegliendo un segmento compaiono **«Dividi qui»**, che mette il punto dove si è cliccato e
+  *fra* i due estremi, e **«Aggiungi in coda»**.
+- La **tabella delle coordinate è chiusa di default**: resta per correggere un punto digitando le
+  cifre.
+- Il tracciato **non** dipende da «Anteprima effetti» né dal tag: quello accende il movimento, e
+  un percorso si modifica guardandolo fermo; il tag è la variabile che lo percorre, e la geometria
+  esiste prima.
+- Compatibilità: i punti si leggono anche nella forma `[[x,y]]` che il viewer LVGL accetta e che
+  alcuni progetti hanno davvero.
+
 ### La scheda «Dispositivi registrati» dice quello che fa
 
 - **L'URL di un dispositivo registrato dal discovery preferisce il nome mDNS** all'indirizzo:

@@ -913,7 +913,12 @@
     "gruppoComportamento": "Comportamento",
     "gruppoResa": "Resa",
     "deleteObject": "Elimina oggetto",
-    "sectionIdentityGeometry": "Identità e posizione"
+    "sectionIdentityGeometry": "Identità e posizione",
+    "motionShowTrack": "Mostra tracciato sul canvas",
+    "motionSplitHere": "Dividi qui",
+    "motionAppend": "Aggiungi in coda",
+    "motionCoordinates": "Coordinate",
+    "motionCoordinatesHint": "Si aprono per correggere un punto digitando le cifre: sul canvas si trascinano i crocini."
   },
   "shortcut": {
     "navCanvas": "Navigazione canvas",

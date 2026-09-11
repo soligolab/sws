@@ -4,6 +4,7 @@ import { applyAppearance, getStoredMode, type ThemeMode } from "@/theme";
 import { genId } from "@/id";
 import { getStoredProjectLang, setStoredProjectLang, getStoredEditorPreviewLang, setStoredEditorPreviewLang } from "@/i18n/projectI18n";
 import { normalizeTrendObjects } from "@/canvas/trendModel";
+import type { SegmentoScelto, WaypointScelto } from "@/canvas/percorsoMovimento";
 import { effectiveSizeMode, referenceResolutionFor } from "@/pageLayout";
 import { uguale } from "@/ai/confronto";
 import type {
@@ -428,6 +429,23 @@ interface AppState {
   /** Crocino sul canvas per il waypoint in focus nella tabella MOVIMENTO. */
   motionMarker: { x: number; y: number } | null;
   setMotionMarker: (pt: { x: number; y: number } | null) => void;
+  /** T-53 — il tracciato del percorso di movimento si vede sul canvas, con i
+   *  crocini trascinabili. **Acceso di default**: chi disegna un percorso lo
+   *  vuole vedere; chi non ne ha non se ne accorge, perché senza punti non si
+   *  disegna niente.
+   *
+   *  Effimero come `previewEffects` e non un campo dell'oggetto: è una
+   *  preferenza di vista, non un dato del progetto — e un campo persistito
+   *  farebbe scattare le guardie di schema e parità per niente. */
+  mostraTracciato: boolean;
+  setMostraTracciato: (on: boolean) => void;
+  /** Il waypoint scelto sul canvas, quello che il tasto Canc elimina. */
+  waypointScelto: WaypointScelto | null;
+  setWaypointScelto: (w: WaypointScelto | null) => void;
+  /** Il segmento scelto sul canvas, con il punto in cui si è cliccato: è lì
+   *  che «Dividi qui» mette il punto nuovo. */
+  segmentoScelto: SegmentoScelto | null;
+  setSegmentoScelto: (sg: SegmentoScelto | null) => void;
   updateObjects: (ids: string[], patch: Partial<SynopticObject>) => void;
   duplicateObject: (id: string) => void;
   duplicateSelection: () => void;
@@ -880,6 +898,8 @@ export const useAppStore = create<AppState>((set, get) => {
         selectedCell: null,
         selectedCellChild: null,
         selectedCellRange: null,
+        waypointScelto: null,
+        segmentoScelto: null,
         selectedSubCell: null,
         past: [],
         future: [],
@@ -1223,6 +1243,8 @@ export const useAppStore = create<AppState>((set, get) => {
       selectedCell: null,
       selectedCellChild: null,
       selectedCellRange: null,
+      waypointScelto: null,
+      segmentoScelto: null,
       selectedSubCell: null,
     }),
 
@@ -1234,6 +1256,8 @@ export const useAppStore = create<AppState>((set, get) => {
         selectedCell: null,
         selectedCellChild: null,
         selectedCellRange: null,
+        waypointScelto: null,
+        segmentoScelto: null,
         selectedSubCell: null,
       }),
 
@@ -1301,6 +1325,14 @@ export const useAppStore = create<AppState>((set, get) => {
     setPreviewEffects: (on) => set({ previewEffects: on }),
     motionMarker: null,
     setMotionMarker: (pt) => set({ motionMarker: pt }),
+    mostraTracciato: true,
+    setMostraTracciato: (on) => set({ mostraTracciato: on }),
+    waypointScelto: null,
+    // Scegliere un waypoint scioglie la scelta del segmento e viceversa: sono
+    // due bersagli dello stesso percorso e il tasto Canc deve sapere qual è.
+    setWaypointScelto: (w) => set({ waypointScelto: w, segmentoScelto: null }),
+    segmentoScelto: null,
+    setSegmentoScelto: (sg) => set({ segmentoScelto: sg, waypointScelto: null }),
     updateObject: (id, patch) => {
       pushHistory("Modifica oggetto");
       set((s) => ({
@@ -1644,6 +1676,8 @@ export const useAppStore = create<AppState>((set, get) => {
         selectedCell: null,
         selectedCellChild: null,
         selectedCellRange: null,
+        waypointScelto: null,
+        segmentoScelto: null,
         selectedSubCell: null,
       });
     },
@@ -1666,6 +1700,8 @@ export const useAppStore = create<AppState>((set, get) => {
         selectedCell: null,
         selectedCellChild: null,
         selectedCellRange: null,
+        waypointScelto: null,
+        segmentoScelto: null,
         selectedSubCell: null,
       });
     },
@@ -1701,6 +1737,8 @@ export const useAppStore = create<AppState>((set, get) => {
         selectedCell: null,
         selectedCellChild: null,
         selectedCellRange: null,
+        waypointScelto: null,
+        segmentoScelto: null,
         selectedSubCell: null,
       });
     },
@@ -1732,6 +1770,8 @@ export const useAppStore = create<AppState>((set, get) => {
         selectedCell: null,
         selectedCellChild: null,
         selectedCellRange: null,
+        waypointScelto: null,
+        segmentoScelto: null,
         selectedSubCell: null,
       });
     },
@@ -1853,6 +1893,8 @@ export const useAppStore = create<AppState>((set, get) => {
         selectedCell: null,
         selectedCellChild: null,
         selectedCellRange: null,
+        waypointScelto: null,
+        segmentoScelto: null,
         selectedSubCell: null,
       });
 

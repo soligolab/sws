@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { PALETTE, TrendCanvas } from "@/canvas/TrendCanvas";
 import { TrendExpandedModal } from "@/canvas/TrendExpanded";
 import { XyPlotCanvas } from "@/canvas/XyPlotCanvas";
+import { dividiSegmento, aggiungiInCoda, percorsoDaSalvare, puntiMovimento, tracciatoVisibile } from "@/canvas/percorsoMovimento";
 import { api } from "@/api/client";
 import { AlarmBellPanel } from "@/components/AlarmBellPanel";
 import { NumericKeypad } from "@/components/NumericKeypad";
@@ -639,6 +640,12 @@ export function SvgCanvas({
   const previewEffects = useAppStore((s) => s.previewEffects);
   // Crocino del waypoint attivo (focus/modifica di una cella della tabella).
   const motionMarker = useAppStore((s) => s.motionMarker);
+  // T-53 — il tracciato del percorso di movimento, modificabile qui sopra.
+  const mostraTracciato   = useAppStore((s) => s.mostraTracciato);
+  const waypointScelto    = useAppStore((s) => s.waypointScelto);
+  const segmentoScelto    = useAppStore((s) => s.segmentoScelto);
+  const setWaypointScelto = useAppStore((s) => s.setWaypointScelto);
+  const setSegmentoScelto = useAppStore((s) => s.setSegmentoScelto);
   useEffect(() => {
     if (!captureTarget) return;
     const onKey = (e: KeyboardEvent) => {
@@ -1059,6 +1066,20 @@ export function SvgCanvas({
         onMove(objId, { x: snap(startObj.x + dx), y: snap(startObj.y + dy) });
       } else if (handle === "p2") {
         onMove(objId, { x2: snap((startObj.x2 ?? startObj.x + 100) + dx), y2: snap((startObj.y2 ?? startObj.y) + dy) });
+      } else if (handle.startsWith("mwp-")) {
+        // T-53 — waypoint del percorso di MOVIMENTO. Gemello del ramo `wp-`
+        // qui sotto (i waypoint delle pipe): stesso schema, altro campo. I
+        // punti si rileggono normalizzati, perché un progetto vecchio può
+        // averli in forma `[[x,y]]` e un `.map` su quelli scriverebbe NaN.
+        const idx = parseInt(handle.slice(4));
+        const mObj = objects.find((o) => o.id === objId);
+        const punti = puntiMovimento(mObj?.motion_path);
+        if (punti.length > idx) {
+          const nuovi = punti.map((p, i) =>
+            i === idx ? { x: snap(startObj.x + dx), y: snap(startObj.y + dy) } : p
+          );
+          onMove(objId, { motion_path: nuovi });
+        }
       } else if (handle.startsWith("wp-")) {
         const wpIdx = parseInt(handle.slice(3));
         const pipeObj = objects.find((o) => o.id === objId);
@@ -1308,6 +1329,18 @@ export function SvgCanvas({
   };
 
   const endDrag = () => {
+    // Un trascinamento appena finito **non deve deselezionare**. Rilasciando
+    // lontano dall'elemento che si trascinava, il `mouseup` cade sullo sfondo
+    // e il `click` risale all'`<svg>`, dove `onClick` chiama `onSelect(null)`:
+    // l'oggetto si deseleziona da solo e il pannello salta alle proprietà di
+    // pagina. Fino a qui `suppressClick` si alzava solo per la selezione a
+    // rettangolo; vale per i waypoint del percorso, per quelli delle pipe e
+    // per le maniglie di ridimensionamento — cioè era un difetto più vecchio
+    // di T-53, che l'ha solo reso facile da incontrare.
+    if (dragRef.current || resizeRef.current || rotateRef.current
+        || gridBorderRef.current || subBorderRef.current) {
+      suppressClick.current = true;
+    }
     closeInteraction();
     dragRef.current = null;
     resizeRef.current = null;
@@ -1820,13 +1853,131 @@ export function SvgCanvas({
       {/* crocino del waypoint in focus nella tabella MOVIMENTO */}
       {motionMarker && (
         <g style={{ pointerEvents: "none" }}>
-          <line x1={motionMarker.x - 10} y1={motionMarker.y} x2={motionMarker.x + 10} y2={motionMarker.y}
-            stroke="#f59e0b" strokeWidth={1.5} />
-          <line x1={motionMarker.x} y1={motionMarker.y - 10} x2={motionMarker.x} y2={motionMarker.y + 10}
-            stroke="#f59e0b" strokeWidth={1.5} />
-          <circle cx={motionMarker.x} cy={motionMarker.y} r={4} fill="none" stroke="#f59e0b" strokeWidth={1.5} />
+          <line x1={motionMarker.x - 10 / viewT.zoom} y1={motionMarker.y} x2={motionMarker.x + 10 / viewT.zoom} y2={motionMarker.y}
+            stroke="#f59e0b" strokeWidth={1.5 / viewT.zoom} />
+          <line x1={motionMarker.x} y1={motionMarker.y - 10 / viewT.zoom} x2={motionMarker.x} y2={motionMarker.y + 10 / viewT.zoom}
+            stroke="#f59e0b" strokeWidth={1.5 / viewT.zoom} />
+          <circle cx={motionMarker.x} cy={motionMarker.y} r={4 / viewT.zoom} fill="none" stroke="#f59e0b" strokeWidth={1.5 / viewT.zoom} />
         </g>
       )}
+
+      {/* ── T-53 · il percorso di MOVIMENTO, modificabile qui ─────────────────
+          Prima si vedeva solo il crocino della riga in modifica nella tabella:
+          disegnare un percorso voleva dire immaginarlo e batterlo a macchina.
+
+          Sta **fuori** dal gruppo degli oggetti (chiuso poco sopra) e dentro
+          quello di zoom+pan, quindi lavora in coordinate pagina come il
+          tracciato stesso. Non è legato ad «Anteprima effetti»: quello accende
+          il movimento, e un percorso si modifica guardandolo fermo, non mentre
+          l'oggetto ci scorre sopra. */}
+      {onMove && selIds.length === 1 && (() => {
+        const obj = objects.find((o) => o.id === selIds[0]);
+        if (!tracciatoVisibile(obj, mostraTracciato)) return null;
+        const punti = puntiMovimento(obj!.motion_path);
+        const z = viewT.zoom;
+        const r = 5 / z, sw = 1.5 / z;
+        const sceltoQui = (i: number) =>
+          waypointScelto?.objectId === obj!.id && waypointScelto.index === i;
+        const segmentoQui = (i: number) =>
+          segmentoScelto?.objectId === obj!.id && segmentoScelto.index === i;
+        return (
+          // In cattura ＋ il tracciato **si vede** ma non risponde al mouse:
+          // ogni clic deve posare un punto, e maniglie cliccabili glieli
+          // ruberebbero. Stesso trattamento del layer degli oggetti poco
+          // sopra. Prima l'overlay non si disegnava affatto, quindi si posavano
+          // punti alla cieca — segnalato dal maintainer al primo uso.
+          <g style={captureTarget ? { pointerEvents: "none" } : undefined}>
+            {/* la polilinea, tratteggiata e inerte: il bersaglio dei click è
+                la linea spessa e trasparente qui sotto, così la linea visibile
+                può restare sottile senza diventare impossibile da prendere */}
+            {punti.length > 1 && (
+              <polyline
+                points={punti.map((p) => `${p.x},${p.y}`).join(" ")}
+                fill="none" stroke="#f59e0b" strokeWidth={sw} strokeDasharray={`${6 / z} ${4 / z}`}
+                opacity={0.8} style={{ pointerEvents: "none" }}
+              />
+            )}
+            {punti.slice(0, -1).map((p, i) => {
+              const q = punti[i + 1];
+              return (
+                <line key={`seg-${i}`}
+                  x1={p.x} y1={p.y} x2={q.x} y2={q.y}
+                  stroke={segmentoQui(i) ? "#f59e0b" : "transparent"}
+                  strokeWidth={segmentoQui(i) ? 3 / z : 10 / z}
+                  style={{ cursor: "pointer" }}
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    const rect = e.currentTarget.ownerSVGElement!.getBoundingClientRect();
+                    const pt = toSvg(e.clientX - rect.left, e.clientY - rect.top);
+                    setSegmentoScelto({ objectId: obj!.id, index: i, punto: { x: snap(pt.x), y: snap(pt.y) } });
+                  }}
+                />
+              );
+            })}
+            {punti.map((p, i) => (
+              <g key={`wp-${i}`}>
+                <line x1={p.x - 8 / z} y1={p.y} x2={p.x + 8 / z} y2={p.y}
+                  stroke="#f59e0b" strokeWidth={sw} style={{ pointerEvents: "none" }} />
+                <line x1={p.x} y1={p.y - 8 / z} x2={p.x} y2={p.y + 8 / z}
+                  stroke="#f59e0b" strokeWidth={sw} style={{ pointerEvents: "none" }} />
+                <circle
+                  cx={p.x} cy={p.y} r={r}
+                  fill={sceltoQui(i) ? "#f59e0b" : "white"}
+                  stroke="#f59e0b" strokeWidth={sw}
+                  style={{ cursor: "crosshair" }}
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    dragRef.current = null;
+                    selDragRef.current = null;
+                    setSelRect(null);
+                    setWaypointScelto({ objectId: obj!.id, index: i });
+                    // Il bracket della history: `updateObject` pusha una voce a
+                    // ogni chiamata, e senza questo un trascinamento
+                    // riempirebbe la cronologia di un passo per pixel.
+                    openInteraction(`Sposta waypoint ${i + 1} del percorso`);
+                    resizeRef.current = {
+                      objId: obj!.id, handle: `mwp-${i}`,
+                      startX: e.clientX, startY: e.clientY,
+                      startObj: { x: p.x, y: p.y, width: 0, height: 0 },
+                    };
+                  }}
+                />
+              </g>
+            ))}
+            {segmentoScelto?.objectId === obj!.id && (() => {
+              const i = segmentoScelto.index;
+              if (i >= punti.length - 1) return null;
+              const a = punti[i], b = punti[i + 1];
+              const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
+              // Barretta in SVG puro e non in `foreignObject`: stesso idioma
+              // delle maniglie (tutto diviso per lo zoom), e niente scala
+              // annidata da tenere d'accordo.
+              const w = 104 / z, h = 22 / z, fs = 11 / z;
+              const bottone = (dx: number, testo: string, onClick: () => void) => (
+                <g style={{ cursor: "pointer" }} onMouseDown={(e) => { e.stopPropagation(); onClick(); }}>
+                  <rect x={cx - w / 2 + dx} y={cy - h - 8 / z} width={w} height={h} rx={4 / z}
+                    fill="var(--brand-surface, #1e293b)" stroke="#f59e0b" strokeWidth={sw} />
+                  <text x={cx + dx} y={cy - h / 2 - 8 / z} fill="var(--brand-text, #e2e8f0)"
+                    fontSize={fs} textAnchor="middle" dominantBaseline="middle"
+                    style={{ userSelect: "none" }}>{testo}</text>
+                </g>
+              );
+              const scrivi = (nuovi: { x: number; y: number }[]) => {
+                onMove(obj!.id, { motion_path: percorsoDaSalvare(nuovi) });
+                setSegmentoScelto(null);
+              };
+              return (
+                <>
+                  {bottone(-w / 2 - 2 / z, t("props.motionSplitHere"),
+                    () => scrivi(dividiSegmento(punti, i, segmentoScelto.punto)))}
+                  {bottone(w / 2 + 2 / z, t("props.motionAppend"),
+                    () => scrivi(aggiungiInCoda(punti, { x: obj!.x, y: obj!.y })))}
+                </>
+              );
+            })()}
+          </g>
+        );
+      })()}
 
       {selRect && (() => {
         const rx = Math.min(selRect.startX, selRect.curX);
