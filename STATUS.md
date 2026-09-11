@@ -76,6 +76,65 @@
 
 ## ▶ Da fare nella prossima sessione
 
+### ⏱ T-69 — il Python di progetto non sa che ora è, e non può avere una cadenza sua (2026-09-11)
+
+Il maintainer ha provato a farsi scrivere dall'assistente IA una rampa ciclica 0→100→0 con periodo
+in decimi di secondo, e l'assistente si è fermato elencando i limiti. **Ho riverificato tutte e
+otto le affermazioni nel codice**: sette reggono, una no — ed è quella che avrebbe fatto perdere
+più tempo a chi apre il piano.
+
+**Quello che blocca davvero:**
+
+1. **Niente tempo dentro gli script.** L'API esposta è `tags.read`, `tags.write` e
+   `send_telegram`, e basta (`sws-pyscript/src/lib.rs:572-577`, metodi a `:204-283`). Nessun
+   orologio, nessun uptime, nessun «quanto è passato dall'ultima volta». Una rampa temporizzata
+   **non è esprimibile**: lo script può solo avanzare di un passo, la cadenza la deve dare altro.
+2. **Il trigger `interval` è in secondi interi** — `Interval { interval_s: u64 }`
+   (`sws-core/src/project.rs:833`). Minimo 1 s, risoluzione 1 s: un `time_tick` sotto i 10 decimi
+   non è generabile. `cron` sta più in alto ancora.
+3. **Nessun generatore nativo** di rampa/onda/impulso sui tag, e nessun tipo di tag «generatore»:
+   un tag con `expression` (`project.rs:48`) è calcolato, non animato.
+4. **Le funzioni di progetto non hanno un trigger proprio**, e uno script globale **non può
+   chiamarle**: l'unico modo di eseguirle è `on_press_fn`/`on_release_fn` da un oggetto o
+   `POST /api/script/run/:name` (`router.rs:470`). Quindi la stessa logica va duplicata, o la
+   periodicità arriva da fuori.
+5. **Nessuno stato ritenuto per script**: per ricordare la direzione della rampa servono tag di
+   servizio, che finiscono nell'elenco insieme a quelli d'impianto.
+6. **Timeout di 5 s** (`SWS_SCRIPT_TIMEOUT_MS`, `sws-pyscript/src/lib.rs:5`): occupare il tempo con
+   un ciclo non è una via d'uscita.
+7. **Il Python non si prova davvero in IDE**: la verifica compila e non esegue, e **RestrictedPython
+   è opzionale** — dove non è installato gli script girano con i builtin pieni
+   (`lib.rs:339-344`). Quindi il divieto di `import` vale sul dispositivo ma non necessariamente
+   dove si sviluppa: una differenza fra le due macchine che oggi non si vede.
+
+⚠️ **L'ottava affermazione è sbagliata, e va corretta prima che diventi un requisito.** L'assistente
+ha detto «`params[]` esiste ma non è chiaro come si passano i valori». **Si passano, e funziona
+già**: `__sws_args__` viene iniettato come variabili globali dello script (`lib.rs:163-167`), il
+chiamante API lo manda in `{"args": {…}}` (`RunBody`, `router.rs:4250`) e un oggetto in pagina lo
+manda in `on_press_args` (`SvgCanvas.tsx:1741`). Il difetto **non è il meccanismo, è che non si
+trova**: né la documentazione né l'IDE lo dicono abbastanza da permettere a chi guarda il progetto
+di scoprirlo. Rimedio piccolo, non una funzione nuova.
+
+**Cosa sbloccherebbe il caso, in ordine di resa** (dall'assistente, e le prime due mi paiono
+giuste anche a me):
+
+- **Un orologio in sola lettura nella sandbox**: `now_ms`, `uptime_ms` e soprattutto `delta_ms`
+  dall'invocazione precedente. Con `delta_ms` la rampa si scrive in cinque righe **e diventa
+  indipendente dalla cadenza del trigger** — che è la proprietà che conta: la logica smette di
+  dipendere da quanto spesso qualcuno la chiama.
+- **`interval_ms`** (o `interval_s` frazionario) sugli script globali.
+- Un **tipo di tag «generatore»** nativo (rampa/triangolo/quadra) con periodo, limiti e
+  abilitazione: coprirebbe anche tutti i collaudi senza impianto.
+- Poter **chiamare una funzione di progetto da uno script globale**, e/o dare un trigger alle
+  funzioni.
+- **Stato ritenuto per script**, per non sporcare l'elenco tag con variabili d'appoggio.
+- **Far trovare il passaggio dei parametri** (documentazione + IDE) — non è da implementare, è da
+  mostrare.
+
+**Quello che si può già fare oggi**, se serve prima: script globale con `interval_s: 1` che avanza
+la rampa di `(limite_up - limite_down)/N` al secondo, con `time_tick` letto in decimi ma arrotondato
+al secondo, e il limite scritto nel commento del codice.
+
 ### 📋 Dieci tracce dall'HOWTO — T-58…T-67 (2026-09-11)
 
 `docs/HOWTO.md` è cresciuto a 14 capitoli, uno per ogni «come faccio a…» posto al vivo. Riletti
