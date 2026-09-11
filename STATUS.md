@@ -161,6 +161,9 @@ soprainsiemi esatti). Le punte, se un giorno servissero:
 | `feat/Q51-Q52-installa-guidata` | `bfa0bd47` |
 | `feat/Q53-crossbuild-arm64` | `0079cf67` |
 | `feat/T-57-credenziali-sws-vs-ssh` | `c4084cfe` |
+| `feat/utenti-nel-progetto` | `9d2eb119` |
+| `main-pre-merge-2026-09-11` | `afbbbc43` |
+| `feat/T-56-pannello-destro` | `6ef970ff` |
 
 ⚠️ **Quei rami non andavano mergiati, solo cancellati**, ed è il motivo per cui li ho provati in un
 worktree isolato prima di decidere: sono più vecchi di `main`, e un merge «per sicurezza» avrebbe
@@ -172,9 +175,15 @@ uno avrebbe fatto ricomparire venti file accanto ai loro gemelli in `docs/archiv
 15 commit usciti come `pixsysedp`; su `origin` è stata force-pushata via. Ha un file che `main` non
 ha più (`sws-web/src/deploy.rs`, rimosso da Q48). **Non si tocca.**
 
-Dopo il push sono stati cancellati anche gli altri due, che il maintainer teneva come rete:
-`feat/utenti-nel-progetto` (`9d2eb119`, i 13 commit originali prima della ricostruzione in sei) e
-`main-pre-merge-2026-09-11` (`afbbbc43`, la punta di `main` prima del merge).
+Dopo il push sono stati cancellati anche gli altri, che il maintainer teneva come rete:
+`feat/utenti-nel-progetto` (`9d2eb119`, i 13 commit originali prima della ricostruzione in sei),
+`main-pre-merge-2026-09-11` (`afbbbc43`, la punta di `main` prima di quel merge) e
+`feat/T-56-pannello-destro` (`6ef970ff`, il pannello destro e la scheda Dispositivi, ricostruiti in
+tre commit). Le punte sono tutte nella tabella qui sopra: un ramo cancellato prima o poi sparisce
+anche dal reflog.
+
+**Alla sera dell'11-09-2026 `main` è a `e6ff656e`, allineato a `origin/main`, e in locale resta il
+solo ramo di backup.**
 
 Il lavoro era cresciuto tutto su `feat/utenti-nel-progetto`, in sequenza. Invece di impacchettarlo
 in un `merge --squash` solo, è stato **ricostruito su `main` come sei commit distinti**, uno per
