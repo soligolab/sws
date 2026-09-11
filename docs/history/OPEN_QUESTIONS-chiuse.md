@@ -9,7 +9,7 @@
 > 2026-09-05, su nove schede rilette, tre descrivevano un codice che non esisteva più.
 >
 > Il ragionamento dentro ogni scheda vale più della riga d'indice (è il principio del piano
-> `docs/plans/2026-08-25-chiusura-domande-aperte.md`): per questo si spostano intere, non si
+> `docs/archive/2026-08-25-chiusura-domande-aperte.md`): per questo si spostano intere, non si
 > riassumono.
 
 ## Q1 — Python embedding strategy
@@ -1160,7 +1160,7 @@ iniziata, non chiusa**
 Su richiesta esplicita del maintainer ("lo scopo iniziale era proprio di non usare browser nei
 dispositivi dove non è disponibile... per motivi di risorse non posso nemmeno nasconderlo dentro
 ad un viewer"), affrontata la Fase 4 già prevista dal piano originale di questo filone
-(`docs/plans/2026-08-07-lvgl-engine.md`): sostituire Chromium-on-Weston con `sws-lvgl-viewer` sui
+(`docs/archive/2026-08-07-lvgl-engine.md`): sostituire Chromium-on-Weston con `sws-lvgl-viewer` sui
 Pixsys reali, per liberare le risorse che il browser consuma oggi. Vincolo esplicito del
 maintainer, centrale per come è stato affrontato: LVGL deve restare un **companion opzionale** di
 `sws-runtime`, mai un fork — tutto ciò che esiste per la versione web (runtime, deploy Yocto,

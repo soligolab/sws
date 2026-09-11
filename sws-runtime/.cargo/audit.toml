@@ -4,7 +4,7 @@
 # Ogni voce qui è una vulnerabilità **nota, valutata e senza via d'uscita da
 # parte nostra**: non si aggiunge una riga per far diventare verde un job, si
 # aggiunge quando la correzione non esiste o non dipende da noi. Il referto
-# della revisione pre-2.7.0 (`docs/plans/2026-09-09-revisione-pre-2.7.0.md`)
+# della revisione pre-2.7.0 (`docs/archive/2026-09-09-revisione-pre-2.7.0.md`)
 # racconta i tentativi. Un avviso NUOVO fa fallire il job come deve.
 #
 # Da rivedere a ogni aggiornamento delle dipendenze: se `rumqttc` o

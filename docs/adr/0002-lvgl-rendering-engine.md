@@ -20,7 +20,7 @@ The maintainer's longer-term intent is a project-creation wizard that lets a pro
 either "Web" or "LVGL" (with HW parameters for the latter — framebuffer/DRM vs Wayland today,
 ESP32 in the future), after which the editor exposes only the widget subset supported by that
 target. This ADR only covers the rendering-engine architecture; the wizard/UX work is a
-separate, later phase (see `docs/plans/2026-08-07-lvgl-engine.md`).
+separate, later phase (see `docs/archive/2026-08-07-lvgl-engine.md`).
 
 Repo survey findings that shaped this decision:
 - No prior LVGL/framebuffer/ESP32 code or docs exist anywhere in the repo — clean slate.

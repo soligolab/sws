@@ -14,7 +14,7 @@
 
 ## Context
 
-Il piano di riferimento è già scritto, verificato e approvato: **`docs/plans/2026-09-04-limite-pagina-morbido.md`**.
+Il piano di riferimento è già scritto, verificato e approvato: **`docs/archive/2026-09-04-limite-pagina-morbido.md`**.
 Le decisioni di design sono congelate lì e **non si riaprono**. Questo file è solo
 il piano *della giornata*: dice da dove si riparte, cosa cambia rispetto al piano
 committato (l'ho riverificato contro il codice e nove punti sono invecchiati), e

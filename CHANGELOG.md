@@ -11,6 +11,16 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### I piani conclusi sono passati in `docs/archive/`
+
+`docs/plans/` mescolava lavoro fatto e lavoro da fare: 25 file, 19 dei quali finiti o superati.
+Quelli sono ora in `docs/archive/`, con una tabella di stato ed evidenza per ciascuno; in
+`docs/plans/` restano i sei ancora in gioco. I **33 riferimenti** che li citavano — CHANGELOG,
+STATUS, `docs/`, `sws-runtime/.cargo/audit.toml` — sono stati riscritti nello stesso commit, e
+`git log --follow` continua a seguire i file. Nessun piano è stato riassunto o cancellato: un
+piano finito resta il referto di perché le cose sono fatte così, e uno **superato** resta con
+l'errore dichiarato, che è l'unico modo perché non venga riletto come vero.
+
 ### Gli utenti appartengono al progetto: il deploy li porta sul dispositivo
 
 Rovescia la decisione del 2026-07-30 («il deploy non tocca gli account del dispositivo»), su
@@ -152,7 +162,7 @@ installate nei job che compilano; cargo-cyclonedx pinnato alla 0.5.9 con la sua 
 ## [2.7.0] — 2026-09-09
 
 > La release della revisione generale (referto in
-> `docs/plans/2026-09-09-revisione-pre-2.7.0.md`, decisioni Q46–Q49). Due endpoint in meno
+> `docs/archive/2026-09-09-revisione-pre-2.7.0.md`, decisioni Q46–Q49). Due endpoint in meno
 > (`/api/script/exec`, `/api/deploy/remote`), la cartella dei progetti dichiarata e fuori dal
 > repo, il certificato del dispositivo memorizzato al primo contatto, nessuna password nel
 > browser, e le correzioni di sicurezza elencate sotto. Nessun dato utente si sposta: il
@@ -1250,7 +1260,7 @@ posta come domanda, la risposta di fatto era sepolta in un aggiornamento di Q31.
 della sezione Sorgenti: chi ferma l'impianto per lavorare e poi salva lo riavvia
 senza volerlo. Difetto preesistente, registrato e non corretto.
 
-Contesto completo in `docs/plans/2026-09-01-editor-runtime.md`.
+Contesto completo in `docs/archive/2026-09-01-editor-runtime.md`.
 
 
 ### Un assistente nell'editor: si descrive quel che serve, e lui lo propone (T-50)
@@ -2440,7 +2450,7 @@ sequenza mensile. Deciso dal maintainer, non dedotto da questa sessione.
   Sviluppato su quindici branch di lunga durata in sequenza (`feature/lvgl` → ... →
   `feature/lvgl-pixsys-deploy`), mergiati su `main` con 15 squash-merge sequenziali, uno per fase
   logica (branch non cancellati, decisione di pulizia rimandata). Vedi ADR 0002,
-  `docs/plans/2026-08-07-lvgl-engine.md`.
+  `docs/archive/2026-08-07-lvgl-engine.md`.
 - **Palette oggetti**: per un progetto "web", ogni voce con anche una controparte LVGL mostra un
   piccolo badge "L" sull'icona. Verifica sistematica campo per campo (`sws-web/src/synoptic.rs`
   vs `sws-lvgl-viewer/src/model.rs`): i nomi combaciano per tutti i tipi supportati da LVGL.

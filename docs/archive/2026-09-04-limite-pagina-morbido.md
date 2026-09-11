@@ -2,7 +2,7 @@
 
 > **FATTO** — T-52 mergiato in main (27f19ac) il 2026-09-05. *(Riga aggiunta dalla revisione del 2026-09-06; il resto del file è il referto originale.)*
 
-> Da copiare in `docs/plans/2026-09-04-limite-pagina-morbido.md` al primo commit:
+> Da copiare in `docs/archive/2026-09-04-limite-pagina-morbido.md` al primo commit:
 > il lavoro dura più di una sessione e il maintainer alterna due macchine.
 >
 > **Sul numero**: era T-51 fino al 2026-09-04, poi il maintainer ha assegnato

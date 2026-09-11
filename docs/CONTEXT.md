@@ -70,7 +70,7 @@ before the Phase 5 public demo.
 ## 3. Current state (as of September 2026)
 
 > Riscritta il 2026-09-06 contro il codice, durante la revisione dei documenti
-> (`docs/plans/2026-09-06-revisione-documenti.md`). La versione precedente era di giugno.
+> (`docs/archive/2026-09-06-revisione-documenti.md`). La versione precedente era di giugno.
 
 Il repository è pienamente funzionante: `cargo check --workspace` e `pnpm build` verdi,
 440 test Rust (`#[test]`/`#[tokio::test]`), 158 test vitest, e **32 guardie** in `scripts/`

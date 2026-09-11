@@ -76,6 +76,25 @@
 
 ## ▶ Da fare nella prossima sessione
 
+### 🗂️ I piani conclusi sono passati in `docs/archive/` (2026-09-11)
+
+`docs/plans/` era diventato un misto di lavoro fatto e lavoro da fare: 25 file, di cui 19 finiti o
+superati. Quelli sono ora in [`docs/archive/`](docs/archive/README.md), con la tabella di stato e
+l'evidenza per ciascuno; i **33 riferimenti** che li citavano (CHANGELOG, STATUS, `docs/`, e
+`sws-runtime/.cargo/audit.toml`) sono stati riscritti nello stesso commit, e `git log --follow`
+continua a seguirli. La regola «i file di `docs/plans/` non si spostano», scritta il 2026-09-06
+proprio per via di quei riferimenti, è decaduta con l'instruzione del maintainer; CLAUDE.md ora
+dice di archiviare un piano quando finisce.
+
+Restano vivi sei piani: `2026-08-06-audit-widget-e-codice` (**mezzo vivo**: delle sue quattro
+domande due sono state risolte altrove, due sono ancora aperte qui e in nessun altro posto — il
+binding sui campi di `pipe` e il disallineamento fra `alarm_banner` e `alarm_bell`/`alarm_viewer`,
+verificati nel codice l'11-09-2026), `2026-08-21-scada-widgets` (F5.3x), `2026-08-31-chat-ai-nelleditor`
+(passi 3-6 e chat staccata), `2026-09-03-via-di-fuga-stop-pixsys` (vincoli, non lavoro),
+`2026-09-10-T56-pannelli-editor` (da fare) e `2026-09-11-utenti-nel-progetto` (realizzato, non
+ancora collaudato né mergiato).
+
+
 ### 👥 Gli utenti appartengono al progetto: ramo `feat/utenti-nel-progetto` (2026-09-11)
 
 **Ramo impilato su `feat/T-57-credenziali-sws-vs-ssh`**, non su `main`: il log nuovo del deploy
@@ -121,7 +140,7 @@ l'IDE dirà «sostituiti» e non lo saranno. Va aggiornato prima il runtime del 
 
 ### 🔌 T-57 — il pannello appena installato rifiutava la connessione: ramo `feat/T-57-credenziali-sws-vs-ssh` (2026-09-11)
 
-Il maintainer, da casa, aveva preparato `docs/plans/2026-09-11-diagnosi-login-8444.md` con
+Il maintainer, da casa, aveva preparato `docs/archive/2026-09-11-diagnosi-login-8444.md` con
 l'ipotesi «credenziali applicative SWS confuse con quelle SSH». In ufficio la precisazione che
 ha cambiato tutto: **il pannello era appena installato pulito, senza progetto** — utenti residui
 non ce ne potevano essere, e il primo deploy doveva passare.
@@ -350,7 +369,7 @@ le tre rotte — dopo un ricaricamento vedrebbe la UI nuova ma con `build/stato`
 niente sezione sviluppo, e «Cerca dispositivi»/«Verifica» falliti. Riavviare `start_editor.sh`.
 
 **Da provare a mano** (piano in `~/.claude/plans/…installa…md`, copiato in
-`docs/plans/2026-09-09-q51-q52-installa-guidata.md`): (1) con il repo: «Pacchetto runtime» c'è,
+`docs/archive/2026-09-09-q51-q52-installa-guidata.md`): (1) con il repo: «Pacchetto runtime» c'è,
 Container preselezionato, «Archivio locale» c'è; (2) da una cartella senza `scripts/`: nessuna
 UI di sviluppo, nessun lampeggio; (3) connesso al WP630: Host SSH precompilato, un valore scritto
 a mano resta; (4) «Cerca dispositivi in rete»: il WP630 con i servizi e «SWS v2.7.1», click →
@@ -431,7 +450,7 @@ accenda.
 ### 🔍 Revisione pre-2.7.0 — **su `main`** dal pomeriggio del 2026-09-09, da collaudare
 
 Giornata autonoma su richiesta del maintainer: sicurezza, funzioni a metà o non usate,
-duplicati. **Il referto è `docs/plans/2026-09-09-revisione-pre-2.7.0.md`** — tre colonne:
+duplicati. **Il referto è `docs/archive/2026-09-09-revisione-pre-2.7.0.md`** — tre colonne:
 corretto, da decidere tu, lasciato stare e perché. Le decisioni sono **Q46–Q49** in
 `OPEN_QUESTIONS.md`: Q46, Q47 e Q49 decise dal maintainer e realizzate lo stesso giorno;
 Q48 decisa e realizzata sul suo ramo (sezione sopra). Il ramo è stato **mergiato in squash su `main`** (`b032d9d`) su
@@ -840,7 +859,7 @@ curl -s -X PUT localhost:8444/api/tags/demo.cmd.enable -H 'Content-Type: applica
 ### 🧹 Revisione dei documenti — fatta il 2026-09-06, su `fix/revisione-documenti`
 
 Cinque mesi di pianificazione rimessi a dire il vero, col piano approvato in
-[`docs/plans/2026-09-06-revisione-documenti.md`](docs/plans/2026-09-06-revisione-documenti.md):
+[`docs/archive/2026-09-06-revisione-documenti.md`](docs/archive/2026-09-06-revisione-documenti.md):
 
 - **`docs/OPEN_QUESTIONS.md` 3476 → 1366 righe**: 21 schede decise-e-realizzate, **ognuna
   verificata sul codice prima di archiviarla** (l'artefatto che dichiara, non la prosa),
@@ -853,6 +872,9 @@ Cinque mesi di pianificazione rimessi a dire il vero, col piano approvato in
 - **`docs/plans/README.md`** (nuovo): 20 piani, ognuno con esito verificato ed evidenza; riga di
   stato in testa ai 14 fatti. `global-scripts-template-snippets.md` è **segnalato come falso**
   (punta a un file mai esistito) ma la rimozione è una chiamata del maintainer.
+  *(Aggiornato l'11-09-2026: i 19 piani conclusi o superati — `global-scripts-template-snippets.md`
+  compreso — sono passati in [`docs/archive/`](docs/archive/README.md), con i 33 riferimenti
+  riscritti. In `docs/plans/` restano i 6 ancora in gioco.)*
 - **`docs/CONTEXT.md` §3** riscritta contro il codice di oggi (era «as of June 2026»).
 - **Guardia nuova `scripts/check_documenti.sh`** (fra le statiche, provata rossa in due modi):
   vivo + archivio = Q1..Q41 senza buchi né doppioni, ogni `Q<n>` citato in STATUS / TESTING_GUIDE /
@@ -876,8 +898,8 @@ attorno, e le bande del letterbox nel viewer `ratio`); il bordo trattiene con ~2
 resistenza ma lascia uscire chi trascina con decisione; un oggetto portato interamente fuori dal
 foglio è **parcheggiato** — resta nel file, si vede grigio in editor, e non viene disegnato né nel
 browser né sul pannello né controllato dal validatore. Il piano è
-`docs/plans/2026-09-04-limite-pagina-morbido.md`, le nove correzioni che l'analisi gli ha fatto
-sono in `docs/plans/2026-09-05-T-52-sessioni-B-E.md`.
+`docs/archive/2026-09-04-limite-pagina-morbido.md`, le nove correzioni che l'analisi gli ha fatto
+sono in `docs/archive/2026-09-05-T-52-sessioni-B-E.md`.
 
 **Fix Q30 — «Aggiorna progetto» rifiutava ogni salvataggio successivo.** Trovato dal maintainer
 *mentre* provava T-52. `/api/project/migrate` riscrive `project.yaml` e la sua risposta porta
@@ -1127,7 +1149,7 @@ Trappole di frodo, imparate durante il trasloco:
   `build_containers_all.sh:68`, `yocto/build.sh:41`): deve stare in `/usr/local/oecore-x86_64/`.
 - Identità git **locale al repo** (`Mauro Soligo <mauro@soligo.net>`), non globale.
 
-**Il referto integrale del trasloco è in `docs/plans/2026-08-31-trasloco-frodo.md`** — sta solo
+**Il referto integrale del trasloco è in `docs/archive/2026-08-31-trasloco-frodo.md`** — sta solo
 su theobroma e va ancora portato qui.
 
 ### 0-bis. `--istantanea`: si può guardare il pannello senza il pannello

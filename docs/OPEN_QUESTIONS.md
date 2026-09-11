@@ -1376,7 +1376,7 @@ lontano da chi ha installato. È la forma di guasto più cara: silenziosa e diff
 
 ## Q46 — `/api/fs/browse-dirs` e `/api/fs/mkdir` rispondono senza autenticazione
 
-*Aperta il 2026-09-09 dalla revisione pre-2.7.0 (`docs/plans/2026-09-09-revisione-pre-2.7.0.md`). Nessuna decisione presa.*
+*Aperta il 2026-09-09 dalla revisione pre-2.7.0 (`docs/archive/2026-09-09-revisione-pre-2.7.0.md`). Nessuna decisione presa.*
 
 **Context.** Sul router completo (porta admin dello stack di sviluppo e dell'IDE) le due rotte
 sono **pre-auth**: elencano le sottodirectory di **qualunque** percorso assoluto del server e

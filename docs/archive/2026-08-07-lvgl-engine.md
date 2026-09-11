@@ -47,7 +47,7 @@ Due strade, da non decidere "alla cieca" ma verificare con uno spike pratico a i
 - Scaffolding del nuovo crate `sws-runtime/crates/sws-lvgl-viewer` (binario, `Cargo.toml` con dipendenza `lvgl` opzione A, nessuna logica ancora).
 - ADR in `docs/adr/0002-lvgl-rendering-engine.md` che fissa questa decisione architetturale (client separato, non fusione nel runtime) per iscritto.
 - Nuova voce in `docs/OPEN_QUESTIONS.md` per le sotto-decisioni davvero aperte (binding v8→v9, quali widget dopo l'MVP, se/quando isolare l'"engine" da `sws-web` per un domani con target headless puri).
-- Copia di questo piano in `docs/plans/2026-08-07-lvgl-engine.md` (per continuità multi-sessione/multi-macchina, come da convenzione del progetto).
+- Copia di questo piano in `docs/archive/2026-08-07-lvgl-engine.md` (per continuità multi-sessione/multi-macchina, come da convenzione del progetto).
 
 **Fase 2 — MVP motore di rendering (sessioni successive)**:
 - `sws-lvgl-viewer` disegna su **simulatore SDL2** (scelto dal maintainer per iterazione rapida senza hardware).
@@ -89,7 +89,7 @@ Il flusso `feat/T-XX` → squash-merge in `main` descritto in `CLAUDE.md` è pen
 
 - `cargo check` verde sul nuovo workspace member `sws-lvgl-viewer` (anche se inizialmente vuoto/hello-world).
 - Il branch `feature/lvgl` esiste, punta da `main`, primo commit con lo scaffolding + i documenti.
-- `docs/adr/0002-lvgl-rendering-engine.md`, la voce in `docs/OPEN_QUESTIONS.md`, e `docs/plans/2026-08-07-lvgl-engine.md` sono leggibili e coerenti con questo piano.
+- `docs/adr/0002-lvgl-rendering-engine.md`, la voce in `docs/OPEN_QUESTIONS.md`, e `docs/archive/2026-08-07-lvgl-engine.md` sono leggibili e coerenti con questo piano.
 - `STATUS.md` aggiornato con una nuova sezione di sessione che spiega cosa è stato fatto e cosa riprendere (branch, decisioni prese, prossimo passo = spike SDL2 in Fase 2).
 
 Non è previsto, in questa Fase 1, nessun test funzionale del rendering (arriva in Fase 2) — l'obiettivo di questo blocco è architetturale e documentale, con uno scaffolding di crate che compila come unico artefatto di codice.

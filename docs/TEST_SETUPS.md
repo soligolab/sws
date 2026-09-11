@@ -45,7 +45,7 @@ Debian 13 trixie. Ha quattro interfacce; quella di lavoro è `ens18` (`192.168.0
 
 Il server precedente — `theobroma`, repo a `/home/ut1/sws` — è **intatto come via di ritorno** ma
 al 99% di disco: non ci si costruisce più nulla. Le sue trappole (e quelle di frodo) stanno nel
-referto `docs/plans/2026-08-31-trasloco-frodo.md`.
+referto `docs/archive/2026-08-31-trasloco-frodo.md`.
 
 **Macchina headless** (nessun monitor diretto).
 

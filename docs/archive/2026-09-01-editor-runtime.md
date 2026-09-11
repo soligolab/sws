@@ -262,7 +262,7 @@ dice») risponde alla metà UI, non a questa.
 5. **§4, i percorsi morti e i tre file del compose** — per ultimo, e **solo dopo un sì**: è l'unico
    pezzo che cancella. Si può tagliare senza conseguenze per il resto.
 
-Prima di cominciare: **copiare questo file in `docs/plans/2026-09-01-editor-runtime.md` e
+Prima di cominciare: **copiare questo file in `docs/archive/2026-09-01-editor-runtime.md` e
 committarlo** (regola in `CLAUDE.md`: i piani in `~/.claude/plans/` non viaggiano con git, e il
 maintainer lavora da due macchine). Aggiornare poi il rimando di `STATUS.md` righe 53-56, che oggi
 punta a `~/.claude/plans/` per il disegno della chat staccata: dopo la copia quel disegno è in repo,

@@ -3,7 +3,7 @@
 > **FATTO** — scripts/session_start.sh esiste, guardato da check_session_start.sh. *(Riga aggiunta dalla revisione del 2026-09-06; il resto del file è il referto originale.)*
 
 *2026-09-02, frodo. Sostituisce il piano precedente (divisione editor/runtime), che è **completo,
-mergiato e rilasciato** nella 2.4.0 — la sua traccia vive in `docs/plans/2026-09-01-editor-runtime.md`,
+mergiato e rilasciato** nella 2.4.0 — la sua traccia vive in `docs/archive/2026-09-01-editor-runtime.md`,
 in `docs/adr/0003-editor-runtime-same-binary.md` e in `STATUS.md`.*
 
 ---
@@ -16,7 +16,7 @@ cosa hai di locale, e da dove ripartire. Oggi quel rito è andato storto due vol
 sessione, e in due modi che `git pull` non sa raccontare:
 
 1. **`main` divergente con un commit locale.** All'ufficio era `c519838`, che aggiungeva
-   `docs/plans/2026-08-31-T50-chat-ai-esecutivo.md` — un file che su `origin/main` c'era già,
+   `docs/archive/2026-08-31-T50-chat-ai-esecutivo.md` — un file che su `origin/main` c'era già,
    arrivato dentro il merge di T-50 con un hash diverso. Era la versione **pre-riscrittura** dello
    stesso lavoro. `git pull` si è fermato chiedendo come riconciliare, e nessuna delle tre risposte
    che suggerisce era quella giusta: merge e rebase avrebbero portato dentro il doppione.

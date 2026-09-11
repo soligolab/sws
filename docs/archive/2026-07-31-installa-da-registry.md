@@ -281,6 +281,6 @@ x86_64 (deve comporre `latest-amd64`, non `latest-arm64`).
 
 Il maintainer è in partenza per le ferie e lavora da due macchine. Secondo `CLAUDE.md`
 §"Piani di lavoro", questo piano va copiato in
-`docs/plans/2026-07-31-installa-da-registry.md` e committato: i piani in `~/.claude/plans/`
+`docs/archive/2026-07-31-installa-da-registry.md` e committato: i piani in `~/.claude/plans/`
 sono per macchina e non viaggiano con git — è già successo il 2026-07-30 che un'analisi
 scritta a casa non sia arrivata in ufficio.
