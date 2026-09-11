@@ -74,6 +74,45 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — chiusura della sessione dell'11-09-2026
+
+**`main` è a `origin/main`, working tree pulito, in locale resta il solo ramo
+`backup/main-pre-riscrittura-2026-09-09`.** A casa: `./scripts/session_start.sh` vedrà `main`
+indietro e proporrà il `pull` — è il caso normale, non la divergenza del 09-09.
+
+La giornata, in ordine: T-57 (pannello appena installato che rifiutava la connessione) → **gli
+utenti appartengono al progetto** (rovesciata la decisione del 2026-07-30) → i 19 piani conclusi in
+`docs/archive/` → `alarm_banner` che divergeva fra i due motori → la via di fuga STOP con la sua
+guardia → **T-56 + T-55** (i due pannelli dell'editor) → il pannello destro a gruppi → **T-53**
+(waypoint sul canvas) → **T-68** (credenziali del dispositivo) → **T-58** (motore di rendering
+dall'IDE). Tutto mergiato, pushato e collaudato dal maintainer.
+
+### Quello che resta da fare, in ordine di valore
+
+1. **T-59 — referto di compatibilità LVGL**, la traccia più grossa e quella che il maintainer ha
+   chiamato interessante. Decisione già presa: **lo si chiede al motore vero**, non a una lista di
+   limiti scritta a parte. `istantanea.rs` fa già tutto il lavoro pesante; manca una costante e un
+   giro sulle pagine. Oggi l'avviso della conversione verso LVGL è generico, ed è il suo posto.
+2. **T-69 — il Python di progetto non sa che ora è.** Appena registrata, con le otto affermazioni
+   dell'assistente IA riverificate: sette reggono, **una no** (i parametri si passano già). La
+   cosa che sbloccherebbe davvero è `delta_ms` nella sandbox, perché rende la logica indipendente
+   dalla cadenza del trigger.
+3. Le altre otto tracce dall'HOWTO (T-60…T-67) e **T-54** (il log staccato), l'unica delle
+   richieste del 10-09 rimasta intatta.
+
+### Tre cose imparate oggi che vale la pena non ridimenticare
+
+- **Tre difetti su tre avevano la stessa forma**: dire una cosa e averne costruita un'altra. Il
+  `Provider` dei gruppi dichiarato e mai fornito; il tracciato del percorso che «diventa inerte» in
+  cattura e invece spariva; il selettore annunciato in una scheda di Configurazione che non esiste.
+  I test provavano le due metà e nessuno il punto in cui si incontrano.
+- Per questo `check_target_progetto.sh` prova la **catena intera** — rotta → `project.yaml` →
+  `display-target` — e non i pezzi: è lì che un cablaggio dimenticato non si vede, perché la rotta
+  risponde 204 e il file cambia lo stesso.
+- Il test d'inventario del pannello proprietà **ha smesso di funzionare in silenzio** (apriva le
+  sezioni con un evento nativo fuori da `act()`) e continuava a passare confrontando un inventario
+  dimezzato con sé stesso. Un aiutante di test che fallisce in silenzio è peggio di nessun test.
+
 ## ▶ Da fare nella prossima sessione
 
 ### ⏱ T-69 — il Python di progetto non sa che ora è, e non può avere una cadenza sua (2026-09-11)
