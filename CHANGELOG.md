@@ -20,6 +20,15 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   L'editor delle serie ha ora campi min/max per riga, e min/max dell'oggetto compaiono solo in
   `stacked`. Nessuna modifica lato LVGL (il default e i campi esistevano già).
 
+### Added
+- **`write_data_type` sui tag (Q29)**: un tag può dichiarare un tipo diverso per lettura
+  (`data_type`) e scrittura (`write_data_type`), per i casi come una tapparella Shelly (posizione
+  numerica in lettura, comando testuale "open"/"stop"/"close" in scrittura). Assente = si
+  comporta come sempre. Il validatore lo rispetta nel controllo sul valore scritto; l'editor lo
+  espone nella scheda Tags (riga avanzata, campo "Tipo in scrittura"). I quattro tag delle
+  tapparelle in `casa-locale` lo dichiarano ora, e le dodici eccezioni che li tenevano fuori dal
+  test dei template sono state tolte.
+
 ## [2.7.3] — 2026-09-12
 
 > `xy_plot` multi-coppia (T-70/F5.3x), il selettore del motore di rendering dall'IDE (T-58),

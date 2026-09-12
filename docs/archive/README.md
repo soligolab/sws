@@ -42,6 +42,7 @@ venga riletto come vero.
 | [2026-09-12-q31-verifica-chat-remota.md](2026-09-12-q31-verifica-chat-remota.md) | **COLLAUDATA** | Q31: verificata dal vivo con due runtime di prova e un browser vero — avviso, socket locale, proposta sul progetto giusto, nessun 404. Scheda intera in `docs/history/OPEN_QUESTIONS-chiuse.md` |
 | [2026-09-12-q46-verifica-projects-root.md](2026-09-12-q46-verifica-projects-root.md) | **COLLAUDATA** | Q46: verificata dal vivo su un'istanza di prova — `browse-dirs`/`mkdir` respingono ogni fuga dalla `projects_root`, link simbolico incluso. Scheda intera in `docs/history/OPEN_QUESTIONS-chiuse.md` |
 | [2026-09-12-q28-scala-bar-chart.md](2026-09-12-q28-scala-bar-chart.md) | **FATTO** | Q28: scala per serie fuori da `stacked`, mergiato su `main` (`f8e7fc6`) e verificato dal vivo (browser + istantanea LVGL, stesse proporzioni). Scheda intera in `docs/history/OPEN_QUESTIONS-chiuse.md` |
+| [2026-09-12-q29-tag-due-tipi.md](2026-09-12-q29-tag-due-tipi.md) | **FATTO** | Q29: `write_data_type` su `TagDef`, mergiato su `main` (`dab5ef8`) e verificato dal vivo (round-trip YAML→API, screenshot editor, test senza più `ECCEZIONI_NOTE`). Scheda intera in `docs/history/OPEN_QUESTIONS-chiuse.md` |
 
 ## Non solo piani
 

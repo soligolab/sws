@@ -74,6 +74,37 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — Q29 mergiata (2026-09-12)
+
+**Q29 — `write_data_type`, un tag due tipi quando lettura e scrittura divergono**: su `main`
+(`dab5ef8`), squash-merge confermato. Nuovo campo `TagDef.write_data_type: Option<String>`
+(`sws-core/src/project.rs`, accanto a `data_type`); il validatore lo usa per il controllo sul
+valore scritto (`write_value`/`release_value`/`checked_value`/`unchecked_value`), non per
+`on_value` (confronto, resta sul solo `data_type`). Le dodici eccezioni di `casa-locale`
+(`ECCEZIONI_NOTE` in `validate.rs`) sono **tolte**, non lasciate morte: con `write_data_type:
+string` dichiarato sui quattro tag delle tapparelle, il test `i_template_non_hanno_errori` passa
+senza più bisogno di elencarle — prova diretta che il campo risolve i dodici casi.
+
+Un chiarimento sul dove, non scontato dal piano: il campo vive nella scheda Tags dell'editor
+(riga avanzata, accanto al gemello `write_min_role`), **non** nel pannello sorgenti MQTT dove
+vive `publish_topic` — `write_data_type` è su `TagDef`, universale per qualunque sorgente. Lo
+schema per l'assistente IA (`TAG_FIELDS`/`schema_tag`) si è rigenerato da solo dai commenti doc
+di `TagDef`, nessuna modifica a mano; stesso trattamento di `write_min_role`: nel vocabolario per
+dichiarare un tag nuovo, non nell'elenco minimale di `elenca_tag`.
+
+Difetto trovato e corretto per strada: il CSV-import dei tag (`router.rs`) non compilava più
+dopo il nuovo campo — mancava l'inizializzazione. Trovato da `cargo check`, non da un test.
+
+Verificato dal vivo: round-trip YAML → API su un'istanza di prova con `casa-locale`, screenshot
+dell'editor con "Tipo in scrittura: Stringa" sulla riga di `shutter.garage`. Gate pieno verde
+(workspace intero, tsc/build/348 vitest, 17/17 guardie). Scheda archiviata in
+`docs/history/OPEN_QUESTIONS-chiuse.md`, piano in `docs/archive/2026-09-12-q29-tag-due-tipi.md`.
+
+**Restano "pronte" da costruire**: Q36 (sessione vera nel client LVGL — la più grande),
+Q16/Q45/Q49/Q53. Restano piani "da fare" non derivati da Q-xx: `ruolo-minimo-avviso-noauth`,
+`f7-residui-minori`, `casamauro-arricchimento-demo`, più la Parte B di F5.3x (verifica dal vivo
+della parità LVGL sul TC620, sbloccata dalla 2.7.3, non ancora affrontata).
+
 ## ▶ Riprendere da qui — Q28 mergiata, cinque decisioni Q-xx più due verifiche chiuse in un ciclo `/riprendi` (2026-09-12)
 
 Ciclo `/riprendi` ripreso dopo il precedente (2.7.3/T-70). Nessun ramo obsoleto da pulire (solo

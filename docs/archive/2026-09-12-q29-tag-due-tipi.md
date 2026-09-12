@@ -58,6 +58,39 @@ sorgente, non solo MQTT.
 
 Branch: `feat/Q29-write-data-type`.
 
+### Esito — realizzato e mergiato il 2026-09-12
+
+Su `main` (`dab5ef8`), squash-merge confermato dal maintainer. Una correzione ai riferimenti del
+piano, emersa riverificando prima di scrivere: `TagDef` vive in `sws-core/src/project.rs`, non
+`tag.rs` (quel file contiene `TagDb`, il magazzino valori a runtime — un tipo diverso). Il resto
+del disegno ha retto senza forchette.
+
+Un chiarimento sul dove, non previsto in dettaglio dal piano: il campo doveva andare "accanto a
+`publish_topic`" concettualmente (l'asimmetria lettura/scrittura), ma **non** nel pannello
+sorgenti MQTT dove `publish_topic` vive nel codice — quello è per-mapping, solo MQTT. La
+decisione presa colloca `write_data_type` su `TagDef` (universale, per qualunque sorgente), e
+l'editor lo riflette: sta nella scheda Tags, riga avanzata, accanto al gemello già lì
+`write_min_role` (stesso genere di campo raro/avanzato, stesso posto).
+
+Lo schema per l'assistente IA (`TAG_FIELDS`/`schema_tag`) si è rigenerato da solo dai commenti
+doc di `TagDef` via `./scripts/gen_synoptic_schema.py`, nessuna modifica a mano. Seguito lo
+stesso precedente di `write_min_role`: il campo entra in `TAG_FIELDS` (il vocabolario per
+dichiarare un tag nuovo) ma non nell'elenco minimale di `elenca_tag` (uno strumento diverso,
+deliberatamente essenziale) — stesso trattamento, non un'omissione.
+
+**Verifica fatta**: `cargo check`/`test`/`clippy`/`fmt` verdi sull'intero workspace (284 test in
+`sws-web`, incluso `i_template_non_hanno_errori` che ora passa **senza** `ECCEZIONI_NOTE` — prova
+diretta che `write_data_type` risolve davvero i dodici casi, non solo che non rompe altro), `tsc`/
+`pnpm build`/348 vitest verdi, 17/17 guardie statiche. **Round-trip dal vivo**: un'istanza di
+prova isolata con un progetto da `casa-locale` conferma `write_data_type: string` sopravvive al
+giro YAML → API sui quattro tag delle tapparelle; screenshot dell'editor conferma il campo "Tipo
+in scrittura" nella riga avanzata, funzionante.
+
+**Difetto trovato e corretto per strada**: il CSV-import dei tag (`router.rs`, un `TagDef`
+costruito a mano da colonne CSV) non compilava più dopo il nuovo campo — mancava
+`write_data_type: None` nell'inizializzatore. Trovato da `cargo check`, non da un test: quel
+percorso non ha una suite propria.
+
 ---
 
 ## Il problema, in breve
