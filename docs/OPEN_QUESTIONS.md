@@ -182,12 +182,6 @@ Contenuto spostato in [`docs/plans/2026-09-12-q36-min-role-lvgl.md`](plans/2026-
 
 ---
 
-## Q39 — Il validatore deve aprire la famiglia dei rilievi geometrici?
-
-Contenuto spostato in [`docs/plans/2026-09-12-q39-validatore-rilievi-geometrici.md`](plans/2026-09-12-q39-validatore-rilievi-geometrici.md) il 2026-09-12. **Decided:** not yet.
-
----
-
 ## Q40 — `state_on_color` non fa niente sugli undici simboli importati, e niente lo dice
 
 *Aperta il 2026-09-06. **Misurata su entrambi i motori**, non dedotta.*
@@ -604,6 +598,7 @@ prende il numero successivo all'ultimo mai assegnato, archivio compreso.
 | Q35 | «fuori pagina» implicito nelle coordinate o campo esplicito? | 2026-09-06 |
 | Q37 | Cosa c'è attorno alla pagina sul pannello, e se il foglio non ci sta | 2026-09-06 |
 | Q38 | `size_mode: ratio` senza dimensioni esplicite: il bordo non arriva al canvas | 2026-09-06 |
+| Q39 | Il validatore deve aprire la famiglia dei rilievi geometrici? | 2026-09-12 |
 | Q41 | La chat IA deve mostrare consumo di token e credito residuo? | 2026-09-06 |
 | Q42 | Gli script Python scrivono i tag senza lo scaling inverso | 2026-09-06 |
 | Q47 | `/api/script/exec` esegue codice arbitrario e nessuno lo chiama più | 2026-09-09 |

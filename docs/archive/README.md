@@ -37,6 +37,7 @@ venga riletto come vero.
 | [2026-09-11-T53-waypoint-sul-canvas.md](2026-09-11-T53-waypoint-sul-canvas.md) | **FATTO** | T-53: i waypoint del percorso di movimento si trascinano sul canvas. Confermato dal maintainer l'11-09-2026; due difetti trovati al primo uso e corretti, uno dei quali più vecchio di T-53 |
 | [2026-09-11-diagnosi-login-8444.md](2026-09-11-diagnosi-login-8444.md) | **SUPERATO — diagnosi sbagliata** | l'ipotesi «credenziali confuse» non reggeva: era un bug (`senza_utenti` sondava una rotta assente su `--no-admin`), corretto in T-57. Le due affermazioni su seed e deploy di `users.yaml` sono errate — vedi la sezione «Esito» in coda al file |
 | [global-scripts-template-snippets.md](global-scripts-template-snippets.md) | **SUPERATO — mai iniziato** | senza data (giugno 2026); il file bersaglio `GlobalScriptsTab.tsx` non esiste: gli script globali vivono in `ConfigView` |
+| [2026-09-12-q39-validatore-rilievi-geometrici.md](2026-09-12-q39-validatore-rilievi-geometrici.md) | **DECISO** | Q39: il maintainer ha scelto di fermarsi qui, nessun codice segue. La scheda intera è ora in `docs/history/OPEN_QUESTIONS-chiuse.md` |
 
 ## Non solo piani
 

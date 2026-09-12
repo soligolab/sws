@@ -40,6 +40,5 @@ c'è già, manca solo la conferma a schermo prima di archiviare la scheda in
 | [2026-09-12-q29-tag-due-tipi.md](2026-09-12-q29-tag-due-tipi.md) | Q29 | **decisione** — un tag con due tipi (lettura/scrittura) o due tag separati |
 | [2026-09-12-q32-presa-diretta-cerimonia.md](2026-09-12-q32-presa-diretta-cerimonia.md) | Q32 | **decisione** — serve altra cerimonia per modificare un progetto in presa diretta con `SWS_ENABLE_IDE=1`? |
 | [2026-09-12-q36-min-role-lvgl.md](2026-09-12-q36-min-role-lvgl.md) | Q36 | **decisione** — `min_role` non esiste sul pannello LVGL, tre opzioni dalla più piccola alla sessione vera |
-| [2026-09-12-q39-validatore-rilievi-geometrici.md](2026-09-12-q39-validatore-rilievi-geometrici.md) | Q39 | **decisione** — il validatore deve aprire la famiglia dei rilievi geometrici oltre "fuori pagina"? |
 | [2026-09-12-q31-verifica-chat-remota.md](2026-09-12-q31-verifica-chat-remota.md) | Q31 | **verifica** — provare la chat con un runtime remoto vero collegato |
 | [2026-09-12-q46-verifica-projects-root.md](2026-09-12-q46-verifica-projects-root.md) | Q46 | **verifica** — confermare che `browse-dirs`/`mkdir` restino dentro `projects_root` |

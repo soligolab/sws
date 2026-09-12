@@ -1,7 +1,12 @@
 # Q39 — Il validatore deve aprire la famiglia dei rilievi geometrici?
 
-> Trasferito da `docs/OPEN_QUESTIONS.md` (Q39) il 2026-09-12, aperta il 2026-09-05. Presenta
-> la domanda, non la decide.
+> Trasferito da `docs/OPEN_QUESTIONS.md` (Q39) il 2026-09-12, aperta il 2026-09-05.
+
+## Decisa (2026-09-12, maintainer): opzione 1 — fermarsi qui
+
+L'avviso di pagina «N oggetti sono fuori pagina» (T-52) resta un'eccezione motivata da quel
+cambio di comportamento, non l'inizio di una famiglia di rilievi geometrici nel validatore.
+Nessun lavoro segue: è già lo stato attuale del codice. Piano concluso, da archiviare.
 
 ## Il problema
 
