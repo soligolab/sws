@@ -74,6 +74,35 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — sospesa il 12-09-2026 per riavvio macchina
+
+Ciclo `/riprendi` di inizio sessione su "ufficio". Fatto: puliti dieci rami locali confermati
+superati (contenuto già su `main` sotto altro nome — `fix/mqtt-topic-vuoto`,
+`salvataggio-main-2026-09-09`, `test/validazione-2026-09-06`, `feat/Q41-risorse-chat`,
+`fix/Q37-cornice-lvgl`, `fix/Q38-ratio-materializza`, `fix/Q17-ricette-soglia`,
+`fix/Q42-scaling-script`, `fix/Q27-tipo-in-scrittura`, `fix/revisione-documenti`); scritto e
+committato `docs/plans/2026-09-12-collaudo-occhi-chat.md` — il vero residuo di T-51/fase 3 non
+sono "i passi 3-6" scritti in `docs/plans/README.md` (nota datata, corretta nello stesso
+commit) ma il collaudo con un modello vero di `istantanea_pagina` **nella chat staccata**,
+mai esercitato.
+
+**Il collaudo non è partito.** Prima di arrivarci, trovato un problema di build che non è del
+codice: questa macchina è a metà di un avanzamento di versione Ubuntu, `python3` di sistema
+punta ora alla 3.14 (manca il pacchetto `-dev` per quella versione) e il link di
+`sws-pyscript`/pyo3 falliva con `unable to find library -lpython3.14`. Rimedio verificato,
+nessuna modifica di sistema: `PYO3_PYTHON=/usr/bin/python3.13 ./scripts/start_editor.sh`
+(la 3.13 è ancora installata per intero). Se l'avanzamento Ubuntu nel frattempo si è concluso,
+verificare se serve ancora prima di riusarlo.
+
+Con l'istanza ripartita, creato un progetto scratch `collaudo-occhi-chat` dal template
+`demo-items-lvgl` per il collaudo — **richiesto un riavvio della macchina prima di arrivare al
+punto vero** (staccare la chat, mandare una richiesta che obblighi `istantanea_pagina`,
+verificare che il modello la usi davvero). Tutto fermato pulito: progetto scratch chiuso e
+cancellato, istanza di test terminata, porta 8460 libera, nessun residuo su disco.
+
+**Prossima sessione**: riprendere da `docs/plans/2026-09-12-collaudo-occhi-chat.md`, passo 1
+(chiedere se l'istanza va avviata di nuovo).
+
 ## ▶ Riprendere da qui — chiusura della sessione dell'11-09-2026
 
 **`main` è a `origin/main`, working tree pulito, in locale resta il solo ramo
