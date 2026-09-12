@@ -74,6 +74,38 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — T-70 Parte A su `main`, Parte B bloccata sul dispositivo (2026-09-12)
+
+**T-70/F5.3x — xy_plot multi-coppia con backfill, Parte A**: su `main` (`262c17c`), non
+pushato. Schema `xy_series[]` (tre posti: TS, `synoptic.rs`, `model.rs` LVGL), migrazione
+automatica dal formato legacy (stesso taglio di `trend_tags`), nuovo `GET /api/history/xy`
+con merge a riempimento (`sws_historian::merge_xy`, non un join — due tag storicizzati
+indipendentemente non hanno timestamp in comune), rendering multi-serie su web e LVGL,
+pannello proprietà con editor per l'array di coppie. Gate pieno verde (cargo check/test/
+clippy/fmt, pnpm build+tsc, 469 test Rust). Dettaglio nel piano
+`docs/archive/2026-09-12-F5.3x-xy-plot-e-verifica-lvgl.md`.
+
+Verificato dal vivo (API + istantanea LVGL), **non sul TC620**: il dispositivo gira ancora il
+firmware precedente, che non conosce `xy_series` e lo scarta in silenzio — un progetto
+migrato ci arriva senza coppia, il grafico resta vuoto. Non è un difetto del codice, è un
+disallineamento firmware/progetto. Riprovare quando il dispositivo avrà un binario
+aggiornato (serve una build/deploy del runtime per aarch64, non il solo deploy di progetto).
+
+Nel mezzo, tre pacchetti `-dev` mancanti dopo l'upgrade a **Ubuntu 26.04.1 LTS** su questa
+macchina (`python3.14-dev`, `libsdl2-dev`, `libfreetype-dev` — quest'ultimi due già elencati
+in `docs/YOCTO_CROSSCOMPILE.md` punto 6, scoperti a build fallite invece che da lì). Ora c'è
+`./scripts/install_dev_prereqs.sh` (su `main`, `bac9afb`) per verificarli/installarli tutti
+insieme la prossima volta.
+
+**Rami locali da proporre in cancellazione** (lavoro già confluito in `main` via squash):
+`feat/T-70-xy-history-merge`, `feat/T-70-xy-plot-multi-coppia` — non cancellati senza un sì
+esplicito del maintainer (regola di `CLAUDE.md`).
+
+**Prossima sessione**: **Parte B** dello stesso piano (verifica dal vivo della parità LVGL)
+resta l'unico lavoro vivo in `docs/plans/` — ma condivide il blocco di cui sopra: serve un
+binario aggiornato sul TC620 prima di poterla fare per davvero. Valutare se vale la pena
+affrontare prima quel passo (build/deploy del runtime aarch64) come lavoro a sé.
+
 ## ▶ Riprendere da qui — collaudo "gli occhi della chat" chiuso (2026-09-12)
 
 Ciclo `/riprendi` di inizio sessione su "ufficio". Puliti dieci rami locali confermati superati

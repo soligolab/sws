@@ -11,6 +11,24 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### `xy_plot` diventa multi-coppia, con backfill dallo storico (T-70/F5.3x)
+
+Unico residuo della fase F5 (Storico 2.0) dello scada-widgets: prima una coppia X/Y sola,
+nessun backfill all'apertura pagina.
+
+- **Multi-coppia**: `xy_series[]` sostituisce `tag`/`y_tag`, stesso taglio netto della
+  migrazione `trend_tags` (2026-08-23) — migrazione automatica al load, campi legacy rimossi.
+- **Curva di riferimento/target**: una voce di `xy_series` come le altre, marcata `dash:
+  "dashed"` — non un campo a parte.
+- **Backfill**: nuovo `GET /api/history/xy`, che unisce due tag storicizzati indipendentemente
+  con un merge a riempimento (`sws_historian::merge_xy`) invece di un join per timestamp
+  (che non esisterebbe, avendo cadenze diverse). Una fetch sola al mount, non un poller.
+- Web (`XyPlotCanvas.tsx`) e LVGL (`render_xy_plot`/`update_xy_plot`) allineati; `dash` ed
+  etichette assi restano gap dichiarati su LVGL (`lv_chart` non li espone).
+- Non ancora collaudato sul dispositivo — il firmware installato è precedente a questo
+  cambio e scarta `xy_series` in silenzio (si vede aprendo un progetto migrato: l'oggetto
+  perde la coppia). Da riprovare quando il dispositivo avrà un binario aggiornato.
+
 ### Il motore di rendering di un progetto si cambia dall'IDE (T-58)
 
 `target.kind` si sceglieva solo alla creazione del progetto; cambiarlo voleva dire editare
