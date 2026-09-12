@@ -1,9 +1,64 @@
 # Q28 — Il grafico a barre usa due scale diverse nei due motori
 
 > Trasferito da `docs/OPEN_QUESTIONS.md` (Q28) il 2026-09-12, aperta il 2026-08-31, misurata
-> ma **non decisa**. Questo file presenta la domanda e le opzioni per il maintainer — non
-> decide nulla, per la regola di `CLAUDE.md` su `docs/OPEN_QUESTIONS.md`. Rileggere la scheda
-> originale per le misure complete (pixel, valori) prima di scegliere.
+> il 2026-09-06. **Decisa dal maintainer il 2026-09-12.**
+
+## Decisa (2026-09-12, maintainer): scala per serie, tranne in `stacked`
+
+**Scala per serie** (`bar_series[i].min/max`, come già fa LVGL) per le barre affiancate normali.
+**`bar_mode: stacked` resta a scala condivisa** (`obj.min`/`obj.max`, somma dei valori) — confermato
+col maintainer: impilare segmenti ciascuno con un proprio fondo scala non avrebbe senso, la somma
+è per costruzione una lettura a scala unica.
+
+### Cosa cambia, verificato nel codice prima di scrivere il piano
+
+- **Web** (`SvgCanvas.tsx`, blocco `BAR CHART`): oggi calcola **una sola** `lo`/`hi` condivisa
+  (`obj.min`/`obj.max`, o auto `0..max(valori)` se assenti) e la usa sia per le barre sia per le
+  soglie (`showThresh`, stessa `frac()`). Va sdoppiato: fuori da `stacked`, ogni serie calcola la
+  propria `frac` da `s.min ?? 0` / `s.max ?? 100` (default **0..100 fisso**, non più auto-scala —
+  per allinearsi al default che LVGL ha già).
+- **Le soglie** (`bar_show_thresholds`) oggi attraversano tutto il grafico su un'unica scala. Con
+  la scala per serie, una riga di soglia ha senso solo se **tutte le serie condividono lo stesso
+  intervallo** — è esattamente la guardia che LVGL ha già (`lvgl_render.rs`, commento
+  "soglie dichiarate ma non disegnate — le serie hanno scale diverse"). Il web va allineato allo
+  stesso criterio, non reinventato.
+- **Il pannello proprietà non ha MAI avuto campi min/max per serie**, pur essendo nel tipo
+  (`BarChartSeries.min`/`.max` in `types/index.ts:1653-1654`): l'editor delle serie
+  (`EditorShell.tsx:3930-3943`) espone solo tag/label/colore. Vanno aggiunti — altrimenti la
+  scelta di oggi resta inespressa nell'IDE, impostabile solo scrivendo lo YAML a mano.
+- **`obj.min`/`obj.max`** restano significativi **solo per `stacked`** (già li usa oggi come
+  bordi della scala condivisa) — nel pannello proprietà andrebbero mostrati solo quando
+  `bar_mode === "stacked"`, non sempre come oggi (verificare la condizione attuale prima di
+  toccarla).
+- **Nessun progetto del repo dichiara `bar_mode: stacked` o un min/max esplicito** (verificato:
+  i due unici `bar_chart` — i template gemelli demo-items-web/-lvgl — non dichiarano niente).
+  Il cambio di default (auto-scala → 0..100 fisso) cambierà l'aspetto di quei due grafici demo,
+  atteso e voluto: è lo stesso default che LVGL ha sempre avuto.
+
+### File coinvolti
+
+- `sws-editor/src/canvas/SvgCanvas.tsx` (blocco `BAR CHART`: scala per-serie fuori da stacked,
+  criterio soglie allineato a LVGL)
+- `sws-editor/src/editor/EditorShell.tsx` (~3930-3943: aggiungere min/max all'editor delle serie;
+  condizionare `obj.min`/`obj.max` a `bar_mode === "stacked"`)
+- `sws-runtime/crates/sws-lvgl-viewer/src/lvgl_render.rs` — **verificare se serve toccarlo**: il
+  criterio soglie è già quello voluto, ma confermare che il default per-serie sia davvero
+  `0..100` anche quando la serie non dichiara nulla (dovrebbe già esserlo, per lo stesso motivo
+  per cui web diverge oggi).
+
+### Verifica
+
+1. `cargo check` (se tocca LVGL) + `pnpm build`/`tsc` verdi.
+2. Round-trip: min/max per serie salvati e riletti dall'editor.
+3. Verifica visiva: un `bar_chart` con serie a scale diverse (es. portata 0-500, temperatura
+   0-100) nello stesso grafico, browser e istantanea LVGL — devono leggersi allo stesso modo.
+4. Un `bar_chart` con `bar_mode: stacked`: verificare che resti a scala condivisa, invariato.
+5. Ripetere la misura sui pixel del 2026-09-06 (stessa pagina, stessi tre tag a 20/45/30) e
+   confermare che web e LVGL ora concordino.
+
+Branch: `feat/Q28-bar-chart-scala-per-serie`.
+
+---
 
 ## Il problema, in breve
 
