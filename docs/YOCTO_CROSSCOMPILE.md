@@ -65,6 +65,25 @@
    workspace, quindi `cargo check --workspace` e `cargo test --workspace` lo
    compilano ed eseguono. Senza, il workspace non compila affatto.
 
+   **Un avanzamento di versione Ubuntu può farli sparire di nuovo** (visto sul
+   posto il 2026-09-12, macchina "ufficio", upgrade a 26.04.1 LTS): l'upgrade
+   ha tolto `libsdl2-dev` e `libfreetype-dev` (restavano solo le librerie
+   runtime, `libsdl2-2.0-0`/`libfreetype6`, non gli header) — `clang`/
+   `libclang-dev` invece sono sopravvissuti. Sintomo: non un errore di
+   bindgen, ma il **link** finale che fallisce con `unable to find library
+   -lSDL2` (o `-lfreetype`, o compilazione di `lv_freetype.c` con `ft2build.h:
+   No such file or directory`). Stesso rimedio, ripetuto: `sudo apt install
+   libsdl2-dev libfreetype-dev`.
+
+   **Nello stesso upgrade è comparso un problema imparentato ma diverso**: il
+   `python3` di sistema è passato alla 3.14 (`python3.13` rimosso del tutto),
+   e mancava `python3.14-dev` — non un pacchetto di questa lista, ma la stessa
+   causa (un avanzamento OS toglie gli header `-dev`, non solo l'interprete/
+   la libreria runtime), e lo stesso sintomo indiretto: `cargo build` fallisce
+   al link con `unable to find library -lpython3.14`. Rimedio:
+   `sudo apt install python3.14-dev` (il nome segue la versione di `python3
+   --version`, non è fisso come per SDL2/FreeType).
+
    **Non serve invece `libc6-dev-arm64-cross`**, e vale la pena dire perché.
    `lvgl-sys` genera i binding con bindgen e il suo `build.rs` — codice
    vendorizzato, che non possiamo cambiare senza perdere la patch alla prossima
