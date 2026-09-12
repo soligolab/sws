@@ -168,10 +168,6 @@ Contenuto spostato in [`docs/plans/2026-09-12-q29-tag-due-tipi.md`](plans/2026-0
 
 ---
 
-## Q31 — La chat non funziona quando l'IDE è collegato a un runtime remoto, e non è chiaro cosa dovrebbe fare
-
-Contenuto spostato in [`docs/plans/2026-09-12-q31-verifica-chat-remota.md`](plans/2026-09-12-q31-verifica-chat-remota.md) il 2026-09-12. **Decided:** risolta nel codice, manca la conferma a schermo.
-
 ## Q36 — `min_role` non esiste sul pannello LVGL
 
 Contenuto spostato in [`docs/plans/2026-09-12-q36-min-role-lvgl.md`](plans/2026-09-12-q36-min-role-lvgl.md) il 2026-09-12. **Decided:** sì (2026-09-12, opzione 3 — sessione vera nel client LVGL), non ancora realizzata.
@@ -485,12 +481,6 @@ precisazione del 2026-09-07 qui sopra.
 ## Q45 — Il container di produzione non riparte dopo un reboot senza un permesso che l'utente finale non ha
 
 Contenuto spostato in [`docs/plans/2026-09-12-q45-linger-permesso-produzione.md`](plans/2026-09-12-q45-linger-permesso-produzione.md) il 2026-09-12. **Decided:** not yet.
-
----
-
-## Q46 — `/api/fs/browse-dirs` e `/api/fs/mkdir` rispondono senza autenticazione
-
-Contenuto spostato in [`docs/plans/2026-09-12-q46-verifica-projects-root.md`](plans/2026-09-12-q46-verifica-projects-root.md) il 2026-09-12. **Decided:** decisa e realizzata il 2026-09-09, manca la conferma a schermo.
 
 ---
 

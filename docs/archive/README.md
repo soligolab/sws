@@ -39,6 +39,8 @@ venga riletto come vero.
 | [global-scripts-template-snippets.md](global-scripts-template-snippets.md) | **SUPERATO — mai iniziato** | senza data (giugno 2026); il file bersaglio `GlobalScriptsTab.tsx` non esiste: gli script globali vivono in `ConfigView` |
 | [2026-09-12-q39-validatore-rilievi-geometrici.md](2026-09-12-q39-validatore-rilievi-geometrici.md) | **DECISO** | Q39: il maintainer ha scelto di fermarsi qui, nessun codice segue. La scheda intera è ora in `docs/history/OPEN_QUESTIONS-chiuse.md` |
 | [2026-09-12-q32-presa-diretta-cerimonia.md](2026-09-12-q32-presa-diretta-cerimonia.md) | **DECISO** | Q32: basta il marcatore già presente, nessun codice segue. La scheda intera è ora in `docs/history/OPEN_QUESTIONS-chiuse.md` |
+| [2026-09-12-q31-verifica-chat-remota.md](2026-09-12-q31-verifica-chat-remota.md) | **COLLAUDATA** | Q31: verificata dal vivo con due runtime di prova e un browser vero — avviso, socket locale, proposta sul progetto giusto, nessun 404. Scheda intera in `docs/history/OPEN_QUESTIONS-chiuse.md` |
+| [2026-09-12-q46-verifica-projects-root.md](2026-09-12-q46-verifica-projects-root.md) | **COLLAUDATA** | Q46: verificata dal vivo su un'istanza di prova — `browse-dirs`/`mkdir` respingono ogni fuga dalla `projects_root`, link simbolico incluso. Scheda intera in `docs/history/OPEN_QUESTIONS-chiuse.md` |
 
 ## Non solo piani
 

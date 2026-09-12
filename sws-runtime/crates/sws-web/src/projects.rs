@@ -1210,11 +1210,13 @@ pub struct BrowseDirsResponse {
 
 /// `GET /api/fs/browse-dirs?path=<abs|absent>` — backend for the "choose a
 /// destination folder" UI shown when creating a project. Lists only the
-/// subdirectories of `path` (or a sensible default when absent: `$HOME`,
-/// falling back to `projects_root`). No whitelist by design — same
-/// pre-auth/LAN-trusted posture as the rest of the project-lifecycle
-/// endpoints; the maintainer explicitly wants free navigation, not a
-/// restricted picker.
+/// subdirectories of `path` (or `projects_root` itself when absent). Stays
+/// pre-auth like the rest of the project-lifecycle endpoints (the picker is
+/// reachable from the WelcomeScreen before any session exists), but since
+/// Q46 (2026-09-09) navigation is clamped to `projects_root` via
+/// `dentro_radice` below — this docstring used to say "no whitelist by
+/// design, free navigation", which stopped being true once that restriction
+/// was added and was never updated to match.
 pub async fn browse_dirs(State(s): State<AppState>, Query(q): Query<BrowseDirsQuery>) -> Response {
     let radice: &std::path::Path = s.projects_root.as_ref();
     let richiesto: PathBuf = match q.path.as_deref().filter(|p| !p.trim().is_empty()) {

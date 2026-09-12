@@ -33,10 +33,29 @@ Se un giorno servisse un assistente che *guarda* il dispositivo (i suoi tag dal 
 storico, i suoi log) — diverso da questo, che lavora sul progetto — è un secondo insieme di
 strumenti, discusso in `docs/archive/2026-08-31-chat-ai-nelleditor.md`. Non affrontarlo qui.
 
-## Esito
+## Esito — collaudata dal vivo e archiviata il 2026-09-12
 
-Una volta fatta la prova a schermo, chiudere Q31 in `docs/OPEN_QUESTIONS.md` (spostarla
-nell'archivio chiuse) — è il maintainer a farlo, non questa sessione.
+Due runtime di prova isolati (porte scratch, nessuna istanza del maintainer toccata): un
+"device" no-auth con un progetto `casa-locale` aperto, e un "editor" con l'agente finto
+(`SWS_AI_FAKE`) e il progetto `e2e-chat-ai` (demo-items-web) aperto, collegato al device via
+`POST /api/remote/connect`. Un browser Chromium vero (Playwright, script usa-e-getta, non
+committato) ha percorso i quattro punti sopra:
+
+1. **Avviso presente**: passando prima da ConfigView → Runtime (che sincronizza `remoteConnected`
+   da `/api/remote/status` al mount) e poi aprendo la chat, compare "L'assistente lavora sul
+   progetto locale — quello che stai modificando — non su quello del dispositivo collegato."
+2. **Proposta sul progetto giusto**: la richiesta di prova ha prodotto una proposta che cita
+   `tag \`luce.salotto\`` e `button ... in «Indicatori»` — il progetto locale, non
+   `casa-locale` (deliberatamente diverso sul device, per accorgersi di uno scambio).
+3. **Socket locale**: il WebSocket osservato è stato `ws://.../ws/ai` — mai `/ws/remote/ai`.
+4. **Nessun 404, nessun loop**: i soli canali relayati sono stati `remote/tags` e `remote/logs`
+   (lo stato del device), tutti con risposta pulita.
+
+Un primo giro aveva dato un falso negativo sul punto 1 perché lo script non era passato da
+ConfigView → Runtime prima di aprire la chat — non un difetto, solo che `remoteConnected` nello
+store non si auto-inizializza all'avvio dell'app se quel pannello non viene mai montato: un
+comportamento noto, fuori scope per questa Q. Scheda archiviata in
+`docs/history/OPEN_QUESTIONS-chiuse.md`.
 
 ---
 

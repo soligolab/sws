@@ -26,11 +26,25 @@ scheda nell'archivio delle chiuse. Non richiede altro lavoro di sviluppo.
 4. Provare con un link simbolico che punta fuori dalla radice — deve essere rifiutato anche
    quello (`canonicalize` prima del confronto).
 
-## Esito
+## Esito — collaudata dal vivo e archiviata il 2026-09-12
 
-Se la verifica conferma, spostare Q46 nell'archivio chiuse (`docs/history/OPEN_QUESTIONS-chiuse.md`)
-— è il maintainer a farlo o a dare il via libera, non questa sessione (regola di `CLAUDE.md`:
-non risolvere/chiudere domande da soli).
+Unit test verdi (`dentro_radice_tiene_dentro_e_rifiuta_fuori`,
+`dentro_radice_non_si_fa_ingannare_da_un_link_simbolico`, 3/3), poi conferma con un'istanza di
+prova isolata (`--projects-root` su una cartella scratch, terminata a fine collaudo):
+
+- `browse-dirs` su un path assoluto fuori radice (`/etc`), sulla cartella genitore della radice,
+  e seguendo un link simbolico creato apposta dentro la radice che punta a una cartella-sorella
+  con un file marcatore → **tutti respinti, 400 "fuori dalla cartella dei progetti"**.
+- `mkdir` con `parent` che risale (`../../etc`) e `mkdir` dentro lo stesso link simbolico →
+  **respinti**.
+- `mkdir` legittima dentro la radice → riuscita (201), e la cartella-sorella marcatore è rimasta
+  intatta (nessuna fuga).
+
+Trovato per strada e corretto un commento ormai falso sopra `browse_dirs`
+(`sws-web/src/projects.rs:1211-1217`, `cargo check` verde dopo la correzione): diceva ancora "no
+whitelist by design, free navigation" e un fallback a `$HOME` che non esiste più da quando Q46 ha
+aggiunto `dentro_radice` — solo la descrizione era vecchia, non il comportamento. Scheda
+archiviata in `docs/history/OPEN_QUESTIONS-chiuse.md`.
 
 ---
 
