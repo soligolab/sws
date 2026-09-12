@@ -174,7 +174,7 @@ Contenuto spostato in [`docs/plans/2026-09-12-q31-verifica-chat-remota.md`](plan
 
 ## Q36 — `min_role` non esiste sul pannello LVGL
 
-Contenuto spostato in [`docs/plans/2026-09-12-q36-min-role-lvgl.md`](plans/2026-09-12-q36-min-role-lvgl.md) il 2026-09-12. **Decided:** not yet.
+Contenuto spostato in [`docs/plans/2026-09-12-q36-min-role-lvgl.md`](plans/2026-09-12-q36-min-role-lvgl.md) il 2026-09-12. **Decided:** sì (2026-09-12, opzione 3 — sessione vera nel client LVGL), non ancora realizzata.
 
 ---
 
