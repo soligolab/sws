@@ -11,6 +11,13 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.7.3] — 2026-09-12
+
+> `xy_plot` multi-coppia (T-70/F5.3x), il selettore del motore di rendering dall'IDE (T-58),
+> i due pannelli dell'editor con la barra delle viste (T-55/T-56), i waypoint sul canvas
+> (T-53), gli utenti che appartengono al progetto, le credenziali dei dispositivi (T-57/T-68)
+> e la scheda «Dispositivi registrati». Lavoro delle sessioni dell'11 e 12 settembre.
+
 ### `xy_plot` diventa multi-coppia, con backfill dallo storico (T-70/F5.3x)
 
 Unico residuo della fase F5 (Storico 2.0) dello scada-widgets: prima una coppia X/Y sola,
