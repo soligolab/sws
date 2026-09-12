@@ -74,34 +74,50 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — sospesa il 12-09-2026 per riavvio macchina
+## ▶ Riprendere da qui — collaudo "gli occhi della chat" chiuso (2026-09-12)
 
-Ciclo `/riprendi` di inizio sessione su "ufficio". Fatto: puliti dieci rami locali confermati
-superati (contenuto già su `main` sotto altro nome — `fix/mqtt-topic-vuoto`,
+Ciclo `/riprendi` di inizio sessione su "ufficio". Puliti dieci rami locali confermati superati
+(contenuto già su `main` sotto altro nome — `fix/mqtt-topic-vuoto`,
 `salvataggio-main-2026-09-09`, `test/validazione-2026-09-06`, `feat/Q41-risorse-chat`,
 `fix/Q37-cornice-lvgl`, `fix/Q38-ratio-materializza`, `fix/Q17-ricette-soglia`,
-`fix/Q42-scaling-script`, `fix/Q27-tipo-in-scrittura`, `fix/revisione-documenti`); scritto e
-committato `docs/plans/2026-09-12-collaudo-occhi-chat.md` — il vero residuo di T-51/fase 3 non
-sono "i passi 3-6" scritti in `docs/plans/README.md` (nota datata, corretta nello stesso
-commit) ma il collaudo con un modello vero di `istantanea_pagina` **nella chat staccata**,
-mai esercitato.
+`fix/Q42-scaling-script`, `fix/Q27-tipo-in-scrittura`, `fix/revisione-documenti`).
 
-**Il collaudo non è partito.** Prima di arrivarci, trovato un problema di build che non è del
-codice: questa macchina è a metà di un avanzamento di versione Ubuntu, `python3` di sistema
-punta ora alla 3.14 (manca il pacchetto `-dev` per quella versione) e il link di
-`sws-pyscript`/pyo3 falliva con `unable to find library -lpython3.14`. Rimedio verificato,
-nessuna modifica di sistema: `PYO3_PYTHON=/usr/bin/python3.13 ./scripts/start_editor.sh`
-(la 3.13 è ancora installata per intero). Se l'avanzamento Ubuntu nel frattempo si è concluso,
-verificare se serve ancora prima di riusarlo.
+**Nel mezzo, un problema di ambiente non di codice**: la macchina ha concluso un avanzamento a
+**Ubuntu 26.04.1 LTS** durante la sessione (riavvio a metà). `python3` di sistema è passato
+alla 3.14 e mancava `python3.14-dev` (niente header/symlink per il link di
+`sws-pyscript`/pyo3): `cargo build -p sws-runtime` falliva con `unable to find library
+-lpython3.14`. `python3.13`, usato come ripiego transitorio, è stato rimosso dall'upgrade
+stesso. **Rimedio definitivo**: `sudo apt install -y python3.14-dev` (lanciato dal maintainer,
+non da questa sessione — nessun permesso per `sudo`, anche a voce). Dopo l'installazione la
+build torna pulita senza alcuna variabile d'ambiente.
 
-Con l'istanza ripartita, creato un progetto scratch `collaudo-occhi-chat` dal template
-`demo-items-lvgl` per il collaudo — **richiesto un riavvio della macchina prima di arrivare al
-punto vero** (staccare la chat, mandare una richiesta che obblighi `istantanea_pagina`,
-verificare che il modello la usi davvero). Tutto fermato pulito: progetto scratch chiuso e
-cancellato, istanza di test terminata, porta 8460 libera, nessun residuo su disco.
+**Il collaudo vero è riuscito.** `docs/archive/2026-09-12-collaudo-occhi-chat.md` (il residuo
+reale di T-51/fase 3 — non "i passi 3-6" di `docs/plans/README.md`, nota datata corretta nello
+stesso giro): progetto scratch dal template `demo-items-lvgl`, chat staccata nella sua
+finestra, richiesta che obbligava `istantanea_pagina` sulla pagina «Grafici e tabelle».
+L'assistente (Kimi, chiave già configurata su questa macchina) ha chiamato **davvero**
+`istantanea_pagina` + `leggi_pagina` + `schema_oggetto`, e la risposta cita dettagli concreti e
+verificabili — i colori esadecimali dichiarati delle tre serie, le soglie a 70/90 disegnate
+correttamente — non genericità: il percorso HTTP e il blocco immagine, scritti ma mai
+esercitati, funzionano nella chat staccata con un modello vero. **Chiude il residuo di
+T-51/fase 3.**
 
-**Prossima sessione**: riprendere da `docs/plans/2026-09-12-collaudo-occhi-chat.md`, passo 1
-(chiedere se l'istanza va avviata di nuovo).
+Osservazione emersa, **non un difetto confermato**: l'assistente ha notato le tre barre del
+`bar_chart` identiche (stessa altezza, blu scuro) invece che colorate per serie, ma l'ha
+segnalato con la cautela giusta. Verificato nel codice (`lvgl_render.rs`, `render_bar_chart`/
+`update_bar_chart`): a valore 0 l'indicatore colorato è invisibile e si vede solo il track di
+sfondo (stile di tema, non colorato) — comportamento atteso per un bar_chart a zero, non un
+bug. I tag del banco di prova partono tutti a 0 per il limite già noto dell'istantanea
+usa-e-getta (`docs/HOWTO.md` §6: "non si collega al campo"). Da riverificare con dati vivi solo
+se un giorno serve togliersi il dubbio del tutto — il maintainer ha scelto di non farlo ora.
+
+Progetto scratch chiuso e cancellato. **Istanza di prova lasciata accesa su :8460** (permesso
+allargato dal maintainer: su "ufficio" si può riavviare da sola quando serve, senza chiedere
+ogni volta — resta comunque una macchina di test, non toccare i progetti già dentro).
+
+**Prossima sessione**: decidere se archiviare `docs/archive/2026-08-31-chat-ai-nelleditor.md`
+(il residuo che restava — Fase 4, server MCP autonomo — è esplicitamente fuori scope per ora) e
+`docs/archive/2026-09-12-collaudo-occhi-chat.md` (chiuso). Nessun'altra cosa lasciata a metà.
 
 ## ▶ Riprendere da qui — chiusura della sessione dell'11-09-2026
 

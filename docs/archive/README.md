@@ -21,7 +21,9 @@ venga riletto come vero.
 | [2026-08-23-navigate-f7-f8.md](2026-08-23-navigate-f7-f8.md) | **FATTO** | lotti 0-4 dichiarati fatti nel piano stesso; residuo minore (ACK nell'AlarmEvent) in STATUS «da fare» |
 | [2026-08-24-template-demo-items.md](2026-08-24-template-demo-items.md) | **FATTO** | i gemelli demo-items-web/-lvgl esistono, guardati da `check_demo_templates.sh` |
 | [2026-08-25-chiusura-domande-aperte.md](2026-08-25-chiusura-domande-aperte.md) | **FATTO (come processo)** | le sei decisioni furono prese e sono realizzate e archiviate (Q15-Q22 verificate il 2026-09-06) |
-| [2026-08-31-T50-chat-ai-esecutivo.md](2026-08-31-T50-chat-ai-esecutivo.md) | **FATTO** | T-50 mergiato in main; i residui (prova col modello vero, finestra staccata) vivono nel piano `2026-08-31-chat-ai-nelleditor.md`, rimasto vivo |
+| [2026-08-31-T50-chat-ai-esecutivo.md](2026-08-31-T50-chat-ai-esecutivo.md) | **FATTO** | T-50 mergiato in main; i residui (prova col modello vero, finestra staccata) sono stati chiusi il 2026-09-12 — vedi le due voci sotto |
+| [2026-08-31-chat-ai-nelleditor.md](2026-08-31-chat-ai-nelleditor.md) | **CHIUSO il 2026-09-12** | Fasi A-C realizzate da T-50; il residuo vero (fase 3 "gli occhi" nella chat staccata) collaudato con un modello reale il 12-09 — vedi «Esito» in coda al file. Resta fuori scope la sola Fase 4 (server MCP autonomo), mai richiesta |
+| [2026-09-12-collaudo-occhi-chat.md](2026-09-12-collaudo-occhi-chat.md) | **FATTO** | `istantanea_pagina` invocato e usato da un modello vero (Kimi) nella chat staccata, con dettagli visivi concreti nella risposta — vedi «Esito» in coda al file |
 | [2026-08-31-trasloco-frodo.md](2026-08-31-trasloco-frodo.md) | **FATTO** | è il referto del trasloco, citato da `docs/TEST_SETUPS.md` |
 | [2026-09-01-editor-runtime.md](2026-09-01-editor-runtime.md) | **FATTO** | mergiato (`e98138b`), release 2.4.0, ADR 0003; l'appendice sulla chat staccata resta il disegno di riferimento |
 | [2026-09-02-session-start.md](2026-09-02-session-start.md) | **FATTO** | `scripts/session_start.sh` esiste, guardato da `check_session_start.sh` |

@@ -382,3 +382,24 @@ Tre vie, in ordine di costo:
    il progetto — cosa buona di per sé, agente o no.
 
 **Va deciso prima della fase 2**, e diventa la sesta domanda del §9.
+
+---
+
+## Esito — archiviato il 2026-09-12
+
+Il grosso del piano è stato realizzato dal piano esecutivo `2026-08-31-T50-chat-ai-esecutivo.md`
+(Fasi A-C: endpoint di validazione, schema generato, il ciclo in Rust dentro `sws-web/src/ai/`
+— non col sidecar Node/Agent SDK di §2-3 qui sopra, una scelta d'architettura diversa presa in
+corso d'opera) e ampiamente esercitato ben oltre: `CHANGELOG.md` documenta bug reali trovati e
+corretti "alla prima prova col modello vero" (funzioni cancellate, script spariti, schema che
+mentiva per omissione).
+
+L'ultimo residuo reale — non "i passi 3-6" come diceva l'indice, nota che si era scollegata dal
+codice — era la Fase D/fase 3 "gli occhi": verificare con un modello vero che
+`istantanea_pagina` viene invocato e usato **nella finestra di chat staccata**. Collaudato il
+2026-09-12 (`docs/archive/2026-09-12-collaudo-occhi-chat.md`): funziona, chiude anche questo.
+
+**Resta solo la Fase 4** (§8: server MCP autonomo per l'uso da terminale) — dichiarata qui come
+l'ultima priorità e mai richiesta dal maintainer. Non è un residuo dimenticato: è fuori scope
+finché non emerge un bisogno reale di usare gli stessi strumenti da `claude` in un terminale
+invece che dall'IDE.

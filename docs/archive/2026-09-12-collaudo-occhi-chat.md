@@ -93,3 +93,24 @@ verificato nel codice, non solo per data): `fix/mqtt-topic-vuoto`,
 `salvataggio-main-2026-09-09`, `test/validazione-2026-09-06`, `feat/Q41-risorse-chat`,
 `fix/Q37-cornice-lvgl`, `fix/Q38-ratio-materializza`, `fix/Q17-ricette-soglia`,
 `fix/Q42-scaling-script`, `fix/Q27-tipo-in-scrittura`, `fix/revisione-documenti`.
+
+---
+
+## Esito — collaudo riuscito, archiviato il 2026-09-12
+
+Nel mezzo, un problema di ambiente non di codice: la macchina ha concluso un avanzamento a
+Ubuntu 26.04.1 LTS durante la sessione. `python3` di sistema è passato alla 3.14 senza il
+pacchetto `-dev`, e il link di `sws-pyscript`/pyo3 falliva. Risolto in modo definitivo con
+`sudo apt install -y python3.14-dev` (lanciato dal maintainer). Dettaglio completo in
+`STATUS.md` (voce del 12-09) e nella memoria di sessione, non ripetuto qui.
+
+Il collaudo vero: progetto scratch dal template `demo-items-lvgl`, chat staccata nella sua
+finestra, richiesta mirata sulla pagina «Grafici e tabelle». L'assistente (Kimi) ha chiamato
+davvero `istantanea_pagina` + `leggi_pagina` + `schema_oggetto`, e la risposta cita dettagli
+concreti e verificabili (i colori esadecimali dichiarati delle serie, le soglie a 70/90) —
+non genericità. **Il percorso funziona nella chat staccata con un modello vero.**
+
+Osservazione emersa durante il collaudo, verificata nel codice e **non un difetto**: le tre
+barre del `bar_chart` apparivano identiche a valore 0 — comportamento atteso (l'indicatore
+colorato è invisibile a zero, resta visibile solo il track di sfondo), non un bug di
+`lvgl_render.rs`. Il maintainer ha scelto di non riverificarlo con dati vivi.

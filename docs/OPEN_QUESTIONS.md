@@ -409,7 +409,7 @@ scrive YAML ha quindi un giudice, e non deve indovinare se ha fatto bene.
 ### Aggiornamento del 2026-08-31 — esiste una proposta, la domanda resta aperta
 
 Il maintainer ha chiesto un piano per una **chat nell'editor collegata a Claude Code**:
-`docs/plans/2026-08-31-chat-ai-nelleditor.md`. Il piano risponde a cinque delle sei domande qui
+`docs/archive/2026-08-31-chat-ai-nelleditor.md`. Il piano risponde a cinque delle sei domande qui
 sopra, e va letto prima di decidere. In sintesi:
 
 - **le modifiche dell'assistente non toccano il disco**: vanno nello store dell'editor, che dà
@@ -816,7 +816,7 @@ descritto in `docs/CONTEXT.md` §3 per il PC di sviluppo.
 
 Aggiungere `"ai"` al `matches!` farebbe collegare la chat **al runtime del dispositivo**: la
 sessione dell'agente girerebbe là, con la chiave API là. È esattamente ciò che il piano esclude
-(`docs/plans/2026-08-31-chat-ai-nelleditor.md` §2: *«Mai sul pannello»*).
+(`docs/archive/2026-08-31-chat-ai-nelleditor.md` §2: *«Mai sul pannello»*).
 
 Tenerla locale non è gratis: gli strumenti dell'agente leggono il progetto dall'`AppState` del
 runtime che regge il WebSocket (`carica_progetto` in `ai/tools.rs:145` → `Project::load(&dir)`
@@ -878,7 +878,7 @@ credere il contrario.
 
 Resta legittimo, ma è un'altra domanda: se un giorno si volesse un assistente che *guarda* il
 dispositivo — i suoi tag dal vivo, il suo storico, i suoi log — quello è il secondo insieme di
-strumenti di cui si parla in `docs/plans/2026-08-31-chat-ai-nelleditor.md`, non questo.
+strumenti di cui si parla in `docs/archive/2026-08-31-chat-ai-nelleditor.md`, non questo.
 
 ## Q32 — Dove deve vivere il progetto che si sta modificando?
 

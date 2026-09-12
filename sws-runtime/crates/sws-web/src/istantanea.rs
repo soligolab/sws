@@ -10,7 +10,7 @@
 //!
 //! Questo modulo rende quel gesto una cosa che il runtime sa fare da sé, così
 //! l'assistente può **guardare** quello che ha disegnato invece di dichiararlo
-//! fatto (fase 3 di `docs/plans/2026-08-31-chat-ai-nelleditor.md`).
+//! fatto (fase 3 di `docs/archive/2026-08-31-chat-ai-nelleditor.md`).
 //!
 //! # Perché serve un banco di prova, e non basta il runtime che sta girando
 //!
