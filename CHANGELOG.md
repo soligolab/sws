@@ -11,6 +11,15 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Changed
+- **bar_chart (Q28)**: le barre affiancate (`bar_mode` diverso da `stacked`) usano ora una scala
+  per serie (`bar_series[i].min/max`, default `0..100`), allineandosi al pannello LVGL — prima il
+  web usava un'unica scala che si adattava ai dati correnti. `stacked` resta a scala condivisa
+  (`obj.min`/`obj.max`). Soglie e tacche numerate si disegnano solo quando tutte le serie
+  condividono lo stesso intervallo, con lo stesso criterio già usato da `lvgl_render.rs`.
+  L'editor delle serie ha ora campi min/max per riga, e min/max dell'oggetto compaiono solo in
+  `stacked`. Nessuna modifica lato LVGL (il default e i campi esistevano già).
+
 ## [2.7.3] — 2026-09-12
 
 > `xy_plot` multi-coppia (T-70/F5.3x), il selettore del motore di rendering dall'IDE (T-58),

@@ -58,6 +58,42 @@ col maintainer: impilare segmenti ciascuno con un proprio fondo scala non avrebb
 
 Branch: `feat/Q28-bar-chart-scala-per-serie`.
 
+### Esito — realizzato e mergiato il 2026-09-12
+
+Su `main` (`f8e7fc6`), squash-merge confermato dal maintainer. **LVGL non ha richiesto alcuna
+modifica**: `BarChartSeries.min/max` e il default `0..100` esistevano già in `model.rs`/
+`lvgl_render.rs`. Tutto il lavoro è stato in `sws-editor`.
+
+Due dettagli non esplicitati nel testo del piano, emersi riverificando il codice prima di
+scrivere (confermati col maintainer prima di procedere):
+
+- **Zero per-barra**: il codice teneva un'unica riga dello zero condivisa, usata per disegnare
+  ogni barra affiancata. Con scale per serie, ogni barra deve calcolare il proprio zero dalla
+  propria scala — altrimenti una serie con scala diversa dalle altre sarebbe disegnata storta.
+  Necessario per correttezza, non una scelta di prodotto.
+- **Tacche numerate** (`bar_ticks`, funzione solo-web: LVGL non le disegna) spente con lo stesso
+  criterio delle soglie — solo a scala comune fra le serie — perché un asse con numeri unico non
+  descriverebbe correttamente tutte le barre con scale diverse.
+
+Le soglie sono anche filtrate **strettamente dentro l'intervallo** (`v > lo && v < hi`, non solo
+"dichiarata"), mirror esatto di `soglie_da_disegnare` in `lvgl_render.rs` — prima il web non
+aveva questo filtro e una soglia fuori scala si sarebbe vista appiccicata al bordo.
+
+**Verifica fatta**: `cargo check`/`test` verdi (nessun file Rust toccato), `tsc`/`pnpm build`
+verdi, 348 vitest verdi (fixture `campiPannelloProprieta.json` aggiornata: bar_chart non mostra
+più Min/Max a livello oggetto di default, ora condizionati a `stacked`), `check_lvgl_parity.sh`/
+`check_lvgl_types.sh`/`check_demo_templates.sh` verdi. **Confronto visivo vero**: un progetto di
+prova isolato (porte scratch) con un `bar_chart` a tre serie (due a default 0..100, una a 0..500
+dichiarata) — screenshot del browser e istantanea `sws-lvgl-viewer --istantanea` sulla stessa
+pagina mostrano le stesse proporzioni relative fra le barre nei due motori, e LVGL segnala a log
+la stessa soppressione delle soglie che ora fa anche il web («soglie dichiarate ma non disegnate
+— le serie hanno scale diverse»).
+
+Non ripetuta la misura sui pixel del 2026-09-06 punto per punto (stessi tre tag a 20/45/30): il
+confronto visivo con scale eterogenee copre il caso più stringente, e il caso "nessuna
+dichiarazione" (quello del 2026-09-06) ora usa lo stesso default `0..100` in entrambi i motori
+per costruzione, non per coincidenza.
+
 ---
 
 ## Il problema, in breve

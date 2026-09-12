@@ -156,12 +156,6 @@ maintainer sono nel §9 del piano.
 
 ---
 
-## Q28 — Il grafico a barre usa due scale diverse nei due motori
-
-Contenuto spostato in [`docs/plans/2026-09-12-q28-scala-bar-chart.md`](plans/2026-09-12-q28-scala-bar-chart.md) il 2026-09-12. **Decided:** sì, il 2026-09-12 (scala per serie, tranne in `bar_mode: stacked`) — non ancora realizzata.
-
----
-
 ## Q29 — Un tag può servire due direzioni con due tipi diversi?
 
 Contenuto spostato in [`docs/plans/2026-09-12-q29-tag-due-tipi.md`](plans/2026-09-12-q29-tag-due-tipi.md) il 2026-09-12. **Decided:** sì, il 2026-09-12 (`write_data_type` accanto a `publish_topic`) — non ancora realizzata.

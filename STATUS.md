@@ -74,6 +74,44 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — Q28 mergiata, cinque decisioni Q-xx più due verifiche chiuse in un ciclo `/riprendi` (2026-09-12)
+
+Ciclo `/riprendi` ripreso dopo il precedente (2.7.3/T-70). Nessun ramo obsoleto da pulire (solo
+`main` in locale su questa macchina). Prima chiusi **Q31** e **Q46** (verifiche dal vivo, vedi
+sotto), poi scelto **Q28** come piano da costruire.
+
+**Q28 — bar_chart a scala per serie, fuori da `stacked`**: su `main` (`f8e7fc6`), squash-merge
+confermato. Grouped/affiancate passa a scala per serie (`bar_series[i].min/max`, default `0..100`
+fisso, come LVGL ha sempre avuto); `stacked` resta a scala condivisa. **LVGL non ha richiesto
+alcuna modifica** — il default e i campi esistevano già in `model.rs`/`lvgl_render.rs`, tutto il
+lavoro è stato in `sws-editor`. Due dettagli emersi riverificando il codice prima di scrivere,
+confermati col maintainer: lo **zero per-barra** (ogni barra affiancata calcola il proprio zero
+dalla propria scala, non da uno condiviso — necessario per correttezza, non una scelta), e le
+**tacche numerate** spente con lo stesso criterio già usato per le soglie (solo a scala comune fra
+le serie). Verificato dal vivo con un'istanza di prova isolata: screenshot browser + istantanea
+`sws-lvgl-viewer --istantanea` sulla stessa pagina (tre serie, due a default e una a 0..500)
+mostrano le stesse proporzioni relative nei due motori. Gate pieno verde. Scheda archiviata in
+`docs/history/OPEN_QUESTIONS-chiuse.md`, piano in `docs/archive/2026-09-12-q28-scala-bar-chart.md`.
+
+**Q31 e Q46 — due verifiche dal vivo, chiuse senza codice**: entrambe erano "decisa e realizzata,
+manca solo la conferma a schermo". Fatte con istanze di prova isolate (mai toccata l'istanza
+dell'editor su :8460):
+- **Q31** (chat con runtime remoto collegato): due runtime di prova (un "device" e un "editor"
+  collegato ad esso), un browser vero. Confermati tutti e quattro i punti del piano — l'avviso
+  «progetto locale» compare, il socket `/ws/ai` resta locale (mai `/ws/remote/ai`), nessun
+  404/loop, la proposta della chat cita il progetto locale e non quello del device.
+- **Q46** (`browse-dirs`/`mkdir` dentro `projects_root`): unit test verdi + istanza di prova con
+  un link simbolico che punta fuori dalla radice — ogni tentativo di fuga respinto (400), una
+  `mkdir` legittima riesce. Corretto per strada un commento ormai falso in `projects.rs:1211`.
+
+Entrambe archiviate in `docs/history/OPEN_QUESTIONS-chiuse.md`, piani spostati in `docs/archive/`.
+
+**Restano "pronte" da costruire**: Q29 (`write_data_type`), Q36 (sessione vera nel client LVGL —
+la più grande, decisa nella sessione precedente), Q16/Q45/Q49/Q53. Restano piani "da fare" non
+derivati da Q-xx: `ruolo-minimo-avviso-noauth`, `f7-residui-minori`, `casamauro-arricchimento-demo`,
+più la Parte B di F5.3x (verifica dal vivo della parità LVGL sul TC620, ora sbloccata dalla
+2.7.3, non ancora affrontata).
+
 ## ▶ Riprendere da qui — 2.7.3 pubblicata e installata sul TC620, T-70 confermato dal vivo (2026-09-12)
 
 Chiuso il blocco della sezione precedente. Versione **2.7.3** taggata (`main`, `1caeb3b`..`da100f8`
