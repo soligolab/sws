@@ -3896,13 +3896,20 @@ export function ObjectProps({
                   <option value="horizontal">{t("props.horizontal")}</option>
                 </select>
               ))}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                <div><div style={LABEL}>Min</div><BindableInput obj={obj} propName="min" onChange={onChange}>{numInput("min", 0)}</BindableInput></div>
-                <div><div style={LABEL}>Max</div><BindableInput obj={obj} propName="max" onChange={onChange}>{numInput("max", 100)}</BindableInput></div>
-              </div>
-              <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "-2px 0 4px" }}>
-                {t("props.barRangeHint")}
-              </p>
+              {/* Q28 (2026-09-12): min/max dell'oggetto contano SOLO in stacked
+                  — la somma dei segmenti è per costruzione a scala unica. In
+                  grouped ogni serie ha la propria scala (sotto, per riga). */}
+              {obj.bar_mode === "stacked" && (
+                <>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                    <div><div style={LABEL}>Min</div><BindableInput obj={obj} propName="min" onChange={onChange}>{numInput("min", 0)}</BindableInput></div>
+                    <div><div style={LABEL}>Max</div><BindableInput obj={obj} propName="max" onChange={onChange}>{numInput("max", 100)}</BindableInput></div>
+                  </div>
+                  <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "-2px 0 4px" }}>
+                    {t("props.barRangeHint")}
+                  </p>
+                </>
+              )}
               {field(t("props.unit"), textInput("unit", ""))}
               {field(t("props.decimals"), numInput("decimals", 1))}
               {field(t("props.yAxisLabel"), textInput("bar_y_label", ""))}
@@ -3927,14 +3934,27 @@ export function ObjectProps({
                 ))}
               </div>
               <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>SERIE</div>
+              {obj.bar_mode !== "stacked" && (
+                <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 4px" }}>
+                  {t("props.barSeriesScaleHint")}
+                </p>
+              )}
               {(obj.bar_series ?? []).map((s, i) => (
-                <div key={i} style={{ display: "flex", gap: 4, marginBottom: 4, alignItems: "center" }}>
-                  <TagInput style={{ ...INPUT, flex: 1 }} placeholder="tag" value={s.tag}
+                <div key={i} style={{ display: "flex", gap: 4, marginBottom: 4, alignItems: "center", flexWrap: "wrap" }}>
+                  <TagInput style={{ ...INPUT, flex: 1, minWidth: 80 }} placeholder="tag" value={s.tag}
                     onChange={(v) => { const next = [...(obj.bar_series ?? [])]; next[i] = { ...s, tag: v }; onChange({ bar_series: next }); }} />
                   <input style={{ ...INPUT, width: 60 }} placeholder="label" value={s.label}
                     onChange={(e) => { const next = [...(obj.bar_series ?? [])]; next[i] = { ...s, label: e.target.value }; onChange({ bar_series: next }); }} />
                   <input type="color" value={s.color ?? PALETTE[i % PALETTE.length]} onChange={(e) => { const next = [...(obj.bar_series ?? [])]; next[i] = { ...s, color: e.target.value }; onChange({ bar_series: next }); }}
                     style={{ width: 28, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />
+                  {obj.bar_mode !== "stacked" && (
+                    <>
+                      <input type="number" style={{ ...INPUT, width: 48 }} placeholder="min" value={s.min ?? ""}
+                        onChange={(e) => { const next = [...(obj.bar_series ?? [])]; next[i] = { ...s, min: e.target.value === "" ? undefined : Number(e.target.value) }; onChange({ bar_series: next }); }} />
+                      <input type="number" style={{ ...INPUT, width: 48 }} placeholder="max" value={s.max ?? ""}
+                        onChange={(e) => { const next = [...(obj.bar_series ?? [])]; next[i] = { ...s, max: e.target.value === "" ? undefined : Number(e.target.value) }; onChange({ bar_series: next }); }} />
+                    </>
+                  )}
                   <button style={{ ...INPUT, width: "auto", padding: "0 6px", cursor: "pointer" }}
                     onClick={() => onChange({ bar_series: (obj.bar_series ?? []).filter((_, j) => j !== i) })}>✕</button>
                 </div>

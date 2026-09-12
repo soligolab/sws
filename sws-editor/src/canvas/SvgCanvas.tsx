@@ -4998,23 +4998,53 @@ export function SvgObject(p: ObjProps) {
     });
     const total = values.reduce((a, b) => a + b, 0);
 
-    // F7.2 — scala comune del grafico. I valori NEGATIVI prima venivano
-    // clampati a 0 (barra invisibile): ora la scala include lo zero e le barre
-    // crescono dalla linea dello zero, verso l'alto o verso il basso.
+    // Q28 (deciso 2026-09-12): STACKED resta a scala condivisa — impilare
+    // segmenti ciascuno col proprio fondo scala non avrebbe senso, la somma è
+    // per costruzione una lettura a scala unica. I valori NEGATIVI prima
+    // venivano clampati a 0 (barra invisibile): ora la scala include lo zero.
     const dataLo = Math.min(0, ...(values.length ? values : [0]));
-    const dataHi = Math.max(0, ...(values.length ? values : [0]));
-    const lo = obj.min ?? Math.min(0, dataLo);
-    const hi = obj.max ?? (stacked ? Math.max(total, 1) : Math.max(dataHi, 1));
-    const range = (hi - lo) || 1;
-    /** Frazione 0..1 della scala occupata da un valore. */
-    const frac = (v: number) => clamp((v - lo) / range, 0, 1);
+    const stackedLo = obj.min ?? Math.min(0, dataLo);
+    const stackedHi = obj.max ?? Math.max(total, 1);
+
+    // GROUPED/affiancate passa a scala PER SERIE (bar_series[i].min/max,
+    // default 0..100 fisso) — stesso default che il pannello LVGL ha sempre
+    // avuto (`lvgl_render.rs`, `s.min.unwrap_or(0.0)`/`s.max.unwrap_or(100.0)`):
+    // il grafico non "respira" più coi dati come faceva prima di questa
+    // decisione, si legge rispetto al proprio fondo scala dichiarato.
+    const seriesScale = (s: (typeof series)[number]) => {
+      const slo = s.min ?? 0; const shi = s.max ?? 100;
+      return shi > slo ? { lo: slo, hi: shi } : { lo: 0, hi: 100 };
+    };
+    /** Frazione 0..1 di UNA scala (per-serie o condivisa) occupata da un valore. */
+    const fracOf = (sc: { lo: number; hi: number }, v: number) =>
+      clamp((v - sc.lo) / ((sc.hi - sc.lo) || 1), 0, 1);
+
+    // La scala "comune" esiste solo se tutte le serie coincidono (stacked ne
+    // ha per definizione una sola) — stesso criterio di `scala_comune` in
+    // `lvgl_render.rs`: soglie e tacche numerate hanno senso solo quando
+    // descrivono davvero tutte le barre, altrimenti mentirebbero su alcune.
+    const commonScale: { lo: number; hi: number } | null = stacked
+      ? { lo: stackedLo, hi: stackedHi }
+      : series.length === 0
+        ? null
+        : (() => {
+            const first = seriesScale(series[0]);
+            return series.every((s) => {
+              const sc = seriesScale(s);
+              return sc.lo === first.lo && sc.hi === first.hi;
+            }) ? first : null;
+          })();
 
     // Le etichette delle tacche hanno bisogno di spazio sull'asse dei valori.
     const legendRows = showLegend ? Math.ceil(series.length / 2) : 0;
     const legendH = legendRows * 13 + (showLegend ? 4 : 0);
+    // Q28: le tacche numerate occupano spazio solo quando descrivono
+    // davvero l'asse (`commonScale`) — altrimenti non ci sarà nulla da
+    // disegnare lì e riservare la colonna sarebbe solo un vuoto.
+    const ticksVisible = nTicks > 1 && commonScale !== null;
     const padT = 20;
     const padB = (orient === "vertical" && showLabels ? 28 : 8) + legendH;
-    const padL = (orient === "vertical" && nTicks > 1 ? 34 : 8)
+    const padL = (orient === "vertical" && ticksVisible ? 34 : 8)
       + (orient === "horizontal" && showLabels ? 42 : 0);
     const padR = 8;
     const plotW = Math.max(10, w - padL - padR);
@@ -5025,10 +5055,12 @@ export function SvgObject(p: ObjProps) {
 
     const baseX = obj.x + padL; const baseY = obj.y + padT;
     const axisY = baseY + plotH;
-    // Posizione della linea dello zero (o del minimo, se la scala non lo include).
-    const zeroFrac = frac(0);
-    const zeroY = axisY - plotH * zeroFrac;
-    const zeroX = baseX + plotW * zeroFrac;
+    // Posizione della linea dello zero sulla scala comune — solo quando ne
+    // esiste una (Q28): con scale diverse per serie non c'è un unico zero da
+    // disegnare come riga condivisa, ogni barra mostra il proprio (sotto).
+    const commonZeroFrac = commonScale ? fracOf(commonScale, 0) : 0;
+    const commonZeroY = axisY - plotH * commonZeroFrac;
+    const commonZeroX = baseX + plotW * commonZeroFrac;
 
     return (
       <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
@@ -5039,14 +5071,15 @@ export function SvgObject(p: ObjProps) {
             preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
         )}
         {/* Assi: quello dei valori sempre, quello delle categorie sulla linea
-            dello zero (con dati negativi non è più il bordo del grafico). */}
+            dello zero — solo se le serie condividono una scala (altrimenti
+            ogni barra disegna il proprio zero, vedi sotto). */}
         <line x1={baseX} y1={baseY} x2={baseX} y2={axisY} stroke="#334155" strokeWidth={1} />
-        {orient === "vertical"
-          ? <line x1={baseX} y1={zeroY} x2={baseX + plotW} y2={zeroY} stroke="#334155" strokeWidth={1} />
-          : <line x1={zeroX} y1={baseY} x2={zeroX} y2={axisY} stroke="#334155" strokeWidth={1} />}
-        {/* F7.2 — tacche numerate sull'asse dei valori. */}
-        {nTicks > 1 && Array.from({ length: nTicks }, (_, i) => {
-          const v = lo + (i / (nTicks - 1)) * range;
+        {commonScale && (orient === "vertical"
+          ? <line x1={baseX} y1={commonZeroY} x2={baseX + plotW} y2={commonZeroY} stroke="#334155" strokeWidth={1} />
+          : <line x1={commonZeroX} y1={baseY} x2={commonZeroX} y2={axisY} stroke="#334155" strokeWidth={1} />)}
+        {/* F7.2 — tacche numerate sull'asse dei valori (Q28: solo a scala comune). */}
+        {ticksVisible && commonScale && Array.from({ length: nTicks }, (_, i) => {
+          const v = commonScale.lo + (i / (nTicks - 1)) * (commonScale.hi - commonScale.lo);
           if (orient === "vertical") {
             const ty = axisY - plotH * (i / (nTicks - 1));
             return (
@@ -5083,9 +5116,11 @@ export function SvgObject(p: ObjProps) {
           const valText = `${val.toFixed(dec)}${unit}`;
           if (stacked) {
             // Barra unica composta dai segmenti: ogni serie è una fetta del
-            // totale (composizione), impilata dalla base.
+            // totale (composizione), impilata dalla base — scala condivisa,
+            // per costruzione (Q28).
             const before = values.slice(0, i).reduce((a, b) => a + b, 0);
-            const f0 = frac(before); const f1 = frac(before + val);
+            const stackedScale = { lo: stackedLo, hi: stackedHi };
+            const f0 = fracOf(stackedScale, before); const f1 = fracOf(stackedScale, before + val);
             if (orient === "vertical") {
               const y0 = axisY - plotH * Math.max(f0, f1);
               const segH = plotH * Math.abs(f1 - f0);
@@ -5113,13 +5148,18 @@ export function SvgObject(p: ObjProps) {
               </g>
             );
           }
-          // Affiancate: una barra per serie, dalla linea dello zero.
-          const fv = frac(val);
+          // Affiancate: una barra per serie, dalla linea dello zero — scala
+          // PER SERIE (Q28): lo zero di ciascuna barra è quello della sua
+          // stessa scala, non quello (eventualmente diverso) di un'altra.
+          const sc = seriesScale(s);
+          const fv = fracOf(sc, val);
+          const zf = fracOf(sc, 0);
           if (orient === "vertical") {
             const bx = baseX + i * slotW + (slotW - barW) / 2;
             const vy = axisY - plotH * fv;
-            const by = Math.min(vy, zeroY);
-            const bh = Math.abs(vy - zeroY);
+            const zy = axisY - plotH * zf;
+            const by = Math.min(vy, zy);
+            const bh = Math.abs(vy - zy);
             const labelY = val < 0 ? by + bh + 11 : Math.max(by - 3, baseY + 10);
             return (
               <g key={i}>
@@ -5130,8 +5170,9 @@ export function SvgObject(p: ObjProps) {
             );
           }
           const vx = baseX + plotW * fv;
-          const bx2 = Math.min(vx, zeroX);
-          const bw2 = Math.abs(vx - zeroX);
+          const zx = baseX + plotW * zf;
+          const bx2 = Math.min(vx, zx);
+          const bw2 = Math.abs(vx - zx);
           const by2 = baseY + i * slotW + (slotW - barW) / 2;
           return (
             <g key={i}>
@@ -5145,15 +5186,20 @@ export function SvgObject(p: ObjProps) {
             </g>
           );
         })}
-        {/* F7.2 — soglie in ENTRAMBI gli orientamenti (prima solo verticale). */}
-        {showThresh && [
+        {/* F7.2 — soglie in ENTRAMBI gli orientamenti (prima solo verticale).
+            Q28: solo a scala comune, stesso criterio di `scala_comune` in
+            lvgl_render.rs — con scale diverse per serie una riga sola non
+            descriverebbe correttamente nessuna delle due. Soglia esclusa
+            anche se fuori dall'intervallo (stretto, come LVGL): appiccicata
+            al bordo si scambierebbe per il bordo stesso. */}
+        {showThresh && commonScale && [
           { v: obj.warn_high, c: "#f59e0b", k: "wh" },
           { v: obj.alarm_high, c: "#ef4444", k: "ah" },
           { v: obj.warn_low, c: "#f59e0b", k: "wl" },
           { v: obj.alarm_low, c: "#ef4444", k: "al" },
         ].map(({ v, c, k }) => {
-          if (v === undefined) return null;
-          const f = frac(v);
+          if (v === undefined || !(v > commonScale.lo && v < commonScale.hi)) return null;
+          const f = fracOf(commonScale, v);
           return orient === "vertical"
             ? <line key={k} x1={baseX} y1={axisY - plotH * f} x2={baseX + plotW} y2={axisY - plotH * f}
                 stroke={c} strokeWidth={1} strokeDasharray="4,2" style={{ pointerEvents: "none" }} />
