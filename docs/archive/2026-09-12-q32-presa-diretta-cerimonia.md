@@ -1,9 +1,13 @@
 # Q32 — Modificare il progetto di un impianto in presa diretta: serve più cerimonia?
 
-> Trasferito da `docs/OPEN_QUESTIONS.md` (Q32) il 2026-09-12, aperta il 2026-09-02,
-> riverificata il 2026-09-06 (la premessa era superata dal cambiamento nello stesso giorno).
-> Presenta la domanda ristretta, non la decide. Rileggere la scheda originale (e Q31, che
-> tocca lo stesso terreno) prima di procedere.
+> Trasferito da `docs/OPEN_QUESTIONS.md` (Q32) il 2026-09-02, riverificata il 2026-09-06.
+> **Decisa dal maintainer il 2026-09-12.**
+
+## Decisa (2026-09-12, maintainer): opzione 1 — basta il marcatore
+
+Sia per il dispositivo riacceso apposta con `SWS_ENABLE_IDE=1` sia per `start_runtime.sh` in
+locale, il marcatore in testata già presente basta. Nessun lavoro segue: è già lo stato attuale
+del codice. Piano concluso, da archiviare.
 
 ## Il problema, ristretto dalla riverifica del 2026-09-06
 

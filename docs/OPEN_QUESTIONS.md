@@ -172,10 +172,6 @@ Contenuto spostato in [`docs/plans/2026-09-12-q29-tag-due-tipi.md`](plans/2026-0
 
 Contenuto spostato in [`docs/plans/2026-09-12-q31-verifica-chat-remota.md`](plans/2026-09-12-q31-verifica-chat-remota.md) il 2026-09-12. **Decided:** risolta nel codice, manca la conferma a schermo.
 
-## Q32 — Dove deve vivere il progetto che si sta modificando?
-
-Contenuto spostato in [`docs/plans/2026-09-12-q32-presa-diretta-cerimonia.md`](plans/2026-09-12-q32-presa-diretta-cerimonia.md) il 2026-09-12. **Decided:** not yet.
-
 ## Q36 — `min_role` non esiste sul pannello LVGL
 
 Contenuto spostato in [`docs/plans/2026-09-12-q36-min-role-lvgl.md`](plans/2026-09-12-q36-min-role-lvgl.md) il 2026-09-12. **Decided:** not yet.
@@ -593,6 +589,7 @@ prende il numero successivo all'ultimo mai assegnato, archivio compreso.
 | Q25 | Installare web e LVGL insieme, e far scegliere al sistema quale mostrare | 2026-08-27 |
 | Q27 | Il server non fa rispettare il `data_type` dei tag in scrittura | 2026-09-06 |
 | Q30 | `patch_project` è un leggi-modifica-scrivi senza lock | 2026-09-03/04 |
+| Q32 | Dove deve vivere il progetto che si sta modificando? | 2026-09-12 |
 | Q33 | `POST /api/system/stop` viene annullato in silenzio dal salvataggio delle Sorgenti | 2026-09-04 |
 | Q34 | Il cron degli script globali non capisce `*/5`, e non parte in silenzio | 2026-09-03/04 |
 | Q35 | «fuori pagina» implicito nelle coordinate o campo esplicito? | 2026-09-06 |

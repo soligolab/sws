@@ -38,7 +38,6 @@ c'è già, manca solo la conferma a schermo prima di archiviare la scheda in
 | [2026-09-12-q53-misura-rimozione-sdk-qemu.md](2026-09-12-q53-misura-rimozione-sdk-qemu.md) | Q53 | **pronto** — misurare CPU/avvio del cross-build sul TC620 (ora possibile) prima di togliere i percorsi SDK/QEMU |
 | [2026-09-12-q28-scala-bar-chart.md](2026-09-12-q28-scala-bar-chart.md) | Q28 | **pronto** — decisa (scala per serie, `stacked` resta condiviso), da costruire: web non legge ancora `bar_series[].min/max`, l'editor non li espone |
 | [2026-09-12-q29-tag-due-tipi.md](2026-09-12-q29-tag-due-tipi.md) | Q29 | **pronto** — decisa (`write_data_type` accanto a `publish_topic`), da costruire su `TagDef`/`validate.rs`/le dodici eccezioni di `casa-locale` |
-| [2026-09-12-q32-presa-diretta-cerimonia.md](2026-09-12-q32-presa-diretta-cerimonia.md) | Q32 | **decisione** — serve altra cerimonia per modificare un progetto in presa diretta con `SWS_ENABLE_IDE=1`? |
 | [2026-09-12-q36-min-role-lvgl.md](2026-09-12-q36-min-role-lvgl.md) | Q36 | **decisione** — `min_role` non esiste sul pannello LVGL, tre opzioni dalla più piccola alla sessione vera |
 | [2026-09-12-q31-verifica-chat-remota.md](2026-09-12-q31-verifica-chat-remota.md) | Q31 | **verifica** — provare la chat con un runtime remoto vero collegato |
 | [2026-09-12-q46-verifica-projects-root.md](2026-09-12-q46-verifica-projects-root.md) | Q46 | **verifica** — confermare che `browse-dirs`/`mkdir` restino dentro `projects_root` |
