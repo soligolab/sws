@@ -1,8 +1,64 @@
 # Q29 — Un tag può servire due direzioni con due tipi diversi?
 
-> Trasferito da `docs/OPEN_QUESTIONS.md` (Q29) il 2026-09-12, aperta il 2026-08-31, misurata
-> ma **non decisa**. Presenta la domanda, non la risolve — regola di `CLAUDE.md` su
-> `docs/OPEN_QUESTIONS.md`. Rileggere la scheda originale per il dettaglio completo.
+> Trasferito da `docs/OPEN_QUESTIONS.md` (Q29) il 2026-08-31, misurata il 2026-09-05.
+> **Decisa dal maintainer il 2026-09-12.**
+
+## Decisa (2026-09-12, maintainer): `write_data_type` accanto a `publish_topic`
+
+La quarta strada emersa misurando: un tag resta uno concettualmente, con un tipo di scrittura
+dichiarato esplicito quando diverge dal tipo di lettura. Risponde anche alla domanda 4 della
+scheda originale ("vale anche per Home Assistant e Sparkplug, o solo MQTT?"): **sì, per tutti** —
+`data_type` vive su `TagDef` (`sws-core/src/tag.rs`), non dentro la configurazione di una
+sorgente specifica, quindi `write_data_type` va allo stesso livello e si applica a qualunque
+sorgente, non solo MQTT.
+
+### Disegno, verificato nel codice prima di scrivere il piano
+
+- **Nuovo campo** `TagDef.write_data_type: Option<String>` (`sws-core/src/tag.rs`, accanto a
+  `data_type`) — assente = si comporta come oggi (il tipo di scrittura è quello di lettura).
+- **Il punto dove si applica** è già isolato: `sws-web/src/validate.rs:859`,
+  `incompatibile(v, &td.data_type)` diventa
+  `incompatibile(v, td.write_data_type.as_deref().unwrap_or(&td.data_type))` — stessa funzione,
+  stesso messaggio d'errore, solo il tipo di confronto cambia. Il ramo `on_value` (righe
+  881-897, che *confronta* invece di scrivere) resta sul solo `data_type`: quello è il tipo di
+  lettura, non cambia.
+- **Le dodici eccezioni di `casa-locale`** (`ECCEZIONI_NOTE` in `validate.rs:1384-1397`) sono
+  tutte sullo stesso pattern: 4 tag tapparella (`shutter.garageN` o simili — verificare i nomi
+  esatti in `casa-locale/project.yaml`) × 3 pulsanti ciascuno (open/stop/close). Con
+  `write_data_type: string` dichiarato su quei 4 tag, i dodici `write_value` passano la
+  validazione senza più bisogno dell'elenco eccezioni — che va **tolto**, non lasciato lì morto:
+  `ECCEZIONI_NOTE` esiste apposta per far fallire il test se una tredicesima eccezione compare
+  senza essere notata, e con lo schema giusto usato non ne servono più.
+- **L'editor** (Tags tab / pannello sorgenti MQTT dove vive `publish_topic`): aggiungere un
+  campo `write_data_type` opzionale accanto — verificare dove esattamente `publish_topic` è
+  editabile oggi prima di disegnare il campo nuovo.
+- **Lo schema generato per l'assistente IA** (`synoptic_schema.rs`/`schema_tag`, se esiste un
+  equivalente per i tag): rigenerarlo dopo la modifica a `TagDef`, come fatto per `xy_series`
+  in T-70 (`./scripts/gen_synoptic_schema.py` se copre anche i tag, altrimenti verificare lo
+  script giusto).
+
+### File coinvolti
+
+- `sws-runtime/crates/sws-core/src/tag.rs` (nuovo campo)
+- `sws-runtime/crates/sws-web/src/validate.rs` (righe 859, 1384-1397 — il fix e la pulizia
+  dell'elenco eccezioni)
+- `examples/templates/casa-locale/project.yaml` (o dove vivono i tag delle tapparelle —
+  aggiungere `write_data_type: string` ai 4 tag)
+- L'editor, dove si modificano i tag (da individuare con precisione prima di scrivere codice)
+
+### Verifica
+
+1. `cargo check`/`cargo test` verdi — in particolare il test che usa `ECCEZIONI_NOTE`, che deve
+   passare con l'elenco vuoto (o rimosso) e i tag di `casa-locale` corretti.
+2. Round-trip: `write_data_type` salvato e riletto.
+3. Il validatore continua a bocciare un `write_value` fuori tipo quando `write_data_type` non è
+   dichiarato (comportamento invariato per tutti gli altri progetti).
+4. Se emerge un'assistente/schema per i tag: verificare che `write_data_type` sia nel
+   vocabolario, altrimenti l'assistente continuerebbe a non saperlo usare.
+
+Branch: `feat/Q29-write-data-type`.
+
+---
 
 ## Il problema, in breve
 

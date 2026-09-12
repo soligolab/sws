@@ -164,7 +164,7 @@ Contenuto spostato in [`docs/plans/2026-09-12-q28-scala-bar-chart.md`](plans/202
 
 ## Q29 — Un tag può servire due direzioni con due tipi diversi?
 
-Contenuto spostato in [`docs/plans/2026-09-12-q29-tag-due-tipi.md`](plans/2026-09-12-q29-tag-due-tipi.md) il 2026-09-12. **Decided:** not yet.
+Contenuto spostato in [`docs/plans/2026-09-12-q29-tag-due-tipi.md`](plans/2026-09-12-q29-tag-due-tipi.md) il 2026-09-12. **Decided:** sì, il 2026-09-12 (`write_data_type` accanto a `publish_topic`) — non ancora realizzata.
 
 ---
 
