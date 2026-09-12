@@ -21,3 +21,25 @@
 | [2026-09-12-ruolo-minimo-avviso-noauth.md](2026-09-12-ruolo-minimo-avviso-noauth.md) | **DA FARE** | avviso nell'editor quando `min_role` non ha effetto in modalità no-auth (misura e dichiarazione del limite già fatte) |
 | [2026-09-12-f7-residui-minori.md](2026-09-12-f7-residui-minori.md) | **DA FARE** | Parte A: bordo per-cella nella griglia. Parte B: motivo dell'ACK nello storico allarmi — ha una domanda per il maintainer prima di partire |
 | [2026-09-12-casamauro-arricchimento-demo.md](2026-09-12-casamauro-arricchimento-demo.md) | **DA FARE** | arricchire il progetto personale CasaMauro con le feature F2-F6 non esercitate — contenuto, non codice, nessun branch |
+
+**Dal 2026-09-12, anche le questioni aperte di `docs/OPEN_QUESTIONS.md` diventano piani singoli**
+(istruzione del maintainer, tecnica da riusare in futuro) — non li decide questo passaggio, li
+prepara per quando si prendono in mano. Tre categorie, segnate nella colonna «Cosa resta»:
+**pronto** (decisa o quasi, resta da costruire/misurare), **decisione** (il piano presenta le
+opzioni, aspetta la scelta del maintainer prima di qualunque codice), **verifica** (il codice
+c'è già, manca solo la conferma a schermo prima di archiviare la scheda in
+`docs/OPEN_QUESTIONS.md`).
+
+| Piano | Origine | Cosa resta |
+|---|---|---|
+| [2026-09-12-q16-decoder-raster-image.md](2026-09-12-q16-decoder-raster-image.md) | Q16 | **pronto** — decoder raster per `image` su LVGL, se emerge un bisogno reale |
+| [2026-09-12-q45-linger-permesso-produzione.md](2026-09-12-q45-linger-permesso-produzione.md) | Q45 | **pronto** — misurare il linger di fabbrica sul TC620, poi scegliere fra 4 opzioni |
+| [2026-09-12-q49-tls-pinning-lvgl-mqtt.md](2026-09-12-q49-tls-pinning-lvgl-mqtt.md) | Q49 | **pronto** — estendere il pinning TLS (già fatto editor↔dispositivo) al viewer LVGL e al plugin MQTT |
+| [2026-09-12-q53-misura-rimozione-sdk-qemu.md](2026-09-12-q53-misura-rimozione-sdk-qemu.md) | Q53 | **pronto** — misurare CPU/avvio del cross-build sul TC620 (ora possibile) prima di togliere i percorsi SDK/QEMU |
+| [2026-09-12-q28-scala-bar-chart.md](2026-09-12-q28-scala-bar-chart.md) | Q28 | **decisione** — scala comune o per-serie nel `bar_chart`, web vs LVGL divergono |
+| [2026-09-12-q29-tag-due-tipi.md](2026-09-12-q29-tag-due-tipi.md) | Q29 | **decisione** — un tag con due tipi (lettura/scrittura) o due tag separati |
+| [2026-09-12-q32-presa-diretta-cerimonia.md](2026-09-12-q32-presa-diretta-cerimonia.md) | Q32 | **decisione** — serve altra cerimonia per modificare un progetto in presa diretta con `SWS_ENABLE_IDE=1`? |
+| [2026-09-12-q36-min-role-lvgl.md](2026-09-12-q36-min-role-lvgl.md) | Q36 | **decisione** — `min_role` non esiste sul pannello LVGL, tre opzioni dalla più piccola alla sessione vera |
+| [2026-09-12-q39-validatore-rilievi-geometrici.md](2026-09-12-q39-validatore-rilievi-geometrici.md) | Q39 | **decisione** — il validatore deve aprire la famiglia dei rilievi geometrici oltre "fuori pagina"? |
+| [2026-09-12-q31-verifica-chat-remota.md](2026-09-12-q31-verifica-chat-remota.md) | Q31 | **verifica** — provare la chat con un runtime remoto vero collegato |
+| [2026-09-12-q46-verifica-projects-root.md](2026-09-12-q46-verifica-projects-root.md) | Q46 | **verifica** — confermare che `browse-dirs`/`mkdir` restino dentro `projects_root` |
