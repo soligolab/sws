@@ -856,14 +856,15 @@ fn controlla_oggetto(
         let (Some(v), Some(td)) = (valore.as_ref(), tag_def) else {
             continue;
         };
-        if let Some(msg) = incompatibile(v, &td.data_type) {
+        let tipo_scrittura = td.write_data_type.as_deref().unwrap_or(&td.data_type);
+        if let Some(msg) = incompatibile(v, tipo_scrittura) {
             out.push(Finding::err(
                 format!("{base}.{campo}"),
                 format!(
                     "{msg} ma il tag `{}` è dichiarato `{}`",
-                    td.id, td.data_type
+                    td.id, tipo_scrittura
                 ),
-                atteso_per(&td.data_type),
+                atteso_per(tipo_scrittura),
             ));
         }
     }
@@ -1367,39 +1368,18 @@ global_scripts:
     /// se le nostre regole bocciano i nostri progetti, o le regole sono
     /// sbagliate o i progetti lo sono — e in entrambi i casi lo vogliamo sapere
     /// qui, non da un modello che ci gira intorno per tre turni.
-    /// Le uniche eccezioni ammesse, con nome e cognome.
     ///
-    /// I dodici pulsanti dei rulli di `casa-locale` scrivono `"open"` / `"stop"`
-    /// / `"close"` su tag dichiarati `float`: lo stesso tag porta la posizione
-    /// 0-100 in lettura (topic `/pos`) e un comando testuale in scrittura
-    /// (`publish_topic` → `/command`). Funziona, perché il server non fa
-    /// rispettare il `data_type` (Q27) e il plugin pubblica il valore così
-    /// com'è. Ma il tipo dichiarato è falso metà del tempo.
-    ///
-    /// Non è un refuso da correggere di notte: è una scelta di modellazione
-    /// sull'impianto di casa del maintainer, e la domanda «un tag può servire
-    /// due direzioni con due tipi diversi?» è **Q29** in
-    /// `docs/OPEN_QUESTIONS.md`. Finché non è decisa, queste dodici restano
-    /// elencate qui una per una — così una tredicesima fallisce.
-    const ECCEZIONI_NOTE: &[&str] = &[
-        "casa-locale: pages[Domotica].objects[cl5_t1_open].write_value",
-        "casa-locale: pages[Domotica].objects[cl5_t1_stop].write_value",
-        "casa-locale: pages[Domotica].objects[cl5_t1_close].write_value",
-        "casa-locale: pages[Domotica].objects[cl5_t2_open].write_value",
-        "casa-locale: pages[Domotica].objects[cl5_t2_stop].write_value",
-        "casa-locale: pages[Domotica].objects[cl5_t2_close].write_value",
-        "casa-locale: pages[Domotica].objects[cl5_t3_open].write_value",
-        "casa-locale: pages[Domotica].objects[cl5_t3_stop].write_value",
-        "casa-locale: pages[Domotica].objects[cl5_t3_close].write_value",
-        "casa-locale: pages[Domotica].objects[cl5_t4_open].write_value",
-        "casa-locale: pages[Domotica].objects[cl5_t4_stop].write_value",
-        "casa-locale: pages[Domotica].objects[cl5_t4_close].write_value",
-    ];
-
+    /// Fino a Q29 qui c'era `ECCEZIONI_NOTE`: i dodici pulsanti dei rulli di
+    /// `casa-locale` scrivono `"open"`/`"stop"`/`"close"` su tag dichiarati
+    /// `float` (la posizione 0-100 in lettura), ed erano elencati uno per uno
+    /// perché il validatore non aveva un modo di saperlo legittimo. Deciso il
+    /// 2026-09-12: `write_data_type: string` sui quattro tag delle tapparelle
+    /// dichiara l'asimmetria, il validatore la rispetta da solo (vedi sopra),
+    /// e l'elenco non serve più — un'eccezione lasciata lì dopo che il motivo
+    /// è sparito sarebbe un segnalibro morto, non una garanzia.
     #[test]
     fn i_template_non_hanno_errori() {
         let mut rotti = Vec::new();
-        let mut eccezioni_viste = Vec::new();
         for dir in templates() {
             let nome = dir.file_name().unwrap().to_string_lossy().to_string();
             let (project, pages) = carica(&dir);
@@ -1407,12 +1387,7 @@ global_scripts:
                 if f.severity != Severity::Error {
                     continue;
                 }
-                let chiave = format!("{nome}: {}", f.path);
-                if ECCEZIONI_NOTE.contains(&chiave.as_str()) {
-                    eccezioni_viste.push(chiave);
-                } else {
-                    rotti.push(format!("{chiave} — {}", f.message));
-                }
+                rotti.push(format!("{nome}: {} — {}", f.path, f.message));
             }
         }
         assert!(
@@ -1420,20 +1395,6 @@ global_scripts:
             "{} errori nei template che spediamo:\n  {}",
             rotti.len(),
             rotti.join("\n  ")
-        );
-
-        // Un'eccezione che non scatta più è un'eccezione da togliere: se il
-        // template è stato sistemato, l'elenco qui sopra mente e va accorciato.
-        let mancanti: Vec<&&str> = ECCEZIONI_NOTE
-            .iter()
-            .filter(|e| !eccezioni_viste.contains(&e.to_string()))
-            .collect();
-        assert!(
-            mancanti.is_empty(),
-            "{} eccezioni non scattano più — il template è stato corretto, togli queste \
-             righe da ECCEZIONI_NOTE:\n  {:?}",
-            mancanti.len(),
-            mancanti
         );
     }
 

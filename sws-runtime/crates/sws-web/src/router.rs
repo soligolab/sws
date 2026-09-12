@@ -3222,6 +3222,7 @@ async fn import_tags_csv(
             eng_max: None,
             range_lo: None,
             range_hi: None,
+            write_data_type: None,
             write_min_role: None,
             limit_lo_lo: None,
             limit_lo: None,

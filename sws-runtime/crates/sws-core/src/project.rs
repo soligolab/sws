@@ -22,6 +22,17 @@ pub struct TagDef {
     /// Drives the initial `TagValue` variant seeded into the TagDb at startup.
     #[serde(default = "default_data_type")]
     pub data_type: String,
+    /// Tipo dichiarato per il valore SCRITTO su questo tag, quando diverge da
+    /// `data_type` (Q29). Assente = la scrittura ha lo stesso tipo della
+    /// lettura, comportamento di sempre. Serve ai tag che leggono da un canale
+    /// e comandano su un altro con un formato diverso (una tapparella Shelly:
+    /// posizione 0-100 in lettura, "open"/"stop"/"close" in scrittura) — lo
+    /// stesso genere di asimmetria che `publish_topic` già ammette per il
+    /// canale, qui dichiarata anche per il tipo. Si applica a qualunque
+    /// sorgente, non solo MQTT: vive qui, non dentro la configurazione di una
+    /// sorgente specifica, per lo stesso motivo per cui ci vive `data_type`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub write_data_type: Option<String>,
     /// When true, tag samples are persisted to `datastore_id` (or the project
     /// default datastore when unset). Default false.
     #[serde(default)]

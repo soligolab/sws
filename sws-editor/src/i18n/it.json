@@ -1049,6 +1049,8 @@
     "tagScaling": "Scaling raw→eng",
     "tagLimits": "Limiti (soglie)",
     "tagWriteRole": "Ruolo min. scrittura",
+    "tagWriteType": "Tipo in scrittura",
+    "tagWriteTypeSame": "Come in lettura (default)",
     "tagMetaHint": "I widget ereditano questi valori come default (override locale sempre possibile). Lo scaling è applicato dal runtime ai dati in arrivo dai protocolli e invertito sulle scritture; servono tutti e quattro i campi.",
     "labelField": "Etichetta",
     "file": "File",

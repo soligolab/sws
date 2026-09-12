@@ -157,15 +157,19 @@ tags:
   - id: shutter.garage
     description: "Tapparella Ufficio/Garage (0-100%)"
     data_type: float
+    write_data_type: string  # comando open/stop/close (Q29)
   - id: shutter.bagno
     description: "Tapparella Bagno (0-100%)"
     data_type: float
+    write_data_type: string
   - id: shutter.sogg_dx
     description: "Tapparella Soggiorno DX (0-100%)"
     data_type: float
+    write_data_type: string
   - id: shutter.sogg_sx
     description: "Tapparella Soggiorno SX (0-100%)"
     data_type: float
+    write_data_type: string
 
 # ── MQTT sources ───────────────────────────────────────────────────────────────
 sources:

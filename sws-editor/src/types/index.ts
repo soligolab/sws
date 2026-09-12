@@ -844,6 +844,11 @@ export interface TagDef {
   description: string;
   /** Storage type. Optional in the wire format; defaults to "float" server-side. */
   data_type?: TagDataType;
+  /** Tipo dichiarato per il valore SCRITTO, quando diverge da `data_type`
+   *  (Q29) — es. una tapparella: posizione numerica in lettura, comando
+   *  testuale ("open"/"stop"/"close") in scrittura. Assente = stesso tipo
+   *  della lettura, comportamento di sempre. */
+  write_data_type?: TagDataType;
   /** When true, samples are persisted to `datastore_id` (or the default datastore). */
   history?: boolean;
   /** Which datastore (by DatastoreConfig.id) stores this tag's history. */

@@ -500,6 +500,7 @@ function TagsTab() {
   /** True se il tag definisce almeno un campo F1 (unità/scaling/range/limiti). */
   const hasMeta = (t: TagDef) =>
     t.unit !== undefined || t.decimals !== undefined || t.write_min_role !== undefined ||
+    t.write_data_type !== undefined ||
     t.raw_min !== undefined || t.raw_max !== undefined || t.eng_min !== undefined || t.eng_max !== undefined ||
     t.range_lo !== undefined || t.range_hi !== undefined ||
     t.limit_lo_lo !== undefined || t.limit_lo !== undefined || t.limit_hi !== undefined || t.limit_hi_hi !== undefined;
@@ -882,6 +883,18 @@ function TagsTab() {
                                 <option value="Viewer">Viewer</option>
                                 <option value="Supervisor">Supervisor</option>
                                 <option value="Admin">Admin</option>
+                              </select>
+                            </label>
+                            <label style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 10, color: "var(--brand-text-subtle, #64748b)", width: 110 }}>
+                              {t("cfg.tagWriteType")}
+                              <select style={{ ...S.input, fontSize: 12, cursor: "pointer" }}
+                                value={tag.write_data_type ?? ""}
+                                onChange={(e) => updateTag(i, { write_data_type: (e.target.value || undefined) as TagDef["write_data_type"] })}>
+                                <option value="">{t("cfg.tagWriteTypeSame")}</option>
+                                <option value="bool">Bool</option>
+                                <option value="int">Int</option>
+                                <option value="float">Float</option>
+                                <option value="string">{t("cfg.stringType")}</option>
                               </select>
                             </label>
                           </div>

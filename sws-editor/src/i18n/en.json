@@ -1049,6 +1049,8 @@
     "tagScaling": "Raw→eng scaling",
     "tagLimits": "Limits (thresholds)",
     "tagWriteRole": "Min write role",
+    "tagWriteType": "Write type",
+    "tagWriteTypeSame": "Same as read (default)",
     "tagMetaHint": "Widgets inherit these values as defaults (local override always possible). Scaling is applied by the runtime to incoming protocol data and inverted on writes; all four fields are required.",
     "labelField": "Label",
     "file": "File",
