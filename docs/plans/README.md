@@ -15,6 +15,6 @@
 | Piano | Stato | Cosa resta |
 |---|---|---|
 | [2026-08-21-scada-widgets.md](2026-08-21-scada-widgets.md) | **PARZIALE** | F0-F8 in 2.1.0; il residuo (F5.3x + verifica parità LVGL) è ora dettagliato in `2026-09-12-F5.3x-xy-plot-e-verifica-lvgl.md` |
-| [2026-09-12-F5.3x-xy-plot-e-verifica-lvgl.md](2026-09-12-F5.3x-xy-plot-e-verifica-lvgl.md) | **PARZIALE** | Parte A (T-70, XY plot multi-coppia) **fatta e su `main`** (`262c17c`); Parte B (verifica dal vivo della parità LVGL) resta da fare, e condivide il blocco scoperto in A: il TC620 gira un firmware precedente, serve un binario aggiornato prima di poterla fare |
+| [2026-09-12-F5.3x-xy-plot-e-verifica-lvgl.md](2026-09-12-F5.3x-xy-plot-e-verifica-lvgl.md) | **PARZIALE** | Parte A (T-70, XY plot multi-coppia) **fatta, su `main` e confermata sul TC620** (release 2.7.3); Parte B (verifica dal vivo della parità LVGL) resta da fare — il blocco è risolto, il dispositivo ha ora il binario aggiornato |
 | [2026-09-10-T56-pannelli-editor.md](2026-09-10-T56-pannelli-editor.md) | **REALIZZATO E SU `main`** | tutti e tre i passi, con T-55 che ne era il prerequisito (`bd26c74f`); manca il collaudo a fondo dei due pannelli |
 | [2026-09-11-utenti-nel-progetto.md](2026-09-11-utenti-nel-progetto.md) | **REALIZZATO E SU `main`** | i sei passi sono fatti e mergiati (`64c1b0db`); manca il collaudo a fondo — il deploy con e senza la casella, e la conferma 428 che non deve ripartire in ciclo |

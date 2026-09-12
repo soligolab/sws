@@ -74,6 +74,30 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — 2.7.3 pubblicata e installata sul TC620, T-70 confermato dal vivo (2026-09-12)
+
+Chiuso il blocco della sezione precedente. Versione **2.7.3** taggata (`main`, `1caeb3b`..`da100f8`
+inclusi nel bump, tag git `2.7.3`) e pubblicata su `ghcr.io/soligolab/sws-runtime:2.7.3-arm64`
+(cross-build Q53, senza SDK Pixsys — solo podman + qemu-aarch64, già presenti su questa
+macchina). Installata su `tc620-a-p3-c6-07aff9.local` via `install-container.sh --pull` (SSH,
+autorizzato dal maintainer per questa sessione).
+
+**T-70 confermato anche su hardware vero**, non solo in locale: `runtime_version: "2.7.3"`,
+`xy_series` sopravvive al round-trip sul progetto reale (`collaudo-xy-plot`, lasciato dal
+maintainer sul dispositivo), `GET /api/history/xy` risponde con 1045 punti reali del backfill.
+Il blocco di ieri (firmware vecchio che scartava `xy_series` in silenzio) è risolto.
+
+**Attenzione — build container non del tutto pulita**: durante la pubblicazione la cache di
+podman ha riusato il binario del primo tentativo (taggato erroneamente 2.7.2 per un bump di
+versione avvenuto a metà build) invece di ricompilare; verificato con `podman run --entrypoint
+... --version` che il binario avesse comunque 2.7.3 e con `grep` sul binario che contenesse
+`history/xy` prima di pubblicare — ma è stato un controllo a posteriori, non una garanzia
+strutturale. Da tenere a mente: bumpare la versione **prima** di lanciare `build_container.sh`,
+mai a build in corso.
+
+**Questo sblocca anche la Parte B** (verifica dal vivo della parità LVGL) dello stesso piano —
+il dispositivo ha ora un binario aggiornato. Non ancora affrontata in questa sessione.
+
 ## ▶ Riprendere da qui — T-70 Parte A su `main`, Parte B bloccata sul dispositivo (2026-09-12)
 
 **T-70/F5.3x — xy_plot multi-coppia con backfill, Parte A**: su `main` (`262c17c`), non
