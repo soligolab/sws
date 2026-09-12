@@ -33,7 +33,7 @@ import { cosaCancella, eliminaWaypoint, percorsoDaSalvare, puntiMovimento } from
 import { targetDaSalvare, versoRischioso } from "./targetProgetto";
 import { localizeObjects } from "@/i18n/projectI18n";
 import type { AlignMode } from "@/store";
-import type { AlarmSeverity, ButtonAction, FunctionDef, GridCell, PageLayoutConfig, PageSizeMode, ProjectTargetKind, RadioOption, SubCellEntry, SubGrid, SynopticObject, TableRow, TextListEntry, TrendTrace } from "@/types";
+import type { AlarmSeverity, ButtonAction, FunctionDef, GridCell, PageLayoutConfig, PageSizeMode, ProjectTargetKind, RadioOption, SubCellEntry, SubGrid, SynopticObject, TableRow, TextListEntry, TrendTrace, XySeries } from "@/types";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -619,7 +619,7 @@ export function EditorShell() {
         break;
       case "xy_plot":
         addObject({ type, x, y, width: 200, height: 200,
-          xy_trail_s: 30, line_color: "var(--brand-primary, #3b82f6)" });
+          xy_series: [{ tag: "", y_tag: "" }], xy_trail_s: 30 });
         break;
       case "text_list":
         addObject({ type, x, y, width: 120, height: 32, font_size: 16, text_anchor: "middle",
@@ -3665,18 +3665,76 @@ export function ObjectProps({
           })()}
 
           {/* XY plot */}
-          {obj.type === "xy_plot" && (
+          {obj.type === "xy_plot" && (() => {
+            // COPPIE unificate (F5.3x/T-70, 2026-09-12): ogni riga è una
+            // XySeries {tag, y_tag, label, colore, stile…} — stesso taglio
+            // di trend_tags. Una curva di riferimento/target è una coppia
+            // come le altre, marcata "dashed": nessun campo "role" a parte.
+            const pairs = obj.xy_series ?? [];
+            const patchPair = (idx: number, patch: Partial<XySeries>) => {
+              const next = pairs.map((p, i) => (i === idx ? { ...p, ...patch } : p));
+              onChange({ xy_series: next });
+            };
+            const removePair = (idx: number) =>
+              onChange({ xy_series: pairs.filter((_, i) => i !== idx) });
+            const pairRow = (p: XySeries, idx: number) => (
+              <div key={idx} style={{ marginBottom: 6, padding: 4, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4 }}>
+                <div style={{ display: "flex", gap: 4, marginBottom: 3, alignItems: "center" }}>
+                  <TagInput style={{ ...INPUT, flex: 1 }} placeholder={t("props.xTag")} value={p.tag} onChange={(v) => patchPair(idx, { tag: v })} />
+                  <TagInput style={{ ...INPUT, flex: 1 }} placeholder={t("props.yTag")} value={p.y_tag} onChange={(v) => patchPair(idx, { y_tag: v })} />
+                  <button
+                    title={t("props.remove")}
+                    style={{ background: "transparent", border: "none", color: "var(--brand-danger, #ef4444)", cursor: "pointer", fontSize: 14, padding: "0 4px" }}
+                    onClick={() => removePair(idx)}
+                  >×</button>
+                </div>
+                <div style={{ display: "flex", gap: 5, alignItems: "center", flexWrap: "wrap" }}>
+                  <input
+                    style={{ ...INPUT, width: 90 }}
+                    placeholder={t("props.traceLabel")}
+                    value={p.label ?? ""}
+                    onChange={(e) => patchPair(idx, { label: e.target.value || undefined })}
+                  />
+                  <input
+                    type="color"
+                    value={p.color ?? PALETTE[idx % PALETTE.length]}
+                    onChange={(e) => patchPair(idx, { color: e.target.value })}
+                    title={t("props.color")}
+                    style={{ width: 26, height: 22, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }}
+                  />
+                  <input
+                    type="number" min={0.5} max={10} step={0.5}
+                    value={p.width ?? 1.5}
+                    title={t("props.strokeWidth")}
+                    onChange={(e) => patchPair(idx, { width: e.target.value === "" ? undefined : Number(e.target.value) })}
+                    style={{ ...INPUT, width: 46, padding: "2px 4px" }}
+                  />
+                  <select
+                    value={p.dash ?? "solid"}
+                    title={t("props.dashPattern")}
+                    onChange={(e) => patchPair(idx, { dash: e.target.value === "solid" ? undefined : (e.target.value as XySeries["dash"]) })}
+                    style={{ ...INPUT, width: 84, padding: "2px 4px" }}
+                  >
+                    <option value="solid">{t("props.dashSolid")}</option>
+                    <option value="dashed">{t("props.dashDashed")}</option>
+                    <option value="dotted">{t("props.dashDotted")}</option>
+                  </select>
+                </div>
+              </div>
+            );
+
+            return (
             <>
-              {field(t("props.xTag"), tagInput("es. gantry.pos_x"))}
-              {field(t("props.yTag"),
-                <TagInput
-                  style={INPUT}
-                  placeholder="es. gantry.pos_y"
-                  value={obj.y_tag ?? ""}
-                  onChange={(v) => onChange({ y_tag: v || undefined })}
-                />
-              )}
+              <SottoTitolo chiave="xyPairs" />
+              {pairs.map(pairRow)}
+              <button
+                style={{ ...INPUT, cursor: "pointer", color: "var(--brand-text-subtle, #64748b)", borderStyle: "dashed", width: "100%", marginBottom: 8 }}
+                onClick={() => onChange({ xy_series: [...pairs, { tag: "", y_tag: "" }] })}
+              >
+                + {t("props.addXyPair")}
+              </button>
               {field(t("props.trailS"), <BindableInput obj={obj} propName="xy_trail_s" onChange={onChange}>{numInput("xy_trail_s", 30)}</BindableInput>)}
+              {field(t("props.xySampleMs"), <BindableInput obj={obj} propName="xy_sample_ms" onChange={onChange}>{numInput("xy_sample_ms", 200)}</BindableInput>)}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
                 <div><div style={LABEL}>X min</div><BindableInput obj={obj} propName="xy_x_min" onChange={onChange}>{numInput("xy_x_min", 0)}</BindableInput></div>
                 <div><div style={LABEL}>X max</div><BindableInput obj={obj} propName="xy_x_max" onChange={onChange}>{numInput("xy_x_max", 100)}</BindableInput></div>
@@ -3686,9 +3744,11 @@ export function ObjectProps({
               <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "2px 0 0" }}>
                 Lascia min/max vuoti per autofit sui campioni osservati.
               </p>
-              {field(t("props.colorMainLine"), <BindableInput obj={obj} propName="line_color" onChange={onChange}>{colorInput("line_color", "var(--brand-primary, #3b82f6)")}</BindableInput>)}
+              {field(t("props.xAxisLabel"), <BindableInput obj={obj} propName="xy_x_label" onChange={onChange}><input style={INPUT} value={obj.xy_x_label ?? ""} onChange={(e) => onChange({ xy_x_label: e.target.value || undefined })} /></BindableInput>)}
+              {field(t("props.yAxisLabel"), <BindableInput obj={obj} propName="xy_y_label" onChange={onChange}><input style={INPUT} value={obj.xy_y_label ?? ""} onChange={(e) => onChange({ xy_y_label: e.target.value || undefined })} /></BindableInput>)}
             </>
-          )}
+            );
+          })()}
 
           {/* Image (external URL) */}
           {obj.type === "image" && (

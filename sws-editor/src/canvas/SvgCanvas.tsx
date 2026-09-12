@@ -3,7 +3,7 @@ import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState 
 import { useTranslation } from "react-i18next";
 import { PALETTE, TrendCanvas } from "@/canvas/TrendCanvas";
 import { TrendExpandedModal } from "@/canvas/TrendExpanded";
-import { XyPlotCanvas } from "@/canvas/XyPlotCanvas";
+import { XyPlotCanvas, type XyPlotSeriesLive } from "@/canvas/XyPlotCanvas";
 import { dividiSegmento, aggiungiInCoda, percorsoDaSalvare, puntiMovimento, tracciatoVisibile } from "@/canvas/percorsoMovimento";
 import { api } from "@/api/client";
 import { AlarmBellPanel } from "@/components/AlarmBellPanel";
@@ -19,6 +19,7 @@ import { effectiveProjectLang, resolveMsg } from "@/i18n/projectI18n";
 import { evalExpr } from "@/expr/engine";
 import { applyStateColor, parseSvg, sanitizeSvg } from "@/symbols/customSvg";
 import { trendTraces } from "@/canvas/trendModel";
+import { xySeriesOf } from "@/canvas/xyModel";
 import { SYMBOLS } from "@/symbols/library";
 import {
   PAGE_EDGE_RESIST_PX,
@@ -4905,9 +4906,19 @@ export function SvgObject(p: ObjProps) {
 
     // WYSIWYG (2026-08-23): XyPlotCanvas vero anche in editor (cornice, scale
     // e punto live), invece degli assi finti col punto fisso al centro.
+    // Multi-coppia (F5.3x/T-70, 2026-09-12): xySeriesOf legge il formato
+    // nuovo o migra al volo il legacy tag/y_tag — vedi xyModel.ts.
 
-    const xv = obj.tag ? tagValues[obj.tag] : undefined;
-    const yv = obj.y_tag ? tagValues[obj.y_tag] : undefined;
+    const liveSeries: XyPlotSeriesLive[] = xySeriesOf(obj).map((s) => {
+      const xv = s.tag ? tagValues[s.tag] : undefined;
+      const yv = s.y_tag ? tagValues[s.y_tag] : undefined;
+      return {
+        tag: s.tag, yTag: s.y_tag, label: s.label, color: s.color,
+        width: s.width, dash: s.dash,
+        xValue: xv ? Number(xv.value) : undefined,
+        yValue: yv ? Number(yv.value) : undefined,
+      };
+    });
 
     return (
       <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}>
@@ -4915,12 +4926,13 @@ export function SvgObject(p: ObjProps) {
         <foreignObject x={obj.x} y={obj.y} width={w} height={h}
           style={isEditMode ? { pointerEvents: "none" } : undefined}>
           <XyPlotCanvas
-            xValue={xv ? Number(xv.value) : undefined}
-            yValue={yv ? Number(yv.value) : undefined}
+            series={liveSeries}
             trailS={obj.xy_trail_s}
             width={w}
             height={h}
-            lineColor={obj.line_color}
+            sampleMs={obj.xy_sample_ms}
+            xLabel={obj.xy_x_label}
+            yLabel={obj.xy_y_label}
             xMin={obj.xy_x_min}
             xMax={obj.xy_x_max}
             yMin={obj.xy_y_min}

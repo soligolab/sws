@@ -473,3 +473,206 @@ mod aggregate_tests {
         assert!(aggregate_samples(&[s(0, 1.0)], 0).is_empty());
     }
 }
+
+// ── Merge XY a riempimento (F5.3x/T-70, piano SCADA-widgets) ────────────────
+//
+// Un `xy_plot` accoppia due tag storicizzati indipendentemente — cadenze
+// diverse, nessun timestamp in comune garantito. Non è un join: è un merge a
+// riempimento (forward-fill), lo stesso comportamento che il live ha già
+// implicitamente (si legge sempre "l'ultimo valore noto" di entrambi i tag),
+// esteso allo storico.
+
+/// Un punto XY accoppiato per riempimento. `ts_ms` è l'istante dell'evento che
+/// lo ha generato (un campione di X o di Y, non necessariamente di entrambi).
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct XyPoint {
+    pub ts_ms: u64,
+    pub x: f64,
+    pub y: f64,
+}
+
+/// Unisce `x_samples` e `y_samples` (ciascuna ordinata per `ts_ms` crescente,
+/// come restituito da `Historian::query`) in punti XY a riempimento: a ogni
+/// evento di una delle due serie, il punto usa l'ultimo valore noto
+/// dell'altra. Campioni non numerici (stringhe) sono ignorati, come in
+/// `aggregate_samples`. **Nessun punto prima che entrambe le serie abbiano
+/// almeno un campione** — riempire prima significherebbe inventare un valore
+/// che il tag non ha mai avuto.
+pub fn merge_xy(x_samples: &[Sample], y_samples: &[Sample]) -> Vec<XyPoint> {
+    let mut out = Vec::new();
+    let (mut ix, mut iy) = (0usize, 0usize);
+    let (mut last_x, mut last_y): (Option<f64>, Option<f64>) = (None, None);
+
+    while ix < x_samples.len() || iy < y_samples.len() {
+        let next_x_ts = x_samples.get(ix).map(|s| s.ts_ms);
+        let next_y_ts = y_samples.get(iy).map(|s| s.ts_ms);
+
+        // Evento più vecchio fra i due prossimi campioni; a parità di
+        // timestamp si avanzano entrambi insieme, così un punto solo porta
+        // già i due valori aggiornati invece di due punti identici in x/y.
+        let take_x = match (next_x_ts, next_y_ts) {
+            (Some(tx), Some(ty)) => tx <= ty,
+            (Some(_), None) => true,
+            (None, Some(_)) => false,
+            (None, None) => unreachable!("il ciclo si ferma quando entrambe sono esaurite"),
+        };
+        let take_y = match (next_x_ts, next_y_ts) {
+            (Some(tx), Some(ty)) => ty <= tx,
+            (None, Some(_)) => true,
+            _ => false,
+        };
+
+        let ts_ms = if take_x { next_x_ts } else { next_y_ts }.unwrap();
+        let mut updated = false;
+
+        if take_x {
+            if let Some(v) = numeric(&x_samples[ix].value) {
+                last_x = Some(v);
+                updated = true;
+            }
+            ix += 1;
+        }
+        if take_y {
+            if let Some(v) = numeric(&y_samples[iy].value) {
+                last_y = Some(v);
+                updated = true;
+            }
+            iy += 1;
+        }
+
+        // Un campione non numerico (stringa) non produce un punto proprio:
+        // non è successo niente di rappresentabile, come in `aggregate_samples`.
+        if updated {
+            if let (Some(x), Some(y)) = (last_x, last_y) {
+                out.push(XyPoint { ts_ms, x, y });
+            }
+        }
+    }
+
+    out
+}
+
+#[cfg(test)]
+mod merge_xy_tests {
+    use super::*;
+    use sws_core::TagQuality;
+
+    fn s(ts_ms: u64, v: f64) -> Sample {
+        Sample {
+            ts_ms,
+            value: TagValue::Float(v),
+            quality: TagQuality::Good,
+        }
+    }
+
+    #[test]
+    fn cadenze_diverse_riempie_col_valore_noto() {
+        // X si muove spesso, Y quasi ferma: ogni evento di X deve portare
+        // l'ultimo Y noto, non un valore interpolato o inventato.
+        let x = vec![s(0, 1.0), s(10, 2.0), s(20, 3.0)];
+        let y = vec![s(5, 100.0)];
+        let out = merge_xy(&x, &y);
+        // Il campione di x a ts=0 precede il primo campione di y: nessun
+        // punto finché anche y non ha un valore.
+        assert_eq!(out.len(), 3, "solo dopo il primo campione di y");
+        assert_eq!(
+            out[0],
+            XyPoint {
+                ts_ms: 5,
+                x: 1.0,
+                y: 100.0
+            }
+        );
+        assert_eq!(
+            out[1],
+            XyPoint {
+                ts_ms: 10,
+                x: 2.0,
+                y: 100.0
+            }
+        );
+        assert_eq!(
+            out[2],
+            XyPoint {
+                ts_ms: 20,
+                x: 3.0,
+                y: 100.0
+            }
+        );
+    }
+
+    #[test]
+    fn nessun_punto_prima_che_entrambe_abbiano_un_campione() {
+        let x = vec![s(0, 1.0), s(10, 2.0)];
+        let y = vec![s(50, 9.0)];
+        let out = merge_xy(&x, &y);
+        assert_eq!(
+            out.len(),
+            1,
+            "i due campioni di x prima di y non producono punti fantasma"
+        );
+        assert_eq!(out[0].ts_ms, 50);
+    }
+
+    #[test]
+    fn timestamp_uguali_producono_un_solo_punto() {
+        let x = vec![s(0, 1.0), s(10, 2.0)];
+        let y = vec![s(0, 5.0), s(10, 6.0)];
+        let out = merge_xy(&x, &y);
+        assert_eq!(
+            out.len(),
+            2,
+            "un evento simultaneo di x e y è un punto solo, non due"
+        );
+        assert_eq!(
+            out[0],
+            XyPoint {
+                ts_ms: 0,
+                x: 1.0,
+                y: 5.0
+            }
+        );
+        assert_eq!(
+            out[1],
+            XyPoint {
+                ts_ms: 10,
+                x: 2.0,
+                y: 6.0
+            }
+        );
+    }
+
+    #[test]
+    fn stringhe_ignorate_come_in_aggregate_samples() {
+        let x = vec![
+            s(0, 1.0),
+            Sample {
+                ts_ms: 5,
+                value: TagValue::Str("boh".into()),
+                quality: TagQuality::Good,
+            },
+            s(10, 2.0),
+        ];
+        let y = vec![s(0, 9.0)];
+        let out = merge_xy(&x, &y);
+        assert_eq!(
+            out.len(),
+            2,
+            "il campione stringa non genera un punto proprio"
+        );
+        assert_eq!(
+            out[1],
+            XyPoint {
+                ts_ms: 10,
+                x: 2.0,
+                y: 9.0
+            }
+        );
+    }
+
+    #[test]
+    fn serie_vuote_non_producono_niente() {
+        assert!(merge_xy(&[], &[]).is_empty());
+        assert!(merge_xy(&[s(0, 1.0)], &[]).is_empty());
+    }
+}

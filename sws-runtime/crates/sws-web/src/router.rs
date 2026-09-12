@@ -613,6 +613,7 @@ pub fn build(
         .route("/api/alarms/history", get(get_alarm_history))
         // Historian
         .route("/api/history/export", get(export_history_csv)) // literal before :tag
+        .route("/api/history/xy", get(get_history_xy)) // literal before :tag
         .route("/api/history/:tag/stats", get(tag_history_stats))
         .route("/api/history/:tag", get(get_history))
         // (Datastore routes are in a dedicated router below — see datastore_routes)
@@ -1035,6 +1036,7 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
         .route("/api/alarms", get(get_alarms))
         .route("/api/alarms/history", get(get_alarm_history))
         .route("/api/history/export", get(export_history_csv))
+        .route("/api/history/xy", get(get_history_xy)) // literal before :tag
         .route("/api/history/:tag/stats", get(tag_history_stats))
         .route("/api/history/:tag", get(get_history))
         .route("/api/synoptics", get(list_synoptics))
@@ -1762,6 +1764,37 @@ async fn get_history(
         }
     }
     Json(samples).into_response()
+}
+
+// ── Backfill di un xy_plot (F5.3x/T-70) ──────────────────────────────────────
+//
+// `x`/`y` sono due tag storicizzati indipendentemente: nessun timestamp in
+// comune garantito. `sws_historian::merge_xy` fa il merge a riempimento
+// (forward-fill), non un join — vedi i suoi test per il comportamento sui
+// bordi (nessun punto prima che entrambe le serie abbiano un campione).
+
+#[derive(Deserialize)]
+struct HistoryXyQuery {
+    x: String,
+    y: String,
+    from: Option<u64>,
+    to: Option<u64>,
+    /// Come `HistoryQuery::limit`: tronca la coda, non decima — le due serie
+    /// sono già decimate singolarmente da `Historian::query` a monte del merge.
+    limit: Option<usize>,
+}
+
+async fn get_history_xy(State(s): State<AppState>, Query(q): Query<HistoryXyQuery>) -> Response {
+    let x_samples = s.historian.query(&q.x, q.from, q.to).await;
+    let y_samples = s.historian.query(&q.y, q.from, q.to).await;
+    let mut points = sws_historian::merge_xy(&x_samples, &y_samples);
+
+    if let Some(n) = q.limit {
+        if points.len() > n {
+            points = points.split_off(points.len() - n);
+        }
+    }
+    Json(points).into_response()
 }
 
 // ── Feature #4: CSV export ────────────────────────────────────────────────────

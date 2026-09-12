@@ -282,8 +282,23 @@ pub struct SynopticObject {
     pub read_only: Option<bool>,
 
     // ── xy_plot ──
+    /// Coppie multiple (F5.3x/T-70, 2026-09-12). `dash` non ha equivalente
+    /// disegnato qui — gap dichiarato, stesso principio di `TrendTrace` sopra:
+    /// `lv_chart_series` non espone un tratteggio per serie nell'API usata da
+    /// questo motore. `y_tag` sotto resta come ripiego per i progetti non
+    /// ancora migrati (una coppia sola, formato pre-2026-09-12).
+    /// `xy_x_label`/`xy_y_label` (etichette assi, web) sono dichiarati ma
+    /// mai letti dal rendering — gap dichiarato: `lv_chart` non ha un
+    /// titolo asse nativo nell'API usata da questo motore. Dichiararli
+    /// comunque è ciò che `check_lvgl_parity.sh` richiede: un campo del web
+    /// assente qui verrebbe scartato da serde in silenzio, non con un
+    /// errore — l'esatto difetto per cui esiste quella guardia.
+    pub xy_series: Option<Vec<XySeries>>,
     pub y_tag: Option<String>,
     pub xy_trail_s: Option<f64>,
+    pub xy_sample_ms: Option<f64>,
+    pub xy_x_label: Option<String>,
+    pub xy_y_label: Option<String>,
     pub xy_x_min: Option<f64>,
     pub xy_x_max: Option<f64>,
     pub xy_y_min: Option<f64>,
@@ -666,6 +681,16 @@ pub struct TrendTrace {
     /// Traccia esclusa dal disegno. Onorata perché una traccia nascosta che
     /// comparisse comunque sarebbe visibilmente sbagliata, non un dettaglio.
     pub hidden: Option<bool>,
+    pub color: Option<String>,
+}
+
+/// Una coppia X/Y del `xy_plot` (F5.3x/T-70). `label`/`width`/`dash` esistono
+/// nello schema web ma non hanno equivalente disegnato qui — vedi il
+/// commento su `xy_series` in `SynopticObject`.
+#[derive(Debug, Deserialize, Clone)]
+pub struct XySeries {
+    pub tag: String,
+    pub y_tag: String,
     pub color: Option<String>,
 }
 

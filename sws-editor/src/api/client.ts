@@ -33,6 +33,7 @@ import type {
   ProjectTarget,
   Sample,
   SourceDef,
+  XyPoint,
   RecipeApplyEvent,
   RecipeApplyResult,
   RecipeDef,
@@ -926,6 +927,17 @@ export const api = {
     return request<Sample[]>(
       `/api/history/${encodeURIComponent(tag)}${qs ? "?" + qs : ""}`,
     );
+  },
+
+  /** F5.3x/T-70: backfill di un xy_plot. `x`/`y` sono due tag storicizzati
+   *  indipendentemente — il server li accoppia per riempimento (forward-fill,
+   *  vedi `merge_xy` in sws-historian), non per timestamp identici. */
+  getHistoryXy: (x: string, y: string, opts?: { fromMs?: number; toMs?: number; limit?: number }) => {
+    const params = new URLSearchParams({ x, y });
+    if (opts?.fromMs !== undefined) params.set("from", String(opts.fromMs));
+    if (opts?.toMs   !== undefined) params.set("to",   String(opts.toMs));
+    if (opts?.limit  !== undefined) params.set("limit", String(opts.limit));
+    return request<XyPoint[]>(`/api/history/xy?${params.toString()}`);
   },
 
   /** F5.1: storico aggregato a bucket — ~un bucket per pixel qualunque sia

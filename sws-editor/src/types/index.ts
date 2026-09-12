@@ -177,6 +177,20 @@ export interface TrendTrace {
   hidden?: boolean;
 }
 
+/** Una coppia X/Y del `xy_plot` (migrazione 2026-09-12, F5.3x/T-70, stesso
+ *  taglio netto di `TrendTrace`): tag + stile in un'unica voce. `dash` (già
+ *  usato dal trend) è anche il modo di marcare una serie come curva di
+ *  riferimento/target — nessun campo `role` a parte, per non duplicare
+ *  l'idea di "stile di una serie" già esistente. */
+export interface XySeries {
+  tag: string;
+  y_tag: string;
+  label?: string;
+  color?: string;
+  width?: number;
+  dash?: "solid" | "dashed" | "dotted";
+}
+
 /** LEGACY (pre trend_tags) — per-trace style override (index 0 = the trend
  *  object's own `tag`, index i = `extra_tags[i-1]`). Migrato al load. */
 export interface TrendSeriesStyle {
@@ -452,11 +466,21 @@ export interface SynopticObject {
    *  falls inside the visible window (from the alarm-events journal). */
   trend_show_alarm_markers?: boolean;
   // ── XY plot (live point + trail, not a time series) ───────────────────────
-  /** Y-axis tag. `tag` (generic) is the X-axis. Distinct role from `extra_tags`,
-   *  which overlays series on the same axis rather than pairing a second axis. */
+  /** Serie multiple del xy_plot (formato nuovo, vedi XySeries — vedi xyModel.ts). */
+  xy_series?: XySeries[];
+  /** LEGACY: singola coppia X/Y — `tag` (generico, X) + `y_tag` (Y). Migrato
+   *  in `xy_series` al load, stesso taglio netto del trend (2026-08-23):
+   *  i runtime/LVGL più vecchi di questa migrazione mostrano xy_plot vuoti
+   *  finché non vengono aggiornati. */
   y_tag?: string;
   /** How long a sample stays in the trail before expiring, in seconds. */
   xy_trail_s?: number;
+  /** Campionamento live in ms per ciascuna serie. Default 200 (comportamento
+   *  invariato se assente). */
+  xy_sample_ms?: number;
+  /** Etichette degli assi, mostrate se presenti. */
+  xy_x_label?: string;
+  xy_y_label?: string;
   /** Axis range; autofit from observed samples when omitted (all four independent
    *  since X and Y need separate ranges, unlike the single y_min/y_max on trend). */
   xy_x_min?: number;
@@ -733,6 +757,15 @@ export interface BucketSample {
   first: number;
   last: number;
   count: number;
+}
+
+/** Punto XY dal backfill (F5.3x/T-70, `GET /api/history/xy`) — già accoppiato
+ *  per riempimento (forward-fill) lato server, vedi `merge_xy` in
+ *  sws-historian. */
+export interface XyPoint {
+  ts_ms: number;
+  x: number;
+  y: number;
 }
 
 /** A logical grouping of objects in the editor panel (UI-only, no canvas effect). */

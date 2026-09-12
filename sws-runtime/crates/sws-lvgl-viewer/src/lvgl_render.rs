@@ -369,19 +369,18 @@ pub enum LiveKind {
         prefix: String,
         allowed_sev: Option<Vec<String>>,
     },
-    /// Punto+scia live contro due tag (traiettoria/posizione, non tempo —
-    /// a differenza di `trend`/`sparkline`, l'asse X è il valore del tag
-    /// `tag`, non il tempo). Campionamento locale (nessun poller REST: i
-    /// valori sono già nello `TagSnapshot` di ogni frame), throttled a un
-    /// campione ogni ~200ms per non riempire `point_cnt` inutilmente a
-    /// 60fps — vedi `update_xy_plot`.
+    /// Punto+scia live contro coppie di tag (traiettoria/posizione, non
+    /// tempo — a differenza di `trend`/`sparkline`, l'asse X è il valore di
+    /// un tag, non il tempo). Multi-coppia (F5.3x/T-70): una `XyPlotSerie`
+    /// per elemento di `xy_series[]`, con backfill dallo storico fatto una
+    /// volta al mount (`client::fetch_history_xy`, non un poller: il live
+    /// campiona `TagSnapshot` localmente, throttled a `sample_ms` — vedi
+    /// `update_xy_plot`).
     XyPlot {
         ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
-        ser: *mut lvgl_sys::lv_chart_series_t,
-        x_tag: Option<String>,
-        y_tag: Option<String>,
+        series: Vec<XyPlotSerie>,
         trail_s: u64,
-        samples: Vec<(u64, f64, f64)>,
+        sample_ms: u64,
         last_sample_ms: u64,
         x_min: Option<f64>,
         x_max: Option<f64>,
@@ -542,6 +541,17 @@ pub struct TrendSeriesBinding {
     shared: SharedHistory,
     last_seen_version: u64,
     last_samples: Vec<HistorySample>,
+}
+
+/// Una coppia X/Y del `xy_plot` (F5.3x/T-70): il puntatore della serie
+/// `lv_chart`, i due tag, e i campioni — seed dal backfill al mount, poi
+/// aggiornati dal vivo. `(ts_ms, x, y)` invece di un tipo dedicato: stessa
+/// scelta di `LiveKind::XyPlot` prima della migrazione multi-coppia.
+pub struct XyPlotSerie {
+    ser: *mut lvgl_sys::lv_chart_series_t,
+    x_tag: String,
+    y_tag: String,
+    samples: Vec<(u64, f64, f64)>,
 }
 
 /// Uno slot riga di `alarm_viewer`: identità fissa (creato una volta),
@@ -947,6 +957,41 @@ pub fn resolve_trend_traces(obj: &SynopticObject) -> Vec<ResolvedTrace> {
         );
     }
     out
+}
+
+/// Una coppia X/Y del `xy_plot`, già risolta.
+#[derive(Debug, PartialEq)]
+pub struct ResolvedXyPair {
+    pub tag: String,
+    pub y_tag: String,
+    pub color: Option<String>,
+}
+
+/// Stesso schema di `resolve_trend_traces` (F5.3x/T-70): formato nuovo se
+/// presente (anche vuoto — `xy_series: []` è "nessuna coppia", non un
+/// motivo per ripiegare sul legacy), altrimenti la coppia singola `tag`/`y_tag`.
+pub fn resolve_xy_pairs(obj: &SynopticObject) -> Vec<ResolvedXyPair> {
+    if let Some(series) = obj.xy_series.as_ref() {
+        return series
+            .iter()
+            .filter(|s| !s.tag.trim().is_empty() && !s.y_tag.trim().is_empty())
+            .map(|s| ResolvedXyPair {
+                tag: s.tag.clone(),
+                y_tag: s.y_tag.clone(),
+                color: s.color.clone(),
+            })
+            .collect();
+    }
+    match (obj.tag.as_deref(), obj.y_tag.as_deref()) {
+        (Some(x), Some(y)) if !x.trim().is_empty() && !y.trim().is_empty() => {
+            vec![ResolvedXyPair {
+                tag: x.to_string(),
+                y_tag: y.to_string(),
+                color: obj.line_color.clone(),
+            }]
+        }
+        _ => Vec::new(),
+    }
 }
 
 /// Serie di un `lv_chart`.
@@ -3938,6 +3983,8 @@ fn render_xy_plot(
     screen: &mut lvgl::Obj,
     obj: &SynopticObject,
     styles: &mut Vec<Style>,
+    base_url: &str,
+    rt_handle: &tokio::runtime::Handle,
 ) -> anyhow::Result<LiveBinding> {
     let mut chart = Chart::create(screen).map_err(|e| anyhow::anyhow!("Chart::create: {e:?}"))?;
     set_pos_size(&mut chart, obj, 200.0, 200.0)?;
@@ -3954,6 +4001,11 @@ fn render_xy_plot(
     styles.push(bg_style);
 
     let trail_s = obj.xy_trail_s.unwrap_or(30.0).round().clamp(1.0, 600.0) as u64;
+    let sample_ms = obj
+        .xy_sample_ms
+        .unwrap_or(200.0)
+        .round()
+        .clamp(20.0, 60_000.0) as u64;
     let (x_lo, x_hi) = (obj.xy_x_min.unwrap_or(0.0), obj.xy_x_max.unwrap_or(100.0));
     let (y_lo, y_hi) = (obj.xy_y_min.unwrap_or(0.0), obj.xy_y_max.unwrap_or(100.0));
     unsafe {
@@ -3976,18 +4028,49 @@ fn render_xy_plot(
         );
         lvgl_sys::lv_chart_set_point_count(ptr.as_ptr(), 64);
     }
-    let rgb =
-        parse_hex_color(obj.line_color.as_deref().unwrap_or("#3b82f6")).unwrap_or((59, 130, 246));
-    let ser = unsafe { chart_add_series(ptr, rgb) };
+
+    // Backfill una tantum per coppia (F5.3x/T-70): non un poller, il live
+    // campiona il TagSnapshot locale — vedi update_xy_plot.
+    let now_ms = client::now_unix_ms();
+    let from_ms = now_ms.saturating_sub(trail_s.saturating_mul(1000));
+    let pairs = resolve_xy_pairs(obj);
+    let mut series = Vec::with_capacity(pairs.len());
+    for (i, pair) in pairs.iter().enumerate() {
+        let rgb = pair
+            .color
+            .as_deref()
+            .and_then(parse_hex_color)
+            .unwrap_or_else(|| TREND_PALETTE[i % TREND_PALETTE.len()]);
+        let ser = unsafe { chart_add_series(ptr, rgb) };
+        let backfill = rt_handle
+            .block_on(client::fetch_history_xy(
+                base_url,
+                &pair.tag,
+                &pair.y_tag,
+                from_ms,
+                now_ms,
+            ))
+            .unwrap_or_else(|e| {
+                eprintln!(
+                    "[xy_plot] backfill non disponibile per {}/{}: {e}",
+                    pair.tag, pair.y_tag
+                );
+                Vec::new()
+            });
+        series.push(XyPlotSerie {
+            ser,
+            x_tag: pair.tag.clone(),
+            y_tag: pair.y_tag.clone(),
+            samples: backfill.into_iter().map(|p| (p.ts_ms, p.x, p.y)).collect(),
+        });
+    }
 
     Ok(LiveBinding {
         kind: LiveKind::XyPlot {
             ptr,
-            ser,
-            x_tag: obj.tag.clone(),
-            y_tag: obj.y_tag.clone(),
+            series,
             trail_s,
-            samples: Vec::new(),
+            sample_ms,
             last_sample_ms: 0,
             x_min: obj.xy_x_min,
             x_max: obj.xy_x_max,
@@ -7123,7 +7206,7 @@ fn dispatch_render(
         "alarm_bell" => render_alarm_bell(screen, obj, styles, shared_alarms).map(|b| live.push(b)),
         "recipe_panel" => render_recipe_panel(screen, obj, styles, base_url, rt_handle),
         "setpoint" => render_setpoint(screen, obj, styles, tags, tag_tx).map(|b| live.push(b)),
-        "xy_plot" => render_xy_plot(screen, obj, styles).map(|b| live.push(b)),
+        "xy_plot" => render_xy_plot(screen, obj, styles, base_url, rt_handle).map(|b| live.push(b)),
         "pie_chart" => render_pie_chart(screen, obj, tags).map(|b| live.push(b)),
         "lang_button" => render_lang_button(screen, obj, styles, nav_tx, shared_lang, own_page_id),
         "lang_selector" => render_lang_selector(
@@ -8164,11 +8247,9 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
             }
             LiveKind::XyPlot {
                 ptr,
-                ser,
-                x_tag,
-                y_tag,
+                series,
                 trail_s,
-                samples,
+                sample_ms,
                 last_sample_ms,
                 x_min,
                 x_max,
@@ -8177,12 +8258,10 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
             } => {
                 update_xy_plot(
                     *ptr,
-                    *ser,
+                    series,
                     tags,
-                    x_tag,
-                    y_tag,
                     *trail_s,
-                    samples,
+                    *sample_ms,
                     last_sample_ms,
                     *x_min,
                     *x_max,
@@ -8442,14 +8521,18 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
 /// `render_xy_plot`). Range fisso quando entrambi gli estremi sono
 /// impostati nel synottico, altrimenti autofit sulla scia corrente.
 #[allow(clippy::too_many_arguments)]
+/// Aggiorna tutte le coppie di un `xy_plot` (F5.3x/T-70). `lv_chart_set_
+/// point_count` è per-chart, non per-serie: le serie condividono lo stesso
+/// numero di slot, il massimo fra quanti campioni ha ciascuna. Una serie più
+/// corta (es. una coppia aggiornata di rado) tiene ferma sul suo primo
+/// valore noto negli slot iniziali invece di lasciare garbage o un punto a
+/// zero — non è un dato inventato, è "non è ancora cambiato" reso visibile.
 fn update_xy_plot(
     ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
-    ser: *mut lvgl_sys::lv_chart_series_t,
+    series: &mut [XyPlotSerie],
     tags: &TagSnapshot,
-    x_tag: &Option<String>,
-    y_tag: &Option<String>,
     trail_s: u64,
-    samples: &mut Vec<(u64, f64, f64)>,
+    sample_ms: u64,
     last_sample_ms: &mut u64,
     x_min: Option<f64>,
     x_max: Option<f64>,
@@ -8457,43 +8540,73 @@ fn update_xy_plot(
     y_max: Option<f64>,
 ) {
     let now_ms = client::now_unix_ms();
-    if now_ms.saturating_sub(*last_sample_ms) < 200 {
+    if now_ms.saturating_sub(*last_sample_ms) < sample_ms {
         return;
     }
-    let (Some(xv), Some(yv)) = (lookup(tags, x_tag), lookup(tags, y_tag)) else {
-        return;
-    };
     *last_sample_ms = now_ms;
-    samples.push((
-        now_ms,
-        tag_value_as_f64(&xv.value),
-        tag_value_as_f64(&yv.value),
-    ));
-    let cutoff = now_ms.saturating_sub(trail_s.saturating_mul(1000));
-    samples.retain(|(ts, _, _)| *ts >= cutoff);
 
-    let point_count = samples.len().clamp(1, 64);
+    let cutoff = now_ms.saturating_sub(trail_s.saturating_mul(1000));
+    for s in series.iter_mut() {
+        if let (Some(xv), Some(yv)) = (
+            lookup(tags, &Some(s.x_tag.clone())),
+            lookup(tags, &Some(s.y_tag.clone())),
+        ) {
+            s.samples.push((
+                now_ms,
+                tag_value_as_f64(&xv.value),
+                tag_value_as_f64(&yv.value),
+            ));
+        }
+        s.samples.retain(|(ts, _, _)| *ts >= cutoff);
+    }
+
+    let point_count = series
+        .iter()
+        .map(|s| s.samples.len())
+        .max()
+        .unwrap_or(0)
+        .clamp(1, 64);
     unsafe {
         lvgl_sys::lv_chart_set_point_count(ptr.as_ptr(), point_count as u16);
     }
-    let start = samples.len().saturating_sub(64);
+
     let mut x_lo = f64::INFINITY;
     let mut x_hi = f64::NEG_INFINITY;
     let mut y_lo = f64::INFINITY;
     let mut y_hi = f64::NEG_INFINITY;
-    for (i, (_, x, y)) in samples[start..].iter().enumerate() {
-        x_lo = x_lo.min(*x);
-        x_hi = x_hi.max(*x);
-        y_lo = y_lo.min(*y);
-        y_hi = y_hi.max(*y);
-        unsafe {
-            lvgl_sys::lv_chart_set_value_by_id2(
-                ptr.as_ptr(),
-                ser,
-                i as u16,
-                x.round() as i16,
-                y.round() as i16,
-            );
+    for s in series.iter() {
+        let start = s.samples.len().saturating_sub(64);
+        let visible = &s.samples[start..];
+        for (_, x, y) in visible {
+            x_lo = x_lo.min(*x);
+            x_hi = x_hi.max(*x);
+            y_lo = y_lo.min(*y);
+            y_hi = y_hi.max(*y);
+        }
+        let pad = point_count.saturating_sub(visible.len());
+        if let Some(&(_, fx, fy)) = visible.first() {
+            for i in 0..pad {
+                unsafe {
+                    lvgl_sys::lv_chart_set_value_by_id2(
+                        ptr.as_ptr(),
+                        s.ser,
+                        i as u16,
+                        fx.round() as i16,
+                        fy.round() as i16,
+                    );
+                }
+            }
+        }
+        for (i, (_, x, y)) in visible.iter().enumerate() {
+            unsafe {
+                lvgl_sys::lv_chart_set_value_by_id2(
+                    ptr.as_ptr(),
+                    s.ser,
+                    (pad + i) as u16,
+                    x.round() as i16,
+                    y.round() as i16,
+                );
+            }
         }
     }
     unsafe {

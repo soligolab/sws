@@ -4,6 +4,7 @@ import { applyAppearance, getStoredMode, type ThemeMode } from "@/theme";
 import { genId } from "@/id";
 import { getStoredProjectLang, setStoredProjectLang, getStoredEditorPreviewLang, setStoredEditorPreviewLang } from "@/i18n/projectI18n";
 import { normalizeTrendObjects } from "@/canvas/trendModel";
+import { normalizeXyObjects } from "@/canvas/xyModel";
 import type { SegmentoScelto, WaypointScelto } from "@/canvas/percorsoMovimento";
 import { effectiveSizeMode, referenceResolutionFor } from "@/pageLayout";
 import { uguale } from "@/ai/confronto";
@@ -894,9 +895,11 @@ export const useAppStore = create<AppState>((set, get) => {
     setPages: (pages, currentPageId) =>
       set({
         // Migrazione trend legacy → trend_tags al load (taglio netto,
-        // 2026-08-23): il primo salvataggio scrive solo il formato nuovo.
+        // 2026-08-23), e xy_plot legacy → xy_series (stesso taglio,
+        // 2026-09-12, F5.3x/T-70): il primo salvataggio scrive solo il
+        // formato nuovo.
         pages: pages.map((p) => {
-          const objs = normalizeTrendObjects(p.objects);
+          const objs = normalizeXyObjects(normalizeTrendObjects(p.objects));
           return objs === p.objects ? p : { ...p, objects: objs };
         }),
         currentPageId: currentPageId ?? pages[0]?.id ?? first.id,

@@ -326,11 +326,22 @@ pub struct SynopticObject {
     pub alarm_bell_sound_severities: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub alarm_bell_sound_repeat_s: Option<f64>,
-    // XY plot (live point + trail, not a time series). `tag` above is the X axis.
+    // XY plot (live point + trail, not a time series).
+    /// Coppie multiple (F5.3x/T-70, 2026-09-12): [{tag,y_tag,label,color,width,dash}].
+    /// Il legacy `tag`(sopra)/`y_tag`(sotto) — una coppia sola — resta per i
+    /// progetti non ancora ri-salvati, stesso taglio di `trend_tags`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub xy_series: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub y_tag: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub xy_trail_s: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub xy_sample_ms: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub xy_x_label: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub xy_y_label: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub xy_x_min: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]

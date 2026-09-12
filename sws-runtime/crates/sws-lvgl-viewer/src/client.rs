@@ -369,6 +369,46 @@ pub async fn fetch_history(
     Ok(resp.json::<Vec<HistorySample>>().await?)
 }
 
+/// Punto XY dal backfill (F5.3x/T-70) — già accoppiato per riempimento lato
+/// server (`merge_xy` in sws-historian, non un join su timestamp identici:
+/// due tag storicizzati indipendentemente non ne hanno in comune).
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct HistoryXyPoint {
+    pub ts_ms: u64,
+    pub x: f64,
+    pub y: f64,
+}
+
+/// `GET /api/history/xy?x=&y=&from=&to=` — backfill di una coppia di
+/// `xy_plot` al mount della pagina, una fetch sola (non un poller: il live
+/// arriva dal `TagSnapshot` locale, vedi `LiveKind::XyPlot`).
+pub async fn fetch_history_xy(
+    base_url: &str,
+    x_tag: &str,
+    y_tag: &str,
+    from_ms: u64,
+    to_ms: u64,
+) -> anyhow::Result<Vec<HistoryXyPoint>> {
+    let mut url = reqwest::Url::parse(base_url)?;
+    url.path_segments_mut()
+        .map_err(|_| anyhow::anyhow!("base URL non può avere path segments (cannot-be-a-base)"))?
+        .push("api")
+        .push("history")
+        .push("xy");
+    {
+        let mut q = url.query_pairs_mut();
+        q.append_pair("x", x_tag);
+        q.append_pair("y", y_tag);
+        q.append_pair("from", &from_ms.to_string());
+        q.append_pair("to", &to_ms.to_string());
+    }
+    let client = reqwest::Client::builder()
+        .danger_accept_invalid_certs(true)
+        .build()?;
+    let resp = client.get(url).send().await?.error_for_status()?;
+    Ok(resp.json::<Vec<HistoryXyPoint>>().await?)
+}
+
 /// Stato condiviso tra il task di polling in background (che scrive) e il
 /// loop di rendering (che legge a ogni frame dentro `update_bindings`) — un
 /// `(u64, Vec<HistorySample>)` invece del solo `Vec` come `SharedTagSnapshot`:

@@ -79,6 +79,9 @@ export function collectTagIds(
     }
     for (const t of obj.extra_tags ?? []) addIf(ids, t); // legacy pre-migrazione
     for (const tr of obj.trend_tags ?? []) addIf(ids, tr.tag);
+    // F5.3x/T-70: ogni coppia porta due tag, non uno — `y_tag` in TAG_FIELDS
+    // sopra copre solo il formato legacy (una coppia, pre-migrazione).
+    for (const xy of obj.xy_series ?? []) { addIf(ids, xy.tag); addIf(ids, xy.y_tag); }
     for (const r of obj.table_rows ?? []) addIf(ids, r.tag);
     for (const s of obj.bar_series ?? []) addIf(ids, s.tag);
     for (const s of obj.pie_slices ?? []) addIf(ids, s.tag);
