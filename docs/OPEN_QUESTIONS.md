@@ -8,6 +8,12 @@
 > **verificate sul codice** stanno in [`docs/history/OPEN_QUESTIONS-chiuse.md`](history/OPEN_QUESTIONS-chiuse.md),
 > indicizzate in coda a questo file. I numeri **non si riusano mai**: una scheda nuova prende il
 > numero successivo all'ultimo assegnato, archivio compreso (`check_documenti.sh` fa i conti).
+>
+> **Dal 2026-09-12, una scheda ancora viva può avere il testo spostato in un piano** sotto
+> `docs/plans/` invece di restare qui per intero — non è una chiusura: la domanda resta aperta,
+> il numero resta suo, solo il contenuto integrale vive altrove (il piano lo riporta parola per
+> parola, sotto «Testo originale della scheda»). Qui resta il titolo, il rimando e lo stato in
+> una riga. Non tutte le schede vive sono così: solo quelle per cui è stato preparato un piano.
 
 ---
 
@@ -119,67 +125,7 @@ un'opzione futura se emergerà un bisogno reale. Implementato: 16/16 builtin ren
 
 ## Q16 — Widget `image` su LVGL: nessun decoder raster compilato, e il catalogo bundle è SVG
 
-**Decided (2026-08-25)** — **rasterizzazione a runtime**, stessa scelta di Q15 e per lo stesso motivo: il catalogo bundlato è SVG e il campo `src` resta testo libero, quindi servono entrambi i percorsi. Vale la stessa misura preliminare di peso e memoria.
-
-**Context**: emerso durante una sessione di lavoro autonomo mirata a chiudere il gap "`image` è
-l'unico widget rimasto non supportato in LVGL" (31/32 tipi, per il lavoro fatto su `sws-lvgl-viewer`
-in sessioni precedenti). Un'analisi preliminare (non ancora un'implementazione) lo classificava
-come "caso semplice": `obj.src` nel motore web è un URL raster, e LVGL ha supporto nativo `lv_img`
-— sembrava non servire un renderer SVG come per `symbol` (Q15). Verificando il codice prima di
-scrivere qualunque riga, il quadro è diverso.
-
-**Cosa c'è davvero da rendere** (verificato, non assunto dal tipo dichiarato):
-- Il pannello proprietà di `image` (`EditorShell.tsx:2788-2812`) è un campo testo libero
-  ("https://… o /images/…") più un bottone "Sfoglia immagini" che apre `ImageBrowser.tsx` — il
-  quale legge `/images/catalog.json`, un catalogo di icone bundlate nel frontend
-  (`sws-editor/public/images/{mdi,tabler,equinor,electrical}/*.svg`). **Tutte le voci del catalogo
-  sono file `.svg`**, non raster — lo stesso identico problema di `symbol`/Q15 (LVGL 8.x non ha
-  renderer SVG), non un caso a parte.
-- Il campo resta comunque testo libero: un utente può incollarci un URL PNG/JPG esterno, che
-  quello sì sarebbe un caso "raster puro" risolvibile con un decoder nativo — ma non è il percorso
-  che l'UI stessa incoraggia (il bottone porta al catalogo SVG).
-- Verificato nel `lv_conf.h` di progetto (`sws-lvgl-viewer/lv_conf/lv_conf.h`, non solo il
-  template vendorizzato): `LV_USE_PNG 0`, `LV_USE_SJPG 0`, `LV_USE_GIF 0` — **nessun decoder
-  immagine è compilato nella LVGL vendorizzata usata da questo motore**, quindi nemmeno il caso
-  raster funziona oggi senza toccare la configurazione di build C e aggiungere una dipendenza
-  nativa (`libpng`/libjpeg equivalente) al toolchain di cross-compilazione (sia generic via QEMU
-  sia SDK Yocto) — un cambio che va verificato con una build reale prima di contarci, non
-  eseguibile senza `sudo` (bloccato dalla policy permessi di questa sessione) né senza il
-  maintainer.
-
-**Options**:
-- **A — Abilitare `LV_USE_PNG`/`LV_USE_SJPG`, coprire solo URL raster espliciti**: risolve il
-  sottoinsieme "utente incolla un URL PNG/JPG esterno", richiede scaricare i byte via HTTP lato
-  `sws-lvgl-viewer` e scriverli in un file temporaneo (LVGL legge da filesystem, non da URL),
-  aggiunge una dipendenza C nativa al build — da verificare su entrambe le pipeline
-  (generic/SDK). **Non copre affatto il catalogo SVG bundlato**, cioè il percorso che l'editor
-  stesso propone di default via "Sfoglia immagini".
-- **B — Come Q15, opzione C**: rasterizzazione a runtime via crate Rust (`resvg`+`tiny-skia`) —
-  unica opzione che copre sia il catalogo SVG bundlato sia URL SVG/raster esterni in modo
-  uniforme. Stessi costi già descritti in Q15 (dipendenza nuova, pipeline di decodifica,
-  implicazioni memoria/prestazioni su hardware embedded) — se mai si decidesse di percorrerla, ha
-  senso farlo **una volta sola per entrambi i widget** (`symbol` e `image` condividono lo stesso
-  problema di fondo), non due implementazioni separate.
-- **C — Non supportato per ora** (stato di fatto): `image` resta assente da `SUPPORTED_TYPES` in
-  `sws-lvgl-viewer`, oggetto silenziosamente saltato — coerente con come già si comporta `symbol`.
-
-**Default for PoC**: **C** — nessuna implementazione fatta in questa sessione. Il problema è
-sostanzialmente lo stesso di Q15 (mancanza di un renderer SVG in LVGL 8.x), non un gap separato
-più semplice come inizialmente ipotizzato: non ha senso decidere/implementare una soluzione
-parziale (opzione A, che lascerebbe comunque "muto" il catalogo icone bundlato) senza prima
-sapere se/quando si affronta Q15 nel suo complesso — le due domande vanno probabilmente risolte
-insieme, con la stessa scelta di rasterizzazione.
-
-### Riverificata il 2026-09-06 — metà è fatta, e la scheda non lo diceva
-
-Il blocco «Decided (2026-08-25) — rasterizzazione a runtime» in testa **è stato realizzato**:
-`resvg` è nel `Cargo.toml` del viewer col commento *«D2 (Q15+Q16): rasterizzazione SVG a
-runtime»*, e il widget `image` con `src` SVG passa da lì (`svg_assets.rs`). Quello che resta
-aperto è la metà **raster**: `LV_USE_PNG/BMP/SJPG/GIF` sono ancora a 0 in `lv_conf.h`
-(verificato), quindi un `src` che punta a un PNG resta muto sul pannello. La riga qui sotto vale
-per questa metà.
-
-**Decided**: not yet.
+Contenuto spostato in [`docs/plans/2026-09-12-q16-decoder-raster-image.md`](plans/2026-09-12-q16-decoder-raster-image.md) il 2026-09-12. **Decided:** parzialmente decisa (metà SVG fatta, metà raster no).
 
 ---
 
@@ -429,178 +375,13 @@ maintainer sono nel §9 del piano.
 
 ## Q28 — Il grafico a barre usa due scale diverse nei due motori
 
-*Aperta il 2026-08-31. Misurata, non decisa.*
-
-Lo stesso `bar_chart` misura le barre su scale diverse a seconda del motore:
-
-| | Scala |
-|---|---|
-| **Web** (`SvgCanvas.tsx`) | una sola per tutto il grafico: `obj.min`/`obj.max`, e in mancanza il minimo e il massimo **dei valori correnti** (ricalcolata a ogni disegno). Il `min`/`max` delle singole serie è **ignorato**. |
-| **Pannello** (`lvgl_render.rs`) | una per serie: `bar_series[i].min`/`.max`, con default `0..100`. Il `min`/`max` dell'oggetto è **ignorato**. |
-
-Non è un difetto di uno dei due: sono due letture legittime dello stesso campo,
-e nessuna delle due è scritta da nessuna parte.
-
-### Cosa cambia per chi guarda
-
-- Con la **scala comune**, l'altezza si può confrontare fra barre: la più alta è
-  la più grande. Ma la scala si muove coi dati, quindi un grafico fermo può
-  cambiare aspetto senza che nessun valore sia cambiato molto.
-- Con la **scala per serie**, ogni barra dice quanto è piena *rispetto al suo
-  fondo scala* — utile per grandezze diverse (una portata e una temperatura
-  nello stesso grafico) — ma due barre alte uguali possono valere numeri diversi,
-  e chi guarda da lontano legge un confronto che non c'è.
-
-### Perché è emersa adesso
-
-Implementando `bar_show_thresholds` (2026-08-31): una soglia è **un** valore, e
-la riga che la disegna attraversa tutto il grafico. Regge solo su una scala sola.
-Sul pannello la riga si disegna ora **soltanto quando tutte le serie hanno lo
-stesso intervallo**, e in caso contrario non si disegna e il registro dice
-perché — meglio una soglia mancante che una sbagliata. Ma è una toppa sul
-sintomo, non una risposta.
-
-### Seguito, 2026-09-05 — misurato: la divergenza è già visibile **con i valori predefiniti**
-
-La scheda descrive la divergenza fra chi *dichiara* `obj.min/max` e chi dichiara
-`bar_series[].min/max`. Misurando i template del repo, il caso che esiste davvero è un altro, e
-riguarda il **default**.
-
-Nel repo ci sono **due soli `bar_chart`** — le pagine «Grafici e tabelle» dei due gemelli
-`demo-items-web` e `demo-items-lvgl` — e **nessuno dei due dichiara una scala**, né sull'oggetto né
-sulle serie. In quel caso:
-
-| | Scala effettiva senza dichiarazioni |
-|---|---|
-| **Web** (`SvgCanvas.tsx:4805-4806`) | `0 .. max(valori, 1)` — **si muove coi dati** |
-| **Pannello** (`lvgl_render.rs:2457-2458`) | `0 .. 100` — **fissa** |
-
-**Misurato il 2026-09-06 sui pixel**, non dedotto dal codice: stessa pagina 800×480, stesso
-`bar_chart` 400×340 senza scala dichiarata, stessi tre tag scritti a 20, 45 e 30, disegnata una
-volta dal browser e una dal motore LVGL con `--istantanea`.
-
-| serie (valore) | browser | pannello LVGL |
-|---|---|---|
-| A (20) | 130 px | 61 px |
-| B (45) | **292 px** | **138 px** |
-| C (30) | 195 px | 92 px |
-
-Le barre sono **più del doppio** nel browser. B riempie tutta l'area del grafico (292 px su ~292
-disponibili) perché il web scala su `0..max(valori)`; sul pannello la stessa B è al 45% perché la
-scala è `0..100` fissa.
-
-**Una precisazione che conta per la decisione**: il *rapporto* fra le barre è identico nei due
-motori (130/292 = 61/138 = 20/45), perché entrambe le scale partono da zero. Quindi chi **confronta
-le barre fra loro** legge la stessa cosa di qua e di là; chi legge **quanto è pieno** il grafico —
-che è come si guarda un livello o una percentuale da lontano — legge due cose molto diverse. La
-scelta fra le due letture è una scelta su *quale delle due domande* il grafico a barre debba
-rispondere.
-
-Ne segue una domanda che la scheda non poneva: qualunque delle due letture vinca, **anche il
-default deve coincidere**. Scegliere «scala comune» e lasciare `0..100` sul pannello lascerebbe la
-divergenza esattamente dov'è per tutti i grafici che non dichiarano niente — cioè, oggi, per tutti.
-
-Nota di copertura, perché spiega perché nessuno se n'era accorto: `check_demo_templates.sh`
-confronta i due gemelli **fra loro nello YAML**, non nel disegno, e `check_wysiwyg.sh` confronta
-editor e runtime **web**. Nessuna guardia confronta il disegno web con quello LVGL — è il buco che
-`istantanea_pagina` (T-51, fase 3) potrebbe chiudere quando un modello la userà davvero.
-
-### Le domande
-
-1. **Quale delle due è il comportamento voluto?** È una scelta di prodotto:
-   dipende da cosa i clienti mettono nello stesso grafico.
-2. Se vince la scala comune, `bar_series[].min/max` va **tolto** dal modello o
-   ridefinito (per esempio come normalizzazione del valore, non della scala):
-   lasciarlo lì a non fare niente è peggio che non averlo.
-3. Se vince la scala per serie, `obj.min`/`obj.max` sul `bar_chart` non
-   significano niente e vanno tolti dal pannello proprietà.
-4. In entrambi i casi: **cosa succede ai progetti esistenti** che dichiarano
-   l'uno o l'altro e hanno un aspetto che il cliente ha già approvato.
+Contenuto spostato in [`docs/plans/2026-09-12-q28-scala-bar-chart.md`](plans/2026-09-12-q28-scala-bar-chart.md) il 2026-09-12. **Decided:** not yet.
 
 ---
 
 ## Q29 — Un tag può servire due direzioni con due tipi diversi?
 
-*Aperta il 2026-08-31 (notte), scrivendo il validatore di T-50. Misurata, non decisa.*
-
-I dodici pulsanti dei rulli in `casa-locale` scrivono le stringhe `"open"` / `"stop"` /
-`"close"` su tag dichiarati `float`:
-
-```yaml
-# project.yaml
-- id: shutter.garage
-  data_type: float          # la posizione 0-100 che arriva da .../roller/0/pos
-
-# Page 5 - Domotica.yaml
-- id: cl5_t1_open
-  type: button
-  tag: shutter.garage
-  write_value: "open"       # il comando che esce su .../roller/0/command
-```
-
-Lo stesso tag porta **una posizione numerica in lettura** e **un comando testuale in
-scrittura**. Funziona: il server non fa rispettare il `data_type` (Q27) e il plugin MQTT
-pubblica il valore così com'è. Ma il tipo dichiarato è falso metà del tempo, e il valore che
-sta nel `TagDb` subito dopo il comando non è una posizione.
-
-### Misurato il 2026-09-05 — l'estensione è **esattamente** dodici oggetti, e il modello è già a metà strada
-
-Due misure che restringono molto la domanda.
-
-**Uno**: passando tutti i template e confrontando ogni `write_value` col `data_type` del suo tag,
-le scritture fuori tipo sono **12, tutte in `casa-locale`, tutte dello stesso genere**
-(`float ← stringa`), e sono i dodici pulsanti delle tapparelle. Nessun altro template ha il
-problema. Quindi non è una pratica diffusa da sanare: è **un idioma solo**, in un progetto solo.
-
-**Due, e conta di più**: quel tag **è già dichiarato come due canali**. La mappatura MQTT ha
-`topic` per la lettura e `publish_topic` per la scrittura, e sono due argomenti diversi:
-
-```yaml
-- tag: shutter.garage
-  topic: "shellies/SHELLY_GARAGE_ID/roller/0/pos"          # legge una posizione 0-100
-  publish_topic: "shellies/SHELLY_GARAGE_ID/roller/0/command"  # scrive open/stop/close
-```
-
-Il modello, cioè, **ammette già** che un tag legga da una parte e scriva dall'altra. Quello che non
-ammette è che le due parti abbiano **tipi** diversi: `data_type` è dichiarato una volta e vale per
-entrambe. La domanda «un tag può servire due direzioni con due tipi?» ha quindi una risposta
-parziale già scritta nel formato — le due direzioni ci sono — e resta aperta solo sull'ultimo
-pezzo.
-
-Da cui una quarta strada, che non era nell'elenco e che è simmetrica a ciò che esiste:
-**`write_data_type` accanto a `publish_topic`**, dichiarato dove è già dichiarata l'asimmetria. Non
-la propongo come la migliore — è una decisione di prodotto — ma va valutata insieme alle altre,
-perché è l'unica che non chiede né di mentire sul tipo né di spezzare in due un tag che l'utente
-pensa come uno.
-
-### Perché è emersa adesso
-
-Il validatore di T-50 deve dire a un assistente se una proposta è accettabile. La regola «il
-valore scritto sta nel tipo del tag» è quella che impedisce al modello di ripetere il difetto
-del 2026-08-31 (`write_value: 'true'` su un tag `bool`). Applicata ai template, boccia dodici
-oggetti di `casa-locale` — cioè un progetto vero che funziona da mesi.
-
-Le dodici eccezioni sono elencate una per una in `ECCEZIONI_NOTE`
-(`sws-web/src/validate.rs`), così una tredicesima fa fallire il test. Non è una risposta: è
-un segnalibro.
-
-### Le domande
-
-1. **Il modello giusto sono due tag** (`shutter.garage.pos` in lettura, `shutter.garage.cmd`
-   in scrittura), o **un tag con due tipi** dichiarati esplicitamente
-   (`data_type: float`, `write_data_type: string`)?
-2. Se restano due direzioni su un tag solo, **cosa dice `data_type`**? Oggi descrive la
-   lettura e tace sulla scrittura, ma non c'è scritto da nessuna parte.
-3. Cosa deve rispondere il validatore nel frattempo — e quindi cosa impara un assistente che
-   legge `casa-locale` come esempio. Oggi imparerebbe che si può scrivere una stringa su un
-   `float`.
-4. Vale anche per Home Assistant (`write_domain` / `write_service`) e per Sparkplug
-   (`writable`), o è solo MQTT?
-
-### Rapporto con le altre voci
-
-È la stessa famiglia di **Q27** (il server non fa rispettare il `data_type` in scrittura):
-Q27 chiede se il tipo è un contratto, Q29 chiede se è *un* contratto o due.
+Contenuto spostato in [`docs/plans/2026-09-12-q29-tag-due-tipi.md`](plans/2026-09-12-q29-tag-due-tipi.md) il 2026-09-12. **Decided:** not yet.
 
 ---
 
@@ -764,266 +545,21 @@ di ricaricare) e nessuna per i sinottici.
 
 ## Q31 — La chat non funziona quando l'IDE è collegato a un runtime remoto, e non è chiaro cosa dovrebbe fare
 
-### ⚠ Riverificata il 2026-09-05: **il codice è cambiato e la scheda è invecchiata**
-
-Rileggendo il codice di `main`, due delle tre cose descritte qui sotto non sono più vere, e la
-terza — la più preoccupante — **partiva da una premessa sbagliata**. Chi legge questa scheda per
-decidere deve saperlo prima di leggerla.
-
-1. **Il 404 non c'è più.** `buildWsUrl` ora dirotta sul relay **solo** i tre canali dello stato del
-   dispositivo (`CANALI_DEL_DISPOSITIVO = ["tags", "alarms", "logs"]`); `/ws/ai` resta locale, e il
-   commento accanto spiega perché non deve entrare in quell'elenco, citando questa Q. La whitelist
-   del client e quella del relay ora coincidono di proposito.
-2. **Il pannello lo dice.** `ChatPanel.tsx:196` mostra un avviso quando `remoteConnected`: il
-   progetto che si sta modificando è quello locale, e l'assistente legge e propone su quello.
-3. **La premessa del rischio peggiore era sbagliata.** La scheda diceva che «l'umano modifica il
-   progetto del dispositivo e l'agente leggerebbe quello locale». Non è così: con un runtime remoto
-   collegato **l'umano modifica comunque il progetto locale** — `remote_deploy` ne manda una copia
-   al device, il pull fa il verso opposto, e le chiamate HTTP di progetto non sanno nemmeno che
-   esista un remoto. Quindi l'agente che legge il locale sta leggendo **il progetto giusto**, e
-   sarebbe dirottarlo sul dispositivo a fargli leggere una copia che nessuno sta editando.
-
-**Cosa resta davvero aperto**, e vale la pena riformularlo così: non «la chat è rotta col remoto»,
-ma **«quando l'IDE è collegato a un impianto, l'assistente deve poter guardare l'impianto?»**. Oggi
-no, e per una ragione buona (la chiave API e la sessione dell'agente restano sul PC). L'opzione 2
-qui sotto — far leggere gli strumenti attraverso l'API del runtime remoto col token dell'umano —
-resta la via a regime per quando servirà, per esempio per far diagnosticare all'assistente un
-allarme che sta suonando adesso sul pannello.
-
-Resta anche il pezzo che la scheda già dichiarava: **nessuna di queste righe è stata provata dal
-vivo** con un runtime remoto vero. La verifica nel codice non sostituisce quella a schermo.
-
-
-
-*Aperta il 2026-09-01 rileggendo `feat/T-50-chat-ai` su frodo. **Verificata nel codice**, non
-provata dal vivo: manca la conferma a schermo.*
-
-`buildWsUrl` (`sws-editor/src/ws/wsUrl.ts:27-35`) instrada **ogni** WebSocket attraverso il
-relay quando l'IDE è collegato a un runtime remoto: `/ws/ai` diventa `/ws/remote/ai`. Il relay
-però ammette tre soli sottocanali — `if !matches!(sub.as_str(), "tags" | "alarms" | "logs")`
-(`sws-web/src/remote_relay.rs:97`) — e risponde **404** a tutto il resto. Il commento in testa a
-`buildWsUrl` lo dice senza saperlo: *«`path` here is expected to be one of: /ws/tags,
-/ws/alarms, /ws/logs»*.
-
-Nessun controllo su `remoteConnected` esiste in `ChatPanel.tsx` né in `aiStream.ts`: il pannello
-resta apribile, e il socket entra in riconnessione perpetua contro un 404.
-
-Non si è visto durante lo sviluppo perché la prova è stata fatta con un progetto **locale**
-all'istanza dell'editor, non con la connessione a un runtime remoto — che è però il flusso
-descritto in `docs/CONTEXT.md` §3 per il PC di sviluppo.
-
-### Perché non è solo un sottocanale da aggiungere all'elenco
-
-Aggiungere `"ai"` al `matches!` farebbe collegare la chat **al runtime del dispositivo**: la
-sessione dell'agente girerebbe là, con la chiave API là. È esattamente ciò che il piano esclude
-(`docs/archive/2026-08-31-chat-ai-nelleditor.md` §2: *«Mai sul pannello»*).
-
-Tenerla locale non è gratis: gli strumenti dell'agente leggono il progetto dall'`AppState` del
-runtime che regge il WebSocket (`carica_progetto` in `ai/tools.rs:145` → `Project::load(&dir)`
-sulla directory attiva **locale**). Con l'IDE collegato a un remoto, l'umano modifica il
-progetto del dispositivo e l'agente leggerebbe quello dell'istanza locale: proporrebbe modifiche
-su un progetto che non è quello aperto. Peggio del 404, perché sembrerebbe funzionare.
-
-### Le tre vie, e cosa ognuna implica
-
-1. **Disabilitare la chat quando `remoteConnected`**, dicendolo in chiaro nel pannello. È la
-   sola opzione che non mente, e costa poche righe. La chat resta uno strumento per progetti
-   locali all'IDE, coerente col piano.
-2. **Far leggere gli strumenti attraverso l'API del runtime remoto**, col token dell'umano (che
-   il piano già prevede per la lettura). L'agente resta sul PC, il progetto arriva dal
-   dispositivo. È la via giusta a regime, e vuole che `carica_progetto` diventi un client HTTP
-   invece di un `Project::load`.
-3. **Relayare `/ws/ai` come gli altri**: la più semplice da scrivere e la sola che contraddice
-   il piano. Andrebbe scelta solo decidendo *anche* che l'agente può girare sul dispositivo.
-
-**Da decidere prima del merge di T-50**, perché la 1 è una riga di guardia mentre la 2 cambia
-la forma degli strumenti — e scoprirlo dopo il merge significa averla scelta per inerzia.
-
-### Aggiornamento 2026-09-01 — la premessa era sbagliata, e la cura è più piccola
-
-*Non chiude Q31: la chiusura è del maintainer. Registra però che la via decisa non va
-implementata, e perché.*
-
-La domanda era stata posta con due metà: (a) il socket della chat finisce sul relay e prende 404;
-(b) gli strumenti leggerebbero il progetto locale mentre l'umano modifica quello remoto, quindi
-proporrebbero modifiche «su un progetto diverso da quello aperto». Sulla (b) il maintainer aveva
-scelto la via 2 — far leggere gli strumenti dal runtime remoto.
-
-**La metà (b) non esiste.** Verificato il 2026-09-01:
-
-- `remote_deploy` **esporta il progetto locale attivo** e lo carica sul device
-  (`sws-web/src/remote.rs`, il commento in testa lo dice: *«export the active local project as a
-  ZIP and upload it to the connected remote runtime»*); il «pull» fa il verso opposto, importando
-  il bundle del device **come progetto locale**.
-- Il client HTTP non sa nemmeno che esista un remoto: nessun riferimento a `remoteConnected` in
-  `sws-editor/src/api/client.ts`. Solo sette endpoint `/api/remote/*` parlano col dispositivo, e
-  li proxa il server.
-
-Quindi, con un runtime remoto collegato, **il progetto che l'utente modifica è sempre quello
-locale**; il device ne ha una copia, aggiornata dai deploy. Gli strumenti dell'assistente che
-leggono il progetto locale stanno leggendo quello giusto.
-
-Implementare la via 2 avrebbe fatto leggere all'agente la copia sul dispositivo — che nessuno sta
-editando — e avrebbe girato l'agente dentro il runtime di un impianto in servizio, cosa che il
-piano di T-50 §2 esclude. Sarebbe stato un difetto introdotto per scelta, e peggiore del 404
-perché sembrerebbe funzionare.
-
-**Cosa è stato fatto invece**: `buildWsUrl` (`sws-editor/src/ws/wsUrl.ts`) dirotta sul relay solo i
-tre canali che mostrano lo stato *del dispositivo* — `tags`, `alarms`, `logs` — invece di ogni
-canale. `/ws/ai` resta locale, la chat aggancia, e legge il progetto che si sta modificando. La
-whitelist del relay lato server **non** è stata toccata: `ai` non c'è e non va aggiunto, con la
-ragione scritta accanto al `matches!` così nessuno la «corregga» in futuro. Il pannello dice in
-una riga che l'assistente lavora sul progetto locale, perché con un device collegato è naturale
-credere il contrario.
-
-Resta legittimo, ma è un'altra domanda: se un giorno si volesse un assistente che *guarda* il
-dispositivo — i suoi tag dal vivo, il suo storico, i suoi log — quello è il secondo insieme di
-strumenti di cui si parla in `docs/archive/2026-08-31-chat-ai-nelleditor.md`, non questo.
+Contenuto spostato in [`docs/plans/2026-09-12-q31-verifica-chat-remota.md`](plans/2026-09-12-q31-verifica-chat-remota.md) il 2026-09-12. **Decided:** risolta nel codice, manca la conferma a schermo.
 
 ## Q32 — Dove deve vivere il progetto che si sta modificando?
 
-### ⚠ Riverificata il 2026-09-06: la premessa è superata, e questo sposta le opzioni
-
-La scheda dice che si modifica il progetto dell'impianto in presa diretta con «l'IDE sulla porta
-admin di un dispositivo (`start_runtime.sh`, e **tutti** i deploy che si spediscono: yocto,
-generic-linux, container)». **Oggi non è più così**, e il cambiamento è del **2026-09-02** — lo
-stesso giorno in cui questa domanda è stata scritta, il che spiega perché non se ne tiene conto.
-
-Verificato su tutti e tre i percorsi di deploy: partono con **`--no-admin`**
-(`deploy/generic-linux/sws-runtime-launch.sh`, `deploy/yocto/sws-runtime-launch.sh`, i tre
-`Containerfile`). E `--no-admin` non è un dettaglio di porte:
-
-> «Cade l'IDE — nessuna interfaccia servita, **nessuna modifica del progetto sul dispositivo**,
-> nessun `/api/script/exec`, nessun `/api/fs/*`. […] Per riaccendere l'IDE completo su questo
-> dispositivo — messa in servizio, assistenza — basta `SWS_ENABLE_IDE=1` nell'env del servizio e un
-> restart.»
-
-Quel che resta sulla porta admin è la sola gestione remota che l'editor chiama (deploy, pull,
-backup, utenti, datastore), autenticata.
-
-**Perché sposta le opzioni.** L'opzione 2 — «presa diretta = deliberata, serve un passo esplicito»
-— è in buona parte **già realizzata**, ma un livello più sotto di dove la scheda la cerca: non una
-conferma nell'interfaccia, bensì una variabile d'ambiente sul servizio e un riavvio. È un passo
-molto più esplicito di una finestra di conferma, e lo compie chi ha accesso al dispositivo, non chi
-ha il browser aperto.
-
-Ne segue che la domanda si restringe a due casi, e vale la pena riscriverla così:
-
-1. **Il dispositivo con `SWS_ENABLE_IDE=1`** — chi l'ha acceso sa cosa sta facendo. Serve altra
-   cerimonia oltre al marcatore in testata già aggiunto? Probabilmente no, ed è l'opzione 1.
-2. **`start_runtime.sh` in locale**, che l'IDE ce l'ha sempre — è lo strumento di sviluppo del
-   maintainer, e lì la presa diretta *è* il punto.
-
-Cioè: la configurazione rischiosa che la scheda temeva — un impianto in servizio con l'IDE aperto
-per default — **non viene più spedita**. Resta da decidere solo se il caso «acceso apposta» voglia
-qualcosa in più.
-
-*(Nessuna decisione presa qui: cambiano i fatti, non la scelta.)*
-
-
-
-**Context**: emerso il 2026-09-02 da una domanda del maintainer («l'editor lavora in locale o
-direttamente nella cartella del dispositivo?»). La risposta è **entrambi, e dipende da quale porta
-si entra** — e la domanda non è mai stata posta come tale: la risposta di fatto era sepolta in un
-aggiornamento di Q31. I fatti sono in `docs/adr/0003-editor-runtime-same-binary.md`; in breve, il
-server non tiene nessun `Project` in memoria e il Salva riscrive i file **sul filesystem del
-processo a cui la SPA è collegata**, quindi:
-
-- **IDE sulla porta admin di un dispositivo** (`start_runtime.sh`, e *tutti* i deploy che si
-  spediscono: yocto, generic-linux, container): si modifica il progetto dell'impianto **in presa
-  diretta**, e il Salva fa hot-reload di sorgenti, allarmi e tag senza riavvio né conferma.
-- **IDE su un PC** (`start_editor.sh`, pacchetto portabile): cartella locale e separata; il
-  dispositivo ne ha una copia, sincronizzata solo a bundle interi (deploy push / export pull).
-
-Nessuno dei due è sbagliato: il primo serve in messa in servizio e in assistenza, il secondo è il
-flusso di progettazione. La domanda è **quale sia la via normale e quale l'eccezione**, perché da
-quella risposta dipende quanta cerimonia mettere attorno alla prima. Il 2026-09-02 il maintainer ha
-deciso la sola metà UI («resta com'è, ma lo dice»: c'è un marcatore in testata quando l'istanza
-serve un impianto). Questa domanda è l'altra metà.
-
-**Options**:
-1. **Presa diretta = normale.** Come oggi, col marcatore già aggiunto. Zero lavoro; chi lavora su
-   un impianto in servizio è avvisato ma non ostacolato.
-2. **Presa diretta = deliberata.** Modificare il progetto di un'istanza che serve un impianto
-   richiede un passo esplicito (una conferma alla prima modifica, o un interruttore in
-   configurazione). Costa poco e rende difficile la cosa irreversibile per distrazione; il prezzo è
-   una frizione in più proprio quando si è sul posto con poco tempo.
-3. **Presa diretta = solo lettura per default**, e per modificare si fa un pull sull'editor locale,
-   si modifica e si ridistribuisce. Coerente con «il progetto si progetta, non si tocca in campo»,
-   ma cambia il modo di lavorare del maintainer e richiede che il pull sia comodo.
-4. **Distinguere per ruolo**: Supervisor può modificare in presa diretta, chi ha meno no. Oggi la
-   soglia di scrittura dei sinottici è già Supervisor, quindi è a portata — ma il ruolo non
-   descrive la situazione (un Admin in ufficio su una copia e un Admin in campo su un impianto sono
-   la stessa cosa per l'auth).
-
-**Default for PoC**: opzione 1 (stato attuale, più il marcatore aggiunto il 2026-09-02).
-
-**Decided**: not yet.
+Contenuto spostato in [`docs/plans/2026-09-12-q32-presa-diretta-cerimonia.md`](plans/2026-09-12-q32-presa-diretta-cerimonia.md) il 2026-09-12. **Decided:** not yet.
 
 ## Q36 — `min_role` non esiste sul pannello LVGL
 
-*Aperta il 2026-09-05. Il sospetto era scritto in `docs/plans/2026-08-21-scada-widgets.md:122-126`
-(«il viewer LVGL ha il concetto di ruolo? verificare») e la verifica non era mai stata fatta.
-Adesso è fatta.*
-
-`grep min_role` su tutto `sws-lvgl-viewer/src/` dà **due righe**: le dichiarazioni di campo in
-`model.rs`. `lvgl_render.rs` non le menziona mai, e nel crate non esiste alcun concetto di ruolo.
-Un oggetto `min_role: Admin` viene disegnato sul pannello come qualsiasi altro, con i suoi handler
-di tocco registrati, mentre **nel browser** viene nascosto o reso inerte
-(`SvgCanvas.tsx`, gate `min_role_effect`).
-
-Non è un buco di sicurezza, ed è importante dire perché: l'enforcement vero è **per-tag**,
-`tag_write_allowed` applica `TagDef.write_min_role` lato server, e la divisione è già dichiarata in
-`sws-core/src/project.rs:79` — *«è l'enforcement che il server può davvero garantire — il min_role
-degli oggetti è UX»*. È una **UX di sicurezza che sul pannello non esiste**. L'esito pratico
-dipende dalla modalità auth: senza utenti definiti il client LVGL passa per Admin sintetico e
-l'oggetto è operabile; con utenti definiti è un Viewer anonimo e gli vengono respinte **tutte** le
-scritture, non solo quelle sotto `min_role`, con un fallimento muto per chi tocca lo schermo.
-
-**Options**
-
-1. **Lasciare il gap, dichiarandolo** (fatto: il commento accanto ai due campi in `model.rs` dice
-   che sono conosciuti e non resi, come prescrive la policy in testa a quel file).
-2. **Un ruolo da configurazione del pannello**: il viewer LVGL nasce con un ruolo dichiarato nel
-   suo file di avvio e applica i gate come il browser. Piccolo, ma è un ruolo *del dispositivo*,
-   non di chi lo tocca.
-3. **Una sessione vera nel client LVGL**, che oggi è anonimo per costruzione. È il lavoro grosso, e
-   tira dentro l'autenticazione su un pannello senza tastiera.
-
-**Default for PoC**: opzione 1. **Decided**: not yet.
+Contenuto spostato in [`docs/plans/2026-09-12-q36-min-role-lvgl.md`](plans/2026-09-12-q36-min-role-lvgl.md) il 2026-09-12. **Decided:** not yet.
 
 ---
 
 ## Q39 — Il validatore deve aprire la famiglia dei rilievi geometrici?
 
-*Aperta il 2026-09-05, lavorando a T-52.*
-
-Verificato con `grep` su tutto `validate.rs`: le sole occorrenze di `x`/`y`/`width`/`height` fuori
-dai test sono percorsi di filesystem e la semantica dei `points` di una `line`.
-`SynopticPage.width`/`height` sono **dichiarati e mai letti** dal validatore. Il modulo dichiara il
-proprio confine in testa: *«Non dice se una pagina è bella, né se il pannello LVGL la disegnerà come
-il browser»*.
-
-T-52 ha aggiunto **un** rilievo geometrico — l'avviso di pagina «N oggetti sono fuori pagina», che
-esiste per non disabilitare in silenzio i progetti esistenti quando si rimpicciolisce una pagina
-(rischio R8). È il primo, e apre una porta: oggetto di larghezza 0, due oggetti sovrapposti al
-pixel, testo che esce dal suo box, oggetto sotto la barra di navigazione.
-
-La domanda non è se quei rilievi siano utili — alcuni lo sono. È se il validatore sia il posto
-giusto, dato che oggi risponde a «questo progetto sta in piedi?» e non a «questa pagina è fatta
-bene?», e che ogni rilievo geometrico va poi tenuto d'accordo con il render, che è la cosa che nel
-tempo diverge.
-
-**Options**
-
-1. **Fermarsi qui**: l'avviso di pagina è un'eccezione motivata da un cambio di comportamento, non
-   l'inizio di una famiglia.
-2. **Aprire la famiglia** dentro il validatore, con una severità propria (`hint`? `style`?) distinta
-   dagli errori che impediscono al progetto di funzionare.
-3. **Un controllore separato** — «rilievi di composizione» — che gira nell'IDE e non nel
-   validatore, così le due domande restano distinte.
-
-**Default for PoC**: opzione 1. **Decided**: not yet.
+Contenuto spostato in [`docs/plans/2026-09-12-q39-validatore-rilievi-geometrici.md`](plans/2026-09-12-q39-validatore-rilievi-geometrici.md) il 2026-09-12. **Decided:** not yet.
 
 ---
 
@@ -1335,76 +871,13 @@ precisazione del 2026-09-07 qui sopra.
 
 ## Q45 — Il container di produzione non riparte dopo un reboot senza un permesso che l'utente finale non ha
 
-*Aperta il 2026-09-08 durante l'allineamento alla specifica SSH. Nessuna decisione presa.*
-
-**Il fatto.** `deploy/container/install-container.sh` è rootless da cima a fondo — verificato: non
-esegue un solo `sudo` — ma a un certo punto deve abilitare il **linger** dell'utente, altrimenti i
-servizi `systemd --user` muoiono al logout e **non ripartono al boot**. Lo script ci prova
-(`loginctl enable-linger "$USER"`), e se non ci riesce stampa:
-
-```
-ATTENZIONE: non ho potuto abilitare il linger (serve un permesso).
-            Esegui:  sudo loginctl enable-linger user
-            Senza, il container NON riparte dopo il reboot.
-```
-
-**Perché è una questione e non un dettaglio.** La specifica dice che `user` sono le credenziali
-**limitate** dell'utente finale e che `pixsys` — l'accesso privilegiato — serve solo in fase di test:
-nessun comando di produzione può presupporlo. Ma quel `sudo loginctl` è esattamente un comando di
-produzione che lo presuppone. Oggi il caso non si vede perché in laboratorio si installa con un
-account che può fare `sudo`; su un dispositivo consegnato al cliente, l'installazione riesce, il
-messaggio scorre via nel registro, e il guasto si manifesta **al primo riavvio** — settimane dopo,
-lontano da chi ha installato. È la forma di guasto più cara: silenziosa e differita.
-
-**Le strade, senza sceglierne una.**
-
-1. **Il linger è già attivo di fabbrica** per l'account utente dell'immagine Pixsys. Da verificare
-   sul dispositivo (`loginctl show-user user | grep Linger`) — se è così, non c'è niente da fare se
-   non documentarlo e far fallire l'installazione quando non lo è.
-2. **Una regola polkit nell'immagine**, come `17-chromium.rules` fa già per il riavvio del browser:
-   concede quel singolo verbo senza dare `sudo`. Va chiesto a chi costruisce l'immagine Yocto.
-3. **Un'unità di sistema** al posto di quella utente, il che però riapre tutto il tema dei permessi
-   che il rootless serviva a chiudere.
-4. **Installazione che si rifiuta di riuscire a metà**: senza linger, errore invece di avviso.
-   Onesto, ma blocca chi sta solo provando.
-
-**Da misurare prima di decidere**: sul WP630 appena resettato, `loginctl show-user user`.
-
----
+Contenuto spostato in [`docs/plans/2026-09-12-q45-linger-permesso-produzione.md`](plans/2026-09-12-q45-linger-permesso-produzione.md) il 2026-09-12. **Decided:** not yet.
 
 ---
 
 ## Q46 — `/api/fs/browse-dirs` e `/api/fs/mkdir` rispondono senza autenticazione
 
-*Aperta il 2026-09-09 dalla revisione pre-2.7.0 (`docs/archive/2026-09-09-revisione-pre-2.7.0.md`). Nessuna decisione presa.*
-
-**Context.** Sul router completo (porta admin dello stack di sviluppo e dell'IDE) le due rotte
-sono **pre-auth**: elencano le sottodirectory di **qualunque** percorso assoluto del server e
-ne creano di nuove. Il codice lo dichiara e lo giustifica — la WelcomeScreen sceglie dove
-salvare il primo progetto prima che esista una sessione, e `POST /api/projects` con
-`parent_path` fa già `create_dir_all`. Sul dispositivo (`--no-admin`) non ci sono.
-Resta che un runtime di sviluppo raggiungibile in rete espone la struttura del filesystem a
-chiunque, e Q44 (hosting) lo renderebbe un problema vero.
-
-**Options.**
-1. Restringere a una **radice**: la home dell'utente del processo, o l'antenato di
-   `projects_root`. La WelcomeScreen continua a funzionare; il resto del disco no.
-2. Metterle dietro `optional_auth` con ruolo Admin quando esistono utenti: in modalità
-   senza utenti non cambia niente, con utenti serve una sessione (e la WelcomeScreen
-   dovrebbe fare login prima di creare il primo progetto).
-3. Lasciare com'è, dichiarandolo nel modello di minaccia: «l'IDE gira su una macchina
-   fidata».
-
-**Default for PoC.** Com'è (3). Raccomandazione: (1), che chiude la lettura del disco senza
-toccare il flusso della prima installazione.
-
-**Decided:** 2026-09-09 dal maintainer — una chiave che dichiara la cartella dei progetti,
-con default **fuori dal repo**. Realizzato lo stesso giorno (ramo `chore/revisione-pre-2.7.0`):
-`--projects-root` / `SWS_PROJECTS_ROOT`, default `~/sws_projects`, creata all'avvio;
-`browse-dirs`, `mkdir` e `parent_path` non escono dalla radice (confronto dopo
-`canonicalize`, anche contro i link simbolici). Container e script passano il flag esplicito
-come prima; `start_runtime.sh`/`start_editor.sh` onorano `SWS_PROJECTS_ROOT` se impostata.
-Da verificare dal maintainer prima di archiviare.
+Contenuto spostato in [`docs/plans/2026-09-12-q46-verifica-projects-root.md`](plans/2026-09-12-q46-verifica-projects-root.md) il 2026-09-12. **Decided:** decisa e realizzata il 2026-09-09, manca la conferma a schermo.
 
 ---
 
@@ -1489,39 +962,7 @@ regola generale «nessuna password nel browser», pulizia del profilo all'avvio
 
 ## Q49 — TLS senza verifica del certificato, in quattro posti
 
-*Aperta il 2026-09-09 dalla revisione pre-2.7.0. Nessuna decisione presa.*
-
-**Context.** L'editor parla con il runtime remoto con `danger_accept_invalid_certs(true)`
-(`remote.rs`); il relay WebSocket e il viewer LVGL hanno un verificatore che accetta
-qualunque certificato (`remote_relay.rs`, `viewer/tls.rs`, copiato in due crate); il plugin
-MQTT ha `insecure_skip_verify` con un WARN esplicito. È una scelta PoC documentata: i
-dispositivi hanno certificati self-signed su LAN fidata. Ma è esattamente il caso in cui la
-cifratura c'è e l'identità no — la stessa classe di problema che il maintainer ha appena
-chiuso su SSH scegliendo `accept-new` invece di `no`.
-
-**Options.**
-1. **Pinning alla prima connessione** (TOFU): al primo «Connetti» si memorizza l'impronta del
-   certificato del dispositivo; se cambia, si rifiuta e si offre il pulsante «dimentica»,
-   come per la chiave host SSH. Stesso modello mentale, stesso pulsante.
-2. Distribuire un certificato per dispositivo firmato da una CA del progetto, e verificare
-   quella.
-3. Lasciare com'è, dichiarando «LAN fidata» nel modello di minaccia. Con Q44 (servizio
-   ospitato) non regge più.
-
-**Default for PoC.** Com'è (3). Raccomandazione: (1), riusando ciò che esiste per SSH.
-
-**Decided:** 2026-09-09 dal maintainer — opzione 1, pinning alla prima connessione.
-Realizzato lo stesso giorno per **editor ↔ dispositivo** (`sws-web/src/certificati.rs`):
-al primo «Connetti» si memorizza l'impronta SHA-256 del certificato in
-`<config>/dispositivi_conosciuti.yaml`; se cambia, «Connetti» si ferma con l'azione
-`certificato-cambiato` e il pulsante «Dimentica il vecchio certificato e riprova»
-(`POST /api/device/cert/forget`, Admin, audit); il relay WebSocket usa la stessa impronta e
-chiude con 4495, definitivo. Il verificatore controlla la **firma** del certificato con
-gli algoritmi del provider; solo la catena non si verifica (self-signed).
-**Restano da fare**, con lo stesso modulo: il viewer LVGL (`viewer/tls.rs`, che parla con
-`127.0.0.1` e ha un rischio diverso) e il plugin MQTT (`insecure_skip_verify` è un'opzione
-per sorgente, va ripensata come «impronta del broker»). Da verificare dal maintainer prima di
-archiviare.
+Contenuto spostato in [`docs/plans/2026-09-12-q49-tls-pinning-lvgl-mqtt.md`](plans/2026-09-12-q49-tls-pinning-lvgl-mqtt.md) il 2026-09-12. **Decided:** decisa e in parte realizzata il 2026-09-09, resta il viewer LVGL e il plugin MQTT.
 
 ---
 
@@ -1744,90 +1185,7 @@ subuid/subgid **prima** di toccare qualcosa, con gli stessi rimedi della sonda.
 
 ## Q53 — Due immagini aarch64 (SDK Pixsys e generica): tenerle entrambe, o convergere su una?
 
-*Aperta il 2026-09-10 su domanda del maintainer («ha senso tenere il container Pixsys? ho provato
-spesso quello generico e non ho riscontrato problemi»). Decisa lo stesso giorno.*
-
-**Context.** Si pubblicano tre immagini: `-amd64`, `-arm64` (binario cross-compilato con l'SDK
-Yocto Pixsys, `build_container.sh`) e `-arm64-generic` (compilato **dentro** un container arm64
-emulato con QEMU, `build_container_aarch64_generic.sh`). Tre tag per release, due script, due
-righe nell'installer, un selettore nell'editor (Q52 propone la variante da `os-release`), e un
-incidente già avuto (2026-07-31: un rebuild della sola generica installava la SDK vecchia,
-perché `install-container.sh --pull` senza argomento sceglie `latest-arm64`).
-
-**I fatti, misurati nel repo, che la domanda merita.**
-
-1. **La «libc del dispositivo» non c'entra.** Entrambe le immagini partono da `ubuntu:24.04`
-   (`Containerfile.aarch64` L27, `Containerfile.aarch64-generic` L24): il binario gira contro la
-   glibc 2.39 e la libpython 3.12 **dell'immagine**, non del pannello. Il binario SDK richiede
-   `GLIBC_2.39` (`DEPLOY_CONTAINER_AARCH64.md` §«Perché ubuntu:24.04») — è per questo che la base
-   è quella. In un container, del sistema ospite conta solo il kernel. L'«ABI pinning a Pixsys OS»
-   e «linka la libc del dispositivo» (riepilogo delle immagini) descrivono il binario nativo, non
-   il container: sono frasi rimaste da prima.
-2. **La differenza vera è l'ottimizzazione.** La generica è compilata con
-   `CARGO_PROFILE_RELEASE_OPT_LEVEL=0` — nel registro del maintainer: «Finished `release` profile
-   **[unoptimized]**» — perché `aws-lc-sys` (dietro `rustls`, via reqwest/lettre/tokio-rustls)
-   manda in SIGSEGV l'assemblatore sotto QEMU, e il ripiego `AWS_LC_SYS_NO_ASM` è accettato dal
-   builder CMake solo a opt-level 0 (`DEPLOY_CONTAINER_AARCH64.md` §«Percorso generico»). Vale
-   anche per `sws-lvgl-viewer`. Un binario Rust non ottimizzato è più lento di molte volte nei
-   percorsi caldi: rendering LVGL, TagDb, storico. «Non ho riscontrato problemi» è vero su un
-   PoC con poche variabili; il pannello che disegna a 43 % di CPU (2026-09-09) lo si nota dopo.
-3. **Il tuning cortex-a35** dell'SDK vale per il PX30; su RK3399 (A72/A53) e RK3588 (A76/A55) il
-   codice generico aarch64 va altrettanto bene. Non è un motivo per tenere l'SDK.
-4. **Costi di build.** SDK: secondi (cross nativa) ma richiede l'SDK installato (c'è su theobroma,
-   non sul server d'ufficio). Generica: 51 minuti di QEMU per il runtime più il viewer, e serve
-   `sudo`.
-5. `aws-lc-rs` **non serve**: il workspace usa il provider `ring` (`rustls = { features = ["ring"] }`)
-   ma le feature di default di `rustls` lo tirano lo stesso. Toglierlo (`default-features = false`
-   su rustls e sui crate che lo riesportano) leverebbe la causa dell'opt-level 0. Da verificare
-   che nessun crate lo richieda per nome.
-
-**Options.**
-1. **Tenere entrambe**, com'è. Costo: tre tag, due script, il selettore, la confusione.
-2. **Una sola immagine aarch64, costruita senza SDK e senza QEMU**: cross-compilazione da x86_64
-   in un container `ubuntu:24.04` con `crossbuild-essential-arm64` e i pacchetti `:arm64`
-   (libpython3.12-dev, libsdl2-dev, libdrm-dev, libfreetype-dev) come sysroot — è quello che l'SDK
-   fornisce, ma da Ubuntu, riproducibile su qualunque PC. `cargo build --target
-   aarch64-unknown-linux-gnu`, optimizzato, in minuti; il `build.rs` del viewer legge già un
-   sysroot per bindgen (`OECORE_TARGET_SYSROOT`, da generalizzare). Poi `latest-arm64` è l'unico
-   tag, `-generic` sparisce, e l'installer, Q52 e il riepilogo si semplificano. Prima di buttare la
-   SDK: misurare sul pannello CPU del viewer e tempo di avvio con la nuova immagine.
-3. **Una sola immagine, ma la generica di oggi** (QEMU, opt-level 0) dopo aver tolto `aws-lc-rs`
-   così da poter compilare ottimizzato — ma a opt-level 3 sotto QEMU la build passa da 51 minuti
-   a ore. Non regge.
-4. **Solo la SDK.** Lega ogni build a una macchina con l'SDK Pixsys e contraddice «SWS è agnostico».
-
-**Default for PoC.** (1). Raccomandazione: **(2)**, in due passi: prima il cross-build Ubuntu
-ottimizzato come *terzo* percorso, misurato su TC620/WP630 accanto alle due esistenti; poi, se
-regge, rimuovere sia l'SDK sia il QEMU. Nel frattempo correggere le frasi su «libc del
-dispositivo», che oggi dicono il falso, e lasciare `latest-arm64` (SDK) come default
-dell'installer perché è l'unica ottimizzata.
-
-**Decided (2026-09-10, maintainer):** (2) — «vale la pena percorrere la strada del crossbuild
-così da ridurre il numero di immagini da compilare a ogni iterazione e aspettarmi comportamenti
-omogenei nelle architetture arm64 a prescindere dal dispositivo». Realizzato sul ramo
-`feat/Q53-crossbuild-arm64`:
-
-- `deploy/container/Containerfile.aarch64-cross.builder`: immagine x86_64 con
-  `crossbuild-essential-arm64` e i pacchetti `:arm64` di Ubuntu 24.04 in multiarch (libc,
-  libpython3.12, SDL2, libdrm, FreeType), rustup con il target aarch64, e l'ambiente cross
-  per-target (linker, `CC_*`, pkg-config, bindgen). pyo3 con `PYO3_CONFIG_FILE` scritto a mano
-  (il `_sysconfigdata` del target su Ubuntu collide con quello dell'host); FreeType anche per
-  l'host (il build script di `lvgl` linka lvgl-sys per x86_64).
-- `build_container.sh` costruisce così per default: `[optimized]`, runtime in 8 minuti la prima
-  volta e incrementale dopo, binario aarch64 con `GLIBC_2.39` e `libpython3.12.so.1.0`
-  (controllati da `readelf` prima di incartarlo). `--sdk` è il percorso storico con l'SDK Pixsys.
-  Con `--push` pubblica anche gli alias `-arm64-generic`, così i dispositivi installati con quel
-  riferimento continuano ad aggiornarsi.
-- `build_containers_all.sh`: due immagini per default (aarch64, x86_64); `--with-generic` aggiunge
-  la vecchia via QEMU per confronto; `--require-sdk` è diventato `--sdk`.
-- Q52: la sonda propone `latest-arm64` per qualunque aarch64 (l'euristica su `os-release` non
-  serve più) e l'editor non ha più i due pulsanti SDK/generica. Il riepilogo delle immagini e i
-  documenti non dicono più «linka la libc del dispositivo».
-
-**Da misurare sul campo prima di togliere SDK e QEMU** (fase due): CPU del viewer LVGL e tempo di
-avvio con l'immagine cross sul TC620/WP630, a confronto con la `2.7.1-arm64` (SDK) di ieri.
-Quando regge, spariscono `scripts/yocto/build.sh` dal percorso container, `--sdk`,
-`build_container_aarch64_generic.sh`, i due builder QEMU e gli alias `-generic`.
+Contenuto spostato in [`docs/plans/2026-09-12-q53-misura-rimozione-sdk-qemu.md`](plans/2026-09-12-q53-misura-rimozione-sdk-qemu.md) il 2026-09-12. **Decided:** decisa e realizzata il 2026-09-10, resta la misura sul campo prima di togliere SDK/QEMU.
 
 ---
 

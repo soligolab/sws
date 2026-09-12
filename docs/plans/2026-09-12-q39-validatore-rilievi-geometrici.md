@@ -38,3 +38,38 @@ più di un ragionamento teorico.
 
 `sws-runtime/crates/sws-web/src/validate.rs` (se si sceglie 2) o un modulo nuovo lato editor/IDE
 (se si sceglie 3).
+
+---
+
+## Testo originale della scheda (spostato da `docs/OPEN_QUESTIONS.md` il 2026-09-12)
+
+## Q39 — Il validatore deve aprire la famiglia dei rilievi geometrici?
+
+*Aperta il 2026-09-05, lavorando a T-52.*
+
+Verificato con `grep` su tutto `validate.rs`: le sole occorrenze di `x`/`y`/`width`/`height` fuori
+dai test sono percorsi di filesystem e la semantica dei `points` di una `line`.
+`SynopticPage.width`/`height` sono **dichiarati e mai letti** dal validatore. Il modulo dichiara il
+proprio confine in testa: *«Non dice se una pagina è bella, né se il pannello LVGL la disegnerà come
+il browser»*.
+
+T-52 ha aggiunto **un** rilievo geometrico — l'avviso di pagina «N oggetti sono fuori pagina», che
+esiste per non disabilitare in silenzio i progetti esistenti quando si rimpicciolisce una pagina
+(rischio R8). È il primo, e apre una porta: oggetto di larghezza 0, due oggetti sovrapposti al
+pixel, testo che esce dal suo box, oggetto sotto la barra di navigazione.
+
+La domanda non è se quei rilievi siano utili — alcuni lo sono. È se il validatore sia il posto
+giusto, dato che oggi risponde a «questo progetto sta in piedi?» e non a «questa pagina è fatta
+bene?», e che ogni rilievo geometrico va poi tenuto d'accordo con il render, che è la cosa che nel
+tempo diverge.
+
+**Options**
+
+1. **Fermarsi qui**: l'avviso di pagina è un'eccezione motivata da un cambio di comportamento, non
+   l'inizio di una famiglia.
+2. **Aprire la famiglia** dentro il validatore, con una severità propria (`hint`? `style`?) distinta
+   dagli errori che impediscono al progetto di funzionare.
+3. **Un controllore separato** — «rilievi di composizione» — che gira nell'IDE e non nel
+   validatore, così le due domande restano distinte.
+
+**Default for PoC**: opzione 1. **Decided**: not yet.

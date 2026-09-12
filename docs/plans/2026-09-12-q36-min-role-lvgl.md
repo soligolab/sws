@@ -42,3 +42,39 @@ autenticazione vera sul pannello ma darebbe comunque un gate coerente con la UX 
 `sws-lvgl-viewer/src/model.rs` (i due campi già dichiarati), `sws-lvgl-viewer/src/lvgl_render.rs`
 (dove applicare il gate), il file/flag di avvio del viewer (opzione 2) o un meccanismo di sessione
 nuovo (opzione 3, molto più grande — da non sottovalutare in stima).
+
+---
+
+## Testo originale della scheda (spostato da `docs/OPEN_QUESTIONS.md` il 2026-09-12)
+
+## Q36 — `min_role` non esiste sul pannello LVGL
+
+*Aperta il 2026-09-05. Il sospetto era scritto in `docs/plans/2026-08-21-scada-widgets.md:122-126`
+(«il viewer LVGL ha il concetto di ruolo? verificare») e la verifica non era mai stata fatta.
+Adesso è fatta.*
+
+`grep min_role` su tutto `sws-lvgl-viewer/src/` dà **due righe**: le dichiarazioni di campo in
+`model.rs`. `lvgl_render.rs` non le menziona mai, e nel crate non esiste alcun concetto di ruolo.
+Un oggetto `min_role: Admin` viene disegnato sul pannello come qualsiasi altro, con i suoi handler
+di tocco registrati, mentre **nel browser** viene nascosto o reso inerte
+(`SvgCanvas.tsx`, gate `min_role_effect`).
+
+Non è un buco di sicurezza, ed è importante dire perché: l'enforcement vero è **per-tag**,
+`tag_write_allowed` applica `TagDef.write_min_role` lato server, e la divisione è già dichiarata in
+`sws-core/src/project.rs:79` — *«è l'enforcement che il server può davvero garantire — il min_role
+degli oggetti è UX»*. È una **UX di sicurezza che sul pannello non esiste**. L'esito pratico
+dipende dalla modalità auth: senza utenti definiti il client LVGL passa per Admin sintetico e
+l'oggetto è operabile; con utenti definiti è un Viewer anonimo e gli vengono respinte **tutte** le
+scritture, non solo quelle sotto `min_role`, con un fallimento muto per chi tocca lo schermo.
+
+**Options**
+
+1. **Lasciare il gap, dichiarandolo** (fatto: il commento accanto ai due campi in `model.rs` dice
+   che sono conosciuti e non resi, come prescrive la policy in testa a quel file).
+2. **Un ruolo da configurazione del pannello**: il viewer LVGL nasce con un ruolo dichiarato nel
+   suo file di avvio e applica i gate come il browser. Piccolo, ma è un ruolo *del dispositivo*,
+   non di chi lo tocca.
+3. **Una sessione vera nel client LVGL**, che oggi è anonimo per costruzione. È il lavoro grosso, e
+   tira dentro l'autenticazione su un pannello senza tastiera.
+
+**Default for PoC**: opzione 1. **Decided**: not yet.
