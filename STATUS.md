@@ -2008,63 +2008,32 @@ altro:
 
 ## ▶ Da fare, dalle sessioni precedenti
 
-1. ~~**Riaprire nell'IDE il progetto che sta sul runtime (pull)**~~ — **fatto**, squashato su
-   `main` il 2026-08-25 (`feat(ide): riaprire nell'IDE il progetto che gira sul dispositivo`).
-   Resta solo la **conferma a schermo**, elencata in cima al file: è uno dei tre lavori finiti
-   che nessuno ha mai guardato.
+> **Riverificato il 2026-09-12** e trasformato in piani singoli dove il lavoro era ancora vivo
+> (istruzione del maintainer: "varie questioni aperte, trasformale in singoli plan"). Questa
+> sezione ora punta ai piani invece di ripetere il testo.
 
-2. **Ruolo minimo degli oggetti (sezione SICUREZZA): inefficace in modalità no-auth, e l'editor
-   non lo dice** — segnalato il 2026-08-24: ruolo minimo **Admin** su un pulsante e su un trend,
-   ma nel runtime i due oggetti funzionano comunque.
-   > **Nota di freschezza (2026-09-06)**: il punto **(c)** — dichiarare il limite — è fatto:
-   > la scheda **Q36** esiste, `model.rs` porta il commento «gap dichiarato» accanto a
-   > `min_role`, e `project.rs:79` dice che l'enforcement vero è `write_min_role` sul server.
-   > Restano da fare (a) la misura col `whoami` e (b) l'avviso nell'editor.
-
-   **Causa quasi certa, letta nel codice: non è il gating rotto, è il no-auth.** `optional_auth`
-   inietta un **Admin sintetico** quando non ci sono utenti definiti (`router.rs:758`), quindi
-   il viewer *è* Admin e `isRoleAllowed("Admin","Admin")` è vero (`SvgCanvas.tsx:444`, ranghi
-   Viewer 0 → Admin 3). Il gating esiste ed è applicato a **tutti** i tipi dal wrapper
-   (`SvgCanvas.tsx:1502`): `hide` rimuove l'oggetto, `disable` (default) lo lascia visibile con
-   `pointerEvents: none`.
-   Da fare, in quest'ordine: **(a)** *misurare* — `curl -sk .../api/auth/whoami` sul runtime: se
-   risponde Admin sintetico l'ipotesi è confermata e non c'è niente da correggere nel gating;
-   **(b)** decidere l'avviso nell'editor (senza utenti definiti ogni visitatore è Admin e il
-   ruolo minimo non avrà effetto — rimando al tab Utenti), perché così sembra rotto;
-   **(c)** dichiarare il limite: `min_role` sugli oggetti è **solo client-side**, un affordance
-   dell'interfaccia e non un confine di sicurezza — il controllo vero sulle scritture è
-   `TagDef.write_min_role`, verificato dal server (`tag_write_allowed`).
-
-3. **F9c — lotto di parità LVGL.**
-   > **Nota di freschezza (2026-09-06)**: questo punto è dell'agosto e in gran parte **superato**
-   > dai «seguiti» di Q14 (in archivio): `trend_tags[]` e `alarm_history` **esistono** oggi in
-   > `model.rs`/`lvgl_render.rs`, i tipi supportati sono 35, `check_lvgl_parity.sh` dichiara
-   > «nessun campo del web ignorato» a 238 campi, e il check di coerenza col badge «L» chiesto in
-   > fondo **esiste** (`check_lvgl_types.sh`). Restano veri: **il motore non è più stato provato
-   > dal vivo** dopo i merge, i **13 simboli** della serie valvole/processo non esistono sul
-   > pannello (Q15), e il widget `image` non decodifica i raster (Q16). Il testo qui sotto resta
-   > come fu scritto, per capire da dove si è partiti. `model.rs` / `lvgl_render.rs` /
-   `LVGL_SUPPORTED_TYPES` non conoscono nulla di quanto aggiunto nelle fasi F6-F8:
-   `trend_tags[]` (quindi **i trend su LVGL sono vuoti**, deciso e accettato), le rifiniture
-   F7.6 (raggio/tratteggio/sfumatura, zone e tacche del gauge, forme del led, gap della
-   griglia), table/bar/pie/testo di F7.1-F7.4, e i tipi nuovi (`alarm_history`). Verificato
-   che intanto **non rompa**: in `model.rs` il tipo oggetto è `Option<String>`, quindi un tipo
-   sconosciuto viene ignorato e la pagina regge. **Il motore LVGL non è più stato provato dal
-   vivo dopo l'ultimo merge**: questo lotto vuole il TC620 sotto mano (vedi
-   `docs/TEST_SETUPS.md`), non è da infilare in coda a un'altra sessione.
-   Da fare anche il check di coerenza generato fra `LVGL_SUPPORTED_TYPES` e il badge «L»
-   della palette (`LeftPanel.tsx`), oggi disallineabile in silenzio.
-4. **F5.3x — XY plot multi-coppia + curva di riferimento**: unico residuo della fase F5.
-5. **F7 residui minori** dal debito d'inventario, non ancora affrontati: bordi **per-cella**
-   nella griglia (gap e padding sono fatti), e il commento sull'ACK dentro l'`AlarmEvent`
-   dello storico invece che nel solo journal di audit (vuole una migrazione dello schema
-   eventi — oggi il motivo è nel journal, interrogabile da `/api/audit`).
-6. ~~**Q18 aperta**~~ — **decisa e implementata il 2026-08-25** (opzione 1: il colore
-   predefinito del testo si deriva dallo sfondo della pagina). Resta solo la conferma a
-   schermo, elencata più in alto.
-7. **Pagine demo CasaMauro**: sono ferme alle feature F2-F6. Nessun oggetto esercita
-   table 2.0, barre negative/impilate, pie raggruppato, testo multiriga, storico allarmi,
-   suono. Da arricchire quando servirà una demo.
+1. ~~**Riaprire nell'IDE il progetto che sta sul runtime (pull)**~~ — **fatto**. Resta solo la
+   conferma a schermo.
+2. **Ruolo minimo inefficace in no-auth, l'editor non lo dice** — misura (a) confermata dal vivo
+   il 2026-09-12 (`whoami` risponde Admin sintetico), dichiarazione (c) già fatta (Q36). Resta
+   solo l'avviso nell'editor (b): piano in
+   [`docs/plans/2026-09-12-ruolo-minimo-avviso-noauth.md`](../docs/plans/2026-09-12-ruolo-minimo-avviso-noauth.md).
+3. **F9c — parità LVGL, verifica dal vivo**: il grosso è già fatto (35 tipi, 238 campi, i due
+   check di coerenza esistono entrambi — verificato il 2026-09-12, `check_lvgl_types.sh` incluso,
+   diversamente da quanto diceva questa voce). Resta solo il collaudo sul dispositivo, ora
+   possibile (2.7.3 installata sul TC620): è la **Parte B** di
+   [`docs/plans/2026-09-12-F5.3x-xy-plot-e-verifica-lvgl.md`](../docs/plans/2026-09-12-F5.3x-xy-plot-e-verifica-lvgl.md),
+   non un piano a parte.
+4. ~~**F5.3x — XY plot multi-coppia**~~ — **fatto**, release 2.7.3, confermato anche sul TC620
+   (vedi sopra). Vedi
+   [`docs/plans/2026-09-12-F5.3x-xy-plot-e-verifica-lvgl.md`](../docs/plans/2026-09-12-F5.3x-xy-plot-e-verifica-lvgl.md).
+5. **F7 residui minori** (bordo per-cella griglia, motivo ACK nello storico allarmi): piano in
+   [`docs/plans/2026-09-12-f7-residui-minori.md`](../docs/plans/2026-09-12-f7-residui-minori.md)
+   — la parte B (ACK) ha una domanda per il maintainer prima di partire.
+6. ~~**Q18 aperta**~~ — **decisa e implementata**. Resta solo la conferma a schermo.
+7. **Pagine demo CasaMauro** ferme alle feature F2-F6: piano in
+   [`docs/plans/2026-09-12-casamauro-arricchimento-demo.md`](../docs/plans/2026-09-12-casamauro-arricchimento-demo.md)
+   — non tocca il repo, è il progetto personale del maintainer su questa macchina.
 
 ## Storico (sessioni chiuse: mergiate e verificate — dettaglio in `CHANGELOG.md` e `git log`)
 **Sessioni di luglio-settembre spostate in [`docs/history/STATUS-2026-07_08.md`](docs/history/STATUS-2026-07_08.md) il 2026-09-06** — una riga ciascuna:
