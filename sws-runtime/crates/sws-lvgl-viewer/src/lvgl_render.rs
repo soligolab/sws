@@ -41,7 +41,7 @@ use crate::model::{
     LanguageTable, OnValue, PieSlice, PipePoint, SubGrid, SynopticObject, SynopticPage, TableRow,
     TextListEntry,
 };
-use crate::session::SharedSession;
+use crate::session::{role_allowed, Role, SharedSession};
 
 /// Risoluzione di default se la pagina non specifica `width`/`height` — non
 /// più un vincolo a compile-time (`lvgl_display::init_display` prende
@@ -112,6 +112,11 @@ pub struct RenderSummary {
     /// riepilogo perché «N oggetti saltati perché fuori pagina» è la riga che
     /// spiega una pagina vuota senza dover aprire l'editor.
     pub skipped_off_page: Vec<String>,
+    /// Q36 parte 2 — oggetti con `min_role_effect: "hide"` non creati perché
+    /// il ruolo della sessione corrente non basta (o non c'è sessione). Solo
+    /// l'effetto "hide": un oggetto "disable" viene comunque creato, solo
+    /// attenuato e non cliccabile, quindi non finisce qui.
+    pub skipped_role: Vec<String>,
 }
 
 /// Un widget la cui apparenza dipende da un tag e va ricontrollata a ogni
@@ -1606,12 +1611,23 @@ fn sort_by_z(objects: &[SynopticObject]) -> Vec<&SynopticObject> {
 /// Valori fuori scala vengono riportati dentro invece di essere rifiutati: un
 /// `opacity: 1.5` scritto a mano in YAML significa "opaco", non "pagina
 /// rotta". Un NaN vale opaco per lo stesso motivo.
-fn opa_from_opacity(opacity: Option<f64>) -> Option<u8> {
-    let v = opacity?;
-    if !v.is_finite() || v >= 1.0 {
+///
+/// Q36 parte 2 — l'opacità di progetto (`opacity`, sopra) e l'attenuazione
+/// per ruolo insufficiente (0.45, come `roleOk` in `SvgCanvas.tsx`) sono due
+/// meccanismi diversi che sul web convivono da soli (uno è `opacity` CSS sul
+/// gruppo, l'altro `fillOpacity` sulla singola forma — si moltiplicano da
+/// soli sullo schermo). Qui è lo stesso `lv_obj_set_style_opa`, quindi vanno
+/// combinati a mano: senza, l'ultimo che scrive vincerebbe e basta.
+fn combined_opa(design_opacity: Option<f64>, role_factor: f64) -> Option<u8> {
+    let design = design_opacity
+        .filter(|v| v.is_finite())
+        .unwrap_or(1.0)
+        .clamp(0.0, 1.0);
+    let combined = design * role_factor;
+    if combined >= 1.0 {
         return None;
     }
-    Some((v.clamp(0.0, 1.0) * 255.0).round() as u8)
+    Some((combined.clamp(0.0, 1.0) * 255.0).round() as u8)
 }
 
 /// Applica `opa` ai figli dello schermo comparsi a partire dall'indice `da`.
@@ -1632,6 +1648,27 @@ unsafe fn apply_opacity_from(screen_ptr: *mut lvgl_sys::lv_obj_t, da: u32, opa: 
         let figlio = lvgl_sys::lv_obj_get_child(screen_ptr, i as i32);
         if !figlio.is_null() {
             lvgl_sys::lv_obj_set_style_opa(figlio, opa, 0);
+        }
+    }
+}
+
+/// Q36 parte 2 — effetto "disable": `pointerEvents: "none"` non esiste in
+/// LVGL, il suo equivalente è togliere `LV_OBJ_FLAG_CLICKABLE` (stessa
+/// scelta già fatta per il bordo d'allarme e il pallino di qualità, qui
+/// sopra in `crea_effetti`). Un `faceplate`/`grid` non annida i suoi widget
+/// sotto un unico contenitore — sono tutti figli piatti dello schermo, come
+/// spiega `apply_opacity_from` — quindi lo stesso range `[da, dopo)` basta a
+/// coprire anche i loro contenuti, senza bisogno di ricorsione.
+///
+/// # Safety
+/// `screen_ptr` deve essere uno schermo LVGL vivo; si chiama nel ciclo di
+/// render, dove lo è per costruzione.
+unsafe fn disable_clickable_from(screen_ptr: *mut lvgl_sys::lv_obj_t, da: u32) {
+    let dopo = lvgl_sys::lv_obj_get_child_cnt(screen_ptr);
+    for i in da..dopo {
+        let figlio = lvgl_sys::lv_obj_get_child(screen_ptr, i as i32);
+        if !figlio.is_null() {
+            lvgl_sys::lv_obj_clear_flag(figlio, lvgl_sys::LV_OBJ_FLAG_CLICKABLE);
         }
     }
 }
@@ -1790,6 +1827,7 @@ fn crea_effetti(
     figli_prima: u32,
     tags: &TagSnapshot,
     shared_alarms: &SharedAlarms,
+    role_factor: f64,
 ) -> Option<LiveBinding> {
     let lampeggio = effects::lampeggio_di(obj);
     let vuole_bordo = obj.show_alarm_state == Some(true);
@@ -1890,7 +1928,7 @@ fn crea_effetti(
     Some(LiveBinding {
         kind: LiveKind::Effects {
             figli,
-            opa_base: opa_from_opacity(obj.opacity).unwrap_or(255),
+            opa_base: combined_opa(obj.opacity, role_factor).unwrap_or(255),
             lampeggio,
             rate_ms: obj
                 .blink_rate_ms
@@ -4981,6 +5019,12 @@ struct AuthToggleCtx {
     shared_session: SharedSession,
     overlay_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
     toggle_label_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    /// Q36 parte 2 — un logout deve rivedersi subito sugli oggetti gated da
+    /// `min_role` della pagina corrente, non solo alla prossima navigazione:
+    /// si rinaviga verso se stessi, stessa idea già usata da
+    /// `lang_button`/`lang_selector` per il cambio lingua.
+    nav_tx: mpsc::Sender<String>,
+    own_page_id: String,
 }
 
 unsafe extern "C" fn sws_auth_toggle_clicked_cb(e: *mut lvgl_sys::lv_event_t) {
@@ -5003,6 +5047,9 @@ unsafe extern "C" fn sws_auth_toggle_clicked_cb(e: *mut lvgl_sys::lv_event_t) {
                 text_cstring("Login").as_ptr(),
             );
         }
+        // Il logout può far apparire "hide" o attenuare oggetti che erano
+        // visibili/attivi un istante fa — non basta aggiornare l'etichetta.
+        let _ = ctx.nav_tx.send(ctx.own_page_id.clone());
     } else {
         unsafe {
             lvgl_sys::lv_obj_clear_flag(
@@ -5045,6 +5092,11 @@ struct AuthKeyboardCtx {
     base_url: String,
     rt_handle: tokio::runtime::Handle,
     shared_session: SharedSession,
+    /// Q36 parte 2 — stesso motivo di `AuthToggleCtx::nav_tx`: un login
+    /// riuscito deve rivedersi subito sugli oggetti gated della pagina
+    /// corrente.
+    nav_tx: mpsc::Sender<String>,
+    own_page_id: String,
 }
 
 unsafe fn auth_read_textarea(p: *mut lvgl_sys::lv_obj_t) -> String {
@@ -5140,6 +5192,9 @@ unsafe extern "C" fn sws_auth_keyboard_ready_cb(e: *mut lvgl_sys::lv_event_t) {
                     lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t,
                 );
             }
+            // Un login può sbloccare oggetti "hide"/"disable" già presenti
+            // sulla pagina corrente — si vedono solo ridisegnandola.
+            let _ = ctx.nav_tx.send(ctx.own_page_id.clone());
         }
         Err(e) => unsafe {
             lvgl_sys::lv_label_set_text(
@@ -5175,6 +5230,7 @@ unsafe extern "C" fn sws_auth_keyboard_cancel_cb(e: *mut lvgl_sys::lv_event_t) {
 /// resta sopra il resto del contenuto. Angolo in alto a destra, come
 /// proposto nel piano; posizione da rivedere quando il maintainer la vede
 /// dal vivo.
+#[allow(clippy::too_many_arguments)]
 fn render_auth_widget(
     screen: &mut lvgl::Obj,
     hor_res: u32,
@@ -5182,6 +5238,8 @@ fn render_auth_widget(
     base_url: &str,
     rt_handle: &tokio::runtime::Handle,
     shared_session: &SharedSession,
+    nav_tx: &mpsc::Sender<String>,
+    own_page_id: &str,
 ) -> anyhow::Result<()> {
     let (username, is_logged_in) = {
         let s = shared_session.lock().unwrap_or_else(|e| e.into_inner());
@@ -5362,6 +5420,8 @@ fn render_auth_widget(
         shared_session: shared_session.clone(),
         overlay_ptr,
         toggle_label_ptr,
+        nav_tx: nav_tx.clone(),
+        own_page_id: own_page_id.to_string(),
     }));
     unsafe {
         lvgl_sys::lv_obj_add_event_cb(
@@ -5382,6 +5442,8 @@ fn render_auth_widget(
         base_url: base_url.to_string(),
         rt_handle: rt_handle.clone(),
         shared_session: shared_session.clone(),
+        nav_tx: nav_tx.clone(),
+        own_page_id: own_page_id.to_string(),
     }));
     unsafe {
         lvgl_sys::lv_obj_add_event_cb(
@@ -8230,6 +8292,15 @@ pub fn render_page_objects(
         .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
         .as_ptr();
 
+    // Q36 parte 2 — preso una volta sola: la sessione non cambia mentre si
+    // costruisce una pagina, e un lock per oggetto sarebbe solo overhead. Un
+    // login/logout durante la visita ridisegna la pagina da capo (vedi
+    // `render_auth_widget`), non aggiorna questo valore a caldo.
+    let viewer_role: Option<Role> = shared_session
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .role;
+
     // Ordine di sovrapposizione: vedi `sort_by_z`. Va fatto qui e non dentro
     // `dispatch_render`, perché è una proprietà della pagina — l'ordine di
     // creazione dei figli — non del singolo oggetto.
@@ -8271,6 +8342,18 @@ pub fn render_page_objects(
         // distingue il gate acceso da quello spento.
         if obj.is_off_page(page) {
             summary.skipped_off_page.push(id.to_string());
+            continue;
+        }
+        // Q36 parte 2 — gate `min_role`/`min_role_effect`, porto di F3.1 in
+        // `SvgCanvas.tsx`. Stesso punto del controllo fuori-pagina qui sopra
+        // e per lo stesso motivo: si misura su `min_role` così com'è scritto
+        // nel progetto, non su una copia risolta dai binding — non è un
+        // campo pensato per essere legato a un tag. "hide" è l'unico effetto
+        // che salta la creazione; qualunque altro valore (o l'assenza del
+        // campo) è "disable" e si decide più sotto, a widget già nati.
+        let role_ok = role_allowed(obj.min_role.as_deref(), viewer_role);
+        if !role_ok && obj.min_role_effect.as_deref() == Some("hide") {
+            summary.skipped_role.push(id.to_string());
             continue;
         }
         // F2: i binding proprietà→tag vanno risolti PRIMA del render, come fa
@@ -8322,16 +8405,32 @@ pub fn render_page_objects(
             &own_page_id,
             &mut live,
         );
+        // Q36 parte 2 — effetto "disable": ruolo insufficiente e non "hide"
+        // vuol dire 0.45 (combinato con l'`opacity` di progetto, se c'è —
+        // vedi `combined_opa`) e niente tocchi (`disable_clickable_from`,
+        // l'equivalente LVGL di `pointerEvents: "none"`).
+        let role_factor = if role_ok { 1.0 } else { 0.45 };
         // Anche quando il render è fallito a metà: se qualche figlio è già
         // nato, deve avere l'opacità che l'oggetto dichiara, non essere
         // l'unico pezzo pienamente opaco della pagina.
-        if let Some(opa) = opa_from_opacity(obj.opacity) {
+        if let Some(opa) = combined_opa(obj.opacity, role_factor) {
             unsafe { apply_opacity_from(screen_ptr, figli_prima, opa) };
+        }
+        if role_factor < 1.0 {
+            unsafe { disable_clickable_from(screen_ptr, figli_prima) };
         }
         // Effetti di stato (lampeggio, dato vecchio, qualità, bordo d'allarme).
         // Dopo l'opacità perché ne parte: `opa_base` è ciò che il progettista
-        // ha dichiarato, e lampeggio e attenuazione ci scrivono sopra.
-        if let Some(fx) = crea_effetti(screen_ptr, obj, figli_prima, tags, shared_alarms) {
+        // ha dichiarato (moltiplicato per `role_factor`), e lampeggio e
+        // attenuazione ci scrivono sopra a ogni frame.
+        if let Some(fx) = crea_effetti(
+            screen_ptr,
+            obj,
+            figli_prima,
+            tags,
+            shared_alarms,
+            role_factor,
+        ) {
             live.push(fx);
         }
         // Movimento su percorso: cattura gli stessi figli, con la posizione
@@ -8365,6 +8464,8 @@ pub fn render_page_objects(
             base_url,
             rt_handle,
             shared_session,
+            nav_tx,
+            &own_page_id,
         ) {
             eprintln!("[auth] controllo login/logout non creato: {e}");
         }
@@ -10438,14 +10539,14 @@ mod binding_tests {
 
     #[test]
     fn lopacita_del_web_diventa_quella_di_lvgl() {
-        assert_eq!(opa_from_opacity(Some(0.0)), Some(0), "trasparente");
-        assert_eq!(opa_from_opacity(Some(0.5)), Some(128), "mezzo velo");
+        assert_eq!(combined_opa(Some(0.0), 1.0), Some(0), "trasparente");
+        assert_eq!(combined_opa(Some(0.5), 1.0), Some(128), "mezzo velo");
         assert_eq!(
-            opa_from_opacity(Some(1.0)),
+            combined_opa(Some(1.0), 1.0),
             None,
             "opaco: nessun layer da pagare"
         );
-        assert_eq!(opa_from_opacity(None), None, "non dichiarata: opaco");
+        assert_eq!(combined_opa(None, 1.0), None, "non dichiarata: opaco");
     }
 
     /// Un valore fuori scala scritto a mano in YAML significa "opaco" o
@@ -10454,17 +10555,39 @@ mod binding_tests {
     #[test]
     fn unopacita_fuori_scala_non_rompe_la_pagina() {
         assert_eq!(
-            opa_from_opacity(Some(1.5)),
+            combined_opa(Some(1.5), 1.0),
             None,
             "oltre l'opaco resta opaco"
         );
         assert_eq!(
-            opa_from_opacity(Some(-0.2)),
+            combined_opa(Some(-0.2), 1.0),
             Some(0),
             "sotto zero resta trasparente"
         );
-        assert_eq!(opa_from_opacity(Some(f64::NAN)), None);
-        assert_eq!(opa_from_opacity(Some(f64::INFINITY)), None);
+        assert_eq!(combined_opa(Some(f64::NAN), 1.0), None);
+        assert_eq!(combined_opa(Some(f64::INFINITY), 1.0), None);
+    }
+
+    /// Q36 parte 2 — il ruolo insufficiente (0.45) e l'opacità di progetto si
+    /// moltiplicano, non si sovrascrivono: senza progetto è solo il fattore
+    /// di ruolo, con un progetto già trasparente il ruolo lo scurisce ancora.
+    #[test]
+    fn lattenuazione_per_ruolo_si_combina_con_lopacita_di_progetto() {
+        assert_eq!(
+            combined_opa(None, 0.45),
+            Some((0.45_f64 * 255.0).round() as u8),
+            "nessuna opacità di progetto: solo il fattore di ruolo"
+        );
+        assert_eq!(
+            combined_opa(Some(0.5), 0.45),
+            Some((0.5_f64 * 0.45 * 255.0).round() as u8),
+            "le due si moltiplicano"
+        );
+        assert_eq!(
+            combined_opa(Some(1.0), 1.0),
+            None,
+            "ruolo ok e nessuna opacità di progetto: resta opaco"
+        );
     }
 
     // ── pipe agganciate agli oggetti (passo 6) ────────────────────────────

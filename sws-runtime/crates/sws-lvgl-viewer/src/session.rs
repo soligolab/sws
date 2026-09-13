@@ -31,6 +31,38 @@ pub enum Role {
     Admin,
 }
 
+impl Role {
+    /// Il nome esatto con cui il server lo scrive (`min_role` nel synottico è
+    /// una stringa libera, non un campo tipato — arriva così com'è scritta
+    /// nel progetto, non necessariamente valida).
+    pub fn parse(s: &str) -> Option<Role> {
+        match s {
+            "Viewer" => Some(Role::Viewer),
+            "Operator" => Some(Role::Operator),
+            "Supervisor" => Some(Role::Supervisor),
+            "Admin" => Some(Role::Admin),
+            _ => None,
+        }
+    }
+}
+
+/// Porta `isRoleAllowed` da `SvgCanvas.tsx` (Q36 parte 2): assente = nessun
+/// vincolo; una stringa non riconosciuta vale "Viewer" (stesso `?? 0` del
+/// web, non un rifiuto silenzioso di tutto); anonimo (nessuna sessione) sta
+/// **sotto** Viewer — capita solo su un runtime con utenti dove nessuno ha
+/// ancora fatto login, e in quel caso ogni `min_role` dichiarato blocca,
+/// esattamente come whoami() che torna `null` sul web.
+pub fn role_allowed(min_role: Option<&str>, viewer_role: Option<Role>) -> bool {
+    let Some(min_role) = min_role.filter(|s| !s.is_empty()) else {
+        return true;
+    };
+    let required = Role::parse(min_role).unwrap_or(Role::Viewer);
+    match viewer_role {
+        Some(have) => have >= required,
+        None => false,
+    }
+}
+
 /// Porta (parzialmente) `sws_auth::LoginOk` — solo i campi che questo client
 /// usa davvero.
 #[derive(Debug, Clone, Deserialize)]
@@ -198,5 +230,40 @@ mod tests {
         let ok: LoginOk = serde_json::from_str(json).unwrap();
         assert_eq!(ok.role, Role::Admin);
         assert_eq!(ok.token, "abc");
+    }
+
+    #[test]
+    fn nessun_min_role_non_vincola_nessuno() {
+        assert!(role_allowed(None, None));
+        assert!(role_allowed(Some(""), None));
+        assert!(role_allowed(None, Some(Role::Viewer)));
+    }
+
+    #[test]
+    fn anonimo_sta_sotto_viewer() {
+        assert!(!role_allowed(Some("Viewer"), None));
+        assert!(!role_allowed(Some("Admin"), None));
+    }
+
+    #[test]
+    fn un_ruolo_pari_o_superiore_passa() {
+        assert!(role_allowed(Some("Operator"), Some(Role::Operator)));
+        assert!(role_allowed(Some("Operator"), Some(Role::Admin)));
+        assert!(!role_allowed(Some("Operator"), Some(Role::Viewer)));
+    }
+
+    #[test]
+    fn una_stringa_non_riconosciuta_vale_viewer_come_sul_web() {
+        // `ROLE_RANK[minRole] ?? 0` in SvgCanvas.tsx: un min_role scritto a
+        // mano male non blocca tutto, si comporta come "Viewer".
+        assert!(role_allowed(Some("boh"), Some(Role::Viewer)));
+        assert!(!role_allowed(Some("boh"), None));
+    }
+
+    #[test]
+    fn role_parse_riconosce_solo_i_quattro_nomi_del_server() {
+        assert_eq!(Role::parse("Admin"), Some(Role::Admin));
+        assert_eq!(Role::parse("admin"), None);
+        assert_eq!(Role::parse(""), None);
     }
 }

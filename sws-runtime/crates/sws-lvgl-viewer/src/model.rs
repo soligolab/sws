@@ -467,14 +467,14 @@ pub struct SynopticObject {
     pub write_deadband: Option<f64>,
 
     // ── Limiti ──
-    /// **Conosciuti e non resi — gap dichiarato**, non un difetto muto.
-    /// `lvgl_render` non li menziona mai e in questo crate non esiste alcun
-    /// concetto di ruolo: un oggetto `min_role: Admin` viene disegnato sul
-    /// pannello come qualsiasi altro, con i suoi handler di tocco, mentre nel
-    /// browser sparisce o resta inerte. Non è un buco di sicurezza —
-    /// l'enforcement vero è per-tag e sta sul server (`TagDef.write_min_role`),
-    /// come dichiara `sws-core/src/project.rs`: *«il min_role degli oggetti è
-    /// UX»* — ma è una UX di sicurezza che qui non c'è. Vedi Q36.
+    /// Gate per ruolo (Q36 parte 2, `lvgl_render::render_page_objects`):
+    /// "hide" non crea l'oggetto, qualunque altro valore (o l'assenza del
+    /// campo) lo crea attenuato (0.45) e non cliccabile — porto di F3.1 in
+    /// `SvgCanvas.tsx`, stesso confronto `role >= min_role` via
+    /// `session::role_allowed`. Non è un buco di sicurezza — l'enforcement
+    /// vero è per-tag e sta sul server (`TagDef.write_min_role`), come
+    /// dichiara `sws-core/src/project.rs`: *«il min_role degli oggetti è
+    /// UX»* — questa è quella UX, ora anche qui.
     pub min_role: Option<String>,
     pub min_role_effect: Option<String>,
 

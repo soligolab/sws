@@ -365,6 +365,16 @@ fn main() -> anyhow::Result<()> {
             summary.skipped_off_page.join(", ")
         );
     }
+    // Q36 parte 2 — stessa riga, stesso motivo: "hide" non crea l'oggetto,
+    // quindi va detto qui o una pagina più vuota del previsto sembrerebbe un
+    // bug invece di un ruolo insufficiente.
+    if !summary.skipped_role.is_empty() {
+        eprintln!(
+            "nascosti per ruolo insufficiente ({}): {}",
+            summary.skipped_role.len(),
+            summary.skipped_role.join(", ")
+        );
+    }
     // La memoria delle bitmap SVG, se ce ne sono: è il numero su cui si
     // giocava la decisione D2, e vederlo a ogni caricamento costa una riga —
     // molto meno che andarlo a cercare il giorno in cui una pagina esagera.
@@ -771,11 +781,12 @@ fn run_drm(
                 ) {
                     Ok((summary, new_styles, new_live)) => {
                         eprintln!(
-                            "navigato a '{}': {} oggetti creati, {} non supportati, {} fuori pagina",
+                            "navigato a '{}': {} oggetti creati, {} non supportati, {} fuori pagina, {} nascosti per ruolo",
                             target_page,
                             summary.rendered.len(),
                             summary.skipped_unsupported.len(),
-                            summary.skipped_off_page.len()
+                            summary.skipped_off_page.len(),
+                            summary.skipped_role.len()
                         );
                         styles = new_styles;
                         live_bindings = new_live;
@@ -1065,11 +1076,12 @@ fn run_window(
                 ) {
                     Ok((summary, new_styles, new_live)) => {
                         eprintln!(
-                            "navigato a '{}': {} oggetti creati, {} non supportati, {} fuori pagina",
+                            "navigato a '{}': {} oggetti creati, {} non supportati, {} fuori pagina, {} nascosti per ruolo",
                             target_page,
                             summary.rendered.len(),
                             summary.skipped_unsupported.len(),
-                            summary.skipped_off_page.len()
+                            summary.skipped_off_page.len(),
+                            summary.skipped_role.len()
                         );
                         // Sostituzione, non fusione: gli Style/LiveBinding
                         // vecchi puntano a widget appena distrutti da
@@ -1126,11 +1138,12 @@ fn run_window(
                 ) {
                     Ok((summary, new_styles, new_live)) => {
                         eprintln!(
-                            "[reload] '{}' ridisegnata: {} oggetti, {} non supportati, {} fuori pagina",
+                            "[reload] '{}' ridisegnata: {} oggetti, {} non supportati, {} fuori pagina, {} nascosti per ruolo",
                             new_page.name,
                             summary.rendered.len(),
                             summary.skipped_unsupported.len(),
-                            summary.skipped_off_page.len()
+                            summary.skipped_off_page.len(),
+                            summary.skipped_role.len()
                         );
                         styles = new_styles;
                         live_bindings = new_live;
