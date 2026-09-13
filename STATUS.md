@@ -74,6 +74,29 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — F7 parte A pronta, in attesa di collaudo del maintainer (2026-09-13)
+
+Ciclo `/riprendi` proseguito su F7 (bordo per-cella nella griglia). **Parte A costruita e
+committata** sul ramo `feat/f7-bordo-cella-griglia` (`7879943`), **non ancora mergiata**: il
+maintainer voleva provarla di persona nell'editor prima dello squash-merge, ma la sessione si è
+interrotta ("sono fuori, non riesco a fare le prove") prima di poterlo fare. **Non mergiare senza
+la sua conferma esplicita.**
+
+Contenuto del ramo: `border_color` su `GridCell`/`SubCellEntry` (web + LVGL + pannello
+proprietà), più un bug scorrelato trovato dal maintainer testando dal vivo — selezionare il
+figlio di una cella/sotto-cella nascondeva la barra dei gruppi del pannello proprietà
+(sezioni Identità/Aspetto/Dato irraggiungibili). Corretto con una nuova funzione
+`figlioProprietaAttivo` in `EditorShell.tsx`. Dettagli completi nel messaggio di commit.
+
+Verificato: `cargo check/test/clippy/fmt`, `pnpm build` (tsc), `pnpm test` (355/355),
+`check_lvgl_parity/types/demo_templates`. Collaudato dal vivo dal lato mio (runtime di test
+isolato) per `border_color`; il fix della barra gruppi **non ancora riverificato dal vivo dal
+maintainer** — solo dedotto dal codice e coperto da 7 nuovi test unitari.
+
+**Resta da fare**: conferma del maintainer (poi squash-merge in main), F7 parte B (rimando
+all'audit dallo storico allarmi — scope ridotto, deciso dal maintainer: niente migrazione di
+schema).
+
 ## ▶ Riprendere da qui — Q36 completa: gate min_role nel rendering LVGL (2026-09-13)
 
 Continuazione dello stesso ciclo `/riprendi`. Parte 2 di Q36 (vedi sezione sotto per la parte 1):
