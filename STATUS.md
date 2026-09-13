@@ -74,6 +74,45 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — F5.3x Parte B chiusa, programma SCADA-widgets concluso (2026-09-12/13)
+
+Ciclo `/riprendi` ripreso dopo Q29. Nessun ramo obsoleto (solo `main` in locale). Scelto di
+ripartire dalla Parte B di F5.3x (verifica dal vivo della parità LVGL sul TC620), l'unico
+piano PARZIALE rimasto in `docs/plans/`.
+
+**Collegato al TC620** (`tc620-a-p3-c6-07aff9.local`, autorizzato dal maintainer per questa
+sessione). Deployato `demo-items-web` sovrascrivendo `collaudo-xy-plot` (col via libera del
+maintainer — non serviva più tenerlo, storico incluso). Confronto pagina per pagina: screenshot
+browser + istantanea `sws-lvgl-viewer --istantanea` dentro lo stesso container, senza toccare
+lo schermo fisico né fermare Chromium/Weston (il device non ha un servizio LVGL live, solo il
+binario dentro il container).
+
+**Quattro divergenze trovate e confermate nel codice** (non nella semplice differenza dei dati
+simulati fra le due istantanee), tutte corrette in `fix/F9c-parita-lvgl` → `main` (`135150b`):
+`table` (intestazioni sbagliate: `obj.label` invece di `table_label_header`, "VAL" invece di
+"VALORE"), `progress_bar`/`slider` (l'etichetta del valore non veniva mai disegnata pur essendo
+dichiarata nel modello), `radio` (un gruppo a N opzioni collassava in un solo checkbox a 2
+stati — non un'approssimazione estetica, una perdita di dati vera: ora N checkbox mutuamente
+esclusivi), `gauge_zones` (dichiarato ma mai letto — ora disegna le fasce colorate fisse come
+il web). Trovato per strada: i due template gemelli avevano `radio.options` in un formato
+legacy (stringhe semplici) mai migrato — il web tollerava in silenzio, la nuova
+deserializzazione tipata di LVGL falliva a caricare l'intera pagina; corretto il contenuto dei
+template.
+
+Verificato **localmente** (x86_64, istantanea) prima del merge — gate pieno verde. **Non
+ancora ricompilato per aarch64 né riportato sul TC620**: rimandato, su decisione del
+maintainer, alla prossima release che tocca comunque il binario del dispositivo (stesso
+codice, nessun ramo per architettura).
+
+**F5.3x è ora chiusa per intero** (Parte A confermata su hardware nella sessione precedente,
+Parte B in questa) — ed era l'ultimo residuo del programma `2026-08-21-scada-widgets.md`, ora
+anch'esso archiviato: **F0-F9 del piano SCADA-widgets sono tutti conclusi**.
+
+**Restano "pronte" da costruire**: Q36 (sessione vera nel client LVGL — la più grande),
+Q16/Q45/Q49/Q53. Restano piani "da fare" non derivati da Q-xx: `ruolo-minimo-avviso-noauth`,
+`f7-residui-minori`, `casamauro-arricchimento-demo`. **`docs/plans/` non ha più piani
+PARZIALE/in corso** — solo questi tre "da fare" più le sei domande Q-xx "pronte"/"decisione".
+
 ## ▶ Riprendere da qui — Q29 mergiata (2026-09-12)
 
 **Q29 — `write_data_type`, un tag due tipi quando lettura e scrittura divergono**: su `main`

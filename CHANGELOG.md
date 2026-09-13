@@ -29,6 +29,17 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   tapparelle in `casa-locale` lo dichiarano ora, e le dodici eccezioni che li tenevano fuori dal
   test dei template sono state tolte.
 
+### Fixed
+- **Parità web/LVGL (F9c/F5.3x Parte B)**: quattro divergenze trovate confrontando dal vivo le
+  4 pagine gemelle `demo-items-web`/`demo-items-lvgl` sul TC620. `table`: intestazione prima
+  colonna leggeva `label` invece di `table_label_header`, seconda colonna hardcoded "VAL"
+  invece di "VALORE". `progress_bar`/`slider`: l'etichetta col valore (`show_value`) non
+  veniva mai disegnata su LVGL pur essendo sempre visibile sul web. `radio`: un gruppo a N
+  opzioni collassava in un singolo checkbox a 2 stati, perdendo `options[]` per intero — ora N
+  checkbox mutuamente esclusivi. `gauge_zones`: dichiarato ma mai renderizzato — ora disegna le
+  fasce colorate fisse sulla scala come il web. Corretto anche il contenuto dei due template
+  demo, che dichiaravano `radio.options` in un formato legacy mai migrato.
+
 ## [2.7.3] — 2026-09-12
 
 > `xy_plot` multi-coppia (T-70/F5.3x), il selettore del motore di rendering dall'IDE (T-58),

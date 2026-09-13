@@ -157,7 +157,7 @@ nuovo (opzione 3, molto più grande — da non sottovalutare in stima).
 
 ## Q36 — `min_role` non esiste sul pannello LVGL
 
-*Aperta il 2026-09-05. Il sospetto era scritto in `docs/plans/2026-08-21-scada-widgets.md:122-126`
+*Aperta il 2026-09-05. Il sospetto era scritto in `docs/archive/2026-08-21-scada-widgets.md:122-126`
 («il viewer LVGL ha il concetto di ruolo? verificare») e la verifica non era mai stata fatta.
 Adesso è fatta.*
 

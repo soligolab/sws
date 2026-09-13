@@ -43,6 +43,8 @@ venga riletto come vero.
 | [2026-09-12-q46-verifica-projects-root.md](2026-09-12-q46-verifica-projects-root.md) | **COLLAUDATA** | Q46: verificata dal vivo su un'istanza di prova — `browse-dirs`/`mkdir` respingono ogni fuga dalla `projects_root`, link simbolico incluso. Scheda intera in `docs/history/OPEN_QUESTIONS-chiuse.md` |
 | [2026-09-12-q28-scala-bar-chart.md](2026-09-12-q28-scala-bar-chart.md) | **FATTO** | Q28: scala per serie fuori da `stacked`, mergiato su `main` (`f8e7fc6`) e verificato dal vivo (browser + istantanea LVGL, stesse proporzioni). Scheda intera in `docs/history/OPEN_QUESTIONS-chiuse.md` |
 | [2026-09-12-q29-tag-due-tipi.md](2026-09-12-q29-tag-due-tipi.md) | **FATTO** | Q29: `write_data_type` su `TagDef`, mergiato su `main` (`dab5ef8`) e verificato dal vivo (round-trip YAML→API, screenshot editor, test senza più `ECCEZIONI_NOTE`). Scheda intera in `docs/history/OPEN_QUESTIONS-chiuse.md` |
+| [2026-09-12-F5.3x-xy-plot-e-verifica-lvgl.md](2026-09-12-F5.3x-xy-plot-e-verifica-lvgl.md) | **FATTO** | Parte A (T-70, xy_plot multi-coppia) confermata sul TC620 in 2.7.3; Parte B (verifica dal vivo parità LVGL) ha trovato e corretto quattro divergenze reali (`radio`, `table`, `progress_bar`, `gauge_zones`), mergiate su `main` (`135150b`) |
+| [2026-08-21-scada-widgets.md](2026-08-21-scada-widgets.md) | **FATTO** | F0-F8 in 2.1.0, il residuo F5.3x chiuso il 2026-09-12/13 (vedi la riga sopra) — l'intero programma SCADA-widgets è concluso |
 
 ## Non solo piani
 

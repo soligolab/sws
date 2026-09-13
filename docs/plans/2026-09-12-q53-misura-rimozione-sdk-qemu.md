@@ -18,7 +18,7 @@ prima, su CPU del viewer LVGL e tempo di avvio, sul TC620 o WP630 reale.
 
 Il TC620 (`tc620-a-p3-c6-07aff9.local`, indirizzo di questa sessione — riverificarlo, cambia a
 ogni sessione) ha già ricevuto **2.7.3**, cross-build, il 2026-09-12 (vedi
-`docs/plans/2026-09-12-F5.3x-xy-plot-e-verifica-lvgl.md` per il contesto di quel deploy). La
+`docs/archive/2026-09-12-F5.3x-xy-plot-e-verifica-lvgl.md` per il contesto di quel deploy). La
 misura di CPU/avvio con l'immagine cross è quindi già alla portata — manca solo il **confronto**
 con una build SDK per lo stesso commit, che richiederebbe l'SDK Pixsys (assente su questa
 macchina, verificato il 2026-09-12) o un numero storico già misurato in una sessione precedente.
