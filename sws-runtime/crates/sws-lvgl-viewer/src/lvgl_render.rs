@@ -4969,6 +4969,7 @@ fn render_setpoint(
             keyboard_ptr.as_ptr(),
             lvgl_sys::LV_KEYBOARD_MODE_NUMBER as lvgl_sys::lv_keyboard_mode_t,
         );
+        crate::lvgl_font::restore_symbols_on(keyboard_ptr.as_ptr());
         lvgl_sys::lv_obj_add_flag(
             overlay_ptr.as_ptr(),
             lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t,
@@ -5391,6 +5392,7 @@ fn render_auth_widget(
             keyboard_ptr.as_ptr(),
             lvgl_sys::LV_KEYBOARD_MODE_TEXT_LOWER as lvgl_sys::lv_keyboard_mode_t,
         );
+        crate::lvgl_font::restore_symbols_on(keyboard_ptr.as_ptr());
         lvgl_sys::lv_obj_add_flag(
             overlay_ptr.as_ptr(),
             lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t,

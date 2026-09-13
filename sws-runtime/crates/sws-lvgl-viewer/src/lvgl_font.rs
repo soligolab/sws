@@ -186,6 +186,32 @@ pub fn apply_to(screen: *mut lvgl_sys::lv_obj_t) {
     }
 }
 
+/// Riporta un oggetto al Montserrat compilato, contro l'eredità di `apply_to`.
+///
+/// Scoperto dal vivo sul TC620 il 13-09-2026, collaudando Q36: la tastiera di
+/// login (`lv_keyboard`) eredita `text_font` dallo schermo come qualunque
+/// altro widget, e le sue mappe tasti **interne** (backspace, invio, cambio
+/// maiuscole, chiudi — definite in `lv_keyboard.c`, non nel nostro codice)
+/// usano `LV_SYMBOL_*`: codepoint nell'area Unicode privata che SOLO
+/// Montserrat, il font icone di LVGL, disegna. DejaVu non li contiene, e un
+/// font non disegna mai un carattere che non ha — LVGL lo sostituisce con un
+/// quadratino vuoto: sul pannello, alcuni tasti della tastiera diventavano
+/// `[]`. Le lettere vere (a-z) non ne risentono: sulla tastiera non servono
+/// accenti, quindi Montserrat le disegna comunque bene.
+///
+/// Va richiamata su ogni `lv_keyboard` appena creato — l'eredità di
+/// `text_font` non si "annulla" da sola, va sovrascritta esplicitamente su
+/// quell'oggetto specifico.
+pub fn restore_symbols_on(obj: *mut lvgl_sys::lv_obj_t) {
+    unsafe {
+        lvgl_sys::lv_obj_set_style_text_font(
+            obj,
+            &lvgl_sys::lv_font_montserrat_14 as *const lvgl_sys::lv_font_t,
+            0,
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
