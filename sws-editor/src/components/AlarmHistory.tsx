@@ -4,9 +4,9 @@ import { api } from "@/api/client";
 import type { AlarmEvent, AlarmSeverity } from "@/types";
 
 const SEV_COLOR: Record<AlarmSeverity, string> = {
-  Info:     "var(--brand-primary, #3b82f6)",
-  Warning:  "var(--brand-warning, #eab308)",
-  Critical: "var(--brand-danger, #ef4444)",
+  Info:     "#3b82f6",
+  Warning:  "#eab308",
+  Critical: "#ef4444",
 };
 
 function fmtTs(ms: number | null): string {
@@ -59,38 +59,38 @@ export function AlarmHistory({ alarmId }: AlarmHistoryProps) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: "var(--brand-text-subtle, #64748b)", letterSpacing: 0.5 }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b", letterSpacing: 0.5 }}>
           STORICO ALLARMI {alarmId ? `— ${alarmId}` : ""}
         </span>
         <button
           onClick={() => { setPage(0); load(); }}
-          style={{ fontSize: 10, background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", color: "var(--brand-text-subtle, #64748b)", borderRadius: 3, padding: "2px 8px", cursor: "pointer" }}
+          style={{ fontSize: 10, background: "#1e293b", border: "1px solid #334155", color: "#64748b", borderRadius: 3, padding: "2px 8px", cursor: "pointer" }}
         >
           ↺ Aggiorna
         </button>
       </div>
 
       {loading && events.length === 0 ? (
-        <div style={{ color: "var(--brand-text-subtle, #94a3b8)", fontSize: 12, textAlign: "center", padding: 16 }}>{t("alarmHist.loading")}</div>
+        <div style={{ color: "#94a3b8", fontSize: 12, textAlign: "center", padding: 16 }}>{t("alarmHist.loading")}</div>
       ) : events.length === 0 ? (
-        <div style={{ color: "var(--brand-text-subtle, #94a3b8)", fontSize: 12, textAlign: "center", padding: 16 }}>{t("alarmHist.noEvents")}</div>
+        <div style={{ color: "#94a3b8", fontSize: 12, textAlign: "center", padding: 16 }}>{t("alarmHist.noEvents")}</div>
       ) : (
         <>
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
               <thead>
-                <tr style={{ background: "var(--brand-bg, #0f172a)", color: "var(--brand-text-subtle, #64748b)" }}>
+                <tr style={{ background: "#0f172a", color: "#64748b" }}>
                   {[t("alarmHist.colAlarm"), t("alarmHist.colSeverity"), t("alarmHist.colActivated"), t("alarmHist.colAckBy"), t("alarmHist.colCleared"), t("alarmHist.colDuration")].map((h) => (
-                    <th key={h} style={{ padding: "4px 8px", textAlign: "left", fontWeight: 600, borderBottom: "1px solid var(--brand-surface, #1e293b)", whiteSpace: "nowrap" }}>{h}</th>
+                    <th key={h} style={{ padding: "4px 8px", textAlign: "left", fontWeight: 600, borderBottom: "1px solid #1e293b", whiteSpace: "nowrap" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {visible.map((ev, i) => (
-                  <tr key={i} style={{ background: i % 2 === 0 ? "var(--brand-bg, #0f172a)" : "#0a1120" }}>
-                    <td style={{ padding: "3px 8px", color: "var(--brand-text-2, #cbd5e1)" }}>
+                  <tr key={i} style={{ background: i % 2 === 0 ? "#0f172a" : "#0a1120" }}>
+                    <td style={{ padding: "3px 8px", color: "#cbd5e1" }}>
                       <div style={{ fontWeight: 600 }}>{ev.alarm_id}</div>
-                      <div style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 10 }}>{ev.alarm_message}</div>
+                      <div style={{ color: "#64748b", fontSize: 10 }}>{ev.alarm_message}</div>
                     </td>
                     <td style={{ padding: "3px 8px" }}>
                       <span style={{
@@ -101,21 +101,21 @@ export function AlarmHistory({ alarmId }: AlarmHistoryProps) {
                         {ev.severity}
                       </span>
                     </td>
-                    <td style={{ padding: "3px 8px", color: "var(--brand-text-muted, #94a3b8)", whiteSpace: "nowrap" }}>{fmtTs(ev.ts_activated_ms)}</td>
-                    <td style={{ padding: "3px 8px", color: "var(--brand-text-muted, #94a3b8)" }}>
+                    <td style={{ padding: "3px 8px", color: "#94a3b8", whiteSpace: "nowrap" }}>{fmtTs(ev.ts_activated_ms)}</td>
+                    <td style={{ padding: "3px 8px", color: "#94a3b8" }}>
                       {ev.ts_acked_ms ? (
                         <span>
-                          <span style={{ color: "var(--brand-success, #22c55e)" }}>{ev.acked_by ?? "—"}</span>
-                          <span style={{ color: "var(--brand-text-subtle, #94a3b8)", fontSize: 10 }}> {fmtTs(ev.ts_acked_ms)}</span>
+                          <span style={{ color: "#22c55e" }}>{ev.acked_by ?? "—"}</span>
+                          <span style={{ color: "#94a3b8", fontSize: 10 }}> {fmtTs(ev.ts_acked_ms)}</span>
                         </span>
                       ) : (
-                        <span style={{ color: "var(--brand-danger, #ef4444)" }}>{t("alarmHist.unacked")}</span>
+                        <span style={{ color: "#ef4444" }}>{t("alarmHist.unacked")}</span>
                       )}
                     </td>
-                    <td style={{ padding: "3px 8px", color: "var(--brand-text-muted, #94a3b8)", whiteSpace: "nowrap" }}>
-                      {ev.ts_normalized_ms ? fmtTs(ev.ts_normalized_ms) : <span style={{ color: "var(--brand-warning, #eab308)" }}>{t("alarmHist.active")}</span>}
+                    <td style={{ padding: "3px 8px", color: "#94a3b8", whiteSpace: "nowrap" }}>
+                      {ev.ts_normalized_ms ? fmtTs(ev.ts_normalized_ms) : <span style={{ color: "#eab308" }}>{t("alarmHist.active")}</span>}
                     </td>
-                    <td style={{ padding: "3px 8px", color: "var(--brand-text-muted, #94a3b8)" }}>{fmtDuration(ev.duration_s)}</td>
+                    <td style={{ padding: "3px 8px", color: "#94a3b8" }}>{fmtDuration(ev.duration_s)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -127,13 +127,13 @@ export function AlarmHistory({ alarmId }: AlarmHistoryProps) {
             <button
               disabled={page === 0}
               onClick={() => setPage((p) => p - 1)}
-              style={{ fontSize: 11, padding: "2px 10px", background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", color: page === 0 ? "var(--brand-surface-2, #334155)" : "var(--brand-text-muted, #94a3b8)", borderRadius: 3, cursor: page === 0 ? "default" : "pointer" }}
+              style={{ fontSize: 11, padding: "2px 10px", background: "#1e293b", border: "1px solid #334155", color: page === 0 ? "#334155" : "#94a3b8", borderRadius: 3, cursor: page === 0 ? "default" : "pointer" }}
             >{t("alarmHist.prev")}</button>
-            <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", alignSelf: "center" }}>Pag. {page + 1}</span>
+            <span style={{ fontSize: 11, color: "#64748b", alignSelf: "center" }}>Pag. {page + 1}</span>
             <button
               disabled={!hasMore}
               onClick={() => setPage((p) => p + 1)}
-              style={{ fontSize: 11, padding: "2px 10px", background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", color: !hasMore ? "var(--brand-surface-2, #334155)" : "var(--brand-text-muted, #94a3b8)", borderRadius: 3, cursor: !hasMore ? "default" : "pointer" }}
+              style={{ fontSize: 11, padding: "2px 10px", background: "#1e293b", border: "1px solid #334155", color: !hasMore ? "#334155" : "#94a3b8", borderRadius: 3, cursor: !hasMore ? "default" : "pointer" }}
             >{t("alarmHist.next")}</button>
           </div>
         </>

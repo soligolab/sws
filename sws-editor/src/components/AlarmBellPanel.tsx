@@ -156,8 +156,8 @@ export function AlarmBellPanel({ idPrefix = "", allowedSev, showHistory = true, 
   // Active = not shelved; shown in main list
   const visibleActive = active.filter((a) => !shelvedIds.has(a.def.id));
   const badgeColor = unack.filter((a) => !shelvedIds.has(a.def.id)).length > 0
-    ? "var(--brand-danger, #ef4444)"
-    : (visibleActive.length > 0 ? "var(--brand-warning, #eab308)" : "var(--brand-border, #475569)");
+    ? "#ef4444"
+    : (visibleActive.length > 0 ? "#eab308" : "#475569");
 
   const toggleOpen = () => {
     if (!open && buttonRef.current) {
@@ -177,9 +177,9 @@ export function AlarmBellPanel({ idPrefix = "", allowedSev, showHistory = true, 
         title={visibleActive.length === 0 ? t("viewer.noActiveAlarms") : `${visibleActive.length} ${t("viewer.active")}`}
         style={{
           width: "100%", height: "100%", boxSizing: "border-box",
-          background: badgeFill ?? "var(--brand-surface, #1e293b)",
+          background: badgeFill ?? "#1e293b",
           border: `1px solid ${badgeColor}`,
-          color: "var(--brand-text, #e2e8f0)",
+          color: "#e2e8f0",
           borderRadius: 999,
           cursor: "pointer",
           fontSize: 12,
@@ -202,20 +202,20 @@ export function AlarmBellPanel({ idPrefix = "", allowedSev, showHistory = true, 
             onClick={(e) => { e.stopPropagation(); silenceNow(); }}
             style={{
               fontSize: 12, padding: "0 4px", borderRadius: 4, cursor: "pointer",
-              background: muted ? "var(--brand-surface-2, #334155)" : "transparent",
-              color: muted ? "var(--brand-text-subtle, #64748b)" : "var(--brand-text, #e2e8f0)",
+              background: muted ? "#334155" : "transparent",
+              color: muted ? "#64748b" : "#e2e8f0",
             }}
           >
             {muted ? "🔕" : "🔊"}
           </span>
         )}
         {visibleActive.length > 0 && (
-          <span style={{ background: badgeColor, color: "var(--brand-bg, #0f172a)", padding: "1px 7px", borderRadius: 10, fontWeight: 700, fontSize: 11 }}>
+          <span style={{ background: badgeColor, color: "#0f172a", padding: "1px 7px", borderRadius: 10, fontWeight: 700, fontSize: 11 }}>
             {visibleActive.length}
           </span>
         )}
         {showShelve && shelved.length > 0 && (
-          <span style={{ background: "var(--brand-border, #475569)", color: "var(--brand-text, #e2e8f0)", padding: "1px 6px", borderRadius: 10, fontSize: 11 }} title={t("viewer.suppressed")}>
+          <span style={{ background: "#475569", color: "#e2e8f0", padding: "1px 6px", borderRadius: 10, fontSize: 11 }} title={t("viewer.suppressed")}>
             ⏸{shelved.length}
           </span>
         )}
@@ -224,15 +224,15 @@ export function AlarmBellPanel({ idPrefix = "", allowedSev, showHistory = true, 
       {open && anchor && createPortal(
         <div style={{
           position: "fixed", top: anchor.top, left: anchor.left, width: 400, maxHeight: "75vh",
-          background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 8,
+          background: "#0f172a", border: "1px solid #334155", borderRadius: 8,
           overflow: "hidden", display: "flex", flexDirection: "column",
           boxShadow: "0 6px 20px rgba(0,0,0,0.5)", zIndex: 9000,
         }}>
           {/* Header with tabs */}
           <div style={{
             display: "flex", alignItems: "center", justifyContent: "space-between",
-            padding: "6px 12px", borderBottom: "1px solid var(--brand-surface-2, #334155)",
-            background: "var(--brand-surface, #1e293b)", fontSize: 12, color: "var(--brand-text-muted, #94a3b8)",
+            padding: "6px 12px", borderBottom: "1px solid #334155",
+            background: "#1e293b", fontSize: 12, color: "#94a3b8",
           }}>
             <div style={{ display: "flex", gap: 2 }}>
               {tabs.map((pt) => (
@@ -241,9 +241,9 @@ export function AlarmBellPanel({ idPrefix = "", allowedSev, showHistory = true, 
                   onClick={() => setPanelTab(pt)}
                   style={{
                     padding: "2px 10px", fontSize: 11, borderRadius: 4, cursor: "pointer",
-                    background: panelTab === pt ? "var(--brand-surface-2, #334155)" : "transparent",
+                    background: panelTab === pt ? "#334155" : "transparent",
                     border: "none",
-                    color: panelTab === pt ? "var(--brand-text, #e2e8f0)" : "var(--brand-text-subtle, #64748b)",
+                    color: panelTab === pt ? "#e2e8f0" : "#64748b",
                     textTransform: "capitalize",
                   }}
                 >
@@ -252,7 +252,7 @@ export function AlarmBellPanel({ idPrefix = "", allowedSev, showHistory = true, 
               ))}
             </div>
             {panelTab === "attivi" && unack.filter(a => !shelvedIds.has(a.def.id)).length > 1 && (
-              <button onClick={handleAckAll} style={{ background: "var(--brand-surface-2, #334155)", border: "none", color: "var(--brand-text, #e2e8f0)", padding: "2px 10px", borderRadius: 4, cursor: "pointer", fontSize: 11 }}>
+              <button onClick={handleAckAll} style={{ background: "#334155", border: "none", color: "#e2e8f0", padding: "2px 10px", borderRadius: 4, cursor: "pointer", fontSize: 11 }}>
                 ACK tutti
               </button>
             )}
@@ -268,33 +268,33 @@ export function AlarmBellPanel({ idPrefix = "", allowedSev, showHistory = true, 
           {/* Active alarms */}
           {panelTab === "attivi" && <div style={{ overflowY: "auto", flex: 1 }}>
             {visibleActive.length === 0 && shelved.length === 0 ? (
-              <div style={{ padding: 16, color: "var(--brand-text-subtle, #64748b)", fontSize: 12, textAlign: "center" }}>Nessun allarme attivo.</div>
+              <div style={{ padding: 16, color: "#64748b", fontSize: 12, textAlign: "center" }}>Nessun allarme attivo.</div>
             ) : visibleActive.map((a) => {
               const color = SEV_COLOR[a.def.severity ?? "Warning"];
               const isShelving = shelveOpen === a.def.id;
               return (
-                <div key={a.def.id} style={{ borderBottom: "1px solid var(--brand-surface, #1e293b)" }}>
+                <div key={a.def.id} style={{ borderBottom: "1px solid #1e293b" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", opacity: a.acknowledged ? 0.55 : 1 }}>
                     <span style={{ width: 10, height: 10, borderRadius: "50%", background: color, flexShrink: 0 }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ color: "var(--brand-text, #e2e8f0)", fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.def.id}</div>
-                      <div style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{resolveMsg(a.def.message ?? "", msgLang, langTable)}</div>
+                      <div style={{ color: "#e2e8f0", fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.def.id}</div>
+                      <div style={{ color: "#94a3b8", fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{resolveMsg(a.def.message ?? "", msgLang, langTable)}</div>
                     </div>
                     {/* Shelve button */}
                     {showShelve && (
                       <button
                         onClick={() => { setShelveOpen(isShelving ? null : a.def.id); setShelveReason(""); setShelveHours(8); }}
                         title={t("viewer.suppressForMaintenance")}
-                        style={{ background: isShelving ? "var(--brand-warning-bg, #78350f)" : "transparent", border: `1px solid ${isShelving ? "#d97706" : "var(--brand-surface-2, #334155)"}`, color: "#d97706", padding: "2px 6px", borderRadius: 4, cursor: "pointer", fontSize: 11 }}
+                        style={{ background: isShelving ? "#78350f" : "transparent", border: `1px solid ${isShelving ? "#d97706" : "#334155"}`, color: "#d97706", padding: "2px 6px", borderRadius: 4, cursor: "pointer", fontSize: 11 }}
                       >
                         🔧
                       </button>
                     )}
                     {/* ACK button */}
                     {a.acknowledged ? (
-                      <span style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 10, fontStyle: "italic" }}>ACK</span>
+                      <span style={{ color: "#64748b", fontSize: 10, fontStyle: "italic" }}>ACK</span>
                     ) : (
-                      <button onClick={() => handleAck(a)} style={{ background: color, color: "var(--brand-bg, #0f172a)", border: "none", borderRadius: 4, padding: "2px 10px", cursor: "pointer", fontWeight: 600, fontSize: 11 }}>ACK</button>
+                      <button onClick={() => handleAck(a)} style={{ background: color, color: "#0f172a", border: "none", borderRadius: 4, padding: "2px 10px", cursor: "pointer", fontWeight: 600, fontSize: 11 }}>ACK</button>
                     )}
                   </div>
                   {/* Inline shelve form */}
@@ -305,17 +305,17 @@ export function AlarmBellPanel({ idPrefix = "", allowedSev, showHistory = true, 
                         placeholder={t("viewer.reasonPlaceholder")}
                         value={shelveReason}
                         onChange={(e) => setShelveReason(e.target.value)}
-                        style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", fontSize: 12, padding: "4px 8px" }}
+                        style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 4, color: "#e2e8f0", fontSize: 12, padding: "4px 8px" }}
                       />
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)" }}>Durata (h):</label>
+                        <label style={{ fontSize: 11, color: "#94a3b8" }}>Durata (h):</label>
                         <input
                           type="number" min={0} max={720} step={1}
                           value={shelveHours}
                           onChange={(e) => setShelveHours(parseInt(e.target.value) || 0)}
-                          style={{ width: 55, background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", fontSize: 12, padding: "3px 6px", textAlign: "center" }}
+                          style={{ width: 55, background: "#0f172a", border: "1px solid #334155", borderRadius: 4, color: "#e2e8f0", fontSize: 12, padding: "3px 6px", textAlign: "center" }}
                         />
-                        <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>(0 = indefinito)</span>
+                        <span style={{ fontSize: 11, color: "#64748b" }}>(0 = indefinito)</span>
                         <button
                           onClick={() => handleShelve(a.def.id)}
                           style={{ marginLeft: "auto", background: "#92400e", border: "none", color: "#fef3c7", padding: "3px 12px", borderRadius: 4, cursor: "pointer", fontSize: 11, fontWeight: 600 }}
@@ -332,15 +332,15 @@ export function AlarmBellPanel({ idPrefix = "", allowedSev, showHistory = true, 
             {/* Shelved section */}
             {showShelve && shelved.length > 0 && (
               <>
-                <div style={{ padding: "4px 12px", background: "var(--brand-surface, #1e293b)", fontSize: 10, color: "var(--brand-text-subtle, #64748b)", fontWeight: 700, letterSpacing: 0.5, borderBottom: "1px solid var(--brand-surface-2, #334155)" }}>
+                <div style={{ padding: "4px 12px", background: "#1e293b", fontSize: 10, color: "#64748b", fontWeight: 700, letterSpacing: 0.5, borderBottom: "1px solid #334155" }}>
                   SOPPRESSI ({shelved.length})
                 </div>
                 {shelved.map((sh) => (
-                  <div key={sh.alarm_id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", borderBottom: "1px solid var(--brand-surface, #1e293b)", opacity: 0.7 }}>
+                  <div key={sh.alarm_id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", borderBottom: "1px solid #1e293b", opacity: 0.7 }}>
                     <span style={{ fontSize: 12 }}>⏸</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sh.alarm_id}</div>
-                      <div style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 11 }}>
+                      <div style={{ color: "#94a3b8", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sh.alarm_id}</div>
+                      <div style={{ color: "#64748b", fontSize: 11 }}>
                         {sh.reason}
                         {sh.until_ms > 0 && ` · fino ${new Date(sh.until_ms).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`}
                         {sh.until_ms === 0 && " · indefinito"}
@@ -349,7 +349,7 @@ export function AlarmBellPanel({ idPrefix = "", allowedSev, showHistory = true, 
                     <button
                       onClick={() => handleUnshelve(sh.alarm_id)}
                       title={t("viewer.reactivateAlarm")}
-                      style={{ background: "transparent", border: "1px solid var(--brand-surface-2, #334155)", color: "var(--brand-text-muted, #94a3b8)", padding: "2px 8px", borderRadius: 4, cursor: "pointer", fontSize: 11 }}
+                      style={{ background: "transparent", border: "1px solid #334155", color: "#94a3b8", padding: "2px 8px", borderRadius: 4, cursor: "pointer", fontSize: 11 }}
                     >
                       Riattiva
                     </button>

@@ -2625,24 +2625,24 @@ function DataLogWidget({ tag, windowS, pageSize, width, height, decimals, unit }
 
   return (
     <div style={{ width, height, display: "flex", flexDirection: "column", fontSize: 11,
-                  color: "var(--synoptic-text, var(--brand-text, #e2e8f0))", boxSizing: "border-box" }}>
+                  color: "var(--synoptic-text, #e2e8f0)", boxSizing: "border-box" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "2px 4px", flexShrink: 0 }}>
         <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}
-          style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3, color: "inherit", cursor: "pointer", padding: "0 6px" }}>◀</button>
-        <span style={{ color: "var(--brand-text-subtle, #64748b)" }}>{page + 1}/{pages}</span>
+          style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 3, color: "inherit", cursor: "pointer", padding: "0 6px" }}>◀</button>
+        <span style={{ color: "#64748b" }}>{page + 1}/{pages}</span>
         <button onClick={() => setPage((p) => Math.min(pages - 1, p + 1))} disabled={page >= pages - 1}
-          style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3, color: "inherit", cursor: "pointer", padding: "0 6px" }}>▶</button>
+          style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 3, color: "inherit", cursor: "pointer", padding: "0 6px" }}>▶</button>
         <button onClick={() => void load()} title="Aggiorna"
-          style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3, color: "inherit", cursor: "pointer", padding: "0 6px" }}>⟳</button>
+          style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 3, color: "inherit", cursor: "pointer", padding: "0 6px" }}>⟳</button>
         <div style={{ flex: 1 }} />
         <button onClick={() => api.exportHistoryCsv([tag], Date.now() - windowS * 1000, Date.now())} title="Esporta CSV"
-          style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3, color: "inherit", cursor: "pointer", padding: "0 6px" }}>⬇ CSV</button>
-        {loading && <span style={{ color: "var(--brand-text-subtle, #64748b)" }}>…</span>}
+          style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 3, color: "inherit", cursor: "pointer", padding: "0 6px" }}>⬇ CSV</button>
+        {loading && <span style={{ color: "#64748b" }}>…</span>}
       </div>
-      <div style={{ flex: 1, overflowY: "auto", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 3 }}>
+      <div style={{ flex: 1, overflowY: "auto", border: "1px solid #1e293b", borderRadius: 3 }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
-            <tr style={{ position: "sticky", top: 0, background: "var(--brand-surface, #1e293b)", color: "var(--brand-text-muted, #94a3b8)" }}>
+            <tr style={{ position: "sticky", top: 0, background: "#1e293b", color: "#94a3b8" }}>
               <th style={{ textAlign: "left", padding: "2px 6px", fontWeight: 600 }}>Ora</th>
               <th style={{ textAlign: "right", padding: "2px 6px", fontWeight: 600 }}>Valore</th>
               <th style={{ textAlign: "center", padding: "2px 6px", fontWeight: 600 }}>Q</th>
@@ -2664,7 +2664,7 @@ function DataLogWidget({ tag, windowS, pageSize, width, height, decimals, unit }
               );
             })}
             {pageRows.length === 0 && !loading && (
-              <tr><td colSpan={3} style={{ padding: 8, textAlign: "center", color: "var(--brand-text-subtle, #64748b)" }}>Nessun campione nella finestra</td></tr>
+              <tr><td colSpan={3} style={{ padding: 8, textAlign: "center", color: "#64748b" }}>Nessun campione nella finestra</td></tr>
             )}
           </tbody>
         </table>
@@ -2882,9 +2882,9 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
     overflow: "hidden",
     fontFamily: "monospace",
     fontSize: 11,
-    color: "var(--synoptic-text, var(--brand-text, #e2e8f0))",
+    color: "var(--synoptic-text, #e2e8f0)",
     borderRadius: 4,
-    border: "1px solid var(--brand-surface-2, #334155)",
+    border: "1px solid #334155",
     boxSizing: "border-box",
   };
 
@@ -2892,7 +2892,7 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
     return (
       <div style={containerStyle}>
         {showEmpty && (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--brand-text-subtle, #94a3b8)" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#94a3b8" }}>
             Nessun allarme attivo
           </div>
         )}
@@ -2942,7 +2942,7 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
             onClick={(e) => { e.stopPropagation(); void handleShelve(a.def.id); }}
             title="Metti in silenzio per un po' (con motivo)"
             style={{ fontSize: 10, padding: "1px 4px", background: "transparent", border: "none",
-                     color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}
+                     color: "#94a3b8", cursor: "pointer" }}
           >🔇</button>
         ),
       } satisfies DataTableColumn<AlarmState>] : []),
@@ -2952,11 +2952,11 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
         render: (a: AlarmState) => canAck && !a.acknowledged ? (
           <button
             onClick={(e) => { e.stopPropagation(); void ackWithReason(a.def.id); }}
-            style={{ fontSize: 9, padding: "1px 6px", background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 2, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}
+            style={{ fontSize: 9, padding: "1px 6px", background: "#1e293b", border: "1px solid #334155", borderRadius: 2, color: "#94a3b8", cursor: "pointer" }}
           >
             ACK
           </button>
-        ) : a.acknowledged ? <span style={{ color: "var(--brand-text-subtle, #64748b)", fontStyle: "italic" }}>ACK</span> : null,
+        ) : a.acknowledged ? <span style={{ color: "#64748b", fontStyle: "italic" }}>ACK</span> : null,
       } satisfies DataTableColumn<AlarmState>] : []),
     ];
     const barH = showAckAll && canAck ? 22 : 0;
@@ -2968,9 +2968,9 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
               onClick={() => void handleAckAll(filtered.filter((a) => !a.acknowledged).map((a) => a.def.id))}
               disabled={filtered.every((a) => a.acknowledged)}
               title="Conferma tutti gli allarmi mostrati"
-              style={{ fontSize: 10, padding: "1px 8px", background: "var(--brand-surface, #1e293b)",
-                       border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3,
-                       color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}
+              style={{ fontSize: 10, padding: "1px 8px", background: "#1e293b",
+                       border: "1px solid #334155", borderRadius: 3,
+                       color: "#94a3b8", cursor: "pointer" }}
             >✓ ACK tutti ({filtered.filter((a) => !a.acknowledged).length})</button>
           </div>
         )}
@@ -2980,6 +2980,7 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
           rowKey={(a) => a.def.id}
           maxHeight={height - barH}
           compact
+          dark
         />
       </div>
     );
@@ -2992,12 +2993,12 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
         return (
         <div key={a.def.id} style={{
           display: "flex", alignItems: "center", gap: 4, padding: "2px 6px",
-          borderBottom: "1px solid var(--brand-surface, #1e293b)",
+          borderBottom: "1px solid #1e293b",
           background: sevColor(sev) + "18",
         }}>
           <span style={{ color: sevColor(sev), flexShrink: 0 }}>●</span>
           {showTs && a.activated_at_ms && (
-            <span style={{ color: "var(--brand-text-subtle, #94a3b8)", flexShrink: 0 }}>
+            <span style={{ color: "#94a3b8", flexShrink: 0 }}>
               {new Date(a.activated_at_ms).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
             </span>
           )}
@@ -3007,7 +3008,7 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
           {showAck && canAck && !a.acknowledged && (
             <button
               onClick={(e) => { e.stopPropagation(); void ackWithReason(a.def.id); }}
-              style={{ fontSize: 9, padding: "1px 4px", background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 2, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer", flexShrink: 0 }}>
+              style={{ fontSize: 9, padding: "1px 4px", background: "#1e293b", border: "1px solid #334155", borderRadius: 2, color: "#94a3b8", cursor: "pointer", flexShrink: 0 }}>
               ACK
             </button>
           )}
@@ -3945,15 +3946,15 @@ export function SvgObject(p: ObjProps) {
         }}>
         {applyTransform(obj, w, h, <>
           <rect x={obj.x} y={obj.y} width={w} height={h} rx={4}
-            fill={obj.fill ?? (active ? "var(--brand-primary, #3b82f6)" : obj.bg_color ?? "var(--brand-surface-2, #334155)")}
-            stroke={selected ? "#facc15" : "var(--brand-border, #475569)"} strokeWidth={selected ? 2 : 1}
+            fill={obj.fill ?? (active ? "var(--brand-primary, #3b82f6)" : obj.bg_color ?? "#334155")}
+            stroke={selected ? "#facc15" : "#475569"} strokeWidth={selected ? 2 : 1}
             style={transitionStyle(obj)} />
           {obj.bg_image && (
             <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
               preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
           )}
           <text x={obj.x + w / 2} y={obj.y + h / 2 + 5} textAnchor="middle"
-            fill={active ? "#fff" : "var(--synoptic-text, var(--brand-text, #e2e8f0))"} fontSize={13} fontWeight={active ? 700 : 400}
+            fill={active ? "#fff" : "var(--synoptic-text, #e2e8f0)"} fontSize={13} fontWeight={active ? 700 : 400}
             style={{ pointerEvents: "none" }}>
             {obj.label ?? (code ? code.toUpperCase() : "LANG")}
           </text>
@@ -3982,8 +3983,8 @@ export function SvgObject(p: ObjProps) {
             <select value={cur} disabled={isEditMode}
               onChange={(e) => useAppStore.getState().setProjectLang(e.target.value)}
               style={{ width: "100%", height: "100%", boxSizing: "border-box",
-                background: obj.fill ?? "var(--brand-surface-2, #334155)", color: "var(--synoptic-text, var(--brand-text, #e2e8f0))",
-                border: "1px solid var(--brand-border, #475569)",
+                background: obj.fill ?? "#334155", color: "var(--synoptic-text, #e2e8f0)",
+                border: "1px solid #475569",
                 borderRadius: 4, fontSize: 13, padding: "0 6px",
                 ...(obj.bg_image ? { backgroundImage: `url(${obj.bg_image})`, backgroundSize: "cover", backgroundPosition: "center" } : {}) }}>
               {langs.length === 0 && <option value="">—</option>}
@@ -4784,7 +4785,7 @@ export function SvgObject(p: ObjProps) {
             style={isEditMode ? { pointerEvents: "none" } : undefined}>
             <div style={{
               width: "100%", height: "100%", boxSizing: "border-box",
-              background: obj.bg_color ?? "var(--brand-surface, #1e293b)",
+              background: obj.bg_color ?? "#1e293b",
               borderRadius: 4, overflow: "hidden",
               ...(obj.bg_image ? { backgroundImage: `url(${obj.bg_image})`, backgroundSize: "cover", backgroundPosition: "center" } : {}),
             }}>
@@ -4797,6 +4798,7 @@ export function SvgObject(p: ObjProps) {
                 compact
                 fontSize={fontSize}
                 hideFilters={obj.table_filterable !== true}
+                dark
               />
             </div>
           </foreignObject>
@@ -5383,11 +5385,11 @@ export function SvgObject(p: ObjProps) {
       <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
         {selRect(obj.x, obj.y, w, h)}
         {bgLayer(obj.x, obj.y, w, h, 4)}
-        <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill={obj.bg_color ? "transparent" : "var(--brand-bg, #0f172a)"}
-          stroke={selected ? "#facc15" : "var(--brand-surface-2, #334155)"} strokeWidth={selected ? 2 : 1}
+        <rect x={obj.x} y={obj.y} width={w} height={h} rx={4} fill={obj.bg_color ? "transparent" : "#0f172a"}
+          stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1}
           style={{ pointerEvents: isEditMode ? undefined : "none" }} />
         {obj.label && (
-          <text x={obj.x + 6} y={obj.y + 14} fill="var(--brand-text-muted, #94a3b8)" fontSize={11}
+          <text x={obj.x + 6} y={obj.y + 14} fill="#94a3b8" fontSize={11}
             style={{ pointerEvents: "none" }}>{obj.label}</text>
         )}
         {isEditMode ? (
@@ -5415,7 +5417,7 @@ export function SvgObject(p: ObjProps) {
     const valColor =
       (Number.isFinite(rawVal)
         ? thresholdColor(rawVal, obj.alarm_low, obj.warn_low, obj.warn_high, obj.alarm_high)
-        : undefined) ?? obj.color ?? "var(--synoptic-text, var(--brand-text, #e2e8f0))";
+        : undefined) ?? obj.color ?? "var(--synoptic-text, #e2e8f0)";
     const windowS = obj.spark_window_s ?? 3600;
     const valueText = Number.isFinite(rawVal)
       ? `${rawVal.toFixed(obj.decimals ?? 1)}`
@@ -5425,18 +5427,18 @@ export function SvgObject(p: ObjProps) {
       <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} style={{ cursor: editCursor }}>
         {selRect(obj.x, obj.y, w, h)}
         <rect x={obj.x} y={obj.y} width={w} height={h} rx={6}
-          fill={obj.bg_color ?? "var(--brand-surface, #1e293b)"}
-          stroke={selected ? "#facc15" : "var(--brand-surface-2, #334155)"} strokeWidth={selected ? 2 : 1} />
+          fill={obj.bg_color ?? "#1e293b"}
+          stroke={selected ? "#facc15" : "#334155"} strokeWidth={selected ? 2 : 1} />
         {obj.bg_image && (
           <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
             preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
         )}
-        <text x={obj.x + 10} y={obj.y + 16} fill="var(--brand-text-muted, #94a3b8)" fontSize={11}
+        <text x={obj.x + 10} y={obj.y + 16} fill="#94a3b8" fontSize={11}
           style={{ pointerEvents: "none" }}>{obj.label ?? obj.tag ?? "KPI"}</text>
         <text x={obj.x + 10} y={obj.y + 44} fill={valColor} fontSize={26} fontWeight={700}
           style={{ pointerEvents: "none" }}>
           {valueText}
-          {obj.unit && <tspan fontSize={12} fill="var(--brand-text-subtle, #64748b)"> {obj.unit}</tspan>}
+          {obj.unit && <tspan fontSize={12} fill="#64748b"> {obj.unit}</tspan>}
         </text>
         {!isEditMode && obj.tag && (
           <>
@@ -5597,8 +5599,8 @@ export function SvgObject(p: ObjProps) {
           style={isEditMode ? { pointerEvents: "none" } : undefined}>
           <div style={{
             width: "100%", height: "100%", boxSizing: "border-box", overflow: "auto",
-            background: obj.bg_color ?? "var(--brand-surface, #1e293b)",
-            border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4,
+            background: obj.bg_color ?? "#1e293b",
+            border: "1px solid #334155", borderRadius: 4,
           }}>
             <AlarmHistory alarmId={obj.alarm_history_id} />
           </div>
@@ -5620,9 +5622,9 @@ export function SvgObject(p: ObjProps) {
         {selRect(obj.x, obj.y, w, h)}
         <foreignObject x={obj.x} y={obj.y} width={w} height={h}
           style={isEditMode ? { pointerEvents: "none" } : undefined}>
-          <div style={{ width: w, height: h, overflowY: "auto", boxSizing: "border-box", padding: 6, background: obj.bg_color ?? "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4,
+          <div style={{ width: w, height: h, overflowY: "auto", boxSizing: "border-box", padding: 6, background: obj.bg_color ?? "#1e293b", border: "1px solid #334155", borderRadius: 4,
             ...(obj.bg_image ? { backgroundImage: `url(${obj.bg_image})`, backgroundSize: "cover", backgroundPosition: "center" } : {}) }}>
-            <RecipePanel idPrefix={obj.recipe_panel_id_prefix} compact />
+            <RecipePanel idPrefix={obj.recipe_panel_id_prefix} compact dark />
           </div>
         </foreignObject>
         {hitRect(obj.x, obj.y, w, h)}

@@ -39,14 +39,36 @@ export interface DataTableProps<T> {
   /** F7.1 — nasconde la riga dei filtri anche su colonne filtrabili (in una
    *  tabella piccola sul sinottico due righe di intestazione sono troppe). */
   hideFilters?: boolean;
+  /** Scoperto il 13-09-2026 collaudando Q40/F5.3x su un pannello reale: i
+   *  neutri `--brand-*` seguono il tema chiaro/scuro dell'APP (risolto da
+   *  `prefers-color-scheme`), non lo sfondo della PAGINA sinottica — un
+   *  pannello con OS senza segnale di tema scuro risolve "chiaro", e questa
+   *  tabella (sfondo/bordo bianco) spariva sopra una pagina disegnata scura.
+   *  Stessa classe di difetto già decisa in Q18 per il colore del testo.
+   *  `dark: true` (passato da `SvgCanvas.tsx` per l'oggetto sinottico
+   *  `table`) sostituisce i neutri con gli stessi valori letterali di
+   *  `DARK_NEUTRALS` (`theme.ts`), indipendenti dal tema dell'app — l'uso in
+   *  `ConfigView.tsx` (chrome IDE, deve seguire il tema) non passa la prop e
+   *  resta invariato. */
+  dark?: boolean;
 }
 
 type SortDir = "asc" | "desc";
 
 export function DataTable<T>({
   columns, rows, rowKey, emptyLabel = "Nessun dato.", maxHeight, onRowClick, selectedRowKey, compact = false,
-  fontSize: fontSizeProp, hideFilters = false,
+  fontSize: fontSizeProp, hideFilters = false, dark = false,
 }: DataTableProps<T>) {
+  // Vedi il commento su `dark` in `DataTableProps`: letterale quando `dark`,
+  // altrimenti il var() di sempre (comportamento invariato per ConfigView.tsx).
+  const tok = (varName: string, literal: string) => (dark ? literal : `var(${varName}, ${literal})`);
+  const nSurface = tok("--brand-surface", "#1e293b");
+  const nSurface2 = tok("--brand-surface-2", "#334155");
+  const nBg = tok("--brand-bg", "#0f172a");
+  const nText = tok("--brand-text", "#e2e8f0");
+  const nTextMuted = tok("--brand-text-muted", "#94a3b8");
+  const nTextSubtle = tok("--brand-text-subtle", "#94a3b8");
+  const nText2 = tok("--brand-text-2", "#cbd5e1");
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [filters, setFilters] = useState<Record<string, string>>({});
@@ -92,7 +114,7 @@ export function DataTable<T>({
   const hasFilters = !hideFilters && columns.some((c) => c.filterable !== false);
 
   return (
-    <div style={{ overflow: "auto", maxHeight, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4 }}>
+    <div style={{ overflow: "auto", maxHeight, border: `1px solid ${nSurface2}`, borderRadius: 4 }}>
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize }}>
         <thead>
           <tr>
@@ -103,9 +125,9 @@ export function DataTable<T>({
                   key={col.key}
                   onClick={() => sortable && toggleSort(col.key)}
                   style={{
-                    position: "sticky", top: 0, background: "var(--brand-surface, #1e293b)",
+                    position: "sticky", top: 0, background: nSurface,
                     padding: pad, textAlign: col.align ?? "left", fontWeight: 600,
-                    color: "var(--brand-text-muted, #94a3b8)", borderBottom: "1px solid var(--brand-surface-2, #334155)",
+                    color: nTextMuted, borderBottom: `1px solid ${nSurface2}`,
                     cursor: sortable ? "pointer" : "default",
                     width: col.width, whiteSpace: "nowrap", userSelect: "none",
                   }}
@@ -119,12 +141,12 @@ export function DataTable<T>({
           {hasFilters && (
             <tr>
               {columns.map((col) => (
-                <th key={col.key} style={{ padding: "2px 4px", background: "var(--brand-bg, #0f172a)", borderBottom: "1px solid var(--brand-surface-2, #334155)" }}>
+                <th key={col.key} style={{ padding: "2px 4px", background: nBg, borderBottom: `1px solid ${nSurface2}` }}>
                   {col.filterable === false ? null : col.filterType === "select" ? (
                     <select
                       value={filters[col.key] ?? ""}
                       onChange={(e) => setFilters((f) => ({ ...f, [col.key]: e.target.value }))}
-                      style={{ width: "100%", fontSize: fontSize - 1, background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3, padding: "1px 2px", boxSizing: "border-box" }}
+                      style={{ width: "100%", fontSize: fontSize - 1, background: nSurface, color: nText, border: `1px solid ${nSurface2}`, borderRadius: 3, padding: "1px 2px", boxSizing: "border-box" }}
                     >
                       <option value="">—</option>
                       {(col.filterOptions ?? []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -133,7 +155,7 @@ export function DataTable<T>({
                     <input
                       value={filters[col.key] ?? ""}
                       onChange={(e) => setFilters((f) => ({ ...f, [col.key]: e.target.value }))}
-                      style={{ width: "100%", fontSize: fontSize - 1, background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3, padding: "1px 4px", boxSizing: "border-box" }}
+                      style={{ width: "100%", fontSize: fontSize - 1, background: nSurface, color: nText, border: `1px solid ${nSurface2}`, borderRadius: 3, padding: "1px 4px", boxSizing: "border-box" }}
                     />
                   )}
                 </th>
@@ -144,7 +166,7 @@ export function DataTable<T>({
         <tbody>
           {sorted.length === 0 ? (
             <tr>
-              <td colSpan={columns.length} style={{ padding: 16, textAlign: "center", color: "var(--brand-text-subtle, #94a3b8)" }}>
+              <td colSpan={columns.length} style={{ padding: 16, textAlign: "center", color: nTextSubtle }}>
                 {emptyLabel}
               </td>
             </tr>
@@ -157,11 +179,11 @@ export function DataTable<T>({
                 style={{
                   cursor: onRowClick ? "pointer" : "default",
                   background: selectedRowKey === key ? "#1e3a5f" : "transparent",
-                  borderBottom: "1px solid var(--brand-surface, #1e293b)",
+                  borderBottom: `1px solid ${nSurface}`,
                 }}
               >
                 {columns.map((col) => (
-                  <td key={col.key} style={{ padding: pad, textAlign: col.align ?? "left", color: "var(--brand-text-2, #cbd5e1)" }}>
+                  <td key={col.key} style={{ padding: pad, textAlign: col.align ?? "left", color: nText2 }}>
                     {col.render ? col.render(row) : String(col.accessor(row) ?? "")}
                   </td>
                 ))}

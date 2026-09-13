@@ -63,7 +63,7 @@ const DASH_MAP: Record<NonNullable<XyPlotSeriesLive["dash"]>, string | undefined
 
 // Colori di ripiego per le serie senza `color` esplicito — stesso spirito
 // della palette di default usata altrove nel progetto per liste di serie.
-const DEFAULT_COLORS = ["var(--brand-primary, #3b82f6)", "#22c55e", "#f59e0b", "#a855f7", "#ec4899"];
+const DEFAULT_COLORS = ["#3b82f6", "#22c55e", "#f59e0b", "#a855f7", "#ec4899"];
 
 export function XyPlotCanvas({
   series, trailS = 30, width, height,
@@ -155,12 +155,12 @@ export function XyPlotCanvas({
 
   return (
     <svg width={width} height={height} style={{ display: "block" }}>
-      <rect x={0} y={0} width={width} height={height} fill={bgColor ?? "var(--brand-bg, #0f172a)"} />
+      <rect x={0} y={0} width={width} height={height} fill={bgColor ?? "#0f172a"} />
       {bgImage && (
         <image href={bgImage} x={0} y={0} width={width} height={height}
           preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
       )}
-      <rect x={PAD} y={PAD} width={plotW} height={plotH} fill="none" stroke="var(--brand-surface-2, #334155)" strokeWidth={1} />
+      <rect x={PAD} y={PAD} width={plotW} height={plotH} fill="none" stroke="#334155" strokeWidth={1} />
       {series.map((s, i) => {
         const pts = pointsBySeries[i] ?? [];
         if (pts.length < 1) return null;
@@ -178,17 +178,17 @@ export function XyPlotCanvas({
         );
       })}
       {!hasAnyPoint && (
-        <text x={width / 2} y={height / 2} textAnchor="middle" fill="var(--brand-text-subtle, #64748b)" fontSize={11}>
+        <text x={width / 2} y={height / 2} textAnchor="middle" fill="#64748b" fontSize={11}>
           in attesa di dati…
         </text>
       )}
       {xLabel && (
-        <text x={PAD + plotW / 2} y={height - 6} textAnchor="middle" fill="var(--brand-text-subtle, #64748b)" fontSize={10}>
+        <text x={PAD + plotW / 2} y={height - 6} textAnchor="middle" fill="#64748b" fontSize={10}>
           {xLabel}
         </text>
       )}
       {yLabel && (
-        <text x={11} y={PAD + plotH / 2} textAnchor="middle" fill="var(--brand-text-subtle, #64748b)" fontSize={10}
+        <text x={11} y={PAD + plotH / 2} textAnchor="middle" fill="#64748b" fontSize={10}
           transform={`rotate(-90 11 ${PAD + plotH / 2})`}>
           {yLabel}
         </text>
