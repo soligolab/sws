@@ -428,14 +428,35 @@ if [ "$AUTOSTART" -eq 1 ]; then
 
     # Senza linger i servizi utente muoiono al logout e non partono al boot:
     # è esattamente il motivo per cui il container non tornava su dopo un reboot.
+    #
+    # Q45 (misurato il 13-09-2026 sul TC620, Pixsys OS 2.1.1): `enable-linger`
+    # per il PROPRIO utente non richiede alcun permesso speciale, con o senza
+    # `sudo`. La causa non è una regola polkit di Pixsys: systemd distingue
+    # `org.freedesktop.login1.set-self-linger` (il proprio linger — `allow_any:
+    # yes` di default in `org.freedesktop.login1.policy`, nessun privilegio) da
+    # `set-linger` (il linger di un ALTRO utente — quello sì riservato a root).
+    # Verificato disattivando e riattivando il linger come `user`, senza sudo,
+    # entrambe le direzioni riuscite. Non è quindi un limite dell'utente finale
+    # come temeva la scheda originale: se questo passo fallisce oggi è un
+    # sintomo di qualcos'altro di rotto sul dispositivo (systemd/polkit troppo
+    # vecchio o diversamente configurato), non un ostacolo da aggirare con un
+    # avviso — da qui in poi l'installazione si ferma invece di proseguire a
+    # metà verso un container che non sopravviverebbe al primo reboot.
     if loginctl show-user "$USER" 2>/dev/null | grep -q "Linger=yes"; then
         echo "    linger già attivo"
     elif loginctl enable-linger "$USER" 2>/dev/null; then
         echo "    linger abilitato"
     else
-        echo "    ATTENZIONE: non ho potuto abilitare il linger (serve un permesso)." >&2
-        echo "                Esegui:  sudo loginctl enable-linger $USER" >&2
-        echo "                Senza, il container NON riparte dopo il reboot." >&2
+        echo "ERRORE: non sono riuscito ad abilitare il linger per $USER." >&2
+        echo "        Su un Pixsys OS aggiornato questo comando riesce senza sudo" >&2
+        echo "        (systemd distingue il linger del proprio utente da quello di" >&2
+        echo "        un altro, verificato il 13-09-2026) — un fallimento qui indica" >&2
+        echo "        systemd/polkit più vecchi o configurati diversamente sul" >&2
+        echo "        dispositivo, non un permesso mancante da aggirare." >&2
+        echo "        Senza linger il container NON riparte dopo il reboot: si ferma" >&2
+        echo "        qui invece di installare un dispositivo che si romperebbe al" >&2
+        echo "        primo riavvio." >&2
+        exit 1
     fi
 
     # ── Q25: commutazione web/LVGL comandata dal progetto ───────────────────

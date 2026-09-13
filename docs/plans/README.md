@@ -31,5 +31,4 @@ c'è già, manca solo la conferma a schermo prima di archiviare la scheda in
 | Piano | Origine | Cosa resta |
 |---|---|---|
 | [2026-09-12-q16-decoder-raster-image.md](2026-09-12-q16-decoder-raster-image.md) | Q16 | **pronto** — decoder raster per `image` su LVGL, se emerge un bisogno reale |
-| [2026-09-12-q45-linger-permesso-produzione.md](2026-09-12-q45-linger-permesso-produzione.md) | Q45 | **pronto** — misurare il linger di fabbrica sul TC620, poi scegliere fra 4 opzioni |
 | [2026-09-12-q53-misura-rimozione-sdk-qemu.md](2026-09-12-q53-misura-rimozione-sdk-qemu.md) | Q53 | **pronto** — misurare CPU/avvio del cross-build sul TC620 (ora possibile) prima di togliere i percorsi SDK/QEMU |

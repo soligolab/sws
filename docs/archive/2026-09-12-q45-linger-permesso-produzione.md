@@ -88,3 +88,19 @@ lontano da chi ha installato. È la forma di guasto più cara: silenziosa e diff
 **Da misurare prima di decidere**: sul WP630 appena resettato, `loginctl show-user user`.
 
 ---
+
+## Esito (13-09-2026)
+
+Passo 0 fatto sul TC620 (Pixsys OS 2.1.1), non su un WP630 appena resettato come suggeriva la
+scheda — comunque conclusivo: `loginctl enable-linger`/`disable-linger` per il proprio utente
+riescono senza `sudo`, in entrambe le direzioni. Non è una regola Pixsys: è l'azione polkit di
+systemd `org.freedesktop.login1.set-self-linger` (`allow_any: yes` di default), distinta da
+`set-linger` (il linger di un ALTRO utente, quella sì riservata a root) — il timore della scheda
+confondeva le due.
+
+**Decisione del maintainer: opzione 1.** `install-container.sh` non stampa più un avviso e
+continua se il passo fallisce: ora si ferma con un errore, perché su questo genere di hardware
+un fallimento indicherebbe qualcos'altro di rotto (systemd/polkit più vecchi o diversi), non un
+permesso mancante da aggirare. `main`, commit `067d7a2`.
+
+Scheda chiusa in `docs/history/OPEN_QUESTIONS-chiuse.md`.

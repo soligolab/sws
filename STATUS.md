@@ -74,6 +74,29 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — Q45 chiusa: il linger si abilita da solo, nessun permesso mancante (2026-09-13)
+
+Ciclo `/riprendi` proseguito nella stessa giornata. Nessun ramo obsoleto (solo `main` in locale
+dopo la pulizia di fine sessione precedente). Scelto Q45 fra i piani "pronti", visto che il TC620
+era già raggiungibile.
+
+**Misurato dal vivo sul TC620** (Pixsys OS 2.1.1): `loginctl enable-linger`/`disable-linger` per
+il **proprio** utente riescono senza `sudo`, in entrambe le direzioni — provato disattivando e
+riattivando il linger come `user`. Non è una regola Pixsys: `/usr/share/polkit-1/actions/
+org.freedesktop.login1.policy` ha un'azione dedicata, `set-self-linger` (`allow_any: yes` di
+default), distinta da `set-linger` (il linger di un ALTRO utente, quella sì riservata a root) —
+la scheda originale confondeva le due. Il timore («l'utente finale non ha il permesso») non si
+verifica su questo hardware.
+
+**Deciso dal maintainer (opzione 1)**: `deploy/container/install-container.sh` non avvisa più e
+continua se il passo fallisce — ora si ferma con un errore (`fix/q45-linger-self-service-
+verificato` → `main`, `067d7a2`), perché un fallimento indicherebbe qualcos'altro di rotto sul
+dispositivo, non un permesso mancante da aggirare. Verificato dal vivo anche il ramo "abilitato"
+(disattivato il linger e rilanciata la stessa logica dello script, riattivato senza errori).
+
+Scheda Q45 archiviata in `docs/history/OPEN_QUESTIONS-chiuse.md`; piano spostato da
+`docs/plans/` a `docs/archive/2026-09-12-q45-linger-permesso-produzione.md`.
+
 ## ▶ Riprendere da qui — collaudo dal vivo sul TC620: quattro pezzi confermati e mergiati (2026-09-13)
 
 Sessione di collaudo su hardware vero, richiesta dal maintainer per chiudere tutto ciò che

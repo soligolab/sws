@@ -11,6 +11,15 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Changed
+- **`install-container.sh` si ferma con un errore se non riesce ad abilitare il linger (Q45)**:
+  prima si limitava a un avviso e continuava, rischiando di installare un container che non
+  sopravvive al primo reboot. Misurato dal vivo sul TC620 (Pixsys OS 2.1.1) che il linger del
+  proprio utente si abilita senza `sudo` in ogni caso (azione polkit di systemd
+  `set-self-linger`, distinta da `set-linger` che riguarda un altro utente ed è quella
+  riservata a root) — un fallimento oggi indicherebbe qualcos'altro di rotto sul dispositivo,
+  non un permesso mancante da aggirare con un avviso.
+
 ### Added
 - **24 simboli LVGL diventano ricolorabili per stato (Q40)**: chiude Q40 per intero, in tre fasi.
   13 simboli mai portati su LVGL (valve_motorized, valve_pneumatic, check_valve, valve_3way,
