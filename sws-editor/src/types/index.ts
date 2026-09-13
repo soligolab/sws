@@ -80,6 +80,10 @@ export interface GridCell {
   colspan?: number;
   bg_color?: string;
   bg_image?: string;
+  /** F7 — bordo di QUESTA cella, indipendente dall'interruttore
+   *  `grid_show_borders` della griglia: assente = nessun bordo (comportamento
+   *  invariato), presente = disegnato sempre, anche a griglia "senza bordi". */
+  border_color?: string;
   /** Static visibility flag (default true). */
   visible?: boolean;
   /** Tag id whose truthy value controls visibility. */
@@ -110,6 +114,9 @@ export interface SubGrid {
 export interface SubCellEntry {
   bg_color?: string;
   bg_image?: string;
+  /** F7 — stesso campo di `GridCell.border_color`, stessa indipendenza da
+   *  `grid_show_borders`. */
+  border_color?: string;
   visible?: boolean;
   visible_tag?: string;
   on_press_fn?: string;

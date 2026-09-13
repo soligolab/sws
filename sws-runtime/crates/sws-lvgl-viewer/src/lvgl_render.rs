@@ -1152,6 +1152,47 @@ fn apply_bg_color<W: Widget<Part = Part>>(
     Ok(())
 }
 
+/// F7 — bordo di una cella di griglia (`GridCell`/`SubCellEntry::border_color`),
+/// indipendente dall'interruttore condiviso `grid_show_borders` (quello
+/// disegna linee a tutta lunghezza sui confini della griglia; questo è un
+/// contorno sulla singola cella, sempre acceso quando dichiarato). Un
+/// rettangolo trasparente in più, non clickable — stessa tecnica del bordo
+/// d'allarme in `crea_effetti`, ma qui fisso invece che lampeggiante.
+fn render_cell_border(
+    screen: &mut lvgl::Obj,
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
+    hex: &str,
+    styles: &mut Vec<Style>,
+) -> anyhow::Result<()> {
+    let Some(rgb) = parse_hex_color(hex) else {
+        return Ok(()); // colore non valido: nessun bordo, non un errore fatale
+    };
+    let mut rect = create_child_obj(screen)?;
+    rect.set_pos(x.round() as i16, y.round() as i16)
+        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    rect.set_size(w.round() as i16, h.round() as i16)
+        .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
+    let mut style = Style::default();
+    style.set_bg_opa(lvgl::style::Opacity::OPA_0);
+    style.set_border_color(Color::from_rgb(rgb));
+    style.set_border_width(2);
+    rect.add_style(Part::Main, &mut style)
+        .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
+    styles.push(style);
+    unsafe {
+        let p = rect
+            .raw()
+            .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+            .as_ptr();
+        lvgl_sys::lv_obj_clear_flag(p, lvgl_sys::LV_OBJ_FLAG_CLICKABLE);
+        lvgl_sys::lv_obj_clear_flag(p, lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
+    }
+    Ok(())
+}
+
 fn text_cstring(s: &str) -> CString {
     CString::new(s).unwrap_or_else(|_| CString::new("?").unwrap())
 }
@@ -6405,6 +6446,9 @@ fn render_grid(
                 .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
             apply_bg_color(&mut rect, bg, styles)?;
         }
+        if let Some(border) = &cell.border_color {
+            render_cell_border(screen, cell_x, cell_y, cell_w, cell_h, border, styles)?;
+        }
 
         render_grid_slot(
             screen,
@@ -6495,6 +6539,9 @@ fn render_grid_slot(
                 rect.set_size(geom.2.round() as i16, geom.3.round() as i16)
                     .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
                 apply_bg_color(&mut rect, bg, styles)?;
+            }
+            if let Some(border) = &entry.border_color {
+                render_cell_border(screen, geom.0, geom.1, geom.2, geom.3, border, styles)?;
             }
             render_grid_slot(
                 screen,

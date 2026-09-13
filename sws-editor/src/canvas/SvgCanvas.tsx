@@ -3329,7 +3329,8 @@ export function SvgObject(p: ObjProps) {
               <rect
                 x={sx} y={sy} width={sw} height={sh}
                 fill={entry?.bg_color ?? "transparent"}
-                stroke="none"
+                stroke={entry?.border_color ?? "none"}
+                strokeWidth={entry?.border_color ? 2 : 1}
                 style={{ cursor: isEditMode ? "pointer" : "default" }}
                 onMouseDown={(e) => {
                   if (!isEditMode) return;
@@ -5915,8 +5916,8 @@ export function SvgObject(p: ObjProps) {
                 <rect
                   x={cellX} y={cellY} width={cellW} height={cellH}
                   fill={cellDef?.bg_color ?? "transparent"}
-                  stroke={showBorders ? (isCellSel ? "#facc15" : borderColor) : "none"}
-                  strokeWidth={isCellSel ? 2 : 1}
+                  stroke={isCellSel ? "#facc15" : cellDef?.border_color ?? (showBorders ? borderColor : "none")}
+                  strokeWidth={isCellSel || cellDef?.border_color ? 2 : 1}
                   style={{
                     cursor: isEditMode ? "pointer"
                       : (cellDef?.on_press_fn ? "pointer" : "default"),

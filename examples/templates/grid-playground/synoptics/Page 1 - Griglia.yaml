@@ -78,6 +78,7 @@ objects:
         ratio: 0.5
         a:
           bg_color: "#1e3a8a"
+          border_color: "#22d3ee"  # F7: border_color vale anche sulle sotto-celle
           sub:
             orientation: rows
             ratio: 0.4
@@ -202,9 +203,12 @@ objects:
         on_color: "#22c55e"
         off_color: "#475569"
 
-    # (1,0) — Button: incrementa counter
+    # (1,0) — Button: incrementa counter. border_color (F7): un contorno per
+    # questa sola cella, indipendente da grid_show_borders — resterebbe
+    # acceso anche a griglia "senza bordi".
     - row: 1
       col: 0
+      border_color: "#ef4444"
       child:
         id: gp_btn_inc
         type: button

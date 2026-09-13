@@ -587,6 +587,9 @@ pub struct GridCell {
     pub rowspan: Option<f64>,
     pub colspan: Option<f64>,
     pub bg_color: Option<String>,
+    /// F7 — bordo di questa cella, indipendente da `grid_show_borders`
+    /// (`obj.grid_show_borders` resta il colore condiviso di default).
+    pub border_color: Option<String>,
     pub visible: Option<bool>,
     pub visible_tag: Option<String>,
     pub child: Option<Box<SynopticObject>>,
@@ -607,6 +610,8 @@ pub struct SubGrid {
 #[derive(Debug, Deserialize, Clone)]
 pub struct SubCellEntry {
     pub bg_color: Option<String>,
+    /// F7 — stesso campo di `GridCell::border_color`.
+    pub border_color: Option<String>,
     pub visible: Option<bool>,
     pub visible_tag: Option<String>,
     pub child: Option<Box<SynopticObject>>,

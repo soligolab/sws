@@ -334,12 +334,20 @@ export function EditorShell() {
 
   // Il gruppo che si vede davvero: quello scelto se si applica al tipo
   // selezionato, altrimenti Oggetto. La scelta in memoria resta com'è.
-  const gruppoVisto = gruppoEffettivo(gruppoDestro, selected?.type);
-  const gruppiVisibili = gruppiPerTipo(selected?.type ?? "");
+  //
+  // Il tipo che conta è quello del FIGLIO quando se ne sta editando uno
+  // dentro una griglia (una cella o una sotto-cella) — non quello della
+  // griglia stessa, altrimenti un `text` annidato perderebbe la scheda
+  // "Testo" perché "grid" non ce l'ha. Vedi `figlioProprietaAttivo`.
+  const figlioAttivo = figlioProprietaAttivo(selected, selectedCellChild, selectedSubCell);
+  const tipoVisto = figlioAttivo?.type ?? selected?.type;
+  const gruppoVisto = gruppoEffettivo(gruppoDestro, tipoVisto);
+  const gruppiVisibili = gruppiPerTipo(tipoVisto ?? "");
   const mostraGruppi = barraGruppiVisibile(selected, multi, {
     cella: selectedCell?.objectId,
     intervallo: selectedCellRange?.objectId,
     sottoCella: selectedSubCell?.objectId,
+    figlio: figlioAttivo ? selected?.id : undefined,
   });
   const functions   = project?.functions ?? [];
   const selectedFn  = functions.find((f) => f.id === selectedFnId) ?? null;
@@ -911,6 +919,18 @@ export function EditorShell() {
                       </button>
                     )}
                   </label>
+                  <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                    Colore bordo:
+                    <input type="color" value={entry.border_color ?? "#64748b"}
+                      onChange={(e) => updateSub({ border_color: e.target.value })}
+                      style={{ width: 28, height: 22, border: "1px solid var(--brand-surface-2, #334155)", background: "transparent", cursor: "pointer" }} />
+                    {entry.border_color && (
+                      <button onClick={() => updateSub({ border_color: undefined })}
+                        style={{ background: "transparent", border: "1px solid var(--brand-surface-2, #334155)", color: "var(--brand-text-muted, #94a3b8)", borderRadius: 4, padding: "1px 8px", fontSize: 10, cursor: "pointer" }}>
+                        reset
+                      </button>
+                    )}
+                  </label>
                   {isSplit ? (
                     <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 8 }}>
                       Questa sub-cella è ora divisa. Seleziona una delle sue
@@ -1394,13 +1414,59 @@ export function cancellaWaypointScelto(): boolean {
 export function barraGruppiVisibile(
   selezionato: { id: string; type: string } | null,
   multi: boolean,
-  celle: { cella?: string | null; intervallo?: string | null; sottoCella?: string | null },
+  celle: {
+    cella?: string | null;
+    intervallo?: string | null;
+    sottoCella?: string | null;
+    /** Bug trovato il 13-09-2026 testando F7: quando si seleziona il FIGLIO
+     *  di una cella o di una sotto-cella, il pannello mostra `ObjectProps`
+     *  del figlio (sezioni Identità/Aspetto/Dato comprese) — ma `cella`/
+     *  `sottoCella` restano valorizzati (la selezione della cella non si
+     *  cancella scendendo nel figlio), quindi senza questo campo la barra
+     *  si nascondeva lo stesso: le sezioni fuori dal gruppo "comportamento"
+     *  (l'ultimo scelto) sparivano senza un modo per tornarci. `figlio`
+     *  vale l'id della griglia quando è **davvero** un figlio ad essere
+     *  mostrato, e vince sulle altre tre condizioni. */
+    figlio?: string | null;
+  },
 ): boolean {
   if (!selezionato || multi) return false;
   if (selezionato.type !== "grid") return true;
+  if (celle.figlio === selezionato.id) return true;
   return celle.cella !== selezionato.id
     && celle.intervallo !== selezionato.id
     && celle.sottoCella !== selezionato.id;
+}
+
+/** Il figlio (di una cella, o di una sotto-cella non ulteriormente divisa)
+ *  che il pannello sta davvero mostrando via `ObjectProps` — `null` se si
+ *  sta mostrando l'editor della cella/sotto-cella stessa (nessun figlio
+ *  ancora, o una sotto-cella ancora divisa in `sub`).
+ *
+ *  Un'unica funzione invece di ripetere la stessa risoluzione ovunque serve
+ *  (il pannello, la barra dei gruppi): due copie della stessa catena di rami
+ *  sono il modo in cui sono divergute — vedi il commento sopra su `figlio`. */
+export function figlioProprietaAttivo(
+  selezionato: SynopticObject | null,
+  selectedCellChild: { objectId: string; row: number; col: number } | null | undefined,
+  selectedSubCell: { objectId: string; row: number; col: number; path: ("a" | "b")[] } | null | undefined,
+): SynopticObject | null {
+  if (!selezionato || selezionato.type !== "grid") return null;
+  const cells = (selezionato.grid_cells ?? []) as GridCell[];
+  if (selectedSubCell?.objectId === selezionato.id) {
+    const cellDef = cells.find(
+      (c) => c.row === selectedSubCell.row && c.col === selectedSubCell.col,
+    );
+    const entry = resolveSubCellEntry(cellDef, selectedSubCell.path);
+    return entry && !entry.sub && entry.child ? entry.child : null;
+  }
+  if (selectedCellChild?.objectId === selezionato.id) {
+    const cellDef = cells.find(
+      (c) => c.row === selectedCellChild.row && c.col === selectedCellChild.col,
+    );
+    return cellDef?.child ?? null;
+  }
+  return null;
 }
 
 /** Il tipo dell'oggetto di cui si stanno mostrando le proprietà, per le
@@ -5404,6 +5470,24 @@ function GridCellEditor({
           value={cell.bg_image ?? ""}
           onChange={(e) => onChange({ bg_image: e.target.value || undefined })}
         />
+      </div>
+
+      <div style={{ marginBottom: 6 }}>
+        <div style={LABEL}>Colore bordo (indipendente dai bordi della griglia)</div>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <input
+            type="color"
+            style={{ ...INPUT, padding: 2, height: 28, width: 44, cursor: "pointer", flex: "none" }}
+            value={cell.border_color ?? "#64748b"}
+            onChange={(e) => onChange({ border_color: e.target.value })}
+          />
+          <input
+            type="text" style={INPUT}
+            value={cell.border_color ?? ""}
+            placeholder="nessuno"
+            onChange={(e) => onChange({ border_color: e.target.value || undefined })}
+          />
+        </div>
       </div>
 
       <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", marginBottom: 6, cursor: "pointer" }}>

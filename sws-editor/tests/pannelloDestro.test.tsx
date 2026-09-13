@@ -3,8 +3,9 @@ import { useContext, useState } from "react";
 import { describe, it, expect, vi } from "vitest";
 import i18n from "../src/i18n";
 import { BarraIcone } from "../src/editor/stilePannelli";
-import { GRUPPI_PROPRIETA, GruppoAttivo, PannelloDestro, barraGruppiVisibile, gruppiPerTipo, gruppoEffettivo, gruppoMemorizzato } from "../src/editor/EditorShell";
+import { GRUPPI_PROPRIETA, GruppoAttivo, PannelloDestro, barraGruppiVisibile, figlioProprietaAttivo, gruppiPerTipo, gruppoEffettivo, gruppoMemorizzato } from "../src/editor/EditorShell";
 import type { GruppoProprieta } from "../src/editor/EditorShell";
+import type { SynopticObject } from "../src/types";
 
 /** La barra dei gruppi del pannello destro (T-56, seguito dell'11-09-2026).
  *
@@ -43,6 +44,57 @@ describe("quando si vede la barra dei gruppi", () => {
     expect(barraGruppiVisibile(grid, false, { cella: "g1" })).toBe(false);
     expect(barraGruppiVisibile(grid, false, { intervallo: "g1" })).toBe(false);
     expect(barraGruppiVisibile(grid, false, { sottoCella: "g1" })).toBe(false);
+  });
+
+  it("col FIGLIO di una cella o sotto-cella selezionato, sì anche se cella/sottoCella restano valorizzate", () => {
+    // Bug trovato il 13-09-2026: selezionare il figlio non cancella
+    // `cella`/`sottoCella` (restano quelle della cella che lo contiene), e
+    // senza `figlio` la barra si nascondeva lo stesso, pur mostrando
+    // `ObjectProps` del figlio — le sezioni fuori dal gruppo già scelto
+    // sparivano senza un modo per tornarci.
+    expect(barraGruppiVisibile(grid, false, { cella: "g1", figlio: "g1" })).toBe(true);
+    expect(barraGruppiVisibile(grid, false, { sottoCella: "g1", figlio: "g1" })).toBe(true);
+    // Il figlio di un'ALTRA griglia non conta.
+    expect(barraGruppiVisibile(grid, false, { cella: "g1", figlio: "g2" })).toBe(false);
+  });
+});
+
+describe("il figlio che il pannello sta davvero mostrando", () => {
+  const bottone: SynopticObject = { id: "gp_btn", type: "button", x: 0, y: 0 } as SynopticObject;
+  const etichetta: SynopticObject = { id: "gp_led", type: "led", x: 0, y: 0 } as SynopticObject;
+  const griglia: SynopticObject = {
+    id: "g1", type: "grid", x: 0, y: 0,
+    grid_cells: [
+      { row: 0, col: 0, child: bottone },
+      { row: 1, col: 1, sub: { orientation: "cols", ratio: 0.5, a: { child: etichetta }, b: {} } },
+    ],
+  } as SynopticObject;
+
+  it("null senza una griglia selezionata", () => {
+    expect(figlioProprietaAttivo(null, null, null)).toBeNull();
+    expect(figlioProprietaAttivo(bottone, null, null)).toBeNull();
+  });
+
+  it("null con solo la cella selezionata (nessun figlio ancora scelto)", () => {
+    expect(figlioProprietaAttivo(griglia, null, null)).toBeNull();
+  });
+
+  it("il figlio della cella, quando `selectedCellChild` combacia", () => {
+    const f = figlioProprietaAttivo(griglia, { objectId: "g1", row: 0, col: 0 }, null);
+    expect(f?.id).toBe("gp_btn");
+  });
+
+  it("il figlio della sotto-cella, quando `selectedSubCell` combacia", () => {
+    const f = figlioProprietaAttivo(griglia, null, { objectId: "g1", row: 1, col: 1, path: ["a"] });
+    expect(f?.id).toBe("gp_led");
+  });
+
+  it("null su una sotto-cella senza figlio (slot 'b', vuoto)", () => {
+    expect(figlioProprietaAttivo(griglia, null, { objectId: "g1", row: 1, col: 1, path: ["b"] })).toBeNull();
+  });
+
+  it("null se l'id della griglia non combacia (un'altra griglia)", () => {
+    expect(figlioProprietaAttivo(griglia, { objectId: "altra", row: 0, col: 0 }, null)).toBeNull();
   });
 });
 
