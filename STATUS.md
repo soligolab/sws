@@ -74,6 +74,46 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — Q36 completa: gate min_role nel rendering LVGL (2026-09-13)
+
+Continuazione dello stesso ciclo `/riprendi`. Parte 2 di Q36 (vedi sezione sotto per la parte 1):
+il gate `min_role`/`min_role_effect`, mai stato letto da `lvgl_render.rs` prima d'ora.
+
+**Costruito** (`fix/Q36-min-role-lvgl` → `main`, `7a2c3a0`): porto di `isRoleAllowed`/F3.1
+(`SvgCanvas.tsx`). `session::role_allowed()` confronta il ruolo della sessione con `min_role`
+(anonimo sotto Viewer, stringa non riconosciuta vale Viewer, come sul web — 9 test unitari). Nel
+ciclo principale di `render_page_objects`: `min_role_effect: "hide"` non crea l'oggetto (finisce
+in `summary.skipped_role`, stampato come "nascosti per ruolo insufficiente"); qualunque altro
+caso ("disable", assente) lo crea attenuato — opacità 0.45 combinata moltiplicativamente con
+l'`opacity` di progetto (`combined_opa`) — e non cliccabile (`disable_clickable_from` toglie
+`LV_OBJ_FLAG_CLICKABLE`, l'equivalente LVGL di `pointerEvents:none`; faceplate e griglie sono
+figli piatti dello schermo in questo motore, quindi lo stesso range li copre già tutti senza
+ricorsione).
+
+**Aggiunto oltre al piano originale**, segnalato e confermato dal maintainer: login e logout ora
+rinavigano da soli verso la pagina corrente (stessa idea di `lang_button` per il cambio lingua),
+così il gate si aggiorna subito e non solo alla prossima navigazione.
+
+**Collaudato dal vivo** su runtime di test isolato (due checkbox di prova aggiunte solo alla
+copia scratch del progetto demo, mai ai template del repo): da anonimo l'oggetto "hide" sparisce
+e quello "disable" resta ma attenuato e il tocco non produce comando; da Admin (sessione
+persistita da un login precedente) entrambi tornano normali e cliccabili; login e logout
+innescano davvero la rinavigazione (confermato dal log diagnostico "navigazione richiesta").
+**Non verificabile dal vivo**: che la rinavigazione ridisegni *durante* una sessione interattiva
+reale — `--istantanea` riporta le navigazioni in coda, non le esegue (stesso limite già noto
+per le scritture autenticate di parte 1); il meccanismo riusa però lo stesso canale `nav_tx` già
+provato per `lang_button`.
+
+Gate verde: `cargo check/test/clippy --workspace -- -D warnings`, `cargo fmt --check`,
+`check_lvgl_parity.sh`, `check_lvgl_types.sh`, `check_demo_templates.sh`, `check_documenti.sh`.
+
+**Q36 è ora completa in entrambe le parti.** Il piano è stato archiviato in
+[`docs/archive/2026-09-12-q36-min-role-lvgl.md`](docs/archive/2026-09-12-q36-min-role-lvgl.md);
+la scheda originale è stata spostata in `docs/history/OPEN_QUESTIONS-chiuse.md` (non compariva
+più come voce viva in `docs/OPEN_QUESTIONS.md` dal 2026-09-12, essendo già "decisa"). Resta
+aperta [Q55](docs/OPEN_QUESTIONS.md) (il blocco `spawn()` scoperto in parte 1), non toccata da
+questa parte 2.
+
 ## ▶ Riprendere da qui — Q36 parte 1 mergiata: sessione vera nel client LVGL (2026-09-13)
 
 Ciclo `/riprendi`. Scelto Q36, la più grande fra le "pronte". Su indicazione del maintainer,
@@ -113,8 +153,9 @@ non svuota mai le code dei comandi verso il server (limite preesistente dello st
 Gate verde: `cargo check/test/clippy --workspace -- -D warnings`, `cargo fmt --check`,
 `check_lvgl_parity.sh`, `check_lvgl_types.sh`, `check_demo_templates.sh`, `check_documenti.sh`.
 
-Il piano [`docs/plans/2026-09-12-q36-min-role-lvgl.md`](docs/plans/2026-09-12-q36-min-role-lvgl.md)
-resta aperto (non archiviato) finché non è fatta anche la parte 2.
+Il piano resta aperto (non ancora archiviato) finché non è fatta anche la parte 2 — **fatta**
+nella stessa sessione, vedi la sezione sopra: il piano è ora in
+[`docs/archive/2026-09-12-q36-min-role-lvgl.md`](docs/archive/2026-09-12-q36-min-role-lvgl.md).
 
 ## ▶ Riprendere da qui — F5.3x Parte B chiusa, programma SCADA-widgets concluso (2026-09-12/13)
 

@@ -12,15 +12,19 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Added
-- **Sessione vera nel client LVGL — parte 1 (Q36)**: il pannello smette di essere anonimo per
-  costruzione. Pulsante persistente login/logout in alto a destra su ogni pagina; overlay a
-  schermo intero con tastiera `lv_keyboard` (utente/password, password mascherata); token
-  persistito in `~/.config/sws/lvgl_session.json`, sopravvive al riavvio del processo; logout
-  esplicito. `put_tag`/`ack_alarm`/`apply_recipe` allegano `Authorization: Bearer` quando c'è
-  una sessione attiva. Tipi minimi locali (`session.rs`) invece di dipendere da `sws-auth`, per
-  non tirare `argon2`/`uuid`/`serde_yaml` in un binario cross-compilato. Il gate
-  `min_role`/`min_role_effect` nel rendering resta un ramo separato (parte 2, non ancora
-  iniziata — vedi `docs/plans/2026-09-12-q36-min-role-lvgl.md`).
+- **Sessione vera nel client LVGL, completa in due parti (Q36)**: il pannello smette di essere
+  anonimo per costruzione. Parte 1 — pulsante persistente login/logout in alto a destra su ogni
+  pagina; overlay a schermo intero con tastiera `lv_keyboard` (utente/password, password
+  mascherata); token persistito in `~/.config/sws/lvgl_session.json`, sopravvive al riavvio del
+  processo; logout esplicito. `put_tag`/`ack_alarm`/`apply_recipe` allegano
+  `Authorization: Bearer` quando c'è una sessione attiva. Tipi minimi locali (`session.rs`)
+  invece di dipendere da `sws-auth`, per non tirare `argon2`/`uuid`/`serde_yaml` in un binario
+  cross-compilato. Parte 2 — porto di `isRoleAllowed`/F3.1 (`SvgCanvas.tsx`): un oggetto con
+  `min_role_effect: "hide"` non si crea più quando il ruolo non basta (prima si disegnava come
+  qualunque altro), qualunque altro caso ("disable", assente) si crea attenuato e non
+  cliccabile. Login e logout rinavigano da soli verso la pagina corrente per aggiornare il gate
+  subito, senza aspettare la prossima navigazione (stessa idea di `lang_button`). Referto
+  completo in `docs/archive/2026-09-12-q36-min-role-lvgl.md`.
 
 ### Fixed
 - **`client::login()` bloccato per sempre via `rt_handle.spawn()` nel viewer LVGL**: scoperto

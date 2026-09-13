@@ -45,6 +45,7 @@ venga riletto come vero.
 | [2026-09-12-q29-tag-due-tipi.md](2026-09-12-q29-tag-due-tipi.md) | **FATTO** | Q29: `write_data_type` su `TagDef`, mergiato su `main` (`dab5ef8`) e verificato dal vivo (round-trip YAML→API, screenshot editor, test senza più `ECCEZIONI_NOTE`). Scheda intera in `docs/history/OPEN_QUESTIONS-chiuse.md` |
 | [2026-09-12-F5.3x-xy-plot-e-verifica-lvgl.md](2026-09-12-F5.3x-xy-plot-e-verifica-lvgl.md) | **FATTO** | Parte A (T-70, xy_plot multi-coppia) confermata sul TC620 in 2.7.3; Parte B (verifica dal vivo parità LVGL) ha trovato e corretto quattro divergenze reali (`radio`, `table`, `progress_bar`, `gauge_zones`), mergiate su `main` (`135150b`) |
 | [2026-08-21-scada-widgets.md](2026-08-21-scada-widgets.md) | **FATTO** | F0-F8 in 2.1.0, il residuo F5.3x chiuso il 2026-09-12/13 (vedi la riga sopra) — l'intero programma SCADA-widgets è concluso |
+| [2026-09-12-q36-min-role-lvgl.md](2026-09-12-q36-min-role-lvgl.md) | **FATTO** | Q36: parte 1 (sessione, login/logout, persistenza) mergiata il 13-09-2026 (`12c8ad1`); parte 2 (gate `min_role`/`min_role_effect`) mergiata lo stesso giorno (`7a2c3a0`). Collaudate dal vivo entrambe su runtime di test isolato. Bug del blocco `spawn()` scoperto durante la parte 1, registrato come Q55 in `docs/OPEN_QUESTIONS.md`, non deciso qui |
 
 ## Non solo piani
 

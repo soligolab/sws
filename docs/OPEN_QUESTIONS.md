@@ -156,12 +156,6 @@ maintainer sono nel §9 del piano.
 
 ---
 
-## Q36 — `min_role` non esiste sul pannello LVGL
-
-Contenuto spostato in [`docs/plans/2026-09-12-q36-min-role-lvgl.md`](plans/2026-09-12-q36-min-role-lvgl.md) il 2026-09-12. **Decided:** sì (2026-09-12, opzione 3 — sessione vera nel client LVGL), non ancora realizzata.
-
----
-
 ## Q40 — `state_on_color` non fa niente sugli undici simboli importati, e niente lo dice
 
 *Aperta il 2026-09-06. **Misurata su entrambi i motori**, non dedotta.*
