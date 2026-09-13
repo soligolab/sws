@@ -74,6 +74,48 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — Q36 parte 1 mergiata: sessione vera nel client LVGL (2026-09-13)
+
+Ciclo `/riprendi`. Scelto Q36, la più grande fra le "pronte". Su indicazione del maintainer,
+spezzata in due rami in sequenza: questa sessione ha chiuso solo la **parte 1** (sessione,
+login/logout, persistenza) — la parte 2 (gate `min_role`/`min_role_effect` nel rendering)
+resta un ramo futuro, non ancora iniziato.
+
+**Costruito** (`feat/Q36-sessione-lvgl` → `main`, `12c8ad1`): pulsante persistente
+login/logout in alto a destra su ogni pagina (ricreato ad ogni `render_page_objects`, non
+esiste un layer di chrome globale in questo motore); overlay a schermo intero con
+`lv_textarea` × 2 (utente, password mascherata) + `lv_keyboard` in `MODE_TEXT_LOWER`; nuovo
+`session.rs` con tipi minimi locali (`Role`/`LoginOk`/`SessionState`, non una dipendenza da
+`sws-auth` per non tirare dentro `argon2`/`uuid`/`serde_yaml` in un binario cross-compilato —
+stesso principio già seguito per l'istantanea in PPM invece di PNG); token persistito in
+`~/.config/sws/lvgl_session.json`; `put_tag`/`ack_alarm`/`apply_recipe` allegano
+`Authorization: Bearer` quando c'è una sessione.
+
+**Bug serio scoperto e risolto dal vivo**: `client::login()` lanciato via `rt_handle.spawn()`
+(lo stesso pattern già in uso per le tre scritture) non tornava **mai** — nessun errore, nessun
+panico, pur col server che accettava regolarmente la richiesta. Isolato per esclusione, con
+più esperimenti dal vivo, a "POST che riceve 200, via `spawn`, dentro questo processo": la
+stessa identica richiesta funziona all'istante via `curl`, da un binario Rust a sé stante, o
+via `rt_handle.block_on()` nello stesso callback. Login ora usa `block_on`, come già fa la
+navigazione (`nav_rx`) in questo stesso file — un blocco del render loop accettabile per
+un'azione innescata da un tocco umano. Causa profonda non isolata (sospetto: l'override
+`strncmp`/`strcmp` di `lvgl-sys`, già visto rompere `libdbus` in passato) — **non decisa qui,
+registrata come [Q55](docs/OPEN_QUESTIONS.md)**: qualunque `spawn` futuro verso un esito 200
+in questo binario rischia lo stesso blocco silenzioso.
+
+**Collaudato dal vivo** su runtime di test isolato (porte 9910/9911, mai toccata l'istanza del
+maintainer): login e logout in una sola `--istantanea --tocca`, nessun blocco; persistenza
+verificata riavviando il processo (riparte già loggato leggendo il file salvato). **Non
+verificato dal vivo**: l'header `Authorization` sulle scritture autenticate — `--istantanea`
+non svuota mai le code dei comandi verso il server (limite preesistente dello strumento,
+`main.rs:557`, non introdotto da questa sessione); verificato solo per lettura di codice.
+
+Gate verde: `cargo check/test/clippy --workspace -- -D warnings`, `cargo fmt --check`,
+`check_lvgl_parity.sh`, `check_lvgl_types.sh`, `check_demo_templates.sh`, `check_documenti.sh`.
+
+Il piano [`docs/plans/2026-09-12-q36-min-role-lvgl.md`](docs/plans/2026-09-12-q36-min-role-lvgl.md)
+resta aperto (non archiviato) finché non è fatta anche la parte 2.
+
 ## ▶ Riprendere da qui — F5.3x Parte B chiusa, programma SCADA-widgets concluso (2026-09-12/13)
 
 Ciclo `/riprendi` ripreso dopo Q29. Nessun ramo obsoleto (solo `main` in locale). Scelto di

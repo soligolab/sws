@@ -1,5 +1,15 @@
 # Q36 — `min_role` non esiste sul pannello LVGL
 
+> **Parte 1 (sessione, login/logout, token persistito, scritture autenticate) mergiata in
+> `main` il 13-09-2026** — collaudata dal vivo (login, logout, persistenza fra riavvii),
+> `cargo check/test/clippy --workspace` e `cargo fmt --check` verdi. Durante il collaudo è
+> emerso un blocco serio (`client::login()` via `rt_handle.spawn()` non tornava mai),
+> risolto passando a `rt_handle.block_on()` — causa profonda non isolata, registrata come
+> [Q55](../OPEN_QUESTIONS.md) invece di essere decisa qui. **Parte 2 (il gate
+> `min_role`/`min_role_effect` nel rendering) resta da fare, su un ramo separato** — scelta
+> esplicita del maintainer di spezzare in due rami in sequenza. Questa scheda resta aperta
+> (non archiviata) finché non è fatta anche la parte 2.
+
 > Trasferito da `docs/OPEN_QUESTIONS.md` (Q36) il 2026-09-12, aperta il 2026-09-05.
 > **Decisa dal maintainer il 2026-09-12: opzione 3, una sessione vera nel client LVGL.**
 > **Non confondere con** `docs/plans/2026-09-12-ruolo-minimo-avviso-noauth.md`: quello è

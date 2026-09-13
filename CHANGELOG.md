@@ -11,6 +11,26 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Added
+- **Sessione vera nel client LVGL — parte 1 (Q36)**: il pannello smette di essere anonimo per
+  costruzione. Pulsante persistente login/logout in alto a destra su ogni pagina; overlay a
+  schermo intero con tastiera `lv_keyboard` (utente/password, password mascherata); token
+  persistito in `~/.config/sws/lvgl_session.json`, sopravvive al riavvio del processo; logout
+  esplicito. `put_tag`/`ack_alarm`/`apply_recipe` allegano `Authorization: Bearer` quando c'è
+  una sessione attiva. Tipi minimi locali (`session.rs`) invece di dipendere da `sws-auth`, per
+  non tirare `argon2`/`uuid`/`serde_yaml` in un binario cross-compilato. Il gate
+  `min_role`/`min_role_effect` nel rendering resta un ramo separato (parte 2, non ancora
+  iniziata — vedi `docs/plans/2026-09-12-q36-min-role-lvgl.md`).
+
+### Fixed
+- **`client::login()` bloccato per sempre via `rt_handle.spawn()` nel viewer LVGL**: scoperto
+  durante il collaudo dal vivo di Q36. Isolato per esclusione a "POST che riceve 200, via
+  `spawn`, dentro questo processo" — la stessa richiesta funziona all'istante via `curl`, da un
+  binario a sé stante, o via `rt_handle.block_on()` nello stesso callback. Login ora usa
+  `block_on`, come già fa la navigazione (`nav_rx`). Causa profonda non isolata (sospetto:
+  l'override `strncmp`/`strcmp` di `lvgl-sys`) — registrata come Q55 in
+  `docs/OPEN_QUESTIONS.md`, non decisa.
+
 ### Changed
 - **bar_chart (Q28)**: le barre affiancate (`bar_mode` diverso da `stacked`) usano ora una scala
   per serie (`bar_series[i].min/max`, default `0..100`), allineandosi al pannello LVGL — prima il
