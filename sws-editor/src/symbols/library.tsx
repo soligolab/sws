@@ -602,6 +602,208 @@ function chillerSymbol(p: SymbolRenderProps): ReactElement {
   );
 }
 
+// ── Q40 — quattro "vendored" diventati disegnati ────────────────────────────
+// Erano SVG statici (grigi, mai ricolorati per stato, né qui né su LVGL —
+// misurato in docs/OPEN_QUESTIONS.md Q40). Coordinate riscalate di peso dal
+// viewBox originale (sotto sws-editor/public/symbols/) allo spazio 0..100
+// comune a questa libreria — stesso disegno, stessa proporzione, solo un
+// elemento colorato per stato invece di tutto grigio fisso.
+
+function reactorSymbol(p: SymbolRenderProps): ReactElement {
+  const c = stateFill(p);
+  return (
+    <g>
+      {/* camicia di riscaldamento */}
+      <rect x={5} y={22} width={90} height={68} rx={13} fill="#1e293b" stroke="#94a3b8" strokeWidth={2} />
+      {/* vaso interno */}
+      <rect x={17.5} y={30} width={65} height={52} rx={7.5} fill="#1e293b" stroke="#cbd5e1" strokeWidth={2} />
+      <path d="M17.5 30 Q50 14 82.5 30" fill="#1e293b" stroke="#cbd5e1" strokeWidth={2} />
+      {/* motore */}
+      <rect x={42.5} y={2} width={15} height={14} fill="#1e293b" stroke="#cbd5e1" strokeWidth={2} />
+      {/* albero */}
+      <line x1={50} y1={16} x2={50} y2={70} stroke="#cbd5e1" strokeWidth={3} />
+      {/* girante — colorata per stato: è la parte in movimento */}
+      <g stroke={c} strokeWidth={3} strokeLinecap="round">
+        <line x1={27.5} y1={70} x2={72.5} y2={70} />
+        <line x1={37.5} y1={62} x2={62.5} y2={78} />
+        <line x1={37.5} y1={78} x2={62.5} y2={62} />
+      </g>
+      {/* bocchelli camicia */}
+      <rect x={95} y={32} width={5} height={10} fill="#1e293b" stroke="#94a3b8" strokeWidth={1.5} />
+      <rect x={95} y={78} width={5} height={10} fill="#1e293b" stroke="#94a3b8" strokeWidth={1.5} />
+    </g>
+  );
+}
+
+function heatExchangerSymbol(p: SymbolRenderProps): ReactElement {
+  const c = stateFill(p);
+  return (
+    <g>
+      {/* mantello */}
+      <rect x={10} y={25} width={80} height={50} rx={25} fill="#1e293b" stroke="#cbd5e1" strokeWidth={2} />
+      {/* fascio tubiero — colorato per stato: è il fluido di processo */}
+      <g stroke={c} strokeWidth={2.5}>
+        <line x1={14} y1={40} x2={86} y2={40} />
+        <line x1={14} y1={50} x2={86} y2={50} />
+        <line x1={14} y1={60} x2={86} y2={60} />
+      </g>
+      {/* bocchelli ingresso/uscita */}
+      <rect x={2} y={42.5} width={10} height={15} fill="#1e293b" stroke="#cbd5e1" strokeWidth={2} />
+      <rect x={88} y={42.5} width={10} height={15} fill="#1e293b" stroke="#cbd5e1" strokeWidth={2} />
+      {/* bocchelli lato mantello */}
+      <rect x={44} y={7.5} width={12} height={20} fill="#1e293b" stroke="#cbd5e1" strokeWidth={2} />
+      <rect x={44} y={72.5} width={12} height={20} fill="#1e293b" stroke="#cbd5e1" strokeWidth={2} />
+    </g>
+  );
+}
+
+function filterSymbol(p: SymbolRenderProps): ReactElement {
+  const c = stateFill(p);
+  return (
+    <g>
+      {/* corpo */}
+      <rect x={22.5} y={14} width={55} height={72} rx={7.5} fill="#1e293b" stroke="#cbd5e1" strokeWidth={2} />
+      {/* mezzo filtrante — colorato per stato invece che tratteggiato
+          (nessuna trama disponibile fuori da questo motore) */}
+      <rect x={27.5} y={22} width={45} height={56} fill={c} opacity={0.85} />
+      {/* ingresso/uscita */}
+      <rect x={45} y={2} width={10} height={14} fill="#1e293b" stroke="#cbd5e1" strokeWidth={2} />
+      <rect x={45} y={84} width={10} height={14} fill="#1e293b" stroke="#cbd5e1" strokeWidth={2} />
+      {/* presa manometro differenziale */}
+      <circle cx={85} cy={40} r={11.25} fill="#0f172a" stroke="#cbd5e1" strokeWidth={1.5} />
+      <text x={85} y={44} textAnchor="middle" fontSize={11} fontWeight={700}
+            fill="#cbd5e1" fontFamily="system-ui, sans-serif">DP</text>
+    </g>
+  );
+}
+
+function separatorSymbol(p: SymbolRenderProps): ReactElement {
+  const c = stateFill(p);
+  return (
+    <g>
+      {/* corpo — colorato per stato per intero, come cyclone/column: qui il
+          vaso stesso è "il processo", non un contenitore neutro */}
+      <path d="M14.3 14 L85.7 14 L85.7 56 L68.6 96 L31.4 96 L14.3 56 Z"
+            fill={c} stroke="#0f172a" strokeWidth={2} strokeLinejoin="round" />
+      {/* ingresso tangenziale */}
+      <rect x={5.7} y={22} width={20} height={10} fill="#1e293b" stroke="#cbd5e1" strokeWidth={2} />
+      {/* pescante */}
+      <line x1={50} y1={4} x2={50} y2={36} stroke="#cbd5e1" strokeWidth={3} />
+      <ellipse cx={50} cy={8} rx={14.3} ry={3} fill="#1e293b" stroke="#cbd5e1" strokeWidth={2} />
+      {/* scarico di fondo */}
+      <rect x={42.9} y={94} width={14.3} height={6} fill="#1e293b" stroke="#cbd5e1" strokeWidth={2} />
+    </g>
+  );
+}
+
+// ── Q40 — sette "vendored" ridisegnati (icone MDI compound) ─────────────────
+// Le sette icone qui sotto erano ciascuna un unico `path` SVG compound (con
+// buchi/sovrapposizioni via fill-rule) — decomporle in primitive fedeli
+// all'originale sarebbe stato lavoro dell'ordine di una settimana da solo
+// (misurato). Ridisegnate invece come icone stilizzate semplificate, non una
+// copia pixel-perfetta dell'MDI originale: stessa idea riconoscibile, un
+// elemento colorato per stato, costruibili con le stesse primitive di tutti
+// gli altri builtin di questa libreria.
+
+function solarPanelSymbol(p: SymbolRenderProps): ReactElement {
+  const c = stateFill(p);
+  return (
+    <g>
+      <rect x={10} y={10} width={80} height={55} rx={4} fill="#1e293b" stroke="#cbd5e1" strokeWidth={2} />
+      {/* quattro celle — colorate per stato: è la parte che genera */}
+      <rect x={14} y={14} width={32} height={20} fill={c} />
+      <rect x={14} y={41} width={32} height={20} fill={c} />
+      <rect x={54} y={41} width={32} height={20} fill={c} />
+      <rect x={54} y={14} width={32} height={20} fill={c} />
+      <rect x={30} y={65} width={14} height={20} fill="#1e293b" stroke="#cbd5e1" strokeWidth={1.5} />
+      <rect x={56} y={65} width={14} height={20} fill="#1e293b" stroke="#cbd5e1" strokeWidth={1.5} />
+    </g>
+  );
+}
+
+function batterySymbol(p: SymbolRenderProps): ReactElement {
+  const c = stateFill(p);
+  return (
+    <g>
+      <rect x={38} y={4} width={24} height={8} fill="#1e293b" stroke="#cbd5e1" strokeWidth={2} />
+      <rect x={20} y={12} width={60} height={80} rx={8} fill="#1e293b" stroke="#cbd5e1" strokeWidth={2} />
+      {/* segmenti di carica — colorati per stato */}
+      <rect x={26} y={20} width={48} height={16} fill={c} />
+      <rect x={26} y={42} width={48} height={16} fill={c} />
+      <rect x={26} y={64} width={48} height={16} fill={c} />
+      {/* fulmine di carica */}
+      <polyline points="78,20 62,50 74,50 58,85" fill="none" stroke="#cbd5e1" strokeWidth={4} strokeLinecap="round" strokeLinejoin="round" />
+    </g>
+  );
+}
+
+function transmissionTowerSymbol(p: SymbolRenderProps): ReactElement {
+  const c = stateFill(p);
+  return (
+    <g>
+      {/* traliccio — colorato per stato per intero */}
+      <path d="M50 8 L20 90 L80 90 Z" fill={c} stroke="#0f172a" strokeWidth={2} />
+      <line x1={30} y1={35} x2={70} y2={35} stroke="#cbd5e1" strokeWidth={3} />
+      <line x1={25} y1={60} x2={75} y2={60} stroke="#cbd5e1" strokeWidth={3} />
+    </g>
+  );
+}
+
+function homeLightningSymbol(p: SymbolRenderProps): ReactElement {
+  const c = stateFill(p);
+  return (
+    <g>
+      <path d="M50 8 L10 45 L90 45 Z" fill="#1e293b" stroke="#cbd5e1" strokeWidth={2} />
+      <rect x={20} y={45} width={60} height={45} fill="#1e293b" stroke="#cbd5e1" strokeWidth={2} />
+      <rect x={40} y={65} width={20} height={25} fill="#0f172a" />
+      {/* fulmine — colorato per stato: l'energia della casa */}
+      <polyline points="58,50 45,68 55,68 42,88" fill="none" stroke={c} strokeWidth={4} strokeLinecap="round" strokeLinejoin="round" />
+    </g>
+  );
+}
+
+function garageSymbol(p: SymbolRenderProps): ReactElement {
+  const c = stateFill(p);
+  return (
+    <g>
+      <path d="M50 10 L8 35 L92 35 Z" fill="#1e293b" stroke="#cbd5e1" strokeWidth={2} />
+      <rect x={8} y={35} width={84} height={55} fill="#1e293b" stroke="#cbd5e1" strokeWidth={2} />
+      {/* pannelli della basculante — colorati per stato (aperta/chiusa) */}
+      <rect x={20} y={46} width={60} height={8} fill={c} />
+      <rect x={20} y={58} width={60} height={8} fill={c} />
+    </g>
+  );
+}
+
+function windowOpenSymbol(p: SymbolRenderProps): ReactElement {
+  const c = stateFill(p);
+  return (
+    <g>
+      <rect x={10} y={10} width={80} height={80} fill="#1e293b" stroke="#cbd5e1" strokeWidth={2} />
+      {/* quattro ante — colorate per stato (aperta/chiusa) */}
+      <rect x={15} y={15} width={32} height={32} fill={c} />
+      <rect x={53} y={15} width={32} height={32} fill={c} />
+      <rect x={15} y={53} width={32} height={32} fill={c} />
+      <rect x={53} y={53} width={32} height={32} fill={c} />
+    </g>
+  );
+}
+
+function rollerShadeSymbol(p: SymbolRenderProps): ReactElement {
+  const c = stateFill(p);
+  return (
+    <g>
+      <rect x={15} y={10} width={70} height={60} rx={6} fill="#1e293b" stroke="#cbd5e1" strokeWidth={2} />
+      <rect x={24} y={18} width={52} height={44} fill="#0f172a" />
+      {/* lamelle — colorate per stato (tapparella su/giù) */}
+      {[26, 34, 42, 50].map((y) => (
+        <line key={y} x1={26} y1={y} x2={74} y2={y} stroke={c} strokeWidth={4} />
+      ))}
+      <rect x={12} y={80} width={76} height={8} fill="#1e293b" stroke="#cbd5e1" strokeWidth={2} />
+    </g>
+  );
+}
+
 export const SYMBOLS: Record<SymbolId, SymbolMeta> = {
   // ── Built-in (hand-rolled JSX) ──
   pump:                 { id: "pump",                 label: "Pompa",              kind: "builtin", defaultWidth: 80,  defaultHeight: 80,  render: pumpSymbol },
@@ -634,22 +836,25 @@ export const SYMBOLS: Record<SymbolId, SymbolMeta> = {
   column:               { id: "column",               label: "Colonna di processo", kind: "builtin", defaultWidth: 70,  defaultHeight: 100, render: columnSymbol },
   furnace:              { id: "furnace",              label: "Forno",               kind: "builtin", defaultWidth: 90,  defaultHeight: 90,  render: furnaceSymbol },
   chiller:              { id: "chiller",              label: "Chiller",             kind: "builtin", defaultWidth: 90,  defaultHeight: 80,  render: chillerSymbol },
-
-  // ── Vendored (SVG files under /public/symbols/, served at /symbols/) ──
-  // The renderer in SvgCanvas pulls these via <image href={path}> and overlays
-  // a coloured status badge for the bound tag. See public/symbols/ATTRIBUTION.md
-  // for the license / source per file.
-  heat_exchanger:     { id: "heat_exchanger",     label: "Scambiatore",       kind: "vendored", path: "/symbols/heat_exchanger.svg",         defaultWidth: 100, defaultHeight: 80  },
-  separator:          { id: "separator",          label: "Separatore",        kind: "vendored", path: "/symbols/separator.svg",               defaultWidth: 70,  defaultHeight: 100 },
-  reactor:            { id: "reactor",            label: "Reattore",          kind: "vendored", path: "/symbols/reactor.svg",                 defaultWidth: 80,  defaultHeight: 100 },
-  filter:             { id: "filter",             label: "Filtro",            kind: "vendored", path: "/symbols/filter.svg",                  defaultWidth: 80,  defaultHeight: 100 },
-  solar_panel:        { id: "solar_panel",        label: "Pannello solare",   kind: "vendored", path: "/symbols/solar-panel.svg",             defaultWidth: 100, defaultHeight: 70  },
-  battery:            { id: "battery",            label: "Batteria",          kind: "vendored", path: "/symbols/battery-charging-high.svg",   defaultWidth: 60,  defaultHeight: 90  },
-  transmission_tower: { id: "transmission_tower", label: "Traliccio",         kind: "vendored", path: "/symbols/transmission-tower.svg",      defaultWidth: 70,  defaultHeight: 100 },
-  home_lightning:     { id: "home_lightning",     label: "Casa energia",      kind: "vendored", path: "/symbols/home-lightning-bolt.svg",     defaultWidth: 80,  defaultHeight: 80  },
-  garage:             { id: "garage",             label: "Garage",            kind: "vendored", path: "/symbols/garage-open-variant.svg",     defaultWidth: 90,  defaultHeight: 70  },
-  window_open:        { id: "window_open",        label: "Finestra",          kind: "vendored", path: "/symbols/window-open-variant.svg",     defaultWidth: 80,  defaultHeight: 70  },
-  roller_shade:       { id: "roller_shade",       label: "Tapparella",        kind: "vendored", path: "/symbols/roller-shade.svg",            defaultWidth: 60,  defaultHeight: 90  },
+  // Q40 — questi 4 erano "vendored" (SVG statico, sotto) fino al 13-09-2026:
+  // misurato che `state_on_color` non aveva alcun effetto su di loro, né qui
+  // né su LVGL. Ridisegnati come JSX (un elemento a testa colorato per
+  // stato), stesso viewBox 0..100 degli altri builtin.
+  heat_exchanger:       { id: "heat_exchanger",       label: "Scambiatore",         kind: "builtin", defaultWidth: 100, defaultHeight: 80,  render: heatExchangerSymbol },
+  separator:            { id: "separator",            label: "Separatore",          kind: "builtin", defaultWidth: 70,  defaultHeight: 100, render: separatorSymbol },
+  reactor:              { id: "reactor",              label: "Reattore",            kind: "builtin", defaultWidth: 80,  defaultHeight: 100, render: reactorSymbol },
+  filter:               { id: "filter",               label: "Filtro",              kind: "builtin", defaultWidth: 80,  defaultHeight: 100, render: filterSymbol },
+  // Q40 (13-09-2026) — questi sette erano "vendored" (icone MDI, sotto
+  // ATTRIBUTION.md per la provenienza originale ormai storica): ridisegnate
+  // come icone stilizzate, non più le stesse SVG esatte, per poter colorare
+  // per stato.
+  solar_panel:          { id: "solar_panel",          label: "Pannello solare",     kind: "builtin", defaultWidth: 100, defaultHeight: 70,  render: solarPanelSymbol },
+  battery:              { id: "battery",              label: "Batteria",            kind: "builtin", defaultWidth: 60,  defaultHeight: 90,  render: batterySymbol },
+  transmission_tower:   { id: "transmission_tower",   label: "Traliccio",           kind: "builtin", defaultWidth: 70,  defaultHeight: 100, render: transmissionTowerSymbol },
+  home_lightning:       { id: "home_lightning",       label: "Casa energia",        kind: "builtin", defaultWidth: 80,  defaultHeight: 80,  render: homeLightningSymbol },
+  garage:               { id: "garage",               label: "Garage",              kind: "builtin", defaultWidth: 90,  defaultHeight: 70,  render: garageSymbol },
+  window_open:          { id: "window_open",          label: "Finestra",            kind: "builtin", defaultWidth: 80,  defaultHeight: 70,  render: windowOpenSymbol },
+  roller_shade:         { id: "roller_shade",         label: "Tapparella",          kind: "builtin", defaultWidth: 60,  defaultHeight: 90,  render: rollerShadeSymbol },
 };
 
 export const SYMBOL_LIST: SymbolMeta[] = Object.values(SYMBOLS);

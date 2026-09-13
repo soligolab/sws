@@ -35,9 +35,12 @@ LIMITE="${LIMITE:-20}"   # secondi per simbolo: uno sano ci mette ~0,1 s
 
 [ -x "$BIN" ]  || { echo "manca $BIN — esegui: cargo build -p sws-runtime" >&2; exit 1; }
 [ -x "$LVGL" ] || { echo "manca $LVGL — esegui: cargo build -p sws-lvgl-viewer" >&2; exit 1; }
-# I simboli *vendored* sono file SVG serviti dal runtime: senza `--www` non si
-# scaricano e la prova direbbe di no per il motivo sbagliato.
-[ -f "$DIST/symbols/reactor.svg" ] || { echo "manca $DIST/symbols — esegui: cd sws-editor && pnpm build" >&2; exit 1; }
+# Fino al 13-09-2026 qui si controllava l'esistenza di un file vendored
+# (senza `--www` non si scarica, e la prova direbbe di no per il motivo
+# sbagliato) — da Q40 `VENDORED` è vuota, tutti i simboli sono builtin,
+# `--www` non serve più a questo script specifico. Il flag resta comunque
+# sotto, per quando un simbolo vendored tornerà a esistere.
+[ -d "$DIST" ] || { echo "manca $DIST — esegui: cd sws-editor && pnpm build" >&2; exit 1; }
 
 mkdir -p "$WORK"/{config,projects}
 trap '[ -f "$WORK/rt.pid" ] && kill "$(cat "$WORK/rt.pid")" 2>/dev/null; rm -rf "$WORK"' EXIT
@@ -70,15 +73,12 @@ fi
 # rosso d'errore, e sul pannello si vedono così mentre nel browser sono giusti.
 #
 # Sono un gap dichiarato, non un difetto muto: Q15 aveva deciso di riscrivere a
-# mano i simboli che esistevano allora (sedici), e questi tredici sono la serie
-# valvole/processo aggiunta dopo, mai portata. L'elenco sta qui perché la
-# guardia possa distinguere «lo sapevamo» da «ne è comparso un altro»: un
-# simbolo nuovo che non arriva sul pannello fa fallire, invece di scivolare in
-# un elenco che cresce da solo.
-IGNOTI_NOTI=(
-  valve_motorized valve_pneumatic check_valve valve_3way relief_valve
-  strainer blower silo conveyor cyclone column furnace chiller
-)
+# mano i simboli che esistevano allora (sedici); la serie valvole/processo
+# aggiunta dopo (tredici simboli) è stata portata il 13-09-2026 (Q40) — vuoto
+# per ora. Resta com'è, non si toglie: un simbolo futuro che arriva senza il
+# suo disegno LVGL deve far fallire la guardia (riquadro rosso non atteso),
+# non scivolare in silenzio finché qualcuno non se ne accorge da solo.
+IGNOTI_NOTI=()
 
 echo "== ${#SIMBOLI[@]} simboli, uno alla volta, limite ${LIMITE}s ciascuno =="
 bloccati=(); vuoti=(); ignoti_nuovi=(); ignoti_visti=()

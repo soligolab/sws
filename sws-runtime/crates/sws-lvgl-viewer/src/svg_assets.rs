@@ -1,17 +1,23 @@
 //! Da dove arriva l'SVG di un oggetto, e come si tiene in memoria.
 //!
-//! Tre sorgenti diverse finiscono nello stesso rasterizzatore
+//! Due sorgenti diverse finiscono nello stesso rasterizzatore
 //! (`svg_raster`), e ognuna si risolve in modo suo:
 //!
 //! | sorgente | come si riconosce | dove sta l'SVG |
 //! |---|---|---|
-//! | simbolo *vendored* | `symbol_id` nella tabella qui sotto | file statico servito dal runtime |
 //! | simbolo *custom*   | `symbol_id` che inizia per `custom:` | dentro il progetto, spesso inline |
 //! | widget `image`     | `type == "image"` con `src` | URL, relativo al runtime o assoluto |
 //!
-//! I 17 simboli *builtin* non passano di qui: sono ridisegnati con primitive
-//! LVGL e ricolorati per stato (Q15 opzione B). Una bitmap non saprebbe
-//! cambiare colore con lo stato senza rasterizzare una variante per colore.
+//! Fino al 13-09-2026 c'era una terza sorgente, *vendored* (`symbol_id` in
+//! una tabella qui sotto, file statico servito dal runtime): l'ultima voce è
+//! uscita per Q40 lo stesso giorno — vedi `VENDORED` qui sotto, che resta
+//! come punto di innesto ma vuota. Tutti i 40 simboli della libreria sono
+//! ora *builtin*: ridisegnati con primitive LVGL e ricolorati per stato in
+//! `draw_symbol` (`lvgl_render.rs`). Una bitmap non saprebbe cambiare colore
+//! con lo stato senza rasterizzare una variante per colore — il motivo per
+//! cui questa tabella esisteva, e per cui un simbolo vendored futuro
+//! (un'icona che nessuno vuole ridisegnare a mano) tornerebbe a passare
+//! di qui.
 
 use std::collections::HashMap;
 
@@ -19,27 +25,16 @@ use crate::model::{CustomSymbol, SynopticObject};
 
 /// I simboli *vendored*: `symbol_id` → file servito dal runtime.
 ///
-/// **Va tenuta allineata a `SYMBOLS` in `sws-editor/src/symbols/library.tsx`**,
-/// e non basta derivare il percorso dall'id: 7 voci su 11 hanno un nome file
-/// diverso dall'id (`battery` → `battery-charging-high.svg`), perché i file
-/// arrivano da librerie esterne e conservano il nome d'origine. Chi si fidasse
-/// della convenzione otterrebbe 7 simboli muti su 11.
-///
-/// Il disallineamento lo intercetta `scripts/check_lvgl_symbols.sh`, che
-/// confronta questa tabella con quella dell'editor e con i file su disco.
-pub const VENDORED: &[(&str, &str)] = &[
-    ("heat_exchanger", "/symbols/heat_exchanger.svg"),
-    ("separator", "/symbols/separator.svg"),
-    ("reactor", "/symbols/reactor.svg"),
-    ("filter", "/symbols/filter.svg"),
-    ("solar_panel", "/symbols/solar-panel.svg"),
-    ("battery", "/symbols/battery-charging-high.svg"),
-    ("transmission_tower", "/symbols/transmission-tower.svg"),
-    ("home_lightning", "/symbols/home-lightning-bolt.svg"),
-    ("garage", "/symbols/garage-open-variant.svg"),
-    ("window_open", "/symbols/window-open-variant.svg"),
-    ("roller_shade", "/symbols/roller-shade.svg"),
-];
+/// Vuota dal 13-09-2026 (Q40): gli ultimi 7 (icone MDI: solar_panel,
+/// battery, transmission_tower, home_lightning, garage, window_open,
+/// roller_shade) sono diventati *builtin* — ridisegnati come icone
+/// stilizzate invece delle SVG originali esatte, per poterle colorare per
+/// stato. **Va tenuta allineata a `SYMBOLS` in
+/// `sws-editor/src/symbols/library.tsx`**: un simbolo vendored futuro va
+/// aggiunto qui E là con lo stesso `kind`. Il disallineamento lo intercetta
+/// `scripts/check_lvgl_symbols.sh`, che confronta questa tabella con quella
+/// dell'editor e con i file su disco.
+pub const VENDORED: &[(&str, &str)] = &[];
 
 /// Da dove prendere i byte dell'SVG di un oggetto.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -264,17 +259,26 @@ mod tests {
         );
     }
 
-    /// Il caso che rompe la convenzione: 7 vendored su 11 hanno il file con un
-    /// nome diverso dall'id. Derivare il percorso dall'id li lascerebbe muti.
+    /// Il caso che rompe la convenzione: un vendored può avere il file con un
+    /// nome diverso dall'id. Derivare il percorso dall'id lo lascerebbe muto.
+    ///
+    /// Dal 13-09-2026 (Q40) `VENDORED` è vuota — il ciclo qui sotto non gira
+    /// su niente e il test passa a vuoto, come
+    /// `svg_raster::i_simboli_vendored_veri_si_disegnano`. Resta scritto sul
+    /// meccanismo generico, non su un id fisso: il prossimo vendored che
+    /// entra in tabella porta con sé anche la sua verifica, senza bisogno di
+    /// toccare questo test.
     #[test]
     fn un_vendored_usa_il_percorso_della_tabella_non_lid() {
-        let mut o = obj("symbol");
-        o.symbol_id = Some("battery".into());
-        assert_eq!(
-            source_for(&o, &[]),
-            Some(SvgSource::Url("/symbols/battery-charging-high.svg".into())),
-            "il file non si chiama come l'id"
-        );
+        for (id, path) in VENDORED {
+            let mut o = obj("symbol");
+            o.symbol_id = Some((*id).to_string());
+            assert_eq!(
+                source_for(&o, &[]),
+                Some(SvgSource::Url((*path).to_string())),
+                "il file non si chiama come l'id"
+            );
+        }
     }
 
     #[test]

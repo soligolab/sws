@@ -467,9 +467,10 @@ pub enum LiveKind {
         allowed_sev: Option<Vec<String>>,
         last_count: usize,
     },
-    /// Icona simbolo SCADA — solo i 16 builtin, disegnati su un
-    /// `lv_canvas` con `lv_canvas_draw_rect`/`draw_polygon`/`draw_arc` (Q15,
-    /// deciso 2026-08-11, opzione B). Ridisegnato solo quando lo stato
+    /// Icona simbolo SCADA — solo i builtin (33 dal 13-09-2026, vedi
+    /// `svg_assets.rs`), disegnati su un `lv_canvas` con
+    /// `lv_canvas_draw_rect`/`draw_polygon`/`draw_arc` (Q15, deciso
+    /// 2026-08-11, opzione B). Ridisegnato solo quando lo stato
     /// (`off`/`on`/`alarm`, derivato da `state_tag`/`alarm_tag` come nel
     /// web) cambia davvero, non a ogni frame — un canvas redraw costa più
     /// di un `Style` refresh.
@@ -7198,6 +7199,569 @@ fn draw_symbol(
             );
             sym_line(canvas_ptr, &[(50.0, 8.0), (50.0, 24.0)], 2.0, state_c, w, h);
         }
+        // ── Q40 — i 13 simboli della serie "valvole e processo", mai portati
+        // qui dopo Q15 (misurato il 2026-09-06, riquadro rosso su tutti e
+        // 13). Stessa convenzione dei 16 di sopra: coordinate prese di peso
+        // dal viewBox 0..100 di `library.tsx`, curve/etichette/dettagli
+        // decorativi minori omessi come già dichiarato in testa a questo
+        // blocco. Nessuna primitiva nuova: solo triangoli, rettangoli,
+        // cerchi e linee già usati sopra.
+        "valve_motorized" => {
+            // Etichetta "M" nell'attuatore omessa (nessun disegno di testo
+            // su canvas in questo motore, stesso limite già dichiarato per
+            // le etichette PI/TT/FT/LT/CMP).
+            sym_polygon(
+                canvas_ptr,
+                &[(10.0, 40.0), (50.0, 58.0), (10.0, 76.0)],
+                state_c,
+                w,
+                h,
+            );
+            sym_polygon(
+                canvas_ptr,
+                &[(90.0, 40.0), (50.0, 58.0), (90.0, 76.0)],
+                state_c,
+                w,
+                h,
+            );
+            sym_rect(canvas_ptr, 47.0, 26.0, 6.0, 20.0, 0.0, SYM_DARK, w, h);
+            sym_rect(canvas_ptr, 34.0, 6.0, 32.0, 22.0, 15.0, SYM_PANEL, w, h);
+        }
+        "valve_pneumatic" => {
+            sym_polygon(
+                canvas_ptr,
+                &[(10.0, 44.0), (50.0, 62.0), (10.0, 80.0)],
+                state_c,
+                w,
+                h,
+            );
+            sym_polygon(
+                canvas_ptr,
+                &[(90.0, 44.0), (50.0, 62.0), (90.0, 80.0)],
+                state_c,
+                w,
+                h,
+            );
+            sym_rect(canvas_ptr, 47.0, 30.0, 6.0, 16.0, 0.0, SYM_DARK, w, h);
+            // Membrana: mezza ellisse approssimata da un ventaglio di punti
+            // (poligono convesso), non un arco — `lv_canvas_draw_polygon`
+            // non disegna archi.
+            let mut membrana: Vec<(f64, f64)> = (0..=12)
+                .map(|i| {
+                    let t = std::f64::consts::PI * (1.0 - i as f64 / 12.0);
+                    (50.0 + 24.0 * t.cos(), 30.0 - 16.0 * t.sin())
+                })
+                .collect();
+            membrana.push((74.0, 30.0));
+            sym_polygon(canvas_ptr, &membrana, SYM_PANEL, w, h);
+        }
+        "check_valve" => {
+            sym_polygon(
+                canvas_ptr,
+                &[(14.0, 30.0), (74.0, 50.0), (14.0, 70.0)],
+                state_c,
+                w,
+                h,
+            );
+            sym_line(
+                canvas_ptr,
+                &[(78.0, 26.0), (78.0, 74.0)],
+                6.0,
+                SYM_DARK,
+                w,
+                h,
+            );
+            sym_line(
+                canvas_ptr,
+                &[(4.0, 50.0), (14.0, 50.0)],
+                4.0,
+                SYM_DARK,
+                w,
+                h,
+            );
+            sym_line(
+                canvas_ptr,
+                &[(78.0, 50.0), (96.0, 50.0)],
+                4.0,
+                SYM_DARK,
+                w,
+                h,
+            );
+        }
+        "valve_3way" => {
+            sym_polygon(
+                canvas_ptr,
+                &[(10.0, 34.0), (50.0, 54.0), (10.0, 74.0)],
+                state_c,
+                w,
+                h,
+            );
+            sym_polygon(
+                canvas_ptr,
+                &[(90.0, 34.0), (50.0, 54.0), (90.0, 74.0)],
+                state_c,
+                w,
+                h,
+            );
+            sym_polygon(
+                canvas_ptr,
+                &[(30.0, 94.0), (50.0, 54.0), (70.0, 94.0)],
+                state_c,
+                w,
+                h,
+            );
+            sym_rect(canvas_ptr, 46.0, 10.0, 8.0, 24.0, 0.0, SYM_DARK, w, h);
+            // Ruota dell'attuatore: un anello, cerchio esterno chiaro e uno
+            // interno del colore di sfondo per "svuotarlo" — non esiste un
+            // tratto di solo contorno su questo canvas.
+            sym_circle(canvas_ptr, 50.0, 12.0, 16.0, SYM_OUTLINE, w, h);
+            sym_circle(canvas_ptr, 50.0, 12.0, 12.0, SYM_DARK, w, h);
+        }
+        "relief_valve" => {
+            sym_polygon(
+                canvas_ptr,
+                &[(22.0, 52.0), (78.0, 52.0), (50.0, 92.0)],
+                state_c,
+                w,
+                h,
+            );
+            for (x1, y1, x2, y2) in [
+                (38.0, 46.0, 62.0, 40.0),
+                (38.0, 38.0, 62.0, 32.0),
+                (38.0, 30.0, 62.0, 24.0),
+                (38.0, 22.0, 62.0, 16.0),
+            ] {
+                sym_line(canvas_ptr, &[(x1, y1), (x2, y2)], 3.0, SYM_OUTLINE, w, h);
+            }
+            sym_line(
+                canvas_ptr,
+                &[(50.0, 92.0), (50.0, 98.0)],
+                4.0,
+                SYM_DARK,
+                w,
+                h,
+            );
+        }
+        "strainer" => {
+            sym_line(
+                canvas_ptr,
+                &[(4.0, 40.0), (96.0, 40.0)],
+                6.0,
+                SYM_DARK,
+                w,
+                h,
+            );
+            sym_polygon(
+                canvas_ptr,
+                &[(35.0, 40.0), (65.0, 40.0), (50.0, 86.0)],
+                state_c,
+                w,
+                h,
+            );
+            for y in [48.0, 58.0, 68.0] {
+                let half = 8.0 - (y - 40.0) * 0.11; // il cono si stringe: la maglia segue
+                sym_line(
+                    canvas_ptr,
+                    &[(50.0 - half, y), (50.0 + half, y)],
+                    2.0,
+                    SYM_DARK,
+                    w,
+                    h,
+                );
+            }
+        }
+        "blower" => {
+            sym_circle(canvas_ptr, 44.0, 56.0, 34.0, state_c, w, h);
+            sym_rect(canvas_ptr, 70.0, 16.0, 26.0, 18.0, 0.0, state_c, w, h);
+            sym_line(
+                canvas_ptr,
+                &[(44.0, 56.0), (70.0, 25.0)],
+                3.0,
+                SYM_DARK,
+                w,
+                h,
+            );
+            sym_circle(canvas_ptr, 44.0, 56.0, 6.0, SYM_DARK, w, h);
+        }
+        "silo" => {
+            // Corpo: lo stesso poligono "casa capovolta" del web, ma pieno
+            // (nessun tratto di contorno disponibile) — stesso principio di
+            // `SYM_PANEL` già usato per `tank`/`fan`.
+            sym_polygon(
+                canvas_ptr,
+                &[
+                    (24.0, 12.0),
+                    (76.0, 12.0),
+                    (76.0, 62.0),
+                    (50.0, 92.0),
+                    (24.0, 62.0),
+                ],
+                SYM_PANEL,
+                w,
+                h,
+            );
+            // Livello: stessa idea di `tank`, dal solo stato (nessun `level`
+            // continuo disponibile qui — il tag che lo pilota sul web non
+            // arriva come frazione fino a questo motore).
+            let fill_ratio = match state {
+                SymbolState::On => 0.7,
+                SymbolState::Alarm => 0.9,
+                SymbolState::Off => 0.15,
+            };
+            if fill_ratio > 0.0 {
+                let cone_h = 30.0; // 62→92
+                let filled = 80.0 * fill_ratio; // 92→12 totale
+                if filled <= cone_h {
+                    let y = 92.0 - filled;
+                    let half = 26.0 * (filled / cone_h);
+                    sym_polygon(
+                        canvas_ptr,
+                        &[(50.0 - half, y), (50.0 + half, y), (50.0, 92.0)],
+                        state_c,
+                        w,
+                        h,
+                    );
+                } else {
+                    let y = (62.0 - (filled - cone_h)).max(12.0);
+                    sym_polygon(
+                        canvas_ptr,
+                        &[
+                            (24.0, y),
+                            (76.0, y),
+                            (76.0, 62.0),
+                            (50.0, 92.0),
+                            (24.0, 62.0),
+                        ],
+                        state_c,
+                        w,
+                        h,
+                    );
+                }
+            }
+            sym_rect(canvas_ptr, 44.0, 4.0, 12.0, 8.0, 0.0, SYM_OUTLINE, w, h);
+        }
+        "conveyor" => {
+            sym_circle(canvas_ptr, 18.0, 60.0, 12.0, state_c, w, h);
+            sym_circle(canvas_ptr, 82.0, 60.0, 12.0, state_c, w, h);
+            sym_line(
+                canvas_ptr,
+                &[(18.0, 48.0), (82.0, 48.0)],
+                3.0,
+                SYM_DARK,
+                w,
+                h,
+            );
+            sym_line(
+                canvas_ptr,
+                &[(18.0, 72.0), (82.0, 72.0)],
+                3.0,
+                SYM_DARK,
+                w,
+                h,
+            );
+            sym_rect(canvas_ptr, 38.0, 30.0, 24.0, 16.0, 0.0, SYM_OUTLINE, w, h);
+        }
+        "cyclone" => {
+            sym_rect(canvas_ptr, 30.0, 12.0, 40.0, 22.0, 0.0, state_c, w, h);
+            sym_polygon(
+                canvas_ptr,
+                &[(30.0, 34.0), (70.0, 34.0), (54.0, 88.0), (46.0, 88.0)],
+                state_c,
+                w,
+                h,
+            );
+            sym_rect(canvas_ptr, 44.0, 88.0, 12.0, 8.0, 0.0, SYM_DARK, w, h);
+            sym_rect(canvas_ptr, 6.0, 14.0, 24.0, 10.0, 0.0, state_c, w, h);
+        }
+        "column" => {
+            // Corpo colorato per stato, come sul web (non SYM_PANEL: qui
+            // tutta la colonna è "il processo", non un corpo neutro con un
+            // contenuto colorato sopra come `tank`/`silo`).
+            sym_rect(canvas_ptr, 34.0, 8.0, 32.0, 84.0, 14.0, state_c, w, h);
+            for y in [30.0, 48.0, 66.0] {
+                sym_line(canvas_ptr, &[(36.0, y), (64.0, y)], 2.0, SYM_DARK, w, h);
+            }
+        }
+        "furnace" => {
+            sym_rect(canvas_ptr, 14.0, 26.0, 72.0, 62.0, 4.0, SYM_PANEL, w, h);
+            sym_rect(canvas_ptr, 40.0, 10.0, 20.0, 16.0, 0.0, SYM_PANEL, w, h);
+            // Fiamma: il contorno vero (`M50 76 C36 66 42 52 50 42 C50 54 60
+            // 54 58 44 C66 54 64 68 50 76 Z`) ha una "vita" concava a metà —
+            // le stesse curve che hanno già bloccato `boiler` come poligono
+            // unico. Approssimata con due forme convesse invece che con le
+            // curve esatte, stessa area complessiva: un corpo a goccia più
+            // una punta interna, non l'ondulazione bordo per bordo.
+            sym_polygon(
+                canvas_ptr,
+                &[(50.0, 42.0), (36.0, 66.0), (50.0, 76.0), (64.0, 66.0)],
+                state_c,
+                w,
+                h,
+            );
+            sym_polygon(
+                canvas_ptr,
+                &[(50.0, 54.0), (46.0, 64.0), (50.0, 70.0), (58.0, 62.0)],
+                SYM_PANEL,
+                w,
+                h,
+            );
+        }
+        "chiller" => {
+            sym_rect(canvas_ptr, 12.0, 24.0, 76.0, 56.0, 6.0, SYM_PANEL, w, h);
+            sym_line(
+                canvas_ptr,
+                &[(50.0, 34.0), (50.0, 70.0)],
+                4.0,
+                state_c,
+                w,
+                h,
+            );
+            sym_line(
+                canvas_ptr,
+                &[(34.0, 43.0), (66.0, 61.0)],
+                4.0,
+                state_c,
+                w,
+                h,
+            );
+            sym_line(
+                canvas_ptr,
+                &[(34.0, 61.0), (66.0, 43.0)],
+                4.0,
+                state_c,
+                w,
+                h,
+            );
+        }
+        // ── Q40 — quattro "vendored" diventati disegnati il 13-09-2026 ──────
+        // Coordinate riscalate di peso dal viewBox originale (vedi
+        // `sws-editor/src/symbols/library.tsx`, stessi commenti) allo spazio
+        // 0..100. Cupola/tratti di contorno decorativi omessi come sempre;
+        // l'opacità 0.85 del mezzo filtrante nel web non ha equivalente qui
+        // (`sym_rect` non prende un'opacità) — resta un riempimento pieno.
+        "reactor" => {
+            sym_rect(canvas_ptr, 5.0, 22.0, 90.0, 68.0, 13.0, SYM_PANEL, w, h);
+            sym_rect(canvas_ptr, 17.5, 30.0, 65.0, 52.0, 7.5, SYM_PANEL, w, h);
+            sym_rect(canvas_ptr, 42.5, 2.0, 15.0, 14.0, 0.0, SYM_PANEL, w, h);
+            sym_line(
+                canvas_ptr,
+                &[(50.0, 16.0), (50.0, 70.0)],
+                3.0,
+                SYM_OUTLINE,
+                w,
+                h,
+            );
+            // Girante — colorata per stato: è la parte in movimento, come
+            // sul web.
+            sym_line(
+                canvas_ptr,
+                &[(27.5, 70.0), (72.5, 70.0)],
+                3.0,
+                state_c,
+                w,
+                h,
+            );
+            sym_line(
+                canvas_ptr,
+                &[(37.5, 62.0), (62.5, 78.0)],
+                2.0,
+                state_c,
+                w,
+                h,
+            );
+            sym_line(
+                canvas_ptr,
+                &[(37.5, 78.0), (62.5, 62.0)],
+                2.0,
+                state_c,
+                w,
+                h,
+            );
+            sym_rect(canvas_ptr, 95.0, 32.0, 5.0, 10.0, 0.0, SYM_PANEL, w, h);
+            sym_rect(canvas_ptr, 95.0, 78.0, 5.0, 10.0, 0.0, SYM_PANEL, w, h);
+        }
+        "heat_exchanger" => {
+            sym_rect(canvas_ptr, 10.0, 25.0, 80.0, 50.0, 25.0, SYM_PANEL, w, h);
+            // Fascio tubiero — colorato per stato: è il fluido di processo.
+            sym_line(
+                canvas_ptr,
+                &[(14.0, 40.0), (86.0, 40.0)],
+                2.5,
+                state_c,
+                w,
+                h,
+            );
+            sym_line(
+                canvas_ptr,
+                &[(14.0, 50.0), (86.0, 50.0)],
+                2.5,
+                state_c,
+                w,
+                h,
+            );
+            sym_line(
+                canvas_ptr,
+                &[(14.0, 60.0), (86.0, 60.0)],
+                2.5,
+                state_c,
+                w,
+                h,
+            );
+            sym_rect(canvas_ptr, 2.0, 42.5, 10.0, 15.0, 0.0, SYM_PANEL, w, h);
+            sym_rect(canvas_ptr, 88.0, 42.5, 10.0, 15.0, 0.0, SYM_PANEL, w, h);
+            sym_rect(canvas_ptr, 44.0, 7.5, 12.0, 20.0, 0.0, SYM_PANEL, w, h);
+            sym_rect(canvas_ptr, 44.0, 72.5, 12.0, 20.0, 0.0, SYM_PANEL, w, h);
+        }
+        "filter" => {
+            sym_rect(canvas_ptr, 22.5, 14.0, 55.0, 72.0, 7.5, SYM_PANEL, w, h);
+            // Mezzo filtrante — colorato per stato invece che tratteggiato
+            // (nessuna trama disponibile su questo canvas).
+            sym_rect(canvas_ptr, 27.5, 22.0, 45.0, 56.0, 0.0, state_c, w, h);
+            sym_rect(canvas_ptr, 45.0, 2.0, 10.0, 14.0, 0.0, SYM_PANEL, w, h);
+            sym_rect(canvas_ptr, 45.0, 84.0, 10.0, 14.0, 0.0, SYM_PANEL, w, h);
+            // Presa manometro differenziale — l'etichetta "DP" omessa, nessun
+            // disegno di testo su questo canvas.
+            sym_circle(canvas_ptr, 85.0, 40.0, 11.25, SYM_DARK, w, h);
+        }
+        "separator" => {
+            // Corpo colorato per stato per intero, come cyclone/column: qui
+            // il vaso è "il processo", non un contenitore neutro.
+            sym_polygon(
+                canvas_ptr,
+                &[
+                    (14.3, 14.0),
+                    (85.7, 14.0),
+                    (85.7, 56.0),
+                    (68.6, 96.0),
+                    (31.4, 96.0),
+                    (14.3, 56.0),
+                ],
+                state_c,
+                w,
+                h,
+            );
+            sym_rect(canvas_ptr, 5.7, 22.0, 20.0, 10.0, 0.0, SYM_PANEL, w, h);
+            sym_line(
+                canvas_ptr,
+                &[(50.0, 4.0), (50.0, 36.0)],
+                3.0,
+                SYM_OUTLINE,
+                w,
+                h,
+            );
+            sym_rect(canvas_ptr, 35.7, 5.0, 28.6, 6.0, 3.0, SYM_PANEL, w, h);
+            sym_rect(canvas_ptr, 42.9, 94.0, 14.3, 6.0, 0.0, SYM_PANEL, w, h);
+        }
+        // ── Q40 — sette "vendored" ridisegnati il 13-09-2026 (icone MDI
+        // compound) ──────────────────────────────────────────────────────
+        // Ognuna era un unico `path` SVG con buchi/sovrapposizioni —
+        // decomporle fedelmente sarebbe stato lavoro dell'ordine di una
+        // settimana da solo (misurato). Ridisegnate come icone stilizzate
+        // invece, non una copia pixel-perfetta dell'originale: stesse
+        // coordinate del porto web (`library.tsx`), stesso principio degli
+        // altri builtin.
+        "solar_panel" => {
+            sym_rect(canvas_ptr, 10.0, 10.0, 80.0, 55.0, 4.0, SYM_PANEL, w, h);
+            // Quattro celle — colorate per stato: è la parte che genera.
+            sym_rect(canvas_ptr, 14.0, 14.0, 32.0, 20.0, 0.0, state_c, w, h);
+            sym_rect(canvas_ptr, 14.0, 41.0, 32.0, 20.0, 0.0, state_c, w, h);
+            sym_rect(canvas_ptr, 54.0, 41.0, 32.0, 20.0, 0.0, state_c, w, h);
+            sym_rect(canvas_ptr, 54.0, 14.0, 32.0, 20.0, 0.0, state_c, w, h);
+            sym_rect(canvas_ptr, 30.0, 65.0, 14.0, 20.0, 0.0, SYM_PANEL, w, h);
+            sym_rect(canvas_ptr, 56.0, 65.0, 14.0, 20.0, 0.0, SYM_PANEL, w, h);
+        }
+        "battery" => {
+            sym_rect(canvas_ptr, 38.0, 4.0, 24.0, 8.0, 0.0, SYM_PANEL, w, h);
+            sym_rect(canvas_ptr, 20.0, 12.0, 60.0, 80.0, 8.0, SYM_PANEL, w, h);
+            // Segmenti di carica — colorati per stato.
+            sym_rect(canvas_ptr, 26.0, 20.0, 48.0, 16.0, 0.0, state_c, w, h);
+            sym_rect(canvas_ptr, 26.0, 42.0, 48.0, 16.0, 0.0, state_c, w, h);
+            sym_rect(canvas_ptr, 26.0, 64.0, 48.0, 16.0, 0.0, state_c, w, h);
+            sym_line(
+                canvas_ptr,
+                &[(78.0, 20.0), (62.0, 50.0), (74.0, 50.0), (58.0, 85.0)],
+                4.0,
+                SYM_OUTLINE,
+                w,
+                h,
+            );
+        }
+        "transmission_tower" => {
+            // Traliccio — colorato per stato per intero.
+            sym_polygon(
+                canvas_ptr,
+                &[(50.0, 8.0), (20.0, 90.0), (80.0, 90.0)],
+                state_c,
+                w,
+                h,
+            );
+            sym_line(
+                canvas_ptr,
+                &[(30.0, 35.0), (70.0, 35.0)],
+                3.0,
+                SYM_OUTLINE,
+                w,
+                h,
+            );
+            sym_line(
+                canvas_ptr,
+                &[(25.0, 60.0), (75.0, 60.0)],
+                3.0,
+                SYM_OUTLINE,
+                w,
+                h,
+            );
+        }
+        "home_lightning" => {
+            sym_polygon(
+                canvas_ptr,
+                &[(50.0, 8.0), (10.0, 45.0), (90.0, 45.0)],
+                SYM_PANEL,
+                w,
+                h,
+            );
+            sym_rect(canvas_ptr, 20.0, 45.0, 60.0, 45.0, 0.0, SYM_PANEL, w, h);
+            sym_rect(canvas_ptr, 40.0, 65.0, 20.0, 25.0, 0.0, SYM_DARK, w, h);
+            // Fulmine — colorato per stato: l'energia della casa.
+            sym_line(
+                canvas_ptr,
+                &[(58.0, 50.0), (45.0, 68.0), (55.0, 68.0), (42.0, 88.0)],
+                4.0,
+                state_c,
+                w,
+                h,
+            );
+        }
+        "garage" => {
+            sym_polygon(
+                canvas_ptr,
+                &[(50.0, 10.0), (8.0, 35.0), (92.0, 35.0)],
+                SYM_PANEL,
+                w,
+                h,
+            );
+            sym_rect(canvas_ptr, 8.0, 35.0, 84.0, 55.0, 0.0, SYM_PANEL, w, h);
+            // Pannelli della basculante — colorati per stato (aperta/chiusa).
+            sym_rect(canvas_ptr, 20.0, 46.0, 60.0, 8.0, 0.0, state_c, w, h);
+            sym_rect(canvas_ptr, 20.0, 58.0, 60.0, 8.0, 0.0, state_c, w, h);
+        }
+        "window_open" => {
+            sym_rect(canvas_ptr, 10.0, 10.0, 80.0, 80.0, 0.0, SYM_PANEL, w, h);
+            // Quattro ante — colorate per stato (aperta/chiusa).
+            sym_rect(canvas_ptr, 15.0, 15.0, 32.0, 32.0, 0.0, state_c, w, h);
+            sym_rect(canvas_ptr, 53.0, 15.0, 32.0, 32.0, 0.0, state_c, w, h);
+            sym_rect(canvas_ptr, 15.0, 53.0, 32.0, 32.0, 0.0, state_c, w, h);
+            sym_rect(canvas_ptr, 53.0, 53.0, 32.0, 32.0, 0.0, state_c, w, h);
+        }
+        "roller_shade" => {
+            sym_rect(canvas_ptr, 15.0, 10.0, 70.0, 60.0, 6.0, SYM_PANEL, w, h);
+            sym_rect(canvas_ptr, 24.0, 18.0, 52.0, 44.0, 0.0, SYM_DARK, w, h);
+            // Lamelle — colorate per stato (tapparella su/giù).
+            for y in [26.0, 34.0, 42.0, 50.0] {
+                sym_line(canvas_ptr, &[(26.0, y), (74.0, y)], 4.0, state_c, w, h);
+            }
+            sym_rect(canvas_ptr, 12.0, 80.0, 76.0, 8.0, 0.0, SYM_PANEL, w, h);
+        }
         _ => {
             // symbol_id sconosciuto (né builtin né "custom:"): riquadro
             // d'errore, stesso principio del placeholder web ("simbolo?").
@@ -7429,7 +7993,7 @@ fn render_symbol(
     let symbol_id = obj.symbol_id.clone().unwrap_or_default();
     if symbol_id.starts_with("custom:") {
         anyhow::bail!(
-            "simboli 'vendored'/custom non supportati da LVGL (solo i 16 builtin, Q15 opzione B)"
+            "simboli custom di progetto non supportati da LVGL (solo i builtin, Q15 opzione B)"
         );
     }
     let w = obj.width.unwrap_or(80.0).round().clamp(8.0, 500.0) as i16;

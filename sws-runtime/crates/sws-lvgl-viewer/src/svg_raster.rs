@@ -216,7 +216,8 @@ mod tests {
         assert_eq!(buf[2], 128, "l'alfa deve restare quella di partenza");
     }
 
-    /// I simboli vendored veri, non un SVG di comodo.
+    /// I simboli vendored veri, non un SVG di comodo — per quando
+    /// `VENDORED` (`svg_assets.rs`) tornerà a non essere vuota.
     ///
     /// Arrivano da librerie esterne (Material Design Icons, Equinor) e nessuno
     /// li ha scritti per noi: possono usare costrutti che questa build di
@@ -226,7 +227,12 @@ mod tests {
     /// rettangolo trasparente che sembra un simbolo dimenticato.
     ///
     /// Quindi non basta che `rasterize` restituisca `Some`: si conta quanti
-    /// pixel hanno davvero dell'inchiostro.
+    /// pixel hanno davvero dell'inchiostro. **Dal 13-09-2026 (Q40) questo
+    /// test non esercita niente**: gli ultimi 7 vendored sono diventati
+    /// builtin, `VENDORED` è vuota, il ciclo sotto gira zero volte. Resta qui
+    /// apposta — non cancellato — perché torni a valere da solo il giorno in
+    /// cui un simbolo vendored nuovo arriva in quella tabella, senza che
+    /// serva riscriverlo.
     #[test]
     fn i_simboli_vendored_veri_si_disegnano() {
         let radice = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -239,10 +245,9 @@ mod tests {
             let r =
                 rasterize(&svg, 96, 96).unwrap_or_else(|| panic!("{id}: resvg non lo interpreta"));
             let pieni = r.pixels.chunks_exact(4).filter(|p| p[3] > 16).count();
-            // Soglia al 10%: misurato il 2026-08-26, gli undici stanno fra il
-            // 23% (transmission_tower) e il 55% (reactor). Il 10% lascia
-            // margine a un simbolo più esile senza lasciar passare una bitmap
-            // vuota o quasi.
+            // Soglia al 10%, misurata il 2026-08-26 sugli undici vendored di
+            // allora (dal 23% al 55% di pixel pieni): lascia margine a un
+            // simbolo più esile senza lasciar passare una bitmap vuota.
             assert!(
                 pieni > 96 * 96 / 10,
                 "{id}: rasterizzato ma quasi vuoto ({pieni} pixel su {}) — sul pannello sarebbe un buco",
@@ -251,9 +256,5 @@ mod tests {
             visti += 1;
         }
         assert_eq!(visti, crate::svg_assets::VENDORED.len());
-        assert!(
-            visti >= 11,
-            "attesi almeno gli 11 simboli noti, trovati {visti}"
-        );
     }
 }
