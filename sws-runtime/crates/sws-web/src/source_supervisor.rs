@@ -40,6 +40,11 @@ struct RunningSource {
 pub struct SourceSupervisor {
     db: Arc<TagDb>,
     bus: Arc<TagWriteBus>,
+    /// Q49 — impronte TLS dei broker MQTT (TOFU), stesso principio di
+    /// `certificati::store_dispositivi` per i dispositivi. Un archivio
+    /// diverso (non lo stesso file): un broker e un dispositivo non sono la
+    /// stessa fiducia, anche se capitassero sullo stesso host.
+    pub mqtt_certificati: Arc<sws_core::pin_tls::ImprontaStore>,
     /// Base directory under which OPC-UA cert keypairs are persisted.
     /// The plugin appends `<source-id>/` so multiple OPC-UA sources keep
     /// distinct identities. Updated when a project opens/closes via
@@ -71,10 +76,15 @@ pub struct SourceSupervisor {
 }
 
 impl SourceSupervisor {
-    pub fn new(db: Arc<TagDb>, bus: Arc<TagWriteBus>) -> Arc<Self> {
+    pub fn new(
+        db: Arc<TagDb>,
+        bus: Arc<TagWriteBus>,
+        mqtt_certificati: Arc<sws_core::pin_tls::ImprontaStore>,
+    ) -> Arc<Self> {
         let this = Arc::new(Self {
             db,
             bus,
+            mqtt_certificati,
             opcua_pki_root: tokio::sync::RwLock::new(default_pki_root()),
             sources: Mutex::new(HashMap::new()),
             armed: std::sync::atomic::AtomicBool::new(true),
@@ -293,8 +303,9 @@ impl SourceSupervisor {
             }
             SourceDef::Mqtt(cfg) => {
                 info!(source = %id_for_log, "starting MQTT task");
+                let mqtt_certificati = self.mqtt_certificati.clone();
                 tokio::spawn(async move {
-                    sws_plugin_mqtt::run(cfg, db, bus, cancel_for_task).await;
+                    sws_plugin_mqtt::run(cfg, db, bus, cancel_for_task, mqtt_certificati).await;
                 })
             }
             SourceDef::OpcUaServer(cfg) => {
@@ -442,13 +453,26 @@ fn default_pki_root() -> std::path::PathBuf {
     std::env::temp_dir().join("sws-opcua-pki")
 }
 
+/// Store di prova per i test: mai letto né scritto davvero (nessun test qui
+/// avvia una sessione MQTT), un percorso qualunque in temp basta.
+#[cfg(test)]
+pub(crate) fn store_di_prova() -> Arc<sws_core::pin_tls::ImprontaStore> {
+    Arc::new(sws_core::pin_tls::ImprontaStore::new(
+        std::env::temp_dir().join("sws-test-mqtt-certificati-inutilizzato.yaml"),
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use sws_core::{TagQuality, TagValue};
 
     fn supervisor() -> Arc<SourceSupervisor> {
-        SourceSupervisor::new(Arc::new(TagDb::new(16)), Arc::new(TagWriteBus::new()))
+        SourceSupervisor::new(
+            Arc::new(TagDb::new(16)),
+            Arc::new(TagWriteBus::new()),
+            store_di_prova(),
+        )
     }
 
     #[tokio::test]
@@ -500,7 +524,11 @@ mod tests_q33 {
     use super::*;
 
     fn supervisore() -> Arc<SourceSupervisor> {
-        SourceSupervisor::new(Arc::new(TagDb::new(16)), Arc::new(TagWriteBus::new()))
+        SourceSupervisor::new(
+            Arc::new(TagDb::new(16)),
+            Arc::new(TagWriteBus::new()),
+            super::store_di_prova(),
+        )
     }
 
     /// Una sorgente che non si connette a niente: basta a far contare il

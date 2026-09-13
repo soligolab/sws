@@ -702,7 +702,11 @@ mod tests {
     fn make_supervisor() -> std::sync::Arc<crate::source_supervisor::SourceSupervisor> {
         let db = std::sync::Arc::new(TagDb::new(64));
         let bus = std::sync::Arc::new(TagWriteBus::new());
-        crate::source_supervisor::SourceSupervisor::new(db, bus)
+        crate::source_supervisor::SourceSupervisor::new(
+            db,
+            bus,
+            crate::source_supervisor::store_di_prova(),
+        )
     }
 
     #[tokio::test]
@@ -909,6 +913,7 @@ mod tests_avvisi {
         SourceSupervisor::new(
             std::sync::Arc::new(TagDb::new(16)),
             std::sync::Arc::new(sws_core::TagWriteBus::new()),
+            crate::source_supervisor::store_di_prova(),
         )
     }
 

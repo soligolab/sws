@@ -144,6 +144,21 @@ pub(crate) fn insecure_tls_transport(source_id: &str) -> rumqttc::Transport {
     rumqttc::Transport::Tls(rumqttc::TlsConfiguration::Rustls(Arc::new(cfg)))
 }
 
+/// Trasporto TLS pinnato sull'impronta del broker (Q49, TOFU) — il percorso
+/// di mezzo fra "nessuna verifica" e "una CA vera": niente da procurarsi in
+/// anticipo, ma un'identità che dopo il primo contatto non può più cambiare
+/// in silenzio. Stessa logica di `sws_web::certificati`, condivisa via
+/// `sws_core::pin_tls` da quando rumqttc 0.25 ha allineato la sua rustls
+/// (0.23) a quella del resto del workspace — prima erano due crate diverse
+/// per il compilatore e serviva un verificatore a parte.
+pub(crate) fn pinned_tls_transport(
+    host_port: &str,
+    certificati: &Arc<sws_core::pin_tls::ImprontaStore>,
+) -> rumqttc::Transport {
+    let cfg = sws_core::pin_tls::client_config_pinnato(host_port, certificati.clone());
+    rumqttc::Transport::Tls(rumqttc::TlsConfiguration::Rustls(Arc::new(cfg)))
+}
+
 /// Limite dimensione pacchetto MQTT in/out. Il default di rumqttc (10 KB) è
 /// troppo basso per payload realistici (JSON di telemetria, discovery Home
 /// Assistant, birth certificate Sparkplug): un messaggio più grande fa
@@ -162,6 +177,7 @@ pub async fn run(
     db: Arc<TagDb>,
     bus: Arc<TagWriteBus>,
     cancel: CancellationToken,
+    certificati: Arc<sws_core::pin_tls::ImprontaStore>,
 ) {
     // Sparkplug B mode: fully different subscription + protobuf decode path.
     if let Some(spb) = cfg.sparkplug.clone() {
@@ -181,7 +197,7 @@ pub async fn run(
         .collect();
 
     loop {
-        match run_session(&cfg, &db, &bus, &writers, cancel.clone()).await {
+        match run_session(&cfg, &db, &bus, &writers, cancel.clone(), &certificati).await {
             Ok(()) => break,
             Err(e) => {
                 if cancel.is_cancelled() {
@@ -207,6 +223,7 @@ async fn run_session(
     bus: &Arc<TagWriteBus>,
     writers: &[(String, String)],
     cancel: CancellationToken,
+    certificati: &Arc<sws_core::pin_tls::ImprontaStore>,
 ) -> anyhow::Result<()> {
     let mut opts = MqttOptions::new(&cfg.client_id, &cfg.host, cfg.port);
     opts.set_max_packet_size(MAX_PACKET_SIZE_BYTES, MAX_PACKET_SIZE_BYTES);
@@ -243,10 +260,11 @@ async fn run_session(
         };
     }
 
-    // TLS — when enabled, attach a Transport::Tls with the CA bytes the
-    // operator provides. We deliberately don't fall back to a default trust
-    // store: the PoC keeps the security boundary explicit, and rumqttc 0.24
-    // has no built-in "native trust store" variant anyway.
+    // TLS — when enabled, attach a Transport::Tls. Three paths, in order of
+    // preference: a real CA (`ca_cert_path`, verifica vera), l'impronta del
+    // broker via TOFU (Q49, default quando non c'è una CA — non più un
+    // errore fisso come prima del 13-09-2026), e `insecure_skip_verify` come
+    // via d'uscita esplicita per chi proprio non vuole nessuna delle due.
     if let Some(tls) = &cfg.tls {
         if tls.enabled {
             // Saltando la verifica, una CA non serve: pretenderla qui
@@ -254,13 +272,7 @@ async fn run_session(
             // esiste per evitare di doverla procurare.
             if tls.insecure_skip_verify {
                 opts.set_transport(insecure_tls_transport(&cfg.id));
-            } else {
-                let path = tls.ca_cert_path.as_ref().ok_or_else(|| {
-                    anyhow::anyhow!(
-                        "MQTT TLS enabled but ca_cert_path is empty — provide a PEM-encoded \
-                     CA file to trust"
-                    )
-                })?;
+            } else if let Some(path) = tls.ca_cert_path.as_ref() {
                 let ca =
                     std::fs::read(path).map_err(|e| anyhow::anyhow!("read CA cert {path}: {e}"))?;
                 opts.set_transport(rumqttc::Transport::Tls(rumqttc::TlsConfiguration::Simple {
@@ -268,6 +280,9 @@ async fn run_session(
                     alpn: None,
                     client_auth: None,
                 }));
+            } else {
+                let host_port = format!("{}:{}", cfg.host, cfg.port);
+                opts.set_transport(pinned_tls_transport(&host_port, certificati));
             }
         }
     }
@@ -506,6 +521,11 @@ pub struct BrowseParams {
     pub ca_cert_path: Option<String>,
     /// How long to listen for incoming publishes. Capped to 120 s by the caller.
     pub duration_secs: u8,
+    /// Q49 — impronte TLS note, per il pinning TOFU quando non c'è né una CA
+    /// né `insecure_skip_verify`. Stesso archivio usato dalle sorgenti vere
+    /// (`SourceSupervisor::mqtt_certificati`): sfogliare un broker e poi
+    /// tenerlo come sorgente non deve chiedere fiducia due volte.
+    pub certificati: Arc<sws_core::pin_tls::ImprontaStore>,
 }
 
 /// A topic seen during a browse session plus its last raw payload.
@@ -548,18 +568,14 @@ pub async fn browse(params: BrowseParams) -> Vec<BrowsedTopic> {
                 }
             }
         } else {
-            // TLS chiesto, ma né una CA né la spunta "non verificare": prima si
-            // usciva da questo `if` senza impostare alcun trasporto, cioè si
-            // parlava IN CHIARO a una porta TLS. Il broker chiudeva, lo
-            // sfoglia-topic restituiva un elenco vuoto e nessuno diceva perché
-            // — sembrava un broker senza messaggi. Trovato il 2026-08-24
-            // provando proprio questo ramo.
-            warn!(
-                "browse: TLS richiesto ma manca sia il certificato CA sia la spunta \
-                 \"non verificare il certificato\" — impossibile stabilire una \
-                 connessione cifrata, nessun topic letto"
-            );
-            return vec![];
+            // TLS chiesto, né una CA né "non verificare": pinning TOFU (Q49),
+            // come per le sorgenti vere. Prima del 13-09-2026 questo ramo non
+            // impostava alcun trasporto — parlava IN CHIARO a una porta TLS,
+            // il broker chiudeva, e lo sfoglia-topic tornava un elenco vuoto
+            // senza dire perché (sembrava un broker senza messaggi, trovato
+            // il 2026-08-24 provando proprio questo caso).
+            let host_port = format!("{}:{}", params.host, params.port);
+            opts.set_transport(pinned_tls_transport(&host_port, &params.certificati));
         }
     }
 

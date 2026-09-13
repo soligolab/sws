@@ -91,7 +91,13 @@ clap = { version = "4", features = ["derive", "env"] }
 tokio-modbus      = "0.6"
 tokio-serial      = "5.4"
 async-opcua       = { version = "0.18", features = ["client", "server"] }
-rumqttc           = "0.24"
+# Q49 — "ring", non il default di tokio-rustls (aws-lc-rs): un secondo
+# backend crittografico nello stesso binario è esattamente il panico
+# rustls già scampato una volta (vedi commento sopra su `rustls`), e
+# aws-lc-rs porta un toolchain C/cmake che complica la cross-compilazione
+# Yocto verso ARM. `use-rustls-no-provider` (0.25.1+) lascia scegliere il
+# provider a chi costruisce il ClientConfig, invece di imporne uno.
+rumqttc           = { version = "0.25", default-features = false, features = ["use-rustls-no-provider"] }
 tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
 
 # Python scripting

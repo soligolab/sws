@@ -302,6 +302,17 @@ fn main() -> anyhow::Result<()> {
                 lang_table,
                 auth_required,
             ))
+        })
+        // Q49 — un'impronta TLS cambiata qui è fatale (niente pagina, niente
+        // programma): il messaggio dice dove correggere a mano, non solo che
+        // la connessione è fallita.
+        // `{e:?}` (Debug), non `{e}`: il messaggio di `e_certificato_cambiato`
+        // vive nella catena di cause di anyhow, che solo Debug stampa per
+        // intero — stesso motivo per cui `remote_relay.rs` fa lo stesso
+        // controllo su `{e:?}` e non su `e.to_string()`.
+        .map_err(|e| match tls::spiega_certificato_cambiato(&format!("{e:?}")) {
+            Some(spiegato) => anyhow::anyhow!(spiegato),
+            None => e,
         })?;
     let shared_lang: client::SharedLang =
         std::sync::Arc::new(std::sync::Mutex::new(lang_table.default.clone()));

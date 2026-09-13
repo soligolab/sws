@@ -11,3 +11,10 @@ serde_json.workspace = true
 serde_yaml.workspace = true
 tracing.workspace    = true
 anyhow.workspace     = true
+# Q49 — pinning TLS condiviso (pin_tls): stessa rustls "ring" del resto del
+# workspace, sha2 pura Rust, nessun peso nuovo per la cross-compilazione.
+rustls.workspace     = true
+sha2.workspace       = true
+
+[dev-dependencies]
+tempfile.workspace = true

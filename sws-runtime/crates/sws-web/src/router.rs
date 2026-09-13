@@ -244,7 +244,7 @@ pub fn build(
     let project_epoch = Arc::new(project_epoch);
 
     // Q49: l'archivio delle impronte vive accanto alla configurazione, come known_hosts.
-    let certificati = Arc::new(crate::certificati::ImprontaStore::in_config(&config_dir));
+    let certificati = Arc::new(crate::certificati::store_dispositivi(&config_dir));
     let state = AppState {
         db,
         bus,
@@ -6030,6 +6030,7 @@ async fn mqtt_browse_handler(
         insecure_skip_verify: req.insecure_skip_verify,
         ca_cert_path: req.ca_cert_path,
         duration_secs: duration,
+        certificati: s.supervisor.mqtt_certificati.clone(),
     };
 
     let topics = sws_plugin_mqtt::browse(params)

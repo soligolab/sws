@@ -392,7 +392,14 @@ async fn main() -> anyhow::Result<()> {
     // attach the per-project SQLite so history is isolated between projects.
     let historian = Arc::new(Historian::new(5_000));
     let py_engine = PyEngine::new(tag_db.clone(), bus.clone());
-    let supervisor = SourceSupervisor::new(tag_db.clone(), bus.clone());
+    // Q49 — impronte TLS dei broker MQTT (TOFU), archivio a sé rispetto a
+    // quello dei dispositivi (certificati::store_dispositivi): un broker non
+    // è la stessa fiducia di un dispositivo, anche sullo stesso host.
+    let mqtt_certificati = Arc::new(sws_core::pin_tls::ImprontaStore::in_config(
+        &config_dir,
+        "mqtt_broker_conosciuti.yaml",
+    ));
+    let supervisor = SourceSupervisor::new(tag_db.clone(), bus.clone(), mqtt_certificati);
     // Empty registries — populated below from project.yaml (if present).
     let functions: sws_web::router::FunctionsRegistry =
         Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new()));

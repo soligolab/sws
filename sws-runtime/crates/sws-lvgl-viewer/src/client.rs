@@ -15,7 +15,7 @@ use tokio_tungstenite::tungstenite::Message;
 
 use crate::model::{FaceplateDef, LanguageTable, RecipeListEntry, SynopticPage};
 use crate::session::LoginOk;
-use crate::tls::insecure_client_config;
+use crate::tls::{pinned_client_config, pinned_client_config_arc};
 
 /// Lingua *corrente* del progetto (codice, es. `"it"`) — mutabile, a
 /// differenza della `LanguageTable` (tabella token→traduzioni, fissa per
@@ -36,7 +36,7 @@ pub async fn fetch_page(base_url: &str, page_name: &str) -> anyhow::Result<Synop
         .push(page_name);
 
     let client = reqwest::Client::builder()
-        .danger_accept_invalid_certs(true) // vedi tls.rs: stesso runtime, stesso cert self-signed
+        .use_preconfigured_tls(pinned_client_config(base_url)?)
         .build()?;
     let resp = client.get(url).send().await?.error_for_status()?;
     let page = resp.json::<SynopticPage>().await?;
@@ -56,7 +56,7 @@ pub async fn fetch_faceplate(base_url: &str, id: &str) -> anyhow::Result<Facepla
         .push(id);
 
     let client = reqwest::Client::builder()
-        .danger_accept_invalid_certs(true)
+        .use_preconfigured_tls(pinned_client_config(base_url)?)
         .build()?;
     let resp = client.get(url).send().await?.error_for_status()?;
     let def = resp.json::<FaceplateDef>().await?;
@@ -77,7 +77,7 @@ pub async fn fetch_recipes(base_url: &str) -> anyhow::Result<Vec<RecipeListEntry
         .push("api")
         .push("recipes");
     let client = reqwest::Client::builder()
-        .danger_accept_invalid_certs(true)
+        .use_preconfigured_tls(pinned_client_config(base_url)?)
         .build()?;
     let resp = client.get(url).send().await?.error_for_status()?;
     let list = resp.json::<Vec<RecipeListEntry>>().await?;
@@ -105,7 +105,7 @@ pub async fn apply_recipe(
         .push(&id)
         .push("apply");
     let client = reqwest::Client::builder()
-        .danger_accept_invalid_certs(true)
+        .use_preconfigured_tls(pinned_client_config(&base_url)?)
         .build()?;
     let mut req = client
         .post(url)
@@ -136,7 +136,7 @@ pub async fn fetch_languages(base_url: &str) -> anyhow::Result<LanguageTable> {
         .push("api")
         .push("project");
     let client = reqwest::Client::builder()
-        .danger_accept_invalid_certs(true)
+        .use_preconfigured_tls(pinned_client_config(base_url)?)
         .build()?;
     let resp = client.get(url).send().await?.error_for_status()?;
     let wrapper = resp.json::<ProjectLanguagesOnly>().await?;
@@ -161,7 +161,7 @@ pub async fn fetch_system(base_url: &str) -> anyhow::Result<bool> {
         .push("api")
         .push("system");
     let client = reqwest::Client::builder()
-        .danger_accept_invalid_certs(true)
+        .use_preconfigured_tls(pinned_client_config(base_url)?)
         .build()?;
     let resp = client.get(url).send().await?.error_for_status()?;
     let wrapper = resp.json::<SystemAuthOnly>().await?;
@@ -184,7 +184,7 @@ pub async fn login(base_url: &str, username: &str, password: &str) -> anyhow::Re
         .push("auth")
         .push("login");
     let client = reqwest::Client::builder()
-        .danger_accept_invalid_certs(true)
+        .use_preconfigured_tls(pinned_client_config(base_url)?)
         .build()?;
     let resp = client
         .post(url)
@@ -208,7 +208,7 @@ async fn list_synoptics(base_url: &str) -> anyhow::Result<Vec<String>> {
         .push("api")
         .push("synoptics");
     let client = reqwest::Client::builder()
-        .danger_accept_invalid_certs(true)
+        .use_preconfigured_tls(pinned_client_config(base_url)?)
         .build()?;
     let resp = client.get(url).send().await?.error_for_status()?;
     Ok(resp.json::<Vec<String>>().await?)
@@ -278,7 +278,7 @@ pub async fn fetch_alarm_history(
         url.query_pairs_mut().append_pair("alarm_id", id);
     }
     let client = reqwest::Client::builder()
-        .danger_accept_invalid_certs(true)
+        .use_preconfigured_tls(pinned_client_config(base_url)?)
         .build()?;
     let resp = client.get(url).send().await?.error_for_status()?;
     Ok(resp.json::<Vec<AlarmHistoryEvent>>().await?)
@@ -331,7 +331,7 @@ async fn fetch_home_page_id(base_url: &str) -> Option<String> {
     }
     let url = format!("{}/api/project", base_url.trim_end_matches('/'));
     let client = reqwest::Client::builder()
-        .danger_accept_invalid_certs(true)
+        .use_preconfigured_tls(pinned_client_config(base_url).ok()?)
         .build()
         .ok()?;
     let resp = client.get(&url).send().await.ok()?;
@@ -384,7 +384,7 @@ pub async fn put_tag(
     }
 
     let client = reqwest::Client::builder()
-        .danger_accept_invalid_certs(true)
+        .use_preconfigured_tls(pinned_client_config(base_url)?)
         .build()?;
     let mut req = client.put(url).json(&WriteTagBody { value });
     if let Some(t) = token {
@@ -432,7 +432,7 @@ pub async fn fetch_history(
         }
     }
     let client = reqwest::Client::builder()
-        .danger_accept_invalid_certs(true)
+        .use_preconfigured_tls(pinned_client_config(base_url)?)
         .build()?;
     let resp = client.get(url).send().await?.error_for_status()?;
     Ok(resp.json::<Vec<HistorySample>>().await?)
@@ -472,7 +472,7 @@ pub async fn fetch_history_xy(
         q.append_pair("to", &to_ms.to_string());
     }
     let client = reqwest::Client::builder()
-        .danger_accept_invalid_certs(true)
+        .use_preconfigured_tls(pinned_client_config(base_url)?)
         .build()?;
     let resp = client.get(url).send().await?.error_for_status()?;
     Ok(resp.json::<Vec<HistoryXyPoint>>().await?)
@@ -666,7 +666,7 @@ type FlussoWs =
     tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
 
 async fn apri_ws(url: &str) -> anyhow::Result<FlussoWs> {
-    let connector = tokio_tungstenite::Connector::Rustls(insecure_client_config());
+    let connector = tokio_tungstenite::Connector::Rustls(pinned_client_config_arc(url)?);
     let (stream, _resp) =
         tokio_tungstenite::connect_async_tls_with_config(url, None, false, Some(connector)).await?;
     Ok(stream)
@@ -676,7 +676,7 @@ pub async fn spawn_tag_subscription(
     base_url: &str,
 ) -> anyhow::Result<(SharedTagSnapshot, ReloadFlag)> {
     let url = ws_url(base_url, "/ws/tags")?;
-    let connector = tokio_tungstenite::Connector::Rustls(insecure_client_config());
+    let connector = tokio_tungstenite::Connector::Rustls(pinned_client_config_arc(base_url)?);
     let (mut stream, _resp) = tokio_tungstenite::connect_async_tls_with_config(
         url.as_str(),
         None,
@@ -869,7 +869,7 @@ pub type SharedAlarms = Arc<Mutex<HashMap<String, AlarmStateLite>>>;
 /// sia già pronto al momento della creazione.
 pub async fn spawn_alarm_subscription(base_url: &str) -> anyhow::Result<SharedAlarms> {
     let url = ws_url(base_url, "/ws/alarms")?;
-    let connector = tokio_tungstenite::Connector::Rustls(insecure_client_config());
+    let connector = tokio_tungstenite::Connector::Rustls(pinned_client_config_arc(base_url)?);
     let (mut stream, _resp) = tokio_tungstenite::connect_async_tls_with_config(
         url.as_str(),
         None,
@@ -940,7 +940,7 @@ pub async fn ack_alarm(base_url: &str, alarm_id: &str, token: Option<&str>) -> a
         .push(alarm_id)
         .push("ack");
     let client = reqwest::Client::builder()
-        .danger_accept_invalid_certs(true)
+        .use_preconfigured_tls(pinned_client_config(base_url)?)
         .build()?;
     let mut req = client
         .post(url)

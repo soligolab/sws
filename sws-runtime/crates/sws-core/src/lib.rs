@@ -1,6 +1,7 @@
 pub mod alarm;
 pub mod geometry;
 pub mod logbus;
+pub mod pin_tls;
 pub mod project;
 pub mod tag;
 
