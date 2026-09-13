@@ -37,6 +37,7 @@ mod lvgl_indev;
 mod lvgl_log;
 mod lvgl_render;
 mod model;
+mod session;
 mod svg_assets;
 mod svg_raster;
 mod tls;
@@ -255,30 +256,64 @@ fn main() -> anyhow::Result<()> {
     // WS in background (avviato dentro spawn_tag_subscription) deve restare
     // vivo per tutta la finestra, non solo per la fetch iniziale.
     let rt = tokio::runtime::Runtime::new()?;
-    let (page, shared_tags, reload_flag, shared_alarms, lang_table) = rt.block_on(async {
-        let page = match args.page.as_deref() {
-            Some(nome) => client::fetch_page(&args.base_url, nome).await?,
-            None => client::resolve_start_page(&args.base_url).await?,
-        };
-        let (shared_tags, reload_flag) = client::spawn_tag_subscription(&args.base_url).await?;
-        let shared_alarms = client::spawn_alarm_subscription(&args.base_url).await?;
-        // Non fatale: un progetto senza T-40 configurato (la maggioranza)
-        // non ha nulla da tradurre — `LanguageTable::default()` (entries
-        // vuoto) fa sì che `resolve_msg`/`localize_object` siano dei no-op
-        // a costo quasi zero, stesso comportamento di un fetch riuscito ma
-        // con `entries: []`.
-        let lang_table = client::fetch_languages(&args.base_url)
-            .await
-            .unwrap_or_else(|e| {
-                eprintln!(
-                    "[lang] impossibile leggere project.languages, nessuna traduzione attiva: {e}"
-                );
-                model::LanguageTable::default()
-            });
-        anyhow::Ok((page, shared_tags, reload_flag, shared_alarms, lang_table))
-    })?;
+    let (page, shared_tags, reload_flag, shared_alarms, lang_table, auth_required) =
+        rt.block_on(async {
+            let page = match args.page.as_deref() {
+                Some(nome) => client::fetch_page(&args.base_url, nome).await?,
+                None => client::resolve_start_page(&args.base_url).await?,
+            };
+            let (shared_tags, reload_flag) =
+                client::spawn_tag_subscription(&args.base_url).await?;
+            let shared_alarms = client::spawn_alarm_subscription(&args.base_url).await?;
+            // Non fatale: un progetto senza T-40 configurato (la maggioranza)
+            // non ha nulla da tradurre — `LanguageTable::default()` (entries
+            // vuoto) fa sì che `resolve_msg`/`localize_object` siano dei no-op
+            // a costo quasi zero, stesso comportamento di un fetch riuscito ma
+            // con `entries: []`.
+            let lang_table = client::fetch_languages(&args.base_url)
+                .await
+                .unwrap_or_else(|e| {
+                    eprintln!(
+                        "[lang] impossibile leggere project.languages, nessuna traduzione attiva: {e}"
+                    );
+                    model::LanguageTable::default()
+                });
+            // Q36 — sapere se il runtime ha utenti definiti decide se il
+            // controllo login/logout ha senso di esistere.
+            //
+            // `GET /api/system` è dietro `require_operator` (`router.rs`,
+            // tutti e tre gli assemblaggi del router) — un client anonimo
+            // ANCORA SENZA fare login non è mai "Admin sintetico" a meno che
+            // il runtime non abbia affatto utenti. Quindi: su un runtime
+            // SENZA utenti la richiesta passa (Admin sintetico ≥ Operator) e
+            // torna `auth_required: false`; su un runtime CON utenti la
+            // richiesta fallisce con 403 (Viewer anonimo < Operator) — e
+            // quel fallimento **è già la risposta**, non un errore di rete
+            // da tollerare: significa "sì, servono credenziali". `unwrap_or
+            // (true)` non è quindi un ripiego per il caso raro, è il
+            // percorso NORMALE su ogni runtime con utenti — motivo in più
+            // per non trattarlo come rumore.
+            let auth_required = client::fetch_system(&args.base_url).await.unwrap_or(true);
+            anyhow::Ok((
+                page,
+                shared_tags,
+                reload_flag,
+                shared_alarms,
+                lang_table,
+                auth_required,
+            ))
+        })?;
     let shared_lang: client::SharedLang =
         std::sync::Arc::new(std::sync::Mutex::new(lang_table.default.clone()));
+
+    // Q36 — sessione utente, caricata da disco se ce n'è una valida
+    // (`~/.config/sws/lvgl_session.json`), altrimenti anonima come sempre.
+    // Condivisa fra il thread di rendering (letta/scritta dai click su
+    // login/logout) e i task async che chiamano `client::login`/`put_tag`/…
+    let mut loaded_session = session::SessionState::load();
+    loaded_session.auth_required = auth_required;
+    let shared_session: session::SharedSession =
+        std::sync::Arc::new(std::sync::Mutex::new(loaded_session));
 
     let initial_tags = shared_tags
         .lock()
@@ -305,6 +340,7 @@ fn main() -> anyhow::Result<()> {
         &ack_tx,
         &lang_table,
         &shared_lang,
+        &shared_session,
     )?;
 
     eprintln!(
@@ -392,6 +428,7 @@ fn main() -> anyhow::Result<()> {
             shared_alarms,
             lang_table,
             shared_lang,
+            shared_session,
         )?;
         drop(rt);
         return Ok(());
@@ -416,6 +453,7 @@ fn main() -> anyhow::Result<()> {
         shared_alarms,
         lang_table,
         shared_lang,
+        shared_session,
     )?;
     drop(rt);
     Ok(())
@@ -614,6 +652,7 @@ fn run_drm(
     shared_alarms: client::SharedAlarms,
     lang_table: model::LanguageTable,
     shared_lang: client::SharedLang,
+    shared_session: session::SharedSession,
 ) -> anyhow::Result<()> {
     // Diagnosi PRIMA di aprire il device.
     //
@@ -687,8 +726,15 @@ fn run_drm(
 
         while let Ok(cmd) = tag_rx.try_recv() {
             let base_url = base_url.clone();
+            let token = shared_session
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .token
+                .clone();
             rt_handle.spawn(async move {
-                if let Err(e) = client::put_tag(&base_url, &cmd.tag, cmd.value).await {
+                if let Err(e) =
+                    client::put_tag(&base_url, &cmd.tag, cmd.value, token.as_deref()).await
+                {
                     eprintln!("[tag] scrittura '{}' fallita: {e}", cmd.tag);
                 }
             });
@@ -696,8 +742,13 @@ fn run_drm(
 
         while let Ok(alarm_id) = ack_rx.try_recv() {
             let base_url = base_url.clone();
+            let token = shared_session
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .token
+                .clone();
             rt_handle.spawn(async move {
-                if let Err(e) = client::ack_alarm(&base_url, &alarm_id).await {
+                if let Err(e) = client::ack_alarm(&base_url, &alarm_id, token.as_deref()).await {
                     eprintln!("[alarm] ack di '{alarm_id}' fallito: {e}");
                 }
             });
@@ -716,6 +767,7 @@ fn run_drm(
                     &ack_tx,
                     &lang_table,
                     &shared_lang,
+                    &shared_session,
                 ) {
                     Ok((summary, new_styles, new_live)) => {
                         eprintln!(
@@ -790,6 +842,7 @@ fn run_window(
     shared_alarms: client::SharedAlarms,
     lang_table: model::LanguageTable,
     shared_lang: client::SharedLang,
+    shared_session: session::SharedSession,
 ) -> anyhow::Result<()> {
     let sdl_context = sdl2::init().map_err(|e| anyhow::anyhow!("sdl2::init: {e}"))?;
     let video = sdl_context
@@ -958,8 +1011,15 @@ fn run_window(
         // HTTP. `try_recv` drena tutto ciò che è pronto senza aspettare.
         while let Ok(cmd) = tag_rx.try_recv() {
             let base_url = base_url.clone();
+            let token = shared_session
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .token
+                .clone();
             rt_handle.spawn(async move {
-                if let Err(e) = client::put_tag(&base_url, &cmd.tag, cmd.value).await {
+                if let Err(e) =
+                    client::put_tag(&base_url, &cmd.tag, cmd.value, token.as_deref()).await
+                {
                     eprintln!("[tag] scrittura '{}' fallita: {e}", cmd.tag);
                 }
             });
@@ -969,8 +1029,13 @@ fn run_window(
         // tag_rx, girato a un task async invece di bloccare il loop.
         while let Ok(alarm_id) = ack_rx.try_recv() {
             let base_url = base_url.clone();
+            let token = shared_session
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .token
+                .clone();
             rt_handle.spawn(async move {
-                if let Err(e) = client::ack_alarm(&base_url, &alarm_id).await {
+                if let Err(e) = client::ack_alarm(&base_url, &alarm_id, token.as_deref()).await {
                     eprintln!("[alarm] ack di '{alarm_id}' fallito: {e}");
                 }
             });
@@ -996,6 +1061,7 @@ fn run_window(
                     &ack_tx,
                     &lang_table,
                     &shared_lang,
+                    &shared_session,
                 ) {
                     Ok((summary, new_styles, new_live)) => {
                         eprintln!(
@@ -1056,6 +1122,7 @@ fn run_window(
                     &ack_tx,
                     &lang_table,
                     &shared_lang,
+                    &shared_session,
                 ) {
                     Ok((summary, new_styles, new_live)) => {
                         eprintln!(

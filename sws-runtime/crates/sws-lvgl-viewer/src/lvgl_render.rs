@@ -41,6 +41,7 @@ use crate::model::{
     LanguageTable, OnValue, PieSlice, PipePoint, SubGrid, SynopticObject, SynopticPage, TableRow,
     TextListEntry,
 };
+use crate::session::SharedSession;
 
 /// Risoluzione di default se la pagina non specifica `width`/`height` — non
 /// più un vincolo a compile-time (`lvgl_display::init_display` prende
@@ -4963,6 +4964,443 @@ fn render_setpoint(
     })
 }
 
+// ── Q36: sessione utente nel client LVGL ────────────────────────────────────
+//
+// Decisione del maintainer (2026-09-12): login su richiesta (non all'avvio),
+// un controllo persistente a schermo che da anonimo apre il login e da
+// loggato disconnette subito. Nessun "layer globale" esiste in questo motore
+// (ogni navigazione ricrea la pagina da zero, vedi `render_page_objects`):
+// il controllo è quindi ricreato a ogni pagina, stateless per costruzione —
+// lo stato vero vive in `SessionState`, condiviso e persistito su disco.
+
+/// Contesto del pulsante persistente login/logout: un solo widget con due
+/// stati. Da anonimo apre l'overlay; da loggato disconnette **subito**,
+/// senza overlay né conferma — il logout non tocca nulla di distruttivo, a
+/// differenza di un comando verso l'impianto.
+struct AuthToggleCtx {
+    shared_session: SharedSession,
+    overlay_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    toggle_label_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+}
+
+unsafe extern "C" fn sws_auth_toggle_clicked_cb(e: *mut lvgl_sys::lv_event_t) {
+    let user_data = unsafe { lvgl_sys::lv_event_get_user_data(e) };
+    if user_data.is_null() {
+        return;
+    }
+    let ctx = unsafe { &*(user_data as *const AuthToggleCtx) };
+    let logged_in = {
+        let s = ctx.shared_session.lock().unwrap_or_else(|e| e.into_inner());
+        s.is_logged_in()
+    };
+    if logged_in {
+        let mut s = ctx.shared_session.lock().unwrap_or_else(|e| e.into_inner());
+        s.clear();
+        drop(s);
+        unsafe {
+            lvgl_sys::lv_label_set_text(
+                ctx.toggle_label_ptr.as_ptr(),
+                text_cstring("Login").as_ptr(),
+            );
+        }
+    } else {
+        unsafe {
+            lvgl_sys::lv_obj_clear_flag(
+                ctx.overlay_ptr.as_ptr(),
+                lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t,
+            );
+        }
+    }
+}
+
+/// Contesto condiviso dai due campi di login: un tocco su uno dei due
+/// riaggancia la tastiera a quel campo — `lv_keyboard_set_textarea` lega la
+/// tastiera a UNA textarea alla volta, senza questo digitare nel campo non
+/// appena toccato scriverebbe ancora in quello con cui la tastiera è stata
+/// creata (`username`, vedi `render_auth_widget`).
+struct AuthFieldFocusCtx {
+    keyboard_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    field_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+}
+
+unsafe extern "C" fn sws_auth_field_focused_cb(e: *mut lvgl_sys::lv_event_t) {
+    let user_data = unsafe { lvgl_sys::lv_event_get_user_data(e) };
+    if user_data.is_null() {
+        return;
+    }
+    let ctx = unsafe { &*(user_data as *const AuthFieldFocusCtx) };
+    unsafe {
+        lvgl_sys::lv_keyboard_set_textarea(ctx.keyboard_ptr.as_ptr(), ctx.field_ptr.as_ptr());
+    }
+}
+
+/// Contesto del tasto "OK" della tastiera nell'overlay di login.
+struct AuthKeyboardCtx {
+    keyboard_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    username_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    password_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    overlay_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    error_label_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    toggle_label_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    base_url: String,
+    rt_handle: tokio::runtime::Handle,
+    shared_session: SharedSession,
+}
+
+unsafe fn auth_read_textarea(p: *mut lvgl_sys::lv_obj_t) -> String {
+    let c = unsafe { lvgl_sys::lv_textarea_get_text(p) };
+    if c.is_null() {
+        return String::new();
+    }
+    unsafe { std::ffi::CStr::from_ptr(c) }
+        .to_string_lossy()
+        .into_owned()
+}
+
+/// `LV_EVENT_READY` (tasto "OK"): dal campo utente passa al campo password
+/// — Invio qui è un tab, non un submit, un nome utente da solo non basta a
+/// tentare un login. Dal campo password, invece, tenta davvero.
+///
+/// **`rt_handle.block_on`, non `spawn`** — a differenza di
+/// `apply_recipe`/`put_tag`/`ack_alarm`, fire-and-forget perché scrivono un
+/// tag e non serve aspettare l'esito per continuare a disegnare. Il login è
+/// diverso: bisogna sapere subito se è andato bene per aggiornare schermata
+/// e sessione, esattamente come la navigazione (`nav_rx`, che infatti già
+/// usa `rt_handle.block_on` nel loop principale — stesso principio, stessa
+/// scelta qui). Non è solo una preferenza di stile: **un `client::login`
+/// dentro `rt_handle.spawn` è stato provato dal vivo e si è bloccato per
+/// sempre**, mentre lo stesso identico login via `block_on` (qui) e via
+/// `curl`/un binario Rust a sé stante fuori da questo processo funzionano
+/// entrambi subito — la stessa richiesta, tre esecutori diversi, un solo
+/// esito diverso. Non isolata la causa esatta (sospetto probabile: qualcosa
+/// nell'override globale di `strncmp`/`strcmp` di `lvgl-sys`, la stessa
+/// classe di rischio già vista rompere `libdbus` in SDL2 — vedi
+/// `docs/OPEN_QUESTIONS.md` per la domanda aperta). Bloccare il render loop
+/// per la durata di un login (tipicamente <100ms in locale) è un costo
+/// accettabile per un'azione "una tantum" innescata da un tocco umano,
+/// stesso trade-off già accettato per la navigazione.
+unsafe extern "C" fn sws_auth_keyboard_ready_cb(e: *mut lvgl_sys::lv_event_t) {
+    let user_data = unsafe { lvgl_sys::lv_event_get_user_data(e) };
+    if user_data.is_null() {
+        return;
+    }
+    let ctx = unsafe { &*(user_data as *const AuthKeyboardCtx) };
+    let current = unsafe { lvgl_sys::lv_keyboard_get_textarea(ctx.keyboard_ptr.as_ptr()) };
+    if current == ctx.username_ptr.as_ptr() {
+        unsafe {
+            lvgl_sys::lv_keyboard_set_textarea(
+                ctx.keyboard_ptr.as_ptr(),
+                ctx.password_ptr.as_ptr(),
+            );
+        }
+        return;
+    }
+    let username = unsafe { auth_read_textarea(ctx.username_ptr.as_ptr()) };
+    let password = unsafe { auth_read_textarea(ctx.password_ptr.as_ptr()) };
+    if username.trim().is_empty() {
+        // Tornati al campo password senza aver mai scritto un utente: non
+        // c'è niente da tentare, si torna lì invece di chiamare il server
+        // con un utente vuoto che fallirebbe comunque.
+        unsafe {
+            lvgl_sys::lv_keyboard_set_textarea(
+                ctx.keyboard_ptr.as_ptr(),
+                ctx.username_ptr.as_ptr(),
+            );
+        }
+        return;
+    }
+    unsafe {
+        lvgl_sys::lv_label_set_text(
+            ctx.error_label_ptr.as_ptr(),
+            text_cstring("Accesso in corso…").as_ptr(),
+        );
+    }
+    let esito = ctx
+        .rt_handle
+        .block_on(client::login(&ctx.base_url, &username, &password));
+    match esito {
+        Ok(ok) => {
+            let username = ok.username.clone();
+            {
+                let mut s = ctx.shared_session.lock().unwrap_or_else(|e| e.into_inner());
+                s.set_logged_in(ok);
+            }
+            unsafe {
+                lvgl_sys::lv_label_set_text(
+                    ctx.toggle_label_ptr.as_ptr(),
+                    text_cstring(&format!("{username} ⎋")).as_ptr(),
+                );
+                lvgl_sys::lv_label_set_text(
+                    ctx.error_label_ptr.as_ptr(),
+                    text_cstring("").as_ptr(),
+                );
+                lvgl_sys::lv_textarea_set_text(ctx.password_ptr.as_ptr(), c"".as_ptr());
+                lvgl_sys::lv_obj_add_flag(
+                    ctx.overlay_ptr.as_ptr(),
+                    lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t,
+                );
+            }
+        }
+        Err(e) => unsafe {
+            lvgl_sys::lv_label_set_text(
+                ctx.error_label_ptr.as_ptr(),
+                text_cstring(&e.to_string()).as_ptr(),
+            );
+            lvgl_sys::lv_textarea_set_text(ctx.password_ptr.as_ptr(), c"".as_ptr());
+        },
+    }
+}
+
+/// `LV_EVENT_CANCEL` (tasto "Esc"): chiude l'overlay senza tentare nulla,
+/// stesso trattamento di `sws_setpoint_cancel_cb`.
+unsafe extern "C" fn sws_auth_keyboard_cancel_cb(e: *mut lvgl_sys::lv_event_t) {
+    let user_data = unsafe { lvgl_sys::lv_event_get_user_data(e) };
+    if user_data.is_null() {
+        return;
+    }
+    let ctx = unsafe { &*(user_data as *const AuthKeyboardCtx) };
+    unsafe {
+        lvgl_sys::lv_obj_add_flag(
+            ctx.overlay_ptr.as_ptr(),
+            lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t,
+        );
+        lvgl_sys::lv_label_set_text(ctx.error_label_ptr.as_ptr(), text_cstring("").as_ptr());
+        lvgl_sys::lv_textarea_set_text(ctx.password_ptr.as_ptr(), c"".as_ptr());
+        lvgl_sys::lv_keyboard_set_textarea(ctx.keyboard_ptr.as_ptr(), ctx.username_ptr.as_ptr());
+    }
+}
+
+/// Il controllo persistente login/logout, più l'overlay di login — ricreato
+/// su ogni pagina (vedi commento di modulo sopra), aggiunto per ultimo così
+/// resta sopra il resto del contenuto. Angolo in alto a destra, come
+/// proposto nel piano; posizione da rivedere quando il maintainer la vede
+/// dal vivo.
+fn render_auth_widget(
+    screen: &mut lvgl::Obj,
+    hor_res: u32,
+    ver_res: u32,
+    base_url: &str,
+    rt_handle: &tokio::runtime::Handle,
+    shared_session: &SharedSession,
+) -> anyhow::Result<()> {
+    let (username, is_logged_in) = {
+        let s = shared_session.lock().unwrap_or_else(|e| e.into_inner());
+        (s.username.clone(), s.is_logged_in())
+    };
+
+    // ── Overlay di login, nascosto di default ───────────────────────────
+    // Dimensione della PAGINA vera (`hor_res`/`ver_res` risolti da
+    // `render_page_objects`), non le costanti HOR_RES/VER_RES: quelle sono
+    // solo il default 800×480 quando la pagina non dichiara width/height —
+    // su una pagina più grande (es. 1280×800, come i demo) un overlay
+    // dimensionato sulla costante lascerebbe un bordo scoperto.
+    let mut overlay = create_child_obj(screen)?;
+    overlay
+        .set_pos(0, 0)
+        .map_err(|e| anyhow::anyhow!("set_pos overlay: {e:?}"))?;
+    overlay
+        .set_size(hor_res as i16, ver_res as i16)
+        .map_err(|e| anyhow::anyhow!("set_size overlay: {e:?}"))?;
+    let mut overlay_style = Style::default();
+    overlay_style.set_bg_color(Color::from_rgb((15, 23, 42)));
+    overlay
+        .add_style(Part::Main, &mut overlay_style)
+        .map_err(|e| anyhow::anyhow!("add_style overlay: {e:?}"))?;
+    // Lo stile va tenuto vivo quanto il widget (LVGL tiene un puntatore, non
+    // una copia) — non c'è un `Vec<Style>` di pagina qui dentro come nelle
+    // altre render_*, quindi va perso apposta: vedi nota sotto sul leak.
+    Box::leak(Box::new(overlay_style));
+    let overlay_ptr = overlay.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+
+    let mut title =
+        Label::create(&mut overlay).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+    title
+        .set_pos(20, 20)
+        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    title
+        .set_text(&text_cstring("Accesso"))
+        .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+
+    let mut username_field = unsafe {
+        let ptr = lvgl_sys::lv_textarea_create(overlay_ptr.as_ptr());
+        let nn = core::ptr::NonNull::new(ptr)
+            .ok_or_else(|| anyhow::anyhow!("lv_textarea_create (utente) ha restituito null"))?;
+        <lvgl::Obj as Widget>::from_raw(nn)
+    };
+    username_field
+        .set_pos(20, 60)
+        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    username_field
+        .set_size((hor_res as i16) - 40, 50)
+        .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
+    let username_ptr = username_field
+        .raw()
+        .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    unsafe {
+        lvgl_sys::lv_textarea_set_one_line(username_ptr.as_ptr(), true);
+        lvgl_sys::lv_textarea_set_placeholder_text(username_ptr.as_ptr(), c"Utente".as_ptr());
+    }
+
+    let mut password_field = unsafe {
+        let ptr = lvgl_sys::lv_textarea_create(overlay_ptr.as_ptr());
+        let nn = core::ptr::NonNull::new(ptr)
+            .ok_or_else(|| anyhow::anyhow!("lv_textarea_create (password) ha restituito null"))?;
+        <lvgl::Obj as Widget>::from_raw(nn)
+    };
+    password_field
+        .set_pos(20, 120)
+        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    password_field
+        .set_size((hor_res as i16) - 40, 50)
+        .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
+    let password_ptr = password_field
+        .raw()
+        .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    unsafe {
+        lvgl_sys::lv_textarea_set_one_line(password_ptr.as_ptr(), true);
+        lvgl_sys::lv_textarea_set_password_mode(password_ptr.as_ptr(), true);
+        lvgl_sys::lv_textarea_set_placeholder_text(password_ptr.as_ptr(), c"Password".as_ptr());
+    }
+
+    let mut error_label =
+        Label::create(&mut overlay).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+    error_label
+        .set_pos(20, 180)
+        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    error_label
+        .set_text(&text_cstring(""))
+        .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+    let mut error_style = Style::default();
+    error_style.set_text_color(Color::from_rgb((248, 113, 113))); // #f87171
+    error_label
+        .add_style(Part::Main, &mut error_style)
+        .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
+    Box::leak(Box::new(error_style));
+    let error_label_ptr = error_label
+        .raw()
+        .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+
+    let keyboard_ptr = unsafe {
+        let ptr = lvgl_sys::lv_keyboard_create(overlay_ptr.as_ptr());
+        core::ptr::NonNull::new(ptr)
+            .ok_or_else(|| anyhow::anyhow!("lv_keyboard_create ha restituito null"))?
+    };
+    unsafe {
+        lvgl_sys::lv_keyboard_set_textarea(keyboard_ptr.as_ptr(), username_ptr.as_ptr());
+        lvgl_sys::lv_keyboard_set_mode(
+            keyboard_ptr.as_ptr(),
+            lvgl_sys::LV_KEYBOARD_MODE_TEXT_LOWER as lvgl_sys::lv_keyboard_mode_t,
+        );
+        lvgl_sys::lv_obj_add_flag(
+            overlay_ptr.as_ptr(),
+            lvgl_sys::LV_OBJ_FLAG_HIDDEN as lvgl_sys::lv_obj_flag_t,
+        );
+    }
+
+    let focus_ctx_user: &'static AuthFieldFocusCtx = Box::leak(Box::new(AuthFieldFocusCtx {
+        keyboard_ptr,
+        field_ptr: username_ptr,
+    }));
+    let focus_ctx_pass: &'static AuthFieldFocusCtx = Box::leak(Box::new(AuthFieldFocusCtx {
+        keyboard_ptr,
+        field_ptr: password_ptr,
+    }));
+    unsafe {
+        lvgl_sys::lv_obj_add_event_cb(
+            username_ptr.as_ptr(),
+            Some(sws_auth_field_focused_cb),
+            lvgl_sys::lv_event_code_t_LV_EVENT_CLICKED,
+            focus_ctx_user as *const AuthFieldFocusCtx as *mut std::ffi::c_void,
+        );
+        lvgl_sys::lv_obj_add_event_cb(
+            password_ptr.as_ptr(),
+            Some(sws_auth_field_focused_cb),
+            lvgl_sys::lv_event_code_t_LV_EVENT_CLICKED,
+            focus_ctx_pass as *const AuthFieldFocusCtx as *mut std::ffi::c_void,
+        );
+    }
+
+    // ── Pulsante persistente, angolo in alto a destra ───────────────────
+    // Creato PRIMA di `kb_ctx` sotto: la callback del tasto "OK" della
+    // tastiera deve poter aggiornare questa stessa etichetta dopo un login
+    // riuscito (da "Login" a "‹utente› ⎋"), quindi le serve il puntatore.
+    let mut toggle_btn = Btn::create(screen).map_err(|e| anyhow::anyhow!("Btn::create: {e:?}"))?;
+    toggle_btn
+        .set_pos((hor_res as i16) - 90, 4)
+        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    toggle_btn
+        .set_size(84, 24)
+        .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
+    let mut toggle_label =
+        Label::create(&mut toggle_btn).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+    let label_text = if is_logged_in {
+        format!("{} ⎋", username.as_deref().unwrap_or("?"))
+    } else {
+        "Login".to_string()
+    };
+    toggle_label
+        .set_text(&text_cstring(&label_text))
+        .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+    unsafe {
+        let l = toggle_label
+            .raw()
+            .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
+            .as_ptr();
+        lvgl_sys::lv_obj_align(l, lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t, 0, 0);
+        if let Some(f) = lvgl_font::at_size(11) {
+            lvgl_sys::lv_obj_set_style_text_font(l, f, 0);
+        }
+    }
+    let toggle_label_ptr = toggle_label
+        .raw()
+        .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    let toggle_ptr = toggle_btn
+        .raw()
+        .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+
+    let toggle_ctx: &'static AuthToggleCtx = Box::leak(Box::new(AuthToggleCtx {
+        shared_session: shared_session.clone(),
+        overlay_ptr,
+        toggle_label_ptr,
+    }));
+    unsafe {
+        lvgl_sys::lv_obj_add_event_cb(
+            toggle_ptr.as_ptr(),
+            Some(sws_auth_toggle_clicked_cb),
+            lvgl_sys::lv_event_code_t_LV_EVENT_CLICKED,
+            toggle_ctx as *const AuthToggleCtx as *mut std::ffi::c_void,
+        );
+    }
+
+    let kb_ctx: &'static AuthKeyboardCtx = Box::leak(Box::new(AuthKeyboardCtx {
+        keyboard_ptr,
+        username_ptr,
+        password_ptr,
+        overlay_ptr,
+        error_label_ptr,
+        toggle_label_ptr,
+        base_url: base_url.to_string(),
+        rt_handle: rt_handle.clone(),
+        shared_session: shared_session.clone(),
+    }));
+    unsafe {
+        lvgl_sys::lv_obj_add_event_cb(
+            keyboard_ptr.as_ptr(),
+            Some(sws_auth_keyboard_ready_cb),
+            lvgl_sys::lv_event_code_t_LV_EVENT_READY,
+            kb_ctx as *const AuthKeyboardCtx as *mut std::ffi::c_void,
+        );
+        lvgl_sys::lv_obj_add_event_cb(
+            keyboard_ptr.as_ptr(),
+            Some(sws_auth_keyboard_cancel_cb),
+            lvgl_sys::lv_event_code_t_LV_EVENT_CANCEL,
+            kb_ctx as *const AuthKeyboardCtx as *mut std::ffi::c_void,
+        );
+    }
+
+    Ok(())
+}
+
 /// Click sulla campanella: apre/chiude il pannello elenco allarmi attivi
 /// (`lv_obj_has_flag(HIDDEN)` come toggle — stesso approccio semplice già
 /// usato per l'overlay del `setpoint`, niente stato aggiuntivo da tenere).
@@ -5765,6 +6203,7 @@ fn render_grid(
     ack_tx: &mpsc::Sender<String>,
     lang_table: &LanguageTable,
     shared_lang: &SharedLang,
+    shared_session: &SharedSession,
     own_page_id: &str,
     live: &mut Vec<LiveBinding>,
 ) -> anyhow::Result<()> {
@@ -5923,6 +6362,7 @@ fn render_grid(
             ack_tx,
             lang_table,
             shared_lang,
+            shared_session,
             own_page_id,
             live,
         )?;
@@ -5954,6 +6394,7 @@ fn render_grid_slot(
     ack_tx: &mpsc::Sender<String>,
     lang_table: &LanguageTable,
     shared_lang: &SharedLang,
+    shared_session: &SharedSession,
     own_page_id: &str,
     live: &mut Vec<LiveBinding>,
 ) -> anyhow::Result<()> {
@@ -6011,6 +6452,7 @@ fn render_grid_slot(
                 ack_tx,
                 lang_table,
                 shared_lang,
+                shared_session,
                 own_page_id,
                 live,
             )?;
@@ -6041,6 +6483,7 @@ fn render_grid_slot(
         ack_tx,
         lang_table,
         shared_lang,
+        shared_session,
         own_page_id,
         live,
     );
@@ -6059,6 +6502,7 @@ struct RecipeApplyCtx {
     base_url: String,
     id: String,
     rt_handle: tokio::runtime::Handle,
+    shared_session: SharedSession,
 }
 
 unsafe extern "C" fn sws_recipe_apply_clicked_cb(e: *mut lvgl_sys::lv_event_t) {
@@ -6067,8 +6511,17 @@ unsafe extern "C" fn sws_recipe_apply_clicked_cb(e: *mut lvgl_sys::lv_event_t) {
         return;
     }
     let ctx = unsafe { &*(user_data as *const RecipeApplyCtx) };
-    ctx.rt_handle
-        .spawn(client::apply_recipe(ctx.base_url.clone(), ctx.id.clone()));
+    let token = ctx
+        .shared_session
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .token
+        .clone();
+    ctx.rt_handle.spawn(client::apply_recipe(
+        ctx.base_url.clone(),
+        ctx.id.clone(),
+        token,
+    ));
 }
 
 /// `recipe_panel`: elenco statico di ricette (`GET /api/recipes`, chiamata
@@ -6084,6 +6537,7 @@ fn render_recipe_panel(
     styles: &mut Vec<Style>,
     base_url: &str,
     rt_handle: &tokio::runtime::Handle,
+    shared_session: &SharedSession,
 ) -> anyhow::Result<()> {
     let w = obj.width.unwrap_or(260.0);
     let h = obj.height.unwrap_or(160.0);
@@ -6147,6 +6601,7 @@ fn render_recipe_panel(
             base_url: base_url.to_string(),
             id: recipe.id.clone(),
             rt_handle: rt_handle.clone(),
+            shared_session: shared_session.clone(),
         }));
         unsafe {
             lvgl_sys::lv_obj_add_event_cb(
@@ -7271,6 +7726,7 @@ fn dispatch_render(
     ack_tx: &mpsc::Sender<String>,
     lang_table: &LanguageTable,
     shared_lang: &SharedLang,
+    shared_session: &SharedSession,
     own_page_id: &str,
     live: &mut Vec<LiveBinding>,
 ) -> anyhow::Result<()> {
@@ -7354,6 +7810,7 @@ fn dispatch_render(
             ack_tx,
             lang_table,
             shared_lang,
+            shared_session,
             own_page_id,
             live,
         ),
@@ -7388,6 +7845,7 @@ fn dispatch_render(
             ack_tx,
             lang_table,
             shared_lang,
+            shared_session,
             own_page_id,
             live,
         ),
@@ -7396,7 +7854,9 @@ fn dispatch_render(
         "data_log" => render_data_log(screen, obj, base_url, rt_handle),
         "alarm_history" => render_alarm_history(screen, obj, base_url, rt_handle),
         "alarm_bell" => render_alarm_bell(screen, obj, styles, shared_alarms).map(|b| live.push(b)),
-        "recipe_panel" => render_recipe_panel(screen, obj, styles, base_url, rt_handle),
+        "recipe_panel" => {
+            render_recipe_panel(screen, obj, styles, base_url, rt_handle, shared_session)
+        }
         "setpoint" => render_setpoint(screen, obj, styles, tags, tag_tx).map(|b| live.push(b)),
         "xy_plot" => render_xy_plot(screen, obj, styles, base_url, rt_handle).map(|b| live.push(b)),
         "pie_chart" => render_pie_chart(screen, obj, tags).map(|b| live.push(b)),
@@ -7523,6 +7983,7 @@ fn render_faceplate(
     ack_tx: &mpsc::Sender<String>,
     lang_table: &LanguageTable,
     shared_lang: &SharedLang,
+    shared_session: &SharedSession,
     own_page_id: &str,
     live: &mut Vec<LiveBinding>,
 ) -> anyhow::Result<()> {
@@ -7603,6 +8064,7 @@ fn render_faceplate(
             ack_tx,
             lang_table,
             shared_lang,
+            shared_session,
             own_page_id,
             live,
         );
@@ -7628,6 +8090,7 @@ pub fn interpret_page(
     ack_tx: &mpsc::Sender<String>,
     lang_table: &LanguageTable,
     shared_lang: &SharedLang,
+    shared_session: &SharedSession,
 ) -> anyhow::Result<PaginaResa> {
     let (hor_res, ver_res) = resolve_resolution(page);
     crate::lvgl_display::init_display(hor_res, ver_res)?;
@@ -7642,6 +8105,7 @@ pub fn interpret_page(
         ack_tx,
         lang_table,
         shared_lang,
+        shared_session,
     )?;
     Ok((summary, styles, live, hor_res, ver_res))
 }
@@ -7695,6 +8159,7 @@ pub fn render_page_objects(
     ack_tx: &mpsc::Sender<String>,
     lang_table: &LanguageTable,
     shared_lang: &SharedLang,
+    shared_session: &SharedSession,
 ) -> anyhow::Result<(RenderSummary, Vec<Style>, Vec<LiveBinding>)> {
     let mut summary = RenderSummary::default();
     let mut styles: Vec<Style> = Vec::new();
@@ -7853,6 +8318,7 @@ pub fn render_page_objects(
             ack_tx,
             lang_table,
             shared_lang,
+            shared_session,
             &own_page_id,
             &mut live,
         );
@@ -7878,6 +8344,29 @@ pub fn render_page_objects(
             Err(e) => summary
                 .skipped_unsupported
                 .push(format!("{id} ({obj_type}) — errore: {e}")),
+        }
+    }
+
+    // Q36 — non un oggetto del synottico, non passa da `dispatch_render`:
+    // aggiunto per ultimo così resta sopra il resto della pagina. Nessun
+    // controllo su un runtime senza utenti: non c'è nulla da autenticare
+    // (stesso principio dell'Admin sintetico che il browser assume in
+    // no-auth — `optional_auth`).
+    let auth_required = shared_session
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .auth_required;
+    if auth_required {
+        let (page_hor_res, page_ver_res) = resolve_resolution(page);
+        if let Err(e) = render_auth_widget(
+            &mut screen,
+            page_hor_res,
+            page_ver_res,
+            base_url,
+            rt_handle,
+            shared_session,
+        ) {
+            eprintln!("[auth] controllo login/logout non creato: {e}");
         }
     }
 

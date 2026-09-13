@@ -14,6 +14,7 @@ use sws_core::tag::{TagQuality, TagValue};
 use tokio_tungstenite::tungstenite::Message;
 
 use crate::model::{FaceplateDef, LanguageTable, RecipeListEntry, SynopticPage};
+use crate::session::LoginOk;
 use crate::tls::insecure_client_config;
 
 /// Lingua *corrente* del progetto (codice, es. `"it"`) — mutabile, a
@@ -83,13 +84,19 @@ pub async fn fetch_recipes(base_url: &str) -> anyhow::Result<Vec<RecipeListEntry
     Ok(list)
 }
 
-/// `POST /api/recipes/:id/apply` — stesso principio di `client::put_tag`:
-/// nessun header `Authorization` (rotta anonymous-writable sul gruppo
-/// route viewer, stesso trattamento già riservato a `PUT /api/tags/:id` e
-/// `POST /api/alarms/:id/ack`). `applied_by` fisso a `"lvgl"` così un
-/// operatore che guarda lo storico applicazioni sa che è arrivata da questo
-/// motore, non da un utente autenticato via editor/viewer web.
-pub async fn apply_recipe(base_url: String, id: String) -> anyhow::Result<()> {
+/// `POST /api/recipes/:id/apply`. Fino a Q36 nessuna delle tre scritture di
+/// questo file portava un header `Authorization` — il client era anonimo
+/// per costruzione. `token` è quello della sessione corrente
+/// (`session::SessionState`, `None` finché non si fa login): quando presente
+/// si allega come `Bearer`, altrimenti la richiesta parte com'era sempre
+/// partita. `applied_by` resta fisso a `"lvgl"` (non al nome utente loggato):
+/// è il motore che ha eseguito il comando, non serve duplicare l'identità
+/// che il token già porta lato server.
+pub async fn apply_recipe(
+    base_url: String,
+    id: String,
+    token: Option<String>,
+) -> anyhow::Result<()> {
     let mut url = reqwest::Url::parse(&base_url)?;
     url.path_segments_mut()
         .map_err(|_| anyhow::anyhow!("base URL non può avere path segments (cannot-be-a-base)"))?
@@ -100,12 +107,13 @@ pub async fn apply_recipe(base_url: String, id: String) -> anyhow::Result<()> {
     let client = reqwest::Client::builder()
         .danger_accept_invalid_certs(true)
         .build()?;
-    client
+    let mut req = client
         .post(url)
-        .json(&serde_json::json!({ "applied_by": "lvgl" }))
-        .send()
-        .await?
-        .error_for_status()?;
+        .json(&serde_json::json!({ "applied_by": "lvgl" }));
+    if let Some(t) = token {
+        req = req.header("Authorization", format!("Bearer {t}"));
+    }
+    req.send().await?.error_for_status()?;
     Ok(())
 }
 
@@ -133,6 +141,60 @@ pub async fn fetch_languages(base_url: &str) -> anyhow::Result<LanguageTable> {
     let resp = client.get(url).send().await?.error_for_status()?;
     let wrapper = resp.json::<ProjectLanguagesOnly>().await?;
     Ok(wrapper.languages)
+}
+
+/// `GET /api/system`, di cui a questo client serve solo `auth_required`
+/// (Q36): sapere se il runtime ha utenti definiti decide se mostrare il
+/// controllo di login o tenerlo nascosto — un pannello senza utenti non ha
+/// nulla da autenticare, come nel browser (`optional_auth`, Admin
+/// sintetico). Stesso principio di tolleranza di `fetch_languages`: gli
+/// altri ~15 campi di `SystemInfo` non dichiarati qui vengono ignorati da
+/// serde, non generano errori.
+pub async fn fetch_system(base_url: &str) -> anyhow::Result<bool> {
+    #[derive(Deserialize)]
+    struct SystemAuthOnly {
+        auth_required: bool,
+    }
+    let mut url = reqwest::Url::parse(base_url)?;
+    url.path_segments_mut()
+        .map_err(|_| anyhow::anyhow!("base URL non può avere path segments (cannot-be-a-base)"))?
+        .push("api")
+        .push("system");
+    let client = reqwest::Client::builder()
+        .danger_accept_invalid_certs(true)
+        .build()?;
+    let resp = client.get(url).send().await?.error_for_status()?;
+    let wrapper = resp.json::<SystemAuthOnly>().await?;
+    Ok(wrapper.auth_required)
+}
+
+/// `POST /api/auth/login` — stesso endpoint del web
+/// (`sws-web/src/router.rs`, `login()`). Restituisce `Err` sia per un
+/// fallimento di rete sia per credenziali rifiutate: il chiamante (il click
+/// sul pulsante di login, vedi `lvgl_render.rs`) non ha bisogno di
+/// distinguerli oltre al messaggio d'errore, a differenza del web che
+/// discrimina 401 per "il dispositivo non ha utenti" (Q49/T-57) — qui non
+/// serve: se il pannello mostra il login è perché `fetch_system` ha già
+/// detto che il runtime ha utenti.
+pub async fn login(base_url: &str, username: &str, password: &str) -> anyhow::Result<LoginOk> {
+    let mut url = reqwest::Url::parse(base_url)?;
+    url.path_segments_mut()
+        .map_err(|_| anyhow::anyhow!("base URL non può avere path segments (cannot-be-a-base)"))?
+        .push("api")
+        .push("auth")
+        .push("login");
+    let client = reqwest::Client::builder()
+        .danger_accept_invalid_certs(true)
+        .build()?;
+    let resp = client
+        .post(url)
+        .json(&serde_json::json!({ "username": username, "password": password }))
+        .send()
+        .await?
+        .error_for_status()
+        .map_err(|e| anyhow::anyhow!("credenziali rifiutate o runtime non raggiungibile: {e}"))?;
+    let ok = resp.json::<LoginOk>().await?;
+    Ok(ok)
 }
 
 /// Elenca i nomi file (senza estensione) delle pagine del progetto attivo —
@@ -300,7 +362,15 @@ pub async fn resolve_page_by_id(
 /// quindi serializza come scalare JSON nativo). Chiamata da un task spawnato
 /// sul runtime tokio del processo (`Handle::spawn`, non dentro la callback
 /// FFI sincrona di LVGL — vedi `lvgl_render.rs`), quindi può restare async.
-pub async fn put_tag(base_url: &str, tag: &str, value: TagValue) -> anyhow::Result<()> {
+/// `token` (Q36): quello della sessione corrente, allegato come
+/// `Authorization: Bearer` quando presente — vedi `apply_recipe` per il
+/// perché non c'era prima.
+pub async fn put_tag(
+    base_url: &str,
+    tag: &str,
+    value: TagValue,
+    token: Option<&str>,
+) -> anyhow::Result<()> {
     let mut url = reqwest::Url::parse(base_url)?;
     url.path_segments_mut()
         .map_err(|_| anyhow::anyhow!("base URL non può avere path segments (cannot-be-a-base)"))?
@@ -316,12 +386,11 @@ pub async fn put_tag(base_url: &str, tag: &str, value: TagValue) -> anyhow::Resu
     let client = reqwest::Client::builder()
         .danger_accept_invalid_certs(true)
         .build()?;
-    client
-        .put(url)
-        .json(&WriteTagBody { value })
-        .send()
-        .await?
-        .error_for_status()?;
+    let mut req = client.put(url).json(&WriteTagBody { value });
+    if let Some(t) = token {
+        req = req.header("Authorization", format!("Bearer {t}"));
+    }
+    req.send().await?.error_for_status()?;
     Ok(())
 }
 
@@ -861,12 +930,8 @@ pub async fn spawn_alarm_subscription(base_url: &str) -> anyhow::Result<SharedAl
 }
 
 /// `POST /api/alarms/:id/ack` — stesso endpoint REST usato dal pulsante ACK
-/// del web (`AlarmViewerWidget`/`AlarmBellPanel`), ma senza header
-/// `Authorization`: questo client non ha mai avuto un concetto di sessione/
-/// ruolo (`PUT /api/tags/:id` da un click checkbox/slider funziona già senza
-/// token in questo ambiente — stesso principio, non un'eccezione nuova per
-/// gli allarmi).
-pub async fn ack_alarm(base_url: &str, alarm_id: &str) -> anyhow::Result<()> {
+/// del web. `token` (Q36): vedi `put_tag`/`apply_recipe`.
+pub async fn ack_alarm(base_url: &str, alarm_id: &str, token: Option<&str>) -> anyhow::Result<()> {
     let mut url = reqwest::Url::parse(base_url)?;
     url.path_segments_mut()
         .map_err(|_| anyhow::anyhow!("base URL non può avere path segments (cannot-be-a-base)"))?
@@ -877,12 +942,13 @@ pub async fn ack_alarm(base_url: &str, alarm_id: &str) -> anyhow::Result<()> {
     let client = reqwest::Client::builder()
         .danger_accept_invalid_certs(true)
         .build()?;
-    client
+    let mut req = client
         .post(url)
-        .json(&serde_json::json!({ "by": "lvgl-viewer" }))
-        .send()
-        .await?
-        .error_for_status()?;
+        .json(&serde_json::json!({ "by": "lvgl-viewer" }));
+    if let Some(t) = token {
+        req = req.header("Authorization", format!("Bearer {t}"));
+    }
+    req.send().await?.error_for_status()?;
     Ok(())
 }
 
