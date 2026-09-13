@@ -227,18 +227,39 @@ pub enum LiveKind {
         tag: Option<String>,
         min: f64,
         max: f64,
+        /// Etichetta col valore (`show_value`, default true come sul web —
+        /// `SvgCanvas.tsx`, slider e progress_bar). `None` quando
+        /// `show_value: false` è dichiarato: prima il campo esisteva nel
+        /// modello ma non veniva mai letto qui, quindi né slider né
+        /// progress_bar mostravano mai il valore su LVGL — gap dichiarato
+        /// solo nel nome del campo, non in un commento. Trovato nella
+        /// verifica dal vivo F9c del 2026-09-12.
+        value_ptr: Option<core::ptr::NonNull<lvgl_sys::lv_obj_t>>,
+        decimals: u8,
+        unit: String,
     },
-    /// checkbox e radio (approssimato con lo stesso widget — vedi
-    /// `render_radio`) condividono lo stesso binding: solo lo stato
-    /// checked/unchecked cambia dal vivo, `lv_obj_add_state`/`clear_state`
-    /// con `LV_STATE_CHECKED`. `checked_value` è quello che determina lo
-    /// stato (confronto per stringa col tag, vedi `checkbox_is_checked`),
-    /// non un booleano fisso — serve tenerlo qui per rivalutarlo a ogni
-    /// frame, non solo alla creazione.
+    /// Solo lo stato checked/unchecked cambia dal vivo,
+    /// `lv_obj_add_state`/`clear_state` con `LV_STATE_CHECKED`.
+    /// `checked_value` è quello che determina lo stato (confronto per
+    /// stringa col tag, vedi `checkbox_is_checked`), non un booleano fisso —
+    /// serve tenerlo qui per rivalutarlo a ogni frame, non solo alla
+    /// creazione. Un `radio` **senza** `options` dichiarate ripiega su
+    /// questo stesso binding (vedi `render_radio`); con `options` usa
+    /// `Radio` sotto, un vero gruppo a N scelte.
     Checkbox {
         ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
         tag: Option<String>,
         checked_value: serde_json::Value,
+    },
+    /// Un `radio` con `options[]` dichiarate (Q, trovato nella verifica F9c
+    /// del 2026-09-12): N checkbox mutuamente esclusivi, uno per opzione.
+    /// LVGL non ha un gruppo radio nativo — l'esclusione reciproca è gestita
+    /// a mano nel callback di click (`sws_radio_option_clicked_cb`) e
+    /// riconfermata qui a ogni frame, così una scrittura del tag da fuori
+    /// (API, un altro client) sposta la selezione come sul web.
+    Radio {
+        boxes: Vec<(core::ptr::NonNull<lvgl_sys::lv_obj_t>, serde_json::Value)>,
+        tag: Option<String>,
     },
     Text {
         ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
@@ -679,6 +700,20 @@ struct CheckboxToggleCtx {
     tx: mpsc::Sender<TagCommand>,
 }
 
+/// Contesto per il click di UNA opzione di un `radio` a N scelte
+/// (`render_radio`, con `options[]`): a differenza della checkbox singola,
+/// un click qui deve anche spegnere le altre N-1 caselle — LVGL non ha un
+/// gruppo radio nativo che lo faccia da sé. `boxes` è l'elenco di TUTTI i
+/// puntatori del gruppo (compreso il proprio), `index` dice quale di questi
+/// è "io": evita N struct diverse, una per indice.
+struct RadioOptionCtx {
+    tag: String,
+    value: TagValue,
+    boxes: Vec<core::ptr::NonNull<lvgl_sys::lv_obj_t>>,
+    index: usize,
+    tx: mpsc::Sender<TagCommand>,
+}
+
 /// Contesto per il click di un navbutton: il nome pagina è fisso quanto il
 /// `write_value` di un bottone — letto dal synottico, non dal vivo.
 struct NavClickCtx {
@@ -851,6 +886,28 @@ unsafe extern "C" fn sws_checkbox_toggled_cb(e: *mut lvgl_sys::lv_event_t) {
     let _ = ctx.tx.send(TagCommand {
         tag: ctx.tag.clone(),
         value,
+    });
+}
+
+/// `LV_EVENT_VALUE_CHANGED` su UNA casella di un `radio` a N scelte: forza
+/// questa a CHECKED e tutte le altre del gruppo a CLEARED, indipendentemente
+/// da cosa LVGL abbia già fatto da sé sul target — un radio non si "spegne"
+/// ricliccando l'opzione già scelta, una checkbox isolata sì. La conferma
+/// definitiva arriva comunque al giro successivo di `update_bindings`
+/// quando il tag scritto qui sotto torna indietro; questo è solo il
+/// feedback immediato, per non aspettare il round-trip per vedere il click.
+unsafe extern "C" fn sws_radio_option_clicked_cb(e: *mut lvgl_sys::lv_event_t) {
+    let user_data = unsafe { lvgl_sys::lv_event_get_user_data(e) };
+    if user_data.is_null() {
+        return;
+    }
+    let ctx = unsafe { &*(user_data as *const RadioOptionCtx) };
+    for (i, ptr) in ctx.boxes.iter().enumerate() {
+        apply_checked_state(*ptr, i == ctx.index);
+    }
+    let _ = ctx.tx.send(TagCommand {
+        tag: ctx.tag.clone(),
+        value: ctx.value.clone(),
     });
 }
 
@@ -2566,7 +2623,7 @@ fn render_slider(
     // esistono lv_slider_set_range/set_value dedicati, si riusano quelli di
     // bar (confermato dai bindgen bindings reali, non da supposizione) — vedi
     // init_bar_like, condivisa con progress_bar per lo stesso motivo.
-    let binding = init_bar_like(ptr, obj, tags)?;
+    let binding = init_bar_like(screen, ptr, obj, tags)?;
 
     // Solo lo slider è interattivo — non progress_bar, che condivide
     // init_bar_like ma resta un indicatore read-only (nessuna callback
@@ -2596,10 +2653,11 @@ fn render_progress_bar(
     let mut bar = Bar::create(screen).map_err(|e| anyhow::anyhow!("Bar::create: {e:?}"))?;
     set_pos_size(&mut bar, obj, 200.0, 24.0)?;
     let ptr = bar.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
-    init_bar_like(ptr, obj, tags)
+    init_bar_like(screen, ptr, obj, tags)
 }
 
 fn init_bar_like(
+    screen: &mut lvgl::Obj,
     ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
     obj: &SynopticObject,
     tags: &TagSnapshot,
@@ -2618,11 +2676,32 @@ fn init_bar_like(
             lvgl::Animation::OFF.into(),
         );
     }
+    let decimals = obj.decimals.unwrap_or(1);
+    let unit = obj.unit.clone().unwrap_or_default();
+    // show_value, default true come sul web (SvgCanvas.tsx, slider e
+    // progress_bar): un'etichetta sopra la traccia col valore formattato.
+    let value_ptr = if obj.show_value != Some(false) {
+        let mut lbl = Label::create(screen).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+        lbl.set_pos(
+            obj.x.unwrap_or(0.0).round() as i16,
+            (obj.y.unwrap_or(0.0) - 16.0).round() as i16,
+        )
+        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+        let d = decimals as usize;
+        lbl.set_text(&text_cstring(&format!("{raw:.d$}{unit}")))
+            .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+        Some(lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?)
+    } else {
+        None
+    };
     Ok(LiveBinding {
         kind: LiveKind::BarLike {
             ptr,
             tag: obj.tag.clone(),
             min,
+            value_ptr,
+            decimals,
+            unit,
             max,
         },
     })
@@ -2938,17 +3017,97 @@ fn render_checkbox(
 }
 
 /// Approssimazione dichiarata: LVGL non ha un widget "radio" nativo (solo
-/// checkbox + una convenzione di stile/gruppo sopra); un radio SWS viene
-/// quindi disegnato come una checkbox (quadrata, non tonda) — stesso spirito
-/// di "graphics won't be pixel-perfect but that's acceptable" del brief
-/// originale. Vedi ADR 0002.
+/// checkbox + una convenzione di stile/gruppo sopra) — la forma resta
+/// quadrata, non tonda, stesso spirito di "graphics won't be pixel-perfect
+/// but that's acceptable" del brief originale (ADR 0002).
+///
+/// Fino al 2026-09-12 questo era l'UNICO comportamento, anche con `options`
+/// dichiarate: un `radio` a N scelte collassava in un singolo checkbox a 2
+/// stati, e le altre N-1 opzioni sparivano — non un'approssimazione
+/// estetica, una perdita di dati (mai scrivibili, mai mostrabili). Trovato
+/// nella verifica dal vivo F9c. Ora con `options` non vuoto si disegnano N
+/// checkbox mutuamente esclusivi (vedi `LiveKind::Radio`); il ripiego su un
+/// singolo checkbox resta solo per il caso degenere (nessuna opzione
+/// dichiarata, dove comunque non c'è nulla fra cui scegliere).
 fn render_radio(
     screen: &mut lvgl::Obj,
     obj: &SynopticObject,
     tags: &TagSnapshot,
     tx: &mpsc::Sender<TagCommand>,
 ) -> anyhow::Result<LiveBinding> {
-    render_checkbox(screen, obj, tags, tx)
+    let opts = obj.options.clone().unwrap_or_default();
+    if opts.is_empty() {
+        return render_checkbox(screen, obj, tags, tx);
+    }
+
+    let horizontal = obj.orientation.as_deref() == Some("horizontal");
+    let base_x = obj.x.unwrap_or(0.0);
+    let mut base_y = obj.y.unwrap_or(0.0);
+    if let Some(label) = &obj.label {
+        let mut hdr = Label::create(screen).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+        hdr.set_pos(base_x.round() as i16, base_y.round() as i16)
+            .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+        hdr.set_text(&text_cstring(label))
+            .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+        base_y += 20.0;
+    }
+
+    // Passo fra un'opzione e la successiva — stessa idea del web
+    // (`SvgCanvas.tsx`, `itemH`/gap), non pixel-identica: qui basta non
+    // sovrapporle, il testo di ogni checkbox ne decide la vera larghezza.
+    const ITEM_STEP: f64 = 28.0;
+    const ITEM_STEP_H: f64 = 160.0;
+
+    let mut ptrs = Vec::with_capacity(opts.len());
+    for (i, opt) in opts.iter().enumerate() {
+        let mut cb =
+            Checkbox::create(screen).map_err(|e| anyhow::anyhow!("Checkbox::create: {e:?}"))?;
+        let (x, y) = if horizontal {
+            (base_x + i as f64 * ITEM_STEP_H, base_y)
+        } else {
+            (base_x, base_y + i as f64 * ITEM_STEP)
+        };
+        cb.set_pos(x.round() as i16, y.round() as i16)
+            .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+        cb.set_text(&text_cstring(&opt.label))
+            .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+        let ptr = cb.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+        apply_checked_state(ptr, checkbox_is_checked(lookup(tags, &obj.tag), &opt.value));
+        ptrs.push(ptr);
+    }
+
+    if let Some(tag) = &obj.tag {
+        for (i, opt) in opts.iter().enumerate() {
+            let value = serde_json::from_value::<TagValue>(opt.value.clone())
+                .unwrap_or(TagValue::Bool(false));
+            let ctx = leak_ctx(RadioOptionCtx {
+                tag: tag.clone(),
+                value,
+                boxes: ptrs.clone(),
+                index: i,
+                tx: tx.clone(),
+            });
+            unsafe {
+                lvgl_sys::lv_obj_add_event_cb(
+                    ptrs[i].as_ptr(),
+                    Some(sws_radio_option_clicked_cb),
+                    lvgl_sys::lv_event_code_t_LV_EVENT_VALUE_CHANGED,
+                    ctx,
+                );
+            }
+        }
+    }
+
+    let boxes = ptrs
+        .into_iter()
+        .zip(opts.iter().map(|o| o.value.clone()))
+        .collect();
+    Ok(LiveBinding {
+        kind: LiveKind::Radio {
+            boxes,
+            tag: obj.tag.clone(),
+        },
+    })
 }
 
 fn apply_checked_state(ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>, checked: bool) {
@@ -3133,6 +3292,30 @@ fn render_gauge(
             Color::from_rgb((148, 163, 184)).into(),
             10,
         );
+
+        // Fasce colorate fisse (gauge_zones, Q trovata nella verifica F9c del
+        // 2026-09-12): un arco per fascia, aggiunto PRIMA di quello del
+        // valore corrente così resta sotto — stesso ordine z del web
+        // (`SvgCanvas.tsx`: fondo, zone, arco valore). Zone fuori scala non
+        // filtrate: `lv_meter_set_indicator_*_value` le clampa da sé,
+        // coerente con `raw` sopra.
+        for zone in obj.gauge_zones.iter().flatten() {
+            let Some(rgb) = parse_hex_color(&zone.color) else {
+                continue;
+            };
+            let zone_arc =
+                lvgl_sys::lv_meter_add_arc(ptr.as_ptr(), scale, 6, Color::from_rgb(rgb).into(), 0);
+            lvgl_sys::lv_meter_set_indicator_start_value(
+                ptr.as_ptr(),
+                zone_arc,
+                zone.from.round() as i32,
+            );
+            lvgl_sys::lv_meter_set_indicator_end_value(
+                ptr.as_ptr(),
+                zone_arc,
+                zone.to.round() as i32,
+            );
+        }
 
         let arc =
             lvgl_sys::lv_meter_add_arc(ptr.as_ptr(), scale, 6, Color::from_rgb(arc_rgb).into(), 0);
@@ -3400,11 +3583,20 @@ fn render_table(
         }
     }
 
+    // Le due intestazioni seguivano un campo sbagliato/un letterale diverso da
+    // quello del web (`SvgCanvas.tsx`): `obj.label` è l'etichetta generica del
+    // widget, non l'intestazione della colonna — quella è `table_label_header`
+    // (assente = "DATI", stesso default). La seconda colonna sul web è sempre
+    // "VALORE", non configurabile: "VAL" era solo un refuso.
     table
-        .set_cell_value(0, 0, &text_cstring(obj.label.as_deref().unwrap_or("DATI")))
+        .set_cell_value(
+            0,
+            0,
+            &text_cstring(obj.table_label_header.as_deref().unwrap_or("DATI")),
+        )
         .map_err(|e| anyhow::anyhow!("set_cell_value: {e:?}"))?;
     table
-        .set_cell_value(0, 1, &text_cstring("VAL"))
+        .set_cell_value(0, 1, &text_cstring("VALORE"))
         .map_err(|e| anyhow::anyhow!("set_cell_value: {e:?}"))?;
     table
         .set_cell_value(0, 2, &text_cstring("Q"))
@@ -7962,7 +8154,15 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
                     }
                 }
             }
-            LiveKind::BarLike { ptr, tag, min, max } => {
+            LiveKind::BarLike {
+                ptr,
+                tag,
+                min,
+                max,
+                value_ptr,
+                decimals,
+                unit,
+            } => {
                 // Se l'utente sta trascinando lo slider in questo momento
                 // (LV_STATE_PRESSED), non sovrascrivere il valore con quello
                 // — ancora vecchio — nello snapshot tag: il round-trip verso
@@ -7991,6 +8191,13 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
                         raw.round() as i32,
                         lvgl::Animation::OFF.into(),
                     );
+                    if let Some(vp) = value_ptr {
+                        let d = *decimals as usize;
+                        lvgl_sys::lv_label_set_text(
+                            vp.as_ptr(),
+                            text_cstring(&format!("{raw:.d$}{unit}")).as_ptr(),
+                        );
+                    }
                 }
             }
             LiveKind::Checkbox {
@@ -7999,6 +8206,12 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
                 checked_value,
             } => {
                 apply_checked_state(*ptr, checkbox_is_checked(lookup(tags, tag), checked_value));
+            }
+            LiveKind::Radio { boxes, tag } => {
+                let tv = lookup(tags, tag);
+                for (ptr, value) in boxes {
+                    apply_checked_state(*ptr, checkbox_is_checked(tv, value));
+                }
             }
             LiveKind::Text {
                 ptr,

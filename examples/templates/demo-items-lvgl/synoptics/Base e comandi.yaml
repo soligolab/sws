@@ -209,9 +209,12 @@ objects:
   height: 96.0
   tag: demo.cmd.select
   options:
-  - Locale
-  - Remoto
-  - Fuori servizio
+  - label: Locale
+    value: locale
+  - label: Remoto
+    value: remoto
+  - label: Fuori servizio
+    value: fuori_servizio
 - id: c_setpoint
   type: text
   x: 960.0

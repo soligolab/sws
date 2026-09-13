@@ -389,7 +389,7 @@ pub struct SynopticObject {
     pub grid_padding: Option<f64>,
 
     // ── Indicatore analogico ──
-    pub gauge_zones: Option<serde_json::Value>,
+    pub gauge_zones: Option<Vec<GaugeZone>>,
     pub gauge_ticks: Option<f64>,
     pub gauge_start_angle: Option<f64>,
     pub gauge_end_angle: Option<f64>,
@@ -501,7 +501,7 @@ pub struct SynopticObject {
     pub require_reason: Option<bool>,
     pub decimals: Option<u8>,
     pub orientation: Option<String>,
-    pub options: Option<serde_json::Value>,
+    pub options: Option<Vec<RadioOption>>,
     pub pan_step_s: Option<f64>,
     pub corner_radius: Option<f64>,
     pub image_fit: Option<String>,
@@ -647,6 +647,29 @@ pub struct PieSlice {
 pub struct FaceplateDef {
     #[serde(default)]
     pub objects: Vec<serde_json::Value>,
+}
+
+/// Porta `GaugeZone` di `types/index.ts`. Fino al 2026-09-12 `gauge_zones`
+/// era dichiarato ma mai letto da `lvgl_render.rs`: il web disegna fasce
+/// colorate fisse sulla scala (verde/giallo/rosso di processo), LVGL
+/// coloriva solo l'arco del valore corrente in base alle soglie standard —
+/// due meccanismi diversi, non un dettaglio mancante. Trovato nella verifica
+/// dal vivo F9c, ora tipato perché serve davvero.
+#[derive(Debug, Deserialize, Clone)]
+pub struct GaugeZone {
+    pub from: f64,
+    pub to: f64,
+    pub color: String,
+}
+
+/// Porta `RadioOption` di `types/index.ts`. Fino al 2026-09-12 `options` era
+/// un passthrough non tipato (mai letto da `lvgl_render.rs`, un `radio` con
+/// N scelte collassava in un solo checkbox a 2 stati) — trovato nella
+/// verifica dal vivo F9c, ora tipato perché serve davvero.
+#[derive(Debug, Deserialize, Clone)]
+pub struct RadioOption {
+    pub label: String,
+    pub value: serde_json::Value,
 }
 
 /// Porta `BarChartSeries` di `types/index.ts`.
