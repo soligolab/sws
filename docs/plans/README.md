@@ -17,7 +17,7 @@
 | [2026-09-10-T56-pannelli-editor.md](2026-09-10-T56-pannelli-editor.md) | **REALIZZATO E SU `main`** | tutti e tre i passi, con T-55 che ne era il prerequisito (`bd26c74f`); manca il collaudo a fondo dei due pannelli |
 | [2026-09-11-utenti-nel-progetto.md](2026-09-11-utenti-nel-progetto.md) | **REALIZZATO E SU `main`** | i sei passi sono fatti e mergiati (`64c1b0db`); manca il collaudo a fondo — il deploy con e senza la casella, e la conferma 428 che non deve ripartire in ciclo |
 | [2026-09-12-ruolo-minimo-avviso-noauth.md](2026-09-12-ruolo-minimo-avviso-noauth.md) | **DA FARE** | avviso nell'editor quando `min_role` non ha effetto in modalità no-auth (misura e dichiarazione del limite già fatte) |
-| [2026-09-12-f7-residui-minori.md](2026-09-12-f7-residui-minori.md) | **DA FARE** | Parte A: bordo per-cella nella griglia. Parte B: motivo dell'ACK nello storico allarmi — ha una domanda per il maintainer prima di partire |
+| [2026-09-12-f7-residui-minori.md](2026-09-12-f7-residui-minori.md) | **PARTE A IN ATTESA DI COLLAUDO** | Parte A: bordo per-cella, costruita e su `feat/f7-bordo-cella-griglia`, non ancora mergiata — il maintainer voleva provarla di persona, sessione interrotta prima del collaudo. Parte B: ridotta a un rimando all'audit dallo storico allarmi (scelta del maintainer il 13-09-2026, niente migrazione di schema) — non ancora iniziata |
 | [2026-09-12-casamauro-arricchimento-demo.md](2026-09-12-casamauro-arricchimento-demo.md) | **DA FARE** | arricchire il progetto personale CasaMauro con le feature F2-F6 non esercitate — contenuto, non codice, nessun branch |
 
 **Dal 2026-09-12, anche le questioni aperte di `docs/OPEN_QUESTIONS.md` diventano piani singoli**
@@ -32,5 +32,4 @@ c'è già, manca solo la conferma a schermo prima di archiviare la scheda in
 |---|---|---|
 | [2026-09-12-q16-decoder-raster-image.md](2026-09-12-q16-decoder-raster-image.md) | Q16 | **pronto** — decoder raster per `image` su LVGL, se emerge un bisogno reale |
 | [2026-09-12-q45-linger-permesso-produzione.md](2026-09-12-q45-linger-permesso-produzione.md) | Q45 | **pronto** — misurare il linger di fabbrica sul TC620, poi scegliere fra 4 opzioni |
-| [2026-09-12-q49-tls-pinning-lvgl-mqtt.md](2026-09-12-q49-tls-pinning-lvgl-mqtt.md) | Q49 | **pronto** — estendere il pinning TLS (già fatto editor↔dispositivo) al viewer LVGL e al plugin MQTT |
 | [2026-09-12-q53-misura-rimozione-sdk-qemu.md](2026-09-12-q53-misura-rimozione-sdk-qemu.md) | Q53 | **pronto** — misurare CPU/avvio del cross-build sul TC620 (ora possibile) prima di togliere i percorsi SDK/QEMU |

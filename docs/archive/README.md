@@ -46,6 +46,7 @@ venga riletto come vero.
 | [2026-09-12-F5.3x-xy-plot-e-verifica-lvgl.md](2026-09-12-F5.3x-xy-plot-e-verifica-lvgl.md) | **FATTO** | Parte A (T-70, xy_plot multi-coppia) confermata sul TC620 in 2.7.3; Parte B (verifica dal vivo parità LVGL) ha trovato e corretto quattro divergenze reali (`radio`, `table`, `progress_bar`, `gauge_zones`), mergiate su `main` (`135150b`) |
 | [2026-08-21-scada-widgets.md](2026-08-21-scada-widgets.md) | **FATTO** | F0-F8 in 2.1.0, il residuo F5.3x chiuso il 2026-09-12/13 (vedi la riga sopra) — l'intero programma SCADA-widgets è concluso |
 | [2026-09-12-q36-min-role-lvgl.md](2026-09-12-q36-min-role-lvgl.md) | **FATTO** | Q36: parte 1 (sessione, login/logout, persistenza) mergiata il 13-09-2026 (`12c8ad1`); parte 2 (gate `min_role`/`min_role_effect`) mergiata lo stesso giorno (`7a2c3a0`). Collaudate dal vivo entrambe su runtime di test isolato. Bug del blocco `spawn()` scoperto durante la parte 1, registrato come Q55 in `docs/OPEN_QUESTIONS.md`, non deciso qui |
+| [2026-09-12-q49-tls-pinning-lvgl-mqtt.md](2026-09-12-q49-tls-pinning-lvgl-mqtt.md) | **FATTO** | Q49: pinning TLS esteso a viewer LVGL e plugin MQTT, mergiato il 13-09-2026 (`1b52423`). Ostacolo rumqttc/rustls risolto aggiornando a 0.25.1 (`use-rustls-no-provider`), un solo modulo `sws_core::pin_tls` invece di duplicare il verificatore. Collaudato dal vivo per LVGL, per lettura di codice per MQTT |
 
 ## Non solo piani
 

@@ -4074,3 +4074,68 @@ scritture, non solo quelle sotto `min_role`, con un fallimento muto per chi tocc
 **Default for PoC**: opzione 1. **Decided**: not yet.
 
 ---
+
+## Q49 — TLS senza verifica del certificato, in quattro posti
+
+> **Archiviata il 13-09-2026** — decisa dal maintainer il 2026-09-09 (opzione 1, pinning alla
+> prima connessione) e realizzata in due tempi: editor↔dispositivo lo stesso giorno
+> (`sws-web/src/certificati.rs`), viewer LVGL e plugin MQTT il 13-09-2026 (`chore/q49-tls-pinning`
+> → `main`, `1b52423`). Prima di scrivere codice per il residuo, trovato un ostacolo che il
+> piano segnalava ma non risolveva: rumqttc 0.24 porta con sé una rustls vendorizzata (0.22),
+> diversa da quella del workspace (0.23) — due crate distinte per il compilatore, il verificatore
+> di `certificati.rs` non ci sarebbe entrato senza duplicarlo. Risolto **verificando
+> empiricamente**, non solo deducendo: rumqttc 0.25.1 con la feature `use-rustls-no-provider`
+> allinea la sua rustls alla 0.23 del workspace, eliminando l'ostacolo alla radice — build pulita,
+> nessun panico rustls all'avvio (verificato avviando il binario), zero duplicazione di
+> verificatore. Il meccanismo TOFU si è quindi potuto spostare da `sws-web::certificati` a
+> `sws_core::pin_tls`, riusabile da MQTT e dal viewer LVGL senza dipendere da tutto `sws-web`
+> (axum, l'intero stack HTTP) — `certificati.rs` resta un thin wrapper, stessi nomi, zero
+> modifiche ai suoi chiamanti. Viewer LVGL: `AcceptAnyCert` sostituito dal pinning vero su tutti
+> i 17 punti che parlano TLS (14 client REST + 3 WebSocket),
+> `~/.config/sws/lvgl_tls_conosciuti.yaml`; nessuna UI per il gesto di «dimentica» (è un CLI), un
+> messaggio dice quale riga togliere a mano. MQTT: terza via accanto a
+> `insecure_skip_verify`/`ca_cert_path` — pinning per broker, condiviso fra le sorgenti vere e lo
+> sfoglia-topic dell'editor; come effetto collaterale, chiuso anche un difetto preesistente del
+> 2026-08-24 in `browse` (TLS richiesto senza CA né skip-verify parlava in chiaro, il broker
+> chiudeva, l'elenco tornava vuoto senza dire perché). **Collaudato dal vivo** per il viewer LVGL
+> (runtime di test con TLS generato al volo: primo contatto, connessione silenziosa, rifiuto con
+> messaggio su certificato rigenerato, nuovo primo contatto dopo aver tolto la riga) — il pinning
+> MQTT è verificato per lettura di codice e dai test unitari di `pin_tls`, non contro un broker
+> TLS reale. Gate: cargo check/test/clippy/fmt sull'intero workspace, pnpm build,
+> check_lvgl_parity/types/demo_templates/documenti.
+
+*Aperta il 2026-09-09 dalla revisione pre-2.7.0. Nessuna decisione presa.*
+
+**Context.** L'editor parla con il runtime remoto con `danger_accept_invalid_certs(true)`
+(`remote.rs`); il relay WebSocket e il viewer LVGL hanno un verificatore che accetta
+qualunque certificato (`remote_relay.rs`, `viewer/tls.rs`, copiato in due crate); il plugin
+MQTT ha `insecure_skip_verify` con un WARN esplicito. È una scelta PoC documentata: i
+dispositivi hanno certificati self-signed su LAN fidata. Ma è esattamente il caso in cui la
+cifratura c'è e l'identità no — la stessa classe di problema che il maintainer ha appena
+chiuso su SSH scegliendo `accept-new` invece di `no`.
+
+**Options.**
+1. **Pinning alla prima connessione** (TOFU): al primo «Connetti» si memorizza l'impronta del
+   certificato del dispositivo; se cambia, si rifiuta e si offre il pulsante «dimentica»,
+   come per la chiave host SSH. Stesso modello mentale, stesso pulsante.
+2. Distribuire un certificato per dispositivo firmato da una CA del progetto, e verificare
+   quella.
+3. Lasciare com'è, dichiarando «LAN fidata» nel modello di minaccia. Con Q44 (servizio
+   ospitato) non regge più.
+
+**Default for PoC.** Com'è (3). Raccomandazione: (1), riusando ciò che esiste per SSH.
+
+**Decided:** 2026-09-09 dal maintainer — opzione 1, pinning alla prima connessione.
+Realizzato lo stesso giorno per **editor ↔ dispositivo** (`sws-web/src/certificati.rs`):
+al primo «Connetti» si memorizza l'impronta SHA-256 del certificato in
+`<config>/dispositivi_conosciuti.yaml`; se cambia, «Connetti» si ferma con l'azione
+`certificato-cambiato` e il pulsante «Dimentica il vecchio certificato e riprova»
+(`POST /api/device/cert/forget`, Admin, audit); il relay WebSocket usa la stessa impronta e
+chiude con 4495, definitivo. Il verificatore controlla la **firma** del certificato con
+gli algoritmi del provider; solo la catena non si verifica (self-signed).
+**Restano da fare**, con lo stesso modulo: il viewer LVGL (`viewer/tls.rs`, che parla con
+`127.0.0.1` e ha un rischio diverso) e il plugin MQTT (`insecure_skip_verify` è un'opzione
+per sorgente, va ripensata come «impronta del broker»). Da verificare dal maintainer prima di
+archiviare.
+
+---

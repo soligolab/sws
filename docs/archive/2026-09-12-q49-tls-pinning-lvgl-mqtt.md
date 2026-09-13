@@ -1,5 +1,12 @@
 # Q49 — Estendere il pinning TLS al viewer LVGL e al plugin MQTT
 
+> **Realizzato e mergiato in `main` il 13-09-2026** (`chore/q49-tls-pinning`, `1b52423`) —
+> l'ostacolo rumqttc/rustls segnalato sotto risolto aggiornando rumqttc a 0.25.1
+> (`use-rustls-no-provider`), che ha permesso di condividere un solo modulo di pinning
+> (`sws_core::pin_tls`) invece di duplicare il verificatore. Collaudato dal vivo per il viewer
+> LVGL, per lettura di codice per MQTT. Scheda chiusa in
+> `docs/history/OPEN_QUESTIONS-chiuse.md`.
+
 > Trasferito da `docs/OPEN_QUESTIONS.md` (Q49) il 2026-09-12, aperta il 2026-09-09, decisa
 > (opzione 1, pinning alla prima connessione) e **parzialmente realizzata** lo stesso giorno.
 > Questo piano copre solo il residuo, dichiarato esplicitamente nella scheda come "restano da

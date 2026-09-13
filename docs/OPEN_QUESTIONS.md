@@ -466,12 +466,6 @@ Contenuto spostato in [`docs/plans/2026-09-12-q45-linger-permesso-produzione.md`
 
 ---
 
-## Q49 — TLS senza verifica del certificato, in quattro posti
-
-Contenuto spostato in [`docs/plans/2026-09-12-q49-tls-pinning-lvgl-mqtt.md`](plans/2026-09-12-q49-tls-pinning-lvgl-mqtt.md) il 2026-09-12. **Decided:** decisa e in parte realizzata il 2026-09-09, resta il viewer LVGL e il plugin MQTT.
-
----
-
 ## Q53 — Due immagini aarch64 (SDK Pixsys e generica): tenerle entrambe, o convergere su una?
 
 Contenuto spostato in [`docs/plans/2026-09-12-q53-misura-rimozione-sdk-qemu.md`](plans/2026-09-12-q53-misura-rimozione-sdk-qemu.md) il 2026-09-12. **Decided:** decisa e realizzata il 2026-09-10, resta la misura sul campo prima di togliere SDK/QEMU.

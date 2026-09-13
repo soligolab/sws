@@ -25,8 +25,29 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   cliccabile. Login e logout rinavigano da soli verso la pagina corrente per aggiornare il gate
   subito, senza aspettare la prossima navigazione (stessa idea di `lang_button`). Referto
   completo in `docs/archive/2026-09-12-q36-min-role-lvgl.md`.
+- **Bordo per-cella nella griglia (F7 parte A)**: nuovo campo `border_color` su `GridCell` e
+  `SubCellEntry`, indipendente da `grid_show_borders` — resta acceso anche a griglia "senza
+  bordi". Web: contorno SVG sempre disegnato quando presente; pannello proprietà con color
+  picker. LVGL: `render_cell_border`, stesso principio del bordo d'allarme già in uso.
+- **Pinning TLS esteso al viewer LVGL e al plugin MQTT (Q49)**: il meccanismo TOFU nato per
+  editor↔dispositivo (`sws-web/src/certificati.rs`) si sposta in `sws_core::pin_tls`, riusabile
+  senza dipendere da tutto `sws-web`. Viewer LVGL: `AcceptAnyCert` sostituito dal pinning vero
+  su tutti i punti che parlano TLS, archivio `~/.config/sws/lvgl_tls_conosciuti.yaml`. MQTT:
+  terza via accanto a `insecure_skip_verify`/`ca_cert_path` — pinning per broker, condiviso fra
+  le sorgenti e lo sfoglia-topic dell'editor. Richiesto un aggiornamento di `rumqttc` (0.24 →
+  0.25.1, con `use-rustls-no-provider`) per allineare la sua rustls a quella del resto del
+  workspace, eliminando la necessità di un secondo verificatore duplicato.
 
 ### Fixed
+- **Bug scorrelato trovato testando F7**: selezionando il figlio di una cella o di una
+  sotto-cella di una griglia, il pannello proprietà mostrava `ObjectProps` del figlio ma la
+  barra delle icone dei gruppi restava nascosta (sezioni Identità/Aspetto/Dato irraggiungibili)
+  — `barraGruppiVisibile` non sapeva che un figlio, non la cella, era ciò che si vedeva
+  davvero. Corretto con `figlioProprietaAttivo` in `EditorShell.tsx`.
+- **`browse` (sfoglia-topic MQTT) parlava in chiaro a una porta TLS** quando non c'era né una
+  CA né `insecure_skip_verify` — il broker chiudeva la connessione e l'elenco tornava vuoto
+  senza dire perché (difetto preesistente dal 2026-08-24, chiuso come effetto collaterale del
+  pinning TOFU aggiunto per Q49, che ora copre anche questo terzo caso).
 - **`client::login()` bloccato per sempre via `rt_handle.spawn()` nel viewer LVGL**: scoperto
   durante il collaudo dal vivo di Q36. Isolato per esclusione a "POST che riceve 200, via
   `spawn`, dentro questo processo" — la stessa richiesta funziona all'istante via `curl`, da un

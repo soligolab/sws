@@ -74,6 +74,42 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — Q49 completa: pinning TLS su viewer LVGL e MQTT (2026-09-13)
+
+Stesso ciclo `/riprendi`, dopo che il maintainer è dovuto uscire ("sono fuori, non riesco a fare
+le prove sul prodotto") a metà del collaudo di F7 (vedi sezione sotto). Scelto Q49 come task
+indipendente dal prodotto fisico — costruibile e collaudabile con un runtime di test, senza
+bisogno del maintainer davanti allo schermo.
+
+**Il piano segnalava un ostacolo prima di scrivere codice**: rumqttc 0.24 usa una rustls
+vendorizzata (0.22) diversa da quella del workspace (0.23) — il verificatore di `certificati.rs`
+non ci sarebbe entrato senza duplicarlo. Verificato empiricamente (non solo dedotto): rumqttc
+0.25.1 con la feature `use-rustls-no-provider` allinea la sua rustls alla 0.23 del workspace,
+eliminando l'ostacolo alla radice — zero duplicazione di verificatore, un solo modulo di pinning
+condiviso ovunque.
+
+**Costruito** (`chore/q49-tls-pinning` → `main`, `1b52423`): il meccanismo TOFU
+(`sws-web/src/certificati.rs`) spostato in `sws_core::pin_tls`, riusabile senza tirarsi dietro
+tutto `sws-web` (axum, l'intero stack HTTP). `certificati.rs` resta un thin wrapper, stessi nomi,
+zero modifiche ai chiamanti esistenti. Viewer LVGL: `AcceptAnyCert` sostituito dal pinning vero
+su tutti e 17 i punti che parlano TLS (14 client REST + 3 WebSocket),
+`~/.config/sws/lvgl_tls_conosciuti.yaml`; un'impronta cambiata blocca l'avvio con un messaggio
+che dice quale riga togliere a mano (nessuna UI qui, è un CLI). MQTT: terza via accanto a
+`insecure_skip_verify`/`ca_cert_path` — pinning per broker, condiviso fra le sorgenti vere e lo
+sfoglia-topic dell'editor. Come effetto collaterale, chiuso anche un difetto preesistente
+(2026-08-24) in `browse`: senza CA né `insecure_skip_verify` si parlava in chiaro a una porta
+TLS, il broker chiudeva, e lo sfoglia-topic tornava un elenco vuoto senza dire perché.
+
+**Collaudato dal vivo** (LVGL): runtime di test con TLS generato al volo
+(`POST /api/system/tls/generate`) — primo contatto, connessione silenziosa alla seconda, rifiuto
+con messaggio chiaro dopo aver rigenerato il certificato, nuovo primo contatto dopo aver tolto
+la riga dall'archivio. Ciclo completo su tutti e quattro gli stati. **Non collaudato dal vivo**:
+il pinning MQTT contro un broker TLS reale — verificato per lettura di codice e dai test
+unitari di `pin_tls` (stessa logica già in uso per editor↔dispositivo).
+
+Gate verde: `cargo check/test/clippy/fmt --workspace`, `pnpm build`, `check_lvgl_parity/types/
+demo_templates/documenti`.
+
 ## ▶ Riprendere da qui — F7 parte A pronta, in attesa di collaudo del maintainer (2026-09-13)
 
 Ciclo `/riprendi` proseguito su F7 (bordo per-cella nella griglia). **Parte A costruita e
