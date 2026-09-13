@@ -110,14 +110,18 @@ riportato sul TC620 dopo le correzioni). **T-68** (deploy da "Dispositivi regist
 discovery, con un pannello senza utenti configurati) confermato: parte senza chiedere nulla, come
 atteso.
 
-**Un incidente scorrelato**: durante il collaudo, un'azione del maintainer nell'editor (con ogni
-probabilità un Deploy di un progetto diverso — "lvgl project" — verso il TC620) ha svuotato i
-progetti del dispositivo (`demo-items-web`, un progetto di prova `collaudo-f7`) e gli utenti
-configurati. Nessun dato reale perso (entrambi ricostruibili dai template del repo, rifatto
-seduta stante), ma **resta un comportamento da capire**: un Deploy non dovrebbe cancellare in
-silenzio progetti/utenti che non sono quello in corso di invio. Non indagato a fondo (il sintomo
-si è manifestato una volta sola, non riprodotto deliberatamente) — se ricapita, guardare il
-percorso `remote_deploy`/`ConfigView.tsx` lato ancora da mappare.
+**Capito solo a posteriori, non un difetto**: durante il collaudo i progetti del TC620 sono
+spariti due volte (`demo-items-web`, `collaudo-f7`, gli utenti configurati), sostituiti dal solo
+progetto appena mandato. La prima volta sembrava un incidente; la seconda — riprodotta
+osservando l'esatta sequenza — ha chiarito il meccanismo: il TC620 (come ogni pannello di campo
+in questo progetto) tiene **un solo progetto attivo alla volta**, e **Deploy dall'editor
+sostituisce l'intero contenuto** di `/var/sws/projects` con quello inviato, utenti compresi — non
+lo aggiunge accanto agli altri. Avere più progetti insieme sul dispositivo (come nel collaudo,
+via upload diretto) è uno stato transitorio che il primo Deploy successivo (anche accidentale,
+con qualunque progetto fosse aperto in quel momento nell'editor) riporta a uno solo. Nessun dato
+reale perso (tutti i progetti coinvolti erano ricostruibili dai template del repo). Non un
+`OPEN_QUESTIONS.md`: è il comportamento voluto per un dispositivo a un progetto solo, solo non
+documentato in un posto ovvio per chi tiene più progetti di prova sullo stesso pannello.
 
 **Q49 resta con lo stesso residuo di prima** (pinning MQTT mai provato contro un broker TLS
 reale) — rimandata di comune accordo, nessun broker disponibile in sessione.
