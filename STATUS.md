@@ -74,6 +74,64 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — collaudo dal vivo sul TC620: quattro pezzi confermati e mergiati (2026-09-13)
+
+Sessione di collaudo su hardware vero, richiesta dal maintainer per chiudere tutto ciò che
+aspettava "la sua conferma di persona" — F7 parte A (sospesa da una sessione precedente
+interrotta) e Q40 (appena costruito), più tutto ciò che risultava "verificato solo per lettura di
+codice, mai dal vivo" in `main`. Container aggiornato e installato sul TC620
+(`tc620-a-p3-c6-07aff9.local`, `192.168.1.179`, cross-build via `build_container.sh`, nessun push
+al registry) tre volte nel corso della sessione, man mano che emergevano difetti dal collaudo
+stesso.
+
+**Quattro pezzi, tutti confermati dal vivo e mergiati in `main`:**
+
+1. **F7 parte A** (`bd773d4`) — bordo per-cella nella griglia + fix barra gruppi pannello
+   proprietà. Confermato dal maintainer nell'editor.
+2. **Q40** (`2d09508`) — tutti e 24 i simboli (13 mancanti + 4 vendored facili + 7 MDI
+   ridisegnati) confermati riconoscibili e ricolorabili sullo schermo fisico del TC620. Scheda
+   archiviata in `docs/history/OPEN_QUESTIONS-chiuse.md`.
+3. **Fix tastiera LVGL** (`7516e6a`, nuovo, scoperto oggi) — la tastiera di login mostrava `[]` su
+   backspace/invio/ecc.: eredita `text_font` dallo schermo, e il font DejaVu (caricato per gli
+   accenti italiani) non contiene i glifi `LV_SYMBOL_*` che quei tasti usano, solo Montserrat li
+   ha. Confermato dal vivo dopo la correzione.
+4. **Fix sfondo widget sinottici** (`5816a9a`, nuovo, scoperto oggi) — 10 tipi di widget
+   (kpi_tile, data_log, table, xy_plot, alarm_history, alarm_viewer, alarm_bell, recipe_panel,
+   lang_button, lang_selector) avevano sfondo/bordo bianco sul pannello: usavano
+   `var(--brand-surface, …)`, che segue il tema chiaro/scuro dell'app (risolto da
+   `prefers-color-scheme`) e non lo sfondo della pagina — un browser kiosk senza segnale di tema
+   scuro dall'OS risolve "chiaro". Stessa classe di difetto di Q18 (là per il testo). Confermato
+   dal vivo dopo la correzione.
+
+**Q36 (login/logout con rinavigazione automatica) e F5.3x (parità web/LVGL su table/progress_bar/
+radio/gauge_zones) erano già su `main` da sessioni precedenti**: entrambi confermati dal vivo per
+la prima volta in questa sessione (mai fatto prima con un tocco reale sul pannello / mai
+riportato sul TC620 dopo le correzioni). **T-68** (deploy da "Dispositivi registrati" dopo
+discovery, con un pannello senza utenti configurati) confermato: parte senza chiedere nulla, come
+atteso.
+
+**Un incidente scorrelato**: durante il collaudo, un'azione del maintainer nell'editor (con ogni
+probabilità un Deploy di un progetto diverso — "lvgl project" — verso il TC620) ha svuotato i
+progetti del dispositivo (`demo-items-web`, un progetto di prova `collaudo-f7`) e gli utenti
+configurati. Nessun dato reale perso (entrambi ricostruibili dai template del repo, rifatto
+seduta stante), ma **resta un comportamento da capire**: un Deploy non dovrebbe cancellare in
+silenzio progetti/utenti che non sono quello in corso di invio. Non indagato a fondo (il sintomo
+si è manifestato una volta sola, non riprodotto deliberatamente) — se ricapita, guardare il
+percorso `remote_deploy`/`ConfigView.tsx` lato ancora da mappare.
+
+**Q49 resta con lo stesso residuo di prima** (pinning MQTT mai provato contro un broker TLS
+reale) — rimandata di comune accordo, nessun broker disponibile in sessione.
+
+Gate pieno verde su `main` dopo tutti e quattro i merge: `cargo fmt/build/test/clippy
+--workspace`, `pnpm build` (tsc) + `pnpm test` (355/355), tutte le guardie LVGL
+(`check_lvgl_parity/types/demo_templates/documenti/lvgl_symbols/simboli_lvgl`). Pushato su
+`origin/main` su richiesta esplicita del maintainer.
+
+**Rami da proporre in cancellazione** (lavoro confluito in `main` via squash, non cancellati
+senza un sì esplicito): `feat/f7-bordo-cella-griglia`, `feat/q40-simboli-lvgl`,
+`fix/lvgl-tastiera-simboli-mancanti`, `fix/sinottico-sfondo-tema-app`, `test/collaudo-f7-q40`
+(ramo di integrazione usato solo per il collaudo, mai destinato a un merge proprio).
+
 ## ▶ Riprendere da qui — Q49 completa: pinning TLS su viewer LVGL e MQTT (2026-09-13)
 
 Stesso ciclo `/riprendi`, dopo che il maintainer è dovuto uscire ("sono fuori, non riesco a fare

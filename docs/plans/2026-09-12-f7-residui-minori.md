@@ -20,6 +20,11 @@ Due lavori scorrelati, in un piano solo perché entrambi piccoli.
 
 ## Parte A — Bordo per-cella nella griglia
 
+**FATTO e mergiato in `main` (`bd773d4`, 13-09-2026).** Confermato dal vivo dal maintainer
+nell'editor (bordo rosso su una cella, bordo ciano su una sotto-cella, entrambi indipendenti da
+`grid_show_borders`) più il fix del bug scorrelato sulla barra dei gruppi del pannello proprietà.
+Resta solo la Parte B qui sotto.
+
 ### Disegno
 
 - Nuovo campo su `GridCell` (non su `SynopticObject`): `border_color?: string` (assente = nessun

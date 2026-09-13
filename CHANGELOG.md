@@ -12,6 +12,35 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Added
+- **24 simboli LVGL diventano ricolorabili per stato (Q40)**: chiude Q40 per intero, in tre fasi.
+  13 simboli mai portati su LVGL (valve_motorized, valve_pneumatic, check_valve, valve_3way,
+  relief_valve, strainer, blower, silo, conveyor, cyclone, column, furnace, chiller) — prima un
+  riquadro rosso d'errore sul pannello, ora disegnati e ricolorabili. 4 vendored SWS-originali
+  (reactor, heat_exchanger, filter, separator) portati fedelmente come builtin, ricolorabili su
+  web e LVGL. 7 icone MDI più complesse (solar_panel, battery, transmission_tower,
+  home_lightning, garage, window_open, roller_shade) ridisegnate da zero come icone stilizzate
+  (una scomposizione fedele in poligoni convessi sarebbe costata circa una settimana). `VENDORED`
+  (`svg_assets.rs`) è ora vuota: tutti i 40 simboli della libreria sono builtin. Collaudato dal
+  vivo sul TC620.
+
+### Fixed
+- **La tastiera di login su LVGL mostrava `[]` sui tasti speciali**: scoperto collaudando Q36 sul
+  TC620. `lv_keyboard` eredita `text_font` dallo schermo come ogni altro widget, ma le sue mappe
+  tasti interne (backspace, invio, cambio maiuscole, chiudi) usano `LV_SYMBOL_*`, glifi che solo
+  Montserrat (il font icone di LVGL) disegna — il font DejaVu caricato per gli accenti italiani
+  non li contiene. `lvgl_font::restore_symbols_on()` riporta il solo widget tastiera a
+  Montserrat 14.
+- **Sfondo di 10 widget sinottici seguiva il tema chiaro/scuro dell'app, non la pagina**:
+  scoperto collaudando F5.3x sul TC620. `kpi_tile`, `data_log`, `table`, `xy_plot`,
+  `alarm_history`, `alarm_viewer`, `alarm_bell`, `recipe_panel`, `lang_button`, `lang_selector`
+  usavano `var(--brand-surface, …)` per lo sfondo di default — un token che segue
+  `prefers-color-scheme` dell'app, non lo sfondo della pagina disegnata. Un browser kiosk senza
+  segnale di tema scuro dall'OS risolveva "chiaro": sfondi/bordi bianchi sopra pagine scure.
+  Stessa classe di difetto già decisa in Q18 per il testo. I widget usati solo nel canvas
+  sinottico ora hanno i neutri fissi (letterali del tema scuro); `DataTable`/`RecipePanel`,
+  condivisi con l'IDE, hanno una prop `dark` passata solo dagli usi sinottici.
+
+### Added
 - **Sessione vera nel client LVGL, completa in due parti (Q36)**: il pannello smette di essere
   anonimo per costruzione. Parte 1 — pulsante persistente login/logout in alto a destra su ogni
   pagina; overlay a schermo intero con tastiera `lv_keyboard` (utente/password, password
@@ -29,6 +58,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   `SubCellEntry`, indipendente da `grid_show_borders` — resta acceso anche a griglia "senza
   bordi". Web: contorno SVG sempre disegnato quando presente; pannello proprietà con color
   picker. LVGL: `render_cell_border`, stesso principio del bordo d'allarme già in uso.
+  Confermato dal vivo dal maintainer nell'editor il 13-09-2026.
 - **Pinning TLS esteso al viewer LVGL e al plugin MQTT (Q49)**: il meccanismo TOFU nato per
   editor↔dispositivo (`sws-web/src/certificati.rs`) si sposta in `sws_core::pin_tls`, riusabile
   senza dipendere da tutto `sws-web`. Viewer LVGL: `AcceptAnyCert` sostituito dal pinning vero
