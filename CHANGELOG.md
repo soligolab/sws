@@ -11,6 +11,20 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Added
+- **Orologio e stato ritenuto negli script Python (T-69, fase A)**: quattro binding nuovi nel
+  sandbox — `now_ms()`, `uptime_ms()`, `delta_ms()` (dalla prima/ultima invocazione di
+  un'identità: id dello script globale, o nome della funzione) e `state.get(key, default)`/
+  `state.set(key, value)`. Sblocca una rampa/onda scritta come `pos += delta_ms/periodo`,
+  indipendente da quanto spesso il trigger la chiama. `delta_ms()` vale 0 alla prima
+  invocazione.
+
+### Fixed
+- **`send_telegram(...)` sollevava sempre `NameError`**: era registrato nei globals esterni di
+  `run_in_python` (`sws-pyscript`) ma mai copiato dentro `__sws_globals__`, il dizionario contro
+  cui il codice utente gira davvero. Corretto nello stesso intervento della fase A di T-69,
+  stesso pattern dei binding nuovi.
+
 ### Removed
 - **Il percorso di build aarch64 via QEMU e il flag `--sdk` (fase due di Q53)**: restavano «finché
   il cross-build non avrà girato abbastanza sui dispositivi», e la misura sul WP630 del 10-09 ha

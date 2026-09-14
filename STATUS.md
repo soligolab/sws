@@ -74,6 +74,33 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — T-69 in corso, Fase A chiusa: orologio + stato negli script (2026-09-14)
+
+Ciclo `/riprendi` proseguito nella stessa giornata. Il maintainer ha chiesto di affrontare T-69
+per intero (tutti e sei i miglioramenti della nota dell'11-09, non solo i due a resa più alta) —
+piano in `docs/plans/2026-09-14-T69-tempo-stato-script.md`, cinque fasi, un ramo alla volta.
+
+**Fase A — orologio + stato ritenuto (`89af24c`), fatta.** Quattro binding nuovi nel sandbox
+Python: `now_ms()`, `uptime_ms()`, `delta_ms()` (dalla prima/ultima invocazione di
+un'**identità** — id dello script globale, o nome della funzione — non un solo campo
+sull'`Engine`: quello condiviso serve tutte le funzioni insieme), `state.get(key, default)`/
+`state.set(key, value)` per ricordare cose piccole senza un tag di servizio. `delta_ms()` alla
+prima invocazione vale 0 (deciso dal maintainer). **Corretto nello stesso intervento** un
+difetto preesistente trovato esplorando: `send_telegram(...)` non arrivava mai nel dizionario
+`__sws_globals__` dove il codice utente gira davvero — sempre `NameError`, mai un test se ne
+era accorto.
+
+Collaudato dal vivo su un runtime di scarto: uno script globale con `delta_ms()`+`state` ha
+fatto avanzare una rampa 0→100 in modo coerente col tempo reale (non un passo fisso), wrap
+corretto, contatore persistente fra i giri — il caso esatto che aveva aperto T-69. Gate verde:
+cargo build/test/clippy/fmt --workspace, pnpm build, 17/17 guardie statiche.
+
+**Restano quattro fasi**, ognuna un ramo a sé (vedi il piano per il disegno già verificato sul
+codice): B — `interval_ms` sui trigger degli script globali; C (+E) — funzioni di progetto
+chiamabili da uno script globale (`functions.run(name, **kwargs)`) + far trovare la
+documentazione del passaggio parametri; D — tipo di tag «generatore» nativo (rampa/triangolo/
+quadra), la più grande, un ciclo di valutazione a tempo tutto nuovo.
+
 ## ▶ Riprendere da qui — le guardie accusavano a caso, e nessuno se n'era accorto (2026-09-14)
 
 Trovato verificando la fase due di Q53: `check_static.sh` dava rosso su una guardia **diversa a
