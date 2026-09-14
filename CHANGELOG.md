@@ -40,6 +40,21 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   vivo sul TC620.
 
 ### Fixed
+- **Nove icone del template `casa-locale` non erano più disegnate**: otto vuote sul web e riquadri
+  rossi su LVGL, la nona ancora legata a un SVG su file. Il
+  commit di Q40 ha reso builtin i 24 simboli e svuotato `VENDORED`, cancellando gli SVG sotto
+  `sws-editor/public/symbols/` — ma `casa-locale` li disegnava ancora come `type: image` con
+  `src: /symbols/*.svg`. Convertite in `type: symbol` con il builtin corrispondente
+  (`solar_panel`, `home_lightning`, `battery`, `transmission_tower`, `garage`, `roller_shade`) e
+  il colore del riquadro che le contiene: ora si vedono su entrambi i motori e sono
+  **ricolorabili per stato**, che era il punto di Q40. `check_templates.sh` le segnalava da
+  subito, rossa dal 13-09. Convertita anche la nona (`solar-power-variant.svg`, l'unico file
+  rimasto): **nessun template dipende più da `/symbols/`**. Confermate dal vivo dal maintainer.
+- **Lo schema sinottico dato all'assistente IA era indietro di una rigenerazione**: l'esempio del
+  tipo `radio` mostrava ancora `options` come lista di stringhe, forma cambiata in `{label,
+  value}` dalla verifica di parità web/LVGL. Un vocabolario vecchio fa scrivere al modello campi
+  che serde scarta in silenzio. Rigenerato con `gen_synoptic_schema.py`.
+
 - **Definire il primo utente di un progetto chiudeva fuori dall'IDE chi lo stava definendo**:
   segnalato dal maintainer il 14-09-2026 («appena definisco un utente… se salvo mi dice Sessione
   scaduta», e poi «non ho più modo di accedere al progetto TestWP630»). Scrivere `users.yaml`

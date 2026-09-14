@@ -63,7 +63,9 @@ Read these only when the trigger applies:
 
 ## Definition of done
 
-`cargo check` green **and** `pnpm build` green **and** the maintainer has confirmed the feature works. All three, before anything reaches `main`.
+`cargo check` green **and** `pnpm build` green **and** `./scripts/check_static.sh` green **and** the maintainer has confirmed the feature works. All four, before anything reaches `main`.
+
+`check_static.sh` joined the list on 2026-09-14. Two guards had gone red inside 48 hours, both from *good* work that never re-ran them: Q40 made 24 symbols builtin and deleted the SVGs a template still pointed at (`check_templates`), and the live web/LVGL parity fixes changed the `radio` example the generated AI schema is harvested from (`check_synoptic_schema`). Neither was caught at merge time. A guard nobody looks at stops being a signal — so it runs before the squash merge, not after someone notices.
 
 ## Git workflow per task
 
@@ -91,7 +93,7 @@ All commits use `-s` (`Signed-off-by:` trailer).
 
 Do this *before* you run out of room, not after:
 
-1. `cargo check` / `pnpm build` green.
+1. `cargo check` / `pnpm build` / `./scripts/check_static.sh` green.
 2. Update `STATUS.md` — what was done, what's next, anything left half-finished.
 3. Update `CHANGELOG.md` under `[Unreleased]`.
 4. Commit with `-s` and a clear message.

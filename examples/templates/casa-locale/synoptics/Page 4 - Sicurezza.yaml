@@ -85,12 +85,13 @@ objects:
   stroke_width: 2
 
 - id: cl4_garage_icon
-  type: image
+  type: symbol
   x: 28
   y: 68
   width: 40
   height: 40
-  src: "/symbols/garage-open-variant.svg"
+  symbol_id: garage
+  state_off_color: "#cbd5e1"
 
 - id: cl4_garage_title
   type: text

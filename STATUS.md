@@ -74,6 +74,54 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — le due guardie rosse, e perché nessuno le aveva guardate (2026-09-14)
+
+Trovate di sfuggita mentre si chiudeva il lavoro sul primo utente, e chiuse subito: erano
+**rosse entrambe da meno di 48 ore**, e nessuna delle due era un problema nuovo — erano due
+rifiniture mancate da lavoro *buono*.
+
+- **`check_templates`, 8 problemi, tutti la stessa cosa.** Il commit di Q40 (`2d095087`) ha reso
+  builtin i 24 simboli e svuotato `VENDORED`, cancellando gli SVG sotto
+  `sws-editor/public/symbols/` — ne resta uno solo. Ma `casa-locale` disegnava ancora 9 icone
+  come `type: image` con `src: /symbols/*.svg`: sul web erano **vuote**, su LVGL riquadri rossi.
+  Tutte e nove avevano un builtin che le sostituisce, e sono state convertite in `type: symbol`
+  con `symbol_id` e il colore del riquadro che le contiene (`state_off_color`, che senza
+  `state_tag` è il modo supportato di dare un colore fisso). Tutte le caselle sono quadrate e
+  i builtin hanno `viewBox 0 0 100 100`: nessuna deformazione. La nona (`cl2_pv_svg`,
+  `solar-power-variant.svg`) era l'unica ancora legata a un file, ed è stata convertita su
+  istruzione del maintainer («aggiornarli tutti, non esistono applicazioni finali ma solo
+  semplici test»): riquadro portato da 160x60 a 60x60 con lo stesso centro, perché una casella
+  non quadrata rimpicciolirebbe il disegno lasciando margini. **Nessun template dipende più da
+  `/symbols/`.** Le nove icone sono state confermate dal vivo dal maintainer.
+- **`check_synoptic_schema`, una sola differenza.** Il file era indietro di una rigenerazione
+  rispetto a `135150be` (le quattro divergenze web/LVGL del collaudo dal vivo), che ha cambiato
+  `options` del tipo `radio` da lista di stringhe a `{label, value}`. È il vocabolario che
+  diamo all'assistente IA: vecchio, fa scrivere campi che serde scarta in silenzio. Rigenerato.
+  Effetto collaterale buono: l'esempio del tipo `image` ora pesca `cl2_pv_svg`, che punta a un
+  file che **esiste**, invece di uno cancellato.
+
+**La cosa che conta non sono le due correzioni.** Entrambe le guardie avevano ragione, erano già
+scritte, e nessuno le ha rilanciate prima dello squash merge. È la stessa forma dei tre difetti
+della settimana scorsa — dire una cosa e averne costruita un'altra — con una variante peggiore:
+qui il controllo che l'avrebbe detto **esisteva e girava rosso**. Perciò `./scripts/check_static.sh`
+è entrato nella *definition of done* di `CLAUDE.md`, accanto a `cargo check` e `pnpm build`, e
+nella lista di fine sessione. Una guardia che nessuno guarda smette di essere un segnale.
+
+Ora: **17 guardie statiche su 17 verdi.**
+
+**E da qui nasce la prossima sessione.** Il maintainer: «se parliamo dei template direi di
+aggiornarli tutti, non esistono ad oggi applicazioni finali ma solo semplici test. Anzi, avvierei
+una sessione di revisione dei template». Piano scritto coi numeri misurati oggi in
+`docs/plans/2026-09-14-revisione-template.md`. Il risultato controintuitivo della misura: la
+copertura dei **tipi** è completa (35 su 35, nessuno usato una volta sola — merito dei gemelli
+`demo-items`), ma **funzioni intere non hanno un solo esempio in undici template**: `recipes:` a
+zero mentre `recipe_panel` è in vetrina su due pagine e si disegna vuoto; `min_role` a zero dopo
+tutto Q36; i waypoint di T-53 a zero; `target:` solo in `demo-items-lvgl`. In più un residuo di
+licenza da chiudere **prima** del resto: `casa-locale/CREDITS.md` elenca 8 SVG MDI di cui **sette
+cancellati da Q40**, e `public/symbols/ATTRIBUTION.md` descrive un meccanismo (`vendored`) che ora
+ha zero utenti. La domanda sull'attribuzione dei 7 builtin ridisegnati è per il maintainer, non
+da decidere in corsa.
+
 ## ▶ Riprendere da qui — definire un utente chiudeva l'IDE fuori dal proprio progetto (2026-09-14)
 
 **Guasto vero, segnalato dal maintainer mentre provava la scheda Utenti**: «appena definisco un
@@ -132,11 +180,8 @@ guardia su un runtime con `--viewer-port`, che è la stessa condizione), e che d
 utenti del progetto valgano ancora **sul pannello** — cioè che la separazione sia davvero fra IDE
 e dispositivo e non fra IDE e progetto.
 
-⚠️ **Due guardie rosse che non c'entrano con questo lavoro, già rosse su `main`**:
-`check_templates` (8 problemi nei template) e `check_synoptic_schema` (il tipo `radio`: il
-campione nello schema ha `options` come lista di stringhe, il codice si aspetta
-`{label, value}`). Verificate con `git stash` su albero pulito — vale la pena guardarle prima che
-diventino rumore di fondo.
+**Le due guardie rosse trovate di sfuggita sono state chiuse subito dopo** — vedi la sezione qui
+sotto.
 
 ## ▶ Riprendere da qui — Q45 chiusa: il linger si abilita da solo, nessun permesso mancante (2026-09-13)
 

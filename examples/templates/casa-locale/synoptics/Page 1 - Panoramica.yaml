@@ -109,12 +109,13 @@ objects:
   stroke_width: 2
 
 - id: cl1_pv_icon
-  type: image
+  type: symbol
   x: 88
   y: 96
   width: 28
   height: 28
-  src: "/symbols/solar-panel.svg"
+  symbol_id: solar_panel
+  state_off_color: "#f59e0b"
 
 - id: cl1_pv_label
   type: text
@@ -170,12 +171,13 @@ objects:
   stroke_width: 2
 
 - id: cl1_casa_icon
-  type: image
+  type: symbol
   x: 308
   y: 96
   width: 28
   height: 28
-  src: "/symbols/home-lightning-bolt.svg"
+  symbol_id: home_lightning
+  state_off_color: "#3b82f6"
 
 - id: cl1_casa_label
   type: text
@@ -230,12 +232,13 @@ objects:
   stroke_width: 2
 
 - id: cl1_bat_icon
-  type: image
+  type: symbol
   x: 88
   y: 247
   width: 28
   height: 28
-  src: "/symbols/battery-charging-high.svg"
+  symbol_id: battery
+  state_off_color: "#22c55e"
 
 - id: cl1_bat_label
   type: text
@@ -303,12 +306,13 @@ objects:
   stroke_width: 2
 
 - id: cl1_grid_icon
-  type: image
+  type: symbol
   x: 308
   y: 247
   width: 28
   height: 28
-  src: "/symbols/transmission-tower.svg"
+  symbol_id: transmission_tower
+  state_off_color: "#06b6d4"
 
 - id: cl1_grid_label
   type: text

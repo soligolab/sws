@@ -66,12 +66,13 @@ objects:
   color: "#94a3b8"
 
 - id: cl5_tap_icon
-  type: image
+  type: symbol
   x: 155
   y: 52
   width: 24
   height: 24
-  src: "/symbols/roller-shade.svg"
+  symbol_id: roller_shade
+  state_off_color: "#94a3b8"
 
 - id: cl5_tap_note
   type: text

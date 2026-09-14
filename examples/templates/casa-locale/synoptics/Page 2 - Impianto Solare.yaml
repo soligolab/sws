@@ -77,14 +77,15 @@ objects:
   text_anchor: middle
   color: "#f59e0b"
 
-# SVG impianto
+# Simbolo impianto
 - id: cl2_pv_svg
-  type: image
-  x: 60
+  type: symbol
+  x: 110
   y: 80
-  width: 160
+  width: 60
   height: 60
-  src: "/symbols/solar-power-variant.svg"
+  symbol_id: solar_panel
+  state_off_color: "#f59e0b"
 
 # PV1 gauge
 - id: cl2_pv1_lbl
@@ -221,12 +222,13 @@ objects:
 
 # Icona batteria
 - id: cl2_bat_icon
-  type: image
+  type: symbol
   x: 405
   y: 78
   width: 72
   height: 72
-  src: "/symbols/battery-charging-high.svg"
+  symbol_id: battery
+  state_off_color: "#22c55e"
 
 # SOC gauge grande
 - id: cl2_soc_gauge
@@ -356,12 +358,13 @@ objects:
 
 # Icona rete
 - id: cl2_grid_icon
-  type: image
+  type: symbol
   x: 680
   y: 78
   width: 56
   height: 56
-  src: "/symbols/transmission-tower.svg"
+  symbol_id: transmission_tower
+  state_off_color: "#06b6d4"
 
 # Gauge tensione rete
 - id: cl2_grid_v_gauge
