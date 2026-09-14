@@ -19,11 +19,20 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   indipendente da quanto spesso il trigger la chiama. `delta_ms()` vale 0 alla prima
   invocazione.
 
+- **`interval_ms` sui trigger degli script globali (T-69, fase B)**: campo additivo su
+  `ScriptTrigger::Interval`, vince su `interval_s` quando presente (pavimento 50ms) — una
+  cadenza sotto il secondo che `interval_s` non poteva esprimere. Editor: secondo campo
+  opzionale nella UI del trigger.
+
 ### Fixed
 - **`send_telegram(...)` sollevava sempre `NameError`**: era registrato nei globals esterni di
   `run_in_python` (`sws-pyscript`) ma mai copiato dentro `__sws_globals__`, il dizionario contro
   cui il codice utente gira davvero. Corretto nello stesso intervento della fase A di T-69,
   stesso pattern dei binding nuovi.
+- **Lo schema per l'assistente IA documentava `tags['id']`**, sintassi a indice che `TagApi` non
+  supporta (verificato: solleva sempre `TypeError`) — l'API vera è `tags.read(id)`/
+  `tags.write(id, valore)`. Corretto insieme alla fase B di T-69, con la documentazione dei
+  quattro binding della fase A aggiunta nello stesso punto (dimenticata il giorno prima).
 
 ### Removed
 - **Il percorso di build aarch64 via QEMU e il flag `--sdk` (fase due di Q53)**: restavano «finché

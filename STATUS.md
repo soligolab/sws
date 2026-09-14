@@ -74,6 +74,24 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — T-69 in corso, Fase B chiusa: `interval_ms` sui trigger (2026-09-15)
+
+Stesso piano, proseguito il giorno dopo. **Fase B (`b0f5bb6`), fatta.** `ScriptTrigger::Interval`
+guadagna `interval_ms: Option<u64>`, additivo — vince su `interval_s` quando presente, pavimento
+50ms. Verificato dal vivo su un runtime di scarto: uno script a `interval_ms: 200` misura
+~203ms/tick in regime stazionario (la prima lettura, 52 tick in 2.2s, era un artefatto del setup
+— PUT ravvicinati che riavviano il supervisore più volte — non un difetto).
+
+**Trovato e corretto un secondo difetto adiacente**, toccando lo schema per l'assistente IA:
+`tags` era documentato come indicizzabile (`tags['id']`), ma `TagApi` non implementa
+`__getitem__`/`__setitem__` — verificato empiricamente che solleva sempre `TypeError`. L'API
+vera è `tags.read(id)`/`tags.write(id, valore)`, corretta nello schema. Aggiunta nello stesso
+punto la documentazione dei quattro binding della Fase A, dimenticata il giorno prima.
+
+**Restano tre fasi**: C (+E) — `functions.run(name, **kwargs)` da uno script globale, più far
+trovare la documentazione del passaggio parametri; D — tipo di tag «generatore» nativo, la più
+grande.
+
 ## ▶ Riprendere da qui — T-69 in corso, Fase A chiusa: orologio + stato negli script (2026-09-14)
 
 Ciclo `/riprendi` proseguito nella stessa giornata. Il maintainer ha chiesto di affrontare T-69
