@@ -73,7 +73,7 @@ printf '\033[1mFile non referenziati\033[0m\n'
 orfani=0
 for f in "$PUB"/symbols/*.svg; do
   [ -e "$f" ] || continue
-  if ! ts_pairs | grep -qF "/symbols/$(basename "$f")"; then
+  if ! grep -qF "/symbols/$(basename "$f")" <<< "$(ts_pairs)"; then
     printf '  \033[33m—\033[0m %s non è in libreria (rimosso, o voce dimenticata?)\n' "$(basename "$f")"
     orfani=$((orfani + 1))
   fi

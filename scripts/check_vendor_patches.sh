@@ -129,9 +129,13 @@ if [ -f "$LOCK" ]; then
   # Senza quel limite awk troverebbe la `source` del pacchetto successivo e
   # direbbe sempre "viene da crates.io" — un controllo che fallisce sempre viene
   # disattivato, e allora tanto vale non averlo.
-  if awk '/^name = "lvgl-sys"$/{f=1; next}
+  # Here-string e non pipe: `grep -q` esce al primo match e con `set -o
+  # pipefail` il SIGPIPE del produttore (141) diventerebbe un fallimento della
+  # pipeline. Vedi il commento in check_static.sh, dove costava 11 falsi
+  # positivi su 40 giri.
+  if grep -q REGISTRY <<< "$(awk '/^name = "lvgl-sys"$/{f=1; next}
           f&&/^\[\[package\]\]/{exit}
-          f&&/^source = "registry\+/{print "REGISTRY"; exit}' "$LOCK" | grep -q REGISTRY; then
+          f&&/^source = "registry\+/{print "REGISTRY"; exit}' "$LOCK")"; then
     printf '  \033[31m✗\033[0m lvgl-sys arriva da crates.io, NON dal vendor — le patch non hanno effetto\n'
     printf '      `[patch.crates-io]` deve stare in sws-runtime/Cargo.toml (la radice del\n'
     printf '      workspace): cargo ignora quelli dei crate membri.\n'

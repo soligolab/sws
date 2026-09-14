@@ -74,6 +74,33 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — le guardie accusavano a caso, e nessuno se n'era accorto (2026-09-14)
+
+Trovato verificando la fase due di Q53: `check_static.sh` dava rosso su una guardia **diversa a
+ogni giro**, e ogni guardia accusata passava se lanciata da sola. Non era flakiness del
+contenuto — era il **runner**.
+
+`printf '%s\n' "${STATICHE[@]}" "${CON_STACK[@]}" | grep -qx "$n"`, sotto `set -o pipefail`:
+`grep -q` esce al primo match, `printf` muore di SIGPIPE mentre sta ancora scrivendo (141), e
+`pipefail` propaga quel 141 come fallimento della pipeline. Misurato: **11 falsi positivi su 40
+giri**. Peggio ancora, quel controllo sta **prima** dell'esecuzione: un falso positivo abortiva
+l'intera suite senza lanciare una sola guardia.
+
+Corretto con un confronto dentro bash, senza pipe: **0 falsi positivi su 200 giri**, e tre giri
+completi di `check_static.sh` di fila tutti verdi. La stessa trappola c'era in altre cinque
+guardie (11 pipeline in tutto): convertite a here-string, che non ha un produttore da uccidere.
+In `scripts/` non resta nessuna `| grep -q` sotto `pipefail`.
+
+**Preesistente, e scoperto per caso.** Conta più del solito perché `check_static.sh` è entrato
+nella *definition of done* poche ore prima: una guardia che accusa a caso insegna a rilanciare
+finché non è verde — cioè a non guardarla. È la stessa lezione delle due guardie rosse di
+stamattina, presa dall'altro verso: lì nessuno le guardava, qui avrebbero smesso di meritarlo.
+
+Fatto su un **ramo annidato** (`fix/guardie-falso-positivo-sigpipe` da
+`chore/Q53-rimozione-sdk-qemu`), che è l'opzione 2 della regola «Un ramo alla volta» decisa
+poco prima: il difetto è emerso dentro un ramo aperto e bloccava proprio lo strumento che
+doveva chiuderlo.
+
 ## ▶ Riprendere da qui — Q53 fase due: un solo percorso di build aarch64 (2026-09-14)
 
 Il piano chiedeva una misura sul campo prima di togliere i percorsi storici. **La misura c'era

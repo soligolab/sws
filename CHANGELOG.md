@@ -54,6 +54,16 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   vivo sul TC620.
 
 ### Fixed
+- **Il controllo di copertura di `check_static.sh` accusava una guardia a caso**: `printf … |
+  grep -qx` sotto `set -o pipefail` — `grep -q` esce al primo match, `printf` muore di SIGPIPE
+  mentre scrive (141), e `pipefail` propaga quel 141 come fallimento. **11 falsi positivi su 40
+  giri**, ogni volta su guardie diverse e tutte regolarmente classificate; e siccome il controllo
+  di copertura sta *prima* dell'esecuzione, un falso positivo abortiva l'intera suite senza
+  lanciare niente. Ora il confronto è dentro bash, senza pipe: 0 su 200 giri. Stessa trappola in
+  altre cinque guardie (11 pipeline in tutto), convertite a here-string. Conta più del solito
+  perché `check_static.sh` è entrato nella *definition of done* lo stesso giorno: una guardia che
+  accusa a caso insegna a rilanciare finché non è verde, cioè a non guardarla.
+
 - **L'editor non diceva che il ruolo minimo, senza utenti nel progetto, non nega niente a
   nessuno**: segnalato il 2026-08-24, causa isolata il 2026-09-06. Il gating è corretto — è che
   senza utenti l'autenticazione inietta un Admin sintetico, quindi *chiunque* è Admin e

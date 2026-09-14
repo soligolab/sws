@@ -12,6 +12,11 @@
 #
 # Uso:  ./scripts/check_sonda.sh    (esce != 0 se una regola cade)
 set -uo pipefail
+# I confronti qui sotto usano una here-string e non una pipe. `cmd | grep -q`
+# con `set -o pipefail` è una trappola: `grep -q` esce al primo match e il
+# produttore muore di SIGPIPE mentre scrive (141), che `pipefail` propaga come
+# fallimento. Misurato il 14-09-2026 in `check_static.sh`: 11 falsi positivi su
+# 40 giri, ogni volta su una guardia diversa. Vedi il commento lì.
 cd "$(dirname "$0")/.."
 
 SONDA=deploy/container/sonda-dispositivo.sh
@@ -24,7 +29,7 @@ male() { echo -e "  \033[31m✗\033[0m $*"; rosso=1; }
 # 1. sintassi, con sh (POSIX) e bash
 sh -n "$SONDA"   && ok "sh -n: sintassi POSIX valida"   || male "sh -n rifiuta lo script"
 bash -n "$SONDA" && ok "bash -n: sintassi valida"        || male "bash -n rifiuta lo script"
-head -1 "$SONDA" | grep -qx '#!/bin/sh' && ok "shebang #!/bin/sh" || male "lo shebang non è #!/bin/sh"
+grep -qx '#!/bin/sh' <<< "$(head -1 "$SONDA")" && ok "shebang #!/bin/sh" || male "lo shebang non è #!/bin/sh"
 if command -v shellcheck >/dev/null 2>&1; then
     shellcheck -s sh "$SONDA" && ok "shellcheck -s sh pulito" || male "shellcheck -s sh segnala qualcosa"
 else
@@ -40,25 +45,25 @@ n_file=$(printf '%s\n' "$out_file" | grep -c .)
 n_stdin=$(printf '%s\n' "$out_stdin" | grep -c .)
 [ "$n_file" -eq "$n_stdin" ] && ok "stesse righe da file e da stdin ($n_file): nessun comando legge stdin" \
                               || male "righe diverse: file $n_file, stdin $n_stdin — qualcosa consuma lo script"
-if printf '%s\n' "$out_file" | grep -qv '^SONDA [a-z_]*='; then
+if grep -qv '^SONDA [a-z_]*=' <<< "$out_file"; then
     male "righe che non sono «SONDA chiave=valore»:"; printf '%s\n' "$out_file" | grep -v '^SONDA [a-z_]*=' | sed 's/^/      /'
 else
     ok "ogni riga è «SONDA chiave=valore»"
 fi
 for k in sonda_versione hostname arch utente uid podman spazio_kb subuid subgid linger systemd_user data_path data_stato container_sws fine; do
-    printf '%s\n' "$out_file" | grep -q "^SONDA $k=" || male "manca il fatto «$k»"
+    grep -q "^SONDA $k=" <<< "$out_file" || male "manca il fatto «$k»"
 done
-printf '%s\n' "$out_file" | grep -q '^SONDA fine=1$' && ok "arriva in fondo (fine=1)" || male "non arriva a fine=1"
+grep -q '^SONDA fine=1$' <<< "$out_file" && ok "arriva in fondo (fine=1)" || male "non arriva a fine=1"
 # La cartella dati arriva come $1 (l'editor passa quella del modulo): deve
 # comparire nell'uscita, e per una cartella inesistente non creabile lo stato
 # deve dirlo.
 out_arg=$(sh -s -- /nonesiste/sws < "$SONDA" 2>/dev/null)
-printf '%s\n' "$out_arg" | grep -q '^SONDA data_path=/nonesiste/sws$' && ok "la cartella dati passata come argomento è quella controllata" \
+grep -q '^SONDA data_path=/nonesiste/sws$' <<< "$out_arg" && ok "la cartella dati passata come argomento è quella controllata" \
                                                                       || male "la cartella dati passata come argomento non viene usata"
 if [ "$(id -u)" -eq 0 ]; then
     ok "eseguita da root: per root ogni cartella è creabile, il controllo sullo stato si salta"
 else
-    printf '%s\n' "$out_arg" | grep -q '^SONDA data_stato=assente-non-creabile$' && ok "una cartella impossibile risulta assente-non-creabile" \
+    grep -q '^SONDA data_stato=assente-non-creabile$' <<< "$out_arg" && ok "una cartella impossibile risulta assente-non-creabile" \
                                                                                  || male "stato inatteso per una cartella impossibile: $(printf '%s\n' "$out_arg" | grep '^SONDA data_stato=')"
 fi
 [ -s /tmp/sonda-stderr.$$ ] && { male "scrive su stderr:"; sed 's/^/      /' /tmp/sonda-stderr.$$; } || ok "stderr vuoto"

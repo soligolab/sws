@@ -118,7 +118,7 @@ print(sum(1 for i in range(0, w*h*3, 3)
 PY
 )
   if [ "$rosso" -gt 500 ]; then
-    if printf '%s\n' "${IGNOTI_NOTI[@]}" | grep -qx "$s"; then
+    if grep -qx "$s" <<< "$(printf '%s\n' "${IGNOTI_NOTI[@]}")"; then
       ignoti_visti+=("$s")
     else
       printf '  \033[31m✗\033[0m %-22s il motore non lo conosce (riquadro rosso), e non è nell'"'"'elenco noto\n' "$s"
@@ -147,7 +147,7 @@ fi
 # Chi era nell'elenco e adesso si disegna: bene, ma l'elenco va accorciato, o
 # tornerà a mentire come tutti gli elenchi che nessuno rilegge.
 for noto in "${IGNOTI_NOTI[@]}"; do
-  if ! printf '%s\n' "${ignoti_visti[@]}" | grep -qx "$noto"; then
+  if ! grep -qx "$noto" <<< "$(printf '%s\n' "${ignoti_visti[@]}")"; then
     echo -e "\033[33m•\033[0m $noto è in IGNOTI_NOTI ma adesso si disegna: toglilo dall'elenco"
   fi
 done

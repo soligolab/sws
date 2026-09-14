@@ -52,7 +52,7 @@ fi
 blocco=$(sed -n '/^export interface SavedDevice {/,/^}/p' "$SRC/types/index.ts")
 if [ -z "$blocco" ]; then
   male "non trovo \`export interface SavedDevice\` in $SRC/types/index.ts: la guardia non sta guardando niente"
-elif echo "$blocco" | grep -qE '^\s*pass(word)?\??:'; then
+elif grep -qE '^\s*pass(word)?\??:' <<< "$blocco"; then
   male "SavedDevice ha di nuovo un campo password — quella lista vive in localStorage"
 else
   ok "SavedDevice non porta la password"

@@ -58,13 +58,19 @@ CON_STACK=(
 )
 
 # ── nessuna guardia resta fuori in silenzio ───────────────────────────────────
+# Il confronto è dentro bash, senza pipe, e non è un vezzo: `printf ... | grep
+# -qx` qui accusava una guardia **a caso** a ogni giro. `grep -q` esce al primo
+# match, `printf` muore di SIGPIPE mentre sta ancora scrivendo (141), e
+# `set -o pipefail` — due righe più su — propaga quel 141 come fallimento della
+# pipeline. Misurato il 14-09-2026: 11 falsi positivi su 40 giri, ogni volta su
+# guardie diverse, tutte regolarmente classificate. Una guardia che accusa a caso
+# è peggio di nessuna guardia: insegna a rilanciare finché non è verde.
+elenco=" ${STATICHE[*]} ${CON_STACK[*]} "
 note=""
 for f in scripts/check_*.sh; do
     n="$(basename "$f" .sh)"
     [ "$n" = "check_static" ] && continue
-    if ! printf '%s\n' "${STATICHE[@]}" "${CON_STACK[@]}" | grep -qx "$n"; then
-        note="$note $n"
-    fi
+    [[ "$elenco" == *" $n "* ]] || note="$note $n"
 done
 if [ -n "$note" ]; then
     echo -e "\033[31m✗\033[0m guardie non classificate:$note"
