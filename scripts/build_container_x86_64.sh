@@ -126,18 +126,21 @@ echo "==> SWS runtime container image ${VERSION} (linux/amd64)"
 # macchina di build — una Debian 12 produce un binario che chiede
 # `libpython3.11.so.1.0`, che l'immagine finale (ubuntu:24.04, Python 3.12) non
 # ha. Il builder è la stessa base dell'immagine finale, quindi combaciano per
-# costruzione. È l'equivalente x86_64 dell'SDK Yocto fisso del percorso aarch64.
+# costruzione — la stessa idea che il percorso aarch64 realizza col proprio
+# container di cross-build.
 #
-# --network host su entrambe le invocazioni podman: questo script gira
-# normalmente rootless (non serve sudo, a differenza del gemello
-# aarch64-generico), ma se viene comunque lanciato da root — es. da dentro
-# `build_containers_all.sh` invocato con `sudo` per il passo aarch64-generico
-# che quello sì lo richiede — la rete bridge di default di podman rootFUL non
-# passa il DNS dell'host al container: `apt-get` dentro l'immagine builder
-# fallisce risolvendo archive.ubuntu.com pur risolvendo benissimo sull'host
-# (capitato dal vivo il 2026-08-07). Stesso identico problema e stessa
-# soluzione già in uso in build_container_aarch64_generic.sh — vedi il
-# commento esteso lì. Innocuo anche in esecuzione rootless normale.
+# --network host su entrambe le invocazioni podman: questo script gira rootless
+# e non serve sudo, ma se viene comunque lanciato da root — per abitudine, o da
+# dentro `build_containers_all.sh` invocato con `sudo` — la rete bridge di
+# default di podman rootFUL non passa il DNS dell'host al container: `apt-get`
+# dentro l'immagine builder fallisce risolvendo archive.ubuntu.com pur
+# risolvendo benissimo sull'host (capitato dal vivo il 2026-08-07). Innocuo
+# anche in esecuzione rootless normale.
+#
+# Fino al 14-09-2026 il `sudo` serviva davvero, per il passo aarch64 via QEMU:
+# quel passo non c'è più (fase due di Q53), ma la protezione resta perché
+# l'abitudine di lanciare con `sudo` sopravvive agli script che la
+# richiedevano.
 if [ "$BUILD_RUST" -eq 1 ]; then
     echo "==> [1/4] immagine builder (toolchain Rust su ubuntu:24.04)"
     podman build --platform linux/amd64 --network host \

@@ -48,73 +48,39 @@ tecnici dietro ogni passo qui sotto). Questo capitolo presume un device Pixsys d
 mostra oggi la SPA web, e sostituisce quel display layer con un container LVGL — senza toccare
 `sws-runtime`, che resta acceso per tutto il test.
 
-> **Nota del 2026-09-10 (Q53).** Da oggi l'immagine aarch64 è **una sola**, costruita da
-> `./scripts/build_container.sh` con un cross-build in container (niente SDK, niente QEMU,
-> ottimizzata), e `latest-arm64-generic` è un alias di `latest-arm64`. Il «percorso generico»
-> descritto in questo capitolo è quello storico via QEMU, che produceva un binario **non
-> ottimizzato**: i comandi restano validi con `--with-generic`, ma non c'è più motivo di usarli.
-> Il racconto sotto è di agosto e lo si lascia com'era.
+> **Aggiornato il 14-09-2026 (fase due di Q53).** L'immagine aarch64 è **una sola**, costruita da
+> `./scripts/build_container.sh` con un cross-build in container: ottimizzata, in minuti, niente
+> SDK Pixsys e niente QEMU. I due percorsi storici — `--sdk` e la build QEMU emulata — sono stati
+> **rimossi**, e i comandi che li usavano ora si fermano con un messaggio che spiega cosa usare.
+> `latest-arm64-generic` resta come **alias** della stessa immagine, per i dispositivi installati
+> con quel riferimento. Il racconto di agosto è compresso qui sotto, perché due delle sue lezioni
+> valgono ancora.
 
-**Due percorsi per costruire l'immagine**, scelta esplicita del maintainer (2026-08-09): per ora
-si preferisce il percorso **generico** (nessun SDK Pixsys, build sotto emulazione QEMU) invece di
-quello Pixsys-tuned, anche se più lento — non lega il container a un device specifico. Il percorso
-SDK resta un'alternativa per quando servirà davvero il tuning cortex-a35 (vedi in fondo a questo
-passo).
-
-### Passo 0 — Costruire l'immagine (percorso generico, senza SDK)
-
-**Serve root**, ma non c'è bisogno di scrivere `sudo`: dal 2026-08-26 lo script se ne accorge e
-si rilancia da solo, chiedendo la password al momento giusto — cioè dopo aver verificato le
-condizioni che lo farebbero fallire comunque. Un umano al terminale lo lancia così (da Claude Code
-no: `sudo` è negato dalla policy dei permessi di questo progetto):
-
-```bash
-./scripts/build_container_aarch64_generic.sh --with-lvgl --push
-```
-
-Prerequisiti (verificati presenti sul dev server il 2026-08-09, ricontrollare se cambia macchina):
-`podman`, emulazione QEMU per arm64 registrata (`ls /proc/sys/fs/binfmt_misc/qemu-aarch64` deve
-esistere — altrimenti `sudo apt install qemu-user-static`), rete per `ubuntu:24.04` e crates.io.
-Niente toolchain Rust da installare sull'host: vive nell'immagine builder, emulata.
-
-**Testato con successo il 2026-08-09** (dev server ufficio, dal maintainer stesso): bindgen contro
-`libclang` sotto emulazione QEMU — l'incognita segnalata qui sopra — non si è materializzata,
-`sws-lvgl-viewer` ha compilato in un ELF aarch64 valido (18 MB) esattamente come `sws-runtime`.
-Immagine pubblicata con tre tag (`<versione>-arm64-generic`, `<sha>-arm64-generic`,
-`latest-arm64-generic`) e archivio offline salvato in `dist/`. Un solo intoppo incontrato, già
-corretto nello script: `podman login`/`podman push`, girando anch'essi sotto `sudo` per via del
-controllo root qui sopra, non vedevano il login rootless fatto da utente normale prima del
-comando — lo script ora punta esplicitamente all'`auth.json` di `$SUDO_USER` (via `--authfile`),
-nessun secondo login richiesto. Se qualcos'altro fallisce, i log di `podman build`/`podman run`
-dicono dove.
-
-**Un secondo intoppo, trovato solo al primo avvio reale del container** (non alla build): l'immagine
-finale non aveva la libreria SDL2 **runtime** (solo `-dev` nel builder, che è un'immagine intermedia
-mai copiata in quella finale) — `sws-lvgl-viewer` partiva e crashava subito ("cannot open shared
-object file: libSDL2-2.0.so.0"). Corretto: entrambi i `Containerfile` installano ora
-`libsdl2-2.0-0` quando `--with-lvgl` è attivo (via `--build-arg`, automatico — non serve fare
-nulla di diverso, basta ricostruire con uno script aggiornato). Se hai un'immagine costruita
-*prima* di questo fix, ricostruiscila.
-
-Senza rete verso il registry, ometti `--push` e copia via `scp` l'archivio prodotto
-(`dist/sws-runtime-<versione>-aarch64-generic-image.tar.gz`).
-
-Immagine risultante: tag `*-arm64-generic` (non `*-arm64`, che è il percorso SDK-based — usare
-sempre il riferimento esplicito, `install-container.sh --pull` senza argomenti sceglie l'altro).
-
-<details>
-<summary>Alternativa: percorso SDK Pixsys-tuned (quando servirà davvero)</summary>
-
-Da una macchina **con l'SDK Yocto Pixsys** installato (`/usr/local/oecore-x86_64/…` — non
-disponibile su questo dev server):
+### Passo 0 — Costruire l'immagine
 
 ```bash
 ./scripts/build_container.sh --with-lvgl --push
 ```
 
-Nessun `sudo` richiesto per questo percorso. Produce il tag `*-arm64` (tuning cortex-a35, ABI
-pinning esatto all'OS Pixsys) invece di `*-arm64-generic`.
-</details>
+Niente `sudo`: serviva al vecchio percorso QEMU, non a questo. Prerequisiti: `podman`, rete verso
+`ubuntu:24.04`/`ports.ubuntu.com`/crates.io, `pnpm` per la SPA, e l'emulazione QEMU per arm64
+registrata (`ls /proc/sys/fs/binfmt_misc/qemu-aarch64`) — che qui serve **solo** per il passo
+`apt-get` dell'immagine finale, non per compilare. Con `--push`, un `podman login` già fatto.
+
+La prima build costruisce anche l'immagine builder (qualche centinaio di MB da ports.ubuntu.com) e
+compila da zero, ~8 minuti più 3 per il viewer; poi è incrementale. Senza rete verso il registry,
+ometti `--push` e copia via `scp` l'archivio prodotto
+(`dist/sws-runtime-<versione>-aarch64-image.tar.gz`).
+
+**Due lezioni del primo giro, di agosto, che valgono ancora.**
+
+1. **La libreria SDL2 *runtime* va nell'immagine finale**, non solo la `-dev` nel builder: il
+   builder è un'immagine intermedia che non viene copiata. Senza, `sws-lvgl-viewer` parte e
+   crasha subito («cannot open shared object file: libSDL2-2.0.so.0») — e solo **al primo avvio
+   reale**, non alla build. Corretto da allora: i Containerfile installano `libsdl2-2.0-0` quando
+   `--with-lvgl` è attivo. Se hai un'immagine costruita prima di quel fix, ricostruiscila.
+2. **bindgen contro `libclang` non è stato un problema**, contrariamente al timore iniziale: il
+   viewer compila in un ELF aarch64 valido come il runtime.
 
 ### Passo 1 — Connettersi al device
 
@@ -152,12 +118,12 @@ qui.
 ### Passo 3 — Scaricare l'immagine sul device (se pubblicata col Passo 0 via `--push`)
 
 ```bash
-podman pull ghcr.io/soligolab/sws-runtime:latest-arm64-generic
+podman pull ghcr.io/soligolab/sws-runtime:latest-arm64
 ```
 
-(`latest-arm64-generic`, non `latest-arm64` — quel tag nudo è il percorso SDK-based, un'immagine
-diversa. `install-container.sh --pull` senza argomento sceglie `latest-arm64`: qui va sempre
-passato il riferimento esplicito.)
+(`latest-arm64-generic` tira giù esattamente la stessa immagine: dal 2026-09-10 è un alias, non
+più un'immagine diversa. `install-container.sh --pull` senza argomento sceglie `latest-arm64`, e
+ora è sempre quella giusta — prima non lo era, ed è costato un incidente il 2026-07-31.)
 
 ### Passo 4 — Trovare il socket Wayland reale
 
@@ -219,8 +185,8 @@ Le altre due flag erano già lì e restano necessarie:
   `curl` sull'host funziona, lo stesso URL dentro il container dà "Connection refused" nei log.
 
 Sostituisci il nome pagina con quello trovato ai passi precedenti, se diverso dall'esempio.
-L'immagine `latest-arm64` (SDK Pixsys) e `latest-arm64-generic` sono entrambe valide: dal
-2026-08-24 **entrambe contengono il viewer LVGL per default**.
+`latest-arm64` e `latest-arm64-generic` sono la **stessa** immagine (la seconda è un alias), e
+contiene il viewer LVGL per default dal 2026-08-24.
 
 ### Passo 6 — Controllare cosa succede
 
@@ -357,8 +323,10 @@ versione dal `Cargo.toml`, sha del commit, e `latest-*`:
 | aarch64 (Pixsys e qualunque board arm64) | cross-build da x86_64 in container Ubuntu (`build_container.sh`) | `<ver>-arm64`, `<sha>-arm64`, `latest-arm64`, più gli alias `<ver>-arm64-generic` e `latest-arm64-generic` |
 | x86_64 | build nativa (`build_container_x86_64.sh`) | `<ver>-amd64`, `<sha>-amd64`, `latest-amd64` |
 
-Storici, solo su richiesta: `--sdk` (SDK Yocto Pixsys) e `--with-generic` (QEMU, ~50 minuti,
-binario non ottimizzato). Spariranno quando il cross-build avrà girato abbastanza sui dispositivi.
+I percorsi storici `--sdk` (SDK Yocto Pixsys) e `--with-generic` (QEMU, ~50 minuti, binario **non
+ottimizzato**) sono stati **rimossi** il 14-09-2026 con la fase due di Q53: passarli ora si ferma
+con un messaggio che spiega cosa usare. Il perché sta in
+`docs/DEPLOY_CONTAINER_AARCH64.md` §«Perché il percorso QEMU è stato abbandonato».
 
 Varianti:
 
@@ -372,8 +340,8 @@ Varianti:
 
 Le trappole, tutte già incontrate dal vivo:
 
-- **Non lanciarlo con `sudo`.** Nessun passo lo richiede più (lo richiedeva solo la vecchia
-  aarch64 via QEMU, oggi dietro `--with-generic`). Lanciato da root, sotto podman rootful la rete
+- **Non lanciarlo con `sudo`.** Nessun passo lo richiede: lo richiedeva solo la vecchia aarch64
+  via QEMU, che dal 14-09-2026 non esiste più. Lanciato da root, sotto podman rootful la rete
   bridge non passa il DNS dell'host ai container e il builder x86_64 fallisce risolvendo
   `archive.ubuntu.com` pur risolvendo benissimo sull'host (2026-08-07).
 - **La prima build aarch64 è lunga** (~8 minuti il runtime, poi il viewer), le successive
@@ -382,11 +350,11 @@ Le trappole, tutte già incontrate dal vivo:
 - **Emulazione arm64** registrata sull'host, una volta per macchina: se
   `/proc/sys/fs/binfmt_misc/qemu-aarch64` non esiste, `sudo apt install qemu-user-static`.
 - **Nessuno deve modificare gli script mentre girano** — nemmeno un commento. Bash legge il
-  file a blocchi, per offset: il 2026-09-09 un edit al commento in testa a
-  `build_container_aarch64_generic.sh`, fatto durante la build, l'ha uccisa dopo 51 minuti con
+  file a blocchi, per offset: il 2026-09-09 un edit al commento in testa allo script di build
+  aarch64 di allora, fatto durante la build, l'ha uccisa dopo 51 minuti con
   `line 381: build: command not found` (un frammento di `podman build` letto a metà riga). Il
-  rilancio riusa la compilazione già fatta (`target-container-aarch64-generic` è incrementale),
-  ma la sequenza va rifatta da capo. Chi lavora sullo stesso checkout controlli
+  rilancio riusa la compilazione già fatta (la `target-container-…` è incrementale), ma la
+  sequenza va rifatta da capo. Chi lavora sullo stesso checkout controlli
   `pgrep -af build_container` prima di toccare `scripts/`.
 
 Sul dispositivo, poi, si aggiorna con `install-container.sh --pull` (senza argomento sceglie

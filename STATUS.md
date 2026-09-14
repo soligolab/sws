@@ -74,6 +74,33 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — Q53 fase due: un solo percorso di build aarch64 (2026-09-14)
+
+Il piano chiedeva una misura sul campo prima di togliere i percorsi storici. **La misura c'era
+già** — WP630, 10-09: runtime su in 0,30 s, 1,2 % di un core, RSS 9,8 MB — e la conclusione era
+già scritta qui sotto: «il runtime non ha nulla da invidiare all'SDK». Mancava solo la rimozione.
+
+**Via**: `scripts/build_container_aarch64_generic.sh`, i tre `Containerfile.aarch64-generic*`, il
+flag `--sdk` di `build_container.sh` (col ramo che chiamava `scripts/yocto/build.sh`),
+`--with-generic` e `--require-sdk` di `build_containers_all.sh`. Con loro se n'è andato tutto il
+giro dei privilegi root, che serviva **solo** alla build emulata.
+
+**Restano, di proposito**: gli **alias** `-arm64-generic`, ora pubblicati sempre invece che sotto
+condizione, così i dispositivi installati con quel riferimento continuano ad aggiornarsi;
+`scripts/yocto/build.sh`, che il piano nominava solo «dal percorso container» e serve ancora ai
+pacchetti non-container; `parse_image_tarball` in `packaging.rs`, che continua a leggere i vecchi
+archivi `-aarch64-generic` che un dispositivo può avere sul disco.
+
+Le tre flag ritirate non danno «Flag non riconosciuta» ma **un messaggio che dice cosa usare**:
+erano flag vere fino a ieri. E il referto del perché QEMU non reggeva — 51 minuti, e il SIGSEGV
+di `cc` su `aws-lc-sys` che costringeva a `opt-level 0`, cioè un binario pubblicato **non
+ottimizzato** senza che il nome del tag lo dicesse — non è stato cancellato col codice: sta in
+`docs/DEPLOY_CONTAINER_AARCH64.md` §«Perché il percorso QEMU è stato abbandonato», perché è
+esattamente il tipo di strada che qualcuno riprova.
+
+Piano archiviato in `docs/archive/2026-09-12-q53-misura-rimozione-sdk-qemu.md` con l'esito in
+testa; la scheda Q53 in `OPEN_QUESTIONS` è timbrata «fase due chiusa».
+
 ## ▶ Riprendere da qui — regola nuova: un ramo alla volta (2026-09-14)
 
 Decisa dal maintainer subito dopo il quasi-incidente sull'avviso del ruolo minimo, scritta in

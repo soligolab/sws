@@ -11,6 +11,20 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Removed
+- **Il percorso di build aarch64 via QEMU e il flag `--sdk` (fase due di Q53)**: restavano «finché
+  il cross-build non avrà girato abbastanza sui dispositivi», e la misura sul WP630 del 10-09 ha
+  chiuso la questione — runtime su in **0,30 s**, **1,2 %** di un core, RSS 9,8 MB. Via
+  `scripts/build_container_aarch64_generic.sh` e i tre `Containerfile.aarch64-generic*`, via
+  `--sdk` da `build_container.sh`, via `--with-generic` e `--require-sdk` da
+  `build_containers_all.sh`, e con loro il giro dei privilegi root che serviva **solo** alla build
+  emulata. Gli **alias** `-arm64-generic` restano pubblicati — i dispositivi installati con quel
+  riferimento continuano ad aggiornarsi — e `scripts/yocto/build.sh` resta per i pacchetti
+  non-container. Le tre flag ritirate rispondono con un messaggio che dice cosa usare, non con
+  «flag non riconosciuta». Il referto del perché QEMU non reggeva (51 minuti, e il SIGSEGV di `cc`
+  su `aws-lc-sys` che costringeva a `opt-level 0`, cioè un binario pubblicato **non ottimizzato**)
+  resta in `docs/DEPLOY_CONTAINER_AARCH64.md`.
+
 ### Changed
 - **`install-container.sh` si ferma con un errore se non riesce ad abilitare il linger (Q45)**:
   prima si limitava a un avviso e continuava, rischiando di installare un container che non

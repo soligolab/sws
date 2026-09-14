@@ -12,15 +12,17 @@
 #
 # ── Perché legge `dist/` e non solo `podman images` ──────────────────────────
 #
-# Le tre immagini **non stanno tutte nello stesso deposito**. `arm64-generic` si
-# costruisce con `sudo` (QEMU sotto podman rootless non attraversa la user
-# namespace), quindi finisce nel deposito di root: un `podman images` da utente
-# normale non la vede, e un riepilogo ingenuo la darebbe per **mancante** dopo
-# averla appena costruita. Gli archivi in `dist/` invece sono tutti là, di
-# proprietà dell'utente, e sono anche la cosa che si copia davvero su un
-# dispositivo. Sono loro la fonte primaria; `podman images` arricchisce quando
-# l'immagine è nel deposito raggiungibile, e quando non c'è lo script dice
-# *dove* sta invece di dire che non esiste.
+# Gli archivi in `dist/` sono la cosa che si copia davvero su un dispositivo, e
+# ci sono anche quando l'immagine non è (più) nel deposito locale. Sono loro la
+# fonte primaria; `podman images` arricchisce quando l'immagine è raggiungibile.
+#
+# Il motivo originale era più stringente: fino al 14-09-2026 c'era una terza
+# immagine, `arm64-generic`, che si costruiva con `sudo` (QEMU sotto podman
+# rootless non attraversa la user namespace) e finiva nel deposito di **root** —
+# un `podman images` da utente normale non la vedeva, e un riepilogo ingenuo la
+# dava per mancante dopo averla appena costruita. Quell'immagine non esiste più
+# (fase due di Q53), ma leggere `dist/` resta la cosa giusta per la ragione
+# scritta sopra.
 #
 # `sudo` non lo chiede mai: un riepilogo che chiede una password non è un
 # riepilogo. Se `sudo -n` passa senza chiedere niente, ne approfitta.
@@ -45,14 +47,20 @@ if [ -z "$VERSION" ]; then
 fi
 REGISTRY="ghcr.io/soligolab/sws-runtime"
 
-# I tre gusti, con ciò che li distingue davvero. Il testo sta qui e non nei
+# I due gusti, con ciò che li distingue davvero. Il testo sta qui e non nei
 # Containerfile perché è la risposta alla domanda «quale copio su questo
 # pezzo di ferro?», che nessun file di build si pone.
+#
+# Erano tre fino al 14-09-2026: la terza, `arm64-generic`, era la stessa
+# immagine compilata in un container arm64 emulato con QEMU e **non
+# ottimizzata**. Rimossa con la fase due di Q53. Il suo nome sopravvive come
+# alias della `-arm64` sul registry, perché i dispositivi installati con quel
+# riferimento continuino ad aggiornarsi — ma non è più un'immagine a sé, e
+# quindi non è più un gusto.
 #
 # Campi: <suffisso-immagine>|<suffisso-archivio>|<a cosa serve>|<come è costruita>
 GUSTI=(
   "arm64|aarch64|qualunque dispositivo arm64: pannelli Pixsys (PX30, RK3399, RK3588) e board generiche|cross-compilata da x86_64 con la toolchain Ubuntu arm64, ottimizzata; base ubuntu:24.04 come tutte; porta anche sws-lvgl-viewer. latest-arm64-generic è un alias di questa"
-  "arm64-generic|aarch64-generic|(storica, solo con --with-generic) confronto durante la transizione a Q53|in container arm64 emulato con QEMU, NON ottimizzata (opt-level 0)"
   "amd64|x86_64|PC, VM, prove in locale|in container su ubuntu:24.04, nessuna emulazione"
 )
 
@@ -90,11 +98,7 @@ for g in "${GUSTI[@]}"; do
     archivio="$REPO_ROOT/dist/sws-runtime-${VERSION}-${arch_file}-image.tar.gz"
 
     if [ ! -f "$archivio" ]; then
-        # La aarch64 via QEMU è storica (Q53): dalla 2.7.2 `-arm64-generic` è un
-        # alias della `-arm64` e non si costruisce, quindi la sua assenza non è
-        # una mancanza da segnalare. Compare solo se qualcuno l'ha costruita
-        # davvero con --with-generic.
-        [ "$suff" = "arm64-generic" ] || mancanti+=("$immagine")
+        mancanti+=("$immagine")
         continue
     fi
     trovate=$((trovate + 1))
@@ -110,9 +114,6 @@ for g in "${GUSTI[@]}"; do
     if [ -n "$letta" ]; then
         printf '    caricata  %s nel deposito (%s)\n' \
             "$(byte_umani "${letta% *}")" "${letta#* }"
-    elif [ "$suff" = "arm64-generic" ]; then
-        printf '    caricata  nel deposito di \033[1mroot\033[0m: si costruisce con sudo, quindi\n'
-        printf '              `podman images` da utente non la vede (`sudo podman images`)\n'
     else
         printf '    caricata  non nel deposito locale — c%s solo l%sarchivio\n' "'è" "'"
     fi

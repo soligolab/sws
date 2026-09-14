@@ -413,13 +413,14 @@ ricostruire niente: legge e stampa.
 Serve perché l'uscita delle tre build è lunga centinaia di righe e finisce con l'ultima delle tre:
 chi ha lanciato il comando legge «done. Image: sws-runtime:2.5.0-amd64» e non ha davanti le altre
 due, né le dimensioni, né quale immagine copiare su quale pezzo di ferro. È anche il punto in cui
-si nota una build **saltata** (SDK Pixsys assente) invece di scoprirlo installando.
+si nota una build **saltata** invece di scoprirlo installando.
 
-**Legge `dist/` e non solo `podman images`**, e non è un dettaglio: le immagini non stanno per forza
-nello stesso deposito. La vecchia `arm64-generic` (solo con `--with-generic`, Q53) si costruisce con
-`sudo`, quindi finisce nel deposito di root, e un `podman images` da utente normale **non la vede** —
-un riepilogo ingenuo la darebbe per mancante appena costruita. Gli archivi in `dist/` invece sono tutti là, e sono anche la cosa che si
-copia davvero su un dispositivo.
+**Legge `dist/` e non solo `podman images`**: gli archivi in `dist/` ci sono anche quando
+l'immagine non è (più) nel deposito locale, e sono la cosa che si copia davvero su un dispositivo.
+Il motivo originale era più stringente — la vecchia `arm64-generic` si costruiva con `sudo` e
+finiva nel deposito di **root**, invisibile a un `podman images` da utente normale, quindi un
+riepilogo ingenuo la dava per mancante appena costruita. Quell'immagine è stata rimossa il
+14-09-2026 (fase due di Q53), ma leggere `dist/` resta la cosa giusta.
 
 Non chiede mai `sudo`: un riepilogo che chiede una password non è un riepilogo. Se `sudo -n` passa
 senza chiedere niente ne approfitta, altrimenti dice *dove* sta l'immagine.

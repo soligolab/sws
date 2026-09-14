@@ -5,18 +5,23 @@
 #
 # L'immagine NON compila nulla: incarta il binario aarch64 già compilato e la SPA
 # già buildata. Compilare Rust dentro un'immagine arm64 emulata richiederebbe
-# ore (è quello che faceva build_container_aarch64_generic.sh: 51 minuti, e per
-# giunta a opt-level 0 — vedi Q53).
+# ore (è quello che faceva il vecchio percorso QEMU: 51 minuti, e per giunta a
+# opt-level 0 — vedi Q53).
 #
-# COME NASCE IL BINARIO (Q53, 2026-09-10): per default in un container di build
-# x86_64 con la toolchain Ubuntu per arm64 (deploy/container/
+# COME NASCE IL BINARIO (Q53, 2026-09-10): in un container di build x86_64 con
+# la toolchain Ubuntu per arm64 (deploy/container/
 # Containerfile.aarch64-cross.builder): cross-compilazione nativa, ottimizzata,
 # in minuti, senza SDK Pixsys e senza QEMU, contro le stesse librerie
 # (ubuntu:24.04, glibc 2.39, Python 3.12) dell'immagine finale. L'unica
 # immagine aarch64: vale per i pannelli Pixsys e per qualunque board arm64.
-# Con --sdk si usa il percorso storico con l'SDK Yocto Pixsys
-# (scripts/yocto/build.sh): resta finché il cross-build non è stato provato a
-# sufficienza sul campo, poi sparisce.
+#
+# **È l'unico percorso.** Fino al 14-09-2026 ne convivevano altri due — `--sdk`
+# con l'SDK Yocto Pixsys e la build QEMU emulata — tenuti «finché il cross-build
+# non è provato sul campo». La prova è arrivata (WP630, 10-09: runtime su in
+# 0,30 s all'1,2 % di un core), e con essa la fase due di Q53: tre percorsi che
+# producono la stessa immagine sono tre modi di sbagliarsi, e uno solo dei tre
+# era ottimizzato. Gli alias `-arm64-generic` restano pubblicati: i dispositivi
+# installati con quel riferimento continuano ad aggiornarsi.
 #
 # La SPA è DENTRO l'immagine dal 2026-07-30: col registry i layer si
 # deduplicano, quindi un frontend nuovo trasferisce ~0,4 MB e non l'immagine
@@ -37,7 +42,6 @@
 #   ./scripts/build_container.sh --no-save --push    # solo pubblicazione, nessun archivio
 #   ./scripts/build_container.sh --no-rust          # riusa il binario aarch64 esistente
 #   ./scripts/build_container.sh --no-spa           # riusa sws-editor/dist così com'è
-#   ./scripts/build_container.sh --sdk              # percorso storico: SDK Yocto Pixsys
 #   ./scripts/build_container.sh --registry REF     # altro repository di destinazione
 #   ./scripts/build_container.sh --out DIR          # directory di output (default dist/)
 #   ./scripts/build_container.sh --no-lvgl          # NON includere sws-lvgl-viewer
@@ -52,8 +56,7 @@
 #            per la SPA (salvo --no-spa); emulazione QEMU per arm64 registrata
 #            sull'host per il solo passo `apt-get` dell'immagine finale
 #            (`ls /proc/sys/fs/binfmt_misc/qemu-aarch64`); con --push un
-#            `podman login` già fatto. Con --sdk: l'SDK Yocto Pixsys in
-#            /usr/local/oecore-x86_64/ e clang/libclang sull'host.
+#            `podman login` già fatto.
 
 set -euo pipefail
 
@@ -61,7 +64,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 usage() {
-    sed -n '2,56p' "${BASH_SOURCE[0]}" | sed 's/^#//; s/^ //'
+    sed -n '2,59p' "${BASH_SOURCE[0]}" | sed 's/^#//; s/^ //'
 }
 
 BUILD_RUST=1
@@ -69,10 +72,8 @@ BUILD_SPA=1
 SAVE=1
 PUSH=0
 WITH_LVGL=1
-BUILDER="cross"     # cross (default, Q53) | sdk (storico)
 REGISTRY="ghcr.io/soligolab/sws-runtime"
 OUT_DIR="$REPO/dist"
-SDK_ENV="/usr/local/oecore-x86_64/environment-setup-cortexa35-pixsys-linux"
 SPA_DIST="$REPO/sws-editor/dist"
 TARGET_TRIPLE="aarch64-unknown-linux-gnu"
 BUILDER_IMAGE="sws-runtime-builder:aarch64-cross"
@@ -89,32 +90,28 @@ while [ $# -gt 0 ]; do
         --no-spa)    BUILD_SPA=0;  shift ;;
         --no-save)   SAVE=0;       shift ;;
         --push)      PUSH=1;       shift ;;
-        --sdk)       BUILDER="sdk"; shift ;;
         # Accettata e senza effetto: era il modo di chiederlo.
         --with-lvgl) WITH_LVGL=1;  shift ;;
         --no-lvgl)   WITH_LVGL=0;  shift ;;
+        # Ritirata il 14-09-2026 (fase due di Q53): vedi l'intestazione.
+        --sdk)
+            echo "ERRORE: --sdk è stata rimossa il 14-09-2026 (fase due di Q53)." >&2
+            echo "        Il binario aarch64 si cross-compila in un container Ubuntu:" >&2
+            echo "        ottimizzato, in minuti, senza SDK Pixsys. Lancia senza flag." >&2
+            echo "        La build nativa con l'SDK esiste ancora per i pacchetti non" >&2
+            echo "        container: scripts/yocto/build.sh, docs/YOCTO_CROSSCOMPILE.md." >&2
+            exit 1 ;;
         --registry)  REGISTRY="$2"; shift 2 ;;
         --out)       OUT_DIR="$2"; shift 2 ;;
         *) echo "Flag non riconosciuta: $1 (--help per l'elenco)" >&2; exit 1 ;;
     esac
 done
 
-# Dove sta il binario dipende da chi lo compila. Sono due alberi distinti di
-# proposito: un --sdk dopo un cross (o viceversa) non deve poter incartare il
-# binario dell'altro percorso credendolo aggiornato.
-if [ "$BUILDER" = "sdk" ]; then
-    BIN="$REPO/sws-runtime/target/$TARGET_TRIPLE/release/sws-runtime"
-    LVGL_BIN="$REPO/sws-runtime/target/$TARGET_TRIPLE/release/sws-lvgl-viewer"
-else
-    BIN="$CROSS_TARGET/$TARGET_TRIPLE/release/sws-runtime"
-    LVGL_BIN="$CROSS_TARGET_LVGL/$TARGET_TRIPLE/release/sws-lvgl-viewer"
-fi
-
-if [ "$BUILDER" = "sdk" ] && [ "$BUILD_RUST" -eq 1 ] && [ ! -f "$SDK_ENV" ]; then
-    echo "ERRORE: --sdk richiede l'SDK Yocto Pixsys ($SDK_ENV), che qui non c'è." >&2
-    echo "        Senza --sdk il binario si cross-compila in un container Ubuntu: è il default." >&2
-    exit 1
-fi
+# L'albero del cross-build è suo: separato da `sws-runtime/target/`, che è
+# quello delle build native dell'host. Mescolarli farebbe incartare un binario
+# x86_64 credendolo aarch64.
+BIN="$CROSS_TARGET/$TARGET_TRIPLE/release/sws-runtime"
+LVGL_BIN="$CROSS_TARGET_LVGL/$TARGET_TRIPLE/release/sws-lvgl-viewer"
 
 # ── Controlli preliminari alla pubblicazione ──────────────────────────────────
 # Tutti PRIMA della build: una cross-compilazione dura minuti, e scoprire alla
@@ -153,22 +150,10 @@ VERSION=$(cd "$REPO/sws-runtime" && cargo metadata --no-deps --format-version 1 
 # Capitato davvero il 2026-07-31, costruendo le due immagini di seguito.
 IMAGE="sws-runtime:${VERSION}-arm64"
 
-echo "==> SWS runtime container image ${VERSION} (linux/arm64, binario da: $BUILDER)"
+echo "==> SWS runtime container image ${VERSION} (linux/arm64, cross-build)"
 
 # ── 1. Il binario aarch64 ─────────────────────────────────────────────────────
-if [ "$BUILD_RUST" -eq 1 ] && [ "$BUILDER" = "sdk" ]; then
-    # In a subprocess on purpose: yocto/build.sh sources the SDK environment into
-    # its own shell, which would otherwise clobber PATH/pkg-config for the rest of
-    # this script. Same reasoning as scripts/build_deploy.sh.
-    YOCTO_FLAGS=( release )
-    [ "$BUILD_SPA" -eq 1 ]  || YOCTO_FLAGS+=( --no-spa )
-    # Va propagato il NEGATIVO, non il positivo: da quando LVGL è il default
-    # anche in build.sh, non passare niente significa "costruiscilo".
-    [ "$WITH_LVGL" -eq 1 ]  || YOCTO_FLAGS+=( --no-lvgl )
-    echo "==> [1/4] cross-compile con l'SDK Pixsys (${YOCTO_FLAGS[*]})"
-    bash "$REPO/scripts/yocto/build.sh" "${YOCTO_FLAGS[@]}"
-
-elif [ "$BUILD_RUST" -eq 1 ]; then
+if [ "$BUILD_RUST" -eq 1 ]; then
     # Il builder: un'immagine x86_64 con gcc per aarch64 e le librerie :arm64 di
     # Ubuntu 24.04 in multiarch. Si ricostruisce solo se il Containerfile cambia
     # (podman usa la cache dei layer); la prima volta scarica qualche centinaio
@@ -192,8 +177,8 @@ elif [ "$BUILD_RUST" -eq 1 ]; then
         (cd "$REPO/sws-editor" && pnpm build)
     fi
 
-    # Stesso invito del percorso SDK (scripts/yocto/build.sh): le patch al
-    # codice LVGL vendorizzato devono essere applicate, perché cargo non si
+    # Stesso invito che fa la build nativa (scripts/yocto/build.sh): le patch
+    # al codice LVGL vendorizzato devono essere applicate, perché cargo non si
     # accorge se qualcuno le toglie — vedi Q22.
     if [ "$WITH_LVGL" -eq 1 ]; then
         echo "==> [1c/4] verifica delle patch al codice vendorizzato"
@@ -310,13 +295,13 @@ if [ "$PUSH" -eq 1 ]; then
     # di aggiornare un numero dentro lo script a ogni release.
     TAG_LATEST="${REGISTRY}:latest-arm64"
     TAGS=( "$TAG_VERSION" "$TAG_COMMIT" "$TAG_LATEST" )
-    # Q53: `-arm64-generic` era un'immagine a parte (QEMU, non ottimizzata). Da
-    # oggi è la STESSA immagine con un altro nome, così un dispositivo installato
-    # con quel riferimento continua ad aggiornarsi. Alias di transizione: cade
-    # quando nessun dispositivo lo usa più.
-    if [ "$BUILDER" = "cross" ]; then
-        TAGS+=( "${REGISTRY}:${VERSION}-arm64-generic" "${REGISTRY}:latest-arm64-generic" )
-    fi
+    # Q53: `-arm64-generic` era un'immagine a parte (QEMU, non ottimizzata), e
+    # dal 2026-09-10 è la STESSA immagine con un altro nome, così un dispositivo
+    # installato con quel riferimento continua ad aggiornarsi. Dal 14-09 la
+    # vecchia immagine non esiste più: questo resta un **alias**, e si pubblica
+    # sempre. Cade quando nessun dispositivo lo usa più — e per saperlo serve
+    # guardare i pull del registry, non indovinare.
+    TAGS+=( "${REGISTRY}:${VERSION}-arm64-generic" "${REGISTRY}:latest-arm64-generic" )
     echo "==> [4/4] pubblicazione su $REGISTRY"
     for t in "${TAGS[@]}"; do
         podman tag "$IMAGE" "$t"

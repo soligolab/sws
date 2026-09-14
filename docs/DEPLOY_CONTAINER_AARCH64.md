@@ -165,15 +165,14 @@ Le cose che hanno richiesto una scelta, tutte nel Containerfile con il perché:
 - **FreeType anche per l'host**: il build script di `lvgl` linka lvgl-sys per
   x86_64 e lvgl-sys linka `-lfreetype`.
 
-**I due percorsi storici restano, per ora.** `build_container.sh --sdk` usa
-l'SDK Yocto Pixsys (`scripts/yocto/build.sh`, `target/aarch64-unknown-linux-gnu/`);
-`build_container_aarch64_generic.sh` compila **dentro** un container arm64
-emulato con QEMU, in ~51 minuti e — per il crash di `aws-lc-sys` sotto
-emulazione — a `opt-level 0`: il binario `-arm64-generic` pubblicato fino alla
-2.7.1 era **non ottimizzato**. Entrambi spariranno quando il cross-build avrà
-girato abbastanza sui dispositivi. Nessuno dei tre «linka la libc del
-dispositivo»: in un container il binario gira contro la glibc dell'immagine, e
-del pannello conta solo il kernel.
+**È l'unico percorso, dal 14-09-2026.** Fino a quel giorno ne convivevano altri
+due: `build_container.sh --sdk`, che usava l'SDK Yocto Pixsys, e
+`build_container_aarch64_generic.sh`, che compilava **dentro** un container arm64
+emulato con QEMU. Erano tenuti «finché il cross-build non avrà girato abbastanza
+sui dispositivi», ed è la fase due di Q53 ad averli chiusi — vedi
+«Perché il percorso QEMU è stato abbandonato» più sotto. Nessuno dei tre «linkava
+la libc del dispositivo»: in un container il binario gira contro la glibc
+dell'immagine, e del pannello conta solo il kernel.
 
 ### L'ordine dei layer non è estetico
 
@@ -192,86 +191,53 @@ invalidano il layer `apt`, che sotto emulazione QEMU si ricostruisce in 15
 minuti contro i 2,7 secondi di una build con la cache calda. Misurato, non
 supposto.
 
-### Percorso generico (senza SDK Pixsys)
+### Perché il percorso QEMU è stato abbandonato
 
-Quando l'SDK Yocto Pixsys non è disponibile — o il target non è un device Pixsys
-(Raspberry Pi, VM cloud arm64, qualunque device aarch64 generico) — c'è un
-percorso gemello che non lo richiede:
+Rimosso il 14-09-2026 con la fase due di Q53, insieme a `--sdk`. Il referto resta
+qui perché il motivo non è ovvio e qualcuno, prima o poi, riproverà la stessa
+strada.
 
-```bash
-./scripts/build_container_aarch64_generic.sh                 # build + immagine + archivio
-./scripts/build_container_aarch64_generic.sh --no-rust       # riusa il binario esistente
-```
+Compilare **dentro** un container arm64 emulato è attraente sulla carta: niente
+cross-compilazione, niente sysroot, l'ambiente di build è l'ambiente di
+esecuzione. In pratica due cose lo rendevano inservibile.
 
-Serve root (l'emulazione QEMU non funziona sotto podman rootless), ma lo script
-chiede la password da sé quando serve: non va preceduto da `sudo`. Con
-`--no-rust` non serve affatto, perché non c'è niente da emulare.
+1. **Durata**: ~51 minuti, contro i minuti del cross-build, perché sotto
+   emulazione gira *tutta* la compilazione e non il solo layer `apt`.
+2. **`cc` andava in SIGSEGV compilando `aws-lc-sys`** (dietro `rustls`, via
+   `reqwest`): la sua assembly ARM scritta a mano per NEON+SHA3 fa crashare
+   l'assemblatore in emulazione — limite noto di QEMU con certe estensioni
+   crypto ARM, non un bug del codice SWS. Il ripiego era `AWS_LC_SYS_NO_ASM=1`
+   con builder CMake, che però accetta `NO_ASM` **solo a `opt-level` esattamente
+   0** (verificato leggendo `builder/cmake_builder.rs` di aws-lc-sys, non
+   assunto). Risultato: il binario `-arm64-generic` pubblicato fino alla 2.7.1
+   era **non ottimizzato**, e nessuno lo sapeva guardando il nome del tag.
 
-Compila dentro `deploy/container/Containerfile.aarch64-generic.builder` (stesso
-`ubuntu:24.04` del percorso x86_64 — vedi `docs/DEPLOY_CONTAINER_X86_64.md`),
-non con l'SDK: build-arch e target-arch non coincidono, quindi gira **tutta**
-sotto emulazione QEMU, non solo il layer `apt` del passaggio sopra — sensibilmente
-più lenta della build SDK (secondi) e di quella x86_64 nativa. Stesso prerequisito
-binfmt della build SDK (`ls /proc/sys/fs/binfmt_misc/qemu-aarch64`; se assente,
-`sudo apt install qemu-user-static`, o su distro dove quel pacchetto non c'è,
-`sudo podman run --rm --privileged docker.io/multiarch/qemu-user-static --reset
--p yes`), qui usato per l'intera compilazione e non solo per l'ultimo layer.
+Chiedeva anche `sudo` (su podman rootless l'emulazione QEMU non attraversa la
+user namespace: l'exec del binario arm64 fallisce con «Exec format error» anche
+a binfmt registrato correttamente), e da lì tutto un giro di `chown` di ritorno
+sui bind mount. Quel `sudo` è la ragione per cui `build_containers_all.sh` ha
+ancora oggi la protezione contro l'essere lanciato da root.
 
-**A differenza di tutto il resto della famiglia container, va lanciato con
-`sudo`** — verificato empiricamente (2026-08-01): su podman rootless + crun
-l'emulazione QEMU non attraversa la user namespace del container (l'exec del
-binario arm64 fallisce con "Exec format error" anche a registrazione binfmt
-corretta), con `sudo podman` funziona. Effetto collaterale: podman non-rootless
-non rimappa gli UID sui bind mount, quindi `target-container-aarch64-generic/`,
-`.cargo-container-aarch64-generic/`, `dist/` e `sws-editor/dist/` (la SPA, che
-lo script builda direttamente sull'host e non dentro un container)
-finirebbero di proprietà di `root` — lo script li restituisce da solo
-all'utente originale (`$SUDO_USER`) all'uscita, con un `trap ... EXIT` che
-gira sia a successo sia a fallimento a metà, non serve un `chown` a mano.
-Lo script verifica da solo entrambi i prerequisiti (binfmt registrato, `id -u` è 0) e si
-ferma con un messaggio chiaro se mancano, invece di fallire più avanti con un
-errore di rete poco comprensibile (sotto `sudo podman`, senza `--network host`
-— che lo script già passa — la rete bridge di default non passa il DNS
-dell'host e `ports.ubuntu.com`/crates.io risultano irraggiungibili anche se
-l'host li risolve benissimo).
-
-**`cc` va in SIGSEGV sotto QEMU compilando `aws-lc-sys`** (dietro `rustls`, via
-`reqwest`): la sua assembly ARM scritta a mano per NEON+SHA3 fa crashare
-l'assemblatore in emulazione — limite noto di QEMU con certe estensioni
-crypto ARM, non un bug del codice SWS. Lo script imposta
-`AWS_LC_SYS_NO_ASM=1` (ripiega sulle implementazioni C portabili) e forza il
-builder su CMake (richiede `cmake` nell'immagine builder — vedi
-`Containerfile.aarch64-generic.builder`), che a sua volta accetta `NO_ASM`
-**solo con `opt-level` esattamente 0** (`CARGO_PROFILE_RELEASE_OPT_LEVEL=0`,
-verificato leggendo `builder/cmake_builder.rs` di aws-lc-sys, non assunto) —
-nessuna ottimizzazione, binario sensibilmente più lento a runtime. Va bene per
-verificare che il container si installi e parta, non per misurare prestazioni;
-solo per questa build, non tocca `Cargo.toml` né gli altri percorsi.
-
-**Non sostituisce il percorso SDK per un device Pixsys reale**: niente tuning
-cortex-a35, niente ABI pinning esatto all'OS Pixsys — solo la stessa base
-`ubuntu:24.04` del resto della famiglia container, verificata con lo stesso
-controllo `readelf` (vedi lo script). Per questo l'archivio e i tag di
-pubblicazione portano il suffisso **`-generic`**
-(`dist/sws-runtime-<versione>-aarch64-generic-image.tar.gz`,
-`ghcr.io/soligolab/sws-runtime:latest-arm64-generic`): non sono mai raggiungibili
-dal default automatico di `install-container.sh --pull` (che senza argomento
-cerca `latest-arm64`, l'immagine Pixsys-tuned) — vanno installati sempre con un
-riferimento esplicito.
+**Il nome sopravvive come alias.** `build_container.sh --push` pubblica sempre
+anche `<versione>-arm64-generic` e `latest-arm64-generic`, che puntano alla
+**stessa** immagine cross-compilata: i dispositivi installati con quel
+riferimento continuano ad aggiornarsi. L'alias cade quando nessun dispositivo lo
+usa più — e per saperlo servono i pull del registry, non un'ipotesi.
 
 ### Costruire tutte le immagini in un colpo solo
 
 `scripts/build_containers_all.sh` richiama in sequenza `build_container.sh`
 (aarch64, cross-build) e `build_container_x86_64.sh`, inoltrando a ciascuno gli
-stessi argomenti (`--push`, `--no-rust`, `--no-spa`, `--sdk`, `--registry`,
-`--out`). Con `--with-generic` costruisce anche la vecchia immagine aarch64 via
-QEMU, solo per confronto durante la transizione.
+stessi argomenti (`--push`, `--no-rust`, `--no-spa`, `--registry`, `--out`).
 
 ```bash
 ./scripts/build_containers_all.sh                # aarch64 + x86_64
 ./scripts/build_containers_all.sh --push         # ...e pubblica
-./scripts/build_containers_all.sh --sdk          # aarch64 con l'SDK Pixsys (storico)
 ```
+
+`--sdk`, `--require-sdk` e `--with-generic` sono state rimosse il 14-09-2026: chi
+le passa non riceve un «flag non riconosciuta» ma un messaggio che dice cosa è
+successo e cosa usare al suo posto.
 
 Ogni script (compreso questo) accetta anche `-h`/`--help` per un riepilogo
 rapido delle flag senza dover aprire il file.

@@ -230,15 +230,19 @@ l'immagine sbagliata è un errore che si scopre solo all'avvio.
 
 | Tag | Per chi |
 |-----|---------|
-| `ghcr.io/soligolab/sws-runtime:latest-arm64` | device Pixsys aarch64 (binario dall'SDK Yocto) |
-| `ghcr.io/soligolab/sws-runtime:latest-arm64-generic` | board ARM64 generiche (Raspberry Pi, Jetson, VM cloud) |
+| `ghcr.io/soligolab/sws-runtime:latest-arm64` | **qualunque** dispositivo aarch64: pannelli Pixsys (PX30, RK3399, RK3588) e board generiche (Raspberry Pi, Jetson, VM cloud) |
+| `ghcr.io/soligolab/sws-runtime:latest-arm64-generic` | alias del precedente, per i dispositivi installati con quel riferimento |
 | `ghcr.io/soligolab/sws-runtime:latest-amd64` | host x86_64 |
 
+Dal 2026-09-10 (Q53) **l'immagine aarch64 è una sola**: il binario si cross-compila da x86_64 in
+un container Ubuntu, ottimizzato, senza SDK Pixsys e senza QEMU. Prima erano due — una con l'SDK,
+una compilata sotto emulazione e non ottimizzata — e i due percorsi sono stati rimossi il
+14-09-2026.
+
 Costruzione e pubblicazione: `scripts/build_container.sh`,
-`scripts/build_container_aarch64_generic.sh`, `scripts/build_container_x86_64.sh`
-(`--push` per pubblicare). Non è un passo di CI: l'immagine Pixsys contiene un binario
-cross-compilato con l'SDK Yocto, che sui runner GitHub non esiste, quindi la pubblicazione è
-manuale dalla macchina che ha l'SDK.
+`scripts/build_container_x86_64.sh` (`--push` per pubblicare), oppure
+`scripts/build_containers_all.sh` per entrambe. Non è un passo di CI: la pubblicazione è manuale
+dalla macchina di sviluppo.
 
 ### Note container
 

@@ -1,5 +1,34 @@
 # Q53 — Misurare sul campo prima di togliere i percorsi SDK Pixsys e QEMU generico
 
+> **Esito, 14-09-2026 — chiuso.** La misura che questo piano chiedeva era già stata fatta
+> (WP630, 10-09: runtime su in **0,30 s**, **1,2 %** di un core, RSS 9,8 MB) e la conclusione già
+> scritta in `STATUS.md`: «per la fase due di Q53 i numeri bastano, il runtime non ha nulla da
+> invidiare all'SDK». Mancava solo la rimozione, fatta oggi.
+>
+> **Rimosso**: `scripts/build_container_aarch64_generic.sh`, i tre Containerfile
+> `*.aarch64-generic*`, il flag `--sdk` di `build_container.sh` (con il ramo che chiamava
+> `scripts/yocto/build.sh`), `--with-generic` e `--require-sdk` di `build_containers_all.sh`, e
+> con loro tutto il giro dei privilegi root che serviva **solo** alla build QEMU.
+>
+> **Tenuto, di proposito**:
+> - gli **alias** `-arm64-generic`, pubblicati sempre e non più condizionati, così i dispositivi
+>   installati con quel riferimento continuano ad aggiornarsi;
+> - **`scripts/yocto/build.sh`**, che il piano nominava solo «dal percorso container»: la build
+>   nativa con l'SDK serve ancora ai pacchetti non-container (`build_deploy.sh`,
+>   `docs/YOCTO_CROSSCOMPILE.md`, manuale §10);
+> - `parse_image_tarball` in `packaging.rs`, che continua a riconoscere i vecchi archivi
+>   `-aarch64-generic-image.tar.gz` — smettere di produrli non è una ragione per smettere di
+>   leggere quelli che un dispositivo può ancora avere sul disco.
+>
+> **Due scelte non previste dal piano**:
+> - le tre flag ritirate non danno «Flag non riconosciuta» ma un **messaggio che dice cosa è
+>   successo e cosa usare**: erano flag vere fino a ieri, e chi le ha nelle dita merita una frase
+>   invece di un errore generico;
+> - il referto del perché il percorso QEMU non reggeva — i 51 minuti e soprattutto il SIGSEGV di
+>   `cc` su `aws-lc-sys` che costringeva a `opt-level 0` — **non è stato cancellato** con il
+>   codice: sta in `docs/DEPLOY_CONTAINER_AARCH64.md` §«Perché il percorso QEMU è stato
+>   abbandonato», perché è esattamente il tipo di cosa che qualcuno riproverà.
+
 > Trasferito da `docs/OPEN_QUESTIONS.md` (Q53) il 2026-09-12, aperta e decisa il 2026-09-10
 > (opzione 2, cross-build da x86_64 senza SDK né QEMU). Questo piano copre solo la **fase due**
 > dichiarata nella scheda: la misura sul campo prima di rimuovere i percorsi storici.

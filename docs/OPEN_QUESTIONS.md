@@ -390,7 +390,7 @@ precisazione del 2026-09-07 qui sopra.
 
 ## Q53 — Due immagini aarch64 (SDK Pixsys e generica): tenerle entrambe, o convergere su una?
 
-Contenuto spostato in [`docs/plans/2026-09-12-q53-misura-rimozione-sdk-qemu.md`](plans/2026-09-12-q53-misura-rimozione-sdk-qemu.md) il 2026-09-12. **Decided:** decisa e realizzata il 2026-09-10, resta la misura sul campo prima di togliere SDK/QEMU.
+Contenuto spostato in [`docs/archive/2026-09-12-q53-misura-rimozione-sdk-qemu.md`](archive/2026-09-12-q53-misura-rimozione-sdk-qemu.md) il 2026-09-12, archiviato il 2026-09-14. **Decided:** decisa e realizzata il 2026-09-10; fase due chiusa il 2026-09-14 — misura sul WP630 confermata e percorsi SDK/QEMU rimossi, alias `-arm64-generic` mantenuti.
 
 ---
 
