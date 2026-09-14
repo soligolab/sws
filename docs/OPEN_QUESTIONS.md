@@ -492,6 +492,55 @@ resta annotato qui, non indagato oltre.
 
 ---
 
+## Q56 — Un IDE non si autentica più: `users.yaml` governa il dispositivo, non l'editor
+
+*Aperta il 14-09-2026 come conseguenza dichiarata della correzione dello stesso giorno
+(`docs/archive/2026-09-14-primo-utente-non-chiude-fuori.md`). Imparentata con **Q44** (ospitare l'editor come
+servizio) e **Q54** (un dispositivo che crea utenti propri).*
+
+**Context.** Il maintainer ha definito il primo utente di un progetto dall'IDE — `user`, ruolo
+Operator, pensato per il pannello — e l'IDE si è chiuso fuori dal proprio progetto: scrivere
+`users.yaml` accende l'autenticazione **nello stesso runtime** che serve l'editor, il token che
+l'editor porta in modalità senza utenti è un sentinella che il server non ha mai emesso, e
+l'unico account esistente era un Operator, che l'IDE non ammette (`permissions.ts`). Il progetto
+è diventato irraggiungibile senza spostare il file a mano.
+
+La causa non è un difetto isolato: **un elenco di utenti, due consumatori**. Lo stesso
+`users.yaml` per-progetto governa il dispositivo (dove è giusto: viaggia col deploy, protegge
+l'impianto) e il runtime dell'IDE che tiene quel progetto aperto (dove non serve a niente, perché
+l'IDE è il posto da cui quegli utenti si **scrivono**).
+
+**La correzione del 14-09** taglia il nodo dal lato utile subito: su un'istanza IDE
+(`AppState.ide_only`, cioè nessun `--viewer-port`) la porta admin resta in modalità senza utenti
+comunque, e in `create_user` una guardia impedisce che il primo account di un **dispositivo** sia
+non-Admin. Decisione del maintainer, presa esplicitamente quel giorno: *«sarebbe un utente per il
+dispositivo target, non per l'IDE»*.
+
+**Cosa resta aperto — il prezzo.** Un IDE **raggiungibile in rete** ora non ha password, e in modo
+permanente invece che solo finché non si definiscono utenti. Sul PC di sviluppo è `localhost` e la
+cosa non si nota; su un host esposto è esattamente ciò che Q44 chiama «fatale», e quella riga della
+tabella di Q44 ora descrive una condizione **più ampia** di prima.
+
+**Options.**
+
+1. **Lasciarlo com'è** — l'IDE è un programma da PC di sviluppo, si protegge col fatto di ascoltare
+   dove ascolta. È il default PoC, ed è coerente con «SWS si installa accanto a un impianto».
+2. **Un'autenticazione dell'IDE separata da quella del progetto**: un elenco di utenti
+   dell'installazione (non del progetto), che governa chi apre l'editor, indipendente dal
+   `users.yaml` che viaggia col deploy. È la forma piccola della risposta di Q44 (utenti **sopra**
+   i progetti) e si può costruire prima del resto.
+3. **Riattivare l'autenticazione dell'IDE quando non è locale** — per esempio quando il listener
+   non è su loopback, o dietro una variabile d'ambiente esplicita. Rimette in piedi il guasto di
+   oggi se qualcuno definisce un Operator come primo utente su un'istanza così, a meno di
+   estendere lì anche la guardia sul primo Admin.
+
+**Default for PoC.** Opzione 1. Il prezzo è scritto qui perché non venga riscoperto per caso, e la
+risposta vera è la 2, che nasce dentro Q44 e non prima.
+
+**Decided:** not yet.
+
+---
+
 ## Adding new questions
 
 When Claude Code adds a new question, follow the format above:

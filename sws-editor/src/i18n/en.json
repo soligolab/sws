@@ -483,6 +483,7 @@
     "login": "Log in",
     "loggingIn": "Logging in…",
     "locked": "Locked ({{s}}s)",
+    "autenticazioneAppenaAccesa": "Authentication has just been switched on: defining the first user means the project is no longer accessible without credentials. Sign in with a project user.",
     "runtimeUnreachable": "Runtime unreachable.",
     "invalidCredentials": "Invalid credentials.",
     "wrongPassword": "Wrong password. Try again.",

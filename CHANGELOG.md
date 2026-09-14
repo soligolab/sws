@@ -19,6 +19,13 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   `set-self-linger`, distinta da `set-linger` che riguarda un altro utente ed è quella
   riservata a root) — un fallimento oggi indicherebbe qualcos'altro di rotto sul dispositivo,
   non un permesso mancante da aggirare con un avviso.
+- **Il primo account di un dispositivo deve avere ruolo Admin** — cambiamento di comportamento,
+  non solo una correzione: `POST /api/auth/users` a zero utenti su un runtime con viewer risponde
+  **409 `primo_utente_non_admin`** se il ruolo non è Admin, dove prima rispondeva 201. Senza,
+  il pannello nasce con l'autenticazione accesa e nessuno in grado di amministrarlo
+  (`applica_seed_di_recupero` non rientra: entra solo se il risultato sarebbe *zero* utenti). È la
+  simmetrica del rifiuto che `replace_users_file` fa già a una lista vuota. Sulle istanze IDE la
+  guardia non scatta.
 
 ### Added
 - **24 simboli LVGL diventano ricolorabili per stato (Q40)**: chiude Q40 per intero, in tre fasi.
@@ -33,6 +40,20 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   vivo sul TC620.
 
 ### Fixed
+- **Definire il primo utente di un progetto chiudeva fuori dall'IDE chi lo stava definendo**:
+  segnalato dal maintainer il 14-09-2026 («appena definisco un utente… se salvo mi dice Sessione
+  scaduta», e poi «non ho più modo di accedere al progetto TestWP630»). Scrivere `users.yaml`
+  accende l'autenticazione **nello stesso runtime** che serve l'editor: la richiesta successiva
+  trovava il login attivo, il token che l'editor porta in modalità senza utenti è un sentinella
+  che il server non ha mai emesso, e il modale «Sessione scaduta» chiedeva la password di `admin`
+  — l'utente **sintetico**, che in `users.yaml` non esiste. Con un solo Operator il progetto
+  diventava irraggiungibile. Ora un'istanza IDE (`AppState.ide_only`, cioè nessun `--viewer-port`)
+  resta in modalità senza utenti anche con `users.yaml` presente: quegli account governano il
+  **dispositivo**, viaggiano col deploy, e non hanno mai governato l'editor. Il modale non compare
+  più quando non c'è una sessione da rinnovare — si torna alla schermata di accesso, che dice
+  perché. Il prezzo (un IDE esposto in rete ora non ha password) è registrato in `OPEN_QUESTIONS`
+  **Q56**, imparentata con Q44. Guardia: `scripts/check_primo_utente.sh`, su due runtime veri.
+
 - **La tastiera di login su LVGL mostrava `[]` sui tasti speciali**: scoperto collaudando Q36 sul
   TC620. `lv_keyboard` eredita `text_font` dallo schermo come ogni altro widget, ma le sue mappe
   tasti interne (backspace, invio, cambio maiuscole, chiudi) usano `LV_SYMBOL_*`, glifi che solo

@@ -74,6 +74,70 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — definire un utente chiudeva l'IDE fuori dal proprio progetto (2026-09-14)
+
+**Guasto vero, segnalato dal maintainer mentre provava la scheda Utenti**: «appena definisco un
+utente (in questo caso `user` con ruolo operatore) se salvo mi dice "Sessione scaduta" ma non ho
+un utente admin definito e comunque sarebbe un utente per il dispositivo target, non per l'IDE».
+Poi: «Ora per esempio non ho più modo di accedere al progetto TestWP630 dove ho creato l'utente
+user».
+
+**La catena, per intero.** La modalità senza utenti non è uno stato salvato: è ricalcolata a ogni
+richiesta da `has_users()`. Quindi la `POST /api/auth/users` passa ancora in no-auth, scrive
+`users.yaml`, e **da quell'istante** l'istanza è autenticata — la `GET` subito dopo presenta il
+token sentinella `"no-auth"`, che il server non ha mai emesso, e riceve 401. Il modale
+«Sessione scaduta» non poteva salvare la situazione: chiede la password dell'utente in sessione,
+cioè `admin`, l'Admin **sintetico** che in `users.yaml` non esiste. E con un solo Operator
+l'editor era comunque vietato (`canConfigureProject`). Il progetto era irraggiungibile.
+
+**Due decisioni del maintainer, entrambe realizzate** (ramo `fix/primo-utente-non-chiude-fuori`,
+piano in `docs/archive/2026-09-14-primo-utente-non-chiude-fuori.md`):
+
+1. **Su un'istanza IDE la porta admin resta senza autenticazione**, anche con `users.yaml`
+   presente (`senza_autenticazione(ide_only, ha_utenti)` in `router.rs`, usata dai due soli punti
+   che decidevano: `require_auth` e `optional_auth`). Quegli account governano il **dispositivo**
+   e viaggiano col deploy; non hanno mai governato l'editor.
+2. **Sul dispositivo il primo account dev'essere un Admin** —
+   `primo_utente_non_amministratore(ide_only, ha_utenti, ruolo)`, guardia nel handler `create_user`
+   (non in `sws-auth`: l'autenticazione non deve sapere che esistono gli IDE), 409
+   `primo_utente_non_admin`. È la simmetrica del rifiuto che `replace_users_file` fa già a una
+   lista vuota. **Cambiamento di comportamento**, non solo una correzione: chi creava un primo
+   Operator via API riceveva 201.
+
+Lato editor: il modale non compare più quando non c'è una sessione da rinnovare
+(`azionePerSessioneRifiutata`), si va alla schermata di accesso **con scritto perché**; la scheda
+Utenti ora dice a chi servono quegli account; il 409 nuovo ha un messaggio suo invece di finire
+nel ramo «l'utente esiste già».
+
+**Guardia**: `scripts/check_primo_utente.sh` — due runtime veri, un IDE e un dispositivo, provata
+rossa ripristinando le decisioni vecchie (riproduce il 401 esatto). Registrata in `check_static.sh`
+fra le `CON_STACK`.
+
+**Il prezzo, dichiarato**: un IDE raggiungibile in rete ora non ha password, in modo permanente
+invece che solo finché non si definiscono utenti. È **Q56** in `docs/OPEN_QUESTIONS.md`,
+imparentata con Q44 (utenti *sopra* i progetti) e Q54.
+
+**Recupero fatto**: `~/sws/.run-editor/projects/TestWP630/users.yaml` era stato **spostato** (non
+cancellato) in `/tmp/users-TestWP630.yaml` per sbloccare subito il progetto, ed è stato **rimesso
+al suo posto** per il collaudo. La copia in `/tmp` resta come rete.
+
+**✅ Confermato dal vivo dal maintainer il 14-09-2026**: «ora il progetto WP630 si apre» — con
+`users.yaml` al suo posto e l'unico account un Operator, cioè esattamente la condizione che prima
+chiudeva fuori. Definition of done completa; squash-mergiato su `main`. `cargo test --workspace`,
+clippy, fmt, `pnpm test` (358), `tsc`, eslint e `pnpm build`: verdi.
+
+**Resta da vedere quando capita un dispositivo a portata**, non bloccante: che il 409
+`primo_utente_non_admin` si comporti bene anche dal vivo su un pannello vero (qui è provato dalla
+guardia su un runtime con `--viewer-port`, che è la stessa condizione), e che dopo un deploy gli
+utenti del progetto valgano ancora **sul pannello** — cioè che la separazione sia davvero fra IDE
+e dispositivo e non fra IDE e progetto.
+
+⚠️ **Due guardie rosse che non c'entrano con questo lavoro, già rosse su `main`**:
+`check_templates` (8 problemi nei template) e `check_synoptic_schema` (il tipo `radio`: il
+campione nello schema ha `options` come lista di stringhe, il codice si aspetta
+`{label, value}`). Verificate con `git stash` su albero pulito — vale la pena guardarle prima che
+diventino rumore di fondo.
+
 ## ▶ Riprendere da qui — Q45 chiusa: il linger si abilita da solo, nessun permesso mancante (2026-09-13)
 
 Ciclo `/riprendi` proseguito nella stessa giornata. Nessun ramo obsoleto (solo `main` in locale

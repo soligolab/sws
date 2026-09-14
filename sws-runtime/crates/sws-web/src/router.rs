@@ -1103,11 +1103,54 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
 /// or the `?token=...` query string (the latter is for browser WebSocket
 /// upgrades, which cannot set custom headers). Inserts the resolved
 /// username into request extensions for downstream handlers.
+/// Questa richiesta va servita in modalità **no-auth** (Admin sintetico)?
+///
+/// Due casi, e il secondo è quello nuovo:
+///
+/// - **Nessun utente definito** — il comportamento di sempre: un runtime appena
+///   installato, o con un progetto che non ha `users.yaml`, non può chiedere un
+///   login che non esiste ancora.
+/// - **L'istanza è un IDE** (`AppState::ide_only`, cioè `start_editor.sh` senza
+///   `--viewer-port`). Qui `users.yaml` **non governa l'IDE**: è il file che
+///   viaggia col deploy e che governa il **dispositivo**. Fino al 14-09-2026 i
+///   due usi erano lo stesso elenco, e definire il primo utente del pannello —
+///   un Operator — chiudeva fuori dall'editor chi lo stava definendo: la
+///   richiesta successiva trovava l'autenticazione accesa, il token che
+///   l'editor porta in no-auth è un sentinella che il server non ha mai
+///   emesso, e l'unico account esistente non poteva comunque configurare
+///   niente. Il progetto restava inaccessibile senza toccare i file a mano.
+///
+/// Il prezzo è dichiarato in `docs/OPEN_QUESTIONS.md` Q56: un IDE **raggiungibile
+/// in rete** non ha più password. Sul PC di sviluppo è `localhost`; su un host
+/// esposto la risposta vera è Q44 (utenti *sopra* i progetti), non questa.
+pub fn senza_autenticazione(ide_only: bool, ha_utenti: bool) -> bool {
+    ide_only || !ha_utenti
+}
+
+/// Va rifiutata questa creazione perché lascerebbe l'istanza senza nessuno che
+/// possa amministrarla?
+///
+/// Solo sui **dispositivi**: il primo account di un pannello dev'essere un
+/// Admin, altrimenti il pannello nasce con un'autenticazione accesa e nessuno
+/// in grado di cambiarla (`applica_seed_di_recupero` non rientra — entra solo
+/// se il risultato sarebbe *zero* utenti). È la simmetrica del rifiuto che
+/// esiste già dall'altro lato, in `replace_users_file`, che non accetta una
+/// lista vuota per non lasciare il dispositivo senza account.
+///
+/// Su un IDE la guardia **non** scatta: lì quegli utenti non governano niente
+/// (vedi `senza_autenticazione`), e obbligare a creare un Admin prima di un
+/// operatore sarebbe una regola senza scopo.
+pub fn primo_utente_non_amministratore(ide_only: bool, ha_utenti: bool, ruolo: Role) -> bool {
+    !ide_only && !ha_utenti && ruolo != Role::Admin
+}
+
 async fn require_auth(State(s): State<AppState>, mut req: Request, next: Next) -> Response {
     // No users defined (no project, or project without users) → open / no-auth mode.
     // Inject a synthetic AuthUser so all downstream handlers see an Admin-level
     // caller — the frontend never shows the login screen and all routes work.
-    if !s.auth.has_users().await {
+    // Un'istanza IDE resta in no-auth anche *con* utenti definiti: vedi
+    // `senza_autenticazione`.
+    if senza_autenticazione(s.ide_only, s.auth.has_users().await) {
         req.extensions_mut().insert(AuthUser {
             username: "admin".to_string(),
             role: Role::Admin,
@@ -1222,7 +1265,8 @@ async fn require_admin(req: Request, next: Next) -> Response {
 /// to the synoptic SPA without removing the role-check guards on write routes.
 async fn optional_auth(State(s): State<AppState>, mut req: Request, next: Next) -> Response {
     // No users defined → no-auth mode: inject synthetic Admin (mirrors require_auth).
-    if !s.auth.has_users().await {
+    // La decisione è una sola per tutto il router: `senza_autenticazione`.
+    if senza_autenticazione(s.ide_only, s.auth.has_users().await) {
         req.extensions_mut().insert(AuthUser {
             username: "admin".to_string(),
             role: Role::Admin,
@@ -1461,6 +1505,20 @@ async fn create_user(
     State(s): State<AppState>,
     Json(body): Json<sws_auth::CreateUser>,
 ) -> Response {
+    // Il primo account di un **dispositivo** dev'essere un Admin, o il pannello
+    // nasce con l'autenticazione accesa e nessuno che possa amministrarlo.
+    if primo_utente_non_amministratore(s.ide_only, s.auth.has_users().await, body.role) {
+        return (
+            StatusCode::CONFLICT,
+            Json(serde_json::json!({
+                "error": "primo_utente_non_admin",
+                "detail": "Il primo utente di un dispositivo deve avere ruolo Admin: \
+                           altrimenti l'autenticazione si accende e nessuno può più \
+                           amministrare il pannello. Crea prima un Admin, poi gli altri ruoli.",
+            })),
+        )
+            .into_response();
+    }
     match s.auth.create_user(body).await {
         Ok(u) => (StatusCode::CREATED, Json(u)).into_response(),
         Err(e) => user_error_to_response(e),
@@ -7730,5 +7788,79 @@ mod q30_file_tests {
             ),
             None
         );
+    }
+}
+
+/// Chi decide se una richiesta è autenticata, e chi può essere il primo utente.
+///
+/// Il guasto da cui nascono questi test, 14-09-2026: nell'IDE, definire il primo
+/// utente del progetto (`user`, Operator) dalla scheda Utenti rispondeva
+/// «Sessione scaduta» e lasciava il progetto **inaccessibile**. Nessun pezzo era
+/// rotto da solo — l'autenticazione si accende a `users.yaml` scritto, il token
+/// che l'editor porta in no-auth non è mai stato emesso dal server, e un
+/// Operator non può configurare niente. Rotto era il punto in cui i pezzi si
+/// incontrano.
+#[cfg(test)]
+mod primo_utente_tests {
+    use super::*;
+
+    #[test]
+    fn un_ide_non_si_autentica_mai() {
+        // Il caso del guasto: utenti definiti **e** istanza IDE. Prima del
+        // 14-09-2026 qui si tornava `false` e l'editor si chiudeva fuori da
+        // solo un istante dopo aver scritto `users.yaml`.
+        assert!(senza_autenticazione(true, true));
+        assert!(senza_autenticazione(true, false));
+    }
+
+    #[test]
+    fn un_dispositivo_con_utenti_chiede_il_login() {
+        assert!(!senza_autenticazione(false, true));
+    }
+
+    #[test]
+    fn un_dispositivo_senza_utenti_resta_aperto() {
+        // Invariato: un pannello appena installato non può chiedere un login
+        // che non esiste ancora.
+        assert!(senza_autenticazione(false, false));
+    }
+
+    #[test]
+    fn sul_dispositivo_il_primo_utente_deve_essere_admin() {
+        assert!(primo_utente_non_amministratore(
+            false,
+            false,
+            Role::Operator
+        ));
+        assert!(primo_utente_non_amministratore(false, false, Role::Viewer));
+        assert!(primo_utente_non_amministratore(
+            false,
+            false,
+            Role::Supervisor
+        ));
+        assert!(!primo_utente_non_amministratore(false, false, Role::Admin));
+    }
+
+    #[test]
+    fn con_un_admin_gia_presente_i_ruoli_sono_liberi() {
+        // La guardia protegge solo il *primo* account: dopo, chi amministra
+        // c'è già e può creare quello che vuole.
+        assert!(!primo_utente_non_amministratore(
+            false,
+            true,
+            Role::Operator
+        ));
+    }
+
+    #[test]
+    fn sull_ide_la_guardia_non_scatta() {
+        // Sull'IDE quegli utenti governano il dispositivo, non l'editor:
+        // obbligare a creare prima un Admin sarebbe una regola senza scopo, e
+        // l'ordine in cui il maintainer compila la scheda Utenti è affar suo.
+        assert!(!primo_utente_non_amministratore(
+            true,
+            false,
+            Role::Operator
+        ));
     }
 }

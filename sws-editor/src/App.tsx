@@ -17,6 +17,7 @@ import { idEditore, Ponte } from "@/ai/ponte";
 import { riassumi } from "@/ai/riassunto";
 import { LoginScreen } from "@/components/LoginScreen";
 import { ReAuthModal } from "@/components/ReAuthModal";
+import { azionePerSessioneRifiutata, MOTIVO_AUTENTICAZIONE_ACCESA } from "@/auth/sessioneScaduta";
 import { WelcomeScreen } from "@/components/WelcomeScreen";
 import { EditorShell } from "@/editor/EditorShell";
 
@@ -274,6 +275,12 @@ export function App() {
   // Prevents LoginScreen from flashing before we know the auth state.
   const [bootstrapping, setBootstrapping] = useState(true);
 
+  // Perché siamo finiti sulla schermata di accesso, quando non è ovvio: chiave
+  // i18n, o `null`. Serve per il caso in cui l'autenticazione si **accende**
+  // sotto i piedi (primo utente definito su un dispositivo), dove un login
+  // comparso dal nulla senza spiegazione è già di per sé il difetto.
+  const [motivoAccesso, setMotivoAccesso] = useState<string | null>(null);
+
   const [confirmPending, setConfirmPending] = useState<"close" | "logout" | null>(null);
   // Il progetto sul runtime è cambiato sotto di noi (deploy da un altro IDE,
   // pull GitOps, modifica dei file sul dispositivo). NON si ricarica da soli:
@@ -363,11 +370,27 @@ export function App() {
   }, [effectiveMode, configTab, authToken, noActiveProject]);
 
   // Listen for mid-session token expiry fired by api/client.ts
+  //
+  // Non sempre è una scadenza: col token sentinella `"no-auth"` non c'è nessuna
+  // sessione da rinnovare, e il modale chiederebbe la password di un utente
+  // sintetico che non esiste (vedi `azionePerSessioneRifiutata`).
   useEffect(() => {
-    const handler = () => { if (authToken) setReAuthNeeded(true); };
+    const handler = () => {
+      switch (azionePerSessioneRifiutata(authToken)) {
+        case "riautentica":
+          setReAuthNeeded(true);
+          break;
+        case "accedi-da-capo":
+          setMotivoAccesso(MOTIVO_AUTENTICAZIONE_ACCESA);
+          clearAuth();
+          break;
+        case "niente":
+          break;
+      }
+    };
     window.addEventListener("sws:session-expired", handler);
     return () => window.removeEventListener("sws:session-expired", handler);
-  }, [authToken, setReAuthNeeded]);
+  }, [authToken, setReAuthNeeded, clearAuth]);
 
   // Proactive session refresh: fire 5 min before expiry so idle sessions
   // don't time out. Effect re-runs whenever expiresAtMs changes (i.e., after
@@ -590,7 +613,7 @@ export function App() {
       try { await api.closeProject(); } catch { /* ignore */ }
       setNoActiveProject(true);
     };
-    return <LoginScreen onCancel={handleCancelLogin} />;
+    return <LoginScreen onCancel={handleCancelLogin} motivo={motivoAccesso} />;
   }
 
   if (mustChangePassword) {

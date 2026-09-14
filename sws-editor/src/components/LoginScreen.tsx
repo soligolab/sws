@@ -13,7 +13,17 @@ import { paginaCentrata, schedaModulo } from "@/components/schermataAccesso";
  * The runtime's session map is in-memory, so a runtime restart logs
  * everyone out automatically.
  */
-export function LoginScreen({ onCancel }: { onCancel?: () => void } = {}) {
+export function LoginScreen({
+  onCancel,
+  motivo,
+}: {
+  onCancel?: () => void;
+  /** Chiave i18n del motivo per cui si è finiti qui, quando non è ovvio —
+   *  per esempio perché l'autenticazione si è **accesa adesso**, definendo il
+   *  primo utente del progetto. Un login comparso dal nulla senza una riga di
+   *  spiegazione è già di per sé il difetto. */
+  motivo?: string | null;
+} = {}) {
   const { t } = useTranslation();
   const setAuth = useAppStore((s) => s.setAuth);
   const [username, setUsername] = useState("admin");
@@ -84,6 +94,11 @@ export function LoginScreen({ onCancel }: { onCancel?: () => void } = {}) {
           <strong style={{ fontSize: 20, letterSpacing: 1 }}>SWS</strong>
           <span style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 13 }}>Soligo Web SCADA</span>
         </div>
+        {motivo && (
+          <div style={{ fontSize: 12, color: "var(--brand-warning-soft, #fbbf24)", background: "#78350f33", padding: "6px 10px", borderRadius: 4, lineHeight: 1.4 }}>
+            {t(motivo)}
+          </div>
+        )}
         <div>
           <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 4 }}>{t("auth.user")}</label>
           <input

@@ -483,6 +483,7 @@
     "login": "Accedi",
     "loggingIn": "Accesso…",
     "locked": "Bloccato ({{s}}s)",
+    "autenticazioneAppenaAccesa": "L'autenticazione si è accesa adesso: definendo il primo utente, il progetto ha smesso di essere accessibile senza credenziali. Accedi con un utente del progetto.",
     "runtimeUnreachable": "Runtime non raggiungibile.",
     "invalidCredentials": "Credenziali non valide.",
     "wrongPassword": "Password errata. Riprova.",

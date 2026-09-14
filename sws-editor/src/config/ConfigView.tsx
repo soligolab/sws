@@ -5992,7 +5992,15 @@ function UsersTab() {
       await refresh();
     } catch (e: any) {
       const msg = String(e?.message ?? "");
-      if (msg.includes("409") || msg.includes("already_exists")) {
+      if (msg.includes("primo_utente_non_admin")) {
+        // Va prima di `409`, che qui sotto significa tutt'altro. Il dispositivo
+        // rifiuta un primo account non-Admin per non nascere con
+        // l'autenticazione accesa e nessuno in grado di amministrarlo.
+        setError(
+          "Il primo utente di un dispositivo deve avere ruolo Admin, altrimenti nessuno " +
+          "potrebbe più amministrare il pannello. Crea prima un Admin, poi gli altri ruoli."
+        );
+      } else if (msg.includes("409") || msg.includes("already_exists")) {
         setError(`L'utente "${newUser.username}" esiste già.`);
       } else {
         setError(`Errore nella creazione: ${msg}`);
@@ -6061,6 +6069,11 @@ function UsersTab() {
         <p style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 12, marginTop: 0 }}>
           Gli utenti sono salvati in <code>users.yaml</code> nella cartella del progetto.
           La password viene cifrata con Argon2id; il file non contiene mai testo in chiaro.
+        </p>
+        <p style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 12, marginTop: 0 }}>
+          Sono gli utenti del <strong>dispositivo</strong>: viaggiano col progetto quando lo
+          fai partire e governano l'accesso al pannello. L'IDE su questo PC non li usa e
+          continua a funzionare senza chiedere credenziali.
         </p>
 
         {error && (
