@@ -80,10 +80,48 @@ Every roadmap task (T-01…T-20 and beyond):
    git merge --squash feat/T-01-pid-symbols
    git commit -s -m "feat(T-01): ..."
    ```
-5. **Don't delete the branch** — cleanup is the maintainer's call.
+5. **Delete the branch** right after the squash merge — see «Un ramo alla volta» below.
+   ```
+   [ "$(git rev-parse main^{tree})" = "$(git rev-parse <branch>^{tree})" ] || echo FERMATI
+   git branch -D <branch>
+   ```
+   The tree check **is** the safety: if the two hashes differ, something was lost — stop and say so, don't delete. And it has to be `-D`, not `-d`: with a squash merge the branch's commits are not ancestors of `main`, so `-d` refuses every branch this repo ever merges correctly. Same reason `git branch --merged` is useless here.
 6. **Push only when told to**, and name the branch you're about to push before doing it.
 
 All commits use `-s` (`Signed-off-by:` trailer).
+
+## Un ramo alla volta (regola del maintainer, 2026-09-14)
+
+**Mai aprire un secondo ramo mentre uno è ancora aperto.** Quando salta fuori qualcosa di nuovo a
+ramo aperto, le opzioni sono **sempre tre**, e non ce n'è una quarta:
+
+1. **Chiudere il ramo attuale**: finirlo, soddisfare la *definition of done*, squash merge,
+   **eliminarlo**, e solo allora aprire quello nuovo.
+2. **Annidare**: partire dal **ramo attuale** e non da `main`, così il lavoro nuovo è figlio di
+   quello aperto e rientra passando da lì. È la scelta giusta quando il lavoro nuovo dipende da
+   quello in corso o tocca gli stessi file.
+3. **Rimandare**: annotare l'attività (in `STATUS.md` o in un piano) e riprenderla quando il ramo
+   attuale è chiuso, mergiato ed eliminato.
+
+**Perché, con la giornata che ha prodotto la regola.** Il 2026-09-14 c'erano tre rami aperti
+insieme. `fix/ruolo-minimo-avviso-noauth` era finito alle 12:18 e è rimasto lì, non mergiato,
+mentre altri due ci passavano davanti su `main`. Uno di quei due — l'IDE che smette di
+autenticarsi — ha **invalidato in silenzio la condizione centrale del primo**: `authToken ===
+"no-auth"` voleva dire «questo progetto non ha utenti» e ha iniziato a voler dire «questa è
+un'istanza IDE». Mergiato com'era, l'avviso avrebbe contraddetto il proprio testo su ogni progetto
+che gli utenti ce li ha.
+
+**In git non c'era nessun conflitto.** Il conflitto era nel significato, e quel tipo git non lo
+vede: nessun file toccato in comune, merge pulito, difetto vivo. Un ramo lasciato in parallelo
+invecchia contro un `main` che intanto si muove — e l'invecchiamento non lascia tracce che un
+`git merge` possa segnalare.
+
+**Conseguenza sulla vecchia regola**: fino a oggi il punto 5 diceva «non cancellare il ramo, la
+pulizia la decide il maintainer», e serviva quando i rami restavano in giro per settimane. Con un
+ramo alla volta non c'è più niente da decidere dopo: il ramo si elimina appena mergiato, perché è
+la cancellazione stessa a rendere impossibile il parallelo. Fa eccezione
+`backup/main-pre-riscrittura-2026-09-09`, che non è un ramo di lavoro ma la storia pre-riscrittura
+e **non si tocca**.
 
 ## Plans
 

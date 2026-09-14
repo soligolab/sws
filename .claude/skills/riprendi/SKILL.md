@@ -13,7 +13,12 @@ descritto in `CLAUDE.md` (`./scripts/session_start.sh`, poi `docs/CONTEXT.md` �
 `STATUS.md` → `docs/OPEN_QUESTIONS.md`, poi tre righe di stato) e aspetta il via libera
 prima di scrivere codice. I passi seguenti assumono che sia già stato fatto.
 
-## 1. Rami locali potenzialmente obsoleti (solo proposta — mai cancellare senza un sì esplicito)
+## 1. Rami locali potenzialmente obsoleti
+
+> Dal 2026-09-14 vale **«Un ramo alla volta»** (`CLAUDE.md`): un ramo si elimina appena mergiato,
+> quindi in una sessione nata dopo quella data qui non dovrebbe esserci niente da proporre. Questo
+> passo resta per i rami **anteriori** alla regola, e per il caso in cui una sessione sia finita a
+> metà.
 
 - `git branch -v` per elencare i rami locali diversi da `main`.
 - Il repo usa **squash-merge**, quindi `git branch --merged` non è affidabile: un ramo
@@ -25,8 +30,11 @@ prima di scrivere codice. I passi seguenti assumono che sia già stato fatto.
   - se `git diff main...<ramo>` è vuoto o riguarda solo file ormai irrilevanti.
 - Presenta una tabella **ramo — ultimo commit — ipotesi** (fuso in main / superato /
   ancora vivo, non toccare) e chiedi esplicitamente quali cancellare, uno per uno.
-  **Non cancellare nulla senza conferma per ciascun ramo** — CLAUDE.md: *"Don't delete
-  the branch — cleanup is the maintainer's call."*
+  **Per questi rami vecchi non cancellare nulla senza conferma, uno per uno**: sono rami di cui
+  nessuno ricorda più lo stato, e la regola nuova non li copre retroattivamente. Diverso il caso
+  di un ramo che hai mergiato **tu in questa sessione**: quello si elimina subito dopo aver
+  verificato che `main^{tree}` e `<ramo>^{tree}` coincidano, senza chiedere.
+  `backup/main-pre-riscrittura-2026-09-09` non è un ramo di lavoro e **non si tocca**.
 
 ## 2. Piani da cui ripartire
 
@@ -65,8 +73,10 @@ e. **Commit, squash-merge, push**:
      (CLAUDE.md regola #1) — invocare questa skill non è di per sé quel via libera:
      chiedilo comunque a fine ciclo, e nomina il branch prima di pusharlo.
 
-f. **Ramo di sviluppo**: a lavoro mergiato, proponi la cancellazione del ramo
-   `feat/T-XX-slug` — ma non cancellarlo senza un sì esplicito, come al punto 1.
+f. **Ramo di sviluppo**: a lavoro mergiato, verifica che `main^{tree}` sia identico a
+   `feat/T-XX-slug^{tree}` e **cancella il ramo** — è la regola «Un ramo alla volta» del
+   2026-09-14: finché il ramo esiste, esiste la possibilità di aprirne un secondo in parallelo.
+   Se gli alberi non coincidono qualcosa è andato perso: fermati e dillo, non cancellare.
 
 g. **Aggiorna `STATUS.md`**: cosa è stato fatto, cosa resta, eventuali cose lasciate a
    metà.

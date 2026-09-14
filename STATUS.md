@@ -74,6 +74,29 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — regola nuova: un ramo alla volta (2026-09-14)
+
+Decisa dal maintainer subito dopo il quasi-incidente sull'avviso del ruolo minimo, scritta in
+`CLAUDE.md` § «Un ramo alla volta». **Mai un secondo ramo mentre uno è aperto**; a ramo aperto, di
+fronte a qualcosa di nuovo, le opzioni sono sempre tre: chiudere-mergiare-eliminare, **annidare**
+(partire dal ramo attuale, non da `main`), o rimandare.
+
+**Due conseguenze pratiche, entrambe già applicate.**
+
+1. **La vecchia regola «non cancellare il ramo, decide il maintainer» è stata sostituita**: ora il
+   ramo si elimina appena mergiato, perché è la cancellazione a rendere impossibile il parallelo.
+   Con una cautela che la regola dice esplicitamente: prima si verifica che `main^{tree}` e
+   `<ramo>^{tree}` coincidano, e **serve `-D`, non `-d`** — con lo squash merge i commit del ramo
+   non sono antenati di `main`, quindi `-d` rifiuta *ogni* ramo mergiato correttamente in questo
+   repo (stessa ragione per cui `git branch --merged` qui non serve a niente).
+2. I tre rami della giornata sono stati verificati albero per albero contro il rispettivo commit
+   di merge e **cancellati**. In locale resta solo `main` più
+   `backup/main-pre-riscrittura-2026-09-09`, che non è un ramo di lavoro e non si tocca.
+
+La skill `/riprendi` è stata allineata: il suo passo 1 citava la regola vecchia parola per parola.
+Ora distingue i rami **anteriori** alla regola (si propongono, non si cancellano senza un sì) da
+quelli mergiati **nella sessione in corso** (si cancellano subito dopo il controllo sugli alberi).
+
 ## ▶ Riprendere da qui — l'avviso sul ruolo minimo, e l'insidia che la correzione di stamattina gli aveva teso (2026-09-14)
 
 Il ramo `fix/ruolo-minimo-avviso-noauth` era pronto dalle 12:18 e aspettava solo un via libera.
