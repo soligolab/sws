@@ -30,7 +30,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
         Arc, Mutex,
     },
-    time::Duration,
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 use sws_core::{TagDb, TagQuality, TagValue, TagWriteBus};
 use tokio::runtime::Handle;
@@ -148,13 +148,26 @@ try:
             '_getitem_':   lambda o, k: o[k],
             '_write_':     lambda x: x,
             'tags':        tags,
+            'send_telegram': send_telegram,
+            'now_ms':      now_ms,
+            'uptime_ms':   uptime_ms,
+            'delta_ms':    delta_ms,
+            'state':       state,
         }
         try:
             __sws_compiled__ = compile_restricted(__sws_user_source__, '<inline>', 'exec')
         except SyntaxError as _e:
             __sws_error__ = f'SyntaxError: {_e}'
     else:
-        __sws_globals__ = {'__builtins__': __builtins__, 'tags': tags}
+        __sws_globals__ = {
+            '__builtins__': __builtins__,
+            'tags':          tags,
+            'send_telegram': send_telegram,
+            'now_ms':        now_ms,
+            'uptime_ms':     uptime_ms,
+            'delta_ms':      delta_ms,
+            'state':         state,
+        }
         try:
             __sws_compiled__ = compile(__sws_user_source__, '<inline>', 'exec')
         except SyntaxError as _e:
@@ -210,6 +223,53 @@ impl Notifier {
                 "Telegram non configurato (Configurazione → Notifiche)",
             )),
         }
+    }
+}
+
+/// T-69: backs the bare callables `now_ms()`, `uptime_ms()`, `delta_ms()`.
+/// All three values are computed once in `execute_with_args` before the
+/// script starts (see there for why) and just handed back verbatim on call —
+/// same `__call__`-as-bare-name trick already used for `send_telegram`.
+#[pyclass]
+struct FrozenClock(i64);
+
+#[pymethods]
+impl FrozenClock {
+    fn __call__(&self) -> i64 {
+        self.0
+    }
+}
+
+/// T-69: backs `state.get(key, default=None)` / `state.set(key, value)` — the
+/// per-script/per-function scratch a script uses to remember small things
+/// (e.g. a ramp's direction) across invocations without a dedicated impianto
+/// tag. Shares the same `Arc<Mutex<...>>` as the caller's `ScriptState.scratch`
+/// (see `Engine::execute_with_args`), so writes here are visible on the next
+/// invocation with the same `identity` — and only that one.
+#[pyclass]
+struct StateApi {
+    scratch: Arc<Mutex<std::collections::HashMap<String, serde_json::Value>>>,
+}
+
+#[pymethods]
+impl StateApi {
+    #[pyo3(signature = (key, default=None))]
+    fn get(&self, py: Python<'_>, key: &str, default: Option<&Bound<'_, PyAny>>) -> Py<PyAny> {
+        let guard = self.scratch.lock().unwrap_or_else(|e| e.into_inner());
+        match guard.get(key) {
+            Some(v) => json_to_py(py, v),
+            None => match default {
+                Some(d) => d.clone().unbind(),
+                None => py.None(),
+            },
+        }
+    }
+
+    fn set(&self, key: &str, value: &Bound<'_, PyAny>) -> PyResult<()> {
+        let v = py_to_json(value)?;
+        let mut guard = self.scratch.lock().unwrap_or_else(|e| e.into_inner());
+        guard.insert(key.to_string(), v);
+        Ok(())
     }
 }
 
@@ -304,6 +364,30 @@ fn py_to_tagvalue(any: &Bound<'_, PyAny>) -> PyResult<TagValue> {
     ))
 }
 
+/// Same scalars-only contract as `py_to_tagvalue`, for `state.set`. A
+/// separate function (not a `TagValue` reuse) because the scratch map is
+/// `serde_json::Value` — it doesn't need `TagQuality`/scaling, just something
+/// that survives a round trip through `json_to_py`.
+fn py_to_json(any: &Bound<'_, PyAny>) -> PyResult<serde_json::Value> {
+    if let Ok(b) = any.extract::<bool>() {
+        return Ok(serde_json::Value::Bool(b));
+    }
+    if let Ok(i) = any.extract::<i64>() {
+        return Ok(serde_json::Value::Number(i.into()));
+    }
+    if let Ok(f) = any.extract::<f64>() {
+        return Ok(serde_json::Number::from_f64(f)
+            .map(serde_json::Value::Number)
+            .unwrap_or(serde_json::Value::Null));
+    }
+    if let Ok(s) = any.extract::<String>() {
+        return Ok(serde_json::Value::String(s));
+    }
+    Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
+        "state.set: value must be bool, int, float or str",
+    ))
+}
+
 /// Owns the bindings the runtime exposes to scripts. Cloneable cheaply
 /// (two Arcs + a bool flag); each `execute` call runs in its own GIL session.
 #[derive(Clone)]
@@ -316,6 +400,36 @@ pub struct Engine {
     /// clones so the sink can be (re)set at runtime on the shared engine used by
     /// functions. `None` inside = Telegram not configured.
     telegram_tx: Arc<Mutex<Option<mpsc::UnboundedSender<String>>>>,
+    /// T-69: backs `uptime_ms()`/`delta_ms()`/`state.get`/`state.set`, keyed by
+    /// the caller-supplied `identity` (a global script's own id, or a
+    /// function's name — see `execute_with_args`). One entry per identity, not
+    /// one per `Engine`: the shared engine behind `AppState.py` serves *every*
+    /// project function through the same instance (`sws-web/src/router.rs`,
+    /// `run_function`), so without a key `delta_ms()` from one function would
+    /// reflect the last call to *any* function. Global scripts get their own
+    /// `Engine` each (`GlobalScriptSupervisor::start`), so the map holds a
+    /// single entry there — same mechanism, no special-casing needed.
+    states: Arc<Mutex<std::collections::HashMap<String, ScriptState>>>,
+}
+
+/// Per-identity bookkeeping for the T-69 clock/state bindings.
+struct ScriptState {
+    /// Set the first time this identity is seen — backs `uptime_ms()`. Not the
+    /// process start time: an `Engine` doesn't know when the whole runtime
+    /// started, and threading that through would be more plumbing for a
+    /// number that's already useful defined as "since this script/function
+    /// first ran".
+    first_seen: Instant,
+    /// `None` on the very first invocation — `delta_ms()` returns 0 in that
+    /// case (decided 2026-09-14): a ramp written as `pos += delta_ms/period`
+    /// stays put on the first tick instead of jumping, no script-side check
+    /// needed.
+    last_invocation: Option<Instant>,
+    /// Backs `state.get`/`state.set`. A separate `Arc<Mutex<...>>` (not just a
+    /// plain field on `ScriptState`) so it can be handed into `run_in_python`
+    /// — which runs on a different thread via `spawn_blocking` — without
+    /// holding the outer `states` lock for the whole script execution.
+    scratch: Arc<Mutex<std::collections::HashMap<String, serde_json::Value>>>,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -351,6 +465,7 @@ impl Engine {
             sandbox: Arc::new(AtomicBool::new(sandbox)),
             timeout: Duration::from_millis(timeout_ms),
             telegram_tx: Arc::new(Mutex::new(None)),
+            states: Arc::new(Mutex::new(std::collections::HashMap::new())),
         }
     }
 
@@ -371,8 +486,14 @@ impl Engine {
     /// Execute `code` and return its captured stdout/stderr.
     /// On a Python error, returns Err(msg) with the formatted traceback.
     /// On a wall-clock timeout (`SWS_SCRIPT_TIMEOUT_MS`), returns Err(...).
-    pub async fn execute(&self, code: String) -> Result<ExecOutput, String> {
-        self.execute_with_args(code, serde_json::Map::new()).await
+    ///
+    /// `identity` keys the T-69 clock/state bindings (`uptime_ms()`,
+    /// `delta_ms()`, `state.get`/`state.set`) — a global script's own id, or a
+    /// function's name. Callers that don't care about those bindings (none
+    /// today) can pass any stable string; it never affects tags/output.
+    pub async fn execute(&self, code: String, identity: &str) -> Result<ExecOutput, String> {
+        self.execute_with_args(code, serde_json::Map::new(), identity)
+            .await
     }
 
     /// Same as `execute` but additionally injects `args` as Python globals
@@ -383,6 +504,7 @@ impl Engine {
         &self,
         code: String,
         args: serde_json::Map<String, serde_json::Value>,
+        identity: &str,
     ) -> Result<ExecOutput, String> {
         let handle = Handle::current();
         let db = self.db.clone();
@@ -391,8 +513,39 @@ impl Engine {
         let timeout = self.timeout;
         let telegram = self.telegram_tx.lock().ok().and_then(|g| g.clone());
 
+        // T-69: snapshot this invocation's clock values and hand out the
+        // scratch map for `identity` *before* spawning — recording "now" here
+        // (not after the script finishes) is what makes `delta_ms()` measure
+        // time between invocations rather than time between an invocation's
+        // start and the previous one's end.
+        let now = Instant::now();
+        let (uptime_ms, delta_ms, scratch) = {
+            let mut states = self.states.lock().unwrap_or_else(|e| e.into_inner());
+            let entry = states
+                .entry(identity.to_string())
+                .or_insert_with(|| ScriptState {
+                    first_seen: now,
+                    last_invocation: None,
+                    scratch: Arc::new(Mutex::new(std::collections::HashMap::new())),
+                });
+            let uptime_ms = now.duration_since(entry.first_seen).as_millis() as i64;
+            let delta_ms = entry
+                .last_invocation
+                .map(|t| now.duration_since(t).as_millis() as i64)
+                .unwrap_or(0);
+            entry.last_invocation = Some(now);
+            (uptime_ms, delta_ms, entry.scratch.clone())
+        };
+        let now_ms = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_millis() as i64)
+            .unwrap_or(0);
+
         let work = tokio::task::spawn_blocking(move || {
-            run_in_python(db, bus, handle, sandbox, code, args, timeout, telegram)
+            run_in_python(
+                db, bus, handle, sandbox, code, args, timeout, telegram, now_ms, uptime_ms,
+                delta_ms, scratch,
+            )
         });
 
         match tokio::time::timeout(timeout, work).await {
@@ -553,6 +706,10 @@ fn run_in_python(
     args: serde_json::Map<String, serde_json::Value>,
     timeout: Duration,
     telegram_tx: Option<mpsc::UnboundedSender<String>>,
+    now_ms: i64,
+    uptime_ms: i64,
+    delta_ms: i64,
+    scratch: Arc<Mutex<std::collections::HashMap<String, serde_json::Value>>>,
 ) -> Result<ExecOutput, String> {
     // Arm the kill switch.  A timer thread flips `kill_flag` after `timeout`;
     // the Python trace function detects it and raises KeyboardInterrupt.
@@ -568,9 +725,22 @@ fn run_in_python(
         let api = Py::new(py, TagApi { db, bus, handle })?;
         let notifier = Py::new(py, Notifier { tx: telegram_tx })?;
         let kill_switch = Py::new(py, KillSwitch { flag: kill_flag })?;
+        // T-69: `now_ms`/`uptime_ms`/`delta_ms` are frozen at the values
+        // computed once in `execute_with_args` before this call — see the
+        // comment there for why. `state` shares the caller's `scratch` Arc,
+        // so writes made during this run are visible next time this same
+        // `identity` runs.
+        let now_ms_obj = Py::new(py, FrozenClock(now_ms))?;
+        let uptime_ms_obj = Py::new(py, FrozenClock(uptime_ms))?;
+        let delta_ms_obj = Py::new(py, FrozenClock(delta_ms))?;
+        let state_obj = Py::new(py, StateApi { scratch })?;
         let globals = PyDict::new(py);
         globals.set_item("tags", api)?;
         globals.set_item("send_telegram", notifier)?;
+        globals.set_item("now_ms", now_ms_obj)?;
+        globals.set_item("uptime_ms", uptime_ms_obj)?;
+        globals.set_item("delta_ms", delta_ms_obj)?;
+        globals.set_item("state", state_obj)?;
         globals.set_item("__sws_kill_switch__", kill_switch)?;
         globals.set_item("__sws_user_source__", user_source)?;
         globals.set_item("__sws_sandbox__", sandbox)?;
@@ -713,7 +883,8 @@ if __sws_syntax__ is None and __sws_vietato__ is None and __sws_albero__ is not 
     __sws_candidati__ = ['open', '__import__', 'compile', 'input', 'globals',
                          'locals', 'vars', 'dir', 'eval', 'exec', 'breakpoint',
                          'memoryview', 'help', 'exit', 'quit']
-    __sws_forniti__ = ['tags', 'send_telegram', 'print']
+    __sws_forniti__ = ['tags', 'send_telegram', 'print',
+                       'now_ms', 'uptime_ms', 'delta_ms', 'state']
     for _n in ast.walk(__sws_albero__):
         if isinstance(_n, (ast.Import, ast.ImportFrom)):
             _quali = ', '.join(a.name for a in _n.names) if _n.names else '?'
@@ -1045,9 +1216,12 @@ mod tests_check {
         bus.register("s".to_string(), tx).await;
         let e = Engine::new(db.clone(), bus);
 
-        e.execute("tags.write('s', 50.0)\ntags.write('v', 50.0)\n".into())
-            .await
-            .expect("script fallito");
+        e.execute(
+            "tags.write('s', 50.0)\ntags.write('v', 50.0)\n".into(),
+            "test",
+        )
+        .await
+        .expect("script fallito");
 
         let (id, valore) = rx.recv().await.expect("nessuna scrittura sul bus");
         assert_eq!(id, "s");
@@ -1063,6 +1237,110 @@ mod tests_check {
         assert_eq!(
             dopo.get("v").map(|s| s.value.clone()),
             Some(sws_core::TagValue::Float(50.0))
+        );
+    }
+
+    /// T-69 — `delta_ms()` alla prima invocazione di una identità è 0 (nessun
+    /// "prima" con cui confrontare, deciso dal maintainer), e su un secondo
+    /// giro riflette il tempo davvero trascorso. Lo stato ritenuto
+    /// (`state.get`/`state.set`) sopravvive fra le due chiamate.
+    #[tokio::test]
+    async fn orologio_e_stato_persistono_per_la_stessa_identita() {
+        let db = Arc::new(TagDb::new(16));
+        let bus = Arc::new(TagWriteBus::new());
+        let e = Engine::new(db.clone(), bus);
+        let code = "
+n = state.get('n', 0) + 1
+state.set('n', n)
+tags.write('n', n)
+tags.write('delta', delta_ms())
+";
+
+        e.execute(code.into(), "script-x")
+            .await
+            .expect("primo giro fallito");
+        let dopo1 = db.snapshot().await;
+        assert_eq!(
+            dopo1.get("delta").map(|s| s.value.clone()),
+            Some(TagValue::Int(0)),
+            "primo giro: nessun \"prima\" con cui confrontare"
+        );
+        assert_eq!(
+            dopo1.get("n").map(|s| s.value.clone()),
+            Some(TagValue::Int(1))
+        );
+
+        tokio::time::sleep(Duration::from_millis(30)).await;
+
+        e.execute(code.into(), "script-x")
+            .await
+            .expect("secondo giro fallito");
+        let dopo2 = db.snapshot().await;
+        let delta2 = match dopo2.get("delta").map(|s| s.value.clone()) {
+            Some(TagValue::Int(v)) => v,
+            other => panic!("delta_ms non è un Int: {other:?}"),
+        };
+        assert!(
+            delta2 >= 25,
+            "delta_ms al secondo giro dovrebbe riflettere l'attesa di 30ms: {delta2}"
+        );
+        assert_eq!(
+            dopo2.get("n").map(|s| s.value.clone()),
+            Some(TagValue::Int(2)),
+            "lo stato ritenuto persiste fra le invocazioni della stessa identità"
+        );
+    }
+
+    /// T-69 — identità diverse (script/funzioni diversi) non condividono lo
+    /// stato ritenuto: è quello che rende `state`/`delta_ms()` corretti anche
+    /// sull'`Engine` condiviso da tutte le funzioni di progetto.
+    #[tokio::test]
+    async fn stato_ritenuto_non_si_mischia_fra_identita_diverse() {
+        let db = Arc::new(TagDb::new(16));
+        let bus = Arc::new(TagWriteBus::new());
+        let e = Engine::new(db.clone(), bus);
+        let code = "n = state.get('n', 0) + 1\nstate.set('n', n)\ntags.write('n', n)";
+
+        e.execute(code.into(), "a").await.expect("giro 'a' fallito");
+        e.execute(code.into(), "a").await.expect("giro 'a' fallito");
+        let dopo = db.snapshot().await;
+        assert_eq!(
+            dopo.get("n").map(|s| s.value.clone()),
+            Some(TagValue::Int(2))
+        );
+
+        e.execute(code.into(), "b").await.expect("giro 'b' fallito");
+        let dopo = db.snapshot().await;
+        assert_eq!(
+            dopo.get("n").map(|s| s.value.clone()),
+            Some(TagValue::Int(1)),
+            "identità diversa, contatore proprio"
+        );
+    }
+
+    /// T-69 — difetto pre-esistente scoperto durante l'esplorazione:
+    /// `send_telegram` era registrato nei globals esterni di `run_in_python`
+    /// ma non copiato dentro `__sws_globals__`, il dizionario contro cui gira
+    /// davvero il codice utente — uno script che lo chiamava otteneva sempre
+    /// `NameError`. La prova che conta è negativa: l'errore atteso è quello
+    /// esplicito di `Notifier` (nessun sink configurato), non un `NameError`.
+    #[tokio::test]
+    async fn send_telegram_e_raggiungibile_dal_codice_utente() {
+        let db = Arc::new(TagDb::new(16));
+        let bus = Arc::new(TagWriteBus::new());
+        let e = Engine::new(db, bus);
+
+        let err = e
+            .execute("send_telegram('ciao')".into(), "test")
+            .await
+            .expect_err("senza sink configurato deve fallire, ma non di NameError");
+        assert!(
+            err.contains("Telegram non configurato"),
+            "errore inatteso: {err}"
+        );
+        assert!(
+            !err.contains("NameError"),
+            "send_telegram non raggiunge il codice dello script: {err}"
         );
     }
 }

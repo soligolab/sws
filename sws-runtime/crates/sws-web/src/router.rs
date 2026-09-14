@@ -4368,7 +4368,11 @@ async fn run_function(
         }
     };
     let args = body.map(|Json(b)| b.args).unwrap_or_default();
-    match s.py.execute_with_args(code, args).await {
+    // T-69: `name` è l'identità per `uptime_ms()`/`delta_ms()`/`state` — così
+    // una funzione richiamata da più punti (pulsante, `functions.run` di uno
+    // script globale, questa stessa rotta) mantiene il proprio stato ritenuto
+    // a prescindere da chi la invoca.
+    match s.py.execute_with_args(code, args, &name).await {
         Ok(ExecOutput {
             stdout,
             stderr,

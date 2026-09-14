@@ -218,7 +218,11 @@ impl FailureThrottle {
 }
 
 async fn exec_once(id: &str, code: &str, py: &PyEngine, throttle: &mut FailureThrottle) {
-    match py.execute(code.to_owned()).await {
+    // T-69: `id` è l'identità che tiene `uptime_ms()`/`delta_ms()`/`state`
+    // per QUESTO script — stabile perché ogni script globale abilitato ha un
+    // proprio `PyEngine` (vedi `GlobalScriptSupervisor::start`), quindi la
+    // mappa interna dell'engine ha comunque una sola voce qui.
+    match py.execute(code.to_owned(), id).await {
         Ok(out) => {
             // La guarigione va detta: con i fallimenti strozzati, senza questa
             // riga non ci sarebbe modo di sapere che lo script è tornato a

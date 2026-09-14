@@ -19,6 +19,7 @@
 | [2026-09-14-revisione-template.md](2026-09-14-revisione-template.md) | **DA FARE** | revisione del parco template proposta dal maintainer: verità dei documenti di licenza, un ruolo dichiarato per ognuno, le funzioni senza vetrina (`recipes:` a zero con `recipe_panel` in vetrina, `min_role` a zero), i sei fermi al 28-08 |
 | [2026-09-12-f7-residui-minori.md](2026-09-12-f7-residui-minori.md) | **PARTE A FATTA E SU `main`** | Parte A: bordo per-cella, confermata dal vivo dal maintainer e mergiata (`bd773d4`). Parte B: ridotta a un rimando all'audit dallo storico allarmi (scelta del maintainer il 13-09-2026, niente migrazione di schema) — non ancora iniziata |
 | [2026-09-12-casamauro-arricchimento-demo.md](2026-09-12-casamauro-arricchimento-demo.md) | **DA FARE** | arricchire il progetto personale CasaMauro con le feature F2-F6 non esercitate — contenuto, non codice, nessun branch |
+| [2026-09-14-T69-tempo-stato-script.md](2026-09-14-T69-tempo-stato-script.md) | **IN CORSO** | T-69: orologio+stato per gli script Python (Fase A in corso), `interval_ms` sui trigger (B), funzioni chiamabili da script globali + doc parametri (C+E), tag generatore nativo (D) — cinque rami in sequenza, un ramo alla volta |
 
 **Dal 2026-09-12, anche le questioni aperte di `docs/OPEN_QUESTIONS.md` diventano piani singoli**
 (istruzione del maintainer, tecnica da riusare in futuro) — non li decide questo passaggio, li
