@@ -594,12 +594,22 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
 
         match &g.trigger {
             sws_core::ScriptTrigger::Startup => {}
-            sws_core::ScriptTrigger::Interval { interval_s } => {
-                if *interval_s == 0 {
+            sws_core::ScriptTrigger::Interval {
+                interval_s,
+                interval_ms,
+            } => {
+                if interval_ms.is_none() && *interval_s == 0 {
                     out.push(Finding::err(
                         format!("{base}.trigger.interval_s"),
                         "un intervallo di 0 secondi",
                         "il supervisore girerebbe senza pause: metti almeno 1",
+                    ));
+                }
+                if let Some(0) = interval_ms {
+                    out.push(Finding::err(
+                        format!("{base}.trigger.interval_ms"),
+                        "un intervallo di 0 millisecondi",
+                        "il supervisore girerebbe senza pause: metti almeno 50",
                     ));
                 }
             }
@@ -1789,6 +1799,26 @@ alarms: []
         let prog = format!("{PROGETTO}global_scripts:\n              - {{ id: s1, trigger: {{ kind: interval, interval_s: 0 }},                  code: \"print(1)\" }}\n");
         let rs = rilievi(&prog, &pagina("- { id: t, type: text, x: 0, y: 0 }"));
         assert!(cita(&errori(&rs), "interval_s"), "{rs:?}");
+    }
+
+    /// T-69 fase B: `interval_ms` è additivo — quando presente vince su
+    /// `interval_s`, quindi `interval_s: 0` accanto a un `interval_ms` valido
+    /// non deve far scattare l'errore pensato per il caso senza `interval_ms`.
+    #[test]
+    fn interval_ms_valido_copre_interval_s_a_zero() {
+        let prog = format!("{PROGETTO}global_scripts:\n              - {{ id: s1, trigger: {{ kind: interval, interval_s: 0, interval_ms: 100 }},                  code: \"print(1)\" }}\n");
+        let rs = rilievi(&prog, &pagina("- { id: t, type: text, x: 0, y: 0 }"));
+        assert!(
+            !cita(&errori(&rs), "interval_s"),
+            "interval_ms presente e valido, interval_s non conta: {rs:?}"
+        );
+    }
+
+    #[test]
+    fn un_intervallo_di_zero_millisecondi_non_passa() {
+        let prog = format!("{PROGETTO}global_scripts:\n              - {{ id: s1, trigger: {{ kind: interval, interval_s: 1, interval_ms: 0 }},                  code: \"print(1)\" }}\n");
+        let rs = rilievi(&prog, &pagina("- { id: t, type: text, x: 0, y: 0 }"));
+        assert!(cita(&errori(&rs), "interval_ms"), "{rs:?}");
     }
 
     #[test]

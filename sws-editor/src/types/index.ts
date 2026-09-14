@@ -1586,7 +1586,7 @@ export interface LogFileEntry {
 
 export type ScriptTriggerKind =
   | { kind: "startup" }
-  | { kind: "interval"; interval_s: number }
+  | { kind: "interval"; interval_s: number; interval_ms?: number }
   | { kind: "cron"; schedule: string }
   | { kind: "tag_change"; tag: string; edge: "rising" | "falling" | "any" };
 

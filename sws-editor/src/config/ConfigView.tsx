@@ -6986,7 +6986,7 @@ function newScript(): GlobalScriptDef {
 function triggerLabel(t: ScriptTriggerKind): string {
   switch (t.kind) {
     case "startup":    return "Avvio";
-    case "interval":   return `Ogni ${t.interval_s}s`;
+    case "interval":   return t.interval_ms ? `Ogni ${t.interval_ms}ms` : `Ogni ${t.interval_s}s`;
     case "cron":       return `Cron: ${t.schedule}`;
     case "tag_change": return `Tag: ${t.tag}`;
   }
@@ -7192,13 +7192,32 @@ function GlobalScriptsTab() {
             </select>
 
             {cur.trigger.kind === "interval" && (
-              <input
-                type="number"
-                min={1}
-                value={cur.trigger.interval_s}
-                onChange={(e) => updateTrigger(selected, { interval_s: Number(e.target.value) })}
-                style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 8px", fontSize: 13, width: 80 }}
-              />
+              <>
+                <input
+                  type="number"
+                  min={1}
+                  value={cur.trigger.interval_s}
+                  onChange={(e) => updateTrigger(selected, { interval_s: Number(e.target.value) })}
+                  style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 8px", fontSize: 13, width: 80 }}
+                />
+                {/* T-69 fase B: additivo — quando valorizzato vince su
+                    interval_s. Vuoto = assente (undefined), non 0: uno 0
+                    esplicito fallirebbe la validazione server, invece
+                    "niente qui" deve tornare al comportamento di sempre. */}
+                <input
+                  type="number"
+                  min={50}
+                  placeholder="ms (opzionale, ha priorità)"
+                  value={cur.trigger.interval_ms ?? ""}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    updateTrigger(selected, {
+                      interval_ms: raw === "" ? undefined : Number(raw),
+                    });
+                  }}
+                  style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 8px", fontSize: 13, width: 170 }}
+                />
+              </>
             )}
             {cur.trigger.kind === "cron" && (
               <input

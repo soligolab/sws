@@ -597,13 +597,29 @@ fn elenco_o_nessuno<'a>(it: impl Iterator<Item = &'a str>) -> String {
 fn schema_python(sandbox_attiva: bool) -> Esito {
     Ok(json!({
         "disponibili": [
-            { "nome": "tags", "cosa": "I tag del progetto. `tags['id']` legge, \
-                `tags['id'] = valore` scrive. Un tag con `expression` è calcolato: \
-                scriverlo viene rifiutato." },
+            { "nome": "tags", "cosa": "I tag del progetto. `tags.read('id')` legge \
+                (None se il tag non esiste), `tags.write('id', valore)` scrive. NON è \
+                indicizzabile: `tags['id']` solleva TypeError, non è mai stato il modo \
+                giusto. Un tag con `expression` è calcolato: scriverlo viene rifiutato." },
             { "nome": "print", "cosa": "Finisce nello stdout catturato e nel log. \
                 Serve per la diagnosi, non per comunicare con l'operatore." },
             { "nome": "send_telegram", "cosa": "`send_telegram('testo')`. Funziona solo \
                 se il canale Telegram è configurato nelle notifiche del progetto." },
+            { "nome": "now_ms", "cosa": "`now_ms()` — millisecondi dall'epoch Unix \
+                (T-69). Congelato all'inizio di questa esecuzione, non cambia se \
+                chiamato più volte nello stesso giro." },
+            { "nome": "uptime_ms", "cosa": "`uptime_ms()` — millisecondi dalla PRIMA \
+                volta che questo script/funzione è girato in questo processo (T-69), \
+                non dall'avvio del runtime." },
+            { "nome": "delta_ms", "cosa": "`delta_ms()` — millisecondi dall'ULTIMA \
+                invocazione di questo script/funzione (T-69). Vale 0 al primo giro: \
+                una rampa scritta come `pos += delta_ms() / periodo` resta ferma al \
+                primo giro invece di saltare, e si muove a cadenza reale indipendente \
+                da quanto spesso il trigger la richiama." },
+            { "nome": "state", "cosa": "`state.get('chiave', default=None)` / \
+                `state.set('chiave', valore)` (T-69) — memoria persistente fra un giro \
+                e l'altro dello STESSO script/funzione (es. la direzione di una \
+                rampa), senza bisogno di un tag di servizio. Solo bool/int/float/str." },
         ],
         "vietati": [
             "`import` di qualunque modulo — niente `os`, `time`, `requests`, `math`.",
@@ -620,7 +636,12 @@ fn schema_python(sandbox_attiva: bool) -> Esito {
         },
         "trigger_script_globali": [
             { "kind": "startup", "quando": "una volta all'apertura del progetto" },
-            { "kind": "interval", "campi": { "interval_s": "secondi, intero" } },
+            { "kind": "interval", "campi": {
+                "interval_s": "secondi, intero, minimo 1",
+                "interval_ms": "opzionale (T-69), millisecondi — quando presente VINCE \
+                    su interval_s, minimo 50. Serve una cadenza sotto il secondo che \
+                    interval_s non può esprimere; senza, il comportamento è quello di \
+                    sempre." } },
             { "kind": "cron", "campi": { "schedule": "cron a CINQUE campi: \
                 `min ora giorno mese giorno-settimana`. `*/5 * * * *` = ogni cinque \
                 minuti. Un solo campo (`*/5`) NON è valido." } },

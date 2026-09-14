@@ -77,8 +77,18 @@ async fn run_script_task(
             exec_once(&id, &code, &py, &mut throttle).await;
         }
 
-        ScriptTrigger::Interval { interval_s } => {
-            let dur = Duration::from_secs(interval_s.max(1));
+        ScriptTrigger::Interval {
+            interval_s,
+            interval_ms,
+        } => {
+            // T-69 fase B: `interval_ms`, quando presente, vince su
+            // `interval_s` — additivo, non una migrazione. Pavimento a 50ms:
+            // sotto quella soglia l'overhead di spawn_blocking+GIL rende la
+            // cadenza comunque inaffidabile, non è un limite arbitrario.
+            let dur = match interval_ms {
+                Some(ms) => Duration::from_millis(ms.max(50)),
+                None => Duration::from_secs(interval_s.max(1)),
+            };
             loop {
                 tokio::select! {
                     _ = cancel.cancelled() => break,

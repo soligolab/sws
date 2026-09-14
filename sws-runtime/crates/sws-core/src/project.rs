@@ -841,7 +841,16 @@ pub enum ScriptTrigger {
     /// Run once when the project is loaded.
     Startup,
     /// Run every `interval_s` seconds.
-    Interval { interval_s: u64 },
+    ///
+    /// `interval_ms` (T-69, fase B) è additivo e vince quando presente — gli
+    /// script/template esistenti restano validi senza modifiche. Serve per
+    /// una cadenza più fine di 1 s (una rampa/onda che deve muoversi a
+    /// decimi di secondo), che `interval_s` non può esprimere.
+    Interval {
+        interval_s: u64,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        interval_ms: Option<u64>,
+    },
     /// Run on a cron schedule (5-field: min hour day month weekday).
     Cron { schedule: String },
     /// Run when `tag` changes. `edge`: "rising", "falling", or "any" (default).
