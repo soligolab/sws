@@ -1323,6 +1323,34 @@ export const GruppoAttivo = createContext<GruppoProprieta>("oggetto");
  *  Un valore sconosciuto — gruppo rinominato, o tolto — riporta su Oggetto
  *  invece di lasciare il pannello senza sezioni: stessa regola della vista del
  *  pannello sinistro. */
+/** L'avviso «senza utenti il ruolo minimo non serve a niente» va mostrato?
+ *
+ *  Solo quando un ruolo minimo c'è **e** il progetto non ha utenti: senza
+ *  utenti l'autenticazione inietta un Admin sintetico, quindi chiunque è Admin
+ *  e il gating non nega niente a nessuno. Il gating è corretto — manca solo
+ *  qualcuno che lo dica.
+ *
+ *  **Il segnale sono gli utenti del progetto, non il token.** Fino al
+ *  14-09-2026 le due cose coincidevano: il token valeva `"no-auth"` esattamente
+ *  quando il progetto era senza utenti, e questa funzione guardava lì. Quel
+ *  giorno un'istanza IDE ha smesso di autenticarsi *in ogni caso* — `users.yaml`
+ *  governa il dispositivo, non l'editor — e da allora `authToken === "no-auth"`
+ *  nell'IDE è **sempre** vero. Con quel segnale l'avviso comparirebbe su ogni
+ *  oggetto con un ruolo minimo, dicendo «il progetto non ha utenti» a chi gli
+ *  utenti li ha appena definiti: il testo dell'avviso e la sua condizione
+ *  direbbero due cose diverse.
+ *
+ *  `progettoHaUtenti` viene da `auth_required` di `GET /api/system`, che è
+ *  `has_users()` sul progetto aperto — il fatto, non una deduzione. `null`
+ *  significa «non ancora saputo» e **non** fa comparire niente: un avviso
+ *  sbagliato è peggio di un avviso assente. */
+export function avvisoRuoloMinimo(
+  progettoHaUtenti: boolean | null,
+  minRole: string | undefined,
+): boolean {
+  return !!minRole && progettoHaUtenti === false;
+}
+
 export function gruppoMemorizzato(grezzo: string | null): GruppoProprieta {
   return GRUPPI_PROPRIETA.some((g) => g.id === grezzo)
     ? (grezzo as GruppoProprieta)
@@ -2369,6 +2397,9 @@ export function ObjectProps({
 }) {
   const { t } = useTranslation();
   const gruppoAttivo = useContext(GruppoAttivo);
+  // Il fatto «il progetto ha utenti», non la modalità dell'istanza: vedi
+  // `avvisoRuoloMinimo`.
+  const progettoHaUtenti = useAppStore((st) => st.progettoHaUtenti);
   // D (2026-08-23): cattura waypoint dal canvas — stato condiviso nello store.
   const capturePathTarget = useAppStore((st) => st.capturePathTarget);
   const mostraTracciato    = useAppStore((st) => st.mostraTracciato);
@@ -4987,6 +5018,21 @@ export function ObjectProps({
             <option value="Admin">Admin</option>
           </select>
         ))}
+        {/* Senza utenti nel progetto l'autenticazione inietta un Admin
+            sintetico (`router.rs`), quindi **chiunque** è Admin e il ruolo
+            minimo non nega niente a nessuno. Il gating è corretto e resta
+            com'è: manca solo qualcuno che lo dica, altrimenti sembra un
+            difetto del gating invece della conseguenza ovvia del no-auth.
+
+            Il segnale è `progettoHaUtenti` e non il token: dal 14-09-2026
+            l'IDE non si autentica comunque, quindi il token direbbe «no-auth»
+            anche su un progetto che gli utenti ce li ha. Vedi
+            `avvisoRuoloMinimo`. */}
+        {avvisoRuoloMinimo(progettoHaUtenti, obj.min_role) && (
+          <p style={{ fontSize: 10, color: "var(--brand-warning-soft, #fbbf24)", margin: "2px 0 6px", lineHeight: 1.4 }}>
+            {t("props.minRoleNoAuthWarning")}
+          </p>
+        )}
         {obj.min_role && field(t("props.minRoleEffect"), (
           <select style={{ ...INPUT, cursor: "pointer" }} value={obj.min_role_effect ?? "disable"}
             onChange={(e) => onChange({ min_role_effect: e.target.value === "disable" ? undefined : "hide" })}>

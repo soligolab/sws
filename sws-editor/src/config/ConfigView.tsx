@@ -5961,6 +5961,10 @@ function UsersTab() {
     try {
       const list = await api.listUsers();
       setUsers(list);
+      // L'avviso sul ruolo minimo, nel pannello proprietà, dipende da «questo
+      // progetto ha utenti»: definire il primo qui lo rende falso subito, non
+      // alla prossima apertura del progetto.
+      useAppStore.getState().setProgettoHaUtenti(list.length > 0);
     } catch (e: any) {
       setError(`Errore nel caricamento utenti: ${String(e?.message ?? e)}`);
     }

@@ -330,10 +330,21 @@ interface AppState {
   /** True when the session token expired mid-session. Shows ReAuthModal overlay. */
   reAuthNeeded: boolean;
 
+  /** Il **progetto** ha utenti definiti? `null` = non ancora saputo.
+   *
+   *  Viene da `auth_required` di `GET /api/system`, che è `has_users()` sul
+   *  progetto aperto. **Non** si deduce dal token: dal 14-09-2026 un'istanza
+   *  IDE resta in modalità senza utenti comunque, quindi `authToken ===
+   *  "no-auth"` dice «questo è un IDE», non «il progetto non ha utenti». Sono
+   *  due cose diverse da quel giorno, e confonderle fa mentire l'avviso sul
+   *  ruolo minimo. */
+  progettoHaUtenti: boolean | null;
+
   setAuth: (token: string, username: string, role: Role, mustChangePassword?: boolean, expiresAtMs?: number | null) => void;
   setExpiresAtMs: (ms: number | null) => void;
   setMustChangePassword: (flag: boolean) => void;
   setReAuthNeeded: (v: boolean) => void;
+  setProgettoHaUtenti: (v: boolean | null) => void;
   clearAuth: () => void;
   setNoActiveProject: (flag: boolean) => void;
 
@@ -654,6 +665,7 @@ export const useAppStore = create<AppState>((set, get) => {
     mustChangePassword: persisted?.must_change_password === true,
     noActiveProject: false,
     reAuthNeeded: false,
+    progettoHaUtenti: null,
 
     project: null,
     projectLoadError: null,
@@ -704,6 +716,7 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     setReAuthNeeded: (v) => set({ reAuthNeeded: v }),
+    setProgettoHaUtenti: (v) => set({ progettoHaUtenti: v }),
 
     setMustChangePassword: (flag) => {
       const { authToken, authUser, authRole, expiresAtMs } = get();

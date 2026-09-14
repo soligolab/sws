@@ -74,6 +74,35 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — l'avviso sul ruolo minimo, e l'insidia che la correzione di stamattina gli aveva teso (2026-09-14)
+
+Il ramo `fix/ruolo-minimo-avviso-noauth` era pronto dalle 12:18 e aspettava solo un via libera.
+Prima di mergiarlo è emerso che **le due correzioni della giornata si toccavano**, e nel verso
+peggiore.
+
+L'avviso («il progetto non ha utenti: ogni visitatore è Admin e il ruolo minimo non avrà
+effetto») era condizionato su `authToken === "no-auth"`. Era il segnale giusto **finché** la
+sentinella valeva esattamente quando il progetto era senza utenti. La correzione delle 14 ha
+rotto quella coincidenza: un'istanza IDE non si autentica più in nessun caso, quindi nell'editor
+il token è **sempre** `"no-auth"`. Mergiato così, l'avviso sarebbe comparso su ogni oggetto con
+un ruolo minimo — **dicendo «il progetto non ha utenti» a chi li aveva appena definiti**, e
+sconsigliando una funzione che sul dispositivo avrebbe funzionato benissimo.
+
+È la stessa forma di difetto che questa settimana è passata quattro volte: il testo diceva una
+cosa e la condizione ne guardava un'altra. Qui però la divergenza non c'era al momento della
+scrittura — **l'ha creata un commit successivo**, il che è il motivo per cui un ramo fermo qualche
+ora va riletto contro il `main` di adesso, non contro quello da cui è nato.
+
+**Corretto prima del merge**: la condizione guarda il **fatto**, non la modalità —
+`progettoHaUtenti` nello store, da `auth_required` di `GET /api/system`, che è `has_users()` sul
+progetto aperto e **non** è stato toccato dalla correzione di stamattina. Si rilegge a ogni cambio
+di progetto (`users.yaml` è per progetto) e quando la scheda Utenti cambia qualcosa, così
+definire il primo utente spegne l'avviso subito. `null` (non ancora saputo) non mostra niente: un
+avviso sbagliato è peggio di un avviso assente.
+
+I test fissano entrambi gli errori già fatti — `authRole`, che non sarebbe mai comparso, e
+`authToken`, che da oggi comparirebbe sempre.
+
 ## ▶ Riprendere da qui — le due guardie rosse, e perché nessuno le aveva guardate (2026-09-14)
 
 Trovate di sfuggita mentre si chiudeva il lavoro sul primo utente, e chiuse subito: erano
@@ -2461,7 +2490,7 @@ altro:
 2. **Ruolo minimo inefficace in no-auth, l'editor non lo dice** — misura (a) confermata dal vivo
    il 2026-09-12 (`whoami` risponde Admin sintetico), dichiarazione (c) già fatta (Q36). Resta
    solo l'avviso nell'editor (b): piano in
-   [`docs/plans/2026-09-12-ruolo-minimo-avviso-noauth.md`](../docs/plans/2026-09-12-ruolo-minimo-avviso-noauth.md).
+   [`docs/archive/2026-09-12-ruolo-minimo-avviso-noauth.md`](../docs/archive/2026-09-12-ruolo-minimo-avviso-noauth.md).
 3. **F9c — parità LVGL, verifica dal vivo**: il grosso è già fatto (35 tipi, 238 campi, i due
    check di coerenza esistono entrambi — verificato il 2026-09-12, `check_lvgl_types.sh` incluso,
    diversamente da quanto diceva questa voce). Resta solo il collaudo sul dispositivo, ora

@@ -40,6 +40,15 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   vivo sul TC620.
 
 ### Fixed
+- **L'editor non diceva che il ruolo minimo, senza utenti nel progetto, non nega niente a
+  nessuno**: segnalato il 2026-08-24, causa isolata il 2026-09-06. Il gating è corretto — è che
+  senza utenti l'autenticazione inietta un Admin sintetico, quindi *chiunque* è Admin e
+  `min_role` non ha a chi negare. Sembrava un difetto del gating. Ora il pannello proprietà lo
+  dice, sotto il campo. Il segnale è **`auth_required` di `/api/system`**, cioè `has_users()` sul
+  progetto aperto, e non il token: fino al 14-09 le due cose coincidevano, ma da quando un'istanza
+  IDE non si autentica più in nessun caso il token direbbe «senza utenti» anche su un progetto che
+  gli utenti ce li ha — l'avviso avrebbe contraddetto il proprio testo.
+
 - **Nove icone del template `casa-locale` non erano più disegnate**: otto vuote sul web e riquadri
   rossi su LVGL, la nona ancora legata a un SVG su file. Il
   commit di Q40 ha reso builtin i 24 simboli e svuotato `VENDORED`, cancellando gli SVG sotto

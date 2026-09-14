@@ -57,3 +57,27 @@ all'avvio (lo stesso `whoami()` copiato in `useAccessoSenzaUtenti.ts` per le fin
    comportarsi come prima (hide/disable) quando l'avviso è visibile.
 
 Branch: `fix/ruolo-minimo-avviso-noauth`.
+
+---
+
+## Esito, 14-09-2026 — fatto, con una correzione dell'ultimo minuto
+
+Realizzato e mergiato su `main`. Due scostamenti dal testo qui sopra, entrambi per lo stesso
+motivo — **il piano nominava il segnale sbagliato**:
+
+1. Il piano diceva `authRole === "no-auth"`. `authRole` porta il ruolo *vero* («Admin», quello
+   sintetico), quindi quel confronto è sempre falso e l'avviso non sarebbe **mai** comparso: un
+   lavoro finito, verde, e senza effetto. Scoperto scrivendo i test.
+2. Il ripiego `authToken === "no-auth"` era giusto il 12-09 e ha smesso di esserlo il **14-09**,
+   quando un'istanza IDE ha smesso di autenticarsi in ogni caso
+   (`docs/archive/2026-09-14-primo-utente-non-chiude-fuori.md`). Da allora nell'editor il token è
+   sempre la sentinella, e l'avviso sarebbe comparso **sempre**, contraddicendo il proprio testo
+   su ogni progetto che gli utenti ce li ha.
+
+Il segnale definitivo è il fatto e non la modalità: `auth_required` di `GET /api/system`, cioè
+`has_users()` sul progetto aperto, tenuto nello store come `progettoHaUtenti`. `null` non mostra
+niente.
+
+**La lezione, che vale oltre questo piano**: un ramo fermo qualche ora va riletto contro il `main`
+di *adesso*. Qui la divergenza fra testo e condizione non esisteva quando il codice è stato
+scritto — l'ha creata un commit successivo.

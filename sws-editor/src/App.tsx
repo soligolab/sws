@@ -255,6 +255,7 @@ export function App() {
   const setNoActiveProject     = useAppStore((s) => s.setNoActiveProject);
   const reAuthNeeded           = useAppStore((s) => s.reAuthNeeded);
   const setReAuthNeeded        = useAppStore((s) => s.setReAuthNeeded);
+  const setProgettoHaUtenti    = useAppStore((s) => s.setProgettoHaUtenti);
   const setPages       = useAppStore((s) => s.setPages);
   const setFaceplates  = useAppStore((s) => s.setFaceplates);
   const resetProjectState = useAppStore((s) => s.resetProjectState);
@@ -409,6 +410,26 @@ export function App() {
     }, delay);
     return () => clearTimeout(timer);
   }, [authToken, expiresAtMs, setExpiresAtMs]);
+
+  // Il progetto aperto ha utenti definiti?
+  //
+  // Serve all'avviso sul ruolo minimo (`avvisoRuoloMinimo` in EditorShell), e
+  // **non si deduce dal token**: dal 14-09-2026 un'istanza IDE resta in
+  // modalità senza utenti comunque, quindi il token direbbe «no-auth» anche su
+  // un progetto che gli utenti ce li ha. `auth_required` di `/api/system` è
+  // `has_users()` sul progetto aperto: il fatto, non una deduzione.
+  //
+  // Si rilegge a ogni cambio di progetto (`project?.meta?.name`) perché
+  // `users.yaml` è **per progetto**: aprire un progetto diverso cambia la
+  // risposta.
+  useEffect(() => {
+    if (!authToken || noActiveProject) return;
+    let vivo = true;
+    api.getSystemStatus()
+      .then((st) => { if (vivo) setProgettoHaUtenti(st.auth_required ?? null); })
+      .catch(() => { if (vivo) setProgettoHaUtenti(null); });
+    return () => { vivo = false; };
+  }, [authToken, noActiveProject, project?.meta?.name, setProgettoHaUtenti]);
 
   // Mount flow:
   //   1. If no token → try GET /api/project to detect 503 (no project open).
