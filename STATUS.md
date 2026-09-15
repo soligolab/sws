@@ -74,6 +74,19 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — T-56 collaudato a fondo e archiviato (2026-09-15)
+
+Ripreso il piano T-56 (i due pannelli dell'editor) per il collaudo a fondo che mancava.
+Automatico verde (`pnpm test` 39 file/362 test, `tsc`, `lint`, `build`, `check_static.sh`
+17/17). A mano: un giro guidato via Playwright su un IDE di scarto (istanza 2, porta 8462,
+terminata a fine collaudo) — sei viste a sinistra con persistenza al **ricaricamento reale**
+della pagina (non solo smontaggio/rimontaggio come nel test unitario), sezioni canoniche
+verificate su `rect`/`text`/`trend`/`grid`/`symbol`, selezione multipla e multi-tipo con gli
+stessi nomi di sezione, tema chiaro/scuro verificato **a livello di pixel** (screenshot da
+soli ingannevoli: il canvas del progetto è scuro di suo e domina l'area, la chrome
+dell'editor passa davvero da bianco a blu-grigio scuro), larghezza pannelli regolabile e
+ricordata dopo un reload vero. Nessun difetto trovato. Piano spostato in `docs/archive/`.
+
 ## ▶ Riprendere da qui — template di collaudo T-69 pronto, terzo difetto trovato e corretto (2026-09-15)
 
 Template diagnostico `examples/templates/t69-collaudo/` (`4136973`), due pagine per esercitare

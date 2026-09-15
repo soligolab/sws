@@ -14,7 +14,6 @@
 
 | Piano | Stato | Cosa resta |
 |---|---|---|
-| [2026-09-10-T56-pannelli-editor.md](2026-09-10-T56-pannelli-editor.md) | **REALIZZATO E SU `main`** | tutti e tre i passi, con T-55 che ne era il prerequisito (`bd26c74f`); manca il collaudo a fondo dei due pannelli |
 | [2026-09-11-utenti-nel-progetto.md](2026-09-11-utenti-nel-progetto.md) | **REALIZZATO E SU `main`** | i sei passi sono fatti e mergiati (`64c1b0db`); manca il collaudo a fondo — il deploy con e senza la casella, e la conferma 428 che non deve ripartire in ciclo |
 | [2026-09-14-revisione-template.md](2026-09-14-revisione-template.md) | **DA FARE** | revisione del parco template proposta dal maintainer: verità dei documenti di licenza, un ruolo dichiarato per ognuno, le funzioni senza vetrina (`recipes:` a zero con `recipe_panel` in vetrina, `min_role` a zero), i sei fermi al 28-08 |
 | [2026-09-12-f7-residui-minori.md](2026-09-12-f7-residui-minori.md) | **PARTE A FATTA E SU `main`** | Parte A: bordo per-cella, confermata dal vivo dal maintainer e mergiata (`bd773d4`). Parte B: ridotta a un rimando all'audit dallo storico allarmi (scelta del maintainer il 13-09-2026, niente migrazione di schema) — non ancora iniziata |
