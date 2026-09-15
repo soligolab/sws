@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/api/client";
 import type { AlarmEvent, BucketSample, Sample, TrendSeriesStyle } from "@/types";
+import { useLinguaContenuti } from "@/i18n/linguaContenuti";
+import { resolveMsg } from "@/i18n/projectI18n";
 
 /**
  * Multi-tag trend chart on a 2D canvas. Polls GET /api/history/:tag for each
@@ -316,6 +318,7 @@ export function TrendCanvas({
   axisColor,
   gridColor,
 }: TrendCanvasProps) {
+  const lingua = useLinguaContenuti();
   const dtConfig: TrendDateTimeConfig = {
     dateOrder: dtDateOrder ?? DEFAULT_DT_CONFIG.dateOrder,
     separator: dtSeparator ?? DEFAULT_DT_CONFIG.separator,
@@ -1084,7 +1087,9 @@ export function TrendCanvas({
         const entries: { text: string; color: string }[] = [
           ...tsLines.map((l) => ({ text: l, color: "#94a3b8" })),
           ...hits.map((h) => ({ text: `${h.tag}: ${fmtValue(h.value)}`, color: h.color })),
-          ...nearbyAlarms.map((ev) => ({ text: `⚠ ${ev.alarm_message}`, color: sevColor[ev.severity] ?? "#f59e0b" })),
+          // Il messaggio dell'evento può essere un token: il marker sul trend
+          // è testo che l'operatore legge come ogni altro.
+          ...nearbyAlarms.map((ev) => ({ text: `⚠ ${resolveMsg(ev.alarm_message, lingua.lang, lingua.table)}`, color: sevColor[ev.severity] ?? "#f59e0b" })),
         ];
         const lineH = 14;
         const boxW = Math.max(...entries.map((e) => ctx.measureText(e.text).width)) + 16;

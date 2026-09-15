@@ -5740,6 +5740,8 @@ fn render_alarm_history(
     obj: &SynopticObject,
     base_url: &str,
     rt_handle: &tokio::runtime::Handle,
+    lingua: &str,
+    lang_table: &LanguageTable,
 ) -> anyhow::Result<()> {
     let larghezza = obj.width.unwrap_or(420.0).round() as i16;
     let altezza = obj.height.unwrap_or(220.0).round() as i16;
@@ -5787,12 +5789,16 @@ fn render_alarm_history(
             set_cell(ptr, r, 0, &ora_utc(e.ts_activated_ms));
             // Il messaggio se c'è, altrimenti l'id: un evento senza messaggio
             // è comunque un evento, e una riga vuota non direbbe quale.
+            // Il messaggio congelato nell'evento può contenere un token: lo
+            // storico si legge nella lingua di **adesso**, non in quella in cui
+            // l'allarme era scattato. Se la chiave non esiste più resta
+            // visibile come `{{chiave}}`, che è un'informazione onesta.
             let testo = if e.alarm_message.trim().is_empty() {
-                &e.alarm_id
+                e.alarm_id.clone()
             } else {
-                &e.alarm_message
+                resolve_msg(&e.alarm_message, lingua, lang_table)
             };
-            set_cell(ptr, r, 1, testo);
+            set_cell(ptr, r, 1, &testo);
             set_cell(ptr, r, 2, if e.ts_acked_ms.is_some() { "sì" } else { "no" });
         }
     }
@@ -8633,7 +8639,9 @@ fn dispatch_render(
         "pipe" => render_pipe(screen, obj, styles, tags).map(|b| live.push(b)),
         "kpi_tile" => render_kpi_tile(screen, obj, styles, tags, base_url, rt_handle, live),
         "data_log" => render_data_log(screen, obj, base_url, rt_handle),
-        "alarm_history" => render_alarm_history(screen, obj, base_url, rt_handle),
+        "alarm_history" => {
+            render_alarm_history(screen, obj, base_url, rt_handle, &current_lang, lang_table)
+        }
         "alarm_bell" => render_alarm_bell(screen, obj, styles, shared_alarms).map(|b| live.push(b)),
         "recipe_panel" => {
             render_recipe_panel(screen, obj, styles, base_url, rt_handle, shared_session)
@@ -9349,7 +9357,23 @@ pub fn svg_bitmap_bytes(bindings: &[LiveBinding]) -> usize {
         .sum()
 }
 
-pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
+/// `lang_table`/`shared_lang`: i messaggi d'allarme sono testo d'autore e
+/// possono contenere token `{{chiave}}` come ogni altro. Fino al 15-09-2026
+/// arrivavano **grezzi** all'operatore su questo motore, mentre il web li
+/// risolveva: lo stesso allarme diceva «Pressione alta» nel browser e
+/// `{{allarme_pressione}}` sul pannello d'impianto. Sono qui e non nella
+/// `LiveBinding` perché la lingua **cambia a runtime** (`lang_button`), e una
+/// copia congelata al momento del disegno mostrerebbe la lingua di prima.
+pub fn update_bindings(
+    bindings: &mut [LiveBinding],
+    tags: &TagSnapshot,
+    lang_table: &LanguageTable,
+    shared_lang: &SharedLang,
+) {
+    let lingua = shared_lang
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
     for b in bindings {
         if let LiveKind::Effects {
             figli,
@@ -9695,6 +9719,8 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
                     rows,
                     prefix,
                     allowed_sev.as_deref(),
+                    &lingua,
+                    lang_table,
                 );
             }
             LiveKind::TextList {
@@ -9765,6 +9791,8 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
                     *empty_ptr,
                     prefix,
                     allowed_sev.as_deref(),
+                    &lingua,
+                    lang_table,
                 );
             }
             LiveKind::XyPlot {
@@ -9914,6 +9942,8 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
                     prefix,
                     allowed_sev.as_deref(),
                     last_count,
+                    &lingua,
+                    lang_table,
                 );
             }
             LiveKind::Symbol {
@@ -10183,6 +10213,8 @@ fn update_alarm_bell(
     prefix: &str,
     allowed_sev: Option<&[String]>,
     last_count: &mut usize,
+    lingua: &str,
+    lang_table: &LanguageTable,
 ) {
     let mut alarms: Vec<AlarmStateLite> = {
         let map = shared.lock().unwrap_or_else(|e| e.into_inner());
@@ -10221,7 +10253,7 @@ fn update_alarm_bell(
                 Some(a) => {
                     lvgl_sys::lv_label_set_text(
                         row_ptr.as_ptr(),
-                        text_cstring(&a.def.message).as_ptr(),
+                        text_cstring(&resolve_msg(&a.def.message, lingua, lang_table)).as_ptr(),
                     );
                     lvgl_sys::lv_obj_clear_flag(row_ptr.as_ptr(), hidden);
                 }
@@ -10244,6 +10276,8 @@ fn update_alarm_viewer(
     rows: &mut [AlarmRowBinding],
     prefix: &str,
     allowed_sev: Option<&[String]>,
+    lingua: &str,
+    lang_table: &LanguageTable,
 ) {
     let mut alarms: Vec<AlarmStateLite> = {
         let map = shared.lock().unwrap_or_else(|e| e.into_inner());
@@ -10285,7 +10319,7 @@ fn update_alarm_viewer(
 
                 lvgl_sys::lv_label_set_text(
                     row.msg_ptr.as_ptr(),
-                    text_cstring(&a.def.message).as_ptr(),
+                    text_cstring(&resolve_msg(&a.def.message, lingua, lang_table)).as_ptr(),
                 );
                 lvgl_sys::lv_obj_clear_flag(row.msg_ptr.as_ptr(), hidden);
 
@@ -10564,6 +10598,8 @@ fn update_alarm_banner(
     empty_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
     prefix: &str,
     allowed_sev: Option<&[String]>,
+    lingua: &str,
+    lang_table: &LanguageTable,
 ) {
     let top: Option<AlarmStateLite> = {
         let map = shared.lock().unwrap_or_else(|e| e.into_inner());
@@ -10588,7 +10624,7 @@ fn update_alarm_banner(
                 lvgl_sys::lv_obj_clear_flag(dot_ptr.as_ptr(), hidden);
                 lvgl_sys::lv_label_set_text(
                     msg_ptr.as_ptr(),
-                    text_cstring(&a.def.message).as_ptr(),
+                    text_cstring(&resolve_msg(&a.def.message, lingua, lang_table)).as_ptr(),
                 );
                 lvgl_sys::lv_obj_clear_flag(msg_ptr.as_ptr(), hidden);
                 lvgl_sys::lv_obj_add_flag(empty_ptr.as_ptr(), hidden);
