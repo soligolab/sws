@@ -13,6 +13,13 @@ descritto in `CLAUDE.md` (`./scripts/session_start.sh`, poi `docs/CONTEXT.md` �
 `STATUS.md` → `docs/OPEN_QUESTIONS.md`, poi tre righe di stato) e aspetta il via libera
 prima di scrivere codice. I passi seguenti assumono che sia già stato fatto.
 
+**Qualunque richiesta di sincronizzarsi con origin — «fai pull», «aggiorna», «fetch» — durante
+questo ciclo passa da `./scripts/session_start.sh`, mai da un `git pull`/`git fetch` a mano.**
+Non è equivalente: `git pull` su una storia divergente tenta un merge in silenzio, esattamente
+il guasto per cui questo script esiste (vedi l'intestazione dello script stesso, incidenti del
+2026-09-02). Rilanciarlo di nuovo a metà sessione è economico ed è la scelta sicura anche se il
+rituale di inizio è già stato fatto una volta.
+
 ## 1. Rami locali potenzialmente obsoleti
 
 > Dal 2026-09-14 vale **«Un ramo alla volta»** (`CLAUDE.md`): un ramo si elimina appena mergiato,
@@ -62,8 +69,8 @@ b. **Branch dedicato**: `git checkout main && git checkout -b feat/T-XX-slug` (o
 c. **Implementa** seguendo il piano confermato.
 
 d. **Testa** — definition of done da `CLAUDE.md`: `cargo check` verde **e**
-   `pnpm build` verde **e** conferma esplicita del maintainer che la funzionalità
-   funziona. Tutti e tre, non uno o due.
+   `pnpm build` verde **e** `./scripts/check_static.sh` verde **e** conferma esplicita del
+   maintainer che la funzionalità funziona. Tutti e quattro, non tre o due.
 
 e. **Commit, squash-merge, push**:
    - Commit sul branch di sviluppo con `-s`.
