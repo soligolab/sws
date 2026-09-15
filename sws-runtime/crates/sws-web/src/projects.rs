@@ -111,6 +111,7 @@ pub async fn start_project_services(
             s.db.clone(),
             s.bus.clone(),
             sinks.as_ref().map(|k| k.text.clone()),
+            s.functions.clone(),
         );
         info!(scripts = n, "global script supervisor started");
         *s.script_supervisor.write().await = Some(sc);

@@ -254,8 +254,12 @@ export function FunctionEditor({ fn, onPatch, onPersist, onClose }: FunctionEdit
           </button>
 
           <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "8px 0 0" }}>
-            Bindings: <code>tags.read(id)</code>, <code>tags.write(id, value)</code>, <code>print(...)</code>.
-            I parametri della funzione sono disponibili come variabili globali nel corpo Python.
+            Bindings: <code>tags.read(id)</code>, <code>tags.write(id, value)</code>, <code>print(...)</code>,{" "}
+            <code>send_telegram(testo)</code>, <code>now_ms()</code>/<code>uptime_ms()</code>/<code>delta_ms()</code>,{" "}
+            <code>state.get(k, default)</code>/<code>state.set(k, v)</code>.
+            I parametri della funzione sono disponibili come variabili globali nel corpo Python —
+            passati da un pulsante (<code>on_press_args</code>), da <code>POST /api/script/run/:name</code>,
+            o da uno script globale con <code>functions.run(nome, **kwargs)</code> (capitolo 15 di HOWTO.md).
           </p>
         </aside>
 

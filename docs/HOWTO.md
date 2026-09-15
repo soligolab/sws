@@ -32,6 +32,7 @@
 12. [Installare il runtime su un dispositivo dall'editor](#12-installare-il-runtime-su-un-dispositivo-dalleditor)
 13. [Dove sta la lista dei dispositivi registrati](#13-dove-sta-la-lista-dei-dispositivi-registrati)
 14. [Convertire un progetto da LVGL a Web (o viceversa)](#14-convertire-un-progetto-da-lvgl-a-web-o-viceversa)
+15. [Passare parametri a una funzione di progetto, e chiamarla da uno script globale](#15-passare-parametri-a-una-funzione-di-progetto-e-chiamarla-da-uno-script-globale)
 
 ---
 
@@ -1012,3 +1013,48 @@ la conversione conviene aprire ogni pagina e guardarla sul pannello, non solo ne
 compatibilità lo sostituirà con l'elenco vero degli oggetti che quel pannello non disegna.*
 
 *Traccia: **T-58 (il pulsante) e T-59 (il referto che sostituisce «apri ogni pagina e guardala sul pannello»)**.*
+
+## 15. Passare parametri a una funzione di progetto, e chiamarla da uno script globale
+
+Questo capitolo esiste perché il meccanismo **funziona già** ma non si trova: né qui né nell'IDE
+c'era scritto abbastanza da scoprirlo guardando solo il progetto (T-69).
+
+### Dichiarare i parametri
+
+Nella scheda **Funzioni**, ogni parametro dichiarato ha un nome e, opzionalmente, un valore di
+default. A esecuzione, ogni parametro diventa una **variabile globale dello script** con quel
+nome — non un dizionario, non `args['x']`:
+
+```python
+# Funzione "saluta", parametro dichiarato: chi (default: "operatore")
+tags.write('ultimo_saluto', f"Ciao, {chi}!")
+```
+
+### Passare i valori: tre punti d'ingresso, stesso meccanismo
+
+1. **Un pulsante nel sinottico**, campo `on_press_args` (o `on_release_args`) dell'oggetto:
+   ```yaml
+   on_press_fn: saluta
+   on_press_args: { chi: "Mario" }
+   ```
+2. **`POST /api/script/run/:name`**, corpo `{"args": {"chi": "Mario"}}` — la stessa rotta che
+   preme il pulsante «Esegui» nell'IDE.
+3. **Uno script globale**, con `functions.run(nome, **kwargs)` (T-69, fase C) — l'unico dei tre
+   che gira **in-process**, senza una chiamata HTTP:
+   ```python
+   functions.run('saluta', chi='Mario')
+   ```
+   Serve a dare a una funzione un trigger che oggi non ha (`FunctionDef` non porta un
+   `ScriptTrigger` proprio, di proposito: duplicherebbe la macchina di scheduling già negli
+   script globali) — uno script globale di una riga, sul trigger che serve, la richiama.
+
+In tutti e tre i casi, dentro allo script i parametri sono variabili come `chi` sopra: stesso
+nome dichiarato, valore passato o default se assente. Non esiste una quarta via che passi i
+parametri diversamente.
+
+### Cosa NON fare
+
+`functions.run` esiste solo per gli script globali — chiamarlo da **dentro un'altra funzione**
+solleva un errore esplicito («non disponibile in questo contesto»), non un `NameError` silenzioso
+né una ricorsione infinita: non è stato ancora deciso se e come una funzione debba poter
+richiamarne un'altra, e finché non lo è resta un errore chiaro invece di un comportamento a caso.

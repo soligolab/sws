@@ -13,7 +13,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
 
 use sws_core::{GlobalScriptDef, ScriptTrigger, TagDb, TagValue, TagWriteBus};
-use sws_pyscript::Engine as PyEngine;
+use sws_pyscript::{Engine as PyEngine, FunctionsRegistry};
 
 /// Cheap clone handle for the running script supervisor.
 #[derive(Clone)]
@@ -24,11 +24,15 @@ pub struct GlobalScriptSupervisor {
 impl GlobalScriptSupervisor {
     /// Spawn tasks for all enabled scripts in `scripts`. `telegram_tx`, when
     /// present, backs the `send_telegram(text)` binding inside each script.
+    /// `functions` (T-69 fase C) backs `functions.run(name, **kwargs)` — le
+    /// funzioni di progetto chiamabili in-process da uno script globale,
+    /// senza passare da `POST /api/script/run/:name`.
     pub fn start(
         scripts: Vec<GlobalScriptDef>,
         db: Arc<TagDb>,
         bus: Arc<TagWriteBus>,
         telegram_tx: Option<tokio::sync::mpsc::UnboundedSender<String>>,
+        functions: FunctionsRegistry,
     ) -> Self {
         let cancel = CancellationToken::new();
 
@@ -40,6 +44,7 @@ impl GlobalScriptSupervisor {
             let cancel_child = cancel.child_token();
             let py = PyEngine::new(db.clone(), bus.clone());
             py.set_telegram_sink(telegram_tx.clone());
+            py.set_functions_registry(Some(functions.clone()));
             let db_clone = db.clone();
 
             let id = script.id.clone();

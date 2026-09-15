@@ -6395,6 +6395,7 @@ async fn update_project_global_scripts(
                 s.db.clone(),
                 s.bus.clone(),
                 telegram_tx,
+                s.functions.clone(),
             );
             *s.script_supervisor.write().await = Some(sc);
         }

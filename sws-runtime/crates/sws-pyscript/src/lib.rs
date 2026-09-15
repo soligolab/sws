@@ -32,9 +32,18 @@ use std::{
     },
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
-use sws_core::{TagDb, TagQuality, TagValue, TagWriteBus};
+use sws_core::{FunctionDef, TagDb, TagQuality, TagValue, TagWriteBus};
 use tokio::runtime::Handle;
 use tokio::sync::mpsc;
+
+/// T-69 fase C: stesso tipo concreto di `FunctionsRegistry` in
+/// `sws-web/src/router.rs` (`Arc<tokio::sync::RwLock<HashMap<String,
+/// FunctionDef>>>`) — un alias qui, non un tipo nuovo, così `sws-web` passa
+/// `s.functions.clone()` senza conversioni. Non è una dipendenza all'indietro
+/// da `sws-web`: `FunctionDef` vive già in `sws-core`, di cui questo crate è
+/// già cliente per `TagDb`/`TagValue`.
+pub type FunctionsRegistry =
+    Arc<tokio::sync::RwLock<std::collections::HashMap<String, FunctionDef>>>;
 
 /// `TagValue` → oggetto Python. Una sola conversione per i quattro tipi: prima
 /// la stessa `match` viveva in due punti del file, e ogni cambio di API pyo3
@@ -153,6 +162,7 @@ try:
             'uptime_ms':   uptime_ms,
             'delta_ms':    delta_ms,
             'state':       state,
+            'functions':   functions,
         }
         try:
             __sws_compiled__ = compile_restricted(__sws_user_source__, '<inline>', 'exec')
@@ -167,6 +177,7 @@ try:
             'uptime_ms':     uptime_ms,
             'delta_ms':      delta_ms,
             'state':         state,
+            'functions':     functions,
         }
         try:
             __sws_compiled__ = compile(__sws_user_source__, '<inline>', 'exec')
@@ -271,6 +282,76 @@ impl StateApi {
         guard.insert(key.to_string(), v);
         Ok(())
     }
+}
+
+/// T-69 fase C: backs `functions.run(name, **kwargs)` — lets a global script
+/// invoke a project function **in-process**, instead of duplicating its logic
+/// or needing `POST /api/script/run/:name` from outside. `registry` is `None`
+/// on the shared engine behind `AppState.py` (press-handlers/HTTP): calling a
+/// function from another function isn't wired up (see the field doc on
+/// `Engine::functions`), and `.run()` raises a clear error there rather than
+/// silently doing nothing.
+#[pyclass]
+struct FunctionsApi {
+    registry: Option<FunctionsRegistry>,
+    engine: Engine,
+    handle: Handle,
+}
+
+#[pymethods]
+impl FunctionsApi {
+    #[pyo3(signature = (name, **kwargs))]
+    fn run(&self, py: Python<'_>, name: &str, kwargs: Option<&Bound<'_, PyDict>>) -> PyResult<()> {
+        let registry = self.registry.clone().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                "functions.run: non disponibile in questo contesto \
+                 (solo dagli script globali, non da un'altra funzione)",
+            )
+        })?;
+        let args = pydict_to_json_map(kwargs)?;
+
+        let name_owned = name.to_string();
+        let code = py.detach(|| {
+            self.handle.block_on(async move {
+                let map = registry.read().await;
+                map.get(&name_owned).map(|f| f.code.clone())
+            })
+        });
+        let code = code.ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                "functions.run: nessuna funzione '{name}'"
+            ))
+        })?;
+
+        // Identità "fn:<nome>", non quella dello script chiamante: la
+        // funzione tiene il proprio delta_ms()/state a prescindere da chi la
+        // invoca — lo stesso schema di POST /api/script/run/:name.
+        let identity = format!("fn:{name}");
+        let engine = self.engine.clone();
+        let result = py.detach(|| {
+            self.handle
+                .block_on(async move { engine.execute_with_args(code, args, &identity).await })
+        });
+        result
+            .map(|_| ())
+            .map_err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>)
+    }
+}
+
+/// `functions.run`'s `**kwargs` → `serde_json::Map`, l'inverso di
+/// `json_map_to_pydict`. Stesso contratto scalari-soli: i parametri di una
+/// funzione sono già validati come tali server-side.
+fn pydict_to_json_map(
+    dict: Option<&Bound<'_, PyDict>>,
+) -> PyResult<serde_json::Map<String, serde_json::Value>> {
+    let mut out = serde_json::Map::new();
+    if let Some(d) = dict {
+        for (k, v) in d.iter() {
+            let key: String = k.extract()?;
+            out.insert(key, py_to_json(&v)?);
+        }
+    }
+    Ok(out)
 }
 
 #[pymethods]
@@ -410,6 +491,14 @@ pub struct Engine {
     /// `Engine` each (`GlobalScriptSupervisor::start`), so the map holds a
     /// single entry there — same mechanism, no special-casing needed.
     states: Arc<Mutex<std::collections::HashMap<String, ScriptState>>>,
+    /// T-69 fase C: backs the `functions.run(name, **kwargs)` binding.
+    /// Interior-mutable like `telegram_tx` — `None` means "not wired up in
+    /// this context" (the shared engine behind `AppState.py`, used by
+    /// press-handlers/`POST /api/script/run`, never gets one: a function
+    /// calling another function isn't today's ask, and leaving it unset
+    /// avoids an unbounded-recursion question nobody has asked yet).
+    /// `GlobalScriptSupervisor::start` sets this on each script's own engine.
+    functions: Arc<Mutex<Option<FunctionsRegistry>>>,
 }
 
 /// Per-identity bookkeeping for the T-69 clock/state bindings.
@@ -466,6 +555,7 @@ impl Engine {
             timeout: Duration::from_millis(timeout_ms),
             telegram_tx: Arc::new(Mutex::new(None)),
             states: Arc::new(Mutex::new(std::collections::HashMap::new())),
+            functions: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -475,6 +565,16 @@ impl Engine {
     pub fn set_telegram_sink(&self, tx: Option<mpsc::UnboundedSender<String>>) {
         if let Ok(mut guard) = self.telegram_tx.lock() {
             *guard = tx;
+        }
+    }
+
+    /// Set (or clear) the registry backing `functions.run(name, **kwargs)`
+    /// (T-69 fase C). Interior-mutable for the same reason as
+    /// `set_telegram_sink` — `GlobalScriptSupervisor::start` calls this right
+    /// after building each script's own `Engine`.
+    pub fn set_functions_registry(&self, registry: Option<FunctionsRegistry>) {
+        if let Ok(mut guard) = self.functions.lock() {
+            *guard = registry;
         }
     }
 
@@ -512,6 +612,14 @@ impl Engine {
         let sandbox = self.is_sandboxed();
         let timeout = self.timeout;
         let telegram = self.telegram_tx.lock().ok().and_then(|g| g.clone());
+        let functions = self.functions.lock().ok().and_then(|g| g.clone());
+        // T-69 fase C: `functions.run(...)` richiama execute_with_args su
+        // QUESTO stesso Engine (clone, non un secondo motore) — la funzione
+        // chiamata eredita lo stesso sink Telegram e lo stesso registro
+        // funzioni del chiamante, con una propria voce in `states` (chiave
+        // "fn:<nome>", vedi FunctionsApi::run), non quella dello script che
+        // l'ha invocata.
+        let engine_for_functions = self.clone();
 
         // T-69: snapshot this invocation's clock values and hand out the
         // scratch map for `identity` *before* spawning — recording "now" here
@@ -543,8 +651,20 @@ impl Engine {
 
         let work = tokio::task::spawn_blocking(move || {
             run_in_python(
-                db, bus, handle, sandbox, code, args, timeout, telegram, now_ms, uptime_ms,
-                delta_ms, scratch,
+                db,
+                bus,
+                handle,
+                sandbox,
+                code,
+                args,
+                timeout,
+                telegram,
+                now_ms,
+                uptime_ms,
+                delta_ms,
+                scratch,
+                functions,
+                engine_for_functions,
             )
         });
 
@@ -710,6 +830,8 @@ fn run_in_python(
     uptime_ms: i64,
     delta_ms: i64,
     scratch: Arc<Mutex<std::collections::HashMap<String, serde_json::Value>>>,
+    functions_registry: Option<FunctionsRegistry>,
+    engine_for_functions: Engine,
 ) -> Result<ExecOutput, String> {
     // Arm the kill switch.  A timer thread flips `kill_flag` after `timeout`;
     // the Python trace function detects it and raises KeyboardInterrupt.
@@ -722,6 +844,7 @@ fn run_in_python(
     });
 
     Python::attach(|py| -> PyResult<ExecOutput> {
+        let handle_for_functions = handle.clone();
         let api = Py::new(py, TagApi { db, bus, handle })?;
         let notifier = Py::new(py, Notifier { tx: telegram_tx })?;
         let kill_switch = Py::new(py, KillSwitch { flag: kill_flag })?;
@@ -734,6 +857,14 @@ fn run_in_python(
         let uptime_ms_obj = Py::new(py, FrozenClock(uptime_ms))?;
         let delta_ms_obj = Py::new(py, FrozenClock(delta_ms))?;
         let state_obj = Py::new(py, StateApi { scratch })?;
+        let functions_obj = Py::new(
+            py,
+            FunctionsApi {
+                registry: functions_registry,
+                engine: engine_for_functions,
+                handle: handle_for_functions,
+            },
+        )?;
         let globals = PyDict::new(py);
         globals.set_item("tags", api)?;
         globals.set_item("send_telegram", notifier)?;
@@ -741,6 +872,7 @@ fn run_in_python(
         globals.set_item("uptime_ms", uptime_ms_obj)?;
         globals.set_item("delta_ms", delta_ms_obj)?;
         globals.set_item("state", state_obj)?;
+        globals.set_item("functions", functions_obj)?;
         globals.set_item("__sws_kill_switch__", kill_switch)?;
         globals.set_item("__sws_user_source__", user_source)?;
         globals.set_item("__sws_sandbox__", sandbox)?;
@@ -884,7 +1016,7 @@ if __sws_syntax__ is None and __sws_vietato__ is None and __sws_albero__ is not 
                          'locals', 'vars', 'dir', 'eval', 'exec', 'breakpoint',
                          'memoryview', 'help', 'exit', 'quit']
     __sws_forniti__ = ['tags', 'send_telegram', 'print',
-                       'now_ms', 'uptime_ms', 'delta_ms', 'state']
+                       'now_ms', 'uptime_ms', 'delta_ms', 'state', 'functions']
     for _n in ast.walk(__sws_albero__):
         if isinstance(_n, (ast.Import, ast.ImportFrom)):
             _quali = ', '.join(a.name for a in _n.names) if _n.names else '?'
@@ -1341,6 +1473,64 @@ tags.write('delta', delta_ms())
         assert!(
             !err.contains("NameError"),
             "send_telegram non raggiunge il codice dello script: {err}"
+        );
+    }
+
+    /// T-69 fase C: senza registro configurato (`Engine::new` di base, come
+    /// l'`Engine` condiviso di `AppState.py`), `functions.run` fallisce con
+    /// un errore esplicito — non un `NameError`, il binding è raggiungibile.
+    #[tokio::test]
+    async fn functions_run_senza_registro_da_un_errore_chiaro() {
+        let db = Arc::new(TagDb::new(16));
+        let bus = Arc::new(TagWriteBus::new());
+        let e = Engine::new(db, bus);
+
+        let err = e
+            .execute("functions.run('qualunque')".into(), "test")
+            .await
+            .expect_err("senza registro deve fallire, ma non di NameError");
+        assert!(
+            err.contains("non disponibile in questo contesto"),
+            "errore inatteso: {err}"
+        );
+        assert!(!err.contains("NameError"), "{err}");
+    }
+
+    /// T-69 fase C: con un registro configurato (come fa
+    /// `GlobalScriptSupervisor::start` su ogni script), uno script globale
+    /// può richiamare una funzione di progetto in-process, passandole
+    /// argomenti per nome — e la funzione chiamata ha una propria identità
+    /// (`fn:<nome>`), non quella dello script chiamante.
+    #[tokio::test]
+    async fn functions_run_esegue_la_funzione_con_gli_argomenti() {
+        let db = Arc::new(TagDb::new(16));
+        let bus = Arc::new(TagWriteBus::new());
+        let e = Engine::new(db.clone(), bus);
+
+        let registry: FunctionsRegistry =
+            Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::from([
+                (
+                    "saluta".to_string(),
+                    sws_core::FunctionDef {
+                        id: "f1".into(),
+                        name: "saluta".into(),
+                        description: None,
+                        code: "tags.write('chi', chi)\n".into(),
+                        params: vec![],
+                    },
+                ),
+            ])));
+        e.set_functions_registry(Some(registry));
+
+        e.execute("functions.run('saluta', chi='mondo')".into(), "script-a")
+            .await
+            .expect("functions.run fallita");
+
+        let dopo = db.snapshot().await;
+        assert_eq!(
+            dopo.get("chi").map(|s| s.value.clone()),
+            Some(TagValue::Str("mondo".into())),
+            "gli argomenti nominali arrivano alla funzione chiamata"
         );
     }
 }
