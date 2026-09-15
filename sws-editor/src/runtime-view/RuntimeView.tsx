@@ -11,7 +11,8 @@ import { RecipePanel } from "@/components/RecipePanel";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UiLangSelect } from "@/components/UiLangSelect";
 import { useAppStore } from "@/store";
-import { localizeObjects, localizePageName, effectiveProjectLang } from "@/i18n/projectI18n";
+import { localizePageName, effectiveProjectLang } from "@/i18n/projectI18n";
+import { LinguaContenutiProvider } from "@/i18n/linguaContenuti";
 import { useTagStream, tryTagWriteWs, sendSubscribe } from "@/ws/tagStream";
 import type { ButtonAction, FunctionDef } from "@/types";
 
@@ -210,12 +211,16 @@ export function RuntimeView() {
 
   const closeToast = (id: string) => setToasts((ts) => ts.filter((t) => t.id !== id));
 
-  // Localizza i messaggi {{token}} nella lingua contenuti corrente (T-40).
+  // La lingua dei contenuti (T-40). Non si localizza più qui: si dichiara, e
+  // ogni `SvgObject` del sottoalbero la prende dal contesto — compresi i figli
+  // di griglie e faceplate, che questa localizzazione di primo livello non ha
+  // mai raggiunto (vedi `@/i18n/linguaContenuti`).
   const effLang = effectiveProjectLang(languageTable) || projectLang;
-  const objects = useMemo(
-    () => localizeObjects(currentPage?.objects ?? [], effLang, languageTable),
-    [currentPage?.objects, effLang, languageTable],
+  const lingua = useMemo(
+    () => ({ lang: effLang, table: languageTable }),
+    [effLang, languageTable],
   );
+  const objects = currentPage?.objects ?? [];
 
   const handleWriteTag = (tagId: string, value: string | number | boolean) => {
     // Prefer the bidirectional WS path (zero HTTP round-trip + token reuse).
@@ -335,6 +340,7 @@ export function RuntimeView() {
   };
 
   return (
+    <LinguaContenutiProvider value={lingua}>
     <div
       style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}
       onTouchStart={handleTouchStart}
@@ -490,6 +496,7 @@ export function RuntimeView() {
         </div>
       )}
     </div>
+    </LinguaContenutiProvider>
   );
 }
 

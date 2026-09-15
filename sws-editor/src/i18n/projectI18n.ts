@@ -108,10 +108,10 @@ export function localizePageName(name: string, lang: string, table?: LanguageTab
   return resolveMsg(name, lang, table);
 }
 
-/** Localizza una lista di oggetti (identità quando non serve). */
-export function localizeObjects(objs: SynopticObject[], lang: string, table?: LanguageTable | null): SynopticObject[] {
-  if (!table || !lang) return objs;
-  let changed = false;
-  const mapped = objs.map((o) => { const r = localizeObject(o, lang, table); if (r !== o) changed = true; return r; });
-  return changed ? mapped : objs;
-}
+// `localizeObjects` viveva qui: localizzava l'array di primo livello di una
+// pagina, e i chiamanti passavano oggetti già risolti. È stata tolta il
+// 15-09-2026 perché **saltava i figli** di `grid` e `faceplate`, che nascono
+// dentro `SvgObject` e non da quell'array. La localizzazione ora sta
+// nell'imbuto (`SvgObject`, via `@/i18n/linguaContenuti`), dove passano tutti
+// gli oggetti; tenerla anche qui vorrebbe dire due strade per la stessa cosa,
+// di cui una sbagliata. `scripts/check_i18n_parita.sh` vieta che ritorni.

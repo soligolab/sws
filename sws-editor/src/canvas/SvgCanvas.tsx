@@ -15,7 +15,8 @@ import { DataTable, type DataTableColumn } from "@/components/DataTable";
 import { SEV_COLOR } from "@/alarmSeverity";
 import { genId } from "@/id";
 import { useAppStore } from "@/store";
-import { effectiveProjectLang, resolveMsg } from "@/i18n/projectI18n";
+import { effectiveProjectLang, localizeObject, resolveMsg } from "@/i18n/projectI18n";
+import { useLinguaContenuti } from "@/i18n/linguaContenuti";
 import { evalExpr } from "@/expr/engine";
 import { applyStateColor, parseSvg, sanitizeSvg } from "@/symbols/customSvg";
 import { trendTraces } from "@/canvas/trendModel";
@@ -3171,10 +3172,21 @@ export function SvgObject(p: ObjProps) {
   // F1.2: default ereditati dal TagDef (unità/range/limiti), poi binding.
   const projectTags = useAppStore((s) => s.project?.tags);
   const resolved = resolveObject(p.obj, tagValues);
-  const obj = applyTagDefaults(
+  // La localizzazione dei token `{{chiave}}` sta QUI, nell'imbuto da cui
+  // passano *tutti* gli oggetti — compresi i figli di una `grid` e quelli di un
+  // `faceplate`, che nascono dentro questo componente e che fino al 15-09-2026
+  // restavano grezzi sul web mentre il pannello LVGL li traduceva. Vedi
+  // `@/i18n/linguaContenuti`.
+  //
+  // E sta **dopo** `applyTagDefaults`, non prima: l'unità ereditata dal `TagDef`
+  // viene innestata qui, quindi localizzare per prima cosa non l'avrebbe mai
+  // vista. Era il secondo modo in cui un token poteva non risolversi.
+  const conDefault = applyTagDefaults(
     resolved,
     resolved.tag && projectTags ? projectTags.find((td) => td.id === resolved.tag) : undefined,
   );
+  const lingua = useLinguaContenuti();
+  const obj = localizeObject(conDefault, lingua.lang, lingua.table);
   // Drag-to-zoom range for the "trend" object type (T-48). Declared
   // unconditionally (rules of hooks) even though only the trend branch uses
   // it — this component instance is keyed by obj.id, so the state persists

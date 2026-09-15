@@ -103,6 +103,45 @@ else
     done
 fi
 
+# ── chi dichiara la lingua, e chi la consuma ────────────────────────────────
+#
+# L'11-09-2026 un contesto React (`GruppoAttivo`) è stato dichiarato, consumato
+# in due punti, e **mai montato da nessuno**: la barra compariva e il menù non
+# si aggiornava. Un contesto senza Provider non è un errore di compilazione, e
+# nemmeno un test sul componente figlio lo vede — il default lo copre.
+#
+# Qui il default del contesto della lingua è inerte di proposito (senza
+# Provider non si traduce), quindi un Provider dimenticato si manifesterebbe
+# esattamente come il difetto che questa fase ha appena corretto: token grezzi
+# sotto gli occhi dell'operatore.
+CANVAS="sws-editor/src/canvas/SvgCanvas.tsx"
+CONSUMATORI=(
+    "sws-editor/src/runtime-view/RuntimeView.tsx"
+    "sws-editor/src/editor/EditorShell.tsx"
+)
+echo "=== 4. il contesto della lingua è montato davvero ==="
+if grep -q "useLinguaContenuti" "$CANVAS"; then
+    ok "\`SvgObject\` consuma il contesto"
+else
+    ko "\`SvgObject\` non consuma il contesto: nessun oggetto si tradurrebbe"
+fi
+for f in "${CONSUMATORI[@]}"; do
+    if grep -q "LinguaContenutiProvider" "$f"; then
+        ok "$(basename "$f") monta il Provider"
+    else
+        ko "$(basename "$f") disegna oggetti ma non monta il Provider: token grezzi"
+    fi
+done
+# La vecchia via: localizzare l'array di primo livello e passare oggetti già
+# risolti. Funzionava per gli oggetti in cima e per nessun figlio. Se
+# ricompare, sono di nuovo due strade per la stessa cosa.
+if grep -rn "localizeObjects(" sws-editor/src >/dev/null 2>&1; then
+    ko "\`localizeObjects(\` è tornato in sws-editor/src: la localizzazione di primo livello salta i figli di griglie e faceplate"
+    grep -rn "localizeObjects(" sws-editor/src | sed 's/^/      /'
+else
+    ok "nessuna localizzazione di primo livello superstite"
+fi
+
 echo
 if [ "$ESITO" = 0 ]; then
     echo -e "\033[32mi18n di progetto: i due motori traducono gli stessi campi.\033[0m"
