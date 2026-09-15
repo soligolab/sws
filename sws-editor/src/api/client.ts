@@ -459,6 +459,18 @@ const PARLA_CON_UN_ALTRO_RUNTIME = (path: string) => path.startsWith("/api/remot
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   if (TOKEN) headers.set("Authorization", `Bearer ${TOKEN}`);
+  // Un corpo senza tipo dichiarato: axum risponde **415** e la chiamata
+  // fallisce per un motivo che non c'entra niente con ciò che si stava
+  // facendo. È successo il 15-09-2026 alla prima prova della traduzione
+  // automatica, e ogni chiamata nuova con un corpo è una nuova occasione di
+  // rifarlo: il default sta qui, dove si scrive una volta sola.
+  //
+  // `application/json` e non altro perché è ciò che manda tutto questo client
+  // tranne l'importazione CSV, che dichiara il proprio `text/plain` — e questo
+  // default non lo tocca, perché scrive solo quando l'intestazione manca.
+  if (init?.body !== undefined && init?.body !== null && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
   let res: Response;
   try {
     res = await fetch(`${getBaseUrl()}${path}`, { ...init, headers });
@@ -629,7 +641,11 @@ export const api = {
     sovrascrivi?: boolean;
     config?: { fornitore: string; url?: string; chiave?: string };
   }): Promise<{ tradotte: number; saltate: number; problemi: string[] }> =>
-    request("/api/project/languages/translate", { method: "POST", body: JSON.stringify(body) }),
+    request("/api/project/languages/translate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
 
   updateSources: (sources: SourceDef[]) =>
     request<void>("/api/project/sources", {
