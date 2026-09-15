@@ -74,6 +74,43 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — template di collaudo T-69 pronto, terzo difetto trovato e corretto (2026-09-15)
+
+Template diagnostico `examples/templates/t69-collaudo/` (`4136973`), due pagine per esercitare
+a mano tutte e cinque le fasi di T-69: generatore nativo (rampa/triangolo/quadra) con le
+istruzioni per verificare il rifiuto in scrittura via curl, rampa manuale con
+`delta_ms()+state` affiancata al generatore nativo, `interval_ms` che vince su `interval_s`,
+`now_ms()`/`uptime_ms()`, `functions.run` + pulsante + `POST /api/script/run/:name` sullo
+stesso contatore, il divieto di `functions.run` da dentro una funzione, la sonda
+`send_telegram`.
+
+Costruendolo sono emersi altri due difetti (il terzo e il quarto della giornata, dopo
+`write_tag` in Fase D e l'identità `fn:<nome>` di ieri):
+
+3. **`ScriptTrigger::Interval.interval_s` non aveva un default**: uno script che voleva SOLO
+   `interval_ms` era comunque costretto a scrivere anche `interval_s` — l'opposto di
+   "additivo". Default a 1: il progetto non caricava affatto senza questo.
+4. **Più a fondo — `functions.run` eseguiva sul motore SBAGLIATO**: ogni script globale ha un
+   Engine Python privato (`GlobalScriptSupervisor::start`), e `functions.run` eseguiva la
+   funzione chiamata su QUEL motore, non su quello canonico (`AppState.py`, usato da un
+   pulsante/HTTP). Lo stato non era mai davvero condiviso fra le due vie nonostante il
+   commento del codice lo promettesse fin dalla Fase C, e il divieto "functions.run da dentro
+   una funzione" non scattava se il chiamante aveva un registro configurato (la funzione lo
+   ereditava per clonazione). Scoperto dal vivo: un pulsante e uno script che incrementavano
+   lo stesso contatore non tornavano mai lo stesso numero. Corretto con un nuovo campo
+   `Engine::functions_engine` che instrada sempre `functions.run` verso il motore canonico;
+   due nuovi test che replicano la topologia reale (due Engine distinti, non uno).
+
+Verificato dal vivo sul template stesso, su un runtime di scarto: pulsante+script sullo
+stesso contatore (2+10=12, esatto), divieto di ricorsione col messaggio giusto, rifiuto in
+scrittura sul generatore, cadenza `interval_ms` confermata a ~100ms nonostante `interval_s:10`
+presente nello stesso trigger. Gate verde: cargo check/test(39 sws-core, 16 sws-pyscript)/
+clippy/fmt --workspace, pnpm build/test, 17/17 guardie statiche incluso `check_templates.sh`
+e `check_synoptic_schema` (rigenerato).
+
+**T-69 resta chiuso** (tutte e cinque le fasi su `main`) — questi sono difetti trovati e
+corretti DOPO la chiusura, mentre si costruiva lo strumento per collaudarlo in ufficio.
+
 ## ▶ Riprendere da qui — bug post-chiusura in `functions.run` corretto, template di collaudo in corso (2026-09-15)
 
 Costruendo il template dedicato a collaudare T-69 in ufficio, trovato un secondo difetto

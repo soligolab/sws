@@ -37,6 +37,13 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   scritto a mano che serviva prima (vedi `demo-sim` in `examples/templates/demo-items-web`).
   Editor: terzo toggle "∿" nella riga tag. Chiude T-69: tutte e cinque le fasi fatte.
 
+- **Template diagnostico `examples/templates/t69-collaudo/`**: due pagine per esercitare a
+  mano tutte e cinque le fasi di T-69 — generatore nativo con le istruzioni per il rifiuto in
+  scrittura via curl, rampa manuale (`delta_ms()+state`) affiancata al generatore, `interval_ms`
+  che vince su `interval_s`, `now_ms()`/`uptime_ms()`, `functions.run` + pulsante +
+  `POST /api/script/run/:name` sullo stesso contatore, il divieto di chiamata ricorsiva, la
+  sonda `send_telegram`. Costruirlo ha trovato altri due difetti (vedi sotto).
+
 ### Fixed
 - **`send_telegram(...)` sollevava sempre `NameError`**: era registrato nei globals esterni di
   `run_in_python` (`sws-pyscript`) ma mai copiato dentro `__sws_globals__`, il dizionario contro
@@ -56,6 +63,19 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   diversa dal nome nudo passato dal percorso HTTP/pulsante — una funzione richiamata da
   entrambi finiva su due `state`/`delta_ms()` indipendenti. Trovato costruendo il template di
   collaudo di T-69; tolto il prefisso `fn:`, identità ora identica in entrambi i percorsi.
+- **`ScriptTrigger::Interval.interval_s` non aveva un default**: uno script che voleva SOLO
+  `interval_ms` (T-69, fase B) era comunque costretto a scrivere anche `interval_s`, un valore
+  che poi non conta perché `interval_ms` vince — l'opposto di "additivo". Trovato costruendo il
+  template di collaudo di T-69 (il progetto non caricava); default a 1.
+- **`functions.run` eseguiva la funzione chiamata sul motore Python PRIVATO dello script
+  chiamante, non su quello CANONICO (`AppState.py`, usato da un pulsante/HTTP)** — più a fondo
+  del difetto sull'identità sopra: anche con la stessa identità, due `Engine` diversi hanno due
+  mappe `states` diverse, quindi lo stato non era MAI davvero condiviso, e il divieto
+  "`functions.run` da dentro una funzione" non scattava se il chiamante aveva un registro
+  configurato (la funzione lo ereditava per clonazione). Trovato collaudando dal vivo il
+  template di T-69: un pulsante e uno script non tornavano mai lo stesso contatore. Nuovo
+  campo `Engine::functions_engine` che instrada sempre `functions.run` verso il motore
+  canonico; `GlobalScriptSupervisor::start` lo imposta su `AppState.py` per ogni script.
 
 ### Removed
 - **Il percorso di build aarch64 via QEMU e il flag `--sdk` (fase due di Q53)**: restavano «finché
