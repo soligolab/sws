@@ -1,0 +1,313 @@
+id: t69_script
+name: Script e funzioni (Fasi A-B-C-E)
+width: 1280.0
+height: 800.0
+background: '#0f172a'
+objects:
+- id: hdr_bg
+  type: rect
+  x: 0.0
+  y: 0.0
+  width: 1280.0
+  height: 56.0
+  fill: '#1e293b'
+- id: hdr_title
+  type: text
+  x: 20.0
+  y: 18.0
+  width: 700.0
+  height: 24.0
+  text: "T-69 — Fasi A/B/C/E: orologio, stato, interval_ms, functions.run"
+  font_size: 18.0
+  font_weight: bold
+  color: '#e2e8f0'
+- id: nav1
+  type: navbutton
+  x: 900.0
+  y: 12.0
+  width: 170.0
+  height: 32.0
+  label: 1. Generatore
+  target_page: t69_gen
+  fill: '#334155'
+  group_id: nav
+  locked: true
+- id: nav2
+  type: navbutton
+  x: 1080.0
+  y: 12.0
+  width: 180.0
+  height: 32.0
+  label: 2. Script/funzioni
+  target_page: t69_script
+  fill: '#2563eb'
+  group_id: nav
+  locked: true
+
+# ── Colonna sinistra: Fase A, rampa manuale vs generatore nativo ──
+- id: c_a_hdr
+  type: text
+  x: 40.0
+  y: 72.0
+  width: 600.0
+  height: 20.0
+  text: "Fase A — rampa scritta a mano (delta_ms()+state) contro il generatore nativo, stesso periodo 6 s:"
+  font_size: 13.0
+  font_weight: bold
+  color: '#e2e8f0'
+- id: trend_compare
+  type: trend
+  x: 40.0
+  y: 100.0
+  width: 600.0
+  height: 260.0
+  window_s: 20.0
+  trend_tags:
+  - tag: t69.manual_ramp
+    label: "Manuale (delta_ms+state)"
+    color: '#22c55e'
+  - tag: t69.gen_triangle
+    label: "Nativo (generator)"
+    color: '#f59e0b'
+- id: c_a_manual
+  type: text
+  x: 40.0
+  y: 372.0
+  width: 290.0
+  height: 24.0
+  tag: t69.manual_ramp
+  format: "Manuale: {value:.1f}"
+  font_size: 15.0
+  color: '#22c55e'
+- id: c_a_native
+  type: text
+  x: 340.0
+  y: 372.0
+  width: 290.0
+  height: 24.0
+  tag: t69.gen_triangle
+  format: "Nativo: {value:.1f}"
+  font_size: 15.0
+  color: '#f59e0b'
+- id: c_a_note
+  type: text
+  x: 40.0
+  y: 404.0
+  width: 600.0
+  height: 40.0
+  text: "Stessa forma e stesso periodo, fasi diverse (una parte dall'epoch, l'altra dall'avvio dello script): delta_ms()+state (Fase A) bastano a costruire qualunque forma d'onda — il generatore nativo (Fase D) è solo la stessa cosa senza scriverla a mano."
+  font_size: 11.0
+  color: '#64748b'
+- id: c_e_hdr
+  type: text
+  x: 40.0
+  y: 470.0
+  width: 600.0
+  height: 20.0
+  text: "Fase A — l'orologio: now_ms() e uptime_ms()"
+  font_size: 13.0
+  font_weight: bold
+  color: '#e2e8f0'
+- id: c_e_now
+  type: text
+  x: 40.0
+  y: 496.0
+  width: 290.0
+  height: 22.0
+  tag: t69.now_ms
+  format: "now_ms(): {value:.0f}"
+  font_size: 13.0
+  color: '#38bdf8'
+- id: c_e_uptime
+  type: text
+  x: 340.0
+  y: 496.0
+  width: 290.0
+  height: 22.0
+  tag: t69.uptime_ms
+  format: "uptime_ms(): {value:.0f}"
+  font_size: 13.0
+  color: '#38bdf8'
+- id: c_e_note
+  type: text
+  x: 40.0
+  y: 524.0
+  width: 600.0
+  height: 36.0
+  text: "Aggiornati ogni secondo da t69_clock_probe, un trigger interval \"vecchio stile\" (solo interval_s) — l'orologio non dipende dalla Fase B. uptime_ms() riparte da 0 solo se lo script viene disabilitato e riabilitato."
+  font_size: 11.0
+  color: '#64748b'
+
+# ── Colonna destra, sezione 1: Fase B, interval_ms ──
+- id: c_b_hdr
+  type: text
+  x: 680.0
+  y: 72.0
+  width: 560.0
+  height: 20.0
+  text: "Fase B — interval_ms: un tick ogni ~100 ms"
+  font_size: 13.0
+  font_weight: bold
+  color: '#e2e8f0'
+- id: c_b_value
+  type: text
+  x: 680.0
+  y: 98.0
+  width: 300.0
+  height: 46.0
+  tag: t69.fast_ticks
+  format: "{value:.0f}"
+  font_size: 36.0
+  font_weight: bold
+  color: '#0ea5e9'
+- id: c_b_note
+  type: text
+  x: 680.0
+  y: 150.0
+  width: 560.0
+  height: 18.0
+  text: "Il trigger ha ANCHE interval_s: 10 — ignorato: interval_ms vince quando presente."
+  font_size: 11.0
+  color: '#64748b'
+
+# ── Colonna destra, sezione 2: Fase C/E, functions.run + pulsante ──
+- id: c_c_hdr
+  type: text
+  x: 680.0
+  y: 196.0
+  width: 560.0
+  height: 20.0
+  text: "Fase C/E — functions.run + pulsante, stesso contatore"
+  font_size: 13.0
+  font_weight: bold
+  color: '#e2e8f0'
+- id: c_c_note
+  type: text
+  x: 680.0
+  y: 220.0
+  width: 560.0
+  height: 36.0
+  text: "t69_bump(step) è chiamata dal pulsante (step=10), ogni 5 s da t69_auto_caller via functions.run (step=1), e da un terzo modo in fondo alla pagina — stessa identità, un solo contatore."
+  font_size: 11.0
+  color: '#64748b'
+- id: c_c_value
+  type: text
+  x: 680.0
+  y: 266.0
+  width: 300.0
+  height: 36.0
+  tag: t69.fn_counter
+  format: "{value:.0f}"
+  font_size: 28.0
+  font_weight: bold
+  color: '#a855f7'
+- id: btn_bump
+  type: button
+  x: 680.0
+  y: 312.0
+  width: 220.0
+  height: 44.0
+  fill: '#7c3aed'
+  label: "+10 (pulsante)"
+  on_press_fn: t69_bump
+  on_press_args:
+    step: 10
+
+# ── Colonna destra, sezione 3: Fase A, sonda send_telegram ──
+- id: c_d_hdr
+  type: text
+  x: 680.0
+  y: 400.0
+  width: 560.0
+  height: 20.0
+  text: "Fase A — sonda send_telegram (fix del bug NameError)"
+  font_size: 13.0
+  font_weight: bold
+  color: '#e2e8f0'
+- id: c_d_note
+  type: text
+  x: 680.0
+  y: 424.0
+  width: 560.0
+  height: 36.0
+  text: "Atteso: \"inviato\" (accodato anche senza bot configurato). Se dicesse \"BUG: NameError\" sarebbe tornato il difetto pre-Fase-A."
+  font_size: 11.0
+  color: '#64748b'
+- id: c_d_value
+  type: text
+  x: 680.0
+  y: 464.0
+  width: 560.0
+  height: 24.0
+  tag: t69.telegram_probe
+  font_size: 14.0
+  color: '#e2e8f0'
+
+# ── Colonna destra, sezione 4: Fase C, la chiamata vietata ──
+- id: c_f_hdr
+  type: text
+  x: 680.0
+  y: 520.0
+  width: 560.0
+  height: 20.0
+  text: "Fase C — functions.run da DENTRO una funzione dev'essere vietato"
+  font_size: 13.0
+  font_weight: bold
+  color: '#e2e8f0'
+- id: c_f_note
+  type: text
+  x: 680.0
+  y: 544.0
+  width: 560.0
+  height: 22.0
+  text: "Deve fallire con un errore chiaro — mai NameError, mai una ricorsione."
+  font_size: 11.0
+  color: '#64748b'
+- id: btn_recursive
+  type: button
+  x: 680.0
+  y: 570.0
+  width: 280.0
+  height: 40.0
+  fill: '#b91c1c'
+  label: "Test: chiamata vietata"
+  on_press_fn: t69_recursive_test
+- id: c_f_value
+  type: text
+  x: 680.0
+  y: 618.0
+  width: 560.0
+  height: 24.0
+  tag: t69.recursive_probe
+  font_size: 13.0
+  color: '#e2e8f0'
+
+# ── Riga in fondo, larghezza intera: terzo modo di passare parametri ──
+- id: c_g_hdr
+  type: text
+  x: 40.0
+  y: 660.0
+  width: 1200.0
+  height: 20.0
+  text: "Terzo modo di chiamare t69_bump: POST /api/script/run/:name (lo stesso di un pulsante) — prova dal terminale:"
+  font_size: 13.0
+  font_weight: bold
+  color: '#e2e8f0'
+- id: c_g_cmd
+  type: text
+  x: 40.0
+  y: 686.0
+  width: 1200.0
+  height: 18.0
+  text: "curl -k -X POST https://localhost:8444/api/script/run/t69_bump -H \"Content-Type: application/json\" -d \"{\\\"args\\\":{\\\"step\\\":5}}\""
+  font_size: 12.0
+  color: '#94a3b8'
+- id: c_g_note
+  type: text
+  x: 40.0
+  y: 710.0
+  width: 1200.0
+  height: 18.0
+  text: "Il contatore della Fase C/E qui sopra deve salire di 5 subito dopo — stessa identità del pulsante e di functions.run (era il bug appena corretto)."
+  font_size: 11.0
+  color: '#64748b'

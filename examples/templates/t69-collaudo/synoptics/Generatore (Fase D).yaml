@@ -1,0 +1,159 @@
+id: t69_gen
+name: Generatore (Fase D)
+width: 1280.0
+height: 800.0
+background: '#0f172a'
+objects:
+- id: hdr_bg
+  type: rect
+  x: 0.0
+  y: 0.0
+  width: 1280.0
+  height: 56.0
+  fill: '#1e293b'
+- id: hdr_title
+  type: text
+  x: 20.0
+  y: 18.0
+  width: 700.0
+  height: 24.0
+  text: "T-69 — Fase D: generatore nativo (rampa/triangolo/quadra)"
+  font_size: 18.0
+  font_weight: bold
+  color: '#e2e8f0'
+- id: nav1
+  type: navbutton
+  x: 900.0
+  y: 12.0
+  width: 170.0
+  height: 32.0
+  label: 1. Generatore
+  target_page: t69_gen
+  fill: '#2563eb'
+  group_id: nav
+  locked: true
+- id: nav2
+  type: navbutton
+  x: 1080.0
+  y: 12.0
+  width: 180.0
+  height: 32.0
+  label: 2. Script/funzioni
+  target_page: t69_script
+  fill: '#334155'
+  group_id: nav
+  locked: true
+- id: c_intro
+  type: text
+  x: 30.0
+  y: 74.0
+  width: 1000.0
+  height: 20.0
+  text: "Tre tag con `generator`: valore funzione pura del tempo, ricalcolato ogni 100 ms da un supervisor dedicato."
+  font_size: 13.0
+  color: '#94a3b8'
+- id: g_ramp
+  type: gauge
+  x: 40.0
+  y: 104.0
+  width: 280.0
+  height: 210.0
+  tag: t69.gen_ramp
+  min: 0.0
+  max: 100.0
+  label: Ramp (4 s)
+  unit: ''
+- id: g_triangle
+  type: gauge
+  x: 340.0
+  y: 104.0
+  width: 280.0
+  height: 210.0
+  tag: t69.gen_triangle
+  min: 0.0
+  max: 100.0
+  label: Triangle (6 s)
+  unit: ''
+- id: g_square
+  type: gauge
+  x: 640.0
+  y: 104.0
+  width: 280.0
+  height: 210.0
+  tag: t69.gen_square
+  min: 0.0
+  max: 1.0
+  label: Square (2 s)
+  unit: ''
+- id: c_trend
+  type: text
+  x: 40.0
+  y: 330.0
+  width: 400.0
+  height: 18.0
+  text: "Le tre forme d'onda insieme (finestra 15 s):"
+  font_size: 12.0
+  color: '#64748b'
+- id: trend_gen
+  type: trend
+  x: 40.0
+  y: 352.0
+  width: 1200.0
+  height: 260.0
+  window_s: 15.0
+  trend_tags:
+  - tag: t69.gen_ramp
+    label: Ramp
+    color: '#0ea5e9'
+  - tag: t69.gen_triangle
+    label: Triangle
+    color: '#f59e0b'
+  - tag: t69.gen_square
+    label: Square
+    color: '#a855f7'
+- id: c_test_hdr
+  type: text
+  x: 40.0
+  y: 632.0
+  width: 700.0
+  height: 20.0
+  text: "Prova dal vivo il rifiuto in scrittura di un tag calcolato:"
+  font_size: 14.0
+  font_weight: bold
+  color: '#e2e8f0'
+- id: c_test_1
+  type: text
+  x: 40.0
+  y: 660.0
+  width: 1200.0
+  height: 18.0
+  text: "1. Da un terminale, con il runtime in ascolto su questa macchina: curl -k -X PUT https://localhost:8444/api/tags/t69.gen_ramp -d \"{\\\"value\\\":42}\" -H \"Content-Type: application/json\""
+  font_size: 12.0
+  color: '#94a3b8'
+- id: c_test_2
+  type: text
+  x: 40.0
+  y: 684.0
+  width: 1200.0
+  height: 18.0
+  text: "   Atteso: HTTP 400, corpo con \"è calcolato (espressione o generatore): non è scrivibile\" — il gauge continua a muoversi da solo."
+  font_size: 12.0
+  color: '#94a3b8'
+- id: c_test_3
+  type: text
+  x: 40.0
+  y: 708.0
+  width: 1200.0
+  height: 18.0
+  text: "2. In Configurazione → Variabili, spegni il toggle ∿ di t69.gen_ramp (Attivo: no) e salva. Ripeti la stessa PUT: ora accetta (204) e il gauge si ferma sul valore scritto."
+  font_size: 12.0
+  color: '#94a3b8'
+- id: c_test_4
+  type: text
+  x: 40.0
+  y: 732.0
+  width: 1000.0
+  height: 18.0
+  text: "3. Riaccendi il toggle per lasciare il progetto come l'hai trovato. Dettagli: docs/HOWTO.md, capitolo 16."
+  font_size: 12.0
+  color: '#64748b'

@@ -972,13 +972,22 @@ pub enum ScriptTrigger {
     /// script/template esistenti restano validi senza modifiche. Serve per
     /// una cadenza più fine di 1 s (una rampa/onda che deve muoversi a
     /// decimi di secondo), che `interval_s` non può esprimere.
+    ///
+    /// `interval_s` ha un default (1) da quando esiste `interval_ms`: senza,
+    /// uno script che vuole SOLO la cadenza fine era comunque costretto a
+    /// scrivere anche `interval_s`, un valore che poi non conta perché
+    /// `interval_ms` vince — l'opposto di "additivo". Trovato costruendo il
+    /// template di collaudo di T-69 (`examples/templates/t69-collaudo`), che
+    /// non caricava per questo.
     Interval {
+        #[serde(default = "default_interval_s")]
         interval_s: u64,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         interval_ms: Option<u64>,
     },
     /// Run on a cron schedule (5-field: min hour day month weekday).
     Cron { schedule: String },
+    /// Run when `tag` changes. `edge`: "rising", "falling", or "any" (default).
     /// Run when `tag` changes. `edge`: "rising", "falling", or "any" (default).
     TagChange {
         tag: String,
@@ -989,6 +998,33 @@ pub enum ScriptTrigger {
 
 fn default_edge() -> String {
     "any".into()
+}
+
+fn default_interval_s() -> u64 {
+    1
+}
+
+#[cfg(test)]
+mod script_trigger_tests {
+    use super::ScriptTrigger;
+
+    /// `interval_ms` da solo, senza `interval_s`, deve deserializzare — non
+    /// costringere a scrivere un campo che poi non conta perché `interval_ms`
+    /// vince. Prima del default questo YAML dava "missing field interval_s",
+    /// che è esattamente l'errore trovato costruendo il template di collaudo
+    /// di T-69.
+    #[test]
+    fn interval_ms_da_solo_non_richiede_interval_s() {
+        let t: ScriptTrigger = serde_yaml::from_str("kind: interval\ninterval_ms: 100\n")
+            .expect("deve deserializzare");
+        assert_eq!(
+            t,
+            ScriptTrigger::Interval {
+                interval_s: 1,
+                interval_ms: Some(100)
+            }
+        );
+    }
 }
 
 /// A globally-scoped Python script with a trigger.

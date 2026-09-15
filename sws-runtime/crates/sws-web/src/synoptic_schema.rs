@@ -955,6 +955,8 @@ pub const TYPE_USAGE: &[(&str, &[&str])] = &[
             "height",
             "id",
             "label",
+            "on_press_args",
+            "on_press_fn",
             "require_confirm",
             "tag",
             "type",

@@ -1,0 +1,218 @@
+meta:
+  name: t69-collaudo
+  version: 1.0.0
+
+# ── Perché questo template esiste ────────────────────────────────────────────
+#
+# Progetto diagnostico per collaudare a mano tutte e cinque le fasi di T-69
+# (docs/archive/2026-09-14-T69-tempo-stato-script.md) su un runtime vero,
+# senza dover leggere codice o ricordarsi la sintassi esatta di ogni binding.
+# Non è un progetto cliente: nessuna sorgente esterna, nessun allarme, tag
+# con prefisso `t69.` per non confondersi con altro.
+#
+# Due pagine — vedi `synoptics/`:
+#   1. Generatore nativo (Fase D)     — le tre forme d'onda e come verificare
+#                                        il rifiuto in scrittura.
+#   2. Script, funzioni, orologio     — Fasi A, B, C, E fianco a fianco:
+#                                        rampa manuale vs nativa, interval_ms
+#                                        che vince su interval_s, now_ms()/
+#                                        uptime_ms(), functions.run + pulsante
+#                                        sullo stesso contatore, la chiamata
+#                                        vietata da dentro una funzione, e la
+#                                        sonda send_telegram.
+
+tags:
+  # ── Fase D — generatore nativo ──
+  - id: t69.gen_ramp
+    description: "Generatore nativo (Fase D): rampa 0→100, periodo 4 s."
+    data_type: float
+    history: true
+    history_min_interval_ms: 200
+    generator:
+      shape: ramp
+      period_ms: 4000
+      min: 0.0
+      max: 100.0
+      enabled: true
+  - id: t69.gen_triangle
+    description: "Generatore nativo (Fase D): triangolo 0→100→0, periodo 6 s. Confrontalo con t69.manual_ramp nella pagina 2: stessa forma e stesso periodo — non la stessa fase, perché uno riparte dall'epoch e l'altro dall'avvio dello script — una è nativa e l'altra scritta a mano."
+    data_type: float
+    history: true
+    history_min_interval_ms: 200
+    generator:
+      shape: triangle
+      period_ms: 6000
+      min: 0.0
+      max: 100.0
+      enabled: true
+  - id: t69.gen_square
+    description: "Generatore nativo (Fase D): onda quadra 0/1, periodo 2 s."
+    data_type: float
+    history: true
+    history_min_interval_ms: 200
+    generator:
+      shape: square
+      period_ms: 2000
+      min: 0.0
+      max: 1.0
+      enabled: true
+
+  # ── Fase A — orologio + stato ritenuto (rampa scritta a mano) ──
+  - id: t69.manual_ramp
+    description: "Scritta da uno script con delta_ms()+state (Fase A), non da un generatore — vedi lo script t69_manual_ramp. Stessa forma/periodo di t69.gen_triangle, per il confronto."
+    data_type: float
+    history: true
+    history_min_interval_ms: 200
+
+  # ── Fase B — interval_ms ──
+  - id: t69.fast_ticks
+    description: "Incrementato ogni ~100ms da uno script con trigger interval_ms (Fase B) — interval_s da solo non potrebbe scendere sotto il secondo."
+    data_type: int
+
+  # ── Fase C/E — functions.run + parametri, stesso contatore da due vie ──
+  - id: t69.fn_counter
+    description: "Scritto dalla funzione t69_bump(step): sia da un pulsante (on_press_args, Fase E) sia da uno script globale via functions.run (Fase C). Stessa identità in entrambi i casi: deve essere UN contatore solo, non due indipendenti."
+    data_type: int
+
+  # ── Fase A — fix del bug send_telegram ──
+  - id: t69.telegram_probe
+    description: "Esito della prova send_telegram() all'avvio. Atteso: 'inviato' — il messaggio viene accodato anche senza un bot Telegram configurato in questo progetto; la consegna vera fallisce più a valle, in silenzio (log del runtime: 'telegram message dropped: channel not configured'), un comportamento a sé. Se dicesse 'BUG: NameError' sarebbe tornato il difetto pre-Fase-A."
+    data_type: string
+
+  # ── Fase A — orologio (now_ms/uptime_ms), separato dal test di interval_ms ──
+  - id: t69.now_ms
+    description: "now_ms() — epoch wall-clock in millisecondi, aggiornato ogni secondo da t69_clock_probe. Cambia guardando l'orologio del sistema, non un contatore di tick."
+    data_type: int
+  - id: t69.uptime_ms
+    description: "uptime_ms() — millisecondi dalla PRIMA invocazione di QUESTA identità (lo script t69_clock_probe), non dall'avvio del runtime. Riparte da 0 solo se lo script viene disabilitato e riabilitato."
+    data_type: int
+
+  # ── Fase C — functions.run da dentro un'altra funzione dev'essere vietato ──
+  - id: t69.recursive_probe
+    description: "Esito del pulsante 'Test: chiamata vietata'. Atteso: 'ok, errore atteso: ... non disponibile in questo contesto ...'. Se dicesse 'BUG' il divieto non regge più."
+    data_type: string
+
+sources: []
+alarms: []
+custom_symbols: []
+datastores: []
+
+functions:
+  - id: t69_bump
+    name: t69_bump
+    description: "Incrementa t69.fn_counter di `step` (default 1). Chiamata sia da un pulsante (pagina 2) sia dallo script t69_auto_caller: stessa identità 'fn:t69_bump' → stesso stato, un solo contatore per le due vie."
+    code: |-
+      n = state.get('n', 0) + step
+      state.set('n', n)
+      tags.write('t69.fn_counter', n)
+    params:
+      - name: step
+        default: 1
+  - id: t69_recursive_test
+    name: t69_recursive_test
+    description: "Prova che functions.run() sollevi un errore CHIARO quando è chiamata da dentro un'altra funzione (Fase C) — mai un NameError, mai una ricorsione infinita."
+    code: |-
+      try:
+          functions.run('t69_bump', step=1)
+          tags.write('t69.recursive_probe', 'BUG: functions.run ha funzionato da dentro una funzione')
+      except Exception as e:
+          tags.write('t69.recursive_probe', 'ok, errore atteso: ' + str(e))
+    params: []
+
+# ── Gli script che animano il collaudo ───────────────────────────────────────
+#
+# NIENTE `import`: RestrictedPython lo blocca sul dispositivo (vedi il
+# commento identico in demo-items-web/project.yaml). Concessi da
+# safe_builtins: int float round abs len range bool str pow divmod.
+global_scripts:
+  - id: t69_manual_ramp
+    enabled: true
+    trigger:
+      kind: interval
+      interval_ms: 100
+    code: |
+      # Fase A: costruisce una rampa triangolare 0->100->0 usando SOLO
+      # delta_ms() e state — nessun tag-contatore di appoggio, nessuna
+      # tabella scritta a mano. È il caso esatto che aveva aperto T-69: una
+      # logica che avanza col tempo reale, non con un passo fisso a ogni
+      # tick. Periodo 6 s, come t69.gen_triangle: confrontali nella pagina 2.
+      pos = state.get('pos', 0.0)
+      direction = state.get('dir', 1)
+      speed = 100.0 / 3000.0  # unità al ms: 0->100 in 3 s, 100->0 in altri 3 s
+      pos = pos + direction * speed * delta_ms()
+      if pos >= 100.0:
+          pos = 100.0
+          direction = -1
+      elif pos <= 0.0:
+          pos = 0.0
+          direction = 1
+      state.set('pos', pos)
+      state.set('dir', direction)
+      tags.write('t69.manual_ramp', round(pos, 2))
+
+  - id: t69_fast_ticks
+    enabled: true
+    trigger:
+      kind: interval
+      # interval_s presente ma ignorato: interval_ms vince quando c'è (Fase
+      # B). Se il contatore salisse di 1 ogni ~10s invece che ogni ~100ms,
+      # sarebbe la prova che la precedenza si è rotta.
+      interval_s: 10
+      interval_ms: 100
+    code: |
+      # Fase B: interval_ms permette una cadenza sotto il secondo che
+      # interval_s da solo non può esprimere. Un tick ogni ~100ms.
+      n = state.get('n', 0) + 1
+      state.set('n', n)
+      tags.write('t69.fast_ticks', n)
+
+  - id: t69_clock_probe
+    enabled: true
+    trigger:
+      kind: interval
+      interval_s: 1
+    code: |
+      # Fase A: now_ms() e uptime_ms(), separati dal test di interval_ms
+      # sopra — un trigger interval "vecchio stile" (solo interval_s) usa
+      # comunque l'orologio, che non dipende dalla Fase B.
+      tags.write('t69.now_ms', now_ms())
+      tags.write('t69.uptime_ms', uptime_ms())
+
+  - id: t69_auto_caller
+    enabled: true
+    trigger:
+      kind: interval
+      interval_s: 5
+    code: |
+      # Fase C: functions.run esegue la funzione IN-PROCESS, senza una
+      # chiamata HTTP — l'unico modo per dare a una funzione un trigger,
+      # visto che FunctionDef non ne ha uno proprio di proposito (duplicherebbe
+      # la macchina di scheduling già negli script globali).
+      functions.run('t69_bump', step=1)
+
+  - id: t69_telegram_probe
+    enabled: true
+    trigger:
+      kind: startup
+    code: |
+      # Fase A: send_telegram() sollevava sempre NameError (bug corretto).
+      # Il canale accoda comunque il messaggio anche senza un bot Telegram
+      # configurato in questo progetto — la mancata consegna si vede solo nel
+      # log del runtime ("telegram message dropped"), non da qui. L'unico
+      # esito da temere in questo script è NameError.
+      try:
+          send_telegram('T-69 collaudo: send_telegram raggiungibile')
+          tags.write('t69.telegram_probe', 'inviato')
+      except NameError as e:
+          tags.write('t69.telegram_probe', 'BUG: NameError - ' + str(e))
+      except Exception as e:
+          tags.write('t69.telegram_probe', 'errore inatteso: ' + str(e))
+
+languages:
+  default: "it"
+  langs: ["it"]
+  entries: []
+
+page_layout:
+  size_mode: fixed
+  home_page_id: t69_gen

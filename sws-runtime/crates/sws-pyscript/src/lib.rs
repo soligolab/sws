@@ -494,17 +494,46 @@ pub struct Engine {
     /// project function through the same instance (`sws-web/src/router.rs`,
     /// `run_function`), so without a key `delta_ms()` from one function would
     /// reflect the last call to *any* function. Global scripts get their own
-    /// `Engine` each (`GlobalScriptSupervisor::start`), so the map holds a
-    /// single entry there — same mechanism, no special-casing needed.
+    /// `Engine` each (`GlobalScriptSupervisor::start`) — `functions_engine`
+    /// below is what keeps a FUNCTION's own state out of this map.
     states: Arc<Mutex<std::collections::HashMap<String, ScriptState>>>,
     /// T-69 fase C: backs the `functions.run(name, **kwargs)` binding.
     /// Interior-mutable like `telegram_tx` — `None` means "not wired up in
     /// this context" (the shared engine behind `AppState.py`, used by
     /// press-handlers/`POST /api/script/run`, never gets one: a function
     /// calling another function isn't today's ask, and leaving it unset
-    /// avoids an unbounded-recursion question nobody has asked yet).
+    /// is what makes the guard in `FunctionsApi::run` fire for real — see
+    /// `functions_engine` below for why it fires reliably now).
     /// `GlobalScriptSupervisor::start` sets this on each script's own engine.
     functions: Arc<Mutex<Option<FunctionsRegistry>>>,
+    /// T-69 fase C, corretto in questa sessione: l'Engine su cui gira
+    /// DAVVERO il codice della funzione chiamata da `functions.run(...)`.
+    /// `None` (il caso di `AppState.py`) significa "sono io stesso il
+    /// canonico" — `execute_with_args` ricade su `self.clone()`.
+    ///
+    /// Prima di questo campo, `functions.run` eseguiva SEMPRE sul motore
+    /// CHIAMANTE (`self.clone()`, non un secondo motore nonostante il
+    /// commento dicesse il contrario). Per uno script globale questo è il
+    /// suo Engine PRIVATO (`GlobalScriptSupervisor::start` ne crea uno per
+    /// script) — diverso sia dall'Engine di un altro script sia da
+    /// `AppState.py` usato da un pulsante/`POST /api/script/run/:name`. Tre
+    /// mappe `states` distinte per la stessa identità "nome_funzione":
+    /// nessuna condivisione reale, contro quanto promesso. Scoperto
+    /// costruendo il template di collaudo di T-69: un contatore alimentato
+    /// sia da un pulsante sia da `functions.run` non tornava mai lo stesso
+    /// numero.
+    ///
+    /// `GlobalScriptSupervisor::start` imposta questo campo sull'Engine
+    /// PRIVATO di ogni script puntandolo al motore CANONICO (`AppState.py`,
+    /// che qui resta `None`): `functions.run` esegue quindi sempre sullo
+    /// stesso Engine che un pulsante/l'HTTP userebbero, `states` condivisa
+    /// per davvero. Effetto collaterale voluto: il motore canonico non ha
+    /// mai un registro (`functions` resta `None` lì), quindi una funzione
+    /// invocata così non può a sua volta chiamare `functions.run` — lo
+    /// stesso guardrail di prima, ma che ora scatta sul serio anche quando
+    /// il chiamante è uno script con un registro configurato (prima
+    /// ereditava il registro del chiamante ed eludeva il divieto).
+    functions_engine: Arc<Mutex<Option<Engine>>>,
 }
 
 /// Per-identity bookkeeping for the T-69 clock/state bindings.
@@ -562,6 +591,7 @@ impl Engine {
             telegram_tx: Arc::new(Mutex::new(None)),
             states: Arc::new(Mutex::new(std::collections::HashMap::new())),
             functions: Arc::new(Mutex::new(None)),
+            functions_engine: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -581,6 +611,17 @@ impl Engine {
     pub fn set_functions_registry(&self, registry: Option<FunctionsRegistry>) {
         if let Ok(mut guard) = self.functions.lock() {
             *guard = registry;
+        }
+    }
+
+    /// Set (or clear) l'Engine canonico su cui `functions.run(...)` esegue
+    /// davvero il codice della funzione chiamata — vedi il commento sul campo
+    /// `functions_engine`. `GlobalScriptSupervisor::start` lo imposta su ogni
+    /// Engine privato di script puntandolo ad `AppState.py`; `AppState.py`
+    /// stesso lo lascia `None` (è già il canonico).
+    pub fn set_functions_engine(&self, engine: Option<Engine>) {
+        if let Ok(mut guard) = self.functions_engine.lock() {
+            *guard = engine;
         }
     }
 
@@ -619,13 +660,21 @@ impl Engine {
         let timeout = self.timeout;
         let telegram = self.telegram_tx.lock().ok().and_then(|g| g.clone());
         let functions = self.functions.lock().ok().and_then(|g| g.clone());
-        // T-69 fase C: `functions.run(...)` richiama execute_with_args su
-        // QUESTO stesso Engine (clone, non un secondo motore) — la funzione
-        // chiamata eredita lo stesso sink Telegram e lo stesso registro
-        // funzioni del chiamante, con una propria voce in `states` (chiave
-        // "fn:<nome>", vedi FunctionsApi::run), non quella dello script che
-        // l'ha invocata.
-        let engine_for_functions = self.clone();
+        // T-69 fase C, corretto in questa sessione: `functions.run(...)`
+        // esegue il codice della funzione chiamata sul motore CANONICO
+        // (`functions_engine`, impostato da `GlobalScriptSupervisor::start`
+        // su `AppState.py`), non su questo Engine — altrimenti ogni script
+        // globale (con un Engine privato tutto suo) avrebbe una propria copia
+        // isolata dello stato della funzione, mai condivisa né con un
+        // pulsante/HTTP né con un altro script. `unwrap_or_else(self.clone)`
+        // è il caso di `AppState.py` stesso: lì `functions_engine` resta
+        // `None` perché è già il canonico.
+        let engine_for_functions = self
+            .functions_engine
+            .lock()
+            .ok()
+            .and_then(|g| g.clone())
+            .unwrap_or_else(|| self.clone());
 
         // T-69: snapshot this invocation's clock values and hand out the
         // scratch map for `identity` *before* spawning — recording "now" here
@@ -1548,11 +1597,21 @@ tags.write('delta', delta_ms())
     /// lo promettesse. Qui si simula il secondo percorso chiamando
     /// `execute_with_args` direttamente col nome nudo, come fa
     /// `router::run_function`.
+    ///
+    /// USA DUE ENGINE, non uno: uno script globale ha un Engine privato tutto
+    /// suo (`GlobalScriptSupervisor::start`), diverso dal motore CANONICO che
+    /// un pulsante/`POST /api/script/run/:name` usa (`AppState.py`). Un test
+    /// con un solo `Engine` per entrambi i ruoli passerebbe anche col difetto
+    /// più profondo trovato subito dopo questo fix (`functions.run` eseguiva
+    /// sul motore CHIAMANTE, non su quello canonico) — motivo per cui quel
+    /// difetto è sfuggito al primo giro di test.
     #[tokio::test]
     async fn functions_run_condivide_lo_stato_con_la_chiamata_diretta_per_nome() {
         let db = Arc::new(TagDb::new(16));
         let bus = Arc::new(TagWriteBus::new());
-        let e = Engine::new(db.clone(), bus);
+        let canonico = Engine::new(db.clone(), bus.clone()); // sta per AppState.py
+        let script_engine = Engine::new(db.clone(), bus); // sta per l'Engine privato di uno script
+        script_engine.set_functions_engine(Some(canonico.clone()));
 
         let registry: FunctionsRegistry =
             Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::from([
@@ -1568,28 +1627,73 @@ tags.write('delta', delta_ms())
                     },
                 ),
             ])));
-        e.set_functions_registry(Some(registry));
+        script_engine.set_functions_registry(Some(registry));
 
-        // Primo giro: via functions.run, come da uno script globale.
-        e.execute("functions.run('conta')".into(), "script-a")
+        // Primo giro: via functions.run, come da uno script globale — sul suo
+        // Engine privato, ma deve eseguire sul canonico.
+        script_engine
+            .execute("functions.run('conta')".into(), "script-a")
             .await
             .expect("functions.run fallita");
         assert_eq!(db.get("n").await.map(|s| s.value), Some(TagValue::Int(1)));
 
-        // Secondo giro: chiamata diretta col nome nudo, come farebbe
-        // `POST /api/script/run/:name` per un pulsante. Deve vedere lo
-        // stesso stato, non ripartire da zero.
-        e.execute_with_args(
-            "n = state.get('n', 0) + 1\nstate.set('n', n)\ntags.write('n', n)\n".into(),
-            serde_json::Map::new(),
-            "conta",
-        )
-        .await
-        .expect("chiamata diretta fallita");
+        // Secondo giro: chiamata diretta sul motore CANONICO col nome nudo,
+        // come farebbe `POST /api/script/run/:name` per un pulsante. Deve
+        // vedere lo stesso stato, non ripartire da zero.
+        canonico
+            .execute_with_args(
+                "n = state.get('n', 0) + 1\nstate.set('n', n)\ntags.write('n', n)\n".into(),
+                serde_json::Map::new(),
+                "conta",
+            )
+            .await
+            .expect("chiamata diretta fallita");
         assert_eq!(
             db.get("n").await.map(|s| s.value),
             Some(TagValue::Int(2)),
-            "functions.run e la chiamata diretta per nome devono condividere lo stato"
+            "functions.run (via uno script) e la chiamata diretta per nome (via un pulsante) \
+             devono condividere lo stato — stesso Engine canonico dietro entrambe"
         );
+    }
+
+    /// Il guardrail "functions.run da dentro una funzione è vietato" deve
+    /// scattare per davvero anche quando il CHIAMANTE (lo script che ha
+    /// invocato la funzione) aveva un registro configurato — prima del fix a
+    /// `functions_engine`, la funzione ereditava quel registro tramite
+    /// `self.clone()` ed eludeva il divieto. Qui la funzione chiamata
+    /// (`ricorsiva`) prova a sua volta `functions.run(...)`: deve fallire con
+    /// l'errore esplicito, mai con un `NameError` né una ricorsione infinita.
+    #[tokio::test]
+    async fn functions_run_da_dentro_una_funzione_e_vietato_anche_se_il_chiamante_ha_un_registro() {
+        let db = Arc::new(TagDb::new(16));
+        let bus = Arc::new(TagWriteBus::new());
+        let canonico = Engine::new(db.clone(), bus.clone());
+        let script_engine = Engine::new(db.clone(), bus);
+        script_engine.set_functions_engine(Some(canonico));
+
+        let registry: FunctionsRegistry =
+            Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::from([
+                (
+                    "ricorsiva".to_string(),
+                    sws_core::FunctionDef {
+                        id: "f1".into(),
+                        name: "ricorsiva".into(),
+                        description: None,
+                        code: "functions.run('ricorsiva')".into(),
+                        params: vec![],
+                    },
+                ),
+            ])));
+        script_engine.set_functions_registry(Some(registry));
+
+        let err = script_engine
+            .execute("functions.run('ricorsiva')".into(), "script-a")
+            .await
+            .expect_err("una funzione non deve poter richiamare functions.run");
+        assert!(
+            err.contains("non disponibile in questo contesto"),
+            "errore inatteso: {err}"
+        );
+        assert!(!err.contains("NameError"), "{err}");
     }
 }

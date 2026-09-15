@@ -27,12 +27,22 @@ impl GlobalScriptSupervisor {
     /// `functions` (T-69 fase C) backs `functions.run(name, **kwargs)` — le
     /// funzioni di progetto chiamabili in-process da uno script globale,
     /// senza passare da `POST /api/script/run/:name`.
+    ///
+    /// `functions_engine` (T-69, corretto in questa sessione) è l'Engine
+    /// CANONICO — `AppState.py`, lo stesso che un pulsante o
+    /// `POST /api/script/run/:name` usano — su cui `functions.run(...)`
+    /// esegue davvero la funzione chiamata. Ogni script qui sotto ha un
+    /// Engine PRIVATO tutto suo (per `now_ms()`/`state` propri): senza
+    /// puntarlo al canonico, una funzione richiamata da `functions.run`
+    /// finiva sullo stato isolato dell'Engine dello script chiamante, mai
+    /// condiviso né con un pulsante né con un altro script.
     pub fn start(
         scripts: Vec<GlobalScriptDef>,
         db: Arc<TagDb>,
         bus: Arc<TagWriteBus>,
         telegram_tx: Option<tokio::sync::mpsc::UnboundedSender<String>>,
         functions: FunctionsRegistry,
+        functions_engine: PyEngine,
     ) -> Self {
         let cancel = CancellationToken::new();
 
@@ -45,6 +55,7 @@ impl GlobalScriptSupervisor {
             let py = PyEngine::new(db.clone(), bus.clone());
             py.set_telegram_sink(telegram_tx.clone());
             py.set_functions_registry(Some(functions.clone()));
+            py.set_functions_engine(Some(functions_engine.clone()));
             let db_clone = db.clone();
 
             let id = script.id.clone();
