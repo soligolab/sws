@@ -7,7 +7,8 @@
 use crate::global_scripts::GlobalScriptSupervisor;
 use crate::notifications::NotificationSupervisor;
 use crate::router::{
-    active_dir, AppState, AuthUser, DerivedTagsRegistry, FunctionsRegistry, RegistryCell,
+    active_dir, AppState, AuthUser, DerivedTagsRegistry, FunctionsRegistry, GeneratorTagsRegistry,
+    RegistryCell,
 };
 use crate::source_supervisor::SourceSupervisor;
 use crate::templates::copy_dir_all;
@@ -566,6 +567,31 @@ pub(crate) fn build_tag_data_types(
         .collect()
 }
 
+/// Insieme dei tag calcolati (`TagDef::is_computed`, T-69), stessi punti di
+/// refresh di `build_tag_scales`. `write_tag` li rifiuta in scrittura.
+pub(crate) fn build_computed_tags(tags: &[sws_core::TagDef]) -> std::collections::HashSet<String> {
+    tags.iter()
+        .filter(|t| t.is_computed())
+        .map(|t| t.id.clone())
+        .collect()
+}
+
+/// Coppie `(tag_id, GeneratorSpec)` dei generatori attivi, stessi punti di
+/// refresh di `build_tag_scales`. Letta dal supervisor a tick fisso in
+/// `sws-runtime::main`.
+pub(crate) fn build_generator_tags(
+    tags: &[sws_core::TagDef],
+) -> Vec<(String, sws_core::GeneratorSpec)> {
+    tags.iter()
+        .filter_map(|t| {
+            t.generator
+                .as_ref()
+                .filter(|g| g.enabled)
+                .map(|g| (t.id.clone(), g.clone()))
+        })
+        .collect()
+}
+
 #[allow(clippy::too_many_arguments)]
 pub async fn apply_loaded_project(
     project_dir: &StdPath,
@@ -576,6 +602,7 @@ pub async fn apply_loaded_project(
     alarms: &Arc<AlarmDb>,
     supervisor: &Arc<SourceSupervisor>,
     derived_tags: &DerivedTagsRegistry,
+    generator_tags: &GeneratorTagsRegistry,
     functions: &FunctionsRegistry,
     config_dir: &StdPath,
     instance_id: &str,
@@ -596,11 +623,14 @@ pub async fn apply_loaded_project(
             .filter_map(|t| t.expression.as_ref().map(|e| (t.id.clone(), e.clone())))
             .collect();
         *derived_tags.write().await = derived;
+        *generator_tags.write().await = build_generator_tags(&project.tags);
     }
     db.set_scales(build_tag_scales(&project.tags)).await;
     db.set_write_roles(build_tag_write_roles(&project.tags))
         .await;
     db.set_data_types(build_tag_data_types(&project.tags)).await;
+    db.set_computed_tags(build_computed_tags(&project.tags))
+        .await;
     project.populate_tags(db).await;
     // Init datastore registry before consuming the project fields.
     match DatastoreRegistry::from_project(&project, project_dir).await {
@@ -738,6 +768,7 @@ pub async fn open_project(State(s): State<AppState>, Path(name): Path<String>) -
     s.alarms.load(vec![]).await;
     s.functions.write().await.clear();
     s.derived_tags.write().await.clear();
+    s.generator_tags.write().await.clear();
     s.recipe_log.write().await.clear();
 
     // Point the OPC-UA plugin at this project's PKI dir so cert + key
@@ -756,6 +787,7 @@ pub async fn open_project(State(s): State<AppState>, Path(name): Path<String>) -
         &s.alarms,
         &s.supervisor,
         &s.derived_tags,
+        &s.generator_tags,
         &s.functions,
         &s.config_dir,
         &s.instance_id,
@@ -832,10 +864,12 @@ pub async fn close_project(State(s): State<AppState>) -> Response {
     s.db.set_scales(Default::default()).await;
     s.db.set_write_roles(Default::default()).await;
     s.db.set_data_types(Default::default()).await;
+    s.db.set_computed_tags(Default::default()).await;
     s.historian.swap_store(None).await; // RAM-only between projects
     s.alarms.load(vec![]).await;
     s.functions.write().await.clear();
     s.derived_tags.write().await.clear();
+    s.generator_tags.write().await.clear();
     s.recipe_log.write().await.clear();
     *s.registry.write().await = None;
     s.auth.clear().await;

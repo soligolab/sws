@@ -61,8 +61,8 @@ pub fn definizioni() -> Vec<Value> {
         ),
         strumento(
             "elenca_tag",
-            "I tag dichiarati, con tipo e descrizione. Un tag con `expression` è \
-             calcolato: le scritture su di esso vengono rifiutate.",
+            "I tag dichiarati, con tipo e descrizione. Un tag con `expression` o con \
+             `generator` attivo è calcolato: le scritture su di esso vengono rifiutate.",
             json!({ "type": "object", "properties": {
                         "filtro": { "type": "string",
                             "description": "Sottostringa dell'id, per non leggerli tutti." } },
@@ -321,7 +321,7 @@ async fn elenca_tag(s: &AppState, filtro: Option<&str>) -> Esito {
             if let Some(u) = &t.unit {
                 o.insert("unit".into(), json!(u));
             }
-            if t.expression.is_some() {
+            if t.is_computed() {
                 o.insert("calcolato".into(), json!(true));
                 o.insert("scrivibile".into(), json!(false));
             }
@@ -347,7 +347,8 @@ fn schema_tag() -> Esito {
             .map(|(k, v)| (k.to_string(), json!(v)))
             .collect::<serde_json::Map<_, _>>(),
         "nota": "Il tipo di un tag è `data_type`, con valori \"bool\", \"int\", \"float\" \
-                 o \"string\". Un tag con `expression` è calcolato: non si può scrivere.",
+                 o \"string\". Un tag con `expression` o con `generator` attivo è calcolato: \
+                 non si può scrivere.",
     }))
 }
 
@@ -600,7 +601,8 @@ fn schema_python(sandbox_attiva: bool) -> Esito {
             { "nome": "tags", "cosa": "I tag del progetto. `tags.read('id')` legge \
                 (None se il tag non esiste), `tags.write('id', valore)` scrive. NON è \
                 indicizzabile: `tags['id']` solleva TypeError, non è mai stato il modo \
-                giusto. Un tag con `expression` è calcolato: scriverlo viene rifiutato." },
+                giusto. Un tag con `expression` o con `generator` attivo è calcolato: \
+                scriverlo viene rifiutato." },
             { "nome": "print", "cosa": "Finisce nello stdout catturato e nel log. \
                 Serve per la diagnosi, non per comunicare con l'operatore." },
             { "nome": "send_telegram", "cosa": "`send_telegram('testo')`. Funziona solo \

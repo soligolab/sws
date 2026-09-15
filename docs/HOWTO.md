@@ -33,6 +33,7 @@
 13. [Dove sta la lista dei dispositivi registrati](#13-dove-sta-la-lista-dei-dispositivi-registrati)
 14. [Convertire un progetto da LVGL a Web (o viceversa)](#14-convertire-un-progetto-da-lvgl-a-web-o-viceversa)
 15. [Passare parametri a una funzione di progetto, e chiamarla da uno script globale](#15-passare-parametri-a-una-funzione-di-progetto-e-chiamarla-da-uno-script-globale)
+16. [Generare un'onda (rampa/triangolo/quadra) su un tag, senza scrivere Python](#16-generare-unonda-rampatriangoloquadra-su-un-tag-senza-scrivere-python)
 
 ---
 
@@ -1058,3 +1059,44 @@ parametri diversamente.
 solleva un errore esplicito («non disponibile in questo contesto»), non un `NameError` silenzioso
 né una ricorsione infinita: non è stato ancora deciso se e come una funzione debba poter
 richiamarne un'altra, e finché non lo è resta un errore chiaro invece di un comportamento a caso.
+
+## 16. Generare un'onda (rampa/triangolo/quadra) su un tag, senza scrivere Python
+
+T-69 fase D. Prima di questo, l'unico modo per avere un valore che si muove nel tempo era uno
+script Python con un tag-contatore fatto a mano e una tabella trigonometrica scritta a dito
+(`import math` è vietato in RestrictedPython) — vedi `demo-sim` nel template
+`examples/templates/demo-items-web/project.yaml`. Un tag con `generator` fa la stessa cosa senza
+script, senza stato da salvare e senza dipendere da quanto spesso qualcosa lo richiama.
+
+### Configurarlo
+
+Nella scheda **Variabili**, il pulsante **∿** accanto a ogni tag apre la riga del generatore:
+
+```yaml
+tags:
+  - id: onda_test
+    data_type: float
+    generator:
+      shape: ramp          # "ramp" | "triangle" | "square"
+      period_ms: 2000       # un ciclo completo ogni 2 s
+      min: 0.0
+      max: 100.0
+      enabled: true
+```
+
+- **ramp**: dente di sega, sale da `min` a `max` e riparte di scatto.
+- **triangle**: sale da `min` a `max` a metà periodo, poi ridiscende a `min` a fine periodo.
+- **square**: `min` per la prima metà del periodo, `max` per la seconda.
+
+Il valore è **funzione pura del tempo** (`now_ms % period_ms`), ricalcolato ogni 100ms da un
+supervisor dedicato indipendentemente da `period_ms` — un riavvio del runtime non sposta la fase
+in modo percepibile, e due generatori con lo stesso `period_ms` restano sincroni fra loro.
+
+### Cosa NON fare
+
+- Un tag con `generator.enabled: true` è **calcolato**, come un tag con `expression`: una scrittura
+  su di esso (API, pulsante, script) viene rifiutata. Per fermarlo, metti `enabled: false` o
+  rimuovi il campo — non provare a scriverci sopra un valore fisso.
+- `enabled` è un bool semplice in questa prima versione: non può dipendere da un altro tag
+  (es. "genera solo se `modalita_auto` è vero"). Farlo dipendente da un tag è stato dichiarato
+  fuori scope per questa fase — non è stato costruito.

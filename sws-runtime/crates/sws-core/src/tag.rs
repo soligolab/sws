@@ -86,6 +86,11 @@ pub struct TagDb {
     /// `scales`. Un tag assente dalla mappa non viene vincolato — succede ai
     /// tag creati al volo dagli script e nei test.
     data_types: Arc<RwLock<HashMap<TagId, String>>>,
+    /// Tag il cui valore è CALCOLATO (`TagDef::is_computed`: espressione
+    /// derivata o generatore d'onda attivo, T-69) — non deve accettare
+    /// scritture utente (API/WS/ricette). Aggiornata insieme a `scales`.
+    /// Un tag assente dall'insieme non è vincolato: è il caso storico.
+    computed_tags: Arc<RwLock<std::collections::HashSet<TagId>>>,
 }
 
 impl TagDb {
@@ -97,6 +102,7 @@ impl TagDb {
             scales: Arc::new(RwLock::new(HashMap::new())),
             write_roles: Arc::new(RwLock::new(HashMap::new())),
             data_types: Arc::new(RwLock::new(HashMap::new())),
+            computed_tags: Arc::new(RwLock::new(std::collections::HashSet::new())),
         }
     }
 
@@ -129,6 +135,18 @@ impl TagDb {
         };
         coerce_value(&want, value)
             .map_err(|got| format!("il tag «{id}» è dichiarato {want}, ricevuto {got}"))
+    }
+
+    /// Sostituisce l'insieme dei tag calcolati (T-69). Stessi punti di
+    /// refresh di `set_scales`.
+    pub async fn set_computed_tags(&self, ids: std::collections::HashSet<TagId>) {
+        *self.computed_tags.write().await = ids;
+    }
+
+    /// Vero se il tag è calcolato (espressione o generatore attivo): il
+    /// chiamante (`write_tag`) deve rifiutare la scrittura utente.
+    pub async fn is_computed(&self, id: &str) -> bool {
+        self.computed_tags.read().await.contains(id)
     }
 
     /// Sostituisce la mappa degli scaling. Chiamata a ogni apertura/chiusura
@@ -390,6 +408,19 @@ mod tests {
             err.contains("b1") && err.contains("bool") && err.contains("abc"),
             "{err}"
         );
+    }
+
+    /// T-69 Fase D — un tag calcolato è marcato tale; un tag fuori insieme
+    /// (o dopo un reset a insieme vuoto) non è vincolato.
+    #[tokio::test]
+    async fn computed_tags_seguono_set_computed_tags() {
+        let db = TagDb::new(16);
+        assert!(!db.is_computed("rampa").await);
+        db.set_computed_tags(["rampa".to_string()].into()).await;
+        assert!(db.is_computed("rampa").await);
+        assert!(!db.is_computed("altro").await);
+        db.set_computed_tags(Default::default()).await;
+        assert!(!db.is_computed("rampa").await);
     }
 
     #[tokio::test]

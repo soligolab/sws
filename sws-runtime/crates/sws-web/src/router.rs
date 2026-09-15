@@ -50,6 +50,12 @@ pub type RegistryCell = Arc<RwLock<Option<Arc<DatastoreRegistry>>>>;
 /// evaluator task that runs in the runtime.
 pub type DerivedTagsRegistry = Arc<RwLock<Vec<(String, String)>>>;
 
+/// List of `(tag_id, GeneratorSpec)` pairs for native waveform tags (T-69
+/// Fase D). Updated whenever the project's tag list changes; read by the
+/// fixed-tick generator supervisor that runs in the runtime — sibling of
+/// `DerivedTagsRegistry` but time-driven instead of event-driven.
+pub type GeneratorTagsRegistry = Arc<RwLock<Vec<(String, sws_core::GeneratorSpec)>>>;
+
 /// Mutable handle on the currently-active project directory. `None` means
 /// "no project open" — handlers that need a project dir gate on this and
 /// return 503. Wrapped in RwLock so `open`/`close` can swap it in-place
@@ -96,6 +102,7 @@ pub struct AppState {
     pub project_epoch: Arc<tokio::sync::watch::Sender<u64>>,
     pub functions: FunctionsRegistry,
     pub derived_tags: DerivedTagsRegistry,
+    pub generator_tags: GeneratorTagsRegistry,
     pub project_dir: ActiveProjectDir,
     pub projects_root: Arc<PathBuf>,
     pub templates_root: Arc<PathBuf>,
@@ -215,6 +222,7 @@ pub fn build(
     script_supervisor: ScriptSupervisorCell,
     functions: FunctionsRegistry,
     derived_tags: DerivedTagsRegistry,
+    generator_tags: GeneratorTagsRegistry,
     project_dir: ActiveProjectDir,
     projects_root: Arc<PathBuf>,
     templates_root: Arc<PathBuf>,
@@ -259,6 +267,7 @@ pub fn build(
         project_epoch,
         functions,
         derived_tags,
+        generator_tags,
         project_dir,
         projects_root,
         templates_root,
@@ -1675,6 +1684,25 @@ async fn write_tag(
             serde_json::json!({"tag": id.clone(), "role": user.role.as_str()}),
         );
         return StatusCode::FORBIDDEN.into_response();
+    }
+    // T-69: un tag CALCOLATO (espressione derivata o generatore attivo) non
+    // accetta scritture utente — prima d'ora questo era solo un vincolo del
+    // validatore statico (`validate.rs`), non applicato qui: una PUT diretta
+    // su un tag derivato passava. Bug pre-esistente, corretto insieme alla
+    // Fase D perché il nuovo `generator` doveva avere la stessa guardia.
+    if s.db.is_computed(&id).await {
+        s.audit.log(
+            "tag.write_rejected_computed",
+            Some(user.username),
+            serde_json::json!({"tag": id}),
+        );
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": format!("il tag «{id}» è calcolato (espressione o generatore): non è scrivibile")
+            })),
+        )
+            .into_response();
     }
     // Q27: il `data_type` dichiarato è un contratto sui percorsi di scrittura
     // utente — coercizione senza perdita, rifiuto motivato del resto.
@@ -3155,10 +3183,12 @@ async fn update_project_tags(
         .iter()
         .filter_map(|t| t.expression.as_ref().map(|e| (t.id.clone(), e.clone())))
         .collect();
+    let generators = crate::projects::build_generator_tags(&tags);
     // F1/F3.1: scaling e ruoli di scrittura seguono ogni modifica delle variabili.
     let scales = crate::projects::build_tag_scales(&tags);
     let write_roles = crate::projects::build_tag_write_roles(&tags);
     let data_types = crate::projects::build_tag_data_types(&tags);
+    let computed = crate::projects::build_computed_tags(&tags);
 
     let dir = match active_dir(&s).await {
         Ok(d) => d,
@@ -3182,9 +3212,11 @@ async fn update_project_tags(
         s.db.remove(id).await;
     }
     *s.derived_tags.write().await = derived;
+    *s.generator_tags.write().await = generators;
     s.db.set_scales(scales).await;
     s.db.set_write_roles(write_roles).await;
     s.db.set_data_types(data_types).await;
+    s.db.set_computed_tags(computed).await;
     res
 }
 
@@ -3272,6 +3304,7 @@ async fn import_tags_csv(
             expression: expr_col
                 .map(|i| get(i).to_string())
                 .filter(|s| !s.is_empty()),
+            generator: None,
             unit: None,
             decimals: None,
             raw_min: None,
@@ -3336,6 +3369,9 @@ async fn import_tags_csv(
                 .filter_map(|t| t.expression.as_ref().map(|e| (t.id.clone(), e.clone())))
                 .collect();
             *s.derived_tags.write().await = derived;
+            *s.generator_tags.write().await = crate::projects::build_generator_tags(&proj.tags);
+            s.db.set_computed_tags(crate::projects::build_computed_tags(&proj.tags))
+                .await;
         }
     }
     Json(serde_json::json!({ "imported": imported.len() })).into_response()
@@ -4169,6 +4205,8 @@ async fn import_project_zip(State(s): State<AppState>, body: Bytes) -> Response 
         .await;
     s.db.set_data_types(crate::projects::build_tag_data_types(&project.tags))
         .await;
+    s.db.set_computed_tags(crate::projects::build_computed_tags(&project.tags))
+        .await;
     s.alarms.load(project.alarms.clone()).await;
     crate::projects::resolve_mqtt_client_ids(
         &project.meta.name,
@@ -4191,6 +4229,7 @@ async fn import_project_zip(State(s): State<AppState>, body: Bytes) -> Response 
             .filter_map(|t| t.expression.as_ref().map(|e| (t.id.clone(), e.clone())))
             .collect();
         *s.derived_tags.write().await = derived;
+        *s.generator_tags.write().await = crate::projects::build_generator_tags(&project.tags);
     }
 
     tracing::info!(
@@ -6721,6 +6760,9 @@ async fn soft_reload_project(s: &AppState, dir: &std::path::Path) {
             .filter_map(|t| t.expression.as_ref().map(|e| (t.id.clone(), e.clone())))
             .collect();
         *s.derived_tags.write().await = derived;
+        *s.generator_tags.write().await = crate::projects::build_generator_tags(&project.tags);
+        s.db.set_computed_tags(crate::projects::build_computed_tags(&project.tags))
+            .await;
     }
     project.populate_tags(&s.db).await;
     s.alarms.load(project.alarms.clone()).await;

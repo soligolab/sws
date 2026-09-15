@@ -57,6 +57,13 @@ pub struct TagDef {
     /// changes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expression: Option<String>,
+    /// Onda generata nativamente (T-69 Fase D): il valore è funzione PURA del
+    /// tempo (`now_ms % period_ms`), ricalcolato da un supervisor dedicato a
+    /// tick fisso — niente stato da ricordare tra un giro e l'altro, a
+    /// differenza del contatore-tag scritto a mano che serviva prima. Come
+    /// `expression`, un generatore attivo rende il tag di sola lettura.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub generator: Option<GeneratorSpec>,
 
     // ── F1, piano SCADA-widgets: il tag è la fonte di verità ────────────────
     // I widget ereditano questi valori come default (override locale sempre
@@ -212,6 +219,125 @@ impl TagDef {
 
     pub fn is_derived(&self) -> bool {
         self.expression.is_some()
+    }
+
+    /// Vero se un generatore d'onda è configurato e attivo. Un generatore
+    /// disabilitato lascia il tag scrivibile come un virtuale qualunque.
+    pub fn is_generated(&self) -> bool {
+        self.generator.as_ref().is_some_and(|g| g.enabled)
+    }
+
+    /// Vero se il valore del tag è CALCOLATO (espressione o generatore
+    /// attivo) e quindi non deve accettare scritture utente — usato dal
+    /// guardrail runtime in `write_tag` (sws-web) oltre che dal validatore
+    /// statico.
+    pub fn is_computed(&self) -> bool {
+        self.is_derived() || self.is_generated()
+    }
+}
+
+/// Forma d'onda generata nativamente su un tag (T-69 Fase D).
+/// `enabled` è un bool semplice per questa prima versione: farlo dipendere
+/// da un altro tag è complessità in più, dichiarata fuori scope per ora.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct GeneratorSpec {
+    /// "ramp" (dente di sega 0→1→0 istantaneo), "triangle" (0→1→0 lineare),
+    /// "square" (0 per la prima metà del periodo, 1 per la seconda).
+    pub shape: String,
+    /// Durata di un ciclo completo, in millisecondi.
+    pub period_ms: u64,
+    pub min: f64,
+    pub max: f64,
+    #[serde(default = "default_generator_enabled")]
+    pub enabled: bool,
+}
+
+fn default_generator_enabled() -> bool {
+    true
+}
+
+impl GeneratorSpec {
+    /// Valore del generatore al tempo `now_ms` (epoch wall-clock). Funzione
+    /// PURA: nessuno stato da ricordare tra un giro e l'altro — a differenza
+    /// del contatore-tag scritto a mano che serviva prima di questa fase.
+    /// `period_ms == 0` è un progetto malformato (`validate.rs` lo respinge):
+    /// qui torna semplicemente `min`, senza dividere per zero.
+    pub fn value_at(&self, now_ms: i64) -> f64 {
+        if self.period_ms == 0 {
+            return self.min;
+        }
+        let period = self.period_ms as i64;
+        let phase = now_ms.rem_euclid(period) as f64 / period as f64; // 0.0..1.0
+        let frac = match self.shape.as_str() {
+            "triangle" => {
+                if phase < 0.5 {
+                    phase * 2.0
+                } else {
+                    2.0 - phase * 2.0
+                }
+            }
+            "square" => {
+                if phase < 0.5 {
+                    0.0
+                } else {
+                    1.0
+                }
+            }
+            // "ramp" e qualunque forma sconosciuta: dente di sega, il
+            // validatore statico è il posto giusto per bocciare uno `shape`
+            // scritto male, non questa funzione.
+            _ => phase,
+        };
+        self.min + frac * (self.max - self.min)
+    }
+}
+
+#[cfg(test)]
+mod generator_tests {
+    use super::GeneratorSpec;
+
+    fn spec(shape: &str) -> GeneratorSpec {
+        GeneratorSpec {
+            shape: shape.into(),
+            period_ms: 1000,
+            min: 0.0,
+            max: 100.0,
+            enabled: true,
+        }
+    }
+
+    #[test]
+    fn ramp_sale_linearmente_nel_periodo() {
+        let g = spec("ramp");
+        assert_eq!(g.value_at(0), 0.0);
+        assert!((g.value_at(500) - 50.0).abs() < 1e-9);
+        assert!((g.value_at(999) - 99.9).abs() < 1e-6);
+        // Al giro successivo ricomincia da 0 (fase periodica, non un clamp).
+        assert!((g.value_at(1500) - 50.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn triangle_sale_e_poi_scende_nello_stesso_periodo() {
+        let g = spec("triangle");
+        assert_eq!(g.value_at(0), 0.0);
+        assert!((g.value_at(500) - 100.0).abs() < 1e-6); // picco a metà periodo
+        assert!((g.value_at(1000) - 0.0).abs() < 1e-6); // torna a 0 a fine periodo
+    }
+
+    #[test]
+    fn square_e_a_gradino() {
+        let g = spec("square");
+        assert_eq!(g.value_at(0), 0.0);
+        assert_eq!(g.value_at(499), 0.0);
+        assert_eq!(g.value_at(500), 100.0);
+        assert_eq!(g.value_at(999), 100.0);
+    }
+
+    #[test]
+    fn periodo_zero_non_va_in_panico() {
+        let mut g = spec("ramp");
+        g.period_ms = 0;
+        assert_eq!(g.value_at(12345), 0.0); // torna min, non divide per zero
     }
 }
 

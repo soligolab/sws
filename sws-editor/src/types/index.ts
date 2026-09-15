@@ -868,6 +868,11 @@ export interface TagDef {
    * Example: `tags["motor.v"] * tags["motor.i"]`.
    * When set, the tag is computed/read-only — it cannot be written via the API. */
   expression?: string;
+  /** Onda generata nativamente (T-69 Fase D): il valore è funzione pura del
+   *  tempo, ricalcolata da un supervisor a tick fisso — nessuno stato da
+   *  ricordare tra un giro e l'altro. Come `expression`, un generatore
+   *  attivo rende il tag di sola lettura. */
+  generator?: GeneratorSpec;
 
   // ── F1, piano SCADA-widgets: il tag è la fonte di verità ──────────────────
   // I widget ereditano questi valori come default (override per-oggetto).
@@ -892,6 +897,17 @@ export interface TagDef {
   limit_lo?: number;
   limit_hi?: number;
   limit_hi_hi?: number;
+}
+
+/** Forma d'onda generata nativamente su un tag (T-69 Fase D). `enabled` è
+ *  un bool semplice per questa prima versione: farlo dipendere da un altro
+ *  tag è complessità in più, fuori scope per ora. */
+export interface GeneratorSpec {
+  shape: "ramp" | "triangle" | "square";
+  period_ms: number;
+  min: number;
+  max: number;
+  enabled: boolean;
 }
 
 export interface RegisterMapping {

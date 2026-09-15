@@ -912,14 +912,18 @@ fn controlla_oggetto(
     // Un comando verso un tag calcolato non arriva da nessuna parte.
     if INTERATTIVI.contains(&t) {
         match tag_def {
-            Some(td) if td.expression.is_some() => out.push(Finding::err(
+            Some(td) if td.is_computed() => out.push(Finding::err(
                 format!("{base}.tag"),
                 format!(
-                    "`{}` è un tag calcolato (ha un'espressione): le scritture su di \
-                         esso vengono rifiutate",
-                    td.id
+                    "`{}` è un tag calcolato ({}): le scritture su di esso vengono rifiutate",
+                    td.id,
+                    if td.is_derived() {
+                        "ha un'espressione"
+                    } else {
+                        "ha un generatore attivo"
+                    }
                 ),
-                "lega il comando al tag che il driver scrive davvero, non al derivato",
+                "lega il comando al tag che il driver scrive davvero, non al calcolato",
             )),
             None if o.tag.as_deref().unwrap_or("").is_empty() => out.push(Finding::warn(
                 format!("{base}.tag"),
@@ -1444,6 +1448,7 @@ tags:
   - { id: luce.salotto, data_type: bool, description: Luce }
   - { id: pos, data_type: float }
   - { id: calcolato, data_type: float, expression: 'tags["pos"] * 2' }
+  - { id: generato, data_type: float, generator: { shape: ramp, period_ms: 1000, min: 0.0, max: 100.0 } }
 sources: []
 alarms: []
 "#;
@@ -1720,6 +1725,17 @@ alarms: []
             &pagina("- { id: x, type: button, x: 0, y: 0, tag: calcolato }"),
         );
         assert!(cita(&errori(&rs), "calcolato"), "{rs:?}");
+    }
+
+    /// T-69 Fase D — stessa guardia del tag con espressione, per un tag con
+    /// generatore attivo.
+    #[test]
+    fn un_comando_su_un_tag_generato_non_passa() {
+        let rs = rilievi(
+            PROGETTO,
+            &pagina("- { id: x, type: button, x: 0, y: 0, tag: generato }"),
+        );
+        assert!(cita(&errori(&rs), "generato"), "{rs:?}");
     }
 
     // ── Script globali e cron ────────────────────────────────────────────────

@@ -17,7 +17,7 @@ use sws_core::{AlarmDb, LogBus, TagDb, TagQuality, TagWriteBus, DEFAULT_LOG_CAPA
 use sws_historian::Historian;
 use sws_pyscript::Engine as PyEngine;
 use sws_web::{
-    router::{DerivedTagsRegistry, RegistryCell, ScriptSupervisorCell},
+    router::{DerivedTagsRegistry, GeneratorTagsRegistry, RegistryCell, ScriptSupervisorCell},
     SourceSupervisor,
 };
 use tokio::net::TcpListener;
@@ -404,6 +404,7 @@ async fn main() -> anyhow::Result<()> {
     let functions: sws_web::router::FunctionsRegistry =
         Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new()));
     let derived_tags: DerivedTagsRegistry = Arc::new(tokio::sync::RwLock::new(Vec::new()));
+    let generator_tags: GeneratorTagsRegistry = Arc::new(tokio::sync::RwLock::new(Vec::new()));
     let script_supervisor: ScriptSupervisorCell = Arc::new(tokio::sync::RwLock::new(None));
 
     // Env-var credentials are optional. When SWS_ADMIN_PASSWORD is not set
@@ -548,6 +549,7 @@ async fn main() -> anyhow::Result<()> {
                     &alarm_db,
                     &supervisor,
                     &derived_tags,
+                    &generator_tags,
                     &functions,
                     &config_dir,
                     &instance_id,
@@ -762,6 +764,36 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 
+    // Generator tag supervisor (T-69 Fase D): a differenza dei tag derivati
+    // sopra (event-driven, reagisce ai cambi di TagDb), un generatore è
+    // funzione PURA del tempo — serve un tick proprio, non un evento a cui
+    // agganciarsi. Tick fisso a 100ms indipendente dal periodo del singolo
+    // generatore: abbastanza fitto per un'onda liscia anche a periodi brevi
+    // (es. 1s), senza sprecare un thread per generatore.
+    {
+        let db = tag_db.clone();
+        let generators = generator_tags.clone();
+        tokio::spawn(async move {
+            let mut tick = tokio::time::interval(std::time::Duration::from_millis(100));
+            loop {
+                tick.tick().await;
+                let pairs = generators.read().await.clone();
+                if pairs.is_empty() {
+                    continue;
+                }
+                let now_ms = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_millis() as i64)
+                    .unwrap_or(0);
+                for (id, spec) in pairs {
+                    let value = spec.value_at(now_ms);
+                    db.set(id, sws_core::TagValue::Float(value), TagQuality::Good)
+                        .await;
+                }
+            }
+        });
+    }
+
     // Alarm webhook dispatcher: subscribe to the alarm broadcast; for every
     // transition to ACTIVE fire an HTTP POST to `notify_url` (best-effort).
     {
@@ -908,6 +940,7 @@ async fn main() -> anyhow::Result<()> {
         script_supervisor,
         functions,
         derived_tags.clone(),
+        generator_tags.clone(),
         active_dir,
         Arc::new(args.projects_root.clone()),
         Arc::new(args.templates_root.clone()),

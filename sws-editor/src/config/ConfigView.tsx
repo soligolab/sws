@@ -71,6 +71,7 @@ import type {
   SparkplugMetricMapping,
   SourceDef,
   SynopticObject,
+  GeneratorSpec,
   TagDataType,
   TagDef,
   TopicMapping,
@@ -422,6 +423,8 @@ function TagsTab() {
   const [exprOpen, setExprOpen] = useState<Set<number>>(new Set());
   // F1: riga espandibile "⚙" con unità/decimali/scaling/range/limiti per tag.
   const [metaOpen, setMetaOpen] = useState<Set<number>>(new Set());
+  // T-69 Fase D: riga espandibile "∿" con la forma d'onda generata.
+  const [genOpen, setGenOpen] = useState<Set<number>>(new Set());
   // Sort + filtri per colonna e vista "non usate". L'ordinamento agisce su
   // una vista derivata [{tag, origIdx}]: lo stato `tags` NON viene riordinato
   // (le righe editano per indice, e su disco l'ordine resta quello originale).
@@ -496,6 +499,20 @@ function TagsTab() {
       else next.add(idx);
       return next;
     });
+
+  const toggleGen = (idx: number) =>
+    setGenOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+
+  const DEFAULT_GENERATOR: GeneratorSpec = { shape: "ramp", period_ms: 1000, min: 0, max: 100, enabled: true };
+
+  /** Aggiorna il generatore del tag `idx`, riempiendo i campi assenti coi default. */
+  const patchGenerator = (idx: number, tag: TagDef, patch: Partial<GeneratorSpec>) =>
+    updateTag(idx, { generator: { ...DEFAULT_GENERATOR, ...tag.generator, ...patch } });
 
   /** True se il tag definisce almeno un campo F1 (unità/scaling/range/limiti). */
   const hasMeta = (t: TagDef) =>
@@ -844,6 +861,18 @@ function TagsTab() {
                   >
                     ⚙
                   </button>
+                  <button
+                    style={{
+                      ...S.btn("ghost"),
+                      marginRight: 4,
+                      color: tag.generator?.enabled ? "#34d399" : "var(--brand-text-subtle, #94a3b8)",
+                      fontWeight: "bold",
+                    }}
+                    title={t("cfg.tagGenerator")}
+                    onClick={() => toggleGen(i)}
+                  >
+                    ∿
+                  </button>
                   <button style={S.btn("danger")} onClick={() => removeTag(i)}>✕</button>
                 </td>
               </tr>
@@ -935,6 +964,73 @@ function TagsTab() {
                         onChange={(e) => updateTag(i, { expression: e.target.value || undefined })}
                         spellCheck={false}
                       />
+                    </div>
+                  </td>
+                </tr>
+              )}
+              {(genOpen.has(i) || !!tag.generator) && (
+                <tr style={{ background: "#0a1628" }}>
+                  <td colSpan={8} style={{ ...S.td, paddingTop: 6, paddingBottom: 8 }}>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
+                      <span style={{ fontSize: 11, color: "#34d399", width: 90, fontFamily: "monospace" }}>
+                        ∿ {t("cfg.tagGenerator")}
+                      </span>
+                      <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: "var(--brand-text-subtle, #64748b)" }}>
+                        <input
+                          type="checkbox"
+                          checked={tag.generator?.enabled ?? false}
+                          onChange={(e) => patchGenerator(i, tag, { enabled: e.target.checked })}
+                        />
+                        {t("cfg.tagGeneratorEnabled")}
+                      </label>
+                      <label style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 10, color: "var(--brand-text-subtle, #64748b)", width: 100 }}>
+                        {t("cfg.tagGeneratorShape")}
+                        <select
+                          style={{ ...S.input, fontSize: 12, cursor: "pointer" }}
+                          value={tag.generator?.shape ?? "ramp"}
+                          onChange={(e) => patchGenerator(i, tag, { shape: e.target.value as GeneratorSpec["shape"] })}
+                        >
+                          <option value="ramp">Ramp</option>
+                          <option value="triangle">Triangle</option>
+                          <option value="square">Square</option>
+                        </select>
+                      </label>
+                      <label style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 10, color: "var(--brand-text-subtle, #64748b)", width: 90 }}>
+                        {t("cfg.tagGeneratorPeriod")}
+                        <input
+                          style={{ ...S.input, fontSize: 12 }}
+                          type="number" min={50}
+                          value={tag.generator?.period_ms ?? 1000}
+                          onChange={(e) => patchGenerator(i, tag, { period_ms: Number(e.target.value) })}
+                        />
+                      </label>
+                      <label style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 10, color: "var(--brand-text-subtle, #64748b)", width: 90 }}>
+                        Min
+                        <input
+                          style={{ ...S.input, fontSize: 12 }}
+                          type="number"
+                          value={tag.generator?.min ?? 0}
+                          onChange={(e) => patchGenerator(i, tag, { min: Number(e.target.value) })}
+                        />
+                      </label>
+                      <label style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 10, color: "var(--brand-text-subtle, #64748b)", width: 90 }}>
+                        Max
+                        <input
+                          style={{ ...S.input, fontSize: 12 }}
+                          type="number"
+                          value={tag.generator?.max ?? 100}
+                          onChange={(e) => patchGenerator(i, tag, { max: Number(e.target.value) })}
+                        />
+                      </label>
+                      <button
+                        style={{ ...S.btn("ghost"), fontSize: 11 }}
+                        onClick={() => updateTag(i, { generator: undefined })}
+                      >
+                        {t("cfg.tagGeneratorRemove")}
+                      </button>
+                    </div>
+                    <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 6 }}>
+                      {t("cfg.tagGeneratorHint")}
                     </div>
                   </td>
                 </tr>
