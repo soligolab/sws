@@ -8239,6 +8239,35 @@ fn localize_object(obj: &SynopticObject, lang: &str, table: &LanguageTable) -> S
     if let Some(v) = &out.bar_y_label {
         out.bar_y_label = Some(resolve_msg(v, lang, table));
     }
+    // 15-09-2026: testo visibile che non traduceva nessuno dei due motori.
+    if let Some(v) = &out.table_label_header {
+        out.table_label_header = Some(resolve_msg(v, lang, table));
+    }
+    if let Some(v) = &out.xy_x_label {
+        out.xy_x_label = Some(resolve_msg(v, lang, table));
+    }
+    if let Some(v) = &out.xy_y_label {
+        out.xy_y_label = Some(resolve_msg(v, lang, table));
+    }
+    if let Some(v) = &out.pie_group_label {
+        out.pie_group_label = Some(resolve_msg(v, lang, table));
+    }
+    // `symbol_states` resta `serde_json::Value` nel modello — scelta
+    // deliberata, documentata in `draw_symbol`: tipizzarlo farebbe fallire
+    // l'apertura dell'INTERA pagina per una voce malformata. Quindi le
+    // etichette si traducono qui dentro il JSON, senza tipizzare: una voce che
+    // non ha la forma attesa viene semplicemente saltata, come altrove.
+    if let Some(v) = &mut out.symbol_states {
+        if let Some(voci) = v.as_array_mut() {
+            for voce in voci {
+                if let Some(etichetta) = voce.get_mut("label") {
+                    if let Some(testo) = etichetta.as_str() {
+                        *etichetta = serde_json::Value::String(resolve_msg(testo, lang, table));
+                    }
+                }
+            }
+        }
+    }
     if let Some(opts) = &out.options {
         out.options = Some(
             opts.iter()

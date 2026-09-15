@@ -42,20 +42,57 @@ campi_web() {
         | grep -o '"[a-z_]*"' | tr -d '"'
     grep -o 'obj\.[a-z_]*?\.some(' "$TS" | sed 's/^obj\.//; s/?\.some($//' | sed 's/$/[]/'
 }
-# LVGL: `out.<campo> = Some(resolve_msg(` per i campi semplici; per gli array
-# annidati, `out.<campo> = Some(` con dentro una `resolve_msg` sulla label.
+# LVGL, tre forme — perché il codice ne ha legittimamente tre, e deformarlo per
+# compiacere la guardia sarebbe il verso sbagliato:
+#   a) campo semplice:  out.<campo> = Some(resolve_msg(...))
+#   b) array tipizzato: out.<campo> = Some( ... label: resolve_msg(...) ... )
+#   c) array non tipizzato (`symbol_states` è `serde_json::Value` per scelta):
+#      if let Some(v) = &mut out.<campo> { ... resolve_msg ... }
 campi_lvgl() {
     grep -o 'out\.[a-z_]* = Some(resolve_msg(' "$RS" | sed 's/^out\.//; s/ = Some(resolve_msg($//'
     awk '/out\.[a-z_]* = Some\($/ { campo=$1; sub(/^out\./,"",campo); attesa=1; next }
          attesa && /label: resolve_msg/ { print campo "[]"; attesa=0 }
          attesa && /^\s*\}/ { attesa=0 }' "$RS"
+    awk '/if let Some\([a-z_]*\) = &mut out\.[a-z_]* \{/ {
+             match($0, /&mut out\.[a-z_]+/);
+             campo=substr($0, RSTART+9, RLENGTH-9);
+             attesa=1; next }
+         attesa && /resolve_msg/ { print campo "[]"; attesa=0 }
+         attesa && /^    \}/ { attesa=0 }' "$RS"
 }
 
 web=$(campi_web | sort -u)
 lvgl=$(campi_lvgl | sort -u)
 
+# Alcuni campi il pannello non li può tradurre perché il suo modello **non ha
+# nemmeno il campo**: `TableRow.unit`, `XySeries.label` e `TrendTrace.label`
+# esistono solo lato web.
+#
+# `symbol_states` era in questo elenco per mezz'ora, con la scusa sbagliata: il
+# controllo di scadenza qui sotto ha fatto notare che `TextListEntry` la
+# `label` ce l'ha eccome, e infatti il pannello quelle etichette le disegna.
+# Ora si traducono dentro il JSON, senza tipizzare il campo (vedi
+# `localize_object`). È un buco del MODELLO (territorio di
+# `check_lvgl_parity.sh`), non della traduzione, e va distinto — o questa
+# guardia resta rossa per sempre per un motivo che non è il suo.
+#
+# L'elenco non può marcire: sotto si verifica che ognuno sia davvero assente da
+# `model.rs`. Il giorno che il campo viene aggiunto al modello, la riga qui
+# diventa un errore.
+MODEL="sws-runtime/crates/sws-lvgl-viewer/src/model.rs"
+# campo[]:sottocampo:StructNelModelloLVGL
+ASSENTI_DAL_MODELLO=(
+    "table_rows[]:unit:TableRow"
+    "xy_series[]:label:XySeries"
+    "trend_tags[]:label:TrendTrace"
+)
+scusati=""
+for voce in "${ASSENTI_DAL_MODELLO[@]}"; do
+    scusati="$scusati${voce%%:*}"$'\n'
+done
+
 echo "=== 1. i campi che il web traduce e il pannello no ==="
-solo_web=$(comm -23 <(echo "$web") <(echo "$lvgl"))
+solo_web=$(comm -23 <(echo "$web") <(echo "$lvgl") | grep -vxF -f <(printf '%s' "$scusati") || true)
 if [ -z "$solo_web" ]; then
     ok "nessuno: tutto ciò che si traduce nell'IDE si traduce anche sul pannello"
 else
@@ -82,12 +119,7 @@ fi
 #
 # Ogni riga va tolta quando quel campo entra in ENTRAMBE le liste. Quando
 # questo elenco è vuoto, la Fase 1 del piano multilingua è finita.
-NON_COPERTI=(
-    table_label_header      # intestazione della colonna etichette di `table`
-    xy_x_label              # titolo asse X di `xy_plot`
-    xy_y_label              # titolo asse Y di `xy_plot`
-    pie_group_label         # etichetta della fetta «altro» di `pie_chart`
-)
+NON_COPERTI=()
 echo "=== 3. testo visibile che non traduce nessuno dei due ==="
 if [ ${#NON_COPERTI[@]} -eq 0 ]; then
     ok "nessuno: ogni campo di testo visibile passa dal risolutore"
@@ -119,6 +151,24 @@ CONSUMATORI=(
     "sws-editor/src/runtime-view/RuntimeView.tsx"
     "sws-editor/src/editor/EditorShell.tsx"
 )
+echo "=== 3b. i campi che solo il web può tradurre, e perché ==="
+for voce in "${ASSENTI_DAL_MODELLO[@]}"; do
+    IFS=: read -r campo sotto struct <<< "$voce"
+    # Se il modello LVGL guadagna quel campo, la scusa scade e va tolta: un
+    # elenco di eccezioni che sopravvive al proprio motivo è peggio di nessun
+    # elenco. Il nome della struct si dichiara sopra e non si indovina dal
+    # nome del campo: indovinarlo funzionava per tre casi su quattro, cioè
+    # abbastanza da sembrare giusto.
+    corpo=$(sed -n "/^pub struct $struct /,/^}/p" "$MODEL")
+    if [ -z "$corpo" ]; then
+        ko "la struct \`$struct\` non esiste in model.rs: la riga \`$voce\` non descrive più niente"
+    elif grep -q "pub $sotto:" <<< "$corpo"; then
+        ko "\`$campo.$sotto\` ora esiste nel modello LVGL: togli la scusa e traducilo anche lì"
+    else
+        printf '  \033[33m•\033[0m `%s.%s` solo sul web: il modello LVGL non ha il campo (buco di modello, non di traduzione)\n' "$campo" "$sotto"
+    fi
+done
+
 echo "=== 4. il contesto della lingua è montato davvero ==="
 if grep -q "useLinguaContenuti" "$CANVAS"; then
     ok "\`SvgObject\` consuma il contesto"

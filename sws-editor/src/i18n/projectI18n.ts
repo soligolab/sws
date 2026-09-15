@@ -65,6 +65,10 @@ const TEXT_FIELDS: (keyof SynopticObject)[] = [
   "format", "pipe_label_format", "pie_center_format",
   // F3.2: il messaggio di conferma comando è testo che l'operatore legge.
   "confirm_message",
+  // 15-09-2026: testo visibile che non traduceva NESSUNO dei due motori — non
+  // una divergenza, quindi il confronto fra le due liste non poteva vederlo, e
+  // un debito che nessuno conta cresce. Ora `check_i18n_parita.sh` lo conta.
+  "table_label_header", "xy_x_label", "xy_y_label", "pie_group_label",
 ];
 
 function hasToken(v: unknown): v is string {
@@ -99,6 +103,23 @@ export function localizeObject(obj: SynopticObject, lang: string, table?: Langua
   }
   if (obj.pie_slices?.some((s) => hasToken(s.label))) {
     ensure().pie_slices = obj.pie_slices.map((s) => (hasToken(s.label) ? { ...s, label: resolveMsg(s.label, lang, table) } : s));
+  }
+  // 15-09-2026: le tre etichette annidate che restavano fuori. Il viewer LVGL
+  // non le può tradurre perché il suo modello non ha nemmeno il campo
+  // (`TableRow.unit`, `XySeries.label`, `TrendTrace.label` esistono solo qui):
+  // è un buco del modello, non della traduzione, e lo dichiara
+  // `check_i18n_parita.sh`.
+  if (obj.table_rows?.some((r) => hasToken(r.unit))) {
+    ensure().table_rows = (out ?? obj).table_rows!.map((r) => (hasToken(r.unit) ? { ...r, unit: resolveMsg(r.unit, lang, table) } : r));
+  }
+  if (obj.xy_series?.some((s) => hasToken(s.label))) {
+    ensure().xy_series = obj.xy_series.map((s) => (hasToken(s.label) ? { ...s, label: resolveMsg(s.label, lang, table) } : s));
+  }
+  if (obj.trend_tags?.some((s) => hasToken(s.label))) {
+    ensure().trend_tags = obj.trend_tags.map((s) => (hasToken(s.label) ? { ...s, label: resolveMsg(s.label, lang, table) } : s));
+  }
+  if (obj.symbol_states?.some((e) => hasToken(e.label))) {
+    ensure().symbol_states = obj.symbol_states.map((e) => (hasToken(e.label) ? { ...e, label: resolveMsg(e.label, lang, table) } : e));
   }
   return out ?? obj;
 }
