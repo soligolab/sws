@@ -51,6 +51,11 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   statico (`validate.rs`) lo segnalava a design-time, non il runtime. Trovato esplorando la
   fase D di T-69 (serviva la stessa guardia per `generator`); corretto con `TagDb::computed_tags`
   e un controllo esplicito in `write_tag`, condiviso fra `expression` e `generator` attivo.
+- **`functions.run` non condivideva lo stato ritenuto con `POST /api/script/run/:name`
+  (T-69, fase C) come il commento del codice prometteva**: usava l'identità `fn:<nome>`,
+  diversa dal nome nudo passato dal percorso HTTP/pulsante — una funzione richiamata da
+  entrambi finiva su due `state`/`delta_ms()` indipendenti. Trovato costruendo il template di
+  collaudo di T-69; tolto il prefisso `fn:`, identità ora identica in entrambi i percorsi.
 
 ### Removed
 - **Il percorso di build aarch64 via QEMU e il flag `--sdk` (fase due di Q53)**: restavano «finché

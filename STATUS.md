@@ -74,6 +74,23 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — bug post-chiusura in `functions.run` corretto, template di collaudo in corso (2026-09-15)
+
+Costruendo il template dedicato a collaudare T-69 in ufficio, trovato un secondo difetto
+(dopo quello di `write_tag` in Fase D): `functions.run` (Fase C) usava l'identità `fn:<nome>`
+per `delta_ms()`/`state`, mentre `POST /api/script/run/:name` (il percorso di un pulsante)
+passa il nome nudo — due chiavi diverse nella stessa mappa `states`, nonostante il commento
+del codice promettesse "lo stesso schema". Una funzione richiamata sia da un pulsante sia da
+uno script globale (`functions.run`) finiva su due contatori indipendenti invece di uno
+condiviso. Corretto (`eccbee1`): tolto il prefisso `fn:`, nuovo test che chiama
+`functions.run` e poi `execute_with_args` con lo stesso nome nudo e verifica che vedano lo
+stesso stato. Gate verde: cargo check/test(15 sws-pyscript)/clippy/fmt, pnpm build,
+17/17 guardie statiche.
+
+**Prossimo passo**: template `examples/templates/t69-collaudo/` per esercitare dal vivo
+tutte e cinque le fasi (generatore nativo, orologio+stato, `interval_ms`, `functions.run`+
+pulsante sullo stesso contatore, sonda `send_telegram`) — in corso.
+
 ## ▶ Riprendere da qui — T-69 chiuso, tutte e cinque le fasi fatte (2026-09-15)
 
 **Fase D (`25d1d68`), fatta — l'ultima.** `TagDef.generator: Option<GeneratorSpec>`
