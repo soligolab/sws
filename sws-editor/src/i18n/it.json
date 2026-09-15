@@ -111,6 +111,7 @@
     "fitPageUnavailable": "Dimensioni pagina non definite (modalità fluida)",
     "fitObjectsTitle": "Adatta agli oggetti",
     "previewEffects": "Effetti",
+    "previewLangTitle": "Lingua in cui il canvas mostra i testi tradotti. Serve a rileggere una traduzione dove si vede davvero: sul disegno, e con la larghezza vera dei riquadri.",
     "previewEffectsTitle": "Anteprima effetti runtime nel canvas: lampeggi, rotazioni, flusso pipe, movimento su percorso, bordi allarme, stale. Spento = editing tranquillo.",
     "copyStyle": "Copia stile",
     "copyStyleTitle": "Copia i campi di aspetto dell'oggetto selezionato (colori, bordo, font, angoli, sfumatura). Non copia il tag né la geometria.",
