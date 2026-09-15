@@ -30,6 +30,13 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   globale di una riga la richiama sul trigger che serve. Identità propria `fn:<nome>` per
   `delta_ms()`/`state`; non disponibile richiamando una funzione da un'altra funzione.
 
+- **Tag «generatore» nativo — rampa/triangolo/quadra (T-69, fase D, ultima)**:
+  `TagDef.generator: Option<GeneratorSpec>` (shape/period_ms/min/max/enabled). Il valore è
+  funzione pura del tempo (`now_ms % period_ms`), ricalcolata ogni 100ms da un supervisor
+  dedicato — niente stato da ricordare tra un giro e l'altro, a differenza del contatore-tag
+  scritto a mano che serviva prima (vedi `demo-sim` in `examples/templates/demo-items-web`).
+  Editor: terzo toggle "∿" nella riga tag. Chiude T-69: tutte e cinque le fasi fatte.
+
 ### Fixed
 - **`send_telegram(...)` sollevava sempre `NameError`**: era registrato nei globals esterni di
   `run_in_python` (`sws-pyscript`) ma mai copiato dentro `__sws_globals__`, il dizionario contro
@@ -39,6 +46,11 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   supporta (verificato: solleva sempre `TypeError`) — l'API vera è `tags.read(id)`/
   `tags.write(id, valore)`. Corretto insieme alla fase B di T-69, con la documentazione dei
   quattro binding della fase A aggiunta nello stesso punto (dimenticata il giorno prima).
+- **`write_tag` non rifiutava mai una scrittura API su un tag calcolato (`expression`)**,
+  nonostante la doc del campo e lo schema IA dicessero il contrario — solo il validatore
+  statico (`validate.rs`) lo segnalava a design-time, non il runtime. Trovato esplorando la
+  fase D di T-69 (serviva la stessa guardia per `generator`); corretto con `TagDb::computed_tags`
+  e un controllo esplicito in `write_tag`, condiviso fra `expression` e `generator` attivo.
 
 ### Removed
 - **Il percorso di build aarch64 via QEMU e il flag `--sdk` (fase due di Q53)**: restavano «finché

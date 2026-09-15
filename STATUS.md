@@ -74,6 +74,35 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — T-69 chiuso, tutte e cinque le fasi fatte (2026-09-15)
+
+**Fase D (`25d1d68`), fatta — l'ultima.** `TagDef.generator: Option<GeneratorSpec>`
+(shape ramp/triangle/square, period_ms, min, max, enabled) — funzione **pura** del tempo
+(`value_at(now_ms)`), ricalcolata ogni 100ms da un supervisor dedicato in
+`sws-runtime/main.rs`, non dal loop event-driven dei tag derivati: quel loop reagisce ai
+cambi di `TagDb`, un generatore deve ticchettare da solo.
+
+**Corretto un difetto adiacente trovato esplorando**, non previsto dal piano: `write_tag`
+non rifiutava mai una scrittura API su un tag con `expression` — solo il validatore statico
+(`validate.rs`) lo segnalava a design-time, non il runtime. Aggiunta `TagDb::computed_tags`
+(stesso pattern di `scales`/`write_roles`/`data_types`, aggiornata negli stessi 5 punti +
+2 clear) e la guardia in `write_tag`, che ora rifiuta con 400 sia `expression` che
+`generator` attivo (`TagDef::is_computed()`). Il claim della doc/schema IA («le scritture
+vengono rifiutate») ora è vero anche a runtime, non solo sulla carta.
+
+Editor: terzo toggle "∿" nella riga tag di `ConfigView.tsx`, tipo TS `GeneratorSpec`, i18n
+IT/EN. Schema IA rigenerato (`gen_synoptic_schema.py`). Nuovo capitolo 16 in `docs/HOWTO.md`.
+
+Collaudato dal vivo su un runtime di scarto (progetto Sandokan, tag scratch rimosso a fine
+prova): rampa/triangolo/quadra misurati nel tempo — valori coerenti col periodo dichiarato
+(triangle 2000ms, square 1000ms) — scrittura rifiutata mentre attivo, tornata possibile
+disattivandolo. Gate verde: cargo check/test(298 sws-web+sws-core)/clippy/fmt --workspace,
+tsc, pnpm build/test, 17/17 guardie statiche incluso `check_synoptic_schema`.
+
+**T-69 chiuso**: tutte e cinque le fasi (A orologio+stato, B `interval_ms`, C `functions.run`,
+E doc parametri, D generatore) fatte e su `main`. Piano spostato in
+`docs/archive/2026-09-14-T69-tempo-stato-script.md`.
+
 ## ▶ Riprendere da qui — T-69 in corso, Fase C+E chiuse: funzioni da script globale (2026-09-15)
 
 Stesso piano, stesso giorno. **Fase C+E (`f1201ac`), fatta.** Nuovo binding `functions.run(name,
