@@ -1,28 +1,23 @@
 # Credits — Template "Casa Locale"
 
-## Icone SVG
+## Icone
 
-Le icone nella directory `sws-editor/public/symbols/` aggiunte per questo template provengono da **Material Design Icons** (progetto Pictogrammers).
+Le icone di questo template (batteria, garage, luce, tapparella, pannello solare, traliccio)
+sono simboli **builtin** disegnati nel motore (`sws-editor/src/symbols/library.tsx`), non file
+SVG distribuiti a parte — non c'è nulla da attribuire per queste sei.
 
-| File | ID icona MDI | Fonte | Licenza |
-|---|---|---|---|
-| `solar-panel.svg` | `mdi-solar-panel` | github.com/Templarian/MaterialDesign | Apache 2.0 |
-| `solar-power-variant.svg` | `mdi-solar-power-variant` | github.com/Templarian/MaterialDesign | Apache 2.0 |
-| `battery-charging-high.svg` | `mdi-battery-charging-high` | github.com/Templarian/MaterialDesign | Apache 2.0 |
-| `transmission-tower.svg` | `mdi-transmission-tower` | github.com/Templarian/MaterialDesign | Apache 2.0 |
-| `home-lightning-bolt.svg` | `mdi-home-lightning-bolt` | github.com/Templarian/MaterialDesign | Apache 2.0 |
-| `garage-open-variant.svg` | `mdi-garage-open-variant` | github.com/Templarian/MaterialDesign | Apache 2.0 |
-| `window-open-variant.svg` | `mdi-window-open-variant` | github.com/Templarian/MaterialDesign | Apache 2.0 |
-| `roller-shade.svg` | `mdi-roller-shade` | github.com/Templarian/MaterialDesign | Apache 2.0 |
+Fino al 13-09-2026 (Q40) erano invece 8 file SVG in `sws-editor/public/symbols/`, derivati da
+icone **Material Design Icons** (progetto Pictogrammers, Apache 2.0): quella versione di questo
+documento ne elencava la fonte come richiesto dalla licenza. Q40 li ha sostituiti con simboli
+ricolorabili in base allo stato (un file statico non può farlo): sette sono diventati ridisegni
+builtin, l'ottavo (`solar-power-variant.svg`, mai convertito) è rimasto come file orfano — non
+referenziato da nessun template — rimosso il 15-09-2026 insieme a questa revisione.
 
-**Apache License 2.0** — Testo completo: https://www.apache.org/licenses/LICENSE-2.0
-
-Estratto dei requisiti per la redistribuzione (Apache 2.0):
-> You may reproduce and distribute copies of the Work [...] provided that You meet the following conditions: (a) You must give any other recipients of the Work [...] a copy of this License.
-
-I file sopra elencati vengono distribuiti assieme al progetto SWS (AGPL-3.0) in conformità con le condizioni di compatibilità delle licenze. L'Apache 2.0 è compatibile con AGPL-3.0 per la distribuzione combinata.
-
-Data di download: 2026-05-16.
+**Confermato dal maintainer il 15-09-2026**: i sette ridisegni builtin sono ridisegnati da zero
+come icone stilizzate, non ricalcati sull'originale — non sono opere derivate delle icone MDI di
+partenza, quindi non serve più l'attribuzione Apache 2.0. Vedi anche
+`sws-editor/public/symbols/ATTRIBUTION.md`, che copre il meccanismo `kind: "vendored"` (oggi
+senza utenti) per gli SVG vendorizzati futuri.
 
 ## Dati in tempo reale
 

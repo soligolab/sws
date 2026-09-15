@@ -22,6 +22,15 @@ weren't a same-afternoon faithful port), one-part-recolours-for-real for
 the four SWS ones. `symbols/library.tsx` and `sws-runtime/…/svg_assets.rs`
 both carry the "Q40" note where these moved.
 
+**Confirmed by the maintainer, 2026-09-15** (template review, question that
+implementation-time judgment alone couldn't settle): the seven MDI-derived
+redraws are original stylised icons, not traced from the source — not
+derivative works, so no MDI attribution is owed for them. `casa-locale/
+CREDITS.md`, the template that used to carry that attribution, has been
+rewritten accordingly. An eighth pre-Q40 file this attribution once covered,
+`solar-power-variant.svg`, was never converted and had become an orphan
+(unreferenced by any `symbol_id`) — removed in the same pass.
+
 ## Currently shipped
 
 Nothing, as of 2026-09-13 — `VENDORED` (`svg_assets.rs`) and every
