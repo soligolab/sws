@@ -10482,6 +10482,7 @@ function DevicesTab() {
 
 // ── Languages tab (T-40): project message translation table ─────────────────
 function LanguagesTab() {
+  const markSaveOk = useAppStore((s) => s.markSaveOk);
   const { t } = useTranslation();
   const storeTable       = useAppStore((s) => s.project?.languages);
   const updateLanguages  = useAppStore((s) => s.updateProjectLanguages);
@@ -10545,8 +10546,19 @@ function LanguagesTab() {
   const handleSave = async () => {
     const clean: LanguageTable = { ...table, entries: table.entries.filter((e) => e.key.trim() !== "") };
     setSaving(true);
-    try { await api.updateLanguages(clean); updateLanguages(clean); setTable(clean); setSaved(true); setTimeout(() => setSaved(false), 3000); }
-    finally { setSaving(false); }
+    try {
+      await api.updateLanguages(clean);
+      updateLanguages(clean);
+      setTable(clean);
+      // Senza questo il watcher del progetto scambia il NOSTRO salvataggio per
+      // un cambio esterno e fa comparire la barra «il progetto sul runtime è
+      // cambiato». Premere «Ricarica» lì butta via il lavoro non salvato — il
+      // maintainer ci ha perso degli oggetti appena inseriti, il 15-09-2026.
+      // Tutte le altre schede di ConfigView lo chiamavano già; questa no.
+      markSaveOk();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } finally { setSaving(false); }
   };
 
   // ── Traduzione automatica (Fase 4) ────────────────────────────────────────
@@ -10561,6 +10573,20 @@ function LanguagesTab() {
 
   const traduci = async (verso: string) => {
     if (!verso || verso === table.default) return;
+    // Quante voci partiranno davvero: una richiesta di rete ciascuna, in fila.
+    // Dirlo prima è l'unica onestà possibile su un'attesa che può durare
+    // minuti — il maintainer l'ha vissuta come un blocco senza spiegazione.
+    const quante = table.entries.filter(
+      (e) => (e.values[table.default] ?? "").trim() !== "" && (e.values[verso] ?? "").trim() === "",
+    ).length;
+    if (quante === 0) {
+      window.alert(`Niente da tradurre verso «${verso}»: le caselle sono già piene.`);
+      return;
+    }
+    if (!window.confirm(
+      `Traduco ${quante} voci verso «${verso}», una richiesta di rete ciascuna.\n\n` +
+      "Può richiedere qualche minuto e l'editor resta in attesa. Procedo?",
+    )) return;
     // Si salva prima: il server traduce ciò che ha su disco, e una riga appena
     // digitata e non salvata non verrebbe tradotta — senza che nessuno capisca
     // perché.
@@ -10577,7 +10603,19 @@ function LanguagesTab() {
         },
       });
       const p = await api.getProject();
-      if (p) useAppStore.getState().setProject(p);
+      if (p) {
+        useAppStore.getState().setProject(p);
+        // **E anche la copia locale di questa scheda.** Senza, la tabella qui
+        // resta quella di prima della traduzione: il salvataggio successivo —
+        // compreso quello che `traduci` fa da sé all'inizio — rimanderebbe al
+        // server la versione vecchia, CANCELLANDO le traduzioni appena fatte.
+        // È il difetto per cui una colonna risultava vuota dopo aver tradotto
+        // verso due lingue di fila.
+        if (p.languages) setTable(p.languages);
+      }
+      // Anche questa è una scrittura nostra su project.yaml: va dichiarata, o
+      // il watcher la legge come un cambio esterno.
+      markSaveOk();
       const problemi = r.problemi.length
         ? `\n\nRighe non tradotte (${r.problemi.length}):\n` + r.problemi.slice(0, 8).join("\n")
         : "";
@@ -10669,6 +10707,11 @@ function LanguagesTab() {
           <input type="text" value={urlTrad} onChange={(e) => setUrlTrad(e.target.value)}
             placeholder="https://libretranslate.com"
             style={{ background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", fontSize: 12, width: 190 }} />
+        )}
+        {traducendo && (
+          <span style={{ fontSize: 12, color: "var(--brand-warning-soft, #fbbf24)" }}>
+            ⏳ traduzione verso «{traducendo}» in corso…
+          </span>
         )}
         {table.langs.filter((l) => l !== table.default).map((l) => (
           <button key={l} onClick={() => traduci(l)} disabled={traducendo !== null}

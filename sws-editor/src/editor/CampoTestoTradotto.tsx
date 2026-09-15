@@ -53,7 +53,16 @@ export function CampoTestoTradotto({
   const salvaTabella = (nuova: LanguageTable) => {
     if (!project) return;
     setProject({ ...project, languages: nuova });
-    api.updateLanguages(nuova).catch(console.error);
+    api
+      .updateLanguages(nuova)
+      // **Dichiarare che il salvataggio è nostro.** Il watcher del progetto
+      // confronta un'impronta di `project.yaml` ogni tre secondi e non ha modo
+      // di sapere chi l'ha cambiato: senza questa riga, ogni etichetta digitata
+      // faceva comparire la barra «il progetto sul runtime è cambiato», e
+      // premere «Ricarica» lì butta via le pagine non salvate. Il maintainer ci
+      // ha perso degli oggetti appena inseriti, il 15-09-2026.
+      .then(() => useAppStore.getState().markSaveOk())
+      .catch(console.error);
   };
 
   const creaNuova = (testo: string) => {

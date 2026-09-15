@@ -82,6 +82,21 @@ describe("digitare un testo crea la voce e scrive il token", () => {
   });
 });
 
+describe("il salvataggio si dichiara come nostro", () => {
+  it("dopo aver scritto la tabella, markSaveOk viene chiamato", async () => {
+    // Il watcher del progetto confronta un'impronta di project.yaml ogni tre
+    // secondi e non sa chi l'ha cambiato. Senza questa dichiarazione, OGNI
+    // etichetta digitata faceva comparire la barra «il progetto sul runtime è
+    // cambiato» — e premere «Ricarica» lì butta via le pagine non salvate.
+    // Il maintainer ci ha perso degli oggetti appena inseriti, il 15-09-2026.
+    const segno = vi.fn();
+    useAppStore.setState({ markSaveOk: segno });
+    digita(undefined, "Avvio pompa");
+    // `updateLanguages` è una promessa: il segno arriva dopo.
+    await vi.waitFor(() => expect(segno).toHaveBeenCalled());
+  });
+});
+
 describe("il campo mostra il testo, non la chiave", () => {
   it("un oggetto che porta gia un token si apre mostrando la frase", () => {
     useAppStore.setState({
