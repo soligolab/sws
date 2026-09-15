@@ -122,3 +122,34 @@ objects:
   font_size: 16.0
   color: '#e2e8f0'
   text_anchor: end
+# ── Write-back — pump.speed/pump.running sono writable: true alla
+#    sorgente ma nessun controllo li scriveva (revisione template,
+#    15-09-2026): coerenza con enip-demo/s7-demo, corretti per lo stesso
+#    motivo. ──
+- id: lbl_comandi
+  type: text
+  x: 40.0
+  y: 354.0
+  text: COMANDI (write-back via Sparkplug B)
+  font_size: 12.0
+  font_weight: bold
+  color: '#38bdf8'
+- id: cmd_speed
+  type: setpoint
+  x: 40.0
+  y: 384.0
+  width: 290.0
+  height: 48.0
+  label: Comando velocità pompa
+  tag: pump.speed
+  min: 0.0
+  max: 3000.0
+  step: 50.0
+- id: cmd_running
+  type: checkbox
+  x: 360.0
+  y: 392.0
+  width: 250.0
+  height: 32.0
+  label: Pompa in marcia
+  tag: pump.running
