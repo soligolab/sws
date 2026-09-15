@@ -32,6 +32,8 @@ import { BarraIcone, IntestazioneSezione, PREFISSO_MEMORIA, RigaProprieta, SPAZI
 import { cosaCancella, eliminaWaypoint, percorsoDaSalvare, puntiMovimento } from "@/canvas/percorsoMovimento";
 import { targetDaSalvare, versoRischioso } from "./targetProgetto";
 import { LinguaContenutiProvider } from "@/i18n/linguaContenuti";
+import { TEXT_FIELDS } from "@/i18n/projectI18n";
+import { CampoTestoTradotto } from "@/editor/CampoTestoTradotto";
 import type { AlignMode } from "@/store";
 import type { AlarmSeverity, ButtonAction, FunctionDef, GridCell, PageLayoutConfig, PageSizeMode, ProjectTargetKind, RadioOption, SubCellEntry, SubGrid, SynopticObject, TableRow, TextListEntry, TrendTrace, XySeries } from "@/types";
 
@@ -2440,15 +2442,37 @@ export function ObjectProps({
     />
   );
 
-  const textInput = (key: keyof SynopticObject, placeholder?: string) => (
-    <input
-      type="text"
-      style={INPUT}
-      placeholder={mixedKeys.has(key) ? "(vari)" : placeholder}
-      value={mixedKeys.has(key) ? "" : ((obj[key] as string) ?? "")}
-      onChange={(e) => onChange({ [key]: e.target.value } as Partial<SynopticObject>)}
-    />
-  );
+  // Un solo imbuto per tutti i tipi di oggetto: i campi che l'operatore legge
+  // passano dalla tabella lingue e diventano `{{chiave}}` da soli (Fase 3); gli
+  // altri — id, tag, colori, URL — restano testo com'erano. La distinzione è
+  // `TEXT_FIELDS`, lo **stesso** elenco che il viewer usa per risolvere: due
+  // elenchi diversi darebbero un campo tokenizzato scrivendo e grezzo
+  // disegnando.
+  //
+  // La selezione multipla è esclusa: scrivere un testo per N oggetti creerebbe
+  // una chiave sola condivisa senza che nessuno l'abbia chiesto, e «(vari)» non
+  // è un testo da mettere in tabella.
+  const textInput = (key: keyof SynopticObject, placeholder?: string) => {
+    if (TEXT_FIELDS.includes(key) && !mixedKeys.has(key)) {
+      return (
+        <CampoTestoTradotto
+          valore={obj[key] as string | undefined}
+          placeholder={placeholder}
+          stile={INPUT}
+          onChange={(nuovo) => onChange({ [key]: nuovo } as Partial<SynopticObject>)}
+        />
+      );
+    }
+    return (
+      <input
+        type="text"
+        style={INPUT}
+        placeholder={mixedKeys.has(key) ? "(vari)" : placeholder}
+        value={mixedKeys.has(key) ? "" : ((obj[key] as string) ?? "")}
+        onChange={(e) => onChange({ [key]: e.target.value } as Partial<SynopticObject>)}
+      />
+    );
+  };
 
   const tagInput = (placeholder?: string) => (
     <TagInput

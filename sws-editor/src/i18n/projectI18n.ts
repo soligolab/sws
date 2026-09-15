@@ -58,7 +58,13 @@ export function resolveMsg(str: string, lang: string, table?: LanguageTable | nu
   });
 }
 
-const TEXT_FIELDS: (keyof SynopticObject)[] = [
+/** I campi di un oggetto che contengono testo letto dall'operatore, e che
+ *  quindi passano dalla tabella lingue. **Esportato** perché è anche l'elenco
+ *  dei campi in cui il pannello proprietà crea le chiavi da solo (Fase 3): due
+ *  elenchi diversi vorrebbero dire un campo che si tokenizza scrivendo e non si
+ *  risolve disegnando, o viceversa. `scripts/check_i18n_parita.sh` lo confronta
+ *  con quello del viewer LVGL. */
+export const TEXT_FIELDS: (keyof SynopticObject)[] = [
   "label", "text", "unit", "pipe_label", "bar_y_label", "pie_center_text", "text_list_default",
   // F1.3: anche i formati possono portare testo attorno al segnaposto
   // (es. "{value:.1f} {{gradi}}") e vanno risolti come ogni altro testo.

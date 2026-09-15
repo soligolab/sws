@@ -38,7 +38,7 @@ done
 # Web: i nomi fra virgolette dentro l'array TEXT_FIELDS, più gli array
 # annidati, riconosciuti da `obj.<campo>?.some(`.
 campi_web() {
-    sed -n '/^const TEXT_FIELDS/,/^\];/p' "$TS" \
+    sed -n '/^\(export \)\?const TEXT_FIELDS/,/^\];/p' "$TS" \
         | grep -o '"[a-z_]*"' | tr -d '"'
     grep -o 'obj\.[a-z_]*?\.some(' "$TS" | sed 's/^obj\.//; s/?\.some($//' | sed 's/$/[]/'
 }
