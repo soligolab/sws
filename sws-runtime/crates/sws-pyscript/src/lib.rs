@@ -323,10 +323,16 @@ impl FunctionsApi {
             ))
         })?;
 
-        // Identità "fn:<nome>", non quella dello script chiamante: la
-        // funzione tiene il proprio delta_ms()/state a prescindere da chi la
-        // invoca — lo stesso schema di POST /api/script/run/:name.
-        let identity = format!("fn:{name}");
+        // Identità = il nome nudo della funzione, non quello dello script
+        // chiamante: la funzione tiene il proprio delta_ms()/state a
+        // prescindere da chi la invoca — lo STESSO nome usato da
+        // `POST /api/script/run/:name` (router.rs::run_function, `&name`).
+        // Prima di questa correzione qui c'era un prefisso `fn:` che rendeva
+        // le due chiavi diverse nonostante il commento (e l'intento)
+        // dicessero il contrario: un pulsante e uno script che richiamano la
+        // STESSA funzione finivano su due contatori di stato indipendenti,
+        // scoperto costruendo il template di collaudo di T-69.
+        let identity = name.to_string();
         let engine = self.engine.clone();
         let result = py.detach(|| {
             self.handle
@@ -1500,7 +1506,7 @@ tags.write('delta', delta_ms())
     /// `GlobalScriptSupervisor::start` su ogni script), uno script globale
     /// può richiamare una funzione di progetto in-process, passandole
     /// argomenti per nome — e la funzione chiamata ha una propria identità
-    /// (`fn:<nome>`), non quella dello script chiamante.
+    /// (il proprio nome), non quella dello script chiamante.
     #[tokio::test]
     async fn functions_run_esegue_la_funzione_con_gli_argomenti() {
         let db = Arc::new(TagDb::new(16));
@@ -1531,6 +1537,59 @@ tags.write('delta', delta_ms())
             dopo.get("chi").map(|s| s.value.clone()),
             Some(TagValue::Str("mondo".into())),
             "gli argomenti nominali arrivano alla funzione chiamata"
+        );
+    }
+
+    /// Corretto in questa sessione: `functions.run` usava l'identità
+    /// `fn:<nome>`, diversa dal nome nudo che `POST /api/script/run/:name`
+    /// (il percorso di un pulsante) passa a `execute_with_args` — due chiavi
+    /// diverse nella stessa mappa `states`, quindi `state`/`delta_ms()` NON
+    /// erano condivisi fra i due percorsi nonostante il commento del codice
+    /// lo promettesse. Qui si simula il secondo percorso chiamando
+    /// `execute_with_args` direttamente col nome nudo, come fa
+    /// `router::run_function`.
+    #[tokio::test]
+    async fn functions_run_condivide_lo_stato_con_la_chiamata_diretta_per_nome() {
+        let db = Arc::new(TagDb::new(16));
+        let bus = Arc::new(TagWriteBus::new());
+        let e = Engine::new(db.clone(), bus);
+
+        let registry: FunctionsRegistry =
+            Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::from([
+                (
+                    "conta".to_string(),
+                    sws_core::FunctionDef {
+                        id: "f1".into(),
+                        name: "conta".into(),
+                        description: None,
+                        code: "n = state.get('n', 0) + 1\nstate.set('n', n)\ntags.write('n', n)\n"
+                            .into(),
+                        params: vec![],
+                    },
+                ),
+            ])));
+        e.set_functions_registry(Some(registry));
+
+        // Primo giro: via functions.run, come da uno script globale.
+        e.execute("functions.run('conta')".into(), "script-a")
+            .await
+            .expect("functions.run fallita");
+        assert_eq!(db.get("n").await.map(|s| s.value), Some(TagValue::Int(1)));
+
+        // Secondo giro: chiamata diretta col nome nudo, come farebbe
+        // `POST /api/script/run/:name` per un pulsante. Deve vedere lo
+        // stesso stato, non ripartire da zero.
+        e.execute_with_args(
+            "n = state.get('n', 0) + 1\nstate.set('n', n)\ntags.write('n', n)\n".into(),
+            serde_json::Map::new(),
+            "conta",
+        )
+        .await
+        .expect("chiamata diretta fallita");
+        assert_eq!(
+            db.get("n").await.map(|s| s.value),
+            Some(TagValue::Int(2)),
+            "functions.run e la chiamata diretta per nome devono condividere lo stato"
         );
     }
 }
