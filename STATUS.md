@@ -74,6 +74,26 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — T-69 in corso, Fase C+E chiuse: funzioni da script globale (2026-09-15)
+
+Stesso piano, stesso giorno. **Fase C+E (`f1201ac`), fatta.** Nuovo binding `functions.run(name,
+**kwargs)`: uno script globale richiama una funzione di progetto in-process (stesso registro di
+`POST /api/script/run/:name`, identità propria `fn:<nome>` per `delta_ms()`/`state`). Niente
+trigger proprio su `FunctionDef` — duplicherebbe la macchina di scheduling già negli script
+globali. Non disponibile sull'engine condiviso (`AppState.py`): una funzione non può richiamarne
+un'altra, errore esplicito invece di ricorsione mai pensata.
+
+Fase E nello stesso ramo: nuovo capitolo 15 in `docs/HOWTO.md` (il passaggio parametri funziona
+dal 6-09 ma non si trovava) + riquadro "Bindings" del pannello Funzioni aggiornato (elencava solo
+`tags`/`print`, mancavano tutti i binding T-69).
+
+Verificato dal vivo: script globale `startup` → `functions.run(...)` con argomento nominale →
+tag scritto col valore atteso. Gate verde: cargo build/test(14 sws-pyscript)/clippy/fmt, tsc,
+pnpm build/test(362), 17/17 guardie statiche.
+
+**Resta la Fase D**, la più grande: tipo di tag «generatore» nativo (rampa/triangolo/quadra), un
+ciclo di valutazione a tempo tutto nuovo — vedi il piano per il disegno già verificato sul codice.
+
 ## ▶ Riprendere da qui — T-69 in corso, Fase B chiusa: `interval_ms` sui trigger (2026-09-15)
 
 Stesso piano, proseguito il giorno dopo. **Fase B (`b0f5bb6`), fatta.** `ScriptTrigger::Interval`

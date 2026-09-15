@@ -24,6 +24,12 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   cadenza sotto il secondo che `interval_s` non poteva esprimere. Editor: secondo campo
   opzionale nella UI del trigger.
 
+- **`functions.run(name, **kwargs)` da uno script globale (T-69, fase C)**: richiama una funzione
+  di progetto in-process, senza `POST /api/script/run/:name`. Nessun trigger proprio su
+  `FunctionDef` (duplicherebbe la macchina di scheduling già negli script globali) — uno script
+  globale di una riga la richiama sul trigger che serve. Identità propria `fn:<nome>` per
+  `delta_ms()`/`state`; non disponibile richiamando una funzione da un'altra funzione.
+
 ### Fixed
 - **`send_telegram(...)` sollevava sempre `NameError`**: era registrato nei globals esterni di
   `run_in_python` (`sws-pyscript`) ma mai copiato dentro `__sws_globals__`, il dizionario contro
