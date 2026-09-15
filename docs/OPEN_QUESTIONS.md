@@ -541,6 +541,45 @@ risposta vera è la 2, che nasce dentro Q44 e non prima.
 
 ---
 
+## Q57 — Una notifica non ha uno schermo: in che lingua parla, e a chi?
+
+*Aperta il 15-09-2026 durante la Fase 2 del piano multilingua. Il piano prende il minimo e
+registra qui la parte che è una decisione di prodotto.*
+
+**Context.** Fino a oggi email e messaggi Telegram uscivano con il messaggio d'allarme **grezzo**
+— un progetto tradotto bene mandava letteralmente `{{allarme_pressione}}` al telefono di chi era
+di turno — dentro un template con le etichette («Allarme:», «Messaggio:», «Severità:») **cablate
+in italiano**. Corretto: il messaggio si risolve, e le etichette seguono una lingua.
+
+Ma *quale* lingua? Un viewer ce l'ha: è quella scelta sul vetro, e cambia quando un operatore
+tocca il `lang_button`. Una notifica no. Parte verso una casella o una chat mentre nessuno sta
+guardando il pannello, e la lingua scelta da un operatore in sala controllo non riguarda chi la
+riceve. La Fase 2 ha quindi introdotto `notifications.notify_lang` nel progetto — **una sola per
+progetto**, con ripiego sulla lingua principale della tabella.
+
+**Il caso che una lingua sola non copre.** Un impianto venduto a un cliente estero ha spesso
+destinatari misti: la manutenzione locale, il costruttore italiano, l'assistenza del fornitore del
+PLC. Oggi ricevono tutti la stessa lingua, e almeno uno la riceve sbagliata. Il modello dei
+destinatari lo permetterebbe: `notify_email[]` ed `escalate_to[]` sono già elenchi per allarme
+(`sws-core/src/alarm.rs:175-181`), e `telegram_chat_ids[]` pure.
+
+**Options.**
+
+1. **Una lingua per progetto**, com'è ora. Semplice, e per un impianto con un solo interlocutore è
+   la risposta giusta. Costo: chi ha destinatari misti non ha nessuna via d'uscita.
+2. **Una lingua per destinatario**: `notify_email` diventa una lista di `{indirizzo, lingua}` e
+   altrettanto per le chat. Il corpo si compone una volta per lingua distinta invece che una volta
+   sola. Costo: cambia la forma del progetto in un punto che oggi è un semplice elenco di stringhe,
+   e moltiplica i messaggi in uscita.
+3. **Una lingua per canale** — email in una lingua, Telegram in un'altra. Costa poco ma copre un
+   caso che non è quello vero: la lingua dipende da *chi legge*, non da *come* legge.
+
+**Default per il PoC.** Opzione 1, realizzata. Il prezzo è scritto qui.
+
+**Decided:** not yet.
+
+---
+
 ## Adding new questions
 
 When Claude Code adds a new question, follow the format above:

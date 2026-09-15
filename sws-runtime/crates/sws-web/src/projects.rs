@@ -50,6 +50,10 @@ pub async fn start_project_services(
     s: &AppState,
     notifications: Option<sws_core::NotificationConfig>,
     global_scripts: Vec<sws_core::GlobalScriptDef>,
+    // La tabella lingue del progetto che si sta aprendo: le notifiche la
+    // usano per risolvere i token nel messaggio d'allarme. Fotografata qui,
+    // come `notifications`, perché il supervisore vive quanto il progetto.
+    languages: sws_core::LanguageTable,
 ) {
     // Ferma quello che sta già girando, PRIMA di sostituirlo.
     //
@@ -119,7 +123,12 @@ pub async fn start_project_services(
         *s.script_supervisor.write().await = Some(sc);
     }
     if let Some(notif) = notifications {
-        let ns = NotificationSupervisor::start(s.alarms.clone(), notif, sinks.map(|k| k.messages));
+        let ns = NotificationSupervisor::start(
+            s.alarms.clone(),
+            notif,
+            sinks.map(|k| k.messages),
+            languages,
+        );
         info!("notification supervisor started");
         *s.notification_supervisor.write().await = Some(ns);
     }
@@ -779,6 +788,9 @@ pub async fn open_project(State(s): State<AppState>, Path(name): Path<String>) -
         .await;
 
     // 3. Apply the new project.
+    // La tabella lingue serve alle notifiche e `apply_loaded_project` consuma
+    // `project`: si copia prima.
+    let languages = project.languages.clone();
     let (notifications, global_scripts) = apply_loaded_project(
         &project_dir,
         project,
@@ -794,7 +806,7 @@ pub async fn open_project(State(s): State<AppState>, Path(name): Path<String>) -
         &s.instance_id,
     )
     .await;
-    start_project_services(&s, notifications, global_scripts).await;
+    start_project_services(&s, notifications, global_scripts, languages).await;
 
     // 4. Swap auth store. Drops all sessions → forces re-login.
     if let Err(e) = s

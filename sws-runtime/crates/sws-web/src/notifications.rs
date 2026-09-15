@@ -19,7 +19,8 @@ use lettre::{
 use std::{collections::HashSet, sync::Arc};
 use sws_core::now_ms;
 use sws_core::{
-    AlarmDb, AlarmState, IsaState, NotificationConfig, SmtpConfig, TagValue, TelegramRouting,
+    AlarmDb, AlarmState, IsaState, LanguageTable, NotificationConfig, SmtpConfig, TagValue,
+    TelegramRouting,
 };
 use tokio::sync::{broadcast, mpsc, RwLock};
 use tokio_util::sync::CancellationToken;
@@ -120,14 +121,96 @@ fn fmt_activated_at(ms: Option<u64>) -> String {
     }
 }
 
-fn alarm_body(state: &AlarmState, kind: &str) -> String {
+/// Le etichette del corpo di una notifica.
+///
+/// **Non** sono contenuto di progetto: un progetto non deve poter rompere il
+/// formato di una notifica. E non sono nemmeno l'i18n dell'editor, che vive nel
+/// browser e qui non arriva. Sono una terza categoria — testo di sistema del
+/// runtime — e stanno qui, in chiaro, invece che in una tabella: sono sei
+/// parole, e un meccanismo per sei parole costa più di quanto renda.
+///
+/// Fino al 15-09-2026 erano **italiano cablato** dentro la `format!`, quindi un
+/// impianto tedesco riceveva «Severità:» comunque. Le lingue non elencate
+/// ripiegano sull'inglese, che è la scelta onesta per un destinatario ignoto —
+/// e non sull'italiano, che era italiano solo perché lo era chi ha scritto il
+/// codice.
+struct EtichetteNotifica {
+    allarme: &'static str,
+    messaggio: &'static str,
+    severita: &'static str,
+    tag: &'static str,
+    valore: &'static str,
+    attivato: &'static str,
+}
+
+fn etichette(lingua: &str) -> EtichetteNotifica {
+    match lingua {
+        "it" => EtichetteNotifica {
+            allarme: "Allarme",
+            messaggio: "Messaggio",
+            severita: "Severità",
+            tag: "Tag",
+            valore: "Valore",
+            attivato: "Attivato",
+        },
+        "de" => EtichetteNotifica {
+            allarme: "Alarm",
+            messaggio: "Meldung",
+            severita: "Schweregrad",
+            tag: "Tag",
+            valore: "Wert",
+            attivato: "Ausgelöst",
+        },
+        "fr" => EtichetteNotifica {
+            allarme: "Alarme",
+            messaggio: "Message",
+            severita: "Gravité",
+            tag: "Tag",
+            valore: "Valeur",
+            attivato: "Déclenché",
+        },
+        "es" => EtichetteNotifica {
+            allarme: "Alarma",
+            messaggio: "Mensaje",
+            severita: "Severidad",
+            tag: "Tag",
+            valore: "Valor",
+            attivato: "Activado",
+        },
+        _ => EtichetteNotifica {
+            allarme: "Alarm",
+            messaggio: "Message",
+            severita: "Severity",
+            tag: "Tag",
+            valore: "Value",
+            attivato: "Triggered",
+        },
+    }
+}
+
+/// `lingua`/`table`: il messaggio dell'allarme è testo d'autore e può essere un
+/// token `{{chiave}}`. Fino al 15-09-2026 partiva **grezzo** verso Telegram e
+/// per email — un progetto tradotto bene mandava letteralmente
+/// `{{allarme_pressione}}` al telefono di chi era di turno.
+fn alarm_body(state: &AlarmState, kind: &str, lingua: &str, table: &LanguageTable) -> String {
+    let e = etichette(lingua);
     format!(
-        "{kind}\n\nAllarme:   {}\nMessaggio: {}\nSeverità:  {:?}\nTag:       {}\nValore:    {}\nAttivato:  {}\n",
+        "{kind}\n\n{}:   {}\n{}: {}\n{}:  {:?}\n{}:       {}\n{}:    {}\n{}:  {}\n",
+        e.allarme,
         state.def.id,
-        state.def.message,
+        e.messaggio,
+        sws_core::project::resolve_msg(&state.def.message, lingua, table),
+        e.severita,
         state.def.severity,
+        e.tag,
         state.def.tag,
-        state.last_value.as_ref().map(fmt_value).unwrap_or_else(|| "—".into()),
+        e.valore,
+        state
+            .last_value
+            .as_ref()
+            .map(fmt_value)
+            .unwrap_or_else(|| "—".into()),
+        e.attivato,
         fmt_activated_at(state.activated_at_ms),
     )
 }
@@ -164,11 +247,26 @@ impl NotificationSupervisor {
     /// `telegram_tx` is a handle onto the shared `TelegramSender` channel
     /// (created once per open project). When present, each alarm activation and
     /// escalation is routed by `AlarmDef::telegram_routing()`.
+    /// `languages`: fotografata all'apertura del progetto, come `config`. Le
+    /// notifiche partono da qui e non da uno schermo, quindi la lingua è quella
+    /// del progetto (`notifications.notify_lang`, con ripiego sul `default`
+    /// della tabella) e non quella scelta da un operatore sul vetro.
     pub fn start(
         alarm_db: Arc<AlarmDb>,
         config: NotificationConfig,
         telegram_tx: Option<mpsc::UnboundedSender<TelegramMessage>>,
+        languages: LanguageTable,
     ) -> Self {
+        // Due task async distinti (attivazione ed escalation) prendono ognuno
+        // la propria copia: sono `move`, e condividerne una sola non
+        // compilerebbe.
+        let lingua = std::sync::Arc::new(
+            config
+                .notify_lang
+                .clone()
+                .unwrap_or_else(|| languages.default.clone()),
+        );
+        let languages = std::sync::Arc::new(languages);
         let cancel = CancellationToken::new();
         let cancel_clone = cancel.clone();
         let smtp: Option<Arc<SmtpConfig>> = config.smtp.map(Arc::new);
@@ -194,6 +292,8 @@ impl NotificationSupervisor {
             let smtp_a = smtp.clone();
             let tg_a = telegram.clone();
             let cancel_a = cancel_clone.clone();
+            let lingua_attiva = lingua.clone();
+            let lingue_attiva = languages.clone();
             tokio::spawn(async move {
                 loop {
                     tokio::select! {
@@ -201,7 +301,7 @@ impl NotificationSupervisor {
                             match res {
                                 Ok(state) => {
                                     if state.isa_state != IsaState::ActiveUnacked { continue; }
-                                    let body = alarm_body(&state, "🔴 ALLARME ATTIVO");
+                                    let body = alarm_body(&state, "🔴 ALLARME ATTIVO", &lingua_attiva, &lingue_attiva);
                                     // Email (opt-in per-alarm via notify_email).
                                     if let Some(smtp) = &smtp_a {
                                         if let Some(to) = state.def.notify_email.clone().filter(|v| !v.is_empty()) {
@@ -238,6 +338,8 @@ impl NotificationSupervisor {
             // activation when past `escalate_after_s`.
             let smtp_b = smtp.clone();
             let tg_b = telegram.clone();
+            let lingua_esc = lingua.clone();
+            let lingue_esc = languages.clone();
             let escalated: Arc<RwLock<HashSet<(String, u64)>>> =
                 Arc::new(RwLock::new(HashSet::new()));
             loop {
@@ -269,7 +371,12 @@ impl NotificationSupervisor {
                         continue;
                     }
                     guard.insert(key);
-                    let body = alarm_body(state, "⏫ ESCALATION: allarme non riconosciuto");
+                    let body = alarm_body(
+                        state,
+                        "⏫ ESCALATION: allarme non riconosciuto",
+                        &lingua_esc,
+                        &lingue_esc,
+                    );
                     // Email escalation (only if escalate_to recipients set).
                     if let Some(smtp) = &smtp_b {
                         if let Some(to) = state.def.escalate_to.clone().filter(|v| !v.is_empty()) {
@@ -308,5 +415,88 @@ impl NotificationSupervisor {
 
     pub fn stop(self) {
         self.cancel.cancel();
+    }
+}
+
+/// Il corpo di una notifica d'allarme.
+///
+/// Due difetti vivevano qui, entrambi invisibili finché qualcuno non riceveva
+/// davvero il messaggio: il testo dell'allarme partiva **grezzo** (un progetto
+/// tradotto bene mandava `{{allarme_pressione}}` al telefono di chi era di
+/// turno) e le etichette erano **italiano cablato**, quindi un impianto tedesco
+/// riceveva «Severità:» comunque.
+#[cfg(test)]
+mod corpo_notifica_tests {
+    use super::*;
+    use sws_core::{AlarmDef, LangEntry};
+
+    fn tabella() -> LanguageTable {
+        LanguageTable {
+            default: "it".into(),
+            langs: vec!["it".into(), "de".into()],
+            entries: vec![LangEntry {
+                key: "pressione_alta".into(),
+                values: [
+                    ("it".to_string(), "Pressione serbatoio alta".to_string()),
+                    ("de".to_string(), "Kesseldruck zu hoch".to_string()),
+                ]
+                .into_iter()
+                .collect(),
+            }],
+        }
+    }
+
+    fn stato(messaggio: &str) -> AlarmState {
+        let def: AlarmDef = serde_yaml::from_str(&format!(
+            "id: A1\ntag: t.pressione\nmessage: \"{messaggio}\"\ncondition:\n  kind: above\n  threshold: 10.0\n"
+        ))
+        .expect("AlarmDef di prova");
+        AlarmState {
+            def,
+            isa_state: IsaState::Normal,
+            active: true,
+            acknowledged: false,
+            activated_at_ms: Some(1_700_000_000_000),
+            ack_at_ms: None,
+            normalized_at_ms: None,
+            last_value: None,
+        }
+    }
+
+    #[test]
+    fn il_messaggio_dell_allarme_si_traduce() {
+        let corpo = alarm_body(&stato("{{pressione_alta}}"), "TEST", "de", &tabella());
+        assert!(
+            corpo.contains("Kesseldruck zu hoch"),
+            "il token non è stato risolto:\n{corpo}"
+        );
+        assert!(
+            !corpo.contains("{{"),
+            "nel corpo è rimasto un token grezzo:\n{corpo}"
+        );
+    }
+
+    #[test]
+    fn le_etichette_seguono_la_lingua_scelta() {
+        let de = alarm_body(&stato("x"), "TEST", "de", &tabella());
+        assert!(de.contains("Schweregrad"), "etichette non tradotte:\n{de}");
+        assert!(
+            !de.contains("Severità"),
+            "l'italiano cablato è ancora lì:\n{de}"
+        );
+    }
+
+    #[test]
+    fn una_lingua_sconosciuta_ripiega_sull_inglese_non_sull_italiano() {
+        // L'italiano era italiano solo perché lo era chi ha scritto il codice.
+        // Per un destinatario ignoto l'inglese è la scelta onesta.
+        let corpo = alarm_body(&stato("x"), "TEST", "sv", &tabella());
+        assert!(corpo.contains("Severity"), "atteso inglese:\n{corpo}");
+    }
+
+    #[test]
+    fn un_messaggio_senza_token_passa_invariato() {
+        let corpo = alarm_body(&stato("Pressione alta"), "TEST", "it", &tabella());
+        assert!(corpo.contains("Pressione alta"));
     }
 }

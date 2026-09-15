@@ -6881,10 +6881,20 @@ async fn update_project_notifications(
             old.stop();
         }
         if let Some(cfg) = config {
+            // La tabella lingue si rilegge dal progetto aperto: cambiare le
+            // notifiche non deve far ripartire il supervisore con una tabella
+            // vuota, che manderebbe token grezzi.
+            let lingue = crate::router::active_dir(&s)
+                .await
+                .ok()
+                .and_then(|d| sws_core::Project::load(&d).ok())
+                .map(|p| p.languages)
+                .unwrap_or_default();
             let sup = crate::notifications::NotificationSupervisor::start(
                 s.alarms.clone(),
                 cfg,
                 sinks.map(|k| k.messages),
+                lingue,
             );
             *s.notification_supervisor.write().await = Some(sup);
         }

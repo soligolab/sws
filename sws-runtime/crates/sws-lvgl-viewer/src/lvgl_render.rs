@@ -10206,6 +10206,10 @@ fn update_xy_plot(
 /// pannello elenco solo quando il conteggio cambia davvero (evita di
 /// riscrivere `row_ptrs.len()` label a ogni frame per un pannello quasi
 /// sempre nascosto).
+// +2 argomenti per la lingua: convenzione già in uso in questo file (13 volte),
+// e qui è la scelta giusta perché la lingua **cambia a runtime** e una copia
+// dentro la `LiveBinding` mostrerebbe quella di prima.
+#[allow(clippy::too_many_arguments)]
 fn update_alarm_bell(
     shared: &SharedAlarms,
     badge_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
@@ -10269,6 +10273,10 @@ fn update_alarm_bell(
 /// recente prima, tagliato a `rows.len()`), poi riassegna ogni slot riga
 /// all'allarme che gli tocca in questo frame — non ricrea mai i widget,
 /// stesso principio di `update_table_data_cells`.
+// +2 argomenti per la lingua: convenzione già in uso in questo file (13 volte),
+// e qui è la scelta giusta perché la lingua **cambia a runtime** e una copia
+// dentro la `LiveBinding` mostrerebbe quella di prima.
+#[allow(clippy::too_many_arguments)]
 fn update_alarm_viewer(
     shared: &SharedAlarms,
     empty_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
@@ -10590,6 +10598,10 @@ pub(crate) fn nella_barra(isa_state: &str, active: bool) -> bool {
 /// Aggiorna `alarm_banner`: stesso `SharedAlarms` e stessi filtri per prefisso
 /// e severità di `alarm_viewer`, ma un solo slot (il più recente, non una
 /// lista) e una selezione diversa — vedi `nella_barra`.
+// +2 argomenti per la lingua: convenzione già in uso in questo file (13 volte),
+// e qui è la scelta giusta perché la lingua **cambia a runtime** e una copia
+// dentro la `LiveBinding` mostrerebbe quella di prima.
+#[allow(clippy::too_many_arguments)]
 fn update_alarm_banner(
     shared: &SharedAlarms,
     dot_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,

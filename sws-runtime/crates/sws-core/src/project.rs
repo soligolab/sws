@@ -1080,6 +1080,21 @@ pub struct NotificationConfig {
     pub smtp: Option<SmtpConfig>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub telegram: Option<TelegramConfig>,
+    /// In che lingua si scrivono email e messaggi Telegram.
+    ///
+    /// Una notifica **non ha uno schermo**, quindi non ha «la lingua
+    /// corrente»: parte verso una casella o una chat mentre nessuno sta
+    /// guardando il pannello, e la lingua scelta da un operatore sul vetro non
+    /// la riguarda. Va quindi decisa nel progetto, una volta.
+    ///
+    /// Assente = la lingua principale della tabella (`languages.default`), che
+    /// è ciò che faceva prima senza dirlo.
+    ///
+    /// **Una sola per progetto**: destinatari diversi in lingue diverse sono
+    /// una decisione di prodotto, non di codice — registrata in
+    /// `docs/OPEN_QUESTIONS.md`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub notify_lang: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -1237,6 +1252,55 @@ pub struct LangEntry {
     pub values: std::collections::BTreeMap<String, String>,
 }
 
+/// Sostituisce le occorrenze `{{token}}` in `s` con la traduzione per `lang`.
+///
+/// Fino al 15-09-2026 la risoluzione viveva **solo nei due viewer** — il
+/// browser e il pannello LVGL — perché si dava per scontato che i token
+/// finissero sempre su uno schermo. Non è vero: una notifica Telegram o una
+/// email partono senza schermo, e ci arrivavano dentro i token grezzi.
+///
+/// I casi sono in `tests/fixtures/risoluzione-token.json`, alla radice del
+/// repo, e li leggono **tutti e tre** i risolutori (qui, `projectI18n.ts`,
+/// `lvgl_render.rs`). Tre porte dello stesso comportamento sono tre modi di
+/// divergere: quando erano due, divergevano davvero in due punti.
+pub fn resolve_msg(s: &str, lang: &str, table: &LanguageTable) -> String {
+    if s.is_empty() || !s.contains("{{") {
+        return s.to_string();
+    }
+    let mut out = String::with_capacity(s.len());
+    let mut rest = s;
+    while let Some(open) = rest.find("{{") {
+        out.push_str(&rest[..open]);
+        rest = &rest[open + 2..];
+        let Some(close) = rest.find("}}") else {
+            out.push_str("{{");
+            out.push_str(rest);
+            return out;
+        };
+        let key = rest[..close].trim();
+        // Una chiave non contiene spazi — stessa regola dell'espressione
+        // regolare del web, senza la quale `{{a b}}` sarebbe prosa da una parte
+        // e un token dall'altra.
+        if key.is_empty() || key.chars().any(char::is_whitespace) {
+            out.push_str("{{");
+            out.push_str(&rest[..close]);
+            out.push_str("}}");
+        } else {
+            let tradotto = table
+                .entries
+                .iter()
+                .find(|e| e.key == key)
+                .and_then(|e| e.values.get(lang).or_else(|| e.values.get(&table.default)))
+                .cloned()
+                .unwrap_or_else(|| format!("{{{{{key}}}}}"));
+            out.push_str(&tradotto);
+        }
+        rest = &rest[close + 2..];
+    }
+    out.push_str(rest);
+    out
+}
+
 /// Version of this runtime build, stamped into `project.yaml` on every save.
 /// All workspace crates share `version.workspace`, so this matches the
 /// `sws-runtime` binary version.
@@ -1330,6 +1394,59 @@ mod template_tests {
              `project parse error` e il progetto non si apre:\n  {}",
             rotti.len(),
             rotti.join("\n  ")
+        );
+    }
+}
+
+/// Il risolutore dei token, sulla **stessa tabella di casi** che leggono il
+/// test del web (`sws-editor/tests/risoluzioneToken.test.ts`) e quello del
+/// viewer LVGL (`lvgl_render.rs`). Tre porte dello stesso comportamento: se
+/// divergono, lo stesso progetto dice tre cose diverse a seconda di chi lo
+/// legge — e una di quelle tre è una notifica che arriva sul telefono di chi è
+/// di turno.
+#[cfg(test)]
+mod risoluzione_token_tests {
+    use super::*;
+
+    #[derive(serde::Deserialize)]
+    struct Caso {
+        nome: String,
+        testo: String,
+        lang: String,
+        atteso: String,
+    }
+
+    #[derive(serde::Deserialize)]
+    struct Fixture {
+        tabella: LanguageTable,
+        casi: Vec<Caso>,
+    }
+
+    #[test]
+    fn la_tabella_di_casi_condivisa_con_web_e_lvgl() {
+        let percorso = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../tests/fixtures/risoluzione-token.json"
+        );
+        let testo = std::fs::read_to_string(percorso)
+            .unwrap_or_else(|e| panic!("la tabella di casi condivisa manca ({percorso}): {e}"));
+        let f: Fixture = serde_json::from_str(&testo).expect("tabella di casi non valida");
+        assert!(!f.casi.is_empty(), "la tabella di casi è vuota");
+        let mut rotti = Vec::new();
+        for c in &f.casi {
+            let avuto = resolve_msg(&c.testo, &c.lang, &f.tabella);
+            if avuto != c.atteso {
+                rotti.push(format!(
+                    "  «{}»\n    testo   {:?}\n    atteso  {:?}\n    avuto   {:?}",
+                    c.nome, c.testo, c.atteso, avuto
+                ));
+            }
+        }
+        assert!(
+            rotti.is_empty(),
+            "{} caso/i divergono dagli altri due motori:\n{}",
+            rotti.len(),
+            rotti.join("\n")
         );
     }
 }

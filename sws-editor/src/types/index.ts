@@ -1300,6 +1300,10 @@ export interface TelegramConfig {
 export interface NotificationConfig {
   smtp?: SmtpConfig;
   telegram?: TelegramConfig;
+  /** Lingua di email e Telegram. Una notifica non ha uno schermo, quindi non
+   *  ha «la lingua corrente»: si decide nel progetto. Assente = la lingua
+   *  principale della tabella lingue. */
+  notify_lang?: string;
 }
 
 /** How synoptic pages are sized/scaled at runtime — project-wide setting. */

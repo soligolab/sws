@@ -499,6 +499,10 @@ async fn main() -> anyhow::Result<()> {
     let mut boot_services: Option<(
         Option<sws_core::NotificationConfig>,
         Vec<sws_core::GlobalScriptDef>,
+        // La tabella lingue: le notifiche risolvono i token del messaggio
+        // d'allarme, e al boot non c'è nessuno che riapra il progetto per
+        // fargliela avere.
+        sws_core::LanguageTable,
     )> = None;
 
     if let Some(project_path) = project_arg {
@@ -540,6 +544,7 @@ async fn main() -> anyhow::Result<()> {
                         .datastores
                         .push(sws_web::projects::default_datastore());
                 }
+                let languages = project.languages.clone();
                 let (notifications, global_scripts) = sws_web::projects::apply_loaded_project(
                     &project_path,
                     project,
@@ -555,7 +560,7 @@ async fn main() -> anyhow::Result<()> {
                     &instance_id,
                 )
                 .await;
-                boot_services = Some((notifications, global_scripts));
+                boot_services = Some((notifications, global_scripts, languages));
             }
             Err(e) => {
                 warn!(
@@ -971,8 +976,14 @@ async fn main() -> anyhow::Result<()> {
     // faccia su un pannello in servizio. Verificato sul dispositivo: al boot
     // nessuna riga "notification supervisor started", dopo un POST
     // /api/projects/<n>/open la riga compare e l'allarme manda il messaggio.
-    if let Some((notifications, global_scripts)) = boot_services {
-        sws_web::projects::start_project_services(&app_state, notifications, global_scripts).await;
+    if let Some((notifications, global_scripts, languages)) = boot_services {
+        sws_web::projects::start_project_services(
+            &app_state,
+            notifications,
+            global_scripts,
+            languages,
+        )
+        .await;
     }
 
     // Q25: quale motore vuole a schermo il progetto già aperto.
