@@ -104,3 +104,33 @@ objects:
   width: 18.0
   height: 18.0
   tag: pump1.running
+# ── Write-back — il template lo dichiara, ma la pagina non lo mostrava
+#    (revisione template, 15-09-2026): pump1.speed e valve1.open sono
+#    `writable: true` alla sorgente, qui ci sono i controlli veri. ──
+- id: lbl_comandi
+  type: text
+  x: 40.0
+  y: 320.0
+  text: COMANDI (write-back sul PLC)
+  font_size: 12.0
+  font_weight: bold
+  color: '#38bdf8'
+- id: cmd_speed
+  type: setpoint
+  x: 40.0
+  y: 350.0
+  width: 290.0
+  height: 48.0
+  label: Comando velocità pompa 1
+  tag: pump1.speed
+  min: 0.0
+  max: 3000.0
+  step: 50.0
+- id: cmd_valve
+  type: checkbox
+  x: 360.0
+  y: 358.0
+  width: 250.0
+  height: 32.0
+  label: Apri valvola 1
+  tag: valve1.open
