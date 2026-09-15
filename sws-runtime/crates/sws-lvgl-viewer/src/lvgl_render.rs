@@ -8122,6 +8122,19 @@ fn resolve_msg(s: &str, lang: &str, table: &LanguageTable) -> String {
         match rest.find("}}") {
             Some(close) => {
                 let key = rest[..close].trim();
+                // Una chiave non contiene spazi. Il web lo impone con la sua
+                // espressione regolare (`[^}\s]+` in `projectI18n.ts`), qui
+                // andava detto a mano: senza questo, `{{a b}}` è prosa sul web
+                // e un token qui, e lo stesso progetto mostra due cose diverse
+                // sui due motori. Trovato il 15-09-2026 dalla tabella di casi
+                // condivisa.
+                if key.is_empty() || key.chars().any(char::is_whitespace) {
+                    out.push_str("{{");
+                    out.push_str(&rest[..close]);
+                    out.push_str("}}");
+                    rest = &rest[close + 2..];
+                    continue;
+                }
                 let resolved = table
                     .entries
                     .iter()
@@ -11922,5 +11935,77 @@ mod binding_tests {
     #[test]
     fn senza_soglie_dichiarate_non_si_disegna_niente() {
         assert!(soglie_da_disegnare(&SynopticObject::default(), (0.0, 100.0)).is_empty());
+    }
+}
+
+/// Il risolutore dei token `{{chiave}}`, sulla **stessa tabella di casi** che
+/// legge il test TypeScript del web (`sws-editor/tests/risoluzioneToken.test.ts`).
+///
+/// I casi stanno in `tests/fixtures/risoluzione-token.json`, alla radice del
+/// repo, e non in nessuno dei due linguaggi: due motori disegnano gli stessi
+/// progetti, e due copie della stessa tabella divergerebbero in silenzio. È
+/// esattamente ciò che era successo — fino al 15-09-2026 non esisteva nessun
+/// test su questo risolutore, da nessuna delle due parti, e le implementazioni
+/// divergevano in due punti: una entry senza valori dava il nome nudo della
+/// chiave sul web e `{{chiave}}` qui, e `{{a b}}` era un token qui e non sul
+/// web.
+#[cfg(test)]
+mod risoluzione_token_tests {
+    use super::*;
+
+    #[derive(serde::Deserialize)]
+    struct Caso {
+        nome: String,
+        testo: String,
+        lang: String,
+        atteso: String,
+    }
+
+    #[derive(serde::Deserialize)]
+    struct Fixture {
+        tabella: LanguageTable,
+        casi: Vec<Caso>,
+    }
+
+    fn fixture() -> Fixture {
+        let percorso = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../tests/fixtures/risoluzione-token.json"
+        );
+        let testo = std::fs::read_to_string(percorso)
+            .unwrap_or_else(|e| panic!("la tabella di casi condivisa manca ({percorso}): {e}"));
+        serde_json::from_str(&testo).expect("tabella di casi condivisa non valida")
+    }
+
+    #[test]
+    fn la_tabella_di_casi_condivisa_col_web() {
+        let f = fixture();
+        assert!(!f.casi.is_empty(), "la tabella di casi è vuota");
+        let mut rotti = Vec::new();
+        for c in &f.casi {
+            let avuto = resolve_msg(&c.testo, &c.lang, &f.tabella);
+            if avuto != c.atteso {
+                rotti.push(format!(
+                    "  «{}»\n    testo   {:?}\n    atteso  {:?}\n    avuto   {:?}",
+                    c.nome, c.testo, c.atteso, avuto
+                ));
+            }
+        }
+        assert!(
+            rotti.is_empty(),
+            "{} caso/i divergono dal web:\n{}",
+            rotti.len(),
+            rotti.join("\n")
+        );
+    }
+
+    /// Casi che riguardano solo questo motore: qui la tabella non è opzionale
+    /// come sul web, ma può essere vuota (è ciò che `fetch_languages` lascia
+    /// quando il runtime non risponde, `client.rs`).
+    #[test]
+    fn una_tabella_vuota_non_risolve_e_non_rompe() {
+        let vuota = LanguageTable::default();
+        assert_eq!(resolve_msg("{{ciao}}", "it", &vuota), "{{ciao}}");
+        assert_eq!(resolve_msg("Avvio pompa", "it", &vuota), "Avvio pompa");
     }
 }

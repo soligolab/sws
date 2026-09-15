@@ -40,13 +40,21 @@ const TOKEN_RE = /\{\{\s*([^}\s]+)\s*\}\}/g;
 
 /** Sostituisce le occorrenze `{{token}}` in `str` con la traduzione per `lang`
  *  (fallback: default della tabella → token grezzo tra graffe se sconosciuto).
- *  Testo senza token passa invariato. */
+ *  Testo senza token passa invariato.
+ *
+ *  **Ciò che non si risolve resta un token**, graffe comprese, in tutti i casi:
+ *  chiave assente dalla tabella, oppure presente ma senza nessun valore utile.
+ *  Fino al 15-09-2026 il secondo caso ripiegava sul nome nudo della chiave, che
+ *  su un pannello si legge come testo vero — un `{{vuota}}` non tradotto
+ *  diventava la parola «vuota» sotto gli occhi dell'operatore, invece di
+ *  dichiararsi non tradotto. Il viewer LVGL faceva già la cosa giusta: i casi
+ *  condivisi stanno in `tests/fixtures/risoluzione-token.json`, che entrambi i
+ *  motori leggono. */
 export function resolveMsg(str: string, lang: string, table?: LanguageTable | null): string {
   if (!str || !table || str.indexOf("{{") < 0) return str;
   return str.replace(TOKEN_RE, (_m, key: string) => {
     const entry = table.entries.find((e) => e.key === key);
-    if (!entry) return `{{${key}}}`;
-    return entry.values[lang] ?? entry.values[table.default] ?? key;
+    return entry?.values[lang] ?? entry?.values[table.default] ?? `{{${key}}}`;
   });
 }
 
