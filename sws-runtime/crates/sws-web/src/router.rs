@@ -300,6 +300,13 @@ pub fn build(
         .route("/api/project/tags", put(update_project_tags))
         .route("/api/project/tags/import-csv", post(import_tags_csv))
         .route("/api/project/languages", put(update_project_languages))
+        // Traduzione automatica della tabella lingue. **Solo IDE**: tradurre è
+        // progettazione, il dispositivo in campo è spesso senza Internet (Q43,
+        // punto 5), e il gate sta dentro l'handler come per `/api/ai/config`.
+        .route(
+            "/api/project/languages/translate",
+            post(crate::traduttore::traduci_progetto),
+        )
         .route("/api/project/sources", put(update_project_sources))
         .route("/api/project/alarms", put(update_project_alarms))
         .route("/api/project/functions", put(update_project_functions))

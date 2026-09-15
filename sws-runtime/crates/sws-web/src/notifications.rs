@@ -442,6 +442,7 @@ mod corpo_notifica_tests {
                 ]
                 .into_iter()
                 .collect(),
+                auto: Vec::new(),
             }],
         }
     }

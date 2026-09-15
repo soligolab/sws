@@ -1250,6 +1250,18 @@ pub struct LangEntry {
     /// codice lingua → testo tradotto.
     #[serde(default)]
     pub values: std::collections::BTreeMap<String, String>,
+    /// Le lingue di questa voce che sono state riempite **dalla macchina**.
+    ///
+    /// Serve a non sovrascrivere il lavoro umano: una traduzione corretta a
+    /// mano esce da questo elenco e la passata automatica successiva la salta
+    /// (Q43, punto 4). Senza il segno, l'unico modo per proteggere una
+    /// correzione sarebbe ricordarsi di non ripremere il pulsante — e chi
+    /// l'aveva corretta se ne accorgerebbe col pannello già in campo.
+    ///
+    /// Assente in un progetto scritto a mano = tutto umano, che è il verso
+    /// prudente.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub auto: Vec<String>,
 }
 
 /// Sostituisce le occorrenze `{{token}}` in `s` con la traduzione per `lang`.

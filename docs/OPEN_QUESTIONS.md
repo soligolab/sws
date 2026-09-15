@@ -210,6 +210,41 @@ struttura che esiste.
 
 Nessuno: oggi le traduzioni si scrivono a mano nella tabella lingue.
 
+### Realizzato in parte il 2026-09-15 (Fase 4 del piano multilingua)
+
+Non chiude la scheda: la realizza dove il maintainer ha deciso, e lascia aperto ciò che resta suo.
+
+**Deciso da lui, e fatto**: i fornitori stanno dietro un'astrazione — come già `enum Fornitore`
+per l'assistente IA — e sono quattro, non uno. Due professionali a consumo (**Google Cloud
+Translation** e l'**assistente IA già configurato**, Claude/Kimi, che è l'unico a cui si può dare
+il *contesto*: «etichetta di un pulsante di un impianto industriale») e due gratuiti, aggiunti su
+sua richiesta lo stesso giorno: **MyMemory**, senza nessuna chiave — è il default, perché chi preme
+«traduci» deve ottenere una traduzione e non un modulo di configurazione — e **LibreTranslate**,
+ospitabile in casa per chi non vuole che le stringhe del proprio impianto escano dal proprio
+server.
+
+**Le risposte ai sei nodi della scheda**, per quel che sono state date:
+
+1. *Dove sta la chiave*: fuori dal progetto per l'IA (riusa `ai/client.rs`: 0600, mai in
+   `project.yaml`). Per Google la chiave arriva nella richiesta e **non viene persistita** —
+   scelta minima, non una risposta: persisterla va fatto dove stanno le altre.
+2. *Chi rilegge*: il passaggio umano sta nell'IDE. L'esito lo dice esplicitamente ogni volta.
+   **Non è una garanzia tecnica**: niente impedisce di tradurre e deployare senza guardare.
+3. *Cosa non si traduce*: risolto, e provato — i segnaposti di formato escono dal testo prima di
+   partire e ci rientrano identici; se il fornitore ne perde uno la riga viene **scartata**,
+   perché una traduzione mutilata salvata è peggio di una riga non tradotta.
+4. *Riproducibilità e protezione del lavoro umano*: risolto con `LangEntry.auto`, che elenca le
+   lingue riempite dalla macchina. Una correzione a mano esce da lì e non viene più toccata,
+   nemmeno chiedendo «ritraduci tutto».
+5. *Rete*: risolto. L'endpoint esiste **solo sull'istanza IDE** e risponde 404 altrove.
+6. *Google o un'astrazione*: entrambi, che era la decisione del maintainer.
+
+**Cosa resta davvero aperto**, ed è perché la scheda non si chiude: quale fornitore sia quello
+giusto **per un impianto consegnato**, e se una traduzione automatica debba poter raggiungere un
+dispositivo in servizio senza che una persona l'abbia riletta. La prima è una scelta di costo e
+qualità che dipende dal cliente; la seconda è una decisione di responsabilità, e un allarme
+tradotto male su un pannello d'impianto non è una questione di stile.
+
 ### Decisa
 
 `not yet`

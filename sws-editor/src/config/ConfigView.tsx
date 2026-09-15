@@ -10549,6 +10549,51 @@ function LanguagesTab() {
     finally { setSaving(false); }
   };
 
+  // ── Traduzione automatica (Fase 4) ────────────────────────────────────────
+  //
+  // Il default è la modalità SEMPLICE: chi preme «traduci» deve ottenere una
+  // traduzione, non un modulo di configurazione. I fornitori a pagamento
+  // (Google, e l'assistente IA già configurato) stanno nello stesso elenco.
+  const [traduttore, setTraduttore] = useState("my_memory");
+  const [chiaveTrad, setChiaveTrad] = useState("");
+  const [urlTrad, setUrlTrad] = useState("");
+  const [traducendo, setTraducendo] = useState<string | null>(null);
+
+  const traduci = async (verso: string) => {
+    if (!verso || verso === table.default) return;
+    // Si salva prima: il server traduce ciò che ha su disco, e una riga appena
+    // digitata e non salvata non verrebbe tradotta — senza che nessuno capisca
+    // perché.
+    await handleSave();
+    setTraducendo(verso);
+    try {
+      const r = await api.translateLanguages({
+        a: verso,
+        sovrascrivi: false,
+        config: {
+          fornitore: traduttore,
+          url: urlTrad.trim() || undefined,
+          chiave: chiaveTrad.trim() || undefined,
+        },
+      });
+      const p = await api.getProject();
+      if (p) useAppStore.getState().setProject(p);
+      const problemi = r.problemi.length
+        ? `\n\nRighe non tradotte (${r.problemi.length}):\n` + r.problemi.slice(0, 8).join("\n")
+        : "";
+      window.alert(
+        `Tradotte ${r.tradotte} voci verso «${verso}», ${r.saltate} già a posto o da non tradurre.` +
+          problemi +
+          "\n\nRileggile prima di mandarle su un impianto: una traduzione automatica di un " +
+          "messaggio d'allarme non è una questione di stile.",
+      );
+    } catch (e) {
+      window.alert(`Traduzione fallita: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setTraducendo(null);
+    }
+  };
+
   const exportCsv = () => {
     const cols = ["key", ...table.langs];
     const esc = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
@@ -10607,6 +10652,31 @@ function LanguagesTab() {
           {table.langs.map((l) => <option key={l} value={l}>{l}</option>)}
         </select>
         <button onClick={addLang} style={S.btn("primary")}>{t("langtab.addLang")}</button>
+        <span style={{ fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", marginLeft: 10 }}>Traduci con:</span>
+        <select value={traduttore} onChange={(e) => setTraduttore(e.target.value)}
+          style={{ background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", fontSize: 12 }}>
+          <option value="my_memory">MyMemory — gratuito, senza chiave</option>
+          <option value="libre_translate">LibreTranslate — libero / in casa</option>
+          <option value="google">Google Translate — a consumo</option>
+          <option value="ia">Assistente IA — usa la chiave dell'IDE</option>
+        </select>
+        {(traduttore === "google") && (
+          <input type="password" value={chiaveTrad} onChange={(e) => setChiaveTrad(e.target.value)}
+            placeholder="chiave API" autoComplete="off"
+            style={{ background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", fontSize: 12, width: 140 }} />
+        )}
+        {traduttore === "libre_translate" && (
+          <input type="text" value={urlTrad} onChange={(e) => setUrlTrad(e.target.value)}
+            placeholder="https://libretranslate.com"
+            style={{ background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", fontSize: 12, width: 190 }} />
+        )}
+        {table.langs.filter((l) => l !== table.default).map((l) => (
+          <button key={l} onClick={() => traduci(l)} disabled={traducendo !== null}
+            title={`Riempie le caselle vuote della colonna ${l}. Le traduzioni scritte a mano non si toccano.`}
+            style={S.btn("ghost")}>
+            {traducendo === l ? `→ ${l}…` : `→ ${l}`}
+          </button>
+        ))}
         <div style={{ flex: 1 }} />
         <button onClick={exportCsv} style={S.btn("ghost")} disabled={table.entries.length === 0}>{t("langtab.exportCsv")}</button>
         <button onClick={() => fileRef.current?.click()} style={S.btn("ghost")}>{t("langtab.importCsv")}</button>
