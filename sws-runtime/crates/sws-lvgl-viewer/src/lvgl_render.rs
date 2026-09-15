@@ -38,8 +38,8 @@ use crate::client::{
     TagSnapshotValue,
 };
 use crate::model::{
-    LanguageTable, OnValue, PieSlice, PipePoint, SubGrid, SynopticObject, SynopticPage, TableRow,
-    TextListEntry,
+    BarChartSeries, LanguageTable, OnValue, PieSlice, PipePoint, RadioOption, SubGrid,
+    SynopticObject, SynopticPage, TableRow, TextListEntry,
 };
 use crate::session::{role_allowed, Role, SharedSession};
 
@@ -8163,12 +8163,19 @@ fn resolve_msg(s: &str, lang: &str, table: &LanguageTable) -> String {
 /// evitare un re-render React) qui clona sempre: questo motore non ha un
 /// concetto di re-render da evitare, gli oggetti sono piccoli e la
 /// funzione gira solo al caricamento/ricarica di una pagina, mai per
-/// frame. Copre `label`/`text`/`unit`/`text_list_default` più le label
-/// dentro `table_rows`/`text_list_entries` — sottoinsieme dei
-/// `TEXT_FIELDS` TS limitato ai campi che questo motore conosce
-/// (`pipe_label`/`bar_y_label`/`pie_center_text`/`options[].label` non
-/// sono renderizzati da nessun widget di questo file, risolverli sarebbe
-/// lavoro sprecato).
+/// frame.
+///
+/// **Copre gli stessi campi del web**, e `scripts/check_i18n_parita.sh` lo
+/// verifica confrontando le due liste estratte dal codice.
+///
+/// Fino al 15-09-2026 ne copriva sei su sedici, e il commento qui giustificava
+/// l'esclusione dicendo che quei campi «non sono renderizzati da nessun widget
+/// di questo file». **Era falso per sette di essi**: `pie_center_text` è
+/// disegnato a `:4572`, `options` a `:3119`, `bar_series` a `:2866`,
+/// `pie_slices` a `:4475`, `format` in quattro punti, `confirm_message` a
+/// `:2485`. Un progetto tradotto bene mostrava quindi `{{chiave}}` sul
+/// pannello e il testo giusto nell'IDE: il difetto si vedeva solo in campo,
+/// davanti al cliente, e mai sulla macchina di chi l'aveva fatto.
 fn localize_object(obj: &SynopticObject, lang: &str, table: &LanguageTable) -> SynopticObject {
     if lang.is_empty() || table.entries.is_empty() {
         return obj.clone();
@@ -8203,6 +8210,63 @@ fn localize_object(obj: &SynopticObject, lang: &str, table: &LanguageTable) -> S
                 .map(|e| TextListEntry {
                     label: resolve_msg(&e.label, lang, table),
                     ..e.clone()
+                })
+                .collect(),
+        );
+    }
+    // I campi che fino al 15-09-2026 restavano grezzi qui e tradotti sul web.
+    if let Some(v) = &out.format {
+        out.format = Some(resolve_msg(v, lang, table));
+    }
+    if let Some(v) = &out.pie_center_text {
+        out.pie_center_text = Some(resolve_msg(v, lang, table));
+    }
+    if let Some(v) = &out.pie_center_format {
+        out.pie_center_format = Some(resolve_msg(v, lang, table));
+    }
+    if let Some(v) = &out.confirm_message {
+        out.confirm_message = Some(resolve_msg(v, lang, table));
+    }
+    // `pipe_label`, `bar_y_label` e `pipe_label_format` non sono ancora
+    // disegnati da questo motore. Si risolvono lo stesso: costa una stringa e
+    // toglie di mezzo una lista di eccezioni, che è la cosa che marcisce.
+    if let Some(v) = &out.pipe_label {
+        out.pipe_label = Some(resolve_msg(v, lang, table));
+    }
+    if let Some(v) = &out.pipe_label_format {
+        out.pipe_label_format = Some(resolve_msg(v, lang, table));
+    }
+    if let Some(v) = &out.bar_y_label {
+        out.bar_y_label = Some(resolve_msg(v, lang, table));
+    }
+    if let Some(opts) = &out.options {
+        out.options = Some(
+            opts.iter()
+                .map(|o| RadioOption {
+                    label: resolve_msg(&o.label, lang, table),
+                    ..o.clone()
+                })
+                .collect(),
+        );
+    }
+    if let Some(series) = &out.bar_series {
+        out.bar_series = Some(
+            series
+                .iter()
+                .map(|s| BarChartSeries {
+                    label: resolve_msg(&s.label, lang, table),
+                    ..s.clone()
+                })
+                .collect(),
+        );
+    }
+    if let Some(slices) = &out.pie_slices {
+        out.pie_slices = Some(
+            slices
+                .iter()
+                .map(|s| PieSlice {
+                    label: resolve_msg(&s.label, lang, table),
+                    ..s.clone()
                 })
                 .collect(),
         );
