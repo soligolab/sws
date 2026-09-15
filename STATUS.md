@@ -74,6 +74,54 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Da fare — T-71: un selettore di caratteri speciali per i campi di testo (2026-09-15)
+
+**Richiesta del maintainer**, mentre collaudava il multilingua: nelle stringhe compaiono spesso
+caratteri come 🏠 ☀ ⚡ 🔐, e un utente inesperto deve poterli mettere **senza importare
+un'immagine**. Serve un selettore agganciato ai campi di testo.
+
+### Il fatto che decide la forma della funzione, misurato il 15-09-2026
+
+Il pannello LVGL disegna con **DejaVu Sans** (`lvgl_font.rs:37-42`). Leggendo la sua tabella dei
+caratteri, dei quattro esempi del maintainer:
+
+| Carattere | Codice | Sul pannello |
+|---|---|---|
+| ☀ sole | `U+2600` | **si vede** |
+| ⚡ fulmine | `U+26A1` | **si vede** |
+| 🏠 casa | `U+1F3E0` | **non si vede** |
+| 🔐 lucchetto | `U+1F510` | **non si vede** |
+
+Il confine non è «emoji sì / emoji no»: è il **Piano Multilingue di Base**. I simboli dei blocchi
+`U+2600`–`U+27BF` (☀ ⚠ ⚙ → ■ …) ci sono; le emoji vere, da `U+1F300` in su, no. E
+**LVGL senza glifo non disegna niente** — non un quadratino, non un punto interrogativo: il vuoto,
+più un avviso a ogni ridisegno (Q24).
+
+Quindi un selettore ingenuo sarebbe una **trappola**: il progettista sceglie la casetta, la vede
+benissimo nell'IDE — il browser usa i font di sistema, che le emoji ce l'hanno — e sul pannello
+in campo non compare niente. È la stessa forma di difetto che questa settimana è passata sette
+volte: si vede solo davanti al cliente.
+
+### Cosa deve fare il selettore, di conseguenza
+
+1. **Offrire per primi i caratteri che il pannello sa disegnare**, raggruppati per uso (stati,
+   allarmi, energia, frecce, misure) invece che per blocco Unicode, che a un utente inesperto non
+   dice niente.
+2. **Dire a colpo d'occhio quali NON arriveranno sul pannello**, e perché — non nasconderli: su
+   un progetto `target: web` funzionano, ed è metà dei progetti.
+3. Attaccarsi **a tutti i campi di testo**, che dalla Fase 3 passano già da un imbuto solo
+   (`textInput` in `EditorShell.tsx` → `CampoTestoTradotto`): il punto d'innesto esiste già.
+4. Tenere conto che dalla Fase 3 quel testo finisce **nella tabella lingue**: un carattere scelto
+   lì diventa parte del valore tradotto, e la traduzione automatica non deve mangiarselo — lo
+   stesso problema dei segnaposti di formato, già risolto in `sws_core::traduzione`.
+
+### La domanda da fare al maintainer prima di scrivere codice
+
+Se le emoji vere servono davvero sul **pannello**, non basta un selettore: serve un secondo font
+sul dispositivo (Noto Emoji o simile, decine di MB) e bisogna verificare il limite
+`lv_freetype_init(8, 8, …)` sulle facce aperte. È un lavoro a sé, e va deciso prima — non
+scoperto a selettore fatto.
+
 ## ▶ Riprendere da qui — multilingua di progetto, fasi 0-4 su ramo (2026-09-15)
 
 ⚠️ **Il lavoro NON è su `main`.** Sta sul ramo **`feat/multilingua`**, 12 commit, pushato su
