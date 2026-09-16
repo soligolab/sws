@@ -36,8 +36,7 @@ pub async fn run(
     if let Err(e) = session(&cfg, &db, &mut write_rx, cancel).await {
         warn!(source = %cfg.id, "EtherNet/IP error: {e:#} — stopped (save config to retry)");
         for tm in &cfg.tags {
-            db.ingest(tm.tag.clone(), SwsTagValue::Float(0.0), TagQuality::Bad)
-                .await;
+            db.marca_qualita(&tm.tag, TagQuality::Bad).await;
         }
     }
 }
@@ -85,7 +84,7 @@ async fn session(
                         Ok(val) => { db.ingest(tm.tag.clone(), val, TagQuality::Good).await; }
                         Err(e) => {
                             warn!(source = %cfg.id, tag = %tm.tag, "read error: {e}");
-                            db.ingest(tm.tag.clone(), SwsTagValue::Float(0.0), TagQuality::Bad).await;
+                            db.marca_qualita(&tm.tag, TagQuality::Bad).await;
                             // Re-connect on next tick rather than bailing completely.
                         }
                     }

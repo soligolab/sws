@@ -241,8 +241,7 @@ pub async fn run(
                     );
                 }
                 for topic in cfg.topics.iter().filter(|t| mappata(&t.tag)) {
-                    db.ingest(topic.tag.clone(), TagValue::Float(0.0), TagQuality::Bad)
-                        .await;
+                    db.marca_qualita(&topic.tag, TagQuality::Bad).await;
                 }
                 tokio::select! {
                     _ = cancel.cancelled() => break,

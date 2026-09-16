@@ -17,7 +17,7 @@
 //!   - on_delay_s / off_delay_s: activation/clear hysteresis by time
 //!   - inhibit_tag + inhibit_condition: suppress alarm based on another tag
 
-use crate::tag::{TagId, TagState, TagValue};
+use crate::tag::{TagId, TagQuality, TagState, TagValue};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
@@ -397,6 +397,27 @@ impl AlarmDb {
     }
 
     pub async fn evaluate(&self, tag_id: &str, tag_state: &TagState) {
+        // **Un dato inattendibile non decide niente.**
+        //
+        // Fino al 16-09-2026 qui si guardava solo `tag_state.value`, e la
+        // qualità non veniva consultata mai — `quality` compariva in questo
+        // file soltanto dentro i test. Intanto un plugin che perdeva la
+        // sorgente scriveva `Float(0.0)` con qualità `Bad` per dire «non so
+        // più»: un valore inventato da noi, che qui veniva creduto.
+        //
+        // Effetto misurato su un impianto vero: un allarme «potenza sotto
+        // 0.1 W» scattava a **ogni riconnessione fallita** e mandava la
+        // notifica Telegram — anche con la pompa che girava, anche alle tre di
+        // notte quando il broker si riavviava. Il maintainer lo vedeva a ogni
+        // accensione del pannello e a ogni apertura dell'IDE.
+        //
+        // Né scatta né rientra: l'allarme **resta com'è**. Un allarme attivo non
+        // si spegne perché è caduta la sorgente — sarebbe il verso pericoloso
+        // dello stesso errore, e metterebbe a tacere una cosa che sta ancora
+        // suonando.
+        if tag_state.quality != TagQuality::Good {
+            return;
+        }
         let now = now_ms();
 
         // Auto-expire shelved entries.
@@ -1090,6 +1111,85 @@ mod tests {
         assert_eq!(
             d.telegram_routing(),
             TelegramRouting::Chats(vec!["-100123".into()])
+        );
+    }
+}
+
+/// Un allarme non deve credere a un dato che il sistema stesso ha dichiarato
+/// inattendibile.
+///
+/// Il guasto da cui nasce, misurato su un impianto vero il 16-09-2026: un
+/// plugin che perdeva la sorgente scriveva `Float(0.0)` con qualità `Bad` per
+/// dire «non so più», e l'allarme «potenza sotto 0.1 W» ci credeva. Risultato:
+/// una notifica Telegram a ogni accensione del pannello, a ogni apertura
+/// dell'IDE e a ogni riconnessione fallita — con la pompa che girava.
+#[cfg(test)]
+mod qualita_tests {
+    use super::*;
+    use crate::tag::TagQuality;
+
+    fn stato(v: f64, q: TagQuality) -> TagState {
+        TagState {
+            value: TagValue::Float(v),
+            quality: q,
+            timestamp_ms: now_ms(),
+        }
+    }
+
+    fn def() -> AlarmDef {
+        serde_yaml::from_str(
+            "id: pompa_spenta\ntag: p.potenza\nmessage: spenta\ncondition:\n  kind: below\n  threshold: 0.1\n",
+        )
+        .expect("AlarmDef di prova")
+    }
+
+    async fn attivo(db: &AlarmDb) -> bool {
+        db.snapshot()
+            .await
+            .first()
+            .map(|a| a.active)
+            .unwrap_or(false)
+    }
+
+    #[tokio::test]
+    async fn un_valore_inattendibile_non_fa_scattare_l_allarme() {
+        // È il caso del maintainer: lo zero non veniva dall'impianto, veniva
+        // da noi.
+        let db = AlarmDb::new(8);
+        db.load(vec![def()]).await;
+        db.evaluate("p.potenza", &stato(0.0, TagQuality::Bad)).await;
+        assert!(
+            !attivo(&db).await,
+            "ha creduto a un valore dichiarato inattendibile"
+        );
+    }
+
+    #[tokio::test]
+    async fn un_valore_buono_lo_fa_scattare_come_sempre() {
+        let db = AlarmDb::new(8);
+        db.load(vec![def()]).await;
+        db.evaluate("p.potenza", &stato(0.0, TagQuality::Good))
+            .await;
+        assert!(
+            attivo(&db).await,
+            "un dato buono deve far scattare l'allarme"
+        );
+    }
+
+    #[tokio::test]
+    async fn una_sorgente_che_cade_non_mette_a_tacere_un_allarme_attivo() {
+        // Il verso pericoloso dello stesso errore: se l'allarme sta suonando e
+        // la sorgente cade, spegnerlo nasconderebbe una cosa ancora vera.
+        let db = AlarmDb::new(8);
+        db.load(vec![def()]).await;
+        db.evaluate("p.potenza", &stato(0.0, TagQuality::Good))
+            .await;
+        assert!(attivo(&db).await);
+        db.evaluate("p.potenza", &stato(99.0, TagQuality::Bad))
+            .await;
+        assert!(
+            attivo(&db).await,
+            "una sorgente caduta ha spento un allarme vero"
         );
     }
 }

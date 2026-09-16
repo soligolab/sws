@@ -97,8 +97,7 @@ pub async fn run_sparkplug(
     }
     // Mark all mapped tags Bad on exit.
     for m in &spb.metrics {
-        db.ingest(m.tag.clone(), TagValue::Float(0.0), TagQuality::Bad)
-            .await;
+        db.marca_qualita(&m.tag, TagQuality::Bad).await;
     }
 }
 
@@ -254,8 +253,7 @@ async fn handle_message(
         },
         "NDEATH" | "DDEATH" => {
             for m in &spb.metrics {
-                db.ingest(m.tag.clone(), TagValue::Float(0.0), TagQuality::Bad)
-                    .await;
+                db.marca_qualita(&m.tag, TagQuality::Bad).await;
             }
         }
         _ => {}

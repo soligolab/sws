@@ -38,8 +38,7 @@ pub async fn run(
     if let Err(e) = session(&cfg, &db, &routes, &mut write_rx, cancel).await {
         warn!(source = %cfg.id, "Modbus error: {e:#} — stopped (save config to retry)");
         for reg in &cfg.registers {
-            db.ingest(reg.tag.clone(), TagValue::Float(0.0), TagQuality::Bad)
-                .await;
+            db.marca_qualita(&reg.tag, TagQuality::Bad).await;
         }
     }
 }
@@ -81,7 +80,7 @@ async fn session(
                             db.ingest(reg.tag.clone(), TagValue::Float(raw * reg.scale), TagQuality::Good).await;
                         }
                         Err(e) => {
-                            db.ingest(reg.tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
+                            db.marca_qualita(&reg.tag, TagQuality::Bad).await;
                             return Err(anyhow::anyhow!("read register {}: {e}", reg.address));
                         }
                     }
@@ -103,7 +102,7 @@ async fn session(
                         info!(source = %cfg.id, %tag, address, raw, "Modbus write OK");
                     }
                     Err(e) => {
-                        db.ingest(tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
+                        db.marca_qualita(&tag, TagQuality::Bad).await;
                         return Err(anyhow::anyhow!("write register {address} for tag {tag}: {e}"));
                     }
                 }
@@ -159,8 +158,7 @@ pub async fn run_rtu(
     if let Err(e) = session_rtu(&cfg, &db, &routes, &mut write_rx, cancel).await {
         warn!(source = %cfg.id, "Modbus RTU error: {e:#} — stopped (save config to retry)");
         for reg in &cfg.registers {
-            db.ingest(reg.tag.clone(), TagValue::Float(0.0), TagQuality::Bad)
-                .await;
+            db.marca_qualita(&reg.tag, TagQuality::Bad).await;
         }
     }
 }
@@ -217,7 +215,7 @@ async fn session_rtu(
                             db.ingest(reg.tag.clone(), TagValue::Float(raw * reg.scale), TagQuality::Good).await;
                         }
                         Err(e) => {
-                            db.ingest(reg.tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
+                            db.marca_qualita(&reg.tag, TagQuality::Bad).await;
                             return Err(anyhow::anyhow!("read register {}: {e}", reg.address));
                         }
                     }
@@ -236,7 +234,7 @@ async fn session_rtu(
                         info!(source = %cfg.id, %tag, address, raw, "Modbus RTU write OK");
                     }
                     Err(e) => {
-                        db.ingest(tag.clone(), TagValue::Float(0.0), TagQuality::Bad).await;
+                        db.marca_qualita(&tag, TagQuality::Bad).await;
                         return Err(anyhow::anyhow!("write register {address} for tag {tag}: {e}"));
                     }
                 }

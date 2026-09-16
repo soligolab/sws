@@ -29,8 +29,7 @@ pub async fn run(cfg: S7Config, db: Arc<TagDb>, bus: Arc<TagWriteBus>, cancel: C
     if let Err(e) = session(&cfg, &db, &mut write_rx, cancel).await {
         warn!(source = %cfg.id, "S7 error: {e:#} — stopped (save config to retry)");
         for tm in &cfg.tags {
-            db.ingest(tm.tag.clone(), TagValue::Float(0.0), TagQuality::Bad)
-                .await;
+            db.marca_qualita(&tm.tag, TagQuality::Bad).await;
         }
     }
 }

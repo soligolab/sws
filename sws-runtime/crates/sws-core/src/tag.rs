@@ -196,6 +196,40 @@ impl TagDb {
         let _ = self.tx.send(TagUpdate { id, state }); // no subscribers is fine
     }
 
+    /// Marca un tag come inattendibile **senza toccarne il valore**.
+    ///
+    /// Serve a chi perde la sorgente. Fino al 16-09-2026 i plugin scrivevano
+    /// `Float(0.0)` con qualità `Bad` per dire «non so più»: un valore
+    /// inventato, che poi il resto del sistema si beveva. Nel caso che l'ha
+    /// fatto scoprire, un allarme «potenza sotto 0.1 W» scattava a ogni
+    /// riconnessione fallita e mandava una notifica Telegram con la pompa che
+    /// girava — perché lo zero non veniva dall'impianto, veniva da noi.
+    ///
+    /// Ora l'ultima lettura **vera** resta dov'è, marcata vecchia: sullo
+    /// schermo si vede l'ultimo dato con l'indicazione che non è fresco, che è
+    /// ciò che un operatore si aspetta. Un tag mai letto non si crea: se non
+    /// c'è ancora un valore non c'è niente da marcare.
+    pub async fn marca_qualita(&self, id: &str, quality: TagQuality) {
+        let precedente = { self.store.read().await.get(id).cloned() };
+        let Some(mut state) = precedente else { return };
+        if state.quality == quality {
+            return;
+        }
+        state.quality = quality;
+        state.timestamp_ms = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64;
+        self.store
+            .write()
+            .await
+            .insert(id.to_string(), state.clone());
+        let _ = self.tx.send(TagUpdate {
+            id: id.to_string(),
+            state,
+        });
+    }
+
     pub async fn get(&self, id: &str) -> Option<TagState> {
         self.store.read().await.get(id).cloned()
     }
