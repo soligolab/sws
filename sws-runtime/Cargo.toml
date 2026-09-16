@@ -136,6 +136,11 @@ sha2 = "0.10"
 # Scratch directories (e.g. one-shot PKI for OPC-UA browse)
 tempfile = "3"
 
+# Proprietà Unicode di un carattere (T-71): `is_emoji_char()` per proteggere
+# un simbolo del catalogo caratteri dalla traduzione automatica, stesso
+# principio dei segnaposto di formato — vedi sws-core::traduzione.
+unicode-properties = { version = "0.1", default-features = false, features = ["emoji"] }
+
 [profile.release]
 opt-level     = 3
 lto           = "thin"

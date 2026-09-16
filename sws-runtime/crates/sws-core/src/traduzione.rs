@@ -6,6 +6,17 @@
 // decisione pura si prova senza rete, mentre un traduttore no.
 
 use crate::project::{LangEntry, LanguageTable};
+use unicode_properties::emoji::UnicodeEmoji;
+
+/// Un carattere del catalogo di caratteri speciali (T-71, 🏠 🔐 🔧...) è
+/// **anche lui** un pezzo da non tradurre, per lo stesso motivo del
+/// segnaposto: un fornitore automatico può alterarlo o perderlo dentro una
+/// frase ("Pompa 🔧 avviata"). Non ogni carattere `Emoji=YES` conta — le
+/// cifre ASCII e `#`/`*` lo sono solo per le sequenze keycap (0️⃣) e da sole
+/// non hanno niente da proteggere.
+fn e_simbolo_protetto(c: char) -> bool {
+    !c.is_ascii() && c.is_emoji_char()
+}
 
 /// Un segnaposto di formato: `{value}`, `{value:.1f}`, `{tag}`.
 ///
@@ -46,6 +57,20 @@ fn segnaposti(s: &str) -> Vec<(usize, usize)> {
     fuori
 }
 
+/// Segnaposto di formato **e** simboli del catalogo caratteri, uniti e
+/// ordinati: dal punto di vista di chi spezza la frase sono la stessa cosa,
+/// un pezzo che il traduttore non deve mai vedere.
+fn punti_da_proteggere(s: &str) -> Vec<(usize, usize)> {
+    let mut fuori = segnaposti(s);
+    for (i, c) in s.char_indices() {
+        if e_simbolo_protetto(c) {
+            fuori.push((i, i + c.len_utf8()));
+        }
+    }
+    fuori.sort_by_key(|&(inizio, _)| inizio);
+    fuori
+}
+
 /// Un pezzo di una frase: o testo da tradurre, o un segnaposto da non toccare.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Pezzo {
@@ -72,7 +97,7 @@ pub enum Pezzo {
 /// imperfetto e **intero**, non rotto, e resta marcato come automatico così una
 /// correzione a mano lo sostituisce per sempre.
 pub fn segmenta(s: &str) -> Vec<Pezzo> {
-    let punti = segnaposti(s);
+    let punti = punti_da_proteggere(s);
     if punti.is_empty() {
         return vec![Pezzo::Testo(s.to_string())];
     }
@@ -297,6 +322,60 @@ mod tests {
         // Un pezzo di soli spazi non ha un dentro: tutto coda, niente da
         // mandare (e `da_mandare` lo scarta comunque, non avendo lettere).
         assert_eq!(bordi("   "), ("", "", "   "));
+    }
+
+    #[test]
+    fn un_emoji_del_catalogo_sopravvive_dentro_una_frase() {
+        // Il caso di T-71: "Pompa 🔧 avviata" non deve tornare "Pompa
+        // avviata" né "Pompa [wrench] avviata" da un fornitore automatico —
+        // l'emoji è un pezzo a sé, come un segnaposto di formato.
+        assert_eq!(
+            segmenta("Pompa 🔧 avviata"),
+            vec![
+                Pezzo::Testo("Pompa ".into()),
+                Pezzo::Segnaposto("🔧".into()),
+                Pezzo::Testo(" avviata".into()),
+            ]
+        );
+    }
+
+    #[test]
+    fn un_emoji_non_si_manda_mai_al_traduttore() {
+        for frase in ["Pompa 🔧 avviata", "🏠 Casa", "Allarme 🔐🔒 sicurezza"] {
+            for p in segmenta(frase).iter().filter(|p| da_mandare(p)) {
+                let Pezzo::Testo(t) = p else { unreachable!() };
+                assert!(
+                    !t.chars().any(e_simbolo_protetto),
+                    "un simbolo protetto sta per uscire in {t:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn un_simbolo_bmp_gia_in_uso_e_protetto_come_le_emoji_vere() {
+        // ☀ ⚡ ⚠ ⚙ (U+2600 e vicini) sono nel catalogo da prima di T-71 e
+        // devono avere la stessa protezione delle emoji vere da U+1F300.
+        assert_eq!(
+            segmenta("Sole ☀ alto"),
+            vec![
+                Pezzo::Testo("Sole ".into()),
+                Pezzo::Segnaposto("☀".into()),
+                Pezzo::Testo(" alto".into()),
+            ]
+        );
+    }
+
+    #[test]
+    fn le_cifre_ascii_non_sono_simboli_da_proteggere() {
+        // 0-9, '#' e '*' sono `Emoji=YES` solo per le sequenze keycap
+        // (0️⃣): da soli in una frase normale non vanno protetti, o ogni
+        // numero in ogni progetto smetterebbe di poter essere ricomposto
+        // liberamente dal traduttore insieme al testo attorno.
+        assert_eq!(
+            segmenta("Livello 5 su 10"),
+            vec![Pezzo::Testo("Livello 5 su 10".into())]
+        );
     }
 
     #[test]

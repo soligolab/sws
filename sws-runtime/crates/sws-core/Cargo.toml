@@ -15,6 +15,7 @@ anyhow.workspace     = true
 # workspace, sha2 pura Rust, nessun peso nuovo per la cross-compilazione.
 rustls.workspace     = true
 sha2.workspace       = true
+unicode-properties.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
