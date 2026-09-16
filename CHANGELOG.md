@@ -11,6 +11,18 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.8.0] — 2026-09-16
+
+> **Il multilingua di progetto**, dalla tabella che esisteva a metà a quella che serviva: una
+> stringa digitata diventa da sola una voce, il riuso si propone, quattro fornitori traducono e
+> i segnaposti non escono mai dal nostro processo. Allarmi, notifiche Telegram, storico, script
+> e cornice del viewer sono dentro; i due motori di rendering traducono gli stessi campi, e c'è
+> una guardia che lo verifica. Più due difetti di sicurezza d'esercizio trovati dal maintainer
+> collaudando: un'istanza IDE apriva un progetto e **comandava l'impianto vero**, e un allarme
+> decideva su uno zero che il runtime si era inventato. Lavoro delle sessioni del 15 e 16
+> settembre.
+
+
 ### Added
 - **Skill `finalizza-giornata`**: chiusura di fine sessione — niente rami aperti, niente lavoro
   a metà, *definition of done*, riepilogo in `STATUS.md`, `CHANGELOG.md`, commit dei meta file e

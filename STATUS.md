@@ -74,6 +74,55 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — release 2.8.0: multilingua su `main`, container da costruire (2026-09-16)
+
+**Quattro squash merge su `main`**, in quest'ordine, e i due rami (`feat/multilingua` e il suo
+annidato `fix/ide-non-comanda-impianto`) sono stati eliminati dopo aver verificato che
+`main^{tree}` coincidesse con l'albero del ramo:
+
+| commit | cosa |
+|---|---|
+| `1c8eda07` | `feat(i18n)` — il multilingua di progetto, otto fasi del piano del 15-09 |
+| `413fb8eb` | `fix(ide)` — l'IDE apriva un progetto e governava l'impianto |
+| `26e5686b` | `fix(allarmi)` — il runtime inventava uno zero e poi ci credeva |
+| `48d01aee` | `feat(editor)` — 16:10 fra i rapporti standard, e i segnaposti che non si perdono |
+
+Erano tre nel piano concordato; sono quattro perché 16:10 e l'ultima correzione della traduzione
+sono nati **dopo** i due fix, e riordinarli avrebbe prodotto commit intermedi che non
+compilavano. Ogni commit è un pezzo coerente della sequenza del ramo, e l'albero finale è
+identico.
+
+**Versione portata a 2.8.0** (`sws-runtime/Cargo.toml`, i due crate con Cargo.toml proprio,
+`sws-editor/package.json`, i due lockfile) e sezione `[2.8.0]` tagliata nel `CHANGELOG.md`.
+Minor e non patch: il multilingua è una funzionalità nuova, non una correzione.
+
+**Definition of done soddisfatta su `main`**: `cargo clippy --workspace -D warnings` verde,
+26 suite Rust verdi, `pnpm test` 406 verdi, `pnpm build` verde, `./scripts/check_static.sh`
+18/18 — e il maintainer ha confermato dal vivo che la traduzione multilingua funziona («ora
+funziona», 16-09).
+
+### Cosa manca per chiudere la release
+
+1. **Il tag e il push**: non fatti. Il push richiede l'istruzione esplicita della regola 1 di
+   `CLAUDE.md`, e in questa sessione non è ancora arrivata.
+2. **Il container**: `./scripts/build_container.sh` legge la versione da `cargo metadata`, quindi
+   costruirà `sws-runtime:2.8.0`. Con `--push` finisce sul registry — decisione del maintainer.
+3. **`2.7.3` non è mai stato taggato**: la sezione esiste nel `CHANGELOG.md` dal 12-09 e la
+   versione era in `Cargo.toml`, ma `git tag` si ferma a `2.7.2`. Non l'ho aggiunto
+   retroattivamente: va deciso se recuperarlo o lasciarlo come release solo di changelog.
+
+### Lavoro dichiarato e non iniziato
+
+- **Le regole dei template**, che il maintainer vuole definire *prima* di implementare: 16:10 a
+  1280×800 (ora è il default dell'IDE, quindi la regola è già applicabile), almeno tre lingue
+  (it/en/es), template semplici, un tipo di risorsa + casi d'uso realistici. A queste ne ho
+  proposta una quinta, che nasce da un difetto vero visto in questa sessione: **un template non
+  deve portare indirizzi o credenziali di un impianto reale** — `nebulizzatore-sandokan` porta
+  `192.168.1.6`, e aprire un progetto da quel template ha riempito il log di 1950 righe di
+  «connection refused».
+- **Passo 5 della revisione template** (i sei template fermi al 28-08).
+- **T-71**, il selettore di caratteri speciali (scheda più sotto).
+
 ## ▶ Riprendere da qui — skill finalizza-giornata, sessione chiusa e pushata (2026-09-16)
 
 Aggiunta `.claude/skills/finalizza-giornata/SKILL.md` (`f136fbe`): chiude la giornata dove
