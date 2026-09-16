@@ -51,6 +51,14 @@ pub struct SourceSupervisor {
     /// `set_pki_root`.
     opcua_pki_root: tokio::sync::RwLock<std::path::PathBuf>,
     sources: Mutex<HashMap<String, RunningSource>>,
+    /// Le sorgenti non registrano write-back. Vero sulle **istanze IDE**.
+    ///
+    /// Un IDE apre il progetto per poterlo modificare, non per governare
+    /// l'impianto: un portatile nella LAN giusta comandava ferro vero — nel
+    /// caso che l'ha fatto scoprire, quattro tapparelle Shelly — senza che
+    /// nessuno l'avesse chiesto e senza che niente lo dicesse. Che non
+    /// succedesse era merito del broker irraggiungibile, non del codice.
+    sola_lettura: std::sync::atomic::AtomicBool,
     /// Q33: l'acquisizione è **armata**? Falso solo dopo uno Stop esplicito
     /// dell'operatore, e fino al successivo Avvia.
     ///
@@ -88,6 +96,7 @@ impl SourceSupervisor {
             opcua_pki_root: tokio::sync::RwLock::new(default_pki_root()),
             sources: Mutex::new(HashMap::new()),
             armed: std::sync::atomic::AtomicBool::new(true),
+            sola_lettura: std::sync::atomic::AtomicBool::new(false),
         });
         let watchdog = this.clone();
         tokio::spawn(async move { watchdog.watchdog_loop().await });
@@ -180,6 +189,17 @@ impl SourceSupervisor {
         self.armed.load(std::sync::atomic::Ordering::Relaxed)
     }
 
+    /// Dichiara che questa istanza non deve poter scrivere verso l'impianto.
+    /// Si chiama una volta all'avvio, da chi sa se è un IDE (`main.rs`).
+    pub fn imposta_sola_lettura(&self, v: bool) {
+        self.sola_lettura
+            .store(v, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    pub fn e_sola_lettura(&self) -> bool {
+        self.sola_lettura.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
     /// Arma o disarma l'acquisizione. Lo chiamano solo
     /// `POST /api/system/start` e `POST /api/system/stop`: è l'intenzione
     /// dell'operatore, e nessun altro percorso ha il diritto di cambiarla.
@@ -205,6 +225,19 @@ impl SourceSupervisor {
                  (premi Avvia per farle partire)"
             );
             Vec::new()
+        } else {
+            desired
+        };
+        // Su un'istanza IDE le sorgenti partono in sola lettura. Si toglie qui
+        // e non negli otto plugin: otto punti sono otto occasioni di
+        // dimenticarne uno il giorno che se ne aggiunge un nono.
+        let desired = if self.e_sola_lettura() && !desired.is_empty() {
+            tracing::info!(
+                sorgenti = desired.len(),
+                "istanza IDE: le sorgenti partono in SOLA LETTURA — nessun write-back verso \
+                 l'impianto (l'IDE serve a modificare il progetto, non a governarlo)"
+            );
+            desired.into_iter().map(|s| s.sola_lettura()).collect()
         } else {
             desired
         };

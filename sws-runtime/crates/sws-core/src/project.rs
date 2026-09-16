@@ -1462,3 +1462,59 @@ mod risoluzione_token_tests {
         );
     }
 }
+
+impl SourceDef {
+    /// La stessa sorgente, ma **incapace di scrivere**: ogni mappatura di
+    /// write-back viene tolta.
+    ///
+    /// Serve alle istanze IDE. Fino al 16-09-2026 l'IDE apriva il progetto e
+    /// avviava le sorgenti come un runtime d'impianto, writer compresi: un
+    /// portatile nella LAN giusta poteva **comandare ferro vero** — nel caso
+    /// reale che l'ha fatto scoprire, quattro tapparelle Shelly — senza che
+    /// nessuno l'avesse chiesto e senza che niente lo dicesse. Che non
+    /// succedesse era merito del broker irraggiungibile, non del codice.
+    ///
+    /// Si toglie **qui e non nei plugin**: i plugin sono otto e ognuno ha la
+    /// propria forma di scrittura (`publish_topic`, `writable`,
+    /// `write_domain`…). Otto punti sono otto occasioni di dimenticarne uno il
+    /// giorno che se ne aggiunge un nono.
+    pub fn sola_lettura(mut self) -> Self {
+        match &mut self {
+            SourceDef::Mqtt(c) => {
+                for t in &mut c.topics {
+                    t.publish_topic = None;
+                }
+                if let Some(spb) = &mut c.sparkplug {
+                    for m in &mut spb.metrics {
+                        m.writable = false;
+                    }
+                }
+            }
+            SourceDef::HomeAssistant(c) => {
+                for e in &mut c.entities {
+                    e.write_domain = None;
+                    e.write_service = None;
+                }
+            }
+            SourceDef::S7(c) => {
+                for t in &mut c.tags {
+                    t.writable = false;
+                }
+            }
+            SourceDef::EnIp(c) => {
+                for t in &mut c.tags {
+                    t.writable = false;
+                }
+            }
+            // Modbus e OPC-UA: la scrittura non passa da un campo della
+            // sorgente ma dal registro/nodo mappato, e il divieto vero sta a
+            // valle in `write_tag`. Dichiarato qui perché un `_ => {}` muto
+            // sembrerebbe una dimenticanza.
+            SourceDef::ModbusTcp(_)
+            | SourceDef::ModbusRtu(_)
+            | SourceDef::OpcUaServer(_)
+            | SourceDef::OpcUaClient(_) => {}
+        }
+        self
+    }
+}

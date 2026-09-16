@@ -461,7 +461,27 @@ async fn main() -> anyhow::Result<()> {
     //   2. .active-project marker (written on every open, persistent)
     //   3. legacy .last-opened reboot marker (consumed once)
     //   4. the only project directory present under projects_root
+    // Un'istanza IDE **non riapre niente da sola**: parte dalla schermata dei
+    // progetti e aspetta che si scelga.
+    //
+    // Decisione del maintainer, 16-09-2026, dopo aver avviato l'editor e aver
+    // visto il runtime collegarsi da solo al broker MQTT di casa sua, armare
+    // sei allarmi e tenere aperti quattro tag in scrittura verso delle
+    // tapparelle vere. Un IDE serve a modificare un progetto, non a governare
+    // un impianto — e l'apertura automatica esiste per il caso opposto: un
+    // pannello che riparte dopo un riavvio e deve tornare a far vedere
+    // l'impianto senza che nessuno tocchi niente.
+    //
+    // `--project` esplicito continua a valere: chi lo passa lo ha chiesto.
+    let ide_only = args.viewer_port.is_none();
     let project_arg = args.project.clone().or_else(|| {
+        if ide_only {
+            info!(
+                "istanza IDE: nessun progetto riaperto automaticamente — si parte dalla \
+                 schermata dei progetti"
+            );
+            return None;
+        }
         // 2. Persistent "last active project" marker — NOT consumed, so a plain
         //    restart reopens the same project.
         let active = args.projects_root.join(".active-project");
@@ -960,7 +980,7 @@ async fn main() -> anyhow::Result<()> {
         // IDE-only: nessun viewer, cioè `start_editor.sh`. È la stessa
         // condizione che decide il listener a riga 844, e da lì in poi vive in
         // `AppState.ide_only`.
-        args.viewer_port.is_none(),
+        ide_only,
         audit,
         known_projects,
         instance_id,
@@ -976,6 +996,13 @@ async fn main() -> anyhow::Result<()> {
     // faccia su un pannello in servizio. Verificato sul dispositivo: al boot
     // nessuna riga "notification supervisor started", dopo un POST
     // /api/projects/<n>/open la riga compare e l'allarme manda il messaggio.
+    // Su un'istanza IDE le sorgenti partono in sola lettura: l'IDE modifica il
+    // progetto, non governa l'impianto. Si dichiara qui, dove si sa se è un IDE,
+    // e vale per tutte le aperture successive — compresa quella di un progetto
+    // creato adesso da un template, che porta con sé le sorgenti della casa in
+    // cui il template è nato.
+    app_state.supervisor.imposta_sola_lettura(ide_only);
+
     if let Some((notifications, global_scripts, languages)) = boot_services {
         sws_web::projects::start_project_services(
             &app_state,

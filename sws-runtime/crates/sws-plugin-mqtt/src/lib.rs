@@ -196,21 +196,57 @@ pub async fn run(
         })
         .collect();
 
+    // Attesa che cresce, e un registro che non si autodistrugge.
+    //
+    // Il 16-09-2026 aprire un progetto creato da un template ha prodotto **1950
+    // righe su 2000** di «subscribing»/«connection refused» in pochi minuti: il
+    // template portava le sorgenti della casa in cui era nato, il broker non
+    // c'era, e il ciclo ritentava ogni 5 secondi scrivendo due righe ogni volta.
+    // Il file di log ha una capienza: quelle righe hanno spinto fuori tutto il
+    // resto, cioè hanno cancellato la diagnostica proprio mentre serviva.
+    //
+    // Due correzioni, entrambe sul sintomo giusto:
+    //  * l'attesa sale 5 → 10 → 20 → 40 → 60 s e si ferma lì. Un broker assente
+    //    resta assente; martellarlo ogni 5 secondi non lo fa tornare, e chi
+    //    lo riaccende aspetta al massimo un minuto.
+    //  * il motivo si scrive **la prima volta e poi ogni dieci**, con il conto
+    //    dei tentativi. Un guasto va detto; ripeterlo 968 volte è nasconderlo
+    //    dentro il proprio rumore.
+    const ATTESE_S: [u64; 5] = [5, 10, 20, 40, 60];
+    let mut tentativi: u32 = 0;
     loop {
-        match run_session(&cfg, &db, &bus, &writers, cancel.clone(), &certificati).await {
+        match run_session(
+            tentativi,
+            &cfg,
+            &db,
+            &bus,
+            &writers,
+            cancel.clone(),
+            &certificati,
+        )
+        .await
+        {
             Ok(()) => break,
             Err(e) => {
                 if cancel.is_cancelled() {
                     break;
                 }
-                warn!(source = %cfg.id, "MQTT session ended: {e:#} — retry in 5s");
+                let attesa = ATTESE_S[(tentativi as usize).min(ATTESE_S.len() - 1)];
+                tentativi += 1;
+                if tentativi == 1 || tentativi.is_multiple_of(10) {
+                    warn!(
+                        source = %cfg.id,
+                        tentativi,
+                        "MQTT session ended: {e:#} — riprovo fra {attesa}s"
+                    );
+                }
                 for topic in cfg.topics.iter().filter(|t| mappata(&t.tag)) {
                     db.ingest(topic.tag.clone(), TagValue::Float(0.0), TagQuality::Bad)
                         .await;
                 }
                 tokio::select! {
                     _ = cancel.cancelled() => break,
-                    _ = tokio::time::sleep(Duration::from_secs(5)) => {}
+                    _ = tokio::time::sleep(Duration::from_secs(attesa)) => {}
                 }
             }
         }
@@ -218,6 +254,11 @@ pub async fn run(
 }
 
 async fn run_session(
+    // Quanti tentativi falliti ci sono già stati: serve solo a decidere se
+    // scrivere la riga di avvio. Il «subscribing» sta dentro questa funzione,
+    // quindi senza questo si ripeteva a ogni ritentativo — 978 volte nel log
+    // del 16-09-2026.
+    tentativi: u32,
     cfg: &MqttConfig,
     db: &TagDb,
     bus: &Arc<TagWriteBus>,
@@ -345,14 +386,16 @@ async fn run_session(
     }
     drop(write_tx);
 
-    info!(
-        source = %cfg.id,
-        host = %cfg.host, port = cfg.port,
-        client_id = %cfg.client_id,
-        topics = cfg.topics.len(),
-        writers = writers.len(),
-        "MQTT subscribing"
-    );
+    if tentativi == 0 || tentativi.is_multiple_of(10) {
+        info!(
+            source = %cfg.id,
+            host = %cfg.host, port = cfg.port,
+            client_id = %cfg.client_id,
+            topics = cfg.topics.len(),
+            writers = writers.len(),
+            "MQTT subscribing"
+        );
+    }
 
     // `eventloop.poll()` reacting with an `Err` is already handled by the
     // retry loop in `run` — but a poll() that never resolves at all (neither
