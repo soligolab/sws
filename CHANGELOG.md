@@ -12,6 +12,14 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Added
+- **Revisione del parco template, Passi 1-3**: un README.md di ruolo dichiarato per ognuno
+  degli undici template (inventario/banco di prova di protocollo/banco di prova di una
+  feature/applicazione realistica); due ricette (`recipes/`) nei gemelli demo-items, il
+  `recipe_panel` non è più vuoto; un esempio di `min_role` (homeassistant-demo, luce esterna a
+  Supervisor+); un percorso con waypoint animato (nebulizzatore-sandokan, pompa→serbatoio);
+  `target:` esplicito su demo-items-web e nebulizzatore-sandokan. Vedi `STATUS.md` per i
+  singoli commit e i difetti adiacenti trovati (write-back mancante su enip/s7/
+  sparkplug-demo, tabella a mano sostituita da un widget in opcua-demo).
 - **Orologio e stato ritenuto negli script Python (T-69, fase A)**: quattro binding nuovi nel
   sandbox — `now_ms()`, `uptime_ms()`, `delta_ms()` (dalla prima/ultima invocazione di
   un'identità: id dello script globale, o nome della funzione) e `state.get(key, default)`/
@@ -45,6 +53,16 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   sonda `send_telegram`. Costruirlo ha trovato altri due difetti (vedi sotto).
 
 ### Fixed
+- **`format: "testo {value} testo"` senza una specifica decimale perdeva tutto il testo
+  attorno**, mostrando solo il numero grezzo: `formatValue` riconosce esclusivamente
+  `{value:.Nf}` esplicito, un `{value}` nudo in mezzo a del testo non veniva mai formattato.
+  Trovato revisionando i template (nebulizzatore-sandokan, grid-playground, opcua-demo);
+  corretto aggiungendo la specifica nei tre punti. Nessuna modifica al motore di
+  formattazione: il difetto era nel contenuto dei template, non nel codice.
+- **`enip-demo`/`s7-demo` promettevano "write-back" nella descrizione ma la pagina non aveva
+  nessun controllo scrivibile** (solo `text`/`led` in sola lettura, sui tag già dichiarati
+  `writable: true` alla sorgente) — aggiunto un setpoint + una checkbox in entrambi.
+  `sparkplug-demo` aveva lo stesso gap senza la promessa esplicita, corretto per coerenza.
 - **`send_telegram(...)` sollevava sempre `NameError`**: era registrato nei globals esterni di
   `run_in_python` (`sws-pyscript`) ma mai copiato dentro `__sws_globals__`, il dizionario contro
   cui il codice utente gira davvero. Corretto nello stesso intervento della fase A di T-69,

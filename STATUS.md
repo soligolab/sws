@@ -74,6 +74,53 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — revisione template, Passi 1-3 fatti (2026-09-16)
+
+Ripreso il piano `docs/plans/2026-09-14-revisione-template.md`. Fatti i primi tre passi,
+ognuno collaudato dal vivo e mergiato separatamente:
+
+**Passo 1 — verità dei documenti di licenza** (`3b08bc5`): `casa-locale/CREDITS.md`
+riscritto (7 degli 8 SVG elencati non esistevano più, diventati builtin con Q40); rimosso
+`solar-power-variant.svg`, orfano non referenziato. Il maintainer ha confermato che i sette
+ridisegni builtin non sono opere derivate — l'attribuzione MDI non serve più, scritto in
+`ATTRIBUTION.md`.
+
+**Passo 2 — un ruolo dichiarato per ognuno** (`701b59f`): README.md per cartella (scelta del
+maintainer sul meccanismo, non un campo `meta:`) su tutti e undici i template — quattro ruoli
+(inventario, banco di prova di protocollo, banco di prova di una feature — quarto ruolo non
+previsto dal piano, per `grid-playground` — applicazione realistica), ognuno col proprio
+metro di giudizio.
+
+**Passo 3 — le funzioni senza vetrina**, tutte e quattro:
+- `recipes:` (`c252b5f`) — due ricette nei gemelli demo-items, `recipe_panel` non è più vuoto.
+- `min_role` (`4a9627a`) — homeassistant-demo, luce esterna a Supervisor+.
+- waypoint (`643166f`) — nebulizzatore-sandokan, pompa→serbatoio con flusso animato.
+- `target:` (`153f1b6`) — esplicito su demo-items-web e nebulizzatore-sandokan (entrambi
+  `web`, nessun cambio di comportamento — LVGL non collaudato dal vivo di recente, non
+  passato a nessun template reale).
+
+**Trovati e corretti per strada**, applicando il metro di ogni ruolo:
+- `enip-demo`/`s7-demo` promettevano "write-back" senza un controllo scrivibile in pagina —
+  aggiunto (setpoint + checkbox). `sparkplug-demo` aveva lo stesso gap senza la promessa
+  esplicita, corretto per coerenza.
+- `opcua-demo`: una tabella di 24 `text` posizionati a mano sostituita da un solo widget
+  `table`.
+- Difetto di formattazione pre-esistente: `format: "testo {value} testo"` senza specifica
+  decimale (`{value:.Nf}`) perde il testo attorno e mostra solo il numero grezzo — capitava in
+  nebulizzatore-sandokan (5 readout), grid-playground e opcua-demo (1 ciascuno), corretti
+  tutti e tre.
+- Su indicazione del maintainer, `nebulizzatore-sandokan` è stato ridisegnato da 900×920
+  (verticale) a 1280×600 (i pannelli target sono landscape a quella risoluzione) — i tre
+  trend impilati sono ora affiancati.
+
+Gate verde a ogni passo: `cargo check/test`, `pnpm build/test`, `check_static.sh` 17/17
+(incluso `check_templates.sh`/`check_demo_templates.sh`), collaudo dal vivo via Playwright su
+runtime di scarto per ogni modifica visibile.
+
+**Resta il Passo 5**: i sei template fermi al 28-08 (`enip`/`s7`/`sparkplug`/`opcua-demo`, i
+due `homeassistant`) — guardarli uno per uno col metro del passo 2 e decidere per ognuno:
+aggiornare, lasciare com'è dichiarando perché, o togliere.
+
 ## ▶ Riprendere da qui — T-56 collaudato a fondo e archiviato (2026-09-15)
 
 Ripreso il piano T-56 (i due pannelli dell'editor) per il collaudo a fondo che mancava.
