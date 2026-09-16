@@ -2,6 +2,12 @@ meta:
   name: demo-items-web
   version: 1.0.0
 
+# target esplicito (revisione template, 15-09-2026): prima era implicito
+# (None = web, comportamento di sempre) — reso esplicito per simmetria col
+# gemello demo-items-lvgl, che ce l'ha da quando esiste.
+target:
+  kind: web
+
 # ── Perché questo template esiste ────────────────────────────────────────────
 #
 # È il banco di prova dei due motori di rendering. Esiste in due varianti

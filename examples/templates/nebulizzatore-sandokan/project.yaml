@@ -2,6 +2,17 @@ meta:
   name: nebulizzatore-sandokan
   version: 0.1.0
 
+# target esplicito (revisione template, 15-09-2026): un solo template su
+# undici lo dichiarava (demo-items-lvgl). Web è il motore di sempre per
+# questo template — nessun cambio di comportamento, solo lo si rende
+# esplicito invece di implicito. Tutti e otto i tipi usati sarebbero già
+# disegnabili da LVGL (layout 1280×600, pensato per un pannello), ma LVGL
+# non è mai stato collaudato dal vivo dopo l'ultimo merge — passare un
+# template reale a lvgl_wayland resta una decisione da prendere con calma,
+# non da questa revisione.
+target:
+  kind: web
+
 tags:
 - id: sandokan.state
   description: "Sandokan — stato presa (ON/OFF)"
