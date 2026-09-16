@@ -245,6 +245,32 @@ dispositivo in servizio senza che una persona l'abbia riletta. La prima è una s
 qualità che dipende dal cliente; la seconda è una decisione di responsabilità, e un allarme
 tradotto male su un pannello d'impianto non è una questione di stile.
 
+### Cosa è stato realizzato nella 2.8.0 (16-09-2026), e cosa resta da decidere
+
+Il piano multilingua ha costruito la traduzione automatica: quattro fornitori dietro
+un'astrazione (MyMemory senza chiave, LibreTranslate, Google Cloud Translation, l'assistente IA),
+endpoint solo-IDE, una traduzione umana mai sovrascritta, e una rilettura umana nell'IDE con
+selettore della lingua di anteprima. Dei cinque punti elencati sopra, questo copre il 2 (dove
+avviene la rilettura), il 4 (il marchio umano/automatico) e il 5 (mai a runtime).
+
+**Il punto 3 — i segnaposto di formato — è stato risolto in un modo che vale la pena registrare,
+perché è la parte che ha richiesto quattro tentativi.** I primi tre mettevano nel testo un
+*guardiano* al posto del segnaposto, fidandosi che tornasse indietro intatto: il NUL non arrivava
+a destinazione, `⟦0⟧` tornava riordinato («Warm stay: ⟦⟧0°C»), un carattere dell'area privata
+veniva cancellato. La conclusione adottata è che **il segnaposto non esce dal nostro processo**:
+la frase si spezza, si traduce solo il testo, e segnaposti e spazi di giunzione li rimette il
+runtime.
+
+**Resta aperto il prezzo di quella scelta**, ed è una decisione di prodotto, non di codice: il
+traduttore vede i pezzi separati e **non può riordinare** il testo attorno al segnaposto. Per
+l'italiano e l'inglese non cambia niente; per una lingua che volesse l'unità prima del numero, o
+il verbo in fondo, il risultato è grammaticalmente imperfetto — intero, ma imperfetto. Le vie
+sarebbero: accettarlo (oggi), mandare la frase intera **solo** al fornitore IA (l'unico a cui si
+può spiegare cosa non toccare) e segmentare per gli altri, oppure marcare quelle righe come da
+rileggere sempre. Non decisa.
+
+Resta aperto anche il punto 1: quale fornitore è quello *giusto* per un allarme d'impianto.
+
 ### Decisa
 
 `not yet`
@@ -610,6 +636,48 @@ destinatari lo permetterebbe: `notify_email[]` ed `escalate_to[]` sono già elen
    caso che non è quello vero: la lingua dipende da *chi legge*, non da *come* legge.
 
 **Default per il PoC.** Opzione 1, realizzata. Il prezzo è scritto qui.
+
+**Decided:** not yet.
+
+---
+
+## Q58 — Un template porta gli indirizzi e le credenziali dell'impianto in cui è nato
+
+*Aperta il 2026-09-16, emersa realizzando il piano multilingua. Nessuna decisione presa.*
+
+**Come si è vista.** Il maintainer ha creato un progetto da un template e si è ritrovato 1950
+righe su 2000 di `connection refused` nel log in pochi minuti. Il template
+`nebulizzatore-sandokan` dichiara `host: 192.168.1.6` — il broker MQTT **di casa sua**. Chiunque
+crei un progetto da quel template si porta dietro un indirizzo che sulla sua rete non esiste, e
+il runtime ci si ostina contro per sempre.
+
+Il rumore è stato mitigato (backoff 5→60s, motivo scritto una volta su dieci: commit
+`413fb8eb`), ma quello era il sintomo. Il problema è che **un template è un esempio, e un
+esempio non dovrebbe contenere un pezzo di rete vera**.
+
+E non si ferma agli indirizzi: un template può portare, con la stessa naturalezza, un token
+Telegram, una password MQTT o le credenziali di un dispositivo — perché *«i segreti viaggiano col
+progetto»* è una decisione presa e giusta per un progetto, ma un template non è un progetto: è
+qualcosa che si distribuisce a chi non c'entra niente con l'impianto originale.
+
+### Le vie possibili
+
+1. **Una regola scritta e una guardia** — nessun template dichiara host/porta di una rete reale;
+   si usano segnaposto (`mqtt.example.invalid`) o un `kind: simulato`. La guardia
+   (`check_templates.sh` esiste già) lo verifica a ogni giro. Costa poco; non impedisce di
+   sbagliare, lo **fa notare**.
+2. **Le sorgenti non viaggiano nei template** — un template porta sinottici, allarmi e tag, e le
+   sorgenti si configurano all'apertura, con una schermata che le chiede. È la via pulita, ed è
+   anche quella che fa più lavoro: molti template oggi *sono* il loro impianto.
+3. **Sorgenti disarmate all'apertura da template** — il progetto nasce con le sorgenti presenti
+   ma disabilitate, e l'autore le accende dopo averle riviste. Più economica della 2 e copre sia
+   il rumore sia le credenziali, ma lascia i valori scritti dentro il file.
+
+**Nota di contesto.** Il maintainer ha già detto (16-09) che vuole **definire delle regole prima**
+di rimettere mano ai template: rapporto 16:10 a 1280×800, almeno tre lingue (it/en/es), template
+semplici, un tipo di risorsa più casi d'uso realistici. Questa sarebbe la quinta regola, ed è
+l'unica delle cinque che ha a che fare con la sicurezza invece che con la forma — per questo è
+qui e non solo in `STATUS.md`.
 
 **Decided:** not yet.
 

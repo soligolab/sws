@@ -99,7 +99,7 @@ ramo alla volta:
 Gate verde a ogni fase: `cargo check/test/clippy/fmt --workspace`, `pnpm test` 414/414, `tsc`,
 `lint`, `pnpm build`, `check_static.sh` 18/18.
 
-## ▶ Riprendere da qui — release 2.8.0: multilingua su `main`, container da costruire (2026-09-16)
+## ▶ Riprendere da qui — release 2.8.0: multilingua su `main`, tag e container fatti (2026-09-16)
 
 **Quattro squash merge su `main`**, in quest'ordine, e i due rami (`feat/multilingua` e il suo
 annidato `fix/ide-non-comanda-impianto`) sono stati eliminati dopo aver verificato che
@@ -126,15 +126,24 @@ Minor e non patch: il multilingua è una funzionalità nuova, non una correzione
 18/18 — e il maintainer ha confermato dal vivo che la traduzione multilingua funziona («ora
 funziona», 16-09).
 
+Tag annotato **`2.8.0`** creato e pushato con `main` (skill `finalizza-giornata`).
+
 ### Cosa manca per chiudere la release
 
-1. **Il tag e il push**: non fatti. Il push richiede l'istruzione esplicita della regola 1 di
-   `CLAUDE.md`, e in questa sessione non è ancora arrivata.
-2. **Il container**: `./scripts/build_container.sh` legge la versione da `cargo metadata`, quindi
-   costruirà `sws-runtime:2.8.0`. Con `--push` finisce sul registry — decisione del maintainer.
-3. **`2.7.3` non è mai stato taggato**: la sezione esiste nel `CHANGELOG.md` dal 12-09 e la
-   versione era in `Cargo.toml`, ma `git tag` si ferma a `2.7.2`. Non l'ho aggiunto
+1. **Il container aarch64 è costruito**: `dist/sws-runtime-2.8.0-aarch64-image.tar.gz`, 142 MB,
+   immagine `sws-runtime:2.8.0-arm64`. **La pubblicazione sul registry (`--push` verso
+   `ghcr.io/soligolab/sws-runtime`) NON è stata fatta**: tocca i dispositivi che si aggiornano da
+   lì, ed è una decisione del maintainer. Manca anche l'immagine x86_64
+   (`build_containers_all.sh` le fa entrambe).
+
+   *Attenzione al contenuto*: l'archivio è stato costruito da `0b4426dd`, cioè **prima** che
+   arrivasse T-71 (le emoji su LVGL e il selettore). Se serve un container con dentro anche
+   quello, va rifatto.
+2. **`2.7.3` non è mai stato taggato**: la sezione esiste nel `CHANGELOG.md` dal 12-09 e la
+   versione era in `Cargo.toml`, ma i tag si fermano a `2.7.2`. Non l'ho aggiunto
    retroattivamente: va deciso se recuperarlo o lasciarlo come release solo di changelog.
+3. **`origin/feat/multilingua` è ancora vivo sul remoto.** Non porta niente che non sia in `main`
+   — verificato per contenuto e per patch-id — ma va cancellato, e non l'ho fatto da solo.
 
 ### Lavoro dichiarato e non iniziato
 
@@ -144,9 +153,12 @@ funziona», 16-09).
   proposta una quinta, che nasce da un difetto vero visto in questa sessione: **un template non
   deve portare indirizzi o credenziali di un impianto reale** — `nebulizzatore-sandokan` porta
   `192.168.1.6`, e aprire un progetto da quel template ha riempito il log di 1950 righe di
-  «connection refused».
+  «connection refused». È l'unica delle cinque che riguarda la sicurezza e non la forma, quindi è
+  registrata come **Q58** in `docs/OPEN_QUESTIONS.md` e non solo qui.
 - **Passo 5 della revisione template** (i sei template fermi al 28-08).
-- **T-71**, il selettore di caratteri speciali (scheda più sotto).
+
+*(T-71, il selettore di caratteri speciali, era in questo elenco: il maintainer l'ha chiuso la
+notte fra il 16 e il 17 lavorando da casa — vedi la scheda in cima.)*
 
 ## ▶ Riprendere da qui — skill finalizza-giornata, sessione chiusa e pushata (2026-09-16)
 
@@ -224,7 +236,7 @@ stessi nomi di sezione, tema chiaro/scuro verificato **a livello di pixel** (scr
 soli ingannevoli: il canvas del progetto è scuro di suo e domina l'area, la chrome
 dell'editor passa davvero da bianco a blu-grigio scuro), larghezza pannelli regolabile e
 ricordata dopo un reload vero. Nessun difetto trovato. Piano spostato in `docs/archive/`.
-## ▶ Da fare — T-71: un selettore di caratteri speciali per i campi di testo (2026-09-15)
+## ▶ Fatto — T-71: un selettore di caratteri speciali per i campi di testo (2026-09-15, chiuso il 16-09)
 
 **Richiesta del maintainer**, mentre collaudava il multilingua: nelle stringhe compaiono spesso
 caratteri come 🏠 ☀ ⚡ 🔐, e un utente inesperto deve poterli mettere **senza importare
