@@ -190,6 +190,11 @@ objects:
   on_color: "#fbbf24"
   off_color: "#374151"
 
+# min_role (Q36) — la luce esterna è visibile da fuori casa, un solo
+# esempio nel parco template (revisione template, 15-09-2026): sotto
+# Supervisor i due pulsanti restano visibili ma disabilitati. In un
+# progetto senza utenti definiti (no-auth) l'editor avvisa già che
+# min_role non nega niente a nessuno.
 - id: ha2_est_on
   type: button
   x: 232
@@ -200,6 +205,8 @@ objects:
   fill: "#d97706"
   tag: luce.esterno
   write_value: true
+  min_role: Supervisor
+  min_role_effect: disable
 
 - id: ha2_est_off
   type: button
@@ -211,6 +218,16 @@ objects:
   fill: "#374151"
   tag: luce.esterno
   write_value: false
+  min_role: Supervisor
+  min_role_effect: disable
+
+- id: ha2_est_note
+  type: text
+  x: 360
+  y: 183
+  text: "{{richiede_ruolo_supervisor}}"
+  font_size: 10
+  color: "#64748b"
 
 # Ventilatore
 - id: ha2_vent_lbl
