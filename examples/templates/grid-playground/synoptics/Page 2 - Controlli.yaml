@@ -164,7 +164,7 @@ objects:
   x: 360
   y: 310
   tag: counter
-  format: "counter = {value}"
+  format: "counter = {value:.0f}"
   font_size: 14
   font_weight: bold
   color: "#fbbf24"

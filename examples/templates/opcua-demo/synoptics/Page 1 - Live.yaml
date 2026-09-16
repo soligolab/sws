@@ -131,7 +131,7 @@ objects:
   x: 600
   y: 205
   tag: sim.cycle_time
-  format: "{value} s"
+  format: "{value:.1f} s"
   font_size: 20
   font_weight: bold
   color: "#fbbf24"
