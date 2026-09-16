@@ -996,3 +996,51 @@ mod tests_riconnessione {
         assert!(n <= 6, "servono {n} tentativi per arrivare al tetto");
     }
 }
+
+// ── La lingua scelta sul pannello, che deve sopravvivere al riavvio ──────────
+//
+// `SharedLang` è stato per anni solo in memoria: al riavvio del viewer si
+// ripartiva dal `default` della tabella. Su un PC è un dettaglio — si riclicca;
+// su un **pannello d'impianto** no: il viewer riparte a ogni riavvio del
+// dispositivo, e un operatore che non parla la lingua del progettista se la
+// ritrova cambiata sotto ogni mattina, senza capire perché.
+//
+// Stesso file e stessa cartella della sessione utente (`session.rs`), che è già
+// la convenzione di questo motore: un file in più, non un percorso nuovo.
+
+fn percorso_lingua() -> Option<std::path::PathBuf> {
+    let home = std::env::var_os("HOME")?;
+    Some(std::path::PathBuf::from(home).join(".config/sws/lvgl_lang"))
+}
+
+/// La lingua salvata, se c'è ed è ancora una di quelle del progetto.
+///
+/// Il controllo contro `langs` non è pedanteria: un progetto deployato che
+/// toglie una lingua lascerebbe il pannello su un codice che la tabella non ha
+/// più, cioè su un sinottico pieno di token grezzi.
+pub fn lingua_salvata(tabella: &crate::model::LanguageTable) -> Option<String> {
+    let l = std::fs::read_to_string(percorso_lingua()?).ok()?;
+    let l = l.trim().to_string();
+    if l.is_empty() || !tabella.langs.iter().any(|x| x == &l) {
+        return None;
+    }
+    Some(l)
+}
+
+/// Registra la lingua scelta. Un fallimento si dice e non ferma niente: il
+/// pannello deve continuare a funzionare anche con `$HOME` in sola lettura.
+pub fn salva_lingua(codice: &str) {
+    let Some(p) = percorso_lingua() else { return };
+    if let Some(dir) = p.parent() {
+        if let Err(e) = std::fs::create_dir_all(dir) {
+            eprintln!("[lang] impossibile creare {}: {e}", dir.display());
+            return;
+        }
+    }
+    if let Err(e) = std::fs::write(&p, codice) {
+        eprintln!(
+            "[lang] impossibile salvare la lingua in {}: {e}",
+            p.display()
+        );
+    }
+}

@@ -24,6 +24,24 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   `target:` esplicito su demo-items-web e nebulizzatore-sandokan. Vedi `STATUS.md` per i
   singoli commit e i difetti adiacenti trovati (write-back mancante su enip/s7/
   sparkplug-demo, tabella a mano sostituita da un widget in opcua-demo).
+- **Multilingua di progetto: fasi 0-4** (ramo `feat/multilingua`, non ancora su `main`). La tabella
+  lingue esisteva dal T-40 ma era coperta a metà, e in modo **diverso sui due motori**: il lavoro è
+  stato chiudere i buchi, non costruirla.
+  - **Una sola tabella di casi** (`tests/fixtures/risoluzione-token.json`) letta da tre risolutori
+    — web, viewer LVGL e `sws-core` (nuovo, per le notifiche). Fino a oggi su questo meccanismo non
+    esisteva **nessun** test.
+  - **`scripts/check_i18n_parita.sh`**: confronta gli insiemi di campi tradotti dai due motori
+    estraendoli dal codice, e verifica che il contesto React della lingua sia montato davvero.
+  - **Il testo digitato diventa da solo una voce della tabella** (`{{t0001}}`, id opaco): si scrive
+    alla conferma e non a ogni tasto, il riuso si **propone** dicendo quante volte la chiave è già
+    usata, e le chiavi cancellate non si riusano.
+  - **Traduzione automatica** con quattro fornitori dietro un'astrazione: **MyMemory senza nessuna
+    chiave** (il default), LibreTranslate ospitabile in casa, Google Cloud Translation, e
+    l'assistente IA già configurato — l'unico a cui si può dare il contesto. I segnaposti di
+    formato escono dal testo e rientrano identici; se il fornitore ne perde uno la riga si scarta.
+    Una traduzione **umana** non si sovrascrive mai. Endpoint **solo-IDE**: 404 su un runtime.
+  - Selettore della lingua di anteprima **nella barra dell'editor**, per la rilettura umana.
+
 - **Orologio e stato ritenuto negli script Python (T-69, fase A)**: quattro binding nuovi nel
   sandbox — `now_ms()`, `uptime_ms()`, `delta_ms()` (dalla prima/ultima invocazione di
   un'identità: id dello script globale, o nome della funzione) e `state.get(key, default)`/
@@ -67,6 +85,21 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   nessun controllo scrivibile** (solo `text`/`led` in sola lettura, sui tag già dichiarati
   `writable: true` alla sorgente) — aggiunto un setpoint + una checkbox in entrambi.
   `sparkplug-demo` aveva lo stesso gap senza la promessa esplicita, corretto per coerenza.
+- **Sette divergenze fra il web e il pannello LVGL sulla traduzione dei contenuti** (ramo
+  `feat/multilingua`), tutte misurate e nessuna ipotizzata: una chiave senza traduzioni mostrava il
+  **nome nudo della chiave** come testo vero; `{{a b}}` era prosa da una parte e un token
+  dall'altra; il pannello traduceva **6 campi su 16** mentre il commento del codice negava che li
+  disegnasse (falso per sette); i token dentro **griglie e faceplate** non si risolvevano sul web;
+  gli **allarmi** arrivavano grezzi al pannello e lo **storico** a entrambi; **Telegram ed email**
+  mandavano il token grezzo dentro un template con le etichette cablate in italiano; e
+  `TagDef.unit` non si sarebbe mai risolta perché la localizzazione girava prima dell'innesto dei
+  default del tag.
+- **Un corpo di richiesta senza `Content-Type` dava 415**: ora il client lo dichiara da sé quando
+  manca, e l'importazione CSV che dichiara il proprio resta invariata.
+- **La scheda Lingue non dichiarava i propri salvataggi** (`markSaveOk`): il watcher li leggeva
+  come cambi esterni e faceva comparire la barra «il progetto sul runtime è cambiato» — dove
+  «Ricarica» butta via il lavoro non salvato. Era l'unica scheda di ConfigView a non farlo.
+
 - **`send_telegram(...)` sollevava sempre `NameError`**: era registrato nei globals esterni di
   `run_in_python` (`sws-pyscript`) ma mai copiato dentro `__sws_globals__`, il dizionario contro
   cui il codice utente gira davvero. Corretto nello stesso intervento della fase A di T-69,

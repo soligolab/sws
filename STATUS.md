@@ -150,6 +150,148 @@ stessi nomi di sezione, tema chiaro/scuro verificato **a livello di pixel** (scr
 soli ingannevoli: il canvas del progetto è scuro di suo e domina l'area, la chrome
 dell'editor passa davvero da bianco a blu-grigio scuro), larghezza pannelli regolabile e
 ricordata dopo un reload vero. Nessun difetto trovato. Piano spostato in `docs/archive/`.
+## ▶ Da fare — T-71: un selettore di caratteri speciali per i campi di testo (2026-09-15)
+
+**Richiesta del maintainer**, mentre collaudava il multilingua: nelle stringhe compaiono spesso
+caratteri come 🏠 ☀ ⚡ 🔐, e un utente inesperto deve poterli mettere **senza importare
+un'immagine**. Serve un selettore agganciato ai campi di testo.
+
+### Il fatto che decide la forma della funzione, misurato il 15-09-2026
+
+Il pannello LVGL disegna con **DejaVu Sans** (`lvgl_font.rs:37-42`). Leggendo la sua tabella dei
+caratteri, dei quattro esempi del maintainer:
+
+| Carattere | Codice | Sul pannello |
+|---|---|---|
+| ☀ sole | `U+2600` | **si vede** |
+| ⚡ fulmine | `U+26A1` | **si vede** |
+| 🏠 casa | `U+1F3E0` | **non si vede** |
+| 🔐 lucchetto | `U+1F510` | **non si vede** |
+
+Il confine non è «emoji sì / emoji no»: è il **Piano Multilingue di Base**. I simboli dei blocchi
+`U+2600`–`U+27BF` (☀ ⚠ ⚙ → ■ …) ci sono; le emoji vere, da `U+1F300` in su, no. E
+**LVGL senza glifo non disegna niente** — non un quadratino, non un punto interrogativo: il vuoto,
+più un avviso a ogni ridisegno (Q24).
+
+Quindi un selettore ingenuo sarebbe una **trappola**: il progettista sceglie la casetta, la vede
+benissimo nell'IDE — il browser usa i font di sistema, che le emoji ce l'hanno — e sul pannello
+in campo non compare niente. È la stessa forma di difetto che questa settimana è passata sette
+volte: si vede solo davanti al cliente.
+
+### Cosa deve fare il selettore, di conseguenza
+
+1. **Offrire per primi i caratteri che il pannello sa disegnare**, raggruppati per uso (stati,
+   allarmi, energia, frecce, misure) invece che per blocco Unicode, che a un utente inesperto non
+   dice niente.
+2. **Dire a colpo d'occhio quali NON arriveranno sul pannello**, e perché — non nasconderli: su
+   un progetto `target: web` funzionano, ed è metà dei progetti.
+3. Attaccarsi **a tutti i campi di testo**, che dalla Fase 3 passano già da un imbuto solo
+   (`textInput` in `EditorShell.tsx` → `CampoTestoTradotto`): il punto d'innesto esiste già.
+4. Tenere conto che dalla Fase 3 quel testo finisce **nella tabella lingue**: un carattere scelto
+   lì diventa parte del valore tradotto, e la traduzione automatica non deve mangiarselo — lo
+   stesso problema dei segnaposti di formato, già risolto in `sws_core::traduzione`.
+
+### Misurato il 16-09-2026, chiudendo la Fase 7 del multilingua
+
+I template contengono **18 emoji distinte** che il pannello **non disegna**:
+🌀 🌙 🌡 🍳 🎨 🏠 💡 💧 📈 🔋 🔌 🔍 🔐 🔒 🗂 🤖 🦟 🪟. Non è un'ipotesi sul futuro
+selettore: è ciò che i template mostrano **oggi** su un vetro LVGL — cioè niente,
+in quei punti. Sul browser si vedono tutte, ed è per questo che non se n'è mai
+accorto nessuno.
+
+### La domanda da fare al maintainer prima di scrivere codice
+
+Se le emoji vere servono davvero sul **pannello**, non basta un selettore: serve un secondo font
+sul dispositivo (Noto Emoji o simile, decine di MB) e bisogna verificare il limite
+`lv_freetype_init(8, 8, …)` sulle facce aperte. È un lavoro a sé, e va deciso prima — non
+scoperto a selettore fatto.
+
+## ▶ Riprendere da qui — multilingua di progetto, fasi 0-4 su ramo (2026-09-15)
+
+⚠️ **Il lavoro NON è su `main`.** Sta sul ramo **`feat/multilingua`**, 12 commit, pushato su
+origin. A casa: `git fetch && git checkout feat/multilingua` **prima** di qualunque cosa, o
+`/riprendi` guarderà un `main` che non contiene niente di tutto questo.
+
+Piano: `docs/plans/2026-09-15-multilingua-di-progetto.md`, otto fasi. **Fatte la 0, 1, 2, 3 e 4.**
+
+### Perché questo lavoro è nato
+
+Richiesta del maintainer: il testo digitato deve diventare da solo una voce della tabella lingue,
+con proposta di riuso, traduzione automatica e bandiere — e deve coprire **anche allarmi, Telegram
+e script**. La premessa andava corretta: la tabella lingue **esisteva già** (T-40). Il lavoro non
+era costruirla, era **chiudere i buchi**, e i buchi erano molti più di quanti il piano prevedesse.
+
+### Le divergenze trovate, tutte reali e misurate
+
+Sette difetti, nessuno ipotizzato. Sei riguardavano lo **stesso progetto disegnato da due motori
+che non si erano mai confrontati**:
+
+1. Una chiave senza traduzioni mostrava sul web **il nome nudo della chiave** come testo vero.
+2. `{{a b}}` era prosa sul web e un token vero su LVGL.
+3. Il pannello traduceva **6 campi su 16**, e il commento del codice negava che li disegnasse —
+   falso per sette di essi.
+4. I token dentro **griglie e faceplate** non si risolvevano affatto sul web (su LVGL sì).
+5. Gli **allarmi** erano tradotti sul web e grezzi sul pannello; lo **storico** grezzo su entrambi.
+6. **Telegram ed email** mandavano il token grezzo, dentro un template con le etichette cablate in
+   italiano.
+7. `TagDef.unit` non si sarebbe mai risolta: la localizzazione girava **prima** di
+   `applyTagDefaults`.
+
+### Cosa c'è ora
+
+- **Una sola tabella di casi** (`tests/fixtures/risoluzione-token.json`) letta da **tre**
+  risolutori: web, viewer LVGL e `sws-core` (quest'ultimo nuovo, per le notifiche).
+- **`scripts/check_i18n_parita.sh`** (18ª guardia statica): confronta gli insiemi di campi
+  tradotti dai due motori estraendoli **dal codice**, conta il debito dichiarato, e verifica che il
+  contesto React della lingua sia **montato davvero** — lezione di `GruppoAttivo`, 11-09.
+- **Fase 3**: digiti «Avvio pompa», nel progetto va `{{t0001}}`. Si scrive alla conferma e non a
+  ogni tasto; il riuso si **propone** dicendo quante volte la chiave è già usata; `prossimaChiave`
+  non riempie i buchi lasciati dalle righe cancellate.
+- **Fase 4**: quattro fornitori dietro un'astrazione — MyMemory (**senza chiave**, il default),
+  LibreTranslate (ospitabile in casa), Google, e l'assistente IA già configurato. I segnaposti di
+  formato escono dal testo e rientrano identici; se il fornitore ne perde uno la riga si
+  **scarta**. Una traduzione **umana** non si sovrascrive mai (`LangEntry.auto`). Endpoint
+  **solo-IDE**, 404 altrove.
+- Selettore della lingua di anteprima **nella barra dell'editor**: serviva alla rilettura umana, e
+  prima stava sepolto in un'altra scheda.
+
+### Il collaudo dal vivo del maintainer ha trovato quattro difetti, tutti corretti
+
+1. **415 Unsupported Media Type** alla prima traduzione: mandavo JSON senza dichiararlo. Ora
+   `request` mette il `Content-Type` da sé quando manca.
+2. **La barra «il progetto sul runtime è cambiato»** compariva inserendo oggetti, e «Ricarica»
+   faceva **perdere il lavoro non salvato**. Causa: la scheda Lingue era l'unica di ConfigView a
+   non chiamare `markSaveOk()`, e il campo della Fase 3 ha ereditato il buco — che con una
+   scrittura per ogni etichetta digitata è diventato costante.
+3. **Una colonna si svuotava** traducendo verso due lingue di fila: ricaricavo il progetto nello
+   store ma non la copia locale della scheda, e il salvataggio successivo rimandava la tabella
+   vecchia.
+4. **Nessun segnale durante l'attesa**: una richiesta di rete per voce, in fila. Ora dice prima
+   quante ne manda e quanto può durare.
+
+### Da fare, in ordine
+
+- **Fase 5**: `bg_image` letto anche da LVGL (è la decisione del maintainer per le bandiere; il
+  campo è dichiarato in `model.rs:488` e non viene mai letto); la lingua scelta sul pannello **non
+  sopravvive al riavvio** (`SharedLang` riparte dal default); le intestazioni cablate in italiano
+  del viewer operatore (`"Messaggio"`, `"Ora"`, `"Conf."`, `"sì"`/`"no"`, `"DATI"`, `"N/D"`,
+  `"altro"`) — sono una **terza categoria**, né progetto né i18n dell'editor, e LVGL non ha
+  nessun asse i18n.
+- **Fase 6**: `tr()` esposto agli script Python; i valori dei tag `string` e i toast risolti.
+- **Fase 7**: i template — migrazione degli slug a id opachi, allarmi tokenizzati, e
+  `docs/manual/15_multilingua.md` che dichiara una conformità IT/EN che tre template non hanno.
+- Poi la **revisione del parco template** (`docs/plans/2026-09-14-revisione-template.md`), che
+  aspetta ancora una risposta del maintainer sull'attribuzione MDI.
+
+### Due cose aperte che non ho deciso io
+
+- **Q57** (nuova): una notifica non ha uno schermo, quindi la sua lingua sta nel progetto — una
+  sola. Destinatari misti (manutenzione locale + costruttore italiano) restano scoperti.
+- **Q43** aggiornata con ciò che è stato realizzato, **non chiusa**: restano quale fornitore sia
+  quello giusto per un impianto consegnato, e se una traduzione automatica debba poter raggiungere
+  un dispositivo in servizio senza che una persona l'abbia riletta.
+- Fuori tema ma emerso qui: **«Ricarica» scarta il lavoro non salvato**. Ora la barra compare solo
+  per cambi veri, ma quando comparirà per un deploy esterno il pulsante farà ancora la stessa cosa.
 
 ## ▶ Riprendere da qui — template di collaudo T-69 pronto, terzo difetto trovato e corretto (2026-09-15)
 

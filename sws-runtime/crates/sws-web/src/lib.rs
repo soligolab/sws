@@ -26,6 +26,7 @@ pub mod synoptic_schema;
 pub mod system;
 pub mod telegram;
 pub mod templates;
+pub mod traduttore;
 pub mod validate;
 
 pub use global_scripts::GlobalScriptSupervisor;

@@ -98,6 +98,15 @@ export function EditorToolbar({
   const { t } = useTranslation();
   const past         = useAppStore((s) => s.past.length);
   const previewEffects    = useAppStore((s) => s.previewEffects);
+  const project           = useAppStore((s) => s.project);
+  const editorPreviewLang = useAppStore((s) => s.editorPreviewLang);
+  const setEditorPreviewLang = useAppStore((s) => s.setEditorPreviewLang);
+  // Stessa regola del canvas: se la lingua scelta non esiste in questo progetto
+  // si ripiega sulla principale, così il cambio progetto non lascia una
+  // selezione che non significa niente.
+  const linguaAnteprima = project?.languages?.langs?.includes(editorPreviewLang)
+    ? editorPreviewLang
+    : (project?.languages?.default ?? "");
   const setPreviewEffects = useAppStore((s) => s.setPreviewEffects);
   // F8.2 — copia stile (pennello): copia dall'oggetto selezionato, poi applica
   // alla selezione successiva. Il pulsante di applicazione appare solo quando
@@ -165,6 +174,27 @@ export function EditorToolbar({
         title={t("toolbar.previewEffectsTitle")}>
         {previewEffects ? "⏸" : "▶"} {t("toolbar.previewEffects")}
       </button>
+      {/* La lingua in cui il canvas disegna i testi tradotti.
+          Stava solo dentro Configurazione → Lingue, e per rileggere una
+          traduzione bisognava uscire dall'editor, cambiarla, rientrare,
+          guardare, e rifare il giro per ogni lingua. Una rilettura umana con
+          quell'attrito non si fa — ed è il passaggio su cui Q43 fonda tutto il
+          resto.
+          Sul canvas si vede anche la cosa che una tabella non mostra: se la
+          frase tradotta **ci sta** nel suo riquadro. */}
+      {(project?.languages?.langs?.length ?? 0) > 1 && (
+        <select
+          value={linguaAnteprima}
+          onChange={(e) => setEditorPreviewLang(e.target.value)}
+          title={t("toolbar.previewLangTitle")}
+          style={{ ...BTN, cursor: "pointer", paddingRight: 4 }}>
+          {project!.languages!.langs.map((l) => (
+            <option key={l} value={l}>
+              {l === project!.languages!.default ? `🌐 ${l} (originale)` : `🌐 ${l}`}
+            </option>
+          ))}
+        </select>
+      )}
       <button
         style={{ ...BTN, ...(selectedIds.length === 0 ? { opacity: 0.45, cursor: "default" } : {}) }}
         disabled={selectedIds.length === 0}

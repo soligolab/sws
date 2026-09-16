@@ -230,6 +230,24 @@ for nome in nomi:
         elif home not in ids:
             problema(f"{nome}: `home_page_id: {home}` non è l'id di nessuna pagina")
 
+    # Un token `{{chiave}}` senza la sua voce nella tabella lingue.
+    #
+    # Il pannello e il browser lo mostrano **così com'è**, graffe comprese:
+    # `{{t0007}}` sotto gli occhi dell'operatore. Aggiunto il 16-09-2026 dopo
+    # averlo combinato: la migrazione delle chiavi dei template ha tokenizzato
+    # i messaggi d'allarme di tre template lasciando `entries: []`, e nulla lo
+    # avrebbe detto finché qualcuno non apriva quei progetti.
+    tabella = prj.get("languages") or {}
+    chiavi = {str(e.get("key", "")).strip() for e in (tabella.get("entries") or [])}
+    usati = set()
+    for percorso in [f"{d}/project.yaml"] + sorted(glob.glob(f"{d}/synoptics/*.yaml")):
+        usati |= set(re.findall(r"\{\{\s*([^}\s]+)\s*\}\}", open(percorso).read()))
+    orfani = sorted(usati - chiavi)
+    if orfani:
+        problema(f"{nome}: {len(orfani)} token senza voce in tabella "
+                 f"({', '.join(orfani[:4])}{'…' if len(orfani) > 4 else ''}) — "
+                 f"si vedono come {{{{chiave}}}} sul pannello")
+
     if not any(nome in f for f in [x for x in fail]):
         ok(f"{nome}: {len(pagine)} pagine, {len(tipi)} tipi, tutto a posto")
 

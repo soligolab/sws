@@ -74,7 +74,7 @@ alarms:
     kind: above
     threshold: 1.0
   dead_band: 0.3
-  message: "🦟 Nebulizzatore Sandokan: pompa ACCESA (potenza sopra 1 W)"
+  message: "{{t0001}}"
   severity: Info
 - id: sandokan_power_off
   tag: sandokan.power
@@ -82,7 +82,7 @@ alarms:
     kind: below
     threshold: 0.1
   dead_band: 0.05
-  message: "🦟 Nebulizzatore Sandokan: pompa SPENTA (potenza tornata a 0 W)"
+  message: "{{t0002}}"
   severity: Info
 
 functions: []
@@ -96,3 +96,14 @@ datastores:
     path: .history/historian.db
 
 global_scripts: []
+
+languages:
+  default: it
+  langs: [it]
+  entries:
+    - key: t0001
+      values:
+        it: "🦟 Nebulizzatore Sandokan: pompa ACCESA (potenza sopra 1 W)"
+    - key: t0002
+      values:
+        it: "🦟 Nebulizzatore Sandokan: pompa SPENTA (potenza tornata a 0 W)"

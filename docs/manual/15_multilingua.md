@@ -100,10 +100,40 @@ al primo caricamento si parte dalla lingua predefinita della tabella.
 
 ## 4. Template di esempio
 
-Tutti i template inclusi (`examples/templates/`) sono **già conformi IT/EN**: i
-messaggi sono tokenizzati e la tabella lingue contiene Italiano e Inglese. I
-template con contenuto grafico hanno un **selettore lingua** in alto a destra
+Dal 16-09-2026 **tutti i testi dei template passano dalla tabella lingue**,
+messaggi d'allarme compresi — prima erano testo letterale, quindi un allarme
+restava in italiano su qualunque pannello. Le chiavi sono **id opachi**
+(`t0001`, `t0002`…) e non parole: il testo si legge dalla colonna della lingua,
+non dal nome della chiave, così cambiare una frase non fa mentire la chiave che
+la nomina.
+
+**Tokenizzato non vuol dire tradotto**, e il manuale lo diceva: fino a oggi
+questa sezione dichiarava tutti i template «già conformi IT/EN», mentre tre non
+avevano nemmeno una voce in tabella. La fotografia vera, oggi:
+
+| Template | Lingue | Voci | Con inglese |
+|---|---|---:|---:|
+| `homeassistant-pro` | it, en | 167 | 154 |
+| `casa-locale` | it, en | 141 | 135 |
+| `homeassistant-demo` | it, en | 75 | 68 |
+| `grid-playground` | it, en | 28 | 27 |
+| `opcua-demo` | it, en | 18 | 16 |
+| `demo-items-web` / `-lvgl` | it, en | 6 | 3 |
+| `enip-demo`, `s7-demo`, `sparkplug-demo` | it, en | 2 | 0 |
+| `nebulizzatore-sandokan` | it | 2 | 0 |
+| `t69-collaudo` | it | 0 | — |
+
+Le voci senza inglese sono quelle **nate oggi** dai messaggi d'allarme: esistono
+in tabella e aspettano una traduzione, che si fa dalla scheda Lingue — a mano o
+col pulsante di traduzione automatica.
+
+I template con contenuto grafico hanno un **selettore lingua** in alto a destra
 della prima pagina — apri il viewer e cambia lingua per vedere i testi tradursi.
+
+> **Attenzione ai caratteri speciali.** I template usano 18 emoji (🏠 💡 🔐 🦟 …)
+> che il **pannello LVGL non disegna affatto**: il suo font copre il Piano
+> Multilingue di Base, dove le emoji vere non stanno. Sul browser si vedono, sul
+> vetro no — e LVGL senza glifo non mostra nemmeno un quadratino. Vedi T-71.
 
 ---
 

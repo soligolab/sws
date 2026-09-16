@@ -61,17 +61,23 @@ alarms:
     condition:
       kind: above
       threshold: 80.0
-    message: "Temperatura processo troppo alta!"
+    message: "{{t0001}}"
     severity: Critical
   - id: high_pressure
     tag: process.pressure
     condition:
       kind: above
       threshold: 5000
-    message: "Pressione processo oltre soglia"
+    message: "{{t0002}}"
     severity: Warning
 
 languages:
   default: it
   langs: [it, en]
-  entries: []
+  entries:
+    - key: t0001
+      values:
+        it: "Temperatura processo troppo alta!"
+    - key: t0002
+      values:
+        it: "Pressione processo oltre soglia"

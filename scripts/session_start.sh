@@ -345,6 +345,41 @@ while IFS='|' read -r r u d s; do
   fi
 done < <(git for-each-ref --sort=-committerdate \
            --format='%(refname:short)|%(upstream:short)|%(committerdate:short)|%(subject)' refs/heads)
+
+# ── Sei su main e c'è lavoro non mergiato da qualche parte? ──────────────────
+#
+# È la domanda che il 16-09-2026 nessuno ha posto, ed è costata una giornata: il
+# maintainer ha ripreso i template su `main` mentre un ramo con cinque fasi di
+# lavoro aspettava su origin. La regola «un ramo alla volta» esiste proprio per
+# impedirlo, ma una regola che nessuno ti ricorda quando serve è un buon
+# proposito.
+#
+# Si guardano ANCHE i rami remoti: su una macchina appena sincronizzata il ramo
+# aperto esiste solo lì, e cercarlo fra quelli locali non lo troverebbe — che è
+# esattamente com'è andata.
+if [ "$(git rev-parse --abbrev-ref HEAD)" = "main" ]; then
+  APERTI=""
+  VISTI=""
+  while read -r r; do
+    [ -z "$r" ] && continue
+    case "$r" in main|origin/main|origin/HEAD|backup/*|origin/backup/*) continue ;; esac
+    # `feat/x` e `origin/feat/x` sono lo stesso lavoro: si nomina una volta sola,
+    # o l'avviso sembra dire che i rami aperti sono il doppio di quelli veri.
+    corto="${r#origin/}"
+    case " $VISTI " in *" $corto "*) continue ;; esac
+    VISTI="${VISTI} ${corto}"
+    if [ -n "$(git log --oneline main.."$r" 2>/dev/null | head -1)" ]; then
+      n=$(git log --oneline main.."$r" 2>/dev/null | wc -l | tr -d ' ')
+      APERTI="${APERTI}\n      ${corto} (${n} commit non su main)"
+    fi
+  done < <(git for-each-ref --format='%(refname:short)' refs/heads refs/remotes)
+  if [ -n "$APERTI" ]; then
+    printf '  %s!%s sei su %smain%s ma c%sè lavoro non mergiato:%b\n' "$G" "$Z" "$B" "$Z" "'" "$APERTI"
+    info "Prima di aprire qualcosa di nuovo: «un ramo alla volta» (CLAUDE.md)."
+    info "Per riprenderlo:  git checkout <ramo>"
+  fi
+fi
+
 if [ -n "$SOSPETTI" ]; then
   N_S="$(printf '%s' "$SOSPETTI" | wc -w)"
   info ""
@@ -407,11 +442,18 @@ DESCR="$(git describe --tags 2>/dev/null || echo '(nessun tag)')"
 info "git describe: ${DESCR}"
 if [ -f "$REPO/STATUS.md" ]; then
   info ""
+  # La PRIMA sezione «Riprendere da qui», che è quella scritta per ultima.
+  #
+  # Fino al 16-09-2026 qui si stampava il primo `###` sotto «Da fare nella
+  # prossima sessione» — una sezione ferma da giorni, che continuava a mostrare
+  # T-69 **chiuso il 15-09**. Il risultato: chi apriva la sessione leggeva un
+  # compito già fatto e non vedeva ciò che la sessione precedente aveva scritto
+  # apposta per lui. È costato una giornata di lavoro parzialmente sprecato: il
+  # maintainer ha ripreso i template su `main` senza vedere l'avviso «il lavoro
+  # non è su main, c'è un ramo aperto», che stava proprio lì dentro.
   awk '
-    /^## ▶ Da fare nella prossima sessione/ { dentro=1; next }
-    dentro && /^## /                        { exit }
-    dentro && /^### /                       { if (visto) exit; visto=1; print "  " $0; next }
-    visto && righe < 6                      { print "  " $0; righe++ }
+    /^## ▶ Riprendere da qui/ { if (visto) exit; visto=1; print "  " $0; next }
+    visto && righe < 10       { print "  " $0; righe++ }
   ' "$REPO/STATUS.md"
   info ""
   info "Il resto in STATUS.md, docs/CONTEXT.md e docs/OPEN_QUESTIONS.md."

@@ -56,14 +56,14 @@ alarms:
     condition:
       kind: above
       threshold: 85.0
-    message: "Temperatura eccessiva!"
+    message: "{{t0001}}"
     severity: Critical
   - id: alm-pump-zero
     tag: pump.speed
     condition:
       kind: below
       threshold: 5.0
-    message: "Pompa ferma o sotto minimo"
+    message: "{{t0002}}"
     severity: Warning
 
 # NOTA: qui c'era una pagina scritta dentro `project.yaml`, sotto una chiave
@@ -75,4 +75,10 @@ alarms:
 languages:
   default: it
   langs: [it, en]
-  entries: []
+  entries:
+    - key: t0001
+      values:
+        it: "Temperatura eccessiva!"
+    - key: t0002
+      values:
+        it: "Pompa ferma o sotto minimo"

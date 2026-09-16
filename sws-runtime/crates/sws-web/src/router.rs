@@ -300,6 +300,13 @@ pub fn build(
         .route("/api/project/tags", put(update_project_tags))
         .route("/api/project/tags/import-csv", post(import_tags_csv))
         .route("/api/project/languages", put(update_project_languages))
+        // Traduzione automatica della tabella lingue. **Solo IDE**: tradurre è
+        // progettazione, il dispositivo in campo è spesso senza Internet (Q43,
+        // punto 5), e il gate sta dentro l'handler come per `/api/ai/config`.
+        .route(
+            "/api/project/languages/translate",
+            post(crate::traduttore::traduci_progetto),
+        )
         .route("/api/project/sources", put(update_project_sources))
         .route("/api/project/alarms", put(update_project_alarms))
         .route("/api/project/functions", put(update_project_functions))
@@ -6872,19 +6879,45 @@ async fn update_project_notifications(
     if res.status() == StatusCode::NO_CONTENT {
         // Hot-swap the Telegram sender (config swap keeps the script `tx` alive)
         // then restart the notification supervisor with the shared sink.
-        let sinks =
-            crate::telegram::restart_sender(&s, config.as_ref().and_then(|n| n.telegram.clone()))
-                .await;
+        // La tabella lingue si rilegge dal progetto aperto: cambiare le
+        // notifiche non deve far ripartire il canale con una tabella vuota, che
+        // manderebbe token grezzi a chi è di turno.
+        let lingue_tg = crate::router::active_dir(&s)
+            .await
+            .ok()
+            .and_then(|d| sws_core::Project::load(&d).ok())
+            .map(|p| p.languages)
+            .unwrap_or_default();
+        let codice_tg = config
+            .as_ref()
+            .and_then(|n| n.notify_lang.clone())
+            .unwrap_or_else(|| lingue_tg.default.clone());
+        let sinks = crate::telegram::restart_sender(
+            &s,
+            config.as_ref().and_then(|n| n.telegram.clone()),
+            (lingue_tg, codice_tg),
+        )
+        .await;
         // Aggiorna anche il sink delle funzioni (engine condiviso) senza reopen.
         s.py.set_telegram_sink(sinks.as_ref().map(|k| k.text.clone()));
         if let Some(old) = s.notification_supervisor.write().await.take() {
             old.stop();
         }
         if let Some(cfg) = config {
+            // La tabella lingue si rilegge dal progetto aperto: cambiare le
+            // notifiche non deve far ripartire il supervisore con una tabella
+            // vuota, che manderebbe token grezzi.
+            let lingue = crate::router::active_dir(&s)
+                .await
+                .ok()
+                .and_then(|d| sws_core::Project::load(&d).ok())
+                .map(|p| p.languages)
+                .unwrap_or_default();
             let sup = crate::notifications::NotificationSupervisor::start(
                 s.alarms.clone(),
                 cfg,
                 sinks.map(|k| k.messages),
+                lingue,
             );
             *s.notification_supervisor.write().await = Some(sup);
         }

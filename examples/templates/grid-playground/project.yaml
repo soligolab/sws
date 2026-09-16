@@ -31,7 +31,7 @@ alarms:
     condition:
       kind: above
       threshold: 80.0
-    message: "Counter sopra soglia (>80)"
+    message: "{{t0028}}"
     severity: Warning
 
 functions:
@@ -70,111 +70,114 @@ languages:
   default: it
   langs: [it, en]
   entries:
-    - key: "grid_playground_4_4_con_sub_cell_fino_a"
+    - key: t0028
+      values:
+        it: "Counter sopra soglia (>80)"
+    - key: t0001
       values:
         it: "🗂  GRID PLAYGROUND — 4×4 con sub-cell fino a 4 livelli"
         en: "🗂  GRID PLAYGROUND — 4×4 with sub-cells up to 4 levels"
-    - key: "pannello_rect_ellipse_text_gauge_led_sym"
+    - key: t0002
       values:
         it: "Pannello: rect / ellipse / text / gauge / led / symbol / button / slider come figli di cella"
         en: "Panel: rect / ellipse / text / gauge / led / symbol / button / slider as cell children"
-    - key: "controlli"
+    - key: t0003
       values:
         it: "Controlli ▶"
         en: "Controls ▶"
-    - key: "l3"
+    - key: t0004
       values:
         it: "L3"
         en: "L3"
-    - key: "counter"
+    - key: t0005
       values:
         it: "Counter"
         en: "Counter"
-    - key: "counter_1"
+    - key: t0006
       values:
         it: "Counter ▲ +1"
         en: "Counter ▲ +1"
-    - key: "counter_1_2"
+    - key: t0007
       values:
         it: "Counter ▼ −1"
         en: "Counter ▼ −1"
-    - key: "toggle_pompa"
+    - key: t0008
       values:
         it: "Toggle pompa"
         en: "Toggle pump"
-    - key: "top"
+    - key: t0009
       values:
         it: "TOP"
         en: "TOP"
-    - key: "a_a"
+    - key: t0010
       values:
         it: "A.A"
         en: "A.A"
-    - key: "a_b"
+    - key: t0011
       values:
         it: "A.B"
         en: "A.B"
-    - key: "on_only"
+    - key: t0012
       values:
         it: "ON only"
         en: "ON only"
-    - key: "always"
+    - key: t0013
       values:
         it: "always"
         en: "always"
-    - key: "controlli_fill_color_label_alarm"
+    - key: t0014
       values:
         it: "🎨  Controlli — fill color + label + alarm"
         en: "🎨  Controls — fill color + label + alarm"
-    - key: "griglia"
+    - key: t0015
       values:
         it: "◀ Griglia"
         en: "◀ Grid"
-    - key: "demo_fill_color_pilota_il_rect_in_cella"
+    - key: t0016
       values:
         it: "demo.fill_color (pilota il rect in cella (1,3) della pagina Griglia):"
         en: "demo.fill_color (drives the rect in cell (1,3) of the Grid page):"
-    - key: "rosso"
+    - key: t0017
       values:
         it: "● Rosso"
         en: "● Red"
-    - key: "verde"
+    - key: t0018
       values:
         it: "● Verde"
         en: "● Green"
-    - key: "blu"
+    - key: t0019
       values:
         it: "● Blu"
         en: "● Blue"
-    - key: "arancio"
+    - key: t0020
       values:
         it: "● Arancio"
         en: "● Orange"
-    - key: "viola"
+    - key: t0021
       values:
         it: "● Viola"
         en: "● Purple"
-    - key: "anteprima_fill"
+    - key: t0022
       values:
         it: "Anteprima fill:"
         en: "Fill preview:"
-    - key: "trigger_allarme_counter_80_scrive_counte"
+    - key: t0023
       values:
         it: "Trigger allarme counter>80 (scrive counter):"
         en: "Alarm trigger counter>80 (writes counter):"
-    - key: "counter_50"
+    - key: t0024
       values:
         it: "counter = 50"
         en: "counter = 50"
-    - key: "counter_95"
+    - key: t0025
       values:
         it: "counter = 95"
         en: "counter = 95"
-    - key: "demo_s_27_ux_in_editor_prova_drag_drop_n"
+    - key: t0026
       values:
         it: "Demo S-27 UX: in editor prova drag&drop nel tree (LeftPanel), tasto destro sulle righe (context menu), rulers + guide (toggle ⟂ in alto-sx)."
         en: "S-27 UX demo: in the editor try drag&drop in the tree (LeftPanel), right-click on rows (context menu), rulers + guides (⟂ toggle top-left)."
-    - key: "demo_grid_s_23_clicca_una_cella_poi_divi"
+    - key: t0027
       values:
         it: "Demo grid S-23: clicca una cella, poi 'Dividi orizzontalmente/verticalmente' nel pannello destra (split locale). Shift+click su altre celle per merge."
         en: "Grid demo S-23: click a cell, then 'Split horizontally/vertically' in the right panel (local split). Shift+click other cells to merge."

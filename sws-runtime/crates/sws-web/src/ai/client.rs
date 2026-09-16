@@ -154,6 +154,62 @@ pub struct Scelta {
     pub modello: String,
 }
 
+/// Una domanda sola, senza streaming e senza strumenti.
+///
+/// Esiste perché la traduzione automatica (`crate::traduttore`) ha bisogno di
+/// parlare col fornitore configurato, e duplicare lì la scelta
+/// endpoint/intestazioni vorrebbe dire due punti che sanno come ci si
+/// autentica — cioè due punti che un giorno divergono. Qui c'è già tutto:
+/// `endpoint()` e `bearer()` restano privati.
+pub async fn chiedi_una_volta(
+    client: &reqwest::Client,
+    scelta: &Scelta,
+    istruzioni: &str,
+    domanda: &str,
+    max_tokens: u32,
+) -> anyhow::Result<String> {
+    let corpo = serde_json::json!({
+        "model": scelta.modello,
+        "max_tokens": max_tokens,
+        "system": istruzioni,
+        "messages": [{ "role": "user", "content": domanda }],
+    });
+    let mut req = client.post(scelta.fornitore.endpoint()).json(&corpo);
+    req = if scelta.fornitore.bearer() {
+        req.header("Authorization", format!("Bearer {}", scelta.chiave))
+    } else {
+        req.header("x-api-key", &scelta.chiave)
+            .header("anthropic-version", VERSIONE)
+    };
+    let resp = req
+        .send()
+        .await
+        .map_err(|e| anyhow::anyhow!("{} non raggiungibile: {e}", scelta.fornitore.nome()))?;
+    let stato = resp.status();
+    let v: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| anyhow::anyhow!("risposta {stato} in un formato ignoto: {e}"))?;
+    if let Some(err) = v
+        .get("error")
+        .and_then(|e| e.get("message"))
+        .and_then(|m| m.as_str())
+    {
+        anyhow::bail!("{} ha rifiutato ({stato}): {err}", scelta.fornitore.nome());
+    }
+    v.get("content")
+        .and_then(|c| c.as_array())
+        .and_then(|a| {
+            a.iter()
+                .find_map(|b| b.get("text"))
+                .and_then(|t| t.as_str())
+        })
+        .map(|s| s.trim().to_string())
+        .ok_or_else(|| {
+            anyhow::anyhow!("nessun testo nella risposta di {}", scelta.fornitore.nome())
+        })
+}
+
 /// Quanto può scrivere il modello in un turno. Alto perché una proposta con
 /// due pagine intere è lunga; con lo streaming non rischia il timeout HTTP.
 const MAX_TOKENS: u32 = 16000;

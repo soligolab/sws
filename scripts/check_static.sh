@@ -44,6 +44,7 @@ STATICHE=(
     check_sonda             # la sonda del dispositivo (Q52) gira con sh -s e stampa solo fatti
     check_barra_allarmi     # alarm_banner: web e LVGL selezionano gli stessi stati ISA
     check_via_di_fuga       # la via di fuga STOP del pannello resta raggiungibile
+    check_i18n_parita       # web e pannello LVGL traducono lo stesso insieme di campi
 )
 
 # Vogliono uno stack in ascolto, podman o un dispositivo: a mano, non qui.

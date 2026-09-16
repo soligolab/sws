@@ -11,7 +11,7 @@ objects:
   type: text
   x: 400
   y: 20
-  text: "{{clima_5_stanze}}"
+  text: "{{t0090}}"
   font_size: 17
   font_weight: bold
   text_anchor: middle
@@ -22,7 +22,7 @@ objects:
   type: text
   x: 400
   y: 40
-  text: "{{temperatura_umidita_comfort_index_trend}}"
+  text: "{{t0091}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -35,7 +35,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "{{panoramica_2}}"
+  label: "{{t0047}}"
   target_page: pro_p1
   locked: true
 
@@ -45,7 +45,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "{{fotovoltaico}}"
+  label: "{{t0004}}"
   target_page: pro_p2
   locked: true
 
@@ -55,7 +55,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "{{batt_rete}}"
+  label: "{{t0005}}"
   target_page: pro_p3
   locked: true
 
@@ -65,7 +65,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "{{clima_3}}"
+  label: "{{t0092}}"
   target_page: pro_p4
   fill: "#1e293b"
   locked: true
@@ -76,7 +76,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "{{carichi}}"
+  label: "{{t0007}}"
   target_page: pro_p5
   locked: true
 
@@ -86,7 +86,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "{{sicurezza}}"
+  label: "{{t0008}}"
   target_page: pro_p6
   locked: true
 
@@ -110,7 +110,7 @@ objects:
   type: text
   x: 80
   y: 76
-  text: "{{stanza}}"
+  text: "{{t0015}}"
   font_size: 10
   font_weight: bold
   text_anchor: middle
@@ -120,7 +120,7 @@ objects:
   type: text
   x: 200
   y: 76
-  text: "{{temperatura}}"
+  text: "{{t0072}}"
   font_size: 10
   font_weight: bold
   text_anchor: middle
@@ -130,7 +130,7 @@ objects:
   type: text
   x: 310
   y: 76
-  text: "{{umidita}}"
+  text: "{{t0017}}"
   font_size: 10
   font_weight: bold
   text_anchor: middle
@@ -140,7 +140,7 @@ objects:
   type: text
   x: 400
   y: 76
-  text: "{{barra}}"
+  text: "{{t0093}}"
   font_size: 10
   font_weight: bold
   text_anchor: middle
@@ -160,7 +160,7 @@ objects:
   type: text
   x: 80
   y: 104
-  text: "{{soggiorno}}"
+  text: "{{t0018}}"
   font_size: 12
   font_weight: bold
   text_anchor: middle
@@ -213,7 +213,7 @@ objects:
   type: text
   x: 80
   y: 138
-  text: "{{studio}}"
+  text: "{{t0019}}"
   font_size: 12
   font_weight: bold
   text_anchor: middle
@@ -266,7 +266,7 @@ objects:
   type: text
   x: 80
   y: 172
-  text: "{{lavanderia}}"
+  text: "{{t0020}}"
   font_size: 12
   font_weight: bold
   text_anchor: middle
@@ -319,7 +319,7 @@ objects:
   type: text
   x: 80
   y: 206
-  text: "{{bagno_pt}}"
+  text: "{{t0021}}"
   font_size: 12
   font_weight: bold
   text_anchor: middle
@@ -372,7 +372,7 @@ objects:
   type: text
   x: 80
   y: 240
-  text: "{{loc_tecnico}}"
+  text: "{{t0022}}"
   font_size: 12
   font_weight: bold
   text_anchor: middle
@@ -425,7 +425,7 @@ objects:
   type: text
   x: 80
   y: 276
-  text: "{{media_5_stanze}}"
+  text: "{{t0094}}"
   font_size: 12
   font_weight: bold
   text_anchor: middle
@@ -446,7 +446,7 @@ objects:
   type: text
   x: 310
   y: 262
-  text: "{{pressione}}"
+  text: "{{t0095}}"
   font_size: 9
   text_anchor: middle
   color: "#475569"
@@ -476,7 +476,7 @@ objects:
   type: text
   x: 80
   y: 310
-  text: "{{comfort_soggiorno}}"
+  text: "{{t0096}}"
   font_size: 11
   text_anchor: middle
   color: "#64748b"
@@ -508,7 +508,7 @@ objects:
   type: text
   x: 214
   y: 350
-  text: "{{100_t_22_c_u_50}}"
+  text: "{{t0097}}"
   font_size: 9
   text_anchor: middle
   color: "#334155"
@@ -532,7 +532,7 @@ objects:
   type: text
   x: 618
   y: 76
-  text: "{{gauge_temperatura_media}}"
+  text: "{{t0098}}"
   font_size: 10
   font_weight: bold
   text_anchor: middle
@@ -567,7 +567,7 @@ objects:
   type: text
   x: 700
   y: 152
-  text: "{{comfort_index}}"
+  text: "{{t0099}}"
   font_size: 9
   text_anchor: middle
   color: "#334155"
@@ -590,7 +590,7 @@ objects:
   type: text
   x: 400
   y: 374
-  text: "{{temperature_soggiorno_studio_lavanderia}}"
+  text: "{{t0100}}"
   font_size: 10
   text_anchor: middle
   color: "#64748b"
@@ -612,7 +612,7 @@ objects:
   type: text
   x: 24
   y: 540
-  text: "{{soggiorno_c}}"
+  text: "{{t0101}}"
   font_size: 9
   color: "#3b82f6"
 
@@ -620,7 +620,7 @@ objects:
   type: text
   x: 200
   y: 540
-  text: "{{studio_c}}"
+  text: "{{t0102}}"
   font_size: 9
   color: "#60a5fa"
 
@@ -628,7 +628,7 @@ objects:
   type: text
   x: 360
   y: 540
-  text: "{{lavanderia_c}}"
+  text: "{{t0103}}"
   font_size: 9
   color: "#93c5fd"
 
@@ -636,6 +636,6 @@ objects:
   type: text
   x: 650
   y: 540
-  text: "{{storico_sqlite_365_gg}}"
+  text: "{{t0104}}"
   font_size: 9
   color: "#334155"

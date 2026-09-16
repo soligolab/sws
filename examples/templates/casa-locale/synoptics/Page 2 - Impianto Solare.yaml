@@ -12,7 +12,7 @@ objects:
   type: text
   x: 400
   y: 22
-  text: "{{impianto_solare}}"
+  text: "{{t0041}}"
   font_size: 20
   font_weight: bold
   text_anchor: middle
@@ -26,7 +26,7 @@ objects:
   y: 14
   width: 130
   height: 30
-  label: "{{panoramica}}"
+  label: "{{t0042}}"
   target_page: cl_page1
   group_id: g_nav
   locked: true
@@ -37,7 +37,7 @@ objects:
   y: 14
   width: 130
   height: 30
-  label: "{{contatori_3}}"
+  label: "{{t0043}}"
   target_page: cl_page3
   group_id: g_nav
   locked: true
@@ -71,7 +71,7 @@ objects:
   type: text
   x: 140
   y: 68
-  text: "{{pannelli_fv}}"
+  text: "{{t0044}}"
   font_size: 13
   font_weight: bold
   text_anchor: middle
@@ -92,7 +92,7 @@ objects:
   type: text
   x: 90
   y: 162
-  text: "{{stringa_pv1}}"
+  text: "{{t0045}}"
   font_size: 11
   color: "#78716c"
 
@@ -106,13 +106,13 @@ objects:
   min: 0
   max: 2
   unit: "kW"
-  label: "{{pv1}}"
+  label: "{{t0046}}"
 
 - id: cl2_pv2_lbl
   type: text
   x: 220
   y: 162
-  text: "{{stringa_pv2}}"
+  text: "{{t0047}}"
   font_size: 11
   color: "#78716c"
 
@@ -126,14 +126,14 @@ objects:
   min: 0
   max: 2
   unit: "kW"
-  label: "{{pv2}}"
+  label: "{{t0048}}"
 
 # Totale PV
 - id: cl2_pv_tot_lbl
   type: text
   x: 140
   y: 310
-  text: "{{totale_generato}}"
+  text: "{{t0049}}"
   font_size: 11
   text_anchor: middle
   color: "#64748b"
@@ -164,7 +164,7 @@ objects:
   type: text
   x: 30
   y: 378
-  text: "{{produzione_oggi}}"
+  text: "{{t0050}}"
   font_size: 10
   color: "#64748b"
 
@@ -182,7 +182,7 @@ objects:
   type: text
   x: 165
   y: 378
-  text: "{{totale_storico}}"
+  text: "{{t0051}}"
   font_size: 10
   color: "#64748b"
 
@@ -214,7 +214,7 @@ objects:
   type: text
   x: 440
   y: 68
-  text: "{{batteria}}"
+  text: "{{t0010}}"
   font_size: 13
   font_weight: bold
   text_anchor: middle
@@ -241,7 +241,7 @@ objects:
   min: 0
   max: 100
   unit: "%"
-  label: "{{soc_batteria}}"
+  label: "{{t0052}}"
   warn_low: 20
   alarm_low: 10
 
@@ -275,7 +275,7 @@ objects:
   type: text
   x: 310
   y: 390
-  text: "{{tensione}}"
+  text: "{{t0053}}"
   font_size: 11
   color: "#64748b"
 - id: cl2_bat_v_val
@@ -292,7 +292,7 @@ objects:
   type: text
   x: 310
   y: 412
-  text: "{{potenza}}"
+  text: "{{t0054}}"
   font_size: 11
   color: "#64748b"
 - id: cl2_bat_p_val
@@ -309,7 +309,7 @@ objects:
   type: text
   x: 310
   y: 432
-  text: "{{carica_scarica}}"
+  text: "{{t0055}}"
   font_size: 9
   color: "#374155"
 
@@ -318,7 +318,7 @@ objects:
   type: text
   x: 310
   y: 455
-  text: "{{andamento_1h}}"
+  text: "{{t0056}}"
   font_size: 10
   color: "#475569"
 
@@ -350,7 +350,7 @@ objects:
   type: text
   x: 710
   y: 68
-  text: "{{rete_inverter}}"
+  text: "{{t0057}}"
   font_size: 13
   font_weight: bold
   text_anchor: middle
@@ -377,7 +377,7 @@ objects:
   min: 45
   max: 58
   unit: "V"
-  label: "{{batteria_2}}"
+  label: "{{t0058}}"
   warn_low: 48
 
 # Feed-in/out
@@ -385,7 +385,7 @@ objects:
   type: text
   x: 600
   y: 288
-  text: "{{scambio_rete}}"
+  text: "{{t0059}}"
   font_size: 11
   color: "#64748b"
 - id: cl2_feed_val
@@ -402,7 +402,7 @@ objects:
   type: text
   x: 600
   y: 326
-  text: "{{negativo_importo_da_rete}}"
+  text: "{{t0060}}"
   font_size: 9
   color: "#374151"
 
@@ -411,7 +411,7 @@ objects:
   type: text
   x: 600
   y: 358
-  text: "{{consumo_casa_2}}"
+  text: "{{t0061}}"
   font_size: 11
   color: "#64748b"
 - id: cl2_cons_val
@@ -439,7 +439,7 @@ objects:
   type: text
   x: 612
   y: 424
-  text: "{{inverter_2}}"
+  text: "{{t0062}}"
   font_size: 11
   font_weight: bold
   color: "#475569"
@@ -448,7 +448,7 @@ objects:
   type: text
   x: 612
   y: 444
-  text: "{{stato}}"
+  text: "{{t0063}}"
   font_size: 11
   color: "#64748b"
 - id: cl2_inv_status_val
@@ -465,7 +465,7 @@ objects:
   type: text
   x: 612
   y: 462
-  text: "{{temp_modulo}}"
+  text: "{{t0014}}"
   font_size: 11
   color: "#64748b"
 - id: cl2_inv_temp_val
@@ -488,7 +488,7 @@ objects:
   min: 0
   max: 80
   unit: "°C"
-  label: "{{temp}}"
+  label: "{{t0064}}"
   warn_high: 60
   alarm_high: 75
 

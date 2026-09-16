@@ -11,7 +11,7 @@ objects:
   type: text
   x: 400
   y: 20
-  text: "{{sicurezza_controllo}}"
+  text: "{{t0121}}"
   font_size: 17
   font_weight: bold
   text_anchor: middle
@@ -22,7 +22,7 @@ objects:
   type: text
   x: 400
   y: 40
-  text: "{{porte_finestre_perimetro_luci_write_back}}"
+  text: "{{t0122}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -35,7 +35,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "{{panoramica_2}}"
+  label: "{{t0047}}"
   target_page: pro_p1
   locked: true
 
@@ -45,7 +45,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "{{fotovoltaico}}"
+  label: "{{t0004}}"
   target_page: pro_p2
   locked: true
 
@@ -55,7 +55,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "{{batt_rete}}"
+  label: "{{t0005}}"
   target_page: pro_p3
   locked: true
 
@@ -65,7 +65,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "{{clima}}"
+  label: "{{t0006}}"
   target_page: pro_p4
   locked: true
 
@@ -75,7 +75,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "{{carichi}}"
+  label: "{{t0007}}"
   target_page: pro_p5
   locked: true
 
@@ -85,7 +85,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "{{sicurezza_3}}"
+  label: "{{t0123}}"
   target_page: pro_p6
   fill: "#1e293b"
   locked: true
@@ -98,7 +98,7 @@ objects:
   type: text
   x: 200
   y: 60
-  text: "{{sensori_sicurezza}}"
+  text: "{{t0124}}"
   font_size: 12
   font_weight: bold
   text_anchor: middle
@@ -110,7 +110,7 @@ objects:
   type: text
   x: 200
   y: 78
-  text: "{{porte}}"
+  text: "{{t0125}}"
   font_size: 10
   font_weight: bold
   text_anchor: middle
@@ -132,7 +132,7 @@ objects:
   type: text
   x: 108
   y: 106
-  text: "{{garage_sezionale}}"
+  text: "{{t0126}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -160,7 +160,7 @@ objects:
   type: text
   x: 108
   y: 128
-  text: "{{portoncino_ingresso}}"
+  text: "{{t0127}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -188,7 +188,7 @@ objects:
   type: text
   x: 108
   y: 150
-  text: "{{portoncino_studio}}"
+  text: "{{t0128}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -217,7 +217,7 @@ objects:
   type: text
   x: 200
   y: 180
-  text: "{{finestre}}"
+  text: "{{t0129}}"
   font_size: 10
   font_weight: bold
   text_anchor: middle
@@ -238,7 +238,7 @@ objects:
   type: text
   x: 108
   y: 208
-  text: "{{soggiorno_sx}}"
+  text: "{{t0028}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -256,7 +256,7 @@ objects:
   type: text
   x: 108
   y: 230
-  text: "{{soggiorno_dx}}"
+  text: "{{t0029}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -274,7 +274,7 @@ objects:
   type: text
   x: 108
   y: 252
-  text: "{{cucina_sx}}"
+  text: "{{t0030}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -292,7 +292,7 @@ objects:
   type: text
   x: 108
   y: 274
-  text: "{{cucina_dx}}"
+  text: "{{t0031}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -310,7 +310,7 @@ objects:
   type: text
   x: 108
   y: 296
-  text: "{{lavanderia}}"
+  text: "{{t0020}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -328,7 +328,7 @@ objects:
   type: text
   x: 108
   y: 318
-  text: "{{bagno_pt}}"
+  text: "{{t0021}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -348,7 +348,7 @@ objects:
   type: text
   x: 200
   y: 342
-  text: "{{perimetro_movimento}}"
+  text: "{{t0130}}"
   font_size: 10
   font_weight: bold
   text_anchor: middle
@@ -369,7 +369,7 @@ objects:
   type: text
   x: 108
   y: 370
-  text: "{{perimetro_nord_est}}"
+  text: "{{t0131}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -387,7 +387,7 @@ objects:
   type: text
   x: 108
   y: 392
-  text: "{{perimetro_nord_ovest}}"
+  text: "{{t0132}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -405,7 +405,7 @@ objects:
   type: text
   x: 108
   y: 414
-  text: "{{perimetro_ovest}}"
+  text: "{{t0133}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -423,7 +423,7 @@ objects:
   type: text
   x: 108
   y: 436
-  text: "{{movimento_ingresso}}"
+  text: "{{t0134}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -441,7 +441,7 @@ objects:
   type: text
   x: 108
   y: 458
-  text: "{{movimento_esterno}}"
+  text: "{{t0135}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -459,7 +459,7 @@ objects:
   type: text
   x: 108
   y: 480
-  text: "{{persona_ai}}"
+  text: "{{t0136}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -477,7 +477,7 @@ objects:
   type: text
   x: 108
   y: 478
-  text: "{{veicolo_ai}}"
+  text: "{{t0137}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -495,7 +495,7 @@ objects:
   type: text
   x: 108
   y: 480
-  text: "{{piazzale}}"
+  text: "{{t0138}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -514,7 +514,7 @@ objects:
   type: text
   x: 108
   y: 478
-  text: "{{mauro_a_casa_2}}"
+  text: "{{t0139}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -536,7 +536,7 @@ objects:
   type: text
   x: 614
   y: 60
-  text: "{{luci_esterne_write_back}}"
+  text: "{{t0140}}"
   font_size: 12
   font_weight: bold
   text_anchor: middle
@@ -558,7 +558,7 @@ objects:
   type: text
   x: 502
   y: 95
-  text: "{{cancelletto}}"
+  text: "{{t0040}}"
   font_size: 12
   color: "#94a3b8"
 
@@ -578,7 +578,7 @@ objects:
   y: 82
   width: 54
   height: 28
-  label: "{{on}}"
+  label: "{{t0141}}"
   fill: "#d97706"
   tag: luce.cancelletto
   write_value: true
@@ -589,7 +589,7 @@ objects:
   y: 82
   width: 54
   height: 28
-  label: "{{off}}"
+  label: "{{t0142}}"
   fill: "#374151"
   tag: luce.cancelletto
   write_value: false
@@ -599,7 +599,7 @@ objects:
   type: text
   x: 502
   y: 125
-  text: "{{viale_centrale}}"
+  text: "{{t0041}}"
   font_size: 12
   color: "#94a3b8"
 
@@ -619,7 +619,7 @@ objects:
   y: 112
   width: 54
   height: 28
-  label: "{{on}}"
+  label: "{{t0141}}"
   fill: "#d97706"
   tag: luce.viale
   write_value: true
@@ -630,7 +630,7 @@ objects:
   y: 112
   width: 54
   height: 28
-  label: "{{off}}"
+  label: "{{t0142}}"
   fill: "#374151"
   tag: luce.viale
   write_value: false
@@ -640,7 +640,7 @@ objects:
   type: text
   x: 502
   y: 155
-  text: "{{strada_dx}}"
+  text: "{{t0042}}"
   font_size: 12
   color: "#94a3b8"
 
@@ -660,7 +660,7 @@ objects:
   y: 142
   width: 54
   height: 28
-  label: "{{on}}"
+  label: "{{t0141}}"
   fill: "#d97706"
   tag: luce.strada
   write_value: true
@@ -671,7 +671,7 @@ objects:
   y: 142
   width: 54
   height: 28
-  label: "{{off}}"
+  label: "{{t0142}}"
   fill: "#374151"
   tag: luce.strada
   write_value: false
@@ -680,7 +680,7 @@ objects:
   type: text
   x: 598
   y: 230
-  text: "{{true_ha_switch_turn_on_false_turn_off}}"
+  text: "{{t0143}}"
   font_size: 9
   text_anchor: middle
   color: "#334155"
@@ -693,7 +693,7 @@ objects:
   type: text
   x: 614
   y: 250
-  text: "{{tapparelle_write_back}}"
+  text: "{{t0144}}"
   font_size: 12
   font_weight: bold
   text_anchor: middle
@@ -714,7 +714,7 @@ objects:
   type: text
   x: 500
   y: 276
-  text: "{{tapparella}}"
+  text: "{{t0145}}"
   font_size: 9
   font_weight: bold
   color: "#475569"
@@ -723,7 +723,7 @@ objects:
   type: text
   x: 598
   y: 276
-  text: "{{stato}}"
+  text: "{{t0146}}"
   font_size: 9
   font_weight: bold
   text_anchor: middle
@@ -733,7 +733,7 @@ objects:
   type: text
   x: 670
   y: 276
-  text: "{{su}}"
+  text: "{{t0147}}"
   font_size: 9
   font_weight: bold
   text_anchor: middle
@@ -743,7 +743,7 @@ objects:
   type: text
   x: 740
   y: 276
-  text: "{{giu}}"
+  text: "{{t0148}}"
   font_size: 9
   font_weight: bold
   text_anchor: middle
@@ -763,7 +763,7 @@ objects:
   type: text
   x: 500
   y: 302
-  text: "{{soggiorno_sx}}"
+  text: "{{t0028}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -783,7 +783,7 @@ objects:
   y: 289
   width: 50
   height: 26
-  label: "{{su_2}}"
+  label: "{{t0149}}"
   fill: "#0284c7"
   tag: tapparella.soggiorno_sx
   write_value: true
@@ -794,7 +794,7 @@ objects:
   y: 289
   width: 50
   height: 26
-  label: "{{giu_2}}"
+  label: "{{t0150}}"
   fill: "#374151"
   tag: tapparella.soggiorno_sx
   write_value: false
@@ -804,7 +804,7 @@ objects:
   type: text
   x: 500
   y: 332
-  text: "{{soggiorno_dx}}"
+  text: "{{t0029}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -824,7 +824,7 @@ objects:
   y: 319
   width: 50
   height: 26
-  label: "{{su_2}}"
+  label: "{{t0149}}"
   fill: "#0284c7"
   tag: tapparella.soggiorno_dx
   write_value: true
@@ -835,7 +835,7 @@ objects:
   y: 319
   width: 50
   height: 26
-  label: "{{giu_2}}"
+  label: "{{t0150}}"
   fill: "#374151"
   tag: tapparella.soggiorno_dx
   write_value: false
@@ -845,7 +845,7 @@ objects:
   type: text
   x: 500
   y: 362
-  text: "{{bagno_pt}}"
+  text: "{{t0021}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -865,7 +865,7 @@ objects:
   y: 349
   width: 50
   height: 26
-  label: "{{su_2}}"
+  label: "{{t0149}}"
   fill: "#0284c7"
   tag: tapparella.bagno
   write_value: true
@@ -876,7 +876,7 @@ objects:
   y: 349
   width: 50
   height: 26
-  label: "{{giu_2}}"
+  label: "{{t0150}}"
   fill: "#374151"
   tag: tapparella.bagno
   write_value: false
@@ -886,7 +886,7 @@ objects:
   type: text
   x: 500
   y: 392
-  text: "{{garage}}"
+  text: "{{t0025}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -906,7 +906,7 @@ objects:
   y: 379
   width: 50
   height: 26
-  label: "{{su_2}}"
+  label: "{{t0149}}"
   fill: "#0284c7"
   tag: tapparella.garage
   write_value: true
@@ -917,7 +917,7 @@ objects:
   y: 379
   width: 50
   height: 26
-  label: "{{giu_2}}"
+  label: "{{t0150}}"
   fill: "#374151"
   tag: tapparella.garage
   write_value: false
@@ -927,7 +927,7 @@ objects:
   type: text
   x: 598
   y: 418
-  text: "{{su_ha_cover_open_cover}}"
+  text: "{{t0151}}"
   font_size: 9
   text_anchor: middle
   color: "#334155"
@@ -936,7 +936,7 @@ objects:
   type: text
   x: 598
   y: 432
-  text: "{{giu_ha_cover_close_cover}}"
+  text: "{{t0152}}"
   font_size: 9
   text_anchor: middle
   color: "#334155"
@@ -945,7 +945,7 @@ objects:
   type: text
   x: 598
   y: 450
-  text: "{{stato_true_aperta_false_chiusa}}"
+  text: "{{t0153}}"
   font_size: 9
   text_anchor: middle
   color: "#334155"
@@ -964,7 +964,7 @@ objects:
   type: text
   x: 502
   y: 490
-  text: "{{mauro_a_casa_2}}"
+  text: "{{t0139}}"
   font_size: 12
   color: "#94a3b8"
 
@@ -992,7 +992,7 @@ objects:
   type: text
   x: 502
   y: 520
-  text: "{{sole_elevazione}}"
+  text: "{{t0154}}"
   font_size: 12
   color: "#94a3b8"
 

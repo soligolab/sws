@@ -63,7 +63,7 @@ alarms:
     condition:
       kind: above
       threshold: 80.0
-    message: "Temperatura uscita eccessiva — pompa surriscaldata"
+    message: "{{t0001}}"
     severity: Critical
   - id: alm-pump-stopped
     tag: pump.running
@@ -73,7 +73,7 @@ alarms:
         # or, not), e faceva rifiutare l'INTERO progetto al caricamento — non
         # solo l'allarme. Trovato dal test che carica i template col parser vero.
         kind: bool_false
-    message: "Pompa ferma durante produzione"
+    message: "{{t0002}}"
     severity: Warning
 
 # NOTA: qui c'era una pagina scritta dentro `project.yaml`, sotto una chiave
@@ -85,4 +85,10 @@ alarms:
 languages:
   default: it
   langs: [it, en]
-  entries: []
+  entries:
+    - key: t0001
+      values:
+        it: "Temperatura uscita eccessiva — pompa surriscaldata"
+    - key: t0002
+      values:
+        it: "Pompa ferma durante produzione"

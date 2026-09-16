@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import type { AlarmEvent, AlarmSeverity } from "@/types";
+import { useLinguaContenuti } from "@/i18n/linguaContenuti";
+import { resolveMsg } from "@/i18n/projectI18n";
 
 const SEV_COLOR: Record<AlarmSeverity, string> = {
   Info:     "#3b82f6",
@@ -31,6 +33,9 @@ interface AlarmHistoryProps {
 const PAGE_SIZE = 50;
 
 export function AlarmHistory({ alarmId }: AlarmHistoryProps) {
+  // Lo storico si legge nella lingua di ADESSO: il messaggio congelato
+  // nell'evento può contenere un token, e fino al 15-09-2026 arrivava grezzo.
+  const lingua = useLinguaContenuti();
   const { t } = useTranslation();
   const [events, setEvents] = useState<AlarmEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -90,7 +95,7 @@ export function AlarmHistory({ alarmId }: AlarmHistoryProps) {
                   <tr key={i} style={{ background: i % 2 === 0 ? "#0f172a" : "#0a1120" }}>
                     <td style={{ padding: "3px 8px", color: "#cbd5e1" }}>
                       <div style={{ fontWeight: 600 }}>{ev.alarm_id}</div>
-                      <div style={{ color: "#64748b", fontSize: 10 }}>{ev.alarm_message}</div>
+                      <div style={{ color: "#64748b", fontSize: 10 }}>{resolveMsg(ev.alarm_message, lingua.lang, lingua.table)}</div>
                     </td>
                     <td style={{ padding: "3px 8px" }}>
                       <span style={{

@@ -18,7 +18,7 @@ objects:
   type: text
   x: 450
   y: 24
-  text: "{{grid_playground_4_4_con_sub_cell_fino_a}}"
+  text: "{{t0001}}"
   font_size: 18
   font_weight: bold
   text_anchor: middle
@@ -30,7 +30,7 @@ objects:
   type: text
   x: 450
   y: 44
-  text: "{{pannello_rect_ellipse_text_gauge_led_sym}}"
+  text: "{{t0002}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -43,7 +43,7 @@ objects:
   y: 14
   width: 150
   height: 30
-  label: "{{controlli}}"
+  label: "{{t0003}}"
   target_page: gp_page2
   group_id: g_header
   locked: true
@@ -104,7 +104,7 @@ objects:
                     type: text
                     x: 0
                     y: 0
-                    text: "{{l3}}"
+                    text: "{{t0004}}"
                     font_size: 12
                     font_weight: bold
                     text_anchor: middle
@@ -162,7 +162,7 @@ objects:
         y: 0
         width: 170
         height: 140
-        label: "{{counter}}"
+        label: "{{t0005}}"
         tag: counter
         min: 0
         max: 100
@@ -217,7 +217,7 @@ objects:
         width: 150
         height: 50
         fill: "#3b82f6"
-        label: "{{counter_1}}"
+        label: "{{t0006}}"
         on_press_fn: fnc_Inc
         on_press_args:
           tag: counter
@@ -266,7 +266,7 @@ objects:
         width: 150
         height: 50
         fill: "#dc2626"
-        label: "{{counter_1_2}}"
+        label: "{{t0007}}"
         on_press_fn: fnc_Dec
         on_press_args:
           tag: counter
@@ -283,7 +283,7 @@ objects:
         width: 150
         height: 50
         fill: "#0d9488"
-        label: "{{toggle_pompa}}"
+        label: "{{t0008}}"
         on_press_fn: fnc_Toggle
         on_press_args:
           tag: pump.running
@@ -339,7 +339,7 @@ objects:
             type: text
             x: 0
             y: 0
-            text: "{{top}}"
+            text: "{{t0009}}"
             font_size: 14
             font_weight: bold
             text_anchor: middle
@@ -371,7 +371,7 @@ objects:
                 type: text
                 x: 0
                 y: 0
-                text: "{{a_a}}"
+                text: "{{t0010}}"
                 font_size: 12
                 text_anchor: middle
                 color: "#e2e8f0"
@@ -381,7 +381,7 @@ objects:
                 type: text
                 x: 0
                 y: 0
-                text: "{{a_b}}"
+                text: "{{t0011}}"
                 font_size: 12
                 text_anchor: middle
                 color: "#94a3b8"
@@ -409,7 +409,7 @@ objects:
             type: text
             x: 0
             y: 0
-            text: "{{on_only}}"
+            text: "{{t0012}}"
             font_size: 12
             font_weight: bold
             text_anchor: middle
@@ -420,7 +420,7 @@ objects:
             type: text
             x: 0
             y: 0
-            text: "{{always}}"
+            text: "{{t0013}}"
             font_size: 11
             text_anchor: middle
             color: "#94a3b8"

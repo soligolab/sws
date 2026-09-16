@@ -11,7 +11,8 @@ import { RecipePanel } from "@/components/RecipePanel";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UiLangSelect } from "@/components/UiLangSelect";
 import { useAppStore } from "@/store";
-import { localizeObjects, localizePageName, effectiveProjectLang } from "@/i18n/projectI18n";
+import { localizePageName, effectiveProjectLang, resolveMsg } from "@/i18n/projectI18n";
+import { LinguaContenutiProvider, useLinguaContenuti } from "@/i18n/linguaContenuti";
 import { useTagStream, tryTagWriteWs, sendSubscribe } from "@/ws/tagStream";
 import type { ButtonAction, FunctionDef } from "@/types";
 
@@ -58,6 +59,11 @@ const PRE: React.CSSProperties = {
 };
 
 function ScriptToasts({ toasts, onClose }: { toasts: ScriptToast[]; onClose: (id: string) => void }) {
+  // Un `print()` in uno script è testo che l'operatore legge, e da quando
+  // esiste `tr()` può contenere un token. Risolverlo qui è coerente col resto:
+  // lo script produce un riferimento, chi disegna sceglie la lingua.
+  const lingua = useLinguaContenuti();
+  const loc = (x?: string) => (x ? resolveMsg(x, lingua.lang, lingua.table) : x);
   if (toasts.length === 0) return null;
   return (
     <div style={TOAST_PANEL}>
@@ -76,9 +82,9 @@ function ScriptToasts({ toasts, onClose }: { toasts: ScriptToast[]; onClose: (id
                 ✕
               </button>
             </div>
-            {t.stdout && <pre style={{ ...PRE, color: "var(--brand-text, #e2e8f0)" }}>{t.stdout.trimEnd()}</pre>}
-            {t.stderr && <pre style={{ ...PRE, color: "var(--brand-warning-soft, #fbbf24)", marginTop: t.stdout ? 4 : 0 }}>{t.stderr.trimEnd()}</pre>}
-            {t.error  && <pre style={{ ...PRE, color: "var(--brand-danger-soft, #fca5a5)", marginTop: (t.stdout || t.stderr) ? 4 : 0 }}>{t.error.trimEnd()}</pre>}
+            {t.stdout && <pre style={{ ...PRE, color: "var(--brand-text, #e2e8f0)" }}>{loc(t.stdout)!.trimEnd()}</pre>}
+            {t.stderr && <pre style={{ ...PRE, color: "var(--brand-warning-soft, #fbbf24)", marginTop: t.stdout ? 4 : 0 }}>{loc(t.stderr)!.trimEnd()}</pre>}
+            {t.error  && <pre style={{ ...PRE, color: "var(--brand-danger-soft, #fca5a5)", marginTop: (t.stdout || t.stderr) ? 4 : 0 }}>{loc(t.error)!.trimEnd()}</pre>}
           </div>
         );
       })}
@@ -210,12 +216,16 @@ export function RuntimeView() {
 
   const closeToast = (id: string) => setToasts((ts) => ts.filter((t) => t.id !== id));
 
-  // Localizza i messaggi {{token}} nella lingua contenuti corrente (T-40).
+  // La lingua dei contenuti (T-40). Non si localizza più qui: si dichiara, e
+  // ogni `SvgObject` del sottoalbero la prende dal contesto — compresi i figli
+  // di griglie e faceplate, che questa localizzazione di primo livello non ha
+  // mai raggiunto (vedi `@/i18n/linguaContenuti`).
   const effLang = effectiveProjectLang(languageTable) || projectLang;
-  const objects = useMemo(
-    () => localizeObjects(currentPage?.objects ?? [], effLang, languageTable),
-    [currentPage?.objects, effLang, languageTable],
+  const lingua = useMemo(
+    () => ({ lang: effLang, table: languageTable }),
+    [effLang, languageTable],
   );
+  const objects = currentPage?.objects ?? [];
 
   const handleWriteTag = (tagId: string, value: string | number | boolean) => {
     // Prefer the bidirectional WS path (zero HTTP round-trip + token reuse).
@@ -335,6 +345,7 @@ export function RuntimeView() {
   };
 
   return (
+    <LinguaContenutiProvider value={lingua}>
     <div
       style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}
       onTouchStart={handleTouchStart}
@@ -490,6 +501,7 @@ export function RuntimeView() {
         </div>
       )}
     </div>
+    </LinguaContenutiProvider>
   );
 }
 

@@ -378,7 +378,23 @@ const PORTA_VERSIONE = (path: string) =>
  *  riuscita) e qui lo si buttava, perché il percorso non era in nessuna delle
  *  due liste. Un conflitto inventato insegna a ignorare i conflitti veri, che è
  *  precisamente ciò che Q30 esisteva per evitare. */
-const PATH_RIPORTANO_VERSIONE = ["/api/project/migrate"];
+const PATH_RIPORTANO_VERSIONE = [
+  "/api/project/migrate",
+  // La traduzione automatica riscrive la tabella lingue **minuti dopo** averla
+  // letta: quel tempo lo passa a parlare con un fornitore esterno. Mandare un
+  // `If-Match` la farebbe fallire ogni volta che qualcuno salva qualcos'altro
+  // nel frattempo — e il chiamante ha appena aspettato venti richieste di rete.
+  // Il server passa quindi `None` di proposito, come per `migrate`, e riscrive
+  // **solo** `languages`: una modifica concorrente ad altre sezioni sopravvive.
+  // Resta scoperta la modifica concorrente alla tabella lingue stessa, che è
+  // una finestra stretta e dichiarata.
+  //
+  // Sta qui e non fra i versionati perché la risposta porta comunque l'ETag
+  // nuovo, e buttarlo darebbe la tempesta di 409 del 2026-09-05 descritta
+  // sopra: non «qualcun altro ha modificato il progetto», ma questo stesso
+  // client, un pulsante prima.
+  "/api/project/languages/translate",
+];
 
 /** I salvataggi di sezione, cioè quelli che il server confronta con `If-Match`.
  *  Rispecchia gli handler che in `router.rs` chiamano `patch_project_se`: se
@@ -443,6 +459,18 @@ const PARLA_CON_UN_ALTRO_RUNTIME = (path: string) => path.startsWith("/api/remot
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   if (TOKEN) headers.set("Authorization", `Bearer ${TOKEN}`);
+  // Un corpo senza tipo dichiarato: axum risponde **415** e la chiamata
+  // fallisce per un motivo che non c'entra niente con ciò che si stava
+  // facendo. È successo il 15-09-2026 alla prima prova della traduzione
+  // automatica, e ogni chiamata nuova con un corpo è una nuova occasione di
+  // rifarlo: il default sta qui, dove si scrive una volta sola.
+  //
+  // `application/json` e non altro perché è ciò che manda tutto questo client
+  // tranne l'importazione CSV, che dichiara il proprio `text/plain` — e questo
+  // default non lo tocca, perché scrive solo quando l'intestazione manca.
+  if (init?.body !== undefined && init?.body !== null && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
   let res: Response;
   try {
     res = await fetch(`${getBaseUrl()}${path}`, { ...init, headers });
@@ -600,6 +628,23 @@ export const api = {
       method: "PUT",
       headers: { "Content-Type": "application/json", ...seVersionato("/api/project/languages") },
       body: JSON.stringify(table),
+    }),
+
+  /** Traduce la tabella lingue del progetto verso `a`.
+   *
+   *  **Esiste solo sull'istanza IDE**: tradurre è progettazione, e il
+   *  dispositivo in campo è spesso senza Internet. Su un runtime risponde 404,
+   *  non 403 — lì la funzione non deve esistere, non «non ti è permessa». */
+  translateLanguages: (body: {
+    a: string;
+    da?: string;
+    sovrascrivi?: boolean;
+    config?: { fornitore: string; url?: string; chiave?: string };
+  }): Promise<{ tradotte: number; saltate: number; problemi: string[] }> =>
+    request("/api/project/languages/translate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
     }),
 
   updateSources: (sources: SourceDef[]) =>

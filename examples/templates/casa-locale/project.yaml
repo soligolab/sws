@@ -365,7 +365,7 @@ alarms:
     condition:
       kind: bool_equals
       value: true
-    message: "Garage sezionale APERTO"
+    message: "{{t0136}}"
     severity: Warning
 
   - id: alarm_movimento_ovest
@@ -373,7 +373,7 @@ alarms:
     condition:
       kind: bool_equals
       value: true
-    message: "Movimento rilevato — zona Ovest"
+    message: "{{t0137}}"
     severity: Info
 
   - id: alarm_movimento_nordest
@@ -381,7 +381,7 @@ alarms:
     condition:
       kind: bool_equals
       value: true
-    message: "Movimento rilevato — zona Nord-Est"
+    message: "{{t0138}}"
     severity: Info
 
   - id: alarm_batteria_bassa
@@ -389,7 +389,7 @@ alarms:
     condition:
       kind: below
       threshold: 15
-    message: "Batteria scarica (SOC < 15%)"
+    message: "{{t0139}}"
     severity: Warning
 
   - id: alarm_rack_garage_alta_potenza
@@ -397,7 +397,7 @@ alarms:
     condition:
       kind: above
       threshold: 2500
-    message: "Rack Garage — potenza elevata (>2500W)"
+    message: "{{t0140}}"
     severity: Warning
 
   - id: alarm_pdc_alta_potenza
@@ -405,550 +405,568 @@ alarms:
     condition:
       kind: above
       threshold: 3000
-    message: "Pompa di Calore — consumo elevato (>3kW)"
+    message: "{{t0141}}"
     severity: Warning
 
 languages:
   default: it
   langs: [it, en]
   entries:
-    - key: "casa_panoramica"
+    - key: t0136
+      values:
+        it: "Garage sezionale APERTO"
+    - key: t0137
+      values:
+        it: "Movimento rilevato — zona Ovest"
+    - key: t0138
+      values:
+        it: "Movimento rilevato — zona Nord-Est"
+    - key: t0139
+      values:
+        it: "Batteria scarica (SOC < 15%)"
+    - key: t0140
+      values:
+        it: "Rack Garage — potenza elevata (>2500W)"
+    - key: t0141
+      values:
+        it: "Pompa di Calore — consumo elevato (>3kW)"
+    - key: t0001
       values:
         it: "🏠  CASA — PANORAMICA"
         en: "🏠  HOME — OVERVIEW"
-    - key: "dashboard_energia_sicurezza"
+    - key: t0002
       values:
         it: "Dashboard energia + sicurezza"
         en: "Energy + security dashboard"
-    - key: "solare"
+    - key: t0003
       values:
         it: "☀ Solare"
         en: "☀ Solar"
-    - key: "contatori"
+    - key: t0004
       values:
         it: "⚡ Contatori"
         en: "⚡ Meters"
-    - key: "sicurezza"
+    - key: t0005
       values:
         it: "🔐 Sicurezza"
         en: "🔐 Security"
-    - key: "domotica"
+    - key: t0006
       values:
         it: "🏠 Domotica"
         en: "🏠 Home automation"
-    - key: "flusso_energia"
+    - key: t0007
       values:
         it: "FLUSSO ENERGIA"
         en: "ENERGY FLOW"
-    - key: "fotovoltaico"
+    - key: t0008
       values:
         it: "FOTOVOLTAICO"
         en: "PHOTOVOLTAIC"
-    - key: "consumo_casa"
+    - key: t0009
       values:
         it: "CONSUMO CASA"
         en: "HOUSE CONSUMPTION"
-    - key: "batteria"
+    - key: t0010
       values:
         it: "BATTERIA"
         en: "BATTERY"
-    - key: "rete_elettrica"
+    - key: t0011
       values:
         it: "RETE ELETTRICA"
         en: "POWER GRID"
-    - key: "importo_esporto"
+    - key: t0012
       values:
         it: "- = importo / + = esporto"
         en: "- = import / + = export"
-    - key: "inverter"
+    - key: t0013
       values:
         it: "Inverter:"
         en: "Inverter:"
-    - key: "temp_modulo"
+    - key: t0014
       values:
         it: "Temp modulo:"
         en: "Module temp:"
-    - key: "sicurezza_2"
+    - key: t0015
       values:
         it: "SICUREZZA"
         en: "SECURITY"
-    - key: "garage_sezionale"
+    - key: t0016
       values:
         it: "Garage Sezionale"
         en: "Sectional garage"
-    - key: "aperture"
+    - key: t0017
       values:
         it: "APERTURE"
         en: "OPENINGS"
-    - key: "fin_garage"
+    - key: t0018
       values:
         it: "Fin. Garage"
         en: "Garage win."
-    - key: "fin_studio"
+    - key: t0019
       values:
         it: "Fin. Studio"
         en: "Studio win."
-    - key: "cucina_dx"
+    - key: t0020
       values:
         it: "Cucina DX"
         en: "Kitchen R"
-    - key: "cucina_sx"
+    - key: t0021
       values:
         it: "Cucina SX"
         en: "Kitchen L"
-    - key: "sogg_dx"
+    - key: t0022
       values:
         it: "Sogg. DX"
         en: "Living R"
-    - key: "sogg_sx"
+    - key: t0023
       values:
         it: "Sogg. SX"
         en: "Living L"
-    - key: "lavanderia"
+    - key: t0024
       values:
         it: "Lavanderia"
         en: "Laundry"
-    - key: "bagno_t"
+    - key: t0025
       values:
         it: "Bagno T."
         en: "Bathroom GF"
-    - key: "port_studio"
+    - key: t0026
       values:
         it: "Port. Studio"
         en: "Studio door"
-    - key: "port_dimp"
+    - key: t0027
       values:
         it: "Port. Dimp."
         en: "Hallway door"
-    - key: "movimento"
+    - key: t0028
       values:
         it: "MOVIMENTO"
         en: "MOTION"
-    - key: "ingresso"
+    - key: t0029
       values:
         it: "Ingresso"
         en: "Entrance"
-    - key: "ovest"
+    - key: t0030
       values:
         it: "Ovest"
         en: "West"
-    - key: "nord_est"
+    - key: t0031
       values:
         it: "Nord-Est"
         en: "North-East"
-    - key: "nord_ovest"
+    - key: t0032
       values:
         it: "Nord-Ovest"
         en: "North-West"
-    - key: "tapparelle"
+    - key: t0033
       values:
         it: "TAPPARELLE"
         en: "ROLLER SHUTTERS"
-    - key: "ufficio"
+    - key: t0034
       values:
         it: "Ufficio"
         en: "Office"
-    - key: "bagno"
+    - key: t0035
       values:
         it: "Bagno"
         en: "Bathroom"
-    - key: "contatori_2"
+    - key: t0036
       values:
         it: "CONTATORI"
         en: "METERS"
-    - key: "rack_garage"
+    - key: t0037
       values:
         it: "Rack Garage:"
         en: "Garage rack:"
-    - key: "rack_piano"
+    - key: t0038
       values:
         it: "Rack Piano:"
         en: "Floor rack:"
-    - key: "pompa_calore"
+    - key: t0039
       values:
         it: "Pompa Calore:"
         en: "Heat pump:"
-    - key: "dati_in_tempo_reale_via_mqtt_broker_192"
+    - key: t0040
       values:
         it: "▸ Dati in tempo reale via MQTT broker 192.168.1.6"
         en: "▸ Real-time data via MQTT broker 192.168.1.6"
-    - key: "impianto_solare"
+    - key: t0041
       values:
         it: "☀  IMPIANTO SOLARE"
         en: "☀  SOLAR PLANT"
-    - key: "panoramica"
+    - key: t0042
       values:
         it: "◀ Panoramica"
         en: "◀ Overview"
-    - key: "contatori_3"
+    - key: t0043
       values:
         it: "Contatori ▶"
         en: "Meters ▶"
-    - key: "pannelli_fv"
+    - key: t0044
       values:
         it: "PANNELLI FV"
         en: "PV PANELS"
-    - key: "stringa_pv1"
+    - key: t0045
       values:
         it: "Stringa PV1"
         en: "PV1 string"
-    - key: "pv1"
+    - key: t0046
       values:
         it: "PV1"
         en: "PV1"
-    - key: "stringa_pv2"
+    - key: t0047
       values:
         it: "Stringa PV2"
         en: "PV2 string"
-    - key: "pv2"
+    - key: t0048
       values:
         it: "PV2"
         en: "PV2"
-    - key: "totale_generato"
+    - key: t0049
       values:
         it: "Totale generato"
         en: "Total generated"
-    - key: "produzione_oggi"
+    - key: t0050
       values:
         it: "Produzione oggi"
         en: "Produced today"
-    - key: "totale_storico"
+    - key: t0051
       values:
         it: "Totale storico"
         en: "Total lifetime"
-    - key: "soc_batteria"
+    - key: t0052
       values:
         it: "SOC Batteria"
         en: "Battery SOC"
-    - key: "tensione"
+    - key: t0053
       values:
         it: "Tensione:"
         en: "Voltage:"
-    - key: "potenza"
+    - key: t0054
       values:
         it: "Potenza:"
         en: "Power:"
-    - key: "carica_scarica"
+    - key: t0055
       values:
         it: "+ = carica / − = scarica"
         en: "+ = charge / − = discharge"
-    - key: "andamento_1h"
+    - key: t0056
       values:
         it: "Andamento (1h)"
         en: "Trend (1h)"
-    - key: "rete_inverter"
+    - key: t0057
       values:
         it: "RETE & INVERTER"
         en: "GRID & INVERTER"
-    - key: "batteria_2"
+    - key: t0058
       values:
         it: "Batteria"
         en: "Battery"
-    - key: "scambio_rete"
+    - key: t0059
       values:
         it: "Scambio rete:"
         en: "Grid exchange:"
-    - key: "negativo_importo_da_rete"
+    - key: t0060
       values:
         it: "negativo = importo da rete"
         en: "negative = imported from grid"
-    - key: "consumo_casa_2"
+    - key: t0061
       values:
         it: "Consumo casa:"
         en: "House consumption:"
-    - key: "inverter_2"
+    - key: t0062
       values:
         it: "INVERTER"
         en: "INVERTER"
-    - key: "stato"
+    - key: t0063
       values:
         it: "Stato:"
         en: "State:"
-    - key: "temp"
+    - key: t0064
       values:
         it: "Temp."
         en: "Temp."
-    - key: "contatori_energia"
+    - key: t0065
       values:
         it: "⚡  CONTATORI ENERGIA"
         en: "⚡  ENERGY METERS"
-    - key: "solare_2"
+    - key: t0066
       values:
         it: "◀ Solare"
         en: "◀ Solar"
-    - key: "sicurezza_3"
+    - key: t0067
       values:
         it: "Sicurezza ▶"
         en: "Security ▶"
-    - key: "msg"
+    - key: t0068
       values:
         it: "⌂"
         en: "⌂"
-    - key: "totale_monitorato"
+    - key: t0069
       values:
         it: "Totale monitorato:"
         en: "Total monitored:"
-    - key: "sorgente_dds661_slug_state_verificare_to"
+    - key: t0070
       values:
         it: "Sorgente: dds661/<slug>/state — verificare topic in project.yaml"
         en: "Source: dds661/<slug>/state — check topics in project.yaml"
-    - key: "rack_garage_2"
+    - key: t0071
       values:
         it: "RACK GARAGE"
         en: "GARAGE RACK"
-    - key: "potenza_2"
+    - key: t0072
       values:
         it: "Potenza"
         en: "Power"
-    - key: "misure"
+    - key: t0073
       values:
         it: "Misure"
         en: "Measurements"
-    - key: "rack_piano_sup"
+    - key: t0074
       values:
         it: "RACK PIANO SUP."
         en: "UPPER FLOOR RACK"
-    - key: "pompa_di_calore"
+    - key: t0075
       values:
         it: "POMPA DI CALORE"
         en: "HEAT PUMP"
-    - key: "trend_potenze_ultima_ora"
+    - key: t0076
       values:
         it: "Trend Potenze (ultima ora)"
         en: "Power trend (last hour)"
-    - key: "rack_garage_w"
+    - key: t0077
       values:
         it: "— Rack Garage (W)"
         en: "— Rack Garage (W)"
-    - key: "pompa_calore_w"
+    - key: t0078
       values:
         it: "— Pompa Calore (W)"
         en: "— Pompa Calore (W)"
-    - key: "topic_dds661_contatore_rack_garage_state"
+    - key: t0079
       values:
         it: "Topic: dds661/contatore-rack-garage/state · dds661/contatore-rack-pianosuperiore/state · dds661/pompa-di-calore/state"
         en: "Topic: dds661/contatore-rack-garage/state · dds661/contatore-rack-pianosuperiore/state · dds661/pompa-di-calore/state"
-    - key: "sicurezza_4"
+    - key: t0080
       values:
         it: "🔐  SICUREZZA"
         en: "🔐  SECURITY"
-    - key: "contatori_4"
+    - key: t0081
       values:
         it: "◀ Contatori"
         en: "◀ Meters"
-    - key: "domotica_2"
+    - key: t0082
       values:
         it: "Domotica ▶"
         en: "Home automation ▶"
-    - key: "zigbee2mqtt"
+    - key: t0083
       values:
         it: "Zigbee2MQTT:"
         en: "Zigbee2MQTT:"
-    - key: "online"
+    - key: t0084
       values:
         it: "ONLINE"
         en: "ONLINE"
-    - key: "garage_sezionale_2"
+    - key: t0085
       values:
         it: "GARAGE SEZIONALE"
         en: "SECTIONAL GARAGE"
-    - key: "finestre_porte"
+    - key: t0086
       values:
         it: "FINESTRE & PORTE"
         en: "WINDOWS & DOORS"
-    - key: "chiusa"
+    - key: t0087
       values:
         it: "chiusa"
         en: "closed"
-    - key: "aperta"
+    - key: t0088
       values:
         it: "aperta"
         en: "open"
-    - key: "finestra_garage"
+    - key: t0089
       values:
         it: "Finestra Garage"
         en: "Garage window"
-    - key: "portafinestra_sogg_dx"
+    - key: t0090
       values:
         it: "Portafinestra Sogg. DX"
         en: "Living R French door"
-    - key: "finestra_studio"
+    - key: t0091
       values:
         it: "Finestra Studio"
         en: "Studio window"
-    - key: "portafinestra_sogg_sx"
+    - key: t0092
       values:
         it: "Portafinestra Sogg. SX"
         en: "Living L French door"
-    - key: "finestra_cucina_dx"
+    - key: t0093
       values:
         it: "Finestra Cucina DX"
         en: "Kitchen R window"
-    - key: "portafinestra_lavanderia"
+    - key: t0094
       values:
         it: "Portafinestra Lavanderia"
         en: "Laundry French door"
-    - key: "finestra_cucina_sx"
+    - key: t0095
       values:
         it: "Finestra Cucina SX"
         en: "Kitchen L window"
-    - key: "finestra_bagno_terra"
+    - key: t0096
       values:
         it: "Finestra Bagno Terra"
         en: "Ground bathroom window"
-    - key: "portoncino_studio"
+    - key: t0097
       values:
         it: "Portoncino Studio"
         en: "Studio door"
-    - key: "portoncino_disimpegno"
+    - key: t0098
       values:
         it: "Portoncino Disimpegno"
         en: "Hallway door"
-    - key: "rilevatori_presenza"
+    - key: t0099
       values:
         it: "RILEVATORI PRESENZA"
         en: "PRESENCE DETECTORS"
-    - key: "sensore_presenza_ingresso"
+    - key: t0100
       values:
         it: "Sensore Presenza Ingresso"
         en: "Entrance presence sensor"
-    - key: "occupazione"
+    - key: t0101
       values:
         it: "Occupazione:"
         en: "Occupancy:"
-    - key: "luminosita"
+    - key: t0102
       values:
         it: "Luminosità:"
         en: "Brightness:"
-    - key: "perimetro_esterno"
+    - key: t0103
       values:
         it: "PERIMETRO ESTERNO"
         en: "OUTER PERIMETER"
-    - key: "zona_ovest"
+    - key: t0104
       values:
         it: "Zona Ovest"
         en: "West zone"
-    - key: "zona_nord_est"
+    - key: t0105
       values:
         it: "Zona Nord-Est"
         en: "North-East zone"
-    - key: "zona_nord_ovest"
+    - key: t0106
       values:
         it: "Zona Nord-Ovest"
         en: "North-West zone"
-    - key: "movimento_rosso_rilevato_scuro_assente"
+    - key: t0107
       values:
         it: "Movimento: rosso = rilevato / scuro = assente"
         en: "Motion: red = detected / dark = none"
-    - key: "sommario_aperture"
+    - key: t0108
       values:
         it: "SOMMARIO APERTURE"
         en: "OPENINGS SUMMARY"
-    - key: "sensori"
+    - key: t0109
       values:
         it: "Sensori"
         en: "Sensors"
-    - key: "luminosita_ingresso_ultima_ora_lux"
+    - key: t0110
       values:
         it: "Luminosità Ingresso — ultima ora (lux)"
         en: "Entrance brightness — last hour (lux)"
-    - key: "topic_zigbee2mqtt_device_payload_contact"
+    - key: t0111
       values:
         it: "Topic: zigbee2mqtt/DEVICE · Payload: {contact, occupancy, illuminance}"
         en: "Topic: zigbee2mqtt/DEVICE · Payload: {contact, occupancy, illuminance}"
-    - key: "domotica_controllo"
+    - key: t0112
       values:
         it: "🏠  DOMOTICA & CONTROLLO"
         en: "🏠  HOME AUTOMATION & CONTROL"
-    - key: "sicurezza_5"
+    - key: t0113
       values:
         it: "◀ Sicurezza"
         en: "◀ Security"
-    - key: "solare_3"
+    - key: t0114
       values:
         it: "☀ Solare ▶"
         en: "☀ Solar ▶"
-    - key: "aggiornare_shelly_id_in_project_yaml_con"
+    - key: t0115
       values:
         it: "Aggiornare SHELLY_*_ID in project.yaml con i MAC reali"
         en: "Update SHELLY_*_ID in project.yaml with the real MACs"
-    - key: "ufficio_garage"
+    - key: t0116
       values:
         it: "Ufficio / Garage"
         en: "Office / Garage"
-    - key: "su"
+    - key: t0117
       values:
         it: "▲ Su"
         en: "▲ Up"
-    - key: "stop"
+    - key: t0118
       values:
         it: "■ Stop"
         en: "■ Stop"
-    - key: "giu"
+    - key: t0119
       values:
         it: "▼ Giù"
         en: "▼ Down"
-    - key: "soggiorno_dx"
+    - key: t0120
       values:
         it: "Soggiorno DX"
         en: "Living room R"
-    - key: "soggiorno_sx"
+    - key: t0121
       values:
         it: "Soggiorno SX"
         en: "Living room L"
-    - key: "on"
+    - key: t0122
       values:
         it: "ON"
         en: "ON"
-    - key: "corrente"
+    - key: t0123
       values:
         it: "Corrente:"
         en: "Current:"
-    - key: "energia_tot"
+    - key: t0124
       values:
         it: "Energia tot.:"
         en: "Total energy:"
-    - key: "power_factor"
+    - key: t0125
       values:
         it: "Power Factor:"
         en: "Power Factor:"
-    - key: "potenza_ultima_ora"
+    - key: t0126
       values:
         it: "Potenza — ultima ora"
         en: "Power — last hour"
-    - key: "dispositivi_esphome"
+    - key: t0127
       values:
         it: "DISPOSITIVI ESPHOME"
         en: "ESPHOME DEVICES"
-    - key: "configurare_in_project_yaml_quando_i_top"
+    - key: t0128
       values:
         it: "Configurare in project.yaml quando i topic ESPHome MQTT sono noti"
         en: "Configure in project.yaml when the ESPHome MQTT topics are known"
-    - key: "sensore_posta"
+    - key: t0129
       values:
         it: "Sensore Posta"
         en: "Mailbox sensor"
-    - key: "esphome_offline"
+    - key: t0130
       values:
         it: "(ESPHome — offline)"
         en: "(ESPHome — offline)"
-    - key: "laghetto"
+    - key: t0131
       values:
         it: "Laghetto"
         en: "Pond"
-    - key: "esphome_da_configurare"
+    - key: t0132
       values:
         it: "(ESPHome — da configurare)"
         en: "(ESPHome — to configure)"
-    - key: "porta_garage"
+    - key: t0133
       values:
         it: "Porta garage:"
         en: "Garage door:"
-    - key: "il_garage_si_controlla_fisicamente_o_tra"
+    - key: t0134
       values:
         it: "Il garage si controlla fisicamente o tramite automazione HA"
         en: "The garage is controlled physically or via HA automation"
-    - key: "tapparelle_shellies_device_id_roller_0_c"
+    - key: t0135
       values:
         it: "Tapparelle: shellies/DEVICE_ID/roller/0/command · PDC: dds661/pompa-di-calore/state"
         en: "Tapparelle: shellies/DEVICE_ID/roller/0/command · PDC: dds661/pompa-di-calore/state"

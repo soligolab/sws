@@ -59,14 +59,14 @@ alarms:
     condition:
       kind: above
       threshold: 60.0
-    message: "Temperatura simulata sopra soglia (>60 °C)"
+    message: "{{t0017}}"
     severity: Warning
   - id: pressure_high
     tag: sim.pressure
     condition:
       kind: above
       threshold: 8.0
-    message: "Pressione simulata fuori range (>8 kPa)"
+    message: "{{t0018}}"
     severity: Critical
 
 functions: []
@@ -75,67 +75,73 @@ languages:
   default: it
   langs: [it, en]
   entries:
-    - key: "opc_ua_live"
+    - key: t0017
+      values:
+        it: "Temperatura simulata sopra soglia (>60 °C)"
+    - key: t0018
+      values:
+        it: "Pressione simulata fuori range (>8 kPa)"
+    - key: t0001
       values:
         it: "🔌  OPC-UA — Live"
         en: "🔌  OPC-UA — Live"
-    - key: "5_nodi_sottoscritti_via_subscription_int"
+    - key: t0002
       values:
         it: "5 nodi sottoscritti via subscription_interval_ms=500"
         en: "5 nodes subscribed via subscription_interval_ms=500"
-    - key: "tabella_nodi"
+    - key: t0003
       values:
         it: "Tabella nodi ▶"
         en: "Node table ▶"
-    - key: "temperatura_c"
+    - key: t0004
       values:
         it: "Temperatura (°C)"
         en: "Temperature (°C)"
-    - key: "pressione_kpa"
+    - key: t0005
       values:
         it: "Pressione (kPa)"
         en: "Pressure (kPa)"
-    - key: "stato_macchina_euromap_77"
+    - key: t0006
       values:
         it: "Stato macchina (Euromap 77)"
         en: "Machine state (Euromap 77)"
-    - key: "pronto"
+    - key: t0007
       values:
         it: "Pronto"
         en: "Ready"
-    - key: "cycle_time"
+    - key: t0008
       values:
         it: "Cycle Time"
         en: "Cycle Time"
-    - key: "trend_live_temperatura_pressione"
+    - key: t0009
       values:
         it: "Trend live (temperatura · pressione)"
         en: "Live trend (temperature · pressure)"
-    - key: "endpoint_opc_tcp_localhost_4840_security"
+    - key: t0010
       values:
         it: "▸ Endpoint: opc.tcp://localhost:4840 — security_policy: None — vedere SETUP.md per Basic256Sha256"
         en: "▸ Endpoint: opc.tcp://localhost:4840 — security_policy: None — see SETUP.md for Basic256Sha256"
-    - key: "opc_ua_tabella_nodi"
+    - key: t0011
       values:
         it: "🔌  OPC-UA — Tabella nodi"
         en: "🔌  OPC-UA — Tabella nodi"
-    - key: "live"
+    - key: t0012
       values:
         it: "◀ Live"
         en: "◀ Live"
-    - key: "mapping_nodeid_tag_corrente_live"
+    - key: t0013
       values:
         it: "Mapping NodeId → Tag corrente (live)"
         en: "NodeId → Tag mapping (live)"
-    - key: "suggerimento_in_configurazione_protocoll"
+    - key: t0014
       values:
         it: "Suggerimento: in Configurazione → Protocolli → OPC-UA, premi 🤖 Rileva Euromap per importare automaticamente i nodi canonici Euromap 77/83."
         en: "Tip: in Configuration → Protocols → OPC-UA, press 🤖 Detect Euromap to automatically import the canonical Euromap 77/83 nodes."
-    - key: "browse_manuale_sfoglia_server_apre_un_tr"
+    - key: t0015
       values:
         it: "Browse manuale: 🔍 Sfoglia server apre un tree lazy-load partendo da ObjectsFolder."
         en: "Manual browse: 🔍 Browse server opens a lazy-load tree starting from ObjectsFolder."
-    - key: "per_testare_in_locale_npx_y_node_opcua_s"
+    - key: t0016
       values:
         it: "▸ Per testare in locale: npx -y node-opcua-server  (oppure Prosys OPC UA Simulation Server)"
         en: "▸ To test locally: npx -y node-opcua-server  (or Prosys OPC UA Simulation Server)"

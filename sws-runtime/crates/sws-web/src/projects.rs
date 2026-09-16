@@ -50,6 +50,10 @@ pub async fn start_project_services(
     s: &AppState,
     notifications: Option<sws_core::NotificationConfig>,
     global_scripts: Vec<sws_core::GlobalScriptDef>,
+    // La tabella lingue del progetto che si sta aprendo: le notifiche la
+    // usano per risolvere i token nel messaggio d'allarme. Fotografata qui,
+    // come `notifications`, perché il supervisore vive quanto il progetto.
+    languages: sws_core::LanguageTable,
 ) {
     // Ferma quello che sta già girando, PRIMA di sostituirlo.
     //
@@ -100,11 +104,24 @@ pub async fn start_project_services(
 
     // Il canale Telegram si crea prima dei due supervisori, così condividono
     // lo stesso sink e una riconfigurazione a caldo li aggiorna entrambi.
-    let sinks =
-        crate::telegram::restart_sender(s, notifications.as_ref().and_then(|n| n.telegram.clone()))
-            .await;
+    let sinks = crate::telegram::restart_sender(
+        s,
+        notifications.as_ref().and_then(|n| n.telegram.clone()),
+        (
+            languages.clone(),
+            notifications
+                .as_ref()
+                .and_then(|n| n.notify_lang.clone())
+                .unwrap_or_else(|| languages.default.clone()),
+        ),
+    )
+    .await;
     // Il send_telegram delle FUNZIONI passa dall'engine condiviso s.py.
     s.py.set_telegram_sink(sinks.as_ref().map(|k| k.text.clone()));
+    // Le chiavi della tabella lingue, per `tr()` negli script. Qui e non
+    // altrove: è lo stesso punto in cui il motore riceve il canale Telegram,
+    // cioè l'unico che sa che il progetto è cambiato.
+    s.py.set_chiavi_lingua(languages.entries.iter().map(|e| e.key.clone()).collect());
     if !global_scripts.is_empty() {
         let n = global_scripts.len();
         let sc = GlobalScriptSupervisor::start(
@@ -119,7 +136,12 @@ pub async fn start_project_services(
         *s.script_supervisor.write().await = Some(sc);
     }
     if let Some(notif) = notifications {
-        let ns = NotificationSupervisor::start(s.alarms.clone(), notif, sinks.map(|k| k.messages));
+        let ns = NotificationSupervisor::start(
+            s.alarms.clone(),
+            notif,
+            sinks.map(|k| k.messages),
+            languages,
+        );
         info!("notification supervisor started");
         *s.notification_supervisor.write().await = Some(ns);
     }
@@ -779,6 +801,9 @@ pub async fn open_project(State(s): State<AppState>, Path(name): Path<String>) -
         .await;
 
     // 3. Apply the new project.
+    // La tabella lingue serve alle notifiche e `apply_loaded_project` consuma
+    // `project`: si copia prima.
+    let languages = project.languages.clone();
     let (notifications, global_scripts) = apply_loaded_project(
         &project_dir,
         project,
@@ -794,7 +819,7 @@ pub async fn open_project(State(s): State<AppState>, Path(name): Path<String>) -
         &s.instance_id,
     )
     .await;
-    start_project_services(&s, notifications, global_scripts).await;
+    start_project_services(&s, notifications, global_scripts, languages).await;
 
     // 4. Swap auth store. Drops all sessions → forces re-login.
     if let Err(e) = s

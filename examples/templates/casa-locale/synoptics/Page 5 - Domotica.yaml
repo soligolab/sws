@@ -12,7 +12,7 @@ objects:
   type: text
   x: 400
   y: 22
-  text: "{{domotica_controllo}}"
+  text: "{{t0112}}"
   font_size: 20
   font_weight: bold
   text_anchor: middle
@@ -26,7 +26,7 @@ objects:
   y: 14
   width: 130
   height: 30
-  label: "{{sicurezza_5}}"
+  label: "{{t0113}}"
   target_page: cl_page4
   group_id: g_nav
   locked: true
@@ -37,7 +37,7 @@ objects:
   y: 14
   width: 55
   height: 30
-  label: "{{msg}}"
+  label: "{{t0068}}"
   target_page: cl_page1
   group_id: g_nav
   locked: true
@@ -48,7 +48,7 @@ objects:
   y: 14
   width: 130
   height: 30
-  label: "{{solare_3}}"
+  label: "{{t0114}}"
   target_page: cl_page2
   group_id: g_nav
   locked: true
@@ -60,7 +60,7 @@ objects:
   type: text
   x: 20
   y: 60
-  text: "{{tapparelle}}"
+  text: "{{t0033}}"
   font_size: 13
   font_weight: bold
   color: "#94a3b8"
@@ -78,7 +78,7 @@ objects:
   type: text
   x: 20
   y: 78
-  text: "{{aggiornare_shelly_id_in_project_yaml_con}}"
+  text: "{{t0115}}"
   font_size: 9
   color: "#374151"
 
@@ -97,7 +97,7 @@ objects:
   type: text
   x: 30
   y: 106
-  text: "{{ufficio_garage}}"
+  text: "{{t0116}}"
   font_size: 11
   font_weight: bold
   color: "#cbd5e1"
@@ -129,7 +129,7 @@ objects:
   y: 140
   width: 52
   height: 28
-  label: "{{su}}"
+  label: "{{t0117}}"
   fill: "#1d4ed8"
   tag: shutter.garage
   write_value: "open"
@@ -140,7 +140,7 @@ objects:
   y: 140
   width: 52
   height: 28
-  label: "{{stop}}"
+  label: "{{t0118}}"
   fill: "#374151"
   tag: shutter.garage
   write_value: "stop"
@@ -151,7 +151,7 @@ objects:
   y: 140
   width: 52
   height: 28
-  label: "{{giu}}"
+  label: "{{t0119}}"
   fill: "#7c3aed"
   tag: shutter.garage
   write_value: "close"
@@ -171,7 +171,7 @@ objects:
   type: text
   x: 230
   y: 106
-  text: "{{bagno}}"
+  text: "{{t0035}}"
   font_size: 11
   font_weight: bold
   color: "#cbd5e1"
@@ -203,7 +203,7 @@ objects:
   y: 140
   width: 52
   height: 28
-  label: "{{su}}"
+  label: "{{t0117}}"
   fill: "#1d4ed8"
   tag: shutter.bagno
   write_value: "open"
@@ -214,7 +214,7 @@ objects:
   y: 140
   width: 52
   height: 28
-  label: "{{stop}}"
+  label: "{{t0118}}"
   fill: "#374151"
   tag: shutter.bagno
   write_value: "stop"
@@ -225,7 +225,7 @@ objects:
   y: 140
   width: 52
   height: 28
-  label: "{{giu}}"
+  label: "{{t0119}}"
   fill: "#7c3aed"
   tag: shutter.bagno
   write_value: "close"
@@ -245,7 +245,7 @@ objects:
   type: text
   x: 30
   y: 228
-  text: "{{soggiorno_dx}}"
+  text: "{{t0120}}"
   font_size: 11
   font_weight: bold
   color: "#cbd5e1"
@@ -277,7 +277,7 @@ objects:
   y: 262
   width: 52
   height: 28
-  label: "{{su}}"
+  label: "{{t0117}}"
   fill: "#1d4ed8"
   tag: shutter.sogg_dx
   write_value: "open"
@@ -288,7 +288,7 @@ objects:
   y: 262
   width: 52
   height: 28
-  label: "{{stop}}"
+  label: "{{t0118}}"
   fill: "#374151"
   tag: shutter.sogg_dx
   write_value: "stop"
@@ -299,7 +299,7 @@ objects:
   y: 262
   width: 52
   height: 28
-  label: "{{giu}}"
+  label: "{{t0119}}"
   fill: "#7c3aed"
   tag: shutter.sogg_dx
   write_value: "close"
@@ -319,7 +319,7 @@ objects:
   type: text
   x: 230
   y: 228
-  text: "{{soggiorno_sx}}"
+  text: "{{t0121}}"
   font_size: 11
   font_weight: bold
   color: "#cbd5e1"
@@ -351,7 +351,7 @@ objects:
   y: 262
   width: 52
   height: 28
-  label: "{{su}}"
+  label: "{{t0117}}"
   fill: "#1d4ed8"
   tag: shutter.sogg_sx
   write_value: "open"
@@ -362,7 +362,7 @@ objects:
   y: 262
   width: 52
   height: 28
-  label: "{{stop}}"
+  label: "{{t0118}}"
   fill: "#374151"
   tag: shutter.sogg_sx
   write_value: "stop"
@@ -373,7 +373,7 @@ objects:
   y: 262
   width: 52
   height: 28
-  label: "{{giu}}"
+  label: "{{t0119}}"
   fill: "#7c3aed"
   tag: shutter.sogg_sx
   write_value: "close"
@@ -397,7 +397,7 @@ objects:
   type: text
   x: 460
   y: 60
-  text: "{{pompa_di_calore}}"
+  text: "{{t0075}}"
   font_size: 13
   font_weight: bold
   color: "#a855f7"
@@ -417,7 +417,7 @@ objects:
   type: text
   x: 786
   y: 68
-  text: "{{on}}"
+  text: "{{t0122}}"
   font_size: 9
   color: "#a855f7"
 
@@ -431,7 +431,7 @@ objects:
   min: 0
   max: 3500
   unit: "W"
-  label: "{{potenza_2}}"
+  label: "{{t0072}}"
   warn_high: 2500
   alarm_high: 3200
 
@@ -439,7 +439,7 @@ objects:
   type: text
   x: 450
   y: 238
-  text: "{{tensione}}"
+  text: "{{t0053}}"
   font_size: 11
   color: "#64748b"
 - id: cl5_pdc_v_val
@@ -456,7 +456,7 @@ objects:
   type: text
   x: 450
   y: 258
-  text: "{{corrente}}"
+  text: "{{t0123}}"
   font_size: 11
   color: "#64748b"
 - id: cl5_pdc_i_val
@@ -473,7 +473,7 @@ objects:
   type: text
   x: 450
   y: 278
-  text: "{{energia_tot}}"
+  text: "{{t0124}}"
   font_size: 11
   color: "#64748b"
 - id: cl5_pdc_e_val
@@ -490,7 +490,7 @@ objects:
   type: text
   x: 450
   y: 298
-  text: "{{power_factor}}"
+  text: "{{t0125}}"
   font_size: 11
   color: "#64748b"
 - id: cl5_pdc_pf_val
@@ -508,7 +508,7 @@ objects:
   type: text
   x: 450
   y: 320
-  text: "{{potenza_ultima_ora}}"
+  text: "{{t0126}}"
   font_size: 10
   color: "#475569"
 
@@ -527,7 +527,7 @@ objects:
   type: text
   x: 460
   y: 440
-  text: "{{dispositivi_esphome}}"
+  text: "{{t0127}}"
   font_size: 12
   font_weight: bold
   color: "#64748b"
@@ -536,7 +536,7 @@ objects:
   type: text
   x: 460
   y: 458
-  text: "{{configurare_in_project_yaml_quando_i_top}}"
+  text: "{{t0128}}"
   font_size: 9
   color: "#374151"
 
@@ -555,7 +555,7 @@ objects:
   type: text
   x: 470
   y: 484
-  text: "{{sensore_posta}}"
+  text: "{{t0129}}"
   font_size: 11
   font_weight: bold
   color: "#cbd5e1"
@@ -564,7 +564,7 @@ objects:
   type: text
   x: 470
   y: 500
-  text: "{{esphome_offline}}"
+  text: "{{t0130}}"
   font_size: 9
   color: "#374151"
 
@@ -594,7 +594,7 @@ objects:
   type: text
   x: 640
   y: 484
-  text: "{{laghetto}}"
+  text: "{{t0131}}"
   font_size: 11
   font_weight: bold
   color: "#cbd5e1"
@@ -603,7 +603,7 @@ objects:
   type: text
   x: 640
   y: 500
-  text: "{{esphome_da_configurare}}"
+  text: "{{t0132}}"
   font_size: 9
   color: "#374151"
 
@@ -614,7 +614,7 @@ objects:
   type: text
   x: 20
   y: 352
-  text: "{{garage_sezionale_2}}"
+  text: "{{t0085}}"
   font_size: 12
   font_weight: bold
   color: "#64748b"
@@ -644,7 +644,7 @@ objects:
   type: text
   x: 70
   y: 390
-  text: "{{porta_garage}}"
+  text: "{{t0133}}"
   font_size: 12
   color: "#64748b"
 
@@ -662,7 +662,7 @@ objects:
   type: text
   x: 70
   y: 408
-  text: "{{il_garage_si_controlla_fisicamente_o_tra}}"
+  text: "{{t0134}}"
   font_size: 9
   color: "#334155"
 
@@ -671,7 +671,7 @@ objects:
   type: text
   x: 400
   y: 610
-  text: "{{tapparelle_shellies_device_id_roller_0_c}}"
+  text: "{{t0135}}"
   font_size: 9
   text_anchor: middle
   color: "#1e293b"

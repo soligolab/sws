@@ -491,8 +491,13 @@ pub async fn system_start(State(s): State<AppState>) -> StatusCode {
     // flag: è l'intenzione dell'operatore, non l'effetto di un salvataggio.
     s.supervisor.set_armed(true);
     s.supervisor.reload(project.sources).await;
-    crate::projects::start_project_services(&s, project.notifications, project.global_scripts)
-        .await;
+    crate::projects::start_project_services(
+        &s,
+        project.notifications,
+        project.global_scripts,
+        project.languages,
+    )
+    .await;
     tracing::info!("runtime acquisition started by operator");
     StatusCode::NO_CONTENT
 }

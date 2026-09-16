@@ -163,6 +163,7 @@ try:
             'delta_ms':    delta_ms,
             'state':       state,
             'functions':   functions,
+            'tr':          tr,
         }
         try:
             __sws_compiled__ = compile_restricted(__sws_user_source__, '<inline>', 'exec')
@@ -178,6 +179,7 @@ try:
             'delta_ms':      delta_ms,
             'state':         state,
             'functions':     functions,
+            'tr':            tr,
         }
         try:
             __sws_compiled__ = compile(__sws_user_source__, '<inline>', 'exec')
@@ -218,6 +220,45 @@ struct TagApi {
 /// Injected into script globals as the callable `send_telegram(text)`. Pushes
 /// the text onto the shared Telegram channel owned by `sws-web` (which does the
 /// actual HTTP). `sws-pyscript` stays HTTP-free — it only holds the sender.
+/// `tr("chiave")` — **non traduce**: restituisce `{{chiave}}`, cioè un
+/// riferimento alla tabella lingue del progetto.
+///
+/// Sembra un cavillo ed è la scelta che fa funzionare la cosa. Uno script non
+/// sa **chi leggerà** ciò che scrive: lo stesso valore finisce sul pannello di
+/// un operatore italiano e su quello di un collega spagnolo, e la lingua giusta
+/// la sa solo chi disegna, nel momento in cui disegna. Se `tr` traducesse qui,
+/// sceglierebbe una lingua sola per tutti — e sarebbe quella di chi ha scritto
+/// il progetto, non quella di chi guarda.
+///
+/// Il valore torna quindi come token, e lo risolvono i due viewer (e il canale
+/// Telegram, che una lingua ce l'ha: quella delle notifiche).
+///
+/// Una chiave che non esiste **non** è un errore che ferma lo script: sarebbe
+/// sproporzionato fermare una logica d'impianto per un'etichetta. Si scrive nel
+/// registro e si restituisce il token lo stesso, che sul pannello si vede come
+/// `{{chiave}}` — cioè si dichiara.
+#[pyclass]
+struct Traduttore {
+    chiavi: Arc<Mutex<Vec<String>>>,
+}
+
+#[pymethods]
+impl Traduttore {
+    fn __call__(&self, chiave: String) -> String {
+        let nota = self
+            .chiavi
+            .lock()
+            .map(|c| c.contains(&chiave))
+            .unwrap_or(false);
+        if !nota {
+            eprintln!(
+                "[script] tr(\"{chiave}\"): questa chiave non è nella tabella lingue del progetto"
+            );
+        }
+        format!("{{{{{chiave}}}}}")
+    }
+}
+
 #[pyclass]
 struct Notifier {
     tx: Option<mpsc::UnboundedSender<String>>,
@@ -487,6 +528,15 @@ pub struct Engine {
     /// clones so the sink can be (re)set at runtime on the shared engine used by
     /// functions. `None` inside = Telegram not configured.
     telegram_tx: Arc<Mutex<Option<mpsc::UnboundedSender<String>>>>,
+    /// Le chiavi della tabella lingue del progetto aperto, per `tr(chiave)`.
+    ///
+    /// Solo le **chiavi**, non le traduzioni: `tr` non traduce, restituisce un
+    /// riferimento (vedi `Traduttore`). Servono a dire subito «questa chiave non
+    /// esiste» invece di lasciare che il token compaia su un pannello.
+    ///
+    /// Interior-mutable come `telegram_tx`, e per lo stesso motivo: il motore
+    /// condiviso dietro `AppState.py` sopravvive al cambio progetto.
+    chiavi_lingua: Arc<Mutex<Vec<String>>>,
     /// T-69: backs `uptime_ms()`/`delta_ms()`/`state.get`/`state.set`, keyed by
     /// the caller-supplied `identity` (a global script's own id, or a
     /// function's name — see `execute_with_args`). One entry per identity, not
@@ -589,6 +639,7 @@ impl Engine {
             sandbox: Arc::new(AtomicBool::new(sandbox)),
             timeout: Duration::from_millis(timeout_ms),
             telegram_tx: Arc::new(Mutex::new(None)),
+            chiavi_lingua: Arc::new(Mutex::new(Vec::new())),
             states: Arc::new(Mutex::new(std::collections::HashMap::new())),
             functions: Arc::new(Mutex::new(None)),
             functions_engine: Arc::new(Mutex::new(None)),
@@ -601,6 +652,14 @@ impl Engine {
     pub fn set_telegram_sink(&self, tx: Option<mpsc::UnboundedSender<String>>) {
         if let Ok(mut guard) = self.telegram_tx.lock() {
             *guard = tx;
+        }
+    }
+
+    /// Le chiavi della tabella lingue del progetto aperto. Si richiama
+    /// all'apertura, come `set_telegram_sink`.
+    pub fn set_chiavi_lingua(&self, chiavi: Vec<String>) {
+        if let Ok(mut guard) = self.chiavi_lingua.lock() {
+            *guard = chiavi;
         }
     }
 
@@ -659,6 +718,9 @@ impl Engine {
         let sandbox = self.is_sandboxed();
         let timeout = self.timeout;
         let telegram = self.telegram_tx.lock().ok().and_then(|g| g.clone());
+        // L'`Arc` e non una copia: il progetto può cambiare mentre uno script
+        // gira, e `tr()` deve vedere le chiavi di adesso.
+        let chiavi_lingua = self.chiavi_lingua.clone();
         let functions = self.functions.lock().ok().and_then(|g| g.clone());
         // T-69 fase C, corretto in questa sessione: `functions.run(...)`
         // esegue il codice della funzione chiamata sul motore CANONICO
@@ -714,6 +776,7 @@ impl Engine {
                 args,
                 timeout,
                 telegram,
+                chiavi_lingua,
                 now_ms,
                 uptime_ms,
                 delta_ms,
@@ -881,6 +944,9 @@ fn run_in_python(
     args: serde_json::Map<String, serde_json::Value>,
     timeout: Duration,
     telegram_tx: Option<mpsc::UnboundedSender<String>>,
+    // Le chiavi della tabella lingue, per `tr()`. Condivise con l'Engine e non
+    // copiate: il progetto può cambiare mentre uno script gira.
+    chiavi_lingua: Arc<Mutex<Vec<String>>>,
     now_ms: i64,
     uptime_ms: i64,
     delta_ms: i64,
@@ -928,6 +994,15 @@ fn run_in_python(
         globals.set_item("delta_ms", delta_ms_obj)?;
         globals.set_item("state", state_obj)?;
         globals.set_item("functions", functions_obj)?;
+        globals.set_item(
+            "tr",
+            Py::new(
+                py,
+                Traduttore {
+                    chiavi: chiavi_lingua.clone(),
+                },
+            )?,
+        )?;
         globals.set_item("__sws_kill_switch__", kill_switch)?;
         globals.set_item("__sws_user_source__", user_source)?;
         globals.set_item("__sws_sandbox__", sandbox)?;
@@ -1070,7 +1145,7 @@ if __sws_syntax__ is None and __sws_vietato__ is None and __sws_albero__ is not 
     __sws_candidati__ = ['open', '__import__', 'compile', 'input', 'globals',
                          'locals', 'vars', 'dir', 'eval', 'exec', 'breakpoint',
                          'memoryview', 'help', 'exit', 'quit']
-    __sws_forniti__ = ['tags', 'send_telegram', 'print',
+    __sws_forniti__ = ['tags', 'send_telegram', 'tr', 'print',
                        'now_ms', 'uptime_ms', 'delta_ms', 'state', 'functions']
     for _n in ast.walk(__sws_albero__):
         if isinstance(_n, (ast.Import, ast.ImportFrom)):
@@ -1695,5 +1770,47 @@ tags.write('delta', delta_ms())
             "errore inatteso: {err}"
         );
         assert!(!err.contains("NameError"), "{err}");
+    }
+}
+
+/// `tr(chiave)` — il riferimento alla tabella lingue esposto agli script.
+#[cfg(test)]
+mod tr_tests {
+    use super::*;
+    use sws_core::{TagDb, TagWriteBus};
+
+    fn motore() -> Engine {
+        Engine::new(Arc::new(TagDb::new(16)), Arc::new(TagWriteBus::new()))
+    }
+
+    #[tokio::test]
+    async fn tr_restituisce_un_token_non_una_traduzione() {
+        // È la scelta di disegno che fa funzionare tutto il resto: uno script
+        // non sa CHI leggerà ciò che scrive. Lo stesso valore finisce sul
+        // pannello di un operatore italiano e su quello di un collega spagnolo,
+        // e la lingua giusta la sa solo chi disegna, nel momento in cui disegna.
+        // Se `tr` traducesse qui, sceglierebbe una lingua sola per tutti —
+        // quella di chi ha scritto il progetto, non quella di chi guarda.
+        let e = motore();
+        e.set_chiavi_lingua(vec!["t0001".into()]);
+        let out = e
+            .execute("print(tr('t0001'))".into(), "prova")
+            .await
+            .expect("script");
+        assert_eq!(out.stdout.trim(), "{{t0001}}");
+    }
+
+    #[tokio::test]
+    async fn una_chiave_ignota_non_ferma_lo_script() {
+        // Fermare una logica d'impianto per un'etichetta sarebbe
+        // sproporzionato: si scrive nel registro e si restituisce il token, che
+        // sul pannello si vede come `{{...}}` — cioè si dichiara.
+        let e = motore();
+        e.set_chiavi_lingua(vec!["t0001".into()]);
+        let out = e
+            .execute("print(tr('inesistente'))".into(), "prova")
+            .await
+            .expect("script");
+        assert_eq!(out.stdout.trim(), "{{inesistente}}");
     }
 }

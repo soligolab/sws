@@ -324,7 +324,7 @@ alarms:
       kind: above
       threshold: 27.0
     dead_band: 1.0
-    message: "Soggiorno caldo: {value:.1f}°C"
+    message: "{{t0069}}"
     severity: Warning
 
   - id: alm-freddo
@@ -333,7 +333,7 @@ alarms:
       kind: below
       threshold: 15.0
     dead_band: 1.0
-    message: "Soggiorno freddo: {value:.1f}°C"
+    message: "{{t0070}}"
     severity: Warning
 
   - id: alm-consumo
@@ -342,7 +342,7 @@ alarms:
       kind: above
       threshold: 5.0
     dead_band: 0.5
-    message: "Consumo elevato: {value:.1f} kW"
+    message: "{{t0071}}"
     severity: Critical
 
   - id: alm-batteria
@@ -351,303 +351,324 @@ alarms:
       kind: below
       threshold: 15.0
     dead_band: 3.0
-    message: "Batteria scarica: {value:.0f}%"
+    message: "{{t0072}}"
     severity: Warning
 
   - id: alm-garage
     tag: garage.aperto
     condition:
       kind: bool_true
-    message: "Porta garage aperta"
+    message: "{{t0073}}"
     severity: Warning
 
   - id: alm-porta
     tag: porta.principale
     condition:
       kind: bool_true
-    message: "Portoncino ingresso aperto"
+    message: "{{t0074}}"
     severity: Info
 
   - id: alm-movimento-esterno
     tag: movimento.esterno
     condition:
       kind: bool_true
-    message: "Movimento rilevato area esterna"
+    message: "{{t0075}}"
     severity: Info
 
 languages:
   default: it
   langs: [it, en]
   entries:
-    - key: "home_assistant_panoramica"
+    - key: t0069
+      values:
+        it: "Soggiorno caldo: {value:.1f}°C"
+    - key: t0070
+      values:
+        it: "Soggiorno freddo: {value:.1f}°C"
+    - key: t0071
+      values:
+        it: "Consumo elevato: {value:.1f} kW"
+    - key: t0072
+      values:
+        it: "Batteria scarica: {value:.0f}%"
+    - key: t0073
+      values:
+        it: "Porta garage aperta"
+    - key: t0074
+      values:
+        it: "Portoncino ingresso aperto"
+    - key: t0075
+      values:
+        it: "Movimento rilevato area esterna"
+    - key: t0001
       values:
         it: "HOME ASSISTANT — PANORAMICA"
         en: "HOME ASSISTANT — OVERVIEW"
-    - key: "clima_energia_sicurezza_luci"
+    - key: t0002
       values:
         it: "Clima · Energia · Sicurezza · Luci"
         en: "Climate · Energy · Security · Lights"
-    - key: "panoramica"
+    - key: t0003
       values:
         it: "◉ Panoramica"
         en: "◉ Overview"
-    - key: "controllo"
+    - key: t0004
       values:
         it: "⚙ Controllo"
         en: "⚙ Control"
-    - key: "storico"
+    - key: t0005
       values:
         it: "📈 Storico"
         en: "📈 History"
-    - key: "clima"
+    - key: t0006
       values:
         it: "CLIMA"
         en: "CLIMATE"
-    - key: "interno"
+    - key: t0007
       values:
         it: "INTERNO"
         en: "INDOOR"
-    - key: "comfort"
+    - key: t0008
       values:
         it: "Comfort:"
         en: "Comfort:"
-    - key: "esterno"
+    - key: t0009
       values:
         it: "ESTERNO"
         en: "OUTDOOR"
-    - key: "delta"
+    - key: t0010
       values:
         it: "Delta:"
         en: "Delta:"
-    - key: "energia"
+    - key: t0011
       values:
         it: "ENERGIA"
         en: "ENERGY"
-    - key: "potenza_istantanea"
+    - key: t0012
       values:
         it: "POTENZA ISTANTANEA"
         en: "INSTANT POWER"
-    - key: "sicurezza"
+    - key: t0013
       values:
         it: "SICUREZZA"
         en: "SECURITY"
-    - key: "porta_principale"
+    - key: t0014
       values:
         it: "Porta principale"
         en: "Main door"
-    - key: "movimento_ingresso"
+    - key: t0015
       values:
         it: "Movimento ingresso"
         en: "Entrance motion"
-    - key: "garage"
+    - key: t0016
       values:
         it: "Garage"
         en: "Garage"
-    - key: "modalita_notturna"
+    - key: t0017
       values:
         it: "Modalità notturna"
         en: "Night mode"
-    - key: "luci"
+    - key: t0018
       values:
         it: "LUCI"
         en: "LIGHTS"
-    - key: "soggiorno"
+    - key: t0019
       values:
         it: "Soggiorno"
         en: "Living room"
-    - key: "cucina"
+    - key: t0020
       values:
         it: "Cucina"
         en: "Kitchen"
-    - key: "esterna"
+    - key: t0021
       values:
         it: "Esterna"
         en: "Outdoor"
-    - key: "richiede_ruolo_supervisor"
+    - key: t0022
       values:
         it: "richiede ruolo Supervisor+"
         en: "requires Supervisor+ role"
-    - key: "ventilatore"
+    - key: t0023
       values:
         it: "Ventilatore"
         en: "Ventilatore"
-    - key: "riscaldamento"
+    - key: t0024
       values:
         it: "RISCALDAMENTO"
         en: "HEATING"
-    - key: "temperatura_attuale"
+    - key: t0025
       values:
         it: "Temperatura attuale"
         en: "Current temperature"
-    - key: "setpoint_corrente"
+    - key: t0026
       values:
         it: "Setpoint corrente"
         en: "Current setpoint"
-    - key: "sole"
+    - key: t0027
       values:
         it: "☀ SOLE"
         en: "☀ SUN"
-    - key: "elevazione"
+    - key: t0028
       values:
         it: "elevazione"
         en: "elevation"
-    - key: "home_assistant_controllo"
+    - key: t0029
       values:
         it: "HOME ASSISTANT — CONTROLLO"
         en: "HOME ASSISTANT — CONTROL"
-    - key: "attuatori_con_write_back_diretto_su_home"
+    - key: t0030
       values:
         it: "Attuatori con write-back diretto su HomeAssistant"
         en: "Actuators with direct write-back to HomeAssistant"
-    - key: "panoramica_2"
+    - key: t0031
       values:
         it: "◎ Panoramica"
         en: "◎ Overview"
-    - key: "controllo_2"
+    - key: t0032
       values:
         it: "◉ Controllo"
         en: "◉ Control"
-    - key: "on"
+    - key: t0033
       values:
         it: "ON"
         en: "ON"
-    - key: "off"
+    - key: t0034
       values:
         it: "OFF"
         en: "OFF"
-    - key: "setpoint_ha"
+    - key: t0035
       values:
         it: "Setpoint HA"
         en: "HA setpoint"
-    - key: "nuovo_setpoint"
+    - key: t0036
       values:
         it: "Nuovo setpoint:"
         en: "New setpoint:"
-    - key: "scrivere_ha_chiama_input_number_set_valu"
+    - key: t0037
       values:
         it: "Scrivere: HA chiama input_number.set_value"
         en: "Write: HA calls input_number.set_value"
-    - key: "irrigazione"
+    - key: t0038
       values:
         it: "IRRIGAZIONE"
         en: "IRRIGAZIONE"
-    - key: "durata_minuti"
+    - key: t0039
       values:
         it: "Durata (minuti):"
         en: "Duration (minutes):"
-    - key: "durata_impostata"
+    - key: t0040
       values:
         it: "Durata impostata:"
         en: "Set duration:"
-    - key: "modalita"
+    - key: t0041
       values:
         it: "MODALITÀ"
         en: "MODE"
-    - key: "attiva"
+    - key: t0042
       values:
         it: "🌙 Attiva"
         en: "🌙 Activate"
-    - key: "disattiva"
+    - key: t0043
       values:
         it: "☀ Disattiva"
         en: "☀ Deactivate"
-    - key: "scrive_su_input_boolean_night_mode_in_ha"
+    - key: t0044
       values:
         it: "Scrive su input_boolean.night_mode in HA"
         en: "Writes to input_boolean.night_mode in HA"
-    - key: "write_back_ogni_modifica_qui_viene_invia"
+    - key: t0045
       values:
         it: "Write-back: ogni modifica qui viene inviata a HomeAssistant via WebSocket (call_service). Riconnessione automatica se HA non è raggiungibile."
         en: "Write-back: every change here is sent to HomeAssistant via WebSocket (call_service). Automatic reconnection if HA is unreachable."
-    - key: "bool_turn_on_turn_off_float_int_service"
+    - key: t0046
       values:
         it: "Bool → turn_on / turn_off  •  Float/Int → service_data: {value: N}  •  Latenza tipica: < 200 ms su rete locale"
         en: "Bool → turn_on / turn_off  •  Float/Int → service_data: {value: N}  •  Typical latency: < 200 ms on local network"
-    - key: "home_assistant_storico"
+    - key: t0047
       values:
         it: "HOME ASSISTANT — STORICO"
         en: "HOME ASSISTANT — HISTORY"
-    - key: "tag_derivati_trend_statistiche"
+    - key: t0048
       values:
         it: "Tag derivati · Trend · Statistiche"
         en: "Derived tags · Trend · Statistics"
-    - key: "storico_2"
+    - key: t0049
       values:
         it: "◉ Storico"
         en: "◉ History"
-    - key: "tag_derivati_calcolati_in_sws_da_espress"
+    - key: t0050
       values:
         it: "TAG DERIVATI (calcolati in SWS da espressioni Python)"
         en: "DERIVED TAGS (computed in SWS from Python expressions)"
-    - key: "costo_energia_h"
+    - key: t0051
       values:
         it: "Costo energia (€/h):"
         en: "Energy cost (€/h):"
-    - key: "potenza_w_0_25_1000"
+    - key: t0052
       values:
         it: "potenza_W × 0.25 / 1000"
         en: "power_W × 0.25 / 1000"
-    - key: "delta_int_ext_c"
+    - key: t0053
       values:
         it: "Delta Int–Ext (°C):"
         en: "Delta In–Out (°C):"
-    - key: "sala_temperatura_esterno_temperatura"
+    - key: t0054
       values:
         it: "sala.temperatura − esterno.temperatura"
         en: "sala.temperatura − esterno.temperatura"
-    - key: "indice_comfort_0_100"
+    - key: t0055
       values:
         it: "Indice comfort (0–100):"
         en: "Comfort index (0–100):"
-    - key: "t_ideale_22_c_h_ideale_50_score_0_100"
+    - key: t0056
       values:
         it: "T ideale 22°C + H ideale 50% → score 0–100"
         en: "Ideal T 22°C + ideal H 50% → score 0–100"
-    - key: "valori_live_tag_con_history_abilitata"
+    - key: t0057
       values:
         it: "VALORI LIVE — TAG CON HISTORY ABILITATA"
         en: "LIVE VALUES — TAGS WITH HISTORY ENABLED"
-    - key: "temp_soggiorno"
+    - key: t0058
       values:
         it: "Temp. Soggiorno"
         en: "Living-room temp."
-    - key: "history_true_persiste_su_sqlite"
+    - key: t0059
       values:
         it: "history: true → persiste su SQLite"
         en: "history: true → persists to SQLite"
-    - key: "temp_esterna"
+    - key: t0060
       values:
         it: "Temp. Esterna"
         en: "Outdoor temp."
-    - key: "potenza"
+    - key: t0061
       values:
         it: "Potenza"
         en: "Power"
-    - key: "come_usare_lo_storico"
+    - key: t0062
       values:
         it: "COME USARE LO STORICO"
         en: "HOW TO USE THE HISTORY"
-    - key: "i_tag_con_history_true_vengono_campionat"
+    - key: t0063
       values:
         it: "▶  I tag con history: true vengono campionati ogni volta che cambiano e salvati nel DB SQLite di SWS."
         en: "▶  Tags with history: true are sampled whenever they change and saved to the SWS SQLite DB."
-    - key: "in_runtime_pannello_log_trend_puoi_visua"
+    - key: t0064
       values:
         it: "▶  In Runtime → pannello Log/Trend puoi visualizzare l'andamento temporale di sala.temperatura, esterno.temperatura, energia.potenza_w."
         en: "▶  In Runtime → Log/Trend panel you can view the time trend of sala.temperatura, esterno.temperatura, energia.potenza_w."
-    - key: "api_rest_get_api_history_tag_from_ms_to"
+    - key: t0065
       values:
         it: "▶  API REST: GET /api/history/{tag}?from_ms=&to_ms=  — oppure ⬇ CSV dal pannello Trend per export in Excel."
         en: "▶  REST API: GET /api/history/{tag}?from_ms=&to_ms=  — or ⬇ CSV from the Trend panel to export to Excel."
-    - key: "get_api_history_tag_stats_from_ms_to_ms"
+    - key: t0066
       values:
         it: "▶  GET /api/history/{tag}/stats?from_ms=&to_ms= restituisce min/max/avg/σ sulla finestra temporale scelta."
         en: "▶  GET /api/history/{tag}/stats?from_ms=&to_ms= returns min/max/avg/σ over the chosen time window."
-    - key: "tag_derivati_expression_ricalcolati_ad_o"
+    - key: t0067
       values:
         it: "Tag derivati (expression): ricalcolati ad ogni aggiornamento di qualsiasi tag — non richiedono history per funzionare."
         en: "Derived tags (expression): recomputed on every tag update — they don't need history to work."
-    - key: "esempio_energia_costo_ora_eur_tags_energ"
+    - key: t0068
       values:
         it: "  Esempio: energia.costo_ora_eur  =  tags['energia.potenza_w'] * 0.25 / 1000"
         en: "  Esempio: energia.costo_ora_eur  =  tags['energia.potenza_w'] * 0.25 / 1000"

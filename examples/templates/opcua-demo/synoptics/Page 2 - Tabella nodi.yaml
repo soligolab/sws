@@ -12,7 +12,7 @@ objects:
   type: text
   x: 440
   y: 24
-  text: "{{opc_ua_tabella_nodi}}"
+  text: "{{t0011}}"
   font_size: 20
   font_weight: bold
   text_anchor: middle
@@ -26,7 +26,7 @@ objects:
   y: 14
   width: 180
   height: 30
-  label: "{{live}}"
+  label: "{{t0012}}"
   target_page: opc_page1
   group_id: g_nav
   locked: true
@@ -35,7 +35,7 @@ objects:
   type: text
   x: 440
   y: 50
-  text: "{{mapping_nodeid_tag_corrente_live}}"
+  text: "{{t0013}}"
   font_size: 11
   text_anchor: middle
   color: "#475569"
@@ -76,7 +76,7 @@ objects:
   type: text
   x: 30
   y: 290
-  text: "{{suggerimento_in_configurazione_protocoll}}"
+  text: "{{t0014}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -84,7 +84,7 @@ objects:
   type: text
   x: 30
   y: 312
-  text: "{{browse_manuale_sfoglia_server_apre_un_tr}}"
+  text: "{{t0015}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -95,7 +95,7 @@ objects:
   type: text
   x: 440
   y: 540
-  text: "{{per_testare_in_locale_npx_y_node_opcua_s}}"
+  text: "{{t0016}}"
   font_size: 9
   text_anchor: middle
   color: "#334155"

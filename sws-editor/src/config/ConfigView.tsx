@@ -10482,6 +10482,7 @@ function DevicesTab() {
 
 // ── Languages tab (T-40): project message translation table ─────────────────
 function LanguagesTab() {
+  const markSaveOk = useAppStore((s) => s.markSaveOk);
   const { t } = useTranslation();
   const storeTable       = useAppStore((s) => s.project?.languages);
   const updateLanguages  = useAppStore((s) => s.updateProjectLanguages);
@@ -10545,8 +10546,90 @@ function LanguagesTab() {
   const handleSave = async () => {
     const clean: LanguageTable = { ...table, entries: table.entries.filter((e) => e.key.trim() !== "") };
     setSaving(true);
-    try { await api.updateLanguages(clean); updateLanguages(clean); setTable(clean); setSaved(true); setTimeout(() => setSaved(false), 3000); }
-    finally { setSaving(false); }
+    try {
+      await api.updateLanguages(clean);
+      updateLanguages(clean);
+      setTable(clean);
+      // Senza questo il watcher del progetto scambia il NOSTRO salvataggio per
+      // un cambio esterno e fa comparire la barra «il progetto sul runtime è
+      // cambiato». Premere «Ricarica» lì butta via il lavoro non salvato — il
+      // maintainer ci ha perso degli oggetti appena inseriti, il 15-09-2026.
+      // Tutte le altre schede di ConfigView lo chiamavano già; questa no.
+      markSaveOk();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } finally { setSaving(false); }
+  };
+
+  // ── Traduzione automatica (Fase 4) ────────────────────────────────────────
+  //
+  // Il default è la modalità SEMPLICE: chi preme «traduci» deve ottenere una
+  // traduzione, non un modulo di configurazione. I fornitori a pagamento
+  // (Google, e l'assistente IA già configurato) stanno nello stesso elenco.
+  const [traduttore, setTraduttore] = useState("my_memory");
+  const [chiaveTrad, setChiaveTrad] = useState("");
+  const [urlTrad, setUrlTrad] = useState("");
+  const [traducendo, setTraducendo] = useState<string | null>(null);
+
+  const traduci = async (verso: string) => {
+    if (!verso || verso === table.default) return;
+    // Quante voci partiranno davvero: una richiesta di rete ciascuna, in fila.
+    // Dirlo prima è l'unica onestà possibile su un'attesa che può durare
+    // minuti — il maintainer l'ha vissuta come un blocco senza spiegazione.
+    const quante = table.entries.filter(
+      (e) => (e.values[table.default] ?? "").trim() !== "" && (e.values[verso] ?? "").trim() === "",
+    ).length;
+    if (quante === 0) {
+      window.alert(`Niente da tradurre verso «${verso}»: le caselle sono già piene.`);
+      return;
+    }
+    if (!window.confirm(
+      `Traduco ${quante} voci verso «${verso}», una richiesta di rete ciascuna.\n\n` +
+      "Può richiedere qualche minuto e l'editor resta in attesa. Procedo?",
+    )) return;
+    // Si salva prima: il server traduce ciò che ha su disco, e una riga appena
+    // digitata e non salvata non verrebbe tradotta — senza che nessuno capisca
+    // perché.
+    await handleSave();
+    setTraducendo(verso);
+    try {
+      const r = await api.translateLanguages({
+        a: verso,
+        sovrascrivi: false,
+        config: {
+          fornitore: traduttore,
+          url: urlTrad.trim() || undefined,
+          chiave: chiaveTrad.trim() || undefined,
+        },
+      });
+      const p = await api.getProject();
+      if (p) {
+        useAppStore.getState().setProject(p);
+        // **E anche la copia locale di questa scheda.** Senza, la tabella qui
+        // resta quella di prima della traduzione: il salvataggio successivo —
+        // compreso quello che `traduci` fa da sé all'inizio — rimanderebbe al
+        // server la versione vecchia, CANCELLANDO le traduzioni appena fatte.
+        // È il difetto per cui una colonna risultava vuota dopo aver tradotto
+        // verso due lingue di fila.
+        if (p.languages) setTable(p.languages);
+      }
+      // Anche questa è una scrittura nostra su project.yaml: va dichiarata, o
+      // il watcher la legge come un cambio esterno.
+      markSaveOk();
+      const problemi = r.problemi.length
+        ? `\n\nRighe non tradotte (${r.problemi.length}):\n` + r.problemi.slice(0, 8).join("\n")
+        : "";
+      window.alert(
+        `Tradotte ${r.tradotte} voci verso «${verso}», ${r.saltate} già a posto o da non tradurre.` +
+          problemi +
+          "\n\nRileggile prima di mandarle su un impianto: una traduzione automatica di un " +
+          "messaggio d'allarme non è una questione di stile.",
+      );
+    } catch (e) {
+      window.alert(`Traduzione fallita: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setTraducendo(null);
+    }
   };
 
   const exportCsv = () => {
@@ -10607,6 +10690,36 @@ function LanguagesTab() {
           {table.langs.map((l) => <option key={l} value={l}>{l}</option>)}
         </select>
         <button onClick={addLang} style={S.btn("primary")}>{t("langtab.addLang")}</button>
+        <span style={{ fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", marginLeft: 10 }}>Traduci con:</span>
+        <select value={traduttore} onChange={(e) => setTraduttore(e.target.value)}
+          style={{ background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", fontSize: 12 }}>
+          <option value="my_memory">MyMemory — gratuito, senza chiave</option>
+          <option value="libre_translate">LibreTranslate — libero / in casa</option>
+          <option value="google">Google Translate — a consumo</option>
+          <option value="ia">Assistente IA — usa la chiave dell'IDE</option>
+        </select>
+        {(traduttore === "google") && (
+          <input type="password" value={chiaveTrad} onChange={(e) => setChiaveTrad(e.target.value)}
+            placeholder="chiave API" autoComplete="off"
+            style={{ background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", fontSize: 12, width: 140 }} />
+        )}
+        {traduttore === "libre_translate" && (
+          <input type="text" value={urlTrad} onChange={(e) => setUrlTrad(e.target.value)}
+            placeholder="https://libretranslate.com"
+            style={{ background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", fontSize: 12, width: 190 }} />
+        )}
+        {traducendo && (
+          <span style={{ fontSize: 12, color: "var(--brand-warning-soft, #fbbf24)" }}>
+            ⏳ traduzione verso «{traducendo}» in corso…
+          </span>
+        )}
+        {table.langs.filter((l) => l !== table.default).map((l) => (
+          <button key={l} onClick={() => traduci(l)} disabled={traducendo !== null}
+            title={`Riempie le caselle vuote della colonna ${l}. Le traduzioni scritte a mano non si toccano.`}
+            style={S.btn("ghost")}>
+            {traducendo === l ? `→ ${l}…` : `→ ${l}`}
+          </button>
+        ))}
         <div style={{ flex: 1 }} />
         <button onClick={exportCsv} style={S.btn("ghost")} disabled={table.entries.length === 0}>{t("langtab.exportCsv")}</button>
         <button onClick={() => fileRef.current?.click()} style={S.btn("ghost")}>{t("langtab.importCsv")}</button>

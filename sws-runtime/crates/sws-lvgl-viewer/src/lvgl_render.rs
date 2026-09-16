@@ -38,8 +38,8 @@ use crate::client::{
     TagSnapshotValue,
 };
 use crate::model::{
-    LanguageTable, OnValue, PieSlice, PipePoint, SubGrid, SynopticObject, SynopticPage, TableRow,
-    TextListEntry,
+    BarChartSeries, LanguageTable, OnValue, PieSlice, PipePoint, RadioOption, SubGrid,
+    SynopticObject, SynopticPage, TableRow, TextListEntry,
 };
 use crate::session::{role_allowed, Role, SharedSession};
 
@@ -2408,10 +2408,21 @@ fn render_text(
     obj: &SynopticObject,
     styles: &mut Vec<Style>,
     tags: &TagSnapshot,
+    lingua: &str,
+    lang_table: &LanguageTable,
 ) -> anyhow::Result<LiveBinding> {
     let tv = lookup(tags, &obj.tag);
     let content = match tv {
-        Some(t) => format_value(&t.value, obj.format.as_deref().or(Some("{value}"))),
+        // Il VALORE di un tag stringa può essere un token: è la via per cui uno
+        // script scrive uno stato leggibile in tutte le lingue (`tr()` in
+        // `sws-pyscript` restituisce apposta un riferimento, non una
+        // traduzione, perché lo script non sa chi leggerà). Qui si disegna, e
+        // qui la lingua si conosce.
+        Some(t) => resolve_msg(
+            &format_value(&t.value, obj.format.as_deref().or(Some("{value}"))),
+            lingua,
+            lang_table,
+        ),
         None => obj
             .text
             .clone()
@@ -5740,6 +5751,8 @@ fn render_alarm_history(
     obj: &SynopticObject,
     base_url: &str,
     rt_handle: &tokio::runtime::Handle,
+    lingua: &str,
+    lang_table: &LanguageTable,
 ) -> anyhow::Result<()> {
     let larghezza = obj.width.unwrap_or(420.0).round() as i16;
     let altezza = obj.height.unwrap_or(220.0).round() as i16;
@@ -5779,21 +5792,38 @@ fn render_alarm_history(
             (larghezza * 3 / 5) as lvgl_sys::lv_coord_t,
         );
         lvgl_sys::lv_table_set_col_width(ptr.as_ptr(), 2, (larghezza / 5) as lvgl_sys::lv_coord_t);
-        set_cell(ptr, 0, 0, "Ora");
-        set_cell(ptr, 0, 1, "Allarme");
-        set_cell(ptr, 0, 2, "Conf.");
+        use crate::testi_sistema::{testo as sistema, Testo};
+        set_cell(ptr, 0, 0, sistema(Testo::Ora, lingua));
+        set_cell(ptr, 0, 1, sistema(Testo::Allarme, lingua));
+        set_cell(ptr, 0, 2, sistema(Testo::Confermato, lingua));
         for (i, e) in eventi.iter().take(n).enumerate() {
             let r = (i + 1) as u16;
             set_cell(ptr, r, 0, &ora_utc(e.ts_activated_ms));
             // Il messaggio se c'è, altrimenti l'id: un evento senza messaggio
             // è comunque un evento, e una riga vuota non direbbe quale.
+            // Il messaggio congelato nell'evento può contenere un token: lo
+            // storico si legge nella lingua di **adesso**, non in quella in cui
+            // l'allarme era scattato. Se la chiave non esiste più resta
+            // visibile come `{{chiave}}`, che è un'informazione onesta.
             let testo = if e.alarm_message.trim().is_empty() {
-                &e.alarm_id
+                e.alarm_id.clone()
             } else {
-                &e.alarm_message
+                resolve_msg(&e.alarm_message, lingua, lang_table)
             };
-            set_cell(ptr, r, 1, testo);
-            set_cell(ptr, r, 2, if e.ts_acked_ms.is_some() { "sì" } else { "no" });
+            set_cell(ptr, r, 1, &testo);
+            set_cell(
+                ptr,
+                r,
+                2,
+                crate::testi_sistema::testo(
+                    if e.ts_acked_ms.is_some() {
+                        crate::testi_sistema::Testo::Si
+                    } else {
+                        crate::testi_sistema::Testo::No
+                    },
+                    lingua,
+                ),
+            );
         }
     }
     Ok(())
@@ -5911,6 +5941,7 @@ fn ora_utc(ts_ms: u64) -> String {
 ///
 /// Non disegnato: la variazione sulla finestra (`KpiDelta` sul web), che
 /// richiede un secondo passaggio sullo storico a ogni aggiornamento.
+#[allow(clippy::too_many_arguments)]
 fn render_kpi_tile(
     screen: &mut lvgl::Obj,
     obj: &SynopticObject,
@@ -5919,6 +5950,8 @@ fn render_kpi_tile(
     base_url: &str,
     rt_handle: &tokio::runtime::Handle,
     live: &mut Vec<LiveBinding>,
+    lingua: &str,
+    lang_table: &LanguageTable,
 ) -> anyhow::Result<()> {
     let (x, y) = (obj.x.unwrap_or(0.0), obj.y.unwrap_or(0.0));
     let (w, h) = (obj.width.unwrap_or(180.0), obj.height.unwrap_or(100.0));
@@ -5953,7 +5986,9 @@ fn render_kpi_tile(
         ..Default::default()
     };
     etichetta.tag = None;
-    live.push(render_text(screen, &etichetta, styles, tags)?);
+    live.push(render_text(
+        screen, &etichetta, styles, tags, lingua, lang_table,
+    )?);
 
     // Valore: eredita soglie e formato dall'oggetto vero, così la colorazione
     // per soglia è la stessa di un `text` qualunque.
@@ -5979,7 +6014,9 @@ fn render_kpi_tile(
         color: obj.color.clone(),
         ..Default::default()
     };
-    live.push(render_text(screen, &valore, styles, tags)?);
+    live.push(render_text(
+        screen, &valore, styles, tags, lingua, lang_table,
+    )?);
 
     // Sparkline in basso, come sul web. Solo se c'è un tag: senza, il web non
     // la disegna affatto.
@@ -7903,7 +7940,40 @@ fn render_svg_raster(
 ) -> anyhow::Result<LiveBinding> {
     let w = obj.width.unwrap_or(80.0).round().clamp(8.0, 500.0) as i16;
     let h = obj.height.unwrap_or(80.0).round().clamp(8.0, 500.0) as i16;
+    disegna_svg(
+        screen,
+        obj.x.unwrap_or(0.0).round() as i16,
+        obj.y.unwrap_or(0.0).round() as i16,
+        w,
+        h,
+        src,
+        base_url,
+        rt_handle,
+    )
+}
 
+/// Rasterizza un SVG e lo appoggia come canvas dentro `genitore`, alla
+/// posizione e misura date.
+///
+/// Estratta da `render_svg_raster` quando `lang_button` ha avuto bisogno di
+/// disegnare una bandiera **dentro il bottone** invece che sullo schermo:
+/// copiare quelle quaranta righe avrebbe dato due posti in cui sbagliare la
+/// stessa cosa — e una di quelle righe è il commento sul perché il buffer deve
+/// sopravvivere nel `LiveBinding`.
+#[allow(clippy::too_many_arguments)]
+fn disegna_svg(
+    // Generica sul genitore, non `&mut lvgl::Obj`: la bandiera di un
+    // `lang_button` va dentro un `Btn`, non sullo schermo.
+    genitore: &mut impl NativeObject,
+    x: i16,
+    y: i16,
+    w: i16,
+    h: i16,
+    src: &crate::svg_assets::SvgSource,
+    base_url: &str,
+    rt_handle: &tokio::runtime::Handle,
+) -> anyhow::Result<LiveBinding> {
+    let screen = genitore;
     let svg = crate::svg_assets::bytes_for(base_url, rt_handle, src)
         .ok_or_else(|| anyhow::anyhow!("SVG non disponibile"))?;
     let raster = crate::svg_raster::rasterize(&svg, w as u32, h as u32)
@@ -7927,10 +7997,7 @@ fn render_svg_raster(
         <lvgl::Obj as Widget>::from_raw(nn)
     };
     canvas
-        .set_pos(
-            obj.x.unwrap_or(0.0).round() as i16,
-            obj.y.unwrap_or(0.0).round() as i16,
-        )
+        .set_pos(x, y)
         .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
     let canvas_ptr = canvas.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     unsafe {
@@ -8122,6 +8189,19 @@ fn resolve_msg(s: &str, lang: &str, table: &LanguageTable) -> String {
         match rest.find("}}") {
             Some(close) => {
                 let key = rest[..close].trim();
+                // Una chiave non contiene spazi. Il web lo impone con la sua
+                // espressione regolare (`[^}\s]+` in `projectI18n.ts`), qui
+                // andava detto a mano: senza questo, `{{a b}}` è prosa sul web
+                // e un token qui, e lo stesso progetto mostra due cose diverse
+                // sui due motori. Trovato il 15-09-2026 dalla tabella di casi
+                // condivisa.
+                if key.is_empty() || key.chars().any(char::is_whitespace) {
+                    out.push_str("{{");
+                    out.push_str(&rest[..close]);
+                    out.push_str("}}");
+                    rest = &rest[close + 2..];
+                    continue;
+                }
                 let resolved = table
                     .entries
                     .iter()
@@ -8150,12 +8230,19 @@ fn resolve_msg(s: &str, lang: &str, table: &LanguageTable) -> String {
 /// evitare un re-render React) qui clona sempre: questo motore non ha un
 /// concetto di re-render da evitare, gli oggetti sono piccoli e la
 /// funzione gira solo al caricamento/ricarica di una pagina, mai per
-/// frame. Copre `label`/`text`/`unit`/`text_list_default` più le label
-/// dentro `table_rows`/`text_list_entries` — sottoinsieme dei
-/// `TEXT_FIELDS` TS limitato ai campi che questo motore conosce
-/// (`pipe_label`/`bar_y_label`/`pie_center_text`/`options[].label` non
-/// sono renderizzati da nessun widget di questo file, risolverli sarebbe
-/// lavoro sprecato).
+/// frame.
+///
+/// **Copre gli stessi campi del web**, e `scripts/check_i18n_parita.sh` lo
+/// verifica confrontando le due liste estratte dal codice.
+///
+/// Fino al 15-09-2026 ne copriva sei su sedici, e il commento qui giustificava
+/// l'esclusione dicendo che quei campi «non sono renderizzati da nessun widget
+/// di questo file». **Era falso per sette di essi**: `pie_center_text` è
+/// disegnato a `:4572`, `options` a `:3119`, `bar_series` a `:2866`,
+/// `pie_slices` a `:4475`, `format` in quattro punti, `confirm_message` a
+/// `:2485`. Un progetto tradotto bene mostrava quindi `{{chiave}}` sul
+/// pannello e il testo giusto nell'IDE: il difetto si vedeva solo in campo,
+/// davanti al cliente, e mai sulla macchina di chi l'aveva fatto.
 fn localize_object(obj: &SynopticObject, lang: &str, table: &LanguageTable) -> SynopticObject {
     if lang.is_empty() || table.entries.is_empty() {
         return obj.clone();
@@ -8194,6 +8281,92 @@ fn localize_object(obj: &SynopticObject, lang: &str, table: &LanguageTable) -> S
                 .collect(),
         );
     }
+    // I campi che fino al 15-09-2026 restavano grezzi qui e tradotti sul web.
+    if let Some(v) = &out.format {
+        out.format = Some(resolve_msg(v, lang, table));
+    }
+    if let Some(v) = &out.pie_center_text {
+        out.pie_center_text = Some(resolve_msg(v, lang, table));
+    }
+    if let Some(v) = &out.pie_center_format {
+        out.pie_center_format = Some(resolve_msg(v, lang, table));
+    }
+    if let Some(v) = &out.confirm_message {
+        out.confirm_message = Some(resolve_msg(v, lang, table));
+    }
+    // `pipe_label`, `bar_y_label` e `pipe_label_format` non sono ancora
+    // disegnati da questo motore. Si risolvono lo stesso: costa una stringa e
+    // toglie di mezzo una lista di eccezioni, che è la cosa che marcisce.
+    if let Some(v) = &out.pipe_label {
+        out.pipe_label = Some(resolve_msg(v, lang, table));
+    }
+    if let Some(v) = &out.pipe_label_format {
+        out.pipe_label_format = Some(resolve_msg(v, lang, table));
+    }
+    if let Some(v) = &out.bar_y_label {
+        out.bar_y_label = Some(resolve_msg(v, lang, table));
+    }
+    // 15-09-2026: testo visibile che non traduceva nessuno dei due motori.
+    if let Some(v) = &out.table_label_header {
+        out.table_label_header = Some(resolve_msg(v, lang, table));
+    }
+    if let Some(v) = &out.xy_x_label {
+        out.xy_x_label = Some(resolve_msg(v, lang, table));
+    }
+    if let Some(v) = &out.xy_y_label {
+        out.xy_y_label = Some(resolve_msg(v, lang, table));
+    }
+    if let Some(v) = &out.pie_group_label {
+        out.pie_group_label = Some(resolve_msg(v, lang, table));
+    }
+    // `symbol_states` resta `serde_json::Value` nel modello — scelta
+    // deliberata, documentata in `draw_symbol`: tipizzarlo farebbe fallire
+    // l'apertura dell'INTERA pagina per una voce malformata. Quindi le
+    // etichette si traducono qui dentro il JSON, senza tipizzare: una voce che
+    // non ha la forma attesa viene semplicemente saltata, come altrove.
+    if let Some(v) = &mut out.symbol_states {
+        if let Some(voci) = v.as_array_mut() {
+            for voce in voci {
+                if let Some(etichetta) = voce.get_mut("label") {
+                    if let Some(testo) = etichetta.as_str() {
+                        *etichetta = serde_json::Value::String(resolve_msg(testo, lang, table));
+                    }
+                }
+            }
+        }
+    }
+    if let Some(opts) = &out.options {
+        out.options = Some(
+            opts.iter()
+                .map(|o| RadioOption {
+                    label: resolve_msg(&o.label, lang, table),
+                    ..o.clone()
+                })
+                .collect(),
+        );
+    }
+    if let Some(series) = &out.bar_series {
+        out.bar_series = Some(
+            series
+                .iter()
+                .map(|s| BarChartSeries {
+                    label: resolve_msg(&s.label, lang, table),
+                    ..s.clone()
+                })
+                .collect(),
+        );
+    }
+    if let Some(slices) = &out.pie_slices {
+        out.pie_slices = Some(
+            slices
+                .iter()
+                .map(|s| PieSlice {
+                    label: resolve_msg(&s.label, lang, table),
+                    ..s.clone()
+                })
+                .collect(),
+        );
+    }
     out
 }
 
@@ -8218,6 +8391,9 @@ unsafe extern "C" fn sws_lang_button_clicked_cb(e: *mut lvgl_sys::lv_event_t) {
     }
     let ctx = unsafe { &*(user_data as *const LangButtonCtx) };
     *ctx.shared_lang.lock().unwrap_or_else(|e| e.into_inner()) = ctx.target_lang.clone();
+    // Registrata su disco: il pannello riparte a ogni riavvio del dispositivo,
+    // e senza questo l'operatore ritrova la lingua del progettista.
+    crate::client::salva_lingua(&ctx.target_lang);
     let _ = ctx.nav_tx.send(ctx.own_page_id.clone());
 }
 
@@ -8227,6 +8403,7 @@ unsafe extern "C" fn sws_lang_button_clicked_cb(e: *mut lvgl_sys::lv_event_t) {
 /// meccanismo di un `navbutton`), lo stato "attivo" si ricalcola da sé al
 /// prossimo giro di `render_page_objects`, non serve seguirlo dal vivo fra
 /// un caricamento e l'altro.
+#[allow(clippy::too_many_arguments)]
 fn render_lang_button(
     screen: &mut lvgl::Obj,
     obj: &SynopticObject,
@@ -8234,6 +8411,9 @@ fn render_lang_button(
     nav_tx: &mpsc::Sender<String>,
     shared_lang: &SharedLang,
     own_page_id: &str,
+    base_url: &str,
+    rt_handle: &tokio::runtime::Handle,
+    live: &mut Vec<LiveBinding>,
 ) -> anyhow::Result<()> {
     let w = obj.width.unwrap_or(80.0);
     let h = obj.height.unwrap_or(32.0);
@@ -8260,6 +8440,32 @@ fn render_lang_button(
         btn.add_style(Part::Main, &mut style)
             .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
         styles.push(style);
+    }
+    // La bandiera, se c'è, PRIMA dell'etichetta: LVGL disegna i figli
+    // nell'ordine di creazione, e il web fa lo stesso — rettangolo, immagine,
+    // testo sopra (`SvgCanvas.tsx`, ramo `lang_button`). Invertirli
+    // nasconderebbe il codice lingua dietro l'immagine.
+    //
+    // Un SVG che non si scarica o non si rasterizza non fa fallire il bottone:
+    // resta il rettangolo colorato con la sigla, che è esattamente ciò che si
+    // vedeva prima che `bg_image` venisse letto su questo motore.
+    if let Some(src) = crate::svg_assets::source_for_project(obj, base_url, rt_handle) {
+        match disegna_svg(
+            &mut btn,
+            0,
+            0,
+            w.round().clamp(8.0, 500.0) as i16,
+            h.round().clamp(8.0, 500.0) as i16,
+            &src,
+            base_url,
+            rt_handle,
+        ) {
+            Ok(b) => live.push(b),
+            Err(e) => eprintln!(
+                "[lang_button] {}: bandiera non disegnata ({e})",
+                obj.id.as_deref().unwrap_or("?")
+            ),
+        }
     }
     let label_text = obj
         .label
@@ -8314,6 +8520,7 @@ unsafe extern "C" fn sws_lang_selector_changed_cb(e: *mut lvgl_sys::lv_event_t) 
     let Some(code) = ctx.langs.get(sel) else {
         return;
     };
+    crate::client::salva_lingua(code);
     *ctx.shared_lang.lock().unwrap_or_else(|e| e.into_inner()) = code.clone();
     let _ = ctx.nav_tx.send(ctx.own_page_id.clone());
 }
@@ -8451,7 +8658,9 @@ fn dispatch_render(
         "line" => render_line(screen, obj, styles),
         "button" => render_button(screen, obj, styles, tag_tx),
         "navbutton" => render_navbutton(screen, obj, styles, nav_tx),
-        "text" => render_text(screen, obj, styles, tags).map(|b| live.push(b)),
+        "text" => {
+            render_text(screen, obj, styles, tags, &current_lang, lang_table).map(|b| live.push(b))
+        }
         "led" => render_led(screen, obj, tags).map(|b| live.push(b)),
         "slider" => render_slider(screen, obj, tags, tag_tx).map(|b| live.push(b)),
         "progress_bar" => render_progress_bar(screen, obj, tags).map(|b| live.push(b)),
@@ -8525,9 +8734,21 @@ fn dispatch_render(
             live,
         ),
         "pipe" => render_pipe(screen, obj, styles, tags).map(|b| live.push(b)),
-        "kpi_tile" => render_kpi_tile(screen, obj, styles, tags, base_url, rt_handle, live),
+        "kpi_tile" => render_kpi_tile(
+            screen,
+            obj,
+            styles,
+            tags,
+            base_url,
+            rt_handle,
+            live,
+            &current_lang,
+            lang_table,
+        ),
         "data_log" => render_data_log(screen, obj, base_url, rt_handle),
-        "alarm_history" => render_alarm_history(screen, obj, base_url, rt_handle),
+        "alarm_history" => {
+            render_alarm_history(screen, obj, base_url, rt_handle, &current_lang, lang_table)
+        }
         "alarm_bell" => render_alarm_bell(screen, obj, styles, shared_alarms).map(|b| live.push(b)),
         "recipe_panel" => {
             render_recipe_panel(screen, obj, styles, base_url, rt_handle, shared_session)
@@ -8535,7 +8756,17 @@ fn dispatch_render(
         "setpoint" => render_setpoint(screen, obj, styles, tags, tag_tx).map(|b| live.push(b)),
         "xy_plot" => render_xy_plot(screen, obj, styles, base_url, rt_handle).map(|b| live.push(b)),
         "pie_chart" => render_pie_chart(screen, obj, tags).map(|b| live.push(b)),
-        "lang_button" => render_lang_button(screen, obj, styles, nav_tx, shared_lang, own_page_id),
+        "lang_button" => render_lang_button(
+            screen,
+            obj,
+            styles,
+            nav_tx,
+            shared_lang,
+            own_page_id,
+            base_url,
+            rt_handle,
+            live,
+        ),
         "lang_selector" => render_lang_selector(
             screen,
             obj,
@@ -9243,7 +9474,23 @@ pub fn svg_bitmap_bytes(bindings: &[LiveBinding]) -> usize {
         .sum()
 }
 
-pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
+/// `lang_table`/`shared_lang`: i messaggi d'allarme sono testo d'autore e
+/// possono contenere token `{{chiave}}` come ogni altro. Fino al 15-09-2026
+/// arrivavano **grezzi** all'operatore su questo motore, mentre il web li
+/// risolveva: lo stesso allarme diceva «Pressione alta» nel browser e
+/// `{{allarme_pressione}}` sul pannello d'impianto. Sono qui e non nella
+/// `LiveBinding` perché la lingua **cambia a runtime** (`lang_button`), e una
+/// copia congelata al momento del disegno mostrerebbe la lingua di prima.
+pub fn update_bindings(
+    bindings: &mut [LiveBinding],
+    tags: &TagSnapshot,
+    lang_table: &LanguageTable,
+    shared_lang: &SharedLang,
+) {
+    let lingua = shared_lang
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
     for b in bindings {
         if let LiveKind::Effects {
             figli,
@@ -9431,7 +9678,11 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
             } => {
                 let tv = lookup(tags, tag);
                 let content = match tv {
-                    Some(t) => format_value(&t.value, format.as_deref().or(Some("{value}"))),
+                    Some(t) => resolve_msg(
+                        &format_value(&t.value, format.as_deref().or(Some("{value}"))),
+                        &lingua,
+                        lang_table,
+                    ),
                     None => static_text
                         .clone()
                         .or_else(|| tag.clone())
@@ -9589,6 +9840,8 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
                     rows,
                     prefix,
                     allowed_sev.as_deref(),
+                    &lingua,
+                    lang_table,
                 );
             }
             LiveKind::TextList {
@@ -9659,6 +9912,8 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
                     *empty_ptr,
                     prefix,
                     allowed_sev.as_deref(),
+                    &lingua,
+                    lang_table,
                 );
             }
             LiveKind::XyPlot {
@@ -9808,6 +10063,8 @@ pub fn update_bindings(bindings: &mut [LiveBinding], tags: &TagSnapshot) {
                     prefix,
                     allowed_sev.as_deref(),
                     last_count,
+                    &lingua,
+                    lang_table,
                 );
             }
             LiveKind::Symbol {
@@ -10070,6 +10327,10 @@ fn update_xy_plot(
 /// pannello elenco solo quando il conteggio cambia davvero (evita di
 /// riscrivere `row_ptrs.len()` label a ogni frame per un pannello quasi
 /// sempre nascosto).
+// +2 argomenti per la lingua: convenzione già in uso in questo file (13 volte),
+// e qui è la scelta giusta perché la lingua **cambia a runtime** e una copia
+// dentro la `LiveBinding` mostrerebbe quella di prima.
+#[allow(clippy::too_many_arguments)]
 fn update_alarm_bell(
     shared: &SharedAlarms,
     badge_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
@@ -10077,6 +10338,8 @@ fn update_alarm_bell(
     prefix: &str,
     allowed_sev: Option<&[String]>,
     last_count: &mut usize,
+    lingua: &str,
+    lang_table: &LanguageTable,
 ) {
     let mut alarms: Vec<AlarmStateLite> = {
         let map = shared.lock().unwrap_or_else(|e| e.into_inner());
@@ -10115,7 +10378,7 @@ fn update_alarm_bell(
                 Some(a) => {
                     lvgl_sys::lv_label_set_text(
                         row_ptr.as_ptr(),
-                        text_cstring(&a.def.message).as_ptr(),
+                        text_cstring(&resolve_msg(&a.def.message, lingua, lang_table)).as_ptr(),
                     );
                     lvgl_sys::lv_obj_clear_flag(row_ptr.as_ptr(), hidden);
                 }
@@ -10131,6 +10394,10 @@ fn update_alarm_bell(
 /// recente prima, tagliato a `rows.len()`), poi riassegna ogni slot riga
 /// all'allarme che gli tocca in questo frame — non ricrea mai i widget,
 /// stesso principio di `update_table_data_cells`.
+// +2 argomenti per la lingua: convenzione già in uso in questo file (13 volte),
+// e qui è la scelta giusta perché la lingua **cambia a runtime** e una copia
+// dentro la `LiveBinding` mostrerebbe quella di prima.
+#[allow(clippy::too_many_arguments)]
 fn update_alarm_viewer(
     shared: &SharedAlarms,
     empty_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
@@ -10138,6 +10405,8 @@ fn update_alarm_viewer(
     rows: &mut [AlarmRowBinding],
     prefix: &str,
     allowed_sev: Option<&[String]>,
+    lingua: &str,
+    lang_table: &LanguageTable,
 ) {
     let mut alarms: Vec<AlarmStateLite> = {
         let map = shared.lock().unwrap_or_else(|e| e.into_inner());
@@ -10179,7 +10448,7 @@ fn update_alarm_viewer(
 
                 lvgl_sys::lv_label_set_text(
                     row.msg_ptr.as_ptr(),
-                    text_cstring(&a.def.message).as_ptr(),
+                    text_cstring(&resolve_msg(&a.def.message, lingua, lang_table)).as_ptr(),
                 );
                 lvgl_sys::lv_obj_clear_flag(row.msg_ptr.as_ptr(), hidden);
 
@@ -10450,6 +10719,10 @@ pub(crate) fn nella_barra(isa_state: &str, active: bool) -> bool {
 /// Aggiorna `alarm_banner`: stesso `SharedAlarms` e stessi filtri per prefisso
 /// e severità di `alarm_viewer`, ma un solo slot (il più recente, non una
 /// lista) e una selezione diversa — vedi `nella_barra`.
+// +2 argomenti per la lingua: convenzione già in uso in questo file (13 volte),
+// e qui è la scelta giusta perché la lingua **cambia a runtime** e una copia
+// dentro la `LiveBinding` mostrerebbe quella di prima.
+#[allow(clippy::too_many_arguments)]
 fn update_alarm_banner(
     shared: &SharedAlarms,
     dot_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
@@ -10458,6 +10731,8 @@ fn update_alarm_banner(
     empty_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
     prefix: &str,
     allowed_sev: Option<&[String]>,
+    lingua: &str,
+    lang_table: &LanguageTable,
 ) {
     let top: Option<AlarmStateLite> = {
         let map = shared.lock().unwrap_or_else(|e| e.into_inner());
@@ -10482,7 +10757,7 @@ fn update_alarm_banner(
                 lvgl_sys::lv_obj_clear_flag(dot_ptr.as_ptr(), hidden);
                 lvgl_sys::lv_label_set_text(
                     msg_ptr.as_ptr(),
-                    text_cstring(&a.def.message).as_ptr(),
+                    text_cstring(&resolve_msg(&a.def.message, lingua, lang_table)).as_ptr(),
                 );
                 lvgl_sys::lv_obj_clear_flag(msg_ptr.as_ptr(), hidden);
                 lvgl_sys::lv_obj_add_flag(empty_ptr.as_ptr(), hidden);
@@ -11922,5 +12197,77 @@ mod binding_tests {
     #[test]
     fn senza_soglie_dichiarate_non_si_disegna_niente() {
         assert!(soglie_da_disegnare(&SynopticObject::default(), (0.0, 100.0)).is_empty());
+    }
+}
+
+/// Il risolutore dei token `{{chiave}}`, sulla **stessa tabella di casi** che
+/// legge il test TypeScript del web (`sws-editor/tests/risoluzioneToken.test.ts`).
+///
+/// I casi stanno in `tests/fixtures/risoluzione-token.json`, alla radice del
+/// repo, e non in nessuno dei due linguaggi: due motori disegnano gli stessi
+/// progetti, e due copie della stessa tabella divergerebbero in silenzio. È
+/// esattamente ciò che era successo — fino al 15-09-2026 non esisteva nessun
+/// test su questo risolutore, da nessuna delle due parti, e le implementazioni
+/// divergevano in due punti: una entry senza valori dava il nome nudo della
+/// chiave sul web e `{{chiave}}` qui, e `{{a b}}` era un token qui e non sul
+/// web.
+#[cfg(test)]
+mod risoluzione_token_tests {
+    use super::*;
+
+    #[derive(serde::Deserialize)]
+    struct Caso {
+        nome: String,
+        testo: String,
+        lang: String,
+        atteso: String,
+    }
+
+    #[derive(serde::Deserialize)]
+    struct Fixture {
+        tabella: LanguageTable,
+        casi: Vec<Caso>,
+    }
+
+    fn fixture() -> Fixture {
+        let percorso = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../tests/fixtures/risoluzione-token.json"
+        );
+        let testo = std::fs::read_to_string(percorso)
+            .unwrap_or_else(|e| panic!("la tabella di casi condivisa manca ({percorso}): {e}"));
+        serde_json::from_str(&testo).expect("tabella di casi condivisa non valida")
+    }
+
+    #[test]
+    fn la_tabella_di_casi_condivisa_col_web() {
+        let f = fixture();
+        assert!(!f.casi.is_empty(), "la tabella di casi è vuota");
+        let mut rotti = Vec::new();
+        for c in &f.casi {
+            let avuto = resolve_msg(&c.testo, &c.lang, &f.tabella);
+            if avuto != c.atteso {
+                rotti.push(format!(
+                    "  «{}»\n    testo   {:?}\n    atteso  {:?}\n    avuto   {:?}",
+                    c.nome, c.testo, c.atteso, avuto
+                ));
+            }
+        }
+        assert!(
+            rotti.is_empty(),
+            "{} caso/i divergono dal web:\n{}",
+            rotti.len(),
+            rotti.join("\n")
+        );
+    }
+
+    /// Casi che riguardano solo questo motore: qui la tabella non è opzionale
+    /// come sul web, ma può essere vuota (è ciò che `fetch_languages` lascia
+    /// quando il runtime non risponde, `client.rs`).
+    #[test]
+    fn una_tabella_vuota_non_risolve_e_non_rompe() {
+        let vuota = LanguageTable::default();
+        assert_eq!(resolve_msg("{{ciao}}", "it", &vuota), "{{ciao}}");
+        assert_eq!(resolve_msg("Avvio pompa", "it", &vuota), "Avvio pompa");
     }
 }

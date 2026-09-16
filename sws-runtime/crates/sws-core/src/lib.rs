@@ -4,6 +4,7 @@ pub mod logbus;
 pub mod pin_tls;
 pub mod project;
 pub mod tag;
+pub mod traduzione;
 
 pub use alarm::{
     now_ms, AlarmCondition, AlarmDb, AlarmDef, AlarmEvent, AlarmSeverity, AlarmState,

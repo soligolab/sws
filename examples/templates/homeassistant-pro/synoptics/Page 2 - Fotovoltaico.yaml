@@ -11,7 +11,7 @@ objects:
   type: text
   x: 400
   y: 20
-  text: "{{fotovoltaico_solarman_2_stringhe}}"
+  text: "{{t0045}}"
   font_size: 17
   font_weight: bold
   text_anchor: middle
@@ -22,7 +22,7 @@ objects:
   type: text
   x: 400
   y: 40
-  text: "{{tensione_corrente_potenza_per_stringa_in}}"
+  text: "{{t0046}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -35,7 +35,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "{{panoramica_2}}"
+  label: "{{t0047}}"
   target_page: pro_p1
   locked: true
 
@@ -45,7 +45,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "{{fotovoltaico_3}}"
+  label: "{{t0048}}"
   target_page: pro_p2
   fill: "#1e293b"
   locked: true
@@ -56,7 +56,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "{{batt_rete}}"
+  label: "{{t0005}}"
   target_page: pro_p3
   locked: true
 
@@ -66,7 +66,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "{{clima}}"
+  label: "{{t0006}}"
   target_page: pro_p4
   locked: true
 
@@ -76,7 +76,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "{{carichi}}"
+  label: "{{t0007}}"
   target_page: pro_p5
   locked: true
 
@@ -86,7 +86,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "{{sicurezza}}"
+  label: "{{t0008}}"
   target_page: pro_p6
   locked: true
 
@@ -109,7 +109,7 @@ objects:
   type: text
   x: 100
   y: 78
-  text: "{{potenza_totale_fv}}"
+  text: "{{t0049}}"
   font_size: 11
   font_weight: bold
   text_anchor: middle
@@ -142,7 +142,7 @@ objects:
   type: text
   x: 590
   y: 78
-  text: "{{produzione_oggi}}"
+  text: "{{t0050}}"
   font_size: 10
   text_anchor: middle
   color: "#16a34a"
@@ -162,7 +162,7 @@ objects:
   type: text
   x: 730
   y: 78
-  text: "{{lifetime}}"
+  text: "{{t0051}}"
   font_size: 10
   text_anchor: middle
   color: "#16a34a"
@@ -186,7 +186,7 @@ objects:
   type: text
   x: 200
   y: 136
-  text: "{{stringa_1}}"
+  text: "{{t0052}}"
   font_size: 13
   font_weight: bold
   text_anchor: middle
@@ -208,7 +208,7 @@ objects:
   type: text
   x: 100
   y: 166
-  text: "{{tensione}}"
+  text: "{{t0053}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -228,7 +228,7 @@ objects:
   type: text
   x: 100
   y: 204
-  text: "{{v}}"
+  text: "{{t0054}}"
   font_size: 12
   text_anchor: middle
   color: "#16a34a"
@@ -250,7 +250,7 @@ objects:
   type: text
   x: 290
   y: 166
-  text: "{{corrente}}"
+  text: "{{t0055}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -270,7 +270,7 @@ objects:
   type: text
   x: 290
   y: 204
-  text: "{{a}}"
+  text: "{{t0056}}"
   font_size: 12
   text_anchor: middle
   color: "#16a34a"
@@ -292,7 +292,7 @@ objects:
   type: text
   x: 200
   y: 284
-  text: "{{potenza_pv1}}"
+  text: "{{t0057}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -316,7 +316,7 @@ objects:
   type: text
   x: 600
   y: 136
-  text: "{{stringa_2}}"
+  text: "{{t0058}}"
   font_size: 13
   font_weight: bold
   text_anchor: middle
@@ -338,7 +338,7 @@ objects:
   type: text
   x: 500
   y: 166
-  text: "{{tensione}}"
+  text: "{{t0053}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -358,7 +358,7 @@ objects:
   type: text
   x: 500
   y: 204
-  text: "{{v}}"
+  text: "{{t0054}}"
   font_size: 12
   text_anchor: middle
   color: "#16a34a"
@@ -379,7 +379,7 @@ objects:
   type: text
   x: 690
   y: 166
-  text: "{{corrente}}"
+  text: "{{t0055}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -399,7 +399,7 @@ objects:
   type: text
   x: 690
   y: 204
-  text: "{{a}}"
+  text: "{{t0056}}"
   font_size: 12
   text_anchor: middle
   color: "#16a34a"
@@ -420,7 +420,7 @@ objects:
   type: text
   x: 600
   y: 284
-  text: "{{potenza_pv2}}"
+  text: "{{t0059}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -444,7 +444,7 @@ objects:
   type: text
   x: 400
   y: 348
-  text: "{{corrente_pv1_vs_pv2_1_ora}}"
+  text: "{{t0060}}"
   font_size: 10
   text_anchor: middle
   color: "#64748b"
@@ -465,7 +465,7 @@ objects:
   type: text
   x: 24
   y: 498
-  text: "{{pv1_corrente_a}}"
+  text: "{{t0061}}"
   font_size: 9
   color: "#22c55e"
 
@@ -473,7 +473,7 @@ objects:
   type: text
   x: 200
   y: 498
-  text: "{{pv2_corrente_a}}"
+  text: "{{t0062}}"
   font_size: 9
   color: "#86efac"
 
@@ -496,7 +496,7 @@ objects:
   type: text
   x: 90
   y: 527
-  text: "{{t_interna_inv}}"
+  text: "{{t0063}}"
   font_size: 10
   text_anchor: middle
   color: "#64748b"
@@ -516,7 +516,7 @@ objects:
   type: text
   x: 240
   y: 527
-  text: "{{t_modulo_inv}}"
+  text: "{{t0064}}"
   font_size: 10
   text_anchor: middle
   color: "#64748b"
@@ -547,7 +547,7 @@ objects:
   type: text
   x: 550
   y: 527
-  text: "{{generazione_oggi}}"
+  text: "{{t0065}}"
   font_size: 10
   text_anchor: middle
   color: "#64748b"
@@ -567,7 +567,7 @@ objects:
   type: text
   x: 720
   y: 527
-  text: "{{autoconsumo}}"
+  text: "{{t0066}}"
   font_size: 10
   text_anchor: middle
   color: "#64748b"

@@ -17,7 +17,7 @@ objects:
   type: text
   x: 400
   y: 22
-  text: "{{home_assistant_panoramica}}"
+  text: "{{t0001}}"
   font_size: 18
   font_weight: bold
   text_anchor: middle
@@ -29,7 +29,7 @@ objects:
   type: text
   x: 400
   y: 42
-  text: "{{clima_energia_sicurezza_luci}}"
+  text: "{{t0002}}"
   font_size: 11
   text_anchor: middle
   color: "#475569"
@@ -43,7 +43,7 @@ objects:
   y: 572
   width: 220
   height: 34
-  label: "{{panoramica}}"
+  label: "{{t0003}}"
   target_page: ha_page1
   fill: "#1e293b"
   group_id: g_nav
@@ -55,7 +55,7 @@ objects:
   y: 572
   width: 220
   height: 34
-  label: "{{controllo}}"
+  label: "{{t0004}}"
   target_page: ha_page2
   group_id: g_nav
   locked: true
@@ -66,7 +66,7 @@ objects:
   y: 572
   width: 220
   height: 34
-  label: "{{storico}}"
+  label: "{{t0005}}"
   target_page: ha_page3
   group_id: g_nav
   locked: true
@@ -76,7 +76,7 @@ objects:
   type: text
   x: 200
   y: 70
-  text: "{{clima}}"
+  text: "{{t0006}}"
   font_size: 12
   font_weight: bold
   text_anchor: middle
@@ -98,7 +98,7 @@ objects:
   type: text
   x: 120
   y: 100
-  text: "{{interno}}"
+  text: "{{t0007}}"
   font_size: 10
   font_weight: bold
   text_anchor: middle
@@ -129,7 +129,7 @@ objects:
   type: text
   x: 120
   y: 180
-  text: "{{comfort}}"
+  text: "{{t0008}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -160,7 +160,7 @@ objects:
   type: text
   x: 300
   y: 100
-  text: "{{esterno}}"
+  text: "{{t0009}}"
   font_size: 10
   font_weight: bold
   text_anchor: middle
@@ -191,7 +191,7 @@ objects:
   type: text
   x: 300
   y: 180
-  text: "{{delta}}"
+  text: "{{t0010}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -211,7 +211,7 @@ objects:
   type: text
   x: 590
   y: 70
-  text: "{{energia}}"
+  text: "{{t0011}}"
   font_size: 12
   font_weight: bold
   text_anchor: middle
@@ -232,7 +232,7 @@ objects:
   type: text
   x: 530
   y: 100
-  text: "{{potenza_istantanea}}"
+  text: "{{t0012}}"
   font_size: 10
   font_weight: bold
   text_anchor: middle
@@ -287,7 +287,7 @@ objects:
   type: text
   x: 200
   y: 220
-  text: "{{sicurezza}}"
+  text: "{{t0013}}"
   font_size: 12
   font_weight: bold
   text_anchor: middle
@@ -309,7 +309,7 @@ objects:
   type: text
   x: 60
   y: 258
-  text: "{{porta_principale}}"
+  text: "{{t0014}}"
   font_size: 12
   color: "#94a3b8"
 
@@ -337,7 +337,7 @@ objects:
   type: text
   x: 60
   y: 288
-  text: "{{movimento_ingresso}}"
+  text: "{{t0015}}"
   font_size: 12
   color: "#94a3b8"
 
@@ -356,7 +356,7 @@ objects:
   type: text
   x: 60
   y: 318
-  text: "{{garage}}"
+  text: "{{t0016}}"
   font_size: 12
   color: "#94a3b8"
 
@@ -384,7 +384,7 @@ objects:
   type: text
   x: 60
   y: 348
-  text: "{{modalita_notturna}}"
+  text: "{{t0017}}"
   font_size: 12
   color: "#94a3b8"
 
@@ -403,7 +403,7 @@ objects:
   type: text
   x: 590
   y: 220
-  text: "{{luci}}"
+  text: "{{t0018}}"
   font_size: 12
   font_weight: bold
   text_anchor: middle
@@ -424,7 +424,7 @@ objects:
   type: text
   x: 450
   y: 258
-  text: "{{soggiorno}}"
+  text: "{{t0019}}"
   font_size: 12
   color: "#94a3b8"
 
@@ -442,7 +442,7 @@ objects:
   type: text
   x: 450
   y: 288
-  text: "{{cucina}}"
+  text: "{{t0020}}"
   font_size: 12
   color: "#94a3b8"
 
@@ -460,7 +460,7 @@ objects:
   type: text
   x: 450
   y: 318
-  text: "{{esterna}}"
+  text: "{{t0021}}"
   font_size: 12
   color: "#94a3b8"
 
@@ -478,7 +478,7 @@ objects:
   type: text
   x: 450
   y: 348
-  text: "{{ventilatore}}"
+  text: "{{t0023}}"
   font_size: 12
   color: "#94a3b8"
 
@@ -497,7 +497,7 @@ objects:
   type: text
   x: 200
   y: 390
-  text: "{{riscaldamento}}"
+  text: "{{t0024}}"
   font_size: 12
   font_weight: bold
   text_anchor: middle
@@ -518,7 +518,7 @@ objects:
   type: text
   x: 60
   y: 428
-  text: "{{temperatura_attuale}}"
+  text: "{{t0025}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -537,7 +537,7 @@ objects:
   type: text
   x: 60
   y: 458
-  text: "{{setpoint_corrente}}"
+  text: "{{t0026}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -580,7 +580,7 @@ objects:
   type: text
   x: 590
   y: 410
-  text: "{{sole}}"
+  text: "{{t0027}}"
   font_size: 12
   font_weight: bold
   text_anchor: middle
@@ -601,7 +601,7 @@ objects:
   type: text
   x: 590
   y: 468
-  text: "{{elevazione}}"
+  text: "{{t0028}}"
   font_size: 10
   text_anchor: middle
   color: "#78716c"

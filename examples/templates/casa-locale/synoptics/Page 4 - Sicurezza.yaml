@@ -12,7 +12,7 @@ objects:
   type: text
   x: 400
   y: 22
-  text: "{{sicurezza_4}}"
+  text: "{{t0080}}"
   font_size: 20
   font_weight: bold
   text_anchor: middle
@@ -26,7 +26,7 @@ objects:
   y: 14
   width: 130
   height: 30
-  label: "{{contatori_4}}"
+  label: "{{t0081}}"
   target_page: cl_page3
   group_id: g_nav
   locked: true
@@ -37,7 +37,7 @@ objects:
   y: 14
   width: 130
   height: 30
-  label: "{{domotica_2}}"
+  label: "{{t0082}}"
   target_page: cl_page5
   group_id: g_nav
   locked: true
@@ -48,7 +48,7 @@ objects:
   y: 14
   width: 55
   height: 30
-  label: "{{msg}}"
+  label: "{{t0068}}"
   target_page: cl_page1
   group_id: g_nav
   locked: true
@@ -58,7 +58,7 @@ objects:
   type: text
   x: 560
   y: 48
-  text: "{{zigbee2mqtt}}"
+  text: "{{t0083}}"
   font_size: 10
   color: "#475569"
 
@@ -66,7 +66,7 @@ objects:
   type: text
   x: 648
   y: 48
-  text: "{{online}}"
+  text: "{{t0084}}"
   font_size: 10
   font_weight: bold
   color: "#22c55e"
@@ -97,7 +97,7 @@ objects:
   type: text
   x: 130
   y: 80
-  text: "{{garage_sezionale_2}}"
+  text: "{{t0085}}"
   font_size: 12
   font_weight: bold
   text_anchor: middle
@@ -131,7 +131,7 @@ objects:
   type: text
   x: 20
   y: 202
-  text: "{{finestre_porte}}"
+  text: "{{t0086}}"
   font_size: 13
   font_weight: bold
   color: "#64748b"
@@ -151,7 +151,7 @@ objects:
   type: text
   x: 296
   y: 205
-  text: "{{chiusa}}"
+  text: "{{t0087}}"
   font_size: 9
   color: "#22c55e"
 
@@ -169,7 +169,7 @@ objects:
   type: text
   x: 356
   y: 205
-  text: "{{aperta}}"
+  text: "{{t0088}}"
   font_size: 9
   color: "#ef4444"
 
@@ -188,7 +188,7 @@ objects:
   type: text
   x: 42
   y: 230
-  text: "{{finestra_garage}}"
+  text: "{{t0089}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -206,7 +206,7 @@ objects:
   type: text
   x: 232
   y: 230
-  text: "{{portafinestra_sogg_dx}}"
+  text: "{{t0090}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -225,7 +225,7 @@ objects:
   type: text
   x: 42
   y: 260
-  text: "{{finestra_studio}}"
+  text: "{{t0091}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -243,7 +243,7 @@ objects:
   type: text
   x: 232
   y: 260
-  text: "{{portafinestra_sogg_sx}}"
+  text: "{{t0092}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -262,7 +262,7 @@ objects:
   type: text
   x: 42
   y: 290
-  text: "{{finestra_cucina_dx}}"
+  text: "{{t0093}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -280,7 +280,7 @@ objects:
   type: text
   x: 232
   y: 290
-  text: "{{portafinestra_lavanderia}}"
+  text: "{{t0094}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -299,7 +299,7 @@ objects:
   type: text
   x: 42
   y: 320
-  text: "{{finestra_cucina_sx}}"
+  text: "{{t0095}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -317,7 +317,7 @@ objects:
   type: text
   x: 232
   y: 320
-  text: "{{finestra_bagno_terra}}"
+  text: "{{t0096}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -336,7 +336,7 @@ objects:
   type: text
   x: 42
   y: 350
-  text: "{{portoncino_studio}}"
+  text: "{{t0097}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -354,7 +354,7 @@ objects:
   type: text
   x: 232
   y: 350
-  text: "{{portoncino_disimpegno}}"
+  text: "{{t0098}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -376,7 +376,7 @@ objects:
   type: text
   x: 460
   y: 70
-  text: "{{rilevatori_presenza}}"
+  text: "{{t0099}}"
   font_size: 13
   font_weight: bold
   color: "#64748b"
@@ -407,7 +407,7 @@ objects:
   type: text
   x: 505
   y: 100
-  text: "{{sensore_presenza_ingresso}}"
+  text: "{{t0100}}"
   font_size: 12
   font_weight: bold
   color: "#cbd5e1"
@@ -416,7 +416,7 @@ objects:
   type: text
   x: 505
   y: 118
-  text: "{{occupazione}}"
+  text: "{{t0101}}"
   font_size: 10
   color: "#64748b"
 - id: cl4_ing_occ_val
@@ -433,7 +433,7 @@ objects:
   type: text
   x: 505
   y: 136
-  text: "{{luminosita}}"
+  text: "{{t0102}}"
   font_size: 10
   color: "#64748b"
 - id: cl4_ing_lux_val
@@ -462,7 +462,7 @@ objects:
   type: text
   x: 460
   y: 196
-  text: "{{perimetro_esterno}}"
+  text: "{{t0103}}"
   font_size: 12
   font_weight: bold
   color: "#64748b"
@@ -481,7 +481,7 @@ objects:
   type: text
   x: 490
   y: 226
-  text: "{{zona_ovest}}"
+  text: "{{t0104}}"
   font_size: 12
   color: "#94a3b8"
 
@@ -499,7 +499,7 @@ objects:
   type: text
   x: 490
   y: 260
-  text: "{{zona_nord_est}}"
+  text: "{{t0105}}"
   font_size: 12
   color: "#94a3b8"
 
@@ -517,7 +517,7 @@ objects:
   type: text
   x: 490
   y: 294
-  text: "{{zona_nord_ovest}}"
+  text: "{{t0106}}"
   font_size: 12
   color: "#94a3b8"
 
@@ -526,7 +526,7 @@ objects:
   type: text
   x: 460
   y: 320
-  text: "{{movimento_rosso_rilevato_scuro_assente}}"
+  text: "{{t0107}}"
   font_size: 9
   color: "#334155"
 
@@ -537,7 +537,7 @@ objects:
   type: text
   x: 460
   y: 360
-  text: "{{sommario_aperture}}"
+  text: "{{t0108}}"
   font_size: 12
   font_weight: bold
   color: "#64748b"
@@ -548,7 +548,7 @@ objects:
   y: 372
   width: 330
   height: 140
-  label: "{{sensori}}"
+  label: "{{t0109}}"
   table_rows:
     - label: "Fin. Garage"
       tag: sec.finestra_garage
@@ -573,7 +573,7 @@ objects:
   type: text
   x: 20
   y: 380
-  text: "{{luminosita_ingresso_ultima_ora_lux}}"
+  text: "{{t0110}}"
   font_size: 10
   color: "#475569"
 
@@ -591,7 +591,7 @@ objects:
   type: text
   x: 400
   y: 608
-  text: "{{topic_zigbee2mqtt_device_payload_contact}}"
+  text: "{{t0111}}"
   font_size: 9
   text_anchor: middle
   color: "#1e293b"

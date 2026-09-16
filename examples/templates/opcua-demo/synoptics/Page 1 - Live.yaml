@@ -18,7 +18,7 @@ objects:
   type: text
   x: 440
   y: 24
-  text: "{{opc_ua_live}}"
+  text: "{{t0001}}"
   font_size: 20
   font_weight: bold
   text_anchor: middle
@@ -30,7 +30,7 @@ objects:
   type: text
   x: 440
   y: 44
-  text: "{{5_nodi_sottoscritti_via_subscription_int}}"
+  text: "{{t0002}}"
   font_size: 11
   text_anchor: middle
   color: "#475569"
@@ -43,7 +43,7 @@ objects:
   y: 14
   width: 180
   height: 30
-  label: "{{tabella_nodi}}"
+  label: "{{t0003}}"
   target_page: opc_page2
   group_id: g_nav
   locked: true
@@ -57,7 +57,7 @@ objects:
   y: 70
   width: 220
   height: 220
-  label: "{{temperatura_c}}"
+  label: "{{t0004}}"
   tag: sim.temperature
   min: -20
   max: 80
@@ -71,7 +71,7 @@ objects:
   y: 70
   width: 220
   height: 220
-  label: "{{pressione_kpa}}"
+  label: "{{t0005}}"
   tag: sim.pressure
   min: 0
   max: 10
@@ -84,7 +84,7 @@ objects:
   type: text
   x: 510
   y: 95
-  text: "{{stato_macchina_euromap_77}}"
+  text: "{{t0006}}"
   font_size: 11
   color: "#64748b"
 
@@ -103,7 +103,7 @@ objects:
   type: text
   x: 510
   y: 175
-  text: "{{pronto}}"
+  text: "{{t0007}}"
   font_size: 11
   color: "#64748b"
 
@@ -122,7 +122,7 @@ objects:
   type: text
   x: 600
   y: 175
-  text: "{{cycle_time}}"
+  text: "{{t0008}}"
   font_size: 11
   color: "#64748b"
 
@@ -157,7 +157,7 @@ objects:
   type: text
   x: 20
   y: 310
-  text: "{{trend_live_temperatura_pressione}}"
+  text: "{{t0009}}"
   font_size: 12
   color: "#94a3b8"
 
@@ -180,7 +180,7 @@ objects:
   type: text
   x: 440
   y: 600
-  text: "{{endpoint_opc_tcp_localhost_4840_security}}"
+  text: "{{t0010}}"
   font_size: 9
   text_anchor: middle
   color: "#334155"

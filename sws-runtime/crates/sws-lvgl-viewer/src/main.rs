@@ -40,6 +40,7 @@ mod model;
 mod session;
 mod svg_assets;
 mod svg_raster;
+mod testi_sistema;
 mod tls;
 mod touch_indev;
 
@@ -314,8 +315,12 @@ fn main() -> anyhow::Result<()> {
             Some(spiegato) => anyhow::anyhow!(spiegato),
             None => e,
         })?;
-    let shared_lang: client::SharedLang =
-        std::sync::Arc::new(std::sync::Mutex::new(lang_table.default.clone()));
+    // La lingua scelta l'ultima volta su QUESTO pannello vince sul default del
+    // progetto: il viewer riparte a ogni riavvio del dispositivo, e un
+    // operatore non deve ritrovarsi la lingua cambiata sotto ogni mattina.
+    let shared_lang: client::SharedLang = std::sync::Arc::new(std::sync::Mutex::new(
+        client::lingua_salvata(&lang_table).unwrap_or_else(|| lang_table.default.clone()),
+    ));
 
     // Q36 — sessione utente, caricata da disco se ce n'è una valida
     // (`~/.config/sws/lvgl_session.json`), altrimenti anonima come sempre.
@@ -416,6 +421,8 @@ fn main() -> anyhow::Result<()> {
             &mut live_bindings,
             &tag_rx,
             &nav_rx,
+            &lang_table,
+            &shared_lang,
         )?;
         drop(rt);
         return Ok(());
@@ -528,6 +535,11 @@ fn scrivi_istantanea(
     live_bindings: &mut [lvgl_render::LiveBinding],
     tag_rx: &mpsc::Receiver<lvgl_render::TagCommand>,
     nav_rx: &mpsc::Receiver<String>,
+    // Anche l'istantanea deve vedere gli allarmi nella lingua giusta: è la
+    // prova di regressione visiva, e una prova che guarda una lingua diversa
+    // da quella del pannello non prova niente.
+    lang_table: &model::LanguageTable,
+    shared_lang: &client::SharedLang,
 ) -> anyhow::Result<()> {
     const PASSO_MS: u64 = 16;
     let giri = (per_ms / PASSO_MS).max(1);
@@ -567,7 +579,7 @@ fn scrivi_istantanea(
                 .lock()
                 .unwrap_or_else(|e| e.into_inner())
                 .clone();
-            lvgl_render::update_bindings(live_bindings, &tags);
+            lvgl_render::update_bindings(live_bindings, &tags, lang_table, shared_lang);
         }
         lvgl::task_handler();
         lvgl::tick_inc(Duration::from_millis(PASSO_MS));
@@ -738,7 +750,7 @@ fn run_drm(
                 .lock()
                 .unwrap_or_else(|e| e.into_inner())
                 .clone();
-            lvgl_render::update_bindings(&mut live_bindings, &tags);
+            lvgl_render::update_bindings(&mut live_bindings, &tags, &lang_table, &shared_lang);
             tags
         };
 
@@ -1016,7 +1028,7 @@ fn run_window(
                 .lock()
                 .unwrap_or_else(|e| e.into_inner())
                 .clone();
-            lvgl_render::update_bindings(&mut live_bindings, &tags);
+            lvgl_render::update_bindings(&mut live_bindings, &tags, &lang_table, &shared_lang);
             tags
         };
 

@@ -12,7 +12,7 @@ objects:
   type: text
   x: 450
   y: 24
-  text: "{{controlli_fill_color_label_alarm}}"
+  text: "{{t0014}}"
   font_size: 18
   font_weight: bold
   text_anchor: middle
@@ -26,7 +26,7 @@ objects:
   y: 14
   width: 150
   height: 30
-  label: "{{griglia}}"
+  label: "{{t0015}}"
   target_page: gp_page1
   group_id: g_nav
   locked: true
@@ -38,7 +38,7 @@ objects:
   type: text
   x: 30
   y: 75
-  text: "{{demo_fill_color_pilota_il_rect_in_cella}}"
+  text: "{{t0016}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -48,7 +48,7 @@ objects:
   y: 90
   width: 110
   height: 38
-  label: "{{rosso}}"
+  label: "{{t0017}}"
   fill: "#dc2626"
   tag: demo.fill_color
   write_value: "#dc2626"
@@ -59,7 +59,7 @@ objects:
   y: 90
   width: 110
   height: 38
-  label: "{{verde}}"
+  label: "{{t0018}}"
   fill: "#16a34a"
   tag: demo.fill_color
   write_value: "#16a34a"
@@ -70,7 +70,7 @@ objects:
   y: 90
   width: 110
   height: 38
-  label: "{{blu}}"
+  label: "{{t0019}}"
   fill: "#2563eb"
   tag: demo.fill_color
   write_value: "#2563eb"
@@ -81,7 +81,7 @@ objects:
   y: 90
   width: 110
   height: 38
-  label: "{{arancio}}"
+  label: "{{t0020}}"
   fill: "#ea580c"
   tag: demo.fill_color
   write_value: "#ea580c"
@@ -92,7 +92,7 @@ objects:
   y: 90
   width: 110
   height: 38
-  label: "{{viola}}"
+  label: "{{t0021}}"
   fill: "#9333ea"
   tag: demo.fill_color
   write_value: "#9333ea"
@@ -102,7 +102,7 @@ objects:
   type: text
   x: 30
   y: 155
-  text: "{{anteprima_fill}}"
+  text: "{{t0022}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -133,7 +133,7 @@ objects:
   type: text
   x: 30
   y: 270
-  text: "{{trigger_allarme_counter_80_scrive_counte}}"
+  text: "{{t0023}}"
   font_size: 11
   color: "#94a3b8"
 
@@ -144,7 +144,7 @@ objects:
   width: 150
   height: 40
   fill: "#16a34a"
-  label: "{{counter_50}}"
+  label: "{{t0024}}"
   tag: counter
   write_value: 50
 
@@ -155,7 +155,7 @@ objects:
   width: 150
   height: 40
   fill: "#dc2626"
-  label: "{{counter_95}}"
+  label: "{{t0025}}"
   tag: counter
   write_value: 95
 
@@ -176,7 +176,7 @@ objects:
   type: text
   x: 30
   y: 380
-  text: "{{demo_s_27_ux_in_editor_prova_drag_drop_n}}"
+  text: "{{t0026}}"
   font_size: 11
   color: "#475569"
 
@@ -184,7 +184,7 @@ objects:
   type: text
   x: 30
   y: 400
-  text: "{{demo_grid_s_23_clicca_una_cella_poi_divi}}"
+  text: "{{t0027}}"
   font_size: 11
   color: "#475569"
 

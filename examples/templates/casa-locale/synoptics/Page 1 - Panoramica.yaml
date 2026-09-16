@@ -18,7 +18,7 @@ objects:
   type: text
   x: 400
   y: 22
-  text: "{{casa_panoramica}}"
+  text: "{{t0001}}"
   font_size: 20
   font_weight: bold
   text_anchor: middle
@@ -30,7 +30,7 @@ objects:
   type: text
   x: 400
   y: 42
-  text: "{{dashboard_energia_sicurezza}}"
+  text: "{{t0002}}"
   font_size: 11
   text_anchor: middle
   color: "#475569"
@@ -44,7 +44,7 @@ objects:
   y: 620
   width: 160
   height: 36
-  label: "{{solare}}"
+  label: "{{t0003}}"
   target_page: cl_page2
   group_id: g_nav
   locked: true
@@ -55,7 +55,7 @@ objects:
   y: 620
   width: 160
   height: 36
-  label: "{{contatori}}"
+  label: "{{t0004}}"
   target_page: cl_page3
   group_id: g_nav
   locked: true
@@ -66,7 +66,7 @@ objects:
   y: 620
   width: 160
   height: 36
-  label: "{{sicurezza}}"
+  label: "{{t0005}}"
   target_page: cl_page4
   group_id: g_nav
   locked: true
@@ -77,7 +77,7 @@ objects:
   y: 620
   width: 160
   height: 36
-  label: "{{domotica}}"
+  label: "{{t0006}}"
   target_page: cl_page5
   group_id: g_nav
   locked: true
@@ -91,7 +91,7 @@ objects:
   type: text
   x: 210
   y: 70
-  text: "{{flusso_energia}}"
+  text: "{{t0007}}"
   font_size: 12
   font_weight: bold
   text_anchor: middle
@@ -121,7 +121,7 @@ objects:
   type: text
   x: 175
   y: 110
-  text: "{{fotovoltaico}}"
+  text: "{{t0008}}"
   font_size: 11
   font_weight: bold
   text_anchor: middle
@@ -183,7 +183,7 @@ objects:
   type: text
   x: 395
   y: 110
-  text: "{{consumo_casa}}"
+  text: "{{t0009}}"
   font_size: 11
   font_weight: bold
   text_anchor: middle
@@ -244,7 +244,7 @@ objects:
   type: text
   x: 175
   y: 260
-  text: "{{batteria}}"
+  text: "{{t0010}}"
   font_size: 11
   font_weight: bold
   text_anchor: middle
@@ -318,7 +318,7 @@ objects:
   type: text
   x: 395
   y: 260
-  text: "{{rete_elettrica}}"
+  text: "{{t0011}}"
   font_size: 11
   font_weight: bold
   text_anchor: middle
@@ -339,7 +339,7 @@ objects:
   type: text
   x: 395
   y: 312
-  text: "{{importo_esporto}}"
+  text: "{{t0012}}"
   font_size: 9
   text_anchor: middle
   color: "#475569"
@@ -379,7 +379,7 @@ objects:
   type: text
   x: 88
   y: 390
-  text: "{{inverter}}"
+  text: "{{t0013}}"
   font_size: 11
   color: "#64748b"
 
@@ -397,7 +397,7 @@ objects:
   type: text
   x: 88
   y: 408
-  text: "{{temp_modulo}}"
+  text: "{{t0014}}"
   font_size: 11
   color: "#64748b"
 
@@ -430,7 +430,7 @@ objects:
   type: text
   x: 680
   y: 70
-  text: "{{sicurezza_2}}"
+  text: "{{t0015}}"
   font_size: 12
   font_weight: bold
   text_anchor: middle
@@ -451,7 +451,7 @@ objects:
   type: text
   x: 565
   y: 104
-  text: "{{garage_sezionale}}"
+  text: "{{t0016}}"
   font_size: 12
   color: "#94a3b8"
 
@@ -480,7 +480,7 @@ objects:
   type: text
   x: 555
   y: 165
-  text: "{{aperture}}"
+  text: "{{t0017}}"
   font_size: 11
   font_weight: bold
   color: "#475569"
@@ -490,7 +490,7 @@ objects:
   type: text
   x: 570
   y: 186
-  text: "{{fin_garage}}"
+  text: "{{t0018}}"
   font_size: 10
   color: "#64748b"
 - id: cl1_w1_led
@@ -508,7 +508,7 @@ objects:
   type: text
   x: 570
   y: 206
-  text: "{{fin_studio}}"
+  text: "{{t0019}}"
   font_size: 10
   color: "#64748b"
 - id: cl1_w2_led
@@ -526,7 +526,7 @@ objects:
   type: text
   x: 570
   y: 226
-  text: "{{cucina_dx}}"
+  text: "{{t0020}}"
   font_size: 10
   color: "#64748b"
 - id: cl1_w3_led
@@ -544,7 +544,7 @@ objects:
   type: text
   x: 570
   y: 246
-  text: "{{cucina_sx}}"
+  text: "{{t0021}}"
   font_size: 10
   color: "#64748b"
 - id: cl1_w4_led
@@ -562,7 +562,7 @@ objects:
   type: text
   x: 570
   y: 266
-  text: "{{sogg_dx}}"
+  text: "{{t0022}}"
   font_size: 10
   color: "#64748b"
 - id: cl1_w5_led
@@ -580,7 +580,7 @@ objects:
   type: text
   x: 570
   y: 286
-  text: "{{sogg_sx}}"
+  text: "{{t0023}}"
   font_size: 10
   color: "#64748b"
 - id: cl1_w6_led
@@ -599,7 +599,7 @@ objects:
   type: text
   x: 680
   y: 186
-  text: "{{lavanderia}}"
+  text: "{{t0024}}"
   font_size: 10
   color: "#64748b"
 - id: cl1_w7_led
@@ -617,7 +617,7 @@ objects:
   type: text
   x: 680
   y: 206
-  text: "{{bagno_t}}"
+  text: "{{t0025}}"
   font_size: 10
   color: "#64748b"
 - id: cl1_w8_led
@@ -635,7 +635,7 @@ objects:
   type: text
   x: 680
   y: 226
-  text: "{{port_studio}}"
+  text: "{{t0026}}"
   font_size: 10
   color: "#64748b"
 - id: cl1_w9_led
@@ -653,7 +653,7 @@ objects:
   type: text
   x: 680
   y: 246
-  text: "{{port_dimp}}"
+  text: "{{t0027}}"
   font_size: 10
   color: "#64748b"
 - id: cl1_w10_led
@@ -672,7 +672,7 @@ objects:
   type: text
   x: 555
   y: 308
-  text: "{{movimento}}"
+  text: "{{t0028}}"
   font_size: 11
   font_weight: bold
   color: "#475569"
@@ -681,7 +681,7 @@ objects:
   type: text
   x: 570
   y: 328
-  text: "{{ingresso}}"
+  text: "{{t0029}}"
   font_size: 10
   color: "#64748b"
 - id: cl1_mov1_led
@@ -699,7 +699,7 @@ objects:
   type: text
   x: 570
   y: 348
-  text: "{{ovest}}"
+  text: "{{t0030}}"
   font_size: 10
   color: "#64748b"
 - id: cl1_mov2_led
@@ -717,7 +717,7 @@ objects:
   type: text
   x: 680
   y: 328
-  text: "{{nord_est}}"
+  text: "{{t0031}}"
   font_size: 10
   color: "#64748b"
 - id: cl1_mov3_led
@@ -735,7 +735,7 @@ objects:
   type: text
   x: 680
   y: 348
-  text: "{{nord_ovest}}"
+  text: "{{t0032}}"
   font_size: 10
   color: "#64748b"
 - id: cl1_mov4_led
@@ -754,7 +754,7 @@ objects:
   type: text
   x: 555
   y: 380
-  text: "{{tapparelle}}"
+  text: "{{t0033}}"
   font_size: 11
   font_weight: bold
   color: "#475569"
@@ -763,7 +763,7 @@ objects:
   type: text
   x: 555
   y: 400
-  text: "{{ufficio}}"
+  text: "{{t0034}}"
   font_size: 10
   color: "#64748b"
 - id: cl1_tap1_bar
@@ -781,7 +781,7 @@ objects:
   type: text
   x: 555
   y: 420
-  text: "{{bagno}}"
+  text: "{{t0035}}"
   font_size: 10
   color: "#64748b"
 - id: cl1_tap2_bar
@@ -799,7 +799,7 @@ objects:
   type: text
   x: 555
   y: 440
-  text: "{{sogg_dx}}"
+  text: "{{t0022}}"
   font_size: 10
   color: "#64748b"
 - id: cl1_tap3_bar
@@ -817,7 +817,7 @@ objects:
   type: text
   x: 555
   y: 460
-  text: "{{sogg_sx}}"
+  text: "{{t0023}}"
   font_size: 10
   color: "#64748b"
 - id: cl1_tap4_bar
@@ -836,7 +836,7 @@ objects:
   type: text
   x: 555
   y: 490
-  text: "{{contatori_2}}"
+  text: "{{t0036}}"
   font_size: 11
   font_weight: bold
   color: "#475569"
@@ -845,7 +845,7 @@ objects:
   type: text
   x: 555
   y: 510
-  text: "{{rack_garage}}"
+  text: "{{t0037}}"
   font_size: 10
   color: "#64748b"
 - id: cl1_cnt1_val
@@ -862,7 +862,7 @@ objects:
   type: text
   x: 555
   y: 528
-  text: "{{rack_piano}}"
+  text: "{{t0038}}"
   font_size: 10
   color: "#64748b"
 - id: cl1_cnt2_val
@@ -879,7 +879,7 @@ objects:
   type: text
   x: 555
   y: 546
-  text: "{{pompa_calore}}"
+  text: "{{t0039}}"
   font_size: 10
   color: "#64748b"
 - id: cl1_cnt3_val
@@ -896,7 +896,7 @@ objects:
   type: text
   x: 400
   y: 600
-  text: "{{dati_in_tempo_reale_via_mqtt_broker_192}}"
+  text: "{{t0040}}"
   font_size: 9
   text_anchor: middle
   color: "#334155"

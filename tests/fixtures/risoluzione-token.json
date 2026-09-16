@@ -1,0 +1,52 @@
+{
+  "tabella": {
+    "default": "it",
+    "langs": ["it", "en", "de"],
+    "entries": [
+      { "key": "ciao",  "values": { "it": "Ciao", "en": "Hello" } },
+      { "key": "vuota", "values": {} },
+      { "key": "mondo", "values": { "it": "mondo", "en": "world", "de": "Welt" } },
+      { "key": "a b",   "values": { "it": "QUESTA CHIAVE NON DEVE ESSERE RAGGIUNGIBILE" } }
+    ]
+  },
+  "casi": [
+    { "nome": "testo senza token passa invariato",
+      "testo": "Avvio pompa", "lang": "it", "atteso": "Avvio pompa" },
+
+    { "nome": "token semplice nella lingua richiesta",
+      "testo": "{{ciao}}", "lang": "it", "atteso": "Ciao" },
+
+    { "nome": "token semplice in un'altra lingua",
+      "testo": "{{ciao}}", "lang": "en", "atteso": "Hello" },
+
+    { "nome": "lingua mancante: ripiego sulla lingua principale",
+      "testo": "{{ciao}}", "lang": "de", "atteso": "Ciao" },
+
+    { "nome": "chiave che non esiste in tabella resta visibile come token",
+      "testo": "{{ignota}}", "lang": "it", "atteso": "{{ignota}}" },
+
+    { "nome": "entry presente ma senza nessun valore: resta un token, non diventa testo",
+      "testo": "{{vuota}}", "lang": "it", "atteso": "{{vuota}}" },
+
+    { "nome": "testo misto attorno al token",
+      "testo": "{{ciao}} a tutti", "lang": "it", "atteso": "Ciao a tutti" },
+
+    { "nome": "due token nella stessa stringa",
+      "testo": "{{ciao}} {{mondo}}", "lang": "en", "atteso": "Hello world" },
+
+    { "nome": "spazi interni alle graffe sono tollerati",
+      "testo": "{{ ciao }}", "lang": "it", "atteso": "Ciao" },
+
+    { "nome": "una chiave non puo contenere spazi: non e un token nemmeno se esiste in tabella",
+      "testo": "{{a b}}", "lang": "it", "atteso": "{{a b}}" },
+
+    { "nome": "graffa aperta e mai chiusa passa invariata",
+      "testo": "ciao {{abc", "lang": "it", "atteso": "ciao {{abc" },
+
+    { "nome": "stringa vuota",
+      "testo": "", "lang": "it", "atteso": "" },
+
+    { "nome": "il segnaposto di formato non e un token e non va toccato",
+      "testo": "{value:.1f} {{mondo}}", "lang": "de", "atteso": "{value:.1f} Welt" }
+  ]
+}

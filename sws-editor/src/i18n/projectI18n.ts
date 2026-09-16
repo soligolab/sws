@@ -40,23 +40,41 @@ const TOKEN_RE = /\{\{\s*([^}\s]+)\s*\}\}/g;
 
 /** Sostituisce le occorrenze `{{token}}` in `str` con la traduzione per `lang`
  *  (fallback: default della tabella → token grezzo tra graffe se sconosciuto).
- *  Testo senza token passa invariato. */
+ *  Testo senza token passa invariato.
+ *
+ *  **Ciò che non si risolve resta un token**, graffe comprese, in tutti i casi:
+ *  chiave assente dalla tabella, oppure presente ma senza nessun valore utile.
+ *  Fino al 15-09-2026 il secondo caso ripiegava sul nome nudo della chiave, che
+ *  su un pannello si legge come testo vero — un `{{vuota}}` non tradotto
+ *  diventava la parola «vuota» sotto gli occhi dell'operatore, invece di
+ *  dichiararsi non tradotto. Il viewer LVGL faceva già la cosa giusta: i casi
+ *  condivisi stanno in `tests/fixtures/risoluzione-token.json`, che entrambi i
+ *  motori leggono. */
 export function resolveMsg(str: string, lang: string, table?: LanguageTable | null): string {
   if (!str || !table || str.indexOf("{{") < 0) return str;
   return str.replace(TOKEN_RE, (_m, key: string) => {
     const entry = table.entries.find((e) => e.key === key);
-    if (!entry) return `{{${key}}}`;
-    return entry.values[lang] ?? entry.values[table.default] ?? key;
+    return entry?.values[lang] ?? entry?.values[table.default] ?? `{{${key}}}`;
   });
 }
 
-const TEXT_FIELDS: (keyof SynopticObject)[] = [
+/** I campi di un oggetto che contengono testo letto dall'operatore, e che
+ *  quindi passano dalla tabella lingue. **Esportato** perché è anche l'elenco
+ *  dei campi in cui il pannello proprietà crea le chiavi da solo (Fase 3): due
+ *  elenchi diversi vorrebbero dire un campo che si tokenizza scrivendo e non si
+ *  risolve disegnando, o viceversa. `scripts/check_i18n_parita.sh` lo confronta
+ *  con quello del viewer LVGL. */
+export const TEXT_FIELDS: (keyof SynopticObject)[] = [
   "label", "text", "unit", "pipe_label", "bar_y_label", "pie_center_text", "text_list_default",
   // F1.3: anche i formati possono portare testo attorno al segnaposto
   // (es. "{value:.1f} {{gradi}}") e vanno risolti come ogni altro testo.
   "format", "pipe_label_format", "pie_center_format",
   // F3.2: il messaggio di conferma comando è testo che l'operatore legge.
   "confirm_message",
+  // 15-09-2026: testo visibile che non traduceva NESSUNO dei due motori — non
+  // una divergenza, quindi il confronto fra le due liste non poteva vederlo, e
+  // un debito che nessuno conta cresce. Ora `check_i18n_parita.sh` lo conta.
+  "table_label_header", "xy_x_label", "xy_y_label", "pie_group_label",
 ];
 
 function hasToken(v: unknown): v is string {
@@ -92,6 +110,23 @@ export function localizeObject(obj: SynopticObject, lang: string, table?: Langua
   if (obj.pie_slices?.some((s) => hasToken(s.label))) {
     ensure().pie_slices = obj.pie_slices.map((s) => (hasToken(s.label) ? { ...s, label: resolveMsg(s.label, lang, table) } : s));
   }
+  // 15-09-2026: le tre etichette annidate che restavano fuori. Il viewer LVGL
+  // non le può tradurre perché il suo modello non ha nemmeno il campo
+  // (`TableRow.unit`, `XySeries.label`, `TrendTrace.label` esistono solo qui):
+  // è un buco del modello, non della traduzione, e lo dichiara
+  // `check_i18n_parita.sh`.
+  if (obj.table_rows?.some((r) => hasToken(r.unit))) {
+    ensure().table_rows = (out ?? obj).table_rows!.map((r) => (hasToken(r.unit) ? { ...r, unit: resolveMsg(r.unit, lang, table) } : r));
+  }
+  if (obj.xy_series?.some((s) => hasToken(s.label))) {
+    ensure().xy_series = obj.xy_series.map((s) => (hasToken(s.label) ? { ...s, label: resolveMsg(s.label, lang, table) } : s));
+  }
+  if (obj.trend_tags?.some((s) => hasToken(s.label))) {
+    ensure().trend_tags = obj.trend_tags.map((s) => (hasToken(s.label) ? { ...s, label: resolveMsg(s.label, lang, table) } : s));
+  }
+  if (obj.symbol_states?.some((e) => hasToken(e.label))) {
+    ensure().symbol_states = obj.symbol_states.map((e) => (hasToken(e.label) ? { ...e, label: resolveMsg(e.label, lang, table) } : e));
+  }
   return out ?? obj;
 }
 
@@ -100,10 +135,10 @@ export function localizePageName(name: string, lang: string, table?: LanguageTab
   return resolveMsg(name, lang, table);
 }
 
-/** Localizza una lista di oggetti (identità quando non serve). */
-export function localizeObjects(objs: SynopticObject[], lang: string, table?: LanguageTable | null): SynopticObject[] {
-  if (!table || !lang) return objs;
-  let changed = false;
-  const mapped = objs.map((o) => { const r = localizeObject(o, lang, table); if (r !== o) changed = true; return r; });
-  return changed ? mapped : objs;
-}
+// `localizeObjects` viveva qui: localizzava l'array di primo livello di una
+// pagina, e i chiamanti passavano oggetti già risolti. È stata tolta il
+// 15-09-2026 perché **saltava i figli** di `grid` e `faceplate`, che nascono
+// dentro `SvgObject` e non da quell'array. La localizzazione ora sta
+// nell'imbuto (`SvgObject`, via `@/i18n/linguaContenuti`), dove passano tutti
+// gli oggetti; tenerla anche qui vorrebbe dire due strade per la stessa cosa,
+// di cui una sbagliata. `scripts/check_i18n_parita.sh` vieta che ritorni.

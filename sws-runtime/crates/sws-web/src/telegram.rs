@@ -20,6 +20,7 @@
 //!     avoids threading a `sws-web` type into the script crate.
 
 use std::sync::Arc;
+use sws_core::LanguageTable;
 use sws_core::TelegramConfig;
 use tokio::sync::{mpsc, RwLock};
 use tokio_util::sync::CancellationToken;
@@ -91,6 +92,7 @@ pub struct TelegramSender {
     tx: mpsc::UnboundedSender<TelegramMessage>,
     text_tx: mpsc::UnboundedSender<String>,
     cfg: Arc<RwLock<Option<TelegramConfig>>>,
+    lingua: Arc<RwLock<(LanguageTable, String)>>,
     cancel: CancellationToken,
 }
 
@@ -101,8 +103,19 @@ impl TelegramSender {
         let (tx, mut rx) = mpsc::unbounded_channel::<TelegramMessage>();
         let (text_tx, mut text_rx) = mpsc::unbounded_channel::<String>();
         let cfg = Arc::new(RwLock::new(initial));
+        // La tabella lingue e la lingua delle notifiche, per risolvere i token
+        // `{{chiave}}` prima di spedire. Serve da quando gli script hanno
+        // `tr()`: quello restituisce un RIFERIMENTO e non una traduzione,
+        // perché uno script non sa chi leggerà — ma un messaggio Telegram un
+        // lettore ce l'ha, e senza questo gli arriverebbe `{{t0007}}`.
+        //
+        // Interior-mutable come `cfg`, e aggiornata dallo stesso punto:
+        // il canale sopravvive al cambio progetto.
+        let lingua: Arc<RwLock<(LanguageTable, String)>> =
+            Arc::new(RwLock::new((LanguageTable::default(), String::new())));
         let cancel = CancellationToken::new();
         let cfg_task = Arc::clone(&cfg);
+        let lingua_task = Arc::clone(&lingua);
         let cancel_task = cancel.clone();
         tokio::spawn(async move {
             let client = reqwest::Client::new();
@@ -120,7 +133,9 @@ impl TelegramSender {
                 };
                 // Chat mirate (allarme con `telegram_mode: chats`) o quelle globali.
                 let chats = msg.chat_ids.as_deref().unwrap_or(&c.chat_ids);
-                if let Err(e) = send_message(&client, &c.bot_token, chats, &msg.text).await {
+                let (tabella, codice) = lingua_task.read().await.clone();
+                let testo = sws_core::project::resolve_msg(&msg.text, &codice, &tabella);
+                if let Err(e) = send_message(&client, &c.bot_token, chats, &testo).await {
                     warn!("telegram send failed: {e:#}");
                 } else {
                     info!("telegram message sent to {} chat(s)", chats.len());
@@ -131,8 +146,15 @@ impl TelegramSender {
             tx,
             text_tx,
             cfg,
+            lingua,
             cancel,
         }
+    }
+
+    /// La tabella lingue e la lingua delle notifiche del progetto aperto.
+    /// Si richiama all'apertura, come si fa già per la configurazione.
+    pub async fn set_lingua(&self, tabella: LanguageTable, codice: String) {
+        *self.lingua.write().await = (tabella, codice);
     }
 
     /// Cloneable handle for text-only senders (scripts): always the configured
@@ -191,6 +213,10 @@ pub async fn stop_sender(s: &AppState) {
 pub async fn restart_sender(
     s: &AppState,
     telegram: Option<TelegramConfig>,
+    // La tabella lingue del progetto che si sta aprendo, e la lingua delle
+    // notifiche. Servono a risolvere i token prima di spedire: da quando gli
+    // script hanno `tr()`, un messaggio può contenerne uno.
+    lingua: (LanguageTable, String),
 ) -> Option<TelegramSinks> {
     // Si filtra solo sul token: un progetto può non avere chat globali e avere
     // solo allarmi con chat proprie (`telegram_mode: chats`). Scartando la
@@ -200,9 +226,11 @@ pub async fn restart_sender(
     let mut guard = s.telegram_sender.write().await;
     if let Some(existing) = guard.as_ref() {
         existing.set_config(telegram).await;
+        existing.set_lingua(lingua.0, lingua.1).await;
         return Some(TelegramSinks::of(existing));
     }
     let sender = TelegramSender::start(telegram);
+    sender.set_lingua(lingua.0, lingua.1).await;
     let sinks = TelegramSinks::of(&sender);
     *guard = Some(sender);
     Some(sinks)

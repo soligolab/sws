@@ -11,7 +11,7 @@ objects:
   type: text
   x: 400
   y: 20
-  text: "{{carichi_elettrici}}"
+  text: "{{t0105}}"
   font_size: 17
   font_weight: bold
   text_anchor: middle
@@ -22,7 +22,7 @@ objects:
   type: text
   x: 400
   y: 40
-  text: "{{cucina_sonoff_pompa_di_calore_kpi_energe}}"
+  text: "{{t0106}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -35,7 +35,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "{{panoramica_2}}"
+  label: "{{t0047}}"
   target_page: pro_p1
   locked: true
 
@@ -45,7 +45,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "{{fotovoltaico}}"
+  label: "{{t0004}}"
   target_page: pro_p2
   locked: true
 
@@ -55,7 +55,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "{{batt_rete}}"
+  label: "{{t0005}}"
   target_page: pro_p3
   locked: true
 
@@ -65,7 +65,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "{{clima}}"
+  label: "{{t0006}}"
   target_page: pro_p4
   locked: true
 
@@ -75,7 +75,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "{{carichi_2}}"
+  label: "{{t0107}}"
   target_page: pro_p5
   fill: "#1e293b"
   locked: true
@@ -86,7 +86,7 @@ objects:
   y: 572
   width: 120
   height: 34
-  label: "{{sicurezza}}"
+  label: "{{t0008}}"
   target_page: pro_p6
   locked: true
 
@@ -109,7 +109,7 @@ objects:
   type: text
   x: 110
   y: 74
-  text: "{{consumo_casa_2}}"
+  text: "{{t0108}}"
   font_size: 9
   text_anchor: middle
   color: "#475569"
@@ -129,7 +129,7 @@ objects:
   type: text
   x: 280
   y: 74
-  text: "{{costo_ora}}"
+  text: "{{t0109}}"
   font_size: 9
   text_anchor: middle
   color: "#475569"
@@ -149,7 +149,7 @@ objects:
   type: text
   x: 450
   y: 74
-  text: "{{saldo_fv_casa}}"
+  text: "{{t0110}}"
   font_size: 9
   text_anchor: middle
   color: "#475569"
@@ -169,7 +169,7 @@ objects:
   type: text
   x: 620
   y: 74
-  text: "{{consumo_oggi}}"
+  text: "{{t0111}}"
   font_size: 9
   text_anchor: middle
   color: "#475569"
@@ -189,7 +189,7 @@ objects:
   type: text
   x: 760
   y: 74
-  text: "{{lifetime}}"
+  text: "{{t0051}}"
   font_size: 9
   text_anchor: middle
   color: "#475569"
@@ -213,7 +213,7 @@ objects:
   type: text
   x: 200
   y: 128
-  text: "{{cucina_contatore_sonoff}}"
+  text: "{{t0112}}"
   font_size: 12
   font_weight: bold
   text_anchor: middle
@@ -235,7 +235,7 @@ objects:
   type: text
   x: 100
   y: 162
-  text: "{{potenza}}"
+  text: "{{t0071}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -255,7 +255,7 @@ objects:
   type: text
   x: 100
   y: 210
-  text: "{{w}}"
+  text: "{{t0113}}"
   font_size: 12
   text_anchor: middle
   color: "#92400e"
@@ -278,7 +278,7 @@ objects:
   type: text
   x: 290
   y: 162
-  text: "{{tensione}}"
+  text: "{{t0053}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -299,7 +299,7 @@ objects:
   type: text
   x: 290
   y: 210
-  text: "{{corrente}}"
+  text: "{{t0055}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -320,7 +320,7 @@ objects:
   type: text
   x: 290
   y: 258
-  text: "{{frequenza}}"
+  text: "{{t0077}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -341,7 +341,7 @@ objects:
   type: text
   x: 100
   y: 310
-  text: "{{energia_totale}}"
+  text: "{{t0114}}"
   font_size: 9
   text_anchor: middle
   color: "#475569"
@@ -365,7 +365,7 @@ objects:
   type: text
   x: 600
   y: 128
-  text: "{{pompa_di_calore}}"
+  text: "{{t0115}}"
   font_size: 12
   font_weight: bold
   text_anchor: middle
@@ -387,7 +387,7 @@ objects:
   type: text
   x: 500
   y: 162
-  text: "{{potenza}}"
+  text: "{{t0071}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -407,7 +407,7 @@ objects:
   type: text
   x: 500
   y: 210
-  text: "{{w}}"
+  text: "{{t0113}}"
   font_size: 12
   text_anchor: middle
   color: "#1e3a5f"
@@ -429,7 +429,7 @@ objects:
   type: text
   x: 690
   y: 162
-  text: "{{tensione}}"
+  text: "{{t0053}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -450,7 +450,7 @@ objects:
   type: text
   x: 690
   y: 210
-  text: "{{corrente}}"
+  text: "{{t0055}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -471,7 +471,7 @@ objects:
   type: text
   x: 690
   y: 258
-  text: "{{energia_totale}}"
+  text: "{{t0114}}"
   font_size: 10
   text_anchor: middle
   color: "#475569"
@@ -492,7 +492,7 @@ objects:
   type: text
   x: 600
   y: 312
-  text: "{{potenza_istantanea_vs_consumo_casa}}"
+  text: "{{t0116}}"
   font_size: 9
   text_anchor: middle
   color: "#334155"
@@ -517,7 +517,7 @@ objects:
   type: text
   x: 400
   y: 372
-  text: "{{potenza_cucina_vs_pompa_di_calore_vs_con}}"
+  text: "{{t0117}}"
   font_size: 10
   text_anchor: middle
   color: "#64748b"
@@ -539,7 +539,7 @@ objects:
   type: text
   x: 24
   y: 540
-  text: "{{cucina_w}}"
+  text: "{{t0118}}"
   font_size: 9
   color: "#f59e0b"
 
@@ -547,7 +547,7 @@ objects:
   type: text
   x: 160
   y: 540
-  text: "{{pompa_calore_w}}"
+  text: "{{t0119}}"
   font_size: 9
   color: "#38bdf8"
 
@@ -555,7 +555,7 @@ objects:
   type: text
   x: 340
   y: 540
-  text: "{{consumo_casa_kw_1000}}"
+  text: "{{t0120}}"
   font_size: 9
   color: "#a5b4fc"
 
@@ -563,6 +563,6 @@ objects:
   type: text
   x: 650
   y: 540
-  text: "{{storico_sqlite_365_gg}}"
+  text: "{{t0104}}"
   font_size: 9
   color: "#334155"

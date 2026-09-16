@@ -71,6 +71,21 @@ pub fn source_for(obj: &SynopticObject, custom: &[CustomSymbol]) -> Option<SvgSo
                     .map(|(_, p)| SvgSource::Url(p.to_string()))
             }
         }
+        // `lang_button`: la bandiera è lo sfondo del bottone. Il campo esisteva
+        // dal T-40 ed era **dichiarato in `model.rs` e mai letto qui**: sul web
+        // la bandiera si vedeva, sul pannello no — una divergenza silenziosa,
+        // trovata preparando la Fase 5 del multilingua.
+        //
+        // Stessa regola dell'`image`: su questo motore si disegna solo un SVG
+        // (Q16: nessun decoder raster compilato). Per una bandiera è anche il
+        // formato giusto, perché resta nitida a qualunque misura.
+        "lang_button" => {
+            let src = obj.bg_image.as_deref()?.trim();
+            if src.is_empty() || !src.to_ascii_lowercase().contains(".svg") {
+                return None;
+            }
+            Some(SvgSource::Url(src.to_string()))
+        }
         "image" => {
             let src = obj.src.as_deref()?.trim();
             // Un `src` che non è un SVG (png/jpg) non è un difetto da

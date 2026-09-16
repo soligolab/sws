@@ -140,20 +140,20 @@ alarms:
     condition:
       kind: above
       threshold: 70.0
-    message: "Pressione sopra 70 bar"
+    message: "{{t0004}}"
     severity: Warning
   - id: demo.pressure_critical
     tag: demo.sim.pressure
     condition:
       kind: above
       threshold: 90.0
-    message: "Pressione sopra 90 bar — critico"
+    message: "{{t0005}}"
     severity: Critical
   - id: demo.motor_fault
     tag: demo.sim.fault
     condition:
       kind: bool_true
-    message: "Guasto motore simulato"
+    message: "{{t0006}}"
     severity: Critical
 
 functions: []
@@ -286,15 +286,24 @@ languages:
   default: "it"
   langs: ["it", "en"]
   entries:
-    - key: page_title
+    - key: t0004
+      values:
+        it: "Pressione sopra 70 bar"
+    - key: t0005
+      values:
+        it: "Pressione sopra 90 bar — critico"
+    - key: t0006
+      values:
+        it: "Guasto motore simulato"
+    - key: t0001
       values:
         it: "Demo oggetti"
         en: "Items demo"
-    - key: commands
+    - key: t0002
       values:
         it: "Comandi"
         en: "Commands"
-    - key: motor
+    - key: t0003
       values:
         it: "Motore"
         en: "Motor"
