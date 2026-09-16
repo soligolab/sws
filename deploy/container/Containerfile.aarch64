@@ -93,6 +93,12 @@ RUN apt-get update && \
 COPY bin/             /usr/local/bin/
 COPY templates/      /var/sws/templates/
 
+# Font emoji (T-71), solo con --with-lvgl: scripts/build_container.sh popola
+# fonts/ solo in quel caso, quindi con --no-lvgl questo layer è vuoto — un
+# COPY su una cartella assente romperebbe la build, un COPY su una cartella
+# vuota no. Percorso atteso da lvgl_font.rs::CANDIDATI_EMOJI.
+COPY fonts/           /etc/sws/fonts/
+
 # La SPA sta DENTRO l'immagine, dal 2026-07-30. Fino a quel giorno viaggiava a
 # parte, in un archivio da srotolare in un bind mount, per non dover
 # ritrasferire 59 MB a ogni modifica del frontend. Quella ragione è caduta col

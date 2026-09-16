@@ -259,10 +259,17 @@ fi
 CTX="$OUT_DIR/container-context"
 echo "==> [2/4] staging build context in $CTX"
 rm -rf "$CTX"
-mkdir -p "$CTX/bin" "$CTX/templates" "$CTX/www"
+mkdir -p "$CTX/bin" "$CTX/templates" "$CTX/www" "$CTX/fonts"
 install -m 755 "$BIN" "$CTX/bin/sws-runtime"
 if [ "$WITH_LVGL" -eq 1 ]; then
     install -m 755 "$LVGL_BIN" "$CTX/bin/sws-lvgl-viewer"
+    # Font emoji (T-71): non è un pacchetto apt come fonts-dejavu-core, va
+    # vendorizzato — vedi lvgl_font.rs per il perché (contorni, non a colori).
+    # fonts/ resta vuota con --no-lvgl: il COPY nel Containerfile deve avere
+    # una cartella su cui atterrare in entrambi i casi.
+    install -m 644 \
+        "$REPO/sws-runtime/crates/sws-lvgl-viewer/assets/fonts/NotoEmoji-Regular.ttf" \
+        "$CTX/fonts/NotoEmoji-Regular.ttf"
 fi
 cp -r "$REPO/examples/templates/." "$CTX/templates/"
 cp -r "$SPA_DIST/." "$CTX/www/"
