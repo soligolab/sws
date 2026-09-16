@@ -952,51 +952,6 @@ pub async fn ack_alarm(base_url: &str, alarm_id: &str, token: Option<&str>) -> a
     Ok(())
 }
 
-#[cfg(test)]
-mod tests_riconnessione {
-    use super::{prossima_attesa, ATTESA_MAX, ATTESA_MIN};
-    use std::time::Duration;
-
-    #[test]
-    fn raddoppia_e_si_ferma_al_tetto() {
-        let mut a = ATTESA_MIN;
-        let mut viste = vec![a];
-        for _ in 0..10 {
-            a = prossima_attesa(a);
-            viste.push(a);
-        }
-        assert_eq!(viste[0], Duration::from_secs(1));
-        assert_eq!(viste[1], Duration::from_secs(2));
-        assert_eq!(viste[2], Duration::from_secs(4));
-        // Non cresce all'infinito: un pannello deve riprovare spesso abbastanza
-        // da tornare su da solo quando il runtime riparte.
-        assert_eq!(*viste.last().unwrap(), ATTESA_MAX);
-        assert!(viste.iter().all(|d| *d <= ATTESA_MAX));
-    }
-
-    #[test]
-    fn non_va_mai_in_overflow() {
-        // `saturating_mul` e non `*`: una durata enorme moltiplicata per due
-        // andrebbe in panico in debug, e un panico in questo task spegnerebbe
-        // proprio la riconnessione che deve tenere vivo il pannello.
-        assert_eq!(prossima_attesa(Duration::MAX), ATTESA_MAX);
-    }
-
-    #[test]
-    fn il_tetto_e_raggiungibile_in_pochi_tentativi() {
-        // Sei raddoppi da 1 s: 1,2,4,8,16,30. Circa un minuto per arrivare al
-        // ritmo di regime — abbastanza rado da non pesare, abbastanza fitto da
-        // non lasciare uno schermo fermo per ore.
-        let mut a = ATTESA_MIN;
-        let mut n = 0;
-        while a < ATTESA_MAX {
-            a = prossima_attesa(a);
-            n += 1;
-        }
-        assert!(n <= 6, "servono {n} tentativi per arrivare al tetto");
-    }
-}
-
 // ── La lingua scelta sul pannello, che deve sopravvivere al riavvio ──────────
 //
 // `SharedLang` è stato per anni solo in memoria: al riavvio del viewer si
@@ -1042,5 +997,50 @@ pub fn salva_lingua(codice: &str) {
             "[lang] impossibile salvare la lingua in {}: {e}",
             p.display()
         );
+    }
+}
+
+#[cfg(test)]
+mod tests_riconnessione {
+    use super::{prossima_attesa, ATTESA_MAX, ATTESA_MIN};
+    use std::time::Duration;
+
+    #[test]
+    fn raddoppia_e_si_ferma_al_tetto() {
+        let mut a = ATTESA_MIN;
+        let mut viste = vec![a];
+        for _ in 0..10 {
+            a = prossima_attesa(a);
+            viste.push(a);
+        }
+        assert_eq!(viste[0], Duration::from_secs(1));
+        assert_eq!(viste[1], Duration::from_secs(2));
+        assert_eq!(viste[2], Duration::from_secs(4));
+        // Non cresce all'infinito: un pannello deve riprovare spesso abbastanza
+        // da tornare su da solo quando il runtime riparte.
+        assert_eq!(*viste.last().unwrap(), ATTESA_MAX);
+        assert!(viste.iter().all(|d| *d <= ATTESA_MAX));
+    }
+
+    #[test]
+    fn non_va_mai_in_overflow() {
+        // `saturating_mul` e non `*`: una durata enorme moltiplicata per due
+        // andrebbe in panico in debug, e un panico in questo task spegnerebbe
+        // proprio la riconnessione che deve tenere vivo il pannello.
+        assert_eq!(prossima_attesa(Duration::MAX), ATTESA_MAX);
+    }
+
+    #[test]
+    fn il_tetto_e_raggiungibile_in_pochi_tentativi() {
+        // Sei raddoppi da 1 s: 1,2,4,8,16,30. Circa un minuto per arrivare al
+        // ritmo di regime — abbastanza rado da non pesare, abbastanza fitto da
+        // non lasciare uno schermo fermo per ore.
+        let mut a = ATTESA_MIN;
+        let mut n = 0;
+        while a < ATTESA_MAX {
+            a = prossima_attesa(a);
+            n += 1;
+        }
+        assert!(n <= 6, "servono {n} tentativi per arrivare al tetto");
     }
 }

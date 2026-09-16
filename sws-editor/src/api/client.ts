@@ -640,7 +640,7 @@ export const api = {
     da?: string;
     sovrascrivi?: boolean;
     config?: { fornitore: string; url?: string; chiave?: string };
-  }): Promise<{ tradotte: number; saltate: number; problemi: string[] }> =>
+  }): Promise<{ tradotte: number; saltate: number; proposte: number; problemi: string[] }> =>
     request("/api/project/languages/translate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

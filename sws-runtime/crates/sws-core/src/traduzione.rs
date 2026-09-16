@@ -46,58 +46,86 @@ fn segnaposti(s: &str) -> Vec<(usize, usize)> {
     fuori
 }
 
-/// Sostituisce i segnaposti con dei guardiani numerati, e restituisce anche
-/// l'elenco per rimetterli a posto.
-///
-/// I guardiani sono `\u{0}0\u{0}`, `\u{0}1\u{0}`…: caratteri che nessun
-/// traduttore tocca e che nessun autore digita. Un guardiano fatto di lettere
-/// (`PH0`, `__0__`) verrebbe tradotto o spaziato, e ci si accorgerebbe del
-/// problema solo guardando un pannello vero.
-pub fn proteggi(s: &str) -> (String, Vec<String>) {
-    let punti = segnaposti(s);
-    if punti.is_empty() {
-        return (s.to_string(), Vec::new());
-    }
-    let mut fuori = String::with_capacity(s.len());
-    let mut originali = Vec::new();
-    let mut ultimo = 0;
-    for (inizio, fine) in punti {
-        fuori.push_str(&s[ultimo..inizio]);
-        fuori.push('\u{0}');
-        fuori.push_str(&originali.len().to_string());
-        fuori.push('\u{0}');
-        originali.push(s[inizio..fine].to_string());
-        ultimo = fine;
-    }
-    fuori.push_str(&s[ultimo..]);
-    (fuori, originali)
+/// Un pezzo di una frase: o testo da tradurre, o un segnaposto da non toccare.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Pezzo {
+    Testo(String),
+    Segnaposto(String),
 }
 
-/// Rimette i segnaposti al loro posto dopo la traduzione.
+/// Spezza una frase nei suoi pezzi, separando i segnaposti dal testo.
 ///
-/// Un guardiano che non torna indietro è un segnale, non un dettaglio: vuol
-/// dire che il fornitore l'ha mangiato, e la traduzione va scartata invece che
-/// salvata mutilata.
-pub fn ripristina(tradotto: &str, originali: &[String]) -> Option<String> {
-    let mut fuori = tradotto.to_string();
-    for (i, orig) in originali.iter().enumerate() {
-        let guardiano = format!("\u{0}{i}\u{0}");
-        if !fuori.contains(&guardiano) {
-            return None;
-        }
-        fuori = fuori.replace(&guardiano, orig);
+/// **La via che non può fallire.** Dopo tre tentativi di far sopravvivere un
+/// guardiano dentro il testo — NUL (non arrivava), `⟦0⟧` (riordinato in
+/// «Warm stay: ⟦⟧0°C»), un carattere dell'area privata (cancellato senza
+/// lasciare traccia) — la conclusione è che un fornitore
+/// di traduzione è una **scatola nera**: quello che gli mandi può tornare
+/// cambiato in modi che non si finisce mai di prevedere.
+///
+/// Quindi il segnaposto non gli si manda affatto. Si traduce solo il testo
+/// attorno, e il segnaposto lo rimettiamo noi, che sappiamo dov'era.
+///
+/// Il prezzo, dichiarato: il traduttore non può **riordinare** il testo attorno
+/// al segnaposto, perché vede i pezzi separatamente e perde il contesto. Per
+/// «Soggiorno caldo: {value:.1f}°C» non cambia niente; per una lingua che
+/// mettesse l'unità prima del numero il risultato è imperfetto — ma è
+/// imperfetto e **intero**, non rotto, e resta marcato come automatico così una
+/// correzione a mano lo sostituisce per sempre.
+pub fn segmenta(s: &str) -> Vec<Pezzo> {
+    let punti = segnaposti(s);
+    if punti.is_empty() {
+        return vec![Pezzo::Testo(s.to_string())];
     }
-    Some(fuori)
+    let mut fuori = Vec::new();
+    let mut ultimo = 0;
+    for (inizio, fine) in punti {
+        if inizio > ultimo {
+            fuori.push(Pezzo::Testo(s[ultimo..inizio].to_string()));
+        }
+        fuori.push(Pezzo::Segnaposto(s[inizio..fine].to_string()));
+        ultimo = fine;
+    }
+    if ultimo < s.len() {
+        fuori.push(Pezzo::Testo(s[ultimo..].to_string()));
+    }
+    fuori
+}
+
+/// Vale la pena mandare questo pezzo a tradurre? Uno spazio o una unità di
+/// misura non hanno niente da tradurre, e ogni chiamata costa.
+pub fn da_mandare(p: &Pezzo) -> bool {
+    match p {
+        Pezzo::Segnaposto(_) => false,
+        Pezzo::Testo(t) => t.chars().any(char::is_alphabetic),
+    }
+}
+
+/// Separa gli spazi ai bordi dal testo vero: `("Soggiorno caldo: ")` →
+/// `("", "Soggiorno caldo:", " ")`.
+///
+/// Serve perché gli spazi ai bordi di un pezzo sono **giunzioni**: tengono
+/// staccato il testo dal segnaposto che segue. Un fornitore non ha motivo di
+/// conservarli — la maggior parte restituisce la frase ripulita — e senza
+/// questo «Soggiorno caldo: {v}°C» tornerebbe «Warm living room:22.0°C».
+/// Stessa regola del segnaposto: ciò che possiamo rimettere noi non glielo
+/// mandiamo.
+pub fn bordi(t: &str) -> (&str, &str, &str) {
+    let dentro = t.trim();
+    if dentro.is_empty() {
+        return ("", "", t);
+    }
+    let inizio = t.find(dentro).unwrap_or(0);
+    (&t[..inizio], dentro, &t[inizio + dentro.len()..])
 }
 
 /// Una voce da mandare a tradurre.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DaTradurre {
     pub key: String,
-    /// Il testo nella lingua sorgente, coi segnaposti già protetti.
+    /// Il testo nella lingua sorgente, **così com'è**. Chi traduce lo spezza
+    /// con `segmenta` e manda fuori solo i pezzi di testo: i segnaposti non
+    /// escono dal processo.
     pub testo: String,
-    /// I segnaposti tolti, per rimetterli dopo.
-    pub segnaposti: Vec<String>,
 }
 
 /// Quali voci vanno tradotte da `da` verso `a`.
@@ -137,14 +165,14 @@ pub fn da_tradurre(
                     return None;
                 }
             }
-            let (protetto, segnaposti) = proteggi(sorgente);
-            if !protetto.chars().any(char::is_alphabetic) {
+            // Niente lettere una volta tolti i segnaposti = niente da
+            // tradurre, e ogni chiamata costa.
+            if !segmenta(sorgente).iter().any(da_mandare) {
                 return None;
             }
             Some(DaTradurre {
                 key: e.key.clone(),
-                testo: protetto,
-                segnaposti,
+                testo: sorgente.clone(),
             })
         })
         .collect()
@@ -156,6 +184,21 @@ pub fn scrivi_automatica(entry: &mut LangEntry, lingua: &str, testo: String) {
     if !entry.auto.iter().any(|l| l == lingua) {
         entry.auto.push(lingua.to_string());
     }
+}
+
+/// Registra una traduzione che è tornata **mutilata**: non entra fra i valori,
+/// resta una proposta da correggere e approvare a mano.
+pub fn proponi(entry: &mut LangEntry, lingua: &str, testo: String) {
+    entry.proposte.insert(lingua.to_string(), testo);
+}
+
+/// L'autore ha accettato la proposta così com'è (o dopo averla corretta).
+pub fn approva(entry: &mut LangEntry, lingua: &str, testo: String) {
+    entry.proposte.remove(lingua);
+    entry.values.insert(lingua.to_string(), testo);
+    // Approvata da una persona: da ora è lavoro umano e la passata automatica
+    // successiva non la tocca.
+    entry.auto.retain(|l| l != lingua);
 }
 
 /// Toglie il marchio «automatica»: qualcuno l'ha corretta a mano, e da ora è
@@ -183,6 +226,7 @@ mod tests {
                 .map(|(l, t)| (l.to_string(), t.to_string()))
                 .collect(),
             auto: auto.iter().map(|s| s.to_string()).collect(),
+            proposte: Default::default(),
         }
     }
 
@@ -195,49 +239,75 @@ mod tests {
     }
 
     #[test]
-    fn il_segnaposto_esce_dal_testo_e_ci_rientra_identico() {
-        let (protetto, orig) = proteggi("Pressione {value:.1f} bar");
-        assert!(!protetto.contains("{value"), "il segnaposto è ancora lì");
-        assert_eq!(orig, vec!["{value:.1f}"]);
-        // Il fornitore traduce ciò che vede e lascia stare il guardiano.
-        let tradotto = protetto.replace("Pressione", "Druck");
+    fn segmenta_separa_il_testo_dai_segnaposti() {
+        // È il caso vero del maintainer, quello su cui tre guardiani diversi
+        // sono falliti.
         assert_eq!(
-            ripristina(&tradotto, &orig).unwrap(),
-            "Druck {value:.1f} bar"
+            segmenta("Soggiorno caldo: {value:.1f}°C"),
+            vec![
+                Pezzo::Testo("Soggiorno caldo: ".into()),
+                Pezzo::Segnaposto("{value:.1f}".into()),
+                Pezzo::Testo("°C".into()),
+            ]
         );
     }
 
     #[test]
-    fn piu_segnaposti_tornano_al_posto_giusto_anche_se_riordinati() {
-        let (protetto, orig) = proteggi("{a} di {b}");
-        // Il tedesco inverte: è proprio il motivo per cui la frase si traduce
-        // intera invece di spezzarla attorno ai segnaposti.
-        let invertito = protetto
-            .split(" di ")
-            .collect::<Vec<_>>()
-            .into_iter()
-            .rev()
-            .collect::<Vec<_>>()
-            .join(" von ");
-        let fuori = ripristina(&invertito, &orig).unwrap();
-        assert_eq!(fuori, "{b} von {a}");
+    fn il_segnaposto_non_esce_mai_dal_nostro_processo() {
+        // La proprietà che rende questa via incapace di fallire: nessun pezzo
+        // mandato a tradurre contiene un segnaposto. Qualunque cosa il
+        // fornitore faccia al testo, il segnaposto lo rimettiamo noi.
+        for frase in [
+            "Soggiorno caldo: {value:.1f}°C",
+            "{value} su {max}",
+            "Batteria scarica: {value:.0f}%",
+        ] {
+            for p in segmenta(frase).iter().filter(|p| da_mandare(p)) {
+                let Pezzo::Testo(t) = p else { unreachable!() };
+                assert!(!t.contains('{'), "un segnaposto sta per uscire in {t:?}");
+            }
+        }
     }
 
     #[test]
-    fn un_guardiano_mangiato_dal_fornitore_fa_scartare_la_traduzione() {
-        // Salvare una traduzione mutilata sarebbe peggio che non tradurre: il
-        // widget mostrerebbe una frase senza il proprio valore.
-        let (_, orig) = proteggi("Pressione {value} bar");
-        assert!(ripristina("Druck bar", &orig).is_none());
+    fn non_si_manda_a_tradurre_cio_che_non_ha_lettere() {
+        // «°C», «%», uno spazio: niente da tradurre, e ogni chiamata costa.
+        let pezzi = segmenta("Batteria: {value:.0f}%");
+        let mandati: Vec<_> = pezzi.iter().filter(|p| da_mandare(p)).collect();
+        assert_eq!(mandati.len(), 1);
+        assert_eq!(mandati[0], &Pezzo::Testo("Batteria: ".into()));
+    }
+
+    #[test]
+    fn una_frase_senza_segnaposti_resta_un_pezzo_solo() {
+        // Il caso normale non deve diventare più costoso: una chiamata sola.
+        assert_eq!(
+            segmenta("Porta garage aperta"),
+            vec![Pezzo::Testo("Porta garage aperta".into())]
+        );
+    }
+
+    #[test]
+    fn gli_spazi_di_giunzione_non_si_affidano_al_fornitore() {
+        // Lo spazio dopo i due punti è ciò che tiene staccata la frase dal
+        // numero: se lo perde, il pannello mostra «Warm living room:22.0°C».
+        assert_eq!(bordi("Soggiorno caldo: "), ("", "Soggiorno caldo:", " "));
+        assert_eq!(bordi(" di "), (" ", "di", " "));
+        assert_eq!(bordi("Avvio"), ("", "Avvio", ""));
+        // Un pezzo di soli spazi non ha un dentro: tutto coda, niente da
+        // mandare (e `da_mandare` lo scarta comunque, non avendo lettere).
+        assert_eq!(bordi("   "), ("", "", "   "));
     }
 
     #[test]
     fn i_token_della_tabella_lingue_non_sono_segnaposti() {
-        // `{{chiave}}` è un riferimento alla tabella, non un formato: se ne
-        // occupa `resolve_msg`, e confonderli qui li proteggerebbe due volte.
-        let (protetto, orig) = proteggi("{{ciao}} mondo");
-        assert_eq!(protetto, "{{ciao}} mondo");
-        assert!(orig.is_empty());
+        // `{{chiave}}` è un riferimento alla tabella, non un formato di
+        // stampa: se ne occupa `resolve_msg` molto prima, e trattarlo qui da
+        // segnaposto spezzerebbe una frase che segnaposti non ne ha.
+        assert_eq!(
+            segmenta("{{ciao}} mondo"),
+            vec![Pezzo::Testo("{{ciao}} mondo".into())]
+        );
     }
 
     #[test]
@@ -283,6 +353,35 @@ mod tests {
             voce("t2", &[("it", "42")], &[]),
         ]);
         assert!(da_tradurre(&t, "it", "de", false).is_empty());
+    }
+
+    #[test]
+    fn una_traduzione_mutilata_diventa_una_proposta_e_non_un_valore() {
+        // Una proposta non deve poter raggiungere un pannello: se il
+        // segnaposto è andato perso, quel testo mostrerebbe la frase senza il
+        // proprio numero. Ma nemmeno si butta — prima si scartava, e all'autore
+        // restava un avviso criptico e nessun modo di recuperare il lavoro.
+        let mut e = voce("t1", &[("it", "Pressione {value:.1f} bar")], &[]);
+        proponi(&mut e, "de", "Druck bar".into());
+        assert!(
+            !e.values.contains_key("de"),
+            "una proposta è finita fra i valori"
+        );
+        assert_eq!(e.proposte.get("de").unwrap(), "Druck bar");
+    }
+
+    #[test]
+    fn approvare_una_proposta_la_rende_lavoro_umano() {
+        let mut e = voce("t1", &[("it", "Pressione {value:.1f} bar")], &["de"]);
+        proponi(&mut e, "de", "Druck bar".into());
+        approva(&mut e, "de", "Druck {value:.1f} bar".into());
+        assert_eq!(e.values.get("de").unwrap(), "Druck {value:.1f} bar");
+        assert!(
+            e.proposte.is_empty(),
+            "la proposta è rimasta lì dopo l'approvazione"
+        );
+        // E da ora è lavoro umano: la passata automatica successiva non la tocca.
+        assert!(!e.auto.iter().any(|l| l == "de"));
     }
 
     #[test]

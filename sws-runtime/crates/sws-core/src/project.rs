@@ -1262,6 +1262,21 @@ pub struct LangEntry {
     /// prudente.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub auto: Vec<String>,
+    /// Traduzioni **proposte** dalla macchina e non ancora approvate: lingua →
+    /// testo.
+    ///
+    /// Stanno qui e non in `values` di proposito: una proposta non deve poter
+    /// raggiungere un pannello. Ci finisce ciò che è tornato **mutilato** —
+    /// tipicamente un segnaposto di formato perso per strada (`{value:.1f}`),
+    /// che su un widget significa mostrare la frase senza il proprio numero.
+    ///
+    /// Prima del 16-09-2026 quelle righe venivano semplicemente **scartate**, e
+    /// all'autore restava un avviso criptico e nessun modo di recuperare il
+    /// lavoro. Ora la proposta si vede, in rosso, e si corregge e approva a
+    /// mano: è la richiesta del maintainer, ed è anche l'unica forma in cui una
+    /// traduzione incerta è utile invece che pericolosa.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub proposte: std::collections::BTreeMap<String, String>,
 }
 
 /// Sostituisce le occorrenze `{{token}}` in `s` con la traduzione per `lang`.

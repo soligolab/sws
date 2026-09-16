@@ -1311,7 +1311,9 @@ export type PageSizeMode = "fixed" | "ratio" | "fluid";
 
 export interface PageLayoutConfig {
   size_mode: PageSizeMode;
-  /** Aspect ratio label ("16:9" | "4:3" | "21:9" | "1:1" | "custom"). Only meaningful when size_mode === "ratio". */
+  /** Aspect ratio label ("16:10" | "16:9" | "4:3" | "21:9" | "1:1" | "custom").
+   *  Only meaningful when size_mode === "ratio". Il 16:10 (1280×800) è il default:
+   *  è la forma dei pannelli, non dei monitor. */
   aspect_ratio?: string;
   /** Id of the page the viewer opens by default and the kiosk rotation restarts from. */
   home_page_id?: string;
@@ -1364,6 +1366,13 @@ export interface LangEntry {
   key: string;
   /** codice lingua → testo tradotto */
   values: Record<string, string>;
+  /** Lingue riempite dalla macchina (non si sovrascrive il lavoro umano). */
+  auto?: string[];
+  /** Traduzioni PROPOSTE e non ancora approvate: lingua → testo.
+   *  Stanno fuori da `values` di proposito — una proposta non deve poter
+   *  raggiungere un pannello. Ci finisce ciò che è tornato mutilato, tipicamente
+   *  un segnaposto di formato perso per strada. */
+  proposte?: Record<string, string>;
 }
 
 export interface LanguageTable {

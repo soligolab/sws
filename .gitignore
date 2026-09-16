@@ -64,3 +64,6 @@ REMOVED_DOC.md
 
 # SBOM CycloneDX generati da `cargo cyclonedx` (CI e prove locali): uno per crate
 sws-runtime/crates/*/sbom.json
+
+# log di diagnosi lasciati nel repo durante una sessione, non contenuto del progetto
+sws-logs-*.jsonl

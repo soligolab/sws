@@ -30,9 +30,17 @@ describe("editorFitSize", () => {
   it("falls back to the reference resolution in ratio mode", () => {
     expect(editorFitSize({}, { size_mode: "ratio", aspect_ratio: "4:3" }))
       .toEqual({ width: 1024, height: 768 });
-    // unknown/missing ratio → 16:9 reference
+    // Rapporto assente o sconosciuto → la PRIMA voce di ASPECT_RATIOS, che dal
+    // 16-09-2026 è **16:10 a 1280×800** e non più 16:9 a 1920×1080.
+    //
+    // Non è un ritocco: è la forma con cui nasce una pagina nuova, e i pannelli
+    // che questo progetto serve davvero sono 16:10 (il WP630 è 1280×800). Con
+    // il default a 16:9 un progetto disegnato per un pannello vero nasceva
+    // della forma sbagliata. Vale la pena ricordare che 1280×800 NON è 16:9 —
+    // 16:9 a quella larghezza è 1280×720 — perché è la confusione che ha
+    // portato qui.
     expect(editorFitSize({}, { size_mode: "ratio" }))
-      .toEqual({ width: 1920, height: 1080 });
+      .toEqual({ width: 1280, height: 800 });
   });
 
   it("returns null for a fixed page with no declared size", () => {

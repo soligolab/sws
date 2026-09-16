@@ -37,9 +37,16 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
     usata, e le chiavi cancellate non si riusano.
   - **Traduzione automatica** con quattro fornitori dietro un'astrazione: **MyMemory senza nessuna
     chiave** (il default), LibreTranslate ospitabile in casa, Google Cloud Translation, e
-    l'assistente IA già configurato — l'unico a cui si può dare il contesto. I segnaposti di
-    formato escono dal testo e rientrano identici; se il fornitore ne perde uno la riga si scarta.
-    Una traduzione **umana** non si sovrascrive mai. Endpoint **solo-IDE**: 404 su un runtime.
+    l'assistente IA già configurato — l'unico a cui si può dare il contesto. **I segnaposti di
+    formato non escono dal nostro processo**: la frase si spezza in pezzi, si traduce solo il
+    testo, e segnaposti e spazi di giunzione li rimette il runtime — che sa dov'erano. Il prezzo
+    dichiarato è che il traduttore non può riordinare il testo attorno al segnaposto: il risultato
+    può essere imperfetto, ma è sempre intero. (Tre tentativi precedenti mettevano invece un
+    *guardiano* nel testo sperando che tornasse indietro: NUL non arrivava, `⟦0⟧` tornava
+    riordinato, un carattere dell'area privata veniva cancellato. Un fornitore di traduzione è una
+    scatola nera.) Una riga tradotta a metà diventa una **proposta** in rosso da approvare a mano,
+    non si butta. Una traduzione **umana** non si sovrascrive mai. Endpoint **solo-IDE**: 404 su
+    un runtime.
   - Selettore della lingua di anteprima **nella barra dell'editor**, per la rilettura umana.
 
 - **Orologio e stato ritenuto negli script Python (T-69, fase A)**: quattro binding nuovi nel

@@ -442,7 +442,11 @@ mod corpo_notifica_tests {
                 ]
                 .into_iter()
                 .collect(),
-                auto: Vec::new(),
+                // `..Default::default()` e non i campi elencati a mano: è la
+                // seconda volta in due giorni che aggiungere un campo a
+                // `LangEntry` fa passare `cargo build` e fallire `cargo test`,
+                // per un letterale in un test che nessuno ricorda.
+                ..Default::default()
             }],
         }
     }

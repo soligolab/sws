@@ -10543,6 +10543,33 @@ function LanguagesTab() {
   const setVal = (idx: number, code: string, val: string) =>
     patch({ entries: table.entries.map((e, i) => (i === idx ? { ...e, values: { ...e.values, [code]: val } } : e)) });
 
+  // Le proposte si modificano, si accettano o si buttano. Accettarle le sposta
+  // fra i valori e toglie il marchio «automatica»: da quel momento sono lavoro
+  // umano, e la passata di traduzione successiva non le tocca più.
+  const setProposta = (idx: number, code: string, val: string) =>
+    patch({ entries: table.entries.map((e, i) => (i === idx
+      ? { ...e, proposte: { ...(e.proposte ?? {}), [code]: val } } : e)) });
+
+  const approvaProposta = (idx: number, code: string) =>
+    patch({ entries: table.entries.map((e, i) => {
+      if (i !== idx) return e;
+      const { [code]: testo, ...restanti } = e.proposte ?? {};
+      return {
+        ...e,
+        values: { ...e.values, [code]: testo ?? "" },
+        proposte: restanti,
+        auto: (e.auto ?? []).filter((l) => l !== code),
+      };
+    }) });
+
+  const scartaProposta = (idx: number, code: string) =>
+    patch({ entries: table.entries.map((e, i) => {
+      if (i !== idx) return e;
+      const { [code]: _via, ...restanti } = e.proposte ?? {};
+      return { ...e, proposte: restanti };
+    }) });
+
+
   const handleSave = async () => {
     const clean: LanguageTable = { ...table, entries: table.entries.filter((e) => e.key.trim() !== "") };
     setSaving(true);
@@ -10619,8 +10646,16 @@ function LanguagesTab() {
       const problemi = r.problemi.length
         ? `\n\nRighe non tradotte (${r.problemi.length}):\n` + r.problemi.slice(0, 8).join("\n")
         : "";
+      // Le proposte non sono un errore: sono lavoro recuperabile. Vanno dette
+      // per prime, o l'autore non sa che c'è qualcosa in rosso ad aspettarlo.
+      const daApprovare = r.proposte
+        ? `\n\n${r.proposte} voci sono tornate INCOMPLETE (di solito manca un segnaposto come ` +
+          `{value:.1f}): le trovi in rosso nella tabella, da correggere e approvare. ` +
+          `Finché non le approvi non raggiungono nessun pannello.`
+        : "";
       window.alert(
         `Tradotte ${r.tradotte} voci verso «${verso}», ${r.saltate} già a posto o da non tradurre.` +
+          daApprovare +
           problemi +
           "\n\nRileggile prima di mandarle su un impianto: una traduzione automatica di un " +
           "messaggio d'allarme non è una questione di stile.",
@@ -10772,7 +10807,33 @@ function LanguagesTab() {
                 </td>
                 {table.langs.map((l) => (
                   <td key={l} style={CELL}>
-                    <input value={e.values[l] ?? ""} onChange={(ev) => setVal(origIdx, l, ev.target.value)} style={IN} />
+                    {/* Una PROPOSTA non è una traduzione: sta fuori da
+                        `values` e non raggiunge nessun pannello finché una
+                        persona non la guarda. Ci finisce ciò che il fornitore
+                        ha restituito mutilato — tipicamente un segnaposto di
+                        formato perso, cioè una frase senza il proprio numero.
+                        Prima veniva scartata in silenzio. */}
+                    {e.proposte?.[l] ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                        <input
+                          value={e.proposte[l]}
+                          onChange={(ev) => setProposta(origIdx, l, ev.target.value)}
+                          style={{ ...IN, borderColor: "var(--brand-danger, #ef4444)", color: "var(--brand-danger-soft, #fca5a5)" }}
+                          title="Proposta automatica incompleta: manca un segnaposto di formato. Correggila e approvala."
+                        />
+                        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                          <span style={{ fontSize: 10, color: "var(--brand-danger-soft, #fca5a5)" }}>
+                            da approvare
+                          </span>
+                          <button onClick={() => approvaProposta(origIdx, l)} style={S.btn("ghost")}
+                            title="Accetta questo testo come traduzione">✓</button>
+                          <button onClick={() => scartaProposta(origIdx, l)} style={S.btn("ghost")}
+                            title="Scarta la proposta e lascia la casella vuota">✕</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <input value={e.values[l] ?? ""} onChange={(ev) => setVal(origIdx, l, ev.target.value)} style={IN} />
+                    )}
                   </td>
                 ))}
                 <td style={{ ...CELL, textAlign: "center" }}>

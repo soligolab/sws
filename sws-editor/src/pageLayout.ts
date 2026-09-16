@@ -9,6 +9,16 @@ import { getBrand } from "@/branding";
 /** Aspect ratios offered in the "Solo proporzioni" mode picker, with their
  *  standard reference/authoring resolution. */
 export const ASPECT_RATIOS: { label: string; ratio: string; width: number; height: number }[] = [
+  // **Primo perché è il default**: `referenceResolutionFor` ripiega sulla prima
+  // voce, e i pannelli che questo progetto serve davvero sono 16:10 — il WP630
+  // è 1280×800. Fino al 16-09-2026 il 16:10 non era nemmeno fra le scelte, e un
+  // progetto disegnato per un pannello vero nasceva con la forma sbagliata:
+  // bande nere sopra e sotto, o contenuto tagliato.
+  //
+  // Il 16:9 resta, secondo, per monitor e televisori. Vale la pena ricordare
+  // che 1280×800 **non è** 16:9 — 16:9 a quella larghezza è 1280×720 — perché
+  // è una confusione che costa un intero parco di template disegnati male.
+  { label: "16:10 (pannelli)", ratio: "16:10", width: 1280, height: 800 },
   { label: "16:9", ratio: "16:9", width: 1920, height: 1080 },
   { label: "4:3", ratio: "4:3", width: 1024, height: 768 },
   { label: "21:9 (UltraWide)", ratio: "21:9", width: 2560, height: 1080 },
@@ -24,6 +34,7 @@ export function referenceResolutionFor(aspectRatio: string | undefined): { width
 /** Generic standard resolutions for "Fisso" mode — always available
  *  regardless of the active brand. */
 export const STANDARD_DEVICE_PRESETS: { label: string; width: number; height: number }[] = [
+  { label: "16:10 (1280×800)", width: 1280, height: 800 },
   { label: "HD 16:9 (1280×720)", width: 1280, height: 720 },
   { label: "Full HD 16:9 (1920×1080)", width: 1920, height: 1080 },
   { label: "21:9 UltraWide (2560×1080)", width: 2560, height: 1080 },

@@ -223,8 +223,9 @@ async fn ia(
         "Traduci dal {da} al {a} il testo dell'interfaccia di un sistema SCADA industriale \
          (etichette di pulsanti, unità di misura, messaggi di allarme). \
          Rispondi SOLO con la traduzione, senza virgolette e senza spiegazioni. \
-         Le sequenze fra caratteri NUL sono segnaposto tecnici: riportale IDENTICHE, \
-         nella posizione giusta per la lingua di arrivo."
+         Il testo può contenere caratteri speciali che fanno da segnaposto tecnico: \
+         riportali IDENTICI, uno per uno, nella posizione giusta per la lingua di \
+         arrivo. Non tradurli, non spaziarli, non sostituirli."
     );
     crate::ai::client::chiedi_una_volta(client, &scelta, &istruzioni, testo, 1024).await
 }
@@ -337,7 +338,9 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use sws_core::traduzione::{da_tradurre, ripristina, scrivi_automatica};
+use sws_core::traduzione::{
+    bordi, da_mandare, da_tradurre, proponi, scrivi_automatica, segmenta, Pezzo,
+};
 
 /// Tradurre è **progettazione**, non esercizio: l'endpoint esiste solo
 /// sull'istanza IDE e risponde 404 altrove. Non è prudenza — è che sul
@@ -380,6 +383,10 @@ pub struct RichiestaTraduzione {
 pub struct EsitoTraduzione {
     pub tradotte: usize,
     pub saltate: usize,
+    /// Le voci tornate **mutilate**, salvate come proposta da correggere a mano
+    /// invece che scartate. Tipicamente un segnaposto di formato perso per
+    /// strada: la frase c'è, il numero no.
+    pub proposte: usize,
     /// Le voci che il fornitore non ha saputo tradurre, con il motivo. Non è
     /// un fallimento della richiesta: una riga rifiutata su venti non deve
     /// buttare via le altre diciannove.
@@ -440,40 +447,84 @@ pub async fn traduci_progetto(
         .unwrap_or_default();
 
     let mut tradotte = 0usize;
+    let mut proposte = 0usize;
     let mut problemi = Vec::new();
     for voce in lavoro {
-        match traduci(&client, &cfg, &s.config_dir, &voce.testo, &da, &req.a).await {
-            Ok(grezzo) => match ripristina(&grezzo, &voce.segnaposti) {
-                // Un segnaposto che non torna indietro fa scartare la riga: una
-                // traduzione mutilata salvata è peggio di una riga non tradotta,
-                // perché il widget mostrerebbe la frase senza il proprio valore.
-                None => problemi.push(format!(
-                    "{}: il fornitore ha perso un segnaposto di formato, riga scartata",
-                    voce.key
-                )),
-                Some(finito) => {
-                    if let Some(e) = progetto
-                        .languages
-                        .entries
-                        .iter_mut()
-                        .find(|e| e.key == voce.key)
-                    {
-                        scrivi_automatica(e, &req.a, finito);
-                        tradotte += 1;
+        // **Il segnaposto non esce dal nostro processo.**
+        //
+        // Tre guardiani diversi sono falliti nel tentativo di farlo
+        // sopravvivere dentro il testo: NUL (non arrivava a destinazione),
+        // `⟦0⟧` (tornava riordinato, «Warm stay: ⟦⟧0°C»), un carattere
+        // dell'area privata (cancellato). Un fornitore di traduzione è una
+        // scatola nera: ciò che gli mandi può tornare cambiato in modi che non
+        // si finisce mai di prevedere.
+        //
+        // Quindi si traduce solo il testo **attorno** al segnaposto, un pezzo
+        // per volta, e il segnaposto lo rimettiamo noi — che sappiamo dov'era.
+        // Il prezzo dichiarato è che il traduttore non può riordinare il testo
+        // attorno al segnaposto: il risultato può essere imperfetto, ma è
+        // sempre INTERO.
+        let pezzi = segmenta(&voce.testo);
+        let mut composto = String::with_capacity(voce.testo.len());
+        let mut fallito: Option<String> = None;
+        for pezzo in &pezzi {
+            match pezzo {
+                Pezzo::Segnaposto(sp) => composto.push_str(sp),
+                Pezzo::Testo(t) if !da_mandare(pezzo) => composto.push_str(t),
+                Pezzo::Testo(t) => {
+                    // Gli spazi ai bordi sono **giunzioni** verso il
+                    // segnaposto, e non si affidano al fornitore: quasi tutti
+                    // restituiscono la frase ripulita, e «Soggiorno caldo: »
+                    // tornerebbe senza lo spazio, incollata al numero.
+                    let (prima, dentro, dopo) = bordi(t);
+                    match traduci(&client, &cfg, &s.config_dir, dentro, &da, &req.a).await {
+                        Ok(tradotto) => {
+                            composto.push_str(prima);
+                            composto.push_str(tradotto.trim());
+                            composto.push_str(dopo);
+                        }
+                        Err(e) => {
+                            fallito = Some(e.to_string());
+                            break;
+                        }
                     }
                 }
-            },
-            Err(e) => problemi.push(format!("{}: {e}", voce.key)),
+            }
+        }
+
+        let Some(e) = progetto
+            .languages
+            .entries
+            .iter_mut()
+            .find(|e| e.key == voce.key)
+        else {
+            continue;
+        };
+        match fallito {
+            None => {
+                scrivi_automatica(e, &req.a, composto);
+                tradotte += 1;
+            }
+            // Una riga persa per strada a metà: ciò che si è ottenuto non si
+            // butta, diventa una proposta da correggere a mano.
+            Some(motivo) => {
+                if !composto.trim().is_empty() {
+                    proponi(e, &req.a, composto);
+                    proposte += 1;
+                }
+                problemi.push(format!("{}: {motivo}", voce.key));
+            }
         }
     }
 
     if !progetto.languages.langs.iter().any(|l| l == &req.a) {
         progetto.languages.langs.push(req.a.clone());
     }
-    if tradotte == 0 {
+    if tradotte == 0 && proposte == 0 {
         return Json(EsitoTraduzione {
             tradotte,
             saltate,
+            proposte,
             problemi,
         })
         .into_response();
@@ -507,6 +558,7 @@ pub async fn traduci_progetto(
     Json(EsitoTraduzione {
         tradotte,
         saltate,
+        proposte,
         problemi,
     })
     .into_response()
