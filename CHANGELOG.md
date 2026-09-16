@@ -12,6 +12,10 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Added
+- **Skill `finalizza-giornata`**: chiusura di fine sessione — niente rami aperti, niente lavoro
+  a metà, *definition of done*, riepilogo in `STATUS.md`, `CHANGELOG.md`, commit dei meta file e
+  push su `origin`. Chiude il cerchio aperto da `/riprendi`: l'invocazione stessa vale come
+  l'istruzione esplicita richiesta dalla regola 1 di `CLAUDE.md` per il push di quella sessione.
 - **Revisione del parco template, Passi 1-3**: un README.md di ruolo dichiarato per ognuno
   degli undici template (inventario/banco di prova di protocollo/banco di prova di una
   feature/applicazione realistica); due ricette (`recipes/`) nei gemelli demo-items, il

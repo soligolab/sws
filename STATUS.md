@@ -74,6 +74,23 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — skill finalizza-giornata, sessione chiusa e pushata (2026-09-16)
+
+Aggiunta `.claude/skills/finalizza-giornata/SKILL.md` (`f136fbe`): chiude la giornata dove
+`/riprendi` la lascia aperta — verifica niente rami aperti e niente lavoro a metà, *definition
+of done* completa, riepilogo in `STATUS.md`, `CHANGELOG.md`, commit dei meta file e **push**.
+L'invocazione stessa vale come l'istruzione esplicita richiesta dalla regola 1 di `CLAUDE.md`
+per il push di quella sessione — non è un'abitudine automatica, la prossima sessione richiede
+una nuova invocazione.
+
+Con questa skill è stata chiusa la sessione odierna: tutto il lavoro sotto (revisione template,
+Passi 1-3, e prima ancora T-56 collaudato/archiviato) era già mergiato su `main` ma non
+pushato — ora è su `origin/main`.
+
+**Il lavoro sostanziale da riprendere resta quello descritto sotto**: Passo 5 della revisione
+template (i sei template fermi al 28-08), non ancora iniziato — il maintainer non ha ancora dato
+il via libera a proseguire.
+
 ## ▶ Riprendere da qui — revisione template, Passi 1-3 fatti (2026-09-16)
 
 Ripreso il piano `docs/plans/2026-09-14-revisione-template.md`. Fatti i primi tre passi,
