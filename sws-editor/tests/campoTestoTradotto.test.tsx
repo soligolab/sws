@@ -135,3 +135,52 @@ describe("il riuso si propone", () => {
     conferma.mockRestore();
   });
 });
+
+describe("il selettore di caratteri speciali (T-71)", () => {
+  it("il bottone apre il selettore con il catalogo", () => {
+    render(<CampoTestoTradotto valore={undefined} onChange={vi.fn()} />);
+    // Un carattere del catalogo, per categoria "Energia", non è ancora
+    // visibile finché il selettore non è aperto.
+    expect(screen.queryByTitle("⚡")).toBeNull();
+    fireEvent.click(screen.getByTitle("characterPicker.open"));
+    expect(screen.queryByTitle("⚡")).not.toBeNull();
+  });
+
+  it("un carattere scelto si inserisce nel campo, e passa dalla stessa pipeline del testo digitato", () => {
+    // Un'emoji da sola non è né vuota né un numero né un token: la stessa
+    // regola di "traducibile" che vale per il testo digitato a mano la
+    // promuove a voce della tabella lingue — comportamento pre-esistente di
+    // chiaviAutomatiche.ts, non qualcosa che il selettore deve aggirare.
+    const onChange = vi.fn();
+    render(<CampoTestoTradotto valore={undefined} onChange={onChange} />);
+    const input = screen.getByRole("textbox") as HTMLInputElement;
+    fireEvent.focus(input);
+    fireEvent.click(screen.getByTitle("characterPicker.open"));
+    fireEvent.click(screen.getByTitle("⚡"));
+    expect(input.value).toBe("⚡");
+    fireEvent.blur(input);
+    expect(onChange).toHaveBeenCalledWith("{{t0001}}");
+    const t = useAppStore.getState().project!.languages!;
+    expect(t.entries[0].values.it).toBe("⚡");
+  });
+
+  it("il carattere si inserisce alla posizione del cursore, non in coda", () => {
+    const onChange = vi.fn();
+    render(<CampoTestoTradotto valore={undefined} onChange={onChange} />);
+    const input = screen.getByRole("textbox") as HTMLInputElement;
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "Pompa avviata" } });
+    // Cursore subito dopo "Pompa " (6 caratteri), non in fondo alla frase.
+    input.setSelectionRange(6, 6);
+    fireEvent.click(screen.getByTitle("characterPicker.open"));
+    fireEvent.click(screen.getByTitle("⚡"));
+    expect(input.value).toBe("Pompa ⚡avviata");
+  });
+
+  it("scegliendo un carattere il selettore si chiude da solo", () => {
+    render(<CampoTestoTradotto valore={undefined} onChange={vi.fn()} />);
+    fireEvent.click(screen.getByTitle("characterPicker.open"));
+    fireEvent.click(screen.getByTitle("⚡"));
+    expect(screen.queryByTitle("⚡")).toBeNull();
+  });
+});

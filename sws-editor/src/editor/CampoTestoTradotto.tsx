@@ -15,12 +15,14 @@
 // in tedesco a seconda di cosa avviano. La proposta dice anche quante volte
 // quella chiave è già in uso, così la scelta si fa sapendo cosa si condivide.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useAppStore } from "@/store";
 import { api } from "@/api/client";
 import {
   conTesto, contaUsi, decidiChiave, prossimaChiave, testoSorgente,
 } from "@/i18n/chiaviAutomatiche";
+import { CharacterPickerModal } from "@/editor/CharacterPickerModal";
 import type { LanguageTable } from "@/types";
 
 export function CampoTestoTradotto({
@@ -36,6 +38,7 @@ export function CampoTestoTradotto({
   /** Riceve il valore da scrivere nel campo dell'oggetto. */
   onChange: (nuovo: string) => void;
 }) {
+  const { t } = useTranslation();
   const project = useAppStore((s) => s.project);
   const setProject = useAppStore((s) => s.setProject);
   const tabella = project?.languages;
@@ -49,6 +52,9 @@ export function CampoTestoTradotto({
   useEffect(() => {
     if (!attivo) setBozza(mostrato);
   }, [mostrato, attivo]);
+
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [pickerAperto, setPickerAperto] = useState(false);
 
   const salvaTabella = (nuova: LanguageTable) => {
     if (!project) return;
@@ -103,23 +109,69 @@ export function CampoTestoTradotto({
     creaNuova(testo);
   };
 
+  const inserisciCarattere = (carattere: string) => {
+    const el = inputRef.current;
+    const inizio = el?.selectionStart ?? bozza.length;
+    const fine = el?.selectionEnd ?? bozza.length;
+    setAttivo(true);
+    setBozza(bozza.slice(0, inizio) + carattere + bozza.slice(fine));
+    setPickerAperto(false);
+    // Il cursore torna subito dopo il carattere appena inserito, non in
+    // coda: chi lo sceglie a metà frase se lo aspetta lì.
+    requestAnimationFrame(() => {
+      el?.focus();
+      const pos = inizio + carattere.length;
+      el?.setSelectionRange(pos, pos);
+    });
+  };
+
   return (
-    <input
-      type="text"
-      style={stile}
-      placeholder={placeholder}
-      value={bozza}
-      onFocus={() => setAttivo(true)}
-      onChange={(e) => setBozza(e.target.value)}
-      onBlur={conferma}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-        if (e.key === "Escape") {
-          setBozza(mostrato);
-          setAttivo(false);
-          (e.target as HTMLInputElement).blur();
-        }
-      }}
-    />
+    <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+      <input
+        ref={inputRef}
+        type="text"
+        style={{ ...stile, flex: 1, minWidth: 0 }}
+        placeholder={placeholder}
+        value={bozza}
+        onFocus={() => setAttivo(true)}
+        onChange={(e) => setBozza(e.target.value)}
+        onBlur={conferma}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+          if (e.key === "Escape") {
+            setBozza(mostrato);
+            setAttivo(false);
+            (e.target as HTMLInputElement).blur();
+          }
+        }}
+      />
+      <button
+        type="button"
+        title={t("characterPicker.open")}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => setPickerAperto(true)}
+        style={{
+          flexShrink: 0,
+          width: 22,
+          height: 22,
+          fontSize: 13,
+          lineHeight: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "var(--brand-surface, #1e293b)",
+          border: "1px solid var(--brand-surface-2, #334155)",
+          borderRadius: 4,
+          color: "var(--brand-text-muted, #94a3b8)",
+          cursor: "pointer",
+          padding: 0,
+        }}
+      >
+        🔣
+      </button>
+      {pickerAperto && (
+        <CharacterPickerModal onPick={inserisciCarattere} onCancel={() => setPickerAperto(false)} />
+      )}
+    </div>
   );
 }

@@ -982,6 +982,11 @@
     "choose": "Scegli simbolo",
     "insert": "Inserisci"
   },
+  "characterPicker": {
+    "open": "Inserisci un carattere speciale",
+    "title": "Scegli un carattere",
+    "insert": "Inserisci"
+  },
   "cfg": {
     "emptyIfPwdEnv": "(lascia vuoto se usi password_env)",
     "optional": "(opzionale)",
