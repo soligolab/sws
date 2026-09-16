@@ -1,0 +1,11 @@
+id: avvio-rapido
+name: "Avvio rapido"
+setpoints:
+  - tag: demo.cmd.enable
+    value: true
+  - tag: demo.cmd.setpoint
+    value: 50
+  - tag: demo.cmd.select
+    value: locale
+  - tag: demo.cmd.slider
+    value: 30

@@ -1,0 +1,11 @@
+id: arresto
+name: "Arresto"
+setpoints:
+  - tag: demo.cmd.enable
+    value: false
+  - tag: demo.cmd.setpoint
+    value: 0
+  - tag: demo.cmd.select
+    value: fuori_servizio
+  - tag: demo.cmd.slider
+    value: 0
