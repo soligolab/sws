@@ -74,6 +74,31 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — T-71 chiuso: emoji vere su LVGL + selettore nell'editor (2026-09-16)
+
+Piano `docs/plans/2026-09-16-T71-selettore-caratteri.md` concluso e archiviato. Tre fasi, un
+ramo alla volta:
+
+- **Fase B — font emoji su LVGL** (`c8a53a01`): `lv_font_t.fallback` (risolto ricorsivamente da
+  LVGL) aggancia Noto Emoji monocromo/outline a DejaVu — non serve un font unico. Font
+  vendorizzato in `sws-runtime/crates/sws-lvgl-viewer/assets/fonts/` (licenza OFL, ~2 MB, non le
+  "decine di MB" temute — quella stima era per la variante a colori, che qui non renderebbe
+  comunque: LVGL/FreeType disegna contorni). Imbarcato nel container via `build_container.sh` +
+  `Containerfile.aarch64`. Verificato dal vivo via `sws-lvgl-viewer --istantanea` su runtime di
+  scarto: 🏠 🔐 🔧 💡 disegnati in fallback su DejaVu.
+- **Fase A — protezione dalla traduzione automatica** (`75dc22aa`): `sws-core::traduzione`
+  estesa a trattare un carattere `Emoji=YES` (via `unicode-properties`, nuova dipendenza) come
+  un `Pezzo::Segnaposto`, stesso meccanismo già in uso per i segnaposto di formato. Cifre ASCII e
+  `#`/`*` escluse di proposito (sono `Emoji=YES` solo per le sequenze keycap).
+- **Fase C — selettore nell'editor** (`3d31756`): catalogo curato a 5 categorie
+  (`sws-editor/src/i18n/catalogoCaratteri.ts` — energia/allarmi/stati/misure/altro, tutti
+  garantiti dalla Fase B), `CharacterPickerModal` sullo schema di `SymbolGallery`/
+  `SymbolPickerModal`, bottone su `CampoTestoTradotto` che inserisce alla posizione del cursore.
+  Verificato dal vivo: 🔐Testo🏠 inserito correttamente sia in testa sia in coda.
+
+Gate verde a ogni fase: `cargo check/test/clippy/fmt --workspace`, `pnpm test` 414/414, `tsc`,
+`lint`, `pnpm build`, `check_static.sh` 18/18.
+
 ## ▶ Riprendere da qui — release 2.8.0: multilingua su `main`, container da costruire (2026-09-16)
 
 **Quattro squash merge su `main`**, in quest'ordine, e i due rami (`feat/multilingua` e il suo

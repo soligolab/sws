@@ -11,6 +11,15 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Added
+- **T-71 — un selettore di caratteri speciali, con le emoji vere anche su LVGL**: Noto Emoji
+  monocromo/outline agganciato come `fallback` di DejaVu (LVGL lo risolve ricorsivamente, non
+  serve un font unico), vendorizzato e imbarcato nel container LVGL; i caratteri del catalogo
+  sono protetti dalla traduzione automatica in `sws-core::traduzione`, stesso meccanismo dei
+  segnaposto di formato; un selettore nell'editor (catalogo curato a 5 categorie) inserisce il
+  carattere scelto alla posizione del cursore in qualunque campo di testo tradotto. Verificato
+  dal vivo su runtime di scarto sia per il rendering LVGL sia per l'inserimento nell'IDE.
+
 ## [2.8.0] — 2026-09-16
 
 > **Il multilingua di progetto**, dalla tabella che esisteva a metà a quella che serviva: una
