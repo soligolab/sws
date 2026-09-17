@@ -49,6 +49,13 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   segnaposto di formato; un selettore nell'editor (catalogo curato a 5 categorie) inserisce il
   carattere scelto alla posizione del cursore in qualunque campo di testo tradotto. Verificato
   dal vivo su runtime di scarto sia per il rendering LVGL sia per l'inserimento nell'IDE.
+- **F7 parte B — il motivo dell'ACK, raggiungibile dallo storico allarmi**: un'icona in
+  `AlarmHistory`, visibile solo Admin, cerca al click la entry più vicina nel tail dell'audit
+  invece di duplicare il dato in un nuovo campo (`ack_reason` scartato dal maintainer il
+  13-09-2026 — il motivo era già in `/api/audit` da prima). Scoperto dal vivo: `/api/audit` sta
+  negli `admin_routes`, ma `AlarmHistory` vive anche sul viewer operatori — altra porta dello
+  stesso processo, altra origin per il browser. L'icona compare solo nel bundle IDE
+  (`api.isAdminBundle()`), non ovunque il componente sia montato.
 ### Fixed
 - **Un template non porta più la rete di nessuno**: `casa-locale`, `nebulizzatore-sandokan`,
   `enip-demo` e `s7-demo` dichiaravano indirizzi di una rete reale (il broker di casa dell'autore

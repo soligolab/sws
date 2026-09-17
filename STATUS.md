@@ -3083,9 +3083,9 @@ altro:
 4. ~~**F5.3x — XY plot multi-coppia**~~ — **fatto**, release 2.7.3, confermato anche sul TC620
    (vedi sopra). Vedi
    [`docs/plans/2026-09-12-F5.3x-xy-plot-e-verifica-lvgl.md`](../docs/plans/2026-09-12-F5.3x-xy-plot-e-verifica-lvgl.md).
-5. **F7 residui minori** (bordo per-cella griglia, motivo ACK nello storico allarmi): piano in
-   [`docs/plans/2026-09-12-f7-residui-minori.md`](../docs/plans/2026-09-12-f7-residui-minori.md)
-   — la parte B (ACK) ha una domanda per il maintainer prima di partire.
+5. ~~**F7 residui minori**~~ — **fatto**, entrambe le parti (bordo per-cella griglia, rimando al
+   motivo dell'ACK nello storico allarmi). Referto in
+   [`docs/archive/2026-09-12-f7-residui-minori.md`](../docs/archive/2026-09-12-f7-residui-minori.md).
 6. ~~**Q18 aperta**~~ — **decisa e implementata**. Resta solo la conferma a schermo.
 7. **Pagine demo CasaMauro** ferme alle feature F2-F6: piano in
    [`docs/plans/2026-09-12-casamauro-arricchimento-demo.md`](../docs/plans/2026-09-12-casamauro-arricchimento-demo.md)
