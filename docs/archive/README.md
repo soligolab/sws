@@ -59,6 +59,7 @@ venga riletto come vero.
 
 | File | Cos'è |
 |---|---|
+| [2026-09-15-multilingua-di-progetto.md](2026-09-15-multilingua-di-progetto.md) | **FATTO** | tutte e otto le fasi, rilasciate nella **2.8.0** (`1c8eda07`). Collaudato dal vivo dal maintainer il 16-09-2026 («ora funziona»). La Fase 7 ha coperto i **messaggi d'allarme** dei template, non il testo dei sinottici: la misura è nel piano [2026-09-17-regole-dei-template.md](../plans/2026-09-17-regole-dei-template.md), regola R2 |
 | [office-line-2026-05-21.md](office-line-2026-05-21.md) | l'indice leggibile della linea git dell'ufficio (2026-05-10 → 05-21), abbandonata quando si adottò la linea di casa come `main` |
 
 **Non è `docs/history/`**: lì stanno i *pezzi* asportati dai documenti canonici vivi

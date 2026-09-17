@@ -298,7 +298,7 @@ scoperto a selettore fatto.
 origin. A casa: `git fetch && git checkout feat/multilingua` **prima** di qualunque cosa, o
 `/riprendi` guarderà un `main` che non contiene niente di tutto questo.
 
-Piano: `docs/plans/2026-09-15-multilingua-di-progetto.md`, otto fasi. **Fatte la 0, 1, 2, 3 e 4.**
+Piano: `docs/archive/2026-09-15-multilingua-di-progetto.md`, otto fasi. **Fatte la 0, 1, 2, 3 e 4.**
 
 ### Perché questo lavoro è nato
 
