@@ -74,6 +74,59 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — le regole del parco template, e il parco che le rispetta (2026-09-17)
+
+Quattro squash merge su `main`, i due rami (`feat/regole-template` e l'annidato
+`fix/modifica-testo-tradotto`) eliminati dopo il confronto degli alberi:
+
+| commit | cosa |
+|---|---|
+| `c3aed814` | `feat(template)` — le cinque regole diventano guardie, e il Passo 5 le applica ai sei template fermi al 28-08 |
+| `6864d632` | `fix(formato)` — il numero perdeva la sua unità, in due modi diversi |
+| `285fc849` | `feat(template)` — R2 e R5 a zero: ogni template completo in tre lingue |
+| `3b959745` | `fix(i18n)` — modificare un testo tradotto coniava una chiave nuova e vuota |
+
+**Le regole** stanno in `examples/templates/README.md`, il referto della discussione (misure,
+alternative scartate, le quattro decisioni del maintainer) in
+[`docs/plans/2026-09-17-regole-dei-template.md`](docs/plans/2026-09-17-regole-dei-template.md).
+Sono verificate da `check_templates.sh`, dentro `check_static.sh`.
+
+**Il debito dichiarato del parco è passato da 30 eccezioni a 6**, tutte di forma:
+
+| Template | Regola | Perché |
+|---|---|---|
+| `casa-locale` | R1, R3 | 800×680, 5 pagine, 94 oggetti nella più piena — riflusso e sfoltimento si fanno dal **suo** piano (`2026-09-12-casamauro-arricchimento-demo.md`), non di straforo |
+| `demo-items-web` / `-lvgl` | R3 | 4 pagine, perché i tipi di widget sono 35 |
+| `homeassistant-demo` | R3 | 62 oggetti nella panoramica, due sopra il tetto |
+| `homeassistant-pro` | R3 | la vetrina del «cosa si può fare» — eccezione decisa dal maintainer |
+
+**R2 e R5 sono a zero.** Ogni testo visibile di ogni template passa dalla tabella lingue, ogni
+template dichiara `it/en/es` con le tre colonne piene (~660 voci, scritte a mano), e nessuno porta
+l'indirizzo o le credenziali di una rete vera.
+
+### Cosa resta aperto
+
+1. **Il collaudo a schermo del riflusso.** `opcua-demo`, i due `homeassistant`,
+   `nebulizzatore-sandokan` e `grid-playground` sono passati a 1280×800 con una scala uniforme e
+   il contenuto centrato: nessun oggetto esce dalla pagina (verificato), ma **come stanno** lo
+   dice solo l'occhio. Su `homeassistant-pro` restano bande laterali vuote, che si tolgono
+   ridisegnando.
+2. **Le sei eccezioni**, sopra.
+3. **La release 2.9.0**, quando si vorrà: `[Unreleased]` ha già dentro T-71, la guardia sulle
+   release, le regole del parco e i tre difetti di oggi.
+4. **`2.7.3` non è mai stata taggata** — debito dichiarato in `check_release_coerente.sh`, in
+   attesa di una decisione: crearle il tag a posteriori o lasciarla come release di solo
+   changelog.
+
+### Una cosa imparata, che vale più della sessione
+
+La 2.8.0 aveva incontrato metà del difetto di formattazione e l'aveva chiuso dalla parte
+sbagliata, scrivendolo a chiare lettere nel CHANGELOG: «*Nessuna modifica al motore di
+formattazione: il difetto era nel contenuto dei template, non nel codice*». Era nel codice, in
+**tutti e due** i motori, e sistemare i tre template l'aveva soltanto nascosto — fino a che una
+regola non ha costretto a guardare tutti i template insieme. Le regole servono anche a questo:
+non a fare ordine, ma a far emergere ciò che un caso singolo lascia passare.
+
 ## ▶ Riprendere da qui — T-71 chiuso: emoji vere su LVGL + selettore nell'editor (2026-09-16)
 
 Piano `docs/plans/2026-09-16-T71-selettore-caratteri.md` concluso e archiviato. Tre fasi, un

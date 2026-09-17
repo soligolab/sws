@@ -12,6 +12,27 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Added
+- **Le regole del parco template, e le guardie che le tengono** (`examples/templates/README.md`):
+  **R1** ogni pagina 1280×800, **R2** tre lingue (it/en/es) *e* ogni testo visibile che passa
+  dalla tabella lingue, **R3** al massimo 3 pagine e 60 oggetti per pagina, **R4** ruolo e caso
+  d'uso dichiarati nel README, **R5** nessun indirizzo o credenziale di una rete vera. Le prime
+  tre e la quinta sono verificate da `check_templates.sh`, provate rosse prima che verdi. Le
+  eccezioni sono **debito dichiarato col numero di oggi**: se un template peggiora la guardia
+  diventa rossa, se migliora chiede di abbassare il tetto, e il totale si stampa a ogni giro.
+  Erano 30 quando le regole sono nate, sono **6** — tutte di forma.
+- **Tutti i template sono completi in tre lingue** e non hanno più una sola stringa cablata nei
+  sinottici: ~660 voci scritte a mano (non passate dal traduttore automatico — è testo d'impianto
+  corto, dove una persona fa meglio). Prima della misura sei template su dodici avevano **zero**
+  testo tradotto nelle pagine: i due `demo-items` ne avevano 114 in chiaro contro 6 voci in
+  tabella, quindi cambiare lingua faceva cambiare gli allarmi e nient'altro.
+- **`examples/banchi-di-prova/`**: i progetti che servono a noi e non all'utente escono dalla
+  vetrina dei template. Ci va `t69-collaudo`. `gen_synoptic_schema.py` raccoglie l'uso reale dei
+  campi da entrambe le cartelle, perché quel progetto è l'unico che esercita
+  `on_press_fn`/`on_press_args`.
+- **`scripts/riflussa_pagina.py`**: porta le pagine di un template a 1280×800 con un fattore di
+  scala uniforme e il contenuto centrato, senza round-trip YAML — i commenti dei template
+  sopravvivono.
+
 - **Una release non può più restare a metà (`check_release_coerente.sh`, 19ª guardia statica)**:
   verifica che la versione sia la stessa nei quattro file che la portano, che il `CHANGELOG.md`
   racconti la versione che il codice dice di essere, che ogni versione rilasciata abbia un tag, e
@@ -21,11 +42,6 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   falso nel repo. Il controllo su origin vuole la rete e, se origin non risponde, **lo dichiara**
   invece di fingere. Scrivendola è emerso che la `2.7.3` (rilasciata il 12-09) non è mai stata
   taggata: è nel debito dichiarato dentro la guardia.
-- **`session_start.sh` vede anche i tag che origin non ha**: il confronto partiva dai tag *di
-  origin* e cercava l'omonimo locale, quindi un tag presente solo in locale non veniva nemmeno
-  guardato. Ora lo segnala e indica il `git push` da fare — senza farlo, come tutto il resto di
-  quello script. Coperto da due prove nuove in `check_session_start.sh`, compresa quella che un
-  segnalibro di lavoro (`pre-merge-…`) non dev'essere scambiato per una release.
 - **T-71 — un selettore di caratteri speciali, con le emoji vere anche su LVGL**: Noto Emoji
   monocromo/outline agganciato come `fallback` di DejaVu (LVGL lo risolve ricorsivamente, non
   serve un font unico), vendorizzato e imbarcato nel container LVGL; i caratteri del catalogo
@@ -33,6 +49,38 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   segnaposto di formato; un selettore nell'editor (catalogo curato a 5 categorie) inserisce il
   carattere scelto alla posizione del cursore in qualunque campo di testo tradotto. Verificato
   dal vivo su runtime di scarto sia per il rendering LVGL sia per l'inserimento nell'IDE.
+### Fixed
+- **Un template non porta più la rete di nessuno**: `casa-locale`, `nebulizzatore-sandokan`,
+  `enip-demo` e `s7-demo` dichiaravano indirizzi di una rete reale (il broker di casa dell'autore
+  fra questi). Ora usano nomi riservati (RFC 2606) e la rete di documentazione RFC 5737, e il
+  `SETUP.md` dice che l'indirizzo è un segnaposto.
+- **Il numero perdeva la sua unità, in due modi diversi.** Il viewer LVGL buttava via il testo
+  attorno al segnaposto (`{value:.1f} bar` → «12.3»); il web non riconosceva il segno esplicito
+  (`{value:+.2f} kW`) né `{value}` nudo dentro una frase, e in quei casi cadeva su un ripiego che
+  scartava l'intera frase — `homeassistant-pro` lo usa quattordici volte per i saldi di potenza.
+  Ora la specifica è una sola, `{value[:[+][,][.N][f|e|%]]}`, il testo attorno resta sempre, e i
+  casi stanno in `tests/fixtures/formattazione-valori.json`, letto dal test TypeScript **e** da
+  quello Rust. Resta dichiarata una divergenza: il separatore delle migliaia sul web viene dalla
+  lingua del browser, che un pannello non ha. Nei template il formato printf (`%.1f bar`) non ha
+  mai funzionato su nessuno dei due motori: diciotto occorrenze convertite.
+  *La 2.8.0 aveva incontrato metà di questo difetto e l'aveva chiuso dalla parte sbagliata:
+  «`{value}` nudo perdeva il testo attorno… corretto aggiungendo la specifica nei tre punti.
+  Nessuna modifica al motore di formattazione: il difetto era nel contenuto dei template, non nel
+  codice.» Il difetto era in tutti e due i motori, e sistemare i tre template l'aveva soltanto
+  nascosto.*
+- **Modificare un testo già tradotto coniava una chiave nuova e vuota.** `decidiChiave` non
+  sapeva quale chiave il campo contenesse già, quindi «ho modificato un testo tradotto» e «ho
+  scritto un testo nuovo» erano lo stesso caso. Cambiare «TAPPARELLE» in «TAPPARELLE 🌀»
+  sganciava il campo da una voce tradotta in tre lingue e lo attaccava a una voce vuota. Ora la
+  voce si aggiorna sul posto; se è usata anche altrove si chiede se cambiarla dappertutto o solo
+  lì. Quando il testo sorgente cambia, le traduzioni delle altre lingue **diventano proposte**
+  (la cella rossa da approvare): una traduzione è la traduzione di *quel* testo, e a dire che
+  vale ancora dev'essere una persona.
+- **`session_start.sh` vede anche i tag che origin non ha**: il confronto partiva dai tag *di
+  origin* e cercava l'omonimo locale, quindi un tag presente solo in locale non veniva nemmeno
+  guardato. Ora lo segnala e indica il `git push` da fare — senza farlo, come tutto il resto di
+  quello script. Coperto da due prove nuove in `check_session_start.sh`, compresa quella che un
+  segnalibro di lavoro (`pre-merge-…`) non dev'essere scambiato per una release.
 
 ## [2.8.0] — 2026-09-16
 
