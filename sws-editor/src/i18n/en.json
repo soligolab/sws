@@ -452,7 +452,12 @@
     "unacked": "Unacknowledged",
     "active": "Active",
     "next": "Next ▶",
-    "prev": "◀ Prev"
+    "prev": "◀ Prev",
+    "viewReason": "View the reason in the audit log",
+    "loadingReason": "Looking it up in the audit log…",
+    "noReason": "No reason recorded",
+    "reasonNotFound": "Not found in the recent audit log",
+    "reasonLabel": "Reason"
   },
   "tagInput": {
     "select": "Select tag",

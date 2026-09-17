@@ -49,31 +49,33 @@ Resta solo la Parte B qui sotto.
 
 ## Parte B — Il motivo dell'ACK nello storico allarmi
 
-### Perché costa più della Parte A
+**Ridotta dal maintainer il 13-09-2026**: niente `ack_reason` su `AlarmEvent`, niente migrazione
+di schema. Il motivo dell'ACK è **già** scritto nell'audit da prima di questo piano —
+`POST /api/alarms/:id/ack` (`router.rs:2461-2497`) accetta già `reason` e logga
+`s.audit.log("alarm.ack", by, {"alarm": id, "reason": reason})`. Manca solo un modo di
+**vederlo** da dove si guarda lo storico allarmi, senza duplicare il dato.
 
-Aggiungere un campo a `AlarmEvent` è una **migrazione di schema**, non solo un campo nuovo:
-`AlarmEvent` è persistito nello storico allarmi (verificare dove: SQLite via `sws-historian` o
-un file a parte — leggere `sws-core/src/alarm.rs` e chi scrive/legge `AlarmEvent` prima di
-stimare il lavoro). Un evento vecchio non ha il campo nuovo: va deciso se retrocompatibile
-(`Option<String>`, assente per gli eventi già scritti) o se serve un passaggio di migrazione.
+### Il vincolo che decide la forma: `/api/audit` è Admin-only, `AlarmHistory` no
 
-### Disegno proposto (da confermare col maintainer prima di scrivere codice)
+`/api/audit` sta dentro `admin_routes` (`router.rs:299` e dintorni) — solo Admin. Ma
+`AlarmHistory.tsx` è visto anche da Operator/Viewer: la campanella allarmi
+(`AlarmBellPanel.tsx:264`) e l'oggetto sinottico `alarm_history` (`SvgCanvas.tsx:5644`) non hanno
+restrizioni di ruolo. Il rimando quindi si mostra **solo quando `authRole === "Admin"`** — stesso
+pattern già in uso altrove (`ConfigView.tsx:10865`, `MainMenu.tsx:196`), non un meccanismo nuovo.
 
-- `AlarmEvent.ack_reason: Option<String>`, popolato quando l'endpoint di ACK riceve un motivo
-  (verificare se `POST /api/alarms/:id/ack` già accetta un campo motivo per scriverlo
-  nell'audit — se sì, lo stesso valore va anche qui invece di introdurre un secondo canale).
-- Nessuna migrazione dei dati vecchi: `Option<String>` assente = "nessun motivo registrato",
-  onesto per gli eventi pre-esistenti.
-- UI: dove lo storico allarmi mostra un evento confermato, aggiungere il motivo se presente
-  (cercare il componente che mostra `AlarmEvent`, probabilmente in `AlarmHistory`/`alarm_history`
-  lato web e `render_alarm_history` lato LVGL — quest'ultimo potrebbe restare un gap dichiarato
-  se aggiunge complessità sproporzionata a un widget già scritto per una tabella semplice).
+### Disegno confermato
 
-### Domanda da fare al maintainer prima di questa parte
-
-Vale il costo (schema + retrocompatibilità + due rendering) rispetto al fatto che il motivo è
-già raggiungibile da `/api/audit`? Se la risposta è "basta un link/rimando all'audit dallo
-storico allarmi", il lavoro si riduce parecchio (un link, non un campo duplicato).
+- In `AlarmHistory.tsx`, nella cella "Confermato da" (righe 110-118), un'icona visibile solo per
+  Admin e solo sugli eventi con `ts_acked_ms` impostato (c'è qualcosa da cercare).
+- Al click: `api.getAuditTail(2000)` (esiste già, nessuna modifica al client/backend), filtrato
+  client-side su `action === "alarm.ack" && detail.alarm === ev.alarm_id`, scegliendo la entry con
+  `ts_ms` più vicino a `ev.ts_acked_ms` (non c'è un id univoco di evento da correlare — verificato,
+  `AlarmEvent` non ne ha uno). Fetch pigro, un colpo per click, non al caricamento della tabella.
+- Riga espansa sotto quella cliccata: il motivo se presente, "nessun motivo registrato" se
+  `reason` è `null`, "non trovato nell'audit recente" se il tail da 2000 non basta a coprirlo.
+- **LVGL resta fuori scope**: `render_alarm_history` è dichiarato *read-only per disegno*
+  ("qui si guarda cosa è successo, non si agisce... per questo non c'è nessun pulsante",
+  `lvgl_render.rs:5803-5809`) — un pannello fisico senza browser non ha un audit da aprire.
 
 ## File coinvolti (di massima, da confermare in fase di implementazione)
 

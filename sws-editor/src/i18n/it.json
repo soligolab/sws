@@ -452,7 +452,12 @@
     "unacked": "Non confermato",
     "active": "Attivo",
     "next": "Succ ▶",
-    "prev": "◀ Prec"
+    "prev": "◀ Prec",
+    "viewReason": "Vedi il motivo nell'audit",
+    "loadingReason": "Cerco nell'audit…",
+    "noReason": "Nessun motivo registrato",
+    "reasonNotFound": "Non trovato nell'audit recente",
+    "reasonLabel": "Motivo"
   },
   "tagInput": {
     "select": "Seleziona tag",

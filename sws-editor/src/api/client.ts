@@ -71,6 +71,15 @@ const RUNTIME_BASE_URL_KEY = "sws.runtimeBaseUrl";
 let _forceLocalApi = false;
 export function setForceLocalApi(v: boolean) { _forceLocalApi = v; }
 
+/** Vero solo nei bundle IDE (`admin-main.tsx`/`log-main.tsx`/`chat-main.tsx`),
+ *  dove same-origin è per costruzione la porta admin. Il viewer operatori
+ *  (`main.tsx`) non forza mai il local API: sta sulla porta viewer, e le
+ *  rotte `admin_routes` (es. `/api/audit`, F7 parte B) lì non esistono —
+ *  origin diversa dello stesso processo, non un problema di permessi.
+ *  Usarlo per nascondere ciò che chiamerebbe una rotta admin da un contesto
+ *  che non può raggiungerla, invece di scoprirlo da un 404 a runtime. */
+export function isAdminBundle(): boolean { return _forceLocalApi; }
+
 export function getBaseUrl(): string {
   if (_forceLocalApi) return "";
   if (typeof window !== "undefined") {
