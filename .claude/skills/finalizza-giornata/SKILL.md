@@ -25,6 +25,20 @@ invocazione, esplicita quanto questa.
 - Se il ramo risulta già mergiato (`main^{tree}` coincide con `<ramo>^{tree}`), proponi la
   cancellazione con lo stesso controllo del ciclo per-task.
 
+### Quello che `git branch -v` non può vedere (2026-09-17)
+
+La notte fra il 16 e il 17-09-2026 questa skill ha chiuso una giornata dicendo «nessun ramo
+aperto, working tree pulito, niente da committare né da pushare». Tutte e tre le affermazioni
+erano **vere in quel checkout e false nel repo**: su un'altra macchina era in corso una release,
+e il tag `2.8.0` non è mai arrivato su origin.
+
+Un checkout non vede i commit locali di un checkout sorella, e nessuna guardia può cambiarlo.
+Quello che si può fare è **guardare origin invece che solo sé stessi**, ed è quello che ora fa
+`check_release_coerente.sh` (passo 3, dentro `check_static.sh`): se un tag di versione esiste solo
+qui, o se una versione del `CHANGELOG.md` non ha un tag, la giornata non è chiusa. Se sei incerto
+se un'altra sessione stia lavorando in parallelo, `git log --format='%h %ad %s' --date=iso -5
+origin/main` dice subito se su origin è successo qualcosa che non hai fatto tu.
+
 ## 2. Niente lavoro a metà nell'albero
 
 - `git status`. Se ci sono modifiche non committate:

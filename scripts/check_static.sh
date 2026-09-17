@@ -4,13 +4,13 @@
 #
 # PERCHÉ ESISTE
 #
-# Le guardie sono diciannove e nessuno le lanciava tutte: a fine sessione se ne
-# ricordavano sei, per nome, a memoria. Una guardia che non viene lanciata è
+# Le guardie sono quarantacinque e nessuno le lanciava tutte: a fine sessione se
+# ne ricordavano sei, per nome, a memoria. Una guardia che non viene lanciata è
 # codice morto che dà l'illusione di una rete di sicurezza — peggio del non
 # averla, perché ci si fida.
 #
-# Sei girano su file fermi (YAML, sorgenti, tabelle) e finiscono in pochi
-# secondi: sono queste. Le altre tredici vogliono un runtime in ascolto, podman
+# Diciannove girano su file fermi (YAML, sorgenti, tabelle) e finiscono in pochi
+# secondi: sono queste. Le altre ventisei vogliono un runtime in ascolto, podman
 # o un dispositivo, e restano da lanciare a mano quando lo stack c'è —
 # `scripts/README.md` dice quale serve quando.
 #
@@ -45,6 +45,7 @@ STATICHE=(
     check_barra_allarmi     # alarm_banner: web e LVGL selezionano gli stessi stati ISA
     check_via_di_fuga       # la via di fuga STOP del pannello resta raggiungibile
     check_i18n_parita       # web e pannello LVGL traducono lo stesso insieme di campi
+    check_release_coerente  # versione, CHANGELOG e tag dicono la stessa cosa (anche su origin)
 )
 
 # Vogliono uno stack in ascolto, podman o un dispositivo: a mano, non qui.

@@ -296,16 +296,43 @@ if [ "$RETE" -eq 0 ]; then
   avviso "origin non contattato: confronto dei tag saltato"
 else
   DIVERGENTI=""
+  REMOTI=""
   while read -r sha ref; do
     [ -z "${ref:-}" ] && continue
     nome="${ref#refs/tags/}"
     case "$nome" in *"^{}") continue ;; esac
+    REMOTI="${REMOTI}${nome}
+"
     locale="$(git rev-parse -q --verify "refs/tags/${nome}" 2>/dev/null)" || continue
     [ "$locale" != "$sha" ] && DIVERGENTI="${DIVERGENTI} ${nome}"
   done < <(git ls-remote --tags origin 2>/dev/null)
 
+  # Il ciclo qui sopra parte dai tag **di origin**: può dire «il tuo punta
+  # altrove», non «ne hai uno che origin non ha». Il 16-09-2026 è passata di lì
+  # una release a metà — `chore(release): 2.8.0` pushato da una macchina e il
+  # tag `2.8.0` rimasto nel checkout dell'altra — e nessuno se n'è accorto.
+  # Quindi si guarda anche nel verso opposto. Solo i tag di versione: gli altri
+  # (`archive/…`, `pre-merge-…`) sono segnalibri di lavoro e stanno bene qui.
+  SOLO_LOCALI=""
+  while read -r t; do
+    [ -z "$t" ] && continue
+    case "$t" in [0-9]*|v[0-9]*) ;; *) continue ;; esac
+    grep -qxF "$t" <<<"$REMOTI" || SOLO_LOCALI="${SOLO_LOCALI} ${t}"
+  done < <(git tag)
+
+  if [ -n "$SOLO_LOCALI" ]; then
+    N="$(printf '%s' "$SOLO_LOCALI" | wc -w)"
+    grave "${N} tag di versione esistono solo qui:${SOLO_LOCALI}"
+    info ""
+    info "È una release a metà: la storia è su origin e il tag no, quindi chi"
+    info "guarda GitHub vede un \`chore(release)\` e nessuna release. Da"
+    info "pushare — ma il push non lo fa questo script:"
+    info "    git push origin${SOLO_LOCALI}"
+    da_guardare=$((da_guardare+1))
+  fi
+
   if [ -z "$DIVERGENTI" ]; then
-    ok "tutti allineati a origin"
+    [ -z "$SOLO_LOCALI" ] && ok "tutti allineati a origin"
   else
     N="$(printf '%s' "$DIVERGENTI" | wc -w)"
     grave "${N} tag puntano a commit diversi da quelli di origin:"

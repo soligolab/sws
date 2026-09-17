@@ -195,6 +195,35 @@ else
   esito no "il tag è ancora sbagliato ($NUOVO)"
 fi
 
+# ── 6b. Tag solo locale: la release a metà del 16-09-2026 ──────────────────
+echo "=== 6b. tag di versione che origin non ha ==="
+prepara
+# Il caso vero: la storia della release è su origin (l'ha pushata un'altra
+# macchina) e il tag è rimasto nel checkout di questa. Prima del 17-09 il
+# confronto partiva dai tag **di origin**, quindi uno che origin non aveva non
+# veniva nemmeno guardato, e lo script diceva «tutti allineati».
+commit_su_origin rilascio.txt "z" "chore(release): 1.2.0"
+( cd "$SCR/work" && git pull -q --ff-only \
+    && git tag -a 1.2.0 -m "1.2.0" ) >/dev/null 2>&1
+U="$(lancia)"
+printf '%s' "$U" | grep -q 'esistono solo qui' \
+  && esito ok "ha visto il tag che origin non ha" \
+  || esito no "NON l'ha visto: direbbe «allineati» con una release a metà"
+printf '%s' "$U" | grep -q 'tutti allineati a origin' \
+  && esito no "dice anche «tutti allineati», che è la bugia di ieri" \
+  || esito ok "non dice «tutti allineati»"
+# Lo script non pusha mai: deve indicare il comando, non eseguirlo.
+REMOTO="$( cd "$SCR/work" && git ls-remote --tags origin 2>/dev/null \
+             | awk '$2=="refs/tags/1.2.0"{print $1}' )"
+[ -z "$REMOTO" ] && esito ok "non ha pushato il tag da solo" \
+                 || esito no "HA PUSHATO: session_start non deve mai pushare"
+# Un segnalibro di lavoro non è una release e non deve allarmare.
+prepara
+( cd "$SCR/work" && git tag pre-merge-2026-01-01 ) >/dev/null 2>&1
+printf '%s' "$(lancia)" | grep -q 'esistono solo qui' \
+  && esito no "ha preso un segnalibro di lavoro per una release" \
+  || esito ok "ignora i tag che non sono versioni"
+
 # ── 7. Albero sporco: niente che lo tocchi ─────────────────────────────────
 echo "=== 7. albero sporco ==="
 prepara

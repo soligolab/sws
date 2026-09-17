@@ -12,6 +12,20 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Added
+- **Una release non può più restare a metà (`check_release_coerente.sh`, 19ª guardia statica)**:
+  verifica che la versione sia la stessa nei quattro file che la portano, che il `CHANGELOG.md`
+  racconti la versione che il codice dice di essere, che ogni versione rilasciata abbia un tag, e
+  che **nessun tag di versione esista solo in un checkout**. Quest'ultimo è il caso della notte
+  fra il 16 e il 17-09-2026: `chore(release): 2.8.0` pushato da una macchina e il tag rimasto
+  nell'altra, con la sessione di chiusura che diceva «niente da pushare» — vero nel suo checkout,
+  falso nel repo. Il controllo su origin vuole la rete e, se origin non risponde, **lo dichiara**
+  invece di fingere. Scrivendola è emerso che la `2.7.3` (rilasciata il 12-09) non è mai stata
+  taggata: è nel debito dichiarato dentro la guardia.
+- **`session_start.sh` vede anche i tag che origin non ha**: il confronto partiva dai tag *di
+  origin* e cercava l'omonimo locale, quindi un tag presente solo in locale non veniva nemmeno
+  guardato. Ora lo segnala e indica il `git push` da fare — senza farlo, come tutto il resto di
+  quello script. Coperto da due prove nuove in `check_session_start.sh`, compresa quella che un
+  segnalibro di lavoro (`pre-merge-…`) non dev'essere scambiato per una release.
 - **T-71 — un selettore di caratteri speciali, con le emoji vere anche su LVGL**: Noto Emoji
   monocromo/outline agganciato come `fallback` di DejaVu (LVGL lo risolve ricorsivamente, non
   serve un font unico), vendorizzato e imbarcato nel container LVGL; i caratteri del catalogo
