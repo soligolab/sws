@@ -410,566 +410,783 @@ alarms:
 
 languages:
   default: it
-  langs: [it, en]
+  langs: [it, en, es]
   entries:
     - key: t0136
       values:
         it: "Garage sezionale APERTO"
+        en: "Sectional garage OPEN"
+        es: "Garaje seccional ABIERTO"
     - key: t0137
       values:
         it: "Movimento rilevato — zona Ovest"
+        en: "Motion detected — West zone"
+        es: "Movimiento detectado — zona oeste"
     - key: t0138
       values:
         it: "Movimento rilevato — zona Nord-Est"
+        en: "Motion detected — North-East zone"
+        es: "Movimiento detectado — zona noreste"
     - key: t0139
       values:
         it: "Batteria scarica (SOC < 15%)"
+        en: "Low battery (SOC < 15%)"
+        es: "Batería baja (SOC < 15%)"
     - key: t0140
       values:
         it: "Rack Garage — potenza elevata (>2500W)"
+        en: "Garage rack — high power (>2500W)"
+        es: "Rack del garaje — potencia elevada (>2500W)"
     - key: t0141
       values:
         it: "Pompa di Calore — consumo elevato (>3kW)"
+        en: "Heat pump — high consumption (>3kW)"
+        es: "Bomba de calor — consumo elevado (>3kW)"
     - key: t0001
       values:
         it: "🏠  CASA — PANORAMICA"
         en: "🏠  HOME — OVERVIEW"
+        es: "🏠  CASA — RESUMEN"
     - key: t0002
       values:
         it: "Dashboard energia + sicurezza"
         en: "Energy + security dashboard"
+        es: "Panel de energía + seguridad"
     - key: t0003
       values:
         it: "☀ Solare"
         en: "☀ Solar"
+        es: "☀ Solar"
     - key: t0004
       values:
         it: "⚡ Contatori"
         en: "⚡ Meters"
+        es: "⚡ Contadores"
     - key: t0005
       values:
         it: "🔐 Sicurezza"
         en: "🔐 Security"
+        es: "🔐 Seguridad"
     - key: t0006
       values:
         it: "🏠 Domotica"
         en: "🏠 Home automation"
+        es: "🏠 Domótica"
     - key: t0007
       values:
         it: "FLUSSO ENERGIA"
         en: "ENERGY FLOW"
+        es: "FLUJO DE ENERGÍA"
     - key: t0008
       values:
         it: "FOTOVOLTAICO"
         en: "PHOTOVOLTAIC"
+        es: "FOTOVOLTAICA"
     - key: t0009
       values:
         it: "CONSUMO CASA"
         en: "HOUSE CONSUMPTION"
+        es: "CONSUMO DE LA CASA"
     - key: t0010
       values:
         it: "BATTERIA"
         en: "BATTERY"
+        es: "BATERÍA"
     - key: t0011
       values:
         it: "RETE ELETTRICA"
         en: "POWER GRID"
+        es: "RED ELÉCTRICA"
     - key: t0012
       values:
         it: "- = importo / + = esporto"
         en: "- = import / + = export"
+        es: "- = importo / + = exporto"
     - key: t0013
       values:
         it: "Inverter:"
         en: "Inverter:"
+        es: "Inversor:"
     - key: t0014
       values:
         it: "Temp modulo:"
         en: "Module temp:"
+        es: "Temp. módulo:"
     - key: t0015
       values:
         it: "SICUREZZA"
         en: "SECURITY"
+        es: "SEGURIDAD"
     - key: t0016
       values:
         it: "Garage Sezionale"
         en: "Sectional garage"
+        es: "Garaje seccional"
     - key: t0017
       values:
         it: "APERTURE"
         en: "OPENINGS"
+        es: "APERTURAS"
     - key: t0018
       values:
         it: "Fin. Garage"
         en: "Garage win."
+        es: "Vent. garaje"
     - key: t0019
       values:
         it: "Fin. Studio"
         en: "Studio win."
+        es: "Vent. estudio"
     - key: t0020
       values:
         it: "Cucina DX"
         en: "Kitchen R"
+        es: "Cocina der."
     - key: t0021
       values:
         it: "Cucina SX"
         en: "Kitchen L"
+        es: "Cocina izq."
     - key: t0022
       values:
         it: "Sogg. DX"
         en: "Living R"
+        es: "Salón der."
     - key: t0023
       values:
         it: "Sogg. SX"
         en: "Living L"
+        es: "Salón izq."
     - key: t0024
       values:
         it: "Lavanderia"
         en: "Laundry"
+        es: "Lavadero"
     - key: t0025
       values:
         it: "Bagno T."
         en: "Bathroom GF"
+        es: "Baño PB"
     - key: t0026
       values:
         it: "Port. Studio"
         en: "Studio door"
+        es: "Puerta estudio"
     - key: t0027
       values:
         it: "Port. Dimp."
         en: "Hallway door"
+        es: "Puerta distrib."
     - key: t0028
       values:
         it: "MOVIMENTO"
         en: "MOTION"
+        es: "MOVIMIENTO"
     - key: t0029
       values:
         it: "Ingresso"
         en: "Entrance"
+        es: "Entrada"
     - key: t0030
       values:
         it: "Ovest"
         en: "West"
+        es: "Oeste"
     - key: t0031
       values:
         it: "Nord-Est"
         en: "North-East"
+        es: "Noreste"
     - key: t0032
       values:
         it: "Nord-Ovest"
         en: "North-West"
+        es: "Noroeste"
     - key: t0033
       values:
         it: "TAPPARELLE"
         en: "ROLLER SHUTTERS"
+        es: "PERSIANAS"
     - key: t0034
       values:
         it: "Ufficio"
         en: "Office"
+        es: "Oficina"
     - key: t0035
       values:
         it: "Bagno"
         en: "Bathroom"
+        es: "Baño"
     - key: t0036
       values:
         it: "CONTATORI"
         en: "METERS"
+        es: "CONTADORES"
     - key: t0037
       values:
         it: "Rack Garage:"
         en: "Garage rack:"
+        es: "Rack del garaje:"
     - key: t0038
       values:
         it: "Rack Piano:"
         en: "Floor rack:"
+        es: "Rack de la planta:"
     - key: t0039
       values:
         it: "Pompa Calore:"
         en: "Heat pump:"
+        es: "Bomba de calor:"
     - key: t0040
       values:
         it: "▸ Dati in tempo reale via MQTT broker mqtt.example.invalid"
         en: "▸ Real-time data via MQTT broker mqtt.example.invalid"
+        es: "▸ Datos en tiempo real vía broker MQTT mqtt.example.invalid"
     - key: t0041
       values:
         it: "☀  IMPIANTO SOLARE"
         en: "☀  SOLAR PLANT"
+        es: "☀  INSTALACIÓN SOLAR"
     - key: t0042
       values:
         it: "◀ Panoramica"
         en: "◀ Overview"
+        es: "◀ Resumen"
     - key: t0043
       values:
         it: "Contatori ▶"
         en: "Meters ▶"
+        es: "Contadores ▶"
     - key: t0044
       values:
         it: "PANNELLI FV"
         en: "PV PANELS"
+        es: "PANELES FV"
     - key: t0045
       values:
         it: "Stringa PV1"
         en: "PV1 string"
+        es: "Cadena PV1"
     - key: t0046
       values:
         it: "PV1"
         en: "PV1"
+        es: "PV1"
     - key: t0047
       values:
         it: "Stringa PV2"
         en: "PV2 string"
+        es: "Cadena PV2"
     - key: t0048
       values:
         it: "PV2"
         en: "PV2"
+        es: "PV2"
     - key: t0049
       values:
         it: "Totale generato"
         en: "Total generated"
+        es: "Total generado"
     - key: t0050
       values:
         it: "Produzione oggi"
         en: "Produced today"
+        es: "Producción de hoy"
     - key: t0051
       values:
         it: "Totale storico"
         en: "Total lifetime"
+        es: "Total histórico"
     - key: t0052
       values:
         it: "SOC Batteria"
         en: "Battery SOC"
+        es: "SOC de la batería"
     - key: t0053
       values:
         it: "Tensione:"
         en: "Voltage:"
+        es: "Tensión:"
     - key: t0054
       values:
         it: "Potenza:"
         en: "Power:"
+        es: "Potencia:"
     - key: t0055
       values:
         it: "+ = carica / − = scarica"
         en: "+ = charge / − = discharge"
+        es: "+ = carga / − = descarga"
     - key: t0056
       values:
         it: "Andamento (1h)"
         en: "Trend (1h)"
+        es: "Evolución (1h)"
     - key: t0057
       values:
         it: "RETE & INVERTER"
         en: "GRID & INVERTER"
+        es: "RED E INVERSOR"
     - key: t0058
       values:
         it: "Batteria"
         en: "Battery"
+        es: "Batería"
     - key: t0059
       values:
         it: "Scambio rete:"
         en: "Grid exchange:"
+        es: "Intercambio con la red:"
     - key: t0060
       values:
         it: "negativo = importo da rete"
         en: "negative = imported from grid"
+        es: "negativo = importado de la red"
     - key: t0061
       values:
         it: "Consumo casa:"
         en: "House consumption:"
+        es: "Consumo de la casa:"
     - key: t0062
       values:
         it: "INVERTER"
         en: "INVERTER"
+        es: "INVERSOR"
     - key: t0063
       values:
         it: "Stato:"
         en: "State:"
+        es: "Estado:"
     - key: t0064
       values:
         it: "Temp."
         en: "Temp."
+        es: "Temp."
     - key: t0065
       values:
         it: "⚡  CONTATORI ENERGIA"
         en: "⚡  ENERGY METERS"
+        es: "⚡  CONTADORES DE ENERGÍA"
     - key: t0066
       values:
         it: "◀ Solare"
         en: "◀ Solar"
+        es: "◀ Solar"
     - key: t0067
       values:
         it: "Sicurezza ▶"
         en: "Security ▶"
+        es: "Seguridad ▶"
     - key: t0068
       values:
         it: "⌂"
         en: "⌂"
+        es: "⌂"
     - key: t0069
       values:
         it: "Totale monitorato:"
         en: "Total monitored:"
+        es: "Total monitorizado:"
     - key: t0070
       values:
         it: "Sorgente: dds661/<slug>/state — verificare topic in project.yaml"
         en: "Source: dds661/<slug>/state — check topics in project.yaml"
+        es: "Fuente: dds661/<slug>/state — comprobar los topics en project.yaml"
     - key: t0071
       values:
         it: "RACK GARAGE"
         en: "GARAGE RACK"
+        es: "RACK DEL GARAJE"
     - key: t0072
       values:
         it: "Potenza"
         en: "Power"
+        es: "Potencia"
     - key: t0073
       values:
         it: "Misure"
         en: "Measurements"
+        es: "Medidas"
     - key: t0074
       values:
         it: "RACK PIANO SUP."
         en: "UPPER FLOOR RACK"
+        es: "RACK PLANTA SUP."
     - key: t0075
       values:
         it: "POMPA DI CALORE"
         en: "HEAT PUMP"
+        es: "BOMBA DE CALOR"
     - key: t0076
       values:
         it: "Trend Potenze (ultima ora)"
         en: "Power trend (last hour)"
+        es: "Evolución de potencias (última hora)"
     - key: t0077
       values:
         it: "— Rack Garage (W)"
-        en: "— Rack Garage (W)"
+        en: "— Garage rack (W)"
+        es: "— Rack del garaje (W)"
     - key: t0078
       values:
         it: "— Pompa Calore (W)"
-        en: "— Pompa Calore (W)"
+        en: "— Heat pump (W)"
+        es: "— Bomba de calor (W)"
     - key: t0079
       values:
         it: "Topic: dds661/contatore-rack-garage/state · dds661/contatore-rack-pianosuperiore/state · dds661/pompa-di-calore/state"
         en: "Topic: dds661/contatore-rack-garage/state · dds661/contatore-rack-pianosuperiore/state · dds661/pompa-di-calore/state"
+        es: "Topic: dds661/contatore-rack-garage/state · dds661/contatore-rack-pianosuperiore/state · dds661/pompa-di-calore/state"
     - key: t0080
       values:
         it: "🔐  SICUREZZA"
         en: "🔐  SECURITY"
+        es: "🔐  SEGURIDAD"
     - key: t0081
       values:
         it: "◀ Contatori"
         en: "◀ Meters"
+        es: "◀ Contadores"
     - key: t0082
       values:
         it: "Domotica ▶"
         en: "Home automation ▶"
+        es: "Domótica ▶"
     - key: t0083
       values:
         it: "Zigbee2MQTT:"
         en: "Zigbee2MQTT:"
+        es: "Zigbee2MQTT:"
     - key: t0084
       values:
         it: "ONLINE"
         en: "ONLINE"
+        es: "ONLINE"
     - key: t0085
       values:
         it: "GARAGE SEZIONALE"
         en: "SECTIONAL GARAGE"
+        es: "GARAJE SECCIONAL"
     - key: t0086
       values:
         it: "FINESTRE & PORTE"
         en: "WINDOWS & DOORS"
+        es: "VENTANAS Y PUERTAS"
     - key: t0087
       values:
         it: "chiusa"
         en: "closed"
+        es: "cerrada"
     - key: t0088
       values:
         it: "aperta"
         en: "open"
+        es: "abierta"
     - key: t0089
       values:
         it: "Finestra Garage"
         en: "Garage window"
+        es: "Ventana del garaje"
     - key: t0090
       values:
         it: "Portafinestra Sogg. DX"
         en: "Living R French door"
+        es: "Ventanal salón der."
     - key: t0091
       values:
         it: "Finestra Studio"
         en: "Studio window"
+        es: "Ventana del estudio"
     - key: t0092
       values:
         it: "Portafinestra Sogg. SX"
         en: "Living L French door"
+        es: "Ventanal salón izq."
     - key: t0093
       values:
         it: "Finestra Cucina DX"
         en: "Kitchen R window"
+        es: "Ventana cocina der."
     - key: t0094
       values:
         it: "Portafinestra Lavanderia"
         en: "Laundry French door"
+        es: "Ventanal del lavadero"
     - key: t0095
       values:
         it: "Finestra Cucina SX"
         en: "Kitchen L window"
+        es: "Ventana cocina izq."
     - key: t0096
       values:
         it: "Finestra Bagno Terra"
         en: "Ground bathroom window"
+        es: "Ventana baño planta baja"
     - key: t0097
       values:
         it: "Portoncino Studio"
         en: "Studio door"
+        es: "Puerta del estudio"
     - key: t0098
       values:
         it: "Portoncino Disimpegno"
         en: "Hallway door"
+        es: "Puerta del distribuidor"
     - key: t0099
       values:
         it: "RILEVATORI PRESENZA"
         en: "PRESENCE DETECTORS"
+        es: "DETECTORES DE PRESENCIA"
     - key: t0100
       values:
         it: "Sensore Presenza Ingresso"
         en: "Entrance presence sensor"
+        es: "Sensor de presencia en la entrada"
     - key: t0101
       values:
         it: "Occupazione:"
         en: "Occupancy:"
+        es: "Ocupación:"
     - key: t0102
       values:
         it: "Luminosità:"
         en: "Brightness:"
+        es: "Luminosidad:"
     - key: t0103
       values:
         it: "PERIMETRO ESTERNO"
         en: "OUTER PERIMETER"
+        es: "PERÍMETRO EXTERIOR"
     - key: t0104
       values:
         it: "Zona Ovest"
         en: "West zone"
+        es: "Zona oeste"
     - key: t0105
       values:
         it: "Zona Nord-Est"
         en: "North-East zone"
+        es: "Zona noreste"
     - key: t0106
       values:
         it: "Zona Nord-Ovest"
         en: "North-West zone"
+        es: "Zona noroeste"
     - key: t0107
       values:
         it: "Movimento: rosso = rilevato / scuro = assente"
         en: "Motion: red = detected / dark = none"
+        es: "Movimiento: rojo = detectado / oscuro = ausente"
     - key: t0108
       values:
         it: "SOMMARIO APERTURE"
         en: "OPENINGS SUMMARY"
+        es: "RESUMEN DE APERTURAS"
     - key: t0109
       values:
         it: "Sensori"
         en: "Sensors"
+        es: "Sensores"
     - key: t0110
       values:
         it: "Luminosità Ingresso — ultima ora (lux)"
         en: "Entrance brightness — last hour (lux)"
+        es: "Luminosidad en la entrada — última hora (lux)"
     - key: t0111
       values:
         it: "Topic: zigbee2mqtt/DEVICE · Payload: {contact, occupancy, illuminance}"
         en: "Topic: zigbee2mqtt/DEVICE · Payload: {contact, occupancy, illuminance}"
+        es: "Topic: zigbee2mqtt/DEVICE · Payload: {contact, occupancy, illuminance}"
     - key: t0112
       values:
         it: "🏠  DOMOTICA & CONTROLLO"
         en: "🏠  HOME AUTOMATION & CONTROL"
+        es: "🏠  DOMÓTICA Y CONTROL"
     - key: t0113
       values:
         it: "◀ Sicurezza"
         en: "◀ Security"
+        es: "◀ Seguridad"
     - key: t0114
       values:
         it: "☀ Solare ▶"
         en: "☀ Solar ▶"
+        es: "☀ Solar ▶"
     - key: t0115
       values:
         it: "Aggiornare SHELLY_*_ID in project.yaml con i MAC reali"
         en: "Update SHELLY_*_ID in project.yaml with the real MACs"
+        es: "Actualizar SHELLY_*_ID en project.yaml con las MAC reales"
     - key: t0116
       values:
         it: "Ufficio / Garage"
         en: "Office / Garage"
+        es: "Oficina / Garaje"
     - key: t0117
       values:
         it: "▲ Su"
         en: "▲ Up"
+        es: "▲ Subir"
     - key: t0118
       values:
         it: "■ Stop"
         en: "■ Stop"
+        es: "■ Parar"
     - key: t0119
       values:
         it: "▼ Giù"
         en: "▼ Down"
+        es: "▼ Bajar"
     - key: t0120
       values:
         it: "Soggiorno DX"
         en: "Living room R"
+        es: "Salón der."
     - key: t0121
       values:
         it: "Soggiorno SX"
         en: "Living room L"
+        es: "Salón izq."
     - key: t0122
       values:
         it: "ON"
         en: "ON"
+        es: "ON"
     - key: t0123
       values:
         it: "Corrente:"
         en: "Current:"
+        es: "Corriente:"
     - key: t0124
       values:
         it: "Energia tot.:"
         en: "Total energy:"
+        es: "Energía tot.:"
     - key: t0125
       values:
         it: "Power Factor:"
         en: "Power Factor:"
+        es: "Factor de potencia:"
     - key: t0126
       values:
         it: "Potenza — ultima ora"
         en: "Power — last hour"
+        es: "Potencia — última hora"
     - key: t0127
       values:
         it: "DISPOSITIVI ESPHOME"
         en: "ESPHOME DEVICES"
+        es: "DISPOSITIVOS ESPHOME"
     - key: t0128
       values:
         it: "Configurare in project.yaml quando i topic ESPHome MQTT sono noti"
         en: "Configure in project.yaml when the ESPHome MQTT topics are known"
+        es: "Configurar en project.yaml cuando se conozcan los topics MQTT de ESPHome"
     - key: t0129
       values:
         it: "Sensore Posta"
         en: "Mailbox sensor"
+        es: "Sensor del buzón"
     - key: t0130
       values:
         it: "(ESPHome — offline)"
         en: "(ESPHome — offline)"
+        es: "(ESPHome — sin conexión)"
     - key: t0131
       values:
         it: "Laghetto"
         en: "Pond"
+        es: "Estanque"
     - key: t0132
       values:
         it: "(ESPHome — da configurare)"
         en: "(ESPHome — to configure)"
+        es: "(ESPHome — por configurar)"
     - key: t0133
       values:
         it: "Porta garage:"
         en: "Garage door:"
+        es: "Puerta del garaje:"
     - key: t0134
       values:
         it: "Il garage si controlla fisicamente o tramite automazione HA"
         en: "The garage is controlled physically or via HA automation"
+        es: "El garaje se controla físicamente o mediante una automatización de HA"
     - key: t0135
       values:
         it: "Tapparelle: shellies/DEVICE_ID/roller/0/command · PDC: dds661/pompa-di-calore/state"
         en: "Tapparelle: shellies/DEVICE_ID/roller/0/command · PDC: dds661/pompa-di-calore/state"
+        es: "Persianas: shellies/DEVICE_ID/roller/0/command · BdC: dds661/pompa-di-calore/state"
+    - key: t0142
+      values:
+        it: "oggi {value:.1f} kWh"
+        en: "today {value:.1f} kWh"
+        es: "hoy {value:.1f} kWh"
+    - key: t0143
+      values:
+        it: "totale {value:.0f} kWh"
+        en: "total {value:.0f} kWh"
+        es: "total {value:.0f} kWh"
+    - key: t0144
+      values:
+        it: "bat {value:.1f} V"
+        en: "bat {value:.1f} V"
+        es: "bat {value:.1f} V"
+    - key: t0145
+      values:
+        it: "Tensione"
+        en: "Voltage"
+        es: "Tensión"
+    - key: t0146
+      values:
+        it: "Corrente"
+        en: "Current"
+        es: "Corriente"
+    - key: t0147
+      values:
+        it: "Power Factor"
+        en: "Power Factor"
+        es: "Factor de potencia"
+    - key: t0148
+      values:
+        it: "Energia tot."
+        en: "Total energy"
+        es: "Energía tot."
+    - key: t0149
+      values:
+        it: "Import"
+        en: "Import"
+        es: "Importación"
+    - key: t0150
+      values:
+        it: "{value:.0f} lux"
+        en: "{value:.0f} lux"
+        es: "{value:.0f} lux"
+    - key: t0151
+      values:
+        it: "Fin. Garage"
+        en: "Garage win."
+        es: "Vent. garaje"
+    - key: t0152
+      values:
+        it: "Fin. Studio"
+        en: "Studio win."
+        es: "Vent. estudio"
+    - key: t0153
+      values:
+        it: "Garage Sez."
+        en: "Sect. garage"
+        es: "Garaje secc."
+    - key: t0154
+      values:
+        it: "Pres. Ingr."
+        en: "Entr. pres."
+        es: "Pres. entr."
+    - key: t0155
+      values:
+        it: "Mov. Ovest"
+        en: "West mot."
+        es: "Mov. oeste"
 
 # ── Pagina iniziale ──────────────────────────────────────────────────────────
 #

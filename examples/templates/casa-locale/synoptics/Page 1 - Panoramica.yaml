@@ -143,7 +143,7 @@ objects:
   x: 175
   y: 162
   tag: solar.daily_kwh
-  format: "oggi {value:.1f} kWh"
+  format: "{{t0142}}"
   font_size: 11
   text_anchor: middle
   color: "#78716c"
@@ -205,7 +205,7 @@ objects:
   x: 395
   y: 162
   tag: solar.total_kwh
-  format: "totale {value:.0f} kWh"
+  format: "{{t0143}}"
   font_size: 11
   text_anchor: middle
   color: "#78716c"
@@ -349,7 +349,7 @@ objects:
   x: 395
   y: 336
   tag: solar.battery_v
-  format: "bat {value:.1f} V"
+  format: "{{t0144}}"
   font_size: 11
   text_anchor: middle
   color: "#0e7490"

@@ -132,19 +132,19 @@ objects:
   height: 140
   label: "{{t0073}}"
   table_rows:
-    - label: "Tensione"
+    - label: "{{t0145}}"
       tag: rack_garage.voltage
       format: "{value:.1f} V"
-    - label: "Corrente"
+    - label: "{{t0146}}"
       tag: rack_garage.current
       format: "{value:.3f} A"
-    - label: "Power Factor"
+    - label: "{{t0147}}"
       tag: rack_garage.pf
       format: "{value:.2f}"
-    - label: "Energia tot."
+    - label: "{{t0148}}"
       tag: rack_garage.energy
       format: "{value:.1f} kWh"
-    - label: "Import"
+    - label: "{{t0149}}"
       tag: rack_garage.import
       format: "{value:.2f} kWh"
 
@@ -206,13 +206,13 @@ objects:
   height: 140
   label: "{{t0073}}"
   table_rows:
-    - label: "Tensione"
+    - label: "{{t0145}}"
       tag: rack_piano.voltage
       format: "{value:.1f} V"
-    - label: "Corrente"
+    - label: "{{t0146}}"
       tag: rack_piano.current
       format: "{value:.3f} A"
-    - label: "Energia tot."
+    - label: "{{t0148}}"
       tag: rack_piano.energy
       format: "{value:.1f} kWh"
 
@@ -274,16 +274,16 @@ objects:
   height: 140
   label: "{{t0073}}"
   table_rows:
-    - label: "Tensione"
+    - label: "{{t0145}}"
       tag: pdc.voltage
       format: "{value:.1f} V"
-    - label: "Corrente"
+    - label: "{{t0146}}"
       tag: pdc.current
       format: "{value:.3f} A"
-    - label: "Power Factor"
+    - label: "{{t0147}}"
       tag: pdc.pf
       format: "{value:.2f}"
-    - label: "Energia tot."
+    - label: "{{t0148}}"
       tag: pdc.energy
       format: "{value:.2f} kWh"
 

@@ -441,7 +441,7 @@ objects:
   x: 580
   y: 136
   tag: sec.lux_ingresso
-  format: "{value:.0f} lux"
+  format: "{{t0150}}"
   font_size: 10
   font_weight: bold
   color: "#fbbf24"
@@ -550,19 +550,19 @@ objects:
   height: 140
   label: "{{t0109}}"
   table_rows:
-    - label: "Fin. Garage"
+    - label: "{{t0151}}"
       tag: sec.finestra_garage
       format: "{value}"
-    - label: "Fin. Studio"
+    - label: "{{t0152}}"
       tag: sec.finestra_studio
       format: "{value}"
-    - label: "Garage Sez."
+    - label: "{{t0153}}"
       tag: sec.garage_sezionale
       format: "{value}"
-    - label: "Pres. Ingr."
+    - label: "{{t0154}}"
       tag: sec.presenza_ingresso
       format: "{value}"
-    - label: "Mov. Ovest"
+    - label: "{{t0155}}"
       tag: sec.movimento_ovest
       format: "{value}"
 

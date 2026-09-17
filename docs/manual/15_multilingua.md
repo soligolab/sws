@@ -107,32 +107,31 @@ restava in italiano su qualunque pannello. Le chiavi sono **id opachi**
 non dal nome della chiave, così cambiare una frase non fa mentire la chiave che
 la nomina.
 
-**Tokenizzato non vuol dire tradotto**, e il manuale lo diceva: fino a oggi
-questa sezione dichiarava tutti i template «già conformi IT/EN», mentre tre non
-avevano nemmeno una voce in tabella. La fotografia vera, oggi:
+Dal 17-09-2026, con il Passo 5 della revisione template e la regola **R2**
+(`examples/templates/README.md`), **tutti i template sono completi in tre
+lingue** — italiano, inglese e spagnolo — e ogni testo che un operatore legge
+passa dalla tabella. Non solo i messaggi d'allarme: etichette, titoli, unità
+dentro i formati, messaggi di conferma.
 
-La fotografia è cambiata il 17-09-2026 col Passo 5 della revisione template e
-la regola **R2** (`examples/templates/README.md`): sei template sono completi in
-tre lingue, e per gli altri quanto manca è **scritto e contato** dentro
-`check_templates.sh`, non lasciato all'occhio.
+| Template | Lingue | Voci |
+|---|---|---:|
+| `casa-locale` | it, en, es | 155 |
+| `homeassistant-pro` | it, en, es | 171 |
+| `demo-items-web` / `-lvgl` | it, en, es | 98 |
+| `homeassistant-demo` | it, en, es | 77 |
+| `grid-playground` | it, en, es | 29 |
+| `opcua-demo` | it, en, es | 27 |
+| `nebulizzatore-sandokan` | it, en, es | 14 |
+| `s7-demo`, `enip-demo`, `sparkplug-demo` | it, en, es | 12 |
 
-| Template | Lingue | Voci | Testo del sinottico ancora in chiaro |
-|---|---|---:|---:|
-| `homeassistant-pro` | it, en, es | 171 | 0 |
-| `casa-locale` | it, en | 141 | 20 |
-| `homeassistant-demo` | it, en, es | 77 | 0 |
-| `grid-playground` | it, en | 28 | 1 |
-| `opcua-demo` | it, en, es | 27 | 0 |
-| `s7-demo`, `enip-demo`, `sparkplug-demo` | it, en, es | 12 | 0 |
-| `demo-items-web` / `-lvgl` | it, en | 6 | 114 |
-| `nebulizzatore-sandokan` | it | 2 | 12 |
-
-**Tokenizzato non vuol dire tradotto, e tradotto non vuol dire completo.** Le
-due colonne dicono cose diverse: «voci» conta la tabella lingue, l'ultima conta
-il testo che sul sinottico è ancora scritto a mano e quindi non cambia lingua
-mai. Fino al 17-09 i due `demo-items` avevano 6 voci in tabella e 114 stringhe
-in chiaro: chi apriva quei template e cambiava lingua vedeva cambiare gli
-allarmi e nient'altro.
+**Com'era prima, e perché la misura conta.** La versione 2.8.0 aveva
+tokenizzato i *messaggi d'allarme* di undici template, e il manuale poteva
+sembrare a posto. Ma il testo dei sinottici no: i due `demo-items` avevano 6
+voci in tabella e **114 stringhe scritte a mano** nelle pagine. Chi apriva quei
+template e cambiava lingua vedeva cambiare gli allarmi e nient'altro. Contare
+le voci della tabella diceva mezza verità; ora `check_templates.sh` conta anche
+l'altra metà — il testo che nella tabella non c'è — e non può più tornare a
+crescere in silenzio.
 
 I template con contenuto grafico hanno un **selettore lingua** in alto a destra
 della prima pagina — apri il viewer e cambia lingua per vedere i testi tradursi.

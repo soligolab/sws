@@ -101,9 +101,9 @@ R1_DEBITO = {
 # **tetto**: se cresce la guardia fallisce, se cala va abbassato. Decisione D4:
 # nessuna esenzione, banchi di protocollo compresi.
 R2_DEBITO = {
-    # Resta `casa-locale`, che si tocca dal suo piano
-    # (docs/plans/2026-09-12-casamauro-arricchimento-demo.md) e non di straforo.
-    "casa-locale": 20,
+    # Vuoto dal 17-09-2026, Passo 5: ogni testo visibile di ogni template passa
+    # dalla tabella lingue, e ogni template dichiara it/en/es. Se ricompare una
+    # riga qui, è un template che è tornato indietro.
 }
 
 # R3 — semplicità. Decisione D2: `homeassistant-pro` è l'eccezione dichiarata.
@@ -112,7 +112,8 @@ R3_DEBITO = {
     # nome: (pagine, oggetti nella pagina più piena, perché)
     "homeassistant-pro":  (6, 112, "vetrina del «cosa si può fare», non punto di partenza — "
                                    "la parola «pro» nel nome è l'avviso (decisione del maintainer, 17-09-2026)"),
-    "casa-locale":        (5, 96,  "l'impianto di casa del maintainer, da sfoltire col Passo 5"),
+    "casa-locale":        (5, 94,  "l'impianto di casa del maintainer; sfoltire e riflussare "
+                                   "si fanno dal suo piano, non da qui"),
     "demo-items-lvgl":    (4, 0,   "inventario: 4 pagine per coprire 35 tipi di widget; nessuna pagina supera il tetto di oggetti"),
     "demo-items-web":     (4, 0,   "inventario: 4 pagine per coprire 35 tipi di widget; nessuna pagina supera il tetto di oggetti"),
     "homeassistant-demo": (3, 62,  "due oggetti sopra il tetto nella pagina di panoramica"),
