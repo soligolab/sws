@@ -377,301 +377,393 @@ alarms:
 
 languages:
   default: it
-  langs: [it, en]
+  langs: [it, en, es]
   entries:
     - key: t0069
       values:
         it: "Soggiorno caldo: {value:.1f}°C"
+        en: "Living room warm: {value:.1f}°C"
+        es: "Salón caliente: {value:.1f}°C"
     - key: t0070
       values:
         it: "Soggiorno freddo: {value:.1f}°C"
+        en: "Living room cold: {value:.1f}°C"
+        es: "Salón frío: {value:.1f}°C"
     - key: t0071
       values:
         it: "Consumo elevato: {value:.1f} kW"
+        en: "High consumption: {value:.1f} kW"
+        es: "Consumo elevado: {value:.1f} kW"
     - key: t0072
       values:
         it: "Batteria scarica: {value:.0f}%"
+        en: "Low battery: {value:.0f}%"
+        es: "Batería baja: {value:.0f}%"
     - key: t0073
       values:
         it: "Porta garage aperta"
+        en: "Garage door open"
+        es: "Puerta del garaje abierta"
     - key: t0074
       values:
         it: "Portoncino ingresso aperto"
+        en: "Front door open"
+        es: "Puerta de entrada abierta"
     - key: t0075
       values:
         it: "Movimento rilevato area esterna"
+        en: "Motion detected in outdoor area"
+        es: "Movimiento detectado en el área exterior"
     - key: t0001
       values:
         it: "HOME ASSISTANT — PANORAMICA"
         en: "HOME ASSISTANT — OVERVIEW"
+        es: "HOME ASSISTANT — RESUMEN"
     - key: t0002
       values:
         it: "Clima · Energia · Sicurezza · Luci"
         en: "Climate · Energy · Security · Lights"
+        es: "Clima · Energía · Seguridad · Luces"
     - key: t0003
       values:
         it: "◉ Panoramica"
         en: "◉ Overview"
+        es: "◉ Resumen"
     - key: t0004
       values:
         it: "⚙ Controllo"
         en: "⚙ Control"
+        es: "⚙ Control"
     - key: t0005
       values:
         it: "📈 Storico"
         en: "📈 History"
+        es: "📈 Histórico"
     - key: t0006
       values:
         it: "CLIMA"
         en: "CLIMATE"
+        es: "CLIMA"
     - key: t0007
       values:
         it: "INTERNO"
         en: "INDOOR"
+        es: "INTERIOR"
     - key: t0008
       values:
         it: "Comfort:"
         en: "Comfort:"
+        es: "Confort:"
     - key: t0009
       values:
         it: "ESTERNO"
         en: "OUTDOOR"
+        es: "EXTERIOR"
     - key: t0010
       values:
         it: "Delta:"
         en: "Delta:"
+        es: "Delta:"
     - key: t0011
       values:
         it: "ENERGIA"
         en: "ENERGY"
+        es: "ENERGÍA"
     - key: t0012
       values:
         it: "POTENZA ISTANTANEA"
         en: "INSTANT POWER"
+        es: "POTENCIA INSTANTÁNEA"
     - key: t0013
       values:
         it: "SICUREZZA"
         en: "SECURITY"
+        es: "SEGURIDAD"
     - key: t0014
       values:
         it: "Porta principale"
         en: "Main door"
+        es: "Puerta principal"
     - key: t0015
       values:
         it: "Movimento ingresso"
         en: "Entrance motion"
+        es: "Movimiento en la entrada"
     - key: t0016
       values:
         it: "Garage"
         en: "Garage"
+        es: "Garaje"
     - key: t0017
       values:
         it: "Modalità notturna"
         en: "Night mode"
+        es: "Modo nocturno"
     - key: t0018
       values:
         it: "LUCI"
         en: "LIGHTS"
+        es: "LUCES"
     - key: t0019
       values:
         it: "Soggiorno"
         en: "Living room"
+        es: "Salón"
     - key: t0020
       values:
         it: "Cucina"
         en: "Kitchen"
+        es: "Cocina"
     - key: t0021
       values:
         it: "Esterna"
         en: "Outdoor"
+        es: "Exterior"
     - key: t0022
       values:
         it: "richiede ruolo Supervisor+"
         en: "requires Supervisor+ role"
+        es: "requiere rol Supervisor+"
     - key: t0023
       values:
         it: "Ventilatore"
-        en: "Ventilatore"
+        en: "Fan"
+        es: "Ventilador"
     - key: t0024
       values:
         it: "RISCALDAMENTO"
         en: "HEATING"
+        es: "CALEFACCIÓN"
     - key: t0025
       values:
         it: "Temperatura attuale"
         en: "Current temperature"
+        es: "Temperatura actual"
     - key: t0026
       values:
         it: "Setpoint corrente"
         en: "Current setpoint"
+        es: "Consigna actual"
     - key: t0027
       values:
         it: "☀ SOLE"
         en: "☀ SUN"
+        es: "☀ SOL"
     - key: t0028
       values:
         it: "elevazione"
         en: "elevation"
+        es: "elevación"
     - key: t0029
       values:
         it: "HOME ASSISTANT — CONTROLLO"
         en: "HOME ASSISTANT — CONTROL"
+        es: "HOME ASSISTANT — CONTROL"
     - key: t0030
       values:
         it: "Attuatori con write-back diretto su HomeAssistant"
         en: "Actuators with direct write-back to HomeAssistant"
+        es: "Actuadores con escritura directa en HomeAssistant"
     - key: t0031
       values:
         it: "◎ Panoramica"
         en: "◎ Overview"
+        es: "◎ Resumen"
     - key: t0032
       values:
         it: "◉ Controllo"
         en: "◉ Control"
+        es: "◉ Control"
     - key: t0033
       values:
         it: "ON"
         en: "ON"
+        es: "ON"
     - key: t0034
       values:
         it: "OFF"
         en: "OFF"
+        es: "OFF"
     - key: t0035
       values:
         it: "Setpoint HA"
         en: "HA setpoint"
+        es: "Consigna HA"
     - key: t0036
       values:
         it: "Nuovo setpoint:"
         en: "New setpoint:"
+        es: "Nueva consigna:"
     - key: t0037
       values:
         it: "Scrivere: HA chiama input_number.set_value"
         en: "Write: HA calls input_number.set_value"
+        es: "Escribir: HA llama a input_number.set_value"
     - key: t0038
       values:
         it: "IRRIGAZIONE"
-        en: "IRRIGAZIONE"
+        en: "IRRIGATION"
+        es: "RIEGO"
     - key: t0039
       values:
         it: "Durata (minuti):"
         en: "Duration (minutes):"
+        es: "Duración (minutos):"
     - key: t0040
       values:
         it: "Durata impostata:"
         en: "Set duration:"
+        es: "Duración fijada:"
     - key: t0041
       values:
         it: "MODALITÀ"
         en: "MODE"
+        es: "MODO"
     - key: t0042
       values:
         it: "🌙 Attiva"
         en: "🌙 Activate"
+        es: "🌙 Activar"
     - key: t0043
       values:
         it: "☀ Disattiva"
         en: "☀ Deactivate"
+        es: "☀ Desactivar"
     - key: t0044
       values:
         it: "Scrive su input_boolean.night_mode in HA"
         en: "Writes to input_boolean.night_mode in HA"
+        es: "Escribe en input_boolean.night_mode de HA"
     - key: t0045
       values:
         it: "Write-back: ogni modifica qui viene inviata a HomeAssistant via WebSocket (call_service). Riconnessione automatica se HA non è raggiungibile."
         en: "Write-back: every change here is sent to HomeAssistant via WebSocket (call_service). Automatic reconnection if HA is unreachable."
+        es: "Escritura: cada cambio aquí se envía a HomeAssistant por WebSocket (call_service). Reconexión automática si HA no está accesible."
     - key: t0046
       values:
         it: "Bool → turn_on / turn_off  •  Float/Int → service_data: {value: N}  •  Latenza tipica: < 200 ms su rete locale"
         en: "Bool → turn_on / turn_off  •  Float/Int → service_data: {value: N}  •  Typical latency: < 200 ms on local network"
+        es: "Bool → turn_on / turn_off  •  Float/Int → service_data: {value: N}  •  Latencia típica: < 200 ms en red local"
     - key: t0047
       values:
         it: "HOME ASSISTANT — STORICO"
         en: "HOME ASSISTANT — HISTORY"
+        es: "HOME ASSISTANT — HISTÓRICO"
     - key: t0048
       values:
         it: "Tag derivati · Trend · Statistiche"
         en: "Derived tags · Trend · Statistics"
+        es: "Tags derivados · Tendencia · Estadísticas"
     - key: t0049
       values:
         it: "◉ Storico"
         en: "◉ History"
+        es: "◉ Histórico"
     - key: t0050
       values:
         it: "TAG DERIVATI (calcolati in SWS da espressioni Python)"
         en: "DERIVED TAGS (computed in SWS from Python expressions)"
+        es: "TAGS DERIVADOS (calculados en SWS con expresiones Python)"
     - key: t0051
       values:
         it: "Costo energia (€/h):"
         en: "Energy cost (€/h):"
+        es: "Coste de la energía (€/h):"
     - key: t0052
       values:
         it: "potenza_W × 0.25 / 1000"
         en: "power_W × 0.25 / 1000"
+        es: "potencia_W × 0.25 / 1000"
     - key: t0053
       values:
         it: "Delta Int–Ext (°C):"
         en: "Delta In–Out (°C):"
+        es: "Delta Int–Ext (°C):"
     - key: t0054
       values:
         it: "sala.temperatura − esterno.temperatura"
         en: "sala.temperatura − esterno.temperatura"
+        es: "sala.temperatura − esterno.temperatura"
     - key: t0055
       values:
         it: "Indice comfort (0–100):"
         en: "Comfort index (0–100):"
+        es: "Índice de confort (0–100):"
     - key: t0056
       values:
         it: "T ideale 22°C + H ideale 50% → score 0–100"
         en: "Ideal T 22°C + ideal H 50% → score 0–100"
+        es: "T ideal 22°C + H ideal 50% → puntuación 0–100"
     - key: t0057
       values:
         it: "VALORI LIVE — TAG CON HISTORY ABILITATA"
         en: "LIVE VALUES — TAGS WITH HISTORY ENABLED"
+        es: "VALORES EN VIVO — TAGS CON HISTORY ACTIVADA"
     - key: t0058
       values:
         it: "Temp. Soggiorno"
         en: "Living-room temp."
+        es: "Temp. del salón"
     - key: t0059
       values:
         it: "history: true → persiste su SQLite"
         en: "history: true → persists to SQLite"
+        es: "history: true → se guarda en SQLite"
     - key: t0060
       values:
         it: "Temp. Esterna"
         en: "Outdoor temp."
+        es: "Temp. exterior"
     - key: t0061
       values:
         it: "Potenza"
         en: "Power"
+        es: "Potencia"
     - key: t0062
       values:
         it: "COME USARE LO STORICO"
         en: "HOW TO USE THE HISTORY"
+        es: "CÓMO USAR EL HISTÓRICO"
     - key: t0063
       values:
         it: "▶  I tag con history: true vengono campionati ogni volta che cambiano e salvati nel DB SQLite di SWS."
         en: "▶  Tags with history: true are sampled whenever they change and saved to the SWS SQLite DB."
+        es: "▶  Los tag con history: true se muestrean cada vez que cambian y se guardan en la base SQLite de SWS."
     - key: t0064
       values:
         it: "▶  In Runtime → pannello Log/Trend puoi visualizzare l'andamento temporale di sala.temperatura, esterno.temperatura, energia.potenza_w."
         en: "▶  In Runtime → Log/Trend panel you can view the time trend of sala.temperatura, esterno.temperatura, energia.potenza_w."
+        es: "▶  En Runtime → panel Log/Trend puedes ver la evolución temporal de sala.temperatura, esterno.temperatura, energia.potenza_w."
     - key: t0065
       values:
         it: "▶  API REST: GET /api/history/{tag}?from_ms=&to_ms=  — oppure ⬇ CSV dal pannello Trend per export in Excel."
         en: "▶  REST API: GET /api/history/{tag}?from_ms=&to_ms=  — or ⬇ CSV from the Trend panel to export to Excel."
+        es: "▶  API REST: GET /api/history/{tag}?from_ms=&to_ms=  — o ⬇ CSV desde el panel Trend para exportar a Excel."
     - key: t0066
       values:
         it: "▶  GET /api/history/{tag}/stats?from_ms=&to_ms= restituisce min/max/avg/σ sulla finestra temporale scelta."
         en: "▶  GET /api/history/{tag}/stats?from_ms=&to_ms= returns min/max/avg/σ over the chosen time window."
+        es: "▶  GET /api/history/{tag}/stats?from_ms=&to_ms= devuelve min/max/avg/σ en la ventana temporal elegida."
     - key: t0067
       values:
         it: "Tag derivati (expression): ricalcolati ad ogni aggiornamento di qualsiasi tag — non richiedono history per funzionare."
         en: "Derived tags (expression): recomputed on every tag update — they don't need history to work."
+        es: "Tags derivados (expression): se recalculan en cada actualización de cualquier tag — no necesitan history para funcionar."
     - key: t0068
       values:
         it: "  Esempio: energia.costo_ora_eur  =  tags['energia.potenza_w'] * 0.25 / 1000"
-        en: "  Esempio: energia.costo_ora_eur  =  tags['energia.potenza_w'] * 0.25 / 1000"
+        en: "  Example: energia.costo_ora_eur  =  tags['energia.potenza_w'] * 0.25 / 1000"
+        es: "  Ejemplo: energia.costo_ora_eur  =  tags['energia.potenza_w'] * 0.25 / 1000"
+    - key: t0076
+      values:
+        it: "Totale: {value:.2f} kWh"
+        en: "Total: {value:.2f} kWh"
+        es: "Total: {value:.2f} kWh"
+    - key: t0077
+      values:
+        it: "Costo ora: {value:.4f} €"
+        en: "Cost now: {value:.4f} €"
+        es: "Coste ahora: {value:.4f} €"
 
 # ── Pagina iniziale ──────────────────────────────────────────────────────────
 #

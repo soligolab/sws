@@ -44,7 +44,7 @@ tags:
 sources:
 - kind: mqtt
   id: mqtt-sandokan
-  host: 192.168.1.6
+  host: mqtt.example.invalid
   port: 1883
   client_id: sws-sandokan
   topics:

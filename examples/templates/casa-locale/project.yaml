@@ -177,7 +177,7 @@ sources:
   # ── Zigbee2MQTT — topic nativi sul broker ──────────────────────────────────
   - kind: mqtt
     id: zigbee2mqtt
-    host: 192.168.1.6
+    host: mqtt.example.invalid
     port: 1883
     client_id: sws-casa-zigbee
     clean_session: true
@@ -236,10 +236,10 @@ sources:
 
   # ── DDS661 energy meters (github.com/soligolab/dds661) ────────────────────
   # Topic: dds661/<slug>/state — slug = nome in config.yaml slugificato
-  # Verificare con: mosquitto_sub -h 192.168.1.6 -t 'dds661/#' -v
+  # Verificare con: mosquitto_sub -h mqtt.example.invalid -t 'dds661/#' -v
   - kind: mqtt
     id: dds661
-    host: 192.168.1.6
+    host: mqtt.example.invalid
     port: 1883
     client_id: sws-casa-dds661
     clean_session: true
@@ -303,7 +303,7 @@ sources:
   # ── Solarman bridge (pubblicato da automazione HA — vedi SETUP.md) ─────────
   - kind: mqtt
     id: solarman-bridge
-    host: 192.168.1.6
+    host: mqtt.example.invalid
     port: 1883
     client_id: sws-casa-solar
     clean_session: true
@@ -336,10 +336,10 @@ sources:
 
   # ── Tapparelle Shelly (MQTT nativo Shelly) ──────────────────────────────────
   # ATTENZIONE: sostituire SHELLY_*_ID con i MAC reali dei dispositivi
-  # Trovabili con: mosquitto_sub -h 192.168.1.6 -t 'shellies/#' -v
+  # Trovabili con: mosquitto_sub -h mqtt.example.invalid -t 'shellies/#' -v
   - kind: mqtt
     id: shelly-tapparelle
-    host: 192.168.1.6
+    host: mqtt.example.invalid
     port: 1883
     client_id: sws-casa-shelly
     clean_session: true
@@ -588,8 +588,8 @@ languages:
         en: "Heat pump:"
     - key: t0040
       values:
-        it: "▸ Dati in tempo reale via MQTT broker 192.168.1.6"
-        en: "▸ Real-time data via MQTT broker 192.168.1.6"
+        it: "▸ Dati in tempo reale via MQTT broker mqtt.example.invalid"
+        en: "▸ Real-time data via MQTT broker mqtt.example.invalid"
     - key: t0041
       values:
         it: "☀  IMPIANTO SOLARE"

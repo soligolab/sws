@@ -18,7 +18,7 @@ DA DOVE VIENE OGNI PEZZO
   tipi di oggetto         sws-editor/src/types/index.ts  (la union TS)
   enum dei campi          sws-editor/src/types/index.ts  (le union inline)
   sorgenti e tag          sws-core/src/project.rs
-  uso reale per tipo      examples/templates/**/*.yaml
+  uso reale per tipo      examples/{templates,banchi-di-prova}/**/*.yaml
 
 L'ultimo pezzo merita una parola. «Quali campi valgono per un `button`» non è
 scritto da nessuna parte: il mirror è piatto, 238 campi per tutti i tipi. Ma
@@ -42,7 +42,13 @@ SYNOPTIC_RS = f"{ROOT}/sws-runtime/crates/sws-web/src/synoptic.rs"
 PROJECT_RS = f"{ROOT}/sws-runtime/crates/sws-core/src/project.rs"
 TYPES_TS = f"{ROOT}/sws-editor/src/types/index.ts"
 SYMBOLS_TSX = f"{ROOT}/sws-editor/src/symbols/library.tsx"
-TEMPLATES = f"{ROOT}/examples/templates"
+# L'uso reale si raccoglie da **entrambe** le cartelle di progetti d'esempio.
+# Dal 17-09-2026 i banchi di prova non stanno più fra i template (non ne
+# rispettano le regole, e non devono), ma restano l'unico posto dove certi
+# campi sono usati davvero: `t69-collaudo` è il solo progetto che esercita
+# `on_press_fn`/`on_press_args`, e guardando solo `templates/` l'assistente IA
+# avrebbe smesso di sapere che esistono.
+PROGETTI = [f"{ROOT}/examples/templates", f"{ROOT}/examples/banchi-di-prova"]
 OUT = f"{ROOT}/sws-runtime/crates/sws-web/src/synoptic_schema.rs"
 
 
@@ -235,8 +241,8 @@ def template_usage():
     except ImportError:
         die("manca PyYAML (python3-yaml): serve per leggere i template")
     usage, best = defaultdict(set), {}
-    for proj in sorted(os.listdir(TEMPLATES)):
-        sdir = f"{TEMPLATES}/{proj}/synoptics"
+    for base, proj in sorted((b, p) for b in PROGETTI for p in os.listdir(b)):
+        sdir = f"{base}/{proj}/synoptics"
         if not os.path.isdir(sdir):
             continue
         for fn in sorted(os.listdir(sdir)):
@@ -286,8 +292,8 @@ def source_examples():
     # sorgente zigbee (sola lettura) sui rulli Shelly, a parità di tutto il resto.
     SCRITTURA = {"publish_topic", "write_domain", "write_service", "writable"}
     best = {}
-    for proj in sorted(os.listdir(TEMPLATES)):
-        pf = f"{TEMPLATES}/{proj}/project.yaml"
+    for base, proj in sorted((b, p) for b in PROGETTI for p in os.listdir(b)):
+        pf = f"{base}/{proj}/project.yaml"
         if not os.path.isfile(pf):
             continue
         try:

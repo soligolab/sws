@@ -1,24 +1,24 @@
 id: ha_page1
 name: "Panoramica"
 background: "#0f172a"
-width: 800
-height: 620
+width: 1280
+height: 800
 
 objects:
 - id: lang_sel_auto
   type: lang_selector
-  x: 702
-  y: 8
-  width: 90
-  height: 26
+  x: 1030
+  y: 10
+  width: 116
+  height: 34
 
 # ── HEADER ────────────────────────────────────────────────────────────────────
 - id: ha1_title
   type: text
-  x: 400
-  y: 22
+  x: 640
+  y: 28
   text: "{{t0001}}"
-  font_size: 18
+  font_size: 23
   font_weight: bold
   text_anchor: middle
   color: "#e2e8f0"
@@ -27,10 +27,10 @@ objects:
 
 - id: ha1_sub
   type: text
-  x: 400
-  y: 42
+  x: 640
+  y: 54
   text: "{{t0002}}"
-  font_size: 11
+  font_size: 14
   text_anchor: middle
   color: "#475569"
   group_id: g_header
@@ -39,10 +39,10 @@ objects:
 # ── NAV ───────────────────────────────────────────────────────────────────────
 - id: ha1_nav_panoramica
   type: navbutton
-  x: 40
-  y: 572
-  width: 220
-  height: 34
+  x: 175
+  y: 738
+  width: 284
+  height: 44
   label: "{{t0003}}"
   target_page: ha_page1
   fill: "#1e293b"
@@ -51,10 +51,10 @@ objects:
 
 - id: ha1_nav_controllo
   type: navbutton
-  x: 280
-  y: 572
-  width: 220
-  height: 34
+  x: 485
+  y: 738
+  width: 284
+  height: 44
   label: "{{t0004}}"
   target_page: ha_page2
   group_id: g_nav
@@ -62,10 +62,10 @@ objects:
 
 - id: ha1_nav_storico
   type: navbutton
-  x: 520
-  y: 572
-  width: 220
-  height: 34
+  x: 795
+  y: 738
+  width: 284
+  height: 44
   label: "{{t0005}}"
   target_page: ha_page3
   group_id: g_nav
@@ -74,10 +74,10 @@ objects:
 # ── SEZIONE CLIMA ─────────────────────────────────────────────────────────────
 - id: ha1_clima_lbl
   type: text
-  x: 200
-  y: 70
+  x: 382
+  y: 90
   text: "{{t0006}}"
-  font_size: 12
+  font_size: 15
   font_weight: bold
   text_anchor: middle
   color: "#64748b"
@@ -85,10 +85,10 @@ objects:
 # Box interno
 - id: ha1_int_box
   type: rect
-  x: 40
-  y: 82
-  width: 160
-  height: 110
+  x: 175
+  y: 106
+  width: 206
+  height: 142
   fill: "#1e293b"
   stroke: "#3b82f6"
   stroke_width: 2
@@ -96,61 +96,61 @@ objects:
 
 - id: ha1_int_lbl
   type: text
-  x: 120
-  y: 100
+  x: 279
+  y: 129
   text: "{{t0007}}"
-  font_size: 10
+  font_size: 13
   font_weight: bold
   text_anchor: middle
   color: "#3b82f6"
 
 - id: ha1_int_temp
   type: text
-  x: 120
-  y: 134
+  x: 279
+  y: 173
   tag: sala.temperatura
   format: "{value:.1f}°C"
-  font_size: 26
+  font_size: 34
   font_weight: bold
   text_anchor: middle
   color: "#93c5fd"
 
 - id: ha1_int_hum
   type: text
-  x: 120
-  y: 160
+  x: 279
+  y: 206
   tag: sala.umidita
   format: "💧 {value:.0f}%"
-  font_size: 13
+  font_size: 17
   text_anchor: middle
   color: "#7dd3fc"
 
 - id: ha1_int_comfort_lbl
   type: text
-  x: 120
-  y: 180
+  x: 279
+  y: 232
   text: "{{t0008}}"
-  font_size: 10
+  font_size: 13
   text_anchor: middle
   color: "#475569"
 
 - id: ha1_int_comfort
   type: text
-  x: 180
-  y: 180
+  x: 356
+  y: 232
   tag: sala.comfort_index
   format: "{value:.0f}/100"
-  font_size: 10
+  font_size: 13
   text_anchor: end
   color: "#a3e635"
 
 # Box esterno
 - id: ha1_ext_box
   type: rect
-  x: 220
-  y: 82
-  width: 160
-  height: 110
+  x: 408
+  y: 106
+  width: 206
+  height: 142
   fill: "#1e293b"
   stroke: "#22d3ee"
   stroke_width: 2
@@ -158,71 +158,71 @@ objects:
 
 - id: ha1_ext_lbl
   type: text
-  x: 300
-  y: 100
+  x: 511
+  y: 129
   text: "{{t0009}}"
-  font_size: 10
+  font_size: 13
   font_weight: bold
   text_anchor: middle
   color: "#22d3ee"
 
 - id: ha1_ext_temp
   type: text
-  x: 300
-  y: 134
+  x: 511
+  y: 173
   tag: esterno.temperatura
   format: "{value:.1f}°C"
-  font_size: 26
+  font_size: 34
   font_weight: bold
   text_anchor: middle
   color: "#67e8f9"
 
 - id: ha1_ext_hum
   type: text
-  x: 300
-  y: 160
+  x: 511
+  y: 206
   tag: esterno.umidita
   format: "💧 {value:.0f}%"
-  font_size: 13
+  font_size: 17
   text_anchor: middle
   color: "#a5f3fc"
 
 - id: ha1_delta_lbl
   type: text
-  x: 300
-  y: 180
+  x: 511
+  y: 232
   text: "{{t0010}}"
-  font_size: 10
+  font_size: 13
   text_anchor: middle
   color: "#475569"
 
 - id: ha1_delta
   type: text
-  x: 370
-  y: 180
+  x: 601
+  y: 232
   tag: clima.delta_interno_esterno
   format: "{value:+.1f}°C"
-  font_size: 10
+  font_size: 13
   text_anchor: end
   color: "#fbbf24"
 
 # ── SEZIONE ENERGIA ───────────────────────────────────────────────────────────
 - id: ha1_energia_lbl
   type: text
-  x: 590
-  y: 70
+  x: 885
+  y: 90
   text: "{{t0011}}"
-  font_size: 12
+  font_size: 15
   font_weight: bold
   text_anchor: middle
   color: "#64748b"
 
 - id: ha1_en_box
   type: rect
-  x: 430
-  y: 82
-  width: 320
-  height: 110
+  x: 679
+  y: 106
+  width: 413
+  height: 142
   fill: "#1e293b"
   stroke: "#f59e0b"
   stroke_width: 2
@@ -230,51 +230,51 @@ objects:
 
 - id: ha1_pot_lbl
   type: text
-  x: 530
-  y: 100
+  x: 808
+  y: 129
   text: "{{t0012}}"
-  font_size: 10
+  font_size: 13
   font_weight: bold
   text_anchor: middle
   color: "#f59e0b"
 
 - id: ha1_pot_val
   type: text
-  x: 530
-  y: 138
+  x: 808
+  y: 178
   tag: energia.potenza_w
   format: "{value:.0f} W"
-  font_size: 30
+  font_size: 39
   font_weight: bold
   text_anchor: middle
   color: "#fbbf24"
 
 - id: ha1_kwh_lbl
   type: text
-  x: 530
-  y: 165
+  x: 808
+  y: 213
   tag: energia.consumo_kwh
-  format: "Totale: {value:.2f} kWh"
-  font_size: 11
+  format: "{{t0076}}"
+  font_size: 14
   text_anchor: middle
   color: "#92400e"
 
 - id: ha1_costo_lbl
   type: text
-  x: 530
-  y: 180
+  x: 808
+  y: 232
   tag: energia.costo_ora_eur
-  format: "Costo ora: {value:.4f} €"
-  font_size: 10
+  format: "{{t0077}}"
+  font_size: 13
   text_anchor: middle
   color: "#78716c"
 
 - id: ha1_en_gauge
   type: gauge
-  x: 680
-  y: 82
-  width: 70
-  height: 110
+  x: 1001
+  y: 106
+  width: 90
+  height: 142
   tag: energia.potenza_w
   min: 0
   max: 5000
@@ -285,20 +285,20 @@ objects:
 # ── SEZIONE SICUREZZA ─────────────────────────────────────────────────────────
 - id: ha1_sec_lbl
   type: text
-  x: 200
-  y: 220
+  x: 382
+  y: 284
   text: "{{t0013}}"
-  font_size: 12
+  font_size: 15
   font_weight: bold
   text_anchor: middle
   color: "#64748b"
 
 - id: ha1_sec_box
   type: rect
-  x: 40
-  y: 232
-  width: 340
-  height: 130
+  x: 175
+  y: 299
+  width: 439
+  height: 168
   fill: "#1e293b"
   stroke: "#334155"
   stroke_width: 1
@@ -307,46 +307,46 @@ objects:
 # Porta principale
 - id: ha1_porta_lbl
   type: text
-  x: 60
-  y: 258
+  x: 201
+  y: 333
   text: "{{t0014}}"
-  font_size: 12
+  font_size: 15
   color: "#94a3b8"
 
 - id: ha1_porta_led
   type: led
-  x: 220
-  y: 250
-  width: 16
-  height: 16
+  x: 408
+  y: 323
+  width: 21
+  height: 21
   tag: porta.principale
   on_color: "#ef4444"
   off_color: "#22c55e"
 
 - id: ha1_porta_stato
   type: text
-  x: 248
-  y: 262
+  x: 444
+  y: 338
   tag: porta.principale
   format: "{value}"
-  font_size: 11
+  font_size: 14
   color: "#64748b"
 
 # Movimento ingresso
 - id: ha1_mov_lbl
   type: text
-  x: 60
-  y: 288
+  x: 201
+  y: 372
   text: "{{t0015}}"
-  font_size: 12
+  font_size: 15
   color: "#94a3b8"
 
 - id: ha1_mov_led
   type: led
-  x: 220
-  y: 280
-  width: 16
-  height: 16
+  x: 408
+  y: 361
+  width: 21
+  height: 21
   tag: ingresso.movimento
   on_color: "#f59e0b"
   off_color: "#334155"
@@ -354,46 +354,46 @@ objects:
 # Garage
 - id: ha1_garage_lbl
   type: text
-  x: 60
-  y: 318
+  x: 201
+  y: 410
   text: "{{t0016}}"
-  font_size: 12
+  font_size: 15
   color: "#94a3b8"
 
 - id: ha1_garage_led
   type: led
-  x: 220
-  y: 310
-  width: 16
-  height: 16
+  x: 408
+  y: 400
+  width: 21
+  height: 21
   tag: garage.aperto
   on_color: "#ef4444"
   off_color: "#22c55e"
 
 - id: ha1_garage_stato
   type: text
-  x: 248
-  y: 322
+  x: 444
+  y: 415
   tag: garage.aperto
   format: "{value}"
-  font_size: 11
+  font_size: 14
   color: "#64748b"
 
 # Modalità notturna
 - id: ha1_notte_lbl
   type: text
-  x: 60
-  y: 348
+  x: 201
+  y: 449
   text: "{{t0017}}"
-  font_size: 12
+  font_size: 15
   color: "#94a3b8"
 
 - id: ha1_notte_led
   type: led
-  x: 220
-  y: 340
-  width: 16
-  height: 16
+  x: 408
+  y: 439
+  width: 21
+  height: 21
   tag: modalita.notturna
   on_color: "#8b5cf6"
   off_color: "#334155"
@@ -401,20 +401,20 @@ objects:
 # ── SEZIONE LUCI ─────────────────────────────────────────────────────────────
 - id: ha1_luci_lbl
   type: text
-  x: 590
-  y: 220
+  x: 885
+  y: 284
   text: "{{t0018}}"
-  font_size: 12
+  font_size: 15
   font_weight: bold
   text_anchor: middle
   color: "#64748b"
 
 - id: ha1_luci_box
   type: rect
-  x: 430
-  y: 232
-  width: 320
-  height: 130
+  x: 679
+  y: 299
+  width: 413
+  height: 168
   fill: "#1e293b"
   stroke: "#334155"
   stroke_width: 1
@@ -422,72 +422,72 @@ objects:
 
 - id: ha1_l_sog_lbl
   type: text
-  x: 450
-  y: 258
+  x: 705
+  y: 333
   text: "{{t0019}}"
-  font_size: 12
+  font_size: 15
   color: "#94a3b8"
 
 - id: ha1_l_sog_led
   type: led
-  x: 610
-  y: 250
-  width: 16
-  height: 16
+  x: 911
+  y: 323
+  width: 21
+  height: 21
   tag: luce.soggiorno
   on_color: "#fbbf24"
   off_color: "#334155"
 
 - id: ha1_l_cuc_lbl
   type: text
-  x: 450
-  y: 288
+  x: 705
+  y: 372
   text: "{{t0020}}"
-  font_size: 12
+  font_size: 15
   color: "#94a3b8"
 
 - id: ha1_l_cuc_led
   type: led
-  x: 610
-  y: 280
-  width: 16
-  height: 16
+  x: 911
+  y: 361
+  width: 21
+  height: 21
   tag: luce.cucina
   on_color: "#fbbf24"
   off_color: "#334155"
 
 - id: ha1_l_est_lbl
   type: text
-  x: 450
-  y: 318
+  x: 705
+  y: 410
   text: "{{t0021}}"
-  font_size: 12
+  font_size: 15
   color: "#94a3b8"
 
 - id: ha1_l_est_led
   type: led
-  x: 610
-  y: 310
-  width: 16
-  height: 16
+  x: 911
+  y: 400
+  width: 21
+  height: 21
   tag: luce.esterno
   on_color: "#fbbf24"
   off_color: "#334155"
 
 - id: ha1_l_vent_lbl
   type: text
-  x: 450
-  y: 348
+  x: 705
+  y: 449
   text: "{{t0023}}"
-  font_size: 12
+  font_size: 15
   color: "#94a3b8"
 
 - id: ha1_l_vent_led
   type: led
-  x: 610
-  y: 340
-  width: 16
-  height: 16
+  x: 911
+  y: 439
+  width: 21
+  height: 21
   tag: ventilatore.camera
   on_color: "#22d3ee"
   off_color: "#334155"
@@ -495,20 +495,20 @@ objects:
 # ── SEZIONE RISCALDAMENTO ─────────────────────────────────────────────────────
 - id: ha1_risc_lbl
   type: text
-  x: 200
-  y: 390
+  x: 382
+  y: 503
   text: "{{t0024}}"
-  font_size: 12
+  font_size: 15
   font_weight: bold
   text_anchor: middle
   color: "#64748b"
 
 - id: ha1_risc_box
   type: rect
-  x: 40
-  y: 402
-  width: 340
-  height: 120
+  x: 175
+  y: 519
+  width: 439
+  height: 155
   fill: "#1e293b"
   stroke: "#dc2626"
   stroke_width: 1
@@ -516,48 +516,48 @@ objects:
 
 - id: ha1_risc_curr_lbl
   type: text
-  x: 60
-  y: 428
+  x: 201
+  y: 552
   text: "{{t0025}}"
-  font_size: 11
+  font_size: 14
   color: "#94a3b8"
 
 - id: ha1_risc_curr
   type: text
-  x: 360
-  y: 428
+  x: 588
+  y: 552
   tag: clima.temperatura_attuale
   format: "{value:.1f}°C"
-  font_size: 14
+  font_size: 18
   font_weight: bold
   text_anchor: end
   color: "#f87171"
 
 - id: ha1_risc_set_lbl
   type: text
-  x: 60
-  y: 458
+  x: 201
+  y: 591
   text: "{{t0026}}"
-  font_size: 11
+  font_size: 14
   color: "#94a3b8"
 
 - id: ha1_risc_set
   type: text
-  x: 360
-  y: 458
+  x: 588
+  y: 591
   tag: clima.setpoint
   format: "{value:.1f}°C"
-  font_size: 14
+  font_size: 18
   font_weight: bold
   text_anchor: end
   color: "#fb923c"
 
 - id: ha1_risc_prog
   type: progress_bar
-  x: 60
-  y: 472
-  width: 290
-  height: 16
+  x: 201
+  y: 609
+  width: 374
+  height: 21
   tag: clima.temperatura_attuale
   min: 10
   max: 30
@@ -567,10 +567,10 @@ objects:
 # ── SOLE ──────────────────────────────────────────────────────────────────────
 - id: ha1_sole_box
   type: rect
-  x: 430
-  y: 390
-  width: 320
-  height: 120
+  x: 679
+  y: 503
+  width: 413
+  height: 155
   fill: "#1e293b"
   stroke: "#f59e0b"
   stroke_width: 1
@@ -578,40 +578,40 @@ objects:
 
 - id: ha1_sole_lbl
   type: text
-  x: 590
-  y: 410
+  x: 885
+  y: 529
   text: "{{t0027}}"
-  font_size: 12
+  font_size: 15
   font_weight: bold
   text_anchor: middle
   color: "#f59e0b"
 
 - id: ha1_sole_el
   type: text
-  x: 590
-  y: 448
+  x: 885
+  y: 578
   tag: sole.elevazione
   format: "{value:.1f}°"
-  font_size: 30
+  font_size: 39
   font_weight: bold
   text_anchor: middle
   color: "#fbbf24"
 
 - id: ha1_sole_el_lbl
   type: text
-  x: 590
-  y: 468
+  x: 885
+  y: 604
   text: "{{t0028}}"
-  font_size: 10
+  font_size: 13
   text_anchor: middle
   color: "#78716c"
 
 - id: ha1_sole_prog
   type: progress_bar
-  x: 450
-  y: 480
-  width: 280
-  height: 12
+  x: 705
+  y: 619
+  width: 361
+  height: 15
   tag: sole.elevazione
   min: -30
   max: 70
@@ -619,15 +619,15 @@ objects:
   background: "#1c1917"
 - id: ha1_alarm_bell
   type: alarm_bell
-  x: 20.0
-  y: 476.0
-  width: 130.0
-  height: 34.0
+  x: 149.7
+  y: 614.2
+  width: 167.7
+  height: 43.9
   alarm_bell_show_history: true
   alarm_bell_show_shelve: true
 - id: ha1_alarm_banner
   type: alarm_banner
-  x: 20.0
-  y: 530.0
-  width: 760.0
-  height: 70.0
+  x: 149.7
+  y: 683.9
+  width: 980.6
+  height: 90.3

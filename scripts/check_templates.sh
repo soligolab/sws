@@ -58,6 +58,16 @@ def problema(msg):
 def ok(msg):
     print(f"  \033[32m✓\033[0m {msg}")
 
+# Il debito dichiarato si **vede**, altrimenti non è dichiarato: è giallo, non
+# rosso, e non fa fallire — ma compare a ogni giro finché non scende a zero.
+debiti = []
+def debito(msg):
+    print(f"  \033[33m•\033[0m {msg}")
+    debiti.append(msg)
+
+def nota(msg):
+    print(f"  \033[36m↓\033[0m {msg}")
+
 # I tipi disegnabili si leggono dalla fonte, non da una copia: una copia si
 # disallinea, ed è esattamente il difetto che queste guardie esistono per
 # impedire.
@@ -66,6 +76,102 @@ m = re.search(r"const SUPPORTED_TYPES: &\[&str\] = &\[(.*?)\];", src, re.S)
 LVGL = set(re.findall(r'"([a-z_]+)"', m.group(1)))
 PALETTE = set(re.findall(r'type:\s*"([a-z_]+)"',
                          open(f"{root}/sws-editor/src/editor/LeftPanel.tsx").read()))
+
+# ── Le regole del parco template (17-09-2026) ────────────────────────────────
+#
+# Decise dal maintainer dopo la misura di tutti i template: R1 il formato, R2
+# tre lingue davvero, R3 semplicità, R5 niente rete di nessuno. Il documento
+# sta in `examples/templates/README.md`, il referto della discussione in
+# `docs/plans/2026-09-17-regole-dei-template.md`.
+#
+# I tre elenchi qui sotto sono **debito dichiarato**, non assoluzioni: ogni voce
+# ha il perché accanto, e devono tendere a vuoto. È la stessa scelta di
+# `check_i18n_parita.sh` e di `check_release_coerente.sh` — un debito scritto si
+# vede a ogni giro, uno taciuto cresce.
+
+# R1 — formato di pagina. Decisione D1: la regola vale da subito per ciò che
+# nasce, e questi si riflussano quando gli si mette mano per le altre regole.
+R1_DEBITO = {
+    "casa-locale":            "800×680 — 298 oggetti su 5 pagine, riflusso da fare col Passo 5",
+    "grid-playground":        "900×720 — banco di prova della griglia",
+    "nebulizzatore-sandokan": "1280×600 — manca solo l'altezza",
+}
+
+# R2 — testo visibile che non passa dalla tabella lingue. Il numero è il
+# **tetto**: se cresce la guardia fallisce, se cala va abbassato. Decisione D4:
+# nessuna esenzione, banchi di protocollo compresi.
+R2_DEBITO = {
+    # Passo 5, 17-09-2026: i sei template «fermi al 28-08» sono a zero — testo
+    # tokenizzato e tre lingue scritte a mano, non tradotte a macchina.
+    "casa-locale": 20, "demo-items-lvgl": 114, "demo-items-web": 114,
+    "grid-playground": 1, "nebulizzatore-sandokan": 12,
+}
+
+# R3 — semplicità. Decisione D2: `homeassistant-pro` è l'eccezione dichiarata.
+R3_PAGINE_MAX, R3_OGGETTI_MAX = 3, 60
+R3_DEBITO = {
+    # nome: (pagine, oggetti nella pagina più piena, perché)
+    "homeassistant-pro":  (6, 112, "vetrina del «cosa si può fare», non punto di partenza — "
+                                   "la parola «pro» nel nome è l'avviso (decisione del maintainer, 17-09-2026)"),
+    "casa-locale":        (5, 96,  "l'impianto di casa del maintainer, da sfoltire col Passo 5"),
+    "demo-items-lvgl":    (4, 0,   "inventario: 4 pagine per coprire 35 tipi di widget; nessuna pagina supera il tetto di oggetti"),
+    "demo-items-web":     (4, 0,   "inventario: 4 pagine per coprire 35 tipi di widget; nessuna pagina supera il tetto di oggetti"),
+    "homeassistant-demo": (3, 62,  "due oggetti sopra il tetto nella pagina di panoramica"),
+}
+
+# R5 — indirizzi. `localhost` e i nomi mDNS di prodotto (`homeassistant.local`)
+# sono documentazione, non la rete di qualcuno; un IP privato letterale sì.
+R5_PRIVATI = re.compile(r"\b(?:10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)\d+\.\d+\b")
+R5_SEGRETI = ("password", "bot_token", "token", "api_key", "secret", "passphrase")
+
+# I campi di testo si leggono dalla **fonte** (`projectI18n.ts`), non da una
+# copia: una copia si disallinea, ed è il difetto che queste guardie esistono
+# per impedire.
+_pi18n = open(f"{root}/sws-editor/src/i18n/projectI18n.ts").read()
+CAMPI_TESTO = set(re.findall(r'"([a-z_]+)"',
+    re.search(r"export const TEXT_FIELDS[^=]*=\s*\[(.*?)\];", _pi18n, re.S).group(1)))
+CAMPI_TESTO.add("label")   # options[].label, table_rows[].label, bar_series[].label…
+
+# Le unità di misura non si traducono: «kW» è «kW» in spagnolo, e tokenizzarle
+# gonfierebbe la tabella lingue di voci che nessuno tradurrà mai. È l'elenco di
+# eccezioni promesso dalla regola R2 — chiuso e corto di proposito: se serve
+# un'unità nuova la si aggiunge qui, consapevolmente.
+UNITA = {
+    "W", "kW", "MW", "Wh", "kWh", "MWh", "VA", "kVA", "var", "kvar", "Ah", "mAh",
+    "V", "mV", "kV", "A", "mA", "Hz", "kHz", "Ω", "ohm",
+    "s", "ms", "µs", "min", "h", "d",
+    "m", "mm", "cm", "km", "m²", "m³", "L", "l", "mL",
+    "g", "kg", "t", "N", "Nm",
+    "bar", "mbar", "Pa", "kPa", "hPa", "psi",
+    "°C", "°F", "K", "%", "‰", "rpm", "ppm", "pH", "lux", "lx", "dB", "dBm",
+    "m/s", "km/h", "L/min", "m³/h", "kWp",
+}
+
+def da_tradurre(v):
+    """Una stringa che un operatore legge e che quindi deve passare dalla
+    tabella. Restano fuori due cose, con la stessa regola di
+    `sws_core::traduzione`: ciò che non ha lettere una volta tolti i segnaposti
+    («%», «{value:.1f}»), e ciò che è **solo** unità di misura («{value} kW»)."""
+    if not isinstance(v, str) or not v.strip() or "{{" in v:
+        return False
+    resto = re.sub(r"\{[^{}]*\}", " ", v)
+    if not any(c.isalpha() for c in resto):
+        return False
+    parole = [w for w in re.split(r"[\s:;,()\[\]/]+", resto) if w and any(c.isalpha() for c in w)]
+    return not all(w.strip(".") in UNITA for w in parole)
+
+def testi_letterali(nodo, fuori=None):
+    fuori = [] if fuori is None else fuori
+    if isinstance(nodo, dict):
+        for k, v in nodo.items():
+            if k in CAMPI_TESTO and da_tradurre(v):
+                fuori.append(v)
+            else:
+                testi_letterali(v, fuori)
+    elif isinstance(nodo, list):
+        for x in nodo:
+            testi_letterali(x, fuori)
+    return fuori
 
 nomi = sorted(os.path.basename(p.rstrip("/")) for p in glob.glob(f"{TPL}/*/"))
 print(f"\033[1m{len(nomi)} template, {len(PALETTE)} tipi in palette, {len(LVGL)} disegnabili da LVGL\033[0m\n")
@@ -101,6 +207,7 @@ for nome in nomi:
 
     tipi_tag = {t.get("id"): t.get("data_type") for t in (prj.get("tags") or [])}
     ids, usati_tag, tipi, nav_targets = set(), set(), set(), set()
+    formati, troppo_piene, letterali = [], [], []
     for f in pagine:
         base = os.path.basename(f)
         try:
@@ -115,6 +222,13 @@ for nome in nomi:
             problema(f"{nome}/{base}: manca `id` o `name` — il runtime scarta la pagina in silenzio")
         if pag.get("id"):
             ids.add(pag["id"])
+        # R1/R3/R2: formato della pagina, quanti oggetti porta, e quanto
+        # testo visibile non passa dalla tabella lingue.
+        formati.append((base, pag.get("width"), pag.get("height")))
+        n_ogg = len(pag.get("objects") or [])
+        if n_ogg > R3_OGGETTI_MAX:
+            troppo_piene.append((base, n_ogg))
+        letterali += testi_letterali(pag.get("objects") or [])
         id_oggetti = {o.get("id") for o in (pag.get("objects") or []) if o.get("id")}
         for o in (pag.get("objects") or []):
             if o.get("type"):
@@ -248,6 +362,91 @@ for nome in nomi:
                  f"({', '.join(orfani[:4])}{'…' if len(orfani) > 4 else ''}) — "
                  f"si vedono come {{{{chiave}}}} sul pannello")
 
+    # ── R1: 16:10 a 1280×800 ────────────────────────────────────────────────
+    fuori_formato = [f"{b} {w}×{h}" for b, w, h in formati if (w, h) != (1280, 800)]
+    if fuori_formato and nome not in R1_DEBITO:
+        problema(f"{nome}: R1 — {len(fuori_formato)} pagine non 1280×800 → "
+                 f"{', '.join(fuori_formato[:3])}"
+                 + (" …" if len(fuori_formato) > 3 else "")
+                 + " (o si riflussa, o si dichiara in R1_DEBITO con il perché)")
+    elif not fuori_formato and nome in R1_DEBITO:
+        nota(f"{nome}: R1 — ora è tutto 1280×800, togli la riga da R1_DEBITO")
+    elif fuori_formato:
+        debito(f"{nome}: R1 — {R1_DEBITO[nome]}")
+
+    # ── R2: ogni testo visibile passa dalla tabella lingue ──────────────────
+    #
+    # Il verso che mancava. La guardia sopra prende un token senza voce; questa
+    # prende il contrario, cioè il testo che token non è — ed è il caso vero:
+    # la Fase 7 del multilingua ha tokenizzato i **messaggi d'allarme**, e sei
+    # template su dodici avevano ancora zero testo tradotto nei sinottici.
+    tetto = R2_DEBITO.get(nome, 0)
+    if len(letterali) > tetto:
+        campione = ", ".join(repr(t[:28]) for t in letterali[:3])
+        problema(f"{nome}: R2 — {len(letterali)} testi visibili non passano dalla "
+                 f"tabella lingue (tetto dichiarato: {tetto}) → {campione}"
+                 + (" …" if len(letterali) > 3 else ""))
+    elif tetto and len(letterali) < tetto:
+        nota(f"{nome}: R2 — scesi a {len(letterali)} letterali su {tetto} dichiarati, "
+             f"abbassa il tetto in R2_DEBITO")
+    elif tetto:
+        debito(f"{nome}: R2 — {tetto} testi ancora da tokenizzare")
+
+    # ── R2 bis: le tre lingue dichiarate ────────────────────────────────────
+    langs = [str(x) for x in ((prj.get("languages") or {}).get("langs") or [])]
+    mancano = [l for l in ("it", "en", "es") if l not in langs]
+    if mancano and nome not in R2_DEBITO:
+        problema(f"{nome}: R2 — mancano le lingue {mancano} (dichiarate: {langs or '—'})")
+    elif mancano:
+        debito(f"{nome}: R2 — mancano ancora le lingue {mancano}")
+
+    # ── R3: semplice, e il numero lo dice ───────────────────────────────────
+    sfonda = []
+    if len(pagine) > R3_PAGINE_MAX:
+        sfonda.append(f"{len(pagine)} pagine (max {R3_PAGINE_MAX})")
+    for b, n in troppo_piene:
+        sfonda.append(f"{b}: {n} oggetti (max {R3_OGGETTI_MAX})")
+    piena = max([n for _, n in troppo_piene] + [0])
+    if sfonda and nome not in R3_DEBITO:
+        problema(f"{nome}: R3 — non è semplice: {'; '.join(sfonda[:3])}"
+                 + (" …" if len(sfonda) > 3 else ""))
+    elif nome in R3_DEBITO:
+        pag_max, ogg_max, perche = R3_DEBITO[nome]
+        # Il debito porta i numeri di oggi: così può solo scendere, e un
+        # template dichiarato «grande» non diventa il posto dove crescere.
+        if len(pagine) > pag_max or piena > ogg_max:
+            problema(f"{nome}: R3 — è CRESCIUTO oltre il debito dichiarato "
+                     f"({len(pagine)} pagine, {piena} oggetti nella più piena; "
+                     f"dichiarati {pag_max} e {ogg_max})")
+        elif len(pagine) < pag_max or piena < ogg_max:
+            nota(f"{nome}: R3 — sceso a {len(pagine)} pagine / {piena} oggetti, "
+                 f"abbassa i numeri in R3_DEBITO")
+        elif sfonda:
+            debito(f"{nome}: R3 — {perche}")
+
+    # ── R5: un template non porta la rete di nessuno ────────────────────────
+    #
+    # Il 16-09-2026 aprire un progetto da `nebulizzatore-sandokan` ha prodotto
+    # 1950 righe su 2000 di `connection refused`: quel template dichiara
+    # `192.168.1.6`, il broker di casa del maintainer. Q58.
+    # Anche i `.md`: un SETUP che scrive «il broker è a 192.168.1.6» consegna la
+    # rete di qualcuno esattamente come il YAML. Restano leciti i segnaposto
+    # (`192.168.1.X`), le reti di documentazione (RFC 5737, `192.0.2.0/24`) e i
+    # nomi mDNS di prodotto.
+    for percorso in [f"{d}/project.yaml"] + sorted(glob.glob(f"{d}/*.md")):
+        ip = sorted(set(R5_PRIVATI.findall(open(percorso).read())))
+        if ip:
+            problema(f"{nome}/{os.path.basename(percorso)}: R5 — indirizzi di una rete "
+                     f"vera nel template → {ip} (usa un nome riservato, `localhost`, "
+                     f"una rete di documentazione o il nome mDNS del prodotto)")
+    grezzo = open(f"{d}/project.yaml").read()
+    for chiave in R5_SEGRETI:
+        for m in re.finditer(rf"^\s*{chiave}\s*:\s*(\S.*)$", grezzo, re.M):
+            val = m.group(1).strip().strip("\"'")
+            if val and val not in ("~", "null"):
+                problema(f"{nome}: R5 — `{chiave}` valorizzato in un template — "
+                         f"un template si dà a chi con quell'impianto non c'entra niente")
+
     if not any(nome in f for f in [x for x in fail]):
         ok(f"{nome}: {len(pagine)} pagine, {len(tipi)} tipi, tutto a posto")
 
@@ -255,5 +454,10 @@ print()
 if fail:
     print(f"\033[31m{len(fail)} problemi nei template.\033[0m")
     sys.exit(1)
+if debiti:
+    # Il totale, perché un debito sparso in trenta righe non si percepisce come
+    # un numero — e questo deve scendere a zero, non stabilizzarsi.
+    print(f"\033[33m{len(debiti)} eccezioni dichiarate alle regole del parco "
+          f"(R1 formato, R2 lingue, R3 semplicità) — vedi examples/templates/README.md\033[0m")
 print("\033[32mTutti i template sono allineati.\033[0m")
 PY

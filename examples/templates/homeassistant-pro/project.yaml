@@ -869,663 +869,863 @@ alarms:
 
 languages:
   default: it
-  langs: [it, en]
+  langs: [it, en, es]
   entries:
     - key: t0155
       values:
         it: "Batteria scarica: {value:.0f}%"
+        en: "Low battery: {value:.0f}%"
+        es: "Batería baja: {value:.0f}%"
     - key: t0156
       values:
         it: "Batteria critica: {value:.0f}% — intervento urgente"
+        en: "Critical battery: {value:.0f}% — urgent action needed"
+        es: "Batería crítica: {value:.0f}% — intervención urgente"
     - key: t0157
       values:
         it: "Sovratensione rete: {value:.1f} V"
+        en: "Grid overvoltage: {value:.1f} V"
+        es: "Sobretensión de red: {value:.1f} V"
     - key: t0158
       values:
         it: "Sottotensione rete: {value:.1f} V"
+        en: "Grid undervoltage: {value:.1f} V"
+        es: "Subtensión de red: {value:.1f} V"
     - key: t0159
       values:
         it: "Frequenza rete alta: {value:.2f} Hz"
+        en: "Grid frequency high: {value:.2f} Hz"
+        es: "Frecuencia de red alta: {value:.2f} Hz"
     - key: t0160
       values:
         it: "Frequenza rete bassa: {value:.2f} Hz"
+        en: "Grid frequency low: {value:.2f} Hz"
+        es: "Frecuencia de red baja: {value:.2f} Hz"
     - key: t0161
       values:
         it: "Porta garage aperta"
+        en: "Garage door open"
+        es: "Puerta del garaje abierta"
     - key: t0162
       values:
         it: "Portoncino ingresso aperto"
+        en: "Front door open"
+        es: "Puerta de entrada abierta"
     - key: t0163
       values:
         it: "Movimento rilevato area esterna"
+        en: "Motion detected in outdoor area"
+        es: "Movimiento detectado en el área exterior"
     - key: t0164
       values:
         it: "Persona rilevata area esterna (AI)"
+        en: "Person detected in outdoor area (AI)"
+        es: "Persona detectada en el área exterior (IA)"
     - key: t0165
       values:
         it: "Soggiorno troppo caldo: {value:.1f}°C"
+        en: "Living room too warm: {value:.1f}°C"
+        es: "Salón demasiado caliente: {value:.1f}°C"
     - key: t0166
       values:
         it: "Soggiorno troppo freddo: {value:.1f}°C"
+        en: "Living room too cold: {value:.1f}°C"
+        es: "Salón demasiado frío: {value:.1f}°C"
     - key: t0167
       values:
         it: "Umidità soggiorno elevata: {value:.0f}%"
+        en: "High living-room humidity: {value:.0f}%"
+        es: "Humedad elevada en el salón: {value:.0f}%"
     - key: t0001
       values:
         it: "HOMEASSISTANT PRO — PANORAMICA"
         en: "HOMEASSISTANT PRO — OVERVIEW"
+        es: "HOMEASSISTANT PRO — RESUMEN"
     - key: t0002
       values:
         it: "Flusso energia · Clima · Sicurezza · Presenza"
         en: "Energy flow · Climate · Security · Presence"
+        es: "Flujo de energía · Clima · Seguridad · Presencia"
     - key: t0003
       values:
         it: "◉ Panoramica"
         en: "◉ Overview"
+        es: "◉ Resumen"
     - key: t0004
       values:
         it: "☀ Fotovoltaico"
         en: "☀ Photovoltaic"
+        es: "☀ Fotovoltaica"
     - key: t0005
       values:
         it: "⚡ Batt & Rete"
         en: "⚡ Batt & Grid"
+        es: "⚡ Bat & Red"
     - key: t0006
       values:
         it: "🌡 Clima"
         en: "🌡 Climate"
+        es: "🌡 Clima"
     - key: t0007
       values:
         it: "🔌 Carichi"
         en: "🔌 Loads"
+        es: "🔌 Cargas"
     - key: t0008
       values:
         it: "🔒 Sicurezza"
         en: "🔒 Security"
+        es: "🔒 Seguridad"
     - key: t0009
       values:
         it: "FLUSSO ENERGIA"
         en: "ENERGY FLOW"
+        es: "FLUJO DE ENERGÍA"
     - key: t0010
       values:
         it: "☀ FOTOVOLTAICO"
         en: "☀ PHOTOVOLTAIC"
+        es: "☀ FOTOVOLTAICA"
     - key: t0011
       values:
         it: "🔋 BATTERIA"
         en: "🔋 BATTERY"
+        es: "🔋 BATERÍA"
     - key: t0012
       values:
         it: "🏠 CONSUMO CASA"
         en: "🏠 HOUSE CONSUMPTION"
+        es: "🏠 CONSUMO DE LA CASA"
     - key: t0013
       values:
         it: "⚡ RETE ELETTRICA"
         en: "⚡ POWER GRID"
+        es: "⚡ RED ELÉCTRICA"
     - key: t0014
       values:
         it: "CLIMA"
         en: "CLIMATE"
+        es: "CLIMA"
     - key: t0015
       values:
         it: "Stanza"
         en: "Room"
+        es: "Habitación"
     - key: t0016
       values:
         it: "Temp."
         en: "Temp."
+        es: "Temp."
     - key: t0017
       values:
         it: "Umidità"
         en: "Humidity"
+        es: "Humedad"
     - key: t0018
       values:
         it: "Soggiorno"
         en: "Living room"
+        es: "Salón"
     - key: t0019
       values:
         it: "Studio"
         en: "Studio"
+        es: "Estudio"
     - key: t0020
       values:
         it: "Lavanderia"
         en: "Laundry"
+        es: "Lavadero"
     - key: t0021
       values:
         it: "Bagno PT"
         en: "Bathroom GF"
+        es: "Baño PB"
     - key: t0022
       values:
         it: "Loc. Tecnico"
         en: "Utility room"
+        es: "Cuarto técnico"
     - key: t0023
       values:
         it: "Media"
         en: "Average"
+        es: "Media"
     - key: t0024
       values:
         it: "SICUREZZA"
         en: "SECURITY"
+        es: "SEGURIDAD"
     - key: t0025
       values:
         it: "Garage"
         en: "Garage"
+        es: "Garaje"
     - key: t0026
       values:
         it: "Porta principale"
         en: "Main door"
+        es: "Puerta principal"
     - key: t0027
       values:
         it: "Porta studio"
         en: "Studio door"
+        es: "Puerta del estudio"
     - key: t0028
       values:
         it: "Soggiorno SX"
         en: "Living room L"
+        es: "Salón izq."
     - key: t0029
       values:
         it: "Soggiorno DX"
         en: "Living room R"
+        es: "Salón der."
     - key: t0030
       values:
         it: "Cucina SX"
         en: "Kitchen L"
+        es: "Cocina izq."
     - key: t0031
       values:
         it: "Cucina DX"
         en: "Kitchen R"
+        es: "Cocina der."
     - key: t0032
       values:
         it: "Ingresso:"
         en: "Entrance:"
+        es: "Entrada:"
     - key: t0033
       values:
         it: "Esterno:"
         en: "Outdoor:"
+        es: "Exterior:"
     - key: t0034
       values:
         it: "Perimetro:"
         en: "Perimeter:"
+        es: "Perímetro:"
     - key: t0035
       values:
         it: "NE · NO · O"
-        en: "NE · NO · O"
+        en: "NE · NW · W"
+        es: "NE · NO · O"
     - key: t0036
       values:
         it: "PRESENZA & LUCI"
         en: "PRESENCE & LIGHTS"
+        es: "PRESENCIA Y LUCES"
     - key: t0037
       values:
         it: "Mauro a casa:"
         en: "Mauro at home:"
+        es: "Mauro en casa:"
     - key: t0038
       values:
         it: "Elevazione solare:"
         en: "Solar elevation:"
+        es: "Elevación solar:"
     - key: t0039
       values:
         it: "LUCI ESTERNE"
         en: "OUTDOOR LIGHTS"
+        es: "LUCES EXTERIORES"
     - key: t0040
       values:
         it: "Cancelletto"
         en: "Gate"
+        es: "Cancela"
     - key: t0041
       values:
         it: "Viale centrale"
         en: "Central path"
+        es: "Camino central"
     - key: t0042
       values:
         it: "Strada DX"
         en: "Road R"
+        es: "Carretera der."
     - key: t0043
       values:
         it: "TAPPARELLE"
         en: "ROLLER SHUTTERS"
+        es: "PERSIANAS"
     - key: t0044
       values:
         it: "→ Controllo completo luci e tapparelle"
         en: "→ Full control of lights and shutters"
+        es: "→ Control completo de luces y persianas"
     - key: t0045
       values:
         it: "FOTOVOLTAICO — Solarman 2 Stringhe"
         en: "PHOTOVOLTAIC — Solarman 2 Strings"
+        es: "FOTOVOLTAICA — Solarman 2 cadenas"
     - key: t0046
       values:
         it: "Tensione · Corrente · Potenza per stringa · Inverter · Storico"
         en: "Voltage · Current · Power per string · Inverter · History"
+        es: "Tensión · Corriente · Potencia por cadena · Inversor · Histórico"
     - key: t0047
       values:
         it: "◎ Panoramica"
         en: "◎ Overview"
+        es: "◎ Resumen"
     - key: t0048
       values:
         it: "◉ Fotovoltaico"
         en: "◉ Photovoltaic"
+        es: "◉ Fotovoltaica"
     - key: t0049
       values:
         it: "POTENZA TOTALE FV"
         en: "TOTAL PV POWER"
+        es: "POTENCIA TOTAL FV"
     - key: t0050
       values:
         it: "Produzione oggi"
         en: "Produced today"
+        es: "Producción de hoy"
     - key: t0051
       values:
         it: "Lifetime"
         en: "Lifetime"
+        es: "Lifetime"
     - key: t0052
       values:
         it: "STRINGA 1"
         en: "STRING 1"
+        es: "CADENA 1"
     - key: t0053
       values:
         it: "Tensione"
         en: "Voltage"
+        es: "Tensión"
     - key: t0054
       values:
         it: "V"
         en: "V"
+        es: "V"
     - key: t0055
       values:
         it: "Corrente"
         en: "Current"
+        es: "Corriente"
     - key: t0056
       values:
         it: "A"
         en: "A"
+        es: "A"
     - key: t0057
       values:
         it: "Potenza PV1"
         en: "PV1 power"
+        es: "Potencia PV1"
     - key: t0058
       values:
         it: "STRINGA 2"
         en: "STRING 2"
+        es: "CADENA 2"
     - key: t0059
       values:
         it: "Potenza PV2"
         en: "PV2 power"
+        es: "Potencia PV2"
     - key: t0060
       values:
         it: "Corrente PV1 vs PV2 — 1 ora"
         en: "PV1 vs PV2 current — 1 hour"
+        es: "Corriente PV1 vs PV2 — 1 hora"
     - key: t0061
       values:
         it: "— PV1 corrente (A)"
-        en: "— PV1 corrente (A)"
+        en: "— PV1 current (A)"
+        es: "— Corriente PV1 (A)"
     - key: t0062
       values:
         it: "— PV2 corrente (A)"
-        en: "— PV2 corrente (A)"
+        en: "— PV2 current (A)"
+        es: "— Corriente PV2 (A)"
     - key: t0063
       values:
         it: "T. interna inv."
         en: "Inv. internal T."
+        es: "T. interna inv."
     - key: t0064
       values:
         it: "T. modulo inv."
         en: "Inv. module T."
+        es: "T. módulo inv."
     - key: t0065
       values:
         it: "Generazione oggi"
         en: "Generated today"
+        es: "Generación de hoy"
     - key: t0066
       values:
         it: "Autoconsumo"
         en: "Self-consumption"
+        es: "Autoconsumo"
     - key: t0067
       values:
         it: "BATTERIA & RETE ELETTRICA"
         en: "BATTERY & POWER GRID"
+        es: "BATERÍA Y RED ELÉCTRICA"
     - key: t0068
       values:
         it: "SoC · Tensione · Corrente · Scambio rete · Storico"
         en: "SoC · Voltage · Current · Grid exchange · History"
+        es: "SoC · Tensión · Corriente · Intercambio con la red · Histórico"
     - key: t0069
       values:
         it: "◉ Batt & Rete"
         en: "◉ Batt & Grid"
+        es: "◉ Bat & Red"
     - key: t0070
       values:
         it: "🔋 BATTERIA LiFePO4"
         en: "🔋 LiFePO4 BATTERY"
+        es: "🔋 BATERÍA LiFePO4"
     - key: t0071
       values:
         it: "Potenza"
         en: "Power"
+        es: "Potencia"
     - key: t0072
       values:
         it: "Temperatura"
         en: "Temperature"
+        es: "Temperatura"
     - key: t0073
       values:
         it: "Cicli carica"
         en: "Charge cycles"
+        es: "Ciclos de carga"
     - key: t0074
       values:
         it: "Caricata oggi"
         en: "Charged today"
+        es: "Cargada hoy"
     - key: t0075
       values:
         it: "Scaricata oggi"
         en: "Discharged today"
+        es: "Descargada hoy"
     - key: t0076
       values:
         it: "Capacità nominale"
         en: "Rated capacity"
+        es: "Capacidad nominal"
     - key: t0077
       values:
         it: "Frequenza"
         en: "Frequency"
+        es: "Frecuencia"
     - key: t0078
       values:
         it: "Hz"
         en: "Hz"
+        es: "Hz"
     - key: t0079
       values:
         it: "Scambio"
         en: "Exchange"
+        es: "Intercambio"
     - key: t0080
       values:
         it: "Acquisto"
         en: "Purchase"
+        es: "Compra"
     - key: t0081
       values:
         it: "Vendita"
         en: "Export sale"
+        es: "Venta"
     - key: t0082
       values:
         it: "Saldo FV"
         en: "PV balance"
+        es: "Balance FV"
     - key: t0083
       values:
         it: "Prelevata oggi"
         en: "Drawn today"
+        es: "Consumida de red hoy"
     - key: t0084
       values:
         it: "Immessa oggi"
         en: "Fed-in today"
+        es: "Inyectada hoy"
     - key: t0085
       values:
         it: "Immessa lifetime"
         en: "Fed-in lifetime"
+        es: "Inyectada lifetime"
     - key: t0086
       values:
         it: "SoC batteria + Tensione rete — 1 ora"
         en: "Battery SoC + Grid voltage — 1 hour"
+        es: "SoC de la batería + Tensión de red — 1 hora"
     - key: t0087
       values:
         it: "— SoC batteria (%)"
-        en: "— SoC batteria (%)"
+        en: "— Battery SoC (%)"
+        es: "— SoC de la batería (%)"
     - key: t0088
       values:
         it: "— Tensione rete (V)"
-        en: "— Tensione rete (V)"
+        en: "— Grid voltage (V)"
+        es: "— Tensión de red (V)"
     - key: t0089
       values:
         it: "Positivo scambio = immissione"
         en: "Positive exchange = feed-in"
+        es: "Intercambio positivo = inyección"
     - key: t0090
       values:
         it: "CLIMA — 5 Stanze"
         en: "CLIMATE — 5 Rooms"
+        es: "CLIMA — 5 habitaciones"
     - key: t0091
       values:
         it: "Temperatura · Umidità · Comfort Index · Trend storico"
         en: "Temperature · Humidity · Comfort Index · Historical trend"
+        es: "Temperatura · Humedad · Índice de confort · Tendencia histórica"
     - key: t0092
       values:
         it: "◉ Clima"
         en: "◉ Climate"
+        es: "◉ Clima"
     - key: t0093
       values:
         it: "Barra"
         en: "Bar"
+        es: "Barra"
     - key: t0094
       values:
         it: "Media 5 stanze"
         en: "5-room average"
+        es: "Media de 5 habitaciones"
     - key: t0095
       values:
         it: "Pressione"
         en: "Pressure"
+        es: "Presión"
     - key: t0096
       values:
         it: "Comfort Soggiorno"
         en: "Living-room comfort"
+        es: "Confort del salón"
     - key: t0097
       values:
         it: "100 = T 22°C + U 50%"
         en: "100 = T 22°C + H 50%"
+        es: "100 = T 22°C + H 50%"
     - key: t0098
       values:
         it: "GAUGE — TEMPERATURA MEDIA"
         en: "GAUGE — AVERAGE TEMPERATURE"
+        es: "GAUGE — TEMPERATURA MEDIA"
     - key: t0099
       values:
         it: "Comfort Index"
         en: "Comfort Index"
+        es: "Índice de confort"
     - key: t0100
       values:
         it: "Temperature Soggiorno · Studio · Lavanderia — 2 ore"
         en: "Living-room · Studio · Laundry temperatures — 2 hours"
+        es: "Temperaturas Salón · Estudio · Lavadero — 2 horas"
     - key: t0101
       values:
         it: "— Soggiorno (°C)"
-        en: "— Soggiorno (°C)"
+        en: "— Living room (°C)"
+        es: "— Salón (°C)"
     - key: t0102
       values:
         it: "— Studio (°C)"
         en: "— Studio (°C)"
+        es: "— Estudio (°C)"
     - key: t0103
       values:
         it: "— Lavanderia (°C)"
-        en: "— Lavanderia (°C)"
+        en: "— Laundry (°C)"
+        es: "— Lavadero (°C)"
     - key: t0104
       values:
         it: "Storico SQLite 365 gg"
         en: "SQLite history 365 days"
+        es: "Histórico SQLite 365 días"
     - key: t0105
       values:
         it: "CARICHI ELETTRICI"
         en: "ELECTRICAL LOADS"
+        es: "CARGAS ELÉCTRICAS"
     - key: t0106
       values:
         it: "Cucina Sonoff · Pompa di Calore · KPI Energetici"
         en: "Sonoff kitchen · Heat pump · Energy KPIs"
+        es: "Cocina Sonoff · Bomba de calor · KPI energéticos"
     - key: t0107
       values:
         it: "◉ Carichi"
         en: "◉ Loads"
+        es: "◉ Cargas"
     - key: t0108
       values:
         it: "Consumo casa"
         en: "House consumption"
+        es: "Consumo de la casa"
     - key: t0109
       values:
         it: "Costo ora"
         en: "Cost/hour"
+        es: "Coste por hora"
     - key: t0110
       values:
         it: "Saldo FV-Casa"
         en: "PV-House balance"
+        es: "Balance FV-Casa"
     - key: t0111
       values:
         it: "Consumo oggi"
         en: "Consumed today"
+        es: "Consumo de hoy"
     - key: t0112
       values:
         it: "🍳 CUCINA — Contatore Sonoff"
         en: "🍳 KITCHEN — Sonoff meter"
+        es: "🍳 COCINA — Contador Sonoff"
     - key: t0113
       values:
         it: "W"
         en: "W"
+        es: "W"
     - key: t0114
       values:
         it: "Energia totale"
         en: "Total energy"
+        es: "Energía total"
     - key: t0115
       values:
         it: "🌀 POMPA DI CALORE"
         en: "🌀 HEAT PUMP"
+        es: "🌀 BOMBA DE CALOR"
     - key: t0116
       values:
         it: "Potenza istantanea vs consumo casa"
         en: "Instant power vs house consumption"
+        es: "Potencia instantánea vs consumo de la casa"
     - key: t0117
       values:
         it: "Potenza Cucina vs Pompa di Calore vs Consumo Casa — 1 ora"
         en: "Kitchen vs Heat pump vs House consumption — 1 hour"
+        es: "Potencia Cocina vs Bomba de calor vs Consumo de la casa — 1 hora"
     - key: t0118
       values:
         it: "— Cucina (W)"
-        en: "— Cucina (W)"
+        en: "— Kitchen (W)"
+        es: "— Cocina (W)"
     - key: t0119
       values:
         it: "— Pompa calore (W)"
-        en: "— Pompa calore (W)"
+        en: "— Heat pump (W)"
+        es: "— Bomba de calor (W)"
     - key: t0120
       values:
         it: "— Consumo casa (kW×1000)"
-        en: "— Consumo casa (kW×1000)"
+        en: "— House consumption (kW×1000)"
+        es: "— Consumo de la casa (kW×1000)"
     - key: t0121
       values:
         it: "SICUREZZA & CONTROLLO"
         en: "SECURITY & CONTROL"
+        es: "SEGURIDAD Y CONTROL"
     - key: t0122
       values:
         it: "Porte · Finestre · Perimetro · Luci write-back · Tapparelle write-back"
         en: "Doors · Windows · Perimeter · Lights write-back · Shutters write-back"
+        es: "Puertas · Ventanas · Perímetro · Luces write-back · Persianas write-back"
     - key: t0123
       values:
         it: "◉ Sicurezza"
         en: "◉ Security"
+        es: "◉ Seguridad"
     - key: t0124
       values:
         it: "SENSORI SICUREZZA"
         en: "SECURITY SENSORS"
+        es: "SENSORES DE SEGURIDAD"
     - key: t0125
       values:
         it: "PORTE"
         en: "DOORS"
+        es: "PUERTAS"
     - key: t0126
       values:
         it: "Garage sezionale"
         en: "Sectional garage"
+        es: "Garaje seccional"
     - key: t0127
       values:
         it: "Portoncino ingresso"
         en: "Entrance door"
+        es: "Puerta de entrada"
     - key: t0128
       values:
         it: "Portoncino studio"
         en: "Studio door"
+        es: "Puerta del estudio"
     - key: t0129
       values:
         it: "FINESTRE"
         en: "WINDOWS"
+        es: "VENTANAS"
     - key: t0130
       values:
         it: "PERIMETRO & MOVIMENTO"
         en: "PERIMETER & MOTION"
+        es: "PERÍMETRO Y MOVIMIENTO"
     - key: t0131
       values:
         it: "Perimetro Nord-Est"
         en: "North-East perimeter"
+        es: "Perímetro noreste"
     - key: t0132
       values:
         it: "Perimetro Nord-Ovest"
         en: "North-West perimeter"
+        es: "Perímetro noroeste"
     - key: t0133
       values:
         it: "Perimetro Ovest"
         en: "West perimeter"
+        es: "Perímetro oeste"
     - key: t0134
       values:
         it: "Movimento ingresso"
         en: "Entrance motion"
+        es: "Movimiento en la entrada"
     - key: t0135
       values:
         it: "Movimento esterno"
         en: "Outdoor motion"
+        es: "Movimiento exterior"
     - key: t0136
       values:
         it: "Persona (AI)"
         en: "Person (AI)"
+        es: "Persona (IA)"
     - key: t0137
       values:
         it: "Veicolo (AI)"
         en: "Vehicle (AI)"
+        es: "Vehículo (IA)"
     - key: t0138
       values:
         it: "Piazzale"
         en: "Yard"
+        es: "Explanada"
     - key: t0139
       values:
         it: "Mauro a casa"
         en: "Mauro at home"
+        es: "Mauro en casa"
     - key: t0140
       values:
         it: "💡 LUCI ESTERNE — write-back"
         en: "💡 OUTDOOR LIGHTS — write-back"
+        es: "💡 LUCES EXTERIORES — write-back"
     - key: t0141
       values:
         it: "ON"
         en: "ON"
+        es: "ON"
     - key: t0142
       values:
         it: "OFF"
         en: "OFF"
+        es: "OFF"
     - key: t0143
       values:
         it: "true → HA: switch.turn_on / false → turn_off"
         en: "true → HA: switch.turn_on / false → turn_off"
+        es: "true → HA: switch.turn_on / false → turn_off"
     - key: t0144
       values:
         it: "🪟 TAPPARELLE — write-back"
         en: "🪟 ROLLER SHUTTERS — write-back"
+        es: "🪟 PERSIANAS — write-back"
     - key: t0145
       values:
         it: "Tapparella"
         en: "Roller shutter"
+        es: "Persiana"
     - key: t0146
       values:
         it: "Stato"
         en: "State"
+        es: "Estado"
     - key: t0147
       values:
         it: "SÙ"
         en: "UP"
+        es: "SUBIR"
     - key: t0148
       values:
         it: "GIÙ"
         en: "DOWN"
+        es: "BAJAR"
     - key: t0149
       values:
         it: "▲ SÙ"
         en: "▲ UP"
+        es: "▲ SUBIR"
     - key: t0150
       values:
         it: "▼ GIÙ"
         en: "▼ DOWN"
+        es: "▼ BAJAR"
     - key: t0151
       values:
         it: "▲ SÙ → HA: cover.open_cover"
         en: "▲ UP → HA: cover.open_cover"
+        es: "▲ SUBIR → HA: cover.open_cover"
     - key: t0152
       values:
         it: "▼ GIÙ → HA: cover.close_cover"
         en: "▼ DOWN → HA: cover.close_cover"
+        es: "▼ BAJAR → HA: cover.close_cover"
     - key: t0153
       values:
         it: "Stato: true = aperta / false = chiusa"
         en: "State: true = open / false = closed"
+        es: "Estado: true = abierta / false = cerrada"
     - key: t0154
       values:
         it: "Sole elevazione"
         en: "Sun elevation"
+        es: "Elevación del sol"
+    - key: t0168
+      values:
+        it: "Oggi: {value:.1f} kWh"
+        en: "Today: {value:.1f} kWh"
+        es: "Hoy: {value:.1f} kWh"
+    - key: t0169
+      values:
+        it: "Saldo: {value:+.2f} kW"
+        en: "Balance: {value:+.2f} kW"
+        es: "Balance: {value:+.2f} kW"
+    - key: t0170
+      values:
+        it: "CI: {value:.0f}"
+        en: "AQ: {value:.0f}"
+        es: "CA: {value:.0f}"
+    - key: t0171
+      values:
+        it: "Umidità soggiorno: {value:.0f}%"
+        en: "Living room humidity: {value:.0f}%"
+        es: "Humedad del salón: {value:.0f}%"
 
 # ── Pagina iniziale ──────────────────────────────────────────────────────────
 #

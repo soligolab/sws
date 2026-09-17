@@ -1,18 +1,18 @@
 id: pro_p5
 name: "Carichi Elettrici"
 background: "#0f172a"
-width: 800
-height: 620
+width: 1280
+height: 800
 
 objects:
 
 # ── HEADER ────────────────────────────────────────────────────────────────────
 - id: pro5_title
   type: text
-  x: 400
-  y: 20
+  x: 640
+  y: 26
   text: "{{t0105}}"
-  font_size: 17
+  font_size: 22
   font_weight: bold
   text_anchor: middle
   color: "#e2e8f0"
@@ -20,10 +20,10 @@ objects:
 
 - id: pro5_sub
   type: text
-  x: 400
-  y: 40
+  x: 640
+  y: 52
   text: "{{t0106}}"
-  font_size: 10
+  font_size: 13
   text_anchor: middle
   color: "#475569"
   locked: true
@@ -31,50 +31,50 @@ objects:
 # ── NAVIGATION ───────────────────────────────────────────────────────────────
 - id: pro5_nav1
   type: navbutton
-  x: 10
-  y: 572
-  width: 120
-  height: 34
+  x: 137
+  y: 738
+  width: 155
+  height: 44
   label: "{{t0047}}"
   target_page: pro_p1
   locked: true
 
 - id: pro5_nav2
   type: navbutton
-  x: 140
-  y: 572
-  width: 120
-  height: 34
+  x: 305
+  y: 738
+  width: 155
+  height: 44
   label: "{{t0004}}"
   target_page: pro_p2
   locked: true
 
 - id: pro5_nav3
   type: navbutton
-  x: 270
-  y: 572
-  width: 120
-  height: 34
+  x: 472
+  y: 738
+  width: 155
+  height: 44
   label: "{{t0005}}"
   target_page: pro_p3
   locked: true
 
 - id: pro5_nav4
   type: navbutton
-  x: 400
-  y: 572
-  width: 120
-  height: 34
+  x: 640
+  y: 738
+  width: 155
+  height: 44
   label: "{{t0006}}"
   target_page: pro_p4
   locked: true
 
 - id: pro5_nav5
   type: navbutton
-  x: 530
-  y: 572
-  width: 120
-  height: 34
+  x: 808
+  y: 738
+  width: 155
+  height: 44
   label: "{{t0107}}"
   target_page: pro_p5
   fill: "#1e293b"
@@ -82,10 +82,10 @@ objects:
 
 - id: pro5_nav6
   type: navbutton
-  x: 660
-  y: 572
-  width: 120
-  height: 34
+  x: 975
+  y: 738
+  width: 155
+  height: 44
   label: "{{t0008}}"
   target_page: pro_p6
   locked: true
@@ -96,10 +96,10 @@ objects:
 
 - id: pro5_kpi_box
   type: rect
-  x: 14
-  y: 56
-  width: 772
-  height: 56
+  x: 142
+  y: 72
+  width: 996
+  height: 72
   fill: "#1a1a2e"
   stroke: "#312e81"
   stroke_width: 1
@@ -107,100 +107,100 @@ objects:
 
 - id: pro5_kpi_potenza_lbl
   type: text
-  x: 110
-  y: 74
+  x: 266
+  y: 95
   text: "{{t0108}}"
-  font_size: 9
+  font_size: 12
   text_anchor: middle
   color: "#475569"
 
 - id: pro5_kpi_potenza
   type: text
-  x: 110
-  y: 96
+  x: 266
+  y: 124
   tag: energia.potenza_kw
   format: "{value:.3f} kW"
-  font_size: 16
+  font_size: 21
   font_weight: bold
   text_anchor: middle
   color: "#a5b4fc"
 
 - id: pro5_kpi_costo_lbl
   type: text
-  x: 280
-  y: 74
+  x: 485
+  y: 95
   text: "{{t0109}}"
-  font_size: 9
+  font_size: 12
   text_anchor: middle
   color: "#475569"
 
 - id: pro5_kpi_costo
   type: text
-  x: 280
-  y: 96
+  x: 485
+  y: 124
   tag: energia.costo_ora_eur
   format: "{value:.4f} €/h"
-  font_size: 16
+  font_size: 21
   font_weight: bold
   text_anchor: middle
   color: "#fbbf24"
 
 - id: pro5_kpi_saldo_lbl
   type: text
-  x: 450
-  y: 74
+  x: 705
+  y: 95
   text: "{{t0110}}"
-  font_size: 9
+  font_size: 12
   text_anchor: middle
   color: "#475569"
 
 - id: pro5_kpi_saldo
   type: text
-  x: 450
-  y: 96
+  x: 705
+  y: 124
   tag: energia.saldo_kw
   format: "{value:+.3f} kW"
-  font_size: 16
+  font_size: 21
   font_weight: bold
   text_anchor: middle
   color: "#a3e635"
 
 - id: pro5_kpi_cons_oggi_lbl
   type: text
-  x: 620
-  y: 74
+  x: 924
+  y: 95
   text: "{{t0111}}"
-  font_size: 9
+  font_size: 12
   text_anchor: middle
   color: "#475569"
 
 - id: pro5_kpi_cons_oggi
   type: text
-  x: 620
-  y: 96
+  x: 924
+  y: 124
   tag: energia.consumo_oggi_kwh
   format: "{value:.2f} kWh"
-  font_size: 16
+  font_size: 21
   font_weight: bold
   text_anchor: middle
   color: "#94a3b8"
 
 - id: pro5_kpi_tot_lbl
   type: text
-  x: 760
-  y: 74
+  x: 1105
+  y: 95
   text: "{{t0051}}"
-  font_size: 9
+  font_size: 12
   text_anchor: middle
   color: "#475569"
 
 - id: pro5_kpi_tot
   type: text
-  x: 760
-  y: 96
+  x: 1105
+  y: 124
   tag: energia.consumo_totale_kwh
   format: "{value:.0f} kWh"
-  font_size: 14
+  font_size: 18
   font_weight: bold
   text_anchor: middle
   color: "#475569"
@@ -211,20 +211,20 @@ objects:
 
 - id: pro5_cuc_hdr
   type: text
-  x: 200
-  y: 128
+  x: 382
+  y: 165
   text: "{{t0112}}"
-  font_size: 12
+  font_size: 15
   font_weight: bold
   text_anchor: middle
   color: "#f59e0b"
 
 - id: pro5_cuc_box
   type: rect
-  x: 14
-  y: 136
-  width: 372
-  height: 220
+  x: 142
+  y: 175
+  width: 480
+  height: 284
   fill: "#1c1100"
   stroke: "#92400e"
   stroke_width: 1
@@ -233,39 +233,39 @@ objects:
 # Potenza
 - id: pro5_cuc_w_lbl
   type: text
-  x: 100
-  y: 162
+  x: 253
+  y: 209
   text: "{{t0071}}"
-  font_size: 10
+  font_size: 13
   text_anchor: middle
   color: "#475569"
 
 - id: pro5_cuc_w
   type: text
-  x: 100
-  y: 192
+  x: 253
+  y: 248
   tag: cucina.potenza_w
   format: "{value:.0f}"
-  font_size: 34
+  font_size: 44
   font_weight: bold
   text_anchor: middle
   color: "#fbbf24"
 
 - id: pro5_cuc_w_u
   type: text
-  x: 100
-  y: 210
+  x: 253
+  y: 271
   text: "{{t0113}}"
-  font_size: 12
+  font_size: 15
   text_anchor: middle
   color: "#92400e"
 
 - id: pro5_cuc_w_g
   type: gauge
-  x: 18
-  y: 218
-  width: 164
-  height: 50
+  x: 147
+  y: 281
+  width: 212
+  height: 65
   tag: cucina.potenza_w
   min: 0
   max: 3500
@@ -276,20 +276,20 @@ objects:
 # Tensione
 - id: pro5_cuc_v_lbl
   type: text
-  x: 290
-  y: 162
+  x: 498
+  y: 209
   text: "{{t0053}}"
-  font_size: 10
+  font_size: 13
   text_anchor: middle
   color: "#475569"
 
 - id: pro5_cuc_v
   type: text
-  x: 290
-  y: 185
+  x: 498
+  y: 239
   tag: cucina.tensione_v
   format: "{value:.1f} V"
-  font_size: 18
+  font_size: 23
   font_weight: bold
   text_anchor: middle
   color: "#fbbf24"
@@ -297,20 +297,20 @@ objects:
 # Corrente
 - id: pro5_cuc_a_lbl
   type: text
-  x: 290
-  y: 210
+  x: 498
+  y: 271
   text: "{{t0055}}"
-  font_size: 10
+  font_size: 13
   text_anchor: middle
   color: "#475569"
 
 - id: pro5_cuc_a
   type: text
-  x: 290
-  y: 233
+  x: 498
+  y: 301
   tag: cucina.corrente_a
   format: "{value:.2f} A"
-  font_size: 18
+  font_size: 23
   font_weight: bold
   text_anchor: middle
   color: "#fbbf24"
@@ -318,20 +318,20 @@ objects:
 # Frequenza
 - id: pro5_cuc_hz_lbl
   type: text
-  x: 290
-  y: 258
+  x: 498
+  y: 333
   text: "{{t0077}}"
-  font_size: 10
+  font_size: 13
   text_anchor: middle
   color: "#475569"
 
 - id: pro5_cuc_hz
   type: text
-  x: 290
-  y: 280
+  x: 498
+  y: 361
   tag: cucina.frequenza_hz
   format: "{value:.2f} Hz"
-  font_size: 15
+  font_size: 19
   font_weight: bold
   text_anchor: middle
   color: "#a3a3a3"
@@ -339,20 +339,20 @@ objects:
 # Energia
 - id: pro5_cuc_kwh_lbl
   type: text
-  x: 100
-  y: 310
+  x: 253
+  y: 400
   text: "{{t0114}}"
-  font_size: 9
+  font_size: 12
   text_anchor: middle
   color: "#475569"
 
 - id: pro5_cuc_kwh
   type: text
-  x: 100
-  y: 328
+  x: 253
+  y: 423
   tag: cucina.energia_kwh
   format: "{value:.2f} kWh"
-  font_size: 14
+  font_size: 18
   font_weight: bold
   text_anchor: middle
   color: "#d97706"
@@ -363,20 +363,20 @@ objects:
 
 - id: pro5_pdc_hdr
   type: text
-  x: 600
-  y: 128
+  x: 898
+  y: 165
   text: "{{t0115}}"
-  font_size: 12
+  font_size: 15
   font_weight: bold
   text_anchor: middle
   color: "#38bdf8"
 
 - id: pro5_pdc_box
   type: rect
-  x: 414
-  y: 136
-  width: 372
-  height: 220
+  x: 658
+  y: 175
+  width: 480
+  height: 284
   fill: "#0c1a2e"
   stroke: "#1e3a5f"
   stroke_width: 1
@@ -385,39 +385,39 @@ objects:
 # Potenza
 - id: pro5_pdc_w_lbl
   type: text
-  x: 500
-  y: 162
+  x: 769
+  y: 209
   text: "{{t0071}}"
-  font_size: 10
+  font_size: 13
   text_anchor: middle
   color: "#475569"
 
 - id: pro5_pdc_w
   type: text
-  x: 500
-  y: 192
+  x: 769
+  y: 248
   tag: pompacalore.potenza_w
   format: "{value:.0f}"
-  font_size: 34
+  font_size: 44
   font_weight: bold
   text_anchor: middle
   color: "#38bdf8"
 
 - id: pro5_pdc_w_u
   type: text
-  x: 500
-  y: 210
+  x: 769
+  y: 271
   text: "{{t0113}}"
-  font_size: 12
+  font_size: 15
   text_anchor: middle
   color: "#1e3a5f"
 
 - id: pro5_pdc_w_g
   type: gauge
-  x: 418
-  y: 218
-  width: 164
-  height: 50
+  x: 663
+  y: 281
+  width: 212
+  height: 65
   tag: pompacalore.potenza_w
   min: 0
   max: 4000
@@ -427,20 +427,20 @@ objects:
 # Tensione
 - id: pro5_pdc_v_lbl
   type: text
-  x: 690
-  y: 162
+  x: 1014
+  y: 209
   text: "{{t0053}}"
-  font_size: 10
+  font_size: 13
   text_anchor: middle
   color: "#475569"
 
 - id: pro5_pdc_v
   type: text
-  x: 690
-  y: 185
+  x: 1014
+  y: 239
   tag: pompacalore.tensione_v
   format: "{value:.1f} V"
-  font_size: 18
+  font_size: 23
   font_weight: bold
   text_anchor: middle
   color: "#38bdf8"
@@ -448,20 +448,20 @@ objects:
 # Corrente
 - id: pro5_pdc_a_lbl
   type: text
-  x: 690
-  y: 210
+  x: 1014
+  y: 271
   text: "{{t0055}}"
-  font_size: 10
+  font_size: 13
   text_anchor: middle
   color: "#475569"
 
 - id: pro5_pdc_a
   type: text
-  x: 690
-  y: 233
+  x: 1014
+  y: 301
   tag: pompacalore.corrente_a
   format: "{value:.2f} A"
-  font_size: 18
+  font_size: 23
   font_weight: bold
   text_anchor: middle
   color: "#38bdf8"
@@ -469,20 +469,20 @@ objects:
 # Energia totale
 - id: pro5_pdc_kwh_lbl
   type: text
-  x: 690
-  y: 258
+  x: 1014
+  y: 333
   text: "{{t0114}}"
-  font_size: 10
+  font_size: 13
   text_anchor: middle
   color: "#475569"
 
 - id: pro5_pdc_kwh
   type: text
-  x: 690
-  y: 280
+  x: 1014
+  y: 361
   tag: pompacalore.energia_kwh
   format: "{value:.1f} kWh"
-  font_size: 15
+  font_size: 19
   font_weight: bold
   text_anchor: middle
   color: "#0ea5e9"
@@ -490,19 +490,19 @@ objects:
 # Nota COP implicito
 - id: pro5_pdc_cop_lbl
   type: text
-  x: 600
-  y: 312
+  x: 898
+  y: 403
   text: "{{t0116}}"
-  font_size: 9
+  font_size: 12
   text_anchor: middle
   color: "#334155"
 
 - id: pro5_pdc_cop_bar
   type: progress_bar
-  x: 428
-  y: 322
-  width: 344
-  height: 12
+  x: 676
+  y: 415
+  width: 444
+  height: 15
   tag: pompacalore.potenza_w
   min: 0
   max: 4000
@@ -515,19 +515,19 @@ objects:
 
 - id: pro5_trend_lbl
   type: text
-  x: 400
-  y: 372
+  x: 640
+  y: 480
   text: "{{t0117}}"
-  font_size: 10
+  font_size: 13
   text_anchor: middle
   color: "#64748b"
 
 - id: pro5_trend
   type: trend
-  x: 14
-  y: 380
-  width: 772
-  height: 148
+  x: 142
+  y: 490
+  width: 996
+  height: 191
   tag: cucina.potenza_w
   extra_tags:
     - pompacalore.potenza_w
@@ -537,32 +537,32 @@ objects:
 
 - id: pro5_leg1
   type: text
-  x: 24
-  y: 540
+  x: 155
+  y: 697
   text: "{{t0118}}"
-  font_size: 9
+  font_size: 12
   color: "#f59e0b"
 
 - id: pro5_leg2
   type: text
-  x: 160
-  y: 540
+  x: 330
+  y: 697
   text: "{{t0119}}"
-  font_size: 9
+  font_size: 12
   color: "#38bdf8"
 
 - id: pro5_leg3
   type: text
-  x: 340
-  y: 540
+  x: 563
+  y: 697
   text: "{{t0120}}"
-  font_size: 9
+  font_size: 12
   color: "#a5b4fc"
 
 - id: pro5_leg_note
   type: text
-  x: 650
-  y: 540
+  x: 963
+  y: 697
   text: "{{t0104}}"
-  font_size: 9
+  font_size: 12
   color: "#334155"

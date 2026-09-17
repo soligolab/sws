@@ -6,7 +6,7 @@ meta:
 sources:
   - kind: en_ip
     id: enip-plc
-    ip: "192.168.1.10"
+    ip: "192.0.2.10"
     slot: 0
     poll_interval_ms: 500
     tags:
@@ -74,11 +74,65 @@ alarms:
 
 languages:
   default: it
-  langs: [it, en]
+  langs: [it, en, es]
   entries:
     - key: t0001
       values:
         it: "Temperatura eccessiva!"
+        en: "Temperature too high!"
+        es: "¡Temperatura excesiva!"
     - key: t0002
       values:
         it: "Pompa ferma o sotto minimo"
+        en: "Pump stopped or below minimum"
+        es: "Bomba parada o por debajo del mínimo"
+    - key: t0003
+      values:
+        it: "EtherNet/IP — Allen-Bradley"
+        en: "EtherNet/IP — Allen-Bradley"
+        es: "EtherNet/IP — Allen-Bradley"
+    - key: t0004
+      values:
+        it: "Pagina di partenza: i tag del template sono già collegati. Disegna qui il tuo impianto."
+        en: "Starting page: the template tags are already bound. Draw your plant here."
+        es: "Página de partida: los tags de la plantilla ya están vinculados. Dibuja aquí tu instalación."
+    - key: t0005
+      values:
+        it: "Velocità pompa (rpm)"
+        en: "Pump speed (rpm)"
+        es: "Velocidad bomba (rpm)"
+    - key: t0006
+      values:
+        it: "Valvola aperta"
+        en: "Valve open"
+        es: "Válvula abierta"
+    - key: t0007
+      values:
+        it: "Temperatura °C"
+        en: "Temperature °C"
+        es: "Temperatura °C"
+    - key: t0008
+      values:
+        it: "Contatore cicli PLC"
+        en: "PLC cycle counter"
+        es: "Contador de ciclos del PLC"
+    - key: t0009
+      values:
+        it: "Velocità pompa (%)"
+        en: "Pump speed (%)"
+        es: "Velocidad bomba (%)"
+    - key: t0010
+      values:
+        it: "COMANDI (write-back sul PLC)"
+        en: "COMMANDS (write-back to the PLC)"
+        es: "COMANDOS (escritura en el PLC)"
+    - key: t0011
+      values:
+        it: "Comando velocità pompa"
+        en: "Pump speed command"
+        es: "Comando velocidad bomba"
+    - key: t0012
+      values:
+        it: "Apri valvola"
+        en: "Open valve"
+        es: "Abrir válvula"

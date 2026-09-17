@@ -977,7 +977,7 @@ pub enum ScriptTrigger {
     /// uno script che vuole SOLO la cadenza fine era comunque costretto a
     /// scrivere anche `interval_s`, un valore che poi non conta perché
     /// `interval_ms` vince — l'opposto di "additivo". Trovato costruendo il
-    /// template di collaudo di T-69 (`examples/templates/t69-collaudo`), che
+    /// template di collaudo di T-69 (`examples/banchi-di-prova/t69-collaudo`), che
     /// non caricava per questo.
     Interval {
         #[serde(default = "default_interval_s")]

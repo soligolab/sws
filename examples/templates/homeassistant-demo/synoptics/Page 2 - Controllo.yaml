@@ -1,18 +1,18 @@
 id: ha_page2
 name: "Controllo"
 background: "#0f172a"
-width: 800
-height: 620
+width: 1280
+height: 800
 
 objects:
 
 # ── HEADER ────────────────────────────────────────────────────────────────────
 - id: ha2_title
   type: text
-  x: 400
-  y: 22
+  x: 640
+  y: 28
   text: "{{t0029}}"
-  font_size: 18
+  font_size: 23
   font_weight: bold
   text_anchor: middle
   color: "#e2e8f0"
@@ -21,10 +21,10 @@ objects:
 
 - id: ha2_sub
   type: text
-  x: 400
-  y: 42
+  x: 640
+  y: 54
   text: "{{t0030}}"
-  font_size: 11
+  font_size: 14
   text_anchor: middle
   color: "#475569"
   group_id: g_header
@@ -33,10 +33,10 @@ objects:
 # ── NAV ───────────────────────────────────────────────────────────────────────
 - id: ha2_nav_panoramica
   type: navbutton
-  x: 40
-  y: 572
-  width: 220
-  height: 34
+  x: 175
+  y: 738
+  width: 284
+  height: 44
   label: "{{t0031}}"
   target_page: ha_page1
   group_id: g_nav
@@ -44,10 +44,10 @@ objects:
 
 - id: ha2_nav_controllo
   type: navbutton
-  x: 280
-  y: 572
-  width: 220
-  height: 34
+  x: 485
+  y: 738
+  width: 284
+  height: 44
   label: "{{t0032}}"
   target_page: ha_page2
   fill: "#1e293b"
@@ -56,10 +56,10 @@ objects:
 
 - id: ha2_nav_storico
   type: navbutton
-  x: 520
-  y: 572
-  width: 220
-  height: 34
+  x: 795
+  y: 738
+  width: 284
+  height: 44
   label: "{{t0005}}"
   target_page: ha_page3
   group_id: g_nav
@@ -70,20 +70,20 @@ objects:
 
 - id: ha2_luci_hdr
   type: text
-  x: 200
-  y: 70
+  x: 382
+  y: 90
   text: "{{t0018}}"
-  font_size: 13
+  font_size: 17
   font_weight: bold
   text_anchor: middle
   color: "#f59e0b"
 
 - id: ha2_luci_box
   type: rect
-  x: 40
-  y: 82
-  width: 320
-  height: 200
+  x: 175
+  y: 106
+  width: 413
+  height: 258
   fill: "#1e293b"
   stroke: "#f59e0b"
   stroke_width: 1
@@ -92,28 +92,28 @@ objects:
 # Luce soggiorno
 - id: ha2_sog_lbl
   type: text
-  x: 60
-  y: 112
+  x: 201
+  y: 145
   text: "{{t0019}}"
-  font_size: 13
+  font_size: 17
   color: "#e2e8f0"
 
 - id: ha2_sog_led
   type: led
-  x: 200
-  y: 103
-  width: 18
-  height: 18
+  x: 382
+  y: 133
+  width: 23
+  height: 23
   tag: luce.soggiorno
   on_color: "#fbbf24"
   off_color: "#374151"
 
 - id: ha2_sog_on
   type: button
-  x: 232
-  y: 98
-  width: 54
-  height: 28
+  x: 423
+  y: 126
+  width: 70
+  height: 36
   label: "{{t0033}}"
   fill: "#d97706"
   tag: luce.soggiorno
@@ -121,10 +121,10 @@ objects:
 
 - id: ha2_sog_off
   type: button
-  x: 294
-  y: 98
-  width: 54
-  height: 28
+  x: 503
+  y: 126
+  width: 70
+  height: 36
   label: "{{t0034}}"
   fill: "#374151"
   tag: luce.soggiorno
@@ -133,28 +133,28 @@ objects:
 # Luce cucina
 - id: ha2_cuc_lbl
   type: text
-  x: 60
-  y: 152
+  x: 201
+  y: 196
   text: "{{t0020}}"
-  font_size: 13
+  font_size: 17
   color: "#e2e8f0"
 
 - id: ha2_cuc_led
   type: led
-  x: 200
-  y: 143
-  width: 18
-  height: 18
+  x: 382
+  y: 185
+  width: 23
+  height: 23
   tag: luce.cucina
   on_color: "#fbbf24"
   off_color: "#374151"
 
 - id: ha2_cuc_on
   type: button
-  x: 232
-  y: 138
-  width: 54
-  height: 28
+  x: 423
+  y: 178
+  width: 70
+  height: 36
   label: "{{t0033}}"
   fill: "#d97706"
   tag: luce.cucina
@@ -162,10 +162,10 @@ objects:
 
 - id: ha2_cuc_off
   type: button
-  x: 294
-  y: 138
-  width: 54
-  height: 28
+  x: 503
+  y: 178
+  width: 70
+  height: 36
   label: "{{t0034}}"
   fill: "#374151"
   tag: luce.cucina
@@ -174,18 +174,18 @@ objects:
 # Luce esterna
 - id: ha2_est_lbl
   type: text
-  x: 60
-  y: 192
+  x: 201
+  y: 248
   text: "{{t0021}}"
-  font_size: 13
+  font_size: 17
   color: "#e2e8f0"
 
 - id: ha2_est_led
   type: led
-  x: 200
-  y: 183
-  width: 18
-  height: 18
+  x: 382
+  y: 236
+  width: 23
+  height: 23
   tag: luce.esterno
   on_color: "#fbbf24"
   off_color: "#374151"
@@ -197,10 +197,10 @@ objects:
 # min_role non nega niente a nessuno.
 - id: ha2_est_on
   type: button
-  x: 232
-  y: 178
-  width: 54
-  height: 28
+  x: 423
+  y: 230
+  width: 70
+  height: 36
   label: "{{t0033}}"
   fill: "#d97706"
   tag: luce.esterno
@@ -210,10 +210,10 @@ objects:
 
 - id: ha2_est_off
   type: button
-  x: 294
-  y: 178
-  width: 54
-  height: 28
+  x: 503
+  y: 230
+  width: 70
+  height: 36
   label: "{{t0034}}"
   fill: "#374151"
   tag: luce.esterno
@@ -223,37 +223,37 @@ objects:
 
 - id: ha2_est_note
   type: text
-  x: 360
-  y: 183
+  x: 588
+  y: 236
   text: "{{t0022}}"
-  font_size: 10
+  font_size: 13
   color: "#64748b"
 
 # Ventilatore
 - id: ha2_vent_lbl
   type: text
-  x: 60
-  y: 232
+  x: 201
+  y: 299
   text: "{{t0023}}"
-  font_size: 13
+  font_size: 17
   color: "#e2e8f0"
 
 - id: ha2_vent_led
   type: led
-  x: 200
-  y: 223
-  width: 18
-  height: 18
+  x: 382
+  y: 288
+  width: 23
+  height: 23
   tag: ventilatore.camera
   on_color: "#22d3ee"
   off_color: "#374151"
 
 - id: ha2_vent_on
   type: button
-  x: 232
-  y: 218
-  width: 54
-  height: 28
+  x: 423
+  y: 281
+  width: 70
+  height: 36
   label: "{{t0033}}"
   fill: "#0891b2"
   tag: ventilatore.camera
@@ -261,10 +261,10 @@ objects:
 
 - id: ha2_vent_off
   type: button
-  x: 294
-  y: 218
-  width: 54
-  height: 28
+  x: 503
+  y: 281
+  width: 70
+  height: 36
   label: "{{t0034}}"
   fill: "#374151"
   tag: ventilatore.camera
@@ -275,20 +275,20 @@ objects:
 
 - id: ha2_risc_hdr
   type: text
-  x: 590
-  y: 70
+  x: 885
+  y: 90
   text: "{{t0024}}"
-  font_size: 13
+  font_size: 17
   font_weight: bold
   text_anchor: middle
   color: "#f87171"
 
 - id: ha2_risc_box
   type: rect
-  x: 430
-  y: 82
-  width: 320
-  height: 200
+  x: 679
+  y: 106
+  width: 413
+  height: 258
   fill: "#1e293b"
   stroke: "#dc2626"
   stroke_width: 1
@@ -296,67 +296,67 @@ objects:
 
 - id: ha2_risc_curr_lbl
   type: text
-  x: 450
-  y: 110
+  x: 705
+  y: 142
   text: "{{t0025}}"
-  font_size: 11
+  font_size: 14
   color: "#94a3b8"
 
 - id: ha2_risc_curr
   type: text
-  x: 730
-  y: 110
+  x: 1066
+  y: 142
   tag: clima.temperatura_attuale
   format: "{value:.1f}°C"
-  font_size: 15
+  font_size: 19
   font_weight: bold
   text_anchor: end
   color: "#f87171"
 
 - id: ha2_risc_sp_lbl
   type: text
-  x: 450
-  y: 140
+  x: 705
+  y: 181
   text: "{{t0035}}"
-  font_size: 11
+  font_size: 14
   color: "#94a3b8"
 
 - id: ha2_risc_sp
   type: text
-  x: 730
-  y: 140
+  x: 1066
+  y: 181
   tag: clima.setpoint
   format: "{value:.1f}°C"
-  font_size: 15
+  font_size: 19
   font_weight: bold
   text_anchor: end
   color: "#fb923c"
 
 - id: ha2_risc_slider_lbl
   type: text
-  x: 450
-  y: 168
+  x: 705
+  y: 217
   text: "{{t0036}}"
-  font_size: 11
+  font_size: 14
   color: "#94a3b8"
 
 - id: ha2_risc_new
   type: text
-  x: 730
-  y: 168
+  x: 1066
+  y: 217
   tag: riscaldamento.setpoint
   format: "{value:.1f}°C"
-  font_size: 13
+  font_size: 17
   font_weight: bold
   text_anchor: end
   color: "#fbbf24"
 
 - id: ha2_risc_slider
   type: slider
-  x: 450
-  y: 178
-  width: 280
-  height: 28
+  x: 705
+  y: 230
+  width: 361
+  height: 36
   tag: riscaldamento.setpoint
   min: 15
   max: 30
@@ -365,30 +365,30 @@ objects:
 
 - id: ha2_risc_hint
   type: text
-  x: 590
-  y: 225
+  x: 885
+  y: 290
   text: "{{t0037}}"
-  font_size: 9
+  font_size: 12
   text_anchor: middle
   color: "#475569"
 
 # ── IRRIGAZIONE ───────────────────────────────────────────────────────────────
 - id: ha2_irr_hdr
   type: text
-  x: 200
-  y: 310
+  x: 382
+  y: 400
   text: "{{t0038}}"
-  font_size: 13
+  font_size: 17
   font_weight: bold
   text_anchor: middle
   color: "#22d3ee"
 
 - id: ha2_irr_box
   type: rect
-  x: 40
-  y: 322
-  width: 320
-  height: 160
+  x: 175
+  y: 415
+  width: 413
+  height: 206
   fill: "#1e293b"
   stroke: "#0891b2"
   stroke_width: 1
@@ -396,29 +396,29 @@ objects:
 
 - id: ha2_irr_dur_lbl
   type: text
-  x: 60
-  y: 352
+  x: 201
+  y: 454
   text: "{{t0039}}"
-  font_size: 12
+  font_size: 15
   color: "#94a3b8"
 
 - id: ha2_irr_dur
   type: text
-  x: 340
-  y: 352
+  x: 563
+  y: 454
   tag: irrigazione.durata_min
   format: "{value:.0f} min"
-  font_size: 14
+  font_size: 18
   font_weight: bold
   text_anchor: end
   color: "#67e8f9"
 
 - id: ha2_irr_slider
   type: slider
-  x: 60
-  y: 362
-  width: 280
-  height: 26
+  x: 201
+  y: 467
+  width: 361
+  height: 34
   tag: irrigazione.durata_min
   min: 1
   max: 60
@@ -427,18 +427,18 @@ objects:
 
 - id: ha2_irr_prog_lbl
   type: text
-  x: 60
-  y: 415
+  x: 201
+  y: 535
   text: "{{t0040}}"
-  font_size: 10
+  font_size: 13
   color: "#475569"
 
 - id: ha2_irr_prog
   type: progress_bar
-  x: 60
-  y: 425
-  width: 280
-  height: 14
+  x: 201
+  y: 548
+  width: 361
+  height: 18
   tag: irrigazione.durata_min
   min: 0
   max: 60
@@ -448,20 +448,20 @@ objects:
 # ── MODALITÀ NOTTURNA ─────────────────────────────────────────────────────────
 - id: ha2_notte_hdr
   type: text
-  x: 590
-  y: 310
+  x: 885
+  y: 400
   text: "{{t0041}}"
-  font_size: 13
+  font_size: 17
   font_weight: bold
   text_anchor: middle
   color: "#8b5cf6"
 
 - id: ha2_notte_box
   type: rect
-  x: 430
-  y: 322
-  width: 320
-  height: 160
+  x: 679
+  y: 415
+  width: 413
+  height: 206
   fill: "#1e293b"
   stroke: "#7c3aed"
   stroke_width: 1
@@ -469,28 +469,28 @@ objects:
 
 - id: ha2_notte_lbl
   type: text
-  x: 450
-  y: 358
+  x: 705
+  y: 462
   text: "{{t0017}}"
-  font_size: 13
+  font_size: 17
   color: "#e2e8f0"
 
 - id: ha2_notte_led
   type: led
-  x: 680
-  y: 348
-  width: 20
-  height: 20
+  x: 1001
+  y: 449
+  width: 26
+  height: 26
   tag: modalita.notturna
   on_color: "#8b5cf6"
   off_color: "#374151"
 
 - id: ha2_notte_on
   type: button
-  x: 450
-  y: 378
-  width: 110
-  height: 34
+  x: 705
+  y: 488
+  width: 142
+  height: 44
   label: "{{t0042}}"
   fill: "#7c3aed"
   tag: modalita.notturna
@@ -498,10 +498,10 @@ objects:
 
 - id: ha2_notte_off
   type: button
-  x: 580
-  y: 378
-  width: 110
-  height: 34
+  x: 872
+  y: 488
+  width: 142
+  height: 44
   label: "{{t0043}}"
   fill: "#374151"
   tag: modalita.notturna
@@ -509,20 +509,20 @@ objects:
 
 - id: ha2_notte_hint
   type: text
-  x: 590
-  y: 435
+  x: 885
+  y: 561
   text: "{{t0044}}"
-  font_size: 9
+  font_size: 12
   text_anchor: middle
   color: "#475569"
 
 # ── NOTE WRITE-BACK ───────────────────────────────────────────────────────────
 - id: ha2_note_box
   type: rect
-  x: 40
-  y: 508
-  width: 710
-  height: 48
+  x: 175
+  y: 655
+  width: 916
+  height: 62
   fill: "#0f172a"
   stroke: "#1e293b"
   stroke_width: 1
@@ -530,16 +530,16 @@ objects:
 
 - id: ha2_note
   type: text
-  x: 60
-  y: 530
+  x: 201
+  y: 684
   text: "{{t0045}}"
-  font_size: 10
+  font_size: 13
   color: "#475569"
 
 - id: ha2_note2
   type: text
-  x: 60
-  y: 548
+  x: 201
+  y: 707
   text: "{{t0046}}"
-  font_size: 10
+  font_size: 13
   color: "#334155"

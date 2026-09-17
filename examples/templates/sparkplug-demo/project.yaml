@@ -84,11 +84,65 @@ alarms:
 
 languages:
   default: it
-  langs: [it, en]
+  langs: [it, en, es]
   entries:
     - key: t0001
       values:
         it: "Temperatura uscita eccessiva — pompa surriscaldata"
+        en: "Outlet temperature too high — pump overheating"
+        es: "Temperatura de salida excesiva — bomba sobrecalentada"
     - key: t0002
       values:
         it: "Pompa ferma durante produzione"
+        en: "Pump stopped during production"
+        es: "Bomba parada durante la producción"
+    - key: t0003
+      values:
+        it: "Sparkplug B — MQTT IIoT"
+        en: "Sparkplug B — MQTT IIoT"
+        es: "Sparkplug B — MQTT IIoT"
+    - key: t0004
+      values:
+        it: "Pagina di partenza: i tag del template sono già collegati. Disegna qui il tuo impianto."
+        en: "Starting page: the template tags are already bound. Draw your plant here."
+        es: "Página de partida: los tags de la plantilla ya están vinculados. Dibuja aquí tu instalación."
+    - key: t0005
+      values:
+        it: "Velocità pompa (rpm)"
+        en: "Pump speed (rpm)"
+        es: "Velocidad bomba (rpm)"
+    - key: t0006
+      values:
+        it: "Pompa in marcia"
+        en: "Pump running"
+        es: "Bomba en marcha"
+    - key: t0007
+      values:
+        it: "Temperatura ingresso (°C)"
+        en: "Inlet temperature (°C)"
+        es: "Temperatura de entrada (°C)"
+    - key: t0008
+      values:
+        it: "Temperatura uscita (°C)"
+        en: "Outlet temperature (°C)"
+        es: "Temperatura de salida (°C)"
+    - key: t0009
+      values:
+        it: "Portata totale (m³)"
+        en: "Total flow (m³)"
+        es: "Caudal total (m³)"
+    - key: t0010
+      values:
+        it: "Delta temperatura (°C)"
+        en: "Temperature delta (°C)"
+        es: "Delta de temperatura (°C)"
+    - key: t0011
+      values:
+        it: "COMANDI (write-back via Sparkplug B)"
+        en: "COMMANDS (write-back via Sparkplug B)"
+        es: "COMANDOS (escritura vía Sparkplug B)"
+    - key: t0012
+      values:
+        it: "Comando velocità pompa"
+        en: "Pump speed command"
+        es: "Comando velocidad bomba"

@@ -1,6 +1,19 @@
 # Setup — Template "Casa Locale"
 
-Questo template si connette al broker MQTT locale su **192.168.1.6**.
+Questo template si connette a un broker MQTT locale. **L'indirizzo nel template è un
+segnaposto** — `mqtt.example.invalid`, un nome che di proposito non risolve — e va sostituito
+con quello del proprio broker in tutte e quattro le sorgenti di `project.yaml`.
+
+Un template non porta la rete di chi l'ha scritto: fino al 17-09-2026 qui c'era l'indirizzo
+vero del broker di casa dell'autore, e chi apriva il template si ritrovava il runtime a
+insistere contro una macchina che sulla sua rete non esiste.
+
+Per i comandi qui sotto, conviene tenerlo in una variabile:
+
+```bash
+export BROKER=192.0.2.10        # sostituisci con l'indirizzo del TUO broker
+```
+
 Seguire i passi qui sotto nell'ordine indicato prima di aprire il template in SWS.
 
 ---
@@ -14,7 +27,7 @@ I contatori DDS661 pubblicano nativamente su MQTT via il tool [soligolab/dds661]
 
 **Verifica topic attivi:**
 ```bash
-mosquitto_sub -h 192.168.1.6 -t 'dds661/#' -v
+mosquitto_sub -h "$BROKER" -t 'dds661/#' -v
 ```
 
 **Adatta i topic in `project.yaml`** se i nomi dei dispositivi in `config.yaml` del tool dds661 differiscono da quelli nel template (lo slug è il nome in minuscolo con trattini).
@@ -27,7 +40,7 @@ Zigbee2MQTT pubblica nativamente sul broker locale. Nessuna configurazione aggiu
 
 Verifica che il bridge sia connesso:
 ```bash
-mosquitto_sub -h 192.168.1.6 -t 'zigbee2mqtt/bridge/state' -C 1
+mosquitto_sub -h "$BROKER" -t 'zigbee2mqtt/bridge/state' -C 1
 ```
 
 I nomi dei dispositivi nel template corrispondono agli `entity_id` di Home Assistant (es. `zigbee2mqtt/finestragarage`). Se i nomi dei tuoi dispositivi Zigbee2MQTT differiscono, aggiornare i topic in `project.yaml` → sezione `zigbee2mqtt`.
@@ -102,7 +115,7 @@ mode: single
 
 Salvare e abilitare l'automazione. Dopo 30 secondi verificare:
 ```bash
-mosquitto_sub -h 192.168.1.6 -t 'sws/solarman/#' -v
+mosquitto_sub -h "$BROKER" -t 'sws/solarman/#' -v
 ```
 
 ---
@@ -115,7 +128,7 @@ Le tapparelle Shelly pubblicano nativamente su MQTT se la funzione MQTT è abili
 
 Metodo 1 — tramite MQTT:
 ```bash
-mosquitto_sub -h 192.168.1.6 -t 'shellies/#' -v | head -20
+mosquitto_sub -h "$BROKER" -t 'shellies/#' -v | head -20
 ```
 
 Metodo 2 — tramite HA: Impostazioni → Dispositivi → cerca "Shelly" → vedi il campo "Topic MQTT".
@@ -123,7 +136,7 @@ Metodo 2 — tramite HA: Impostazioni → Dispositivi → cerca "Shelly" → ved
 **Aggiornare `project.yaml`:** sostituire `SHELLY_GARAGE_ID`, `SHELLY_BAGNO_ID`, ecc. con i Device ID reali (es. `shellyswitch25-AB12CD`).
 
 **Abilitare MQTT su Shelly (se non già attivo):**
-Aprire l'interfaccia web del dispositivo Shelly → Settings → MQTT → abilitare → inserire l'IP del broker (`192.168.1.6`).
+Aprire l'interfaccia web del dispositivo Shelly → Settings → MQTT → abilitare → inserire l'indirizzo del proprio broker.
 
 ---
 

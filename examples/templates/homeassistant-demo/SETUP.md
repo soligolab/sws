@@ -12,7 +12,7 @@ Apri **Configurazione → Protocolli** e modifica la sorgente `ha-demo`:
 
 | Campo | Valore di esempio |
 |-------|-------------------|
-| URL   | `http://192.168.1.2:8123` |
+| URL   | `http://homeassistant.local:8123` |
 | Token | il token copiato da HA |
 
 In alternativa, imposta la variabile d'ambiente `HA_TOKEN` e nel campo

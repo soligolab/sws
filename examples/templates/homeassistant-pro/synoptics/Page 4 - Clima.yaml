@@ -1,18 +1,18 @@
 id: pro_p4
 name: "Clima"
 background: "#0f172a"
-width: 800
-height: 620
+width: 1280
+height: 800
 
 objects:
 
 # ── HEADER ────────────────────────────────────────────────────────────────────
 - id: pro4_title
   type: text
-  x: 400
-  y: 20
+  x: 640
+  y: 26
   text: "{{t0090}}"
-  font_size: 17
+  font_size: 22
   font_weight: bold
   text_anchor: middle
   color: "#e2e8f0"
@@ -20,10 +20,10 @@ objects:
 
 - id: pro4_sub
   type: text
-  x: 400
-  y: 40
+  x: 640
+  y: 52
   text: "{{t0091}}"
-  font_size: 10
+  font_size: 13
   text_anchor: middle
   color: "#475569"
   locked: true
@@ -31,40 +31,40 @@ objects:
 # ── NAVIGATION ───────────────────────────────────────────────────────────────
 - id: pro4_nav1
   type: navbutton
-  x: 10
-  y: 572
-  width: 120
-  height: 34
+  x: 137
+  y: 738
+  width: 155
+  height: 44
   label: "{{t0047}}"
   target_page: pro_p1
   locked: true
 
 - id: pro4_nav2
   type: navbutton
-  x: 140
-  y: 572
-  width: 120
-  height: 34
+  x: 305
+  y: 738
+  width: 155
+  height: 44
   label: "{{t0004}}"
   target_page: pro_p2
   locked: true
 
 - id: pro4_nav3
   type: navbutton
-  x: 270
-  y: 572
-  width: 120
-  height: 34
+  x: 472
+  y: 738
+  width: 155
+  height: 44
   label: "{{t0005}}"
   target_page: pro_p3
   locked: true
 
 - id: pro4_nav4
   type: navbutton
-  x: 400
-  y: 572
-  width: 120
-  height: 34
+  x: 640
+  y: 738
+  width: 155
+  height: 44
   label: "{{t0092}}"
   target_page: pro_p4
   fill: "#1e293b"
@@ -72,20 +72,20 @@ objects:
 
 - id: pro4_nav5
   type: navbutton
-  x: 530
-  y: 572
-  width: 120
-  height: 34
+  x: 808
+  y: 738
+  width: 155
+  height: 44
   label: "{{t0007}}"
   target_page: pro_p5
   locked: true
 
 - id: pro4_nav6
   type: navbutton
-  x: 660
-  y: 572
-  width: 120
-  height: 34
+  x: 975
+  y: 738
+  width: 155
+  height: 44
   label: "{{t0008}}"
   target_page: pro_p6
   locked: true
@@ -96,10 +96,10 @@ objects:
 
 - id: pro4_tab_box
   type: rect
-  x: 14
-  y: 56
-  width: 420
-  height: 310
+  x: 142
+  y: 72
+  width: 542
+  height: 400
   fill: "#0c1a2e"
   stroke: "#1e3a5f"
   stroke_width: 1
@@ -108,48 +108,48 @@ objects:
 # Header colonne
 - id: pro4_hdr_stanza
   type: text
-  x: 80
-  y: 76
+  x: 227
+  y: 98
   text: "{{t0015}}"
-  font_size: 10
+  font_size: 13
   font_weight: bold
   text_anchor: middle
   color: "#64748b"
 
 - id: pro4_hdr_temp
   type: text
-  x: 200
-  y: 76
+  x: 382
+  y: 98
   text: "{{t0072}}"
-  font_size: 10
+  font_size: 13
   font_weight: bold
   text_anchor: middle
   color: "#64748b"
 
 - id: pro4_hdr_umid
   type: text
-  x: 310
-  y: 76
+  x: 524
+  y: 98
   text: "{{t0017}}"
-  font_size: 10
+  font_size: 13
   font_weight: bold
   text_anchor: middle
   color: "#64748b"
 
 - id: pro4_hdr_bar
   type: text
-  x: 400
-  y: 76
+  x: 640
+  y: 98
   text: "{{t0093}}"
-  font_size: 10
+  font_size: 13
   font_weight: bold
   text_anchor: middle
   color: "#64748b"
 
 - id: pro4_div0
   type: line
-  x: 24
-  y: 82
+  x: 155
+  y: 106
   x2: 424
   y2: 82
   stroke: "#1e3a5f"
@@ -158,41 +158,41 @@ objects:
 # SOGGIORNO
 - id: pro4_r1_nm
   type: text
-  x: 80
-  y: 104
+  x: 227
+  y: 134
   text: "{{t0018}}"
-  font_size: 12
+  font_size: 15
   font_weight: bold
   text_anchor: middle
   color: "#93c5fd"
 
 - id: pro4_r1_t
   type: text
-  x: 200
-  y: 104
+  x: 382
+  y: 134
   tag: sala.temperatura
   format: "{value:.1f}°C"
-  font_size: 16
+  font_size: 21
   font_weight: bold
   text_anchor: middle
   color: "#60a5fa"
 
 - id: pro4_r1_u
   type: text
-  x: 310
-  y: 104
+  x: 524
+  y: 134
   tag: sala.umidita
   format: "{value:.0f}%"
-  font_size: 14
+  font_size: 18
   text_anchor: middle
   color: "#7dd3fc"
 
 - id: pro4_r1_bar
   type: progress_bar
-  x: 360
-  y: 96
-  width: 60
-  height: 14
+  x: 588
+  y: 124
+  width: 77
+  height: 18
   tag: sala.temperatura
   min: 10
   max: 32
@@ -202,8 +202,8 @@ objects:
 # STUDIO
 - id: pro4_div1
   type: line
-  x: 24
-  y: 116
+  x: 155
+  y: 150
   x2: 424
   y2: 116
   stroke: "#0f2040"
@@ -211,41 +211,41 @@ objects:
 
 - id: pro4_r2_nm
   type: text
-  x: 80
-  y: 138
+  x: 227
+  y: 178
   text: "{{t0019}}"
-  font_size: 12
+  font_size: 15
   font_weight: bold
   text_anchor: middle
   color: "#94a3b8"
 
 - id: pro4_r2_t
   type: text
-  x: 200
-  y: 138
+  x: 382
+  y: 178
   tag: studio.temperatura
   format: "{value:.1f}°C"
-  font_size: 16
+  font_size: 21
   font_weight: bold
   text_anchor: middle
   color: "#60a5fa"
 
 - id: pro4_r2_u
   type: text
-  x: 310
-  y: 138
+  x: 524
+  y: 178
   tag: studio.umidita
   format: "{value:.0f}%"
-  font_size: 14
+  font_size: 18
   text_anchor: middle
   color: "#7dd3fc"
 
 - id: pro4_r2_bar
   type: progress_bar
-  x: 360
-  y: 130
-  width: 60
-  height: 14
+  x: 588
+  y: 168
+  width: 77
+  height: 18
   tag: studio.temperatura
   min: 10
   max: 32
@@ -255,8 +255,8 @@ objects:
 # LAVANDERIA
 - id: pro4_div2
   type: line
-  x: 24
-  y: 150
+  x: 155
+  y: 194
   x2: 424
   y2: 150
   stroke: "#0f2040"
@@ -264,41 +264,41 @@ objects:
 
 - id: pro4_r3_nm
   type: text
-  x: 80
-  y: 172
+  x: 227
+  y: 222
   text: "{{t0020}}"
-  font_size: 12
+  font_size: 15
   font_weight: bold
   text_anchor: middle
   color: "#94a3b8"
 
 - id: pro4_r3_t
   type: text
-  x: 200
-  y: 172
+  x: 382
+  y: 222
   tag: lavanderia.temperatura
   format: "{value:.1f}°C"
-  font_size: 16
+  font_size: 21
   font_weight: bold
   text_anchor: middle
   color: "#60a5fa"
 
 - id: pro4_r3_u
   type: text
-  x: 310
-  y: 172
+  x: 524
+  y: 222
   tag: lavanderia.umidita
   format: "{value:.0f}%"
-  font_size: 14
+  font_size: 18
   text_anchor: middle
   color: "#7dd3fc"
 
 - id: pro4_r3_bar
   type: progress_bar
-  x: 360
-  y: 164
-  width: 60
-  height: 14
+  x: 588
+  y: 212
+  width: 77
+  height: 18
   tag: lavanderia.temperatura
   min: 10
   max: 32
@@ -308,8 +308,8 @@ objects:
 # BAGNO
 - id: pro4_div3
   type: line
-  x: 24
-  y: 184
+  x: 155
+  y: 237
   x2: 424
   y2: 184
   stroke: "#0f2040"
@@ -317,41 +317,41 @@ objects:
 
 - id: pro4_r4_nm
   type: text
-  x: 80
-  y: 206
+  x: 227
+  y: 266
   text: "{{t0021}}"
-  font_size: 12
+  font_size: 15
   font_weight: bold
   text_anchor: middle
   color: "#94a3b8"
 
 - id: pro4_r4_t
   type: text
-  x: 200
-  y: 206
+  x: 382
+  y: 266
   tag: bagno.temperatura
   format: "{value:.1f}°C"
-  font_size: 16
+  font_size: 21
   font_weight: bold
   text_anchor: middle
   color: "#60a5fa"
 
 - id: pro4_r4_u
   type: text
-  x: 310
-  y: 206
+  x: 524
+  y: 266
   tag: bagno.umidita
   format: "{value:.0f}%"
-  font_size: 14
+  font_size: 18
   text_anchor: middle
   color: "#7dd3fc"
 
 - id: pro4_r4_bar
   type: progress_bar
-  x: 360
-  y: 198
-  width: 60
-  height: 14
+  x: 588
+  y: 255
+  width: 77
+  height: 18
   tag: bagno.temperatura
   min: 10
   max: 32
@@ -361,8 +361,8 @@ objects:
 # TECNICO
 - id: pro4_div4
   type: line
-  x: 24
-  y: 218
+  x: 155
+  y: 281
   x2: 424
   y2: 218
   stroke: "#0f2040"
@@ -370,41 +370,41 @@ objects:
 
 - id: pro4_r5_nm
   type: text
-  x: 80
-  y: 240
+  x: 227
+  y: 310
   text: "{{t0022}}"
-  font_size: 12
+  font_size: 15
   font_weight: bold
   text_anchor: middle
   color: "#94a3b8"
 
 - id: pro4_r5_t
   type: text
-  x: 200
-  y: 240
+  x: 382
+  y: 310
   tag: tecnico.temperatura
   format: "{value:.1f}°C"
-  font_size: 16
+  font_size: 21
   font_weight: bold
   text_anchor: middle
   color: "#60a5fa"
 
 - id: pro4_r5_u
   type: text
-  x: 310
-  y: 240
+  x: 524
+  y: 310
   tag: tecnico.umidita
   format: "{value:.0f}%"
-  font_size: 14
+  font_size: 18
   text_anchor: middle
   color: "#7dd3fc"
 
 - id: pro4_r5_bar
   type: progress_bar
-  x: 360
-  y: 232
-  width: 60
-  height: 14
+  x: 588
+  y: 299
+  width: 77
+  height: 18
   tag: tecnico.temperatura
   min: 10
   max: 32
@@ -414,8 +414,8 @@ objects:
 # MEDIA + PRESSIONE
 - id: pro4_div5
   type: line
-  x: 24
-  y: 252
+  x: 155
+  y: 325
   x2: 424
   y2: 252
   stroke: "#1e3a5f"
@@ -423,41 +423,41 @@ objects:
 
 - id: pro4_media_nm
   type: text
-  x: 80
-  y: 276
+  x: 227
+  y: 356
   text: "{{t0094}}"
-  font_size: 12
+  font_size: 15
   font_weight: bold
   text_anchor: middle
   color: "#38bdf8"
 
 - id: pro4_media_t
   type: text
-  x: 200
-  y: 276
+  x: 382
+  y: 356
   tag: clima.temp_media
   format: "{value:.1f}°C"
-  font_size: 18
+  font_size: 23
   font_weight: bold
   text_anchor: middle
   color: "#38bdf8"
 
 - id: pro4_pres_lbl
   type: text
-  x: 310
-  y: 262
+  x: 524
+  y: 338
   text: "{{t0095}}"
-  font_size: 9
+  font_size: 12
   text_anchor: middle
   color: "#475569"
 
 - id: pro4_pres_val
   type: text
-  x: 310
-  y: 278
+  x: 524
+  y: 359
   tag: tecnico.pressione_hpa
   format: "{value:.1f} hPa"
-  font_size: 13
+  font_size: 17
   font_weight: bold
   text_anchor: middle
   color: "#94a3b8"
@@ -465,8 +465,8 @@ objects:
 # Comfort Index Soggiorno
 - id: pro4_div6
   type: line
-  x: 24
-  y: 290
+  x: 155
+  y: 374
   x2: 424
   y2: 290
   stroke: "#1e3a5f"
@@ -474,30 +474,30 @@ objects:
 
 - id: pro4_ci_lbl
   type: text
-  x: 80
-  y: 310
+  x: 227
+  y: 400
   text: "{{t0096}}"
-  font_size: 11
+  font_size: 14
   text_anchor: middle
   color: "#64748b"
 
 - id: pro4_ci_val
   type: text
-  x: 200
-  y: 316
+  x: 382
+  y: 408
   tag: sala.comfort_index
   format: "{value:.0f} / 100"
-  font_size: 20
+  font_size: 26
   font_weight: bold
   text_anchor: middle
   color: "#a3e635"
 
 - id: pro4_ci_bar
   type: progress_bar
-  x: 280
-  y: 308
-  width: 140
-  height: 14
+  x: 485
+  y: 397
+  width: 181
+  height: 18
   tag: sala.comfort_index
   min: 0
   max: 100
@@ -506,10 +506,10 @@ objects:
 
 - id: pro4_ci_note
   type: text
-  x: 214
-  y: 350
+  x: 400
+  y: 452
   text: "{{t0097}}"
-  font_size: 9
+  font_size: 12
   text_anchor: middle
   color: "#334155"
 
@@ -519,10 +519,10 @@ objects:
 
 - id: pro4_gauge_box
   type: rect
-  x: 450
-  y: 56
-  width: 336
-  height: 180
+  x: 705
+  y: 72
+  width: 434
+  height: 232
   fill: "#0c1017"
   stroke: "#1e293b"
   stroke_width: 1
@@ -530,20 +530,20 @@ objects:
 
 - id: pro4_gauge_hdr
   type: text
-  x: 618
-  y: 76
+  x: 921
+  y: 98
   text: "{{t0098}}"
-  font_size: 10
+  font_size: 13
   font_weight: bold
   text_anchor: middle
   color: "#64748b"
 
 - id: pro4_gauge_t
   type: gauge
-  x: 470
-  y: 86
-  width: 200
-  height: 100
+  x: 730
+  y: 111
+  width: 258
+  height: 129
   tag: clima.temp_media
   min: 0
   max: 40
@@ -554,31 +554,31 @@ objects:
 
 - id: pro4_gauge_val
   type: text
-  x: 700
-  y: 130
+  x: 1027
+  y: 168
   tag: sala.comfort_index
-  format: "CI: {value:.0f}"
-  font_size: 20
+  format: "{{t0170}}"
+  font_size: 26
   font_weight: bold
   text_anchor: middle
   color: "#a3e635"
 
 - id: pro4_gauge_note
   type: text
-  x: 700
-  y: 152
+  x: 1027
+  y: 196
   text: "{{t0099}}"
-  font_size: 9
+  font_size: 12
   text_anchor: middle
   color: "#334155"
 
 - id: pro4_umid_note
   type: text
-  x: 618
-  y: 218
+  x: 921
+  y: 281
   tag: sala.umidita
-  format: "Umidità soggiorno: {value:.0f}%"
-  font_size: 12
+  format: "{{t0171}}"
+  font_size: 15
   text_anchor: middle
   color: "#7dd3fc"
 
@@ -588,19 +588,19 @@ objects:
 
 - id: pro4_trend_lbl
   type: text
-  x: 400
-  y: 374
+  x: 640
+  y: 483
   text: "{{t0100}}"
-  font_size: 10
+  font_size: 13
   text_anchor: middle
   color: "#64748b"
 
 - id: pro4_trend
   type: trend
-  x: 14
-  y: 382
-  width: 772
-  height: 146
+  x: 142
+  y: 493
+  width: 996
+  height: 188
   tag: sala.temperatura
   extra_tags:
     - studio.temperatura
@@ -610,32 +610,32 @@ objects:
 
 - id: pro4_leg1
   type: text
-  x: 24
-  y: 540
+  x: 155
+  y: 697
   text: "{{t0101}}"
-  font_size: 9
+  font_size: 12
   color: "#3b82f6"
 
 - id: pro4_leg2
   type: text
-  x: 200
-  y: 540
+  x: 382
+  y: 697
   text: "{{t0102}}"
-  font_size: 9
+  font_size: 12
   color: "#60a5fa"
 
 - id: pro4_leg3
   type: text
-  x: 360
-  y: 540
+  x: 588
+  y: 697
   text: "{{t0103}}"
-  font_size: 9
+  font_size: 12
   color: "#93c5fd"
 
 - id: pro4_trend_note
   type: text
-  x: 650
-  y: 540
+  x: 963
+  y: 697
   text: "{{t0104}}"
-  font_size: 9
+  font_size: 12
   color: "#334155"

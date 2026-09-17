@@ -1,18 +1,18 @@
 id: ha_page3
 name: "Storico"
 background: "#0f172a"
-width: 800
-height: 620
+width: 1280
+height: 800
 
 objects:
 
 # ── HEADER ────────────────────────────────────────────────────────────────────
 - id: ha3_title
   type: text
-  x: 400
-  y: 22
+  x: 640
+  y: 28
   text: "{{t0047}}"
-  font_size: 18
+  font_size: 23
   font_weight: bold
   text_anchor: middle
   color: "#e2e8f0"
@@ -21,10 +21,10 @@ objects:
 
 - id: ha3_sub
   type: text
-  x: 400
-  y: 42
+  x: 640
+  y: 54
   text: "{{t0048}}"
-  font_size: 11
+  font_size: 14
   text_anchor: middle
   color: "#475569"
   group_id: g_header
@@ -33,10 +33,10 @@ objects:
 # ── NAV ───────────────────────────────────────────────────────────────────────
 - id: ha3_nav_panoramica
   type: navbutton
-  x: 40
-  y: 572
-  width: 220
-  height: 34
+  x: 175
+  y: 738
+  width: 284
+  height: 44
   label: "{{t0031}}"
   target_page: ha_page1
   group_id: g_nav
@@ -44,10 +44,10 @@ objects:
 
 - id: ha3_nav_controllo
   type: navbutton
-  x: 280
-  y: 572
-  width: 220
-  height: 34
+  x: 485
+  y: 738
+  width: 284
+  height: 44
   label: "{{t0004}}"
   target_page: ha_page2
   group_id: g_nav
@@ -55,10 +55,10 @@ objects:
 
 - id: ha3_nav_storico
   type: navbutton
-  x: 520
-  y: 572
-  width: 220
-  height: 34
+  x: 795
+  y: 738
+  width: 284
+  height: 44
   label: "{{t0049}}"
   target_page: ha_page3
   fill: "#1e293b"
@@ -68,20 +68,20 @@ objects:
 # ── TAG DERIVATI — RIEPILOGO ──────────────────────────────────────────────────
 - id: ha3_deriv_hdr
   type: text
-  x: 400
-  y: 70
+  x: 640
+  y: 90
   text: "{{t0050}}"
-  font_size: 12
+  font_size: 15
   font_weight: bold
   text_anchor: middle
   color: "#a78bfa"
 
 - id: ha3_deriv_box
   type: rect
-  x: 40
-  y: 82
-  width: 710
-  height: 100
+  x: 175
+  y: 106
+  width: 916
+  height: 129
   fill: "#1e293b"
   stroke: "#7c3aed"
   stroke_width: 1
@@ -90,91 +90,91 @@ objects:
 # Costo orario
 - id: ha3_costo_lbl
   type: text
-  x: 60
-  y: 108
+  x: 201
+  y: 139
   text: "{{t0051}}"
-  font_size: 12
+  font_size: 15
   color: "#94a3b8"
 
 - id: ha3_costo_val
   type: text
-  x: 260
-  y: 108
+  x: 459
+  y: 139
   tag: energia.costo_ora_eur
   format: "{value:.4f} €"
-  font_size: 14
+  font_size: 18
   font_weight: bold
   color: "#a3e635"
 
 - id: ha3_costo_expr
   type: text
-  x: 420
-  y: 108
+  x: 666
+  y: 139
   text: "{{t0052}}"
-  font_size: 10
+  font_size: 13
   color: "#334155"
 
 # Delta termico
 - id: ha3_delta_lbl
   type: text
-  x: 60
-  y: 134
+  x: 201
+  y: 173
   text: "{{t0053}}"
-  font_size: 12
+  font_size: 15
   color: "#94a3b8"
 
 - id: ha3_delta_val
   type: text
-  x: 260
-  y: 134
+  x: 459
+  y: 173
   tag: clima.delta_interno_esterno
   format: "{value:+.1f}°C"
-  font_size: 14
+  font_size: 18
   font_weight: bold
   color: "#38bdf8"
 
 - id: ha3_delta_expr
   type: text
-  x: 420
-  y: 134
+  x: 666
+  y: 173
   text: "{{t0054}}"
-  font_size: 10
+  font_size: 13
   color: "#334155"
 
 # Indice comfort
 - id: ha3_comf_lbl
   type: text
-  x: 60
-  y: 162
+  x: 201
+  y: 209
   text: "{{t0055}}"
-  font_size: 12
+  font_size: 15
   color: "#94a3b8"
 
 - id: ha3_comf_val
   type: text
-  x: 260
-  y: 162
+  x: 459
+  y: 209
   tag: sala.comfort_index
   format: "{value:.0f} / 100"
-  font_size: 14
+  font_size: 18
   font_weight: bold
   color: "#4ade80"
 
 - id: ha3_comf_expr
   type: text
-  x: 420
-  y: 162
+  x: 666
+  y: 209
   text: "{{t0056}}"
-  font_size: 10
+  font_size: 13
   color: "#334155"
 
 # ── VALORI LIVE ───────────────────────────────────────────────────────────────
 - id: ha3_live_hdr
   type: text
-  x: 400
-  y: 204
+  x: 640
+  y: 263
   text: "{{t0057}}"
-  font_size: 12
+  font_size: 15
   font_weight: bold
   text_anchor: middle
   color: "#64748b"
@@ -182,10 +182,10 @@ objects:
 # Temperatura interna
 - id: ha3_ti_box
   type: rect
-  x: 40
-  y: 216
-  width: 220
-  height: 120
+  x: 175
+  y: 279
+  width: 284
+  height: 155
   fill: "#1e293b"
   stroke: "#3b82f6"
   stroke_width: 1
@@ -193,31 +193,31 @@ objects:
 
 - id: ha3_ti_lbl
   type: text
-  x: 150
-  y: 234
+  x: 317
+  y: 302
   text: "{{t0058}}"
-  font_size: 11
+  font_size: 14
   font_weight: bold
   text_anchor: middle
   color: "#3b82f6"
 
 - id: ha3_ti_val
   type: text
-  x: 150
-  y: 268
+  x: 317
+  y: 346
   tag: sala.temperatura
   format: "{value:.1f}°C"
-  font_size: 28
+  font_size: 36
   font_weight: bold
   text_anchor: middle
   color: "#93c5fd"
 
 - id: ha3_ti_prog
   type: progress_bar
-  x: 55
-  y: 292
-  width: 190
-  height: 14
+  x: 195
+  y: 377
+  width: 245
+  height: 18
   tag: sala.temperatura
   min: 10
   max: 35
@@ -226,20 +226,20 @@ objects:
 
 - id: ha3_ti_hint
   type: text
-  x: 150
-  y: 322
+  x: 317
+  y: 415
   text: "{{t0059}}"
-  font_size: 9
+  font_size: 12
   text_anchor: middle
   color: "#334155"
 
 # Temperatura esterna
 - id: ha3_te_box
   type: rect
-  x: 290
-  y: 216
-  width: 220
-  height: 120
+  x: 498
+  y: 279
+  width: 284
+  height: 155
   fill: "#1e293b"
   stroke: "#22d3ee"
   stroke_width: 1
@@ -247,31 +247,31 @@ objects:
 
 - id: ha3_te_lbl
   type: text
-  x: 400
-  y: 234
+  x: 640
+  y: 302
   text: "{{t0060}}"
-  font_size: 11
+  font_size: 14
   font_weight: bold
   text_anchor: middle
   color: "#22d3ee"
 
 - id: ha3_te_val
   type: text
-  x: 400
-  y: 268
+  x: 640
+  y: 346
   tag: esterno.temperatura
   format: "{value:.1f}°C"
-  font_size: 28
+  font_size: 36
   font_weight: bold
   text_anchor: middle
   color: "#67e8f9"
 
 - id: ha3_te_prog
   type: progress_bar
-  x: 305
-  y: 292
-  width: 190
-  height: 14
+  x: 517
+  y: 377
+  width: 245
+  height: 18
   tag: esterno.temperatura
   min: -10
   max: 40
@@ -280,20 +280,20 @@ objects:
 
 - id: ha3_te_hint
   type: text
-  x: 400
-  y: 322
+  x: 640
+  y: 415
   text: "{{t0059}}"
-  font_size: 9
+  font_size: 12
   text_anchor: middle
   color: "#334155"
 
 # Energia
 - id: ha3_en_box
   type: rect
-  x: 540
-  y: 216
-  width: 220
-  height: 120
+  x: 821
+  y: 279
+  width: 284
+  height: 155
   fill: "#1e293b"
   stroke: "#f59e0b"
   stroke_width: 1
@@ -301,31 +301,31 @@ objects:
 
 - id: ha3_en_lbl
   type: text
-  x: 650
-  y: 234
+  x: 963
+  y: 302
   text: "{{t0061}}"
-  font_size: 11
+  font_size: 14
   font_weight: bold
   text_anchor: middle
   color: "#f59e0b"
 
 - id: ha3_en_val
   type: text
-  x: 650
-  y: 268
+  x: 963
+  y: 346
   tag: energia.potenza_w
   format: "{value:.0f} W"
-  font_size: 26
+  font_size: 34
   font_weight: bold
   text_anchor: middle
   color: "#fbbf24"
 
 - id: ha3_en_prog
   type: progress_bar
-  x: 555
-  y: 292
-  width: 190
-  height: 14
+  x: 840
+  y: 377
+  width: 245
+  height: 18
   tag: energia.potenza_w
   min: 0
   max: 5000
@@ -334,20 +334,20 @@ objects:
 
 - id: ha3_en_hint
   type: text
-  x: 650
-  y: 322
+  x: 963
+  y: 415
   text: "{{t0059}}"
-  font_size: 9
+  font_size: 12
   text_anchor: middle
   color: "#334155"
 
 # ── INFO STORICO ──────────────────────────────────────────────────────────────
 - id: ha3_info_box
   type: rect
-  x: 40
-  y: 360
-  width: 710
-  height: 170
+  x: 175
+  y: 465
+  width: 916
+  height: 219
   fill: "#1e293b"
   stroke: "#334155"
   stroke_width: 1
@@ -355,59 +355,59 @@ objects:
 
 - id: ha3_info_hdr
   type: text
-  x: 400
-  y: 382
+  x: 640
+  y: 493
   text: "{{t0062}}"
-  font_size: 12
+  font_size: 15
   font_weight: bold
   text_anchor: middle
   color: "#64748b"
 
 - id: ha3_info1
   type: text
-  x: 60
-  y: 406
+  x: 201
+  y: 524
   text: "{{t0063}}"
-  font_size: 11
+  font_size: 14
   color: "#94a3b8"
 
 - id: ha3_info2
   type: text
-  x: 60
-  y: 426
+  x: 201
+  y: 550
   text: "{{t0064}}"
-  font_size: 11
+  font_size: 14
   color: "#94a3b8"
 
 - id: ha3_info3
   type: text
-  x: 60
-  y: 446
+  x: 201
+  y: 575
   text: "{{t0065}}"
-  font_size: 11
+  font_size: 14
   color: "#94a3b8"
 
 - id: ha3_info4
   type: text
-  x: 60
-  y: 466
+  x: 201
+  y: 601
   text: "{{t0066}}"
-  font_size: 11
+  font_size: 14
   color: "#94a3b8"
 
 - id: ha3_info5
   type: text
-  x: 60
-  y: 496
+  x: 201
+  y: 640
   text: "{{t0067}}"
-  font_size: 11
+  font_size: 14
   color: "#7c3aed"
 
 - id: ha3_info6
   type: text
-  x: 60
-  y: 516
+  x: 201
+  y: 666
   text: "{{t0068}}"
-  font_size: 11
+  font_size: 14
   font_weight: bold
   color: "#6d28d9"

@@ -1,18 +1,18 @@
 id: pro_p6
 name: "Sicurezza & Ctrl"
 background: "#0f172a"
-width: 800
-height: 620
+width: 1280
+height: 800
 
 objects:
 
 # ── HEADER ────────────────────────────────────────────────────────────────────
 - id: pro6_title
   type: text
-  x: 400
-  y: 20
+  x: 640
+  y: 26
   text: "{{t0121}}"
-  font_size: 17
+  font_size: 22
   font_weight: bold
   text_anchor: middle
   color: "#e2e8f0"
@@ -20,10 +20,10 @@ objects:
 
 - id: pro6_sub
   type: text
-  x: 400
-  y: 40
+  x: 640
+  y: 52
   text: "{{t0122}}"
-  font_size: 10
+  font_size: 13
   text_anchor: middle
   color: "#475569"
   locked: true
@@ -31,60 +31,60 @@ objects:
 # ── NAVIGATION ───────────────────────────────────────────────────────────────
 - id: pro6_nav1
   type: navbutton
-  x: 10
-  y: 572
-  width: 120
-  height: 34
+  x: 137
+  y: 738
+  width: 155
+  height: 44
   label: "{{t0047}}"
   target_page: pro_p1
   locked: true
 
 - id: pro6_nav2
   type: navbutton
-  x: 140
-  y: 572
-  width: 120
-  height: 34
+  x: 305
+  y: 738
+  width: 155
+  height: 44
   label: "{{t0004}}"
   target_page: pro_p2
   locked: true
 
 - id: pro6_nav3
   type: navbutton
-  x: 270
-  y: 572
-  width: 120
-  height: 34
+  x: 472
+  y: 738
+  width: 155
+  height: 44
   label: "{{t0005}}"
   target_page: pro_p3
   locked: true
 
 - id: pro6_nav4
   type: navbutton
-  x: 400
-  y: 572
-  width: 120
-  height: 34
+  x: 640
+  y: 738
+  width: 155
+  height: 44
   label: "{{t0006}}"
   target_page: pro_p4
   locked: true
 
 - id: pro6_nav5
   type: navbutton
-  x: 530
-  y: 572
-  width: 120
-  height: 34
+  x: 808
+  y: 738
+  width: 155
+  height: 44
   label: "{{t0007}}"
   target_page: pro_p5
   locked: true
 
 - id: pro6_nav6
   type: navbutton
-  x: 660
-  y: 572
-  width: 120
-  height: 34
+  x: 975
+  y: 738
+  width: 155
+  height: 44
   label: "{{t0123}}"
   target_page: pro_p6
   fill: "#1e293b"
@@ -96,10 +96,10 @@ objects:
 
 - id: pro6_sec_hdr
   type: text
-  x: 200
-  y: 60
+  x: 382
+  y: 77
   text: "{{t0124}}"
-  font_size: 12
+  font_size: 15
   font_weight: bold
   text_anchor: middle
   color: "#64748b"
@@ -108,20 +108,20 @@ objects:
 
 - id: pro6_porte_hdr
   type: text
-  x: 200
-  y: 78
+  x: 382
+  y: 101
   text: "{{t0125}}"
-  font_size: 10
+  font_size: 13
   font_weight: bold
   text_anchor: middle
   color: "#ef4444"
 
 - id: pro6_porte_box
   type: rect
-  x: 14
-  y: 84
-  width: 380
-  height: 82
+  x: 142
+  y: 108
+  width: 490
+  height: 106
   fill: "#0c1017"
   stroke: "#1e293b"
   stroke_width: 1
@@ -130,105 +130,105 @@ objects:
 # Garage
 - id: pro6_garage_lbl
   type: text
-  x: 108
-  y: 106
+  x: 263
+  y: 137
   text: "{{t0126}}"
-  font_size: 11
+  font_size: 14
   color: "#94a3b8"
 
 - id: pro6_garage_led
   type: led
-  x: 220
-  y: 97
-  width: 16
-  height: 16
+  x: 408
+  y: 125
+  width: 21
+  height: 21
   tag: garage.aperto
   on_color: "#ef4444"
   off_color: "#166534"
 
 - id: pro6_garage_txt
   type: text
-  x: 244
-  y: 108
+  x: 439
+  y: 139
   tag: garage.aperto
   format: "{value}"
-  font_size: 10
+  font_size: 13
   color: "#64748b"
 
 # Porta principale
 - id: pro6_porta_lbl
   type: text
-  x: 108
-  y: 128
+  x: 263
+  y: 165
   text: "{{t0127}}"
-  font_size: 11
+  font_size: 14
   color: "#94a3b8"
 
 - id: pro6_porta_led
   type: led
-  x: 220
-  y: 119
-  width: 16
-  height: 16
+  x: 408
+  y: 154
+  width: 21
+  height: 21
   tag: porta.principale
   on_color: "#ef4444"
   off_color: "#166534"
 
 - id: pro6_porta_txt
   type: text
-  x: 244
-  y: 130
+  x: 439
+  y: 168
   tag: porta.principale
   format: "{value}"
-  font_size: 10
+  font_size: 13
   color: "#64748b"
 
 # Porta studio
 - id: pro6_studio_lbl
   type: text
-  x: 108
-  y: 150
+  x: 263
+  y: 194
   text: "{{t0128}}"
-  font_size: 11
+  font_size: 14
   color: "#94a3b8"
 
 - id: pro6_studio_led
   type: led
-  x: 220
-  y: 141
-  width: 16
-  height: 16
+  x: 408
+  y: 182
+  width: 21
+  height: 21
   tag: porta.studio
   on_color: "#ef4444"
   off_color: "#166534"
 
 - id: pro6_studio_txt
   type: text
-  x: 244
-  y: 152
+  x: 439
+  y: 196
   tag: porta.studio
   format: "{value}"
-  font_size: 10
+  font_size: 13
   color: "#64748b"
 
 # ── FINESTRE ──────────────────────────────────────────────────────────────
 
 - id: pro6_fin_hdr
   type: text
-  x: 200
-  y: 180
+  x: 382
+  y: 232
   text: "{{t0129}}"
-  font_size: 10
+  font_size: 13
   font_weight: bold
   text_anchor: middle
   color: "#f59e0b"
 
 - id: pro6_fin_box
   type: rect
-  x: 14
-  y: 186
-  width: 380
-  height: 140
+  x: 142
+  y: 240
+  width: 490
+  height: 181
   fill: "#0c1017"
   stroke: "#1e293b"
   stroke_width: 1
@@ -236,108 +236,108 @@ objects:
 
 - id: pro6_fw_sg_sx_lbl
   type: text
-  x: 108
-  y: 208
+  x: 263
+  y: 268
   text: "{{t0028}}"
-  font_size: 11
+  font_size: 14
   color: "#94a3b8"
 
 - id: pro6_fw_sg_sx_led
   type: led
-  x: 220
-  y: 199
-  width: 16
-  height: 16
+  x: 408
+  y: 257
+  width: 21
+  height: 21
   tag: finestra.soggiorno_sx
   on_color: "#f59e0b"
   off_color: "#166534"
 
 - id: pro6_fw_sg_dx_lbl
   type: text
-  x: 108
-  y: 230
+  x: 263
+  y: 297
   text: "{{t0029}}"
-  font_size: 11
+  font_size: 14
   color: "#94a3b8"
 
 - id: pro6_fw_sg_dx_led
   type: led
-  x: 220
-  y: 221
-  width: 16
-  height: 16
+  x: 408
+  y: 285
+  width: 21
+  height: 21
   tag: finestra.soggiorno_dx
   on_color: "#f59e0b"
   off_color: "#166534"
 
 - id: pro6_fw_cuc_sx_lbl
   type: text
-  x: 108
-  y: 252
+  x: 263
+  y: 325
   text: "{{t0030}}"
-  font_size: 11
+  font_size: 14
   color: "#94a3b8"
 
 - id: pro6_fw_cuc_sx_led
   type: led
-  x: 220
-  y: 243
-  width: 16
-  height: 16
+  x: 408
+  y: 314
+  width: 21
+  height: 21
   tag: finestra.cucina_sx
   on_color: "#f59e0b"
   off_color: "#166534"
 
 - id: pro6_fw_cuc_dx_lbl
   type: text
-  x: 108
-  y: 274
+  x: 263
+  y: 354
   text: "{{t0031}}"
-  font_size: 11
+  font_size: 14
   color: "#94a3b8"
 
 - id: pro6_fw_cuc_dx_led
   type: led
-  x: 220
-  y: 265
-  width: 16
-  height: 16
+  x: 408
+  y: 342
+  width: 21
+  height: 21
   tag: finestra.cucina_dx
   on_color: "#f59e0b"
   off_color: "#166534"
 
 - id: pro6_fw_lav_lbl
   type: text
-  x: 108
-  y: 296
+  x: 263
+  y: 382
   text: "{{t0020}}"
-  font_size: 11
+  font_size: 14
   color: "#94a3b8"
 
 - id: pro6_fw_lav_led
   type: led
-  x: 220
-  y: 287
-  width: 16
-  height: 16
+  x: 408
+  y: 370
+  width: 21
+  height: 21
   tag: finestra.lavanderia
   on_color: "#f59e0b"
   off_color: "#166534"
 
 - id: pro6_fw_bagno_lbl
   type: text
-  x: 108
-  y: 318
+  x: 263
+  y: 410
   text: "{{t0021}}"
-  font_size: 11
+  font_size: 14
   color: "#94a3b8"
 
 - id: pro6_fw_bagno_led
   type: led
-  x: 220
-  y: 309
-  width: 16
-  height: 16
+  x: 408
+  y: 399
+  width: 21
+  height: 21
   tag: finestra.bagno
   on_color: "#f59e0b"
   off_color: "#166534"
@@ -346,20 +346,20 @@ objects:
 
 - id: pro6_peri_hdr
   type: text
-  x: 200
-  y: 342
+  x: 382
+  y: 441
   text: "{{t0130}}"
-  font_size: 10
+  font_size: 13
   font_weight: bold
   text_anchor: middle
   color: "#a78bfa"
 
 - id: pro6_peri_box
   type: rect
-  x: 14
-  y: 348
-  width: 380
-  height: 140
+  x: 142
+  y: 449
+  width: 490
+  height: 181
   fill: "#0c1017"
   stroke: "#1e293b"
   stroke_width: 1
@@ -367,144 +367,144 @@ objects:
 
 - id: pro6_pe_ne_lbl
   type: text
-  x: 108
-  y: 370
+  x: 263
+  y: 477
   text: "{{t0131}}"
-  font_size: 11
+  font_size: 14
   color: "#94a3b8"
 
 - id: pro6_pe_ne_led
   type: led
-  x: 220
-  y: 361
-  width: 16
-  height: 16
+  x: 408
+  y: 466
+  width: 21
+  height: 21
   tag: perimetro.nordest
   on_color: "#ef4444"
   off_color: "#1e293b"
 
 - id: pro6_pe_no_lbl
   type: text
-  x: 108
-  y: 392
+  x: 263
+  y: 506
   text: "{{t0132}}"
-  font_size: 11
+  font_size: 14
   color: "#94a3b8"
 
 - id: pro6_pe_no_led
   type: led
-  x: 220
-  y: 383
-  width: 16
-  height: 16
+  x: 408
+  y: 494
+  width: 21
+  height: 21
   tag: perimetro.nordovest
   on_color: "#ef4444"
   off_color: "#1e293b"
 
 - id: pro6_pe_o_lbl
   type: text
-  x: 108
-  y: 414
+  x: 263
+  y: 534
   text: "{{t0133}}"
-  font_size: 11
+  font_size: 14
   color: "#94a3b8"
 
 - id: pro6_pe_o_led
   type: led
-  x: 220
-  y: 405
-  width: 16
-  height: 16
+  x: 408
+  y: 523
+  width: 21
+  height: 21
   tag: perimetro.ovest
   on_color: "#ef4444"
   off_color: "#1e293b"
 
 - id: pro6_mov_ingr_lbl
   type: text
-  x: 108
-  y: 436
+  x: 263
+  y: 563
   text: "{{t0134}}"
-  font_size: 11
+  font_size: 14
   color: "#94a3b8"
 
 - id: pro6_mov_ingr_led
   type: led
-  x: 220
-  y: 427
-  width: 16
-  height: 16
+  x: 408
+  y: 551
+  width: 21
+  height: 21
   tag: ingresso.movimento
   on_color: "#f59e0b"
   off_color: "#1e293b"
 
 - id: pro6_mov_ext_lbl
   type: text
-  x: 108
-  y: 458
+  x: 263
+  y: 591
   text: "{{t0135}}"
-  font_size: 11
+  font_size: 14
   color: "#94a3b8"
 
 - id: pro6_mov_ext_led
   type: led
-  x: 220
-  y: 449
-  width: 16
-  height: 16
+  x: 408
+  y: 579
+  width: 21
+  height: 21
   tag: esterno.movimento
   on_color: "#ef4444"
   off_color: "#1e293b"
 
 - id: pro6_pers_ext_lbl
   type: text
-  x: 108
-  y: 480
+  x: 263
+  y: 619
   text: "{{t0136}}"
-  font_size: 11
+  font_size: 14
   color: "#94a3b8"
 
 - id: pro6_pers_ext_led
   type: led
-  x: 220
-  y: 471
-  width: 16
-  height: 16
+  x: 408
+  y: 608
+  width: 21
+  height: 21
   tag: esterno.persona
   on_color: "#a78bfa"
   off_color: "#1e293b"
 
 - id: pro6_veic_lbl
   type: text
-  x: 108
-  y: 478
+  x: 263
+  y: 617
   text: "{{t0137}}"
-  font_size: 11
+  font_size: 14
   color: "#94a3b8"
 
 - id: pro6_veic_led
   type: led
-  x: 310
-  y: 471
-  width: 16
-  height: 16
+  x: 524
+  y: 608
+  width: 21
+  height: 21
   tag: esterno.veicolo
   on_color: "#38bdf8"
   off_color: "#1e293b"
 
 - id: pro6_piaz_lbl
   type: text
-  x: 108
-  y: 480
+  x: 263
+  y: 619
   text: "{{t0138}}"
-  font_size: 11
+  font_size: 14
   color: "#94a3b8"
 
 - id: pro6_piaz_led
   type: led
-  x: 220
-  y: 477
-  width: 14
-  height: 14
+  x: 408
+  y: 615
+  width: 18
+  height: 18
   tag: piazzale.movimento
   on_color: "#ef4444"
   off_color: "#1e293b"
@@ -512,18 +512,18 @@ objects:
 # Mauro a casa
 - id: pro6_mauro_lbl
   type: text
-  x: 108
-  y: 478
+  x: 263
+  y: 617
   text: "{{t0139}}"
-  font_size: 11
+  font_size: 14
   color: "#94a3b8"
 
 - id: pro6_mauro_led
   type: led
-  x: 220
-  y: 469
-  width: 16
-  height: 16
+  x: 408
+  y: 605
+  width: 21
+  height: 21
   tag: mauro.a_casa
   on_color: "#22c55e"
   off_color: "#334155"
@@ -534,20 +534,20 @@ objects:
 
 - id: pro6_luci_hdr
   type: text
-  x: 614
-  y: 60
+  x: 916
+  y: 77
   text: "{{t0140}}"
-  font_size: 12
+  font_size: 15
   font_weight: bold
   text_anchor: middle
   color: "#f59e0b"
 
 - id: pro6_luci_box
   type: rect
-  x: 410
-  y: 68
-  width: 376
-  height: 174
+  x: 653
+  y: 88
+  width: 485
+  height: 225
   fill: "#1c1100"
   stroke: "#92400e"
   stroke_width: 1
@@ -556,28 +556,28 @@ objects:
 # Lampada cancelletto
 - id: pro6_lc_lbl
   type: text
-  x: 502
-  y: 95
+  x: 772
+  y: 123
   text: "{{t0040}}"
-  font_size: 12
+  font_size: 15
   color: "#94a3b8"
 
 - id: pro6_lc_led
   type: led
-  x: 584
-  y: 86
-  width: 18
-  height: 18
+  x: 877
+  y: 111
+  width: 23
+  height: 23
   tag: luce.cancelletto
   on_color: "#fbbf24"
   off_color: "#374151"
 
 - id: pro6_lc_on
   type: button
-  x: 612
-  y: 82
-  width: 54
-  height: 28
+  x: 914
+  y: 106
+  width: 70
+  height: 36
   label: "{{t0141}}"
   fill: "#d97706"
   tag: luce.cancelletto
@@ -585,10 +585,10 @@ objects:
 
 - id: pro6_lc_off
   type: button
-  x: 672
-  y: 82
-  width: 54
-  height: 28
+  x: 991
+  y: 106
+  width: 70
+  height: 36
   label: "{{t0142}}"
   fill: "#374151"
   tag: luce.cancelletto
@@ -597,28 +597,28 @@ objects:
 # Lampada viale
 - id: pro6_lv_lbl
   type: text
-  x: 502
-  y: 125
+  x: 772
+  y: 161
   text: "{{t0041}}"
-  font_size: 12
+  font_size: 15
   color: "#94a3b8"
 
 - id: pro6_lv_led
   type: led
-  x: 584
-  y: 116
-  width: 18
-  height: 18
+  x: 877
+  y: 150
+  width: 23
+  height: 23
   tag: luce.viale
   on_color: "#fbbf24"
   off_color: "#374151"
 
 - id: pro6_lv_on
   type: button
-  x: 612
-  y: 112
-  width: 54
-  height: 28
+  x: 914
+  y: 145
+  width: 70
+  height: 36
   label: "{{t0141}}"
   fill: "#d97706"
   tag: luce.viale
@@ -626,10 +626,10 @@ objects:
 
 - id: pro6_lv_off
   type: button
-  x: 672
-  y: 112
-  width: 54
-  height: 28
+  x: 991
+  y: 145
+  width: 70
+  height: 36
   label: "{{t0142}}"
   fill: "#374151"
   tag: luce.viale
@@ -638,28 +638,28 @@ objects:
 # Lampada strada
 - id: pro6_ls_lbl
   type: text
-  x: 502
-  y: 155
+  x: 772
+  y: 200
   text: "{{t0042}}"
-  font_size: 12
+  font_size: 15
   color: "#94a3b8"
 
 - id: pro6_ls_led
   type: led
-  x: 584
-  y: 146
-  width: 18
-  height: 18
+  x: 877
+  y: 188
+  width: 23
+  height: 23
   tag: luce.strada
   on_color: "#fbbf24"
   off_color: "#374151"
 
 - id: pro6_ls_on
   type: button
-  x: 612
-  y: 142
-  width: 54
-  height: 28
+  x: 914
+  y: 183
+  width: 70
+  height: 36
   label: "{{t0141}}"
   fill: "#d97706"
   tag: luce.strada
@@ -667,10 +667,10 @@ objects:
 
 - id: pro6_ls_off
   type: button
-  x: 672
-  y: 142
-  width: 54
-  height: 28
+  x: 991
+  y: 183
+  width: 70
+  height: 36
   label: "{{t0142}}"
   fill: "#374151"
   tag: luce.strada
@@ -678,10 +678,10 @@ objects:
 
 - id: pro6_luci_note
   type: text
-  x: 598
-  y: 230
+  x: 895
+  y: 297
   text: "{{t0143}}"
-  font_size: 9
+  font_size: 12
   text_anchor: middle
   color: "#334155"
 
@@ -691,20 +691,20 @@ objects:
 
 - id: pro6_tapp_hdr
   type: text
-  x: 614
-  y: 250
+  x: 916
+  y: 323
   text: "{{t0144}}"
-  font_size: 12
+  font_size: 15
   font_weight: bold
   text_anchor: middle
   color: "#38bdf8"
 
 - id: pro6_tapp_box
   type: rect
-  x: 410
-  y: 258
-  width: 376
-  height: 284
+  x: 653
+  y: 333
+  width: 485
+  height: 366
   fill: "#0c1a2e"
   stroke: "#1e3a5f"
   stroke_width: 1
@@ -712,47 +712,47 @@ objects:
 
 - id: pro6_tapp_col_lbl
   type: text
-  x: 500
-  y: 276
+  x: 769
+  y: 356
   text: "{{t0145}}"
-  font_size: 9
+  font_size: 12
   font_weight: bold
   color: "#475569"
 
 - id: pro6_tapp_st_lbl
   type: text
-  x: 598
-  y: 276
+  x: 895
+  y: 356
   text: "{{t0146}}"
-  font_size: 9
+  font_size: 12
   font_weight: bold
   text_anchor: middle
   color: "#475569"
 
 - id: pro6_tapp_su_lbl
   type: text
-  x: 670
-  y: 276
+  x: 988
+  y: 356
   text: "{{t0147}}"
-  font_size: 9
+  font_size: 12
   font_weight: bold
   text_anchor: middle
   color: "#38bdf8"
 
 - id: pro6_tapp_giu_lbl
   type: text
-  x: 740
-  y: 276
+  x: 1079
+  y: 356
   text: "{{t0148}}"
-  font_size: 9
+  font_size: 12
   font_weight: bold
   text_anchor: middle
   color: "#94a3b8"
 
 - id: pro6_t_div
   type: line
-  x: 420
-  y: 280
+  x: 666
+  y: 361
   x2: 776
   y2: 280
   stroke: "#1e3a5f"
@@ -761,28 +761,28 @@ objects:
 # Soggiorno SX
 - id: pro6_t_sg_sx_lbl
   type: text
-  x: 500
-  y: 302
+  x: 769
+  y: 390
   text: "{{t0028}}"
-  font_size: 11
+  font_size: 14
   color: "#94a3b8"
 
 - id: pro6_t_sg_sx_led
   type: led
-  x: 590
-  y: 293
-  width: 16
-  height: 16
+  x: 885
+  y: 378
+  width: 21
+  height: 21
   tag: tapparella.soggiorno_sx
   on_color: "#38bdf8"
   off_color: "#334155"
 
 - id: pro6_t_sg_sx_su
   type: button
-  x: 644
-  y: 289
-  width: 50
-  height: 26
+  x: 955
+  y: 373
+  width: 65
+  height: 34
   label: "{{t0149}}"
   fill: "#0284c7"
   tag: tapparella.soggiorno_sx
@@ -790,10 +790,10 @@ objects:
 
 - id: pro6_t_sg_sx_giu
   type: button
-  x: 700
-  y: 289
-  width: 50
-  height: 26
+  x: 1027
+  y: 373
+  width: 65
+  height: 34
   label: "{{t0150}}"
   fill: "#374151"
   tag: tapparella.soggiorno_sx
@@ -802,28 +802,28 @@ objects:
 # Soggiorno DX
 - id: pro6_t_sg_dx_lbl
   type: text
-  x: 500
-  y: 332
+  x: 769
+  y: 428
   text: "{{t0029}}"
-  font_size: 11
+  font_size: 14
   color: "#94a3b8"
 
 - id: pro6_t_sg_dx_led
   type: led
-  x: 590
-  y: 323
-  width: 16
-  height: 16
+  x: 885
+  y: 417
+  width: 21
+  height: 21
   tag: tapparella.soggiorno_dx
   on_color: "#38bdf8"
   off_color: "#334155"
 
 - id: pro6_t_sg_dx_su
   type: button
-  x: 644
-  y: 319
-  width: 50
-  height: 26
+  x: 955
+  y: 412
+  width: 65
+  height: 34
   label: "{{t0149}}"
   fill: "#0284c7"
   tag: tapparella.soggiorno_dx
@@ -831,10 +831,10 @@ objects:
 
 - id: pro6_t_sg_dx_giu
   type: button
-  x: 700
-  y: 319
-  width: 50
-  height: 26
+  x: 1027
+  y: 412
+  width: 65
+  height: 34
   label: "{{t0150}}"
   fill: "#374151"
   tag: tapparella.soggiorno_dx
@@ -843,28 +843,28 @@ objects:
 # Bagno
 - id: pro6_t_bagno_lbl
   type: text
-  x: 500
-  y: 362
+  x: 769
+  y: 467
   text: "{{t0021}}"
-  font_size: 11
+  font_size: 14
   color: "#94a3b8"
 
 - id: pro6_t_bagno_led
   type: led
-  x: 590
-  y: 353
-  width: 16
-  height: 16
+  x: 885
+  y: 455
+  width: 21
+  height: 21
   tag: tapparella.bagno
   on_color: "#38bdf8"
   off_color: "#334155"
 
 - id: pro6_t_bagno_su
   type: button
-  x: 644
-  y: 349
-  width: 50
-  height: 26
+  x: 955
+  y: 450
+  width: 65
+  height: 34
   label: "{{t0149}}"
   fill: "#0284c7"
   tag: tapparella.bagno
@@ -872,10 +872,10 @@ objects:
 
 - id: pro6_t_bagno_giu
   type: button
-  x: 700
-  y: 349
-  width: 50
-  height: 26
+  x: 1027
+  y: 450
+  width: 65
+  height: 34
   label: "{{t0150}}"
   fill: "#374151"
   tag: tapparella.bagno
@@ -884,28 +884,28 @@ objects:
 # Garage (tapparella)
 - id: pro6_t_gar_lbl
   type: text
-  x: 500
-  y: 392
+  x: 769
+  y: 506
   text: "{{t0025}}"
-  font_size: 11
+  font_size: 14
   color: "#94a3b8"
 
 - id: pro6_t_gar_led
   type: led
-  x: 590
-  y: 383
-  width: 16
-  height: 16
+  x: 885
+  y: 494
+  width: 21
+  height: 21
   tag: tapparella.garage
   on_color: "#38bdf8"
   off_color: "#334155"
 
 - id: pro6_t_gar_su
   type: button
-  x: 644
-  y: 379
-  width: 50
-  height: 26
+  x: 955
+  y: 489
+  width: 65
+  height: 34
   label: "{{t0149}}"
   fill: "#0284c7"
   tag: tapparella.garage
@@ -913,10 +913,10 @@ objects:
 
 - id: pro6_t_gar_giu
   type: button
-  x: 700
-  y: 379
-  width: 50
-  height: 26
+  x: 1027
+  y: 489
+  width: 65
+  height: 34
   label: "{{t0150}}"
   fill: "#374151"
   tag: tapparella.garage
@@ -925,36 +925,36 @@ objects:
 # Note
 - id: pro6_tapp_note1
   type: text
-  x: 598
-  y: 418
+  x: 895
+  y: 539
   text: "{{t0151}}"
-  font_size: 9
+  font_size: 12
   text_anchor: middle
   color: "#334155"
 
 - id: pro6_tapp_note2
   type: text
-  x: 598
-  y: 432
+  x: 895
+  y: 557
   text: "{{t0152}}"
-  font_size: 9
+  font_size: 12
   text_anchor: middle
   color: "#334155"
 
 - id: pro6_tapp_note3
   type: text
-  x: 598
-  y: 450
+  x: 895
+  y: 581
   text: "{{t0153}}"
-  font_size: 9
+  font_size: 12
   text_anchor: middle
   color: "#334155"
 
 # Presenza (bottom-right)
 - id: pro6_pres_div
   type: line
-  x: 420
-  y: 468
+  x: 666
+  y: 604
   x2: 776
   y2: 468
   stroke: "#1e3a5f"
@@ -962,46 +962,46 @@ objects:
 
 - id: pro6_pres_lbl
   type: text
-  x: 502
-  y: 490
+  x: 772
+  y: 632
   text: "{{t0139}}"
-  font_size: 12
+  font_size: 15
   color: "#94a3b8"
 
 - id: pro6_pres_led
   type: led
-  x: 594
-  y: 481
-  width: 20
-  height: 20
+  x: 890
+  y: 621
+  width: 26
+  height: 26
   tag: mauro.a_casa
   on_color: "#22c55e"
   off_color: "#334155"
 
 - id: pro6_pres_val
   type: text
-  x: 624
-  y: 494
+  x: 929
+  y: 637
   tag: mauro.a_casa
   format: "{value}"
-  font_size: 13
+  font_size: 17
   font_weight: bold
   color: "#4ade80"
 
 - id: pro6_sole_lbl
   type: text
-  x: 502
-  y: 520
+  x: 772
+  y: 671
   text: "{{t0154}}"
-  font_size: 12
+  font_size: 15
   color: "#94a3b8"
 
 - id: pro6_sole_val
   type: text
-  x: 624
-  y: 520
+  x: 929
+  y: 671
   tag: sole.elevazione
   format: "{value:.1f}°"
-  font_size: 16
+  font_size: 21
   font_weight: bold
   color: "#fbbf24"

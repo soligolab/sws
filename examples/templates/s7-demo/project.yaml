@@ -5,7 +5,7 @@ meta:
 sources:
   - kind: s7
     id: plc1
-    ip: "192.168.1.5"
+    ip: "192.0.2.5"
     rack: 0
     slot: 1
     poll_interval_ms: 500
@@ -73,11 +73,65 @@ alarms:
 
 languages:
   default: it
-  langs: [it, en]
+  langs: [it, en, es]
   entries:
     - key: t0001
       values:
         it: "Temperatura processo troppo alta!"
+        en: "Process temperature too high!"
+        es: "¡Temperatura de proceso demasiado alta!"
     - key: t0002
       values:
         it: "Pressione processo oltre soglia"
+        en: "Process pressure above threshold"
+        es: "Presión de proceso por encima del umbral"
+    - key: t0003
+      values:
+        it: "Siemens S7 — DB1"
+        en: "Siemens S7 — DB1"
+        es: "Siemens S7 — DB1"
+    - key: t0004
+      values:
+        it: "Pagina di partenza: i tag del template sono già collegati. Disegna qui il tuo impianto."
+        en: "Starting page: the template tags are already bound. Draw your plant here."
+        es: "Página de partida: los tags de la plantilla ya están vinculados. Dibuja aquí tu instalación."
+    - key: t0005
+      values:
+        it: "Velocità pompa 1 [rpm]"
+        en: "Pump 1 speed [rpm]"
+        es: "Velocidad bomba 1 [rpm]"
+    - key: t0006
+      values:
+        it: "Valvola 1 aperta"
+        en: "Valve 1 open"
+        es: "Válvula 1 abierta"
+    - key: t0007
+      values:
+        it: "Temperatura processo [°C]"
+        en: "Process temperature [°C]"
+        es: "Temperatura de proceso [°C]"
+    - key: t0008
+      values:
+        it: "Pressione processo [mbar]"
+        en: "Process pressure [mbar]"
+        es: "Presión de proceso [mbar]"
+    - key: t0009
+      values:
+        it: "Pompa 1 in marcia (derivato)"
+        en: "Pump 1 running (derived)"
+        es: "Bomba 1 en marcha (derivado)"
+    - key: t0010
+      values:
+        it: "COMANDI (write-back sul PLC)"
+        en: "COMMANDS (write-back to the PLC)"
+        es: "COMANDOS (escritura en el PLC)"
+    - key: t0011
+      values:
+        it: "Comando velocità pompa 1"
+        en: "Pump 1 speed command"
+        es: "Comando velocidad bomba 1"
+    - key: t0012
+      values:
+        it: "Apri valvola 1"
+        en: "Open valve 1"
+        es: "Abrir válvula 1"

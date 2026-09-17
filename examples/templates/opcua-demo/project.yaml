@@ -73,78 +73,143 @@ functions: []
 
 languages:
   default: it
-  langs: [it, en]
+  langs: [it, en, es]
   entries:
-    - key: t0017
-      values:
-        it: "Temperatura simulata sopra soglia (>60 °C)"
-    - key: t0018
-      values:
-        it: "Pressione simulata fuori range (>8 kPa)"
     - key: t0001
       values:
         it: "🔌  OPC-UA — Live"
         en: "🔌  OPC-UA — Live"
+        es: "🔌  OPC-UA — Live"
     - key: t0002
       values:
         it: "5 nodi sottoscritti via subscription_interval_ms=500"
         en: "5 nodes subscribed via subscription_interval_ms=500"
+        es: "5 nodos suscritos vía subscription_interval_ms=500"
     - key: t0003
       values:
         it: "Tabella nodi ▶"
         en: "Node table ▶"
+        es: "Tabla de nodos ▶"
     - key: t0004
       values:
         it: "Temperatura (°C)"
         en: "Temperature (°C)"
+        es: "Temperatura (°C)"
     - key: t0005
       values:
         it: "Pressione (kPa)"
         en: "Pressure (kPa)"
+        es: "Presión (kPa)"
     - key: t0006
       values:
         it: "Stato macchina (Euromap 77)"
         en: "Machine state (Euromap 77)"
+        es: "Estado de la máquina (Euromap 77)"
     - key: t0007
       values:
         it: "Pronto"
         en: "Ready"
+        es: "Listo"
     - key: t0008
       values:
         it: "Cycle Time"
         en: "Cycle Time"
+        es: "Cycle Time"
     - key: t0009
       values:
         it: "Trend live (temperatura · pressione)"
         en: "Live trend (temperature · pressure)"
+        es: "Tendencia en vivo (temperatura · presión)"
     - key: t0010
       values:
         it: "▸ Endpoint: opc.tcp://localhost:4840 — security_policy: None — vedere SETUP.md per Basic256Sha256"
         en: "▸ Endpoint: opc.tcp://localhost:4840 — security_policy: None — see SETUP.md for Basic256Sha256"
+        es: "▸ Endpoint: opc.tcp://localhost:4840 — security_policy: None — ver SETUP.md para Basic256Sha256"
     - key: t0011
       values:
         it: "🔌  OPC-UA — Tabella nodi"
-        en: "🔌  OPC-UA — Tabella nodi"
+        en: "🔌  OPC-UA — Node table"
+        es: "🔌  OPC-UA — Tabla de nodos"
     - key: t0012
       values:
         it: "◀ Live"
         en: "◀ Live"
+        es: "◀ Live"
     - key: t0013
       values:
         it: "Mapping NodeId → Tag corrente (live)"
         en: "NodeId → Tag mapping (live)"
+        es: "Mapeo NodeId → Tag (en vivo)"
     - key: t0014
       values:
         it: "Suggerimento: in Configurazione → Protocolli → OPC-UA, premi 🤖 Rileva Euromap per importare automaticamente i nodi canonici Euromap 77/83."
         en: "Tip: in Configuration → Protocols → OPC-UA, press 🤖 Detect Euromap to automatically import the canonical Euromap 77/83 nodes."
+        es: "Sugerencia: en Configuración → Protocolos → OPC-UA, pulsa 🤖 Detectar Euromap para importar automáticamente los nodos canónicos Euromap 77/83."
     - key: t0015
       values:
         it: "Browse manuale: 🔍 Sfoglia server apre un tree lazy-load partendo da ObjectsFolder."
         en: "Manual browse: 🔍 Browse server opens a lazy-load tree starting from ObjectsFolder."
+        es: "Exploración manual: 🔍 Explorar servidor abre un árbol lazy-load a partir de ObjectsFolder."
     - key: t0016
       values:
         it: "▸ Per testare in locale: npx -y node-opcua-server  (oppure Prosys OPC UA Simulation Server)"
         en: "▸ To test locally: npx -y node-opcua-server  (or Prosys OPC UA Simulation Server)"
+        es: "▸ Para probar en local: npx -y node-opcua-server  (o Prosys OPC UA Simulation Server)"
+    - key: t0017
+      values:
+        it: "Temperatura simulata sopra soglia (>60 °C)"
+        en: "Simulated temperature above threshold (>60 °C)"
+        es: "Temperatura simulada por encima del umbral (>60 °C)"
+    - key: t0018
+      values:
+        it: "Pressione simulata fuori range (>8 kPa)"
+        en: "Simulated pressure out of range (>8 kPa)"
+        es: "Presión simulada fuera de rango (>8 kPa)"
+    - key: t0019
+      values:
+        it: "NodeId → Tag SWS"
+        en: "NodeId → SWS tag"
+        es: "NodeId → Tag SWS"
+    - key: t0020
+      values:
+        it: "ns=1;s=Temperature → sim.temperature"
+        en: "ns=1;s=Temperature → sim.temperature"
+        es: "ns=1;s=Temperature → sim.temperature"
+    - key: t0021
+      values:
+        it: "ns=1;s=Pressure → sim.pressure"
+        en: "ns=1;s=Pressure → sim.pressure"
+        es: "ns=1;s=Pressure → sim.pressure"
+    - key: t0022
+      values:
+        it: "ns=2;s=CycleTime → sim.cycle_time"
+        en: "ns=2;s=CycleTime → sim.cycle_time"
+        es: "ns=2;s=CycleTime → sim.cycle_time"
+    - key: t0023
+      values:
+        it: "ns=2;s=MachineState → sim.machine_state"
+        en: "ns=2;s=MachineState → sim.machine_state"
+        es: "ns=2;s=MachineState → sim.machine_state"
+    - key: t0024
+      values:
+        it: "ns=2;s=MachineReady → sim.machine_ready"
+        en: "ns=2;s=MachineReady → sim.machine_ready"
+        es: "ns=2;s=MachineReady → sim.machine_ready"
+    - key: t0025
+      values:
+        it: "s (Euromap 77)"
+        en: "s (Euromap 77)"
+        es: "s (Euromap 77)"
+    - key: t0026
+      values:
+        it: "string"
+        en: "string"
+        es: "string"
+    - key: t0027
+      values:
+        it: "bool"
+        en: "bool"
+        es: "bool"
 
 # ── Pagina iniziale ──────────────────────────────────────────────────────────
 #

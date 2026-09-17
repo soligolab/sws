@@ -1,8 +1,8 @@
 id: opc_page2
 name: "Tabella nodi"
 background: "#0f172a"
-width: 880
-height: 580
+width: 1280
+height: 800
 objects:
 
 # ══════════════════════════════════════════════════════════════════
@@ -10,10 +10,10 @@ objects:
 # ══════════════════════════════════════════════════════════════════
 - id: o2_title
   type: text
-  x: 440
-  y: 24
+  x: 640
+  y: 33
   text: "{{t0011}}"
-  font_size: 20
+  font_size: 28
   font_weight: bold
   text_anchor: middle
   color: "#38bdf8"
@@ -22,10 +22,10 @@ objects:
 
 - id: o2_nav_back
   type: navbutton
-  x: 20
-  y: 14
-  width: 180
-  height: 30
+  x: 61
+  y: 19
+  width: 248
+  height: 41
   label: "{{t0012}}"
   target_page: opc_page1
   group_id: g_nav
@@ -33,10 +33,10 @@ objects:
 
 - id: o2_subtitle
   type: text
-  x: 440
-  y: 50
+  x: 640
+  y: 69
   text: "{{t0013}}"
-  font_size: 11
+  font_size: 15
   text_anchor: middle
   color: "#475569"
 
@@ -48,44 +48,44 @@ objects:
 # ══════════════════════════════════════════════════════════════════
 - id: o2_table
   type: table
-  x: 30
-  y: 80
-  width: 810
-  height: 175
-  table_label_header: "NodeId → Tag SWS"
+  x: 74
+  y: 110
+  width: 1117
+  height: 241
+  table_label_header: "{{t0019}}"
   table_columns: ["label", "value", "unit"]
   table_rows:
-    - label: "ns=1;s=Temperature → sim.temperature"
+    - label: "{{t0020}}"
       tag: sim.temperature
       unit: "°C"
-    - label: "ns=1;s=Pressure → sim.pressure"
+    - label: "{{t0021}}"
       tag: sim.pressure
       unit: "kPa"
-    - label: "ns=2;s=CycleTime → sim.cycle_time"
+    - label: "{{t0022}}"
       tag: sim.cycle_time
-      unit: "s (Euromap 77)"
-    - label: "ns=2;s=MachineState → sim.machine_state"
+      unit: "{{t0025}}"
+    - label: "{{t0023}}"
       tag: sim.machine_state
-      unit: "string"
-    - label: "ns=2;s=MachineReady → sim.machine_ready"
+      unit: "{{t0026}}"
+    - label: "{{t0024}}"
       tag: sim.machine_ready
-      unit: "bool"
+      unit: "{{t0027}}"
 
 # Hint Euromap detect
 - id: o2_hint
   type: text
-  x: 30
-  y: 290
+  x: 74
+  y: 400
   text: "{{t0014}}"
-  font_size: 11
+  font_size: 15
   color: "#94a3b8"
 
 - id: o2_hint2
   type: text
-  x: 30
-  y: 312
+  x: 74
+  y: 430
   text: "{{t0015}}"
-  font_size: 11
+  font_size: 15
   color: "#94a3b8"
 
 # ══════════════════════════════════════════════════════════════════
@@ -93,10 +93,10 @@ objects:
 # ══════════════════════════════════════════════════════════════════
 - id: o2_footer
   type: text
-  x: 440
-  y: 540
+  x: 640
+  y: 745
   text: "{{t0016}}"
-  font_size: 9
+  font_size: 12
   text_anchor: middle
   color: "#334155"
 

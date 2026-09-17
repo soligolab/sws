@@ -111,21 +111,28 @@ la nomina.
 questa sezione dichiarava tutti i template «già conformi IT/EN», mentre tre non
 avevano nemmeno una voce in tabella. La fotografia vera, oggi:
 
-| Template | Lingue | Voci | Con inglese |
-|---|---|---:|---:|
-| `homeassistant-pro` | it, en | 167 | 154 |
-| `casa-locale` | it, en | 141 | 135 |
-| `homeassistant-demo` | it, en | 75 | 68 |
-| `grid-playground` | it, en | 28 | 27 |
-| `opcua-demo` | it, en | 18 | 16 |
-| `demo-items-web` / `-lvgl` | it, en | 6 | 3 |
-| `enip-demo`, `s7-demo`, `sparkplug-demo` | it, en | 2 | 0 |
-| `nebulizzatore-sandokan` | it | 2 | 0 |
-| `t69-collaudo` | it | 0 | — |
+La fotografia è cambiata il 17-09-2026 col Passo 5 della revisione template e
+la regola **R2** (`examples/templates/README.md`): sei template sono completi in
+tre lingue, e per gli altri quanto manca è **scritto e contato** dentro
+`check_templates.sh`, non lasciato all'occhio.
 
-Le voci senza inglese sono quelle **nate oggi** dai messaggi d'allarme: esistono
-in tabella e aspettano una traduzione, che si fa dalla scheda Lingue — a mano o
-col pulsante di traduzione automatica.
+| Template | Lingue | Voci | Testo del sinottico ancora in chiaro |
+|---|---|---:|---:|
+| `homeassistant-pro` | it, en, es | 171 | 0 |
+| `casa-locale` | it, en | 141 | 20 |
+| `homeassistant-demo` | it, en, es | 77 | 0 |
+| `grid-playground` | it, en | 28 | 1 |
+| `opcua-demo` | it, en, es | 27 | 0 |
+| `s7-demo`, `enip-demo`, `sparkplug-demo` | it, en, es | 12 | 0 |
+| `demo-items-web` / `-lvgl` | it, en | 6 | 114 |
+| `nebulizzatore-sandokan` | it | 2 | 12 |
+
+**Tokenizzato non vuol dire tradotto, e tradotto non vuol dire completo.** Le
+due colonne dicono cose diverse: «voci» conta la tabella lingue, l'ultima conta
+il testo che sul sinottico è ancora scritto a mano e quindi non cambia lingua
+mai. Fino al 17-09 i due `demo-items` avevano 6 voci in tabella e 114 stringhe
+in chiaro: chi apriva quei template e cambiava lingua vedeva cambiare gli
+allarmi e nient'altro.
 
 I template con contenuto grafico hanno un **selettore lingua** in alto a destra
 della prima pagina — apri il viewer e cambia lingua per vedere i testi tradursi.
