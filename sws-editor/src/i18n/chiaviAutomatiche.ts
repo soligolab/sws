@@ -31,7 +31,20 @@ export type Decisione =
    *  diventare parole diverse in tedesco a seconda di cosa avviano. */
   | { azione: "proponi-riuso"; key: string; usiEsistenti: number }
   /** Voce nuova. */
-  | { azione: "crea"; key: string };
+  | { azione: "crea"; key: string }
+  /** Il campo **aveva già** una voce sua, e quella voce non la usa nessun
+   *  altro: si aggiorna il testo lì dentro invece di coniare una chiave nuova.
+   *
+   *  È il difetto trovato dal maintainer il 17-09-2026: aprendo un progetto da
+   *  `homeassistant-pro` e cambiando «TAPPARELLE» in «TAPPARELLE 🌀», il campo
+   *  smetteva di puntare a `t0043` — tradotta in tre lingue — e puntava a una
+   *  `t0173` nuova e vuota. Le traduzioni non erano andate perse: erano
+   *  rimaste attaccate a una chiave che non guardava più nessuno. */
+  | { azione: "aggiorna"; key: string }
+  /** Il campo aveva già una voce sua, ma quella voce è usata **anche altrove**:
+   *  cambiarla cambierebbe pure gli altri punti, e non è detto che sia ciò che
+   *  l'autore vuole. Si chiede. */
+  | { azione: "proponi-scissione"; key: string; altriUsi: number; nuova: string };
 
 /** La prossima chiave libera, nella forma `tNNNN`.
  *
@@ -82,6 +95,10 @@ export function decidiChiave(
   testo: string,
   tabella?: LanguageTable | null,
   usiDi?: (key: string) => number,
+  /** La chiave che il campo contiene **adesso**, se ne contiene una. Senza
+   *  questa, modificare un testo già tradotto non si distingue dallo scriverne
+   *  uno nuovo, e l'unico esito possibile è coniare una chiave. */
+  chiaveCorrente?: string | null,
 ): Decisione {
   if (!traducibile(testo)) return { azione: "lascia" };
   const principale = tabella?.default ?? "";
@@ -89,14 +106,29 @@ export function decidiChiave(
   const gemella = (tabella?.entries ?? []).find(
     (e) => (e.values[principale] ?? "").trim() === atteso,
   );
-  if (gemella) {
+  if (gemella && gemella.key !== chiaveCorrente) {
     return {
       azione: "proponi-riuso",
       key: gemella.key,
       usiEsistenti: usiDi ? usiDi(gemella.key) : 0,
     };
   }
+  if (chiaveCorrente && (tabella?.entries ?? []).some((e) => e.key === chiaveCorrente)) {
+    // Un uso è questo campo stesso: «altrove» vuol dire dal secondo in poi.
+    const altriUsi = Math.max(0, (usiDi ? usiDi(chiaveCorrente) : 1) - 1);
+    return altriUsi === 0
+      ? { azione: "aggiorna", key: chiaveCorrente }
+      : { azione: "proponi-scissione", key: chiaveCorrente, altriUsi, nuova: prossimaChiave(tabella) };
+  }
   return { azione: "crea", key: prossimaChiave(tabella) };
+}
+
+/** La chiave dentro un valore di campo, se quel valore è **solo** un token.
+ *  `"{{t0043}}"` → `"t0043"`; `"Ciao {{t1}}"` → `null`, perché lì il token è un
+ *  pezzo di una frase e non l'identità del campo. */
+export function chiaveDi(valore: string | undefined): string | null {
+  const m = (valore ?? "").trim().match(/^\{\{\s*([^}\s]+)\s*\}\}$/);
+  return m ? m[1] : null;
 }
 
 /** Il testo da mostrare nel pannello proprietà per un campo che può contenere
@@ -115,8 +147,12 @@ export function testoSorgente(valore: string | undefined, tabella?: LanguageTabl
 }
 
 /** La tabella aggiornata dopo che l'autore ha scritto `testo` sotto `key`.
- *  Non tocca le altre lingue: una traduzione già fatta non si perde perché
- *  qualcuno ha corretto un refuso nell'originale. */
+ *  Non tocca le altre lingue: chi crea una voce nuova non ha traduzioni da
+ *  perdere, e chi ne riusa una sta dicendo che il testo è lo stesso.
+ *
+ *  Per il caso in cui il testo **sorgente cambia** su una voce già tradotta
+ *  c'è `conSorgenteCambiata`: lì le altre lingue non si possono lasciare come
+ *  sono, perché tradurrebbero una frase che non esiste più. */
 export function conTesto(
   tabella: LanguageTable | null | undefined,
   key: string,
@@ -134,5 +170,43 @@ export function conTesto(
       : { key, values: { [base.default]: testo } };
   if (i >= 0) base.entries[i] = voce;
   else base.entries.push(voce);
+  return base;
+}
+
+/** Il testo sorgente di una voce **già tradotta** è cambiato.
+ *
+ *  Le traduzioni nelle altre lingue non si buttano e non si tengono per buone:
+ *  diventano **proposte**, cioè la cella rossa «da approvare» che la scheda
+ *  Lingue sa già mostrare. Il motivo è che una traduzione è la traduzione di
+ *  *quel* testo: se il testo cambia, nessuno ha più verificato niente —
+ *  «TAPPARELLE 🌀» con «ROLLER SHUTTERS» accanto non è sbagliato, ma non è
+ *  nemmeno vero, e a dirlo dev'essere una persona.
+ *
+ *  Approvare è un clic per cella, ed è un clic che sa cosa sta approvando;
+ *  perdere le traduzioni, o tenerle senza dire niente, non lo è. */
+export function conSorgenteCambiata(
+  tabella: LanguageTable | null | undefined,
+  key: string,
+  testo: string,
+): LanguageTable {
+  const base = conTesto(tabella, key, testo);
+  const i = base.entries.findIndex((e) => e.key === key);
+  if (i < 0) return base;
+  const voce = base.entries[i];
+  const proposte = { ...(voce.proposte ?? {}) };
+  const values: Record<string, string> = { [base.default]: testo };
+  for (const [lang, v] of Object.entries(voce.values)) {
+    if (lang === base.default || !v) continue;
+    proposte[lang] = v;
+  }
+  base.entries[i] = {
+    ...voce,
+    values,
+    // Le lingue tornate proposte non sono più «riempite dalla macchina»:
+    // lasciarle in `auto` farebbe credere a «ritraduci tutto» di poterle rifare
+    // quando invece aspettano una persona.
+    auto: (voce.auto ?? []).filter((l) => !(l in proposte)),
+    proposte,
+  };
   return base;
 }

@@ -20,7 +20,7 @@ import { useTranslation } from "react-i18next";
 import { useAppStore } from "@/store";
 import { api } from "@/api/client";
 import {
-  conTesto, contaUsi, decidiChiave, prossimaChiave, testoSorgente,
+  chiaveDi, conSorgenteCambiata, conTesto, contaUsi, decidiChiave, prossimaChiave, testoSorgente,
 } from "@/i18n/chiaviAutomatiche";
 import { CharacterPickerModal } from "@/editor/CharacterPickerModal";
 import type { LanguageTable } from "@/types";
@@ -86,21 +86,32 @@ export function CampoTestoTradotto({
       const pagine = useAppStore.getState().pages ?? [];
       return contaUsi(k, JSON.stringify(pagine));
     };
-    const d = decidiChiave(testo, tabella, usiDi);
+    // La chiave che il campo ha adesso: senza, modificare un testo già tradotto
+    // è indistinguibile dallo scriverne uno nuovo.
+    const corrente = chiaveDi(valore);
+    const d = decidiChiave(testo, tabella, usiDi, corrente);
 
     if (d.azione === "lascia") {
       onChange(testo);
       return;
     }
+    if (d.azione === "aggiorna") {
+      // Il campo continua a puntare alla stessa chiave: cambia il testo dentro.
+      salvaTabella(conSorgenteCambiata(tabella, d.key, testo));
+      return;
+    }
+    if (d.azione === "proponi-scissione") {
+      const separa = window.confirm(
+        t("campoTradotto.scissione", { key: d.key, altri: d.altriUsi }),
+      );
+      if (separa) creaNuova(testo);
+      else salvaTabella(conSorgenteCambiata(tabella, d.key, testo));
+      return;
+    }
     if (d.azione === "proponi-riuso") {
-      const dove =
-        d.usiEsistenti > 0
-          ? `\n\nQuella voce è già usata ${d.usiEsistenti} volta/e: tradurla una volta le cambia tutte.`
-          : "";
+      const dove = d.usiEsistenti > 0 ? t("campoTradotto.riusoDove", { usi: d.usiEsistenti }) : "";
       const riusa = window.confirm(
-        `«${testo}» esiste già nella tabella lingue (${d.key}).${dove}\n\n` +
-          "OK = riusa quella voce\n" +
-          "Annulla = creane una nuova (giusto se in un'altra lingua le due frasi divergono)",
+        t("campoTradotto.riusoTitolo", { testo, key: d.key }) + dove + t("campoTradotto.riusoScelta"),
       );
       if (riusa) onChange(`{{${d.key}}}`);
       else creaNuova(testo);

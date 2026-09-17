@@ -479,14 +479,14 @@
     "title": "Lingua interfaccia / Interface language"
   },
   "viewerChrome": {
-      "message": "Messaggio",
-      "triggered": "Attivato",
-      "unit": "U.M.",
-      "time": "Ora",
-      "value": "VALORE",
-      "data": "DATI",
-      "other": "altro",
-      "na": "N/D"
+    "message": "Messaggio",
+    "triggered": "Attivato",
+    "unit": "U.M.",
+    "time": "Ora",
+    "value": "VALORE",
+    "data": "DATI",
+    "other": "altro",
+    "na": "N/D"
   },
   "auth": {
     "user": "Utente",
@@ -1342,5 +1342,11 @@
     "editorGone": "La finestra dell'editor non risponde. Puoi leggere, ma non applicare: le proposte hanno bisogno dello store dell'editor.",
     "noProject": "Nessun progetto aperto nell'editor. Aprine uno prima di chiedere: gli strumenti leggerebbero il vuoto.",
     "blocked": "Il browser ha bloccato la finestra della chat. Consenti i popup per questo sito e riprova — la conversazione qui è intatta."
+  },
+  "campoTradotto": {
+    "riusoTitolo": "«{{testo}}» esiste già nella tabella lingue ({{key}}).",
+    "riusoDove": "\n\nQuella voce è già usata {{usi}} volta/e: tradurla una volta le cambia tutte.",
+    "riusoScelta": "\n\nOK = riusa quella voce\nAnnulla = creane una nuova (giusto se in un'altra lingua le due frasi divergono)",
+    "scissione": "La voce {{key}} è usata in altri {{altri}} punti del progetto.\n\nOK = cambia SOLO qui (nasce una voce nuova, da tradurre)\nAnnulla = cambia dappertutto, e le traduzioni delle altre lingue tornano proposte da approvare"
   }
 }

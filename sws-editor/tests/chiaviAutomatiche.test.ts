@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  conTesto, contaUsi, decidiChiave, prossimaChiave, testoSorgente,
+  chiaveDi, conSorgenteCambiata, conTesto, contaUsi, decidiChiave, prossimaChiave, testoSorgente,
 } from "../src/i18n/chiaviAutomatiche";
 import type { LanguageTable } from "../src/types";
 
@@ -146,5 +146,92 @@ describe("contaUsi", () => {
   it("conta le occorrenze del token", () => {
     expect(contaUsi("t0001", "a {{t0001}} b {{t0001}} c {{t0002}}")).toBe(2);
     expect(contaUsi("t0009", "niente")).toBe(0);
+  });
+});
+
+/** Modificare un testo che è **già** una voce della tabella.
+ *
+ *  Difetto trovato dal maintainer il 17-09-2026, collaudando un progetto creato
+ *  da `homeassistant-pro`: «TAPPARELLE» era `t0043`, tradotta in tre lingue.
+ *  Cambiandola in «TAPPARELLE 🌀» dall'editor, il campo si ritrovava agganciato
+ *  a una `t0173` nuova e senza traduzioni. Non erano andate perse: erano
+ *  rimaste su una chiave che non guardava più nessuno.
+ *
+ *  La causa: `decidiChiave` non sapeva quale chiave il campo contenesse già,
+ *  quindi «modifica di un testo tradotto» e «testo nuovo» erano lo stesso caso.
+ */
+describe("modificare un testo che è già una voce", () => {
+  const tabella = {
+    default: "it",
+    langs: ["it", "en", "es"],
+    entries: [
+      { key: "t0043", values: { it: "TAPPARELLE", en: "ROLLER SHUTTERS", es: "PERSIANAS" },
+        auto: ["es"] },
+      { key: "t0044", values: { it: "Altro", en: "Other", es: "Otro" } },
+    ],
+  };
+
+  it("usata solo qui: si aggiorna quella voce, non se ne conia una nuova", () => {
+    const d = decidiChiave("TAPPARELLE 🌀", tabella, () => 1, "t0043");
+    expect(d).toEqual({ azione: "aggiorna", key: "t0043" });
+  });
+
+  it("usata anche altrove: si chiede, perché cambiarla cambia pure gli altri", () => {
+    const d = decidiChiave("TAPPARELLE 🌀", tabella, () => 3, "t0043");
+    expect(d).toMatchObject({ azione: "proponi-scissione", key: "t0043", altriUsi: 2 });
+  });
+
+  it("il testo nuovo coincide con un'ALTRA voce: si propone quella, non si aggiorna", () => {
+    const d = decidiChiave("Altro", tabella, () => 1, "t0043");
+    expect(d).toMatchObject({ azione: "proponi-riuso", key: "t0044" });
+  });
+
+  it("senza chiave corrente si conia, come prima", () => {
+    const d = decidiChiave("TAPPARELLE 🌀", tabella, () => 0, null);
+    expect(d).toEqual({ azione: "crea", key: "t0001" });
+  });
+
+  it("una chiave corrente che in tabella non c'è più non blocca: si conia", () => {
+    const d = decidiChiave("Qualcosa", tabella, () => 1, "t9999");
+    expect(d).toEqual({ azione: "crea", key: "t0001" });
+  });
+
+  it("chiaveDi legge il token solo quando è tutto il valore", () => {
+    expect(chiaveDi("{{t0043}}")).toBe("t0043");
+    expect(chiaveDi("  {{ t0043 }}  ")).toBe("t0043");
+    expect(chiaveDi("Ciao {{t0043}}")).toBeNull();
+    expect(chiaveDi("TAPPARELLE")).toBeNull();
+    expect(chiaveDi(undefined)).toBeNull();
+  });
+});
+
+describe("conSorgenteCambiata — le traduzioni diventano proposte", () => {
+  const tabella = {
+    default: "it",
+    langs: ["it", "en", "es"],
+    entries: [
+      { key: "t0043", values: { it: "TAPPARELLE", en: "ROLLER SHUTTERS", es: "PERSIANAS" },
+        auto: ["es"] },
+    ],
+  };
+
+  it("il sorgente cambia, le altre lingue non restano fra i valori", () => {
+    const fuori = conSorgenteCambiata(tabella, "t0043", "TAPPARELLE 🌀");
+    const v = fuori.entries[0];
+    expect(v.values).toEqual({ it: "TAPPARELLE 🌀" });
+    // Non buttate: recuperabili con un clic, dalla cella rossa «da approvare».
+    expect(v.proposte).toEqual({ en: "ROLLER SHUTTERS", es: "PERSIANAS" });
+  });
+
+  it("una lingua tornata proposta non è più «riempita dalla macchina»", () => {
+    // Se restasse in `auto`, «ritraduci tutto» crederebbe di poterla rifare,
+    // mentre quella cella aspetta una persona.
+    const fuori = conSorgenteCambiata(tabella, "t0043", "TAPPARELLE 🌀");
+    expect(fuori.entries[0].auto).toEqual([]);
+  });
+
+  it("la lingua principale non diventa una proposta di sé stessa", () => {
+    const fuori = conSorgenteCambiata(tabella, "t0043", "TAPPARELLE 🌀");
+    expect(fuori.entries[0].proposte).not.toHaveProperty("it");
   });
 });

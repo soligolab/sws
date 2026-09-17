@@ -479,14 +479,14 @@
     "title": "Interface language / Lingua interfaccia"
   },
   "viewerChrome": {
-      "message": "Message",
-      "triggered": "Triggered",
-      "unit": "Unit",
-      "time": "Time",
-      "value": "VALUE",
-      "data": "DATA",
-      "other": "other",
-      "na": "N/A"
+    "message": "Message",
+    "triggered": "Triggered",
+    "unit": "Unit",
+    "time": "Time",
+    "value": "VALUE",
+    "data": "DATA",
+    "other": "other",
+    "na": "N/A"
   },
   "auth": {
     "user": "User",
@@ -1342,5 +1342,11 @@
     "editorGone": "The editor window is not responding. You can read, but not apply: proposals need the editor's store.",
     "noProject": "No project open in the editor. Open one before asking: the tools would read nothing.",
     "blocked": "The browser blocked the chat window. Allow pop-ups for this site and retry — the conversation here is intact."
+  },
+  "campoTradotto": {
+    "riusoTitolo": "“{{testo}}” is already in the language table ({{key}}).",
+    "riusoDove": "\n\nThat entry is already used {{usi}} time(s): translating it once changes them all.",
+    "riusoScelta": "\n\nOK = reuse that entry\nCancel = create a new one (right when the two sentences diverge in another language)",
+    "scissione": "Entry {{key}} is used in {{altri}} other places in the project.\n\nOK = change HERE only (a new entry is created, to be translated)\nCancel = change everywhere, and the other languages' translations go back to proposals awaiting approval"
   }
 }
