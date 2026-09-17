@@ -53,9 +53,10 @@ nota() { echo "  • $2"; }
 # silenziose — è la stessa scelta di `check_i18n_parita.sh`, e come là questo
 # elenco deve tendere a vuoto.
 #
-#   2.7.3 — rilasciata il 12-09-2026, mai taggata. Scoperta il 17-09-2026
-#           scrivendo questa guardia.
-SENZA_TAG_DICHIARATE=(2.7.3)
+# Vuoto dal 17-09-2026: la 2.7.3 — rilasciata il 12-09 e mai taggata, scoperta
+# da questa guardia il giorno in cui è nata — ha avuto il suo tag a posteriori
+# su `1caeb3bd`, il commit `chore(release)` che le corrisponde.
+SENZA_TAG_DICHIARATE=()
 
 dichiarata() {
     local v="$1" d
