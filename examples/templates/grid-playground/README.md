@@ -16,4 +16,4 @@ Non giudicarlo con il metro di un banco di prova di protocollo (qui non c'è un 
 dimostrare) né con quello di un'applicazione realistica (non deve somigliare a un impianto
 vero): il metro è "quanto a fondo mette alla prova il grid layout", non altro.
 
-_Revisione template, 2026-09-15 (`docs/plans/2026-09-14-revisione-template.md`, passo 2)._
+_Revisione template, 2026-09-15 (`docs/archive/2026-09-14-revisione-template.md`, passo 2)._

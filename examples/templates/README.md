@@ -2,7 +2,7 @@
 
 > Decise dal maintainer il 17-09-2026, dopo aver misurato tutti i template.
 > Il referto della discussione — le misure, le alternative scartate e il perché di ogni scelta —
-> sta in [`docs/plans/2026-09-17-regole-dei-template.md`](../../docs/plans/2026-09-17-regole-dei-template.md).
+> sta in [`docs/archive/2026-09-17-regole-dei-template.md`](../../docs/archive/2026-09-17-regole-dei-template.md).
 > Le regole sono verificate da [`scripts/check_templates.sh`](../../scripts/check_templates.sh),
 > che gira dentro `check_static.sh` e quindi a ogni *definition of done*.
 

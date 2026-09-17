@@ -15,8 +15,6 @@
 | Piano | Stato | Cosa resta |
 |---|---|---|
 | [2026-09-11-utenti-nel-progetto.md](2026-09-11-utenti-nel-progetto.md) | **REALIZZATO E SU `main`** | i sei passi sono fatti e mergiati (`64c1b0db`); manca il collaudo a fondo — il deploy con e senza la casella, e la conferma 428 che non deve ripartire in ciclo |
-| [2026-09-17-regole-dei-template.md](2026-09-17-regole-dei-template.md) | **BOZZA — decisione** | le cinque regole sono scritte e misurate su tutti e dodici i template; servono quattro decisioni del maintainer (D1-D4) prima di qualunque codice. Da lì discendono le guardie e il Passo 5 della revisione |
-| [2026-09-14-revisione-template.md](2026-09-14-revisione-template.md) | **PASSI 1-3 FATTI E SU `main`** | Passo 1 licenze (`3b08bc5`), Passo 2 ruoli dichiarati (`701b59f`), Passo 3 vetrine — recipes/min_role/waypoint/target (`c252b5f`,`4a9627a`,`643166f`,`153f1b6`) — più write-back mancante corretto su enip/s7/sparkplug-demo e un difetto di formattazione (`{value}` nudo) in tre template, trovati per strada. Passo 4 (parità gemelli) già fatto in sessione precedente. Resta il Passo 5: i sei template fermi al 28-08 |
 | [2026-09-12-f7-residui-minori.md](2026-09-12-f7-residui-minori.md) | **PARTE A FATTA E SU `main`** | Parte A: bordo per-cella, confermata dal vivo dal maintainer e mergiata (`bd773d4`). Parte B: ridotta a un rimando all'audit dallo storico allarmi (scelta del maintainer il 13-09-2026, niente migrazione di schema) — non ancora iniziata |
 | [2026-09-12-casamauro-arricchimento-demo.md](2026-09-12-casamauro-arricchimento-demo.md) | **DA FARE** | arricchire il progetto personale CasaMauro con le feature F2-F6 non esercitate — contenuto, non codice, nessun branch |
 

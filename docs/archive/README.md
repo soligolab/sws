@@ -59,6 +59,8 @@ venga riletto come vero.
 
 | File | Cos'è |
 |---|---|
+| [2026-09-14-revisione-template.md](2026-09-14-revisione-template.md) | **FATTO** | tutti e cinque i passi. Passi 1-4 fra il 14 e il 16-09; **Passo 5 il 17-09** (`c3aed814`), fatto applicando le regole del parco invece che a occhio — i sei template fermi al 28-08 ora rispettano R1, R2 e R5 |
+| [2026-09-17-regole-dei-template.md](2026-09-17-regole-dei-template.md) | **FATTO** | le cinque regole sono decise (D1-D4 dal maintainer), scritte in `examples/templates/README.md` e verificate da `check_templates.sh`. Il debito del parco è passato da 30 eccezioni a 6, tutte di forma; R2 e R5 sono a zero. Il piano resta come referto: misure di partenza, alternative scartate, e il perché di ogni decisione |
 | [2026-09-15-multilingua-di-progetto.md](2026-09-15-multilingua-di-progetto.md) | **FATTO** | tutte e otto le fasi, rilasciate nella **2.8.0** (`1c8eda07`). Collaudato dal vivo dal maintainer il 16-09-2026 («ora funziona»). La Fase 7 ha coperto i **messaggi d'allarme** dei template, non il testo dei sinottici: la misura è nel piano [2026-09-17-regole-dei-template.md](../plans/2026-09-17-regole-dei-template.md), regola R2 |
 | [office-line-2026-05-21.md](office-line-2026-05-21.md) | l'indice leggibile della linea git dell'ufficio (2026-05-10 → 05-21), abbandonata quando si adottò la linea di casa come `main` |
 

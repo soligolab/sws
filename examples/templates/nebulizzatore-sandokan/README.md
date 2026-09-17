@@ -14,4 +14,4 @@ Non giudicarlo con il metro dell'inventario (non deve coprire ogni tipo di ogget
 quello di un banco di prova di protocollo puro: qui MQTT è il mezzo, non il soggetto — il
 soggetto è il dispositivo e il suo ciclo acceso/spento.
 
-_Revisione template, 2026-09-15 (`docs/plans/2026-09-14-revisione-template.md`, passo 2)._
+_Revisione template, 2026-09-15 (`docs/archive/2026-09-14-revisione-template.md`, passo 2)._

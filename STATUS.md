@@ -88,7 +88,7 @@ Quattro squash merge su `main`, i due rami (`feat/regole-template` e l'annidato
 
 **Le regole** stanno in `examples/templates/README.md`, il referto della discussione (misure,
 alternative scartate, le quattro decisioni del maintainer) in
-[`docs/plans/2026-09-17-regole-dei-template.md`](docs/plans/2026-09-17-regole-dei-template.md).
+[`docs/archive/2026-09-17-regole-dei-template.md`](docs/archive/2026-09-17-regole-dei-template.md).
 Sono verificate da `check_templates.sh`, dentro `check_static.sh`.
 
 **Il debito dichiarato del parco è passato da 30 eccezioni a 6**, tutte di forma:
@@ -232,7 +232,7 @@ il via libera a proseguire.
 
 ## ▶ Riprendere da qui — revisione template, Passi 1-3 fatti (2026-09-16)
 
-Ripreso il piano `docs/plans/2026-09-14-revisione-template.md`. Fatti i primi tre passi,
+Ripreso il piano `docs/archive/2026-09-14-revisione-template.md`. Fatti i primi tre passi,
 ognuno collaudato dal vivo e mergiato separatamente:
 
 **Passo 1 — verità dei documenti di licenza** (`3b08bc5`): `casa-locale/CREDITS.md`
@@ -419,7 +419,7 @@ che non si erano mai confrontati**:
 - **Fase 6**: `tr()` esposto agli script Python; i valori dei tag `string` e i toast risolti.
 - **Fase 7**: i template — migrazione degli slug a id opachi, allarmi tokenizzati, e
   `docs/manual/15_multilingua.md` che dichiara una conformità IT/EN che tre template non hanno.
-- Poi la **revisione del parco template** (`docs/plans/2026-09-14-revisione-template.md`), che
+- Poi la **revisione del parco template** (`docs/archive/2026-09-14-revisione-template.md`), che
   aspetta ancora una risposta del maintainer sull'attribuzione MDI.
 
 ### Due cose aperte che non ho deciso io
@@ -724,7 +724,7 @@ Ora: **17 guardie statiche su 17 verdi.**
 **E da qui nasce la prossima sessione.** Il maintainer: «se parliamo dei template direi di
 aggiornarli tutti, non esistono ad oggi applicazioni finali ma solo semplici test. Anzi, avvierei
 una sessione di revisione dei template». Piano scritto coi numeri misurati oggi in
-`docs/plans/2026-09-14-revisione-template.md`. Il risultato controintuitivo della misura: la
+`docs/archive/2026-09-14-revisione-template.md`. Il risultato controintuitivo della misura: la
 copertura dei **tipi** è completa (35 su 35, nessuno usato una volta sola — merito dei gemelli
 `demo-items`), ma **funzioni intere non hanno un solo esempio in undici template**: `recipes:` a
 zero mentre `recipe_panel` è in vetrina su due pagine e si disegna vuoto; `min_role` a zero dopo

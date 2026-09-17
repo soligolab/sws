@@ -14,4 +14,4 @@ Non giudicarlo con il metro dell'inventario (non deve coprire ogni tipo di ogget
 quello di un banco di prova di protocollo (qui il protocollo — l'integrazione HA via
 WebSocket — è già dato per assodato altrove; il punto è come si compone un impianto sopra).
 
-_Revisione template, 2026-09-15 (`docs/plans/2026-09-14-revisione-template.md`, passo 2)._
+_Revisione template, 2026-09-15 (`docs/archive/2026-09-14-revisione-template.md`, passo 2)._

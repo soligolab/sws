@@ -82,7 +82,7 @@ PALETTE = set(re.findall(r'type:\s*"([a-z_]+)"',
 # Decise dal maintainer dopo la misura di tutti i template: R1 il formato, R2
 # tre lingue davvero, R3 semplicità, R5 niente rete di nessuno. Il documento
 # sta in `examples/templates/README.md`, il referto della discussione in
-# `docs/plans/2026-09-17-regole-dei-template.md`.
+# `docs/archive/2026-09-17-regole-dei-template.md`.
 #
 # I tre elenchi qui sotto sono **debito dichiarato**, non assoluzioni: ogni voce
 # ha il perché accanto, e devono tendere a vuoto. È la stessa scelta di

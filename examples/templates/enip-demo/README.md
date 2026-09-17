@@ -15,4 +15,4 @@ un'applicazione realistica (numero di pagine, scenari d'uso): un banco di prova 
 che avesse bisogno di 5 pagine per dimostrare che il protocollo funziona sarebbe un banco di
 prova mal riuscito, non uno più completo.
 
-_Revisione template, 2026-09-15 (`docs/plans/2026-09-14-revisione-template.md`, passo 2)._
+_Revisione template, 2026-09-15 (`docs/archive/2026-09-14-revisione-template.md`, passo 2)._

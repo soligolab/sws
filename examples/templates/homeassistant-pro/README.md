@@ -16,4 +16,4 @@ taglia, non per principio di brevità.
 Non giudicarlo con il metro di un banco di prova (né di protocollo né di feature): qui la
 scala è voluta, è quello che lo distingue da `homeassistant-demo`.
 
-_Revisione template, 2026-09-15 (`docs/plans/2026-09-14-revisione-template.md`, passo 2)._
+_Revisione template, 2026-09-15 (`docs/archive/2026-09-14-revisione-template.md`, passo 2)._

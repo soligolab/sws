@@ -17,4 +17,4 @@ Non giudicarlo per realismo o eleganza: non deve somigliare a un impianto vero, 
 ogni pezzo della palette LVGL in un posto verificabile, confrontabile a colpo d'occhio col
 motore web sulla stessa pagina.
 
-_Revisione template, 2026-09-15 (`docs/plans/2026-09-14-revisione-template.md`, passo 2)._
+_Revisione template, 2026-09-15 (`docs/archive/2026-09-14-revisione-template.md`, passo 2)._

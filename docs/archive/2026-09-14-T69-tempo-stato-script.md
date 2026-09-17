@@ -188,6 +188,6 @@ dal 14-09) + conferma esplicita del maintainer, squash-merge, verifica `main^{tr
 - Non far dipendere l'abilitazione del generatore (Fase D) da un altro tag — bool semplice,
   dichiarato come semplificazione.
 - Non aggiornare i template esistenti per usare le funzioni nuove (rampa nativa, `functions.run`,
-  ecc.) — è lavoro del piano `docs/plans/2026-09-14-revisione-template.md`, non di questo.
+  ecc.) — è lavoro del piano `docs/archive/2026-09-14-revisione-template.md`, non di questo.
 - Se emerge una decisione architetturale non prevista qui: non deciderla, annotarla in
   `docs/OPEN_QUESTIONS.md` e proseguire con il default dichiarato.
