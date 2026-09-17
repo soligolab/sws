@@ -695,16 +695,72 @@ indirizzi».
 quattro banchi di prova di protocollo, il cui senso è avere una sorgente già pronta da puntare al
 proprio PLC.
 
-**Resta da timbrare.** Non tocco io il campo `Decided` (regola 3 di `CLAUDE.md`): la decisione è
-del maintainer ed è stata presa, il codice c'è e i test ci sono, ma il collaudo dal vivo — creare
-un progetto da un template e verificare che il runtime *non* si colleghi, poi confermare dalla
-scheda e vedere che si collega — non è ancora stato fatto.
+**Collaudato dal vivo dal maintainer il 17-09-2026**, su un progetto creato da `s7-demo`:
+confermato che il runtime non si collega finché le sorgenti non sono state riviste, e che si
+collega dopo la conferma dalla scheda.
+
+**Resta solo il timbro.** Non tocco io il campo `Decided` (regola 3 di `CLAUDE.md`) — la
+decisione è del maintainer, il codice c'è, i test ci sono e la prova a schermo è fatta: manca
+soltanto che qualcuno scriva che è chiusa.
 
 **Nota di contesto.** Il maintainer ha già detto (16-09) che vuole **definire delle regole prima**
 di rimettere mano ai template: rapporto 16:10 a 1280×800, almeno tre lingue (it/en/es), template
 semplici, un tipo di risorsa più casi d'uso realistici. Questa sarebbe la quinta regola, ed è
 l'unica delle cinque che ha a che fare con la sicurezza invece che con la forma — per questo è
 qui e non solo in `STATUS.md`.
+
+**Decided:** not yet.
+
+---
+
+## Q59 — La cartella dei progetti: il default c'è, ma chi lavora nel repo non lo vede mai
+
+*Aperta il 17-09-2026, notata dal maintainer creando un progetto: «mi presenta
+`/home/ut1/sws/.run-editor/projects`, mi pareva avessimo definito di usare una path esterna a
+`sws` e configurabile».*
+
+**Aveva ragione, ed era già fatto — per il binario.** `--projects-root` / `SWS_PROJECTS_ROOT`
+esiste dal 2026-09-09, il default è **`~/sws_projects`, fuori dal repo** («così un clone pulito
+non porta con sé i progetti di qualcuno e un `git clean` non li cancella», `main.rs`), e da **Q46**
+il selettore di cartelle e `parent_path` non escono da quella radice — collaudato dal vivo il
+12-09 contro path assoluti, risalite e link simbolici.
+
+**Quello che il maintainer vede è lo script di sviluppo.** Sia `start_editor.sh` sia
+`start_runtime.sh` fanno `PROJECTS_ROOT="${SWS_PROJECTS_ROOT:-$RUN_DIR/projects}"`, cioè
+`.run-editor/projects` **dentro il checkout**, e lo passano esplicito al binario. Il default buono
+non entra mai in gioco su questa macchina. È comodo per lo sviluppo — i progetti di prova stanno
+accanto al codice, si cancellano con la cartella `.run-*` — ma è anche il motivo per cui una
+decisione presa a settembre sembra non essere stata presa.
+
+### Le due domande, che sono separate
+
+**1. Gli script di sviluppo devono continuare a scavalcare il default?**
+
+- *(a)* Sì, ma **dicendolo**: lo script stampa all'avvio «progetti in `<path>` (radice di
+  sviluppo, non il default `~/sws_projects`)». Costa una riga e toglie la sorpresa.
+- *(b)* No: anche in sviluppo si usa `~/sws_projects`, e chi vuole l'isolamento passa
+  `SWS_PROJECTS_ROOT`. Più coerente, ma i progetti di prova sopravvivono a un `rm -rf .run-*` e
+  due checkout paralleli condividono la stessa radice.
+- *(c)* Sì e basta, com'è oggi.
+
+**2. Va chiesta alla prima apertura dell'IDE, se non è configurata?**
+
+Questa **non è pianificata da nessuna parte**: non esiste nessun meccanismo di primo avvio
+nell'IDE — né una schermata, né un posto dove scrivere la scelta. Oggi la radice è un argomento
+del processo, quindi «configurarla dall'IDE» vuol dire deciderne la persistenza:
+
+- *(a)* Un file di configurazione dell'**istanza** (accanto ai certificati in `config/`), che il
+  runtime legge all'avvio se il flag non è passato. La schermata di benvenuto la chiede la prima
+  volta e la si può cambiare dopo dalla scheda IDE.
+- *(b)* Solo un avviso: la WelcomeScreen dice dove stanno i progetti e come cambiarlo, senza
+  chiedere niente. Costa poco e non introduce un terzo posto da cui la radice può arrivare.
+- *(c)* Niente: resta un argomento di avvio, come per un pannello — dove la radice la decide chi
+  installa, non chi guarda lo schermo.
+
+**Il rischio da dichiarare per (2a)**: la radice diventerebbe configurabile da **tre** posti
+(flag, variabile d'ambiente, file), e quando una cosa arriva da tre posti la domanda «perché i
+miei progetti sono lì?» non ha più una risposta breve. Se si fa, serve una precedenza scritta e
+un punto dell'interfaccia che dica *da dove* viene quella in uso.
 
 **Decided:** not yet.
 
