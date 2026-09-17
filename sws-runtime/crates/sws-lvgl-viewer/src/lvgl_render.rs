@@ -1271,7 +1271,9 @@ fn format_value(v: &TagValue, format: Option<&str>) -> String {
     let mut fuori = String::with_capacity(fmt.len() + 8);
     let mut resto = fmt;
     while let Some(inizio) = resto.find("{value") {
-        let Some(lung) = resto[inizio..].find('}') else { break };
+        let Some(lung) = resto[inizio..].find('}') else {
+            break;
+        };
         let dentro = &resto[inizio + "{value".len()..inizio + lung];
         fuori.push_str(&resto[..inizio]);
         fuori.push_str(&if numero {

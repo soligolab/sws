@@ -4500,6 +4500,28 @@ function ProtocolsTab() {
         savedNotice="✓ Salvato — sorgenti ricollegate al volo."
       />
       <BarraConflittoSezione sync={sync} t={t} />
+      {storeProject?.sorgenti_da_rivedere && (
+        // Q58 — il progetto viene da un template: gli indirizzi sono quelli
+        // dell'esempio, e il runtime non li usa finché una persona non li ha
+        // guardati. Salvare da qui **è** la conferma: non c'è un secondo
+        // pulsante che chiede la stessa cosa (regola «una sezione per dato»).
+        <div
+          style={{
+            background: "rgba(234, 179, 8, 0.12)",
+            border: "1px solid var(--brand-warning, #eab308)",
+            borderRadius: 6,
+            padding: "10px 12px",
+            marginBottom: 12,
+            fontSize: 13,
+            lineHeight: 1.5,
+          }}
+        >
+          <strong>⚠ Le sorgenti non sono avviate.</strong> Questo progetto nasce da un template:
+          gli indirizzi qui sotto sono quelli dell'esempio e su questa rete quasi certamente non
+          esistono. Controllali, correggili e premi <strong>Salva</strong> — da quel momento il
+          runtime si collega.
+        </div>
+      )}
       <div style={S.sectionTitle}>SORGENTI DATI / PROTOCOLLI</div>
       <div style={S.notice}>
         Configura le connessioni ai dispositivi di campo. Supportati: <strong>Modbus TCP</strong>

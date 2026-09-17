@@ -1122,6 +1122,29 @@ pub struct Project {
     pub global_scripts: Vec<GlobalScriptDef>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notifications: Option<NotificationConfig>,
+    /// Le sorgenti di questo progetto non le ha ancora guardate nessuno.
+    ///
+    /// Lo mette a `true` la creazione **da template**, e lo toglie l'utente
+    /// confermando dalla scheda Sorgenti. Finché è acceso il runtime non le
+    /// avvia: un template porta gli indirizzi dell'esempio, e su un'altra rete
+    /// quegli indirizzi o non esistono — e il runtime ci si ostina contro — o,
+    /// peggio, esistono e sono di qualcun altro.
+    ///
+    /// Q58, decisa dal maintainer il 17-09-2026. La regola R5 del parco
+    /// template (`examples/templates/README.md`) impedisce a un template di
+    /// *portare* una rete vera; questo impedisce al progetto che ne nasce di
+    /// *collegarsi* prima che una persona abbia guardato dove.
+    ///
+    /// **Per progetto e non per sorgente**, per la stessa ragione per cui
+    /// `sola_lettura()` sta in un punto solo: la granularità che conta è
+    /// «questo progetto viene da un template e nessuno ha ancora controllato
+    /// gli indirizzi», non la singola sorgente. Otto flag in otto strutture di
+    /// configurazione sarebbero otto occasioni di dimenticarne una.
+    ///
+    /// `#[serde(default)]` → i progetti che esistono già partono da `false`,
+    /// cioè si comportano esattamente come prima.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub sorgenti_da_rivedere: bool,
     /// Version of the runtime that last wrote this file (CARGO_PKG_VERSION).
     /// Informational only — used by the IDE to warn when a project on disk was
     /// saved by a different runtime build and offer a one-click re-save.
@@ -1431,6 +1454,51 @@ mod template_tests {
 /// divergono, lo stesso progetto dice tre cose diverse a seconda di chi lo
 /// legge — e una di quelle tre è una notifica che arriva sul telefono di chi è
 /// di turno.
+#[cfg(test)]
+mod sorgenti_da_rivedere_tests {
+    use super::*;
+
+    /// Q58 — un progetto che viene da un template non deve collegarsi a
+    /// indirizzi che nessuno ha guardato. Il flag è per progetto (non per
+    /// sorgente) e deve essere invisibile a chi non ce l'ha.
+    #[test]
+    fn un_progetto_che_non_lo_dichiara_parte_come_prima() {
+        // È la garanzia di retrocompatibilità: tutti i progetti già in giro
+        // non hanno questo campo, e devono continuare ad avviare le sorgenti.
+        let p: Project = serde_yaml::from_str("meta:\n  name: x\n  version: '1'\n").unwrap();
+        assert!(!p.sorgenti_da_rivedere);
+    }
+
+    #[test]
+    fn acceso_si_rilegge_acceso() {
+        let p: Project =
+            serde_yaml::from_str("meta:\n  name: x\n  version: '1'\nsorgenti_da_rivedere: true\n")
+                .unwrap();
+        assert!(p.sorgenti_da_rivedere);
+    }
+
+    #[test]
+    fn spento_non_si_scrive_affatto() {
+        // Il campo comparirebbe in ogni project.yaml del parco, e un campo che
+        // c'è sempre e vale sempre `false` è rumore che poi nessuno legge.
+        let p: Project = serde_yaml::from_str("meta:\n  name: x\n  version: '1'\n").unwrap();
+        let fuori = serde_yaml::to_string(&p).unwrap();
+        assert!(!fuori.contains("sorgenti_da_rivedere"), "{fuori}");
+    }
+
+    #[test]
+    fn acceso_sopravvive_al_giro_completo() {
+        let mut p: Project = serde_yaml::from_str("meta:\n  name: x\n  version: '1'\n").unwrap();
+        p.sorgenti_da_rivedere = true;
+        let fuori = serde_yaml::to_string(&p).unwrap();
+        let ri: Project = serde_yaml::from_str(&fuori).unwrap();
+        assert!(
+            ri.sorgenti_da_rivedere,
+            "perso nel salva-e-rileggi:\n{fuori}"
+        );
+    }
+}
+
 #[cfg(test)]
 mod risoluzione_token_tests {
     use super::*;

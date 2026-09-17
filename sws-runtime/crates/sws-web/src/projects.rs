@@ -465,6 +465,11 @@ pub async fn create_project(
             if let Err(e) = stamp_saved_by(&yaml_path).await {
                 warn!("create_project: timbro saved_by: {e}");
             }
+            // Q58: gli indirizzi sono quelli dell'esempio. Il runtime non li
+            // userà finché l'utente non conferma dalla scheda Sorgenti.
+            if let Err(e) = segna_sorgenti_da_rivedere(&yaml_path).await {
+                warn!("create_project: flag sorgenti_da_rivedere: {e}");
+            }
             info!(name = %safe_name, template = template_id, "project created from template");
         }
         None => {
@@ -475,6 +480,8 @@ pub async fn create_project(
                     version: "0.1.0".into(),
                 },
                 tags: vec![],
+                // Progetto vuoto: sorgenti non ce ne sono, niente da rivedere.
+                sorgenti_da_rivedere: false,
                 sources: vec![],
                 alarms: vec![],
                 functions: vec![],
@@ -701,7 +708,22 @@ pub async fn apply_loaded_project(
         config_dir,
         instance_id,
     );
-    supervisor.reload(project.sources).await;
+    // Q58: un progetto nato da un template porta gli indirizzi dell'esempio.
+    // Finché una persona non li ha guardati, non ci si collega — e lo si dice,
+    // perché un silenzio qui sembrerebbe un guasto.
+    if project.sorgenti_da_rivedere {
+        let quante = project.sources.len();
+        supervisor.reload(vec![]).await;
+        info!(
+            progetto = %project.meta.name,
+            sorgenti = quante,
+            "sorgenti NON avviate: il progetto viene da un template e gli indirizzi \
+             non li ha ancora confermati nessuno — Configurazione → Sorgenti → «Ho \
+             controllato gli indirizzi»"
+        );
+    } else {
+        supervisor.reload(project.sources).await;
+    }
     {
         let mut map = functions.write().await;
         for f in project.functions {
@@ -2018,6 +2040,24 @@ async fn patch_project_name(yaml_path: &StdPath, name: &str) -> anyhow::Result<(
     Ok(())
 }
 
+/// Accende `sorgenti_da_rivedere` sul progetto appena copiato da un template.
+///
+/// Sta qui e non dentro `patch_project_name` per la stessa ragione di
+/// `stamp_saved_by`: quella funzione la usa anche il rinomina, e un rinomina
+/// non deve rimettere in discussione sorgenti che l'utente ha già confermato.
+async fn segna_sorgenti_da_rivedere(yaml_path: &StdPath) -> anyhow::Result<()> {
+    let raw = tokio::fs::read_to_string(yaml_path).await?;
+    let mut doc: serde_yaml::Value = serde_yaml::from_str(&raw)?;
+    if let Some(m) = doc.as_mapping_mut() {
+        m.insert(
+            serde_yaml::Value::String("sorgenti_da_rivedere".into()),
+            serde_yaml::Value::Bool(true),
+        );
+    }
+    crate::router::scrivi_atomico(yaml_path, serde_yaml::to_string(&doc)?.as_bytes()).await?;
+    Ok(())
+}
+
 /// Scrive `saved_by` con la versione di questo runtime.
 ///
 /// Serve al progetto creato **da template**: i file del template si copiano
@@ -2141,6 +2181,38 @@ fn migrate_legacy_sqlite_path(project_dir: &StdPath) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Q58 — creare un progetto da un template accende `sorgenti_da_rivedere`.
+    ///
+    /// Si prova l'helper e non la rotta intera perché la rotta vuole uno stato
+    /// applicativo completo; quello che può rompersi in silenzio è la scrittura
+    /// nel YAML — un campo messo nel posto sbagliato, o un `project.yaml` che
+    /// dopo non si rilegge più.
+    #[tokio::test]
+    async fn il_flag_finisce_nel_project_yaml_e_il_file_resta_leggibile() {
+        let dir = tempfile::tempdir().unwrap();
+        let yaml = dir.path().join("project.yaml");
+        tokio::fs::write(
+            &yaml,
+            "meta:\n  name: pippo\n  version: 0.1.0\ntags: []\nsources: []\n",
+        )
+        .await
+        .unwrap();
+
+        let prima = Project::load(dir.path()).unwrap();
+        assert!(!prima.sorgenti_da_rivedere, "non doveva esserci già");
+
+        segna_sorgenti_da_rivedere(&yaml).await.unwrap();
+
+        let dopo = Project::load(dir.path()).unwrap();
+        assert!(
+            dopo.sorgenti_da_rivedere,
+            "il flag non è arrivato sul disco"
+        );
+        // Il resto del progetto non si tocca: è un `insert` in una mappa, non
+        // una riscrittura.
+        assert_eq!(dopo.meta.name, "pippo");
+    }
 
     // ── Chi decide di `users.yaml` in un upload (2026-09-11) ────────────────
     //

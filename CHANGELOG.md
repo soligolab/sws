@@ -67,6 +67,13 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   seminato da `populate_tags`. Stesso difetto già corretto in `sws-plugin-mqtt` il 16-09-2026,
   non incluso in quel giro. Diventa visibile a ogni apertura di `homeassistant-demo`/`-pro` da
   template, ora che R5 rende gli indirizzi placeholder irraggiungibili per definizione.
+- **Un progetto creato da un template non si collega più a indirizzi che nessuno ha guardato**
+  (Q58, seconda metà): il progetto nasce con `sorgenti_da_rivedere: true`, il runtime **non
+  avvia le sorgenti** finché una persona non le conferma salvandole dalla scheda Sorgenti, e la
+  scheda lo dice con una banda invece di lasciar sembrare un guasto. Il flag è **per progetto** e
+  non per sorgente — la granularità che conta è «questo progetto viene da un template», e otto
+  `enabled` in otto strutture di configurazione sarebbero otto occasioni di dimenticarne uno.
+  `#[serde(default)]`: i progetti esistenti partono come prima.
 - **Un template non porta più la rete di nessuno**: `casa-locale`, `nebulizzatore-sandokan`,
   `enip-demo` e `s7-demo` dichiaravano indirizzi di una rete reale (il broker di casa dell'autore
   fra questi). Ora usano nomi riservati (RFC 2606) e la rete di documentazione RFC 5737, e il

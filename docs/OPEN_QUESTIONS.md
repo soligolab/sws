@@ -673,6 +673,33 @@ qualcosa che si distribuisce a chi non c'entra niente con l'impianto originale.
    ma disabilitate, e l'autore le accende dopo averle riviste. Più economica della 2 e copre sia
    il rumore sia le credenziali, ma lascia i valori scritti dentro il file.
 
+### Cosa è stato fatto, e cosa resta da timbrare (17-09-2026)
+
+**La via 1 è realizzata**: la regola **R5** del parco template
+(`examples/templates/README.md`) vieta indirizzi di reti reali e credenziali, nel `project.yaml`
+e nei `.md` che lo accompagnano, ed è verificata da `check_templates.sh`. I quattro template che
+portavano la rete di casa dell'autore sono stati corretti.
+
+**La via 3 è realizzata in una forma più economica di quella immaginata qui.** Il maintainer ha
+scelto il flag **per progetto** invece che per sorgente: `Project::sorgenti_da_rivedere`, acceso
+dalla creazione da template e spento dal salvataggio della scheda Sorgenti. Finché è acceso
+`apply_loaded_project` non avvia le sorgenti e scrive nel log perché.
+
+La granularità per-sorgente (un `enabled` in ognuna delle otto strutture di configurazione) è
+stata scartata con la ragione già scritta nel commit `413fb8eb`: «otto punti sono otto occasioni
+di dimenticarne uno il giorno che se ne aggiunge un nono». E la granularità che conta non è la
+singola sorgente: è «questo progetto viene da un template e nessuno ha ancora guardato gli
+indirizzi».
+
+**La via 2** — le sorgenti non viaggiano affatto nei template — resta scartata: romperebbe i
+quattro banchi di prova di protocollo, il cui senso è avere una sorgente già pronta da puntare al
+proprio PLC.
+
+**Resta da timbrare.** Non tocco io il campo `Decided` (regola 3 di `CLAUDE.md`): la decisione è
+del maintainer ed è stata presa, il codice c'è e i test ci sono, ma il collaudo dal vivo — creare
+un progetto da un template e verificare che il runtime *non* si colleghi, poi confermare dalla
+scheda e vedere che si collega — non è ancora stato fatto.
+
 **Nota di contesto.** Il maintainer ha già detto (16-09) che vuole **definire delle regole prima**
 di rimettere mano ai template: rapporto 16:10 a 1280×800, almeno tre lingue (it/en/es), template
 semplici, un tipo di risorsa più casi d'uso realistici. Questa sarebbe la quinta regola, ed è

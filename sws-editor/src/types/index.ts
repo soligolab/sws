@@ -1355,6 +1355,10 @@ export interface ProjectInfo {
   /** Override per-progetto di quanti auto-backup tenere. `undefined` = eredita
    *  il default di processo (`--auto-backup-retention`). */
   auto_backup_retention?: number;
+  /** Q58 — le sorgenti non le ha ancora guardate nessuno: il progetto viene da
+   *  un template e porta gli indirizzi dell'esempio. Finché è acceso il runtime
+   *  **non le avvia**, e salvare dalla scheda Sorgenti lo spegne. */
+  sorgenti_da_rivedere?: boolean;
 }
 
 // ── Project language table (T-40) ──────────────────────────────────────────

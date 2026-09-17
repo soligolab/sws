@@ -2900,6 +2900,8 @@ where
                 name: "default".into(),
                 version: "0.1.0".into(),
             },
+            // Progetto vuoto: sorgenti non ce ne sono, niente da rivedere.
+            sorgenti_da_rivedere: false,
             tags: vec![],
             sources: vec![],
             alarms: vec![],
@@ -3483,7 +3485,15 @@ async fn update_project_sources(
         &s.project_write_lock,
         &dir,
         versione_attesa(&headers),
-        |p| p.sources = sources,
+        |p| {
+            p.sources = sources;
+            // Q58: salvare le sorgenti **è** la conferma. Chi arriva qui le ha
+            // sotto gli occhi — la scheda mostra la banda che dice che non sono
+            // avviate e perché — quindi non serve un secondo pulsante che
+            // chieda la stessa cosa in un altro punto («una sezione per dato»,
+            // regola UI del 2026-08-23).
+            p.sorgenti_da_rivedere = false;
+        },
     )
     .await;
     if res.status() == StatusCode::NO_CONTENT {
