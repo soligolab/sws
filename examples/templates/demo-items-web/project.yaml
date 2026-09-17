@@ -277,30 +277,499 @@ global_scripts:
           tags.write("demo.cmd.button", False)
 
 languages:
-  default: "it"
-  langs: ["it", "en"]
+  default: it
+  langs: [it, en, es]
   entries:
-    - key: t0004
-      values:
-        it: "Pressione sopra 70 bar"
-    - key: t0005
-      values:
-        it: "Pressione sopra 90 bar — critico"
-    - key: t0006
-      values:
-        it: "Guasto motore simulato"
     - key: t0001
       values:
         it: "Demo oggetti"
         en: "Items demo"
+        es: "Demo de objetos"
     - key: t0002
       values:
         it: "Comandi"
         en: "Commands"
+        es: "Comandos"
     - key: t0003
       values:
         it: "Motore"
         en: "Motor"
+        es: "Motor"
+    - key: t0004
+      values:
+        it: "Pressione sopra 70 bar"
+        en: "Pressure above 70 bar"
+        es: "Presión por encima de 70 bar"
+    - key: t0005
+      values:
+        it: "Pressione sopra 90 bar — critico"
+        en: "Pressure above 90 bar — critical"
+        es: "Presión por encima de 90 bar — crítico"
+    - key: t0006
+      values:
+        it: "Guasto motore simulato"
+        en: "Simulated motor fault"
+        es: "Fallo de motor simulado"
+    - key: t0007
+      values:
+        it: "Demo Items — 4. Allarmi e composizione"
+        en: "Demo Items — 4. Alarms and composition"
+        es: "Demo Items — 4. Alarmas y composición"
+    - key: t0008
+      values:
+        it: "1. Base"
+        en: "1. Basics"
+        es: "1. Básico"
+    - key: t0009
+      values:
+        it: "2. Indicatori"
+        en: "2. Indicators"
+        es: "2. Indicadores"
+    - key: t0010
+      values:
+        it: "3. Grafici"
+        en: "3. Charts"
+        es: "3. Gráficos"
+    - key: t0011
+      values:
+        it: "4. Allarmi"
+        en: "4. Alarms"
+        es: "4. Alarmas"
+    - key: t0012
+      values:
+        it: "alarm_banner — l'allarme attivo più grave"
+        en: "alarm_banner — the most severe active alarm"
+        es: "alarm_banner — la alarma activa más grave"
+    - key: t0013
+      values:
+        it: "alarm_viewer — allarmi attivi, con conferma"
+        en: "alarm_viewer — active alarms, with acknowledge"
+        es: "alarm_viewer — alarmas activas, con reconocimiento"
+    - key: t0014
+      values:
+        it: "alarm_history"
+        en: "alarm_history"
+        es: "alarm_history"
+    - key: t0015
+      values:
+        it: "faceplate — istanza di motor_basic"
+        en: "faceplate — instance of motor_basic"
+        es: "faceplate — instancia de motor_basic"
+    - key: t0016
+      values:
+        it: "Motore demo"
+        en: "Demo motor"
+        es: "Motor de demostración"
+    - key: t0017
+      values:
+        it: "recipe_panel — ricette del progetto"
+        en: "recipe_panel — project recipes"
+        es: "recipe_panel — recetas del proyecto"
+    - key: t0018
+      values:
+        it: "text_wrap — testo a capo nel riquadro"
+        en: "text_wrap — text wrapping inside the box"
+        es: "text_wrap — texto ajustado dentro del recuadro"
+    - key: t0019
+      values:
+        it: "Questo testo è più lungo del suo riquadro e va a capo da solo, restando centrato."
+        en: "This text is longer than its box and wraps by itself, staying centred."
+        es: "Este texto es más largo que su recuadro y se ajusta solo, quedando centrado."
+    - key: t0020
+      values:
+        it: "motion_* — l'oggetto segue un percorso, guidato da un tag"
+        en: "motion_* — the object follows a path, driven by a tag"
+        es: "motion_* — el objeto sigue un recorrido, guiado por un tag"
+    - key: t0021
+      values:
+        it: "Demo Items — 1. Base e comandi"
+        en: "Demo Items — 1. Basics and commands"
+        es: "Demo Items — 1. Básico y comandos"
+    - key: t0022
+      values:
+        it: "rect — riempimento e bordo"
+        en: "rect — fill and border"
+        es: "rect — relleno y borde"
+    - key: t0023
+      values:
+        it: "ellipse — segue demo.cmd.slider (binding su x)"
+        en: "ellipse — follows demo.cmd.slider (binding on x)"
+        es: "ellipse — sigue demo.cmd.slider (binding en x)"
+    - key: t0024
+      values:
+        it: "line — spessore e colore"
+        en: "line — thickness and colour"
+        es: "line — grosor y color"
+    - key: t0025
+      values:
+        it: "text — valore formattato da un tag"
+        en: "text — value formatted from a tag"
+        es: "text — valor formateado desde un tag"
+    - key: t0026
+      values:
+        it: "Contatore: {value:.0f}"
+        en: "Counter: {value:.0f}"
+        es: "Contador: {value:.0f}"
+    - key: t0027
+      values:
+        it: "button — scrive demo.cmd.button"
+        en: "button — writes demo.cmd.button"
+        es: "button — escribe demo.cmd.button"
+    - key: t0028
+      values:
+        it: "Avvia (chiede conferma)"
+        en: "Start (asks for confirmation)"
+        es: "Arrancar (pide confirmación)"
+    - key: t0029
+      values:
+        it: "Questo comando avvia l'impianto."
+        en: "This command starts the plant."
+        es: "Este comando arranca la instalación."
+    - key: t0030
+      values:
+        it: "checkbox — demo.cmd.enable"
+        en: "checkbox — demo.cmd.enable"
+        es: "checkbox — demo.cmd.enable"
+    - key: t0031
+      values:
+        it: "Abilitato"
+        en: "Enabled"
+        es: "Habilitado"
+    - key: t0032
+      values:
+        it: "radio — demo.cmd.select"
+        en: "radio — demo.cmd.select"
+        es: "radio — demo.cmd.select"
+    - key: t0033
+      values:
+        it: "Locale"
+        en: "Local"
+        es: "Local"
+    - key: t0034
+      values:
+        it: "Remoto"
+        en: "Remote"
+        es: "Remoto"
+    - key: t0035
+      values:
+        it: "Fuori servizio"
+        en: "Out of service"
+        es: "Fuera de servicio"
+    - key: t0036
+      values:
+        it: "setpoint — demo.cmd.setpoint"
+        en: "setpoint — demo.cmd.setpoint"
+        es: "setpoint — demo.cmd.setpoint"
+    - key: t0037
+      values:
+        it: "Consegna"
+        en: "Setpoint"
+        es: "Consigna"
+    - key: t0038
+      values:
+        it: "slider — demo.cmd.slider, muove l'ellisse qui sopra"
+        en: "slider — demo.cmd.slider, moves the ellipse above"
+        es: "slider — demo.cmd.slider, mueve la elipse de arriba"
+    - key: t0039
+      values:
+        it: "symbol (builtin + vendored) — colore dallo stato di marcia"
+        en: "symbol (builtin + vendored) — colour from the running state"
+        es: "symbol (builtin + vendored) — color según el estado de marcha"
+    - key: t0040
+      values:
+        it: "automatico"
+        en: "automatic"
+        es: "automático"
+    - key: t0041
+      values:
+        it: "manuale"
+        en: "manual"
+        es: "manual"
+    - key: t0042
+      values:
+        it: "fermo"
+        en: "stopped"
+        es: "parado"
+    - key: t0043
+      values:
+        it: "image (SVG)"
+        en: "image (SVG)"
+        es: "image (SVG)"
+    - key: t0044
+      values:
+        it: "kpi_tile"
+        en: "kpi_tile"
+        es: "kpi_tile"
+    - key: t0045
+      values:
+        it: "Pressione"
+        en: "Pressure"
+        es: "Presión"
+    - key: t0046
+      values:
+        it: "z_index e opacity — sovrapposizione e trasparenza"
+        en: "z_index and opacity — stacking and transparency"
+        es: "z_index y opacity — superposición y transparencia"
+    - key: t0047
+      values:
+        it: "Demo Items — 3. Grafici e tabelle"
+        en: "Demo Items — 3. Charts and tables"
+        es: "Demo Items — 3. Gráficos y tablas"
+    - key: t0048
+      values:
+        it: "trend — due tracce, storico dal datastore"
+        en: "trend — two traces, history from the datastore"
+        es: "trend — dos trazas, histórico desde el datastore"
+    - key: t0049
+      values:
+        it: "Rampa"
+        en: "Ramp"
+        es: "Rampa"
+    - key: t0050
+      values:
+        it: "Onda"
+        en: "Wave"
+        es: "Onda"
+    - key: t0051
+      values:
+        it: "sparkline — una traccia, nuda"
+        en: "sparkline — one trace, bare"
+        es: "sparkline — una traza, desnuda"
+    - key: t0052
+      values:
+        it: "xy_plot — pressione contro portata"
+        en: "xy_plot — pressure against flow"
+        es: "xy_plot — presión frente a caudal"
+    - key: t0053
+      values:
+        it: "bar_chart — tre serie, la terza va sotto zero"
+        en: "bar_chart — three series, the third goes below zero"
+        es: "bar_chart — tres series, la tercera baja de cero"
+    - key: t0054
+      values:
+        it: "B"
+        en: "B"
+        es: "B"
+    - key: t0055
+      values:
+        it: "C"
+        en: "C"
+        es: "C"
+    - key: t0056
+      values:
+        it: "pie_chart — ad anello"
+        en: "pie_chart — as a doughnut"
+        es: "pie_chart — en forma de anillo"
+    - key: t0057
+      values:
+        it: "Uno"
+        en: "One"
+        es: "Uno"
+    - key: t0058
+      values:
+        it: "Due"
+        en: "Two"
+        es: "Dos"
+    - key: t0059
+      values:
+        it: "Tre"
+        en: "Three"
+        es: "Tres"
+    - key: t0060
+      values:
+        it: "altro"
+        en: "other"
+        es: "otro"
+    - key: t0061
+      values:
+        it: "table — righe con tag e formato"
+        en: "table — rows with tag and format"
+        es: "table — filas con tag y formato"
+    - key: t0062
+      values:
+        it: "Valori"
+        en: "Values"
+        es: "Valores"
+    - key: t0063
+      values:
+        it: "Portata"
+        en: "Flow"
+        es: "Caudal"
+    - key: t0064
+      values:
+        it: "Livello"
+        en: "Level"
+        es: "Nivel"
+    - key: t0065
+      values:
+        it: "Modo"
+        en: "Mode"
+        es: "Modo"
+    - key: t0066
+      values:
+        it: "grid — celle con oggetti dentro"
+        en: "grid — cells with objects inside"
+        es: "grid — celdas con objetos dentro"
+    - key: t0067
+      values:
+        it: "M"
+        en: "M"
+        es: "M"
+    - key: t0068
+      values:
+        it: "F"
+        en: "F"
+        es: "F"
+    - key: t0069
+      values:
+        it: "Demo Items — 2. Indicatori"
+        en: "Demo Items — 2. Indicators"
+        es: "Demo Items — 2. Indicadores"
+    - key: t0070
+      values:
+        it: "led — acceso quando in marcia"
+        en: "led — lit when running"
+        es: "led — encendido cuando está en marcha"
+    - key: t0071
+      values:
+        it: "state_lamp — colore per modo operativo"
+        en: "state_lamp — colour per operating mode"
+        es: "state_lamp — color por modo de funcionamiento"
+    - key: t0072
+      values:
+        it: "Auto"
+        en: "Auto"
+        es: "Auto"
+    - key: t0073
+      values:
+        it: "Manuale"
+        en: "Manual"
+        es: "Manual"
+    - key: t0074
+      values:
+        it: "Fermo"
+        en: "Stopped"
+        es: "Parado"
+    - key: t0075
+      values:
+        it: "text_list — testo per valore"
+        en: "text_list — text per value"
+        es: "text_list — texto por valor"
+    - key: t0076
+      values:
+        it: "sconosciuto"
+        en: "unknown"
+        es: "desconocido"
+    - key: t0077
+      values:
+        it: "In automatico"
+        en: "In automatic"
+        es: "En automático"
+    - key: t0078
+      values:
+        it: "In manuale"
+        en: "In manual"
+        es: "En manual"
+    - key: t0079
+      values:
+        it: "alarm_bell — conta gli allarmi attivi"
+        en: "alarm_bell — counts the active alarms"
+        es: "alarm_bell — cuenta las alarmas activas"
+    - key: t0080
+      values:
+        it: "gauge — livello con zone di soglia"
+        en: "gauge — level with threshold zones"
+        es: "gauge — nivel con zonas de umbral"
+    - key: t0081
+      values:
+        it: "progress_bar — rampa 0→100"
+        en: "progress_bar — ramp 0→100"
+        es: "progress_bar — rampa 0→100"
+    - key: t0082
+      values:
+        it: "pipe — riempimento dal livello"
+        en: "pipe — fill from the level"
+        es: "pipe — relleno según el nivel"
+    - key: t0083
+      values:
+        it: "lang_button e lang_selector"
+        en: "lang_button and lang_selector"
+        es: "lang_button y lang_selector"
+    - key: t0084
+      values:
+        it: "IT"
+        en: "IT"
+        es: "IT"
+    - key: t0085
+      values:
+        it: "EN"
+        en: "EN"
+        es: "EN"
+    - key: t0086
+      values:
+        it: "data_log"
+        en: "data_log"
+        es: "data_log"
+    - key: t0087
+      values:
+        it: "text_anchor: i tre testi sono ancorati alla stessa x"
+        en: "text_anchor: the three texts are anchored to the same x"
+        es: "text_anchor: los tres textos están anclados a la misma x"
+    - key: t0088
+      values:
+        it: "start"
+        en: "start"
+        es: "start"
+    - key: t0089
+      values:
+        it: "middle"
+        en: "middle"
+        es: "middle"
+    - key: t0090
+      values:
+        it: "end"
+        en: "end"
+        es: "end"
+    - key: t0091
+      values:
+        it: "Stato del dato — lampeggio, bordo d'allarme, qualità, dato vecchio"
+        en: "Data state — blink, alarm border, quality, stale data"
+        es: "Estado del dato — parpadeo, borde de alarma, calidad, dato obsoleto"
+    - key: t0092
+      values:
+        it: "blink_mode: always"
+        en: "blink_mode: always"
+        es: "blink_mode: always"
+    - key: t0093
+      values:
+        it: "blink_mode: tag (fault)"
+        en: "blink_mode: tag (fault)"
+        es: "blink_mode: tag (fault)"
+    - key: t0094
+      values:
+        it: "show_alarm_state"
+        en: "show_alarm_state"
+        es: "show_alarm_state"
+    - key: t0095
+      values:
+        it: "quality_dot — pallino di qualità"
+        en: "quality_dot — quality dot"
+        es: "quality_dot — punto de calidad"
+    - key: t0096
+      values:
+        it: "stale_after_s: 10 — muovi lo slider"
+        en: "stale_after_s: 10 — move the slider"
+        es: "stale_after_s: 10 — mueve el slider"
+    - key: t0097
+      values:
+        it: "slider: {value:.0f}"
+        en: "slider: {value:.0f}"
+        es: "slider: {value:.0f}"
+    - key: t0098
+      values:
+        it: "pipe agganciata: gauge → barra"
+        en: "attached pipe: gauge → bar"
+        es: "pipe enganchada: gauge → barra"
 
 # ── Pagina iniziale ──────────────────────────────────────────────────────────
 #

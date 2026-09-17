@@ -17,7 +17,7 @@ objects:
   y: 20.0
   width: 620.0
   height: 24.0
-  text: Demo Items — 1. Base e comandi
+  text: "{{t0021}}"
   font_size: 19.0
   font_weight: bold
   color: '#e2e8f0'
@@ -27,7 +27,7 @@ objects:
   y: 12.0
   width: 144.0
   height: 32.0
-  label: 1. Base
+  label: "{{t0008}}"
   target_page: demo_p1
   fill: '#2563eb'
   group_id: nav
@@ -38,7 +38,7 @@ objects:
   y: 12.0
   width: 144.0
   height: 32.0
-  label: 2. Indicatori
+  label: "{{t0009}}"
   target_page: demo_p2
   fill: '#334155'
   group_id: nav
@@ -49,7 +49,7 @@ objects:
   y: 12.0
   width: 144.0
   height: 32.0
-  label: 3. Grafici
+  label: "{{t0010}}"
   target_page: demo_p3
   fill: '#334155'
   group_id: nav
@@ -60,7 +60,7 @@ objects:
   y: 12.0
   width: 144.0
   height: 32.0
-  label: 4. Allarmi
+  label: "{{t0011}}"
   target_page: demo_p4
   fill: '#334155'
   group_id: nav
@@ -71,7 +71,7 @@ objects:
   y: 74.0
   width: 290.0
   height: 18.0
-  text: rect — riempimento e bordo
+  text: "{{t0022}}"
   font_size: 12.0
   color: '#94a3b8'
 - id: o_rect
@@ -90,7 +90,7 @@ objects:
   y: 74.0
   width: 290.0
   height: 18.0
-  text: ellipse — segue demo.cmd.slider (binding su x)
+  text: "{{t0023}}"
   font_size: 12.0
   color: '#94a3b8'
 - id: o_ellipse
@@ -113,7 +113,7 @@ objects:
   y: 74.0
   width: 290.0
   height: 18.0
-  text: line — spessore e colore
+  text: "{{t0024}}"
   font_size: 12.0
   color: '#94a3b8'
 - id: o_line
@@ -130,7 +130,7 @@ objects:
   y: 74.0
   width: 290.0
   height: 18.0
-  text: text — valore formattato da un tag
+  text: "{{t0025}}"
   font_size: 12.0
   color: '#94a3b8'
 - id: o_text
@@ -140,7 +140,7 @@ objects:
   width: 290.0
   height: 40.0
   tag: demo.sim.counter
-  format: 'Contatore: %d'
+  format: "{{t0026}}"
   font_size: 22.0
   font_weight: bold
   color: '#e2e8f0'
@@ -151,7 +151,7 @@ objects:
   width: 290.0
   height: 40.0
   tag: demo.sim.pressure
-  format: '%.1f bar'
+  format: '{value:.1f} bar'
   font_size: 22.0
   color: '#f87171'
 - id: c_button
@@ -160,7 +160,7 @@ objects:
   y: 232.0
   width: 290.0
   height: 18.0
-  text: button — scrive demo.cmd.button
+  text: "{{t0027}}"
   font_size: 12.0
   color: '#94a3b8'
 - id: o_button
@@ -169,19 +169,19 @@ objects:
   y: 254.0
   width: 260.0
   height: 46.0
-  label: Avvia (chiede conferma)
+  label: "{{t0028}}"
   fill: '#2563eb'
   tag: demo.cmd.button
   write_value: true
   require_confirm: true
-  confirm_message: Questo comando avvia l'impianto.
+  confirm_message: "{{t0029}}"
 - id: c_checkbox
   type: text
   x: 340.0
   y: 232.0
   width: 290.0
   height: 18.0
-  text: checkbox — demo.cmd.enable
+  text: "{{t0030}}"
   font_size: 12.0
   color: '#94a3b8'
 - id: o_checkbox
@@ -190,7 +190,7 @@ objects:
   y: 258.0
   width: 250.0
   height: 32.0
-  label: Abilitato
+  label: "{{t0031}}"
   tag: demo.cmd.enable
 - id: c_radio
   type: text
@@ -198,7 +198,7 @@ objects:
   y: 232.0
   width: 290.0
   height: 18.0
-  text: radio — demo.cmd.select
+  text: "{{t0032}}"
   font_size: 12.0
   color: '#94a3b8'
 - id: o_radio
@@ -209,11 +209,11 @@ objects:
   height: 96.0
   tag: demo.cmd.select
   options:
-  - label: Locale
+  - label: "{{t0033}}"
     value: locale
-  - label: Remoto
+  - label: "{{t0034}}"
     value: remoto
-  - label: Fuori servizio
+  - label: "{{t0035}}"
     value: fuori_servizio
 - id: c_setpoint
   type: text
@@ -221,7 +221,7 @@ objects:
   y: 232.0
   width: 290.0
   height: 18.0
-  text: setpoint — demo.cmd.setpoint
+  text: "{{t0036}}"
   font_size: 12.0
   color: '#94a3b8'
 - id: o_setpoint
@@ -230,7 +230,7 @@ objects:
   y: 254.0
   width: 290.0
   height: 48.0
-  label: Consegna
+  label: "{{t0037}}"
   tag: demo.cmd.setpoint
   min: 0.0
   max: 200.0
@@ -241,7 +241,7 @@ objects:
   y: 376.0
   width: 290.0
   height: 18.0
-  text: slider — demo.cmd.slider, muove l'ellisse qui sopra
+  text: "{{t0038}}"
   font_size: 12.0
   color: '#94a3b8'
 - id: o_slider
@@ -262,7 +262,7 @@ objects:
   y: 376.0
   width: 290.0
   height: 18.0
-  text: symbol (builtin + vendored) — colore dallo stato di marcia
+  text: "{{t0039}}"
   font_size: 12.0
   color: '#94a3b8'
 - id: o_symbol
@@ -292,13 +292,13 @@ objects:
   state_alarm_color: '#ef4444'
   symbol_states:
   - value: Auto
-    label: automatico
+    label: "{{t0040}}"
     color: '#22c55e'
   - value: Manuale
-    label: manuale
+    label: "{{t0041}}"
     color: '#f59e0b'
   - value: Fermo
-    label: fermo
+    label: "{{t0042}}"
     color: '#64748b'
 - id: c_image
   type: text
@@ -306,7 +306,7 @@ objects:
   y: 376.0
   width: 290.0
   height: 18.0
-  text: image (SVG)
+  text: "{{t0043}}"
   font_size: 12.0
   color: '#94a3b8'
 - id: o_image
@@ -322,7 +322,7 @@ objects:
   y: 520.0
   width: 290.0
   height: 18.0
-  text: kpi_tile
+  text: "{{t0044}}"
   font_size: 12.0
   color: '#94a3b8'
 - id: o_kpi
@@ -331,7 +331,7 @@ objects:
   y: 542.0
   width: 290.0
   height: 110.0
-  label: Pressione
+  label: "{{t0045}}"
   tag: demo.sim.pressure
   unit: bar
 - id: o_symbol3
@@ -347,7 +347,7 @@ objects:
   y: 520.0
   width: 610.0
   height: 18.0
-  text: z_index e opacity — sovrapposizione e trasparenza
+  text: "{{t0046}}"
   font_size: 12.0
   color: '#94a3b8'
 - id: o_z_a

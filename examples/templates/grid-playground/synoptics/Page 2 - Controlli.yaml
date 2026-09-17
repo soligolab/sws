@@ -1,8 +1,8 @@
 id: gp_page2
 name: "Controlli"
 background: "#0f172a"
-width: 900
-height: 540
+width: 1280
+height: 800
 objects:
 
 # ══════════════════════════════════════════════════════════════════
@@ -10,10 +10,10 @@ objects:
 # ══════════════════════════════════════════════════════════════════
 - id: gp2_title
   type: text
-  x: 450
-  y: 24
+  x: 640
+  y: 50
   text: "{{t0014}}"
-  font_size: 18
+  font_size: 26
   font_weight: bold
   text_anchor: middle
   color: "#c084fc"
@@ -22,10 +22,10 @@ objects:
 
 - id: gp2_nav_back
   type: navbutton
-  x: 20
-  y: 14
-  width: 150
-  height: 30
+  x: 28
+  y: 36
+  width: 213
+  height: 43
   label: "{{t0015}}"
   target_page: gp_page1
   group_id: g_nav
@@ -36,18 +36,18 @@ objects:
 # ══════════════════════════════════════════════════════════════════
 - id: gp2_picker_lbl
   type: text
-  x: 30
-  y: 75
+  x: 43
+  y: 123
   text: "{{t0016}}"
-  font_size: 11
+  font_size: 16
   color: "#94a3b8"
 
 - id: gp2_btn_red
   type: button
-  x: 30
-  y: 90
-  width: 110
-  height: 38
+  x: 43
+  y: 144
+  width: 156
+  height: 54
   label: "{{t0017}}"
   fill: "#dc2626"
   tag: demo.fill_color
@@ -55,10 +55,10 @@ objects:
 
 - id: gp2_btn_green
   type: button
-  x: 150
-  y: 90
-  width: 110
-  height: 38
+  x: 213
+  y: 144
+  width: 156
+  height: 54
   label: "{{t0018}}"
   fill: "#16a34a"
   tag: demo.fill_color
@@ -66,10 +66,10 @@ objects:
 
 - id: gp2_btn_blue
   type: button
-  x: 270
-  y: 90
-  width: 110
-  height: 38
+  x: 384
+  y: 144
+  width: 156
+  height: 54
   label: "{{t0019}}"
   fill: "#2563eb"
   tag: demo.fill_color
@@ -77,10 +77,10 @@ objects:
 
 - id: gp2_btn_orange
   type: button
-  x: 390
-  y: 90
-  width: 110
-  height: 38
+  x: 555
+  y: 144
+  width: 156
+  height: 54
   label: "{{t0020}}"
   fill: "#ea580c"
   tag: demo.fill_color
@@ -88,10 +88,10 @@ objects:
 
 - id: gp2_btn_purple
   type: button
-  x: 510
-  y: 90
-  width: 110
-  height: 38
+  x: 725
+  y: 144
+  width: 156
+  height: 54
   label: "{{t0021}}"
   fill: "#9333ea"
   tag: demo.fill_color
@@ -100,18 +100,18 @@ objects:
 # Preview live
 - id: gp2_preview_lbl
   type: text
-  x: 30
-  y: 155
+  x: 43
+  y: 236
   text: "{{t0022}}"
-  font_size: 11
+  font_size: 16
   color: "#94a3b8"
 
 - id: gp2_preview_rect
   type: rect
-  x: 30
-  y: 170
-  width: 200
-  height: 60
+  x: 43
+  y: 258
+  width: 284
+  height: 85
   fill: "#3b82f6"
   transition_duration_ms: 400
   bindings:
@@ -119,11 +119,11 @@ objects:
 
 - id: gp2_preview_color
   type: text
-  x: 250
-  y: 200
+  x: 356
+  y: 300
   tag: demo.fill_color
   format: "{value}"
-  font_size: 14
+  font_size: 20
   color: "#fbbf24"
 
 # ══════════════════════════════════════════════════════════════════
@@ -131,18 +131,18 @@ objects:
 # ══════════════════════════════════════════════════════════════════
 - id: gp2_alarm_lbl
   type: text
-  x: 30
-  y: 270
+  x: 43
+  y: 400
   text: "{{t0023}}"
-  font_size: 11
+  font_size: 16
   color: "#94a3b8"
 
 - id: gp2_btn_set_safe
   type: button
-  x: 30
-  y: 285
-  width: 150
-  height: 40
+  x: 43
+  y: 421
+  width: 213
+  height: 57
   fill: "#16a34a"
   label: "{{t0024}}"
   tag: counter
@@ -150,10 +150,10 @@ objects:
 
 - id: gp2_btn_set_warn
   type: button
-  x: 190
-  y: 285
-  width: 150
-  height: 40
+  x: 270
+  y: 421
+  width: 213
+  height: 57
   fill: "#dc2626"
   label: "{{t0025}}"
   tag: counter
@@ -161,11 +161,11 @@ objects:
 
 - id: gp2_counter_view
   type: text
-  x: 360
-  y: 310
+  x: 512
+  y: 457
   tag: counter
-  format: "counter = {value:.0f}"
-  font_size: 14
+  format: "{{t0029}}"
+  font_size: 20
   font_weight: bold
   color: "#fbbf24"
 
@@ -174,18 +174,18 @@ objects:
 # ══════════════════════════════════════════════════════════════════
 - id: gp2_hint
   type: text
-  x: 30
-  y: 380
+  x: 43
+  y: 556
   text: "{{t0026}}"
-  font_size: 11
+  font_size: 16
   color: "#475569"
 
 - id: gp2_hint2
   type: text
-  x: 30
-  y: 400
+  x: 43
+  y: 585
   text: "{{t0027}}"
-  font_size: 11
+  font_size: 16
   color: "#475569"
 
 groups:

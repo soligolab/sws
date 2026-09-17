@@ -92,19 +92,18 @@ PALETTE = set(re.findall(r'type:\s*"([a-z_]+)"',
 # R1 — formato di pagina. Decisione D1: la regola vale da subito per ciò che
 # nasce, e questi si riflussano quando gli si mette mano per le altre regole.
 R1_DEBITO = {
-    "casa-locale":            "800×680 — 298 oggetti su 5 pagine, riflusso da fare col Passo 5",
-    "grid-playground":        "900×720 — banco di prova della griglia",
-    "nebulizzatore-sandokan": "1280×600 — manca solo l'altezza",
+    "casa-locale": "800×680 — 298 oggetti su 5 pagine; il template ha un piano suo "
+                   "(docs/plans/2026-09-12-casamauro-arricchimento-demo.md) e il riflusso "
+                   "si fa lì, non di straforo",
 }
 
 # R2 — testo visibile che non passa dalla tabella lingue. Il numero è il
 # **tetto**: se cresce la guardia fallisce, se cala va abbassato. Decisione D4:
 # nessuna esenzione, banchi di protocollo compresi.
 R2_DEBITO = {
-    # Passo 5, 17-09-2026: i sei template «fermi al 28-08» sono a zero — testo
-    # tokenizzato e tre lingue scritte a mano, non tradotte a macchina.
-    "casa-locale": 20, "demo-items-lvgl": 114, "demo-items-web": 114,
-    "grid-playground": 1, "nebulizzatore-sandokan": 12,
+    # Resta `casa-locale`, che si tocca dal suo piano
+    # (docs/plans/2026-09-12-casamauro-arricchimento-demo.md) e non di straforo.
+    "casa-locale": 20,
 }
 
 # R3 — semplicità. Decisione D2: `homeassistant-pro` è l'eccezione dichiarata.

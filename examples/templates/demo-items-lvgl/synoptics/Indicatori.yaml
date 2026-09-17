@@ -17,7 +17,7 @@ objects:
   y: 20.0
   width: 620.0
   height: 24.0
-  text: Demo Items — 2. Indicatori
+  text: "{{t0069}}"
   font_size: 19.0
   font_weight: bold
   color: '#e2e8f0'
@@ -27,7 +27,7 @@ objects:
   y: 12.0
   width: 144.0
   height: 32.0
-  label: 1. Base
+  label: "{{t0008}}"
   target_page: demo_p1
   fill: '#334155'
   group_id: nav
@@ -38,7 +38,7 @@ objects:
   y: 12.0
   width: 144.0
   height: 32.0
-  label: 2. Indicatori
+  label: "{{t0009}}"
   target_page: demo_p2
   fill: '#2563eb'
   group_id: nav
@@ -49,7 +49,7 @@ objects:
   y: 12.0
   width: 144.0
   height: 32.0
-  label: 3. Grafici
+  label: "{{t0010}}"
   target_page: demo_p3
   fill: '#334155'
   group_id: nav
@@ -60,7 +60,7 @@ objects:
   y: 12.0
   width: 144.0
   height: 32.0
-  label: 4. Allarmi
+  label: "{{t0011}}"
   target_page: demo_p4
   fill: '#334155'
   group_id: nav
@@ -71,7 +71,7 @@ objects:
   y: 74.0
   width: 290.0
   height: 18.0
-  text: led — acceso quando in marcia
+  text: "{{t0070}}"
   font_size: 12.0
   color: '#94a3b8'
 - id: o_led
@@ -100,7 +100,7 @@ objects:
   y: 74.0
   width: 290.0
   height: 18.0
-  text: state_lamp — colore per modo operativo
+  text: "{{t0071}}"
   font_size: 12.0
   color: '#94a3b8'
 - id: o_lamp
@@ -112,13 +112,13 @@ objects:
   tag: demo.sim.mode
   text_list_entries:
   - value: Auto
-    label: Auto
+    label: "{{t0072}}"
     color: '#22c55e'
   - value: Manuale
-    label: Manuale
+    label: "{{t0073}}"
     color: '#f59e0b'
   - value: Fermo
-    label: Fermo
+    label: "{{t0074}}"
     color: '#64748b'
 - id: c_textlist
   type: text
@@ -126,7 +126,7 @@ objects:
   y: 74.0
   width: 290.0
   height: 18.0
-  text: text_list — testo per valore
+  text: "{{t0075}}"
   font_size: 12.0
   color: '#94a3b8'
 - id: o_textlist
@@ -136,17 +136,17 @@ objects:
   width: 290.0
   height: 40.0
   tag: demo.sim.mode
-  text_list_default: sconosciuto
+  text_list_default: "{{t0076}}"
   text_list_default_color: '#64748b'
   text_list_entries:
   - value: Auto
-    label: In automatico
+    label: "{{t0077}}"
     color: '#22c55e'
   - value: Manuale
-    label: In manuale
+    label: "{{t0078}}"
     color: '#f59e0b'
   - value: Fermo
-    label: Fermo
+    label: "{{t0074}}"
     color: '#94a3b8'
 - id: c_bell
   type: text
@@ -154,7 +154,7 @@ objects:
   y: 74.0
   width: 290.0
   height: 18.0
-  text: alarm_bell — conta gli allarmi attivi
+  text: "{{t0079}}"
   font_size: 12.0
   color: '#94a3b8'
 - id: o_bell
@@ -170,7 +170,7 @@ objects:
   y: 180.0
   width: 290.0
   height: 18.0
-  text: gauge — livello con zone di soglia
+  text: "{{t0080}}"
   font_size: 12.0
   color: '#94a3b8'
 - id: o_gauge
@@ -182,7 +182,7 @@ objects:
   tag: demo.sim.level
   min: 0.0
   max: 100.0
-  label: Livello
+  label: "{{t0064}}"
   unit: '%'
   warn_high: 70.0
   alarm_high: 90.0
@@ -192,7 +192,7 @@ objects:
   y: 180.0
   width: 290.0
   height: 18.0
-  text: progress_bar — rampa 0→100
+  text: "{{t0081}}"
   font_size: 12.0
   color: '#94a3b8'
 - id: o_progress
@@ -221,7 +221,7 @@ objects:
   y: 180.0
   width: 290.0
   height: 18.0
-  text: pipe — riempimento dal livello
+  text: "{{t0082}}"
   font_size: 12.0
   color: '#94a3b8'
 - id: o_pipe
@@ -250,7 +250,7 @@ objects:
   y: 180.0
   width: 290.0
   height: 18.0
-  text: lang_button e lang_selector
+  text: "{{t0083}}"
   font_size: 12.0
   color: '#94a3b8'
 - id: o_langbtn_it
@@ -259,7 +259,7 @@ objects:
   y: 202.0
   width: 90.0
   height: 36.0
-  label: IT
+  label: "{{t0084}}"
   target_lang: it
 - id: o_langbtn_en
   type: lang_button
@@ -267,7 +267,7 @@ objects:
   y: 202.0
   width: 90.0
   height: 36.0
-  label: EN
+  label: "{{t0085}}"
   target_lang: en
 - id: o_langsel
   type: lang_selector
@@ -281,7 +281,7 @@ objects:
   y: 420.0
   width: 290.0
   height: 18.0
-  text: data_log
+  text: "{{t0086}}"
   font_size: 12.0
   color: '#94a3b8'
 - id: o_datalog
@@ -298,7 +298,7 @@ objects:
   y: 690.0
   width: 290.0
   height: 18.0
-  text: 'text_anchor: i tre testi sono ancorati alla stessa x'
+  text: "{{t0087}}"
   font_size: 12.0
   color: '#94a3b8'
 - id: o_anchor_rule
@@ -315,7 +315,7 @@ objects:
   type: text
   x: 790.0
   y: 714.0
-  text: start
+  text: "{{t0088}}"
   font_size: 14.0
   color: '#e2e8f0'
   text_anchor: start
@@ -323,7 +323,7 @@ objects:
   type: text
   x: 790.0
   y: 734.0
-  text: middle
+  text: "{{t0089}}"
   font_size: 14.0
   color: '#22c55e'
   text_anchor: middle
@@ -331,7 +331,7 @@ objects:
   type: text
   x: 790.0
   y: 754.0
-  text: end
+  text: "{{t0090}}"
   font_size: 14.0
   color: '#f59e0b'
   text_anchor: end
@@ -341,14 +341,14 @@ objects:
   y: 340.0
   width: 600.0
   height: 18.0
-  text: Stato del dato — lampeggio, bordo d'allarme, qualità, dato vecchio
+  text: "{{t0091}}"
   font_size: 12.0
   color: '#94a3b8'
 - id: c_fx_blink
   x: 650.0
   y: 364.0
   width: 180.0
-  text: 'blink_mode: always'
+  text: "{{t0092}}"
   type: text
   height: 16.0
   font_size: 12.0
@@ -357,7 +357,7 @@ objects:
   x: 845.0
   y: 364.0
   width: 180.0
-  text: 'blink_mode: tag (fault)'
+  text: "{{t0093}}"
   type: text
   height: 16.0
   font_size: 12.0
@@ -366,7 +366,7 @@ objects:
   x: 1040.0
   y: 364.0
   width: 210.0
-  text: show_alarm_state
+  text: "{{t0094}}"
   type: text
   height: 16.0
   font_size: 12.0
@@ -403,7 +403,7 @@ objects:
   width: 210.0
   height: 90.0
   tag: demo.sim.pressure
-  format: '%.1f bar'
+  format: '{value:.1f} bar'
   font_size: 22.0
   color: '#e2e8f0'
   show_alarm_state: true
@@ -411,7 +411,7 @@ objects:
   x: 650.0
   y: 490.0
   width: 290.0
-  text: quality_dot — pallino di qualità
+  text: "{{t0095}}"
   type: text
   height: 16.0
   font_size: 12.0
@@ -420,7 +420,7 @@ objects:
   x: 960.0
   y: 490.0
   width: 290.0
-  text: 'stale_after_s: 10 — muovi lo slider'
+  text: "{{t0096}}"
   type: text
   height: 16.0
   font_size: 12.0
@@ -432,7 +432,7 @@ objects:
   width: 290.0
   height: 44.0
   tag: demo.sim.pressure
-  format: '%.1f bar'
+  format: '{value:.1f} bar'
   font_size: 20.0
   color: '#e2e8f0'
   quality_dot: true
@@ -444,7 +444,7 @@ objects:
   width: 290.0
   height: 44.0
   tag: demo.cmd.slider
-  format: 'slider: %.0f'
+  format: "{{t0097}}"
   font_size: 20.0
   color: '#e2e8f0'
   stale_after_s: 10.0
@@ -454,7 +454,7 @@ objects:
   y: 330.0
   width: 200.0
   height: 16.0
-  text: 'pipe agganciata: gauge → barra'
+  text: "{{t0098}}"
   font_size: 11.0
   color: '#94a3b8'
 - id: o_pipe_anchor

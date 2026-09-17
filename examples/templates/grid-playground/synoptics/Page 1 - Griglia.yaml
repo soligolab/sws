@@ -1,25 +1,25 @@
 id: gp_page1
 name: "Griglia 4×4"
 background: "#0f172a"
-width: 900
-height: 720
+width: 1280
+height: 800
 objects:
 - id: lang_sel_auto
   type: lang_selector
-  x: 802
-  y: 8
-  width: 90
-  height: 26
+  x: 1031
+  y: 9
+  width: 100
+  height: 29
 
 # ══════════════════════════════════════════════════════════════════
 # HEADER (locked + grouped)
 # ══════════════════════════════════════════════════════════════════
 - id: gp_title
   type: text
-  x: 450
-  y: 24
+  x: 640
+  y: 27
   text: "{{t0001}}"
-  font_size: 18
+  font_size: 20
   font_weight: bold
   text_anchor: middle
   color: "#c084fc"
@@ -28,10 +28,10 @@ objects:
 
 - id: gp_subtitle
   type: text
-  x: 450
-  y: 44
+  x: 640
+  y: 49
   text: "{{t0002}}"
-  font_size: 10
+  font_size: 11
   text_anchor: middle
   color: "#475569"
   group_id: g_header
@@ -39,10 +39,10 @@ objects:
 
 - id: gp_nav_next
   type: navbutton
-  x: 740
-  y: 14
-  width: 150
-  height: 30
+  x: 962
+  y: 16
+  width: 167
+  height: 33
   label: "{{t0003}}"
   target_page: gp_page2
   group_id: g_header
@@ -53,10 +53,10 @@ objects:
 # ══════════════════════════════════════════════════════════════════
 - id: gp_grid
   type: grid
-  x: 60
-  y: 70
-  width: 760
-  height: 600
+  x: 207
+  y: 78
+  width: 844
+  height: 667
   grid_rows: 4
   grid_cols: 4
   grid_show_borders: true
@@ -88,8 +88,8 @@ objects:
                 type: rect
                 x: 0
                 y: 0
-                width: 60
-                height: 30
+                width: 67
+                height: 33
                 fill: "#3b82f6"
                 stroke: "#1d4ed8"
                 stroke_width: 2
@@ -105,7 +105,7 @@ objects:
                     x: 0
                     y: 0
                     text: "{{t0004}}"
-                    font_size: 12
+                    font_size: 13
                     font_weight: bold
                     text_anchor: middle
                     color: "#e2e8f0"
@@ -120,8 +120,8 @@ objects:
                         type: ellipse
                         x: 0
                         y: 0
-                        width: 36
-                        height: 24
+                        width: 40
+                        height: 27
                         fill: "#a855f7"
                     b:
                       child:
@@ -129,8 +129,8 @@ objects:
                         type: led
                         x: 0
                         y: 0
-                        width: 22
-                        height: 22
+                        width: 24
+                        height: 24
                         tag: pump.running
                         on_value: true
                         on_color: "#22c55e"
@@ -142,8 +142,8 @@ objects:
             type: symbol
             x: 0
             y: 0
-            width: 90
-            height: 90
+            width: 100
+            height: 100
             symbol_id: pump
             state_tag: pump.running
             state_off_color: "#64748b"
@@ -160,8 +160,8 @@ objects:
         type: gauge
         x: 0
         y: 0
-        width: 170
-        height: 140
+        width: 189
+        height: 156
         label: "{{t0005}}"
         tag: counter
         min: 0
@@ -181,7 +181,7 @@ objects:
         y: 0
         tag: counter
         format: "{value}"
-        font_size: 38
+        font_size: 42
         font_weight: bold
         text_anchor: middle
         color: "#fbbf24"
@@ -196,8 +196,8 @@ objects:
         type: led
         x: 0
         y: 0
-        width: 56
-        height: 56
+        width: 62
+        height: 62
         tag: pump.running
         on_value: true
         on_color: "#22c55e"
@@ -214,8 +214,8 @@ objects:
         type: button
         x: 0
         y: 0
-        width: 150
-        height: 50
+        width: 167
+        height: 56
         fill: "#3b82f6"
         label: "{{t0006}}"
         on_press_fn: fnc_Inc
@@ -233,8 +233,8 @@ objects:
         type: trend
         x: 0
         y: 0
-        width: 360
-        height: 130
+        width: 400
+        height: 144
         tag: counter
         window_s: 60
         line_color: "#fbbf24"
@@ -248,8 +248,8 @@ objects:
         type: rect
         x: 0
         y: 0
-        width: 130
-        height: 90
+        width: 144
+        height: 100
         fill: "#3b82f6"
         transition_duration_ms: 400
         bindings:
@@ -263,8 +263,8 @@ objects:
         type: button
         x: 0
         y: 0
-        width: 150
-        height: 50
+        width: 167
+        height: 56
         fill: "#dc2626"
         label: "{{t0007}}"
         on_press_fn: fnc_Dec
@@ -280,8 +280,8 @@ objects:
         type: button
         x: 0
         y: 0
-        width: 150
-        height: 50
+        width: 167
+        height: 56
         fill: "#0d9488"
         label: "{{t0008}}"
         on_press_fn: fnc_Toggle
@@ -297,8 +297,8 @@ objects:
         type: slider
         x: 0
         y: 0
-        width: 170
-        height: 36
+        width: 189
+        height: 40
         tag: demo.value
         min: 0
         max: 100
@@ -314,8 +314,8 @@ objects:
         type: progress_bar
         x: 0
         y: 0
-        width: 160
-        height: 26
+        width: 178
+        height: 29
         tag: demo.value
         min: 0
         max: 100
@@ -340,7 +340,7 @@ objects:
             x: 0
             y: 0
             text: "{{t0009}}"
-            font_size: 14
+            font_size: 16
             font_weight: bold
             text_anchor: middle
             color: "#fbbf24"
@@ -350,8 +350,8 @@ objects:
             type: ellipse
             x: 0
             y: 0
-            width: 110
-            height: 60
+            width: 122
+            height: 67
             fill: "#0d9488"
 
     # (3,1) — split cols (2 livelli: a → ulteriore split rows)
@@ -372,7 +372,7 @@ objects:
                 x: 0
                 y: 0
                 text: "{{t0010}}"
-                font_size: 12
+                font_size: 13
                 text_anchor: middle
                 color: "#e2e8f0"
             b:
@@ -382,7 +382,7 @@ objects:
                 x: 0
                 y: 0
                 text: "{{t0011}}"
-                font_size: 12
+                font_size: 13
                 text_anchor: middle
                 color: "#94a3b8"
         b:
@@ -391,8 +391,8 @@ objects:
             type: rect
             x: 0
             y: 0
-            width: 70
-            height: 90
+            width: 78
+            height: 100
             fill: "#9333ea"
 
     # (3,2) — split rows con visible_tag su slot a
@@ -410,7 +410,7 @@ objects:
             x: 0
             y: 0
             text: "{{t0012}}"
-            font_size: 12
+            font_size: 13
             font_weight: bold
             text_anchor: middle
             color: "#22c55e"
@@ -421,7 +421,7 @@ objects:
             x: 0
             y: 0
             text: "{{t0013}}"
-            font_size: 11
+            font_size: 12
             text_anchor: middle
             color: "#94a3b8"
 
@@ -434,8 +434,8 @@ objects:
         type: slider
         x: 0
         y: 0
-        width: 160
-        height: 30
+        width: 178
+        height: 33
         tag: demo.opacity
         min: 0
         max: 1
@@ -447,28 +447,28 @@ objects:
 # ══════════════════════════════════════════════════════════════════
 - id: gp_outside_rect
   type: rect
-  x: 60
-  y: 690
-  width: 760
-  height: 16
+  x: 207
+  y: 767
+  width: 844
+  height: 18
   fill: "#c084fc"
   transition_duration_ms: 300
   bindings:
     opacity: demo.opacity
 - id: gp1_alarm_bell
   type: alarm_bell
-  x: 20.0
-  y: 576.0
-  width: 130.0
-  height: 34.0
+  x: 162.2
+  y: 640.0
+  width: 144.4
+  height: 37.8
   alarm_bell_show_history: true
   alarm_bell_show_shelve: true
 - id: gp1_alarm_banner
   type: alarm_banner
-  x: 20.0
-  y: 630.0
-  width: 860.0
-  height: 70.0
+  x: 162.2
+  y: 700.0
+  width: 955.6
+  height: 77.8
 
 groups:
 - id: g_header

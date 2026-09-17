@@ -17,7 +17,7 @@ objects:
   y: 20.0
   width: 620.0
   height: 24.0
-  text: Demo Items — 3. Grafici e tabelle
+  text: "{{t0047}}"
   font_size: 19.0
   font_weight: bold
   color: '#e2e8f0'
@@ -27,7 +27,7 @@ objects:
   y: 12.0
   width: 144.0
   height: 32.0
-  label: 1. Base
+  label: "{{t0008}}"
   target_page: demo_p1
   fill: '#334155'
   group_id: nav
@@ -38,7 +38,7 @@ objects:
   y: 12.0
   width: 144.0
   height: 32.0
-  label: 2. Indicatori
+  label: "{{t0009}}"
   target_page: demo_p2
   fill: '#334155'
   group_id: nav
@@ -49,7 +49,7 @@ objects:
   y: 12.0
   width: 144.0
   height: 32.0
-  label: 3. Grafici
+  label: "{{t0010}}"
   target_page: demo_p3
   fill: '#2563eb'
   group_id: nav
@@ -60,7 +60,7 @@ objects:
   y: 12.0
   width: 144.0
   height: 32.0
-  label: 4. Allarmi
+  label: "{{t0011}}"
   target_page: demo_p4
   fill: '#334155'
   group_id: nav
@@ -71,7 +71,7 @@ objects:
   y: 74.0
   width: 290.0
   height: 18.0
-  text: trend — due tracce, storico dal datastore
+  text: "{{t0048}}"
   font_size: 12.0
   color: '#94a3b8'
 - id: o_trend
@@ -83,10 +83,10 @@ objects:
   window_s: 120.0
   trend_tags:
   - tag: demo.sim.ramp
-    label: Rampa
+    label: "{{t0049}}"
     color: '#0ea5e9'
   - tag: demo.sim.wave
-    label: Onda
+    label: "{{t0050}}"
     color: '#f59e0b'
 - id: c_spark
   type: text
@@ -94,7 +94,7 @@ objects:
   y: 74.0
   width: 290.0
   height: 18.0
-  text: sparkline — una traccia, nuda
+  text: "{{t0051}}"
   font_size: 12.0
   color: '#94a3b8'
 - id: o_spark
@@ -112,7 +112,7 @@ objects:
   y: 74.0
   width: 290.0
   height: 18.0
-  text: xy_plot — pressione contro portata
+  text: "{{t0052}}"
   font_size: 12.0
   color: '#94a3b8'
 - id: o_xy
@@ -134,7 +134,7 @@ objects:
   y: 366.0
   width: 290.0
   height: 18.0
-  text: bar_chart — tre serie, la terza va sotto zero
+  text: "{{t0053}}"
   font_size: 12.0
   color: '#94a3b8'
 - id: o_bar
@@ -148,10 +148,10 @@ objects:
     label: A
     color: '#0ea5e9'
   - tag: demo.sim.bar_b
-    label: B
+    label: "{{t0054}}"
     color: '#22c55e'
   - tag: demo.sim.bar_c
-    label: C
+    label: "{{t0055}}"
     color: '#f59e0b'
   warn_high: 70.0
   alarm_high: 90.0
@@ -162,7 +162,7 @@ objects:
   y: 366.0
   width: 290.0
   height: 18.0
-  text: pie_chart — ad anello
+  text: "{{t0056}}"
   font_size: 12.0
   color: '#94a3b8'
 - id: o_pie
@@ -175,13 +175,13 @@ objects:
   pie_inner_ratio: 0.55
   pie_slices:
   - tag: demo.sim.pie_a
-    label: Uno
+    label: "{{t0057}}"
     color: '#0ea5e9'
   - tag: demo.sim.pie_b
-    label: Due
+    label: "{{t0058}}"
     color: '#22c55e'
   - tag: demo.sim.pie_c
-    label: Tre
+    label: "{{t0059}}"
     color: '#f59e0b'
   pie_show_labels: true
   pie_label_mode: label_percent
@@ -189,7 +189,7 @@ objects:
   pie_center_tag: demo.sim.pressure
   pie_center_format: '{value}'
   pie_group_below_pct: 8.0
-  pie_group_label: altro
+  pie_group_label: "{{t0060}}"
   pie_group_color: '#475569'
   decimals: 0
 - id: c_table
@@ -198,7 +198,7 @@ objects:
   y: 366.0
   width: 290.0
   height: 18.0
-  text: table — righe con tag e formato
+  text: "{{t0061}}"
   font_size: 12.0
   color: '#94a3b8'
 - id: o_table
@@ -207,18 +207,18 @@ objects:
   y: 388.0
   width: 290.0
   height: 220.0
-  label: Valori
+  label: "{{t0062}}"
   table_rows:
-  - label: Pressione
+  - label: "{{t0045}}"
     tag: demo.sim.pressure
-    format: '%.1f bar'
-  - label: Portata
+    format: '{value:.1f} bar'
+  - label: "{{t0063}}"
     tag: demo.sim.flow
-    format: '%.1f l/m'
-  - label: Livello
+    format: '{value:.1f} l/m'
+  - label: "{{t0064}}"
     tag: demo.sim.level
-    format: '%.0f %%'
-  - label: Modo
+    format: '{value:.0f} %'
+  - label: "{{t0065}}"
     tag: demo.sim.mode
 - id: c_grid
   type: text
@@ -226,7 +226,7 @@ objects:
   y: 366.0
   width: 290.0
   height: 18.0
-  text: grid — celle con oggetti dentro
+  text: "{{t0066}}"
   font_size: 12.0
   color: '#94a3b8'
 - id: o_grid
@@ -263,7 +263,7 @@ objects:
       width: 120.0
       height: 24.0
       tag: demo.sim.counter
-      format: '%d'
+      format: '{value:.0f}'
       font_size: 18.0
       color: '#e2e8f0'
   - row: 1
@@ -291,8 +291,8 @@ objects:
         label: A
         color: '#22c55e'
       - value: Manuale
-        label: M
+        label: "{{t0067}}"
         color: '#f59e0b'
       - value: Fermo
-        label: F
+        label: "{{t0068}}"
         color: '#64748b'

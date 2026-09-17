@@ -1254,18 +1254,80 @@ fn tag_value_as_bool(v: &TagValue) -> bool {
 /// Porta `formatValue()` di `SvgCanvas.tsx`: supporta solo il pattern
 /// `{value:.Nf}` (l'unico usato oggi nei progetti reali); altrimenti stringa
 /// naturale del valore.
+/// Porta `formatValue()` di `SvgCanvas.tsx`, ed è la definizione condivisa:
+/// i casi stanno in `tests/fixtures/formattazione-valori.json`, letti anche dal
+/// test TypeScript.
+///
+/// **Cosa faceva prima, e perché era un difetto.** Trovava `{value:.Nf}`,
+/// restituiva il numero formattato e basta: tutto il testo attorno al
+/// segnaposto spariva. `format: "{value:.1f} bar"` mostrava «12.3» sul pannello
+/// e «12.3 bar» sul browser — la stessa pagina, lo stesso progetto, l'unità di
+/// misura solo da una parte. Misurato il 17-09-2026 sistemando i template.
 fn format_value(v: &TagValue, format: Option<&str>) -> String {
-    if let (Some(fmt), TagValue::Float(_) | TagValue::Int(_)) = (format, v) {
-        if let Some(start) = fmt.find("{value:.") {
-            let rest = &fmt[start + "{value:.".len()..];
-            if let Some(end) = rest.find('f') {
-                if let Ok(decimals) = rest[..end].parse::<usize>() {
-                    return format!("{:.*}", decimals, tag_value_as_f64(v));
-                }
-            }
-        }
+    let Some(fmt) = format else {
+        return tag_value_as_string(v);
+    };
+    let numero = matches!(v, TagValue::Float(_) | TagValue::Int(_));
+    let mut fuori = String::with_capacity(fmt.len() + 8);
+    let mut resto = fmt;
+    while let Some(inizio) = resto.find("{value") {
+        let Some(lung) = resto[inizio..].find('}') else { break };
+        let dentro = &resto[inizio + "{value".len()..inizio + lung];
+        fuori.push_str(&resto[..inizio]);
+        fuori.push_str(&if numero {
+            formatta_spec(tag_value_as_f64(v), dentro)
+        } else {
+            tag_value_as_string(v)
+        });
+        resto = &resto[inizio + lung + 1..];
     }
-    tag_value_as_string(v)
+    fuori.push_str(resto);
+    fuori
+}
+
+/// La specifica dopo `{value`, compreso il `:` iniziale: `""`, `":.2f"`,
+/// `":+.2f"`, `":,.1f"`, `":.2e"`, `":.1%"`. Una specifica che non si capisce
+/// vale come specifica assente — meglio un numero grezzo dentro la frase giusta
+/// che la frase persa.
+fn formatta_spec(valore: f64, spec: &str) -> String {
+    let spec = spec.strip_prefix(':').unwrap_or("");
+    let (segno, spec) = match spec.strip_prefix('+') {
+        Some(r) => (true, r),
+        None => (false, spec),
+    };
+    // Il separatore delle migliaia sul web dipende dalla lingua del browser
+    // (`toLocaleString`): un pannello non ha una lingua di sistema da cui
+    // dedurlo, quindi qui si accetta il `,` nella specifica e si stampa senza
+    // raggruppare. Divergenza dichiarata, non dimenticata.
+    let spec = spec.strip_prefix(',').unwrap_or(spec);
+    let (decimali, tipo) = match spec.strip_prefix('.') {
+        Some(r) => {
+            let cifre: String = r.chars().take_while(char::is_ascii_digit).collect();
+            (cifre.parse::<usize>().ok(), r[cifre.len()..].chars().next())
+        }
+        None => (None, spec.chars().next()),
+    };
+    let s = match (tipo, decimali) {
+        (Some('e'), d) => esponenziale(valore, d.unwrap_or(6)),
+        (Some('%'), d) => format!("{:.*}%", d.unwrap_or(0), valore * 100.0),
+        (_, Some(d)) => format!("{valore:.d$}"),
+        (_, None) => tag_value_as_string(&TagValue::Float(valore)),
+    };
+    if segno && valore >= 0.0 {
+        format!("+{s}")
+    } else {
+        s
+    }
+}
+
+/// `toExponential(d)` del JavaScript: mantissa con `d` decimali, esponente
+/// senza zeri di riempimento (`1.23e+3`, non `1.23e3` né `1.23e+03`).
+fn esponenziale(valore: f64, decimali: usize) -> String {
+    let grezzo = format!("{valore:.decimali$e}");
+    match grezzo.split_once('e') {
+        Some((mantissa, esp)) if !esp.starts_with('-') => format!("{mantissa}e+{esp}"),
+        _ => grezzo,
+    }
 }
 
 /// Porta `thresholdColor()` di `SvgCanvas.tsx`.
@@ -12211,6 +12273,67 @@ mod binding_tests {
 /// divergevano in due punti: una entry senza valori dava il nome nudo della
 /// chiave sul web e `{{chiave}}` qui, e `{{a b}}` era un token qui e non sul
 /// web.
+#[cfg(test)]
+mod formattazione_valori_tests {
+    use super::*;
+
+    /// La stessa tabella di casi del test TypeScript
+    /// (`sws-editor/tests/formattazioneValori.test.ts`). Non una copia: **lo
+    /// stesso file**, per la ragione scritta dentro la fixture — due motori
+    /// disegnano gli stessi progetti, e due tabelle separate divergono in
+    /// silenzio. È esattamente com'è nato il difetto che questo test chiude:
+    /// il web teneva il testo attorno al numero, questo motore no.
+    #[derive(serde::Deserialize)]
+    struct Caso {
+        nome: String,
+        valore: f64,
+        format: Option<String>,
+        atteso: String,
+    }
+
+    #[derive(serde::Deserialize)]
+    struct Fixture {
+        casi: Vec<Caso>,
+    }
+
+    #[test]
+    fn la_tabella_di_casi_condivisa_col_web() {
+        let percorso = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../tests/fixtures/formattazione-valori.json"
+        );
+        let testo = std::fs::read_to_string(percorso)
+            .unwrap_or_else(|e| panic!("la tabella di casi condivisa manca ({percorso}): {e}"));
+        let f: Fixture = serde_json::from_str(&testo).expect("tabella di casi non valida");
+        assert!(!f.casi.is_empty(), "la tabella di casi è vuota");
+
+        let mut rotti = Vec::new();
+        for c in &f.casi {
+            // Interi e non-interi vanno distinti come li distingue il runtime:
+            // un `.0` stampato dove il web stampa `7` sarebbe una divergenza
+            // vera, non un dettaglio del test.
+            let v = if c.valore.fract() == 0.0 && c.valore.abs() < 1e15 {
+                TagValue::Int(c.valore as i64)
+            } else {
+                TagValue::Float(c.valore)
+            };
+            let avuto = format_value(&v, c.format.as_deref());
+            if avuto != c.atteso {
+                rotti.push(format!(
+                    "  «{}»\n    format  {:?}\n    atteso  {:?}\n    avuto   {:?}",
+                    c.nome, c.format, c.atteso, avuto
+                ));
+            }
+        }
+        assert!(
+            rotti.is_empty(),
+            "{} caso/i divergono dal web:\n{}",
+            rotti.len(),
+            rotti.join("\n")
+        );
+    }
+}
+
 #[cfg(test)]
 mod risoluzione_token_tests {
     use super::*;

@@ -99,11 +99,75 @@ global_scripts: []
 
 languages:
   default: it
-  langs: [it]
+  langs: [it, en, es]
   entries:
     - key: t0001
       values:
         it: "🦟 Nebulizzatore Sandokan: pompa ACCESA (potenza sopra 1 W)"
+        en: "🦟 Sandokan mister: pump ON (power above 1 W)"
+        es: "🦟 Nebulizador Sandokan: bomba ENCENDIDA (potencia por encima de 1 W)"
     - key: t0002
       values:
         it: "🦟 Nebulizzatore Sandokan: pompa SPENTA (potenza tornata a 0 W)"
+        en: "🦟 Sandokan mister: pump OFF (power back to 0 W)"
+        es: "🦟 Nebulizador Sandokan: bomba APAGADA (potencia de vuelta a 0 W)"
+    - key: t0003
+      values:
+        it: "🦟 Nebulizzatore Antizanzare — Sandokan"
+        en: "🦟 Mosquito mister — Sandokan"
+        es: "🦟 Nebulizador antimosquitos — Sandokan"
+    - key: t0004
+      values:
+        it: "Stato:"
+        en: "State:"
+        es: "Estado:"
+    - key: t0005
+      values:
+        it: "Serbatoio"
+        en: "Tank"
+        es: "Depósito"
+    - key: t0006
+      values:
+        it: "Potenza: {value:.1f} W"
+        en: "Power: {value:.1f} W"
+        es: "Potencia: {value:.1f} W"
+    - key: t0007
+      values:
+        it: "Corrente: {value:.2f} A"
+        en: "Current: {value:.2f} A"
+        es: "Corriente: {value:.2f} A"
+    - key: t0008
+      values:
+        it: "Tensione: {value:.1f} V"
+        en: "Voltage: {value:.1f} V"
+        es: "Tensión: {value:.1f} V"
+    - key: t0009
+      values:
+        it: "Energia totale: {value:.2f} kWh"
+        en: "Total energy: {value:.2f} kWh"
+        es: "Energía total: {value:.2f} kWh"
+    - key: t0010
+      values:
+        it: "Segnale Zigbee: {value:.0f}/255"
+        en: "Zigbee signal: {value:.0f}/255"
+        es: "Señal Zigbee: {value:.0f}/255"
+    - key: t0011
+      values:
+        it: "Potenza (W)"
+        en: "Power (W)"
+        es: "Potencia (W)"
+    - key: t0012
+      values:
+        it: "Potenza (W) — ultima ora"
+        en: "Power (W) — last hour"
+        es: "Potencia (W) — última hora"
+    - key: t0013
+      values:
+        it: "Corrente (A) — ultima ora"
+        en: "Current (A) — last hour"
+        es: "Corriente (A) — última hora"
+    - key: t0014
+      values:
+        it: "Tensione (V) — ultima ora"
+        en: "Voltage (V) — last hour"
+        es: "Tensión (V) — última hora"

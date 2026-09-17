@@ -403,27 +403,48 @@ function matchTextListEntry(
 
 /** F1.3 — formattazione numerica strutturata. Specifiche supportate dentro
  *  `{value:…}` (sottoinsieme in stile Python, retro-compatibile):
+ *    `{value}`      il valore, senza ritocchi
  *    `{value:.2f}`  decimali fissi           → 1234.57
+ *    `{value:+.2f}` col segno sempre esplicito → +1234.57 / -1234.57
  *    `{value:,.1f}` migliaia (locale) + dec. → 1.234,6 / 1,234.6
  *    `{value:.2e}`  notazione esponenziale   → 1.23e+3
  *    `{value:.1%}`  percentuale (×100)       → 45.6%
- *  Qualsiasi testo attorno al segnaposto resta (es. "{value:.1f} °C"). */
-function formatValue(value: number | string | boolean, format?: string): string {
-  if (format && typeof value === "number") {
-    const m = format.match(/\{value:(,)?\.(\d+)([fe%])\}/);
-    if (m) {
-      const [, thousands, dstr, kind] = m;
-      const d = Number(dstr);
-      const s =
-        kind === "e" ? value.toExponential(d)
-        : kind === "%" ? `${(value * 100).toFixed(d)}%`
-        : thousands
-          ? value.toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d })
-          : value.toFixed(d);
-      return format.replace(/\{value:[^}]+\}/, s);
-    }
-  }
-  return String(value);
+ *
+ *  **Il testo attorno al segnaposto resta sempre**, e tutti i segnaposti della
+ *  stringa vengono sostituiti.
+ *
+ *  Due difetti corretti il 17-09-2026, misurati sui template:
+ *
+ *   - la regex non ammetteva il `+`, quindi `{value:+.2f} kW` non combaciava e
+ *     la funzione cadeva nel ripiego `String(value)` — che butta via **tutto**
+ *     il testo attorno. `homeassistant-pro` usa quel formato quattordici volte
+ *     per i saldi di potenza, e mostrava il numero grezzo senza unità;
+ *   - `{value}` nudo dentro una frase («Livello {value}») subiva lo stesso
+ *     ripiego e perdeva la frase.
+ *
+ *  I casi stanno in `tests/fixtures/formattazione-valori.json`, letti anche dal
+ *  test Rust del viewer LVGL: i due motori disegnano gli stessi progetti, e due
+ *  tabelle di casi separate divergerebbero in silenzio. */
+const SPEC_VALORE = /\{value(?::(\+)?(,)?(?:\.(\d+))?([fe%])?)?\}/g;
+
+export function formatValue(value: number | string | boolean, format?: string): string {
+  if (!format) return String(value);
+  // Niente `.test()` prima: `replace` con una regex globale azzera da sé il
+  // proprio stato, e se il segnaposto non c'è restituisce la stringa
+  // intatta — che è anche il comportamento giusto («solo testo» resta testo,
+  // invece di diventare un numero che nessuno ha chiesto).
+  return format.replace(SPEC_VALORE, (_intero, segno, migliaia, decimali, tipo) => {
+    if (typeof value !== "number") return String(value);
+    const d = decimali == null ? undefined : Number(decimali);
+    let s: string;
+    if (tipo === "e") s = value.toExponential(d);
+    else if (tipo === "%") s = `${(value * 100).toFixed(d ?? 0)}%`;
+    else if (d == null) s = String(value);
+    else if (migliaia)
+      s = value.toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
+    else s = value.toFixed(d);
+    return segno && value >= 0 ? `+${s}` : s;
+  });
 }
 
 /** Il testo che un oggetto `text` mostra davvero: valore del tag formattato se

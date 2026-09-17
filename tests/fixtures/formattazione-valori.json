@@ -1,0 +1,71 @@
+{
+  "_perche": [
+    "I due motori formattano il valore di un tag con la stessa stringa `format`.",
+    "Fino al 17-09-2026 davano risultati diversi, e tutti e due sbagliavano:",
+    "",
+    "  - il viewer LVGL restituiva il SOLO numero e buttava via il testo attorno:",
+    "    `{value:.1f} bar` dava «12.3» invece di «12.3 bar». Su un pannello",
+    "    d'impianto l'unità sparita non è un dettaglio estetico;",
+    "  - il web teneva il testo, ma solo quando la specifica combaciava con una",
+    "    regex stretta. `{value:+.2f} kW` non combaciava, e il risultato era il",
+    "    valore grezzo senza niente attorno — proprio il formato che",
+    "    `homeassistant-pro` usa quattordici volte per i saldi di potenza;",
+    "  - `{value}` nudo dentro una frase perdeva la frase, su entrambi.",
+    "",
+    "I casi stanno qui, in un posto solo, e li leggono entrambi i test:",
+    "sws-editor/tests/formattazioneValori.test.ts e il modulo",
+    "`formattazione_valori_tests` di lvgl_render.rs."
+  ],
+  "casi": [
+    { "nome": "nessun formato: il valore così com'è",
+      "valore": 12.345, "format": null, "atteso": "12.345" },
+
+    { "nome": "decimali fissi",
+      "valore": 12.345, "format": "{value:.1f}", "atteso": "12.3" },
+
+    { "nome": "zero decimali, arrotondati",
+      "valore": 12.7, "format": "{value:.0f}", "atteso": "13" },
+
+    { "nome": "il testo attorno al segnaposto resta — LVGL lo perdeva",
+      "valore": 12.345, "format": "{value:.1f} bar", "atteso": "12.3 bar" },
+
+    { "nome": "testo prima e dopo",
+      "valore": 4.2, "format": "Pressione: {value:.2f} bar", "atteso": "Pressione: 4.20 bar" },
+
+    { "nome": "unità attaccata, senza spazio",
+      "valore": 21.5, "format": "{value:.1f}°C", "atteso": "21.5°C" },
+
+    { "nome": "segno esplicito, positivo — il web non lo riconosceva",
+      "valore": 2.5, "format": "{value:+.2f} kW", "atteso": "+2.50 kW" },
+
+    { "nome": "segno esplicito, negativo",
+      "valore": -0.75, "format": "{value:+.2f} kW", "atteso": "-0.75 kW" },
+
+    { "nome": "segno esplicito, zero: resta positivo",
+      "valore": 0, "format": "{value:+.1f}", "atteso": "+0.0" },
+
+    { "nome": "percentuale: il valore è una frazione e va moltiplicato",
+      "valore": 0.456, "format": "{value:.1%}", "atteso": "45.6%" },
+
+    { "nome": "esponenziale",
+      "valore": 1234.5, "format": "{value:.2e}", "atteso": "1.23e+3" },
+
+    { "nome": "segnaposto nudo",
+      "valore": 7, "format": "{value}", "atteso": "7" },
+
+    { "nome": "segnaposto nudo dentro una frase: la frase resta",
+      "valore": 7, "format": "Livello {value}", "atteso": "Livello 7" },
+
+    { "nome": "formato senza segnaposto: non è un formato, è testo",
+      "valore": 3, "format": "solo testo", "atteso": "solo testo" },
+
+    { "nome": "il formato printf non è supportato, e si vede: resta com'è",
+      "valore": 3, "format": "%.1f bar", "atteso": "%.1f bar" },
+
+    { "nome": "intero con decimali richiesti",
+      "valore": 5, "format": "{value:.2f}", "atteso": "5.00" },
+
+    { "nome": "due segnaposti: si sostituiscono entrambi",
+      "valore": 1.5, "format": "{value:.1f} di {value:.1f}", "atteso": "1.5 di 1.5" }
+  ]
+}
