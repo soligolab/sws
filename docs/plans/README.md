@@ -14,6 +14,7 @@
 
 | Piano | Stato | Cosa resta |
 |---|---|---|
+| [2026-09-17-workspace-cartella-progetti.md](2026-09-17-workspace-cartella-progetti.md) | **SEME — decisione** | due cose distinte: `start_editor.sh` è uno script di **produzione** e non deve imporre una radice dentro il checkout (si duplica in `start_editor_develop.sh`), e il concetto di **workspace** non esiste e va progettato. Quattro decisioni (D1-D4) prima di qualunque codice; una delle vie riapre Q46, che è una decisione di sicurezza già collaudata |
 | [2026-09-12-casamauro-arricchimento-demo.md](2026-09-12-casamauro-arricchimento-demo.md) | **DA FARE** | arricchire il progetto personale CasaMauro con le feature F2-F6 non esercitate — contenuto, non codice, nessun branch |
 
 **Dal 2026-09-12, anche le questioni aperte di `docs/OPEN_QUESTIONS.md` diventano piani singoli**

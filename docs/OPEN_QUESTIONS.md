@@ -757,6 +757,26 @@ del processo, quindi «configurarla dall'IDE» vuol dire deciderne la persistenz
 - *(c)* Niente: resta un argomento di avvio, come per un pannello — dove la radice la decide chi
   installa, non chi guarda lo schermo.
 
+### Direzione data dal maintainer il 17-09-2026, poche ore dopo
+
+Due cose, che spostano la domanda 1 e allargano la 2:
+
+> «`start_editor.sh` io l'ho sempre inteso come run di produzione (come fossi il cliente), se
+> serve duplichiamolo in `start_editor_develop.sh` per sviluppare. Poi alla prima apertura del
+> progetto serve definire dove salvare i progetti come fanno molti ambienti che definiscono il
+> **workspace** (e spesso possono avere più workspace in base al progetto)»
+
+Quindi la **domanda 1 non è più una scelta fra tre vie**: lo script di produzione non deve
+imporre una radice dentro il checkout, e lo sviluppo si fa con un secondo script. E la domanda 2
+non è più «chiedere o no la radice», ma «progettare il concetto di workspace», che è
+sostanzialmente più grande.
+
+Il seguito sta in [`docs/plans/2026-09-17-workspace-cartella-progetti.md`](plans/2026-09-17-workspace-cartella-progetti.md),
+con le misure di oggi — fra cui una contraddizione che questa scheda non conosceva:
+`ProjectRegistry` dichiara di coprire progetti «esterni, in una cartella scelta dal maintainer»,
+ma da **Q46** non è più possibile crearli. Un workspace multiplo richiede di riaprire quella
+decisione, che è di sicurezza ed è stata collaudata dal vivo.
+
 **Il rischio da dichiarare per (2a)**: la radice diventerebbe configurabile da **tre** posti
 (flag, variabile d'ambiente, file), e quando una cosa arriva da tre posti la domanda «perché i
 miei progetti sono lì?» non ha più una risposta breve. Se si fa, serve una precedenza scritta e
