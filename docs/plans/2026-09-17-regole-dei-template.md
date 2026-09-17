@@ -1,9 +1,8 @@
 # Le regole dei template — definirle prima di rimettere mano ai template
 
-> **Stato: BOZZA, in attesa delle decisioni del maintainer.** Nessuna riga di codice, nessun
-> template toccato finché le regole non sono approvate. È esplicitamente ciò che il maintainer
-> ha chiesto il 16-09-2026: «riprendiamo il lavoro dei template ma prima di implementarlo
-> definiamo delle regole».
+> **Stato: REGOLE APPROVATE il 17-09-2026.** Le quattro decisioni D1-D4 sono state prese dal
+> maintainer e sono registrate in fondo a ciascuna. Da qui in poi si costruisce: le guardie
+> prima, l'applicazione ai template dopo.
 
 ## La richiesta
 
@@ -172,6 +171,9 @@ finita».
 *Raccomandazione: (c).* È l'unica che non blocca il Passo 5 dietro a un riflusso di 739 oggetti, e
 la guardia si può accendere con la lista delle eccezioni dichiarate che si svuota man mano.
 
+
+> **DECISO (17-09-2026): (c) — la regola vale da subito per tutto ciò che nasce, e i sei template fuori formato si riflussano quando gli si mette mano per le altre regole. La guardia parte con le eccezioni dichiarate, che si svuotano man mano.**
+
 ### D2 — `homeassistant-pro` è un'eccezione o cambia natura?
 
 - **(a) Eccezione dichiarata.** Resta com'è, con il perché scritto nella guardia: è la vetrina del
@@ -182,6 +184,9 @@ la guardia si può accendere con la lista delle eccezioni dichiarate che si svuo
 *Raccomandazione: (a).* Un parco template senza nessun esempio completo perde qualcosa che ha
 valore, e la parola «pro» nel nome è già l'avviso.
 
+
+> **DECISO (17-09-2026): (a) — `homeassistant-pro` resta com'è, eccezione dichiarata nella guardia con il perché: è la vetrina del «cosa si può fare», non il punto di partenza.**
+
 ### D3 — `t69-collaudo` è un template?
 
 Non ha `README.md`, quindi il Passo 2 non gli ha dato un ruolo; ha 0 voci di lingua, 41 testi
@@ -191,6 +196,9 @@ collaudo può vivere altrove e sparire dalla vetrina.
 
 *Raccomandazione: spostarlo fuori dalla vetrina* (o dargli un `README` che dichiari il ruolo
 «banco di prova» e un'eccezione esplicita alle regole R1-R3, come per gli altri banchi).
+
+
+> **DECISO (17-09-2026): fuori dalla vetrina. `t69-collaudo` si sposta fuori da `examples/templates/`: è il banco di prova di T-69, serve a noi e non all'utente, e non deve comparire nella lista dei template.**
 
 ### D4 — Le regole valgono anche per i banchi di prova?
 
@@ -204,6 +212,9 @@ d'impianto.
 e per gli inventari, non per i banchi di protocollo**, e l'esenzione si dichiara nel `README` di
 ciascuno accanto al ruolo. Per i `demo-items-*`, tokenizzare le etichette ha senso proprio perché
 sono la vetrina che l'utente copia.
+
+
+> **DECISO (17-09-2026): nessuna esenzione — R2 e R3 valgono per tutti**, banchi di protocollo compresi. È la decisione che allarga di più il lavoro — enip, s7, sparkplug e opcua devono tokenizzare anche i nomi dei registri e le etichette di collegamento — e la ragione è la stessa che vale per i `demo-items`: un template è ciò che l'utente copia, e un banco con le stringhe cablate insegna a cablare le stringhe.**
 
 ---
 
