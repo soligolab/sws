@@ -1,26 +1,14 @@
 # SWS — Open Architectural Questions
 
-> Decisions that came up during development but are **not for Claude Code to settle in a vibecode session**. The maintainer reviews and decides these out-of-band.
+> **File congelato dal 2026-09-18.** Le domande architetturali non nascono più qui: una domanda
+> nuova è un **seme di piano** in [`docs/plans/`](plans/README.md) (CLAUDE.md, «Plans»). Questo
+> file tiene i numeri già assegnati, perché `STATUS.md`, il codice e i piani li citano e
+> `check_documenti.sh` verifica che nessuno sparisca. Ogni scheda rimasta è **un titolo, un
+> rimando e lo stato in una riga**; il testo integrale vive nel piano che la porta.
 >
-> When Claude Code encounters one of these, it should: pick the documented PoC default, add a `// TODO(open-question):` comment in code referencing the question number here, and continue.
->
-> **Dal 2026-09-06 questo file contiene solo le questioni vive.** Quelle decise, realizzate e
-> **verificate sul codice** stanno in [`docs/history/OPEN_QUESTIONS-chiuse.md`](history/OPEN_QUESTIONS-chiuse.md),
-> indicizzate in coda a questo file. I numeri **non si riusano mai**: una scheda nuova prende il
-> numero successivo all'ultimo assegnato, archivio compreso (`check_documenti.sh` fa i conti).
->
-> **Dal 2026-09-12, una scheda ancora viva può avere il testo spostato in un piano** sotto
-> `docs/plans/` invece di restare qui per intero — non è una chiusura: la domanda resta aperta,
-> il numero resta suo, solo il contenuto integrale vive altrove (il piano lo riporta parola per
-> parola, sotto «Testo originale della scheda»). Qui resta il titolo, il rimando e lo stato in
-> una riga. Non tutte le schede vive sono così: solo quelle per cui è stato preparato un piano.
->
-> **Dal 2026-09-18 questo file è congelato.** Decisione del maintainer: una domanda nuova non
-> diventa più una scheda qui, diventa un **file di piano sintetico** in `docs/plans/` — l'idea, le
-> misure di quel momento, e l'indicazione che quando il lavoro comincerà servirà una sessione di
-> plan approfondita. I numeri già assegnati restano, ogni scheda rimasta rimanda al piano che ne
-> tiene il testo, e `check_documenti.sh` continua a verificare che nessun numero sparisca. Qui non
-> nascono più Q-numeri.
+> Le schede decise, realizzate e **verificate sul codice** stanno in
+> [`docs/history/OPEN_QUESTIONS-chiuse.md`](history/OPEN_QUESTIONS-chiuse.md), indicizzate in
+> coda. I numeri non si riusano mai.
 
 ---
 
@@ -251,13 +239,12 @@ Contenuto spostato in [`docs/plans/2026-09-18-workspace-dei-progetti.md`](plans/
 
 ---
 
-## Adding new questions
+## Aprire una domanda nuova
 
-When Claude Code adds a new question, follow the format above:
-1. **Context** — why this came up.
-2. **Options** — at least 2, briefly described.
-3. **Default for PoC** — what we're doing for now.
-4. **Decided** — left as `not yet` until the maintainer fills it in.
+Non qui. Si scrive un seme in `docs/plans/<data>-<slug>.md` — l'idea, le misure di adesso, e la
+frase che quando quel lavoro comincerà servirà una sessione di plan approfondita — e una riga
+nella seconda tabella di `docs/plans/README.md`. Regola del maintainer del 2026-09-18, in
+`CLAUDE.md`.
 
 ## Archivio — decise, realizzate e verificate
 
