@@ -17,6 +17,9 @@ import { genId } from "@/id";
 import { useAppStore } from "@/store";
 import { effectiveProjectLang, localizeObject, resolveMsg } from "@/i18n/projectI18n";
 import { useLinguaContenuti } from "@/i18n/linguaContenuti";
+// Le parole che il motore scrive da sé, nella lingua dei CONTENUTI: la stessa
+// tabella del pannello LVGL (tests/fixtures/testi-sistema.json).
+import { testoSistema } from "@/i18n/testiSistema";
 import { evalExpr } from "@/expr/engine";
 import { applyStateColor, parseSvg, sanitizeSvg } from "@/symbols/customSvg";
 import { trendTraces } from "@/canvas/trendModel";
@@ -2850,7 +2853,6 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
     .sort((a, b) => (b.activated_at_ms ?? 0) - (a.activated_at_ms ?? 0))
     .slice(0, maxRows);
 
-  const { t } = useTranslation();
   const sevColor = (sev: string) => SEV_COLOR[(sev as AlarmSeverity) ?? "Info"] ?? SEV_COLOR.Info;
 
   // F7.5 — `askReason`: chiede un commento e lo manda con la conferma (finisce
@@ -2949,9 +2951,9 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
         render: (a) => <span style={{ color: sevColor(a.def.severity ?? "Warning") }}>●</span>,
       },
       { key: "id", header: "ID", accessor: (a) => a.def.id },
-      { key: "message", header: t("viewerChrome.message"), accessor: (a) => locMsg(a.def.message) },
+      { key: "message", header: testoSistema("messaggio", msgLang), accessor: (a) => locMsg(a.def.message) },
       ...(showTs ? [{
-        key: "ts", header: t("viewerChrome.triggered"), width: 68, filterable: false,
+        key: "ts", header: testoSistema("attivato", msgLang), width: 68, filterable: false,
         accessor: (a: AlarmState) => a.activated_at_ms ?? 0,
         render: (a: AlarmState) => a.activated_at_ms
           ? new Date(a.activated_at_ms).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })
@@ -4743,10 +4745,10 @@ export function SvgObject(p: ObjProps) {
 
     const columns: DataTableColumn<TableRow>[] = cols.map((c): DataTableColumn<TableRow> => {
       if (c === "label") {
-        return { key: "label", header: obj.table_label_header ?? t("viewerChrome.data"), accessor: (r) => r.label };
+        return { key: "label", header: obj.table_label_header ?? testoSistema("dati", lingua.lang).toUpperCase(), accessor: (r) => r.label };
       }
       if (c === "unit") {
-        return { key: "unit", header: t("viewerChrome.unit"), accessor: (r) => r.unit ?? "", width: 52, filterable: false };
+        return { key: "unit", header: testoSistema("unita", lingua.lang), accessor: (r) => r.unit ?? "", width: 52, filterable: false };
       }
       if (c === "quality") {
         return {
@@ -4761,7 +4763,7 @@ export function SvgObject(p: ObjProps) {
       }
       if (c === "time") {
         return {
-          key: "time", header: t("viewerChrome.time"), width: 72, filterable: false,
+          key: "time", header: testoSistema("ora", lingua.lang), width: 72, filterable: false,
           accessor: (r) => tagValues[r.tag]?.timestamp_ms ?? 0,
           render: (r) => {
             const ts = tagValues[r.tag]?.timestamp_ms;
@@ -4771,7 +4773,7 @@ export function SvgObject(p: ObjProps) {
       }
       // Colonna del valore: soglie per riga, e cella scrivibile se richiesto.
       return {
-        key: "value", header: t("viewerChrome.value"), align: "right", filterable: false,
+        key: "value", header: testoSistema("valore", lingua.lang).toUpperCase(), align: "right", filterable: false,
         // Ordinamento numerico quando il valore è un numero.
         accessor: (r) => rowNum(r) ?? rowText(r),
         render: (r) => {
@@ -4994,7 +4996,7 @@ export function SvgObject(p: ObjProps) {
     const tv = obj.tag ? tagValues[obj.tag] : undefined;
     const liveVal = tv?.value;
     const entry = matchTextListEntry(obj.text_list_entries, liveVal);
-    const label = entry ? entry.label : (obj.text_list_default ?? (liveVal !== undefined ? String(liveVal) : t("viewerChrome.na")));
+    const label = entry ? entry.label : (obj.text_list_default ?? (liveVal !== undefined ? String(liveVal) : testoSistema("nd", lingua.lang)));
     const textFill = entry ? (entry.color ?? obj.color ?? "#f1f5f9") : (obj.text_list_default_color ?? "var(--brand-text-muted, #94a3b8)");
     const size = obj.font_size ?? 16;
     const anchor = obj.text_anchor ?? "middle";
@@ -5310,7 +5312,7 @@ export function SvgObject(p: ObjProps) {
       const rest = entries.filter((e) => e.value / rawTotal < minPct);
       const restSum = rest.reduce((a, b) => a + b.value, 0);
       entries = restSum > 0
-        ? [...keep, { label: obj.pie_group_label ?? t("viewerChrome.other"), color: obj.pie_group_color ?? "#64748b", value: restSum }]
+        ? [...keep, { label: obj.pie_group_label ?? testoSistema("altro", lingua.lang), color: obj.pie_group_color ?? "#64748b", value: restSum }]
         : keep;
     }
 

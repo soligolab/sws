@@ -12,6 +12,18 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Changed
+- **Il testo di sistema è una tabella sola, e il viewer web segue la lingua dei contenuti.**
+  Le parole che il runtime scrive da sé — «Ora», «sì», «N/D», «altro», il titolo di una notifica —
+  vivevano in tre posti che non si conoscevano: il pannello LVGL (5 parole, it/de/fr/es/en), le
+  notifiche (8, stesse lingue) e il web (8, **due** lingue, e seguivano la lingua dell'IDE via
+  `t()`). Un operatore tedesco leggeva «Zeit» sul pannello e «Time» nel browser, dallo stesso
+  progetto. Ora la tabella è una — `tests/fixtures/testi-sistema.json`, 16 voci × 5 lingue —
+  con `sws_core::testi_sistema` per Rust (pannello **e** notifiche) e `testiSistema.ts` per il
+  web, che ora segue la lingua dei **contenuti** come il pannello. Due test la leggono e la
+  guardia `check_testi_sistema.sh` (21ª statica) verifica senza eseguire niente che ogni parola
+  compaia in entrambe le implementazioni. La shell del viewer web (login, header) resta asse
+  dell'IDE: su LVGL non esiste, non c'è parità da tenere — header in inglese e tabella in
+  tedesco è voluto. `viewerChrome.*` esce dai cataloghi dell'IDE. F3 del piano multilingua.
 - **Una voce con un segnaposto o un simbolo diventa una proposta da approvare** (D4, decisione
   del maintainer): `segmenta` tiene fuori dal traduttore `{value:.1f}` e le emoji, e il resto
   arriva a pezzi senza contesto — «Allarme di prova con 🎨 e testo» è tornato «Test alarm with 🎨
@@ -19,7 +31,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   Ora ogni voce così va in rosso, da rileggere e approvare, anche quando è venuta bene: da fuori
   non si può sapere. Il prezzo, accettato: ogni formato numerico si approva a mano.
 - **La scheda Variabili distingue la riga dei filtri** (sfondo e etichetta «filtri») e, quando
-  non c'è nessuna variabile, **offre subito una riga vuota da compilare** — come se «+ Aggiungi
+  non c'è nessuna variabile, **offre subito una riga vuota da compilare** (il primo tentativo, un `useEffect`, veniva vinto dalla sincronizzazione dallo store nello stesso giro di render: ora la riga vuota sta nello stato) — come se «+ Aggiungi
   variabile» fosse già stato premuto. Il maintainer aveva scritto la variabile nei filtri senza
   capire perché non si salvava.
 

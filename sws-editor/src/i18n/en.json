@@ -483,16 +483,6 @@
     "label": "Interface language",
     "title": "Interface language / Lingua interfaccia"
   },
-  "viewerChrome": {
-    "message": "Message",
-    "triggered": "Triggered",
-    "unit": "Unit",
-    "time": "Time",
-    "value": "VALUE",
-    "data": "DATA",
-    "other": "other",
-    "na": "N/A"
-  },
   "auth": {
     "user": "User",
     "password": "Password",

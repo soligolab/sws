@@ -217,6 +217,10 @@ IDENTIFICATORE = re.compile(r"^[a-z0-9]+([._:/-][a-z0-9]+)+$")
 ESCLUSIONI = [
     # già tradotto: è l'argomento di t() / i18n.t() / tr()
     (re.compile(r"(?:^|[^\w.])(?:i18n\.)?tr?\(\s*$"), "argomento di t()"),
+    # la CHIAVE di una voce del testo di sistema («dati», «valore»): passa dalla
+    # tabella condivisa con il pannello LVGL, nella lingua dei contenuti — è
+    # l'altro asse, non una scritta dell'IDE
+    (re.compile(r"\btestoSistema\(\s*$"), "chiave del testo di sistema"),
     # rivolto allo sviluppatore, non all'operatore
     (re.compile(r"console\.(?:log|warn|error|info|debug)\(\s*$"), "console"),
     (re.compile(r"new Error\(\s*$"), "Error — ATTENZIONE: se finisce in un alert(e.message) è debito vero"),
@@ -267,6 +271,15 @@ def candidati(percorso):
                 for m in DIALOGO.finditer(senza_commenti)]
     return sorted(set(fuori)), dialoghi
 
+# File che CONTENGONO testo in più lingue per mestiere, e che quindi hanno
+# italiano dentro per definizione — non è interfaccia cablata, è la tabella.
+# Ognuno con il perché; la sua parità la guarda un'altra guardia.
+FUORI_PERIMETRO = {
+    # il testo di sistema del viewer (asse c): stessa tabella del pannello LVGL,
+    # verificata da check_testi_sistema.sh contro tests/fixtures/testi-sistema.json
+    "i18n/testiSistema.ts",
+}
+
 def file_del_perimetro():
     for base, _, nomi in os.walk(SRC):
         for nome in nomi:
@@ -274,7 +287,10 @@ def file_del_perimetro():
                 continue
             if ".test." in nome or ".spec." in nome:
                 continue
-            yield os.path.join(base, nome)
+            percorso = os.path.join(base, nome)
+            if os.path.relpath(percorso, SRC) in FUORI_PERIMETRO:
+                continue
+            yield percorso
 
 def rel(p):
     return os.path.relpath(p, f"{root}/sws-editor")

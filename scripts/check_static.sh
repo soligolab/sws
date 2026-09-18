@@ -4,12 +4,12 @@
 #
 # PERCHÉ ESISTE
 #
-# Le guardie sono quarantasei e nessuno le lanciava tutte: a fine sessione se
+# Le guardie sono quarantasette e nessuno le lanciava tutte: a fine sessione se
 # ne ricordavano sei, per nome, a memoria. Una guardia che non viene lanciata è
 # codice morto che dà l'illusione di una rete di sicurezza — peggio del non
 # averla, perché ci si fida.
 #
-# Venti girano su file fermi (YAML, sorgenti, tabelle) e finiscono in pochi
+# Ventuno girano su file fermi (YAML, sorgenti, tabelle) e finiscono in pochi
 # secondi: sono queste. Le altre ventisei vogliono un runtime in ascolto, podman
 # o un dispositivo, e restano da lanciare a mano quando lo stack c'è —
 # `scripts/README.md` dice quale serve quando.
@@ -47,6 +47,7 @@ STATICHE=(
     check_i18n_parita       # web e pannello LVGL traducono lo stesso insieme di campi
     check_release_coerente  # versione, CHANGELOG e tag dicono la stessa cosa (anche su origin)
     check_i18n_ui           # l'interfaccia dell'IDE parla dal catalogo: italiano cablato per file, tetti che scendono
+    check_testi_sistema     # «Ora», «sì», «N/D»: una tabella, e le due implementazioni la contengono parola per parola
 )
 
 # Vogliono uno stack in ascolto, podman o un dispositivo: a mano, non qui.

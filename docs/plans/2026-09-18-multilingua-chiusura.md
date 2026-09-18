@@ -1,6 +1,6 @@
 # Multilingua: chiudere il capitolo
 
-> **Stato: PIANO D'ESECUZIONE approvato il 18-09-2026. F0, F1 e F2 fatte; prossima F3.** Nato dal seme
+> **Stato: PIANO D'ESECUZIONE approvato il 18-09-2026. F0-F3 fatte; prossima F4.** Nato dal seme
 > `docs/archive/2026-09-18-multilingua-residuo.md` (Q43 + Q57) in una sessione di plan col
 > maintainer, con due misure fatte prima di scrivere e quattro decisioni prese da lui. Le fasi sono
 > rami da una sessione ciascuno; si eseguono in ordine, **una alla volta**.
@@ -202,6 +202,14 @@ dal vivo: allarme di prova con messaggio `{{token}}`, email in `de` e Telegram i
 tradotto, intestazione tradotta, due lingue diverse sui due canali.
 
 ## F3 — i testi di sistema seguono la lingua dei **contenuti**, tabella condivisa
+
+> **Fatta il 18-09-2026.** 16 voci × 5 lingue (le 14 previste più i due titoli di notifica di F2).
+> `testi_sistema.rs` spostato in `sws-core` con uno stub `pub use` nel viewer, così `lvgl_render.rs`
+> non cambia; `etichette()` delle notifiche riempita dalla stessa tabella. Sul web gli otto punti
+> passano da `testoSistema(voce, lingua.lang)` (in `SvgObject`) o `msgLang` (in
+> `AlarmViewerWidget`); «DATI»/«VALORE» restano maiuscoli con `.toUpperCase()` sul chiamante, la
+> tabella tiene il caso normale. Con F3 è passata anche la correzione della riga vuota in Variabili
+> (F2c): il `useEffect` era vinto dal `setTags([])` della sincronizzazione, ora sta nello stato.
 
 **Perimetro da scrivere nel piano**: seguono la lingua dei contenuti **le parole che il motore
 scrive dentro la pagina** (intestazioni di colonna, «sì/no», «altro», «N/D») — le 8 `viewerChrome.*`

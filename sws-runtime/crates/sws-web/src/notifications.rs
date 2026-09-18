@@ -126,8 +126,8 @@ fn fmt_activated_at(ms: Option<u64>) -> String {
 /// **Non** sono contenuto di progetto: un progetto non deve poter rompere il
 /// formato di una notifica. E non sono nemmeno l'i18n dell'editor, che vive nel
 /// browser e qui non arriva. Sono una terza categoria — testo di sistema del
-/// runtime — e stanno qui, in chiaro, invece che in una tabella: sono sei
-/// parole, e un meccanismo per sei parole costa più di quanto renda.
+/// runtime — e dal 18-09-2026 stanno in `sws_core::testi_sistema`, la tabella
+/// condivisa con il pannello LVGL e con il viewer web.
 ///
 /// Fino al 15-09-2026 erano **italiano cablato** dentro la `format!`, quindi un
 /// impianto tedesco riceveva «Severità:» comunque. Le lingue non elencate
@@ -150,57 +150,21 @@ struct EtichetteNotifica {
 }
 
 fn etichette(lingua: &str) -> EtichetteNotifica {
-    match lingua {
-        "it" => EtichetteNotifica {
-            allarme: "Allarme",
-            messaggio: "Messaggio",
-            severita: "Severità",
-            tag: "Tag",
-            valore: "Valore",
-            attivato: "Attivato",
-            attivo: "🔴 ALLARME ATTIVO",
-            escalation: "⏫ ESCALATION: allarme non riconosciuto",
-        },
-        "de" => EtichetteNotifica {
-            allarme: "Alarm",
-            messaggio: "Meldung",
-            severita: "Schweregrad",
-            tag: "Tag",
-            valore: "Wert",
-            attivato: "Ausgelöst",
-            attivo: "🔴 ALARM AKTIV",
-            escalation: "⏫ ESKALATION: Alarm nicht quittiert",
-        },
-        "fr" => EtichetteNotifica {
-            allarme: "Alarme",
-            messaggio: "Message",
-            severita: "Gravité",
-            tag: "Tag",
-            valore: "Valeur",
-            attivato: "Déclenché",
-            attivo: "🔴 ALARME ACTIVE",
-            escalation: "⏫ ESCALADE : alarme non acquittée",
-        },
-        "es" => EtichetteNotifica {
-            allarme: "Alarma",
-            messaggio: "Mensaje",
-            severita: "Severidad",
-            tag: "Tag",
-            valore: "Valor",
-            attivato: "Activado",
-            attivo: "🔴 ALARMA ACTIVA",
-            escalation: "⏫ ESCALADO: alarma no reconocida",
-        },
-        _ => EtichetteNotifica {
-            allarme: "Alarm",
-            messaggio: "Message",
-            severita: "Severity",
-            tag: "Tag",
-            valore: "Value",
-            attivato: "Triggered",
-            attivo: "🔴 ALARM ACTIVE",
-            escalation: "⏫ ESCALATION: alarm not acknowledged",
-        },
+    // Dal 18-09-2026 le parole non stanno più qui: stanno in
+    // `sws_core::testi_sistema`, che è la stessa tabella del pannello LVGL e del
+    // viewer web — una notifica in tedesco e un pannello in tedesco dicono
+    // «Schweregrad» dallo stesso posto. Questa struct resta solo per dare un nome
+    // ai campi nella `format!` del corpo.
+    use sws_core::testi_sistema::{testo, Testo};
+    EtichetteNotifica {
+        allarme: testo(Testo::Allarme, lingua),
+        messaggio: testo(Testo::Messaggio, lingua),
+        severita: testo(Testo::Severita, lingua),
+        tag: testo(Testo::Tag, lingua),
+        valore: testo(Testo::Valore, lingua),
+        attivato: testo(Testo::Attivato, lingua),
+        attivo: testo(Testo::AllarmeAttivo, lingua),
+        escalation: testo(Testo::EscalationNonRiconosciuta, lingua),
     }
 }
 

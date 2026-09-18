@@ -418,7 +418,17 @@ function TagsTab() {
   const markSaveOk          = useAppStore((s) => s.markSaveOk);
   const datastoreIds        = storeProject?.datastores?.map((d) => ({ id: d.id, label: d.label })) ?? [];
 
-  const [tags, setTags]         = useState<TagDef[]>(storeProject?.tags ?? []);
+  // Una scheda vuota mostrava solo la riga dei filtri, e il maintainer — il
+  // 18-09-2026 — ci ha scritto dentro la variabile che voleva creare. Quindi:
+  // niente righe = una riga vuota da compilare, come se «+ Aggiungi variabile»
+  // fosse già premuto. Sta NELLO STATO e non in un effetto: il primo tentativo
+  // era un `useEffect` su `tags.length`, e il `setTags([])` della
+  // sincronizzazione dallo store, nello stesso giro di render, lo vinceva —
+  // React tiene l'ultimo `set`, e a lunghezza invariata l'effetto non ripartiva.
+  // `handleSave` scarta comunque le righe con id vuoto.
+  const conRigaVuota = (v: TagDef[]): TagDef[] =>
+    v.length ? v : [{ id: "", description: "", data_type: "float" }];
+  const [tags, setTags]         = useState<TagDef[]>(conRigaVuota(storeProject?.tags ?? []));
   const [saving, setSaving]     = useState(false);
   const [saved, setSaved]       = useState(false);
   const [exprOpen, setExprOpen] = useState<Set<number>>(new Set());
@@ -458,16 +468,6 @@ function TagsTab() {
   // esattamente il caso che fece danno.
   const [touched, setTouched] = useState(false);
 
-  // Una scheda vuota mostra solo la riga dei filtri, e il maintainer — il
-  // 18-09-2026 — ci ha scritto dentro la variabile che voleva creare, senza
-  // capire perché non si salvava. Quindi: se non c'è nessuna riga, ce n'è
-  // subito una vuota da compilare, come se «+ Aggiungi variabile» fosse già
-  // stato premuto. Senza alzare `touched`: non è una modifica dell'utente, e
-  // `handleSave` scarta comunque le righe con id vuoto.
-  useEffect(() => {
-    if (tags.length === 0) setTags([{ id: "", description: "", data_type: "float" }]);
-  }, [tags.length]);
-
   // Depend on the full project object so content changes (not just count) trigger a refresh.
   // Vedi `useSezioneSincronizzata`: prima questo effetto dipendeva
   // dall'INTERO `storeProject`, che cambia identità a ogni salvataggio di
@@ -475,7 +475,7 @@ function TagsTab() {
   // azzerando anche `touched`, così niente avvisava.
   const sync = useSezioneSincronizzata<TagDef[]>({
     remoto: storeProject?.tags,
-    applica: (v) => { setTags(v); setTouched(false); },
+    applica: (v) => { setTags(conRigaVuota(v)); setTouched(false); },
     modificato: touched,
     progetto: storeProject?.meta?.name,
   });
@@ -492,7 +492,7 @@ function TagsTab() {
 
   const removeTag = (idx: number) => {
     setTouched(true);
-    setTags((prev) => prev.filter((_, i) => i !== idx));
+    setTags((prev) => conRigaVuota(prev.filter((_, i) => i !== idx)));
   };
 
   const toggleExpr = (idx: number) =>

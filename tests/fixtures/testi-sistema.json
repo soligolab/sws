@@ -1,0 +1,41 @@
+{
+  "_perche": [
+    "Le parole che il SISTEMA scrive dentro la pagina o dentro una notifica — non",
+    "contenuto di progetto, non interfaccia dell'editor: intestazioni di colonna,",
+    "«sì»/«no», «N/D», il titolo di una notifica d'allarme. Fino al 18-09-2026",
+    "vivevano in tre posti che non si conoscevano: `testi_sistema.rs` nel viewer",
+    "LVGL (5 parole, it/de/fr/es/en), `etichette()` in notifications.rs (8 parole,",
+    "stesse lingue) e `viewerChrome.*` in it.json/en.json (8 parole, DUE lingue,",
+    "e seguivano la lingua dell'IDE invece di quella dei contenuti). Un operatore",
+    "tedesco leggeva «Zeit» sul pannello e «Time» nel browser.",
+    "",
+    "Questa è la tabella, in un posto solo. La leggono il test Rust di sws-core",
+    "(`testi_sistema::tests`), il test TypeScript (`tests/testiSistema.test.ts`) e",
+    "la guardia statica `scripts/check_testi_sistema.sh`, che verifica che ogni",
+    "parola qui sotto compaia tale e quale nelle due implementazioni. Le lingue non",
+    "elencate ripiegano su `ripiego`: l'inglese, non l'italiano — l'italiano era",
+    "italiano solo perché lo era chi ha scritto il codice.",
+    "",
+    "`confermato` è abbreviato in tutte le lingue: è l'intestazione di una colonna",
+    "stretta, e una parola intera la farebbe tagliare sul vetro."
+  ],
+  "ripiego": "en",
+  "voci": {
+    "ora":        { "it": "Ora",       "de": "Zeit",        "fr": "Heure",     "es": "Hora",      "en": "Time" },
+    "allarme":    { "it": "Allarme",   "de": "Alarm",       "fr": "Alarme",    "es": "Alarma",    "en": "Alarm" },
+    "confermato": { "it": "Conf.",     "de": "Best.",       "fr": "Acq.",      "es": "Conf.",     "en": "Ack" },
+    "si":         { "it": "sì",        "de": "ja",          "fr": "oui",       "es": "sí",        "en": "yes" },
+    "no":         { "it": "no",        "de": "nein",        "fr": "non",       "es": "no",        "en": "no" },
+    "messaggio":  { "it": "Messaggio", "de": "Meldung",     "fr": "Message",   "es": "Mensaje",   "en": "Message" },
+    "severita":   { "it": "Severità",  "de": "Schweregrad", "fr": "Gravité",   "es": "Severidad", "en": "Severity" },
+    "tag":        { "it": "Tag",       "de": "Tag",         "fr": "Tag",       "es": "Tag",       "en": "Tag" },
+    "valore":     { "it": "Valore",    "de": "Wert",        "fr": "Valeur",    "es": "Valor",     "en": "Value" },
+    "attivato":   { "it": "Attivato",  "de": "Ausgelöst",   "fr": "Déclenché", "es": "Activado",  "en": "Triggered" },
+    "dati":       { "it": "Dati",      "de": "Daten",       "fr": "Données",   "es": "Datos",     "en": "Data" },
+    "unita":      { "it": "U.M.",      "de": "Einh.",       "fr": "Unité",     "es": "Unidad",    "en": "Unit" },
+    "altro":      { "it": "altro",     "de": "andere",      "fr": "autres",    "es": "otros",     "en": "other" },
+    "nd":         { "it": "N/D",       "de": "k. A.",       "fr": "N/D",       "es": "N/D",       "en": "N/A" },
+    "allarme_attivo":              { "it": "🔴 ALLARME ATTIVO", "de": "🔴 ALARM AKTIV", "fr": "🔴 ALARME ACTIVE", "es": "🔴 ALARMA ACTIVA", "en": "🔴 ALARM ACTIVE" },
+    "escalation_non_riconosciuta": { "it": "⏫ ESCALATION: allarme non riconosciuto", "de": "⏫ ESKALATION: Alarm nicht quittiert", "fr": "⏫ ESCALADE : alarme non acquittée", "es": "⏫ ESCALADO: alarma no reconocida", "en": "⏫ ESCALATION: alarm not acknowledged" }
+  }
+}
