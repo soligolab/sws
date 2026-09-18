@@ -11,6 +11,18 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Added
+- **`check_i18n_ui.sh`, 20ª guardia statica: l'interfaccia dell'IDE parla dal catalogo.**
+  `it.json`/`en.json` erano in parità perfetta (1271 chiavi, protette da un test) e nonostante
+  questo l'IDE aveva **627 stringhe italiane fuori da `t()`** — 394 in `ConfigView.tsx` — e 35
+  `confirm/alert/prompt` con testo letterale: la parità del catalogo era guardata, la copertura no.
+  La guardia conta per file con tetti che possono solo scendere (idioma di `R2_DEBITO`), esclude
+  con motivo scritto il **contenuto predefinito degli oggetti** (`text: "Testo"`: è asse dei
+  contenuti, non dell'interfaccia — l'elenco dei campi lo legge da `projectI18n.ts`), ha
+  `--elenca <file>` per pagare il debito e `--autotest` che inchioda l'euristica. Provata rossa
+  senza tetti, rossa aggiungendo una stringa e un dialogo a un file a tetto, verde con i numeri
+  di oggi. È la F1 del piano `docs/plans/2026-09-18-multilingua-chiusura.md`.
+
 ### Changed
 - **Il seme dell'immagine di boot è diventato un piano d'esecuzione**
   (`docs/plans/2026-09-18-immagine-di-boot.md`, sessione di plan del 18-09-2026, nessun codice):

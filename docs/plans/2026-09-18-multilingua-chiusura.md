@@ -1,6 +1,6 @@
 # Multilingua: chiudere il capitolo
 
-> **Stato: PIANO D'ESECUZIONE approvato il 18-09-2026, F0 fatta, F1 non iniziata.** Nato dal seme
+> **Stato: PIANO D'ESECUZIONE approvato il 18-09-2026. F0 e F1 fatte; prossima F2.** Nato dal seme
 > `docs/archive/2026-09-18-multilingua-residuo.md` (Q43 + Q57) in una sessione di plan col
 > maintainer, con due misure fatte prima di scrivere e quattro decisioni prese da lui. Le fasi sono
 > rami da una sessione ciascuno; si eseguono in ordine, **una alla volta**.
@@ -107,6 +107,14 @@ d'esecuzione»); riga in `docs/plans/README.md` come **IN CORSO**. Le schede Q43
 `docs/OPEN_QUESTIONS.md` puntano al seme: aggiornare il rimando al piano nuovo.
 
 ## F1 — `scripts/check_i18n_ui.sh`: la guardia dell'asse (a)
+
+> **Fatta il 18-09-2026.** Primo giro: **627 stringhe in 36 file e 35 dialoghi in 4** — il doppio
+> della stima dell'esplorazione (~320), perché la guardia guarda anche il **testo JSX** (`<span>Salva</span>`)
+> che l'agente non contava. `EditorShell.tsx` da 20 a 71, `ConfigView.tsx` da 204 a 394. Le
+> esclusioni vere aggiunte al primo giro, col motivo nel file: due parole deboli **distinte**
+> («Lo-Lo» non è italiano), e il testo JSX che contiene `;`/`const`/`=>` è codice pescato fra un
+> `=>` e un generico, non una scritta. Provata rossa tre volte: senza tetti, con una stringa in più,
+> con un dialogo in più.
 
 **File**: `scripts/check_i18n_ui.sh` (nuovo, bash + `exec python3 - "$PWD" <<'PY'` come
 `check_templates.sh`), `scripts/check_static.sh` (riga in `STATICHE`, obbligatoria — senza,
