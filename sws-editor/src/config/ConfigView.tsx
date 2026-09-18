@@ -81,6 +81,7 @@ import type {
 } from "@/types";
 import { useSezioneSincronizzata } from "@/config/useSezioneSincronizzata";
 import { CampoTestoTradotto } from "@/editor/CampoTestoTradotto";
+import { contaAutomatiche, eAutomatica, marcaComeUmana } from "@/i18n/tabellaLingue";
 
 /** Avviso in linea quando il progetto cambia mentre stai modificando una
  *  sezione. Due pulsanti e nessun modale: un modale in mezzo al lavoro va
@@ -10561,6 +10562,19 @@ function DevicesTab() {
 // ── ConfigView root ───────────────────────────────────────────────────────────
 
 // ── Languages tab (T-40): project message translation table ─────────────────
+// I quattro fornitori di traduzione e cosa vogliono come chiave. Specchio di
+// `Fornitore::richiede_chiave()` in `sws-web/src/traduttore.rs:54`: quattro
+// righe, e la divergenza è dichiarata qui invece di un endpoint in più.
+// «optional» è LibreTranslate, che accetta `api_key` (`traduttore.rs:312`)
+// ma fino al 18-09-2026 non aveva il campo per darla.
+const FORNITORI = ["my_memory", "libre_translate", "google", "ia"] as const;
+const CHIAVE: Record<string, "required" | "optional" | "ide" | "none"> = {
+  my_memory: "none",
+  libre_translate: "optional",
+  google: "required",
+  ia: "ide",
+};
+
 function LanguagesTab() {
   const markSaveOk = useAppStore((s) => s.markSaveOk);
   const { t } = useTranslation();
@@ -10620,8 +10634,14 @@ function LanguagesTab() {
   const removeRow = (idx: number) => patch({ entries: table.entries.filter((_, i) => i !== idx) });
   const setKey = (idx: number, key: string) =>
     patch({ entries: table.entries.map((e, i) => (i === idx ? { ...e, key } : e)) });
+  // Scrivere a mano in una cella la rende lavoro umano: il marchio «automatica»
+  // per quella lingua sparisce (`marcaComeUmana`, gemello di `marca_come_umana`
+  // in Rust). Fino al 18-09-2026 il marchio restava, e «ritraduci tutto» poteva
+  // riscrivere una correzione fatta a mano — la promessa «una traduzione umana
+  // non si sovrascrive mai» valeva solo lato runtime.
   const setVal = (idx: number, code: string, val: string) =>
-    patch({ entries: table.entries.map((e, i) => (i === idx ? { ...e, values: { ...e.values, [code]: val } } : e)) });
+    patch({ entries: table.entries.map((e, i) =>
+      (i === idx ? marcaComeUmana({ ...e, values: { ...e.values, [code]: val } }, code) : e)) });
 
   // Le proposte si modificano, si accettano o si buttano. Accettarle le sposta
   // fra i valori e toglie il marchio «automatica»: da quel momento sono lavoro
@@ -10804,17 +10824,14 @@ function LanguagesTab() {
           {table.langs.map((l) => <option key={l} value={l}>{l}</option>)}
         </select>
         <button onClick={addLang} style={S.btn("primary")}>{t("langtab.addLang")}</button>
-        <span style={{ fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", marginLeft: 10 }}>Traduci con:</span>
+        <span style={{ fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", marginLeft: 10 }}>{t("langtab.traduciCon")}</span>
         <select value={traduttore} onChange={(e) => setTraduttore(e.target.value)}
           style={{ background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", fontSize: 12 }}>
-          <option value="my_memory">MyMemory — gratuito, senza chiave</option>
-          <option value="libre_translate">LibreTranslate — libero / in casa</option>
-          <option value="google">Google Translate — a consumo</option>
-          <option value="ia">Assistente IA — usa la chiave dell'IDE</option>
+          {FORNITORI.map((f) => <option key={f} value={f}>{t(`langtab.fornitore.${f}`)}</option>)}
         </select>
-        {(traduttore === "google") && (
+        {CHIAVE[traduttore] !== "none" && CHIAVE[traduttore] !== "ide" && (
           <input type="password" value={chiaveTrad} onChange={(e) => setChiaveTrad(e.target.value)}
-            placeholder="chiave API" autoComplete="off"
+            placeholder={t(CHIAVE[traduttore] === "required" ? "langtab.chiaveApi" : "langtab.chiaveApiFacoltativa")} autoComplete="off"
             style={{ background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", fontSize: 12, width: 140 }} />
         )}
         {traduttore === "libre_translate" && (
@@ -10824,7 +10841,13 @@ function LanguagesTab() {
         )}
         {traducendo && (
           <span style={{ fontSize: 12, color: "var(--brand-warning-soft, #fbbf24)" }}>
-            ⏳ traduzione verso «{traducendo}» in corso…
+            {t("langtab.traducendo", { lang: traducendo })}
+          </span>
+        )}
+        {contaAutomatiche(table) > 0 && (
+          <span style={{ fontSize: 11, color: "var(--brand-warning-soft, #fbbf24)", marginLeft: 8 }}
+            title={t("langtab.autoHint")}>
+            {t("langtab.autoCount", { n: contaAutomatiche(table) })}
           </span>
         )}
         {table.langs.filter((l) => l !== table.default).map((l) => (
@@ -10898,18 +10921,25 @@ function LanguagesTab() {
                           value={e.proposte[l]}
                           onChange={(ev) => setProposta(origIdx, l, ev.target.value)}
                           style={{ ...IN, borderColor: "var(--brand-danger, #ef4444)", color: "var(--brand-danger-soft, #fca5a5)" }}
-                          title="Proposta automatica incompleta: manca un segnaposto di formato. Correggila e approvala."
+                          title={t("langtab.propostaHint")}
                         />
                         <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
                           <span style={{ fontSize: 10, color: "var(--brand-danger-soft, #fca5a5)" }}>
-                            da approvare
+                            {t("langtab.daApprovareBreve")}
                           </span>
                           <button onClick={() => approvaProposta(origIdx, l)} style={S.btn("ghost")}
-                            title="Accetta questo testo come traduzione">✓</button>
+                            title={t("langtab.approva")}>✓</button>
                           <button onClick={() => scartaProposta(origIdx, l)} style={S.btn("ghost")}
-                            title="Scarta la proposta e lascia la casella vuota">✕</button>
+                            title={t("langtab.scarta")}>✕</button>
                         </div>
                       </div>
+                    ) : eAutomatica(e, l) ? (
+                      // Riempita dalla macchina e mai riletta: bordo tratteggiato,
+                      // finché una persona non la tocca. Prima era identica a una
+                      // cella scritta a mano, e il marchio non si vedeva da nessuna parte.
+                      <input value={e.values[l] ?? ""} onChange={(ev) => setVal(origIdx, l, ev.target.value)}
+                        style={{ ...IN, borderStyle: "dashed", borderColor: "var(--brand-warning, #eab308)" }}
+                        title={t("langtab.autoHint")} />
                     ) : (
                       <input value={e.values[l] ?? ""} onChange={(ev) => setVal(origIdx, l, ev.target.value)} style={IN} />
                     )}

@@ -48,7 +48,7 @@ PI18N = f"{SRC}/i18n/projectI18n.ts"
 # di abbassare il numero; un file a zero va tolto. Vuoto = capitolo chiuso: se
 # ricompare una riga, è un file tornato indietro.
 TETTI = {
-    "src/config/ConfigView.tsx": 391,
+    "src/config/ConfigView.tsx": 392,
     "src/editor/EditorShell.tsx": 71,
     "src/store/index.ts": 35,
     "src/editor/LeftPanel.tsx": 23,

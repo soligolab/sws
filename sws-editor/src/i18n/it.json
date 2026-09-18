@@ -1320,7 +1320,23 @@
     "empty": "Nessun messaggio. Aggiungi una lingua e un messaggio, oppure importa un CSV.",
     "removeLang": "Rimuovi lingua",
     "noLangs": "Aggiungi almeno una lingua per iniziare.",
-    "daApprovare": "{{n}} voci sono da approvare: contengono un segnaposto come {value:.1f} o un simbolo come 🎨, che spezzano la frase per il traduttore — un pezzo corto come «e testo» può tornare com'era. Le trovi in rosso nella tabella, da rileggere, correggere e approvare. Finché non le approvi non raggiungono nessun pannello."
+    "daApprovare": "{{n}} voci sono da approvare: contengono un segnaposto come {value:.1f} o un simbolo come 🎨, che spezzano la frase per il traduttore — un pezzo corto come «e testo» può tornare com'era. Le trovi in rosso nella tabella, da rileggere, correggere e approvare. Finché non le approvi non raggiungono nessun pannello.",
+    "traduciCon": "Traduci con:",
+    "fornitore": {
+      "my_memory": "MyMemory — gratuito, senza chiave",
+      "libre_translate": "LibreTranslate — libero / in casa",
+      "google": "Google Translate — a consumo",
+      "ia": "Assistente IA — usa la chiave dell'IDE"
+    },
+    "chiaveApi": "chiave API",
+    "chiaveApiFacoltativa": "chiave API (facoltativa)",
+    "traducendo": "⏳ traduzione verso «{{lang}}» in corso…",
+    "autoHint": "Tradotta dalla macchina: rileggila. Modificandola diventa tua e non verrà più sovrascritta da «ritraduci».",
+    "autoCount": "⚙ {{n}} automatiche da rileggere",
+    "propostaHint": "Proposta automatica: contiene un segnaposto o un simbolo, che spezzano la frase per il traduttore. Rileggila, correggila e approvala.",
+    "daApprovareBreve": "da approvare",
+    "approva": "Accetta questo testo come traduzione",
+    "scarta": "Scarta la proposta e lascia la casella vuota"
   },
   "keypad": {
     "open": "Tastierino numerico",

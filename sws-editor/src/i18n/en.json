@@ -1320,7 +1320,23 @@
     "empty": "No messages. Add a language and a message, or import a CSV.",
     "removeLang": "Remove language",
     "noLangs": "Add at least one language to start.",
-    "daApprovare": "{{n}} entries need approval: they contain a placeholder such as {value:.1f} or a symbol such as 🎨, which split the sentence for the translator — a short piece like “and text” may come back untouched. They are shown in red in the table: re-read, correct and approve them. Until approved they reach no panel."
+    "daApprovare": "{{n}} entries need approval: they contain a placeholder such as {value:.1f} or a symbol such as 🎨, which split the sentence for the translator — a short piece like “and text” may come back untouched. They are shown in red in the table: re-read, correct and approve them. Until approved they reach no panel.",
+    "traduciCon": "Translate with:",
+    "fornitore": {
+      "my_memory": "MyMemory — free, no key",
+      "libre_translate": "LibreTranslate — libre / self-hosted",
+      "google": "Google Translate — pay per use",
+      "ia": "AI assistant — uses the IDE key"
+    },
+    "chiaveApi": "API key",
+    "chiaveApiFacoltativa": "API key (optional)",
+    "traducendo": "⏳ translating to “{{lang}}”…",
+    "autoHint": "Machine-translated: re-read it. Editing makes it yours and “retranslate” will never overwrite it again.",
+    "autoCount": "⚙ {{n}} machine-translated, to re-read",
+    "propostaHint": "Automatic proposal: it contains a placeholder or a symbol, which split the sentence for the translator. Re-read, correct and approve it.",
+    "daApprovareBreve": "to approve",
+    "approva": "Accept this text as the translation",
+    "scarta": "Discard the proposal and leave the cell empty"
   },
   "keypad": {
     "open": "Numeric keypad",

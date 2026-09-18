@@ -11,6 +11,17 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Fixed
+- **Una correzione a mano non toglieva il marchio «tradotta dalla macchina».** La promessa della
+  2.8.0 — «una traduzione umana non si sovrascrive mai» — valeva solo lato runtime: sul web
+  `setVal` scriveva il testo e lasciava `auto`, quindi «ritraduci tutto» poteva riscrivere una
+  cella corretta a mano. Ora scrivere in una cella la rende lavoro umano (`marcaComeUmana`,
+  gemello del Rust). E **il marchio si vede**: bordo tratteggiato color avviso e un contatore
+  «⚙ N automatiche da rileggere» accanto ai comandi — prima una cella riempita dalla macchina era
+  identica a una scritta a mano.
+- **LibreTranslate accettava una chiave che l'IDE non permetteva di dare**: il campo compariva
+  solo per Google. Ora compare per entrambi, «facoltativa» per LibreTranslate.
+
 ### Changed
 - **Il testo di sistema è una tabella sola, e il viewer web segue la lingua dei contenuti.**
   Le parole che il runtime scrive da sé — «Ora», «sì», «N/D», «altro», il titolo di una notifica —

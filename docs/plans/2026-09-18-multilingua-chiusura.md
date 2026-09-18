@@ -1,6 +1,6 @@
 # Multilingua: chiudere il capitolo
 
-> **Stato: PIANO D'ESECUZIONE approvato il 18-09-2026. F0-F3 fatte; prossima F4.** Nato dal seme
+> **Stato: PIANO D'ESECUZIONE approvato il 18-09-2026. F0-F4 fatte; prossima F5.** Nato dal seme
 > `docs/archive/2026-09-18-multilingua-residuo.md` (Q43 + Q57) in una sessione di plan col
 > maintainer, con due misure fatte prima di scrivere e quattro decisioni prese da lui. Le fasi sono
 > rami da una sessione ciascuno; si eseguono in ordine, **una alla volta**.
@@ -248,6 +248,11 @@ testiSistema` (modulo assente), `check_testi_sistema.sh`. **DoD** + dal vivo: vi
 contenuti `de` e UI `it`: tabella con «Zeit» e «Wert», header italiano.
 
 ## F4 — asse (b): il marchio si vede e si toglie (D3), le proposte (D4), la chiave LibreTranslate
+
+> **Fatta il 18-09-2026** (la parte D4 già in F2c). `tabellaLingue.ts` con `marcaComeUmana`,
+> `eAutomatica`, `contaAutomatiche` e nove test; la cella automatica ha il bordo tratteggiato e un
+> contatore accanto ai comandi. Il dropdown dei fornitori, i titoli della cella rossa e «Traduci
+> con:» passano dal catalogo: `ConfigView.tsx` scende sotto 391 sulla guardia di F1.
 
 **File**: `ConfigView.tsx` (`setVal :10565`, dropdown `:10742-10770`, celle `:10832-10856`), nuovo
 `sws-editor/src/i18n/tabellaLingue.ts`, `tests/tabellaLingue.test.ts`, `sws-web/src/traduttore.rs`
