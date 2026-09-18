@@ -4276,3 +4276,164 @@ lontano da chi ha installato. È la forma di guasto più cara: silenziosa e diff
 **Da misurare prima di decidere**: sul WP630 appena resettato, `loginctl show-user user`.
 
 ---
+
+## Q58 — Un template porta gli indirizzi e le credenziali dell'impianto in cui è nato
+
+> **Archiviata il 2026-09-18** — decisa dal maintainer il 17-09: la via 1 (regola **R5** del parco
+> template, verificata da `check_templates.sh`) più la via 3 nella forma economica — il flag **per
+> progetto** `Project::sorgenti_da_rivedere`, acceso dalla creazione da template e spento dal
+> salvataggio della scheda Sorgenti; via 2 scartata perché romperebbe i quattro banchi di
+> protocollo. Collaudata dal vivo da lui su un progetto creato da `s7-demo` il 17-09. Verificato
+> sul codice il 18-09 che ognuno dei sei punti dichiarati esiste: `project.rs:1147`,
+> `projects.rs:470` e `:714`, `router.rs:3495`, `ConfigView.tsx:4519`, quattro test verdi.
+
+*Aperta il 2026-09-16, emersa realizzando il piano multilingua. Nessuna decisione presa.*
+
+**Come si è vista.** Il maintainer ha creato un progetto da un template e si è ritrovato 1950
+righe su 2000 di `connection refused` nel log in pochi minuti. Il template
+`nebulizzatore-sandokan` dichiara `host: 192.168.1.6` — il broker MQTT **di casa sua**. Chiunque
+crei un progetto da quel template si porta dietro un indirizzo che sulla sua rete non esiste, e
+il runtime ci si ostina contro per sempre.
+
+Il rumore è stato mitigato (backoff 5→60s, motivo scritto una volta su dieci: commit
+`413fb8eb`), ma quello era il sintomo. Il problema è che **un template è un esempio, e un
+esempio non dovrebbe contenere un pezzo di rete vera**.
+
+E non si ferma agli indirizzi: un template può portare, con la stessa naturalezza, un token
+Telegram, una password MQTT o le credenziali di un dispositivo — perché *«i segreti viaggiano col
+progetto»* è una decisione presa e giusta per un progetto, ma un template non è un progetto: è
+qualcosa che si distribuisce a chi non c'entra niente con l'impianto originale.
+
+### Le vie possibili
+
+1. **Una regola scritta e una guardia** — nessun template dichiara host/porta di una rete reale;
+   si usano segnaposto (`mqtt.example.invalid`) o un `kind: simulato`. La guardia
+   (`check_templates.sh` esiste già) lo verifica a ogni giro. Costa poco; non impedisce di
+   sbagliare, lo **fa notare**.
+2. **Le sorgenti non viaggiano nei template** — un template porta sinottici, allarmi e tag, e le
+   sorgenti si configurano all'apertura, con una schermata che le chiede. È la via pulita, ed è
+   anche quella che fa più lavoro: molti template oggi *sono* il loro impianto.
+3. **Sorgenti disarmate all'apertura da template** — il progetto nasce con le sorgenti presenti
+   ma disabilitate, e l'autore le accende dopo averle riviste. Più economica della 2 e copre sia
+   il rumore sia le credenziali, ma lascia i valori scritti dentro il file.
+
+### Cosa è stato fatto, e cosa resta da timbrare (17-09-2026)
+
+**La via 1 è realizzata**: la regola **R5** del parco template
+(`examples/templates/README.md`) vieta indirizzi di reti reali e credenziali, nel `project.yaml`
+e nei `.md` che lo accompagnano, ed è verificata da `check_templates.sh`. I quattro template che
+portavano la rete di casa dell'autore sono stati corretti.
+
+**La via 3 è realizzata in una forma più economica di quella immaginata qui.** Il maintainer ha
+scelto il flag **per progetto** invece che per sorgente: `Project::sorgenti_da_rivedere`, acceso
+dalla creazione da template e spento dal salvataggio della scheda Sorgenti. Finché è acceso
+`apply_loaded_project` non avvia le sorgenti e scrive nel log perché.
+
+La granularità per-sorgente (un `enabled` in ognuna delle otto strutture di configurazione) è
+stata scartata con la ragione già scritta nel commit `413fb8eb`: «otto punti sono otto occasioni
+di dimenticarne uno il giorno che se ne aggiunge un nono». E la granularità che conta non è la
+singola sorgente: è «questo progetto viene da un template e nessuno ha ancora guardato gli
+indirizzi».
+
+**La via 2** — le sorgenti non viaggiano affatto nei template — resta scartata: romperebbe i
+quattro banchi di prova di protocollo, il cui senso è avere una sorgente già pronta da puntare al
+proprio PLC.
+
+**Collaudato dal vivo dal maintainer il 17-09-2026**, su un progetto creato da `s7-demo`:
+confermato che il runtime non si collega finché le sorgenti non sono state riviste, e che si
+collega dopo la conferma dalla scheda.
+
+**Resta solo il timbro.** Non tocco io il campo `Decided` (regola 3 di `CLAUDE.md`) — la
+decisione è del maintainer, il codice c'è, i test ci sono e la prova a schermo è fatta: manca
+soltanto che qualcuno scriva che è chiusa.
+
+**Nota di contesto.** Il maintainer ha già detto (16-09) che vuole **definire delle regole prima**
+di rimettere mano ai template: rapporto 16:10 a 1280×800, almeno tre lingue (it/en/es), template
+semplici, un tipo di risorsa più casi d'uso realistici. Questa sarebbe la quinta regola, ed è
+l'unica delle cinque che ha a che fare con la sicurezza invece che con la forma — per questo è
+qui e non solo in `STATUS.md`.
+
+**Decided:** not yet.
+
+---
+
+## Q59 — La cartella dei progetti: il default c'è, ma chi lavora nel repo non lo vede mai
+
+> **Archiviata il 2026-09-18** — la prima metà è realizzata (`d3d84e89`): `start_editor.sh` è la
+> corsa di produzione e non impone più una radice dentro il checkout — passa `--projects-root`
+> solo se `SWS_PROJECTS_ROOT` c'è, altrimenti decide il binario con `~/sws_projects`, e il banner
+> stampa la radice e da dove viene; `start_editor_develop.sh` fa quella di sviluppo. La seconda
+> metà — il concetto di workspace — è confluita in **Q60** e da lì nel piano
+> `docs/plans/2026-09-18-workspace-dei-progetti.md`. Verificato sul codice il 18-09
+> (`start_editor.sh:82-86`, `main.rs:54`).
+
+*Aperta il 17-09-2026, notata dal maintainer creando un progetto: «mi presenta
+`/home/ut1/sws/.run-editor/projects`, mi pareva avessimo definito di usare una path esterna a
+`sws` e configurabile».*
+
+**Aveva ragione, ed era già fatto — per il binario.** `--projects-root` / `SWS_PROJECTS_ROOT`
+esiste dal 2026-09-09, il default è **`~/sws_projects`, fuori dal repo** («così un clone pulito
+non porta con sé i progetti di qualcuno e un `git clean` non li cancella», `main.rs`), e da **Q46**
+il selettore di cartelle e `parent_path` non escono da quella radice — collaudato dal vivo il
+12-09 contro path assoluti, risalite e link simbolici.
+
+**Quello che il maintainer vede è lo script di sviluppo.** Sia `start_editor.sh` sia
+`start_runtime.sh` fanno `PROJECTS_ROOT="${SWS_PROJECTS_ROOT:-$RUN_DIR/projects}"`, cioè
+`.run-editor/projects` **dentro il checkout**, e lo passano esplicito al binario. Il default buono
+non entra mai in gioco su questa macchina. È comodo per lo sviluppo — i progetti di prova stanno
+accanto al codice, si cancellano con la cartella `.run-*` — ma è anche il motivo per cui una
+decisione presa a settembre sembra non essere stata presa.
+
+### Le due domande, che sono separate
+
+**1. Gli script di sviluppo devono continuare a scavalcare il default?**
+
+- *(a)* Sì, ma **dicendolo**: lo script stampa all'avvio «progetti in `<path>` (radice di
+  sviluppo, non il default `~/sws_projects`)». Costa una riga e toglie la sorpresa.
+- *(b)* No: anche in sviluppo si usa `~/sws_projects`, e chi vuole l'isolamento passa
+  `SWS_PROJECTS_ROOT`. Più coerente, ma i progetti di prova sopravvivono a un `rm -rf .run-*` e
+  due checkout paralleli condividono la stessa radice.
+- *(c)* Sì e basta, com'è oggi.
+
+**2. Va chiesta alla prima apertura dell'IDE, se non è configurata?**
+
+Questa **non è pianificata da nessuna parte**: non esiste nessun meccanismo di primo avvio
+nell'IDE — né una schermata, né un posto dove scrivere la scelta. Oggi la radice è un argomento
+del processo, quindi «configurarla dall'IDE» vuol dire deciderne la persistenza:
+
+- *(a)* Un file di configurazione dell'**istanza** (accanto ai certificati in `config/`), che il
+  runtime legge all'avvio se il flag non è passato. La schermata di benvenuto la chiede la prima
+  volta e la si può cambiare dopo dalla scheda IDE.
+- *(b)* Solo un avviso: la WelcomeScreen dice dove stanno i progetti e come cambiarlo, senza
+  chiedere niente. Costa poco e non introduce un terzo posto da cui la radice può arrivare.
+- *(c)* Niente: resta un argomento di avvio, come per un pannello — dove la radice la decide chi
+  installa, non chi guarda lo schermo.
+
+### Direzione data dal maintainer il 17-09-2026, poche ore dopo
+
+Due cose, che spostano la domanda 1 e allargano la 2:
+
+> «`start_editor.sh` io l'ho sempre inteso come run di produzione (come fossi il cliente), se
+> serve duplichiamolo in `start_editor_develop.sh` per sviluppare. Poi alla prima apertura del
+> progetto serve definire dove salvare i progetti come fanno molti ambienti che definiscono il
+> **workspace** (e spesso possono avere più workspace in base al progetto)»
+
+Quindi la **domanda 1 non è più una scelta fra tre vie**: lo script di produzione non deve
+imporre una radice dentro il checkout, e lo sviluppo si fa con un secondo script. E la domanda 2
+non è più «chiedere o no la radice», ma «progettare il concetto di workspace», che è
+sostanzialmente più grande.
+
+Il seguito sta in [`docs/archive/2026-09-17-workspace-cartella-progetti.md`](archive/2026-09-17-workspace-cartella-progetti.md),
+con le misure di oggi — fra cui una contraddizione che questa scheda non conosceva:
+`ProjectRegistry` dichiara di coprire progetti «esterni, in una cartella scelta dal maintainer»,
+ma da **Q46** non è più possibile crearli. Un workspace multiplo richiede di riaprire quella
+decisione, che è di sicurezza ed è stata collaudata dal vivo.
+
+**Il rischio da dichiarare per (2a)**: la radice diventerebbe configurabile da **tre** posti
+(flag, variabile d'ambiente, file), e quando una cosa arriva da tre posti la domanda «perché i
+miei progetti sono lì?» non ha più una risposta breve. Se si fa, serve una precedenza scritta e
+un punto dell'interfaccia che dica *da dove* viene quella in uso.
+
+**Decided:** not yet.
+
+---

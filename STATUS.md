@@ -97,9 +97,10 @@ accorgersene):
 | `ros2-robot-come-sorgente` | Q23 | più avanti |
 | `mcp-editing-con-ia` | Q26 | più avanti |
 
-Restano in `docs/OPEN_QUESTIONS.md` con testo proprio solo **Q58** (realizzata e collaudata, manca
-il timbro) e **Q59** (prima metà fatta, seconda diventata Q60): entrambe da timbrare e archiviare
-in `docs/history/OPEN_QUESTIONS-chiuse.md`, cosa che non faccio io. Q16 e Q53 erano già rimandi.
+**Q58** e **Q59**, le uniche due rimaste con testo proprio, sono state **timbrate e archiviate** in
+`docs/history/OPEN_QUESTIONS-chiuse.md` con l'ok esplicito del maintainer (18-09, passo per passo:
+verifica sul codice, poi spostamento). Il file vivo è sceso da 301 a 152 righe, tutte rimandi:
+12 schede da tre righe più le due tabelle. Q16 e Q53 erano già rimandi.
 
 Il seme dell'immagine di boot merita una riga: contiene le **note D-Bus del maintainer** sul
 launcher Pixsys, con la trappola di `PathBuf::push` che fa funzionare un path assoluto per il
@@ -149,7 +150,6 @@ installa, ed è una decisione a sé.
 
 1. **14 domande** in `docs/OPEN_QUESTIONS.md`, fra cui le due nuove: **Q59** (la prima metà
    risolta oggi) e **Q60** (i workspace, da cui nascerà il piano dedicato).
-2. **Il timbro di Q58**, collaudata e realizzata — manca solo che qualcuno scriva che è chiusa.
 3. **Le sei eccezioni** alle regole del parco template.
 4. **La release 2.9.0**, quando si vorrà.
 
@@ -198,7 +198,7 @@ torna — e lì il fix di casa è quello che gli evita di leggere `false` su un 
 ### Cosa resta aperto
 
 1. **Le sei eccezioni** alle regole del parco template (`check_templates.sh` le conta a ogni giro).
-2. **Il timbro di Q58** e le decisioni D1-D4 del seme workspace.
+2. ~~Il timbro di Q58~~ — **fatto il 18-09**, archiviata con Q59. Restano le decisioni del seme workspace.
 3. **La release 2.9.0**: `[Unreleased]` ha T-71, la guardia sulle release, le regole del parco,
    F7 parte B, i difetti del 17 e del 18, e Q58.
 
