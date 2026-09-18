@@ -123,6 +123,48 @@ release (multilingua, Q58 su `s7-demo`, il riflusso, T-71 a casa).
 3. **I sette semi** in `docs/plans/README.md`, con `multilingua-residuo` e `immagine-di-boot` come
    i più maturi; identità/utenti e workspace in coda per decisione del maintainer.
 
+## ▶ Riprendere da qui — multilingua-chiusura: F0-F3 su `main`, F4 sul ramo (2026-09-18, sera)
+
+Il piano è [`docs/plans/2026-09-18-multilingua-chiusura.md`](docs/plans/2026-09-18-multilingua-chiusura.md):
+nato la mattina da una sessione di plan col maintainer, con due misure e quattro decisioni sue
+(D1 IDE it/en; D3 MyMemory default col marchio visibile; D4 le voci con segnaposto o simbolo sono
+proposte da approvare; D5 lingua delle notifiche **per canale**). Chiuso qui per la giornata su
+richiesta del maintainer; si riprende da casa.
+
+### Su `main` (pushato)
+
+| commit | fase | cosa |
+|---|---|---|
+| `c3b95ad8` | **F1** | `check_i18n_ui.sh`, 20ª guardia: **627 stringhe italiane fuori da `t()`** in 36 file (il doppio della stima: guarda anche il testo JSX), 35 dialoghi letterali. Tetti per file che scendono e basta; `--elenca`, `--autotest` |
+| `ebf49103` | **F2** | notifiche: l'oggetto email portava il token grezzo, «ALLARME ATTIVO» era cablato, la scheda **cancellava `notify_lang` a ogni salvataggio**; lingua per canale con `lingua_per()` in un punto solo, tre `select` |
+| `e5b79aed` | F2b | **il messaggio d'allarme scritto dall'IDE non diventava mai una voce in tabella** (era un `<input>` nudo: la promessa «compresi gli allarmi» valeva solo per i template); il progetto vuoto nasceva con `languages.default: ''`, ora nasce con la lingua dell'IDE |
+| `b05b37e8` | F2c | D4: «Allarme di prova con 🎨 e testo» → «… 🎨 E Testo»: ogni voce con segnaposto o simbolo è una proposta (`va_approvata`); la scheda Variabili distingue la riga dei filtri |
+| `d894e2a0` | **F3** | il testo di sistema è una tabella sola (`tests/fixtures/testi-sistema.json`, 16 voci × 5 lingue), `sws_core::testi_sistema` per pannello **e** notifiche, `testiSistema.ts` per il web che ora segue la lingua dei **contenuti**; 21ª guardia `check_testi_sistema.sh`. Con F3 la riga vuota in Variabili (il `useEffect` era vinto dalla sincronizzazione: ora sta nello stato) |
+
+### Sul ramo `fix/lingue-marchio-auto` (pushato, NON mergiato) — **F4**
+
+Il marchio «tradotta dalla macchina» si vede (bordo tratteggiato + «⚙ N automatiche da
+rileggere») e una correzione a mano lo toglie (`marcaComeUmana`, nove test); chiave anche per
+LibreTranslate; dropdown e titoli dal catalogo. 548 test editor, build, 21/21 guardie. **Manca il
+collaudo dal vivo del maintainer**: tradurre verso `de`, vedere il tratteggio, correggere una
+cella → tratteggio via, «ritraduci» non la tocca. Poi squash-merge e `-D`.
+
+### Un falso positivo della guardia, da correggere in F6
+
+`ConfigView.tsx` misura **392** dopo F4, uno in più di prima, nonostante una decina di stringhe
+siano passate a `t()`. I candidati nuovi sono **frammenti di codice**: un apostrofo in un testo
+JSX («l'autore») apre una falsa stringa nello scanner di `check_i18n_ui.sh`, che legge storto
+fino a fine riga. Il tetto a 392 è quello misurato — dichiarato qui perché non nasconda che il
+metodo ha un buco: la correzione è nella guardia (riconoscere il testo JSX prima dei letterali, o
+non aprire stringhe con `'` fuori da un contesto JS), non nel numero.
+
+### Cosa resta del piano
+
+**F5** configurazione del fornitore persistita nell'istanza (`traduzione.yaml` + chiavi 0600,
+`GET/PUT/DELETE /api/traduzione/config` solo-IDE) · **F6** dialoghi a zero + attributi (26+31) ·
+**F7** store neutro e dieci componenti senza `useTranslation` · **F8a/b** `ConfigView.tsx` per
+schede · **F9** gli ultimi tre file, `TETTI` vuoto. In coda i semi identità/utenti e workspace.
+
 ## ▶ Riprendere da qui — le domande aperte sono diventate semi di piano (2026-09-18)
 
 Decisione del maintainer, con una regola nuova in `CLAUDE.md` che cambia il modo di lavorare:
