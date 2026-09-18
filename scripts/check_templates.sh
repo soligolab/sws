@@ -93,7 +93,7 @@ PALETTE = set(re.findall(r'type:\s*"([a-z_]+)"',
 # nasce, e questi si riflussano quando gli si mette mano per le altre regole.
 R1_DEBITO = {
     "casa-locale": "800×680 — 298 oggetti su 5 pagine; il template ha un piano suo "
-                   "(docs/plans/2026-09-12-casamauro-arricchimento-demo.md) e il riflusso "
+                   "(docs/archive/2026-09-12-casamauro-arricchimento-demo.md) e il riflusso "
                    "si fa lì, non di straforo",
 }
 

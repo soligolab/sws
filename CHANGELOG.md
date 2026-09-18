@@ -57,6 +57,12 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   stesso processo, altra origin per il browser. L'icona compare solo nel bundle IDE
   (`api.isAdminBundle()`), non ovunque il componente sia montato.
 ### Fixed
+- **`start_editor.sh` imponeva una cartella progetti dentro il checkout** (Q59): il default del
+  runtime — `~/sws_projects`, fuori dal repo, deciso il 09-09 — non entrava mai in gioco perché lo
+  script passava sempre `--projects-root .run-editor/projects`. Ora lo passa **solo** se
+  `SWS_PROJECTS_ROOT` c'è, così la radice ha un posto solo da cui venire, e il banner d'avvio
+  stampa la radice **e da dove viene**. Per lo sviluppo c'è `start_editor_develop.sh`, che è una
+  variabile e un `exec` e non una copia.
 - **Sovrapposizione di testo su `homeassistant-pro`**: nel riquadro PERIMETRO & MOVIMENTO della
   pagina Sicurezza & Ctrl, tre etichette stavano quasi alla stessa coordinata Y di quella sopra
   — copia-incolla senza incrementare Y. Trovato durante il collaudo a schermo del riflusso

@@ -74,6 +74,51 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — `docs/plans/` è vuoto: non resta nessun piano di lavoro (2026-09-18)
+
+Chiusi gli ultimi due piani vivi, su decisione del maintainer. In `docs/plans/` resta **solo** la
+scheda-piano di Q16, che lui ha chiesto di tenere in sospeso: il decoder raster per `image` su
+LVGL si costruisce se emerge un bisogno reale, non prima.
+
+### `start_editor.sh` è la corsa di produzione (`d3d84e89`)
+
+Punto 1 del piano workspace, e nasce da un'osservazione sua: creando un progetto l'IDE proponeva
+`/home/ut1/sws/.run-editor/projects`, dentro il checkout. La decisione di tenere i progetti fuori
+dal repo c'era dal 09-09 — il default del binario è `~/sws_projects` — ma questo script la
+scavalcava, quindi su questa macchina non entrava mai in gioco. «L'ho sempre inteso come run di
+produzione, come fossi il cliente.»
+
+Ora lo script **non calcola la radice**: passa `--projects-root` *solo* se `SWS_PROJECTS_ROOT` è
+impostata, altrimenti non lo passa affatto e decide il runtime. La radice ha un posto solo da cui
+venire invece di due che possono divergere. Il banner stampa la radice **e da dove viene**, perché
+un percorso implicito era metà del problema. `start_editor_develop.sh` fa la corsa di sviluppo con
+una variabile e un `exec` — non una copia, che in un mese diverge.
+
+`start_runtime.sh` **non** è stato toccato: simula un dispositivo, dove la radice la decide chi
+installa, ed è una decisione a sé.
+
+### I due piani chiusi
+
+- **workspace-cartella-progetti** → archiviato. Parte 1 fatta (sopra); la parte 2 è diventata
+  **Q60**, perché il maintainer ha detto che «la gestione dei workspace merita un plan dedicato
+  per strutturarla a dovere». La scheda porta con sé le misure già fatte, che sono la parte utile:
+  `ProjectRegistry` è metà del meccanismo già costruita ma un livello sotto (tiene i *progetti*,
+  non le radici), e c'è una contraddizione da sciogliere — quel file dichiara di coprire progetti
+  «esterni», ma da **Q46** non è più possibile crearli. Deciso già: alla prima apertura la scelta
+  è **proposta e non bloccante**, e vale solo per l'IDE.
+- **casamauro-arricchimento-demo** → archiviato come **superato**. La premessa non è più vera:
+  CasaMauro non esiste più su questa macchina (verificato — `.run-editor/projects/` contiene solo
+  `.ambiente`, `known_projects.json` è vuoto, niente sul disco), e le feature F2-F6 che il piano
+  voleva far esercitare le esercitano ormai i template del parco, rivisti tutti fra il 14 e il 17.
+
+### Cosa resta aperto
+
+1. **14 domande** in `docs/OPEN_QUESTIONS.md`, fra cui le due nuove: **Q59** (la prima metà
+   risolta oggi) e **Q60** (i workspace, da cui nascerà il piano dedicato).
+2. **Il timbro di Q58**, collaudata e realizzata — manca solo che qualcuno scriva che è chiusa.
+3. **Le sei eccezioni** alle regole del parco template.
+4. **La release 2.9.0**, quando si vorrà.
+
 ## ▶ Riprendere da qui — casa e ufficio riconciliati: Q58 chiusa, Q59 e il seme workspace (2026-09-18)
 
 Due sessioni in parallelo sullo stesso `main`, e questa volta si sono incontrate senza perdite.
@@ -97,7 +142,7 @@ ancora guardato. Per progetto e non per sorgente — la scelta e il perché stan
 **Q59** è nata da un'osservazione del maintainer — l'IDE gli proponeva
 `/home/ut1/sws/.run-editor/projects`, dentro il checkout — e si è allargata quando ha chiarito
 che `start_editor.sh` l'ha sempre inteso come **run di produzione**. Il seme del piano è in
-`docs/plans/2026-09-17-workspace-cartella-progetti.md`.
+`docs/archive/2026-09-17-workspace-cartella-progetti.md`.
 
 ### I due conflitti, e come sono stati sciolti
 
@@ -3165,7 +3210,7 @@ altro:
    [`docs/archive/2026-09-12-f7-residui-minori.md`](../docs/archive/2026-09-12-f7-residui-minori.md).
 6. ~~**Q18 aperta**~~ — **decisa e implementata**. Resta solo la conferma a schermo.
 7. **Pagine demo CasaMauro** ferme alle feature F2-F6: piano in
-   [`docs/plans/2026-09-12-casamauro-arricchimento-demo.md`](../docs/plans/2026-09-12-casamauro-arricchimento-demo.md)
+   [`docs/archive/2026-09-12-casamauro-arricchimento-demo.md`](../docs/archive/2026-09-12-casamauro-arricchimento-demo.md)
    — non tocca il repo, è il progetto personale del maintainer su questa macchina.
 
 ## Storico (sessioni chiuse: mergiate e verificate — dettaglio in `CHANGELOG.md` e `git log`)

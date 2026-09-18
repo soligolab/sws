@@ -14,8 +14,7 @@
 
 | Piano | Stato | Cosa resta |
 |---|---|---|
-| [2026-09-17-workspace-cartella-progetti.md](2026-09-17-workspace-cartella-progetti.md) | **SEME — decisione** | due cose distinte: `start_editor.sh` è uno script di **produzione** e non deve imporre una radice dentro il checkout (si duplica in `start_editor_develop.sh`), e il concetto di **workspace** non esiste e va progettato. Quattro decisioni (D1-D4) prima di qualunque codice; una delle vie riapre Q46, che è una decisione di sicurezza già collaudata |
-| [2026-09-12-casamauro-arricchimento-demo.md](2026-09-12-casamauro-arricchimento-demo.md) | **DA FARE** | arricchire il progetto personale CasaMauro con le feature F2-F6 non esercitate — contenuto, non codice, nessun branch |
+| *(nessuno)* | | Dal 18-09-2026 questa tabella è vuota: tutti i piani di lavoro sono stati portati a termine e archiviati. Quello che resta aperto vive in `docs/OPEN_QUESTIONS.md` — e da lì, quando si prende in mano, nasce un piano nuovo. |
 
 **Dal 2026-09-12, anche le questioni aperte di `docs/OPEN_QUESTIONS.md` diventano piani singoli**
 (istruzione del maintainer, tecnica da riusare in futuro) — non li decide questo passaggio, li
@@ -27,4 +26,4 @@ c'è già, manca solo la conferma a schermo prima di archiviare la scheda in
 
 | Piano | Origine | Cosa resta |
 |---|---|---|
-| [2026-09-12-q16-decoder-raster-image.md](2026-09-12-q16-decoder-raster-image.md) | Q16 | **pronto** — decoder raster per `image` su LVGL, se emerge un bisogno reale |
+| [2026-09-12-q16-decoder-raster-image.md](2026-09-12-q16-decoder-raster-image.md) | Q16 | **pronto, tenuto in sospeso** (decisione del maintainer, 18-09-2026) — decoder raster per `image` su LVGL: si costruisce se emerge un bisogno reale, non prima |
