@@ -458,6 +458,16 @@ function TagsTab() {
   // esattamente il caso che fece danno.
   const [touched, setTouched] = useState(false);
 
+  // Una scheda vuota mostra solo la riga dei filtri, e il maintainer — il
+  // 18-09-2026 — ci ha scritto dentro la variabile che voleva creare, senza
+  // capire perché non si salvava. Quindi: se non c'è nessuna riga, ce n'è
+  // subito una vuota da compilare, come se «+ Aggiungi variabile» fosse già
+  // stato premuto. Senza alzare `touched`: non è una modifica dell'utente, e
+  // `handleSave` scarta comunque le righe con id vuoto.
+  useEffect(() => {
+    if (tags.length === 0) setTags([{ id: "", description: "", data_type: "float" }]);
+  }, [tags.length]);
+
   // Depend on the full project object so content changes (not just count) trigger a refresh.
   // Vedi `useSezioneSincronizzata`: prima questo effetto dipendeva
   // dall'INTERO `storeProject`, che cambia identità a ogni salvataggio di
@@ -709,9 +719,12 @@ function TagsTab() {
             <th style={{ ...S.th, width: "12%", cursor: "pointer", userSelect: "none" }} onClick={() => clickSort("value")}>{t("cfg.liveValue")}{sortMark("value")}</th>
             <th style={S.th} />
           </tr>
-          {/* riga filtri per colonna */}
-          <tr>
-            <td style={S.td} />
+          {/* riga filtri per colonna — con sfondo ed etichetta, perché a scheda
+              vuota è l'unica riga che si vede e somigliava a una riga da compilare */}
+          <tr style={{ background: "rgba(148, 163, 184, 0.10)" }}>
+            <td style={{ ...S.td, fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", whiteSpace: "nowrap", fontStyle: "italic" }}>
+              🔍 {t("cfg.filterRowLabel")}
+            </td>
             <td style={S.td}>
               <input style={{ ...S.input, fontSize: 11 }} placeholder={t("cfg.filterPh")} value={fltId}
                 onChange={(e) => setFltId(e.target.value)} spellCheck={false} />
@@ -10715,11 +10728,10 @@ function LanguagesTab() {
         : "";
       // Le proposte non sono un errore: sono lavoro recuperabile. Vanno dette
       // per prime, o l'autore non sa che c'è qualcosa in rosso ad aspettarlo.
-      const daApprovare = r.proposte
-        ? `\n\n${r.proposte} voci sono tornate INCOMPLETE (di solito manca un segnaposto come ` +
-          `{value:.1f}): le trovi in rosso nella tabella, da correggere e approvare. ` +
-          `Finché non le approvi non raggiungono nessun pannello.`
-        : "";
+      // La guardia check_i18n_ui ha visto crescere questo file di una stringa
+      // quando il testo qui sotto è stato riscritto: giusto, era italiano
+      // cablato in un dialogo. Ora passa dal catalogo.
+      const daApprovare = r.proposte ? "\n\n" + t("langtab.daApprovare", { n: r.proposte }) : "";
       window.alert(
         `Tradotte ${r.tradotte} voci verso «${verso}», ${r.saltate} già a posto o da non tradurre.` +
           daApprovare +

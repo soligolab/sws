@@ -11,6 +11,18 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Changed
+- **Una voce con un segnaposto o un simbolo diventa una proposta da approvare** (D4, decisione
+  del maintainer): `segmenta` tiene fuori dal traduttore `{value:.1f}` e le emoji, e il resto
+  arriva a pezzi senza contesto — «Allarme di prova con 🎨 e testo» è tornato «Test alarm with 🎨
+  E Testo», con «e testo» rimandato com'era e la maiuscola sopra. Sembrava tradotto e non lo era.
+  Ora ogni voce così va in rosso, da rileggere e approvare, anche quando è venuta bene: da fuori
+  non si può sapere. Il prezzo, accettato: ogni formato numerico si approva a mano.
+- **La scheda Variabili distingue la riga dei filtri** (sfondo e etichetta «filtri») e, quando
+  non c'è nessuna variabile, **offre subito una riga vuota da compilare** — come se «+ Aggiungi
+  variabile» fosse già stato premuto. Il maintainer aveva scritto la variabile nei filtri senza
+  capire perché non si salvava.
+
 ### Fixed
 - **Il messaggio d'allarme scritto dall'IDE non diventava mai una voce della tabella lingue.**
   Il campo nella scheda Allarmi era un `<input>` nudo: la promessa della 2.8.0 «compresi i

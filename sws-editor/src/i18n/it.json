@@ -1306,7 +1306,8 @@
       "projectMain": "principale del progetto ({{lang}})",
       "asDefault": "come la predefinita"
     },
-    "alarmMsgPlaceholder": "es. Temperatura alta"
+    "alarmMsgPlaceholder": "es. Temperatura alta",
+    "filterRowLabel": "filtri"
   },
   "langtab": {
     "intro": "Traduci i messaggi che scrivi negli oggetti. Nei campi testo usa {{chiave}}; qui definisci le traduzioni per ogni lingua.",
@@ -1328,7 +1329,8 @@
     "importCsv": "Importa CSV",
     "empty": "Nessun messaggio. Aggiungi una lingua e un messaggio, oppure importa un CSV.",
     "removeLang": "Rimuovi lingua",
-    "noLangs": "Aggiungi almeno una lingua per iniziare."
+    "noLangs": "Aggiungi almeno una lingua per iniziare.",
+    "daApprovare": "{{n}} voci sono da approvare: contengono un segnaposto come {value:.1f} o un simbolo come 🎨, che spezzano la frase per il traduttore — un pezzo corto come «e testo» può tornare com'era. Le trovi in rosso nella tabella, da rileggere, correggere e approvare. Finché non le approvi non raggiungono nessun pannello."
   },
   "keypad": {
     "open": "Tastierino numerico",

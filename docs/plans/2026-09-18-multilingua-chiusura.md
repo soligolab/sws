@@ -162,6 +162,14 @@ estende l'esclusione **con motivo scritto**, non si abbassa la soglia.
 > `languages.default: ''`. Ora il campo è lo stesso dei sinottici e il progetto nasce con la
 > lingua dell'IDE di chi lo crea. Annidata sul ramo di F2.
 
+> **F2c, sempre dal collaudo**: «Allarme di prova con 🎨 e testo» → «Test alarm with 🎨 E Testo».
+> È esattamente il caso di **D4**, che stava in F4: il pezzo dopo l'emoji arriva al traduttore
+> senza contesto e torna com'era. La parte D4 di F4 è stata **anticipata qui** — `va_approvata()` in
+> `traduzione.rs`, e nel ciclo del traduttore ogni voce con segnaposto o simbolo va a `proponi`.
+> F4 conserva il resto (marchio `auto` visibile e tolto a mano, chiave LibreTranslate). Insieme: la
+> scheda Variabili distingue la riga dei filtri e offre una riga vuota quando non c'è niente — il
+> maintainer aveva scritto la variabile nei filtri.
+
 **File**: `sws-runtime/crates/sws-web/src/notifications.rs`, `sws-core/src/project.rs`
 (`NotificationConfig`), `sws-web/src/projects.rs:110`, `router.rs:6901` (i due punti che
 risolvono `notify_lang`), `telegram.rs:156` (`set_lingua`), `ConfigView.tsx` scheda Notifiche
@@ -245,12 +253,8 @@ contenuti `de` e UI `it`: tabella con «Zeit» e «Wert», header italiano.
   `title={t("langtab.autoHint")}` («Tradotta dalla macchina: rileggila. Modificandola diventa tua e
   non verrà più sovrascritta»). Coerente con la cella rossa delle proposte. Contatore
   «N automatiche» accanto ai filtri.
-- **D4, proposte per i segnaposto**: nel ciclo di `traduttore.rs`, una voce con ≥1
-  `Pezzo::Segnaposto` (già enumerato da `segmenta`) va a `proponi` invece che a
-  `scrivi_automatica`, per **tutti** i fornitori. `EsitoTraduzione.proposte` già esiste e la UI già
-  dice «N voci da approvare». Test rosso prima in `traduzione.rs`: `una_voce_con_segnaposto_diventa_
-  proposta` (decisione pura: `destinazione(&voce) -> Valore | Proposta`), e il ciclo la usa. **Nel
-  CHANGELOG va scritto il prezzo**: ogni formato numerico si approva a mano.
+- ~~**D4, proposte per i segnaposto**~~ — **fatta in F2c** (`va_approvata()` + il ciclo del
+  traduttore), perché il collaudo di F2 l'ha fatta emergere prima del previsto.
 - **Chiave LibreTranslate**: l'input password compare per `google` **e** `libre_translate`
   (`traduttore.rs:312` la accetta): `const CHIAVE: Record<string, "richiesta"|"facoltativa"|"ide"|
   "nessuna">` in ConfigView, con commento che punta a `richiede_chiave()` (`traduttore.rs:54`) —

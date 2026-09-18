@@ -143,6 +143,26 @@ pub fn bordi(t: &str) -> (&str, &str, &str) {
     (&t[..inizio], dentro, &t[inizio + dentro.len()..])
 }
 
+/// Il testo, una volta tradotto, va **approvato da una persona** invece di
+/// finire subito fra i valori?
+///
+/// Sì se contiene un segnaposto di formato o un simbolo del catalogo — cioè
+/// tutto ciò che `segmenta` tiene fuori dal traduttore. Il motivo non è che il
+/// segnaposto si perda (quello non esce più dal processo): è che **spezza la
+/// frase**, e il traduttore vede i pezzi senza contesto. Il 18-09-2026 il
+/// maintainer ha scritto «Allarme di prova con 🎨 e testo»: il pezzo dopo
+/// l'emoji, «e testo», è tornato «E Testo» — non tradotto, solo con la
+/// maiuscola. Sembrava una traduzione e non lo era.
+///
+/// Decisione D4 del piano multilingua (sua, contro il consiglio, col prezzo
+/// scritto): ogni voce così diventa una proposta in rosso, da rileggere e
+/// approvare — anche quando è venuta bene, perché non si può sapere da fuori.
+pub fn va_approvata(testo: &str) -> bool {
+    segmenta(testo)
+        .iter()
+        .any(|p| matches!(p, Pezzo::Segnaposto(_)))
+}
+
 /// Una voce da mandare a tradurre.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DaTradurre {
@@ -376,6 +396,25 @@ mod tests {
             segmenta("Livello 5 su 10"),
             vec![Pezzo::Testo("Livello 5 su 10".into())]
         );
+    }
+
+    #[test]
+    fn una_voce_con_segnaposto_o_simbolo_va_approvata() {
+        // Il caso vero del maintainer: dopo l'emoji resta «e testo», che il
+        // traduttore ha rimandato com'era con la maiuscola.
+        assert!(va_approvata("Allarme di prova con 🎨 e testo"));
+        assert!(va_approvata("Soggiorno caldo: {value:.1f}°C"));
+        assert!(va_approvata("{value} bar"));
+    }
+
+    #[test]
+    fn una_frase_semplice_non_va_approvata() {
+        // Il prezzo di D4 va pagato solo dove serve: una frase senza
+        // segnaposti né simboli arriva intera al traduttore, e resta un valore.
+        assert!(!va_approvata("Porta garage aperta"));
+        assert!(!va_approvata("Pompa 1 in marcia (derivato)"));
+        // `{{token}}` non è un segnaposto: se ne occupa resolve_msg.
+        assert!(!va_approvata("{{ciao}} mondo"));
     }
 
     #[test]

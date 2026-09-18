@@ -1306,7 +1306,8 @@
       "projectMain": "project main language ({{lang}})",
       "asDefault": "same as default"
     },
-    "alarmMsgPlaceholder": "e.g. High temperature"
+    "alarmMsgPlaceholder": "e.g. High temperature",
+    "filterRowLabel": "filters"
   },
   "langtab": {
     "intro": "Translate the messages you write into objects. In text fields use {{key}}; here you define the translations for each language.",
@@ -1328,7 +1329,8 @@
     "importCsv": "Import CSV",
     "empty": "No messages. Add a language and a message, or import a CSV.",
     "removeLang": "Remove language",
-    "noLangs": "Add at least one language to start."
+    "noLangs": "Add at least one language to start.",
+    "daApprovare": "{{n}} entries need approval: they contain a placeholder such as {value:.1f} or a symbol such as 🎨, which split the sentence for the translator — a short piece like “and text” may come back untouched. They are shown in red in the table: re-read, correct and approve them. Until approved they reach no panel."
   },
   "keypad": {
     "open": "Numeric keypad",

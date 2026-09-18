@@ -339,7 +339,7 @@ use axum::{
     Json,
 };
 use sws_core::traduzione::{
-    bordi, da_mandare, da_tradurre, proponi, scrivi_automatica, segmenta, Pezzo,
+    bordi, da_mandare, da_tradurre, proponi, scrivi_automatica, segmenta, va_approvata, Pezzo,
 };
 
 /// Tradurre è **progettazione**, non esercizio: l'endpoint esiste solo
@@ -501,6 +501,14 @@ pub async fn traduci_progetto(
             continue;
         };
         match fallito {
+            // D4 (decisione del maintainer, 18-09-2026): una voce con un
+            // segnaposto o un simbolo arriva al traduttore a pezzi, senza
+            // contesto, e un pezzo corto può tornare com'era — «e testo» →
+            // «E Testo». Sembra tradotto e non lo è: va in rosso, da rileggere.
+            None if va_approvata(&voce.testo) => {
+                proponi(e, &req.a, composto);
+                proposte += 1;
+            }
             None => {
                 scrivi_automatica(e, &req.a, composto);
                 tradotte += 1;
