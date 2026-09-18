@@ -174,6 +174,15 @@ pub struct ProjectListEntry {
 #[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
 pub struct CreateProjectRequest {
     pub name: String,
+    /// La lingua principale del progetto nuovo: quella dell'IDE di chi lo crea.
+    ///
+    /// Fino al 18-09-2026 un progetto vuoto nasceva con `languages.default: ''`
+    /// e nessuna lingua: il maintainer, creando un allarme prima di aver
+    /// aperto la scheda Lingue, non trovava poi il messaggio in tabella — e
+    /// ogni `select` che offre le lingue del progetto era vuoto. Un progetto
+    /// che nasce senza lingua è un progetto che non può ancora dire niente.
+    #[serde(default)]
+    pub lang: Option<String>,
     /// Optional template id (subfolder under `templates_root`).
     /// When None, a minimal `project.yaml` is written instead.
     #[serde(default)]
@@ -492,7 +501,7 @@ pub async fn create_project(
                 global_scripts: vec![],
                 notifications: None,
                 saved_by: None,
-                languages: Default::default(),
+                languages: lingua_iniziale(req.lang.as_deref()),
                 page_layout: None,
                 target: req.target.clone(),
                 auto_backup_interval_minutes: None,
@@ -2042,6 +2051,25 @@ async fn patch_project_name(yaml_path: &StdPath, name: &str) -> anyhow::Result<(
     Ok(())
 }
 
+/// La tabella lingue con cui nasce un progetto vuoto: **una** lingua, quella di
+/// chi lo crea, principale e unica. Nessuna voce — le voci arrivano quando
+/// l'autore scrive il primo testo.
+///
+/// `lang` vuota o assente → `it`, che è la lingua in cui è scritto questo
+/// progetto e l'unica scelta che non finge di sapere qualcosa che non sa.
+pub(crate) fn lingua_iniziale(lang: Option<&str>) -> sws_core::LanguageTable {
+    let codice = lang
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .map(|l| l.chars().take(2).collect::<String>().to_lowercase())
+        .unwrap_or_else(|| "it".to_string());
+    sws_core::LanguageTable {
+        default: codice.clone(),
+        langs: vec![codice],
+        entries: vec![],
+    }
+}
+
 /// Accende `sorgenti_da_rivedere` sul progetto appena copiato da un template.
 ///
 /// Sta qui e non dentro `patch_project_name` per la stessa ragione di
@@ -2183,6 +2211,25 @@ fn migrate_legacy_sqlite_path(project_dir: &StdPath) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn un_progetto_vuoto_nasce_con_la_lingua_di_chi_lo_crea() {
+        // Prima nasceva con `default: ''` e nessuna lingua: un allarme scritto
+        // prima di aprire la scheda Lingue non finiva in tabella, e ogni select
+        // delle lingue del progetto era vuoto.
+        let t = lingua_iniziale(Some("en"));
+        assert_eq!(t.default, "en");
+        assert_eq!(t.langs, vec!["en".to_string()]);
+        assert!(t.entries.is_empty());
+        // `en-US` dal browser → `en`; vuoto o assente → `it`.
+        assert_eq!(lingua_iniziale(Some("en-US")).default, "en");
+        assert_eq!(lingua_iniziale(Some("  ")).default, "it");
+        assert_eq!(lingua_iniziale(None).default, "it");
+        assert!(
+            !lingua_iniziale(None).default.is_empty(),
+            "mai più una lingua principale vuota"
+        );
+    }
 
     /// Q58 — creare un progetto da un template accende `sorgenti_da_rivedere`.
     ///

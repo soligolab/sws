@@ -1050,7 +1050,7 @@ export const api = {
   listProjects: () =>
     request<ProjectListEntry[]>("/api/projects"),
 
-  createProject: async (req: { name: string; template?: string; parent_path?: string; target?: ProjectTarget }) => {
+  createProject: async (req: { name: string; template?: string; parent_path?: string; target?: ProjectTarget; lang?: string }) => {
     const r = await request<{ name: string }>("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

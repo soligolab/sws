@@ -12,6 +12,15 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Fixed
+- **Il messaggio d'allarme scritto dall'IDE non diventava mai una voce della tabella lingue.**
+  Il campo nella scheda Allarmi era un `<input>` nudo: la promessa della 2.8.0 «compresi i
+  messaggi di allarme» valeva solo per i template, tokenizzati con uno script. Trovato dal
+  maintainer collaudando la F2: «se prima creo l'allarme non trovo poi la stringa in Lingue». Ora
+  passa da `CampoTestoTradotto`, lo stesso campo dei testi dei sinottici.
+- **Un progetto vuoto nasceva senza lingua** (`languages.default: ''`, nessuna lingua): ogni
+  `select` delle lingue del progetto era vuoto e nulla poteva finire in tabella. Ora nasce con
+  la lingua dell'IDE di chi lo crea come principale e unica (`it` se non si sa) — proposta del
+  maintainer.
 - **L'oggetto delle email portava il token grezzo.** Il corpo di una notifica risolveva
   `{{chiave}}` da tre giorni; l'oggetto usava ancora `def.message` così com'era, quindi un
   progetto tradotto bene mandava un'email col corpo in tedesco e `{{pressione_alta}}` nella

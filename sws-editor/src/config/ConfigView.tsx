@@ -80,6 +80,7 @@ import type {
   ContainerPackage,
 } from "@/types";
 import { useSezioneSincronizzata } from "@/config/useSezioneSincronizzata";
+import { CampoTestoTradotto } from "@/editor/CampoTestoTradotto";
 
 /** Avviso in linea quando il progetto cambia mentre stai modificando una
  *  sezione. Due pulsanti e nessun modale: un modale in mezzo al lavoro va
@@ -4900,11 +4901,17 @@ function AlarmsTab() {
                   </select>
                 </td>
                 <td style={S.td}>
-                  <input
-                    style={S.inputSm}
-                    placeholder="es. Temperatura alta"
-                    value={alm.message}
-                    onChange={(e) => updateAlarm(i, { message: e.target.value })}
+                  {/* Lo stesso campo dei testi dei sinottici: il messaggio digitato
+                      diventa una voce della tabella lingue, e qui si vede il testo e
+                      non `{{t0001}}`. Fino al 18-09-2026 era un <input> nudo: un
+                      allarme scritto dall'IDE non finiva MAI in tabella, e la promessa
+                      «compresi i messaggi di allarme» valeva solo per i template, che
+                      erano stati tokenizzati con uno script. */}
+                  <CampoTestoTradotto
+                    valore={alm.message}
+                    placeholder={t("cfg.alarmMsgPlaceholder")}
+                    stile={S.inputSm}
+                    onChange={(nuovo) => updateAlarm(i, { message: nuovo })}
                   />
                   <input
                     style={{ ...S.inputSm, marginTop: 4, fontSize: 11 }}

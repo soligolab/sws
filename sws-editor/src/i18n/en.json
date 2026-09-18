@@ -1305,7 +1305,8 @@
       "telegram": "Telegram",
       "projectMain": "project main language ({{lang}})",
       "asDefault": "same as default"
-    }
+    },
+    "alarmMsgPlaceholder": "e.g. High temperature"
   },
   "langtab": {
     "intro": "Translate the messages you write into objects. In text fields use {{key}}; here you define the translations for each language.",

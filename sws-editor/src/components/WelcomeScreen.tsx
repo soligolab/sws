@@ -257,7 +257,7 @@ function NewProjectModal({
   /** Tab to open on. "zip" is used by the "open from a ZIP on my PC" entry. */
   initialTab?: NewProjectTab;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [tab, setTab]                 = useState<NewProjectTab>(initialTab);
   const [name, setName]               = useState("");
   const [templates, setTemplates]     = useState<TemplateEntry[]>([]);
@@ -300,7 +300,9 @@ function NewProjectModal({
         const target = tab === "empty" && targetKind !== "web"
           ? { kind: targetKind, framebuffer_device: targetKind === "lvgl_framebuffer" ? (fbDevice.trim() || undefined) : undefined }
           : undefined;
-        await api.createProject({ name: trimmed, template: tab === "template" ? selectedTpl : undefined, parent_path: trimmedParent, target });
+        // La lingua dell'IDE diventa la lingua principale del progetto nuovo: un
+        // progetto che nasce senza lingua non può ancora dire niente (18-09-2026).
+        await api.createProject({ name: trimmed, template: tab === "template" ? selectedTpl : undefined, parent_path: trimmedParent, target, lang: i18n.language });
         onCreate(trimmed);
       }
     } catch (e: any) {

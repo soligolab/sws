@@ -1305,7 +1305,8 @@
       "telegram": "Telegram",
       "projectMain": "principale del progetto ({{lang}})",
       "asDefault": "come la predefinita"
-    }
+    },
+    "alarmMsgPlaceholder": "es. Temperatura alta"
   },
   "langtab": {
     "intro": "Traduci i messaggi che scrivi negli oggetti. Nei campi testo usa {{chiave}}; qui definisci le traduzioni per ogni lingua.",

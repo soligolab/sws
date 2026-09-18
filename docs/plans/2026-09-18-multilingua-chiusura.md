@@ -155,6 +155,13 @@ estende l'esclusione **con motivo scritto**, non si abbassa la soglia.
 > in `corpo_notifica_tests`; i due nuovi sui difetti provati rossi rimettendo l'oggetto grezzo e il
 > titolo cablato.
 
+> **F2b, non prevista, trovata dal maintainer collaudando F2**: «se prima creo l'allarme non trovo
+> poi la stringa in Lingue». Due cause. Il campo *messaggio* della scheda Allarmi era un `<input>`
+> nudo e non passava da `CampoTestoTradotto` — la promessa «compresi i messaggi di allarme» valeva
+> solo per i template, tokenizzati con uno script; e un progetto vuoto nasceva con
+> `languages.default: ''`. Ora il campo è lo stesso dei sinottici e il progetto nasce con la
+> lingua dell'IDE di chi lo crea. Annidata sul ramo di F2.
+
 **File**: `sws-runtime/crates/sws-web/src/notifications.rs`, `sws-core/src/project.rs`
 (`NotificationConfig`), `sws-web/src/projects.rs:110`, `router.rs:6901` (i due punti che
 risolvono `notify_lang`), `telegram.rs:156` (`set_lingua`), `ConfigView.tsx` scheda Notifiche
