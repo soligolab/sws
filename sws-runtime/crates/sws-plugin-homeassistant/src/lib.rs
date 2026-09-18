@@ -35,8 +35,7 @@ pub async fn run(
     if let Err(e) = effective_token(&cfg) {
         error!(source = %cfg.id, "HomeAssistant source misconfigured: {e:#} — fix the config and reopen the project");
         for m in &cfg.entities {
-            db.ingest(m.tag.clone(), TagValue::Bool(false), TagQuality::Bad)
-                .await;
+            db.marca_qualita(&m.tag, TagQuality::Bad).await;
         }
         return;
     }
@@ -44,8 +43,7 @@ pub async fn run(
     if let Err(e) = run_session(&cfg, &db, &bus, &entity_map, cancel).await {
         warn!(source = %cfg.id, "HomeAssistant session ended: {e:#} — stopped (save config to retry)");
         for m in &cfg.entities {
-            db.ingest(m.tag.clone(), TagValue::Bool(false), TagQuality::Bad)
-                .await;
+            db.marca_qualita(&m.tag, TagQuality::Bad).await;
         }
     }
 }

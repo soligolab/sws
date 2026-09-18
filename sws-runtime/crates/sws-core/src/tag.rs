@@ -500,4 +500,29 @@ mod tests {
         let err = bus.write("nope", TagValue::Bool(true)).await.unwrap_err();
         assert!(matches!(err, WriteError::NoWriter(_)));
     }
+
+    #[tokio::test]
+    async fn marca_qualita_non_tocca_il_valore() {
+        // Il motivo per cui esiste: chi perde la sorgente deve poter dire
+        // "non mi fido più" senza inventare un valore — l'ultima lettura vera
+        // resta, solo la qualità cambia.
+        let db = TagDb::new(16);
+        db.set(
+            "sim.temperature".into(),
+            TagValue::Float(21.5),
+            TagQuality::Good,
+        )
+        .await;
+        db.marca_qualita("sim.temperature", TagQuality::Bad).await;
+        let s = db.get("sim.temperature").await.unwrap();
+        assert_eq!(s.value, TagValue::Float(21.5));
+        assert_eq!(s.quality, TagQuality::Bad);
+    }
+
+    #[tokio::test]
+    async fn marca_qualita_su_un_tag_mai_letto_non_crea_niente() {
+        let db = TagDb::new(16);
+        db.marca_qualita("mai.esistito", TagQuality::Bad).await;
+        assert!(db.get("mai.esistito").await.is_none());
+    }
 }
