@@ -1,6 +1,6 @@
 # Multilingua: chiudere il capitolo
 
-> **Stato: PIANO D'ESECUZIONE approvato il 18-09-2026. F0 e F1 fatte; prossima F2.** Nato dal seme
+> **Stato: PIANO D'ESECUZIONE approvato il 18-09-2026. F0, F1 e F2 fatte; prossima F3.** Nato dal seme
 > `docs/archive/2026-09-18-multilingua-residuo.md` (Q43 + Q57) in una sessione di plan col
 > maintainer, con due misure fatte prima di scrivere e quattro decisioni prese da lui. Le fasi sono
 > rami da una sessione ciascuno; si eseguono in ordine, **una alla volta**.
@@ -149,6 +149,11 @@ serve a non tornare indietro, non a trovare tutto. Se in F8 emergono falsi posit
 estende l'esclusione **con motivo scritto**, non si abbassa la soglia.
 
 ## F2 — notifiche: oggetto, tipo, e la lingua per canale (D5)
+
+> **Fatta il 18-09-2026.** Un quarto difetto trovato facendola: la scheda Notifiche **cancellava**
+> `notify_lang` a ogni salvataggio, perché il payload era `{ smtp, telegram }` e basta. Otto test
+> in `corpo_notifica_tests`; i due nuovi sui difetti provati rossi rimettendo l'oggetto grezzo e il
+> titolo cablato.
 
 **File**: `sws-runtime/crates/sws-web/src/notifications.rs`, `sws-core/src/project.rs`
 (`NotificationConfig`), `sws-web/src/projects.rs:110`, `router.rs:6901` (i due punti che

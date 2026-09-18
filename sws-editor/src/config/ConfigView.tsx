@@ -7901,6 +7901,16 @@ function NotificationsTab() {
   const [smtp, setSmtp] = useState<SmtpConfig>(initial?.smtp ?? emptySmtp());
   const [tgEnabled, setTgEnabled] = useState<boolean>(initial?.telegram != null);
   const [tg, setTg] = useState<TelegramConfig>(initial?.telegram ?? { bot_token: "", chat_ids: [] });
+  // Q57 — in che lingua parla una notifica. Una predefinita e, se serve, una
+  // per canale: "" = «come la predefinita», che il runtime tratta come non
+  // dichiarata. Fino al 18-09-2026 `notify_lang` non aveva nessun controllo qui
+  // — si impostava solo a mano nel YAML — e **il salvataggio di questa scheda
+  // lo cancellava**, perché il payload era `{ smtp, telegram }` e basta.
+  const [notifyLang, setNotifyLang] = useState<string>(initial?.notify_lang ?? "");
+  const [notifyLangEmail, setNotifyLangEmail] = useState<string>(initial?.notify_lang_email ?? "");
+  const [notifyLangTg, setNotifyLangTg] = useState<string>(initial?.notify_lang_telegram ?? "");
+  const lingueProgetto = storeProject?.languages?.langs ?? [];
+  const linguaPrincipale = storeProject?.languages?.default ?? "";
   const [testing, setTesting] = useState(false);
   const [testMsg, setTestMsg] = useState<string | null>(null);
   const [detecting, setDetecting] = useState(false);
@@ -7939,7 +7949,13 @@ function NotificationsTab() {
     setError(null);
     try {
       const config: NotificationConfig | null = (enabled || tgEnabled)
-        ? { smtp: enabled ? smtp : undefined, telegram: tgEnabled ? tg : undefined }
+        ? {
+            smtp: enabled ? smtp : undefined,
+            telegram: tgEnabled ? tg : undefined,
+            notify_lang: notifyLang || undefined,
+            notify_lang_email: notifyLangEmail || undefined,
+            notify_lang_telegram: notifyLangTg || undefined,
+          }
         : null;
       await api.saveNotifications(config);
       setTouched(false);
@@ -8018,6 +8034,28 @@ function NotificationsTab() {
       <SaveBar onSave={handleSave} saving={saving} saved={saved}
         section="notifications"
         dirty={touched} />
+      <div style={S.sectionTitle}>{t("cfg.notifLang.title")}</div>
+      <div style={S.notice}>{t("cfg.notifLang.notice")}</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, maxWidth: 640, marginBottom: 20 }}>
+        {([
+          ["default", notifyLang, setNotifyLang, t("cfg.notifLang.default"), t("cfg.notifLang.projectMain", { lang: linguaPrincipale })],
+          ["email", notifyLangEmail, setNotifyLangEmail, t("cfg.notifLang.email"), t("cfg.notifLang.asDefault")],
+          ["telegram", notifyLangTg, setNotifyLangTg, t("cfg.notifLang.telegram"), t("cfg.notifLang.asDefault")],
+        ] as const).map(([k, valore, imposta, etichetta, vuoto]) => (
+          <label key={k} style={{ fontSize: 12 }}>
+            <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>{etichetta}</div>
+            <select
+              value={valore}
+              onChange={(e) => { setTouched(true); imposta(e.target.value); }}
+              style={{ ...S.input, width: "100%" }}
+            >
+              <option value="">{vuoto}</option>
+              {lingueProgetto.map((l) => <option key={l} value={l}>{l}</option>)}
+            </select>
+          </label>
+        ))}
+      </div>
+
       <div style={S.sectionTitle}>NOTIFICHE EMAIL</div>
       <div style={S.notice}>
         Configura un server SMTP per inviare email al momento dell'attivazione di

@@ -1090,11 +1090,56 @@ pub struct NotificationConfig {
     /// Assente = la lingua principale della tabella (`languages.default`), che
     /// è ciò che faceva prima senza dirlo.
     ///
-    /// **Una sola per progetto**: destinatari diversi in lingue diverse sono
-    /// una decisione di prodotto, non di codice — registrata in
-    /// `docs/OPEN_QUESTIONS.md`.
+    /// È la **predefinita**: dal 18-09-2026 (Q57, decisione del maintainer) ogni
+    /// canale può averne una propria — `notify_lang_email`,
+    /// `notify_lang_telegram` — e questa vale per i canali che non la
+    /// dichiarano. La risoluzione sta in `lingua_per`, in un punto solo.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notify_lang: Option<String>,
+    /// Lingua delle email, se diversa dalla predefinita. Il caso che copre è
+    /// «il costruttore legge le email, la manutenzione locale legge Telegram».
+    /// **Non** copre due persone sullo stesso canale in lingue diverse: il
+    /// maintainer ha scelto la lingua per canale sapendolo.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub notify_lang_email: Option<String>,
+    /// Lingua dei messaggi Telegram, se diversa dalla predefinita.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub notify_lang_telegram: Option<String>,
+}
+
+/// I canali su cui esce una notifica. Ognuno può avere la propria lingua.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CanaleNotifica {
+    Email,
+    Telegram,
+}
+
+impl NotificationConfig {
+    /// La lingua in cui scrivere su `canale`: quella del canale, altrimenti la
+    /// predefinita delle notifiche, altrimenti `ripiego` (la lingua principale
+    /// della tabella del progetto).
+    ///
+    /// **Un punto solo.** Prima di questa funzione la stessa catena di
+    /// `unwrap_or_else` stava in tre file — il supervisore, l'apertura del
+    /// progetto, la riconfigurazione a caldo — e aggiungere la lingua per
+    /// canale avrebbe voluto dire toccarli tutti e tre e ricordarsi di farlo
+    /// allo stesso modo.
+    pub fn lingua_per(&self, canale: CanaleNotifica, ripiego: &str) -> String {
+        let del_canale = match canale {
+            CanaleNotifica::Email => self.notify_lang_email.as_deref(),
+            CanaleNotifica::Telegram => self.notify_lang_telegram.as_deref(),
+        };
+        // Una stringa vuota è «non dichiarata» a OGNI livello: un `select`
+        // dell'IDE che torna a «come la predefinita» scrive "" e deve cadere
+        // sulla predefinita, non sul ripiego.
+        fn piena(l: Option<&str>) -> Option<&str> {
+            l.filter(|l| !l.trim().is_empty())
+        }
+        piena(del_canale)
+            .or_else(|| piena(self.notify_lang.as_deref()))
+            .unwrap_or(ripiego)
+            .to_string()
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]

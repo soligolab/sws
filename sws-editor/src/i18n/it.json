@@ -1296,7 +1296,16 @@
     "connectOk": "Connesso.",
     "connectFailed": "Connessione fallita",
     "swsUserPlaceholder": "admin",
-    "deviceUserMissing": "Questo dispositivo non ha un utente registrato: se il pannello ne vuole uno, il deploy non può partire."
+    "deviceUserMissing": "Questo dispositivo non ha un utente registrato: se il pannello ne vuole uno, il deploy non può partire.",
+    "notifLang": {
+      "title": "LINGUA DELLE NOTIFICHE",
+      "notice": "Una notifica non ha uno schermo: parte mentre nessuno guarda il pannello, quindi la lingua si decide qui e non sul vetro. Ogni canale può averne una propria — il costruttore legge le email, la manutenzione locale legge Telegram.",
+      "default": "Predefinita",
+      "email": "Email",
+      "telegram": "Telegram",
+      "projectMain": "principale del progetto ({{lang}})",
+      "asDefault": "come la predefinita"
+    }
   },
   "langtab": {
     "intro": "Traduci i messaggi che scrivi negli oggetti. Nei campi testo usa {{chiave}}; qui definisci le traduzioni per ogni lingua.",

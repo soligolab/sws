@@ -141,6 +141,12 @@ struct EtichetteNotifica {
     tag: &'static str,
     valore: &'static str,
     attivato: &'static str,
+    /// Il titolo della notifica quando un allarme scatta. Fino al 18-09-2026
+    /// era «🔴 ALLARME ATTIVO» cablato nel chiamante, fuori da qui: le sei
+    /// etichette seguivano la lingua e il titolo no.
+    attivo: &'static str,
+    /// Il titolo dell'escalation. Stessa storia.
+    escalation: &'static str,
 }
 
 fn etichette(lingua: &str) -> EtichetteNotifica {
@@ -152,6 +158,8 @@ fn etichette(lingua: &str) -> EtichetteNotifica {
             tag: "Tag",
             valore: "Valore",
             attivato: "Attivato",
+            attivo: "🔴 ALLARME ATTIVO",
+            escalation: "⏫ ESCALATION: allarme non riconosciuto",
         },
         "de" => EtichetteNotifica {
             allarme: "Alarm",
@@ -160,6 +168,8 @@ fn etichette(lingua: &str) -> EtichetteNotifica {
             tag: "Tag",
             valore: "Wert",
             attivato: "Ausgelöst",
+            attivo: "🔴 ALARM AKTIV",
+            escalation: "⏫ ESKALATION: Alarm nicht quittiert",
         },
         "fr" => EtichetteNotifica {
             allarme: "Alarme",
@@ -168,6 +178,8 @@ fn etichette(lingua: &str) -> EtichetteNotifica {
             tag: "Tag",
             valore: "Valeur",
             attivato: "Déclenché",
+            attivo: "🔴 ALARME ACTIVE",
+            escalation: "⏫ ESCALADE : alarme non acquittée",
         },
         "es" => EtichetteNotifica {
             allarme: "Alarma",
@@ -176,6 +188,8 @@ fn etichette(lingua: &str) -> EtichetteNotifica {
             tag: "Tag",
             valore: "Valor",
             attivato: "Activado",
+            attivo: "🔴 ALARMA ACTIVA",
+            escalation: "⏫ ESCALADO: alarma no reconocida",
         },
         _ => EtichetteNotifica {
             allarme: "Alarm",
@@ -184,6 +198,8 @@ fn etichette(lingua: &str) -> EtichetteNotifica {
             tag: "Tag",
             valore: "Value",
             attivato: "Triggered",
+            attivo: "🔴 ALARM ACTIVE",
+            escalation: "⏫ ESCALATION: alarm not acknowledged",
         },
     }
 }
@@ -192,8 +208,56 @@ fn etichette(lingua: &str) -> EtichetteNotifica {
 /// token `{{chiave}}`. Fino al 15-09-2026 partiva **grezzo** verso Telegram e
 /// per email — un progetto tradotto bene mandava letteralmente
 /// `{{allarme_pressione}}` al telefono di chi era di turno.
-fn alarm_body(state: &AlarmState, kind: &str, lingua: &str, table: &LanguageTable) -> String {
+/// Cosa è successo: un allarme è scattato, o non è stato riconosciuto in tempo.
+/// Il titolo che ne deriva viene da `etichette()`, nella lingua del canale —
+/// non più da una stringa cablata nel chiamante.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Evento {
+    Attivazione,
+    Escalation,
+}
+
+impl Evento {
+    fn titolo(self, e: &EtichetteNotifica) -> &'static str {
+        match self {
+            Evento::Attivazione => e.attivo,
+            Evento::Escalation => e.escalation,
+        }
+    }
+    /// Il marcatore nell'oggetto dell'email. **Fisso in ogni lingua**, di
+    /// proposito: è ciò su cui un filtro di posta smista, e un filtro che deve
+    /// conoscere cinque lingue non è più un filtro.
+    fn marcatore(self) -> &'static str {
+        match self {
+            Evento::Attivazione => "[SWS ALARM]",
+            Evento::Escalation => "[SWS ESCALATION]",
+        }
+    }
+}
+
+/// L'oggetto dell'email.
+///
+/// Fino al 18-09-2026 era `format!("[SWS ALARM] {} — {}", id, def.message)` —
+/// col messaggio **grezzo**. Il corpo lo risolveva da tre giorni; l'oggetto no,
+/// quindi un progetto tradotto bene mandava un'email con il corpo in tedesco e
+/// `{{pressione_alta}}` nell'oggetto, che è la prima cosa che si legge.
+fn alarm_subject(
+    evento: Evento,
+    state: &AlarmState,
+    lingua: &str,
+    table: &LanguageTable,
+) -> String {
+    format!(
+        "{} {} — {}",
+        evento.marcatore(),
+        state.def.id,
+        sws_core::project::resolve_msg(&state.def.message, lingua, table),
+    )
+}
+
+fn alarm_body(state: &AlarmState, evento: Evento, lingua: &str, table: &LanguageTable) -> String {
     let e = etichette(lingua);
+    let kind = evento.titolo(&e);
     format!(
         "{kind}\n\n{}:   {}\n{}: {}\n{}:  {:?}\n{}:       {}\n{}:    {}\n{}:  {}\n",
         e.allarme,
@@ -259,12 +323,13 @@ impl NotificationSupervisor {
     ) -> Self {
         // Due task async distinti (attivazione ed escalation) prendono ognuno
         // la propria copia: sono `move`, e condividerne una sola non
-        // compilerebbe.
-        let lingua = std::sync::Arc::new(
-            config
-                .notify_lang
-                .clone()
-                .unwrap_or_else(|| languages.default.clone()),
+        // compilerebbe. E due lingue, una per canale (Q57): la risoluzione
+        // sta in `NotificationConfig::lingua_per`, non qui.
+        let lingua_email = std::sync::Arc::new(
+            config.lingua_per(sws_core::CanaleNotifica::Email, &languages.default),
+        );
+        let lingua_tg = std::sync::Arc::new(
+            config.lingua_per(sws_core::CanaleNotifica::Telegram, &languages.default),
         );
         let languages = std::sync::Arc::new(languages);
         let cancel = CancellationToken::new();
@@ -292,7 +357,8 @@ impl NotificationSupervisor {
             let smtp_a = smtp.clone();
             let tg_a = telegram.clone();
             let cancel_a = cancel_clone.clone();
-            let lingua_attiva = lingua.clone();
+            let lingua_email_a = lingua_email.clone();
+            let lingua_tg_a = lingua_tg.clone();
             let lingue_attiva = languages.clone();
             tokio::spawn(async move {
                 loop {
@@ -301,12 +367,11 @@ impl NotificationSupervisor {
                             match res {
                                 Ok(state) => {
                                     if state.isa_state != IsaState::ActiveUnacked { continue; }
-                                    let body = alarm_body(&state, "🔴 ALLARME ATTIVO", &lingua_attiva, &lingue_attiva);
-                                    // Email (opt-in per-alarm via notify_email).
+                                    // Email (opt-in per-alarm via notify_email), nella lingua del canale.
                                     if let Some(smtp) = &smtp_a {
                                         if let Some(to) = state.def.notify_email.clone().filter(|v| !v.is_empty()) {
-                                            let subject = format!("[SWS ALARM] {} — {}", state.def.id, state.def.message);
-                                            let body = body.clone();
+                                            let subject = alarm_subject(Evento::Attivazione, &state, &lingua_email_a, &lingue_attiva);
+                                            let body = alarm_body(&state, Evento::Attivazione, &lingua_email_a, &lingue_attiva);
                                             let smtp = Arc::clone(smtp);
                                             let id = state.def.id.clone();
                                             tokio::spawn(async move {
@@ -318,9 +383,9 @@ impl NotificationSupervisor {
                                             });
                                         }
                                     }
-                                    // Telegram, instradato dal singolo allarme.
+                                    // Telegram, instradato dal singolo allarme, nella SUA lingua.
                                     if let Some(tx) = &tg_a {
-                                        send_telegram(tx, &state, body);
+                                        send_telegram(tx, &state, alarm_body(&state, Evento::Attivazione, &lingua_tg_a, &lingue_attiva));
                                     }
                                 }
                                 Err(broadcast::error::RecvError::Lagged(n)) => {
@@ -338,7 +403,8 @@ impl NotificationSupervisor {
             // activation when past `escalate_after_s`.
             let smtp_b = smtp.clone();
             let tg_b = telegram.clone();
-            let lingua_esc = lingua.clone();
+            let lingua_email_b = lingua_email.clone();
+            let lingua_tg_b = lingua_tg.clone();
             let lingue_esc = languages.clone();
             let escalated: Arc<RwLock<HashSet<(String, u64)>>> =
                 Arc::new(RwLock::new(HashSet::new()));
@@ -371,20 +437,17 @@ impl NotificationSupervisor {
                         continue;
                     }
                     guard.insert(key);
-                    let body = alarm_body(
-                        state,
-                        "⏫ ESCALATION: allarme non riconosciuto",
-                        &lingua_esc,
-                        &lingue_esc,
-                    );
-                    // Email escalation (only if escalate_to recipients set).
+                    // Email escalation (only if escalate_to recipients set), nella lingua del canale.
                     if let Some(smtp) = &smtp_b {
                         if let Some(to) = state.def.escalate_to.clone().filter(|v| !v.is_empty()) {
-                            let subject = format!(
-                                "[SWS ESCALATION] {} — {}",
-                                state.def.id, state.def.message
+                            let subject = alarm_subject(
+                                Evento::Escalation,
+                                state,
+                                &lingua_email_b,
+                                &lingue_esc,
                             );
-                            let body = body.clone();
+                            let body =
+                                alarm_body(state, Evento::Escalation, &lingua_email_b, &lingue_esc);
                             let smtp = Arc::clone(smtp);
                             let id = state.def.id.clone();
                             tokio::spawn(async move {
@@ -402,9 +465,13 @@ impl NotificationSupervisor {
                             });
                         }
                     }
-                    // Telegram escalation, con lo stesso instradamento.
+                    // Telegram escalation, con lo stesso instradamento, nella SUA lingua.
                     if let Some(tx) = &tg_b {
-                        send_telegram(tx, state, body);
+                        send_telegram(
+                            tx,
+                            state,
+                            alarm_body(state, Evento::Escalation, &lingua_tg_b, &lingue_esc),
+                        );
                     }
                 }
             }
@@ -470,7 +537,12 @@ mod corpo_notifica_tests {
 
     #[test]
     fn il_messaggio_dell_allarme_si_traduce() {
-        let corpo = alarm_body(&stato("{{pressione_alta}}"), "TEST", "de", &tabella());
+        let corpo = alarm_body(
+            &stato("{{pressione_alta}}"),
+            Evento::Attivazione,
+            "de",
+            &tabella(),
+        );
         assert!(
             corpo.contains("Kesseldruck zu hoch"),
             "il token non è stato risolto:\n{corpo}"
@@ -483,7 +555,7 @@ mod corpo_notifica_tests {
 
     #[test]
     fn le_etichette_seguono_la_lingua_scelta() {
-        let de = alarm_body(&stato("x"), "TEST", "de", &tabella());
+        let de = alarm_body(&stato("x"), Evento::Attivazione, "de", &tabella());
         assert!(de.contains("Schweregrad"), "etichette non tradotte:\n{de}");
         assert!(
             !de.contains("Severità"),
@@ -495,13 +567,100 @@ mod corpo_notifica_tests {
     fn una_lingua_sconosciuta_ripiega_sull_inglese_non_sull_italiano() {
         // L'italiano era italiano solo perché lo era chi ha scritto il codice.
         // Per un destinatario ignoto l'inglese è la scelta onesta.
-        let corpo = alarm_body(&stato("x"), "TEST", "sv", &tabella());
+        let corpo = alarm_body(&stato("x"), Evento::Attivazione, "sv", &tabella());
         assert!(corpo.contains("Severity"), "atteso inglese:\n{corpo}");
     }
 
     #[test]
     fn un_messaggio_senza_token_passa_invariato() {
-        let corpo = alarm_body(&stato("Pressione alta"), "TEST", "it", &tabella());
+        let corpo = alarm_body(
+            &stato("Pressione alta"),
+            Evento::Attivazione,
+            "it",
+            &tabella(),
+        );
         assert!(corpo.contains("Pressione alta"));
+    }
+
+    #[test]
+    fn il_soggetto_non_porta_token_grezzi() {
+        // Il corpo si risolveva da tre giorni, l'oggetto no: un'email con il
+        // corpo in tedesco e `{{pressione_alta}}` nell'oggetto — la prima riga
+        // che si legge.
+        let s = alarm_subject(
+            Evento::Attivazione,
+            &stato("{{pressione_alta}}"),
+            "de",
+            &tabella(),
+        );
+        assert!(!s.contains("{{"), "token grezzo nell'oggetto: {s}");
+        assert!(
+            s.contains("Kesseldruck zu hoch"),
+            "oggetto non tradotto: {s}"
+        );
+        // Il marcatore per i filtri di posta resta fisso in ogni lingua.
+        assert!(s.starts_with("[SWS ALARM] A1 — "), "{s}");
+        let esc = alarm_subject(Evento::Escalation, &stato("x"), "de", &tabella());
+        assert!(esc.starts_with("[SWS ESCALATION] "), "{esc}");
+    }
+
+    #[test]
+    fn il_tipo_segue_la_lingua() {
+        // «🔴 ALLARME ATTIVO» era cablato nel chiamante, fuori da etichette():
+        // le sei etichette seguivano la lingua e il titolo no.
+        let de = alarm_body(&stato("x"), Evento::Attivazione, "de", &tabella());
+        assert!(!de.contains("ALLARME"), "titolo ancora italiano:\n{de}");
+        assert!(de.contains("ALARM AKTIV"), "titolo non tradotto:\n{de}");
+        let esc = alarm_body(&stato("x"), Evento::Escalation, "sv", &tabella());
+        assert!(
+            esc.contains("ESCALATION: alarm not acknowledged"),
+            "ripiego inglese atteso:\n{esc}"
+        );
+        assert!(!esc.contains("non riconosciuto"), "{esc}");
+    }
+
+    #[test]
+    fn ogni_canale_ha_la_sua_lingua() {
+        // Q57, decisione del maintainer: email e Telegram possono parlare due
+        // lingue diverse, con ripiego sulla predefinita delle notifiche.
+        use sws_core::{CanaleNotifica, NotificationConfig};
+        let cfg = NotificationConfig {
+            smtp: None,
+            telegram: None,
+            notify_lang: Some("it".into()),
+            notify_lang_email: Some("de".into()),
+            notify_lang_telegram: Some("es".into()),
+        };
+        assert_eq!(cfg.lingua_per(CanaleNotifica::Email, "en"), "de");
+        assert_eq!(cfg.lingua_per(CanaleNotifica::Telegram, "en"), "es");
+    }
+
+    #[test]
+    fn senza_lingua_di_canale_vale_la_predefinita_e_poi_quella_del_progetto() {
+        use sws_core::{CanaleNotifica, NotificationConfig};
+        let solo_predefinita = NotificationConfig {
+            smtp: None,
+            telegram: None,
+            notify_lang: Some("de".into()),
+            notify_lang_email: None,
+            notify_lang_telegram: Some("  ".into()), // vuota = non dichiarata
+        };
+        assert_eq!(
+            solo_predefinita.lingua_per(CanaleNotifica::Email, "it"),
+            "de"
+        );
+        assert_eq!(
+            solo_predefinita.lingua_per(CanaleNotifica::Telegram, "it"),
+            "de"
+        );
+        let niente = NotificationConfig {
+            smtp: None,
+            telegram: None,
+            notify_lang: None,
+            notify_lang_email: None,
+            notify_lang_telegram: None,
+        };
+        // È il comportamento di ogni progetto scritto prima di oggi.
+        assert_eq!(niente.lingua_per(CanaleNotifica::Email, "it"), "it");
     }
 }

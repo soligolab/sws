@@ -109,9 +109,11 @@ pub async fn start_project_services(
         notifications.as_ref().and_then(|n| n.telegram.clone()),
         (
             languages.clone(),
+            // La lingua DEL CANALE Telegram (Q57): la risoluzione sta in un
+            // punto solo, `lingua_per`, non ripetuta qui.
             notifications
                 .as_ref()
-                .and_then(|n| n.notify_lang.clone())
+                .map(|n| n.lingua_per(sws_core::CanaleNotifica::Telegram, &languages.default))
                 .unwrap_or_else(|| languages.default.clone()),
         ),
     )

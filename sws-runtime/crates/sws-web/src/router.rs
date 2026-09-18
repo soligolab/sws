@@ -6900,7 +6900,7 @@ async fn update_project_notifications(
             .unwrap_or_default();
         let codice_tg = config
             .as_ref()
-            .and_then(|n| n.notify_lang.clone())
+            .map(|n| n.lingua_per(sws_core::CanaleNotifica::Telegram, &lingue_tg.default))
             .unwrap_or_else(|| lingue_tg.default.clone());
         let sinks = crate::telegram::restart_sender(
             &s,

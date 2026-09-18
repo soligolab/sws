@@ -11,7 +11,29 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Fixed
+- **L'oggetto delle email portava il token grezzo.** Il corpo di una notifica risolveva
+  `{{chiave}}` da tre giorni; l'oggetto usava ancora `def.message` così com'era, quindi un
+  progetto tradotto bene mandava un'email col corpo in tedesco e `{{pressione_alta}}` nella
+  prima riga che si legge. Ora `alarm_subject` passa da `resolve_msg` come il corpo; il
+  marcatore `[SWS ALARM]`/`[SWS ESCALATION]` resta fisso in ogni lingua perché è ciò su cui un
+  filtro di posta smista.
+- **«🔴 ALLARME ATTIVO» era italiano cablato** fuori dalle etichette che seguono la lingua: il
+  titolo della notifica ora viene da `etichette()` come le altre sei parole, in it/de/fr/es e
+  inglese di ripiego.
+- **La scheda Notifiche cancellava `notify_lang` a ogni salvataggio**: il payload era
+  `{ smtp, telegram }` e basta, e il campo — che non aveva nessun controllo nell'IDE, si
+  impostava solo a mano nel YAML — spariva alla prima modifica dell'SMTP.
+
 ### Added
+- **La lingua delle notifiche è per canale** (Q57, decisione del maintainer): `notify_lang`
+  resta la predefinita, `notify_lang_email` e `notify_lang_telegram` la scavalcano per il
+  proprio canale, con ripiego sulla lingua principale del progetto. La risoluzione sta in un
+  punto solo, `NotificationConfig::lingua_per` — prima la stessa catena di `unwrap_or_else` era
+  copiata in tre file. Tre `select` nella scheda Notifiche. Il caso che copre: il costruttore legge
+  le email, la manutenzione locale legge Telegram; **non** copre due persone sullo stesso canale in
+  lingue diverse, e il maintainer l'ha scelto sapendolo. È la F2 del piano
+  `docs/plans/2026-09-18-multilingua-chiusura.md`.
 - **`check_i18n_ui.sh`, 20ª guardia statica: l'interfaccia dell'IDE parla dal catalogo.**
   `it.json`/`en.json` erano in parità perfetta (1271 chiavi, protette da un test) e nonostante
   questo l'IDE aveva **627 stringhe italiane fuori da `t()`** — 394 in `ConfigView.tsx` — e 35
