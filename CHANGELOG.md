@@ -11,6 +11,16 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Changed
+- **Il seme dell'immagine di boot è diventato un piano d'esecuzione**
+  (`docs/plans/2026-09-18-immagine-di-boot.md`, sessione di plan del 18-09-2026, nessun codice):
+  l'immagine di boot è un tipo di pagina dell'IDE salvato in `boot/` e invisibile al runtime; una
+  sola pagina «abilitata» per progetto; il progetto nasce con una pagina di boot e una sinottica;
+  un formato predefinito di progetto riempito dalla prima modifica; PNG rasterizzato dal browser al
+  salvataggio; installazione sui Pixsys via D-Bus con un canale file e unità systemd dedicate, e
+  lo stato riportato nell'IDE. Sei fasi da una sessione ciascuna. Misurato lungo la strada: axum
+  senza `DefaultBodyLimit` ferma a 2 MiB ogni upload, ZIP di deploy compresi.
+
 ## [2.9.0] — 2026-09-18
 
 > **Le regole del parco template, e il parco che le rispetta.** Cinque regole decise dal

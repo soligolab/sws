@@ -74,6 +74,28 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — l'immagine di boot ha un piano d'esecuzione (2026-09-18, sera)
+
+Sessione di plan sul seme Q13, **senza codice**. Il maintainer ha portato quattro requisiti nuovi
+— l'immagine di boot è un *tipo di pagina*, più pagine ma una sola «abilitata», progetto vuoto
+con una pagina di boot e una sinottica, la prima modificata definisce lo stile delle altre — e
+`docs/plans/2026-09-18-immagine-di-boot.md` è stato riscritto da seme a piano: misure sul codice
+(§1), design (§2), sei fasi da una sessione ciascuna (§3), verifica end-to-end (§5). Le note
+D-Bus sono in Appendice A, la scheda Q13 in Appendice B.
+
+Decisioni prese da lui in sessione: default di progetto **visibile** (non regola nascosta); palette
+di boot **solo vettoriale statica**; deploy senza pagina abilitata **non tocca nulla**; PNG **al
+salvataggio** con anteprima; ripiego sul **path assoluto** ammesso ma segnalato nello stato; pagine
+di boot **fuori dalla striscia di tab**; pagina di boot anche nei progetti **da template**.
+
+Tre cose misurate che valgono al di là del piano: il canvas è un solo `<svg>` ma metà della
+palette è `<foreignObject>`/`<canvas>`; axum senza `DefaultBodyLimit` blocca a **2 MiB** ogni
+upload (immagini e ZIP di deploy) prima del cap dichiarato di 5 MiB; nessuno ha verificato che
+`user` possa scrivere sotto `/run/media` sul pannello.
+
+**Prossimo passo**: F1 (modello e server) su un ramo `feat/…-immagine-di-boot-f1`, quando il
+maintainer dà il via e assegna il numero T-xx.
+
 ## ▶ Riprendere da qui — release 2.9.0 (2026-09-18)
 
 **Versione 2.9.0**: bump nei quattro file e nei due lockfile, sezione `[2.9.0] — 2026-09-18`
