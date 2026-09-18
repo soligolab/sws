@@ -1,6 +1,13 @@
 # Dove vivono i progetti: workspace, e `start_editor.sh` che è produzione
 
-> **Stato: SEME DI PIANO, da riprendere a freddo.** Scritto il 17-09-2026 su richiesta del
+> **Stato: PARTE 1 FATTA (18-09-2026), PARTE 2 in attesa di decisione.**
+>
+> Il punto 1 — `start_editor.sh` è produzione — è realizzato: lo script non impone più una radice
+> dentro il checkout, passa `--projects-root` solo se `SWS_PROJECTS_ROOT` c'è, stampa la radice e
+> **da dove viene**, e `start_editor_develop.sh` fa la corsa di sviluppo con una variabile e un
+> `exec`. Resta il punto 2, il workspace, che vuole D1-D4.
+>
+> **Stato originale: SEME DI PIANO, da riprendere a freddo.** Scritto il 17-09-2026 su richiesta del
 > maintainer, che riprende da casa. Contiene: cosa ha detto lui, cosa c'è già nel codice
 > (misurato oggi, non ricordato), le contraddizioni da sciogliere e le domande da decidere
 > **prima** di scrivere una riga. Non è ancora un piano di implementazione.
@@ -47,9 +54,18 @@ Il default buono esiste da `main.rs` (flag `--projects-root`, variabile `SWS_PRO
 commento lì dichiara proprio la ragione che il maintainer aveva in mente: *«fuori dal repo, così
 un clone pulito non porta con sé i progetti di qualcuno e un `git clean` non li cancella»*.
 
-### Cosa fare, e l'unica cosa da decidere
+### Fatto il 18-09-2026
 
-Duplicare come ha detto lui:
+Realizzato esattamente così, e con una scelta in più che vale la pena registrare: **lo script di
+produzione non calcola la radice**, passa `--projects-root` *solo* quando `SWS_PROJECTS_ROOT` è
+impostata. Se non c'è, il flag non viene passato affatto e decide il runtime. Così la radice ha
+un posto solo da cui venire invece di due che possono divergere — l'unica copia del default fuori
+dal Rust è nel messaggio d'avvio, ed è dichiarata nel commento.
+
+`start_runtime.sh` **non** è stato toccato: quello script simula un dispositivo, dove la radice la
+decide chi installa, ed è una decisione a sé.
+
+### Com'era stato proposto
 
 - **`start_editor.sh`** — produzione. Non impone `--projects-root`: lascia decidere al binario
   (`~/sws_projects`) o a `SWS_PROJECTS_ROOT` se l'utente l'ha messa. Stampa all'avvio **dove**

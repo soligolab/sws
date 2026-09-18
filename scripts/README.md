@@ -315,7 +315,7 @@ nei progetti che funzionano» si misura, e si mantiene da sé.
     ./scripts/gen_synoptic_schema.py            riscrive il file
     ./scripts/gen_synoptic_schema.py --stdout   lo stampa (lo usa la guardia)
 
-## `start_editor.sh` — IDE locale sul PC sviluppatore
+## `start_editor.sh` — l'IDE come lo vedrebbe un cliente
 
 Avvia il binario Rust con **solo** la porta IDE (nessun viewer).
 Permette di creare e modificare progetti localmente, anche senza un runtime attivo.
@@ -324,9 +324,35 @@ Permette di creare e modificare progetti localmente, anche senza un runtime atti
 - `8460` — IDE/admin locale
 
 ```sh
-./scripts/start_editor.sh                # IDE su 8460, HTTP su 8090, dati .run/
-./scripts/start_editor.sh --instance 2   # IDE su 8462, HTTP su 8091, dati .run-2/
+./scripts/start_editor.sh                # IDE su 8460, progetti in ~/sws_projects
+./scripts/start_editor.sh --instance 2   # IDE su 8462, configurazione in .run-editor-2/
 ```
+
+**Questa è la corsa di produzione**, e dal 18-09-2026 lo è davvero: i progetti finiscono dove li
+mette il runtime — `~/sws_projects`, fuori dal repo — oppure dove dice `SWS_PROJECTS_ROOT`. Lo
+script passa `--projects-root` **solo** se la variabile c'è, così la radice ha un posto solo da
+cui venire.
+
+Prima imponeva `.run-editor/projects`, dentro il checkout, e il default del runtime non entrava
+mai in gioco: il maintainer se n'è accorto vedendosi proporre `/home/ut1/sws/.run-editor/projects`
+alla creazione di un progetto, ricordando di aver deciso il contrario — e aveva ragione, la
+decisione c'era (Q46, 09-09) ma nessuno su questa macchina la vedeva mai. Il banner d'avvio ora
+stampa la radice **e da dove viene**, perché un percorso implicito era metà del problema.
+
+## `start_editor_develop.sh` — lo stesso IDE, con i progetti nel checkout
+
+Per sviluppare: imposta `SWS_PROJECTS_ROOT` a `.run-editor/projects` e passa la mano a
+`start_editor.sh`. I progetti di prova stanno accanto al codice e se ne vanno con la cartella
+`.run-*`.
+
+```sh
+./scripts/start_editor_develop.sh                    # come sopra, progetti nel repo
+./scripts/start_editor_develop.sh --instance 2       # gli stessi argomenti dell'altro
+```
+
+Non duplica niente: una variabile e un `exec`. Due copie che differiscono per una riga divergono
+in un mese. Se `SWS_PROJECTS_ROOT` è già impostata vince quella — lo script completa una scelta
+mancante, non ne scavalca una esplicita.
 
 Per connettere un runtime remoto: apri l'IDE → **ConfigView → Runtime →
 "Connetti"** → inserisci URL, utente e password del runtime (es. `https://192.168.1.50:8444`).

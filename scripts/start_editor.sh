@@ -1,20 +1,35 @@
 #!/usr/bin/env bash
 #
-# Avvia l'IDE SWS in locale sul PC dello sviluppatore (solo porta 8460).
-# Nessun viewer operatori — solo l'interfaccia di progettazione canvas.
+# Avvia l'IDE SWS (solo porta 8460). Nessun viewer operatori — solo
+# l'interfaccia di progettazione canvas.
 #
-# La directory dati è .run-editor/ (SEPARATA da .run/ usata da start_runtime.sh).
-# Editor e runtime hanno progetti distinti: il deploy copia via API, non su disco.
+# **Questo script è la corsa di PRODUZIONE**: si comporta come si comporterebbe
+# per un cliente. Per lo sviluppo c'è `start_editor_develop.sh`, che tiene i
+# progetti dentro il checkout.
+#
+# La differenza è una sola, ed è **dove vivono i progetti**. Qui la radice la
+# decide il runtime: `~/sws_projects`, fuori dal repo, o `SWS_PROJECTS_ROOT` se
+# l'hai impostata. Fino al 18-09-2026 questo script imponeva
+# `.run-editor/projects`, dentro il checkout, e il default del runtime non
+# entrava mai in gioco: il maintainer se n'è accorto vedendosi proporre
+# `/home/ut1/sws/.run-editor/projects` alla creazione di un progetto, e ha
+# chiarito che questo script l'ha sempre inteso come corsa di produzione.
+#
+# La directory dati di servizio (configurazione, log) resta .run-editor/,
+# SEPARATA da .run/ usata da start_runtime.sh. Editor e runtime hanno progetti
+# distinti: il deploy copia via API, non su disco.
 #
 # Di default parte in plain HTTP (nessun certificato necessario — localhost è
 # sempre un "secure context" nei browser moderni). TLS si abilita da
 # ConfigView → Stato → Certificato TLS dopo il primo avvio.
 #
 # Uso:
-#   ./scripts/start_editor.sh                # IDE su 8460, dati .run-editor/
-#   ./scripts/start_editor.sh --instance 2   # IDE su 8462, dati .run-editor-2/
+#   ./scripts/start_editor.sh                # IDE su 8460, progetti in ~/sws_projects
+#   ./scripts/start_editor.sh --instance 2   # IDE su 8462, config in .run-editor-2/
+#   ./scripts/start_editor_develop.sh        # progetti dentro il checkout
 #
 # Variabili d'ambiente (opzionali):
+#   SWS_PROJECTS_ROOT  dove tenere i progetti (default del runtime: ~/sws_projects)
 #   SWS_ADMIN_USER / SWS_ADMIN_PASSWORD   per creare un utente admin all'avvio
 #   RUST_LOG=debug   per log verbosi
 
@@ -48,11 +63,30 @@ else
 fi
 
 CONFIG_DIR="$RUN_DIR/config"
-# Q46: la stessa chiave che il runtime legge da solo. Se non la imposti, lo stack
-# di sviluppo tiene i progetti in .run*/projects come sempre (gitignored).
-PROJECTS_ROOT="${SWS_PROJECTS_ROOT:-$RUN_DIR/projects}"
 TEMPLATES_ROOT="$REPO_ROOT/examples/templates"
 LOG_DIR="$RUN_DIR/logs"
+
+# ── Dove vivono i progetti ────────────────────────────────────────────────────
+#
+# **Non si decide qui.** La radice è `SWS_PROJECTS_ROOT` se impostata, altrimenti
+# il default del runtime (`~/sws_projects`, vedi `projects_root_predefinita()` in
+# main.rs). Questo script passa `--projects-root` **solo** quando la variabile
+# c'è: così la radice ha un posto solo da cui venire, e non due che possono
+# divergere.
+#
+# Il percorso qui sotto serve soltanto al messaggio d'avvio — e quella è l'unica
+# copia del default che esiste fuori dal Rust. Se un giorno cambia lì, questa
+# riga mente: è il prezzo, dichiarato, di dire all'utente dove sta andando a
+# scrivere invece di lasciarglielo scoprire.
+if [ -n "${SWS_PROJECTS_ROOT:-}" ]; then
+  PROJECTS_ARGS=(--projects-root "$SWS_PROJECTS_ROOT")
+  PROJECTS_MOSTRATI="$SWS_PROJECTS_ROOT"
+  PROJECTS_ORIGINE="SWS_PROJECTS_ROOT"
+else
+  PROJECTS_ARGS=()
+  PROJECTS_MOSTRATI="${HOME:-.}/sws_projects"
+  PROJECTS_ORIGINE="default del runtime"
+fi
 
 if [ -z "${PYO3_PYTHON:-}" ] && command -v python3 >/dev/null 2>&1; then
   export PYO3_PYTHON=python3
@@ -73,7 +107,9 @@ if [[ "$python_reale" == *".pyenv/shims"* ]]; then
   fi
 fi
 
-mkdir -p "$CONFIG_DIR" "$PROJECTS_ROOT" "$LOG_DIR"
+# La radice dei progetti non si crea qui: la crea il runtime all'avvio, ed è
+# l'unico che sa qual è quando la variabile non c'è.
+mkdir -p "$CONFIG_DIR" "$LOG_DIR"
 
 # ── Pulizia processi stale sulla porta IDE ────────────────────────────────────
 stop_existing() {
@@ -206,6 +242,7 @@ else
 SWS IDE$INST_LABEL — pronto (HTTP)
 
   IDE locale : http://$LAN_IP:$ADMIN_PORT
+  Progetti   : $PROJECTS_MOSTRATI   ($PROJECTS_ORIGINE)
 
   → Per connettere un runtime: ConfigView → Runtime → Connetti
     (abilita deploy progetto + visualizzazione tag/allarmi live)
@@ -220,7 +257,7 @@ fi
 # Avvia senza --viewer-port: solo la porta admin (IDE) è in ascolto.
 exec "$REPO_ROOT/sws-runtime/target/debug/sws-runtime" \
   --config         "$CONFIG_DIR"     \
-  --projects-root  "$PROJECTS_ROOT"  \
+  "${PROJECTS_ARGS[@]}"              \
   --templates-root "$TEMPLATES_ROOT" \
   --admin-port     "$ADMIN_PORT"     \
   "${HTTP_ARGS[@]}"                  \
