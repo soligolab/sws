@@ -74,6 +74,37 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — F4 del multilingua mergiata, collaudo dal vivo fatto (2026-09-18/19)
+
+Sessione di continuazione da un'altra macchina: `fix/lingue-marchio-auto` (pushato ieri sera, **non
+ancora mergiato**, F4 del piano [`docs/plans/2026-09-18-multilingua-chiusura.md`](docs/plans/2026-09-18-multilingua-chiusura.md))
+era l'unico ramo aperto — «un ramo alla volta» impediva di iniziare altro prima di chiuderlo.
+Mancava solo il collaudo dal vivo descritto nel piano; l'ho eseguito io su un'istanza IDE di
+scarto (`start_editor.sh`, non `start_runtime.sh` — la traduzione automatica è **solo-IDE**,
+`solo_ide()` risponde 404 sul runtime in modalità dispositivo, scoperto per tentativi):
+
+- tradotto verso `de` con MyMemory: `Temperatura {value:.1f} °C` → proposta rossa «da approvare»
+  (contiene un segnaposto, D4); `Pompa` → `Pumpe` col bordo tratteggiato (marchio automatico, D3);
+- corretta `Pumpe` a mano → bordo tratteggiato sparito;
+- salvato: `project.yaml` risultante non ha più `de` in `auto` per quella voce, esattamente il
+  criterio del piano.
+
+Squash-merge fatto (`3ad506d`), gate verde fresco su questa macchina (non solo fidandosi del
+referto della sessione precedente): `cargo check/test --workspace`, `pnpm test` 548/548, `pnpm
+build`, `check_static.sh` 21/21. Ramo locale e remoto (`origin/fix/lingue-marchio-auto`)
+eliminati dopo aver capito che l'unica differenza fra gli alberi era la nota di STATUS.md che il
+ramo portava con sé («F4 sul ramo, manca il collaudo») — ormai superata dal merge stesso, nessun
+codice perso.
+
+**Prossimo passo del piano**: F5 (configurazione del fornitore persistita nell'istanza), quando si
+vorrà — vedi il piano per il disegno. Resta anche il piano dell'immagine di boot (sotto), da
+prendere **uno alla volta** con questo.
+
+**Trovato per strada, non affrontato**: `start_editor.sh --instance N` con `N≠1` scrive i log in
+`logs/` alla radice del repo invece che in `.run-editor-N/logs` — non tracciato, non in
+`.gitignore`. Non l'ho toccato (fuori scope), ma è un rametto da tirare la prossima volta che si
+tocca quello script.
+
 ## ▶ Riprendere da qui — l'immagine di boot ha un piano d'esecuzione (2026-09-18, sera)
 
 Sessione di plan sul seme Q13, **senza codice**. Il maintainer ha portato quattro requisiti nuovi
