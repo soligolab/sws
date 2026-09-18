@@ -74,6 +74,32 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — F7 chiuso, collaudo del riflusso fatto, due difetti trovati e corretti (2026-09-17/18)
+
+Sessione di continuazione: chiuso il piano F7 residui minori (entrambe le parti — vedi
+`docs/archive/2026-09-12-f7-residui-minori.md`), poi fatto il collaudo a schermo del riflusso
+1280×800 che la sessione precedente aveva lasciato aperto (punto 1 sotto). Due difetti reali
+trovati, nessuno dei due era quello ipotizzato ("bande laterali vuote" su `homeassistant-pro`):
+
+- **`fix(homeassistant-pro)` (`2c8dd154`)** — nel riquadro PERIMETRO & MOVIMENTO della pagina
+  Sicurezza & Ctrl, tre etichette ("Veicolo", "Piazzale", "Mauro a casa") stavano quasi alla
+  stessa coordinata Y di "Persona esterna", illeggibili una sopra l'altra — copia-incolla senza
+  incrementare Y. Riscalate, riquadro allargato (181→275px).
+- **`fix(homeassistant)` (`97ae585`)** — qualunque tag alimentato da una sorgente `homeassistant`
+  irraggiungibile mostrava `false` invece di un valore del proprio tipo (`sole.elevazione`,
+  `float`, leggeva `{"value":false}`). Il plugin scriveva sempre `TagValue::Bool(false)` sul
+  bail-out, sovrascrivendo il default corretto già seminato da `populate_tags`. `sws-plugin-mqtt`
+  era già stato corretto il 16-09 con lo stesso identico problema (vedi il commento di
+  `marca_qualita` in `sws-core::tag`) — quel giro non aveva incluso `homeassistant`. Ora usa
+  `marca_qualita` anche qui. Diventa visibile su **ogni** apertura di `homeassistant-demo`/`-pro`
+  da template, proprio perché R5 ha appena reso gli indirizzi placeholder non raggiungibili per
+  definizione — non un difetto raro.
+
+Entrambi verificati dal vivo su runtime di scarto, gate verde. Un'osservazione non affrontata:
+`cargo fmt --all -- --check` è rosso su `sws-lvgl-viewer/src/lvgl_render.rs` (drift preesistente,
+non nei file toccati da nessuno dei due fix di oggi — probabilmente sfuggito all'ultimo giro di
+formattazione della sessione precedente). Non l'ho toccato per non mescolare un ramo con l'altro.
+
 ## ▶ Riprendere da qui — le regole del parco template, e il parco che le rispetta (2026-09-17)
 
 Quattro squash merge su `main`, i due rami (`feat/regole-template` e l'annidato
@@ -106,17 +132,14 @@ l'indirizzo o le credenziali di una rete vera.
 
 ### Cosa resta aperto
 
-1. **Il collaudo a schermo del riflusso.** `opcua-demo`, i due `homeassistant`,
-   `nebulizzatore-sandokan` e `grid-playground` sono passati a 1280×800 con una scala uniforme e
-   il contenuto centrato: nessun oggetto esce dalla pagina (verificato), ma **come stanno** lo
-   dice solo l'occhio. Su `homeassistant-pro` restano bande laterali vuote, che si tolgono
-   ridisegnando.
+1. ~~**Il collaudo a schermo del riflusso.**~~ — **fatto il 17/18-09-2026**, vedi la voce più
+   recente in cima al file: due difetti trovati e corretti, nessuno era la voce "bande laterali
+   vuote" ipotizzata qui.
 2. **Le sei eccezioni**, sopra.
 3. **La release 2.9.0**, quando si vorrà: `[Unreleased]` ha già dentro T-71, la guardia sulle
-   release, le regole del parco e i tre difetti di oggi.
-4. **`2.7.3` non è mai stata taggata** — debito dichiarato in `check_release_coerente.sh`, in
-   attesa di una decisione: crearle il tag a posteriori o lasciarla come release di solo
-   changelog.
+   release, le regole del parco, i tre difetti di ieri e i due di oggi.
+4. ~~**`2.7.3` non è mai stata taggata**~~ — **fatto**, vedi `chore: la 2.7.3 ha il suo tag`
+   (`e2474b1b`).
 
 ### Una cosa imparata, che vale più della sessione
 

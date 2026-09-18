@@ -57,6 +57,16 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   stesso processo, altra origin per il browser. L'icona compare solo nel bundle IDE
   (`api.isAdminBundle()`), non ovunque il componente sia montato.
 ### Fixed
+- **Sovrapposizione di testo su `homeassistant-pro`**: nel riquadro PERIMETRO & MOVIMENTO della
+  pagina Sicurezza & Ctrl, tre etichette stavano quasi alla stessa coordinata Y di quella sopra
+  — copia-incolla senza incrementare Y. Trovato durante il collaudo a schermo del riflusso
+  1280×800. Riscalate, riquadro allargato per contenerle.
+- **Un tag `homeassistant` senza sorgente mentiva sul proprio tipo**: mostrava `false` invece di
+  un valore del proprio tipo dichiarato (`sole.elevazione`, `float`, leggeva `{"value":false}`).
+  Il plugin scriveva sempre `TagValue::Bool(false)` sul bail-out invece di lasciare il default già
+  seminato da `populate_tags`. Stesso difetto già corretto in `sws-plugin-mqtt` il 16-09-2026,
+  non incluso in quel giro. Diventa visibile a ogni apertura di `homeassistant-demo`/`-pro` da
+  template, ora che R5 rende gli indirizzi placeholder irraggiungibili per definizione.
 - **Un template non porta più la rete di nessuno**: `casa-locale`, `nebulizzatore-sandokan`,
   `enip-demo` e `s7-demo` dichiaravano indirizzi di una rete reale (il broker di casa dell'autore
   fra questi). Ora usano nomi riservati (RFC 2606) e la rete di documentazione RFC 5737, e il
