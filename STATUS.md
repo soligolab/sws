@@ -74,6 +74,55 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — casa e ufficio riconciliati: Q58 chiusa, Q59 e il seme workspace (2026-09-18)
+
+Due sessioni in parallelo sullo stesso `main`, e questa volta si sono incontrate senza perdite.
+L'ufficio aveva tre commit non pushati, casa ne aveva cinque su `origin`: **rebase dei tre sopra
+i cinque**, due conflitti, entrambi di sola documentazione.
+
+### Cosa veniva dall'ufficio (17-09, pushato il 18)
+
+| commit | cosa |
+|---|---|
+| `6887afe7` | `feat(Q58)` — un progetto nato da un template non si collega prima che qualcuno guardi dove |
+| `c5f00288` | `docs(Q59)` — la cartella dei progetti: il default c'è, ma gli script lo scavalcano |
+| `405568d8` | `docs(piano)` — il seme su workspace e cartella progetti |
+
+**Q58** è realizzata e **collaudata dal vivo dal maintainer** su un progetto creato da `s7-demo`:
+il flag `Project::sorgenti_da_rivedere`, acceso dalla creazione da template e spento dal
+salvataggio della scheda Sorgenti, impedisce al runtime di collegarsi a indirizzi che nessuno ha
+ancora guardato. Per progetto e non per sorgente — la scelta e il perché stanno nella scheda.
+**Resta solo il timbro** del campo `Decided`, che non tocco io (regola 3).
+
+**Q59** è nata da un'osservazione del maintainer — l'IDE gli proponeva
+`/home/ut1/sws/.run-editor/projects`, dentro il checkout — e si è allargata quando ha chiarito
+che `start_editor.sh` l'ha sempre inteso come **run di produzione**. Il seme del piano è in
+`docs/plans/2026-09-17-workspace-cartella-progetti.md`.
+
+### I due conflitti, e come sono stati sciolti
+
+- **`CHANGELOG.md`**: tre voci nuove nella stessa sezione, nessuna in contrasto. Restano tutte e
+  tre, quelle di casa per prime perché erano già su `origin`.
+- **`docs/plans/README.md`**: casa ha archiviato il piano F7 (riga tolta), l'ufficio aveva
+  aggiunto la riga del piano workspace **sopra** quella di F7. Risolto tenendo la riga nuova e
+  non facendo tornare quella archiviata — un merge testuale ingenuo l'avrebbe resuscitata.
+
+### Un incrocio fra le due sessioni che vale la pena notare
+
+Il `fix(homeassistant)` di casa dice che il difetto «diventa visibile su **ogni** apertura di
+`homeassistant-demo`/`-pro` da template, proprio perché R5 ha appena reso gli indirizzi
+placeholder non raggiungibili». È vero, ed è anche il motivo per cui Q58 e quel fix si completano:
+con Q58 le sorgenti di un progetto appena creato **non partono affatto**, quindi il caso non si
+presenta finché l'utente non conferma; ma appena conferma con un indirizzo ancora sbagliato,
+torna — e lì il fix di casa è quello che gli evita di leggere `false` su un tag `float`.
+
+### Cosa resta aperto
+
+1. **Le sei eccezioni** alle regole del parco template (`check_templates.sh` le conta a ogni giro).
+2. **Il timbro di Q58** e le decisioni D1-D4 del seme workspace.
+3. **La release 2.9.0**: `[Unreleased]` ha T-71, la guardia sulle release, le regole del parco,
+   F7 parte B, i difetti del 17 e del 18, e Q58.
+
 ## ▶ Riprendere da qui — F7 chiuso, collaudo del riflusso fatto, due difetti trovati e corretti (2026-09-17/18)
 
 Sessione di continuazione: chiuso il piano F7 residui minori (entrambe le parti — vedi
@@ -81,7 +130,7 @@ Sessione di continuazione: chiuso il piano F7 residui minori (entrambe le parti 
 1280×800 che la sessione precedente aveva lasciato aperto (punto 1 sotto). Due difetti reali
 trovati, nessuno dei due era quello ipotizzato ("bande laterali vuote" su `homeassistant-pro`):
 
-- **`fix(homeassistant-pro)` (`2c8dd154`)** — nel riquadro PERIMETRO & MOVIMENTO della pagina
+- **`fix(homeassistant-pro)` (`20a8b628`)** — nel riquadro PERIMETRO & MOVIMENTO della pagina
   Sicurezza & Ctrl, tre etichette ("Veicolo", "Piazzale", "Mauro a casa") stavano quasi alla
   stessa coordinata Y di "Persona esterna", illeggibili una sopra l'altra — copia-incolla senza
   incrementare Y. Riscalate, riquadro allargato (181→275px).
@@ -99,6 +148,11 @@ Entrambi verificati dal vivo su runtime di scarto, gate verde. Un'osservazione n
 `cargo fmt --all -- --check` è rosso su `sws-lvgl-viewer/src/lvgl_render.rs` (drift preesistente,
 non nei file toccati da nessuno dei due fix di oggi — probabilmente sfuggito all'ultimo giro di
 formattazione della sessione precedente). Non l'ho toccato per non mescolare un ramo con l'altro.
+
+> **Risolto dalla riconciliazione del 18-09**: quel drift era nel lavoro dell'ufficio non ancora
+> pushato (il `format_value` riscritto), e il `cargo fmt --all` di quel ramo l'ha sistemato.
+> Dopo il rebase `cargo fmt --all -- --check` è verde. Era un sintomo della divergenza, non un
+> debito.
 
 ## ▶ Riprendere da qui — le regole del parco template, e il parco che le rispetta (2026-09-17)
 
