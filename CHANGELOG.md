@@ -11,6 +11,19 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.9.0] — 2026-09-18
+
+> **Le regole del parco template, e il parco che le rispetta.** Cinque regole decise dal
+> maintainer e verificate da una guardia; tutti i template a 1280×800, completi in tre lingue con
+> ~660 voci scritte a mano, senza la rete di nessuno; `casa-locale` esce dal parco. Con esse: il
+> selettore di caratteri speciali e le emoji vere su LVGL (T-71), il numero che perdeva la sua
+> unità su entrambi i motori, la modifica di un testo tradotto che coniava una chiave vuota, un
+> progetto da template che non si collega prima che qualcuno guardi dove (Q58), `start_editor.sh`
+> come corsa di produzione, il rimando al motivo dell'ACK dallo storico allarmi (F7), e una guardia
+> che non lascia più una release a metà — nata dalla notte in cui la 2.8.0 lo è stata. Lavoro delle
+> sessioni dal 16 al 18 settembre, casa e ufficio.
+
+
 ### Added
 - **Le domande aperte diventano semi di piano** (regola del maintainer, 18-09-2026):
   `docs/OPEN_QUESTIONS.md` è congelato — tiene i numeri e un rimando per scheda — e una domanda

@@ -74,6 +74,33 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — release 2.9.0 (2026-09-18)
+
+**Versione 2.9.0**: bump nei quattro file e nei due lockfile, sezione `[2.9.0] — 2026-09-18`
+tagliata nel `CHANGELOG.md` con sedici voci, tag annotato. Prima della release, su decisione del
+maintainer, **`casa-locale` è uscito dal parco template** (`6ab93078`): era l'impianto di casa
+sua e l'unico template ancora fuori dalle regole R1/R3 — il debito del parco scende da 6 a **4**
+eccezioni, tutte di semplicità. Una copia sta in `~/sws_projects/casa-locale`, la radice di
+produzione, dove gli indirizzi `mqtt.example.invalid` vanno rimessi al broker vero.
+
+Una cosa che sarebbe andata persa e non lo è: `casa-locale` era l'unico esempio nel parco di una
+sorgente MQTT che **scrive** (`publish_topic`), ed è da lì che l'assistente IA imparava che si
+può. Ora quel ruolo lo ha la presa Zigbee di `nebulizzatore-sandokan`, che si legge e si comanda
+— `zigbee2mqtt/<dispositivo>/set/state` col valore nudo, che è quello che il runtime pubblica.
+
+**Definition of done su `main`**: 19/19 guardie statiche, `cargo check`, 443 test editor,
+`pnpm build`; il maintainer ha collaudato dal vivo in questi tre giorni ogni pezzo grosso della
+release (multilingua, Q58 su `s7-demo`, il riflusso, T-71 a casa).
+
+### Cosa resta aperto
+
+1. **Il container**: `./scripts/build_container.sh` lanciato per la 2.9.0 (aarch64); la
+   pubblicazione sul registry (`--push`) è una decisione del maintainer, e non è stata fatta.
+2. **Le quattro eccezioni** del parco template, tutte R3: i due `demo-items` (4 pagine per 35
+   widget), `homeassistant-demo` (62 oggetti), `homeassistant-pro` (la vetrina).
+3. **I sette semi** in `docs/plans/README.md`, con `multilingua-residuo` e `immagine-di-boot` come
+   i più maturi; identità/utenti e workspace in coda per decisione del maintainer.
+
 ## ▶ Riprendere da qui — le domande aperte sono diventate semi di piano (2026-09-18)
 
 Decisione del maintainer, con una regola nuova in `CLAUDE.md` che cambia il modo di lavorare:
