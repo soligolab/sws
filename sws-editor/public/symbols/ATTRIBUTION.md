@@ -26,8 +26,10 @@ both carry the "Q40" note where these moved.
 implementation-time judgment alone couldn't settle): the seven MDI-derived
 redraws are original stylised icons, not traced from the source — not
 derivative works, so no MDI attribution is owed for them. `casa-locale/
-CREDITS.md`, the template that used to carry that attribution, has been
-rewritten accordingly. An eighth pre-Q40 file this attribution once covered,
+CREDITS.md`, the template that used to carry that attribution, was
+rewritten accordingly — and on 2026-09-18 that template left the park
+altogether (it was the maintainer's own house; it lives on as his local
+project). The decision stands on its own here. An eighth pre-Q40 file this attribution once covered,
 `solar-power-variant.svg`, was never converted and had become an orphan
 (unreferenced by any `symbol_id`) — removed in the same pass.
 

@@ -51,6 +51,14 @@ sources:
   - tag: sandokan.state
     topic: zigbee2mqtt/presa.sandokan
     json_path: state
+    # Una presa smart si legge E si comanda: zigbee2mqtt accetta
+    # `<dispositivo>/set/<attributo>` con il valore nudo come payload
+    # («ON»/«OFF»), che è esattamente ciò che il runtime pubblica su una
+    # scrittura. Dal 18-09-2026 è anche l'unico esempio nel parco di una
+    # sorgente MQTT che scrive (`publish_topic`): lo era `casa-locale`, uscito
+    # dal parco quel giorno, e l'assistente IA impara il vocabolario dai
+    # template — senza questo avrebbe smesso di sapere che si può.
+    publish_topic: zigbee2mqtt/presa.sandokan/set/state
   - tag: sandokan.power
     topic: zigbee2mqtt/presa.sandokan
     json_path: power

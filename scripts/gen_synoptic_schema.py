@@ -276,9 +276,10 @@ def source_examples():
     Il punteggio NON è la lunghezza. Scegliendo la sorgente più lunga, per mqtt
     vinceva l'esempio Sparkplug: `topics: []` e un blocco `sparkplug:` che
     insegna esattamente il contrario di quel che serve. Vince invece la sorgente
-    il cui **mapping tag↔device** usa più campi distinti — che per mqtt pesca i
-    rulli Shelly di `casa-locale`, l'unico esempio in casa di una sorgente MQTT
-    che *scrive* (`publish_topic`) e non solo legge.
+    il cui **mapping tag↔device** usa più campi distinti — che per mqtt pesca la
+    presa Zigbee di `nebulizzatore-sandokan`, dal 18-09-2026 l'unico esempio nel
+    parco di una sorgente MQTT che *scrive* (`publish_topic`) e non solo legge
+    (prima erano i rulli Shelly di `casa-locale`, uscito dal parco).
 
     Per la stessa ragione le liste lunghe non si tagliano alle prime due voci ma
     alle due che insieme coprono più campi: la voce che porta `publish_topic`

@@ -92,11 +92,9 @@ PALETTE = set(re.findall(r'type:\s*"([a-z_]+)"',
 # R1 — formato di pagina. Decisione D1: la regola vale da subito per ciò che
 # nasce, e questi si riflussano quando gli si mette mano per le altre regole.
 R1_DEBITO = {
-    # Il piano che doveva occuparsene (casamauro-arricchimento-demo) è stato
-    # archiviato come superato il 18-09-2026: questo debito NON ha più un
-    # proprietario, e va deciso se riflussare il template o toglierlo dal parco.
-    "casa-locale": "800×680 — 298 oggetti su 5 pagine; era affidato a un piano che il "
-                   "18-09-2026 è stato archiviato come superato: nessuno se ne occupa più",
+    # Vuoto dal 18-09-2026: l'ultimo fuori formato, `casa-locale`, è uscito dal
+    # parco (era l'impianto di casa del maintainer, vive ora come suo progetto
+    # locale). Ogni template è 1280×800.
 }
 
 # R2 — testo visibile che non passa dalla tabella lingue. Il numero è il
@@ -114,9 +112,6 @@ R3_DEBITO = {
     # nome: (pagine, oggetti nella pagina più piena, perché)
     "homeassistant-pro":  (6, 112, "vetrina del «cosa si può fare», non punto di partenza — "
                                    "la parola «pro» nel nome è l'avviso (decisione del maintainer, 17-09-2026)"),
-    "casa-locale":        (5, 94,  "l'impianto di casa del maintainer; il piano che doveva "
-                                   "sfoltirlo è stato archiviato come superato il 18-09-2026 — "
-                                   "debito senza proprietario"),
     "demo-items-lvgl":    (4, 0,   "inventario: 4 pagine per coprire 35 tipi di widget; nessuna pagina supera il tetto di oggetti"),
     "demo-items-web":     (4, 0,   "inventario: 4 pagine per coprire 35 tipi di widget; nessuna pagina supera il tetto di oggetti"),
     "homeassistant-demo": (3, 62,  "due oggetti sopra il tetto nella pagina di panoramica"),

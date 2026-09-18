@@ -1175,7 +1175,6 @@ pub const TYPE_USAGE: &[(&str, &[&str])] = &[
     (
         "progress_bar",
         &[
-            "alarm_low",
             "background",
             "fill",
             "height",
@@ -1184,7 +1183,6 @@ pub const TYPE_USAGE: &[(&str, &[&str])] = &[
             "min",
             "tag",
             "type",
-            "warn_low",
             "width",
             "x",
             "y",
@@ -1387,8 +1385,8 @@ pub const TYPE_USAGE: &[(&str, &[&str])] = &[
 
 /// Un esempio YAML reale per tipo, preso dal template che lo usa meglio.
 pub const TYPE_EXAMPLES: &[(&str, &str)] = &[
-    ("alarm_banner", "id: cl1_alarm_banner\ntype: alarm_banner\nx: 20.0\ny: 590.0\nwidth: 760.0\nheight: 70.0"),
-    ("alarm_bell", "id: cl1_alarm_bell\ntype: alarm_bell\nx: 20.0\ny: 536.0\nwidth: 130.0\nheight: 34.0\nalarm_bell_show_history: true\nalarm_bell_show_shelve: true"),
+    ("alarm_banner", "id: o_banner\ntype: alarm_banner\nx: 30.0\ny: 96.0\nwidth: 1220.0\nheight: 48.0"),
+    ("alarm_bell", "id: gp1_alarm_bell\ntype: alarm_bell\nx: 162.2\ny: 640.0\nwidth: 144.4\nheight: 37.8\nalarm_bell_show_history: true\nalarm_bell_show_shelve: true"),
     ("alarm_history", "id: o_history\ntype: alarm_history\nx: 650.0\ny: 182.0\nwidth: 600.0\nheight: 250.0\nalarm_viewer_max_rows: 6.0"),
     ("alarm_viewer", "id: o_viewer\ntype: alarm_viewer\nx: 30.0\ny: 182.0\nwidth: 600.0\nheight: 250.0\nalarm_viewer_max_rows: 6.0\nalarm_viewer_show_ack: true"),
     ("bar_chart", "id: o_bar\ntype: bar_chart\nx: 30.0\ny: 388.0\nwidth: 290.0\nheight: 220.0\nbar_series:\n- tag: demo.sim.bar_a\n  label: A\n  color: '#0ea5e9'\n- tag: demo.sim.bar_b\n  label: '{{t0054}}'\n  color: '#22c55e'\n- tag: demo.sim.bar_c\n  label: '{{t0055}}'\n  color: '#f59e0b'\nwarn_high: 70.0\nalarm_high: 90.0\nbar_show_thresholds: true"),
@@ -1397,18 +1395,18 @@ pub const TYPE_EXAMPLES: &[(&str, &str)] = &[
     ("data_log", "id: o_datalog\ntype: data_log\nx: 30.0\ny: 442.0\nwidth: 600.0\nheight: 320.0\ntag: demo.sim.pressure\ndatalog_page_size: 12.0"),
     ("ellipse", "id: o_motion\ntype: ellipse\nx: 250.0\ny: 550.0\nwidth: 20.0\nheight: 20.0\nfill: '#f59e0b'\nstroke: '#fbbf24'\nstroke_width: 2.0\nmotion_tag: demo.sim.ramp\nmotion_min: 0.0\nmotion_max: 100.0\nmotion_path:\n- x: 260.0\n  y: 560.0\n- x: 430.0\n  y: 505.0\n- x: 600.0\n  y: 560.0"),
     ("faceplate", "id: o_faceplate\ntype: faceplate\nx: 30.0\ny: 474.0\nwidth: 290.0\nheight: 150.0\nfaceplate_id: motor_basic\nfaceplate_params:\n  tag_prefix: demo.sim.motor\n  label: '{{t0016}}'"),
-    ("gauge", "id: cl2_soc_gauge\ntype: gauge\nx: 310\ny: 160\nwidth: 200\nheight: 160\ntag: solar.battery_soc\nmin: 0\nmax: 100\nunit: '%'\nlabel: '{{t0052}}'\nwarn_low: 20\nalarm_low: 10"),
+    ("gauge", "id: o_gauge\ntype: gauge\nx: 30.0\ny: 202.0\nwidth: 250.0\nheight: 190.0\ntag: demo.sim.level\nmin: 0.0\nmax: 100.0\nlabel: '{{t0064}}'\nunit: '%'\nwarn_high: 70.0\nalarm_high: 90.0"),
     ("grid", "id: o_grid\ntype: grid\nx: 960.0\ny: 388.0\nwidth: 290.0\nheight: 220.0\ngrid_rows: 2\ngrid_cols: 2\ngrid_show_borders: true\ngrid_border_color: '#334155'\ngrid_cells:\n- row: 0\n  col: 0\n  child:\n    id: g_led\n    type: led\n    x: 20.0\n    y: 20.0\n    width: 40.0\n    height: 40.0\n    tag: demo.sim.running\n    on_color: '#22c55e'\n    off_color: '#334155'\n    on_value: 'true'\n- row: 0\n  col: 1\n  child:\n    id: g_text\n    type: text\n    x: 10.0\n    y: 30.0\n    width: 120.0\n    height: 24.0\n    tag: demo.sim.counter\n    format: '{value:.0f}'\n    font_size: 18.0\n    color: '#e2e8f0'\n- row: 1\n  col: 0\n  child:\n    id: g_rect\n    type: rect\n    x: 15.0\n    y: 20.0\n    width: 110.0\n    height: 45.0\n    fill: '#0ea5e9'\n- row: 1\n  col: 1\n  child:\n    id: g_lamp\n    type: state_lamp\n    x: 15.0\n    y: 22.0\n    width: 100.0\n    height: 40.0\n    tag: demo.sim.mode\n    text_list_entries:\n    - value: Auto\n      label: A\n      color: '#22c55e'\n    - value: Manuale\n      label: '{{t0067}}'\n      color: '#f59e0b'\n    - value: Fermo\n      label: '{{t0068}}'\n      color: '#64748b'"),
     ("image", "id: o_image\ntype: image\nx: 960.0\ny: 398.0\nwidth: 200.0\nheight: 120.0\nsrc: /branding/sws/logo.svg"),
     ("kpi_tile", "id: o_kpi\ntype: kpi_tile\nx: 30.0\ny: 542.0\nwidth: 290.0\nheight: 110.0\nlabel: '{{t0045}}'\ntag: demo.sim.pressure\nunit: bar"),
     ("lang_button", "id: o_langbtn_it\ntype: lang_button\nx: 960.0\ny: 202.0\nwidth: 90.0\nheight: 36.0\nlabel: '{{t0084}}'\ntarget_lang: it"),
-    ("lang_selector", "id: lang_sel_auto\ntype: lang_selector\nx: 702\ny: 8\nwidth: 90\nheight: 26"),
-    ("led", "id: cl1_pv_led\ntype: led\nx: 248\ny: 96\nwidth: 14\nheight: 14\ntag: solar.pv_power\non_value: 0.05\non_color: '#f59e0b'\noff_color: '#374151'"),
-    ("line", "id: cl1_line_pv_casa\ntype: line\nx: 270\ny: 140\nx2: 300\ny2: 140\nstroke: '#f59e0b'\nstroke_width: 2"),
+    ("lang_selector", "id: o_langsel\ntype: lang_selector\nx: 960.0\ny: 250.0\nwidth: 190.0\nheight: 36.0"),
+    ("led", "id: o_led\ntype: led\nx: 30.0\ny: 96.0\nwidth: 56.0\nheight: 56.0\ntag: demo.sim.running\non_color: '#22c55e'\noff_color: '#334155'\non_value: 'true'"),
+    ("line", "id: o_line\ntype: line\nx: 650.0\ny: 96.0\nx2: 940.0\ny2: 206.0\nstroke: '#22c55e'\nstroke_width: 4.0"),
     ("navbutton", "id: nav1\ntype: navbutton\nx: 900.0\ny: 12.0\nwidth: 170.0\nheight: 32.0\nlabel: 1. Generatore\ntarget_page: t69_gen\nfill: '#2563eb'\ngroup_id: nav\nlocked: true"),
     ("pie_chart", "id: o_pie\ntype: pie_chart\nx: 340.0\ny: 388.0\nwidth: 250.0\nheight: 220.0\npie_mode: donut\npie_inner_ratio: 0.55\npie_slices:\n- tag: demo.sim.pie_a\n  label: '{{t0057}}'\n  color: '#0ea5e9'\n- tag: demo.sim.pie_b\n  label: '{{t0058}}'\n  color: '#22c55e'\n- tag: demo.sim.pie_c\n  label: '{{t0059}}'\n  color: '#f59e0b'\npie_show_labels: true\npie_label_mode: label_percent\npie_hole_color: '#0f172a'\npie_center_tag: demo.sim.pressure\npie_center_format: '{value}'\npie_group_below_pct: 8.0\npie_group_label: '{{t0060}}'\npie_group_color: '#475569'\ndecimals: 0"),
     ("pipe", "id: s_pipe\ntype: pipe\nx: 115\ny: 160\nwidth: 115\nheight: 70\npoints:\n- x: 115\n  y: 100\n- x: 170\n  y: 128\n- x: 230\n  y: 92\nrouting: straight\npipe_style: tube\nstroke: '#475569'\nstroke_width: 6\npipe_flow: true\npipe_flow_tag: sandokan.running"),
-    ("progress_bar", "id: cl1_bat_bar\ntype: progress_bar\nx: 92\ny: 304\nwidth: 166\nheight: 16\ntag: solar.battery_soc\nmin: 0\nmax: 100\nfill: '#22c55e'\nwarn_low: 20\nalarm_low: 10"),
+    ("progress_bar", "id: ha1_risc_prog\ntype: progress_bar\nx: 201\ny: 609\nwidth: 374\nheight: 21\ntag: clima.temperatura_attuale\nmin: 10\nmax: 30\nfill: '#dc2626'\nbackground: '#374151'"),
     ("radio", "id: o_radio\ntype: radio\nx: 650.0\ny: 254.0\nwidth: 250.0\nheight: 96.0\ntag: demo.cmd.select\noptions:\n- label: '{{t0033}}'\n  value: locale\n- label: '{{t0034}}'\n  value: remoto\n- label: '{{t0035}}'\n  value: fuori_servizio"),
     ("recipe_panel", "id: o_recipe\ntype: recipe_panel\nx: 650.0\ny: 474.0\nwidth: 600.0\nheight: 250.0"),
     ("rect", "id: o_fx_blinktag\ntype: rect\nx: 845.0\ny: 384.0\nwidth: 180.0\nheight: 90.0\nfill: '#ef4444'\nstroke: '#fca5a5'\nstroke_width: 2.0\ncorner_radius: 6.0\nblink_mode: tag\nblink_tag: demo.sim.fault\nblink_rate_ms: 500.0"),
@@ -1418,7 +1416,7 @@ pub const TYPE_EXAMPLES: &[(&str, &str)] = &[
     ("state_lamp", "id: o_lamp\ntype: state_lamp\nx: 340.0\ny: 96.0\nwidth: 90.0\nheight: 56.0\ntag: demo.sim.mode\ntext_list_entries:\n- value: Auto\n  label: '{{t0072}}'\n  color: '#22c55e'\n- value: Manuale\n  label: '{{t0073}}'\n  color: '#f59e0b'\n- value: Fermo\n  label: '{{t0074}}'\n  color: '#64748b'"),
     ("symbol", "id: o_symbol\ntype: symbol\nx: 650.0\ny: 398.0\nwidth: 90.0\nheight: 90.0\nsymbol_id: pump\nstate_tag: demo.sim.running\nstate_on_color: '#22c55e'\nstate_off_color: '#64748b'\nstate_alarm_color: '#ef4444'\nsymbol_spin: tag\nsymbol_spin_tag: demo.sim.running\nsymbol_spin_s: 1.5"),
     ("table", "id: o2_table\ntype: table\nx: 74\ny: 110\nwidth: 1117\nheight: 241\ntable_label_header: '{{t0019}}'\ntable_columns:\n- label\n- value\n- unit\ntable_rows:\n- label: '{{t0020}}'\n  tag: sim.temperature\n  unit: °C\n- label: '{{t0021}}'\n  tag: sim.pressure\n  unit: kPa\n- label: '{{t0022}}'\n  tag: sim.cycle_time\n  unit: '{{t0025}}'\n- label: '{{t0023}}'\n  tag: sim.machine_state\n  unit: '{{t0026}}'\n- label: '{{t0024}}'\n  tag: sim.machine_ready\n  unit: '{{t0027}}'"),
-    ("text", "id: cl1_title\ntype: text\nx: 400\ny: 22\ntext: '{{t0001}}'\nfont_size: 20\nfont_weight: bold\ntext_anchor: middle\ncolor: '#e2e8f0'\ngroup_id: g_header\nlocked: true"),
+    ("text", "id: o_wrap\ntype: text\nx: 30.0\ny: 612.0\nwidth: 190.0\nheight: 80.0\ntext: '{{t0019}}'\ntext_wrap: true\ntext_valign: middle\ntext_anchor: middle\nline_height: 1.35\nfont_size: 13.0\ncolor: '#e2e8f0'"),
     ("text_list", "id: o_textlist\ntype: text_list\nx: 650.0\ny: 100.0\nwidth: 290.0\nheight: 40.0\ntag: demo.sim.mode\ntext_list_default: '{{t0076}}'\ntext_list_default_color: '#64748b'\ntext_list_entries:\n- value: Auto\n  label: '{{t0077}}'\n  color: '#22c55e'\n- value: Manuale\n  label: '{{t0078}}'\n  color: '#f59e0b'\n- value: Fermo\n  label: '{{t0074}}'\n  color: '#94a3b8'"),
     ("trend", "id: pro2_trend_pv1\ntype: trend\nx: 142\ny: 459\nwidth: 996\nheight: 168\ntag: pv1.corrente_a\nextra_tags:\n- pv2.corrente_a\nwindow_s: 3600\nline_color: '#22c55e'"),
     ("xy_plot", "id: o_xy\ntype: xy_plot\nx: 960.0\ny: 96.0\nwidth: 290.0\nheight: 250.0\ntag: demo.sim.pressure\ny_tag: demo.sim.flow\nxy_x_min: 0.0\nxy_x_max: 120.0\nxy_y_min: 0.0\nxy_y_max: 100.0\nxy_trail_s: 60.0"),
@@ -1428,7 +1426,7 @@ pub const TYPE_EXAMPLES: &[(&str, &str)] = &[
 pub const SOURCE_EXAMPLES: &[(&str, &str)] = &[
     ("en_ip", "kind: en_ip\nid: enip-plc\nip: 192.0.2.10\nslot: 0\npoll_interval_ms: 500\ntags:\n- tag: pump.speed\n  plc_tag: Pump_Speed\n  data_type: real\n  writable: true\n- tag: valve.open\n  plc_tag: Valve_Open\n  data_type: bool\n  writable: true\n- tag: sensor.temp\n  plc_tag: Temperature\n  data_type: real\n  writable: false"),
     ("homeassistant", "kind: homeassistant\nid: ha-demo\nurl: http://homeassistant.local:8123\ntoken_env: HA_TOKEN\nentities:\n- tag: sala.temperatura\n  entity_id: sensor.sensoreambientesoggiorno_temperature\n- tag: luce.esterno\n  entity_id: switch.lampada_cancelletto_mauro\n  write_domain: switch\n  write_service: turn_on\n- tag: sole.elevazione\n  entity_id: sun.sun\n  attribute: elevation"),
-    ("mqtt", "kind: mqtt\nid: shelly-tapparelle\nhost: mqtt.example.invalid\nport: 1883\nclient_id: sws-casa-shelly\nclean_session: true\nkeep_alive_secs: 30\ntopics:\n- tag: shutter.garage\n  topic: shellies/SHELLY_GARAGE_ID/roller/0/pos\n  publish_topic: shellies/SHELLY_GARAGE_ID/roller/0/command\n- tag: shutter.bagno\n  topic: shellies/SHELLY_BAGNO_ID/roller/0/pos\n  publish_topic: shellies/SHELLY_BAGNO_ID/roller/0/command\n- tag: shutter.sogg_dx\n  topic: shellies/SHELLY_SOGG_DX_ID/roller/0/pos\n  publish_topic: shellies/SHELLY_SOGG_DX_ID/roller/0/command"),
+    ("mqtt", "kind: mqtt\nid: mqtt-sandokan\nhost: mqtt.example.invalid\nport: 1883\nclient_id: sws-sandokan\ntopics:\n- tag: sandokan.state\n  topic: zigbee2mqtt/presa.sandokan\n  json_path: state\n  publish_topic: zigbee2mqtt/presa.sandokan/set/state\n- tag: sandokan.power\n  topic: zigbee2mqtt/presa.sandokan\n  json_path: power\n- tag: sandokan.current\n  topic: zigbee2mqtt/presa.sandokan\n  json_path: current"),
     ("opcua_client", "kind: opcua_client\nid: sim-opcua\nendpoint_url: opc.tcp://localhost:4840\nsecurity_policy: None\nauth:\n  kind: anonymous\nsubscription_interval_ms: 500\nnodes:\n- tag: sim.temperature\n  node_id: ns=1;s=Temperature\n  description: Simulated temperature\n- tag: sim.pressure\n  node_id: ns=1;s=Pressure\n  description: Simulated pressure\n- tag: sim.cycle_time\n  node_id: ns=2;s=CycleTime\n  description: Euromap 77 — CycleTime"),
     ("s7", "kind: s7\nid: plc1\nip: 192.0.2.5\nrack: 0\nslot: 1\npoll_interval_ms: 500\ntags:\n- tag: pump1.speed\n  area: db\n  db_num: 1\n  byte_offset: 0\n  data_type: real\n  writable: true\n- tag: valve1.open\n  area: db\n  db_num: 1\n  byte_offset: 4\n  data_type: bool\n  bit_offset: 0\n  writable: true\n- tag: process.temperature\n  area: db\n  db_num: 1\n  byte_offset: 6\n  data_type: real"),
 ];

@@ -115,7 +115,6 @@ dentro i formati, messaggi di conferma.
 
 | Template | Lingue | Voci |
 |---|---|---:|
-| `casa-locale` | it, en, es | 155 |
 | `homeassistant-pro` | it, en, es | 171 |
 | `demo-items-web` / `-lvgl` | it, en, es | 98 |
 | `homeassistant-demo` | it, en, es | 77 |

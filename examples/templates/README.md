@@ -84,18 +84,18 @@ perché e, dove ha senso, **con il numero di oggi**: un tetto che può solo scen
 template peggiora, la guardia diventa rossa; se migliora, chiede di abbassare il numero.
 
 `./scripts/check_templates.sh` stampa il totale a ogni giro. Erano **30** quando le regole sono
-nate, la mattina del 17-09-2026; dopo il Passo 5 della revisione — lo stesso giorno — sono **6**.
+nate, la mattina del 17-09-2026; dopo il Passo 5 della revisione — lo stesso giorno — erano **6**;
+dal 18-09, con `casa-locale` uscito dal parco, sono **4**.
 
-**R2 e R5 sono a zero**: ogni testo visibile di ogni template passa dalla tabella lingue, ogni
+**R1, R2 e R5 sono a zero**: ogni pagina è 1280×800, ogni testo visibile di ogni template passa dalla tabella lingue, ogni
 template dichiara `it/en/es` con tutte e tre le colonne piene, e nessuno porta l'indirizzo o le
 credenziali di una rete vera. Se una riga ricompare in `R2_DEBITO`, è un template che è tornato
 indietro.
 
-Le sei che restano sono tutte di forma, e sono queste:
+Le quattro che restano sono tutte di semplicità (R3), e sono queste:
 
 | Template | Regola | Perché |
 |---|---|---|
-| `casa-locale` | R1, R3 | 800×680, 5 pagine, 94 oggetti nella più piena. Riflusso e sfoltimento si fanno dal suo piano, non di straforo: è l'impianto di casa del maintainer |
 | `demo-items-web` / `-lvgl` | R3 | 4 pagine, perché i tipi di widget da mostrare sono 35 |
 | `homeassistant-demo` | R3 | 62 oggetti nella panoramica, due sopra il tetto |
 | `homeassistant-pro` | R3 | la vetrina del «cosa si può fare» — eccezione decisa dal maintainer |

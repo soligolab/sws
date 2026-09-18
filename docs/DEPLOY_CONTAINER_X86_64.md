@@ -179,7 +179,7 @@ interferire con le istanze di sviluppo già attive sulla stessa macchina):
 |---|---|
 | `podman run` diretto → `podman ps` | `healthy` |
 | `curl http://localhost:8443/health` | `ok`, 200 |
-| `curl http://localhost:8444/api/templates` | non vuoto (`casa-locale`, ...) |
+| `curl http://localhost:8444/api/templates` | non vuoto (`homeassistant-demo`, ...) |
 | log all'avvio | `pyscript: RestrictedPython available — scripts will run sandboxed` (nessun warning "NOT available") |
 | avvio senza `SWS_ADMIN_PASSWORD` | ok (no-auth mode) |
 | `install-container.sh --bridge --no-autostart` (porte remappate) | `/health ok dopo 2s`, directory dati create correttamente, container `healthy` |
