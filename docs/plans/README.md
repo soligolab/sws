@@ -14,7 +14,7 @@
 
 | Piano | Stato | Cosa resta |
 |---|---|---|
-| *(nessuno)* | | Dal 18-09-2026 questa tabella è vuota: tutti i piani di lavoro sono stati portati a termine e archiviati. Quello che resta aperto vive in `docs/OPEN_QUESTIONS.md` — e da lì, quando si prende in mano, nasce un piano nuovo. |
+| *(nessuno in corso)* | | Dal 18-09-2026 non c'è lavoro aperto: i piani di lavoro sono tutti archiviati. Quello che resta da decidere sta nella tabella sotto — **semi**, non piani d'esecuzione. |
 
 **Dal 2026-09-12, anche le questioni aperte di `docs/OPEN_QUESTIONS.md` diventano piani singoli**
 (istruzione del maintainer, tecnica da riusare in futuro) — non li decide questo passaggio, li
@@ -26,4 +26,11 @@ c'è già, manca solo la conferma a schermo prima di archiviare la scheda in
 
 | Piano | Origine | Cosa resta |
 |---|---|---|
+| [2026-09-18-identita-utenti-istanze.md](2026-09-18-identita-utenti-istanze.md) | Q44 + Q54 + Q56 | **seme — decisione, IN CODA** — di chi sono gli account e chi comanda quando due copie non sono d'accordo. È il lavoro più corposo e il maintainer l'ha messo dopo tutto il resto: quando comincerà, prima una sessione di plan che rilegga le tre schede contro il codice di allora |
+| [2026-09-18-workspace-dei-progetti.md](2026-09-18-workspace-dei-progetti.md) | Q60 (da Q59) | **seme — decisione, IN CODA** con il precedente — il concetto di workspace. La prima metà (`start_editor.sh` come corsa di produzione) è fatta; deciso già: scelta *proposta*, non bloccante, solo IDE |
+| [2026-09-18-multilingua-residuo.md](2026-09-18-multilingua-residuo.md) | Q43 + Q57 | **seme — decisione** — due scelte di prodotto rimaste scoperte dal multilingua della 2.8.0: il fornitore giusto per un allarme e il prezzo della segmentazione; la lingua per destinatario |
+| [2026-09-18-post-bloccata-viewer-lvgl.md](2026-09-18-post-bloccata-viewer-lvgl.md) | Q55 | **seme — pronto** — l'unico che è un difetto e non una scelta: una POST che riceve 200 blocca per sempre il viewer via `spawn`. Via d'uscita già in uso (`block_on`), causa non spiegata, sei prove dal vivo da non rifare |
+| [2026-09-18-immagine-di-boot.md](2026-09-18-immagine-di-boot.md) | Q13 | **seme — decisione** — disegnare lo splash nell'IDE come pagina statica esportabile in PNG, e installarlo al deploy via D-Bus sui Pixsys. Le note D-Bus del maintainer, con la trappola di `PathBuf::push`, sono dentro |
+| [2026-09-18-ros2-robot-come-sorgente.md](2026-09-18-ros2-robot-come-sorgente.md) | Q23 | **seme — più avanti** — una superficie dati nuova (DDS); nessun bisogno in corso |
+| [2026-09-18-mcp-editing-con-ia.md](2026-09-18-mcp-editing-con-ia.md) | Q26 | **seme — più avanti** — una superficie di editing nuova; da riverificare contro `sws-web/src/ai/`, che nel frattempo è cresciuto |
 | [2026-09-12-q16-decoder-raster-image.md](2026-09-12-q16-decoder-raster-image.md) | Q16 | **pronto, tenuto in sospeso** (decisione del maintainer, 18-09-2026) — decoder raster per `image` su LVGL: si costruisce se emerge un bisogno reale, non prima |

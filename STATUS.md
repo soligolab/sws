@@ -74,6 +74,40 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — le domande aperte sono diventate semi di piano (2026-09-18)
+
+Decisione del maintainer, con una regola nuova in `CLAUDE.md` che cambia il modo di lavorare:
+**una domanda aperta non diventa più una scheda in `docs/OPEN_QUESTIONS.md`, diventa un file di
+piano sintetico** in `docs/plans/` — l'idea, le misure di quel momento, e la frase che quando quel
+lavoro comincerà servirà una sessione di plan approfondita. Il file delle domande è **congelato**:
+tiene i numeri già assegnati e un rimando per scheda, e `check_documenti.sh` continua a fare i
+conti. Non nascono più Q-numeri.
+
+Le quattordici schede vive sono state ricondotte a **sette semi**, spostando il testo parola per
+parola (con uno script, non riscrivendo: il travaso a mano è il modo di perdere una riga senza
+accorgersene):
+
+| Seme | Da | Stato |
+|---|---|---|
+| `identita-utenti-istanze` | Q44 + Q54 + Q56 | **in coda** — il lavoro più corposo, dopo tutto il resto |
+| `workspace-dei-progetti` | Q60 | **in coda** con il precedente |
+| `multilingua-residuo` | Q43 + Q57 | due scelte di prodotto rimaste scoperte |
+| `post-bloccata-viewer-lvgl` | Q55 | l'unico difetto vero fra le schede |
+| `immagine-di-boot` | Q13 | con l'idea nuova: pagina statica → PNG, e D-Bus al deploy |
+| `ros2-robot-come-sorgente` | Q23 | più avanti |
+| `mcp-editing-con-ia` | Q26 | più avanti |
+
+Restano in `docs/OPEN_QUESTIONS.md` con testo proprio solo **Q58** (realizzata e collaudata, manca
+il timbro) e **Q59** (prima metà fatta, seconda diventata Q60): entrambe da timbrare e archiviare
+in `docs/history/OPEN_QUESTIONS-chiuse.md`, cosa che non faccio io. Q16 e Q53 erano già rimandi.
+
+Il seme dell'immagine di boot merita una riga: contiene le **note D-Bus del maintainer** sul
+launcher Pixsys, con la trappola di `PathBuf::push` che fa funzionare un path assoluto per il
+motivo sbagliato. Sono la parte da leggere prima di scrivere lo script di deploy.
+
+Aggiornate le skill `riprendi` e `finalizza-giornata`, che mandavano ancora le domande nuove al
+file congelato.
+
 ## ▶ Riprendere da qui — `docs/plans/` è vuoto: non resta nessun piano di lavoro (2026-09-18)
 
 Chiusi gli ultimi due piani vivi, su decisione del maintainer. In `docs/plans/` resta **solo** la

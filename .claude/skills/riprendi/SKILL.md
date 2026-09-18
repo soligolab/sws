@@ -48,13 +48,15 @@ rituale di inizio è già stato fatto una volta.
 - Guarda `docs/plans/README.md` (i piani **vivi**). Se c'è almeno un piano
   PARZIALE/vivo, proponi di ripartire da lì, a meno che il maintainer non indichi
   altro.
-- Se `docs/plans/` (a parte `README.md`) è vuota: apri `docs/OPEN_QUESTIONS.md`,
-  elenca le domande ancora aperte e proponi al maintainer quali trasformare in un
-  piano nuovo — usa **Plan mode**, non scrivere codice in questo passo. Salva il piano
-  nuovo con lo schema già in uso: `docs/plans/<data>-<slug>.md` + una riga in
-  `docs/plans/README.md`.
-- Non toccare mai `docs/OPEN_QUESTIONS.md` per "risolvere" una domanda (CLAUDE.md
-  regola #3) — solo per prelevarne il contenuto e farne la base di un piano.
+- Se non c'è nessun piano **in corso**, guarda i **semi** nella seconda tabella di
+  `docs/plans/README.md`: sono le domande aperte, una per file, ognuna con l'idea e le
+  misure di quando è nata. Proponi al maintainer quale prendere in mano — e quando lo
+  sceglie, la prima cosa è **una sessione di plan approfondita** su quel seme, in **Plan
+  mode**, senza scrivere codice: il seme dice apposta di essere materiale e non un piano
+  d'esecuzione, perché fra la domanda e il lavoro passa troppo tempo.
+- `docs/OPEN_QUESTIONS.md` è **congelato dal 18-09-2026**: ogni scheda rimasta rimanda al
+  seme che ne tiene il testo. Non ci si aggiunge e non ci si «risolve» niente (CLAUDE.md
+  regola #3).
 
 ## 3. Per ogni piano, uno alla volta
 
@@ -98,5 +100,7 @@ i. **Archivia il piano concluso**: sposta il file da `docs/plans/<file>.md` a
    (`grep -rl "docs/plans/<file>.md" .`).
 
 j. Se durante il lavoro emerge una decisione architetturale non prevista dal piano:
-   **non deciderla** — aggiungila a `docs/OPEN_QUESTIONS.md` (CLAUDE.md regola #3) e
-   continua con il default PoC documentato lì.
+   **non deciderla** — scrivi un **seme** in `docs/plans/<data>-<slug>.md` (CLAUDE.md,
+   sezione «Plans»: l'idea, le misure di adesso, e la frase che quando quel lavoro
+   comincerà servirà una sessione di plan approfondita), aggiungi la riga nella seconda
+   tabella di `docs/plans/README.md`, e continua con il default PoC.

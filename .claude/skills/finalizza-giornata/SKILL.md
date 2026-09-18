@@ -79,9 +79,10 @@ loggati sotto `[Unreleased]`, aggiungili ora.
 
 ## 6. Niente decisioni architetturali prese qui
 
-Se durante la sessione è emersa una decisione architetturale mai presa, verifica che sia già
-annotata in `docs/OPEN_QUESTIONS.md` — non deciderla in questo passaggio (regola 3 di
-`CLAUDE.md`).
+Se durante la sessione è emersa una decisione architetturale mai presa, verifica che esista già
+il suo **seme** in `docs/plans/` (dal 18-09-2026 le domande aperte non vanno più in
+`docs/OPEN_QUESTIONS.md`, che è congelato: diventano un file di piano sintetico, vedi CLAUDE.md
+«Plans») — non deciderla in questo passaggio (regola 3 di `CLAUDE.md`).
 
 ## 7. Commit dei meta file
 

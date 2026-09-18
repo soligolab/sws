@@ -7,7 +7,7 @@
 
 1. **Never `git push`** without an explicit instruction in the current session. Confirming that a feature works is *not* approval to push.
 2. **Never commit directly to `main`**, except meta commits (`STATUS.md`, `CHANGELOG.md`, `CLAUDE.md`, `docs/**`) and the squash merges described below.
-3. **Never resolve an item in `docs/OPEN_QUESTIONS.md`** — add to it instead.
+3. **Never resolve an item in `docs/OPEN_QUESTIONS.md`**, and since 2026-09-18 **never add one either**: a new open question becomes a **short plan file** in `docs/plans/` (see «Plans»). The questions file is frozen — it keeps its numbers and its references, nothing more.
 4. **Never ask permission for commands allowed in `.claude/settings.json`** (cargo, pnpm, git, ls/cat/grep, mkdir, podman…). Just run them. If a safe, recurring command is denied, propose a specific allow rule — never `Bash(*)`.
 5. **Never SSH into a test device without asking** — addresses change every session.
 6. **`docs/CONTEXT.md` beats `docs/SWS_Project_Specification.md`** wherever they conflict, until the PoC graduates to a product. The spec is the long-term destination; CONTEXT.md is the short-term reality.
@@ -38,7 +38,7 @@ Then read, in order:
 
 1. `docs/CONTEXT.md` — context, working mode, frozen architectural decisions, phase plan, task roadmap (T-xx).
 2. `STATUS.md` — where the last session stopped, what's working, what to pick up.
-3. `docs/OPEN_QUESTIONS.md` — deferred decisions, off-limits in a vibecode session.
+3. `docs/OPEN_QUESTIONS.md` — deferred decisions, off-limits in a vibecode session. Since 2026-09-18 it is a frozen index: each remaining card points to the plan file that holds its text.
 
 Then state, in three short lines: what the last session ended with, what you plan to do now, any blockers. **Wait for the go-ahead before writing code.**
 
@@ -128,6 +128,8 @@ e **non si tocca**.
 
 **Plans go in `docs/plans/<date>-<slug>.md`, committed — never left in `~/.claude/plans/`.** That directory is per-machine and doesn't travel with git, and the maintainer works from two machines (office server, home PC): on 2026-07-30 an analysis written at home never made it to the office while the code did. Instruction of 2026-09-11: «i plan, non tenerli in ~/.claude/plans/ perché altrimenti li perdo tra casa e lavoro». Write the plan there as soon as it's approved — earlier if it's long — and commit it with the work. When a plan is finished or overtaken, move it to `docs/archive/` and add a row to that folder's README — `docs/plans/` should list only what's still in play. Keep the finished plan: it is the record of why things are the way they are.
 
+**An open question is a plan file too (rule of 2026-09-18).** When something architectural comes up that the maintainer has to decide — the kind of thing that used to become a card in `docs/OPEN_QUESTIONS.md` — write a **short** plan file instead: the idea, what was measured in the code at the time, the options if they're already visible, and **this sentence, stated plainly: when this work starts, the first step is a dedicated, in-depth plan session to work out every detail.** Do not attempt the detailed design when the question is born: too much changes between the question and the work, and a design written months early is a design that lies. The maintainer's words: «genera un file sintetico di plan con l'idea e l'indicazione precisa che quando iniziamo quel lavoro dovrà essere avviata una sessione plan approfondita per sviscerarne tutti i dettagli». Add a row to `docs/plans/README.md` with «**seme — decisione**» as its state. `docs/OPEN_QUESTIONS.md` is frozen: it keeps the numbers already assigned and a one-line reference per card, and `check_documenti.sh` keeps verifying those; new questions don't get a Q-number.
+
 ## Session end — and whenever context is running low
 
 Do this *before* you run out of room, not after:
@@ -136,4 +138,4 @@ Do this *before* you run out of room, not after:
 2. Update `STATUS.md` — what was done, what's next, anything left half-finished.
 3. Update `CHANGELOG.md` under `[Unreleased]`.
 4. Commit with `-s` and a clear message.
-5. Anything architectural that surfaced → append to `docs/OPEN_QUESTIONS.md` rather than deciding it.
+5. Anything architectural that surfaced → a **short plan file** in `docs/plans/` (see «Plans»), not a decision. Not `docs/OPEN_QUESTIONS.md` any more.

@@ -12,6 +12,14 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Added
+- **Le domande aperte diventano semi di piano** (regola del maintainer, 18-09-2026):
+  `docs/OPEN_QUESTIONS.md` è congelato — tiene i numeri e un rimando per scheda — e una domanda
+  nuova diventa un file sintetico in `docs/plans/` con l'idea, le misure del momento e
+  l'indicazione che quando il lavoro comincerà servirà una sessione di plan approfondita. Le
+  quattordici schede vive sono state ricondotte a sette semi spostando il testo parola per parola.
+  Il seme dell'immagine di boot porta l'idea nuova — disegnare lo splash nell'IDE come pagina
+  statica esportabile in PNG, installarlo al deploy via D-Bus sui Pixsys — e le note D-Bus del
+  maintainer sul launcher.
 - **Le regole del parco template, e le guardie che le tengono** (`examples/templates/README.md`):
   **R1** ogni pagina 1280×800, **R2** tre lingue (it/en/es) *e* ogni testo visibile che passa
   dalla tabella lingue, **R3** al massimo 3 pagine e 60 oggetti per pagina, **R4** ruolo e caso
