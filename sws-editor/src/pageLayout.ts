@@ -4,6 +4,7 @@
 // no React.
 
 import type { PageLayoutConfig, PageSizeMode, PipePoint, SynopticObject, SynopticPage } from "@/types";
+import { paginePerNavigazione } from "@/boot/tipi";
 import { getBrand } from "@/branding";
 
 /** Aspect ratios offered in the "Solo proporzioni" mode picker, with their
@@ -99,9 +100,11 @@ export function viewerFitScale(
  *  operator's zones — an id absent from it means "not allowed for this
  *  operator", so this doubles as the zone-fallback logic); otherwise falls
  *  back to the first page in list order (today's behavior). */
-export function pickInitialPageId(pages: { id: string }[], homePageId: string | undefined): string {
+export function pickInitialPageId(allPages: { id: string; kind?: string }[], homePageId: string | undefined): string {
+  // Una pagina di boot non si apre da sola: non è una pagina del pannello.
+  const pages = paginePerNavigazione(allPages);
   if (homePageId && pages.some((p) => p.id === homePageId)) return homePageId;
-  return pages[0]?.id ?? "";
+  return pages[0]?.id ?? allPages[0]?.id ?? "";
 }
 
 /** T-52: va dipinto un **foglio** invece di colorare tutto il nodo `<svg>`?
@@ -382,7 +385,8 @@ export interface BrokenNavLink {
 
 /** Scans every `navbutton` object across all pages for a `target_page` that
  *  doesn't match any existing page id. */
-export function findBrokenNavLinks(pages: SynopticPage[]): BrokenNavLink[] {
+export function findBrokenNavLinks(tutte: SynopticPage[]): BrokenNavLink[] {
+  const pages = paginePerNavigazione(tutte);
   const pageIds = new Set(pages.map((p) => p.id));
   const out: BrokenNavLink[] = [];
   for (const page of pages) {
@@ -404,7 +408,8 @@ export function findBrokenNavLinks(pages: SynopticPage[]): BrokenNavLink[] {
 /** A page is "orphaned" when it isn't the home page and no `navbutton` on any
  *  page targets it. Independent of the kiosk auto-rotate flag (shown as its
  *  own checkbox already). */
-export function findOrphanPageIds(pages: SynopticPage[], homePageId: string | undefined): Set<string> {
+export function findOrphanPageIds(tutte: SynopticPage[], homePageId: string | undefined): Set<string> {
+  const pages = paginePerNavigazione(tutte);
   const linked = new Set<string>();
   for (const page of pages) {
     for (const obj of page.objects) {

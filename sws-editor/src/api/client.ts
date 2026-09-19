@@ -448,7 +448,7 @@ const VERSIONI_FILE = new Map<string, string>();
  *  un `ETag` preso da un endpoint che non è il file farebbe fallire il
  *  salvataggio successivo con un 409 inventato. */
 function chiaveFile(path: string): string | null {
-  return /^\/api\/(synoptics|faceplates|recipes)\/[^/]+$/.test(path) ? path : null;
+  return /^\/api\/(synoptics|boot-pages|faceplates|recipes)\/[^/]+$/.test(path) ? path : null;
 }
 
 /** La versione ricomincia da zero: si chiama quando si apre o si ricarica un
@@ -738,6 +738,45 @@ export const api = {
       headers: { "Content-Type": "application/json", ...seVersionato(`/api/synoptics/${encodeURIComponent(page.name)}`) },
       body: JSON.stringify(page),
     }),
+
+  // Pagine di boot (T-72): documenti a sé in `boot/`, mai visti dai viewer.
+  listBootPages: () =>
+    request<string[]>("/api/boot-pages"),
+
+  getBootPage: (name: string) =>
+    request<SynopticPage>(`/api/boot-pages/${encodeURIComponent(name)}`),
+
+  saveBootPage: (page: SynopticPage) =>
+    request<void>(`/api/boot-pages/${encodeURIComponent(page.name)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...seVersionato(`/api/boot-pages/${encodeURIComponent(page.name)}`) },
+      body: JSON.stringify(page),
+    }),
+
+  deleteBootPage: async (name: string) => {
+    try {
+      await request<void>(`/api/boot-pages/${encodeURIComponent(name)}`, { method: "DELETE" });
+    } catch (e) {
+      // Idempotente, come `deleteSynoptic`: dopo una rinomina il vecchio file
+      // è già stato tolto dal server.
+      if (e instanceof Error && e.message.includes(": 404 ")) return;
+      throw e;
+    }
+  },
+
+  /** Tutte le pagine del progetto attivo: sinottici e pagine di boot (queste
+   *  ultime in coda). Un runtime che non ha le rotte di boot — o un utente che
+   *  non le può leggere — dà semplicemente zero pagine di boot. */
+  loadAllPages: async (): Promise<SynopticPage[]> => {
+    const names = await request<string[]>("/api/synoptics");
+    const sinottici = await Promise.all(names.map((n) => request<SynopticPage>(`/api/synoptics/${encodeURIComponent(n)}`)));
+    let boot: SynopticPage[] = [];
+    try {
+      const bootNames = await request<string[]>("/api/boot-pages");
+      boot = await Promise.all(bootNames.map((n) => request<SynopticPage>(`/api/boot-pages/${encodeURIComponent(n)}`)));
+    } catch { /* nessuna pagina di boot */ }
+    return [...sinottici, ...boot];
+  },
 
   deleteSynoptic: async (name: string) => {
     try {

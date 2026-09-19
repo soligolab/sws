@@ -475,12 +475,11 @@ export function App() {
 
     if (!authToken) return;
 
-    api.listSynoptics()
-      .then(async (names) => {
-        // Progetto senza synoptic (es. appena creato vuoto): azzera le pagine,
+    api.loadAllPages()
+      .then(async (loaded) => {
+        // Progetto senza pagine (es. appena creato vuoto): azzera le pagine,
         // altrimenti resterebbe in memoria il contenuto del progetto precedente.
-        if (names.length === 0) { setPages([], ""); return; }
-        const loaded = await Promise.all(names.map((n) => api.getSynoptic(n)));
+        if (loaded.length === 0) { setPages([], ""); return; }
         // Letto imperativamente dallo store (non da una chiusura locale): questo
         // effetto lancia getProject() e listSynoptics() come due catene .then
         // indipendenti, quindi project potrebbe non essere ancora stato settato

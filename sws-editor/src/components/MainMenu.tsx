@@ -78,9 +78,8 @@ export function MainMenu({
       await api.importProjectZip(file);
       const project = await api.getProject();
       setProject(project);
-      const names = await api.listSynoptics();
-      if (names.length > 0) {
-        const pages = await Promise.all(names.map((n) => api.getSynoptic(n)));
+      const pages = await api.loadAllPages();
+      if (pages.length > 0) {
         setPages(pages, pickInitialPageId(pages, project.page_layout?.home_page_id));
       } else {
         setPages([], "");

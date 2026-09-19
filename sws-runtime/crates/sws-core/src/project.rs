@@ -1292,6 +1292,11 @@ pub struct PageLayoutConfig {
     /// esistenti che non hanno il campo.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hide_viewer_chrome: Option<bool>,
+    /// Id della pagina di boot «abilitata» (T-72): quella che il deploy installa
+    /// come immagine di avvio del pannello. Una sola, per costruzione — gemello
+    /// di `home_page_id`. `None` = nessuna: il deploy non tocca l'immagine.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub boot_page_id: Option<String>,
 }
 
 /// Tabella lingue di progetto: messaggi nativi + traduzioni, indicizzati per

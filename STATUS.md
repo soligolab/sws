@@ -96,21 +96,22 @@ AlarmHistory, DataTable, XyPlotCanvas, PythonEditor, PageTabs, BarraAvviso, symb
 Non ancora pushato: F4, F5 e F6 su `main`, serve un «fai il push» esplicito; e va tolto
 `origin/fix/lingue-marchio-auto`.
 
-## ▶ Riprendere da qui — T-72 F1 (immagine di boot: modello e server) su main (2026-09-19)
+## ▶ Riprendere da qui — T-72 F2 (immagine di boot: l'editor) sul ramo (2026-09-19)
 
-Piano `docs/plans/2026-09-18-immagine-di-boot.md`, task **T-72** (numero dato dal maintainer).
-**F1 è su `main` (`b6c55fc1`), non pushata.**
+Piano `docs/plans/2026-09-18-immagine-di-boot.md`. **F1 è su `main`** (`b6c55fc1`, non pushata).
+**F2 è sul ramo `feat/T-72-immagine-di-boot-f2`, non mergiata.**
 
-- `SynopticPage.kind = "boot"`; `boot.rs` (CRUD, PNG con firma controllata, import, semina); pagine di
-  boot in `boot/`, fuori da `synoptics/`; bundle, backup, impronta, `DESIGN_ARTIFACTS`; ogni progetto
-  nasce con una pagina di boot (anche da template), il vuoto anche con `Page 1`.
-- Difetto trovato per strada e chiuso: **ogni upload sopra 2 MiB veniva rifiutato** (tetto di axum),
-  ora 8 MiB sulle rotte di upload.
-- Gate verde: `cargo check/clippy/fmt/test --workspace`, `pnpm build/test`, `check_static.sh` 21/21;
-  provata dal vivo su istanza di scarto (fermata).
-- **Non in F1, per scelta**: il validatore `BOOT_TYPES` (F2, dipende dai tipi confermati).
+- Editor: sezione «Immagini di boot» nell'elenco pagine (radio ⭐ abilitata, «+ Nuova»), palette ridotta
+  ai sette oggetti statici, pannello proprietà con Oggetto/Testo/Resa, interruttore «abilitata»,
+  pagine di boot fuori da tab, navigazione, pagina iniziale e orfane; si salvano in `boot/`.
+- Server: `page_layout.boot_page_id`, `BOOT_TYPES` controllato al salvataggio.
+- Gate verde: `cargo check/clippy/fmt/test`, `pnpm build/lint/test` (572), `check_static.sh` 21/21;
+  provata dal vivo in un browser headless su un'istanza di scarto (fermata).
+- **Da vedere a occhio dal maintainer**: l'elenco pagine con la sezione boot, e cosa succede creando un
+  progetto nuovo dall'IDE vero.
 
-**Prossimo passo**: F2 — editor: pagine di boot nello store, elenco «Immagini di boot», palette ridotta.
+**Prossimo passo**: F3 (formato di progetto: `default_*`, la regola «la prima modificata definisce lo
+stile») oppure F4 (rasterizzazione), indipendenti: F3 può stare prima o dopo.
 
 ## ▶ Riprendere da qui — multilingua chiuso: F6-F9 su `main`, piano archiviato (2026-09-19)
 

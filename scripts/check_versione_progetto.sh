@@ -64,7 +64,7 @@ RIMEDI_RAW = {
         "ConfigView chiama dimenticaVersioneProgetto() e poi openProject()",
 }
 
-FAMIGLIE = ("/api/project", "/api/projects", "/api/synoptics", "/api/faceplates", "/api/recipes")
+FAMIGLIE = ("/api/project", "/api/projects", "/api/synoptics", "/api/boot-pages", "/api/faceplates", "/api/recipes")
 
 def testo(nome):
     with open(os.path.join(SRC, nome), encoding="utf-8") as f:
@@ -94,7 +94,7 @@ riportano = set(re.findall(r'"(/api/[^"]+)"',
 # La regola con cui il client riconosce i file per-entità.
 per_file_re = estrai(cl, r'function chiaveFile\(path: string\): string \| null \{\s*return (/\^.*?/)\.test',
                      "chiaveFile", "client.ts")
-per_file_fam = re.findall(r'\((\w+(?:\|\w+)*)\)', per_file_re)
+per_file_fam = re.findall(r'\(([\w-]+(?:\|[\w-]+)*)\)', per_file_re)
 per_file_fam = per_file_fam[0].split("|") if per_file_fam else []
 
 # ── Le rotte del server, classificate dal corpo del loro handler ─────────────

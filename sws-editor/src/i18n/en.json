@@ -1545,7 +1545,9 @@
     "rotateObject": "Rotate object",
     "resizeColumn": "Resize column {{n}}",
     "resizeRow": "Resize row {{n}}",
-    "resizeSubCell": "Resize sub-cell"
+    "resizeSubCell": "Resize sub-cell",
+    "newBootPage": "New boot image",
+    "bootPageBaseName": "Boot image"
   },
   "storeErr": {
     "invalidRange": "Invalid range.",
@@ -1584,7 +1586,14 @@
     "newFunction": "+ New function",
     "noTagsLoadAProject": "No tags — load a project.",
     "noSourcesConfigured": "No sources configured.",
-    "pointsToMissingPage": "points to a missing page"
+    "pointsToMissingPage": "points to a missing page",
+    "bootPagesHeading": "Boot images",
+    "bootPagesHint": "Images the panel shows while starting up. They are not panel pages: no viewer sees them. Only one is «enabled» and it is installed with the deploy.",
+    "bootEnabledTitle": "Enabled boot image: the one the deploy installs on the panel",
+    "bootEnableFailed": "Cannot set the enabled boot image: {{err}}",
+    "noBootPages": "No boot images.",
+    "newBootPage": "+ New boot image",
+    "paletteBootHint": "Boot image: static objects only (shapes, lines, pipes, text, images, symbols)."
   },
   "shell": {
     "offPage_one": "⚠ {{count}} object is off the sheet and will not be drawn at runtime. Drag it inside the dashed border to re-enable it, or enlarge the page.",
@@ -1644,7 +1653,10 @@
     "borderColorIndependentOfThe": "Border color (independent of the grid borders)",
     "clickTheChildOnThe": "Click the child on the canvas to edit its properties.",
     "remove": "✕ Remove",
-    "orCopyAnObjectFrom2": "Or: copy an object from the page (Ctrl+C) and press Ctrl+V with this cell selected."
+    "orCopyAnObjectFrom2": "Or: copy an object from the page (Ctrl+C) and press Ctrl+V with this cell selected.",
+    "bootPageHint": "Boot image: drawn like a page, but it never appears among the panel's pages.",
+    "bootEnabled": "Boot image enabled",
+    "bootEnabledHelp": "Only one per project: the one the deploy installs as the panel's startup image."
   },
   "credenziali": {
     "waitWithoutRetryingEveryNew": "Wait **without** retrying: every new attempt lengthens the lockout. ",

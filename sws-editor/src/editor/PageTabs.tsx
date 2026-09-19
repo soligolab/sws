@@ -1,4 +1,5 @@
 import { useAppStore } from "@/store";
+import { paginePerNavigazione } from "@/boot/tipi";
 
 /**
  * Synoptic page tab strip, shown under the editor toolbar.
@@ -7,7 +8,10 @@ import { useAppStore } from "@/store";
  * to select `pages`/`currentPageId` only for this).
  */
 export function PageTabs() {
-  const pages          = useAppStore((s) => s.pages);
+  const tutte          = useAppStore((s) => s.pages);
+  // La striscia elenca solo ciò che il pannello mostrerà: le pagine di boot si
+  // aprono dall'elenco a sinistra.
+  const pages          = paginePerNavigazione(tutte);
   const currentPageId  = useAppStore((s) => s.currentPageId);
   const setCurrentPage = useAppStore((s) => s.setCurrentPage);
 

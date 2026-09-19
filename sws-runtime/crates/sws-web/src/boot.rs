@@ -35,6 +35,11 @@ pub const BOOT_KIND: &str = "boot";
 /// (`LIMITE_CORPO_UPLOAD` in `router.rs`) e sopra un 1920×1080 con sfumature.
 pub const MAX_BOOT_PNG_BYTES: usize = 5 * 1024 * 1024;
 
+/// I tipi di oggetto ammessi su una pagina di boot: solo vettoriali statici. Gli
+/// altri (trend, tabelle, controlli) sono `<foreignObject>` o `<canvas>`, e il
+/// PNG che il browser ne ricava non sarebbe fedele — o non mostrerebbe niente.
+pub const BOOT_TYPES: &[&str] = &["rect", "ellipse", "line", "pipe", "text", "image", "symbol"];
+
 const PNG_MAGIC: [u8; 8] = [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
 
 /// Nome e dimensioni della pagina di boot con cui nasce ogni progetto.
@@ -65,6 +70,8 @@ pub enum ErroreSalvataggio {
     NonBoot,
     /// Il file su disco non è più quello che chi salva aveva caricato (Q30).
     Conflitto,
+    /// Un oggetto di un tipo che una pagina di boot non può avere.
+    TipoNonAmmesso(String),
     Io(String),
 }
 
@@ -107,6 +114,13 @@ pub async fn salva(
 ) -> Result<String, (ErroreSalvataggio, Option<Response>)> {
     if !e_pagina_di_boot(page) {
         return Err((ErroreSalvataggio::NonBoot, None));
+    }
+    if let Some(o) = page
+        .objects
+        .iter()
+        .find(|o| !BOOT_TYPES.contains(&o.obj_type.as_str()))
+    {
+        return Err((ErroreSalvataggio::TipoNonAmmesso(o.obj_type.clone()), None));
     }
     let bdir = boot_dir_at(dir);
     if let Err(e) = tokio::fs::create_dir_all(&bdir).await {
@@ -376,6 +390,14 @@ pub async fn save_boot_page(
             "una pagina di boot deve dichiarare `kind: boot`",
         )
             .into_response(),
+        Err((ErroreSalvataggio::TipoNonAmmesso(t), _)) => (
+            StatusCode::BAD_REQUEST,
+            format!(
+                "una pagina di boot non può contenere oggetti di tipo «{t}»: solo {}",
+                BOOT_TYPES.join(", ")
+            ),
+        )
+            .into_response(),
         Err((ErroreSalvataggio::Conflitto, Some(r))) => r,
         Err((ErroreSalvataggio::Conflitto, None)) => StatusCode::CONFLICT.into_response(),
         Err((ErroreSalvataggio::Io(m), _)) => {
@@ -545,6 +567,21 @@ mod tests {
         assert!(d.path().join("boot/Splash.yaml").is_file());
         // I viewer leggono solo `synoptics/`: non deve esserci niente.
         assert!(!d.path().join("synoptics").exists());
+    }
+
+    #[tokio::test]
+    async fn una_pagina_di_boot_rifiuta_gli_oggetti_non_statici() {
+        let d = tempfile::tempdir().unwrap();
+        let mut p = pagina("Splash", "b1");
+        p.objects = serde_yaml::from_str(
+            "- {id: a, type: rect, x: 0, y: 0}\n- {id: b, type: trend, x: 0, y: 0}\n",
+        )
+        .unwrap();
+        let r = salva(d.path(), "Splash", &p, None).await;
+        assert!(matches!(r, Err((ErroreSalvataggio::TipoNonAmmesso(t), _)) if t == "trend"));
+        assert!(elenca(d.path()).await.is_empty());
+        p.objects.pop();
+        assert!(salva(d.path(), "Splash", &p, None).await.is_ok());
     }
 
     #[tokio::test]

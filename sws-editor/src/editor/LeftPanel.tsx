@@ -9,6 +9,8 @@ import { findBrokenNavLinks, findOrphanPageIds } from "@/pageLayout";
 import { resolvePageBackground } from "@/theme";
 import { BarraIcone, IntestazioneSezione, PREFISSO_MEMORIA, TitoloVista, useSezioneAperta } from "./stilePannelli";
 import type { ObjectGroup, ProjectInfo, SynopticObject, SynopticPage } from "@/types";
+import { BOOT_TYPES, eBoot, paginePerNavigazione, pagineDiBoot } from "@/boot/tipi";
+import { impostaBootAbilitata } from "@/boot/abilitata";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -124,7 +126,11 @@ function Section({
 function PagesSection() {
   const corpo = useCorpo();
   const { t } = useTranslation();
-  const pages         = useAppStore((s) => s.pages);
+  const tutte         = useAppStore((s) => s.pages);
+  // L'elenco delle pagine del pannello: le pagine di boot hanno la loro sezione.
+  const pages         = paginePerNavigazione(tutte);
+  const bootPages     = pagineDiBoot(tutte);
+  const addBootPage   = useAppStore((s) => s.addBootPage);
   // F8 — serve alla miniatura: il colore della pagina dipende dal tema, e
   // qui era l'unico punto dell'IDE che non lo risolveva.
   const themeMode     = useAppStore((s) => s.themeMode);
@@ -147,6 +153,7 @@ function PagesSection() {
   const importInputRef = useRef<HTMLInputElement>(null);
 
   const homePageId = project?.page_layout?.home_page_id;
+  const bootPageId = project?.page_layout?.boot_page_id;
   const orphanIds = findOrphanPageIds(pages, homePageId);
 
   // Single-page YAML export — calls the runtime endpoint, then triggers a
@@ -179,8 +186,7 @@ function PagesSection() {
       const project = await api.getProject();
       useAppStore.getState().setProject(project);
       // Reload pages list — the store doesn't auto-refresh from /api/project.
-      const names = await api.listSynoptics();
-      const pagesLoaded = await Promise.all(names.map((n) => api.getSynoptic(n)));
+      const pagesLoaded = await api.loadAllPages();
       useAppStore.getState().setPages(pagesLoaded);
       useAppStore.getState().setCurrentPage(res.id);
     } catch (e) {
@@ -398,6 +404,85 @@ function PagesSection() {
               e.target.value = ""; // allow re-selecting the same file
             }}
           />
+        </div>
+        <div style={{ padding: "10px 8px 2px", fontSize: 10, fontWeight: 700, letterSpacing: 0.5,
+                      textTransform: "uppercase", color: "var(--brand-text-subtle, #64748b)" }}
+             title={t("leftPanel.bootPagesHint")}>
+          {t("leftPanel.bootPagesHeading")}
+        </div>
+        {bootPages.map((p) => (
+          <div
+            key={p.id}
+            style={{ ...S.row(p.id === currentPageId), justifyContent: "space-between", gap: 6 }}
+            onClick={() => editingId !== p.id && setCurrentPage(p.id)}
+            onDoubleClick={() => !p.locked && beginRename(p.id, p.name)}
+            title={t("editor.dblRename")}
+          >
+            <span style={{ flexShrink: 0 }}>🖼</span>
+            {editingId === p.id ? (
+              <input
+                autoFocus
+                value={editingValue}
+                onChange={(e) => setEditingValue(e.target.value)}
+                onBlur={commitRename}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") commitRename();
+                  else if (e.key === "Escape") { setEditingId(null); setEditingValue(""); }
+                }}
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  flex: 1, background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)",
+                  border: "1px solid var(--brand-border, #475569)", borderRadius: 3, padding: "1px 4px", fontSize: 12,
+                }}
+              />
+            ) : (
+              <>
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
+                  {p.name}
+                </span>
+                <span style={{ display: "flex", gap: 2, flexShrink: 0, alignItems: "center" }}>
+                  <label style={{ display: "flex", alignItems: "center", cursor: "pointer" }}
+                         title={t("leftPanel.bootEnabledTitle")}
+                         onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="radio"
+                      name="boot-abilitata"
+                      checked={bootPageId === p.id}
+                      onChange={() => {
+                        impostaBootAbilitata(p.id).catch((e) =>
+                          window.alert(t("leftPanel.bootEnableFailed", { err: e instanceof Error ? e.message : String(e) })));
+                      }}
+                    />
+                    <span aria-hidden="true">⭐</span>
+                  </label>
+                  <button style={S.iconBtn} title={t("editor.rename")} disabled={p.locked}
+                    onClick={(e) => { e.stopPropagation(); beginRename(p.id, p.name); }}>✎</button>
+                  <button style={S.iconBtn} title={t("editor.deletePage")}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!window.confirm(t("editor.deletePageConfirm", { name: p.name }))) return;
+                      deletePage(p.id);
+                      // Eliminare la pagina abilitata azzera il puntatore: senza, il
+                      // progetto punterebbe a una pagina che non esiste più.
+                      if (bootPageId === p.id) impostaBootAbilitata(undefined).catch(() => {});
+                    }}>×</button>
+                </span>
+              </>
+            )}
+          </div>
+        ))}
+        {bootPages.length === 0 && (
+          <div style={{ padding: "2px 8px", fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>
+            {t("leftPanel.noBootPages")}
+          </div>
+        )}
+        <div style={{ padding: "4px 8px" }}>
+          <button
+            onClick={addBootPage}
+            style={{ ...S.objBtn, width: "100%", borderStyle: "dashed", color: "var(--brand-text-subtle, #64748b)" }}
+          >
+            {t("leftPanel.newBootPage")}
+          </button>
         </div>
       </div>
     </Section>
@@ -657,7 +742,14 @@ const LVGL_SUPPORTED_TYPES = new Set<SynopticObject["type"]>([
  *  già interpretare — evita di far piazzare qualcosa che poi nel viewer
  *  LVGL semplicemente non comparirà. Gruppi che restano senza item vengono
  *  nascosti del tutto invece di mostrare un accordion vuoto. */
-function paletteForTarget(isLvgl: boolean): PaletteGroup[] {
+function paletteForTarget(isLvgl: boolean, paginaBoot = false): PaletteGroup[] {
+  // Una pagina di boot ammette solo gli oggetti statici: hanno la precedenza sul
+  // motore di destinazione, perché il PNG lo produce il browser.
+  if (paginaBoot) {
+    return PALETTE_GROUPS
+      .map((g) => ({ ...g, items: g.items.filter((i) => (BOOT_TYPES as readonly string[]).includes(i.type)) }))
+      .filter((g) => g.items.length > 0);
+  }
   if (!isLvgl) return PALETTE_GROUPS;
   return PALETTE_GROUPS
     .map((g) => ({ ...g, items: g.items.filter((i) => LVGL_SUPPORTED_TYPES.has(i.type)) }))
@@ -668,10 +760,16 @@ function ObjectPalette({ onAdd }: { onAdd: (type: SynopticObject["type"]) => voi
   const { t } = useTranslation();
   const targetKind = useAppStore((s) => s.project?.target?.kind);
   const isLvgl = targetKind === "lvgl_framebuffer" || targetKind === "lvgl_wayland";
-  const groups = paletteForTarget(isLvgl);
+  const paginaBoot = useAppStore((s) => eBoot(s.pages.find((p) => p.id === s.currentPageId)));
+  const groups = paletteForTarget(isLvgl, paginaBoot);
   return (
     <Section title={t("editor.sectionObjects")} memoria="sinistra.palette">
-      {isLvgl && (
+      {paginaBoot && (
+        <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", padding: "0 4px 8px" }}>
+          {t("leftPanel.paletteBootHint")}
+        </div>
+      )}
+      {!paginaBoot && isLvgl && (
         <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", padding: "0 4px 8px" }}>
           {t("editor.paletteLvglHint")}
         </div>

@@ -100,7 +100,7 @@ export function riassumi(
   }
 
   for (const pg of propPages ?? []) {
-    const attuale = pages.find((p) => p.name === pg.name);
+    const attuale = pages.find((p) => p.kind !== "boot" && p.name === pg.name);
     if (!attuale) {
       out.push({ verso: "+", testo: i18n.t("riassunto.page", { name: pg.name, count: pg.objects.length }) });
       continue;

@@ -7054,6 +7054,8 @@ struct PageLayoutBody {
     home_page_id: Option<String>,
     #[serde(default)]
     hide_viewer_chrome: Option<bool>,
+    #[serde(default)]
+    boot_page_id: Option<String>,
 }
 
 impl From<PageLayoutBody> for PageLayoutConfig {
@@ -7063,6 +7065,7 @@ impl From<PageLayoutBody> for PageLayoutConfig {
             aspect_ratio: b.aspect_ratio,
             home_page_id: b.home_page_id,
             hide_viewer_chrome: b.hide_viewer_chrome,
+            boot_page_id: b.boot_page_id,
         }
     }
 }

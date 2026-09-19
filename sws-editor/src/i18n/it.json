@@ -1545,7 +1545,9 @@
     "rotateObject": "Ruota oggetto",
     "resizeColumn": "Ridimensiona colonna {{n}}",
     "resizeRow": "Ridimensiona riga {{n}}",
-    "resizeSubCell": "Ridimensiona sub-cella"
+    "resizeSubCell": "Ridimensiona sub-cella",
+    "newBootPage": "Nuova immagine di boot",
+    "bootPageBaseName": "Immagine di boot"
   },
   "storeErr": {
     "invalidRange": "Range non valido.",
@@ -1584,7 +1586,14 @@
     "newFunction": "+ Nuova funzione",
     "noTagsLoadAProject": "Nessun tag — carica un progetto.",
     "noSourcesConfigured": "Nessuna sorgente configurata.",
-    "pointsToMissingPage": "punta a pagina inesistente"
+    "pointsToMissingPage": "punta a pagina inesistente",
+    "bootPagesHeading": "Immagini di boot",
+    "bootPagesHint": "Immagini che il pannello mostra mentre parte. Non sono pagine del pannello: nessun viewer le vede. Una sola è «abilitata» e viene installata col deploy.",
+    "bootEnabledTitle": "Immagine di boot abilitata: è quella che il deploy installa sul pannello",
+    "bootEnableFailed": "Impossibile impostare l'immagine di boot abilitata: {{err}}",
+    "noBootPages": "Nessuna immagine di boot.",
+    "newBootPage": "+ Nuova immagine di boot",
+    "paletteBootHint": "Immagine di boot: solo oggetti statici (forme, linee, tubi, testo, immagini, simboli)."
   },
   "shell": {
     "offPage_one": "⚠ {{count}} oggetto è fuori dal foglio e non verrà disegnato a runtime. Trascinalo dentro il bordo tratteggiato per riattivarlo, oppure allarga la pagina.",
@@ -1644,7 +1653,10 @@
     "borderColorIndependentOfThe": "Colore bordo (indipendente dai bordi della griglia)",
     "clickTheChildOnThe": "Clicca il figlio nel canvas per modificarne le proprietà.",
     "remove": "✕ Rimuovi",
-    "orCopyAnObjectFrom2": "Oppure: copia un oggetto dalla pagina (Ctrl+C) e premi Ctrl+V con questa cella selezionata."
+    "orCopyAnObjectFrom2": "Oppure: copia un oggetto dalla pagina (Ctrl+C) e premi Ctrl+V con questa cella selezionata.",
+    "bootPageHint": "Immagine di boot: si disegna come una pagina, ma non compare mai fra le pagine del pannello.",
+    "bootEnabled": "Immagine di boot abilitata",
+    "bootEnabledHelp": "Una sola per progetto: è quella che il deploy installa come immagine di avvio del pannello."
   },
   "credenziali": {
     "waitWithoutRetryingEveryNew": "Aspetta **senza** riprovare: ogni nuovo tentativo allunga il blocco. ",

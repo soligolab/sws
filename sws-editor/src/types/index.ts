@@ -1330,6 +1330,9 @@ export interface PageLayoutConfig {
    *  Non riguarda l'header dell'IDE. Con la barra nascosta la navigazione tra
    *  pagine passa dagli oggetti `navbutton` o dalla rotazione automatica. */
   hide_viewer_chrome?: boolean;
+  /** Id della pagina di boot «abilitata» (T-72): quella che il deploy installa
+   *  come immagine di avvio del pannello. Una sola, per costruzione. */
+  boot_page_id?: string;
 }
 
 /** Motore di rendering a cui è destinato il progetto — vedi

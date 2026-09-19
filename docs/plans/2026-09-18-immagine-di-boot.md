@@ -7,8 +7,8 @@
 > Appendice A e **vanno lette prima di scrivere lo script**: contengono una trappola che non si vede
 > provando. La scheda Q13 originale è in Appendice B, integrale.
 >
-> **Stato**: piano approvato il 18-09-2026. **Task T-72.** F0 e F1 fatte (F1 il 19-09-2026, sul ramo
-> `b6c55fc1` su `main`); prossima F2 (editor). Il validatore con `BOOT_TYPES` (§2.1) non è in F1:
+> **Stato**: piano approvato il 18-09-2026. **Task T-72.** F0, F1 e F2 fatte (F1 `b6c55fc1`; F2 il
+> 19-09-2026); prossima F3 (formato di progetto). Il validatore con `BOOT_TYPES` (§2.1) non è in F1:
 > dipende dall'elenco dei tipi che F2 conferma tipo per tipo.
 
 ## Contesto
@@ -288,6 +288,22 @@ manda 3 MiB: senza il layer il server li rifiuta (è il difetto), con il layer p
 un'istanza di scarto: progetto vuoto → `boot/Immagine di boot.yaml` + `synoptics/Page 1.yaml`; da
 template → solo la pagina di boot, le pagine del template intatte; PNG da 3 MiB caricato e riscaricato;
 PNG non valido → 400; `save_synoptic` con `kind: boot` → 400; lo ZIP di export porta `boot/`.
+
+### F2 — nota di esecuzione (19-09-2026)
+
+Fatta come da piano, con questi scarti: **(1)** `boot_page_id` (§2.2) è entrato qui e non in F1 — il modello
+Rust lo richiedeva solo ora — e il salvataggio delle Impostazioni pagine lo **conserva** (senza, ogni
+salvataggio lo avrebbe azzerato). **(2)** Le pagine di boot stanno sempre **in coda** all'array `pages`
+(`sinotticiPoiBoot`): gli indici dell'elenco sinottici restano quelli dell'array. **(3)** `BOOT_TYPES` è
+controllato anche dal server al salvataggio (`TipoNonAmmesso` → 400), non solo dalla palette. **(4)** Le
+pagine si caricano con `api.loadAllPages()` (sinottici + boot): tre punti di caricamento passano da lì.
+**(5)** `impostaBootAbilitata` scrive `project.yaml` fuori da «Salva»: emette `sws:project-switched` per
+rifissare la baseline del watcher, o compariva «il progetto sul runtime è cambiato». Provata dal vivo in
+un browser headless su un'istanza di scarto: sezione, creazione, palette ridotta (Forme: rettangolo,
+ellisse, linea, testo, immagine + Scada), abilitazione (radio e interruttore d'accordo, `boot_page_id`
+sul disco), niente tab per le pagine di boot, «Salva» che scrive `boot/`.
+**Non fatto, per piano**: PNG (F4), formato di default di progetto (F3). La `guardia` di
+`check_versione_progetto.sh` ora capisce le famiglie di rotte con il trattino.
 
 ## 4. Dettagli per chi implementa
 

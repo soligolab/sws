@@ -36,6 +36,8 @@ import { TEXT_FIELDS } from "@/i18n/projectI18n";
 import { CampoTestoTradotto } from "@/editor/CampoTestoTradotto";
 import type { AlignMode } from "@/store";
 import type { AlarmSeverity, ButtonAction, FunctionDef, GridCell, PageLayoutConfig, PageSizeMode, ProjectTargetKind, RadioOption, SubCellEntry, SubGrid, SynopticObject, TableRow, TextListEntry, TrendTrace, XySeries } from "@/types";
+import { eBoot, paginePerNavigazione } from "@/boot/tipi";
+import { impostaBootAbilitata } from "@/boot/abilitata";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -346,8 +348,9 @@ export function EditorShell() {
   // "Testo" perché "grid" non ce l'ha. Vedi `figlioProprietaAttivo`.
   const figlioAttivo = figlioProprietaAttivo(selected, selectedCellChild, selectedSubCell);
   const tipoVisto = figlioAttivo?.type ?? selected?.type;
-  const gruppoVisto = gruppoEffettivo(gruppoDestro, tipoVisto);
-  const gruppiVisibili = gruppiPerTipo(tipoVisto ?? "");
+  const paginaBoot = eBoot(currentPage);
+  const gruppoVisto = gruppoEffettivo(gruppoDestro, tipoVisto, paginaBoot);
+  const gruppiVisibili = gruppiPerTipo(tipoVisto ?? "", paginaBoot);
   const mostraGruppi = barraGruppiVisibile(selected, multi, {
     cella: selectedCell?.objectId,
     intervallo: selectedCellRange?.objectId,
@@ -859,7 +862,7 @@ export function EditorShell() {
               mergedProps={mergedProps}
               mixedKeys={mixedKeys}
               allSameType={allSameType}
-              pages={pages.filter((p) => p.id !== currentPageId)}
+              pages={paginePerNavigazione(pages).filter((p) => p.id !== currentPageId)}
               functions={functions}
               onAlign={alignSelection}
               onDuplicate={duplicateSelection}
@@ -868,7 +871,7 @@ export function EditorShell() {
             />
           </>
         ) : selected ? (() => {
-          const otherPages = pages.filter((p) => p.id !== currentPageId);
+          const otherPages = paginePerNavigazione(pages).filter((p) => p.id !== currentPageId);
 
           // ── Sub-cell (slot of a split cell) selected ───────────────────
           if (selected.type === "grid" && selectedSubCell?.objectId === selected.id
@@ -1083,7 +1086,9 @@ export function EditorShell() {
               auto_rotate_skip={currentPage?.auto_rotate_skip}
               zones={currentPage?.zones}
               locked={currentPage?.locked}
-              sizeMode={effectiveSizeMode(project?.page_layout)}
+              sizeMode={paginaBoot ? "fixed" : effectiveSizeMode(project?.page_layout)}
+              boot={paginaBoot}
+              pageId={currentPageId}
               offPageCount={(currentPage?.objects ?? []).filter(
                 (o) => isOffPage(o, currentPage?.width, currentPage?.height)).length}
               onChange={(patch) => updatePageProps(currentPageId, patch)}
@@ -1292,9 +1297,16 @@ export type GruppoProprieta = (typeof GRUPPI_PROPRIETA)[number]["id"];
  *  Una scheda vuota è peggio di una scheda assente: si clicca, non succede
  *  niente, e si resta a chiedersi se sia rotta. Quindi la barra mostra cinque
  *  icone su un `text` e quattro su tutto il resto. */
-export function gruppiPerTipo(tipo: string) {
-  return GRUPPI_PROPRIETA.filter((g) => !("soloTipi" in g) || (g.soloTipi as readonly string[]).includes(tipo));
+export function gruppiPerTipo(tipo: string, paginaBoot = false) {
+  return GRUPPI_PROPRIETA
+    .filter((g) => !("soloTipi" in g) || (g.soloTipi as readonly string[]).includes(tipo))
+    // Su una pagina di boot non ci sono dati, eventi né comportamento: solo
+    // ciò che serve a disegnare un'immagine ferma (T-72).
+    .filter((g) => !paginaBoot || GRUPPI_BOOT.includes(g.id));
 }
+
+/** I gruppi del pannello proprietà che una pagina di boot ammette. */
+const GRUPPI_BOOT: readonly GruppoProprieta[] = ["oggetto", "testo", "resa"];
 
 /** Il gruppo da mostrare davvero: quello scelto, se si applica a questo tipo,
  *  altrimenti Oggetto.
@@ -1302,9 +1314,9 @@ export function gruppiPerTipo(tipo: string) {
  *  La **scelta memorizzata non si tocca**: chi stava sul testo e passa a un
  *  rettangolo vede Oggetto, e tornando su un testo ritrova il testo. Scrivere
  *  il ripiego in memoria farebbe perdere la scelta a ogni clic sul canvas. */
-export function gruppoEffettivo(scelto: GruppoProprieta, tipo: string | undefined): GruppoProprieta {
-  if (!tipo) return scelto;
-  return gruppiPerTipo(tipo).some((g) => g.id === scelto) ? scelto : "oggetto";
+export function gruppoEffettivo(scelto: GruppoProprieta, tipo: string | undefined, paginaBoot = false): GruppoProprieta {
+  if (!tipo) return paginaBoot && !GRUPPI_BOOT.includes(scelto) ? "oggetto" : scelto;
+  return gruppiPerTipo(tipo, paginaBoot).some((g) => g.id === scelto) ? scelto : "oggetto";
 }
 
 /** Il gruppo scelto nella barra a destra. Le sezioni che dichiarano un
@@ -1690,9 +1702,15 @@ function PageProps({
   zones,
   locked,
   sizeMode,
+  boot = false,
+  pageId,
   offPageCount,
   onChange,
 }: {
+  /** Pagina di boot (T-72): risoluzione sempre editabile, un solo sfondo, niente
+   *  zone né rotazione, e l'interruttore «abilitata». */
+  boot?: boolean;
+  pageId?: string;
   name: string;
   background: string;
   background_dark?: string;
@@ -1746,6 +1764,7 @@ function PageProps({
           />
         </div>
       </div>
+      {!boot && (
       <div>
         <div style={LABEL}>{t("props.backgroundDark")}</div>
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
@@ -1766,6 +1785,8 @@ function PageProps({
           />
         </div>
       </div>
+      )}
+      {boot && pageId && <BootEnabledToggle pageId={pageId} />}
       <SottoTitolo chiave="pageSizeSection" />
       {sizeMode === "fixed" && (
         <>
@@ -1843,6 +1864,7 @@ function PageProps({
           {t("shell.offPage", { count: offPageCount })}
         </p>
       )}
+      {!boot && (<>
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
         <input
           type="checkbox"
@@ -1871,10 +1893,37 @@ function PageProps({
           }}
         />
       </div>
+      </>)}
       <p style={{ fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", margin: "8px 0 0" }}>
-        {t("shell.selectAnObjectOnThe")}
+        {boot ? t("shell.bootPageHint") : t("shell.selectAnObjectOnThe")}
       </p>
     </>
+  );
+}
+
+/** L'interruttore «Immagine di boot abilitata» del pannello di una pagina di boot:
+ *  la stessa scelta del radio ⭐ nell'elenco pagine, scritta nello stesso punto. */
+function BootEnabledToggle({ pageId }: { pageId: string }) {
+  const { t } = useTranslation();
+  const abilitata = useAppStore((s) => s.project?.page_layout?.boot_page_id === pageId);
+  const [errore, setErrore] = useState<string | null>(null);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4, margin: "8px 0 4px" }}>
+      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
+        <input
+          type="checkbox"
+          checked={abilitata}
+          onChange={(e) => {
+            setErrore(null);
+            impostaBootAbilitata(e.target.checked ? pageId : undefined)
+              .catch((err) => setErrore(err instanceof Error ? err.message : String(err)));
+          }}
+        />
+        {t("shell.bootEnabled")}
+      </label>
+      <span style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)" }}>{t("shell.bootEnabledHelp")}</span>
+      {errore && <span style={{ fontSize: 11, color: "var(--brand-danger, #ef4444)" }}>{errore}</span>}
+    </div>
   );
 }
 
@@ -1911,7 +1960,7 @@ function useMaterializzaRatio() {
     const layout = project?.page_layout;
     if (effectiveSizeMode(layout) !== "ratio") return;
     const ref = referenceResolutionFor(layout?.aspect_ratio);
-    for (const p of pages) {
+    for (const p of paginePerNavigazione(pages)) {
       if (!p.width || !p.height) updatePageProps(p.id, { width: ref.width, height: ref.height });
     }
   }, [project?.page_layout, pages, updatePageProps]);
@@ -1995,6 +2044,8 @@ function ProjectPageLayoutSettings() {
       aspect_ratio: sizeMode === "ratio" ? aspectRatio : undefined,
       home_page_id: homePageId || undefined,
       hide_viewer_chrome: hideChrome || undefined,
+      // Non è un campo di questo modulo: si conserva, o salvare qui lo azzererebbe.
+      boot_page_id: useAppStore.getState().project?.page_layout?.boot_page_id,
     };
     try {
       await api.updatePageLayout(cfg);
@@ -2005,7 +2056,7 @@ function ProjectPageLayoutSettings() {
       // WRONG aspect ratio at runtime. Client-side only; the maintainer still
       // saves the project explicitly like any other canvas edit.
       if (sizeMode === "ratio") {
-        for (const p of pages) updatePageProps(p.id, { width: ref.width, height: ref.height });
+        for (const p of paginePerNavigazione(pages)) updatePageProps(p.id, { width: ref.width, height: ref.height });
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -2048,7 +2099,7 @@ function ProjectPageLayoutSettings() {
         <select value={homePageId} onChange={(e) => setHomePageId(e.target.value)}
           style={{ background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "4px 8px", fontSize: 12, width: "100%" }}>
           <option value="">{t("shell.firstPageInTheList")}</option>
-          {pages.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          {paginePerNavigazione(pages).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
       </div>
 

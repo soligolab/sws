@@ -9,6 +9,10 @@ import { normalizeXyObjects } from "@/canvas/xyModel";
 import type { SegmentoScelto, WaypointScelto } from "@/canvas/percorsoMovimento";
 import { effectiveSizeMode, referenceResolutionFor } from "@/pageLayout";
 import { uguale } from "@/ai/confronto";
+import {
+  BOOT_ALTEZZA, BOOT_LARGHEZZA, BOOT_SFONDO, BOOT_TYPES, chiavePagina, eBoot, nomeBootLibero,
+  paginePerNavigazione, sinotticiPoiBoot,
+} from "@/boot/tipi";
 import type {
   AlarmDef,
   LanguageTable,
@@ -402,6 +406,8 @@ interface AppState {
   // Page management
   setPages: (pages: SynopticPage[], currentPageId?: string) => void;
   addPage: () => void;
+  /** Una pagina di boot nuova (T-72): vuota, con la risoluzione di default. */
+  addBootPage: () => void;
   deletePage: (id: string) => void;
   renamePage: (id: string, name: string) => void;
   reorderPage: (id: string, dir: "up" | "down") => void;
@@ -915,7 +921,10 @@ export const useAppStore = create<AppState>((set, get) => {
 
     setSelectedSubCell: (sub) => set({ selectedSubCell: sub }),
 
-    setPages: (pages, currentPageId) =>
+    setPages: (tutte, currentPageId) => {
+      // Sinottici prima, pagine di boot in coda: l'elenco pagine usa gli indici
+      // della sola parte sinottica, che così restano validi.
+      const pages = sinotticiPoiBoot(tutte);
       set({
         // Migrazione trend legacy → trend_tags al load (taglio netto,
         // 2026-08-23), e xy_plot legacy → xy_series (stesso taglio,
@@ -925,7 +934,7 @@ export const useAppStore = create<AppState>((set, get) => {
           const objs = normalizeXyObjects(normalizeTrendObjects(p.objects));
           return objs === p.objects ? p : { ...p, objects: objs };
         }),
-        currentPageId: currentPageId ?? pages[0]?.id ?? first.id,
+        currentPageId: currentPageId ?? paginePerNavigazione(pages)[0]?.id ?? pages[0]?.id ?? first.id,
         selectedObjectId: null,
         selectedObjectIds: [],
         selectedCell: null,
@@ -942,12 +951,13 @@ export const useAppStore = create<AppState>((set, get) => {
         // Snapshot of what's actually on disk right now, so saveAll() can
         // later tell a deleted/renamed page apart from one that was simply
         // never loaded in the first place.
-        persistedPageNames: pages.map((p) => p.name),
-      }),
+        persistedPageNames: pages.map(chiavePagina),
+      });
+    },
 
     addPage: () => {
       pushHistory("history.newPage");
-      const page = makePage(`Page ${get().pages.length + 1}`);
+      const page = makePage(`Page ${paginePerNavigazione(get().pages).length + 1}`);
       // Q38 — in modalità «ratio» la pagina nasce già con la risoluzione di
       // riferimento scritta: le misure nel file sono ciò che TUTTI i motori
       // leggono (editor, viewer web, LVGL, validatore), e una pagina senza
@@ -961,6 +971,25 @@ export const useAppStore = create<AppState>((set, get) => {
         page.height = ref.height;
       }
       set((s) => ({
+        // Le pagine di boot restano in coda.
+        pages: sinotticiPoiBoot([...s.pages, page]),
+        currentPageId: page.id,
+        selectedObjectId: null,
+        selectedObjectIds: [],
+      }));
+    },
+
+    addBootPage: () => {
+      pushHistory("history.newBootPage");
+      const nome = nomeBootLibero(get().pages, i18n.t("history.bootPageBaseName"));
+      const page: SynopticPage = {
+        ...makePage(nome),
+        kind: "boot",
+        width: BOOT_LARGHEZZA,
+        height: BOOT_ALTEZZA,
+        background: BOOT_SFONDO,
+      };
+      set((s) => ({
         pages: [...s.pages, page],
         currentPageId: page.id,
         selectedObjectId: null,
@@ -970,12 +999,18 @@ export const useAppStore = create<AppState>((set, get) => {
 
     deletePage: (id) => {
       const { pages, currentPageId } = get();
-      if (pages.length <= 1) return;
+      const page = pages.find((p) => p.id === id);
+      if (!page) return;
+      // «Non si elimina l'ultima pagina» vale per le sinottiche: una pagina di
+      // boot non è una pagina del pannello, e togliere l'ultima è lecito.
+      if (!eBoot(page) && paginePerNavigazione(pages).length <= 1) return;
       pushHistory("history.deletePage");
       const next = pages.filter((p) => p.id !== id);
       set({
         pages: next,
-        currentPageId: currentPageId === id ? next[0].id : currentPageId,
+        currentPageId: currentPageId === id
+          ? (paginePerNavigazione(next)[0]?.id ?? next[0]?.id ?? currentPageId)
+          : currentPageId,
         selectedObjectId: null,
         selectedObjectIds: [],
       });
@@ -990,10 +1025,10 @@ export const useAppStore = create<AppState>((set, get) => {
       pushHistory("history.reorderPages");
       set((s) => {
         const idx = s.pages.findIndex((p) => p.id === id);
-        if (idx < 0) return s;
+        if (idx < 0 || eBoot(s.pages[idx])) return s;
         const pages = [...s.pages];
         const [page] = pages.splice(idx, 1);
-        const newIdx = dir === "up" ? Math.max(0, idx - 1) : Math.min(pages.length, idx + 1);
+        const newIdx = dir === "up" ? Math.max(0, idx - 1) : Math.min(paginePerNavigazione(pages).length, idx + 1);
         pages.splice(newIdx, 0, page);
         return { pages };
       });
@@ -1003,10 +1038,10 @@ export const useAppStore = create<AppState>((set, get) => {
       pushHistory("history.reorderPages");
       set((s) => {
         const idx = s.pages.findIndex((p) => p.id === id);
-        if (idx < 0) return s;
+        if (idx < 0 || eBoot(s.pages[idx])) return s;
         const pages = [...s.pages];
         const [page] = pages.splice(idx, 1);
-        const clamped = Math.max(0, Math.min(pages.length, toIndex));
+        const clamped = Math.max(0, Math.min(paginePerNavigazione(pages).length, toIndex));
         pages.splice(clamped, 0, page);
         return { pages };
       });
@@ -1327,6 +1362,10 @@ export const useAppStore = create<AppState>((set, get) => {
       }),
 
     addObject: (partial) => {
+      // Una pagina di boot ammette solo oggetti statici (`BOOT_TYPES`): il server
+      // rifiuterebbe il salvataggio, e il PNG non li mostrerebbe fedelmente.
+      const corrente = get().pages.find((p) => p.id === get().currentPageId);
+      if (eBoot(corrente) && !BOOT_TYPES.includes(partial.type)) return;
       pushHistory("history.add", { type: partial.type });
       const obj: SynopticObject = { ...partial, id: genId() };
       set((s) => {
@@ -1334,7 +1373,7 @@ export const useAppStore = create<AppState>((set, get) => {
         // currentPageId disallineato): crea al volo una prima pagina con dentro
         // l'oggetto, così la palette funziona anche a progetto appena creato.
         if (!s.pages.some((p) => p.id === s.currentPageId)) {
-          const page: SynopticPage = { ...makePage(`Page ${s.pages.length + 1}`), objects: [obj] };
+          const page: SynopticPage = { ...makePage(`Page ${paginePerNavigazione(s.pages).length + 1}`), objects: [obj] };
           return {
             pages: [...s.pages, page],
             currentPageId: page.id,
@@ -1543,6 +1582,9 @@ export const useAppStore = create<AppState>((set, get) => {
       // the destination page) and strips group_id (the destination page's
       // group registry doesn't know about the source page's groups).
       const samePage = clipboardSourcePageId === currentPageId;
+      // Su una pagina di boot si incollano solo oggetti statici.
+      const paginaCorrente = get().pages.find((p) => p.id === currentPageId);
+      if (eBoot(paginaCorrente) && clipboard.some((o) => !BOOT_TYPES.includes(o.type))) return;
       pushHistory("history.paste");
       const newIds: string[] = [];
       const copies = clipboard.map((src) => {
@@ -1892,13 +1934,15 @@ export const useAppStore = create<AppState>((set, get) => {
           ? { ...attuale, objects }
           : { ...proposta, objects };
       };
-      const nuovePages = [
+      // L'assistente lavora sulle pagine sinottiche: una pagina di boot con lo
+      // stesso nome non è la stessa pagina.
+      const nuovePages = sinotticiPoiBoot([
         ...s.pages.map((pg) => {
-          const q = proposte.find((x) => x.name === pg.name);
+          const q = eBoot(pg) ? undefined : proposte.find((x) => x.name === pg.name);
           return q ? fondi(pg, q) : pg;
         }),
-        ...proposte.filter((q) => !s.pages.some((pg) => pg.name === q.name)),
-      ];
+        ...proposte.filter((q) => !s.pages.some((pg) => !eBoot(pg) && pg.name === q.name)),
+      ]);
 
       // ── 3. Un solo passo, con dentro anche il progetto ────────────────────
       pushHistoryUnconditional("history.assistant", prima, { motivo: p.motivo });
@@ -2145,7 +2189,8 @@ export const useAppStore = create<AppState>((set, get) => {
       //    Restano functions e custom_symbols: si modificano dall'editor
       //    (FunctionEditor, symbol picker) e non hanno altro percorso di
       //    salvataggio.
-      const tasks: Promise<unknown>[] = state.pages.map((p) => api.saveSynoptic(p));
+      const tasks: Promise<unknown>[] = state.pages.map((p) =>
+        eBoot(p) ? api.saveBootPage(p) : api.saveSynoptic(p));
       if (isAdmin && state.project) {
         // Anche questi due passano da `patch_project` sullo stesso
         // `project.yaml`: incatenati, non affiancati, per la stessa ragione
@@ -2161,9 +2206,11 @@ export const useAppStore = create<AppState>((set, get) => {
       // already covered by the upsert above). Their files never disappear
       // from disk on their own — list_synoptics just enumerates *.yaml, so
       // a page "deleted" only in memory silently reappears on next load.
-      const currentNames = new Set(state.pages.map((p) => p.name));
+      // Le chiavi distinguono le pagine di boot (`boot/<nome>`) dalle sinottiche.
+      const currentNames = new Set(state.pages.map(chiavePagina));
       const namesToDelete = state.persistedPageNames.filter((n) => !currentNames.has(n));
-      tasks.push(...namesToDelete.map((n) => api.deleteSynoptic(n)));
+      tasks.push(...namesToDelete.map((n) =>
+        n.startsWith("boot/") ? api.deleteBootPage(n.slice("boot/".length)) : api.deleteSynoptic(n)));
       const results = await Promise.allSettled(tasks);
       results.forEach((r) => {
         if (r.status === "rejected") {
@@ -2181,7 +2228,7 @@ export const useAppStore = create<AppState>((set, get) => {
       // On a partial failure some pages are on disk and some are not, so
       // "modified" is the only honest answer; a retry re-PUTs everything
       // (the endpoints are idempotent).
-      set({ persistedPageNames: state.pages.map((p) => p.name) });
+      set({ persistedPageNames: state.pages.map(chiavePagina) });
       set({ saveStatus: "ok" });
       get().markPagesSaved();
       saveOkTimer = window.setTimeout(() => {

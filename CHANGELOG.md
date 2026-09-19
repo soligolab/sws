@@ -12,6 +12,14 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Added
+- **T-72 F2 — le immagini di boot nell'editor.** Elenco pagine con una sezione «Immagini di boot»
+  (🖼, radio ⭐ «abilitata», «+ Nuova immagine di boot»), separata dalle pagine del pannello: la
+  striscia di tab, la navigazione, i pulsanti pagina, la pagina iniziale e le pagine «orfane» le
+  ignorano. Una pagina di boot ha la palette ridotta ai sette oggetti statici (`BOOT_TYPES`, controllati
+  anche dal server), il pannello proprietà con solo Oggetto/Testo/Resa, risoluzione sempre editabile e
+  l'interruttore «abilitata» (`page_layout.boot_page_id`, una sola per progetto). Le pagine di boot
+  stanno sempre in coda a `pages`; si salvano in `boot/`, e «Salva» non le confonde con una sinottica
+  omonima. L'ultima sinottica non si elimina anche se c'è una pagina di boot; una pagina di boot sì.
 - **T-72 F1 — le pagine di boot (modello e server).** `SynopticPage` guadagna `kind` (`"boot"`, TS
   e Rust, schema rigenerato). Una pagina di boot vive in `boot/<nome>.yaml` con accanto il PNG
   (`boot/<nome>.png`), fuori da `synoptics/`: nessun viewer, kiosk o runtime la vede. Nuovi
