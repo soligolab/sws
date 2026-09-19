@@ -18,6 +18,17 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   (solo istanza IDE, Admin); la chiave non finisce mai nel file di configurazione leggibile,
   vive in un file a sé con permessi ristretti. F5 del piano multilingua.
 
+### Changed
+- **F6 del multilingua: i dialoghi dell'IDE passano tutti dal catalogo.** I 35 `confirm`/`alert`/
+  `prompt` con testo italiano cablato (ConfigView, SvgCanvas, LeftPanel, EditorShell) usano `t()`,
+  con i messaggi lunghi (TLS, deploy, ripristino backup) come chiavi con interpolazione; da qui la
+  guardia `check_i18n_ui.sh` è a tolleranza zero sui dialoghi (`DIALOGHI` sparisce). Ridotti anche
+  molti `title`/`placeholder` cablati. Chiusi per intero, in anticipo su F7, `FunctionEditor` e
+  `TrendExpanded` (nuovi namespace `functionEditor` e `trendExpanded`): tetti tolti.
+- `check_i18n_ui.sh`: lo scanner riconosce i letterali regex (`/[",\n]/`) invece di scambiare un
+  apice nella classe di caratteri per l'apertura di una stringa, che gli faceva inghiottire il resto
+  del file e finire in un `IndexError`.
+
 ### Fixed
 - **Una correzione a mano non toglieva il marchio «tradotta dalla macchina».** La promessa della
   2.8.0 — «una traduzione umana non si sovrascrive mai» — valeva solo lato runtime: sul web

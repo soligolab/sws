@@ -228,7 +228,7 @@ function PagesSection() {
       title={t("editor.sectionPages")}
       memoria="sinistra.pagine"
       headerAction={
-        <button style={S.iconBtn} title="Verifica collegamenti (link rotti + pagine orfane)"
+        <button style={S.iconBtn} title={t("editor.checkLinksTitle")}
           onClick={() => setLinkReportOpen(true)}>🔗</button>
       }
     >
@@ -313,10 +313,10 @@ function PagesSection() {
             ) : (
               <>
                 {p.id === homePageId && (
-                  <span title="Pagina iniziale (home)" style={{ flexShrink: 0 }}>🏠</span>
+                  <span title={t("editor.homePageTitle")} style={{ flexShrink: 0 }}>🏠</span>
                 )}
                 {orphanIds.has(p.id) && (
-                  <span title="Pagina orfana: nessun collegamento la raggiunge e non è la home" style={{ flexShrink: 0 }}>⚠️</span>
+                  <span title={t("editor.orphanPageTitle")} style={{ flexShrink: 0 }}>⚠️</span>
                 )}
                 <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
                   {p.name}
@@ -324,7 +324,7 @@ function PagesSection() {
                 <span style={{ display: "flex", gap: 2, flexShrink: 0 }}>
                   <button
                     style={S.iconBtn}
-                    title={p.locked ? "Sblocca pagina" : "Blocca pagina (sola lettura)"}
+                    title={p.locked ? t("editor.unlockPage") : t("editor.lockPage")}
                     onClick={(e) => { e.stopPropagation(); updatePageProps(p.id, { locked: !p.locked }); }}
                   >{p.locked ? "🔒" : "🔓"}</button>
                   {pi > 0 && (
@@ -351,7 +351,7 @@ function PagesSection() {
                       title={t("editor.deletePage")}
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (window.confirm(`Eliminare la pagina "${p.name}"? L'azione è annullabile con Ctrl-Z.`)) {
+                        if (window.confirm(t("editor.deletePageConfirm", { name: p.name }))) {
                           deletePage(p.id);
                         }
                       }}
@@ -1216,7 +1216,7 @@ function ObjectsSection() {
                     style={{ ...S.iconBtn, color: "var(--brand-warning, #f59e0b)" }} title={t("editor.ungroup")}
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (window.confirm(`Separare il gruppo "${group.name}"? Gli oggetti torneranno alla radice.`)) {
+                      if (window.confirm(t("editor.ungroupConfirm", { name: group.name }))) {
                         ungroupObjects(group.id);
                       }
                     }}
@@ -1580,7 +1580,7 @@ function TagsSection() {
               <div
                 style={{ ...S.row(open), gap: 6, justifyContent: "space-between", cursor: "pointer" }}
                 onClick={() => setOpenTag(open ? null : t.id)}
-                title={uses.length > 0 ? `${uses.length} riferimenti` : "Nessun riferimento trovato"}
+                title={uses.length > 0 ? t2("editor.tagUsesCount", { count: uses.length }) : t2("editor.tagUsesNone")}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 5, minWidth: 0 }}>
                   {tv ? dot(tv.quality) : (

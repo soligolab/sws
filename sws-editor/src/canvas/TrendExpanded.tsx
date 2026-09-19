@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { TrendCanvas, resolveSeriesColor, type TrendDateTimeConfig } from "./TrendCanvas";
 import { api } from "@/api/client";
 import type { TrendSeriesStyle } from "@/types";
@@ -39,13 +40,14 @@ type RangePreset = "live" | "1h" | "8h" | "24h" | "7d" | "all" | "custom";
 
 // "all" has no fixed span — its range is resolved from the earliest recorded
 // sample (see the effect below), not from `seconds`.
-const PRESETS: { id: RangePreset; label: string; seconds: number | null }[] = [
+// `label` è il testo così com'è; una `labelKey` lo sostituisce con la voce del catalogo.
+const PRESETS: { id: RangePreset; label: string; labelKey?: string; seconds: number | null }[] = [
   { id: "live", label: "Live",  seconds: null },
   { id: "1h",   label: "1h",   seconds: 3600 },
   { id: "8h",   label: "8h",   seconds: 28800 },
   { id: "24h",  label: "24h",  seconds: 86400 },
   { id: "7d",   label: "7d",   seconds: 604800 },
-  { id: "all",  label: "Tutto", seconds: null },
+  { id: "all",  label: "all",  labelKey: "trendExpanded.presetAll", seconds: null },
 ];
 
 export function TrendExpandedModal({
@@ -79,6 +81,7 @@ export function TrendExpandedModal({
   gridColor,
   onClose,
 }: TrendExpandedProps) {
+  const { t } = useTranslation();
   const [preset, setPreset] = useState<RangePreset>("live");
   // Historical range anchor: pan shifts this offset (ms before now).
   const [offsetMs, setOffsetMs] = useState(0);
@@ -108,7 +111,7 @@ export function TrendExpandedModal({
     if (preset !== "all") { setAllRange(null); return; }
     let cancelled = false;
     setAllLoading(true);
-    Promise.all(tags.filter(Boolean).map((t) => api.getHistoryStats(t).catch(() => null)))
+    Promise.all(tags.filter(Boolean).map((tag) => api.getHistoryStats(tag).catch(() => null)))
       .then((stats) => {
         if (cancelled) return;
         const firstTimestamps = stats
@@ -219,7 +222,7 @@ export function TrendExpandedModal({
                   color: preset === p.id ? "#93c5fd" : "#64748b",
                 }}
               >
-                {p.label}
+                {p.labelKey ? t(p.labelKey) : p.label}
               </button>
             ))}
             {isCustom && (
@@ -227,7 +230,7 @@ export function TrendExpandedModal({
                 padding: "2px 8px", fontSize: 11, borderRadius: 4,
                 border: "1px solid #3b82f6", background: "#1e3a5f", color: "#93c5fd",
               }}>
-                Selezione
+                {t("trendExpanded.selection")}
               </span>
             )}
           </div>
@@ -236,7 +239,7 @@ export function TrendExpandedModal({
           <button
             onClick={panBack}
             disabled={panDisabled}
-            title="Indietro"
+            title={t("trendExpanded.back")}
             style={{
               padding: "2px 8px", fontSize: 12, borderRadius: 4, cursor: panDisabled ? "default" : "pointer",
               border: "1px solid #334155", background: "#1e293b",
@@ -246,7 +249,7 @@ export function TrendExpandedModal({
           <button
             onClick={panForward}
             disabled={panDisabled || offsetMs === 0}
-            title="Avanti"
+            title={t("trendExpanded.forward")}
             style={{
               padding: "2px 8px", fontSize: 12, borderRadius: 4,
               cursor: (panDisabled || offsetMs === 0) ? "default" : "pointer",
@@ -258,7 +261,7 @@ export function TrendExpandedModal({
           {/* Series toggles */}
           {tags.length > 1 && (
             <div style={{ display: "flex", gap: 6, marginLeft: 8 }}>
-              {tags.map((t, i) => {
+              {tags.map((tag, i) => {
                 const hidden = hiddenIndices.has(i);
                 return (
                   <button
@@ -276,7 +279,7 @@ export function TrendExpandedModal({
                       display: "inline-block", width: 8, height: 8, borderRadius: 2,
                       background: hidden ? "#334155" : colors[i],
                     }} />
-                    {seriesLabels?.[i] ?? t}
+                    {seriesLabels?.[i] ?? tag}
                   </button>
                 );
               })}
@@ -284,13 +287,13 @@ export function TrendExpandedModal({
           )}
 
           {isAll && allLoading && (
-            <span style={{ fontSize: 11, color: "#64748b", marginLeft: 6 }}>Carico…</span>
+            <span style={{ fontSize: 11, color: "#64748b", marginLeft: 6 }}>{t("trendExpanded.loading")}</span>
           )}
 
           {/* F5.2x: cursori di misura */}
           <button
             onClick={() => setMeasureMode((m) => !m)}
-            title="Cursori di misura: click sul grafico per piazzare A e B (Δt/Δv)"
+            title={t("trendExpanded.measureTitle")}
             style={{
               padding: "2px 8px", fontSize: 12, borderRadius: 4, cursor: "pointer",
               border: "1px solid", borderColor: measureMode ? "#f59e0b" : "#334155",
@@ -310,7 +313,7 @@ export function TrendExpandedModal({
               setPickFrom(toLocal(start)); setPickTo(toLocal(end));
               setPickerOpen((o) => !o);
             }}
-            title="Intervallo assoluto"
+            title={t("trendExpanded.absoluteRangeTitle")}
             style={{
               padding: "2px 8px", fontSize: 12, borderRadius: 4, cursor: "pointer",
               border: "1px solid #334155", background: pickerOpen ? "#1e3a5f" : "#1e293b",
@@ -323,7 +326,7 @@ export function TrendExpandedModal({
               const start = fromMs ?? end - windowS * 1000;
               api.exportHistoryCsv(tags.filter(Boolean), start, end);
             }}
-            title="Esporta CSV (finestra visibile)"
+            title={t("trendExpanded.exportCsvTitle")}
             style={{
               padding: "2px 8px", fontSize: 12, borderRadius: 4, cursor: "pointer",
               border: "1px solid #334155", background: "#1e293b", color: "#94a3b8",
@@ -338,7 +341,7 @@ export function TrendExpandedModal({
               a.download = `trend-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.png`;
               a.click();
             }}
-            title="Esporta PNG (immagine del grafico)"
+            title={t("trendExpanded.exportPngTitle")}
             style={{
               padding: "2px 8px", fontSize: 12, borderRadius: 4, cursor: "pointer",
               border: "1px solid #334155", background: "#1e293b", color: "#94a3b8",
@@ -358,10 +361,10 @@ export function TrendExpandedModal({
         {pickerOpen && (
           <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 10px",
                         borderBottom: "1px solid #1e293b", flexShrink: 0, fontSize: 12, color: "#94a3b8" }}>
-            <span>Dal</span>
+            <span>{t("trendExpanded.from")}</span>
             <input type="datetime-local" value={pickFrom} onChange={(e) => setPickFrom(e.target.value)}
               style={{ background: "#1e293b", color: "#e2e8f0", border: "1px solid #334155", borderRadius: 4, padding: "2px 6px", fontSize: 12 }} />
-            <span>al</span>
+            <span>{t("trendExpanded.to")}</span>
             <input type="datetime-local" value={pickTo} onChange={(e) => setPickTo(e.target.value)}
               style={{ background: "#1e293b", color: "#e2e8f0", border: "1px solid #334155", borderRadius: 4, padding: "2px 6px", fontSize: 12 }} />
             <button
@@ -375,7 +378,7 @@ export function TrendExpandedModal({
               }}
               style={{ padding: "2px 10px", fontSize: 12, borderRadius: 4, cursor: "pointer",
                        border: "1px solid #3b82f6", background: "#1e3a5f", color: "#93c5fd" }}
-            >Applica</button>
+            >{t("trendExpanded.apply")}</button>
           </div>
         )}
 

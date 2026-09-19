@@ -2855,7 +2855,7 @@ export function ObjectProps({
                       onChange({ bg_image: res.url });
                       setProjectImages(null); // ricarica la lista al prossimo focus
                     } catch (err: any) {
-                      alert(`Upload fallito: ${err?.message ?? err}`);
+                      alert(t("editor.uploadImageFailed", { err: err?.message ?? err }));
                     } finally {
                       setBgUploading(false);
                     }

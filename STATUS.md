@@ -74,6 +74,28 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — F6 del multilingua fatta, dialoghi a zero (2026-09-19)
+
+Ripresa dopo un blackout: il lavoro di F6 era intero sull'albero, non committato. Verificato e chiuso.
+
+- **Dialoghi**: tutti e 35 i `confirm/alert/prompt` cablati passano da `t()`; `DIALOGHI` è vuoto
+  in `check_i18n_ui.sh` (tolleranza zero da qui). Tetti scesi: ConfigView 392→334, EditorShell
+  71→70, LeftPanel 23→15, SvgCanvas 19→11.
+- **`FunctionEditor` e `TrendExpanded`** chiusi per intero (scelta del maintainer, in anticipo su
+  F7): namespace `functionEditor`/`trendExpanded`, tetti tolti. Restano in F7 gli altri componenti muti.
+- **Difetto lasciato dal blackout**: `t` non definito in `deployToTarget` (funzione fuori dai
+  componenti) → `i18n.t`. Lo ha trovato `pnpm build`, non la guardia: `tsc` va sempre lanciato.
+- **Guardia**: lo scanner ora riconosce i letterali regex (prima un apice in `/[",\n]/` lo mandava
+  in `IndexError`).
+- Gate verde: `cargo check`, `pnpm build/lint/test` (548), `check_static.sh` 21/21. Collaudo dal
+  vivo del maintainer: «mi pare ok».
+
+**Prossimo passo del piano**: F7 (store neutro con chiavi, componenti muti rimasti: TrendCanvas,
+AlarmHistory, DataTable, XyPlotCanvas, PythonEditor, PageTabs, BarraAvviso, symbols/library).
+
+Non ancora pushato: F4, F5 e F6 su `main`, serve un «fai il push» esplicito; e va tolto
+`origin/fix/lingue-marchio-auto`.
+
 ## ▶ Riprendere da qui — T-71 riverificato dal vivo, nessun codice toccato (2026-09-19)
 
 Il maintainer ha chiesto di «finire» T-71: risultava già chiuso e archiviato il 16-09

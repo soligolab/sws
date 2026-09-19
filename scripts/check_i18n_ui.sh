@@ -48,14 +48,12 @@ PI18N = f"{SRC}/i18n/projectI18n.ts"
 # di abbassare il numero; un file a zero va tolto. Vuoto = capitolo chiuso: se
 # ricompare una riga, è un file tornato indietro.
 TETTI = {
-    "src/config/ConfigView.tsx": 392,
-    "src/editor/EditorShell.tsx": 71,
+    "src/config/ConfigView.tsx": 334,  # F6: -50 (26 dialoghi + 21 title, alcuni contati doppi da concatenazioni)
+    "src/editor/EditorShell.tsx": 70,  # F6: -1 (1 dialogo)
     "src/store/index.ts": 35,
-    "src/editor/LeftPanel.tsx": 23,
-    "src/canvas/SvgCanvas.tsx": 19,
-    "src/editor/FunctionEditor.tsx": 10,
+    "src/editor/LeftPanel.tsx": 15,  # F6: -8 (2 dialoghi + 6 title, alcuni contati doppi)
+    "src/canvas/SvgCanvas.tsx": 11,  # F6: -8 (6 dialoghi + 6 title, alcuni contati doppi)
     "src/config/credenzialiDispositivo.ts": 8,
-    "src/canvas/TrendExpanded.tsx": 5,
     "src/api/client.ts": 5,  # +1 F5: un percorso di rotta ("/api/traduzione/config"), non testo utente — vedi URL_CONFIG_TRADUZIONE nel file
     "src/canvas/TrendCanvas.tsx": 4,
     "src/components/AlarmBellPanel.tsx": 4,
@@ -82,19 +80,15 @@ TETTI = {
     "src/components/TagInput.tsx": 1,
     "src/components/WelcomeScreen.tsx": 1,
     "src/config/installazione/ListaControlli.tsx": 1,
-    "src/symbols/customSvg.ts": 1,
     "src/tagCatalog.ts": 1,
 }
 
 # `confirm`/`alert`/`prompt` con testo letterale: bloccano l'utente con una
-# frase che non può cambiare lingua. Stesso schema; quando è vuoto la regola
-# diventa tolleranza zero e questo dizionario si cancella.
-DIALOGHI = {
-    "src/config/ConfigView.tsx": 26,
-    "src/canvas/SvgCanvas.tsx": 6,
-    "src/editor/LeftPanel.tsx": 2,
-    "src/editor/EditorShell.tsx": 1,
-}
+# frase che non può cambiare lingua. F6 (19-09-2026) ha azzerato gli ultimi
+# quattro file che ne portavano ancora: da qui in avanti è tolleranza zero,
+# un `confirm`/`alert`/`prompt` con un letterale ovunque nel codice è
+# `problema`, non un debito dichiarabile.
+DIALOGHI = {}
 
 # ── I campi di testo dei contenuti (asse b) ──────────────────────────────────
 #
@@ -179,6 +173,51 @@ def scansiona(src):
             letterali.append((src.count("\n", 0, i) + 1, testo, src[max(0, i-80):i]))
             cancella(pulito, i, j + 1)
             i = j + 1
+        elif c == "/" and src[max(0, i - 1):i].strip() in (
+            "", "(", "[", "{", ",", ";", ":", "!", "&", "|", "?", "=", "+", "-", "*", "%", "^", "~", "<", ">",
+        ):
+            # Un letterale regex — `/[",\n]/`, `/"/g` — non un commento né una
+            # divisione. Senza questo ramo un `"` dentro le parentesi quadre
+            # della classe di caratteri veniva letto come apertura di stringa,
+            # e la ricerca del suo chiusa finiva per inghiottire il resto del
+            # file fino al prossimo apice sopravvissuto per caso — un backtick
+            # vero decine di migliaia di caratteri più avanti, scambiato per
+            # l'apertura di un nuovo template literal mai chiuso. La
+            # precedenza (carattere non alfanumerico prima dello slash, non
+            # `)`/`]`/`}` — quelli sì che sarebbero una divisione) è la stessa
+            # euristica usata dai tokenizer JS "sloppy". Trovato il 19-09-2026
+            # quando F6 ha tolto un dialogo fra la regex CSV e un commento con
+            # backtick: il conteggio di apici che pareggiava per caso è
+            # diventato dispari, e la guardia è esplosa con un IndexError.
+            j = i + 1
+            in_class = False
+            chiuso = False
+            while j < n:
+                cj = src[j]
+                if cj == "\\":
+                    j += 2
+                    continue
+                if cj == "\n":
+                    break
+                if cj == "[":
+                    in_class = True
+                elif cj == "]":
+                    in_class = False
+                elif cj == "/" and not in_class:
+                    j += 1
+                    chiuso = True
+                    break
+                j += 1
+            if not chiuso:
+                # L'euristica ha abboccato a una divisione vera (raro coi
+                # caratteri ammessi sopra, ma possibile): niente panico, si
+                # tratta `/` come un carattere qualunque e si va avanti.
+                i += 1
+                continue
+            while j < n and src[j].isalpha():  # flag: g, i, m, u, s, y…
+                j += 1
+            cancella(pulito, i, j); cancella(senza_commenti, i, j)
+            i = j
         else:
             i += 1
     return letterali, "".join(pulito), "".join(senza_commenti)

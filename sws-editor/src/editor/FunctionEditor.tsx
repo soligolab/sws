@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { PythonEditor, type PythonEditorHandle } from "@/components/PythonEditor";
 import { useAppStore } from "@/store";
 import type { FunctionDef } from "@/types";
@@ -24,6 +25,7 @@ interface FunctionEditorProps {
  * cadence to avoid an update-per-keystroke storm.
  */
 export function FunctionEditor({ fn, onPatch, onPersist, onClose }: FunctionEditorProps) {
+  const { t } = useTranslation();
   const editorRef = useRef<PythonEditorHandle | null>(null);
 
   // Snapshot of the function as last saved to the server. Stored as a
@@ -96,10 +98,10 @@ export function FunctionEditor({ fn, onPatch, onPersist, onClose }: FunctionEdit
         borderBottom: "1px solid var(--brand-surface-2, #334155)",
         flexShrink: 0,
       }}>
-        <strong style={{ fontSize: 14, letterSpacing: 0.3 }}>Funzione Python</strong>
-        <code style={{ color: "var(--brand-success, #22c55e)", fontSize: 12 }}>{fn.name || "(senza nome)"}</code>
+        <strong style={{ fontSize: 14, letterSpacing: 0.3 }}>{t("functionEditor.title")}</strong>
+        <code style={{ color: "var(--brand-success, #22c55e)", fontSize: 12 }}>{fn.name || t("functionEditor.noName")}</code>
         {isDirty && (
-          <span style={{ color: "var(--brand-warning-soft, #fbbf24)", fontSize: 11, fontWeight: 600 }}>● modifiche non salvate</span>
+          <span style={{ color: "var(--brand-warning-soft, #fbbf24)", fontSize: 11, fontWeight: 600 }}>{t("functionEditor.unsaved")}</span>
         )}
         <div style={{ flex: 1 }} />
         <select
@@ -111,13 +113,13 @@ export function FunctionEditor({ fn, onPatch, onPersist, onClose }: FunctionEdit
             e.target.value = "";
           }}
         >
-          <option value="">Inserisci template…</option>
-          <option value="increment">Incremento tag</option>
-          <option value="toggle">Toggle booleano</option>
-          <option value="conditional">Scrittura condizionale</option>
-          <option value="reset_many">Reset multi-tag</option>
-          <option value="diagnostic">Diagnostico (print)</option>
-          <option value="skeleton">Scheletro con parametri</option>
+          <option value="">{t("functionEditor.snippetPlaceholder")}</option>
+          <option value="increment">{t("functionEditor.snippetIncrement")}</option>
+          <option value="toggle">{t("functionEditor.snippetToggle")}</option>
+          <option value="conditional">{t("functionEditor.snippetConditional")}</option>
+          <option value="reset_many">{t("functionEditor.snippetResetMany")}</option>
+          <option value="diagnostic">{t("functionEditor.snippetDiagnostic")}</option>
+          <option value="skeleton">{t("functionEditor.snippetSkeleton")}</option>
         </select>
         <button
           onClick={handleSave}
@@ -133,11 +135,11 @@ export function FunctionEditor({ fn, onPatch, onPersist, onClose }: FunctionEdit
             fontWeight: 600,
           }}
         >
-          {saving ? "Salvataggio…" : "Salva funzioni"}
+          {saving ? t("functionEditor.saving") : t("functionEditor.save")}
         </button>
         <button
           onClick={onClose}
-          title="Chiudi (torna al canvas)"
+          title={t("functionEditor.closeTitle")}
           style={{
             background: "var(--brand-surface-2, #334155)",
             color: "var(--brand-text-2, #cbd5e1)",
@@ -148,7 +150,7 @@ export function FunctionEditor({ fn, onPatch, onPersist, onClose }: FunctionEdit
             fontSize: 13,
           }}
         >
-          Chiudi
+          {t("functionEditor.close")}
         </button>
       </div>
 
@@ -180,7 +182,7 @@ export function FunctionEditor({ fn, onPatch, onPersist, onClose }: FunctionEdit
           gap: 10,
         }}>
           <div>
-            <label style={LABEL_STYLE}>Nome</label>
+            <label style={LABEL_STYLE}>{t("functionEditor.nameLabel")}</label>
             <input
               type="text"
               style={INPUT_STYLE}
@@ -190,7 +192,7 @@ export function FunctionEditor({ fn, onPatch, onPersist, onClose }: FunctionEdit
             />
           </div>
           <div>
-            <label style={LABEL_STYLE}>Descrizione (opz.)</label>
+            <label style={LABEL_STYLE}>{t("functionEditor.descriptionLabel")}</label>
             <input
               type="text"
               style={INPUT_STYLE}
@@ -200,11 +202,11 @@ export function FunctionEditor({ fn, onPatch, onPersist, onClose }: FunctionEdit
           </div>
 
           <div style={{ marginTop: 4, fontSize: 11, color: "var(--brand-text-subtle, #64748b)", fontWeight: 700, letterSpacing: 0.5 }}>
-            PARAMETRI
+            {t("functionEditor.paramsHeading")}
           </div>
           {fn.params.length === 0 && (
             <p style={{ fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", margin: 0 }}>
-              Nessun parametro. La funzione si chiama "nuda".
+              {t("functionEditor.noParams")}
             </p>
           )}
           {fn.params.map((p, i) => {
@@ -213,7 +215,7 @@ export function FunctionEditor({ fn, onPatch, onPersist, onClose }: FunctionEdit
               <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 4 }}>
                 <input
                   type="text"
-                  placeholder="nome"
+                  placeholder={t("functionEditor.paramNamePlaceholder")}
                   style={{ ...INPUT_STYLE, fontSize: 12 }}
                   value={p.name}
                   onChange={(e) => setParam(i, { name: e.target.value })}
@@ -221,7 +223,7 @@ export function FunctionEditor({ fn, onPatch, onPersist, onClose }: FunctionEdit
                 />
                 <input
                   type="text"
-                  placeholder="default (opz.)"
+                  placeholder={t("functionEditor.paramDefaultPlaceholder")}
                   style={{ ...INPUT_STYLE, fontSize: 12 }}
                   value={defStr}
                   onChange={(e) => {
@@ -241,7 +243,7 @@ export function FunctionEditor({ fn, onPatch, onPersist, onClose }: FunctionEdit
                     color: "var(--brand-danger, #ef4444)", cursor: "pointer", fontSize: 14, padding: "0 4px",
                   }}
                   onClick={() => removeParam(i)}
-                  title="Rimuovi parametro"
+                  title={t("functionEditor.removeParamTitle")}
                 >×</button>
               </div>
             );
@@ -250,22 +252,20 @@ export function FunctionEditor({ fn, onPatch, onPersist, onClose }: FunctionEdit
             style={{ ...INPUT_STYLE, cursor: "pointer", color: "var(--brand-text-subtle, #64748b)", borderStyle: "dashed", textAlign: "left" }}
             onClick={addParam}
           >
-            + Aggiungi parametro
+            {t("functionEditor.addParam")}
           </button>
 
           <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "8px 0 0" }}>
             Bindings: <code>tags.read(id)</code>, <code>tags.write(id, value)</code>, <code>print(...)</code>,{" "}
             <code>send_telegram(testo)</code>, <code>now_ms()</code>/<code>uptime_ms()</code>/<code>delta_ms()</code>,{" "}
             <code>state.get(k, default)</code>/<code>state.set(k, v)</code>.
-            I parametri della funzione sono disponibili come variabili globali nel corpo Python —
-            passati da un pulsante (<code>on_press_args</code>), da <code>POST /api/script/run/:name</code>,
-            o da uno script globale con <code>functions.run(nome, **kwargs)</code> (capitolo 15 di HOWTO.md).
+            {t("functionEditor.bindingsParams")}<code>on_press_args</code>{t("functionEditor.bindingsOrRest")}<code>POST /api/script/run/:name</code>{t("functionEditor.bindingsOrScript")}<code>functions.run(nome, **kwargs)</code>{t("functionEditor.bindingsHowto")}
           </p>
         </aside>
 
         {/* Right: Python editor takes the rest */}
         <div style={{ flex: 1, padding: 14, display: "flex", flexDirection: "column", minWidth: 0 }}>
-          <label style={{ ...LABEL_STYLE, marginBottom: 6 }}>Codice Python</label>
+          <label style={{ ...LABEL_STYLE, marginBottom: 6 }}>{t("functionEditor.codeLabel")}</label>
           <div style={{ flex: 1, minHeight: 0 }}>
             <PythonEditor
               ref={editorRef}

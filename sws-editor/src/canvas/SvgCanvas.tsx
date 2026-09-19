@@ -2625,6 +2625,7 @@ function DataLogWidget({ tag, windowS, pageSize, width, height, decimals, unit }
   tag: string; windowS: number; pageSize: number; width: number; height: number;
   decimals: number; unit?: string;
 }) {
+  const { t } = useTranslation();
   const [rows, setRows] = useState<Sample[]>([]);
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -2657,10 +2658,10 @@ function DataLogWidget({ tag, windowS, pageSize, width, height, decimals, unit }
         <span style={{ color: "#64748b" }}>{page + 1}/{pages}</span>
         <button onClick={() => setPage((p) => Math.min(pages - 1, p + 1))} disabled={page >= pages - 1}
           style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 3, color: "inherit", cursor: "pointer", padding: "0 6px" }}>▶</button>
-        <button onClick={() => void load()} title="Aggiorna"
+        <button onClick={() => void load()} title={t("canvas.refresh")}
           style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 3, color: "inherit", cursor: "pointer", padding: "0 6px" }}>⟳</button>
         <div style={{ flex: 1 }} />
-        <button onClick={() => api.exportHistoryCsv([tag], Date.now() - windowS * 1000, Date.now())} title="Esporta CSV"
+        <button onClick={() => api.exportHistoryCsv([tag], Date.now() - windowS * 1000, Date.now())} title={t("canvas.exportCsv")}
           style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 3, color: "inherit", cursor: "pointer", padding: "0 6px" }}>⬇ CSV</button>
         {loading && <span style={{ color: "#64748b" }}>…</span>}
       </div>
@@ -2834,6 +2835,7 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
   /** F7.5 — chiede un motivo alla conferma (registrato nel journal). */
   askReason?: boolean;
 }) {
+  const { t } = useTranslation();
   const alarmsMap = useAppStore((s) => s.alarms);
   const authRole = useAppStore((s) => s.authRole);
   const canAck = authRole === "Admin" || authRole === "Supervisor" || authRole === "Operator";
@@ -2867,9 +2869,9 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
 
   const ackWithReason = useCallback(async (id: string) => {
     if (!askReason) { await handleAck(id); return; }
-    const reason = window.prompt("Motivo della conferma:");
+    const reason = window.prompt(t("alarm.ackReasonPrompt"));
     if (reason === null) return;             // annullato
-    if (!reason.trim()) { window.alert("Il motivo è obbligatorio."); return; }
+    if (!reason.trim()) { window.alert(t("alarm.reasonRequired")); return; }
     await handleAck(id, reason.trim());
   }, [askReason, handleAck]);
 
@@ -2882,9 +2884,9 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
     // sarebbe la ragione per cui nessuno lo compila.
     let reason: string | undefined;
     if (askReason && ids.length > 0) {
-      const r = window.prompt("Motivo della conferma (per tutti):");
+      const r = window.prompt(t("alarm.ackAllReasonPrompt"));
       if (r === null) return;
-      if (!r.trim()) { window.alert("Il motivo è obbligatorio."); return; }
+      if (!r.trim()) { window.alert(t("alarm.reasonRequired")); return; }
       reason = r.trim();
     }
     for (const id of ids) await handleAck(id, reason);
@@ -2893,7 +2895,7 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
   // F7.5 — shelve dal viewer: mette a tacere un allarme noto per un tempo
   // limitato, con motivo registrato (l'API lo richiede e finisce nel journal).
   const handleShelve = useCallback(async (id: string) => {
-    const reason = window.prompt("Motivo della messa in silenzio:");
+    const reason = window.prompt(t("alarm.shelveReasonPrompt"));
     if (!reason) return;
     try {
       await api.shelveAlarm(id, reason, Math.max(1, shelveMinutes ?? 15) * 60_000,
@@ -2965,7 +2967,7 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
         render: (a: AlarmState) => (
           <button
             onClick={(e) => { e.stopPropagation(); void handleShelve(a.def.id); }}
-            title="Metti in silenzio per un po' (con motivo)"
+            title={t("alarm.shelveTitle")}
             style={{ fontSize: 10, padding: "1px 4px", background: "transparent", border: "none",
                      color: "#94a3b8", cursor: "pointer" }}
           >🔇</button>
@@ -2992,7 +2994,7 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
             <button
               onClick={() => void handleAckAll(filtered.filter((a) => !a.acknowledged).map((a) => a.def.id))}
               disabled={filtered.every((a) => a.acknowledged)}
-              title="Conferma tutti gli allarmi mostrati"
+              title={t("alarm.ackAllTitle")}
               style={{ fontSize: 10, padding: "1px 8px", background: "#1e293b",
                        border: "1px solid #334155", borderRadius: 3,
                        color: "#94a3b8", cursor: "pointer" }}
@@ -3251,7 +3253,7 @@ export function SvgObject(p: ObjProps) {
         // Sempre via HTTP: il motivo viaggia nel body e finisce nell'audit.
         api.writeTag(tagId, value, reason?.trim() || undefined)
           .catch((e: unknown) => window.alert(
-            `${t("viewer.writeFailed", { tag: tagId })}\n${e instanceof Error ? e.message : String(e)}`));
+            t("viewer.writeFailedDetail", { tag: tagId, message: e instanceof Error ? e.message : String(e) })));
       };
       const askReason = () => {
         const reason = obj.require_reason
@@ -4568,7 +4570,7 @@ export function SvgObject(p: ObjProps) {
               <button
                 disabled={readOnly || setpointDraft === null}
                 onClick={(e) => { e.stopPropagation(); commit(); }}
-                title="Scrivi"
+                title={t("canvas.setpointWrite")}
                 style={{
                   background: "var(--brand-primary, #3b82f6)", border: "none", borderRadius: 4,
                   color: "#fff", cursor: readOnly ? "default" : "pointer", padding: "0 10px", fontSize: 12,
@@ -4803,7 +4805,7 @@ export function SvgObject(p: ObjProps) {
                   border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3,
                   padding: "1px 4px", fontSize,
                 }}
-                title="Invio per scrivere"
+                title={t("canvas.setpointEnterToWrite")}
               />
             );
           }

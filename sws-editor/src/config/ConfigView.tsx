@@ -81,6 +81,7 @@ import type {
 } from "@/types";
 import { useSezioneSincronizzata } from "@/config/useSezioneSincronizzata";
 import { CampoTestoTradotto } from "@/editor/CampoTestoTradotto";
+import i18n from "@/i18n";
 import { contaAutomatiche, eAutomatica, marcaComeUmana } from "@/i18n/tabellaLingue";
 
 /** Avviso in linea quando il progetto cambia mentre stai modificando una
@@ -4084,6 +4085,7 @@ function MqttTlsSection({
   tls?: MqttTlsConfig;
   onChange: (tls: MqttTlsConfig | undefined) => void;
 }) {
+  const { t } = useTranslation();
   const current: MqttTlsConfig = tls ?? { enabled: false };
   const setField = <K extends keyof MqttTlsConfig>(k: K, v: MqttTlsConfig[K]) =>
     onChange({ ...current, [k]: v });
@@ -4114,7 +4116,7 @@ function MqttTlsSection({
             comporta — una casella di sicurezza che mente è peggio di una
             assente, in tutt'e due i versi. */}
         <label style={{ fontSize: 11, color: "var(--brand-danger-soft, #fca5a5)", cursor: "pointer" }}
-          title="La connessione resta cifrata, ma l'identità del broker non viene verificata: chiunque sia in mezzo può presentarsi al suo posto e leggere o alterare il traffico. Da usare su reti fidate — tipicamente con un broker dal certificato auto-firmato. Con questa attiva il certificato CA non serve.">
+          title={t("cfg.mqttInsecureTitle")}>
           <input
             type="checkbox"
             checked={current.insecure_skip_verify ?? false}
@@ -4148,6 +4150,7 @@ function MqttRandomClientIdSection({
   source: MqttSource;
   onChange: (patch: Partial<MqttSource>) => void;
 }) {
+  const { t } = useTranslation();
   const remoteConnected = useAppStore((s) => s.remoteConnected);
   const enabled = source.random_client_id?.enabled ?? false;
   const position = source.random_client_id?.position ?? "suffix";
@@ -4160,9 +4163,9 @@ function MqttRandomClientIdSection({
   const [pushMsg, setPushMsg] = useState<string | null>(null);
 
   const handlePush = async () => {
-    const label = pushValue.trim() || "(vuoto = rimuove un eventuale override già impostato)";
+    const label = pushValue.trim() || t("cfg.pushMqttClientIdDefaultLabel");
     if (!window.confirm(
-      `Impostare "${label}" come client_id di "${source.id}" sul dispositivo connesso?`
+      t("cfg.pushMqttClientIdConfirm", { label, source: source.id })
     )) return;
     setPushing(true); setPushMsg(null);
     try {
@@ -5211,7 +5214,7 @@ function GitOpsPanel() {
   };
 
   const deleteTag = async (name: string) => {
-    if (!window.confirm(`Eliminare il tag "${name}"? Verrà rimosso anche dal remote se già pubblicato.`)) return;
+    if (!window.confirm(t("cfg.deleteTagConfirm", { name }))) return;
     setTagBusy(true);
     setTagErr(null);
     try {
@@ -5308,7 +5311,7 @@ function GitOpsPanel() {
           </button>
           <button
             disabled={busy}
-            onClick={() => { if (confirm("Eseguire git reset --hard HEAD~1? Questa operazione non è reversibile.")) runOp(() => api.triggerRollback(), "Rollback"); }}
+            onClick={() => { if (confirm(t("cfg.gitResetConfirm"))) runOp(() => api.triggerRollback(), "Rollback"); }}
             style={{ flex: 1, minWidth: 100, padding: "6px 10px", background: "var(--brand-danger, #ef4444)", border: "none", borderRadius: 4, color: "var(--brand-on-danger, #fff)", fontSize: 12, cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1 }}
           >
             ↓ Rollback (HEAD~1)
@@ -5324,7 +5327,7 @@ function GitOpsPanel() {
             <button
               disabled={busy}
               onClick={() => {
-                if (confirm("Pubblicare i commit locali sul remote?")) {
+                if (confirm(t("cfg.gitPushConfirm"))) {
                   runOp(() => api.pushProject(), "Push");
                 }
               }}
@@ -5463,6 +5466,7 @@ function GitOpsPanel() {
  * come un errore da mostrare in rosso.
  */
 function AssistenteSection() {
+  const { t } = useTranslation();
   const authRole = useAppStore((s) => s.authRole);
   const [cfg, setCfg] = useState<AiConfig | null>(null);
   const [assente, setAssente] = useState(false);
@@ -5533,7 +5537,7 @@ function AssistenteSection() {
   };
 
   const cancella = async () => {
-    if (!confirm(`Cancellare la chiave di ${fornitore}?`)) return;
+    if (!confirm(t("cfg.deleteAiKeyConfirm", { fornitore }))) return;
     setBusy(true); setEsito(null); setErrore(null);
     try {
       const r = await api.deleteAiKey(fornitore);
@@ -5909,6 +5913,7 @@ function AuditSection() {
 
 // ── TLS management section (inside SystemTab, Admin-only) ─────────────────────
 function TlsSection() {
+  const { t } = useTranslation();
   const authRole = useAppStore((s) => s.authRole);
   const [tlsEnabled, setTlsEnabled] = useState<boolean | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -5925,7 +5930,7 @@ function TlsSection() {
   if (tlsEnabled === null) return null;
 
   const handleGenerate = async () => {
-    if (!confirm("Generare un nuovo certificato TLS self-signed?\n\nIl runtime si riavvierà in modalità HTTPS. Sarà necessario accettare il certificato nel browser.")) return;
+    if (!confirm(t("cfg.tlsGenerateConfirm"))) return;
     setBusy(true);
     setMsg(null);
     try {
@@ -5948,7 +5953,7 @@ function TlsSection() {
       setMsg("Errore: incolla o carica sia il certificato sia la chiave privata (PEM).");
       return;
     }
-    if (!confirm("Caricare il certificato fornito e attivare HTTPS?\n\nIl runtime si riavvierà. Dovrai riconnetterti su https://.")) return;
+    if (!confirm(t("cfg.tlsUploadConfirm"))) return;
     setBusy(true);
     setMsg(null);
     try {
@@ -5961,7 +5966,7 @@ function TlsSection() {
   };
 
   const handleRemove = async () => {
-    if (!confirm("Disabilitare TLS e tornare a plain HTTP?\n\nIl runtime si riavvierà. Nessun certificato da accettare.")) return;
+    if (!confirm(t("cfg.tlsDisableConfirm"))) return;
     setBusy(true);
     setMsg(null);
     try {
@@ -6185,7 +6190,7 @@ function UsersTab() {
       setError("Non puoi eliminare il tuo stesso utente.");
       return;
     }
-    if (!confirm(`Eliminare l'utente "${username}"?`)) return;
+    if (!confirm(t("cfg.deleteUserConfirm", { username }))) return;
     setError(null);
     setBusy(true);
     try {
@@ -6499,7 +6504,7 @@ function ResourcesTab() {
                   <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>
                     <button
                       onClick={() => setSvgEditId(svgEditId === s.id ? null : s.id)}
-                      title="Multi-stato: importa SVG e scegli gli elementi colorabili"
+                      title={t("cfg.multiStateSvgTitle")}
                       style={{ background: "transparent", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: s.svg ? "#38bdf8" : "var(--brand-text-subtle, #64748b)", cursor: "pointer", padding: "2px 8px", fontSize: 12, marginRight: 4 }}
                     >⚙</button>
                     <button
@@ -6760,7 +6765,7 @@ function DatastoresTab() {
       return;
     }
     const desc = [rows ? `${rows} righe per tag` : null, days ? `${days} giorni` : null].filter(Boolean).join(" · ");
-    if (!window.confirm(`Pulire ora "${ds.id}" mantenendo ${desc}?\n\nI campioni fuori da questi limiti vengono cancellati. Operazione irreversibile.`)) return;
+    if (!window.confirm(t("cfg.purgeHistoryConfirm", { id: ds.id, desc }))) return;
     void withBusy(ds.id, async () => {
       const r = await api.purgeDatastore(ds.id, { retention_rows: rows, retention_days: days });
       await loadStats(ds.id);
@@ -6800,7 +6805,7 @@ function DatastoresTab() {
     });
 
   const doDeleteTag = (ds: DatastoreConfig, tag: string) => {
-    if (!window.confirm(`Cancellare tutto lo storico del tag "${tag}"?\n\nOperazione irreversibile.`)) return;
+    if (!window.confirm(t("cfg.deleteTagHistoryConfirm", { tag }))) return;
     void withBusy(ds.id, async () => {
       const r = await api.deleteTagHistory(ds.id, tag);
       const fresh = await api.listDatastoreTags(ds.id);
@@ -6845,10 +6850,7 @@ function DatastoresTab() {
 
   const askUploadDb = (ds: DatastoreConfig, remote: boolean) => {
     if (!window.confirm(
-      `Sostituire il database di "${ds.id}"${remote ? " sul dispositivo remoto connesso" : ""}?\n\n` +
-      "Verrà creato un backup automatico del file precedente, ma il nuovo database NON sarà usato " +
-      "finché il runtime non viene riavviato: la connessione già aperta continua a scrivere sul " +
-      "vecchio file fino al riavvio. Operazione delicata."
+      remote ? t("cfg.uploadDbConfirmRemote", { id: ds.id }) : t("cfg.uploadDbConfirm", { id: ds.id })
     )) return;
     setUploadTarget({ id: ds.id, remote });
     dbFileRef.current?.click();
@@ -6959,32 +6961,32 @@ function DatastoresTab() {
               </div>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
                 <button onClick={() => doPurge(ds)} disabled={busyMgmt[ds.id]}
-                  title="Applica ora la retention configurata sopra, senza aspettare la pulizia automatica."
+                  title={t("cfg.purgeNowTitle")}
                   style={{ background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>
                   Pulisci ora
                 </button>
                 <button onClick={() => doExport(ds)} disabled={busyMgmt[ds.id]}
-                  title="Scarica tutto lo storico in CSV (una riga per campione)."
+                  title={t("cfg.exportHistoryCsvTitle")}
                   style={{ background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>
                   Esporta CSV
                 </button>
                 <button onClick={() => loadTags(ds)} disabled={busyMgmt[ds.id]}
-                  title="Tag che hanno storico nel database ma che il runtime non conosce più (rinominati o rimossi dal progetto)."
+                  title={t("cfg.orphanHistoryTagsTitle")}
                   style={{ background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>
                   Cerca tag orfani
                 </button>
                 <button onClick={() => doVacuum(ds)} disabled={busyMgmt[ds.id]}
-                  title="VACUUM + checkpoint WAL: restringe il file dopo una cancellazione. SQLite non libera lo spazio da sé."
+                  title={t("cfg.vacuumTitle")}
                   style={{ background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>
                   Recupera spazio
                 </button>
                 <button onClick={() => doDownloadDb(ds, false)} disabled={busyMgmt[ds.id]}
-                  title="Scarica il file database grezzo (copia consistente), per archiviarlo."
+                  title={t("cfg.downloadDbTitle")}
                   style={{ background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>
                   Scarica database
                 </button>
                 <button onClick={() => askUploadDb(ds, false)} disabled={busyMgmt[ds.id]}
-                  title="Sostituisce il file database con uno caricato da qui (backup automatico del precedente, serve un riavvio del runtime)."
+                  title={t("cfg.uploadDbTitle")}
                   style={{ background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>
                   Carica database
                 </button>
@@ -6992,12 +6994,12 @@ function DatastoresTab() {
                   <>
                     <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>· dispositivo remoto:</span>
                     <button onClick={() => doDownloadDb(ds, true)} disabled={busyMgmt[ds.id]}
-                      title="Scarica il database dello stesso datastore, ma dal dispositivo remoto connesso (non da questo progetto locale)."
+                      title={t("cfg.downloadRemoteDbTitle")}
                       style={{ background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>
                       Scarica (remoto)
                     </button>
                     <button onClick={() => askUploadDb(ds, true)} disabled={busyMgmt[ds.id]}
-                      title="Sostituisce il database sul dispositivo remoto connesso (backup automatico del precedente, serve un riavvio del runtime remoto)."
+                      title={t("cfg.uploadRemoteDbTitle")}
                       style={{ background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>
                       Carica (remoto)
                     </button>
@@ -7140,6 +7142,7 @@ function triggerLabel(t: ScriptTriggerKind): string {
 /// Quello che si guadagna è la risposta alla domanda «dov'è tutto il Python di
 /// questo progetto»: prima erano due posti e nessuno dei due lo diceva.
 function FunctionsInventory() {
+  const { t } = useTranslation();
   const functions = useAppStore((s) => s.project?.functions) ?? [];
   const selectFunction = useAppStore((s) => s.selectFunction);
   const setAppMode = useAppStore((s) => s.setAppMode);
@@ -7165,7 +7168,7 @@ function FunctionsInventory() {
           <div
             key={f.id}
             onClick={() => apri(f.id)}
-            title="Apri nell'editor a schermo intero (parametri e snippet)"
+            title={t("cfg.openFunctionEditorTitle")}
             style={{
               padding: "6px 10px", borderRadius: 6, cursor: "pointer",
               background: "var(--brand-surface, #1e293b)",
@@ -7550,7 +7553,7 @@ function FaceplatesTab() {
 
   async function deleteCurrent() {
     if (!current) return;
-    if (!window.confirm(`Eliminare il faceplate "${current.label}"?`)) return;
+    if (!window.confirm(t("cfg.deleteFaceplateConfirm", { label: current.label }))) return;
     try {
       await api.deleteFaceplate(current.id);
       const updated = faceplates.filter((f) => f.id !== current.id);
@@ -8203,7 +8206,7 @@ function NotificationsTab() {
                 style={S.btn("ghost")}
                 onClick={handleDetectChats}
                 disabled={detecting || (tg.bot_token.trim() === "" && !tokenSaved)}
-                title="Chiama getUpdates e mostra le chat che hanno scritto al bot"
+                title={t("cfg.telegramGetUpdatesTitle")}
               >
                 {detecting ? "Rilevamento…" : "Rileva chat"}
               </button>
@@ -9088,9 +9091,7 @@ function RuntimeConnectionTab() {
   };
 
   const handleDeleteRemoteProject = async () => {
-    if (!window.confirm(
-      "Eliminare il progetto attualmente attivo sul runtime? L'operazione non è reversibile."
-    )) return;
+    if (!window.confirm(t("cfg.deleteRemoteProjectConfirm"))) return;
     setDeletingRemote(true); setRemoteMsg(null);
     try {
       await api.remoteDeleteProject();
@@ -9108,11 +9109,7 @@ function RuntimeConnectionTab() {
   // cambiate solo le password. Chiede conferma perché invalida le sessioni
   // aperte sul dispositivo.
   const handlePushUsers = async () => {
-    if (!window.confirm(
-      "Sostituire gli utenti del dispositivo con quelli di questo progetto?\n\n" +
-      "Chi è collegato al dispositivo dovrà rifare il login. Le password vengono " +
-      "trasferite già cifrate, quindi gli account restano validi."
-    )) return;
+    if (!window.confirm(t("cfg.pushUsersConfirm"))) return;
     setPushingUsers(true); setRemoteMsg(null);
     try {
       const res = await api.pushUsersToRuntime();
@@ -9381,7 +9378,7 @@ function RuntimeConnectionTab() {
               Elimina il progetto attualmente attivo sul runtime (es. per ripartire pulito).
             </p>
             <button style={{ ...BTN, opacity: pushingUsers ? 0.6 : 1 }}
-              title="Invia solo gli utenti di questo progetto, senza ridistribuirlo. Il deploy completo li porta già, se la casella «Sostituisci anche gli utenti» è accesa."
+              title={t("cfg.pushUsersOnlyTitle")}
               onClick={handlePushUsers} disabled={pushingUsers}>
               {pushingUsers ? "Invio…" : "Aggiorna utenti sul dispositivo"}
             </button>
@@ -10111,7 +10108,7 @@ async function deployToTarget(
     if (uploadRes.status === 409) {
       const conflict = await uploadRes.json().catch(() => ({}));
       const realName = (conflict as any).name ?? projectName;
-      const ok = window.confirm(`Sul target esiste già il progetto "${realName}".\nSostituirlo con la versione corrente?`);
+      const ok = window.confirm(i18n.t("cfg.overwriteRemoteProjectConfirm", { name: realName }));
       if (!ok) throw new Error("Deploy annullato dall'utente.");
       onLog(`Rimozione di "${realName}" dal target…`);
       await fetch(`${target}/api/projects/close`, { method: "POST", headers: autorizzazione }).catch(() => {});
@@ -10757,13 +10754,10 @@ function LanguagesTab() {
       (e) => (e.values[table.default] ?? "").trim() !== "" && (e.values[verso] ?? "").trim() === "",
     ).length;
     if (quante === 0) {
-      window.alert(`Niente da tradurre verso «${verso}»: le caselle sono già piene.`);
+      window.alert(t("langtab.nothingToTranslate", { verso }));
       return;
     }
-    if (!window.confirm(
-      `Traduco ${quante} voci verso «${verso}», una richiesta di rete ciascuna.\n\n` +
-      "Può richiedere qualche minuto e l'editor resta in attesa. Procedo?",
-    )) return;
+    if (!window.confirm(t("langtab.translateConfirm", { quante, verso }))) return;
     // Si salva prima: il server traduce ciò che ha su disco, e una riga appena
     // digitata e non salvata non verrebbe tradotta — senza che nessuno capisca
     // perché.
@@ -10794,7 +10788,7 @@ function LanguagesTab() {
       // il watcher la legge come un cambio esterno.
       markSaveOk();
       const problemi = r.problemi.length
-        ? `\n\nRighe non tradotte (${r.problemi.length}):\n` + r.problemi.slice(0, 8).join("\n")
+        ? "\n\n" + t("langtab.untranslatedRows", { n: r.problemi.length }) + "\n" + r.problemi.slice(0, 8).join("\n")
         : "";
       // Le proposte non sono un errore: sono lavoro recuperabile. Vanno dette
       // per prime, o l'autore non sa che c'è qualcosa in rosso ad aspettarlo.
@@ -10803,14 +10797,13 @@ function LanguagesTab() {
       // cablato in un dialogo. Ora passa dal catalogo.
       const daApprovare = r.proposte ? "\n\n" + t("langtab.daApprovare", { n: r.proposte }) : "";
       window.alert(
-        `Tradotte ${r.tradotte} voci verso «${verso}», ${r.saltate} già a posto o da non tradurre.` +
+        t("langtab.translatedResult", { tradotte: r.tradotte, verso, saltate: r.saltate }) +
           daApprovare +
           problemi +
-          "\n\nRileggile prima di mandarle su un impianto: una traduzione automatica di un " +
-          "messaggio d'allarme non è una questione di stile.",
+          "\n\n" + t("langtab.translatedReviewWarning"),
       );
     } catch (e) {
-      window.alert(`Traduzione fallita: ${e instanceof Error ? e.message : String(e)}`);
+      window.alert(t("langtab.translationFailed", { message: e instanceof Error ? e.message : String(e) }));
     } finally {
       setTraducendo(null);
     }
@@ -11276,6 +11269,7 @@ function BackupSection({
 }
 
 function BackupsTab() {
+  const { t } = useTranslation();
   const project = useAppStore((s) => s.project);
   const remoteConnected = useAppStore((s) => s.remoteConnected);
 
@@ -11318,11 +11312,7 @@ function BackupsTab() {
   };
 
   const restore = async (name: string) => {
-    if (!window.confirm(
-      `Ripristinare il backup "${name}"?\n\n` +
-      `Sovrascrive project.yaml, tutte le synoptic e users.yaml dal backup.\n` +
-      `Le modifiche non salvate sul disco vengono perse.`
-    )) return;
+    if (!window.confirm(t("cfg.backupRestoreConfirm", { name }))) return;
     setBusy(true); setErr(null);
     try {
       await api.restoreBackup(name);
@@ -11333,7 +11323,7 @@ function BackupsTab() {
       const pages = await Promise.all(names.map((n) => api.getSynoptic(n)));
       useAppStore.getState().setPages(pages);
       await refresh();
-      window.alert(`Backup "${name}" ripristinato.`);
+      window.alert(t("cfg.backupRestoredAlert", { name }));
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -11342,7 +11332,7 @@ function BackupsTab() {
   };
 
   const drop = async (name: string) => {
-    if (!window.confirm(`Eliminare il backup "${name}"? L'azione è definitiva.`)) return;
+    if (!window.confirm(t("cfg.backupDeleteConfirm", { name }))) return;
     setBusy(true); setErr(null);
     try {
       await api.deleteBackup(name);
@@ -11397,16 +11387,12 @@ function BackupsTab() {
   };
 
   const restoreRemote = async (name: string) => {
-    if (!window.confirm(
-      `Ripristinare il backup "${name}" sul dispositivo remoto connesso?\n\n` +
-      `Sovrascrive project.yaml, synoptics, users.yaml e lo storico sul device.\n` +
-      `Non tocca il progetto locale aperto in questo editor.`
-    )) return;
+    if (!window.confirm(t("cfg.backupRestoreRemoteConfirm", { name }))) return;
     setRemoteBusy(true); setRemoteErr(null);
     try {
       await api.remoteRestoreBackup(name);
       await refreshRemote();
-      window.alert(`Backup "${name}" ripristinato sul dispositivo remoto.`);
+      window.alert(t("cfg.backupRestoredRemoteAlert", { name }));
     } catch (e) {
       setRemoteErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -11415,7 +11401,7 @@ function BackupsTab() {
   };
 
   const dropRemote = async (name: string) => {
-    if (!window.confirm(`Eliminare il backup "${name}" sul dispositivo remoto connesso? L'azione è definitiva.`)) return;
+    if (!window.confirm(t("cfg.backupDeleteRemoteConfirm", { name }))) return;
     setRemoteBusy(true); setRemoteErr(null);
     try {
       await api.remoteDeleteBackup(name);
@@ -11496,7 +11482,7 @@ function BackupsTab() {
       </div>
 
       <BackupSection
-        title="BACKUP LOCALI (progetto in editing)"
+        title={t("cfg.backupLocalSectionTitle")}
         list={list} busy={busy} err={err}
         emptyHint='Nessun backup. Click "+ Backup adesso" per crearne uno.'
         onRefresh={refresh} onCreate={createNow}
@@ -11505,7 +11491,7 @@ function BackupsTab() {
 
       {remoteConnected && (
         <BackupSection
-          title="BACKUP SUL DISPOSITIVO REMOTO CONNESSO"
+          title={t("cfg.backupRemoteSectionTitle")}
           list={remoteList} busy={remoteBusy} err={remoteErr}
           emptyHint="Nessun backup sul dispositivo remoto."
           onRefresh={refreshRemote} onCreate={createRemote}

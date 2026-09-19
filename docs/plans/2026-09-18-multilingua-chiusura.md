@@ -1,6 +1,6 @@
 # Multilingua: chiudere il capitolo
 
-> **Stato: PIANO D'ESECUZIONE approvato il 18-09-2026. F0-F5 fatte; prossima F6.** Nato dal seme
+> **Stato: PIANO D'ESECUZIONE approvato il 18-09-2026. F0-F6 fatte; prossima F7.** Nato dal seme
 > `docs/archive/2026-09-18-multilingua-residuo.md` (Q43 + Q57) in una sessione di plan col
 > maintainer, con due misure fatte prima di scrivere e quattro decisioni prese da lui. Le fasi sono
 > rami da una sessione ciascuno; si eseguono in ordine, **una alla volta**.
@@ -306,6 +306,9 @@ sentinella e «cancella chiave».
 ricaricare il browser, tradurre senza ridigitare.
 
 ## F6 — dialoghi a zero, attributi
+
+> **Fatta il 19-09-2026.** Dialoghi a zero (`DIALOGHI` vuoto, tolleranza zero). In più, per scelta
+> del maintainer, `FunctionEditor` e `TrendExpanded` chiusi per intero: F7 non li ritocca.
 
 **File**: `ConfigView.tsx` (18 dialoghi: `:4149, 5193, 5290, 5306, 5515, 5907, 5930, 5943, 6167,
 6742, 6782, 6826, 7532, 9032, 9052, 10055, 10632-10686`; 17 attributi), `SvgCanvas.tsx` (5+4),
