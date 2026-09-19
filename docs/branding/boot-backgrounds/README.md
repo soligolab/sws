@@ -3,10 +3,11 @@
 Cartella di atterraggio per gli sfondi di boot/login generati esternamente a partire dal prompt in
 `../BRAND_SWS.md` (sezione "Sfondi di boot/login per pannelli Pixsys").
 
-**Non c'è alcuna integrazione con questo repo**: nessun codice in `sws-editor/`, `sws-runtime/` o
-`deploy/yocto/` referenzia questi file. Sono destinati al provisioning OS-level dei pannelli Pixsys
-(boot splash del device), un meccanismo che oggi non esiste in questo codebase — vedi
-`docs/OPEN_QUESTIONS.md` Q13.
+**Questi file non sono referenziati da codice**, ma da T-72 c'è un percorso per portare un'immagine su un
+pannello: nell'IDE si crea una *pagina di boot* (sezione «Immagini di boot»), ci si mette dentro l'immagine
+(oggetto «Immagine», caricata fra le immagini di progetto), la si abilita e si fa il deploy — il launcher Pixsys
+la mostra al prossimo avvio. Vedi `docs/HOWTO.md` §17. Lo splash **OS-level** (prima del launcher) resta aperto:
+`docs/plans/` → seme dell'immagine di boot, Appendice B (ex Q13).
 
 ## File attesi
 
@@ -19,5 +20,5 @@ Master a 1920×1080, poi un export per ciascuna risoluzione target:
 - `1366x768.png`
 - `1920x1080.png`
 
-Quando arrivano, questa cartella resta il riferimento fino a quando non si decide (Q13) dove e come
-consegnarli al provisioning reale dei device.
+Quando arrivano, si caricano nell'IDE come immagine di progetto e si mettono in una pagina di boot alla
+risoluzione giusta; questa cartella resta il riferimento per gli originali.

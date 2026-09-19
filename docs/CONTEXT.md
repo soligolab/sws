@@ -193,6 +193,7 @@ The following were not in the original Phase 1-4 plan but were implemented durin
 | Split webserver 8443/8444 + admin SPA | T-21 |
 | Remote deploy from IDE | T-21 (S-70) |
 | Persistent TLS cert | T-21 fix |
+| Immagine di boot del pannello (pagina di boot → PNG → launcher Pixsys) | T-72 |
 
 ---
 

@@ -96,22 +96,27 @@ AlarmHistory, DataTable, XyPlotCanvas, PythonEditor, PageTabs, BarraAvviso, symb
 Non ancora pushato: F4, F5 e F6 su `main`, serve un «fai il push» esplicito; e va tolto
 `origin/fix/lingue-marchio-auto`.
 
-## ▶ Riprendere da qui — T-72 F5 (dispositivo) su main (2026-09-19)
+## ▶ Riprendere da qui — T-72 chiuso: F1-F6 su `main`, piano archiviato (2026-09-19)
 
-Piano `docs/plans/2026-09-18-immagine-di-boot.md`. **F1-F5 sono su `main` e pushate** (F5 `2396b5a1`).
+L'immagine di boot del pannello (T-72) è finita: F1-F6 su `main` e pushate, piano in
+`docs/archive/2026-09-18-immagine-di-boot.md`. **Provata sul TC620 vero** (`tc620-a-p3-c6-07aff9`, come `user`),
+compreso il riavvio: il maintainer ha visto l'immagine. Dispositivo ripulito.
 
-- Runtime: `boot_image.rs` (richiesta in `boot-image/`), `boot_image` in `/api/system`; scheda Runtime dell'IDE.
-- Host: `sws-boot-image.{path,service}` + `sws-boot-image-apply.sh`, installati da `install-container.sh` e
-  spediti dal deploy dall'IDE (`packaging.rs`); guardia `check_boot_image_apply.sh` (22ª statica).
-- Gate verde: `cargo check/clippy/fmt/test` (664), `pnpm build/lint/test` (604), `check_static.sh` 22/22.
-- **Provata sul TC620 vero** (`tc620-a-p3-c6-07aff9`, come `user`): la catena host installa l'immagine, il
-  launcher risponde `boot.png` e **il maintainer ha visto l'immagine al riavvio** (bande verticali). Dispositivo
-  ripulito: `ResetBackgroundImage`, unit e file tolti.
-- **Non fatto**: il giro completo col runtime nel container (immagine non ricostruita).
+**Il «non fatto» è diventato sette semi** in `docs/plans/` (regola del 18-09: una domanda aperta è un file di
+piano, con la frase che quando comincerà servirà una sessione di plan approfondita):
 
-**Prossimo passo**: F6 — HOWTO (capitolo «Immagine di boot»), manuale 04, `BRAND_SWS.md`, README di
-`boot-backgrounds`, preset Pixsys 480×272/800×480/1280×768/1366×768 (dopo conferma sul catalogo), sonda del
-dispositivo (`ls -ld /run/media`, presenza di `Launcher`).
+| Seme | Cosa |
+|---|---|
+| `boot-image-collaudo-container` | verifica — il runtime nel container non è mai girato sul dispositivo; permessi container↔host |
+| `preset-pixsys-catalogo` | decisione — servono i nomi dei modelli per 480×272, 1280×768, 1366×768 (aggiunto solo il TD710) |
+| `screenshot-del-manuale` | pronto — gli screenshot sono anteriori a T-52 |
+| `boot-image-ripristino-di-fabbrica` | decisione — `ResetBackgroundImage` dall'IDE |
+| `boot-image-widget-congelati` | decisione — trend/tabelle «fotografati» sulla pagina di boot |
+| `splash-os-psplash` | decisione — lo splash prima del launcher (ex Q13) |
+| `traduzioni-inglesi-revisione` | verifica — ~400 voci EN mai riviste, IDE in EN mai collaudato |
+
+Nessun piano d'esecuzione è in corso. Restano anche, dal multilingua, i timbri di Q43 e Q57 (li mette il
+maintainer).
 
 ## ▶ Riprendere da qui — multilingua chiuso: F6-F9 su `main`, piano archiviato (2026-09-19)
 
@@ -227,7 +232,7 @@ tocca quello script.
 Sessione di plan sul seme Q13, **senza codice**. Il maintainer ha portato quattro requisiti nuovi
 — l'immagine di boot è un *tipo di pagina*, più pagine ma una sola «abilitata», progetto vuoto
 con una pagina di boot e una sinottica, la prima modificata definisce lo stile delle altre — e
-`docs/plans/2026-09-18-immagine-di-boot.md` è stato riscritto da seme a piano: misure sul codice
+`docs/archive/2026-09-18-immagine-di-boot.md` è stato riscritto da seme a piano: misure sul codice
 (§1), design (§2), sei fasi da una sessione ciascuna (§3), verifica end-to-end (§5). Le note
 D-Bus sono in Appendice A, la scheda Q13 in Appendice B.
 

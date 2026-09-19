@@ -1100,3 +1100,50 @@ in modo percepibile, e due generatori con lo stesso `period_ms` restano sincroni
 - `enabled` è un bool semplice in questa prima versione: non può dipendere da un altro tag
   (es. "genera solo se `modalita_auto` è vero"). Farlo dipendente da un tag è stato dichiarato
   fuori scope per questa fase — non è stato costruito.
+
+---
+
+## 17. Impostare l'immagine di boot del pannello
+
+Un pannello Pixsys mostra un'immagine mentre parte. Da T-72 la disegni nell'IDE, insieme al progetto, e
+il deploy la installa sul pannello. Non è una pagina che il pannello mostra: **nessun viewer la vede mai**.
+
+1. **Disegnala.** Nel pannello sinistro, sezione **Immagini di boot** (🖼), premi «+ Nuova immagine di
+   boot». Ogni progetto ne ha già una vuota. Si disegna come una pagina, ma la palette ha solo gli oggetti
+   statici — rettangolo, ellisse, linea, tubo, testo, immagine, simbolo: gli altri (trend, tabelle, pulsanti)
+   non finirebbero nel PNG. La risoluzione (nel pannello a destra) è quella del PNG: quella del tuo pannello,
+   per esempio 1280×800.
+2. **Abilitala.** Una sola per progetto: il radio ⭐ nell'elenco, oppure «Immagine di boot abilitata» nel
+   pannello della pagina. Senza nessuna abilitata il deploy **non tocca** l'immagine del dispositivo.
+3. **Salva.** Il PNG nasce nel browser al salvataggio (Ctrl+S) e finisce in `boot/<nome>.png`. Nel pannello
+   della pagina vedi l'anteprima del PNG che c'è sul server; «Rigenera PNG» lo rifà subito, «Scarica PNG» lo
+   dà com'è. Se compare «PNG non aggiornato», il salvataggio è riuscito ma il PNG no: il messaggio dice perché.
+   I font sono quelli del browser con cui salvi.
+4. **Deploy.** Il runtime pubblica il PNG e un pezzo sull'host lo porta al launcher Pixsys. **L'immagine
+   compare al prossimo avvio del pannello**, non subito: il launcher legge la configurazione quando parte.
+5. **Controlla.** Configurazione → Runtime, dopo la connessione, riga «Immagine di boot»: *installata il …*,
+   *non supportata su questo dispositivo*, *errore: …*, o *in attesa*. È scritta dal dispositivo, quindi
+   arriva qualche secondo dopo il deploy.
+
+**Un formato per tutte le pagine.** La prima volta che imposti misure o sfondo su una pagina — sinottica o di
+boot — diventano il *formato predefinito* del progetto: le pagine nuove nascono così, e quelle che non hanno
+ancora un valore proprio lo prendono. Si cambia a mano in Impostazioni pagine, dove «Applica alle pagine senza
+formato proprio» lo riscrive su richiesta.
+
+**Funziona solo** sui pannelli con il launcher Pixsys (PixsysOS ≥ 2.1) e **solo nel deploy a container**: il
+percorso `deploy/yocto/` non ha il canale. I dispositivi già installati ricevono i pezzi nuovi rieseguendo
+`install-container.sh` (Configurazione → Runtime → «Aggiorna»).
+
+**Togliere l'immagine** (tornare a quella di fabbrica), sul dispositivo:
+
+```sh
+busctl --system call net.pixsys.Config1 /net/pixsys/Config1/Launcher net.pixsys.Config1.Launcher ResetBackgroundImage
+```
+
+**Una trappola da conoscere.** Sul WP630/TC620 l'utente `user` non può scrivere in `/run/media`, dove il launcher
+si aspetterebbe il file: si passa un percorso *assoluto*, che funziona per un difetto del launcher
+(`PathBuf::push`), non per una funzione documentata. La riga «Immagine di boot» lo dice («percorso assoluto»).
+Se Pixsys corregge il launcher, l'installazione smette di funzionare e lo stato diventa *errore*.
+
+Dettagli e misure: `docs/archive/` → piano dell'immagine di boot; prove sul dispositivo in `docs/TEST_SETUPS.md`.
+

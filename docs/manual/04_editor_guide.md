@@ -266,6 +266,24 @@ Lascia vuoto = nessuna restrizione.
 
 ---
 
+## Immagini di boot
+
+Un'**immagine di boot** è ciò che un pannello Pixsys mostra mentre parte. Nell'IDE è una pagina come le altre
+— stesso canvas, stessi strumenti — ma vive a parte (`boot/`) e **nessun viewer la vede mai**.
+
+- **Dove.** Pannello sinistro → **PAGINE**, sezione **Immagini di boot** (🖼) sotto le pagine. Ogni progetto
+  nasce con una, vuota, 1280×800; «+ Nuova immagine di boot» ne aggiunge altre. Non compaiono fra le tab in alto.
+- **Cosa ci puoi mettere.** Solo oggetti vettoriali statici: rettangolo, ellisse, linea, tubo, testo, immagine,
+  simbolo. Il pannello proprietà mostra solo Oggetto, Testo e Resa — niente dati, eventi, comportamento.
+- **Abilitarla.** Una sola per progetto, col radio ⭐ nell'elenco o con «Immagine di boot abilitata» nel pannello
+  della pagina. È quella che il deploy installa; senza nessuna abilitata il deploy non tocca l'immagine.
+- **Il PNG.** Si genera nel browser al salvataggio. Nel pannello della pagina c'è l'anteprima del PNG che sta
+  sul server, con «Rigenera PNG» e «Scarica PNG». I font sono quelli del browser con cui salvi.
+- **Formato del progetto.** La prima pagina a cui imposti misure o sfondo dà il formato alle altre (Impostazioni
+  pagine → «Formato predefinito», con «Applica alle pagine senza formato proprio»).
+- **Sul pannello.** L'immagine compare al **prossimo avvio**. Lo stato si legge in Configurazione → Runtime,
+  riga «Immagine di boot». Vedi `HOWTO.md` §17.
+
 ## Salvataggio e versioning
 
 ### Salva manuale

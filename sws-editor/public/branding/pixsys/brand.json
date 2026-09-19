@@ -17,6 +17,7 @@
     "onPrimary": "#ffffff"
   },
   "device_presets": [
+    { "label": "Pixsys TD710 — 7\" (800×480)", "width": 800, "height": 480 },
     { "label": "Pixsys WP570 — 7\" (1024×600)", "width": 1024, "height": 600 },
     { "label": "Pixsys WP800 — 8\" 4:3 (1024×768)", "width": 1024, "height": 768 },
     { "label": "Pixsys WP815/WP615 — 10.1\" (1280×800)", "width": 1280, "height": 800 },

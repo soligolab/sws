@@ -89,12 +89,14 @@ Provide as solid orange (#DD5D21) on transparent, and as off-white
 
 ## Sfondi di boot/login per pannelli Pixsys
 
-Destinati al provisioning **OS-level** dei pannelli HMI Pixsys — **fuori** dal perimetro software di
-questo repo. Nessun meccanismo di boot-splash (psplash o simile) esiste oggi in `deploy/yocto/` o
-`scripts/`; questi file sono solo da consegnare al maintainer per la configurazione del device.
-Landing directory per gli export: `docs/branding/boot-backgrounds/` (vedi il README lì per i nomi
-attesi). Come questi PNG arrivino davvero su un pannello reale è una domanda aperta —
-`docs/OPEN_QUESTIONS.md` Q13.
+Da T-72 (19-09-2026) **un meccanismo esiste**, ma non è lo splash del sistema operativo: l'IDE disegna
+un'*immagine di boot* (una pagina di tipo boot, PNG generato nel browser) e il deploy la installa sul
+**launcher Pixsys** via D-Bus (`net.pixsys.Config1.Launcher.SetBackgroundImage`); compare al prossimo avvio del
+pannello. Vale per i pannelli con il launcher (PixsysOS ≥ 2.1) e per il deploy a container — vedi `HOWTO.md`
+§17. Gli sfondi in questa sezione sono quindi **materiale grafico da caricare** come pagina di boot (o da
+importare come immagine di progetto), non file da consegnare a mano. Lo splash **OS-level** (psplash o simile,
+prima del launcher) **resta aperto**: `docs/plans/` → seme dell'immagine di boot, Appendice B (Q13).
+Landing directory per gli export: `docs/branding/boot-backgrounds/`.
 
 ### Risoluzioni target
 

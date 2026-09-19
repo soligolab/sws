@@ -110,5 +110,19 @@ else
     r container_sws 0
 fi
 
+# ── immagine di boot (T-72 F5) ─────────────────────────────────────────────────
+# Il pannello ha il launcher Pixsys, e può l'utente scrivere in /run/media? Il
+# launcher lo si accerta con una LETTURA (`GetBackgroundImage`): provare con `Set`
+# vorrebbe dire scoprirlo scrivendo. `/run/media` conta perché il percorso
+# *relativo* al mount USB è la via prevista dal launcher; se l'utente non ci
+# scrive (sul WP630 è di root), si ripiega sul percorso assoluto.
+r run_media "$(ls -ld /run/media 2>/dev/null </dev/null | cut -d' ' -f1,3)"
+if [ -d /run/media ] && [ -w /run/media ]; then r run_media_scrivibile 1; else r run_media_scrivibile 0; fi
+if command -v busctl >/dev/null 2>&1 && $T busctl --system call net.pixsys.Config1 /net/pixsys/Config1/Launcher net.pixsys.Config1.Launcher GetBackgroundImage >/dev/null 2>&1 </dev/null; then
+    r launcher_pixsys 1
+else
+    r launcher_pixsys 0
+fi
+
 r fine 1
 exit 0

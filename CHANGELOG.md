@@ -12,6 +12,12 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Added
+- **T-72 F6 — documentazione e sonda.** `HOWTO.md` §17 «Impostare l'immagine di boot del pannello»; sezione
+  «Immagini di boot» nel manuale 04; `BRAND_SWS.md` e il README di `boot-backgrounds` non dicono più che il
+  meccanismo non esiste (lo splash OS-level resta aperto). La sonda del dispositivo riporta `run_media`,
+  `run_media_scrivibile` e `launcher_pixsys`, e la verifica pre-installazione dell'IDE mostra la riga
+  «Immagine di boot» (sempre informativa, mai un ostacolo). Preset dispositivo Pixsys **TD710 800×480** (il solo
+  confermato nel catalogo di `BRAND_SWS.md`).
 - **T-72 F5 — l'immagine di boot arriva al pannello.** Il runtime pubblica in `boot-image/`
   (`boot.png`, `trigger` con lo SHA-256 o `none`) il PNG della pagina di boot abilitata dal progetto, a ogni
   apertura, salvataggio di una pagina di boot e cambio dell'«abilitata»; non riscrive un contenuto identico.
@@ -54,7 +60,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   `boot/` viaggia nel bundle di export/deploy, nei backup, nell'impronta di progetto e viene
   cancellato dal deploy come `synoptics/`. Ogni progetto nasce con una pagina di boot vuota
   1280×800 — anche da template — e il progetto vuoto anche con `Page 1`. Piano
-  `docs/plans/2026-09-18-immagine-di-boot.md`; l'editor (F2) non le mostra ancora.
+  `docs/archive/2026-09-18-immagine-di-boot.md`; l'editor (F2) non le mostra ancora.
 - **La configurazione del fornitore di traduzione si salva nell'istanza**, non nel progetto:
   fornitore, URL e chiave sopravvivono a un ricaricamento del browser e a un cambio progetto,
   stesso schema già in uso per l'assistente IA. Nuovi `GET/PUT/DELETE /api/traduzione/config`
@@ -164,7 +170,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Changed
 - **Il seme dell'immagine di boot è diventato un piano d'esecuzione**
-  (`docs/plans/2026-09-18-immagine-di-boot.md`, sessione di plan del 18-09-2026, nessun codice):
+  (`docs/archive/2026-09-18-immagine-di-boot.md`, sessione di plan del 18-09-2026, nessun codice):
   l'immagine di boot è un tipo di pagina dell'IDE salvato in `boot/` e invisibile al runtime; una
   sola pagina «abilitata» per progetto; il progetto nasce con una pagina di boot e una sinottica;
   un formato predefinito di progetto riempito dalla prima modifica; PNG rasterizzato dal browser al

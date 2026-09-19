@@ -7,9 +7,8 @@
 > Appendice A e **vanno lette prima di scrivere lo script**: contengono una trappola che non si vede
 > provando. La scheda Q13 originale è in Appendice B, integrale.
 >
-> **Stato**: piano approvato il 18-09-2026. **Task T-72.** F0, F1 e F2 fatte (F1 `b6c55fc1`; F2 il
-> 19-09-2026); F3, F4 e F5 fatte; prossima F6 (docs). Il validatore con `BOOT_TYPES` (§2.1) non è in F1:
-> dipende dall'elenco dei tipi che F2 conferma tipo per tipo.
+> **Stato**: **T-72 chiuso il 19-09-2026** (F1-F6, sul codice e sulla documentazione). Questo piano resta come referto:
+> dice perché le cose sono fatte come sono fatte. Il «non fatto» è in `docs/plans/2026-09-19-*` (sette semi).
 
 ## Contesto
 
@@ -364,6 +363,17 @@ creazione di `boot-image/trigger`; un PNG 1280×800 → `installato`, percorso `
 (l'immagine del container non è stata ricostruita: la parte runtime è coperta dai test di `boot_image.rs`).
 Ripristino sul dispositivo: `busctl --system call net.pixsys.Config1 /net/pixsys/Config1/Launcher
 net.pixsys.Config1.Launcher ResetBackgroundImage`.
+
+### F6 — nota di esecuzione (19-09-2026)
+
+Scritti: `HOWTO.md` §17, manuale 04 (sezione «Immagini di boot»), `BRAND_SWS.md`, README di `boot-backgrounds`,
+`CONTEXT.md` (riga T-72); `TEST_SETUPS.md` era già stato aggiornato con la sonda di F5. La sonda
+(`sonda-dispositivo.sh` + `valuta_sonda`) riporta `run_media`, `run_media_scrivibile`, `launcher_pixsys` e la
+verifica pre-installazione mostra «Immagine di boot» come informazione, mai come ostacolo: su una scheda
+generica senza launcher dice solo che l'immagine non verrà installata. **Preset Pixsys**: aggiunto solo il
+**TD710 800×480**, l'unico «confermato» nella tabella di `BRAND_SWS.md`; 480×272, 1280×768 e 1366×768 restano
+«da confermare» e **non sono stati aggiunti** (servirebbe inventare il nome del prodotto). **Non fatto**:
+`docs/manual/screenshots/` non è stato aggiornato (le schermate sono anteriori a T-52).
 
 ## 4. Dettagli per chi implementa
 

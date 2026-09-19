@@ -12,12 +12,8 @@
 > spostano», perché citati da altri documenti e dal codice. Lo spostamento in archivio ha
 > riscritto tutti e 33 i riferimenti; un `git log --follow` continua a seguirli.
 
-| Piano | Stato | Cosa resta |
-|---|---|---|
-| [2026-09-18-immagine-di-boot.md](2026-09-18-immagine-di-boot.md) | **piano approvato, non iniziato** (sessione di plan del 18-09-2026, da Q13) — l'immagine di boot è un tipo di pagina dell'IDE (`boot/` su disco, invisibile al runtime), una sola «abilitata», progetto vuoto con due pagine, formato predefinito di progetto, PNG dal browser al salvataggio, installazione via D-Bus con canale file e unità dedicate. Sei fasi F1–F6, una sessione ciascuna; F0 (questo testo) fatta. Le note D-Bus del maintainer stanno in Appendice A |
-
-Due piani d'esecuzione approvati il 18-09-2026, nessuno dei due iniziato: si prendono **uno alla
-volta**. Quello che resta da decidere sta nella tabella sotto — **semi**, non piani d'esecuzione.
+**Nessun piano d'esecuzione è in corso**: l'ultimo, l'immagine di boot (T-72), è chiuso e archiviato il
+19-09-2026. Quello che resta sta nella tabella sotto — **semi**, non piani d'esecuzione.
 
 **Dal 2026-09-12, anche le questioni aperte di `docs/OPEN_QUESTIONS.md` diventano piani singoli**
 (istruzione del maintainer, tecnica da riusare in futuro) — non li decide questo passaggio, li
@@ -35,3 +31,10 @@ c'è già, manca solo la conferma a schermo prima di archiviare la scheda in
 | [2026-09-18-ros2-robot-come-sorgente.md](2026-09-18-ros2-robot-come-sorgente.md) | Q23 | **seme — più avanti** — una superficie dati nuova (DDS); nessun bisogno in corso |
 | [2026-09-18-mcp-editing-con-ia.md](2026-09-18-mcp-editing-con-ia.md) | Q26 | **seme — più avanti** — una superficie di editing nuova; da riverificare contro `sws-web/src/ai/`, che nel frattempo è cresciuto |
 | [2026-09-12-q16-decoder-raster-image.md](2026-09-12-q16-decoder-raster-image.md) | Q16 | **pronto, tenuto in sospeso** (decisione del maintainer, 18-09-2026) — decoder raster per `image` su LVGL: si costruisce se emerge un bisogno reale, non prima |
+| [2026-09-19-boot-image-collaudo-container.md](2026-09-19-boot-image-collaudo-container.md) | T-72 (F5) | **seme — verifica** — la metà host è provata sul TC620 vero; il runtime nel container non è mai girato sul dispositivo (immagine non ricostruita), e i permessi fra container e host non sono stati guardati |
+| [2026-09-19-preset-pixsys-catalogo.md](2026-09-19-preset-pixsys-catalogo.md) | T-72 (F6) | **seme — decisione** — 480×272, 1280×768 e 1366×768 «da confermare» in `BRAND_SWS.md`: servono i nomi dei modelli, che nel repo non ci sono (aggiunto solo il TD710 800×480) |
+| [2026-09-19-screenshot-del-manuale.md](2026-09-19-screenshot-del-manuale.md) | T-72 (F6) | **seme — pronto** — gli screenshot di `docs/manual/` sono anteriori a T-52; lo strumento (Chromium headless + Playwright su un'istanza di scarto) è già provato |
+| [2026-09-19-boot-image-ripristino-di-fabbrica.md](2026-09-19-boot-image-ripristino-di-fabbrica.md) | T-72 | **seme — decisione** — tornare all'immagine di fabbrica dall'IDE (`ResetBackgroundImage` funziona come `user`); oggi solo a mano, `HOWTO` §17 |
+| [2026-09-19-boot-image-widget-congelati.md](2026-09-19-boot-image-widget-congelati.md) | T-72 | **seme — decisione** — oggetti non statici (trend, tabelle) «congelati» sulla pagina di boot: metà della palette è `foreignObject`/`canvas` e il rasterizzatore attuale non li rende |
+| [2026-09-19-splash-os-psplash.md](2026-09-19-splash-os-psplash.md) | ex Q13 | **seme — decisione** — lo splash del sistema operativo, prima del launcher: fuori dal perimetro software del repo, domanda originale invariata |
+| [2026-09-19-traduzioni-inglesi-revisione.md](2026-09-19-traduzioni-inglesi-revisione.md) | multilingua F6-F9 | **seme — verifica** — ~400 voci inglesi scritte da Claude e mai riviste, IDE in inglese mai collaudato a occhio, e il limite dichiarato della guardia |

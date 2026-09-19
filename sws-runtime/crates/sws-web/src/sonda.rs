@@ -434,6 +434,38 @@ pub(crate) fn valuta_sonda(
         ));
     }
 
+    // ── immagine di boot (T-72 F5) ─────────────────────────────────────────
+    // Solo se la sonda ha portato il fatto: una sonda più vecchia non lo manda, e
+    // non si giudica ciò che non si è misurato. Mai un errore né un avviso: è
+    // un'informazione, non un ostacolo all'installazione.
+    match fatto(f, "launcher_pixsys") {
+        "1" => {
+            let via = if fatto(f, "run_media_scrivibile") == "0" {
+                format!(
+                    " Percorso assoluto: /run/media non è scrivibile da {utente}, quindi si ripiega \
+                     su un comportamento non documentato del launcher."
+                )
+            } else {
+                String::new()
+            };
+            c.push(controllo(
+                "immagine_di_boot",
+                Esito::Ok,
+                "Immagine di boot",
+                format!("c'è il launcher Pixsys: l'immagine di boot abilitata dal progetto si installa al deploy.{via}"),
+                None,
+            ));
+        }
+        "0" => c.push(controllo(
+            "immagine_di_boot",
+            Esito::Ok,
+            "Immagine di boot",
+            "non c'è il launcher Pixsys: l'immagine di boot del progetto non verrà installata (il resto funziona)",
+            None,
+        )),
+        _ => {}
+    }
+
     // ── SWS già presente ───────────────────────────────────────────────────
     let mut sws = SwsInstallato {
         data_path: (!data_path.is_empty()).then(|| data_path.to_string()),
@@ -690,6 +722,25 @@ mod tests {
             ("container_sws", "0"),
             ("fine", "1"),
         ])
+    }
+
+    #[test]
+    fn l_immagine_di_boot_e_un_fatto_e_non_un_ostacolo() {
+        let mut f = dispositivo_pronto();
+        // Sonda vecchia: nessun fatto, nessun giudizio.
+        let (_, c, _, _) = valuta_sonda(&f);
+        assert!(c.iter().all(|x| x.id != "immagine_di_boot"));
+        // Con il launcher e /run/media non scrivibile: ok, e dice del percorso assoluto.
+        f.insert("launcher_pixsys".into(), "1".into());
+        f.insert("run_media_scrivibile".into(), "0".into());
+        let (_, c, _, _) = valuta_sonda(&f);
+        let x = per_id(&c, "immagine_di_boot");
+        assert_eq!(x.esito, Esito::Ok);
+        assert!(x.dettaglio.contains("Percorso assoluto"));
+        // Senza launcher (una scheda generica): sempre ok, mai un avviso.
+        f.insert("launcher_pixsys".into(), "0".into());
+        let (_, c, _, _) = valuta_sonda(&f);
+        assert_eq!(per_id(&c, "immagine_di_boot").esito, Esito::Ok);
     }
 
     fn per_id<'a>(c: &'a [Controllo], id: &str) -> &'a Controllo {

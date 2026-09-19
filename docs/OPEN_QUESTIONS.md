@@ -14,7 +14,7 @@
 
 ## Q13 — Come arrivano davvero gli sfondi di boot su un pannello Pixsys reale?
 
-Contenuto spostato in [`docs/plans/2026-09-18-immagine-di-boot.md`](plans/2026-09-18-immagine-di-boot.md) il 18-09-2026 — più l'idea nuova del maintainer: disegnare lo splash nell'IDE e installarlo al deploy via D-Bus.
+Contenuto spostato in [`docs/archive/2026-09-18-immagine-di-boot.md`](archive/2026-09-18-immagine-di-boot.md) il 18-09-2026 — più l'idea nuova del maintainer: disegnare lo splash nell'IDE e installarlo al deploy via D-Bus.
 **Decided:** not yet — la decisione si prende nel piano.
 
 ---
