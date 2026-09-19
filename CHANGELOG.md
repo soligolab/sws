@@ -11,6 +11,13 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Added
+- **La configurazione del fornitore di traduzione si salva nell'istanza**, non nel progetto:
+  fornitore, URL e chiave sopravvivono a un ricaricamento del browser e a un cambio progetto,
+  stesso schema già in uso per l'assistente IA. Nuovi `GET/PUT/DELETE /api/traduzione/config`
+  (solo istanza IDE, Admin); la chiave non finisce mai nel file di configurazione leggibile,
+  vive in un file a sé con permessi ristretti. F5 del piano multilingua.
+
 ### Fixed
 - **Una correzione a mano non toglieva il marchio «tradotta dalla macchina».** La promessa della
   2.8.0 — «una traduzione umana non si sovrascrive mai» — valeva solo lato runtime: sul web

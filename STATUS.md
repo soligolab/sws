@@ -74,6 +74,42 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — F5 del multilingua mergiata, configurazione del fornitore persistita (2026-09-19)
+
+Fase F5 del piano [`docs/plans/2026-09-18-multilingua-chiusura.md`](docs/plans/2026-09-18-multilingua-chiusura.md):
+fornitore/URL/chiave della traduzione ora si salvano **nell'istanza**, non nel progetto — stesso
+schema già in uso per l'assistente IA (`ai/client.rs`).
+
+- Estratto `segreti.rs` (nuovo, in `sws-web`): leggere/scrivere/cancellare un file-chiave con
+  permessi 0600, la parte davvero identica fra IA e traduzione, prima duplicata. `ai/client.rs`
+  ora vi delega, comportamento invariato (test preesistenti tutti verdi).
+- `traduttore.rs`: `ConfigTraduzione::carica/salva` — YAML in `config_dir/traduzione.yaml`
+  (solo fornitore+url, la chiave non ci finisce mai, forzata a `None` sia in scrittura che in
+  lettura difensiva); `nome_file_chiave()` decide il file per fornitore (Google/LibreTranslate
+  sì, MyMemory/Ia no — quest'ultima riusa la chiave dell'assistente IA); `risolvi_config()` è la
+  precedenza pura **esplicito > persistito > default MyMemory**, con backfill della chiave dal
+  disco quando manca. Nuovi endpoint `GET/PUT/DELETE /api/traduzione/config` (Admin, solo-IDE,
+  in `system_ctrl_routes`, accanto a `/api/ai/config`), 9 test nuovi in `tests_config_persistita`.
+- Editor: `ConfigView.tsx` (scheda lingue) — bottoni «Salva impostazioni fornitore» e «Cancella
+  chiave», placeholder quando una chiave è già salvata; tipi e chiamate API in `types/index.ts` e
+  `api/client.ts`.
+- `check_i18n_ui.sh`: il tetto di `src/api/client.ts` è salito da 4 a 5 — un solo motivo, il
+  percorso di rotta `"/api/traduzione/config"` ripetuto (falso positivo dello scanner, non testo
+  utente), ridotto da 3 occorrenze a 1 con una costante condivisa prima di alzare il tetto.
+- Collaudo dal vivo su istanza IDE di scarto (`start_editor.sh --instance 11`,
+  `SWS_PROJECTS_ROOT` isolata): salvato Google + chiave, **ricaricato il browser**, tradotto senza
+  ridigitare la chiave — esattamente il DoD del piano; poi «Cancella chiave» verificato.
+- Gate verde: `cargo check/test/clippy/fmt --workspace`, `pnpm build/test`, `check_static.sh`.
+  Squash-merge `6429cb9`, alberi `main`/ramo identici, ramo eliminato.
+
+**Prossimo passo del piano**: F6 (dialoghi e attributi a zero — `ConfigView.tsx`, `SvgCanvas.tsx`,
+`LeftPanel.tsx`, `EditorShell.tsx`, `FunctionEditor.tsx`, `TrendExpanded.tsx`), quando si vorrà.
+Resta anche il piano dell'immagine di boot (sotto), da prendere **uno alla volta** con questo.
+
+Non ancora pushato: questa sessione ha mergiato F4 (da un'altra macchina, collaudo fatto qui) e F5
+(fatto qui) — serve un «fai il push» esplicito per mandarli su origin, e con loro va tolto anche
+`origin/fix/lingue-marchio-auto` (già mergiato).
+
 ## ▶ Riprendere da qui — F4 del multilingua mergiata, collaudo dal vivo fatto (2026-09-18/19)
 
 Sessione di continuazione da un'altra macchina: `fix/lingue-marchio-auto` (pushato ieri sera, **non

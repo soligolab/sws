@@ -1,6 +1,6 @@
 # Multilingua: chiudere il capitolo
 
-> **Stato: PIANO D'ESECUZIONE approvato il 18-09-2026. F0-F4 fatte; prossima F5.** Nato dal seme
+> **Stato: PIANO D'ESECUZIONE approvato il 18-09-2026. F0-F5 fatte; prossima F6.** Nato dal seme
 > `docs/archive/2026-09-18-multilingua-residuo.md` (Q43 + Q57) in una sessione di plan col
 > maintainer, con due misure fatte prima di scrivere e quattro decisioni prese da lui. Le fasi sono
 > rami da una sessione ciascuno; si eseguono in ordine, **una alla volta**.
