@@ -96,11 +96,11 @@ AlarmHistory, DataTable, XyPlotCanvas, PythonEditor, PageTabs, BarraAvviso, symb
 Non ancora pushato: F4, F5 e F6 su `main`, serve un «fai il push» esplicito; e va tolto
 `origin/fix/lingue-marchio-auto`.
 
-## ▶ Riprendere da qui — T-72 F3 e F4 sui rami, non mergiate (2026-09-19)
+## ▶ Riprendere da qui — T-72 F3 e F4 su main (2026-09-19)
 
-Piano `docs/plans/2026-09-18-immagine-di-boot.md`. **F1 (`b6c55fc1`) e F2 (`2ba8202e`) sono su `main` e
-pushate.** F3 sta su `feat/T-72-immagine-di-boot-f3` (`00475ff2`), F4 su `feat/T-72-immagine-di-boot-f4`,
-**annidata su F3** (regola «un ramo alla volta», opzione 2): si mergiano in ordine, F3 poi F4.
+Piano `docs/plans/2026-09-18-immagine-di-boot.md`. **F1 (`b6c55fc1`), F2 (`2ba8202e`), F3 (`ba4462d7`) e F4
+(`d9637989`) sono su `main` e pushate.** (F4 era annidata su F3: il secondo squash-merge dava conflitto, perché
+`main` aveva già il squash di F3 e non i suoi commit; risolto prendendo l'albero del ramo F4, verificato identico.)
 
 - **F3 — formato di progetto**: `page_layout.default_*`; le pagine nuove nascono col predefinito; la prima
   impostazione lo riempie e lo materializza sulle pagine senza formato proprio (una boot ancora ai valori
