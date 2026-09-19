@@ -96,38 +96,28 @@ AlarmHistory, DataTable, XyPlotCanvas, PythonEditor, PageTabs, BarraAvviso, symb
 Non ancora pushato: F4, F5 e F6 su `main`, serve un «fai il push» esplicito; e va tolto
 `origin/fix/lingue-marchio-auto`.
 
-## ▶ Riprendere da qui — multilingua: F6-F9 fatte, manca solo il collaudo (2026-09-19)
+## ▶ Riprendere da qui — multilingua chiuso: F6-F9 su `main`, piano archiviato (2026-09-19)
 
-Il maintainer ha chiesto di completare il piano `docs/plans/2026-09-18-multilingua-chiusura.md`.
-**F6 è su `main` e pushata** (`ce079ddc`). **F7, F8 e F9 sono sul ramo
-`feat/T-multilingua-F7-store-componenti-muti`, non mergiate**: F7 aspetta il collaudo dal vivo
-(non fatto: il maintainer non poteva provare), e F8/F9 sono annidate sopra per la regola «un ramo
-alla volta».
+Il maintainer ha chiesto di completare il piano e di mergiare senza aspettare la revisione delle
+traduzioni inglesi («per ora l'importante è che tutte le stringhe siano su file di lingua»).
+Squash-merge `f926652e` (F7-F9) dopo `ce079ddc` (F6, già pushata); ramo eliminato dopo il confronto
+degli alberi; piano in `docs/archive/2026-09-18-multilingua-chiusura.md`.
 
-- **F7**: lo store registra chiavi (`history.*`, `storeErr.*`), non frasi; `TrendCanvas`,
-  `XyPlotCanvas`, `DataTable` in catalogo. Gli altri cinque componenti «muti» del piano non avevano
-  testo italiano.
-- **F8/F9 e i file piccoli**: `ConfigView` (332 stringhe), `EditorShell` (70), `LeftPanel`,
-  `SvgCanvas` e altri ventidue file. Fatto con uno strumento di riscrittura (nel scratchpad, non nel
-  repo) che riusa lo scanner della guardia; i paragrafi con tag dentro sono a mano, con `<Trans>`.
-- **Guardia a tolleranza zero**: `TETTI` è vuoto. Ha imparato tre esclusioni, ognuna col motivo nel
-  file: una parola minuscola sola in un letterale (un id), i percorsi di rotta, i casi di test di
-  `pageLayout`.
+- Lo store registra chiavi (`history.*`, `storeErr.*`); `ConfigView`, `EditorShell`, `LeftPanel`,
+  `SvgCanvas` e ventinove file più piccoli passano da `t()`/`<Trans>`.
+- `check_i18n_ui.sh`: `TETTI` vuoto, tolleranza zero su tutto `src/`.
 - Gate verde: `cargo check`, `pnpm build/lint/test` (550), `check_static.sh` 21/21.
 
-**Cosa NON è stato verificato**: nessuno ha guardato l'IDE in inglese. Da fare a mano, in un giro:
-UI in EN senza italiano in nessuna scheda né dialogo (ConfigView per prima: 250 chiavi nuove, i
-paragrafi `<Trans>` sono il punto da guardare); unire una cella sola → messaggio inglese; la
-cronologia di undo cambia lingua con l'interfaccia; trend espanso; viewer con contenuti in `de`;
-traduzione automatica; notifiche per canale; la chiave Google che sopravvive al ricarico.
+**Da fare, dichiarato dal maintainer**:
+1. **Revisione accurata delle traduzioni inglesi** (~400 voci nuove, scritte da Claude in fretta;
+   chiavi `cfgUi.*` generate dal testo inglese).
+2. **Collaudo dal vivo dell'IDE in EN**, mai fatto: `ConfigView` e i paragrafi `<Trans>` per primi.
+3. I timbri di Q43 e Q57 (li mette il maintainer).
 
-**Limite dichiarato**: la guardia è un'euristica. Non vede il testo JSX attaccato a una `{espressione}`
-né le parole italiane sole senza accento o parola-chiave: possono restare scritte italiane che la
-guardia non conta. Se ne vedi, `--elenca` non le mostrerà: vanno cercate a occhio.
+**Limite della guardia**: euristica — non vede il testo JSX attaccato a `{espressione}` né parole
+italiane sole senza accento: qualche scritta italiana può restare, e `--elenca` non la mostra.
 
-**Dopo il collaudo**: squash-merge del ramo, poi archiviare il piano in `docs/archive/` (regola
-del piano: `TETTI` vuoto, `DIALOGHI` non esiste più, D1/D3/D4/D5 decise). I timbri di Q43 e Q57 li
-mette il maintainer (regola 3 di `CLAUDE.md`).
+**Non pushato**: `main` ha in locale `f926652e` e i commit meta di oggi; serve un «fai il push».
 
 ## ▶ Riprendere da qui — T-71 riverificato dal vivo, nessun codice toccato (2026-09-19)
 

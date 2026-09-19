@@ -41,7 +41,7 @@ Contenuto spostato in [`docs/plans/2026-09-18-mcp-editing-con-ia.md`](plans/2026
 
 ## Q43 — Traduzione automatica dei contenuti di progetto (Google Translate)
 
-Contenuto nel seme [`docs/archive/2026-09-18-multilingua-residuo.md`](archive/2026-09-18-multilingua-residuo.md), diventato il piano [`docs/plans/2026-09-18-multilingua-chiusura.md`](plans/2026-09-18-multilingua-chiusura.md) il 18-09-2026.
+Contenuto nel seme [`docs/archive/2026-09-18-multilingua-residuo.md`](archive/2026-09-18-multilingua-residuo.md), diventato il piano [`docs/archive/2026-09-18-multilingua-chiusura.md`](archive/2026-09-18-multilingua-chiusura.md) il 18-09-2026.
 **Decided:** fornitore MyMemory con marchio visibile (D3), voci con segnaposto come proposte da approvare (D4) — decisioni del maintainer del 18-09; il timbro quando il piano è chiuso.
 
 ---
@@ -82,7 +82,7 @@ Contenuto spostato in [`docs/plans/2026-09-18-identita-utenti-istanze.md`](plans
 
 ## Q57 — Una notifica non ha uno schermo: in che lingua parla, e a chi?
 
-Contenuto nel seme [`docs/archive/2026-09-18-multilingua-residuo.md`](archive/2026-09-18-multilingua-residuo.md), diventato il piano [`docs/plans/2026-09-18-multilingua-chiusura.md`](plans/2026-09-18-multilingua-chiusura.md) il 18-09-2026.
+Contenuto nel seme [`docs/archive/2026-09-18-multilingua-residuo.md`](archive/2026-09-18-multilingua-residuo.md), diventato il piano [`docs/archive/2026-09-18-multilingua-chiusura.md`](archive/2026-09-18-multilingua-chiusura.md) il 18-09-2026.
 **Decided:** lingua **per canale** (email, Telegram) con ripiego sulla predefinita di progetto (D5) — decisione del maintainer del 18-09; il timbro quando il piano è chiuso.
 
 ---
