@@ -7,7 +7,7 @@ use axum::{
     body::{Body, Bytes},
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
-        Extension, Path, Query, Request, State,
+        DefaultBodyLimit, Extension, Path, Query, Request, State,
     },
     http::{header, StatusCode},
     middleware::{self, Next},
@@ -344,7 +344,10 @@ pub fn build(
         // Bulk project export/import (single ZIP carrying project.yaml +
         // every synoptic). Destructive on the import side — Admin only.
         .route("/api/project/export", get(export_project_zip))
-        .route("/api/project/import", put(import_project_zip))
+        .route(
+            "/api/project/import",
+            put(import_project_zip).layer(DefaultBodyLimit::max(LIMITE_CORPO_UPLOAD)),
+        )
         // Backup management (admin-only; restore is destructive).
         .route(
             "/api/backups",
@@ -610,6 +613,19 @@ pub fn build(
             put(save_synoptic).delete(delete_synoptic),
         )
         .route("/api/synoptics/import", post(import_synoptic_yaml))
+        // Pagine di boot (T-72): documenti a sé in `boot/`, mai visti dai viewer.
+        .route(
+            "/api/boot-pages/:name",
+            put(crate::boot::save_boot_page).delete(crate::boot::delete_boot_page),
+        )
+        .route(
+            "/api/boot-pages/:name/png",
+            put(crate::boot::put_boot_png).layer(DefaultBodyLimit::max(LIMITE_CORPO_UPLOAD)),
+        )
+        .route(
+            "/api/boot-pages/import",
+            post(crate::boot::import_boot_page),
+        )
         // mDNS discovery: scan LAN for _sws._tcp.local. services (~2 s).
         // Supervisor+ only — used from the RuntimeConnectionTab deploy panel.
         .route("/api/discover", get(crate::discover::discover_runtimes))
@@ -620,7 +636,9 @@ pub fn build(
         // read-only di entrambe le porte).
         .route(
             "/api/project/images/:name",
-            post(upload_project_image).delete(delete_project_image),
+            post(upload_project_image)
+                .layer(DefaultBodyLimit::max(LIMITE_CORPO_UPLOAD))
+                .delete(delete_project_image),
         )
         // Git commit: stage all changes and create a commit.
         .route("/api/project/git/commit", post(git_commit))
@@ -645,6 +663,9 @@ pub fn build(
         // Synoptic REST (reads)
         .route("/api/synoptics", get(list_synoptics))
         .route("/api/synoptics/:name", get(get_synoptic))
+        .route("/api/boot-pages", get(crate::boot::list_boot_pages))
+        .route("/api/boot-pages/:name", get(crate::boot::get_boot_page))
+        .route("/api/boot-pages/:name/png", get(crate::boot::get_boot_png))
         // Immagini di progetto (letture — servite anche al viewer, vedi sotto)
         .route("/api/project/images", get(list_project_images))
         .route("/api/project/images/:name", get(get_project_image))
@@ -782,7 +803,8 @@ pub fn build(
         .route("/api/projects/close", post(crate::projects::close_project))
         .route(
             "/api/projects/upload",
-            post(crate::projects::upload_project_zip),
+            post(crate::projects::upload_project_zip)
+                .layer(DefaultBodyLimit::max(LIMITE_CORPO_UPLOAD)),
         )
         .route("/api/templates", get(crate::templates::list_templates))
         // Mini directory browser backing the "choose a destination folder"
@@ -955,7 +977,10 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
     let gestione = Router::new()
         // ── Deploy: la ragione per cui questa porta esiste ──────────────────
         .route("/api/projects", get(pj::list_projects))
-        .route("/api/projects/upload", post(pj::upload_project_zip))
+        .route(
+            "/api/projects/upload",
+            post(pj::upload_project_zip).layer(DefaultBodyLimit::max(LIMITE_CORPO_UPLOAD)),
+        )
         .route("/api/projects/:name/open", post(pj::open_project))
         .route("/api/projects/close", post(pj::close_project))
         .route("/api/projects/:name", delete(pj::delete_project))
@@ -3753,6 +3778,12 @@ async fn update_project_datastores(
 
 const BUNDLE_FORMAT_VERSION: &str = "1.0";
 
+/// Il tetto dei corpi di upload (immagini, PNG di boot, ZIP di deploy). axum lo
+/// fissa a 2 MiB per ogni estrattore `Bytes`: sotto il tetto **dichiarato** dai
+/// singoli handler (5 MiB per immagini e PNG), quindi il tetto vero era quello,
+/// e un PNG 1920×1080 con sfumature lo supera.
+pub(crate) const LIMITE_CORPO_UPLOAD: usize = 8 * 1024 * 1024;
+
 #[derive(serde::Serialize, serde::Deserialize)]
 struct BundleManifest {
     format_version: String,
@@ -3773,6 +3804,7 @@ pub(crate) async fn build_project_zip(dir: &std::path::Path) -> anyhow::Result<V
     let faceplates = read_yaml_dir(&faceplates_dir_at(dir)).await;
     let recipes = read_yaml_dir(&recipes_dir_at(dir)).await;
     let images = read_images_dir(&images_dir_at(dir)).await;
+    let boot = crate::boot::leggi_per_bundle(dir).await;
     let project_name = project.meta.name.clone();
     let exported_at_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -3793,6 +3825,7 @@ pub(crate) async fn build_project_zip(dir: &std::path::Path) -> anyhow::Result<V
         &faceplates,
         &recipes,
         &images,
+        &boot,
     )
 }
 
@@ -3822,6 +3855,7 @@ async fn export_project_zip(State(s): State<AppState>) -> Response {
     let faceplates = read_yaml_dir(&faceplates_dir_at(&dir)).await;
     let recipes = read_yaml_dir(&recipes_dir_at(&dir)).await;
     let images = read_images_dir(&images_dir_at(&dir)).await;
+    let boot = crate::boot::leggi_per_bundle(&dir).await;
 
     // 3. Build the ZIP in memory.
     let project_name = project.meta.name.clone();
@@ -3847,6 +3881,7 @@ async fn export_project_zip(State(s): State<AppState>) -> Response {
         &faceplates,
         &recipes,
         &images,
+        &boot,
     ) {
         Ok(b) => b,
         Err(e) => {
@@ -3877,6 +3912,9 @@ async fn export_project_zip(State(s): State<AppState>) -> Response {
         .into_response()
 }
 
+// Ogni cartella del bundle è un argomento: raggrupparle in una struct sposterebbe
+// il numero, non lo ridurrebbe.
+#[allow(clippy::too_many_arguments)]
 fn build_export_zip(
     manifest: &BundleManifest,
     project: &Project,
@@ -3885,6 +3923,7 @@ fn build_export_zip(
     faceplates: &[(String, String)],
     recipes: &[(String, String)],
     images: &[(String, Vec<u8>)],
+    boot: &[(String, Vec<u8>)],
 ) -> anyhow::Result<Vec<u8>> {
     use zip::write::SimpleFileOptions;
     let mut cursor = Cursor::new(Vec::<u8>::new());
@@ -3924,6 +3963,11 @@ fn build_export_zip(
         // /api/project/images/<nome>.
         for (fname, bytes) in images {
             z.start_file(format!("images/{fname}"), opts)?;
+            z.write_all(bytes)?;
+        }
+        // Pagine di boot e loro PNG (T-72), byte per byte.
+        for (fname, bytes) in boot {
+            z.start_file(format!("boot/{fname}"), opts)?;
             z.write_all(bytes)?;
         }
         if let Some(users) = users_yaml {
@@ -4211,6 +4255,12 @@ async fn import_project_zip(State(s): State<AppState>, body: Bytes) -> Response 
     {
         warn!("import: sync recipes: {e}");
         return (StatusCode::INTERNAL_SERVER_ERROR, "sync recipes").into_response();
+    }
+    if let Err(e) =
+        crate::boot::sincronizza_da_zip(&mut archive, &crate::boot::boot_dir_at(project_dir)).await
+    {
+        warn!("import: sync boot: {e}");
+        return (StatusCode::INTERNAL_SERVER_ERROR, "sync boot").into_response();
     }
 
     // 6. Hot-reload — mirror the per-section PUT handlers' side effects so
@@ -4650,6 +4700,14 @@ async fn import_synoptic_yaml(State(s): State<AppState>, body: Bytes) -> Respons
         }
     };
 
+    if crate::boot::e_pagina_di_boot(&page) {
+        return (
+            StatusCode::BAD_REQUEST,
+            "una pagina di boot si importa con POST /api/boot-pages/import",
+        )
+            .into_response();
+    }
+
     // Always allocate a fresh id so imports never collide with existing pages.
     // Format mirrors the editor's `genId()` (alphanumeric base36).
     let new_id = format!(
@@ -4711,6 +4769,15 @@ async fn save_synoptic(
     headers: axum::http::HeaderMap,
     Json(page): Json<SynopticPage>,
 ) -> Response {
+    // Una pagina di boot vive in `boot/`, non qui: lasciarla passare la
+    // farebbe vedere ai viewer, che leggono solo `synoptics/`.
+    if crate::boot::e_pagina_di_boot(&page) {
+        return (
+            StatusCode::BAD_REQUEST,
+            "una pagina di boot si salva con PUT /api/boot-pages/:name",
+        )
+            .into_response();
+    }
     let project_dir = match active_dir(&s).await {
         Ok(d) => d,
         Err(c) => return c.into_response(),
@@ -6500,6 +6567,34 @@ pub(crate) fn calcola_impronta(dir: &std::path::Path) -> anyhow::Result<String> 
             // Il nome entra nell'hash: due file con lo stesso contenuto e nomi
             // diversi non sono lo stesso progetto.
             if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                hasher.update(name.as_bytes());
+            }
+            let content =
+                std::fs::read(path).map_err(|e| anyhow::anyhow!("{}: {e}", path.display()))?;
+            hasher.update(&content);
+        }
+    }
+
+    // Le pagine di boot (T-72): una modifica allo splash marca il deploy come
+    // non aggiornato. Entrano nell'hash solo se `boot/` c'è, così l'impronta di
+    // un progetto senza pagine di boot resta quella di prima.
+    let boot_dir = dir.join("boot");
+    if boot_dir.is_dir() {
+        let mut files: Vec<std::path::PathBuf> = std::fs::read_dir(&boot_dir)
+            .map_err(|e| anyhow::anyhow!("boot/: {e}"))?
+            .filter_map(|e| e.ok())
+            .map(|e| e.path())
+            .filter(|p| {
+                matches!(
+                    p.extension().and_then(|s| s.to_str()),
+                    Some("yaml") | Some("png")
+                )
+            })
+            .collect();
+        files.sort();
+        for path in &files {
+            if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                hasher.update(b"boot/");
                 hasher.update(name.as_bytes());
             }
             let content =

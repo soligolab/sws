@@ -278,6 +278,7 @@ pub const PAGE_FIELDS: &[Field] = &[
     Field { name: "zones", ty: "string[]", required: false, group: "", doc: "Zone restriction: if set, only users whose `allowed_zones` intersects this list can view or load this page. Empty list or None = accessible to all." },
     Field { name: "auto_rotate_skip", ty: "bool", required: false, group: "", doc: "When true, this page is skipped by the kiosk auto-rotate cycle. Was missing from this mirror (pre-existing gap: GET /api/synoptics/:name deserializes through this struct and would silently drop it on round-trip) — added here alongside `locked` since both are read via the same endpoint." },
     Field { name: "locked", ty: "bool", required: false, group: "", doc: "When true, the page is read-only in the editor (no object/property edits). Does not block duplicate/delete (already confirm-gated separately)." },
+    Field { name: "kind", ty: "string", required: false, group: "", doc: "Tipo di pagina. Assente = pagina sinottica normale; `\"boot\"` = immagine di boot del pannello (T-72), che vive in `boot/` e non in `synoptics/`, quindi nessun viewer la vede mai. Un campo assente qui **si perde in silenzio** al round-trip: per questo sta nel mirror." },
 ];
 
 /// I campi di una definizione di tag (da sws-core/src/project.rs).

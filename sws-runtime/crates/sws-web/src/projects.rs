@@ -482,6 +482,11 @@ pub async fn create_project(
                 warn!("create_project: flag sorgenti_da_rivedere: {e}");
             }
             info!(name = %safe_name, template = template_id, "project created from template");
+            // T-72: ogni progetto nasce con una pagina di boot, anche da template
+            // (i template nel repo non la portano: la mette il runtime).
+            if let Err(e) = crate::boot::semina(&target, false).await {
+                warn!("create_project: pagina di boot: {e}");
+            }
         }
         None => {
             // Write a minimal project.yaml so the welcome list sees it.
@@ -523,6 +528,10 @@ pub async fn create_project(
                     .into_response();
             }
             info!(name = %safe_name, "project created (empty)");
+            // T-72: una pagina di boot e una sinottica vuota, subito.
+            if let Err(e) = crate::boot::semina(&target, true).await {
+                warn!("create_project: pagine iniziali: {e}");
+            }
         }
     }
 
@@ -991,7 +1000,9 @@ pub struct DeleteQuery {
 // `images` è qui perché viaggia nel bundle: senza rimozione preventiva, le
 // immagini eliminate nell'IDE resterebbero per sempre sul device dopo un
 // deploy (il bundle le riporta tutte, ma non cancella quelle orfane).
-const DESIGN_ARTIFACTS: &[&str] = &["project.yaml", "synoptics", "images"];
+// `boot` idem (T-72): le pagine di boot e i loro PNG viaggiano nel bundle, e una
+// pagina eliminata nell'IDE non deve restare sul device.
+const DESIGN_ARTIFACTS: &[&str] = &["project.yaml", "synoptics", "images", "boot"];
 
 /// L'entry `users.yaml` del bundle va ignorata in estrazione?
 ///
@@ -2211,6 +2222,13 @@ fn migrate_legacy_sqlite_path(project_dir: &StdPath) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn il_deploy_sovrascrive_anche_le_pagine_di_boot() {
+        // Senza `boot` qui, una pagina di boot eliminata nell'IDE resterebbe per
+        // sempre sul dispositivo dopo un deploy.
+        assert!(DESIGN_ARTIFACTS.contains(&"boot"));
+    }
 
     #[test]
     fn un_progetto_vuoto_nasce_con_la_lingua_di_chi_lo_crea() {

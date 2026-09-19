@@ -39,6 +39,12 @@ pub struct SynopticPage {
     /// Does not block duplicate/delete (already confirm-gated separately).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub locked: Option<bool>,
+    /// Tipo di pagina. Assente = pagina sinottica normale; `"boot"` = immagine
+    /// di boot del pannello (T-72), che vive in `boot/` e non in `synoptics/`,
+    /// quindi nessun viewer la vede mai. Un campo assente qui **si perde in
+    /// silenzio** al round-trip: per questo sta nel mirror.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -686,6 +692,19 @@ pub struct FaceplateDef {
 }
 
 /// Sanitize a page name to a safe filename stem.
+/// Un id per una pagina creata dal server (pagina iniziale di un progetto,
+/// pagina importata): il tempo in millisecondi in esadecimale più un contatore,
+/// così due chiamate nello stesso millisecondo non collidono.
+pub fn nuovo_id_pagina() -> String {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static N: AtomicU64 = AtomicU64::new(0);
+    let ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    format!("{:x}{:x}", ms, N.fetch_add(1, Ordering::Relaxed))
+}
+
 pub fn safe_filename(name: &str) -> String {
     name.chars()
         .map(|c| match c {

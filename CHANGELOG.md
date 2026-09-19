@@ -12,6 +12,15 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Added
+- **T-72 F1 — le pagine di boot (modello e server).** `SynopticPage` guadagna `kind` (`"boot"`, TS
+  e Rust, schema rigenerato). Una pagina di boot vive in `boot/<nome>.yaml` con accanto il PNG
+  (`boot/<nome>.png`), fuori da `synoptics/`: nessun viewer, kiosk o runtime la vede. Nuovi
+  `GET/PUT/DELETE /api/boot-pages[/:name]`, `GET/PUT /api/boot-pages/:name/png` (firma PNG
+  controllata, tetto 5 MiB) e `POST /api/boot-pages/import`; `save_synoptic` rifiuta `kind: boot`.
+  `boot/` viaggia nel bundle di export/deploy, nei backup, nell'impronta di progetto e viene
+  cancellato dal deploy come `synoptics/`. Ogni progetto nasce con una pagina di boot vuota
+  1280×800 — anche da template — e il progetto vuoto anche con `Page 1`. Piano
+  `docs/plans/2026-09-18-immagine-di-boot.md`; l'editor (F2) non le mostra ancora.
 - **La configurazione del fornitore di traduzione si salva nell'istanza**, non nel progetto:
   fornitore, URL e chiave sopravvivono a un ricaricamento del browser e a un cambio progetto,
   stesso schema già in uso per l'assistente IA. Nuovi `GET/PUT/DELETE /api/traduzione/config`
@@ -39,6 +48,9 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   del file e finire in un `IndexError`.
 
 ### Fixed
+- **Ogni upload sopra 2 MiB veniva rifiutato**, immagini e ZIP di deploy compresi: axum applica 2 MiB
+  a ogni estrattore `Bytes`, sotto il tetto di 5 MiB che gli handler dichiaravano. Ora le rotte di
+  upload hanno un tetto di 8 MiB su entrambi i router, con un test su vero HTTP che invia 3 MiB.
 - **Una correzione a mano non toglieva il marchio «tradotta dalla macchina».** La promessa della
   2.8.0 — «una traduzione umana non si sovrascrive mai» — valeva solo lato runtime: sul web
   `setVal` scriveva il testo e lasciava `auto`, quindi «ritraduci tutto» poteva riscrivere una

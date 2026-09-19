@@ -7,8 +7,9 @@
 > Appendice A e **vanno lette prima di scrivere lo script**: contengono una trappola che non si vede
 > provando. La scheda Q13 originale è in Appendice B, integrale.
 >
-> **Stato**: piano approvato il 18-09-2026, nessuna riga di codice scritta. Il lavoro comincia da
-> F1 (§3). Numerazione T-xx da assegnare dal maintainer in `docs/CONTEXT.md`.
+> **Stato**: piano approvato il 18-09-2026. **Task T-72.** F0 e F1 fatte (F1 il 19-09-2026, sul ramo
+> `feat/T-72-immagine-di-boot-f1`); prossima F2 (editor). Il validatore con `BOOT_TYPES` (§2.1) non è in F1:
+> dipende dall'elenco dei tipi che F2 conferma tipo per tipo.
 
 ## Contesto
 
@@ -276,6 +277,17 @@ Dipendenze: F2 usa 1280×800 fisso finché F3 non arriva; F4 richiede F2; F5 ric
 (serve un PNG da installare). F3 è indipendente e può anticipare F2 se conviene.
 
 ---
+
+### F1 — nota di esecuzione (19-09-2026)
+
+Fatta come da piano, con due scarti. **(1)** La logica su disco sta in funzioni di `boot.rs` che
+prendono la cartella del progetto (`salva`, `elimina`, `scrivi_png`, `semina`, `sincronizza_da_zip`…): gli
+handler sono sottili, e i test usano una cartella temporanea invece di uno `AppState`, che nel repo
+non ha un'infrastruttura di test HTTP. **(2)** Il test del limite di corpo apre una vera porta locale e
+manda 3 MiB: senza il layer il server li rifiuta (è il difetto), con il layer passano. Provato dal vivo su
+un'istanza di scarto: progetto vuoto → `boot/Immagine di boot.yaml` + `synoptics/Page 1.yaml`; da
+template → solo la pagina di boot, le pagine del template intatte; PNG da 3 MiB caricato e riscaricato;
+PNG non valido → 400; `save_synoptic` con `kind: boot` → 400; lo ZIP di export porta `boot/`.
 
 ## 4. Dettagli per chi implementa
 

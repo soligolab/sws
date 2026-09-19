@@ -96,6 +96,22 @@ AlarmHistory, DataTable, XyPlotCanvas, PythonEditor, PageTabs, BarraAvviso, symb
 Non ancora pushato: F4, F5 e F6 su `main`, serve un «fai il push» esplicito; e va tolto
 `origin/fix/lingue-marchio-auto`.
 
+## ▶ Riprendere da qui — T-72 F1 (immagine di boot: modello e server) sul ramo (2026-09-19)
+
+Piano `docs/plans/2026-09-18-immagine-di-boot.md`, task **T-72** (numero dato dal maintainer).
+**F1 è sul ramo `feat/T-72-immagine-di-boot-f1`, non mergiata**: manca la conferma del maintainer.
+
+- `SynopticPage.kind = "boot"`; `boot.rs` (CRUD, PNG con firma controllata, import, semina); pagine di
+  boot in `boot/`, fuori da `synoptics/`; bundle, backup, impronta, `DESIGN_ARTIFACTS`; ogni progetto
+  nasce con una pagina di boot (anche da template), il vuoto anche con `Page 1`.
+- Difetto trovato per strada e chiuso: **ogni upload sopra 2 MiB veniva rifiutato** (tetto di axum),
+  ora 8 MiB sulle rotte di upload.
+- Gate verde: `cargo check/clippy/fmt/test --workspace`, `pnpm build/test`, `check_static.sh` 21/21;
+  provata dal vivo su istanza di scarto (fermata).
+- **Non in F1, per scelta**: il validatore `BOOT_TYPES` (F2, dipende dai tipi confermati).
+
+**Prossimo passo**: F2 — editor: pagine di boot nello store, elenco «Immagini di boot», palette ridotta.
+
 ## ▶ Riprendere da qui — multilingua chiuso: F6-F9 su `main`, piano archiviato (2026-09-19)
 
 Il maintainer ha chiesto di completare il piano e di mergiare senza aspettare la revisione delle

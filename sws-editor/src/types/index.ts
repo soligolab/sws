@@ -801,6 +801,9 @@ export interface SynopticPage {
   zones?: string[];
   /** When true, the page is read-only in the editor (no object/property edits). */
   locked?: boolean;
+  /** Tipo di pagina (T-72). Assente = sinottica; `"boot"` = immagine di boot del
+   *  pannello, salvata in `boot/` e mai vista dai viewer. */
+  kind?: "boot";
 }
 
 export interface Project {

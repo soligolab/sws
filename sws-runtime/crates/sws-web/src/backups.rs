@@ -37,6 +37,7 @@ const BACKED_UP: &[&str] = &[
     "history", // per-project SQLite historian — needed to restore on another host
     "recipes", // recipe files (skipped silently if absent)
     "images",  // user-uploaded images referenced by synoptics (bg_image & co.)
+    "boot",    // pagine di boot e i loro PNG (T-72)
 ];
 
 #[derive(Serialize, Debug, Clone)]
@@ -406,6 +407,11 @@ fn safe_backup_name(name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn il_backup_copre_le_pagine_di_boot() {
+        assert!(BACKED_UP.contains(&"boot"));
+    }
     use tempfile::TempDir;
 
     fn write(dir: &Path, rel: &str, body: &str) {
