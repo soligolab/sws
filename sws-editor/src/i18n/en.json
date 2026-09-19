@@ -1656,7 +1656,13 @@
     "orCopyAnObjectFrom2": "Or: copy an object from the page (Ctrl+C) and press Ctrl+V with this cell selected.",
     "bootPageHint": "Boot image: drawn like a page, but it never appears among the panel's pages.",
     "bootEnabled": "Boot image enabled",
-    "bootEnabledHelp": "Only one per project: the one the deploy installs as the panel's startup image."
+    "bootEnabledHelp": "Only one per project: the one the deploy installs as the panel's startup image.",
+    "followsProjectDefault": "{{size}} — project default",
+    "projectFormat": "Default format",
+    "projectFormatHelp": "Size and background new pages are born with. It fills itself the first time a page is set; you can change it here by hand. It does not touch existing pages.",
+    "applyFormat": "Apply to pages without their own format",
+    "applyFormatHelp": "Writes the default format onto pages that have no size or background of their own.",
+    "applyFormatResult": "{{count}} pages updated"
   },
   "credenziali": {
     "waitWithoutRetryingEveryNew": "Wait **without** retrying: every new attempt lengthens the lockout. ",

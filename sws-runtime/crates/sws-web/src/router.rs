@@ -7056,6 +7056,14 @@ struct PageLayoutBody {
     hide_viewer_chrome: Option<bool>,
     #[serde(default)]
     boot_page_id: Option<String>,
+    #[serde(default)]
+    default_width: Option<f64>,
+    #[serde(default)]
+    default_height: Option<f64>,
+    #[serde(default)]
+    default_background: Option<String>,
+    #[serde(default)]
+    default_background_dark: Option<String>,
 }
 
 impl From<PageLayoutBody> for PageLayoutConfig {
@@ -7066,6 +7074,10 @@ impl From<PageLayoutBody> for PageLayoutConfig {
             home_page_id: b.home_page_id,
             hide_viewer_chrome: b.hide_viewer_chrome,
             boot_page_id: b.boot_page_id,
+            default_width: b.default_width,
+            default_height: b.default_height,
+            default_background: b.default_background,
+            default_background_dark: b.default_background_dark,
         }
     }
 }
@@ -7591,6 +7603,37 @@ mod write_safety_tests {
         assert!(
             out.contains("qualcosa"),
             "contenuto della chiave sconosciuta perso:\n{out}"
+        );
+    }
+
+    #[test]
+    fn page_layout_porta_il_formato_predefinito_e_la_pagina_di_boot() {
+        // T-72: il DTO dell'API deve accettare i campi nuovi, o l'editor che li
+        // manda prenderebbe un 400 su ogni salvataggio delle Impostazioni pagine.
+        let b = serde_json::from_str::<PageLayoutBody>(
+            r##"{"size_mode":"fixed","boot_page_id":"b1","default_width":1024,"default_height":600,
+                "default_background":"#112233","default_background_dark":"#000000"}"##,
+        )
+        .expect("i campi del formato predefinito vanno accettati");
+        let c: sws_core::project::PageLayoutConfig = b.into();
+        assert_eq!(c.default_width, Some(1024.0));
+        assert_eq!(c.boot_page_id.as_deref(), Some("b1"));
+        // E su disco: assenti quando non impostati, così i project.yaml esistenti non cambiano.
+        let solo = sws_core::project::PageLayoutConfig {
+            size_mode: sws_core::project::PageSizeMode::Fixed,
+            aspect_ratio: None,
+            home_page_id: None,
+            hide_viewer_chrome: None,
+            boot_page_id: None,
+            default_width: None,
+            default_height: None,
+            default_background: None,
+            default_background_dark: None,
+        };
+        let y = serde_yaml::to_string(&solo).unwrap();
+        assert!(
+            !y.contains("default_"),
+            "campi vuoti scritti su disco:\n{y}"
         );
     }
 

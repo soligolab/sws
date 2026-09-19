@@ -37,6 +37,8 @@ import { CampoTestoTradotto } from "@/editor/CampoTestoTradotto";
 import type { AlignMode } from "@/store";
 import type { AlarmSeverity, ButtonAction, FunctionDef, GridCell, PageLayoutConfig, PageSizeMode, ProjectTargetKind, RadioOption, SubCellEntry, SubGrid, SynopticObject, TableRow, TextListEntry, TrendTrace, XySeries } from "@/types";
 import { eBoot, paginePerNavigazione } from "@/boot/tipi";
+import { aggiornaPagina, applicaPredefinito, salvaLayout } from "@/formatoProgettoAzioni";
+import { seguePredefinito } from "@/formatoProgetto";
 import { impostaBootAbilitata } from "@/boot/abilitata";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
@@ -278,7 +280,6 @@ export function EditorShell() {
   const undo            = useAppStore((s) => s.undo);
   const redo            = useAppStore((s) => s.redo);
   const updateObjects    = useAppStore((s) => s.updateObjects);
-  const updatePageProps  = useAppStore((s) => s.updatePageProps);
   const updateGridCell      = useAppStore((s) => s.updateGridCell);
   const selectedCell        = useAppStore((s) => s.selectedCell);
   const selectedCellChild   = useAppStore((s) => s.selectedCellChild);
@@ -1091,7 +1092,10 @@ export function EditorShell() {
               pageId={currentPageId}
               offPageCount={(currentPage?.objects ?? []).filter(
                 (o) => isOffPage(o, currentPage?.width, currentPage?.height)).length}
-              onChange={(patch) => updatePageProps(currentPageId, patch)}
+              onChange={(patch) => aggiornaPagina(currentPageId, patch)}
+              segueIlPredefinito={!!currentPage && seguePredefinito(currentPage, project?.page_layout)}
+              formatoPredefinito={project?.page_layout?.default_width && project?.page_layout?.default_height
+                ? `${project.page_layout.default_width}×${project.page_layout.default_height}` : undefined}
             />
             <span style={{ fontSize: 11, fontWeight: 700, color: "var(--brand-text-subtle, #64748b)", letterSpacing: 1, marginTop: 8, display: "block" }}>
               {t("shell.projectSettings")}
@@ -1704,6 +1708,8 @@ function PageProps({
   sizeMode,
   boot = false,
   pageId,
+  segueIlPredefinito = false,
+  formatoPredefinito,
   offPageCount,
   onChange,
 }: {
@@ -1711,6 +1717,9 @@ function PageProps({
    *  zone né rotazione, e l'interruttore «abilitata». */
   boot?: boolean;
   pageId?: string;
+  /** Le misure della pagina coincidono con il predefinito di progetto. */
+  segueIlPredefinito?: boolean;
+  formatoPredefinito?: string;
   name: string;
   background: string;
   background_dark?: string;
@@ -1839,6 +1848,11 @@ function PageProps({
           <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "2px 0 0" }}>
             {t("shell.exactSize11No")}
           </p>
+          {formatoPredefinito && segueIlPredefinito && (
+            <p style={{ fontSize: 10, color: "var(--brand-primary, #3b82f6)", margin: "2px 0 0" }}>
+              {t("shell.followsProjectDefault", { size: formatoPredefinito })}
+            </p>
+          )}
         </>
       )}
       {sizeMode === "ratio" && (
@@ -2032,13 +2046,18 @@ function ProjectPageLayoutSettings() {
   const [aspectRatio, setAspectRatio] = useState<string>(project?.page_layout?.aspect_ratio ?? ASPECT_RATIOS[0].ratio);
   const [homePageId, setHomePageId] = useState<string>(project?.page_layout?.home_page_id ?? "");
   const [hideChrome, setHideChrome] = useState<boolean>(project?.page_layout?.hide_viewer_chrome ?? false);
+  // Formato predefinito di progetto (T-72 F3): stringhe vuote = «non impostato».
+  const [defW, setDefW] = useState<string>(project?.page_layout?.default_width?.toString() ?? "");
+  const [defH, setDefH] = useState<string>(project?.page_layout?.default_height?.toString() ?? "");
+  const [defBg, setDefBg] = useState<string>(project?.page_layout?.default_background ?? "");
+  const [defBgDark, setDefBgDark] = useState<string>(project?.page_layout?.default_background_dark ?? "");
+  const [applicate, setApplicate] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const ref = referenceResolutionFor(aspectRatio);
 
-  const handleSave = async () => {
-    setSaving(true); setError(null);
+  const costruisciCfg = (): PageLayoutConfig => {
     const cfg: PageLayoutConfig = {
       size_mode: sizeMode,
       aspect_ratio: sizeMode === "ratio" ? aspectRatio : undefined,
@@ -2046,7 +2065,30 @@ function ProjectPageLayoutSettings() {
       hide_viewer_chrome: hideChrome || undefined,
       // Non è un campo di questo modulo: si conserva, o salvare qui lo azzererebbe.
       boot_page_id: useAppStore.getState().project?.page_layout?.boot_page_id,
+      default_width: Number(defW) > 0 ? Number(defW) : undefined,
+      default_height: Number(defH) > 0 ? Number(defH) : undefined,
+      default_background: defBg.trim() || undefined,
+      default_background_dark: defBgDark.trim() || undefined,
     };
+    return cfg;
+  };
+
+  const handleApplica = async () => {
+    setSaving(true); setError(null);
+    try {
+      const cfg = costruisciCfg();
+      await salvaLayout(cfg);
+      setApplicate(applicaPredefinito(cfg));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true); setError(null);
+    const cfg = costruisciCfg();
     try {
       await api.updatePageLayout(cfg);
       updateProjectPageLayout(cfg);
@@ -2114,6 +2156,35 @@ function ProjectPageLayoutSettings() {
             </div>
           </span>
         </label>
+      </div>
+
+      <div>
+        <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4, fontWeight: 700 }}>
+          {t("shell.projectFormat")}
+        </div>
+        <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 6px" }}>
+          {t("shell.projectFormatHelp")}
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+          <input type="number" style={INPUT} placeholder={t("props.widthPx")} value={defW} onChange={(e) => setDefW(e.target.value)} />
+          <input type="number" style={INPUT} placeholder={t("props.heightPx")} value={defH} onChange={(e) => setDefH(e.target.value)} />
+          <input type="text" style={INPUT} placeholder={t("props.backgroundLight")} value={defBg} onChange={(e) => setDefBg(e.target.value)} />
+          <input type="text" style={INPUT} placeholder={t("props.backgroundDark")} value={defBgDark} onChange={(e) => setDefBgDark(e.target.value)} />
+        </div>
+        <button
+          type="button"
+          disabled={saving}
+          onClick={handleApplica}
+          title={t("shell.applyFormatHelp")}
+          style={{ marginTop: 6, background: "var(--brand-surface-2, #334155)", color: "var(--brand-text-2, #cbd5e1)", border: "1px solid var(--brand-border, #475569)", borderRadius: 4, padding: "4px 10px", fontSize: 12, cursor: "pointer" }}
+        >
+          {t("shell.applyFormat")}
+        </button>
+        {applicate !== null && (
+          <span style={{ marginLeft: 8, fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)" }}>
+            {t("shell.applyFormatResult", { count: applicate })}
+          </span>
+        )}
       </div>
 
       {error && <div style={{ color: "var(--brand-danger, #ef4444)", fontSize: 12 }}>Errore: {error}</div>}

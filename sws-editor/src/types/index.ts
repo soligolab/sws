@@ -1333,6 +1333,13 @@ export interface PageLayoutConfig {
   /** Id della pagina di boot «abilitata» (T-72): quella che il deploy installa
    *  come immagine di avvio del pannello. Una sola, per costruzione. */
   boot_page_id?: string;
+  /** Formato predefinito di progetto (T-72 F3): le pagine nuove nascono con queste
+   *  misure e questo sfondo. Le riempie la prima impostazione esplicita di una
+   *  pagina; il runtime non le legge (contano quelle scritte su ogni pagina). */
+  default_width?: number;
+  default_height?: number;
+  default_background?: string;
+  default_background_dark?: string;
 }
 
 /** Motore di rendering a cui è destinato il progetto — vedi

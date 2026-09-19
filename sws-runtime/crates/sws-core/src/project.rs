@@ -1297,6 +1297,19 @@ pub struct PageLayoutConfig {
     /// di `home_page_id`. `None` = nessuna: il deploy non tocca l'immagine.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub boot_page_id: Option<String>,
+    /// Formato predefinito di progetto (T-72 F3): le pagine nuove — sinottiche o
+    /// di boot — nascono con queste misure e questo sfondo. Tutti opzionali; lo
+    /// riempie la prima impostazione esplicita di una pagina. Il runtime non li
+    /// legge: contano le misure scritte su ogni pagina (materializzate), non
+    /// queste — altrimenti web e LVGL potrebbero divergere.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_width: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_height: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_background: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_background_dark: Option<String>,
 }
 
 /// Tabella lingue di progetto: messaggi nativi + traduzioni, indicizzati per

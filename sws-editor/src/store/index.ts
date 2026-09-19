@@ -9,8 +9,9 @@ import { normalizeXyObjects } from "@/canvas/xyModel";
 import type { SegmentoScelto, WaypointScelto } from "@/canvas/percorsoMovimento";
 import { effectiveSizeMode, referenceResolutionFor } from "@/pageLayout";
 import { uguale } from "@/ai/confronto";
+import { valoriDiNascita } from "@/formatoProgetto";
 import {
-  BOOT_ALTEZZA, BOOT_LARGHEZZA, BOOT_SFONDO, BOOT_TYPES, chiavePagina, eBoot, nomeBootLibero,
+  BOOT_TYPES, chiavePagina, eBoot, nomeBootLibero,
   paginePerNavigazione, sinotticiPoiBoot,
 } from "@/boot/tipi";
 import type {
@@ -413,6 +414,8 @@ interface AppState {
   reorderPage: (id: string, dir: "up" | "down") => void;
   movePage: (id: string, toIndex: number) => void;
   duplicatePage: (id: string) => void;
+  /** Più pagine in un colpo solo: un solo passo di cronologia. */
+  updatePagesProps: (patches: { id: string; patch: Partial<SynopticPage> }[]) => void;
   updatePageProps: (id: string, patch: Partial<Pick<SynopticPage, "name" | "background" | "background_dark" | "width" | "height" | "auto_rotate_skip" | "zones" | "locked">>) => void;
   updateGridCell: (pageId: string, objectId: string, cell: GridCell) => void;
   setSelectedCellRange: (range: { objectId: string; r1: number; c1: number; r2: number; c2: number } | null) => void;
@@ -965,6 +968,9 @@ export const useAppStore = create<AppState>((set, get) => {
       // Stessa materializzazione che il salvataggio del layout fa già su
       // tutte le pagine (EditorShell, ProjectPageLayoutSettings).
       const layout = get().project?.page_layout;
+      // T-72 F3: misure e sfondo predefiniti di progetto. In «rapporto» le misure
+      // sono quelle della risoluzione di riferimento (sotto), qui restano gli sfondi.
+      Object.assign(page, valoriDiNascita(layout, "sinottica"));
       if (effectiveSizeMode(layout) === "ratio") {
         const ref = referenceResolutionFor(layout?.aspect_ratio);
         page.width = ref.width;
@@ -985,9 +991,7 @@ export const useAppStore = create<AppState>((set, get) => {
       const page: SynopticPage = {
         ...makePage(nome),
         kind: "boot",
-        width: BOOT_LARGHEZZA,
-        height: BOOT_ALTEZZA,
-        background: BOOT_SFONDO,
+        ...valoriDiNascita(get().project?.page_layout, "boot"),
       };
       set((s) => ({
         pages: [...s.pages, page],
@@ -1072,6 +1076,13 @@ export const useAppStore = create<AppState>((set, get) => {
     updatePageProps: (id, patch) => {
       pushHistory("history.pageProps");
       set((s) => ({ pages: s.pages.map((p) => (p.id === id ? { ...p, ...patch } : p)) }));
+    },
+
+    updatePagesProps: (patches) => {
+      if (patches.length === 0) return;
+      pushHistory("history.pageProps");
+      const perId = new Map(patches.map((x) => [x.id, x.patch]));
+      set((s) => ({ pages: s.pages.map((p) => (perId.has(p.id) ? { ...p, ...perId.get(p.id) } : p)) }));
     },
 
     updateGridCell: (pageId, objectId, cell) => {

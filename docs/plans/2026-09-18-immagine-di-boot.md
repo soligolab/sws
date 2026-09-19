@@ -8,7 +8,7 @@
 > provando. La scheda Q13 originale è in Appendice B, integrale.
 >
 > **Stato**: piano approvato il 18-09-2026. **Task T-72.** F0, F1 e F2 fatte (F1 `b6c55fc1`; F2 il
-> 19-09-2026); prossima F3 (formato di progetto). Il validatore con `BOOT_TYPES` (§2.1) non è in F1:
+> 19-09-2026); F3 fatta; prossima F4 (rasterizzazione). Il validatore con `BOOT_TYPES` (§2.1) non è in F1:
 > dipende dall'elenco dei tipi che F2 conferma tipo per tipo.
 
 ## Contesto
@@ -304,6 +304,16 @@ ellisse, linea, testo, immagine + Scada), abilitazione (radio e interruttore d'a
 sul disco), niente tab per le pagine di boot, «Salva» che scrive `boot/`.
 **Non fatto, per piano**: PNG (F4), formato di default di progetto (F3). La `guardia` di
 `check_versione_progetto.sh` ora capisce le famiglie di rotte con il trattino.
+
+### F3 — nota di esecuzione (19-09-2026)
+
+Regole pure in `formatoProgetto.ts`, azioni in `formatoProgettoAzioni.ts`. Due scelte: **(1)** la pagina di
+boot con cui nasce un progetto è già a 1280×800 (§2.7), quindi non ha «nessun valore»: per far funzionare la
+regola fra le due pagine iniziali una pagina di boot **ancora ai valori di nascita** conta come «senza formato
+proprio» — caso limite dichiarato: una boot lasciata di proposito a 1280×800 prende il predefinito la
+prima volta. **(2)** Il predefinito va nello store subito e sul server dopo, così una seconda modifica
+prima della risposta non rifà la «prima impostazione». Provata dal vivo: 1024×600 su Page 1 → la pagina di
+boot le eredita, `default_*` in `project.yaml`, nota «predefinito di progetto» nel pannello.
 
 ## 4. Dettagli per chi implementa
 

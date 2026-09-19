@@ -1656,7 +1656,13 @@
     "orCopyAnObjectFrom2": "Oppure: copia un oggetto dalla pagina (Ctrl+C) e premi Ctrl+V con questa cella selezionata.",
     "bootPageHint": "Immagine di boot: si disegna come una pagina, ma non compare mai fra le pagine del pannello.",
     "bootEnabled": "Immagine di boot abilitata",
-    "bootEnabledHelp": "Una sola per progetto: è quella che il deploy installa come immagine di avvio del pannello."
+    "bootEnabledHelp": "Una sola per progetto: è quella che il deploy installa come immagine di avvio del pannello.",
+    "followsProjectDefault": "{{size}} — predefinito di progetto",
+    "projectFormat": "Formato predefinito",
+    "projectFormatHelp": "Misure e sfondo con cui nascono le pagine nuove. Si riempie da solo alla prima impostazione di una pagina; qui si può cambiare a mano. Non tocca le pagine esistenti.",
+    "applyFormat": "Applica alle pagine senza formato proprio",
+    "applyFormatHelp": "Scrive il formato predefinito sulle pagine che non hanno misure o sfondo propri.",
+    "applyFormatResult": "{{count}} pagine aggiornate"
   },
   "credenziali": {
     "waitWithoutRetryingEveryNew": "Aspetta **senza** riprovare: ogni nuovo tentativo allunga il blocco. ",

@@ -12,6 +12,14 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Added
+- **T-72 F3 — la prima pagina modificata definisce lo stile delle altre.** `page_layout` guadagna
+  `default_width/height/background/background_dark`. Una pagina nuova, sinottica o di boot, nasce con quel
+  formato; la **prima** volta che si impostano misure o sfondo e il predefinito è vuoto, si riempie da
+  solo e si scrive sulle pagine senza formato proprio (una pagina di boot ancora ai valori di nascita
+  conta come tale) in un solo passo di cronologia; dopo, si cambia a mano in Impostazioni pagine, dove
+  «Applica alle pagine senza formato proprio» lo riscrive su richiesta. Il pannello dice «1024×600 —
+  predefinito di progetto» finché le misure coincidono. Il runtime non legge questi campi: contano le
+  misure materializzate su ogni pagina, così web e LVGL non divergono.
 - **T-72 F2 — le immagini di boot nell'editor.** Elenco pagine con una sezione «Immagini di boot»
   (🖼, radio ⭐ «abilitata», «+ Nuova immagine di boot»), separata dalle pagine del pannello: la
   striscia di tab, la navigazione, i pulsanti pagina, la pagina iniziale e le pagine «orfane» le
