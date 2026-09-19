@@ -2019,5 +2019,17 @@
     "regenerateHint": "Rifà il PNG dal disegno di adesso e lo carica sul progetto (la pagina deve essere già salvata).",
     "generating": "Genero…",
     "download": "Scarica PNG"
+  },
+  "bootStatus": {
+    "title": "Immagine di boot",
+    "loading": "Leggo lo stato dal dispositivo…",
+    "unreadable": "Non riesco a leggere lo stato dal dispositivo.",
+    "noData": "Nessun dato: il dispositivo non ha le unit di installazione dell'immagine di boot, o non sono ancora scattate (si installano rieseguendo install-container.sh).",
+    "installed": "Installata il {{quando}}: compare al prossimo avvio del pannello.",
+    "absolutePath": "(percorso assoluto: si appoggia a un comportamento non documentato del launcher; se Pixsys lo corregge, smette di funzionare)",
+    "pending": "In attesa: l'ultima richiesta non è ancora stata applicata dal dispositivo.",
+    "unsupported": "Non supportata su questo dispositivo: nessun launcher Pixsys.",
+    "none": "Nessuna immagine di boot abilitata nel progetto: il dispositivo tiene quella che ha.",
+    "error": "Errore: {{msg}}"
   }
 }

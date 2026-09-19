@@ -85,6 +85,7 @@ import type {
 import { useSezioneSincronizzata } from "@/config/useSezioneSincronizzata";
 import { CampoTestoTradotto } from "@/editor/CampoTestoTradotto";
 import i18n from "@/i18n";
+import { StatoBootImage } from "@/boot/StatoBootImage";
 import { contaAutomatiche, eAutomatica, marcaComeUmana } from "@/i18n/tabellaLingue";
 
 /** Avviso in linea quando il progetto cambia mentre stai modificando una
@@ -9487,6 +9488,9 @@ function RuntimeConnectionTab() {
           </span>
         </section>
       )}
+
+      {/* T-72 F5 — com'è andata l'installazione dell'immagine di boot. */}
+      {connected && <StatoBootImage />}
 
       {/* Live tag panel via /ws/remote/tags relay */}
       {connected && (

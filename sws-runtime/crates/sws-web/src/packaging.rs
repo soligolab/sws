@@ -811,7 +811,7 @@ fn build_purge_cmd(remote_dir: &str, data_path: &str) -> String {
     cmd
 }
 
-/// Gli stessi sei file, **dentro il binario** (Q48, 2026-09-09).
+/// Gli stessi nove file, **dentro il binario** (Q48, 2026-09-09).
 ///
 /// `container_deploy_sources` li cerca nel repo, e il repo c'è solo quando
 /// l'editor gira da un checkout (`resolve_repo_root`: cwd con
@@ -846,6 +846,19 @@ const CONTAINER_DEPLOY_EMBEDDED: &[(&str, &str)] = &[
         "sws-display-apply.sh",
         include_str!("../../../../deploy/container/sws-display-apply.sh"),
     ),
+    // Immagine di boot abilitata dal progetto (T-72 F5).
+    (
+        "sws-boot-image.service",
+        include_str!("../../../../deploy/container/sws-boot-image.service"),
+    ),
+    (
+        "sws-boot-image.path",
+        include_str!("../../../../deploy/container/sws-boot-image.path"),
+    ),
+    (
+        "sws-boot-image-apply.sh",
+        include_str!("../../../../deploy/container/sws-boot-image-apply.sh"),
+    ),
 ];
 
 /// I file di `deploy/container/` che l'installer legge **dalla propria
@@ -869,6 +882,10 @@ const CONTAINER_DEPLOY_FILES: &[&str] = &[
     "sws-display.service",
     "sws-display.path",
     "sws-display-apply.sh",
+    // Immagine di boot abilitata dal progetto (T-72 F5).
+    "sws-boot-image.service",
+    "sws-boot-image.path",
+    "sws-boot-image-apply.sh",
 ];
 
 /// I percorsi assoluti dei file da spedire, o il nome del primo che manca.
@@ -1094,7 +1111,7 @@ pub async fn deploy_device_container(
     EJson(req): EJson<DeviceContainerDeployRequest>,
 ) -> Response {
     // Q48: il repo non è più un prerequisito. Serve solo per gli ARCHIVI in
-    // dist/; i sei file di deploy, se il repo non c'è, escono dal binario.
+    // dist/; i nove file di deploy, se il repo non c'è, escono dal binario.
     let repo: Option<PathBuf> = s.repo_root.as_ref().clone();
 
     if let Err(m) = destinazione_ssh_sicura(&req.user, &req.host) {

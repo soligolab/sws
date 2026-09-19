@@ -264,8 +264,24 @@ export interface AvvisoRuntime {
   rimedio: string;
 }
 
+/** Com'è andata l'installazione dell'immagine di boot sul dispositivo (T-72 F5).
+ *  Gemello di `boot_image::BootImageStato` in `sws-web`. */
+export interface BootImageStato {
+  /** `installato`, `non_supportato`, `nessuna_immagine`, `errore`. */
+  esito: string;
+  sha256?: string | null;
+  quando?: string | null;
+  /** `assoluto` = si appoggia a un comportamento non documentato del launcher. */
+  percorso?: string | null;
+  messaggio?: string | null;
+  /** Lo SHA-256 (o `none`) chiesto per ultimo dal runtime. */
+  richiesta?: string | null;
+}
+
 export interface SystemStatus {
   runtime_version: string;
+  /** Opzionale: un runtime più vecchio, o senza le unit di installazione, non lo manda. */
+  boot_image?: BootImageStato | null;
   uptime_s: number;
   /** Q52 (dal 2.7.2): architettura del binario (`aarch64`, `x86_64`), nome
    *  della macchina, motore del container o null se nativo. Opzionali perché

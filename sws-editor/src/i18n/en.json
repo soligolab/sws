@@ -2019,5 +2019,17 @@
     "regenerateHint": "Rebuilds the PNG from the current drawing and uploads it to the project (the page must already be saved).",
     "generating": "Generating…",
     "download": "Download PNG"
+  },
+  "bootStatus": {
+    "title": "Boot image",
+    "loading": "Reading the status from the device…",
+    "unreadable": "Cannot read the status from the device.",
+    "noData": "No data: the device does not have the boot-image installation units, or they have not fired yet (they are installed by re-running install-container.sh).",
+    "installed": "Installed on {{quando}}: it appears the next time the panel starts.",
+    "absolutePath": "(absolute path: relies on undocumented launcher behavior; if Pixsys fixes it, it stops working)",
+    "pending": "Pending: the device has not applied the latest request yet.",
+    "unsupported": "Not supported on this device: no Pixsys launcher.",
+    "none": "No boot image enabled in the project: the device keeps the one it has.",
+    "error": "Error: {{msg}}"
   }
 }

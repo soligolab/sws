@@ -12,6 +12,17 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Added
+- **T-72 F5 — l'immagine di boot arriva al pannello.** Il runtime pubblica in `boot-image/`
+  (`boot.png`, `trigger` con lo SHA-256 o `none`) il PNG della pagina di boot abilitata dal progetto, a ogni
+  apertura, salvataggio di una pagina di boot e cambio dell'«abilitata»; non riscrive un contenuto identico.
+  Sull'host tre file nuovi — `sws-boot-image.path`, `.service` e `sws-boot-image-apply.sh`, installati da
+  `install-container.sh` insieme alla commutazione web/LVGL — portano il PNG al launcher Pixsys via D-Bus
+  (`SetBackgroundImage`), verificano con `GetBackgroundImage` e scrivono `boot-image/status`. **Non riavviano
+  niente**: il launcher legge la configurazione all'avvio, quindi l'immagine compare al prossimo avvio del
+  pannello. `/api/system` espone `boot_image` e la scheda Runtime dell'IDE lo mostra dopo la connessione
+  («installata il …», «non supportata», «errore: …», «in attesa»). `none` non ripristina l'originale: non tocca
+  niente. Funziona solo nel deploy a container. Guardia `check_boot_image_apply.sh`: lo script host provato con
+  un launcher finto in dieci casi.
 - **T-72 F4 — il PNG dell'immagine di boot nasce nel browser, al salvataggio.** Ogni pagina di boot
   cambiata viene disegnata alle sue misure (`SvgCanvas` in modalità viewer), le immagini di progetto sono
   incorporate come data URI, le `var(--brand-*)` sostituite con valori concreti, e il PNG va in

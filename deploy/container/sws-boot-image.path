@@ -1,0 +1,25 @@
+# Osserva la richiesta di immagine di boot del runtime e rilancia
+# `sws-boot-image.service` quando cambia (T-72 F5).
+#
+# Installato da `install-container.sh` in
+#   ~/.config/systemd/user/sws-boot-image.path
+#
+# Il runtime **non riscrive un contenuto identico** (vedi
+# `sws-web/src/boot_image.rs`): senza quella accortezza questa unit scatterebbe
+# a ogni salvataggio di una qualunque sezione del progetto.
+#
+# Niente `PathExists=`: è una condizione di LIVELLO, e con un servizio `oneshot`
+# rilancia in cerchio fino a `start-limit-hit` (vedi il commento in
+# `sws-display.path`, dove è successo davvero). `PathChanged` scatta anche alla
+# prima creazione del file. `scripts/check_systemd_units.sh` impedisce che la
+# trappola rientri.
+
+[Unit]
+Description=SWS — osserva l'immagine di boot richiesta dal progetto
+
+[Path]
+PathChanged=/data/user/sws/config/boot-image/trigger
+Unit=sws-boot-image.service
+
+[Install]
+WantedBy=default.target

@@ -5514,7 +5514,11 @@ pub fn signal_project_changed(s: &AppState, what: &str) {
     let what = what.to_string();
     tokio::spawn(async move {
         match project_dir.read().await.clone() {
-            Some(dir) => crate::display_target::publish(&config_dir, &dir).await,
+            Some(dir) => {
+                crate::display_target::publish(&config_dir, &dir).await;
+                // T-72 F5: anche l'immagine di boot abilitata dal progetto.
+                crate::boot_image::publish(&config_dir, &dir).await;
+            }
             // Non un `if let` muto: senza questa riga il caso «nessun progetto
             // attivo» era indistinguibile da «pubblicato correttamente», ed è
             // costato una diagnosi. Su un dispositivo appena installato il
@@ -7110,6 +7114,11 @@ async fn update_project_page_layout(
             Some(user.username),
             serde_json::json!({"what": "page_layout"}),
         );
+        // T-72 F5: abilitare (o togliere) la pagina di boot cambia cosa l'host
+        // deve installare. Non passa da `signal_project_changed`: nessun viewer
+        // deve ricaricare niente per questo.
+        let config_dir = s.config_dir.clone();
+        crate::boot_image::publish(&config_dir, &dir).await;
     }
     res
 }

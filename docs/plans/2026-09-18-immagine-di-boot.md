@@ -8,7 +8,7 @@
 > provando. La scheda Q13 originale è in Appendice B, integrale.
 >
 > **Stato**: piano approvato il 18-09-2026. **Task T-72.** F0, F1 e F2 fatte (F1 `b6c55fc1`; F2 il
-> 19-09-2026); F3 e F4 fatte; prossima F5 (dispositivo). Il validatore con `BOOT_TYPES` (§2.1) non è in F1:
+> 19-09-2026); F3, F4 e F5 fatte; prossima F6 (docs). Il validatore con `BOOT_TYPES` (§2.1) non è in F1:
 > dipende dall'elenco dei tipi che F2 conferma tipo per tipo.
 
 ## Contesto
@@ -345,6 +345,25 @@ prova di scrittura **reversibile** (`SetBackgroundImage` poi `ResetBackgroundIma
 Conseguenza per lo script (F5): niente `mkdir /run/media/…` — si copia il PNG in una cartella scrivibile da `user`
 (`<config_dir>/boot-image/boot.png`, come nel piano §2.6) e si passa **il path assoluto**, con `percorso=assoluto`
 nello stato. Il ripiego diventa il caso normale, non l'eccezione: la sonda relativa si può togliere.
+
+### F5 — nota di esecuzione (19-09-2026)
+
+**Scarto dal piano §2.6**: il trigger e la cartella non possono chiamarsi entrambi `boot-image`. Ora è una
+cartella `boot-image/` con `boot.png`, `trigger` e `status`; la `.path` osserva `boot-image/trigger`. Il resto come
+da piano: `boot_image.rs::publish` accanto a `display_target::publish` (apertura, segnali di progetto,
+all'avvio) **e** nel PUT di `page-layout` (abilitare una pagina non passa da `signal_project_changed`); il ripiego
+sul percorso assoluto è il caso normale su `user` (la sonda relativa resta solo se `/run/media` è scrivibile).
+`installato` richiede che `GetBackgroundImage` risponda `boot.png` (il launcher copia col nome originale); lo SHA
+applicato sta in `boot-image/applied`, così una stessa richiesta non richiama il launcher, e `--force` reinstalla.
+
+**Provata sul dispositivo vero** (`tc620-a-p3-c6-07aff9`, PixsysOS 2.1.1, appena formattato, come `user`):
+unit installate con `/data/user/sws/config` **ancora inesistente** → la `.path` parte lo stesso e scatta alla prima
+creazione di `boot-image/trigger`; un PNG 1280×800 → `installato`, percorso `assoluto`, `GetBackgroundImage` =
+`boot.png`, `/etc/pixsys/pixsys-launcher/assets/boot.png` presente e TOML aggiornato, nessuna unit fallita.
+**Non provato**: cosa si vede al riavvio del pannello, e il giro completo con il runtime nel container
+(l'immagine del container non è stata ricostruita: la parte runtime è coperta dai test di `boot_image.rs`).
+Ripristino sul dispositivo: `busctl --system call net.pixsys.Config1 /net/pixsys/Config1/Launcher
+net.pixsys.Config1.Launcher ResetBackgroundImage`.
 
 ## 4. Dettagli per chi implementa
 

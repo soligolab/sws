@@ -133,6 +133,11 @@ pub struct SystemStatus {
     /// gira in un container; `None` quando gira nudo sull'host. Stesso valore
     /// della TXT mDNS `container`, ma qui lo si ha anche senza discovery.
     pub container: Option<String>,
+    /// Com'è andata l'installazione dell'immagine di boot sul dispositivo (T-72
+    /// F5): il **primo file scritto dall'host che il runtime legge**. `None` =
+    /// nessun dato (dispositivo senza le unit, o non ancora scattate) — mai un
+    /// errore.
+    pub boot_image: Option<crate::boot_image::BootImageStato>,
 }
 
 /// Il nome della macchina, come lo dà `hostname`; `sws-runtime` se non c'è
@@ -307,6 +312,7 @@ pub async fn compute_system_status(
         arch: std::env::consts::ARCH,
         hostname: hostname_locale(),
         container: detect_container_engine(),
+        boot_image: None,
     }
 }
 
@@ -401,19 +407,20 @@ fn calcola_avvisi(
 pub async fn get_system_status(State(state): State<AppState>) -> Json<SystemStatus> {
     let dir_guard = state.project_dir.read().await;
     let registry = state.registry.read().await.clone();
-    Json(
-        compute_system_status(
-            &state.db,
-            &state.alarms,
-            &state.supervisor,
-            registry.as_deref(),
-            dir_guard.as_deref(),
-            state.started_at,
-            state.ide_only,
-            state.auth.has_users().await,
-        )
-        .await,
+    let boot_image = crate::boot_image::leggi_stato(&state.config_dir).await;
+    let mut status = compute_system_status(
+        &state.db,
+        &state.alarms,
+        &state.supervisor,
+        registry.as_deref(),
+        dir_guard.as_deref(),
+        state.started_at,
+        state.ide_only,
+        state.auth.has_users().await,
     )
+    .await;
+    status.boot_image = boot_image;
+    Json(status)
 }
 
 /// `POST /api/project/migrate` — re-save the active project in the current

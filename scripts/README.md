@@ -273,6 +273,7 @@ Quelle che girano su file fermi:
 | `check_templates.sh` | i template restano indietro rispetto al runtime |
 | `check_demo_templates.sh` | i due gemelli "Demo Items" divergono fra loro |
 | `check_systemd_units.sh` | trappole note nelle unit che spediamo: condizioni di livello che fanno ciclare una unit, `.path` verso unit inesistenti, `ExecStart=` relativi |
+| `check_boot_image_apply.sh` | `sws-boot-image-apply.sh` provato con un `busctl` finto: `none`, installazione con percorso assoluto o relativo, idempotenza, `--force`, senza launcher, PNG che non corrisponde allo SHA, `Set` che fallisce, nome sbagliato, `--dry-run` (T-72 F5) |
 | `check_synoptic_schema.sh` | `synoptic_schema.rs` resta indietro rispetto alle sue quattro fonti, e l'assistente IA riceve un vocabolario che non è più quello vero |
 | `check_session_start.sh` | `session_start.sh` perde lavoro o tace su una release a metà: reset su commit locali che origin non ha, tag lasciati sulla storia vecchia, **tag di versione che origin non ha** (prova anche che non li pushi da sé), avanzamenti ad albero sporco |
 | `check_documenti.sh` | una scheda delle domande aperte sparisce in uno spostamento fra file vivo e archivio, un numero viene riusato o bucato, un rimando «Qn» di STATUS/TESTING_GUIDE/codice smette di risolvere, o una scheda entra in archivio senza il timbro di verifica |

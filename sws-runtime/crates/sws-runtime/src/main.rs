@@ -1023,6 +1023,8 @@ async fn main() -> anyhow::Result<()> {
     // schermo seguirebbe una decisione vecchia.
     if let Ok(dir) = sws_web::router::active_dir(&app_state).await {
         sws_web::display_target::publish(&app_state.config_dir, &dir).await;
+        // T-72 F5: e l'immagine di boot abilitata, per lo stesso motivo.
+        sws_web::boot_image::publish(&app_state.config_dir, &dir).await;
     }
 
     // Runtime listener (synoptic, optional-auth): only started when --viewer-port is given.

@@ -96,24 +96,25 @@ AlarmHistory, DataTable, XyPlotCanvas, PythonEditor, PageTabs, BarraAvviso, symb
 Non ancora pushato: F4, F5 e F6 su `main`, serve un «fai il push» esplicito; e va tolto
 `origin/fix/lingue-marchio-auto`.
 
-## ▶ Riprendere da qui — T-72 F3 e F4 su main (2026-09-19)
+## ▶ Riprendere da qui — T-72 F5 (dispositivo) sul ramo (2026-09-19)
 
-Piano `docs/plans/2026-09-18-immagine-di-boot.md`. **F1 (`b6c55fc1`), F2 (`2ba8202e`), F3 (`ba4462d7`) e F4
-(`d9637989`) sono su `main` e pushate.** (F4 era annidata su F3: il secondo squash-merge dava conflitto, perché
-`main` aveva già il squash di F3 e non i suoi commit; risolto prendendo l'albero del ramo F4, verificato identico.)
+Piano `docs/plans/2026-09-18-immagine-di-boot.md`. **F1-F4 sono su `main` e pushate.** **F5 è sul ramo
+`feat/T-72-immagine-di-boot-f5`, non mergiata.**
 
-- **F3 — formato di progetto**: `page_layout.default_*`; le pagine nuove nascono col predefinito; la prima
-  impostazione lo riempie e lo materializza sulle pagine senza formato proprio (una boot ancora ai valori
-  di nascita conta come tale); «Applica alle pagine senza formato proprio» in Impostazioni pagine.
-- **F4 — il PNG**: nasce nel browser al salvataggio (`boot/rasterizza.ts`), anteprima + «Rigenera PNG» +
-  «Scarica PNG» nel pannello della pagina; un errore non blocca «Salva».
-- Gate verde su F4: `cargo check/clippy/fmt/test`, `pnpm build/lint/test` (604), `check_static.sh` 21/21;
-  provate dal vivo in Chromium headless su istanze di scarto (fermate).
-- **Da vedere a occhio dal maintainer**: il PNG di una pagina di boot vera (font, immagini, simboli
-  custom), e il pannello di una pagina di boot.
+- Runtime: `boot_image.rs` (richiesta in `boot-image/`), `boot_image` in `/api/system`; scheda Runtime dell'IDE.
+- Host: `sws-boot-image.{path,service}` + `sws-boot-image-apply.sh`, installati da `install-container.sh` e
+  spediti dal deploy dall'IDE (`packaging.rs`); guardia `check_boot_image_apply.sh` (22ª statica).
+- Gate verde: `cargo check/clippy/fmt/test` (664), `pnpm build/lint/test` (604), `check_static.sh` 22/22.
+- **Provata sul TC620 vero** (`tc620-a-p3-c6-07aff9`, come `user`): la catena host installa l'immagine e il
+  launcher risponde `boot.png`. **L'immagine è ancora installata su quel dispositivo**: per toglierla,
+  `ResetBackgroundImage` (comando in `docs/TEST_SETUPS.md`).
+- **Da vedere a occhio dal maintainer**: riavviare il TC620 e guardare se compare l'immagine (bande colorate
+  1280×800) al posto di quella di default.
+- **Non fatto**: il giro completo col runtime nel container (immagine non ricostruita).
 
-**Prossimo passo**: F5 — il dispositivo (`boot_image.rs`, unità systemd, script D-Bus). **Prima** va fatta la
-sonda sul WP630 (`/run/media`, versione PixsysOS, `GetBackgroundImage`): **chiedere prima di SSH** (regola 5).
+**Prossimo passo**: F6 — HOWTO (capitolo «Immagine di boot»), manuale 04, `BRAND_SWS.md`, README di
+`boot-backgrounds`, preset Pixsys 480×272/800×480/1280×768/1366×768 (dopo conferma sul catalogo), sonda del
+dispositivo (`ls -ld /run/media`, presenza di `Launcher`).
 
 ## ▶ Riprendere da qui — multilingua chiuso: F6-F9 su `main`, piano archiviato (2026-09-19)
 

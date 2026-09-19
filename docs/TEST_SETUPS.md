@@ -267,3 +267,19 @@ compreso perché dalla 2.6.5 il deploy usa `StrictHostKeyChecking=accept-new` e 
 - `docs/DEPLOY_CONTAINER_AARCH64.md` — deploy in container podman su aarch64 (Pixsys e board generiche).
 - `docs/DEPLOY_CONTAINER_X86_64.md` — lo stesso su host x86_64.
 - `scripts/README.md` — overview script `start_runtime.sh` / `start_editor.sh` / `kiosk.sh`.
+
+## Immagine di boot sul launcher Pixsys (T-72 F5, verificato il 2026-09-19)
+
+Dispositivo di prova: `user@tc620-a-p3-c6-07aff9.local` (TC620, PixsysOS 2.1.1, formattato il 19-09).
+
+- `net.pixsys.Config1.Launcher` (servito da `wp-config.service`, root): `GetBackgroundImage`,
+  `SetBackgroundImage s`, `ResetBackgroundImage`, `GetVersionText`, `SetVersionText`. Nessun polkit: lo chiama
+  `user`.
+- `/run/media` è `root:root 755` su tmpfs: **`user` non ci scrive**. Il percorso relativo al mount USB non è
+  percorribile; si passa un percorso **assoluto** (comportamento non documentato — vedi il piano).
+- Il launcher copia in `/etc/pixsys/pixsys-launcher/assets/<nome originale>` e scrive `background_image_path`
+  in `/etc/pixsys/pixsys-launcher.toml`; `GetBackgroundImage` restituisce solo il nome. `Reset` toglie il file e
+  torna a `"Default"`. Il launcher legge il TOML all'avvio: niente effetto immediato.
+- Il pannello ha display 1280×800 (`/sys/class/graphics/fb0/virtual_size`).
+- Le unit utente di `sws-boot-image` partono anche se `/data/user/sws/config` non esiste ancora, e scattano
+  alla prima creazione del trigger.
