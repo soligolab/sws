@@ -74,6 +74,25 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — T-71 riverificato dal vivo, nessun codice toccato (2026-09-19)
+
+Il maintainer ha chiesto di «finire» T-71: risultava già chiuso e archiviato il 16-09
+(`docs/archive/2026-09-16-T71-selettore-caratteri.md`), quindi ho riverificato dal vivo le tre
+fasi invece di riaprire un piano concluso:
+
+- **Fase A** (protezione dei simboli dalla traduzione): `cargo test -p sws-core traduzione` — 20
+  test verdi, incluso `un_emoji_del_catalogo_sopravvive_dentro_una_frase`.
+- **Fase C** (selettore nell'editor): `npx vitest run tests/campoTestoTradotto.test.tsx` — 11
+  test verdi, inclusi i quattro sul selettore.
+- **Fase B** (font emoji su LVGL): collaudo dal vivo vero, non solo test — runtime di scarto
+  (fuori dal repo, distrutto a fine verifica) con una copia del template `homeassistant-demo`
+  (porta già 💧 su `ha1_int_hum`), `sws-lvgl-viewer --backend sdl2 --istantanea`. Il PPM mostra la
+  goccia disegnata (profilo dei pixel per colonna coerente con un glifo, non rumore), e il log
+  conferma `'.../NotoEmoji-Regular.ttf' a 17px agganciato come fallback`. DejaVu Sans non ha
+  U+1F4A7: l'unica fonte di quell'inchiostro è il fallback della Fase B.
+
+Nessun difetto trovato, nessun codice toccato — solo questa nota.
+
 ## ▶ Riprendere da qui — F5 del multilingua mergiata, configurazione del fornitore persistita (2026-09-19)
 
 Fase F5 del piano [`docs/plans/2026-09-18-multilingua-chiusura.md`](docs/plans/2026-09-18-multilingua-chiusura.md):
