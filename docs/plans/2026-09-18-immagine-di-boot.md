@@ -8,7 +8,7 @@
 > provando. La scheda Q13 originale è in Appendice B, integrale.
 >
 > **Stato**: piano approvato il 18-09-2026. **Task T-72.** F0 e F1 fatte (F1 il 19-09-2026, sul ramo
-> `feat/T-72-immagine-di-boot-f1`); prossima F2 (editor). Il validatore con `BOOT_TYPES` (§2.1) non è in F1:
+> `b6c55fc1` su `main`); prossima F2 (editor). Il validatore con `BOOT_TYPES` (§2.1) non è in F1:
 > dipende dall'elenco dei tipi che F2 conferma tipo per tipo.
 
 ## Contesto

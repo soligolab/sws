@@ -96,10 +96,10 @@ AlarmHistory, DataTable, XyPlotCanvas, PythonEditor, PageTabs, BarraAvviso, symb
 Non ancora pushato: F4, F5 e F6 su `main`, serve un «fai il push» esplicito; e va tolto
 `origin/fix/lingue-marchio-auto`.
 
-## ▶ Riprendere da qui — T-72 F1 (immagine di boot: modello e server) sul ramo (2026-09-19)
+## ▶ Riprendere da qui — T-72 F1 (immagine di boot: modello e server) su main (2026-09-19)
 
 Piano `docs/plans/2026-09-18-immagine-di-boot.md`, task **T-72** (numero dato dal maintainer).
-**F1 è sul ramo `feat/T-72-immagine-di-boot-f1`, non mergiata**: manca la conferma del maintainer.
+**F1 è su `main` (`b6c55fc1`), non pushata.**
 
 - `SynopticPage.kind = "boot"`; `boot.rs` (CRUD, PNG con firma controllata, import, semina); pagine di
   boot in `boot/`, fuori da `synoptics/`; bundle, backup, impronta, `DESIGN_ARTIFACTS`; ogni progetto
