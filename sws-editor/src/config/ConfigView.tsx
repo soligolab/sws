@@ -10698,6 +10698,56 @@ function LanguagesTab() {
   const [urlTrad, setUrlTrad] = useState("");
   const [traducendo, setTraducendo] = useState<string | null>(null);
 
+  // ── Configurazione del fornitore, persistita nell'istanza (F5) ────────────
+  //
+  // Fino a qui fornitore/chiave/url erano stato locale del componente: si
+  // sceglieva Google e si ridigitava la chiave a ogni sessione. Al mount si
+  // rilegge quanto salvato — se l'istanza non lo espone (non-IDE, o ruolo
+  // senza permesso) resta la modalità semplice di sempre, in silenzio: non è
+  // un errore da mostrare, è la stessa condizione di `translateLanguages`.
+  const [haChiaveSalvata, setHaChiaveSalvata] = useState(false);
+  const [salvandoFornitore, setSalvandoFornitore] = useState(false);
+  const [esitoFornitore, setEsitoFornitore] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.getConfigTraduzione()
+      .then((c) => {
+        setTraduttore(c.fornitore);
+        setUrlTrad(c.url ?? "");
+        setHaChiaveSalvata(c.ha_chiave);
+      })
+      .catch(() => { /* istanza non-IDE, o ruolo senza permesso: resta il default */ });
+  }, []);
+
+  const salvaFornitore = async () => {
+    setSalvandoFornitore(true); setEsitoFornitore(null);
+    try {
+      // La chiave si manda solo se scritta ora: lasciarla vuota tiene quella
+      // già salvata, stessa convenzione di `putAiConfig`/`AssistenteSection`.
+      await api.putConfigTraduzione(traduttore, urlTrad.trim() || undefined, chiaveTrad.trim() || undefined);
+      if (chiaveTrad.trim()) { setHaChiaveSalvata(true); setChiaveTrad(""); }
+      setEsitoFornitore(t("langtab.fornitoreSalvato"));
+    } catch (e) {
+      setEsitoFornitore(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSalvandoFornitore(false);
+    }
+  };
+
+  const cancellaChiaveFornitore = async () => {
+    if (!window.confirm(t("langtab.confermaCancellaChiave", { fornitore: t(`langtab.fornitore.${traduttore}`) }))) return;
+    setSalvandoFornitore(true); setEsitoFornitore(null);
+    try {
+      await api.deleteConfigTraduzioneChiave(traduttore);
+      setHaChiaveSalvata(false);
+      setEsitoFornitore(t("langtab.chiaveCancellata"));
+    } catch (e) {
+      setEsitoFornitore(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSalvandoFornitore(false);
+    }
+  };
+
   const traduci = async (verso: string) => {
     if (!verso || verso === table.default) return;
     // Quante voci partiranno davvero: una richiesta di rete ciascuna, in fila.
@@ -10831,13 +10881,32 @@ function LanguagesTab() {
         </select>
         {CHIAVE[traduttore] !== "none" && CHIAVE[traduttore] !== "ide" && (
           <input type="password" value={chiaveTrad} onChange={(e) => setChiaveTrad(e.target.value)}
-            placeholder={t(CHIAVE[traduttore] === "required" ? "langtab.chiaveApi" : "langtab.chiaveApiFacoltativa")} autoComplete="off"
+            placeholder={haChiaveSalvata
+              ? t("langtab.chiaveSalvataPlaceholder")
+              : t(CHIAVE[traduttore] === "required" ? "langtab.chiaveApi" : "langtab.chiaveApiFacoltativa")}
+            autoComplete="off"
             style={{ background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", fontSize: 12, width: 140 }} />
         )}
         {traduttore === "libre_translate" && (
           <input type="text" value={urlTrad} onChange={(e) => setUrlTrad(e.target.value)}
             placeholder="https://libretranslate.com"
             style={{ background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", fontSize: 12, width: 190 }} />
+        )}
+        {/* F5: fornitore/url/chiave persistiti nell'istanza — una volta salvati
+            non si ridigitano a ogni sessione. Esplicito perché è una scrittura
+            fuori dal progetto, non un effetto collaterale del salvataggio
+            della tabella. */}
+        <button onClick={salvaFornitore} disabled={salvandoFornitore} style={S.btn("ghost")}
+          title={t("langtab.salvaFornitoreHint")}>
+          {t("langtab.salvaFornitore")}
+        </button>
+        {haChiaveSalvata && (
+          <button onClick={cancellaChiaveFornitore} disabled={salvandoFornitore} style={S.btn("ghost")}>
+            {t("langtab.cancellaChiave")}
+          </button>
+        )}
+        {esitoFornitore && (
+          <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>{esitoFornitore}</span>
         )}
         {traducendo && (
           <span style={{ fontSize: 12, color: "var(--brand-warning-soft, #fbbf24)" }}>

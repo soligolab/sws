@@ -56,7 +56,7 @@ TETTI = {
     "src/editor/FunctionEditor.tsx": 10,
     "src/config/credenzialiDispositivo.ts": 8,
     "src/canvas/TrendExpanded.tsx": 5,
-    "src/api/client.ts": 4,
+    "src/api/client.ts": 5,  # +1 F5: un percorso di rotta ("/api/traduzione/config"), non testo utente — vedi URL_CONFIG_TRADUZIONE nel file
     "src/canvas/TrendCanvas.tsx": 4,
     "src/components/AlarmBellPanel.tsx": 4,
     "src/components/ChatPanel.tsx": 4,

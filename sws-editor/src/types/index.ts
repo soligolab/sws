@@ -1714,6 +1714,17 @@ export interface PieSlice {
 //
 // Non porta **niente** della chiave, nemmeno mascherata: al pannello serve
 // sapere *se* è configurata, non com'è fatta.
+/** I quattro fornitori di traduzione automatica (F4/F5 del piano
+ *  multilingua-chiusura) — stringhe `snake_case`, come le serializza
+ *  `#[serde(rename_all = "snake_case")]` su `Fornitore` in `traduttore.rs`. */
+export type FornitoreTraduzione = "my_memory" | "libre_translate" | "google" | "ia";
+
+export interface ConfigTraduzione {
+  fornitore: FornitoreTraduzione;
+  url?: string;
+  ha_chiave: boolean;
+}
+
 export interface AiConfig {
   configurato: boolean;
   fornitore: string | null;

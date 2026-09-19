@@ -254,12 +254,9 @@ fn chiave_di(config_dir: &Path, f: Fornitore) -> Option<String> {
         }
     }
     for p in percorsi_chiave_di(config_dir, f) {
-        if let Ok(testo) = std::fs::read_to_string(&p) {
-            let k = testo.trim().to_string();
-            if !k.is_empty() {
-                tracing::info!(fornitore = f.nome(), path = %p.display(), "chiave caricata");
-                return Some(k);
-            }
+        if let Some(k) = crate::segreti::leggi_chiave(&p) {
+            tracing::info!(fornitore = f.nome(), path = %p.display(), "chiave caricata");
+            return Some(k);
         }
     }
     None
@@ -280,14 +277,7 @@ pub fn ha_chiave(config_dir: &Path, f: Fornitore) -> bool {
 /// permessi POSIX il file si scrive comunque: meglio senza permessi che senza
 /// chiave.
 pub fn salva_chiave(config_dir: &Path, f: Fornitore, chiave: &str) -> std::io::Result<()> {
-    std::fs::create_dir_all(config_dir)?;
-    let p = config_dir.join(f.file_chiave());
-    std::fs::write(&p, chiave.trim())?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o600))?;
-    }
+    let p = crate::segreti::scrivi_chiave(config_dir, f.file_chiave(), chiave)?;
     tracing::info!(fornitore = f.nome(), path = %p.display(), "chiave salvata");
     Ok(())
 }
@@ -295,15 +285,11 @@ pub fn salva_chiave(config_dir: &Path, f: Fornitore, chiave: &str) -> std::io::R
 /// Cancella la chiave di un fornitore. `Ok(false)` = non c'era, che non è un
 /// errore: cancellare due volte deve poter succedere senza spaventare nessuno.
 pub fn cancella_chiave(config_dir: &Path, f: Fornitore) -> std::io::Result<bool> {
-    let p = config_dir.join(f.file_chiave());
-    match std::fs::remove_file(&p) {
-        Ok(()) => {
-            tracing::info!(fornitore = f.nome(), "chiave cancellata");
-            Ok(true)
-        }
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(false),
-        Err(e) => Err(e),
+    let cera = crate::segreti::cancella_chiave(config_dir, f.file_chiave())?;
+    if cera {
+        tracing::info!(fornitore = f.nome(), "chiave cancellata");
     }
+    Ok(cera)
 }
 
 /// Con chi parlare. `None` = chat spenta, che è una condizione normale e non un

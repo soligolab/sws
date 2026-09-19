@@ -522,6 +522,15 @@ pub fn build(
                 .put(crate::ai::config_api::put_ai_config)
                 .delete(crate::ai::config_api::delete_ai_config),
         )
+        // Stesso principio, per il fornitore di traduzione automatica (F5 del
+        // piano multilingua-chiusura, 18/19-09-2026): il gate è dentro
+        // `traduttore::solo_ide`, non qui.
+        .route(
+            "/api/traduzione/config",
+            get(crate::traduttore::get_config_traduzione)
+                .put(crate::traduttore::put_config_traduzione)
+                .delete(crate::traduttore::delete_config_traduzione),
+        )
         .route("/api/system/tls", get(crate::system::get_tls_status))
         .route(
             "/api/system/tls/generate",

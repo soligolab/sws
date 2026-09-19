@@ -44,6 +44,7 @@ import type {
   TagDef,
   TemplateEntry,
   AiConfig,
+  ConfigTraduzione,
 } from "@/types";
 
 // Runtime URL resolution order (ARCH-002):
@@ -558,6 +559,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
   return res.json() as Promise<T>;
 }
+
+// Un solo letterale invece di uno per chiamata (GET/PUT/DELETE): non è
+// disciplina stilistica, è `check_i18n_ui.sh` — lo scanner non distingue un
+// percorso di rotta da un testo utente, e tre occorrenze contano come tre
+// stringhe «fuori dal catalogo» invece di una (vedi il tetto dichiarato per
+// questo file nella guardia).
+const URL_CONFIG_TRADUZIONE = "/api/traduzione/config";
 
 export const api = {
   // Auth
@@ -1199,6 +1207,24 @@ export const api = {
     }),
   deleteAiKey: (fornitore: string) =>
     request<{ ok: boolean; cera: boolean }>("/api/ai/config", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fornitore }),
+    }),
+
+  // ── Fornitore di traduzione automatica (F5) ───────────────────────────────
+  // Stesso principio dell'assistente IA sopra: solo istanza IDE, 404 altrove.
+  getConfigTraduzione: () => request<ConfigTraduzione>(URL_CONFIG_TRADUZIONE),
+  putConfigTraduzione: (fornitore: string, url?: string, chiave?: string) =>
+    request<{ ok: boolean }>(URL_CONFIG_TRADUZIONE, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      // `chiave` si omette per lasciare quella salvata — stessa convenzione
+      // di `putAiConfig`.
+      body: JSON.stringify({ fornitore, url, chiave }),
+    }),
+  deleteConfigTraduzioneChiave: (fornitore: string) =>
+    request<void>(URL_CONFIG_TRADUZIONE, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ fornitore }),

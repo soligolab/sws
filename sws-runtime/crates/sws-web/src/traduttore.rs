@@ -91,7 +91,8 @@ pub struct ConfigTraduzione {
     /// Per LibreTranslate: l'istanza da usare. Assente = quella pubblica.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
-    /// Per LibreTranslate: chiave, se l'istanza la vuole.
+    /// Per Google e LibreTranslate. Mai su disco tramite `salva()`: la chiave
+    /// vive in un file a parte (F5, `nome_file_chiave`), come per l'IA.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub chiave: Option<String>,
 }
@@ -105,6 +106,82 @@ impl Default for ConfigTraduzione {
             url: None,
             chiave: None,
         }
+    }
+}
+
+/// Il nome del file che porta la chiave di un fornitore, `None` per chi non
+/// ne ha uno persistito da noi: MyMemory non ne vuole, IA riusa quella già
+/// salvata per l'assistente (`ai::client`) — una seconda copia sarebbe una
+/// fonte di verità in più da tenere allineata, non un vantaggio.
+fn nome_file_chiave(f: Fornitore) -> Option<&'static str> {
+    match f {
+        Fornitore::Google => Some("google_translate.key"),
+        Fornitore::LibreTranslate => Some("libretranslate.key"),
+        Fornitore::MyMemory | Fornitore::Ia => None,
+    }
+}
+
+/// La chiave persistita per un fornitore, se ne ha una e se l'ha scritta (F5).
+fn chiave_persistita(config_dir: &std::path::Path, f: Fornitore) -> Option<String> {
+    let nome = nome_file_chiave(f)?;
+    crate::segreti::leggi_chiave(&config_dir.join(nome))
+}
+
+/// La configurazione da usare per una traduzione, decisa con la precedenza di
+/// F5: **esplicita** (arrivata con la richiesta) > **persistita** (istanza) >
+/// **default** (MyMemory, D3). Pura e senza `AppState` apposta — è la regola
+/// che deve restare vera a prescindere da come la si chiama, e si prova senza
+/// un server acceso.
+///
+/// Anche quando arriva esplicita ma senza chiave si prova comunque il file:
+/// così l'IDE può mandare solo fornitore+url e lasciare che sia il server a
+/// completare con la chiave salvata, invece di doverla rileggere e rispedire
+/// lui stesso a ogni traduzione.
+fn risolvi_config(
+    config_dir: &std::path::Path,
+    esplicita: Option<ConfigTraduzione>,
+) -> ConfigTraduzione {
+    let mut cfg = esplicita
+        .or_else(|| ConfigTraduzione::carica(config_dir))
+        .unwrap_or_default();
+    if cfg.chiave.is_none() {
+        cfg.chiave = chiave_persistita(config_dir, cfg.fornitore);
+    }
+    cfg
+}
+
+impl ConfigTraduzione {
+    fn percorso_impostazioni(config_dir: &std::path::Path) -> std::path::PathBuf {
+        config_dir.join("traduzione.yaml")
+    }
+
+    /// Le impostazioni persistite — fornitore e url, **mai la chiave**, che
+    /// vive nel suo file a parte (`nome_file_chiave`). `None` se il file non
+    /// c'è o è malformato: chi chiama ripiega sul default (F5, come
+    /// `ai::client::Impostazioni::carica`, stesso principio).
+    fn carica(config_dir: &std::path::Path) -> Option<Self> {
+        let testo = std::fs::read_to_string(Self::percorso_impostazioni(config_dir)).ok()?;
+        match serde_yaml::from_str::<Self>(&testo) {
+            Ok(c) => Some(Self { chiave: None, ..c }),
+            Err(e) => {
+                tracing::warn!("traduzione.yaml malformato, ignorato: {e:#}");
+                None
+            }
+        }
+    }
+
+    /// Scrive fornitore e url su disco. La chiave, anche se `self.chiave` la
+    /// porta, non viene mai scritta qui — va a `crate::segreti::scrivi_chiave`
+    /// dal chiamante (l'endpoint `PUT`), che sa in quale file.
+    fn salva(&self, config_dir: &std::path::Path) -> std::io::Result<()> {
+        std::fs::create_dir_all(config_dir)?;
+        let da_scrivere = Self {
+            chiave: None,
+            ..self.clone()
+        };
+        let testo = serde_yaml::to_string(&da_scrivere)
+            .map_err(|e| std::io::Error::other(format!("{e}")))?;
+        std::fs::write(Self::percorso_impostazioni(config_dir), testo)
     }
 }
 
@@ -331,9 +408,9 @@ async fn libretranslate(
 
 // ── L'endpoint ──────────────────────────────────────────────────────────────
 
-use crate::router::AppState;
+use crate::router::{AppState, AuthUser, MASKED_PASSWORD};
 use axum::{
-    extract::State,
+    extract::{Extension, State},
     http::StatusCode,
     response::{IntoResponse, Response},
     Json,
@@ -437,7 +514,7 @@ pub async fn traduci_progetto(
             .into_response();
     }
 
-    let cfg = req.config.clone().unwrap_or_default();
+    let cfg = risolvi_config(&s.config_dir, req.config.clone());
     let lavoro = da_tradurre(&progetto.languages, &da, &req.a, req.sovrascrivi);
     let saltate = progetto.languages.entries.len() - lavoro.len();
 
@@ -570,4 +647,285 @@ pub async fn traduci_progetto(
         problemi,
     })
     .into_response()
+}
+
+// ── Configurazione del fornitore, persistita nell'istanza (F5) ──────────────
+//
+// Stesso schema di `ai/config_api.rs`: le impostazioni (fornitore, url) in un
+// file YAML dell'istanza, la chiave — quando il fornitore ne vuole una — in un
+// file a parte con permessi 0600. La `GET` non restituisce mai la chiave,
+// nemmeno mascherata: solo `ha_chiave`, come per l'assistente IA.
+
+#[derive(Serialize)]
+struct ConfigTraduzioneEsposta {
+    fornitore: Fornitore,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    url: Option<String>,
+    ha_chiave: bool,
+}
+
+/// `GET /api/traduzione/config` — Admin, solo IDE.
+pub async fn get_config_traduzione(State(s): State<AppState>) -> Response {
+    if let Err(r) = solo_ide(&s) {
+        return r;
+    }
+    let cfg = ConfigTraduzione::carica(&s.config_dir).unwrap_or_default();
+    let ha_chiave = chiave_persistita(&s.config_dir, cfg.fornitore).is_some();
+    Json(ConfigTraduzioneEsposta {
+        fornitore: cfg.fornitore,
+        url: cfg.url,
+        ha_chiave,
+    })
+    .into_response()
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
+pub struct ConfigTraduzioneBody {
+    pub fornitore: Fornitore,
+    #[serde(default)]
+    pub url: Option<String>,
+    #[serde(default)]
+    pub chiave: Option<String>,
+}
+
+/// `PUT /api/traduzione/config` — Admin, solo IDE. Salva sempre
+/// fornitore+url; la chiave solo se ne arriva una nuova e diversa dalla
+/// sentinella `MASKED_PASSWORD` — la stessa convenzione di `/api/ai/config`,
+/// «lascia vuoto/mascherato per non cambiarla».
+pub async fn put_config_traduzione(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Json(body): Json<ConfigTraduzioneBody>,
+) -> Response {
+    if let Err(r) = solo_ide(&s) {
+        return r;
+    }
+
+    let nuova = body
+        .chiave
+        .as_deref()
+        .map(str::trim)
+        .filter(|k| !k.is_empty() && *k != MASKED_PASSWORD);
+    if let Some(k) = nuova {
+        let Some(nome) = nome_file_chiave(body.fornitore) else {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({
+                    "errore": "questo fornitore non prende una chiave da qui \
+                               (MyMemory non ne vuole, IA riusa quella dell'assistente)",
+                })),
+            )
+                .into_response();
+        };
+        if let Err(e) = crate::segreti::scrivi_chiave(&s.config_dir, nome, k) {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({
+                    "errore": format!("la chiave non si è potuta scrivere: {e}"),
+                })),
+            )
+                .into_response();
+        }
+        s.audit.log(
+            "traduzione.key_set",
+            Some(user.username.clone()),
+            serde_json::json!({ "fornitore": body.fornitore }),
+        );
+    }
+
+    let cfg = ConfigTraduzione {
+        fornitore: body.fornitore,
+        url: body.url.clone(),
+        chiave: None,
+    };
+    if let Err(e) = cfg.salva(&s.config_dir) {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({
+                "errore": format!("le impostazioni non si sono potute scrivere: {e}"),
+            })),
+        )
+            .into_response();
+    }
+    s.audit.log(
+        "traduzione.config_changed",
+        Some(user.username),
+        serde_json::json!({ "fornitore": body.fornitore, "url": body.url }),
+    );
+
+    Json(serde_json::json!({ "ok": true })).into_response()
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ConfigTraduzioneDeleteBody {
+    pub fornitore: Fornitore,
+}
+
+/// `DELETE /api/traduzione/config` — Admin, solo IDE. Cancella solo la
+/// chiave del fornitore indicato; le impostazioni (fornitore/url persistiti)
+/// restano — stesso principio di `/api/ai/config`.
+pub async fn delete_config_traduzione(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Json(body): Json<ConfigTraduzioneDeleteBody>,
+) -> Response {
+    if let Err(r) = solo_ide(&s) {
+        return r;
+    }
+    let Some(nome) = nome_file_chiave(body.fornitore) else {
+        // Niente chiave da cancellare per questo fornitore: non è un errore,
+        // è lo stato in cui è sempre stato.
+        return StatusCode::NO_CONTENT.into_response();
+    };
+    match crate::segreti::cancella_chiave(&s.config_dir, nome) {
+        Ok(cera) => {
+            if cera {
+                s.audit.log(
+                    "traduzione.key_removed",
+                    Some(user.username),
+                    serde_json::json!({ "fornitore": body.fornitore }),
+                );
+            }
+            StatusCode::NO_CONTENT.into_response()
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({ "errore": format!("cancellazione fallita: {e}") })),
+        )
+            .into_response(),
+    }
+}
+
+#[cfg(test)]
+mod tests_config_persistita {
+    use super::*;
+
+    #[test]
+    fn la_configurazione_persistita_si_rilegge() {
+        let dir = tempfile::tempdir().unwrap();
+        let cfg = ConfigTraduzione {
+            fornitore: Fornitore::Google,
+            url: None,
+            chiave: None,
+        };
+        cfg.salva(dir.path()).unwrap();
+        let riletta = ConfigTraduzione::carica(dir.path()).unwrap();
+        assert_eq!(riletta.fornitore, Fornitore::Google);
+    }
+
+    #[test]
+    fn la_chiave_non_finisce_in_traduzione_yaml() {
+        let dir = tempfile::tempdir().unwrap();
+        let cfg = ConfigTraduzione {
+            fornitore: Fornitore::LibreTranslate,
+            url: Some("http://localhost:5000".into()),
+            // Anche se qui c'è una chiave, `salva` non deve scriverla: va nel
+            // suo file a parte, mai in `traduzione.yaml`.
+            chiave: Some("una-chiave-segretissima".into()),
+        };
+        cfg.salva(dir.path()).unwrap();
+        let testo = std::fs::read_to_string(dir.path().join("traduzione.yaml")).unwrap();
+        assert!(
+            !testo.contains("una-chiave-segretissima"),
+            "la chiave è finita nel file delle impostazioni: {testo}"
+        );
+        assert!(
+            !testo.contains("chiave"),
+            "il campo chiave non doveva comparire affatto: {testo}"
+        );
+    }
+
+    #[test]
+    fn una_configurazione_assente_o_rotta_ripiega_su_none() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(ConfigTraduzione::carica(dir.path()).is_none());
+
+        std::fs::write(dir.path().join("traduzione.yaml"), "{{{non è yaml").unwrap();
+        assert!(ConfigTraduzione::carica(dir.path()).is_none());
+    }
+
+    #[test]
+    fn la_richiesta_esplicita_vince_sul_file() {
+        let dir = tempfile::tempdir().unwrap();
+        // Persistito: Google.
+        ConfigTraduzione {
+            fornitore: Fornitore::Google,
+            url: None,
+            chiave: None,
+        }
+        .salva(dir.path())
+        .unwrap();
+
+        // Esplicito nella richiesta: LibreTranslate — deve vincere lui.
+        let esplicita = ConfigTraduzione {
+            fornitore: Fornitore::LibreTranslate,
+            url: Some("http://mio-server:5000".into()),
+            chiave: None,
+        };
+        let risolta = risolvi_config(dir.path(), Some(esplicita));
+        assert_eq!(risolta.fornitore, Fornitore::LibreTranslate);
+    }
+
+    #[test]
+    fn senza_richiesta_esplicita_si_usa_il_persistito() {
+        let dir = tempfile::tempdir().unwrap();
+        ConfigTraduzione {
+            fornitore: Fornitore::LibreTranslate,
+            url: Some("http://mio-server:5000".into()),
+            chiave: None,
+        }
+        .salva(dir.path())
+        .unwrap();
+
+        let risolta = risolvi_config(dir.path(), None);
+        assert_eq!(risolta.fornitore, Fornitore::LibreTranslate);
+        assert_eq!(risolta.url.as_deref(), Some("http://mio-server:5000"));
+    }
+
+    #[test]
+    fn senza_nulla_si_ripiega_sul_default_mymemory() {
+        let dir = tempfile::tempdir().unwrap();
+        let risolta = risolvi_config(dir.path(), None);
+        assert_eq!(risolta.fornitore, Fornitore::MyMemory);
+    }
+
+    #[test]
+    fn una_richiesta_esplicita_senza_chiave_la_completa_dal_file() {
+        let dir = tempfile::tempdir().unwrap();
+        crate::segreti::scrivi_chiave(dir.path(), "google_translate.key", "chiave-salvata")
+            .unwrap();
+
+        let esplicita = ConfigTraduzione {
+            fornitore: Fornitore::Google,
+            url: None,
+            chiave: None,
+        };
+        let risolta = risolvi_config(dir.path(), Some(esplicita));
+        assert_eq!(risolta.chiave.as_deref(), Some("chiave-salvata"));
+    }
+
+    #[test]
+    fn una_richiesta_esplicita_con_chiave_non_va_a_cercarla_sul_file() {
+        let dir = tempfile::tempdir().unwrap();
+        crate::segreti::scrivi_chiave(dir.path(), "google_translate.key", "quella-sul-disco")
+            .unwrap();
+
+        let esplicita = ConfigTraduzione {
+            fornitore: Fornitore::Google,
+            url: None,
+            chiave: Some("quella-della-richiesta".into()),
+        };
+        let risolta = risolvi_config(dir.path(), Some(esplicita));
+        assert_eq!(risolta.chiave.as_deref(), Some("quella-della-richiesta"));
+    }
+
+    #[test]
+    fn mymemory_e_ia_non_hanno_un_file_chiave() {
+        assert_eq!(nome_file_chiave(Fornitore::MyMemory), None);
+        assert_eq!(nome_file_chiave(Fornitore::Ia), None);
+        assert!(nome_file_chiave(Fornitore::Google).is_some());
+        assert!(nome_file_chiave(Fornitore::LibreTranslate).is_some());
+    }
 }
