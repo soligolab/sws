@@ -8,6 +8,7 @@ vi.mock("@/api/client", () => ({
     saveSynoptic: vi.fn(async () => {}),
     deleteSynoptic: vi.fn(async () => {}),
     saveBootPage: vi.fn(async () => {}),
+    putBootPng: vi.fn(async () => {}),
     deleteBootPage: vi.fn(async () => {}),
     updateFunctions: vi.fn(async () => {}),
     updateCustomSymbols: vi.fn(async () => {}),
@@ -17,7 +18,14 @@ vi.mock("@/api/client", () => ({
   getAuthToken: () => null,
 }));
 
+// Il canvas vero non gira in jsdom: qui si prova cosa fa lo store col PNG, non come lo si disegna.
+vi.mock("@/boot/rasterizza", () => ({
+  rasterizzaPagina: vi.fn(async () => new Blob([new Uint8Array(1024)], { type: "image/png" })),
+  MAX_PNG_BYTES: 5 * 1024 * 1024,
+}));
+
 import { api } from "@/api/client";
+import { rasterizzaPagina } from "@/boot/rasterizza";
 import { useAppStore } from "@/store";
 import type { SynopticPage } from "@/types";
 
@@ -29,6 +37,7 @@ function reset(pages: SynopticPage[], current: string) {
   useAppStore.setState({
     project: null, pages, currentPageId: current, past: [], future: [],
     pagesRev: 0, savedPagesRev: 0, persistedPageNames: [], pendingSections: {}, authRole: "Admin",
+    bootPng: {}, bootPngFirme: {},
   });
 }
 
@@ -133,5 +142,41 @@ describe("salvare", () => {
     expect(api.deleteBootPage).toHaveBeenCalledWith("Splash");
     expect(api.deleteSynoptic).toHaveBeenCalledWith("Vecchia");
     expect(api.deleteSynoptic).not.toHaveBeenCalledWith("Home");
+  });
+
+  it("il PNG delle pagine di boot si rifà al salvataggio, e una sola volta se il disegno non cambia", async () => {
+    reset([sin("a", "Home"), boot("b", "Splash")], "a");
+    await stato().saveAll();
+    expect(rasterizzaPagina).toHaveBeenCalledTimes(1);
+    expect(api.putBootPng).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(api.putBootPng).mock.calls[0][0]).toBe("Splash");
+    expect(stato().bootPng.b.ok).toBe(true);
+    await stato().saveAll();
+    expect(rasterizzaPagina).toHaveBeenCalledTimes(1);
+  });
+
+  it("se la pagina cambia, il PNG si rifà", async () => {
+    reset([sin("a", "Home"), boot("b", "Splash")], "a");
+    await stato().saveAll();
+    stato().updatePageProps("b", { background: "#123456" });
+    await stato().saveAll();
+    expect(rasterizzaPagina).toHaveBeenCalledTimes(2);
+  });
+
+  it("un PNG che non si riesce a fare non fa fallire il salvataggio: le pagine sono già su disco", async () => {
+    reset([sin("a", "Home"), boot("b", "Splash")], "a");
+    vi.mocked(rasterizzaPagina).mockRejectedValueOnce(new Error("canvas negato"));
+    await stato().saveAll();
+    expect(stato().saveStatus).toBe("ok");
+    expect(stato().bootPng.b).toMatchObject({ ok: false, messaggio: "canvas negato" });
+    expect(api.putBootPng).not.toHaveBeenCalled();
+  });
+
+  it("un PNG oltre il tetto non si carica", async () => {
+    reset([sin("a", "Home"), boot("b", "Splash")], "a");
+    vi.mocked(rasterizzaPagina).mockResolvedValueOnce(new Blob([new Uint8Array(5 * 1024 * 1024 + 1)]));
+    await stato().saveAll();
+    expect(api.putBootPng).not.toHaveBeenCalled();
+    expect(stato().bootPng.b.ok).toBe(false);
   });
 });

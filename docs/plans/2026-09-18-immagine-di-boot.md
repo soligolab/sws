@@ -8,7 +8,7 @@
 > provando. La scheda Q13 originale è in Appendice B, integrale.
 >
 > **Stato**: piano approvato il 18-09-2026. **Task T-72.** F0, F1 e F2 fatte (F1 `b6c55fc1`; F2 il
-> 19-09-2026); F3 fatta; prossima F4 (rasterizzazione). Il validatore con `BOOT_TYPES` (§2.1) non è in F1:
+> 19-09-2026); F3 e F4 fatte; prossima F5 (dispositivo). Il validatore con `BOOT_TYPES` (§2.1) non è in F1:
 > dipende dall'elenco dei tipi che F2 conferma tipo per tipo.
 
 ## Contesto
@@ -314,6 +314,37 @@ proprio» — caso limite dichiarato: una boot lasciata di proposito a 1280×800
 prima volta. **(2)** Il predefinito va nello store subito e sul server dopo, così una seconda modifica
 prima della risposta non rifà la «prima impostazione». Provata dal vivo: 1024×600 su Page 1 → la pagina di
 boot le eredita, `default_*` in `project.yaml`, nota «predefinito di progetto» nel pannello.
+
+### F4 — nota di esecuzione (19-09-2026)
+
+`boot/rasterizza.ts`: monta `SvgCanvas` in un contenitore fuori schermo, clona l'`<svg>`, incorpora le immagini,
+sostituisce le variabili, disegna in un `<canvas>` e `toBlob`. Scarti dal piano: **(1)** le `var(--brand-*)`
+prendono il valore calcolato dall'app, altrimenti il **fallback scritto accanto** (non il tema chiaro: non c'è un
+modo economico di calcolarlo, e il fallback è stabile); **(2)** lo sfondo della pagina si dipinge sul `<canvas>`
+sotto l'SVG, perché un `background` sull'`<svg>` radice non è affidabile fra browser; **(3)** senza un
+`font-family` esplicito il testo usciva in serif (un SVG staccato non eredita il font dell'app): il nodo radice
+porta uno stack sans. Il PNG si rifà solo se la pagina è cambiata dall'ultimo (firma della pagina nello store);
+c'è un tetto di 15 s sul caricamento dell'SVG, o «Salva» resterebbe in sospeso. Provata dal vivo in Chromium
+headless su un'istanza di scarto: rettangolo con bordo, testo, immagine di progetto e simbolo tutti nel PNG
+1280×800; «Salva» dopo aver cambiato lo sfondo rigenera il PNG.
+
+### F5 — la sonda sul dispositivo (19-09-2026, `tc620-a-p3-c6-07aff9`, PixsysOS 2.1.1, appena formattato)
+
+Fatta come `user` (l'utente con cui girano il runtime e lo script host), solo con `busctl` e letture, più una
+prova di scrittura **reversibile** (`SetBackgroundImage` poi `ResetBackgroundImage`). Risultati:
+
+| Domanda | Esito |
+|---|---|
+| `user` può scrivere sotto `/run/media`? | **No.** `drwxr-xr-x root root`, tmpfs vuota. La via «copia sotto `/run/media` e passa il path relativo» **non è percorribile** senza root: resta il **ripiego sul path assoluto**, come deciso il 18-09. |
+| `user` può invocare `SetBackgroundImage` con un path assoluto? | **Sì**, nessun polkit, esito 0. `GetBackgroundImage` restituisce **solo il nome del file** (`sws-probe.png`). |
+| Dove finisce il file? | Copiato in `/etc/pixsys/pixsys-launcher/assets/<nome originale>`; `pixsys-launcher.toml` → `[customization] background_image_path = "/etc/pixsys/pixsys-launcher/assets/<nome>"`. **Il nome è quello del file sorgente**: per avere `boot.png` va copiato con quel nome. |
+| `ResetBackgroundImage`? | Funziona, riporta `"Default"` e **toglie** il file da `assets/`. Il dispositivo è tornato com'era. |
+| Chi serve `net.pixsys.Config1`? | **`wp-config.service`** (root), non `pixsys-launcher`. Il launcher gira a `sysinit`, non compare fra le unità attive. Dal bus si vedono `Launcher`, `USBDrives`, `WebBrowser/MainApp`, `Display`, `FactoryReset`. |
+| Effetto immediato? | No: il launcher legge il TOML all'avvio (già noto). Non provato al reboot. |
+
+Conseguenza per lo script (F5): niente `mkdir /run/media/…` — si copia il PNG in una cartella scrivibile da `user`
+(`<config_dir>/boot-image/boot.png`, come nel piano §2.6) e si passa **il path assoluto**, con `percorso=assoluto`
+nello stato. Il ripiego diventa il caso normale, non l'eccezione: la sonda relativa si può togliere.
 
 ## 4. Dettagli per chi implementa
 

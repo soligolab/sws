@@ -753,6 +753,27 @@ export const api = {
       body: JSON.stringify(page),
     }),
 
+  /** Il PNG di una pagina di boot, come Blob (l'anteprima e «Scarica PNG»). */
+  getBootPng: async (name: string): Promise<Blob | null> => {
+    const path = `/api/boot-pages/${encodeURIComponent(name)}/png`;
+    const res = await fetch(`${getBaseUrl()}${path}`, { headers: authHeaders() });
+    if (res.status === 401) throw new AuthError();
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`API ${path}: ${res.status} ${res.statusText}`);
+    return res.blob();
+  },
+
+  putBootPng: async (name: string, png: Blob): Promise<void> => {
+    const path = `/api/boot-pages/${encodeURIComponent(name)}/png`;
+    const res = await fetch(`${getBaseUrl()}${path}`, { method: "PUT", headers: authHeaders(), body: png });
+    if (res.status === 401) throw new AuthError();
+    if (!res.ok) {
+      let body = "";
+      try { body = await res.text(); } catch { /* ignore */ }
+      throw new Error(`API ${path}: ${res.status} ${res.statusText}${body ? ` — ${body}` : ""}`);
+    }
+  },
+
   deleteBootPage: async (name: string) => {
     try {
       await request<void>(`/api/boot-pages/${encodeURIComponent(name)}`, { method: "DELETE" });

@@ -321,6 +321,13 @@ interface AppState {
    *  then — a name that dropped out of the current `pages` array but is still
    *  in here means its file on disk needs to be removed, not just left orphaned. */
   persistedPageNames: string[];
+  /** Esito dell'ultima generazione del PNG di ogni pagina di boot (per id). Non
+   *  fa parte del progetto: dice all'anteprima se il PNG è aggiornato (T-72 F4). */
+  bootPng: Record<string, { ok: boolean; messaggio?: string; quando: number; byte?: number }>;
+  /** La pagina (serializzata) da cui è stato generato l'ultimo PNG: se non è
+   *  cambiata, al salvataggio non si rigenera. */
+  bootPngFirme: Record<string, string>;
+  setBootPng: (id: string, esito: { ok: boolean; messaggio?: string; byte?: number }, firma?: string) => void;
   /** Sections with an unsaved draft, keyed by owner → flush function. */
   pendingSections: Record<string, () => Promise<void>>;
   /** Register (or, with `save === null`, deregister) a section holding a draft. */
@@ -718,6 +725,8 @@ export const useAppStore = create<AppState>((set, get) => {
     pagesRev: 0,
     savedPagesRev: 0,
     persistedPageNames: [],
+    bootPng: {},
+    bootPngFirme: {},
     pendingSections: {},
 
     setAuth: (token, username, role, mustChangePassword = false, expiresAtMs) => {
@@ -955,6 +964,8 @@ export const useAppStore = create<AppState>((set, get) => {
         // later tell a deleted/renamed page apart from one that was simply
         // never loaded in the first place.
         persistedPageNames: pages.map(chiavePagina),
+        bootPng: {},
+        bootPngFirme: {},
       });
     },
 
@@ -1077,6 +1088,12 @@ export const useAppStore = create<AppState>((set, get) => {
       pushHistory("history.pageProps");
       set((s) => ({ pages: s.pages.map((p) => (p.id === id ? { ...p, ...patch } : p)) }));
     },
+
+    setBootPng: (id, esito, firma) =>
+      set((s) => ({
+        bootPng: { ...s.bootPng, [id]: { ...esito, quando: Date.now() } },
+        bootPngFirme: firma === undefined ? s.bootPngFirme : { ...s.bootPngFirme, [id]: firma },
+      })),
 
     updatePagesProps: (patches) => {
       if (patches.length === 0) return;
@@ -2240,6 +2257,29 @@ export const useAppStore = create<AppState>((set, get) => {
       // "modified" is the only honest answer; a retry re-PUTs everything
       // (the endpoints are idempotent).
       set({ persistedPageNames: state.pages.map(chiavePagina) });
+
+      // T-72 F4 — il PNG delle pagine di boot cambiate. Un errore qui **non**
+      // blocca il salvataggio (le pagine sono già su disco): resta nello stato,
+      // e l'anteprima dice «PNG non aggiornato».
+      const bootDaFotografare = state.pages.filter(
+        (p) => eBoot(p) && get().bootPngFirme[p.id] !== JSON.stringify(p));
+      if (bootDaFotografare.length > 0) {
+        try {
+          const { rasterizzaPagina, MAX_PNG_BYTES } = await import("@/boot/rasterizza");
+          for (const p of bootDaFotografare) {
+            try {
+              const png = await rasterizzaPagina(p, state.customSymbols ?? []);
+              if (png.size > MAX_PNG_BYTES) throw new Error(i18n.t("boot.pngTooLarge", { kb: Math.round(png.size / 1024) }));
+              await api.putBootPng(p.name, png);
+              get().setBootPng(p.id, { ok: true, byte: png.size }, JSON.stringify(p));
+            } catch (e) {
+              get().setBootPng(p.id, { ok: false, messaggio: errText(e) });
+            }
+          }
+        } catch (e) {
+          for (const p of bootDaFotografare) get().setBootPng(p.id, { ok: false, messaggio: errText(e) });
+        }
+      }
       set({ saveStatus: "ok" });
       get().markPagesSaved();
       saveOkTimer = window.setTimeout(() => {

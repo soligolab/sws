@@ -2008,5 +2008,16 @@
     "unknownError": "errore sconosciuto",
     "uploadedAs": "✓ Caricato come \"{{name}}\"",
     "fillsEmptyCells": "Riempie le caselle vuote della colonna {{lang}}. Le traduzioni scritte a mano non si toccano."
+  },
+  "boot": {
+    "pngTooLarge": "PNG troppo grande ({{kb}} KB, max 5120 KB): non è stato caricato",
+    "previewTitle": "Anteprima dell'immagine di boot",
+    "previewAlt": "Anteprima PNG dell'immagine di boot",
+    "noPng": "PNG non ancora generato: si crea al salvataggio, o con «Rigenera PNG».",
+    "pngNotUpdated": "PNG non aggiornato: {{err}}",
+    "regenerate": "Rigenera PNG",
+    "regenerateHint": "Rifà il PNG dal disegno di adesso e lo carica sul progetto (la pagina deve essere già salvata).",
+    "generating": "Genero…",
+    "download": "Scarica PNG"
   }
 }

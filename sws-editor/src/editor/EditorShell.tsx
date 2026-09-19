@@ -40,6 +40,7 @@ import { eBoot, paginePerNavigazione } from "@/boot/tipi";
 import { aggiornaPagina, applicaPredefinito, salvaLayout } from "@/formatoProgettoAzioni";
 import { seguePredefinito } from "@/formatoProgetto";
 import { impostaBootAbilitata } from "@/boot/abilitata";
+import { AnteprimaPng } from "@/boot/AnteprimaPng";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -1796,6 +1797,7 @@ function PageProps({
       </div>
       )}
       {boot && pageId && <BootEnabledToggle pageId={pageId} />}
+      {boot && pageId && <AnteprimaPng pageId={pageId} />}
       <SottoTitolo chiave="pageSizeSection" />
       {sizeMode === "fixed" && (
         <>

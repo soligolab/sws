@@ -2008,5 +2008,16 @@
     "unknownError": "unknown error",
     "uploadedAs": "✓ Uploaded as \"{{name}}\"",
     "fillsEmptyCells": "Fills the empty cells of the {{lang}} column. Hand-written translations are left untouched."
+  },
+  "boot": {
+    "pngTooLarge": "PNG too large ({{kb}} KB, max 5120 KB): it was not uploaded",
+    "previewTitle": "Boot image preview",
+    "previewAlt": "PNG preview of the boot image",
+    "noPng": "PNG not generated yet: it is created on save, or with «Regenerate PNG».",
+    "pngNotUpdated": "PNG not updated: {{err}}",
+    "regenerate": "Regenerate PNG",
+    "regenerateHint": "Rebuilds the PNG from the current drawing and uploads it to the project (the page must already be saved).",
+    "generating": "Generating…",
+    "download": "Download PNG"
   }
 }

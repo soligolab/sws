@@ -12,6 +12,13 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Added
+- **T-72 F4 — il PNG dell'immagine di boot nasce nel browser, al salvataggio.** Ogni pagina di boot
+  cambiata viene disegnata alle sue misure (`SvgCanvas` in modalità viewer), le immagini di progetto sono
+  incorporate come data URI, le `var(--brand-*)` sostituite con valori concreti, e il PNG va in
+  `boot/<nome>.png`. Un errore qui **non** blocca «Salva» (le pagine sono già su disco): il pannello dice
+  «PNG non aggiornato». Il pannello della pagina mostra l'anteprima del PNG che c'è sul server, con
+  «Rigenera PNG» (subito, senza «Salva») e «Scarica PNG»; sopra 5 MiB non si carica. I font sono quelli
+  del browser che esporta.
 - **T-72 F3 — la prima pagina modificata definisce lo stile delle altre.** `page_layout` guadagna
   `default_width/height/background/background_dark`. Una pagina nuova, sinottica o di boot, nasce con quel
   formato; la **prima** volta che si impostano misure o sfondo e il predefinito è vuoto, si riempie da

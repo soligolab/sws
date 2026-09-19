@@ -96,21 +96,24 @@ AlarmHistory, DataTable, XyPlotCanvas, PythonEditor, PageTabs, BarraAvviso, symb
 Non ancora pushato: F4, F5 e F6 su `main`, serve un «fai il push» esplicito; e va tolto
 `origin/fix/lingue-marchio-auto`.
 
-## ▶ Riprendere da qui — T-72 F2 (immagine di boot: l'editor) su main (2026-09-19)
+## ▶ Riprendere da qui — T-72 F3 e F4 sui rami, non mergiate (2026-09-19)
 
-Piano `docs/plans/2026-09-18-immagine-di-boot.md`. **F1 (`b6c55fc1`) e F2 (`2ba8202e`) sono su `main` e pushate.**
+Piano `docs/plans/2026-09-18-immagine-di-boot.md`. **F1 (`b6c55fc1`) e F2 (`2ba8202e`) sono su `main` e
+pushate.** F3 sta su `feat/T-72-immagine-di-boot-f3` (`00475ff2`), F4 su `feat/T-72-immagine-di-boot-f4`,
+**annidata su F3** (regola «un ramo alla volta», opzione 2): si mergiano in ordine, F3 poi F4.
 
-- Editor: sezione «Immagini di boot» nell'elenco pagine (radio ⭐ abilitata, «+ Nuova»), palette ridotta
-  ai sette oggetti statici, pannello proprietà con Oggetto/Testo/Resa, interruttore «abilitata»,
-  pagine di boot fuori da tab, navigazione, pagina iniziale e orfane; si salvano in `boot/`.
-- Server: `page_layout.boot_page_id`, `BOOT_TYPES` controllato al salvataggio.
-- Gate verde: `cargo check/clippy/fmt/test`, `pnpm build/lint/test` (572), `check_static.sh` 21/21;
-  provata dal vivo in un browser headless su un'istanza di scarto (fermata).
-- **Da vedere a occhio dal maintainer**: l'elenco pagine con la sezione boot, e cosa succede creando un
-  progetto nuovo dall'IDE vero.
+- **F3 — formato di progetto**: `page_layout.default_*`; le pagine nuove nascono col predefinito; la prima
+  impostazione lo riempie e lo materializza sulle pagine senza formato proprio (una boot ancora ai valori
+  di nascita conta come tale); «Applica alle pagine senza formato proprio» in Impostazioni pagine.
+- **F4 — il PNG**: nasce nel browser al salvataggio (`boot/rasterizza.ts`), anteprima + «Rigenera PNG» +
+  «Scarica PNG» nel pannello della pagina; un errore non blocca «Salva».
+- Gate verde su F4: `cargo check/clippy/fmt/test`, `pnpm build/lint/test` (604), `check_static.sh` 21/21;
+  provate dal vivo in Chromium headless su istanze di scarto (fermate).
+- **Da vedere a occhio dal maintainer**: il PNG di una pagina di boot vera (font, immagini, simboli
+  custom), e il pannello di una pagina di boot.
 
-**Prossimo passo**: F3 (formato di progetto: `default_*`, la regola «la prima modificata definisce lo
-stile») oppure F4 (rasterizzazione), indipendenti: F3 può stare prima o dopo.
+**Prossimo passo**: F5 — il dispositivo (`boot_image.rs`, unità systemd, script D-Bus). **Prima** va fatta la
+sonda sul WP630 (`/run/media`, versione PixsysOS, `GetBackgroundImage`): **chiedere prima di SSH** (regola 5).
 
 ## ▶ Riprendere da qui — multilingua chiuso: F6-F9 su `main`, piano archiviato (2026-09-19)
 
