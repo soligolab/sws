@@ -76,7 +76,7 @@ export function LogPanel({ open, onClose, variant = "drawer" }: LogPanelProps) {
       const events = await api.getLogFile(selDate);
       setHistEvents(events);
     } catch (e: any) {
-      setHistError(e?.message ?? "Errore caricamento storico.");
+      setHistError(e?.message ?? t("logPanel.errorLoadingHistory"));
     } finally {
       setHistLoading(false);
     }
@@ -192,7 +192,7 @@ export function LogPanel({ open, onClose, variant = "drawer" }: LogPanelProps) {
           title={t("logs.downloadTitle")}
           style={{ ...btn("var(--brand-surface-2, #334155)"), opacity: filtered.length === 0 ? 0.5 : 1 }}
         >
-          ⬇ Scarica
+          {t("logPanel.download")}
         </button>
 
         <input
@@ -244,7 +244,7 @@ export function LogPanel({ open, onClose, variant = "drawer" }: LogPanelProps) {
       {/* ── Body ─────────────────────────────────────────────────────── */}
       {isViewer ? (
         <div style={bodyEmpty}>
-          Permesso insufficiente: il pannello log è disponibile da Operator in su.
+          {t("logPanel.insufficientPermissionTheLogPanel")}
         </div>
       ) : filtered.length === 0 ? (
         <div style={bodyEmpty}>

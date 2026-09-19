@@ -152,7 +152,7 @@ describe("la transazione dell'assistente", () => {
 
     const esito = await useAppStore.getState().applyAiProposal(proposta());
     expect(esito.ok).toBe(false);
-    expect(esito.motivo).toMatch(/cambiato/);
+    expect(esito.motivo).toBe("storeErr.projectChanged");
 
     // E soprattutto: non ha toccato niente.
     const s = useAppStore.getState();
@@ -167,7 +167,7 @@ describe("la transazione dell'assistente", () => {
     useAppStore.setState({ pagesRev: 7, savedPagesRev: 0 });
     const esito = await useAppStore.getState().applyAiProposal(proposta());
     expect(esito.ok).toBe(true);
-    expect(esito.avviso).toMatch(/non salvate/);
+    expect(esito.avviso).toBe("storeErr.unsavedNote");
   });
 
   it("una proposta che tocca solo le pagine non registra sezioni", async () => {

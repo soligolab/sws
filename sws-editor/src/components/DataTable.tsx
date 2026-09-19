@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 // ── DataTable ──────────────────────────────────────────────────────────────
 //
@@ -56,9 +57,10 @@ export interface DataTableProps<T> {
 type SortDir = "asc" | "desc";
 
 export function DataTable<T>({
-  columns, rows, rowKey, emptyLabel = "Nessun dato.", maxHeight, onRowClick, selectedRowKey, compact = false,
+  columns, rows, rowKey, emptyLabel, maxHeight, onRowClick, selectedRowKey, compact = false,
   fontSize: fontSizeProp, hideFilters = false, dark = false,
 }: DataTableProps<T>) {
+  const { t } = useTranslation();
   // Vedi il commento su `dark` in `DataTableProps`: letterale quando `dark`,
   // altrimenti il var() di sempre (comportamento invariato per ConfigView.tsx).
   const tok = (varName: string, literal: string) => (dark ? literal : `var(${varName}, ${literal})`);
@@ -167,7 +169,7 @@ export function DataTable<T>({
           {sorted.length === 0 ? (
             <tr>
               <td colSpan={columns.length} style={{ padding: 16, textAlign: "center", color: nTextSubtle }}>
-                {emptyLabel}
+                {emptyLabel ?? t("dataTable.empty")}
               </td>
             </tr>
           ) : sorted.map((row) => {

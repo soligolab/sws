@@ -1,5 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
+
+// Segnaposto dei tag `<strong>`/`<em>`/`<code>` dentro i testi tradotti con `<Trans>`.
+const TRANS_COMP = { strong: <strong />, em: <em />, code: <code /> };
 import { api, getAuthToken, getBaseUrl, RuntimeUnavailableError, type CreateUserBody, type DiscoveredRuntime, type DispositivoRete, type SondaggioDispositivo, type SystemStatus, type UpdateUserBody, type UserRole, type UserSummary, type VarianteImmagine, dimenticaVersioneProgetto } from "@/api/client";
 import { ListaControlli } from "@/config/installazione/ListaControlli";
 import { TabellaDispositivi } from "@/config/installazione/TabellaDispositivi";
@@ -291,7 +294,7 @@ function QuickCreateTagModal({
         padding: 20, minWidth: 320, maxWidth: 440,
       }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: "var(--brand-text, #e2e8f0)", marginBottom: 14 }}>
-          Crea variabile
+          {t("cfgUi.createVariable")}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <div>
@@ -352,8 +355,8 @@ function SaveBar({
   onSave,
   saving,
   saved,
-  savedNotice = "✓ Salvato — modifiche applicate immediatamente.",
-  label = "Salva",
+  savedNotice = i18n.t("cfgUi.savedChangesAppliedImmediately"),
+  label = i18n.t("cfgUi.save"),
   disabled = false,
   notice,
   section,
@@ -373,6 +376,7 @@ function SaveBar({
   /** True se la bozza locale differisce da quanto salvato. */
   dirty?: boolean;
 }) {
+  const { t } = useTranslation();
   const registerPendingSection = useAppStore((s) => s.registerPendingSection);
   // onSave cambia identità a ogni render della tab: tenerlo in una ref evita
   // di ri-registrare (e quindi ri-renderizzare) a ogni battuta di tasto.
@@ -402,7 +406,7 @@ function SaveBar({
         </span>
       ) : null}
       <button style={S.btn("success")} onClick={onSave} disabled={saving || disabled}>
-        {saving ? "Salvataggio…" : label}
+        {saving ? t("cfgUi.saving") : label}
       </button>
     </div>
   );
@@ -634,13 +638,13 @@ function TagsTab() {
     setImportMsg(null);
     try {
       const result = await api.importTagsCsv(importText);
-      setImportMsg(`✓ Importati ${result.imported} tag. Ricarica la pagina o salva per aggiornare la vista.`);
+      setImportMsg(t("cfgUi.tagsImported", { count: result.imported }));
       // Refresh from server
       const proj = await api.getProject();
       if (proj.tags) { setTags(proj.tags); updateProjectTags(proj.tags); }
       setImportText("");
     } catch (e: unknown) {
-      setImportMsg(`Errore: ${e instanceof Error ? e.message : "importazione fallita"}`);
+      setImportMsg(t("cfgUi.errorMsg", { message: e instanceof Error ? e.message : t("cfgUi.importFailed") }));
     }
   };
 
@@ -660,9 +664,9 @@ function TagsTab() {
           onClick={(e) => { if (e.target === e.currentTarget) setShowImport(false); }}
         >
           <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 8, width: 560, display: "flex", flexDirection: "column", gap: 10, padding: 16 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--brand-text-2, #cbd5e1)" }}>Importa tag da CSV</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--brand-text-2, #cbd5e1)" }}>{t("cfgUi.importTagsFromCsv")}</div>
             <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>
-              Prima riga = intestazione. Colonne obbligatorie: <code>id</code>. Opzionali: <code>data_type</code>, <code>description</code>, <code>history</code>, <code>expression</code>.
+              {t("cfgUi.firstRowHeaderRequiredColumns")} <code>id</code>. Opzionali: <code>data_type</code>, <code>description</code>, <code>history</code>, <code>expression</code>.
               I tag esistenti vengono aggiornati; i nuovi vengono aggiunti.
             </div>
             <input
@@ -684,7 +688,7 @@ function TagsTab() {
             <textarea
               value={importText}
               onChange={(e) => setImportText(e.target.value)}
-              placeholder={"id,data_type,description,history\npump1.speed,float,Velocità pompa 1,true\npump1.run,bool,Stato marcia,false"}
+              placeholder={t("cfgUi.idDataTypeDescriptionHistory")}
               rows={8}
               style={{ ...S.input, fontFamily: "monospace", fontSize: 11, resize: "vertical" }}
             />
@@ -696,17 +700,15 @@ function TagsTab() {
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               <button style={S.btn("ghost")} onClick={() => { setShowImport(false); setImportMsg(null); setImportText(""); }}>{t("common.cancel")}</button>
               <button style={S.btn("primary")} onClick={handleImportSubmit} disabled={!importText.trim()}>
-                Importa
+                {t("cfgUi.import")}
               </button>
             </div>
           </div>
         </div>
       )}
-      <div style={S.sectionTitle}>VARIABILI (TAG)</div>
+      <div style={S.sectionTitle}>{t("cfgUi.variablesTags")}</div>
       <div style={S.notice}>
-        Le variabili definiscono i punti dati del progetto. Collega ogni variabile a un
-        registro nella sezione <em>{t("config.tabs.protocols")}</em> per ricevere i valori in tempo reale.
-        Valore attuale visibile solo se il runtime è in esecuzione.
+        <Trans i18nKey="cfgUi.variablesNotice" values={{ tab: t("config.tabs.protocols") }} components={TRANS_COMP} />
       </div>
 
       <table style={S.table}>
@@ -1060,9 +1062,9 @@ function TagsTab() {
       <BarraConflittoSezione sync={sync} t={t} />
 
       <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <button style={S.btn("ghost")} onClick={addTag}>+ Aggiungi variabile</button>
-        <button style={S.btn("ghost")} onClick={handleExportCsv} title={t("cfg.downloadTagsCsv")}>⬇ Esporta CSV</button>
-        <button style={S.btn("ghost")} onClick={() => setShowImport(true)} title={t("cfg.importTagsCsv")}>⬆ Importa CSV</button>
+        <button style={S.btn("ghost")} onClick={addTag}>{t("cfgUi.addVariable")}</button>
+        <button style={S.btn("ghost")} onClick={handleExportCsv} title={t("cfg.downloadTagsCsv")}>{t("cfgUi.exportCsv")}</button>
+        <button style={S.btn("ghost")} onClick={() => setShowImport(true)} title={t("cfg.importTagsCsv")}>{t("cfgUi.importCsv")}</button>
       </div>
 
       {/* Orphan source tags — present in protocol sources but missing from project.tags */}
@@ -1073,11 +1075,10 @@ function TagsTab() {
         return (
           <div style={{ marginTop: 16, borderTop: "1px solid var(--brand-surface, #1e293b)", paddingTop: 12 }}>
             <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #64748b)", fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>
-              TAG DA SORGENTI — non ancora nella lista variabili
+              {t("cfgUi.tagsFromSourcesNotYet")}
             </div>
             <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", marginBottom: 8 }}>
-              Questi tag sono attivi nei protocolli ma non hanno una definizione variabile.
-              "Abilita storico" li aggiunge alla lista con <em>history: true</em> — poi salva.
+              <Trans i18nKey="cfgUi.orphanTagsNotice" components={TRANS_COMP} />
             </div>
             {orphanIds.map((id) => (
               <div key={id} style={{ display: "flex", alignItems: "center", gap: 8,
@@ -1085,7 +1086,7 @@ function TagsTab() {
                                      border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 4, marginBottom: 2 }}>
                 <span style={{ flex: 1, fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", fontFamily: "monospace" }}>{id}</span>
                 <span style={{ fontSize: 10, color: "var(--brand-surface-2, #334155)", padding: "1px 5px",
-                               border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 3 }}>da sorgente</span>
+                               border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 3 }}>{t("cfgUi.fromSource")}</span>
                 <button
                   title={t("cfg.addTagWithHistory")}
                   style={{ fontSize: 11, padding: "2px 8px", background: "#1e3a5f",
@@ -1095,7 +1096,7 @@ function TagsTab() {
                     datastore_id: datastoreIds[0]?.id,
                   }])}
                 >
-                  Abilita storico
+                  {t("cfgUi.enableHistory")}
                 </button>
                 <button
                   title={t("cfg.addTagNoHistory")}
@@ -1329,7 +1330,7 @@ function S7SourceCard({
     <div style={S.card}>
       {headerRow}
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 12 }}>
-        {inp("ID sorgente", source.id, (v) => upd({ id: v }))}
+        {inp(t("cfgUi.sourceId"), source.id, (v) => upd({ id: v }))}
         {inp("IP PLC", source.ip, (v) => upd({ ip: v }))}
         {inp("Rack", source.rack, (v) => upd({ rack: Number(v) }), "number")}
         {inp("Slot", source.slot, (v) => upd({ slot: Number(v) }), "number")}
@@ -1482,7 +1483,7 @@ function EnIpSourceCard({
     <div style={S.card}>
       {headerRow}
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 12 }}>
-        {inp("ID sorgente", source.id, (v) => upd({ id: v }))}
+        {inp(t("cfgUi.sourceId"), source.id, (v) => upd({ id: v }))}
         {inp("IP PLC", source.ip, (v) => upd({ ip: v }))}
         {inp("Slot CIP", source.slot, (v) => upd({ slot: Number(v) }), "number")}
         {inp("Poll (ms)", source.poll_interval_ms, (v) => upd({ poll_interval_ms: Number(v) }), "number")}
@@ -1586,10 +1587,10 @@ function HaBrowseModal({
         {/* Header */}
         <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--brand-surface-2, #334155)", display: "flex", alignItems: "center", gap: 12 }}>
           <span style={{ fontSize: 13, fontWeight: 700, color: "var(--brand-warning, #f59e0b)", letterSpacing: 0.5 }}>
-            SFOGLIA ENTITÀ HOME ASSISTANT
+            {t("cfgUi.browseHomeAssistantEntities")}
           </span>
           <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", flex: 1 }}>
-            {target.field === "attribute" ? "Seleziona entità poi attributo" : "Seleziona entità"}
+            {target.field === "attribute" ? t("cfgUi.selectEntityThenAttribute") : t("cfgUi.selectEntity")}
           </span>
           <button style={S.btn("ghost")} onClick={onClose}>✕</button>
         </div>
@@ -1616,15 +1617,15 @@ function HaBrowseModal({
         {/* Body */}
         <div style={{ overflowY: "auto", flex: 1, padding: "6px 0" }}>
           {loading && (
-            <div style={{ padding: 24, textAlign: "center", color: "var(--brand-text-subtle, #64748b)" }}>Caricamento entità…</div>
+            <div style={{ padding: 24, textAlign: "center", color: "var(--brand-text-subtle, #64748b)" }}>{t("cfgUi.loadingEntities")}</div>
           )}
           {error && (
             <div style={{ padding: 16, color: "var(--brand-danger, #ef4444)", fontSize: 12 }}>
-              Errore: {error}. Verifica che l'URL e il token siano corretti e salva il progetto prima di sfogliare.
+              {t("cfgUi.entityBrowseError", { error })}
             </div>
           )}
           {!loading && !error && filtered.length === 0 && (
-            <div style={{ padding: 24, textAlign: "center", color: "var(--brand-text-subtle, #94a3b8)" }}>Nessuna entità trovata.</div>
+            <div style={{ padding: 24, textAlign: "center", color: "var(--brand-text-subtle, #94a3b8)" }}>{t("cfgUi.noEntitiesFound")}</div>
           )}
           {!loading && !error && filtered.map((ent) => (
             <div key={ent.entity_id} style={{ borderBottom: "1px solid var(--brand-bg, #0f172a)" }}>
@@ -1659,7 +1660,7 @@ function HaBrowseModal({
                     style={{ ...S.btn("primary"), padding: "3px 10px", fontSize: 11 }}
                     onClick={() => onSelect(ent.entity_id)}
                   >
-                    Seleziona
+                    {t("cfgUi.select")}
                   </button>
                 ) : (
                   <button
@@ -1691,7 +1692,7 @@ function HaBrowseModal({
 
         {/* Footer */}
         <div style={{ padding: "10px 16px", borderTop: "1px solid var(--brand-surface-2, #334155)", fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)" }}>
-          {!loading && !error && `${filtered.length} / ${entities.length} entità`}
+          {!loading && !error && t("cfgUi.entitiesCount", { shown: filtered.length, total: entities.length })}
         </div>
       </div>
     </div>
@@ -1745,7 +1746,7 @@ function HomeAssistantSourceCard({
             style={S.btn("danger")}
             onClick={(e) => { e.stopPropagation(); onDelete(); }}
           >
-            Elimina
+            {t("cfgUi.delete")}
           </button>
           <span style={{ color: "var(--brand-text-subtle, #94a3b8)", fontSize: 14 }}>{open ? "▲" : "▼"}</span>
         </div>
@@ -1778,7 +1779,7 @@ function HomeAssistantSourceCard({
 
           <div style={{ marginBottom: 8 }}>
             <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>
-              Variabile env per il token (opzionale — prevale su "Token accesso")
+              {t("cfgUi.envVariableForTheToken")}
             </label>
             <input style={{ ...S.input, maxWidth: 240 }} placeholder="HA_TOKEN"
               value={source.token_env ?? ""}
@@ -1787,7 +1788,7 @@ function HomeAssistantSourceCard({
           </div>
 
           <div style={{ marginBottom: 6, fontSize: 12, color: "var(--brand-text-subtle, #64748b)", fontWeight: 600, letterSpacing: 0.5 }}>
-            ENTITÀ HA → TAG SWS
+            {t("cfgUi.haEntitiesSwsTags")}
           </div>
           <table style={{ ...S.table, marginBottom: 8 }}>
             <thead>
@@ -1804,7 +1805,7 @@ function HomeAssistantSourceCard({
               {source.entities.length === 0 && (
                 <tr>
                   <td colSpan={6} style={{ ...S.td, color: "var(--brand-text-subtle, #94a3b8)", textAlign: "center", padding: 12 }}>
-                    Nessuna entità — aggiungi una mappatura.
+                    {t("cfgUi.noEntitiesAddAMapping")}
                   </td>
                 </tr>
               )}
@@ -1866,7 +1867,7 @@ function HomeAssistantSourceCard({
               ))}
             </tbody>
           </table>
-          <button style={S.btn("ghost")} onClick={addEntity}>+ Aggiungi entità</button>
+          <button style={S.btn("ghost")} onClick={addEntity}>{t("cfgUi.addEntity")}</button>
         </div>
       )}
 
@@ -2118,12 +2119,11 @@ function OpcUaSourceCard({
               )}
               {certs === null ? (
                 <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)", fontStyle: "italic" }}>
-                  Clicca "Aggiorna" per vedere i certificati nel trust store.
+                  {t("cfgUi.clickRefreshToSeeThe")}
                 </div>
               ) : certs.length === 0 ? (
                 <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)", fontStyle: "italic" }}>
-                  Nessun certificato nel trust store. Abilita temporaneamente "Accetta qualsiasi" per
-                  permettere la prima connessione, poi ricarica i certificati.
+                  {t("cfgUi.noCertificatesInTheTrust")}
                 </div>
               ) : (
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
@@ -2193,7 +2193,7 @@ function OpcUaSourceCard({
           </div>
           {source.nodes.length === 0 ? (
             <div style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 12, fontStyle: "italic", marginTop: 6 }}>
-              Nessun nodo. Clicca "+ Nodo" per aggiungerne uno.
+              {t("cfgUi.noNodesClickNodeTo")}
             </div>
           ) : (
             <table style={{ width: "100%", marginTop: 8, borderCollapse: "collapse", fontSize: 12 }}>
@@ -2365,7 +2365,7 @@ function OpcUaServerSourceCard({
             style={S.btn("danger")}
             onClick={(e) => { e.stopPropagation(); onDelete(); }}
           >
-            Elimina
+            {t("cfgUi.delete")}
           </button>
           <span style={{ color: "var(--brand-text-subtle, #94a3b8)", fontSize: 14 }}>{open ? "▲" : "▼"}</span>
         </div>
@@ -2407,7 +2407,7 @@ function OpcUaServerSourceCard({
               {source.nodes.length === 0 && (
                 <tr>
                   <td colSpan={3} style={{ ...S.td, color: "var(--brand-text-subtle, #94a3b8)", textAlign: "center", padding: 12 }}>
-                    Nessun nodo — aggiungi una mappatura.
+                    {t("cfgUi.noNodesAddAMapping")}
                   </td>
                 </tr>
               )}
@@ -2437,7 +2437,7 @@ function OpcUaServerSourceCard({
               ))}
             </tbody>
           </table>
-          <button style={S.btn("ghost")} onClick={addNode}>+ Aggiungi nodo</button>
+          <button style={S.btn("ghost")} onClick={addNode}>{t("cfgUi.addNode")}</button>
         </div>
       )}
       {quickCreate !== null && (
@@ -2535,7 +2535,7 @@ function OpcUaBrowseModal({
     if (!lvl && loading) {
       return (
         <div style={{ paddingLeft: depth * 16 + 28, color: "var(--brand-text-subtle, #64748b)", fontSize: 11, fontStyle: "italic" }}>
-          caricamento…
+          {t("cfgUi.loading")}
         </div>
       );
     }
@@ -2543,7 +2543,7 @@ function OpcUaBrowseModal({
     if (lvl.length === 0) {
       return (
         <div style={{ paddingLeft: depth * 16 + 28, color: "var(--brand-text-subtle, #64748b)", fontSize: 11, fontStyle: "italic" }}>
-          (vuoto)
+          {t("cfgUi.empty")}
         </div>
       );
     }
@@ -2570,7 +2570,7 @@ function OpcUaBrowseModal({
               background: isPicked ? "#0f2922" : "transparent",
               fontSize: 12, color: labelColor,
             }}
-            title={isImported ? "Già importato" : n.node_id}
+            title={isImported ? t("cfgUi.alreadyImported") : n.node_id}
           >
             {isFolder ? (
               <span style={{ width: 12, color: "var(--brand-text-subtle, #64748b)" }}>{isExpanded ? "▼" : "▶"}</span>
@@ -2639,7 +2639,7 @@ function OpcUaBrowseModal({
           display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ fontSize: 12, color: pickedList.length > 0 ? "#5eead4" : "var(--brand-text-subtle, #64748b)" }}>
             {pickedList.length === 0
-              ? "Espandi un Object e seleziona le Variable da importare."
+              ? t("cfgUi.expandAnObjectAndSelect")
               : `${pickedList.length} nod${pickedList.length === 1 ? "o" : "i"} selezionat${pickedList.length === 1 ? "o" : "i"}.`}
           </div>
           <div style={{ display: "flex", gap: 8 }}>
@@ -2774,9 +2774,7 @@ function OpcUaEuromapModal({
           )}
           {!busy && result && result.variables.length === 0 && (
             <div style={{ padding: "24px 18px", color: "var(--brand-text-subtle, #64748b)", fontSize: 13, fontStyle: "italic" }}>
-              Nessuna variabile Euromap 77 / 83 rilevata. Il server potrebbe non
-              implementare le companion spec, oppure i nomi non corrispondono
-              al match canonico. Usa "🔍 Sfoglia server" per esplorare manualmente.
+              {t("cfgUi.noEuromap7783Variables")}
             </div>
           )}
           {!busy && result && result.variables.length > 0 && (
@@ -2914,7 +2912,7 @@ function ModbusSourceCard({
             style={S.btn("danger")}
             onClick={(e) => { e.stopPropagation(); onDelete(); }}
           >
-            Elimina
+            {t("cfgUi.delete")}
           </button>
           <span style={{ color: "var(--brand-text-subtle, #94a3b8)", fontSize: 14 }}>{open ? "▲" : "▼"}</span>
         </div>
@@ -3000,7 +2998,7 @@ function ModbusSourceCard({
               {source.registers.length === 0 && (
                 <tr>
                   <td colSpan={5} style={{ ...S.td, color: "var(--brand-text-subtle, #94a3b8)", textAlign: "center", padding: 12 }}>
-                    Nessun registro — aggiungi una mappatura.
+                    {t("cfgUi.noRegistersAddAMapping")}
                   </td>
                 </tr>
               )}
@@ -3051,7 +3049,7 @@ function ModbusSourceCard({
           </table>
 
           <button style={S.btn("ghost")} onClick={addRegister}>
-            + Aggiungi registro
+            {t("cfgUi.addRegister")}
           </button>
         </div>
       )}
@@ -3118,7 +3116,7 @@ function ModbusRtuSourceCard({
             style={S.btn("danger")}
             onClick={(e) => { e.stopPropagation(); onDelete(); }}
           >
-            Elimina
+            {t("cfgUi.delete")}
           </button>
           <span style={{ color: "var(--brand-text-subtle, #94a3b8)", fontSize: 14 }}>{open ? "▲" : "▼"}</span>
         </div>
@@ -3154,7 +3152,7 @@ function ModbusRtuSourceCard({
               <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.parity")}</label>
               <select style={S.input} value={source.parity}
                 onChange={(e) => setField("parity", e.target.value)}>
-                <option value="N">Nessuna (N)</option>
+                <option value="N">{t("cfgUi.noneN")}</option>
                 <option value="E">Pari (E)</option>
                 <option value="O">Dispari (O)</option>
               </select>
@@ -3210,7 +3208,7 @@ function ModbusRtuSourceCard({
               {source.registers.length === 0 && (
                 <tr>
                   <td colSpan={5} style={{ ...S.td, color: "var(--brand-text-subtle, #94a3b8)", textAlign: "center", padding: 12 }}>
-                    Nessun registro — aggiungi una mappatura.
+                    {t("cfgUi.noRegistersAddAMapping")}
                   </td>
                 </tr>
               )}
@@ -3251,7 +3249,7 @@ function ModbusRtuSourceCard({
           </table>
 
           <button style={S.btn("ghost")} onClick={addRegister}>
-            + Aggiungi registro
+            {t("cfgUi.addRegister")}
           </button>
         </div>
       )}
@@ -3326,7 +3324,7 @@ function MqttSourceCard({
             <button
               style={S.btn("ghost")}
               onClick={(e) => { e.stopPropagation(); setJsonExtractOpen(true); }}
-              title="Incolla un payload JSON ed estrai le variabili come righe di mappatura"
+              title={t("cfgUi.pasteAJsonPayloadAnd")}
             >
               Estrai da JSON
             </button>
@@ -3335,7 +3333,7 @@ function MqttSourceCard({
             style={S.btn("danger")}
             onClick={(e) => { e.stopPropagation(); onDelete(); }}
           >
-            Elimina
+            {t("cfgUi.delete")}
           </button>
           <span style={{ color: "var(--brand-text-subtle, #94a3b8)", fontSize: 14 }}>{open ? "▲" : "▼"}</span>
         </div>
@@ -3435,7 +3433,7 @@ function MqttSourceCard({
               {source.topics.length === 0 && (
                 <tr>
                   <td colSpan={6} style={{ ...S.td, color: "var(--brand-text-subtle, #94a3b8)", textAlign: "center", padding: 12 }}>
-                    Nessun topic — aggiungi una mappatura.
+                    {t("cfgUi.noTopicsAddAMapping")}
                   </td>
                 </tr>
               )}
@@ -3504,7 +3502,7 @@ function MqttSourceCard({
           </table>
 
           <button style={S.btn("ghost")} onClick={addTopic}>
-            + Aggiungi topic
+            {t("cfgUi.addTopic")}
           </button>
           </>)}
         </div>
@@ -3650,7 +3648,7 @@ function MqttBrowseModal({
             disabled={loading}
           />
           <button style={S.btn("primary")} onClick={startBrowse} disabled={loading}>
-            {loading ? `Rilevamento… (${duration} s)` : result ? "Aggiorna" : "Avvia rilevamento"}
+            {loading ? `Rilevamento… (${duration} s)` : result ? "Aggiorna" : t("cfgUi.startDiscovery")}
           </button>
           {result !== null && (
             <span style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)" }}>
@@ -3691,7 +3689,7 @@ function MqttBrowseModal({
                   {visible.length === 0 && (
                     <tr>
                       <td colSpan={4} style={{ ...S.td, textAlign: "center", color: "var(--brand-text-subtle, #94a3b8)", padding: 12 }}>
-                        Nessun topic corrisponde al filtro.
+                        {t("cfgUi.noTopicsMatchTheFilter")}
                       </td>
                     </tr>
                   )}
@@ -3724,7 +3722,7 @@ function MqttBrowseModal({
                               value={jsonPathPick[t.topic] ?? ""}
                               onChange={(e) => setJsonPathPick(prev => ({ ...prev, [t.topic]: e.target.value }))}
                             >
-                              <option value="">— nessuno —</option>
+                              <option value="">{i18n.t("cfgUi.none")}</option>
                               {keys.map(k => <option key={k} value={k}>{k}</option>)}
                             </select>
                           ) : (
@@ -3797,6 +3795,7 @@ function MqttJsonExtractModal({
   onGenerate: (rows: TopicMapping[], tags: TagDef[]) => void;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const lastTopic = [...source.topics].reverse().find((t) => t.topic.trim() !== "")?.topic ?? "";
   const [topic, setTopic] = useState(lastTopic);
   const [jsonText, setJsonText] = useState("");
@@ -3813,10 +3812,10 @@ function MqttJsonExtractModal({
     try { parsed = JSON.parse(jsonText); }
     catch { setError("JSON non valido."); setLeaves(null); return; }
     if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-      setError("Il JSON deve essere un oggetto { … }."); setLeaves(null); return;
+      setError(t("cfgUi.theJsonMustBeAn")); setLeaves(null); return;
     }
     const ls = flattenJsonLeaves(parsed);
-    if (ls.length === 0) { setError("Nessuna variabile estraibile dall'oggetto."); setLeaves([]); return; }
+    if (ls.length === 0) { setError(t("cfgUi.noVariablesCanBeExtracted")); setLeaves([]); return; }
     const base = sanitizeTagBase(topic);
     setLeaves(ls);
     setSelected(new Set(ls.map((l) => l.path)));
@@ -3856,7 +3855,7 @@ function MqttJsonExtractModal({
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
       <div style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 8, padding: 20, width: "min(92vw, 780px)", maxHeight: "85vh", display: "flex", flexDirection: "column", gap: 12 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ fontWeight: 700, color: "var(--brand-text, #e2e8f0)" }}>Estrai variabili da JSON</div>
+          <div style={{ fontWeight: 700, color: "var(--brand-text, #e2e8f0)" }}>{t("cfgUi.extractVariablesFromJson")}</div>
           <button style={{ ...S.btn("ghost"), padding: "4px 8px" }} onClick={onClose}>✕</button>
         </div>
 
@@ -3866,7 +3865,7 @@ function MqttJsonExtractModal({
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>JSON di esempio (payload del topic)</label>
+          <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>{t("cfgUi.sampleJsonTopicPayload")}</label>
           <textarea
             style={{ ...S.input, minHeight: 90, fontFamily: "monospace", fontSize: 11, resize: "vertical" }}
             placeholder={'{"energy":2284.4,"state":"ON","update":{"state":"idle"}}'}
@@ -3887,7 +3886,7 @@ function MqttJsonExtractModal({
 
         {leaves !== null && leaves.length > 0 && (
           <>
-            <input style={S.input} placeholder="Filtra variabili…" value={filter} onChange={(e) => setFilter(e.target.value)} />
+            <input style={S.input} placeholder={t("cfgUi.filterVariables")} value={filter} onChange={(e) => setFilter(e.target.value)} />
             <div style={{ overflow: "auto", flex: 1, minHeight: 0, maxHeight: "42vh" }}>
               <table style={{ ...S.table, tableLayout: "fixed" }}>
                 <thead>
@@ -3895,15 +3894,15 @@ function MqttJsonExtractModal({
                     <th style={{ ...S.th, width: 32 }}>
                       <input type="checkbox" onChange={toggleAll} checked={visible.length > 0 && visible.every((l) => selected.has(l.path))} />
                     </th>
-                    <th style={{ ...S.th, width: "32%" }}>Variabile (JSON path)</th>
+                    <th style={{ ...S.th, width: "32%" }}>{t("cfgUi.variableJsonPath")}</th>
                     <th style={{ ...S.th, width: "12%" }}>Tipo</th>
-                    <th style={{ ...S.th, width: "18%" }}>Campione</th>
+                    <th style={{ ...S.th, width: "18%" }}>{t("cfgUi.sample")}</th>
                     <th style={{ ...S.th }}>Tag</th>
                   </tr>
                 </thead>
                 <tbody>
                   {visible.length === 0 && (
-                    <tr><td colSpan={5} style={{ ...S.td, textAlign: "center", color: "var(--brand-text-subtle, #94a3b8)", padding: 12 }}>Nessuna variabile corrisponde al filtro.</td></tr>
+                    <tr><td colSpan={5} style={{ ...S.td, textAlign: "center", color: "var(--brand-text-subtle, #94a3b8)", padding: 12 }}>{t("cfgUi.noVariablesMatchTheFilter")}</td></tr>
                   )}
                   {visible.map((l) => (
                     <tr key={l.path} style={{ background: selected.has(l.path) ? "#172554" : "transparent" }}>
@@ -3921,13 +3920,13 @@ function MqttJsonExtractModal({
             </div>
             <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)" }}>
               <input type="checkbox" checked={autoCreateTags} onChange={(e) => setAutoCreateTags(e.target.checked)} />
-              Crea anche i tag (con il tipo dedotto)
+              {t("cfgUi.alsoCreateTheTagsWith")}
             </label>
           </>
         )}
 
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-          <button style={S.btn("ghost")} onClick={onClose}>Chiudi</button>
+          <button style={S.btn("ghost")} onClick={onClose}>{t("cfgUi.close")}</button>
           <button style={S.btn("primary")} onClick={generate} disabled={!canGenerate}>Genera righe ({selected.size})</button>
         </div>
       </div>
@@ -3971,7 +3970,7 @@ function MqttAuthSection({
         <div>
           <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>
             Password{" "}
-            <span style={{ color: "var(--brand-text-subtle, #94a3b8)" }}>(lascia "********" per non modificare)</span>
+            <span style={{ color: "var(--brand-text-subtle, #94a3b8)" }}>{t("cfgUi.leaveToKeepUnchanged")}</span>
           </label>
           <div style={{ display: "flex", gap: 4 }}>
             <input
@@ -4021,7 +4020,7 @@ function MqttConnectionSection({
   const { t } = useTranslation();
   return (
     <>
-      <SectionHeader>CONNESSIONE</SectionHeader>
+      <SectionHeader>{t("cfgUi.connection")}</SectionHeader>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
         <div>
           <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.keepAlive")}</label>
@@ -4124,12 +4123,11 @@ function MqttTlsSection({
             style={{ marginRight: 6 }}
             disabled={!current.enabled}
           />
-          ⚠ non verificare il certificato del broker
+          {t("cfgUi.doNotVerifyTheBroker")}
         </label>
         {current.enabled && current.insecure_skip_verify && (
           <div style={{ fontSize: 11, color: "var(--brand-danger-soft, #fca5a5)", marginTop: 4 }}>
-            Traffico cifrato ma broker non autenticato: usare solo su reti fidate.
-            Il certificato CA sotto viene ignorato.
+            {t("cfgUi.encryptedTrafficButUnauthenticatedBroker")}
           </div>
         )}
       </div>
@@ -4170,7 +4168,7 @@ function MqttRandomClientIdSection({
     setPushing(true); setPushMsg(null);
     try {
       await api.pushMqttClientIdOverride(source.id, pushValue.trim() || null);
-      setPushMsg(pushValue.trim() ? "✓ Inviato al dispositivo." : "✓ Override rimosso dal dispositivo.");
+      setPushMsg(pushValue.trim() ? t("cfgUi.sentToTheDevice") : t("cfgUi.overrideRemovedFromTheDevice"));
     } catch (e: any) {
       setPushMsg(`✗ ${e?.message ?? String(e)}`);
     } finally {
@@ -4203,7 +4201,7 @@ function MqttRandomClientIdSection({
         <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>
           {enabled
             ? "Ogni istanza (IDE e ogni device) aggiunge un id univoco persistente — client_id resta solo l'etichetta."
-            : "client_id letterale: identico su ogni istanza che apre questo progetto."}
+            : t("cfgUi.literalClientIdIdenticalOn")}
         </span>
       </div>
 
@@ -4211,7 +4209,7 @@ function MqttRandomClientIdSection({
         <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
           <input
             style={{ ...S.input, flex: 1 }}
-            placeholder="client_id da inviare al dispositivo connesso"
+            placeholder={t("cfgUi.clientIdToSendTo")}
             value={pushValue}
             onChange={(e) => setPushValue(e.target.value)}
             disabled={!remoteConnected || pushing}
@@ -4221,9 +4219,9 @@ function MqttRandomClientIdSection({
             style={S.btn("ghost")}
             onClick={handlePush}
             disabled={!remoteConnected || pushing}
-            title={remoteConnected ? "" : "Connettiti a un dispositivo da Configurazione → Runtime per usare questo pulsante"}
+            title={remoteConnected ? "" : t("cfgUi.connectToADeviceFrom")}
           >
-            {pushing ? "Invio…" : "Invia Client ID al dispositivo connesso"}
+            {pushing ? "Invio…" : t("cfgUi.sendClientIdToThe")}
           </button>
         </div>
       )}
@@ -4262,7 +4260,7 @@ function MqttLastWillSection({
             onChange={(e) => onChange(e.target.checked ? current : undefined)}
             style={{ marginRight: 6 }}
           />
-          Pubblica un last-will quando la connessione cade
+          {t("cfgUi.publishALastWillWhen")}
         </label>
       </div>
       {enabled && (
@@ -4353,7 +4351,7 @@ function SparkplugSection({
             onChange={(e) => onChange(e.target.checked ? current : undefined)}
             style={{ marginRight: 6 }}
           />
-          Modalità Sparkplug B (payloads protobuf — ignora topic normali)
+          {t("cfgUi.sparkplugBModeProtobufPayloads")}
         </label>
       </div>
       {enabled && (
@@ -4515,7 +4513,7 @@ function ProtocolsTab() {
         onSave={handleSave}
         saving={saving}
         saved={saved}
-        savedNotice="✓ Salvato — sorgenti ricollegate al volo."
+        savedNotice={t("cfgUi.savedSourcesReconnectedOnThe")}
       />
       <BarraConflittoSezione sync={sync} t={t} />
       {storeProject?.sorgenti_da_rivedere && (
@@ -4534,29 +4532,17 @@ function ProtocolsTab() {
             lineHeight: 1.5,
           }}
         >
-          <strong>⚠ Le sorgenti non sono avviate.</strong> Questo progetto nasce da un template:
-          gli indirizzi qui sotto sono quelli dell'esempio e su questa rete quasi certamente non
-          esistono. Controllali, correggili e premi <strong>Salva</strong> — da quel momento il
-          runtime si collega.
+          <Trans i18nKey="cfgUi.sourcesNotStartedNotice" components={TRANS_COMP} />
         </div>
       )}
       <div style={S.sectionTitle}>SORGENTI DATI / PROTOCOLLI</div>
       <div style={S.notice}>
-        Configura le connessioni ai dispositivi di campo. Supportati: <strong>Modbus TCP</strong>
-        (lettura registri holding), <strong>Modbus RTU</strong> (RS-485/RS-232 seriale),
-        <strong>MQTT</strong> (sottoscrizione topic),
-        <strong>OPC-UA client</strong> (subscription, security None),
-        <strong>OPC-UA server</strong> (espone tag SWS a SCADA/MES superiori),
-        <strong>HomeAssistant</strong> (sensori e attuatori domotica via WebSocket),
-        <strong>S7</strong> (Siemens S7-300/400/1200/1500 via ISO-on-TCP porta 102),
-        <strong>EtherNet/IP</strong> (Allen-Bradley ControlLogix/CompactLogix via CIP porta 44818).
-        Le sorgenti vengono ricollegate <strong>in tempo reale</strong> al salvataggio (niente
-        riavvio del runtime).
+        <Trans i18nKey="cfgUi.protocolsNotice" components={TRANS_COMP} />
       </div>
 
       {sources.length === 0 && (
         <div style={{ color: "var(--brand-text-subtle, #94a3b8)", fontSize: 13, marginBottom: 16 }}>
-          Nessuna sorgente configurata.
+          {t("cfgUi.noSourcesConfigured")}
         </div>
       )}
 
@@ -4654,28 +4640,28 @@ function ProtocolsTab() {
 
       <div style={{ display: "flex", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
         <button style={S.btn("ghost")} onClick={addModbus}>
-          + Aggiungi Modbus TCP
+          {t("cfgUi.addModbusTcp")}
         </button>
         <button style={S.btn("ghost")} onClick={addModbusRtu}>
-          + Aggiungi Modbus RTU
+          {t("cfgUi.addModbusRtu")}
         </button>
         <button style={S.btn("ghost")} onClick={addMqtt}>
-          + Aggiungi MQTT
+          {t("cfgUi.addMqtt")}
         </button>
         <button style={S.btn("ghost")} onClick={addOpcUa}>
-          + Aggiungi OPC-UA client
+          {t("cfgUi.addOpcUaClient")}
         </button>
         <button style={S.btn("ghost")} onClick={addOpcUaServer}>
-          + Aggiungi OPC-UA server
+          {t("cfgUi.addOpcUaServer")}
         </button>
         <button style={S.btn("ghost")} onClick={addHomeAssistant}>
-          + Aggiungi HomeAssistant
+          {t("cfgUi.addHomeassistant")}
         </button>
         <button style={S.btn("ghost")} onClick={addS7}>
-          + Aggiungi S7 (Siemens)
+          {t("cfgUi.addS7Siemens")}
         </button>
         <button style={S.btn("ghost")} onClick={addEnIp}>
-          + Aggiungi EtherNet/IP (Allen-Bradley)
+          {t("cfgUi.addEthernetIpAllenBradley")}
         </button>
       </div>
 
@@ -4768,14 +4754,9 @@ function AlarmsTab() {
           `touched` traccia l'intenzione dell'utente invece della differenza
           strutturale. */}
       <SaveBar onSave={handleSave} saving={saving} saved={saved} section="alarms" dirty={touched} />
-      <div style={S.sectionTitle}>ALLARMI</div>
+      <div style={S.sectionTitle}>{t("cfgUi.alarms")}</div>
       <div style={S.notice}>
-        Ogni allarme osserva una variabile e si attiva quando la condizione è
-        soddisfatta. Condizioni disponibili: <em>above</em> / <em>below</em>
-        (soglia numerica) e <em>bool_equals</em> (per tag booleani). Lo stato
-        attivo è mostrato nella barra in alto della UI. La colonna
-        <em> Telegram</em> decide, per ogni allarme, se il messaggio va alle chat
-        configurate in Notifiche, solo a chat proprie, o a nessuno.
+        <Trans i18nKey="cfgUi.alarmsNotice" components={TRANS_COMP} />
       </div>
 
       <table style={S.table}>
@@ -4797,7 +4778,7 @@ function AlarmsTab() {
           {alarms.length === 0 && (
             <tr>
               <td colSpan={10} style={{ ...S.td, color: "var(--brand-text-subtle, #94a3b8)", textAlign: "center", padding: 12 }}>
-                Nessun allarme definito.
+                {t("cfgUi.noAlarmsDefined")}
               </td>
             </tr>
           )}
@@ -4976,7 +4957,7 @@ function AlarmsTab() {
                       style={{ ...S.inputSm, width: "40%", fontSize: 11 }}
                       type="number" step="any" min="0"
                       placeholder={t("cfg.escalateS")}
-                      title="escalate_after_s: secondi dopo cui inviare escalation se non ACKato"
+                      title={t("cfgUi.escalateAfterSSecondsAfter")}
                       value={alm.escalate_after_s ?? ""}
                       onChange={(e) => updateAlarm(i, { escalate_after_s: e.target.value !== "" ? Number(e.target.value) : undefined })}
                     />
@@ -5070,7 +5051,7 @@ function AlarmsTab() {
       <BarraConflittoSezione sync={sync} t={t} />
 
       <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
-        <button style={S.btn("ghost")} onClick={addAlarm}>+ Aggiungi allarme</button>
+        <button style={S.btn("ghost")} onClick={addAlarm}>{t("cfgUi.addAlarm")}</button>
       </div>
     </div>
   );
@@ -5163,7 +5144,7 @@ function GitOpsPanel() {
       setOpMsg(`${label}: ${r.message || "ok"}`);
       await fetchGitStatus();
     } catch (e: any) {
-      setOpMsg(`Errore ${label}: ${String(e?.message ?? e)}`);
+      setOpMsg(t("cfgUi.errorLabel", { label, message: String(e?.message ?? e) }));
     } finally {
       setBusy(false);
     }
@@ -5229,13 +5210,12 @@ function GitOpsPanel() {
 
   const header = (
     <div style={{ fontSize: 12, fontWeight: 700, color: "var(--brand-text-subtle, #64748b)", letterSpacing: 1, marginBottom: 6 }}>
-      VERSIONAMENTO PROGETTO
+      {t("cfgUi.projectVersioning")}
     </div>
   );
   const intro = (
     <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginBottom: 10, lineHeight: 1.5 }}>
-      Versiona <strong>questo progetto</strong> (project.yaml, synoptics, ricette, storico) in un
-      repository git — non riguarda mai il codice di SWS stesso.
+      <Trans i18nKey="cfgUi.versioningIntro" components={TRANS_COMP} />
     </div>
   );
 
@@ -5253,13 +5233,13 @@ function GitOpsPanel() {
         {intro}
         <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6, padding: "12px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
           <div style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>
-            Questo progetto non è ancora agganciato a un repository.
+            {t("cfgUi.thisProjectIsNotYet")}
           </div>
           <div style={{ display: "flex", gap: 6 }}>
             <input
               value={attachUrl}
               onChange={(e) => setAttachUrl(e.target.value)}
-              placeholder="URL del repository (opzionale — vuoto per un repository solo locale)"
+              placeholder={t("cfgUi.repositoryUrlOptionalEmptyFor")}
               style={{ flex: 1, background: "var(--brand-bg, #020617)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "5px 8px", fontSize: 12 }}
             />
             <button
@@ -5291,7 +5271,7 @@ function GitOpsPanel() {
           <span style={{ color: "var(--brand-text-subtle, #64748b)" }}>SHA:</span>
           <span style={{ color: "var(--brand-text, #e2e8f0)", fontFamily: "monospace" }}>{gitStatus.sha}</span>
           <span style={{ color: gitStatus.clean ? "#34d399" : "#fb923c" }}>
-            {gitStatus.clean ? "✓ clean" : "⚠ modificato"}
+            {gitStatus.clean ? "✓ clean" : t("cfgUi.modified")}
           </span>
         </div>
         <div style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>
@@ -5369,7 +5349,7 @@ function GitOpsPanel() {
           </div>
         )}
         {opMsg && (
-          <div style={{ fontSize: 11, color: opMsg.startsWith("Errore") ? "var(--brand-danger-soft, #fca5a5)" : "#34d399", marginTop: 2, whiteSpace: "pre-wrap" }}>
+          <div style={{ fontSize: 11, color: opMsg.startsWith(t("cfgUi.error")) ? "var(--brand-danger-soft, #fca5a5)" : "#34d399", marginTop: 2, whiteSpace: "pre-wrap" }}>
             {opMsg}
           </div>
         )}
@@ -5383,7 +5363,7 @@ function GitOpsPanel() {
             onClick={() => setShowTagForm((v) => !v)}
             style={{ padding: "4px 10px", background: "var(--brand-surface, #1e293b)", color: "var(--brand-text-2, #cbd5e1)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, cursor: tagBusy ? "wait" : "pointer", fontSize: 12 }}
           >
-            + Nuovo tag
+            {t("cfgUi.newTag")}
           </button>
         </div>
         {showTagForm && (
@@ -5413,9 +5393,9 @@ function GitOpsPanel() {
         )}
         {tagErr && <div style={{ fontSize: 11, color: "var(--brand-danger-soft, #fca5a5)" }}>{tagErr}</div>}
         {tags === null ? (
-          <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)" }}>Caricamento…</div>
+          <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)" }}>{t("cfgUi.loading2")}</div>
         ) : tags.length === 0 ? (
-          <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)", fontStyle: "italic" }}>Nessun tag.</div>
+          <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)", fontStyle: "italic" }}>{t("cfgUi.noTags")}</div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             {tags.map((name) => (
@@ -5527,8 +5507,8 @@ function AssistenteSection() {
         chiudiAiStream();
       }
       setEsito(r.configurato
-        ? "Salvato. La chat userà la configurazione nuova alla prossima apertura del pannello."
-        : "Salvato, ma manca la chiave per questo fornitore.");
+        ? t("cfgUi.savedTheChatWillUse")
+        : t("cfgUi.savedButTheKeyFor"));
     } catch (e) {
       setErrore(e instanceof Error ? e.message : String(e));
     } finally {
@@ -5543,7 +5523,7 @@ function AssistenteSection() {
       const r = await api.deleteAiKey(fornitore);
       carica();
       chiudiAiStream();
-      setEsito(r.cera ? "Chiave cancellata." : "Non c'era nessuna chiave da cancellare.");
+      setEsito(r.cera ? t("cfgUi.keyDeleted") : t("cfgUi.thereWasNoKeyTo"));
     } catch (e) {
       setErrore(e instanceof Error ? e.message : String(e));
     } finally {
@@ -5563,7 +5543,7 @@ function AssistenteSection() {
         <span style={{ fontSize: 12, color: "var(--brand-text, #e2e8f0)" }}>
           {cfg.configurato
             ? `Attivo — ${cfg.fornitore} / ${cfg.modello}`
-            : "Non configurato: la chat resta visibile e disabilitata."}
+            : t("cfgUi.notConfiguredTheChatStays")}
         </span>
       </div>
 
@@ -5580,7 +5560,7 @@ function AssistenteSection() {
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>
-          Fornitore
+          {t("cfgUi.provider")}
           <select
             value={fornitore}
             onChange={(e) => {
@@ -5589,8 +5569,8 @@ function AssistenteSection() {
             }}
             style={{ ...campoIA, marginTop: 4 }}
           >
-            <option value="anthropic">Anthropic{cfg.chiavi.anthropic ? " — chiave presente" : ""}</option>
-            <option value="kimi">Kimi (Moonshot){cfg.chiavi.kimi ? " — chiave presente" : ""}</option>
+            <option value="anthropic">Anthropic{cfg.chiavi.anthropic ? t("cfgUi.keyPresent") : ""}</option>
+            <option value="kimi">Kimi (Moonshot){cfg.chiavi.kimi ? t("cfgUi.keyPresent") : ""}</option>
           </select>
         </label>
 
@@ -5609,25 +5589,24 @@ function AssistenteSection() {
         </label>
 
         <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>
-          Chiave API
+          {t("cfgUi.apiKey")}
           <input
             type="password"
             value={chiave}
-            placeholder={haChiave ? "•••••••• (salvata — lascia vuoto per non cambiarla)" : "sk-…"}
+            placeholder={haChiave ? t("cfgUi.savedLeaveEmptyToKeep") : "sk-…"}
             onChange={(e) => setChiave(e.target.value)}
             style={{ ...campoIA, marginTop: 4 }}
           />
           <span style={{ display: "block", marginTop: 2 }}>
-            Non entra mai nel progetto: vive nella configurazione di questo runtime, che non
-            viene esportata né deployata.
+            {t("cfgUi.itNeverEntersTheProject")}
           </span>
         </label>
       </div>
 
       <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-        <button onClick={salva} disabled={busy} style={bottoneIA}>Salva</button>
+        <button onClick={salva} disabled={busy} style={bottoneIA}>{t("cfgUi.save")}</button>
         {haChiave && (
-          <button onClick={cancella} disabled={busy} style={bottoneIArosso}>Cancella chiave</button>
+          <button onClick={cancella} disabled={busy} style={bottoneIArosso}>{t("cfgUi.deleteKey")}</button>
         )}
       </div>
 
@@ -5673,23 +5652,23 @@ function Box({ titolo, children }: { titolo: string; children: React.ReactNode }
 }
 
 function IdePreferencesTab() {
+  const { t } = useTranslation();
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 480 }}>
       <div style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 13, lineHeight: 1.5 }}>
-        Impostazioni di questo editor — non fanno parte del progetto e non si spostano su un
-        altro dispositivo/browser.
+        {t("cfgUi.settingsOfThisEditorThey")}
       </div>
       <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6, padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <div>
           <div style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text, #e2e8f0)" }}>Tema chiaro/scuro</div>
-          <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 2 }}>"Sistema" segue le preferenze del browser. La scelta è ricordata su questo dispositivo.</div>
+          <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 2 }}>{t("cfgUi.systemFollowsTheBrowserPreferences")}</div>
         </div>
         <ThemeToggle />
       </div>
       <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6, padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <div>
           <div style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text, #e2e8f0)" }}>Lingua interfaccia</div>
-          <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 2 }}>Lingua dei menu e dei testi dell'editor — non la lingua dei contenuti del progetto (tab Lingue).</div>
+          <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 2 }}>{t("cfgUi.languageOfTheEditorS")}</div>
         </div>
         <UiLangSelect />
       </div>
@@ -5703,6 +5682,7 @@ function IdePreferencesTab() {
 }
 
 function SystemTab() {
+  const { t } = useTranslation();
   const remoteConnected = useAppStore((s) => s.remoteConnected);
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -5737,8 +5717,8 @@ function SystemTab() {
   };
 
   const fmtSamples = (n: number) => {
-    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M campioni`;
-    if (n >= 1_000)     return `${(n / 1_000).toFixed(0)}k campioni`;
+    if (n >= 1_000_000) return t("cfgUi.samplesM", { n: (n / 1_000_000).toFixed(1) });
+    if (n >= 1_000)     return t("cfgUi.samplesK", { n: (n / 1_000).toFixed(0) });
     return `${n} campioni`;
   };
 
@@ -5751,7 +5731,7 @@ function SystemTab() {
   }
 
   if (!status) {
-    return <div style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 13 }}>Caricamento…</div>;
+    return <div style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 13 }}>{t("cfgUi.loading2")}</div>;
   }
 
   return (
@@ -5759,7 +5739,7 @@ function SystemTab() {
       <div>
         <div style={{ fontSize: 12, fontWeight: 700, color: "var(--brand-text-subtle, #64748b)", letterSpacing: 1, marginBottom: 10 }}>
           RUNTIME
-          {remoteConnected && <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: "var(--brand-primary, #3b82f6)" }}> — dispositivo remoto connesso</span>}
+          {remoteConnected && <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: "var(--brand-primary, #3b82f6)" }}> {t("cfgUi.connectedRemoteDevice")}</span>}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <MetricCard icon="🖥" label="Versione" value={status.runtime_version} />
@@ -5770,26 +5750,26 @@ function SystemTab() {
               `mode` assente = runtime più vecchio: non si afferma niente. */}
           <MetricCard
             icon={status.mode === "runtime" ? "🏭" : "✏️"}
-            label="Modalità"
+            label={t("cfgUi.mode")}
             value={status.mode === "runtime" ? "Runtime (serve un impianto)"
                  : status.mode === "ide"     ? "IDE (sola progettazione)"
                  :                             "non dichiarata"}
           />
-          <MetricCard icon="📦" label="Progetto" value={status.active_project ?? "—"} />
+          <MetricCard icon="📦" label={t("cfgUi.project")} value={status.active_project ?? "—"} />
           <MetricCard icon="⏱" label="Uptime" value={fmtUptime(status.uptime_s)} />
           <MetricCard icon="🏷" label="Tag" value={String(status.tag_count)} />
-          <MetricCard icon="📡" label="Sorgenti" value={String(status.source_count)} />
-          <MetricCard icon="🔔" label="Allarmi attivi" value={String(status.alarm_active_count)} />
+          <MetricCard icon="📡" label={t("cfgUi.sources")} value={String(status.source_count)} />
+          <MetricCard icon="🔔" label={t("cfgUi.activeAlarms")} value={String(status.alarm_active_count)} />
         </div>
         <div style={{ marginTop: 8, background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6, padding: "10px 14px" }}>
-          <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginBottom: 4 }}>📊 Storico</div>
+          <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginBottom: 4 }}>{t("cfgUi.history")}</div>
           <div style={{ fontSize: 15, fontWeight: 700, color: "var(--brand-text, #e2e8f0)" }}>{fmtSamples(status.historian_samples)}</div>
         </div>
       </div>
       <div>
         <div style={{ fontSize: 12, fontWeight: 700, color: "var(--brand-text-subtle, #64748b)", letterSpacing: 1, marginBottom: 10 }}>
           SISTEMA
-          {remoteConnected && <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: "var(--brand-primary, #3b82f6)" }}> — dispositivo remoto connesso</span>}
+          {remoteConnected && <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: "var(--brand-primary, #3b82f6)" }}> {t("cfgUi.connectedRemoteDevice")}</span>}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6, padding: "10px 14px" }}>
@@ -5828,6 +5808,7 @@ function SystemTab() {
 // integrity check against the on-disk hash chain.
 
 function AuditSection() {
+  const { t } = useTranslation();
   const [entries, setEntries] = useState<AuditEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -5859,7 +5840,7 @@ function AuditSection() {
           AUDIT LOG
         </span>
         <button style={S.btn("ghost")} onClick={load} disabled={loading}>{loading ? "Aggiorno…" : "Aggiorna"}</button>
-        <button style={S.btn("ghost")} onClick={runVerify} disabled={verifying}>{verifying ? "Verifico…" : "Verifica integrità"}</button>
+        <button style={S.btn("ghost")} onClick={runVerify} disabled={verifying}>{verifying ? "Verifico…" : t("cfgUi.verifyIntegrity")}</button>
       </div>
 
       {verify && (
@@ -5891,7 +5872,7 @@ function AuditSection() {
           </thead>
           <tbody>
             {entries.length === 0 && !loading && (
-              <tr><td colSpan={4} style={{ ...S.td, textAlign: "center", color: "var(--brand-text-subtle, #94a3b8)", padding: 16 }}>Nessuna entry.</td></tr>
+              <tr><td colSpan={4} style={{ ...S.td, textAlign: "center", color: "var(--brand-text-subtle, #94a3b8)", padding: 16 }}>{t("cfgUi.noEntries")}</td></tr>
             )}
             {[...entries].reverse().map((e) => (
               <tr key={e.seq}>
@@ -5935,9 +5916,9 @@ function TlsSection() {
     setMsg(null);
     try {
       await api.generateTlsCert();
-      setMsg("Certificato generato — il runtime si sta riavviando in HTTPS…");
+      setMsg(t("cfgUi.certificateGeneratedTheRuntimeIs"));
     } catch (e: any) {
-      setMsg(`Errore: ${String(e?.message ?? e)}`);
+      setMsg(t("cfgUi.errorMsg", { message: String(e?.message ?? e) }));
       setBusy(false);
     }
   };
@@ -5945,12 +5926,12 @@ function TlsSection() {
   const readFileInto = (setter: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
-    f.text().then(setter).catch(() => setMsg("Errore: impossibile leggere il file"));
+    f.text().then(setter).catch(() => setMsg(t("cfgUi.errorCannotReadTheFile")));
   };
 
   const handleUpload = async () => {
     if (!certPem.trim() || !keyPem.trim()) {
-      setMsg("Errore: incolla o carica sia il certificato sia la chiave privata (PEM).");
+      setMsg(t("cfgUi.errorPasteOrUploadBoth"));
       return;
     }
     if (!confirm(t("cfg.tlsUploadConfirm"))) return;
@@ -5958,9 +5939,9 @@ function TlsSection() {
     setMsg(null);
     try {
       await api.uploadTlsCert(certPem, keyPem);
-      setMsg("Certificato caricato — il runtime si sta riavviando in HTTPS…");
+      setMsg(t("cfgUi.certificateUploadedTheRuntimeIs"));
     } catch (e: any) {
-      setMsg(`Errore: ${String(e?.message ?? e)}`);
+      setMsg(t("cfgUi.errorMsg", { message: String(e?.message ?? e) }));
       setBusy(false);
     }
   };
@@ -5971,9 +5952,9 @@ function TlsSection() {
     setMsg(null);
     try {
       await api.removeTlsCert();
-      setMsg("TLS disabilitato — il runtime si sta riavviando in HTTP…");
+      setMsg(t("cfgUi.tlsDisabledTheRuntimeIs"));
     } catch (e: any) {
-      setMsg(`Errore: ${String(e?.message ?? e)}`);
+      setMsg(t("cfgUi.errorMsg", { message: String(e?.message ?? e) }));
       setBusy(false);
     }
   };
@@ -5990,13 +5971,13 @@ function TlsSection() {
             background: tlsEnabled ? "#34d399" : "var(--brand-text-subtle, #64748b)",
           }} />
           <span style={{ fontSize: 13, color: "var(--brand-text, #e2e8f0)" }}>
-            {tlsEnabled ? "HTTPS attivo" : "HTTP plain (nessun certificato)"}
+            {tlsEnabled ? "HTTPS attivo" : t("cfgUi.plainHttpNoCertificate")}
           </span>
         </div>
         {!tlsEnabled && (
           <div>
             <p style={{ margin: "0 0 10px", fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>
-              Genera un certificato self-signed per abilitare HTTPS. Richiesto per accesso da LAN (non localhost).
+              {t("cfgUi.generateASelfSignedCertificate")}
             </p>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <button
@@ -6011,13 +5992,13 @@ function TlsSection() {
                 disabled={busy}
                 style={{ padding: "6px 14px", background: "var(--brand-surface-2, #334155)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-border, #475569)", borderRadius: 6, cursor: busy ? "default" : "pointer", fontSize: 13 }}
               >
-                {showUpload ? "Annulla caricamento" : "Carica certificato (cert + key)"}
+                {showUpload ? t("cfgUi.cancelUpload") : t("cfgUi.uploadCertificateCertKey")}
               </button>
             </div>
             {showUpload && (
               <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
                 <p style={{ margin: 0, fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>
-                  Carica un certificato firmato da una CA (es. aziendale). Incolla il PEM o seleziona i file.
+                  {t("cfgUi.uploadACertificateSignedBy")}
                 </p>
                 <div>
                   <label style={{ display: "block", fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", marginBottom: 4 }}>
@@ -6032,7 +6013,7 @@ function TlsSection() {
                 </div>
                 <div>
                   <label style={{ display: "block", fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", marginBottom: 4 }}>
-                    Chiave privata (tls.key, PEM)
+                    {t("cfgUi.privateKeyTlsKeyPem")}
                   </label>
                   <input type="file" accept=".key,.pem" onChange={readFileInto(setKeyPem)}
                     style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 6 }} />
@@ -6046,7 +6027,7 @@ function TlsSection() {
                   disabled={busy}
                   style={{ justifySelf: "start", padding: "6px 14px", background: "var(--brand-primary-hover, #2563eb)", color: "var(--brand-on-primary, #fff)", border: "none", borderRadius: 6, cursor: busy ? "default" : "pointer", fontSize: 13 }}
                 >
-                  Carica e attiva HTTPS
+                  {t("cfgUi.uploadAndEnableHttps")}
                 </button>
               </div>
             )}
@@ -6055,7 +6036,7 @@ function TlsSection() {
         {tlsEnabled && (
           <div>
             <p style={{ margin: "0 0 10px", fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>
-              Il runtime serve HTTPS. Per tornare a HTTP plain (es. per sviluppo localhost) rimuovi il certificato.
+              {t("cfgUi.theRuntimeServesHttpsTo")}
             </p>
             <button
               onClick={handleRemove}
@@ -6067,7 +6048,7 @@ function TlsSection() {
           </div>
         )}
         {msg && (
-          <div style={{ marginTop: 10, fontSize: 12, color: msg.startsWith("Errore") ? "var(--brand-danger-soft, #fca5a5)" : "#34d399" }}>
+          <div style={{ marginTop: 10, fontSize: 12, color: msg.startsWith(t("cfgUi.error")) ? "var(--brand-danger-soft, #fca5a5)" : "#34d399" }}>
             {msg}
           </div>
         )}
@@ -6110,7 +6091,7 @@ function UsersTab() {
       // alla prossima apertura del progetto.
       useAppStore.getState().setProgettoHaUtenti(list.length > 0);
     } catch (e: any) {
-      setError(`Errore nel caricamento utenti: ${String(e?.message ?? e)}`);
+      setError(t("cfgUi.usersLoadError", { message: String(e?.message ?? e) }));
     }
   };
 
@@ -6145,13 +6126,13 @@ function UsersTab() {
         // rifiuta un primo account non-Admin per non nascere con
         // l'autenticazione accesa e nessuno in grado di amministrarlo.
         setError(
-          "Il primo utente di un dispositivo deve avere ruolo Admin, altrimenti nessuno " +
-          "potrebbe più amministrare il pannello. Crea prima un Admin, poi gli altri ruoli."
+          t("cfgUi.theFirstUserOfA") +
+          t("cfgUi.couldAdministerThePanelAny")
         );
       } else if (msg.includes("409") || msg.includes("already_exists")) {
-        setError(`L'utente "${newUser.username}" esiste già.`);
+        setError(t("cfgUi.userExists", { name: newUser.username }));
       } else {
-        setError(`Errore nella creazione: ${msg}`);
+        setError(t("cfgUi.createError", { message: msg }));
       }
     } finally {
       setBusy(false);
@@ -6171,7 +6152,7 @@ function UsersTab() {
       } else if (msg.includes("400") || msg.includes("invalid_password")) {
         setError("Password non valida.");
       } else {
-        setError(`Errore nell'aggiornamento: ${msg}`);
+        setError(t("cfgUi.updateError", { message: msg }));
       }
     } finally {
       setBusy(false);
@@ -6187,7 +6168,7 @@ function UsersTab() {
 
   const onDelete = async (username: string) => {
     if (username === authUser) {
-      setError("Non puoi eliminare il tuo stesso utente.");
+      setError(t("cfgUi.youCannotDeleteYourOwn"));
       return;
     }
     if (!confirm(t("cfg.deleteUserConfirm", { username }))) return;
@@ -6199,11 +6180,11 @@ function UsersTab() {
     } catch (e: any) {
       const msg = String(e?.message ?? "");
       if (msg.includes("409") || msg.includes("last_admin")) {
-        setError("Non puoi eliminare l'ultimo amministratore.");
+        setError(t("cfgUi.youCannotDeleteTheLast"));
       } else if (msg.includes("cannot_delete_self")) {
-        setError("Non puoi eliminare il tuo stesso utente.");
+        setError(t("cfgUi.youCannotDeleteYourOwn"));
       } else {
-        setError(`Errore nell'eliminazione: ${msg}`);
+        setError(t("cfgUi.deleteError", { message: msg }));
       }
     } finally {
       setBusy(false);
@@ -6215,13 +6196,10 @@ function UsersTab() {
       <div style={S.section}>
         <div style={S.sectionTitle}>UTENTI</div>
         <p style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 12, marginTop: 0 }}>
-          Gli utenti sono salvati in <code>users.yaml</code> nella cartella del progetto.
-          La password viene cifrata con Argon2id; il file non contiene mai testo in chiaro.
+          <Trans i18nKey="cfgUi.usersSavedIn" components={TRANS_COMP} />
         </p>
         <p style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 12, marginTop: 0 }}>
-          Sono gli utenti del <strong>dispositivo</strong>: viaggiano col progetto quando lo
-          fai partire e governano l'accesso al pannello. L'IDE su questo PC non li usa e
-          continua a funzionare senza chiedere credenziali.
+          <Trans i18nKey="cfgUi.usersDeviceNote" components={TRANS_COMP} />
         </p>
 
         {error && (
@@ -6231,7 +6209,7 @@ function UsersTab() {
         )}
 
         {users === null ? (
-          <div style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 13 }}>Caricamento…</div>
+          <div style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 13 }}>{t("cfgUi.loading2")}</div>
         ) : (
           <table style={S.table}>
             <thead>
@@ -6348,9 +6326,9 @@ function UsersTab() {
                         disabled={busy || isSelf}
                         onClick={() => onDelete(u.username)}
                         style={S.btn("danger")}
-                        title={isSelf ? "Non puoi eliminare il tuo stesso utente" : "Elimina utente"}
+                        title={isSelf ? t("cfgUi.youCannotDeleteYourOwn2") : t("cfgUi.deleteUser")}
                       >
-                        Elimina
+                        {t("cfgUi.delete")}
                       </button>
                     </td>
                   </tr>
@@ -6362,7 +6340,7 @@ function UsersTab() {
       </div>
 
       <div style={S.section}>
-        <div style={S.sectionTitle}>NUOVO UTENTE</div>
+        <div style={S.sectionTitle}>{t("cfgUi.newUser")}</div>
         <div style={{
           display: "grid",
           gridTemplateColumns: "1fr 1fr 130px auto",
@@ -6453,7 +6431,7 @@ function ResourcesTab() {
     if (!form.label.trim() || !form.url.trim()) return;
     const id = form.label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
     if (customSymbols.some((s) => s.id === id)) {
-      setError(`Esiste già un simbolo con id "${id}"`);
+      setError(t("cfgUi.symbolExists", { id }));
       return;
     }
     const next = [
@@ -6482,7 +6460,7 @@ function ResourcesTab() {
           SIMBOLI PROGETTO ({customSymbols.length})
         </div>
         {customSymbols.length === 0 ? (
-          <div style={{ color: "var(--brand-text-subtle, #94a3b8)", fontSize: 13 }}>Nessun simbolo custom aggiunto.</div>
+          <div style={{ color: "var(--brand-text-subtle, #94a3b8)", fontSize: 13 }}>{t("cfgUi.noCustomSymbolsAdded")}</div>
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
@@ -6537,9 +6515,7 @@ function ResourcesTab() {
               MULTI-STATO — {sym.label}
             </div>
             <p style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", margin: "0 0 8px" }}>
-              Importa l'SVG del simbolo e spunta gli elementi (per <code>id</code>) che devono
-              colorarsi con lo stato (off/on/allarme o gli STATI N dell'oggetto). Gli elementi
-              senza id nell'SVG non sono selezionabili: aggiungili nell'editor vettoriale.
+              <Trans i18nKey="cfgUi.svgSymbolHelp" components={TRANS_COMP} />
             </p>
             <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
               <input ref={svgFileRef} type="file" accept=".svg,image/svg+xml" style={{ display: "none" }}
@@ -6550,11 +6526,11 @@ function ResourcesTab() {
                   e.target.value = "";
                 }} />
               <button onClick={() => svgFileRef.current?.click()}
-                style={{ ...inp, width: "auto", cursor: "pointer" }}>⬆ Importa SVG…</button>
+                style={{ ...inp, width: "auto", cursor: "pointer" }}>{t("cfgUi.importSvg")}</button>
               {sym.svg && (
                 <button onClick={() => setSym({ svg: undefined, colorable_ids: undefined })}
                   style={{ ...inp, width: "auto", cursor: "pointer", color: "var(--brand-danger-soft, #fca5a5)" }}>
-                  Rimuovi SVG (torna a URL)
+                  {t("cfgUi.removeSvgBackToUrl")}
                 </button>
               )}
             </div>
@@ -6564,7 +6540,7 @@ function ResourcesTab() {
                   <div style={lbl}>Elementi colorabili ({ids.length} id trovati)</div>
                   {ids.length === 0 ? (
                     <div style={{ fontSize: 12, color: "var(--brand-warning, #f59e0b)" }}>
-                      Nessun id nell'SVG — nessun elemento può cambiare colore.
+                      {t("cfgUi.noIdInTheSvg")}
                     </div>
                   ) : (
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
@@ -6605,7 +6581,7 @@ function ResourcesTab() {
       {/* Form aggiunta */}
       <section style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 6, padding: 16 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 12 }}>
-          AGGIUNGI SIMBOLO SVG
+          {t("cfgUi.addSvgSymbol")}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "8px 12px", alignItems: "start" }}>
           <div>
@@ -6641,9 +6617,9 @@ function ResourcesTab() {
               cursor: saving ? "wait" : "pointer", padding: "6px 20px", fontSize: 13,
               opacity: (!form.label.trim() || !form.url.trim()) ? 0.5 : 1,
             }}
-          >{saving ? "Salvataggio…" : "Aggiungi al progetto"}</button>
+          >{saving ? t("cfgUi.saving") : t("cfgUi.addToProject")}</button>
           <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)" }}>
-            Confermando accetti di rispettare i termini della licenza selezionata.
+            {t("cfgUi.byConfirmingYouAgreeTo")}
           </span>
         </div>
       </section>
@@ -6761,7 +6737,7 @@ function DatastoresTab() {
     // che applicasse regole diverse da quelle automatiche sarebbe una sorpresa.
     const rows = ds.retention_rows, days = ds.retention_days;
     if (!rows && !days) {
-      setMgmtMsg((m) => ({ ...m, [ds.id]: "✗ Nessuna retention configurata: imposta righe o giorni e salva, poi ripeti." }));
+      setMgmtMsg((m) => ({ ...m, [ds.id]: t("cfgUi.noRetentionConfiguredSetRows") }));
       return;
     }
     const desc = [rows ? `${rows} righe per tag` : null, days ? `${days} giorni` : null].filter(Boolean).join(" · ");
@@ -6769,14 +6745,14 @@ function DatastoresTab() {
     void withBusy(ds.id, async () => {
       const r = await api.purgeDatastore(ds.id, { retention_rows: rows, retention_days: days });
       await loadStats(ds.id);
-      return `✓ ${r.deleted.toLocaleString()} campioni cancellati. Usa "Recupera spazio" per restringere il file.`;
+      return t("cfgUi.samplesDeleted", { n: r.deleted.toLocaleString() });
     });
   };
 
   const doExport = (ds: DatastoreConfig) =>
     void withBusy(ds.id, async () => {
       const tags = (await api.listDatastoreTags(ds.id)).db_tags;
-      if (tags.length === 0) return "Nessun dato da esportare.";
+      if (tags.length === 0) return t("cfgUi.noDataToExport");
       const data = await api.exportDatastore(ds.id, { tags });
       // CSV: una riga per campione. Formato scelto perché è quello che si apre
       // senza attrezzi, che è il punto di un export manuale.
@@ -6789,10 +6765,10 @@ function DatastoresTab() {
       const blob = new Blob([rows.join("\n")], { type: "text/csv;charset=utf-8" });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = `${ds.id}-storico.csv`;
+      a.download = `${ds.id}-history.csv`;
       a.click();
       URL.revokeObjectURL(a.href);
-      return `✓ Esportati ${rows.length - 1} campioni da ${data.length} tag.`;
+      return t("cfgUi.samplesExported", { samples: rows.length - 1, tags: data.length });
     });
 
   const loadTags = (ds: DatastoreConfig) =>
@@ -6800,7 +6776,7 @@ function DatastoresTab() {
       const r = await api.listDatastoreTags(ds.id);
       setTagsMap((m) => ({ ...m, [ds.id]: r }));
       return r.orphan_tags.length === 0
-        ? `✓ Nessun tag orfano (${r.db_tags.length} tag nel database).`
+        ? t("cfgUi.noOrphanTags", { count: r.db_tags.length })
         : `${r.orphan_tags.length} tag orfani su ${r.db_tags.length} nel database.`;
     });
 
@@ -6811,7 +6787,7 @@ function DatastoresTab() {
       const fresh = await api.listDatastoreTags(ds.id);
       setTagsMap((m) => ({ ...m, [ds.id]: fresh }));
       await loadStats(ds.id);
-      return `✓ "${tag}": ${r.deleted.toLocaleString()} campioni cancellati.`;
+      return t("cfgUi.tagSamplesDeleted", { tag, n: r.deleted.toLocaleString() });
     });
   };
 
@@ -6822,7 +6798,7 @@ function DatastoresTab() {
       const mb = (n: number) => (n / 1024 / 1024).toFixed(2);
       return r.bytes_freed > 0
         ? `✓ Liberati ${mb(r.bytes_freed)} MB (da ${mb(r.bytes_before)} a ${mb(r.bytes_after)} MB).`
-        : `Nessuno spazio da liberare (file a ${mb(r.bytes_after)} MB).`;
+        : t("cfgUi.noSpaceToReclaim", { mb: mb(r.bytes_after) });
     });
 
   // ── Download/upload del file database — locale (progetto a cui l'editor è
@@ -6866,7 +6842,7 @@ function DatastoresTab() {
         : await api.uploadDatastoreDb(target.id, file);
       const mb = (n: number) => (n / 1024 / 1024).toFixed(2);
       return `✓ Caricati ${mb(r.bytes_written)} MB${target.remote ? " sul dispositivo remoto" : ""}. ` +
-        `Backup del precedente: ${r.backup_path}. Riavvia il runtime perché il nuovo database venga usato.`;
+        t("cfgUi.previousBackup", { path: r.backup_path });
     });
   };
 
@@ -6884,14 +6860,14 @@ function DatastoresTab() {
           viene scritta nel datastore assegnato.
         </span>
         <button onClick={addDatastore} style={{ background: "#0ea5e9", color: "#0f172a", border: "none", borderRadius: 4, padding: "4px 10px", cursor: "pointer", fontSize: 12 }}>
-          + Aggiungi
+          {t("cfgUi.add")}
         </button>
       </div>
       {saveError && <div style={{ color: "var(--brand-danger-soft, #f87171)", fontSize: 12, marginBottom: 8 }}>{saveError}</div>}
 
       {datastores.length === 0 && (
         <div style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 13, padding: 24, textAlign: "center" }}>
-          Nessun datastore configurato. Usa il pulsante + per aggiungerne uno.
+          {t("cfgUi.noDatastoreConfiguredUseThe")}
         </div>
       )}
 
@@ -6939,7 +6915,7 @@ function DatastoresTab() {
             )}
             {stats !== undefined && (
               <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 8, display: "flex", gap: 16 }}>
-                {stats === null ? "Caricamento stats…" : (
+                {stats === null ? t("cfgUi.loadingStats") : (
                   <>
                     <span>Campioni: {stats.sample_count.toLocaleString()}</span>
                     <span>Tag: {stats.tag_count}</span>
@@ -6968,12 +6944,12 @@ function DatastoresTab() {
                 <button onClick={() => doExport(ds)} disabled={busyMgmt[ds.id]}
                   title={t("cfg.exportHistoryCsvTitle")}
                   style={{ background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>
-                  Esporta CSV
+                  {t("cfgUi.exportCsv2")}
                 </button>
                 <button onClick={() => loadTags(ds)} disabled={busyMgmt[ds.id]}
                   title={t("cfg.orphanHistoryTagsTitle")}
                   style={{ background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>
-                  Cerca tag orfani
+                  {t("cfgUi.findOrphanTags")}
                 </button>
                 <button onClick={() => doVacuum(ds)} disabled={busyMgmt[ds.id]}
                   title={t("cfg.vacuumTitle")}
@@ -6983,25 +6959,25 @@ function DatastoresTab() {
                 <button onClick={() => doDownloadDb(ds, false)} disabled={busyMgmt[ds.id]}
                   title={t("cfg.downloadDbTitle")}
                   style={{ background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>
-                  Scarica database
+                  {t("cfgUi.downloadDatabase")}
                 </button>
                 <button onClick={() => askUploadDb(ds, false)} disabled={busyMgmt[ds.id]}
                   title={t("cfg.uploadDbTitle")}
                   style={{ background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>
-                  Carica database
+                  {t("cfgUi.uploadDatabase")}
                 </button>
                 {remoteConnected && (
                   <>
-                    <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>· dispositivo remoto:</span>
+                    <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>{t("cfgUi.remoteDevice")}</span>
                     <button onClick={() => doDownloadDb(ds, true)} disabled={busyMgmt[ds.id]}
                       title={t("cfg.downloadRemoteDbTitle")}
                       style={{ background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>
-                      Scarica (remoto)
+                      {t("cfgUi.downloadRemote")}
                     </button>
                     <button onClick={() => askUploadDb(ds, true)} disabled={busyMgmt[ds.id]}
                       title={t("cfg.uploadRemoteDbTitle")}
                       style={{ background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>
-                      Carica (remoto)
+                      {t("cfgUi.uploadRemote")}
                     </button>
                   </>
                 )}
@@ -7017,14 +6993,14 @@ function DatastoresTab() {
               {tagsMap[ds.id] && tagsMap[ds.id]!.orphan_tags.length > 0 && (
                 <div style={{ marginTop: 6 }}>
                   <div style={{ fontSize: 11, color: "var(--brand-warning, #eab308)", marginBottom: 4 }}>
-                    Tag orfani — hanno storico ma non esistono più nel progetto:
+                    {t("cfgUi.orphanTagsTheyHaveHistory")}
                   </div>
                   {tagsMap[ds.id]!.orphan_tags.map((tag) => (
                     <div key={tag} style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 2 }}>
                       <code style={{ fontSize: 11, color: "var(--brand-text, #e2e8f0)" }}>{tag}</code>
                       <button onClick={() => doDeleteTag(ds, tag)} disabled={busyMgmt[ds.id]}
                         style={{ background: "var(--brand-danger, #ef4444)", color: "var(--brand-on-danger, #fff)", border: "none", borderRadius: 4, padding: "1px 6px", cursor: "pointer", fontSize: 10 }}>
-                        Elimina storico
+                        {t("cfgUi.deleteHistory")}
                       </button>
                     </div>
                   ))}
@@ -7032,7 +7008,7 @@ function DatastoresTab() {
               )}
 
               <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #64748b)", marginTop: 6 }}>
-                Il backup completo del database è nella tab <strong>Backup</strong>: include già <code>history/</code>.
+                <Trans i18nKey="cfgUi.dbBackupInTab" components={TRANS_COMP} />
               </div>
             </div>
 
@@ -7065,10 +7041,7 @@ function DatastoresTab() {
                             background: "var(--brand-warning-bg, #78350f)",
                             border: "1px solid var(--brand-warning, #f59e0b)",
                             borderRadius: 4, padding: "6px 8px", marginBottom: 8 }}>
-                ⚠ Il backend ODBC <strong>non è implementato</strong>: i campi qui sotto si salvano
-                nel progetto, ma il runtime risponde «not compiled in» a ogni lettura e scrittura.
-                Il cablaggio vero (odbc-api + unixODBC) è rimandato a quando ci sarà un impianto
-                SQL Server o Oracle da agganciare davvero.
+                <Trans i18nKey="cfgUi.odbcNotImplemented" components={TRANS_COMP} />
               </div>
             )}
             {ds.backend.kind === "odbc" && (
@@ -7119,14 +7092,14 @@ function newScript(): GlobalScriptDef {
   return {
     id: `script_${Date.now()}`,
     trigger: { kind: "startup" },
-    code: "# Script avviato all'apertura del progetto\nlog('Hello from global script!')\n",
+    code: i18n.t("cfgUi.scriptThatRunsWhenThe"),
     enabled: true,
   };
 }
 
 function triggerLabel(t: ScriptTriggerKind): string {
   switch (t.kind) {
-    case "startup":    return "Avvio";
+    case "startup":    return i18n.t("cfgUi.startup");
     case "interval":   return t.interval_ms ? `Ogni ${t.interval_ms}ms` : `Ogni ${t.interval_s}s`;
     case "cron":       return `Cron: ${t.schedule}`;
     case "tag_change": return `Tag: ${t.tag}`;
@@ -7161,7 +7134,7 @@ function FunctionsInventory() {
       <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 180, overflow: "auto" }}>
         {functions.length === 0 && (
           <div style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 12, padding: "6px 8px" }}>
-            Nessuna funzione.
+            {t("cfgUi.noFunctions")}
           </div>
         )}
         {functions.map((f) => (
@@ -7183,7 +7156,7 @@ function FunctionsInventory() {
         ))}
       </div>
       <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", lineHeight: 1.4 }}>
-        Le funzioni si modificano nell'editor: clicca una voce per aprirla.
+        {t("cfgUi.functionsAreEditedInThe")}
       </div>
     </>
   );
@@ -7222,9 +7195,9 @@ function GlobalScriptsTab() {
     setMsg(null);
     try {
       await api.saveGlobalScripts(scripts);
-      setMsg("Salvato.");
+      setMsg(t("cfgUi.saved"));
     } catch (e) {
-      setMsg(`Errore: ${e instanceof Error ? e.message : String(e)}`);
+      setMsg(t("cfgUi.errorMsg", { message: e instanceof Error ? e.message : String(e) }));
     } finally {
       setSaving(false);
     }
@@ -7243,7 +7216,7 @@ function GlobalScriptsTab() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 120px)" }}>
-      <SaveBar onSave={handleSave} saving={saving} saved={false} label="Salva tutti" notice={msg} />
+      <SaveBar onSave={handleSave} saving={saving} saved={false} label={t("cfgUi.saveAll")} notice={msg} />
       <div style={{ display: "flex", gap: 16, flex: 1, overflow: "hidden" }}>
       {/* Colonna sinistra: TUTTO il Python del progetto (Q21).
           Funzioni e script restano tipi distinti nel modello — una funzione non
@@ -7256,11 +7229,11 @@ function GlobalScriptsTab() {
           <button
             onClick={addScript}
             style={{ background: "var(--brand-primary, #3b82f6)", color: "var(--brand-on-primary, #fff)", border: "none", borderRadius: 4, padding: "4px 10px", cursor: "pointer", fontSize: 13 }}
-          >+ Nuovo</button>
+          >{t("cfgUi.new")}</button>
         </div>
         <div style={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
           {scripts.length === 0 && (
-            <div style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 13, padding: 8 }}>Nessuno script.</div>
+            <div style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 13, padding: 8 }}>{t("cfgUi.noScripts")}</div>
           )}
           {scripts.map((s, idx) => (
             <div
@@ -7349,7 +7322,7 @@ function GlobalScriptsTab() {
                 <input
                   type="number"
                   min={50}
-                  placeholder="ms (opzionale, ha priorità)"
+                  placeholder={t("cfgUi.msOptionalTakesPrecedence")}
                   value={cur.trigger.interval_ms ?? ""}
                   onChange={(e) => {
                     const raw = e.target.value;
@@ -7371,7 +7344,7 @@ function GlobalScriptsTab() {
                    barra, 5) si ritrovava uno script che non partiva mai senza
                    dirlo. Ora i passi funzionano, e il campo lo dice. */
                 title={"minuto ora giorno mese giorno-settimana\n\n"
-                  + "*        ogni valore\n"
+                  + t("cfgUi.everyValue")
                   + "*/5      ogni 5 (passo)\n"
                   + "9-17     da 9 a 17 (intervallo)\n"
                   + "9-17/2   da 9 a 17, ogni 2\n"
@@ -7413,7 +7386,7 @@ function GlobalScriptsTab() {
         </div>
       ) : (
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--brand-text-subtle, #64748b)", fontSize: 14 }}>
-          Seleziona o crea uno script
+          {t("cfgUi.selectOrCreateAScript")}
         </div>
       )}
       </div>
@@ -7432,6 +7405,7 @@ function GlobalScriptsTab() {
 function FaceplatePreview({
   objects, params, faceplates,
 }: { objects: SynopticObject[]; params: (string | FaceplateParamDef)[]; faceplates: FaceplateDef[] }) {
+  const { t } = useTranslation();
   const dummyParams = Object.fromEntries(params.map((p) =>
     typeof p === "string" ? [p, p] : [p.name, p.default ?? p.name]));
 
@@ -7455,7 +7429,7 @@ function FaceplatePreview({
         border: "1px dashed var(--brand-surface-2, #334155)", borderRadius: 4,
         color: "var(--brand-text-subtle, #64748b)", fontSize: 12,
       }}>
-        Nessun oggetto
+        {t("cfgUi.noObjects")}
       </div>
     );
   }
@@ -7571,18 +7545,14 @@ function FaceplatesTab() {
         padding: "10px 12px", borderBottom: "1px solid var(--brand-surface, #1e293b)",
         color: "var(--brand-text-muted, #94a3b8)", fontSize: 12.5, lineHeight: 1.5, flexShrink: 0,
       }}>
-        Un <strong>faceplate</strong> è un blocco grafico riutilizzabile e parametrico: lo definisci
-        una volta qui (con parametri come <code>tag_prefix</code>), poi lo piazzi come oggetto sulle
-        pagine — quante volte vuoi, ognuna con i propri valori (es. un blocco "motore" riusato per
-        motore1/motore2 cambiando solo il prefisso tag). A differenza di un oggetto normale, cambiare
-        il faceplate qui aggiorna tutte le istanze che lo usano.
+        <Trans i18nKey="cfgUi.faceplateIntro" components={TRANS_COMP} />
       </div>
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
       {/* Left: faceplate list */}
       <div style={{ width: 220, borderRight: "1px solid var(--brand-surface, #1e293b)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <div style={{ padding: "10px 12px", borderBottom: "1px solid var(--brand-surface, #1e293b)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontSize: 12, fontWeight: 700, color: "var(--brand-text-muted, #94a3b8)", letterSpacing: 0.5 }}>FACEPLATES</span>
-          <button style={S.btn("ghost")} onClick={addFaceplate}>+ Nuovo</button>
+          <button style={S.btn("ghost")} onClick={addFaceplate}>{t("cfgUi.new")}</button>
         </div>
         <div style={{ flex: 1, overflow: "auto" }}>
           {faceplates.map((fp) => (
@@ -7610,10 +7580,10 @@ function FaceplatesTab() {
             <span style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-warning, #f59e0b)" }}>{current.label}</span>
             <span style={{ flex: 1 }} />
             {loadErr && <span style={{ fontSize: 12, color: "var(--brand-danger, #ef4444)" }}>{loadErr}</span>}
-            {saved && <span style={{ fontSize: 12, color: "var(--brand-success, #22c55e)" }}>✓ Salvato</span>}
+            {saved && <span style={{ fontSize: 12, color: "var(--brand-success, #22c55e)" }}>{t("cfgUi.saved2")}</span>}
             <button style={S.btn("danger")} onClick={deleteCurrent}>{t("common.delete")}</button>
             <button style={S.btn("success")} onClick={saveCurrent} disabled={saving}>
-              {saving ? "Salvataggio…" : "Salva"}
+              {saving ? t("cfgUi.saving") : t("cfgUi.save")}
             </button>
           </div>
           <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
@@ -7623,8 +7593,8 @@ function FaceplatesTab() {
                 return (
                   <div style={{ fontSize: 11, color: u.instances + u.popups > 0 ? "var(--brand-warning, #f59e0b)" : "var(--brand-text-subtle, #64748b)", marginBottom: 10 }}>
                     {u.instances + u.popups === 0
-                      ? "Nessun uso nelle pagine di questo progetto."
-                      : `Usato da ${u.instances} istanze e ${u.popups} pulsanti popup in: ${u.pages.join(", ")} — rinominare id o parametri li rompe.`}
+                      ? t("cfgUi.noUsageInThisProject")
+                      : t("cfgUi.usedBy", { instances: u.instances, popups: u.popups, pages: u.pages.join(", ") })}
                   </div>
                 );
               })()}
@@ -7650,7 +7620,7 @@ function FaceplatesTab() {
               </div>
               <div style={{ marginBottom: 16 }}>
                 <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>
-                  Parametri (uno per riga): <code>nome</code> oppure <code>nome:tipo=default!</code> — tipo tag/string/number/color, <code>!</code> = obbligatorio
+                  <Trans i18nKey="cfgUi.faceplateParams" components={TRANS_COMP} />
                 </label>
                 <textarea
                   value={current.params.map((p) => {
@@ -7671,7 +7641,7 @@ function FaceplatesTab() {
               </div>
               <div>
                 <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>
-                  Oggetti template (JSON array — usa <code>{"{tag_prefix}"}</code> come placeholder nei campi tag/label)
+                  <Trans i18nKey="cfgUi.faceplateObjects" values={{ ph: "{tag_prefix}" }} components={TRANS_COMP} />
                 </label>
                 <textarea
                   value={JSON.stringify(current.objects, null, 2)}
@@ -7699,7 +7669,7 @@ function FaceplatesTab() {
         </div>
       ) : (
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--brand-text-subtle, #64748b)", fontSize: 14 }}>
-          Seleziona o crea un faceplate. I faceplate built-in sono motor_basic, valve_basic, tank_level.
+          {t("cfgUi.selectOrCreateAFaceplate")}
         </div>
       )}
       </div>
@@ -7791,9 +7761,7 @@ function RecipesTab() {
     <div style={S.section}>
       <div style={S.sectionTitle}>RICETTE (ISA-88)</div>
       <div style={S.notice}>
-        Una ricetta è un insieme nominato di setpoint che vengono scritti atomicamente sui tag
-        selezionati. Usata per cambiare configurazione impianto (cambio prodotto, turno, avvio).
-        Le ricette possono essere applicate anche dalla Runtime View.
+        {t("cfgUi.recipeIntro")}
       </div>
 
       <div style={{ display: "flex", gap: 12, height: 500 }}>
@@ -7823,7 +7791,7 @@ function RecipesTab() {
               rowKey={(r) => r.id}
               onRowClick={(r) => selectRecipe(r.id)}
               selectedRowKey={selected?.id}
-              emptyLabel="Nessuna ricetta."
+              emptyLabel={t("cfgUi.noRecipes")}
               compact
             />
           </div>
@@ -7833,7 +7801,7 @@ function RecipesTab() {
         <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
           {!selected ? (
             <div style={{ color: "var(--brand-text-subtle, #94a3b8)", fontSize: 12, padding: 20 }}>
-              Seleziona o crea una ricetta per modificarla.
+              {t("cfgUi.selectOrCreateARecipe")}
             </div>
           ) : (
             <>
@@ -7846,7 +7814,7 @@ function RecipesTab() {
                   spellCheck={false}
                 />
                 <button style={S.btn("success")} onClick={saveSelected} disabled={loading}>
-                  {loading ? "…" : saved ? "✓ Salvato" : "Salva"}
+                  {loading ? "…" : saved ? t("cfgUi.saved2") : t("cfgUi.save")}
                 </button>
                 <button style={S.btn("danger")} onClick={deleteSelected} title={t("cfg.deleteRecipe")}>✕</button>
               </div>
@@ -7863,7 +7831,7 @@ function RecipesTab() {
                   {selected.setpoints.length === 0 && (
                     <tr>
                       <td colSpan={3} style={{ ...S.td, color: "var(--brand-text-subtle, #94a3b8)", textAlign: "center", padding: 12 }}>
-                        Nessun setpoint. Clicca "+ Aggiungi" per iniziare.
+                        {t("cfgUi.noSetpointsClickAddTo")}
                       </td>
                     </tr>
                   )}
@@ -7899,7 +7867,7 @@ function RecipesTab() {
               </table>
 
               <button style={{ ...S.btn("ghost"), alignSelf: "flex-start" }} onClick={addSetpoint}>
-                + Aggiungi setpoint
+                {t("cfgUi.addSetpoint")}
               </button>
             </>
           )}
@@ -8003,7 +7971,7 @@ function NotificationsTab() {
     setTestMsg(null);
     try {
       if (tg.chat_ids.length === 0) {
-        setTestMsg("✗ Inserisci almeno una chat ID.");
+        setTestMsg(t("cfgUi.enterAtLeastOneChat"));
         return;
       }
       // Il token va al server così com'è: se è il placeholder (o vuoto) usa
@@ -8042,7 +8010,7 @@ function NotificationsTab() {
         if (chats.length > 0) { setDetected(chats); return; }
         if (i < attempts - 1) await new Promise((r) => setTimeout(r, 1500));
       }
-      setDetectMsg("Nessuna chat trovata. Scrivi /start al bot (o aggiungilo al gruppo e manda un messaggio), poi premi Rileva di nuovo.");
+      setDetectMsg(t("cfgUi.noChatsFoundSendStart"));
     } catch (e: unknown) {
       setDetectMsg("✗ " + (e instanceof Error ? e.message : String(e)));
     } finally {
@@ -8082,9 +8050,7 @@ function NotificationsTab() {
 
       <div style={S.sectionTitle}>NOTIFICHE EMAIL</div>
       <div style={S.notice}>
-        Configura un server SMTP per inviare email al momento dell'attivazione di
-        un allarme. I campi <em>notify_email</em> e <em>escalate_to</em> sono
-        configurabili per ogni allarme nella tab Allarmi.
+        <Trans i18nKey="cfgUi.smtpNotice" components={TRANS_COMP} />
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
@@ -8123,7 +8089,7 @@ function NotificationsTab() {
             <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>Indirizzo From *</div>
             <input
               style={S.input}
-              placeholder="allarmi@example.com"
+              placeholder={t("cfgUi.alarmsExampleCom")}
               value={smtp.from}
               onChange={(e) => patchSmtp({ from: e.target.value })}
             />
@@ -8162,11 +8128,7 @@ function NotificationsTab() {
 
       <div style={{ ...S.sectionTitle, marginTop: 24 }}>NOTIFICHE TELEGRAM</div>
       <div style={S.notice}>
-        Invia un messaggio Telegram all'attivazione degli allarmi e, dagli script,
-        con <em>send_telegram("testo")</em>. Crea un bot con <em>@BotFather</em>, poi
-        incolla il token e le chat ID di destinazione. Queste sono le chat
-        <em> predefinite</em>: nella tab Allarmi ogni allarme può usarne di proprie
-        o non notificare affatto.
+        <Trans i18nKey="cfgUi.telegramNotice" components={TRANS_COMP} />
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
@@ -8187,7 +8149,7 @@ function NotificationsTab() {
               <span>Bot token *</span>
               {tokenSaved && (
                 <span style={{ color: "var(--brand-success, #22c55e)", fontSize: 11 }}>
-                  ✓ salvato sul server
+                  {t("cfgUi.savedOnTheServer")}
                 </span>
               )}
             </div>
@@ -8197,7 +8159,7 @@ function NotificationsTab() {
             <input
               style={S.input}
               type="password"
-              placeholder={tokenSaved ? "già salvato — scrivi qui solo per sostituirlo" : "123456789:ABCdef..."}
+              placeholder={tokenSaved ? t("cfgUi.alreadySavedWriteHereOnly") : "123456789:ABCdef..."}
               value={tokenSaved && tg.bot_token === MASKED ? "" : tg.bot_token}
               onChange={(e) => patchTg({ bot_token: e.target.value })}
             />
@@ -8230,7 +8192,7 @@ function NotificationsTab() {
                         onClick={() => addChatId(c.id)}
                         disabled={added}
                       >
-                        {added ? "✓ aggiunta" : "Aggiungi"}
+                        {added ? "✓ aggiunta" : t("cfgUi.add2")}
                       </button>
                     </div>
                   );
@@ -8239,7 +8201,7 @@ function NotificationsTab() {
             )}
           </div>
           <div>
-            <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>Chat ID — una per riga *</div>
+            <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>{t("cfgUi.chatIdOnePerLine")}</div>
             <textarea
               style={{ ...S.input, minHeight: 60, fontFamily: "monospace", fontSize: 12, resize: "vertical" }}
               placeholder={"-1001234567890\n123456789"}
@@ -8266,10 +8228,10 @@ function NotificationsTab() {
           <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", lineHeight: 1.7, background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 6, padding: "10px 12px" }}>
             <strong style={{ color: "var(--brand-text-2, #cbd5e1)" }}>Come configurare</strong>
             <ol style={{ margin: "6px 0 0", paddingLeft: 18 }}>
-              <li>Su Telegram apri <em>@BotFather</em> → <code>/newbot</code>, segui le istruzioni e copia il <em>token</em> del bot. Incollalo qui sopra.</li>
-              <li>Scrivi <code>/start</code> (o un messaggio) al bot; per un gruppo/canale, aggiungilo e manda un messaggio lì.</li>
-              <li>Premi <em>Rileva chat</em> e <em>Aggiungi</em> le chat trovate (i gruppi hanno ID negativo <code>-100…</code>). In alternativa inserisci manualmente le chat ID.</li>
-              <li>Premi <em>Invia test</em> per verificare, poi <em>Salva</em>.</li>
+              <li><Trans i18nKey="cfgUi.telegramStep1" components={TRANS_COMP} /></li>
+              <li><Trans i18nKey="cfgUi.telegramStep2" components={TRANS_COMP} /></li>
+              <li><Trans i18nKey="cfgUi.telegramStep3" components={TRANS_COMP} /></li>
+              <li><Trans i18nKey="cfgUi.telegramStep4" components={TRANS_COMP} /></li>
             </ol>
           </div>
         </div>
@@ -8517,7 +8479,7 @@ function RuntimeConnectionTab() {
   };
 
   const handleConnect = async () => {
-    if (!target) { setStatusMsg("Inserisci l'URL del runtime."); return; }
+    if (!target) { setStatusMsg(t("cfgUi.enterTheRuntimeUrl")); return; }
     saveForm();
     setStatus("connecting"); setStatusMsg(null);
     try {
@@ -8527,7 +8489,7 @@ function RuntimeConnectionTab() {
       const pass = targetPass || undefined;
       const result = await api.remoteConnect(target, user, pass);
       setCertificatoCambiato(result.azione === "certificato-cambiato");
-      if (!result.ok) throw new Error(result.error ?? "Connessione fallita");
+      if (!result.ok) throw new Error(result.error ?? t("cfgUi.connectionFailed"));
       setStatus("connected");
       // La nota dice cosa è successo quando è riuscita ma non come chiedevi:
       // p.es. il dispositivo non ha utenti e le credenziali sono state ignorate.
@@ -8605,7 +8567,7 @@ function RuntimeConnectionTab() {
       a.click();
       URL.revokeObjectURL(a.href);
     } catch (e: any) {
-      setStatusMsg(`Non riesco a scaricare il cert (${e?.message ?? e}). Il runtime remoto è acceso e ha il TLS attivo? In alternativa, da un terminale:\n  curl -k ${target}/cert -o sws.crt`);
+      setStatusMsg(t("cfgUi.certDownloadFailed", { message: e?.message ?? e, target }));
     }
   };
 
@@ -8946,8 +8908,8 @@ function RuntimeConnectionTab() {
         const dett = await res.text().catch(() => "");
         const spiegazione = dett.trim();
         throw new Error(spiegazione
-          ? `Deploy fallito: ${spiegazione} (${res.status})`
-          : `Deploy fallito: ${res.status} ${res.statusText}`);
+          ? t("cfgUi.deployFailedReason", { reason: spiegazione, status: res.status })
+          : t("cfgUi.deployFailedStatus", { status: res.status, statusText: res.statusText }));
       }
       const reader = res.body.getReader();
       const dec = new TextDecoder();
@@ -8992,12 +8954,12 @@ function RuntimeConnectionTab() {
         ]);
         savedBy = remote.project_saved_by;
         localVersion = local.runtime_version;
-        if (remote.active_project) log(`Progetto sul dispositivo: "${remote.active_project}"`);
+        if (remote.active_project) log(t("cfgUi.deviceProject", { name: remote.active_project }));
       } catch { /* non bloccante: l'avviso di versione è un di più, non il flusso */ }
 
-      log("Scarico del progetto dal dispositivo…");
+      log(t("cfgUi.downloadingTheProjectFromThe"));
       const res = await api.pullRemoteProject();
-      const suggested = res.headers.get("X-Project-Name") || "progetto";
+      const suggested = res.headers.get("X-Project-Name") || t("cfgUi.project2");
       const blob = await res.blob();
       log(`✓ Scaricato "${suggested}" (${(blob.size / 1024).toFixed(1)} KB)`);
 
@@ -9042,14 +9004,14 @@ function RuntimeConnectionTab() {
         log("⚠ Modifiche locali non salvate: scartate su richiesta");
       }
 
-      log("Chiusura del progetto aperto…");
+      log(t("cfgUi.closingTheOpenProject"));
       await api.closeProject();
 
       // L'upload rifiuta con 409 se la cartella esiste già: per sovrascrivere
       // bisogna rimuoverla. Si può farlo solo ora, a progetto chiuso — a
       // progetto attivo la delete risponderebbe 409 a sua volta.
       if (ask.localNames.includes(name)) {
-        log(`Rimozione del progetto locale omonimo "${name}"…`);
+        log(t("cfgUi.removingLocalSameName", { name }));
         await api.deleteProject(name);
       }
 
@@ -9070,10 +9032,10 @@ function RuntimeConnectionTab() {
         const b = await api.createBackup();
         log(`✓ Backup nel runtime IDE: ${b.name}`);
       } catch (e: any) {
-        log(`⚠ Backup non riuscito (il progetto è comunque aperto): ${e?.message ?? String(e)}`);
+        log(t("cfgUi.backupFailedOpen", { message: e?.message ?? String(e) }));
       }
 
-      log("🚀 Progetto del dispositivo aperto nell'IDE");
+      log(t("cfgUi.deviceProjectOpenedInThe"));
       setPullDone(true);
 
       // Stessa sequenza di `onProjectOpened` in App.tsx: si svuota lo stato del
@@ -9095,7 +9057,7 @@ function RuntimeConnectionTab() {
     setDeletingRemote(true); setRemoteMsg(null);
     try {
       await api.remoteDeleteProject();
-      setRemoteMsg("✓ Progetto eliminato dal runtime.");
+      setRemoteMsg(t("cfgUi.projectDeletedFromTheRuntime"));
     } catch (e: any) {
       setRemoteMsg(`✗ ${e?.message ?? String(e)}`);
     } finally {
@@ -9113,7 +9075,7 @@ function RuntimeConnectionTab() {
     setPushingUsers(true); setRemoteMsg(null);
     try {
       const res = await api.pushUsersToRuntime();
-      setRemoteMsg(`✓ ${res.users} utente(i) inviati al dispositivo.${res.note ? " " + res.note : ""}`);
+      setRemoteMsg(t("cfgUi.usersSent", { count: res.users }) + (res.note ? " " + res.note : ""));
     } catch (e: any) {
       setRemoteMsg(`✗ ${e?.message ?? String(e)}`);
     } finally {
@@ -9145,7 +9107,7 @@ function RuntimeConnectionTab() {
       {/* Connection config */}
       <section>
         <div style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>
-          Connessione runtime remoto
+          {t("cfgUi.remoteRuntimeConnection")}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>{t("cfg.targetRuntimeUrl")}</label>
@@ -9166,7 +9128,7 @@ function RuntimeConnectionTab() {
               title={t("cfg.discoverMdns")}
               disabled={discovering}
               onClick={handleDiscover}
-            >{discovering ? "Cerco…" : "Cerca runtime"}</button>
+            >{discovering ? "Cerco…" : t("cfgUi.findRuntime")}</button>
           </div>
           {discoverError && (
             <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-warning, #f59e0b)", borderRadius: 4, padding: "8px 10px", display: "flex", flexDirection: "column", gap: 6 }}>
@@ -9223,7 +9185,7 @@ function RuntimeConnectionTab() {
                           niente. */}
                       {r.container && (
                         <span
-                          title={`Runtime in container (${r.container}) — si aggiorna con install-container.sh, non col deploy del binario`}
+                          title={t("cfgUi.containerRuntime", { name: r.container })}
                           style={{
                             fontSize: 10, lineHeight: 1.6, padding: "0 6px", borderRadius: 999,
                             whiteSpace: "nowrap", flexShrink: 0,
@@ -9282,14 +9244,14 @@ function RuntimeConnectionTab() {
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             {!connected && (
               <button style={BTN_PRIMARY} onClick={handleConnect} disabled={status === "connecting"}>
-                {status === "connecting" ? "Connessione…" : "Connetti"}
+                {status === "connecting" ? t("cfgUi.connecting") : "Connetti"}
               </button>
             )}
             {connected && (
               <button style={BTN_RED} onClick={handleDisconnect}>{t("cfg.disconnect")}</button>
             )}
             <button style={BTN} onClick={handleDownloadCert} disabled={!target} title={t("cfg.downloadTargetCert")}>
-              Scarica cert TLS
+              {t("cfgUi.downloadTlsCert")}
             </button>
           </div>
         </div>
@@ -9310,7 +9272,7 @@ function RuntimeConnectionTab() {
           <span style={{ color: "var(--brand-text-subtle, #94a3b8)", fontSize: 13 }}>{t("cfg.notConnected")}</span>
         )}
         {status === "connecting" && (
-          <span style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 13 }}>Connessione in corso…</span>
+          <span style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 13 }}>{t("cfgUi.connecting2")}</span>
         )}
         {status === "error" && (
           <span style={{ color: "var(--brand-danger-soft, #fca5a5)", fontSize: 13, whiteSpace: "pre-wrap" }}>✗ {statusMsg}</span>
@@ -9334,10 +9296,10 @@ function RuntimeConnectionTab() {
       {connected && (
         <section>
           <div style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>
-            Deploy progetto
+            {t("cfgUi.deployProject")}
           </div>
           <p style={{ fontSize: 12, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 10px" }}>
-            Esporta il progetto attivo e lo attiva sul runtime target.
+            {t("cfgUi.exportsTheActiveProjectAnd")}
           </p>
           <label style={{ display: "flex", alignItems: "flex-start", gap: 6, cursor: "pointer", margin: "0 0 10px" }}>
             <input type="checkbox" checked={sostituisciUtenti}
@@ -9352,7 +9314,7 @@ function RuntimeConnectionTab() {
           {!deployDone && (
             <button style={{ ...BTN_PRIMARY, opacity: deploying ? 0.6 : 1 }}
               onClick={handleDeploy} disabled={deploying}>
-              {deploying ? "Deploy in corso…" : "Deploy progetto attivo ▸"}
+              {deploying ? "Deploy in corso…" : t("cfgUi.deployActiveProject")}
             </button>
           )}
           {deployLog.length > 0 && (
@@ -9368,23 +9330,23 @@ function RuntimeConnectionTab() {
           )}
           {deployDone && (
             <button style={{ ...BTN, marginTop: 8 }} onClick={() => { setDeployLog([]); setDeployDone(false); }}>
-              Nuovo deploy
+              {t("cfgUi.newDeploy")}
             </button>
           )}
 
           {/* Danger: rimuovi il progetto attivo dal runtime */}
           <div style={{ marginTop: 16, paddingTop: 12, borderTop: "1px solid var(--brand-surface, #1e293b)" }}>
             <p style={{ fontSize: 12, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 8px" }}>
-              Elimina il progetto attualmente attivo sul runtime (es. per ripartire pulito).
+              {t("cfgUi.deletesTheProjectCurrentlyActive")}
             </p>
             <button style={{ ...BTN, opacity: pushingUsers ? 0.6 : 1 }}
               title={t("cfg.pushUsersOnlyTitle")}
               onClick={handlePushUsers} disabled={pushingUsers}>
-              {pushingUsers ? "Invio…" : "Aggiorna utenti sul dispositivo"}
+              {pushingUsers ? "Invio…" : t("cfgUi.updateUsersOnTheDevice")}
             </button>
             <button style={{ ...BTN_RED, opacity: deletingRemote ? 0.6 : 1 }}
               onClick={handleDeleteRemoteProject} disabled={deletingRemote}>
-              {deletingRemote ? "Eliminazione…" : "Elimina progetto sul runtime"}
+              {deletingRemote ? "Eliminazione…" : t("cfgUi.deleteProjectOnTheRuntime")}
             </button>
             {remoteMsg && (
               <div style={{ marginTop: 8, fontSize: 12, color: remoteMsg.startsWith("✗") ? "var(--brand-danger-soft, #f87171)" : "var(--brand-success-soft, #4ade80)" }}>
@@ -9401,16 +9363,15 @@ function RuntimeConnectionTab() {
       {connected && (
         <section>
           <div style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>
-            Riapri il progetto del dispositivo
+            {t("cfgUi.reopenTheDeviceSProject")}
           </div>
           <p style={{ fontSize: 12, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 10px" }}>
-            Scarica il progetto che gira sul runtime connesso e lo apre qui, al posto di quello
-            aperto ora. Prima di toccare qualsiasi cosa ne scarica una copia .zip.
+            {t("cfgUi.downloadsTheProjectRunningOn")}
           </p>
           {!pullDone && (
             <button style={{ ...BTN, opacity: pulling ? 0.6 : 1 }}
               onClick={handlePullProject} disabled={pulling || deploying}>
-              {pulling ? "Lettura in corso…" : "◂ Riapri il progetto del dispositivo"}
+              {pulling ? "Lettura in corso…" : t("cfgUi.reopenTheDeviceSProject2")}
             </button>
           )}
           {pullLog.length > 0 && (
@@ -9426,7 +9387,7 @@ function RuntimeConnectionTab() {
           )}
           {pullDone && (
             <button style={{ ...BTN, marginTop: 8 }} onClick={() => { setPullLog([]); setPullDone(false); }}>
-              Chiudi
+              {t("cfgUi.close")}
             </button>
           )}
         </section>
@@ -9447,7 +9408,7 @@ function RuntimeConnectionTab() {
         >
           <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 8, width: 560, display: "flex", flexDirection: "column", gap: 10, padding: 16 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: "var(--brand-text-2, #cbd5e1)" }}>
-              Riapri il progetto del dispositivo
+              {t("cfgUi.reopenTheDeviceSProject")}
             </div>
 
             {pullAsk.savedBy && pullAsk.localVersion && pullAsk.savedBy !== pullAsk.localVersion && (
@@ -9458,7 +9419,7 @@ function RuntimeConnectionTab() {
             )}
 
             <label style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", display: "flex", flexDirection: "column", gap: 4 }}>
-              Importa col nome
+              {t("cfgUi.importAs")}
               <input
                 style={INPUT}
                 value={pullAsk.name}
@@ -9469,45 +9430,43 @@ function RuntimeConnectionTab() {
             </label>
             {pullAsk.localNames.includes(pullAsk.name.trim()) ? (
               <div style={{ fontSize: 12, color: "var(--brand-danger-soft, #fca5a5)" }}>
-                ⚠ Esiste già un progetto locale <strong>{pullAsk.name.trim()}</strong>: verrà eliminato e
-                sostituito da quello del dispositivo. Scrivi un altro nome per tenerli entrambi.
+                <Trans i18nKey="cfgUi.pullExists" values={{ name: pullAsk.name.trim() }} components={TRANS_COMP} />
               </div>
             ) : (
               <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)" }}>
-                Nessun progetto locale con questo nome: ne verrà creato uno nuovo.
+                {t("cfgUi.noLocalProjectWithThis")}
               </div>
             )}
 
             <div style={{ fontSize: 12, color: "var(--brand-warning-soft, #fbbf24)" }}>
-              ⚠ Il bundle del dispositivo contiene anche <strong>utenti e credenziali</strong>: aprendolo
-              sostituisci gli account e le password delle sorgenti con quelli del dispositivo.
+              <Trans i18nKey="cfgUi.pullBundleCreds" components={TRANS_COMP} />
             </div>
 
             {pullAsk.dirty && (
               <div style={{ borderTop: "1px solid var(--brand-surface-2, #334155)", paddingTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
                 <div style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>
-                  Il progetto aperto ora ha modifiche non salvate e verrà chiuso.
+                  {t("cfgUi.theCurrentlyOpenProjectHas")}
                 </div>
                 <label style={{ fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
                   <input type="radio" checked={pullAsk.saveFirst} onChange={() => setPullAsk({ ...pullAsk, saveFirst: true })} style={{ marginRight: 6 }} />
-                  Salva prima di chiudere
+                  {t("cfgUi.saveBeforeClosing")}
                 </label>
                 <label style={{ fontSize: 12, color: "var(--brand-danger-soft, #fca5a5)", cursor: "pointer" }}>
                   <input type="radio" checked={!pullAsk.saveFirst} onChange={() => setPullAsk({ ...pullAsk, saveFirst: false })} style={{ marginRight: 6 }} />
-                  Chiudi senza salvare (le modifiche vanno perse)
+                  {t("cfgUi.closeWithoutSavingChangesAre")}
                 </label>
               </div>
             )}
 
             <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>
-              La copia .zip del progetto del dispositivo è già stata scaricata.
+              {t("cfgUi.theZipCopyOfThe")}
             </div>
 
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               <button style={BTN} onClick={() => { setPullAsk(null); setPullDone(true); }}>{t("common.cancel")}</button>
               <button style={{ ...BTN_PRIMARY, opacity: pullAsk.name.trim() ? 1 : 0.6 }}
                 onClick={handlePullConfirm} disabled={!pullAsk.name.trim()}>
-                Apri nell'IDE
+                {t("cfgUi.openInTheIde")}
               </button>
             </div>
           </div>
@@ -9524,8 +9483,7 @@ function RuntimeConnectionTab() {
             Log remoti
           </div>
           <span style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)" }}>
-            I log del runtime connesso appaiono nel cassetto log dell'IDE (☰ Menu → Log) —
-            filtrali scrivendo <code>remote:</code> nel campo di ricerca per tag.
+            <Trans i18nKey="cfgUi.remoteLogsHint" components={TRANS_COMP} />
           </span>
         </section>
       )}
@@ -9542,7 +9500,7 @@ function RuntimeConnectionTab() {
             fontFamily: "monospace", fontSize: 11,
           }}>
             {liveTags.size === 0
-              ? <span style={{ color: "var(--brand-text-subtle, #94a3b8)" }}>Nessuna variabile ricevuta…</span>
+              ? <span style={{ color: "var(--brand-text-subtle, #94a3b8)" }}>{t("cfgUi.noVariablesReceived")}</span>
               : Array.from(liveTags.entries()).slice(0, 50).map(([id, t]) => {
                   const qColor = t.quality === "Good" ? "var(--brand-success-soft, #4ade80)" : t.quality === "Bad" ? "var(--brand-danger-soft, #f87171)" : "#fb923c";
                   return (
@@ -10032,14 +9990,14 @@ async function registraDispositivo(nuovo: SavedDevice): Promise<SavedDevice[]> {
  */
 async function flushBeforeDeploy(onLog: (msg: string) => void): Promise<boolean> {
   if (!selectIsDirty(useAppStore.getState())) return true;
-  onLog("Salvataggio modifiche non salvate…");
+  onLog(i18n.t("cfgUi.savingUnsavedChanges"));
   await useAppStore.getState().saveAll();
   const st = useAppStore.getState();
   if (st.saveStatus === "error") {
-    onLog(`✗ Salvataggio fallito, deploy annullato: ${st.saveError ?? "errore sconosciuto"}`);
+    onLog(i18n.t("cfgUi.saveFailedDeployCancelled", { reason: st.saveError ?? i18n.t("cfgUi.unknownError") }));
     return false;
   }
-  onLog("✓ Salvato");
+  onLog(i18n.t("cfgUi.saved2"));
   return true;
 }
 
@@ -10051,7 +10009,7 @@ async function deployToTarget(
 ): Promise<boolean> {
   try {
     if (!await flushBeforeDeploy(onLog)) return false;
-    onLog("Esportazione progetto dal runtime locale…");
+    onLog(i18n.t("cfgUi.exportingTheProjectFromThe"));
     const exportRes = await api.exportProjectZip();
     const cd = exportRes.headers.get("content-disposition") ?? "";
     const nameMatch = cd.match(/filename="([^"]+)"/);
@@ -10074,7 +10032,7 @@ async function deployToTarget(
     let remoteToken: string | null = null;
     switch (modoAccesso(authRequired, user, pass)) {
       case "senza-login":
-        onLog("ⓘ Il pannello non ha utenti: nessun login necessario.");
+        onLog(i18n.t("cfgUi.thePanelHasNoUsers"));
         break;
       case "credenziali-mancanti":
         throw new Error(spiegaCredenzialiMancanti());
@@ -10130,9 +10088,9 @@ async function deployToTarget(
       throw new Error(`Upload fallito: ${uploadRes.status}${body ? ` — ${body}` : ""}`);
     }
     const { name: uploadedName } = await uploadRes.json();
-    onLog(`✓ Caricato come "${uploadedName}"`);
+    onLog(i18n.t("cfgUi.uploadedAs", { name: uploadedName }));
 
-    onLog("Attivazione progetto…");
+    onLog(i18n.t("cfgUi.activatingProject"));
     const openRes = await fetch(`${target}/api/projects/${encodeURIComponent(uploadedName)}/open`, {
       method: "POST",
       headers: autorizzazione,
@@ -10293,7 +10251,7 @@ function DevicesTab() {
     setConnettendo(device.url); setEsitoConnessione(null);
     try {
       const result = await api.remoteConnect(device.url, device.user || undefined, pass || undefined);
-      if (!result.ok) throw new Error(result.error ?? "Connessione fallita");
+      if (!result.ok) throw new Error(result.error ?? t("cfgUi.connectionFailed"));
       setRemoteConnected(true, device.url);
       setEsitoConnessione({ url: device.url, testo: result.nota ?? null, errore: false });
       window.dispatchEvent(new CustomEvent("sws:runtime-connected", { detail: { url: device.url } }));
@@ -10914,7 +10872,7 @@ function LanguagesTab() {
         )}
         {table.langs.filter((l) => l !== table.default).map((l) => (
           <button key={l} onClick={() => traduci(l)} disabled={traducendo !== null}
-            title={`Riempie le caselle vuote della colonna ${l}. Le traduzioni scritte a mano non si toccano.`}
+            title={t("cfgUi.fillsEmptyCells", { lang: l })}
             style={S.btn("ghost")}>
             {traducendo === l ? `→ ${l}…` : `→ ${l}`}
           </button>
@@ -11094,11 +11052,11 @@ export function ConfigView() {
         {projectLoading ? (
           projectLoadError ? (
             <div style={{ color: "#dc2626", fontSize: 13, padding: 24, whiteSpace: "pre-wrap" }}>
-              <strong>Errore caricamento progetto:</strong><br />{projectLoadError}
+              <strong>{t("cfgUi.errorLoadingProject")}</strong><br />{projectLoadError}
             </div>
           ) : (
             <div style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 13, padding: 24 }}>
-              Caricamento progetto…
+              {t("cfgUi.loadingProject")}
             </div>
           )
         ) : (
@@ -11206,7 +11164,7 @@ function BackupSection({
         </div>
       )}
       {list === null ? (
-        <div style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 13 }}>Caricamento…</div>
+        <div style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 13 }}>{t("cfgUi.loading2")}</div>
       ) : list.length === 0 ? (
         <div style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 13, fontStyle: "italic", padding: "16px 0" }}>
           {emptyHint}
@@ -11247,7 +11205,7 @@ function BackupSection({
                       border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3,
                       cursor: busy ? "wait" : "pointer", fontSize: 12,
                     }}
-                  >Scarica</button>
+                  >{t("cfgUi.download")}</button>
                   <button
                     onClick={() => onDelete(b.name)}
                     disabled={busy}
@@ -11452,11 +11410,7 @@ function BackupsTab() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 13, lineHeight: 1.5 }}>
-        Snapshot point-in-time del progetto (project.yaml + synoptics + users.yaml + history +
-        recipes) salvati sotto <code>{`<project>/backups/`}</code>. Il runtime ne crea uno
-        automaticamente ogni N minuti — di default secondo il flag di avvio
-        <code> --auto-backup-interval-minutes</code>, ma questo progetto può avere il proprio
-        intervallo (sotto), a prescindere da come è stato avviato il runtime.
+        <Trans i18nKey="cfgUi.backupsIntro" values={{ dir: "<project>/backups/" }} components={TRANS_COMP} />
       </div>
 
       <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 5, padding: 8 }}>
@@ -11476,7 +11430,7 @@ function BackupsTab() {
         </div>
         <button onClick={saveBackupConfig} disabled={cfgSaving}
           style={{ padding: "6px 14px", background: "var(--brand-primary, #3b82f6)", color: "var(--brand-on-primary, #fff)", border: "none", borderRadius: 4, cursor: cfgSaving ? "wait" : "pointer", fontSize: 13 }}>
-          {cfgSaved ? "✓ Salvato" : "Salva"}
+          {cfgSaved ? t("cfgUi.saved2") : t("cfgUi.save")}
         </button>
         {cfgErr && <span style={{ fontSize: 12, color: "var(--brand-danger-soft, #f87171)" }}>{cfgErr}</span>}
       </div>
@@ -11484,7 +11438,7 @@ function BackupsTab() {
       <BackupSection
         title={t("cfg.backupLocalSectionTitle")}
         list={list} busy={busy} err={err}
-        emptyHint='Nessun backup. Click "+ Backup adesso" per crearne uno.'
+        emptyHint={t("cfgUi.noBackupsClickBackupNow")}
         onRefresh={refresh} onCreate={createNow}
         onDownload={download} onRestore={restore} onDelete={drop}
       />
@@ -11493,7 +11447,7 @@ function BackupsTab() {
         <BackupSection
           title={t("cfg.backupRemoteSectionTitle")}
           list={remoteList} busy={remoteBusy} err={remoteErr}
-          emptyHint="Nessun backup sul dispositivo remoto."
+          emptyHint={t("cfgUi.noBackupsOnTheRemote")}
           onRefresh={refreshRemote} onCreate={createRemote}
           onDownload={downloadRemote} onRestore={restoreRemote} onDelete={dropRemote}
         />

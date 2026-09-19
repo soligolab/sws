@@ -1,3 +1,4 @@
+import i18n from "i18next";
 // Il diff riga per riga di due blocchi di codice.
 //
 // # Perché serve, e perché non basta dire «modificata»
@@ -47,7 +48,7 @@ export function diffRighe(prima: string, dopo: string): {
     return {
       righe: [],
       parziale: true,
-      nota: `${a.length} righe prima, ${b.length} dopo: troppo per un diff riga per riga`,
+      nota: i18n.t("diffRighe.tooLarge", { before: a.length, after: b.length }),
     };
   }
 

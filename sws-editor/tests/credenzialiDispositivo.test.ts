@@ -1,7 +1,11 @@
 import { describe, it, expect } from "vitest";
+import i18n from "@/i18n";
 import {
   modoAccesso, spiegaCredenzialiMancanti, spiegaLoginFallito,
 } from "../src/config/credenzialiDispositivo";
+
+// I messaggi che il codice sotto test restituisce passano dal catalogo: qui si legge quello italiano.
+i18n.changeLanguage("it");
 
 /** Come ci si autentica verso un dispositivo registrato (T-68).
  *

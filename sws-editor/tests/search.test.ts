@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
+import i18n from "@/i18n";
 import { findObjects } from "../src/search/findObjects";
 import { buildTagUsage } from "../src/search/tagUsage";
 import type { AlarmDef, SynopticObject, SynopticPage, TagDef } from "../src/types";
+
+// I messaggi che il codice sotto test restituisce passano dal catalogo: qui si legge quello italiano.
+i18n.changeLanguage("it");
 
 // F8.3 — la ricerca deve trovare un oggetto anche per TAG e per TESTO, non solo
 // per nome/tipo/id (il filtro di prima), e coprire tutte le pagine. La mappa

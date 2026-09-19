@@ -122,10 +122,10 @@ export function ReAuthModal() {
         <div style={CARD}>
           <div>
             <div style={{ fontSize: 15, fontWeight: 700, color: "var(--brand-text, #e2e8f0)", marginBottom: 4 }}>
-              Nessun progetto attivo
+              {t("reauth.noActiveProject")}
             </div>
             <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)" }}>
-              Il runtime si è riavviato senza un progetto aperto. Torna alla schermata di benvenuto per selezionare un progetto.
+              {t("reauth.theRuntimeRestartedWithoutAn")}
             </div>
           </div>
           <button style={BTN_PRIMARY} onClick={handleGoToWelcome}>
@@ -144,7 +144,7 @@ export function ReAuthModal() {
             Sessione scaduta
           </div>
           <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)" }}>
-            Inserisci la password per continuare come <strong style={{ color: "var(--brand-text-muted, #94a3b8)" }}>{authUser}</strong>.
+            {t("reauth.enterPasswordAs")} <strong style={{ color: "var(--brand-text-muted, #94a3b8)" }}>{authUser}</strong>.
           </div>
         </div>
 

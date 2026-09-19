@@ -5,7 +5,11 @@
 // fermava mai. Due cause possibili, e questi test coprono entrambe: il codice
 // di chiusura definitivo, e il caso in cui quel codice si perde e arriva 1006.
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import i18n from "@/i18n";
 import { ReconnectingWs } from "@/ws/reconnectingWs";
+
+// I messaggi che il codice sotto test restituisce passano dal catalogo: qui si legge quello italiano.
+i18n.changeLanguage("it");
 
 class FintoWs {
   static ultimo: FintoWs | null = null;

@@ -46,6 +46,7 @@ import type {
   AiConfig,
   ConfigTraduzione,
 } from "@/types";
+import i18n from "i18next";
 
 // Runtime URL resolution order (ARCH-002):
 //
@@ -172,7 +173,7 @@ export class PasswordChangeRequiredError extends Error {
  *  prenderebbe lo stesso rifiuto. */
 export class ProjectChangedError extends Error {
   constructor(msg?: string) {
-    super(msg ?? "il progetto è cambiato mentre lavoravi");
+    super(msg ?? i18n.t("errors.projectChangedWhileWorking"));
     this.name = "ProjectChangedError";
   }
 }

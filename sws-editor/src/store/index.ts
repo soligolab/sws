@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import i18n from "i18next";
 import { api, setAuthToken, ProjectChangedError } from "@/api/client";
 import { applyAppearance, getStoredMode, type ThemeMode } from "@/theme";
 import { genId } from "@/id";
@@ -33,7 +34,11 @@ import type {
 
 export interface HistoryEntry {
   pages: SynopticPage[];
+  /** Chiave del catalogo (`history.*`), **non** una frase: chi mostra la
+   *  history la traduce con `t(label, labelArgs)`. Tradurla alla `push`
+   *  lascerebbe le voci vecchie nella lingua di prima a ogni cambio lingua. */
   label: string;
+  labelArgs?: Record<string, string | number>;
   /** Value of `pagesRev` for the state stored in `pages`. Carried through
    *  undo/redo so the dirty check survives time travel: undoing back to the
    *  revision that was saved makes the project clean again. */
@@ -408,7 +413,8 @@ interface AppState {
   setSelectedSubCell: (sub: { objectId: string; row: number; col: number; path: ("a" | "b")[] } | null) => void;
   /** Merge an N×M range of cells into the top-left origin (rs/cs spans).
    *  Returns an error message if the range overlaps with another existing merge. */
-  mergeCellRange: (pageId: string, objectId: string, r1: number, c1: number, r2: number, c2: number) => string | null;
+  /** Errore restituito a chi chiama: una chiave `storeErr.*` da tradurre con `t(key, args)`. */
+  mergeCellRange: (pageId: string, objectId: string, r1: number, c1: number, r2: number, c2: number) => { key: string; args?: Record<string, string | number> } | null;
   /** Reset rowspan/colspan on a previously-merged cell. */
   unmergeCell: (pageId: string, objectId: string, row: number, col: number) => void;
   /** Subdivide a cell or any sub-cell at the given path into 1×2 / 2×1.
@@ -496,7 +502,7 @@ interface AppState {
    * pushes until `end`. Without this, a 200 px drag turns into 200 undo
    * steps because `updateObject` pushes on every pixel.
    */
-  beginInteraction: (label: string) => void;
+  beginInteraction: (label: string, labelArgs?: HistoryEntry["labelArgs"]) => void;
   endInteraction: () => void;
 
   /** Applica una proposta dell'assistente come **una sola** transazione.
@@ -623,15 +629,19 @@ export const useAppStore = create<AppState>((set, get) => {
   // one per pixel.
   let interactionDepth = 0;
 
+  /** Etichetta (chiave + argomenti) da ricopiare sulla controparte di undo/redo. */
+  const etichetta = (e?: HistoryEntry) =>
+    e ? { label: e.label, labelArgs: e.labelArgs } : { label: "history.edit" };
+
   /**
    * Push a labeled snapshot of the current `pages` onto the history stack
    * before applying a mutation. Clears the redo stack. Capped at HISTORY_LIMIT.
    * Becomes a no-op while inside a bracketed interaction.
    */
-  const pushHistory = (label: string) => {
+  const pushHistory = (label: string, labelArgs?: HistoryEntry["labelArgs"]) => {
     if (interactionDepth > 0) return;
     const { pages, past, pagesRev } = get();
-    const entry: HistoryEntry = { pages: clonePages(pages), label, rev: pagesRev };
+    const entry: HistoryEntry = { pages: clonePages(pages), label, labelArgs, rev: pagesRev };
     const trimmed = past.length >= HISTORY_LIMIT
       ? past.slice(past.length - HISTORY_LIMIT + 1)
       : past;
@@ -641,9 +651,9 @@ export const useAppStore = create<AppState>((set, get) => {
   /** Force-push a history entry even mid-interaction; used by begin.
    *  `project` va passato solo dalle transazioni dell'assistente — vedi il
    *  commento su `HistoryEntry.project`. */
-  const pushHistoryUnconditional = (label: string, project?: ProjectInfo | null) => {
+  const pushHistoryUnconditional = (label: string, project?: ProjectInfo | null, labelArgs?: HistoryEntry["labelArgs"]) => {
     const { pages, past, pagesRev } = get();
-    const entry: HistoryEntry = { pages: clonePages(pages), label, rev: pagesRev };
+    const entry: HistoryEntry = { pages: clonePages(pages), label, labelArgs, rev: pagesRev };
     if (project !== undefined) entry.project = project;
     const trimmed = past.length >= HISTORY_LIMIT
       ? past.slice(past.length - HISTORY_LIMIT + 1)
@@ -800,7 +810,7 @@ export const useAppStore = create<AppState>((set, get) => {
         id,
         name: `funzione_${id.slice(-4)}`,
         description: undefined,
-        code: '# scrivi qui il corpo della funzione\n',
+        code: i18n.t("functionEditor.newFunctionBody") + "\n",
         params: [],
       };
       set((s) => ({
@@ -936,7 +946,7 @@ export const useAppStore = create<AppState>((set, get) => {
       }),
 
     addPage: () => {
-      pushHistory("Nuova pagina");
+      pushHistory("history.newPage");
       const page = makePage(`Page ${get().pages.length + 1}`);
       // Q38 — in modalità «ratio» la pagina nasce già con la risoluzione di
       // riferimento scritta: le misure nel file sono ciò che TUTTI i motori
@@ -961,7 +971,7 @@ export const useAppStore = create<AppState>((set, get) => {
     deletePage: (id) => {
       const { pages, currentPageId } = get();
       if (pages.length <= 1) return;
-      pushHistory("Elimina pagina");
+      pushHistory("history.deletePage");
       const next = pages.filter((p) => p.id !== id);
       set({
         pages: next,
@@ -972,12 +982,12 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     renamePage: (id, name) => {
-      pushHistory("Rinomina pagina");
+      pushHistory("history.renamePage");
       set((s) => ({ pages: s.pages.map((p) => (p.id === id ? { ...p, name } : p)) }));
     },
 
     reorderPage: (id, dir) => {
-      pushHistory("Riordina pagine");
+      pushHistory("history.reorderPages");
       set((s) => {
         const idx = s.pages.findIndex((p) => p.id === id);
         if (idx < 0) return s;
@@ -990,7 +1000,7 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     movePage: (id, toIndex) => {
-      pushHistory("Riordina pagine");
+      pushHistory("history.reorderPages");
       set((s) => {
         const idx = s.pages.findIndex((p) => p.id === id);
         if (idx < 0) return s;
@@ -1003,7 +1013,7 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     duplicatePage: (id) => {
-      pushHistory("Duplica pagina");
+      pushHistory("history.duplicatePage");
       set((s) => {
         const page = s.pages.find((p) => p.id === id);
         if (!page) return s;
@@ -1025,12 +1035,12 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     updatePageProps: (id, patch) => {
-      pushHistory("Proprietà pagina");
+      pushHistory("history.pageProps");
       set((s) => ({ pages: s.pages.map((p) => (p.id === id ? { ...p, ...patch } : p)) }));
     },
 
     updateGridCell: (pageId, objectId, cell) => {
-      pushHistory("Modifica cella");
+      pushHistory("history.editCell");
       set((s) => ({
         pages: s.pages.map((p) =>
           p.id === pageId
@@ -1055,15 +1065,15 @@ export const useAppStore = create<AppState>((set, get) => {
       // Normalise + bail on degenerate ranges.
       const rs = Math.max(r1, r2) - Math.min(r1, r2) + 1;
       const cs = Math.max(c1, c2) - Math.min(c1, c2) + 1;
-      if (rs < 1 || cs < 1) return "Range non valido.";
-      if (rs === 1 && cs === 1) return "Seleziona almeno due celle.";
+      if (rs < 1 || cs < 1) return { key: "storeErr.invalidRange" };
+      if (rs === 1 && cs === 1) return { key: "storeErr.selectTwoCells" };
       const topR = Math.min(r1, r2);
       const topC = Math.min(c1, c2);
 
       // Look up the grid object first so we can validate before mutating.
       const page = get().pages.find((p) => p.id === pageId);
       const obj = page?.objects.find((o) => o.id === objectId);
-      if (!obj || obj.type !== "grid") return "Oggetto non trovato.";
+      if (!obj || obj.type !== "grid") return { key: "storeErr.objectNotFound" };
       const cells = (obj.grid_cells ?? []) as GridCell[];
 
       // Reject if any cell inside the range is already the origin of a merge
@@ -1077,11 +1087,11 @@ export const useAppStore = create<AppState>((set, get) => {
         if (!inside) continue;
         const extendsOut = c.row + cRs > topR + rs || c.col + cCs > topC + cs;
         if (extendsOut) {
-          return `La cella (${c.row},${c.col}) ha già un merge che sborderebbe.`;
+          return { key: "storeErr.mergeOverflow", args: { row: c.row, col: c.col } };
         }
       }
 
-      pushHistory("Unisci celle");
+      pushHistory("history.mergeCells");
       set((s) => ({
         pages: s.pages.map((p) =>
           p.id !== pageId ? p : {
@@ -1113,7 +1123,7 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     unmergeCell: (pageId, objectId, row, col) => {
-      pushHistory("Annulla unione");
+      pushHistory("history.unmergeCells");
       set((s) => ({
         pages: s.pages.map((p) =>
           p.id !== pageId ? p : {
@@ -1135,7 +1145,7 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     splitCell: (pageId, objectId, row, col, orientation, path = []) => {
-      pushHistory(path.length === 0 ? "Dividi cella" : "Dividi sub-cella");
+      pushHistory(path.length === 0 ? "history.splitCell" : "history.splitSubCell");
       set((s) => ({
         pages: s.pages.map((p) =>
           p.id !== pageId ? p : {
@@ -1178,7 +1188,7 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     joinSplitCell: (pageId, objectId, row, col, path = []) => {
-      pushHistory(path.length === 0 ? "Rimuovi split" : "Rimuovi split sub-cella");
+      pushHistory(path.length === 0 ? "history.removeSplit" : "history.removeSubSplit");
       set((s) => ({
         pages: s.pages.map((p) =>
           p.id !== pageId ? p : {
@@ -1239,7 +1249,7 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     updateSubCellAt: (pageId, objectId, row, col, path, patch) => {
-      pushHistory("Modifica sub-cella");
+      pushHistory("history.editSubCell");
       set((s) => ({
         pages: s.pages.map((p) =>
           p.id !== pageId ? p : {
@@ -1317,7 +1327,7 @@ export const useAppStore = create<AppState>((set, get) => {
       }),
 
     addObject: (partial) => {
-      pushHistory(`Aggiungi ${partial.type}`);
+      pushHistory("history.add", { type: partial.type });
       const obj: SynopticObject = { ...partial, id: genId() };
       set((s) => {
         // Nessuna pagina corrente valida (progetto vuoto senza sinottici, o
@@ -1357,7 +1367,7 @@ export const useAppStore = create<AppState>((set, get) => {
     segmentoScelto: null,
     setSegmentoScelto: (sg) => set({ segmentoScelto: sg, waypointScelto: null }),
     updateObject: (id, patch) => {
-      pushHistory("Modifica oggetto");
+      pushHistory("history.editObject");
       set((s) => ({
         pages: s.pages.map((p) =>
           p.id === s.currentPageId
@@ -1368,7 +1378,7 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     updateObjects: (ids, patch) => {
-      pushHistory("Modifica oggetti");
+      pushHistory("history.editObjects");
       set((s) => ({
         pages: s.pages.map((p) =>
           p.id === s.currentPageId
@@ -1381,7 +1391,7 @@ export const useAppStore = create<AppState>((set, get) => {
     duplicateObject: (id) => {
       const src = findObj(id);
       if (!src) return;
-      pushHistory("Duplica oggetto");
+      pushHistory("history.duplicateObject");
       const copy: SynopticObject = {
         ...src,
         id: genId(),
@@ -1405,7 +1415,7 @@ export const useAppStore = create<AppState>((set, get) => {
       if (selectedObjectIds.length === 0) return;
       const page = pages.find((p) => p.id === currentPageId);
       if (!page) return;
-      pushHistory("Duplica selezione");
+      pushHistory("history.duplicateSelection");
       const newIds: string[] = [];
       const copies: SynopticObject[] = selectedObjectIds
         .map((id) => page.objects.find((o) => o.id === id))
@@ -1433,7 +1443,7 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     deleteObject: (id) => {
-      pushHistory("Elimina oggetto");
+      pushHistory("history.deleteObject");
       set((s) => {
         const ids = s.selectedObjectIds.filter((x) => x !== id);
         return {
@@ -1451,7 +1461,7 @@ export const useAppStore = create<AppState>((set, get) => {
     deleteSelection: () => {
       const { selectedObjectIds } = get();
       if (selectedObjectIds.length === 0) return;
-      pushHistory("Elimina selezione");
+      pushHistory("history.deleteSelection");
       const deleting = new Set(selectedObjectIds);
       set((s) => ({
         pages: s.pages.map((p) =>
@@ -1465,7 +1475,7 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     reorderObject: (id, dir) => {
-      pushHistory("Riordina oggetto");
+      pushHistory("history.reorderObject");
       set((s) => {
         const page = s.pages.find((p) => p.id === s.currentPageId);
         if (!page) return s;
@@ -1513,7 +1523,7 @@ export const useAppStore = create<AppState>((set, get) => {
     applyStyle: () => {
       const { styleClipboard, selectedObjectIds, currentPageId } = get();
       if (!styleClipboard || selectedObjectIds.length === 0) return;
-      pushHistory("Applica stile");
+      pushHistory("history.applyStyle");
       set((s) => ({
         pages: s.pages.map((p) => p.id !== currentPageId ? p : {
           ...p,
@@ -1533,7 +1543,7 @@ export const useAppStore = create<AppState>((set, get) => {
       // the destination page) and strips group_id (the destination page's
       // group registry doesn't know about the source page's groups).
       const samePage = clipboardSourcePageId === currentPageId;
-      pushHistory("Incolla");
+      pushHistory("history.paste");
       const newIds: string[] = [];
       const copies = clipboard.map((src) => {
         const id = genId();
@@ -1586,7 +1596,7 @@ export const useAppStore = create<AppState>((set, get) => {
       const cx = (minX + maxR) / 2;
       const cy = (minY + maxB) / 2;
 
-      pushHistory(`Allinea (${mode})`);
+      pushHistory("history.align", { mode });
       const patches = new Map<string, { x?: number; y?: number; x2?: number; y2?: number; width?: number; height?: number }>();
 
       const move = (o: SynopticObject, dx: number, dy: number) => {
@@ -1682,11 +1692,10 @@ export const useAppStore = create<AppState>((set, get) => {
       const { past, future, pages, pagesRev, project } = get();
       if (past.length === 0) return;
       const prev = past[past.length - 1];
-      const currentLabel = prev.label;
       // Se la voce che si sta ripristinando porta uno snapshot del progetto,
       // anche la sua controparte nell'altra pila deve portarlo: altrimenti il
       // redo riporterebbe le pagine e non i tag, cioè metà transazione.
-      const controparte: HistoryEntry = { pages: clonePages(pages), label: currentLabel, rev: pagesRev };
+      const controparte: HistoryEntry = { pages: clonePages(pages), ...etichetta(prev), rev: pagesRev };
       if (prev.project !== undefined) controparte.project = project;
       set({
         past: past.slice(0, past.length - 1),
@@ -1709,8 +1718,7 @@ export const useAppStore = create<AppState>((set, get) => {
       const { past, future, pages, pagesRev, project } = get();
       if (future.length === 0) return;
       const next = future[0];
-      const currentLabel = next.label;
-      const controparte: HistoryEntry = { pages: clonePages(pages), label: currentLabel, rev: pagesRev };
+      const controparte: HistoryEntry = { pages: clonePages(pages), ...etichetta(next), rev: pagesRev };
       if (next.project !== undefined) controparte.project = project;
       set({
         past: [...past, controparte].slice(-HISTORY_LIMIT),
@@ -1736,13 +1744,12 @@ export const useAppStore = create<AppState>((set, get) => {
       const { past, future, pages, pagesRev, project } = get();
       if (index < 0 || index >= past.length) return;
       const target = past[index];
-      const currentLabel = past.length > 0 ? past[past.length - 1].label : "Modifica";
       // Il progetto in vigore a `index`: solo le transazioni dell'assistente
       // ne registrano uno, quindi una voce senza snapshot vale quanto la prima
       // che ne porta uno **più avanti** nella pila — fra le due non è cambiato
       // niente. Se nessuna ne porta, il progetto di oggi è già quello giusto.
       const progettoLi = past.slice(index).find((e) => e.project !== undefined)?.project;
-      const controparte: HistoryEntry = { pages: clonePages(pages), label: currentLabel, rev: pagesRev };
+      const controparte: HistoryEntry = { pages: clonePages(pages), ...etichetta(past[past.length - 1]), rev: pagesRev };
       if (progettoLi !== undefined) controparte.project = project;
       const newFuture = [
         ...past.slice(index + 1),
@@ -1770,12 +1777,11 @@ export const useAppStore = create<AppState>((set, get) => {
       const { past, future, pages, pagesRev, project } = get();
       if (index < 0 || index >= future.length) return;
       const target = future[index];
-      const currentLabel = past.length > 0 ? past[past.length - 1].label : "Modifica";
       // `future` è ordinata in avanti nel tempo, quindi qui si guarda
       // all'indietro: la voce con snapshot più vicina fra 0 e `index`.
       const progettoLi = future.slice(0, index + 1).reverse()
         .find((e) => e.project !== undefined)?.project;
-      const controparte: HistoryEntry = { pages: clonePages(pages), label: currentLabel, rev: pagesRev };
+      const controparte: HistoryEntry = { pages: clonePages(pages), ...etichetta(past[past.length - 1]), rev: pagesRev };
       if (progettoLi !== undefined) controparte.project = project;
       const newPast = [
         ...past,
@@ -1799,11 +1805,11 @@ export const useAppStore = create<AppState>((set, get) => {
       });
     },
 
-    beginInteraction: (label) => {
+    beginInteraction: (label, labelArgs) => {
       // Only the outermost begin actually pushes — nested begins (which
       // would otherwise happen if a resize handler also called begin)
       // just bump the depth counter.
-      if (interactionDepth === 0) pushHistoryUnconditional(label);
+      if (interactionDepth === 0) pushHistoryUnconditional(label, undefined, labelArgs);
       interactionDepth += 1;
     },
 
@@ -1813,7 +1819,7 @@ export const useAppStore = create<AppState>((set, get) => {
 
     applyAiProposal: async (p) => {
       const s = get();
-      if (!s.project) return { ok: false, motivo: "Nessun progetto aperto." };
+      if (!s.project) return { ok: false, motivo: "storeErr.noProject" };
 
       // ── 1. Il progetto è ancora quello su cui l'assistente ha ragionato? ──
       // Un turno dura decine di secondi. Se nel frattempo il progetto su disco
@@ -1823,16 +1829,12 @@ export const useAppStore = create<AppState>((set, get) => {
         try {
           const ora = await api.getProjectFingerprint();
           if (ora.sha256 !== p.impronta) {
-            return { ok: false, motivo:
-              "Il progetto è cambiato da quando l'assistente l'ha letto: la proposta " +
-              "è stata scartata. Richiedila e la ricostruirà su quello attuale." };
+            return { ok: false, motivo: "storeErr.projectChanged" };
           }
         } catch {
           // Impronta non verificabile (runtime irraggiungibile): si procede,
           // ma non si finge di aver controllato.
-          return { ok: false, motivo:
-            "Non riesco a verificare che il progetto non sia cambiato nel frattempo. " +
-            "Riprova quando il runtime risponde." };
+          return { ok: false, motivo: "storeErr.cannotVerify" };
         }
       }
 
@@ -1899,7 +1901,7 @@ export const useAppStore = create<AppState>((set, get) => {
       ];
 
       // ── 3. Un solo passo, con dentro anche il progetto ────────────────────
-      pushHistoryUnconditional(`Assistente: ${p.motivo}`, prima);
+      pushHistoryUnconditional("history.assistant", prima, { motivo: p.motivo });
       // Se la modifica è su un'altra pagina, ci si va: applicare qualcosa che
       // non si vede è il modo più veloce per smettere di guardare il diff.
       const toccata = proposte[0]
@@ -1975,11 +1977,9 @@ export const useAppStore = create<AppState>((set, get) => {
       // dirlo prima invece di lasciarlo scoprire.
       const sporco = s.pagesRev !== s.savedPagesRev;
       const avviso = lacunoso
-        ? "La proposta non conteneva gli script del progetto: sono stati tenuti quelli " +
-          "esistenti. Se l'assistente doveva modificarne uno, la modifica non c'è."
+        ? "storeErr.scriptsKept"
         : sporco && proposte.length > 0
-        ? "C'erano modifiche non salvate: l'assistente ha letto le pagine dal disco, " +
-          "quindi le pagine sostituite tornano alla versione salvata. Ctrl+Z annulla tutto."
+        ? "storeErr.unsavedNote"
         : undefined;
 
       return { ok: true, avviso };
@@ -2194,7 +2194,7 @@ export const useAppStore = create<AppState>((set, get) => {
 
     groupObjects: (ids, name) => {
       if (ids.length < 1) return;
-      pushHistory("Raggruppa oggetti");
+      pushHistory("history.group");
       const groupId = genId();
       const groupName = name ?? `Gruppo ${Date.now() % 10000}`;
       set((s) => {
@@ -2214,7 +2214,7 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     ungroupObjects: (groupId) => {
-      pushHistory("Separa gruppo");
+      pushHistory("history.ungroup");
       set((s) => ({
         pages: s.pages.map((p) => p.id !== s.currentPageId ? p : {
           ...p,
@@ -2227,7 +2227,7 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     renameGroup: (groupId, name) => {
-      pushHistory("Rinomina gruppo");
+      pushHistory("history.renameGroup");
       set((s) => ({
         pages: s.pages.map((p) => p.id !== s.currentPageId ? p : {
           ...p,
@@ -2237,7 +2237,7 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     moveObjectToGroup: (objId, groupId) => {
-      pushHistory(groupId ? "Sposta in gruppo" : "Rimuovi da gruppo");
+      pushHistory(groupId ? "history.moveToGroup" : "history.removeFromGroup");
       set((s) => ({
         pages: s.pages.map((p) => p.id !== s.currentPageId ? p : {
           ...p,
@@ -2250,7 +2250,7 @@ export const useAppStore = create<AppState>((set, get) => {
 
     moveObjectAdjacent: (objId, targetId, place) => {
       if (objId === targetId) return;
-      pushHistory("Riordina oggetto");
+      pushHistory("history.reorderObject");
       set((s) => {
         const page = s.pages.find((p) => p.id === s.currentPageId);
         if (!page) return s;
@@ -2271,7 +2271,7 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     moveObjectToGroupEnd: (objId, groupId) => {
-      pushHistory(groupId ? "Sposta in gruppo" : "Rimuovi da gruppo");
+      pushHistory(groupId ? "history.moveToGroup" : "history.removeFromGroup");
       set((s) => {
         const page = s.pages.find((p) => p.id === s.currentPageId);
         if (!page) return s;
@@ -2299,7 +2299,7 @@ export const useAppStore = create<AppState>((set, get) => {
 
     moveGroupAdjacent: (groupId, targetGroupId, place) => {
       if (groupId === targetGroupId) return;
-      pushHistory("Riordina gruppo");
+      pushHistory("history.reorderGroup");
       set((s) => {
         const page = s.pages.find((p) => p.id === s.currentPageId);
         if (!page) return s;

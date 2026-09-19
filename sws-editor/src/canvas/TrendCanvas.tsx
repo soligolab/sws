@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import type { AlarmEvent, BucketSample, Sample, TrendSeriesStyle } from "@/types";
 import { useLinguaContenuti } from "@/i18n/linguaContenuti";
@@ -318,6 +319,7 @@ export function TrendCanvas({
   axisColor,
   gridColor,
 }: TrendCanvasProps) {
+  const { t } = useTranslation();
   const lingua = useLinguaContenuti();
   const dtConfig: TrendDateTimeConfig = {
     dateOrder: dtDateOrder ?? DEFAULT_DT_CONFIG.dateOrder,
@@ -626,9 +628,9 @@ export function TrendCanvas({
       ctx.fillStyle = "#475569";
       ctx.font = "11px system-ui, sans-serif";
       ctx.textAlign = "center";
-      const msg = tags.length === 0 || tags.every((t) => !t)
-        ? "Tag non configurato"
-        : "In attesa di campioni…";
+      const msg = tags.length === 0 || tags.every((tag) => !tag)
+        ? t("trendCanvas.noTag")
+        : t("trendCanvas.waiting");
       ctx.fillText(msg, width / 2, height / 2);
       return;
     }
@@ -1123,7 +1125,7 @@ export function TrendCanvas({
         ctx.fillText(fmtValue(lastN), PAD_LEFT + plotW - 4, PAD_TOP + 4);
       }
     }
-  }, [series, envelopes, width, height, colors, yMin, yMax, hoverX, tags.join(","), windowS, isHistorical, explicitFromMs, explicitToMs, offsetMs, effHidden, seriesStyles, dragStartX, dragCurX, dtDateOrder, dtSeparator, dtTimeFormat, dtShowSeconds, dtShowYear, dtTwoLines, dtAlwaysShowDate, showThresholds, warnLow, warnHigh, alarmLow, alarmHigh, showAlarmMarkers, alarmEvents, bgColor, bgImage, bgImgTick, axisColor, gridColor, logScale, yUnit, cursors, measureMode, seriesLabels, editPreview]);
+  }, [series, envelopes, width, height, colors, yMin, yMax, hoverX, tags.join(","), windowS, isHistorical, explicitFromMs, explicitToMs, offsetMs, effHidden, seriesStyles, dragStartX, dragCurX, dtDateOrder, dtSeparator, dtTimeFormat, dtShowSeconds, dtShowYear, dtTwoLines, dtAlwaysShowDate, showThresholds, warnLow, warnHigh, alarmLow, alarmHigh, showAlarmMarkers, alarmEvents, bgColor, bgImage, bgImgTick, axisColor, gridColor, logScale, yUnit, cursors, measureMode, seriesLabels, editPreview, t]);
 
   const hasSeries = series.some((s) => s.length > 0);
 
@@ -1160,7 +1162,7 @@ export function TrendCanvas({
             </button>
           )}
           <button
-            title="Scarica CSV"
+            title={t("trendCanvas.downloadCsv")}
             onClick={() => {
               const { tMin, tSpan } = getXDomain();
               api.exportHistoryCsv(tags.filter(Boolean), tMin, tMin + tSpan);
@@ -1176,7 +1178,7 @@ export function TrendCanvas({
       {panEnabled && (
         <>
           <button
-            title="Indietro nel tempo"
+            title={t("trendCanvas.panBack")}
             onClick={() => setOffsetMs((o) => o + panStep)}
             style={{
               position: "absolute", bottom: 4, left: 4,
@@ -1202,7 +1204,7 @@ export function TrendCanvas({
             </span>
           )}
           <button
-            title="Avanti nel tempo"
+            title={t("trendCanvas.panForward")}
             onClick={() => setOffsetMs((o) => Math.max(0, o - panStep))}
             disabled={offsetMs === 0}
             style={{

@@ -738,7 +738,7 @@ export function App() {
                   const user = localStorage.getItem("sws.runtime.targetUser") || undefined;
                   try {
                     const result = await api.remoteConnect(lastTargetUrl, user, undefined);
-                    if (!result.ok) throw new Error(result.error ?? "Connessione fallita");
+                    if (!result.ok) throw new Error(result.error ?? t("app.connectionFailed"));
                     setRemoteConnected(true, lastTargetUrl);
                   } catch {
                     // Ultimo dispositivo irraggiungibile o credenziali cambiate
@@ -861,7 +861,7 @@ export function App() {
           // lampeggerebbe, che è peggio di una riga di testo.
           <Suspense fallback={
             <div style={{ padding: 24, color: "var(--brand-text-subtle, #94a3b8)", fontSize: 13 }}>
-              {t("config.loading", { defaultValue: "Caricamento configurazione…" })}
+              {t("app.loadingConfiguration")}
             </div>
           }>
             <ConfigView />

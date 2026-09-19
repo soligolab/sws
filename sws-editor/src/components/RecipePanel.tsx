@@ -61,7 +61,7 @@ export function RecipePanel({ idPrefix, compact = false, dark = false }: RecipeP
     <div style={{ fontSize: compact ? 11 : 13, color: nText }}>
       {filtered.length === 0 ? (
         <div style={{ color: nTextSubtle, fontSize: compact ? 11 : 13 }}>
-          Nessuna ricetta disponibile.
+          {t("recipePanel.noRecipeAvailable")}
         </div>
       ) : (
         filtered.map((r) => (

@@ -712,9 +712,9 @@ export function SvgCanvas({
   // Tracks whether we actually opened an interaction this gesture, so
   // endDrag only closes one when one was opened.
   const interactionOpen = useRef(false);
-  const openInteraction = (label: string) => {
+  const openInteraction = (label: string, labelArgs?: Record<string, string | number>) => {
     if (interactionOpen.current) return;
-    beginInteraction(label);
+    beginInteraction(label, labelArgs);
     interactionOpen.current = true;
   };
   const closeInteraction = () => {
@@ -1503,7 +1503,7 @@ export function SvgCanvas({
       ds.freedX = !!pageWidth  && (bb.x1 < 0 || bb.x1 > maxX);
       ds.freedY = !!pageHeight && (bb.y1 < 0 || bb.y1 > maxY);
     }
-    openInteraction("Sposta oggetto");
+    openInteraction("history.moveObject");
     dragRef.current = ds;
   };
 
@@ -1960,7 +1960,7 @@ export function SvgCanvas({
                     // Il bracket della history: `updateObject` pusha una voce a
                     // ogni chiamata, e senza questo un trascinamento
                     // riempirebbe la cronologia di un passo per pixel.
-                    openInteraction(`Sposta waypoint ${i + 1} del percorso`);
+                    openInteraction("history.moveRouteWaypoint", { n: i + 1 });
                     resizeRef.current = {
                       objId: obj!.id, handle: `mwp-${i}`,
                       startX: e.clientX, startY: e.clientY,
@@ -2040,7 +2040,7 @@ export function SvgCanvas({
               dragRef.current = null;
               selDragRef.current = null;
               setSelRect(null);
-              openInteraction("Sposta estremo linea");
+              openInteraction("history.moveLineEnd");
               resizeRef.current = {
                 objId: obj.id, handle,
                 startX: e.clientX, startY: e.clientY,
@@ -2071,7 +2071,7 @@ export function SvgCanvas({
                   dragRef.current = null;
                   selDragRef.current = null;
                   setSelRect(null);
-                  openInteraction(`Sposta waypoint ${i}`);
+                  openInteraction("history.moveWaypoint", { n: i });
                   resizeRef.current = {
                     objId: obj.id, handle: `wp-${i}`,
                     startX: e.clientX, startY: e.clientY,
@@ -2139,7 +2139,7 @@ export function SvgCanvas({
                   dragRef.current = null;
                   selDragRef.current = null;
                   setSelRect(null);
-                  openInteraction("Ridimensiona oggetto");
+                  openInteraction("history.resizeObject");
                   resizeRef.current = {
                     objId: obj.id,
                     handle: id,
@@ -2173,7 +2173,7 @@ export function SvgCanvas({
                 dragRef.current = null;
                 selDragRef.current = null;
                 setSelRect(null);
-                openInteraction("Ruota oggetto");
+                openInteraction("history.rotateObject");
                 // toSvg vuole coordinate RELATIVE al riquadro dell'svg (come
                 // ogni altro punto di conversione qui): passandogli clientX/Y
                 // grezzi l'angolo iniziale era sbagliato e la rotazione partiva
@@ -2234,7 +2234,7 @@ export function SvgCanvas({
                   resizeRef.current = null;
                   selDragRef.current = null;
                   setSelRect(null);
-                  openInteraction(`Ridimensiona colonna ${i + 1}`);
+                  openInteraction("history.resizeColumn", { n: i + 1 });
                   gridBorderRef.current = {
                     objId: obj.id, axis: "col", index: i + 1,
                     startMouse: e.clientX,
@@ -2258,7 +2258,7 @@ export function SvgCanvas({
                   resizeRef.current = null;
                   selDragRef.current = null;
                   setSelRect(null);
-                  openInteraction(`Ridimensiona riga ${i + 1}`);
+                  openInteraction("history.resizeRow", { n: i + 1 });
                   gridBorderRef.current = {
                     objId: obj.id, axis: "row", index: i + 1,
                     startMouse: e.clientY,
@@ -2322,7 +2322,7 @@ export function SvgCanvas({
                   resizeRef.current = null;
                   selDragRef.current = null;
                   setSelRect(null);
-                  openInteraction("Ridimensiona sub-cella");
+                  openInteraction("history.resizeSubCell");
                   subBorderRef.current = {
                     objId: obj.id, row: cellRow, col: cellCol, path,
                     orientation: "rows",
@@ -2349,7 +2349,7 @@ export function SvgCanvas({
                   resizeRef.current = null;
                   selDragRef.current = null;
                   setSelRect(null);
-                  openInteraction("Ridimensiona sub-cella");
+                  openInteraction("history.resizeSubCell");
                   subBorderRef.current = {
                     objId: obj.id, row: cellRow, col: cellCol, path,
                     orientation: "cols",
@@ -2670,7 +2670,7 @@ function DataLogWidget({ tag, windowS, pageSize, width, height, decimals, unit }
           <thead>
             <tr style={{ position: "sticky", top: 0, background: "#1e293b", color: "#94a3b8" }}>
               <th style={{ textAlign: "left", padding: "2px 6px", fontWeight: 600 }}>Ora</th>
-              <th style={{ textAlign: "right", padding: "2px 6px", fontWeight: 600 }}>Valore</th>
+              <th style={{ textAlign: "right", padding: "2px 6px", fontWeight: 600 }}>{t("canvas.value")}</th>
               <th style={{ textAlign: "center", padding: "2px 6px", fontWeight: 600 }}>Q</th>
             </tr>
           </thead>
@@ -2690,7 +2690,7 @@ function DataLogWidget({ tag, windowS, pageSize, width, height, decimals, unit }
               );
             })}
             {pageRows.length === 0 && !loading && (
-              <tr><td colSpan={3} style={{ padding: 8, textAlign: "center", color: "#64748b" }}>Nessun campione nella finestra</td></tr>
+              <tr><td colSpan={3} style={{ padding: 8, textAlign: "center", color: "#64748b" }}>{t("canvas.noSamplesInTheWindow")}</td></tr>
             )}
           </tbody>
         </table>
@@ -2920,7 +2920,7 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
       <div style={containerStyle}>
         {showEmpty && (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#94a3b8" }}>
-            Nessun allarme attivo
+            {t("canvas.noActiveAlarms")}
           </div>
         )}
       </div>
@@ -4836,7 +4836,7 @@ export function SvgObject(p: ObjProps) {
                 columns={columns.map((c) => ({ ...c, sortable: obj.table_sortable !== false && c.sortable !== false }))}
                 rows={rows}
                 rowKey={(r) => `${r.tag}|${r.label}`}
-                emptyLabel="Nessuna riga — configura nelle proprietà"
+                emptyLabel={t("canvas.noRowsConfigureInThe")}
                 maxHeight={totalH}
                 compact
                 fontSize={fontSize}
@@ -5297,7 +5297,7 @@ export function SvgObject(p: ObjProps) {
             <image href={obj.bg_image} x={obj.x} y={obj.y} width={w} height={h}
               preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
           )}
-          <text x={cx0} y={cy0 + 4} textAnchor="middle" fill="#475569" fontSize={11} style={{ pointerEvents: "none" }}>Nessun dato</text>
+          <text x={cx0} y={cy0 + 4} textAnchor="middle" fill="#475569" fontSize={11} style={{ pointerEvents: "none" }}>{t("canvas.noData")}</text>
         </g>
       );
     }
@@ -5438,7 +5438,7 @@ export function SvgObject(p: ObjProps) {
         {isEditMode ? (
           <text x={obj.x + w / 2} y={obj.y + h / 2} textAnchor="middle" fill="#64748b" fontSize={12}
             style={{ pointerEvents: "none" }}>
-            Data log — {obj.tag || "nessun tag"}
+            Data log — {obj.tag || t("canvas.noTag")}
           </text>
         ) : (
           <foreignObject x={obj.x + 4} y={obj.y + (obj.label ? 18 : 4)} width={w - 8} height={h - (obj.label ? 22 : 8)}>
@@ -6091,7 +6091,7 @@ export function SvgObject(p: ObjProps) {
           strokeWidth={selected ? 2 : 1} strokeDasharray="5 3" />
         <text x={obj.x + w / 2} y={obj.y + h / 2 + 4} textAnchor="middle"
           fill="#64748b" fontSize={11} style={{ pointerEvents: "none" }}>
-          🖼 {isEditMode ? "nessuna immagine (src vuoto)" : ""}
+          🖼 {isEditMode ? t("canvas.noImageEmptySrc") : ""}
         </text>
       </g>
     );

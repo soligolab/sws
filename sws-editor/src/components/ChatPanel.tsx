@@ -60,6 +60,8 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
   variant?: "drawer" | "window";
 }) {
   const { t } = useTranslation();
+  // Lo store restituisce chiavi `storeErr.*`, non frasi: si traducono qui, nella lingua di adesso.
+  const traduciEsito = (m?: string) => (m && m.startsWith("storeErr.") ? t(m) : m);
   const remoteConnected = useAppStore((s) => s.remoteConnected);
 
   const [righe, setRighe]     = useState<Riga[]>([]);
@@ -179,9 +181,9 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
       esito: esito.ok ? "applicata" : "rifiutata",
       // La sentinella del ponte scaduto diventa la frase che dice la verità:
       // un timeout non dimostra che la proposta non sia stata applicata.
-      nota: esito.ok ? esito.avviso
+      nota: esito.ok ? traduciEsito(esito.avviso)
           : esito.motivo === NESSUNA_CONFERMA ? t("chat.noConfirm")
-          : esito.motivo,
+          : traduciEsito(esito.motivo),
     }));
   };
 
@@ -218,13 +220,13 @@ export function ChatPanel({ open, onClose, editor = editorLocale, avviso, blocca
                       padding: "3px 10px", fontSize: 11,
                       color: "var(--brand-text-subtle, #64748b)",
                       borderBottom: "1px solid var(--brand-surface-2, #1e293b)" }}>
-          <span title="token della conversazione">
+          <span title={t("chat.conversationTokens")}>
             ◔ {kTok(risorse.input)} {t("chat.risorseIn")} · {kTok(risorse.output)} {t("chat.risorseOut")}
             {risorse.cache > 0 && <> · {kTok(risorse.cache)} {t("chat.risorseCache")}</>}
           </span>
           <div style={{ flex: 1 }} />
           {saldo !== null && (
-            <span title="saldo dell'account presso il fornitore">
+            <span title={t("chat.accountBalanceWithTheProvider")}>
               {t("chat.risorseSaldo")} {saldo.toFixed(2)}
             </span>
           )}

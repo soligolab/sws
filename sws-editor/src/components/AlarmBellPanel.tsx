@@ -253,7 +253,7 @@ export function AlarmBellPanel({ idPrefix = "", allowedSev, showHistory = true, 
             </div>
             {panelTab === "attivi" && unack.filter(a => !shelvedIds.has(a.def.id)).length > 1 && (
               <button onClick={handleAckAll} style={{ background: "#334155", border: "none", color: "#e2e8f0", padding: "2px 10px", borderRadius: 4, cursor: "pointer", fontSize: 11 }}>
-                ACK tutti
+                {t("alarmBell.ackAll")}
               </button>
             )}
           </div>
@@ -268,7 +268,7 @@ export function AlarmBellPanel({ idPrefix = "", allowedSev, showHistory = true, 
           {/* Active alarms */}
           {panelTab === "attivi" && <div style={{ overflowY: "auto", flex: 1 }}>
             {visibleActive.length === 0 && shelved.length === 0 ? (
-              <div style={{ padding: 16, color: "#64748b", fontSize: 12, textAlign: "center" }}>Nessun allarme attivo.</div>
+              <div style={{ padding: 16, color: "#64748b", fontSize: 12, textAlign: "center" }}>{t("alarmBell.noActiveAlarms")}</div>
             ) : visibleActive.map((a) => {
               const color = SEV_COLOR[a.def.severity ?? "Warning"];
               const isShelving = shelveOpen === a.def.id;

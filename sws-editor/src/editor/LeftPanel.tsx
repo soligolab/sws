@@ -372,7 +372,7 @@ function PagesSection() {
               color: "var(--brand-text-subtle, #64748b)",
             }}
           >
-            + Nuova pagina
+            {t("leftPanel.newPage")}
           </button>
           <button
             onClick={() => importInputRef.current?.click()}
@@ -416,6 +416,7 @@ function LinkReportModal({
   onClose: () => void;
   onJumpTo: (pageId: string, objId?: string) => void;
 }) {
+  const { t } = useTranslation();
   const broken = findBrokenNavLinks(pages);
   const orphanPages = pages.filter((p) => orphanIds.has(p.id));
 
@@ -424,7 +425,7 @@ function LinkReportModal({
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 8, padding: 20, width: "min(90vw, 460px)", maxHeight: "80vh", display: "flex", flexDirection: "column", gap: 14 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ fontWeight: 700, color: "var(--brand-text, #e2e8f0)" }}>Verifica collegamenti</div>
+          <div style={{ fontWeight: 700, color: "var(--brand-text, #e2e8f0)" }}>{t("leftPanel.checkLinks")}</div>
           <button style={{ background: "transparent", border: "none", color: "var(--brand-text-subtle, #64748b)", cursor: "pointer", fontSize: 16 }} onClick={onClose}>✕</button>
         </div>
 
@@ -433,13 +434,13 @@ function LinkReportModal({
             LINK ROTTI ({broken.length})
           </div>
           {broken.length === 0 ? (
-            <div style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 14 }}>Nessun collegamento rotto.</div>
+            <div style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 14 }}>{t("leftPanel.noBrokenLinks")}</div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 14 }}>
               {broken.map((b) => (
                 <div key={`${b.pageId}:${b.objId}`} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, background: "#450a0a33", border: "1px solid #991b1b", borderRadius: 4, padding: "4px 8px" }}>
                   <span style={{ flex: 1, color: "var(--brand-danger-soft, #fca5a5)" }}>
-                    <strong>{b.pageName}</strong> → "{b.objName}" punta a pagina inesistente ("{b.targetId}")
+                    <strong>{b.pageName}</strong> → "{b.objName}" {t("leftPanel.pointsToMissingPage")} ("{b.targetId}")
                   </span>
                   <button style={S.iconBtn} onClick={() => onJumpTo(b.pageId, b.objId)}>Vai</button>
                 </div>
@@ -451,13 +452,13 @@ function LinkReportModal({
             PAGINE ORFANE ({orphanPages.length})
           </div>
           {orphanPages.length === 0 ? (
-            <div style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>Nessuna pagina orfana.</div>
+            <div style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>{t("leftPanel.noOrphanPages")}</div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {orphanPages.map((p) => (
                 <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, background: "#78350f22", border: "1px solid #92400e", borderRadius: 4, padding: "4px 8px" }}>
                   <span style={{ flex: 1, color: "var(--brand-warning, #f59e0b)" }}>
-                    "{p.name}" — nessun collegamento la raggiunge e non è la home
+                    "{p.name}" {t("leftPanel.noLinkReachesItAnd")}
                   </span>
                   <button style={S.iconBtn} onClick={() => onJumpTo(p.id)}>Vai</button>
                 </div>
@@ -1337,7 +1338,7 @@ function ObjectsContextMenu({
           <div style={sep} />
           <div style={{ ...item, color: "var(--brand-text-subtle, #64748b)", cursor: "default" }}>{t("editor.moveToGroup")}</div>
           {groups.length === 0 && (
-            <div style={{ ...sub, color: "var(--brand-text-subtle, #94a3b8)", fontStyle: "italic" }}>nessun gruppo</div>
+            <div style={{ ...sub, color: "var(--brand-text-subtle, #94a3b8)", fontStyle: "italic" }}>{t("leftPanel.noGroup")}</div>
           )}
           {groups.map((g) => (
             <div key={g.id} style={sub} onClick={() => { actions.moveToGroup(state.id, g.id); close(); }}>
@@ -1349,7 +1350,7 @@ function ObjectsContextMenu({
           </div>
           <div style={sep} />
           <div style={danger} onClick={() => { actions.deleteObject(state.id); close(); }}>
-            <span style={{ width: 16 }}>×</span> Elimina
+            <span style={{ width: 16 }}>×</span> {t("leftPanel.delete")}
           </div>
         </>
       ) : (
@@ -1421,8 +1422,7 @@ function FunctionsSection({ onFunctionsChanged }: { onFunctionsChanged: () => vo
       <div style={corpo}>
         {functions.length === 0 && (
           <p style={{ padding: "8px 12px", fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", margin: 0 }}>
-            Nessuna funzione. Crea una funzione qui sotto e collegala agli
-            eventi degli oggetti.
+            {t("leftPanel.noFunctionsCreateOneBelow")}
           </p>
         )}
         {/* Rimando all'altra superficie Python del progetto (Q21). Le funzioni
@@ -1431,8 +1431,7 @@ function FunctionsSection({ onFunctionsChanged }: { onFunctionsChanged: () => vo
             Python del progetto" le cerca insieme — e prima nessuno dei due
             punti diceva che l'altro esistesse. */}
         <p style={{ padding: "4px 12px 8px", fontSize: 11, color: "var(--brand-text-subtle, #64748b)", margin: 0 }}>
-          Per gli script che partono da soli (all'avvio, a intervallo, quando
-          cambia un tag) vedi <strong>Configurazione → Python</strong>.
+          {t("leftPanel.forScriptsThatStartOn")} <strong>Configurazione → Python</strong>.
         </p>
         {functions.map((f) => {
           const isSel = f.id === selectedFnId;
@@ -1510,7 +1509,7 @@ function FunctionsSection({ onFunctionsChanged }: { onFunctionsChanged: () => vo
               color: "var(--brand-text-subtle, #64748b)",
             }}
           >
-            + Nuova funzione
+            {t("leftPanel.newFunction")}
           </button>
         </div>
       </div>
@@ -1559,7 +1558,7 @@ function TagsSection() {
     return (
       <Section title={t2("editor.sectionTags")} defaultOpen={false} memoria="sinistra.tag">
         <p style={{ padding: "8px 12px", fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", margin: 0 }}>
-          Nessun tag — carica un progetto.
+          {t2("leftPanel.noTagsLoadAProject")}
         </p>
       </Section>
     );
@@ -1642,7 +1641,7 @@ function SourcesSection({ project }: { project: ProjectInfo | null }) {
       <div style={corpo}>
         {sources.length === 0 ? (
           <p style={{ padding: "8px 12px", fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", margin: 0 }}>
-            Nessuna sorgente configurata.
+            {t("leftPanel.noSourcesConfigured")}
           </p>
         ) : (
           sources.map((src) => (

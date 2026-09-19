@@ -154,11 +154,11 @@ export function LoginScreen({
               textAlign: "left",
             }}
           >
-            ← Torna all'elenco progetti
+            {t("login.backToTheProjectList")}
           </button>
         )}
         <p style={{ fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", margin: 0 }}>
-          Sessioni in-memory: un riavvio del runtime ti disconnette automaticamente.
+          {t("login.inMemorySessionsARuntime")}
         </p>
       </form>
     </div>

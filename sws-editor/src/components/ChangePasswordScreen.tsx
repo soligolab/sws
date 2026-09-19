@@ -67,7 +67,7 @@ export function ChangePasswordScreen() {
           <strong style={{ fontSize: 18, letterSpacing: 1 }}>{t("auth.changeTitle")}</strong>
         </div>
         <p style={{ color: "var(--brand-text-muted, #94a3b8)", fontSize: 12, margin: 0 }}>
-          Benvenuto <strong>{authUser}</strong>. Per continuare devi impostare una nuova password.
+          {t("auth.welcomeUser")} <strong>{authUser}</strong>{t("auth.mustSetNewPassword")}
         </p>
 
         <div>

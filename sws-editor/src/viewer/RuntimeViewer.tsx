@@ -16,6 +16,7 @@ import { useBuildWatcher } from "@/ws/buildWatcher";
 // ── Idle screen (no active project on this runtime) ───────────────────────────
 
 function RuntimeIdleScreen() {
+  const { t } = useTranslation();
   return (
     <div style={{
       display: "flex", flexDirection: "column", alignItems: "center",
@@ -27,9 +28,9 @@ function RuntimeIdleScreen() {
            stroke="var(--brand-primary, #3b82f6)" strokeWidth="1.5">
         <circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/>
       </svg>
-      <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>Nessun progetto attivo</h2>
+      <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>{t("viewerMsg.noActiveProject")}</h2>
       <p style={{ margin: 0, color: "var(--brand-text-muted, #94a3b8)", textAlign: "center", maxWidth: 320 }}>
-        Nessun progetto è stato caricato su questo runtime.<br/>
+        {t("viewerMsg.noProjectHasBeenLoaded")}<br/>
         Contattare l'amministratore.
       </p>
       <button

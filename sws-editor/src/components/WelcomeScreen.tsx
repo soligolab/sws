@@ -615,7 +615,7 @@ function DeploySection() {
     // La variante la propone la verifica (os-release compreso); senza verifica il
     // riferimento resta vuoto e il dispositivo sceglie latest-<arch> da `uname -m`.
     const imageRef = imageRefDaVariante(sondaggio?.variante_immagine ?? null);
-    setLogs([`Avvio installazione → ${user}@${host}:${port} (container, registry${imageRef ? `, ${imageRef}` : ""})`]);
+    setLogs([t("welcome.installStart", { user, host, port, ref: imageRef ? `, ${imageRef}` : "" })]);
     try {
       const res = await api.deployDeviceContainer(containerDeployPayload({
         source: "registry",

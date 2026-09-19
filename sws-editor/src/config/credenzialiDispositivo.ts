@@ -1,3 +1,4 @@
+import i18n from "i18next";
 // Come ci si autentica verso un dispositivo registrato, e cosa dire quando
 // non riesce (T-68).
 //
@@ -54,20 +55,20 @@ export function modoAccesso(
 export function spiegaLoginFallito(status: number, retryAfter: string | null): string {
   if (status === 429) {
     const s = Number(retryAfter);
-    const quanto = Number.isFinite(s) && s > 0 ? `${Math.ceil(s)} secondi` : "circa un minuto";
-    return `Il pannello ha bloccato l'accesso per ${quanto} dopo troppi tentativi falliti. `
-      + "Aspetta **senza** riprovare: ogni nuovo tentativo allunga il blocco. "
-      + "Poi controlla l'utente e la password del dispositivo.";
+    const quanto = Number.isFinite(s) && s > 0 ? i18n.t("credenziali.seconds", { count: Math.ceil(s) }) : i18n.t("credenziali.aboutOneMinute");
+    return i18n.t("credenziali.lockedFor", { quanto }) + " "
+      + i18n.t("credenziali.waitWithoutRetryingEveryNew")
+      + i18n.t("credenziali.thenCheckTheDeviceS");
   }
   if (status === 401 || status === 403) {
-    return "Utente o password del pannello non validi. "
-      + "Sono le credenziali **SWS** definite nel progetto, non quelle SSH del dispositivo.";
+    return i18n.t("credenziali.thePanelSUserOr")
+      + i18n.t("credenziali.theseAreTheSwsCredentials");
   }
-  return `Login al pannello fallito (${status}).`;
+  return i18n.t("credenziali.loginFailed", { status });
 }
 
 /** Il messaggio per quando non si hanno credenziali da provare. */
 export function spiegaCredenzialiMancanti(): string {
-  return "Questo dispositivo non ha un utente registrato e il pannello ne vuole uno. "
-    + "Scrivilo nella colonna «Utente SWS» della riga, con la sua password.";
+  return i18n.t("credenziali.thisDeviceHasNoRegistered")
+    + i18n.t("credenziali.enterItInTheRow");
 }

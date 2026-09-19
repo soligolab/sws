@@ -13,10 +13,14 @@
 // degli script.
 
 import { describe, expect, it } from "vitest";
+import i18n from "@/i18n";
 
 import { diffRighe, LIMITE_RIGHE } from "@/ai/diffRighe";
 import { riassumi } from "@/ai/riassunto";
 import type { ProjectInfo } from "@/types";
+
+// I messaggi che il codice sotto test restituisce passano dal catalogo: qui si legge quello italiano.
+i18n.changeLanguage("it");
 
 const base = (extra: Partial<ProjectInfo> = {}): ProjectInfo => ({
   meta: { name: "prova", version: "1.0.0" },

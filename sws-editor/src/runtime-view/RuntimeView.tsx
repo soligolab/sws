@@ -95,6 +95,7 @@ function ScriptToasts({ toasts, onClose }: { toasts: ScriptToast[]; onClose: (id
 // ── RecipeModal ───────────────────────────────────────────────────────────────
 
 function RecipeModal({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
   return (
     <div style={{
       position: "fixed", inset: 0, zIndex: 2000,
@@ -111,7 +112,7 @@ function RecipeModal({ onClose }: { onClose: () => void }) {
           marginTop: 16, padding: "6px 16px", borderRadius: 4, border: "1px solid var(--brand-surface-2, #334155)",
           background: "transparent", color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer", fontSize: 12,
         }}>
-          Chiudi
+          {t("runtimeView.close")}
         </button>
       </div>
     </div>
@@ -518,6 +519,7 @@ function FunctionTestPanel({
 }: {
   onRun: (fn: string, args: Record<string, string | number | boolean>) => void;
 }) {
+  const { t } = useTranslation();
   const project = useAppStore((s) => s.project);
   const functions: FunctionDef[] = project?.functions ?? [];
   const [open, setOpen] = useState(false);
@@ -616,13 +618,13 @@ function FunctionTestPanel({
       )}
       {selected.params.length === 0 ? (
         <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", padding: "4px 0", fontStyle: "italic" }}>
-          Nessun parametro definito.
+          {t("runtimeView.noParametersDefined")}
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
           {selected.params.map((p) => {
             const raw = currentOverrides[p.name] ?? "";
-            const placeholder = p.default !== undefined ? String(p.default) : "(nessun default)";
+            const placeholder = p.default !== undefined ? String(p.default) : t("runtimeView.noDefault");
             return (
               <div key={p.name} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <span style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", minWidth: 90,

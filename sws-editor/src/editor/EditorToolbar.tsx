@@ -321,8 +321,8 @@ function CronologiaTendina() {
             <div style={{ ...voce(false), cursor: "default" }}>{t("editor.historyInitial")}</div>
             {past.map((entry, idx) => (
               <button key={`p${idx}`} style={voce(true)} onClick={() => { jumpToPast(idx); setAperta(false); }}
-                title={t("editor.historyBack", { label: entry.label })}>
-                {entry.label}
+                title={t("editor.historyBack", { label: t(entry.label, entry.labelArgs) })}>
+                {t(entry.label, entry.labelArgs)}
               </button>
             ))}
             <div
@@ -340,8 +340,8 @@ function CronologiaTendina() {
             {future.map((entry, idx) => (
               <button key={`f${idx}`} style={{ ...voce(false), opacity: 0.7 }}
                 onClick={() => { jumpToFuture(idx); setAperta(false); }}
-                title={t("editor.historyRestore", { label: entry.label })}>
-                {entry.label}
+                title={t("editor.historyRestore", { label: t(entry.label, entry.labelArgs) })}>
+                {t(entry.label, entry.labelArgs)}
               </button>
             ))}
           </div>

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "@/store";
 import { tagCatalog } from "@/tagCatalog";
+import i18n from "i18next";
 
 interface TagInputProps {
   value: string;
@@ -143,7 +144,7 @@ export function TagInput({ value, onChange, placeholder, style }: TagInputProps)
               )}
               {t.origin === "source" && (
                 <span style={{ marginLeft: "auto", flexShrink: 0, fontSize: 10, color: "var(--brand-text-subtle, #64748b)" }}
-                  title="Variabile dedotta dalle mappature di questa sorgente, non dichiarata in Configurazione → Variabili">
+                  title={i18n.t("tagInputMsg.variableInferredFromThisSource")}>
                   ↗ {t.source}
                 </span>
               )}

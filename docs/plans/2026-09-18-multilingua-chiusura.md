@@ -1,6 +1,6 @@
 # Multilingua: chiudere il capitolo
 
-> **Stato: PIANO D'ESECUZIONE approvato il 18-09-2026. F0-F6 fatte; prossima F7.** Nato dal seme
+> **Stato: PIANO D'ESECUZIONE approvato il 18-09-2026. F0-F9 fatte nel codice sul ramo `feat/T-multilingua-F7-store-componenti-muti`; manca il collaudo dal vivo e il merge.** Nato dal seme
 > `docs/archive/2026-09-18-multilingua-residuo.md` (Q43 + Q57) in una sessione di plan col
 > maintainer, con due misure fatte prima di scrivere e quattro decisioni prese da lui. Le fasi sono
 > rami da una sessione ciascuno; si eseguono in ordine, **una alla volta**.
@@ -325,6 +325,10 @@ in EN, «Elimina pagina» e «Genera certificato TLS» → dialoghi in inglese.
 
 ## F7 — lo store neutro e i dieci componenti muti
 
+> **Fatta il 19-09-2026 (sul ramo, non mergiata).** Store a chiavi `history.*`/`storeErr.*`; solo tre dei dieci
+> componenti avevano testo (`TrendCanvas`, `XyPlotCanvas`, `DataTable`). Test `storeChiavi.test.ts`. Lo store importa
+> `i18next` (non `@/i18n`, che inizializza la lingua e sporca i test).
+
 **Store** (`store/index.ts`): registra **chiavi**, non frasi. `pushHistory("Nuova pagina")` →
 `pushHistory("history.newPage")` e chi mostra la storia fa `t(voce.label)` — se la si traducesse alla
 `push`, un cambio lingua lascerebbe le voci vecchie nell'altra lingua. Gli errori restituiti
@@ -348,6 +352,10 @@ asseriva su un testo italiano passa alla chiave.
 
 ## F8a / F8b — `ConfigView.tsx`
 
+> **Fatta il 19-09-2026, in un giro solo (F8a e F8b insieme).** 332 stringhe: ~220 con strumento, ~35 con
+> interpolazione e ~26 paragrafi con tag dentro a mano, con `<Trans>`. Chiavi in `cfgUi.*` (un solo prefisso, non
+> uno per scheda: lo strumento le ha generate dal testo inglese).
+
 Le ~170 stringhe dopo F6, per schede. **F8a**: Lingue (esito `:10648-10686`, `⏳ traduzione
 verso…`), Allarmi/Notifiche (`:4940-5016`, `:7900-8100`), Runtime/Deploy (`:8760-10060`). **F8b**:
 Tag, Utenti, TLS, Storico, Faceplate, Git. Metodo: `--elenca` come lista di lavoro, **una chiave
@@ -359,6 +367,8 @@ primo giro è rosso, il ramo lo porta sotto — è l'unico modo per far dire all
 ha finito». **DoD** + dal vivo: UI in EN, la scheda della fase senza italiano, `title` compresi.
 
 ## F9 — `SvgCanvas.tsx`, `LeftPanel.tsx`, `EditorShell.tsx` (solo UI)
+
+> **Fatta il 19-09-2026.** Più ventidue file piccoli fuori dal piano. `TETTI` è vuoto: tolleranza zero su tutto `src/`.
 
 Tetti a zero per i tre file. In `EditorShell` la guardia già distingue contenuto predefinito da UI
 (F1), restano `:1824` (dimensione fissata), `:1843` (pluralizzazione italiana cablata «oggetto

@@ -119,12 +119,12 @@ export function ImageBrowser({ onSelect, onClose }: Props) {
         }}>
           {!catalog && (
             <div style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 12, padding: 16, width: "100%" }}>
-              Caricamento catalogo…
+              {t("imageBrowser.loadingCatalog")}
             </div>
           )}
           {catalog && items.length === 0 && (
             <div style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 12, padding: 16, width: "100%" }}>
-              Nessun risultato per "{filter}"
+              {t("imageBrowser.noResults", { filter })}
             </div>
           )}
           {items.map((item) => (

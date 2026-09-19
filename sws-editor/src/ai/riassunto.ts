@@ -13,6 +13,7 @@ import { uguale } from "@/ai/confronto";
 import { diffRighe } from "@/ai/diffRighe";
 import type { VoceDiff } from "@/types/ai";
 import type { ProjectInfo, SynopticPage } from "@/types";
+import i18n from "i18next";
 
 export function riassumi(
   propProject: ProjectInfo | null,
@@ -101,7 +102,7 @@ export function riassumi(
   for (const pg of propPages ?? []) {
     const attuale = pages.find((p) => p.name === pg.name);
     if (!attuale) {
-      out.push({ verso: "+", testo: `pagina «${pg.name}» (${pg.objects.length} oggetti)` });
+      out.push({ verso: "+", testo: i18n.t("riassunto.page", { name: pg.name, count: pg.objects.length }) });
       continue;
     }
     const prima = new Map(attuale.objects.map((o) => [o.id, o]));

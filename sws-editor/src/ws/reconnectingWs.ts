@@ -1,3 +1,4 @@
+import i18n from "i18next";
 // Thin wrapper around WebSocket that reconnects automatically with exponential
 // back-off when the connection drops. Listeners survive reconnects: they are
 // stored internally and re-registered on every new underlying socket.
@@ -80,7 +81,7 @@ export class ReconnectingWs {
       // Il server ha risposto e ha rifiutato per un motivo che non cambia:
       // ritentare produrrebbe solo rumore.
       if (CHIUSURE_DEFINITIVE.has(ev.code)) {
-        this.motivoResa = ev.reason || `collegamento rifiutato (codice ${ev.code})`;
+        this.motivoResa = ev.reason || i18n.t("ws.refused", { code: ev.code });
         this.destroyed = true;
         this.ws = null;
         this.onResa?.(this.motivoResa);
@@ -97,7 +98,7 @@ export class ReconnectingWs {
       this.falliti += 1;
       if (this.falliti >= TENTATIVI_MAX) {
         this.motivoResa = ev.reason
-          || `nessun collegamento stabile dopo ${TENTATIVI_MAX} tentativi`;
+          || i18n.t("ws.unstable", { max: TENTATIVI_MAX });
         this.destroyed = true;
         this.ws = null;
         this.onResa?.(this.motivoResa);

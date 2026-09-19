@@ -47,41 +47,9 @@ PI18N = f"{SRC}/i18n/projectI18n.ts"
 # guardia il 18-09-2026. Se un file cresce la guardia fallisce; se cala chiede
 # di abbassare il numero; un file a zero va tolto. Vuoto = capitolo chiuso: se
 # ricompare una riga, è un file tornato indietro.
-TETTI = {
-    "src/config/ConfigView.tsx": 334,  # F6: -50 (26 dialoghi + 21 title, alcuni contati doppi da concatenazioni)
-    "src/editor/EditorShell.tsx": 70,  # F6: -1 (1 dialogo)
-    "src/store/index.ts": 35,
-    "src/editor/LeftPanel.tsx": 15,  # F6: -8 (2 dialoghi + 6 title, alcuni contati doppi)
-    "src/canvas/SvgCanvas.tsx": 11,  # F6: -8 (6 dialoghi + 6 title, alcuni contati doppi)
-    "src/config/credenzialiDispositivo.ts": 8,
-    "src/api/client.ts": 5,  # +1 F5: un percorso di rotta ("/api/traduzione/config"), non testo utente — vedi URL_CONFIG_TRADUZIONE nel file
-    "src/canvas/TrendCanvas.tsx": 4,
-    "src/components/AlarmBellPanel.tsx": 4,
-    "src/components/ChatPanel.tsx": 4,
-    "src/types/ai.ts": 4,
-    "src/ai/riassunto.ts": 3,
-    "src/components/LogPanel.tsx": 3,
-    "src/components/ReAuthModal.tsx": 3,
-    "src/pageLayout.ts": 3,
-    "src/runtime-view/RuntimeView.tsx": 3,
-    "src/search/tagUsage.ts": 3,
-    "src/App.tsx": 2,
-    "src/canvas/percorsoMovimento.ts": 2,
-    "src/components/ImageBrowser.tsx": 2,
-    "src/components/LoginScreen.tsx": 2,
-    "src/config/installazione/sondaggio.ts": 2,
-    "src/viewer/RuntimeViewer.tsx": 2,
-    "src/ws/reconnectingWs.ts": 2,
-    "src/ai/diffRighe.ts": 1,
-    "src/canvas/XyPlotCanvas.tsx": 1,
-    "src/components/ChangePasswordScreen.tsx": 1,
-    "src/components/DataTable.tsx": 1,
-    "src/components/RecipePanel.tsx": 1,
-    "src/components/TagInput.tsx": 1,
-    "src/components/WelcomeScreen.tsx": 1,
-    "src/config/installazione/ListaControlli.tsx": 1,
-    "src/tagCatalog.ts": 1,
-}
+# Vuoto dal 19-09-2026: ogni stringa italiana fuori da t() in `src/` è `problema`.
+# Se ricompare una riga qui, è un file tornato indietro — e va pagato, non dichiarato.
+TETTI = {}
 
 # `confirm`/`alert`/`prompt` con testo letterale: bloccano l'utente con una
 # frase che non può cambiare lingua. F6 (19-09-2026) ha azzerato gli ultimi
@@ -268,7 +236,7 @@ ESCLUSIONI = [
     (re.compile(r"(?:===|!==|==|!=)\s*$"), "confronto"),
     (re.compile(r"\bcase\s*$"), "case"),
     # chiave del catalogo scritta a mano (t(k) dove k è il letterale)
-    (re.compile(r"\b(?:key|chiave|id|type|kind|mode|value|className|style|href|src|d)\s*[:=]\s*$"), "valore tecnico"),
+    (re.compile(r"\b(?:key|chiave|id|type|kind|mode|value|className|style|href|src|d|gruppo)\s*[:=]\s*$"), "valore tecnico"),
 ]
 
 def esclusa(contesto, testo):
@@ -282,6 +250,14 @@ def esclusa(contesto, testo):
         return True
     if IDENTIFICATORE.match(testo.strip()):
         return True
+    # Una parola minuscola sola in un letterale è un identificatore — stato,
+    # tipo, id di vista o di gruppo (`"errore"`, `"storico"`, `"oggetto"`) — non
+    # una scritta. Restano contate quelle dentro un attributo (`placeholder="nessuno"`).
+    if re.fullmatch(r"[a-z]+", testo.strip()) and not re.search(r"[\w-]+=\s*$", ctx):
+        return True
+    # Un percorso di rotta (`"/api/traduzione/config"`): non è testo per l'utente.
+    if re.fullmatch(r"/[\w/.-]+", testo.strip()):
+        return True
     return False
 
 JSX_TESTO = re.compile(r">\s*([^<>{}]*?)\s*<")
@@ -293,12 +269,20 @@ DIALOGO = re.compile(r"(?<![\w.])(?:window\.)?(confirm|alert|prompt)\(\s*([\"'`]
 def normalizza(t):
     return re.sub(r"\s+", " ", t).strip()
 
+# Testo che sta in un file di interfaccia ma è un dato di sviluppo, non una
+# scritta: ogni voce col suo perché.
+DATI_DI_SVILUPPO = {
+    # nomi dei casi di `CASI_FUORI_PAGINA`, tabella duplicata in Rust e letta da
+    # check_off_page.sh: cambiarli romperebbe la parità col gemello
+    "pageLayout.ts": {"un pixel oltre il bordo", "piu grande della pagina", "pagina fluida"},
+}
+
 def candidati(percorso):
     src = open(percorso, encoding="utf-8").read()
     letterali, pulito, senza_commenti = scansiona(src)
     fuori = []
     for riga, testo, ctx in letterali:
-        if e_italiano(testo) and not esclusa(ctx, testo):
+        if e_italiano(testo) and not esclusa(ctx, testo) and normalizza(testo) not in DATI_DI_SVILUPPO.get(os.path.basename(percorso), ()):
             fuori.append((riga, normalizza(testo)))
     for m in JSX_TESTO.finditer(pulito):
         t = m.group(1)

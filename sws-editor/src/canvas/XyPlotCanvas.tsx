@@ -12,6 +12,7 @@
  * fetch al mount, niente polling in edit" (regole UI dell'editor, CLAUDE.md).
  */
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 
 export interface XyPlotSeriesLive {
@@ -70,6 +71,7 @@ export function XyPlotCanvas({
   xMin, xMax, yMin, yMax, sampleMs = 200,
   xLabel, yLabel, bgColor, bgImage,
 }: XyPlotCanvasProps) {
+  const { t } = useTranslation();
   const latest = useRef<{ x?: number; y?: number }[]>([]);
   latest.current = series.map((s) => ({ x: s.xValue, y: s.yValue }));
   const [pointsBySeries, setPointsBySeries] = useState<Point[][]>(() => series.map(() => []));
@@ -179,7 +181,7 @@ export function XyPlotCanvas({
       })}
       {!hasAnyPoint && (
         <text x={width / 2} y={height / 2} textAnchor="middle" fill="#64748b" fontSize={11}>
-          in attesa di dati…
+          {t("xyPlot.waiting")}
         </text>
       )}
       {xLabel && (

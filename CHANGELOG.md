@@ -19,6 +19,15 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   vive in un file a sé con permessi ristretti. F5 del piano multilingua.
 
 ### Changed
+- **F7-F9 del multilingua: l'interfaccia dell'IDE è tutta nel catalogo.** Lo store registra
+  **chiavi**, non frasi (`history.*` per le etichette di undo, `storeErr.*` per gli errori e gli
+  esiti delle proposte dell'assistente): le traduce chi le mostra, quindi un cambio lingua
+  aggiorna anche la cronologia già scritta. `ConfigView`, `EditorShell`, `LeftPanel`, `SvgCanvas`,
+  `TrendCanvas`, `XyPlotCanvas`, `DataTable` e ventidue file piccoli passano da `t()`; i paragrafi
+  con `<strong>`/`<em>`/`<code>` dentro usano `<Trans>`, non frammenti da ricomporre. La guardia
+  `check_i18n_ui.sh` è a **tolleranza zero** su tutto `src/` (`TETTI` vuoto) e riconosce meglio
+  ciò che non è una scritta: identificatori di una parola, percorsi di rotta, i nomi dei casi di
+  test di `pageLayout`. Il nome del CSV di storico esportato è ora `<id>-history.csv`.
 - **F6 del multilingua: i dialoghi dell'IDE passano tutti dal catalogo.** I 35 `confirm`/`alert`/
   `prompt` con testo italiano cablato (ConfigView, SvgCanvas, LeftPanel, EditorShell) usano `t()`,
   con i messaggi lunghi (TLS, deploy, ripristino backup) come chiavi con interpolazione; da qui la

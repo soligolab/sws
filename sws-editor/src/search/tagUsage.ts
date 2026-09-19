@@ -12,6 +12,7 @@
 
 import { collectTagIds } from "@/runtime-view/collectTagIds";
 import type { AlarmDef, FaceplateDef, GlobalScriptDef, SynopticPage, TagDef } from "@/types";
+import i18n from "i18next";
 
 /** Riferimenti trovati per un tag: dove, e (per le pagine) l'id dell'oggetto. */
 export interface TagUse {
@@ -47,12 +48,12 @@ export function buildTagUsage({
 
   for (const pg of pages) {
     for (const id of collectTagIds(pg.objects, faceplates)) {
-      add(id, { where: `pagina "${pg.name}"`, pageId: pg.id });
+      add(id, { where: i18n.t("tagUsage.page", { name: pg.name }), pageId: pg.id });
     }
   }
   for (const a of alarms) {
-    add(a.tag, { where: `allarme "${a.id}"` });
-    if (a.inhibit_tag) add(a.inhibit_tag, { where: `allarme "${a.id}" (inhibit)` });
+    add(a.tag, { where: i18n.t("tagUsage.alarm", { id: a.id }) });
+    if (a.inhibit_tag) add(a.inhibit_tag, { where: i18n.t("tagUsage.alarmInhibit", { id: a.id }) });
   }
   for (const td of tags) {
     if (!td.expression) continue;

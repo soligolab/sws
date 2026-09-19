@@ -940,8 +940,7 @@ export function EditorShell() {
                   </label>
                   {isSplit ? (
                     <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 8 }}>
-                      Questa sub-cella è ora divisa. Seleziona una delle sue
-                      sotto-celle nel canvas per editarne il contenuto.
+                      {t("shell.thisSubCellIsNow")}
                     </div>
                   ) : child ? (
                     <ObjectProps
@@ -1016,7 +1015,7 @@ export function EditorShell() {
                 <CellRangeMergeActions
                   onMerge={() => {
                     const err = mergeCellRange(currentPageId, selected.id, r1, c1, r2, c2);
-                    if (err) alert(err);
+                    if (err) alert(t(err.key, err.args));
                   }}
                   onCancel={() => setSelectedCellRange(null)}
                 />
@@ -1090,7 +1089,7 @@ export function EditorShell() {
               onChange={(patch) => updatePageProps(currentPageId, patch)}
             />
             <span style={{ fontSize: 11, fontWeight: 700, color: "var(--brand-text-subtle, #64748b)", letterSpacing: 1, marginTop: 8, display: "block" }}>
-              IMPOSTAZIONI PROGETTO
+              {t("shell.projectSettings")}
             </span>
             <ProjectTargetSettings />
             <ProjectPageLayoutSettings />
@@ -1601,24 +1600,26 @@ function CellRangeMergeActions({ onMerge, onCancel }: {
   onMerge: () => void;
   onCancel: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
       <button onClick={onMerge} style={{ ...ACT_BTN, background: "#0f766e", borderColor: "#14b8a6" }}>
         🔗 Unisci celle
       </button>
       <button onClick={onCancel} style={ACT_BTN}>
-        Annulla selezione
+        {t("shell.clearSelection")}
       </button>
     </div>
   );
 }
 
 function SubCellAddChild({ onAdd }: { onAdd: (type: string) => void }) {
+  const { t } = useTranslation();
   const [type, setType] = useState("rect");
   return (
     <div style={{ marginTop: 8 }}>
       <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>
-        Aggiungi un oggetto in questo slot:
+        {t("shell.addAnObjectInThis")}
       </div>
       <div style={{ display: "flex", gap: 6 }}>
         <select
@@ -1632,11 +1633,11 @@ function SubCellAddChild({ onAdd }: { onAdd: (type: string) => void }) {
           onClick={() => onAdd(type)}
           style={{ background: "#1d4ed8", border: "1px solid var(--brand-primary-hover, #2563eb)", color: "#bfdbfe", borderRadius: 4, cursor: "pointer", fontSize: 12, padding: "2px 10px", flexShrink: 0 }}
         >
-          + Aggiungi
+          {t("shell.add")}
         </button>
       </div>
       <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "4px 0 0" }}>
-        Oppure: copia un oggetto dalla pagina (Ctrl+C) e premi Ctrl+V con la cella padre selezionata.
+        {t("shell.orCopyAnObjectFrom")}
       </p>
     </div>
   );
@@ -1655,7 +1656,7 @@ function CellStructureActions({ isMerged, isSplit, onUnmerge, onSplitRows, onSpl
     <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
       {isMerged && (
         <button onClick={onUnmerge} style={ACT_BTN}>
-          ↔ Annulla unione
+          {t("shell.unmerge")}
         </button>
       )}
       {!isMerged && !isSplit && (
@@ -1670,7 +1671,7 @@ function CellStructureActions({ isMerged, isSplit, onUnmerge, onSplitRows, onSpl
       )}
       {isSplit && (
         <button onClick={onJoinSplit} style={ACT_BTN}>
-          ⌧ Rimuovi split
+          {t("shell.removeSplit")}
         </button>
       )}
     </div>
@@ -1713,7 +1714,7 @@ function PageProps({
       <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", marginBottom: 4 }}>{t("props.pageT")}</div>
       {locked && (
         <div style={{ fontSize: 11, color: "var(--brand-warning, #f59e0b)", background: "#451a0322", border: "1px solid #92400e", borderRadius: 4, padding: "4px 8px", marginBottom: 8 }}>
-          🔒 Pagina bloccata — sola lettura. Sblocca dall'elenco pagine per modificare.
+          {t("shell.pageLockedReadOnlyUnlock")}
         </div>
       )}
       <div>
@@ -1769,7 +1770,7 @@ function PageProps({
       {sizeMode === "fixed" && (
         <>
           <div style={{ marginBottom: 6 }}>
-            <div style={LABEL}>Preset dispositivo</div>
+            <div style={LABEL}>{t("shell.devicePreset")}</div>
             <select
               disabled={ro}
               style={{ ...INPUT, cursor: ro ? "default" : "pointer" }}
@@ -1815,20 +1816,19 @@ function PageProps({
             </div>
           </div>
           <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "2px 0 0" }}>
-            Dimensione esatta (1:1, nessuno scaling a runtime). Un bordo tratteggiato blu indica i limiti della pagina.
+            {t("shell.exactSize11No")}
           </p>
         </>
       )}
       {sizeMode === "ratio" && (
         <p style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", margin: "0 0 4px" }}>
-          Dimensione fissata dalle <em>Impostazioni pagine del progetto</em> (rapporto comune a
+          Dimensione fissata dalle <em>{t("shell.projectPageSettings")}</em> (rapporto comune a
           tutte le pagine): {width ?? "—"}×{height ?? "—"}. Scala mantenendo le proporzioni a runtime.
         </p>
       )}
       {sizeMode === "fluid" && (
         <p style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", margin: "0 0 4px" }}>
-          Nessuna dimensione dichiarata (modalità Fluida): il contenuto si disegna 1:1 nella
-          viewport disponibile, senza scaling né confini.
+          {t("shell.noSizeDeclaredFluidMode")}
         </p>
       )}
       {offPageCount > 0 && (
@@ -1840,10 +1840,7 @@ function PageProps({
            rilievo per-oggetto (vedi Q39). */
         <p style={{ fontSize: 11, color: "var(--brand-warning, #f59e0b)", background: "#451a0322",
                     border: "1px solid #92400e", borderRadius: 4, padding: "4px 8px", margin: "6px 0 0" }}>
-          ⚠ {offPageCount} {offPageCount === 1 ? "oggetto è" : "oggetti sono"} fuori dal foglio
-          e non {offPageCount === 1 ? "verrà disegnato" : "verranno disegnati"} a runtime.
-          {" "}Trascina{offPageCount === 1 ? "lo" : "li"} dentro il bordo tratteggiato per
-          riattivar{offPageCount === 1 ? "lo" : "li"}, oppure allarga la pagina.
+          {t("shell.offPage", { count: offPageCount })}
         </p>
       )}
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
@@ -1875,7 +1872,7 @@ function PageProps({
         />
       </div>
       <p style={{ fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", margin: "8px 0 0" }}>
-        Seleziona un oggetto sul canvas per modificarne le proprietà.
+        {t("shell.selectAnObjectOnThe")}
       </p>
     </>
   );
@@ -1977,6 +1974,7 @@ function ProjectTargetSettings() {
 }
 
 function ProjectPageLayoutSettings() {
+  const { t } = useTranslation();
   const project = useAppStore((s) => s.project);
   const pages = useAppStore((s) => s.pages);
   const updateProjectPageLayout = useAppStore((s) => s.updateProjectPageLayout);
@@ -2019,7 +2017,7 @@ function ProjectPageLayoutSettings() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 4 }}>
       <div>
-        <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 6 }}>Modalità dimensionamento</div>
+        <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 6 }}>{t("shell.sizingMode")}</div>
         {([
           { v: "fixed" as const, label: "Fisso (1:1, nessuno scaling)" },
           { v: "ratio" as const, label: "Solo proporzioni (scala mantenendo il rapporto)" },
@@ -2046,10 +2044,10 @@ function ProjectPageLayoutSettings() {
       )}
 
       <div>
-        <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>Pagina iniziale (home)</div>
+        <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>{t("shell.homePage")}</div>
         <select value={homePageId} onChange={(e) => setHomePageId(e.target.value)}
           style={{ background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "4px 8px", fontSize: 12, width: "100%" }}>
-          <option value="">— Prima pagina della lista —</option>
+          <option value="">{t("shell.firstPageInTheList")}</option>
           {pages.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
       </div>
@@ -2059,12 +2057,9 @@ function ProjectPageLayoutSettings() {
           <input type="checkbox" checked={hideChrome} onChange={(e) => setHideChrome(e.target.checked)}
             style={{ marginTop: 2, accentColor: "var(--brand-primary, #3b82f6)" }} />
           <span>
-            Viewer a schermo pieno: nascondi barra superiore e fascia allarmi
+            {t("shell.fullScreenViewerHideThe")}
             <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 3, lineHeight: 1.45 }}>
-              Sul pannello viene renderizzata solo l'area della pagina. Gli allarmi
-              attivi compaiono sovrapposti, senza rubare spazio. <strong>Attenzione</strong>:
-              senza la barra la navigazione tra pagine può avvenire solo con oggetti
-              "Pulsante pagina" sul synoptic o con la rotazione automatica.
+              {t("shell.hideChromeHelp")} <strong>{t("shell.warning")}</strong>{t("shell.hideChromeWarning")}
             </div>
           </span>
         </label>
@@ -2073,7 +2068,7 @@ function ProjectPageLayoutSettings() {
       {error && <div style={{ color: "var(--brand-danger, #ef4444)", fontSize: 12 }}>Errore: {error}</div>}
 
       <button style={{ alignSelf: "flex-start", background: "var(--brand-success-bg, #166534)", color: "var(--brand-success-soft, #4ade80)", border: "1px solid #15803d", borderRadius: 4, padding: "5px 12px", cursor: "pointer", fontSize: 13 }} disabled={saving} onClick={handleSave}>
-        {saving ? "Salvataggio…" : "Salva impostazioni progetto"}
+        {saving ? t("shell.saving") : t("shell.saveProjectSettings")}
       </button>
     </div>
   );
@@ -2160,7 +2155,7 @@ function MultiSelectionProps({
           Duplica
         </button>
         <button style={{ ...btn, background: "var(--brand-danger-bg, #7f1d1d)", color: "var(--brand-danger-soft, #fca5a5)", borderColor: "#991b1b" }} onClick={onDelete}>
-          Elimina
+          {t("shell.delete")}
         </button>
       </div>
 
@@ -2350,7 +2345,7 @@ function CrossTypeProps({
           checked={!isMixed("quality_dot") && mergedProps.quality_dot !== false}
           onChange={(e) => onChange({ quality_dot: e.target.checked ? undefined : false })}
           style={{ accentColor: "var(--brand-primary, #3b82f6)" }}
-        /> Mostra indicatore qualità
+        /> {t("shell.showQualityIndicator")}
       </label>
       {mergedProps.quality_dot !== false && (
         <>
@@ -2617,7 +2612,7 @@ export function ObjectProps({
       })}
       <button style={{ ...INPUT, width: "100%", cursor: "pointer", marginBottom: 4 }}
         onClick={() => onChange({ text_list_entries: [...(obj.text_list_entries ?? []), { value: 0, label: "Stato", color: "var(--brand-text, #e2e8f0)" }] })}>
-        + Aggiungi voce
+        {t("shell.addEntry")}
       </button>
       <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "-2px 0 4px" }}>
         {t("props.rangeHint")}
@@ -2933,8 +2928,7 @@ export function ObjectProps({
                 : field(t("props.textStatic"), <BindableInput obj={obj} propName="text" onChange={onChange}>{textInput("text", "Es. Temperatura caldaia")}</BindableInput>)}
               {field(t("props.formatBound"), <BindableInput obj={obj} propName="format" onChange={onChange}>{textInput("format", "{value:.1f} °C")}</BindableInput>)}
               <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 4px" }}>
-                Se è impostato un Tag, vince il formato (usa <code>{"{value}"}</code>); altrimenti viene
-                mostrato il testo statico.
+                {t("shell.formatWinsPre")} <code>{"{value}"}</code>{t("shell.formatWinsPost")}
               </p>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
                 <div><div style={LABEL}>{t("props.dimensionPx")}</div><BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 14)}</BindableInput></div>
@@ -3191,7 +3185,7 @@ export function ObjectProps({
             const targetMissing = !!obj.target_page && !pages.some((p) => p.id === obj.target_page);
             return (
               <>
-                {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "Vai alla pagina")}</BindableInput>)}
+                {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", t("shell.goToPage"))}</BindableInput>)}
                 {field(t("props.targetPage"),
                   <select
                     style={{
@@ -3215,7 +3209,7 @@ export function ObjectProps({
                 )}
                 {targetMissing && (
                   <div style={{ fontSize: 11, color: "var(--brand-danger-soft, #fca5a5)", marginTop: -4 }}>
-                    La pagina di destinazione è stata eliminata. Seleziona un'altra pagina o rimuovi il navbutton.
+                    {t("shell.theTargetPageWasDeleted")}
                   </div>
                 )}
                 {field(t("props.labelColor"), <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color", "#e2e8f0")}</BindableInput>)}
@@ -3527,7 +3521,7 @@ export function ObjectProps({
                     </label>
                   ))}
                 </div>
-                {field(t("props.labelHeader"), textInput("table_label_header", "DATI"))}
+                {field(t("props.labelHeader"), textInput("table_label_header", t("shell.data")))}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
                   <div><div style={LABEL}>{t("props.dimensionPx")}</div>{numInput("table_font_size", 11)}</div>
                 </div>
@@ -3721,7 +3715,7 @@ export function ObjectProps({
                 </label>
               </div>
               <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "2px 0 0" }}>
-                Senza "Mostra sempre la data", la data compare solo quando la finestra visibile supera le 24h.
+                {t("shell.withoutAlwaysShowDateThe")}
               </p>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginTop: 8 }}>
@@ -3760,7 +3754,7 @@ export function ObjectProps({
                     <div><div style={LABEL}>Alarm max</div>{numInput("alarm_high", 0)}</div>
                   </div>
                   <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "2px 0 0" }}>
-                    Le soglie sono valori sulla scala condivisa — non compaiono se ogni traccia ha la propria scala. Lascia vuoto per omettere una soglia.
+                    {t("shell.thresholdsAreValuesOnThe")}
                   </p>
                 </>
               )}
@@ -3772,7 +3766,7 @@ export function ObjectProps({
                   checked={obj.trend_show_alarm_markers ?? false}
                   onChange={(e) => onChange({ trend_show_alarm_markers: e.target.checked || undefined })}
                 />
-                Mostra eventi allarme sulla timeline
+                {t("shell.showAlarmEventsOnThe")}
               </label>
 
               {field(t("props.axisColor"), <BindableInput obj={obj} propName="axis_color" onChange={onChange}>{colorInput("axis_color", "#64748b")}</BindableInput>)}
@@ -3784,7 +3778,7 @@ export function ObjectProps({
                   checked={obj.opcua_backfill ?? false}
                   onChange={(e) => onChange({ opcua_backfill: e.target.checked || undefined })}
                 />
-                Backfill da storico OPC-UA al caricamento
+                {t("shell.backfillFromOpcUaHistory")}
               </label>
             </>
             );
@@ -3868,7 +3862,7 @@ export function ObjectProps({
                 <div><div style={LABEL}>Y max</div><BindableInput obj={obj} propName="xy_y_max" onChange={onChange}>{numInput("xy_y_max", 100)}</BindableInput></div>
               </div>
               <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "2px 0 0" }}>
-                Lascia min/max vuoti per autofit sui campioni osservati.
+                {t("shell.leaveMinMaxEmptyTo")}
               </p>
               {field(t("props.xAxisLabel"), <BindableInput obj={obj} propName="xy_x_label" onChange={onChange}><input style={INPUT} value={obj.xy_x_label ?? ""} onChange={(e) => onChange({ xy_x_label: e.target.value || undefined })} /></BindableInput>)}
               {field(t("props.yAxisLabel"), <BindableInput obj={obj} propName="xy_y_label" onChange={onChange}><input style={INPUT} value={obj.xy_y_label ?? ""} onChange={(e) => onChange({ xy_y_label: e.target.value || undefined })} /></BindableInput>)}
@@ -3979,7 +3973,7 @@ export function ObjectProps({
                 </div>
               )}
               <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "6px 0 0" }}>
-                Clicca su una cella nel canvas per modificarne le proprietà.
+                {t("shell.clickACellOnThe")}
               </p>
             </>
           )}
@@ -4087,7 +4081,7 @@ export function ObjectProps({
               ))}
               <button style={{ ...INPUT, width: "100%", cursor: "pointer", marginBottom: 4 }}
                 onClick={() => onChange({ bar_series: [...(obj.bar_series ?? []), { tag: "", label: `Serie ${(obj.bar_series?.length ?? 0) + 1}` }] })}>
-                + Aggiungi serie
+                {t("shell.addSeries")}
               </button>
               <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 2, marginBottom: 2, fontWeight: 700 }}>SOGLIE</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
@@ -4178,7 +4172,7 @@ export function ObjectProps({
               ))}
               <button style={{ ...INPUT, width: "100%", cursor: "pointer" }}
                 onClick={() => onChange({ pie_slices: [...(obj.pie_slices ?? []), { tag: "", label: `Slice ${(obj.pie_slices?.length ?? 0) + 1}` }] })}>
-                + Aggiungi slice
+                {t("shell.addSlice")}
               </button>
             </>
           )}
@@ -4243,7 +4237,7 @@ export function ObjectProps({
               {field(t("props.alarmIdPrefix"), <input style={INPUT} placeholder={t("props.exZone")} value={obj.alarm_viewer_id_prefix ?? ""} onChange={(e) => onChange({ alarm_viewer_id_prefix: e.target.value })} />)}
               {field(t("props.severity"), severityFilterField("alarm_viewer_severities"))}
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {[["alarm_viewer_show_ack","Mostra ACK"], ["alarm_viewer_show_ts","Timestamp"], ["alarm_viewer_show_empty","Mostra vuoto"]].map(([k,l]) => (
+                {[["alarm_viewer_show_ack","Mostra ACK"], ["alarm_viewer_show_ts","Timestamp"], ["alarm_viewer_show_empty",t("shell.showEmpty")]].map(([k,l]) => (
                   <label key={k} style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", gap: 3, alignItems: "center" }}>
                     <input type="checkbox" checked={!!(obj as any)[k] || (obj as any)[k] === undefined} onChange={(e) => onChange({ [k]: e.target.checked })} />{l}
                   </label>
@@ -4669,7 +4663,7 @@ export function ObjectProps({
               {/* Connection anchoring */}
               <CollapsibleSection title={t("props.snapObjects")} storageKey="pipe-anchor">
                 <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 6px" }}>
-                  Quando impostato, il primo / ultimo waypoint segue l'oggetto collegato.
+                  {t("shell.whenSetTheFirstLast")}
                 </p>
                 {field(t("props.sourceObjId"), textInput("from_obj_id", "es. pump-1"))}
                 <div style={LABEL}>{t("props.sourcePort")}</div>
@@ -4698,7 +4692,7 @@ export function ObjectProps({
               {/* Waypoints editor */}
               <CollapsibleSection title={t("props.waypoint")} storageKey="pipe-points">
                 <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 4px" }}>
-                  Trascina i punti gialli sul canvas. Usa ± per aggiungere/rimuovere.
+                  {t("shell.dragTheYellowPointsOn")}
                 </p>
                 {(obj.points ?? []).map((pt, i) => (
                   <div key={i} style={{ display: "flex", gap: 4, alignItems: "center", marginBottom: 3 }}>
@@ -4733,7 +4727,7 @@ export function ObjectProps({
                     pts.push({ x: last.x + 40, y: last.y });
                     onChange({ points: pts });
                   }}>
-                  + Aggiungi waypoint
+                  {t("shell.addWaypoint")}
                 </button>
               </CollapsibleSection>
             </>
@@ -4939,7 +4933,7 @@ export function ObjectProps({
             </div>
           )}
           <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 4px" }}>
-            0 = nessuna animazione. Anima fill/stroke/opacity/rotazione bindati. Testo, font-size, src e geometrie restano discreti.
+            {t("shell.0NoAnimationAnimatesBound")}
           </p>
         </CollapsibleSection>
       )}
@@ -5090,7 +5084,7 @@ export function ObjectProps({
       <CollapsibleSection
         title={t("props.qualityIndicator")}
         storageKey="quality" gruppo="resa"
-        hint={!obj.tag ? "Imposta un tag (sezione Tag) per personalizzare i colori." : undefined}
+        hint={!obj.tag ? t("shell.setATagTagSection") : undefined}
       >
         {/* 2026-08-23: per i tipi dove obj.tag non è il dato primario, il tag
             che alimenta allarme/stale/qualità si imposta QUI (il campo Tag
@@ -5105,8 +5099,7 @@ export function ObjectProps({
           )}
         {!obj.tag ? (
           <p style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", margin: "0 0 4px" }}>
-            Questo oggetto non ha un tag bound. L'indicatore di qualità verrà
-            mostrato automaticamente quando colleghi un tag.
+            {t("shell.thisObjectHasNoBound")}
           </p>
         ) : (
           <>
@@ -5125,7 +5118,7 @@ export function ObjectProps({
                 })}
                 style={{ accentColor: "var(--brand-primary, #3b82f6)" }}
               />
-              Mostra indicatore qualità
+              {t("shell.showQualityIndicator")}
             </label>
             {obj.quality_dot !== false && (
               <>
@@ -5173,7 +5166,7 @@ export function ObjectProps({
           </span>
         }
         hint={!obj.bindings || Object.keys(obj.bindings).length === 0
-          ? "Usa il toggle 🔗 accanto a un campo per creare un binding."
+          ? t("shell.useTheToggleNextTo")
           : undefined}
       >
         {obj.bindings && Object.keys(obj.bindings).length > 0 ? (
@@ -5183,7 +5176,7 @@ export function ObjectProps({
               <span style={{ color: "var(--brand-text-subtle, #94a3b8)" }}>→</span>
               <span style={{ color: "var(--brand-primary, #3b82f6)", flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>
                 {typeof spec === "string"
-                  ? (spec || "(nessun tag)")
+                  ? (spec || t("shell.noTag"))
                   : spec.expr !== undefined
                     ? `ƒ ${spec.expr || "(vuota)"}`
                     : `${spec.tag || "(nessun tag)"}${spec.in_min !== undefined ? ` [${spec.in_min}..${spec.in_max}→${spec.out_min}..${spec.out_max}]` : ""}`}
@@ -5201,7 +5194,7 @@ export function ObjectProps({
           ))
         ) : (
           <p style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", margin: "0 0 4px" }}>
-            Nessun binding attivo su questo oggetto.
+            {t("shell.noActiveBindingOnThis")}
           </p>
         )}
       </CollapsibleSection>
@@ -5279,7 +5272,7 @@ function RadioOptionsEditor({
         style={{ ...INPUT, cursor: "pointer", color: "var(--brand-text-subtle, #64748b)", borderStyle: "dashed", width: "100%" }}
         onClick={() => onChange([...options, { label: `Opzione ${options.length + 1}`, value: String(options.length + 1) }])}
       >
-        + Aggiungi opzione
+        {t("shell.addOption")}
       </button>
     </div>
   );
@@ -5367,7 +5360,7 @@ function TableRowsEditor({
         style={{ ...INPUT, cursor: "pointer", color: "var(--brand-text-subtle, #64748b)", borderStyle: "dashed", width: "100%" }}
         onClick={() => onChange([...rows, { label: `Tag ${rows.length + 1}`, tag: "", format: "{value:.1f}" }])}
       >
-        + Aggiungi riga
+        {t("shell.addRow")}
       </button>
     </div>
   );
@@ -5531,7 +5524,7 @@ function GridCellEditor({
           <input
             type="text" style={INPUT}
             value={cell.bg_color ?? ""}
-            placeholder="nessuno"
+            placeholder={t("shell.none")}
             onChange={(e) => onChange({ bg_color: e.target.value || undefined })}
           />
         </div>
@@ -5548,7 +5541,7 @@ function GridCellEditor({
       </div>
 
       <div style={{ marginBottom: 6 }}>
-        <div style={LABEL}>Colore bordo (indipendente dai bordi della griglia)</div>
+        <div style={LABEL}>{t("shell.borderColorIndependentOfThe")}</div>
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
           <input
             type="color"
@@ -5559,7 +5552,7 @@ function GridCellEditor({
           <input
             type="text" style={INPUT}
             value={cell.border_color ?? ""}
-            placeholder="nessuno"
+            placeholder={t("shell.none")}
             onChange={(e) => onChange({ border_color: e.target.value || undefined })}
           />
         </div>
@@ -5621,7 +5614,7 @@ function GridCellEditor({
             </span>
           </div>
           <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 8px" }}>
-            Clicca il figlio nel canvas per modificarne le proprietà.
+            {t("shell.clickTheChildOnThe")}
           </p>
           <div style={{ display: "flex", gap: 6 }}>
             <button
@@ -5640,7 +5633,7 @@ function GridCellEditor({
               onClick={() => onChange({ child: undefined })}
               style={{ background: "var(--brand-danger-bg, #7f1d1d)", border: "1px solid #991b1b", color: "var(--brand-danger-soft, #fca5a5)", borderRadius: 4, cursor: "pointer", fontSize: 11, padding: "2px 8px" }}
             >
-              ✕ Rimuovi
+              {t("shell.remove")}
             </button>
           </div>
         </>
@@ -5658,11 +5651,11 @@ function GridCellEditor({
               onClick={() => onChange({ child: makeDefaultChild(newChildType) })}
               style={{ background: "#1d4ed8", border: "1px solid var(--brand-primary-hover, #2563eb)", color: "#bfdbfe", borderRadius: 4, cursor: "pointer", fontSize: 12, padding: "2px 10px", flexShrink: 0 }}
             >
-              + Aggiungi
+              {t("shell.add")}
             </button>
           </div>
           <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 4px" }}>
-            Oppure: copia un oggetto dalla pagina (Ctrl+C) e premi Ctrl+V con questa cella selezionata.
+            {t("shell.orCopyAnObjectFrom2")}
           </p>
         </>
       )}
