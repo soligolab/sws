@@ -22,7 +22,7 @@ function RuntimeIdleScreen() {
       display: "flex", flexDirection: "column", alignItems: "center",
       justifyContent: "center", height: "100vh",
       background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", gap: 16,
-      fontFamily: "system-ui, sans-serif",
+      fontFamily: "system-ui, sans-serif, 'SWS Emoji'",
     }}>
       <svg width="48" height="48" viewBox="0 0 24 24" fill="none"
            stroke="var(--brand-primary, #3b82f6)" strokeWidth="1.5">
@@ -164,7 +164,7 @@ export function RuntimeViewer() {
   return (
     <div style={{
       display: "flex", flexDirection: "column", height: "100vh",
-      fontFamily: "system-ui, sans-serif", color: "var(--brand-text, #e2e8f0)", background: "var(--brand-bg, #0f172a)",
+      fontFamily: "system-ui, sans-serif, 'SWS Emoji'", color: "var(--brand-text, #e2e8f0)", background: "var(--brand-bg, #0f172a)",
     }}>
       {updatedNotice && (
         <div style={{

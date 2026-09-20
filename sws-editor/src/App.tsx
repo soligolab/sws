@@ -66,7 +66,7 @@ function AccessDenied({ role, onLogout }: { role: string; onLogout: () => void }
     <div style={{
       display: "flex", flexDirection: "column", alignItems: "center",
       justifyContent: "center", height: "100vh", background: "var(--brand-bg, #0f172a)",
-      color: "var(--brand-text, #e2e8f0)", gap: 16, fontFamily: "system-ui",
+      color: "var(--brand-text, #e2e8f0)", gap: 16, fontFamily: "system-ui, 'SWS Emoji'",
     }}>
       <div style={{ fontSize: 48 }}>🔒</div>
       <div style={{ fontSize: 20, fontWeight: 600 }}>{t("accessDenied.title")}</div>
@@ -646,7 +646,7 @@ export function App() {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh", fontFamily: "system-ui, sans-serif", color: "var(--brand-text, #e2e8f0)", background: "var(--brand-bg, #0f172a)" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh", fontFamily: "system-ui, sans-serif, 'SWS Emoji'", color: "var(--brand-text, #e2e8f0)", background: "var(--brand-bg, #0f172a)" }}>
       {/* Header */}
       <header style={{
         height: 48,

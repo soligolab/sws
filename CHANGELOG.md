@@ -11,6 +11,12 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Fixed
+- **Le emoji sul pannello in modalità web non si vedevano (`[]`).** Il Chromium in kiosk del sistema Pixsys non ha nessun
+  font emoji. Il runtime ora serve `/fonts/NotoEmoji-Regular.ttf` (lo stesso Noto Emoji monocromo del viewer LVGL) e
+  l'SPA lo tiene in coda a ogni stack `font-family` tramite `@font-face` limitato ai codepoint delle emoji. Provato
+  sul TC620 di test.
+
 ## [2.10.0] — 2026-09-20
 
 > **L'immagine di boot del pannello, e i progetti vecchi che entrano nel sistema di lingue.** T-72:

@@ -6,6 +6,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SWS Admin</title>
     <style>
+      /* Font emoji servito dal runtime: il Chromium del pannello (Yocto Pixsys)
+         non ne ha nessuno e disegna `[]`. Stesso Noto Emoji monocromo che usa
+         il viewer LVGL, quindi i due motori mostrano gli stessi glifi. Sta in
+         coda a ogni stack `font-family` dell'app: si usa solo per i caratteri
+         che nessun altro font ha (unicode-range limita comunque il download). */
+      @font-face {
+        font-family: "SWS Emoji";
+        src: url("/fonts/NotoEmoji-Regular.ttf") format("truetype");
+        unicode-range: U+2600-27BF, U+2B50, U+1F000-1FAFF;
+        font-display: swap;
+      }
       /* Brand + theme color tokens. Defaults = SWS dark palette; overridden at
          boot by applyBranding()/applyAppearance() as inline props on :root (see
          src/branding, src/theme). Defined here so colors resolve before JS runs

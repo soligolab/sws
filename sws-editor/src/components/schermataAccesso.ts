@@ -11,7 +11,7 @@ export const paginaCentrata: React.CSSProperties = {
   justifyContent: "center",
   background: "var(--brand-bg, #0f172a)",
   color: "var(--brand-text, #e2e8f0)",
-  fontFamily: "system-ui, sans-serif",
+  fontFamily: "system-ui, sans-serif, 'SWS Emoji'",
 };
 
 export function schedaModulo(larghezza: number): React.CSSProperties {

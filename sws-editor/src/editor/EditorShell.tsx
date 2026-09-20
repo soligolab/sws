@@ -3100,7 +3100,7 @@ export function ObjectProps({
                 <BindableInput obj={obj} propName="font_family" onChange={onChange}>
                   <input
                     type="text" style={INPUT}
-                    placeholder="es. system-ui, sans-serif"
+                    placeholder="es. system-ui, sans-serif, 'SWS Emoji'"
                     value={obj.font_family ?? ""}
                     onChange={(e) => onChange({ font_family: e.target.value || undefined })}
                     spellCheck={false}

@@ -626,7 +626,7 @@ export function TrendCanvas({
     const hasAnyData = series.some((s) => s.length >= 2);
     if (!hasAnyData) {
       ctx.fillStyle = "#475569";
-      ctx.font = "11px system-ui, sans-serif";
+      ctx.font = "11px system-ui, sans-serif, 'SWS Emoji'";
       ctx.textAlign = "center";
       const msg = tags.length === 0 || tags.every((tag) => !tag)
         ? t("trendCanvas.noTag")
@@ -920,7 +920,7 @@ export function TrendCanvas({
     // (canvas text isn't clickable DOM — hit-testing is manual).
     legendBoxesRef.current = [];
     if (tags.length > 1) {
-      ctx.font = "10px system-ui, sans-serif";
+      ctx.font = "10px system-ui, sans-serif, 'SWS Emoji'";
       ctx.textBaseline = "middle";
       ctx.textAlign = "left";
       let cx = PAD_LEFT + 2;

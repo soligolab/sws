@@ -95,7 +95,7 @@ function motorSymbol(p: SymbolRenderProps): ReactElement {
     <g>
       <circle cx={45} cy={50} r={36} fill={c} stroke="#0f172a" strokeWidth={2} />
       <text x={45} y={58} textAnchor="middle" fontSize={28} fontWeight={700} fill="#0f172a"
-            fontFamily="system-ui, sans-serif">M</text>
+            fontFamily="system-ui, sans-serif, 'SWS Emoji'">M</text>
       <rect x={80} y={42} width={16} height={16} fill={c} stroke="#0f172a" strokeWidth={2} />
       {p.state === "on" && (
         <circle cx={45} cy={50} r={40} fill="none" stroke={p.on} strokeWidth={2} opacity={0.4} />
@@ -192,7 +192,7 @@ function levelSensorSymbol(p: SymbolRenderProps): ReactElement {
       {/* tag balloon */}
       <circle cx={78} cy={20} r={12} fill="#1e293b" stroke="#cbd5e1" strokeWidth={1.5} />
       <text x={78} y={24} textAnchor="middle" fontSize={11} fontWeight={700}
-        fill="#cbd5e1" fontFamily="system-ui, sans-serif">LT</text>
+        fill="#cbd5e1" fontFamily="system-ui, sans-serif, 'SWS Emoji'">LT</text>
     </g>
   );
 }
@@ -214,7 +214,7 @@ function flowMeterSymbol(p: SymbolRenderProps): ReactElement {
       {/* tag bubble */}
       <circle cx={50} cy={18} r={12} fill="#1e293b" stroke="#cbd5e1" strokeWidth={1.5} />
       <text x={50} y={22} textAnchor="middle" fontSize={11} fontWeight={700}
-        fill="#cbd5e1" fontFamily="system-ui, sans-serif">FT</text>
+        fill="#cbd5e1" fontFamily="system-ui, sans-serif, 'SWS Emoji'">FT</text>
     </g>
   );
 }
@@ -246,7 +246,7 @@ function pressureIndicatorSymbol(p: SymbolRenderProps): ReactElement {
       <circle cx={50} cy={50} r={4} fill={c} />
       {/* PI label */}
       <text x={50} y={84} textAnchor="middle" fontSize={11} fontWeight={700}
-        fill="#cbd5e1" fontFamily="system-ui, sans-serif">PI</text>
+        fill="#cbd5e1" fontFamily="system-ui, sans-serif, 'SWS Emoji'">PI</text>
     </g>
   );
 }
@@ -284,7 +284,7 @@ function heatPumpSymbol(p: SymbolRenderProps): ReactElement {
       {/* compressor */}
       <circle cx={50} cy={50} r={13} fill={c} stroke="#0f172a" strokeWidth={2} />
       <text x={50} y={55} textAnchor="middle" fontSize={9} fontWeight={700}
-        fill="#0f172a" fontFamily="system-ui, sans-serif">CMP</text>
+        fill="#0f172a" fontFamily="system-ui, sans-serif, 'SWS Emoji'">CMP</text>
       {/* cold coil (bottom) */}
       <path d="M18 72 Q28 62 38 72 Q48 82 58 72 Q68 62 82 72" fill="none" stroke="#64748b" strokeWidth={3} strokeLinecap="round" />
       <path d="M18 82 Q28 72 38 82 Q48 92 58 82 Q68 72 82 82" fill="none" stroke="#64748b" strokeWidth={3} strokeLinecap="round" />
@@ -315,7 +315,7 @@ function temperatureSensorSymbol(p: SymbolRenderProps): ReactElement {
       {/* TT tag bubble */}
       <circle cx={50} cy={88} r={10} fill="#1e293b" stroke="#cbd5e1" strokeWidth={1.5} />
       <text x={50} y={92} textAnchor="middle" fontSize={10} fontWeight={700}
-        fill="#cbd5e1" fontFamily="system-ui, sans-serif">TT</text>
+        fill="#cbd5e1" fontFamily="system-ui, sans-serif, 'SWS Emoji'">TT</text>
     </g>
   );
 }
@@ -672,7 +672,7 @@ function filterSymbol(p: SymbolRenderProps): ReactElement {
       {/* presa manometro differenziale */}
       <circle cx={85} cy={40} r={11.25} fill="#0f172a" stroke="#cbd5e1" strokeWidth={1.5} />
       <text x={85} y={44} textAnchor="middle" fontSize={11} fontWeight={700}
-            fill="#cbd5e1" fontFamily="system-ui, sans-serif">DP</text>
+            fill="#cbd5e1" fontFamily="system-ui, sans-serif, 'SWS Emoji'">DP</text>
     </g>
   );
 }
