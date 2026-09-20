@@ -1,0 +1,60 @@
+{
+  "_nota": "Casi condivisi fra sws-editor/src/pageTree.ts e sws-runtime/crates/sws-core/src/page_tree.rs: se i due motori divergono su chi c'è nell'albero e in che ordine, i pannelli mostrano un menù diverso dall'editor.",
+  "riconcilia": [
+    { "nome": "albero assente: piatto, nell'ordine dato",
+      "albero": null, "pagine": ["b", "a", "c"],
+      "atteso": [{"id":"b"},{"id":"a"},{"id":"c"}] },
+    { "nome": "scarta id inesistenti",
+      "albero": [{"id":"a"},{"id":"zzz"},{"id":"b"}], "pagine": ["a", "b"],
+      "atteso": [{"id":"a"},{"id":"b"}] },
+    { "nome": "un nodo scartato lascia salire i suoi figli esistenti al suo posto",
+      "albero": [{"id":"x","children":[{"id":"a"},{"id":"b"}]},{"id":"c"}], "pagine": ["a","b","c"],
+      "atteso": [{"id":"a"},{"id":"b"},{"id":"c"}] },
+    { "nome": "duplicati: vince la prima occorrenza",
+      "albero": [{"id":"a"},{"id":"b","children":[{"id":"a"}]}], "pagine": ["a","b"],
+      "atteso": [{"id":"a"},{"id":"b"}] },
+    { "nome": "pagine mancanti in coda alla radice, nell'ordine dato",
+      "albero": [{"id":"a","children":[{"id":"b"}]}], "pagine": ["a","b","z","c"],
+      "atteso": [{"id":"a","children":[{"id":"b"}]},{"id":"z"},{"id":"c"}] },
+    { "nome": "children vuoto si normalizza (nessun campo)",
+      "albero": [{"id":"a","children":[]}], "pagine": ["a"],
+      "atteso": [{"id":"a"}] }
+  ],
+  "appiattisci": [
+    { "albero": [{"id":"a","children":[{"id":"b","children":[{"id":"c"}]},{"id":"d"}]},{"id":"e"}],
+      "atteso": ["a","b","c","d","e"] },
+    { "albero": [], "atteso": [] }
+  ],
+  "sposta": [
+    { "nome": "in radice, in testa",
+      "albero": [{"id":"a"},{"id":"b"},{"id":"c"}], "id": "c", "genitore": null, "indice": 0,
+      "atteso": [{"id":"c"},{"id":"a"},{"id":"b"}] },
+    { "nome": "dentro un'altra pagina, il sottoalbero si porta dietro i figli",
+      "albero": [{"id":"a"},{"id":"b","children":[{"id":"b1"}]}], "id": "b", "genitore": "a", "indice": 0,
+      "atteso": [{"id":"a","children":[{"id":"b","children":[{"id":"b1"}]}]}] },
+    { "nome": "indice oltre la fine: in coda",
+      "albero": [{"id":"a"},{"id":"b"}], "id": "a", "genitore": null, "indice": 99,
+      "atteso": [{"id":"b"},{"id":"a"}] },
+    { "nome": "dentro se stesso: rifiutato",
+      "albero": [{"id":"a"}], "id": "a", "genitore": "a", "indice": 0, "atteso": null },
+    { "nome": "dentro un discendente: rifiutato (ciclo)",
+      "albero": [{"id":"a","children":[{"id":"b"}]}], "id": "a", "genitore": "b", "indice": 0, "atteso": null },
+    { "nome": "id sconosciuto: rifiutato",
+      "albero": [{"id":"a"}], "id": "q", "genitore": null, "indice": 0, "atteso": null },
+    { "nome": "genitore sconosciuto: rifiutato",
+      "albero": [{"id":"a"}], "id": "a", "genitore": "q", "indice": 0, "atteso": null },
+    { "nome": "l'ultimo figlio spostato via lascia il genitore senza children",
+      "albero": [{"id":"a","children":[{"id":"b"}]}], "id": "b", "genitore": null, "indice": 1,
+      "atteso": [{"id":"a"},{"id":"b"}] }
+  ],
+  "rimuovi": [
+    { "nome": "i figli salgono al posto del nodo",
+      "albero": [{"id":"a"},{"id":"b","children":[{"id":"b1"},{"id":"b2"}]},{"id":"c"}], "id": "b",
+      "atteso": [{"id":"a"},{"id":"b1"},{"id":"b2"},{"id":"c"}] },
+    { "nome": "nodo interno: salgono di un livello",
+      "albero": [{"id":"a","children":[{"id":"b","children":[{"id":"c"}]}]}], "id": "b",
+      "atteso": [{"id":"a","children":[{"id":"c"}]}] },
+    { "nome": "id sconosciuto: invariato",
+      "albero": [{"id":"a"}], "id": "q", "atteso": [{"id":"a"}] }
+  ]
+}

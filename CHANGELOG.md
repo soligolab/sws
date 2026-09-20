@@ -11,6 +11,13 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Added
+- **L'albero delle pagine, sempre visibile a sinistra.** Le pagine hanno una gerarchia e un **ordine salvato** (`page_layout.page_tree` in
+  `project.yaml`; prima l'ordine era solo in memoria e a ogni ricarica tornava alfabetico). Il pannello sinistro tiene l'albero **fisso in alto**
+  (separatore trascinabile, comprimibile) e sotto una vista alla volta; la voce «Pagine» esce dalla barra delle icone. Trascinamento con tre zone
+  (prima / dopo / dentro), rami espandibili, «＋ pagina figlia», copia subito dopo l'originale, elimina che fa salire i figli. Funzioni pure gemelle
+  TS/Rust con fixture condivisa (`tests/fixtures/albero-pagine.json`); la barra di navigazione del viewer, le schede e la rotazione seguono l'albero.
+
 ### Fixed
 - **«Ricarica» non butta più via il lavoro non salvato, e il falso «il progetto è cambiato» non si può più presentare.** Il salvataggio del
   layout di pagina (pannello proprietà) non avvisava il sorvegliante del progetto: l'impronta di `project.yaml` cambiava, compariva la barra

@@ -1337,6 +1337,12 @@ export interface NotificationConfig {
 /** How synoptic pages are sized/scaled at runtime — project-wide setting. */
 export type PageSizeMode = "fixed" | "ratio" | "fluid";
 
+/** Un nodo dell'albero delle pagine: l'id di una pagina e i suoi figli, in ordine. */
+export interface PageTreeNode {
+  id: string;
+  children?: PageTreeNode[];
+}
+
 export interface PageLayoutConfig {
   size_mode: PageSizeMode;
   /** Aspect ratio label ("16:10" | "16:9" | "4:3" | "21:9" | "1:1" | "custom").
@@ -1361,6 +1367,9 @@ export interface PageLayoutConfig {
   default_height?: number;
   default_background?: string;
   default_background_dark?: string;
+  /** Gerarchia e ordine delle pagine. Assente = elenco piatto in ordine
+   *  alfabetico (come prima): si legge sempre passando da `riconcilia`. */
+  page_tree?: PageTreeNode[];
 }
 
 /** Motore di rendering a cui è destinato il progetto — vedi

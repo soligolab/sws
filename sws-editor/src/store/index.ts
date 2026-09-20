@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import i18n from "i18next";
 import { api, setAuthToken, ProjectChangedError } from "@/api/client";
+import { aggiungi, ordinaPagine, posizioneDi, riconcilia, rimuovi, sposta } from "@/pageTree";
 import { applyAppearance, getStoredMode, type ThemeMode } from "@/theme";
 import { genId } from "@/id";
 import { getStoredProjectLang, setStoredProjectLang, getStoredEditorPreviewLang, setStoredEditorPreviewLang } from "@/i18n/projectI18n";
@@ -12,7 +13,7 @@ import { uguale } from "@/ai/confronto";
 import { valoriDiNascita } from "@/formatoProgetto";
 import {
   BOOT_TYPES, chiavePagina, eBoot, nomeBootLibero,
-  paginePerNavigazione, sinotticiPoiBoot,
+  pagineDiBoot, paginePerNavigazione, sinotticiPoiBoot,
 } from "@/boot/tipi";
 import type {
   AlarmDef,
@@ -26,6 +27,7 @@ import type {
   NotificationConfig,
   ObjectGroup,
   PageLayoutConfig,
+  PageTreeNode,
   ProjectTarget,
   ProjectInfo,
   SourceDef,
@@ -413,13 +415,20 @@ interface AppState {
 
   // Page management
   setPages: (pages: SynopticPage[], currentPageId?: string) => void;
-  addPage: () => void;
+  /** Una pagina nuova; `genitore` = nodo dell'albero sotto cui nasce (`null`/assente = radice). */
+  addPage: (genitore?: string | null) => void;
   /** Una pagina di boot nuova (T-72): vuota, con la risoluzione di default. */
   addBootPage: () => void;
   deletePage: (id: string) => void;
   renamePage: (id: string, name: string) => void;
+  /** Una posizione su/giù fra i fratelli, nell'albero delle pagine. */
   reorderPage: (id: string, dir: "up" | "down") => void;
-  movePage: (id: string, toIndex: number) => void;
+  /** Sposta una pagina (con i suoi figli) sotto `genitore` (`null` = radice) alla posizione
+   *  `indice`. Rifiuta i cicli e le pagine di boot. Scrive l'albero sul server. */
+  spostaPagina: (id: string, genitore: string | null, indice: number) => void;
+  /** Sostituisce l'albero delle pagine (già valido: lo produce `pageTree`) e lo scrive sul
+   *  server. Serve al trascinamento, che calcola da sé la posizione rispetto a una riga. */
+  impostaAlberoPagine: (albero: PageTreeNode[]) => void;
   duplicatePage: (id: string) => void;
   /** Più pagine in un colpo solo: un solo passo di cronologia. */
   updatePagesProps: (patches: { id: string; patch: Partial<SynopticPage> }[]) => void;
@@ -639,6 +648,34 @@ function autoDeployIfConnected() {
 export const selectIsDirty = (s: AppState) =>
   s.pagesRev !== s.savedPagesRev || Object.keys(s.pendingSections).length > 0;
 
+/** Le pagine nell'ordine dell'albero delle pagine (`page_layout.page_tree`), con le
+ *  pagine di boot in coda. Ritorna lo stesso array se l'ordine è già quello, per non
+ *  far ridisegnare chi lo legge senza motivo. */
+function conOrdineAlbero<T extends SynopticPage>(pages: readonly T[], layout: PageLayoutConfig | null | undefined): T[] {
+  const ordinate = [...ordinaPagine(paginePerNavigazione(pages), layout?.page_tree), ...pagineDiBoot(pages)];
+  const uguale = ordinate.length === pages.length && ordinate.every((p, i) => p === pages[i]);
+  return uguale ? (pages as T[]) : ordinate;
+}
+
+/** L'albero riconciliato con le pagine sinottiche di adesso. */
+function alberoDi(pages: readonly SynopticPage[], layout: PageLayoutConfig | null | undefined) {
+  return riconcilia(layout?.page_tree, paginePerNavigazione(pages).map((p) => p.id));
+}
+
+let alberoTimer: number | null = null;
+/** Scrive `page_layout` (con l'albero) sul server, poco dopo l'ultima modifica: un
+ *  trascinamento e i colpi ravvicinati diventano una scrittura sola. Come le altre
+ *  impostazioni di pagina va fuori da `saveAll`; il segnale al sorvegliante è in `request()`. */
+function persistiAlbero(): void {
+  if (alberoTimer !== null) window.clearTimeout(alberoTimer);
+  alberoTimer = window.setTimeout(() => {
+    alberoTimer = null;
+    const layout = useAppStore.getState().project?.page_layout;
+    if (!layout) return;
+    api.updatePageLayout(layout).catch((e) => console.error("albero delle pagine non salvato:", e));
+  }, 300);
+}
+
 export const useAppStore = create<AppState>((set, get) => {
   // Suspend per-mutation history pushes while > 0. Lets a drag/resize
   // capture one history entry up front (at beginInteraction) instead of
@@ -777,7 +814,13 @@ export const useAppStore = create<AppState>((set, get) => {
     editorPreviewLang: getStoredEditorPreviewLang(),
     setEditorPreviewLang: (code) => { setStoredEditorPreviewLang(code); set({ editorPreviewLang: code }); },
 
-    setProject: (project) => set({ project, projectLoadError: null, customSymbols: project.custom_symbols ?? [] }),
+    setProject: (project) =>
+      set((s) => ({
+        project,
+        projectLoadError: null,
+        customSymbols: project.custom_symbols ?? [],
+        pages: conOrdineAlbero(s.pages, project.page_layout),
+      })),
     setProjectLoadError: (msg) => set({ projectLoadError: msg }),
 
     updateProjectTags: (tags) =>
@@ -796,7 +839,10 @@ export const useAppStore = create<AppState>((set, get) => {
       set((s) => ({ project: s.project ? { ...s.project, notifications: notifications ?? undefined } : s.project })),
 
     updateProjectPageLayout: (pageLayout) =>
-      set((s) => ({ project: s.project ? { ...s.project, page_layout: pageLayout ?? undefined } : s.project })),
+      set((s) => ({
+        project: s.project ? { ...s.project, page_layout: pageLayout ?? undefined } : s.project,
+        pages: conOrdineAlbero(s.pages, pageLayout),
+      })),
 
     updateProjectTarget: (target) =>
       set((s) => ({ project: s.project ? { ...s.project, target: target ?? undefined } : s.project })),
@@ -936,7 +982,7 @@ export const useAppStore = create<AppState>((set, get) => {
     setPages: (tutte, currentPageId) => {
       // Sinottici prima, pagine di boot in coda: l'elenco pagine usa gli indici
       // della sola parte sinottica, che così restano validi.
-      const pages = sinotticiPoiBoot(tutte);
+      const pages = conOrdineAlbero(sinotticiPoiBoot(tutte), get().project?.page_layout);
       set({
         // Migrazione trend legacy → trend_tags al load (taglio netto,
         // 2026-08-23), e xy_plot legacy → xy_series (stesso taglio,
@@ -969,7 +1015,7 @@ export const useAppStore = create<AppState>((set, get) => {
       });
     },
 
-    addPage: () => {
+    addPage: (genitore = null) => {
       pushHistory("history.newPage");
       const page = makePage(`Page ${paginePerNavigazione(get().pages).length + 1}`);
       // Q38 — in modalità «ratio» la pagina nasce già con la risoluzione di
@@ -987,13 +1033,21 @@ export const useAppStore = create<AppState>((set, get) => {
         page.width = ref.width;
         page.height = ref.height;
       }
-      set((s) => ({
-        // Le pagine di boot restano in coda.
-        pages: sinotticiPoiBoot([...s.pages, page]),
-        currentPageId: page.id,
-        selectedObjectId: null,
-        selectedObjectIds: [],
-      }));
+      set((s) => {
+        const albero = aggiungi(alberoDi(s.pages, s.project?.page_layout), page.id, genitore);
+        const project = s.project
+          ? { ...s.project, page_layout: { ...(s.project.page_layout ?? { size_mode: "fixed" as const }), page_tree: albero } }
+          : s.project;
+        return {
+          project,
+          // Le pagine di boot restano in coda; l'ordine è quello dell'albero.
+          pages: conOrdineAlbero([...s.pages, page], project?.page_layout),
+          currentPageId: page.id,
+          selectedObjectId: null,
+          selectedObjectIds: [],
+        };
+      });
+      if (get().project) persistiAlbero();
     },
 
     addBootPage: () => {
@@ -1021,14 +1075,28 @@ export const useAppStore = create<AppState>((set, get) => {
       if (!eBoot(page) && paginePerNavigazione(pages).length <= 1) return;
       pushHistory("history.deletePage");
       const next = pages.filter((p) => p.id !== id);
+      // Una pagina sinottica esce anche dall'albero: i suoi figli salgono al suo posto.
+      const s0 = get();
+      const conAlbero = !eBoot(page) && !!s0.project;
+      const project = conAlbero && s0.project
+        ? {
+            ...s0.project,
+            page_layout: {
+              ...(s0.project.page_layout ?? { size_mode: "fixed" as const }),
+              page_tree: rimuovi(alberoDi(pages, s0.project.page_layout), id),
+            },
+          }
+        : s0.project;
       set({
-        pages: next,
+        project,
+        pages: conOrdineAlbero(next, project?.page_layout),
         currentPageId: currentPageId === id
           ? (paginePerNavigazione(next)[0]?.id ?? next[0]?.id ?? currentPageId)
           : currentPageId,
         selectedObjectId: null,
         selectedObjectIds: [],
       });
+      if (conAlbero) persistiAlbero();
     },
 
     renamePage: (id, name) => {
@@ -1037,29 +1105,32 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     reorderPage: (id, dir) => {
-      pushHistory("history.reorderPages");
-      set((s) => {
-        const idx = s.pages.findIndex((p) => p.id === id);
-        if (idx < 0 || eBoot(s.pages[idx])) return s;
-        const pages = [...s.pages];
-        const [page] = pages.splice(idx, 1);
-        const newIdx = dir === "up" ? Math.max(0, idx - 1) : Math.min(paginePerNavigazione(pages).length, idx + 1);
-        pages.splice(newIdx, 0, page);
-        return { pages };
-      });
+      const s0 = get();
+      const albero = alberoDi(s0.pages, s0.project?.page_layout);
+      const pos = posizioneDi(albero, id);
+      if (!pos) return;
+      get().spostaPagina(id, pos.genitore, dir === "up" ? Math.max(0, pos.indice - 1) : pos.indice + 1);
     },
 
-    movePage: (id, toIndex) => {
-      pushHistory("history.reorderPages");
-      set((s) => {
-        const idx = s.pages.findIndex((p) => p.id === id);
-        if (idx < 0 || eBoot(s.pages[idx])) return s;
-        const pages = [...s.pages];
-        const [page] = pages.splice(idx, 1);
-        const clamped = Math.max(0, Math.min(paginePerNavigazione(pages).length, toIndex));
-        pages.splice(clamped, 0, page);
-        return { pages };
-      });
+    spostaPagina: (id, genitore, indice) => {
+      const s0 = get();
+      const page = s0.pages.find((p) => p.id === id);
+      if (!page || eBoot(page) || !s0.project) return;
+      const nuovo = sposta(alberoDi(s0.pages, s0.project.page_layout), id, genitore, indice);
+      if (nuovo) get().impostaAlberoPagine(nuovo);
+    },
+
+    impostaAlberoPagine: (albero) => {
+      const s0 = get();
+      if (!s0.project) return;
+      // Non passa dalla cronologia: l'albero è un dato di progetto scritto subito sul
+      // server, e un annulla che rimettesse solo l'ordine dell'array lo lascerebbe indietro.
+      const project = {
+        ...s0.project,
+        page_layout: { ...(s0.project.page_layout ?? { size_mode: "fixed" as const }), page_tree: riconcilia(albero, paginePerNavigazione(s0.pages).map((p) => p.id)) },
+      };
+      set({ project, pages: conOrdineAlbero(s0.pages, project.page_layout) });
+      persistiAlbero();
     },
 
     duplicatePage: (id) => {
@@ -1077,11 +1148,18 @@ export const useAppStore = create<AppState>((set, get) => {
             id: `${o.id}_c${i}`,
           })),
         };
-        const idx = s.pages.findIndex((p) => p.id === id);
-        const pages = [...s.pages];
-        pages.splice(idx + 1, 0, copy);
-        return { pages, currentPageId: copy.id };
+        // La copia sta subito dopo l'originale, fra i suoi fratelli.
+        const albero0 = alberoDi(s.pages, s.project?.page_layout);
+        const pos = eBoot(page) ? null : posizioneDi(albero0, id);
+        const albero = pos
+          ? sposta(aggiungi(albero0, copy.id, pos.genitore), copy.id, pos.genitore, pos.indice + 1) ?? albero0
+          : albero0;
+        const project = s.project && pos
+          ? { ...s.project, page_layout: { ...(s.project.page_layout ?? { size_mode: "fixed" as const }), page_tree: albero } }
+          : s.project;
+        return { project, pages: conOrdineAlbero([...s.pages, copy], project?.page_layout), currentPageId: copy.id };
       });
+      if (get().project) persistiAlbero();
     },
 
     updatePageProps: (id, patch) => {

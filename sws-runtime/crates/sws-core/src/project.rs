@@ -1362,6 +1362,15 @@ pub enum PageSizeMode {
     Fluid,
 }
 
+/// Un nodo dell'albero delle pagine: l'id di una pagina e i suoi figli, in
+/// ordine. `children` vuoto non si scrive.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PageTreeNode {
+    pub id: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub children: Vec<PageTreeNode>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PageLayoutConfig {
     pub size_mode: PageSizeMode,
@@ -1399,6 +1408,11 @@ pub struct PageLayoutConfig {
     pub default_background: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_background_dark: Option<String>,
+    /// Gerarchia e ordine delle pagine. Assente = elenco piatto in ordine
+    /// alfabetico (come prima): chi lo legge lo riconcilia con le pagine che
+    /// esistono (`page_tree::riconcilia`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub page_tree: Option<Vec<PageTreeNode>>,
 }
 
 /// Tabella lingue di progetto: messaggi nativi + traduzioni, indicizzati per

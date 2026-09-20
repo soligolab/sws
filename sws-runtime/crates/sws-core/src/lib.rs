@@ -1,6 +1,7 @@
 pub mod alarm;
 pub mod geometry;
 pub mod logbus;
+pub mod page_tree;
 pub mod pin_tls;
 pub mod project;
 pub mod tag;
@@ -19,7 +20,7 @@ pub use project::{
     FunctionParam, GeneratorSpec, GlobalScriptDef, HomeAssistantConfig, HostConfig, HostMetric, HostMetricMapping, LangEntry, LanguageTable,
     ModbusRtuConfig, ModbusTcpConfig, MqttConfig, MqttLastWill, MqttTlsConfig, NotificationConfig,
     OpcUaAuth, OpcUaClientConfig, OpcUaNodeMapping, OpcUaServerConfig, OpcUaServerNodeMapping,
-    PageLayoutConfig, PageSizeMode, Project, ProjectMeta, ProjectTarget, ProjectTargetKind,
+    PageLayoutConfig, PageSizeMode, PageTreeNode, Project, ProjectMeta, ProjectTarget, ProjectTargetKind,
     RandomClientId, RegisterMapping, S7Config, S7DataType, S7TagMapping, ScriptTrigger, SmtpConfig,
     SourceDef, SparkplugConfig, SparkplugMetricMapping, TagDef, TelegramConfig, TopicMapping,
     MAX_FUNCTION_CODE_BYTES,

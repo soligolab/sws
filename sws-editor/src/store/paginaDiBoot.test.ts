@@ -92,14 +92,15 @@ describe("creare ed eliminare", () => {
     stato().addPage();
     const id = stato().pages.find((p) => p.kind === "boot")!.id;
     stato().reorderPage(id, "up");
-    stato().movePage(id, 0);
+    stato().spostaPagina(id, null, 0);
     expect(stato().pages.map((p) => p.kind ?? "sinottica")).toEqual(["sinottica", "sinottica", "boot"]);
   });
 
   it("una sinottica spostata in fondo non supera le pagine di boot", () => {
+    useAppStore.setState({ project: { meta: { name: "p", version: "1" } } as never });
     stato().addPage();
     stato().addBootPage();
-    stato().movePage("a", 99);
+    stato().spostaPagina("a", null, 99);
     expect(stato().pages.map((p) => p.kind ?? "sinottica")).toEqual(["sinottica", "sinottica", "boot"]);
   });
 });

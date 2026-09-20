@@ -7097,6 +7097,8 @@ struct PageLayoutBody {
     default_background: Option<String>,
     #[serde(default)]
     default_background_dark: Option<String>,
+    #[serde(default)]
+    page_tree: Option<Vec<sws_core::PageTreeNode>>,
 }
 
 impl From<PageLayoutBody> for PageLayoutConfig {
@@ -7111,6 +7113,7 @@ impl From<PageLayoutBody> for PageLayoutConfig {
             default_height: b.default_height,
             default_background: b.default_background,
             default_background_dark: b.default_background_dark,
+            page_tree: b.page_tree,
         }
     }
 }
@@ -7667,12 +7670,29 @@ mod write_safety_tests {
             default_height: None,
             default_background: None,
             default_background_dark: None,
+            page_tree: None,
         };
         let y = serde_yaml::to_string(&solo).unwrap();
         assert!(
-            !y.contains("default_"),
+            !y.contains("default_") && !y.contains("page_tree"),
             "campi vuoti scritti su disco:\n{y}"
         );
+    }
+
+    #[test]
+    fn page_layout_accetta_l_albero_delle_pagine_e_lo_scrive_annidato() {
+        let b: PageLayoutBody = serde_json::from_str(
+            r#"{"size_mode":"fixed","page_tree":[{"id":"home","children":[{"id":"a"},{"id":"b"}]},{"id":"z"}]}"#,
+        )
+        .expect("page_tree va accettato");
+        let c: sws_core::project::PageLayoutConfig = b.into();
+        let albero = c.page_tree.clone().expect("albero perso");
+        assert_eq!(sws_core::page_tree::appiattisci(&albero), vec!["home", "a", "b", "z"]);
+        // Sul disco i figli vuoti non compaiono e il giro tiene la forma.
+        let y = serde_yaml::to_string(&c).unwrap();
+        assert!(y.contains("page_tree"), "albero non scritto:\n{y}");
+        let indietro: sws_core::project::PageLayoutConfig = serde_yaml::from_str(&y).unwrap();
+        assert_eq!(indietro.page_tree, c.page_tree);
     }
 
     #[test]

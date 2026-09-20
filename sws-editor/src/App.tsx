@@ -40,6 +40,7 @@ const ConfigView = lazy(() =>
 import { getBrand } from "@/branding";
 import { selectIsDirty, useAppStore } from "@/store";
 import { pickInitialPageId } from "@/pageLayout";
+import { ordinaPagine } from "@/pageTree";
 import { useLogStream } from "@/ws/logStream";
 import { useRemoteLogStream } from "@/ws/remoteLogStream";
 import { useTagStream } from "@/ws/tagStream";
@@ -485,8 +486,9 @@ export function App() {
         // indipendenti, quindi project potrebbe non essere ancora stato settato
         // quando arriviamo qui — in quel caso home_page_id è undefined e
         // pickInitialPageId degrada al comportamento di oggi (prima pagina).
-        const homePageId = useAppStore.getState().project?.page_layout?.home_page_id;
-        setPages(loaded, pickInitialPageId(loaded, homePageId));
+        // Se il progetto non c'è ancora, `setProject` riordinerà le pagine secondo l'albero.
+        const layout = useAppStore.getState().project?.page_layout;
+        setPages(loaded, pickInitialPageId(ordinaPagine(loaded, layout?.page_tree), layout?.home_page_id));
       })
       .catch((e) => {
         if (e instanceof AuthError) clearAuth();

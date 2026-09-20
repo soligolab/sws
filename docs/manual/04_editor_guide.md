@@ -93,15 +93,22 @@ reale.
 
 ![Left panel](screenshots/03_left_panel.png)
 
-Il pannello sinistro è organizzato in sezioni accordion (cliccabili per espandere/collassare):
+Il pannello sinistro ha **in alto l'albero delle pagine, sempre visibile**, e sotto **una vista alla volta** scelta dalla barra delle icone
+(palette, struttura, tag, sorgenti, funzioni). Fra i due c'è un separatore da trascinare per cambiare l'altezza dell'albero, e un pulsante
+▾ per comprimerlo (altezza e stato si ricordano).
 
-### PAGINE
+### PAGINE — l'albero delle pagine
 
-Gestione delle pagine del sinottico:
-- Doppio click su un nome → rinomina
-- Icone: copia, elimina, ↑↓ riordina
-- **+ Nuova pagina** — aggiunge una pagina vuota
-- **↑ YAML** — importa una pagina da file YAML
+Le pagine formano un **albero**: una pagina può stare sotto un'altra, e l'ordine dell'albero è l'ordine in cui si mostrano ovunque (barra del
+viewer, schede, rotazione automatica, pagina iniziale). Prima del 2026-09-20 l'ordine non veniva salvato e a ogni ricarica tornava alfabetico.
+- **Trascinare** una pagina su un'altra: nel quarto alto della riga → prima, nel quarto basso → dopo, nel mezzo → diventa sua figlia. Un nodo non
+  può andare dentro un suo discendente.
+- ▸/▾ espande e comprime un ramo (lo stato si ricorda).
+- Passando col mouse su una riga compaiono le azioni: 🔒 blocca, **＋** aggiunge una pagina figlia, ⧉ duplica (la copia sta subito dopo), ⬇ esporta,
+  ✎ rinomina (o doppio click), × elimina (i figli salgono di un livello).
+- **+ Nuova pagina** — aggiunge una pagina in radice. **⬆ YAML** — importa una pagina da file YAML.
+- L'albero è salvato in `project.yaml` (`page_layout.page_tree`), subito, senza aspettare «Salva»; una pagina non ancora salvata sparisce dall'albero
+  se ricarichi senza salvarla.
 
 ### OGGETTI — Palette widget
 

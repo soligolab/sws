@@ -11,6 +11,7 @@ import { BarraIcone, IntestazioneSezione, PREFISSO_MEMORIA, TitoloVista, useSezi
 import type { ObjectGroup, ProjectInfo, SynopticObject, SynopticPage } from "@/types";
 import { BOOT_TYPES, eBoot, paginePerNavigazione, pagineDiBoot } from "@/boot/tipi";
 import { impostaBootAbilitata } from "@/boot/abilitata";
+import { discendentiDi, riconcilia, righe, spostaRispettoA, type ZonaRilascio } from "@/pageTree";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -123,7 +124,9 @@ function Section({
 
 // ── Pages section ─────────────────────────────────────────────────────────────
 
-function PagesSection() {
+const CHIAVE_ALBERO_CHIUSI = PREFISSO_MEMORIA + "sinistra.alberoChiusi";
+
+function PagesSection({ compresso, onToggleCompresso }: { compresso: boolean; onToggleCompresso: () => void }) {
   const corpo = useCorpo();
   const { t } = useTranslation();
   const tutte         = useAppStore((s) => s.pages);
@@ -139,8 +142,7 @@ function PagesSection() {
   const addPage       = useAppStore((s) => s.addPage);
   const deletePage    = useAppStore((s) => s.deletePage);
   const renamePage    = useAppStore((s) => s.renamePage);
-  const reorderPage   = useAppStore((s) => s.reorderPage);
-  const movePage      = useAppStore((s) => s.movePage);
+  const impostaAlbero = useAppStore((s) => s.impostaAlberoPagine);
   const duplicatePage = useAppStore((s) => s.duplicatePage);
   const updatePageProps = useAppStore((s) => s.updatePageProps);
   const project       = useAppStore((s) => s.project);
@@ -148,13 +150,31 @@ function PagesSection() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState("");
   const [draggedId, setDraggedId] = useState<string | null>(null);
-  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [drop, setDrop] = useState<{ id: string; zona: ZonaRilascio } | null>(null);
+  const [hoverId, setHoverId] = useState<string | null>(null);
+  const [chiusi, setChiusi] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem(CHIAVE_ALBERO_CHIUSI) ?? "[]") as string[]); }
+    catch { return new Set(); }
+  });
+  const ricordaChiusi = (n: Set<string>) => {
+    setChiusi(n);
+    try { localStorage.setItem(CHIAVE_ALBERO_CHIUSI, JSON.stringify([...n])); } catch { /* senza memoria si riparte tutto aperto */ }
+  };
+  const commutaNodo = (id: string) => {
+    const n = new Set(chiusi);
+    if (n.has(id)) n.delete(id); else n.add(id);
+    ricordaChiusi(n);
+  };
   const [linkReportOpen, setLinkReportOpen] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
 
   const homePageId = project?.page_layout?.home_page_id;
   const bootPageId = project?.page_layout?.boot_page_id;
   const orphanIds = findOrphanPageIds(pages, homePageId);
+  const albero = riconcilia(project?.page_layout?.page_tree, pages.map((p) => p.id));
+  const righeAlbero = righe(albero, chiusi);
+  const perId = new Map(pages.map((p) => [p.id, p]));
+  const discendentiTrascinata = draggedId ? new Set(discendentiDi(albero, draggedId)) : new Set<string>();
 
   // Single-page YAML export — calls the runtime endpoint, then triggers a
   // browser download using the filename it returned. Persisted page state
@@ -207,26 +227,36 @@ function PagesSection() {
     setEditingValue("");
   };
 
-  // Drag & drop reorder — simple linear list (no nesting like ObjectsSection's
-  // tree), so a minimal draggedId/dragOverId pair is enough; drop lands the
-  // dragged page at the hovered row's index.
+  // Trascinamento sull'albero: ogni riga ha tre zone — il quarto alto (prima), il
+  // quarto basso (dopo) e il mezzo (dentro: diventa figlia). Il calcolo della
+  // posizione è in `pageTree.spostaRispettoA`, che rifiuta i cicli.
   const onRowDragStart = (e: React.DragEvent, id: string) => {
     setDraggedId(id);
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData("application/x-sws-page", id);
   };
-  const onRowDragOver = (e: React.DragEvent, id: string) => {
-    if (!draggedId || draggedId === id) return;
-    e.preventDefault();
-    setDragOverId(id);
+  const zonaDi = (e: React.DragEvent): ZonaRilascio => {
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const y = r.height > 0 ? (e.clientY - r.top) / r.height : 0.5;
+    return y < 0.25 ? "prima" : y > 0.75 ? "dopo" : "dentro";
   };
-  const onRowDrop = (e: React.DragEvent, targetId: string) => {
+  const onRowDragOver = (e: React.DragEvent, id: string) => {
+    if (!draggedId || draggedId === id || discendentiTrascinata.has(id)) return;
     e.preventDefault();
-    setDragOverId(null);
-    if (!draggedId || draggedId === targetId) { setDraggedId(null); return; }
-    const toIndex = pages.findIndex((p) => p.id === targetId);
-    if (toIndex >= 0) movePage(draggedId, toIndex);
+    setDrop({ id, zona: zonaDi(e) });
+  };
+  const onRowDrop = (e: React.DragEvent, bersaglio: string) => {
+    e.preventDefault();
+    const zona = drop?.id === bersaglio ? drop.zona : zonaDi(e);
+    const trascinata = draggedId;
+    setDrop(null);
     setDraggedId(null);
+    if (!trascinata) return;
+    const nuovo = spostaRispettoA(albero, trascinata, bersaglio, zona);
+    if (!nuovo) return;
+    impostaAlbero(nuovo);
+    // Rilasciata «dentro»: il bersaglio si apre, o la pagina sparirebbe alla vista.
+    if (zona === "dentro" && chiusi.has(bersaglio)) { const n = new Set(chiusi); n.delete(bersaglio); ricordaChiusi(n); }
   };
 
   return (
@@ -234,8 +264,12 @@ function PagesSection() {
       title={t("editor.sectionPages")}
       memoria="sinistra.pagine"
       headerAction={
-        <button style={S.iconBtn} title={t("editor.checkLinksTitle")}
-          onClick={() => setLinkReportOpen(true)}>🔗</button>
+        <>
+          <button style={S.iconBtn} title={t("editor.checkLinksTitle")}
+            onClick={() => setLinkReportOpen(true)}>🔗</button>
+          <button style={S.iconBtn} title={compresso ? t("editor.treeShow") : t("editor.treeHide")}
+            onClick={onToggleCompresso}>{compresso ? "▸" : "▾"}</button>
+        </>
       }
     >
       {linkReportOpen && (
@@ -250,146 +284,136 @@ function PagesSection() {
           }}
         />
       )}
+      {!compresso && (
       <div style={corpo}>
-        {pages.map((p, pi) => (
-          <div
-            key={p.id}
-            draggable
-            onDragStart={(e) => onRowDragStart(e, p.id)}
-            onDragOver={(e) => onRowDragOver(e, p.id)}
-            onDragLeave={() => setDragOverId((cur) => (cur === p.id ? null : cur))}
-            onDrop={(e) => onRowDrop(e, p.id)}
-            onDragEnd={() => { setDraggedId(null); setDragOverId(null); }}
-            style={{
-              ...S.row(p.id === currentPageId), justifyContent: "space-between",
-              gap: 6,
-              ...(dragOverId === p.id ? { borderTop: "2px solid var(--brand-primary, #3b82f6)" } : {}),
-              opacity: draggedId === p.id ? 0.5 : 1,
-            }}
-            onClick={() => editingId !== p.id && setCurrentPage(p.id)}
-            onDoubleClick={() => !p.locked && beginRename(p.id, p.name)}
-            title={t("editor.dblRename")}
-          >
-            <div style={{
-              width: 32, height: 20, flexShrink: 0, borderRadius: 2, overflow: "hidden",
-              // F8 — il colore lo dipinge il canvas, non questo contenitore: qui
-              // resta solo la cornice. Prima il `<div>` portava `p.background`
-              // **grezzo**, cioè il campo del tema chiaro, e con il tema scuro
-              // una pagina che dichiara `background_dark` mostrava in miniatura
-              // il colore sbagliato — l'unico punto dell'IDE dove il colore
-              // della pagina non passava da `resolvePageBackground`.
-              background: "var(--brand-bg, #0f172a)",
-              border: "1px solid var(--brand-surface-2, #334155)",
-              pointerEvents: "none",
-            }}>
-              {/* Read-only preview: no onMove/onSelect -> !onMove viewer branch.
-                  sizeMode forced to "ratio" so the thumbnail is always a
-                  letterbox-fit scale-down, regardless of the project's real
-                  sizeMode (fixed-mode's 1:1-no-scaling would otherwise blow
-                  up this tiny box). */}
-              <SvgCanvas
-                objects={p.objects}
-                background={resolvePageBackground(p.background, p.background_dark, themeMode)}
-                pageWidth={p.width || 1920}
-                pageHeight={p.height || 1080}
-                sizeMode="ratio"
-              />
+        {righeAlbero.map((r) => {
+          const p = perId.get(r.id);
+          if (!p) return null;
+          const mostraAzioni = hoverId === p.id || p.id === currentPageId;
+          const zona = drop?.id === p.id ? drop.zona : null;
+          return (
+            <div
+              key={p.id}
+              data-pagina={p.name}
+              data-livello={r.livello}
+              draggable={editingId !== p.id}
+              onDragStart={(e) => onRowDragStart(e, p.id)}
+              onDragOver={(e) => onRowDragOver(e, p.id)}
+              onDragLeave={() => setDrop((cur) => (cur?.id === p.id ? null : cur))}
+              onDrop={(e) => onRowDrop(e, p.id)}
+              onDragEnd={() => { setDraggedId(null); setDrop(null); }}
+              onMouseEnter={() => setHoverId(p.id)}
+              onMouseLeave={() => setHoverId((cur) => (cur === p.id ? null : cur))}
+              style={{
+                ...S.row(p.id === currentPageId), justifyContent: "space-between",
+                gap: 4, paddingLeft: 6 + r.livello * 14, position: "relative",
+                ...(zona === "prima" ? { boxShadow: "inset 0 2px 0 var(--brand-primary, #3b82f6)" } : {}),
+                ...(zona === "dopo" ? { boxShadow: "inset 0 -2px 0 var(--brand-primary, #3b82f6)" } : {}),
+                ...(zona === "dentro" ? { outline: "1px solid var(--brand-primary, #3b82f6)", outlineOffset: -1 } : {}),
+                opacity: draggedId === p.id ? 0.5 : 1,
+              }}
+              onClick={() => editingId !== p.id && setCurrentPage(p.id)}
+              onDoubleClick={() => !p.locked && beginRename(p.id, p.name)}
+              title={t("editor.dblRename")}
+            >
+              {r.haFigli ? (
+                <button
+                  style={{ ...S.iconBtn, width: 14, flexShrink: 0, padding: 0 }}
+                  title={r.aperto ? t("editor.treeCollapse") : t("editor.treeExpand")}
+                  onClick={(e) => { e.stopPropagation(); commutaNodo(p.id); }}
+                >{r.aperto ? "▾" : "▸"}</button>
+              ) : (
+                <span style={{ width: 14, flexShrink: 0 }} />
+              )}
+              <div style={{
+                width: 28, height: 18, flexShrink: 0, borderRadius: 2, overflow: "hidden",
+                // F8 — il colore lo dipinge il canvas, non questo contenitore: qui resta solo la
+                // cornice (la miniatura risolve lo sfondo per il tema, come il resto dell'IDE).
+                background: "var(--brand-bg, #0f172a)",
+                border: "1px solid var(--brand-surface-2, #334155)",
+                pointerEvents: "none",
+              }}>
+                {/* Anteprima di sola lettura, sempre in «rapporto» così la miniatura è un
+                    ridimensionamento con bande, qualunque sia la modalità vera del progetto. */}
+                <SvgCanvas
+                  objects={p.objects}
+                  background={resolvePageBackground(p.background, p.background_dark, themeMode)}
+                  pageWidth={p.width || 1920}
+                  pageHeight={p.height || 1080}
+                  sizeMode="ratio"
+                />
+              </div>
+              {editingId === p.id ? (
+                <input
+                  autoFocus
+                  value={editingValue}
+                  onChange={(e) => setEditingValue(e.target.value)}
+                  onBlur={commitRename}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") commitRename();
+                    else if (e.key === "Escape") { setEditingId(null); setEditingValue(""); }
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  style={{
+                    flex: 1, minWidth: 0,
+                    background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)",
+                    border: "1px solid var(--brand-border, #475569)", borderRadius: 3, padding: "1px 4px", fontSize: 12,
+                  }}
+                />
+              ) : (
+                <>
+                  {p.id === homePageId && <span title={t("editor.homePageTitle")} style={{ flexShrink: 0 }}>🏠</span>}
+                  {orphanIds.has(p.id) && <span title={t("editor.orphanPageTitle")} style={{ flexShrink: 0 }}>⚠️</span>}
+                  {p.locked && !mostraAzioni && <span style={{ flexShrink: 0, fontSize: 10 }}>🔒</span>}
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
+                    {p.name}
+                  </span>
+                  {mostraAzioni && (
+                    // Le azioni stanno sopra il nome, a destra (come negli alberi dei file): il
+                    // nome resta intero finché non si passa col mouse, e non si accorcia mai.
+                    <span style={{
+                      position: "absolute", right: 2, top: 0, bottom: 0, display: "flex", alignItems: "center", gap: 1,
+                      paddingLeft: 6, background: "var(--brand-surface-2, #334155)", borderRadius: 3,
+                    }}>
+                      <button style={S.iconBtn} title={p.locked ? t("editor.unlockPage") : t("editor.lockPage")}
+                        onClick={(e) => { e.stopPropagation(); updatePageProps(p.id, { locked: !p.locked }); }}>{p.locked ? "🔒" : "🔓"}</button>
+                      <button style={S.iconBtn} title={t("editor.addChildPage")}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (chiusi.has(p.id)) { const n = new Set(chiusi); n.delete(p.id); ricordaChiusi(n); }
+                          addPage(p.id);
+                        }}>＋</button>
+                      <button style={S.iconBtn} title={t("editor.duplicatePage")}
+                        onClick={(e) => { e.stopPropagation(); duplicatePage(p.id); }}>⧉</button>
+                      <button style={S.iconBtn} title={t("editor.exportPage")}
+                        onClick={(e) => { e.stopPropagation(); handleExportPage(p.name); }}>⬇</button>
+                      <button style={S.iconBtn} title={t("editor.rename")} disabled={p.locked}
+                        onClick={(e) => { e.stopPropagation(); beginRename(p.id, p.name); }}>✎</button>
+                      {pages.length > 1 && (
+                        <button style={S.iconBtn} title={t("editor.deletePage")}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (window.confirm(t("editor.deletePageConfirm", { name: p.name }))) deletePage(p.id);
+                          }}>×</button>
+                      )}
+                    </span>
+                  )}
+                </>
+              )}
             </div>
-            {editingId === p.id ? (
-              <input
-                autoFocus
-                value={editingValue}
-                onChange={(e) => setEditingValue(e.target.value)}
-                onBlur={commitRename}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") commitRename();
-                  else if (e.key === "Escape") { setEditingId(null); setEditingValue(""); }
-                }}
-                onClick={(e) => e.stopPropagation()}
-                style={{
-                  flex: 1,
-                  background: "var(--brand-bg, #0f172a)",
-                  color: "var(--brand-text, #e2e8f0)",
-                  border: "1px solid var(--brand-border, #475569)",
-                  borderRadius: 3,
-                  padding: "1px 4px",
-                  fontSize: 12,
-                }}
-              />
-            ) : (
-              <>
-                {p.id === homePageId && (
-                  <span title={t("editor.homePageTitle")} style={{ flexShrink: 0 }}>🏠</span>
-                )}
-                {orphanIds.has(p.id) && (
-                  <span title={t("editor.orphanPageTitle")} style={{ flexShrink: 0 }}>⚠️</span>
-                )}
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
-                  {p.name}
-                </span>
-                <span style={{ display: "flex", gap: 2, flexShrink: 0 }}>
-                  <button
-                    style={S.iconBtn}
-                    title={p.locked ? t("editor.unlockPage") : t("editor.lockPage")}
-                    onClick={(e) => { e.stopPropagation(); updatePageProps(p.id, { locked: !p.locked }); }}
-                  >{p.locked ? "🔒" : "🔓"}</button>
-                  {pi > 0 && (
-                    <button style={S.iconBtn} title={t("editor.moveUp")}
-                      onClick={(e) => { e.stopPropagation(); reorderPage(p.id, "up"); }}>↑</button>
-                  )}
-                  {pi < pages.length - 1 && (
-                    <button style={S.iconBtn} title={t("editor.moveDown")}
-                      onClick={(e) => { e.stopPropagation(); reorderPage(p.id, "down"); }}>↓</button>
-                  )}
-                  <button style={S.iconBtn} title={t("editor.duplicatePage")}
-                    onClick={(e) => { e.stopPropagation(); duplicatePage(p.id); }}>⧉</button>
-                  <button style={S.iconBtn} title={t("editor.exportPage")}
-                    onClick={(e) => { e.stopPropagation(); handleExportPage(p.name); }}>⬇</button>
-                  <button
-                    style={S.iconBtn}
-                    title={t("editor.rename")}
-                    disabled={p.locked}
-                    onClick={(e) => { e.stopPropagation(); beginRename(p.id, p.name); }}
-                  >✎</button>
-                  {pages.length > 1 && (
-                    <button
-                      style={S.iconBtn}
-                      title={t("editor.deletePage")}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (window.confirm(t("editor.deletePageConfirm", { name: p.name }))) {
-                          deletePage(p.id);
-                        }
-                      }}
-                    >×</button>
-                  )}
-                </span>
-              </>
-            )}
-          </div>
-        ))}
+          );
+        })}
         <div style={{ padding: "4px 8px", display: "flex", gap: 4 }}>
           <button
-            onClick={addPage}
-            style={{
-              ...S.objBtn,
-              flex: "1 1 auto",
-              borderStyle: "dashed",
-              color: "var(--brand-text-subtle, #64748b)",
-            }}
+            onClick={() => addPage(null)}
+            style={{ ...S.objBtn, flex: "1 1 auto", borderStyle: "dashed", color: "var(--brand-text-subtle, #64748b)" }}
           >
             {t("leftPanel.newPage")}
           </button>
           <button
             onClick={() => importInputRef.current?.click()}
             title={t("editor.importPage")}
-            style={{
-              ...S.objBtn,
-              flex: "0 0 auto",
-              borderStyle: "dashed",
-              color: "var(--brand-text-subtle, #64748b)",
-              padding: "4px 8px",
-            }}
+            style={{ ...S.objBtn, flex: "0 0 auto", borderStyle: "dashed", color: "var(--brand-text-subtle, #64748b)", padding: "4px 8px" }}
           >
             ⬆ YAML
           </button>
@@ -485,6 +509,7 @@ function PagesSection() {
           </button>
         </div>
       </div>
+      )}
     </Section>
   );
 }
@@ -1808,7 +1833,6 @@ const LEFT_PANEL_MAX = 480;
  *  palette ora paga un clic. Da provare sul campo; se dà fastidio, la seconda
  *  opzione (due zone fisse) resta a portata. */
 const VISTE = [
-  { id: "pagine",    icona: "📄", chiave: "editor.sectionPages" },
   { id: "palette",   icona: "➕", chiave: "editor.sectionObjects" },
   { id: "struttura", icona: "🗂", chiave: "editor.sectionPageObjects" },
   { id: "tag",       icona: "🏷", chiave: "editor.sectionTags" },
@@ -1821,6 +1845,14 @@ type IdVista = (typeof VISTE)[number]["id"];
  *  proponeva il piano: le memorie dei pannelli devono poter essere azzerate
  *  tutte insieme, ed è lo stesso piano a chiederlo fra i rischi. */
 const CHIAVE_VISTA = PREFISSO_MEMORIA + "sinistra.vista";
+/** L'albero delle pagine sta **sempre** in alto nel pannello (20-09-2026: dopo T-56 le
+ *  pagine sparivano appena si apriva la palette, e per cambiare pagina bisognava tornare
+ *  indietro). Altezza e stato compresso si ricordano. */
+const CHIAVE_ALTEZZA_ALBERO = PREFISSO_MEMORIA + "sinistra.altezzaAlbero";
+const CHIAVE_ALBERO_COMPRESSO = PREFISSO_MEMORIA + "sinistra.alberoCompresso";
+const ALTEZZA_ALBERO_MIN = 90;
+const ALTEZZA_ALBERO_PREDEFINITA = 240;
+const ALTEZZA_VISTE_MIN = 120;
 
 
 export function LeftPanel({ onAddObject, onFunctionsChanged }: LeftPanelProps) {
@@ -1832,8 +1864,8 @@ export function LeftPanel({ onAddObject, onFunctionsChanged }: LeftPanelProps) {
     try {
       const v = localStorage.getItem(CHIAVE_VISTA);
       if (VISTE.some((x) => x.id === v)) return v as IdVista;
-    } catch { /* senza memoria si riparte da Pagine */ }
-    return "pagine";
+    } catch { /* senza memoria si riparte dalla palette */ }
+    return "palette";
   });
   const scegliVista = (v: IdVista) => {
     setVista(v);
@@ -1874,19 +1906,76 @@ export function LeftPanel({ onAddObject, onFunctionsChanged }: LeftPanelProps) {
     document.addEventListener("mouseup", onUp);
   };
 
+  // L'albero delle pagine in alto (fisso) e sotto le altre viste, con un separatore
+  // orizzontale trascinabile. L'altezza massima dipende da quella del pannello.
+  const colonnaRef = useRef<HTMLDivElement>(null);
+  const [altezzaAlbero, setAltezzaAlbero] = useState<number>(() => {
+    const v = Number(localStorage.getItem(CHIAVE_ALTEZZA_ALBERO));
+    return v >= ALTEZZA_ALBERO_MIN ? v : ALTEZZA_ALBERO_PREDEFINITA;
+  });
+  const altezzaRef = useRef(altezzaAlbero);
+  const [alberoCompresso, setAlberoCompresso] = useState<boolean>(() => {
+    try { return localStorage.getItem(CHIAVE_ALBERO_COMPRESSO) === "1"; } catch { return false; }
+  });
+  const commutaAlbero = () => {
+    setAlberoCompresso((v) => {
+      try { localStorage.setItem(CHIAVE_ALBERO_COMPRESSO, v ? "0" : "1"); } catch { /* vedi sopra */ }
+      return !v;
+    });
+  };
+  const onResizeAlberoStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startH = altezzaAlbero;
+    const totale = colonnaRef.current?.getBoundingClientRect().height ?? 600;
+    document.body.style.cursor = "ns-resize";
+    document.body.style.userSelect = "none";
+    const onMove = (ev: MouseEvent) => {
+      const next = Math.min(Math.max(ALTEZZA_ALBERO_MIN, totale - ALTEZZA_VISTE_MIN), Math.max(ALTEZZA_ALBERO_MIN, startH + (ev.clientY - startY)));
+      altezzaRef.current = next;
+      setAltezzaAlbero(next);
+    };
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      try { localStorage.setItem(CHIAVE_ALTEZZA_ALBERO, String(altezzaRef.current)); } catch { /* vedi sopra */ }
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  };
+
   return (
     // La barra delle icone sta **fuori** dal pannello ridimensionabile: la sua
     // larghezza è fissa, e il trascinamento cambia solo lo spazio del contenuto.
     <div style={{ display: "flex", flexShrink: 0, position: "relative" }}>
       <BarraIcone voci={VISTE} attiva={vista} onScegli={scegliVista} lato="sinistra" />
-      <div style={{ ...S.panel, width: panelWidth }}>
+      <div ref={colonnaRef} style={{ ...S.panel, width: panelWidth }}>
         <ModoVista.Provider value={true}>
-          {vista === "pagine"    && <PagesSection />}
-          {vista === "palette"   && <ObjectPalette onAdd={onAddObject} />}
-          {vista === "struttura" && <ObjectsSection />}
-          {vista === "funzioni"  && <FunctionsSection onFunctionsChanged={onFunctionsChanged} />}
-          {vista === "tag"       && <TagsSection />}
-          {vista === "sorgenti"  && <SourcesSection project={project} />}
+          <div
+            data-testid="albero-pagine"
+            style={{
+              flexShrink: 0, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden",
+              ...(alberoCompresso ? {} : { height: altezzaAlbero }),
+            }}
+          >
+            <PagesSection compresso={alberoCompresso} onToggleCompresso={commutaAlbero} />
+          </div>
+          {!alberoCompresso && (
+            <div
+              onMouseDown={onResizeAlberoStart}
+              title={t("editor.treeDragToResize")}
+              style={{ flexShrink: 0, height: 5, cursor: "ns-resize", background: "var(--brand-surface-2, #334155)" }}
+            />
+          )}
+          <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+            {vista === "palette"   && <ObjectPalette onAdd={onAddObject} />}
+            {vista === "struttura" && <ObjectsSection />}
+            {vista === "funzioni"  && <FunctionsSection onFunctionsChanged={onFunctionsChanged} />}
+            {vista === "tag"       && <TagsSection />}
+            {vista === "sorgenti"  && <SourcesSection project={project} />}
+          </div>
         </ModoVista.Provider>
       </div>
       <div

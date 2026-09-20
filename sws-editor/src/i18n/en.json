@@ -181,6 +181,12 @@
     }
   },
   "editor": {
+    "treeCollapse": "Collapse",
+    "treeExpand": "Expand",
+    "addChildPage": "Add a child page",
+    "treeShow": "Show the page tree",
+    "treeHide": "Hide the page tree",
+    "treeDragToResize": "Drag to resize the page tree",
     "dblRename": "Double-click to rename",
     "rename": "Rename",
     "duplicate": "Duplicate",

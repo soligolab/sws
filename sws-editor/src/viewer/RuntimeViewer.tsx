@@ -9,6 +9,7 @@ import {
 } from "@/api/client";
 import { useAppStore } from "@/store";
 import { RuntimeView } from "@/runtime-view/RuntimeView";
+import { ordinaPagine } from "@/pageTree";
 import { pickInitialPageId } from "@/pageLayout";
 import { useProjectWatcher } from "@/ws/projectWatcher";
 import { useBuildWatcher } from "@/ws/buildWatcher";
@@ -78,7 +79,7 @@ export function RuntimeViewer() {
       const pages = await Promise.all(names.map((n) => api.getSynoptic(n)));
       const keep = keepPageId && pages.some((x) => x.id === keepPageId)
         ? keepPageId
-        : pickInitialPageId(pages, p.page_layout?.home_page_id);
+        : pickInitialPageId(ordinaPagine(pages, p.page_layout?.page_tree), p.page_layout?.home_page_id);
       setPages(pages, keep);
     } else {
       setPages([], "");
@@ -132,7 +133,8 @@ export function RuntimeViewer() {
         const names = await api.listSynoptics();
         if (names.length > 0) {
           const pages = await Promise.all(names.map((n) => api.getSynoptic(n)));
-          setPages(pages, pages[0].id);
+          // Prima pagina = la home, o la prima **dell'albero** (non dell'alfabeto).
+          setPages(pages, pickInitialPageId(ordinaPagine(pages, p.page_layout?.page_tree), p.page_layout?.home_page_id));
         }
 
         const ids = await api.listFaceplates().catch(() => [] as string[]);

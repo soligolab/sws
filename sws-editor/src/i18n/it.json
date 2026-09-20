@@ -181,6 +181,12 @@
     }
   },
   "editor": {
+    "treeCollapse": "Comprimi",
+    "treeExpand": "Espandi",
+    "addChildPage": "Aggiungi una pagina figlia",
+    "treeShow": "Mostra l'albero delle pagine",
+    "treeHide": "Nascondi l'albero delle pagine",
+    "treeDragToResize": "Trascina per ridimensionare l'albero delle pagine",
     "dblRename": "Doppio click per rinominare",
     "rename": "Rinomina",
     "duplicate": "Duplica",

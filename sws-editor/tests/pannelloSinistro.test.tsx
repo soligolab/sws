@@ -30,54 +30,82 @@ function monta() {
   return render(<LeftPanel onAddObject={() => {}} onFunctionsChanged={() => {}} />);
 }
 
-/** I sei pulsanti della barra, nell'ordine in cui stanno sullo schermo. */
+/** I cinque pulsanti della barra, nell'ordine in cui stanno sullo schermo. */
 function icone() {
   return screen.getAllByRole("tab");
 }
 
-describe("pannello sinistro — una vista per volta", () => {
+describe("pannello sinistro — albero delle pagine fisso, una vista per volta sotto", () => {
   beforeEach(() => {
     try { localStorage.clear(); } catch { /* jsdom senza storage */ }
   });
 
-  it("all'avvio mostra Pagine, e solo quella", () => {
+  it("l'albero delle pagine c'è sempre, in alto, qualunque vista sia scelta", () => {
     monta();
+    expect(screen.getByTestId("albero-pagine")).toBeTruthy();
     expect(screen.getByText(titolo("sectionPages"))).toBeTruthy();
+    for (const i of [0, 1, 2, 3, 4]) {
+      fireEvent.click(icone()[i]);
+      expect(screen.getByText(titolo("sectionPages"))).toBeTruthy();
+    }
+  });
+
+  it("sotto l'albero si vede una vista sola, e all'avvio è la palette", () => {
+    monta();
+    expect(screen.getByText(new RegExp("^" + titolo("sectionObjects")))).toBeTruthy();
     expect(screen.queryByText(titolo("sectionPageObjects"))).toBeNull();
     expect(screen.queryByText(titolo("sectionSources"))).toBeNull();
   });
 
-  it("la barra ha una voce per vista, e una sola risulta scelta", () => {
+  it("la barra ha una voce per vista (senza «Pagine»), e una sola risulta scelta", () => {
     monta();
     const scelte = icone().filter((b) => b.getAttribute("aria-selected") === "true");
-    expect(icone()).toHaveLength(6);
+    expect(icone()).toHaveLength(5);
     expect(scelte).toHaveLength(1);
   });
 
   it("scegliere una vista sostituisce la precedente invece di aggiungersi", () => {
     monta();
-    fireEvent.click(icone()[2]); // 🗂 Struttura
+    fireEvent.click(icone()[1]); // 🗂 Struttura
     expect(screen.getByText(new RegExp("^" + titolo("sectionPageObjects")))).toBeTruthy();
-    expect(screen.queryByText(titolo("sectionPages"))).toBeNull();
+    expect(screen.queryByText(new RegExp("^" + titolo("sectionObjects")))).toBeNull();
     const scelte = icone().filter((b) => b.getAttribute("aria-selected") === "true");
     expect(scelte).toHaveLength(1);
   });
 
   it("la scelta sopravvive al ricaricamento", () => {
     const { unmount } = monta();
-    fireEvent.click(icone()[4]); // 🔌 Sorgenti
+    fireEvent.click(icone()[3]); // 🔌 Sorgenti
     expect(localStorage.getItem(CHIAVE)).toBe("sorgenti");
     unmount();
     monta();
     expect(screen.getByText(new RegExp("^" + titolo("sectionSources")))).toBeTruthy();
-    expect(screen.queryByText(titolo("sectionPages"))).toBeNull();
+    expect(screen.getByText(titolo("sectionPages"))).toBeTruthy();
   });
 
-  it("una vista memorizzata che non esiste più non lascia il pannello vuoto", () => {
+  it("una vista memorizzata che non esiste più (anche «pagine», ora fissa) non lascia il pannello vuoto", () => {
     // Il caso si presenta togliendo o rinominando una vista: chi aveva
-    // memorizzata quella vecchia deve ritrovarsi su Pagine, non sul nulla.
-    localStorage.setItem(CHIAVE, "cronologia");
-    monta();
+    // memorizzata quella vecchia deve ritrovarsi sulla palette, non sul nulla.
+    for (const vecchia of ["cronologia", "pagine"]) {
+      localStorage.setItem(CHIAVE, vecchia);
+      const { unmount } = monta();
+      expect(screen.getByText(new RegExp("^" + titolo("sectionObjects")))).toBeTruthy();
+      expect(screen.getByText(titolo("sectionPages"))).toBeTruthy();
+      unmount();
+    }
+  });
+
+  it("l'albero si comprime e lo ricorda; ricompare riaprendolo", () => {
+    const { unmount } = monta();
+    fireEvent.click(screen.getByTitle(i18n.t("editor.treeHide")));
+    expect(localStorage.getItem("sws.pannelli.sinistra.alberoCompresso")).toBe("1");
+    // Il titolo resta (con il pulsante per riaprire), l'elenco no.
     expect(screen.getByText(titolo("sectionPages"))).toBeTruthy();
+    expect(screen.queryByText(i18n.t("leftPanel.newPage"))).toBeNull();
+    unmount();
+    monta();
+    expect(screen.queryByText(i18n.t("leftPanel.newPage"))).toBeNull();
+    fireEvent.click(screen.getByTitle(i18n.t("editor.treeShow")));
+    expect(screen.getByText(i18n.t("leftPanel.newPage"))).toBeTruthy();
   });
 });

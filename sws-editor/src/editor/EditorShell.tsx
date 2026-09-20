@@ -2067,6 +2067,8 @@ function ProjectPageLayoutSettings() {
       hide_viewer_chrome: hideChrome || undefined,
       // Non è un campo di questo modulo: si conserva, o salvare qui lo azzererebbe.
       boot_page_id: useAppStore.getState().project?.page_layout?.boot_page_id,
+      // Idem per l'albero delle pagine (20-09-2026): senza, salvare qui lo cancellerebbe.
+      page_tree: useAppStore.getState().project?.page_layout?.page_tree,
       default_width: Number(defW) > 0 ? Number(defW) : undefined,
       default_height: Number(defH) > 0 ? Number(defH) : undefined,
       default_background: defBg.trim() || undefined,
