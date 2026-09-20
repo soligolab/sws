@@ -82,9 +82,8 @@
 
 **Template**: `homeassistant-pro` usa albero e navigatore (mergiato). Il container 2.11.0 lo ricostruisce e pubblica chi ha lanciato la release.
 
-**Collaudato dal maintainer sul TC620 (21-09-2026)**: emoji via `@font-face`, notifiche Telegram con allarme tokenizzato, «Migra i testi…» su `CasaDomotica`.
-**Ancora da collaudare sul TC620 col container 2.11.0**: sorgente «host» (temp ~60 °C, seriale dopo aver rilanciato `install-container.sh` per il mount del
-device-tree) e navigatore di pagine (web e LVGL) sul pannello vero.
+**Collaudato dal maintainer sul TC620 (21-09-2026)**: emoji via `@font-face`, notifiche Telegram con allarme tokenizzato, «Migra i testi…» su `CasaDomotica`, sorgente «host» con seriale e nome host pubblicati su `CasaDomotica`.
+**Ancora da collaudare sul TC620 col container 2.11.0**: la temperatura della sorgente «host» (~60 °C) e il navigatore di pagine (web e LVGL) sul pannello vero.
 
 **Semi ancora aperti** (vedi `docs/plans/README.md`): preset Pixsys, ripristino di fabbrica dell'immagine di boot, widget congelati, splash OS,
 revisione traduzioni EN, screenshot/manuale (rimandato), Q16 decoder raster, identità-utenti, workspace, ROS2, MCP. Idee dette a voce e non fatte: voci
