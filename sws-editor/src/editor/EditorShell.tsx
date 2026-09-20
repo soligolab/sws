@@ -33,6 +33,7 @@ import { cosaCancella, eliminaWaypoint, percorsoDaSalvare, puntiMovimento } from
 import { targetDaSalvare, versoRischioso } from "./targetProgetto";
 import { LinguaContenutiProvider } from "@/i18n/linguaContenuti";
 import { TEXT_FIELDS } from "@/i18n/projectI18n";
+import { NavigatorProperties } from "./NavigatorProperties";
 import { CampoTestoTradotto } from "@/editor/CampoTestoTradotto";
 import type { AlignMode } from "@/store";
 import type { AlarmSeverity, ButtonAction, FunctionDef, GridCell, PageLayoutConfig, PageSizeMode, ProjectTargetKind, RadioOption, SubCellEntry, SubGrid, SynopticObject, TableRow, TextListEntry, TrendTrace, XySeries } from "@/types";
@@ -211,7 +212,7 @@ const SUPPORTS_TRANSFORM = new Set([
   "rect", "ellipse", "text", "image",
   "gauge", "led", "progress_bar", "table",
   "button", "navbutton", "symbol",
-  "lang_button", "lang_selector",
+  "lang_button", "lang_selector", "page_navigator",
 ]);
 
 // ── Multi-selection helpers ───────────────────────────────────────────────────
@@ -590,6 +591,10 @@ export function EditorShell() {
         break;
       case "navbutton":
         addObject({ type, x, y, width: 140, height: 36, label: "Vai alla pagina" });
+        break;
+      case "page_navigator":
+        // Una barra in alto: un bottone per pagina, si dividono lo spazio.
+        addObject({ type, x, y, width: 480, height: 44, nav_orientation: "horizontal", nav_fill: true, nav_gap: 4 });
         break;
       case "lang_selector":
         addObject({ type, x, y, width: 120, height: 32 });
@@ -2752,11 +2757,11 @@ export function ObjectProps({
   const TIPI_CON_PARAMETRI: string[] = [
     "alarm_banner", "alarm_bell", "alarm_history", "alarm_viewer", "bar_chart", "button",
     "checkbox", "data_log", "faceplate", "gauge", "grid", "image", "kpi_tile", "lang_button",
-    "lang_selector", "led", "navbutton", "pie_chart", "pipe", "progress_bar", "radio",
+    "lang_selector", "led", "navbutton", "page_navigator", "pie_chart", "pipe", "progress_bar", "radio",
     "recipe_panel", "setpoint", "slider", "sparkline", "state_lamp", "symbol", "table",
     "text_list", "trend", "xy_plot",
   ];
-  const BOX_TYPES = ["rect", "ellipse", "button", "navbutton", "checkbox", "radio", "slider", "gauge", "led", "progress_bar", "table", "trend", "symbol", "grid",
+  const BOX_TYPES = ["rect", "ellipse", "button", "navbutton", "checkbox", "radio", "slider", "gauge", "led", "progress_bar", "table", "trend", "symbol", "grid", "page_navigator",
     // 2026-08-23: W/H per tutti i box-like (prima si ridimensionavano solo con le maniglie)
     "image", "xy_plot", "kpi_tile", "data_log", "alarm_viewer", "alarm_bell", "alarm_banner",
     "recipe_panel", "faceplate", "setpoint", "text_list", "state_lamp", "lang_button", "alarm_history",
@@ -3008,7 +3013,7 @@ export function ObjectProps({
 
       <CollapsibleSection title={t("props.sectionData")} storageKey="dato" gruppo="dato" defaultOpen={true}>
         {/* Tag binding */}
-        {!["navbutton","gauge","slider","checkbox","radio","led","progress_bar","trend","pipe","text_list","state_lamp","setpoint","xy_plot",
+        {!["navbutton","page_navigator","gauge","slider","checkbox","radio","led","progress_bar","trend","pipe","text_list","state_lamp","setpoint","xy_plot",
           // 2026-08-23: tipi dove obj.tag NON è il dato primario (serie/figli
           // propri) o è puro rumore — il campo vive nella sezione qualità come
           // "Tag di stato" (alimenta bordo-allarme/stale/Bad-gray/QDot).
@@ -3304,6 +3309,12 @@ export function ObjectProps({
                 </div>
               )}
             </>
+          )}
+
+          {/* Navigatore di pagine */}
+          {obj.type === "page_navigator" && (
+            <NavigatorProperties obj={obj} onChange={onChange} field={field} numInput={numInput}
+              colorInput={colorInput} inputStyle={INPUT} />
           )}
 
           {/* NavButton */}

@@ -81,6 +81,7 @@ const SUPPORTED_TYPES: &[&str] = &[
     "state_lamp",
     "table",
     "navbutton",
+    "page_navigator",
     "trend",
     "alarm_viewer",
     "text_list",
@@ -2656,6 +2657,181 @@ fn render_navbutton(
                 lvgl_sys::lv_event_code_t_LV_EVENT_CLICKED,
                 ctx,
             );
+        }
+    }
+    Ok(())
+}
+
+/// Le impostazioni del navigatore lette dai campi `nav_*` dell'oggetto: quali voci
+/// e come si dispongono. Pura, per poterla provare senza LVGL.
+fn nav_impostazioni(
+    obj: &SynopticObject,
+) -> (
+    sws_core::page_tree::NavConfig,
+    sws_core::page_tree::NavGeometria,
+) {
+    use sws_core::page_tree::{NavConfig, NavGeometria, NavSource, NavVoceOverride};
+    let cfg = NavConfig {
+        source: NavSource::da_testo(obj.nav_source.as_deref()),
+        node: obj.nav_node.clone(),
+        breadcrumb: obj.nav_breadcrumb.unwrap_or(false),
+        items: obj
+            .nav_items
+            .as_deref()
+            .unwrap_or_default()
+            .iter()
+            .map(|i| NavVoceOverride {
+                page_id: i.page_id.clone(),
+                label: i.label.clone(),
+                order: i.order,
+                hidden: i.hidden.unwrap_or(false),
+            })
+            .collect(),
+    };
+    let geo = NavGeometria::da_campi(
+        obj.nav_orientation.as_deref(),
+        obj.nav_fill,
+        obj.nav_btn_size,
+        obj.nav_gap,
+        obj.nav_align.as_deref(),
+    );
+    (cfg, geo)
+}
+
+/// Il navigatore di pagine (`page_navigator`): un bottone per pagina, generato
+/// dall'albero delle pagine, con quello della pagina corrente evidenziato.
+///
+/// Voci e posizioni vengono da `sws-core` (`voci_navigatore`,
+/// `geometria_navigatore`), le stesse funzioni che il web prova contro le stesse
+/// fixture: i bottoni cadono negli stessi pixel. Layout a coordinate assolute
+/// come `render_grid`; «selezionato» è il colore di sfondo scelto a costruzione
+/// (il render ricrea tutto a ogni cambio pagina, quindi non serve stato).
+#[allow(clippy::too_many_arguments)]
+fn render_page_navigator(
+    screen: &mut lvgl::Obj,
+    obj: &SynopticObject,
+    styles: &mut Vec<Style>,
+    nav_tx: &mpsc::Sender<String>,
+    own_page_id: &str,
+    base_url: &str,
+    rt_handle: &tokio::runtime::Handle,
+    lang_table: &LanguageTable,
+    current_lang: &str,
+) -> anyhow::Result<()> {
+    use sws_core::page_tree::{geometria_navigatore, voci_navigatore, NavPagina};
+
+    let w = obj.width.unwrap_or(400.0);
+    let h = obj.height.unwrap_or(48.0);
+    let ox = obj.x.unwrap_or(0.0);
+    let oy = obj.y.unwrap_or(0.0);
+
+    let dati = crate::client::aggiorna_pagine_nav(base_url, rt_handle);
+    let pagine: Vec<NavPagina> = dati
+        .pages
+        .iter()
+        .map(|p| NavPagina {
+            id: p.id.clone(),
+            name: p.name.clone(),
+        })
+        .collect();
+    let (cfg, geo) = nav_impostazioni(obj);
+    let voci = voci_navigatore(&dati.tree, &pagine, own_page_id, &cfg, &|t| {
+        resolve_msg(t, current_lang, lang_table)
+    });
+    let rects = geometria_navigatore(w, h, voci.len(), &geo);
+
+    // Gli stessi valori di riserva che il web ricava dalle variabili di tema.
+    let colore = |campo: &Option<String>, riserva: (u8, u8, u8)| {
+        campo
+            .as_deref()
+            .and_then(parse_hex_color)
+            .unwrap_or(riserva)
+    };
+    let riempi = colore(&obj.fill, (0x33, 0x41, 0x55));
+    let riempi_attiva = colore(&obj.nav_active_fill, (0x3b, 0x82, 0xf6));
+    let testo = colore(&obj.color, (0xe2, 0xe8, 0xf0));
+    let testo_attivo = colore(&obj.nav_active_color, (0x0f, 0x17, 0x2a));
+    let bordo = colore(&obj.stroke, (0x47, 0x55, 0x69));
+    let raggio = obj.corner_radius.unwrap_or(4.0).round() as i16;
+    let spessore = obj.stroke_width.unwrap_or(1.0).round() as i16;
+
+    for (voce, r) in voci.iter().zip(rects.iter()) {
+        let mut btn = Btn::create(screen).map_err(|e| anyhow::anyhow!("Btn::create: {e:?}"))?;
+        btn.set_pos(
+            (ox.round() as i32 + r.x) as i16,
+            (oy.round() as i32 + r.y) as i16,
+        )
+        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+        btn.set_size(r.w as i16, r.h as i16)
+            .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
+        {
+            let mut style = Style::default();
+            style.set_bg_color(Color::from_rgb(if voce.attiva {
+                riempi_attiva
+            } else {
+                riempi
+            }));
+            style.set_radius(raggio);
+            style.set_border_color(Color::from_rgb(bordo));
+            style.set_border_width(spessore);
+            btn.add_style(Part::Main, &mut style)
+                .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
+            styles.push(style);
+        }
+        let mut lbl =
+            Label::create(&mut btn).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+        lbl.set_text(&text_cstring(&voce.label))
+            .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+        {
+            let mut style = Style::default();
+            style.set_text_color(Color::from_rgb(if voce.attiva {
+                testo_attivo
+            } else {
+                testo
+            }));
+            lbl.add_style(Part::Main, &mut style)
+                .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
+            styles.push(style);
+        }
+        apply_font_size(&lbl, obj)?;
+        let lbl_ptr = lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+        let btn_ptr = btn.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+        unsafe {
+            // Il testo si accorcia con «…» invece di uscire dal bottone, come sul web.
+            lvgl_sys::lv_label_set_long_mode(
+                lbl_ptr.as_ptr(),
+                lvgl_sys::LV_LABEL_LONG_DOT as lvgl_sys::lv_label_long_mode_t,
+            );
+            lvgl_sys::lv_obj_set_width(lbl_ptr.as_ptr(), (r.w - 8).max(8) as i16);
+            lvgl_sys::lv_obj_set_style_text_align(
+                lbl_ptr.as_ptr(),
+                lvgl_sys::LV_TEXT_ALIGN_CENTER as lvgl_sys::lv_text_align_t,
+                0,
+            );
+            lvgl_sys::lv_obj_align(
+                lbl_ptr.as_ptr(),
+                lvgl_sys::LV_ALIGN_CENTER as lvgl_sys::lv_align_t,
+                0,
+                0,
+            );
+            if voce.percorso && !voce.attiva {
+                lvgl_sys::lv_obj_set_style_opa(btn_ptr.as_ptr(), 191, 0);
+            }
+        }
+        // Il bottone della pagina in cui siamo non naviga da nessuna parte.
+        if !voce.attiva {
+            let ctx = leak_ctx(NavClickCtx {
+                target_page: voce.id.clone(),
+                tx: nav_tx.clone(),
+            });
+            unsafe {
+                lvgl_sys::lv_obj_add_event_cb(
+                    btn_ptr.as_ptr(),
+                    Some(sws_navbutton_clicked_cb),
+                    lvgl_sys::lv_event_code_t_LV_EVENT_CLICKED,
+                    ctx,
+                );
+            }
         }
     }
     Ok(())
@@ -8719,6 +8895,17 @@ fn dispatch_render(
         "line" => render_line(screen, obj, styles),
         "button" => render_button(screen, obj, styles, tag_tx),
         "navbutton" => render_navbutton(screen, obj, styles, nav_tx),
+        "page_navigator" => render_page_navigator(
+            screen,
+            obj,
+            styles,
+            nav_tx,
+            own_page_id,
+            base_url,
+            rt_handle,
+            lang_table,
+            &current_lang,
+        ),
         "text" => {
             render_text(screen, obj, styles, tags, &current_lang, lang_table).map(|b| live.push(b))
         }
@@ -12391,5 +12578,55 @@ mod risoluzione_token_tests {
         let vuota = LanguageTable::default();
         assert_eq!(resolve_msg("{{ciao}}", "it", &vuota), "{{ciao}}");
         assert_eq!(resolve_msg("Avvio pompa", "it", &vuota), "Avvio pompa");
+    }
+}
+
+#[cfg(test)]
+mod navigatore_tests {
+    use super::*;
+    use sws_core::page_tree::{NavSource, NavVoceOverride};
+
+    #[test]
+    fn le_impostazioni_del_navigatore_dai_campi_dell_oggetto() {
+        let obj: SynopticObject = serde_json::from_str(
+            r#"{"type":"page_navigator","nav_source":"children_of","nav_node":"imp",
+                "nav_breadcrumb":true,"nav_orientation":"vertical","nav_fill":false,
+                "nav_btn_size":50,"nav_gap":6,"nav_align":"end",
+                "nav_items":[{"page_id":"p1","label":"Uno","order":2},{"page_id":"p2","hidden":true}]}"#,
+        )
+        .unwrap();
+        let (cfg, geo) = nav_impostazioni(&obj);
+        assert_eq!(cfg.source, NavSource::ChildrenOf);
+        assert_eq!(cfg.node.as_deref(), Some("imp"));
+        assert!(cfg.breadcrumb);
+        assert_eq!(
+            cfg.items,
+            vec![
+                NavVoceOverride {
+                    page_id: "p1".into(),
+                    label: Some("Uno".into()),
+                    order: Some(2.0),
+                    hidden: false
+                },
+                NavVoceOverride {
+                    page_id: "p2".into(),
+                    label: None,
+                    order: None,
+                    hidden: true
+                },
+            ]
+        );
+        assert!(geo.verticale && !geo.riempie);
+        assert_eq!((geo.misura, geo.gap, geo.allineamento), (50.0, 6.0, 2));
+    }
+
+    #[test]
+    fn senza_campi_il_navigatore_e_orizzontale_pieno_su_tutte_le_pagine() {
+        let obj: SynopticObject = serde_json::from_str(r#"{"type":"page_navigator"}"#).unwrap();
+        let (cfg, geo) = nav_impostazioni(&obj);
+        assert_eq!(cfg.source, NavSource::All);
+        assert!(cfg.items.is_empty() && !cfg.breadcrumb);
+        assert!(!geo.verticale && geo.riempie);
+        assert_eq!((geo.misura, geo.gap, geo.allineamento), (120.0, 4.0, 0));
     }
 }

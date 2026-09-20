@@ -878,7 +878,10 @@ pub enum HostMetric {
 impl HostMetric {
     /// La metrica produce testo e non un numero: il tag va dichiarato `string`.
     pub fn e_testo(self) -> bool {
-        matches!(self, HostMetric::Hostname | HostMetric::SerialNumber | HostMetric::Model)
+        matches!(
+            self,
+            HostMetric::Hostname | HostMetric::SerialNumber | HostMetric::Model
+        )
     }
 
     /// La metrica ha bisogno di un `param` per dire *quale* zona/mount/core.

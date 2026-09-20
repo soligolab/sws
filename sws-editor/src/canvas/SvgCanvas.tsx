@@ -1,3 +1,4 @@
+import { PageNavigatorView } from "./PageNavigatorView";
 import { defaultObjectTextColor } from "@/theme";
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -3969,6 +3970,23 @@ export function SvgObject(p: ObjProps) {
             {obj.label ?? "Go to page"}
           </text>
         </>)}
+      </g>
+    );
+  }
+
+  // ── PAGE NAVIGATOR ──────────────────────────────────────────────────────────
+  // Un bottone per pagina, generato dall'albero delle pagine. Vedi `PageNavigatorView`.
+
+  if (obj.type === "page_navigator") {
+    const w = obj.width ?? 400; const h = obj.height ?? 48;
+    return (
+      <g style={{ cursor: isEditMode ? editCursor : "default" }}
+        onMouseDown={isEditMode ? handleMouseDown : undefined}
+        onClick={(e) => {
+          if (isEditMode) { e.stopPropagation(); onSelect?.(obj.id); }
+        }}>
+        {applyTransform(obj, w, h,
+          <PageNavigatorView obj={obj} w={w} h={h} isEditMode={!!isEditMode} selected={!!selected} onNavigate={onNavigate} />)}
       </g>
     );
   }

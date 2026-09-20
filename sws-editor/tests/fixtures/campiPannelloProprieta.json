@@ -1419,5 +1419,51 @@
       "Y",
       "z-index"
     ]
+  },
+  "page_navigator": {
+    "sezioni": [
+      "Active bindings(0)",
+      "Appearance",
+      "Data",
+      "Events",
+      "Identity & position",
+      "Layer & Visibility",
+      "MOTION PATH",
+      "Parameters",
+      "Quality indicator",
+      "SECURITY",
+      "Transform"
+    ],
+    "campi": [
+      "Ask for confirmation",
+      "Background",
+      "Blink",
+      "Border",
+      "Buttons",
+      "Corner radius",
+      "Critical command (password)",
+      "Current page background",
+      "Current page text",
+      "Entries",
+      "Font size",
+      "Gap between buttons",
+      "H",
+      "Minimum role to operate",
+      "Name",
+      "On press",
+      "On release",
+      "Opacity (0–1)",
+      "Orientation",
+      "Page 1",
+      "Position tag",
+      "Rotation (degrees)",
+      "Text color",
+      "Transition duration (ms)",
+      "Visibility tag (override)",
+      "W",
+      "X",
+      "Y",
+      "z-index"
+    ]
   }
 }

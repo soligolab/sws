@@ -15,6 +15,7 @@ export type SynopticObjectType =
   // Controls
   | "button"
   | "navbutton"
+  | "page_navigator"
   | "checkbox"
   | "radio"
   | "slider"
@@ -357,6 +358,24 @@ export interface SynopticObject {
   stroke_width?: number;
   // Page navigation
   target_page?: string;
+  // Page navigator (`page_navigator`): un bottone per pagina, generato dall'albero delle pagine.
+  nav_orientation?: "horizontal" | "vertical";
+  /** I bottoni si dividono lo spazio (si restringono); se falso hanno misura fissa `nav_btn_size`. */
+  nav_fill?: boolean;
+  /** Larghezza (orizzontale) o altezza (verticale) di un bottone, quando `nav_fill` è falso. */
+  nav_btn_size?: number;
+  /** Dove sta il blocco di bottoni quando non riempie l'oggetto (asse principale). */
+  nav_align?: "start" | "center" | "end";
+  nav_gap?: number;
+  nav_active_fill?: string;
+  nav_active_color?: string;
+  /** Da dove vengono le voci: tutte le pagine, i figli di `nav_node`, i figli della pagina
+   *  corrente (le sorelle se è una foglia), o le pagine di primo livello. */
+  nav_source?: "all" | "children_of" | "children_of_current" | "roots";
+  nav_node?: string;
+  /** Prima delle voci, il percorso dalla radice al loro genitore. */
+  nav_breadcrumb?: boolean;
+  nav_items?: NavItem[];
   /** Language switch controls (T-40): the language code this lang_button sets. */
   target_lang?: string;
   // Numeric range (gauge, slider, progress_bar)
@@ -1336,6 +1355,17 @@ export interface NotificationConfig {
 
 /** How synoptic pages are sized/scaled at runtime — project-wide setting. */
 export type PageSizeMode = "fixed" | "ratio" | "fluid";
+
+/** Un'eccezione del navigatore di pagine per una pagina: etichetta, posizione, esclusione. */
+export interface NavItem {
+  page_id: string;
+  /** Sovrascrive il nome della pagina; accetta `{{token}}`. Vuoto = nome della pagina. */
+  label?: string;
+  /** Posizione (1 = prima) fra le voci visibili; vuoto = posizione naturale. */
+  order?: number;
+  /** Esclude la pagina da questo navigatore (resta raggiungibile da altri). */
+  hidden?: boolean;
+}
 
 /** Un nodo dell'albero delle pagine: l'id di una pagina e i suoi figli, in ordine. */
 export interface PageTreeNode {

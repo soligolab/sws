@@ -17,12 +17,13 @@ pub use logbus::{LogBus, LogEvent, DEFAULT_LOG_CAPACITY};
 pub use project::{
     AffixPosition, CanaleNotifica, CustomSymbol, CustomSymbolAttribution, DatastoreBackendConfig,
     DatastoreConfig, EnIpConfig, EnIpDataType, EnIpTagMapping, EntityMapping, FunctionDef,
-    FunctionParam, GeneratorSpec, GlobalScriptDef, HomeAssistantConfig, HostConfig, HostMetric, HostMetricMapping, LangEntry, LanguageTable,
-    ModbusRtuConfig, ModbusTcpConfig, MqttConfig, MqttLastWill, MqttTlsConfig, NotificationConfig,
-    OpcUaAuth, OpcUaClientConfig, OpcUaNodeMapping, OpcUaServerConfig, OpcUaServerNodeMapping,
-    PageLayoutConfig, PageSizeMode, PageTreeNode, Project, ProjectMeta, ProjectTarget, ProjectTargetKind,
-    RandomClientId, RegisterMapping, S7Config, S7DataType, S7TagMapping, ScriptTrigger, SmtpConfig,
-    SourceDef, SparkplugConfig, SparkplugMetricMapping, TagDef, TelegramConfig, TopicMapping,
+    FunctionParam, GeneratorSpec, GlobalScriptDef, HomeAssistantConfig, HostConfig, HostMetric,
+    HostMetricMapping, LangEntry, LanguageTable, ModbusRtuConfig, ModbusTcpConfig, MqttConfig,
+    MqttLastWill, MqttTlsConfig, NotificationConfig, OpcUaAuth, OpcUaClientConfig,
+    OpcUaNodeMapping, OpcUaServerConfig, OpcUaServerNodeMapping, PageLayoutConfig, PageSizeMode,
+    PageTreeNode, Project, ProjectMeta, ProjectTarget, ProjectTargetKind, RandomClientId,
+    RegisterMapping, S7Config, S7DataType, S7TagMapping, ScriptTrigger, SmtpConfig, SourceDef,
+    SparkplugConfig, SparkplugMetricMapping, TagDef, TelegramConfig, TopicMapping,
     MAX_FUNCTION_CODE_BYTES,
 };
 pub use tag::{

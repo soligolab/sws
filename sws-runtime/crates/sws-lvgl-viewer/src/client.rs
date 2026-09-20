@@ -197,6 +197,76 @@ pub async fn login(base_url: &str, username: &str, password: &str) -> anyhow::Re
     Ok(ok)
 }
 
+/// Le pagine del progetto per il navigatore (`page_navigator`): id, nome e albero.
+///
+/// Il viewer legge una pagina per volta e `GET /api/synoptics` dà solo i nomi
+/// dei file, quindi il navigatore non avrebbe da dove prendere gli id: per
+/// questo esiste `GET /api/pages/nav`.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct NavPagineDati {
+    #[serde(default)]
+    pub pages: Vec<NavPaginaDati>,
+    #[serde(default)]
+    pub tree: Vec<sws_core::PageTreeNode>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct NavPaginaDati {
+    pub id: String,
+    pub name: String,
+}
+
+/// L'ultimo elenco letto. Un valore per processo, come `SharedLang`: questo
+/// viewer mostra un progetto solo, e infilare un parametro in più in
+/// `render_page_objects` e in tutta la catena dei renderer per un solo oggetto
+/// sarebbe stato più rumore che chiarezza.
+static PAGINE_NAV: Mutex<NavPagineDati> = Mutex::new(NavPagineDati {
+    pages: Vec::new(),
+    tree: Vec::new(),
+});
+
+/// `GET /api/pages/nav`.
+pub async fn fetch_pagine_nav(base_url: &str) -> anyhow::Result<NavPagineDati> {
+    let mut url = reqwest::Url::parse(base_url)?;
+    url.path_segments_mut()
+        .map_err(|_| anyhow::anyhow!("base URL non può avere path segments (cannot-be-a-base)"))?
+        .push("api")
+        .push("pages")
+        .push("nav");
+    let client = reqwest::Client::builder()
+        .use_preconfigured_tls(pinned_client_config(base_url)?)
+        .build()?;
+    let resp = client.get(url).send().await?.error_for_status()?;
+    Ok(resp.json::<NavPagineDati>().await?)
+}
+
+/// Rilegge l'elenco e lo ricorda; se il runtime non risponde tiene l'ultimo
+/// buono (un navigatore con un menù vecchio è meglio di uno vuoto). Ritorna
+/// quello che c'è adesso.
+pub fn aggiorna_pagine_nav(base_url: &str, rt_handle: &tokio::runtime::Handle) -> NavPagineDati {
+    let letto = rt_handle.block_on(async {
+        tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            fetch_pagine_nav(base_url),
+        )
+        .await
+    });
+    match letto {
+        Ok(Ok(d)) => {
+            *PAGINE_NAV.lock().unwrap_or_else(|e| e.into_inner()) = d.clone();
+            d
+        }
+        Ok(Err(e)) => {
+            eprintln!("[page_navigator] elenco pagine non letto: {e}");
+            PAGINE_NAV.lock().unwrap_or_else(|e| e.into_inner()).clone()
+        }
+        Err(_) => {
+            eprintln!("[page_navigator] elenco pagine non letto: tempo scaduto");
+            PAGINE_NAV.lock().unwrap_or_else(|e| e.into_inner()).clone()
+        }
+    }
+}
+
 /// Elenca i nomi file (senza estensione) delle pagine del progetto attivo —
 /// `GET /api/synoptics`, stessi nomi accettati da `fetch_page`. **Non** gli
 /// `id:` interni delle pagine (l'endpoint non li espone, vedi

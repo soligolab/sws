@@ -1,0 +1,31 @@
+{
+  "_nota": "Posizioni e misure dei bottoni di un navigatore di pagine, relative all'origine dell'oggetto. Condivisa fra pageNavigator.ts (web) e page_tree.rs (LVGL): i bottoni devono cadere negli stessi pixel sui due motori. Tutto arrotondato all'intero.",
+  "casi": [
+    { "nome": "orizzontale, riempie: si dividono lo spazio", "w": 400, "h": 40, "n": 4,
+      "cfg": {"orientation":"horizontal","fill":true,"gap":4},
+      "atteso": [{"x":0,"y":0,"w":97,"h":40},{"x":101,"y":0,"w":97,"h":40},{"x":202,"y":0,"w":97,"h":40},{"x":303,"y":0,"w":97,"h":40}] },
+    { "nome": "misura fissa, allineati all'inizio", "w": 400, "h": 40, "n": 3,
+      "cfg": {"orientation":"horizontal","fill":false,"size":100,"gap":10,"align":"start"},
+      "atteso": [{"x":0,"y":0,"w":100,"h":40},{"x":110,"y":0,"w":100,"h":40},{"x":220,"y":0,"w":100,"h":40}] },
+    { "nome": "misura fissa, centrati", "w": 400, "h": 40, "n": 3,
+      "cfg": {"orientation":"horizontal","fill":false,"size":100,"gap":10,"align":"center"},
+      "atteso": [{"x":40,"y":0,"w":100,"h":40},{"x":150,"y":0,"w":100,"h":40},{"x":260,"y":0,"w":100,"h":40}] },
+    { "nome": "misura fissa, alla fine", "w": 400, "h": 40, "n": 3,
+      "cfg": {"orientation":"horizontal","fill":false,"size":100,"gap":10,"align":"end"},
+      "atteso": [{"x":80,"y":0,"w":100,"h":40},{"x":190,"y":0,"w":100,"h":40},{"x":300,"y":0,"w":100,"h":40}] },
+    { "nome": "misura fissa che non ci sta: si restringe", "w": 300, "h": 40, "n": 3,
+      "cfg": {"orientation":"horizontal","fill":false,"size":200,"gap":0,"align":"start"},
+      "atteso": [{"x":0,"y":0,"w":100,"h":40},{"x":100,"y":0,"w":100,"h":40},{"x":200,"y":0,"w":100,"h":40}] },
+    { "nome": "verticale, riempie", "w": 100, "h": 200, "n": 2,
+      "cfg": {"orientation":"vertical","fill":true,"gap":0},
+      "atteso": [{"x":0,"y":0,"w":100,"h":100},{"x":0,"y":100,"w":100,"h":100}] },
+    { "nome": "verticale, misura fissa, centrata", "w": 100, "h": 200, "n": 2,
+      "cfg": {"orientation":"vertical","fill":false,"size":50,"gap":10,"align":"center"},
+      "atteso": [{"x":0,"y":45,"w":100,"h":50},{"x":0,"y":105,"w":100,"h":50}] },
+    { "nome": "nessuna voce: nessun bottone", "w": 400, "h": 40, "n": 0,
+      "cfg": {"orientation":"horizontal","fill":true,"gap":4}, "atteso": [] },
+    { "nome": "arrotondamento: l'ultimo arriva al bordo", "w": 100, "h": 30, "n": 3,
+      "cfg": {"orientation":"horizontal","fill":true,"gap":0},
+      "atteso": [{"x":0,"y":0,"w":33,"h":30},{"x":33,"y":0,"w":33,"h":30},{"x":67,"y":0,"w":33,"h":30}] }
+  ]
+}

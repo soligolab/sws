@@ -158,6 +158,19 @@ pub struct SynopticObject {
     // ── navbutton ──
     pub target_page: Option<String>,
 
+    // ── page_navigator ── (un bottone per pagina, dall'albero delle pagine)
+    pub nav_orientation: Option<String>,
+    pub nav_fill: Option<bool>,
+    pub nav_btn_size: Option<f64>,
+    pub nav_align: Option<String>,
+    pub nav_gap: Option<f64>,
+    pub nav_active_fill: Option<String>,
+    pub nav_active_color: Option<String>,
+    pub nav_source: Option<String>,
+    pub nav_node: Option<String>,
+    pub nav_breadcrumb: Option<bool>,
+    pub nav_items: Option<Vec<NavItem>>,
+
     // ── trend ──
     /// Secondi di storico visibili nella finestra (default 60, come
     /// `SvgCanvas.tsx`/`TrendCanvas`).
@@ -720,6 +733,15 @@ pub struct XySeries {
     pub tag: String,
     pub y_tag: String,
     pub color: Option<String>,
+}
+
+/// Porta `NavItem` di `types/index.ts`: l'eccezione del navigatore di pagine per una pagina.
+#[derive(Debug, Deserialize, Clone)]
+pub struct NavItem {
+    pub page_id: String,
+    pub label: Option<String>,
+    pub order: Option<f64>,
+    pub hidden: Option<bool>,
 }
 
 /// Porta `TextListEntry` di `types/index.ts` — un valore scalare o un range

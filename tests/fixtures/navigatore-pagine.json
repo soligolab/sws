@@ -1,0 +1,136 @@
+{
+  "_nota": "Casi condivisi fra sws-editor/src/pageNavigator.ts e sws-core/src/page_tree.rs (voci_navigatore): chi vede quali voci, in che ordine e con che etichetta nel navigatore di pagine. Se web e LVGL divergessero, lo stesso progetto mostrerebbe due menù diversi.",
+  "pagine": [
+    {"id":"home","name":"Home"},
+    {"id":"imp","name":"Impianto"},
+    {"id":"p1","name":"Pompa 1"},
+    {"id":"p2","name":"Pompa 2"},
+    {"id":"al","name":"{{t_al}}"},
+    {"id":"imp2","name":"Impianto 2"}
+  ],
+  "albero": [{"id":"home"},{"id":"imp","children":[{"id":"p1"},{"id":"p2"}]},{"id":"al"}],
+  "tabella": {
+    "default": "it", "langs": ["it","en"],
+    "entries": [
+      {"key":"t_al","values":{"it":"Allarmi","en":"Alarms"}},
+      {"key":"t_home","values":{"it":"Inizio","en":"Start"}}
+    ]
+  },
+  "casi": [
+    { "nome": "tutte le pagine, nell'ordine dell'albero; imp2 non nominata va in coda",
+      "corrente": "p1", "lang": "it", "cfg": {"source":"all"},
+      "atteso": [
+        {"id":"home","label":"Home","attiva":false,"percorso":false},
+        {"id":"imp","label":"Impianto","attiva":false,"percorso":false},
+        {"id":"p1","label":"Pompa 1","attiva":true,"percorso":false},
+        {"id":"p2","label":"Pompa 2","attiva":false,"percorso":false},
+        {"id":"al","label":"Allarmi","attiva":false,"percorso":false},
+        {"id":"imp2","label":"Impianto 2","attiva":false,"percorso":false}
+      ] },
+    { "nome": "il nome della pagina è un token: si traduce",
+      "corrente": "home", "lang": "en", "cfg": {"source":"roots"},
+      "atteso": [
+        {"id":"home","label":"Home","attiva":true,"percorso":false},
+        {"id":"imp","label":"Impianto","attiva":false,"percorso":false},
+        {"id":"al","label":"Alarms","attiva":false,"percorso":false},
+        {"id":"imp2","label":"Impianto 2","attiva":false,"percorso":false}
+      ] },
+    { "nome": "figli di un nodo scelto; il percorso lo precede",
+      "corrente": "home", "lang": "it", "cfg": {"source":"children_of","node":"imp","breadcrumb":true},
+      "atteso": [
+        {"id":"imp","label":"Impianto","attiva":false,"percorso":true},
+        {"id":"p1","label":"Pompa 1","attiva":false,"percorso":false},
+        {"id":"p2","label":"Pompa 2","attiva":false,"percorso":false}
+      ] },
+    { "nome": "figli di un nodo che non esiste: niente",
+      "corrente": "home", "lang": "it", "cfg": {"source":"children_of","node":"zzz"},
+      "atteso": [] },
+    { "nome": "figli della pagina corrente: da un nodo con figli mostra i figli",
+      "corrente": "imp", "lang": "it", "cfg": {"source":"children_of_current"},
+      "atteso": [
+        {"id":"p1","label":"Pompa 1","attiva":false,"percorso":false},
+        {"id":"p2","label":"Pompa 2","attiva":false,"percorso":false}
+      ] },
+    { "nome": "figli della pagina corrente: da una foglia mostra le sorelle",
+      "corrente": "p1", "lang": "it", "cfg": {"source":"children_of_current"},
+      "atteso": [
+        {"id":"p1","label":"Pompa 1","attiva":true,"percorso":false},
+        {"id":"p2","label":"Pompa 2","attiva":false,"percorso":false}
+      ] },
+    { "nome": "da una foglia in radice le sorelle sono le radici",
+      "corrente": "home", "lang": "it", "cfg": {"source":"children_of_current"},
+      "atteso": [
+        {"id":"home","label":"Home","attiva":true,"percorso":false},
+        {"id":"imp","label":"Impianto","attiva":false,"percorso":false},
+        {"id":"al","label":"Allarmi","attiva":false,"percorso":false},
+        {"id":"imp2","label":"Impianto 2","attiva":false,"percorso":false}
+      ] },
+    { "nome": "percorso (briciole) dalla foglia: il genitore in testa",
+      "corrente": "p1", "lang": "it", "cfg": {"source":"children_of_current","breadcrumb":true},
+      "atteso": [
+        {"id":"imp","label":"Impianto","attiva":false,"percorso":true},
+        {"id":"p1","label":"Pompa 1","attiva":true,"percorso":false},
+        {"id":"p2","label":"Pompa 2","attiva":false,"percorso":false}
+      ] },
+    { "nome": "percorso dal nodo: include il nodo stesso",
+      "corrente": "imp", "lang": "it", "cfg": {"source":"children_of_current","breadcrumb":true},
+      "atteso": [
+        {"id":"imp","label":"Impianto","attiva":true,"percorso":true},
+        {"id":"p1","label":"Pompa 1","attiva":false,"percorso":false},
+        {"id":"p2","label":"Pompa 2","attiva":false,"percorso":false}
+      ] },
+    { "nome": "il percorso con «tutte» o «radici» non si applica",
+      "corrente": "p1", "lang": "it", "cfg": {"source":"roots","breadcrumb":true},
+      "atteso": [
+        {"id":"home","label":"Home","attiva":false,"percorso":false},
+        {"id":"imp","label":"Impianto","attiva":false,"percorso":false},
+        {"id":"al","label":"Allarmi","attiva":false,"percorso":false},
+        {"id":"imp2","label":"Impianto 2","attiva":false,"percorso":false}
+      ] },
+    { "nome": "una pagina esclusa da questo navigatore",
+      "corrente": "home", "lang": "it",
+      "cfg": {"source":"all","items":[{"page_id":"al","hidden":true},{"page_id":"p2","hidden":true}]},
+      "atteso": [
+        {"id":"home","label":"Home","attiva":true,"percorso":false},
+        {"id":"imp","label":"Impianto","attiva":false,"percorso":false},
+        {"id":"p1","label":"Pompa 1","attiva":false,"percorso":false},
+        {"id":"imp2","label":"Impianto 2","attiva":false,"percorso":false}
+      ] },
+    { "nome": "etichetta sovrascritta, anche con un token",
+      "corrente": "home", "lang": "en",
+      "cfg": {"source":"roots","items":[{"page_id":"home","label":"{{t_home}}"},{"page_id":"imp","label":"Plant"}]},
+      "atteso": [
+        {"id":"home","label":"Start","attiva":true,"percorso":false},
+        {"id":"imp","label":"Plant","attiva":false,"percorso":false},
+        {"id":"al","label":"Alarms","attiva":false,"percorso":false},
+        {"id":"imp2","label":"Impianto 2","attiva":false,"percorso":false}
+      ] },
+    { "nome": "posizione sovrascritta: N-esima fra le voci visibili, le altre restano in ordine",
+      "corrente": "home", "lang": "it",
+      "cfg": {"source":"roots","items":[{"page_id":"al","order":1},{"page_id":"home","order":3}]},
+      "atteso": [
+        {"id":"al","label":"Allarmi","attiva":false,"percorso":false},
+        {"id":"imp","label":"Impianto","attiva":false,"percorso":false},
+        {"id":"home","label":"Home","attiva":true,"percorso":false},
+        {"id":"imp2","label":"Impianto 2","attiva":false,"percorso":false}
+      ] },
+    { "nome": "posizione oltre la fine: in coda; voci di pagine che non esistono: ignorate",
+      "corrente": "home", "lang": "it",
+      "cfg": {"source":"roots","items":[{"page_id":"home","order":99},{"page_id":"zzz","label":"boh","order":1}]},
+      "atteso": [
+        {"id":"imp","label":"Impianto","attiva":false,"percorso":false},
+        {"id":"al","label":"Allarmi","attiva":false,"percorso":false},
+        {"id":"imp2","label":"Impianto 2","attiva":false,"percorso":false},
+        {"id":"home","label":"Home","attiva":true,"percorso":false}
+      ] },
+    { "nome": "etichetta vuota = nome della pagina",
+      "corrente": "home", "lang": "it",
+      "cfg": {"source":"roots","items":[{"page_id":"imp","label":"  "}]},
+      "atteso": [
+        {"id":"home","label":"Home","attiva":true,"percorso":false},
+        {"id":"imp","label":"Impianto","attiva":false,"percorso":false},
+        {"id":"al","label":"Allarmi","attiva":false,"percorso":false},
+        {"id":"imp2","label":"Impianto 2","attiva":false,"percorso":false}
+      ] }
+  ]
+}

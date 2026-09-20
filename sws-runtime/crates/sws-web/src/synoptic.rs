@@ -138,6 +138,29 @@ pub struct SynopticObject {
     // Navigation
     #[serde(skip_serializing_if = "Option::is_none")]
     pub target_page: Option<String>,
+    // Page navigator (`page_navigator`): un bottone per pagina, dall'albero delle pagine.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub nav_orientation: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub nav_fill: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub nav_btn_size: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub nav_align: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub nav_gap: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub nav_active_fill: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub nav_active_color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub nav_source: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub nav_node: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub nav_breadcrumb: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub nav_items: Option<Value>,
     // Numeric range
     #[serde(skip_serializing_if = "Option::is_none")]
     pub min: Option<f64>,

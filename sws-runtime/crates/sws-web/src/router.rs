@@ -663,6 +663,7 @@ pub fn build(
         // (Datastore routes are in a dedicated router below — see datastore_routes)
         // Synoptic REST (reads)
         .route("/api/synoptics", get(list_synoptics))
+        .route("/api/pages/nav", get(pages_nav))
         .route("/api/synoptics/:name", get(get_synoptic))
         .route("/api/boot-pages", get(crate::boot::list_boot_pages))
         .route("/api/boot-pages/:name", get(crate::boot::get_boot_page))
@@ -1091,6 +1092,7 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
         .route("/api/history/:tag/stats", get(tag_history_stats))
         .route("/api/history/:tag", get(get_history))
         .route("/api/synoptics", get(list_synoptics))
+        .route("/api/pages/nav", get(pages_nav))
         .route("/api/synoptics/:name", get(get_synoptic))
         .route("/api/project/images", get(list_project_images))
         .route("/api/project/images/:name", get(get_project_image))
@@ -4610,6 +4612,74 @@ async fn list_synoptics(
     Json(names).into_response()
 }
 
+/// Una pagina per il navigatore: id e nome.
+#[derive(serde::Serialize)]
+struct PaginaNav {
+    id: String,
+    name: String,
+}
+
+#[derive(serde::Serialize)]
+struct PagesNav {
+    pages: Vec<PaginaNav>,
+    tree: Vec<sws_core::PageTreeNode>,
+}
+
+/// `GET /api/pages/nav` — le pagine sinottiche visibili all'utente (id e nome,
+/// per nome di file) e l'albero delle pagine del progetto. Serve al viewer LVGL,
+/// che legge una pagina per volta e con `GET /api/synoptics` avrebbe solo i nomi
+/// dei file: senza gli id un navigatore di pagine non saprebbe dove portare.
+/// L'albero è quello **grezzo** di `page_layout`: lo riconcilia chi lo legge
+/// (`sws_core::page_tree::riconcilia`), come l'editor.
+async fn pages_nav(
+    State(s): State<AppState>,
+    axum::extract::Extension(user): axum::extract::Extension<AuthUser>,
+) -> Response {
+    let project_dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
+    let dir = synoptics_dir_at(&project_dir);
+    let mut pages: Vec<(String, PaginaNav)> = Vec::new();
+    if let Ok(mut entries) = tokio::fs::read_dir(&dir).await {
+        while let Ok(Some(entry)) = entries.next_entry().await {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("yaml") {
+                continue;
+            }
+            let Some(stem) = path.file_stem().and_then(|s| s.to_str()).map(str::to_owned) else {
+                continue;
+            };
+            let Ok(text) = tokio::fs::read_to_string(&path).await else {
+                continue;
+            };
+            let Ok(page) = serde_yaml::from_str::<SynopticPage>(&text) else {
+                continue;
+            };
+            if zone_allowed(&user.allowed_zones, &page.zones) {
+                pages.push((
+                    stem,
+                    PaginaNav {
+                        id: page.id,
+                        name: page.name,
+                    },
+                ));
+            }
+        }
+    }
+    pages.sort_by(|a, b| a.0.cmp(&b.0));
+    let tree = sws_core::Project::load(&project_dir)
+        .ok()
+        .and_then(|p| p.page_layout)
+        .and_then(|l| l.page_tree)
+        .unwrap_or_default();
+    Json(PagesNav {
+        pages: pages.into_iter().map(|(_, p)| p).collect(),
+        tree,
+    })
+    .into_response()
+}
+
 async fn get_synoptic(
     State(s): State<AppState>,
     axum::extract::Extension(user): axum::extract::Extension<AuthUser>,
@@ -7008,7 +7078,6 @@ async fn update_project_notifications(
     res
 }
 
-
 /// Rifà la fotografia della tabella lingue delle notifiche, **solo se stanno
 /// già girando**: a impianto disarmato dall'operatore (Q33) o con le notifiche
 /// spente non si avvia niente per un cambio di traduzioni.
@@ -7687,7 +7756,10 @@ mod write_safety_tests {
         .expect("page_tree va accettato");
         let c: sws_core::project::PageLayoutConfig = b.into();
         let albero = c.page_tree.clone().expect("albero perso");
-        assert_eq!(sws_core::page_tree::appiattisci(&albero), vec!["home", "a", "b", "z"]);
+        assert_eq!(
+            sws_core::page_tree::appiattisci(&albero),
+            vec!["home", "a", "b", "z"]
+        );
         // Sul disco i figli vuoti non compaiono e il giro tiene la forma.
         let y = serde_yaml::to_string(&c).unwrap();
         assert!(y.contains("page_tree"), "albero non scritto:\n{y}");

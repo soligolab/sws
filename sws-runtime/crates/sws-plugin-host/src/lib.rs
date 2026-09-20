@@ -120,15 +120,21 @@ fn leggi_seriale() -> Option<String> {
 /// come `<name>/tempN`. I valori sono in millesimi di grado.
 pub fn leggi_temperature(root: &Path) -> HashMap<String, f64> {
     let mut out = HashMap::new();
-    let leggi_str = |p: PathBuf| std::fs::read_to_string(p).ok().map(|s| s.trim().to_string());
+    let leggi_str = |p: PathBuf| {
+        std::fs::read_to_string(p)
+            .ok()
+            .map(|s| s.trim().to_string())
+    };
     if let Ok(rd) = std::fs::read_dir(root.join("thermal")) {
         for e in rd.flatten() {
             let n = e.file_name().to_string_lossy().to_string();
             if !n.starts_with("thermal_zone") {
                 continue;
             }
-            let (Some(tipo), Some(t)) = (leggi_str(e.path().join("type")), leggi_str(e.path().join("temp")))
-            else {
+            let (Some(tipo), Some(t)) = (
+                leggi_str(e.path().join("type")),
+                leggi_str(e.path().join("temp")),
+            ) else {
                 continue;
             };
             if let Ok(m) = t.parse::<f64>() {
@@ -138,11 +144,17 @@ pub fn leggi_temperature(root: &Path) -> HashMap<String, f64> {
     }
     if let Ok(rd) = std::fs::read_dir(root.join("hwmon")) {
         for e in rd.flatten() {
-            let nome = leggi_str(e.path().join("name")).unwrap_or_else(|| e.file_name().to_string_lossy().to_string());
-            let Ok(files) = std::fs::read_dir(e.path()) else { continue };
+            let nome = leggi_str(e.path().join("name"))
+                .unwrap_or_else(|| e.file_name().to_string_lossy().to_string());
+            let Ok(files) = std::fs::read_dir(e.path()) else {
+                continue;
+            };
             for f in files.flatten() {
                 let fname = f.file_name().to_string_lossy().to_string();
-                if let Some(base) = fname.strip_suffix("_input").filter(|b| b.starts_with("temp")) {
+                if let Some(base) = fname
+                    .strip_suffix("_input")
+                    .filter(|b| b.starts_with("temp"))
+                {
                     if let Some(m) = leggi_str(f.path()).and_then(|t| t.parse::<f64>().ok()) {
                         out.insert(format!("{nome}/{base}"), m / 1000.0);
                     }
@@ -189,7 +201,12 @@ impl Collector {
         let la = System::load_average();
         Snapshot {
             cpu_total: f64::from(self.sys.global_cpu_info().cpu_usage()),
-            cpu_core: self.sys.cpus().iter().map(|c| f64::from(c.cpu_usage())).collect(),
+            cpu_core: self
+                .sys
+                .cpus()
+                .iter()
+                .map(|c| f64::from(c.cpu_usage()))
+                .collect(),
             load: [la.one, la.five, la.fifteen],
             mem_total_b: self.sys.total_memory(),
             mem_used_b: self.sys.used_memory(),
@@ -199,12 +216,22 @@ impl Collector {
             temp: leggi_temperature(&self.sysfs),
             disk: Disks::new_with_refreshed_list()
                 .iter()
-                .map(|d| (d.mount_point().to_string_lossy().to_string(), (d.total_space(), d.available_space())))
+                .map(|d| {
+                    (
+                        d.mount_point().to_string_lossy().to_string(),
+                        (d.total_space(), d.available_space()),
+                    )
+                })
                 .collect(),
             net_bps: self
                 .nets
                 .iter()
-                .map(|(n, d)| (n.clone(), (d.received() as f64 / dt, d.transmitted() as f64 / dt)))
+                .map(|(n, d)| {
+                    (
+                        n.clone(),
+                        (d.received() as f64 / dt, d.transmitted() as f64 / dt),
+                    )
+                })
                 .collect(),
             uptime_s: System::uptime(),
             hostname: std::fs::read_to_string("/proc/sys/kernel/hostname")
@@ -311,7 +338,10 @@ mod tests {
             ..Default::default()
         };
         s.temp.insert("cpu-thermal".into(), 60.0);
-        s.disk.insert("/var/sws/projects".into(), (10 * 1024 * 1024 * 1024, 4 * 1024 * 1024 * 1024));
+        s.disk.insert(
+            "/var/sws/projects".into(),
+            (10 * 1024 * 1024 * 1024, 4 * 1024 * 1024 * 1024),
+        );
         s.net_bps.insert("eth0".into(), (100.0, 50.0));
         s
     }
@@ -333,8 +363,14 @@ mod tests {
         let s = snap();
         assert_eq!(leggi(HostMetric::CpuCorePct, Some("1"), &s), Some(20.0));
         assert_eq!(leggi(HostMetric::Temp, Some("cpu-thermal"), &s), Some(60.0));
-        assert_eq!(leggi(HostMetric::DiskUsedPct, Some("/var/sws/projects"), &s), Some(60.0));
-        assert_eq!(leggi(HostMetric::DiskFreeGb, Some("/var/sws/projects"), &s), Some(4.0));
+        assert_eq!(
+            leggi(HostMetric::DiskUsedPct, Some("/var/sws/projects"), &s),
+            Some(60.0)
+        );
+        assert_eq!(
+            leggi(HostMetric::DiskFreeGb, Some("/var/sws/projects"), &s),
+            Some(4.0)
+        );
         assert_eq!(leggi(HostMetric::NetTxBps, Some("eth0"), &s), Some(50.0));
     }
 
@@ -372,8 +408,14 @@ mod tests {
         let mut s = snap();
         s.hostname = Some("tc620".into());
         s.serial = Some("P052600C00292600014".into());
-        assert_eq!(leggi_testo(HostMetric::Hostname, &s).as_deref(), Some("tc620"));
-        assert_eq!(leggi_testo(HostMetric::SerialNumber, &s).as_deref(), Some("P052600C00292600014"));
+        assert_eq!(
+            leggi_testo(HostMetric::Hostname, &s).as_deref(),
+            Some("tc620")
+        );
+        assert_eq!(
+            leggi_testo(HostMetric::SerialNumber, &s).as_deref(),
+            Some("P052600C00292600014")
+        );
         assert_eq!(leggi_testo(HostMetric::Model, &s), None);
         assert!(HostMetric::Model.e_testo() && !HostMetric::CpuPct.e_testo());
         // Una metrica testuale non ha un valore numerico.
@@ -387,7 +429,10 @@ mod tests {
         std::fs::create_dir_all(&root).unwrap();
         std::fs::write(root.join("serial-number"), b"P0526\0").unwrap();
         let r = root.to_string_lossy().to_string();
-        assert_eq!(leggi_device_tree(&["/non/esiste", &r], "serial-number").as_deref(), Some("P0526"));
+        assert_eq!(
+            leggi_device_tree(&["/non/esiste", &r], "serial-number").as_deref(),
+            Some("P0526")
+        );
         assert_eq!(leggi_device_tree(&[&r], "model"), None);
         let _ = std::fs::remove_dir_all(&root);
     }

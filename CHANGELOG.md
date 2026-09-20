@@ -12,6 +12,13 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Added
+- **Il navigatore di pagine (`page_navigator`).** Un bottone per pagina, **generato dall'albero delle pagine**: aggiungere una pagina non obbliga
+  più a rieditare le altre. Orizzontale o verticale, bottoni che si dividono lo spazio (o misura fissa con allineamento), pagina corrente evidenziata,
+  nome e ordine dalle pagine con **eccezioni per pagina dentro l'oggetto** (etichetta anche `{{token}}`, posizione, nascondi: una pagina esclusa da un
+  navigatore resta raggiungibile da un altro). Voci: tutte, primo livello, figli di una pagina, **figli della pagina corrente** (le sorelle da una foglia)
+  — per un menù a livelli — con il percorso (briciole) opzionale. Su **web e LVGL** con le stesse voci e gli stessi pixel (funzioni pure gemelle
+  `pageNavigator.ts` / `sws-core::page_tree`, fixture condivise); `GET /api/pages/nav` per il viewer LVGL; le pagine servite da un navigatore non
+  risultano più orfane; pannello proprietà, manuale 05, `demo-items` (barra in fondo a «Base e comandi»).
 - **L'albero delle pagine, sempre visibile a sinistra.** Le pagine hanno una gerarchia e un **ordine salvato** (`page_layout.page_tree` in
   `project.yaml`; prima l'ordine era solo in memoria e a ogni ricarica tornava alfabetico). Il pannello sinistro tiene l'albero **fisso in alto**
   (separatore trascinabile, comprimibile) e sotto una vista alla volta; la voce «Pagine» esce dalla barra delle icone. Trascinamento con tre zone

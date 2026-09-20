@@ -104,6 +104,28 @@ Pulsante di navigazione tra pagine del sinottico.
 
 ---
 
+### Navigatore di pagine (`page_navigator`)
+
+Un bottone per pagina, **generato dall'albero delle pagine**: aggiungendo una pagina il bottone compare da solo, senza rieditare le altre.
+Quello della pagina corrente è evidenziato. Si mette su uno dei quattro lati della pagina (barra in alto/in basso, colonna a destra/sinistra).
+Disponibile su web e LVGL, con le stesse voci e gli stessi pixel.
+
+| Proprietà | Descrizione |
+|-----------|-------------|
+| `nav_orientation` | `horizontal` (predefinito) o `vertical` |
+| `nav_source` | Da dove vengono le voci: `all` (tutte, nell'ordine dell'albero), `roots` (primo livello), `children_of` (figli di `nav_node`), `children_of_current` (figli della pagina in cui ci si trova; se è una foglia, le sue sorelle) |
+| `nav_node` | Id della pagina di cui mostrare i figli (con `children_of`) |
+| `nav_breadcrumb` | Con `children_of*`, mostra prima il percorso dalla radice al genitore delle voci |
+| `nav_fill` | `true` (predefinito): i bottoni si dividono lo spazio e si restringono; `false`: misura fissa `nav_btn_size` |
+| `nav_btn_size`, `nav_align`, `nav_gap` | Misura fissa, allineamento del blocco (`start`/`center`/`end`), spazio fra i bottoni |
+| `nav_active_fill`, `nav_active_color` | Sfondo e testo della pagina corrente (`fill`, `color`, `stroke` valgono per gli altri) |
+| `nav_items` | Eccezioni per pagina: `{ page_id, label?, order?, hidden? }` — etichetta (accetta `{{token}}`), posizione fra le voci visibili, esclusione da **questo** navigatore |
+
+Con `children_of_current` si costruisce un menù a livelli: le pagine di un ramo compaiono solo quando si è nel ramo. Una pagina nascosta a un
+navigatore resta raggiungibile da un altro. Il nome mostrato è quello della pagina (anche `{{token}}`) salvo etichetta propria.
+
+---
+
 ### Checkbox (`checkbox`)
 
 Toggle binario che scrive un valore al tag.

@@ -1688,9 +1688,7 @@ pub async fn delete_remote_project(
     };
     let name = match active {
         Some(n) => n,
-        None => {
-            return (StatusCode::CONFLICT, "No active project on the runtime").into_response()
-        }
+        None => return (StatusCode::CONFLICT, "No active project on the runtime").into_response(),
     };
 
     // Close (so delete isn't rejected with 409) then delete.

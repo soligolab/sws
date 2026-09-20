@@ -170,7 +170,7 @@ function PagesSection({ compresso, onToggleCompresso }: { compresso: boolean; on
 
   const homePageId = project?.page_layout?.home_page_id;
   const bootPageId = project?.page_layout?.boot_page_id;
-  const orphanIds = findOrphanPageIds(pages, homePageId);
+  const orphanIds = findOrphanPageIds(pages, homePageId, project?.page_layout?.page_tree);
   const albero = riconcilia(project?.page_layout?.page_tree, pages.map((p) => p.id));
   const righeAlbero = righe(albero, chiusi);
   const perId = new Map(pages.map((p) => [p.id, p]));
@@ -608,6 +608,7 @@ export const PALETTE_GROUPS: PaletteGroup[] = [
   { category: "Controlli", color: "#34d399", colorLight: "#047857", items: [
     { type: "button",    label: "Bottone",  icon: "⊡" },
     { type: "navbutton", label: "Nav page", icon: "↗" },
+    { type: "page_navigator", label: "Page navigator", icon: "☰" },
     { type: "checkbox",  label: "Checkbox", icon: "☑" },
     { type: "radio",     label: "Radio",    icon: "◉" },
     { type: "slider",    label: "Slider",   icon: "↔" },
@@ -744,6 +745,7 @@ const LVGL_SUPPORTED_TYPES = new Set<SynopticObject["type"]>([
   "state_lamp",
   "table",
   "navbutton",
+  "page_navigator",
   "trend",
   "alarm_viewer",
   "text_list",

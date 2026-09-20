@@ -48,3 +48,16 @@ Sessione di plan del 20-09-2026 (misure sul codice di quel giorno). Due rami ann
 ## Verifica
 Test puri (`pageTree`, `vociNavigatore`) con fixture condivise TS/Rust; `pannelloSinistro.test.tsx` aggiornato; provare dal vivo su runtime di scarto con un progetto a 6 pagine su 2 livelli
 (trascinamento, ricarica: l'ordine sopravvive, albero visibile con palette/tag aperti); LVGL su SDL2/Xvfb e sul TC620 di test col container nuovo.
+
+## Stato (20-09-2026, sera)
+**F1 e F2 implementati** sui rami annidati `feat/albero-pagine` → `feat/page-navigator`. Provato dal vivo su un runtime di scarto: albero con
+trascinamento e ordine che sopravvive alla ricarica, albero visibile con la palette aperta, navigatore nel viewer web (voci nell'ordine dell'albero,
+pagina corrente evidenziata, clic che naviga), navigatore aggiunto dalla palette dell'IDE, viewer LVGL (`--istantanea`, SDL dummy) con lo stesso menù
+e il clic che chiede la pagina giusta. **Restano**: collaudo del maintainer sull'IDE vero, prova sul TC620 col container nuovo, un template esempio con
+albero e navigatori laterali/verticali (oggi solo la barra in fondo a `demo-items`), e — fuori dal piano — le voci gerarchiche indentate in un
+navigatore verticale (`nav_indent`), non richieste.
+
+**Scarti dal piano, e perché**: la cache dell'elenco pagine lato LVGL è una `static` in `client.rs` (`aggiorna_pagine_nav`), non un `SharedPages` infilato in tutta
+la catena dei renderer; l'etichetta di `nav_items` la risolve il navigatore stesso (web: `vociNavigatore` con la lingua del contesto; LVGL: `resolve_msg` nel renderer),
+quindi `localizeObject` e la lista `TEXT_FIELDS` non sono cambiate; «Migra i testi» non tocca ancora le etichette degli override (nascono già come `{{token}}`
+dal campo tradotto dell'editor). Stato del pannello e dell'albero: `PagesSection` resta in `LeftPanel.tsx` (non in un file a parte).

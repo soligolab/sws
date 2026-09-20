@@ -570,7 +570,9 @@ pub struct HostCatalog {
 /// macchina**: zone termiche, mount, interfacce, core. Alimenta i suggerimenti
 /// dell'editor. Legge il sistema (sysinfo), quindi fuori dal thread async.
 pub async fn get_host_catalog() -> Json<HostCatalog> {
-    let c = tokio::task::spawn_blocking(sws_plugin_host::catalogo).await.unwrap_or_default();
+    let c = tokio::task::spawn_blocking(sws_plugin_host::catalogo)
+        .await
+        .unwrap_or_default();
     Json(HostCatalog {
         temperature: c.temperature,
         mount: c.mount,

@@ -404,3 +404,13 @@ objects:
   stroke_width: 2.0
   corner_radius: 8.0
   opacity: 0.45
+- id: o_page_navigator
+  type: page_navigator
+  x: 24.0
+  y: 752.0
+  width: 1232.0
+  height: 40.0
+  nav_orientation: horizontal
+  nav_fill: true
+  nav_gap: 6
+  locked: true

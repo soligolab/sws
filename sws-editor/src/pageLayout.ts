@@ -3,7 +3,8 @@
 // brand-extensible device-preset library for "Fisso" mode. Pure data/helpers,
 // no React.
 
-import type { PageLayoutConfig, PageSizeMode, PipePoint, SynopticObject, SynopticPage } from "@/types";
+import { vociNavigatore } from "@/pageNavigator";
+import type { PageLayoutConfig, PageTreeNode, PageSizeMode, PipePoint, SynopticObject, SynopticPage } from "@/types";
 import { paginePerNavigazione } from "@/boot/tipi";
 import { getBrand } from "@/branding";
 
@@ -408,12 +409,19 @@ export function findBrokenNavLinks(tutte: SynopticPage[]): BrokenNavLink[] {
 /** A page is "orphaned" when it isn't the home page and no `navbutton` on any
  *  page targets it. Independent of the kiosk auto-rotate flag (shown as its
  *  own checkbox already). */
-export function findOrphanPageIds(tutte: SynopticPage[], homePageId: string | undefined): Set<string> {
+export function findOrphanPageIds(
+  tutte: SynopticPage[], homePageId: string | undefined, albero?: readonly PageTreeNode[] | null,
+): Set<string> {
   const pages = paginePerNavigazione(tutte);
   const linked = new Set<string>();
   for (const page of pages) {
     for (const obj of page.objects) {
       if (obj.type === "navbutton" && obj.target_page) linked.add(obj.target_page);
+      // Un navigatore di pagine raggiunge le pagine che mostra da questa pagina:
+      // senza contarlo ogni pagina servita da un navigatore risulterebbe orfana.
+      if (obj.type === "page_navigator") {
+        for (const v of vociNavigatore(pages, albero, page.id, obj, "", null)) linked.add(v.id);
+      }
     }
   }
   const orphans = new Set<string>();

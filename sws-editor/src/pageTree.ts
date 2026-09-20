@@ -198,3 +198,21 @@ function trova(albero: readonly PageTreeNode[], id: string): PageTreeNode | null
   }
   return null;
 }
+
+/** I figli diretti di un nodo, in ordine; `null` = i nodi di primo livello.
+ *  Un id che non c'è nell'albero non ha figli. */
+export function figliDi(albero: readonly PageTreeNode[], id: string | null): string[] {
+  if (id === null) return albero.map((n) => n.id);
+  const n = trova(albero, id);
+  return n ? (n.children ?? []).map((c) => c.id) : [];
+}
+
+/** Gli id dalla radice fino a `id` compreso, o `[]` se non c'è. */
+export function percorsoFinoA(albero: readonly PageTreeNode[], id: string): string[] {
+  for (const n of albero) {
+    if (n.id === id) return [n.id];
+    const sotto = percorsoFinoA(n.children ?? [], id);
+    if (sotto.length > 0) return [n.id, ...sotto];
+  }
+  return [];
+}
