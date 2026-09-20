@@ -17,7 +17,7 @@ const TONI: Record<TonoBarra, { sfondo: string; bordo: string; testo: string }> 
   pericolo:   { sfondo: "var(--brand-danger-soft, #451a1a)", bordo: "var(--brand-danger, #ef4444)",        testo: "var(--brand-text, #e2e8f0)" },
 };
 
-export function BarraAvviso({ tono, icona, children, stileBottone, ricarica, onChiudi, titoloChiudi, compatta }: {
+export function BarraAvviso({ tono, icona, children, stileBottone, ricarica, onRicarica, onChiudi, titoloChiudi, compatta }: {
   tono: TonoBarra;
   icona: string;
   children: React.ReactNode;
@@ -25,6 +25,9 @@ export function BarraAvviso({ tono, icona, children, stileBottone, ricarica, onC
   stileBottone: React.CSSProperties;
   /** Se presente, un pulsante che ricarica la pagina, con questa etichetta. */
   ricarica?: string;
+  /** Cosa fa il pulsante. Senza, ricarica subito la pagina — che butta via il
+   *  lavoro non salvato: chi ha modifiche in sospeso passa un gestore che chiede. */
+  onRicarica?: () => void;
   onChiudi: () => void;
   titoloChiudi?: string;
   /** Barre d'errore delle finestre staccate: un filo più basse. */
@@ -42,7 +45,7 @@ export function BarraAvviso({ tono, icona, children, stileBottone, ricarica, onC
       {ricarica && (
         <button
           style={{ ...stileBottone, background: "transparent", color: c.testo, borderColor: tono === "attenzione" ? c.bordo : c.testo }}
-          onClick={() => window.location.reload()}
+          onClick={() => (onRicarica ? onRicarica() : window.location.reload())}
         >
           {ricarica}
         </button>

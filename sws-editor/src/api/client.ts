@@ -154,6 +154,28 @@ function segnalaCambioProgettoNostro(): void {
   try { window.dispatchEvent(new CustomEvent("sws:project-switched")); } catch { /* SSR/test */ }
 }
 
+/** Le scritture che questo client fa sul progetto attivo: `project.yaml`
+ *  (`/api/project/…`), le pagine, le pagine di boot, i faceplate, le ricette.
+ *  Non `/api/projects/…` (plurale): quelle cambiano progetto e hanno il loro
+ *  segnale. */
+const SCRITTURE_SUL_PROGETTO = /^\/api\/(project\/|synoptics|boot-pages|faceplates|recipes)/;
+
+/** Ogni scrittura riuscita sul progetto fatta **da questo client** rifissa la
+ *  baseline del sorvegliante, qui e non nei punti di chiamata.
+ *
+ *  Il 20-09-2026 il pannello proprietà di pagina salvò `page_layout` senza dire
+ *  niente al sorvegliante: l'impronta di `project.yaml` cambiò, comparve «il
+ *  progetto sul runtime è cambiato», e «Ricarica» buttò una pagina Home non
+ *  ancora salvata. Era il terzo incidente della stessa famiglia (dopo le schede
+ *  di Configurazione e «Migra i testi»): ogni volta un punto di chiamata che si
+ *  era dimenticato di segnalare. Un elenco di punti da ricordare diverge; un
+ *  solo posto no. */
+function segnalaScritturaNostra(path: string, metodo: string | undefined): void {
+  if (!metodo || metodo.toUpperCase() === "GET") return;
+  if (!SCRITTURE_SUL_PROGETTO.test(path)) return;
+  segnalaCambioProgettoNostro();
+}
+
 /** Server signals an authenticated user must change their password before
  *  reaching any non-self-service endpoint. The runtime returns 403 with
  *  `{ error: "password_change_required" }`; the UI lifts the
@@ -571,6 +593,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     try { bodyText = await res.text(); } catch { /* ignore */ }
     throw new Error(`API ${path}: ${res.status} ${res.statusText}${bodyText ? ` — ${bodyText}` : ""}`);
   }
+  segnalaScritturaNostra(path, init?.method);
   if (res.status === 204 || res.headers.get("content-length") === "0") {
     return undefined as T;
   }
@@ -788,6 +811,7 @@ export const api = {
       try { body = await res.text(); } catch { /* ignore */ }
       throw new Error(`API ${path}: ${res.status} ${res.statusText}${body ? ` — ${body}` : ""}`);
     }
+    segnalaScritturaNostra(path, "PUT");
   },
 
   deleteBootPage: async (name: string) => {

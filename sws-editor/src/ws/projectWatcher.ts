@@ -43,12 +43,17 @@ export function useProjectWatcher(
   // Così il timer non va ricreato quando il chiamante passa una closure nuova.
   const cb = useRef(onChange);
   cb.current = onChange;
+  // Generazione della baseline: un tick partito **prima** di un nostro cambio e
+  // finito dopo vedrebbe l'impronta vecchia, la fisserebbe come baseline e al
+  // tick successivo scambierebbe il nostro salvataggio per un cambio esterno.
+  const generazione = useRef(0);
 
   useEffect(() => {
     if (intervalMs <= 0) return;
     let alive = true;
 
     const tick = async () => {
+      const gen = generazione.current;
       let fp: string | null;
       try {
         fp = (await api.getProjectFingerprint()).sha256 ?? null;
@@ -62,14 +67,14 @@ export function useProjectWatcher(
         // rimette la baseline a «da fissare»: il primo tick autenticato la fissa
         // in silenzio.
         if (e instanceof AuthError || e instanceof PasswordChangeRequiredError) {
-          lastFp.current = undefined;
+          if (gen === generazione.current) lastFp.current = undefined;
           return;
         }
         // Nessun progetto attivo (503), runtime in riavvio o rete giù: si
         // normalizza a null, così anche "progetto chiuso" è un cambio.
         fp = null;
       }
-      if (!alive) return;
+      if (!alive || gen !== generazione.current) return;
       if (lastFp.current === undefined) {
         lastFp.current = fp;          // baseline, nessuna notifica
         return;
@@ -89,7 +94,7 @@ export function useProjectWatcher(
     // nella nuova baseline. E' un caso molto piu' raro del falso positivo che
     // questo ripara, e la finestra e' un settimo di quella (20 s) che la
     // guardia dei salvataggi in App.tsx accetta gia' per la stessa ragione.
-    const riparti = () => { lastFp.current = undefined; };
+    const riparti = () => { generazione.current += 1; lastFp.current = undefined; };
     window.addEventListener("sws:project-switched", riparti);
 
     void tick();

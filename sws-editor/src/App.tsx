@@ -282,7 +282,7 @@ export function App() {
   // comparso dal nulla senza spiegazione è già di per sé il difetto.
   const [motivoAccesso, setMotivoAccesso] = useState<string | null>(null);
 
-  const [confirmPending, setConfirmPending] = useState<"close" | "logout" | null>(null);
+  const [confirmPending, setConfirmPending] = useState<"close" | "logout" | "reload" | null>(null);
   // Il progetto sul runtime è cambiato sotto di noi (deploy da un altro IDE,
   // pull GitOps, modifica dei file sul dispositivo). NON si ricarica da soli:
   // in editor ci può essere lavoro non salvato, e sovrascriverlo senza chiedere
@@ -521,6 +521,17 @@ export function App() {
     setNoActiveProject(true);
   };
 
+  // «Ricarica» delle barre d'avviso: con modifiche non salvate chiede prima —
+  // ricaricare le butta via (20-09-2026: una pagina appena creata sparì così).
+  const executeReload = () => {
+    resetDirty();
+    window.location.reload();
+  };
+  const handleReload = () => {
+    if (isDirty) { setConfirmPending("reload"); return; }
+    executeReload();
+  };
+
   const handleLogout = () => {
     if (isDirty) { setConfirmPending("logout"); return; }
     executeLogout();
@@ -542,6 +553,7 @@ export function App() {
       setConfirmPending(null);
       if (pending === "close") executeClose();
       else if (pending === "logout") executeLogout();
+      else if (pending === "reload") executeReload();
     } else if (saveStatus === "error") {
       setWaitingForSave(false);
       setConfirmPending(null);
@@ -774,13 +786,13 @@ export function App() {
       {/* Alarm banner */}
       {runtimeBackReload && (
           <BarraAvviso tono="successo" icona="🔓" stileBottone={HDR_BTN}
-            ricarica={t("app.reloadNow")} onChiudi={() => setRuntimeBackReload(false)} titoloChiudi={t("app.dismiss")}>
+            ricarica={t("app.reloadNow")} onRicarica={handleReload} onChiudi={() => setRuntimeBackReload(false)} titoloChiudi={t("app.dismiss")}>
             {t("app.runtimeReachableReload")}
           </BarraAvviso>
         )}
       {newBuildAvailable && (
           <BarraAvviso tono="primario" icona="⬆" stileBottone={HDR_BTN}
-            ricarica={t("app.reloadNow")} onChiudi={() => setNewBuildAvailable(false)} titoloChiudi={t("app.dismiss")}>
+            ricarica={t("app.reloadNow")} onRicarica={handleReload} onChiudi={() => setNewBuildAvailable(false)} titoloChiudi={t("app.dismiss")}>
             {t("app.newBuildAvailable")}
           </BarraAvviso>
         )}
@@ -793,7 +805,7 @@ export function App() {
           conto. */}
       {(projectChangedOutside || saveConflict) && (
           <BarraAvviso tono="attenzione" icona="⟳" stileBottone={HDR_BTN}
-            ricarica={t("app.reloadNow")}
+            ricarica={t("app.reloadNow")} onRicarica={handleReload}
             onChiudi={() => { setProjectChangedOutside(false); setSaveConflict(false); }} titoloChiudi={t("app.dismiss")}>
             {saveConflict ? t("app.saveConflict") : t("app.projectChangedOutside")}
           </BarraAvviso>
@@ -897,7 +909,7 @@ export function App() {
                 disabled={waitingForSave}
                 onClick={() => { void saveAll(); setWaitingForSave(true); }}
               >
-                {waitingForSave ? t("header.saving") : t("unsaved.saveClose")}
+                {waitingForSave ? t("header.saving") : confirmPending === "reload" ? t("unsaved.saveReload") : t("unsaved.saveClose")}
               </button>
               <button
                 style={{ ...HDR_BTN, background: "var(--brand-danger-bg, #7f1d1d)", color: "var(--brand-danger-soft, #fca5a5)", border: "1px solid #991b1b", padding: "8px 16px", fontSize: 13 }}
@@ -905,10 +917,11 @@ export function App() {
                   const pending = confirmPending;
                   setConfirmPending(null);
                   if (pending === "close") executeClose();
+                  else if (pending === "reload") executeReload();
                   else executeLogout();
                 }}
               >
-                {t("unsaved.discard")}
+                {confirmPending === "reload" ? t("unsaved.discardReload") : t("unsaved.discard")}
               </button>
               <button
                 style={{ ...HDR_BTN, padding: "8px 16px", fontSize: 13 }}

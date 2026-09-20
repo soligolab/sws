@@ -136,4 +136,29 @@ describe("sorvegliante del progetto", () => {
     await tick(3_000);
     expect(avvisato).toHaveBeenCalledWith("secondo");
   });
+
+  it("un tick partito prima di un nostro salvataggio e finito dopo non lo fa passare per esterno", async () => {
+    const onChange = vi.fn();
+    let sblocca!: (v: { sha256: string | null; computed_at_ms: number }) => void;
+    const spy = vi.spyOn(api, "getProjectFingerprint");
+    spy.mockResolvedValueOnce({ sha256: "A", computed_at_ms: 0 } as never); // baseline
+    renderHook(() => useProjectWatcher(onChange, 1000));
+    await tick(0);
+    // Il secondo tick resta in volo, con l'impronta vecchia.
+    spy.mockImplementationOnce(() => new Promise((res) => { sblocca = res as typeof sblocca; }));
+    await tick(1000);
+    // Nel frattempo salviamo noi: la baseline riparte.
+    window.dispatchEvent(new CustomEvent("sws:project-switched"));
+    sblocca({ sha256: "A", computed_at_ms: 0 });
+    await tick(0);
+    // Dopo il nostro salvataggio l'impronta è quella nuova: è la baseline, non un avviso.
+    spy.mockResolvedValue({ sha256: "B", computed_at_ms: 0 } as never);
+    await tick(1000); // fissa la baseline su B
+    await tick(1000);
+    expect(onChange).not.toHaveBeenCalled();
+    // Un cambio esterno vero continua ad avvisare.
+    spy.mockResolvedValue({ sha256: "C", computed_at_ms: 0 } as never);
+    await tick(1000);
+    expect(onChange).toHaveBeenCalledTimes(1);
+  });
 });

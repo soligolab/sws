@@ -11,6 +11,15 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Fixed
+- **«Ricarica» non butta più via il lavoro non salvato, e il falso «il progetto è cambiato» non si può più presentare.** Il salvataggio del
+  layout di pagina (pannello proprietà) non avvisava il sorvegliante del progetto: l'impronta di `project.yaml` cambiava, compariva la barra
+  «ricarica» e una pagina Home appena creata spariva (20-09-2026, terzo incidente della stessa famiglia). Ora (1) **ogni scrittura riuscita sul
+  progetto fatta dal client** (`/api/project/…`, pagine, boot, faceplate, ricette) rifissa la baseline da un posto solo, `request()` in
+  `api/client.ts`, invece che da ogni punto di chiamata; (2) un tick del sorvegliante partito prima del salvataggio e finito dopo non fissa più
+  l'impronta vecchia (contatore di generazione); (3) il pulsante «Ricarica» delle barre d'avviso, con modifiche non salvate, chiede «Salva e ricarica /
+  Ricarica senza salvare / Annulla».
+
 ## [2.10.1] — 2026-09-20
 
 > **Le risorse dell'host diventano tag, e le emoji si vedono sul pannello.** Sorgente «host» (CPU, RAM, temperature,

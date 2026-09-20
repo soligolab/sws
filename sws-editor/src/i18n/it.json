@@ -124,6 +124,8 @@
     "title": "Modifiche non salvate",
     "body": "Ci sono modifiche al sinottico non ancora salvate. Cosa vuoi fare?",
     "saveClose": "Salva e chiudi",
+    "saveReload": "Salva e ricarica",
+    "discardReload": "Ricarica senza salvare",
     "discard": "Chiudi senza salvare"
   },
   "menu": {

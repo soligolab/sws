@@ -124,6 +124,8 @@
     "title": "Unsaved changes",
     "body": "There are unsaved synoptic changes. What do you want to do?",
     "saveClose": "Save and close",
+    "saveReload": "Save and reload",
+    "discardReload": "Reload without saving",
     "discard": "Close without saving"
   },
   "menu": {
