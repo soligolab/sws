@@ -21,6 +21,49 @@ con sei prove dal vivo, non spiegata.
 combinazione si blocca e quali no, ed è il lavoro che non va rifatto.
 
 
+## Sessione di plan del 20-09-2026 (misure nuove, nessun codice toccato)
+
+Prima cosa fatta quando il maintainer ha chiesto di implementare Q55: misurare di nuovo, perché il codice si è
+mosso dal 13-09. **Il difetto non si riproduce fuori dal viewer vero, in nessuna delle combinazioni provate.**
+
+**Il codice di oggi**
+- Il runtime tokio è **multi-thread** (`Runtime::new()`, `main.rs:259`): cade la spiegazione classica «un task
+  `spawn`-ato su un runtime `current_thread` avanza solo mentre qualcuno è dentro `block_on`».
+- `lvgl-sys` **non installa più** l'override di `strncmp`/`strcmp` che era il sospettato: dal 25-08 la copia
+  vendorizzata con la `strncmp` corretta è attiva (`[patch]` nella radice del workspace, Q14/Q22) — cioè **già
+  prima** della scoperta di Q55 (13-09). Il sospetto originale va riformulato.
+- Le `spawn` di rete ancora vive in produzione: `put_tag` (PUT), `ack_alarm` (POST) e `apply_recipe` (POST), tutte
+  fire-and-forget (`main.rs:767, 783, 1053, 1071`; `lvgl_render.rs:6733`), più il poller dello storico (GET).
+  Da Q36 parte 1 allegano il token: il primo 200 vero di una scrittura autenticata è esattamente la combinazione
+  che Q55 dice bloccarsi, e **nessuno l'ha mai osservata completare** dal vivo.
+- Ognuna costruisce un `reqwest::Client` nuovo a ogni richiesta (con il TLS pinnato riletto da file).
+
+**Prove di oggi** (esempio temporaneo nel crate, poi cancellato; processo che linka `lvgl-sys`, con e senza
+`lv_init()`, con e senza un loop `lv_timer_handler()` sul thread principale):
+- POST/PUT/GET → 200 e POST → 403 contro un server locale minimale, via `rt.spawn`: **tutte completano** in pochi
+  millisecondi (9 combinazioni + il 403).
+- **Login vero** (`POST /api/auth/login`, Argon2, ~660 ms) contro un runtime di scarto, con il client TLS pinnato
+  del viewer, in HTTP **e** in HTTPS, `spawn` e `block_on`, nelle tre modalità: **tutti completano** e danno 200.
+- Quindi **non bastano** a scatenarlo: linkare `lvgl-sys`, `lv_init()`, il loop di tick, il pinning TLS, una POST
+  con 200 e corpo JSON.
+
+**Cosa resta come differenza rispetto al viewer vero** (ipotesi non provate): il backend SDL2/DRM e i suoi thread;
+`lvgl_log::install()` (callback C di log); FreeType/DejaVu (Q24); `resvg`; il task WebSocket in background; il
+runtime creato **prima** di `lv_init`; e soprattutto — se la `spawn` originale toccava oggetti LVGL **dopo**
+l'`await`, come fa oggi il ramo di successo del login (`set_logged_in`, `lv_label_set_text`…) — **chiamate LVGL da
+un thread worker di tokio**: LVGL non è thread-safe, e solo il ramo con 200 aggiorna l'interfaccia. Spiegherebbe
+perché blocca solo il 200 e non il 403. È l'ipotesi più economica da verificare.
+
+**Opzioni, riviste**
+- **A. Riprodurre nel viewer vero** (SDL2 sotto Xvfb, clic sintetici, breadcrumb dopo l'`await`). Una sessione,
+  esito non garantito, ma è l'unico modo di *spiegare* il difetto.
+- **B. Rendere il difetto irrilevante per costruzione** — *nuova, non nel seme*: un **thread di rete dedicato**
+  (un solo `std::thread` con il suo runtime, comandi in ingresso e esiti in uscita su canali, il loop di rendering
+  li sonda a ogni frame). Le scritture non passano più da `spawn` sul runtime condiviso **e** non bloccano il
+  rendering. Non richiede di conoscere la causa; riusa il pattern `tag_rx`/`ack_rx` già presente.
+- **C. `block_on` anche per le scritture** (la 3 del seme): il render loop si ferma per la durata di ogni scrittura.
+- **D. Lasciare com'è**: sconsigliata, perché il caso non è più teorico (scritture autenticate dal 13-09).
+
 ---
 
 ## Dalla scheda Q55 — `reqwest` via `rt_handle.spawn()` si blocca per sempre nel viewer LVGL, solo per una POST che riceve 200
