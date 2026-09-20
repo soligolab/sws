@@ -1374,6 +1374,12 @@
     "backupRemoteSectionTitle": "BACKUP SUL DISPOSITIVO REMOTO CONNESSO"
   },
   "langtab": {
+    "migrate": "Migra i testi…",
+    "migrateHint": "Porta i testi scritti direttamente negli oggetti (progetti vecchi) nella tabella lingue",
+    "migrateNothing": "Non c'è niente da migrare: tutti i testi sono già nella tabella lingue.",
+    "migrateConfirm": "Migrazione dei testi alla tabella lingue:\n\n• {{campi}} campi riscritti come token\n• {{nuove}} voci nuove, {{riusi}} riusi di voci esistenti\n• {{pagine}} pagine, {{faceplate}} faceplate, {{allarmi}} messaggi d'allarme\n\nPrima viene creato un backup del progetto. Procedere?",
+    "migrateDone": "Migrazione completata: {{campi}} campi. Un backup del progetto precedente è in Backup.",
+    "migrateFailed": "Migrazione non riuscita: {{reason}}",
     "intro": "Traduci i messaggi che scrivi negli oggetti. Nei campi testo usa {{chiave}}; qui definisci le traduzioni per ogni lingua.",
     "defaultLang": "Lingua predefinita (sorgente)",
     "projectLang": "Lingua progetto",

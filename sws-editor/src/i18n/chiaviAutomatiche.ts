@@ -71,7 +71,7 @@ export function contaUsi(key: string, dove: string): number {
 }
 
 /** Il testo è qualcosa che ha senso tradurre? */
-function traducibile(testo: string): boolean {
+export function traducibile(testo: string): boolean {
   const t = testo.trim();
   if (!t) return false;
   // Già un riferimento alla tabella: rifarlo creerebbe `{{t0002}}` con dentro

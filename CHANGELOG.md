@@ -12,6 +12,11 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Added
+- **Migrazione dei testi dei progetti vecchi alla tabella lingue.** Config → Lingue → «Migra i testi…»: porta i testi
+  letterali di sinottici, pagine di boot, faceplate e messaggi d'allarme in `{{tNNNN}}` (stessi campi e stesse regole
+  della digitazione, testi uguali = stessa voce), con anteprima, conferma e backup prima di scrivere. Prima i progetti
+  nati prima del sistema di lingue restavano con la tabella vuota. `i18n/migraTesti.ts` + test.
+- **Lingua predefinita inglese** (senza scelta salvata) e messaggi «nessun progetto attivo» del server in inglese.
 - **T-72 F6 — documentazione e sonda.** `HOWTO.md` §17 «Impostare l'immagine di boot del pannello»; sezione
   «Immagini di boot» nel manuale 04; `BRAND_SWS.md` e il README di `boot-backgrounds` non dicono più che il
   meccanismo non esiste (lo splash OS-level resta aperto). La sonda del dispositivo riporta `run_media`,

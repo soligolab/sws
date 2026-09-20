@@ -87,6 +87,7 @@ import { CampoTestoTradotto } from "@/editor/CampoTestoTradotto";
 import i18n from "@/i18n";
 import { StatoBootImage } from "@/boot/StatoBootImage";
 import { contaAutomatiche, eAutomatica, marcaComeUmana } from "@/i18n/tabellaLingue";
+import { migraTestiProgetto } from "@/i18n/migraTesti";
 
 /** Avviso in linea quando il progetto cambia mentre stai modificando una
  *  sezione. Due pulsanti e nessun modale: un modale in mezzo al lavoro va
@@ -10647,6 +10648,60 @@ function LanguagesTab() {
     } finally { setSaving(false); }
   };
 
+
+  // ── Migrazione dei testi letterali (progetti nati prima delle lingue) ─────
+  const [migrando, setMigrando] = useState(false);
+  const migraTesti = async () => {
+    const st = useAppStore.getState();
+    const clean: LanguageTable = { ...table, entries: table.entries.filter((e) => e.key.trim() !== "") };
+    const esito = migraTestiProgetto({
+      pages: st.pages, faceplates: st.faceplates, alarms: st.project?.alarms ?? [], tabella: clean,
+    });
+    const r = esito.riepilogo;
+    if (r.campi === 0) { window.alert(t("langtab.migrateNothing")); return; }
+    if (!window.confirm(t("langtab.migrateConfirm", {
+      campi: r.campi, nuove: r.vociNuove, riusi: r.riusi,
+      pagine: r.pagineToccate.length, faceplate: r.faceplateToccati.length, allarmi: r.allarmi,
+    }))) return;
+    setMigrando(true);
+    try {
+      // Il backup viene prima di qualunque scrittura: se non si riesce a farlo
+      // non si migra, perché la migrazione riscrive molti file.
+      await api.createBackup();
+      // Le pagine in memoria vengono prima, poi ogni scrittura dichiara di essere
+      // nostra: senza `markSaveOk` il watcher del progetto vede cambiare
+      // `project.yaml`, mostra «cambiato sul runtime» e un «Ricarica» butta le
+      // pagine migrate ma non ancora salvate (successo il 20-09-2026: tabella
+      // piena, pagine rimaste letterali).
+      const mod = new Set(r.pagineToccate);
+      st.updatePagesProps(esito.pages.filter((p) => mod.has(p.id)).map((p) => ({ id: p.id, patch: { objects: p.objects } })));
+      st.setFaceplates(esito.faceplates);
+      await api.updateLanguages(esito.tabella);
+      updateLanguages(esito.tabella);
+      setTable(esito.tabella);
+      markSaveOk();
+      if (r.allarmi > 0) {
+        await api.updateAlarms(esito.alarms);
+        st.updateProjectAlarms(esito.alarms);
+        markSaveOk();
+      }
+      const modificati = new Set(r.faceplateToccati);
+      for (const f of esito.faceplates.filter((x) => modificati.has(x.id))) await api.saveFaceplate(f);
+      markSaveOk();
+      // `saveAll` esce in silenzio se un altro salvataggio è in corso: si aspetta.
+      for (let i = 0; i < 50 && useAppStore.getState().saveStatus === "saving"; i++) {
+        await new Promise((res) => setTimeout(res, 200));
+      }
+      await useAppStore.getState().saveAll();
+      const fine = useAppStore.getState();
+      if (fine.saveStatus === "error") throw new Error(fine.saveError ?? "save");
+      markSaveOk();
+      window.alert(t("langtab.migrateDone", { campi: r.campi }));
+    } catch (e) {
+      window.alert(t("langtab.migrateFailed", { reason: e instanceof Error ? e.message : String(e) }));
+    } finally { setMigrando(false); }
+  };
+
   // ── Traduzione automatica (Fase 4) ────────────────────────────────────────
   //
   // Il default è la modalità SEMPLICE: chi preme «traduci» deve ottenere una
@@ -10882,6 +10937,7 @@ function LanguagesTab() {
           </button>
         ))}
         <div style={{ flex: 1 }} />
+        <button onClick={migraTesti} style={S.btn("ghost")} disabled={migrando} title={t("langtab.migrateHint")}>{t("langtab.migrate")}</button>
         <button onClick={exportCsv} style={S.btn("ghost")} disabled={table.entries.length === 0}>{t("langtab.exportCsv")}</button>
         <button onClick={() => fileRef.current?.click()} style={S.btn("ghost")}>{t("langtab.importCsv")}</button>
         <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display: "none" }}

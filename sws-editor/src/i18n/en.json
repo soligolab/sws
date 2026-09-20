@@ -1374,6 +1374,12 @@
     "backupRemoteSectionTitle": "BACKUPS ON THE CONNECTED REMOTE DEVICE"
   },
   "langtab": {
+    "migrate": "Migrate texts…",
+    "migrateHint": "Move texts written directly into objects (old projects) into the language table",
+    "migrateNothing": "Nothing to migrate: all texts are already in the language table.",
+    "migrateConfirm": "Migrating texts to the language table:\n\n• {{campi}} fields rewritten as tokens\n• {{nuove}} new entries, {{riusi}} reuses of existing entries\n• {{pagine}} pages, {{faceplate}} faceplates, {{allarmi}} alarm messages\n\nA project backup is created first. Proceed?",
+    "migrateDone": "Migration complete: {{campi}} fields. A backup of the previous project is in Backups.",
+    "migrateFailed": "Migration failed: {{reason}}",
     "intro": "Translate the messages you write into objects. In text fields use {{key}}; here you define the translations for each language.",
     "defaultLang": "Default language (source)",
     "projectLang": "Project language",

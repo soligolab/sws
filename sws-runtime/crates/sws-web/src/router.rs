@@ -3265,8 +3265,8 @@ async fn update_project_tags(
 
 /// PUT /api/project/languages
 /// Body: the full `LanguageTable` (default lang, lang codes, entries). Persists
-/// it into project.yaml. Purely project data — no runtime state to reconcile
-/// (the viewer resolves `{{token}}` client-side). See T-40.
+/// it into project.yaml. The viewer resolves `{{token}}` client-side (T-40), but
+/// notifications resolve server-side from a snapshot: they are restarted here.
 async fn update_project_languages(
     State(s): State<AppState>,
     headers: axum::http::HeaderMap,
@@ -3276,13 +3276,19 @@ async fn update_project_languages(
         Ok(d) => d,
         Err(c) => return c.into_response(),
     };
-    patch_project_se(
+    let res = patch_project_se(
         &s.project_write_lock,
         &dir,
         versione_attesa(&headers),
         |p| p.languages = table,
     )
-    .await
+    .await;
+    if res.status() == StatusCode::NO_CONTENT {
+        // Le notifiche tengono una fotografia della tabella: va rifatta, o un
+        // messaggio d'allarme appena tokenizzato parte come `{{t0031}}`.
+        ricarica_lingue_notifiche(&s, &dir).await;
+    }
+    res
 }
 
 /// POST /api/project/tags/import-csv
@@ -6899,6 +6905,7 @@ async fn soft_reload_project(s: &AppState, dir: &std::path::Path) {
             funcs.insert(f.name.clone(), f.clone());
         }
     }
+    ricarica_lingue_notifiche(s, dir).await;
     info!(dir = %dir.display(), "git deploy: project soft-reloaded");
 }
 
@@ -6995,52 +7002,73 @@ async fn update_project_notifications(
     )
     .await;
     if res.status() == StatusCode::NO_CONTENT {
-        // Hot-swap the Telegram sender (config swap keeps the script `tx` alive)
-        // then restart the notification supervisor with the shared sink.
+        riavvia_notifiche(&s, config).await;
+    }
+    res
+}
+
+
+/// Rifà la fotografia della tabella lingue delle notifiche, **solo se stanno
+/// già girando**: a impianto disarmato dall'operatore (Q33) o con le notifiche
+/// spente non si avvia niente per un cambio di traduzioni.
+async fn ricarica_lingue_notifiche(s: &AppState, dir: &std::path::Path) {
+    if s.notification_supervisor.read().await.is_none() {
+        return;
+    }
+    let notifiche = Project::load(dir).ok().and_then(|p| p.notifications);
+    riavvia_notifiche(s, notifiche).await;
+}
+
+/// Riavvia il canale Telegram e il supervisore delle notifiche con la
+/// configurazione data e la tabella lingue **riletta dal progetto aperto**.
+/// Serve a chi cambia le notifiche e a chi cambia la tabella lingue: entrambi
+/// fotografano `LanguageTable` all'avvio, e senza un riavvio un token nuovo
+/// (`{{t0031}}`) arriva grezzo sul telefono di chi è di turno.
+async fn riavvia_notifiche(s: &AppState, config: Option<sws_core::NotificationConfig>) {
+    // Hot-swap the Telegram sender (config swap keeps the script `tx` alive)
+    // then restart the notification supervisor with the shared sink.
+    // La tabella lingue si rilegge dal progetto aperto: cambiare le
+    // notifiche non deve far ripartire il canale con una tabella vuota, che
+    // manderebbe token grezzi a chi è di turno.
+    let lingue_tg = crate::router::active_dir(s)
+        .await
+        .ok()
+        .and_then(|d| sws_core::Project::load(&d).ok())
+        .map(|p| p.languages)
+        .unwrap_or_default();
+    let codice_tg = config
+        .as_ref()
+        .map(|n| n.lingua_per(sws_core::CanaleNotifica::Telegram, &lingue_tg.default))
+        .unwrap_or_else(|| lingue_tg.default.clone());
+    let sinks = crate::telegram::restart_sender(
+        s,
+        config.as_ref().and_then(|n| n.telegram.clone()),
+        (lingue_tg, codice_tg),
+    )
+    .await;
+    // Aggiorna anche il sink delle funzioni (engine condiviso) senza reopen.
+    s.py.set_telegram_sink(sinks.as_ref().map(|k| k.text.clone()));
+    if let Some(old) = s.notification_supervisor.write().await.take() {
+        old.stop();
+    }
+    if let Some(cfg) = config {
         // La tabella lingue si rilegge dal progetto aperto: cambiare le
-        // notifiche non deve far ripartire il canale con una tabella vuota, che
-        // manderebbe token grezzi a chi è di turno.
-        let lingue_tg = crate::router::active_dir(&s)
+        // notifiche non deve far ripartire il supervisore con una tabella
+        // vuota, che manderebbe token grezzi.
+        let lingue = crate::router::active_dir(s)
             .await
             .ok()
             .and_then(|d| sws_core::Project::load(&d).ok())
             .map(|p| p.languages)
             .unwrap_or_default();
-        let codice_tg = config
-            .as_ref()
-            .map(|n| n.lingua_per(sws_core::CanaleNotifica::Telegram, &lingue_tg.default))
-            .unwrap_or_else(|| lingue_tg.default.clone());
-        let sinks = crate::telegram::restart_sender(
-            &s,
-            config.as_ref().and_then(|n| n.telegram.clone()),
-            (lingue_tg, codice_tg),
-        )
-        .await;
-        // Aggiorna anche il sink delle funzioni (engine condiviso) senza reopen.
-        s.py.set_telegram_sink(sinks.as_ref().map(|k| k.text.clone()));
-        if let Some(old) = s.notification_supervisor.write().await.take() {
-            old.stop();
-        }
-        if let Some(cfg) = config {
-            // La tabella lingue si rilegge dal progetto aperto: cambiare le
-            // notifiche non deve far ripartire il supervisore con una tabella
-            // vuota, che manderebbe token grezzi.
-            let lingue = crate::router::active_dir(&s)
-                .await
-                .ok()
-                .and_then(|d| sws_core::Project::load(&d).ok())
-                .map(|p| p.languages)
-                .unwrap_or_default();
-            let sup = crate::notifications::NotificationSupervisor::start(
-                s.alarms.clone(),
-                cfg,
-                sinks.map(|k| k.messages),
-                lingue,
-            );
-            *s.notification_supervisor.write().await = Some(sup);
-        }
+        let sup = crate::notifications::NotificationSupervisor::start(
+            s.alarms.clone(),
+            cfg,
+            sinks.map(|k| k.messages),
+            lingue,
+        );
+        *s.notification_supervisor.write().await = Some(sup);
     }
-    res
 }
 
 /// DTO API di `PageLayoutConfig` (Q9): stessa forma, ma con
