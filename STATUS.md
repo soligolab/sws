@@ -74,7 +74,17 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — F6 del multilingua fatta, dialoghi a zero (2026-09-19)
+## ▶ Riprendere da qui — release 2.10.0 (2026-09-20)
+
+**Versione 2.10.0**: bump nei quattro file e nei due lockfile, sezione `[2.10.0]` nel `CHANGELOG.md`, tag
+annotato. Il maintainer ricostruisce il container dopo il push.
+
+**Da guardare dopo la ricostruzione, sul PLC**: (1) l'emoji 🦟 su LVGL — se resta `[]`, controllare
+`/etc/sws/fonts/NotoEmoji-Regular.ttf` nel container e le righe `[font]` del log del viewer; (2) le notifiche
+Telegram con un allarme tokenizzato devono arrivare tradotte; (3) «Migra i testi…» su `CasaDomotica` (i progetti
+stanno ora in `~/sws_projects`; il registro `.run-editor/config/known_projects.json` è stato riallineato a mano).
+
+## Riprendere da qui (precedente) — F6 del multilingua fatta, dialoghi a zero (2026-09-19)
 
 Ripresa dopo un blackout: il lavoro di F6 era intero sull'albero, non committato. Verificato e chiuso.
 

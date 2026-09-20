@@ -11,11 +11,24 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.10.0] — 2026-09-20
+
+> **L'immagine di boot del pannello, e i progetti vecchi che entrano nel sistema di lingue.** T-72:
+> una pagina di boot disegnata nell'IDE arriva al launcher Pixsys del pannello (provata sul TC620).
+> Multilingua chiuso su tutta l'interfaccia (F6–F9), inglese come lingua predefinita, comando «Migra i
+> testi…» per i progetti nati prima della tabella lingue, e le notifiche Telegram/e-mail che non
+> mandano più `{{t0031}}` grezzo dopo un cambio di traduzioni. Q55: le scritture di rete del viewer
+> LVGL su un thread dedicato. Screenshot del manuale rifatti (il manuale intero è rimandato a progetto
+> stabilizzato). Lavoro delle sessioni dal 19 al 20 settembre.
+
 ### Added
 - **Migrazione dei testi dei progetti vecchi alla tabella lingue.** Config → Lingue → «Migra i testi…»: porta i testi
   letterali di sinottici, pagine di boot, faceplate e messaggi d'allarme in `{{tNNNN}}` (stessi campi e stesse regole
   della digitazione, testi uguali = stessa voce), con anteprima, conferma e backup prima di scrivere. Prima i progetti
   nati prima del sistema di lingue restavano con la tabella vuota. `i18n/migraTesti.ts` + test.
+- **Le notifiche rifanno la fotografia della tabella lingue** quando questa cambia (PUT languages) o il progetto
+  viene ricaricato da un deploy git — solo se già in marcia (Q33). Prima un messaggio d'allarme appena tokenizzato
+  partiva come `{{t0031}}`.
 - **Lingua predefinita inglese** (senza scelta salvata) e messaggi «nessun progetto attivo» del server in inglese.
 - **T-72 F6 — documentazione e sonda.** `HOWTO.md` §17 «Impostare l'immagine di boot del pannello»; sezione
   «Immagini di boot» nel manuale 04; `BRAND_SWS.md` e il README di `boot-backgrounds` non dicono più che il
