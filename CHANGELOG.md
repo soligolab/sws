@@ -11,6 +11,12 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.11.0] — 2026-09-21
+
+> **L'albero delle pagine e il navigatore di pagine.** Le pagine hanno una gerarchia e un ordine salvato, sempre visibili a sinistra; un oggetto
+> `page_navigator` mostra un bottone per pagina (web e LVGL) e permette menù a livelli. Con: il falso avviso «progetto cambiato» che faceva perdere
+> le pagine non salvate, chiuso alla radice; `homeassistant-pro` che usa albero e navigatore. Lavoro delle sessioni del 20 e 21 settembre.
+
 ### Added
 - **`homeassistant-pro` con albero e navigatore.** I sei `navbutton` scritti a mano su ognuna delle sei pagine (36 oggetti) sono un solo
   `page_navigator` per pagina (`nav_source: all`, etichette con icona come prima, pagina corrente evidenziata da `nav_active_fill`), e il progetto ha

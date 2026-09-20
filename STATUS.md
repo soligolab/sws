@@ -74,14 +74,13 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — 21-09-2026
+## ▶ Riprendere da qui — release 2.11.0 (21-09-2026)
 
-**Su `main` (non ancora pushato, dopo la release 2.10.1)**: fix del falso avviso «progetto cambiato» (`request()` rifissa la baseline del sorvegliante,
+**Versione 2.11.0** (bump nei quattro file e nei due lockfile, tag annotato). Dentro: fix del falso avviso «progetto cambiato» (`request()` rifissa la baseline del sorvegliante,
 «Ricarica» chiede se ci sono pagine non salvate), **albero delle pagine** (`page_layout.page_tree`, sempre visibile in alto nel pannello sinistro) e
 **navigatore di pagine** (`page_navigator`, web + LVGL, `GET /api/pages/nav`). Piano e scarti: `docs/plans/2026-09-20-albero-pagine-navigatore.md`.
 
-**Aperto**: il ramo `feat/template-albero-navigatore` (i sei navbutton di `homeassistant-pro` diventano un navigatore + albero) aspetta il collaudo del
-maintainer prima dello squash merge. Nessuna release nuova ancora: servirà una 2.11.0 (albero + navigatore sono funzioni nuove) e un container ricostruito.
+**Template**: `homeassistant-pro` usa albero e navigatore (mergiato). Il container 2.11.0 lo ricostruisce e pubblica chi ha lanciato la release.
 
 **Da collaudare sul TC620 col container nuovo**: sorgente «host» (temp ~60 °C, seriale dopo aver rilanciato `install-container.sh` per il mount del
 device-tree), emoji via `@font-face`, navigatore LVGL sul pannello vero, notifiche Telegram con allarme tokenizzato.
