@@ -74,7 +74,23 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — release 2.10.1 (2026-09-20)
+## ▶ Riprendere da qui — 21-09-2026
+
+**Su `main` (non ancora pushato, dopo la release 2.10.1)**: fix del falso avviso «progetto cambiato» (`request()` rifissa la baseline del sorvegliante,
+«Ricarica» chiede se ci sono pagine non salvate), **albero delle pagine** (`page_layout.page_tree`, sempre visibile in alto nel pannello sinistro) e
+**navigatore di pagine** (`page_navigator`, web + LVGL, `GET /api/pages/nav`). Piano e scarti: `docs/plans/2026-09-20-albero-pagine-navigatore.md`.
+
+**Aperto**: il ramo `feat/template-albero-navigatore` (i sei navbutton di `homeassistant-pro` diventano un navigatore + albero) aspetta il collaudo del
+maintainer prima dello squash merge. Nessuna release nuova ancora: servirà una 2.11.0 (albero + navigatore sono funzioni nuove) e un container ricostruito.
+
+**Da collaudare sul TC620 col container nuovo**: sorgente «host» (temp ~60 °C, seriale dopo aver rilanciato `install-container.sh` per il mount del
+device-tree), emoji via `@font-face`, navigatore LVGL sul pannello vero, notifiche Telegram con allarme tokenizzato.
+
+**Semi ancora aperti** (vedi `docs/plans/README.md`): preset Pixsys, ripristino di fabbrica dell'immagine di boot, widget congelati, splash OS,
+revisione traduzioni EN, screenshot/manuale (rimandato), Q16 decoder raster, identità-utenti, workspace, ROS2, MCP. Idee dette a voce e non fatte: voci
+indentate nel navigatore verticale, menù contestuale/mappa grafica dell'albero, «Migra i testi» sulle etichette degli override.
+
+## Riprendere da qui (precedente) — release 2.10.1 (2026-09-20)
 
 **Versione 2.10.1**, tag annotato. Dentro: sorgente «host» (risorse di sistema come tag, con seriale/modello dal
 device-tree), font emoji servito dal runtime (il Chromium del pannello Pixsys non ne ha), correzioni di «Migra i testi».

@@ -110,7 +110,7 @@ R2_DEBITO = {
 R3_PAGINE_MAX, R3_OGGETTI_MAX = 3, 60
 R3_DEBITO = {
     # nome: (pagine, oggetti nella pagina più piena, perché)
-    "homeassistant-pro":  (6, 112, "vetrina del «cosa si può fare», non punto di partenza — "
+    "homeassistant-pro":  (6, 107, "vetrina del «cosa si può fare», non punto di partenza — "
                                    "la parola «pro» nel nome è l'avviso (decisione del maintainer, 17-09-2026)"),
     "demo-items-lvgl":    (4, 0,   "inventario: 4 pagine per coprire 35 tipi di widget; nessuna pagina supera il tetto di oggetti"),
     "demo-items-web":     (4, 0,   "inventario: 4 pagine per coprire 35 tipi di widget; nessuna pagina supera il tetto di oggetti"),

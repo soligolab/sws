@@ -12,6 +12,10 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Added
+- **`homeassistant-pro` con albero e navigatore.** I sei `navbutton` scritti a mano su ognuna delle sei pagine (36 oggetti) sono un solo
+  `page_navigator` per pagina (`nav_source: all`, etichette con icona come prima, pagina corrente evidenziata da `nav_active_fill`), e il progetto ha
+  un `page_tree` (Panoramica con le quattro sezioni sotto, Sicurezza a parte): aggiungere una pagina non richiede più di rieditare le altre.
+  Debito R3 del template sceso da 112 a 107 oggetti.
 - **Il navigatore di pagine (`page_navigator`).** Un bottone per pagina, **generato dall'albero delle pagine**: aggiungere una pagina non obbliga
   più a rieditare le altre. Orizzontale o verticale, bottoni che si dividono lo spazio (o misura fissa con allineamento), pagina corrente evidenziata,
   nome e ordine dalle pagine con **eccezioni per pagina dentro l'oggetto** (etichetta anche `{{token}}`, posizione, nascondi: una pagina esclusa da un

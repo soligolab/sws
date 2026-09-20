@@ -1736,3 +1736,13 @@ languages:
 page_layout:
   size_mode: fixed
   home_page_id: pro_p1   # Panoramica
+  # L'albero delle pagine: Panoramica con le sue quattro sezioni sotto, e Sicurezza a parte. Il navigatore
+  # di ogni pagina (`page_navigator`, `nav_source: all`) le mostra in questo ordine.
+  page_tree:
+    - id: pro_p1
+      children:
+        - id: pro_p2
+        - id: pro_p3
+        - id: pro_p4
+        - id: pro_p5
+    - id: pro_p6
