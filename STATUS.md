@@ -96,9 +96,9 @@ AlarmHistory, DataTable, XyPlotCanvas, PythonEditor, PageTabs, BarraAvviso, symb
 Non ancora pushato: F4, F5 e F6 su `main`, serve un «fai il push» esplicito; e va tolto
 `origin/fix/lingue-marchio-auto`.
 
-## ▶ Riprendere da qui — Q55: thread di rete per le scritture, sul ramo (2026-09-20)
+## ▶ Riprendere da qui — Q55: thread di rete per le scritture, su main (2026-09-20)
 
-Seme `docs/plans/2026-09-18-post-bloccata-viewer-lvgl.md`. **Sul ramo `fix/Q55-thread-di-rete`, non mergiato.**
+Seme `docs/plans/2026-09-18-post-bloccata-viewer-lvgl.md`. **Su `main` e pushato (`ced35dc9`).**
 Sessione di plan: il difetto **non si riproduce** fuori dal viewer (nove combinazioni + un login vero in HTTP e
 HTTPS, con `lvgl-sys` linkato: tutte completano). Scelta: opzione **B** — `net_worker.rs`, un thread di rete
 dedicato per `put_tag`/`ack_alarm`/`apply_recipe`, in ordine, con tetto di 15 s. Gate verde: `cargo check/clippy/
