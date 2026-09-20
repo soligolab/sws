@@ -20,8 +20,7 @@ function initialLang(): string {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored && UI_LANGS.some((l) => l.code === stored)) return stored;
   } catch { /* ignore */ }
-  const nav = typeof navigator !== "undefined" ? navigator.language.slice(0, 2) : "it";
-  return UI_LANGS.some((l) => l.code === nav) ? nav : "it";
+  return "en";
 }
 
 i18n.use(initReactI18next).init({

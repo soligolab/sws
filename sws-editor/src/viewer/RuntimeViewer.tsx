@@ -31,7 +31,7 @@ function RuntimeIdleScreen() {
       <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>{t("viewerMsg.noActiveProject")}</h2>
       <p style={{ margin: 0, color: "var(--brand-text-muted, #94a3b8)", textAlign: "center", maxWidth: 320 }}>
         {t("viewerMsg.noProjectHasBeenLoaded")}<br/>
-        Contattare l'amministratore.
+        {t("viewerMsg.contactAdmin")}
       </p>
       <button
         onClick={() => window.location.reload()}

@@ -1697,7 +1697,8 @@
   },
   "viewerMsg": {
     "noActiveProject": "No active project",
-    "noProjectHasBeenLoaded": "No project has been loaded on this runtime."
+    "noProjectHasBeenLoaded": "No project has been loaded on this runtime.",
+    "contactAdmin": "Contact the administrator."
   },
   "login": {
     "backToTheProjectList": "← Back to the project list",

@@ -1697,7 +1697,8 @@
   },
   "viewerMsg": {
     "noActiveProject": "Nessun progetto attivo",
-    "noProjectHasBeenLoaded": "Nessun progetto è stato caricato su questo runtime."
+    "noProjectHasBeenLoaded": "Nessun progetto è stato caricato su questo runtime.",
+    "contactAdmin": "Contattare l'amministratore."
   },
   "login": {
     "backToTheProjectList": "← Torna all'elenco progetti",

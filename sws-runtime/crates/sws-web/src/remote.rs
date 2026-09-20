@@ -531,11 +531,11 @@ pub async fn remote_push_users(
 ) -> Response {
     let target = match s.remote_target.read().await.clone() {
         Some(t) => t,
-        None => return (StatusCode::BAD_REQUEST, "Nessun runtime remoto connesso").into_response(),
+        None => return (StatusCode::BAD_REQUEST, "No remote runtime connected").into_response(),
     };
     let proj_dir = match s.project_dir.read().await.clone() {
         Some(d) => d,
-        None => return (StatusCode::BAD_REQUEST, "Nessun progetto attivo").into_response(),
+        None => return (StatusCode::BAD_REQUEST, "No active project").into_response(),
     };
     let users_path = proj_dir.join("users.yaml");
     let yaml = match tokio::fs::read_to_string(&users_path).await {
@@ -621,7 +621,7 @@ pub async fn remote_push_mqtt_client_id(
 ) -> Response {
     let target = match s.remote_target.read().await.clone() {
         Some(t) => t,
-        None => return (StatusCode::BAD_REQUEST, "Nessun runtime remoto connesso").into_response(),
+        None => return (StatusCode::BAD_REQUEST, "No remote runtime connected").into_response(),
     };
 
     s.audit.log(
@@ -683,7 +683,7 @@ pub async fn remote_download_database(
 ) -> Response {
     let target = match s.remote_target.read().await.clone() {
         Some(t) => t,
-        None => return (StatusCode::BAD_REQUEST, "Nessun runtime remoto connesso").into_response(),
+        None => return (StatusCode::BAD_REQUEST, "No remote runtime connected").into_response(),
     };
     s.audit.log(
         "remote.database_download",
@@ -755,7 +755,7 @@ pub async fn remote_upload_database(
 ) -> Response {
     let target = match s.remote_target.read().await.clone() {
         Some(t) => t,
-        None => return (StatusCode::BAD_REQUEST, "Nessun runtime remoto connesso").into_response(),
+        None => return (StatusCode::BAD_REQUEST, "No remote runtime connected").into_response(),
     };
     s.audit.log(
         "remote.database_upload",
@@ -810,7 +810,7 @@ pub async fn remote_upload_database(
 pub async fn remote_list_backups(State(s): State<AppState>) -> Response {
     let target = match s.remote_target.read().await.clone() {
         Some(t) => t,
-        None => return (StatusCode::BAD_REQUEST, "Nessun runtime remoto connesso").into_response(),
+        None => return (StatusCode::BAD_REQUEST, "No remote runtime connected").into_response(),
     };
     let client = make_remote_client(&s, &target.url);
     let base = target.url.trim_end_matches('/');
@@ -849,7 +849,7 @@ pub async fn remote_download_backup(
 ) -> Response {
     let target = match s.remote_target.read().await.clone() {
         Some(t) => t,
-        None => return (StatusCode::BAD_REQUEST, "Nessun runtime remoto connesso").into_response(),
+        None => return (StatusCode::BAD_REQUEST, "No remote runtime connected").into_response(),
     };
     s.audit.log(
         "remote.backup_download",
@@ -932,7 +932,7 @@ pub async fn remote_export_project(
 ) -> Response {
     let target = match s.remote_target.read().await.clone() {
         Some(t) => t,
-        None => return (StatusCode::BAD_REQUEST, "Nessun runtime remoto connesso").into_response(),
+        None => return (StatusCode::BAD_REQUEST, "No remote runtime connected").into_response(),
     };
     s.audit.log(
         "remote.project_pull",
@@ -1015,7 +1015,7 @@ pub async fn remote_export_project(
 pub async fn remote_system_status(State(s): State<AppState>) -> Response {
     let target = match s.remote_target.read().await.clone() {
         Some(t) => t,
-        None => return (StatusCode::BAD_REQUEST, "Nessun runtime remoto connesso").into_response(),
+        None => return (StatusCode::BAD_REQUEST, "No remote runtime connected").into_response(),
     };
     let client = make_remote_client(&s, &target.url);
     let base = target.url.trim_end_matches('/');
@@ -1054,7 +1054,7 @@ pub async fn remote_create_backup(
 ) -> Response {
     let target = match s.remote_target.read().await.clone() {
         Some(t) => t,
-        None => return (StatusCode::BAD_REQUEST, "Nessun runtime remoto connesso").into_response(),
+        None => return (StatusCode::BAD_REQUEST, "No remote runtime connected").into_response(),
     };
     let client = make_remote_client(&s, &target.url);
     let base = target.url.trim_end_matches('/');
@@ -1103,7 +1103,7 @@ pub async fn remote_restore_backup(
 ) -> Response {
     let target = match s.remote_target.read().await.clone() {
         Some(t) => t,
-        None => return (StatusCode::BAD_REQUEST, "Nessun runtime remoto connesso").into_response(),
+        None => return (StatusCode::BAD_REQUEST, "No remote runtime connected").into_response(),
     };
     s.audit.log(
         "remote.backup_restore",
@@ -1147,7 +1147,7 @@ pub async fn remote_delete_backup(
 ) -> Response {
     let target = match s.remote_target.read().await.clone() {
         Some(t) => t,
-        None => return (StatusCode::BAD_REQUEST, "Nessun runtime remoto connesso").into_response(),
+        None => return (StatusCode::BAD_REQUEST, "No remote runtime connected").into_response(),
     };
     s.audit.log(
         "remote.backup_delete",
@@ -1356,11 +1356,11 @@ pub async fn remote_deploy(
     let opz = corpo.map(|Json(b)| b).unwrap_or_default();
     let target = match s.remote_target.read().await.clone() {
         Some(t) => t,
-        None => return (StatusCode::BAD_REQUEST, "Nessun runtime remoto connesso").into_response(),
+        None => return (StatusCode::BAD_REQUEST, "No remote runtime connected").into_response(),
     };
     let proj_dir = match s.project_dir.read().await.clone() {
         Some(d) => d,
-        None => return (StatusCode::BAD_REQUEST, "Nessun progetto attivo").into_response(),
+        None => return (StatusCode::BAD_REQUEST, "No active project").into_response(),
     };
 
     // Un deploy alla volta: la guardia viaggia nel task e si rilascia da sola
@@ -1657,7 +1657,7 @@ pub async fn delete_remote_project(
 ) -> Response {
     let target = match s.remote_target.read().await.clone() {
         Some(t) => t,
-        None => return (StatusCode::BAD_REQUEST, "Nessun runtime remoto connesso").into_response(),
+        None => return (StatusCode::BAD_REQUEST, "No remote runtime connected").into_response(),
     };
     let client = make_remote_client(&s, &target.url);
     let base = target.url.trim_end_matches('/').to_string();
@@ -1689,7 +1689,7 @@ pub async fn delete_remote_project(
     let name = match active {
         Some(n) => n,
         None => {
-            return (StatusCode::CONFLICT, "Nessun progetto attivo sul runtime").into_response()
+            return (StatusCode::CONFLICT, "No active project on the runtime").into_response()
         }
     };
 
