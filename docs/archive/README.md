@@ -74,3 +74,4 @@ venga riletto come vero.
 **Non è `docs/history/`**: lì stanno i *pezzi* asportati dai documenti canonici vivi
 (`OPEN_QUESTIONS`, `STATUS`), che `check_documenti.sh` verifica scheda per scheda. Qui stanno
 documenti interi che hanno finito il loro lavoro.
+| [2026-09-20-sorgente-host.md](2026-09-20-sorgente-host.md) | **FATTO** | Sorgente «host»: le risorse di sistema (CPU, RAM, temperature, disco, rete, uptime, hostname, seriale, modello) come tag, in sola lettura. Misurato che il container vede già `/proc` e `/sys/class/thermal` dell'host: nessun canale verso l'host, tranne il mount del device-tree per seriale e modello. Da collaudare sul TC620 col container 2.10.1. |

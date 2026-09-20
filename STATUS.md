@@ -74,7 +74,17 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — release 2.10.0 (2026-09-20)
+## ▶ Riprendere da qui — release 2.10.1 (2026-09-20)
+
+**Versione 2.10.1**, tag annotato. Dentro: sorgente «host» (risorse di sistema come tag, con seriale/modello dal
+device-tree), font emoji servito dal runtime (il Chromium del pannello Pixsys non ne ha), correzioni di «Migra i testi».
+
+**Da collaudare sul TC620 col container 2.10.1**: (1) aggiungere la sorgente Host da Configurazione → Sorgenti e verificare
+`temp` (~60 °C) e CPU; (2) rilanciare `install-container.sh` sul dispositivo già installato, altrimenti il mount del
+device-tree non c'è e seriale/modello restano Bad; (3) le emoji nella pagina web senza font nell'host; (4) notifiche
+Telegram con un allarme tokenizzato.
+
+## Riprendere da qui (precedente) — release 2.10.0 (2026-09-20)
 
 **Versione 2.10.0**: bump nei quattro file e nei due lockfile, sezione `[2.10.0]` nel `CHANGELOG.md`, tag
 annotato. Il maintainer ricostruisce il container dopo il push.

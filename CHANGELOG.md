@@ -11,6 +11,13 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.10.1] — 2026-09-20
+
+> **Le risorse dell'host diventano tag, e le emoji si vedono sul pannello.** Sorgente «host» (CPU, RAM, temperature,
+> disco, rete, uptime, nome, numero di serie e modello della scheda) con scheda nell'IDE e template `host-monitor`;
+> font emoji servito dal runtime al Chromium del pannello; comando «Migra i testi…» e notifiche con la tabella lingue
+> aggiornata (già in 2.10.0, qui la correzione del salvataggio delle pagine migrate).
+
 ### Added
 - **Sorgente «host»: le risorse di sistema come tag.** Nuovo tipo di sorgente (`kind: host`, crate `sws-plugin-host`,
   sola lettura): CPU (totale/per core), load, RAM e swap, temperature (thermal zone e hwmon), disco per mount, rete
