@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { api } from "@/api/client";
+import { api, AuthError, PasswordChangeRequiredError } from "@/api/client";
 
 /**
  * Sorveglia il progetto attivo sul runtime e segnala quando cambia.
@@ -52,7 +52,19 @@ export function useProjectWatcher(
       let fp: string | null;
       try {
         fp = (await api.getProjectFingerprint()).sha256 ?? null;
-      } catch {
+      } catch (e) {
+        // Non autenticati (login da fare, o password da cambiare): **non è un
+        // fatto sul progetto**, è che non si può ancora guardarlo. Se la baseline
+        // diventasse `null` qui, il primo tick dopo il login vedrebbe comparire
+        // un'impronta e la scambierebbe per un deploy esterno — l'avviso «il
+        // progetto sul runtime è cambiato» compariva dopo **ogni** accesso a un
+        // runtime con utenti (visto nelle schermate del manuale, 20-09-2026). Si
+        // rimette la baseline a «da fissare»: il primo tick autenticato la fissa
+        // in silenzio.
+        if (e instanceof AuthError || e instanceof PasswordChangeRequiredError) {
+          lastFp.current = undefined;
+          return;
+        }
         // Nessun progetto attivo (503), runtime in riavvio o rete giù: si
         // normalizza a null, così anche "progetto chiuso" è un cambio.
         fp = null;

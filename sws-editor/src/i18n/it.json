@@ -2018,7 +2018,10 @@
     "regenerate": "Rigenera PNG",
     "regenerateHint": "Rifà il PNG dal disegno di adesso e lo carica sul progetto (la pagina deve essere già salvata).",
     "generating": "Genero…",
-    "download": "Scarica PNG"
+    "download": "Scarica PNG",
+    "warnForeignObject": "{{n}} oggetto/i non statico/i non disegnabile/i nel PNG (HTML dentro l'SVG) sono stati tolti.",
+    "warnExternalImage": "{{n}} immagine/i con indirizzo esterno non incorporabile/i sono state tolte dal PNG.",
+    "pngWithWarnings": "PNG aggiornato, ma: {{msg}}"
   },
   "bootStatus": {
     "title": "Immagine di boot",

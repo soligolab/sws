@@ -20,7 +20,7 @@ vi.mock("@/api/client", () => ({
 
 // Il canvas vero non gira in jsdom: qui si prova cosa fa lo store col PNG, non come lo si disegna.
 vi.mock("@/boot/rasterizza", () => ({
-  rasterizzaPagina: vi.fn(async () => new Blob([new Uint8Array(1024)], { type: "image/png" })),
+  rasterizzaPagina: vi.fn(async () => ({ png: new Blob([new Uint8Array(1024)], { type: "image/png" }), avvisi: [] as string[] })),
   MAX_PNG_BYTES: 5 * 1024 * 1024,
 }));
 
@@ -174,7 +174,7 @@ describe("salvare", () => {
 
   it("un PNG oltre il tetto non si carica", async () => {
     reset([sin("a", "Home"), boot("b", "Splash")], "a");
-    vi.mocked(rasterizzaPagina).mockResolvedValueOnce(new Blob([new Uint8Array(5 * 1024 * 1024 + 1)]));
+    vi.mocked(rasterizzaPagina).mockResolvedValueOnce({ png: new Blob([new Uint8Array(5 * 1024 * 1024 + 1)]), avvisi: [] });
     await stato().saveAll();
     expect(api.putBootPng).not.toHaveBeenCalled();
     expect(stato().bootPng.b.ok).toBe(false);

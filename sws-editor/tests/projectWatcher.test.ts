@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { useProjectWatcher } from "../src/ws/projectWatcher";
-import { api } from "../src/api/client";
+import { api, AuthError, PasswordChangeRequiredError } from "../src/api/client";
 
 // Il sorvegliante del progetto, e il falso allarme che rendeva rumoroso l'IDE.
 //
@@ -100,5 +100,40 @@ describe("sorvegliante del progetto", () => {
     const rimuovi = vi.spyOn(window, "removeEventListener");
     unmount();
     expect(rimuovi).toHaveBeenCalledWith("sws:project-switched", expect.any(Function));
+  });
+
+  // Il falso allarme dopo il login (visto il 20-09-2026 nelle schermate del manuale).
+  it("NON avvisa quando l'impronta compare perché ci si è appena autenticati", async () => {
+    const spia = vi.spyOn(api, "getProjectFingerprint").mockRejectedValue(new AuthError());
+    const avvisato = vi.fn();
+    renderHook(() => useProjectWatcher(avvisato, 3_000));
+    await tick(0);
+    await tick(3_000);
+    // Login fatto: da qui l'impronta esiste.
+    spia.mockResolvedValue({ sha256: "primo", computed_at_ms: 0 } as never);
+    await tick(3_000);
+    expect(avvisato).not.toHaveBeenCalled();
+  });
+
+  it("stesso se la password è ancora da cambiare", async () => {
+    const spia = vi.spyOn(api, "getProjectFingerprint").mockRejectedValue(new PasswordChangeRequiredError());
+    const avvisato = vi.fn();
+    renderHook(() => useProjectWatcher(avvisato, 3_000));
+    await tick(0);
+    spia.mockResolvedValue({ sha256: "primo", computed_at_ms: 0 } as never);
+    await tick(3_000);
+    expect(avvisato).not.toHaveBeenCalled();
+  });
+
+  it("dopo l'accesso, un cambio esterno avvisa ancora", async () => {
+    const spia = vi.spyOn(api, "getProjectFingerprint").mockRejectedValue(new AuthError());
+    const avvisato = vi.fn();
+    renderHook(() => useProjectWatcher(avvisato, 3_000));
+    await tick(0);
+    spia.mockResolvedValue({ sha256: "primo", computed_at_ms: 0 } as never);
+    await tick(3_000);
+    spia.mockResolvedValue({ sha256: "secondo", computed_at_ms: 0 } as never);
+    await tick(3_000);
+    expect(avvisato).toHaveBeenCalledWith("secondo");
   });
 });

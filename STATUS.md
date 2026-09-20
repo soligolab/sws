@@ -96,6 +96,27 @@ AlarmHistory, DataTable, XyPlotCanvas, PythonEditor, PageTabs, BarraAvviso, symb
 Non ancora pushato: F4, F5 e F6 su `main`, serve un «fai il push» esplicito; e va tolto
 `origin/fix/lingue-marchio-auto`.
 
+## ▶ Riprendere da qui — screenshot del manuale rigenerati (tampone), manuale rimandato (2026-09-20)
+
+Primo dei tre semi «pronti» chiesti dal maintainer (gli altri due: indagine sulla causa di Q55, decoder raster
+Q16). **Sul ramo `docs/screenshot-manuale`, non mergiato.** Gli screenshot di `docs/manual/screenshots/` sono
+**rigenerati come tampone** con `./scripts/check_e2e.sh --screenshots` (il generatore c'era già; era rotto: passava l'opzione anche a
+Playwright), più uno nuovo, `11_immagine_di_boot.png`, citato nel manuale 04. Tolto `scripts/capture_screenshots.ts`
+(obsoleto, puntava a :5173).
+
+**Il manuale intero — testo e schermate — è rimandato a progetto stabilizzato** (decisione del maintainer): il seme
+resta in `docs/plans/2026-09-19-screenshot-del-manuale.md`, riscritto.
+
+**Aggiunta il 20-09, dalla prova del maintainer sull'immagine di boot**: un testo a capo dava «Tainted canvases may
+not be exported» (`<foreignObject>` macchia il canvas). Riprodotto in Chromium con il codice vecchio e corretto:
+`rasterizza.ts` ora spezza i testi a capo in un `text` per riga (su una copia della pagina) e toglie con avviso ciò
+che macchierebbe comunque il canvas. Provato in browser: il PNG con testo a capo, centrato, è giusto.
+
+**Trovato guardando le schermate**: tutte mostravano «il progetto sul runtime è cambiato». Era un difetto vero — il
+sorvegliante del progetto scambiava il «non autenticato» per «nessun progetto», e dopo il login vedeva un'impronta
+comparire. Corretto (`projectWatcher.ts`, tre test), e stessa cura per «Rigenera PNG». Gate verde: `pnpm
+test` 607, `check_static.sh` 22/22.
+
 ## ▶ Riprendere da qui — Q55: thread di rete per le scritture, su main (2026-09-20)
 
 Seme `docs/plans/2026-09-18-post-bloccata-viewer-lvgl.md`. **Su `main` e pushato (`ced35dc9`).**

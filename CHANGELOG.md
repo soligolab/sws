@@ -68,6 +68,10 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   vive in un file a sé con permessi ristretti. F5 del piano multilingua.
 
 ### Changed
+- **Screenshot del manuale rigenerati, come tampone** (11, l'undicesima nuova: l'immagine di boot):
+  `check_e2e.sh --screenshots` contro un runtime di scarto con il template `demo-items-web`. Il manuale — testo e
+  schermate — resta da rifare per intero a progetto stabilizzato (seme in `docs/plans/`). Tolto `scripts/capture_screenshots.ts`, un
+  duplicato obsoleto che puntava a un dev server Vite su :5173 che non esiste più.
 - **F7-F9 del multilingua: l'interfaccia dell'IDE è tutta nel catalogo.** Lo store registra
   **chiavi**, non frasi (`history.*` per le etichette di undo, `storeErr.*` per gli errori e gli
   esiti delle proposte dell'assistente): le traduce chi le mostra, quindi un cambio lingua
@@ -88,6 +92,22 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   del file e finire in un `IndexError`.
 
 ### Fixed
+- **Immagine di boot: «Tainted canvases may not be exported» con un testo a capo.** Un testo con `text_wrap` il
+  canvas lo disegna in un `<foreignObject>` (HTML dentro l'SVG), e un `<foreignObject>` macchia il canvas da cui si
+  ricava il PNG: `toBlob` rifiutava, e il PNG non veniva aggiornato. Ora il rasterizzatore manda a capo il testo
+  da sé — con lo stesso metro del browser, rispettando larghezza, allineamenti, interlinea e sfondo — e lo
+  disegna come un `text` per riga, su una **copia** della pagina (quella salvata non cambia). Come rete di
+  sicurezza, ciò che comunque macchierebbe il canvas (un `<foreignObject>` residuo, un'immagine con indirizzo
+  esterno) si toglie e si **dice** — «PNG aggiornato, ma: …» — invece di un errore che non spiega niente. La lingua
+  dei contenuti nel PNG è quella predefinita del progetto, non quella di chi preme «Salva».
+- **L'avviso «il progetto sul runtime è cambiato» compariva dopo ogni accesso a un runtime con utenti**, e dopo
+  «Rigenera PNG» di un'immagine di boot. Il sorvegliante del progetto, prima dell'accesso, prendeva l'errore
+  «non autenticato» per «nessun progetto» e fissava la baseline a vuoto; al primo tick dopo il login vedeva
+  comparire un'impronta e la scambiava per un deploy esterno. Ora un errore di autenticazione non fissa niente, e
+  «Rigenera PNG» ridà la baseline come le altre modifiche nostre fuori da «Salva». Scoperto guardando le
+  schermate del manuale, che lo mostravano tutte.
+- `scripts/check_e2e.sh --screenshots` non funzionava: passava `--screenshots` anche a Playwright, che rispondeva
+  «unknown option».
 - **Q55 — le scritture di rete del viewer LVGL non passano più dal runtime tokio condiviso.** Il 13-09 una POST
   che riceveva 200, via `rt_handle.spawn`, non era tornata mai dentro `sws-lvgl-viewer`; la causa non si è mai
   spiegata né riprodotta fuori dal viewer, e `put_tag`, `ack_alarm` e `apply_recipe` giravano ancora così. Ora

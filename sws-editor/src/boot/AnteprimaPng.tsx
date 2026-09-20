@@ -38,10 +38,14 @@ export function AnteprimaPng({ pageId }: { pageId: string }) {
     setOccupato(true);
     try {
       const { rasterizzaPagina, MAX_PNG_BYTES } = await import("@/boot/rasterizza");
-      const png = await rasterizzaPagina(page, useAppStore.getState().customSymbols ?? []);
+      const { png, avvisi } = await rasterizzaPagina(page, useAppStore.getState().customSymbols ?? []);
       if (png.size > MAX_PNG_BYTES) throw new Error(t("boot.pngTooLarge", { kb: Math.round(png.size / 1024) }));
       await api.putBootPng(page.name, png);
-      setBootPng(page.id, { ok: true, byte: png.size }, JSON.stringify(page));
+      setBootPng(page.id, { ok: true, byte: png.size, messaggio: avvisi.join(" ") || undefined }, JSON.stringify(page));
+      // Il PNG entra nell'impronta del progetto, e questo non passa da «Salva»: senza
+      // l'evento il sorvegliante lo leggerebbe come un deploy esterno («il progetto
+      // sul runtime è cambiato») — visto nelle schermate del manuale, 20-09-2026.
+      try { window.dispatchEvent(new CustomEvent("sws:project-switched")); } catch { /* test */ }
     } catch (e) {
       setBootPng(page.id, { ok: false, messaggio: e instanceof Error ? e.message : String(e) });
     } finally {
@@ -73,6 +77,11 @@ export function AnteprimaPng({ pageId }: { pageId: string }) {
       {byte !== null && (
         <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)" }}>
           {page.width}×{page.height} · {Math.max(1, Math.round(byte / 1024))} KB
+        </div>
+      )}
+      {esito?.ok && esito.messaggio && (
+        <div style={{ fontSize: 11, color: "var(--brand-warning, #f59e0b)", background: "#451a0322", border: "1px solid #92400e", borderRadius: 4, padding: "4px 8px" }}>
+          {t("boot.pngWithWarnings", { msg: esito.messaggio })}
         </div>
       )}
       {esito && !esito.ok && (

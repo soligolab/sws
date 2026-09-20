@@ -284,6 +284,8 @@ Un'**immagine di boot** è ciò che un pannello Pixsys mostra mentre parte. Nell
 - **Sul pannello.** L'immagine compare al **prossimo avvio**. Lo stato si legge in Configurazione → Runtime,
   riga «Immagine di boot». Vedi `HOWTO.md` §17.
 
+![Immagine di boot: sezione nell'elenco pagine, canvas e anteprima del PNG](screenshots/11_immagine_di_boot.png)
+
 ## Salvataggio e versioning
 
 ### Salva manuale

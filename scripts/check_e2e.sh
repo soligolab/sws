@@ -36,7 +36,9 @@ WORK="${TMPDIR:-/tmp}/sws-e2e.$$"
 VPORT="${VPORT:-8663}"
 APORT="${APORT:-8664}"
 PROJECT="chromium"
-[ "${1:-}" = "--screenshots" ] && PROJECT="screenshots"
+# `--screenshots` è per questo script: se restasse in "$@" lo riceverebbe anche Playwright,
+# che risponde «unknown option» (rotto così finché nessuno l'ha lanciato).
+if [ "${1:-}" = "--screenshots" ]; then PROJECT="screenshots"; shift; fi
 
 [ -x "$BIN" ] || { echo "manca $BIN — esegui: cargo build -p sws-runtime" >&2; exit 1; }
 [ -f "$DIST/index-admin.html" ] || { echo "manca $DIST — esegui: pnpm --dir sws-editor build" >&2; exit 1; }

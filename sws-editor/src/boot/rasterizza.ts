@@ -13,12 +13,16 @@
 // il canvas, disegna, `toBlob`) sta in `rasterizzaPagina` e si verifica a occhio
 // confrontando l'anteprima col canvas.
 
+import i18n from "i18next";
 import { createElement } from "react";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { SvgCanvas } from "@/canvas/SvgCanvas";
 import { getAuthToken, getBaseUrl } from "@/api/client";
-import type { CustomSymbol, SynopticPage } from "@/types";
+import { LinguaContenutiProvider } from "@/i18n/linguaContenuti";
+import { resolveMsg } from "@/i18n/projectI18n";
+import { useAppStore } from "@/store";
+import type { CustomSymbol, SynopticObject, SynopticPage } from "@/types";
 
 /** Tetto del PNG: gemello di `MAX_BOOT_PNG_BYTES` in `sws-web/src/boot.rs`. */
 export const MAX_PNG_BYTES = 5 * 1024 * 1024;
@@ -62,6 +66,87 @@ export async function incorporaImmagini(svg: string, leggi: (href: string) => Pr
   });
 }
 
+/** Toglie dall'SVG ciò che **macchia il canvas** (`toBlob` risponde «Tainted canvases may
+ *  not be exported»): un `<foreignObject>` (HTML dentro l'SVG) e un `<image>` che punta
+ *  fuori dal documento. Non si possono disegnare comunque — quello che resta è un PNG
+ *  senza quegli oggetti, e ogni cosa tolta è un avviso: meglio un PNG incompleto e
+ *  detto che nessun PNG con un errore che non spiega niente. */
+export function neutralizzaNonStatico(svg: string): { svg: string; avvisi: string[] } {
+  const avvisi: string[] = [];
+  let fuori = 0;
+  let out = svg.replace(/<foreignObject\b[\s\S]*?<\/foreignObject>/g, () => { fuori += 1; return ""; });
+  if (fuori > 0) avvisi.push(i18n.t("boot.warnForeignObject", { n: fuori }));
+  let esterne = 0;
+  out = out.replace(/<image\b[^>]*>(?:\s*<\/image>)?/g, (tag) => {
+    const m = tag.match(/\s(?:xlink:)?href=(["'])(.*?)\1/);
+    if (m && !m[2].startsWith("data:")) { esterne += 1; return ""; }
+    return tag;
+  });
+  if (esterne > 0) avvisi.push(i18n.t("boot.warnExternalImage", { n: esterne }));
+  return { svg: out, avvisi };
+}
+
+/** Le righe in cui un testo va a capo dentro `larghezza`, come farebbe il browser con
+ *  `white-space: pre-wrap` e `word-break: break-word`: gli a-capo scritti a mano
+ *  restano, le parole si mandano a capo, una parola più larga della riga si spezza. */
+export function righeDiTesto(testo: string, larghezza: number, misura: (t: string) => number): string[] {
+  const out: string[] = [];
+  for (const paragrafo of testo.split("\n")) {
+    if (paragrafo === "") { out.push(""); continue; }
+    let riga = "";
+    for (const parola of paragrafo.split(" ")) {
+      const candidata = riga ? `${riga} ${parola}` : parola;
+      if (misura(candidata) <= larghezza) { riga = candidata; continue; }
+      if (riga) out.push(riga);
+      if (misura(parola) <= larghezza) { riga = parola; continue; }
+      let pezzo = "";
+      for (const c of parola) {
+        if (pezzo && misura(pezzo + c) > larghezza) { out.push(pezzo); pezzo = c; } else pezzo += c;
+      }
+      riga = pezzo;
+    }
+    out.push(riga);
+  }
+  return out;
+}
+
+/** Sostituisce ogni testo con `text_wrap` — che il canvas disegna in un `<foreignObject>`, e
+ *  un `<foreignObject>` macchia il canvas del PNG — con un oggetto `text` per riga, già
+ *  mandato a capo qui con lo stesso metro (`misura`) del browser. Lavora su una **copia** della
+ *  pagina: quella salvata non cambia. Lo sfondo (`bg_color`) diventa un rettangolo dietro. */
+export function spezzaTestiACapo(
+  page: SynopticPage,
+  misura: (font: string, testo: string) => number,
+  risolvi: (testo: string) => string = (t) => t,
+): SynopticPage {
+  const objects: SynopticObject[] = [];
+  for (const o of page.objects) {
+    if (o.type !== "text" || !o.text_wrap) { objects.push(o); continue; }
+    const size = o.font_size ?? 14;
+    const font = `${o.font_style === "italic" ? "italic" : "normal"} ${o.font_weight ?? "normal"} ${size}px ${o.font_family ?? FONT_PREDEFINITO}`;
+    const bw = o.width ?? 160;
+    const bh = o.height ?? 60;
+    const passo = (o.line_height ?? 1.25) * size;
+    const righe = righeDiTesto(risolvi(o.text ?? "Testo"), bw, (t) => misura(font, t));
+    const totale = righe.length * passo;
+    const valign = o.text_valign ?? "top";
+    const y0 = valign === "middle" ? o.y + (bh - totale) / 2 : valign === "bottom" ? o.y + bh - totale : o.y;
+    const anchor = o.text_anchor ?? "start";
+    const x = anchor === "middle" ? o.x + bw / 2 : anchor === "end" ? o.x + bw : o.x;
+    if (o.bg_color) {
+      objects.push({ id: `${o.id}_sfondo`, type: "rect", x: o.x, y: o.y, width: bw, height: bh, fill: o.bg_color });
+    }
+    righe.forEach((riga, i) => {
+      objects.push({
+        ...o, id: `${o.id}_r${i}`, text: riga, text_wrap: false, tag: undefined,
+        x, y: y0 + i * passo + (passo - size) / 2 + size * 0.8,
+        width: undefined, height: undefined, bg_color: undefined, bg_image: undefined,
+      });
+    });
+  }
+  return { ...page, objects };
+}
+
 /** Legge un'immagine di progetto (`/api/project/images/…`) come data URI, con le
  *  credenziali dell'IDE. Gli URL esterni non si scaricano: dall'SVG del PNG
  *  sarebbero comunque bloccati, e non è compito nostro portarli dentro. */
@@ -90,6 +175,10 @@ const attendi = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 /** Disegna la pagina in un contenitore staccato e ne restituisce il markup SVG,
  *  con larghezza e altezza fissate alle misure della pagina. */
 async function svgDellaPagina(page: SynopticPage, customSymbols: CustomSymbol[]): Promise<string> {
+  // La lingua dei contenuti è quella **predefinita del progetto**, non quella che chi salva sta
+  // guardando: un'immagine di boot non deve cambiare a seconda di chi preme «Salva».
+  const tabella = useAppStore.getState().project?.languages;
+  const lingua = { lang: tabella?.default ?? "", table: tabella };
   const w = page.width ?? 1280;
   const h = page.height ?? 800;
   const host = document.createElement("div");
@@ -98,15 +187,16 @@ async function svgDellaPagina(page: SynopticPage, customSymbols: CustomSymbol[])
   const root = createRoot(host);
   try {
     // Modalità viewer (nessun `onMove`), fissa 1:1, effetti spenti: è una foto ferma.
-    flushSync(() => root.render(createElement(SvgCanvas, {
-      objects: page.objects,
-      background: page.background,
-      customSymbols,
-      pageWidth: w,
-      pageHeight: h,
-      sizeMode: "fixed",
-      pageId: page.id,
-    })));
+    flushSync(() => root.render(createElement(LinguaContenutiProvider, { value: lingua },
+      createElement(SvgCanvas, {
+        objects: page.objects,
+        background: page.background,
+        customSymbols,
+        pageWidth: w,
+        pageHeight: h,
+        sizeMode: "fixed",
+        pageId: page.id,
+      }))));
     // Un giro perché gli effetti di montaggio (font, immagini) si assestino.
     await attendi(60);
     const svg = host.querySelector("svg");
@@ -127,14 +217,25 @@ async function svgDellaPagina(page: SynopticPage, customSymbols: CustomSymbol[])
   }
 }
 
-/** Il PNG di una pagina di boot, alle sue misure, a 1 pixel per unità. */
-export async function rasterizzaPagina(page: SynopticPage, customSymbols: CustomSymbol[] = []): Promise<Blob> {
-  const w = page.width ?? 1280;
-  const h = page.height ?? 800;
+/** Il PNG di una pagina di boot, alle sue misure, a 1 pixel per unità, e gli **avvisi** su ciò
+ *  che nel PNG non c'è (oggetti che non si possono disegnare senza macchiare il canvas). */
+export async function rasterizzaPagina(
+  paginaOriginale: SynopticPage,
+  customSymbols: CustomSymbol[] = [],
+): Promise<{ png: Blob; avvisi: string[] }> {
+  const w = paginaOriginale.width ?? 1280;
+  const h = paginaOriginale.height ?? 800;
+  const page = spezzaTestiACapo(
+    paginaOriginale,
+    (font, testo) => { const c = document.createElement("canvas").getContext("2d"); if (!c) return testo.length * 8; c.font = font; return c.measureText(testo).width; },
+    (t) => { const tab = useAppStore.getState().project?.languages; return resolveMsg(t, tab?.default ?? "", tab); },
+  );
   let svg = await svgDellaPagina(page, customSymbols);
   const stile = getComputedStyle(document.documentElement);
   svg = sostituisciVarBrand(svg, (n) => stile.getPropertyValue(n));
   svg = await incorporaImmagini(svg, immagineComeDataUri);
+  const pulito = neutralizzaNonStatico(svg);
+  svg = pulito.svg;
 
   const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
   try {
@@ -158,8 +259,9 @@ export async function rasterizzaPagina(page: SynopticPage, customSymbols: Custom
     ctx.fillStyle = page.background || "#0f172a";
     ctx.fillRect(0, 0, w, h);
     ctx.drawImage(img, 0, 0, w, h);
-    return await new Promise<Blob>((ok, ko) =>
+    const png = await new Promise<Blob>((ok, ko) =>
       canvas.toBlob((b) => (b ? ok(b) : ko(new Error("toBlob non ha prodotto il PNG"))), "image/png"));
+    return { png, avvisi: pulito.avvisi };
   } finally {
     URL.revokeObjectURL(url);
   }

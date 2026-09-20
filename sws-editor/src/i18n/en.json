@@ -2018,7 +2018,10 @@
     "regenerate": "Regenerate PNG",
     "regenerateHint": "Rebuilds the PNG from the current drawing and uploads it to the project (the page must already be saved).",
     "generating": "Generating…",
-    "download": "Download PNG"
+    "download": "Download PNG",
+    "warnForeignObject": "{{n}} non-static object(s) that cannot be drawn in the PNG (HTML inside the SVG) were left out.",
+    "warnExternalImage": "{{n}} image(s) with an external address that cannot be embedded were left out of the PNG.",
+    "pngWithWarnings": "PNG updated, but: {{msg}}"
   },
   "bootStatus": {
     "title": "Boot image",

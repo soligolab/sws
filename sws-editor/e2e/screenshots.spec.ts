@@ -158,3 +158,34 @@ test("10 — runtime / package builder tab", async ({ page }) => {
   await configTab(page, /^Runtime$/);
   await page.screenshot({ path: path.join(SHOTS, "10_package_builder.png") });
 });
+
+test("11 — immagine di boot (T-72)", async ({ page }) => {
+  await openIde(page);
+  await toMode(page, "Editor");
+  // Una pagina di boot con qualcosa dentro, altrimenti l'anteprima del PNG è un
+  // rettangolo scuro che non dice niente. Si scrive dal server come farebbe un
+  // salvataggio, poi si ricarica l'IDE.
+  await page.evaluate(async () => {
+    const tok = JSON.parse(localStorage.getItem("sws.auth") ?? "{}").token;
+    const h: Record<string, string> = { "Content-Type": "application/json" };
+    if (tok) h.Authorization = `Bearer ${tok}`;
+    await fetch("/api/boot-pages/Immagine%20di%20boot", {
+      method: "PUT", headers: h,
+      body: JSON.stringify({
+        id: "boot-manuale", name: "Immagine di boot", kind: "boot", width: 1280, height: 800, background: "#0b1d3a",
+        objects: [
+          { id: "r", type: "rect", x: 80, y: 80, width: 1120, height: 640, fill: "#1d4ed8", stroke: "#93c5fd", stroke_width: 6 },
+          { id: "t", type: "text", x: 200, y: 340, width: 880, height: 120, text: "Avvio in corso…", font_size: 72, fill: "#ffffff" },
+        ],
+      }),
+    });
+  });
+  await page.reload({ waitUntil: "networkidle" });
+  await page.waitForSelector('button:has-text("☰ Menu")', { timeout: 20_000 });
+  await page.getByText("Immagine di boot", { exact: true }).first().click();
+  await page.waitForTimeout(600);
+  await page.getByRole("button", { name: /Rigenera PNG/i }).click();
+  await page.waitForTimeout(3000);
+  await page.screenshot({ path: path.join(SHOTS, "11_immagine_di_boot.png") });
+});
+

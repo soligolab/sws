@@ -2268,10 +2268,10 @@ export const useAppStore = create<AppState>((set, get) => {
           const { rasterizzaPagina, MAX_PNG_BYTES } = await import("@/boot/rasterizza");
           for (const p of bootDaFotografare) {
             try {
-              const png = await rasterizzaPagina(p, state.customSymbols ?? []);
+              const { png, avvisi } = await rasterizzaPagina(p, state.customSymbols ?? []);
               if (png.size > MAX_PNG_BYTES) throw new Error(i18n.t("boot.pngTooLarge", { kb: Math.round(png.size / 1024) }));
               await api.putBootPng(p.name, png);
-              get().setBootPng(p.id, { ok: true, byte: png.size }, JSON.stringify(p));
+              get().setBootPng(p.id, { ok: true, byte: png.size, messaggio: avvisi.join(" ") || undefined }, JSON.stringify(p));
             } catch (e) {
               get().setBootPng(p.id, { ok: false, messaggio: errText(e) });
             }
