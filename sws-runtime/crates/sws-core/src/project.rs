@@ -361,6 +361,8 @@ pub enum SourceDef {
     S7(S7Config),
     #[serde(rename = "enip")]
     EnIp(EnIpConfig),
+    #[serde(rename = "host")]
+    Host(HostConfig),
 }
 
 /// Home Assistant integration source.
@@ -826,6 +828,93 @@ pub struct S7Config {
     pub poll_interval_ms: u64,
     #[serde(default)]
     pub tags: Vec<S7TagMapping>,
+}
+
+// ── Host (risorse di sistema come tag) ───────────────────────────────────────
+
+fn default_host_poll_ms() -> u64 {
+    2000
+}
+
+/// Una grandezza dell'host che si può mappare su un tag.
+///
+/// Il container vede `/proc` e `/sys` dell'host (misurato sul TC620, 20-09-2026),
+/// quindi queste letture sono quelle della macchina, non del solo processo.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "snake_case")]
+pub enum HostMetric {
+    /// Utilizzo CPU totale, 0-100 %.
+    CpuPct,
+    /// Utilizzo di un core (`param` = indice, 0-based), 0-100 %.
+    CpuCorePct,
+    Load1,
+    Load5,
+    Load15,
+    MemUsedPct,
+    MemUsedMb,
+    MemAvailableMb,
+    MemTotalMb,
+    SwapUsedPct,
+    /// Temperatura in °C (`param` = nome della zona, es. `cpu-thermal`).
+    Temp,
+    /// Spazio usato in % (`param` = mount point, es. `/var/sws/projects`).
+    DiskUsedPct,
+    /// Spazio libero in GB (`param` = mount point).
+    DiskFreeGb,
+    /// Byte/s ricevuti (`param` = interfaccia, es. `eth0`).
+    NetRxBps,
+    /// Byte/s trasmessi (`param` = interfaccia).
+    NetTxBps,
+    /// Uptime dell'host in secondi (non quello del processo).
+    UptimeS,
+    /// Nome dell'host (testo).
+    Hostname,
+    /// Numero di serie della scheda (testo): device-tree su ARM, DMI su x86.
+    SerialNumber,
+    /// Modello della scheda (testo), es. `TC620-A-P3-C6`.
+    Model,
+}
+
+impl HostMetric {
+    /// La metrica produce testo e non un numero: il tag va dichiarato `string`.
+    pub fn e_testo(self) -> bool {
+        matches!(self, HostMetric::Hostname | HostMetric::SerialNumber | HostMetric::Model)
+    }
+
+    /// La metrica ha bisogno di un `param` per dire *quale* zona/mount/core.
+    pub fn richiede_param(self) -> bool {
+        matches!(
+            self,
+            HostMetric::CpuCorePct
+                | HostMetric::Temp
+                | HostMetric::DiskUsedPct
+                | HostMetric::DiskFreeGb
+                | HostMetric::NetRxBps
+                | HostMetric::NetTxBps
+        )
+    }
+}
+
+/// Aggancia una grandezza dell'host a un tag.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HostMetricMapping {
+    /// Tag SWS in cui scrivere il valore.
+    pub tag: String,
+    pub metric: HostMetric,
+    /// Quale zona/mount/interfaccia/core, per le metriche che ne hanno bisogno.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub param: Option<String>,
+}
+
+/// Sorgente «host»: legge le risorse di sistema e le scrive nei tag. Sola lettura.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HostConfig {
+    pub id: String,
+    /// Intervallo di lettura in millisecondi.
+    #[serde(default = "default_host_poll_ms")]
+    pub poll_interval_ms: u64,
+    #[serde(default)]
+    pub metrics: Vec<HostMetricMapping>,
 }
 
 // ── EtherNet/IP (Allen-Bradley / CIP) config ─────────────────────────────────
@@ -1652,6 +1741,8 @@ impl SourceDef {
                     t.writable = false;
                 }
             }
+            // Host: sola lettura per costruzione, non ha campi di scrittura.
+            SourceDef::Host(_) => {}
             // Modbus e OPC-UA: la scrittura non passa da un campo della
             // sorgente ma dal registro/nodo mappato, e il divieto vero sta a
             // valle in `write_tag`. Dichiarato qui perché un `_ => {}` muto

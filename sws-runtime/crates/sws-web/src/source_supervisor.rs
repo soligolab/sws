@@ -377,6 +377,12 @@ impl SourceSupervisor {
                     sws_plugin_enip::run(cfg, db, bus, cancel_for_task).await;
                 })
             }
+            SourceDef::Host(cfg) => {
+                info!(source = %id_for_log, "starting Host metrics task");
+                tokio::spawn(async move {
+                    sws_plugin_host::run(cfg, db, cancel_for_task).await;
+                })
+            }
         };
 
         let previous = self.sources.lock().await.insert(
@@ -449,6 +455,7 @@ pub(crate) fn source_id(s: &SourceDef) -> &str {
         SourceDef::HomeAssistant(c) => &c.id,
         SourceDef::S7(c) => &c.id,
         SourceDef::EnIp(c) => &c.id,
+        SourceDef::Host(c) => &c.id,
     }
 }
 
@@ -475,6 +482,7 @@ fn tags_of(s: &SourceDef) -> Vec<String> {
         SourceDef::HomeAssistant(c) => c.entities.iter().map(|e| e.tag.clone()).collect(),
         SourceDef::S7(c) => c.tags.iter().map(|t| t.tag.clone()).collect(),
         SourceDef::EnIp(c) => c.tags.iter().map(|t| t.tag.clone()).collect(),
+        SourceDef::Host(c) => c.metrics.iter().map(|m| m.tag.clone()).collect(),
     }
 }
 

@@ -3658,6 +3658,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "sws-plugin-host"
+version = "2.10.0"
+dependencies = [
+ "sws-core",
+ "sysinfo",
+ "tokio",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
 name = "sws-plugin-modbus"
 version = "2.10.0"
 dependencies = [
@@ -3781,6 +3792,7 @@ dependencies = [
  "sws-historian",
  "sws-plugin-enip",
  "sws-plugin-homeassistant",
+ "sws-plugin-host",
  "sws-plugin-modbus",
  "sws-plugin-mqtt",
  "sws-plugin-opcua",

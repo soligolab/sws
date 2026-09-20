@@ -32,6 +32,7 @@ sws-plugin-opcua          = { path = "../sws-plugin-opcua" }
 sws-plugin-homeassistant  = { path = "../sws-plugin-homeassistant" }
 sws-plugin-s7             = { path = "../sws-plugin-s7" }
 sws-plugin-enip           = { path = "../sws-plugin-enip" }
+sws-plugin-host           = { path = "../sws-plugin-host" }
 reqwest.workspace         = true
 mdns-sd.workspace         = true
 if-addrs.workspace        = true

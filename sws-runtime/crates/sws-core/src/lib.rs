@@ -16,7 +16,7 @@ pub use logbus::{LogBus, LogEvent, DEFAULT_LOG_CAPACITY};
 pub use project::{
     AffixPosition, CanaleNotifica, CustomSymbol, CustomSymbolAttribution, DatastoreBackendConfig,
     DatastoreConfig, EnIpConfig, EnIpDataType, EnIpTagMapping, EntityMapping, FunctionDef,
-    FunctionParam, GeneratorSpec, GlobalScriptDef, HomeAssistantConfig, LangEntry, LanguageTable,
+    FunctionParam, GeneratorSpec, GlobalScriptDef, HomeAssistantConfig, HostConfig, HostMetric, HostMetricMapping, LangEntry, LanguageTable,
     ModbusRtuConfig, ModbusTcpConfig, MqttConfig, MqttLastWill, MqttTlsConfig, NotificationConfig,
     OpcUaAuth, OpcUaClientConfig, OpcUaNodeMapping, OpcUaServerConfig, OpcUaServerNodeMapping,
     PageLayoutConfig, PageSizeMode, Project, ProjectMeta, ProjectTarget, ProjectTargetKind,

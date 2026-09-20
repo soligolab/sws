@@ -1764,6 +1764,7 @@ function SourcesSection({ project }: { project: ProjectInfo | null }) {
               }}>
                 {src.kind === "mqtt" ? "MQTT"
                   : src.kind === "opcua_client" ? "OPC-UA"
+                  : src.kind === "host" ? "HOST"
                   : "MBUS"}
               </span>
             </div>

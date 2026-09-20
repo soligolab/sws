@@ -391,6 +391,43 @@ export HA_TOKEN="eyJh..."
 
 ---
 
+## Host — le risorse di sistema come tag
+
+La sorgente `host` legge le risorse del dispositivo su cui gira il runtime e le scrive nei tag, **in sola
+lettura**. Serve a mostrare con indicatori e trend, o a usare in allarmi e script, CPU, memoria,
+temperatura, disco, rete, nome e numero di serie. Non c'è nessun dispositivo da collegare: nel container
+il runtime vede già `/proc` e `/sys/class/thermal` dell'host.
+
+```yaml
+sources:
+  - kind: host
+    id: host1
+    poll_interval_ms: 2000
+    metrics:
+      - { tag: host.cpu_pct,       metric: cpu_pct }
+      - { tag: host.temp_cpu,      metric: temp,          param: cpu-thermal }
+      - { tag: host.disk_data_pct, metric: disk_used_pct, param: /var/sws/projects }
+      - { tag: host.serial,        metric: serial_number }
+```
+
+| Metrica | `param` | Note |
+|---|---|---|
+| `cpu_pct`, `cpu_core_pct` | — / indice del core | 0-100 % |
+| `load1`, `load5`, `load15` | — | load average |
+| `mem_used_pct`, `mem_used_mb`, `mem_available_mb`, `mem_total_mb`, `swap_used_pct` | — | |
+| `temp` | nome della zona (`cpu-thermal`, `gpu-thermal`, `<hwmon>/tempN`) | °C |
+| `disk_used_pct`, `disk_free_gb` | mount point | nel container il `/` è un overlay: per i dati usare `/var/sws/projects` |
+| `net_rx_bps`, `net_tx_bps` | interfaccia | byte/s |
+| `uptime_s` | — | uptime dell'**host**, non del processo |
+| `hostname`, `serial_number`, `model` | — | **testo**: il tag va dichiarato `data_type: string` |
+
+Una metrica non disponibile (zona o mount sconosciuto, scheda senza seriale) lascia il tag con qualità
+**Bad**. Il numero di serie e il modello vengono dal device-tree (ARM); nel container `install-container.sh`
+monta `/sys/firmware/devicetree/base` in sola lettura su `/host/devicetree`. Su x86 il seriale viene dal DMI
+(di solito leggibile solo da root) e il modello resta vuoto. Il template `host-monitor` è un punto di partenza.
+
+---
+
 ## Configurazione tramite UI
 
 Tutte le sorgenti possono essere configurate senza editare YAML:

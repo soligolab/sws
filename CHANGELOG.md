@@ -11,6 +11,14 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Added
+- **Sorgente «host»: le risorse di sistema come tag.** Nuovo tipo di sorgente (`kind: host`, crate `sws-plugin-host`,
+  sola lettura): CPU (totale/per core), load, RAM e swap, temperature (thermal zone e hwmon), disco per mount, rete
+  rx/tx, uptime dell'host, e — come testo — nome dell'host, numero di serie e modello della scheda. Nel container `/proc` e
+  `/sys/class/thermal` sono già quelli dell'host (misurato sul TC620); il device-tree per seriale e modello si monta
+  in sola lettura da `install-container.sh`. Scheda «Host» in Configurazione → Sorgenti con suggerimenti da
+  `GET /api/host/catalog`, template `host-monitor`, sezione nel manuale 06, schema dell'assistente IA rigenerato.
+
 ### Fixed
 - **Le emoji sul pannello in modalità web non si vedevano (`[]`).** Il Chromium in kiosk del sistema Pixsys non ha nessun
   font emoji. Il runtime ora serve `/fonts/NotoEmoji-Regular.ttf` (lo stesso Noto Emoji monocromo del viewer LVGL) e

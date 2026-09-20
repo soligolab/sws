@@ -534,6 +534,7 @@ pub fn build(
                 .put(crate::traduttore::put_config_traduzione)
                 .delete(crate::traduttore::delete_config_traduzione),
         )
+        .route("/api/host/catalog", get(crate::system::get_host_catalog))
         .route("/api/system/tls", get(crate::system::get_tls_status))
         .route(
             "/api/system/tls/generate",

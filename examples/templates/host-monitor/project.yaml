@@ -1,0 +1,134 @@
+meta:
+  name: host-monitor
+  version: 0.1.0
+sources:
+- kind: host
+  id: host1
+  poll_interval_ms: 2000
+  metrics:
+  - tag: host.cpu_pct
+    metric: cpu_pct
+  - tag: host.mem_used_pct
+    metric: mem_used_pct
+  - tag: host.temp_cpu
+    metric: temp
+    param: cpu-thermal
+  - tag: host.disk_data_pct
+    metric: disk_used_pct
+    param: /var/sws/projects
+  - tag: host.load1
+    metric: load1
+  - tag: host.hostname
+    metric: hostname
+  - tag: host.serial
+    metric: serial_number
+  - tag: host.model
+    metric: model
+tags:
+- id: host.cpu_pct
+  data_type: float
+  description: CPU totale [%]
+  history: true
+- id: host.mem_used_pct
+  data_type: float
+  description: RAM usata [%]
+  history: true
+- id: host.temp_cpu
+  data_type: float
+  description: Temperatura CPU [°C]
+  history: true
+- id: host.disk_data_pct
+  data_type: float
+  description: Disco dati usato [%]
+- id: host.load1
+  data_type: float
+  description: Carico medio 1 min
+- id: host.hostname
+  data_type: string
+  description: Nome dell'host
+- id: host.serial
+  data_type: string
+  description: Numero di serie della scheda
+- id: host.model
+  data_type: string
+  description: Modello della scheda
+alarms:
+- id: cpu_hot
+  tag: host.temp_cpu
+  condition:
+    kind: above
+    threshold: 80.0
+  message: '{{t0013}}'
+  severity: Warning
+languages:
+  default: it
+  langs:
+  - it
+  - en
+  - es
+  entries:
+  - key: t0001
+    values:
+      it: CPU [%]
+      en: CPU [%]
+      es: CPU [%]
+  - key: t0002
+    values:
+      it: RAM usata [%]
+      en: RAM used [%]
+      es: RAM usada [%]
+  - key: t0003
+    values:
+      it: Temperatura CPU [°C]
+      en: CPU temperature [°C]
+      es: Temperatura de CPU [°C]
+  - key: t0004
+    values:
+      it: Disco dati usato [%]
+      en: Data disk used [%]
+      es: Disco de datos usado [%]
+  - key: t0005
+    values:
+      it: Carico medio 1 min
+      en: Load average 1 min
+      es: Carga media 1 min
+  - key: t0006
+    values:
+      it: Stato dell'host
+      en: Host status
+      es: Estado del host
+  - key: t0007
+    values:
+      it: 'Le risorse del dispositivo come tag: si mappano da Configurazione → Sorgenti → Host.'
+      en: 'Device resources as tags: map them in Configuration → Sources → Host.'
+      es: 'Recursos del dispositivo como tags: se mapean en Configuración → Fuentes → Host.'
+  - key: t0008
+    values:
+      it: Host
+      en: Host
+      es: Host
+  - key: t0009
+    values:
+      it: Numero di serie
+      en: Serial number
+      es: Número de serie
+  - key: t0010
+    values:
+      it: Modello
+      en: Model
+      es: Modelo
+  - key: t0011
+    values:
+      it: CPU — ultima ora
+      en: CPU — last hour
+      es: CPU — última hora
+  - key: t0012
+    values:
+      it: Temperatura CPU — ultima ora
+      en: CPU temperature — last hour
+      es: Temperatura de CPU — última hora
+  - key: t0013
+    values:
+      it: Temperatura CPU elevata
+      en: High CPU temperature
+      es: Temperatura de CPU elevada

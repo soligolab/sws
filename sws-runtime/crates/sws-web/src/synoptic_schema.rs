@@ -449,6 +449,7 @@ pub const SOURCE_KINDS: &[&str] = &[
     "homeassistant",
     "s7",
     "enip",
+    "host",
 ];
 
 pub const SOURCE_FIELDS: &[(&str, &[Field])] = &[
@@ -460,6 +461,7 @@ pub const SOURCE_FIELDS: &[(&str, &[Field])] = &[
     ("homeassistant", SOURCE_HOMEASSISTANT_FIELDS),
     ("s7", SOURCE_S7_FIELDS),
     ("enip", SOURCE_ENIP_FIELDS),
+    ("host", SOURCE_HOST_FIELDS),
 ];
 
 /// Campi della sorgente `modbus_tcp` (ModbusTcpConfig).
@@ -889,6 +891,31 @@ pub const SOURCE_ENIP_ENIPTAGMAPPING_FIELDS: &[Field] = &[
         required: false,
         group: "",
         doc: "When true, `PUT /api/tags/:id` writes back to the PLC.",
+    },
+];
+
+/// Campi della sorgente `host` (HostConfig).
+pub const SOURCE_HOST_FIELDS: &[Field] = &[
+    Field {
+        name: "id",
+        ty: "string",
+        required: true,
+        group: "",
+        doc: "",
+    },
+    Field {
+        name: "poll_interval_ms",
+        ty: "number",
+        required: false,
+        group: "",
+        doc: "Intervallo di lettura in millisecondi.",
+    },
+    Field {
+        name: "metrics",
+        ty: "HostMetricMapping[]",
+        required: false,
+        group: "",
+        doc: "",
     },
 ];
 
@@ -1427,6 +1454,7 @@ pub const TYPE_EXAMPLES: &[(&str, &str)] = &[
 pub const SOURCE_EXAMPLES: &[(&str, &str)] = &[
     ("en_ip", "kind: en_ip\nid: enip-plc\nip: 192.0.2.10\nslot: 0\npoll_interval_ms: 500\ntags:\n- tag: pump.speed\n  plc_tag: Pump_Speed\n  data_type: real\n  writable: true\n- tag: valve.open\n  plc_tag: Valve_Open\n  data_type: bool\n  writable: true\n- tag: sensor.temp\n  plc_tag: Temperature\n  data_type: real\n  writable: false"),
     ("homeassistant", "kind: homeassistant\nid: ha-demo\nurl: http://homeassistant.local:8123\ntoken_env: HA_TOKEN\nentities:\n- tag: sala.temperatura\n  entity_id: sensor.sensoreambientesoggiorno_temperature\n- tag: luce.esterno\n  entity_id: switch.lampada_cancelletto_mauro\n  write_domain: switch\n  write_service: turn_on\n- tag: sole.elevazione\n  entity_id: sun.sun\n  attribute: elevation"),
+    ("host", "kind: host\nid: host1\npoll_interval_ms: 2000\nmetrics:\n- tag: host.cpu_pct\n  metric: cpu_pct\n- tag: host.mem_used_pct\n  metric: mem_used_pct\n- tag: host.temp_cpu\n  metric: temp\n  param: cpu-thermal"),
     ("mqtt", "kind: mqtt\nid: mqtt-sandokan\nhost: mqtt.example.invalid\nport: 1883\nclient_id: sws-sandokan\ntopics:\n- tag: sandokan.state\n  topic: zigbee2mqtt/presa.sandokan\n  json_path: state\n  publish_topic: zigbee2mqtt/presa.sandokan/set/state\n- tag: sandokan.power\n  topic: zigbee2mqtt/presa.sandokan\n  json_path: power\n- tag: sandokan.current\n  topic: zigbee2mqtt/presa.sandokan\n  json_path: current"),
     ("opcua_client", "kind: opcua_client\nid: sim-opcua\nendpoint_url: opc.tcp://localhost:4840\nsecurity_policy: None\nauth:\n  kind: anonymous\nsubscription_interval_ms: 500\nnodes:\n- tag: sim.temperature\n  node_id: ns=1;s=Temperature\n  description: Simulated temperature\n- tag: sim.pressure\n  node_id: ns=1;s=Pressure\n  description: Simulated pressure\n- tag: sim.cycle_time\n  node_id: ns=2;s=CycleTime\n  description: Euromap 77 — CycleTime"),
     ("s7", "kind: s7\nid: plc1\nip: 192.0.2.5\nrack: 0\nslot: 1\npoll_interval_ms: 500\ntags:\n- tag: pump1.speed\n  area: db\n  db_num: 1\n  byte_offset: 0\n  data_type: real\n  writable: true\n- tag: valve1.open\n  area: db\n  db_num: 1\n  byte_offset: 4\n  data_type: bool\n  bit_offset: 0\n  writable: true\n- tag: process.temperature\n  area: db\n  db_num: 1\n  byte_offset: 6\n  data_type: real"),

@@ -1113,6 +1113,7 @@ fn source_id(s: &SourceDef) -> &str {
         SourceDef::HomeAssistant(c) => &c.id,
         SourceDef::S7(c) => &c.id,
         SourceDef::EnIp(c) => &c.id,
+        SourceDef::Host(c) => &c.id,
     }
 }
 

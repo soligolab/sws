@@ -62,6 +62,9 @@ import type {
   EnIpSource,
   EnIpTagMapping,
   FaceplateDef,
+  HostMetric,
+  HostMetricMapping,
+  HostSource,
   RecipeDef,
   RecipeSummary,
   SmtpConfig,
@@ -1415,6 +1418,122 @@ function S7SourceCard({
           </div>
         ))}
         <button style={S.btn("ghost")} onClick={addTag}>+ Tag</button>
+      </div>
+    </div>
+  );
+}
+
+// ── Host (risorse di sistema) ─────────────────────────────────────────────────
+
+const HOST_METRICS: { metric: HostMetric; param?: "core" | "temp" | "mount" | "iface"; testo?: boolean; unit?: string }[] = [
+  { metric: "cpu_pct", unit: "%" },
+  { metric: "cpu_core_pct", param: "core", unit: "%" },
+  { metric: "load1" }, { metric: "load5" }, { metric: "load15" },
+  { metric: "mem_used_pct", unit: "%" }, { metric: "mem_used_mb", unit: "MB" },
+  { metric: "mem_available_mb", unit: "MB" }, { metric: "mem_total_mb", unit: "MB" },
+  { metric: "swap_used_pct", unit: "%" },
+  { metric: "temp", param: "temp", unit: "°C" },
+  { metric: "disk_used_pct", param: "mount", unit: "%" }, { metric: "disk_free_gb", param: "mount", unit: "GB" },
+  { metric: "net_rx_bps", param: "iface", unit: "B/s" }, { metric: "net_tx_bps", param: "iface", unit: "B/s" },
+  { metric: "uptime_s", unit: "s" },
+  { metric: "hostname", testo: true }, { metric: "serial_number", testo: true }, { metric: "model", testo: true },
+];
+
+function emptyHost(): HostSource {
+  return { kind: "host", id: `host-${genId()}`, poll_interval_ms: 2000, metrics: [] };
+}
+
+function HostSourceCard({
+  source,
+  onChange,
+  onDelete,
+  onCreateTag,
+}: {
+  source: HostSource;
+  onChange: (s: HostSource) => void;
+  onDelete: () => void;
+  onCreateTag: (t: TagDef) => void;
+}) {
+  const { t } = useTranslation();
+  const [collapsed, setCollapsed] = useState(false);
+  const [catalogo, setCatalogo] = useState<{ temperature: string[]; mount: string[]; interfacce: string[]; core: number } | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    fetch("/api/host/catalog", { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((c) => { if (vivo) setCatalogo(c); })
+      .catch(() => {});
+    return () => { vivo = false; };
+  }, []);
+
+  const upd = (patch: Partial<HostSource>) => onChange({ ...source, ...patch });
+  const updM = (idx: number, patch: Partial<HostMetricMapping>) =>
+    upd({ metrics: source.metrics.map((m, i) => (i === idx ? { ...m, ...patch } : m)) });
+  const def = (m: HostMetric) => HOST_METRICS.find((x) => x.metric === m);
+  const suggerimenti = (k: "core" | "temp" | "mount" | "iface" | undefined): string[] => {
+    if (!catalogo) return [];
+    if (k === "temp") return catalogo.temperature;
+    if (k === "mount") return catalogo.mount;
+    if (k === "iface") return catalogo.interfacce;
+    if (k === "core") return Array.from({ length: catalogo.core }, (_, i) => String(i));
+    return [];
+  };
+
+  const headerRow = (
+    <div style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer" }} onClick={() => setCollapsed((c) => !c)}>
+      <span style={{ fontWeight: 700, fontSize: 13, color: "var(--brand-primary, #3b82f6)" }}>HOST</span>
+      <span style={{ fontSize: 13, color: "var(--brand-text, #e2e8f0)" }}>
+        {source.id} ({t("cfgUi.hostMetricsCount", { n: source.metrics.length })})
+      </span>
+      <span style={{ marginLeft: "auto", color: "var(--brand-text-subtle, #64748b)", fontSize: 12 }}>{collapsed ? "▶" : "▼"}</span>
+      <button style={S.btnXs} onClick={(e) => { e.stopPropagation(); onDelete(); }}>✕</button>
+    </div>
+  );
+  if (collapsed) return <div style={{ ...S.card, padding: "10px 16px" }}>{headerRow}</div>;
+
+  const campo: React.CSSProperties = { background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, color: "var(--brand-text, #e2e8f0)", padding: "4px 6px", fontSize: 12 };
+
+  return (
+    <div style={S.card}>
+      {headerRow}
+      <div style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", marginTop: 8 }}>{t("cfgUi.hostIntro")}</div>
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 12 }}>
+        <label style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          <span style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)" }}>{t("cfgUi.sourceId")}</span>
+          <input value={source.id} onChange={(e) => upd({ id: e.target.value })} style={{ ...campo, width: 120 }} />
+        </label>
+        <label style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          <span style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)" }}>Poll (ms)</span>
+          <input type="number" value={source.poll_interval_ms} onChange={(e) => upd({ poll_interval_ms: Number(e.target.value) })} style={{ ...campo, width: 100 }} />
+        </label>
+      </div>
+      <div style={{ marginTop: 16 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--brand-text-subtle, #64748b)", marginBottom: 8 }}>
+          {t("cfgUi.hostMetrics")} ({source.metrics.length})
+        </div>
+        {source.metrics.map((m, idx) => {
+          const d = def(m.metric);
+          const listId = `host-${source.id}-${idx}`;
+          return (
+            <div key={idx} style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6, flexWrap: "wrap" }}>
+              <TagInput value={m.tag} onChange={(v) => updM(idx, { tag: v })} placeholder={t("cfg.tagIdPh")} style={{ ...campo, width: 170 }} />
+              <select value={m.metric} onChange={(e) => updM(idx, { metric: e.target.value as HostMetric, param: undefined })} style={campo}>
+                {HOST_METRICS.map((x) => <option key={x.metric} value={x.metric}>{t(`cfgUi.hostMetric_${x.metric}`)}</option>)}
+              </select>
+              {d?.param && (
+                <>
+                  <input list={listId} value={m.param ?? ""} onChange={(e) => updM(idx, { param: e.target.value || undefined })}
+                    placeholder={t(`cfgUi.hostParam_${d.param}`)} title={t(`cfgUi.hostParam_${d.param}`)} style={{ ...campo, width: 170 }} />
+                  <datalist id={listId}>{suggerimenti(d.param).map((v) => <option key={v} value={v} />)}</datalist>
+                </>
+              )}
+              <button style={S.btnXs} title={t("cfg.createTag")}
+                onClick={() => { if (m.tag) onCreateTag({ id: m.tag, data_type: d?.testo ? "string" : "float", unit: d?.unit, description: "", history: false }); }}>+var</button>
+              <button style={S.btnXs} onClick={() => upd({ metrics: source.metrics.filter((_, i) => i !== idx) })}>✕</button>
+            </div>
+          );
+        })}
+        <button style={S.btn("ghost")} onClick={() => upd({ metrics: [...source.metrics, { tag: "", metric: "cpu_pct" }] })}>+ {t("cfgUi.hostMetric")}</button>
       </div>
     </div>
   );
@@ -4465,6 +4584,9 @@ function ProtocolsTab() {
   const addEnIp = () =>
     setSources((prev) => [...prev, emptyEnIp()]);
 
+  const addHost = () =>
+    setSources((prev) => [...prev, emptyHost()]);
+
   const updateSource = (idx: number, updated: SourceDef) =>
     setSources((prev) => prev.map((s, i) => (i === idx ? updated : s)));
 
@@ -4637,6 +4759,17 @@ function ProtocolsTab() {
             />
           );
         }
+        if (src.kind === "host") {
+          return (
+            <HostSourceCard
+              key={i}
+              source={src}
+              onChange={(updated) => updateSource(i, updated)}
+              onDelete={() => removeSource(i)}
+              onCreateTag={handleCreateTag}
+            />
+          );
+        }
         return null;
       })}
 
@@ -4664,6 +4797,9 @@ function ProtocolsTab() {
         </button>
         <button style={S.btn("ghost")} onClick={addEnIp}>
           {t("cfgUi.addEthernetIpAllenBradley")}
+        </button>
+        <button style={S.btn("ghost")} onClick={addHost}>
+          {t("cfgUi.addHost")}
         </button>
       </div>
 

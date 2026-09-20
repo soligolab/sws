@@ -558,6 +558,27 @@ pub struct TlsStatus {
     pub enabled: bool,
 }
 
+#[derive(serde::Serialize)]
+pub struct HostCatalog {
+    temperature: Vec<String>,
+    mount: Vec<String>,
+    interfacce: Vec<String>,
+    core: usize,
+}
+
+/// `GET /api/host/catalog` — cosa può mappare la sorgente «host» **su questa
+/// macchina**: zone termiche, mount, interfacce, core. Alimenta i suggerimenti
+/// dell'editor. Legge il sistema (sysinfo), quindi fuori dal thread async.
+pub async fn get_host_catalog() -> Json<HostCatalog> {
+    let c = tokio::task::spawn_blocking(sws_plugin_host::catalogo).await.unwrap_or_default();
+    Json(HostCatalog {
+        temperature: c.temperature,
+        mount: c.mount,
+        interfacce: c.interfacce,
+        core: c.core,
+    })
+}
+
 /// `GET /api/system/tls` — returns whether TLS is currently active.
 pub async fn get_tls_status(State(s): State<AppState>) -> Json<TlsStatus> {
     let enabled = s.config_dir.join("tls.crt").exists();

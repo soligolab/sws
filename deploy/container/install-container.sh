@@ -404,6 +404,13 @@ MOUNTS=(
     -v "$DATA/projects:/var/sws/projects"
     -v "$DATA/logs:/var/sws/logs"
 )
+# Numero di serie e modello della scheda (sorgente «host»): sull'host stanno nel
+# device-tree, che podman non espone al container. Sola lettura, e solo se c'è
+# (non esiste su x86): un mount con la sorgente mancante fa fallire l'avvio.
+DEVICETREE=/sys/firmware/devicetree/base
+if [ -d "$DEVICETREE" ]; then
+    MOUNTS+=(-v "$DEVICETREE:/host/devicetree:ro")
+fi
 
 if [ "$AUTOSTART" -eq 1 ]; then
     echo "==> [5/6] unit quadlet + linger"
@@ -429,6 +436,10 @@ if [ "$AUTOSTART" -eq 1 ]; then
     if [ "$DATA" != "/data/user/sws" ]; then
         sed -i "s|^Volume=/data/user/sws/|Volume=$DATA/|" "$UNIT_DIR/$NAME.container"
         echo "    mount riscritti su $DATA"
+    fi
+    if [ -d "$DEVICETREE" ] && ! grep -q "/host/devicetree" "$UNIT_DIR/$NAME.container"; then
+        sed -i "/^Volume=.*:\/var\/sws\/logs\$/a Volume=$DEVICETREE:/host/devicetree:ro" "$UNIT_DIR/$NAME.container"
+        echo "    mount del device-tree (seriale/modello della scheda) aggiunto"
     fi
 
     # Senza linger i servizi utente muoiono al logout e non partono al boot:

@@ -1,0 +1,3 @@
+id: host-monitor
+label: Host Monitor
+description: Le risorse del dispositivo (CPU, RAM, temperatura, disco, carico, nome, seriale) lette dalla sorgente «host» e mostrate con indicatori e trend. Adattare il mount del disco e il nome della zona termica al proprio dispositivo.

@@ -1194,7 +1194,28 @@ export interface EnIpSource {
   tags: EnIpTagMapping[];
 }
 
-export type SourceDef = ModbusTcpSource | ModbusRtuSource | MqttSource | OpcUaSource | OpcUaServerSource | HomeAssistantSource | S7Source | EnIpSource;
+export type HostMetric =
+  | 'cpu_pct' | 'cpu_core_pct' | 'load1' | 'load5' | 'load15'
+  | 'mem_used_pct' | 'mem_used_mb' | 'mem_available_mb' | 'mem_total_mb' | 'swap_used_pct'
+  | 'temp' | 'disk_used_pct' | 'disk_free_gb' | 'net_rx_bps' | 'net_tx_bps' | 'uptime_s'
+  | 'hostname' | 'serial_number' | 'model';
+
+export interface HostMetricMapping {
+  tag: string;
+  metric: HostMetric;
+  /** Zona termica, mount, interfaccia o core, secondo la metrica. */
+  param?: string;
+}
+
+/** Sorgente «host»: risorse di sistema del dispositivo come tag (sola lettura). */
+export interface HostSource {
+  kind: 'host';
+  id: string;
+  poll_interval_ms: number;
+  metrics: HostMetricMapping[];
+}
+
+export type SourceDef = ModbusTcpSource | ModbusRtuSource | MqttSource | OpcUaSource | OpcUaServerSource | HomeAssistantSource | S7Source | EnIpSource | HostSource;
 
 // ── HomeAssistant entity browser ───────────────────────────────────────────
 
