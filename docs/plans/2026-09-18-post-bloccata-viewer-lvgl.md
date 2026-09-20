@@ -64,6 +64,19 @@ perché blocca solo il 200 e non il 403. È l'ipotesi più economica da verifica
 - **C. `block_on` anche per le scritture** (la 3 del seme): il render loop si ferma per la durata di ogni scrittura.
 - **D. Lasciare com'è**: sconsigliata, perché il caso non è più teorico (scritture autenticate dal 13-09).
 
+**Fatta il 20-09-2026: opzione B** (ramo `fix/Q55-thread-di-rete`). `net_worker.rs`: un `std::thread` con un runtime
+`current_thread` suo, i tre comandi (`PutTag`, `AckAlarm`, `ApplyRecipe`) su un canale, eseguiti in ordine con
+`block_on` e un tetto di 15 s; `main.rs` (i due loop, SDL2 e DRM) e `lvgl_render.rs` (il click «Applica» delle
+ricette) mettono in coda e proseguono. Sei test nel binario del viewer, contro un server HTTP locale: PUT/POST verso
+200 completano portando il token, un 403 è un errore leggibile, un server muto non ferma la coda, l'ordine è
+rispettato, e la coda globale (`avvia`/`invia`) funziona come la usa il loop. Un test ha preso un difetto vero:
+`tokio::time::timeout` creato fuori dal runtime panicava.
+**Limiti dichiarati**: il difetto originale **non si riproduce**, quindi non si può mostrare che questa strada
+"lo risolva": si è tolta di mezzo la combinazione sospetta a favore di quella provata. La causa **resta
+inspiegata** (opzione A, sotto). Non è stato fatto un collaudo dal vivo sul pannello.
+**Residuo, opzionale — la 2 del seme**: riprodurre nel viewer vero (SDL2 sotto Xvfb, clic sintetici, breadcrumb
+dopo l'`await`) e verificare l'ipotesi «chiamate LVGL da un thread worker».
+
 ---
 
 ## Dalla scheda Q55 — `reqwest` via `rt_handle.spawn()` si blocca per sempre nel viewer LVGL, solo per una POST che riceve 200

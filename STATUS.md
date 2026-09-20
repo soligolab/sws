@@ -96,6 +96,15 @@ AlarmHistory, DataTable, XyPlotCanvas, PythonEditor, PageTabs, BarraAvviso, symb
 Non ancora pushato: F4, F5 e F6 su `main`, serve un «fai il push» esplicito; e va tolto
 `origin/fix/lingue-marchio-auto`.
 
+## ▶ Riprendere da qui — Q55: thread di rete per le scritture, sul ramo (2026-09-20)
+
+Seme `docs/plans/2026-09-18-post-bloccata-viewer-lvgl.md`. **Sul ramo `fix/Q55-thread-di-rete`, non mergiato.**
+Sessione di plan: il difetto **non si riproduce** fuori dal viewer (nove combinazioni + un login vero in HTTP e
+HTTPS, con `lvgl-sys` linkato: tutte completano). Scelta: opzione **B** — `net_worker.rs`, un thread di rete
+dedicato per `put_tag`/`ack_alarm`/`apply_recipe`, in ordine, con tetto di 15 s. Gate verde: `cargo check/clippy/
+fmt/test` (671, di cui 6 nuovi), `check_static.sh` 22/22. **Non provato dal vivo sul pannello.** La causa resta
+inspiegata: residuo opzionale (riprodurre nel viewer vero).
+
 ## ▶ Riprendere da qui — T-72 chiuso: F1-F6 su `main`, piano archiviato (2026-09-19)
 
 L'immagine di boot del pannello (T-72) è finita: F1-F6 su `main` e pushate, piano in

@@ -6703,18 +6703,15 @@ fn render_grid_slot(
     Ok(())
 }
 
-/// Contesto per il click "Applica" di una riga `recipe_panel`: a differenza
-/// delle altre callback di questo file non manda un comando su un canale —
-/// spara direttamente `client::apply_recipe` come task sul runtime tokio
-/// del processo (`rt_handle.spawn`, la stessa API già usata da
-/// `client::spawn_history_poller` per i poller in background). Fire-and-
+/// Contesto per il click "Applica" di una riga `recipe_panel`: mette la POST in
+/// coda al thread di rete (`net_worker`, Q55) — non più un task sul runtime
+/// condiviso, dove una POST verso un 200 si era bloccata per sempre. Fire-and-
 /// forget: nessun riscontro visivo del successo/fallimento in questo giro
 /// (gap dichiarato, stesso principio del bottone/checkbox che non mostrano
 /// se la `PUT /api/tags` è andata a buon fine).
 struct RecipeApplyCtx {
     base_url: String,
     id: String,
-    rt_handle: tokio::runtime::Handle,
     shared_session: SharedSession,
 }
 
@@ -6730,11 +6727,12 @@ unsafe extern "C" fn sws_recipe_apply_clicked_cb(e: *mut lvgl_sys::lv_event_t) {
         .unwrap_or_else(|e| e.into_inner())
         .token
         .clone();
-    ctx.rt_handle.spawn(client::apply_recipe(
-        ctx.base_url.clone(),
-        ctx.id.clone(),
+    // Q55: thread di rete dedicato invece di `rt_handle.spawn` — vedi `net_worker`.
+    crate::net_worker::invia(crate::net_worker::Comando::ApplyRecipe {
+        base_url: ctx.base_url.clone(),
+        id: ctx.id.clone(),
         token,
-    ));
+    });
 }
 
 /// `recipe_panel`: elenco statico di ricette (`GET /api/recipes`, chiamata
@@ -6813,7 +6811,6 @@ fn render_recipe_panel(
         let ctx: &'static RecipeApplyCtx = Box::leak(Box::new(RecipeApplyCtx {
             base_url: base_url.to_string(),
             id: recipe.id.clone(),
-            rt_handle: rt_handle.clone(),
             shared_session: shared_session.clone(),
         }));
         unsafe {

@@ -37,6 +37,7 @@ mod lvgl_indev;
 mod lvgl_log;
 mod lvgl_render;
 mod model;
+mod net_worker;
 mod session;
 mod svg_assets;
 mod svg_raster;
@@ -252,6 +253,9 @@ fn main() -> anyhow::Result<()> {
     lvgl_log::install();
 
     let args = Args::parse();
+
+    // Q55: le scritture di rete girano su un thread loro, non sul runtime condiviso.
+    net_worker::avvia();
 
     // Il runtime tokio NON viene droppato dopo block_on: il task di lettura
     // WS in background (avviato dentro spawn_tag_subscription) deve restare
@@ -764,12 +768,12 @@ fn run_drm(
                 .unwrap_or_else(|e| e.into_inner())
                 .token
                 .clone();
-            rt_handle.spawn(async move {
-                if let Err(e) =
-                    client::put_tag(&base_url, &cmd.tag, cmd.value, token.as_deref()).await
-                {
-                    eprintln!("[tag] scrittura '{}' fallita: {e}", cmd.tag);
-                }
+            // Q55: non più `rt_handle.spawn` — thread di rete dedicato, vedi `net_worker`.
+            net_worker::invia(net_worker::Comando::PutTag {
+                base_url,
+                tag: cmd.tag,
+                value: cmd.value,
+                token,
             });
         }
 
@@ -780,10 +784,10 @@ fn run_drm(
                 .unwrap_or_else(|e| e.into_inner())
                 .token
                 .clone();
-            rt_handle.spawn(async move {
-                if let Err(e) = client::ack_alarm(&base_url, &alarm_id, token.as_deref()).await {
-                    eprintln!("[alarm] ack di '{alarm_id}' fallito: {e}");
-                }
+            net_worker::invia(net_worker::Comando::AckAlarm {
+                base_url,
+                alarm_id,
+                token,
             });
         }
 
@@ -1050,12 +1054,12 @@ fn run_window(
                 .unwrap_or_else(|e| e.into_inner())
                 .token
                 .clone();
-            rt_handle.spawn(async move {
-                if let Err(e) =
-                    client::put_tag(&base_url, &cmd.tag, cmd.value, token.as_deref()).await
-                {
-                    eprintln!("[tag] scrittura '{}' fallita: {e}", cmd.tag);
-                }
+            // Q55: non più `rt_handle.spawn` — thread di rete dedicato, vedi `net_worker`.
+            net_worker::invia(net_worker::Comando::PutTag {
+                base_url,
+                tag: cmd.tag,
+                value: cmd.value,
+                token,
             });
         }
 
@@ -1068,10 +1072,10 @@ fn run_window(
                 .unwrap_or_else(|e| e.into_inner())
                 .token
                 .clone();
-            rt_handle.spawn(async move {
-                if let Err(e) = client::ack_alarm(&base_url, &alarm_id, token.as_deref()).await {
-                    eprintln!("[alarm] ack di '{alarm_id}' fallito: {e}");
-                }
+            net_worker::invia(net_worker::Comando::AckAlarm {
+                base_url,
+                alarm_id,
+                token,
             });
         }
 

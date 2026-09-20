@@ -88,6 +88,13 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   del file e finire in un `IndexError`.
 
 ### Fixed
+- **Q55 — le scritture di rete del viewer LVGL non passano più dal runtime tokio condiviso.** Il 13-09 una POST
+  che riceveva 200, via `rt_handle.spawn`, non era tornata mai dentro `sws-lvgl-viewer`; la causa non si è mai
+  spiegata né riprodotta fuori dal viewer, e `put_tag`, `ack_alarm` e `apply_recipe` giravano ancora così. Ora
+  vanno a un **thread di rete dedicato** (`net_worker.rs`), con un runtime tutto suo che le esegue una alla volta
+  con `block_on` (la forma che nel viewer si è provata funzionare): il rendering non aspetta niente, le scritture
+  partono **nell'ordine in cui sono state fatte** (prima non era garantito) e una risposta che non arriva ha un
+  tetto di 15 s e finisce nel log invece di restare un silenzio. Il thread non tocca mai LVGL.
 - **Ogni upload sopra 2 MiB veniva rifiutato**, immagini e ZIP di deploy compresi: axum applica 2 MiB
   a ogni estrattore `Bytes`, sotto il tetto di 5 MiB che gli handler dichiaravano. Ora le rotte di
   upload hanno un tetto di 8 MiB su entrambi i router, con un test su vero HTTP che invia 3 MiB.
