@@ -2160,7 +2160,9 @@ fn render_rect(
 ) -> anyhow::Result<()> {
     let mut o = create_child_obj(screen)?;
     set_pos_size(&mut o, obj, 100.0, 50.0)?;
-    apply_bg_color(&mut o, obj.fill.as_deref().unwrap_or("#555555"), styles)?;
+    // Era `#555555` (web: `#555`), mentre un rettangolo piazzato nasce `#4a90d9`:
+    // la tabella condivisa ha scelto ciò che si vede alla creazione.
+    apply_bg_color(&mut o, obj.fill.as_deref().unwrap_or(predefinito_lvgl("rect", "fill")), styles)?;
     Ok(())
 }
 
@@ -2200,6 +2202,89 @@ fn default_text_rgb(page_background: Option<&str>) -> Option<(u8, u8, u8)> {
         (0xe2, 0xe8, 0xf0)
     })
 }
+
+/// Il tono **sottile** che segue lo sfondo della pagina — il grigio di una
+/// tubazione senza `stroke`. Gemello di `defaultObjectSubtleColor` in
+/// `theme.ts`; i due valori stanno in `tests/fixtures/colori-predefiniti.json`
+/// (`auto.sottile`) e il test qui sotto li confronta.
+fn default_subtle_rgb(page_background: Option<&str>) -> Option<(u8, u8, u8)> {
+    let bg = parse_hex_color(page_background?)?;
+    Some(if relative_luminance(bg) > 0.5 {
+        (0x47, 0x55, 0x69)
+    } else {
+        (0x64, 0x74, 0x8b)
+    })
+}
+
+/// I colori predefiniti che **questo motore** disegna con un letterale quando
+/// l'oggetto non ne dichiara uno: `(tipo, campo, hex)`.
+///
+/// La fonte è `tests/fixtures/colori-predefiniti.json` — la stessa tabella che
+/// il web usa per la creazione, il canvas e il pannello proprietà. Fino al
+/// 21-09-2026 ogni `unwrap_or("#…")` di questo file era una scelta locale, e un
+/// rettangolo senza `fill` era `#4a90d9` alla creazione, `#555` sul canvas e
+/// `#555555` qui. Il test `colori_predefiniti_tests` confronta questa tabella
+/// con le coppie `lvgl` della fixture, così una divergenza diventa rossa.
+mod colori_predefiniti {
+    use std::cell::Cell;
+
+    pub const TABELLA: &[(&str, &str, &str)] = &[
+        ("rect", "fill", "#4a90d9"),
+        ("ellipse", "fill", "#4a90d9"),
+        ("button", "fill", "#3b82f6"),
+        ("button", "color", "#ffffff"),
+        ("navbutton", "fill", "#0f172a"),
+        ("led", "on_color", "#22c55e"),
+        ("led", "off_color", "#374151"),
+        ("sparkline", "spark_color", "#3b82f6"),
+        ("pipe", "fill_color", "#3b82f6"),
+        ("text_list", "text_list_default_color", "#94a3b8"),
+        ("symbol", "state_off_color", "#64748b"),
+        ("symbol", "state_on_color", "#22c55e"),
+        ("symbol", "state_alarm_color", "#ef4444"),
+        ("alarm_viewer", "alarm_viewer_bg_color", "#0f172a"),
+        ("pie_chart", "pie_group_color", "#64748b"),
+    ];
+
+    /// L'hex della tabella. Panica su una coppia assente: è un errore del
+    /// programmatore, non un dato del progetto, e il test lo vede prima.
+    pub fn predefinito_lvgl(tipo: &str, campo: &str) -> &'static str {
+        TABELLA
+            .iter()
+            .find(|(t, c, _)| *t == tipo && *c == campo)
+            .map(|(_, _, hex)| *hex)
+            .unwrap_or_else(|| panic!("colore predefinito mancante in TABELLA: {tipo}.{campo}"))
+    }
+
+    type Rgb = (u8, u8, u8);
+    /// (tono testo, tono sottile) della pagina; `None` = sfondo non interpretabile.
+    type ColoriPagina = (Option<Rgb>, Option<Rgb>);
+
+    thread_local! {
+        /// I toni automatici della pagina in corso di rendering — testo e
+        /// sottile — per gli oggetti che seguono lo sfondo senza avere una
+        /// firma che glielo porti (linea, tubazione). È l'equivalente della
+        /// custom property `--synoptic-*` sul web: si imposta una volta per
+        /// pagina in `render_page_objects` e vale per tutti i renderer,
+        /// annidati compresi. Il rendering LVGL è su un thread solo.
+        static COLORI_PAGINA: Cell<ColoriPagina> = const { Cell::new((None, None)) };
+    }
+
+    pub fn imposta_colori_pagina(testo: Option<Rgb>, sottile: Option<Rgb>) {
+        COLORI_PAGINA.with(|c| c.set((testo, sottile)));
+    }
+
+    /// Il tono testo della pagina; `None` se lo sfondo non è interpretabile.
+    pub fn testo_pagina() -> Option<Rgb> {
+        COLORI_PAGINA.with(|c| c.get().0)
+    }
+
+    /// Il tono sottile della pagina, o il grigio di sempre.
+    pub fn sottile_pagina() -> Rgb {
+        COLORI_PAGINA.with(|c| c.get().1).unwrap_or((0x64, 0x74, 0x8b))
+    }
+}
+use colori_predefiniti::predefinito_lvgl;
 
 fn text_color_hex(
     tv: Option<&TagSnapshotValue>,
@@ -2588,10 +2673,24 @@ fn render_button(
 ) -> anyhow::Result<()> {
     let mut btn = Btn::create(screen).map_err(|e| anyhow::anyhow!("Btn::create: {e:?}"))?;
     set_pos_size(&mut btn, obj, 120.0, 40.0)?;
-    apply_bg_color(&mut btn, obj.fill.as_deref().unwrap_or("#3b82f6"), styles)?;
+    apply_bg_color(&mut btn, obj.fill.as_deref().unwrap_or(predefinito_lvgl("button", "fill")), styles)?;
     let mut lbl = Label::create(&mut btn).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
     lbl.set_text(&text_cstring(obj.label.as_deref().unwrap_or("Button")))
         .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+    // L'etichetta: `color` dell'oggetto, altrimenti bianca come sul web. Prima
+    // ereditava il tono dello schermo — su pagina chiara, scuro su bottone blu.
+    if let Some(rgb) = obj
+        .color
+        .as_deref()
+        .and_then(parse_hex_color)
+        .or_else(|| parse_hex_color(predefinito_lvgl("button", "color")))
+    {
+        let mut lbl_style = Style::default();
+        lbl_style.set_text_color(Color::from_rgb(rgb));
+        lbl.add_style(Part::Main, &mut lbl_style)
+            .map_err(|e| anyhow::anyhow!("add_style etichetta: {e:?}"))?;
+        styles.push(lbl_style);
+    }
 
     if let Some(tag) = &obj.tag {
         // Stessa semantica del bottone web (SvgCanvas.tsx): scrive
@@ -2636,7 +2735,7 @@ fn render_navbutton(
 ) -> anyhow::Result<()> {
     let mut btn = Btn::create(screen).map_err(|e| anyhow::anyhow!("Btn::create: {e:?}"))?;
     set_pos_size(&mut btn, obj, 140.0, 36.0)?;
-    apply_bg_color(&mut btn, obj.fill.as_deref().unwrap_or("#0f172a"), styles)?;
+    apply_bg_color(&mut btn, obj.fill.as_deref().unwrap_or(predefinito_lvgl("navbutton", "fill")), styles)?;
     let mut lbl = Label::create(&mut btn).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
     lbl.set_text(&text_cstring(&format!(
         "> {}",
@@ -2877,11 +2976,13 @@ fn render_led(
     let on_color = obj
         .on_color
         .clone()
-        .unwrap_or_else(|| "#22c55e".to_string());
+        .unwrap_or_else(|| predefinito_lvgl("led", "on_color").to_string());
+    // Era `#334155`, mentre creazione e canvas web dicevano `#374151`: la
+    // tabella condivisa ha scelto il secondo.
     let off_color = obj
         .off_color
         .clone()
-        .unwrap_or_else(|| "#334155".to_string());
+        .unwrap_or_else(|| predefinito_lvgl("led", "off_color").to_string());
 
     let tv = lookup(tags, &obj.tag);
     let (is_on, bad_quality, color_hex) = led_state(tv, &on_value, &on_color, &off_color);
@@ -3470,7 +3571,7 @@ fn render_ellipse(
 ) -> anyhow::Result<()> {
     let mut o = create_child_obj(screen)?;
     set_pos_size(&mut o, obj, 100.0, 100.0)?;
-    apply_bg_color(&mut o, obj.fill.as_deref().unwrap_or("#555555"), styles)?;
+    apply_bg_color(&mut o, obj.fill.as_deref().unwrap_or(predefinito_lvgl("ellipse", "fill")), styles)?;
     let mut radius_style = Style::default();
     radius_style.set_radius(lvgl_sys::LV_RADIUS_CIRCLE as i16);
     o.add_style(Part::Main, &mut radius_style)
@@ -3518,7 +3619,15 @@ fn render_line(
     }
 
     let mut style = Style::default();
-    if let Some(rgb) = obj.stroke.as_deref().and_then(parse_hex_color) {
+    // Senza `stroke` la linea segue lo sfondo della pagina (tono testo), come
+    // sul web via `--synoptic-text`; il colore di linea non si eredita dallo
+    // schermo, quindi va detto qui.
+    if let Some(rgb) = obj
+        .stroke
+        .as_deref()
+        .and_then(parse_hex_color)
+        .or_else(colori_predefiniti::testo_pagina)
+    {
         style.set_line_color(Color::from_rgb(rgb));
     }
     style.set_line_width(obj.stroke_width.unwrap_or(2.0).round() as i16);
@@ -3757,7 +3866,7 @@ fn render_state_lamp(
     } else {
         obj.text_list_default_color
             .clone()
-            .unwrap_or("#94a3b8".to_string())
+            .unwrap_or(predefinito_lvgl("text_list", "text_list_default_color").to_string())
     };
 
     let mut lamp = create_child_obj(screen)?;
@@ -4136,7 +4245,7 @@ fn render_sparkline(
     }
 
     let rgb =
-        parse_hex_color(obj.spark_color.as_deref().unwrap_or("#3b82f6")).unwrap_or((59, 130, 246));
+        parse_hex_color(obj.spark_color.as_deref().unwrap_or(predefinito_lvgl("sparkline", "spark_color"))).unwrap_or((59, 130, 246));
     let ser = unsafe { chart_add_series(ptr, rgb) };
     let tag = obj.tag.clone().unwrap_or_default();
     let shared =
@@ -4196,7 +4305,7 @@ fn render_alarm_viewer(
     set_pos_size(&mut container, obj, width, height)?;
     apply_bg_color(
         &mut container,
-        obj.alarm_viewer_bg_color.as_deref().unwrap_or("#0f172a"),
+        obj.alarm_viewer_bg_color.as_deref().unwrap_or(predefinito_lvgl("alarm_viewer", "alarm_viewer_bg_color")),
         styles,
     )?;
     let container_ptr = container.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
@@ -4676,7 +4785,7 @@ pub fn raggruppa_spicchi(
     if resto > 0.0 {
         tenuti.push(SpicchioRisolto {
             etichetta: etichetta_gruppo.unwrap_or("altro").to_string(),
-            colore: colore_gruppo.unwrap_or("#64748b").to_string(),
+            colore: colore_gruppo.unwrap_or(predefinito_lvgl("pie_chart", "pie_group_color")).to_string(),
             valore: resto,
         });
     }
@@ -6436,9 +6545,14 @@ fn render_pipe(
         );
     }
     let mut body_style = Style::default();
-    if let Some(rgb) = parse_hex_color(obj.stroke.as_deref().unwrap_or("#64748b")) {
-        body_style.set_line_color(Color::from_rgb(rgb));
-    }
+    // Senza `stroke` il tubo segue lo sfondo della pagina col tono sottile
+    // (`#64748b` su scuro, `#475569` su chiaro), come sul web.
+    let rgb = obj
+        .stroke
+        .as_deref()
+        .and_then(parse_hex_color)
+        .unwrap_or_else(colori_predefiniti::sottile_pagina);
+    body_style.set_line_color(Color::from_rgb(rgb));
     body_style.set_line_width(sw);
     body_style.set_line_rounded(true);
     body.add_style(Part::Main, &mut body_style)
@@ -6457,7 +6571,7 @@ fn render_pipe(
         .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
     let fill_ptr = fill.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     let mut fill_style = Style::default();
-    if let Some(rgb) = parse_hex_color(obj.fill_color.as_deref().unwrap_or("#3b82f6")) {
+    if let Some(rgb) = parse_hex_color(obj.fill_color.as_deref().unwrap_or(predefinito_lvgl("pipe", "fill_color"))) {
         fill_style.set_line_color(Color::from_rgb(rgb));
     }
     // Più sottile del corpo, come sul web (`innerSw = sw - 2`): così il tubo
@@ -8339,15 +8453,15 @@ fn render_symbol(
     let off_color = obj
         .state_off_color
         .clone()
-        .unwrap_or_else(|| "#64748b".to_string());
+        .unwrap_or_else(|| predefinito_lvgl("symbol", "state_off_color").to_string());
     let on_color = obj
         .state_on_color
         .clone()
-        .unwrap_or_else(|| "#22c55e".to_string());
+        .unwrap_or_else(|| predefinito_lvgl("symbol", "state_on_color").to_string());
     let alarm_color = obj
         .state_alarm_color
         .clone()
-        .unwrap_or_else(|| "#ef4444".to_string());
+        .unwrap_or_else(|| predefinito_lvgl("symbol", "state_alarm_color").to_string());
     // `symbol_states` resta `serde_json::Value` nel modello e si converte qui,
     // con tolleranza. Tipizzarlo nel modello significherebbe che un progetto
     // con una voce malformata non apre più **la pagina intera** — e finché il
@@ -9361,6 +9475,10 @@ pub fn render_page_objects(
     //
     // Un oggetto con `color` proprio continua a vincere: questo è solo il
     // valore di partenza, non un'imposizione.
+    colori_predefiniti::imposta_colori_pagina(
+        default_text_rgb(page.background.as_deref()),
+        default_subtle_rgb(page.background.as_deref()),
+    );
     if let Some(rgb) = default_text_rgb(page.background.as_deref()) {
         let mut text_style = Style::default();
         text_style.set_text_color(Color::from_rgb(rgb));
@@ -12459,6 +12577,92 @@ mod binding_tests {
 /// divergevano in due punti: una entry senza valori dava il nome nudo della
 /// chiave sul web e `{{chiave}}` qui, e `{{a b}}` era un token qui e non sul
 /// web.
+#[cfg(test)]
+mod colori_predefiniti_tests {
+    use super::colori_predefiniti::{predefinito_lvgl, TABELLA};
+    use super::*;
+    use std::collections::BTreeMap;
+
+    /// La stessa tabella del test TypeScript (`sws-editor/tests/coloriPredefiniti.test.ts`):
+    /// non una copia, **lo stesso file**. Il 21-09-2026 un rettangolo senza
+    /// `fill` era `#4a90d9` alla creazione, `#555` sul canvas web e `#555555`
+    /// qui; l'etichetta di un bottone era bianca sul web e del colore dello
+    /// schermo qui. Questo test è ciò che rende rosse le prossime divergenze.
+    /// Solo l'hex: le regole `{ auto }` non hanno un letterale qui, seguono
+    /// la pagina (test sotto).
+    #[derive(serde::Deserialize)]
+    struct Regola {
+        hex: Option<String>,
+    }
+    #[derive(serde::Deserialize)]
+    struct Tono {
+        scuro: String,
+        chiaro: String,
+    }
+    #[derive(serde::Deserialize)]
+    struct Fixture {
+        auto: BTreeMap<String, Tono>,
+        predefiniti: BTreeMap<String, BTreeMap<String, Regola>>,
+        lvgl: Vec<(String, String)>,
+    }
+
+    fn fixture() -> Fixture {
+        let percorso = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../tests/fixtures/colori-predefiniti.json"
+        );
+        let testo = std::fs::read_to_string(percorso)
+            .unwrap_or_else(|e| panic!("la tabella condivisa manca ({percorso}): {e}"));
+        serde_json::from_str(&testo).expect("tabella condivisa non valida")
+    }
+
+    #[test]
+    fn i_letterali_del_pannello_sono_quelli_della_tabella_condivisa() {
+        let f = fixture();
+        let mut rotti = Vec::new();
+        for (tipo, campo) in &f.lvgl {
+            let atteso = f
+                .predefiniti
+                .get(tipo)
+                .and_then(|c| c.get(campo))
+                .and_then(|r| r.hex.clone());
+            let Some(atteso) = atteso else {
+                rotti.push(format!("  {tipo}.{campo}: la fixture lo elenca in `lvgl` ma non ha un hex fisso"));
+                continue;
+            };
+            let in_tabella = TABELLA.iter().any(|(t, c, _)| t == tipo && c == campo);
+            if !in_tabella {
+                rotti.push(format!("  {tipo}.{campo}: manca in TABELLA (fixture: {atteso})"));
+                continue;
+            }
+            let avuto = predefinito_lvgl(tipo, campo);
+            if avuto != atteso {
+                rotti.push(format!("  {tipo}.{campo}: atteso {atteso}, avuto {avuto}"));
+            }
+        }
+        // E nel verso opposto: ogni riga di TABELLA è dichiarata nella fixture.
+        for (tipo, campo, _) in TABELLA {
+            if !f.lvgl.iter().any(|(t, c)| t == tipo && c == campo) {
+                rotti.push(format!("  {tipo}.{campo}: in TABELLA ma non fra le coppie `lvgl` della fixture"));
+            }
+        }
+        assert!(rotti.is_empty(), "{} divergenze dalla tabella condivisa:\n{}", rotti.len(), rotti.join("\n"));
+    }
+
+    #[test]
+    fn i_toni_automatici_sono_quelli_della_fixture() {
+        let f = fixture();
+        let hex = |rgb: (u8, u8, u8)| format!("#{:02x}{:02x}{:02x}", rgb.0, rgb.1, rgb.2);
+        let testo = &f.auto["testo"];
+        assert_eq!(hex(default_text_rgb(Some("#1a1a2e")).unwrap()), testo.scuro);
+        assert_eq!(hex(default_text_rgb(Some("#ffffff")).unwrap()), testo.chiaro);
+        let sottile = &f.auto["sottile"];
+        assert_eq!(hex(default_subtle_rgb(Some("#1a1a2e")).unwrap()), sottile.scuro);
+        assert_eq!(hex(default_subtle_rgb(Some("#ffffff")).unwrap()), sottile.chiaro);
+        assert_eq!(default_subtle_rgb(None), None);
+    }
+}
+
 #[cfg(test)]
 mod formattazione_valori_tests {
     use super::*;

@@ -981,7 +981,11 @@
     "targetLvglWayland": "LVGL — Wayland (pannelli Pixsys)",
     "targetHint": "Decide che cosa il pannello manda a schermo al prossimo deploy: il browser o il viewer LVGL. Un progetto senza motore dichiarato è web.",
     "targetRiskyConfirm": "PASSARE A LVGL\\n\\nIl motore LVGL disegna meno cose del browser: alcuni oggetti di questo progetto potrebbero non comparire sul pannello — simboli personalizzati, immagini PNG/JPG, barre orizzontali, torte non ad anello, e le azioni «Naviga a URL / Login / Logout» dei pulsanti.\\n\\nIl verso contrario (LVGL → web) non perde mai niente.\\n\\nProcedere?",
-    "minRoleNoAuthWarning": "Il progetto non ha utenti: ogni visitatore è Admin e il ruolo minimo non avrà effetto. Definisci gli utenti in Configurazione → Utenti."
+    "minRoleNoAuthWarning": "Il progetto non ha utenti: ogni visitatore è Admin e il ruolo minimo non avrà effetto. Definisci gli utenti in Configurazione → Utenti.",
+    "colorAuto": "auto",
+    "colorAutoHint": "Colore automatico: segue lo sfondo della pagina. Toccalo per fissarlo.",
+    "colorAutoReset": "Torna automatico (segue lo sfondo della pagina)",
+    "mixedValues": "(vari)"
   },
   "shortcut": {
     "navCanvas": "Navigazione canvas",

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
+import { predefinito } from "@/coloriPredefiniti";
 import type { AlarmEvent, BucketSample, Sample, TrendSeriesStyle } from "@/types";
 import { useLinguaContenuti } from "@/i18n/linguaContenuti";
 import { resolveMsg } from "@/i18n/projectI18n";
@@ -25,6 +26,13 @@ import { resolveMsg } from "@/i18n/projectI18n";
 /** Shared with TrendExpanded.tsx so the two views never drift on which
  *  color a given series index gets. */
 export const PALETTE = ["#3b82f6", "#22c55e", "#eab308", "#ef4444", "#a855f7", "#06b6d4"];
+
+/** Il colore di un campo del trend quando il progetto non ne dichiara uno: la
+ *  tabella condivisa (`coloriPredefiniti.ts`), la stessa che legge il pannello. */
+const DEF_TREND = (campo: string): string => predefinito("trend", campo) ?? "#64748b";
+/** La cornice del grafico segue `axis_color` se c'è; senza, un tono più scuro
+ *  delle etichette (non è un campo: nel pannello non ha un suo selettore). */
+const TREND_FRAME_DEFAULT = "#334155";
 
 /** Resolves the display color for series `i`: explicit per-trace style wins,
  *  then `lineColor` for the first series (legacy), then the shared palette. */
@@ -605,7 +613,7 @@ export function TrendCanvas({
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     // Background + frame
-    ctx.fillStyle = bgColor ?? "#0f172a";
+    ctx.fillStyle = bgColor ?? DEF_TREND("bg_color");
     ctx.fillRect(0, 0, width, height);
     if (bgImage) {
       if (bgImgRef.current.url !== bgImage) {
@@ -619,7 +627,7 @@ export function TrendCanvas({
         ctx.drawImage(bgImgRef.current.img, 0, 0, width, height);
       }
     }
-    ctx.strokeStyle = axisColor ?? "#334155";
+    ctx.strokeStyle = axisColor ?? TREND_FRAME_DEFAULT;
     ctx.lineWidth = 1;
     ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
 
@@ -720,7 +728,7 @@ export function TrendCanvas({
     };
 
     // ── Grid ──
-    ctx.strokeStyle = gridColor ?? "#1e293b";
+    ctx.strokeStyle = gridColor ?? DEF_TREND("grid_color");
     ctx.lineWidth = 1;
     // Horizontal grid (4 divisions)
     for (let i = 1; i < 4; i++) {
@@ -743,7 +751,7 @@ export function TrendCanvas({
     // Skipped when every trace has its own scale — a shared axis nobody uses
     // would just be a confusing, meaningless 0-1 range.
     if (hasSharedSeries) {
-      ctx.fillStyle = axisColor ?? "#64748b";
+      ctx.fillStyle = axisColor ?? DEF_TREND("axis_color");
       ctx.font = "10px ui-monospace, monospace";
       ctx.textAlign = "left";
       ctx.textBaseline = "middle";
@@ -782,7 +790,7 @@ export function TrendCanvas({
     // the context tinted with the last trace's color, and inheriting it here
     // painted the time labels in that color (regression from the own-scale
     // work, caught during the style pass).
-    ctx.fillStyle = axisColor ?? "#64748b";
+    ctx.fillStyle = axisColor ?? DEF_TREND("axis_color");
     ctx.textBaseline = "top";
     for (let i = 0; i <= 4; i++) {
       const ts = tMin + (tSpan * i) / 4;

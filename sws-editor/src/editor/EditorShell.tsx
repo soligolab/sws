@@ -28,6 +28,9 @@ import { getBrand } from "@/branding";
 import { genId } from "@/id";
 import type { SymbolMeta } from "@/symbols/library";
 import { useAppStore } from "@/store";
+import { coloreAuto, estraiHex, predefinito, regola } from "@/coloriPredefiniti";
+import { oggettoNuovo } from "./oggettiNuovi";
+import { CampoColore } from "./CampoColore";
 import { BarraIcone, IntestazioneSezione, PREFISSO_MEMORIA, RigaProprieta, SPAZIO, TESTO, TitoloVista, migraMemorieVecchie, useSezioneAperta } from "./stilePannelli";
 import { cosaCancella, eliminaWaypoint, percorsoDaSalvare, puntiMovimento } from "@/canvas/percorsoMovimento";
 import { targetDaSalvare, versoRischioso } from "./targetProgetto";
@@ -573,162 +576,11 @@ export function EditorShell() {
 
   const handleAddObject = (type: SynopticObject["type"]) => {
     const { x, y } = nextPos();
-    switch (type) {
-      case "rect":
-        addObject({ type, x, y, width: 150, height: 80, fill: "#4a90d9" });
-        break;
-      case "ellipse":
-        addObject({ type, x, y, width: 120, height: 80, fill: "#4a90d9" });
-        break;
-      case "line":
-        addObject({ type, x, y, x2: x + 120, y2: y, stroke: "var(--brand-text, #e2e8f0)", stroke_width: 2 });
-        break;
-      case "text":
-        addObject({ type, x, y: y + 14, text: "Testo", font_size: 14, color: "var(--brand-text, #e2e8f0)", text_anchor: "start" });
-        break;
-      case "button":
-        addObject({ type, x, y, width: 120, height: 40, fill: "var(--brand-primary, #3b82f6)", label: "Bottone", write_value: true });
-        break;
-      case "navbutton":
-        addObject({ type, x, y, width: 140, height: 36, label: "Vai alla pagina" });
-        break;
-      case "page_navigator":
-        // Una barra in alto: un bottone per pagina, si dividono lo spazio.
-        addObject({ type, x, y, width: 480, height: 44, nav_orientation: "horizontal", nav_fill: true, nav_gap: 4 });
-        break;
-      case "lang_selector":
-        addObject({ type, x, y, width: 120, height: 32 });
-        break;
-      case "lang_button":
-        addObject({ type, x, y, width: 70, height: 32, target_lang: "" });
-        break;
-      case "checkbox":
-        addObject({ type, x, y, width: 120, height: 30, label: "Checkbox", checked_value: true, unchecked_value: false });
-        break;
-      case "radio":
-        addObject({ type, x, y, width: 160, height: 80, label: "Radio", orientation: "vertical",
-          options: [{ label: "Opzione 1", value: "1" }, { label: "Opzione 2", value: "2" }] });
-        break;
-      case "slider":
-        addObject({ type, x, y, width: 200, height: 40, min: 0, max: 100, step: 1, orientation: "horizontal" });
-        break;
-      case "setpoint":
-        addObject({ type, x, y, width: 140, height: 56, label: "Setpoint", min: 0, max: 100, step: 1 });
-        break;
-      case "gauge":
-        addObject({ type, x, y, width: 180, height: 180, min: 0, max: 100, label: "Gauge" });
-        break;
-      case "led":
-        addObject({ type, x, y, width: 40, height: 40, on_value: true, on_color: "var(--brand-success, #22c55e)", off_color: "#374151" });
-        break;
-      case "state_lamp":
-        addObject({ type, x, y, width: 140, height: 24, font_size: 13,
-          text_list_entries: [
-            { value: 0, label: "Fermo", color: "var(--brand-text-muted, #94a3b8)" },
-            { value: 1, label: "Marcia", color: "var(--brand-success, #22c55e)" },
-            { value: 2, label: "Allarme", color: "var(--brand-danger, #ef4444)" },
-          ] });
-        break;
-      case "progress_bar":
-        addObject({ type, x, y, width: 200, height: 30, min: 0, max: 100, fill: "var(--brand-primary, #3b82f6)", show_value: true });
-        break;
-      case "table":
-        addObject({ type, x, y, width: 300, height: 120,
-          table_rows: [{ label: "Tag 1", tag: "", format: "{value:.1f}" }] });
-        break;
-      case "trend":
-        addObject({ type, x, y, width: 360, height: 180,
-          trend_tags: [{ tag: "" }], window_s: 60 });
-        break;
-      case "xy_plot":
-        addObject({ type, x, y, width: 200, height: 200,
-          xy_series: [{ tag: "", y_tag: "" }], xy_trail_s: 30 });
-        break;
-      case "text_list":
-        addObject({ type, x, y, width: 120, height: 32, font_size: 16, text_anchor: "middle",
-          text_list_entries: [
-            { value: 0, label: "Chiuso", color: "var(--brand-text-muted, #94a3b8)" },
-            { value: 1, label: "Aperto", color: "var(--brand-success, #22c55e)" },
-          ],
-          text_list_default: "N/D", text_list_default_color: "var(--brand-danger, #ef4444)" });
-        break;
-      case "bar_chart":
-        addObject({ type, x, y, width: 240, height: 180, min: 0, max: 100,
-          bar_orientation: "vertical", bar_show_values: true, bar_show_labels: true,
-          bar_show_thresholds: true, bar_gap: 0.2,
-          bar_series: [
-            { tag: "", label: "Linea 1", color: "var(--brand-primary, #3b82f6)" },
-            { tag: "", label: "Linea 2", color: "var(--brand-success, #22c55e)" },
-          ] });
-        break;
-      case "pie_chart":
-        addObject({ type, x, y, width: 200, height: 200, pie_mode: "pie",
-          pie_show_labels: true,
-          pie_slices: [
-            { tag: "", label: "Zona 1", color: "var(--brand-primary, #3b82f6)" },
-            { tag: "", label: "Zona 2", color: "var(--brand-success, #22c55e)" },
-            { tag: "", label: "Zona 3", color: "var(--brand-warning, #f59e0b)" },
-          ] });
-        break;
-      case "sparkline":
-        addObject({ type, x, y, width: 120, height: 30, tag: "",
-          spark_window_s: 60, spark_color: "var(--brand-primary, #3b82f6)",
-          spark_fill: true, spark_fill_opacity: 0.2, spark_stroke_width: 1.5 });
-        break;
-      case "kpi_tile":
-        addObject({ type, x, y, width: 180, height: 100, tag: "", label: "KPI",
-          spark_window_s: 3600 });
-        break;
-      case "data_log":
-        addObject({ type, x, y, width: 380, height: 240, tag: "", label: "Data log",
-          window_s: 3600, datalog_page_size: 25 });
-        break;
-      case "alarm_viewer":
-        addObject({ type, x, y, width: 360, height: 160,
-          alarm_viewer_max_rows: 5, alarm_viewer_mode: "list",
-          alarm_viewer_show_ack: true, alarm_viewer_show_ts: true, alarm_viewer_show_empty: true });
-        break;
-      case "alarm_bell":
-        addObject({ type, x, y, width: 130, height: 34,
-          alarm_bell_show_history: true, alarm_bell_show_shelve: true });
-        break;
-      case "alarm_banner":
-        addObject({ type, x, y, width: 600, height: 32 });
-        break;
-      case "alarm_history":
-        addObject({ type, x, y, width: 420, height: 220 });
-        break;
-      case "recipe_panel":
-        addObject({ type, x, y, width: 260, height: 160 });
-        break;
-      case "image":
-        setPendingImagePos({ x, y });
-        return; // addObject called after image is chosen in browser
-      case "symbol":
-        setSymbolPickPos({ x, y });
-        return; // addObject called when user confirms in modal
-      case "grid":
-        addObject({ type, x, y, width: 400, height: 300,
-          label: "Grid",
-          grid_rows: 2, grid_cols: 2,
-          grid_cells: [],
-          grid_show_borders: true,
-          grid_border_color: "var(--brand-text-subtle, #64748b)" });
-        break;
-      case "pipe":
-        addObject({
-          type, x, y,
-          points: [{ x, y }, { x: x + 120, y }, { x: x + 120, y: y + 80 }],
-          routing: "straight",
-          pipe_style: "flat",
-          stroke: "var(--brand-text-subtle, #64748b)",
-          stroke_width: 8,
-        });
-        break;
-      case "faceplate":
-        addObject({ type, x, y, width: 120, height: 80 });
-        break;
-    }
+    // Due tipi chiedono prima qualcosa all'utente e si creano dopo la scelta.
+    if (type === "image") { setPendingImagePos({ x, y }); return; }
+    if (type === "symbol") { setSymbolPickPos({ x, y }); return; }
+    const o = oggettoNuovo(type, x, y);
+    if (o) addObject(o);
   };
 
   // When a project-level function is selected, take over the whole main
@@ -791,9 +643,9 @@ export function EditorShell() {
               width: 80,
               height: 80,
               symbol_id: symbolId,
-              state_off_color: "var(--brand-text-subtle, #64748b)",
-              state_on_color: "var(--brand-success, #22c55e)",
-              state_alarm_color: "var(--brand-danger, #ef4444)",
+              state_off_color: predefinito("symbol", "state_off_color"),
+              state_on_color: predefinito("symbol", "state_on_color"),
+              state_alarm_color: predefinito("symbol", "state_alarm_color"),
             });
             setSymbolPickPos(null);
           }}
@@ -926,7 +778,7 @@ export function EditorShell() {
                   />
                   <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
                     Colore sfondo:
-                    <input type="color" value={entry.bg_color ?? "var(--brand-surface, #1e293b)"}
+                    <input type="color" value={estraiHex(entry.bg_color) ?? "#1e293b"}
                       onChange={(e) => updateSub({ bg_color: e.target.value })}
                       style={{ width: 28, height: 22, border: "1px solid var(--brand-surface-2, #334155)", background: "transparent", cursor: "pointer" }} />
                     {entry.bg_color && (
@@ -938,7 +790,7 @@ export function EditorShell() {
                   </label>
                   <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
                     Colore bordo:
-                    <input type="color" value={entry.border_color ?? "#64748b"}
+                    <input type="color" value={estraiHex(entry.border_color) ?? "#64748b"}
                       onChange={(e) => updateSub({ border_color: e.target.value })}
                       style={{ width: 28, height: 22, border: "1px solid var(--brand-surface-2, #334155)", background: "transparent", cursor: "pointer" }} />
                     {entry.border_color && (
@@ -2425,26 +2277,24 @@ function CrossTypeProps({
     />
   );
 
-  const colorInput = (k: keyof SynopticObject, fallback: string) => {
-    const mixed = isMixed(k);
-    return (
-      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-        <input
-          type="color"
-          style={{ ...INPUT, padding: 2, height: 28, width: 44, cursor: "pointer", flex: "none", opacity: mixed ? 0.4 : 1 }}
-          value={mixed ? "#808080" : ((mergedProps[k] as string) ?? fallback)}
-          onChange={(e) => onChange({ [k]: e.target.value } as Partial<SynopticObject>)}
-        />
-        <input
-          type="text"
-          style={INPUT}
-          placeholder={mixed ? "(vari)" : undefined}
-          value={mixed ? "" : ((mergedProps[k] as string) ?? fallback)}
-          onChange={(e) => onChange({ [k]: e.target.value } as Partial<SynopticObject>)}
-        />
-      </div>
-    );
-  };
+  // Lo sfondo della pagina corrente, come lo disegna il canvas (stesso
+  // default di SvgCanvas): serve a mostrare il colore effettivo dei campi
+  // automatici. La prop `pages` non basta — esclude la pagina corrente.
+  const sfondoPagina = useAppStore((st) => {
+    const pg = st.pages.find((x) => x.id === st.currentPageId);
+    return estraiHex(resolvePageBackground(pg?.background, pg?.background_dark, st.themeMode)) ?? "#1a1a2e";
+  });
+  // Selezione di tipi diversi: nessuna regola «auto» (dipenderebbe dal
+  // tipo), il ripiego è quello del tipo `*` della tabella.
+  const colorInput = (k: keyof SynopticObject) => (
+    <CampoColore
+      valore={mergedProps[k]}
+      regola={{ hex: predefinito("*", k) ?? "#808080" }}
+      sfondo={sfondoPagina}
+      mixed={isMixed(k)}
+      onChange={(v) => onChange({ [k]: v } as Partial<SynopticObject>)}
+    />
+  );
 
   const grid2: React.CSSProperties = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 };
 
@@ -2459,8 +2309,8 @@ function CrossTypeProps({
       </div>
 
       <SottoTitolo chiave="sectionAppearance" />
-      {field(t("props.fill"), colorInput("fill", "var(--brand-primary, #3b82f6)"))}
-      {field(t("props.stroke"), colorInput("stroke", "#ffffff"))}
+      {field(t("props.fill"), colorInput("fill"))}
+      {field(t("props.stroke"), colorInput("stroke"))}
       <div style={grid2}>
         {field(t("props.strokeW"), numInput("stroke_width", 1))}
         {field(t("props.opacity"), numInput("opacity", 1))}
@@ -2513,9 +2363,9 @@ function CrossTypeProps({
       </label>
       {mergedProps.quality_dot !== false && (
         <>
-          {field(t("props.colorGood"), colorInput("quality_dot_good_color", "var(--brand-success, #22c55e)"))}
-          {field(t("props.colorUncertain"), colorInput("quality_dot_uncertain_color", "var(--brand-warning, #eab308)"))}
-          {field(t("props.colorBad"), colorInput("quality_dot_bad_color", "var(--brand-danger, #ef4444)"))}
+          {field(t("props.colorGood"), colorInput("quality_dot_good_color"))}
+          {field(t("props.colorUncertain"), colorInput("quality_dot_uncertain_color"))}
+          {field(t("props.colorBad"), colorInput("quality_dot_bad_color"))}
         </>
       )}
 
@@ -2561,6 +2411,13 @@ export function ObjectProps({
   onChange: (p: Partial<SynopticObject>) => void;
   onDelete: () => void;
 }) {
+  // Lo sfondo della pagina corrente, come lo disegna il canvas (stesso
+  // default di SvgCanvas): serve a mostrare il colore effettivo dei campi
+  // automatici. La prop `pages` non basta — esclude la pagina corrente.
+  const sfondoPagina = useAppStore((st) => {
+    const pg = st.pages.find((x) => x.id === st.currentPageId);
+    return estraiHex(resolvePageBackground(pg?.background, pg?.background_dark, st.themeMode)) ?? "#1a1a2e";
+  });
   const { t } = useTranslation();
   const gruppoAttivo = useContext(GruppoAttivo);
   // Il fatto «il progetto ha utenti», non la modalità dell'istanza: vedi
@@ -2642,26 +2499,18 @@ export function ObjectProps({
     />
   );
 
-  const colorInput = (key: keyof SynopticObject, fallback: string) => {
-    const mixed = mixedKeys.has(key);
-    return (
-      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-        <input
-          type="color"
-          style={{ ...INPUT, padding: 2, height: 28, width: 44, cursor: "pointer", flex: "none", opacity: mixed ? 0.4 : 1 }}
-          value={mixed ? "#808080" : ((obj[key] as string) ?? fallback)}
-          onChange={(e) => onChange({ [key]: e.target.value } as Partial<SynopticObject>)}
-        />
-        <input
-          type="text"
-          style={INPUT}
-          placeholder={mixed ? "(vari)" : undefined}
-          value={mixed ? "" : ((obj[key] as string) ?? fallback)}
-          onChange={(e) => onChange({ [key]: e.target.value } as Partial<SynopticObject>)}
-        />
-      </div>
-    );
-  };
+  // Il ripiego non si passa più: viene dalla tabella condivisa con canvas e
+  // LVGL (`coloriPredefiniti.ts`), e un campo automatico mostra il colore
+  // effettivo per lo sfondo della pagina corrente.
+  const colorInput = (key: keyof SynopticObject) => (
+    <CampoColore
+      valore={obj[key]}
+      regola={regola(obj.type, key)}
+      sfondo={sfondoPagina}
+      mixed={mixedKeys.has(key)}
+      onChange={(v) => onChange({ [key]: v } as Partial<SynopticObject>)}
+    />
+  );
 
   /** Severity checkbox row shared by every alarm-display widget
    *  (alarm_bell, alarm_banner, alarm_viewer) — previously copy-pasted
@@ -2736,7 +2585,7 @@ export function ObjectProps({
               }} />
             <input style={{ ...INPUT, flex: 1 }} placeholder={t("props.labelPh")} value={e.label}
               onChange={(ev) => { const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, label: ev.target.value }; onChange({ text_list_entries: next }); }} />
-            <input type="color" value={e.color ?? "var(--brand-text, #e2e8f0)"} title={t("props.colorText")}
+            <input type="color" value={estraiHex(e.color) ?? estraiHex(coloreAuto("testo", sfondoPagina)) ?? "#e2e8f0"} title={t("props.colorText")}
               onChange={(ev) => { const next = [...(obj.text_list_entries ?? [])]; next[i] = { ...e, color: ev.target.value }; onChange({ text_list_entries: next }); }}
               style={{ width: 28, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3, cursor: "pointer" }} />
             <button style={{ ...INPUT, width: "auto", padding: "0 6px", cursor: "pointer" }}
@@ -2866,12 +2715,12 @@ export function ObjectProps({
       <CollapsibleSection title={t("props.sectionAppearance")} storageKey="aspetto" gruppo="oggetto">
         {/* Fill */}
         {(obj.type === "rect" || obj.type === "ellipse" || obj.type === "button" || obj.type === "navbutton") &&
-          field(t("props.color"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill", "#4a90d9")}</BindableInput>)}
+          field(t("props.color"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill")}</BindableInput>)}
 
         {/* Stroke */}
         {hasStroke && (
           <>
-            {field(t("props.border"), <BindableInput obj={obj} propName="stroke" onChange={onChange}>{colorInput("stroke", "var(--brand-text, #e2e8f0)")}</BindableInput>)}
+            {field(t("props.border"), <BindableInput obj={obj} propName="stroke" onChange={onChange}>{colorInput("stroke")}</BindableInput>)}
             {field(t("props.borderThickness"), <BindableInput obj={obj} propName="stroke_width" onChange={onChange}>{numInput("stroke_width", 1)}</BindableInput>)}
           </>
         )}
@@ -2879,7 +2728,7 @@ export function ObjectProps({
             non modificabile: stessi due campi degli altri tipi con bordo. */}
         {obj.type === "navbutton" && (
           <>
-            {field(t("props.border"), <BindableInput obj={obj} propName="stroke" onChange={onChange}>{colorInput("stroke", "var(--brand-primary, #3b82f6)")}</BindableInput>)}
+            {field(t("props.border"), <BindableInput obj={obj} propName="stroke" onChange={onChange}>{colorInput("stroke")}</BindableInput>)}
             {field(t("props.borderThickness"), <BindableInput obj={obj} propName="stroke_width" onChange={onChange}>{numInput("stroke_width", 1.5)}</BindableInput>)}
           </>
         )}
@@ -2911,8 +2760,8 @@ export function ObjectProps({
             )}
             {obj.fill_gradient && (
               <>
-                {field(t("props.gradientLight"), colorInput("gradient_light_color", "#ffffff"))}
-                {field(t("props.gradientDark"), colorInput("gradient_dark_color", "#000000"))}
+                {field(t("props.gradientLight"), colorInput("gradient_light_color"))}
+                {field(t("props.gradientDark"), colorInput("gradient_dark_color"))}
                 <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "-2px 0 4px" }}>
                   {t("props.gradientHint")}
                 </p>
@@ -2960,7 +2809,7 @@ export function ObjectProps({
                 <input
                   type="color"
                   style={{ ...INPUT, padding: 2, height: 28, width: 44, cursor: "pointer", flex: "none", opacity: obj.bg_color ? 1 : 0.4 }}
-                  value={obj.bg_color ?? "#0f172a"}
+                  value={estraiHex(obj.bg_color) ?? "#0f172a"}
                   onChange={(e) => onChange({ bg_color: e.target.value })}
                 />
                 {obj.bg_color && (
@@ -3169,7 +3018,7 @@ export function ObjectProps({
                   </select>
                 </div>
               </div>
-              {field(t("props.colorText"), <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color", "var(--brand-text, #e2e8f0)")}</BindableInput>)}
+              {field(t("props.colorText"), <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color")}</BindableInput>)}
               <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
                 <input
                   type="checkbox"
@@ -3210,7 +3059,7 @@ export function ObjectProps({
           {obj.type === "button" && (
             <>
               {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "Bottone")}</BindableInput>)}
-              {field(t("props.labelColor"), <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color", "#ffffff")}</BindableInput>)}
+              {field(t("props.labelColor"), <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color")}</BindableInput>)}
               {field(t("props.buttonMode"), (
                 <select style={{ ...INPUT, cursor: "pointer" }} value={obj.button_mode ?? "write"}
                   onChange={(e) => onChange({ button_mode: e.target.value === "write" ? undefined : e.target.value as SynopticObject["button_mode"] })}>
@@ -3372,7 +3221,7 @@ export function ObjectProps({
                     {t("shell.theTargetPageWasDeleted")}
                   </div>
                 )}
-                {field(t("props.labelColor"), <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color", "#e2e8f0")}</BindableInput>)}
+                {field(t("props.labelColor"), <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color")}</BindableInput>)}
               </>
             );
           })()}
@@ -3420,8 +3269,8 @@ export function ObjectProps({
                 <input type="checkbox" checked={!!obj.show_value}
                   onChange={(e) => onChange({ show_value: e.target.checked })} />
               )}
-              {field(t("props.needleColor"), <BindableInput obj={obj} propName="stroke" onChange={onChange}>{colorInput("stroke", "#e2e8f0")}</BindableInput>)}
-              {field(t("props.textsColor"), <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color", "#e2e8f0")}</BindableInput>)}
+              {field(t("props.needleColor"), <BindableInput obj={obj} propName="stroke" onChange={onChange}>{colorInput("stroke")}</BindableInput>)}
+              {field(t("props.textsColor"), <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color")}</BindableInput>)}
 
               {/* F7.6 — quadrante: apertura dell'arco e tacche numerate. */}
               <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>
@@ -3442,7 +3291,7 @@ export function ObjectProps({
               </div>
               <TagInput value={obj.gauge_sp_tag ?? ""} onChange={(v) => onChange({ gauge_sp_tag: v || undefined })}
                 placeholder={t("props.setpointTagPlaceholder")} />
-              {obj.gauge_sp_tag && field(t("props.color"), colorInput("gauge_sp_color", "#f59e0b"))}
+              {obj.gauge_sp_tag && field(t("props.color"), colorInput("gauge_sp_color"))}
 
               {/* F7.6 — zone colorate del fondo scala. */}
               <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 6, marginBottom: 2, fontWeight: 700 }}>
@@ -3464,7 +3313,7 @@ export function ObjectProps({
                       onChange({ gauge_zones: zs });
                     }} />
                   <input type="color" style={{ ...INPUT, padding: 2, height: 26, width: 38, cursor: "pointer", flex: "none" }}
-                    value={z.color}
+                    value={estraiHex(z.color) ?? "#22c55e"}
                     onChange={(e) => {
                       const zs = [...(obj.gauge_zones ?? [])];
                       zs[i] = { ...zs[i], color: e.target.value };
@@ -3495,7 +3344,7 @@ export function ObjectProps({
           {obj.type === "slider" && (
             <>
               {field(t("props.tag"), tagInput("es. pump1.speed"))}
-              {field(t("props.color"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill", "var(--brand-primary, #3b82f6)")}</BindableInput>)}
+              {field(t("props.color"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill")}</BindableInput>)}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
                 <div><div style={LABEL}>Min</div><BindableInput obj={obj} propName="min" onChange={onChange}>{numInput("min", 0)}</BindableInput></div>
                 <div><div style={LABEL}>Max</div><BindableInput obj={obj} propName="max" onChange={onChange}>{numInput("max", 100)}</BindableInput></div>
@@ -3551,7 +3400,7 @@ export function ObjectProps({
             <>
               {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "Checkbox")}</BindableInput>)}
               {field(t("props.tag"), tagInput("es. pump1.run"))}
-              {field(t("props.color"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill", "var(--brand-primary, #3b82f6)")}</BindableInput>)}
+              {field(t("props.color"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill")}</BindableInput>)}
               {field(t("props.valueOn"),
                 <BindableInput obj={obj} propName="checked_value" onChange={onChange}>
                   <input type="text" style={INPUT} placeholder={t("props.trueHint")}
@@ -3588,7 +3437,7 @@ export function ObjectProps({
             <>
               {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "Radio")}</BindableInput>)}
               {field(t("props.tag"), tagInput("es. pump1.mode"))}
-              {field(t("props.color"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill", "var(--brand-primary, #3b82f6)")}</BindableInput>)}
+              {field(t("props.color"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill")}</BindableInput>)}
               {field(t("props.orientation"),
                 <select
                   style={{ ...INPUT, cursor: "pointer" }}
@@ -3627,8 +3476,8 @@ export function ObjectProps({
                     }} />
                 </BindableInput>
               )}
-              {field(t("props.colorOn"),  <BindableInput obj={obj} propName="on_color" onChange={onChange}>{colorInput("on_color",  "var(--brand-success, #22c55e)")}</BindableInput>)}
-              {field(t("props.colorOff"), <BindableInput obj={obj} propName="off_color" onChange={onChange}>{colorInput("off_color", "#374151")}</BindableInput>)}
+              {field(t("props.colorOn"),  <BindableInput obj={obj} propName="on_color" onChange={onChange}>{colorInput("on_color")}</BindableInput>)}
+              {field(t("props.colorOff"), <BindableInput obj={obj} propName="off_color" onChange={onChange}>{colorInput("off_color")}</BindableInput>)}
             </>
           )}
 
@@ -3643,7 +3492,7 @@ export function ObjectProps({
               </div>
               {field(t("props.unit"), <BindableInput obj={obj} propName="unit" onChange={onChange}>{textInput("unit", "")}</BindableInput>)}
               {field(t("props.decimals"), <BindableInput obj={obj} propName="decimals" onChange={onChange}>{numInput("decimals", 1)}</BindableInput>)}
-              {field(t("props.colorBar"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill", "var(--brand-primary, #3b82f6)")}</BindableInput>)}
+              {field(t("props.colorBar"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill")}</BindableInput>)}
               <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 4, marginBottom: 2, fontWeight: 700 }}>SOGLIE</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
                 <div><div style={LABEL}>{t("props.warnLow")}</div><BindableInput obj={obj} propName="warn_low" onChange={onChange}>{numInput("warn_low", 0)}</BindableInput></div>
@@ -3744,7 +3593,7 @@ export function ObjectProps({
                 <div style={{ display: "flex", gap: 5, alignItems: "center", flexWrap: "wrap" }}>
                   <input
                     type="color"
-                    value={tr.color ?? PALETTE[idx % PALETTE.length]}
+                    value={estraiHex(tr.color) ?? PALETTE[idx % PALETTE.length]}
                     onChange={(e) => patchTrace(idx, { color: e.target.value })}
                     title={t("props.color")}
                     style={{ width: 26, height: 22, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }}
@@ -3929,8 +3778,8 @@ export function ObjectProps({
                 {t("shell.showAlarmEventsOnThe")}
               </label>
 
-              {field(t("props.axisColor"), <BindableInput obj={obj} propName="axis_color" onChange={onChange}>{colorInput("axis_color", "#64748b")}</BindableInput>)}
-              {field(t("props.gridColor"), <BindableInput obj={obj} propName="grid_color" onChange={onChange}>{colorInput("grid_color", "#1e293b")}</BindableInput>)}
+              {field(t("props.axisColor"), <BindableInput obj={obj} propName="axis_color" onChange={onChange}>{colorInput("axis_color")}</BindableInput>)}
+              {field(t("props.gridColor"), <BindableInput obj={obj} propName="grid_color" onChange={onChange}>{colorInput("grid_color")}</BindableInput>)}
               {/* OPC-UA historian backfill */}
               <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
                 <input
@@ -3977,7 +3826,7 @@ export function ObjectProps({
                   />
                   <input
                     type="color"
-                    value={p.color ?? PALETTE[idx % PALETTE.length]}
+                    value={estraiHex(p.color) ?? PALETTE[idx % PALETTE.length]}
                     onChange={(e) => patchPair(idx, { color: e.target.value })}
                     title={t("props.color")}
                     style={{ width: 26, height: 22, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }}
@@ -4121,12 +3970,12 @@ export function ObjectProps({
                     <input
                       type="color"
                       style={{ ...INPUT, padding: 2, height: 28, width: 44, cursor: "pointer", flex: "none" }}
-                      value={obj.grid_border_color ?? "var(--brand-text-subtle, #64748b)"}
+                      value={estraiHex(obj.grid_border_color) ?? predefinito("grid", "grid_border_color") ?? "#64748b"}
                       onChange={(e) => onChange({ grid_border_color: e.target.value })}
                     />
                     <input
                       type="text" style={INPUT}
-                      value={obj.grid_border_color ?? "var(--brand-text-subtle, #64748b)"}
+                      value={estraiHex(obj.grid_border_color) ?? predefinito("grid", "grid_border_color") ?? "#64748b"}
                       onChange={(e) => onChange({ grid_border_color: e.target.value })}
                     />
                   </div>
@@ -4144,7 +3993,7 @@ export function ObjectProps({
               {field(t("props.tag"), tagInput("es. valvola.stato"))}
               {textListEntriesField()}
               {field(t("props.textDefault"), <input style={INPUT} value={obj.text_list_default ?? ""} onChange={(e) => onChange({ text_list_default: e.target.value })} />)}
-              {field(t("props.colorDefault"), <input type="color" value={obj.text_list_default_color ?? "var(--brand-text-muted, #94a3b8)"} onChange={(e) => onChange({ text_list_default_color: e.target.value })} style={{ width: 40, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />)}
+              {field(t("props.colorDefault"), <input type="color" value={estraiHex(obj.text_list_default_color) ?? "#94a3b8"} onChange={(e) => onChange({ text_list_default_color: e.target.value })} style={{ width: 40, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />)}
               {field(t("props.fontSize"), numInput("font_size", 16))}
               {field(t("props.alignment"), (
                 <select style={INPUT} value={obj.text_anchor ?? "middle"} onChange={(e) => onChange({ text_anchor: e.target.value as any })}>
@@ -4225,7 +4074,7 @@ export function ObjectProps({
                     onChange={(v) => { const next = [...(obj.bar_series ?? [])]; next[i] = { ...s, tag: v }; onChange({ bar_series: next }); }} />
                   <input style={{ ...INPUT, width: 60 }} placeholder="label" value={s.label}
                     onChange={(e) => { const next = [...(obj.bar_series ?? [])]; next[i] = { ...s, label: e.target.value }; onChange({ bar_series: next }); }} />
-                  <input type="color" value={s.color ?? PALETTE[i % PALETTE.length]} onChange={(e) => { const next = [...(obj.bar_series ?? [])]; next[i] = { ...s, color: e.target.value }; onChange({ bar_series: next }); }}
+                  <input type="color" value={estraiHex(s.color) ?? PALETTE[i % PALETTE.length]} onChange={(e) => { const next = [...(obj.bar_series ?? [])]; next[i] = { ...s, color: e.target.value }; onChange({ bar_series: next }); }}
                     style={{ width: 28, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />
                   {obj.bar_mode !== "stacked" && (
                     <>
@@ -4264,7 +4113,7 @@ export function ObjectProps({
                 <>
                   {field(t("props.innerRadius"), <BindableInput obj={obj} propName="pie_inner_ratio" onChange={onChange}>{numInput("pie_inner_ratio", 0.5)}</BindableInput>)}
                   {/* F7.3 — il foro era fisso #0f172a: su sfondo chiaro un disco nero. */}
-                  {field(t("props.holeColor"), colorInput("pie_hole_color", "#0f172a"))}
+                  {field(t("props.holeColor"), colorInput("pie_hole_color"))}
                 </>
               )}
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -4305,7 +4154,7 @@ export function ObjectProps({
               {!!obj.pie_group_below_pct && (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
                   <div><div style={LABEL}>{t("props.groupLabel")}</div>{textInput("pie_group_label", "altro")}</div>
-                  <div><div style={LABEL}>{t("props.color")}</div>{colorInput("pie_group_color", "#64748b")}</div>
+                  <div><div style={LABEL}>{t("props.color")}</div>{colorInput("pie_group_color")}</div>
                 </div>
               )}
               {(obj.pie_mode ?? "pie") === "donut" && field(t("props.textCenter"), <BindableInput obj={obj} propName="pie_center_text" onChange={onChange}>{textInput("pie_center_text", "")}</BindableInput>)}
@@ -4324,7 +4173,7 @@ export function ObjectProps({
                     onChange={(v) => { const next = [...(obj.pie_slices ?? [])]; next[i] = { ...s, tag: v }; onChange({ pie_slices: next }); }} />
                   <input style={{ ...INPUT, width: 60 }} placeholder="label" value={s.label}
                     onChange={(e) => { const next = [...(obj.pie_slices ?? [])]; next[i] = { ...s, label: e.target.value }; onChange({ pie_slices: next }); }} />
-                  <input type="color" value={s.color ?? PALETTE[i % PALETTE.length]} onChange={(e) => { const next = [...(obj.pie_slices ?? [])]; next[i] = { ...s, color: e.target.value }; onChange({ pie_slices: next }); }}
+                  <input type="color" value={estraiHex(s.color) ?? PALETTE[i % PALETTE.length]} onChange={(e) => { const next = [...(obj.pie_slices ?? [])]; next[i] = { ...s, color: e.target.value }; onChange({ pie_slices: next }); }}
                     style={{ width: 28, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />
                   <button style={{ ...INPUT, width: "auto", padding: "0 6px", cursor: "pointer" }}
                     onClick={() => onChange({ pie_slices: (obj.pie_slices ?? []).filter((_, j) => j !== i) })}>✕</button>
@@ -4366,7 +4215,7 @@ export function ObjectProps({
             <>
               {field(t("props.tag"), tagInput("es. flow.rate"))}
               {field(t("props.windowS"), <BindableInput obj={obj} propName="spark_window_s" onChange={onChange}>{numInput("spark_window_s", 60)}</BindableInput>)}
-              {field(t("props.colorLine"), <input type="color" value={obj.spark_color ?? "var(--brand-primary, #3b82f6)"} onChange={(e) => onChange({ spark_color: e.target.value })} style={{ width: 40, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />)}
+              {field(t("props.colorLine"), <input type="color" value={estraiHex(obj.spark_color) ?? "#3b82f6"} onChange={(e) => onChange({ spark_color: e.target.value })} style={{ width: 40, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />)}
               {field(t("props.thicknessPx"), numInput("spark_stroke_width", 1.5))}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
                 <div><div style={LABEL}>Y min</div><BindableInput obj={obj} propName="y_min" onChange={onChange}>{numInput("y_min", 0)}</BindableInput></div>
@@ -4403,7 +4252,7 @@ export function ObjectProps({
                   </label>
                 ))}
               </div>
-              {field(t("props.emptyBackground"), <input type="color" value={obj.alarm_viewer_bg_color ?? "var(--brand-bg, #0f172a)"} onChange={(e) => onChange({ alarm_viewer_bg_color: e.target.value })} style={{ width: 40, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />)}
+              {field(t("props.emptyBackground"), <input type="color" value={estraiHex(obj.alarm_viewer_bg_color) ?? "#0f172a"} onChange={(e) => onChange({ alarm_viewer_bg_color: e.target.value })} style={{ width: 40, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />)}
               {/* F7.5 — ACK massivo e messa in silenzio, solo in modalità tabella
                   (in "list"/"banner" non c'è spazio per i comandi). */}
               {(obj.alarm_viewer_mode ?? "list") === "table" && (
@@ -4484,7 +4333,7 @@ export function ObjectProps({
                   </label>
                 ))}
               </div>
-              {field(t("props.color"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill", "var(--brand-surface, #1e293b)")}</BindableInput>)}
+              {field(t("props.color"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill")}</BindableInput>)}
             </>
           )}
 
@@ -4532,9 +4381,9 @@ export function ObjectProps({
                     {t("props.statesPrecedence")}
                   </p>
                 )}
-                {field(t("props.colorOff"),   <BindableInput obj={obj} propName="state_off_color"   onChange={onChange}>{colorInput("state_off_color",   "var(--brand-text-subtle, #64748b)")}</BindableInput>)}
-                {field(t("props.colorOn"),    <BindableInput obj={obj} propName="state_on_color"    onChange={onChange}>{colorInput("state_on_color",    "var(--brand-success, #22c55e)")}</BindableInput>)}
-                {field(t("props.colorAlarm"), <BindableInput obj={obj} propName="state_alarm_color" onChange={onChange}>{colorInput("state_alarm_color", "var(--brand-danger, #ef4444)")}</BindableInput>)}
+                {field(t("props.colorOff"),   <BindableInput obj={obj} propName="state_off_color"   onChange={onChange}>{colorInput("state_off_color")}</BindableInput>)}
+                {field(t("props.colorOn"),    <BindableInput obj={obj} propName="state_on_color"    onChange={onChange}>{colorInput("state_on_color")}</BindableInput>)}
+                {field(t("props.colorAlarm"), <BindableInput obj={obj} propName="state_alarm_color" onChange={onChange}>{colorInput("state_alarm_color")}</BindableInput>)}
               </div>
               {/* F6.6: stati N — mappa valore→colore/lampeggio/label sul valore di
                   state_tag (valore esatto o range, come le VOCI di text_list). */}
@@ -4556,7 +4405,7 @@ export function ObjectProps({
                         onChange={(ev) => upd({ value_min: ev.target.value === "" ? undefined : Number(ev.target.value) })} />
                       <input style={{ ...INPUT, width: 44 }} type="number" placeholder="max" value={e.value_max ?? ""}
                         onChange={(ev) => upd({ value_max: ev.target.value === "" ? undefined : Number(ev.target.value) })} />
-                      <input type="color" value={e.color ?? "#22c55e"}
+                      <input type="color" value={estraiHex(e.color) ?? "#22c55e"}
                         onChange={(ev) => upd({ color: ev.target.value })}
                         style={{ width: 26, height: 22, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />
                       <button style={{ background: "transparent", border: "none", color: "var(--brand-danger, #ef4444)", cursor: "pointer" }}
@@ -4637,7 +4486,7 @@ export function ObjectProps({
                             <TagInput style={style} placeholder={p.default ?? ""} value={val} onChange={setVal} />
                           ) : p.type === "color" ? (
                             <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                              <input type="color" value={val || p.default || "#3b82f6"}
+                              <input type="color" value={estraiHex(val) ?? estraiHex(p.default) ?? "#3b82f6"}
                                 onChange={(e) => setVal(e.target.value)}
                                 style={{ width: 40, height: 26, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />
                               <input type="text" style={{ ...style, flex: 1 }} placeholder={p.default ?? ""} value={val}
@@ -4696,7 +4545,7 @@ export function ObjectProps({
               {/* Stroke */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
                 <div>
-                  {field(t("props.colorPipe"), <BindableInput obj={obj} propName="stroke" onChange={onChange}>{colorInput("stroke", "var(--brand-text-subtle, #64748b)")}</BindableInput>)}
+                  {field(t("props.colorPipe"), <BindableInput obj={obj} propName="stroke" onChange={onChange}>{colorInput("stroke")}</BindableInput>)}
                 </div>
                 <div>
                   {field(t("props.thicknessPx"), numInput("stroke_width", 8))}
@@ -4710,8 +4559,8 @@ export function ObjectProps({
               {(obj.pipe_style === "tube" || obj.pipe_gradient) && (
                 <>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                    <div>{field(t("props.colorLight"), <BindableInput obj={obj} propName="gradient_light_color" onChange={onChange}>{colorInput("gradient_light_color", "var(--brand-text-muted, #94a3b8)")}</BindableInput>)}</div>
-                    <div>{field(t("props.colorDark"),  <BindableInput obj={obj} propName="gradient_dark_color" onChange={onChange}>{colorInput("gradient_dark_color",  "var(--brand-surface-2, #334155)")}</BindableInput>)}</div>
+                    <div>{field(t("props.colorLight"), <BindableInput obj={obj} propName="gradient_light_color" onChange={onChange}>{colorInput("gradient_light_color")}</BindableInput>)}</div>
+                    <div>{field(t("props.colorDark"),  <BindableInput obj={obj} propName="gradient_dark_color" onChange={onChange}>{colorInput("gradient_dark_color")}</BindableInput>)}</div>
                   </div>
                 </>
               )}
@@ -4746,7 +4595,7 @@ export function ObjectProps({
                   </div>
                 </div>
                 {field(t("props.staticLevel"), numInput("fill_level", 0))}
-                {field(t("props.colorFluid"), <BindableInput obj={obj} propName="fill_color" onChange={onChange}>{colorInput("fill_color", "var(--brand-primary, #3b82f6)")}</BindableInput>)}
+                {field(t("props.colorFluid"), <BindableInput obj={obj} propName="fill_color" onChange={onChange}>{colorInput("fill_color")}</BindableInput>)}
               </CollapsibleSection>
 
               {/* Markers */}
@@ -4791,9 +4640,9 @@ export function ObjectProps({
                     onChange={(v) => onChange({ alarm_tag: v || undefined })} />
                 )}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
-                  <div>{field(t("props.off"),   <BindableInput obj={obj} propName="state_off_color"   onChange={onChange}>{colorInput("state_off_color",   "var(--brand-text-subtle, #64748b)")}</BindableInput>)}</div>
-                  <div>{field(t("props.on"),    <BindableInput obj={obj} propName="state_on_color"    onChange={onChange}>{colorInput("state_on_color",    "var(--brand-success, #22c55e)")}</BindableInput>)}</div>
-                  <div>{field(t("props.alarmWord"), <BindableInput obj={obj} propName="state_alarm_color" onChange={onChange}>{colorInput("state_alarm_color", "var(--brand-danger, #ef4444)")}</BindableInput>)}</div>
+                  <div>{field(t("props.off"),   <BindableInput obj={obj} propName="state_off_color"   onChange={onChange}>{colorInput("state_off_color")}</BindableInput>)}</div>
+                  <div>{field(t("props.on"),    <BindableInput obj={obj} propName="state_on_color"    onChange={onChange}>{colorInput("state_on_color")}</BindableInput>)}</div>
+                  <div>{field(t("props.alarmWord"), <BindableInput obj={obj} propName="state_alarm_color" onChange={onChange}>{colorInput("state_alarm_color")}</BindableInput>)}</div>
                 </div>
               </CollapsibleSection>
 
@@ -4807,7 +4656,7 @@ export function ObjectProps({
                 )}
                 {field(t("props.format"), textInput("pipe_label_format", "{value:.1f}"))}
                 {field(t("props.offsetPx"), numInput("pipe_label_offset", 10))}
-                {field(t("props.labelColor"), <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color", "#e2e8f0")}</BindableInput>)}
+                {field(t("props.labelColor"), <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color")}</BindableInput>)}
                 {field(t("props.fontSize"), <BindableInput obj={obj} propName="font_size" onChange={onChange}>{numInput("font_size", 12)}</BindableInput>)}
                 {/* F6.10: flusso animato */}
                 {field(t("props.pipeFlow"),
@@ -5282,9 +5131,9 @@ export function ObjectProps({
             </label>
             {obj.quality_dot !== false && (
               <>
-                {field(t("props.colorGood"),    colorInput("quality_dot_good_color",      "var(--brand-success, #22c55e)"))}
-                {field(t("props.colorUncertain"), colorInput("quality_dot_uncertain_color", "var(--brand-warning, #eab308)"))}
-                {field(t("props.colorBad"),    colorInput("quality_dot_bad_color",       "var(--brand-danger, #ef4444)"))}
+                {field(t("props.colorGood"),    colorInput("quality_dot_good_color"))}
+                {field(t("props.colorUncertain"), colorInput("quality_dot_uncertain_color"))}
+                {field(t("props.colorBad"),    colorInput("quality_dot_bad_color"))}
               </>
             )}
             {/* F4.2/F4.3: consapevolezza allarme, Bad-gray, stale (opt-in) */}
@@ -5678,7 +5527,7 @@ function GridCellEditor({
           <input
             type="color"
             style={{ ...INPUT, padding: 2, height: 28, width: 44, cursor: "pointer", flex: "none" }}
-            value={cell.bg_color ?? "var(--brand-surface, #1e293b)"}
+            value={estraiHex(cell.bg_color) ?? "#1e293b"}
             onChange={(e) => onChange({ bg_color: e.target.value })}
           />
           <input
@@ -5706,7 +5555,7 @@ function GridCellEditor({
           <input
             type="color"
             style={{ ...INPUT, padding: 2, height: 28, width: 44, cursor: "pointer", flex: "none" }}
-            value={cell.border_color ?? "#64748b"}
+            value={estraiHex(cell.border_color) ?? "#64748b"}
             onChange={(e) => onChange({ border_color: e.target.value })}
           />
           <input

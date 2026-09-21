@@ -14,6 +14,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
+import { predefinito } from "@/coloriPredefiniti";
 
 export interface XyPlotSeriesLive {
   tag: string;
@@ -157,7 +158,7 @@ export function XyPlotCanvas({
 
   return (
     <svg width={width} height={height} style={{ display: "block" }}>
-      <rect x={0} y={0} width={width} height={height} fill={bgColor ?? "#0f172a"} />
+      <rect x={0} y={0} width={width} height={height} fill={bgColor ?? predefinito("xy_plot", "bg_color") ?? "#0f172a"} />
       {bgImage && (
         <image href={bgImage} x={0} y={0} width={width} height={height}
           preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />

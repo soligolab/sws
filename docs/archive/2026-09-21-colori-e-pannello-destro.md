@@ -1,6 +1,6 @@
 # Colori coerenti e pannello destro: gruppo affine, sezioni aperte
 
-> **Stato**: approvato il 21-09-2026. **R1 su `main`** (`0cf24a0e`, collaudata); R2 da fare.
+> **Stato**: approvato il 21-09-2026. **R1 su `main`** (`0cf24a0e`, collaudata); **R2 sul ramo `fix/colori-coerenti`**, verde (test, build, 24 guardie, clippy), in attesa del collaudo del maintainer.
 
 ## Contesto
 

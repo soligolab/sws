@@ -1,5 +1,6 @@
 import { PageNavigatorView } from "./PageNavigatorView";
-import { defaultObjectTextColor } from "@/theme";
+import { defaultObjectSubtleColor, defaultObjectTextColor } from "@/theme";
+import { coloreEffettivo, predefinito } from "@/coloriPredefiniti";
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PALETTE, TrendCanvas } from "@/canvas/TrendCanvas";
@@ -1544,7 +1545,7 @@ export function SvgCanvas({
         tags={trendTraces(expandedTrendObj).filter((tr) => tr.tag).map((tr) => tr.tag)}
         seriesLabels={trendTraces(expandedTrendObj).filter((tr) => tr.tag).map((tr) => tr.label ?? tr.tag)}
         windowS={expandedTrendObj.window_s ?? 60}
-        lineColor={expandedTrendObj.line_color ?? "var(--brand-primary, #3b82f6)"}
+        lineColor={expandedTrendObj.line_color}
         yMin={expandedTrendObj.y_min}
         yMax={expandedTrendObj.y_max}
         opcuaBackfill={expandedTrendObj.opcua_backfill}
@@ -1620,6 +1621,8 @@ export function SvgCanvas({
                // griglia) senza doverla infilare in ogni firma — ed è a cosa
                // servono le custom property.
                ["--synoptic-text" as string]: defaultObjectTextColor(background),
+               // Il tono sottile (tubazioni senza colore), stessa regola.
+               ["--synoptic-subtle" as string]: defaultObjectSubtleColor(background),
                // Senza questo, l'overflow:hidden implicito di <svg> taglia
                // l'ultimo pixel (bordo compreso) di qualunque oggetto
                // posizionato a filo con pageWidth/pageHeight.
@@ -3512,7 +3515,7 @@ export function SvgObject(p: ObjProps) {
     // F7.6 — angoli arrotondati, tratteggio del bordo e riempimento sfumato.
     // La sfumatura riusa la convenzione della pipe "tube": i due estremi si
     // ricavano schiarendo/scurendo il colore base se non dichiarati.
-    const baseFill = obj.fill ?? obj.bg_color ?? "#555";
+    const baseFill = obj.fill ?? obj.bg_color ?? predefinito("rect", "fill")!;
     const gradId = `rect-grad-${obj.id}`;
     const gradDir = obj.fill_gradient;
     const lightC = obj.gradient_light_color ?? lightenHex(baseFill);
@@ -3567,7 +3570,7 @@ export function SvgObject(p: ObjProps) {
         {applyTransform(obj, w, h, <>
           {bgLayer(obj.x, obj.y, w, h, 4)}
           <ellipse cx={obj.x + w / 2} cy={obj.y + h / 2} rx={w / 2} ry={h / 2}
-            fill={obj.fill ?? "#4a90d9"}
+            fill={coloreEffettivo(obj, "fill")}
             stroke={obj.stroke ?? "none"} strokeWidth={obj.stroke_width ?? 0}
             style={{ cursor: editCursor, ...transitionStyle(obj) }}
             onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} />
@@ -3584,7 +3587,7 @@ export function SvgObject(p: ObjProps) {
     return (
       <>
         <line x1={obj.x} y1={obj.y} x2={x2} y2={y2}
-          stroke={obj.stroke ?? "var(--synoptic-text, var(--brand-text, #e2e8f0))"} strokeWidth={obj.stroke_width ?? 2}
+          stroke={coloreEffettivo(obj, "stroke")} strokeWidth={obj.stroke_width ?? 2}
           strokeDasharray={obj.stroke_dasharray || undefined}
           style={{ cursor: editCursor, ...transitionStyle(obj) }}
           onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} />
@@ -3603,7 +3606,7 @@ export function SvgObject(p: ObjProps) {
     if (pts.length < 2) return null;
     const pipeStyle = obj.pipe_style ?? "flat";
     const sw = obj.stroke_width ?? 8;
-    const baseColor = obj.stroke ?? "#64748b";
+    const baseColor = coloreEffettivo(obj, "stroke");
     const routing = obj.routing ?? "straight";
     const pathD = buildPipeD(pts, routing);
 
@@ -3629,7 +3632,7 @@ export function SvgObject(p: ObjProps) {
           : Number(flTag.value))
       : (obj.fill_level ?? 0);
     const fillLevel = clamp(rawLevel, 0, 1);
-    const fillColor = obj.fill_color ?? "var(--brand-primary, #3b82f6)";
+    const fillColor = coloreEffettivo(obj, "fill_color");
     // Il riempimento è un tratteggio `1` su `pathLength=1`: l'offset decide
     // quale metà del periodo cade dentro il percorso.
     //
@@ -3794,7 +3797,7 @@ export function SvgObject(p: ObjProps) {
     const weight    = obj.font_weight ?? "normal";
     const style     = obj.font_style ?? "normal";
     const anchor    = obj.text_anchor ?? "start";
-    const staticColour = obj.color ?? obj.fill ?? "var(--synoptic-text, var(--brand-text, #e2e8f0))";
+    const staticColour = obj.color ?? obj.fill ?? coloreEffettivo(obj, "color");
     const colour    = (obj.text_color_by_threshold && tv && Number.isFinite(Number(tv.value)))
       ? (thresholdColor(Number(tv.value), obj.alarm_low, obj.warn_low, obj.warn_high, obj.alarm_high) ?? staticColour)
       : staticColour;
@@ -3919,7 +3922,7 @@ export function SvgObject(p: ObjProps) {
         }}>
         {applyTransform(obj, w, h, <>
           <rect x={obj.x} y={obj.y} width={w} height={h} rx={6}
-            fill={obj.fill ?? obj.bg_color ?? "var(--brand-primary, #3b82f6)"}
+            fill={obj.fill ?? obj.bg_color ?? predefinito("button", "fill")!}
             stroke={selected ? "#facc15" : "var(--brand-primary-hover, #2563eb)"} strokeWidth={selected ? 2 : 1}
             style={transitionStyle(obj)} />
           {obj.bg_image && (
@@ -3927,7 +3930,7 @@ export function SvgObject(p: ObjProps) {
               preserveAspectRatio="xMidYMid slice" style={{ pointerEvents: "none" }} />
           )}
           <text x={obj.x + w / 2} y={obj.y + h / 2 + 5}
-            textAnchor="middle" fill={obj.color ?? "#fff"} fontSize={14} fontWeight={600}
+            textAnchor="middle" fill={coloreEffettivo(obj, "color")} fontSize={14} fontWeight={600}
             style={{ pointerEvents: "none" }}>
             {obj.label ?? "Button"}
           </text>
@@ -3952,8 +3955,8 @@ export function SvgObject(p: ObjProps) {
           {/* F7.6 — il bordo era hardcoded sul colore primario del tema: ora
               segue `stroke` (esposto nel pannello) con lo stesso default. */}
           <rect x={obj.x} y={obj.y} width={w} height={h} rx={obj.corner_radius ?? 4}
-            fill={obj.fill ?? obj.bg_color ?? "var(--brand-bg, #0f172a)"}
-            stroke={selected ? "#facc15" : (obj.stroke ?? "var(--brand-primary, #3b82f6)")}
+            fill={obj.fill ?? obj.bg_color ?? predefinito("navbutton", "fill")!}
+            stroke={selected ? "#facc15" : coloreEffettivo(obj, "stroke")}
             strokeWidth={selected ? 2 : (obj.stroke_width ?? 1.5)}
             style={transitionStyle(obj)} />
           {obj.bg_image && (
@@ -3965,7 +3968,7 @@ export function SvgObject(p: ObjProps) {
             fill={obj.color ?? "var(--brand-primary, #3b82f6)"} fontSize={14}
             style={{ pointerEvents: "none" }}>▶</text>
           <text x={obj.x + 28} y={obj.y + h / 2 + 5}
-            fill={obj.color ?? "var(--synoptic-text, var(--brand-text, #e2e8f0))"} fontSize={13}
+            fill={coloreEffettivo(obj, "color")} fontSize={13}
             style={{ pointerEvents: "none" }}>
             {obj.label ?? "Go to page"}
           </text>
@@ -4073,8 +4076,8 @@ export function SvgObject(p: ObjProps) {
       ? "var(--brand-surface-2, #334155)"
       : tv.quality === "Bad"
         ? "#ef4444"
-        : isOn ? (obj.on_color ?? "#22c55e") : (obj.off_color ?? "var(--brand-surface-2, #334155)");
-    const glowColor = isOn ? (obj.on_color ?? "#22c55e") : "transparent";
+        : isOn ? coloreEffettivo(obj, "on_color") : coloreEffettivo(obj, "off_color");
+    const glowColor = isOn ? coloreEffettivo(obj, "on_color") : "transparent";
 
     const ledW = r * 2;
     return (
@@ -4140,7 +4143,7 @@ export function SvgObject(p: ObjProps) {
     const entry = tv != null ? matchTextListEntry(obj.text_list_entries, tv.value) : undefined;
     const lampColor = entry ? (entry.color ?? "var(--synoptic-text, var(--brand-text, #e2e8f0))") : "var(--brand-surface-2, #334155)";
     const label = entry ? entry.label : (obj.text_list_default ?? "");
-    const labelColor = entry ? lampColor : (obj.text_list_default_color ?? "var(--brand-text-muted, #94a3b8)");
+    const labelColor = entry ? lampColor : coloreEffettivo(obj, "text_list_default_color");
     const size = obj.font_size ?? 13;
 
     return (
@@ -4170,7 +4173,7 @@ export function SvgObject(p: ObjProps) {
     const pct = clamp((rawVal - min) / (max - min), 0, 1);
     const barColor =
       thresholdColor(rawVal, obj.alarm_low, obj.warn_low, obj.warn_high, obj.alarm_high)
-      ?? (obj.fill ?? "var(--brand-primary, #3b82f6)");
+      ?? coloreEffettivo(obj, "fill");
     // F0.2: orientation era offerta nel pannello ma il rendering era sempre
     // orizzontale. In verticale la barra riempie dal basso verso l'alto.
     const vertical = obj.orientation === "vertical";
@@ -4338,10 +4341,10 @@ export function SvgObject(p: ObjProps) {
           })()}
           {/* Needle */}
           <line x1={needleBase.x} y1={needleBase.y} x2={needleTip.x} y2={needleTip.y}
-            stroke={obj.stroke ?? "#e2e8f0"} strokeWidth={2} strokeLinecap="round"
+            stroke={coloreEffettivo(obj, "stroke")} strokeWidth={2} strokeLinecap="round"
             style={{ pointerEvents: "none" }} />
           {/* Hub */}
-          <circle cx={cx} cy={cy} r={6} fill={obj.stroke ?? "#e2e8f0"} style={{ pointerEvents: "none" }} />
+          <circle cx={cx} cy={cy} r={6} fill={coloreEffettivo(obj, "stroke")} style={{ pointerEvents: "none" }} />
           <circle cx={cx} cy={cy} r={3} fill="#0f172a" style={{ pointerEvents: "none" }} />
           {/* Min / max labels — nascoste con le tacche numerate attive: la prima
               e l'ultima tacca portano già gli stessi due numeri. */}
@@ -4358,7 +4361,7 @@ export function SvgObject(p: ObjProps) {
           {/* Value display — F0.2: show_value era offerto nel pannello ma ignorato. */}
           {obj.show_value !== false && (
             <text x={cx} y={cy + R * 0.35} textAnchor="middle"
-              fill={obj.color ?? "#e2e8f0"} fontSize={20} fontWeight={700}
+              fill={coloreEffettivo(obj, "color")} fontSize={20} fontWeight={700}
               style={{ pointerEvents: "none" }}>
               {typeof rawVal === "number" ? rawVal.toFixed(obj.decimals ?? 1) : rawVal}
             </text>
@@ -4391,7 +4394,7 @@ export function SvgObject(p: ObjProps) {
     // l'orientamento venisse letto.
     const isVertical = obj.orientation === "vertical";
     const readOnly = !!obj.read_only;
-    const accent = obj.fill ?? "var(--brand-primary, #3b82f6)";
+    const accent = coloreEffettivo(obj, "fill");
     const shownVal = sliderDraft ?? rawVal;
     const valueText = `${shownVal.toFixed(obj.decimals ?? (obj.step && obj.step < 1 ? 2 : 0))}${obj.unit ? ` ${obj.unit}` : ""}`;
 
@@ -4656,8 +4659,8 @@ export function SvgObject(p: ObjProps) {
         >
           <div style={{
             width: 18, height: 18, borderRadius: 3, flexShrink: 0,
-            background: isChecked ? (obj.fill ?? "var(--brand-primary, #3b82f6)") : "transparent",
-            border: `2px solid ${isChecked ? (obj.fill ?? "var(--brand-primary, #3b82f6)") : "#64748b"}`,
+            background: isChecked ? coloreEffettivo(obj, "fill") : "transparent",
+            border: `2px solid ${isChecked ? coloreEffettivo(obj, "fill") : "#64748b"}`,
             display: "flex", alignItems: "center", justifyContent: "center",
           }}>
             {isChecked && (
@@ -4715,7 +4718,7 @@ export function SvgObject(p: ObjProps) {
                   disabled={obj.read_only || isEditMode}
                   checked={currentVal !== null && String(currentVal) === String(opt.value)}
                   onChange={() => guardedWrite(obj.tag!, opt.value as string | number | boolean)}
-                  style={{ accentColor: obj.fill ?? "var(--brand-primary, #3b82f6)", cursor: obj.read_only ? "default" : "pointer" }}
+                  style={{ accentColor: coloreEffettivo(obj, "fill"), cursor: obj.read_only ? "default" : "pointer" }}
                 />
                 <span style={{ color: "var(--synoptic-text, var(--brand-text, #e2e8f0))", fontSize: 13, userSelect: "none" }}>
                   {opt.label}
@@ -4895,7 +4898,7 @@ export function SvgObject(p: ObjProps) {
                 windowS={obj.window_s ?? 60}
                 width={w}
                 height={h}
-                lineColor={obj.line_color ?? "var(--brand-primary, #3b82f6)"}
+                lineColor={obj.line_color}
                 yMin={trendZoom?.yLo !== undefined ? trendZoom.yLo : obj.y_min}
                 yMax={trendZoom?.yHi !== undefined ? trendZoom.yHi : obj.y_max}
                 opcuaBackfill={obj.opcua_backfill}
@@ -5017,7 +5020,7 @@ export function SvgObject(p: ObjProps) {
     const liveVal = tv?.value;
     const entry = matchTextListEntry(obj.text_list_entries, liveVal);
     const label = entry ? entry.label : (obj.text_list_default ?? (liveVal !== undefined ? String(liveVal) : testoSistema("nd", lingua.lang)));
-    const textFill = entry ? (entry.color ?? obj.color ?? "#f1f5f9") : (obj.text_list_default_color ?? "var(--brand-text-muted, #94a3b8)");
+    const textFill = entry ? (entry.color ?? coloreEffettivo(obj, "color")) : coloreEffettivo(obj, "text_list_default_color");
     const size = obj.font_size ?? 16;
     const anchor = obj.text_anchor ?? "middle";
     const cx = obj.x + (obj.width ?? 120) / 2;
@@ -5511,7 +5514,7 @@ export function SvgObject(p: ObjProps) {
             <foreignObject x={obj.x + 6} y={obj.y + h - 34} width={w - 12} height={30} style={{ pointerEvents: "none" }}>
               <SparklineWidget
                 tag={obj.tag} windowS={windowS} width={w - 12} height={30}
-                color={obj.spark_color ?? "var(--brand-primary, #3b82f6)"}
+                color={coloreEffettivo(obj, "spark_color")}
                 strokeWidth={1.5} fill fillOpacity={0.15} showLast={false}
                 yMin={undefined} yMax={undefined} tagValues={tagValues} />
             </foreignObject>
@@ -5524,7 +5527,7 @@ export function SvgObject(p: ObjProps) {
 
   if (obj.type === "sparkline") {
     const w = obj.width ?? 120; const h = obj.height ?? 30;
-    const color = obj.spark_color ?? "var(--brand-primary, #3b82f6)";
+    const color = coloreEffettivo(obj, "spark_color");
     const strokeW = obj.spark_stroke_width ?? 1.5;
     const windowS = obj.spark_window_s ?? 60;
 
@@ -5746,11 +5749,11 @@ export function SvgObject(p: ObjProps) {
       stateEntry ? "on" :
       truthy(obj.state_tag) ? "on" : "off";
 
-    const onColorEff = stateEntry?.color ?? obj.state_on_color ?? "#22c55e";
+    const onColorEff = stateEntry?.color ?? coloreEffettivo(obj, "state_on_color");
     const badgeColor =
-      state === "alarm" ? (obj.state_alarm_color ?? "#ef4444") :
+      state === "alarm" ? coloreEffettivo(obj, "state_alarm_color") :
       state === "on"    ? onColorEff :
-                          (obj.state_off_color   ?? "#64748b");
+                          coloreEffettivo(obj, "state_off_color");
 
     // F6.7: livello continuo dal tag (riusa fill_level_tag/scale delle pipe).
     let level: number | undefined;
@@ -5809,9 +5812,9 @@ export function SvgObject(p: ObjProps) {
               <g style={spinStyle} data-anim={spinActive ? "1" : undefined}>
                 {meta!.render({
                   state,
-                  off:   obj.state_off_color   ?? "#64748b",
+                  off:   coloreEffettivo(obj, "state_off_color"),
                   on:    onColorEff,
-                  alarm: obj.state_alarm_color ?? "#ef4444",
+                  alarm: coloreEffettivo(obj, "state_alarm_color"),
                   level,
                 })}
               </g>

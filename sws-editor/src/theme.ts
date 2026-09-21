@@ -222,6 +222,17 @@ export function defaultObjectTextColor(pageBackground: string | undefined): stri
   return lum > 0.5 ? "#0f172a" : "#e2e8f0";
 }
 
+/** Il tono **sottile** che segue lo sfondo della pagina: il grigio di una
+ *  tubazione senza colore, di un bordo di griglia. Stessa soglia e stesso
+ *  ripiego del testo; i due valori stanno anche in
+ *  `tests/fixtures/colori-predefiniti.json` (`auto.sottile`), che il pannello
+ *  LVGL legge per fare lo stesso. */
+export function defaultObjectSubtleColor(pageBackground: string | undefined): string {
+  const lum = pageBackground ? relativeLuminance(pageBackground) : null;
+  if (lum === null) return "var(--brand-text-subtle, #64748b)";
+  return lum > 0.5 ? "#475569" : "#64748b";
+}
+
 /**
  * Applica il tema alla pagina: scrive i token neutri + stato come proprietà
  * inline su :root (l'accento resta quello del brand), imposta data-theme,

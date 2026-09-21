@@ -7,6 +7,7 @@ import { genId } from "@/id";
 import { getStoredProjectLang, setStoredProjectLang, getStoredEditorPreviewLang, setStoredEditorPreviewLang } from "@/i18n/projectI18n";
 import { normalizeTrendObjects } from "@/canvas/trendModel";
 import { normalizeXyObjects } from "@/canvas/xyModel";
+import { normalizzaColoriOggetti } from "@/coloriPredefiniti";
 import type { SegmentoScelto, WaypointScelto } from "@/canvas/percorsoMovimento";
 import { effectiveSizeMode, referenceResolutionFor } from "@/pageLayout";
 import { uguale } from "@/ai/confronto";
@@ -989,7 +990,9 @@ export const useAppStore = create<AppState>((set, get) => {
         // 2026-09-12, F5.3x/T-70): il primo salvataggio scrive solo il
         // formato nuovo.
         pages: pages.map((p) => {
-          const objs = normalizeXyObjects(normalizeTrendObjects(p.objects));
+          // E i colori `var(…)` scritti dall'IDE fino al 21-09-2026 → hex o
+          // automatico (D2 del piano colori): stesso taglio, stesso momento.
+          const objs = normalizzaColoriOggetti(normalizeXyObjects(normalizeTrendObjects(p.objects)));
           return objs === p.objects ? p : { ...p, objects: objs };
         }),
         currentPageId: currentPageId ?? paginePerNavigazione(pages)[0]?.id ?? pages[0]?.id ?? first.id,

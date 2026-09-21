@@ -96,12 +96,12 @@ di correzione a chi legge il diff:
   su un tag così cambia il valore dentro SWS e non arriva mai al device: la
   luce sullo schermo si accende e quella vera no. È l'errore più facile da fare
   e il più difficile da vedere.
-- **I colori si prendono dal marchio, non si scrivono a mano.** `fill`, `stroke`
-  e i colori del testo vanno espressi come `var(--brand-primary, #3b82f6)` — il
-  token, con il valore di ripiego. SWS è white-label: `public/branding/` cambia
-  dieci token di colore, e un `#2563eb` scritto a mano resta blu anche
-  sull'impianto di un cliente che ha il proprio marchio. Guarda che cosa usano
-  gli oggetti già in pagina e usa lo stesso.
+- **I colori di testi, linee e tubi non si scrivono**: senza `color`/`stroke`
+  l'oggetto segue lo sfondo della pagina (chiaro su scuro, scuro su chiaro),
+  sul web come sul pannello. Gli altri colori (`fill` di un bottone, un LED,
+  una serie) sono **hex a sei cifre** (`#3b82f6`), **mai `var(...)`**: il
+  pannello LVGL non sa risolvere una variabile CSS e la scarta. Guarda che cosa
+  usano gli oggetti già in pagina e usa lo stesso.
 - `target_page` di un `navbutton` è l'**id** di una pagina, non il nome.
 - Le pagine hanno coordinate assolute in pixel. Prima di piazzare un oggetto
   guarda dove sono gli altri: sovrapporli è gratis e nessuno te lo impedisce.

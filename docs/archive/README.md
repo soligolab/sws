@@ -75,3 +75,4 @@ venga riletto come vero.
 (`OPEN_QUESTIONS`, `STATUS`), che `check_documenti.sh` verifica scheda per scheda. Qui stanno
 documenti interi che hanno finito il loro lavoro.
 | [2026-09-20-sorgente-host.md](2026-09-20-sorgente-host.md) | **FATTO** | Sorgente «host»: le risorse di sistema (CPU, RAM, temperature, disco, rete, uptime, hostname, seriale, modello) come tag, in sola lettura. Misurato che il container vede già `/proc` e `/sys/class/thermal` dell'host: nessun canale verso l'host, tranne il mount del device-tree per seriale e modello. Da collaudare sul TC620 col container 2.10.1. |
+| [2026-09-21-colori-e-pannello-destro.md](2026-09-21-colori-e-pannello-destro.md) | **FATTO** | R1 (gruppo affine, sezioni aperte) e R2 (tabella colori condivisa, `check_colori.sh`, trend/xy) in CHANGELOG [Unreleased]; verificati dal maintainer il 21-09-2026. Il piano di chiusura R2 è [2026-09-21-r2-colori-chiusura-e-trend.md](2026-09-21-r2-colori-chiusura-e-trend.md) |

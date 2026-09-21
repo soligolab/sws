@@ -12,7 +12,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Changed
-- **Pannello destro: il gruppo affine e le sezioni aperte** (richieste del maintainer, 21-09-2026; piano `docs/plans/2026-09-21-colori-e-pannello-destro.md`, R1).
+- **Pannello destro: il gruppo affine e le sezioni aperte** (richieste del maintainer, 21-09-2026; piano `docs/archive/2026-09-21-colori-e-pannello-destro.md`, R1).
   Quando il gruppo scelto nella barra non esiste per l'oggetto appena selezionato o piazzato, il pannello non ripiega più sempre su Oggetto ma sul gruppo
   **affine** al tipo (`gruppoAffine`): un testo va su Testo, uno strumento (i tipi con la sezione Parametri) su Dato, una forma su Oggetto. Se il gruppo scelto
   esiste per il tipo nuovo si resta lì, come prima, e la scelta memorizzata non si tocca. Tutte le sezioni pieghevoli del pannello destro **nascono aperte**
@@ -20,6 +20,26 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   una sezione chiusa dall'utente resta chiusa. La colonna «aperta/chiusa» della tabella §3 del piano T-56 archiviato è superata da questa scelta.
 
 ### Fixed
+- **I colori predefiniti sono una tabella sola: creazione, canvas, pannello proprietà e pannello LVGL dicono la stessa cosa** (richiesta del maintainer del
+  21-09-2026; piano `docs/archive/2026-09-21-colori-e-pannello-destro.md`, R2). Un Testo appena piazzato era bianco sul canvas e **nero nel pannello**; il Bottone idem
+  per sfondo ed etichetta. Causa: la creazione scriveva nel progetto stringhe CSS `var(--brand-text, #e2e8f0)`, che `<input type="color">` sanifica a `#000000` e che il
+  pannello LVGL **scarta in silenzio** (dipingeva il tema); il pannello usava un `var(…)` anche come ripiego in venti punti; canvas, pannello e LVGL avevano ripieghi
+  diversi per lo stesso campo (rettangolo `#4a90d9`/`#555`/`#555555`, gauge due grigi nello stesso file). Ora:
+  - **una fonte**, `tests/fixtures/colori-predefiniti.json`, specchiata in `sws-editor/src/coloriPredefiniti.ts` e in `lvgl_render.rs` (`colori_predefiniti::TABELLA`) e
+    confrontata da un test vitest e uno Rust; la guardia `check_colori.sh` (24ª) tiene la tabella unica senza eseguire niente;
+  - **testo, linea e tubazione nascono senza colore** (D1) e seguono lo sfondo della pagina: tono testo (`#e2e8f0` su scuro, `#0f172a` su chiaro) o tono sottile per il
+    tubo (`#64748b`/`#475569`), sul web via `--synoptic-text`/`--synoptic-subtle` e su LVGL via `default_text_rgb`/`default_subtle_rgb`; il pannello mostra il colore
+    effettivo con la dicitura **«auto»**, toccarlo lo fissa, ↺ lo rimette automatico (`CampoColore`);
+  - gli altri colori sono hex fissi della tabella (`oggettiNuovi.ts`, estratto da `handleAddObject` e provato per ogni tipo della palette: nessun `var(`);
+  - **i progetti vecchi si ripuliscono all'apertura** (D2): `var(--brand-text…)` → automatico, ogni altro `var(--x, #hex)` → `#hex`, anche nelle voci annidate
+    (entries, serie, fette, celle); nel file al salvataggio successivo. Il prompt dell'assistente IA non insegna più a scrivere `var(…)`;
+  - LVGL allineato: rettangolo/ellisse `#4a90d9`, LED spento `#374151`, **etichetta del bottone bianca** (ereditava il tono dello schermo: scura su blu con pagina
+    chiara), linea e tubo senza colore seguono la pagina.
+  - **trend e xy_plot** (segnalato dal maintainer durante il collaudo): `axis_color` e `grid_color` del trend entrano in tabella (`#64748b`/`#1e293b`) e il pannello
+    mostra il colore che il canvas disegna; sfondo di trend e xy_plot vengono da `predefinito()`; la cornice del trend (`#334155`) è la costante dichiarata
+    `TREND_FRAME_DEFAULT`; `line_color` non ripiega più su `var(--brand-primary)`. Restano **scuri fissi** (non seguono la pagina chiara): sarebbe un comportamento
+    nuovo, non un difetto. `check_colori.sh` ha la regola 6 contro i ripieghi scritti a mano.
+  Prezzo dichiarato: un progetto vecchio, alla prima apertura con questa versione, risulta «modificato» e va salvato.
 - **Sorgente Host: la zona termica si sceglie fra quelle del dispositivo, e un parametro mancante si vede.** Sul WP630 (21-09-2026) due metriche `temp`
   erano salvate **senza zona**: il plugin non sa quale `thermal_zone` leggere, marca il tag Bad e lo dice solo con un `warn` nel registro; nell'editor il
   parametro era un campo libero con un suggerimento, e i suggerimenti venivano da `/api/host/catalog` **della macchina dell'editor** (su un PC `x86_pkg_temp`,

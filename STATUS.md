@@ -74,21 +74,23 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — pannello destro e sorgente Host su `main`, R2 (colori) da aprire (2026-09-21, ufficio)
+## ▶ Riprendere da qui — R1 e R2 (colori) su `main`, prossimo container 2.11.1 (2026-09-21, ufficio)
 
-**Fatto oggi, su `main`** (piano `docs/plans/2026-09-21-colori-e-pannello-destro.md`, approvato):
-- **R1** (`0cf24a0e`): il pannello destro ripiega sul **gruppo affine** al tipo (`gruppoAffine`: testo → Testo, strumenti con Parametri → Dato, forme → Oggetto) invece che sempre su Oggetto;
-  se il gruppo scelto esiste per il tipo nuovo si resta lì. Tutte le sezioni pieghevoli nascono aperte. Collaudato dal maintainer.
-- **Sorgente Host** (`d0a8dfa4`, nato dalla prova sul WP630): due metriche `temp` erano salvate **senza zona** e i tag restavano Bad in silenzio. Ora `/api/host/catalog` c'è anche sulla porta
-  ristretta (`--no-admin`), l'IDE ha `GET /api/remote/host/catalog` e la card Host prende zone/mount/interfacce **dal dispositivo connesso** (dice da dove vengono, compreso «dispositivo
-  connesso ma runtime vecchio: aggiorna il container»); una metrica senza il parametro che le serve è bordata di rosso. `check_no_admin.sh` pretende la rotta. Collaudato dal maintainer:
-  temperatura delle zone termiche a grafico sul WP630 (zona scritta a mano, il container 2.11.0 non ha ancora la rotta).
+**Fatto oggi, su `main`** (piano archiviato `docs/archive/2026-09-21-colori-e-pannello-destro.md`):
+- **R1**: pannello destro sul **gruppo affine** al tipo; tutte le sezioni pieghevoli nascono aperte.
+- **R2**: una **tabella sola dei colori predefiniti** (`tests/fixtures/colori-predefiniti.json` ↔ `coloriPredefiniti.ts` ↔ `lvgl_render.rs`), testo/linea/tubo «auto» che seguono la pagina, `CampoColore`
+  con «auto» e ↺, progetti vecchi ripuliti dai `var(--…)` all'apertura, guardia `check_colori.sh` (24ª). Estesa su segnalazione del maintainer a **trend e xy_plot** (assi, griglia, sfondo, `line_color`):
+  restano scuri fissi, seguire la pagina sarebbe comportamento nuovo. Verificato dal maintainer.
+- **Sorgente Host** (`d0a8dfa4`): la zona termica si sceglie fra quelle del dispositivo (`/api/host/catalog` anche sulla porta ristretta). Collaudato con la zona scritta a mano.
 
-**Prossimo passo**: **R2** — colori coerenti fra creazione, canvas, pannello e LVGL (tabella condivisa `tests/fixtures/colori-predefiniti.json`, `coloriPredefiniti.ts`, `CampoColore`,
-normalizzazione dei `var(--…)` all'apertura, `check_colori.sh`). Dettaglio nel piano. Poi si riprende la stabilizzazione dal Passo 2 (segreti): le cinque conferme sono ancora aperte.
+**Container**: il WP630/TC620 gira 2.11.0, che **non ha la rotta** `/api/host/catalog`: senza, la card Host dice «runtime vecchio: aggiorna il container» e non c'è l'autocompletamento delle
+zone termiche (verificato dal maintainer dopo l'aggiornamento del pannello). Serve un container costruito da questo `main`: **2.11.1**, da compilare e pubblicare a cura del maintainer,
+poi `install-container.sh` sul dispositivo e prova dell'autocompletamento. Da collaudare in più col container: punto 4 di R2 (LVGL: rettangolo `#4a90d9`, LED spento, etichetta bottone bianca, linea/tubo sulla pagina).
 
-**Ramo locale da eliminare con l'ok del maintainer**: `fix/lingue-marchio-auto` (fuso a casa il 19-09, remoto sparito; l'albero differisce dallo squash solo per `STATUS.md`).
-**Container**: il WP630 gira 2.11.0; la scelta della zona termica dal dispositivo arriva col prossimo container.
+**Prossimo passo**: bump 2.11.1 (quattro file + due lockfile, tag annotato) e poi Passo 2 (segreti): le cinque conferme sono ancora aperte.
+**Da fare a mano**: ruotare il token Telegram di `CasaDomotica`.
+**Idee non fatte, emerse dal collaudo colori**: rifiniture (gauge su LVGL ignora `obj.color`; celle griglia e selettore testo di `text_list` ancora su `<input type="color">` diretto; `check_f7.sh` misura
+contro `--brand-text` invece di `--synoptic-text`), guardia sui `var(--brand…)` residui del canvas, migrazione dei colori lato server, colori di marchio selezionabili, trend/xy che seguono la pagina.
 
 ## Riprendere da qui (precedente) — sessione di stabilizzazione, Passi 0-1 chiusi, Passo 2 pianificato (2026-09-21)
 
