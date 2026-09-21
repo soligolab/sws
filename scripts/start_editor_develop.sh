@@ -25,6 +25,9 @@
 #   ./scripts/start_editor_develop.sh
 #   ./scripts/start_editor_develop.sh --instance 2 --no-spa
 #
+# Per lavorare sui progetti veri (fuori dal repo) senza cambiare script:
+#   SWS_PROJECTS_ROOT=~/sws_projects ./scripts/start_editor_develop.sh
+#
 # Se `SWS_PROJECTS_ROOT` è già impostata, vince la tua: questo script non
 # scavalca una scelta esplicita, la completa quando manca.
 set -euo pipefail

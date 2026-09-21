@@ -29,6 +29,7 @@ cd "$(dirname "$0")/.."
 STATICHE=(
     check_lvgl_symbols      # tabella simboli vendored: viewer contro editor
     check_lvgl_types        # badge «L» della palette contro il motore
+    check_source_kinds      # i `kind` delle sorgenti: Rust contro IDE
     check_lvgl_parity       # campi del modello contro quelli disegnati
     check_vendor_patches    # le patch al sorgente vendored sono ancora applicate
     check_templates         # tutti i template contro il runtime

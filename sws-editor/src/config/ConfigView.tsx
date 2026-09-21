@@ -1543,7 +1543,7 @@ function HostSourceCard({
 
 function emptyEnIp(): EnIpSource {
   return {
-    kind: "en_ip",
+    kind: "enip",
     id: `enip-${genId()}`,
     ip: "192.168.1.10",
     slot: 0,
@@ -4748,7 +4748,7 @@ function ProtocolsTab() {
             />
           );
         }
-        if (src.kind === "en_ip") {
+        if (src.kind === "enip") {
           return (
             <EnIpSourceCard
               key={i}

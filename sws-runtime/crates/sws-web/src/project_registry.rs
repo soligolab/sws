@@ -81,8 +81,34 @@ impl ProjectRegistry {
         self.persist().await;
     }
 
+    /// Il percorso registrato di `name` — **solo se il progetto c'è ancora**.
+    ///
+    /// Una voce il cui `project.yaml` non esiste più (cartella spostata, cancellata
+    /// a mano, o portata altrove come quando i progetti dell'IDE sono passati da
+    /// `.run-editor/projects` a `~/sws_projects`, 20-09-2026) è **potata** e vale
+    /// «non registrato». Prima il registro vinceva sempre: `open_project` cercava la
+    /// cartella vecchia, rispondeva 404 «project not found» senza guardare
+    /// `projects_root`, e i nomi delle voci morte bloccavano anche il «crea» con lo
+    /// stesso nome.
     pub async fn get_path(&self, name: &str) -> Option<PathBuf> {
-        self.entries.read().await.get(name).map(|e| e.path.clone())
+        let path = self
+            .entries
+            .read()
+            .await
+            .get(name)
+            .map(|e| e.path.clone())?;
+        if tokio::fs::try_exists(path.join("project.yaml"))
+            .await
+            .unwrap_or(false)
+        {
+            return Some(path);
+        }
+        warn!(
+            "project_registry: '{name}' punta a {} che non ha più un project.yaml — voce rimossa",
+            path.display()
+        );
+        self.remove(name).await;
+        None
     }
 
     /// Full snapshot, used by `list_projects` to merge with the directory scan.
@@ -100,5 +126,54 @@ impl ProjectRegistry {
             }
             Err(e) => warn!("project_registry: serialize failed: {e}"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn cartella(nome: &str) -> PathBuf {
+        let d = std::env::temp_dir().join(format!("sws-reg-{nome}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).unwrap();
+        d
+    }
+
+    #[tokio::test]
+    async fn una_voce_con_il_progetto_al_suo_posto_si_risolve() {
+        let cfg = cartella("cfg1");
+        let prj = cartella("prj1");
+        std::fs::write(prj.join("project.yaml"), "meta: {}\n").unwrap();
+        let reg = ProjectRegistry::load(&cfg).await;
+        reg.touch("casa", &prj).await;
+        assert_eq!(reg.get_path("casa").await, Some(prj));
+    }
+
+    #[tokio::test]
+    async fn una_voce_morta_si_pota_e_non_vince_sulla_radice_dei_progetti() {
+        // Il caso del 20-09-2026: i progetti spostati in ~/sws_projects, il registro con i vecchi
+        // percorsi. La voce non deve più mascherare la cartella vera.
+        let cfg = cartella("cfg2");
+        let vecchio = cartella("prj2"); // esiste ma senza project.yaml
+        let reg = ProjectRegistry::load(&cfg).await;
+        reg.touch("casa", &vecchio).await;
+        assert_eq!(reg.get_path("casa").await, None);
+        assert!(
+            reg.snapshot().await.is_empty(),
+            "la voce morta doveva sparire"
+        );
+        // E sparisce anche dal file.
+        let riletto = ProjectRegistry::load(&cfg).await;
+        assert!(riletto.snapshot().await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn una_cartella_scomparsa_non_e_un_errore() {
+        let cfg = cartella("cfg3");
+        let reg = ProjectRegistry::load(&cfg).await;
+        reg.touch("fantasma", Path::new("/non/esiste/proprio"))
+            .await;
+        assert_eq!(reg.get_path("fantasma").await, None);
     }
 }

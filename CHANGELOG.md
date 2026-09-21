@@ -11,6 +11,13 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Fixed
+- **Sorgente EtherNet/IP creata dall'IDE.** Il TypeScript scriveva `kind: "en_ip"` e Rust legge `"enip"`: la sorgente stava nel progetto e non partiva, senza
+  messaggi. Corretto il TS, e nuova guardia `check_source_kinds.sh` (nella 23ª guardia statica) che confronta i `kind` di `SourceDef` fra Rust e IDE.
+- **Il registro dei progetti non maschera più la cartella vera.** `known_projects.json` con una voce il cui `project.yaml` non esiste più faceva rispondere 404
+  «project not found» a `open` senza guardare `projects_root` (successo spostando i progetti in `~/sws_projects`) e bloccava il «crea» con lo stesso nome. Ora
+  `get_path` pota le voci morte. `start_editor_develop.sh` documenta `SWS_PROJECTS_ROOT` per usare i progetti veri.
+
 ## [2.11.0] — 2026-09-21
 
 > **L'albero delle pagine e il navigatore di pagine.** Le pagine hanno una gerarchia e un ordine salvato, sempre visibili a sinistra; un oggetto

@@ -1205,7 +1205,7 @@ export interface EnIpTagMapping {
 }
 
 export interface EnIpSource {
-  kind: 'en_ip';
+  kind: 'enip';
   id: string;
   ip: string;
   slot: number;
