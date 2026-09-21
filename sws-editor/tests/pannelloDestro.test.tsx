@@ -3,7 +3,8 @@ import { useContext, useState } from "react";
 import { describe, it, expect, vi } from "vitest";
 import i18n from "../src/i18n";
 import { BarraIcone } from "../src/editor/stilePannelli";
-import { GRUPPI_PROPRIETA, GruppoAttivo, PannelloDestro, barraGruppiVisibile, figlioProprietaAttivo, gruppiPerTipo, gruppoEffettivo, gruppoMemorizzato } from "../src/editor/EditorShell";
+import { GRUPPI_PROPRIETA, GruppoAttivo, PannelloDestro, barraGruppiVisibile, figlioProprietaAttivo, gruppiPerTipo, gruppoAffine, gruppoEffettivo, gruppoMemorizzato } from "../src/editor/EditorShell";
+import { PALETTE_GROUPS } from "../src/editor/LeftPanel";
 import type { GruppoProprieta } from "../src/editor/EditorShell";
 import type { SynopticObject } from "../src/types";
 
@@ -224,10 +225,14 @@ describe("la scheda Testo c'è solo dove serve", () => {
     }
   });
 
-  it("passando da un testo a un rettangolo si torna a Oggetto", () => {
-    // Senza questo il pannello resterebbe su una scheda che non esiste per
-    // l'oggetto nuovo, cioè vuoto.
+  it("passando da un testo a una forma si va su Oggetto, a uno strumento su Dato", () => {
+    // Senza ripiego il pannello resterebbe su una scheda che non esiste per
+    // l'oggetto nuovo, cioè vuoto. Il ripiego è il gruppo **affine** al tipo
+    // (21-09-2026): una forma ha solo aspetto e posizione, uno strumento ha i
+    // suoi Parametri sotto Dato.
     expect(gruppoEffettivo("testo", "rect")).toBe("oggetto");
+    expect(gruppoEffettivo("testo", "button")).toBe("dato");
+    expect(gruppoEffettivo("testo", "gauge")).toBe("dato");
   });
 
   it("ma la scelta non si perde: tornando su un testo si ritrova il testo", () => {
@@ -235,8 +240,43 @@ describe("la scheda Testo c'è solo dove serve", () => {
     expect(gruppoEffettivo("testo", "text")).toBe("testo");
   });
 
+  it("un gruppo che esiste per il tipo nuovo non si sposta", () => {
+    // Chi lavora sugli eventi di dieci pulsanti in fila non deve rincorrere la
+    // scheda a ogni oggetto piazzato.
+    expect(gruppoEffettivo("oggetto", "text")).toBe("oggetto");
+    expect(gruppoEffettivo("comportamento", "button")).toBe("comportamento");
+    expect(gruppoEffettivo("dato", "text")).toBe("dato");
+  });
+
   it("un gruppo che vale per tutti passa indenne", () => {
     expect(gruppoEffettivo("resa", "rect")).toBe("resa");
     expect(gruppoEffettivo("resa", undefined)).toBe("resa");
+  });
+
+  it("su una pagina di boot il gruppo affine di uno strumento non può essere Dato", () => {
+    // Dato non c'è fra i gruppi di boot: si ripiega su Oggetto, non su una
+    // scheda invisibile.
+    expect(gruppoEffettivo("testo", "gauge", true)).toBe("oggetto");
+  });
+});
+
+describe("il gruppo affine di ogni tipo", () => {
+  it("testo → Testo, strumenti → Dato, forme → Oggetto", () => {
+    expect(gruppoAffine("text")).toBe("testo");
+    expect(gruppoAffine("button")).toBe("dato");
+    expect(gruppoAffine("pipe")).toBe("dato");
+    expect(gruppoAffine("trend")).toBe("dato");
+    expect(gruppoAffine("rect")).toBe("oggetto");
+    expect(gruppoAffine("ellipse")).toBe("oggetto");
+    expect(gruppoAffine("line")).toBe("oggetto");
+  });
+
+  it("per ogni tipo della palette è un gruppo che quel tipo mostra davvero", () => {
+    const tipi = PALETTE_GROUPS.flatMap((g) => g.items.map((i) => i.type as string));
+    expect(tipi.length).toBeGreaterThan(30);
+    for (const tipo of tipi) {
+      const visibili = gruppiPerTipo(tipo).map((g) => g.id);
+      expect(visibili, `${tipo}: gruppo affine non fra quelli visibili`).toContain(gruppoAffine(tipo));
+    }
   });
 });

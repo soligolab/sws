@@ -1318,15 +1318,43 @@ export function gruppiPerTipo(tipo: string, paginaBoot = false) {
 /** I gruppi del pannello proprietà che una pagina di boot ammette. */
 const GRUPPI_BOOT: readonly GruppoProprieta[] = ["oggetto", "testo", "resa"];
 
+// I tipi che hanno una sezione «Parametri» propria (T-56, sezione canonica 6).
+// Fuori restano rect, ellipse e line: sono forme, non strumenti, e non hanno
+// niente da parametrizzare oltre ad aspetto e posizione. A livello di modulo
+// perché lo legge anche `gruppoAffine`, non solo il pannello.
+export const TIPI_CON_PARAMETRI: readonly string[] = [
+  "alarm_banner", "alarm_bell", "alarm_history", "alarm_viewer", "bar_chart", "button",
+  "checkbox", "data_log", "faceplate", "gauge", "grid", "image", "kpi_tile", "lang_button",
+  "lang_selector", "led", "navbutton", "page_navigator", "pie_chart", "pipe", "progress_bar", "radio",
+  "recipe_panel", "setpoint", "slider", "sparkline", "state_lamp", "symbol", "table",
+  "text_list", "trend", "xy_plot",
+];
+
+/** Il gruppo che più caratterizza un tipo: dove si va quando quello scelto
+ *  non esiste per l'oggetto appena selezionato (richiesta del maintainer,
+ *  21-09-2026). Un testo è la sua tipografia; uno strumento è i suoi
+ *  Parametri, che stanno sotto Dato (la «sezione grande del tipo» di T-56);
+ *  una forma ha solo aspetto e posizione. */
+export function gruppoAffine(tipo: string): GruppoProprieta {
+  if (tipo === "text") return "testo";
+  if (TIPI_CON_PARAMETRI.includes(tipo)) return "dato";
+  return "oggetto";
+}
+
 /** Il gruppo da mostrare davvero: quello scelto, se si applica a questo tipo,
- *  altrimenti Oggetto.
+ *  altrimenti il gruppo affine al tipo (`gruppoAffine`) — e Oggetto se nemmeno
+ *  quello si vede, come su una pagina di boot.
  *
  *  La **scelta memorizzata non si tocca**: chi stava sul testo e passa a un
- *  rettangolo vede Oggetto, e tornando su un testo ritrova il testo. Scrivere
- *  il ripiego in memoria farebbe perdere la scelta a ogni clic sul canvas. */
+ *  rettangolo vede Oggetto, a un gauge vede Dato, e tornando su un testo
+ *  ritrova il testo. Scrivere il ripiego in memoria farebbe perdere la scelta
+ *  a ogni clic sul canvas. */
 export function gruppoEffettivo(scelto: GruppoProprieta, tipo: string | undefined, paginaBoot = false): GruppoProprieta {
   if (!tipo) return paginaBoot && !GRUPPI_BOOT.includes(scelto) ? "oggetto" : scelto;
-  return gruppiPerTipo(tipo, paginaBoot).some((g) => g.id === scelto) ? scelto : "oggetto";
+  const visibili = gruppiPerTipo(tipo, paginaBoot).map((g) => g.id);
+  if (visibili.includes(scelto)) return scelto;
+  const affine = gruppoAffine(tipo);
+  return visibili.includes(affine) ? affine : "oggetto";
 }
 
 /** Il gruppo scelto nella barra a destra. Le sezioni che dichiarano un
@@ -1536,10 +1564,15 @@ export function figlioProprietaAttivo(
 const TipoOggetto = createContext<string>("");
 
 function CollapsibleSection({
-  title, storageKey, defaultOpen = false, headerExtra, hint, gruppo, children,
+  title, storageKey, defaultOpen = true, headerExtra, hint, gruppo, children,
 }: {
   title: string;
   storageKey?: string;
+  /** Aperta alla prima apertura, finché l'utente non la chiude (la memoria per
+   *  tipo resta). Dal 21-09-2026 il default è **aperta**: da quando le sezioni
+   *  stanno divise per gruppo (T-56) ce ne sono 2-3 per scheda, e tenerle
+   *  chiuse costava un clic per ogni proprietà (richiesta del maintainer).
+   *  Prima erano chiuse tranne quattro. */
   defaultOpen?: boolean;
   /** Gruppo della barra a destra in cui questa sezione compare. Assente = la
    *  sezione non appartiene a nessun gruppo e si vede sempre: è il caso delle
@@ -2751,16 +2784,6 @@ export function ObjectProps({
     </>
   );
 
-  // I tipi che hanno una sezione «Parametri» propria (T-56, sezione canonica 6).
-  // Fuori restano rect, ellipse e line: sono forme, non strumenti, e non hanno
-  // niente da parametrizzare oltre ad aspetto e posizione.
-  const TIPI_CON_PARAMETRI: string[] = [
-    "alarm_banner", "alarm_bell", "alarm_history", "alarm_viewer", "bar_chart", "button",
-    "checkbox", "data_log", "faceplate", "gauge", "grid", "image", "kpi_tile", "lang_button",
-    "lang_selector", "led", "navbutton", "page_navigator", "pie_chart", "pipe", "progress_bar", "radio",
-    "recipe_panel", "setpoint", "slider", "sparkline", "state_lamp", "symbol", "table",
-    "text_list", "trend", "xy_plot",
-  ];
   const BOX_TYPES = ["rect", "ellipse", "button", "navbutton", "checkbox", "radio", "slider", "gauge", "led", "progress_bar", "table", "trend", "symbol", "grid", "page_navigator",
     // 2026-08-23: W/H per tutti i box-like (prima si ridimensionavano solo con le maniglie)
     "image", "xy_plot", "kpi_tile", "data_log", "alarm_viewer", "alarm_bell", "alarm_banner",
@@ -2793,7 +2816,7 @@ export function ObjectProps({
           un'intestazione e tre righe di etichetta, circa 70 px — un terzo di
           quello che occupavano. Sopra i campi lunghi l'etichetta resta sopra,
           perché a pannello stretto a fianco mangerebbe larghezza al controllo. */}
-      <CollapsibleSection title={t("props.sectionIdentityGeometry")} storageKey="identita" gruppo="oggetto" defaultOpen={true}>
+      <CollapsibleSection title={t("props.sectionIdentityGeometry")} storageKey="identita" gruppo="oggetto">
         <RigaProprieta etichetta={t("props.name")} inLinea>
           <input
             type="text" style={INPUT}
@@ -2840,7 +2863,7 @@ export function ObjectProps({
         </div>
       </CollapsibleSection>
 
-      <CollapsibleSection title={t("props.sectionAppearance")} storageKey="aspetto" gruppo="oggetto" defaultOpen={true}>
+      <CollapsibleSection title={t("props.sectionAppearance")} storageKey="aspetto" gruppo="oggetto">
         {/* Fill */}
         {(obj.type === "rect" || obj.type === "ellipse" || obj.type === "button" || obj.type === "navbutton") &&
           field(t("props.color"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill", "#4a90d9")}</BindableInput>)}
@@ -3011,7 +3034,7 @@ export function ObjectProps({
         )}
       </CollapsibleSection>
 
-      <CollapsibleSection title={t("props.sectionData")} storageKey="dato" gruppo="dato" defaultOpen={true}>
+      <CollapsibleSection title={t("props.sectionData")} storageKey="dato" gruppo="dato">
         {/* Tag binding */}
         {!["navbutton","page_navigator","gauge","slider","checkbox","radio","led","progress_bar","trend","pipe","text_list","state_lamp","setpoint","xy_plot",
           // 2026-08-23: tipi dove obj.tag NON è il dato primario (serie/figli
@@ -3182,7 +3205,7 @@ export function ObjectProps({
        *  nuovo dimenticato qui non perde la sezione in silenzio — perde i
        *  suoi campi, e il test d'inventario lo dice. */}
       {TIPI_CON_PARAMETRI.includes(obj.type) && (
-        <CollapsibleSection title={t("props.sectionParameters")} storageKey="parametri" gruppo="dato" defaultOpen>
+        <CollapsibleSection title={t("props.sectionParameters")} storageKey="parametri" gruppo="dato">
           {/* Button label + write value + built-in action */}
           {obj.type === "button" && (
             <>

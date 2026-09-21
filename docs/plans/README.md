@@ -26,6 +26,7 @@ c'è già, manca solo la conferma a schermo prima di archiviare la scheda in
 
 | Piano | Origine | Cosa resta |
 |---|---|---|
+| [2026-09-21-colori-e-pannello-destro.md](2026-09-21-colori-e-pannello-destro.md) | richieste del maintainer del 21-09-2026 | **in corso** — R1 (gruppo affine del pannello destro, sezioni aperte) sul ramo; R2 (colori coerenti fra creazione, canvas, pannello e LVGL, con tabella condivisa e guardia) da aprire dopo |
 | [2026-09-21-sessione-stabilizzazione.md](2026-09-21-sessione-stabilizzazione.md) | blocchi A-C del 21-09-2026 | **piano a passi (da approvare)** — pulizia e bug piccoli, guardie con stack, segreti di progetto (token Telegram), viewer LVGL sull'albero, albero nella cronologia, rifiniture, collaudo TC620: un passo alla volta, un ramo alla volta |
 | [2026-09-18-identita-utenti-istanze.md](2026-09-18-identita-utenti-istanze.md) | Q44 + Q54 + Q56 | **seme — decisione, IN CODA** — di chi sono gli account e chi comanda quando due copie non sono d'accordo. È il lavoro più corposo e il maintainer l'ha messo dopo tutto il resto: quando comincerà, prima una sessione di plan che rilegga le tre schede contro il codice di allora |
 | [2026-09-18-workspace-dei-progetti.md](2026-09-18-workspace-dei-progetti.md) | Q60 (da Q59) | **seme — decisione, IN CODA** con il precedente — il concetto di workspace. La prima metà (`start_editor.sh` come corsa di produzione) è fatta; deciso già: scelta *proposta*, non bloccante, solo IDE |

@@ -11,6 +11,14 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Changed
+- **Pannello destro: il gruppo affine e le sezioni aperte** (richieste del maintainer, 21-09-2026; piano `docs/plans/2026-09-21-colori-e-pannello-destro.md`, R1).
+  Quando il gruppo scelto nella barra non esiste per l'oggetto appena selezionato o piazzato, il pannello non ripiega più sempre su Oggetto ma sul gruppo
+  **affine** al tipo (`gruppoAffine`): un testo va su Testo, uno strumento (i tipi con la sezione Parametri) su Dato, una forma su Oggetto. Se il gruppo scelto
+  esiste per il tipo nuovo si resta lì, come prima, e la scelta memorizzata non si tocca. Tutte le sezioni pieghevoli del pannello destro **nascono aperte**
+  (prima solo quattro): con le sezioni divise per gruppo sono 2-3 per scheda e tenerle chiuse costava un clic a proprietà; la memoria per tipo resta, quindi
+  una sezione chiusa dall'utente resta chiusa. La colonna «aperta/chiusa» della tabella §3 del piano T-56 archiviato è superata da questa scelta.
+
 ### Fixed
 - **Nove guardie con stack tornano verdi** (mai rilanciate dopo le riorganizzazioni di settembre; **nessuna era un difetto del prodotto**: le fixture erano invecchiate).
   Sei guardie sul canvas (`check_f7/f76/f8/wysiwyg/multiselect_drag/soft_edge`) presumevano che l'unica pagina fosse la loro, ma dal 19-09 (T-72) un progetto
