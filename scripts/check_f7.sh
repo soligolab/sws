@@ -35,6 +35,9 @@ curl -sf -o /dev/null "http://localhost:$APORT/health" || { echo "runtime non pa
 API="http://localhost:$APORT/api"
 curl -sf -X POST "$API/projects" -H 'Content-Type: application/json' -d '{"name":"f7-test"}' > /dev/null
 curl -sf -X POST "$API/projects/f7-test/open" > /dev/null
+# Dal 19-09-2026 (T-72 F1) un progetto vuoto nasce con la pagina «Page 1»: la guardia
+# assume che l'unica pagina sia la sua, quindi si toglie quella di semina.
+curl -sf -X DELETE "$API/synoptics/Page%201" > /dev/null || true
 
 # Servono valori NOTI (compreso un negativo) per poter affermare qualcosa sulle
 # barre e sulle fette: prima le definizioni (PUT /api/project/tags), poi i
@@ -62,7 +65,7 @@ curl -sf -X PUT "$API/synoptics/Pagina%201" -H 'Content-Type: application/json' 
      "text_wrap":true,"text_valign":"middle","line_height":1.6,"font_size":13},
     {"id":"bar_neg","type":"bar_chart","x":280,"y":40,"width":280,"height":200,
      "bar_ticks":5,"bar_show_legend":true,"decimals":1,
-     "bar_series":[{"tag":"t.neg","label":"giù","color":"#ef4444"},{"tag":"t.pos","label":"su","color":"#22c55e"}]},
+     "bar_series":[{"tag":"t.neg","label":"giù","color":"#ef4444","min":-100,"max":100},{"tag":"t.pos","label":"su","color":"#22c55e","min":-100,"max":100}]},
     {"id":"bar_stk","type":"bar_chart","x":600,"y":40,"width":200,"height":200,
      "bar_mode":"stacked","bar_show_legend":true,
      "bar_series":[{"tag":"t.a","label":"A","color":"#3b82f6"},{"tag":"t.b","label":"B","color":"#f59e0b"}]},

@@ -35,6 +35,9 @@ curl -sf -o /dev/null "http://localhost:$APORT/health" || { echo "runtime non pa
 API="http://localhost:$APORT/api"
 curl -sf -X POST "$API/projects" -H 'Content-Type: application/json' -d '{"name":"f8-test"}' > /dev/null
 curl -sf -X POST "$API/projects/f8-test/open" > /dev/null
+# Dal 19-09-2026 (T-72 F1) un progetto vuoto nasce con la pagina «Page 1»: la guardia
+# assume che l'unica pagina sia la sua, quindi si toglie quella di semina.
+curl -sf -X DELETE "$API/synoptics/Page%201" > /dev/null || true
 
 # A finisce a 200, B comincia a 260: 60px di distanza, più della tolleranza di
 # aggancio (8px), così il test misura un aggancio e non una coincidenza.

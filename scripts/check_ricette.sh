@@ -69,7 +69,7 @@ YAML
 SWS_ADMIN_USER=admin SWS_ADMIN_PASSWORD=admin1234 \
 "$BIN" --config "$WORK/config" --projects-root "$WORK/projects" \
   --templates-root "$REPO/examples/templates" --www "$REPO/sws-editor/dist" \
-  --admin-port "$APORT" > "$WORK/rt.log" 2>&1 &
+  --viewer-port "$((APORT + 1))" --admin-port "$APORT" > "$WORK/rt.log" 2>&1 &
 echo $! > "$WORK/rt.pid"
 for _ in $(seq 1 60); do curl -sf -o /dev/null "http://localhost:$APORT/health" && break; sleep 0.5; done
 
@@ -97,8 +97,11 @@ def caso(nome, ok, extra=""):
     print(f"  {'✓' if ok else '✗'} {nome}" + ("" if ok else f" — {extra}"))
     if not ok: rossi += 1
 
-_, login = req("POST", "/auth/login", {"username": "admin", "password": "admin1234"})
-st, _ = req("POST", "/projects/q17/open", {}, login["token"])
+# Serve `--viewer-port`: senza, l'istanza è un IDE e dal 14-09-2026 un IDE non autentica (ogni
+# richiesta è admin sintetico) — la prova di ruolo non proverebbe niente.
+# Senza un progetto aperto il runtime non ha account (dall'11-09-2026 gli utenti appartengono al
+# progetto): l'apertura è anonima, e solo dopo ci sono utenti (il seme SWS_ADMIN_*) con cui entrare.
+st, _ = req("POST", "/projects/q17/open", {})
 assert st < 300, f"open q17: {st}"
 # Aprire un progetto scambia lo user store (auth.swap_store) e INVALIDA le
 # sessioni — trappola già documentata in sws-editor/e2e/_env.ts. Si rientra.

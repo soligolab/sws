@@ -32,6 +32,9 @@ for _ in $(seq 1 60); do curl -sf -o /dev/null "http://localhost:$APORT/health" 
 API="http://localhost:$APORT/api"
 curl -sf -X POST "$API/projects" -H 'Content-Type: application/json' -d '{"name":"f76-test"}' > /dev/null
 curl -sf -X POST "$API/projects/f76-test/open" > /dev/null
+# Dal 19-09-2026 (T-72 F1) un progetto vuoto nasce con la pagina «Page 1»: la guardia
+# assume che l'unica pagina sia la sua, quindi si toglie quella di semina.
+curl -sf -X DELETE "$API/synoptics/Page%201" > /dev/null || true
 
 curl -sf -X PUT "$API/synoptics/Pagina%201" -H 'Content-Type: application/json' -d '{
   "id": "pagina-1", "name": "Pagina 1", "width": 1280, "height": 800,

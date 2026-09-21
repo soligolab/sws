@@ -147,12 +147,18 @@ objects:
   - tag: demo.sim.bar_a
     label: A
     color: '#0ea5e9'
+    min: -50.0
+    max: 100.0
   - tag: demo.sim.bar_b
     label: "{{t0054}}"
     color: '#22c55e'
+    min: -50.0
+    max: 100.0
   - tag: demo.sim.bar_c
     label: "{{t0055}}"
     color: '#f59e0b'
+    min: -50.0
+    max: 100.0
   warn_high: 70.0
   alarm_high: 90.0
   bar_show_thresholds: true

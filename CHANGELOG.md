@@ -12,6 +12,15 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Fixed
+- **Nove guardie con stack tornano verdi** (mai rilanciate dopo le riorganizzazioni di settembre; **nessuna era un difetto del prodotto**: le fixture erano invecchiate).
+  Sei guardie sul canvas (`check_f7/f76/f8/wysiwyg/multiselect_drag/soft_edge`) presumevano che l'unica pagina fosse la loro, ma dal 19-09 (T-72) un progetto
+  vuoto nasce con «Page 1»; `check_f7` dava alle barre negative la scala 0..100 di default (Q28, 12-09) e ora dichiara `min/max` con segno; `check_ricette`,
+  `check_connessione_remota` e `check_deploy_preserve` usavano un'istanza **senza `--viewer-port`** (un IDE, che dal 14-09 non autentica) come se avesse utenti —
+  ora il dispositivo è un'istanza runtime, e la prova di ruolo sulle ricette (l'Operator non applica una ricetta con un tag protetto) gira davvero e passa.
+- **`demo-items` (web e LVGL): la terza serie del bar chart «va sotto zero» ma non si vedeva** (scala 0..100 di default dal 12-09). Le tre serie hanno ora
+  `min: -50`, `max: 100`.
+
+### Fixed
 - **Sorgente EtherNet/IP creata dall'IDE.** Il TypeScript scriveva `kind: "en_ip"` e Rust legge `"enip"`: la sorgente stava nel progetto e non partiva, senza
   messaggi. Corretto il TS, e nuova guardia `check_source_kinds.sh` (nella 23ª guardia statica) che confronta i `kind` di `SourceDef` fra Rust e IDE.
 - **Il registro dei progetti non maschera più la cartella vera.** `known_projects.json` con una voce il cui `project.yaml` non esiste più faceva rispondere 404

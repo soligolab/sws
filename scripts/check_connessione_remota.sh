@@ -26,16 +26,17 @@ BIN="$REPO/sws-runtime/target/debug/sws-runtime"
 WORK="${TMPDIR:-/tmp}/sws-remoto.$$"
 IDE="${IDE:-8671}"
 PAN="${PAN:-8672}"
+DEV="${DEV:-8673}"   # un dispositivo CON utenti: un'istanza runtime (con --viewer-port), non un IDE
 
 [ -x "$BIN" ] || { echo "manca $BIN — esegui: cargo build -p sws-runtime" >&2; exit 1; }
 
-mkdir -p "$WORK"/{ide/config,ide/projects/lavoro,pan/config,pan/projects/pannello}
+mkdir -p "$WORK"/{ide/config,ide/projects/lavoro,pan/config,pan/projects/pannello,dev/config,dev/projects/dispositivo}
 
 # Gli utenti appartengono al PROGETTO (aprirne uno scambia lo user store), non
 # al runtime: senza un progetto sul disco l'admin da seminare non ha dove
 # andare, e anche l'«editor» partirebbe in no-auth — cioè non proverebbe
 # niente. Due progetti minimi, uno per parte.
-for lato in ide/lavoro pan/pannello; do
+for lato in ide/lavoro pan/pannello dev/dispositivo; do
   cat > "$WORK/${lato%%/*}/projects/${lato##*/}/project.yaml" <<YAML
 meta:
   name: ${lato##*/}
@@ -45,7 +46,7 @@ sources: []
 YAML
 done
 cleanup() {
-  for f in "$WORK"/ide.pid "$WORK"/pan.pid; do
+  for f in "$WORK"/ide.pid "$WORK"/pan.pid "$WORK"/dev.pid; do
     [ -f "$f" ] && kill "$(cat "$f")" 2>/dev/null || true
   done
   rm -rf "$WORK"
@@ -65,13 +66,22 @@ echo $! > "$WORK/ide.pid"
   --admin-port "$PAN" > "$WORK/pan.log" 2>&1 &
 echo $! > "$WORK/pan.pid"
 
-for p in "$IDE" "$PAN"; do
+# Il dispositivo con utenti. Dal 14-09-2026 l'editor non ha più utenti (non autentica), quindi
+# «un dispositivo che rifiuta le credenziali» dev'essere un'istanza runtime vera.
+printf '%s' "$WORK/dev/projects/dispositivo" > "$WORK/dev/projects/.active-project"
+SWS_ADMIN_USER=admin SWS_ADMIN_PASSWORD=admin1234 \
+"$BIN" --config "$WORK/dev/config" --projects-root "$WORK/dev/projects" \
+  --templates-root "$REPO/examples/templates" --www "$REPO/sws-editor/dist" \
+  --viewer-port "$((DEV + 1))" --admin-port "$DEV" > "$WORK/dev.log" 2>&1 &
+echo $! > "$WORK/dev.pid"
+
+for p in "$IDE" "$PAN" "$DEV"; do
   for _ in $(seq 1 60); do curl -sf -o /dev/null "http://localhost:$p/health" && break; sleep 0.5; done
 done
 
-python3 - "$IDE" "$PAN" <<'PY'
+python3 - "$IDE" "$PAN" "$DEV" <<'PY'
 import json, sys, urllib.request, urllib.error
-ide, pan = sys.argv[1], sys.argv[2]
+ide, pan, dev = sys.argv[1], sys.argv[2], sys.argv[3]
 API = f"http://localhost:{ide}/api"
 
 def req(method, path, body=None, token=None):
@@ -94,8 +104,9 @@ def caso(nome, ok, extra=""):
     print(f"  {'✓' if ok else '✗'} {nome}" + ("" if ok else f" — {extra}"))
     if not ok: rossi += 1
 
-_, login = req("POST", "/auth/login", {"username": "admin", "password": "admin1234"})
-tok = login["token"]
+# Dal 14-09-2026 l'editor (un'istanza senza `--viewer-port`) non autentica: ogni richiesta è
+# admin sintetico e non c'è nessun accesso da fare. Il token è quindi vuoto.
+tok = None
 target = f"http://localhost:{pan}"
 
 print("== il pannello non ha utenti, ma il modulo ha ancora le credenziali ==")
@@ -119,7 +130,7 @@ caso("connessione anonima ok", st == 200 and body.get("ok") is True, f"{st}: {bo
 print("== e un dispositivo CON utenti rifiuta ancora, ma senza sbattere fuori ==")
 req("DELETE", "/remote/connect", None, tok)
 st, body = req("POST", "/remote/connect",
-               {"url": f"http://localhost:{ide}", "username": "admin", "password": "sbagliata"}, tok)
+               {"url": f"http://localhost:{dev}", "username": "admin", "password": "sbagliata"}, tok)
 caso("non è 401", st != 401, f"status {st}")
 caso("dichiara ok:false", st == 200 and body.get("ok") is False, f"{st}: {body}")
 caso("e spiega di chi è la colpa",

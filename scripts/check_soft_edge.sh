@@ -65,6 +65,9 @@ API="http://localhost:$APORT/api"
 curl -sf -X POST "$API/projects" -H 'Content-Type: application/json' \
   -d '{"name":"soft-edge-test"}' > /dev/null
 curl -sf -X POST "$API/projects/soft-edge-test/open" > /dev/null
+# Dal 19-09-2026 (T-72 F1) un progetto vuoto nasce con la pagina «Page 1»: la guardia
+# assume che l'unica pagina sia la sua, quindi si toglie quella di semina.
+curl -sf -X DELETE "$API/synoptics/Page%201" > /dev/null || true
 
 # Due rettangoli identici sulla stessa riga: la gabbia dell'unione è larga 420
 # (da x=100 a x=520), numero che il measure usa per la prova di gruppo.

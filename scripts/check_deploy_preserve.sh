@@ -21,13 +21,16 @@ SRC_PORT=8571
 TGT_PORT=8573
 rm -rf "$SCR"; mkdir -p "$SCR"/src/{config,projects} "$SCR"/tgt/{config,projects}
 
-start() {  # $1=dir $2=porta
+# $3 (facoltativa) = porta del viewer. Il DISPOSITIVO deve essere un'istanza runtime, cioè averne una:
+# senza `--viewer-port` l'istanza è un IDE e dal 14-09-2026 un IDE non autentica, quindi «un
+# dispositivo con account che rifiuta chi non ha credenziali» non esisterebbe.
+start() {  # $1=dir $2=porta [$3=porta viewer]
   "$BIN" --config "$SCR/$1/config" --projects-root "$SCR/$1/projects" \
-    --templates-root "$REPO/examples/templates" --admin-port "$2" \
+    --templates-root "$REPO/examples/templates" --admin-port "$2" ${3:+--viewer-port "$3"} \
     > "$SCR/$1.log" 2>&1 &
   echo $!
 }
-SRC_PID=$(start src "$SRC_PORT"); TGT_PID=$(start tgt "$TGT_PORT")
+SRC_PID=$(start src "$SRC_PORT"); TGT_PID=$(start tgt "$TGT_PORT" "$((TGT_PORT + 1))")
 trap 'kill -TERM "$SRC_PID" "$TGT_PID" 2>/dev/null' EXIT
 sleep 8
 
@@ -125,6 +128,9 @@ ls "$SCR/tgt/projects/impianto/synoptics/" 2>/dev/null | grep -qi "nuova" \
 echo "=== 2. utenti: dispositivo con account + connessione senza credenziali → deve rifiutare ==="
 # Si rimette un account solo-dispositivo (il caso 1 l'ha giustamente sostituito).
 utente_su_disco "$TGT_USERS" operatore_dispositivo Operator
+# Il runtime decide dallo store in memoria, non dal file: scrivere `users.yaml` da fuori non lo
+# cambia finché il progetto non si riapre (come già fanno i casi 4 e 5).
+curl -s -X POST "$T/projects/impianto/open" >/dev/null; sleep 1
 echo -n "  risposta: "; curl -s -X POST "$S/remote/users" | head -c 200; echo
 grep -q operatore_dispositivo "$TGT_USERS" 2>/dev/null \
   && ok "nulla è stato cambiato sul dispositivo" || ko "account del dispositivo alterati"
