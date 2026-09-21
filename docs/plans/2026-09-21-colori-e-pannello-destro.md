@@ -1,6 +1,6 @@
 # Colori coerenti e pannello destro: gruppo affine, sezioni aperte
 
-> **Stato**: approvato il 21-09-2026. R1 in corso su `fix/pannello-destro-affine-aperto`; R2 da aprire dopo il merge di R1.
+> **Stato**: approvato il 21-09-2026. **R1 su `main`** (`0cf24a0e`, collaudata); R2 da fare.
 
 ## Contesto
 

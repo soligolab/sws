@@ -74,7 +74,23 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — sessione di stabilizzazione, Passi 0-1 chiusi, Passo 2 pianificato (2026-09-21)
+## ▶ Riprendere da qui — pannello destro e sorgente Host su `main`, R2 (colori) da aprire (2026-09-21, ufficio)
+
+**Fatto oggi, su `main`** (piano `docs/plans/2026-09-21-colori-e-pannello-destro.md`, approvato):
+- **R1** (`0cf24a0e`): il pannello destro ripiega sul **gruppo affine** al tipo (`gruppoAffine`: testo → Testo, strumenti con Parametri → Dato, forme → Oggetto) invece che sempre su Oggetto;
+  se il gruppo scelto esiste per il tipo nuovo si resta lì. Tutte le sezioni pieghevoli nascono aperte. Collaudato dal maintainer.
+- **Sorgente Host** (`d0a8dfa4`, nato dalla prova sul WP630): due metriche `temp` erano salvate **senza zona** e i tag restavano Bad in silenzio. Ora `/api/host/catalog` c'è anche sulla porta
+  ristretta (`--no-admin`), l'IDE ha `GET /api/remote/host/catalog` e la card Host prende zone/mount/interfacce **dal dispositivo connesso** (dice da dove vengono, compreso «dispositivo
+  connesso ma runtime vecchio: aggiorna il container»); una metrica senza il parametro che le serve è bordata di rosso. `check_no_admin.sh` pretende la rotta. Collaudato dal maintainer:
+  temperatura delle zone termiche a grafico sul WP630 (zona scritta a mano, il container 2.11.0 non ha ancora la rotta).
+
+**Prossimo passo**: **R2** — colori coerenti fra creazione, canvas, pannello e LVGL (tabella condivisa `tests/fixtures/colori-predefiniti.json`, `coloriPredefiniti.ts`, `CampoColore`,
+normalizzazione dei `var(--…)` all'apertura, `check_colori.sh`). Dettaglio nel piano. Poi si riprende la stabilizzazione dal Passo 2 (segreti): le cinque conferme sono ancora aperte.
+
+**Ramo locale da eliminare con l'ok del maintainer**: `fix/lingue-marchio-auto` (fuso a casa il 19-09, remoto sparito; l'albero differisce dallo squash solo per `STATUS.md`).
+**Container**: il WP630 gira 2.11.0; la scelta della zona termica dal dispositivo arriva col prossimo container.
+
+## Riprendere da qui (precedente) — sessione di stabilizzazione, Passi 0-1 chiusi, Passo 2 pianificato (2026-09-21)
 
 **Fatto oggi, tutto su `main`** (release **2.11.0**, tag e container arm64/amd64 pubblicati; il push di oggi porta anche i commit successivi):
 - **Albero delle pagine** (`page_layout.page_tree`, sempre visibile in alto nel pannello sinistro) e **navigatore di pagine** (`page_navigator`, web + LVGL, `GET /api/pages/nav`), con
