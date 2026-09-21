@@ -11,6 +11,12 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+## [2.11.1] — 2026-09-21
+
+> **Colori coerenti e sorgente Host dal dispositivo.** Un oggetto piazzato mostra lo stesso colore su canvas, pannello proprietà e pannello LVGL (tabella unica,
+> testo/linea/tubo «auto», trend e xy_plot compresi); il pannello destro ripiega sul gruppo affine e le sezioni nascono aperte; la card Host propone le zone
+> termiche **del dispositivo connesso** (serve la rotta `/api/host/catalog`, assente nel container 2.11.0). Lavoro della sessione del 21 settembre.
+
 ### Changed
 - **Pannello destro: il gruppo affine e le sezioni aperte** (richieste del maintainer, 21-09-2026; piano `docs/archive/2026-09-21-colori-e-pannello-destro.md`, R1).
   Quando il gruppo scelto nella barra non esiste per l'oggetto appena selezionato o piazzato, il pannello non ripiega più sempre su Oggetto ma sul gruppo

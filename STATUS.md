@@ -87,7 +87,7 @@
 zone termiche (verificato dal maintainer dopo l'aggiornamento del pannello). Serve un container costruito da questo `main`: **2.11.1**, da compilare e pubblicare a cura del maintainer,
 poi `install-container.sh` sul dispositivo e prova dell'autocompletamento. Da collaudare in più col container: punto 4 di R2 (LVGL: rettangolo `#4a90d9`, LED spento, etichetta bottone bianca, linea/tubo sulla pagina).
 
-**Prossimo passo**: bump 2.11.1 (quattro file + due lockfile, tag annotato) e poi Passo 2 (segreti): le cinque conferme sono ancora aperte.
+**Versione 2.11.1** (bump nei quattro file e nei due lockfile, tag annotato, non ancora pushati): da compilare e pubblicare. **Prossimo passo**: Passo 2 (segreti): le cinque conferme sono ancora aperte.
 **Da fare a mano**: ruotare il token Telegram di `CasaDomotica`.
 **Idee non fatte, emerse dal collaudo colori**: rifiniture (gauge su LVGL ignora `obj.color`; celle griglia e selettore testo di `text_list` ancora su `<input type="color">` diretto; `check_f7.sh` misura
 contro `--brand-text` invece di `--synoptic-text`), guardia sui `var(--brand…)` residui del canvas, migrazione dei colori lato server, colori di marchio selezionabili, trend/xy che seguono la pagina.
