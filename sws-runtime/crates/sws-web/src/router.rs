@@ -548,6 +548,12 @@ pub fn build(
             post(crate::remote::connect_remote).delete(crate::remote::disconnect_remote),
         )
         .route("/api/remote/status", get(crate::remote::remote_status))
+        // Il catalogo Host (zone termiche, mount, interfacce) del dispositivo
+        // connesso: è lì che il progetto girerà, non su questa macchina.
+        .route(
+            "/api/remote/host/catalog",
+            get(crate::remote::remote_host_catalog),
+        )
         .route("/api/remote/deploy", post(crate::remote::remote_deploy))
         .route(
             "/api/remote/project/delete",
@@ -991,6 +997,13 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         // ── Stato, che l'IDE legge per dire com'è il dispositivo ───────────
         .route("/api/project", get(get_project))
         .route("/api/system", get(crate::system::get_system_status))
+        // Cosa c'è su QUESTA macchina — zone termiche, mount, interfacce — per
+        // il campo «parametro» della sorgente Host. L'editor lo chiede al
+        // dispositivo connesso (`/api/remote/host/catalog`), perché le zone
+        // del PC di chi disegna non dicono niente su quelle del pannello:
+        // il 21-09-2026 due metriche `temp` sono state salvate senza zona e
+        // sono rimaste Bad in silenzio. Sola lettura, nessun segreto.
+        .route("/api/host/catalog", get(crate::system::get_host_catalog))
         // ── Utenti: azione deliberata, separata dal deploy ─────────────────
         //
         // I verbi sono quelli che `remote.rs` usa davvero (`PUT`, non `POST`):

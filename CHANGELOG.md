@@ -20,6 +20,16 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   una sezione chiusa dall'utente resta chiusa. La colonna «aperta/chiusa» della tabella §3 del piano T-56 archiviato è superata da questa scelta.
 
 ### Fixed
+- **Sorgente Host: la zona termica si sceglie fra quelle del dispositivo, e un parametro mancante si vede.** Sul WP630 (21-09-2026) due metriche `temp`
+  erano salvate **senza zona**: il plugin non sa quale `thermal_zone` leggere, marca il tag Bad e lo dice solo con un `warn` nel registro; nell'editor il
+  parametro era un campo libero con un suggerimento, e i suggerimenti venivano da `/api/host/catalog` **della macchina dell'editor** (su un PC `x86_pkg_temp`,
+  sul pannello `soc-thermal`). Ora: (1) la rotta `/api/host/catalog` esiste anche sulla porta admin **ristretta** (`--no-admin`, cioè il container), e
+  `check_no_admin.sh` la pretende; (2) l'IDE ha `GET /api/remote/host/catalog`, che chiede il catalogo al **dispositivo connesso** (stesso proxy di
+  `/api/remote/system`, ora una funzione sola `proxy_get_json`); (3) la card Host lo usa se un runtime è connesso e ripiega su quello locale altrimenti,
+  **dicendo da dove vengono i suggerimenti** (verde dal dispositivo, giallo da questa macchina, con l'invito a collegare il runtime); (4) una metrica che
+  vuole un parametro e non lo ha è bordata di rosso con «Parametro obbligatorio: senza, il tag resta Bad», e la card conta le metriche senza parametro.
+  La regola (quali metriche vogliono un parametro, specchio di `leggi()` nel plugin) sta in `sws-editor/src/config/sorgenteHost.ts`, con il suo test.
+  Un runtime anteriore a questa versione non ha la rotta: l'editor ripiega sul catalogo locale e lo dice.
 - **Nove guardie con stack tornano verdi** (mai rilanciate dopo le riorganizzazioni di settembre; **nessuna era un difetto del prodotto**: le fixture erano invecchiate).
   Sei guardie sul canvas (`check_f7/f76/f8/wysiwyg/multiselect_drag/soft_edge`) presumevano che l'unica pagina fosse la loro, ma dal 19-09 (T-72) un progetto
   vuoto nasce con «Page 1»; `check_f7` dava alle barre negative la scala 0..100 di default (Q28, 12-09) e ora dichiara `min/max` con segno; `check_ricette`,

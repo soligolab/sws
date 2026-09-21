@@ -1706,6 +1706,17 @@ export const api = {
   remoteStatus: () =>
     request<{ connected: boolean; url?: string; connected_at_ms?: number }>("/api/remote/status"),
 
+  /** GET /api/host/catalog — zone termiche, mount, interfacce e core di
+   *  **questa** macchina (quella dell'editor). */
+  hostCatalog: () =>
+    request<{ temperature: string[]; mount: string[]; interfacce: string[]; core: number }>("/api/host/catalog"),
+
+  /** GET /api/remote/host/catalog — lo stesso catalogo, ma del **dispositivo
+   *  connesso**: è lì che il progetto girerà. Fallisce senza dispositivo o
+   *  con un runtime anteriore al 21-09-2026, che non ha la rotta. */
+  remoteHostCatalog: () =>
+    request<{ temperature: string[]; mount: string[]; interfacce: string[]; core: number }>("/api/remote/host/catalog"),
+
   /** POST /api/remote/project/delete — delete the active project on the
    *  connected remote runtime. Resolves on success, throws with the runtime's
    *  message on failure. */

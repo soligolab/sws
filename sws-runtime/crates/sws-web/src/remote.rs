@@ -1013,13 +1013,32 @@ pub async fn remote_export_project(
 /// condiviso, il frontend interpreta lo stesso `SystemStatus` che già
 /// conosce da `GET /api/system`.
 pub async fn remote_system_status(State(s): State<AppState>) -> Response {
+    proxy_get_json(&s, "/api/system").await
+}
+
+/// `GET /api/remote/host/catalog` — le zone termiche, i mount e le interfacce
+/// **del dispositivo connesso**, per il campo «parametro» della sorgente Host.
+///
+/// Il catalogo locale (`/api/host/catalog`) descrive la macchina dell'editor,
+/// e su un PC le zone si chiamano `x86_pkg_temp`, sul pannello `soc-thermal`:
+/// suggerire le prime per configurare il secondo è peggio che non suggerire
+/// niente. Il 21-09-2026 due metriche `temp` sono state salvate senza zona
+/// proprio così, e i tag sono rimasti Bad senza che niente lo dicesse.
+pub async fn remote_host_catalog(State(s): State<AppState>) -> Response {
+    proxy_get_json(&s, "/api/host/catalog").await
+}
+
+/// Una GET al dispositivo connesso, con la sua sessione, e il JSON com'è.
+/// 400 senza dispositivo; 502 con il codice e il testo del dispositivo se
+/// risponde male, così l'errore che arriva all'editor dice da che parte è.
+async fn proxy_get_json(s: &AppState, percorso: &str) -> Response {
     let target = match s.remote_target.read().await.clone() {
         Some(t) => t,
         None => return (StatusCode::BAD_REQUEST, "No remote runtime connected").into_response(),
     };
-    let client = make_remote_client(&s, &target.url);
+    let client = make_remote_client(s, &target.url);
     let base = target.url.trim_end_matches('/');
-    let mut req = client.get(format!("{base}/api/system"));
+    let mut req = client.get(format!("{base}{percorso}"));
     if !target.token.is_empty() {
         req = req.header("Authorization", format!("Bearer {}", target.token));
     }

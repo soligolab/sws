@@ -13,6 +13,7 @@ import { getBrand } from "@/branding";
 import { containerDeployPayload, effectiveDataPath, type ContainerSource } from "@/containerDeploy";
 import { containerManagePayload, type ManageAction, type RestartPolicy } from "@/containerManage";
 import { genId } from "@/id";
+import { HOST_METRICS, definizioneMetrica, emptyHost, metricheSenzaParametro, senzaParametro, suggerimentiPer, type CatalogoHost, type ParametroHost } from "./sorgenteHost";
 import { DataTable, type DataTableColumn } from "@/components/DataTable";
 import { TagInput } from "@/components/TagInput";
 import { PythonEditor, type PythonEditorHandle } from "@/components/PythonEditor";
@@ -1424,24 +1425,7 @@ function S7SourceCard({
 }
 
 // ── Host (risorse di sistema) ─────────────────────────────────────────────────
-
-const HOST_METRICS: { metric: HostMetric; param?: "core" | "temp" | "mount" | "iface"; testo?: boolean; unit?: string }[] = [
-  { metric: "cpu_pct", unit: "%" },
-  { metric: "cpu_core_pct", param: "core", unit: "%" },
-  { metric: "load1" }, { metric: "load5" }, { metric: "load15" },
-  { metric: "mem_used_pct", unit: "%" }, { metric: "mem_used_mb", unit: "MB" },
-  { metric: "mem_available_mb", unit: "MB" }, { metric: "mem_total_mb", unit: "MB" },
-  { metric: "swap_used_pct", unit: "%" },
-  { metric: "temp", param: "temp", unit: "°C" },
-  { metric: "disk_used_pct", param: "mount", unit: "%" }, { metric: "disk_free_gb", param: "mount", unit: "GB" },
-  { metric: "net_rx_bps", param: "iface", unit: "B/s" }, { metric: "net_tx_bps", param: "iface", unit: "B/s" },
-  { metric: "uptime_s", unit: "s" },
-  { metric: "hostname", testo: true }, { metric: "serial_number", testo: true }, { metric: "model", testo: true },
-];
-
-function emptyHost(): HostSource {
-  return { kind: "host", id: `host-${genId()}`, poll_interval_ms: 2000, metrics: [] };
-}
+// Metriche, parametri e catalogo stanno in `sorgenteHost.ts`, provabile da solo.
 
 function HostSourceCard({
   source,
@@ -1456,28 +1440,45 @@ function HostSourceCard({
 }) {
   const { t } = useTranslation();
   const [collapsed, setCollapsed] = useState(false);
-  const [catalogo, setCatalogo] = useState<{ temperature: string[]; mount: string[]; interfacce: string[]; core: number } | null>(null);
+  // Il catalogo — zone termiche, mount, interfacce — viene dal **dispositivo
+  // connesso** se c'è, altrimenti da questa macchina, e la card dice quale.
+  // Le zone del PC di chi disegna (`x86_pkg_temp`) non dicono niente su
+  // quelle del pannello (`soc-thermal`): il 21-09-2026 due `temp` sono state
+  // salvate senza zona proprio così, e i tag sono rimasti Bad in silenzio.
+  const remoteConnected = useAppStore((s) => s.remoteConnected);
+  const remoteUrl = useAppStore((s) => s.remoteUrl);
+  const [catalogo, setCatalogo] = useState<CatalogoHost | null>(null);
+  // «remoto-vecchio»: c'è un dispositivo connesso ma il suo runtime è anteriore
+  // al 21-09-2026 e non ha la rotta — dire «nessun dispositivo» sarebbe falso,
+  // e chi legge deve sapere che il rimedio è aggiornare il container.
+  const [origineCatalogo, setOrigineCatalogo] = useState<"remoto" | "remoto-vecchio" | "locale" | "nessuno">("nessuno");
   useEffect(() => {
     let vivo = true;
-    fetch("/api/host/catalog", { credentials: "include" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((c) => { if (vivo) setCatalogo(c); })
-      .catch(() => {});
+    (async () => {
+      let remotoFallito = false;
+      if (remoteConnected) {
+        try {
+          const c = await api.remoteHostCatalog();
+          if (vivo) { setCatalogo(c); setOrigineCatalogo("remoto"); }
+          return;
+        } catch { remotoFallito = true; }
+      }
+      try {
+        const c = await api.hostCatalog();
+        if (vivo) { setCatalogo(c); setOrigineCatalogo(remotoFallito ? "remoto-vecchio" : "locale"); }
+      } catch {
+        if (vivo) { setCatalogo(null); setOrigineCatalogo("nessuno"); }
+      }
+    })();
     return () => { vivo = false; };
-  }, []);
+  }, [remoteConnected, remoteUrl]);
 
   const upd = (patch: Partial<HostSource>) => onChange({ ...source, ...patch });
   const updM = (idx: number, patch: Partial<HostMetricMapping>) =>
     upd({ metrics: source.metrics.map((m, i) => (i === idx ? { ...m, ...patch } : m)) });
-  const def = (m: HostMetric) => HOST_METRICS.find((x) => x.metric === m);
-  const suggerimenti = (k: "core" | "temp" | "mount" | "iface" | undefined): string[] => {
-    if (!catalogo) return [];
-    if (k === "temp") return catalogo.temperature;
-    if (k === "mount") return catalogo.mount;
-    if (k === "iface") return catalogo.interfacce;
-    if (k === "core") return Array.from({ length: catalogo.core }, (_, i) => String(i));
-    return [];
-  };
+  const def = definizioneMetrica;
+  const suggerimenti = (k: ParametroHost | undefined): string[] => suggerimentiPer(catalogo, k);
+  const mancanti = metricheSenzaParametro(source);
 
   const headerRow = (
     <div style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer" }} onClick={() => setCollapsed((c) => !c)}>
@@ -1497,6 +1498,17 @@ function HostSourceCard({
     <div style={S.card}>
       {headerRow}
       <div style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", marginTop: 8 }}>{t("cfgUi.hostIntro")}</div>
+      <div style={{ fontSize: 12, marginTop: 4, color: origineCatalogo === "remoto" ? "var(--brand-success-soft, #4ade80)" : "var(--brand-warning-soft, #facc15)" }}>
+        {origineCatalogo === "remoto" && t("cfgUi.hostCatalogoRemoto", { url: remoteUrl ?? "" })}
+        {origineCatalogo === "remoto-vecchio" && t("cfgUi.hostCatalogoRemotoVecchio", { url: remoteUrl ?? "" })}
+        {origineCatalogo === "locale" && t("cfgUi.hostCatalogoLocale")}
+        {origineCatalogo === "nessuno" && t("cfgUi.hostCatalogoAssente")}
+      </div>
+      {mancanti > 0 && (
+        <div style={{ fontSize: 12, marginTop: 4, color: "var(--brand-danger-soft, #f87171)" }}>
+          ⚠ {t("cfgUi.hostSenzaParametro", { n: mancanti })}
+        </div>
+      )}
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 12 }}>
         <label style={{ display: "flex", flexDirection: "column", gap: 3 }}>
           <span style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)" }}>{t("cfgUi.sourceId")}</span>
@@ -1523,8 +1535,12 @@ function HostSourceCard({
               {d?.param && (
                 <>
                   <input list={listId} value={m.param ?? ""} onChange={(e) => updM(idx, { param: e.target.value || undefined })}
-                    placeholder={t(`cfgUi.hostParam_${d.param}`)} title={t(`cfgUi.hostParam_${d.param}`)} style={{ ...campo, width: 170 }} />
+                    placeholder={t(`cfgUi.hostParam_${d.param}`)}
+                    title={senzaParametro(m) ? t("cfgUi.hostParamObbligatorio") : t(`cfgUi.hostParam_${d.param}`)}
+                    aria-invalid={senzaParametro(m) || undefined}
+                    style={{ ...campo, width: 170, ...(senzaParametro(m) ? { borderColor: "var(--brand-danger, #ef4444)" } : {}) }} />
                   <datalist id={listId}>{suggerimenti(d.param).map((v) => <option key={v} value={v} />)}</datalist>
+                  {senzaParametro(m) && <span style={{ fontSize: 11, color: "var(--brand-danger-soft, #f87171)" }}>{t("cfgUi.hostParamObbligatorio")}</span>}
                 </>
               )}
               <button style={S.btnXs} title={t("cfg.createTag")}

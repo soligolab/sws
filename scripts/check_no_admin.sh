@@ -78,8 +78,12 @@ codice() { curl -s -o /dev/null -w '%{http_code}' -m 5 -X "$1" \
 echo "=== 1. le rotte che il deploy usa DEVONO esserci ==="
 # Non si confronta con 200: senza un progetto aperto molte rispondono 503, che è
 # la risposta giusta e prova che la rotta c'è. Un 404 invece significa assente.
+# `/api/host/catalog` dal 21-09-2026: l'editor collegato chiede al dispositivo
+# le sue zone termiche, i mount e le interfacce per la sorgente Host — quelle
+# del PC di chi disegna non servono a niente sul pannello.
 for r in "GET /api/projects" "GET /api/system" "GET /api/project" \
-         "GET /api/project/export" "GET /api/backups" "GET /api/auth/users"; do
+         "GET /api/project/export" "GET /api/backups" "GET /api/auth/users" \
+         "GET /api/host/catalog"; do
     m=${r% *}; u=${r#* }
     c=$(codice "$m" 8597 "$u")
     [ "$c" != "404" ] && esito ok "$u risponde ($c), non 404" \
