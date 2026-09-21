@@ -23,17 +23,71 @@ Lanciare a mano tutte le guardie elencate in `CON_STACK` di `check_static.sh` (e
 pannello sinistro fisso, navigatore, sorgente Host. Per ogni rosso: capire se è la guardia o il codice; correggere. Aspettativa da verificare per prima:
 `e2e/screenshots.spec.ts` (clic sull'icona «Pagine», che non c'è più) e `check_e2e.sh --screenshots`.
 
-## Passo 2 — I segreti del progetto  (ramo `feat/segreti-di-progetto`; **sessione di plan dedicata prima di scrivere codice**)
-Problema: `notifications.telegram.bot_token`, `smtp.password` e le password/token delle sorgenti (MQTT, OPC-UA, Home Assistant) stanno in chiaro in `project.yaml`. L'API li maschera
-(`MASKED_PASSWORD`, `router.rs:2804-2816`), ma il file sul disco no, e il file viaggia in export `.sws`, backup, deploy e — con `POST /api/project/git/init` — in un repository git.
-Il token deve **viaggiare col progetto** (un deploy senza il token spegne le notifiche) ma **non finire dove non deve**.
-Soluzione proposta: **`secrets.yaml` nella cartella del progetto**, permessi 0600, con i valori; `project.yaml` non li contiene più (campo assente = «vedi secrets»).
-- **Deploy** al dispositivo e **backup/ripristino**: lo includono (senza, il progetto non funziona).
-- **Export `.sws` per condividere, template, git**: lo escludono di default (casella «includi i segreti», spenta); `git init` scrive un `.gitignore` con `secrets.yaml`, e un repository già esistente riceve
-  un avviso se `secrets.yaml` è tracciato.
-- **Migrazione automatica** all'apertura di un progetto vecchio (con backup prima e avviso a video): sposta i valori in chiaro nel nuovo file.
-- **Log e audit**: verificare che nessuno stampi i valori; guardia statica che cerca `bot_token`/`password` nei `tracing::` e nei `println!`.
-- Decisioni da confermare a inizio passo: tutti i segreti o solo Telegram/SMTP per cominciare; cifratura a riposo (chiave dell'istanza) sì/no — sconsigliata in v1, complica il deploy.
+## Passo 2 — I segreti del progetto  (ramo `feat/segreti-di-progetto`; piano dettagliato del 21-09-2026, sessione di plan fatta)
+
+### Misurato (inventario del 21-09-2026)
+- **Sette campi con segreti in chiaro in `project.yaml`** (`sws-core/src/project.rs`): `TelegramConfig.bot_token` (1163, `String` non Option), `SmtpConfig.password` (1151),
+  `MqttConfig.password` (471, ha `password_env`), `OpcUaAuth::UsernamePassword.password` (709, ha `password_env`), `HomeAssistantConfig.token` (377, ha `token_env`),
+  `DatastoreBackendConfig::Postgres.password` (136), `DatastoreBackendConfig::Odbc.connection_string` (~140, può contenere `PWD=`). Nessun segreto in S7/EnIP/Modbus/Host/Sparkplug/`MqttTlsConfig`.
+  Fuori dal progetto e già a posto: chiavi AI e traduttore (`config_dir`, `segreti.rs`, 0600); `users.yaml` (hash); `opcua-pki/` (chiave privata: **fuori scope**, viaggia come oggi).
+- **La maschera `MASKED_PASSWORD` (`router.rs:2662`) copre solo Mqtt, Smtp, Telegram**: HA token, password OPC-UA, Postgres e ODBC vanno **in chiaro al browser** (`GET /api/project`) e, con `leggi_progetto`
+  (`ai/tools.rs:290`), **al fornitore LLM esterno**. Ripristino del segnaposto in `update_project_sources` (solo MQTT), `update_project_notifications`, browse OPC-UA/MQTT, `detect_telegram_chats`, import (4111).
+- **Percorsi**: *verbatim* (un file nuovo viaggia da solo) — `duplicate_project`, create-da-template (`copy_dir_all`), download backup (`zip_directory`); *elenco esplicito* (va aggiunto) — `BACKED_UP` in `backups.rs:33-41`
+  (create/restore), `build_export_zip` (`router.rs:3927`, usato da export **e** dal deploy `remote_deploy`→`build_project_zip`), `import_project_zip`, `upload_project_zip` (`projects.rs:1537`, scrive con umask, non 0600),
+  `DESIGN_ARTIFACTS` (`projects.rs:1005`); *git* — `commit` fa `git add -A`, `init_remote` non scrive nessun `.gitignore` (non esiste in tutto il repo); *scrittura di project.yaml* — `patch_project(_se)` (~20 chiamanti), `stamp_and_serialize`/`save_to`
+  (`std::fs::write`, non atomico), 4 siti `scrivi_atomico` (2995, 4893, 5233, 5338) + 4 in `projects.rs` + import 4187; **`Project::load` (`project.rs:1533`) è il punto unico di lettura**.
+- **Perdite nei log**: `telegram.rs:71,79` e `router.rs:7390-7405` mettono il token nell'URL e restituiscono/loggano l'errore di `reqwest` (il `Display` può contenere l'URL); `postgres_backend.rs:306` costruisce `password={p}`.
+- **Permessi**: `segreti.rs:40` fa chmod 0600 dopo `fs::write` (non atomico); `scrivi_atomico`/`scrivi_atomico_sync` (`router.rs:3075/3055`) usano l'umask. `tls.key` è 0644 (nota a `ai/client.rs:274`).
+
+### Disegno
+**Un solo file, un solo punto.** `secrets.yaml` nella cartella del progetto, 0600, mappa piatta chiave→valore con chiavi stabili per **id** (non per posizione):
+`notifications.telegram.bot_token`, `notifications.smtp.password`, `sources.<id>.password` (MQTT), `sources.<id>.token` (HA), `sources.<id>.auth_password` (OPC-UA client),
+`datastores.<id>.password`, `datastores.<id>.connection_string`. Un solo modulo, `sws-core/src/segreti.rs`, con la **tabella dei campi segreti** (chiave, come leggerlo e come scriverlo nel `Project`):
+- `estrai(&mut Project) -> Segreti` toglie i valori dal `Project` (campo vuoto / `None`, `skip_serializing_if`) e li ritorna;
+- `applica(&mut Project, &Segreti)` li rimette (un valore già in chiaro in `project.yaml` **vince**: è il caso del progetto vecchio, che poi si migra);
+- `Project::load` = parse di `project.yaml` + `applica` di `secrets.yaml` se c'è → **tutti i lettori** (AI, browse, plugin, `soft_reload_project`, `open_project`) vedono i valori veri senza cambiare;
+- **una sola funzione di scrittura** `scrivi_progetto(dir, &Project)` = `estrai` → scrive `secrets.yaml` (atomico, temp creato 0600, poi rename) **prima**, poi `project.yaml` (atomico). Tutti gli 8+ siti di scrittura la usano (`patch_project(_se)`, deploy meta.name, import…);
+  se il processo muore fra i due file resta il segreto in entrambi: si autoripara al salvataggio successivo.
+- `TelegramConfig.bot_token` diventa `#[serde(default, skip_serializing_if = "String::is_empty")]`.
+- Il fingerprint del progetto (`/api/project/fingerprint`) **non** include `secrets.yaml`; l'ETag di sezione resta quello di `project.yaml` (un cambio di solo segreto non alza la versione: accettato, dichiarato).
+
+**Dove viaggia** (decisioni del maintainer: deve viaggiare col progetto; non deve finire dove non deve):
+| Percorso | `secrets.yaml` |
+|---|---|
+| Deploy IDE→dispositivo (`build_project_zip`→`upload_project_zip`) | **incluso** (il dispositivo senza token spegne le notifiche); scritto 0600; se lo zip non lo porta **il dispositivo tiene il suo** |
+| Backup (auto e manuale), ripristino, download backup | **incluso** (`BACKED_UP`), il ripristino lo rimette |
+| Duplica progetto | incluso (copia verbatim) |
+| Export `.sws` per condividere | **escluso di default**; `GET /api/project/export?segreti=1` (casella «Includi i segreti» nell'IDE, spenta) lo include |
+| Import `.sws` | lo scrive solo se presente **e** richiesto; altrimenti ignorato |
+| Template (`examples/templates`) | nessun segreto (già `token_env`); la guardia lo verifica |
+| Git (`init_remote`, `commit`) | **escluso**: `.gitignore` con `secrets.yaml` scritto a `init` e **riscritto/aggiunto al prossimo commit** dei repository esistenti; avviso se `secrets.yaml` è già tracciato (`git ls-files`) |
+
+**Migrazione automatica** (progetti con segreti in chiaro): all'apertura (`open_project`) e a ogni scrittura, se `project.yaml` contiene un segreto non presente in `secrets.yaml`: **backup prima** (`backup_now`), poi `scrivi_progetto` (sposta), riga di audit
+`project.change {what:"secrets_migrated", n}` e una voce in `avvisi` di `/api/system` («N segreti spostati in secrets.yaml»); l'IDE rifissa la baseline del sorvegliante (l'apertura già lo fa).
+**I vecchi backup e i commit già fatti restano in chiaro**: non si riscrive la storia — per questo il token vero va **ruotato** (a carico del maintainer).
+
+**Le perdite chiuse insieme** (senza, spostare il file non basterebbe):
+1. **Maschera per tutti i sette campi** (`mask_project_secrets`) e **ripristino** del segnaposto in tutti i gestori che salvano quelle sezioni (`update_project_sources` per HA/OPC-UA/MQTT, `update_project_datastores`, notifications già a posto, import), più browse/lettura OPC-UA e history che lo risolvono già.
+2. **AI**: `leggi_progetto` maschera tutto (ora i quattro sono in chiaro all'LLM); `proponi_modifica`/`componi_da_patch` risolvono il segnaposto per tutti i campi prima di salvare.
+3. **Errori con URL**: `reqwest::Error::without_url()` (o sostituzione del token) in `telegram.rs` e `router.rs:7390-7405`; connect string Postgres mai nei log.
+4. **Permessi**: `scrivi_atomico` con modalità; `tls.key` a 0600 (piccolo, nello stesso passo, se il maintainer è d'accordo).
+
+### Sotto-passi (ognuno un commit sul ramo, con i suoi test)
+- **2a** `segreti.rs` + `Project::load`/`scrivi_progetto` + scrittore atomico 0600. Test: round-trip per ognuno dei sette campi; `project.yaml` serializzato **non contiene** nessun valore-sentinella; `applica` con segreto assente → invariato; tutti i template caricano come prima; precedenza «in chiaro vince».
+- **2b** tutti i siti di scrittura passano da `scrivi_progetto` (elenco puntuale sopra; una `grep` in guardia che non ne restino di diretti). Test: patch di sezione non riscrive segreti in `project.yaml`.
+- **2c** migrazione + backup + audit + avviso. Test: progetto vecchio con token in chiaro → dopo l'apertura `project.yaml` senza, `secrets.yaml` con, backup presente; secondo avvio: nessuna nuova migrazione.
+- **2d** viaggio: `BACKED_UP`, export (`?segreti=`) + casella nell'IDE, deploy (include), upload 0600 + «tiene il suo se assente», import. Test: export senza/con; deploy fra due runtime di scarto (come `check_deploy_preserve`) con il token che arriva; backup+ripristino.
+- **2e** git: `.gitignore` a `init`, aggiunta al commit, avviso se tracciato. Test con `git` vero in una cartella temporanea.
+- **2f** maschere/ripristini estesi, AI, redazione degli errori, `tls.key`. Test per gestore (GET maschera, PUT col segnaposto conserva, PUT con valore nuovo sostituisce), test della redazione dell'errore Telegram (URL con token → nessun token nel messaggio).
+- **2g** guardia statica `check_segreti.sh`: (1) ogni campo di `project.rs` il cui nome somiglia a `pass|token|secret|key|pwd|connection_string` è nella tabella di `segreti.rs` (o in un elenco di eccezioni motivato) — la classe «campo segreto nuovo dimenticato»; (2) nessuna scrittura diretta di `project.yaml` fuori da `scrivi_progetto`; (3) nessun `tracing!`/`format!` che nomina `bot_token`/`password` senza redazione; (4) i template non hanno segreti. Guardia con stack `check_segreti_e2e.sh` (runtime di scarto: salva un token via API → `project.yaml` senza, `secrets.yaml` 0600 con, export senza, deploy con). Documentazione: HOWTO (un capitolo «Dove stanno le password»), manuale sicurezza, CHANGELOG.
+- **2h** prova dal vivo su un runtime di scarto e, nel Passo 6, sul TC620 (deploy di `CasaDomotica` con Telegram; la notifica parte; export senza segreti).
+
+### Da confermare col maintainer prima di scrivere codice
+1. Portata: **tutti e sette i campi + le perdite** (consigliato) o solo Telegram/SMTP per cominciare.
+2. Deploy: se lo zip non porta `secrets.yaml`, il dispositivo **tiene il suo** (consigliato) o lo cancella.
+3. `.gitignore` anche nei repository già esistenti (consigliato) o solo a `init`.
+4. `tls.key` a 0600 nello stesso passo (consigliato, piccolo).
+5. Backup vecchi con il token in chiaro: solo avvertire (consigliato; il rimedio vero è ruotare il token) o offrire «ripulisci i backup precedenti».
 
 ## Passo 3 — Il viewer LVGL segue l'albero  (ramo `fix/lvgl-albero`)  [punto B7]
 1. `resolve_start_page` (`sws-lvgl-viewer/src/client.rs:~357`): senza pagina iniziale dichiarata usa oggi `names.first()` (alfabetico). Passare da `GET /api/pages/nav`:
