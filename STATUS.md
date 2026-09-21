@@ -74,7 +74,25 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — release 2.11.0 (21-09-2026)
+## ▶ Riprendere da qui — sessione di stabilizzazione, Passi 0-1 chiusi, Passo 2 pianificato (2026-09-21)
+
+**Fatto oggi, tutto su `main`** (release **2.11.0**, tag e container arm64/amd64 pubblicati; il push di oggi porta anche i commit successivi):
+- **Albero delle pagine** (`page_layout.page_tree`, sempre visibile in alto nel pannello sinistro) e **navigatore di pagine** (`page_navigator`, web + LVGL, `GET /api/pages/nav`), con
+  il fix del falso avviso «progetto cambiato» (`request()` rifissa la baseline; «Ricarica» chiede se ci sono pagine non salvate). Piano e scarti: `docs/plans/2026-09-20-albero-pagine-navigatore.md`.
+- **Passo 0** (`62455157`): `kind` EtherNet/IP (`en_ip` → `enip`) con la guardia `check_source_kinds.sh`; `get_path` del registro progetti pota le voci morte; CI riprodotta in locale (fmt, clippy -D warnings, test workspace, lint, type-check: tutto verde; `cargo audit` non installato qui).
+- **Passo 1** (`f69f1152`): le 25 guardie con stack tornano verdi (esclusa `check_chiave_host`, che vuole un dispositivo). Nessun difetto del prodotto: fixture invecchiate («Page 1» di semina dal 19-09, scala 0..100 delle barre dal 12-09, istanze senza `--viewer-port` usate come dispositivi con utenti). `demo-items`: terza serie del bar chart ora visibile (`min: -50`).
+- Collaudati dal maintainer sul TC620: emoji, notifiche Telegram con allarme tokenizzato, «Migra i testi…», sorgente Host con seriale e nome host.
+
+**Piano in corso**: `docs/plans/2026-09-21-sessione-stabilizzazione.md` — un passo alla volta, un ramo alla volta. **Passo 2 (segreti di progetto) è dettagliato e aspetta cinque conferme del maintainer** prima del codice:
+1. tutti e sette i campi + le perdite (consigliato); 2. deploy: il dispositivo tiene il suo `secrets.yaml` se lo zip non lo porta (consigliato); 3. `.gitignore` anche nei repository esistenti (consigliato);
+4. `tls.key` a 0600 nello stesso passo (consigliato); 5. backup vecchi: solo avvertire (consigliato). Poi sotto-passi 2a-2h.
+
+**Cosa resta**: Passo 2 (segreti), 3 (viewer LVGL sull'albero: pagina iniziale e richieste del navigatore), 4 (albero nella cronologia e nel salvataggio), 5 (rifiniture: catalogo Host sul remoto, barra del viewer, banner di `homeassistant-pro`, schermo pieno),
+6 (collaudo TC620: temperatura Host, navigatore LVGL, boot image nel container, Q55, segreti).
+**A carico del maintainer**: ruotare il token Telegram di `CasaDomotica` (comparso in chiaro nei log di una sessione); installare/collaudare il container 2.11.0 sul TC620 (riavviato `install-container.sh` per il mount del device-tree).
+**Prossimo passo suggerito**: rispondere alle cinque conferme e partire da 2a (`sws-core/src/segreti.rs`).
+
+## Riprendere da qui (precedente) — release 2.11.0 (21-09-2026)
 
 **Versione 2.11.0** (bump nei quattro file e nei due lockfile, tag annotato). Dentro: fix del falso avviso «progetto cambiato» (`request()` rifissa la baseline del sorvegliante,
 «Ricarica» chiede se ci sono pagine non salvate), **albero delle pagine** (`page_layout.page_tree`, sempre visibile in alto nel pannello sinistro) e
