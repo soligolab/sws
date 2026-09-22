@@ -11,6 +11,18 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Added
+- **Tag: rinomina ovunque e cancellazione protetta** (Fase 0c del piano `docs/plans/2026-09-21-gestione-tag-oggetto-unico.md`; decisioni del maintainer, 22-09-2026:
+  rinomina **subito, dopo anteprima e conferma, a progetto salvato**; il ✕ **rifiuta** una variabile usata). Nella scheda Variabili ogni id già salvato ha una matita ✎ che apre
+  la finestra di rinomina: il nuovo id (vuoto, con segnaposto, uguale o già preso non passa), l'**anteprima** dei punti che cambieranno — pagine (campi tag, binding stringa/`{tag}`/
+  `{expr}`, `extra_tags`, tracce, serie, fette, righe, coppie xy, celle e sotto-celle di griglia), definizioni dei faceplate, mappature di ogni sorgente, allarmi (`tag` e
+  `inhibit_tag`), espressioni dei tag calcolati e codice degli script (`tags["x"]`, `tags.read/write("x")`), trigger `tag_change`, ricette — e ciò che il walker **non può**
+  cambiare, un id composto da un parametro di faceplate (`{p}.on` con `p = zona1`), elencato come «da fare a mano». Conferma → si scrive in serie solo ciò che cambia (tag,
+  sorgenti, allarmi, script, poi le pagine, i faceplate e le ricette toccati) e lo store si aggiorna. A progetto con modifiche non salvate la finestra dice «salva prima»: una
+  rinomina fusa con nove bozze aperte sarebbe da riconciliare a mano. Il ✕ di una variabile usata è disabilitato con l'elenco dei punti: al salvataggio rinascerebbe comunque
+  (regola 0b). Walker puro in `sws-editor/src/tag/rinominaTag.ts` (`TAG_FIELDS` ora esportato da `collectTagIds.ts`), azione `rinominaTag` nello store, `RinominaTagModal`;
+  test in `tests/rinominaTag.test.ts` e `tests/rinominaTagStore.test.ts`.
+
 ### Changed
 - **Un solo «Salva», quello del progetto** (decisione del maintainer, 22-09-2026: «non ha senso distinguere i salvataggi della UI, delle variabili, delle sorgenti»). Le nove
   schede di Configurazione che scrivono contenuto del progetto — Variabili, Sorgenti, Allarmi, Notifiche, Storico, Script globali, Lingue, Faceplate, Ricette — non hanno più

@@ -21,7 +21,7 @@ import { extractDeps } from "@/expr/engine";
  *  (`motion_tag`, `pipe_flow_tag`, `symbol_spin_tag`, `gauge_sp_tag` mancavano
  *  qui): un oggetto legato a uno di quei campi riceveva lo snapshot iniziale e
  *  poi si congelava, in silenzio. `check_tag_refs.sh` tiene i due allineati. */
-const TAG_FIELDS = [
+export const TAG_FIELDS = [
   "tag",
   "visible_tag",
   "state_tag",

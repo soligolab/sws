@@ -1387,7 +1387,10 @@
     "backupRestoredRemoteAlert": "Backup \"{{name}}\" ripristinato sul dispositivo remoto.",
     "backupDeleteRemoteConfirm": "Eliminare il backup \"{{name}}\" sul dispositivo remoto connesso? L'azione è definitiva.",
     "backupLocalSectionTitle": "BACKUP LOCALI (progetto in editing)",
-    "backupRemoteSectionTitle": "BACKUP SUL DISPOSITIVO REMOTO CONNESSO"
+    "backupRemoteSectionTitle": "BACKUP SUL DISPOSITIVO REMOTO CONNESSO",
+    "renameTag": "Rinomina ovunque",
+    "deleteUsedHint": "Usata in {{n}} punti: togli prima i riferimenti ({{dove}})",
+    "renameNeedsSaved": "Si rinomina una variabile già salvata"
   },
   "langtab": {
     "migrate": "Migra i testi…",
@@ -1739,7 +1742,13 @@
   "tagUsage": {
     "page": "pagina \"{{name}}\"",
     "alarm": "allarme \"{{id}}\"",
-    "alarmInhibit": "allarme \"{{id}}\" (inhibit)"
+    "alarmInhibit": "allarme \"{{id}}\" (inhibit)",
+    "faceplate": "faceplate \"{{label}}\"",
+    "pageParam": "pagina \"{{name}}\": l'id nasce da un parametro di faceplate — da rinominare a mano",
+    "source": "sorgente \"{{name}}\"",
+    "expression": "espressione di \"{{id}}\"",
+    "script": "script \"{{id}}\"",
+    "recipe": "ricetta \"{{name}}\""
   },
   "ws": {
     "refused": "collegamento rifiutato (codice {{code}})",
@@ -2137,5 +2146,23 @@
     "unit": "Unità",
     "history": "Registra nello storico",
     "create": "Definisci"
+  },
+  "rinomina": {
+    "title": "Rinomina variabile",
+    "nuovoId": "Nuovo id",
+    "idVuoto": "L'id non può essere vuoto.",
+    "idSegnaposto": "Un id non può contenere un segnaposto {…}.",
+    "idUguale": "È lo stesso id.",
+    "idEsiste": "Esiste già una variabile con questo id.",
+    "salvaPrima": "Ci sono modifiche non salvate: salva il progetto prima di rinominare, così la rinomina si applica a ciò che è scritto.",
+    "caricamento": "Cerco dove è usata…",
+    "nessunUso": "Non è usata da nessuna parte: cambia solo la dichiarazione.",
+    "punti": "Verrà cambiata in {{n}} punti:",
+    "nonRinominabili": "Da fare a mano (il walker non può cambiarli):",
+    "conferma": "Rinomina",
+    "inCorso": "Rinomino…",
+    "fatto": "Rinominata in {{n}} punti.",
+    "errore": "Rinomina fallita: {{message}}",
+    "occorrenze": "{{n}} occorrenze"
   }
 }

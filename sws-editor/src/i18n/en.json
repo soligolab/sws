@@ -1387,7 +1387,10 @@
     "backupRestoredRemoteAlert": "Backup \"{{name}}\" restored on the remote device.",
     "backupDeleteRemoteConfirm": "Delete backup \"{{name}}\" on the connected remote device? This action is final.",
     "backupLocalSectionTitle": "LOCAL BACKUPS (project being edited)",
-    "backupRemoteSectionTitle": "BACKUPS ON THE CONNECTED REMOTE DEVICE"
+    "backupRemoteSectionTitle": "BACKUPS ON THE CONNECTED REMOTE DEVICE",
+    "renameTag": "Rename everywhere",
+    "deleteUsedHint": "Used in {{n}} places: remove the references first ({{dove}})",
+    "renameNeedsSaved": "Only a saved variable can be renamed"
   },
   "langtab": {
     "migrate": "Migrate texts…",
@@ -1739,7 +1742,13 @@
   "tagUsage": {
     "page": "page \"{{name}}\"",
     "alarm": "alarm \"{{id}}\"",
-    "alarmInhibit": "alarm \"{{id}}\" (inhibit)"
+    "alarmInhibit": "alarm \"{{id}}\" (inhibit)",
+    "faceplate": "faceplate \"{{label}}\"",
+    "pageParam": "page \"{{name}}\": the id comes from a faceplate parameter — rename by hand",
+    "source": "source \"{{name}}\"",
+    "expression": "expression of \"{{id}}\"",
+    "script": "script \"{{id}}\"",
+    "recipe": "recipe \"{{name}}\""
   },
   "ws": {
     "refused": "connection refused (code {{code}})",
@@ -2137,5 +2146,23 @@
     "unit": "Unit",
     "history": "Record in history",
     "create": "Define"
+  },
+  "rinomina": {
+    "title": "Rename variable",
+    "nuovoId": "New id",
+    "idVuoto": "The id cannot be empty.",
+    "idSegnaposto": "An id cannot contain a {…} placeholder.",
+    "idUguale": "Same id.",
+    "idEsiste": "A variable with this id already exists.",
+    "salvaPrima": "There are unsaved changes: save the project before renaming, so the rename applies to what is written.",
+    "caricamento": "Looking for where it is used…",
+    "nessunUso": "Not used anywhere: only the declaration changes.",
+    "punti": "It will be changed in {{n}} places:",
+    "nonRinominabili": "To do by hand (the walker cannot change them):",
+    "conferma": "Rename",
+    "inCorso": "Renaming…",
+    "fatto": "Renamed in {{n}} places.",
+    "errore": "Rename failed: {{message}}",
+    "occorrenze": "{{n}} occurrences"
   }
 }

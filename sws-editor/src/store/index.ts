@@ -9,6 +9,7 @@ import { normalizeTrendObjects } from "@/canvas/trendModel";
 import { normalizeXyObjects } from "@/canvas/xyModel";
 import { normalizzaColoriOggetti } from "@/coloriPredefiniti";
 import { pianoCreazione } from "@/tag/riconciliaTag";
+import { motivoIdNonValido, rinomina, type EsitoRinomina } from "@/tag/rinominaTag";
 import type { SegmentoScelto, WaypointScelto } from "@/canvas/percorsoMovimento";
 import { effectiveSizeMode, referenceResolutionFor } from "@/pageLayout";
 import { uguale } from "@/ai/confronto";
@@ -38,6 +39,7 @@ import type {
   SynopticObject,
   SynopticPage,
   TagDef,
+  RecipeDef,
   TagState,
 } from "@/types";
 
@@ -346,6 +348,10 @@ interface AppState {
   /** Crea al volo ogni tag referenziato dal progetto e non dichiarato (un
    *  PUT solo, dopo il flush delle bozze); ritorna gli id creati. */
   riconciliaTag: () => Promise<string[]>;
+  /** Rinomina un tag in tutto il progetto e scrive subito (Fase 0c): richiede
+   *  un progetto senza modifiche non salvate. `recipes` le passa chi ha già
+   *  fatto l'anteprima, così non si ricaricano. Ritorna l'esito del walker. */
+  rinominaTag: (vecchio: string, nuovo: string, recipes: RecipeDef[]) => Promise<EsitoRinomina>;
   /** Register (or, with `save === null`, deregister) a section holding a draft. */
   registerPendingSection: (key: string, save: (() => Promise<void>) | null) => void;
   /** Mark the current page revision as persisted. Only after a *complete* save. */
@@ -2258,6 +2264,50 @@ export const useAppStore = create<AppState>((set, get) => {
       get().updateProjectTags(tutti);
       set({ tagInAttesa: [] });
       return nuovi.map((t) => t.id);
+    },
+
+    rinominaTag: async (vecchio, nuovo, recipes) => {
+      const s = get();
+      if (!s.project) throw new Error("nessun progetto");
+      // A progetto sporco la rinomina si fonderebbe con nove bozze diverse:
+      // si scrive prima, poi si rinomina ciò che è scritto.
+      if (selectIsDirty(s)) throw new Error(i18n.t("rinomina.salvaPrima"));
+      const motivo = motivoIdNonValido(nuovo, new Set(s.project.tags.map((t) => t.id)), vecchio);
+      if (motivo) throw new Error(motivo);
+      const e = rinomina(vecchio, nuovo.trim(), {
+        pages: s.pages, faceplates: s.faceplates, tags: s.project.tags, sources: s.project.sources,
+        alarms: s.project.alarms ?? [], globalScripts: s.project.global_scripts ?? [], recipes,
+      });
+      // In serie: tutto ciò che passa da project.yaml prima (Q30), poi i file
+      // distinti. Un errore a metà lascia il progetto parzialmente rinominato:
+      // il chiamante lo dice e il salvataggio successivo non lo peggiora.
+      set({ saveStatus: "saving", saveError: null });
+      try {
+        if (e.tagsCambiati) await api.updateTags(e.tags);
+        if (e.sourcesCambiate) await api.updateSources(e.sources);
+        if (e.alarmsCambiati) await api.updateAlarms(e.alarms);
+        if (e.scriptCambiati) await api.saveGlobalScripts(e.globalScripts);
+        for (const pg of e.pages) {
+          if (!e.pagineCambiate.has(pg.id)) continue;
+          if (eBoot(pg)) await api.saveBootPage(pg); else await api.saveSynoptic(pg);
+        }
+        for (const fp of e.faceplates) if (e.faceplateCambiati.has(fp.id)) await api.saveFaceplate(fp);
+        for (const r of e.recipes) if (e.ricetteCambiate.has(r.id)) await api.saveRecipe(r);
+      } catch (err) {
+        set({ saveStatus: "error", saveError: errText(err) });
+        throw err;
+      }
+      set((st) => ({
+        project: st.project ? {
+          ...st.project, tags: e.tags, sources: e.sources, alarms: e.alarms, global_scripts: e.globalScripts,
+        } : st.project,
+        pages: e.pages,
+        faceplates: e.faceplates,
+        // Le pagine sono già su disco: la revisione salvata segue quella corrente.
+        savedPagesRev: st.pagesRev,
+      }));
+      get().markSaveOk();
+      return e;
     },
 
     registerPendingSection: (key, save) =>

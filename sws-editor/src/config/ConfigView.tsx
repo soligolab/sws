@@ -16,6 +16,7 @@ import { genId } from "@/id";
 import { HOST_METRICS, definizioneMetrica, emptyHost, metricheSenzaParametro, senzaParametro, suggerimentiPer, type CatalogoHost, type ParametroHost } from "./sorgenteHost";
 import { QuickCreateTagModal } from "@/components/QuickCreateTagModal";
 import { Tenuta } from "@/components/Tenuta";
+import { RinominaTagModal } from "@/components/RinominaTagModal";
 import { tipoDaEnIp, tipoDaS7 } from "@/tag/riconciliaTag";
 import { DataTable, type DataTableColumn } from "@/components/DataTable";
 import { TagInput } from "@/components/TagInput";
@@ -447,6 +448,12 @@ function TagsTab() {
     setTags((prev) => conRigaVuota(prev.filter((_, i) => i !== idx)));
   };
 
+  // Fase 0c: rinomina ovunque, con anteprima; la scheda la offre solo per gli
+  // id già dichiarati sul disco (la bozza si rinomina scrivendo nel campo).
+  const [rinominaDi, setRinominaDi] = useState<string | null>(null);
+  const [esitoRinomina, setEsitoRinomina] = useState<string | null>(null);
+  const dichiaratiSalvati = useMemo(() => new Set((storeProject?.tags ?? []).map((x) => x.id)), [storeProject]);
+
   const toggleExpr = (idx: number) =>
     setExprOpen((prev) => {
       const next = new Set(prev);
@@ -600,7 +607,21 @@ function TagsTab() {
           l'intenzione dell'utente invece della differenza strutturale, che è
           ciò che nel 2026-07-28 aveva scritto su disco una bozza vuota. Vedi il
           commento su `touched` sopra. */}
-      <SaveBar onSave={handleSave} saving={saving} saved={saved} section="tags" dirty={touched} />
+      <SaveBar onSave={handleSave} saving={saving} saved={saved} section="tags" dirty={touched} notice={esitoRinomina} />
+      {rinominaDi !== null && (
+        <RinominaTagModal
+          vecchio={rinominaDi}
+          onDone={(e) => {
+            // La scheda rilegge dallo store (sync) e dice cos'è successo.
+            setTags(useAppStore.getState().project?.tags ?? []);
+            setTouched(false);
+            const n = e.punti.reduce((a, p) => a + p.n, 0);
+            setEsitoRinomina(t("rinomina.fatto", { n }));
+            setTimeout(() => setEsitoRinomina(null), 6000);
+          }}
+          onClose={() => setRinominaDi(null)}
+        />
+      )}
       {showImport && (
         <div style={{
           position: "fixed", inset: 0, zIndex: 8000,
@@ -837,7 +858,15 @@ function TagsTab() {
                   >
                     ∿
                   </button>
-                  <button style={S.btn("danger")} onClick={() => removeTag(i)}>✕</button>
+                  {dichiaratiSalvati.has(tag.id) && (
+                    <button style={S.btnXs} title={t("cfg.renameTag")} onClick={() => setRinominaDi(tag.id)}>✎</button>
+                  )}
+                  {/* Fase 0c: una variabile usata non si cancella — al salvataggio
+                      rinascerebbe (regola 0b). Prima si tolgono i riferimenti. */}
+                  <button style={{ ...S.btn("danger"), ...(uses ? { opacity: 0.4, cursor: "not-allowed" } : {}) }}
+                          disabled={!!uses}
+                          title={uses ? t("cfg.deleteUsedHint", { n: uses.length, dove: uses.slice(0, 3).map((u) => u.where).join(", ") }) : undefined}
+                          onClick={() => { if (!uses) removeTag(i); }}>✕</button>
                 </td>
               </tr>
               {metaOpen.has(i) && (
