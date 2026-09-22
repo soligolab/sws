@@ -42,6 +42,7 @@ export function MainMenu({
   const authRole              = useAppStore((s) => s.authRole);
   const saveStatus            = useAppStore((s) => s.saveStatus);
   const saveError             = useAppStore((s) => s.saveError);
+  const ultimiTagCreati       = useAppStore((s) => s.ultimiTagCreati);
   const saveAll               = useAppStore((s) => s.saveAll);
   const project                = useAppStore((s) => s.project);
   const setProject            = useAppStore((s) => s.setProject);
@@ -129,7 +130,7 @@ export function MainMenu({
 
   const saveBtnLabel =
     saveStatus === "saving" ? t("header.saving") :
-    saveStatus === "ok"     ? t("header.saved")   :
+    saveStatus === "ok"     ? (ultimiTagCreati.length > 0 ? t("header.savedTags", { n: ultimiTagCreati.length }) : t("header.saved")) :
     saveStatus === "error"  ? t("header.saveErrorBtn") :
                               t("menu.saveAll");
 
@@ -150,7 +151,9 @@ export function MainMenu({
           minWidth: 90,
         }}
         onClick={() => setOpen((v) => !v)}
-        title={saveStatus === "error" ? (saveError ?? t("header.error")) : t("header.menuTitle")}
+        title={saveStatus === "error" ? (saveError ?? t("header.error"))
+          : saveStatus === "ok" && ultimiTagCreati.length > 0 ? ultimiTagCreati.join(", ")
+          : t("header.menuTitle")}
       >
         ☰ {t("header.menu")} {saveStatus === "saving" ? "⟳" : saveStatus === "ok" ? "✓" : saveStatus === "error" ? "⚠" : ""}
       </button>

@@ -35,6 +35,7 @@ import { EditorShell } from "@/editor/EditorShell";
  *
  *  Il modulo espone un export **nominato**, quindi va rimappato su `default`:
  *  `React.lazy` vuole un modulo con quello. */
+import { Tenuta } from "@/components/Tenuta";
 const ConfigView = lazy(() =>
   import("@/config/ConfigView").then((m) => ({ default: m.ConfigView })));
 import { getBrand } from "@/branding";
@@ -867,11 +868,15 @@ export function App() {
       {/* Main area */}
       <main style={{ display: "flex", flex: 1, overflow: "hidden" }}>
         {effectiveMode === "edit"   && <EditorShell />}
-        {effectiveMode === "config" && (
-          // Il fallback è volutamente scarno: il pezzo arriva dallo stesso
-          // server che ha appena servito la pagina, quindi si vede per un
-          // istante o non si vede affatto. Uno scheletro elaborato
-          // lampeggerebbe, che è peggio di una riga di testo.
+        {/* La Configurazione resta montata (nascosta) una volta aperta: le
+            bozze delle sue schede — e la loro registrazione fra le sezioni
+            pendenti — devono sopravvivere al passaggio all'editor, perché il
+            Salva è uno solo (22-09-2026). Vedi `Tenuta`. */}
+        <Tenuta attiva={effectiveMode === "config"}>
+          {/* Il fallback è volutamente scarno: il pezzo arriva dallo stesso
+              server che ha appena servito la pagina, quindi si vede per un
+              istante o non si vede affatto. Uno scheletro elaborato
+              lampeggerebbe, che è peggio di una riga di testo. */}
           <Suspense fallback={
             <div style={{ padding: 24, color: "var(--brand-text-subtle, #94a3b8)", fontSize: 13 }}>
               {t("app.loadingConfiguration")}
@@ -879,7 +884,7 @@ export function App() {
           }>
             <ConfigView />
           </Suspense>
-        )}
+        </Tenuta>
         {/* Chat drawer (right) — dentro <main> così sta accanto al canvas
             invece che sotto: una conversazione è alta, non larga. */}
         {/* `!chatStaccata`: con la chat in una finestra propria il cassetto non

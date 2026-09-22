@@ -2,6 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "@/store";
 import { tagCatalog } from "@/tagCatalog";
+import { eSegnaposto } from "@/tag/riconciliaTag";
+import { QuickCreateTagModal } from "./QuickCreateTagModal";
+import type { TagDataType } from "@/types";
 import i18n from "i18next";
 
 interface TagInputProps {
@@ -9,13 +12,31 @@ interface TagInputProps {
   onChange: (next: string) => void;
   placeholder?: string;
   style?: React.CSSProperties;
+  /** Il tipo che chi ospita l'input lascia intuire (la mappatura, l'oggetto):
+   *  precompila il modale «definisci», non impone niente. */
+  tipoSuggerito?: TagDataType;
+}
+
+/** Lo stato di un id rispetto al progetto (Fase 0b). `dichiarato` non si
+ *  segnala: è la normalità. `in-attesa` = ha già una definizione che il Salva
+ *  creerà; `nuovo` = non dichiarato: il Salva lo creerà con il tipo dedotto,
+ *  a meno che non lo si definisca da qui. I segnaposto dei faceplate e le
+ *  stringhe vuote non hanno stato. */
+export type StatoTag = "dichiarato" | "in-attesa" | "nuovo" | null;
+
+export function statoTag(id: string, dichiarati: ReadonlySet<string>, inAttesa: ReadonlySet<string>): StatoTag {
+  const t = id.trim();
+  if (t === "" || eSegnaposto(t)) return null;
+  if (dichiarati.has(t)) return "dichiarato";
+  if (inAttesa.has(t)) return "in-attesa";
+  return "nuovo";
 }
 
 /**
  * Text input with a ▾ button that opens a filterable tag-picker dropdown.
  * Free-text entry is always allowed.
  */
-export function TagInput({ value, onChange, placeholder, style }: TagInputProps) {
+export function TagInput({ value, onChange, placeholder, style, tipoSuggerito }: TagInputProps) {
   const { t } = useTranslation();
   // Non solo `project.tags`: in molti progetti le variabili nascono dalle
   // mappature delle sorgenti (topic MQTT, registri Modbus, nodi OPC-UA) e non
@@ -23,6 +44,12 @@ export function TagInput({ value, onChange, placeholder, style }: TagInputProps)
   // risultava vuoto proprio nei progetti più realistici.
   const project = useAppStore((s) => s.project);
   const tags    = useMemo(() => tagCatalog(project), [project]);
+  const inAttesa = useAppStore((s) => s.tagInAttesa);
+  const aggiungiTagInAttesa = useAppStore((s) => s.aggiungiTagInAttesa);
+  const dichiarati = useMemo(() => new Set((project?.tags ?? []).map((x) => x.id)), [project]);
+  const idsInAttesa = useMemo(() => new Set(inAttesa.map((x) => x.id)), [inAttesa]);
+  const stato = statoTag(value, dichiarati, idsInAttesa);
+  const [definisci, setDefinisci] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef     = useRef<HTMLInputElement>(null);
   const filterRef    = useRef<HTMLInputElement>(null);
@@ -91,6 +118,35 @@ export function TagInput({ value, onChange, placeholder, style }: TagInputProps)
         >
           ▾
         </button>
+      )}
+      {/* Lo stato dell'id (Fase 0b): «nuovo» apre il modale per definirlo
+          prima che il Salva lo crei col tipo dedotto; «in attesa» dice che la
+          definizione c'è già. Un id dichiarato non mostra niente. */}
+      {stato === "nuovo" && (
+        <button
+          type="button"
+          style={{ flexShrink: 0, background: "transparent", border: "1px dashed var(--brand-warning, #f59e0b)", borderRadius: 4,
+                   color: "var(--brand-warning, #f59e0b)", cursor: "pointer", padding: "0 5px", fontSize: 11, lineHeight: 1 }}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => setDefinisci(true)}
+          tabIndex={-1}
+          title={t("tagInput.nuovoHint")}
+          aria-label={t("tagInput.nuovoHint")}
+        >
+          ＋
+        </button>
+      )}
+      {stato === "in-attesa" && (
+        <span style={{ flexShrink: 0, alignSelf: "center", fontSize: 11, color: "var(--brand-text-muted, #94a3b8)" }}
+              title={t("tagInput.inAttesaHint")} aria-label={t("tagInput.inAttesaHint")}>⏳</span>
+      )}
+      {definisci && (
+        <QuickCreateTagModal
+          initialId={value}
+          tipoSuggerito={tipoSuggerito}
+          onConfirm={(def) => { aggiungiTagInAttesa(def); if (def.id !== value) onChange(def.id); }}
+          onClose={() => setDefinisci(false)}
+        />
       )}
       {open && (
         <div

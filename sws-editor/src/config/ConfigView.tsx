@@ -14,6 +14,9 @@ import { containerDeployPayload, effectiveDataPath, type ContainerSource } from 
 import { containerManagePayload, type ManageAction, type RestartPolicy } from "@/containerManage";
 import { genId } from "@/id";
 import { HOST_METRICS, definizioneMetrica, emptyHost, metricheSenzaParametro, senzaParametro, suggerimentiPer, type CatalogoHost, type ParametroHost } from "./sorgenteHost";
+import { QuickCreateTagModal } from "@/components/QuickCreateTagModal";
+import { Tenuta } from "@/components/Tenuta";
+import { tipoDaEnIp, tipoDaS7 } from "@/tag/riconciliaTag";
 import { DataTable, type DataTableColumn } from "@/components/DataTable";
 import { TagInput } from "@/components/TagInput";
 import { PythonEditor, type PythonEditorHandle } from "@/components/PythonEditor";
@@ -269,132 +272,65 @@ const S = {
 // ── QuickCreateTagModal ───────────────────────────────────────────────────────
 // Minimal modal that lets the operator create a new tag without switching tab.
 
-function QuickCreateTagModal({
-  initialId,
-  onConfirm,
-  onClose,
-}: {
-  initialId: string;
-  onConfirm: (tag: TagDef) => void;
-  onClose: () => void;
-}) {
-  const { t } = useTranslation();
-  const [id, setId] = useState(initialId.trim());
-  const [description, setDescription] = useState("");
-  const [dataType, setDataType] = useState<TagDataType>("float");
-
-  const create = () => {
-    const trimmed = id.trim();
-    if (!trimmed) return;
-    onConfirm({ id: trimmed, description: description.trim(), data_type: dataType });
-    onClose();
-  };
-
-  return (
-    <div style={{
-      position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)",
-      display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
-    }}>
-      <div style={{
-        background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 8,
-        padding: 20, minWidth: 320, maxWidth: 440,
-      }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--brand-text, #e2e8f0)", marginBottom: 14 }}>
-          {t("cfgUi.createVariable")}
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <div>
-            <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.tagIdReq")}</label>
-            <input
-              style={S.input}
-              value={id}
-              onChange={(e) => setId(e.target.value)}
-              autoFocus
-              spellCheck={false}
-              onKeyDown={(e) => { if (e.key === "Enter") create(); if (e.key === "Escape") onClose(); }}
-            />
-          </div>
-          <div>
-            <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.descriptionOpt")}</label>
-            <input
-              style={S.input}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              spellCheck={false}
-              onKeyDown={(e) => { if (e.key === "Enter") create(); if (e.key === "Escape") onClose(); }}
-            />
-          </div>
-          <div>
-            <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.dataType")}</label>
-            <select style={{ ...S.input, cursor: "pointer" }} value={dataType} onChange={(e) => setDataType(e.target.value as TagDataType)}>
-              <option value="float">Float</option>
-              <option value="int">Int</option>
-              <option value="bool">Bool</option>
-              <option value="string">String</option>
-            </select>
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 8, marginTop: 16, justifyContent: "flex-end" }}>
-          <button style={S.btn("ghost")} onClick={onClose}>{t("common.cancel")}</button>
-          <button style={S.btn("primary")} onClick={create} disabled={!id.trim()}>{t("cfg.create")}</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Barra di salvataggio uniforme: sempre in ALTO A DESTRA di ogni tab, tasto
-// VERDE, con feedback di conferma "✓ Salvato". Sticky in cima così resta
-// visibile scorrendo il contenuto. `label` per varianti ("Salva tutti",
-// "Salva tabella"); `disabled` per i save condizionati (es. !dirty); `notice`
-// per un messaggio esplicito (verde, o rosso se inizia con "Errore"/"✗").
+// Barra di salvataggio: dal 22-09-2026 c'è **un solo Salva**, quello del
+// progetto (decisione del maintainer: «non ha senso distinguere i salvataggi
+// della UI, delle variabili, delle sorgenti»). Ogni scheda registra la propria
+// bozza in `pendingSections` con `section` + `dirty`, e il pulsante — uguale
+// in ogni scheda, «Salva progetto» — chiama `saveAll()`: che svuota le bozze
+// in serie (Q30), crea le variabili referenziate (Fase 0b) e scrive le
+// pagine. Prima ogni scheda aveva il suo pulsante e il suo PUT, e tre di esse
+// (Sorgenti, Script, Lingue) non partecipavano a Ctrl+S: le variabili in
+// attesa della scheda Sorgenti si perdevano cambiando scheda.
 //
-// Passando `section` + `dirty` la barra diventa anche la sorgente dello stato
-// "modifiche non salvate" a livello di app: registra nello store come salvare
-// questa sezione, così l'indicatore in header si accende e Ctrl+S ("Salva
-// tutto") svuota anche la bozza della tab attiva.
+// `saving`/`saved`/`label` restano nella firma per non toccare quaranta
+// chiamate in un colpo: sono ignorati, lo stato viene dallo store.
 /** Sentinella con cui il backend maschera i segreti già salvati (password SMTP,
  *  bot token Telegram). Rimandarla indietro invariata lascia il valore com'è. */
 const MASKED = "********";
 
 function SaveBar({
   onSave,
-  saving,
-  saved,
+  saving: _saving,
+  saved: _saved,
   savedNotice = i18n.t("cfgUi.savedChangesAppliedImmediately"),
-  label = i18n.t("cfgUi.save"),
+  label: _label,
   disabled = false,
   notice,
   section,
   dirty,
 }: {
-  /** I handler delle tab sono `async`: il tipo lo dichiara così `saveAll()`
-   *  può attendere davvero il flush della bozza. */
+  /** Come si scrive la bozza di QUESTA scheda: la chiama `saveAll()`, in
+   *  serie con le altre, quando `dirty` è vero. Non è più il pulsante. */
   onSave: () => void | Promise<void>;
-  saving: boolean;
-  saved: boolean;
+  saving?: boolean;
+  saved?: boolean;
   savedNotice?: string;
   label?: string;
   disabled?: boolean;
   notice?: string | null;
   /** Chiave della sezione nel registro delle bozze pendenti. */
-  section?: string;
-  /** True se la bozza locale differisce da quanto salvato. */
-  dirty?: boolean;
+  section: string;
+  /** True se la bozza locale differisce da quanto salvato — per intenzione
+   *  dell'utente, non per confronto strutturale (incidente del 2026-07-28). */
+  dirty: boolean;
 }) {
   const { t } = useTranslation();
   const registerPendingSection = useAppStore((s) => s.registerPendingSection);
+  const saveAll = useAppStore((s) => s.saveAll);
+  const saveStatus = useAppStore((s) => s.saveStatus);
+  const saveError = useAppStore((s) => s.saveError);
+  const ultimiTagCreati = useAppStore((s) => s.ultimiTagCreati);
   // onSave cambia identità a ogni render della tab: tenerlo in una ref evita
   // di ri-registrare (e quindi ri-renderizzare) a ogni battuta di tasto.
   const onSaveRef = useRef(onSave);
   onSaveRef.current = onSave;
 
   useEffect(() => {
-    if (!section) return;
     registerPendingSection(section, dirty ? async () => { await onSaveRef.current(); } : null);
     return () => registerPendingSection(section, null);
   }, [section, dirty, registerPendingSection]);
 
+  const saving = saveStatus === "saving";
   const noticeIsError = !!notice && (/^(errore|✗|✕)/i).test(notice.trim());
   return (
     <div style={{
@@ -406,13 +342,17 @@ function SaveBar({
         <span style={{ fontSize: 12, color: noticeIsError ? "var(--brand-danger, #ef4444)" : "var(--brand-success, #22c55e)" }}>
           {notice}
         </span>
-      ) : saved ? (
+      ) : saveStatus === "error" ? (
+        <span style={{ fontSize: 12, color: "var(--brand-danger, #ef4444)" }}>{saveError}</span>
+      ) : saveStatus === "ok" ? (
         <span style={{ fontSize: 12, color: "var(--brand-success, #22c55e)" }}>
-          {savedNotice}
+          {savedNotice}{ultimiTagCreati.length > 0 ? ` · ${t("cfgUi.tagCreati", { n: ultimiTagCreati.length, ids: ultimiTagCreati.join(", ") })}` : ""}
         </span>
+      ) : dirty ? (
+        <span style={{ fontSize: 12, color: "var(--brand-warning, #f59e0b)" }}>{t("cfgUi.unsavedInTab")}</span>
       ) : null}
-      <button style={S.btn("success")} onClick={onSave} disabled={saving || disabled}>
-        {saving ? t("cfgUi.saving") : label}
+      <button style={S.btn("success")} onClick={() => void saveAll()} disabled={saving || disabled} title={t("cfgUi.saveProjectHint")}>
+        {saving ? t("cfgUi.saving") : t("cfgUi.saveProject")}
       </button>
     </div>
   );
@@ -1412,7 +1352,7 @@ function S7SourceCard({
             </label>
             <button
               style={S.btnXs}
-              onClick={() => { if (tm.tag) onCreateTag({ id: tm.tag, data_type: "float", description: "", history: false }); }}
+              onClick={() => { if (tm.tag) onCreateTag({ id: tm.tag, data_type: tipoDaS7(tm.data_type), description: "", history: false }); }}
               title={t("cfg.createTag")}
             >+var</button>
             <button style={S.btnXs} onClick={() => removeTag(idx)}>✕</button>
@@ -1657,7 +1597,7 @@ function EnIpSourceCard({
             </label>
             <button
               style={S.btnXs}
-              onClick={() => { if (tm.tag) onCreateTag({ id: tm.tag, data_type: "float", description: "", history: false }); }}
+              onClick={() => { if (tm.tag) onCreateTag({ id: tm.tag, data_type: tipoDaEnIp(tm.data_type), description: "", history: false }); }}
               title={t("cfg.createTag")}
             >+var</button>
             <button style={S.btnXs} onClick={() => upd({ tags: source.tags.filter((_, i) => i !== idx) })}>✕</button>
@@ -4554,14 +4494,15 @@ function ProtocolsTab() {
   const { t }                  = useTranslation();
   const storeProject           = useAppStore((s) => s.project);
   const updateProjectSources   = useAppStore((s) => s.updateProjectSources);
-  const updateProjectTags      = useAppStore((s) => s.updateProjectTags);
   const markSaveOk             = useAppStore((s) => s.markSaveOk);
+  // Le variabili in attesa stanno nello store (Fase 0b): «+var», modale e
+  // wizard le mettono lì, e il Salva unico le crea se ancora referenziate.
+  const tagInAttesa            = useAppStore((s) => s.tagInAttesa);
+  const handleCreateTag        = useAppStore((s) => s.aggiungiTagInAttesa);
 
   const [sources, setSources]  = useState<SourceDef[]>(storeProject?.sources ?? []);
   const [saving, setSaving]    = useState(false);
   const [saved, setSaved]      = useState(false);
-  // Tags created via QuickCreate inside this tab, pending save.
-  const [pendingTags, setPendingTags] = useState<TagDef[]>([]);
 
   // Dipendere dalla sola LUNGHEZZA copriva il caso comune ma non tutti: un
   // progetto ricaricato con lo stesso numero di sorgenti non si
@@ -4609,17 +4550,6 @@ function ProtocolsTab() {
   const removeSource = (idx: number) =>
     setSources((prev) => prev.filter((_, i) => i !== idx));
 
-  const handleCreateTag = (tag: TagDef) => {
-    setPendingTags((prev) => {
-      const existingIds = new Set([
-        ...(storeProject?.tags ?? []).map(t => t.id),
-        ...prev.map(t => t.id),
-      ]);
-      if (existingIds.has(tag.id)) return prev;
-      return [...prev, tag];
-    });
-  };
-
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -4629,12 +4559,6 @@ function ProtocolsTab() {
       if (puliti !== sources) setSources(puliti);
       await api.updateSources(puliti);
       updateProjectSources(puliti);
-      if (pendingTags.length > 0) {
-        const allTags = [...(storeProject?.tags ?? []), ...pendingTags];
-        await api.updateTags(allTags);
-        updateProjectTags(allTags);
-        setPendingTags([]);
-      }
       setSaved(true);
       // Vedi commento analogo in TagsTab: segnala il salvataggio riuscito
       // allo stato globale che alimenta la finestra "salvataggio nostro" del
@@ -4649,11 +4573,16 @@ function ProtocolsTab() {
 
   return (
     <div style={S.section}>
+      {/* `sources !== storeProject.sources` è intenzione dell'utente, non
+          confronto strutturale: `sync.applica` assegna proprio l'array dello
+          store, quindi un riferimento diverso esiste solo dopo una modifica. */}
       <SaveBar
         onSave={handleSave}
         saving={saving}
         saved={saved}
         savedNotice={t("cfgUi.savedSourcesReconnectedOnThe")}
+        section="sources"
+        dirty={sources !== storeProject?.sources}
       />
       <BarraConflittoSezione sync={sync} t={t} />
       {storeProject?.sorgenti_da_rivedere && (
@@ -4819,10 +4748,9 @@ function ProtocolsTab() {
         </button>
       </div>
 
-      {pendingTags.length > 0 && (
+      {tagInAttesa.length > 0 && (
         <div style={{ ...S.notice, marginTop: 12 }}>
-          {pendingTags.length} variabil{pendingTags.length === 1 ? "e" : "i"} nuov{pendingTags.length === 1 ? "a" : "e"} in attesa di salvataggio:{" "}
-          {pendingTags.map(t => t.id).join(", ")}
+          {t("cfgUi.tagInAttesa", { n: tagInAttesa.length, ids: tagInAttesa.map((x) => x.id).join(", ") })}
         </div>
       )}
     </div>
@@ -7325,6 +7253,8 @@ function GlobalScriptsTab() {
   const [selected, setSelected] = useState<number>(0);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  // Intenzione dell'utente, non confronto strutturale (vedi TagsTab).
+  const [touched, setTouched] = useState(false);
   const editorRef = useRef<PythonEditorHandle | null>(null);
 
   // Sync when project reloads
@@ -7335,6 +7265,7 @@ function GlobalScriptsTab() {
   const cur = scripts[selected] ?? null;
 
   function update(idx: number, patch: Partial<GlobalScriptDef>) {
+    setTouched(true);
     setScripts((prev) => prev.map((s, i) => i === idx ? { ...s, ...patch } : s));
   }
 
@@ -7349,6 +7280,7 @@ function GlobalScriptsTab() {
     setMsg(null);
     try {
       await api.saveGlobalScripts(scripts);
+      setTouched(false);
       setMsg(t("cfgUi.saved"));
     } catch (e) {
       setMsg(t("cfgUi.errorMsg", { message: e instanceof Error ? e.message : String(e) }));
@@ -7359,18 +7291,20 @@ function GlobalScriptsTab() {
 
   function addScript() {
     const s = newScript();
+    setTouched(true);
     setScripts((prev) => [...prev, s]);
     setSelected(scripts.length);
   }
 
   function removeScript(idx: number) {
+    setTouched(true);
     setScripts((prev) => prev.filter((_, i) => i !== idx));
     setSelected((prev) => Math.max(0, prev > idx ? prev - 1 : prev));
   }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 120px)" }}>
-      <SaveBar onSave={handleSave} saving={saving} saved={false} label={t("cfgUi.saveAll")} notice={msg} />
+      <SaveBar onSave={handleSave} saving={saving} saved={false} notice={msg} section="global_scripts" dirty={touched} />
       <div style={{ display: "flex", gap: 16, flex: 1, overflow: "hidden" }}>
       {/* Colonna sinistra: TUTTO il Python del progetto (Q21).
           Funzioni e script restano tipi distinti nel modello — una funzione non
@@ -7634,8 +7568,8 @@ function FaceplatesTab() {
   const [selected, setSelected] = useState<string | null>(
     storeFaceplates[0]?.id ?? null
   );
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved]   = useState(false);
+  // Gli id modificati e non ancora scritti: il Salva unico li scrive tutti.
+  const [modificati, setModificati] = useState<Set<string>>(new Set());
   const [loadErr, setLoadErr] = useState<string | null>(null);
 
   // Load all faceplates (including built-ins from the API) on mount.
@@ -7654,29 +7588,26 @@ function FaceplatesTab() {
 
   function updateCurrent(patch: Partial<FaceplateDef>) {
     if (!current) return;
+    setModificati((m) => new Set(m).add(current.id));
     setLocal((prev) => prev.map((f) => f.id === current.id ? { ...f, ...patch } : f));
   }
 
   function addFaceplate() {
     const id = genId("fp-");
     const fp: FaceplateDef = { id, label: "Nuovo faceplate", params: ["tag_prefix", "label"], objects: [] };
+    setModificati((m) => new Set(m).add(id));
     setLocal((prev) => [...prev, fp]);
     setSelected(id);
   }
 
-  async function saveCurrent() {
-    if (!current) return;
-    setSaving(true);
-    try {
-      await api.saveFaceplate(current);
-      setFaceplates(faceplates);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
-    } catch (e) {
-      setLoadErr(String(e));
-    } finally {
-      setSaving(false);
-    }
+  /** La bozza di questa scheda per il Salva unico: ogni faceplate toccato,
+   *  uno per file (un faceplate è un file suo, non una sezione di
+   *  project.yaml). */
+  async function saveModificati() {
+    const da = faceplates.filter((f) => modificati.has(f.id));
+    for (const fp of da) await api.saveFaceplate(fp);
+    setFaceplates(faceplates);
+    setModificati(new Set());
   }
 
   async function deleteCurrent() {
@@ -7685,6 +7616,7 @@ function FaceplatesTab() {
     try {
       await api.deleteFaceplate(current.id);
       const updated = faceplates.filter((f) => f.id !== current.id);
+      setModificati((m) => { const n = new Set(m); n.delete(current.id); return n; });
       setLocal(updated);
       setFaceplates(updated);
       setSelected(updated[0]?.id ?? null);
@@ -7695,6 +7627,9 @@ function FaceplatesTab() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden", height: "100%" }}>
+      <div style={{ padding: "0 12px", flexShrink: 0 }}>
+        <SaveBar onSave={saveModificati} section="faceplates" dirty={modificati.size > 0} />
+      </div>
       <div style={{
         padding: "10px 12px", borderBottom: "1px solid var(--brand-surface, #1e293b)",
         color: "var(--brand-text-muted, #94a3b8)", fontSize: 12.5, lineHeight: 1.5, flexShrink: 0,
@@ -7734,11 +7669,7 @@ function FaceplatesTab() {
             <span style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-warning, #f59e0b)" }}>{current.label}</span>
             <span style={{ flex: 1 }} />
             {loadErr && <span style={{ fontSize: 12, color: "var(--brand-danger, #ef4444)" }}>{loadErr}</span>}
-            {saved && <span style={{ fontSize: 12, color: "var(--brand-success, #22c55e)" }}>{t("cfgUi.saved2")}</span>}
             <button style={S.btn("danger")} onClick={deleteCurrent}>{t("common.delete")}</button>
-            <button style={S.btn("success")} onClick={saveCurrent} disabled={saving}>
-              {saving ? t("cfgUi.saving") : t("cfgUi.save")}
-            </button>
           </div>
           <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
             <div style={{ flex: 1, overflow: "auto", padding: "16px" }}>
@@ -7843,6 +7774,8 @@ function RecipesTab() {
   const [selected, setSelected]   = useState<RecipeDef | null>(null);
   const [loading, setLoading]     = useState(false);
   const [saved, setSaved]         = useState(false);
+  // Intenzione dell'utente sulla ricetta selezionata (vedi TagsTab).
+  const [touched, setTouched]     = useState(false);
   const [newId, setNewId]         = useState("");
   const [newName, setNewName]     = useState("");
 
@@ -7856,6 +7789,7 @@ function RecipesTab() {
     try {
       const r = await api.getRecipe(id);
       setSelected(r);
+      setTouched(false);
     } catch { /* ignore */ }
   };
 
@@ -7864,6 +7798,7 @@ function RecipesTab() {
     setLoading(true);
     try {
       await api.saveRecipe(selected);
+      setTouched(false);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
       await loadList();
@@ -7887,23 +7822,16 @@ function RecipesTab() {
     await selectRecipe(id);
   };
 
+  const modifica = (fn: (prev: RecipeDef) => RecipeDef) => {
+    setTouched(true);
+    setSelected((prev) => (prev ? fn(prev) : null));
+  };
   const updateSetpoint = (idx: number, patch: Partial<{ tag: string; value: boolean | number | string }>) =>
-    setSelected((prev) => prev ? {
-      ...prev,
-      setpoints: prev.setpoints.map((sp, i) => i === idx ? { ...sp, ...patch } : sp),
-    } : null);
-
+    modifica((prev) => ({ ...prev, setpoints: prev.setpoints.map((sp, i) => (i === idx ? { ...sp, ...patch } : sp)) }));
   const addSetpoint = () =>
-    setSelected((prev) => prev ? {
-      ...prev,
-      setpoints: [...prev.setpoints, { tag: "", value: 0 }],
-    } : null);
-
+    modifica((prev) => ({ ...prev, setpoints: [...prev.setpoints, { tag: "", value: 0 }] }));
   const removeSetpoint = (idx: number) =>
-    setSelected((prev) => prev ? {
-      ...prev,
-      setpoints: prev.setpoints.filter((_, i) => i !== idx),
-    } : null);
+    modifica((prev) => ({ ...prev, setpoints: prev.setpoints.filter((_, i) => i !== idx) }));
 
   const recipeColumns: DataTableColumn<RecipeSummary>[] = [
     { key: "name", header: t("cfg.name"), accessor: (r) => r.name },
@@ -7913,6 +7841,7 @@ function RecipesTab() {
 
   return (
     <div style={S.section}>
+      <SaveBar onSave={saveSelected} saving={loading} saved={saved} section="recipes" dirty={touched && !!selected} />
       <div style={S.sectionTitle}>RICETTE (ISA-88)</div>
       <div style={S.notice}>
         {t("cfgUi.recipeIntro")}
@@ -7963,13 +7892,10 @@ function RecipesTab() {
                 <input
                   style={{ ...S.inputSm, flex: 1 }}
                   value={selected.name}
-                  onChange={(e) => setSelected({ ...selected, name: e.target.value })}
+                  onChange={(e) => { setTouched(true); setSelected({ ...selected, name: e.target.value }); }}
                   placeholder={t("cfg.recipeName")}
                   spellCheck={false}
                 />
-                <button style={S.btn("success")} onClick={saveSelected} disabled={loading}>
-                  {loading ? "…" : saved ? t("cfgUi.saved2") : t("cfgUi.save")}
-                </button>
                 <button style={S.btn("danger")} onClick={deleteSelected} title={t("cfg.deleteRecipe")}>✕</button>
               </div>
 
@@ -10704,7 +10630,9 @@ function LanguagesTab() {
 
   useEffect(() => { if (storeTable) setTable(storeTable); }, [storeTable]);
 
-  const patch = (p: Partial<LanguageTable>) => setTable((tb) => ({ ...tb, ...p }));
+  // Intenzione dell'utente, non confronto strutturale (vedi TagsTab).
+  const [touched, setTouched] = useState(false);
+  const patch = (p: Partial<LanguageTable>) => { setTouched(true); setTable((tb) => ({ ...tb, ...p })); };
 
   const cellText = (e: LangEntry, col: string) => (col === "key" ? e.key : e.values[col] ?? "");
   const setFilter = (col: string, q: string) => setFilters((f) => ({ ...f, [col]: q }));
@@ -10736,6 +10664,7 @@ function LanguagesTab() {
     // filtro stale su una lingua sparita nasconderebbe righe.
     setFilters((f) => { const n = { ...f }; delete n[code]; return n; });
     setSort((s) => (s?.col === code ? null : s));
+    setTouched(true);
     setTable((tb) => ({
       default: tb.default === code ? (tb.langs.find((l) => l !== code) ?? "") : tb.default,
       langs: tb.langs.filter((l) => l !== code),
@@ -10789,6 +10718,7 @@ function LanguagesTab() {
       await api.updateLanguages(clean);
       updateLanguages(clean);
       setTable(clean);
+      setTouched(false);
       // Senza questo il watcher del progetto scambia il NOSTRO salvataggio per
       // un cambio esterno e fa comparire la barra «il progetto sul runtime è
       // cambiato». Premere «Ricarica» lì butta via il lavoro non salvato — il
@@ -11008,6 +10938,7 @@ function LanguagesTab() {
       return { key: (cells[0] ?? "").trim(), values };
     }).filter((e) => e.key !== "");
     setFilters({}); setSort(null); // le lingue cambiano: filtro/ordinamento vecchi non valgono più
+    setTouched(true);
     setTable((tb) => ({ default: tb.default || langs[0] || "", langs, entries }));
   };
 
@@ -11016,7 +10947,7 @@ function LanguagesTab() {
 
   return (
     <div style={S.section}>
-      <SaveBar onSave={handleSave} saving={saving} saved={saved} label={t("langtab.save")} savedNotice={t("langtab.saved")} />
+      <SaveBar onSave={handleSave} saving={saving} saved={saved} savedNotice={t("langtab.saved")} section="languages" dirty={touched} />
       <div style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 12, lineHeight: 1.5 }}>{t("langtab.intro")}</div>
 
       <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
@@ -11273,15 +11204,20 @@ export function ConfigView() {
           )
         ) : (
           <>
-            {tab === "tags"        && <TagsTab />}
-            {tab === "protocols"   && <ProtocolsTab />}
-            {tab === "alarms"      && <AlarmsTab />}
-            {tab === "scripts"     && <GlobalScriptsTab />}
-            {tab === "faceplates"  && <FaceplatesTab />}
-            {tab === "recipes"        && <RecipesTab />}
-            {tab === "notifications"  && <NotificationsTab />}
-            {tab === "languages"      && <LanguagesTab />}
-            {tab === "datastores"     && isAdmin && <DatastoresTab />}
+            {/* Le schede che portano una bozza del progetto restano montate
+                (nascoste) una volta viste: la bozza e la sua registrazione fra
+                le sezioni pendenti sopravvivono al cambio di scheda, e il
+                Salva unico le trova. Le altre (istanza, dispositivo) si
+                montano e smontano come prima. */}
+            <Tenuta attiva={tab === "tags"}><TagsTab /></Tenuta>
+            <Tenuta attiva={tab === "protocols"}><ProtocolsTab /></Tenuta>
+            <Tenuta attiva={tab === "alarms"}><AlarmsTab /></Tenuta>
+            <Tenuta attiva={tab === "scripts"}><GlobalScriptsTab /></Tenuta>
+            <Tenuta attiva={tab === "faceplates"}><FaceplatesTab /></Tenuta>
+            <Tenuta attiva={tab === "recipes"}><RecipesTab /></Tenuta>
+            <Tenuta attiva={tab === "notifications"}><NotificationsTab /></Tenuta>
+            <Tenuta attiva={tab === "languages"}><LanguagesTab /></Tenuta>
+            <Tenuta attiva={tab === "datastores" && isAdmin}><DatastoresTab /></Tenuta>
             {tab === "users"       && isAdmin && <UsersTab />}
             {tab === "resources"   && <ResourcesTab />}
             {tab === "system"      && <SystemTab />}

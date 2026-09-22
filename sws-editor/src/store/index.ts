@@ -8,6 +8,7 @@ import { getStoredProjectLang, setStoredProjectLang, getStoredEditorPreviewLang,
 import { normalizeTrendObjects } from "@/canvas/trendModel";
 import { normalizeXyObjects } from "@/canvas/xyModel";
 import { normalizzaColoriOggetti } from "@/coloriPredefiniti";
+import { pianoCreazione } from "@/tag/riconciliaTag";
 import type { SegmentoScelto, WaypointScelto } from "@/canvas/percorsoMovimento";
 import { effectiveSizeMode, referenceResolutionFor } from "@/pageLayout";
 import { uguale } from "@/ai/confronto";
@@ -333,6 +334,18 @@ interface AppState {
   setBootPng: (id: string, esito: { ok: boolean; messaggio?: string; byte?: number }, firma?: string) => void;
   /** Sections with an unsaved draft, keyed by owner → flush function. */
   pendingSections: Record<string, () => Promise<void>>;
+  /** Definizioni di variabili messe in attesa da «+var», dal modale rapido e
+   *  dai wizard (Fase 0b): il Salva unico le crea se il loro id è ancora
+   *  referenziato, altrimenti le scarta. Prima vivevano nello stato locale
+   *  della scheda Sorgenti e cambiare scheda le perdeva. */
+  tagInAttesa: TagDef[];
+  aggiungiTagInAttesa: (t: TagDef) => void;
+  svuotaTagInAttesa: () => void;
+  /** Gli id creati dall'ultimo salvataggio riuscito, per il riepilogo. */
+  ultimiTagCreati: string[];
+  /** Crea al volo ogni tag referenziato dal progetto e non dichiarato (un
+   *  PUT solo, dopo il flush delle bozze); ritorna gli id creati. */
+  riconciliaTag: () => Promise<string[]>;
   /** Register (or, with `save === null`, deregister) a section holding a draft. */
   registerPendingSection: (key: string, save: (() => Promise<void>) | null) => void;
   /** Mark the current page revision as persisted. Only after a *complete* save. */
@@ -766,6 +779,8 @@ export const useAppStore = create<AppState>((set, get) => {
     bootPng: {},
     bootPngFirme: {},
     pendingSections: {},
+    tagInAttesa: [],
+    ultimiTagCreati: [],
 
     setAuth: (token, username, role, mustChangePassword = false, expiresAtMs) => {
       setAuthToken(token);
@@ -2219,6 +2234,32 @@ export const useAppStore = create<AppState>((set, get) => {
       }, 2000);
     },
 
+    aggiungiTagInAttesa: (t) =>
+      set((s) => ({
+        // Lo stesso id due volte: vince l'ultima definizione, niente doppioni.
+        tagInAttesa: [...s.tagInAttesa.filter((x) => x.id !== t.id), t],
+      })),
+    svuotaTagInAttesa: () => set({ tagInAttesa: [] }),
+
+    riconciliaTag: async () => {
+      const s = get();
+      if (!s.project) return [];
+      const nuovi = pianoCreazione({
+        project: s.project, pages: s.pages, faceplates: s.faceplates, tagInAttesa: s.tagInAttesa,
+      });
+      if (nuovi.length === 0) {
+        set({ tagInAttesa: [] });
+        return [];
+      }
+      // Un PUT solo, con i nuovi in coda ai dichiarati: stesso endpoint della
+      // scheda Variabili, così il server installa i tag nel TagDb come sempre.
+      const tutti = [...(s.project.tags ?? []), ...nuovi];
+      await api.updateTags(tutti);
+      get().updateProjectTags(tutti);
+      set({ tagInAttesa: [] });
+      return nuovi.map((t) => t.id);
+    },
+
     registerPendingSection: (key, save) =>
       set((s) => {
         const next = { ...s.pendingSections };
@@ -2233,7 +2274,7 @@ export const useAppStore = create<AppState>((set, get) => {
     saveAll: async () => {
       if (get().saveStatus === "saving") return;
       if (saveOkTimer !== null) { window.clearTimeout(saveOkTimer); saveOkTimer = null; }
-      set({ saveStatus: "saving", saveError: null, saveConflict: false });
+      set({ saveStatus: "saving", saveError: null, saveConflict: false, ultimiTagCreati: [] });
 
       const failures: string[] = [];
 
@@ -2276,6 +2317,21 @@ export const useAppStore = create<AppState>((set, get) => {
       if (conflitto) {
         set({ saveStatus: "error", saveError: failures.join("; "), saveConflict: true });
         return;
+      }
+
+      // 1b. Le variabili che il progetto cita e nessuno ha dichiarato (Fase
+      //     0b): DOPO il flush delle bozze, così vede le sorgenti e i tag
+      //     finali, e PRIMA delle pagine — nella stessa catena seriale dei
+      //     PUT su `project.yaml`, per la ragione del punto 1.
+      let tagCreati: string[] = [];
+      try {
+        tagCreati = await get().riconciliaTag();
+      } catch (e) {
+        if (e instanceof ProjectChangedError) {
+          set({ saveStatus: "error", saveError: errText(e), saveConflict: true });
+          return;
+        }
+        failures.push(`tags: ${errText(e)}`);
       }
 
       // Re-read: the flush above mutated `project`.
@@ -2361,7 +2417,7 @@ export const useAppStore = create<AppState>((set, get) => {
           for (const p of bootDaFotografare) get().setBootPng(p.id, { ok: false, messaggio: errText(e) });
         }
       }
-      set({ saveStatus: "ok" });
+      set({ saveStatus: "ok", ultimiTagCreati: tagCreati });
       get().markPagesSaved();
       saveOkTimer = window.setTimeout(() => {
         saveOkTimer = null;

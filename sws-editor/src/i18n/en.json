@@ -94,7 +94,8 @@
     "userMenuTitle": "User: {{user}}",
     "preferences": "PREFERENCES",
     "plantBadge": "Live plant",
-    "plantWarnTitle": "This instance serves a plant (it has an operator viewer): you are editing the live project, and saving reloads its sources and alarms without a restart. To work on a copy, use the editor on your PC and then Deploy."
+    "plantWarnTitle": "This instance serves a plant (it has an operator viewer): you are editing the live project, and saving reloads its sources and alarms without a restart. To work on a copy, use the editor on your PC and then Deploy.",
+    "savedTags": "✓ Saved · {{n}} variables created"
   },
   "theme": {
     "label": "Theme",
@@ -513,7 +514,9 @@
       "expr": "Expression"
     },
     "bindPlaceholder": "e.g. demo.rotation",
-    "noTagsInProject": "No variables available. Declare them in Configuration → Variables, or add a source: variables mapped from protocols show up here automatically."
+    "noTagsInProject": "No variables available. Declare them in Configuration → Variables, or add a source: variables mapped from protocols show up here automatically.",
+    "nuovoHint": "Undeclared variable: it will be created when the project is saved, with the inferred type. Click to define it now (type, unit, history).",
+    "inAttesaHint": "Definition pending: it will be created when the project is saved."
   },
   "admin": {
     "disconnectConfirm": "Disconnect from the remote runtime?",
@@ -2061,7 +2064,12 @@
     "saveFailedDeployCancelled": "✗ Save failed, deploy cancelled: {{reason}}",
     "unknownError": "unknown error",
     "uploadedAs": "✓ Uploaded as \"{{name}}\"",
-    "fillsEmptyCells": "Fills the empty cells of the {{lang}} column. Hand-written translations are left untouched."
+    "fillsEmptyCells": "Fills the empty cells of the {{lang}} column. Hand-written translations are left untouched.",
+    "saveProject": "Save project",
+    "saveProjectHint": "Save the whole project: pages, variables, sources, alarms and every other modified tab (Ctrl+S).",
+    "unsavedInTab": "Unsaved changes in this tab",
+    "tagInAttesa": "{{n}} variables pending, created when the project is saved: {{ids}}",
+    "tagCreati": "{{n}} variables created: {{ids}}"
   },
   "boot": {
     "pngTooLarge": "PNG too large ({{kb}} KB, max 5120 KB): it was not uploaded",
@@ -2122,5 +2130,12 @@
     "posPh": "pos.",
     "posTitle": "Position among the visible entries (1 = first)",
     "hideTitle": "Hide from this navigator"
+  },
+  "quickTag": {
+    "intro": "The definition is kept pending and created when the project is saved.",
+    "exists": "A variable with this id already exists.",
+    "unit": "Unit",
+    "history": "Record in history",
+    "create": "Define"
   }
 }

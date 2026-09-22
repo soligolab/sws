@@ -11,6 +11,25 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Changed
+- **Un solo «Salva», quello del progetto** (decisione del maintainer, 22-09-2026: «non ha senso distinguere i salvataggi della UI, delle variabili, delle sorgenti»). Le nove
+  schede di Configurazione che scrivono contenuto del progetto — Variabili, Sorgenti, Allarmi, Notifiche, Storico, Script globali, Lingue, Faceplate, Ricette — non hanno più
+  un pulsante e un PUT propri: registrano la loro bozza fra le sezioni pendenti e il pulsante, uguale ovunque («Salva progetto»), chiama `saveAll()`, che le scrive in serie
+  (Q30) e poi le pagine. Prima tre schede (Sorgenti, Script, Lingue) non partecipavano a Ctrl+S e le variabili in attesa della scheda Sorgenti **si perdevano cambiando
+  scheda**; Faceplate e Ricette salvavano ogni voce da sole. Restano azioni proprie ciò che non è contenuto del progetto: utenti, TLS, IA/traduttore, dispositivi, backup,
+  runtime (sono un «applica sull'istanza», non un salvataggio). La creazione di una ricetta nuova (`+`) scrive subito il file, come prima.
+  **Le bozze sopravvivono alla navigazione**: le nove schede restano montate (nascoste) una volta viste, e così la Configurazione intera quando si passa
+  all'editor (`Tenuta`). Prima una sorgente aggiunta e non salvata **spariva cambiando scheda**, insieme alla sua registrazione fra le sezioni pendenti
+  (segnalato dal maintainer al primo collaudo).
+- **Tag: creazione al salvataggio** (Fase 0b del piano `docs/plans/2026-09-21-gestione-tag-oggetto-unico.md`). Al salvataggio del progetto **ogni id referenziato e non
+  dichiarato viene creato**: da pagine (compresi i figli dei faceplate), sorgenti, allarmi, espressioni e script globali. La definizione è quella messa in attesa da «+var»,
+  dal modale rapido o dai wizard, se c'è e se l'id è ancora referenziato; altrimenti il tipo si deduce dalla mappatura (S7, EtherNet/IP, Host) o dal primo oggetto che lo usa
+  (led/checkbox/radio → bool, text_list/state_lamp → int, altrimenti float), con storico spento. Un PUT solo, dopo il flush delle bozze e prima delle pagine; nessun
+  dialogo, il riepilogo («N variabili create») compare nel pulsante ☰ e nella barra della scheda. Le cinque strade di creazione convergono nello store (`tagInAttesa`);
+  `TagInput` mostra lo stato dell'id (＋ tratteggiato = non dichiarato, si crea al salvataggio, clic per definirlo ora; ⏳ = definizione in attesa) e il modale rapido, ora in
+  `components/QuickCreateTagModal.tsx`, ha unità, storico, tipo precompilato e controllo dei doppioni. I «+var» di S7 ed EtherNet/IP usano il tipo della riga invece di
+  scrivere sempre `float`. Regola pura in `sws-editor/src/tag/riconciliaTag.ts`, test in `tests/riconciliaTag.test.ts` e `tests/saveAllRiconcilia.test.ts`.
+
 ### Fixed
 - **Tag: registro unico dei riferimenti scalari, validazione estesa alle collezioni** (Fase 0a del piano `docs/plans/2026-09-21-gestione-tag-oggetto-unico.md`, 22-09-2026). `CAMPI_TAG` (validato lato server) e `TAG_FIELDS` (sottoscritto lato client) erano due elenchi a mano divergenti da tempo: `motion_tag`, `pipe_flow_tag`, `symbol_spin_tag` e `gauge_sp_tag` erano validati e mai sottoscritti — l'oggetto riceveva lo snapshot iniziale del tag e poi si congelava, senza errore. Ora sono allineati, e una guardia nuova (`check_tag_refs.sh`, 25ª) li tiene tali. La validazione server-side guardava solo i campi stringa di primo livello: un tag inesistente in `trend_tags`/`xy_series`/`table_rows`/`bar_series`/`pie_slices`, in un `bindings`, nel `visible_tag` di una cella o dentro una sotto-cella di griglia (`sub.a`/`sub.b`, ricorsiva) non produceva nessun rilievo — ora sì (verificato senza falsi positivi sugli 11 template reali). La ricerca «dove è usato questo tag» (`tagUsage.ts`) catturava solo `tags["..."]` con apici doppi: gli script reali (`demo-items-web/lvgl`) scrivono `tags.write("id", v)`/`tags.read("id")` e alcune espressioni (`homeassistant-demo`, `enip-demo`) usano apici singoli — nessuno dei due risultava usare alcun tag.
 
