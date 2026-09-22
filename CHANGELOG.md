@@ -11,6 +11,9 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Fixed
+- **Tag: registro unico dei riferimenti scalari, validazione estesa alle collezioni** (Fase 0a del piano `docs/plans/2026-09-21-gestione-tag-oggetto-unico.md`, 22-09-2026). `CAMPI_TAG` (validato lato server) e `TAG_FIELDS` (sottoscritto lato client) erano due elenchi a mano divergenti da tempo: `motion_tag`, `pipe_flow_tag`, `symbol_spin_tag` e `gauge_sp_tag` erano validati e mai sottoscritti — l'oggetto riceveva lo snapshot iniziale del tag e poi si congelava, senza errore. Ora sono allineati, e una guardia nuova (`check_tag_refs.sh`, 25ª) li tiene tali. La validazione server-side guardava solo i campi stringa di primo livello: un tag inesistente in `trend_tags`/`xy_series`/`table_rows`/`bar_series`/`pie_slices`, in un `bindings`, nel `visible_tag` di una cella o dentro una sotto-cella di griglia (`sub.a`/`sub.b`, ricorsiva) non produceva nessun rilievo — ora sì (verificato senza falsi positivi sugli 11 template reali). La ricerca «dove è usato questo tag» (`tagUsage.ts`) catturava solo `tags["..."]` con apici doppi: gli script reali (`demo-items-web/lvgl`) scrivono `tags.write("id", v)`/`tags.read("id")` e alcune espressioni (`homeassistant-demo`, `enip-demo`) usano apici singoli — nessuno dei due risultava usare alcun tag.
+
 ## [2.11.1] — 2026-09-21
 
 > **Colori coerenti e sorgente Host dal dispositivo.** Un oggetto piazzato mostra lo stesso colore su canvas, pannello proprietà e pannello LVGL (tabella unica,

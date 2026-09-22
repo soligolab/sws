@@ -74,7 +74,17 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — R1 e R2 (colori) su `main`, prossimo container 2.11.1 (2026-09-21, ufficio)
+## ▶ Riprendere da qui — piano approfondito sui tag, Fase 0a chiusa (2026-09-22)
+
+**Sessione di plan approfondita sui tag** (chiede il seme del 21-09): tre esplorazioni (editor, runtime core, plugin) e quattro decisioni del maintainer — valori composti **nativi**, strutture come **tipi riusabili + istanze**, **prima l'oggetto unico poi strutture/array**, priorità **Modbus e OPC-UA**. Il piano sostituisce il seme: `docs/plans/2026-09-21-gestione-tag-oggetto-unico.md`, otto fasi (0a-0d, 1-4), un ramo alla volta. S7/EtherNet-IP/MQTT/HA/Host restano in coda, non pianificati nel dettaglio. Difetti trovati durante l'esplorazione, da trattare a parte: Modbus (segno, doppia scala), OPC-UA (scala non applicata alle sottoscrizioni, `Float(0.0)` inventato per array/strutture), HomeAssistant (attributi lista/dict scartati in silenzio), **Sparkplug B con i numeri di campo del protobuf probabilmente sbagliati** (da verificare sul `.proto` ufficiale prima di costruirci sopra).
+
+**Fase 0a chiusa e mergiata** (`b2d01098`): registro unico dei riferimenti scalari ai tag. `CAMPI_TAG` (validate.rs) e `TAG_FIELDS` (collectTagIds.ts) divergevano da tempo — `motion_tag`/`pipe_flow_tag`/`symbol_spin_tag`/`gauge_sp_tag` erano validati lato server e mai sottoscritti lato client, l'oggetto si congelava senza errore. Allineati, guardia nuova `check_tag_refs.sh` (25ª). Validazione server estesa alle collezioni mai coperte prima (trend_tags/xy_series/table_rows/bar_series/pie_slices, bindings, celle e sotto-celle di griglia) — verificato senza falsi positivi sui template reali. `tagUsage.ts` («dove è usato»): la regex vedeva solo apici doppi su `tags["..."]`; gli script veri usano `tags.read()`/`tags.write()` e alcuni template apici singoli — corretto. Dettaglio: `CHANGELOG.md`.
+
+**Correzione al piano, emersa lavorando**: il piano assumeva una fonte già generata in `synoptic_schema.rs` per il registro dei campi-tag; non esiste (solo due campi hanno quel raggruppamento). Il registro resta i due elenchi a mano più la guardia, non una generazione condivisa.
+
+**Prossimo passo**: Fase 0b (creazione dei tag al salvataggio) del piano tag, oppure il Passo 2 (segreti di progetto) della sessione di stabilizzazione — le cinque conferme sono ancora aperte. Container 2.11.1 da compilare e pubblicare (bump già fatto, non ancora installato su un dispositivo).
+
+## Riprendere da qui (precedente) — R1 e R2 (colori) su `main`, prossimo container 2.11.1 (2026-09-21, ufficio)
 
 **Fatto oggi, su `main`** (piano archiviato `docs/archive/2026-09-21-colori-e-pannello-destro.md`):
 - **R1**: pannello destro sul **gruppo affine** al tipo; tutte le sezioni pieghevoli nascono aperte.
