@@ -38,6 +38,7 @@ import { LinguaContenutiProvider } from "@/i18n/linguaContenuti";
 import { TEXT_FIELDS } from "@/i18n/projectI18n";
 import { NavigatorProperties } from "./NavigatorProperties";
 import { CampoTestoTradotto } from "@/editor/CampoTestoTradotto";
+import { CampoFormato } from "@/components/CampoFormato";
 import type { AlignMode } from "@/store";
 import type { AlarmSeverity, ButtonAction, FunctionDef, GridCell, PageLayoutConfig, PageSizeMode, ProjectTargetKind, RadioOption, SubCellEntry, SubGrid, SynopticObject, TableRow, TextListEntry, TrendTrace, XySeries } from "@/types";
 import { eBoot, paginePerNavigazione } from "@/boot/tipi";
@@ -2258,13 +2259,17 @@ function CrossTypeProps({
     />
   );
 
-  const textInput = (k: keyof SynopticObject, placeholder?: string) => (
-    <input
-      type="text"
+  /** I valori vivi dei tag: servono all'anteprima del formato. */
+  const valoriTag = useAppStore((st) => st.tagValues);
+
+  /** Il campo «Formato» col suo elenco (▾) e l'anteprima sul valore vero. */
+  const formatInput = (placeholder?: string) => (
+    <CampoFormato
       style={INPUT}
-      placeholder={isMixed(k) ? "(vari)" : placeholder}
-      value={isMixed(k) ? "" : ((mergedProps[k] as string) ?? "")}
-      onChange={(e) => onChange({ [k]: e.target.value } as Partial<SynopticObject>)}
+      placeholder={isMixed("format") ? "(vari)" : placeholder}
+      value={isMixed("format") ? "" : ((mergedProps.format as string) ?? "")}
+      statoTag={mergedProps.tag ? valoriTag[mergedProps.tag as string] : undefined}
+      onChange={(v) => onChange({ format: v || undefined })}
     />
   );
 
@@ -2351,7 +2356,7 @@ function CrossTypeProps({
 
       <SottoTitolo chiave="sectionData" />
       {field(t("props.tag"), tagInput("tag", "tag.id…"))}
-      {field(t("props.format"), textInput("format", "{value}"))}
+      {field(t("props.format"), formatInput("{value}"))}
 
       <SottoTitolo chiave="qualityIndicator" />
       <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--brand-text-2, #cbd5e1)", cursor: "pointer" }}>
@@ -2468,7 +2473,7 @@ export function ObjectProps({
   // La selezione multipla è esclusa: scrivere un testo per N oggetti creerebbe
   // una chiave sola condivisa senza che nessuno l'abbia chiesto, e «(vari)» non
   // è un testo da mettere in tabella.
-  const textInput = (key: keyof SynopticObject, placeholder?: string) => {
+  const textInput = (key: keyof SynopticObject, placeholder?: string, title?: string) => {
     if (TEXT_FIELDS.includes(key) && !mixedKeys.has(key)) {
       return (
         <CampoTestoTradotto
@@ -2484,11 +2489,26 @@ export function ObjectProps({
         type="text"
         style={INPUT}
         placeholder={mixedKeys.has(key) ? "(vari)" : placeholder}
+        title={title}
         value={mixedKeys.has(key) ? "" : ((obj[key] as string) ?? "")}
         onChange={(e) => onChange({ [key]: e.target.value } as Partial<SynopticObject>)}
       />
     );
   };
+
+  /** I valori vivi dei tag: servono all'anteprima del formato. */
+  const valoriTag = useAppStore((st) => st.tagValues);
+
+  /** Il campo «Formato» col suo elenco (▾) e l'anteprima sul valore vero. */
+  const formatInput = (placeholder?: string) => (
+    <CampoFormato
+      style={INPUT}
+      placeholder={mixedKeys.has("format") ? "(vari)" : placeholder}
+      value={mixedKeys.has("format") ? "" : (obj.format ?? "")}
+      statoTag={obj.tag ? valoriTag[obj.tag] : undefined}
+      onChange={(v) => onChange({ format: v || undefined })}
+    />
+  );
 
   const tagInput = (placeholder?: string) => (
     <TagInput
@@ -2929,7 +2949,7 @@ export function ObjectProps({
                       onChange={(e) => onChange({ text: e.target.value || undefined })}
                     />)
                 : field(t("props.textStatic"), <BindableInput obj={obj} propName="text" onChange={onChange}>{textInput("text", "Es. Temperatura caldaia")}</BindableInput>)}
-              {field(t("props.formatBound"), <BindableInput obj={obj} propName="format" onChange={onChange}>{textInput("format", "{value:.1f} °C")}</BindableInput>)}
+              {field(t("props.formatBound"), <BindableInput obj={obj} propName="format" onChange={onChange}>{formatInput("{value:.1f} °C")}</BindableInput>)}
               <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 4px" }}>
                 {t("shell.formatWinsPre")} <code>{"{value}"}</code>{t("shell.formatWinsPost")}
               </p>

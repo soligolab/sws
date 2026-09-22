@@ -28,3 +28,23 @@ describe("formatValue — la stessa tabella di casi del viewer LVGL", () => {
     });
   }
 });
+
+/** I casi che la fixture condivisa non può portare: la legge un test Rust che
+ *  dichiara `valore: f64`, quindi i valori non numerici stanno solo qui. */
+describe("formatValue — valori non numerici e formati storti", () => {
+  it("una stringa prende il posto del segnaposto, e il testo attorno resta", () => {
+    expect(formatValue("n/d", "{value:hms}")).toBe("n/d");
+    expect(formatValue("n/d", "{value:.2f} bar")).toBe("n/d bar");
+    expect(formatValue(true, "{value:datetime}")).toBe("true");
+  });
+
+  it("un formato che non si capisce non butta via la frase", () => {
+    expect(formatValue(12.3, "Livello {value:xyz}")).toBe("Livello {value:xyz}");
+    expect(formatValue(12.3, "Livello {value}")).toBe("Livello 12.3");
+  });
+
+  it("un numero non finito si mostra com'è, senza inventare un orario", () => {
+    expect(formatValue(Number.POSITIVE_INFINITY, "{value:hms}")).toBe("Infinity");
+    expect(formatValue(Number.NaN, "{value:datetime}")).toBe("NaN");
+  });
+});

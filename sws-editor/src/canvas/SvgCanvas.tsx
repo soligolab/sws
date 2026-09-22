@@ -427,10 +427,57 @@ function matchTextListEntry(
  *   - `{value}` nudo dentro una frase («Livello {value}») subiva lo stesso
  *     ripiego e perdeva la frase.
  *
+ *  Dal 22-09-2026 la specifica conosce anche **durate** e **istanti**:
+ *  `{value:hms}`, `{value:hm}` e `{value:dhms}` su un numero di **secondi**;
+ *  `{value:date}`, `{value:time}` e `{value:datetime}` su **millisecondi
+ *  dall'epoca** (il tipo `datetime`), in UTC. Prima l'uptime di un dispositivo
+ *  arrivava come 19339477 e non c'era modo di leggerlo.
+ *
  *  I casi stanno in `tests/fixtures/formattazione-valori.json`, letti anche dal
  *  test Rust del viewer LVGL: i due motori disegnano gli stessi progetti, e due
  *  tabelle di casi separate divergerebbero in silenzio. */
-const SPEC_VALORE = /\{value(?::(\+)?(,)?(?:\.(\d+))?([fe%])?)?\}/g;
+const SPEC_VALORE =
+  /\{value(?::(datetime|dhms|date|time|hms|hm)|:(\+)?(,)?(?:\.(\d+))?([fe%])?)?\}/g;
+
+/** Una durata in **secondi** come `H:MM:SS`, `H:MM` o `Nd HH:MM:SS`.
+ *
+ *  Le ore non si azzerano a 24: l'uptime di un dispositivo acceso da mesi si
+ *  legge `5372:04:37` con `hms` e `223d 20:04:37` con `dhms` — chi vuole i
+ *  giorni li chiede. I decimi si troncano: un secondo arrotondato per eccesso
+ *  farebbe comparire `0:01:00` mezzo secondo prima del minuto. */
+function formattaDurata(secondi: number, spec: "hms" | "hm" | "dhms"): string {
+  if (!Number.isFinite(secondi)) return String(secondi);
+  const segno = secondi < 0 ? "-" : "";
+  const tot = Math.trunc(Math.abs(secondi));
+  const s = tot % 60;
+  const m = Math.trunc(tot / 60) % 60;
+  const due = (n: number) => String(n).padStart(2, "0");
+  if (spec === "dhms") {
+    const g = Math.trunc(tot / 86400);
+    const h = Math.trunc(tot / 3600) % 24;
+    const orario = `${due(h)}:${due(m)}:${due(s)}`;
+    return segno + (g > 0 ? `${g}d ${orario}` : orario);
+  }
+  const h = Math.trunc(tot / 3600);
+  return spec === "hm" ? `${segno}${h}:${due(m)}` : `${segno}${h}:${due(m)}:${due(s)}`;
+}
+
+/** Un istante in **millisecondi dall'epoca** (il tipo `datetime`) come data,
+ *  ora o entrambe, **in UTC**.
+ *
+ *  UTC perché è UTC: il pannello LVGL non linka una libreria di fusi orari, e
+ *  mostrare un'ora locale nel browser e una UTC sul vetro sarebbe la stessa
+ *  divergenza che i casi condivisi di questa fixture esistono per impedire.
+ *  È anche il fuso con cui lo storico è registrato (vedi `ora_utc`). */
+function formattaIstante(ms: number, spec: "date" | "time" | "datetime"): string {
+  if (!Number.isFinite(ms)) return String(ms);
+  const iso = new Date(Math.trunc(ms)).toISOString(); // 2026-09-22T11:04:39.000Z
+  const data = iso.slice(0, 10);
+  const ora = iso.slice(11, 19);
+  if (spec === "date") return data;
+  if (spec === "time") return ora;
+  return `${data} ${ora}`;
+}
 
 export function formatValue(value: number | string | boolean, format?: string): string {
   if (!format) return String(value);
@@ -438,8 +485,12 @@ export function formatValue(value: number | string | boolean, format?: string): 
   // proprio stato, e se il segnaposto non c'è restituisce la stringa
   // intatta — che è anche il comportamento giusto («solo testo» resta testo,
   // invece di diventare un numero che nessuno ha chiesto).
-  return format.replace(SPEC_VALORE, (_intero, segno, migliaia, decimali, tipo) => {
+  return format.replace(SPEC_VALORE, (_intero, tempo, segno, migliaia, decimali, tipo) => {
     if (typeof value !== "number") return String(value);
+    // Durate e istanti (22-09-2026): l'uptime di un dispositivo arrivava come
+    // 19339477 e non c'era modo di leggerlo in ore e minuti.
+    if (tempo === "hms" || tempo === "hm" || tempo === "dhms") return formattaDurata(value, tempo);
+    if (tempo === "date" || tempo === "time" || tempo === "datetime") return formattaIstante(value, tempo);
     const d = decimali == null ? undefined : Number(decimali);
     let s: string;
     if (tipo === "e") s = value.toExponential(d);

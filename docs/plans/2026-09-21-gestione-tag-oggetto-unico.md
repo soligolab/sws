@@ -8,7 +8,7 @@
 > - **D6 — qualità e timestamp per foglia, decisa (22-09-2026, seconda revisione).** Radice = la peggiore delle foglie. Vedi §Fase 1.
 > - **D7 — `datetime` = intero, millisecondi UTC dall'epoca, decisa.** Stesso formato di `timestamp_ms`; storico Postgres numerico; formattazione leggibile in Fase 2 nella fixture condivisa.
 > - **D8 — array a più dimensioni ammessi in Fase 1, decisa** (`matrice[2][3]`): la grammatica dei percorsi accetta `[i][j]…`; il layout di registri si deriva in ordine row-major.
-> - **D9 — la Fase 1 si spezza in quattro rami in sequenza, decisa**: 1a tipi scalari ricchi → 1b modello composito e TagDb → 1c scrittura e filo → 1d storico, allarmi, Python.
+> - **D9 — la Fase 1 si spezza in rami in sequenza, decisa**: 1a tipi scalari ricchi → 1b modello composito e TagDb → **1c formati di durata e data (D10, aggiunto il 22-09)** → 1d scrittura e filo → 1e storico, allarmi, Python.
 > - **Qualità per foglia — proposta, da confermare.** *(superata da D6)* Con la mappatura a foglia (`motore1.velocita` da un registro, `motore1.marcia` da un altro) una qualità solo sulla radice o nasconde il guasto o marca Bad anche ciò che è arrivato. Proposta: qualità e timestamp **per foglia**, radice = la peggiore delle foglie; sul filo le foglie viaggiano già così.
 > - **Array a lunghezza dichiarata — proposta, da confermare.** OPC-UA (dimensione 0 = variabile) e MQTT (array JSON) possono rispondere con lunghezze diverse; Modbus no. Proposta: lunghezza nel tipo; elementi in più scartati; elementi mancanti al valore precedente con qualità Uncertain, avviso nel registro una volta sola. La forma in memoria non cambia a runtime.
 > - **Storico sulla radice — proposta del maintainer, da formalizzare.** L'interruttore dello storico sta sulla **radice**: acceso = tutte le foglie registrate, ognuna come serie con il suo id di percorso; deadband e intervallo minimo dal tipo, per membro; il **tipo** può escludere un membro dallo storico (vale per tutte le istanze).
@@ -140,7 +140,20 @@ tokenizer delle espressioni dell'editor che accetta già `{valvole[3].stato}`; `
 - Rosso prima: `percorso.rs` (parse/leggi/scrivi, multi-dimensione), `TagDb` (esatto prima, prefisso, read-modify-write, qualità per foglia), validazione
   (cicli, collisioni), `template_tests` invariata, `check_synoptic_schema` rigenerato.
 
-### 1c — Scrittura e filo  `feat/tag-1c-scrittura-e-filo`
+### 1c — Formati di durata e data (D10)  `feat/tag-1c-formati-durata-data`  *(sul ramo dal 22-09-2026, da collaudare)*
+**D10, decisa dal maintainer il 22-09-2026**, nata da un caso vero: l'uptime della sorgente Host arrivava come `19339477` e non c'era **nessuno strumento** per leggerlo in
+ore e minuti — la specifica dei formati conosceva solo decimali, migliaia, esponenziale e percentuale. Due famiglie nuove nella fixture condivisa
+`tests/fixtures/formattazione-valori.json`, quindi valide su web e pannello insieme:
+- **durate**, su un numero di **secondi**: `{value:hms}` → `5372:04:37` (le ore non si azzerano a 24), `{value:hm}` → `5372:04`, `{value:dhms}` → `223d 20:04:37`. Decimi
+  troncati, non arrotondati; il segno passa davanti.
+- **istanti**, su **millisecondi dall'epoca** (il tipo `datetime` di D7): `{value:date}`, `{value:time}`, `{value:datetime}`, sempre in **UTC** — stessa scelta e stesso
+  motivo di `ora_utc` nel viewer, che non linka una libreria di fusi orari.
+Il campo `format` è documentato nel modello (`synoptic.rs`), quindi l'elenco arriva allo schema generato e all'assistente IA; nel pannello proprietà il campo ha il suo
+**elenco a tendina** (`CampoFormato`) con l'anteprima calcolata sul valore vero del tag, e scegliere una voce sostituisce solo il segnaposto. Un test tiene l'elenco
+allineato alla fixture: ogni formato offerto dev'essere uno che i due motori sanno fare — è così che `{value:,.2f}` ne è uscito (il separatore delle migliaia ha bisogno di
+una lingua, il pannello non ne ha una: divergenza dichiarata, resta scrivibile a mano). **Nota di semantica**: l'uptime è una *durata*, non un *istante* — il tipo giusto è `u64` con unità `s`, non `datetime`.
+
+### 1d — Scrittura e filo  `feat/tag-1d-scrittura-e-filo`
 - `WriteRequest = (TagId radice, Option<Percorso>, TagValue)`; `TagWriteBus::write(id_o_percorso, v)`: percorso intero → prefissi decrescenti → radice;
   senza writer → `db.set` sul percorso. `coerce_for_write` e `scale_to_raw` sul tipo **della foglia**. I tre ingressi (REST 1734, ricette 5366 con
   `json_to_tag_value` che accetta array/oggetto, WS 5739) passano di lì. `PUT /api/tags/:id` accetta un percorso (parentesi quadre codificate: **test**
@@ -150,7 +163,7 @@ tokenizer delle espressioni dell'editor che accetta già `{valvole[3].stato}`; `
   LVGL (`client.rs:611-660`) e l'editor (`TagState.value` scalare) restano invariati. Guardia con stack: un runtime di scarto con `types:` → `GET /api/tags`
   non contiene array/oggetti, il WS senza flag idem, con flag sì.
 
-### 1d — Storico, allarmi, Python, espressioni  `feat/tag-1d-storico-allarmi-python`
+### 1e — Storico, allarmi, Python, espressioni  `feat/tag-1e-storico-allarmi-python`
 - Recorder (`registry.rs:306`): un `TagUpdate` di radice → N campioni di foglia con id di percorso; `TagFilter` per percorso da `Membro.history_deadband`/
   `history_min_interval_ms`; **interruttore `history` sulla radice**, `Membro.history: false` esclude (proposta del maintainer, 22-09). SQLite invariato;
   Postgres riceve solo scalari.

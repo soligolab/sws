@@ -1300,12 +1300,90 @@ fn format_value(v: &TagValue, format: Option<&str>) -> String {
     fuori
 }
 
+/// Una durata in **secondi** come `H:MM:SS`, `H:MM` o `Nd HH:MM:SS`.
+/// Gemella di `formattaDurata` in `SvgCanvas.tsx`, casi condivisi nella
+/// fixture. Le ore non si azzerano a 24: chi vuole i giorni chiede `dhms`.
+/// I decimi si troncano, non si arrotondano.
+fn formatta_durata(secondi: f64, spec: &str) -> String {
+    if !secondi.is_finite() {
+        return tag_value_as_string(&TagValue::Float(secondi));
+    }
+    let segno = if secondi < 0.0 { "-" } else { "" };
+    let tot = secondi.abs().trunc() as u64;
+    let s = tot % 60;
+    let m = (tot / 60) % 60;
+    if spec == "dhms" {
+        let g = tot / 86400;
+        let h = (tot / 3600) % 24;
+        let orario = format!("{h:02}:{m:02}:{s:02}");
+        return if g > 0 {
+            format!("{segno}{g}d {orario}")
+        } else {
+            format!("{segno}{orario}")
+        };
+    }
+    let h = tot / 3600;
+    if spec == "hm" {
+        format!("{segno}{h}:{m:02}")
+    } else {
+        format!("{segno}{h}:{m:02}:{s:02}")
+    }
+}
+
+/// Un istante in **millisecondi dall'epoca** (il tipo `datetime`) come data,
+/// ora o entrambe, **in UTC** — stesso fuso e stesso motivo di `ora_utc`: il
+/// pannello non linka una libreria di fusi orari, e un'ora locale nel browser
+/// contro una UTC sul vetro sarebbe la divergenza che la fixture condivisa
+/// esiste per impedire.
+fn formatta_istante(ms: f64, spec: &str) -> String {
+    if !ms.is_finite() {
+        return tag_value_as_string(&TagValue::Float(ms));
+    }
+    let ms = ms.trunc() as i64;
+    // Divisione euclidea: prima dell'epoca il resto deve restare positivo,
+    // altrimenti `-1 ms` darebbe un orario negativo invece del 31 dicembre.
+    let giorni = ms.div_euclid(86_400_000);
+    let dentro = ms.rem_euclid(86_400_000) / 1000;
+    let (h, m, s) = (dentro / 3600, (dentro / 60) % 60, dentro % 60);
+    let (anno, mese, giorno) = civile_da_giorni(giorni);
+    match spec {
+        "date" => format!("{anno:04}-{mese:02}-{giorno:02}"),
+        "time" => format!("{h:02}:{m:02}:{s:02}"),
+        _ => format!("{anno:04}-{mese:02}-{giorno:02} {h:02}:{m:02}:{s:02}"),
+    }
+}
+
+/// Giorni dall'epoca → (anno, mese, giorno) nel calendario gregoriano
+/// proplettico. Algoritmo `civil_from_days` di Howard Hinnant: aritmetica
+/// intera, nessuna dipendenza — il viewer non linka una libreria di date, e
+/// per sei righe non vale la pena cominciare.
+fn civile_da_giorni(z: i64) -> (i64, u32, u32) {
+    let z = z + 719_468;
+    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146_096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = (doy - (153 * mp + 2) / 5 + 1) as u32;
+    let m = (if mp < 10 { mp + 3 } else { mp - 9 }) as u32;
+    (if m <= 2 { y + 1 } else { y }, m, d)
+}
+
 /// La specifica dopo `{value`, compreso il `:` iniziale: `""`, `":.2f"`,
 /// `":+.2f"`, `":,.1f"`, `":.2e"`, `":.1%"`. Una specifica che non si capisce
 /// vale come specifica assente — meglio un numero grezzo dentro la frase giusta
 /// che la frase persa.
 fn formatta_spec(valore: f64, spec: &str) -> String {
     let spec = spec.strip_prefix(':').unwrap_or("");
+    // Durate e istanti (22-09-2026): l'uptime di un dispositivo arrivava come
+    // 19339477 e non c'era modo di leggerlo in ore e minuti. `hms`/`hm`/`dhms`
+    // prendono SECONDI, `date`/`time`/`datetime` MILLISECONDI dall'epoca.
+    match spec {
+        "hms" | "hm" | "dhms" => return formatta_durata(valore, spec),
+        "date" | "time" | "datetime" => return formatta_istante(valore, spec),
+        _ => {}
+    }
     let (segno, spec) = match spec.strip_prefix('+') {
         Some(r) => (true, r),
         None => (false, spec),

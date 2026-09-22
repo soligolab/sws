@@ -12,6 +12,20 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Added
+- **Formati di durata e di data** (Fase 1c del piano tag, D10, 22-09-2026), nati da un caso vero: l'uptime della sorgente Host arrivava come `19339477` e non c'era **nessuno
+  strumento** per leggerlo — la specifica conosceva solo decimali, migliaia, esponenziale e percentuale. Ora, su web e pannello insieme (i casi stanno nella fixture condivisa
+  `tests/fixtures/formattazione-valori.json`, letta dai due motori): **durate** su un numero di **secondi** — `{value:hms}` → `5372:04:37` (le ore non si azzerano a 24),
+  `{value:hm}`, `{value:dhms}` → `223d 20:04:37`, con i decimi troncati e il segno davanti; **istanti** su **millisecondi dall'epoca** (il tipo `datetime`) — `{value:date}`,
+  `{value:time}`, `{value:datetime}`, sempre in **UTC**, come già `ora_utc` nel viewer, che non linka una libreria di fusi orari. Il campo `format` è ora documentato nel
+  modello, quindi l'elenco completo arriva allo schema generato e all'assistente IA. Nota di semantica: l'uptime è una **durata**, non un istante — il tipo giusto è `u64`
+  con unità `s`, non `datetime`.
+- **Il campo «Formato» ha il suo elenco, con l'anteprima sul valore vero** (richiesta del maintainer, 22-09-2026: «esiste un template accessibile dal campo di input?»; non
+  esisteva). Un `▾` accanto al campo — lo stesso controllo del selettore delle variabili — apre i formati pronti raggruppati in numeri, durate e istanti, e accanto a
+  ognuno il risultato calcolato **sul valore attuale del tag** dell'oggetto, o su un valore d'esempio se il tag non ne ha ancora uno. Scegliendo una voce si sostituisce
+  **solo il segnaposto**: `{value:.1f} bar` con la durata diventa `{value:dhms} bar`, perché l'unità scritta a mano è la cosa che costa di più riscrivere. Un test tiene
+  l'elenco allineato alla fixture condivisa: **ogni formato offerto dev'essere uno che i due motori sanno fare**, ed è così che `{value:,.2f}` è uscito dall'elenco — il
+  separatore delle migliaia ha bisogno di una lingua, il pannello non ne ha una, e offrirlo prometteva qualcosa che sul vetro non succede (resta scrivibile a mano).
+  L'elenco è largo quanto il campo e va a capo quando il pannello è stretto: ancorato a destra con una larghezza minima debordava a sinistra e si vedeva mozzato.
 - **Modello composito nel core: strutture e array come cittadini di prima classe** (Fase 1b del piano `docs/plans/2026-09-21-gestione-tag-oggetto-unico.md`, 22-09-2026).
   `TagValue` guadagna `Array` e `Struct` (serde untagged: JSON nativo, nessun cambio di rotta); il progetto guadagna una sezione **`types:`** con i tipi struttura riusabili
   (membri con tipo scalare o `type_ref`, array anche **a più dimensioni** (D8), unità, scala, limiti, ruolo di scrittura, storico per membro) e `TagDef` guadagna `type_ref` e

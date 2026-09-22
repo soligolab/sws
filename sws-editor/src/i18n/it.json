@@ -621,6 +621,15 @@
     "fontSize": "Font size",
     "format": "Formato",
     "formatBound": "Formato (se bound)",
+    "formatHint": "Il segnaposto è {value} e il testo attorno resta. Numeri: {value:.2f}, {value:+.1f}, {value:,.2f}, {value:.2e}, {value:.1%}. Durate (secondi): {value:hms} → 5372:04:37, {value:hm}, {value:dhms} → 223d 20:04:37. Istanti (millisecondi dall'epoca, tipo datetime): {value:date}, {value:time}, {value:datetime} — in UTC.",
+    "formatPick": "Formati pronti",
+    "formatPreviewLive": "Anteprima sul valore attuale del tag",
+    "formatPreviewSample": "Anteprima su un valore d'esempio (il tag non ha ancora un valore)",
+    "formatGroup": {
+      "numeri": "Numeri",
+      "durate": "Durate (secondi)",
+      "istanti": "Data e ora (ms dall'epoca, UTC)"
+    },
     "arrow": "Freccia",
     "barGap": "Gap barre (0-0.9)",
     "yAxisLabel": "Etichetta asse Y",

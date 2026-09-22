@@ -621,6 +621,15 @@
     "fontSize": "Font size",
     "format": "Format",
     "formatBound": "Format (if bound)",
+    "formatHint": "The placeholder is {value} and the surrounding text stays. Numbers: {value:.2f}, {value:+.1f}, {value:,.2f}, {value:.2e}, {value:.1%}. Durations (seconds): {value:hms} → 5372:04:37, {value:hm}, {value:dhms} → 223d 20:04:37. Instants (milliseconds since the epoch, datetime type): {value:date}, {value:time}, {value:datetime} — in UTC.",
+    "formatPick": "Ready-made formats",
+    "formatPreviewLive": "Preview on the tag's current value",
+    "formatPreviewSample": "Preview on a sample value (the tag has no value yet)",
+    "formatGroup": {
+      "numeri": "Numbers",
+      "durate": "Durations (seconds)",
+      "istanti": "Date and time (ms since epoch, UTC)"
+    },
     "arrow": "Arrow",
     "barGap": "Bar gap (0-0.9)",
     "yAxisLabel": "Y axis label",

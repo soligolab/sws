@@ -14,58 +14,220 @@
     "",
     "I casi stanno qui, in un posto solo, e li leggono entrambi i test:",
     "sws-editor/tests/formattazioneValori.test.ts e il modulo",
-    "`formattazione_valori_tests` di lvgl_render.rs."
+    "`formattazione_valori_tests` di lvgl_render.rs.",
+    "",
+    "Dal 22-09-2026 la specifica conosce anche le DURATE e gli ISTANTI, che",
+    "prima non aveva: l'uptime di un dispositivo arrivava come 19339477 e non",
+    "c'era modo di leggerlo in ore e minuti. `hms`, `hm` e `dhms` prendono un",
+    "numero di SECONDI; `date`, `time` e `datetime` prendono i MILLISECONDI",
+    "dall'epoca (il tipo `datetime`) e li rendono in UTC — il pannello non linka",
+    "una libreria di fusi orari, e fingere di conoscerli darebbe orari sbagliati",
+    "di un'ora per metà anno (stessa scelta, e stesso motivo, di `ora_utc`)."
   ],
   "casi": [
-    { "nome": "nessun formato: il valore così com'è",
-      "valore": 12.345, "format": null, "atteso": "12.345" },
-
-    { "nome": "decimali fissi",
-      "valore": 12.345, "format": "{value:.1f}", "atteso": "12.3" },
-
-    { "nome": "zero decimali, arrotondati",
-      "valore": 12.7, "format": "{value:.0f}", "atteso": "13" },
-
-    { "nome": "il testo attorno al segnaposto resta — LVGL lo perdeva",
-      "valore": 12.345, "format": "{value:.1f} bar", "atteso": "12.3 bar" },
-
-    { "nome": "testo prima e dopo",
-      "valore": 4.2, "format": "Pressione: {value:.2f} bar", "atteso": "Pressione: 4.20 bar" },
-
-    { "nome": "unità attaccata, senza spazio",
-      "valore": 21.5, "format": "{value:.1f}°C", "atteso": "21.5°C" },
-
-    { "nome": "segno esplicito, positivo — il web non lo riconosceva",
-      "valore": 2.5, "format": "{value:+.2f} kW", "atteso": "+2.50 kW" },
-
-    { "nome": "segno esplicito, negativo",
-      "valore": -0.75, "format": "{value:+.2f} kW", "atteso": "-0.75 kW" },
-
-    { "nome": "segno esplicito, zero: resta positivo",
-      "valore": 0, "format": "{value:+.1f}", "atteso": "+0.0" },
-
-    { "nome": "percentuale: il valore è una frazione e va moltiplicato",
-      "valore": 0.456, "format": "{value:.1%}", "atteso": "45.6%" },
-
-    { "nome": "esponenziale",
-      "valore": 1234.5, "format": "{value:.2e}", "atteso": "1.23e+3" },
-
-    { "nome": "segnaposto nudo",
-      "valore": 7, "format": "{value}", "atteso": "7" },
-
-    { "nome": "segnaposto nudo dentro una frase: la frase resta",
-      "valore": 7, "format": "Livello {value}", "atteso": "Livello 7" },
-
-    { "nome": "formato senza segnaposto: non è un formato, è testo",
-      "valore": 3, "format": "solo testo", "atteso": "solo testo" },
-
-    { "nome": "il formato printf non è supportato, e si vede: resta com'è",
-      "valore": 3, "format": "%.1f bar", "atteso": "%.1f bar" },
-
-    { "nome": "intero con decimali richiesti",
-      "valore": 5, "format": "{value:.2f}", "atteso": "5.00" },
-
-    { "nome": "due segnaposti: si sostituiscono entrambi",
-      "valore": 1.5, "format": "{value:.1f} di {value:.1f}", "atteso": "1.5 di 1.5" }
+    {
+      "nome": "nessun formato: il valore così com'è",
+      "valore": 12.345,
+      "format": null,
+      "atteso": "12.345"
+    },
+    {
+      "nome": "decimali fissi",
+      "valore": 12.345,
+      "format": "{value:.1f}",
+      "atteso": "12.3"
+    },
+    {
+      "nome": "zero decimali, arrotondati",
+      "valore": 12.7,
+      "format": "{value:.0f}",
+      "atteso": "13"
+    },
+    {
+      "nome": "il testo attorno al segnaposto resta — LVGL lo perdeva",
+      "valore": 12.345,
+      "format": "{value:.1f} bar",
+      "atteso": "12.3 bar"
+    },
+    {
+      "nome": "testo prima e dopo",
+      "valore": 4.2,
+      "format": "Pressione: {value:.2f} bar",
+      "atteso": "Pressione: 4.20 bar"
+    },
+    {
+      "nome": "unità attaccata, senza spazio",
+      "valore": 21.5,
+      "format": "{value:.1f}°C",
+      "atteso": "21.5°C"
+    },
+    {
+      "nome": "segno esplicito, positivo — il web non lo riconosceva",
+      "valore": 2.5,
+      "format": "{value:+.2f} kW",
+      "atteso": "+2.50 kW"
+    },
+    {
+      "nome": "segno esplicito, negativo",
+      "valore": -0.75,
+      "format": "{value:+.2f} kW",
+      "atteso": "-0.75 kW"
+    },
+    {
+      "nome": "segno esplicito, zero: resta positivo",
+      "valore": 0,
+      "format": "{value:+.1f}",
+      "atteso": "+0.0"
+    },
+    {
+      "nome": "percentuale: il valore è una frazione e va moltiplicato",
+      "valore": 0.456,
+      "format": "{value:.1%}",
+      "atteso": "45.6%"
+    },
+    {
+      "nome": "esponenziale",
+      "valore": 1234.5,
+      "format": "{value:.2e}",
+      "atteso": "1.23e+3"
+    },
+    {
+      "nome": "segnaposto nudo",
+      "valore": 7,
+      "format": "{value}",
+      "atteso": "7"
+    },
+    {
+      "nome": "segnaposto nudo dentro una frase: la frase resta",
+      "valore": 7,
+      "format": "Livello {value}",
+      "atteso": "Livello 7"
+    },
+    {
+      "nome": "formato senza segnaposto: non è un formato, è testo",
+      "valore": 3,
+      "format": "solo testo",
+      "atteso": "solo testo"
+    },
+    {
+      "nome": "il formato printf non è supportato, e si vede: resta com'è",
+      "valore": 3,
+      "format": "%.1f bar",
+      "atteso": "%.1f bar"
+    },
+    {
+      "nome": "intero con decimali richiesti",
+      "valore": 5,
+      "format": "{value:.2f}",
+      "atteso": "5.00"
+    },
+    {
+      "nome": "due segnaposti: si sostituiscono entrambi",
+      "valore": 1.5,
+      "format": "{value:.1f} di {value:.1f}",
+      "atteso": "1.5 di 1.5"
+    },
+    {
+      "nome": "durata hms: ore, minuti, secondi",
+      "valore": 72277,
+      "format": "{value:hms}",
+      "atteso": "20:04:37"
+    },
+    {
+      "nome": "durata hms: le ore non si azzerano a 24",
+      "valore": 19339477,
+      "format": "{value:hms}",
+      "atteso": "5372:04:37"
+    },
+    {
+      "nome": "durata hms: meno di un'ora",
+      "valore": 95,
+      "format": "{value:hms}",
+      "atteso": "0:01:35"
+    },
+    {
+      "nome": "durata hms: zero",
+      "valore": 0,
+      "format": "{value:hms}",
+      "atteso": "0:00:00"
+    },
+    {
+      "nome": "durata hms: i decimi si troncano, non si arrotondano",
+      "valore": 59.9,
+      "format": "{value:hms}",
+      "atteso": "0:00:59"
+    },
+    {
+      "nome": "durata hms: negativa",
+      "valore": -95,
+      "format": "{value:hms}",
+      "atteso": "-0:01:35"
+    },
+    {
+      "nome": "durata hm: senza i secondi",
+      "valore": 72277,
+      "format": "{value:hm}",
+      "atteso": "20:04"
+    },
+    {
+      "nome": "durata dhms: i giorni a parte",
+      "valore": 19339477,
+      "format": "{value:dhms}",
+      "atteso": "223d 20:04:37"
+    },
+    {
+      "nome": "durata dhms: sotto il giorno i giorni non compaiono",
+      "valore": 72277,
+      "format": "{value:dhms}",
+      "atteso": "20:04:37"
+    },
+    {
+      "nome": "durata dhms: un giorno esatto",
+      "valore": 86400,
+      "format": "{value:dhms}",
+      "atteso": "1d 00:00:00"
+    },
+    {
+      "nome": "durata: il testo attorno resta",
+      "valore": 72277,
+      "format": "Acceso da {value:dhms}",
+      "atteso": "Acceso da 20:04:37"
+    },
+    {
+      "nome": "istante date: la data UTC",
+      "valore": 1790075079000,
+      "format": "{value:date}",
+      "atteso": "2026-09-22"
+    },
+    {
+      "nome": "istante time: l'ora UTC",
+      "valore": 1790075079000,
+      "format": "{value:time}",
+      "atteso": "11:04:39"
+    },
+    {
+      "nome": "istante datetime: data e ora",
+      "valore": 1790075079000,
+      "format": "{value:datetime}",
+      "atteso": "2026-09-22 11:04:39"
+    },
+    {
+      "nome": "istante: l'epoca",
+      "valore": 0,
+      "format": "{value:datetime}",
+      "atteso": "1970-01-01 00:00:00"
+    },
+    {
+      "nome": "istante: prima dell'epoca",
+      "valore": -86400000,
+      "format": "{value:date}",
+      "atteso": "1969-12-31"
+    },
+    {
+      "nome": "istante: il testo attorno resta",
+      "valore": 1790075079000,
+      "format": "Ultimo dato: {value:time}",
+      "atteso": "Ultimo dato: 11:04:39"
+    }
   ]
 }

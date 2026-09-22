@@ -38,7 +38,7 @@ pub const OBJECT_FIELDS: &[Field] = &[
     Field { name: "x2", ty: "number", required: false, group: "Line endpoint", doc: "" },
     Field { name: "y2", ty: "number", required: false, group: "Line endpoint", doc: "" },
     Field { name: "tag", ty: "string", required: false, group: "Tag binding", doc: "" },
-    Field { name: "format", ty: "string", required: false, group: "Tag binding", doc: "" },
+    Field { name: "format", ty: "string", required: false, group: "Tag binding", doc: "Come si legge il valore del tag. Il segnaposto è `{value}`, e il testo attorno resta: `\"{value:.1f} bar\"` → `12.3 bar`.  Numeri: `{value:.2f}` decimali fissi, `{value:+.1f}` col segno, `{value:,.2f}` con le migliaia, `{value:.2e}` esponenziale, `{value:.1%}` percentuale.  Durate, su un numero di **secondi**: `{value:hms}` → `5372:04:37` (le ore non si azzerano a 24), `{value:hm}` → `5372:04`, `{value:dhms}` → `223d 20:04:37`.  Istanti, su **millisecondi dall'epoca** (il tipo `datetime`): `{value:date}` → `2026-09-22`, `{value:time}` → `11:04:39`, `{value:datetime}` → entrambi. Sempre in **UTC**: il pannello non linka una libreria di fusi orari." },
     Field { name: "label", ty: "string", required: false, group: "Text / label", doc: "" },
     Field { name: "src", ty: "string", required: false, group: "Text / label", doc: "" },
     Field { name: "write_value", ty: "any", required: false, group: "Control write", doc: "" },
