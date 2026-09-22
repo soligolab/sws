@@ -16,7 +16,11 @@ import type { FaceplateDef, GridCell, SubCellEntry, SynopticObject } from "@/typ
 import { substituteFaceplateParams } from "@/canvas/SvgCanvas";
 import { extractDeps } from "@/expr/engine";
 
-/** Campi scalari il cui valore è direttamente un tag id. */
+/** Campi scalari il cui valore è direttamente un tag id. Specchio di
+ *  `CAMPI_TAG` in `sws-web/src/validate.rs` — i due elenchi divergevano
+ *  (`motion_tag`, `pipe_flow_tag`, `symbol_spin_tag`, `gauge_sp_tag` mancavano
+ *  qui): un oggetto legato a uno di quei campi riceveva lo snapshot iniziale e
+ *  poi si congelava, in silenzio. `check_tag_refs.sh` tiene i due allineati. */
 const TAG_FIELDS = [
   "tag",
   "visible_tag",
@@ -27,6 +31,10 @@ const TAG_FIELDS = [
   "y_tag",
   "pie_center_tag",
   "blink_tag",
+  "motion_tag",
+  "pipe_flow_tag",
+  "symbol_spin_tag",
+  "gauge_sp_tag",
 ] as const;
 
 function addIf(ids: Set<string>, v: unknown): void {

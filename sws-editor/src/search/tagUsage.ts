@@ -30,8 +30,15 @@ export interface TagUsageInput {
   globalScripts?: GlobalScriptDef[];
 }
 
-/** Riferimenti a `tags["..."]` dentro espressioni e script. */
-const EXPR_RE = /tags\["([^"]+)"\]/g;
+/** Riferimenti a `tags["..."]`/`tags['...']` (espressioni) e a
+ *  `tags.read("...")`/`tags.write('...', …)` (script, l'API vera esposta agli
+ *  script: `TagApi::read`/`write` in `sws-pyscript/src/lib.rs`, non un
+ *  `__getitem__`). Prima catturava solo apici doppi sull'indicizzazione: gli
+ *  script reali dei template (`demo-items-web/lvgl`) e le espressioni con
+ *  apici singoli (`homeassistant-demo`, `enip-demo`) non risultavano usare
+ *  nessun tag. Solo letterali fra apici: una variabile (`tags.read(tag)`) non
+ *  combacia, e va bene — cercarla per sottostringa darebbe falsi positivi. */
+const EXPR_RE = /tags\[(['"])([^'"]+)\1\]|tags\.(?:read|write)\(\s*(['"])([^'"]+)\3/g;
 
 /** Costruisce la mappa tagId → elenco dei punti che lo usano. */
 export function buildTagUsage({
@@ -58,12 +65,12 @@ export function buildTagUsage({
   for (const td of tags) {
     if (!td.expression) continue;
     for (const mm of td.expression.matchAll(EXPR_RE)) {
-      add(mm[1], { where: `espressione di "${td.id}"` });
+      add(mm[2] ?? mm[4] ?? "", { where: `espressione di "${td.id}"` });
     }
   }
   for (const gs of globalScripts) {
     for (const mm of gs.code.matchAll(EXPR_RE)) {
-      add(mm[1], { where: `script "${gs.id}"` });
+      add(mm[2] ?? mm[4] ?? "", { where: `script "${gs.id}"` });
     }
   }
   return m;

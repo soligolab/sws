@@ -51,6 +51,7 @@ STATICHE=(
     check_i18n_ui           # l'interfaccia dell'IDE parla dal catalogo: italiano cablato per file, tetti che scendono
     check_testi_sistema     # «Ora», «sì», «N/D»: una tabella, e le due implementazioni la contengono parola per parola
     check_colori            # i colori predefiniti sono una tabella sola: creazione, pannello e template senza var(--), swatch sempre hex
+    check_tag_refs          # i campi-tag scalari di un oggetto: la stessa lista in Rust e in TS
 )
 
 # Vogliono uno stack in ascolto, podman o un dispositivo: a mano, non qui.

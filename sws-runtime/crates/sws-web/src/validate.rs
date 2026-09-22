@@ -109,6 +109,29 @@ fn e_segnaposto(s: &str) -> bool {
     s.contains('{')
 }
 
+/// Vero se `id` non è un problema: vuoto (campo non usato), un segnaposto di
+/// faceplate, o un tag che esiste davvero. Fattorizzato per i controlli 0a
+/// sotto — le collezioni, i binding e le celle di griglia ripetono lo stesso
+/// giudizio di `CAMPI_TAG` sopra, un livello più in profondità.
+fn tag_riferimento_valido(id: &str, tags: &HashMap<&str, &sws_core::TagDef>) -> bool {
+    id.is_empty() || e_segnaposto(id) || tags.contains_key(id)
+}
+
+/// Campi "a collezione" con riferimenti a tag: nome del campo (un array
+/// JSON) → le chiavi che, dentro ogni elemento, portano un id di tag. Stesso
+/// spirito di `CAMPI_TAG`, un livello più sotto: questi campi arrivano lato
+/// server come `Value` generico (il frontend possiede la forma — trend, xy
+/// plot, tabella, barre e torta), quindi `CAMPI_TAG` (campi stringa di primo
+/// livello) non li vede: un tag inesistente in una serie non diceva niente e
+/// la traccia restava piatta.
+const CAMPI_TAG_COLLEZIONE: &[(&str, &[&str])] = &[
+    ("trend_tags", &["tag"]),
+    ("xy_series", &["tag", "y_tag"]),
+    ("table_rows", &["tag"]),
+    ("bar_series", &["tag"]),
+    ("pie_slices", &["tag"]),
+];
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Metà 1 — i campi inventati
 // ─────────────────────────────────────────────────────────────────────────────
@@ -848,6 +871,54 @@ fn controlla_oggetto(
         }
     }
 
+    // Le stesse serie, ma dentro una collezione (0a): un tag inesistente in
+    // trend_tags/xy_series/table_rows/bar_series/pie_slices restava piatto e
+    // non diceva perché.
+    if let Some(map) = map {
+        for (campo, sotto_campi) in CAMPI_TAG_COLLEZIONE {
+            let Some(voci) = map.get(*campo).and_then(Value::as_array) else {
+                continue;
+            };
+            for (i, voce) in voci.iter().enumerate() {
+                for sotto in *sotto_campi {
+                    let Some(v) = voce.get(*sotto).and_then(Value::as_str) else {
+                        continue;
+                    };
+                    if !tag_riferimento_valido(v, tags) {
+                        out.push(Finding::err(
+                            format!("{base}.{campo}[{i}].{sotto}"),
+                            format!("il tag `{v}` non è dichiarato nel progetto"),
+                            "dichiaralo in project.tags oppure usa un tag esistente: una \
+                             serie legata a un tag inesistente resta piatta e non dice perché",
+                        ));
+                    }
+                }
+            }
+        }
+
+        // `bindings`: `{campo: "tag_id"}` (forma storica) oppure
+        // `{campo: {tag: "tag_id", ...}}` (BindingSpec). `{expr: "..."}` non è
+        // controllato: le dipendenze sono dentro una stringa di espressione,
+        // non un id nudo — stesso limite dichiarato per script e funzioni
+        // Python in `sws-editor/src/search/tagUsage.ts`.
+        if let Some(bindings) = map.get("bindings").and_then(Value::as_object) {
+            for (campo, v) in bindings {
+                let id = v
+                    .as_str()
+                    .or_else(|| v.as_object().and_then(|o| o.get("tag")).and_then(Value::as_str));
+                let Some(id) = id else { continue };
+                if !tag_riferimento_valido(id, tags) {
+                    out.push(Finding::err(
+                        format!("{base}.bindings.{campo}"),
+                        format!("il tag `{id}` non è dichiarato nel progetto"),
+                        "dichiaralo in project.tags oppure usa un tag esistente: un binding \
+                         legato a un tag inesistente resta fermo e non dice perché",
+                    ));
+                }
+            }
+        }
+    }
+
     // Il valore SCRITTO deve stare nel tipo del tag. Il server non lo fa
     // rispettare (Q27): se non lo diciamo qui non lo dice nessuno, e un
     // `write_value: 'true'` su un tag bool funziona per caso finché smette.
@@ -1012,44 +1083,91 @@ fn controlla_oggetto(
                     "il campo è `child`, e contiene UN oggetto",
                 ));
             }
-            // # E l'oggetto DENTRO la cella, che prima nessuno guardava
+            // # La cella stessa, e ciò che contiene — prima nessuno le guardava
             //
             // Il ciclo che chiama questa funzione scorre `SynopticPage.objects`,
-            // cioè il primo livello. Il `child` di una cella è un oggetto a
-            // tutti gli effetti — con un `tag`, un `type`, un `on_press_fn` — ma
-            // vive dentro un `Value` opaco, quindi non passava da nessun
-            // controllo: un bottone in una cella che punta a una funzione
-            // inesistente o a un tag non dichiarato era **muto**. Il gesto non
-            // fa niente e non lo dice.
-            //
-            // Qui si scende, e ricorsivamente: una cella può contenere un'altra
-            // griglia, e fermarsi al primo livello lascerebbe lo stesso buco un
-            // gradino più sotto.
-            let Some(child) = cm.get("child") else {
-                continue;
-            };
-            if child.is_null() {
-                continue;
-            }
-            match serde_json::from_value::<SynopticObject>(child.clone()) {
-                Ok(figlio) => controlla_oggetto(
-                    out,
-                    page,
-                    &figlio,
-                    tipi,
-                    enums,
-                    tags,
-                    ids_pagina,
-                    id_pagine,
-                    nomi_pagine,
-                    funzioni,
-                    mqtt_scrivibile,
-                ),
-                Err(e) => out.push(Finding::warn(
-                    format!("{base}.grid_cells[{i}].child"),
-                    format!("il contenuto della cella non si legge come oggetto: {e}"),
-                    "la cella non disegnerà niente; controlla `type` e i campi obbligatori",
-                )),
+            // cioè il primo livello. `visible_tag` è un campo della CELLA (non
+            // del suo `child`); il `child` è un oggetto a tutti gli effetti —
+            // con un `tag`, un `type`, un `on_press_fn`; `sub.a`/`sub.b` sono
+            // sotto-celle, ricorsive senza limite di profondità (una cella
+            // divisa può dividersi di nuovo). Tutti e tre vivono dentro un
+            // `Value` opaco e non passavano da nessun controllo: un bottone in
+            // una sotto-cella che punta a una funzione inesistente, o una
+            // cella la cui visibilità dipende da un tag mai dichiarato, era
+            // **muta**. Il gesto (o la visibilità) non fa niente e non dice
+            // perché — `controlla_cella` fattorizza la discesa perché la
+            // stessa forma (`visible_tag`/`child`/`sub`) vale sia per la cella
+            // di primo livello sia per ogni sotto-cella.
+            controlla_cella(
+                out,
+                &format!("{base}.grid_cells[{i}]"),
+                c,
+                page,
+                tipi,
+                enums,
+                tags,
+                ids_pagina,
+                id_pagine,
+                nomi_pagine,
+                funzioni,
+                mqtt_scrivibile,
+            );
+        }
+    }
+}
+
+/// Visita una cella di griglia o una sotto-cella (`GridCell`/`SubCellEntry`
+/// lato TS: `visible_tag`, `child` — un oggetto vero — e `sub.a`/`sub.b`,
+/// ricorsivi senza limite di profondità). Vedi il commento nel chiamante.
+#[allow(clippy::too_many_arguments)]
+fn controlla_cella(
+    out: &mut Vec<Finding>,
+    path: &str,
+    cella: &Value,
+    page: &SynopticPage,
+    tipi: &HashSet<&str>,
+    enums: &HashMap<&str, &[&str]>,
+    tags: &HashMap<&str, &sws_core::TagDef>,
+    ids_pagina: &HashSet<&str>,
+    id_pagine: &HashSet<&str>,
+    nomi_pagine: &HashSet<&str>,
+    funzioni: &HashSet<&str>,
+    mqtt_scrivibile: &HashMap<&str, bool>,
+) {
+    let Some(cm) = cella.as_object() else { return };
+
+    if let Some(v) = cm.get("visible_tag").and_then(Value::as_str) {
+        if !tag_riferimento_valido(v, tags) {
+            out.push(Finding::err(
+                format!("{path}.visible_tag"),
+                format!("il tag `{v}` non è dichiarato nel progetto"),
+                "dichiaralo in project.tags oppure usa un tag esistente: la cella resta \
+                 sempre visibile (o sempre nascosta) e non dice perché",
+            ));
+        }
+    }
+
+    if let Some(child) = cm.get("child").filter(|c| !c.is_null()) {
+        match serde_json::from_value::<SynopticObject>(child.clone()) {
+            Ok(figlio) => controlla_oggetto(
+                out, page, &figlio, tipi, enums, tags, ids_pagina, id_pagine, nomi_pagine,
+                funzioni, mqtt_scrivibile,
+            ),
+            Err(e) => out.push(Finding::warn(
+                format!("{path}.child"),
+                format!("il contenuto della cella non si legge come oggetto: {e}"),
+                "la cella non disegnerà niente; controlla `type` e i campi obbligatori",
+            )),
+        }
+    }
+
+    if let Some(sub) = cm.get("sub").and_then(Value::as_object) {
+        for lato in ["a", "b"] {
+            if let Some(entry) = sub.get(lato) {
+                controlla_cella(
+                    out, &format!("{path}.sub.{lato}"), entry, page, tipi, enums, tags,
+                    ids_pagina, id_pagine, nomi_pagine, funzioni, mqtt_scrivibile,
+                );
             }
         }
     }
@@ -1865,6 +1983,101 @@ alarms: []
         let rs = rilievi(PROGETTO, &pagina(
             "- { id: g, type: grid, x: 0, y: 0, grid_cells: [{ row: 0, col: 0, child: { id: l, type: led, x: 0, y: 0, tag: mai.dichiarato } }] }"));
         assert!(cita(&errori(&rs), "mai.dichiarato"), "{rs:?}");
+    }
+
+    // ── 0a: i campi-tag "a collezione" — mai controllati finché la validazione
+    // guardava solo CAMPI_TAG (campi stringa di primo livello). Un trend con un
+    // tag inesistente in `trend_tags` non dice niente e resta piatto.
+
+    #[test]
+    fn un_tag_inesistente_in_trend_tags_non_passa() {
+        let rs = rilievi(PROGETTO, &pagina(
+            "- { id: t, type: trend, x: 0, y: 0, width: 200, height: 100, \
+                 trend_tags: [{ tag: pos, label: a }, { tag: mai.in.trend, label: b }] }"));
+        assert!(cita(&errori(&rs), "mai.in.trend"), "{rs:?}");
+    }
+
+    /// `xy_series` porta DUE tag per voce: `tag` (X) e `y_tag` (Y), non uno.
+    #[test]
+    fn un_tag_inesistente_in_xy_series_non_passa() {
+        let rs = rilievi(PROGETTO, &pagina(
+            "- { id: p, type: xy_plot, x: 0, y: 0, width: 200, height: 100, \
+                 xy_series: [{ tag: pos, y_tag: mai.in.xy, label: a }] }"));
+        assert!(cita(&errori(&rs), "mai.in.xy"), "{rs:?}");
+    }
+
+    #[test]
+    fn un_tag_inesistente_in_table_rows_non_passa() {
+        let rs = rilievi(PROGETTO, &pagina(
+            "- { id: tb, type: table, x: 0, y: 0, width: 200, height: 100, \
+                 table_rows: [{ tag: mai.in.tabella, label: a }] }"));
+        assert!(cita(&errori(&rs), "mai.in.tabella"), "{rs:?}");
+    }
+
+    #[test]
+    fn un_tag_inesistente_in_bar_series_non_passa() {
+        let rs = rilievi(PROGETTO, &pagina(
+            "- { id: bc, type: bar_chart, x: 0, y: 0, width: 200, height: 100, \
+                 bar_series: [{ tag: mai.in.barre, label: a }] }"));
+        assert!(cita(&errori(&rs), "mai.in.barre"), "{rs:?}");
+    }
+
+    #[test]
+    fn un_tag_inesistente_in_pie_slices_non_passa() {
+        let rs = rilievi(PROGETTO, &pagina(
+            "- { id: pc, type: pie_chart, x: 0, y: 0, width: 200, height: 100, \
+                 pie_slices: [{ tag: mai.in.torta, label: a }] }"));
+        assert!(cita(&errori(&rs), "mai.in.torta"), "{rs:?}");
+    }
+
+    /// `bindings` in forma stringa: il valore È l'id di tag (forma storica).
+    #[test]
+    fn un_binding_stringa_su_un_tag_inesistente_non_passa() {
+        let rs = rilievi(PROGETTO, &pagina(
+            "- { id: r, type: rect, x: 0, y: 0, bindings: { fill: mai.in.binding } }"));
+        assert!(cita(&errori(&rs), "mai.in.binding"), "{rs:?}");
+    }
+
+    /// `bindings` in forma oggetto: `{tag, in_min…out_max, clamp}`.
+    #[test]
+    fn un_binding_oggetto_su_un_tag_inesistente_non_passa() {
+        let rs = rilievi(PROGETTO, &pagina(
+            "- { id: r, type: rect, x: 0, y: 0, bindings: { fill: { tag: mai.in.binding, in_min: 0, in_max: 100 } } }"));
+        assert!(cita(&errori(&rs), "mai.in.binding"), "{rs:?}");
+    }
+
+    /// Un binding a espressione (`{expr}`) non è controllato: le dipendenze
+    /// sono dentro una stringa di espressione, non un id nudo, e cercarle per
+    /// sottostringa darebbe falsi positivi — lo stesso limite dichiarato per
+    /// script e funzioni Python in `search/tagUsage.ts`.
+    #[test]
+    fn un_binding_a_espressione_non_e_controllato() {
+        let rs = rilievi(PROGETTO, &pagina(
+            "- { id: r, type: rect, x: 0, y: 0, bindings: { fill: { expr: 'tags[\"mai.dichiarato\"]' } } }"));
+        assert!(!cita(&errori(&rs), "mai.dichiarato"), "{rs:?}");
+    }
+
+    /// Il `visible_tag` di una CELLA (non del suo `child`) non passava da
+    /// nessun controllo: è un campo della cella stessa, dentro il `Value`
+    /// opaco di `grid_cells`.
+    #[test]
+    fn il_visible_tag_di_una_cella_inesistente_non_passa() {
+        let rs = rilievi(PROGETTO, &pagina(
+            "- { id: g, type: grid, x: 0, y: 0, grid_cells: [{ row: 0, col: 0, visible_tag: mai.in.cella }] }"));
+        assert!(cita(&errori(&rs), "mai.in.cella"), "{rs:?}");
+    }
+
+    /// Una sotto-cella (`sub.a`/`sub.b`, ricorsiva senza limite di profondità)
+    /// non veniva mai visitata: solo `child` di primo livello lo era.
+    #[test]
+    fn un_tag_inesistente_dentro_una_sotto_cella_non_passa() {
+        let rs = rilievi(PROGETTO, &pagina(
+            "- { id: g, type: grid, x: 0, y: 0, grid_cells: [{ row: 0, col: 0, \
+                 sub: { a: { visible_tag: mai.in.subcella }, \
+                        b: { sub: { a: { child: { id: l, type: led, x: 0, y: 0, tag: mai.annidato } } } } } }] }"));
+        let e = errori(&rs);
+        assert!(cita(&e, "mai.in.subcella"), "{rs:?}");
+        assert!(cita(&e, "mai.annidato"), "{rs:?}");
     }
 
     #[test]

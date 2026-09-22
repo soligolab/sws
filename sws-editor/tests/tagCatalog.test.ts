@@ -27,6 +27,18 @@ describe("sourceTagIds", () => {
     expect(ids.get("m.w")).toBe("spb");
   });
 
+  // Regressione (0a): un'esplorazione del piano tag aveva segnalato "manca il
+  // ramo metrics dell'host" come correzione da fare. Non serve: HostSource e
+  // SparkplugSource condividono il nome di campo `metrics` (project.rs:583 e
+  // :920), quindi la riga generica sotto li copre entrambi già oggi. Questo
+  // test lo blocca, così una futura pulizia del campo `as any` non lo perde.
+  it("copre anche la sorgente Host, che condivide il campo `metrics` con Sparkplug", () => {
+    const p = project({
+      sources: [{ name: "host1", metrics: [{ tag: "host1.cpu_pct", metric: "cpu_pct" }] }] as never,
+    });
+    expect(sourceTagIds(p).get("host1.cpu_pct")).toBe("host1");
+  });
+
   it("ignora voci senza tag e progetti vuoti", () => {
     expect(sourceTagIds(null).size).toBe(0);
     expect(sourceTagIds(project({ sources: [{ name: "x", topics: [{}, { tag: "" }] }] as never })).size).toBe(0);
