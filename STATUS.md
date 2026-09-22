@@ -76,11 +76,11 @@
 
 ## ▶ Riprendere da qui — Fasi 1d, 1e e 2 dei tag su `main` (2026-09-22, ufficio, notte)
 
-**Tutto su `main` e pushato**, su istruzione del maintainer («fai il merge e push che poi riprendo da casa»). Con la Fase 2 **la Fase 1 è chiusa per intero**: 1d e 1e erano rimaste sul ramo annidato `feat/tag-1d-scrittura-e-filo` e sono entrate con questo squash. Piano: `docs/plans/2026-09-21-gestione-tag-oggetto-unico.md`.
+**Tutto su `main` e pushato**, in un unico squash: **`a76e6889`**, su istruzione del maintainer («fai il merge e push che poi riprendo da casa»). Con la Fase 2 **la Fase 1 è chiusa per intero**: 1d e 1e erano rimaste sul ramo annidato `feat/tag-1d-scrittura-e-filo` e sono entrate con lo stesso squash — undici commit in uno. I due rami (`feat/tag-1d-scrittura-e-filo`, `feat/tag-2-editor-tipi`) sono stati cancellati dopo il confronto degli alberi, e **non sono mai stati pushati**: gli hash dei loro commit non esistono su origin, quindi qui sotto c'è solo `a76e6889`. Piano: `docs/plans/2026-09-21-gestione-tag-oggetto-unico.md`.
 
 **Il collaudo a schermo della Fase 2 non c'è ancora**: il maintainer ha provato e confermato la scheda «Tipi» e il ✕ che non cancella più un'istanza in uso, non il resto. Le prove da fare sono qui sotto, ed è la prima cosa da riprendere.
 
-**Fatto sul ramo**, in ordine: scheda «Tipi» (`f089b43b`), poi il difetto trovato al primo collaudo — il ✕ cancellava un'istanza usata, perché un oggetto si lega a `motore1.velocita` e non a `motore1` (`39490607`) — e infine il resto della fase:
+**Fatto**, in ordine: scheda «Tipi», poi il difetto trovato al primo collaudo — il ✕ cancellava un'istanza usata, perché un oggetto si lega a `motore1.velocita` e non a `motore1` — e infine il resto della fase:
 - **la rinomina segue le foglie**: rinominare `motore1` riscrive anche `motore1.velocita`, `motore1[2].stato`, i binding, le espressioni, gli allarmi, le ricette, i trigger e il codice Python. `motore1bis` non si muove: il prefisso vale solo se finisce su un punto o una parentesi;
 - **il campo Tag completa il percorso mentre si digita** (↑/↓, Invio o Tab, Esc), per prefisso, mai su un segnaposto di faceplate;
 - **parametro di faceplate `istanza(Tipo)`**: nella definizione `motore:istanza(Motore)`, nell'istanza un menù delle variabili composite di quel tipo, e dentro il faceplate `{motore}.velocita`. È il `{tag_prefix}` di prima, senza ricordarselo a memoria;

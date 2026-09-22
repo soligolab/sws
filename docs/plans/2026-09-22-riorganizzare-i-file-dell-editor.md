@@ -14,7 +14,7 @@
 
 | file | righe | cosa contiene |
 |---|---:|---|
-| `config/ConfigView.tsx` | 11 629 | **sedici schede** di configurazione, una dietro l'altra nello stesso file |
+| `config/ConfigView.tsx` | 11 737 | **sedici schede** di configurazione, una dietro l'altra nello stesso file (era 11 629 quando questo seme è nato) |
 | `canvas/SvgCanvas.tsx` | 6 312 | il dispatcher di disegno di 36 tipi, più `formatValue` e gli helper condivisi col runtime |
 | `editor/EditorShell.tsx` | 5 695 | la chiusura dell'editor, il pannello proprietà (due varianti), la creazione degli oggetti |
 | `store/index.ts` | 2 627 | tutto lo stato: progetto, pagine, cronologia, salvataggio, tag, IA, tema, remoto |

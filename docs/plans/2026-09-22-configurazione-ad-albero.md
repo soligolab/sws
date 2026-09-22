@@ -17,7 +17,14 @@
   `AppConfigTab` (`store/index.ts:229`), `ConfigTab` (`config/ConfigView.tsx:11153`, copia
   letterale del primo, senza import) e `visibleTabs` in due varianti admin/non-admin
   (`ConfigView.tsx:~11186`). Le etichette vengono da `t("config.tabs.<id>")`.
-- `ConfigView.tsx` è **11629 righe**: ogni scheda è un componente dentro quel file.
+- `ConfigView.tsx` è **11737 righe** (11629 quando questo seme è nato): ogni scheda è un componente
+  dentro quel file, tranne «Tipi», che sta in `config/TipiTab.tsx`.
+- **Aggiornamento del 22-09-2026, a Fase 2 dei tag chiusa**: le schede restano sedici, ma «Variabili»
+  ne contiene ora **due**, scelte da un selettore interno («Variabili | Tipi»), con una barra Salva
+  sola e l'export/import CSV che copre entrambe. È il primo caso di annidamento dentro una scheda, e
+  dice qualcosa a questo seme: se l'albero arriva, quelle due diventano due foglie sotto lo stesso
+  ramo invece di un selettore fatto a mano. `SezionePendente` (in `ConfigView.tsx`) esiste apposta:
+  registra la bozza di una sottoscheda senza disegnare una seconda barra.
 - Dal 22-09-2026 le nove schede che portano **contenuto del progetto** restano montate
   (`Tenuta`) e registrano la loro bozza fra le `pendingSections`: il Salva è **uno solo**, quello
   del progetto. Un albero che monta e smonta i rami rompe questo, ed è la prima cosa che la
