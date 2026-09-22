@@ -655,6 +655,12 @@ pub fn build(
 
     // Routes any authenticated user (incl. Viewer) can hit.
     let read_routes = Router::new()
+        // I rilievi semantici del progetto su disco, per l'editor dopo un
+        // salvataggio (Fase 0d): avvisi, mai un blocco.
+        .route(
+            "/api/project/findings",
+            get(crate::schema_api::project_findings),
+        )
         // Tag REST (reads)
         .route("/api/tags", get(get_all_tags))
         .route("/api/tags/:id", get(get_tag))
@@ -3226,33 +3232,11 @@ async fn update_project_tags(
         Some(user.username),
         serde_json::json!({"what": "tags", "count": tags.len()}),
     );
-    // Compute diff against current TagDb so newly-defined tags get seeded
-    // and orphans get evicted — no runtime restart required.
-    let current_ids: std::collections::HashSet<TagId> = s.db.snapshot().await.into_keys().collect();
-    let new_ids: std::collections::HashSet<TagId> = tags.iter().map(|t| t.id.clone()).collect();
-
-    let to_add: Vec<TagDef> = tags
-        .iter()
-        .filter(|t| !current_ids.contains(&t.id))
-        .cloned()
-        .collect();
-    let to_remove: Vec<TagId> = current_ids.difference(&new_ids).cloned().collect();
-    // Collect derived pairs before tags is consumed by patch_project closure.
-    let derived: Vec<(String, String)> = tags
-        .iter()
-        .filter_map(|t| t.expression.as_ref().map(|e| (t.id.clone(), e.clone())))
-        .collect();
-    let generators = crate::projects::build_generator_tags(&tags);
-    // F1/F3.1: scaling e ruoli di scrittura seguono ogni modifica delle variabili.
-    let scales = crate::projects::build_tag_scales(&tags);
-    let write_roles = crate::projects::build_tag_write_roles(&tags);
-    let data_types = crate::projects::build_tag_data_types(&tags);
-    let computed = crate::projects::build_computed_tags(&tags);
-
     let dir = match active_dir(&s).await {
         Ok(d) => d,
         Err(c) => return c.into_response(),
     };
+    let per_db = tags.clone();
     let res = patch_project_se(
         &s.project_write_lock,
         &dir,
@@ -3263,19 +3247,9 @@ async fn update_project_tags(
     if res.status() != StatusCode::NO_CONTENT {
         return res;
     }
-    for t in &to_add {
-        s.db.set(t.id.clone(), t.initial_value(), TagQuality::Uncertain)
-            .await;
-    }
-    for id in &to_remove {
-        s.db.remove(id).await;
-    }
-    *s.derived_tags.write().await = derived;
-    *s.generator_tags.write().await = generators;
-    s.db.set_scales(scales).await;
-    s.db.set_write_roles(write_roles).await;
-    s.db.set_data_types(data_types).await;
-    s.db.set_computed_tags(computed).await;
+    // Un posto solo installa i tag nel runtime (Fase 0d): semina i nuovi,
+    // toglie gli orfani, aggiorna scale/ruoli/tipi/calcolati — senza riavvio.
+    crate::projects::apply_tags(&s.db, &s.derived_tags, &s.generator_tags, &per_db).await;
     res
 }
 
@@ -3416,28 +3390,10 @@ async fn import_tags_csv(
     if res.status() != StatusCode::NO_CONTENT {
         return res;
     }
-    // Seed any newly-added tags into TagDb.
-    let current_ids: std::collections::HashSet<TagId> = s.db.snapshot().await.into_keys().collect();
-    for t in &imported {
-        if !current_ids.contains(&t.id) {
-            s.db.set(t.id.clone(), t.initial_value(), TagQuality::Uncertain)
-                .await;
-        }
-    }
-    // Re-sync derived tags (re-load updated project from disk).
-    let dir2 = active_dir(&s).await.ok();
-    if let Some(dir2) = dir2 {
-        if let Ok(proj) = Project::load(&dir2) {
-            let derived: Vec<(String, String)> = proj
-                .tags
-                .iter()
-                .filter_map(|t| t.expression.as_ref().map(|e| (t.id.clone(), e.clone())))
-                .collect();
-            *s.derived_tags.write().await = derived;
-            *s.generator_tags.write().await = crate::projects::build_generator_tags(&proj.tags);
-            s.db.set_computed_tags(crate::projects::build_computed_tags(&proj.tags))
-                .await;
-        }
+    // Il runtime segue il file appena scritto: stesso posto degli altri
+    // cinque siti (Fase 0d). Prima qui mancavano scale, tipi e ruoli.
+    if let Ok(proj) = Project::load(&dir) {
+        crate::projects::apply_tags(&s.db, &s.derived_tags, &s.generator_tags, &proj.tags).await;
     }
     Json(serde_json::json!({ "imported": imported.len() })).into_response()
 }
@@ -4287,24 +4243,7 @@ async fn import_project_zip(State(s): State<AppState>, body: Bytes) -> Response 
 
     // 6. Hot-reload — mirror the per-section PUT handlers' side effects so
     //    the runtime reflects the new project without a restart.
-    let current_ids: std::collections::HashSet<TagId> = s.db.snapshot().await.into_keys().collect();
-    let new_ids: std::collections::HashSet<TagId> =
-        project.tags.iter().map(|t| t.id.clone()).collect();
-    for t in project.tags.iter().filter(|t| !current_ids.contains(&t.id)) {
-        s.db.set(t.id.clone(), t.initial_value(), TagQuality::Uncertain)
-            .await;
-    }
-    for id in current_ids.difference(&new_ids) {
-        s.db.remove(id).await;
-    }
-    s.db.set_scales(crate::projects::build_tag_scales(&project.tags))
-        .await;
-    s.db.set_write_roles(crate::projects::build_tag_write_roles(&project.tags))
-        .await;
-    s.db.set_data_types(crate::projects::build_tag_data_types(&project.tags))
-        .await;
-    s.db.set_computed_tags(crate::projects::build_computed_tags(&project.tags))
-        .await;
+    crate::projects::apply_tags(&s.db, &s.derived_tags, &s.generator_tags, &project.tags).await;
     s.alarms.load(project.alarms.clone()).await;
     crate::projects::resolve_mqtt_client_ids(
         &project.meta.name,
@@ -4319,15 +4258,6 @@ async fn import_project_zip(State(s): State<AppState>, body: Bytes) -> Response 
         for f in project.functions.iter().cloned() {
             map.insert(f.name.clone(), f);
         }
-    }
-    {
-        let derived: Vec<(String, String)> = project
-            .tags
-            .iter()
-            .filter_map(|t| t.expression.as_ref().map(|e| (t.id.clone(), e.clone())))
-            .collect();
-        *s.derived_tags.write().await = derived;
-        *s.generator_tags.write().await = crate::projects::build_generator_tags(&project.tags);
     }
 
     tracing::info!(
@@ -6969,18 +6899,10 @@ async fn soft_reload_project(s: &AppState, dir: &std::path::Path) {
             return;
         }
     };
-    {
-        let derived: Vec<(String, String)> = project
-            .tags
-            .iter()
-            .filter_map(|t| t.expression.as_ref().map(|e| (t.id.clone(), e.clone())))
-            .collect();
-        *s.derived_tags.write().await = derived;
-        *s.generator_tags.write().await = crate::projects::build_generator_tags(&project.tags);
-        s.db.set_computed_tags(crate::projects::build_computed_tags(&project.tags))
-            .await;
-    }
-    project.populate_tags(&s.db).await;
+    // Prima qui mancavano scale, tipi, ruoli di scrittura e la rimozione dei
+    // tag spariti: un deploy da git con una scala nuova mostrava il valore
+    // grezzo fino al riavvio (Fase 0d).
+    crate::projects::apply_tags(&s.db, &s.derived_tags, &s.generator_tags, &project.tags).await;
     s.alarms.load(project.alarms.clone()).await;
     {
         let mut funcs = s.functions.write().await;

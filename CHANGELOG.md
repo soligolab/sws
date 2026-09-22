@@ -12,6 +12,14 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Added
+- **Tag: il server è coerente e il validatore parla dopo il salvataggio** (Fase 0d del piano `docs/plans/2026-09-21-gestione-tag-oggetto-unico.md`, 22-09-2026).
+  Sei siti installavano i tag nel `TagDb` a mano — apertura del progetto, `PUT /api/project/tags`, import CSV, import zip, ricarica da git, chiusura — e divergevano: la
+  **ricarica da git non aggiornava scale, tipi e ruoli di scrittura e non toglieva i tag spariti** (un deploy con una scala nuova mostrava il valore grezzo fino al riavvio),
+  l'import CSV saltava scale, tipi e ruoli. Ora c'è una funzione sola, `projects::apply_tags` (semina i nuovi, toglie gli orfani, poi calcolati, generatori, scale, ruoli,
+  tipi), con il suo test; `check_tag_refs.sh` rifiuta qualunque altro punto di sws-web che tocchi quei metodi. `validate::semantic`, che leggevano solo l'assistente IA e i
+  test, ora avvisa anche per una **mappatura non MQTT verso un tag non dichiarato** (Modbus, OPC-UA, S7, EtherNet/IP, Home Assistant, Host — avviso, non errore: il runtime
+  crea la voce al primo dato) ed è esposto in `GET /api/project/findings` sul progetto com'è su disco. L'editor lo chiama all'apertura e dopo ogni salvataggio riuscito e
+  mostra in testata «N avvisi» con l'elenco al clic (`RilieviProgetto`): niente si blocca.
 - **Tag: rinomina ovunque e cancellazione protetta** (Fase 0c del piano `docs/plans/2026-09-21-gestione-tag-oggetto-unico.md`; decisioni del maintainer, 22-09-2026:
   rinomina **subito, dopo anteprima e conferma, a progetto salvato**; il ✕ **rifiuta** una variabile usata). Nella scheda Variabili ogni id già salvato ha una matita ✎ che apre
   la finestra di rinomina: il nuovo id (vuoto, con segnaposto, uguale o già preso non passa), l'**anteprima** dei punti che cambieranno — pagine (campi tag, binding stringa/`{tag}`/

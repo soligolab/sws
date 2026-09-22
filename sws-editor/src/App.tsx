@@ -5,6 +5,7 @@ import { BarraAvviso } from "@/components/BarraAvviso";
 import { ChangePasswordScreen } from "@/components/ChangePasswordScreen";
 import { BrandLogo } from "@/components/BrandLogo";
 import { DirtyIndicator } from "@/components/DirtyIndicator";
+import { RilieviProgetto } from "@/components/RilieviProgetto";
 import { HDR_BTN } from "@/components/headerStyles";
 import { MainMenu } from "@/components/MainMenu";
 import { RuntimeCtrl } from "@/components/RuntimeCtrl";
@@ -687,6 +688,7 @@ export function App() {
           {t("app.project")}: {project?.meta.name ?? "—"}
         </span>
         <DirtyIndicator />
+        <RilieviProgetto />
         <span style={{ flex: 1 }} />
         <div style={{ display: "flex", gap: 4 }}>
           {allowedModes.map((m) => (

@@ -2164,5 +2164,10 @@
     "fatto": "Rinominata in {{n}} punti.",
     "errore": "Rinomina fallita: {{message}}",
     "occorrenze": "{{n}} occorrenze"
+  },
+  "rilievi": {
+    "conteggio": "{{n}} avvisi",
+    "hint": "Rilievi del validatore sul progetto salvato: il progetto funziona, ma qui probabilmente non fa quel che volevi.",
+    "intro": "Cosa il validatore ha trovato nel progetto com'è su disco. Non blocca niente: correggi e salva, l'elenco si aggiorna."
   }
 }

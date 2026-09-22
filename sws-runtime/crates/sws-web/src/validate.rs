@@ -552,6 +552,21 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
             let e = mqtt_per_tag.entry(m.tag.as_str()).or_insert(false);
             *e = *e || scrive;
         }
+        // Fase 0d (22-09-2026): il controllo «il tag mappato esiste» valeva
+        // solo per MQTT. Per gli altri protocolli è un **avviso**: il runtime
+        // crea la voce al primo dato e il progetto funziona, ma senza tipo,
+        // scala né storico — e l'editor ora crea i tag al salvataggio, quindi
+        // dall'IDE non dovrebbe più capitare; capita da YAML a mano o da git.
+        for (percorso, tag) in mappature_tag(src) {
+            if !tag.is_empty() && !per_id.contains_key(tag) {
+                out.push(Finding::warn(
+                    format!("project.sources[{id}].{percorso}"),
+                    format!("la sorgente mappa il tag `{tag}`, che non è dichiarato"),
+                    "dichiara il tag in project.tags (nell'IDE basta salvare: le variabili \
+                     referenziate si creano da sole), oppure correggi il riferimento",
+                ));
+            }
+        }
     }
 
     // Allarmi.
@@ -903,9 +918,11 @@ fn controlla_oggetto(
         // Python in `sws-editor/src/search/tagUsage.ts`.
         if let Some(bindings) = map.get("bindings").and_then(Value::as_object) {
             for (campo, v) in bindings {
-                let id = v
-                    .as_str()
-                    .or_else(|| v.as_object().and_then(|o| o.get("tag")).and_then(Value::as_str));
+                let id = v.as_str().or_else(|| {
+                    v.as_object()
+                        .and_then(|o| o.get("tag"))
+                        .and_then(Value::as_str)
+                });
                 let Some(id) = id else { continue };
                 if !tag_riferimento_valido(id, tags) {
                     out.push(Finding::err(
@@ -1150,8 +1167,17 @@ fn controlla_cella(
     if let Some(child) = cm.get("child").filter(|c| !c.is_null()) {
         match serde_json::from_value::<SynopticObject>(child.clone()) {
             Ok(figlio) => controlla_oggetto(
-                out, page, &figlio, tipi, enums, tags, ids_pagina, id_pagine, nomi_pagine,
-                funzioni, mqtt_scrivibile,
+                out,
+                page,
+                &figlio,
+                tipi,
+                enums,
+                tags,
+                ids_pagina,
+                id_pagine,
+                nomi_pagine,
+                funzioni,
+                mqtt_scrivibile,
             ),
             Err(e) => out.push(Finding::warn(
                 format!("{path}.child"),
@@ -1165,8 +1191,18 @@ fn controlla_cella(
         for lato in ["a", "b"] {
             if let Some(entry) = sub.get(lato) {
                 controlla_cella(
-                    out, &format!("{path}.sub.{lato}"), entry, page, tipi, enums, tags,
-                    ids_pagina, id_pagine, nomi_pagine, funzioni, mqtt_scrivibile,
+                    out,
+                    &format!("{path}.sub.{lato}"),
+                    entry,
+                    page,
+                    tipi,
+                    enums,
+                    tags,
+                    ids_pagina,
+                    id_pagine,
+                    nomi_pagine,
+                    funzioni,
+                    mqtt_scrivibile,
                 );
             }
         }
@@ -1217,6 +1253,57 @@ fn topic_mappings(src: &SourceDef) -> Vec<&TopicMapping> {
         SourceDef::Mqtt(c) => c.topics.iter().collect(),
         _ => Vec::new(),
     }
+}
+
+/// Le mappature (percorso, tag) delle sorgenti **non MQTT**: registri Modbus,
+/// nodi OPC-UA (client e server), entità Home Assistant, tag S7 ed
+/// EtherNet/IP, metriche Host. MQTT ha la sua regola sopra, con l'errore.
+fn mappature_tag(src: &SourceDef) -> Vec<(String, &str)> {
+    let mut out = Vec::new();
+    match src {
+        SourceDef::ModbusTcp(c) => {
+            for (i, r) in c.registers.iter().enumerate() {
+                out.push((format!("registers[{i}].tag"), r.tag.as_str()));
+            }
+        }
+        SourceDef::ModbusRtu(c) => {
+            for (i, r) in c.registers.iter().enumerate() {
+                out.push((format!("registers[{i}].tag"), r.tag.as_str()));
+            }
+        }
+        SourceDef::OpcUaClient(c) => {
+            for (i, n) in c.nodes.iter().enumerate() {
+                out.push((format!("nodes[{i}].tag"), n.tag.as_str()));
+            }
+        }
+        SourceDef::OpcUaServer(c) => {
+            for (i, n) in c.nodes.iter().enumerate() {
+                out.push((format!("nodes[{i}].tag"), n.tag.as_str()));
+            }
+        }
+        SourceDef::HomeAssistant(c) => {
+            for (i, e) in c.entities.iter().enumerate() {
+                out.push((format!("entities[{i}].tag"), e.tag.as_str()));
+            }
+        }
+        SourceDef::S7(c) => {
+            for (i, t) in c.tags.iter().enumerate() {
+                out.push((format!("tags[{i}].tag"), t.tag.as_str()));
+            }
+        }
+        SourceDef::EnIp(c) => {
+            for (i, t) in c.tags.iter().enumerate() {
+                out.push((format!("tags[{i}].tag"), t.tag.as_str()));
+            }
+        }
+        SourceDef::Host(c) => {
+            for (i, m) in c.metrics.iter().enumerate() {
+                out.push((format!("metrics[{i}].tag"), m.tag.as_str()));
+            }
+        }
+        SourceDef::Mqtt(_) => {}
+    }
+    out
 }
 
 /// Copia locale di `source_supervisor::source_id`, che è `pub(crate)` e vive in
@@ -1991,50 +2078,72 @@ alarms: []
 
     #[test]
     fn un_tag_inesistente_in_trend_tags_non_passa() {
-        let rs = rilievi(PROGETTO, &pagina(
-            "- { id: t, type: trend, x: 0, y: 0, width: 200, height: 100, \
-                 trend_tags: [{ tag: pos, label: a }, { tag: mai.in.trend, label: b }] }"));
+        let rs = rilievi(
+            PROGETTO,
+            &pagina(
+                "- { id: t, type: trend, x: 0, y: 0, width: 200, height: 100, \
+                 trend_tags: [{ tag: pos, label: a }, { tag: mai.in.trend, label: b }] }",
+            ),
+        );
         assert!(cita(&errori(&rs), "mai.in.trend"), "{rs:?}");
     }
 
     /// `xy_series` porta DUE tag per voce: `tag` (X) e `y_tag` (Y), non uno.
     #[test]
     fn un_tag_inesistente_in_xy_series_non_passa() {
-        let rs = rilievi(PROGETTO, &pagina(
-            "- { id: p, type: xy_plot, x: 0, y: 0, width: 200, height: 100, \
-                 xy_series: [{ tag: pos, y_tag: mai.in.xy, label: a }] }"));
+        let rs = rilievi(
+            PROGETTO,
+            &pagina(
+                "- { id: p, type: xy_plot, x: 0, y: 0, width: 200, height: 100, \
+                 xy_series: [{ tag: pos, y_tag: mai.in.xy, label: a }] }",
+            ),
+        );
         assert!(cita(&errori(&rs), "mai.in.xy"), "{rs:?}");
     }
 
     #[test]
     fn un_tag_inesistente_in_table_rows_non_passa() {
-        let rs = rilievi(PROGETTO, &pagina(
-            "- { id: tb, type: table, x: 0, y: 0, width: 200, height: 100, \
-                 table_rows: [{ tag: mai.in.tabella, label: a }] }"));
+        let rs = rilievi(
+            PROGETTO,
+            &pagina(
+                "- { id: tb, type: table, x: 0, y: 0, width: 200, height: 100, \
+                 table_rows: [{ tag: mai.in.tabella, label: a }] }",
+            ),
+        );
         assert!(cita(&errori(&rs), "mai.in.tabella"), "{rs:?}");
     }
 
     #[test]
     fn un_tag_inesistente_in_bar_series_non_passa() {
-        let rs = rilievi(PROGETTO, &pagina(
-            "- { id: bc, type: bar_chart, x: 0, y: 0, width: 200, height: 100, \
-                 bar_series: [{ tag: mai.in.barre, label: a }] }"));
+        let rs = rilievi(
+            PROGETTO,
+            &pagina(
+                "- { id: bc, type: bar_chart, x: 0, y: 0, width: 200, height: 100, \
+                 bar_series: [{ tag: mai.in.barre, label: a }] }",
+            ),
+        );
         assert!(cita(&errori(&rs), "mai.in.barre"), "{rs:?}");
     }
 
     #[test]
     fn un_tag_inesistente_in_pie_slices_non_passa() {
-        let rs = rilievi(PROGETTO, &pagina(
-            "- { id: pc, type: pie_chart, x: 0, y: 0, width: 200, height: 100, \
-                 pie_slices: [{ tag: mai.in.torta, label: a }] }"));
+        let rs = rilievi(
+            PROGETTO,
+            &pagina(
+                "- { id: pc, type: pie_chart, x: 0, y: 0, width: 200, height: 100, \
+                 pie_slices: [{ tag: mai.in.torta, label: a }] }",
+            ),
+        );
         assert!(cita(&errori(&rs), "mai.in.torta"), "{rs:?}");
     }
 
     /// `bindings` in forma stringa: il valore È l'id di tag (forma storica).
     #[test]
     fn un_binding_stringa_su_un_tag_inesistente_non_passa() {
-        let rs = rilievi(PROGETTO, &pagina(
-            "- { id: r, type: rect, x: 0, y: 0, bindings: { fill: mai.in.binding } }"));
+        let rs = rilievi(
+            PROGETTO,
+            &pagina("- { id: r, type: rect, x: 0, y: 0, bindings: { fill: mai.in.binding } }"),
+        );
         assert!(cita(&errori(&rs), "mai.in.binding"), "{rs:?}");
     }
 
@@ -2085,6 +2194,42 @@ alarms: []
         let rs = rilievi(PROGETTO, &pagina(
             "- { id: x, type: button, x: 0, y: 0, tag: luce.salotto, on_press_fn: mai_scritta }"));
         assert!(cita(&errori(&rs), "mai_scritta"), "{rs:?}");
+    }
+
+    /// Fase 0d: il controllo «il tag mappato esiste» valeva solo per MQTT.
+    /// Una riga Modbus verso un tag non dichiarato passava senza un rilievo,
+    /// e così S7, OPC-UA, EtherNet/IP, Home Assistant, Host. Avviso e non
+    /// errore: il runtime crea la voce al primo dato, il progetto funziona,
+    /// ma non c'è tipo, scala né storico — «probabilmente non fa quel che si
+    /// voleva».
+    #[test]
+    fn una_mappatura_non_mqtt_verso_un_tag_non_dichiarato_avvisa() {
+        let prog = r#"
+meta: { name: prova, version: "1.0.0" }
+tags: [{ id: dichiarato, data_type: float }]
+sources:
+  - { kind: modbus_tcp, id: plc, host: h, registers: [{ tag: dichiarato, address: 1 }, { tag: fantasma.modbus, address: 2 }] }
+  - { kind: host, id: h1, metrics: [{ tag: fantasma.host, metric: cpu_pct }] }
+alarms: []
+"#;
+        let rs = rilievi(prog, &pagina("- { id: x, type: rect, x: 0, y: 0 }"));
+        let avvisi: Vec<&Finding> = rs
+            .iter()
+            .filter(|f| f.severity == Severity::Warning)
+            .collect();
+        assert!(cita(&rs, "fantasma.modbus"), "{rs:?}");
+        assert!(cita(&rs, "fantasma.host"), "{rs:?}");
+        assert!(
+            !cita(&rs, "dichiarato`"),
+            "il tag dichiarato non va segnalato: {rs:?}"
+        );
+        assert!(
+            avvisi
+                .iter()
+                .any(|f| f.path.contains("sources[plc].registers[1].tag")),
+            "{rs:?}"
+        );
+        assert!(errori(&rs).is_empty(), "sono avvisi, non errori: {rs:?}");
     }
 
     #[test]

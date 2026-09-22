@@ -607,6 +607,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 // questo file nella guardia).
 const URL_CONFIG_TRADUZIONE = "/api/traduzione/config";
 
+/** Un rilievo di `validate::semantic` (Rust): `path` è per la macchina,
+ *  `message` e `hint` per chi legge. */
+export interface RilievoProgetto {
+  severity: "error" | "warning";
+  path: string;
+  message: string;
+  hint?: string;
+}
+
 export const api = {
   // Auth
   login: (username: string, password: string) =>
@@ -1705,6 +1714,11 @@ export const api = {
 
   remoteStatus: () =>
     request<{ connected: boolean; url?: string; connected_at_ms?: number }>("/api/remote/status"),
+
+  /** GET /api/project/findings — i rilievi semantici del progetto com'è su
+   *  disco (tag non dichiarati, allarmi su tag inesistenti, comandi MQTT
+   *  senza publish_topic…): avvisi dopo il salvataggio, mai un blocco. */
+  projectFindings: () => request<RilievoProgetto[]>("/api/project/findings"),
 
   /** GET /api/host/catalog — zone termiche, mount, interfacce e core di
    *  **questa** macchina (quella dell'editor). */

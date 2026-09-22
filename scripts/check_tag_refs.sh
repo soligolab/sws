@@ -85,6 +85,33 @@ esito(
     + (f" — mancano: {mancanti}" if mancanti else ""),
 )
 
+# ── 3. Un posto solo installa i tag nel runtime (Fase 0d, 22-09-2026) ───────
+# Sei siti facevano a mano semina/rimozione/scale/ruoli/tipi/calcolati nel
+# TagDb, e divergevano (la ricarica da git saltava scale, tipi e ruoli). Ora
+# lo fa `projects::apply_tags`; qualunque altro punto di sws-web che chiami
+# direttamente uno di questi metodi è un settimo sito che sta nascendo.
+import glob, os
+METODI = re.compile(r'\.(set_scales|set_write_roles|set_data_types|set_computed_tags)\(|build_generator_tags\(|\.initial_value\(\)')
+intrusi = []
+for f in sorted(glob.glob(f"{root}/sws-runtime/crates/sws-web/src/**/*.rs", recursive=True)):
+    testo = open(f, encoding="utf-8").read()
+    # apply_tags stesso e i test sono ammessi
+    corpo = testo
+    m_fn = re.search(r'pub async fn apply_tags\(.*?\n\}\n', testo, re.S)
+    if m_fn:
+        corpo = testo[:m_fn.start()] + testo[m_fn.end():]
+    corpo = re.split(r'#\[cfg\(test\)\]', corpo)[0]
+    for i, riga in enumerate(corpo.split("\n"), 1):
+        if riga.strip().startswith("//") or re.match(r'\s*(pub(\(crate\))?\s+)?(async\s+)?fn\s', riga):
+            continue  # commenti e definizioni, non chiamate
+        if METODI.search(riga):
+            intrusi.append(f"{os.path.relpath(f, root)}:{i}: {riga.strip()[:90]}")
+esito(
+    not intrusi,
+    "nessun sito installa i tag nel TagDb fuori da `projects::apply_tags`"
+    + ("".join("\n      " + x for x in intrusi)),
+)
+
 print()
 if passati == fatti:
     print(f"\033[32mcampi-tag: due elenchi, {passati}/{fatti} controlli verdi.\033[0m")

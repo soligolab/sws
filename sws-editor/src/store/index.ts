@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import i18n from "i18next";
-import { api, setAuthToken, ProjectChangedError } from "@/api/client";
+import { api, setAuthToken, ProjectChangedError, type RilievoProgetto } from "@/api/client";
 import { aggiungi, ordinaPagine, posizioneDi, riconcilia, rimuovi, sposta } from "@/pageTree";
 import { applyAppearance, getStoredMode, type ThemeMode } from "@/theme";
 import { genId } from "@/id";
@@ -345,6 +345,10 @@ interface AppState {
   svuotaTagInAttesa: () => void;
   /** Gli id creati dall'ultimo salvataggio riuscito, per il riepilogo. */
   ultimiTagCreati: string[];
+  /** I rilievi semantici del progetto letti dopo l'ultimo salvataggio
+   *  (Fase 0d): avvisi in testata, mai un blocco. */
+  rilieviProgetto: RilievoProgetto[];
+  aggiornaRilievi: () => Promise<void>;
   /** Crea al volo ogni tag referenziato dal progetto e non dichiarato (un
    *  PUT solo, dopo il flush delle bozze); ritorna gli id creati. */
   riconciliaTag: () => Promise<string[]>;
@@ -787,6 +791,7 @@ export const useAppStore = create<AppState>((set, get) => {
     pendingSections: {},
     tagInAttesa: [],
     ultimiTagCreati: [],
+    rilieviProgetto: [],
 
     setAuth: (token, username, role, mustChangePassword = false, expiresAtMs) => {
       setAuthToken(token);
@@ -2240,6 +2245,14 @@ export const useAppStore = create<AppState>((set, get) => {
       }, 2000);
     },
 
+    aggiornaRilievi: async () => {
+      // Un errore qui non è un errore di salvataggio: i rilievi sono un
+      // servizio in più, e senza rete o senza progetto restano quelli di prima.
+      try {
+        set({ rilieviProgetto: await api.projectFindings() });
+      } catch { /* vedi sopra */ }
+    },
+
     aggiungiTagInAttesa: (t) =>
       set((s) => ({
         // Lo stesso id due volte: vince l'ultima definizione, niente doppioni.
@@ -2469,6 +2482,9 @@ export const useAppStore = create<AppState>((set, get) => {
       }
       set({ saveStatus: "ok", ultimiTagCreati: tagCreati });
       get().markPagesSaved();
+      // Fase 0d: dopo aver scritto, cosa dice il validatore del progetto su
+      // disco. Non si aspetta: la testata si aggiorna quando arriva.
+      void get().aggiornaRilievi();
       saveOkTimer = window.setTimeout(() => {
         saveOkTimer = null;
         if (get().saveStatus === "ok") set({ saveStatus: "idle" });

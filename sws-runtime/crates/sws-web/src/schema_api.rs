@@ -225,6 +225,24 @@ pub async fn validate_project(
     .into_response()
 }
 
+/// `GET /api/project/findings` — i rilievi semantici del progetto **com'è su
+/// disco**, per l'editor dopo un salvataggio (Fase 0d del piano tag).
+///
+/// `validate::semantic` esisteva solo per l'assistente IA e per i test:
+/// l'editor salvava e non lo chiamava mai, e un tag mappato verso il nulla o
+/// un allarme su un tag inesistente si scoprivano sul dispositivo. Qui non si
+/// blocca niente — sono avvisi — ma si dicono, subito dopo che il file è
+/// stato scritto. Nessun progetto aperto: elenco vuoto, non un errore.
+pub async fn project_findings(State(s): State<AppState>) -> Json<Vec<Finding>> {
+    let Ok(dir) = crate::router::active_dir(&s).await else {
+        return Json(Vec::new());
+    };
+    let (Ok(project), Ok(pages)) = (Project::load(&dir), carica_pagine(&dir).await) else {
+        return Json(Vec::new());
+    };
+    Json(semantic(&project, &pages))
+}
+
 async fn carica_pagine(dir: &std::path::Path) -> Result<Vec<SynopticPage>, String> {
     let sdir = synoptics_dir_at(dir);
     let mut out = Vec::new();

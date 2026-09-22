@@ -642,6 +642,56 @@ pub(crate) fn build_generator_tags(
         .collect()
 }
 
+/// Installa nel `TagDb` e nei registri **tutto** ciò che deriva da
+/// `project.tags`, in un posto solo (Fase 0d del piano tag).
+///
+/// Fino al 22-09-2026 lo facevano sei siti a mano — apertura del progetto,
+/// `PUT /api/project/tags`, import CSV, import zip, ricarica da git, chiusura
+/// — e divergevano: la ricarica da git non aggiornava scale, tipi e ruoli di
+/// scrittura e non toglieva i tag spariti; l'import CSV non aggiornava scale,
+/// tipi e ruoli. Un progetto deployato via git con una scala nuova continuava
+/// a mostrare il valore grezzo finché qualcuno non riavviava.
+///
+/// Cosa fa, sempre nello stesso ordine: semina i tag nuovi (valore iniziale
+/// del tipo, qualità Uncertain — «non ancora letto»), toglie quelli che non
+/// esistono più, poi tag calcolati, generatori, scale, ruoli di scrittura,
+/// tipi e insieme dei tag calcolati. Con `tags` vuoto azzera tutto: è la
+/// chiusura del progetto. Ritorna (seminati, tolti).
+pub async fn apply_tags(
+    db: &TagDb,
+    derived_tags: &DerivedTagsRegistry,
+    generator_tags: &GeneratorTagsRegistry,
+    tags: &[sws_core::TagDef],
+) -> (usize, usize) {
+    let attuali: std::collections::HashSet<String> = db.snapshot().await.into_keys().collect();
+    let nuovi: std::collections::HashSet<&str> = tags.iter().map(|t| t.id.as_str()).collect();
+    let mut seminati = 0;
+    for t in tags.iter().filter(|t| !attuali.contains(&t.id)) {
+        db.set(
+            t.id.clone(),
+            t.initial_value(),
+            sws_core::TagQuality::Uncertain,
+        )
+        .await;
+        seminati += 1;
+    }
+    let mut tolti = 0;
+    for id in attuali.iter().filter(|id| !nuovi.contains(id.as_str())) {
+        db.remove(id).await;
+        tolti += 1;
+    }
+    *derived_tags.write().await = tags
+        .iter()
+        .filter_map(|t| t.expression.as_ref().map(|e| (t.id.clone(), e.clone())))
+        .collect();
+    *generator_tags.write().await = build_generator_tags(tags);
+    db.set_scales(build_tag_scales(tags)).await;
+    db.set_write_roles(build_tag_write_roles(tags)).await;
+    db.set_data_types(build_tag_data_types(tags)).await;
+    db.set_computed_tags(build_computed_tags(tags)).await;
+    (seminati, tolti)
+}
+
 #[allow(clippy::too_many_arguments)]
 pub async fn apply_loaded_project(
     project_dir: &StdPath,
@@ -664,24 +714,7 @@ pub async fn apply_loaded_project(
         functions = project.functions.len(),
         "project opened",
     );
-    // Seed derived tags before populate_tags so they start Uncertain until
-    // the evaluator task computes the first real value.
-    {
-        let derived: Vec<(String, String)> = project
-            .tags
-            .iter()
-            .filter_map(|t| t.expression.as_ref().map(|e| (t.id.clone(), e.clone())))
-            .collect();
-        *derived_tags.write().await = derived;
-        *generator_tags.write().await = build_generator_tags(&project.tags);
-    }
-    db.set_scales(build_tag_scales(&project.tags)).await;
-    db.set_write_roles(build_tag_write_roles(&project.tags))
-        .await;
-    db.set_data_types(build_tag_data_types(&project.tags)).await;
-    db.set_computed_tags(build_computed_tags(&project.tags))
-        .await;
-    project.populate_tags(db).await;
+    apply_tags(db, derived_tags, generator_tags, &project.tags).await;
     // Init datastore registry before consuming the project fields.
     match DatastoreRegistry::from_project(&project, project_dir).await {
         Ok(Some(reg)) => {
@@ -929,15 +962,11 @@ pub async fn close_project(State(s): State<AppState>) -> Response {
     }
     crate::telegram::stop_sender(&s).await;
     s.db.clear().await;
-    s.db.set_scales(Default::default()).await;
-    s.db.set_write_roles(Default::default()).await;
-    s.db.set_data_types(Default::default()).await;
-    s.db.set_computed_tags(Default::default()).await;
+    // Nessun tag: azzera scale, ruoli, tipi, calcolati, derivati e generatori.
+    apply_tags(&s.db, &s.derived_tags, &s.generator_tags, &[]).await;
     s.historian.swap_store(None).await; // RAM-only between projects
     s.alarms.load(vec![]).await;
     s.functions.write().await.clear();
-    s.derived_tags.write().await.clear();
-    s.generator_tags.write().await.clear();
     s.recipe_log.write().await.clear();
     *s.registry.write().await = None;
     s.auth.clear().await;
@@ -2222,6 +2251,70 @@ fn migrate_legacy_sqlite_path(project_dir: &StdPath) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Fase 0d: un posto solo installa i tag nel runtime, e fa sempre tutto.
+    /// Prima la ricarica da git non aggiornava scale, tipi e ruoli e non
+    /// toglieva i tag spariti; l'import CSV saltava scale, tipi e ruoli.
+    #[tokio::test]
+    async fn apply_tags_semina_toglie_e_aggiorna_tutto() {
+        let db = TagDb::new(8);
+        let derived: DerivedTagsRegistry = Default::default();
+        let generators: GeneratorTagsRegistry = Default::default();
+        // Dal YAML, com'è nel progetto: TagDef non ha un Default.
+        let tag =
+            |yaml: &str| -> sws_core::TagDef { serde_yaml::from_str(yaml).expect("tag di prova") };
+        let scalato =
+            tag("id: a\ndata_type: float\nraw_min: 0\nraw_max: 100\neng_min: 0\neng_max: 1000");
+        let calcolato = tag("id: c\ndata_type: float\nexpression: 'tags[\"a\"] * 2'");
+        let b = tag("id: b\ndata_type: int");
+        let a_senza_scala = tag("id: a\ndata_type: float");
+
+        let (seminati, tolti) = apply_tags(
+            &db,
+            &derived,
+            &generators,
+            &[scalato.clone(), calcolato.clone(), b.clone()],
+        )
+        .await;
+        assert_eq!((seminati, tolti), (3, 0));
+        let mut ids: Vec<String> = db.snapshot().await.into_keys().collect();
+        ids.sort();
+        assert_eq!(ids, ["a", "b", "c"]);
+        assert!(
+            db.is_computed("c").await,
+            "il tag con espressione è calcolato"
+        );
+        assert_eq!(derived.read().await.len(), 1);
+        // La scala c'è: 50 grezzi → 500 ingegneristici, e la coercizione
+        // conosce il tipo di `b`.
+        assert_eq!(
+            db.scale_to_raw("a", sws_core::TagValue::Float(500.0)).await,
+            sws_core::TagValue::Float(50.0)
+        );
+        assert_eq!(
+            db.coerce_for_write("b", sws_core::TagValue::Float(7.0))
+                .await,
+            Ok(sws_core::TagValue::Int(7))
+        );
+
+        // Secondo giro: `c` sparisce, `a` perde la scala. Niente resta indietro.
+        let (seminati, tolti) = apply_tags(&db, &derived, &generators, &[a_senza_scala, b]).await;
+        assert_eq!((seminati, tolti), (0, 1));
+        assert!(db.get("c").await.is_none());
+        assert!(!db.is_computed("c").await);
+        assert!(derived.read().await.is_empty());
+        assert_eq!(
+            db.scale_to_raw("a", sws_core::TagValue::Float(500.0)).await,
+            sws_core::TagValue::Float(500.0)
+        );
+
+        // Nessun tag = chiusura: tutto azzerato, senza toccare quel che il
+        // chiamante ha già svuotato con `clear()`.
+        db.clear().await;
+        let (seminati, tolti) = apply_tags(&db, &derived, &generators, &[]).await;
+        assert_eq!((seminati, tolti), (0, 0));
+        assert!(db.snapshot().await.is_empty());
+    }
 
     #[test]
     fn il_deploy_sovrascrive_anche_le_pagine_di_boot() {

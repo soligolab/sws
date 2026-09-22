@@ -2164,5 +2164,10 @@
     "fatto": "Renamed in {{n}} places.",
     "errore": "Rename failed: {{message}}",
     "occorrenze": "{{n}} occurrences"
+  },
+  "rilievi": {
+    "conteggio": "{{n}} findings",
+    "hint": "Validator findings on the saved project: it runs, but here it probably does not do what you meant.",
+    "intro": "What the validator found in the project as it is on disk. Nothing is blocked: fix and save, the list refreshes."
   }
 }
