@@ -102,7 +102,7 @@ tokenizer delle espressioni dell'editor che accetta già `{valvole[3].stato}`; `
 - Rosso prima: `riconciliaTag.test.ts` (S7 `dint` deve dare `i32`), test Rust di `tipo.rs` sulla fixture, la guardia nuova.
 - Utile da solo: `u16`, `f32`, `datetime` sui tag piatti prima che esistano le strutture.
 
-### 1b — Modello composito e TagDb  `feat/tag-1b-modello-composito`  *(sul ramo dal 22-09-2026, da collaudare)*
+### 1b — Modello composito e TagDb  `feat/tag-1b-modello-composito`  *(**su `main`** il 22-09-2026, collaudata)*
 - **`TagValue`** += `Array(Vec<TagValue>)`, `Struct(BTreeMap<String, TagValue>)`, `serde(untagged)` invariato. I 25 `match` per classe: consumatori
   numerici (`as_f64` allarmi, `numeric` storico, deadband, `fmt_value` notifiche, `is_falsy`, verità LVGL) → un composito **non è un numero** (`None`/falso);
   `tag_value_as_string`/`stringify` MQTT/HA → JSON; pyscript ↔ `list`/`dict`; plugin in scrittura → un composito verso una foglia scalare è rifiutato con
@@ -140,7 +140,7 @@ tokenizer delle espressioni dell'editor che accetta già `{valvole[3].stato}`; `
 - Rosso prima: `percorso.rs` (parse/leggi/scrivi, multi-dimensione), `TagDb` (esatto prima, prefisso, read-modify-write, qualità per foglia), validazione
   (cicli, collisioni), `template_tests` invariata, `check_synoptic_schema` rigenerato.
 
-### 1c — Formati di durata e data (D10)  `feat/tag-1c-formati-durata-data`  *(sul ramo dal 22-09-2026, da collaudare)*
+### 1c — Formati di durata e data (D10)  `feat/tag-1c-formati-durata-data`  *(**su `main`** il 22-09-2026, collaudata)*
 **D10, decisa dal maintainer il 22-09-2026**, nata da un caso vero: l'uptime della sorgente Host arrivava come `19339477` e non c'era **nessuno strumento** per leggerlo in
 ore e minuti — la specifica dei formati conosceva solo decimali, migliaia, esponenziale e percentuale. Due famiglie nuove nella fixture condivisa
 `tests/fixtures/formattazione-valori.json`, quindi valide su web e pannello insieme:

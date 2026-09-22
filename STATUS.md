@@ -74,7 +74,23 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — Fase 0b su `main`: un solo Salva e variabili create al salvataggio (2026-09-22, ufficio)
+## ▶ Riprendere da qui — Fase 0 chiusa e Fase 1 a metà: prossima la 1d (2026-09-22, ufficio, sera)
+
+**Tutto su `main` e pushato.** Piano: `docs/plans/2026-09-21-gestione-tag-oggetto-unico.md`.
+
+**Fase 0 chiusa** (0a registro riferimenti, 0b creazione al salvataggio + **un solo «Salva» di progetto**, 0c rinomina ovunque con anteprima + ✕ che rifiuta una variabile usata, 0d `apply_tags` unica + validatore che parla dopo il salvataggio).
+
+**Fase 1, tre rami su cinque** (`8018ac0f`, `b1b172f1`, più `b89e1ef8` di ieri sera):
+- **1a** tipi scalari ricchi: `bool`, `i8`…`i64`, `u8`…`u64`, `f32/f64`, `string(N)`, `datetime`; `int`/`float` alias, nessuna migrazione; coercizione con **intervallo**; fixture `tipi-scalari.json` + guardia `check_tipi_scalari.sh` (26ª).
+- **1b** modello composito: `TagValue` += Array/Struct, sezione `types:`, `type_ref`/`array` (anche multidimensionale), percorsi `motore1.velocita`/`valvole[1][0]` con «esatto prima, poi il prefisso più lungo», **qualità per foglia** (radice = la peggiore), `espandi_foglie`, validazione di tipi e collisioni. `sws-core/src/percorso.rs`.
+- **1c** formati `{value:hms}`/`{value:dhms}`/`{value:date}`/`{value:time}`/`{value:datetime}` (D10, nata dall'uptime Host illeggibile), con l'elenco a tendina nel campo «Formato» e l'anteprima sul valore vero.
+- Fuori piano, dalle prove del maintainer: palette a due colonne con icone più grandi e scorrimento, tre etichette che mostravano la chiave, `check_i18n_ui.sh` che ora le pretende.
+
+**Prossimo passo — Fase 1d, scrittura e filo** (`feat/tag-1d-scrittura-e-filo`): `WriteRequest` con percorso e bus che risale dalla foglia alla radice; `coerce_for_write`/`scale_to_raw` sul tipo della foglia; i tre ingressi (REST, ricette, WS); **espansione in foglie di default** su `/ws/tags` e `GET /api/tags`, con flag `composito` per la radice intera. **È il passo che sblocca l'uso dei tipi struttura su un pannello**: finché non c'è, un progetto con `types:` non va mandato al viewer LVGL (un frame tipizzato con dentro un valore composito si perde intero). Poi la 1e (storico a foglie, Python list/dict).
+
+**Restano fuori**: Passo 2 dei segreti (cinque conferme mai date), container 2.11.1 sul TC620, rotazione del token Telegram di `CasaDomotica`.
+
+## Riprendere da qui (precedente) — Fase 0b su `main`: un solo Salva e variabili create al salvataggio (2026-09-22, ufficio)
 
 **Fatto oggi, su `main`** (`6c5cc2c3`, collaudato dal maintainer):
 - **Un solo «Salva», quello del progetto**: le nove schede di contenuto (Variabili, Sorgenti, Allarmi, Notifiche, Storico, Script, Lingue, Faceplate, Ricette) registrano la bozza fra le
