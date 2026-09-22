@@ -83,7 +83,7 @@ cinque mappe parallele su id piatto; `WriteRequest = (TagId, TagValue)` e bus a 
 voce porta un valore composito; SQLite che già serializza il valore come JSON (nessuna migrazione) e Postgres a colonna numerica (obbliga alle foglie); il
 tokenizer delle espressioni dell'editor che accetta già `{valvole[3].stato}`; `apply_tags` (Fase 0d) come unico punto d'installazione nel runtime.
 
-### 1a — Tipi scalari ricchi (D5, D7)  `feat/tag-1a-tipi-scalari`  *(sul ramo dal 22-09-2026, da collaudare; la mappa dei tipi nel TagDb tiene il nome dichiarato e lo interpreta a ogni coercizione, non `TipoScalare` — così il messaggio d'errore nomina la parola scritta nello YAML)*
+### 1a — Tipi scalari ricchi (D5, D7)  `feat/tag-1a-tipi-scalari`  *(**su `main`** il 22-09-2026, collaudata; la mappa dei tipi nel TagDb tiene il nome dichiarato e lo interpreta a ogni coercizione, non `TipoScalare` — così il messaggio d'errore nomina la parola scritta nello YAML)*
 - `sws-core/src/tipo.rs`: `enum TipoScalare { Bool, I8, I16, I32, I64, U8, U16, U32, U64, F32, F64, String { max_len: Option<u32> }, DateTime }`;
   `parse(&str)` con gli **alias** `bool`, `int`→`I64`, `float`→`F64`, `string`→`String{None}`, `string(32)`, `datetime`; `nome()` ritorna il nome scritto
   (gli alias sopravvivono al round-trip: `TagDef.data_type` resta una `String` nel YAML e si interpreta con `TagDef::tipo()` — **zero migrazione**);
