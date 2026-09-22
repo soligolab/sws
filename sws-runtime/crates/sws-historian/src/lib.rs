@@ -382,6 +382,10 @@ fn numeric(v: &TagValue) -> Option<f64> {
         TagValue::Int(i) => Some(*i as f64),
         TagValue::Bool(b) => Some(if *b { 1.0 } else { 0.0 }),
         TagValue::Str(_) => None,
+        // Fase 1b: un array o una struttura non è un numero. Nei bucket si
+        // ignora, come una stringa: il client disegna il buco invece di un
+        // valore inventato. Lo storico registra le FOGLIE (Fase 1d).
+        TagValue::Array(_) | TagValue::Struct(_) => None,
     }
 }
 

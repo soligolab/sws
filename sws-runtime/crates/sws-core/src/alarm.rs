@@ -100,6 +100,10 @@ impl AlarmCondition {
             TagValue::Int(i) => Some(*i as f64),
             TagValue::Bool(b) => Some(if *b { 1.0 } else { 0.0 }),
             TagValue::Str(s) => s.trim().parse().ok(),
+            // Un array o una struttura NON sono un numero (Fase 1b): un
+            // allarme si mette su una foglia, non su una radice. `None` =
+            // la condizione non scatta, come per una stringa non numerica.
+            TagValue::Array(_) | TagValue::Struct(_) => None,
         }
     }
 

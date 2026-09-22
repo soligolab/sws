@@ -125,6 +125,9 @@ fn tagvalue_to_register(value: &TagValue, scale: f64) -> Option<u16> {
         TagValue::Int(i) => *i as f64,
         TagValue::Float(f) => *f,
         TagValue::Str(s) => s.trim().parse().ok()?,
+        // Fase 1b: un registro tiene uno scalare. La lettura/scrittura a
+        // blocco di una radice arriva con la Fase 3.
+        TagValue::Array(_) | TagValue::Struct(_) => return None,
     };
     let raw = (f / scale).round();
     if raw.is_finite() && raw >= 0.0 && raw <= u16::MAX as f64 {

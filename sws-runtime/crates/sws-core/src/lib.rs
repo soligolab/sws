@@ -2,6 +2,7 @@ pub mod alarm;
 pub mod geometry;
 pub mod logbus;
 pub mod page_tree;
+pub mod percorso;
 pub mod pin_tls;
 pub mod project;
 pub mod tag;
@@ -15,16 +16,17 @@ pub use alarm::{
 };
 pub use geometry::{bbox_of, is_off_page, BBox, CASI_FUORI_PAGINA};
 pub use logbus::{LogBus, LogEvent, DEFAULT_LOG_CAPACITY};
+pub use percorso::{Foglia, Forma, Segmento};
 pub use project::{
     AffixPosition, CanaleNotifica, CustomSymbol, CustomSymbolAttribution, DatastoreBackendConfig,
     DatastoreConfig, EnIpConfig, EnIpDataType, EnIpTagMapping, EntityMapping, FunctionDef,
     FunctionParam, GeneratorSpec, GlobalScriptDef, HomeAssistantConfig, HostConfig, HostMetric,
-    HostMetricMapping, LangEntry, LanguageTable, ModbusRtuConfig, ModbusTcpConfig, MqttConfig,
-    MqttLastWill, MqttTlsConfig, NotificationConfig, OpcUaAuth, OpcUaClientConfig,
+    HostMetricMapping, LangEntry, LanguageTable, Membro, ModbusRtuConfig, ModbusTcpConfig,
+    MqttConfig, MqttLastWill, MqttTlsConfig, NotificationConfig, OpcUaAuth, OpcUaClientConfig,
     OpcUaNodeMapping, OpcUaServerConfig, OpcUaServerNodeMapping, PageLayoutConfig, PageSizeMode,
     PageTreeNode, Project, ProjectMeta, ProjectTarget, ProjectTargetKind, RandomClientId,
     RegisterMapping, S7Config, S7DataType, S7TagMapping, ScriptTrigger, SmtpConfig, SourceDef,
-    SparkplugConfig, SparkplugMetricMapping, TagDef, TelegramConfig, TopicMapping,
+    SparkplugConfig, SparkplugMetricMapping, TagDef, TelegramConfig, TopicMapping, TypeDef,
     MAX_FUNCTION_CODE_BYTES,
 };
 pub use tag::{

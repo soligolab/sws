@@ -702,11 +702,21 @@ async fn main() -> anyhow::Result<()> {
     // the alarms watching that tag and broadcasts any transitions.
     {
         let adb = alarm_db.clone();
+        let tdb = tag_db.clone();
         let mut tag_rx = tag_db.subscribe();
         tokio::spawn(async move {
             loop {
                 match tag_rx.recv().await {
-                    Ok(update) => adb.evaluate(&update.id, &update.state).await,
+                    // Fase 1b: un aggiornamento di una radice composita porta
+                    // la struttura intera, ma un allarme sta su una **foglia**
+                    // (`motore1.velocita`). Si espande: per un tag scalare
+                    // `espandi_foglie` ritorna l'aggiornamento stesso, quindi
+                    // il caso di sempre costa una `Vec` di un elemento.
+                    Ok(update) => {
+                        for (id, st) in tdb.espandi_foglie(&update).await {
+                            adb.evaluate(&id, &st).await;
+                        }
+                    }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
                         warn!("alarm evaluator lagged by {n}");
                     }

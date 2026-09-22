@@ -485,6 +485,12 @@ fn stringify(v: &TagValue) -> String {
         TagValue::Int(i) => i.to_string(),
         TagValue::Float(f) => f.to_string(),
         TagValue::Str(s) => s.clone(),
+        // Fase 1b: un array o una struttura si pubblica come JSON — è la
+        // forma in cui un broker MQTT se l'aspetta, ed è quella che
+        // `decode_payload` rilegge.
+        v @ (TagValue::Array(_) | TagValue::Struct(_)) => {
+            serde_json::to_string(v).unwrap_or_default()
+        }
     }
 }
 

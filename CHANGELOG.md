@@ -12,6 +12,19 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Added
+- **Modello composito nel core: strutture e array come cittadini di prima classe** (Fase 1b del piano `docs/plans/2026-09-21-gestione-tag-oggetto-unico.md`, 22-09-2026).
+  `TagValue` guadagna `Array` e `Struct` (serde untagged: JSON nativo, nessun cambio di rotta); il progetto guadagna una sezione **`types:`** con i tipi struttura riusabili
+  (membri con tipo scalare o `type_ref`, array anche **a più dimensioni** (D8), unità, scala, limiti, ruolo di scrittura, storico per membro) e `TagDef` guadagna `type_ref` e
+  `array`: `motore1` è un'istanza di `Motore`, `valvole` un array di istanze, `matrice` un `u16[2][3]`. Le foglie si raggiungono per **percorso** — `motore1.velocita`,
+  `valvole[3].stato`, `matrice[1][2]` — con la regola **esatto prima, poi il prefisso più lungo**: i 350+ id piatti con il punto dentro (`pv1.potenza`) restano intoccati, e
+  una collisione fra un id piatto e un percorso è un errore di validazione, non una sorpresa. `TagDb` risolve i percorsi, scrive una foglia con leggi-modifica-scrivi sulla
+  radice, e tiene **qualità e timestamp per foglia** (D6): una mappatura guasta marca la sua foglia, la radice riporta la peggiore — prima una qualità sola avrebbe marcato
+  Bad tutta la struttura o nascosto il guasto. Scala, tipo e ruolo di scrittura sono **della foglia** e vengono dal membro del tipo, quindi due istanze li ereditano senza
+  ripeterli; il ruolo messo sull'istanza copre i suoi membri. Gli allarmi si mettono su una foglia (l'aggiornamento della radice si espande prima di valutarli). Un array o una
+  struttura **non è un numero**: storico, statistiche, soglie, verità e formattazione lo trattano come non applicabile, mai come zero; su MQTT e nelle notifiche si legge come
+  JSON; in Python diventa `list`/`dict`. Nuovi moduli `sws-core/src/percorso.rs` (grammatica, forma, foglie) e i suoi test; `apply_tags` installa le forme prima della semina.
+  **Limite dichiarato di questo passo**: sul filo (WebSocket e `GET /api/tags`) una radice viaggia ancora com'è — l'espansione in foglie di default arriva con la Fase 1c, e
+  fino ad allora un progetto con `types:` non va mandato a un pannello LVGL. Nessun progetto esistente cambia: `types:` è assente e `skip_serializing_if` non lo scrive.
 - **Tipi scalari ricchi per le variabili** (D5 del piano `docs/plans/2026-09-21-gestione-tag-oggetto-unico.md`, Fase 1a, 22-09-2026). `data_type` accetta ora `bool`,
   `i8`…`i64`, `u8`…`u64`, `f32`, `f64`, `string` o `string(N)`, `datetime` (millisecondi UTC dall'epoca, D7); `int` e `float` restano **alias** di `i64` e `f64` e
   sopravvivono al round-trip — nessun progetto va migrato, nessun template cambia. La variabile è del runtime e il suo tipo dice tutto ciò che serve a qualunque

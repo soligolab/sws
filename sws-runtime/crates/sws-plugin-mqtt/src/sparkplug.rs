@@ -286,6 +286,10 @@ fn build_cmd_payload(metric_name: &str, value: &TagValue) -> Vec<u8> {
         TagValue::Int(i) => Some(MetricValue::LongValue(*i as u64)),
         TagValue::Float(f) => Some(MetricValue::DoubleValue(*f)),
         TagValue::Str(s) => Some(MetricValue::StringValue(s.clone())),
+        // Fase 1b: Sparkplug ha dataset e template per i compositi, ma non
+        // sono mappati (vedi la coda del piano tag): meglio non spedire nulla
+        // che spedire uno zero.
+        TagValue::Array(_) | TagValue::Struct(_) => None,
     };
     let payload = Payload {
         timestamp: None,

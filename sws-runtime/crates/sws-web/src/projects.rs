@@ -495,6 +495,7 @@ pub async fn create_project(
                     name: safe_name.clone(),
                     version: "0.1.0".into(),
                 },
+                types: vec![],
                 tags: vec![],
                 // Progetto vuoto: sorgenti non ce ne sono, niente da rivedere.
                 sorgenti_da_rivedere: false,
@@ -578,43 +579,109 @@ pub async fn create_project(
 /// la mappa in `TagDb` a ogni modifica delle variabili.
 pub(crate) fn build_tag_scales(
     tags: &[sws_core::TagDef],
+    types: &[sws_core::TypeDef],
 ) -> std::collections::HashMap<String, sws_core::LinearScale> {
-    tags.iter()
-        .filter_map(|t| match (t.raw_min, t.raw_max, t.eng_min, t.eng_max) {
-            (Some(raw_min), Some(raw_max), Some(eng_min), Some(eng_max)) if raw_max != raw_min => {
-                Some((
-                    t.id.clone(),
-                    sws_core::LinearScale {
-                        raw_min,
-                        raw_max,
-                        eng_min,
-                        eng_max,
-                    },
-                ))
+    let scala = |raw_min, raw_max, eng_min, eng_max| match (raw_min, raw_max, eng_min, eng_max) {
+        (Some(raw_min), Some(raw_max), Some(eng_min), Some(eng_max)) if raw_max != raw_min => {
+            Some(sws_core::LinearScale {
+                raw_min,
+                raw_max,
+                eng_min,
+                eng_max,
+            })
+        }
+        _ => None,
+    };
+    let mut out = std::collections::HashMap::new();
+    for t in tags {
+        // Fase 1b: per un'istanza la scala è **della foglia**, e viene dal
+        // membro del tipo — così due istanze dello stesso tipo la ereditano
+        // senza ripeterla.
+        for f in foglie_di(t, types) {
+            if let Some(m) = &f.membro {
+                if let Some(s) = scala(m.raw_min, m.raw_max, m.eng_min, m.eng_max) {
+                    out.insert(f.percorso.clone(), s);
+                }
             }
-            _ => None,
-        })
-        .collect()
+        }
+        if let Some(s) = scala(t.raw_min, t.raw_max, t.eng_min, t.eng_max) {
+            out.insert(t.id.clone(), s);
+        }
+    }
+    out
+}
+
+/// Le foglie di un tag: vuoto per un tag piatto, l'albero del tipo per
+/// un'istanza. Un tipo malformato non blocca il runtime (lo dice il
+/// validatore): si tratta il tag come se non avesse forma.
+pub(crate) fn foglie_di(
+    t: &sws_core::TagDef,
+    types: &[sws_core::TypeDef],
+) -> Vec<sws_core::Foglia> {
+    match sws_core::Forma::da_tag(t, types) {
+        Ok(Some(f)) => f.foglie(&t.id, types),
+        _ => Vec::new(),
+    }
 }
 
 /// Mappa tag→ruolo minimo di scrittura (F3.1), stessi punti di refresh
 /// di `build_tag_scales`.
 pub(crate) fn build_tag_write_roles(
     tags: &[sws_core::TagDef],
+    types: &[sws_core::TypeDef],
 ) -> std::collections::HashMap<String, String> {
-    tags.iter()
-        .filter_map(|t| t.write_min_role.as_ref().map(|r| (t.id.clone(), r.clone())))
-        .collect()
+    let mut out = std::collections::HashMap::new();
+    for t in tags {
+        if let Some(r) = &t.write_min_role {
+            out.insert(t.id.clone(), r.clone());
+        }
+        for f in foglie_di(t, types) {
+            if let Some(r) = f.membro.as_ref().and_then(|m| m.write_min_role.clone()) {
+                out.insert(f.percorso.clone(), r);
+            }
+        }
+    }
+    out
 }
 
 /// Mappa tag→`data_type` dichiarato (Q27), stessi punti di refresh di
 /// `build_tag_scales`. Tutti i tag ci finiscono: il default serde è "float".
 pub(crate) fn build_tag_data_types(
     tags: &[sws_core::TagDef],
+    types: &[sws_core::TypeDef],
 ) -> std::collections::HashMap<String, String> {
-    tags.iter()
-        .map(|t| (t.id.clone(), t.data_type.clone()))
-        .collect()
+    let mut out = std::collections::HashMap::new();
+    for t in tags {
+        // Per un'istanza il tipo è quello **della foglia**: è la foglia che
+        // si scrive, ed è il suo tipo a dover reggere la coercizione.
+        let foglie = foglie_di(t, types);
+        if foglie.is_empty() {
+            out.insert(t.id.clone(), t.data_type.clone());
+        } else {
+            for f in foglie {
+                out.insert(f.percorso, f.tipo.nome());
+            }
+        }
+    }
+    out
+}
+
+/// Le radici composite e la loro forma, per il `TagDb` (Fase 1b).
+pub(crate) fn build_forme(
+    tags: &[sws_core::TagDef],
+    types: &[sws_core::TypeDef],
+) -> std::collections::HashMap<String, sws_core::Forma> {
+    let mut out = std::collections::HashMap::new();
+    for t in tags {
+        match sws_core::Forma::da_tag(t, types) {
+            Ok(Some(f)) => {
+                out.insert(t.id.clone(), f);
+            }
+            Ok(None) => {}
+            Err(e) => warn!(tag = %t.id, "forma non valida, il tag resta scalare: {e}"),
+        }
+    }
+    out
 }
 
 /// Insieme dei tag calcolati (`TagDef::is_computed`, T-69), stessi punti di
@@ -662,17 +729,22 @@ pub async fn apply_tags(
     derived_tags: &DerivedTagsRegistry,
     generator_tags: &GeneratorTagsRegistry,
     tags: &[sws_core::TagDef],
+    types: &[sws_core::TypeDef],
 ) -> (usize, usize) {
     let attuali: std::collections::HashSet<String> = db.snapshot().await.into_keys().collect();
     let nuovi: std::collections::HashSet<&str> = tags.iter().map(|t| t.id.as_str()).collect();
+    // Le forme PRIMA della semina (Fase 1b): un'istanza nasce col valore
+    // composito, e `set` deve già sapere che `motore1` è una radice.
+    let forme = build_forme(tags, types);
+    db.set_forme(forme.clone()).await;
     let mut seminati = 0;
     for t in tags.iter().filter(|t| !attuali.contains(&t.id)) {
-        db.set(
-            t.id.clone(),
-            t.initial_value(),
-            sws_core::TagQuality::Uncertain,
-        )
-        .await;
+        let iniziale = match forme.get(&t.id) {
+            Some(f) => f.valore_iniziale(),
+            None => t.initial_value(),
+        };
+        db.set(t.id.clone(), iniziale, sws_core::TagQuality::Uncertain)
+            .await;
         seminati += 1;
     }
     let mut tolti = 0;
@@ -685,9 +757,9 @@ pub async fn apply_tags(
         .filter_map(|t| t.expression.as_ref().map(|e| (t.id.clone(), e.clone())))
         .collect();
     *generator_tags.write().await = build_generator_tags(tags);
-    db.set_scales(build_tag_scales(tags)).await;
-    db.set_write_roles(build_tag_write_roles(tags)).await;
-    db.set_data_types(build_tag_data_types(tags)).await;
+    db.set_scales(build_tag_scales(tags, types)).await;
+    db.set_write_roles(build_tag_write_roles(tags, types)).await;
+    db.set_data_types(build_tag_data_types(tags, types)).await;
     db.set_computed_tags(build_computed_tags(tags)).await;
     (seminati, tolti)
 }
@@ -714,7 +786,14 @@ pub async fn apply_loaded_project(
         functions = project.functions.len(),
         "project opened",
     );
-    apply_tags(db, derived_tags, generator_tags, &project.tags).await;
+    apply_tags(
+        db,
+        derived_tags,
+        generator_tags,
+        &project.tags,
+        &project.types,
+    )
+    .await;
     // Init datastore registry before consuming the project fields.
     match DatastoreRegistry::from_project(&project, project_dir).await {
         Ok(Some(reg)) => {
@@ -963,7 +1042,7 @@ pub async fn close_project(State(s): State<AppState>) -> Response {
     crate::telegram::stop_sender(&s).await;
     s.db.clear().await;
     // Nessun tag: azzera scale, ruoli, tipi, calcolati, derivati e generatori.
-    apply_tags(&s.db, &s.derived_tags, &s.generator_tags, &[]).await;
+    apply_tags(&s.db, &s.derived_tags, &s.generator_tags, &[], &[]).await;
     s.historian.swap_store(None).await; // RAM-only between projects
     s.alarms.load(vec![]).await;
     s.functions.write().await.clear();
@@ -2274,6 +2353,7 @@ mod tests {
             &derived,
             &generators,
             &[scalato.clone(), calcolato.clone(), b.clone()],
+            &[],
         )
         .await;
         assert_eq!((seminati, tolti), (3, 0));
@@ -2298,7 +2378,8 @@ mod tests {
         );
 
         // Secondo giro: `c` sparisce, `a` perde la scala. Niente resta indietro.
-        let (seminati, tolti) = apply_tags(&db, &derived, &generators, &[a_senza_scala, b]).await;
+        let (seminati, tolti) =
+            apply_tags(&db, &derived, &generators, &[a_senza_scala, b], &[]).await;
         assert_eq!((seminati, tolti), (0, 1));
         assert!(db.get("c").await.is_none());
         assert!(!db.is_computed("c").await);
@@ -2311,7 +2392,7 @@ mod tests {
         // Nessun tag = chiusura: tutto azzerato, senza toccare quel che il
         // chiamante ha già svuotato con `clear()`.
         db.clear().await;
-        let (seminati, tolti) = apply_tags(&db, &derived, &generators, &[]).await;
+        let (seminati, tolti) = apply_tags(&db, &derived, &generators, &[], &[]).await;
         assert_eq!((seminati, tolti), (0, 0));
         assert!(db.snapshot().await.is_empty());
     }

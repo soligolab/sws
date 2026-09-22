@@ -98,6 +98,11 @@ fn fmt_value(v: &TagValue) -> String {
         TagValue::Int(i) => i.to_string(),
         TagValue::Float(f) => f.to_string(),
         TagValue::Str(s) => s.clone(),
+        // Fase 1b: in una notifica un composito si legge come JSON. Un
+        // allarme sta su una foglia, quindi in pratica non ci arriva.
+        v @ (TagValue::Array(_) | TagValue::Struct(_)) => {
+            serde_json::to_string(v).unwrap_or_default()
+        }
     }
 }
 

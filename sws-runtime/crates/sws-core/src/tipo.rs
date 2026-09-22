@@ -254,6 +254,8 @@ pub fn descrivi(v: &TagValue) -> String {
         Int(i) => format!("int ({i})"),
         Float(f) => format!("float ({f})"),
         Str(s) => format!("string («{s}»)"),
+        Array(a) => format!("array ({} elementi)", a.len()),
+        Struct(m) => format!("struttura ({} campi)", m.len()),
     }
 }
 

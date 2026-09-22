@@ -1231,6 +1231,10 @@ fn tag_value_as_f64(v: &TagValue) -> f64 {
         TagValue::Int(i) => *i as f64,
         TagValue::Float(f) => *f,
         TagValue::Str(s) => s.trim().parse::<f64>().unwrap_or(0.0),
+        // Fase 1b: un composito non è un numero. Zero è il ripiego storico di
+        // questa funzione (niente NaN dentro le chiamate FFI); un widget si
+        // lega a una foglia, non a una radice.
+        TagValue::Array(_) | TagValue::Struct(_) => 0.0,
     }
 }
 
@@ -1240,6 +1244,10 @@ fn tag_value_as_string(v: &TagValue) -> String {
         TagValue::Int(i) => i.to_string(),
         TagValue::Float(f) => f.to_string(),
         TagValue::Str(s) => s.clone(),
+        // Fase 1b: si mostra il JSON, che è la forma in cui il valore arriva.
+        v @ (TagValue::Array(_) | TagValue::Struct(_)) => {
+            serde_json::to_string(v).unwrap_or_default()
+        }
     }
 }
 
@@ -1249,6 +1257,10 @@ fn tag_value_as_bool(v: &TagValue) -> bool {
         TagValue::Int(i) => *i != 0,
         TagValue::Float(f) => *f != 0.0,
         TagValue::Str(s) => !s.trim().is_empty(),
+        // Fase 1b: un array o una struttura non ha un valore di
+        // verità — «c'è» non vuol dire «acceso». Falso, come un
+        // valore assente.
+        TagValue::Array(_) | TagValue::Struct(_) => false,
     }
 }
 
@@ -1391,6 +1403,10 @@ fn tag_value_to_json(v: &TagValue) -> serde_json::Value {
             .map(serde_json::Value::Number)
             .unwrap_or(serde_json::Value::Null),
         TagValue::Str(s) => serde_json::Value::String(s.clone()),
+        // Fase 1b: array e strutture hanno già una forma JSON naturale.
+        v @ (TagValue::Array(_) | TagValue::Struct(_)) => {
+            serde_json::to_value(v).unwrap_or(serde_json::Value::Null)
+        }
     }
 }
 
@@ -1671,6 +1687,10 @@ fn is_visible(obj: &SynopticObject, tags: &TagSnapshot) -> bool {
             TagValue::Int(i) => *i != 0,
             TagValue::Float(f) => *f != 0.0,
             TagValue::Str(s) => !s.trim().is_empty(),
+            // Fase 1b: un array o una struttura non ha un valore di
+            // verità — «c'è» non vuol dire «acceso». Falso, come un
+            // valore assente.
+            TagValue::Array(_) | TagValue::Struct(_) => false,
         };
     }
     obj.visible != Some(false)
@@ -2162,7 +2182,13 @@ fn render_rect(
     set_pos_size(&mut o, obj, 100.0, 50.0)?;
     // Era `#555555` (web: `#555`), mentre un rettangolo piazzato nasce `#4a90d9`:
     // la tabella condivisa ha scelto ciò che si vede alla creazione.
-    apply_bg_color(&mut o, obj.fill.as_deref().unwrap_or(predefinito_lvgl("rect", "fill")), styles)?;
+    apply_bg_color(
+        &mut o,
+        obj.fill
+            .as_deref()
+            .unwrap_or(predefinito_lvgl("rect", "fill")),
+        styles,
+    )?;
     Ok(())
 }
 
@@ -2281,7 +2307,9 @@ mod colori_predefiniti {
 
     /// Il tono sottile della pagina, o il grigio di sempre.
     pub fn sottile_pagina() -> Rgb {
-        COLORI_PAGINA.with(|c| c.get().1).unwrap_or((0x64, 0x74, 0x8b))
+        COLORI_PAGINA
+            .with(|c| c.get().1)
+            .unwrap_or((0x64, 0x74, 0x8b))
     }
 }
 use colori_predefiniti::predefinito_lvgl;
@@ -2673,7 +2701,13 @@ fn render_button(
 ) -> anyhow::Result<()> {
     let mut btn = Btn::create(screen).map_err(|e| anyhow::anyhow!("Btn::create: {e:?}"))?;
     set_pos_size(&mut btn, obj, 120.0, 40.0)?;
-    apply_bg_color(&mut btn, obj.fill.as_deref().unwrap_or(predefinito_lvgl("button", "fill")), styles)?;
+    apply_bg_color(
+        &mut btn,
+        obj.fill
+            .as_deref()
+            .unwrap_or(predefinito_lvgl("button", "fill")),
+        styles,
+    )?;
     let mut lbl = Label::create(&mut btn).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
     lbl.set_text(&text_cstring(obj.label.as_deref().unwrap_or("Button")))
         .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
@@ -2735,7 +2769,13 @@ fn render_navbutton(
 ) -> anyhow::Result<()> {
     let mut btn = Btn::create(screen).map_err(|e| anyhow::anyhow!("Btn::create: {e:?}"))?;
     set_pos_size(&mut btn, obj, 140.0, 36.0)?;
-    apply_bg_color(&mut btn, obj.fill.as_deref().unwrap_or(predefinito_lvgl("navbutton", "fill")), styles)?;
+    apply_bg_color(
+        &mut btn,
+        obj.fill
+            .as_deref()
+            .unwrap_or(predefinito_lvgl("navbutton", "fill")),
+        styles,
+    )?;
     let mut lbl = Label::create(&mut btn).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
     lbl.set_text(&text_cstring(&format!(
         "> {}",
@@ -3571,7 +3611,13 @@ fn render_ellipse(
 ) -> anyhow::Result<()> {
     let mut o = create_child_obj(screen)?;
     set_pos_size(&mut o, obj, 100.0, 100.0)?;
-    apply_bg_color(&mut o, obj.fill.as_deref().unwrap_or(predefinito_lvgl("ellipse", "fill")), styles)?;
+    apply_bg_color(
+        &mut o,
+        obj.fill
+            .as_deref()
+            .unwrap_or(predefinito_lvgl("ellipse", "fill")),
+        styles,
+    )?;
     let mut radius_style = Style::default();
     radius_style.set_radius(lvgl_sys::LV_RADIUS_CIRCLE as i16);
     o.add_style(Part::Main, &mut radius_style)
@@ -4244,8 +4290,12 @@ fn render_sparkline(
         );
     }
 
-    let rgb =
-        parse_hex_color(obj.spark_color.as_deref().unwrap_or(predefinito_lvgl("sparkline", "spark_color"))).unwrap_or((59, 130, 246));
+    let rgb = parse_hex_color(
+        obj.spark_color
+            .as_deref()
+            .unwrap_or(predefinito_lvgl("sparkline", "spark_color")),
+    )
+    .unwrap_or((59, 130, 246));
     let ser = unsafe { chart_add_series(ptr, rgb) };
     let tag = obj.tag.clone().unwrap_or_default();
     let shared =
@@ -4305,7 +4355,9 @@ fn render_alarm_viewer(
     set_pos_size(&mut container, obj, width, height)?;
     apply_bg_color(
         &mut container,
-        obj.alarm_viewer_bg_color.as_deref().unwrap_or(predefinito_lvgl("alarm_viewer", "alarm_viewer_bg_color")),
+        obj.alarm_viewer_bg_color
+            .as_deref()
+            .unwrap_or(predefinito_lvgl("alarm_viewer", "alarm_viewer_bg_color")),
         styles,
     )?;
     let container_ptr = container.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
@@ -4785,7 +4837,9 @@ pub fn raggruppa_spicchi(
     if resto > 0.0 {
         tenuti.push(SpicchioRisolto {
             etichetta: etichetta_gruppo.unwrap_or("altro").to_string(),
-            colore: colore_gruppo.unwrap_or(predefinito_lvgl("pie_chart", "pie_group_color")).to_string(),
+            colore: colore_gruppo
+                .unwrap_or(predefinito_lvgl("pie_chart", "pie_group_color"))
+                .to_string(),
             valore: resto,
         });
     }
@@ -6571,7 +6625,11 @@ fn render_pipe(
         .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
     let fill_ptr = fill.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     let mut fill_style = Style::default();
-    if let Some(rgb) = parse_hex_color(obj.fill_color.as_deref().unwrap_or(predefinito_lvgl("pipe", "fill_color"))) {
+    if let Some(rgb) = parse_hex_color(
+        obj.fill_color
+            .as_deref()
+            .unwrap_or(predefinito_lvgl("pipe", "fill_color")),
+    ) {
         fill_style.set_line_color(Color::from_rgb(rgb));
     }
     // Più sottile del corpo, come sul web (`innerSw = sw - 2`): così il tubo
@@ -12627,12 +12685,16 @@ mod colori_predefiniti_tests {
                 .and_then(|c| c.get(campo))
                 .and_then(|r| r.hex.clone());
             let Some(atteso) = atteso else {
-                rotti.push(format!("  {tipo}.{campo}: la fixture lo elenca in `lvgl` ma non ha un hex fisso"));
+                rotti.push(format!(
+                    "  {tipo}.{campo}: la fixture lo elenca in `lvgl` ma non ha un hex fisso"
+                ));
                 continue;
             };
             let in_tabella = TABELLA.iter().any(|(t, c, _)| t == tipo && c == campo);
             if !in_tabella {
-                rotti.push(format!("  {tipo}.{campo}: manca in TABELLA (fixture: {atteso})"));
+                rotti.push(format!(
+                    "  {tipo}.{campo}: manca in TABELLA (fixture: {atteso})"
+                ));
                 continue;
             }
             let avuto = predefinito_lvgl(tipo, campo);
@@ -12643,10 +12705,17 @@ mod colori_predefiniti_tests {
         // E nel verso opposto: ogni riga di TABELLA è dichiarata nella fixture.
         for (tipo, campo, _) in TABELLA {
             if !f.lvgl.iter().any(|(t, c)| t == tipo && c == campo) {
-                rotti.push(format!("  {tipo}.{campo}: in TABELLA ma non fra le coppie `lvgl` della fixture"));
+                rotti.push(format!(
+                    "  {tipo}.{campo}: in TABELLA ma non fra le coppie `lvgl` della fixture"
+                ));
             }
         }
-        assert!(rotti.is_empty(), "{} divergenze dalla tabella condivisa:\n{}", rotti.len(), rotti.join("\n"));
+        assert!(
+            rotti.is_empty(),
+            "{} divergenze dalla tabella condivisa:\n{}",
+            rotti.len(),
+            rotti.join("\n")
+        );
     }
 
     #[test]
@@ -12655,10 +12724,19 @@ mod colori_predefiniti_tests {
         let hex = |rgb: (u8, u8, u8)| format!("#{:02x}{:02x}{:02x}", rgb.0, rgb.1, rgb.2);
         let testo = &f.auto["testo"];
         assert_eq!(hex(default_text_rgb(Some("#1a1a2e")).unwrap()), testo.scuro);
-        assert_eq!(hex(default_text_rgb(Some("#ffffff")).unwrap()), testo.chiaro);
+        assert_eq!(
+            hex(default_text_rgb(Some("#ffffff")).unwrap()),
+            testo.chiaro
+        );
         let sottile = &f.auto["sottile"];
-        assert_eq!(hex(default_subtle_rgb(Some("#1a1a2e")).unwrap()), sottile.scuro);
-        assert_eq!(hex(default_subtle_rgb(Some("#ffffff")).unwrap()), sottile.chiaro);
+        assert_eq!(
+            hex(default_subtle_rgb(Some("#1a1a2e")).unwrap()),
+            sottile.scuro
+        );
+        assert_eq!(
+            hex(default_subtle_rgb(Some("#ffffff")).unwrap()),
+            sottile.chiaro
+        );
         assert_eq!(default_subtle_rgb(None), None);
     }
 }

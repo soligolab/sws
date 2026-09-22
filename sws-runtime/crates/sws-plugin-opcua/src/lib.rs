@@ -325,6 +325,10 @@ fn tag_value_to_variant(v: &TagValue) -> Option<Variant> {
         TagValue::Int(n) => Some(Variant::Int64(*n)),
         TagValue::Float(f) => Some(Variant::Double(*f)),
         TagValue::Str(s) => Some(Variant::String(s.as_str().into())),
+        // Fase 1b: `Variant::Array` e le strutture (ExtensionObject) arrivano
+        // con la Fase 4, che legge il DataType del nodo. `None` = il
+        // chiamante segnala e non scrive.
+        TagValue::Array(_) | TagValue::Struct(_) => None,
     }
 }
 

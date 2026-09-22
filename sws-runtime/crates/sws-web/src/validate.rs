@@ -466,6 +466,56 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
     let tipi: HashSet<&str> = OBJECT_TYPES.iter().copied().collect();
     let enums: HashMap<&str, &[&str]> = FIELD_ENUMS.iter().copied().collect();
 
+    // ── Tipi struttura (Fase 1b) ────────────────────────────────────────────
+    let mut visti_tipo: HashSet<&str> = HashSet::new();
+    for td in &project.types {
+        if td.id.trim().is_empty() {
+            out.push(Finding::err(
+                "project.types[]",
+                "un tipo ha id vuoto",
+                "l'id del tipo è la chiave con cui lo citano le variabili (`type_ref`)",
+            ));
+        } else if !visti_tipo.insert(td.id.as_str()) {
+            out.push(Finding::err(
+                format!("project.types[{}]", td.id),
+                format!("il tipo `{}` è dichiarato due volte", td.id),
+                "la seconda dichiarazione vince in silenzio, e una delle due sparisce",
+            ));
+        }
+        let mut visti_membro: HashSet<&str> = HashSet::new();
+        for (i, m) in td.members.iter().enumerate() {
+            if m.name.trim().is_empty() {
+                out.push(Finding::err(
+                    format!("project.types[{}].members[{i}].name", td.id),
+                    "un membro non ha nome",
+                    "il nome del membro è il segmento del percorso: `motore1.velocita`",
+                ));
+            } else if !visti_membro.insert(m.name.as_str()) {
+                out.push(Finding::err(
+                    format!("project.types[{}].members[{i}].name", td.id),
+                    format!("il membro `{}` è dichiarato due volte", m.name),
+                    "i nomi dei membri sono chiavi dentro il tipo",
+                ));
+            }
+            if let (None, None) = (&m.data_type, &m.type_ref) {
+                out.push(Finding::err(
+                    format!("project.types[{}].members[{i}]", td.id),
+                    format!("il membro `{}` non dice di che tipo è", m.name),
+                    "serve `data_type` (uno scalare) oppure `type_ref` (un altro tipo)",
+                ));
+            }
+            if let Some(dt) = &m.data_type {
+                if sws_core::TipoScalare::parse(dt).is_none() {
+                    out.push(Finding::err(
+                        format!("project.types[{}].members[{i}].data_type", td.id),
+                        format!("`{dt}` non è un tipo di dato valido"),
+                        "stessi nomi di data_type su una variabile",
+                    ));
+                }
+            }
+        }
+    }
+
     // Tag: indice per id, e quali sono di sola lettura.
     let mut per_id: HashMap<&str, &sws_core::TagDef> = HashMap::new();
     for t in &project.tags {
@@ -506,6 +556,79 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
                 ));
             }
         }
+    }
+
+    // ── Istanze: forma valida, nessuna collisione, e le foglie contano come
+    //    riferimenti (Fase 1b) ─────────────────────────────────────────────
+    let mut foglie_sintetiche: Vec<sws_core::TagDef> = Vec::new();
+    for t in &project.tags {
+        if !t.e_composito() {
+            continue;
+        }
+        if t.is_computed() {
+            out.push(Finding::err(
+                format!("project.tags[{}]", t.id),
+                "un'istanza non può essere un tag calcolato",
+                "espressione e generatore producono un valore scalare: mettili su una \
+                 variabile piatta, oppure togli `type_ref`/`array`",
+            ));
+        }
+        match sws_core::Forma::da_tag(t, &project.types) {
+            Err(e) => out.push(Finding::err(
+                format!("project.tags[{}]", t.id),
+                format!("la forma non è valida: {e}"),
+                "controlla `type_ref` (il tipo deve esistere e non contenersi) e \
+                 `array` (dimensioni maggiori di zero)",
+            )),
+            Ok(None) => {}
+            Ok(Some(forma)) => {
+                for f in forma.foglie(&t.id, &project.types) {
+                    let mut sint = t.clone();
+                    sint.id = f.percorso;
+                    sint.data_type = f.tipo.nome();
+                    sint.type_ref = None;
+                    sint.array = None;
+                    sint.expression = None;
+                    sint.generator = None;
+                    if let Some(m) = &f.membro {
+                        sint.description = m.description.clone();
+                        sint.unit = m.unit.clone();
+                        sint.decimals = m.decimals;
+                        sint.raw_min = m.raw_min;
+                        sint.raw_max = m.raw_max;
+                        sint.eng_min = m.eng_min;
+                        sint.eng_max = m.eng_max;
+                        sint.range_lo = m.range_lo;
+                        sint.range_hi = m.range_hi;
+                        sint.limit_lo_lo = m.limit_lo_lo;
+                        sint.limit_lo = m.limit_lo;
+                        sint.limit_hi = m.limit_hi;
+                        sint.limit_hi_hi = m.limit_hi_hi;
+                        sint.write_min_role = m.write_min_role.clone().or(t.write_min_role.clone());
+                    }
+                    foglie_sintetiche.push(sint);
+                }
+            }
+        }
+    }
+    // Un id piatto che coincide con un percorso di un'istanza è ambiguo: la
+    // risoluzione prova l'esatto per primo, quindi il piatto vincerebbe e la
+    // foglia diventerebbe irraggiungibile — in silenzio.
+    for f in &foglie_sintetiche {
+        if let Some(piatto) = per_id.get(f.id.as_str()) {
+            out.push(Finding::err(
+                format!("project.tags[{}]", piatto.id),
+                format!(
+                    "l'id `{}` è anche un percorso di un'istanza: uno dei due non si \
+                     raggiunge più",
+                    f.id
+                ),
+                "rinomina la variabile piatta, oppure togli il membro dal tipo",
+            ));
+        }
+    }
+    for f in &foglie_sintetiche {
+        per_id.entry(f.id.as_str()).or_insert(f);
     }
 
     // Sorgenti: id univoci, e i tag mappati devono esistere.
@@ -2214,6 +2337,105 @@ alarms: []
         let rs = rilievi(PROGETTO, &pagina(
             "- { id: x, type: button, x: 0, y: 0, tag: luce.salotto, on_press_fn: mai_scritta }"));
         assert!(cita(&errori(&rs), "mai_scritta"), "{rs:?}");
+    }
+
+    /// Fase 1b: un'istanza dichiara le sue foglie, e una foglia vale come un
+    /// tag dichiarato. Senza, ogni oggetto legato a `motore1.velocita`
+    /// risulterebbe rotto.
+    #[test]
+    fn le_foglie_di_unistanza_sono_riferimenti_validi() {
+        let prog = r#"
+meta: { name: prova, version: "1.0.0" }
+types:
+  - id: Motore
+    members:
+      - { name: velocita, data_type: f32 }
+      - { name: marcia, data_type: bool }
+tags:
+  - { id: motore1, type_ref: Motore }
+sources: []
+alarms: [{ id: al, tag: motore1.velocita, message: troppo veloce, condition: { kind: above, threshold: 10 } }]
+"#;
+        let rs = rilievi(
+            prog,
+            &pagina("- { id: t, type: text, x: 0, y: 0, tag: motore1.velocita }"),
+        );
+        assert!(errori(&rs).is_empty(), "{rs:?}");
+        // una foglia che non esiste invece si vede
+        let rs = rilievi(
+            prog,
+            &pagina("- { id: t, type: text, x: 0, y: 0, tag: motore1.inesistente }"),
+        );
+        assert!(cita(&errori(&rs), "motore1.inesistente"), "{rs:?}");
+    }
+
+    /// Un id piatto che coincide con un percorso: la risoluzione prova
+    /// l'esatto per primo, quindi la foglia diventerebbe irraggiungibile.
+    #[test]
+    fn un_id_piatto_che_collide_con_un_percorso_non_passa() {
+        let prog = r#"
+meta: { name: prova, version: "1.0.0" }
+types:
+  - id: Motore
+    members: [{ name: velocita, data_type: f32 }]
+tags:
+  - { id: motore1, type_ref: Motore }
+  - { id: motore1.velocita, data_type: f64 }
+sources: []
+alarms: []
+"#;
+        let rs = rilievi(prog, &pagina("- { id: x, type: rect, x: 0, y: 0 }"));
+        assert!(cita(&errori(&rs), "non si raggiunge"), "{rs:?}");
+    }
+
+    #[test]
+    fn i_tipi_malformati_si_vedono() {
+        let base = |types: &str, tags: &str| {
+            format!("meta: {{ name: prova, version: \"1.0.0\" }}\ntypes:\n{types}tags:\n{tags}sources: []\nalarms: []\n")
+        };
+        // ciclo
+        let rs = rilievi(
+            &base("  - { id: A, members: [{ name: b, type_ref: B }] }\n  - { id: B, members: [{ name: a, type_ref: A }] }\n", "  - { id: x, type_ref: A }\n"),
+            &pagina("- { id: r, type: rect, x: 0, y: 0 }"),
+        );
+        assert!(cita(&errori(&rs), "ciclo"), "{rs:?}");
+        // type_ref inesistente
+        let rs = rilievi(
+            &base(
+                "  - { id: A, members: [{ name: v, data_type: f32 }] }\n",
+                "  - { id: x, type_ref: Bho }\n",
+            ),
+            &pagina("- { id: r, type: rect, x: 0, y: 0 }"),
+        );
+        assert!(cita(&errori(&rs), "Bho"), "{rs:?}");
+        // membro senza tipo, e tipo scalare inventato
+        let rs = rilievi(
+            &base(
+                "  - { id: A, members: [{ name: v }, { name: w, data_type: real }] }\n",
+                "  - { id: x, type_ref: A }\n",
+            ),
+            &pagina("- { id: r, type: rect, x: 0, y: 0 }"),
+        );
+        assert!(cita(&errori(&rs), "non dice di che tipo"), "{rs:?}");
+        assert!(cita(&errori(&rs), "real"), "{rs:?}");
+        // array con dimensione zero
+        let rs = rilievi(
+            &base(
+                "  - { id: A, members: [{ name: v, data_type: f32 }] }\n",
+                "  - { id: x, type_ref: A, array: [0] }\n",
+            ),
+            &pagina("- { id: r, type: rect, x: 0, y: 0 }"),
+        );
+        assert!(cita(&errori(&rs), "dimensione zero"), "{rs:?}");
+        // un'istanza non può essere calcolata
+        let rs = rilievi(
+            &base(
+                "  - { id: A, members: [{ name: v, data_type: f32 }] }\n",
+                "  - { id: x, type_ref: A, expression: \"1\" }\n",
+            ),
+            &pagina("- { id: r, type: rect, x: 0, y: 0 }"),
+        );
+        assert!(cita(&errori(&rs), "calcolato"), "{rs:?}");
     }
 
     /// Fase 0d: il controllo «il tag mappato esiste» valeva solo per MQTT.

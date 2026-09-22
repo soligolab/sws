@@ -198,6 +198,11 @@ async fn write_one(
                         0
                     }
                 }
+                // Fase 1b: una radice composita non si scrive su un tag
+                // scalare del PLC. Le radici arrivano con la Fase 3/4.
+                SwsTagValue::Array(_) | SwsTagValue::Struct(_) => {
+                    anyhow::bail!("valore composito su un tag EtherNet/IP scalare")
+                }
             };
             client
                 .write_tag(
@@ -292,6 +297,9 @@ fn coerce_to_i64(v: &SwsTagValue) -> i64 {
             }
         }
         SwsTagValue::Str(s) => s.trim().parse().unwrap_or(0),
+        // Un composito non è un numero: zero è il ripiego storico di questa
+        // funzione, e il chiamante lo rifiuta prima (vedi `write_one`).
+        SwsTagValue::Array(_) | SwsTagValue::Struct(_) => 0,
     }
 }
 
@@ -307,5 +315,6 @@ fn coerce_to_f64(v: &SwsTagValue) -> f64 {
             }
         }
         SwsTagValue::Str(s) => s.trim().parse().unwrap_or(0.0),
+        SwsTagValue::Array(_) | SwsTagValue::Struct(_) => 0.0,
     }
 }

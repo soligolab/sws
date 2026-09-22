@@ -278,6 +278,8 @@ fn build_service_call(mapping: &EntityMapping, value: &TagValue) -> Option<(Stri
         TagValue::Float(f) => (svc_base, json!({ "value": f })),
         TagValue::Int(i) => (svc_base, json!({ "value": i })),
         TagValue::Str(s) => (svc_base, json!({ "value": s })),
+        // Fase 1b: un servizio Home Assistant prende un valore scalare.
+        TagValue::Array(_) | TagValue::Struct(_) => return None,
     };
 
     Some((domain, service, data))

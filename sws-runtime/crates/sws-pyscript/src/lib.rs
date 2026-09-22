@@ -75,6 +75,27 @@ fn tag_value_to_py(py: Python<'_>, v: &TagValue) -> Py<PyAny> {
             .expect("str → Python non fallisce")
             .into_any()
             .unbind(),
+        // Fase 1b: un array diventa una `list`, una struttura un `dict` —
+        // ricorsivamente. Uno script legge `tags["motore1"]["velocita"]` o,
+        // se preferisce, la foglia `tags["motore1.velocita"]`: lo snapshot
+        // porta entrambe.
+        TagValue::Array(a) => {
+            let lista = pyo3::types::PyList::empty(py);
+            for x in a {
+                lista
+                    .append(tag_value_to_py(py, x))
+                    .expect("list.append non fallisce");
+            }
+            lista.into_any().unbind()
+        }
+        TagValue::Struct(m) => {
+            let d = pyo3::types::PyDict::new(py);
+            for (k, v) in m {
+                d.set_item(k.as_str(), tag_value_to_py(py, v))
+                    .expect("dict.set_item non fallisce");
+            }
+            d.into_any().unbind()
+        }
     }
 }
 

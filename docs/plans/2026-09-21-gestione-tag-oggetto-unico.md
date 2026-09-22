@@ -102,7 +102,7 @@ tokenizer delle espressioni dell'editor che accetta già `{valvole[3].stato}`; `
 - Rosso prima: `riconciliaTag.test.ts` (S7 `dint` deve dare `i32`), test Rust di `tipo.rs` sulla fixture, la guardia nuova.
 - Utile da solo: `u16`, `f32`, `datetime` sui tag piatti prima che esistano le strutture.
 
-### 1b — Modello composito e TagDb  `feat/tag-1b-modello-composito`
+### 1b — Modello composito e TagDb  `feat/tag-1b-modello-composito`  *(sul ramo dal 22-09-2026, da collaudare)*
 - **`TagValue`** += `Array(Vec<TagValue>)`, `Struct(BTreeMap<String, TagValue>)`, `serde(untagged)` invariato. I 25 `match` per classe: consumatori
   numerici (`as_f64` allarmi, `numeric` storico, deadband, `fmt_value` notifiche, `is_falsy`, verità LVGL) → un composito **non è un numero** (`None`/falso);
   `tag_value_as_string`/`stringify` MQTT/HA → JSON; pyscript ↔ `list`/`dict`; plugin in scrittura → un composito verso una foglia scalare è rifiutato con

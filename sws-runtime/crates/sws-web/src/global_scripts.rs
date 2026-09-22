@@ -303,6 +303,10 @@ fn is_falsy(v: &TagValue) -> bool {
         TagValue::Int(i) => *i == 0,
         TagValue::Float(f) => *f == 0.0,
         TagValue::Str(s) => s.is_empty() || s == "0" || s.eq_ignore_ascii_case("false"),
+        // Fase 1b: un array vuoto e una struttura senza campi sono «falsi»,
+        // come in Python — è lì che questo valore finisce.
+        TagValue::Array(a) => a.is_empty(),
+        TagValue::Struct(m) => m.is_empty(),
     }
 }
 

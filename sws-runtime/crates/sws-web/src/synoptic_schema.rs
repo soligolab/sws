@@ -317,6 +317,8 @@ pub const TAG_FIELDS: &[Field] = &[
     Field { name: "limit_lo", ty: "number", required: false, group: "possibile); prima erano ridichiarati su ogni oggetto e divergevano.", doc: "" },
     Field { name: "limit_hi", ty: "number", required: false, group: "possibile); prima erano ridichiarati su ogni oggetto e divergevano.", doc: "" },
     Field { name: "limit_hi_hi", ty: "number", required: false, group: "possibile); prima erano ridichiarati su ogni oggetto e divergevano.", doc: "" },
+    Field { name: "type_ref", ty: "string", required: false, group: "possibile); prima erano ridichiarati su ogni oggetto e divergevano.", doc: "Fase 1b (22-09-2026): il tag è un'**istanza** di un tipo struttura dichiarato in `types:`. Le foglie si raggiungono per percorso (`motore1.velocita`); scala, unità e storico vengono dal membro. Con `type_ref` `data_type` non conta." },
+    Field { name: "array", ty: "number[]", required: false, group: "possibile); prima erano ridichiarati su ogni oggetto e divergevano.", doc: "Il tag è un array (D8: più dimensioni, `[4]` o `[2, 3]`) di elementi `type_ref` o `data_type`. `valvole[3].stato`, `matrice[1][2]`." },
 ];
 
 /// Tutti i tipi di oggetto che l'editor sa creare (dalla union TS).

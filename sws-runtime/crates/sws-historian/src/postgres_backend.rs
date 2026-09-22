@@ -99,6 +99,9 @@ impl PostgresBackend {
                 }
             }
             TagValue::Str(_) => return,
+            // La colonna è numerica: una radice composita non si rappresenta.
+            // Lo storico registra le foglie, che sono scalari (Fase 1d).
+            TagValue::Array(_) | TagValue::Struct(_) => return,
         };
         let quality = match sample.quality {
             TagQuality::Good => "Good",

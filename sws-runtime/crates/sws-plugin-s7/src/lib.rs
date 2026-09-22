@@ -287,6 +287,9 @@ fn tagvalue_to_bytes(val: &TagValue, tm: &S7TagMapping) -> Vec<u8> {
                 TagValue::Int(i) => *i != 0,
                 TagValue::Float(f) => *f != 0.0,
                 TagValue::Str(s) => !s.is_empty() && s != "0",
+                // Fase 1b: un composito non è un bit. Le radici a blocco
+                // arrivano con le fasi dei protocolli.
+                TagValue::Array(_) | TagValue::Struct(_) => false,
             };
             // Set or clear the single bit — read-modify-write is the safe way,
             // but for PoC we write the full byte (existing bits cleared).

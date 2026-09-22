@@ -1,6 +1,7 @@
+use crate::percorso::{candidati, leggi, parse_segmenti, scrivi, Forma, Segmento};
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     fmt,
     sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
@@ -9,6 +10,10 @@ use tokio::sync::{broadcast, mpsc, RwLock};
 
 pub type TagId = String;
 
+/// Qualità e timestamp delle foglie di una radice, per percorso **relativo**
+/// (`.velocita`, `[3].stato`). D6: la radice riporta la peggiore.
+pub type QualitaFoglie = BTreeMap<String, (TagQuality, u64)>;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Tag {
     pub id: TagId,
@@ -16,12 +21,27 @@ pub struct Tag {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)] // serializes as native JSON: true / 42 / 3.14 / "hello"
+#[serde(untagged)] // serializes as native JSON: true / 42 / 3.14 / "hello" / [..] / {..}
 pub enum TagValue {
     Bool(bool),
     Int(i64),
     Float(f64),
     Str(String),
+    /// Fase 1b (22-09-2026): il valore di una radice array. Sul filo viaggia
+    /// espanso in foglie salvo richiesta esplicita.
+    Array(Vec<TagValue>),
+    /// Il valore di un'istanza di tipo struttura: campo → valore. `BTreeMap`
+    /// per un ordine stabile in serializzazione e nello storico.
+    Struct(std::collections::BTreeMap<String, TagValue>),
+}
+
+impl TagValue {
+    /// Vero per array e strutture: un valore che non è un numero, un testo o
+    /// un bool e che i consumatori scalari devono trattare come «non
+    /// applicabile», mai come zero.
+    pub fn e_composito(&self) -> bool {
+        matches!(self, TagValue::Array(_) | TagValue::Struct(_))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -86,6 +106,16 @@ pub struct TagDb {
     /// `scales`. Un tag assente dalla mappa non viene vincolato — succede ai
     /// tag creati al volo dagli script e nei test.
     data_types: Arc<RwLock<HashMap<TagId, String>>>,
+    /// Le **radici composite** e la loro forma (Fase 1b). Vuota finché un
+    /// progetto non dichiara `types:`/`array`: senza radici la risoluzione è
+    /// quella di sempre, una ricerca esatta nella mappa.
+    forme: Arc<RwLock<HashMap<TagId, Forma>>>,
+    /// Qualità e timestamp **per foglia** (D6): radice → percorso relativo →
+    /// (qualità, ts). La qualità della radice è la peggiore delle foglie, il
+    /// suo timestamp il più recente. Serve perché una mappatura a foglia può
+    /// guastarsi da sola: marcare Bad tutta la struttura nasconderebbe le
+    /// foglie sane, lasciarla Good nasconderebbe il guasto.
+    qualita_foglie: Arc<RwLock<HashMap<TagId, QualitaFoglie>>>,
     /// Tag il cui valore è CALCOLATO (`TagDef::is_computed`: espressione
     /// derivata o generatore d'onda attivo, T-69) — non deve accettare
     /// scritture utente (API/WS/ricette). Aggiornata insieme a `scales`.
@@ -103,6 +133,8 @@ impl TagDb {
             write_roles: Arc::new(RwLock::new(HashMap::new())),
             data_types: Arc::new(RwLock::new(HashMap::new())),
             computed_tags: Arc::new(RwLock::new(std::collections::HashSet::new())),
+            forme: Arc::new(RwLock::new(HashMap::new())),
+            qualita_foglie: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -111,9 +143,19 @@ impl TagDb {
         *self.write_roles.write().await = roles;
     }
 
-    /// Ruolo minimo di scrittura del tag, se definito.
+    /// Ruolo minimo di scrittura del tag, se definito. Per una foglia si
+    /// guarda prima il percorso, poi la radice: un ruolo messo sull'istanza
+    /// vale per tutti i suoi membri.
     pub async fn write_role_of(&self, id: &str) -> Option<String> {
-        self.write_roles.read().await.get(id).cloned()
+        if let Some(r) = self.write_roles.read().await.get(id).cloned() {
+            return Some(r);
+        }
+        let (radice, segmenti) = self.risolvi(id).await?;
+        if segmenti.is_empty() {
+            return None;
+        }
+        let r = self.write_roles.read().await.get(&radice).cloned();
+        r
     }
 
     /// Sostituisce la mappa dei `data_type` dichiarati (Q27). Stessi punti
@@ -147,6 +189,55 @@ impl TagDb {
     /// chiamante (`write_tag`) deve rifiutare la scrittura utente.
     pub async fn is_computed(&self, id: &str) -> bool {
         self.computed_tags.read().await.contains(id)
+    }
+
+    /// Installa le radici composite (Fase 1b). Mappa vuota = nessuna radice,
+    /// e tutto si comporta come prima. La chiama `apply_tags`.
+    pub async fn set_forme(&self, forme: HashMap<TagId, Forma>) {
+        let radici: std::collections::HashSet<TagId> = forme.keys().cloned().collect();
+        self.qualita_foglie
+            .write()
+            .await
+            .retain(|id, _| radici.contains(id));
+        *self.forme.write().await = forme;
+    }
+
+    /// La forma di una radice, se `id` è una radice composita.
+    pub async fn forma_di(&self, id: &str) -> Option<Forma> {
+        self.forme.read().await.get(id).cloned()
+    }
+
+    /// Da un id o percorso alla coppia (radice, segmenti).
+    ///
+    /// **Esatto prima**: un tag piatto con i punti dentro (`pv1.potenza`, ce
+    /// ne sono centinaia nei progetti) vince sempre su ogni interpretazione a
+    /// percorso. Poi il prefisso più lungo che sia una radice composita. La
+    /// validazione vieta che le due cose coesistano, quindi non c'è ambiguità
+    /// da arbitrare qui.
+    async fn risolvi(&self, id: &str) -> Option<(TagId, Vec<Segmento>)> {
+        if self.store.read().await.contains_key(id) {
+            return Some((id.to_string(), Vec::new()));
+        }
+        let forme = self.forme.read().await;
+        for (radice, resto) in candidati(id) {
+            if forme.contains_key(radice) {
+                let segmenti = parse_segmenti(resto)?;
+                return Some((radice.to_string(), segmenti));
+            }
+        }
+        None
+    }
+
+    /// La peggiore fra le qualità delle foglie, e il timestamp più recente.
+    fn riepiloga(foglie: &QualitaFoglie) -> Option<(TagQuality, u64)> {
+        let peso = |q: &TagQuality| match q {
+            TagQuality::Good => 0,
+            TagQuality::Uncertain => 1,
+            TagQuality::Bad => 2,
+        };
+        let peggiore = foglie.values().max_by_key(|(q, _)| peso(q))?.0.clone();
+        let ts = foglie.values().map(|(_, t)| *t).max().unwrap_or(0);
+        Some((peggiore, ts))
     }
 
     /// Sostituisce la mappa degli scaling. Chiamata a ogni apertura/chiusura
@@ -187,6 +278,48 @@ impl TagDb {
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_millis() as u64;
+        // Una foglia di una radice composita (Fase 1b): leggi-modifica-scrivi
+        // sulla radice, e la sua qualità diventa la peggiore delle foglie
+        // (D6). L'evento porta la RADICE — chi vuole le foglie chiama
+        // `espandi_foglie`, così sul bus resta un aggiornamento solo.
+        if !self.store.read().await.contains_key(&id) {
+            if let Some((radice, segmenti)) = self.risolvi(&id).await {
+                if !segmenti.is_empty() {
+                    let rel = crate::percorso::testo_segmenti(&segmenti);
+                    {
+                        let mut store = self.store.write().await;
+                        let Some(st) = store.get_mut(&radice) else {
+                            return;
+                        };
+                        if scrivi(&mut st.value, &segmenti, value).is_err() {
+                            return;
+                        }
+                    }
+                    let riepilogo = {
+                        let mut qf = self.qualita_foglie.write().await;
+                        let foglie = qf.entry(radice.clone()).or_default();
+                        foglie.insert(rel, (quality, ts));
+                        Self::riepiloga(foglie)
+                    };
+                    let state = {
+                        let mut store = self.store.write().await;
+                        let Some(st) = store.get_mut(&radice) else {
+                            return;
+                        };
+                        match riepilogo {
+                            Some((q, t)) => {
+                                st.quality = q;
+                                st.timestamp_ms = t;
+                            }
+                            None => st.timestamp_ms = ts,
+                        }
+                        st.clone()
+                    };
+                    let _ = self.tx.send(TagUpdate { id: radice, state });
+                    return;
+                }
+            }
+        }
         let state = TagState {
             value,
             quality,
@@ -194,6 +327,45 @@ impl TagDb {
         };
         self.store.write().await.insert(id.clone(), state.clone());
         let _ = self.tx.send(TagUpdate { id, state }); // no subscribers is fine
+    }
+
+    /// Le foglie di un aggiornamento, con percorso, valore e qualità propria
+    /// (D6). Per un tag scalare ritorna l'aggiornamento stesso: chi espande
+    /// non deve distinguere i due casi.
+    ///
+    /// È ciò che usano il filo (WS/REST: un frame tipizzato con dentro un
+    /// valore composito si perderebbe **intero**, quindi il default è
+    /// espanso), lo storico e gli allarmi.
+    pub async fn espandi_foglie(&self, update: &TagUpdate) -> Vec<(TagId, TagState)> {
+        let forma = {
+            let forme = self.forme.read().await;
+            forme.get(&update.id).cloned()
+        };
+        let Some(forma) = forma else {
+            return vec![(update.id.clone(), update.state.clone())];
+        };
+        let foglie = forma.foglie(&update.id, &[]);
+        let qf = self.qualita_foglie.read().await;
+        let per_foglia = qf.get(&update.id);
+        foglie
+            .iter()
+            .filter_map(|f| {
+                let rel = f.percorso.strip_prefix(update.id.as_str())?;
+                let segmenti = parse_segmenti(rel)?;
+                let valore = leggi(&update.state.value, &segmenti)?.clone();
+                let (quality, timestamp_ms) = per_foglia
+                    .and_then(|m| m.get(rel).cloned())
+                    .unwrap_or((update.state.quality.clone(), update.state.timestamp_ms));
+                Some((
+                    f.percorso.clone(),
+                    TagState {
+                        value: valore,
+                        quality,
+                        timestamp_ms,
+                    },
+                ))
+            })
+            .collect()
     }
 
     /// Marca un tag come inattendibile **senza toccarne il valore**.
@@ -210,6 +382,40 @@ impl TagDb {
     /// ciò che un operatore si aspetta. Un tag mai letto non si crea: se non
     /// c'è ancora un valore non c'è niente da marcare.
     pub async fn marca_qualita(&self, id: &str, quality: TagQuality) {
+        // Una foglia si marca da sola (D6): la radice prende la peggiore.
+        if !self.store.read().await.contains_key(id) {
+            if let Some((radice, segmenti)) = self.risolvi(id).await {
+                if !segmenti.is_empty() {
+                    let ts = SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_millis() as u64;
+                    let rel = crate::percorso::testo_segmenti(&segmenti);
+                    let riepilogo = {
+                        let mut qf = self.qualita_foglie.write().await;
+                        let foglie = qf.entry(radice.clone()).or_default();
+                        if matches!(foglie.get(&rel), Some((q, _)) if *q == quality) {
+                            return;
+                        }
+                        foglie.insert(rel, (quality, ts));
+                        Self::riepiloga(foglie)
+                    };
+                    let state = {
+                        let mut store = self.store.write().await;
+                        let Some(st) = store.get_mut(&radice) else {
+                            return;
+                        };
+                        if let Some((q, t)) = riepilogo {
+                            st.quality = q;
+                            st.timestamp_ms = t;
+                        }
+                        st.clone()
+                    };
+                    let _ = self.tx.send(TagUpdate { id: radice, state });
+                    return;
+                }
+            }
+        }
         let precedente = { self.store.read().await.get(id).cloned() };
         let Some(mut state) = precedente else { return };
         if state.quality == quality {
@@ -230,8 +436,31 @@ impl TagDb {
         });
     }
 
+    /// Lo stato di un tag o di una **foglia** (`motore1.velocita`): per una
+    /// foglia il valore è quello della foglia e la qualità è la sua (D6).
     pub async fn get(&self, id: &str) -> Option<TagState> {
-        self.store.read().await.get(id).cloned()
+        if let Some(st) = self.store.read().await.get(id).cloned() {
+            return Some(st);
+        }
+        let (radice, segmenti) = self.risolvi(id).await?;
+        let radice_st = self.store.read().await.get(&radice).cloned()?;
+        if segmenti.is_empty() {
+            return Some(radice_st);
+        }
+        let valore = leggi(&radice_st.value, &segmenti)?.clone();
+        let rel = crate::percorso::testo_segmenti(&segmenti);
+        let (quality, timestamp_ms) = self
+            .qualita_foglie
+            .read()
+            .await
+            .get(&radice)
+            .and_then(|m| m.get(&rel).cloned())
+            .unwrap_or((radice_st.quality, radice_st.timestamp_ms));
+        Some(TagState {
+            value: valore,
+            quality,
+            timestamp_ms,
+        })
     }
 
     /// Remove a tag from the store. Returns `true` if the tag existed.
@@ -245,6 +474,7 @@ impl TagDb {
     /// store before populating the next project's tags.
     pub async fn clear(&self) {
         self.store.write().await.clear();
+        self.qualita_foglie.write().await.clear();
     }
 
     pub fn subscribe(&self) -> broadcast::Receiver<TagUpdate> {
@@ -348,6 +578,202 @@ impl TagWriteBus {
                 .await
                 .map_err(|_| WriteError::ChannelClosed(tag_id.to_string())),
         }
+    }
+}
+
+#[cfg(test)]
+mod percorsi_tests {
+    use super::*;
+    use crate::project::{TagDef, TypeDef};
+
+    fn tipi() -> Vec<TypeDef> {
+        serde_yaml::from_str(
+            r#"
+- id: Motore
+  members:
+    - { name: velocita, data_type: f32 }
+    - { name: marcia, data_type: bool }
+"#,
+        )
+        .unwrap()
+    }
+
+    async fn db_con_radice() -> TagDb {
+        let db = TagDb::new(16);
+        let tags: Vec<TagDef> = serde_yaml::from_str(
+            "- { id: motore1, type_ref: Motore }\n- { id: pv1.potenza, data_type: f64 }",
+        )
+        .unwrap();
+        let mut forme = HashMap::new();
+        for t in &tags {
+            if let Some(f) = Forma::da_tag(t, &tipi()).unwrap() {
+                db.set(t.id.clone(), f.valore_iniziale(), TagQuality::Uncertain)
+                    .await;
+                forme.insert(t.id.clone(), f);
+            } else {
+                db.set(t.id.clone(), t.initial_value(), TagQuality::Uncertain)
+                    .await;
+            }
+        }
+        db.set_forme(forme).await;
+        db
+    }
+
+    /// **Esatto prima.** `pv1.potenza` è un id piatto con un punto dentro, e
+    /// ce ne sono centinaia nei progetti: nessuna interpretazione a percorso
+    /// deve rubarglielo.
+    #[tokio::test]
+    async fn un_id_piatto_col_punto_vince_sempre() {
+        let db = db_con_radice().await;
+        db.set(
+            "pv1.potenza".into(),
+            TagValue::Float(1234.0),
+            TagQuality::Good,
+        )
+        .await;
+        assert_eq!(
+            db.get("pv1.potenza").await.unwrap().value,
+            TagValue::Float(1234.0)
+        );
+        // e non ha creato nessuna radice «pv1»
+        assert!(db.get("pv1").await.is_none());
+    }
+
+    #[tokio::test]
+    async fn una_foglia_si_legge_e_si_scrive_dentro_la_radice() {
+        let db = db_con_radice().await;
+        assert_eq!(
+            db.get("motore1.velocita").await.unwrap().value,
+            TagValue::Float(0.0)
+        );
+        db.set(
+            "motore1.velocita".into(),
+            TagValue::Float(1500.0),
+            TagQuality::Good,
+        )
+        .await;
+        db.set(
+            "motore1.marcia".into(),
+            TagValue::Bool(true),
+            TagQuality::Good,
+        )
+        .await;
+        assert_eq!(
+            db.get("motore1.velocita").await.unwrap().value,
+            TagValue::Float(1500.0)
+        );
+        // la radice porta la struttura intera
+        let radice = db.get("motore1").await.unwrap();
+        let TagValue::Struct(m) = &radice.value else {
+            panic!("la radice non è una struttura: {:?}", radice.value)
+        };
+        assert_eq!(m.get("velocita"), Some(&TagValue::Float(1500.0)));
+        assert_eq!(m.get("marcia"), Some(&TagValue::Bool(true)));
+        // una foglia che non esiste non si crea
+        db.set(
+            "motore1.inesistente".into(),
+            TagValue::Int(1),
+            TagQuality::Good,
+        )
+        .await;
+        assert!(db.get("motore1.inesistente").await.is_none());
+    }
+
+    /// D6: la qualità è della foglia, la radice porta la peggiore. Con una
+    /// sola qualità per radice, una mappatura a foglia guasta o marcherebbe
+    /// Bad tutta la struttura o nasconderebbe il guasto.
+    #[tokio::test]
+    async fn la_qualita_e_della_foglia_e_la_radice_prende_la_peggiore() {
+        let db = db_con_radice().await;
+        db.set(
+            "motore1.velocita".into(),
+            TagValue::Float(1500.0),
+            TagQuality::Good,
+        )
+        .await;
+        db.set(
+            "motore1.marcia".into(),
+            TagValue::Bool(true),
+            TagQuality::Good,
+        )
+        .await;
+        assert_eq!(db.get("motore1").await.unwrap().quality, TagQuality::Good);
+
+        db.marca_qualita("motore1.velocita", TagQuality::Bad).await;
+        assert_eq!(
+            db.get("motore1.velocita").await.unwrap().quality,
+            TagQuality::Bad
+        );
+        assert_eq!(
+            db.get("motore1.marcia").await.unwrap().quality,
+            TagQuality::Good,
+            "la foglia sana resta sana"
+        );
+        assert_eq!(
+            db.get("motore1").await.unwrap().quality,
+            TagQuality::Bad,
+            "la radice porta la peggiore"
+        );
+        // il valore non si tocca, come per un tag piatto
+        assert_eq!(
+            db.get("motore1.velocita").await.unwrap().value,
+            TagValue::Float(1500.0)
+        );
+
+        db.set(
+            "motore1.velocita".into(),
+            TagValue::Float(1600.0),
+            TagQuality::Good,
+        )
+        .await;
+        assert_eq!(db.get("motore1").await.unwrap().quality, TagQuality::Good);
+    }
+
+    #[tokio::test]
+    async fn un_aggiornamento_si_espande_in_foglie() {
+        let db = db_con_radice().await;
+        let mut rx = db.subscribe();
+        db.set(
+            "motore1.velocita".into(),
+            TagValue::Float(1500.0),
+            TagQuality::Good,
+        )
+        .await;
+        let update = rx.recv().await.unwrap();
+        assert_eq!(update.id, "motore1", "sul bus viaggia la radice");
+        let foglie = db.espandi_foglie(&update).await;
+        let ids: Vec<&str> = foglie.iter().map(|(id, _)| id.as_str()).collect();
+        assert_eq!(ids, ["motore1.velocita", "motore1.marcia"]);
+        assert_eq!(foglie[0].1.value, TagValue::Float(1500.0));
+
+        // un tag piatto si espande in sé stesso
+        db.set("pv1.potenza".into(), TagValue::Float(1.0), TagQuality::Good)
+            .await;
+        let piatto = rx.recv().await.unwrap();
+        let foglie = db.espandi_foglie(&piatto).await;
+        assert_eq!(foglie.len(), 1);
+        assert_eq!(foglie[0].0, "pv1.potenza");
+    }
+
+    /// Il ruolo di scrittura messo sull'istanza vale per i suoi membri.
+    #[tokio::test]
+    async fn il_ruolo_della_radice_copre_le_foglie() {
+        let db = db_con_radice().await;
+        db.set_write_roles(HashMap::from([
+            ("motore1".to_string(), "Supervisor".to_string()),
+            ("motore1.marcia".to_string(), "Admin".to_string()),
+        ]))
+        .await;
+        assert_eq!(
+            db.write_role_of("motore1.velocita").await.as_deref(),
+            Some("Supervisor")
+        );
+        assert_eq!(
+            db.write_role_of("motore1.marcia").await.as_deref(),
+            Some("Admin"),
+            "la foglia vince sulla radice"
+        );
+        assert_eq!(db.write_role_of("pv1.potenza").await, None);
     }
 }
 

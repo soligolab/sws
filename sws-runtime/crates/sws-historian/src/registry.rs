@@ -55,8 +55,11 @@ impl TagFilter {
                             0.0
                         }
                     }
-                    sws_core::TagValue::Str(_) => {
-                        // Strings: always record (no meaningful deadband).
+                    sws_core::TagValue::Str(_)
+                    | sws_core::TagValue::Array(_)
+                    | sws_core::TagValue::Struct(_) => {
+                        // Stringhe e compositi: si registra sempre, non c'è una
+                        // banda morta che abbia senso.
                         self.last_ts_ms = sample.ts_ms;
                         return true;
                     }
@@ -71,7 +74,9 @@ impl TagFilter {
                     sws_core::TagValue::Float(v) => Some(*v),
                     sws_core::TagValue::Int(v) => Some(*v as f64),
                     sws_core::TagValue::Bool(v) => Some(if *v { 1.0 } else { 0.0 }),
-                    sws_core::TagValue::Str(_) => None,
+                    sws_core::TagValue::Str(_)
+                    | sws_core::TagValue::Array(_)
+                    | sws_core::TagValue::Struct(_) => None,
                 };
             }
         }

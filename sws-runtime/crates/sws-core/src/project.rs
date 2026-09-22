@@ -112,6 +112,81 @@ pub struct TagDef {
     pub limit_hi: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub limit_hi_hi: Option<f64>,
+    /// Fase 1b (22-09-2026): il tag è un'**istanza** di un tipo struttura
+    /// dichiarato in `types:`. Le foglie si raggiungono per percorso
+    /// (`motore1.velocita`); scala, unità e storico vengono dal membro.
+    /// Con `type_ref` `data_type` non conta.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub type_ref: Option<String>,
+    /// Il tag è un array (D8: più dimensioni, `[4]` o `[2, 3]`) di elementi
+    /// `type_ref` o `data_type`. `valvole[3].stato`, `matrice[1][2]`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub array: Option<Vec<u32>>,
+}
+
+/// Un tipo struttura riusabile (Fase 1b): i suoi membri, con i metadati che
+/// oggi stanno sul tag piatto (unità, scala, limiti, storico). Cambiarlo
+/// cambia tutte le istanze — è il legame naturale con i faceplate.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TypeDef {
+    pub id: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub description: String,
+    #[serde(default)]
+    pub members: Vec<Membro>,
+}
+
+fn vero() -> bool {
+    true
+}
+
+/// Un membro di un tipo struttura: scalare (`data_type`), istanza di un altro
+/// tipo (`type_ref`), e in entrambi i casi eventualmente array.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Membro {
+    pub name: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub description: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub type_ref: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub array: Option<Vec<u32>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unit: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub decimals: Option<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub raw_min: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub raw_max: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub eng_min: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub eng_max: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub range_lo: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub range_hi: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit_lo_lo: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit_lo: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit_hi: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit_hi_hi: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub write_min_role: Option<String>,
+    /// Il membro entra nello storico quando la radice lo ha acceso. `false`
+    /// lo esclude per tutte le istanze (proposta del maintainer, 22-09-2026).
+    #[serde(default = "vero")]
+    pub history: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub history_deadband: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub history_min_interval_ms: Option<u64>,
 }
 
 // ── Datastore configuration ───────────────────────────────────────────────────
@@ -217,6 +292,11 @@ impl TagDef {
         self.tipo()
             .map(|t| t.valore_iniziale())
             .unwrap_or(TagValue::Float(0.0))
+    }
+
+    /// Istanza di un tipo o array: le foglie si raggiungono per percorso.
+    pub fn e_composito(&self) -> bool {
+        self.type_ref.is_some() || self.array.is_some()
     }
 
     /// Il tipo dichiarato, interpretato (alias compresi). `None` = non è un tipo.
@@ -1244,6 +1324,10 @@ impl NotificationConfig {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Project {
     pub meta: ProjectMeta,
+    /// I tipi struttura riusabili (Fase 1b). Vuoto nei progetti di prima:
+    /// `skip_serializing_if` evita di toccare i loro `project.yaml`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub types: Vec<TypeDef>,
     #[serde(default)]
     pub tags: Vec<TagDef>,
     /// Tolerant deserialization: unknown `kind` values are skipped with a

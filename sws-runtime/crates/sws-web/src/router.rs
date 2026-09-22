@@ -1998,6 +1998,11 @@ async fn export_history_csv(
                         "0".into()
                     }
                 }
+                // Fase 1b: nel CSV un composito esce come JSON quotato.
+                v @ (TagValue::Array(_) | TagValue::Struct(_)) => {
+                    let j = serde_json::to_string(v).unwrap_or_default();
+                    format!("\"{}\"", j.replace('"', "\"\""))
+                }
                 TagValue::Str(s) => format!("\"{s}\""),
             };
             let quality = match sample.quality {
@@ -2099,6 +2104,8 @@ async fn tag_history_stats(
             TagValue::Int(i) => Some(*i as f64),
             TagValue::Bool(b) => Some(if *b { 1.0 } else { 0.0 }),
             TagValue::Str(v) => v.trim().parse().ok(),
+            // Fase 1b: un composito non entra in una statistica.
+            TagValue::Array(_) | TagValue::Struct(_) => None,
         })
         .collect();
 
@@ -2958,6 +2965,7 @@ where
             },
             // Progetto vuoto: sorgenti non ce ne sono, niente da rivedere.
             sorgenti_da_rivedere: false,
+            types: vec![],
             tags: vec![],
             sources: vec![],
             alarms: vec![],
@@ -3249,7 +3257,10 @@ async fn update_project_tags(
     }
     // Un posto solo installa i tag nel runtime (Fase 0d): semina i nuovi,
     // toglie gli orfani, aggiorna scale/ruoli/tipi/calcolati — senza riavvio.
-    crate::projects::apply_tags(&s.db, &s.derived_tags, &s.generator_tags, &per_db).await;
+    // I tipi struttura (Fase 1b) si rileggono dal file appena scritto: questa
+    // rotta non li tocca, ma le forme delle istanze dipendono da loro.
+    let tipi = Project::load(&dir).map(|p| p.types).unwrap_or_default();
+    crate::projects::apply_tags(&s.db, &s.derived_tags, &s.generator_tags, &per_db, &tipi).await;
     res
 }
 
@@ -3358,6 +3369,10 @@ async fn import_tags_csv(
             limit_lo: None,
             limit_hi: None,
             limit_hi_hi: None,
+            // L'import CSV non porta tipi struttura: le istanze si
+            // dichiarano nell'IDE (Fase 2).
+            type_ref: None,
+            array: None,
         };
         let _ = line_no; // suppress warning
         imported.push(tag);
@@ -3393,7 +3408,14 @@ async fn import_tags_csv(
     // Il runtime segue il file appena scritto: stesso posto degli altri
     // cinque siti (Fase 0d). Prima qui mancavano scale, tipi e ruoli.
     if let Ok(proj) = Project::load(&dir) {
-        crate::projects::apply_tags(&s.db, &s.derived_tags, &s.generator_tags, &proj.tags).await;
+        crate::projects::apply_tags(
+            &s.db,
+            &s.derived_tags,
+            &s.generator_tags,
+            &proj.tags,
+            &proj.types,
+        )
+        .await;
     }
     Json(serde_json::json!({ "imported": imported.len() })).into_response()
 }
@@ -4243,7 +4265,14 @@ async fn import_project_zip(State(s): State<AppState>, body: Bytes) -> Response 
 
     // 6. Hot-reload — mirror the per-section PUT handlers' side effects so
     //    the runtime reflects the new project without a restart.
-    crate::projects::apply_tags(&s.db, &s.derived_tags, &s.generator_tags, &project.tags).await;
+    crate::projects::apply_tags(
+        &s.db,
+        &s.derived_tags,
+        &s.generator_tags,
+        &project.tags,
+        &project.types,
+    )
+    .await;
     s.alarms.load(project.alarms.clone()).await;
     crate::projects::resolve_mqtt_client_ids(
         &project.meta.name,
@@ -6902,7 +6931,14 @@ async fn soft_reload_project(s: &AppState, dir: &std::path::Path) {
     // Prima qui mancavano scale, tipi, ruoli di scrittura e la rimozione dei
     // tag spariti: un deploy da git con una scala nuova mostrava il valore
     // grezzo fino al riavvio (Fase 0d).
-    crate::projects::apply_tags(&s.db, &s.derived_tags, &s.generator_tags, &project.tags).await;
+    crate::projects::apply_tags(
+        &s.db,
+        &s.derived_tags,
+        &s.generator_tags,
+        &project.tags,
+        &project.types,
+    )
+    .await;
     s.alarms.load(project.alarms.clone()).await;
     {
         let mut funcs = s.functions.write().await;

@@ -97,6 +97,10 @@ fn verita(v: &TagValue) -> bool {
         TagValue::Int(i) => *i != 0,
         TagValue::Float(f) => *f != 0.0,
         TagValue::Str(s) => !s.trim().is_empty(),
+        // Fase 1b: un array o una struttura non ha un valore di
+        // verità — «c'è» non vuol dire «acceso». Falso, come un
+        // valore assente.
+        TagValue::Array(_) | TagValue::Struct(_) => false,
     }
 }
 
