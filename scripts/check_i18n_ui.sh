@@ -419,6 +419,29 @@ for r in sorted(set(dialoghi_per_file) | set(DIALOGHI)):
 if not dialoghi_per_file:
     ok("ogni dialogo passa da t()")
 
+print("=== 3. ogni tipo della palette ha la sua etichetta, in tutte e due le lingue ===")
+# Una chiave che manca in ENTRAMBI i cataloghi non la vede nessuno: la parità
+# it/en è verde (mancano da tutte e due) e questa guardia cercava solo stringhe
+# italiane cablate. Sullo schermo compare il nome della chiave — il 22-09-2026
+# la palette mostrava «editor.palette.item.kpi_tile» in mezzo agli oggetti.
+import json as _json
+sorgente = open(f"{root}/sws-editor/src/editor/LeftPanel.tsx", encoding="utf-8").read()
+inizio = sorgente.find("export const PALETTE_GROUPS")
+if inizio < 0:
+    problema("non trovo PALETTE_GROUPS in LeftPanel.tsx")
+else:
+    tipi = re.findall(r'\{\s*type:\s*"([a-z0-9_]+)"', sorgente[inizio:])
+    mancanti = []
+    for lingua in ("it", "en"):
+        cat = _json.load(open(f"{root}/sws-editor/src/i18n/{lingua}.json", encoding="utf-8"))
+        voci = cat.get("editor", {}).get("palette", {}).get("item", {})
+        mancanti += [f"{lingua}: editor.palette.item.{t}" for t in tipi if t not in voci]
+    if mancanti:
+        problema(f"{len(mancanti)} etichette di palette mancanti — sullo schermo si legge la chiave: "
+                 + ", ".join(mancanti))
+    else:
+        ok(f"tutti i {len(set(tipi))} tipi della palette hanno l'etichetta in it ed en")
+
 print()
 if fail:
     print(f"\033[31m{len(fail)} problemi: {tot_stringhe} stringhe e {tot_dialoghi} dialoghi fuori dal catalogo.\033[0m")

@@ -11,6 +11,16 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Changed
+- **La palette degli oggetti: due colonne, icone più grandi, e finalmente scorre** (segnalazioni del maintainer, 22-09-2026). Su un monitor basso il gruppo Display
+  **finiva sotto il bordo del pannello e le ultime voci erano irraggiungibili**: come vista la sezione dà ai figli tutta l'altezza con `overflow: hidden`, e la palette
+  non si scorreva da sé — ora sì. Gli oggetti non sono più righe a tutta larghezza ma **riquadri in griglia a due colonne**, con l'icona sopra (22px invece di 14) e il
+  nome sotto, che va a capo invece di essere troncato: con trentasei oggetti la colonna era lunghissima e un'icona piccola accanto al testo non aiutava a riconoscere
+  niente. Tre oggetti mostravano il **nome della chiave** invece dell'etichetta (`editor.palette.item.kpi_tile`, `data_log`, `alarm_history`): ora si chiamano «Valore in
+  evidenza», «Storico valori» e «Storico allarmi». Una chiave mancante in **entrambi** i cataloghi era invisibile a tutte e due le reti esistenti — la parità it/en è
+  verde quando manca da tutte e due, e la guardia dell'interfaccia cercava solo italiano cablato: `check_i18n_ui.sh` ora pretende che ogni tipo della palette abbia la sua
+  etichetta in it e in en (provata rossa togliendone una).
+
 ### Added
 - **Formati di durata e di data** (Fase 1c del piano tag, D10, 22-09-2026), nati da un caso vero: l'uptime della sorgente Host arrivava come `19339477` e non c'era **nessuno
   strumento** per leggerlo — la specifica conosceva solo decimali, migliaia, esponenziale e percentuale. Ora, su web e pannello insieme (i casi stanno nella fixture condivisa

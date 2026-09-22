@@ -679,23 +679,46 @@ function PaletteGroupAccordion({ group, onAdd, showLvglBadge }: { group: Palette
         <span style={{ fontSize: 9, color: "var(--brand-text-subtle, #94a3b8)" }}>{open ? "▼" : "▶"}</span>
       </div>
       {open && (
-        <div style={{ padding: "4px 8px", display: "flex", flexDirection: "column", gap: 2 }}>
+        // Due colonne di riquadri, icona sopra e nome sotto (richiesta del
+        // maintainer, 22-09-2026). Prima erano righe a tutta larghezza: con
+        // trentasei oggetti la colonna diventava lunghissima, e l'icona
+        // piccola accanto al testo non aiutava a riconoscere niente.
+        // `1fr 1fr` e non `auto-fill`: a due colonne le celle restano larghe
+        // abbastanza per un nome su due righe anche col pannello al minimo.
+        <div style={{ padding: 6, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
           {group.items.map(({ type, icon }) => (
             <button
               key={type}
               onClick={() => onAdd(type)}
-              style={{ ...S.objBtn, flex: "none", width: "100%", display: "flex", alignItems: "center", gap: 6 }}
+              title={t(`editor.palette.item.${type}`)}
+              style={{
+                background: "var(--brand-bg, #0f172a)",
+                border: "1px solid var(--brand-surface-2, #334155)",
+                borderRadius: 6,
+                color: "var(--brand-text-2, #cbd5e1)",
+                cursor: "pointer",
+                padding: "8px 4px 6px",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "flex-start",
+                gap: 5,
+                minWidth: 0,
+                // Le celle alte uguale: il nome va a capo invece di essere
+                // troncato, e la griglia non diventa un mosaico.
+                minHeight: 66,
+              }}
             >
-              <span style={{ position: "relative", fontSize: 14, color: coloreGruppo(group, themeMode), flexShrink: 0, width: 18, textAlign: "center" as const }}>
+              <span style={{ position: "relative", fontSize: 22, lineHeight: 1, color: coloreGruppo(group, themeMode), flexShrink: 0 }}>
                 {icon}
                 {showLvglBadge && LVGL_SUPPORTED_TYPES.has(type) && (
                   <span
                     title={t("editor.paletteLvglBadgeTitle")}
                     style={{
                       position: "absolute",
-                      bottom: -3,
-                      right: -1,
-                      fontSize: 7,
+                      bottom: -4,
+                      right: -6,
+                      fontSize: 8,
                       fontWeight: 700,
                       lineHeight: 1,
                       color: "#0f172a",
@@ -709,7 +732,9 @@ function PaletteGroupAccordion({ group, onAdd, showLvglBadge }: { group: Palette
                   </span>
                 )}
               </span>
-              <span>{t(`editor.palette.item.${type}`)}</span>
+              <span style={{ fontSize: 10.5, lineHeight: 1.25, textAlign: "center", overflowWrap: "anywhere", minWidth: 0 }}>
+                {t(`editor.palette.item.${type}`)}
+              </span>
             </button>
           ))}
         </div>
@@ -801,9 +826,16 @@ function ObjectPalette({ onAdd }: { onAdd: (type: SynopticObject["type"]) => voi
           {t("editor.paletteLvglHint")}
         </div>
       )}
-      {groups.map((group) => (
-        <PaletteGroupAccordion key={group.category} group={group} onAdd={onAdd} showLvglBadge={!isLvgl} />
-      ))}
+      {/* Lo scorrimento sta QUI, non in `Section`: come vista la sezione dà ai
+          figli tutta l'altezza con `overflow: hidden`, e chi ha una lista lunga
+          se la scorre da sé. Senza, il gruppo Display finiva sotto il bordo del
+          pannello e le ultime voci erano irraggiungibili (segnalato dal
+          maintainer il 22-09-2026 su un monitor basso). */}
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+        {groups.map((group) => (
+          <PaletteGroupAccordion key={group.category} group={group} onAdd={onAdd} showLvglBadge={!isLvgl} />
+        ))}
+      </div>
     </Section>
   );
 }
