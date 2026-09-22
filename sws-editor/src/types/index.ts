@@ -850,7 +850,14 @@ export interface CustomSymbol {
 
 // ── Project tree types (from GET /api/project) ────────────────────────────
 
-export type TagDataType = "bool" | "int" | "float" | "string";
+/** Il tipo di una variabile (D5, 22-09-2026): i nomi canonici di
+ *  `tag/tipiScalari.ts` più gli alias storici `int` (= i64) e `float` (= f64),
+ *  che i progetti esistenti scrivono davvero. `string(N)` è ammesso nel file
+ *  ma non enumerabile qui. */
+export type TagDataType =
+  | "bool" | "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64"
+  | "f32" | "f64" | "string" | "datetime"
+  | "int" | "float";
 
 /** Binding avanzato di una proprietà (F2, piano SCADA-widgets).
  *  Due modalità mutuamente esclusive:

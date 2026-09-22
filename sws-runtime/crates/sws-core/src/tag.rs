@@ -285,50 +285,14 @@ impl std::error::Error for WriteError {}
 /// La conversione di Q27, pura e testabile. `Err` porta la descrizione del
 /// valore ricevuto (il chiamante ci antepone tag e tipo dichiarato).
 ///
-/// Un `want` fuori dai quattro tipi noti passa tutto invariato: `initial_value`
-/// tratta i tipi ignoti come float, e rifiutare qui trasformerebbe un refuso
-/// nello YAML in un tag non scrivibile — quello lo deve dire il validatore.
+/// Dal 22-09-2026 la regola vive in `TipoScalare::coerce` (D5: tipi ricchi con
+/// intervallo). Un `want` che non è un tipo passa tutto invariato: rifiutare
+/// qui trasformerebbe un refuso nello YAML in un tag non scrivibile — quello
+/// lo deve dire il validatore.
 fn coerce_value(want: &str, v: TagValue) -> Result<TagValue, String> {
-    use TagValue::*;
-    fn descrivi(v: &TagValue) -> String {
-        match v {
-            Bool(b) => format!("bool ({b})"),
-            Int(i) => format!("int ({i})"),
-            Float(f) => format!("float ({f})"),
-            Str(s) => format!("string («{s}»)"),
-        }
-    }
-    match (want, v) {
-        ("bool", Bool(b)) => Ok(Bool(b)),
-        ("bool", Str(s)) => match s.to_ascii_lowercase().as_str() {
-            "true" => Ok(Bool(true)),
-            "false" => Ok(Bool(false)),
-            _ => Err(descrivi(&Str(s))),
-        },
-        ("int", Int(i)) => Ok(Int(i)),
-        // `f as i64` satura invece di sbagliare, ma un fuori-range È una
-        // perdita: si rifiuta invece di consegnare i64::MAX al PLC.
-        ("int", Float(f))
-            if f.is_finite()
-                && f.fract() == 0.0
-                && f >= i64::MIN as f64
-                && f <= i64::MAX as f64 =>
-        {
-            Ok(Int(f as i64))
-        }
-        ("int", Str(s)) => match s.trim().parse::<i64>() {
-            Ok(i) => Ok(Int(i)),
-            Err(_) => Err(descrivi(&Str(s))),
-        },
-        ("float", Float(f)) => Ok(Float(f)),
-        ("float", Int(i)) => Ok(Float(i as f64)),
-        ("float", Str(s)) => match s.trim().parse::<f64>() {
-            Ok(f) if f.is_finite() => Ok(Float(f)),
-            _ => Err(descrivi(&Str(s))),
-        },
-        ("string", Str(s)) => Ok(Str(s)),
-        ("bool" | "int" | "float" | "string", v) => Err(descrivi(&v)),
-        (_, v) => Ok(v),
+    match crate::tipo::TipoScalare::parse(want) {
+        Some(t) => t.coerce(v),
+        None => Ok(v),
     }
 }
 

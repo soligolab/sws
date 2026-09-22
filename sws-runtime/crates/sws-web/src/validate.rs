@@ -486,13 +486,25 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
                  in silenzio, e uno dei due comportamenti sparisce",
             ));
         }
-        const TIPI_DATO: &[&str] = &["bool", "int", "float", "string"];
-        if !TIPI_DATO.contains(&t.data_type.as_str()) {
+        // D5 (22-09-2026): i tipi scalari ricchi, con gli alias storici.
+        if t.tipo().is_none() {
             out.push(Finding::err(
                 format!("project.tags[{}].data_type", t.id),
                 format!("`{}` non è un tipo di dato valido", t.data_type),
-                "i tipi sono bool, int, float, string",
+                format!(
+                    "i tipi sono {}, string(N) e gli alias int (= i64) e float (= f64)",
+                    sws_core::tipo::NOMI.join(", ")
+                ),
             ));
+        }
+        if let Some(w) = &t.write_data_type {
+            if sws_core::TipoScalare::parse(w).is_none() {
+                out.push(Finding::err(
+                    format!("project.tags[{}].write_data_type", t.id),
+                    format!("`{w}` non è un tipo di dato valido"),
+                    "stessi nomi di data_type",
+                ));
+            }
         }
     }
 
@@ -1219,12 +1231,16 @@ fn incompatibile(v: &Value, data_type: &str) -> Option<String> {
         Value::Null => return None,
         _ => "struttura",
     };
-    let ok = match data_type {
-        "bool" => v.is_boolean(),
-        "int" => v.as_i64().is_some(),
-        "float" => v.is_number(),
-        "string" => v.is_string(),
-        _ => true,
+    // Per categoria del tipo (D5): un `u16` vuole un intero, un `f32` un
+    // numero, un `datetime` un intero (ms) — il tipo che non si legge non
+    // vincola, lo segnala già la regola sui tag.
+    use sws_core::Categoria;
+    let ok = match sws_core::TipoScalare::parse(data_type).map(|t| t.categoria()) {
+        Some(Categoria::Bool) => v.is_boolean(),
+        Some(Categoria::Intero) | Some(Categoria::Tempo) => v.as_i64().is_some(),
+        Some(Categoria::Reale) => v.is_number(),
+        Some(Categoria::Testo) => v.is_string(),
+        None => true,
     };
     if ok {
         None
@@ -1234,13 +1250,17 @@ fn incompatibile(v: &Value, data_type: &str) -> Option<String> {
 }
 
 fn atteso_per(data_type: &str) -> String {
-    match data_type {
-        "bool" => {
+    use sws_core::Categoria;
+    match sws_core::TipoScalare::parse(data_type).map(|t| t.categoria()) {
+        Some(Categoria::Bool) => {
             "scrivi `true` / `false` senza virgolette: in YAML `'true'` è una stringa, \
                    e un tag bool che contiene una stringa funziona per caso finché smette"
         }
-        "int" => "scrivi un intero senza virgolette",
-        "float" => "scrivi un numero senza virgolette",
+        Some(Categoria::Intero) => "scrivi un intero senza virgolette",
+        Some(Categoria::Tempo) => {
+            "scrivi i millisecondi UTC dall'epoca, un intero senza virgolette"
+        }
+        Some(Categoria::Reale) => "scrivi un numero senza virgolette",
         _ => "scrivi una stringa",
     }
     .to_string()

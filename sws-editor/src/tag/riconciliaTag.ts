@@ -56,22 +56,28 @@ export function riferimentiDelProgetto(
   return out;
 }
 
-/** Da un tipo S7 al tipo del tag. Il «+var» della card S7 scriveva sempre
- *  `float`, ignorando la colonna accanto. */
+/** Da un tipo S7 al tipo **esatto** del tag (D5). Prima il «+var» della card
+ *  S7 scriveva sempre `float`; poi `int`, e un `word` perdeva il «senza segno». */
 export function tipoDaS7(t: S7DataType | undefined): TagDataType {
   switch (t) {
     case "bool": return "bool";
-    case "byte": case "int": case "word": case "dint": return "int";
-    default: return "float";
+    case "byte": return "u8";
+    case "int": return "i16";
+    case "word": return "u16";
+    case "dint": return "i32";
+    default: return "f32";
   }
 }
 
-/** Da un tipo EtherNet/IP al tipo del tag. */
+/** Da un tipo EtherNet/IP al tipo esatto del tag. */
 export function tipoDaEnIp(t: EnIpDataType | undefined): TagDataType {
   switch (t) {
     case "bool": return "bool";
-    case "sint": case "int": case "dint": case "lint": return "int";
-    default: return "float";
+    case "sint": return "i8";
+    case "int": return "i16";
+    case "dint": return "i32";
+    case "lint": return "i64";
+    default: return "f32";
   }
 }
 
@@ -82,8 +88,8 @@ export function tipoDaEnIp(t: EnIpDataType | undefined): TagDataType {
 export function tipoDaOggetto(type: SynopticObject["type"]): TagDataType {
   switch (type) {
     case "led": case "checkbox": case "radio": case "lang_button": return "bool";
-    case "text_list": case "state_lamp": return "int";
-    default: return "float";
+    case "text_list": case "state_lamp": return "i64";
+    default: return "f64";
   }
 }
 
@@ -103,14 +109,14 @@ export function deduciTipo(id: string, project: ProjectInfo, pages: readonly Syn
     }
     if (s.kind === "host") {
       const m = (s.metrics as { tag: string; metric: HostMetric }[] | undefined)?.find((x) => x.tag === id);
-      if (m) return definizioneMetrica(m.metric)?.testo ? "string" : "float";
+      if (m) return definizioneMetrica(m.metric)?.testo ? "string" : "f64";
     }
   }
   for (const pg of pages) {
     const o = pg.objects.find((x) => x.tag === id);
     if (o) return tipoDaOggetto(o.type);
   }
-  return "float";
+  return "f64";
 }
 
 export interface IngressoRiconciliazione {

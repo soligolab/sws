@@ -6,6 +6,7 @@ pub mod pin_tls;
 pub mod project;
 pub mod tag;
 pub mod testi_sistema;
+pub mod tipo;
 pub mod traduzione;
 
 pub use alarm::{
@@ -30,3 +31,4 @@ pub use tag::{
     LinearScale, Tag, TagDb, TagId, TagQuality, TagState, TagUpdate, TagValue, TagWriteBus,
     WriteError, WriteRequest,
 };
+pub use tipo::{Categoria, TipoScalare};

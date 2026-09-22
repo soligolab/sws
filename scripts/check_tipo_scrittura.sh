@@ -62,12 +62,30 @@ caso() { # caso <descrizione> <tag> <json valore> <status atteso> [frammento att
   echo "  ✓ $desc"
 }
 
+# D5 (22-09-2026): i tipi ricchi hanno un intervallo. Il template non ha un
+# tag u16, quindi lo si dichiara qui via API, prima delle prove.
+python3 - "$API" <<'PY' || ROSSI=$((ROSSI+1))
+import json, sys, urllib.request
+api = sys.argv[1]
+with urllib.request.urlopen(f"{api}/project") as r:
+    tags = json.load(r)["tags"]
+tags.append({"id": "q27.u16", "description": "prova D5", "data_type": "u16"})
+req = urllib.request.Request(f"{api}/project/tags", data=json.dumps(tags).encode(), method="PUT",
+                             headers={"Content-Type": "application/json"})
+with urllib.request.urlopen(req) as r:
+    assert r.status == 204, r.status
+print("  ✓ dichiarato q27.u16 (u16) via PUT /api/project/tags")
+PY
+
 echo "== rifiuti (perdita o ambiguità) =="
+caso 'u16 fuori intervallo (70000) → 400 col motivo'     q27.u16 '70000'  400 'u16'
+caso 'u16 negativo → 400'                                q27.u16 '-1'     400 'u16'
 caso 'stringa non booleana su bool → 400 col motivo' demo.cmd.enable '"abc"'  400 'bool'
 caso 'float con frazione su int → 400'               demo.sim.counter '7.5'   400 'int'
 caso 'numero su string → 400'                        demo.cmd.select '42'     400 'string'
 
 echo "== coercizioni senza perdita =="
+caso "u16 nell'intervallo, float intero → 204"           q27.u16 '12.0'   204
 caso 'il caso storico: "true" su bool → 204'         demo.cmd.enable '"true"' 204
 caso 'int su float → 204'                            demo.cmd.slider '5'      204
 caso 'float intero su int → 204'                     demo.sim.counter '7.0'   204

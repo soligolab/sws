@@ -2169,5 +2169,15 @@
     "conteggio": "{{n}} avvisi",
     "hint": "Rilievi del validatore sul progetto salvato: il progetto funziona, ma qui probabilmente non fa quel che volevi.",
     "intro": "Cosa il validatore ha trovato nel progetto com'è su disco. Non blocca niente: correggi e salva, l'elenco si aggiorna."
+  },
+  "tipi": {
+    "gruppo": {
+      "bool": "Booleano",
+      "signed": "Interi con segno",
+      "unsigned": "Interi senza segno",
+      "reali": "Reali",
+      "testo": "Testo",
+      "tempo": "Tempo"
+    }
   }
 }

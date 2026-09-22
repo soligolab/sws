@@ -12,6 +12,17 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Added
+- **Tipi scalari ricchi per le variabili** (D5 del piano `docs/plans/2026-09-21-gestione-tag-oggetto-unico.md`, Fase 1a, 22-09-2026). `data_type` accetta ora `bool`,
+  `i8`…`i64`, `u8`…`u64`, `f32`, `f64`, `string` o `string(N)`, `datetime` (millisecondi UTC dall'epoca, D7); `int` e `float` restano **alias** di `i64` e `f64` e
+  sopravvivono al round-trip — nessun progetto va migrato, nessun template cambia. La variabile è del runtime e il suo tipo dice tutto ciò che serve a qualunque
+  protocollo: la larghezza in registri Modbus si deriva dal tipo (`TipoScalare::registri`), l'ordine di byte e parole resterà un'impostazione della sorgente. La
+  coercizione in scrittura (Q27) controlla ora anche l'**intervallo**: `70000` o `-1` su un `u16` sono rifiutati, non saturati; `1e39` non entra in un `f32`; una stringa
+  oltre `string(N)` è rifiutata. La fonte è **una**, `tests/fixtures/tipi-scalari.json`, letta dal test Rust di `sws_core::tipo`, dal test vitest di `tag/tipiScalari.ts`
+  e dalla guardia nuova `check_tipi_scalari.sh` (26ª); le tre `<select>` della scheda Variabili e il modale rapido passano da `<OpzioniTipo />` (gruppi: booleano,
+  interi con segno, senza segno, reali, testo, tempo) e mostrano il nome canonico senza riscrivere il file finché non si cambia. I «+var» e la creazione al
+  salvataggio deducono il tipo **esatto**: S7 `word` → `u16`, `dint` → `i32`, `real` → `f32`; EtherNet/IP `sint/int/dint/lint/real` → `i8/i16/i32/i64/f32`.
+  Il validatore e lo schema per l'assistente IA conoscono i nomi nuovi; `check_tipo_scrittura.sh` ha tre casi `u16` in più. Il parsing di una data ISO in un
+  `datetime` arriva con la Fase 2.
 - **Tag: il server è coerente e il validatore parla dopo il salvataggio** (Fase 0d del piano `docs/plans/2026-09-21-gestione-tag-oggetto-unico.md`, 22-09-2026).
   Sei siti installavano i tag nel `TagDb` a mano — apertura del progetto, `PUT /api/project/tags`, import CSV, import zip, ricarica da git, chiusura — e divergevano: la
   **ricarica da git non aggiornava scale, tipi e ruoli di scrittura e non toglieva i tag spariti** (un deploy con una scala nuova mostrava il valore grezzo fino al riavvio),

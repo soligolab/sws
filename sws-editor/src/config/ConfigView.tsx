@@ -17,6 +17,8 @@ import { HOST_METRICS, definizioneMetrica, emptyHost, metricheSenzaParametro, se
 import { QuickCreateTagModal } from "@/components/QuickCreateTagModal";
 import { Tenuta } from "@/components/Tenuta";
 import { RinominaTagModal } from "@/components/RinominaTagModal";
+import { OpzioniTipo } from "@/components/OpzioniTipo";
+import { normalizzaTipo } from "@/tag/tipiScalari";
 import { tipoDaEnIp, tipoDaS7 } from "@/tag/riconciliaTag";
 import { DataTable, type DataTableColumn } from "@/components/DataTable";
 import { TagInput } from "@/components/TagInput";
@@ -511,7 +513,7 @@ function TagsTab() {
     const has = (v: string | undefined, q: string) => (v ?? "").toLowerCase().includes(q.toLowerCase());
     if (fltId) rows = rows.filter((r) => has(r.tag.id, fltId));
     if (fltDesc) rows = rows.filter((r) => has(r.tag.description, fltDesc));
-    if (fltType) rows = rows.filter((r) => (r.tag.data_type ?? "float") === fltType);
+    if (fltType) rows = rows.filter((r) => normalizzaTipo(r.tag.data_type) === fltType);
     if (fltHist) rows = rows.filter((r) => (r.tag.history ? "yes" : "no") === fltHist);
     if (fltUse) rows = rows.filter((r) => (usedTagInfo.has(r.tag.id) ? "used" : "unused") === fltUse);
     if (sort) {
@@ -707,10 +709,7 @@ function TagsTab() {
             <td style={S.td}>
               <select style={{ ...S.input, fontSize: 11, cursor: "pointer" }} value={fltType} onChange={(e) => setFltType(e.target.value)}>
                 <option value="">—</option>
-                <option value="bool">Bool</option>
-                <option value="int">Int</option>
-                <option value="float">Float</option>
-                <option value="string">{t("cfg.stringType")}</option>
+                <OpzioniTipo />
               </select>
             </td>
             <td style={S.td}>
@@ -772,15 +771,14 @@ function TagsTab() {
                   />
                 </td>
                 <td style={S.td}>
+                  {/* Mostra il nome canonico (`int` → i64) ma scrive nel file solo
+                      quando l'utente cambia: gli alias sopravvivono finché si vuole. */}
                   <select
                     style={{ ...S.input, cursor: "pointer" }}
-                    value={tag.data_type ?? "float"}
+                    value={normalizzaTipo(tag.data_type) ?? "f64"}
                     onChange={(e) => updateTag(i, { data_type: e.target.value as TagDataType })}
                   >
-                    <option value="bool">Bool</option>
-                    <option value="int">Int</option>
-                    <option value="float">Float</option>
-                    <option value="string">{t("cfg.stringType")}</option>
+                    <OpzioniTipo />
                   </select>
                 </td>
                 <td style={{ ...S.td, textAlign: "center" }}>
@@ -910,13 +908,10 @@ function TagsTab() {
                             <label style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 10, color: "var(--brand-text-subtle, #64748b)", width: 110 }}>
                               {t("cfg.tagWriteType")}
                               <select style={{ ...S.input, fontSize: 12, cursor: "pointer" }}
-                                value={tag.write_data_type ?? ""}
+                                value={tag.write_data_type ? (normalizzaTipo(tag.write_data_type) ?? "") : ""}
                                 onChange={(e) => updateTag(i, { write_data_type: (e.target.value || undefined) as TagDef["write_data_type"] })}>
                                 <option value="">{t("cfg.tagWriteTypeSame")}</option>
-                                <option value="bool">Bool</option>
-                                <option value="int">Int</option>
-                                <option value="float">Float</option>
-                                <option value="string">{t("cfg.stringType")}</option>
+                                <OpzioniTipo />
                               </select>
                             </label>
                           </div>

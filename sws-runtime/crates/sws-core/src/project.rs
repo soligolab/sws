@@ -18,8 +18,11 @@ pub struct TagDef {
     pub id: String,
     #[serde(default)]
     pub description: String,
-    /// Storage type for this tag: "bool", "int", "float", or "string".
-    /// Drives the initial `TagValue` variant seeded into the TagDb at startup.
+    /// Tipo della variabile (D5, 22-09-2026): `bool`, `i8`…`i64`, `u8`…`u64`,
+    /// `f32`, `f64`, `string` o `string(N)`, `datetime`; `int` e `float`
+    /// restano accettati come alias di `i64` e `f64`. Vedi `sws_core::tipo`.
+    /// Decide il valore iniziale nel TagDb, la coercizione in scrittura e la
+    /// larghezza che i plugin derivano.
     #[serde(default = "default_data_type")]
     pub data_type: String,
     /// Tipo dichiarato per il valore SCRITTO su questo tag, quando diverge da
@@ -209,12 +212,16 @@ impl TagDef {
     /// Initial `TagValue` to seed the TagDb with for this definition.
     /// Used at startup (`populate_tags`) and on hot-reload of newly-added tags.
     pub fn initial_value(&self) -> TagValue {
-        match self.data_type.as_str() {
-            "bool" => TagValue::Bool(false),
-            "int" => TagValue::Int(0),
-            "string" => TagValue::Str(String::new()),
-            _ => TagValue::Float(0.0),
-        }
+        // Un tipo che non si legge nasce float, com'è sempre stato: il
+        // validatore lo segnala, il runtime non si ferma.
+        self.tipo()
+            .map(|t| t.valore_iniziale())
+            .unwrap_or(TagValue::Float(0.0))
+    }
+
+    /// Il tipo dichiarato, interpretato (alias compresi). `None` = non è un tipo.
+    pub fn tipo(&self) -> Option<crate::tipo::TipoScalare> {
+        crate::tipo::TipoScalare::parse(&self.data_type)
     }
 
     pub fn is_derived(&self) -> bool {

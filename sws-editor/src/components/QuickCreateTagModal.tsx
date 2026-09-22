@@ -7,6 +7,8 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "@/store";
+import { OpzioniTipo } from "./OpzioniTipo";
+import { normalizzaTipo } from "@/tag/tipiScalari";
 import type { TagDataType, TagDef } from "@/types";
 
 const INPUT: React.CSSProperties = {
@@ -23,7 +25,7 @@ const BTN = (primario: boolean): React.CSSProperties => ({
 });
 
 export function QuickCreateTagModal({
-  initialId, tipoSuggerito = "float", onConfirm, onClose,
+  initialId, tipoSuggerito = "f64", onConfirm, onClose,
 }: {
   initialId: string;
   /** Il tipo che la mappatura o l'oggetto lasciano intuire: precompila, non impone. */
@@ -76,11 +78,8 @@ export function QuickCreateTagModal({
           <div style={{ display: "flex", gap: 10 }}>
             <div style={{ flex: 1 }}>
               <label style={LABEL}>{t("cfg.dataType")}</label>
-              <select style={{ ...INPUT, cursor: "pointer" }} value={dataType} onChange={(e) => setDataType(e.target.value as TagDataType)}>
-                <option value="float">Float</option>
-                <option value="int">Int</option>
-                <option value="bool">Bool</option>
-                <option value="string">String</option>
+              <select style={{ ...INPUT, cursor: "pointer" }} value={normalizzaTipo(dataType) ?? "f64"} onChange={(e) => setDataType(e.target.value as TagDataType)}>
+                <OpzioniTipo />
               </select>
             </div>
             <div style={{ width: 110 }}>

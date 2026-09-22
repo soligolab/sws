@@ -346,9 +346,12 @@ fn schema_tag() -> Esito {
         "enum": sch::FIELD_ENUMS.iter().filter(|(k, _)| nomi.contains(k))
             .map(|(k, v)| (k.to_string(), json!(v)))
             .collect::<serde_json::Map<_, _>>(),
-        "nota": "Il tipo di un tag è `data_type`, con valori \"bool\", \"int\", \"float\" \
-                 o \"string\". Un tag con `expression` o con `generator` attivo è calcolato: \
-                 non si può scrivere.",
+        "nota": format!(
+            "Il tipo di un tag è `data_type`, con valori {} o string(N); `int` e `float` \
+             sono alias di i64 e f64. Un tag con `expression` o con `generator` attivo è \
+             calcolato: non si può scrivere.",
+            sws_core::tipo::NOMI.join(", ")
+        ),
     }))
 }
 

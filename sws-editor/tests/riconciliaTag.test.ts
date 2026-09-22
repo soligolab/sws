@@ -39,13 +39,16 @@ describe("deduciTipo", () => {
         { kind: "host", id: "h", poll_interval_ms: 1000, metrics: [{ tag: "host.nome", metric: "hostname" }, { tag: "host.temp", metric: "temp", param: "soc-thermal" }] },
       ] as never,
     });
+    // D5: il tipo esatto della riga, non più «int»/«float» a perdere.
     expect(deduciTipo("plc.marcia", p, [])).toBe("bool");
-    expect(deduciTipo("plc.cnt", p, [])).toBe("int");
-    expect(deduciTipo("ab.speed", p, [])).toBe("float");
+    expect(deduciTipo("plc.cnt", p, [])).toBe("i32");
+    expect(deduciTipo("ab.speed", p, [])).toBe("f32");
     expect(deduciTipo("host.nome", p, [])).toBe("string");
-    expect(deduciTipo("host.temp", p, [])).toBe("float");
-    expect(tipoDaS7("real")).toBe("float");
+    expect(deduciTipo("host.temp", p, [])).toBe("f64");
+    expect(tipoDaS7("real")).toBe("f32");
+    expect(tipoDaS7("word")).toBe("u16");
     expect(tipoDaEnIp("bool")).toBe("bool");
+    expect(tipoDaEnIp("lint")).toBe("i64");
   });
 
   it("dall'oggetto che lo usa come tag primario, altrimenti float", () => {
@@ -55,9 +58,9 @@ describe("deduciTipo", () => {
       { id: "t", type: "text", x: 0, y: 0, tag: "misura" },
     ]);
     expect(deduciTipo("pompa.on", progetto(), [pg])).toBe("bool");
-    expect(deduciTipo("valvola.stato", progetto(), [pg])).toBe("int");
-    expect(deduciTipo("misura", progetto(), [pg])).toBe("float");
-    expect(deduciTipo("sconosciuto", progetto(), [pg])).toBe("float");
+    expect(deduciTipo("valvola.stato", progetto(), [pg])).toBe("i64");
+    expect(deduciTipo("misura", progetto(), [pg])).toBe("f64");
+    expect(deduciTipo("sconosciuto", progetto(), [pg])).toBe("f64");
   });
 });
 
@@ -83,7 +86,7 @@ describe("pianoCreazione", () => {
     });
     expect(piano.map((t) => t.id)).toEqual(["pompa.on", "pompa.velocita"]);
     expect(piano[0]).toMatchObject({ description: "Pompa in marcia", history: true });
-    expect(piano[1]).toMatchObject({ data_type: "float", history: false });
+    expect(piano[1]).toMatchObject({ data_type: "f64", history: false });
   });
 
   it("niente da creare = piano vuoto", () => {
