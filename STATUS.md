@@ -74,7 +74,39 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — Fase 0 chiusa e Fase 1 a metà: prossima la 1d (2026-09-22, ufficio, sera)
+## ▶ Riprendere da qui — Fasi 1d, 1e e 2 dei tag su `main` (2026-09-22, ufficio, notte)
+
+**Tutto su `main` e pushato**, su istruzione del maintainer («fai il merge e push che poi riprendo da casa»). Con la Fase 2 **la Fase 1 è chiusa per intero**: 1d e 1e erano rimaste sul ramo annidato `feat/tag-1d-scrittura-e-filo` e sono entrate con questo squash. Piano: `docs/plans/2026-09-21-gestione-tag-oggetto-unico.md`.
+
+**Il collaudo a schermo della Fase 2 non c'è ancora**: il maintainer ha provato e confermato la scheda «Tipi» e il ✕ che non cancella più un'istanza in uso, non il resto. Le prove da fare sono qui sotto, ed è la prima cosa da riprendere.
+
+**Fatto sul ramo**, in ordine: scheda «Tipi» (`f089b43b`), poi il difetto trovato al primo collaudo — il ✕ cancellava un'istanza usata, perché un oggetto si lega a `motore1.velocita` e non a `motore1` (`39490607`) — e infine il resto della fase:
+- **la rinomina segue le foglie**: rinominare `motore1` riscrive anche `motore1.velocita`, `motore1[2].stato`, i binding, le espressioni, gli allarmi, le ricette, i trigger e il codice Python. `motore1bis` non si muove: il prefisso vale solo se finisce su un punto o una parentesi;
+- **il campo Tag completa il percorso mentre si digita** (↑/↓, Invio o Tab, Esc), per prefisso, mai su un segnaposto di faceplate;
+- **parametro di faceplate `istanza(Tipo)`**: nella definizione `motore:istanza(Motore)`, nell'istanza un menù delle variabili composite di quel tipo, e dentro il faceplate `{motore}.velocita`. È il `{tag_prefix}` di prima, senza ricordarselo a memoria;
+- **l'IA vede i percorsi**: `elenca_tag` dà `type_ref`/`array` e l'elenco delle foglie col loro tipo, e filtra anche su quelle; `schema_tag` e il prompt dicono che una radice non si lega;
+- **CSV**: l'esportazione porta `unit`, `type_ref`, `array` (`2x3`), la lettura rispetta le virgolette, e l'import **non azzera più** i campi che il file non nomina — prima una riga sostituiva il tag intero, quindi un giro esporta→importa cancellava scala, limiti e (dalla Fase 2) `type_ref`;
+- `check_templates.sh` sa che una foglia di una radice dichiarata è dichiarata.
+
+**Poi, dopo il suo primo sguardo** («posso esportare le variabili ma non i tipi, quindi esporterei delle variabili senza tipo»): **Variabili e Tipi sono una scheda sola** — un selettore «Variabili | Tipi» sotto il Salva, con l'export/import CSV sopra perché ora copre entrambe — e il **CSV è globale**, un foglio solo con la colonna `kind` (`type` / `member` / `tag`) e tutti i campi che l'import sa applicare. Un file vecchio senza `kind` si reimporta come sempre. Provandolo dal vivo è saltato fuori un difetto **preesistente**: aggiungere un membro a un tipo non faceva comparire la foglia nuova sulle istanze già in memoria (valeva anche per la scheda Tipi, non solo per il CSV). Ora la forma nuova si riconcilia con il valore vivo — `motore1.corrente` compare, `motore1.velocita` tiene il 1500 che il PLC ci aveva appena scritto.
+
+**Lasciato fuori di proposito**: la tabella delle variabili ad albero espandibile. Le foglie si vedono nel selettore e nell'anteprima della scheda «Tipi»; la scheda Variabili resta piatta finché non c'è un progetto vero con abbastanza istanze da dire come organizzarla.
+
+**Verde**: `cargo check`, `cargo test --workspace`, clippy `-D warnings`, `cargo fmt`, `pnpm build`, `pnpm lint`, 797 test dell'editor, 26 guardie statiche.
+
+**Prossimo passo**: le prove qui sotto, e poi il **bump a 2.12.0** nei quattro file prima di rilanciare `build_containers_all.sh --push` — le immagini di stanotte sono uscite etichettate 2.11.1 pur contenendo tutto il lavoro nuovo, quindi `latest` su quel registro punta a codice che non corrisponde a nessun tag.
+
+**Come si collauda la Fase 2** (progetto di prova, non uno vero):
+1. Configurazione → Tipi: creare `Motore` con `velocita: f32` e `marcia: bool`; in Variabili creare `motore1` scegliendo il tipo `Motore`.
+2. Su una pagina, legare un testo a `motore1.` → l'elenco propone le foglie; sceglierne una con Invio.
+3. Variabili → rinominare `motore1` in `pompa1` → l'anteprima conta anche gli usi della foglia, e dopo la conferma l'oggetto punta a `pompa1.velocita`.
+4. Un faceplate con parametro `m:istanza(Motore)` e dentro un oggetto su `{m}.velocita`: sull'istanza il campo è un menù, non un testo libero.
+5. Variabili → «Esporta CSV», aprire il file: c'è una riga `type` per `Motore`, una `member` per ogni suo membro e una `tag` per ogni variabile. Reimportarlo → tutto com'era.
+6. Nella scheda Tipi aggiungere un membro a `Motore` e salvare: la foglia nuova compare subito nel selettore delle variabili, senza riavviare il runtime.
+
+**Restano fuori**: Passo 2 dei segreti (cinque conferme mai date), container 2.11.1 sul TC620, rotazione del token Telegram di `CasaDomotica`, i due semi (albero di configurazione, riorganizzazione dei file `.tsx`).
+
+## Riprendere da qui (precedente) — Fase 0 chiusa e Fase 1 a metà: prossima la 1d (2026-09-22, ufficio, sera)
 
 **Tutto su `main` e pushato.** Piano: `docs/plans/2026-09-21-gestione-tag-oggetto-unico.md`.
 

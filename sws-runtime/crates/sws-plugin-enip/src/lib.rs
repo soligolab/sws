@@ -91,7 +91,15 @@ async fn session(
                 }
             }
 
-            Some((tag, value)) = write_rx.recv() => {
+            Some((tag, percorso, value)) = write_rx.recv() => {
+                // Fase 1d: una scrittura su una FOGLIA di una radice che
+                // questo plugin possiede. Nessun protocollo sa ancora
+                // scrivere dentro un blocco (arriva con le Fasi 3-4): meglio
+                // dirlo che scrivere la cosa sbagliata.
+                if let Some(p) = &percorso {
+                    warn!(tag = %tag, percorso = %p, "scrittura su una foglia: non ancora supportata da questa sorgente");
+                    continue;
+                }
                 if let Some(&idx) = write_map.get(&tag) {
                     let tm = &cfg.tags[idx];
                     if let Err(e) = write_one(&mut client, tm, &value).await {

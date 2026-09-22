@@ -211,6 +211,60 @@ impl Forma {
         }
     }
 
+    /// Il valore che questa forma deve avere, **partendo da quello che c'è**.
+    ///
+    /// Serve quando un tipo cambia mentre il runtime gira: aggiungere un
+    /// membro a `Motore` deve far comparire `motore1.corrente` su tutte le
+    /// istanze, ma senza azzerare `motore1.velocita`, che intanto un PLC sta
+    /// scrivendo. Riseminare il valore iniziale le butterebbe via tutte;
+    /// lasciare il valore vecchio lascerebbe la foglia nuova invisibile
+    /// finché non si riavvia — è il difetto misurato il 22-09-2026 con un
+    /// import CSV che aggiungeva un membro.
+    ///
+    /// Quindi: i membri e gli indici che ci sono ancora tengono il loro
+    /// valore, quelli nuovi nascono col valore iniziale, quelli spariti se ne
+    /// vanno. Un valore della forma sbagliata (uno scalare dove ora c'è una
+    /// struttura) riparte dall'iniziale: non c'è niente da conservare.
+    pub fn riconcilia(&self, attuale: &TagValue) -> TagValue {
+        match self {
+            Forma::Scalare(t) => match attuale {
+                TagValue::Struct(_) | TagValue::Array(_) => t.valore_iniziale(),
+                v => v.clone(),
+            },
+            Forma::Struttura(m) => {
+                let vecchi = match attuale {
+                    TagValue::Struct(c) => Some(c),
+                    _ => None,
+                };
+                TagValue::Struct(
+                    m.iter()
+                        .map(|(n, f)| {
+                            let v = match vecchi.and_then(|c| c.get(n)) {
+                                Some(x) => f.riconcilia(x),
+                                None => f.valore_iniziale(),
+                            };
+                            (n.clone(), v)
+                        })
+                        .collect::<BTreeMap<_, _>>(),
+                )
+            }
+            Forma::Array(n, f) => {
+                let vecchi = match attuale {
+                    TagValue::Array(v) => Some(v),
+                    _ => None,
+                };
+                TagValue::Array(
+                    (0..*n)
+                        .map(|i| match vecchi.and_then(|v| v.get(i)) {
+                            Some(x) => f.riconcilia(x),
+                            None => f.valore_iniziale(),
+                        })
+                        .collect(),
+                )
+            }
+        }
+    }
+
     /// Le foglie, in ordine di dichiarazione (row-major per gli array), con
     /// il percorso **assoluto** a partire da `radice`. Il membro è quello del
     /// livello struttura più vicino alla foglia.
@@ -436,6 +490,99 @@ mod tests {
         assert!(scrivi(&mut val, &parse_segmenti(".x").unwrap(), TagValue::Int(1)).is_err());
     }
 
+    #[derive(serde::Deserialize)]
+    struct Foglia_ {
+        percorso: String,
+        tipo: String,
+    }
+    #[derive(serde::Deserialize)]
+    struct Caso {
+        nome: String,
+        types: Vec<TypeDef>,
+        tag: TagDef,
+        foglie: Vec<Foglia_>,
+    }
+    #[derive(serde::Deserialize)]
+    struct CasoErrore {
+        nome: String,
+        types: Vec<TypeDef>,
+        tag: TagDef,
+        cita: String,
+    }
+    #[derive(serde::Deserialize)]
+    struct FixtureForme {
+        casi: Vec<Caso>,
+        errori: Vec<CasoErrore>,
+    }
+
+    /// La stessa tabella di casi la legge l'editor
+    /// (`sws-editor/tests/formaTag.test.ts`): non una copia, **lo stesso
+    /// file**. Due calcoli separati della forma divergono in silenzio, e la
+    /// divergenza si vedrebbe come un tag che l'IDE offre e il runtime non ha.
+    #[test]
+    fn la_tabella_di_forme_condivisa_col_web() {
+        let percorso = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../tests/fixtures/forme-tag.json"
+        );
+        let f: FixtureForme =
+            serde_json::from_str(&std::fs::read_to_string(percorso).expect("fixture"))
+                .expect("fixture valida");
+        let mut rotti = Vec::new();
+        for c in &f.casi {
+            match Forma::da_tag(&c.tag, &c.types) {
+                Err(e) => rotti.push(format!("  {}: errore inatteso ({e})", c.nome)),
+                Ok(None) => {
+                    if !c.foglie.is_empty() {
+                        rotti.push(format!(
+                            "  {}: nessuna forma, attese {} foglie",
+                            c.nome,
+                            c.foglie.len()
+                        ));
+                    }
+                }
+                Ok(Some(forma)) => {
+                    let avute = forma.foglie(&c.tag.id, &c.types);
+                    let attesi: Vec<(&str, &str)> = c
+                        .foglie
+                        .iter()
+                        .map(|x| (x.percorso.as_str(), x.tipo.as_str()))
+                        .collect();
+                    let avuti: Vec<(String, String)> = avute
+                        .iter()
+                        .map(|x| (x.percorso.clone(), x.tipo.nome()))
+                        .collect();
+                    let avuti_ref: Vec<(&str, &str)> = avuti
+                        .iter()
+                        .map(|(p, t)| (p.as_str(), t.as_str()))
+                        .collect();
+                    if avuti_ref != attesi {
+                        rotti.push(format!(
+                            "  {}:\n    attese {attesi:?}\n    avute  {avuti_ref:?}",
+                            c.nome
+                        ));
+                    }
+                }
+            }
+        }
+        for c in &f.errori {
+            match Forma::da_tag(&c.tag, &c.types) {
+                Err(e) if e.contains(&c.cita) => {}
+                Err(e) => rotti.push(format!(
+                    "  {}: l'errore non nomina «{}»: {e}",
+                    c.nome, c.cita
+                )),
+                Ok(_) => rotti.push(format!("  {}: accettata, doveva essere un errore", c.nome)),
+            }
+        }
+        assert!(
+            rotti.is_empty(),
+            "{} divergenze dalla fixture:\n{}",
+            rotti.len(),
+            rotti.join("\n")
+        );
+    }
+
     #[test]
     fn errori_di_forma() {
         assert!(Forma::da_tag(&tag("{ id: x, type_ref: Inesistente }"), &tipi()).is_err());
@@ -447,5 +594,90 @@ mod tests {
         let ciclo: Vec<TypeDef> = serde_yaml::from_str("- { id: A, members: [{ name: b, type_ref: B }] }\n- { id: B, members: [{ name: a, type_ref: A }] }").unwrap();
         let e = Forma::da_tag(&tag("{ id: x, type_ref: A }"), &ciclo).unwrap_err();
         assert!(e.contains("ciclo"), "{e}");
+    }
+    /// Un tipo che cambia mentre il runtime gira: la foglia nuova compare, le
+    /// altre non perdono il valore che un PLC ci sta scrivendo. Senza questo
+    /// la foglia restava invisibile fino al riavvio (misurato il 22-09-2026
+    /// con un import CSV che aggiungeva un membro).
+    #[test]
+    fn riconcilia_tiene_i_valori_vivi_e_fa_nascere_i_membri_nuovi() {
+        let prima: Vec<TypeDef> =
+            serde_yaml::from_str("- id: M\n  members:\n    - { name: velocita, data_type: f32 }\n")
+                .unwrap();
+        let dopo: Vec<TypeDef> = serde_yaml::from_str(
+            "- id: M\n  members:\n    - { name: velocita, data_type: f32 }\n    - { name: corrente, data_type: f32 }\n",
+        )
+        .unwrap();
+        let tag = TagDef::nuovo("m1", "f32");
+        let mut tag = tag;
+        tag.type_ref = Some("M".into());
+
+        let f1 = Forma::da_tag(&tag, &prima).unwrap().unwrap();
+        let mut vivo = f1.valore_iniziale();
+        // Il PLC scrive: la velocità vale 1500.
+        if let TagValue::Struct(c) = &mut vivo {
+            c.insert("velocita".into(), TagValue::Float(1500.0));
+        }
+
+        let f2 = Forma::da_tag(&tag, &dopo).unwrap().unwrap();
+        let out = f2.riconcilia(&vivo);
+        let TagValue::Struct(c) = &out else {
+            panic!("{out:?}")
+        };
+        assert_eq!(c.get("velocita"), Some(&TagValue::Float(1500.0)));
+        assert!(c.contains_key("corrente"), "il membro nuovo deve comparire");
+    }
+
+    /// Un membro che sparisce dal tipo sparisce dalle istanze, e un valore
+    /// della forma sbagliata riparte dall'iniziale invece di restare storto.
+    #[test]
+    fn riconcilia_toglie_i_membri_spariti_e_raddrizza_le_forme_sbagliate() {
+        let tipi: Vec<TypeDef> =
+            serde_yaml::from_str("- id: M\n  members:\n    - { name: a, data_type: f32 }\n")
+                .unwrap();
+        let mut tag = TagDef::nuovo("m1", "f32");
+        tag.type_ref = Some("M".into());
+        let f = Forma::da_tag(&tag, &tipi).unwrap().unwrap();
+
+        let vecchio = TagValue::Struct(
+            [
+                ("a".to_string(), TagValue::Float(3.0)),
+                ("b".to_string(), TagValue::Float(9.0)),
+            ]
+            .into_iter()
+            .collect(),
+        );
+        let TagValue::Struct(c) = f.riconcilia(&vecchio) else {
+            panic!()
+        };
+        assert_eq!(c.get("a"), Some(&TagValue::Float(3.0)));
+        assert!(!c.contains_key("b"), "un membro tolto dal tipo se ne va");
+
+        // Uno scalare dove ora c'è una struttura: non c'è niente da tenere.
+        assert!(matches!(
+            f.riconcilia(&TagValue::Float(1.0)),
+            TagValue::Struct(_)
+        ));
+    }
+
+    /// Un array che si allunga tiene gli elementi che aveva.
+    #[test]
+    fn riconcilia_allunga_e_accorcia_gli_array() {
+        let mut tag = TagDef::nuovo("v", "f32");
+        tag.array = Some(vec![4]);
+        let f = Forma::da_tag(&tag, &[]).unwrap().unwrap();
+        let corto = TagValue::Array(vec![TagValue::Float(1.0), TagValue::Float(2.0)]);
+        let TagValue::Array(v) = f.riconcilia(&corto) else {
+            panic!()
+        };
+        assert_eq!(v.len(), 4);
+        assert_eq!(v[1], TagValue::Float(2.0));
+
+        tag.array = Some(vec![1]);
+        let f = Forma::da_tag(&tag, &[]).unwrap().unwrap();
+        let TagValue::Array(v) = f.riconcilia(&corto) else {
+            panic!()
+        };
+        assert_eq!(v, vec![TagValue::Float(1.0)]);
     }
 }

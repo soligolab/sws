@@ -416,7 +416,15 @@ async fn run_session(
             _ = cancel.cancelled() => return Ok(()),
 
             // Outbound: a tag write came in via the bus → publish to the mapped topic.
-            Some((tag, value)) = write_rx.recv() => {
+            Some((tag, percorso, value)) = write_rx.recv() => {
+                // Fase 1d: una scrittura su una FOGLIA di una radice che
+                // questo plugin possiede. Nessun protocollo sa ancora
+                // scrivere dentro un blocco (arriva con le Fasi 3-4): meglio
+                // dirlo che scrivere la cosa sbagliata.
+                if let Some(p) = &percorso {
+                    warn!(tag = %tag, percorso = %p, "scrittura su una foglia: non ancora supportata da questa sorgente");
+                    continue;
+                }
                 let Some((_, pt)) = writers.iter().find(|(t, _)| t == &tag) else { continue };
                 let qos = pub_qos.get(&tag).copied().unwrap_or(source_qos);
                 let payload = stringify(&value);

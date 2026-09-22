@@ -250,7 +250,13 @@ async fn run_once(
     let writer_source_id = cfg.id.clone();
     let writer_db = db.clone();
     let writer = tokio::spawn(async move {
-        while let Some((tag, value)) = write_rx.recv().await {
+        while let Some((tag, percorso, value)) = write_rx.recv().await {
+            // Fase 1d: scrivere dentro un blocco arriva con la Fase 4, che
+            // legge il DataType del nodo e sa usare `index_range`.
+            if let Some(p) = &percorso {
+                warn!(source = %writer_source_id, tag = %tag, percorso = %p, "scrittura su una foglia: non ancora supportata");
+                continue;
+            }
             let Some(nid) = tag_to_node.get(&tag).cloned() else {
                 warn!(source = %writer_source_id, tag = %tag, "opcua: write for unknown tag");
                 continue;

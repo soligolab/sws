@@ -751,8 +751,14 @@ export interface SynopticObject {
  *  nuda = solo nome) resta valida. */
 export interface FaceplateParamDef {
   name: string;
-  /** Guida la UI dell'istanza: TagInput, colore, numero o testo libero. */
-  type?: "tag" | "string" | "number" | "color";
+  /** Guida la UI dell'istanza: TagInput, colore, numero, testo libero, o
+   *  — dalla Fase 2 dei tag — l'**istanza** di una struttura del progetto:
+   *  il valore è la radice (`motore1`) e gli oggetti del faceplate scrivono
+   *  `{p}.velocita`, il posto naturale del vecchio `{tag_prefix}` a mano. */
+  type?: "tag" | "string" | "number" | "color" | "istanza";
+  /** Solo con `type: "istanza"`: restringe la scelta alle istanze di questo
+   *  tipo del progetto. Assente, valgono tutte le variabili composite. */
+  type_ref?: string;
   default?: string;
   required?: boolean;
 }
@@ -875,9 +881,51 @@ export interface BindingSpec {
   expr?: string;
 }
 
+/** Un tipo struttura riusabile (Fase 1b/2): i suoi membri, con i metadati che
+ *  su un tag piatto stanno sul tag. Cambiarlo cambia tutte le istanze. */
+export interface TypeDef {
+  id: string;
+  description?: string;
+  members: Membro[];
+}
+
+/** Un membro di un tipo: scalare (`data_type`), istanza di un altro tipo
+ *  (`type_ref`), e in entrambi i casi eventualmente array. */
+export interface Membro {
+  name: string;
+  description?: string;
+  data_type?: TagDataType;
+  type_ref?: string;
+  array?: number[];
+  unit?: string;
+  decimals?: number;
+  raw_min?: number;
+  raw_max?: number;
+  eng_min?: number;
+  eng_max?: number;
+  range_lo?: number;
+  range_hi?: number;
+  limit_lo_lo?: number;
+  limit_lo?: number;
+  limit_hi?: number;
+  limit_hi_hi?: number;
+  write_min_role?: string;
+  /** Il membro entra nello storico quando la radice lo ha acceso. Default true. */
+  history?: boolean;
+  history_deadband?: number;
+  history_min_interval_ms?: number;
+}
+
 export interface TagDef {
   id: string;
   description: string;
+  /** Fase 1b: il tag è un'**istanza** di un tipo struttura dichiarato in
+   *  `project.types`. Le foglie si raggiungono per percorso
+   *  (`motore1.velocita`). L'IDE non le crea ancora (scheda «Tipi», Fase 2):
+   *  qui servono a **non trattare un percorso come un id sconosciuto**. */
+  type_ref?: string;
+  /** Il tag è un array, anche a più dimensioni: `[4]`, `[2, 3]`. */
+  array?: number[];
   /** Storage type. Optional in the wire format; defaults to "float" server-side. */
   data_type?: TagDataType;
   /** Tipo dichiarato per il valore SCRITTO, quando diverge da `data_type`
@@ -1422,6 +1470,8 @@ export interface ProjectTarget {
 
 export interface ProjectInfo {
   meta: { name: string; version: string };
+  /** I tipi struttura riusabili (Fase 1b). Assente nei progetti che non ne hanno. */
+  types?: TypeDef[];
   tags: TagDef[];
   sources: SourceDef[];
   alarms?: AlarmDef[];

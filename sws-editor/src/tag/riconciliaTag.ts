@@ -129,15 +129,36 @@ export interface IngressoRiconciliazione {
   tagInAttesa: readonly TagDef[];
 }
 
+/** Le radici composite del progetto: i tag che dichiarano `type_ref` o
+ *  `array` (Fase 1b). */
+function radiciComposite(project: ProjectInfo): string[] {
+  return (project.tags ?? []).filter((t) => t.type_ref || t.array).map((t) => t.id);
+}
+
+/** Vero se `id` è un percorso dentro una radice composita.
+ *
+ *  Serve a non creare un tag **piatto** `motore1.velocita` accanto
+ *  all'istanza `motore1`: sarebbe una collisione, e il validatore la rifiuta
+ *  perché uno dei due non si raggiungerebbe più. Guarda il **prefisso**, non
+ *  la forma: una foglia scritta male (`motore1.velocit`) non va creata lo
+ *  stesso, e resta un riferimento rotto che il validatore dice — mentre
+ *  crearla la trasformerebbe in una collisione silenziosa. Chi vuole sapere
+ *  se la foglia esiste davvero usa `foglieDi` (`tag/forma.ts`). */
+export function ePercorsoDiUnaRadice(id: string, radici: readonly string[]): boolean {
+  return radici.some((r) => id.startsWith(`${r}.`) || id.startsWith(`${r}[`));
+}
+
 /** I tag da creare al salvataggio: ogni id referenziato e non dichiarato,
  *  con la definizione in attesa se c'è, altrimenti dedotta. Ordinati per id,
  *  senza doppioni. Vuoto = niente da fare, niente PUT. */
 export function pianoCreazione({ project, pages, faceplates = [], tagInAttesa }: IngressoRiconciliazione): TagDef[] {
   const dichiarati = new Set((project.tags ?? []).map((t) => t.id));
+  const radici = radiciComposite(project);
   const inAttesa = new Map(tagInAttesa.map((t) => [t.id, t]));
   const nuovi: TagDef[] = [];
   for (const id of [...riferimentiDelProgetto(project, pages, faceplates)].sort()) {
     if (dichiarati.has(id)) continue;
+    if (ePercorsoDiUnaRadice(id, radici)) continue;
     const attesa = inAttesa.get(id);
     nuovi.push(attesa
       ? { ...attesa, id, history: attesa.history ?? false }

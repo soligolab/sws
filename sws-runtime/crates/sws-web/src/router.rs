@@ -25,9 +25,9 @@ use std::{
 use sws_auth::{AuthState, Credentials, LoginError, Role};
 use sws_core::{
     AlarmDb, AlarmDef, AlarmEvent, AlarmState, CustomSymbol, FunctionDef, GlobalScriptDef,
-    LanguageTable, LogBus, LogEvent, NotificationConfig, PageLayoutConfig, Project, ProjectMeta,
-    SourceDef, TagDb, TagDef, TagId, TagQuality, TagState, TagValue, TagWriteBus, WriteError,
-    MAX_FUNCTION_CODE_BYTES,
+    LanguageTable, LogBus, LogEvent, Membro, NotificationConfig, PageLayoutConfig, Project,
+    ProjectMeta, SourceDef, TagDb, TagDef, TagId, TagQuality, TagState, TagUpdate, TagValue,
+    TagWriteBus, TypeDef, WriteError, MAX_FUNCTION_CODE_BYTES,
 };
 use sws_historian::{DatastoreRegistry, Historian, Sample};
 use sws_pyscript::{Engine as PyEngine, ExecOutput};
@@ -298,6 +298,7 @@ pub fn build(
     // plus the multi-user CRUD).
     let admin_routes = Router::new()
         .route("/api/project/tags", put(update_project_tags))
+        .route("/api/project/types", put(update_project_types))
         .route("/api/project/tags/import-csv", post(import_tags_csv))
         .route("/api/project/languages", put(update_project_languages))
         // Traduzione automatica della tabella lingue. **Solo IDE**: tradurre è
@@ -1711,8 +1712,37 @@ fn user_error_to_response(e: sws_auth::UserError) -> Response {
 
 // ── Tag endpoints ────────────────────────────────────────────────────────────
 
-async fn get_all_tags(State(s): State<AppState>) -> Json<HashMap<TagId, TagState>> {
-    Json(s.db.snapshot().await)
+/// `GET /api/tags` — tutti i valori. **Espansi in foglie** di default
+/// (Fase 1d): `motore1` diventa `motore1.velocita`, `motore1.marcia`… con la
+/// qualità di ognuna. `?composito=1` restituisce invece le radici intere, per
+/// chi sa leggerle (un widget tabella legato a un array).
+#[derive(serde::Deserialize)]
+struct QueryTag {
+    /// Stringa e non `bool`: `?composito=1` è la forma che viene da digitare,
+    /// e con un `bool` serde risponde 400 «provided string was not true or
+    /// false» — un rifiuto che non aiuta nessuno.
+    #[serde(default)]
+    composito: Option<String>,
+}
+
+impl QueryTag {
+    fn vuole_radici(&self) -> bool {
+        matches!(
+            self.composito.as_deref().map(str::trim),
+            Some("1" | "true" | "yes" | "si" | "sì" | "")
+        )
+    }
+}
+
+async fn get_all_tags(
+    State(s): State<AppState>,
+    Query(q): Query<QueryTag>,
+) -> Json<HashMap<TagId, TagState>> {
+    Json(if q.vuole_radici() {
+        s.db.snapshot().await
+    } else {
+        s.db.snapshot_foglie().await
+    })
 }
 
 async fn get_tag(State(s): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
@@ -3264,6 +3294,43 @@ async fn update_project_tags(
     res
 }
 
+/// `PUT /api/project/types` — i tipi struttura del progetto (Fase 2).
+///
+/// Cambiare un tipo cambia **tutte le sue istanze**: la forma, il valore
+/// iniziale, le mappe di scala, tipo e ruolo, e le rotte dello storico. Per
+/// questo dopo la scrittura si ripassa da `apply_tags`, che è l'unico posto
+/// che installa i tag nel runtime (Fase 0d), coi tag riletti dal file.
+async fn update_project_types(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    headers: axum::http::HeaderMap,
+    Json(types): Json<Vec<sws_core::TypeDef>>,
+) -> Response {
+    s.audit.log(
+        "project.change",
+        Some(user.username),
+        serde_json::json!({"what": "types", "count": types.len()}),
+    );
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
+    let per_db = types.clone();
+    let res = patch_project_se(
+        &s.project_write_lock,
+        &dir,
+        versione_attesa(&headers),
+        |p| p.types = types,
+    )
+    .await;
+    if res.status() != StatusCode::NO_CONTENT {
+        return res;
+    }
+    let tags = Project::load(&dir).map(|p| p.tags).unwrap_or_default();
+    crate::projects::apply_tags(&s.db, &s.derived_tags, &s.generator_tags, &tags, &per_db).await;
+    res
+}
+
 /// PUT /api/project/languages
 /// Body: the full `LanguageTable` (default lang, lang codes, entries). Persists
 /// it into project.yaml. The viewer resolves `{{token}}` client-side (T-40), but
@@ -3292,12 +3359,305 @@ async fn update_project_languages(
     res
 }
 
+/// Le righe di un CSV, virgolette comprese (RFC 4180 in piccolo).
+///
+/// `split(',')` non bastava: l'esportazione **mette fra virgolette** i campi
+/// che contengono una virgola o un a capo, e la lettura le ignorava — una
+/// descrizione come «pompa 1, mandata» tornava indietro spezzata in due
+/// colonne, e con un a capo dentro spezzava la riga. Andata e ritorno dello
+/// stesso file: è il giro che si fa per davvero.
+fn righe_csv(testo: &str) -> Vec<Vec<String>> {
+    let mut righe = Vec::new();
+    let mut riga: Vec<String> = Vec::new();
+    let mut campo = String::new();
+    let mut fra_virgolette = false;
+    let mut chars = testo.chars().peekable();
+    while let Some(c) = chars.next() {
+        if fra_virgolette {
+            if c == '"' {
+                if chars.peek() == Some(&'"') {
+                    chars.next();
+                    campo.push('"');
+                } else {
+                    fra_virgolette = false;
+                }
+            } else {
+                campo.push(c);
+            }
+        } else {
+            match c {
+                '"' if campo.trim().is_empty() => {
+                    campo.clear();
+                    fra_virgolette = true;
+                }
+                ',' => riga.push(std::mem::take(&mut campo)),
+                '\n' => {
+                    riga.push(std::mem::take(&mut campo));
+                    righe.push(std::mem::take(&mut riga));
+                }
+                '\r' => {}
+                _ => campo.push(c),
+            }
+        }
+    }
+    if !campo.is_empty() || !riga.is_empty() {
+        riga.push(campo);
+        righe.push(riga);
+    }
+    righe
+}
+
+/// Le dimensioni di un array come le scrive l'esportazione: `4`, `2x3`.
+///
+/// Non `[2,3]`: dentro un CSV una virgola costringerebbe alle virgolette ogni
+/// volta, e il file si aprirebbe storto nei fogli di calcolo che il formato
+/// esiste per servire.
+fn dimensioni_csv(v: &str) -> Option<Vec<u32>> {
+    let v = v.trim();
+    if v.is_empty() {
+        return None;
+    }
+    let dims: Vec<u32> = v
+        .split(['x', 'X', '*'])
+        .filter_map(|d| d.trim().parse::<u32>().ok())
+        .collect();
+    (!dims.is_empty()).then_some(dims)
+}
+
+/// I campi che una riga di CSV dichiara, per nome di colonna.
+///
+/// Una mappa e non venti campi tipati: le colonne sono quelle di `TagDef` e di
+/// `Membro` messe insieme, e tenerle come struct voleva dire venti righe
+/// identiche per ogni campo nuovo. Quello che conta è la regola, non la forma:
+/// **una colonna che il file non ha non compare qui**, quindi non tocca
+/// niente; una cella **vuota** su una colonna presente svuota il campo.
+#[derive(Default)]
+struct Modifiche {
+    campi: Vec<(String, String)>,
+}
+
+/// I numeri: una cella vuota è «togli il valore», una cella illeggibile si
+/// ignora invece di far fallire l'import di tutto il file.
+fn num_csv(v: &str) -> Option<Option<f64>> {
+    let v = v.trim();
+    if v.is_empty() {
+        return Some(None);
+    }
+    v.replace(',', ".").parse::<f64>().ok().map(Some)
+}
+
+fn bool_csv(v: &str) -> bool {
+    matches!(
+        v.trim().to_lowercase().as_str(),
+        "true" | "1" | "yes" | "si" | "sì"
+    )
+}
+
+impl Modifiche {
+    fn get(&self, nome: &str) -> Option<&str> {
+        self.campi
+            .iter()
+            .find(|(k, _)| k == nome)
+            .map(|(_, v)| v.as_str())
+    }
+
+    /// I campi che `TagDef` e `Membro` hanno in comune, applicati con due
+    /// chiusure perché i due tipi non condividono un tratto (e uno solo per
+    /// questo non vale la pena).
+    fn per_ogni_comune(&self, mut f: impl FnMut(&str, &str)) {
+        for (k, v) in &self.campi {
+            f(k, v);
+        }
+    }
+
+    fn applica(&self, t: &mut TagDef) {
+        self.per_ogni_comune(|k, v| {
+            let testo = || (!v.is_empty()).then(|| v.to_string());
+            match k {
+                "data_type" => {
+                    if !v.is_empty() {
+                        t.data_type = v.to_string();
+                    }
+                }
+                "description" => t.description = v.to_string(),
+                "history" => t.history = bool_csv(v),
+                "expression" => t.expression = testo(),
+                "unit" => t.unit = testo(),
+                "type_ref" => t.type_ref = testo(),
+                "write_min_role" => t.write_min_role = testo(),
+                "array" => t.array = dimensioni_csv(v),
+                "decimals" => {
+                    if let Some(n) = num_csv(v) {
+                        t.decimals = n.map(|x| x as u8);
+                    }
+                }
+                "history_min_interval_ms" => {
+                    if let Some(n) = num_csv(v) {
+                        t.history_min_interval_ms = n.map(|x| x as u64);
+                    }
+                }
+                "history_deadband" => set_f64(&mut t.history_deadband, v),
+                "raw_min" => set_f64(&mut t.raw_min, v),
+                "raw_max" => set_f64(&mut t.raw_max, v),
+                "eng_min" => set_f64(&mut t.eng_min, v),
+                "eng_max" => set_f64(&mut t.eng_max, v),
+                "range_lo" => set_f64(&mut t.range_lo, v),
+                "range_hi" => set_f64(&mut t.range_hi, v),
+                "limit_lo_lo" => set_f64(&mut t.limit_lo_lo, v),
+                "limit_lo" => set_f64(&mut t.limit_lo, v),
+                "limit_hi" => set_f64(&mut t.limit_hi, v),
+                "limit_hi_hi" => set_f64(&mut t.limit_hi_hi, v),
+                _ => {}
+            }
+        });
+    }
+
+    fn applica_membro(&self, m: &mut Membro) {
+        self.per_ogni_comune(|k, v| {
+            let testo = || (!v.is_empty()).then(|| v.to_string());
+            match k {
+                "data_type" => m.data_type = testo(),
+                "description" => m.description = v.to_string(),
+                "history" => m.history = bool_csv(v),
+                "unit" => m.unit = testo(),
+                "type_ref" => m.type_ref = testo(),
+                "write_min_role" => m.write_min_role = testo(),
+                "array" => m.array = dimensioni_csv(v),
+                "decimals" => {
+                    if let Some(n) = num_csv(v) {
+                        m.decimals = n.map(|x| x as u8);
+                    }
+                }
+                "history_min_interval_ms" => {
+                    if let Some(n) = num_csv(v) {
+                        m.history_min_interval_ms = n.map(|x| x as u64);
+                    }
+                }
+                "history_deadband" => set_f64(&mut m.history_deadband, v),
+                "raw_min" => set_f64(&mut m.raw_min, v),
+                "raw_max" => set_f64(&mut m.raw_max, v),
+                "eng_min" => set_f64(&mut m.eng_min, v),
+                "eng_max" => set_f64(&mut m.eng_max, v),
+                "range_lo" => set_f64(&mut m.range_lo, v),
+                "range_hi" => set_f64(&mut m.range_hi, v),
+                "limit_lo_lo" => set_f64(&mut m.limit_lo_lo, v),
+                "limit_lo" => set_f64(&mut m.limit_lo, v),
+                "limit_hi" => set_f64(&mut m.limit_hi, v),
+                "limit_hi_hi" => set_f64(&mut m.limit_hi_hi, v),
+                _ => {}
+            }
+        });
+    }
+}
+
+fn set_f64(dst: &mut Option<f64>, v: &str) {
+    if let Some(n) = num_csv(v) {
+        *dst = n;
+    }
+}
+
+/// Cosa dichiara una riga. La prima colonna (`kind`) lo dice; un file senza
+/// quella colonna è un `tags.csv` di prima del 22-09-2026 e sono tutte
+/// variabili, come è sempre stato.
+enum RigaCsv {
+    Tipo { id: String, m: Modifiche },
+    Membro { owner: String, m: Modifiche },
+    Variabile { id: String, m: Modifiche },
+}
+
+/// Fonde le righe di un CSV dentro il progetto. Pura: prende il progetto e lo
+/// modifica, niente stato e niente disco, così l'ordine di applicazione (tipi,
+/// membri, variabili) si può provare senza un server in piedi.
+fn applica_csv(p: &mut Project, imported: &[RigaCsv]) {
+    // 1. I tipi per primi: un'istanza senza il suo tipo è una forma
+    //    che non sta in piedi, e il validatore la rifiuterebbe.
+    for r in imported {
+        if let RigaCsv::Tipo { id, m } = r {
+            if let Some(esistente) = p.types.iter_mut().find(|t| &t.id == id) {
+                if let Some(d) = m.get("description") {
+                    esistente.description = d.to_string();
+                }
+            } else {
+                p.types.push(TypeDef {
+                    id: id.clone(),
+                    description: m.get("description").unwrap_or("").to_string(),
+                    members: Vec::new(),
+                });
+            }
+        }
+    }
+
+    // 2. I membri. Un tipo che il file **nomina** prende l'elenco del
+    //    file, nel suo ordine: l'ordine dei membri è l'ordine delle
+    //    foglie, quindi riordinarlo è una modifica vera e non si può
+    //    fondere alla cieca. Ogni membro parte da quello esistente
+    //    con lo stesso nome, così le colonne assenti non azzerano.
+    let mut per_tipo: Vec<(String, Vec<&Modifiche>)> = Vec::new();
+    for r in imported {
+        if let RigaCsv::Membro { owner, m } = r {
+            match per_tipo.iter_mut().find(|(o, _)| o == owner) {
+                Some((_, v)) => v.push(m),
+                None => per_tipo.push((owner.clone(), vec![m])),
+            }
+        }
+    }
+    for (owner, membri) in &per_tipo {
+        // Un membro di un tipo mai dichiarato: il tipo nasce qui.
+        if !p.types.iter().any(|t| &t.id == owner) {
+            p.types.push(TypeDef {
+                id: owner.clone(),
+                description: String::new(),
+                members: Vec::new(),
+            });
+        }
+        let Some(td) = p.types.iter_mut().find(|t| &t.id == owner) else {
+            continue;
+        };
+        let vecchi = std::mem::take(&mut td.members);
+        for m in membri {
+            let nome = m.get("name").unwrap_or("").to_string();
+            if nome.is_empty() {
+                continue;
+            }
+            let mut nuovo = vecchi
+                .iter()
+                .find(|x| x.name == nome)
+                .cloned()
+                .unwrap_or_else(|| Membro::nuovo(&nome));
+            m.applica_membro(&mut nuovo);
+            td.members.push(nuovo);
+        }
+    }
+
+    // 3. Le variabili.
+    for r in imported {
+        if let RigaCsv::Variabile { id, m } = r {
+            if let Some(esistente) = p.tags.iter_mut().find(|t| &t.id == id) {
+                m.applica(esistente);
+            } else {
+                let mut t = TagDef::nuovo(id.clone(), "float");
+                m.applica(&mut t);
+                p.tags.push(t);
+            }
+        }
+    }
+}
+
 /// POST /api/project/tags/import-csv
-/// Body: plain text CSV (UTF-8). First row must be a header row containing
-/// at least `id`. Optional columns: `data_type`, `description`, `history`,
-/// `expression`. Unknown columns are ignored.
-/// Behaviour: merges the uploaded tags with the existing project tags — adds
-/// new ones, updates matching IDs, leaves unmentioned tags unchanged.
+/// Body: plain text CSV (UTF-8). La prima riga è l'intestazione e deve avere
+/// almeno `id`. Con una colonna `kind` il file porta **variabili e tipi
+/// insieme**: `type` è la definizione di un tipo, `member` un suo membro (il
+/// tipo sta in `owner`, il nome del membro in `id`), `tag` una variabile.
+/// Senza `kind`, ogni riga è una variabile — i file esportati prima del
+/// 22-09-2026 si reimportano come sempre. Le colonne sconosciute si ignorano.
+///
+/// Fonde: aggiunge ciò che non c'è, aggiorna ciò che ha lo stesso id, lascia
+/// stare ciò che il file non nomina. **Una colonna assente non azzera il
+/// campo**: fino al 22-09-2026 la riga sostituiva il tag intero, quindi
+/// reimportare un `tags.csv` esportato cancellava in silenzio scala, limiti,
+/// unità — e, dalla Fase 2, `type_ref` e `array`, cioè trasformava una
+/// struttura in uno scalare lasciando ogni pagina legata a percorsi che non
+/// esistevano più.
 async fn import_tags_csv(
     State(s): State<AppState>,
     headers: axum::http::HeaderMap,
@@ -3308,74 +3668,67 @@ async fn import_tags_csv(
         Err(_) => return (StatusCode::BAD_REQUEST, "CSV must be UTF-8").into_response(),
     };
 
-    let mut lines = text.lines();
-    let header_line = match lines.next() {
-        Some(h) => h,
-        None => return (StatusCode::BAD_REQUEST, "Empty CSV").into_response(),
+    let righe = righe_csv(text);
+    let Some(header_line) = righe.first() else {
+        return (StatusCode::BAD_REQUEST, "Empty CSV").into_response();
     };
 
-    // Parse header to find column indices.
-    let cols: Vec<&str> = header_line.split(',').map(str::trim).collect();
-    let col = |name: &str| -> Option<usize> { cols.iter().position(|&c| c == name) };
+    let cols: Vec<String> = header_line.iter().map(|c| c.trim().to_string()).collect();
+    let col = |name: &str| -> Option<usize> { cols.iter().position(|c| c == name) };
     let Some(id_col) = col("id") else {
         return (StatusCode::BAD_REQUEST, "CSV missing 'id' column").into_response();
     };
-    let dt_col = col("data_type");
-    let desc_col = col("description");
-    let hist_col = col("history");
-    let expr_col = col("expression");
+    let kind_col = col("kind");
+    let owner_col = col("owner");
 
-    // Parse data rows.
-    let mut imported: Vec<TagDef> = Vec::new();
-    for (line_no, line) in lines.enumerate() {
-        let line = line.trim();
-        if line.is_empty() {
+    // Le colonne di dato: tutte quelle che non sono struttura della riga.
+    let dati: Vec<(usize, String)> = cols
+        .iter()
+        .enumerate()
+        .filter(|(i, c)| {
+            Some(*i) != Some(id_col)
+                && Some(*i) != kind_col
+                && Some(*i) != owner_col
+                && !c.is_empty()
+        })
+        .map(|(i, c)| (i, c.clone()))
+        .collect();
+
+    let mut imported: Vec<RigaCsv> = Vec::new();
+    for fields in righe.iter().skip(1) {
+        if fields.iter().all(|f| f.trim().is_empty()) {
             continue;
         }
-        let fields: Vec<&str> = line.split(',').collect();
-        let get = |idx: usize| fields.get(idx).map(|s| s.trim()).unwrap_or("");
+        let get =
+            |idx: usize| -> String { fields.get(idx).map(|s| s.trim()).unwrap_or("").to_string() };
         let id = get(id_col);
         if id.is_empty() {
             continue;
         }
-        let tag = TagDef {
-            id: id.to_string(),
-            description: desc_col.map(|i| get(i).to_string()).unwrap_or_default(),
-            data_type: dt_col
-                .map(|i| get(i).to_string())
-                .filter(|s| !s.is_empty())
-                .unwrap_or_else(|| "float".into()),
-            history: hist_col
-                .map(|i| matches!(get(i).to_lowercase().as_str(), "true" | "1" | "yes"))
-                .unwrap_or(false),
-            datastore_id: None,
-            history_deadband: None,
-            history_min_interval_ms: None,
-            expression: expr_col
-                .map(|i| get(i).to_string())
-                .filter(|s| !s.is_empty()),
-            generator: None,
-            unit: None,
-            decimals: None,
-            raw_min: None,
-            raw_max: None,
-            eng_min: None,
-            eng_max: None,
-            range_lo: None,
-            range_hi: None,
-            write_data_type: None,
-            write_min_role: None,
-            limit_lo_lo: None,
-            limit_lo: None,
-            limit_hi: None,
-            limit_hi_hi: None,
-            // L'import CSV non porta tipi struttura: le istanze si
-            // dichiarano nell'IDE (Fase 2).
-            type_ref: None,
-            array: None,
+        let m = Modifiche {
+            campi: dati
+                .iter()
+                .filter(|(i, _)| *i < fields.len())
+                .map(|(i, nome)| (nome.clone(), get(*i)))
+                .collect(),
         };
-        let _ = line_no; // suppress warning
-        imported.push(tag);
+        let kind = kind_col.map(&get).unwrap_or_default().to_lowercase();
+        imported.push(match kind.as_str() {
+            "type" | "tipo" => RigaCsv::Tipo { id, m },
+            "member" | "membro" => {
+                let owner = owner_col.map(&get).unwrap_or_default();
+                if owner.is_empty() {
+                    continue; // un membro senza tipo non sta da nessuna parte
+                }
+                RigaCsv::Membro {
+                    owner,
+                    m: Modifiche {
+                        campi: [vec![("name".into(), id)], m.campi].concat(),
+                    },
+                }
+            }
+            _ => RigaCsv::Variabile { id, m },
+        });
     }
 
     if imported.is_empty() {
@@ -3391,15 +3744,7 @@ async fn import_tags_csv(
         &s.project_write_lock,
         &dir,
         versione_attesa(&headers),
-        |p| {
-            for new_tag in &imported {
-                if let Some(existing) = p.tags.iter_mut().find(|t| t.id == new_tag.id) {
-                    *existing = new_tag.clone();
-                } else {
-                    p.tags.push(new_tag.clone());
-                }
-            }
-        },
+        |p| applica_csv(p, &imported),
     )
     .await;
     if res.status() != StatusCode::NO_CONTENT {
@@ -3417,7 +3762,22 @@ async fn import_tags_csv(
         )
         .await;
     }
-    Json(serde_json::json!({ "imported": imported.len() })).into_response()
+    // `imported` sono le variabili, per non cambiare il significato del campo
+    // a chi lo legge già; i tipi si contano a parte.
+    let variabili = imported
+        .iter()
+        .filter(|r| matches!(r, RigaCsv::Variabile { .. }))
+        .count();
+    let tipi = imported
+        .iter()
+        .filter_map(|r| match r {
+            RigaCsv::Tipo { id, .. } => Some(id.clone()),
+            RigaCsv::Membro { owner, .. } => Some(owner.clone()),
+            RigaCsv::Variabile { .. } => None,
+        })
+        .collect::<std::collections::BTreeSet<_>>()
+        .len();
+    Json(serde_json::json!({ "imported": variabili, "tipi": tipi })).into_response()
 }
 
 async fn update_project_sources(
@@ -5473,7 +5833,19 @@ fn json_to_tag_value(v: &serde_json::Value) -> Option<TagValue> {
             }
         }
         serde_json::Value::String(s) => Some(TagValue::Str(s.clone())),
-        _ => None,
+        // Fase 1d: una ricetta può portare il valore di un array o di una
+        // struttura intera. `null` resta fuori: non è un valore, è l'assenza.
+        serde_json::Value::Array(a) => a
+            .iter()
+            .map(json_to_tag_value)
+            .collect::<Option<Vec<_>>>()
+            .map(TagValue::Array),
+        serde_json::Value::Object(m) => m
+            .iter()
+            .map(|(k, v)| json_to_tag_value(v).map(|tv| (k.clone(), tv)))
+            .collect::<Option<std::collections::BTreeMap<_, _>>>()
+            .map(TagValue::Struct),
+        serde_json::Value::Null => None,
     }
 }
 
@@ -5500,7 +5872,16 @@ enum InboundMsg {
         req_id: Option<String>,
     },
     /// Replace the subscription filter. ["*"] or empty = all tags (default).
-    Subscribe { tags: Vec<String> },
+    Subscribe {
+        tags: Vec<String>,
+        /// Fase 1d: `true` = mandami le **radici** composite intere invece
+        /// delle foglie. Assente o `false` = foglie, che è il default perché
+        /// questi frame sono tipizzati e una sola voce composita farebbe
+        /// perdere l'intero pacchetto ai client che non se l'aspettano — il
+        /// viewer LVGL fra questi.
+        #[serde(default)]
+        composito: bool,
+    },
 }
 
 #[derive(serde::Serialize)]
@@ -5636,8 +6017,9 @@ async fn handle_ws(
         }
     };
 
-    // Initial snapshot.
-    let snapshot = db.snapshot().await;
+    // Initial snapshot. Espanso in foglie: è il default del filo (Fase 1d),
+    // e finché nessuno chiede `composito` resta così.
+    let snapshot = db.snapshot_foglie().await;
     {
         let entries: Vec<_> = snapshot
             .iter()
@@ -5687,11 +6069,18 @@ async fn handle_ws(
     // subscription_rx: notified when the subscription changes so the batcher
     // can use the current filter. We share it via an atomic-guarded cell.
     use std::sync::Arc as StdArc;
+    // Fase 1d: il client vuole le radici composite intere? Un flag, condiviso
+    // col batcher come `sub_cell`. Atomico e non RwLock: è un bool letto a
+    // ogni flush, e un lock in più sul percorso caldo non paga.
+    let composito_cell = StdArc::new(std::sync::atomic::AtomicBool::new(false));
+    let composito_batcher = StdArc::clone(&composito_cell);
+
     let sub_cell: StdArc<tokio::sync::RwLock<Option<HashSet<String>>>> =
         StdArc::new(tokio::sync::RwLock::new(None));
     let sub_cell_batcher = StdArc::clone(&sub_cell);
 
     let mut batcher_seq: u64 = seq + 1; // seq 0 used by snapshot
+    let db_batcher = db.clone();
     let broadcast_task = tokio::spawn(async move {
         loop {
             tokio::select! {
@@ -5718,8 +6107,22 @@ async fn handle_ws(
                 }
                 _ = flush_tick.tick() => {
                     if pending.is_empty() { continue; }
+                    // Fase 1d: una radice composita si espande nelle sue
+                    // foglie PRIMA del filtro, così chi si è iscritto a
+                    // `motore1.velocita` riceve quella e non la struttura.
+                    let grezzi: Vec<(String, TagState)> = pending.drain().collect();
+                    let composito = composito_batcher.load(std::sync::atomic::Ordering::Relaxed);
+                    let mut espansi: Vec<(String, TagState)> = Vec::with_capacity(grezzi.len());
+                    for (id, state) in grezzi {
+                        if composito {
+                            espansi.push((id, state));
+                        } else {
+                            let update = TagUpdate { id, state };
+                            espansi.extend(db_batcher.espandi_foglie(&update).await);
+                        }
+                    }
                     let sub = sub_cell_batcher.read().await;
-                    let changed: Vec<(String, TagState)> = pending.drain()
+                    let changed: Vec<(String, TagState)> = espansi.into_iter()
                         .filter(|(id, _)| sub.as_ref().is_none_or(|s| s.contains(id)))
                         .collect();
                     drop(sub);
@@ -5838,7 +6241,7 @@ async fn handle_ws(
                             ))
                             .await;
                     }
-                    InboundMsg::Subscribe { tags } => {
+                    InboundMsg::Subscribe { tags, composito } => {
                         // Update subscription filter.
                         let new_sub: Option<HashSet<String>> =
                             if tags.is_empty() || tags.iter().any(|t| t == "*") {
@@ -5848,9 +6251,14 @@ async fn handle_ws(
                             };
                         // Update shared filter for the batcher task.
                         *sub_cell.write().await = new_sub.clone();
+                        composito_cell.store(composito, std::sync::atomic::Ordering::Relaxed);
                         // Send fresh snapshot for the new subscription.
                         seq = seq.wrapping_add(1);
-                        let snap = db.snapshot().await;
+                        let snap = if composito {
+                            db.snapshot().await
+                        } else {
+                            db.snapshot_foglie().await
+                        };
                         let snap_vec: Vec<(TagId, TagState)> = snap.into_iter().collect();
                         send_snapshot(&new_sub, snap_vec, seq, &out_tx);
                     }
@@ -8204,5 +8612,329 @@ mod primo_utente_tests {
             false,
             Role::Operator
         ));
+    }
+}
+
+#[cfg(test)]
+mod csv_tag_tests {
+    use super::*;
+
+    fn m(campi: &[(&str, &str)]) -> Modifiche {
+        Modifiche {
+            campi: campi
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect(),
+        }
+    }
+
+    /// L'esportazione mette fra virgolette i campi con una virgola dentro; la
+    /// lettura le ignorava, e la descrizione tornava indietro spezzata in due
+    /// colonne — spostando di uno tutte quelle dopo.
+    #[test]
+    fn le_virgolette_tengono_insieme_virgole_e_a_capo() {
+        let r =
+            righe_csv("id,description,unit\nt1,\"pompa 1, mandata\",bar\nt2,\"riga\nsotto\",°C\n");
+        assert_eq!(r.len(), 3);
+        assert_eq!(r[1], ["t1", "pompa 1, mandata", "bar"]);
+        assert_eq!(r[2], ["t2", "riga\nsotto", "°C"]);
+    }
+
+    #[test]
+    fn le_virgolette_doppie_dentro_un_campo_tornano_singole() {
+        let r = righe_csv("id,description\nt1,\"il \"\"grande\"\" motore\"");
+        assert_eq!(r[1][1], "il \"grande\" motore");
+    }
+
+    /// Le dimensioni si scrivono con la «x» per non costringere alle
+    /// virgolette ogni riga di un array.
+    #[test]
+    fn le_dimensioni_si_leggono_con_la_x() {
+        assert_eq!(dimensioni_csv("4"), Some(vec![4]));
+        assert_eq!(dimensioni_csv(" 2x3 "), Some(vec![2, 3]));
+        assert_eq!(dimensioni_csv(""), None);
+        assert_eq!(dimensioni_csv("  "), None);
+        assert_eq!(dimensioni_csv("pippo"), None);
+    }
+
+    /// Il cuore della correzione del 22-09-2026: una colonna che il file non
+    /// ha non azzera niente. Prima la riga sostituiva il tag intero, quindi
+    /// reimportare un `tags.csv` esportato buttava via scala, limiti e — dalla
+    /// Fase 2 — `type_ref`, trasformando una struttura in uno scalare mentre
+    /// le pagine restavano legate alle sue foglie.
+    #[test]
+    fn una_colonna_assente_lascia_il_campo_comera() {
+        let mut t = TagDef::nuovo("motore1", "bool");
+        t.type_ref = Some("Motore".into());
+        t.unit = Some("rpm".into());
+        t.eng_max = Some(100.0);
+
+        m(&[("description", "Motore principale")]).applica(&mut t);
+
+        assert_eq!(t.description, "Motore principale");
+        assert_eq!(t.type_ref.as_deref(), Some("Motore"));
+        assert_eq!(t.unit.as_deref(), Some("rpm"));
+        assert_eq!(t.eng_max, Some(100.0));
+        assert_eq!(t.data_type, "bool");
+    }
+
+    /// Una cella vuota su una colonna **presente** svuota: è l'unico modo, da
+    /// un foglio di calcolo, di dire «questa espressione toglila».
+    #[test]
+    fn una_cella_vuota_su_una_colonna_presente_svuota() {
+        let mut t = TagDef::nuovo("t1", "float");
+        t.expression = Some("{a}+1".into());
+        t.unit = Some("bar".into());
+        t.eng_max = Some(10.0);
+        m(&[("expression", ""), ("unit", ""), ("eng_max", "")]).applica(&mut t);
+        assert_eq!(t.expression, None);
+        assert_eq!(t.unit, None);
+        assert_eq!(t.eng_max, None);
+    }
+
+    /// Scala e limiti passano dal CSV: sono i campi che l'esportazione non
+    /// aveva mai portato, e che l'import azzerava.
+    #[test]
+    fn scala_limiti_e_decimali_arrivano_dal_file() {
+        let mut t = TagDef::nuovo("t1", "f32");
+        m(&[
+            ("raw_min", "0"),
+            ("raw_max", "27648"),
+            ("eng_min", "-50"),
+            ("eng_max", "150.5"),
+            ("limit_hi_hi", "140"),
+            ("decimals", "2"),
+            ("history_min_interval_ms", "5000"),
+            ("write_min_role", "Operator"),
+        ])
+        .applica(&mut t);
+        assert_eq!(t.raw_max, Some(27648.0));
+        assert_eq!(t.eng_max, Some(150.5));
+        assert_eq!(t.limit_hi_hi, Some(140.0));
+        assert_eq!(t.decimals, Some(2));
+        assert_eq!(t.history_min_interval_ms, Some(5000));
+        assert_eq!(t.write_min_role.as_deref(), Some("Operator"));
+    }
+
+    /// Un numero illeggibile non fa fallire l'import di tutto il file: quella
+    /// cella si ignora e il resto passa.
+    #[test]
+    fn un_numero_storto_si_ignora_invece_di_buttare_il_file() {
+        let mut t = TagDef::nuovo("t1", "f32");
+        t.eng_max = Some(7.0);
+        m(&[("eng_max", "centocinquanta"), ("unit", "bar")]).applica(&mut t);
+        assert_eq!(t.eng_max, Some(7.0));
+        assert_eq!(t.unit.as_deref(), Some("bar"));
+    }
+
+    /// Un membro nuovo nasce con lo storico **acceso**, come il default di
+    /// serde: un `Default` derivato lo farebbe nascere spento, e il membro
+    /// sparirebbe dallo storico senza che il file lo dica.
+    #[test]
+    fn un_membro_nuovo_nasce_con_lo_storico_acceso() {
+        let mut x = Membro::nuovo("velocita");
+        assert!(x.history);
+        m(&[("data_type", "f32"), ("unit", "rpm")]).applica_membro(&mut x);
+        assert_eq!(x.data_type.as_deref(), Some("f32"));
+        assert_eq!(x.unit.as_deref(), Some("rpm"));
+        assert!(x.history);
+        m(&[("history", "false")]).applica_membro(&mut x);
+        assert!(!x.history);
+    }
+
+    fn progetto(json: serde_json::Value) -> Project {
+        serde_json::from_value(json).unwrap()
+    }
+
+    /// L'import intero, dal testo al progetto: è il giro che fa il maintainer.
+    fn importa(p: &mut Project, csv: &str) {
+        let righe = righe_csv(csv);
+        let cols: Vec<String> = righe[0].iter().map(|c| c.trim().to_string()).collect();
+        let col = |n: &str| cols.iter().position(|c| c == n);
+        let id_col = col("id").unwrap();
+        let kind_col = col("kind");
+        let owner_col = col("owner");
+        let dati: Vec<(usize, String)> = cols
+            .iter()
+            .enumerate()
+            .filter(|(i, c)| {
+                Some(*i) != Some(id_col)
+                    && Some(*i) != kind_col
+                    && Some(*i) != owner_col
+                    && !c.is_empty()
+            })
+            .map(|(i, c)| (i, c.clone()))
+            .collect();
+        let mut righe_csv_out = Vec::new();
+        for f in righe.iter().skip(1) {
+            let get = |i: usize| f.get(i).map(|s| s.trim()).unwrap_or("").to_string();
+            let id = get(id_col);
+            if id.is_empty() {
+                continue;
+            }
+            let mods = Modifiche {
+                campi: dati.iter().map(|(i, n)| (n.clone(), get(*i))).collect(),
+            };
+            let kind = kind_col.map(&get).unwrap_or_default();
+            righe_csv_out.push(match kind.as_str() {
+                "type" => RigaCsv::Tipo { id, m: mods },
+                "member" => RigaCsv::Membro {
+                    owner: owner_col.map(&get).unwrap_or_default(),
+                    m: Modifiche {
+                        campi: [vec![("name".to_string(), id)], mods.campi].concat(),
+                    },
+                },
+                _ => RigaCsv::Variabile { id, m: mods },
+            });
+        }
+        applica_csv(p, &righe_csv_out);
+    }
+
+    /// Il file porta variabili **e** tipi: esportare le prime senza i secondi
+    /// dava un'istanza di un tipo inesistente, cioè un file che non si può
+    /// reimportare da nessuna parte (segnalato dal maintainer il 22-09-2026).
+    #[test]
+    fn un_file_solo_porta_tipi_membri_e_variabili() {
+        let mut p = progetto(serde_json::json!({ "meta": { "name": "t", "version": "1" } }));
+        importa(
+            &mut p,
+            "kind,owner,id,data_type,type_ref,array,description,unit,history\n\
+             type,,Motore,,,,Motore asincrono,,\n\
+             member,Motore,velocita,f32,,,,rpm,true\n\
+             member,Motore,marcia,bool,,,,,false\n\
+             tag,,motore1,bool,Motore,,Il primo,,true\n\
+             tag,,zone,f32,,2x3,,°C,true\n",
+        );
+        assert_eq!(p.types.len(), 1);
+        assert_eq!(p.types[0].description, "Motore asincrono");
+        assert_eq!(
+            p.types[0]
+                .members
+                .iter()
+                .map(|m| m.name.as_str())
+                .collect::<Vec<_>>(),
+            ["velocita", "marcia"]
+        );
+        assert!(!p.types[0].members[1].history);
+        assert_eq!(p.tags.len(), 2);
+        assert_eq!(p.tags[0].type_ref.as_deref(), Some("Motore"));
+        assert_eq!(p.tags[1].array, Some(vec![2, 3]));
+    }
+
+    /// I membri di un tipo che il file nomina prendono **l'ordine del file**:
+    /// l'ordine dei membri è l'ordine delle foglie, quindi riordinarlo è una
+    /// modifica vera. Ma i campi che il file non dichiara restano quelli di
+    /// prima, membro per membro.
+    #[test]
+    fn i_membri_prendono_l_ordine_del_file_e_tengono_il_resto() {
+        let mut p = progetto(serde_json::json!({
+            "meta": { "name": "t", "version": "1" },
+            "types": [{ "id": "Motore", "members": [
+                { "name": "velocita", "data_type": "f32", "unit": "rpm", "eng_max": 3000.0 },
+                { "name": "marcia", "data_type": "bool" }] }],
+        }));
+        // Ordine invertito, un membro nuovo in fondo, e nessuna colonna unità.
+        importa(
+            &mut p,
+            "kind,owner,id,data_type\n\
+             member,Motore,marcia,bool\n\
+             member,Motore,velocita,f32\n\
+             member,Motore,corrente,f32\n",
+        );
+        let m = &p.types[0].members;
+        assert_eq!(
+            m.iter().map(|x| x.name.as_str()).collect::<Vec<_>>(),
+            ["marcia", "velocita", "corrente"]
+        );
+        // `velocita` ha cambiato posto ma non ha perso unità e scala.
+        assert_eq!(m[1].unit.as_deref(), Some("rpm"));
+        assert_eq!(m[1].eng_max, Some(3000.0));
+        assert_eq!(m[2].data_type.as_deref(), Some("f32"));
+    }
+
+    /// Un tipo che il file **non nomina** non si tocca: l'import è una fusione,
+    /// non una sostituzione del progetto.
+    #[test]
+    fn un_tipo_che_il_file_non_nomina_resta_dov_era() {
+        let mut p = progetto(serde_json::json!({
+            "meta": { "name": "t", "version": "1" },
+            "types": [
+                { "id": "Motore", "members": [{ "name": "velocita", "data_type": "f32" }] },
+                { "id": "Valvola", "members": [{ "name": "aperta", "data_type": "bool" }] }],
+        }));
+        importa(
+            &mut p,
+            "kind,owner,id,data_type\nmember,Motore,velocita,f64\n",
+        );
+        assert_eq!(p.types.len(), 2);
+        assert_eq!(p.types[0].members[0].data_type.as_deref(), Some("f64"));
+        assert_eq!(p.types[1].members.len(), 1);
+        assert_eq!(p.types[1].members[0].name, "aperta");
+    }
+
+    /// Un `tags.csv` esportato prima del 22-09-2026 non ha la colonna `kind`:
+    /// si reimporta come sempre, tutte righe variabili.
+    #[test]
+    fn un_file_vecchio_senza_kind_e_tutto_variabili() {
+        let mut p = progetto(serde_json::json!({ "meta": { "name": "t", "version": "1" } }));
+        importa(
+            &mut p,
+            "id,data_type,description,history,expression\nt1,f32,Primo,true,\nt2,bool,,false,\n",
+        );
+        assert_eq!(p.types.len(), 0);
+        assert_eq!(p.tags.len(), 2);
+        assert_eq!(p.tags[0].data_type, "f32");
+        assert!(p.tags[0].history);
+    }
+
+    /// Andata e ritorno di una struttura: quello che l'IDE esporta, riletto.
+    #[test]
+    fn andata_e_ritorno_di_una_variabile_composita() {
+        let esportato = "kind,owner,id,data_type,type_ref,array,description,unit,history\n\
+                         type,,Motore,,,,\"Motore, asincrono\",,\n\
+                         member,Motore,velocita,f32,,,,rpm,true\n\
+                         member,Motore,marcia,bool,,,,,false\n\
+                         tag,,motore1,bool,Motore,,Motore 1,,true\n\
+                         tag,,zone,f32,,2x3,Zone,°C,true\n";
+        let righe = righe_csv(esportato);
+        assert_eq!(righe.len(), 6);
+        assert_eq!(righe[1][6], "Motore, asincrono");
+
+        // La forma della riga: kind in prima colonna, owner in seconda.
+        let intestazione: Vec<&str> = righe[0].iter().map(|c| c.trim()).collect();
+        assert_eq!(&intestazione[..3], ["kind", "owner", "id"]);
+
+        // I membri, applicati in ordine a un tipo vuoto.
+        let mut td = TypeDef {
+            id: "Motore".into(),
+            description: String::new(),
+            members: vec![],
+        };
+        for r in &righe[2..4] {
+            let mut x = Membro::nuovo(&r[2]);
+            m(&[("data_type", &r[3]), ("unit", &r[7]), ("history", &r[8])]).applica_membro(&mut x);
+            td.members.push(x);
+        }
+        assert_eq!(td.members.len(), 2);
+        assert_eq!(td.members[0].name, "velocita");
+        assert_eq!(td.members[0].unit.as_deref(), Some("rpm"));
+        assert!(!td.members[1].history);
+
+        // Le variabili.
+        let mut m1 = TagDef::nuovo("motore1", "float");
+        m(&[
+            ("data_type", &righe[4][3]),
+            ("type_ref", &righe[4][4]),
+            ("array", &righe[4][5]),
+        ])
+        .applica(&mut m1);
+        assert_eq!(m1.type_ref.as_deref(), Some("Motore"));
+        assert_eq!(m1.array, None);
+        assert_eq!(m1.data_type, "bool");
+
+        let mut z = TagDef::nuovo("zone", "float");
+        m(&[("array", &righe[5][5]), ("unit", &righe[5][7])]).applica(&mut z);
+        assert_eq!(z.array, Some(vec![2, 3]));
+        assert_eq!(z.unit.as_deref(), Some("°C"));
     }
 }

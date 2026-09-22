@@ -41,6 +41,7 @@ import type {
   TagDef,
   RecipeDef,
   TagState,
+  TypeDef,
 } from "@/types";
 
 export interface HistoryEntry {
@@ -226,7 +227,7 @@ export type AlignMode =
 
 export type Role = "Viewer" | "Operator" | "Supervisor" | "Admin";
 export type AppMode = "edit" | "config";
-export type AppConfigTab = "tags" | "protocols" | "alarms" | "scripts" | "faceplates" | "recipes" | "notifications" | "languages" | "datastores" | "users" | "resources" | "system" | "backups" | "devices" | "runtime" | "ide";
+export type AppConfigTab = "tags" | "types" | "protocols" | "alarms" | "scripts" | "faceplates" | "recipes" | "notifications" | "languages" | "datastores" | "users" | "resources" | "system" | "backups" | "devices" | "runtime" | "ide";
 
 interface AppState {
   // Auth
@@ -409,6 +410,8 @@ interface AppState {
   setProject: (p: ProjectInfo) => void;
   setProjectLoadError: (msg: string | null) => void;
   updateProjectTags: (tags: TagDef[]) => void;
+  /** I tipi struttura (Fase 2): li scrive la scheda «Tipi». */
+  updateProjectTypes: (types: TypeDef[]) => void;
   updateProjectSources: (sources: SourceDef[]) => void;
   updateProjectLanguages: (languages: LanguageTable) => void;
   updateProjectAlarms: (alarms: AlarmDef[]) => void;
@@ -852,6 +855,9 @@ export const useAppStore = create<AppState>((set, get) => {
 
     updateProjectTags: (tags) =>
       set((s) => ({ project: s.project ? { ...s.project, tags } : s.project })),
+
+    updateProjectTypes: (types) =>
+      set((s) => ({ project: s.project ? { ...s.project, types } : s.project })),
 
     updateProjectSources: (sources) =>
       set((s) => ({ project: s.project ? { ...s.project, sources } : s.project })),

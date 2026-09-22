@@ -148,7 +148,7 @@ async fn run_session(
         .map(|e| (e.tag.clone(), e.clone()))
         .collect();
 
-    let (write_tx, mut write_rx) = mpsc::channel::<(String, TagValue)>(64);
+    let (write_tx, mut write_rx) = mpsc::channel::<sws_core::WriteRequest>(64);
     for (tag, _) in &writable {
         bus.register(tag.clone(), write_tx.clone()).await;
     }
@@ -161,7 +161,13 @@ async fn run_session(
             biased;
             _ = cancel.cancelled() => return Ok(()),
 
-            Some((tag, value)) = write_rx.recv() => {
+            Some((tag, percorso, value)) = write_rx.recv() => {
+                // Fase 1d: un servizio Home Assistant prende un valore
+                // scalare; scrivere dentro un blocco non è previsto qui.
+                if let Some(p) = &percorso {
+                    warn!(tag = %tag, percorso = %p, "scrittura su una foglia: non supportata da Home Assistant");
+                    continue;
+                }
                 if let Some(mapping) = tag_to_entity.get(&tag) {
                     if let Some((domain, service, data)) = build_service_call(mapping, &value) {
                         let payload = json!({

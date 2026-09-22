@@ -1,8 +1,9 @@
+import { foglieDiTolleranti } from "./tag/forma";
 import type { ProjectInfo } from "@/types";
 
 /** Da dove viene un id di variabile: dichiarato in Configurazione → Variabili,
  *  o dedotto dalle mappature di una sorgente. */
-export type TagOrigin = "declared" | "source";
+export type TagOrigin = "declared" | "source" | "leaf";
 
 export interface TagCatalogEntry {
   id: string;
@@ -10,6 +11,38 @@ export interface TagCatalogEntry {
   origin: TagOrigin;
   /** Nome della sorgente che lo produce (solo per `origin === "source"`). */
   source?: string;
+  /** Fase 2: la **radice** di cui questa voce è una foglia (`motore1` per
+   *  `motore1.velocita`). Assente per i tag piatti e per le radici stesse. */
+  radice?: string;
+  /** Il tipo scritto della foglia (`u16`, `string(16)`) o del tag. */
+  tipo?: string;
+  /** Quanto è profonda nell'albero: 0 = radice o tag piatto. */
+  livello?: number;
+}
+
+/** Quanti livelli sotto la radice sta un percorso: `motore1.pid.kp` → 2. */
+function profonditaDi(percorso: string, radice: string): number {
+  const resto = percorso.slice(radice.length);
+  return (resto.match(/[.[]/g) ?? []).length;
+}
+
+/** Ordina gli id tenendo insieme una radice e le sue foglie, e mettendo gli
+ *  indici in ordine **numerico**: `valvole[2]` prima di `valvole[10]`, che
+ *  l'ordine alfabetico sbaglierebbe. */
+export function confrontaPercorsi(a: string, b: string): number {
+  const pezzi = (s: string) => s.split(/(\d+)/);
+  const pa = pezzi(a);
+  const pb = pezzi(b);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const x = pa[i] ?? "";
+    const y = pb[i] ?? "";
+    if (x === y) continue;
+    const nx = Number(x);
+    const ny = Number(y);
+    if (!Number.isNaN(nx) && !Number.isNaN(ny) && x !== "" && y !== "") return nx - ny;
+    return x.localeCompare(y);
+  }
+  return 0;
 }
 
 /**
@@ -51,10 +84,29 @@ export function sourceTagIds(project: ProjectInfo | null | undefined): Map<strin
 export function tagCatalog(project: ProjectInfo | null | undefined): TagCatalogEntry[] {
   const entries = new Map<string, TagCatalogEntry>();
   for (const t of project?.tags ?? []) {
-    entries.set(t.id, { id: t.id, description: t.description, origin: "declared" });
+    entries.set(t.id, {
+      id: t.id,
+      description: t.description,
+      origin: "declared",
+      tipo: t.type_ref ?? t.data_type,
+      livello: 0,
+    });
+    // Fase 2: un'istanza porta con sé le sue **foglie**, che sono i veri
+    // riferimenti scrivibili. Senza, il selettore offrirebbe `motore1` — che
+    // non è un valore — e non `motore1.velocita`, che è quello che serve.
+    for (const f of foglieDiTolleranti(t, project?.types ?? [])) {
+      entries.set(f.percorso, {
+        id: f.percorso,
+        description: f.membro?.description || f.membro?.unit,
+        origin: "leaf",
+        radice: t.id,
+        tipo: f.tipo,
+        livello: profonditaDi(f.percorso, t.id),
+      });
+    }
   }
   for (const [id, source] of sourceTagIds(project)) {
     if (!entries.has(id)) entries.set(id, { id, origin: "source", source });
   }
-  return [...entries.values()].sort((a, b) => a.id.localeCompare(b.id));
+  return [...entries.values()].sort((a, b) => confrontaPercorsi(a.id, b.id));
 }

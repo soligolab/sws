@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "@/store";
 import { tagCatalog } from "@/tagCatalog";
-import { eSegnaposto } from "@/tag/riconciliaTag";
+import { ePercorsoDiUnaRadice, eSegnaposto } from "@/tag/riconciliaTag";
 import { QuickCreateTagModal } from "./QuickCreateTagModal";
 import type { TagDataType } from "@/types";
 import i18n from "i18next";
@@ -24,10 +24,42 @@ interface TagInputProps {
  *  stringhe vuote non hanno stato. */
 export type StatoTag = "dichiarato" | "in-attesa" | "nuovo" | null;
 
-export function statoTag(id: string, dichiarati: ReadonlySet<string>, inAttesa: ReadonlySet<string>): StatoTag {
+/** Indentazione di una voce dell'albero, in pixel. */
+const RIENTRO = 12;
+
+/** Quante voci al massimo suggerisce il completamento. Sta sotto un campo del
+ *  pannello destro, non in una pagina: un elenco lungo copre il resto. */
+const MAX_SUGGERIMENTI = 10;
+
+/** Le voci del catalogo che **completano** ciò che si sta digitando.
+ *
+ *  Serve alle variabili composite (Fase 2): scrivere `motore1` a mano e poi
+ *  indovinare come si chiamano le sue foglie non è un lavoro da fare a
+ *  memoria. Prefisso, non sottostringa — il ▾ resta il posto per cercare — e
+ *  l'id già completo non si suggerisce da solo. */
+export function suggerimentiPer<T extends { id: string }>(
+  value: string,
+  tags: readonly T[],
+  max = MAX_SUGGERIMENTI,
+): T[] {
+  const v = value.trim();
+  if (v === "" || eSegnaposto(v)) return [];
+  const low = v.toLowerCase();
+  return tags.filter((x) => x.id !== v && x.id.toLowerCase().startsWith(low)).slice(0, max);
+}
+
+export function statoTag(
+  id: string,
+  dichiarati: ReadonlySet<string>,
+  inAttesa: ReadonlySet<string>,
+  /** Le radici composite: un percorso dentro una di queste è dichiarato
+   *  quanto il suo id (Fase 1b), e non va offerto per la creazione. */
+  radici: readonly string[] = [],
+): StatoTag {
   const t = id.trim();
   if (t === "" || eSegnaposto(t)) return null;
   if (dichiarati.has(t)) return "dichiarato";
+  if (ePercorsoDiUnaRadice(t, radici)) return "dichiarato";
   if (inAttesa.has(t)) return "in-attesa";
   return "nuovo";
 }
@@ -48,13 +80,22 @@ export function TagInput({ value, onChange, placeholder, style, tipoSuggerito }:
   const aggiungiTagInAttesa = useAppStore((s) => s.aggiungiTagInAttesa);
   const dichiarati = useMemo(() => new Set((project?.tags ?? []).map((x) => x.id)), [project]);
   const idsInAttesa = useMemo(() => new Set(inAttesa.map((x) => x.id)), [inAttesa]);
-  const stato = statoTag(value, dichiarati, idsInAttesa);
+  const radiciComposite = useMemo(
+    () => (project?.tags ?? []).filter((x) => x.type_ref || x.array).map((x) => x.id),
+    [project],
+  );
+  const stato = statoTag(value, dichiarati, idsInAttesa, radiciComposite);
   const [definisci, setDefinisci] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef     = useRef<HTMLInputElement>(null);
   const filterRef    = useRef<HTMLInputElement>(null);
   const [open, setOpen]     = useState(false);
   const [filter, setFilter] = useState("");
+  // Il completamento mentre si digita: vive solo fra un tasto e l'altro, e
+  // sparisce appena il campo perde il fuoco o si apre il selettore col ▾.
+  const [digita, setDigita] = useState(false);
+  const [evidenziato, setEvidenziato] = useState(0);
+  const suggerimenti = useMemo(() => (digita && !open ? suggerimentiPer(value, tags) : []), [digita, open, value, tags]);
 
   // Close when focus leaves the component entirely.
   useEffect(() => {
@@ -82,7 +123,24 @@ export function TagInput({ value, onChange, placeholder, style, tipoSuggerito }:
     onChange(id);
     setOpen(false);
     setFilter("");
+    setDigita(false);
     inputRef.current?.focus();
+  };
+
+  // ↑/↓ scorrono, Invio e Tab accettano, Esc chiude senza toccare il testo.
+  // Senza suggerimenti nessun tasto cambia comportamento: il campo resta un
+  // campo di testo libero, come è sempre stato.
+  const tasti = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (suggerimenti.length === 0) {
+      if (e.key === "ArrowDown" && value.trim() !== "") setDigita(true);
+      return;
+    }
+    if (e.key === "ArrowDown")      { e.preventDefault(); setEvidenziato((i) => (i + 1) % suggerimenti.length); }
+    else if (e.key === "ArrowUp")   { e.preventDefault(); setEvidenziato((i) => (i - 1 + suggerimenti.length) % suggerimenti.length); }
+    else if (e.key === "Enter" || e.key === "Tab") {
+      const scelto = suggerimenti[evidenziato];
+      if (scelto) { e.preventDefault(); select(scelto.id); }
+    } else if (e.key === "Escape")  { e.preventDefault(); setDigita(false); }
   };
 
   return (
@@ -93,7 +151,9 @@ export function TagInput({ value, onChange, placeholder, style, tipoSuggerito }:
         style={{ ...style, flex: 1, minWidth: 0 }}
         placeholder={placeholder}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => { onChange(e.target.value); setDigita(true); setEvidenziato(0); }}
+        onKeyDown={tasti}
+        onBlur={() => setDigita(false)}
         spellCheck={false}
         autoComplete="off"
       />
@@ -112,7 +172,7 @@ export function TagInput({ value, onChange, placeholder, style, tipoSuggerito }:
             lineHeight: 1,
           }}
           onMouseDown={(e) => e.preventDefault()}
-          onClick={() => { setFilter(""); setOpen((o) => !o); }}
+          onClick={() => { setFilter(""); setDigita(false); setOpen((o) => !o); }}
           tabIndex={-1}
           title={t("tagInput.select")}
         >
@@ -139,6 +199,44 @@ export function TagInput({ value, onChange, placeholder, style, tipoSuggerito }:
       {stato === "in-attesa" && (
         <span style={{ flexShrink: 0, alignSelf: "center", fontSize: 11, color: "var(--brand-text-muted, #94a3b8)" }}
               title={t("tagInput.inAttesaHint")} aria-label={t("tagInput.inAttesaHint")}>⏳</span>
+      )}
+      {/* Il completamento del percorso: stesso elenco del selettore, ma
+          governato dalla tastiera e ancorato a ciò che si sta scrivendo. */}
+      {suggerimenti.length > 0 && (
+        <div
+          role="listbox"
+          style={{
+            position: "absolute", top: "100%", left: 0, right: 0, zIndex: 9999,
+            background: "var(--brand-bg, #0f172a)",
+            border: "1px solid var(--brand-surface-2, #334155)",
+            borderRadius: 4, maxHeight: 200, overflowY: "auto",
+            boxShadow: "0 4px 16px rgba(0,0,0,0.5)", marginTop: 2,
+          }}
+        >
+          {suggerimenti.map((sg, i) => (
+            <div
+              key={sg.id}
+              role="option"
+              aria-selected={i === evidenziato}
+              style={{
+                padding: "4px 8px", cursor: "pointer", display: "flex", gap: 8, alignItems: "baseline",
+                background: i === evidenziato ? "var(--brand-surface, #1e293b)" : "",
+              }}
+              onMouseEnter={() => setEvidenziato(i)}
+              onMouseDown={(e) => { e.preventDefault(); select(sg.id); }}
+            >
+              <span style={{ color: "var(--brand-text, #e2e8f0)", fontFamily: "monospace", fontSize: 12 }}>
+                <span style={{ color: "var(--brand-text-subtle, #64748b)" }}>{sg.id.slice(0, value.trim().length)}</span>
+                {sg.id.slice(value.trim().length)}
+              </span>
+              {sg.tipo && (
+                <span style={{ marginLeft: "auto", flexShrink: 0, fontSize: 10, color: "var(--brand-text-subtle, #64748b)", fontFamily: "monospace" }}>
+                  {sg.tipo}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
       )}
       {definisci && (
         <QuickCreateTagModal
@@ -187,15 +285,25 @@ export function TagInput({ value, onChange, placeholder, style, tipoSuggerito }:
           {filtered.map((t) => (
             <div
               key={t.id}
-              style={{ padding: "5px 8px", cursor: "pointer", display: "flex", gap: 8, alignItems: "baseline" }}
+              // Fase 2: le foglie di un'istanza rientrano sotto la loro
+              // radice, così `motore1.velocita` si legge come un figlio e non
+              // come un id piatto che comincia per caso allo stesso modo.
+              style={{ padding: "5px 8px", paddingLeft: 8 + (t.livello ?? 0) * RIENTRO, cursor: "pointer", display: "flex", gap: 8, alignItems: "baseline" }}
               onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = "var(--brand-surface, #1e293b)"; }}
               onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = ""; }}
               onMouseDown={() => select(t.id)}
             >
-              <span style={{ color: "var(--brand-text, #e2e8f0)", fontFamily: "monospace", fontSize: 12 }}>{t.id}</span>
+              <span style={{ color: "var(--brand-text, #e2e8f0)", fontFamily: "monospace", fontSize: 12 }}>
+                {t.radice ? t.id.slice(t.radice.length) : t.id}
+              </span>
               {t.description && (
                 <span style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 11, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {t.description}
+                </span>
+              )}
+              {t.tipo && (
+                <span style={{ marginLeft: t.description ? 0 : "auto", flexShrink: 0, fontSize: 10, color: "var(--brand-text-subtle, #64748b)", fontFamily: "monospace" }}>
+                  {t.tipo}
                 </span>
               )}
               {t.origin === "source" && (

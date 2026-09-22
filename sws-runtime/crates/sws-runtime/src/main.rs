@@ -770,12 +770,20 @@ async fn main() -> anyhow::Result<()> {
                             continue;
                         }
 
-                        let snapshot: std::collections::HashMap<String, sws_core::TagValue> = db
-                            .snapshot()
-                            .await
-                            .into_iter()
-                            .map(|(k, v)| (k, v.value))
-                            .collect();
+                        // Fase 1e: le **foglie** più le **radici**. Uno script
+                        // può scrivere `tags["motore1.velocita"]` oppure
+                        // `tags["motore1"]["velocita"]` — in Python il dict è
+                        // piatto e non parsa percorsi, quindi ci devono essere
+                        // tutte e due le chiavi.
+                        let mut snapshot: std::collections::HashMap<String, sws_core::TagValue> =
+                            db.snapshot_foglie()
+                                .await
+                                .into_iter()
+                                .map(|(k, v)| (k, v.value))
+                                .collect();
+                        for (k, v) in db.snapshot().await {
+                            snapshot.entry(k).or_insert(v.value);
+                        }
                         for (id, expr) in pairs {
                             match sws_pyscript::eval_expression(expr, snapshot.clone()).await {
                                 Ok(value) => {

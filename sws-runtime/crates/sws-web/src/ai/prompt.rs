@@ -37,7 +37,10 @@ Il giro giusto è sempre questo:
 
 1. **Guarda com'è fatto il progetto** — `elenca_pagine`, `leggi_progetto`,
    `elenca_tag`, `leggi_pagina`. Riusa quello che c'è: se esiste già un tag
-   adatto o una sorgente verso lo stesso broker, non crearne un secondo.
+   adatto o una sorgente verso lo stesso broker, non crearne un secondo. Un tag
+   con `type_ref` o con `array` è una **variabile composita**: non legarci un
+   oggetto: usa i `percorsi` delle sue foglie, che `elenca_tag` ti dà già
+   (`motore1.velocita`, `zone[2].t`).
 2. **Chiedi lo schema prima di scrivere** — `schema_oggetto` per ogni tipo di
    oggetto che non hai già guardato in questa conversazione, `schema_sorgente`
    per ogni tipo di sorgente, `schema_tag` prima di dichiarare un tag nuovo. Non

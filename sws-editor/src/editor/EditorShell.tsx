@@ -2400,6 +2400,32 @@ function CrossTypeProps({
  *  dei campi resi con quello catturato prima del riordino di T-56. Senza quella
  *  rete, riordinare 2.700 righe di rami per tipo significa scoprire un campo
  *  perso quando lo cerca un utente. */
+/** Il selettore di un'istanza per un parametro di faceplate (Fase 2 dei tag).
+ *
+ *  Un faceplate «Motore» non vuole un tag: vuole **un motore**. Prima si
+ *  scriveva il prefisso a mano in un campo di testo e lo si ricordava a
+ *  memoria; qui si sceglie fra le variabili composite del progetto, ristrette
+ *  al tipo quando la definizione lo dichiara (`p:istanza(Motore)`). */
+function SceltaIstanza({
+  valore, tipo, onChange, style,
+}: { valore: string; tipo?: string; onChange: (v: string) => void; style: React.CSSProperties }) {
+  const { t } = useTranslation();
+  const istanze = useAppStore((st) => st.project?.tags) ?? [];
+  const scelte = istanze.filter((x) => (tipo ? x.type_ref === tipo : !!x.type_ref || !!x.array));
+  // Un valore che non è (più) fra le scelte resta selezionabile: un tipo
+  // rinominato non deve cancellare in silenzio il legame dell'istanza.
+  const orfano = valore !== "" && !scelte.some((x) => x.id === valore);
+  return (
+    <select style={{ ...style, cursor: "pointer" }} value={valore} onChange={(e) => onChange(e.target.value)}>
+      <option value="">{scelte.length === 0 ? t("props.istanzaNessuna", { tipo: tipo ?? "" }) : t("props.istanzaScegli")}</option>
+      {orfano && <option value={valore}>{valore}</option>}
+      {scelte.map((x) => (
+        <option key={x.id} value={x.id}>{x.type_ref ? `${x.id} — ${x.type_ref}` : x.id}</option>
+      ))}
+    </select>
+  );
+}
+
 export function ObjectProps({
   obj,
   pages,
@@ -4504,6 +4530,13 @@ export function ObjectProps({
                           </div>
                           {p.type === "tag" ? (
                             <TagInput style={style} placeholder={p.default ?? ""} value={val} onChange={setVal} />
+                          ) : p.type === "istanza" ? (
+                            // Fase 2: il parametro vuole una **radice**
+                            // composita (`motore1`), non un id qualunque; gli
+                            // oggetti del faceplate ci attaccano `.velocita`.
+                            // Se il tipo chiesto non ha istanze, l'elenco è
+                            // vuoto e il campo lo dice invece di restare muto.
+                            <SceltaIstanza valore={val} tipo={p.type_ref} onChange={setVal} style={style} />
                           ) : p.type === "color" ? (
                             <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
                               <input type="color" value={estraiHex(val) ?? estraiHex(p.default) ?? "#3b82f6"}

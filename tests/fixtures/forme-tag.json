@@ -1,0 +1,326 @@
+{
+  "_perche": [
+    "La FORMA di una variabile composita: date le definizioni dei tipi e un tag",
+    "che le istanzia, quali foglie esistono, con che percorso e con che tipo.",
+    "",
+    "La calcolano in due: il runtime (`sws_core::percorso::Forma`, che ne ricava",
+    "il valore iniziale, le rotte dello storico e le mappe di scala e tipo) e",
+    "l'editor (`sws-editor/src/tag/forma.ts`, che ne ricava l'albero del",
+    "selettore variabili e sa quali percorsi sono già dichiarati). Due calcoli",
+    "separati della stessa cosa divergono in silenzio, e la divergenza si",
+    "vedrebbe come un tag che l'IDE offre e il runtime non ha — o peggio, come",
+    "un tag piatto creato al salvataggio accanto a un'istanza, che è la",
+    "collisione che il validatore rifiuta.",
+    "",
+    "L'ordine delle foglie conta: è quello di dichiarazione dei membri, e per",
+    "gli array row-major (l'ultimo indice è il più veloce). Lo storico e la",
+    "lettura a blocco di Modbus (Fase 3) ci si appoggiano.",
+    "",
+    "Negli `errori`, `cita` è la parola che il messaggio del RUNTIME deve",
+    "contenere (i messaggi di Rust sono in italiano) e `codice` è l'etichetta",
+    "stabile che l'EDITOR espone su `FormaNonValida`: lì il messaggio passa dal",
+    "catalogo e cambia con la lingua dell'interfaccia, quindi cercarci dentro una",
+    "parola italiana renderebbe il test dipendente dalla lingua."
+  ],
+  "casi": [
+    {
+      "nome": "istanza di una struttura piatta",
+      "types": [
+        {
+          "id": "Motore",
+          "members": [
+            {
+              "name": "velocita",
+              "data_type": "f32"
+            },
+            {
+              "name": "marcia",
+              "data_type": "bool"
+            }
+          ]
+        }
+      ],
+      "tag": {
+        "id": "motore1",
+        "type_ref": "Motore"
+      },
+      "foglie": [
+        {
+          "percorso": "motore1.velocita",
+          "tipo": "f32"
+        },
+        {
+          "percorso": "motore1.marcia",
+          "tipo": "bool"
+        }
+      ]
+    },
+    {
+      "nome": "membro array dentro una struttura",
+      "types": [
+        {
+          "id": "Q",
+          "members": [
+            {
+              "name": "allarmi",
+              "data_type": "bool",
+              "array": [
+                3
+              ]
+            },
+            {
+              "name": "n",
+              "data_type": "u16"
+            }
+          ]
+        }
+      ],
+      "tag": {
+        "id": "q",
+        "type_ref": "Q"
+      },
+      "foglie": [
+        {
+          "percorso": "q.allarmi[0]",
+          "tipo": "bool"
+        },
+        {
+          "percorso": "q.allarmi[1]",
+          "tipo": "bool"
+        },
+        {
+          "percorso": "q.allarmi[2]",
+          "tipo": "bool"
+        },
+        {
+          "percorso": "q.n",
+          "tipo": "u16"
+        }
+      ]
+    },
+    {
+      "nome": "tipo annidato in un altro tipo",
+      "types": [
+        {
+          "id": "Pid",
+          "members": [
+            {
+              "name": "kp",
+              "data_type": "f32"
+            },
+            {
+              "name": "ki",
+              "data_type": "f32"
+            }
+          ]
+        },
+        {
+          "id": "M",
+          "members": [
+            {
+              "name": "pid",
+              "type_ref": "Pid"
+            },
+            {
+              "name": "on",
+              "data_type": "bool"
+            }
+          ]
+        }
+      ],
+      "tag": {
+        "id": "m1",
+        "type_ref": "M"
+      },
+      "foglie": [
+        {
+          "percorso": "m1.pid.kp",
+          "tipo": "f32"
+        },
+        {
+          "percorso": "m1.pid.ki",
+          "tipo": "f32"
+        },
+        {
+          "percorso": "m1.on",
+          "tipo": "bool"
+        }
+      ]
+    },
+    {
+      "nome": "array di istanze",
+      "types": [
+        {
+          "id": "V",
+          "members": [
+            {
+              "name": "stato",
+              "data_type": "bool"
+            }
+          ]
+        }
+      ],
+      "tag": {
+        "id": "valvole",
+        "type_ref": "V",
+        "array": [
+          2
+        ]
+      },
+      "foglie": [
+        {
+          "percorso": "valvole[0].stato",
+          "tipo": "bool"
+        },
+        {
+          "percorso": "valvole[1].stato",
+          "tipo": "bool"
+        }
+      ]
+    },
+    {
+      "nome": "matrice di scalari, row-major",
+      "types": [],
+      "tag": {
+        "id": "m",
+        "data_type": "u16",
+        "array": [
+          2,
+          3
+        ]
+      },
+      "foglie": [
+        {
+          "percorso": "m[0][0]",
+          "tipo": "u16"
+        },
+        {
+          "percorso": "m[0][1]",
+          "tipo": "u16"
+        },
+        {
+          "percorso": "m[0][2]",
+          "tipo": "u16"
+        },
+        {
+          "percorso": "m[1][0]",
+          "tipo": "u16"
+        },
+        {
+          "percorso": "m[1][1]",
+          "tipo": "u16"
+        },
+        {
+          "percorso": "m[1][2]",
+          "tipo": "u16"
+        }
+      ]
+    },
+    {
+      "nome": "un tag piatto non ha forma",
+      "types": [],
+      "tag": {
+        "id": "pv1.potenza",
+        "data_type": "f64"
+      },
+      "foglie": []
+    },
+    {
+      "nome": "stringa con lunghezza dentro una struttura",
+      "types": [
+        {
+          "id": "S",
+          "members": [
+            {
+              "name": "nome",
+              "data_type": "string(16)"
+            }
+          ]
+        }
+      ],
+      "tag": {
+        "id": "s1",
+        "type_ref": "S"
+      },
+      "foglie": [
+        {
+          "percorso": "s1.nome",
+          "tipo": "string(16)"
+        }
+      ]
+    }
+  ],
+  "errori": [
+    {
+      "nome": "tipo inesistente",
+      "types": [],
+      "tag": {
+        "id": "x",
+        "type_ref": "Bho"
+      },
+      "cita": "Bho",
+      "codice": "tipo-non-dichiarato"
+    },
+    {
+      "nome": "ciclo fra tipi",
+      "types": [
+        {
+          "id": "A",
+          "members": [
+            {
+              "name": "b",
+              "type_ref": "B"
+            }
+          ]
+        },
+        {
+          "id": "B",
+          "members": [
+            {
+              "name": "a",
+              "type_ref": "A"
+            }
+          ]
+        }
+      ],
+      "tag": {
+        "id": "x",
+        "type_ref": "A"
+      },
+      "cita": "ciclo",
+      "codice": "ciclo"
+    },
+    {
+      "nome": "array con una dimensione zero",
+      "types": [],
+      "tag": {
+        "id": "x",
+        "data_type": "u16",
+        "array": [
+          0
+        ]
+      },
+      "cita": "zero",
+      "codice": "dimensione-zero"
+    },
+    {
+      "nome": "membro senza tipo",
+      "types": [
+        {
+          "id": "A",
+          "members": [
+            {
+              "name": "v"
+            }
+          ]
+        }
+      ],
+      "tag": {
+        "id": "x",
+        "type_ref": "A"
+      },
+      "cita": "v",
+      "codice": "membro-senza-tipo"
+    }
+  ]
+}

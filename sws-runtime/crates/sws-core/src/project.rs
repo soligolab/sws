@@ -283,7 +283,75 @@ fn default_odbc_col_ts() -> String {
     "ts_ms".into()
 }
 
+impl Membro {
+    /// Un membro nuovo: solo il nome. `history` nasce **acceso** come il
+    /// default di serde — un `Default` derivato lo farebbe nascere spento, e
+    /// un membro creato dall'import CSV sarebbe finito fuori dallo storico
+    /// senza che il file dicesse niente.
+    pub fn nuovo(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            description: String::new(),
+            data_type: None,
+            type_ref: None,
+            array: None,
+            unit: None,
+            decimals: None,
+            raw_min: None,
+            raw_max: None,
+            eng_min: None,
+            eng_max: None,
+            range_lo: None,
+            range_hi: None,
+            limit_lo_lo: None,
+            limit_lo: None,
+            limit_hi: None,
+            limit_hi_hi: None,
+            write_min_role: None,
+            history: true,
+            history_deadband: None,
+            history_min_interval_ms: None,
+        }
+    }
+}
+
 impl TagDef {
+    /// Una definizione minima: id e tipo, tutto il resto assente.
+    ///
+    /// Esiste perché `TagDef` ha venticinque campi e chi ne deve costruire uno
+    /// (l'import CSV, i test) li scriveva tutti a mano: un campo nuovo
+    /// obbligava a toccare ogni sito, e l'import CSV se n'era già dimenticato
+    /// uno.
+    pub fn nuovo(id: impl Into<String>, data_type: impl Into<String>) -> Self {
+        Self {
+            id: id.into(),
+            description: String::new(),
+            data_type: data_type.into(),
+            history: false,
+            datastore_id: None,
+            history_deadband: None,
+            history_min_interval_ms: None,
+            expression: None,
+            generator: None,
+            unit: None,
+            decimals: None,
+            raw_min: None,
+            raw_max: None,
+            eng_min: None,
+            eng_max: None,
+            range_lo: None,
+            range_hi: None,
+            write_data_type: None,
+            write_min_role: None,
+            limit_lo_lo: None,
+            limit_lo: None,
+            limit_hi: None,
+            limit_hi_hi: None,
+            type_ref: None,
+            array: None,
+        }
+    }
+
     /// Initial `TagValue` to seed the TagDb with for this definition.
     /// Used at startup (`populate_tags`) and on hot-reload of newly-added tags.
     pub fn initial_value(&self) -> TagValue {

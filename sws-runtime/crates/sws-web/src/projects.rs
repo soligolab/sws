@@ -731,7 +731,8 @@ pub async fn apply_tags(
     tags: &[sws_core::TagDef],
     types: &[sws_core::TypeDef],
 ) -> (usize, usize) {
-    let attuali: std::collections::HashSet<String> = db.snapshot().await.into_keys().collect();
+    let prima = db.snapshot().await;
+    let attuali: std::collections::HashSet<String> = prima.keys().cloned().collect();
     let nuovi: std::collections::HashSet<&str> = tags.iter().map(|t| t.id.as_str()).collect();
     // Le forme PRIMA della semina (Fase 1b): un'istanza nasce col valore
     // composito, e `set` deve già sapere che `motore1` è una radice.
@@ -746,6 +747,23 @@ pub async fn apply_tags(
         db.set(t.id.clone(), iniziale, sws_core::TagQuality::Uncertain)
             .await;
         seminati += 1;
+    }
+    // Un'istanza che c'era GIÀ ma la cui forma è cambiata: aggiungere un
+    // membro a un tipo deve far comparire la foglia nuova su tutte le
+    // istanze, senza azzerare quelle che un PLC sta scrivendo. Senza questo
+    // la foglia restava invisibile fino al riavvio — misurato il 22-09-2026
+    // con un import CSV che aggiungeva un membro a `Motore`.
+    for t in tags.iter().filter(|t| attuali.contains(&t.id)) {
+        let (Some(forma), Some(stato)) = (forme.get(&t.id), prima.get(&t.id)) else {
+            continue;
+        };
+        let riconciliato = forma.riconcilia(&stato.value);
+        // Solo se cambia davvero: `apply_tags` gira a ogni salvataggio, e un
+        // `set` inutile è un aggiornamento WebSocket a tutti i client.
+        if riconciliato != stato.value {
+            db.set(t.id.clone(), riconciliato, stato.quality.clone())
+                .await;
+        }
     }
     let mut tolti = 0;
     for id in attuali.iter().filter(|id| !nuovi.contains(id.as_str())) {

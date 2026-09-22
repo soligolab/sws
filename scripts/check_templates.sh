@@ -328,7 +328,18 @@ for nome in nomi:
         problema(f"{nome}: tipi che la palette non conosce → {fuori}")
 
     dichiarati = {t.get("id") for t in (prj.get("tags") or [])}
-    mancanti = sorted(usati_tag - dichiarati)
+    # Fase 2 dei tag (22-09-2026): una variabile composita (`type_ref` o
+    # `array`) si dichiara una volta e si usa per percorso —
+    # `motore1.velocita`, `zone[2].t`. Senza questo, il primo template con una
+    # struttura dentro griderebbe «tag mai dichiarato» su ogni sua foglia. Il
+    # confine è lo stesso di `ePercorsoDiUnaRadice` nell'IDE: il prefisso vale
+    # solo se finisce dove finisce l'id, su un punto o su una parentesi, così
+    # `motore1bis` non passa per una foglia di `motore1`.
+    radici = [t.get("id") or "" for t in (prj.get("tags") or [])
+              if t.get("type_ref") or t.get("array")]
+    def foglia_di_una_radice(u):
+        return any(u.startswith(r) and u[len(r):len(r) + 1] in (".", "[") for r in radici)
+    mancanti = sorted(u for u in (usati_tag - dichiarati) if not foglia_di_una_radice(u))
     if mancanti:
         problema(f"{nome}: {len(mancanti)} tag usati e mai dichiarati → {mancanti[:4]}"
                  + (" …" if len(mancanti) > 4 else ""))

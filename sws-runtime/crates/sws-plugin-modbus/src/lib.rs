@@ -88,7 +88,15 @@ async fn session(
             }
 
             // Write request from the bus (PUT /api/tags/:id → TagWriteBus → here).
-            Some((tag, value)) = write_rx.recv() => {
+            Some((tag, percorso, value)) = write_rx.recv() => {
+                // Fase 1d: una scrittura su una FOGLIA di una radice che
+                // questo plugin possiede. Nessun protocollo sa ancora
+                // scrivere dentro un blocco (arriva con le Fasi 3-4): meglio
+                // dirlo che scrivere la cosa sbagliata.
+                if let Some(p) = &percorso {
+                    warn!(tag = %tag, percorso = %p, "scrittura su una foglia: non ancora supportata da questa sorgente");
+                    continue;
+                }
                 let Some(&(address, scale)) = routes.get(&tag) else { continue };
                 let Some(raw) = tagvalue_to_register(&value, scale) else {
                     warn!(source = %cfg.id, %tag, ?value, "write rejected: value out of range / unsupported type");
@@ -225,7 +233,15 @@ async fn session_rtu(
                 }
             }
 
-            Some((tag, value)) = write_rx.recv() => {
+            Some((tag, percorso, value)) = write_rx.recv() => {
+                // Fase 1d: una scrittura su una FOGLIA di una radice che
+                // questo plugin possiede. Nessun protocollo sa ancora
+                // scrivere dentro un blocco (arriva con le Fasi 3-4): meglio
+                // dirlo che scrivere la cosa sbagliata.
+                if let Some(p) = &percorso {
+                    warn!(tag = %tag, percorso = %p, "scrittura su una foglia: non ancora supportata da questa sorgente");
+                    continue;
+                }
                 let Some(&(address, scale)) = routes.get(&tag) else { continue };
                 let Some(raw) = tagvalue_to_register(&value, scale) else {
                     warn!(source = %cfg.id, %tag, ?value, "write rejected: value out of range / unsupported type");

@@ -484,6 +484,31 @@ impl TagDb {
     pub async fn snapshot(&self) -> HashMap<TagId, TagState> {
         self.store.read().await.clone()
     }
+
+    /// Lo snapshot **espanso in foglie** (Fase 1d): le radici composite
+    /// diventano N voci con l'id di percorso e la qualità della foglia, i tag
+    /// piatti restano sé stessi.
+    ///
+    /// È la forma che va sul filo di default: i frame di `/ws/tags` sono
+    /// tipizzati, e una sola voce con dentro un valore composito farebbe
+    /// fallire la deserializzazione dell'**intero** pacchetto — non di quella
+    /// voce. Chi vuole la radice la chiede.
+    pub async fn snapshot_foglie(&self) -> HashMap<TagId, TagState> {
+        let store = self.store.read().await.clone();
+        let forme = self.forme.read().await;
+        if forme.is_empty() {
+            return store;
+        }
+        drop(forme);
+        let mut out = HashMap::with_capacity(store.len());
+        for (id, state) in store {
+            let update = TagUpdate { id, state };
+            for (percorso, st) in self.espandi_foglie(&update).await {
+                out.insert(percorso, st);
+            }
+        }
+        out
+    }
 }
 
 // ── TagWriteBus ──────────────────────────────────────────────────────────────
@@ -526,10 +551,16 @@ fn coerce_value(want: &str, v: TagValue) -> Result<TagValue, String> {
     }
 }
 
-/// One write request flowing through the bus: which tag, what value.
-/// A single plugin can own many tags by sharing one receiver and one
-/// sender clone across its routes.
-pub type WriteRequest = (TagId, TagValue);
+/// Una richiesta di scrittura sul bus: **l'id che il plugin ha registrato**,
+/// il percorso relativo dentro quell'id, e il valore.
+///
+/// Il percorso è `None` per un tag piatto e per una radice scritta intera;
+/// è `Some(".velocita")` o `Some("[3].stato")` quando si scrive una foglia di
+/// una radice che il plugin possiede (Fase 1d). Esplicito e non «l'id è a
+/// volte una radice e a volte un percorso»: chi riceve non deve indovinare
+/// dove finisce l'uno e comincia l'altro, e nessun plugin riscrive la
+/// divisione per conto suo.
+pub type WriteRequest = (TagId, Option<String>, TagValue);
 
 pub struct TagWriteBus {
     routes: RwLock<HashMap<TagId, mpsc::Sender<WriteRequest>>>,
@@ -564,20 +595,95 @@ impl TagWriteBus {
         }
     }
 
-    /// Forward a write to the plugin that owns the tag.
-    /// Returns `NoWriter` if the tag is not registered (caller decides fallback).
+    /// Instrada una scrittura al plugin che possiede il tag.
+    ///
+    /// **Dalla mappatura più specifica alla radice** (Fase 1d): prima l'id
+    /// esatto — che copre i tag piatti e le mappature a foglia di oggi —
+    /// poi i prefissi via via più corti, così una radice mappata a blocco
+    /// riceve anche le scritture sulle sue foglie, col percorso relativo.
+    /// `NoWriter` se non la possiede nessuno: il chiamante decide il ripiego
+    /// (di norma scrivere direttamente nel `TagDb`).
     pub async fn write(&self, tag_id: &str, value: TagValue) -> Result<(), WriteError> {
-        let sender = {
+        let scelta = {
             let routes = self.routes.read().await;
-            routes.get(tag_id).cloned()
+            match routes.get(tag_id) {
+                Some(s) => Some((tag_id.to_string(), None, s.clone())),
+                None => candidati(tag_id).into_iter().find_map(|(radice, resto)| {
+                    routes
+                        .get(radice)
+                        .map(|s| (radice.to_string(), Some(resto.to_string()), s.clone()))
+                }),
+            }
         };
-        match sender {
+        match scelta {
             None => Err(WriteError::NoWriter(tag_id.to_string())),
-            Some(s) => s
-                .send((tag_id.to_string(), value))
+            Some((radice, percorso, s)) => s
+                .send((radice, percorso, value))
                 .await
                 .map_err(|_| WriteError::ChannelClosed(tag_id.to_string())),
         }
+    }
+}
+
+#[cfg(test)]
+mod bus_percorsi_tests {
+    use super::*;
+
+    /// Fase 1d: il bus instrada dalla mappatura **più specifica** alla radice.
+    /// Un plugin che possiede `motore1` riceve anche le scritture sulle sue
+    /// foglie, col percorso relativo — e non deve dividere lui la stringa.
+    #[tokio::test]
+    async fn dalla_foglia_alla_radice() {
+        let bus = TagWriteBus::new();
+        let (tx_radice, mut rx_radice) = mpsc::channel(8);
+        let (tx_foglia, mut rx_foglia) = mpsc::channel(8);
+        bus.register("motore1".into(), tx_radice).await;
+        bus.register("motore1.marcia".into(), tx_foglia).await;
+
+        // una foglia con la sua mappatura: arriva lì, senza percorso
+        bus.write("motore1.marcia", TagValue::Bool(true))
+            .await
+            .unwrap();
+        assert_eq!(
+            rx_foglia.recv().await.unwrap(),
+            ("motore1.marcia".to_string(), None, TagValue::Bool(true))
+        );
+
+        // una foglia senza mappatura propria: alla radice, col percorso
+        bus.write("motore1.velocita", TagValue::Float(1500.0))
+            .await
+            .unwrap();
+        assert_eq!(
+            rx_radice.recv().await.unwrap(),
+            (
+                "motore1".to_string(),
+                Some(".velocita".to_string()),
+                TagValue::Float(1500.0)
+            )
+        );
+
+        // un indice, e un percorso più profondo
+        bus.write("motore1.pid.kp", TagValue::Float(1.0))
+            .await
+            .unwrap();
+        assert_eq!(
+            rx_radice.recv().await.unwrap().1,
+            Some(".pid.kp".to_string())
+        );
+        bus.write("motore1[2]", TagValue::Int(1)).await.unwrap();
+        assert_eq!(rx_radice.recv().await.unwrap().1, Some("[2]".to_string()));
+
+        // la radice intera: nessun percorso
+        bus.write("motore1", TagValue::Struct(Default::default()))
+            .await
+            .unwrap();
+        assert_eq!(rx_radice.recv().await.unwrap().1, None);
+
+        // niente di niente: il chiamante decide il ripiego
+        assert!(matches!(
+            bus.write("altro.tag", TagValue::Int(1)).await,
+            Err(WriteError::NoWriter(_))
+        ));
     }
 }
 
@@ -881,7 +987,11 @@ mod tests {
             .await
             .unwrap();
         let got = rx.recv().await.unwrap();
-        assert_eq!(got, ("pump1.speed".to_string(), TagValue::Float(75.0)));
+        assert_eq!(
+            got,
+            ("pump1.speed".to_string(), None, TagValue::Float(75.0)),
+            "un tag piatto arriva senza percorso"
+        );
     }
 
     #[tokio::test]

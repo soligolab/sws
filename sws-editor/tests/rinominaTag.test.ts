@@ -109,3 +109,67 @@ describe("rinomina", () => {
     expect(motivoIdNonValido("c", esistenti, "a")).toBeNull();
   });
 });
+
+/** Fase 2: rinominando la **radice** di una struttura o di un array, i
+ *  riferimenti veri sono quasi tutti percorsi di foglia (`motore1.velocita`).
+ *  Prima di questo la rinomina li lasciava indietro, in silenzio. */
+describe("rinomina di una radice composita", () => {
+  const radice: TagDef = { id: "motore1", data_type: "bool", type_ref: "Motore" } as TagDef;
+  const vettore: TagDef = { id: "zone", data_type: "float", array: [4] } as TagDef;
+
+  it("segue le foglie di una struttura, e non tocca un id che ci somiglia soltanto", () => {
+    const pg = pagina("p1", "Impianto", [
+      { id: "o1", type: "text", x: 0, y: 0, tag: "motore1.velocita" },
+      { id: "o2", type: "led", x: 0, y: 0, tag: "motore1" },
+      { id: "o3", type: "text", x: 0, y: 0, tag: "motore1bis.velocita" },
+      { id: "o4", type: "rect", x: 0, y: 0, bindings: { fill: "motore1.stato.allarme", opacity: { expr: "{motore1.velocita} > 1" } } },
+    ]);
+    const e = rinomina("motore1", "pompa1", { ...base, tags: [radice], pages: [pg] });
+    const o = e.pages[0].objects;
+    expect(o[0].tag).toBe("pompa1.velocita");
+    expect(o[1].tag).toBe("pompa1");
+    expect(o[2].tag).toBe("motore1bis.velocita");
+    expect(o[3].bindings).toEqual({ fill: "pompa1.stato.allarme", opacity: { expr: "{pompa1.velocita} > 1" } });
+    expect(e.punti[0].n).toBe(4);
+    expect(e.tags[0].id).toBe("pompa1");
+  });
+
+  it("segue gli indici di un array, anche annidati", () => {
+    const pg = pagina("p1", "Zone", [
+      { id: "o1", type: "text", x: 0, y: 0, tag: "zone[2]" },
+      { id: "o2", type: "text", x: 0, y: 0, tag: "zone[0][1].t" },
+    ]);
+    const e = rinomina("zone", "aree", { ...base, tags: [vettore], pages: [pg] });
+    expect(e.pages[0].objects.map((x) => x.tag)).toEqual(["aree[2]", "aree[0][1].t"]);
+  });
+
+  it("segue le foglie anche negli script, negli allarmi e nelle ricette", () => {
+    const gs: GlobalScriptDef = {
+      id: "s1", trigger: { kind: "tag_change", tag: "motore1.velocita" },
+      code: 'tags.write("motore1.marcia", 1); x = tags["motore1bis.v"]',
+    } as GlobalScriptDef;
+    const e = rinomina("motore1", "pompa1", {
+      ...base,
+      tags: [radice],
+      pages: [],
+      alarms: [{ id: "a1", tag: "motore1.allarme", inhibit_tag: "motore1" }] as never,
+      recipes: [{ id: "r1", name: "R", setpoints: [{ tag: "motore1.sp", value: 1 }] }] as never,
+      globalScripts: [gs],
+    });
+    expect(e.globalScripts[0].trigger).toEqual({ kind: "tag_change", tag: "pompa1.velocita" });
+    expect(e.globalScripts[0].code).toBe('tags.write("pompa1.marcia", 1); x = tags["motore1bis.v"]');
+    expect(e.alarms[0].tag).toBe("pompa1.allarme");
+    expect(e.alarms[0].inhibit_tag).toBe("pompa1");
+    expect(e.recipes[0].setpoints[0].tag).toBe("pompa1.sp");
+  });
+
+  it("una variabile scalare non trascina i suoi omonimi con un punto dietro", () => {
+    const scalare: TagDef = { id: "livello", data_type: "float" } as TagDef;
+    const pg = pagina("p1", "P", [
+      { id: "o1", type: "text", x: 0, y: 0, tag: "livello" },
+      { id: "o2", type: "text", x: 0, y: 0, tag: "livello.massimo" },
+    ]);
+    const e = rinomina("livello", "quota", { ...base, tags: [scalare], pages: [pg] });
+    expect(e.pages[0].objects.map((x) => x.tag)).toEqual(["quota", "livello.massimo"]);
+  });
+});

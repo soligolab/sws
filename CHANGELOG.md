@@ -11,6 +11,82 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Added
+- **Variabili e Tipi in una scheda sola, e un CSV che porta via tutto** (richiesta del maintainer, 22-09-2026, da un buco che ha visto subito: «posso esportare le variabili ma non i tipi,
+  quindi esporterei delle variabili senza tipo»). Le due schede di Configurazione diventano una: sotto il Salva un selettore «Variabili | Tipi», ognuna col layout che aveva, e l'export/import
+  CSV sopra il selettore perché ora copre entrambe. Un tipo esiste solo per essere istanziato da una variabile, e tenerli separati rendeva normale produrre un file con `type_ref: Motore` e
+  nessun `Motore` dentro — un file che non si può reimportare da nessuna parte. Il CSV è **un foglio solo** con una prima colonna che dice cos'è la riga: `type` una definizione, `member` un
+  suo membro (il tipo in `owner`, il nome in `id`), `tag` una variabile; le colonne condivise stanno nelle stesse posizioni. Ci sono tutti i campi che l'import sa applicare — scala, limiti,
+  banda morta, ruolo di scrittura, decimali — perché «preservare i dati» vuol dire che un giro esporta→importa non perde niente; chi vuole un file stretto cancella le colonne che non gli
+  servono, e quelle assenti non azzerano. Un `tags.csv` esportato prima di oggi non ha la colonna `kind` e si reimporta come sempre, tutte righe variabili. I membri di un tipo che il file
+  nomina prendono **l'ordine del file** (l'ordine dei membri è l'ordine delle foglie, quindi riordinarli è una modifica vera), ma ogni membro parte da quello esistente con lo stesso nome:
+  riordinare non fa perdere unità e scala.
+
+### Fixed
+- **Un tipo che cambia aggiorna le istanze che sono già in memoria** (trovato provando l'import CSV dal vivo, 22-09-2026). Aggiungere un membro a `Motore` scriveva il file giusto ma il
+  runtime continuava a esporre le vecchie foglie: `motore1.corrente` non esisteva finché non si riavviava, e la stessa cosa valeva per la scheda Tipi, non solo per il CSV. La semina
+  installava solo i tag **nuovi**, quindi un'istanza già in memoria teneva il suo valore composito vecchio anche dopo che la forma era cambiata. Ora la forma nuova si **riconcilia** con il
+  valore vivo: i membri e gli indici che ci sono ancora tengono quello che hanno (una velocità che un PLC sta scrivendo non si azzera), quelli nuovi nascono col valore iniziale, quelli
+  spariti se ne vanno, e un array che si allunga tiene gli elementi che aveva. Il valore si riscrive solo se cambia davvero, perché la semina gira a ogni salvataggio e un aggiornamento
+  inutile arriva a tutti i client collegati.
+
+- **La rinomina di un'istanza segue le sue foglie** (Fase 2 del piano tag, 22-09-2026). Rinominare `motore1` in `pompa1` riscriveva la sola radice, e ogni oggetto legato a
+  `motore1.velocita` restava appeso a un percorso che non esisteva più — in silenzio, esattamente come il ✕ che cancellava un'istanza ancora in uso. Ora il walker della
+  rinomina, quando l'id è quello di una variabile composita, segue anche i percorsi: campi degli oggetti, binding, espressioni, allarmi, ricette, trigger e codice Python.
+  Un id che **somiglia** soltanto non si muove: il prefisso vale solo se finisce dove finisce l'id, su un punto o su una parentesi, quindi `motore1bis` resta `motore1bis`.
+- **Il campo Tag completa il percorso mentre si digita** (Fase 2, 22-09-2026). Scrivendo `motore1` compaiono sotto le sue foglie, con il tipo accanto: ↑/↓ scorrono, Invio o
+  Tab accettano, Esc chiude senza toccare il testo. Prima, per legare un oggetto a una foglia, bisognava ricordarsi a memoria i membri del tipo o passare dal menù ▾. Il
+  completamento è per prefisso (la ricerca per sottostringa resta quella del ▾) e non compare mai su un segnaposto di faceplate.
+- **Un parametro di faceplate può essere un'istanza** (Fase 2, 22-09-2026). Nella definizione, `motore:istanza(Motore)` dichiara un parametro che vuole **un motore**, non un
+  id qualunque; nell'istanza il campo diventa un menù delle variabili composite del progetto, ristretto a quel tipo, e gli oggetti dentro il faceplate scrivono
+  `{motore}.velocita`. È il posto naturale del vecchio `{tag_prefix}` scritto a mano e ricordato a memoria. Un valore che non è più fra le scelte (tipo rinominato) resta
+  selezionato invece di sparire.
+- **L'assistente IA vede i percorsi delle foglie** (Fase 2, 22-09-2026). `elenca_tag` restituisce, per ogni variabile composita, `type_ref`/`array` e l'elenco dei suoi
+  percorsi con il tipo scalare di ognuno, e il filtro guarda anche quelli: chi cerca «velocita» trova la foglia, non solo le radici che si chiamano così. Prima il modello
+  vedeva `motore1` con un `type_ref` e doveva indovinare i membri, o ricostruirli da `leggi_progetto` seguendo a mano i `type_ref` annidati. `schema_tag` e il prompt di
+  sistema dicono ora che una radice composita non si lega: si legano le sue foglie.
+
+### Fixed
+- **L'import CSV delle variabili non azzera più quello che il file non nomina** (22-09-2026). Una riga sostituiva il tag **intero**: reimportare un `tags.csv` appena
+  esportato cancellava in silenzio unità, scala, limiti, banda morta e ruolo di scrittura, perché l'esportazione quelle colonne non le aveva mai avute. Dalla Fase 2 il danno
+  sarebbe stato peggiore: spariva anche `type_ref`, cioè una struttura tornava indietro come uno scalare `float` lasciando ogni pagina legata alle sue foglie. Ora una colonna
+  assente lascia il campo com'era e solo una cella **vuota** su una colonna **presente** lo svuota — che è anche l'unico modo, da un foglio di calcolo, di dire «questa
+  espressione toglila». L'esportazione porta ora anche `unit`, `type_ref` e `array` (le dimensioni con la «x»: `2x3`, perché una virgola dentro un CSV costringerebbe alle
+  virgolette ogni riga). E la lettura rispetta le virgolette: una descrizione con dentro una virgola o un a capo tornava indietro spezzata in due colonne, spostando di uno
+  tutte quelle dopo.
+
+- **La scheda «Tipi»: strutture e array si creano dall'IDE** (Fase 2 del piano tag, 22-09-2026). Fino a qui i tipi struttura esistevano solo scrivendo `project.yaml` a mano.
+  Ora c'è una scheda in Configurazione, fra Variabili e Sorgenti: a sinistra l'elenco dei tipi, a destra i membri — nome, tipo (uno scalare **oppure un altro tipo del
+  progetto**), dimensioni dell'array, unità, storico, e dietro un ⚙ scala, limiti, banda morta, intervallo minimo e ruolo di scrittura. Sotto, **l'anteprima di cosa si
+  ottiene**: l'elenco delle parti che un'istanza avrà davvero (`istanza.velocita · f32`, `istanza.allarmi[0] · bool`), che è anche il posto dove un tipo scritto male lo dice
+  subito — un tipo che si contiene, un membro senza tipo, un array a dimensione zero. Un tipo usato da una variabile non si cancella, e la scheda dice quante istanze ha
+  perché modificarlo le cambia tutte. Nella scheda Variabili il menù del tipo offre ora anche i tipi del progetto — sceglierne uno rende la variabile un'**istanza** — e la
+  riga avanzata ha le dimensioni dell'array. Il selettore delle variabili mostra le foglie **rientrate sotto la loro radice**, col loro tipo accanto. La forma
+  (quali foglie, con che percorso e che tipo) è calcolata in due, dal runtime e dall'editor, sugli **stessi casi**: `tests/fixtures/forme-tag.json`, letta da un test Rust e
+  da uno vitest — due calcoli separati della stessa cosa divergerebbero in silenzio, e si vedrebbe come un percorso che l'IDE offre e il runtime non ha. Nuovo endpoint
+  `PUT /api/project/types`, che dopo la scrittura ripassa da `apply_tags`: cambiare un tipo rifà forma, valore iniziale, scale, tipi e rotte dello storico di tutte le
+  istanze.
+- **Gli usi di una foglia sono usi della sua radice** (difetto trovato dal maintainer al primo collaudo, 22-09-2026, e del tipo peggiore: cancellava in silenzio). La scheda
+  Variabili lasciava **eliminare** un'istanza che una pagina stava usando, perché un oggetto si lega a `motore1.velocita` e non a `motore1`, e chiedere gli usi della sola
+  radice rispondeva «nessuno»: la pagina restava legata a un percorso che non esiste più, senza un avviso. Ora il ✕ è spento con l'elenco dei punti d'uso, il pallino «non
+  usata» non compare più a torto e il filtro usate/non usate conta giusto. La regola sta in `usiDiUnTag` dentro il modulo della ricerca, perché la stessa domanda serve anche
+  al «dove è usato» dell'editor.
+- **Storico, espressioni e Python seguono le foglie** (Fase 1e del piano tag, 22-09-2026). Lo storico di un'istanza registra le sue **foglie**, non la radice: una colonna
+  numerica non tiene una struttura, e un grafico si lega a una foglia. L'**interruttore `history` sta sulla radice** (scelta del maintainer): acceso, entrano tutte le foglie;
+  il tipo può escluderne una con `history: false` sul membro, e vale per tutte le istanze. Banda morta e intervallo minimo vengono dal membro, se li dichiara, altrimenti dal
+  tag. Lo snapshot che alimenta le espressioni dei tag calcolati porta ora **foglie e radici insieme**: uno script può scrivere `tags["motore1.velocita"]` oppure
+  `tags["motore1"]["velocita"]`, perché in Python il dizionario è piatto e non interpreta percorsi — servono tutte e due le chiavi.
+- **Scrittura per percorso e filo espanso in foglie** (Fase 1d del piano `docs/plans/2026-09-21-gestione-tag-oggetto-unico.md`, 22-09-2026). Con questo passo **un progetto con
+  `types:` si può mandare a un pannello**: prima la radice composita viaggiava intera, e un frame WebSocket tipizzato con dentro un array avrebbe fatto perdere al viewer LVGL
+  l'**intero** pacchetto, non quella voce. Ora `/ws/tags` e `GET /api/tags` mandano le **foglie** di default (`motore1.velocita`, `matrice[1][0]`, ognuna con la sua qualità);
+  chi sa leggere una radice la chiede con `?composito=1` o con `{"type":"subscribe","composito":true}` — i due client di oggi non lo chiedono e non cambiano di una riga.
+  La richiesta di scrittura porta ora **(id registrato, percorso relativo, valore)** invece di (id, valore): il bus instrada dalla mappatura **più specifica alla radice**, così
+  un plugin che possiede `motore1` riceve anche le scritture su `motore1.velocita` con il percorso già separato, e nessun plugin riscrive quella divisione per conto suo (i sei
+  plugin oggi rifiutano con un avviso una scrittura su foglia: il blocco arriva con le Fasi 3-4). Coercizione e scala restano quelle **della foglia**, dal membro del tipo. Le
+  ricette accettano un valore composito (array e oggetto JSON), `null` no — non è un valore, è l'assenza. Lato editor si chiude una trappola: un percorso dentro un'istanza
+  (`motore1.velocita`) è **dichiarato quanto il suo id**, quindi il salvataggio non lo crea più come tag piatto accanto all'istanza — sarebbe la collisione che il
+  validatore rifiuta, e una delle due non si raggiungerebbe più. Vale anche per il segnalino del campo variabile, che smette di offrirlo come «nuovo».
+
 ### Changed
 - **La palette degli oggetti: due colonne, icone più grandi, e finalmente scorre** (segnalazioni del maintainer, 22-09-2026). Su un monitor basso il gruppo Display
   **finiva sotto il bordo del pannello e le ultime voci erano irraggiungibili**: come vista la sezione dà ai figli tutta l'altezza con `overflow: hidden`, e la palette

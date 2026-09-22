@@ -1506,7 +1506,8 @@ mod tests_check {
         .await
         .expect("script fallito");
 
-        let (id, valore) = rx.recv().await.expect("nessuna scrittura sul bus");
+        let (id, percorso, valore) = rx.recv().await.expect("nessuna scrittura sul bus");
+        assert_eq!(percorso, None, "un tag piatto non ha percorso");
         assert_eq!(id, "s");
         assert_eq!(
             valore,

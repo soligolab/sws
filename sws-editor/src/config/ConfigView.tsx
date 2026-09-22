@@ -18,6 +18,8 @@ import { QuickCreateTagModal } from "@/components/QuickCreateTagModal";
 import { Tenuta } from "@/components/Tenuta";
 import { RinominaTagModal } from "@/components/RinominaTagModal";
 import { OpzioniTipo } from "@/components/OpzioniTipo";
+import { TipiTab } from "./TipiTab";
+import { csvVariabiliETipi } from "@/tag/csvTag";
 import { normalizzaTipo } from "@/tag/tipiScalari";
 import { tipoDaEnIp, tipoDaS7 } from "@/tag/riconciliaTag";
 import { DataTable, type DataTableColumn } from "@/components/DataTable";
@@ -29,7 +31,7 @@ import { chiudiAiStream } from "@/ws/aiStream";
 import { SvgObject, substituteFaceplateParams } from "@/canvas/SvgCanvas";
 import type { AiConfig, FaceplateParamDef } from "@/types";
 import { applyStateColor, listSvgIds, parseSvg, sanitizeSvg } from "@/symbols/customSvg";
-import { buildTagUsage } from "@/search/tagUsage";
+import { buildTagUsage, usiDiUnTag } from "@/search/tagUsage";
 import { selectIsDirty, useAppStore } from "@/store";
 import { sourceTagIds } from "@/tagCatalog";
 import { canConfigureProject } from "@/auth/permissions";
@@ -129,7 +131,7 @@ function BarraConflittoSezione(
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
-const S = {
+export const S = {
   page: {
     display: "flex" as const,
     flexDirection: "column" as const,
@@ -291,7 +293,26 @@ const S = {
  *  bot token Telegram). Rimandarla indietro invariata lascia il valore com'è. */
 const MASKED = "********";
 
-function SaveBar({
+/** Registra la bozza di una sezione fra quelle pendenti, **senza** disegnare
+ *  niente. È la metà di `SaveBar` che conta per il Salva unico: una
+ *  sottoscheda ha la sua bozza da far arrivare a `saveAll()`, ma non una
+ *  seconda barra da mostrare. */
+export function SezionePendente({
+  section, dirty, onSave,
+}: { section: string; dirty: boolean; onSave: () => void | Promise<void> }) {
+  const registerPendingSection = useAppStore((s) => s.registerPendingSection);
+  // Stessa ragione della ref in SaveBar: `onSave` cambia identità a ogni
+  // battuta di tasto, e ri-registrare a ogni tasto ri-renderizza.
+  const onSaveRef = useRef(onSave);
+  onSaveRef.current = onSave;
+  useEffect(() => {
+    registerPendingSection(section, dirty ? async () => { await onSaveRef.current(); } : null);
+    return () => registerPendingSection(section, null);
+  }, [section, dirty, registerPendingSection]);
+  return null;
+}
+
+export function SaveBar({
   onSave,
   saving: _saving,
   saved: _saved,
@@ -369,6 +390,7 @@ function TagsTab() {
   const { t } = useTranslation();
   const storeProject        = useAppStore((s) => s.project);
   const updateProjectTags   = useAppStore((s) => s.updateProjectTags);
+  const updateProjectTypes  = useAppStore((s) => s.updateProjectTypes);
   const tagValues           = useAppStore((s) => s.tagValues);
   const markSaveOk          = useAppStore((s) => s.markSaveOk);
   const datastoreIds        = storeProject?.datastores?.map((d) => ({ id: d.id, label: d.label })) ?? [];
@@ -403,6 +425,11 @@ function TagsTab() {
   const allPages = useAppStore((s) => s.pages);
   const allFaceplates = useAppStore((s) => s.faceplates);
   const [showImport, setShowImport] = useState(false);
+  // Quale delle due sottoschede si vede. L'altra resta montata (`Tenuta`), o
+  // cambiando vista si perderebbe la bozza — lo stesso motivo per cui le
+  // schede di Configurazione non si smontano dal 22-09-2026.
+  const [vista, setVista] = useState<"variabili" | "tipi">("variabili");
+  const [revTipi, setRevTipi] = useState(0);
   const [importText, setImportText] = useState("");
   const [importMsg, setImportMsg]   = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -515,7 +542,12 @@ function TagsTab() {
     if (fltDesc) rows = rows.filter((r) => has(r.tag.description, fltDesc));
     if (fltType) rows = rows.filter((r) => normalizzaTipo(r.tag.data_type) === fltType);
     if (fltHist) rows = rows.filter((r) => (r.tag.history ? "yes" : "no") === fltHist);
-    if (fltUse) rows = rows.filter((r) => (usedTagInfo.has(r.tag.id) ? "used" : "unused") === fltUse);
+    if (fltUse) {
+      rows = rows.filter((r) => {
+        const usato = usiDiUnTag(r.tag, usedTagInfo, storeProject?.types ?? []).length > 0;
+        return (usato ? "used" : "unused") === fltUse;
+      });
+    }
     if (sort) {
       const { col, dir } = sort;
       const key = (r: { tag: TagDef }): string | number | boolean => {
@@ -545,7 +577,7 @@ function TagsTab() {
       });
     }
     return rows;
-  }, [tags, sort, fltId, fltDesc, fltType, fltHist, fltUse, usedTagInfo, tagValues]);
+  }, [tags, sort, fltId, fltDesc, fltType, fltHist, fltUse, usedTagInfo, tagValues, storeProject?.types]);
 
   const filtersActive = !!(fltId || fltDesc || fltType || fltHist || fltUse);
   const clearFilters = () => { setFltId(""); setFltDesc(""); setFltType(""); setFltHist(""); setFltUse(""); };
@@ -575,17 +607,13 @@ function TagsTab() {
   };
 
   const handleExportCsv = () => {
-    const header = "id,data_type,description,history,expression";
-    const rows = tags.map((t) =>
-      [t.id, t.data_type ?? "float", t.description ?? "", t.history ? "true" : "false", t.expression ?? ""]
-        .map((v) => (v.includes(",") || v.includes("\n") ? `"${v.replace(/"/g, '""')}"` : v))
-        .join(",")
-    );
-    const csv = [header, ...rows].join("\n");
+    // Un file solo per variabili **e** tipi (22-09-2026): il perché e il
+    // formato stanno in `tag/csvTag.ts`.
+    const csv = csvVariabiliETipi(tags, storeProject?.types ?? []);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = "tags.csv"; a.click();
+    a.href = url; a.download = "variabili-e-tipi.csv"; a.click();
     URL.revokeObjectURL(url);
   };
 
@@ -593,10 +621,15 @@ function TagsTab() {
     setImportMsg(null);
     try {
       const result = await api.importTagsCsv(importText);
-      setImportMsg(t("cfgUi.tagsImported", { count: result.imported }));
+      setImportMsg(t("cfgUi.tagsImported", { count: result.imported, tipi: result.tipi ?? 0 }));
       // Refresh from server
       const proj = await api.getProject();
       if (proj.tags) { setTags(proj.tags); updateProjectTags(proj.tags); }
+      if (proj.types) updateProjectTypes(proj.types);
+      // La sottoscheda Tipi tiene la sua copia locale: si rimonta, così
+      // rilegge dallo store. Una sua bozza non salvata si perde, ma l'import
+      // ha appena scritto sul server: era già superata.
+      setRevTipi((n) => n + 1);
       setImportText("");
     } catch (e: unknown) {
       setImportMsg(t("cfgUi.errorMsg", { message: e instanceof Error ? e.message : t("cfgUi.importFailed") }));
@@ -635,8 +668,9 @@ function TagsTab() {
           <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 8, width: 560, display: "flex", flexDirection: "column", gap: 10, padding: 16 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: "var(--brand-text-2, #cbd5e1)" }}>{t("cfgUi.importTagsFromCsv")}</div>
             <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)" }}>
-              {t("cfgUi.firstRowHeaderRequiredColumns")} <code>id</code>. Opzionali: <code>data_type</code>, <code>description</code>, <code>history</code>, <code>expression</code>.
-              I tag esistenti vengono aggiornati; i nuovi vengono aggiunti.
+              {t("cfgUi.firstRowHeaderRequiredColumns")} <code>id</code>. Opzionali: <code>kind</code>, <code>owner</code>, <code>data_type</code>, <code>type_ref</code>, <code>array</code>, <code>description</code>, <code>unit</code>, <code>decimals</code>, <code>history</code>, <code>expression</code>, <code>write_min_role</code>, <code>raw_min</code>/<code>raw_max</code>, <code>eng_min</code>/<code>eng_max</code>, <code>range_lo</code>/<code>range_hi</code>, <code>limit_*</code>.
+              {" "}{t("cfgUi.csvKind")}
+              {" "}{t("cfgUi.csvColonneAssenti")}
             </div>
             <input
               ref={fileRef}
@@ -675,7 +709,38 @@ function TagsTab() {
           </div>
         </div>
       )}
-      <div style={S.sectionTitle}>{t("cfgUi.variablesTags")}</div>
+      {/* Variabili e Tipi in una scheda sola (22-09-2026, scelta del
+          maintainer): un tipo esiste solo per essere istanziato da una
+          variabile, e tenerli in due schede separate rendeva possibile
+          esportare le variabili senza i loro tipi — un file che non si può
+          reimportare. Il Salva è uno (quello del progetto) e l'import/export
+          CSV copre entrambe, quindi stanno sopra il selettore. */}
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
+        <div style={{ display: "flex", gap: 2, background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 6, padding: 2 }}>
+          {(["variabili", "tipi"] as const).map((v) => (
+            <button
+              key={v}
+              onClick={() => setVista(v)}
+              style={{
+                border: "none", borderRadius: 4, cursor: "pointer", fontSize: 12,
+                padding: "4px 14px",
+                background: vista === v ? "var(--brand-surface-2, #334155)" : "transparent",
+                color: vista === v ? "var(--brand-text, #e2e8f0)" : "var(--brand-text-muted, #94a3b8)",
+                fontWeight: vista === v ? 700 : 400,
+              }}
+            >
+              {v === "variabili" ? t("cfgUi.variablesTags") : t("config.tabs.types")}
+              {v === "tipi" && (storeProject?.types ?? []).length > 0 ? ` (${(storeProject?.types ?? []).length})` : ""}
+            </button>
+          ))}
+        </div>
+        <div style={{ flex: 1 }} />
+        <button style={S.btn("ghost")} onClick={handleExportCsv} title={t("cfg.downloadTagsCsv")}>{t("cfgUi.exportCsv")}</button>
+        <button style={S.btn("ghost")} onClick={() => setShowImport(true)} title={t("cfg.importTagsCsv")}>{t("cfgUi.importCsv")}</button>
+      </div>
+
+      <Tenuta attiva={vista === "tipi"}><TipiTab key={revTipi} incorporata /></Tenuta>
+      <Tenuta attiva={vista === "variabili"}>
       <div style={S.notice}>
         <Trans i18nKey="cfgUi.variablesNotice" values={{ tab: t("config.tabs.protocols") }} components={TRANS_COMP} />
       </div>
@@ -740,7 +805,11 @@ function TagsTab() {
         <tbody>
           {view.map(({ tag, origIdx: i }: { tag: TagDef; origIdx: number }) => {
             const tv = tagValues[tag.id];
-            const uses = usedTagInfo.get(tag.id);
+            // Le foglie contano: un oggetto si lega a `motore1.velocita`, non
+            // a `motore1`. Senza, l'istanza risultava «non usata» e si poteva
+            // cancellare lasciando la pagina legata al nulla.
+            const usiTag = usiDiUnTag(tag, usedTagInfo, storeProject?.types ?? []);
+            const uses = usiTag.length > 0 ? usiTag : undefined;
             const unused = tag.id.trim() !== "" && !uses;
             return (
               <React.Fragment key={i}>
@@ -775,10 +844,26 @@ function TagsTab() {
                       quando l'utente cambia: gli alias sopravvivono finché si vuole. */}
                   <select
                     style={{ ...S.input, cursor: "pointer" }}
-                    value={normalizzaTipo(tag.data_type) ?? "f64"}
-                    onChange={(e) => updateTag(i, { data_type: e.target.value as TagDataType })}
+                    value={tag.type_ref ? `@${tag.type_ref}` : (normalizzaTipo(tag.data_type) ?? "f64")}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      // Fase 2: scegliendo un tipo struttura la variabile
+                      // diventa un'**istanza**, e le sue parti si raggiungono
+                      // per percorso. `data_type` resta com'è: non conta più,
+                      // e riportarlo indietro non deve perdere niente.
+                      updateTag(i, v.startsWith("@")
+                        ? { type_ref: v.slice(1) }
+                        : { data_type: v as TagDataType, type_ref: undefined });
+                    }}
                   >
                     <OpzioniTipo />
+                    {(storeProject?.types ?? []).length > 0 && (
+                      <optgroup label={t("cfg.tagTipiProgetto")}>
+                        {(storeProject?.types ?? []).map((td) => (
+                          <option key={td.id} value={`@${td.id}`}>{td.id}</option>
+                        ))}
+                      </optgroup>
+                    )}
                   </select>
                 </td>
                 <td style={{ ...S.td, textAlign: "center" }}>
@@ -892,6 +977,18 @@ function TagsTab() {
                                 onChange={(e) => updateTag(i, { unit: e.target.value || undefined })} />
                             </label>
                             {numCell(t("cfg.tagDecimals"), "decimals", "1")}
+                            <label style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 10, color: "var(--brand-text-subtle, #64748b)", width: 100 }}
+                                   title={t("cfg.tagArrayHint")}>
+                              {t("cfg.tagArray")}
+                              <input style={{ ...S.input, fontSize: 12, fontFamily: "monospace" }} placeholder="2 o 2,3"
+                                value={(tag.array ?? []).join(",")}
+                                spellCheck={false}
+                                onChange={(e) => {
+                                  const v = e.target.value.split(",").map((x) => x.trim()).filter(Boolean).map(Number);
+                                  const valido = v.length > 0 && v.every((n) => Number.isInteger(n) && n > 0);
+                                  updateTag(i, { array: valido ? v : undefined });
+                                }} />
+                            </label>
                             {numCell("Range lo", "range_lo")}
                             {numCell("Range hi", "range_hi")}
                             <label style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 10, color: "var(--brand-text-subtle, #64748b)", width: 120 }}>
@@ -1033,8 +1130,6 @@ function TagsTab() {
 
       <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
         <button style={S.btn("ghost")} onClick={addTag}>{t("cfgUi.addVariable")}</button>
-        <button style={S.btn("ghost")} onClick={handleExportCsv} title={t("cfg.downloadTagsCsv")}>{t("cfgUi.exportCsv")}</button>
-        <button style={S.btn("ghost")} onClick={() => setShowImport(true)} title={t("cfg.importTagsCsv")}>{t("cfgUi.importCsv")}</button>
       </div>
 
       {/* Orphan source tags — present in protocol sources but missing from project.tags */}
@@ -1083,6 +1178,7 @@ function TagsTab() {
           </div>
         );
       })()}
+      </Tenuta>
     </div>
   );
 }
@@ -7734,14 +7830,18 @@ function FaceplatesTab() {
                 <textarea
                   value={current.params.map((p) => {
                     if (typeof p === "string") return p;
-                    return `${p.name}${p.type ? `:${p.type}` : ""}${p.default !== undefined ? `=${p.default}` : ""}${p.required ? "!" : ""}`;
+                    const tipo = p.type ? `:${p.type}${p.type === "istanza" && p.type_ref ? `(${p.type_ref})` : ""}` : "";
+                    return `${p.name}${tipo}${p.default !== undefined ? `=${p.default}` : ""}${p.required ? "!" : ""}`;
                   }).join("\n")}
                   onChange={(e) => updateCurrent({ params: e.target.value.split("\n").map(s => s.trim()).filter(Boolean).map((line) => {
-                    const m = /^(\w+)(?::(tag|string|number|color))?(?:=([^!]*))?(!)?$/.exec(line);
+                    // `istanza(Motore)`: il tipo del progetto di cui il
+                    // parametro vuole un'istanza, opzionale come tutto il resto.
+                    const m = /^(\w+)(?::(tag|string|number|color|istanza)(?:\(([\w-]+)\))?)?(?:=([^!]*))?(!)?$/.exec(line);
                     if (!m) return line; // riga non parsabile: resta stringa nuda
-                    const [, name, type, dflt, req] = m;
+                    const [, name, type, ref, dflt, req] = m;
                     if (!type && dflt === undefined && !req) return name;
-                    return { name, ...(type ? { type: type as "tag" | "string" | "number" | "color" } : {}),
+                    return { name, ...(type ? { type: type as FaceplateParamDef["type"] } : {}),
+                             ...(ref ? { type_ref: ref } : {}),
                              ...(dflt !== undefined ? { default: dflt } : {}), ...(req ? { required: true } : {}) };
                   }) })}
                   style={{ ...S.input, height: 80, resize: "vertical", fontFamily: "monospace", fontSize: 12 }}
@@ -11150,20 +11250,28 @@ function LanguagesTab() {
   );
 }
 
-type ConfigTab = "tags" | "protocols" | "alarms" | "datastores" | "scripts" | "faceplates" | "recipes" | "notifications" | "languages" | "users" | "resources" | "system" | "backups" | "devices" | "runtime" | "ide";
+// «types» non è più una scheda: i tipi vivono dentro «tags», in una
+// sottoscheda (22-09-2026). Restano nel tipo perché un vecchio valore salvato
+// in localStorage non deve far sparire il pannello: `tab` lo normalizza.
+type ConfigTab = "tags" | "types" | "protocols" | "alarms" | "datastores" | "scripts" | "faceplates" | "recipes" | "notifications" | "languages" | "users" | "resources" | "system" | "backups" | "devices" | "runtime" | "ide";
+
+/** Un «types» che arriva da uno stato salvato prima del 22-09-2026 (o da un
+ *  link) non deve lasciare il pannello vuoto: i tipi ora stanno dentro
+ *  «tags», e lì si finisce. */
+const normalizza = (x: ConfigTab): ConfigTab => (x === "types" ? "tags" : x);
 
 export function ConfigView() {
   const { t } = useTranslation();
   const storeTab    = useAppStore((s) => s.configTab) as ConfigTab;
   const setStoreTab = useAppStore((s) => s.setConfigTab);
-  const [tab, setTab] = useState<ConfigTab>(storeTab);
+  const [tab, setTab] = useState<ConfigTab>(() => normalizza(storeTab));
   const authRole = useAppStore((s) => s.authRole);
   const isAdmin = authRole === "Admin";
   const project          = useAppStore((s) => s.project);
   const projectLoadError = useAppStore((s) => s.projectLoadError);
 
   // Sync when the store tab changes (e.g. navigateToConfig from LeftPanel).
-  useEffect(() => { setTab(storeTab); }, [storeTab]);
+  useEffect(() => { setTab(normalizza(storeTab)); }, [storeTab]);
 
   const handleSetTab = (t: ConfigTab) => {
     setTab(t);

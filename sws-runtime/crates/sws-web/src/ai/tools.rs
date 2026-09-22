@@ -304,17 +304,62 @@ async fn leggi_progetto(s: &AppState) -> Esito {
     Ok(v)
 }
 
+/// I tag dichiarati — e, per quelli compositi, **i percorsi delle foglie**.
+///
+/// Una struttura o un array non si legge e non si scrive dalla radice: gli
+/// oggetti si legano a `motore1.velocita`. Un modello che vede solo `motore1`
+/// e il suo `type_ref` dovrebbe indovinare i membri del tipo (o chiamare
+/// `leggi_progetto` e ricostruirli a mano attraverso i `type_ref` annidati):
+/// qui i percorsi ci sono già, con il tipo scalare di ognuno. Il filtro guarda
+/// anche i percorsi, così `filtro: "velocita"` trova le foglie e non solo le
+/// radici che si chiamano così.
 async fn elenca_tag(s: &AppState, filtro: Option<&str>) -> Esito {
     let p = carica_progetto(s).await?;
-    let f = filtro.unwrap_or("");
-    Ok(json!(p
+    Ok(righe_tag(&p, filtro.unwrap_or("")))
+}
+
+/// La parte pura di `elenca_tag`: un progetto in mano, niente stato.
+fn righe_tag(p: &sws_core::project::Project, f: &str) -> Value {
+    let foglie_di = |t: &sws_core::project::TagDef| -> Vec<sws_core::percorso::Foglia> {
+        match sws_core::percorso::Forma::da_tag(t, &p.types) {
+            Ok(Some(forma)) => forma.foglie(&t.id, &p.types),
+            // Una forma che non sta in piedi (tipo inesistente, ciclo) la
+            // segnala `valida`: qui si tace e si mostra la sola radice.
+            _ => Vec::new(),
+        }
+    };
+    json!(p
         .tags
         .iter()
-        .filter(|t| f.is_empty() || t.id.contains(f))
+        .filter(|t| {
+            f.is_empty()
+                || t.id.contains(f)
+                || foglie_di(t).iter().any(|fg| fg.percorso.contains(f))
+        })
         .map(|t| {
             let mut o = serde_json::Map::new();
             o.insert("id".into(), json!(t.id));
             o.insert("data_type".into(), json!(t.data_type));
+            if let Some(tr) = &t.type_ref {
+                o.insert("type_ref".into(), json!(tr));
+            }
+            if let Some(a) = &t.array {
+                o.insert("array".into(), json!(a));
+            }
+            if t.e_composito() {
+                let fg = foglie_di(t);
+                o.insert(
+                    "percorsi".into(),
+                    json!(fg
+                        .iter()
+                        .map(|x| json!({ "percorso": x.percorso, "data_type": x.tipo.nome() }))
+                        .collect::<Vec<_>>()),
+                );
+                o.insert(
+                    "nota".into(),
+                    json!("Composito: lega gli oggetti ai `percorsi`, non a questo id."),
+                );
+            }
             if !t.description.is_empty() {
                 o.insert("descrizione".into(), json!(t.description));
             }
@@ -327,7 +372,7 @@ async fn elenca_tag(s: &AppState, filtro: Option<&str>) -> Esito {
             }
             Value::Object(o)
         })
-        .collect::<Vec<_>>()))
+        .collect::<Vec<_>>())
 }
 
 /// I campi di un tag.
@@ -349,7 +394,11 @@ fn schema_tag() -> Esito {
         "nota": format!(
             "Il tipo di un tag è `data_type`, con valori {} o string(N); `int` e `float` \
              sono alias di i64 e f64. Un tag con `expression` o con `generator` attivo è \
-             calcolato: non si può scrivere.",
+             calcolato: non si può scrivere. Un tag con `type_ref` (una struttura \
+             dichiarata in `types:`) o con `array` (le dimensioni, es. [4] o [2,3]) è \
+             COMPOSITO: il suo id da solo non è un dato, e gli oggetti si legano ai \
+             percorsi delle foglie — `motore1.velocita`, `zone[2].t`. I percorsi li dà \
+             `elenca_tag`; `data_type` resta obbligatorio anche sui compositi.",
             sws_core::tipo::NOMI.join(", ")
         ),
     }))
@@ -774,6 +823,60 @@ mod tests {
         assert!(campi.contains(&"data_type"), "campi: {campi:?}");
         assert!(campi.contains(&"id"));
         assert!(v["nota"].as_str().unwrap().contains("data_type"));
+    }
+
+    /// Un composito porta con sé i percorsi delle sue foglie.
+    ///
+    /// Senza, il modello vede `motore1` con `type_ref: Motore` e deve
+    /// indovinare come si chiamano i membri — o ricostruirli da
+    /// `leggi_progetto` seguendo i `type_ref` annidati a mano. È il giro che
+    /// `schema_tag` è nato per togliere, sulla stessa famiglia di errore.
+    #[test]
+    fn elenca_tag_mostra_i_percorsi_di_una_struttura() {
+        // Costruito dal JSON e non a campi: `Project` non ha `Default`, e
+        // così il test passa anche dal serde che usa il progetto vero.
+        let p: sws_core::project::Project = serde_json::from_value(json!({
+            "meta": { "name": "test", "version": "1" },
+            "types": [{ "id": "Motore", "members": [
+                { "name": "velocita", "data_type": "f32" },
+                { "name": "marcia", "data_type": "bool" }] }],
+            "tags": [
+                { "id": "motore1", "data_type": "bool", "type_ref": "Motore" },
+                { "id": "livello", "data_type": "f32" }],
+        }))
+        .unwrap();
+
+        let v = righe_tag(&p, "");
+        let righe = v.as_array().unwrap();
+        assert_eq!(righe.len(), 2);
+        assert_eq!(righe[0]["type_ref"], "Motore");
+        let percorsi: Vec<&str> = righe[0]["percorsi"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|x| x["percorso"].as_str().unwrap())
+            .collect();
+        assert_eq!(percorsi, ["motore1.velocita", "motore1.marcia"]);
+        assert_eq!(righe[0]["percorsi"][0]["data_type"], "f32");
+        // Uno scalare resta com'era: nessun campo nuovo, nessun rumore.
+        assert!(righe[1].get("percorsi").is_none());
+        assert!(righe[1].get("nota").is_none());
+
+        // Il filtro guarda anche i percorsi: chi cerca «velocita» vuole la
+        // foglia, e la radice non si chiama così.
+        let solo = righe_tag(&p, "velocita");
+        assert_eq!(solo.as_array().unwrap().len(), 1);
+        assert_eq!(solo[0]["id"], "motore1");
+        assert_eq!(righe_tag(&p, "livello").as_array().unwrap().len(), 1);
+    }
+
+    /// Lo schema del tag dice che un composito non si lega dalla radice.
+    #[test]
+    fn lo_schema_del_tag_spiega_i_compositi() {
+        let nota = schema_tag().unwrap()["nota"].as_str().unwrap().to_string();
+        assert!(nota.contains("type_ref"), "{nota}");
+        assert!(nota.contains("array"), "{nota}");
+        assert!(nota.contains("motore1.velocita"), "{nota}");
     }
 
     /// L'ordine degli strumenti entra nel prefisso della cache: uno strumento

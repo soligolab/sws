@@ -126,6 +126,14 @@ impl DatastoreRegistry {
         }
 
         // Build route table from the project tag definitions.
+        //
+        // Fase 1e (22-09-2026): un'**istanza** non si registra intera — lo
+        // storico tiene scalari, e Postgres ha una colonna numerica. Si
+        // registrano le sue **foglie**, con l'id di percorso. L'interruttore
+        // `history` sta sulla **radice** (scelta del maintainer): acceso,
+        // entrano tutte le foglie; il tipo può escluderne una con
+        // `history: false` sul membro, e vale per tutte le istanze. Banda
+        // morta e intervallo minimo vengono dal membro, se li dichiara.
         let mut routes = HashMap::new();
         for tag in &project.tags {
             if !tag.history {
@@ -136,13 +144,36 @@ impl DatastoreRegistry {
             } else {
                 0
             };
-            routes.insert(
-                tag.id.clone(),
-                TagRoute {
-                    datastore_idx,
-                    filter: TagFilter::new(tag.history_deadband, tag.history_min_interval_ms),
-                },
-            );
+            let foglie = match sws_core::Forma::da_tag(tag, &project.types) {
+                Ok(Some(forma)) => forma.foglie(&tag.id, &project.types),
+                _ => Vec::new(),
+            };
+            if foglie.is_empty() {
+                routes.insert(
+                    tag.id.clone(),
+                    TagRoute {
+                        datastore_idx,
+                        filter: TagFilter::new(tag.history_deadband, tag.history_min_interval_ms),
+                    },
+                );
+                continue;
+            }
+            for f in foglie {
+                let (registra, deadband, intervallo) = match &f.membro {
+                    Some(m) => (m.history, m.history_deadband, m.history_min_interval_ms),
+                    None => (true, tag.history_deadband, tag.history_min_interval_ms),
+                };
+                if !registra {
+                    continue;
+                }
+                routes.insert(
+                    f.percorso,
+                    TagRoute {
+                        datastore_idx,
+                        filter: TagFilter::new(deadband, intervallo),
+                    },
+                );
+            }
         }
 
         Ok(Some(Arc::new(Self {
@@ -317,12 +348,18 @@ impl DatastoreRegistry {
             loop {
                 match rx.recv().await {
                     Ok(update) => {
-                        let sample = Sample {
-                            ts_ms: update.state.timestamp_ms,
-                            value: update.state.value.clone(),
-                            quality: update.state.quality.clone(),
-                        };
-                        self.record(&update.id, &sample).await;
+                        // Fase 1e: l'aggiornamento di una radice composita si
+                        // espande nelle sue foglie, che sono scalari e hanno
+                        // ognuna la sua qualità. Per un tag piatto
+                        // `espandi_foglie` ritorna l'aggiornamento stesso.
+                        for (id, st) in tag_db.espandi_foglie(&update).await {
+                            let sample = Sample {
+                                ts_ms: st.timestamp_ms,
+                                value: st.value,
+                                quality: st.quality,
+                            };
+                            self.record(&id, &sample).await;
+                        }
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
                         warn!("datastore recorder lagged by {n}");
@@ -331,5 +368,61 @@ impl DatastoreRegistry {
                 }
             }
         })
+    }
+}
+#[cfg(test)]
+mod foglie_tests {
+    use super::*;
+    use sws_core::Project;
+
+    fn progetto() -> Project {
+        serde_yaml::from_str(
+            r#"
+meta: { name: p, version: "1" }
+types:
+  - id: Motore
+    members:
+      - { name: velocita, data_type: f32, history_deadband: 0.5 }
+      - { name: marcia, data_type: bool }
+      - { name: nome, data_type: string(8), history: false }
+tags:
+  - { id: motore1, type_ref: Motore, history: true }
+  - { id: motore2, type_ref: Motore, history: false }
+  - { id: piatto, data_type: f64, history: true, history_deadband: 2.0 }
+sources: []
+alarms: []
+datastores:
+  - { id: default, label: d, backend: { kind: sqlite, path: "h.db" } }
+"#,
+        )
+        .unwrap()
+    }
+
+    /// Fase 1e: si registrano le FOGLIE, con l'interruttore sulla radice e i
+    /// parametri dal membro. Una radice composita non entra intera: lo storico
+    /// tiene scalari, e Postgres ha una colonna numerica.
+    #[tokio::test]
+    async fn le_rotte_dello_storico_sono_per_foglia() {
+        let dir = tempfile::tempdir().unwrap();
+        let reg = DatastoreRegistry::from_project(&progetto(), dir.path())
+            .await
+            .unwrap()
+            .expect("registro");
+        let mut ids: Vec<String> = reg.routes.read().await.keys().cloned().collect();
+        ids.sort();
+        assert_eq!(
+            ids,
+            [
+                "motore1.marcia".to_string(),
+                "motore1.velocita".to_string(),
+                "piatto".to_string(),
+            ],
+            "motore2 ha lo storico spento; `nome` è escluso dal tipo; la radice non c'è"
+        );
+        // la banda morta viene dal membro, non dalla radice
+        let routes = reg.routes.read().await;
+        assert_eq!(routes["motore1.velocita"].filter.deadband, Some(0.5));
+        assert_eq!(routes["motore1.marcia"].filter.deadband, None);
+        assert_eq!(routes["piatto"].filter.deadband, Some(2.0));
     }
 }

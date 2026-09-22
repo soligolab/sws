@@ -45,6 +45,7 @@ import type {
   TemplateEntry,
   AiConfig,
   ConfigTraduzione,
+  TypeDef,
 } from "@/types";
 import i18n from "i18next";
 
@@ -449,7 +450,7 @@ const PATH_RIPORTANO_VERSIONE = [
  *  Rispecchia gli handler che in `router.rs` chiamano `patch_project_se`: se
  *  cambia lì, cambia qui. */
 const PATH_VERSIONATI = [
-  "/api/project/tags", "/api/project/languages", "/api/project/sources",
+  "/api/project/tags", "/api/project/types", "/api/project/languages", "/api/project/sources",
   "/api/project/alarms", "/api/project/functions", "/api/project/custom-symbols",
   "/api/project/datastores", "/api/project/global-scripts",
   "/api/project/notifications", "/api/project/page-layout", "/api/project/target",
@@ -682,8 +683,18 @@ export const api = {
       body: JSON.stringify(tags),
     }),
 
+  /** PUT /api/project/types — i tipi struttura (Fase 2). Cambiarne uno cambia
+   *  **tutte le sue istanze**: il runtime ne rifà forma, valore iniziale,
+   *  scale, tipi e rotte dello storico. */
+  updateTypes: (types: TypeDef[]) =>
+    request<void>("/api/project/types", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...seVersionato("/api/project/types") },
+      body: JSON.stringify(types),
+    }),
+
   importTagsCsv: (csvText: string) =>
-    request<{ imported: number }>("/api/project/tags/import-csv", {
+    request<{ imported: number; tipi?: number }>("/api/project/tags/import-csv", {
       method: "POST",
       headers: { "Content-Type": "text/plain; charset=utf-8" },
       body: csvText,

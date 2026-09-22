@@ -11,7 +11,8 @@
 // riferimento lì è dinamico e cercarlo per sottostringa darebbe falsi positivi.
 
 import { collectTagIds } from "@/runtime-view/collectTagIds";
-import type { AlarmDef, FaceplateDef, GlobalScriptDef, SynopticPage, TagDef } from "@/types";
+import { foglieDiTolleranti } from "@/tag/forma";
+import type { AlarmDef, FaceplateDef, GlobalScriptDef, SynopticPage, TagDef, TypeDef } from "@/types";
 import i18n from "i18next";
 
 /** Riferimenti trovati per un tag: dove, e (per le pagine) l'id dell'oggetto. */
@@ -20,6 +21,32 @@ export interface TagUse {
   where: string;
   /** Id pagina, quando il riferimento è su una pagina (per navigarci). */
   pageId?: string;
+}
+
+/** Gli usi di un tag **comprese le sue foglie**, per un'istanza.
+ *
+ *  Un oggetto non si lega a `motore1`, che non è un valore: si lega a
+ *  `motore1.velocita`. Chiedere gli usi della sola radice risponde «nessuno»,
+ *  e il 22-09-2026 questo ha lasciato **cancellare** dalla scheda Variabili
+ *  un'istanza che una pagina stava usando, senza un avviso: la pagina è
+ *  rimasta legata a un percorso che non esiste più.
+ *
+ *  Per un tag piatto è la mappa di sempre, senza costi. */
+export function usiDiUnTag(
+  tag: TagDef,
+  usi: ReadonlyMap<string, TagUse[]>,
+  types: readonly TypeDef[] = [],
+): TagUse[] {
+  const diretti = usi.get(tag.id) ?? [];
+  const foglie = foglieDiTolleranti(tag, types);
+  if (foglie.length === 0) return diretti;
+  const out = [...diretti];
+  for (const f of foglie) {
+    for (const u of usi.get(f.percorso) ?? []) {
+      if (!out.some((x) => x.where === u.where)) out.push(u);
+    }
+  }
+  return out;
 }
 
 export interface TagUsageInput {

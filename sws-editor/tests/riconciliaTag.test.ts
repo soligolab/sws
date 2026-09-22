@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import "../src/i18n";
-import { deduciTipo, pianoCreazione, riferimentiDelProgetto, tipoDaEnIp, tipoDaS7 } from "../src/tag/riconciliaTag";
-import type { ProjectInfo, SynopticObject, SynopticPage } from "../src/types";
+import { deduciTipo, ePercorsoDiUnaRadice, pianoCreazione, riferimentiDelProgetto, tipoDaEnIp, tipoDaS7 } from "../src/tag/riconciliaTag";
+import { buildTagUsage, usiDiUnTag } from "../src/search/tagUsage";
+import type { ProjectInfo, SynopticObject, SynopticPage, TagDef, TypeDef } from "../src/types";
 
 /** Fase 0b: al salvataggio ogni id referenziato e non dichiarato diventa una
  *  variabile. Prima c'erano cinque strade di creazione e una lista «in attesa»
@@ -64,6 +65,18 @@ describe("deduciTipo", () => {
   });
 });
 
+describe("ePercorsoDiUnaRadice", () => {
+  it("si riconosce dal prefisso, seguito da punto o parentesi", () => {
+    const r = ["motore1", "valvole"];
+    expect(ePercorsoDiUnaRadice("motore1.velocita", r)).toBe(true);
+    expect(ePercorsoDiUnaRadice("valvole[2].stato", r)).toBe(true);
+    expect(ePercorsoDiUnaRadice("motore1", r)).toBe(false);
+    expect(ePercorsoDiUnaRadice("motore1bis.x", r)).toBe(false);
+    expect(ePercorsoDiUnaRadice("altro.tag", r)).toBe(false);
+    expect(ePercorsoDiUnaRadice("motore1.velocita", [])).toBe(false);
+  });
+});
+
 describe("pianoCreazione", () => {
   const pg = pagina([
     { id: "l", type: "led", x: 0, y: 0, tag: "pompa.on" },
@@ -89,11 +102,78 @@ describe("pianoCreazione", () => {
     expect(piano[1]).toMatchObject({ data_type: "f64", history: false });
   });
 
+  /** Fase 1b/1d: `motore1.velocita` è una FOGLIA dell'istanza `motore1`, non
+   *  un id sconosciuto. Creandola come tag piatto nascerebbe una collisione
+   *  che il validatore rifiuta, e una delle due non si raggiungerebbe più. */
+  it("un percorso dentro un'istanza non si crea come tag piatto", () => {
+    const p = progetto({
+      tags: [
+        { id: "motore1", description: "", data_type: "f64", type_ref: "Motore" },
+        { id: "valvole", description: "", data_type: "u16", array: [4] },
+      ],
+    });
+    const pagina2 = pagina([
+      { id: "a", type: "text", x: 0, y: 0, tag: "motore1.velocita" },
+      { id: "b", type: "text", x: 0, y: 0, tag: "valvole[2]" },
+      { id: "c", type: "text", x: 0, y: 0, tag: "motore1bis.x" },
+    ]);
+    const piano = pianoCreazione({ project: p, pages: [pagina2], tagInAttesa: [] });
+    // solo l'id che NON è un percorso di una radice
+    expect(piano.map((t) => t.id)).toEqual(["motore1bis.x"]);
+  });
+
   it("niente da creare = piano vuoto", () => {
     const p = progetto({ tags: [
       { id: "pompa.on", description: "", data_type: "bool" },
       { id: "pompa.velocita", description: "", data_type: "float" },
     ] });
     expect(pianoCreazione({ project: p, pages: [pg], tagInAttesa: [] })).toEqual([]);
+  });
+});
+
+/** Il difetto che il maintainer ha trovato il 22-09-2026: la scheda Variabili
+ *  lasciava **cancellare** un'istanza che una pagina stava usando, perché
+ *  l'oggetto si lega a `motore1.velocita` e non a `motore1`, e chiedere gli
+ *  usi della sola radice rispondeva «nessuno». La pagina restava legata a un
+ *  percorso che non esiste più, senza un avviso. */
+describe("usiDiUnTag — gli usi di una foglia sono usi della radice", () => {
+  const types: TypeDef[] = [
+    { id: "Motore", members: [
+      { name: "velocita", data_type: "f32" },
+      { name: "marcia", data_type: "bool" },
+    ]},
+  ];
+  const istanza: TagDef = { id: "motore1", description: "", data_type: "f64", type_ref: "Motore" };
+  const piatto: TagDef = { id: "pv1.potenza", description: "", data_type: "f64" };
+  const usi = buildTagUsage({
+    pages: [{ id: "p", name: "Impianto", objects: [
+      { id: "t", type: "text", x: 0, y: 0, tag: "motore1.velocita" },
+    ] as SynopticObject[] }] as SynopticPage[],
+  });
+
+  it("un'istanza usata da una pagina risulta usata", () => {
+    expect(usiDiUnTag(istanza, usi, types)).toHaveLength(1);
+    expect(usiDiUnTag(istanza, usi, types)[0].where).toContain("Impianto");
+  });
+
+  it("un'istanza che nessuno usa resta libera", () => {
+    const altra: TagDef = { ...istanza, id: "motore2" };
+    expect(usiDiUnTag(altra, usi, types)).toEqual([]);
+  });
+
+  it("per un tag piatto è la risposta di sempre, senza costi", () => {
+    expect(usiDiUnTag(piatto, usi, types)).toEqual([]);
+    expect(usiDiUnTag(piatto, usi, [])).toEqual([]);
+  });
+
+  it("gli usi doppi non si contano due volte", () => {
+    const usi2 = buildTagUsage({
+      pages: [{ id: "p", name: "Impianto", objects: [
+        { id: "a", type: "text", x: 0, y: 0, tag: "motore1.velocita" },
+        { id: "b", type: "led", x: 0, y: 0, tag: "motore1.marcia" },
+      ] as SynopticObject[] }] as SynopticPage[],
+    });
+    // due foglie, la stessa pagina: un solo punto d'uso
+    expect(usiDiUnTag(istanza, usi2, types)).toHaveLength(1);
   });
 });
