@@ -74,7 +74,22 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — piano approfondito sui tag, Fase 0a chiusa (2026-09-22)
+## ▶ Riprendere da qui — Fase 0b su `main`: un solo Salva e variabili create al salvataggio (2026-09-22, ufficio)
+
+**Fatto oggi, su `main`** (`6c5cc2c3`, collaudato dal maintainer):
+- **Un solo «Salva», quello del progetto**: le nove schede di contenuto (Variabili, Sorgenti, Allarmi, Notifiche, Storico, Script, Lingue, Faceplate, Ricette) registrano la bozza fra le
+  sezioni pendenti e il pulsante «Salva progetto» chiama `saveAll()`; le schede restano montate (nascoste, `Tenuta`) così la bozza sopravvive al cambio di scheda e al passaggio all'editor.
+  Utenti/TLS/IA/dispositivi/backup/runtime restano azioni sull'istanza.
+- **Fase 0b**: al salvataggio ogni id referenziato e non dichiarato si crea (definizione in attesa se c'è, altrimenti tipo dedotto da mappatura o oggetto, storico spento); un PUT solo dopo le bozze
+  e prima delle pagine; riepilogo «N variabili create» in ☰ e nella barra; `TagInput` mostra ＋ (nuovo, definisci ora) / ⏳ (in attesa); `QuickCreateTagModal` in `components/` con unità, storico,
+  doppioni. Regola in `sws-editor/src/tag/riconciliaTag.ts`.
+- Piano tag: **D5 tipi scalari ricchi decisa**; qualità per foglia, array a lunghezza dichiarata e storico sulla radice sono proposte scritte nel piano, da confermare.
+- Rami `fix/colori-coerenti` e `fix/lingue-marchio-auto` (fusi a casa) eliminati. `main` locale è avanti di alcuni commit: **da pushare**.
+
+**Prossimo passo**: **Fase 0c** — rinomina con propagazione (pagine, faceplate, sorgenti, allarmi, ricette, trigger, espressioni, script) e avviso d'uso prima della cancellazione; poi 0d
+(server coerente: `apply_tags` unica, `validate::semantic` come avviso nel salvataggio).
+
+## Riprendere da qui (precedente) — piano approfondito sui tag, Fase 0a chiusa (2026-09-22)
 
 **Sessione di plan approfondita sui tag** (chiede il seme del 21-09): tre esplorazioni (editor, runtime core, plugin) e quattro decisioni del maintainer — valori composti **nativi**, strutture come **tipi riusabili + istanze**, **prima l'oggetto unico poi strutture/array**, priorità **Modbus e OPC-UA**. Il piano sostituisce il seme: `docs/plans/2026-09-21-gestione-tag-oggetto-unico.md`, otto fasi (0a-0d, 1-4), un ramo alla volta. S7/EtherNet-IP/MQTT/HA/Host restano in coda, non pianificati nel dettaglio. Difetti trovati durante l'esplorazione, da trattare a parte: Modbus (segno, doppia scala), OPC-UA (scala non applicata alle sottoscrizioni, `Float(0.0)` inventato per array/strutture), HomeAssistant (attributi lista/dict scartati in silenzio), **Sparkplug B con i numeri di campo del protobuf probabilmente sbagliati** (da verificare sul `.proto` ufficiale prima di costruirci sopra).
 
