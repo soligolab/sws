@@ -11,6 +11,20 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Changed
+- **Un tag, un allarme, più livelli dentro** (decisione del maintainer, 23-09-2026, nata provando tre allarmi sullo stesso tag e vedendoli scattare tutti insieme). Prima si dichiaravano N allarmi
+  distinti sullo stesso dato per avere più soglie: con «sopra 60», «sopra 70» e «sopra 80» e il valore a 85 il runtime ne teneva **tre attivi**, l'operatore vedeva tre righe, la campanella contava
+  tre e la notifica partiva tre volte — per un fenomeno solo. Ora un allarme ha `levels:`, un livello per soglia, ognuno con la sua severità, il suo messaggio e la sua isteresi; scatta quello con
+  la **severità più alta** fra le condizioni vere, non il primo scritto. Un allarme già confermato che **peggiora** torna da confermare e rinotifica, perché chi ha messo a tacere un Warning deve
+  accorgersi di essere finito in Critical; migliorando, la conferma resta valida. L'allarme rientra solo quando **nessuna** soglia è più superata.
+  - **Nessuna migrazione automatica**, per scelta esplicita: un progetto scritto prima **si apre** e i suoi allarmi **continuano a scattare**, ma il primo salvataggio viene **rifiutato** con un
+    messaggio che dice cosa convertire. La conversione si fa nella scheda Allarmi, che adesso mostra una riga per livello sotto quella dell'allarme, con «+ livello» per aggiungerne.
+  - **Undici template del parco convertiti**: tredici allarmi di `homeassistant-pro` diventano nove, tre di `demo-items` diventano due, e così via.
+  - L'isteresi può stare **sul livello**: in `homeassistant-pro` «batteria sotto 15%» ne ha 3 e «sotto 5%» ne ha 1, perché una soglia di guardia e una di emergenza non oscillano allo stesso modo.
+    Tenendola solo sull'allarme, unire i due livelli ne avrebbe persa una — un buco del disegno che si è visto convertendo i dati veri, non progettando.
+  - Chi mostra o notifica legge ora la severità e il messaggio **del livello in vigore** e non quelli della definizione, che con più livelli non vogliono più dire niente. Il pannello LVGL li riceve
+    come campi nuovi e, se parla con un runtime che non li manda, ripiega sulla definizione come prima.
+
 ### Fixed
 - **L'elenco allarmi non chiedeva gli allarmi a nessuno** (segnalato dal maintainer il 23-09-2026: «muovendo lo slider non vedo partire gli allarmi»). Gli allarmi scattavano davvero — tre, sul
   server, nello stesso momento in cui la tabella era vuota — ma `useAlarmStream()`, che è ciò che riempie l'elenco con una lettura iniziale e poi le transizioni dal WebSocket, era chiamata solo

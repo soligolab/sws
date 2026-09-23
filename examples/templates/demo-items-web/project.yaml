@@ -131,25 +131,24 @@ sources: []
 alarms:
   - id: demo.pressure_warning
     tag: demo.sim.pressure
-    condition:
-      kind: above
-      threshold: 70.0
-    message: "{{t0004}}"
-    severity: Warning
-  - id: demo.pressure_critical
-    tag: demo.sim.pressure
-    condition:
-      kind: above
-      threshold: 90.0
-    message: "{{t0005}}"
-    severity: Critical
+    levels:
+      - condition:
+          kind: above
+          threshold: 70.0
+        severity: Warning
+        message: '{{t0004}}'
+      - condition:
+          kind: above
+          threshold: 90.0
+        severity: Critical
+        message: '{{t0005}}'
   - id: demo.motor_fault
     tag: demo.sim.fault
-    condition:
-      kind: bool_true
-    message: "{{t0006}}"
-    severity: Critical
-
+    levels:
+      - condition:
+          kind: bool_true
+        severity: Critical
+        message: '{{t0006}}'
 functions: []
 custom_symbols: []
 datastores: []

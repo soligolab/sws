@@ -56,19 +56,20 @@ sources:
 alarms:
   - id: temp_high
     tag: sim.temperature
-    condition:
-      kind: above
-      threshold: 60.0
-    message: "{{t0017}}"
-    severity: Warning
+    levels:
+      - condition:
+          kind: above
+          threshold: 60.0
+        severity: Warning
+        message: '{{t0017}}'
   - id: pressure_high
     tag: sim.pressure
-    condition:
-      kind: above
-      threshold: 8.0
-    message: "{{t0018}}"
-    severity: Critical
-
+    levels:
+      - condition:
+          kind: above
+          threshold: 8.0
+        severity: Critical
+        message: '{{t0018}}'
 functions: []
 
 languages:

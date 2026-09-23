@@ -58,19 +58,20 @@ tags:
 alarms:
   - id: overheat
     tag: process.temperature
-    condition:
-      kind: above
-      threshold: 80.0
-    message: "{{t0001}}"
-    severity: Critical
+    levels:
+      - condition:
+          kind: above
+          threshold: 80.0
+        severity: Critical
+        message: '{{t0001}}'
   - id: high_pressure
     tag: process.pressure
-    condition:
-      kind: above
-      threshold: 5000
-    message: "{{t0002}}"
-    severity: Warning
-
+    levels:
+      - condition:
+          kind: above
+          threshold: 5000
+        severity: Warning
+        message: '{{t0002}}'
 languages:
   default: it
   langs: [it, en, es]

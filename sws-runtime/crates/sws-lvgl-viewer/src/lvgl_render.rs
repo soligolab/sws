@@ -10880,7 +10880,7 @@ fn update_alarm_bell(
                 Some(a) => {
                     lvgl_sys::lv_label_set_text(
                         row_ptr.as_ptr(),
-                        text_cstring(&resolve_msg(&a.def.message, lingua, lang_table)).as_ptr(),
+                        text_cstring(&resolve_msg(&a.messaggio(), lingua, lang_table)).as_ptr(),
                     );
                     lvgl_sys::lv_obj_clear_flag(row_ptr.as_ptr(), hidden);
                 }
@@ -10939,7 +10939,7 @@ fn update_alarm_viewer(
     for (i, row) in rows.iter_mut().enumerate() {
         match alarms.get(i) {
             Some(a) => unsafe {
-                let rgb = severity_color(&a.def.severity);
+                let rgb = severity_color(&a.severita());
                 row.dot_style.set_bg_color(Color::from_rgb(rgb));
                 lvgl_sys::lv_obj_refresh_style(
                     row.dot_ptr.as_ptr(),
@@ -10950,7 +10950,7 @@ fn update_alarm_viewer(
 
                 lvgl_sys::lv_label_set_text(
                     row.msg_ptr.as_ptr(),
-                    text_cstring(&resolve_msg(&a.def.message, lingua, lang_table)).as_ptr(),
+                    text_cstring(&resolve_msg(&a.messaggio(), lingua, lang_table)).as_ptr(),
                 );
                 lvgl_sys::lv_obj_clear_flag(row.msg_ptr.as_ptr(), hidden);
 
@@ -11249,7 +11249,7 @@ fn update_alarm_banner(
     unsafe {
         match top {
             Some(a) => {
-                let rgb = severity_color(&a.def.severity);
+                let rgb = severity_color(&a.severita());
                 dot_style.set_bg_color(Color::from_rgb(rgb));
                 lvgl_sys::lv_obj_refresh_style(
                     dot_ptr.as_ptr(),
@@ -11259,7 +11259,7 @@ fn update_alarm_banner(
                 lvgl_sys::lv_obj_clear_flag(dot_ptr.as_ptr(), hidden);
                 lvgl_sys::lv_label_set_text(
                     msg_ptr.as_ptr(),
-                    text_cstring(&resolve_msg(&a.def.message, lingua, lang_table)).as_ptr(),
+                    text_cstring(&resolve_msg(&a.messaggio(), lingua, lang_table)).as_ptr(),
                 );
                 lvgl_sys::lv_obj_clear_flag(msg_ptr.as_ptr(), hidden);
                 lvgl_sys::lv_obj_add_flag(empty_ptr.as_ptr(), hidden);

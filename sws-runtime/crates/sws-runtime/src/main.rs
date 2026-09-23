@@ -859,7 +859,7 @@ async fn main() -> anyhow::Result<()> {
                         } else {
                             "recovered"
                         };
-                        let severity = format!("{:?}", state.def.severity);
+                        let severity = format!("{:?}", state.severity);
                         metrics::counter!("sws_alarm_transitions_total",
                             "direction" => direction.to_string(),
                             "severity"  => severity,
@@ -877,8 +877,8 @@ async fn main() -> anyhow::Result<()> {
                         }
                         let payload = serde_json::json!({
                             "id":       state.def.id,
-                            "message":  state.def.message,
-                            "severity": format!("{:?}", state.def.severity),
+                            "message":  state.message,
+                            "severity": format!("{:?}", state.severity),
                             "tag":      state.def.tag,
                             "ts_ms":    state.activated_at_ms,
                             "value":    state.last_value,

@@ -28,12 +28,19 @@ use tokio::sync::{broadcast, RwLock};
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub enum AlarmSeverity {
     Info,
     #[default]
     Warning,
     Critical,
+}
+
+impl AlarmSeverity {
+    /// Per `skip_serializing_if`: il valore che serde metterebbe comunque.
+    pub fn e_default(&self) -> bool {
+        *self == AlarmSeverity::default()
+    }
 }
 
 /// ISA-18.2 alarm state — four states.
@@ -65,7 +72,7 @@ impl IsaState {
 ///
 /// `dead_band` only applies to atomic `Above`/`Below` conditions.
 /// Composite conditions propagate the dead_band to their children.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum AlarmCondition {
     Above {
@@ -148,13 +155,55 @@ impl AlarmCondition {
     }
 }
 
+/// Un livello di un allarme: quando scatta, quanto è grave, cosa dice.
+///
+/// Un tag si aggancia a **un solo** allarme, e i livelli sono le soglie dentro
+/// quell'allarme (decisione del maintainer, 23-09-2026). Prima si
+/// dichiaravano N allarmi distinti sullo stesso tag e scattavano **tutti
+/// insieme**: con soglie 60/70/80 e il valore a 85 il runtime ne teneva tre
+/// attivi per un solo fenomeno, l'operatore vedeva tre righe e la notifica
+/// partiva tre volte.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct AlarmLevel {
+    pub condition: AlarmCondition,
+    #[serde(default)]
+    pub severity: AlarmSeverity,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub message: String,
+    /// Isteresi di **questo** livello; assente = quella dell'allarme.
+    ///
+    /// Serve davvero: nel template `homeassistant-pro` «batteria sotto 15%» ha
+    /// banda morta 3 e «sotto 5%» ha banda morta 1, perché una soglia di
+    /// guardia e una di emergenza non oscillano allo stesso modo. Tenendola
+    /// solo sull'allarme, unire i due livelli ne avrebbe persa una.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dead_band: Option<f64>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AlarmDef {
     pub id: String,
     pub tag: TagId,
-    pub condition: AlarmCondition,
+    /// I livelli, dal 23-09-2026. Vuoto = questo allarme è nel **formato
+    /// vecchio** (`condition`/`severity`/`message` qui sotto): si legge, per
+    /// poter aprire e correggere un progetto scritto prima, ma il validatore
+    /// **rifiuta il salvataggio** finché qualcuno non lo converte a mano. Non
+    /// c'è migrazione automatica: decisione del maintainer, «sono progetti di
+    /// test/prova, basta correggere i template e non permettermi di salvare un
+    /// progetto riaperto se non correggo io gli allarmi».
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub levels: Vec<AlarmLevel>,
+    /// Formato vecchio: una condizione sola. Si deserializza ancora; nessuno
+    /// la scrive più.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub condition: Option<AlarmCondition>,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub message: String,
-    #[serde(default)]
+    /// Severità del formato vecchio. Nel formato nuovo sta nei livelli e
+    /// questo campo non significa niente: non si riscrive quando vale il
+    /// default, per non lasciare nel file una riga che sembra decidere
+    /// qualcosa e non decide niente.
+    #[serde(default, skip_serializing_if = "AlarmSeverity::e_default")]
     pub severity: AlarmSeverity,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notify_url: Option<String>,
@@ -193,6 +242,48 @@ pub struct AlarmDef {
     /// Chats for `AlarmTelegramMode::Chats`. Ignored in the other two modes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub telegram_chat_ids: Option<Vec<String>>,
+}
+
+impl AlarmDef {
+    /// I livelli effettivi: quelli dichiarati, o il formato vecchio letto come
+    /// un livello solo. Il motore passa **sempre** di qui, così un progetto
+    /// non ancora convertito continua a proteggere l'impianto mentre qualcuno
+    /// lo sistema.
+    pub fn livelli(&self) -> Vec<AlarmLevel> {
+        if !self.levels.is_empty() {
+            return self.levels.clone();
+        }
+        match &self.condition {
+            Some(c) => vec![AlarmLevel {
+                condition: c.clone(),
+                severity: self.severity,
+                message: self.message.clone(),
+                dead_band: None,
+            }],
+            None => Vec::new(),
+        }
+    }
+
+    /// Scritto prima del 23-09-2026: una condizione sola, fuori dai livelli.
+    /// Il validatore lo rifiuta al salvataggio.
+    pub fn formato_vecchio(&self) -> bool {
+        self.levels.is_empty() && self.condition.is_some()
+    }
+
+    /// Il livello che vince fra quelli veri, e il suo indice.
+    ///
+    /// **La severità più alta**, qualunque sia l'ordine in cui le condizioni
+    /// sono scritte (decisione del maintainer, 23-09-2026); a parità vince la
+    /// prima dichiarata. Con soglie 60/70/80 e il valore a 85 l'allarme è
+    /// Critical, che è quello che uno si aspetta guardando il pannello — con
+    /// l'ordine di dichiarazione sarebbe stato Info, cioè il contrario.
+    pub fn livello_vincente(&self, value: &TagValue) -> Option<(usize, AlarmLevel)> {
+        self.livelli()
+            .into_iter()
+            .enumerate()
+            .filter(|(_, l)| l.condition.evaluate(value))
+            .max_by_key(|(i, l)| (l.severity, std::cmp::Reverse(*i)))
+    }
 }
 
 /// Per-alarm Telegram routing.
@@ -246,12 +337,37 @@ pub struct AlarmState {
     pub ack_at_ms: Option<u64>,
     pub normalized_at_ms: Option<u64>,
     pub last_value: Option<TagValue>,
+    /// La severità del **livello che sta scattando adesso** (23-09-2026).
+    /// Con più livelli in un allarme, `def.severity` non basta più: dice
+    /// quella del formato vecchio, non quella in vigore. Chi mostra o notifica
+    /// deve leggere questa.
+    #[serde(default)]
+    pub severity: AlarmSeverity,
+    /// Il messaggio del livello che sta scattando adesso, stessa ragione.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub message: String,
+    /// L'indice del livello in vigore, per chi deve dire *quale* soglia è.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub level: Option<usize>,
+}
+
+fn def_severity_iniziale(d: &AlarmDef) -> AlarmSeverity {
+    d.livelli()
+        .first()
+        .map(|l| l.severity)
+        .unwrap_or(d.severity)
+}
+
+fn def_message_iniziale(d: &AlarmDef) -> String {
+    d.livelli()
+        .first()
+        .map(|l| l.message.clone())
+        .unwrap_or_else(|| d.message.clone())
 }
 
 impl AlarmState {
     fn from_def(def: AlarmDef) -> Self {
         Self {
-            def,
             isa_state: IsaState::Normal,
             active: false,
             acknowledged: false,
@@ -259,6 +375,12 @@ impl AlarmState {
             ack_at_ms: None,
             normalized_at_ms: None,
             last_value: None,
+            // A riposo vale il primo livello: è quello che l'elenco mostra
+            // quando l'allarme non sta scattando.
+            severity: def_severity_iniziale(&def),
+            message: def_message_iniziale(&def),
+            level: None,
+            def,
         }
     }
 
@@ -681,8 +803,11 @@ fn eval_one(
         }
     }
 
-    // ── Raw condition check ────────────────────────────────────────────────────
-    let raw_fired = s.def.condition.evaluate(tag_value);
+    // ── Quale livello sta scattando ────────────────────────────────────────────
+    // La severità più alta fra le condizioni vere (23-09-2026). L'allarme è uno
+    // solo: i livelli sono le sue soglie, non tre allarmi diversi.
+    let vincente = s.def.livello_vincente(tag_value);
+    let raw_fired = vincente.is_some();
 
     // ── Apply on_delay / off_delay ─────────────────────────────────────────────
     let timer = timers.entry(id.to_string()).or_default();
@@ -717,6 +842,34 @@ fn eval_one(
 
     let dead_band = s.def.dead_band.unwrap_or(0.0);
     let prev = s.isa_state;
+    // Con più livelli «rientrato» vuol dire **nessuno** più vero, isteresi
+    // compresa: basta una soglia ancora superata e l'allarme resta.
+    let tutti_rientrati = s.def.livelli().iter().all(|l| {
+        l.condition
+            .evaluate_clear(tag_value, l.dead_band.unwrap_or(dead_band))
+    });
+
+    // Il peggioramento su un allarme già confermato lo rimette da confermare
+    // (decisione del maintainer, 23-09-2026): chi ha messo a tacere un Warning
+    // deve accorgersi di essere finito in Critical. Un miglioramento no: il
+    // livello scende e la conferma resta valida.
+    if let Some((idx, liv)) = &vincente {
+        if fired && liv.severity > s.severity && s.isa_state != IsaState::Normal {
+            if s.isa_state == IsaState::ActiveAcked {
+                s.isa_state = IsaState::ActiveUnacked;
+                s.ack_at_ms = None;
+            }
+            s.severity = liv.severity;
+            s.message = liv.message.clone();
+            s.level = Some(*idx);
+            s.sync_compat();
+            to_emit.push(s.clone());
+        } else if fired {
+            s.severity = liv.severity;
+            s.message = liv.message.clone();
+            s.level = Some(*idx);
+        }
+    }
 
     match (prev, fired) {
         // Normal → ActiveUnacked
@@ -748,8 +901,7 @@ fn eval_one(
         }
         // ActiveUnacked cleared → NormalUnacked
         (IsaState::ActiveUnacked, false) => {
-            let cleared = dead_band > 0.0 && s.def.condition.evaluate_clear(tag_value, dead_band)
-                || dead_band == 0.0;
+            let cleared = tutti_rientrati;
             if cleared {
                 s.isa_state = IsaState::NormalUnacked;
                 s.normalized_at_ms = Some(now);
@@ -762,8 +914,7 @@ fn eval_one(
         }
         // ActiveAcked cleared → Normal
         (IsaState::ActiveAcked, false) => {
-            let cleared = dead_band > 0.0 && s.def.condition.evaluate_clear(tag_value, dead_band)
-                || dead_band == 0.0;
+            let cleared = tutti_rientrati;
             if cleared {
                 s.isa_state = IsaState::Normal;
                 s.normalized_at_ms = Some(now);
@@ -806,12 +957,29 @@ mod tests {
     use super::*;
     use crate::tag::TagQuality;
 
+    /// Un allarme a un livello solo, nel formato nuovo. I test che c'erano
+    /// prima descrivono la stessa cosa: una soglia, una severità.
     fn def(id: &str, tag: &str, cond: AlarmCondition) -> AlarmDef {
+        livelli(
+            id,
+            tag,
+            vec![AlarmLevel {
+                condition: cond,
+                severity: AlarmSeverity::Warning,
+                message: format!("{id} fired"),
+                dead_band: None,
+            }],
+        )
+    }
+
+    /// Un allarme con i livelli che gli si danno.
+    fn livelli(id: &str, tag: &str, levels: Vec<AlarmLevel>) -> AlarmDef {
         AlarmDef {
             id: id.into(),
             tag: tag.into(),
-            condition: cond,
-            message: format!("{id} fired"),
+            levels,
+            condition: None,
+            message: String::new(),
             severity: AlarmSeverity::Warning,
             notify_url: None,
             dead_band: None,
@@ -1116,6 +1284,173 @@ mod tests {
             d.telegram_routing(),
             TelegramRouting::Chats(vec!["-100123".into()])
         );
+    }
+
+    // ── Un allarme, più livelli (23-09-2026) ───────────────────────────────
+
+    fn liv(soglia: f64, sev: AlarmSeverity) -> AlarmLevel {
+        AlarmLevel {
+            condition: AlarmCondition::Above { threshold: soglia },
+            severity: sev,
+            message: format!("sopra {soglia}"),
+            dead_band: None,
+        }
+    }
+
+    fn tre_livelli() -> AlarmDef {
+        livelli(
+            "a1",
+            "t",
+            vec![
+                liv(60.0, AlarmSeverity::Info),
+                liv(70.0, AlarmSeverity::Warning),
+                liv(80.0, AlarmSeverity::Critical),
+            ],
+        )
+    }
+
+    /// Il caso che ha fatto nascere il modello: con soglie 60/70/80 e il
+    /// valore a 85 prima scattavano **tre allarmi distinti**. Ora è un allarme
+    /// solo, e vince la severità più alta — non la prima scritta.
+    #[test]
+    fn vince_la_severita_piu_alta_non_l_ordine() {
+        let d = tre_livelli();
+        let v = |x: f64| {
+            d.livello_vincente(&TagValue::Float(x))
+                .map(|(i, l)| (i, l.severity))
+        };
+        assert_eq!(v(85.0), Some((2, AlarmSeverity::Critical)));
+        assert_eq!(v(75.0), Some((1, AlarmSeverity::Warning)));
+        assert_eq!(v(65.0), Some((0, AlarmSeverity::Info)));
+        assert_eq!(v(10.0), None);
+    }
+
+    /// A parità di severità vince la prima dichiarata: due modi di dire la
+    /// stessa gravità non devono dipendere dall'ordine di valutazione.
+    #[test]
+    fn a_parita_di_severita_vince_la_prima() {
+        let d = livelli(
+            "a1",
+            "t",
+            vec![
+                AlarmLevel {
+                    condition: AlarmCondition::Above { threshold: 10.0 },
+                    severity: AlarmSeverity::Warning,
+                    message: "prima".into(),
+                    dead_band: None,
+                },
+                AlarmLevel {
+                    condition: AlarmCondition::Above { threshold: 20.0 },
+                    severity: AlarmSeverity::Warning,
+                    message: "seconda".into(),
+                    dead_band: None,
+                },
+            ],
+        );
+        let (i, l) = d.livello_vincente(&TagValue::Float(50.0)).unwrap();
+        assert_eq!((i, l.message.as_str()), (0, "prima"));
+    }
+
+    /// Lo stato porta la severità **in vigore**, non quella della definizione:
+    /// è quella che l'elenco mostra e che la notifica usa.
+    #[tokio::test]
+    async fn lo_stato_dice_la_severita_del_livello_in_vigore() {
+        let db = AlarmDb::new(8);
+        db.load(vec![tre_livelli()]).await;
+
+        db.evaluate("t", &ts(TagValue::Float(65.0))).await;
+        let s = db.snapshot().await;
+        assert_eq!(s[0].severity, AlarmSeverity::Info);
+        assert!(s[0].active);
+
+        db.evaluate("t", &ts(TagValue::Float(85.0))).await;
+        let s = db.snapshot().await;
+        assert_eq!(s[0].severity, AlarmSeverity::Critical);
+        assert_eq!(s[0].message, "sopra 80");
+        // **Un** allarme, non tre: è il punto del modello.
+        assert_eq!(s.len(), 1);
+    }
+
+    /// Peggiorando, un allarme già confermato torna da confermare: chi ha
+    /// messo a tacere un Warning deve accorgersi del Critical.
+    #[tokio::test]
+    async fn il_peggioramento_rimette_da_confermare() {
+        let db = AlarmDb::new(8);
+        db.load(vec![tre_livelli()]).await;
+        db.evaluate("t", &ts(TagValue::Float(75.0))).await;
+        db.ack("a1", Some("mario".into())).await;
+        let s = db.snapshot().await;
+        assert_eq!(s[0].isa_state, IsaState::ActiveAcked);
+
+        db.evaluate("t", &ts(TagValue::Float(85.0))).await;
+        let s = db.snapshot().await;
+        assert_eq!(
+            s[0].isa_state,
+            IsaState::ActiveUnacked,
+            "il Critical va confermato di nuovo"
+        );
+        assert_eq!(s[0].severity, AlarmSeverity::Critical);
+    }
+
+    /// Migliorando no: la conferma resta valida, il livello scende.
+    #[tokio::test]
+    async fn il_miglioramento_non_annulla_la_conferma() {
+        let db = AlarmDb::new(8);
+        db.load(vec![tre_livelli()]).await;
+        db.evaluate("t", &ts(TagValue::Float(85.0))).await;
+        db.ack("a1", Some("mario".into())).await;
+        db.evaluate("t", &ts(TagValue::Float(65.0))).await;
+        let s = db.snapshot().await;
+        assert_eq!(s[0].isa_state, IsaState::ActiveAcked);
+        assert!(s[0].active, "una soglia più bassa è ancora superata");
+    }
+
+    /// L'allarme rientra solo quando **nessun** livello è più vero.
+    #[tokio::test]
+    async fn rientra_solo_quando_nessuna_soglia_e_superata() {
+        let db = AlarmDb::new(8);
+        db.load(vec![tre_livelli()]).await;
+        db.evaluate("t", &ts(TagValue::Float(85.0))).await;
+        db.evaluate("t", &ts(TagValue::Float(65.0))).await;
+        assert!(db.snapshot().await[0].active, "sopra 60 è ancora vera");
+        db.evaluate("t", &ts(TagValue::Float(5.0))).await;
+        assert!(!db.snapshot().await[0].active);
+    }
+
+    /// Il formato vecchio si legge ancora — serve a poter APRIRE un progetto
+    /// scritto prima e correggerlo — e si riconosce.
+    #[test]
+    fn il_formato_vecchio_si_legge_e_si_riconosce() {
+        let d: AlarmDef = serde_yaml::from_str(
+            "id: a1\ntag: t\ncondition: { kind: above, threshold: 60 }\nmessage: caldo\nseverity: Critical\n",
+        )
+        .unwrap();
+        assert!(d.formato_vecchio());
+        let l = d.livelli();
+        assert_eq!(l.len(), 1);
+        assert_eq!(l[0].severity, AlarmSeverity::Critical);
+        assert_eq!(l[0].message, "caldo");
+        assert_eq!(
+            d.livello_vincente(&TagValue::Float(99.0))
+                .unwrap()
+                .1
+                .severity,
+            AlarmSeverity::Critical
+        );
+
+        // Il formato nuovo non è «vecchio», e non riscrive `condition`.
+        let n = tre_livelli();
+        assert!(!n.formato_vecchio());
+        let y = serde_yaml::to_string(&n).unwrap();
+        // Nessun campo di PRIMO livello del formato vecchio: le `condition:`
+        // che restano sono quelle dentro i livelli, rientrate.
+        assert!(
+            !y.lines()
+                .any(|r| r == "condition:" || r.starts_with("condition:")),
+            "{y}"
+        );
+        assert!(!y.lines().any(|r| r.starts_with("severity:")), "{y}");
+        assert!(y.contains("levels:"), "{y}");
     }
 }
 

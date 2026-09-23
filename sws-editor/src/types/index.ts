@@ -1558,11 +1558,30 @@ export type AlarmCondition =
   | { kind: "or";  conditions: AlarmCondition[] }
   | { kind: "not"; condition: AlarmCondition };
 
+/** Un livello di un allarme: quando scatta, quanto è grave, cosa dice.
+ *
+ *  Dal 23-09-2026 un tag si aggancia a **un solo** allarme e i livelli sono le
+ *  sue soglie. Prima si dichiaravano N allarmi sullo stesso tag e scattavano
+ *  tutti insieme: tre righe per un fenomeno solo. Vince il livello con la
+ *  severità più alta fra le condizioni vere. */
+export interface AlarmLevel {
+  condition: AlarmCondition;
+  severity?: AlarmSeverity;
+  message?: string;
+  /** Isteresi di questo livello; assente = quella dell'allarme. */
+  dead_band?: number;
+}
+
 export interface AlarmDef {
   id: string;
   tag: string;
-  condition: AlarmCondition;
-  message: string;
+  /** I livelli. Vuoto o assente = formato vecchio (`condition` qui sotto): si
+   *  legge per poter correggere il progetto, ma il server **rifiuta il
+   *  salvataggio** finché non lo si converte. */
+  levels?: AlarmLevel[];
+  /** Formato vecchio, in sola lettura. */
+  condition?: AlarmCondition;
+  message?: string;
   severity?: AlarmSeverity;
   notify_url?: string;
   dead_band?: number;
@@ -1656,6 +1675,11 @@ export interface AlarmState {
   ack_at_ms: number | null;
   normalized_at_ms: number | null;
   last_value: number | string | boolean | null;
+  /** Severità e messaggio del **livello che sta scattando adesso**: con più
+   *  livelli, `def.severity` non è quella in vigore. */
+  severity?: AlarmSeverity;
+  message?: string;
+  level?: number;
 }
 
 export interface AlarmEvent {

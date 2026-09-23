@@ -320,61 +320,58 @@ sources:
 alarms:
   - id: alm-caldo
     tag: sala.temperatura
-    condition:
-      kind: above
-      threshold: 27.0
-    dead_band: 1.0
-    message: "{{t0069}}"
-    severity: Warning
-
-  - id: alm-freddo
-    tag: sala.temperatura
-    condition:
-      kind: below
-      threshold: 15.0
-    dead_band: 1.0
-    message: "{{t0070}}"
-    severity: Warning
-
+    levels:
+      - condition:
+          kind: above
+          threshold: 27.0
+        dead_band: 1.0
+        severity: Warning
+        message: '{{t0069}}'
+      - condition:
+          kind: below
+          threshold: 15.0
+        dead_band: 1.0
+        severity: Warning
+        message: '{{t0070}}'
   - id: alm-consumo
     tag: energia.potenza_w
-    condition:
-      kind: above
-      threshold: 5.0
-    dead_band: 0.5
-    message: "{{t0071}}"
-    severity: Critical
-
+    levels:
+      - condition:
+          kind: above
+          threshold: 5.0
+        dead_band: 0.5
+        severity: Critical
+        message: '{{t0071}}'
   - id: alm-batteria
     tag: batteria.percentuale
-    condition:
-      kind: below
-      threshold: 15.0
-    dead_band: 3.0
-    message: "{{t0072}}"
-    severity: Warning
-
+    levels:
+      - condition:
+          kind: below
+          threshold: 15.0
+        dead_band: 3.0
+        severity: Warning
+        message: '{{t0072}}'
   - id: alm-garage
     tag: garage.aperto
-    condition:
-      kind: bool_true
-    message: "{{t0073}}"
-    severity: Warning
-
+    levels:
+      - condition:
+          kind: bool_true
+        severity: Warning
+        message: '{{t0073}}'
   - id: alm-porta
     tag: porta.principale
-    condition:
-      kind: bool_true
-    message: "{{t0074}}"
-    severity: Info
-
+    levels:
+      - condition:
+          kind: bool_true
+        severity: Info
+        message: '{{t0074}}'
   - id: alm-movimento-esterno
     tag: movimento.esterno
-    condition:
-      kind: bool_true
-    message: "{{t0075}}"
-    severity: Info
-
+    levels:
+      - condition:
+          kind: bool_true
+        severity: Info
+        message: '{{t0075}}'
 languages:
   default: it
   langs: [it, en, es]

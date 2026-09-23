@@ -77,7 +77,7 @@ pub fn allarme_su_tag(alarms: &HashMap<String, AlarmStateLite>, tag: &str) -> Op
             continue;
         }
         let candidato = AllarmeSuTag {
-            severita: a.def.severity.clone(),
+            severita: a.severita(),
             riconosciuto: a.acknowledged,
         };
         match &scelto {
@@ -248,6 +248,11 @@ mod tests {
             active: attivo,
             acknowledged: ack,
             activated_at_ms: None,
+            // `None` = il runtime non manda il livello in vigore, quindi vale
+            // la definizione: è il caso di un pannello che parla con un
+            // runtime anteriore al 23-09-2026.
+            severity: None,
+            message: None,
         }
     }
 

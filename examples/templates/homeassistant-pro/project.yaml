@@ -756,117 +756,109 @@ alarms:
   # Batteria
   - id: alm-batteria-bassa
     tag: batteria.percentuale
-    condition:
-      kind: below
-      threshold: 15.0
-    dead_band: 3.0
-    message: "{{t0155}}"
-    severity: Warning
-
-  - id: alm-batteria-critica
-    tag: batteria.percentuale
-    condition:
-      kind: below
-      threshold: 5.0
-    dead_band: 1.0
-    message: "{{t0156}}"
-    severity: Critical
+    levels:
+      - condition:
+          kind: below
+          threshold: 15.0
+        dead_band: 3.0
+        severity: Warning
+        message: '{{t0155}}'
+      - condition:
+          kind: below
+          threshold: 5.0
+        dead_band: 1.0
+        severity: Critical
+        message: '{{t0156}}'
 
   # Rete — Tensione
   - id: alm-rete-sovratensione
     tag: rete.tensione_v
-    condition:
-      kind: above
-      threshold: 250.0
-    dead_band: 2.0
-    message: "{{t0157}}"
-    severity: Warning
-
-  - id: alm-rete-sottotensione
-    tag: rete.tensione_v
-    condition:
-      kind: below
-      threshold: 210.0
-    dead_band: 2.0
-    message: "{{t0158}}"
-    severity: Warning
+    levels:
+      - condition:
+          kind: above
+          threshold: 250.0
+        dead_band: 2.0
+        severity: Warning
+        message: '{{t0157}}'
+      - condition:
+          kind: below
+          threshold: 210.0
+        dead_band: 2.0
+        severity: Warning
+        message: '{{t0158}}'
 
   # Rete — Frequenza
   - id: alm-freq-alta
     tag: rete.frequenza_hz
-    condition:
-      kind: above
-      threshold: 50.3
-    dead_band: 0.05
-    message: "{{t0159}}"
-    severity: Warning
-
-  - id: alm-freq-bassa
-    tag: rete.frequenza_hz
-    condition:
-      kind: below
-      threshold: 49.7
-    dead_band: 0.05
-    message: "{{t0160}}"
-    severity: Warning
+    levels:
+      - condition:
+          kind: above
+          threshold: 50.3
+        dead_band: 0.05
+        severity: Warning
+        message: '{{t0159}}'
+      - condition:
+          kind: below
+          threshold: 49.7
+        dead_band: 0.05
+        severity: Warning
+        message: '{{t0160}}'
 
   # Sicurezza
   - id: alm-garage
     tag: garage.aperto
-    condition:
-      kind: bool_true
-    message: "{{t0161}}"
-    severity: Warning
-
+    levels:
+      - condition:
+          kind: bool_true
+        severity: Warning
+        message: '{{t0161}}'
   - id: alm-porta
     tag: porta.principale
-    condition:
-      kind: bool_true
-    message: "{{t0162}}"
-    severity: Info
-
+    levels:
+      - condition:
+          kind: bool_true
+        severity: Info
+        message: '{{t0162}}'
   - id: alm-movimento-esterno
     tag: esterno.movimento
-    condition:
-      kind: bool_true
-    message: "{{t0163}}"
-    severity: Info
-
+    levels:
+      - condition:
+          kind: bool_true
+        severity: Info
+        message: '{{t0163}}'
   - id: alm-persona-esterna
     tag: esterno.persona
-    condition:
-      kind: bool_true
-    message: "{{t0164}}"
-    severity: Warning
+    levels:
+      - condition:
+          kind: bool_true
+        severity: Warning
+        message: '{{t0164}}'
 
   # Clima
   - id: alm-temp-alta-sala
     tag: sala.temperatura
-    condition:
-      kind: above
-      threshold: 28.0
-    dead_band: 1.0
-    message: "{{t0165}}"
-    severity: Warning
-
-  - id: alm-temp-bassa-sala
-    tag: sala.temperatura
-    condition:
-      kind: below
-      threshold: 14.0
-    dead_band: 1.0
-    message: "{{t0166}}"
-    severity: Warning
-
+    levels:
+      - condition:
+          kind: above
+          threshold: 28.0
+        dead_band: 1.0
+        severity: Warning
+        message: '{{t0165}}'
+      - condition:
+          kind: below
+          threshold: 14.0
+        dead_band: 1.0
+        severity: Warning
+        message: '{{t0166}}'
   - id: alm-umidita-alta
     tag: sala.umidita
-    condition:
-      kind: above
-      threshold: 70.0
-    dead_band: 5.0
-    message: "{{t0167}}"
-    severity: Warning
-
+    levels:
+      - condition:
+          kind: above
+          threshold: 70.0
+        dead_band: 5.0
+        severity: Warning
+        message: '{{t0167}}'
 languages:
   default: it
   langs: [it, en, es]

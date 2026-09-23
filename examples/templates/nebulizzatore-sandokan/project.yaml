@@ -76,23 +76,21 @@ sources:
     json_path: linkquality
 
 alarms:
-- id: sandokan_power_on
-  tag: sandokan.power
-  condition:
-    kind: above
-    threshold: 1.0
-  dead_band: 0.3
-  message: "{{t0001}}"
-  severity: Info
-- id: sandokan_power_off
-  tag: sandokan.power
-  condition:
-    kind: below
-    threshold: 0.1
-  dead_band: 0.05
-  message: "{{t0002}}"
-  severity: Info
-
+  - id: sandokan_power_on
+    tag: sandokan.power
+    levels:
+      - condition:
+          kind: above
+          threshold: 1.0
+        dead_band: 0.3
+        severity: Info
+        message: '{{t0001}}'
+      - condition:
+          kind: below
+          threshold: 0.1
+        dead_band: 0.05
+        severity: Info
+        message: '{{t0002}}'
 functions: []
 custom_symbols: []
 

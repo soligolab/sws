@@ -53,19 +53,20 @@ tags:
 alarms:
   - id: alm-temp-high
     tag: sensor.temp
-    condition:
-      kind: above
-      threshold: 85.0
-    message: "{{t0001}}"
-    severity: Critical
+    levels:
+      - condition:
+          kind: above
+          threshold: 85.0
+        severity: Critical
+        message: '{{t0001}}'
   - id: alm-pump-zero
     tag: pump.speed
-    condition:
-      kind: below
-      threshold: 5.0
-    message: "{{t0002}}"
-    severity: Warning
-
+    levels:
+      - condition:
+          kind: below
+          threshold: 5.0
+        severity: Warning
+        message: '{{t0002}}'
 # NOTA: qui c'era una pagina scritta dentro `project.yaml`, sotto una chiave
 # `synoptics:` che il runtime **non legge**: le pagine le prende dai file in
 # `synoptics/*.yaml`. Era quindi contenuto morto — modificabile, invisibile,

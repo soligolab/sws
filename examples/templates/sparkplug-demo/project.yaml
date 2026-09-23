@@ -60,21 +60,23 @@ tags:
 alarms:
   - id: alm-pump-overtemp
     tag: temp.outlet
-    condition:
-      kind: above
-      threshold: 80.0
-    message: "{{t0001}}"
-    severity: Critical
+    levels:
+      - condition:
+          kind: above
+          threshold: 80.0
+        severity: Critical
+        message: "{{t0001}}"
   - id: alm-pump-stopped
     tag: pump.running
-    condition:
-        # `bool_false`, non `equal`: quest'ultima non esiste fra le condizioni
-        # riconosciute (above, below, bool_equals, bool_true, bool_false, and,
-        # or, not), e faceva rifiutare l'INTERO progetto al caricamento — non
-        # solo l'allarme. Trovato dal test che carica i template col parser vero.
-        kind: bool_false
-    message: "{{t0002}}"
-    severity: Warning
+    levels:
+      - condition:
+            # `bool_false`, non `equal`: quest'ultima non esiste fra le condizioni
+            # riconosciute (above, below, bool_equals, bool_true, bool_false, and,
+            # or, not), e faceva rifiutare l'INTERO progetto al caricamento — non
+            # solo l'allarme. Trovato dal test che carica i template col parser vero.
+            kind: bool_false
+        severity: Warning
+        message: "{{t0002}}"
 
 # NOTA: qui c'era una pagina scritta dentro `project.yaml`, sotto una chiave
 # `synoptics:` che il runtime **non legge**: le pagine le prende dai file in

@@ -12,7 +12,7 @@ pub mod tipo;
 pub mod traduzione;
 
 pub use alarm::{
-    now_ms, AlarmCondition, AlarmDb, AlarmDef, AlarmEvent, AlarmSeverity, AlarmState,
+    now_ms, AlarmCondition, AlarmDb, AlarmDef, AlarmEvent, AlarmLevel, AlarmSeverity, AlarmState,
     AlarmTelegramMode, IsaState, ShelvedAlarm, TelegramRouting,
 };
 pub use geometry::{bbox_of, is_off_page, BBox, CASI_FUORI_PAGINA};

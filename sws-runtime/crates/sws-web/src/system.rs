@@ -887,9 +887,15 @@ mod tests {
             .load(vec![AlarmDef {
                 id: "hi".into(),
                 tag: "temp".into(),
-                condition: AlarmCondition::Above { threshold: 50.0 },
+                levels: vec![sws_core::AlarmLevel {
+                    condition: AlarmCondition::Above { threshold: 50.0 },
+                    severity: AlarmSeverity::Warning,
+                    message: "too hot".into(),
+                    dead_band: None,
+                }],
+                condition: None,
                 severity: AlarmSeverity::Warning,
-                message: "too hot".into(),
+                message: String::new(),
                 notify_url: None,
                 dead_band: None,
                 on_delay_s: None,

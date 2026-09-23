@@ -53,13 +53,14 @@ tags:
   data_type: string
   description: Modello della scheda
 alarms:
-- id: cpu_hot
-  tag: host.temp_cpu
-  condition:
-    kind: above
-    threshold: 80.0
-  message: '{{t0013}}'
-  severity: Warning
+  - id: cpu_hot
+    tag: host.temp_cpu
+    levels:
+      - condition:
+          kind: above
+          threshold: 80.0
+        severity: Warning
+        message: '{{t0013}}'
 languages:
   default: it
   langs:

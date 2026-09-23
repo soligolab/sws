@@ -38,6 +38,7 @@ import { canConfigureProject } from "@/auth/permissions";
 import type {
   AlarmCondition,
   AlarmDef,
+  AlarmLevel,
   AlarmSeverity,
   AlarmTelegramMode,
   AuditEntry,
@@ -4922,8 +4923,50 @@ function AlarmsTab() {
     setAlarms((prev) => prev.map((a, i) => (i === idx ? { ...a, ...patch } : a)));
   };
 
+  /** I livelli di un allarme, anche se è ancora nel formato vecchio: così la
+   *  tabella lo mostra e, appena qualcuno lo tocca, diventa nuovo. */
+  const livelliDi = (a: AlarmDef): AlarmLevel[] =>
+    a.levels?.length
+      ? a.levels
+      : [{
+          condition: a.condition ?? { kind: "bool_true" },
+          severity: a.severity,
+          message: a.message,
+          dead_band: a.dead_band,
+        }];
+
+  /** Scrive un livello. Toccare un allarme vecchio lo **converte**: i campi di
+   *  primo livello spariscono, ed è l'unico modo perché il salvataggio smetta
+   *  di essere rifiutato. */
+  const updateLivello = (idx: number, liv: number, patch: Partial<AlarmLevel>) => {
+    setTouched(true);
+    setAlarms((prev) => prev.map((a, i) => {
+      if (i !== idx) return a;
+      const levels = livelliDi(a).map((l, j) => (j === liv ? { ...l, ...patch } : l));
+      return { ...a, levels, condition: undefined, message: undefined, severity: undefined, dead_band: undefined };
+    }));
+  };
+
+  const addLivello = (idx: number) => {
+    setTouched(true);
+    setAlarms((prev) => prev.map((a, i) => {
+      if (i !== idx) return a;
+      const levels = [...livelliDi(a), { condition: { kind: "above", threshold: 0 } as AlarmCondition, severity: "Critical" as AlarmSeverity, message: "" }];
+      return { ...a, levels, condition: undefined, message: undefined, severity: undefined, dead_band: undefined };
+    }));
+  };
+
+  const removeLivello = (idx: number, liv: number) => {
+    setTouched(true);
+    setAlarms((prev) => prev.map((a, i) => {
+      if (i !== idx) return a;
+      const levels = livelliDi(a).filter((_, j) => j !== liv);
+      return { ...a, levels: levels.length ? levels : livelliDi(a), condition: undefined, message: undefined, severity: undefined, dead_band: undefined };
+    }));
+  };
+
   const updateCondition = (idx: number, cond: AlarmCondition) =>
-    updateAlarm(idx, { condition: cond });
+    updateLivello(idx, 0, { condition: cond });
 
   const removeAlarm = (idx: number) => {
     setTouched(true);
@@ -4986,8 +5029,15 @@ function AlarmsTab() {
           )}
           {alarms.map((alm, i) => {
             const live = liveAlarms[alm.id];
+            // La riga principale mostra il **primo livello**; gli altri stanno
+            // nelle righe di continuazione sotto (23-09-2026). `l0` è quel
+            // livello, anche quando l'allarme è ancora nel formato vecchio.
+            const livelli = livelliDi(alm);
+            const l0 = livelli[0];
+            const sfondo = i % 2 === 0 ? "transparent" : "var(--brand-bg, #0f172a)";
             return (
-              <tr key={i} style={{ background: i % 2 === 0 ? "transparent" : "var(--brand-bg, #0f172a)" }}>
+              <React.Fragment key={i}>
+              <tr style={{ background: sfondo }}>
                 <td style={S.td}>
                   <input
                     style={S.inputSm}
@@ -5006,19 +5056,19 @@ function AlarmsTab() {
                 </td>
                 <td style={S.td}>
                   {(() => {
-                    const isComposite = ["and", "or", "not"].includes(alm.condition.kind);
+                    const isComposite = ["and", "or", "not"].includes(l0.condition.kind);
                     if (isComposite) {
                       return (
                         <span style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", fontStyle: "italic" }}
                           title={t("cfg.compositeCondition")}>
-                          {alm.condition.kind}
+                          {l0.condition.kind}
                         </span>
                       );
                     }
                     return (
                       <select
                         style={{ ...S.inputSm, cursor: "pointer" }}
-                        value={alm.condition.kind}
+                        value={l0.condition.kind}
                         onChange={(e) => {
                           const kind = e.target.value as AlarmCondition["kind"];
                           if (kind === "above" || kind === "below") {
@@ -5040,7 +5090,7 @@ function AlarmsTab() {
                 </td>
                 <td style={S.td}>
                   {(() => {
-                    const cond = alm.condition;
+                    const cond = l0.condition;
                     const isBool = cond.kind === "bool_equals" || cond.kind === "bool_true" || cond.kind === "bool_false";
                     const isComposite = cond.kind === "and" || cond.kind === "or" || cond.kind === "not";
                     if (isComposite) return null;
@@ -5076,7 +5126,7 @@ function AlarmsTab() {
                 </td>
                 <td style={S.td}>
                   {/* dead_band: only for above/below atomic conditions */}
-                  {(alm.condition.kind === "above" || alm.condition.kind === "below") && (
+                  {(l0.condition.kind === "above" || l0.condition.kind === "below") && (
                     <input
                       style={S.inputSm}
                       type="number"
@@ -5084,16 +5134,16 @@ function AlarmsTab() {
                       min="0"
                       placeholder="0"
                       title={t("cfg.hysteresis1")}
-                      value={alm.dead_band ?? ""}
-                      onChange={(e) => updateAlarm(i, { dead_band: e.target.value !== "" ? Number(e.target.value) : undefined })}
+                      value={l0.dead_band ?? ""}
+                      onChange={(e) => updateLivello(i, 0, { dead_band: e.target.value !== "" ? Number(e.target.value) : undefined })}
                     />
                   )}
                 </td>
                 <td style={S.td}>
                   <select
                     style={{ ...S.inputSm, cursor: "pointer" }}
-                    value={alm.severity ?? "Warning"}
-                    onChange={(e) => updateAlarm(i, { severity: e.target.value as AlarmSeverity })}
+                    value={l0.severity ?? "Warning"}
+                    onChange={(e) => updateLivello(i, 0, { severity: e.target.value as AlarmSeverity })}
                   >
                     <option value="Info">Info</option>
                     <option value="Warning">Warning</option>
@@ -5108,10 +5158,10 @@ function AlarmsTab() {
                       «compresi i messaggi di allarme» valeva solo per i template, che
                       erano stati tokenizzati con uno script. */}
                   <CampoTestoTradotto
-                    valore={alm.message}
+                    valore={l0.message ?? ""}
                     placeholder={t("cfg.alarmMsgPlaceholder")}
                     stile={S.inputSm}
-                    onChange={(nuovo) => updateAlarm(i, { message: nuovo })}
+                    onChange={(nuovo) => updateLivello(i, 0, { message: nuovo })}
                   />
                   <input
                     style={{ ...S.inputSm, marginTop: 4, fontSize: 11 }}
@@ -5241,10 +5291,67 @@ function AlarmsTab() {
                     <span style={{ color: "var(--brand-surface-2, #334155)", fontSize: 11 }}>—</span>
                   )}
                 </td>
-                <td style={{ ...S.td, textAlign: "right" }}>
+                <td style={{ ...S.td, textAlign: "right", whiteSpace: "nowrap" }}>
+                  <button style={{ ...S.btn("ghost"), padding: "2px 6px" }} title={t("cfg.addLevelHint")}
+                    onClick={() => addLivello(i)}>+ {t("cfg.level")}</button>{" "}
                   <button style={S.btn("danger")} onClick={() => removeAlarm(i)}>✕</button>
                 </td>
               </tr>
+              {/* I livelli oltre il primo: una riga ciascuno, con le sole
+                  colonne che li riguardano. Id, tag e instradamento sono
+                  dell'allarme e stanno solo sulla riga di sopra — è un
+                  allarme solo, e la tabella deve farlo vedere. */}
+              {livelli.slice(1).map((liv, k) => {
+                const j = k + 1;
+                const soglia = liv.condition.kind === "above" || liv.condition.kind === "below"
+                  ? liv.condition.threshold : undefined;
+                return (
+                  <tr key={`${i}-${j}`} style={{ background: sfondo }}>
+                    <td style={{ ...S.td, color: "var(--brand-text-subtle, #64748b)", textAlign: "right", fontSize: 11 }}>↳</td>
+                    <td style={S.td} />
+                    <td style={S.td}>
+                      <select style={{ ...S.inputSm, cursor: "pointer" }} value={liv.condition.kind}
+                        onChange={(e) => {
+                          const kind = e.target.value as "above" | "below";
+                          updateLivello(i, j, { condition: { kind, threshold: soglia ?? 0 } });
+                        }}>
+                        <option value="above">above</option>
+                        <option value="below">below</option>
+                      </select>
+                    </td>
+                    <td style={S.td}>
+                      {soglia !== undefined && (
+                        <input type="number" style={S.inputSm} value={soglia}
+                          onChange={(e) => updateLivello(i, j, {
+                            condition: { kind: liv.condition.kind as "above" | "below", threshold: Number(e.target.value) },
+                          })} />
+                      )}
+                    </td>
+                    <td style={S.td}>
+                      <input type="number" style={S.inputSm} placeholder="—" title={t("cfg.hysteresis2")}
+                        value={liv.dead_band ?? ""}
+                        onChange={(e) => updateLivello(i, j, { dead_band: e.target.value !== "" ? Number(e.target.value) : undefined })} />
+                    </td>
+                    <td style={S.td}>
+                      <select style={{ ...S.inputSm, cursor: "pointer" }} value={liv.severity ?? "Warning"}
+                        onChange={(e) => updateLivello(i, j, { severity: e.target.value as AlarmSeverity })}>
+                        <option value="Info">Info</option>
+                        <option value="Warning">Warning</option>
+                        <option value="Critical">Critical</option>
+                      </select>
+                    </td>
+                    <td style={S.td} colSpan={3}>
+                      <input style={S.inputSm} value={liv.message ?? ""} placeholder={t("cfg.message")}
+                        onChange={(e) => updateLivello(i, j, { message: e.target.value })} />
+                    </td>
+                    <td style={{ ...S.td, textAlign: "right" }}>
+                      <button style={{ ...S.btn("ghost"), padding: "2px 6px" }} title={t("cfg.removeLevelHint")}
+                        onClick={() => removeLivello(i, j)}>✕</button>
+                    </td>
+                  </tr>
+                );
+              })}
+              </React.Fragment>
             );
           })}
         </tbody>

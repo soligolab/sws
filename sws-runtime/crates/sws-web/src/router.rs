@@ -3018,6 +3018,17 @@ where
             auto_backup_retention: None,
         },
     };
+    // Gli allarmi nel formato vecchio fermano il salvataggio (23-09-2026).
+    //
+    // Qui e non nel gestore di una sezione: il maintainer ha chiesto di non
+    // poter salvare **il progetto**, non solo la scheda Allarmi, finché non li
+    // ha convertiti. `patch_project_se` è il punto unico che scrive
+    // `project.yaml`, quindi è l'unico posto dove la regola non si può
+    // aggirare passando da un'altra scheda.
+    //
+    // Si guarda il progetto **dopo** la modifica, più sotto: così il
+    // salvataggio che converte gli allarmi passa, ed è l'unico che passa.
+
     // I segreti che il progetto ha già, rimessi dentro prima della modifica.
     //
     // Senza questo, `estrai` più sotto vedeva **solo** il segreto che la
@@ -3077,6 +3088,10 @@ where
     // scrive nel `Project` tipizzato attraverso `f`, quindi il segreto nuovo
     // che l'utente ha appena digitato è lì, non nel testo grezzo che
     // `merge_preserved` conserva.
+    if let Some(motivo) = crate::validate::blocco_salvataggio(&project) {
+        return (StatusCode::CONFLICT, motivo).into_response();
+    }
+
     // Si scrive **sempre**, anche a mappa vuota: `scrivi_segreti` in quel caso
     // cancella il file, ed è l'unico modo perché una credenziale tolta
     // dall'IDE sparisca davvero dal disco. Prima la scrittura era condizionata

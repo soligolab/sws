@@ -705,12 +705,56 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
     }
 
     // Allarmi.
+    //
+    // Un tag si aggancia a **un solo** allarme, che dentro ha i suoi livelli
+    // (decisione del maintainer, 23-09-2026). Niente migrazione automatica:
+    // «sono progetti di test/prova, basta correggere i template e non
+    // permettermi di salvare un progetto riaperto se non correggo io gli
+    // allarmi». Quindi questi due rilievi sono **errori**, non avvisi: un
+    // progetto nel formato vecchio si apre e si legge — e gli allarmi
+    // continuano a scattare, il runtime legge il vecchio campo — ma non si
+    // salva finché qualcuno non lo converte.
+    let mut alarm_per_tag: HashMap<&str, Vec<&str>> = HashMap::new();
     for a in &project.alarms {
         if !a.tag.is_empty() && !per_id.contains_key(a.tag.as_str()) {
             out.push(Finding::err(
                 format!("project.alarms[{}].tag", a.id),
                 format!("l'allarme osserva il tag `{}`, che non è dichiarato", a.tag),
                 "un allarme su un tag inesistente non scatterà mai, e non lo dirà",
+            ));
+        }
+        if !a.tag.is_empty() {
+            alarm_per_tag.entry(a.tag.as_str()).or_default().push(&a.id);
+        }
+
+        if a.formato_vecchio() {
+            out.push(Finding::err(
+                format!("project.alarms[{}].condition", a.id),
+                format!(
+                    "l'allarme `{}` è nel formato vecchio (una `condition` sola invece dei `levels`)",
+                    a.id
+                ),
+                "aprilo nella scheda Allarmi e ridichiara la condizione come livello: un allarme \
+                 adesso ne ha più d'uno, e vince quello con la severità più alta",
+            ));
+        } else if a.levels.is_empty() {
+            out.push(Finding::err(
+                format!("project.alarms[{}].levels", a.id),
+                format!("l'allarme `{}` non ha nessun livello", a.id),
+                "senza condizioni non scatterà mai: aggiungi almeno un livello",
+            ));
+        }
+    }
+    for (tag, ids) in &alarm_per_tag {
+        if ids.len() > 1 {
+            out.push(Finding::err(
+                format!("project.alarms[{}].tag", ids[0]),
+                format!(
+                    "il tag `{tag}` è osservato da {} allarmi ({}): adesso ne vuole uno solo",
+                    ids.len(),
+                    ids.join(", ")
+                ),
+                "uniscili in un allarme con più livelli — così scatta una riga sola con la                  severità giusta, invece di tre insieme per lo stesso fenomeno",
             ));
         }
     }
@@ -1463,6 +1507,71 @@ fn source_id(s: &SourceDef) -> &str {
         SourceDef::EnIp(c) => &c.id,
         SourceDef::Host(c) => &c.id,
     }
+}
+
+/// Il motivo per cui questo progetto **non si può salvare**, se ce n'è uno.
+///
+/// Quasi tutti i rilievi di `semantic` sono avvisi: si dicono e si va avanti.
+/// Questi due no, per decisione del maintainer del 23-09-2026: gli allarmi
+/// sono passati al modello «un tag, un allarme, più livelli dentro» e non c'è
+/// migrazione automatica — «sono progetti di test/prova, basta correggere i
+/// template e non permettermi di salvare un progetto riaperto se non correggo
+/// io gli allarmi».
+///
+/// Quindi un progetto scritto prima **si apre**, si legge e continua a far
+/// scattare i suoi allarmi (il motore legge ancora il campo vecchio), ma il
+/// primo salvataggio si ferma qui finché qualcuno non converte la scheda
+/// Allarmi. Senza questo blocco, il formato vecchio sopravvivrebbe per anni
+/// nei progetti veri, e ogni lettore dovrebbe continuare a saperlo gestire.
+pub fn blocco_salvataggio(project: &Project) -> Option<String> {
+    let vecchi: Vec<&str> = project
+        .alarms
+        .iter()
+        .filter(|a| a.formato_vecchio())
+        .map(|a| a.id.as_str())
+        .collect();
+    let mut per_tag: std::collections::BTreeMap<&str, Vec<&str>> = Default::default();
+    for a in &project.alarms {
+        if !a.tag.is_empty() {
+            per_tag.entry(a.tag.as_str()).or_default().push(&a.id);
+        }
+    }
+    let doppi: Vec<String> = per_tag
+        .iter()
+        .filter(|(_, ids)| ids.len() > 1)
+        .map(|(tag, ids)| format!("`{tag}` → {}", ids.join(", ")))
+        .collect();
+
+    if vecchi.is_empty() && doppi.is_empty() {
+        return None;
+    }
+    let mut m = String::from(
+        "Gli allarmi di questo progetto sono nel formato vecchio e vanno convertiti a mano \
+         prima di poter salvare (non c'è migrazione automatica).\n\n",
+    );
+    if !vecchi.is_empty() {
+        m.push_str(&format!(
+            "· {} allarmi hanno una `condition` sola invece dei livelli: {}.\n",
+            vecchi.len(),
+            vecchi.join(", ")
+        ));
+    }
+    if !doppi.is_empty() {
+        m.push_str(&format!(
+            "· {} con più di un allarme, e adesso ne vuole uno con più livelli: {}.\n",
+            if doppi.len() == 1 {
+                "1 tag".to_string()
+            } else {
+                format!("{} tag", doppi.len())
+            },
+            doppi.join("; ")
+        ));
+    }
+    m.push_str(
+        "\nNella scheda Allarmi: tieni un allarme per tag e mettici dentro un livello per \
+         soglia, con la sua severità. Scatta quello con la severità più alta fra le condizioni vere.",
+    );
+    Some(m)
 }
 
 #[cfg(test)]
@@ -2354,7 +2463,7 @@ types:
 tags:
   - { id: motore1, type_ref: Motore }
 sources: []
-alarms: [{ id: al, tag: motore1.velocita, message: troppo veloce, condition: { kind: above, threshold: 10 } }]
+alarms: [{ id: al, tag: motore1.velocita, levels: [{ condition: { kind: above, threshold: 10 }, message: troppo veloce }] }]
 "#;
         let rs = rilievi(
             prog,

@@ -1005,6 +1005,33 @@ pub struct AlarmStateLite {
     pub acknowledged: bool,
     #[serde(default)]
     pub activated_at_ms: Option<u64>,
+    /// La severità e il messaggio **del livello che sta scattando**
+    /// (23-09-2026). Un allarme ha più livelli e `def.severity`/`def.message`
+    /// dicono quelli del formato vecchio: il pannello deve mostrare la soglia
+    /// in vigore, o un Critical si vedrebbe come il Warning che era prima.
+    /// `default` perché un runtime anteriore non manda questi campi, e allora
+    /// valgono quelli della definizione (vedi `severita()`/`messaggio()`).
+    #[serde(default)]
+    pub severity: Option<String>,
+    #[serde(default)]
+    pub message: Option<String>,
+}
+
+impl AlarmStateLite {
+    /// La severità da mostrare: quella del livello in vigore se il runtime la
+    /// manda, altrimenti quella della definizione.
+    pub fn severita(&self) -> String {
+        self.severity
+            .clone()
+            .unwrap_or_else(|| self.def.severity.clone())
+    }
+
+    /// Il messaggio da mostrare, stessa regola.
+    pub fn messaggio(&self) -> String {
+        self.message
+            .clone()
+            .unwrap_or_else(|| self.def.message.clone())
+    }
 }
 
 /// Stato condiviso tra il task WS `/ws/alarms` in background e il loop di

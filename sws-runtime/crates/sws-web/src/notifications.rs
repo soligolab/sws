@@ -220,7 +220,7 @@ fn alarm_subject(
         "{} {} — {}",
         evento.marcatore(),
         state.def.id,
-        sws_core::project::resolve_msg(&state.def.message, lingua, table),
+        sws_core::project::resolve_msg(&state.message, lingua, table),
     )
 }
 
@@ -232,9 +232,9 @@ fn alarm_body(state: &AlarmState, evento: Evento, lingua: &str, table: &Language
         e.allarme,
         state.def.id,
         e.messaggio,
-        sws_core::project::resolve_msg(&state.def.message, lingua, table),
+        sws_core::project::resolve_msg(&state.message, lingua, table),
         e.severita,
-        state.def.severity,
+        state.severity,
         e.tag,
         state.def.tag,
         e.valore,
@@ -489,11 +489,10 @@ mod corpo_notifica_tests {
 
     fn stato(messaggio: &str) -> AlarmState {
         let def: AlarmDef = serde_yaml::from_str(&format!(
-            "id: A1\ntag: t.pressione\nmessage: \"{messaggio}\"\ncondition:\n  kind: above\n  threshold: 10.0\n"
+            "id: A1\ntag: t.pressione\nlevels:\n  - condition: {{ kind: above, threshold: 10.0 }}\n    message: \"{messaggio}\"\n"
         ))
         .expect("AlarmDef di prova");
         AlarmState {
-            def,
             isa_state: IsaState::Normal,
             active: true,
             acknowledged: false,
@@ -501,6 +500,11 @@ mod corpo_notifica_tests {
             ack_at_ms: None,
             normalized_at_ms: None,
             last_value: None,
+            // Il messaggio in vigore è quello del livello che sta scattando.
+            severity: def.livelli()[0].severity,
+            message: def.livelli()[0].message.clone(),
+            level: Some(0),
+            def,
         }
     }
 
