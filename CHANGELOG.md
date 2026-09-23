@@ -11,6 +11,19 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Fixed
+- **Il pannello LVGL parte dalla prima pagina dell'albero, non dalla prima in ordine alfabetico** (Passo 3 del piano di stabilizzazione, punto B7). Senza una pagina iniziale dichiarata il viewer
+  prendeva la prima di `GET /api/synoptics`, che sono i nomi dei file ordinati dal filesystem: a decidere cosa vedeva il cliente all'accensione era l'alfabeto, e **rinominare una pagina cambiava
+  la schermata di avvio**, mentre l'ordine messo nell'albero non contava niente. Ora si passa da `GET /api/pages/nav` e si prende la prima dell'albero riconciliato — riconciliato perché l'albero
+  salvato può nominare pagine che non esistono più, e la schermata di avvio dev'essere una pagina vera. Una home dichiarata continua a vincere, e se l'elenco non si legge si ripiega sull'ordine
+  dei file come prima. Il log dice quale dei tre casi è, perché è quello che si legge quando un pannello parte sulla pagina sbagliata.
+
+### Changed
+- **Il navigatore non interroga più il runtime a ogni disegno** (Passo 3, punto B8). L'elenco delle pagine si leggeva con una richiesta HTTP **bloccante**, con un client TLS costruito da zero,
+  dentro il thread che disegna, e una volta per ogni navigatore presente in pagina — figli di griglia e faceplate compresi. Su un pannello lento è tempo che passa fra il tocco e il cambio pagina,
+  per una risposta quasi sempre identica alla precedente: l'elenco cambia solo quando cambia il progetto. Ora si legge alla prima apertura e poi solo dopo un cambio di progetto, nello stesso
+  punto in cui il viewer butta gli SVG scaricati. Se il runtime non risponde si tiene l'ultimo elenco buono **e si riprova** al disegno dopo.
+
 ### Changed
 - **«Rileva chat» dice a quale bot scrivere** (segnalazione del maintainer, 23-09-2026: «nemmeno io avevo capito cosa dovevo fare»). Il pulsante legge i messaggi arrivati al bot, ma se nessuno
   gli ha ancora scritto non trova niente, e la spiegazione — «manda /start al bot» — arrivava **dopo** il fallimento e senza nominare il bot: una frase senza soggetto, davanti a un token che è

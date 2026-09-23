@@ -81,8 +81,22 @@ eliminato dopo il confronto degli alberi; **su origin `feat/segreti-di-progetto`
 `5ccef64d` (solo fino al 2g), perché l'aveva pushato un'altra sessione: va cancellato dal remoto, ma è
 un'azione che aspetta il maintainer.
 
-**Prossimo passo: il Passo 3** del piano di stabilizzazione (il viewer LVGL segue l'albero). Prima di
-scrivere codice, riverificare le specifiche — il piano è del 21-09 e da allora `main` si è mossa parecchio.
+**Passo 3 fatto**, sul ramo `fix/lvgl-albero` (`feb878a5`), da mergiare:
+- **B7** il viewer LVGL parte dalla prima pagina dell'**albero** e non dalla prima in ordine alfabetico.
+  Provato con `--istantanea` su un progetto in cui l'albero contraddice l'alfabeto: apre «impianto» e non
+  «allarmi». Home dichiarata: vince ancora. Nessun albero o elenco illeggibile: ripiego sull'ordine dei
+  file, e il log dice quale dei tre casi è.
+- **B8** il navigatore non interroga più il runtime a ogni disegno (era una richiesta HTTP bloccante per
+  navigatore in pagina, con client TLS nuovo ogni volta): legge alla prima apertura e poi solo al cambio
+  di progetto.
+- Resta la prova **sul pannello**, che il piano colloca nel Passo 6. L'immagine installata sul WP630 è
+  precedente a questo lavoro: per provarlo lì va ricostruita.
+
+**Prossimo passo: il Passo 4** (l'albero nella cronologia e nel salvataggio). **Il piano dice che va
+confermato prima**, perché cambia il significato di «l'albero è live»: oggi si scrive da solo sul server
+con un debounce di 300 ms, non è annullabile, e una pagina nuova non ancora salvata è già nell'albero
+scritto. La proposta del piano è di farlo entrare nella cronologia come le pagine e scriverlo in
+`saveAll` insieme a loro.
 
 **Due cose in sospeso, nessuna bloccante:**
 - il **token Telegram vero** del maintainer è in `~/sws_projects/test/secrets.yaml` (progetto di prova):

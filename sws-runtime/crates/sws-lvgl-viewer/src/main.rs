@@ -1144,6 +1144,11 @@ fn run_window(
             // nuova col disegno vecchio — cioè proprio l'inganno che il
             // ricaricamento automatico doveva togliere di mezzo.
             svg_assets::invalidate();
+            // Stessa ragione, per l'elenco del navigatore: un deploy può aver
+            // aggiunto, tolto o riordinato pagine, e il menù resterebbe quello
+            // di prima. È l'unico punto in cui si rilegge — a ogni render
+            // sarebbe una richiesta bloccante per navigatore disegnato (B8).
+            client::invalida_pagine_nav();
             let (id, nome) = (&current_page.0, &current_page.1);
             let letta = match id {
                 Some(id) => rt_handle.block_on(client::resolve_page_by_id(&base_url, id)),

@@ -240,10 +240,35 @@ pub async fn fetch_pagine_nav(base_url: &str) -> anyhow::Result<NavPagineDati> {
     Ok(resp.json::<NavPagineDati>().await?)
 }
 
-/// Rilegge l'elenco e lo ricorda; se il runtime non risponde tiene l'ultimo
-/// buono (un navigatore con un menù vecchio è meglio di uno vuoto). Ritorna
-/// quello che c'è adesso.
+/// Se l'elenco va riletto. Parte alzata (la prima apertura legge) e si rialza
+/// quando il progetto cambia.
+static NAV_DA_RILEGGERE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+
+/// Il progetto è cambiato: l'elenco delle pagine va riletto alla prossima
+/// occasione. La chiama il ciclo di rendering nello stesso punto in cui butta
+/// gli SVG scaricati, che è l'unico momento in cui si sa che il disco è
+/// diverso da quello che il pannello sta mostrando.
+pub fn invalida_pagine_nav() {
+    NAV_DA_RILEGGERE.store(true, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// L'elenco per il navigatore, riletto **solo quando serve**.
+///
+/// Prima si rileggeva a ogni render (Passo 3 del piano di stabilizzazione,
+/// punto B8): una richiesta HTTP **bloccante**, con un client TLS costruito da
+/// zero, dentro il thread che disegna — e una volta per ogni navigatore
+/// presente sulla pagina, figli di griglia e faceplate compresi. Su un
+/// pannello lento è il tempo che passa fra il tocco e il cambio pagina, e la
+/// risposta è quasi sempre identica a quella di prima: l'elenco delle pagine
+/// cambia solo quando cambia il progetto.
+///
+/// Se il runtime non risponde si tiene l'ultimo elenco buono (un navigatore
+/// con un menù vecchio è meglio di uno vuoto) **e si riprova** al render dopo:
+/// il flag si abbassa solo quando la lettura riesce.
 pub fn aggiorna_pagine_nav(base_url: &str, rt_handle: &tokio::runtime::Handle) -> NavPagineDati {
+    if !NAV_DA_RILEGGERE.load(std::sync::atomic::Ordering::Relaxed) {
+        return PAGINE_NAV.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    }
     let letto = rt_handle.block_on(async {
         tokio::time::timeout(
             std::time::Duration::from_secs(5),
@@ -254,6 +279,7 @@ pub fn aggiorna_pagine_nav(base_url: &str, rt_handle: &tokio::runtime::Handle) -
     match letto {
         Ok(Ok(d)) => {
             *PAGINE_NAV.lock().unwrap_or_else(|e| e.into_inner()) = d.clone();
+            NAV_DA_RILEGGERE.store(false, std::sync::atomic::Ordering::Relaxed);
             d
         }
         Ok(Err(e)) => {
@@ -368,6 +394,16 @@ pub async fn resolve_start_page(base_url: &str) -> anyhow::Result<SynopticPage> 
             Err(e) => eprintln!("[avvio] home_page_id '{id}' non risolvibile ({e})"),
         }
     }
+    // Senza home dichiarata si prende la **prima dell'albero**, non la prima in
+    // ordine alfabetico (Passo 3 del piano di stabilizzazione, punto B7).
+    // `GET /api/synoptics` dà i nomi dei file ordinati dal filesystem, quindi
+    // finora a decidere cosa vedeva il cliente all'accensione era l'alfabeto:
+    // rinominare una pagina cambiava la schermata di avvio del pannello, e
+    // l'ordine che il maintainer aveva messo nell'albero non contava niente.
+    if let Some(p) = prima_dell_albero(base_url, &dichiarata).await {
+        return Ok(p);
+    }
+
     let names = list_synoptics(base_url).await?;
     let prima = names
         .first()
@@ -381,6 +417,58 @@ pub async fn resolve_start_page(base_url: &str) -> anyhow::Result<SynopticPage> 
         None => eprintln!("[avvio] nessuna home page dichiarata, uso la prima: '{prima}'"),
     }
     fetch_page(base_url, prima).await
+}
+
+/// Il primo id in ordine d'albero. Pura: è la decisione, non la rete, ed è la
+/// parte che si può provare contro la fixture condivisa con l'editor.
+///
+/// `riconcilia` prima di `appiattisci` perché l'albero salvato può nominare
+/// pagine che non ci sono più (cancellate a mano, o arrivate con un deploy
+/// parziale) e ignorare quelle aggiunte dopo: senza, la prima voce potrebbe
+/// essere una pagina inesistente e il pannello partirebbe con un errore.
+pub(crate) fn primo_id_dell_albero(nav: &NavPagineDati) -> Option<String> {
+    let ids: Vec<String> = nav.pages.iter().map(|p| p.id.clone()).collect();
+    sws_core::page_tree::appiattisci(&sws_core::page_tree::riconcilia(&nav.tree, &ids))
+        .into_iter()
+        .next()
+}
+
+/// La prima pagina secondo l'albero del progetto, se si riesce a saperlo.
+///
+/// `None` quando `GET /api/pages/nav` non risponde o il progetto non ha
+/// pagine: il chiamante ripiega sull'ordine dei file, che è ciò che il viewer
+/// ha sempre fatto. Un ripiego e non un errore, perché una schermata di avvio
+/// nell'ordine sbagliato è meglio di un pannello nero.
+async fn prima_dell_albero(base_url: &str, dichiarata: &Option<String>) -> Option<SynopticPage> {
+    let nav = match fetch_pagine_nav(base_url).await {
+        Ok(n) => n,
+        Err(e) => {
+            eprintln!("[avvio] elenco pagine non letto ({e}), uso l'ordine dei file");
+            return None;
+        }
+    };
+    let primo = &primo_id_dell_albero(&nav)?;
+    // Senza albero `riconcilia` restituisce l'elenco piatto, quindi «la prima
+    // dell'albero» sarebbe vera ma fuorviante: chi legge il log di un pannello
+    // partito sulla pagina sbagliata deve capire **se un ordine c'era**.
+    let dove = if nav.tree.is_empty() {
+        "nessun albero, uso la prima pagina"
+    } else {
+        "uso la prima dell'albero"
+    };
+    match resolve_page_by_id(base_url, primo).await {
+        Ok(p) => {
+            match dichiarata {
+                Some(_) => eprintln!("[avvio] ripiego: {dove}: '{}'", p.name),
+                None => eprintln!("[avvio] nessuna home page dichiarata, {dove}: '{}'", p.name),
+            }
+            Some(p)
+        }
+        Err(e) => {
+            eprintln!("[avvio] la prima dell'albero ('{primo}') non si risolve ({e})");
+            None
+        }
+    }
 }
 
 /// `home_page_id` dal progetto, se c'è.
@@ -1072,7 +1160,9 @@ pub fn salva_lingua(codice: &str) {
 
 #[cfg(test)]
 mod tests_riconnessione {
-    use super::{prossima_attesa, ATTESA_MAX, ATTESA_MIN};
+    use super::{
+        primo_id_dell_albero, prossima_attesa, NavPaginaDati, NavPagineDati, ATTESA_MAX, ATTESA_MIN,
+    };
     use std::time::Duration;
 
     #[test]
@@ -1112,5 +1202,102 @@ mod tests_riconnessione {
             n += 1;
         }
         assert!(n <= 6, "servono {n} tentativi per arrivare al tetto");
+    }
+    // ── La pagina d'avvio segue l'albero, non l'alfabeto (Passo 3, B7) ──────
+
+    fn nav(ids: &[&str], tree: Vec<sws_core::PageTreeNode>) -> NavPagineDati {
+        NavPagineDati {
+            pages: ids
+                .iter()
+                .map(|i| NavPaginaDati {
+                    id: i.to_string(),
+                    name: i.to_string(),
+                })
+                .collect(),
+            tree,
+        }
+    }
+
+    fn nodo(id: &str, figli: Vec<sws_core::PageTreeNode>) -> sws_core::PageTreeNode {
+        sws_core::PageTreeNode {
+            id: id.to_string(),
+            children: figli,
+        }
+    }
+
+    /// Il caso che ha motivato il passo: le pagine arrivano in ordine di file
+    /// (alfabetico) e l'albero dice un'altra cosa. Prima vinceva l'alfabeto,
+    /// quindi rinominare una pagina cambiava la schermata di avvio del
+    /// pannello.
+    #[test]
+    fn la_prima_e_quella_dell_albero_non_la_prima_in_alfabeto() {
+        let d = nav(
+            &["allarmi", "impianto", "zavorra"],
+            vec![
+                nodo("impianto", vec![nodo("allarmi", vec![])]),
+                nodo("zavorra", vec![]),
+            ],
+        );
+        assert_eq!(primo_id_dell_albero(&d).as_deref(), Some("impianto"));
+    }
+
+    /// Senza albero l'ordine resta quello di prima: `riconcilia` appende in
+    /// coda le pagine che l'albero non nomina, nell'ordine in cui arrivano.
+    #[test]
+    fn senza_albero_vale_l_ordine_in_cui_arrivano() {
+        let d = nav(&["allarmi", "impianto"], vec![]);
+        assert_eq!(primo_id_dell_albero(&d).as_deref(), Some("allarmi"));
+    }
+
+    /// Un albero che nomina una pagina che non esiste più: la prima voce
+    /// dev'essere una pagina **vera**, o il pannello partirebbe con un errore
+    /// invece che con una schermata.
+    #[test]
+    fn una_pagina_sparita_dall_albero_non_diventa_la_schermata_d_avvio() {
+        let d = nav(
+            &["impianto"],
+            vec![nodo("cancellata", vec![]), nodo("impianto", vec![])],
+        );
+        assert_eq!(primo_id_dell_albero(&d).as_deref(), Some("impianto"));
+    }
+
+    /// I figli di un nodo scartato salgono al suo posto, quindi il primo può
+    /// essere un figlio: è la regola di `riconcilia`, e qui conta perché
+    /// decide cosa si vede all'accensione.
+    #[test]
+    fn i_figli_di_un_nodo_sparito_salgono() {
+        let d = nav(
+            &["figlia", "altra"],
+            vec![
+                nodo("sparita", vec![nodo("figlia", vec![])]),
+                nodo("altra", vec![]),
+            ],
+        );
+        assert_eq!(primo_id_dell_albero(&d).as_deref(), Some("figlia"));
+    }
+
+    /// L'elenco si rilegge solo quando serve: la prima volta, e poi quando il
+    /// progetto cambia. Il test guarda il **flag**, perché la lettura vera
+    /// vuole un runtime in ascolto — e il flag è la decisione che conta.
+    #[test]
+    fn l_elenco_del_navigatore_si_rilegge_solo_quando_serve() {
+        use std::sync::atomic::Ordering::Relaxed;
+        // Parte alzato: la prima apertura deve leggere, o il navigatore
+        // nascerebbe vuoto.
+        assert!(super::NAV_DA_RILEGGERE.load(Relaxed));
+
+        // Dopo una lettura riuscita si abbassa (lo fa `aggiorna_pagine_nav`,
+        // qui si simula l'effetto perché la lettura vuole la rete).
+        super::NAV_DA_RILEGGERE.store(false, Relaxed);
+        assert!(!super::NAV_DA_RILEGGERE.load(Relaxed));
+
+        // Il progetto cambia: si rilegge alla prossima occasione.
+        super::invalida_pagine_nav();
+        assert!(super::NAV_DA_RILEGGERE.load(Relaxed));
+    }
+
+    #[test]
+    fn un_progetto_senza_pagine_non_ha_una_prima() {
+        assert_eq!(primo_id_dell_albero(&nav(&[], vec![])), None);
     }
 }
