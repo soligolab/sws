@@ -74,7 +74,50 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — Passo 2 dei segreti chiuso e su `main` (2026-09-23, ufficio)
+## ▶ Riprendere da qui — cinque lavori su `main`, tre da collaudare (2026-09-23)
+
+**Tutto su `main` e pushato.** Nessun ramo aperto. Cinque squash, in ordine:
+
+| | commit | cosa |
+|---|---|---|
+| Passo 2 | `9ab8a2e5` | **segreti di progetto** in `secrets.yaml` 0600, fuori da git e dall'export |
+| Passo 3 | `36b4dac8` | il **pannello LVGL parte dalla prima pagina dell'albero**, e il navigatore non interroga il runtime a ogni disegno |
+| Passo 4 | `adcd02d7` | l'**ordine delle pagine** si annulla con Ctrl+Z e si salva col progetto; più tre difetti del pannello proprietà |
+| — | `8b2190b4` | **un tag, un allarme, più livelli dentro** |
+
+### Cosa aspetta il collaudo del maintainer
+
+1. **Il modello degli allarmi** (`8b2190b4`) — mergiato su sua richiesta **senza** che l'abbia visto
+   a schermo. Verde su 28 suite Rust, 805 test dell'editor, 27 guardie, e provato dal vivo su un
+   runtime di scarto, ma la conferma a occhio manca. Da provare: aprire il progetto `test` (che ha
+   ancora tre allarmi su `slider.alarm` e due su `host.Temeprature1`), verificare che **rifiuti il
+   salvataggio** dicendo quali unire, convertirli dalla scheda Allarmi con «+ livello», e vedere che
+   con il valore a 85 scatti **un** allarme Critical invece di tre.
+2. **Il Passo 4** (ordine delle pagine): trascinare una pagina, Ctrl+Z, Salva.
+3. **Il Passo 3** (pagina d'avvio e navigatore) vuole il **pannello**, quindi aspetta un'immagine
+   nuova — decisione sua: si ricostruisce «quando ci sarà una situazione che giustifichi build +
+   push di una immagine podman nuova». Quel momento è vicino: sul WP630 c'è ancora un'immagine di
+   prova costruita da un ramo, e da allora sono entrati quattro lavori.
+
+### Due cose in sospeso, nessuna bloccante
+
+- Il **token Telegram vero** del maintainer è in `~/sws_projects/test/secrets.yaml` (progetto di
+  prova): va **revocato** quando ha finito, come lui stesso ha previsto. Il bot è
+  `@soligowebscadabot`.
+- Il **WP630** gira un'immagine di prova non pubblicata. Per tornare a quella del registro:
+  `podman tag ghcr.io/soligolab/sws-runtime:prima-della-prova ghcr.io/soligolab/sws-runtime:latest-arm64`
+  e `systemctl --user restart sws-runtime.service`. Alla release vera: **bump a 2.12.0** nei quattro
+  file e immagini ufficiali.
+
+### Il seme ancora aperto
+
+[Lo storico allarmi perde gli allarmi mai confermati](docs/plans/2026-09-23-storico-allarmi-eventi-persi.md):
+un allarme che scatta, notifica e rientra senza conferma **non entra mai** nel registro, perché il
+journal scrive solo a ciclo ISA completo. Provato: tre allarmi scattati, uno confermato, un evento
+registrato. La direzione è del maintainer («l'allarme avvisa quando scatta»), ma la correzione tocca
+il modo in cui lo storico scrive su disco e non è stata presa.
+
+## Riprendere da qui (precedente) — Passo 2 dei segreti chiuso e su `main` (2026-09-23, ufficio)
 
 **Su `main`**, squash `9ab8a2e5` (quindici commit), **non ancora pushato**. Il ramo locale è stato
 eliminato dopo il confronto degli alberi; **su origin `feat/segreti-di-progetto` esiste ancora**, fermo a
