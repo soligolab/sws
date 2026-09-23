@@ -74,9 +74,27 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — Passo 2 dei segreti: il collaudo 2h ha trovato tre difetti, tutti corretti (2026-09-23, ufficio)
+## ▶ Riprendere da qui — Passo 2 dei segreti chiuso e su `main` (2026-09-23, ufficio)
 
-**Ramo `feat/segreti-di-progetto`.** Il 2h non era una formalità: il codice era verde su test, guardie e
+**Su `main`**, squash `9ab8a2e5` (quindici commit), **non ancora pushato**. Il ramo locale è stato
+eliminato dopo il confronto degli alberi; **su origin `feat/segreti-di-progetto` esiste ancora**, fermo a
+`5ccef64d` (solo fino al 2g), perché l'aveva pushato un'altra sessione: va cancellato dal remoto, ma è
+un'azione che aspetta il maintainer.
+
+**Prossimo passo: il Passo 3** del piano di stabilizzazione (il viewer LVGL segue l'albero). Prima di
+scrivere codice, riverificare le specifiche — il piano è del 21-09 e da allora `main` si è mossa parecchio.
+
+**Due cose in sospeso, nessuna bloccante:**
+- il **token Telegram vero** del maintainer è in `~/sws_projects/test/secrets.yaml` (progetto di prova):
+  va **revocato** quando ha finito, come lui stesso ha previsto;
+- il **WP630 ha un'immagine di prova** costruita dal ramo, non pubblicata. Per tornare a quella del
+  registro: `podman tag ghcr.io/soligolab/sws-runtime:prima-della-prova ghcr.io/soligolab/sws-runtime:latest-arm64`
+  e `systemctl --user restart sws-runtime.service`. Alla release vera vanno fatti il bump a **2.12.0** e
+  le immagini ufficiali.
+
+### Cos'era il Passo 2, e cosa ha trovato il collaudo
+
+**Era il ramo `feat/segreti-di-progetto`.** Il 2h non era una formalità: il codice era verde su test, guardie e
 revisione, e il collaudo dal vivo ha trovato **tre difetti**, due dei quali perdevano credenziali in
 silenzio. Due li ha trovati il progetto di prova in `~/sws_projects/test/`, uno il WP630 vero.
 
