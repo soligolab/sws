@@ -757,20 +757,31 @@ export const api = {
   // Both endpoints speak `application/zip`. We expose the raw `Response`
   // for export so the caller can read the Content-Disposition header
   // before turning the body into a Blob for download.
-  exportProjectZip: async (): Promise<Response> => {
+  /** `segreti`: Passo 2 (2d). Assente/`false` = il bundle NON porta
+   *  `secrets.yaml` (il default per «Esporta» — un condivisione normale non
+   *  deve portare le credenziali). `true` = lo include: usato sia dalla
+   *  casella «Includi i segreti» dell'IDE sia dal deploy via browser
+   *  (`deployToTarget`, `ConfigView.tsx`), che i segreti li vuole SEMPRE. */
+  exportProjectZip: async (segreti = false): Promise<Response> => {
     const headers = new Headers();
     if (getAuthToken()) headers.set("Authorization", `Bearer ${getAuthToken()}`);
-    const res = await fetch(`${getBaseUrl()}/api/project/export`, { headers });
+    const url = `${getBaseUrl()}/api/project/export${segreti ? "?segreti=1" : ""}`;
+    const res = await fetch(url, { headers });
     if (res.status === 401) throw new AuthError();
     if (res.status === 403) throw new Error(`API /api/project/export: 403 Forbidden`);
     if (!res.ok) throw new Error(`API /api/project/export: ${res.status} ${res.statusText}`);
     return res;
   },
 
-  importProjectZip: async (file: Blob): Promise<void> => {
+  /** `segreti`: applica `secrets.yaml` del bundle, se presente. Assente/`false`
+   *  (il default) = ignorato anche se il bundle lo porta — importare il
+   *  progetto di qualcun altro non deve sostituire le proprie credenziali
+   *  senza che lo si chieda esplicitamente (Passo 2, 2d). */
+  importProjectZip: async (file: Blob, segreti = false): Promise<void> => {
     const headers = new Headers({ "Content-Type": "application/zip" });
     if (getAuthToken()) headers.set("Authorization", `Bearer ${getAuthToken()}`);
-    const res = await fetch(`${getBaseUrl()}/api/project/import`, {
+    const url = `${getBaseUrl()}/api/project/import${segreti ? "?segreti=1" : ""}`;
+    const res = await fetch(url, {
       method: "PUT",
       headers,
       body: file,
@@ -1533,6 +1544,14 @@ export const api = {
    *  il token così com'è: se è il placeholder mascherato (o vuoto) il server
    *  usa quello salvato — il browser non ha mai il segreto in chiaro dopo un
    *  cambio di tab. */
+  /** Chi è il bot di questo token: serve a dire all'utente a chi scrivere. */
+  telegramBotIdentity: (botToken: string) =>
+    request<{ username: string; nome: string }>("/api/notifications/telegram-bot", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bot_token: botToken }),
+    }),
+
   detectTelegramChats: (botToken: string) =>
     request<{ id: string; label: string; type: string }[]>("/api/notifications/telegram-chats", {
       method: "POST",

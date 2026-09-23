@@ -75,7 +75,7 @@ pub async fn send_message(
             .json(&serde_json::json!({ "chat_id": chat, "text": text }))
             .send()
             .await
-            .map_err(|e| anyhow::anyhow!("richiesta a {chat} fallita: {e}"))?;
+            .map_err(|e| anyhow::anyhow!("richiesta a {chat} fallita: {}", redigi(e)))?;
         if !resp.status().is_success() {
             let status = resp.status();
             let body = resp.text().await.unwrap_or_default();
@@ -83,6 +83,72 @@ pub async fn send_message(
         }
     }
     Ok(())
+}
+
+/// Il token di un bot Telegram sta **nell'URL** (`/bot<token>/sendMessage`), e
+/// `reqwest::Error` nel suo `Display` porta l'URL della richiesta fallita: un
+/// broker irraggiungibile o un DNS che non risolve bastavano a stampare la
+/// credenziale nei log e a rimandarla al browser dentro il messaggio d'errore
+/// (misurato il 21-09-2026, Passo 2 del piano di stabilizzazione).
+///
+/// `without_url()` è il rimedio della libreria e toglie l'URL alla radice;
+/// [`redigi_token_nell_url`] passa poi sul testo che resta, perché l'URL può
+/// essere ricomparso da una sorgente annidata o da un messaggio composto a
+/// mano — una redazione che dipende da un solo punto è una redazione che prima
+/// o poi si scavalca.
+pub(crate) fn redigi(e: reqwest::Error) -> String {
+    redigi_token_nell_url(&e.without_url().to_string())
+}
+
+/// Sostituisce il token in ogni `…/bot<token>…` del testo. Il confine è il `/`
+/// successivo o la fine della parola: è la forma che l'URL di Telegram ha
+/// sempre, e non tocca niente che non le somigli.
+pub(crate) fn redigi_token_nell_url(testo: &str) -> String {
+    const MARCA: &str = "/bot";
+    let mut out = String::with_capacity(testo.len());
+    let mut resto = testo;
+    while let Some(i) = resto.find(MARCA) {
+        let (prima, dopo) = resto.split_at(i + MARCA.len());
+        out.push_str(prima);
+        let fine = dopo
+            .find(|c: char| c == '/' || c.is_whitespace() || c == '"' || c == ')')
+            .unwrap_or(dopo.len());
+        if fine == 0 {
+            // `/bot` seguito subito da un confine: non è un token, si prosegue.
+            resto = dopo;
+            continue;
+        }
+        out.push_str("********");
+        resto = &dopo[fine..];
+    }
+    out.push_str(resto);
+    out
+}
+
+#[cfg(test)]
+mod prove_redazione {
+    use super::redigi_token_nell_url;
+
+    #[test]
+    fn il_token_sparisce_dall_url() {
+        let t = redigi_token_nell_url(
+            "error sending request for url (https://api.telegram.org/bot123456:AAH-segretissimo/sendMessage)",
+        );
+        assert!(!t.contains("AAH-segretissimo"), "{t}");
+        assert!(t.contains("/bot********/sendMessage"), "{t}");
+    }
+
+    #[test]
+    fn due_occorrenze_spariscono_tutte_e_due() {
+        let t = redigi_token_nell_url("a /bot111:xxx/getUpdates b /bot222:yyy/sendMessage");
+        assert_eq!(t, "a /bot********/getUpdates b /bot********/sendMessage");
+    }
+
+    #[test]
+    fn un_testo_senza_token_resta_identico() {
+        let t = "impossibile raggiungere Telegram: connessione rifiutata";
+        assert_eq!(redigi_token_nell_url(t), t);
+    }
 }
 
 /// Owns a background task that drains an unbounded channel of text messages and

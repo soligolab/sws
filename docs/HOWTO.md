@@ -34,6 +34,8 @@
 14. [Convertire un progetto da LVGL a Web (o viceversa)](#14-convertire-un-progetto-da-lvgl-a-web-o-viceversa)
 15. [Passare parametri a una funzione di progetto, e chiamarla da uno script globale](#15-passare-parametri-a-una-funzione-di-progetto-e-chiamarla-da-uno-script-globale)
 16. [Generare un'onda (rampa/triangolo/quadra) su un tag, senza scrivere Python](#16-generare-unonda-rampatriangoloquadra-su-un-tag-senza-scrivere-python)
+17. [Impostare l'immagine di boot del pannello](#17-impostare-limmagine-di-boot-del-pannello)
+18. [Dove stanno le password](#18-dove-stanno-le-password)
 
 ---
 
@@ -1147,3 +1149,67 @@ Se Pixsys corregge il launcher, l'installazione smette di funzionare e lo stato 
 
 Dettagli e misure: `docs/archive/` → piano dell'immagine di boot; prove sul dispositivo in `docs/TEST_SETUPS.md`.
 
+---
+
+## 18. Dove stanno le password
+
+**In `secrets.yaml`, dentro la cartella del progetto, permessi `0600`.** Non in `project.yaml`: lì fino al
+22-09-2026 ci stavano in chiaro, e da lì finivano nei backup, nell'export condiviso e nei commit git.
+
+I campi che ci vivono sono sette, con una chiave stabile per **id** (non per posizione: l'ordine delle sorgenti
+cambia, l'id no):
+
+| Chiave in `secrets.yaml` | Dov'è nell'IDE |
+|---|---|
+| `notifications.telegram.bot_token` | Configurazione → Notifiche → Telegram |
+| `notifications.smtp.password` | Configurazione → Notifiche → SMTP |
+| `sources.<id>.password` | sorgente MQTT |
+| `sources.<id>.token` | sorgente HomeAssistant |
+| `sources.<id>.auth_password` | sorgente OPC-UA client, autenticazione utente/password |
+| `datastores.<id>.password` | datastore Postgres |
+| `datastores.<id>.connection_string` | datastore ODBC (può contenere `PWD=`) |
+
+### Quello che si vede nell'IDE
+
+Un campo già impostato si mostra come `********`. **Lasciarlo com'è** vuol dire «non toccare»: il runtime
+rimette il valore vero prima di scrivere. Per cambiarlo si scrive il valore nuovo sopra al segnaposto; per
+toglierlo si svuota il campo. Vale anche per la stringa di connessione ODBC, che è mascherata **intera** perché
+la password ce l'ha dentro: per cambiarla la si riscrive tutta.
+
+### Dove viaggia e dove no
+
+| | `secrets.yaml` |
+|---|---|
+| Deploy dall'IDE al dispositivo | **incluso** — un dispositivo senza credenziali non si collega a niente. Se lo zip non lo porta, il dispositivo **tiene il suo** |
+| Backup (automatico e manuale), ripristino | incluso |
+| Duplica progetto | incluso |
+| Export `.sws` da condividere | **escluso**, a meno della casella «Includi i segreti» nel menu ☰ (spenta di default) |
+| Import `.sws` | scritto solo se il bundle lo porta **e** la casella è accesa |
+| Git (`init`, `commit`) | **escluso**: `secrets.yaml` è in `.gitignore`, e se era già tracciato il commit successivo lo toglie dall'indice |
+| Template | nessun segreto, e una guardia lo verifica |
+
+### Un progetto vecchio, con le password ancora in `project.yaml`
+
+Si migra **da solo** alla prima apertura: il runtime fa un backup dell'intera cartella *prima* di toccare
+qualunque cosa, sposta i valori in `secrets.yaml` e scrive una riga di audit. Se il backup non riesce, la
+migrazione non parte.
+
+**Quello che era già uscito resta fuori**: i backup vecchi, gli export già consegnati e i commit git già fatti
+contengono ancora le credenziali in chiaro, e non si riscrive la storia per ripulirli. L'unico rimedio vero è
+**ruotare** quelle credenziali — cambiare il token del bot, la password SMTP, quella del broker.
+
+### Quello che non sta in `secrets.yaml`
+
+- **Chiavi dell'IA e del traduttore**: nella cartella di configurazione del runtime, non del progetto (`0600`).
+- **Password degli utenti**: in `users.yaml`, come hash Argon2id — non sono recuperabili, nemmeno dal runtime.
+- **Chiave privata TLS** (`tls.key`): nella cartella di configurazione, `0600` dal 22-09-2026; una chiave più
+  vecchia viene stretta al primo avvio.
+- **`opcua-pki/`**: la chiave privata del client OPC-UA viaggia come sempre, dentro la cartella del progetto.
+
+### Verificare che sia tutto a posto
+
+```bash
+./scripts/check_segreti.sh      # tabella sola, niente token nei log, template puliti
+ls -l ~/sws_projects/<progetto>/secrets.yaml    # deve essere -rw-------
+grep -E 'bot_token|password|token' ~/sws_projects/<progetto>/project.yaml   # non deve trovare valori
+```

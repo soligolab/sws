@@ -705,7 +705,9 @@ mod tests {
         scrivi_png(src.path(), NOME_BOOT_INIZIALE, &png(50))
             .await
             .unwrap();
-        let zip = crate::router::build_project_zip(src.path()).await.unwrap();
+        let zip = crate::router::build_project_zip(src.path(), true)
+            .await
+            .unwrap();
 
         // Destinazione con una pagina di boot stantia che il bundle non ha.
         let dst = tempfile::tempdir().unwrap();

@@ -8112,6 +8112,12 @@ function NotificationsTab() {
   const [detecting, setDetecting] = useState(false);
   const [detected, setDetected] = useState<{ id: string; label: string; type: string }[]>([]);
   const [detectMsg, setDetectMsg] = useState<string | null>(null);
+  // Chi è il bot del token: `null` = non ancora chiesto, stringa = errore.
+  // Serve a dire all'utente **a chi** deve scrivere — senza, «manda /start al
+  // bot» è una frase senza soggetto, e il 23-09-2026 nemmeno il maintainer,
+  // che quel bot l'aveva creato, ha capito cosa doveva fare.
+  const [bot, setBot] = useState<{ username: string; nome: string } | null>(null);
+  const [botErrore, setBotErrore] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -8203,6 +8209,33 @@ function NotificationsTab() {
   //
   // Auto-retry perché subito dopo un messaggio l'update può tardare qualche
   // secondo a comparire in getUpdates.
+  /** Chiede chi è il bot. Si chiama quando il campo perde il fuoco e
+   *  all'apertura se un token è già salvato: mai a ogni tasto, o sarebbe una
+   *  richiesta a Telegram per lettera digitata. */
+  const verificaBot = async () => {
+    const tok = tg.bot_token.trim();
+    if (tok === "" && !tokenSaved) { setBot(null); setBotErrore(null); return; }
+    try {
+      setBotErrore(null);
+      setBot(await api.telegramBotIdentity(tg.bot_token));
+    } catch (e: unknown) {
+      setBot(null);
+      setBotErrore(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  // Un token già salvato: si chiede chi è il bot appena la scheda si apre, una
+  // volta sola. Chi torna a guardare la configurazione vede subito a chi è
+  // legata, senza dover toccare niente.
+  const botChiesto = useRef(false);
+  useEffect(() => {
+    if (!tgEnabled || botChiesto.current || !tokenSaved) return;
+    botChiesto.current = true;
+    api.telegramBotIdentity(MASKED)
+      .then(setBot)
+      .catch((e: unknown) => setBotErrore(e instanceof Error ? e.message : String(e)));
+  }, [tgEnabled, tokenSaved]);
+
   const handleDetectChats = async () => {
     setDetecting(true);
     setDetectMsg(null);
@@ -8214,7 +8247,9 @@ function NotificationsTab() {
         if (chats.length > 0) { setDetected(chats); return; }
         if (i < attempts - 1) await new Promise((r) => setTimeout(r, 1500));
       }
-      setDetectMsg(t("cfgUi.noChatsFoundSendStart"));
+      setDetectMsg(bot
+        ? t("cfg.telegramNessunaChatConBot", { username: bot.username })
+        : t("cfgUi.noChatsFoundSendStart"));
     } catch (e: unknown) {
       setDetectMsg("✗ " + (e instanceof Error ? e.message : String(e)));
     } finally {
@@ -8366,7 +8401,39 @@ function NotificationsTab() {
               placeholder={tokenSaved ? t("cfgUi.alreadySavedWriteHereOnly") : "123456789:ABCdef..."}
               value={tokenSaved && tg.bot_token === MASKED ? "" : tg.bot_token}
               onChange={(e) => patchTg({ bot_token: e.target.value })}
+              onBlur={verificaBot}
             />
+            {/* I due passi, PRIMA di premere. Il messaggio d'errore li diceva
+                dopo il fallimento e senza nominare il bot: chi configura non
+                sapeva a chi scrivere. Col link la chat si apre da qui. */}
+            {(bot || botErrore) && (
+              <div style={{
+                marginTop: 8, padding: "8px 10px", borderRadius: 6, fontSize: 12, lineHeight: 1.6,
+                border: `1px solid ${botErrore ? "var(--brand-danger, #ef4444)" : "var(--brand-surface-2, #334155)"}`,
+                background: "var(--brand-bg, #0f172a)",
+              }}>
+                {botErrore ? (
+                  <span style={{ color: "var(--brand-danger-soft, #fca5a5)" }}>
+                    {t("cfg.telegramBotNonRaggiunto", { errore: botErrore })}
+                  </span>
+                ) : bot && (
+                  <>
+                    <div style={{ color: "var(--brand-success, #22c55e)", marginBottom: 4 }}>
+                      {t("cfg.telegramBotTrovato", { nome: bot.nome, username: bot.username })}
+                    </div>
+                    <div style={{ color: "var(--brand-text-muted, #94a3b8)" }}>
+                      1. {t("cfg.telegramPasso1")}{" "}
+                      <a href={`https://t.me/${bot.username}`} target="_blank" rel="noreferrer"
+                         style={{ color: "var(--brand-primary, #3b82f6)" }}>
+                        t.me/{bot.username}
+                      </a>
+                      <br />
+                      2. {t("cfg.telegramPasso2")}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 6 }}>
               <button
                 style={S.btn("ghost")}
@@ -10217,7 +10284,10 @@ async function deployToTarget(
   try {
     if (!await flushBeforeDeploy(onLog)) return false;
     onLog(i18n.t("cfgUi.exportingTheProjectFromThe"));
-    const exportRes = await api.exportProjectZip();
+    // true: il deploy vuole SEMPRE i segreti — un dispositivo che li riceve
+    // senza non si collega a niente (Passo 2, 2d). Diverso da «Esporta» nel
+    // menù, che di default li esclude.
+    const exportRes = await api.exportProjectZip(true);
     const cd = exportRes.headers.get("content-disposition") ?? "";
     const nameMatch = cd.match(/filename="([^"]+)"/);
     const zipName = nameMatch?.[1] ?? "project.zip";

@@ -338,6 +338,10 @@ pub fn build(
         )
         .route("/api/notifications/test-telegram", post(test_telegram))
         .route(
+            "/api/notifications/telegram-bot",
+            post(telegram_bot_identity),
+        )
+        .route(
             "/api/notifications/telegram-chats",
             post(detect_telegram_chats),
         )
@@ -2831,6 +2835,18 @@ async fn get_project(State(s): State<AppState>) -> Response {
     };
     match caricato {
         Ok(mut project) => {
+            // I segreti vivono in `secrets.yaml`: senza rimetterli dentro,
+            // `maschera` non trova niente da mascherare e i campi escono
+            // **assenti** invece che col segnaposto. Sembra innocuo e non lo
+            // è: l'IDE non può rimandare indietro un campo che non ha
+            // ricevuto, quindi il ripristino del segnaposto (2f) non ha niente
+            // da riconoscere e al primo salvataggio della sezione la
+            // credenziale sparisce. Misurato il 23-09-2026 rinominando un
+            // datastore ODBC: l'etichetta cambiava e la stringa di
+            // connessione se ne andava.
+            if let Ok(Some(seg)) = sws_core::segreti::leggi_segreti(&dir) {
+                sws_core::segreti::applica(&mut project, &seg);
+            }
             mask_project_secrets(&mut project);
             let mut r = Json(project).into_response();
             if let Some(v) = versione {
@@ -2851,28 +2867,18 @@ async fn get_project(State(s): State<AppState>) -> Response {
     }
 }
 
-/// Replace any sensitive field on the project with the placeholder
-/// constant before it's serialised to the caller.
+/// Sostituisce ogni campo sensibile del progetto con [`MASKED_PASSWORD`]
+/// prima che venga serializzato verso chi l'ha chiesto.
+///
+/// Passo 2, 2f: fino al 22-09-2026 questa funzione aveva un elenco di campi
+/// suo, e ne copriva **tre su sette** — token HomeAssistant, password del
+/// client OPC-UA, password Postgres e stringa di connessione ODBC uscivano in
+/// chiaro verso il browser (`GET /api/project`) e verso il fornitore LLM
+/// esterno (`leggi_progetto`). Ora delega a `sws_core::segreti`, che la
+/// tabella dei campi segreti ce l'ha già: un elenco solo, e il prossimo campo
+/// segreto è mascherato dal giorno in cui entra nella tabella.
 pub(crate) fn mask_project_secrets(project: &mut Project) {
-    for src in &mut project.sources {
-        if let SourceDef::Mqtt(c) = src {
-            if c.password.is_some() {
-                c.password = Some(MASKED_PASSWORD.to_string());
-            }
-        }
-    }
-    if let Some(notif) = &mut project.notifications {
-        if let Some(smtp) = &mut notif.smtp {
-            if smtp.password.is_some() {
-                smtp.password = Some(MASKED_PASSWORD.to_string());
-            }
-        }
-        if let Some(tg) = &mut notif.telegram {
-            if !tg.bot_token.is_empty() {
-                tg.bot_token = MASKED_PASSWORD.to_string();
-            }
-        }
-    }
+    sws_core::segreti::maschera(project, MASKED_PASSWORD);
 }
 
 /// Read project.yaml (or build a minimal default), apply `f`, write back.
@@ -3012,6 +3018,35 @@ where
             auto_backup_retention: None,
         },
     };
+    // I segreti che il progetto ha già, rimessi dentro prima della modifica.
+    //
+    // Senza questo, `estrai` più sotto vedeva **solo** il segreto che la
+    // sezione appena salvata ha portato, e `scrivi_segreti` riscriveva
+    // `secrets.yaml` con quello solo: configurare un database con password
+    // cancellava il token Telegram, e viceversa. Il difetto era per giunta
+    // intermittente — un salvataggio che non porta segreti lascia la mappa
+    // vuota e non scrive niente, quindi sembrava funzionare finché non si
+    // salvavano due sezioni con credenziali diverse. Misurato il 23-09-2026
+    // sul progetto di prova, con Telegram e un datastore ODBC.
+    //
+    // I segreti non tornano in `project.yaml`: `estrai` li toglie prima della
+    // serializzazione, che è l'invariante del 2b.
+    let segreti_esistenti = match sws_core::segreti::leggi_segreti(project_dir) {
+        Ok(v) => v.unwrap_or_default(),
+        Err(e) => {
+            warn!(dir = %project_dir.display(), "patch_project: secrets.yaml non leggibile: {e}");
+            return (
+                StatusCode::CONFLICT,
+                format!(
+                    "secrets.yaml non è leggibile e il salvataggio è stato rifiutato per non \
+                     cancellare le credenziali: i file su disco sono intatti.\n\nErrore: {e}",
+                ),
+            )
+                .into_response();
+        }
+    };
+    sws_core::segreti::applica(&mut project, &segreti_esistenti);
+
     // Le chiavi che la struttura tipizzata produce **prima** della modifica.
     //
     // Servono a distinguere due cose che altrimenti si somigliano: una chiave
@@ -3033,6 +3068,38 @@ where
     if let Err(e) = tokio::fs::create_dir_all(project_dir).await {
         warn!("cannot create project dir: {e}");
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    }
+    // Passo 2, sotto-passo 2b: i sette segreti escono dal progetto **prima**
+    // di serializzarlo, e vanno su `secrets.yaml` (atomico, 0600) — mai su
+    // `project.yaml`, che da qui in poi patch_project_se scrive sempre senza.
+    // Deve succedere PRIMA della `stamp_and_serialize` sotto: un handler di
+    // sezione (`update_project_notifications`, `update_project_sources`…)
+    // scrive nel `Project` tipizzato attraverso `f`, quindi il segreto nuovo
+    // che l'utente ha appena digitato è lì, non nel testo grezzo che
+    // `merge_preserved` conserva.
+    // Si scrive **sempre**, anche a mappa vuota: `scrivi_segreti` in quel caso
+    // cancella il file, ed è l'unico modo perché una credenziale tolta
+    // dall'IDE sparisca davvero dal disco. Prima la scrittura era condizionata
+    // a `!segreti.is_empty()` e l'ultima credenziale rimossa restava lì.
+    let segreti = sws_core::segreti::estrai(&mut project);
+    {
+        let dir = project_dir.to_path_buf();
+        let esito =
+            tokio::task::spawn_blocking(move || sws_core::segreti::scrivi_segreti(&dir, &segreti))
+                .await;
+        if let Err(e) = esito.map_err(anyhow::Error::from).and_then(|r| r) {
+            // Se secrets.yaml non si scrive, project.yaml (che ormai non ha
+            // più il segreto) NON si scrive: il segreto resterebbe solo in
+            // memoria e sparirebbe al prossimo riavvio. Meglio rifiutare il
+            // salvataggio — il vecchio project.yaml (col segreto ancora in
+            // chiaro, o quello di prima) resta intatto sul disco.
+            warn!("write secrets.yaml: {e:#}");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "il salvataggio dei segreti è fallito: nessuna modifica è stata scritta",
+            )
+                .into_response();
+        }
     }
     let yaml = match project.stamp_and_serialize() {
         Ok(y) => y,
@@ -3824,23 +3891,22 @@ async fn update_project_sources(
         }
     }
 
-    // Restore masked secrets: any MQTT source whose password came back as
-    // the placeholder string is interpreted as "leave unchanged" — we look
-    // the previous value up from the on-disk project. Without this round
-    // a normal edit through the UI would wipe stored passwords.
+    // Ripristino dei segreti mascherati: un campo che torna indietro col
+    // segnaposto vuol dire «lascia com'era», e il valore vero si ripesca dal
+    // progetto su disco. Senza questo giro una modifica qualunque fatta
+    // dall'IDE cancellerebbe le credenziali salvate.
+    //
+    // 2f: vale per **tutti** i campi segreti di una sorgente (password MQTT,
+    // token HomeAssistant, password del client OPC-UA), non più per il solo
+    // MQTT — prima gli altri due non erano nemmeno mascherati, quindi non
+    // c'era niente da ripristinare; ora che lo sono, un salvataggio senza
+    // questo giro li scriverebbe letteralmente «********».
     let previous = Project::load(&dir).ok();
     if let Some(prev) = previous.as_ref() {
-        for src in &mut sources {
-            if let SourceDef::Mqtt(new_cfg) = src {
-                if matches!(&new_cfg.password, Some(p) if p == MASKED_PASSWORD) {
-                    let prev_pw = prev.sources.iter().find_map(|s| match s {
-                        SourceDef::Mqtt(c) if c.id == new_cfg.id => c.password.clone(),
-                        _ => None,
-                    });
-                    new_cfg.password = prev_pw;
-                }
-            }
-        }
+        let precedenti = sws_core::segreti::estrai_sorgenti(&mut prev.sources.clone());
+        let attuali = sws_core::segreti::estrai_sorgenti(&mut sources);
+        let finali = sws_core::segreti::ripristina(attuali, &precedenti, MASKED_PASSWORD);
+        sws_core::segreti::applica_sorgenti(&mut sources, &finali);
     }
 
     // 2026-09-07 — le righe MQTT senza topic non arrivano al disco.
@@ -4102,7 +4168,7 @@ async fn update_project_custom_symbols(
 async fn update_project_datastores(
     State(s): State<AppState>,
     headers: axum::http::HeaderMap,
-    Json(datastores): Json<Vec<sws_core::DatastoreConfig>>,
+    Json(mut datastores): Json<Vec<sws_core::DatastoreConfig>>,
 ) -> Response {
     let dir = match active_dir(&s).await {
         Ok(d) => d,
@@ -4112,7 +4178,19 @@ async fn update_project_datastores(
         &s.project_write_lock,
         &dir,
         versione_attesa(&headers),
-        |p| p.datastores = datastores,
+        |p| {
+            // 2f: la password Postgres e la stringa di connessione ODBC ora
+            // escono mascherate dalla GET, quindi rientrano col segnaposto.
+            // Il ripristino va fatto **qui dentro**, sul progetto che
+            // `patch_project_se` ha appena letto: è la stessa lettura che
+            // verrà riscritta, e usarla evita la corsa con una GET fatta
+            // fuori dal lock.
+            let precedenti = sws_core::segreti::estrai_datastores(&mut p.datastores);
+            let attuali = sws_core::segreti::estrai_datastores(&mut datastores);
+            let finali = sws_core::segreti::ripristina(attuali, &precedenti, MASKED_PASSWORD);
+            sws_core::segreti::applica_datastores(&mut datastores, &finali);
+            p.datastores = datastores;
+        },
     )
     .await
 }
@@ -4120,21 +4198,35 @@ async fn update_project_datastores(
 // ── Project import / export (Admin only) ─────────────────────────────────────
 //
 // Bundle layout inside the ZIP:
-//   manifest.json         {"format_version":"1.0","name":"...","exported_at_ms":...,"secrets_masked":false}
-//   project.yaml          complete, secrets included
+//   manifest.json         {"format_version":"1.0","name":"...","exported_at_ms":...,"secrets_masked":<bool>}
+//   project.yaml          SENZA segreti (Passo 2): i sette campi sono sempre vuoti qui
+//   secrets.yaml          presente solo quando i segreti viaggiano — vedi sotto
 //   synoptics/<name>.yaml one per page, name sanitised via `safe_filename`
 //   users.yaml            when present, so accounts travel with the project
 //
-// **The bundle carries secrets in clear.** Passwords and tokens entered in a
-// project are project data: a backup that drops them does not restore, and a
-// deploy that drops them lands a project that cannot connect. Whoever holds the
-// bundle is responsible for storing it safely — decisione del maintainer,
-// 2026-07-29. `secrets_masked` stays in the manifest for format compatibility
-// and is now always `false`; nothing in the codebase reads it.
+// **I segreti viaggiano in un file separato, non più dentro `project.yaml`**
+// (Passo 2, sotto-passo 2d, 22-09-2026 — supera la decisione del 2026-07-29
+// per l'EXPORT, la conferma per il DEPLOY):
+// - **Deploy** (`build_project_zip`, usato da `remote_deploy`): `secrets.yaml`
+//   **sempre incluso**. Un dispositivo che riceve un progetto senza le sue
+//   credenziali non si collega a niente — stesso motivo di sempre, file diverso.
+// - **Export** (`GET /api/project/export`): `secrets.yaml` **escluso di
+//   default**; `?segreti=1` (casella «Includi i segreti» nell'IDE, spenta) lo
+//   include. Un backup/condivisione normale non deve portare le credenziali
+//   solo perché qualcuno vuole le pagine.
+// `secrets_masked` nel manifest dice quale dei due casi è: `true` = il bundle
+// non ha `secrets.yaml` (nessun segreto disponibile a chi lo riceve), `false`
+// = ce l'ha. Il nome del campo è lo stesso di prima — vuol dire "i segreti non
+// sono nel bundle in chiaro", cosa ancora vera anche se prima erano dentro
+// `project.yaml` e ora sono in un file loro.
 //
-// This is deliberately NOT the same as the `********` masking on GET responses
-// (`MASKED_PASSWORD`): that keeps secrets out of the browser and is restored
-// server-side on save. Here the bundle is the medium of backup and transfer.
+// **`project.yaml` non ha mai i sette segreti, in nessuno dei due casi**: quel
+// principio ("un posto solo", 2a) non ha eccezioni per import/export.
+//
+// Questo è deliberatamente diverso dal mascheramento `********` sulle GET
+// (`MASKED_PASSWORD`): quello tiene i segreti fuori dal browser e si
+// ripristina lato server al salvataggio. Qui il bundle è il mezzo di backup e
+// trasferimento, e quando li porta li porta veri.
 
 const BUNDLE_FORMAT_VERSION: &str = "1.0";
 
@@ -4154,10 +4246,25 @@ struct BundleManifest {
 
 /// Build a ZIP of the active project from `dir` (same logic as the export
 /// endpoint but callable internally — used by `remote_deploy`).
-pub(crate) async fn build_project_zip(dir: &std::path::Path) -> anyhow::Result<Vec<u8>> {
-    // Segreti inclusi: il dispositivo che riceve il deploy deve potersi
+/// Il bundle che viaggia col deploy.
+///
+/// `con_segreti` è **falso** quando il dispositivo non sa leggere
+/// `secrets.yaml` (`segreti_separati` assente nel suo `/api/system`). In quel
+/// caso mandarglielo sarebbe il peggio dei due mondi, misurato sul WP630 a
+/// 2.11.0 il 23-09-2026: il file arriva, il runtime vecchio non lo legge, le
+/// notifiche si spengono **in silenzio**, e intanto il token resta sul disco
+/// del pannello in chiaro con i permessi dell'umask (0644: il `chmod 0600`
+/// all'upload è codice nuovo, che lì non c'è). Meglio non mandarlo e dirlo.
+pub(crate) async fn build_project_zip(
+    dir: &std::path::Path,
+    con_segreti: bool,
+) -> anyhow::Result<Vec<u8>> {
+    // Segreti inclusi, ma da 2d in `secrets.yaml` e non più dentro
+    // `project.yaml`: il dispositivo che riceve il deploy deve potersi
     // collegare al broker, e prima la password MQTT veniva spogliata proprio qui.
-    let project = Project::load(dir).map_err(|e| anyhow::anyhow!("cannot load project: {e}"))?;
+    let mut project =
+        Project::load(dir).map_err(|e| anyhow::anyhow!("cannot load project: {e}"))?;
+    let segreti = sws_core::segreti::estrai(&mut project);
     let pages = load_all_synoptics(&synoptics_dir_at(dir))
         .await
         .map_err(|e| anyhow::anyhow!("cannot read synoptics: {e}"))?;
@@ -4174,7 +4281,11 @@ pub(crate) async fn build_project_zip(dir: &std::path::Path) -> anyhow::Result<V
         format_version: BUNDLE_FORMAT_VERSION.into(),
         name: project_name,
         exported_at_ms,
-        secrets_masked: false,
+        // Il deploy li include, tranne verso un dispositivo che non li sa
+        // leggere: allora il bundle è come un export senza segreti, e il
+        // manifest lo deve dire — chi lo riapre non deve credere di avere
+        // delle credenziali che non ci sono.
+        secrets_masked: !con_segreti,
     };
     let users_yaml = std::fs::read_to_string(dir.join("users.yaml")).ok();
     build_export_zip(
@@ -4186,23 +4297,37 @@ pub(crate) async fn build_project_zip(dir: &std::path::Path) -> anyhow::Result<V
         &recipes,
         &images,
         &boot,
+        con_segreti.then_some(&segreti),
     )
 }
 
-async fn export_project_zip(State(s): State<AppState>) -> Response {
+async fn export_project_zip(
+    State(s): State<AppState>,
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> Response {
+    // `?segreti=1` (o `=true`): la casella «Includi i segreti» dell'IDE,
+    // spenta di default (Passo 2, 2d). Senza, il bundle non porta
+    // `secrets.yaml` — un export/condivisione normale non deve portare le
+    // credenziali solo perché qualcuno vuole le pagine.
+    let vuoi_segreti = matches!(
+        params.get("segreti").map(String::as_str),
+        Some("1" | "true")
+    );
     let dir = match active_dir(&s).await {
         Ok(d) => d,
         Err(c) => return c.into_response(),
     };
-    // 1. Load the project from disk, secrets included (see the bundle notes
-    //    above): un export che li perde non è un backup ripristinabile.
-    let project = match Project::load(&dir) {
+    // 1. Load the project from disk. `estrai` toglie i segreti da `project`
+    //    (mai più dentro `project.yaml`, 2a): se `vuoi_segreti` li rimettiamo
+    //    sotto forma di `secrets.yaml` più sotto, altrimenti restano fuori.
+    let mut project = match Project::load(&dir) {
         Ok(p) => p,
         Err(e) => {
             warn!("export: cannot load project: {e}");
             return (StatusCode::INTERNAL_SERVER_ERROR, "cannot load project").into_response();
         }
     };
+    let segreti = sws_core::segreti::estrai(&mut project);
 
     // 2. Load every synoptic page from disk.
     let pages = match load_all_synoptics(&synoptics_dir_at(&dir)).await {
@@ -4227,7 +4352,7 @@ async fn export_project_zip(State(s): State<AppState>) -> Response {
         format_version: BUNDLE_FORMAT_VERSION.into(),
         name: project_name.clone(),
         exported_at_ms,
-        secrets_masked: false,
+        secrets_masked: !vuoi_segreti,
     };
 
     // Include users.yaml if present so credentials travel with the project.
@@ -4242,6 +4367,7 @@ async fn export_project_zip(State(s): State<AppState>) -> Response {
         &recipes,
         &images,
         &boot,
+        vuoi_segreti.then_some(&segreti),
     ) {
         Ok(b) => b,
         Err(e) => {
@@ -4284,6 +4410,12 @@ fn build_export_zip(
     recipes: &[(String, String)],
     images: &[(String, Vec<u8>)],
     boot: &[(String, Vec<u8>)],
+    // `None` = niente `secrets.yaml` nel bundle (export senza `?segreti=1`).
+    // `Some(map)` = lo include, a meno che `map` sia vuota (progetto senza
+    // segreti: niente da scrivere, stessa regola di `segreti::scrivi_segreti`).
+    // `project` non ha MAI i segreti, in nessuno dei due casi — li toglie
+    // `estrai()` presso il chiamante, prima di arrivare qui.
+    secreti: Option<&sws_core::segreti::Segreti>,
 ) -> anyhow::Result<Vec<u8>> {
     use zip::write::SimpleFileOptions;
     let mut cursor = Cursor::new(Vec::<u8>::new());
@@ -4299,6 +4431,13 @@ fn build_export_zip(
 
         z.start_file("project.yaml", opts)?;
         z.write_all(serde_yaml::to_string(project)?.as_bytes())?;
+
+        if let Some(segreti) = secreti {
+            if !segreti.is_empty() {
+                z.start_file("secrets.yaml", opts)?;
+                z.write_all(serde_yaml::to_string(segreti)?.as_bytes())?;
+            }
+        }
 
         for page in pages {
             let path = format!("synoptics/{}.yaml", safe_filename(&page.name));
@@ -4406,7 +4545,19 @@ async fn load_all_synoptics(dir: &std::path::Path) -> std::io::Result<Vec<Synopt
     Ok(out)
 }
 
-async fn import_project_zip(State(s): State<AppState>, body: Bytes) -> Response {
+async fn import_project_zip(
+    State(s): State<AppState>,
+    Query(params): Query<std::collections::HashMap<String, String>>,
+    body: Bytes,
+) -> Response {
+    // `?segreti=1`/`=true`: come per l'export, importare un bundle che
+    // qualcun altro ha esportato CON i segreti non deve rimpiazzare le
+    // credenziali del progetto corrente senza che l'operatore lo chieda
+    // esplicitamente (Passo 2, 2d — «lo scrive solo se presente E richiesto»).
+    let vuoi_segreti = matches!(
+        params.get("segreti").map(String::as_str),
+        Some("1" | "true")
+    );
     let active_project_dir = match active_dir(&s).await {
         Ok(d) => d,
         Err(c) => return c.into_response(),
@@ -4458,16 +4609,20 @@ async fn import_project_zip(State(s): State<AppState>, body: Bytes) -> Response 
                 .into_response()
         }
     };
-    // Defensive: scrub the "********" sentinel in case a client built the bundle
-    // from a masked GET response. Treat as "no password set" — persisting the
-    // sentinel would look like a configured password and fail at connect time
-    // with no clue why. Bundles exported by the runtime carry the real secret.
-    for src in &mut project.sources {
-        if let SourceDef::Mqtt(c) = src {
-            if matches!(&c.password, Some(p) if p == MASKED_PASSWORD) {
-                c.password = None;
-            }
-        }
+    // Difensivo: si toglie il segnaposto "********" nel caso che il bundle sia
+    // stato costruito a mano da una GET mascherata. Vale «nessuna password
+    // impostata» — scrivere il segnaposto sembrerebbe una password configurata
+    // e fallirebbe al collegamento senza dire perché. I bundle esportati dal
+    // runtime portano il segreto vero, in `secrets.yaml`.
+    //
+    // 2f: per tutti e sette i campi, non più per il solo MQTT — dalla stessa
+    // tabella della maschera. `ripristina` con un passato **vuoto** è
+    // esattamente «il segnaposto sparisce»: qui non c'è un valore precedente a
+    // cui tornare, il progetto sta arrivando da fuori.
+    {
+        let attuali = sws_core::segreti::estrai(&mut project);
+        let finali = sws_core::segreti::ripristina(attuali, &Default::default(), MASKED_PASSWORD);
+        sws_core::segreti::applica(&mut project, &finali);
     }
 
     // 4. Read every synoptics/*.yaml in the archive.
@@ -4538,6 +4693,28 @@ async fn import_project_zip(State(s): State<AppState>, body: Bytes) -> Response 
     if let Err(e) = scrivi_atomico(&project_path, serialized_project.as_bytes()).await {
         warn!("import: write project.yaml: {e}");
         return (StatusCode::INTERNAL_SERVER_ERROR, "write project.yaml").into_response();
+    }
+
+    // secrets.yaml: solo se il bundle lo porta E l'operatore l'ha chiesto.
+    // Assente da uno dei due: il progetto corrente tiene il suo (se esiste),
+    // esattamente come per un deploy senza secrets.yaml nello zip.
+    if vuoi_segreti {
+        if let Ok(Some(testo)) = read_zip_text(&mut archive, "secrets.yaml") {
+            let segreti_path = project_dir.to_path_buf();
+            let esito = tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
+                let segreti: sws_core::segreti::Segreti = serde_yaml::from_str(&testo)?;
+                sws_core::segreti::scrivi_segreti(&segreti_path, &segreti)
+            })
+            .await;
+            if let Err(e) = esito.map_err(anyhow::Error::from).and_then(|r| r) {
+                warn!("import: write secrets.yaml: {e:#}");
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "il progetto è stato importato ma i segreti no: riprova, o importa senza",
+                )
+                    .into_response();
+            }
+        }
     }
 
     let syn_dir = synoptics_dir_at(project_dir);
@@ -7739,13 +7916,73 @@ struct DetectedChat {
 /// chiaro. Prima questo giro lo faceva il browser: funzionava solo appena dopo
 /// aver digitato il token, e non diceva nulla sulla capacità del runtime di
 /// raggiungere Telegram.
-async fn detect_telegram_chats(
+/// `POST /api/notifications/telegram-bot` — chi è il bot di questo token.
+///
+/// Serve a **dire all'utente a chi deve scrivere**. «Rileva chat» legge i
+/// messaggi arrivati al bot, ma se nessuno gli ha ancora scritto non trova
+/// niente, e il messaggio che lo spiegava («manda /start al bot») non nominava
+/// il bot: mancava il soggetto della frase. Il maintainer, che quel bot l'aveva
+/// creato lui, non ha capito cosa doveva fare (23-09-2026).
+///
+/// Con lo username l'IDE può mostrare il nome e un link `t.me/<username>` che
+/// apre la chat. In più un token sbagliato si scopre qui, invece che al primo
+/// allarme che non parte.
+async fn telegram_bot_identity(
     State(s): State<AppState>,
     Json(req): Json<DetectChatsRequest>,
 ) -> Response {
-    let mut token = req.bot_token;
+    let token = match risolvi_token_telegram(&s, req.bot_token).await {
+        Ok(t) => t,
+        Err(r) => return r,
+    };
+    let url = format!("https://api.telegram.org/bot{}/getMe", token.trim());
+    let body: serde_json::Value = match reqwest::Client::new().get(&url).send().await {
+        Ok(r) => match r.json().await {
+            Ok(j) => j,
+            Err(e) => {
+                return (
+                    StatusCode::BAD_GATEWAY,
+                    format!(
+                        "risposta non valida da Telegram: {}",
+                        crate::telegram::redigi(e)
+                    ),
+                )
+                    .into_response()
+            }
+        },
+        Err(e) => {
+            return (
+                StatusCode::BAD_GATEWAY,
+                format!(
+                    "impossibile raggiungere Telegram: {}",
+                    crate::telegram::redigi(e)
+                ),
+            )
+                .into_response()
+        }
+    };
+    if body.get("ok").and_then(serde_json::Value::as_bool) != Some(true) {
+        let desc = body
+            .get("description")
+            .and_then(|v| v.as_str())
+            .unwrap_or("errore sconosciuto");
+        return (StatusCode::BAD_GATEWAY, format!("Telegram: {desc}")).into_response();
+    }
+    let r = &body["result"];
+    Json(serde_json::json!({
+        "username": r["username"].as_str().unwrap_or(""),
+        "nome": r["first_name"].as_str().unwrap_or(""),
+    }))
+    .into_response()
+}
+
+/// Il token da usare: quello che arriva, o quello salvato se la UI ha mandato
+/// il segnaposto (o niente). Il browser non ha mai il token in chiaro, quindi
+/// senza questo il pulsante funzionerebbe solo appena dopo averlo digitato.
+async fn risolvi_token_telegram(s: &AppState, fornito: String) -> Result<String, Response> {
+    let mut token = fornito;
     if token == MASKED_PASSWORD || token.trim().is_empty() {
-        if let Ok(dir) = active_dir(&s).await {
+        if let Ok(dir) = active_dir(s).await {
             if let Ok(existing) = Project::load(&dir) {
                 if let Some(tok) = existing
                     .notifications
@@ -7758,14 +7995,29 @@ async fn detect_telegram_chats(
         }
     }
     if token.trim().is_empty() {
-        return (
+        return Err((
             StatusCode::BAD_REQUEST,
             "nessun bot token salvato né fornito",
         )
-            .into_response();
+            .into_response());
     }
+    Ok(token)
+}
+
+async fn detect_telegram_chats(
+    State(s): State<AppState>,
+    Json(req): Json<DetectChatsRequest>,
+) -> Response {
+    let token = match risolvi_token_telegram(&s, req.bot_token).await {
+        Ok(t) => t,
+        Err(r) => return r,
+    };
 
     let client = reqwest::Client::new();
+    // Il token sta nell'URL, e `reqwest::Error` l'URL se lo porta dietro nel
+    // `Display`: senza `crate::telegram::redigi` un DNS che non risolve
+    // rispedirebbe la credenziale al browser dentro il messaggio d'errore
+    // (2f).
     let url = format!("https://api.telegram.org/bot{}/getUpdates", token.trim());
     let body: serde_json::Value = match client.get(&url).send().await {
         Ok(r) => match r.json().await {
@@ -7773,7 +8025,10 @@ async fn detect_telegram_chats(
             Err(e) => {
                 return (
                     StatusCode::BAD_GATEWAY,
-                    format!("risposta non valida da Telegram: {e}"),
+                    format!(
+                        "risposta non valida da Telegram: {}",
+                        crate::telegram::redigi(e)
+                    ),
                 )
                     .into_response()
             }
@@ -7781,7 +8036,10 @@ async fn detect_telegram_chats(
         Err(e) => {
             return (
                 StatusCode::BAD_GATEWAY,
-                format!("impossibile raggiungere Telegram: {e}"),
+                format!(
+                    "impossibile raggiungere Telegram: {}",
+                    crate::telegram::redigi(e)
+                ),
             )
                 .into_response()
         }
@@ -7945,7 +8203,9 @@ notifications:
 
     /// I segreti sono dati di progetto e devono viaggiare: un backup che li
     /// perde non ripristina, e un deploy che li perde consegna al dispositivo un
-    /// progetto che non riesce a collegarsi. Decisione del maintainer, 2026-07-29.
+    /// progetto che non riesce a collegarsi. Decisione del maintainer, 2026-07-29
+    /// — confermata per il deploy dal Passo 2 (2d, 22-09-2026), che sposta
+    /// **dove** viaggiano: da dentro `project.yaml` a un `secrets.yaml` a parte.
     ///
     /// Prima la password MQTT veniva azzerata in `build_project_zip`, che è la
     /// funzione usata **anche dal deploy remoto** (`remote.rs`): il dispositivo
@@ -7957,9 +8217,24 @@ notifications:
         let tmp = tempfile::tempdir().unwrap();
         project_with_secrets(tmp.path());
 
-        let zip = build_project_zip(tmp.path()).await.expect("build zip");
-        let yaml = zip_entry(&zip, "project.yaml");
+        let zip = build_project_zip(tmp.path(), true)
+            .await
+            .expect("build zip");
 
+        // project.yaml non li ha mai (2a): sono in secrets.yaml, un file a parte.
+        let project_yaml = zip_entry(&zip, "project.yaml");
+        for segreto in [
+            "password-mqtt-vera",
+            "TOKEN-TELEGRAM-VERO",
+            "password-smtp-vera",
+        ] {
+            assert!(
+                !project_yaml.contains(segreto),
+                "«{segreto}» è ancora in project.yaml, non in secrets.yaml:\n{project_yaml}"
+            );
+        }
+
+        let yaml = zip_entry(&zip, "secrets.yaml");
         assert!(
             yaml.contains("password-mqtt-vera"),
             "password MQTT persa:\n{yaml}"
@@ -7986,6 +8261,56 @@ notifications:
             serde_json::json!(false),
             "manifest: {manifest}"
         );
+    }
+
+    /// L'export normale (senza `?segreti=1`) non porta `secrets.yaml`, e
+    /// `project.yaml` non porta comunque i segreti (mai, in nessun caso):
+    /// chi apre un export condiviso non trova credenziali dentro.
+    #[tokio::test]
+    async fn l_export_senza_flag_non_porta_secrets_yaml() {
+        let tmp = tempfile::tempdir().unwrap();
+        project_with_secrets(tmp.path());
+        let mut project = Project::load(tmp.path()).unwrap();
+        let segreti = sws_core::segreti::estrai(&mut project);
+
+        let manifest = BundleManifest {
+            format_version: BUNDLE_FORMAT_VERSION.into(),
+            name: "p".into(),
+            exported_at_ms: 0,
+            secrets_masked: true,
+        };
+        let zip = build_export_zip(&manifest, &project, &[], None, &[], &[], &[], &[], None)
+            .expect("build zip senza segreti");
+
+        let mut a = zip::ZipArchive::new(Cursor::new(zip.clone())).unwrap();
+        assert!(
+            a.by_name("secrets.yaml").is_err(),
+            "secrets.yaml non deve esserci"
+        );
+        let project_yaml = zip_entry(&zip, "project.yaml");
+        assert!(
+            !project_yaml.contains("password-mqtt-vera"),
+            "{project_yaml}"
+        );
+
+        // E con la casella accesa, secrets.yaml compare.
+        let manifest2 = BundleManifest {
+            secrets_masked: false,
+            ..manifest
+        };
+        let zip2 = build_export_zip(
+            &manifest2,
+            &project,
+            &[],
+            None,
+            &[],
+            &[],
+            &[],
+            &[],
+            Some(&segreti),
+        )
+        .expect("build zip con segreti");
+        assert!(zip_entry(&zip2, "secrets.yaml").contains("password-mqtt-vera"));
     }
 }
 
@@ -8329,6 +8654,67 @@ mod q30_tests {
         );
         let doc: serde_yaml::Value = serde_yaml::from_str(&testo).unwrap();
         assert_eq!(doc["meta"]["name"].as_str(), Some("n"));
+    }
+
+    // ── Passo 2, sotto-passo 2b: patch_project_se non riscrive segreti ──────
+
+    /// Un handler di sezione (qui: `f` imita `update_project_notifications`)
+    /// scrive un `bot_token` nel `Project` tipizzato: `project.yaml` sul
+    /// disco non deve contenerlo, e `secrets.yaml` sì, con permessi 0600.
+    #[tokio::test]
+    async fn un_segreto_scritto_da_una_sezione_finisce_in_secrets_yaml_non_in_project_yaml() {
+        let dir = tempfile::tempdir().unwrap();
+        progetto_minimo(dir.path());
+        let lock = tokio::sync::Mutex::new(());
+
+        let resp = patch_project(&lock, dir.path(), |p| {
+            p.notifications = Some(sws_core::project::NotificationConfig {
+                telegram: Some(sws_core::project::TelegramConfig {
+                    bot_token: "123:segretissimo".into(),
+                    chat_ids: vec![],
+                }),
+                ..Default::default()
+            });
+        })
+        .await;
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+
+        let project_yaml = std::fs::read_to_string(dir.path().join("project.yaml")).unwrap();
+        assert!(
+            !project_yaml.contains("123:segretissimo"),
+            "il token è ancora in project.yaml:\n{project_yaml}"
+        );
+
+        let secrets_path = dir.path().join("secrets.yaml");
+        let secrets_yaml = std::fs::read_to_string(&secrets_path).unwrap();
+        assert!(secrets_yaml.contains("123:segretissimo"), "{secrets_yaml}");
+        use std::os::unix::fs::PermissionsExt;
+        let perm = std::fs::metadata(&secrets_path).unwrap().permissions();
+        assert_eq!(perm.mode() & 0o777, 0o600);
+
+        // E Project::load lo rimette in chiaro per chi legge il progetto.
+        let ricaricato = Project::load(dir.path()).unwrap();
+        assert_eq!(
+            ricaricato
+                .notifications
+                .unwrap()
+                .telegram
+                .unwrap()
+                .bot_token,
+            "123:segretissimo"
+        );
+    }
+
+    /// Una sezione che NON tocca segreti non produce un `secrets.yaml` vuoto.
+    #[tokio::test]
+    async fn una_sezione_senza_segreti_non_crea_secrets_yaml() {
+        let dir = tempfile::tempdir().unwrap();
+        progetto_minimo(dir.path());
+        let lock = tokio::sync::Mutex::new(());
+
+        let resp = patch_project(&lock, dir.path(), |p| p.tags.push(tag("uno"))).await;
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+        assert!(!dir.path().join("secrets.yaml").exists());
     }
 }
 

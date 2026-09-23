@@ -55,6 +55,23 @@ pub struct Avviso {
 #[derive(Serialize, Debug, PartialEq)]
 pub struct SystemStatus {
     pub runtime_version: String,
+    /// Questo runtime tiene i segreti di progetto in `secrets.yaml` e lo sa
+    /// **leggere** (Passo 2 del piano di stabilizzazione).
+    ///
+    /// # Perché una capacità e non un numero di versione
+    ///
+    /// Chi deploya deve sapere se il dispositivo saprà usare le credenziali
+    /// che gli manda. Confrontare le versioni sembra equivalente e non lo è:
+    /// `2.11.1` è stata pubblicata come immagine il 22-09-2026 **senza** i
+    /// segreti e riusata dal ramo che li ha introdotti, quindi lo stesso
+    /// numero sta su due runtime che si comportano in modo opposto. Un
+    /// confronto `>= 2.11.1` mentirebbe sulla metà di quei dispositivi.
+    ///
+    /// Su un runtime che non conosce questo campo la deserializzazione lo
+    /// lascia a `false`, che è esattamente la risposta giusta: se non sa
+    /// nemmeno il nome della capacità, non ce l'ha.
+    #[serde(default)]
+    pub segreti_separati: bool,
     pub uptime_s: u64,
     /// Quale ruolo sta servendo questa istanza: `"runtime"` se ha un viewer
     /// operatori (`--viewer-port`), `"ide"` se no.
@@ -289,6 +306,7 @@ pub async fn compute_system_status(
 
     SystemStatus {
         runtime_version: env!("CARGO_PKG_VERSION").to_string(),
+        segreti_separati: true,
         uptime_s: started_at.elapsed().as_secs(),
         mode: mode_label(ide_only),
         active_project,
@@ -650,7 +668,9 @@ pub async fn upload_tls_cert(State(s): State<AppState>, Json(body): Json<TlsUplo
         use anyhow::Context;
         std::fs::create_dir_all(&config_dir).context("creating config directory")?;
         std::fs::write(config_dir.join("tls.crt"), cert.as_bytes()).context("writing tls.crt")?;
-        std::fs::write(config_dir.join("tls.key"), key.as_bytes()).context("writing tls.key")?;
+        // Chiave privata: 0600 alla creazione (2f).
+        sws_core::segreti::scrivi_atomico_0600(&config_dir.join("tls.key"), key.as_bytes())
+            .context("writing tls.key")?;
         Ok(())
     })
     .await;
@@ -719,8 +739,11 @@ fn generate_cert_files(config_dir: &std::path::Path) -> anyhow::Result<()> {
         .context("rcgen: self_signed")?;
 
     std::fs::write(config_dir.join("tls.crt"), cert.pem()).context("writing tls.crt")?;
-    std::fs::write(config_dir.join("tls.key"), key_pair.serialize_pem())
-        .context("writing tls.key")?;
+    sws_core::segreti::scrivi_atomico_0600(
+        &config_dir.join("tls.key"),
+        key_pair.serialize_pem().as_bytes(),
+    )
+    .context("writing tls.key")?;
     tracing::info!(path = %config_dir.display(), "self-signed TLS certificate saved");
     Ok(())
 }

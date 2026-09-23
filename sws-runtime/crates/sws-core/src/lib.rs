@@ -5,6 +5,7 @@ pub mod page_tree;
 pub mod percorso;
 pub mod pin_tls;
 pub mod project;
+pub mod segreti;
 pub mod tag;
 pub mod testi_sistema;
 pub mod tipo;

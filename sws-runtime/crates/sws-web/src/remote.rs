@@ -432,6 +432,35 @@ async fn leggi_utenti_dispositivo(
     }
 }
 
+/// Il dispositivo sa leggere `secrets.yaml`?
+///
+/// `false` anche quando la domanda non ottiene risposta: se non si riesce a
+/// sapere se le credenziali gli servirebbero a qualcosa, non gliele si manda.
+/// Un runtime anteriore al Passo 2 non conosce il campo e serde lo lascia a
+/// `false`, che è la risposta giusta.
+async fn dispositivo_legge_i_segreti(
+    client: &reqwest::Client,
+    base: &str,
+    auth_hdr: &Option<String>,
+) -> bool {
+    let mut r = client.get(format!("{base}/api/system"));
+    if let Some(h) = auth_hdr {
+        r = r.header("Authorization", h);
+    }
+    match r.send().await {
+        Ok(resp) if resp.status().is_success() => {
+            legge_i_segreti(&resp.json().await.unwrap_or_default())
+        }
+        _ => false,
+    }
+}
+
+/// La decisione, separata dalla rete perché è l'unica parte che può sbagliare
+/// in silenzio: un campo assente deve valere `false`, non «boh».
+pub(crate) fn legge_i_segreti(corpo: &serde_json::Value) -> bool {
+    corpo["segreti_separati"].as_bool().unwrap_or(false)
+}
+
 /// Chi c'è solo di qua e chi solo di là, in ordine. Pura: è il confronto, non
 /// la rete.
 pub(crate) fn differenza_utenti(
@@ -921,11 +950,14 @@ pub async fn remote_download_backup(
 /// bundle: il client lo usa come proposta di default per la scelta del nome, e
 /// leggerlo qui gli evita di dover aprire uno zip nel browser.
 ///
-/// **Il bundle contiene i segreti e `users.yaml`** — è la stessa scelta già
-/// presa per il deploy (i segreti viaggiano col progetto, altrimenti un
-/// dispositivo che li riceve non si collega a niente). Chi importa sta quindi
-/// sostituendo anche le proprie credenziali locali: l'avviso è nell'interfaccia,
-/// non qui, ma va detto che questo endpoint è la sorgente di quel rischio.
+/// **Il bundle contiene i segreti e `users.yaml`** — stessa scelta del
+/// deploy, per lo stesso motivo (Passo 2, 2d): chi riprende il progetto che
+/// gira *lì* deve poterci lavorare senza reinserire ogni password, quindi la
+/// richiesta al dispositivo porta `?segreti=1` esplicito — `GET
+/// /api/project/export` da sola, da un browser, li escluderebbe di default.
+/// Chi importa sta quindi sostituendo anche le proprie credenziali locali:
+/// l'avviso è nell'interfaccia, non qui, ma va detto che questo endpoint è la
+/// sorgente di quel rischio.
 pub async fn remote_export_project(
     State(s): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -944,7 +976,7 @@ pub async fn remote_export_project(
 
     let client = make_remote_client(&s, &target.url);
     let base = target.url.trim_end_matches('/');
-    let mut req = client.get(format!("{base}/api/project/export"));
+    let mut req = client.get(format!("{base}/api/project/export?segreti=1"));
     if !target.token.is_empty() {
         req = req.header("Authorization", format!("Bearer {}", target.token));
     }
@@ -1411,6 +1443,14 @@ pub async fn remote_deploy(
             .unwrap_or_default(),
     );
     let utenti_dispositivo = leggi_utenti_dispositivo(&client, &base, &auth_hdr).await;
+    // Come il precedente, va letta ORA: dopo `open_project` sul target ogni
+    // sessione è decaduta e la GET risponderebbe 401.
+    let target_legge_i_segreti = dispositivo_legge_i_segreti(&client, &base, &auth_hdr).await;
+    let quanti_segreti = sws_core::segreti::leggi_segreti(&proj_dir)
+        .ok()
+        .flatten()
+        .map(|s| s.len())
+        .unwrap_or(0);
 
     if !opz.confirm_no_users
         && serve_conferma(
@@ -1440,7 +1480,7 @@ pub async fn remote_deploy(
         };
 
         send("Esportazione progetto locale…");
-        let zip = match crate::router::build_project_zip(&proj_dir).await {
+        let zip = match crate::router::build_project_zip(&proj_dir, target_legge_i_segreti).await {
             Ok(z) => z,
             Err(e) => {
                 send(&format!("✗ {e}"));
@@ -1451,6 +1491,18 @@ pub async fn remote_deploy(
             "✓ Esportato ({:.1} KB)",
             zip.len() as f64 / 1024.0
         ));
+
+        // Il caso misurato sul WP630 il 23-09-2026: un pannello anteriore al
+        // Passo 2 riceveva `secrets.yaml`, non lo leggeva, e le notifiche si
+        // spegnevano senza che niente lo dicesse — mentre il token restava sul
+        // suo disco in chiaro. Ora il file non parte e il motivo si legge qui.
+        if quanti_segreti > 0 && !target_legge_i_segreti {
+            send(&format!(
+                "⚠ Il dispositivo non sa leggere `secrets.yaml`: {quanti_segreti} credenziali del \
+                 progetto NON viaggiano, e ciò che le usa (notifiche, broker, database) resterà \
+                 spento. Aggiorna il runtime del dispositivo e rifai il deploy."
+            ));
+        }
 
         // Nome con cui il progetto arriverà sul target: si legge dal manifest
         // dello ZIP appena costruito, così è esattamente quello che userà
@@ -1757,6 +1809,35 @@ pub async fn remote_status(State(s): State<AppState>) -> Json<RemoteStatus> {
 mod tests {
     use super::*;
     use std::io::Write;
+
+    /// Un dispositivo che non conosce la domanda non sa la risposta.
+    ///
+    /// Il caso vero, misurato sul WP630 a 2.11.0 il 23-09-2026: il suo
+    /// `/api/system` non ha il campo, quindi il deploy non deve mandargli le
+    /// credenziali. Il numero di versione non basta a saperlo — `2.11.1` è
+    /// stata pubblicata prima dei segreti e riusata dal ramo che li introduce.
+    #[test]
+    fn la_capacita_assente_vale_no() {
+        let vecchio = serde_json::json!({ "runtime_version": "2.11.0", "mode": "runtime" });
+        assert!(!legge_i_segreti(&vecchio));
+
+        let nuovo = serde_json::json!({ "runtime_version": "2.11.1", "segreti_separati": true });
+        assert!(legge_i_segreti(&nuovo));
+
+        // Dichiarata e spenta, e una risposta che non è nemmeno un oggetto:
+        // in entrambi i casi non si manda niente.
+        assert!(!legge_i_segreti(
+            &serde_json::json!({ "segreti_separati": false })
+        ));
+        assert!(!legge_i_segreti(&serde_json::Value::Null));
+        assert!(!legge_i_segreti(&serde_json::json!("pagina di errore")));
+        // Un `true` che arriva come stringa non è un sì: `as_bool` è severo di
+        // proposito, perché un proxy che risponde HTML non deve autorizzare
+        // l'invio di un segreto.
+        assert!(!legge_i_segreti(
+            &serde_json::json!({ "segreti_separati": "true" })
+        ));
+    }
 
     // ── Gli utenti viaggiano col progetto (2026-09-11) ───────────────────────
 

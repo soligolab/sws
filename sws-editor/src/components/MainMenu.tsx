@@ -50,6 +50,9 @@ export function MainMenu({
   const fileInputRef          = useRef<HTMLInputElement>(null);
   const [ioBusy, setIoBusy]   = useState<"export" | "import" | null>(null);
   const [ioStatus, setIoStat] = useState<string | null>(null);
+  // Passo 2, 2d: spenta di default — un export/import normale non deve
+  // portare le credenziali solo perché qualcuno vuole le pagine.
+  const [includiSegreti, setIncludiSegreti] = useState(false);
   const [rebooting, setRebooting] = useState(false);
   const [renaming, setRenaming] = useState(false);
 
@@ -58,7 +61,7 @@ export function MainMenu({
   const handleExport = async () => {
     setIoBusy("export"); setIoStat(null);
     try {
-      const res      = await api.exportProjectZip();
+      const res      = await api.exportProjectZip(includiSegreti);
       const cd       = res.headers.get("content-disposition");
       const filename = (/filename="([^"]+)"/.exec(cd ?? "") ?? [])[1]
         ?? (() => { const d = new Date(); const p = (n: number) => String(n).padStart(2,"0"); return `sws-project-${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}.zip`; })();
@@ -73,10 +76,11 @@ export function MainMenu({
   };
 
   const handleImport = async (file: File) => {
-    if (!confirm(t("menu.importConfirm"))) return;
+    const msg = t("menu.importConfirm") + (includiSegreti ? t("menu.importConfirmSecretsNote") : "");
+    if (!confirm(msg)) return;
     setIoBusy("import"); setIoStat(null);
     try {
-      await api.importProjectZip(file);
+      await api.importProjectZip(file, includiSegreti);
       const project = await api.getProject();
       setProject(project);
       const pages = await api.loadAllPages();
@@ -197,6 +201,17 @@ export function MainMenu({
           <div style={DROP_SEP} />
           {authRole === "Admin" && (
             <>
+              <label
+                style={{ ...DROP_ITEM, display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <input
+                  type="checkbox"
+                  checked={includiSegreti}
+                  onChange={(e) => setIncludiSegreti(e.target.checked)}
+                />
+                {t("menu.includeSecrets")}
+              </label>
               <button
                 style={{ ...DROP_ITEM, color: ioBusy === "export" ? "var(--brand-text-muted, #94a3b8)" : "var(--brand-text-2, #cbd5e1)" }}
                 disabled={ioBusy !== null}

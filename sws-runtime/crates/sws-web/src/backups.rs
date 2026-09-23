@@ -32,6 +32,7 @@ use crate::router::{active_dir, AppState};
 /// are excluded because they belong to operations, not to the design.
 const BACKED_UP: &[&str] = &[
     "project.yaml",
+    "secrets.yaml", // Passo 2, 2d: un backup senza i segreti non ripristina un progetto funzionante.
     "synoptics",
     "users.yaml",
     "history", // per-project SQLite historian — needed to restore on another host

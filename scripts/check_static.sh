@@ -53,6 +53,7 @@ STATICHE=(
     check_colori            # i colori predefiniti sono una tabella sola: creazione, pannello e template senza var(--), swatch sempre hex
     check_tipi_scalari      # i tipi delle variabili (D5) sono una tabella sola: fixture, tipo.rs, tipiScalari.ts, select e validatore d'accordo
     check_tag_refs          # i campi-tag scalari di un oggetto: la stessa lista in Rust e in TS
+    check_segreti           # i sette campi segreti: tabella sola, project.yaml a elenco chiuso, niente token nei log, template puliti
 )
 
 # Vogliono uno stack in ascolto, podman o un dispositivo: a mano, non qui.
@@ -63,7 +64,7 @@ CON_STACK=(
     check_project_write_safety check_spa_autoreload check_viewer_layout
     check_wysiwyg check_no_admin check_istantanea check_soft_edge check_fuori_pagina_lvgl
     check_simboli_lvgl check_contrasto check_tipo_scrittura check_ricette check_mqtt_topic_vuoto check_chiave_host check_connessione_remota
-    check_target_progetto check_primo_utente
+    check_target_progetto check_primo_utente check_segreti_e2e
 )
 
 # ── nessuna guardia resta fuori in silenzio ───────────────────────────────────

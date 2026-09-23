@@ -1687,9 +1687,20 @@ pub fn runtime_version() -> &'static str {
 }
 
 impl Project {
-    /// Parse `<project_dir>/project.yaml`. Returns an error if the file is
-    /// missing or malformed; the caller decides whether to abort or continue.
+    /// Parse `<project_dir>/project.yaml`, applicando `secrets.yaml` sopra se
+    /// c'è (Passo 2, `sws-core::segreti`). È il punto unico di lettura: ogni
+    /// chiamante (IA, browse, plugin, `soft_reload_project`, `open_project`…)
+    /// vede i sette campi-segreto già in chiaro, senza dover sapere che da
+    /// oggi vivono in un file diverso.
     pub fn load(project_dir: &Path) -> anyhow::Result<Self> {
+        crate::segreti::carica_progetto(project_dir)
+    }
+
+    /// Il vecchio `load`: solo `project.yaml`, senza `secrets.yaml`. Usato da
+    /// [`crate::segreti::carica_progetto`] per non ricorrere su sé stesso —
+    /// nessun altro chiamante dovrebbe usarlo: vedrebbe i sette campi vuoti
+    /// in un progetto migrato.
+    pub(crate) fn load_senza_segreti(project_dir: &Path) -> anyhow::Result<Self> {
         let path = project_dir.join("project.yaml");
         let text = std::fs::read_to_string(&path)
             .with_context(|| format!("reading {}", path.display()))?;

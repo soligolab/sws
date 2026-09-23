@@ -11,6 +11,55 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Changed
+- **«Rileva chat» dice a quale bot scrivere** (segnalazione del maintainer, 23-09-2026: «nemmeno io avevo capito cosa dovevo fare»). Il pulsante legge i messaggi arrivati al bot, ma se nessuno
+  gli ha ancora scritto non trova niente, e la spiegazione — «manda /start al bot» — arrivava **dopo** il fallimento e senza nominare il bot: una frase senza soggetto, davanti a un token che è
+  una riga di lettere e numeri. Ora, appena il campo del token perde il fuoco (e all'apertura, se un token è già salvato), l'IDE chiede a Telegram chi è quel bot e lo mostra: nome, `@username`,
+  un link `t.me/…` che apre la chat, e i due passi scritti prima che serva premere qualcosa. Un token sbagliato si scopre lì, invece che al primo allarme che non parte. Se la rilevazione non
+  trova nulla, il messaggio nomina il bot e rimanda al link.
+
+### Fixed
+- **Tre difetti dei segreti di progetto, trovati collaudandoli dal vivo** (23-09-2026, sul progetto di prova in ufficio e su un pannello WP630 vero). Il codice del Passo 2 era verde su test,
+  guardie e revisione: questi si vedevano solo usandolo.
+  - **Salvare una sezione cancellava i segreti delle altre.** Configurato Telegram, poi aggiunto un datastore con la password dentro, e il token Telegram spariva. La scrittura di una sezione
+    ricaricava `project.yaml` — dove i segreti non ci sono più — e riscriveva `secrets.yaml` con il solo segreto appena arrivato. A intermittenza, per giunta: un salvataggio che non portava
+    credenziali non toccava il file, quindi serviva salvare **due** sezioni con segreti diversi per accorgersene. E l'ultima credenziale rimossa dall'IDE restava su disco, perché il file si
+    scriveva solo «se c'è qualcosa da scrivere».
+  - **Rinominare un datastore ne cancellava la stringa di connessione.** La lettura del progetto non rimetteva dentro i segreti, quindi la maschera non trovava niente da mascherare e i campi
+    uscivano **assenti** invece che come `********`. L'IDE non può rimandare indietro un campo che non ha ricevuto: al primo salvataggio la credenziale se ne andava. Si vedeva solo sui campi
+    opzionali — sul token Telegram, che è una stringa sempre presente, usciva `""` e la differenza non si notava.
+  - **Il deploy verso un pannello non aggiornato spegneva le notifiche in silenzio.** Misurato su un WP630 a 2.11.0: riceveva `secrets.yaml`, non sapeva leggerlo, e nel progetto arrivava un
+    token vuoto. Intanto il file restava sul suo disco in chiaro con i permessi dell'umask, perché il `chmod 0600` all'upload è codice nuovo. Ora il dispositivo dichiara in `/api/system` se sa
+    leggere i segreti e il deploy guarda **quella capacità, non il numero di versione**: `2.11.1` è stata pubblicata prima dei segreti e riusata dal ramo che li introduce, quindi lo stesso
+    numero sta su due runtime che si comportano in modo opposto. A un pannello che non li sa leggere il file non parte più, e il flusso di deploy dice perché.
+- **`check_segreti_e2e.sh`**, la guardia con stack che prova i segreti invece di leggerli: due runtime veri, un token salvato dall'API, e tredici domande a cui il codice non può rispondere da
+  solo. Provata rossa con tre falsificazioni sul codice vero, perché una guardia nata verde non ha ancora dimostrato di guardare qualcosa.
+
+### Security
+- **Le password del progetto in un file solo, e non escono più da dove non devono** (Passo 2 del piano di stabilizzazione, 22-09-2026). Sette campi con credenziali vivevano in chiaro dentro
+  `project.yaml` — token del bot Telegram, password SMTP, password del broker MQTT, token HomeAssistant, password del client OPC-UA, password Postgres e stringa di connessione ODBC — e da lì
+  finivano **nei backup, nell'export condiviso e nei commit git**, senza che niente lo dicesse. Ora stanno in `secrets.yaml`, nella cartella del progetto, permessi `0600` impostati alla
+  creazione del file e non con un `chmod` dopo. Chi legge il progetto non se ne accorge: `Project::load` li rimette al loro posto. Chi scrive passa da un punto solo, `scrivi_progetto`, che li
+  toglie, scrive `secrets.yaml` e poi `project.yaml`, tutti e due in modo atomico. Un progetto salvato prima di oggi si **migra da solo** alla prima apertura, con un backup dell'intera cartella
+  fatto *prima* di toccare qualsiasi cosa e una riga nell'audit log; se il backup non riesce, la migrazione non parte.
+  **Dove viaggiano**: col deploy sul dispositivo sì (senza credenziali un dispositivo non si collega a niente) e se lo zip non le porta il dispositivo **tiene le sue**; col backup, il ripristino
+  e la duplicazione sì; con l'export `.sws` **no**, a meno della casella «Includi i segreti» nel menu ☰, spenta di default; con l'import solo se il bundle le porta **e** l'operatore lo chiede.
+  In git **mai**: `secrets.yaml` entra nel `.gitignore` alla `init` e a ogni `commit`, e un repository che lo aveva già tracciato lo perde dall'indice al commit successivo — con un avviso, perché
+  nei commit già fatti resta e la storia non si riscrive. Vale anche per i backup e gli export vecchi: **l'unico rimedio è ruotare le credenziali**.
+- **La maschera copriva tre campi su sette** (stessa sessione). `mask_project_secrets` aveva un elenco suo e conosceva solo MQTT, SMTP e Telegram: token HomeAssistant, password del client
+  OPC-UA, password Postgres e stringa di connessione ODBC uscivano **in chiaro** verso il browser (`GET /api/project`) e, attraverso `leggi_progetto`, verso il fornitore del modello di
+  linguaggio. Ora la maschera è scritta sopra la stessa tabella che tiene i segreti, quindi non può più restare indietro: un campo segreto nuovo è mascherato dal giorno in cui entra nella
+  tabella. Rimandare indietro il segnaposto `********` vuol dire «non toccare» e il runtime rimette il valore vero — comportamento che l'MQTT aveva già e che ora hanno tutti e sette.
+  Conseguenza visibile: la stringa di connessione ODBC si mostra mascherata **intera**, perché contiene `PWD=`; chi la cambia la riscrive tutta.
+- **Il bot token di Telegram non finisce più nei log né nei messaggi d'errore.** Il token sta *nell'URL* (`/bot<token>/sendMessage`) e `reqwest::Error` si porta dietro l'URL nel suo `Display`:
+  bastava un DNS che non risolveva perché la credenziale comparisse nel log del runtime e tornasse al browser dentro il messaggio d'errore. Ora l'URL viene tolto alla radice e il testo che
+  resta viene comunque ripulito.
+- **`tls.key` a `0600`.** La chiave privata del runtime si scriveva con i permessi dell'umask (0644: leggibile da ogni utente della macchina) in tutti e tre i punti che la creano — avvio,
+  upload del certificato, rigenerazione. Una chiave scritta prima di oggi viene stretta al primo avvio.
+- **Guardia `check_segreti.sh`** (nelle statiche, gira con `check_static.sh`): un campo di `project.rs` che somiglia a un segreto e non è nella tabella, un punto nuovo che scrive `project.yaml`,
+  una macro di log che interpola un token o una password, un template con dentro una credenziale. Sono le quattro strade da cui la cosa potrebbe riaprirsi, e nessuna delle quattro è teorica.
+  Dove stanno le password, per chi le cerca: `docs/HOWTO.md` capitolo 18, e il manuale in `docs/manual/09_auth_rbac.md`.
+
 ### Added
 - **Variabili e Tipi in una scheda sola, e un CSV che porta via tutto** (richiesta del maintainer, 22-09-2026, da un buco che ha visto subito: «posso esportare le variabili ma non i tipi,
   quindi esporterei delle variabili senza tipo»). Le due schede di Configurazione diventano una: sotto il Salva un selettore «Variabili | Tipi», ognuna col layout che aveva, e l'export/import

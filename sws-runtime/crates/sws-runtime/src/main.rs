@@ -534,6 +534,7 @@ async fn main() -> anyhow::Result<()> {
         // migration `open_project` runs, see its doc comment for why these
         // two call sites are the only ones that need it.
         sws_web::projects::migrate_legacy_project_dirs(&project_path);
+        sws_web::projects::migra_segreti_se_serve(&project_path);
         supervisor
             .set_pki_root(project_path.join("opcua-pki"))
             .await;
@@ -1561,6 +1562,28 @@ fn detect_lan_ip() -> Option<std::net::IpAddr> {
     sock.local_addr().ok().map(|a| a.ip())
 }
 
+/// Una `tls.key` scritta prima del 2f (o copiata a mano) è 0644: la si stringe
+/// a 0600 all'avvio, una volta sola — dopo, i bit sono già quelli e non si
+/// tocca nulla. Un `chmod` che fallisce (chiave di proprietà di un altro
+/// utente, filesystem senza permessi Unix) non deve impedire l'avvio del
+/// runtime: il servizio TLS parte lo stesso, con un avviso.
+fn stringi_permessi_chiave(key_path: &std::path::Path) {
+    use std::os::unix::fs::PermissionsExt;
+    let Ok(meta) = std::fs::metadata(key_path) else {
+        return;
+    };
+    let modo = meta.permissions().mode() & 0o777;
+    if modo == 0o600 {
+        return;
+    }
+    match std::fs::set_permissions(key_path, std::fs::Permissions::from_mode(0o600)) {
+        Ok(()) => info!(path = %key_path.display(), da = format!("{modo:o}"),
+                        "tls.key: permessi stretti a 0600"),
+        Err(e) => warn!(path = %key_path.display(),
+                        "tls.key è {modo:o} e non sono riuscito a portarla a 0600: {e}"),
+    }
+}
+
 /// Try to load an existing TLS cert+key pair from disk. Returns an error if the
 /// files are missing, corrupted, or cannot be parsed by rustls.
 fn try_load_existing_tls(
@@ -1569,6 +1592,7 @@ fn try_load_existing_tls(
 ) -> anyhow::Result<TlsAcceptor> {
     let cert_pem = std::fs::read(cert_path).context("reading tls.crt")?;
     let key_pem = std::fs::read(key_path).context("reading tls.key")?;
+    stringi_permessi_chiave(key_path);
     let certs: Vec<CertificateDer<'static>> = rustls_pemfile::certs(&mut cert_pem.as_slice())
         .collect::<Result<_, _>>()
         .context("parsing certificate PEM")?;
@@ -1673,7 +1697,10 @@ fn build_tls_acceptor(config_dir: &PathBuf) -> anyhow::Result<TlsAcceptor> {
         .context("rcgen: self_signed")?;
 
     std::fs::write(&cert_path, cert.pem()).context("writing tls.crt")?;
-    std::fs::write(&key_path, key_pair.serialize_pem()).context("writing tls.key")?;
+    // La chiave privata a 0600, impostati alla creazione (2f): prima finiva a
+    // 0644 come qualunque altro file, leggibile da ogni utente della macchina.
+    sws_core::segreti::scrivi_atomico_0600(&key_path, key_pair.serialize_pem().as_bytes())
+        .context("writing tls.key")?;
     info!(path = %cert_path.display(), "self-signed TLS certificate saved (import to trust)");
 
     try_load_existing_tls(&cert_path, &key_path)

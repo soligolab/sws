@@ -78,6 +78,9 @@ pannello sinistro fisso, navigatore, sorgente Host. Per ogni rosso: capire se è
 - **2c** migrazione + backup + audit + avviso. Test: progetto vecchio con token in chiaro → dopo l'apertura `project.yaml` senza, `secrets.yaml` con, backup presente; secondo avvio: nessuna nuova migrazione.
 - **2d** viaggio: `BACKED_UP`, export (`?segreti=`) + casella nell'IDE, deploy (include), upload 0600 + «tiene il suo se assente», import. Test: export senza/con; deploy fra due runtime di scarto (come `check_deploy_preserve`) con il token che arriva; backup+ripristino.
 - **2e** git: `.gitignore` a `init`, aggiunta al commit, avviso se tracciato. Test con `git` vero in una cartella temporanea.
+  **Deciso il 22-09-2026 scrivendo il codice**: sul repository già esistente il `.gitignore` **non basta** — git non ignora un file che è già nell'indice, e `git add -A` avrebbe
+  continuato a committare `secrets.yaml` a ogni deploy. Quindi `commit()` fa anche `git rm --cached -- secrets.yaml` (il file resta sul disco, esce dallo snapshot) e l'avviso
+  cambia senso: non «resta ignorato» ma «da questo commit non viaggia più; nei commit vecchi resta, ruota le credenziali».
 - **2f** maschere/ripristini estesi, AI, redazione degli errori, `tls.key`. Test per gestore (GET maschera, PUT col segnaposto conserva, PUT con valore nuovo sostituisce), test della redazione dell'errore Telegram (URL con token → nessun token nel messaggio).
 - **2g** guardia statica `check_segreti.sh`: (1) ogni campo di `project.rs` il cui nome somiglia a `pass|token|secret|key|pwd|connection_string` è nella tabella di `segreti.rs` (o in un elenco di eccezioni motivato) — la classe «campo segreto nuovo dimenticato»; (2) nessuna scrittura diretta di `project.yaml` fuori da `scrivi_progetto`; (3) nessun `tracing!`/`format!` che nomina `bot_token`/`password` senza redazione; (4) i template non hanno segreti. Guardia con stack `check_segreti_e2e.sh` (runtime di scarto: salva un token via API → `project.yaml` senza, `secrets.yaml` 0600 con, export senza, deploy con). Documentazione: HOWTO (un capitolo «Dove stanno le password»), manuale sicurezza, CHANGELOG.
 - **2h** prova dal vivo su un runtime di scarto e, nel Passo 6, sul TC620 (deploy di `CasaDomotica` con Telegram; la notifica parte; export senza segreti).
@@ -85,7 +88,7 @@ pannello sinistro fisso, navigatore, sorgente Host. Per ogni rosso: capire se è
 ### Da confermare col maintainer prima di scrivere codice
 1. Portata: **tutti e sette i campi + le perdite** (consigliato) o solo Telegram/SMTP per cominciare.
 2. Deploy: se lo zip non porta `secrets.yaml`, il dispositivo **tiene il suo** (consigliato) o lo cancella.
-3. `.gitignore` anche nei repository già esistenti (consigliato) o solo a `init`.
+3. `.gitignore` anche nei repository già esistenti (consigliato) o solo a `init`. → **sì, anche negli esistenti** (22-09-2026), e con `git rm --cached` quando serve (vedi 2e).
 4. `tls.key` a 0600 nello stesso passo (consigliato, piccolo).
 5. Backup vecchi con il token in chiaro: solo avvertire (consigliato; il rimedio vero è ruotare il token) o offrire «ripulisci i backup precedenti».
 

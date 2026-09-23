@@ -74,7 +74,93 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — Fasi 1d, 1e e 2 dei tag su `main` (2026-09-22, ufficio, notte)
+## ▶ Riprendere da qui — Passo 2 dei segreti: il collaudo 2h ha trovato tre difetti, tutti corretti (2026-09-23, ufficio)
+
+**Ramo `feat/segreti-di-progetto`.** Il 2h non era una formalità: il codice era verde su test, guardie e
+revisione, e il collaudo dal vivo ha trovato **tre difetti**, due dei quali perdevano credenziali in
+silenzio. Due li ha trovati il progetto di prova in `~/sws_projects/test/`, uno il WP630 vero.
+
+| | difetto | commit |
+|---|---|---|
+| 1 | salvare una sezione cancellava i segreti delle altre (Telegram + un datastore con password) | `ec5ba9dd` |
+| 2 | rinominare un datastore ne cancellava la stringa di connessione: la GET mandava il campo **assente** invece di `********` | `d823e7b5` |
+| 3 | il deploy verso un pannello non aggiornato spegneva le notifiche in silenzio, e gli lasciava il token in chiaro a 0644 | `c94c94d5` |
+
+Il terzo ha portato una decisione del maintainer (fra tre opzioni): **avvisare e non mandare il file**. Il
+dispositivo dichiara la capacità in `/api/system` (`segreti_separati`) e il deploy guarda quella, **non il
+numero di versione** — `2.11.1` è stata pubblicata prima dei segreti e riusata dal ramo che li introduce,
+quindi lo stesso numero sta su due runtime che si comportano in modo opposto.
+
+**`check_segreti_e2e.sh`** (`c483e07e`, poi cresciuta): la guardia con stack che il 2g annotava come da
+scrivere. Due runtime veri, tredici controlli, **provata rossa con tre falsificazioni** sul codice vero.
+È fra le guardie con stack, non gira in `check_static.sh`.
+
+**Stato del collaudo 2h**: i punti 1, 2 e 3 del piano sono automatizzati nella guardia. Il **punto 4 è
+fatto sul dispositivo vero** — in ufficio il TC620 non c'è, c'è il WP630 (`user@wp630-a-p3-07a077.local`,
+autorizzato dal maintainer). Girava 2.11.0, quindi è stata costruita un'immagine aarch64 dal ramo e
+installata:
+
+- `dist/sws-runtime-2.11.1-aarch64-image.tar.gz` copiata sul pannello, `podman load`, e il tag
+  `ghcr.io/soligolab/sws-runtime:latest-arm64` **ripuntato** su quell'immagine. Niente è stato pubblicato
+  su ghcr: l'immagine viene da un ramo non mergiato e `latest` non deve spostarsi lì.
+- **Per tornare all'immagine del registro**, sul pannello:
+  `podman tag ghcr.io/soligolab/sws-runtime:prima-della-prova ghcr.io/soligolab/sws-runtime:latest-arm64`
+  e `systemctl --user restart sws-runtime.service`. Il tag `prima-della-prova` è stato messo lì apposta
+  prima dello scambio.
+- Esito: il token arriva in `secrets.yaml` **0600** (con la 2.11.0 era 0644), `project.yaml` non lo
+  contiene, il pannello lo **legge** (la GET mostra `********`), e una prova d'invio percorre la catena
+  fino a Telegram, che risponde 401 perché il token è finto. **L'errore non contiene il token** e nessun
+  log lo nomina, di qua e di là: la redazione del 2f regge.
+- Il progetto `test` sul pannello ha quel token finto. Lo storico non è stato toccato (42 600 campioni).
+
+Resta il punto 5, **l'occhio del maintainer**: la stringa di connessione ODBC si mostra come `********`
+intera perché contiene `PWD=`. Ora si comporta come previsto — prima spariva, ed è il difetto 2.
+
+**Il progetto di prova** `~/sws_projects/test/` è il demo condiviso per lavorare a quattro mani. Ora ha un
+token Telegram finto (`8888888888:AAH-…`) in `secrets.yaml`, e nient'altro di segreto.
+
+**Prossimo passo**: finire il punto 4 sul WP630, poi la definition of done, il merge del Passo 2 e il
+**Passo 3** del piano (il viewer LVGL segue l'albero). Il bump a **2.12.0** va fatto alla release vera:
+serve a non lasciare due runtime diversi con lo stesso numero, anche se ora il deploy non ci fa più
+affidamento.
+
+## Riprendere da qui (precedente) — Passo 2 (segreti di progetto): 2a→2g fatti sul ramo, manca il collaudo (2026-09-22, sera, dopo un blackout)
+
+**Ramo `feat/segreti-di-progetto`, non mergiato, mai pushato.** Sette commit, il Passo 2 del piano
+`docs/plans/2026-09-21-sessione-stabilizzazione.md` dal sotto-passo 2a al 2g:
+
+| | | commit |
+|---|---|---|
+| 2a | `sws-core/src/segreti.rs`, `Project::load`/`scrivi_progetto`, scrittore atomico 0600 | `b37aa097` |
+| 2b | tutti i siti di scrittura passano da `scrivi_progetto` | `9dd19347` |
+| 2c | migrazione automatica dei progetti vecchi, con backup **prima** | `48180900` |
+| 2d | il viaggio: deploy, export `?segreti=1`, upload 0600, import, `BACKED_UP` | `943b6f24` |
+| 2e | git: `.gitignore` + `git rm --cached` sui repository che lo avevano già tracciato | `cee4910` |
+| 2f | maschera su tutti e sette i campi, ripristino del segnaposto, redazione del token Telegram, `tls.key` a 0600 | `8a0a3de` |
+| 2g | guardia `check_segreti.sh` + HOWTO cap. 18 + manuale + CHANGELOG | `8b290d2b` |
+
+`cargo check` workspace, `pnpm build` e **tutte e 27 le guardie statiche** verdi; `cargo test --workspace`
+verde (386 in `sws-web`, 15 in `segreti`). La corrente era andata via a metà del 2e: quel lavoro era rimasto
+in staging e la rilettura ha trovato il difetto che il commit poi ha corretto — `.gitignore` non esclude un
+file che è **già** nell'indice.
+
+**Quello che manca per chiudere il Passo 2 è il 2h, il collaudo dal vivo** (non si merga prima):
+
+1. Runtime di scarto: salvare un token Telegram via API → `project.yaml` senza il valore, `secrets.yaml`
+   `0600` con il valore, export senza, deploy con.
+2. Un progetto vecchio con i segreti in chiaro: aprirlo e verificare backup + migrazione + riga di audit;
+   riaprirlo e verificare che **non** rimigri.
+3. Deploy fra due runtime di scarto (come `check_deploy_preserve`) con il token che arriva davvero.
+4. Sul TC620, nel Passo 6: deploy di `CasaDomotica` con Telegram, la notifica parte, export senza segreti.
+5. Da guardare con l'occhio del maintainer: nella scheda Datastore la stringa di connessione ODBC ora si
+   mostra come `********` intera (contiene `PWD=`). È voluto, ma è la sola conseguenza visibile del 2f.
+
+Annotato e **non** fatto: la guardia con stack `check_segreti_e2e.sh` (salva token via API → i quattro
+controlli sopra, automatici). Va scritta insieme al collaudo 2h, perché è lo stesso giro.
+
+Dopo il merge del Passo 2, il piano prosegue col **Passo 3** (il viewer LVGL segue l'albero).
+
+## Riprendere da qui (precedente) — Fasi 1d, 1e e 2 dei tag su `main` (2026-09-22, ufficio, notte)
 
 **Tutto su `main` e pushato**, in un unico squash: **`a76e6889`**, su istruzione del maintainer («fai il merge e push che poi riprendo da casa»). Con la Fase 2 **la Fase 1 è chiusa per intero**: 1d e 1e erano rimaste sul ramo annidato `feat/tag-1d-scrittura-e-filo` e sono entrate con lo stesso squash — undici commit in uno. I due rami (`feat/tag-1d-scrittura-e-filo`, `feat/tag-2-editor-tipi`) sono stati cancellati dopo il confronto degli alberi, e **non sono mai stati pushati**: gli hash dei loro commit non esistono su origin, quindi qui sotto c'è solo `a76e6889`. Piano: `docs/plans/2026-09-21-gestione-tag-oggetto-unico.md`.
 

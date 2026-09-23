@@ -906,6 +906,13 @@ pub async fn open_project(State(s): State<AppState>, Path(name): Path<String>) -
         // giusto — vedi `AppState::project_write_lock`.
         let _scrittura = s.project_write_lock.lock().await;
         migrate_legacy_project_dirs(&project_dir);
+        if let Some(n) = migra_segreti_se_serve(&project_dir) {
+            s.audit.log(
+                "project.change",
+                None,
+                serde_json::json!({"what": "secrets_migrated", "count": n}),
+            );
+        }
     }
 
     // Read seed from env so newly-opened projects without a users.yaml
@@ -1814,6 +1821,21 @@ pub async fn upload_project_zip(
                     rollback(target.clone(), q.deploy).await;
                     return (StatusCode::INTERNAL_SERVER_ERROR, "write failed").into_response();
                 }
+                // Passo 2, 2d: secrets.yaml è 0600 dovunque venga scritto, non
+                // solo da segreti::scrivi_segreti. L'estrazione generica sopra
+                // usa i permessi di default (umask): qui si stringono. Assente
+                // dallo ZIP (deploy senza segreti — non dovrebbe capitare, ma
+                // se capita) → il dispositivo tiene il suo secrets.yaml, che
+                // questo ciclo non tocca affatto (conferma 2 del maintainer).
+                if entry_name == "secrets.yaml" {
+                    use std::os::unix::fs::PermissionsExt;
+                    if let Err(e) =
+                        tokio::fs::set_permissions(&dest, std::fs::Permissions::from_mode(0o600))
+                            .await
+                    {
+                        warn!("upload_project_zip: chmod secrets.yaml: {e}");
+                    }
+                }
             }
             Ok(None) => { /* entry disappeared between listing and reading — skip */ }
             Err(e) => {
@@ -2266,6 +2288,52 @@ const LEGACY_HIDDEN_DIRS: &[(&str, &str)] = &[
     (".bak", "backups"),
     (".opcua-pki", "opcua-pki"),
 ];
+
+/// Passo 2, sotto-passo 2c: se `project.yaml` ha ancora uno o più dei sette
+/// segreti in chiaro (`sws_core::segreti::segreti_in_chiaro`), fa un backup
+/// **prima** di toccare qualunque file — un progetto già migrato non ne
+/// produce uno a ogni apertura, perché non c'è niente da migrare — poi sposta
+/// i segreti in `secrets.yaml` (`sws_core::segreti::migra`). Silenzioso e
+/// senza effetto quando non c'è nulla da fare: la funzione è pensata per
+/// essere chiamata a **ogni** apertura, non solo la prima.
+///
+/// Ritorna quanti campi ha spostato, per chi vuole scriverlo nell'audit
+/// (`open_project`, con l'utente); il boot (`main.rs`, dove l'audit non
+/// esiste ancora — nasce con `AppState` in `router::build()`) lo ignora e si
+/// affida al solo `tracing::info!` qui sotto.
+///
+/// Se il backup fallisce, la migrazione **non parte**: spostare un segreto
+/// senza una via per tornare indietro non è la garanzia che il maintainer ha
+/// confermato (Passo 2, conferma 5 — i backup vecchi restano in chiaro e si
+/// avverte soltanto, ma un backup che dovrebbe esserci e non c'è è un'altra
+/// cosa: qui si può evitarlo, quindi si evita).
+///
+/// Stesso schema di [`migrate_legacy_project_dirs`] qui sotto (stessi due
+/// chiamanti, stesso motivo per cui bastano loro due).
+pub fn migra_segreti_se_serve(project_dir: &StdPath) -> Option<usize> {
+    match sws_core::segreti::segreti_in_chiaro(project_dir) {
+        Ok(0) => return None,
+        Ok(_) => {}
+        Err(e) => {
+            warn!("migra_segreti_se_serve: {e:#}");
+            return None;
+        }
+    }
+    if let Err(e) = crate::backups::backup_now(project_dir) {
+        warn!("migra_segreti_se_serve: backup fallito, migrazione rimandata: {e}");
+        return None;
+    }
+    match sws_core::segreti::migra(project_dir) {
+        Ok(n) => {
+            info!(n, dir = %project_dir.display(), "segreti migrati in secrets.yaml");
+            Some(n)
+        }
+        Err(e) => {
+            warn!("migra_segreti_se_serve: migrazione fallita dopo il backup: {e:#}");
+            None
+        }
+    }
+}
 
 /// Migrates a project's legacy dot-prefixed working directories (historian
 /// DB, backup snapshots, OPC-UA PKI store) to their new visible names, and
@@ -2800,5 +2868,72 @@ datastores:
             "genitore fuori"
         );
         assert!(dentro_radice_nuovo(&radice, &radice.join("..")).is_err());
+    }
+}
+
+// ── Passo 2, sotto-passo 2c: migrazione automatica dei segreti ─────────────
+#[cfg(test)]
+mod segreti_migrazione_tests {
+    use super::*;
+
+    fn progetto_con_token_in_chiaro(dir: &std::path::Path) {
+        std::fs::write(
+            dir.join("project.yaml"),
+            "meta: { name: p, version: \"1\" }\ntags: []\n\
+             notifications:\n  telegram: { bot_token: tg-vecchio, chat_ids: [] }\n",
+        )
+        .unwrap();
+    }
+
+    /// Il caso che conta: un progetto con un token in chiaro (com'è ogni
+    /// progetto salvato prima di questa sessione) viene backuppato **prima**
+    /// e poi migrato.
+    #[test]
+    fn un_progetto_con_token_in_chiaro_viene_backuppato_e_migrato() {
+        let dir = tempfile::tempdir().unwrap();
+        progetto_con_token_in_chiaro(dir.path());
+
+        let n = migra_segreti_se_serve(dir.path());
+        assert_eq!(n, Some(1));
+
+        assert!(dir.path().join("secrets.yaml").exists());
+        let project_yaml = std::fs::read_to_string(dir.path().join("project.yaml")).unwrap();
+        assert!(!project_yaml.contains("tg-vecchio"), "{project_yaml}");
+
+        let backups = crate::backups::list_backups(dir.path());
+        assert_eq!(
+            backups.len(),
+            1,
+            "deve esserci un backup, fatto prima della migrazione"
+        );
+    }
+
+    /// Idempotenza esplicitamente richiesta dal piano: «secondo avvio:
+    /// nessuna nuova migrazione». Niente secondo backup, nessuna riscrittura.
+    #[test]
+    fn un_secondo_giro_non_migra_e_non_backuppa_di_nuovo() {
+        let dir = tempfile::tempdir().unwrap();
+        progetto_con_token_in_chiaro(dir.path());
+        assert_eq!(migra_segreti_se_serve(dir.path()), Some(1));
+        assert_eq!(migra_segreti_se_serve(dir.path()), None);
+        assert_eq!(
+            crate::backups::list_backups(dir.path()).len(),
+            1,
+            "il secondo giro non deve produrre un secondo backup"
+        );
+    }
+
+    /// Un progetto senza nessun segreto in chiaro (il caso normale, dopo 2a/2b)
+    /// non produce nessun backup: aprirlo non deve costare un backup a ogni giro.
+    #[test]
+    fn un_progetto_senza_segreti_non_produce_backup() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("project.yaml"),
+            "meta: { name: p, version: \"1\" }\ntags: []\n",
+        )
+        .unwrap();
+        assert_eq!(migra_segreti_se_serve(dir.path()), None);
+        assert!(crate::backups::list_backups(dir.path()).is_empty());
     }
 }
