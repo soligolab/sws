@@ -1555,6 +1555,7 @@
   },
   "history": {
     "edit": "Edit",
+    "pageTree": "Page order",
     "newPage": "New page",
     "deletePage": "Delete page",
     "renamePage": "Rename page",

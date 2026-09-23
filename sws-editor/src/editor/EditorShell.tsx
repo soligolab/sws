@@ -66,6 +66,22 @@ const RIGHT_PANEL_MIN = 220;
 const RIGHT_PANEL_MAX = 560;
 
 const LABEL: React.CSSProperties = { fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 2 };
+/** Tre campi numerici in fila, che vanno a capo quando il pannello è stretto.
+ *
+ *  Con `1fr 1fr 1fr` fisse il difetto era visibile (segnalato il 23-09-2026):
+ *  al campo restavano una quarantina di pixel, e gli spinner se li prendevano
+ *  tutti — perché dal 23-08-2026 una regola in `index.html` li tiene **sempre
+ *  visibili e larghi 20px**, per richiesta del maintainer, dato che quelli
+ *  nativi di Chromium erano un bersaglio troppo piccolo. Le due richieste
+ *  stanno insieme solo se il campo ha lo spazio: `auto-fit` con un minimo
+ *  tiene le tre colonne quando il pannello è largo e passa a due quando non
+ *  ci stanno, invece di stringere all'infinito. */
+const GRIGLIA_NUMERICA: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(96px, 1fr))",
+  gap: 6,
+};
+
 const INPUT: React.CSSProperties = {
   width: "100%",
   background: "var(--brand-bg, #0f172a)",
@@ -2850,23 +2866,12 @@ export function ObjectProps({
             {/* 2026-08-23: su rect/button/navbutton/lang_button lo sfondo È il
                 fill ("Colore" qui sopra): il colore doppio spariva sotto il
                 corpo opaco. Resta bg_image. */}
-            {!["rect", "button", "navbutton", "lang_button"].includes(obj.type) && field(t("props.bgColor"),
-              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                <input
-                  type="color"
-                  style={{ ...INPUT, padding: 2, height: 28, width: 44, cursor: "pointer", flex: "none", opacity: obj.bg_color ? 1 : 0.4 }}
-                  value={estraiHex(obj.bg_color) ?? "#0f172a"}
-                  onChange={(e) => onChange({ bg_color: e.target.value })}
-                />
-                {obj.bg_color && (
-                  <button
-                    title={t("props.bgClear")}
-                    style={{ background: "transparent", border: "none", color: "var(--brand-text-subtle, #64748b)", cursor: "pointer", fontSize: 13, padding: "0 4px" }}
-                    onClick={() => onChange({ bg_color: undefined })}
-                  >✕</button>
-                )}
-              </div>
-            )}
+            {/* Il ✕ che stava qui è sparito il 23-09-2026: adesso si svuota
+                cancellando il testo, come in ogni altro campo colore. Averne
+                uno solo che si comporta sempre uguale vale più di una
+                scorciatoia che c'era su un campo su venti. */}
+            {!["rect", "button", "navbutton", "lang_button"].includes(obj.type)
+              && field(t("props.bgColor"), colorInput("bg_color"))}
             {field(t("props.bgImage"),
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
@@ -3130,7 +3135,7 @@ export function ObjectProps({
                   }} />
               )}
               {(obj.button_mode === "increment" || obj.button_mode === "decrement") && (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
+                <div style={GRIGLIA_NUMERICA}>
                   <div><div style={LABEL}>Step</div>{numInput("step", 1)}</div>
                   <div><div style={LABEL}>Min</div>{numInput("min", 0)}</div>
                   <div><div style={LABEL}>Max</div>{numInput("max", 100)}</div>
@@ -3391,7 +3396,7 @@ export function ObjectProps({
             <>
               {field(t("props.tag"), tagInput("es. pump1.speed"))}
               {field(t("props.color"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill")}</BindableInput>)}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
+              <div style={GRIGLIA_NUMERICA}>
                 <div><div style={LABEL}>Min</div><BindableInput obj={obj} propName="min" onChange={onChange}>{numInput("min", 0)}</BindableInput></div>
                 <div><div style={LABEL}>Max</div><BindableInput obj={obj} propName="max" onChange={onChange}>{numInput("max", 100)}</BindableInput></div>
                 <div><div style={LABEL}>Step</div><BindableInput obj={obj} propName="step" onChange={onChange}>{numInput("step", 1)}</BindableInput></div>
@@ -3429,7 +3434,7 @@ export function ObjectProps({
               {field(t("props.tag"), tagInput("es. pump1.speed_sp"))}
               {field(t("props.unit"), <BindableInput obj={obj} propName="unit" onChange={onChange}>{textInput("unit", "")}</BindableInput>)}
               {field(t("props.decimals"), <BindableInput obj={obj} propName="decimals" onChange={onChange}>{numInput("decimals", 1)}</BindableInput>)}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
+              <div style={GRIGLIA_NUMERICA}>
                 <div><div style={LABEL}>Min</div><BindableInput obj={obj} propName="min" onChange={onChange}>{numInput("min", 0)}</BindableInput></div>
                 <div><div style={LABEL}>Max</div><BindableInput obj={obj} propName="max" onChange={onChange}>{numInput("max", 100)}</BindableInput></div>
                 <div><div style={LABEL}>Step</div><BindableInput obj={obj} propName="step" onChange={onChange}>{numInput("step", 1)}</BindableInput></div>
@@ -4012,19 +4017,7 @@ export function ObjectProps({
               {obj.grid_show_borders !== false && (
                 <div style={{ marginTop: 4 }}>
                   <div style={LABEL}>{t("props.colorBorders")}</div>
-                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                    <input
-                      type="color"
-                      style={{ ...INPUT, padding: 2, height: 28, width: 44, cursor: "pointer", flex: "none" }}
-                      value={estraiHex(obj.grid_border_color) ?? predefinito("grid", "grid_border_color") ?? "#64748b"}
-                      onChange={(e) => onChange({ grid_border_color: e.target.value })}
-                    />
-                    <input
-                      type="text" style={INPUT}
-                      value={estraiHex(obj.grid_border_color) ?? predefinito("grid", "grid_border_color") ?? "#64748b"}
-                      onChange={(e) => onChange({ grid_border_color: e.target.value })}
-                    />
-                  </div>
+                  {colorInput("grid_border_color")}
                 </div>
               )}
               <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "6px 0 0" }}>
@@ -4039,7 +4032,7 @@ export function ObjectProps({
               {field(t("props.tag"), tagInput("es. valvola.stato"))}
               {textListEntriesField()}
               {field(t("props.textDefault"), <input style={INPUT} value={obj.text_list_default ?? ""} onChange={(e) => onChange({ text_list_default: e.target.value })} />)}
-              {field(t("props.colorDefault"), <input type="color" value={estraiHex(obj.text_list_default_color) ?? "#94a3b8"} onChange={(e) => onChange({ text_list_default_color: e.target.value })} style={{ width: 40, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />)}
+              {field(t("props.colorDefault"), colorInput("text_list_default_color"))}
               {field(t("props.fontSize"), numInput("font_size", 16))}
               {field(t("props.alignment"), (
                 <select style={INPUT} value={obj.text_anchor ?? "middle"} onChange={(e) => onChange({ text_anchor: e.target.value as any })}>
@@ -4261,7 +4254,7 @@ export function ObjectProps({
             <>
               {field(t("props.tag"), tagInput("es. flow.rate"))}
               {field(t("props.windowS"), <BindableInput obj={obj} propName="spark_window_s" onChange={onChange}>{numInput("spark_window_s", 60)}</BindableInput>)}
-              {field(t("props.colorLine"), <input type="color" value={estraiHex(obj.spark_color) ?? "#3b82f6"} onChange={(e) => onChange({ spark_color: e.target.value })} style={{ width: 40, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />)}
+              {field(t("props.colorLine"), colorInput("spark_color"))}
               {field(t("props.thicknessPx"), numInput("spark_stroke_width", 1.5))}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
                 <div><div style={LABEL}>Y min</div><BindableInput obj={obj} propName="y_min" onChange={onChange}>{numInput("y_min", 0)}</BindableInput></div>
@@ -4298,7 +4291,7 @@ export function ObjectProps({
                   </label>
                 ))}
               </div>
-              {field(t("props.emptyBackground"), <input type="color" value={estraiHex(obj.alarm_viewer_bg_color) ?? "#0f172a"} onChange={(e) => onChange({ alarm_viewer_bg_color: e.target.value })} style={{ width: 40, height: 24, padding: 1, border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3 }} />)}
+              {field(t("props.emptyBackground"), colorInput("alarm_viewer_bg_color"))}
               {/* F7.5 — ACK massivo e messa in silenzio, solo in modalità tabella
                   (in "list"/"banner" non c'è spazio per i comandi). */}
               {(obj.alarm_viewer_mode ?? "list") === "table" && (

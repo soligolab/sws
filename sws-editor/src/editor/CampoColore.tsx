@@ -59,10 +59,15 @@ export function CampoColore({
       <input
         type="text"
         style={{ ...INPUT, flex: 1, minWidth: 0 }}
-        placeholder={mixed ? t("props.mixedValues") : (auto ? perSwatch : undefined)}
+        placeholder={mixed ? t("props.mixedValues") : perSwatch}
         value={mixed || auto ? "" : (typeof valore === "string" ? valore : "")}
         title={auto ? t("props.colorAutoHint") : undefined}
-        onChange={(e) => onChange(e.target.value === "" && puoEssereAuto ? undefined : e.target.value)}
+        // Testo vuoto = «non impostato», **sempre**, non solo sui campi che
+        // hanno un automatico. È l'unico gesto per togliere un colore, e
+        // dev'essere lo stesso ovunque: prima i campi con un «assente» valido
+        // (lo sfondo di un oggetto, quello dell'elenco allarmi) si svuotavano
+        // ognuno col suo bottone, e solo alcuni ce l'avevano.
+        onChange={(e) => onChange(e.target.value === "" ? undefined : e.target.value)}
       />
       {auto && (
         <span style={{ fontSize: 10, color: "var(--brand-text-muted, #94a3b8)", flex: "none" }} title={t("props.colorAutoHint")}>

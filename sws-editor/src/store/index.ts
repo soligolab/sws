@@ -71,6 +71,17 @@ export interface HistoryEntry {
    *  progetto; il valore in vigore è quello della voce più vicina che ne porta
    *  uno. */
   project?: ProjectInfo | null;
+  /** Snapshot dell'**albero delle pagine**, presente solo nelle voci che lo
+   *  cambiano (spostamento, aggiunta, eliminazione, duplicazione).
+   *
+   *  Un campo suo e non `project` qui sopra: l'albero è poche decine di nodi,
+   *  il progetto intero è tag, sorgenti, allarmi e ricette, e spostare una
+   *  pagina nell'elenco non è una transazione dell'assistente — si paga a ogni
+   *  trascinamento.
+   *
+   *  Stessa regola di `project`: `undefined` = questa voce non tocca l'albero,
+   *  e quello in vigore è della voce più vicina che ne porta uno. */
+  pageTree?: PageTreeNode[];
 }
 
 /** Una proposta dell'assistente, come arriva da `/ws/ai`. */
@@ -323,6 +334,10 @@ interface AppState {
   pagesRev: number;
   /** Value of `pagesRev` at the last fully successful save. */
   savedPagesRev: number;
+  /** L'albero delle pagine **com'è sul server**. `null` = non ancora saputo
+   *  (nessun progetto caricato). Serve a due cose: sapere se il Salva deve
+   *  scriverlo, e far contare l'albero nel «non salvato» come le pagine. */
+  savedPageTree: PageTreeNode[] | null;
   /** Page names known to exist on disk, snapshotted whenever pages are freshly
    *  loaded (setPages). Used by saveAll() to detect pages deleted/renamed since
    *  then — a name that dropped out of the current `pages` array but is still
@@ -673,7 +688,21 @@ function autoDeployIfConnected() {
  * (not an object), so it is safe with zustand's default equality check.
  */
 export const selectIsDirty = (s: AppState) =>
-  s.pagesRev !== s.savedPagesRev || Object.keys(s.pendingSections).length > 0;
+  s.pagesRev !== s.savedPagesRev
+  || Object.keys(s.pendingSections).length > 0
+  || alberoCambiato(s);
+
+/** L'albero in memoria differisce da quello sul server?
+ *
+ *  Un confronto sul JSON e non un contatore di revisione come per le pagine:
+ *  l'albero torna indietro con l'annulla, e un contatore direbbe «cambiato»
+ *  anche dopo che Ctrl+Z l'ha rimesso esattamente com'era. Sono poche decine
+ *  di nodi, quindi il costo non si vede. */
+export function alberoCambiato(s: AppState): boolean {
+  if (s.savedPageTree === null) return false;
+  return JSON.stringify(s.project?.page_layout?.page_tree ?? [])
+    !== JSON.stringify(s.savedPageTree);
+}
 
 /** Le pagine nell'ordine dell'albero delle pagine (`page_layout.page_tree`), con le
  *  pagine di boot in coda. Ritorna lo stesso array se l'ordine è già quello, per non
@@ -689,18 +718,23 @@ function alberoDi(pages: readonly SynopticPage[], layout: PageLayoutConfig | nul
   return riconcilia(layout?.page_tree, paginePerNavigazione(pages).map((p) => p.id));
 }
 
-let alberoTimer: number | null = null;
-/** Scrive `page_layout` (con l'albero) sul server, poco dopo l'ultima modifica: un
- *  trascinamento e i colpi ravvicinati diventano una scrittura sola. Come le altre
- *  impostazioni di pagina va fuori da `saveAll`; il segnale al sorvegliante è in `request()`. */
-function persistiAlbero(): void {
-  if (alberoTimer !== null) window.clearTimeout(alberoTimer);
-  alberoTimer = window.setTimeout(() => {
-    alberoTimer = null;
-    const layout = useAppStore.getState().project?.page_layout;
-    if (!layout) return;
-    api.updatePageLayout(layout).catch((e) => console.error("albero delle pagine non salvato:", e));
-  }, 300);
+/** Cosa cambia in `set` per rimettere l'albero di una voce di cronologia:
+ *  niente se la voce non lo porta. Le pagine si riordinano di conseguenza,
+ *  perché l'ordine dell'array è quello dell'albero (`conOrdineAlbero`). */
+function ripristinaAlbero(
+  voce: HistoryEntry,
+): { project?: ProjectInfo | null; pages?: SynopticPage[] } {
+  if (voce.pageTree === undefined) return {};
+  const s = useAppStore.getState();
+  if (!s.project) return {};
+  const page_layout = {
+    ...(s.project.page_layout ?? { size_mode: "fixed" as const }),
+    page_tree: voce.pageTree,
+  };
+  return {
+    project: { ...s.project, page_layout },
+    pages: conOrdineAlbero(voce.pages, page_layout),
+  };
 }
 
 export const useAppStore = create<AppState>((set, get) => {
@@ -722,6 +756,30 @@ export const useAppStore = create<AppState>((set, get) => {
     if (interactionDepth > 0) return;
     const { pages, past, pagesRev } = get();
     const entry: HistoryEntry = { pages: clonePages(pages), label, labelArgs, rev: pagesRev };
+    const trimmed = past.length >= HISTORY_LIMIT
+      ? past.slice(past.length - HISTORY_LIMIT + 1)
+      : past;
+    set({ past: [...trimmed, entry], future: [], pagesRev: pagesRev + 1 });
+  };
+
+  /** Spinge una voce di cronologia che porta l'albero **di adesso**, cioè
+   *  quello da ripristinare annullando. Da chiamare PRIMA di cambiarlo.
+   *
+   *  Passo 4 del piano di stabilizzazione: fino al 23-09-2026 l'albero si
+   *  scriveva da solo sul server 300 ms dopo l'ultimo trascinamento, fuori
+   *  dalla cronologia e fuori dal Salva. Tre conseguenze, tutte viste: Ctrl+Z
+   *  non annullava uno spostamento, una pagina appena creata e mai salvata era
+   *  già nell'albero sul server, e il viewer poteva leggere un ordine che
+   *  nominava pagine che non esistevano ancora. */
+  const pushHistoryAlbero = (label: string) => {
+    if (interactionDepth > 0) return;
+    const { pages, past, pagesRev, project } = get();
+    const entry: HistoryEntry = {
+      pages: clonePages(pages),
+      label,
+      rev: pagesRev,
+      pageTree: project?.page_layout?.page_tree ?? [],
+    };
     const trimmed = past.length >= HISTORY_LIMIT
       ? past.slice(past.length - HISTORY_LIMIT + 1)
       : past;
@@ -788,6 +846,7 @@ export const useAppStore = create<AppState>((set, get) => {
     saveError: null,
     pagesRev: 0,
     savedPagesRev: 0,
+    savedPageTree: null,
     persistedPageNames: [],
     bootPng: {},
     bootPngFirme: {},
@@ -850,6 +909,9 @@ export const useAppStore = create<AppState>((set, get) => {
         projectLoadError: null,
         customSymbols: project.custom_symbols ?? [],
         pages: conOrdineAlbero(s.pages, project.page_layout),
+        // Appena letto dal server: è questo l'albero che sta su disco, e da
+        // qui si misura se il Salva ha qualcosa da scrivere.
+        savedPageTree: project.page_layout?.page_tree ?? [],
       })),
     setProjectLoadError: (msg) => set({ projectLoadError: msg }),
 
@@ -875,6 +937,12 @@ export const useAppStore = create<AppState>((set, get) => {
       set((s) => ({
         project: s.project ? { ...s.project, page_layout: pageLayout ?? undefined } : s.project,
         pages: conOrdineAlbero(s.pages, pageLayout),
+        // Chi chiama questa (formato del progetto, pagina di boot, misure) ha
+        // appena scritto il layout **intero** sul server, albero compreso: da
+        // questo momento è quello il contenuto del disco. Senza rifissare la
+        // baseline il progetto resterebbe «non salvato» per un albero che sul
+        // server c'è già, e il puntino non si spegnerebbe più fino al Salva.
+        savedPageTree: pageLayout?.page_tree ?? [],
       })),
 
     updateProjectTarget: (target) =>
@@ -1051,7 +1119,7 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     addPage: (genitore = null) => {
-      pushHistory("history.newPage");
+      pushHistoryAlbero("history.newPage");
       const page = makePage(`Page ${paginePerNavigazione(get().pages).length + 1}`);
       // Q38 — in modalità «ratio» la pagina nasce già con la risoluzione di
       // riferimento scritta: le misure nel file sono ciò che TUTTI i motori
@@ -1082,7 +1150,6 @@ export const useAppStore = create<AppState>((set, get) => {
           selectedObjectIds: [],
         };
       });
-      if (get().project) persistiAlbero();
     },
 
     addBootPage: () => {
@@ -1108,12 +1175,11 @@ export const useAppStore = create<AppState>((set, get) => {
       // «Non si elimina l'ultima pagina» vale per le sinottiche: una pagina di
       // boot non è una pagina del pannello, e togliere l'ultima è lecito.
       if (!eBoot(page) && paginePerNavigazione(pages).length <= 1) return;
-      pushHistory("history.deletePage");
+      pushHistoryAlbero("history.deletePage");
       const next = pages.filter((p) => p.id !== id);
       // Una pagina sinottica esce anche dall'albero: i suoi figli salgono al suo posto.
       const s0 = get();
-      const conAlbero = !eBoot(page) && !!s0.project;
-      const project = conAlbero && s0.project
+      const project = !eBoot(page) && s0.project
         ? {
             ...s0.project,
             page_layout: {
@@ -1131,7 +1197,6 @@ export const useAppStore = create<AppState>((set, get) => {
         selectedObjectId: null,
         selectedObjectIds: [],
       });
-      if (conAlbero) persistiAlbero();
     },
 
     renamePage: (id, name) => {
@@ -1158,18 +1223,19 @@ export const useAppStore = create<AppState>((set, get) => {
     impostaAlberoPagine: (albero) => {
       const s0 = get();
       if (!s0.project) return;
-      // Non passa dalla cronologia: l'albero è un dato di progetto scritto subito sul
-      // server, e un annulla che rimettesse solo l'ordine dell'array lo lascerebbe indietro.
+      // Passa dalla cronologia come le pagine (Passo 4): la voce porta
+      // l'albero di PRIMA, quindi Ctrl+Z rimette l'ordine che c'era. Si
+      // scrive col Salva del progetto, non da qui.
+      pushHistoryAlbero("history.pageTree");
       const project = {
         ...s0.project,
         page_layout: { ...(s0.project.page_layout ?? { size_mode: "fixed" as const }), page_tree: riconcilia(albero, paginePerNavigazione(s0.pages).map((p) => p.id)) },
       };
       set({ project, pages: conOrdineAlbero(s0.pages, project.page_layout) });
-      persistiAlbero();
     },
 
     duplicatePage: (id) => {
-      pushHistory("history.duplicatePage");
+      pushHistoryAlbero("history.duplicatePage");
       set((s) => {
         const page = s.pages.find((p) => p.id === id);
         if (!page) return s;
@@ -1194,7 +1260,6 @@ export const useAppStore = create<AppState>((set, get) => {
           : s.project;
         return { project, pages: conOrdineAlbero([...s.pages, copy], project?.page_layout), currentPageId: copy.id };
       });
-      if (get().project) persistiAlbero();
     },
 
     updatePageProps: (id, patch) => {
@@ -1880,12 +1945,17 @@ export const useAppStore = create<AppState>((set, get) => {
       // redo riporterebbe le pagine e non i tag, cioè metà transazione.
       const controparte: HistoryEntry = { pages: clonePages(pages), ...etichetta(prev), rev: pagesRev };
       if (prev.project !== undefined) controparte.project = project;
+      // Se la voce ripristinata porta un albero, la sua controparte deve
+      // portare quello di adesso: altrimenti il giro inverso riporterebbe le
+      // pagine e non il loro ordine, cioè metà annullamento.
+      if (prev.pageTree !== undefined) controparte.pageTree = project?.page_layout?.page_tree ?? [];
       set({
         past: past.slice(0, past.length - 1),
         future: [controparte, ...future].slice(0, HISTORY_LIMIT),
         pages: prev.pages,
         pagesRev: prev.rev,
         ...(prev.project !== undefined ? { project: prev.project } : {}),
+        ...ripristinaAlbero(prev),
         selectedObjectId: null,
         selectedObjectIds: [],
         selectedCell: null,
@@ -1903,12 +1973,17 @@ export const useAppStore = create<AppState>((set, get) => {
       const next = future[0];
       const controparte: HistoryEntry = { pages: clonePages(pages), ...etichetta(next), rev: pagesRev };
       if (next.project !== undefined) controparte.project = project;
+      // Se la voce ripristinata porta un albero, la sua controparte deve
+      // portare quello di adesso: altrimenti il giro inverso riporterebbe le
+      // pagine e non il loro ordine, cioè metà annullamento.
+      if (next.pageTree !== undefined) controparte.pageTree = project?.page_layout?.page_tree ?? [];
       set({
         past: [...past, controparte].slice(-HISTORY_LIMIT),
         future: future.slice(1),
         pages: next.pages,
         pagesRev: next.rev,
         ...(next.project !== undefined ? { project: next.project } : {}),
+        ...ripristinaAlbero(next),
         selectedObjectId: null,
         selectedObjectIds: [],
         selectedCell: null,
@@ -2463,6 +2538,25 @@ export const useAppStore = create<AppState>((set, get) => {
       // "modified" is the only honest answer; a retry re-PUTs everything
       // (the endpoints are idempotent).
       set({ persistedPageNames: state.pages.map(chiavePagina) });
+
+      // L'albero delle pagine, DOPO le pagine (Passo 4). L'ordine conta: se
+      // arrivasse prima, il viewer potrebbe leggere un ordine che nomina una
+      // pagina che su disco non c'è ancora — ed è metà del motivo per cui
+      // l'albero non si scrive più da solo.
+      const layoutOra = get().project?.page_layout;
+      if (layoutOra && alberoCambiato(get())) {
+        try {
+          await api.updatePageLayout(layoutOra);
+          set({ savedPageTree: layoutOra.page_tree ?? [] });
+        } catch (e) {
+          set({
+            saveStatus: "error",
+            saveError: errText(e),
+            saveConflict: e instanceof ProjectChangedError,
+          });
+          return;
+        }
+      }
 
       // T-72 F4 — il PNG delle pagine di boot cambiate. Un errore qui **non**
       // blocca il salvataggio (le pagine sono già su disco): resta nello stato,

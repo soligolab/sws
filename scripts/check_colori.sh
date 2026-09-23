@@ -100,6 +100,50 @@ esito(not problemi, "ogni swatch passa da estraiHex()/CampoColore" + ("".join("\
 campo = open(f"{root}/sws-editor/src/editor/CampoColore.tsx", encoding="utf-8").read()
 esito('value={mixed ? "#808080" : perSwatch}' in campo, "CampoColore: lo swatch riceve `perSwatch` (estraiHex, mai il valore grezzo)")
 
+print("=== 3b. un campo colore dell'oggetto passa dal controllo condiviso ===")
+# La regola del maintainer, 23-09-2026: «il selettore colore deve essere
+# definito una volta e usato ovunque serva sempre uguale». Il difetto che l'ha
+# fatta nascere: lo sfondo dell'elenco allarmi mostrava solo lo swatch, mentre
+# il gauge mostrava anche l'esadecimale — due controlli diversi per la stessa
+# cosa, e chi li usa non capisce perché.
+#
+# Il confine è `obj.<campo>`: un campo dell'oggetto sinottico si scrive con
+# `colorInput`, che monta `CampoColore`. Gli swatch dentro le righe di un
+# elenco (serie di un grafico, fette di torta, zone di un gauge, celle, voci di
+# text_list, parametri di faceplate) restano fuori: stanno in una riga con
+# altre colonne, dove un campo di testo accanto non entrerebbe. Sono elencati
+# qui sotto perché siano una scelta visibile e non una dimenticanza — e il
+# giorno che il pannello avrà spazio, si convertono anche quelli.
+ELENCHI_AMMESSI = 14  # swatch dentro righe di elenco, contati il 23-09-2026
+nudi_su_obj = []
+n_elenco = 0
+for i, r in enumerate(rs):
+    if 'type="color"' not in r:
+        continue
+    inizio = i
+    while inizio > 0 and "<input" not in rs[inizio]:
+        inizio -= 1
+    blocco = ""
+    for j in range(inizio, min(len(rs), i + 12)):
+        blocco += rs[j] + "\n"
+        if j >= i and "/>" in rs[j]:
+            break
+    m = re.search(r"value=\{([^}]*(?:\{[^}]*\}[^}]*)*)\}", blocco)
+    valore = m.group(1) if m else ""
+    if "obj." in valore:
+        nudi_su_obj.append(f"riga {inizio + 1}: value={{{valore.strip()[:60]}}}")
+    else:
+        n_elenco += 1
+esito(
+    not nudi_su_obj,
+    "nessun campo `obj.*` disegna uno swatch a mano invece di `colorInput`"
+    + ("".join("\n      " + x for x in nudi_su_obj)),
+)
+esito(
+    n_elenco <= ELENCHI_AMMESSI,
+    f"{n_elenco} swatch dentro righe di elenco (tetto dichiarato: {ELENCHI_AMMESSI})",
+)
+
 print("=== 4. i template del parco sono progetti: hex, non variabili ===")
 tpl = sorted(glob.glob(f"{root}/examples/templates/**/*.yaml", recursive=True))
 sporchi = [t.replace(root + "/", "") for t in tpl if "var(--" in open(t, encoding="utf-8").read()]

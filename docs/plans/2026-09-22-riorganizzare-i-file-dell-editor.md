@@ -30,13 +30,45 @@ Cosa costa, concretamente e già misurato in questi giorni:
 - i test di inventario (`pannelloProprieta.test.tsx`) esistono proprio perché **nessuno riesce a
   leggere il file intero** e serve una rete che dica se una sezione è sparita.
 
+### La prova del 23-09-2026: due segnalazioni, una causa sola
+
+Il maintainer, provando l'editor: «i campi min/max/step dello slider sono coperti dalle frecce»; «il
+selettore del colore dell'alarm viewer non mostra l'esadecimale come il gauge». E la diagnosi, che è
+il cuore di questo seme: «i componenti del pannello dovrebbero essere oggetti riutilizzabili identici
+in ogni punto siano richiesti, per esempio il selettore colore deve essere definito una volta e usato
+ovunque serva sempre uguale».
+
+Misurato quel giorno, in `EditorShell.tsx`:
+
+| | |
+|---|---:|
+| `<input type="color">` scritti a mano | **19** |
+| di questi, su un campo diretto dell'oggetto (dovevano usare `colorInput`) | 5 |
+| dentro righe di elenco (serie, fette, zone, celle, voci, parametri) | 14 |
+| dichiarazioni di `numInput` | 2 |
+| dichiarazioni di `textInput` | 2 |
+
+I cinque sono stati convertiti subito e `check_colori.sh` ha un controllo nuovo che impedisce di
+riaprirli. **I quattordici restano**, ed è il lavoro di questo seme: stanno in righe strette dove un
+campo di testo accanto non entra, quindi non basta sostituire il componente — serve decidere come si
+disegna una riga di elenco con dentro un colore. Il tetto dichiarato nella guardia li tiene contati.
+
+La morale per la sessione di plan: **non è un problema di dimensione dei file, è di dove vivono i
+componenti**. Finché un controllo è una espressione JSX dentro una funzione dentro un componente da
+5 700 righe, il secondo posto che ne ha bisogno lo riscrive invece di importarlo — e nasce diverso.
+
 ## Cosa la sessione di plan dovrà decidere
 
 - **Il criterio di divisione**: per scheda (una cartella `config/schede/` con un file per scheda),
   per dominio (tag, sorgenti, allarmi…), o per livello (contenitori / campi / logica pura).
 - **Cosa resta condiviso e dove**: `S` (gli stili), `SaveBar`, `Section`, i campi (`CampoColore`,
   `CampoFormato`, `TagInput`, `BindableInput`) e gli helper del pannello proprietà, oggi
-  dichiarati dentro i componenti che li usano.
+  dichiarati dentro i componenti che li usano. `CampoColore` è la prova che funziona: da quando
+  esiste come file suo, i campi che ci passano si comportano tutti uguale — il problema è che in
+  quattordici punti non ci passa nessuno.
+- **Come si disegna un colore dentro una riga di elenco**: è il caso che ha resistito alla
+  conversione del 23-09-2026. Serve una variante compatta di `CampoColore` (solo swatch, con
+  l'esadecimale in un popover o in un tooltip?) oppure righe di elenco più alte.
 - **Come si divide senza rompere le reti**: `pannelloProprieta.test.tsx` (inventario dei campi per
   tipo), `check_i18n_ui.sh` (tetti per file — **i tetti sono per percorso**, quindi ogni file che
   si sposta va ridichiarato), `check_colori.sh` e `check_tipi_scalari.sh`, che cercano per nome di

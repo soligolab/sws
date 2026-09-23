@@ -8,6 +8,7 @@ import { TrendExpandedModal } from "@/canvas/TrendExpanded";
 import { XyPlotCanvas, type XyPlotSeriesLive } from "@/canvas/XyPlotCanvas";
 import { dividiSegmento, aggiungiInCoda, percorsoDaSalvare, puntiMovimento, tracciatoVisibile } from "@/canvas/percorsoMovimento";
 import { api } from "@/api/client";
+import { useAlarmStream } from "@/ws/alarmStream";
 import { AlarmBellPanel } from "@/components/AlarmBellPanel";
 import { NumericKeypad } from "@/components/NumericKeypad";
 import { AlarmBanner } from "@/components/AlarmBanner";
@@ -2891,6 +2892,15 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
   askReason?: boolean;
 }) {
   const { t } = useTranslation();
+  // Gli allarmi arrivano da qui, e prima non li chiedeva nessuno: campanella e
+  // banner chiamavano `useAlarmStream`, l'elenco no. Una pagina con **solo**
+  // un elenco allarmi restava vuota per sempre — gli allarmi scattavano
+  // davvero nel runtime, semplicemente nessuno li aveva chiesti. Segnalato dal
+  // maintainer il 23-09-2026 («muovendo lo slider non vedo partire gli
+  // allarmi»), con tre allarmi attivi sul server nello stesso momento.
+  // Il socket è condiviso (`socketCondiviso`), quindi due elenchi nella stessa
+  // pagina non aprono due connessioni.
+  useAlarmStream();
   const alarmsMap = useAppStore((s) => s.alarms);
   const authRole = useAppStore((s) => s.authRole);
   const canAck = authRole === "Admin" || authRole === "Supervisor" || authRole === "Operator";
@@ -3008,7 +3018,10 @@ function AlarmViewerWidget({ width, height, mode, maxRows, prefix, allowedSev, s
         render: (a) => <span style={{ color: sevColor(a.def.severity ?? "Warning") }}>●</span>,
       },
       { key: "id", header: "ID", accessor: (a) => a.def.id },
-      { key: "message", header: testoSistema("messaggio", msgLang), accessor: (a) => locMsg(a.def.message) },
+      // `|| a.def.id` come nella modalità elenco: un allarme senza messaggio
+      // esiste, e una riga con la colonna vuota sembra un difetto del widget
+      // invece che un messaggio non scritto.
+      { key: "message", header: testoSistema("messaggio", msgLang), accessor: (a) => locMsg(a.def.message) || a.def.id },
       ...(showTs ? [{
         key: "ts", header: testoSistema("attivato", msgLang), width: 68, filterable: false,
         accessor: (a: AlarmState) => a.activated_at_ms ?? 0,

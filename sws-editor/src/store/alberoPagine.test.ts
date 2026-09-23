@@ -21,7 +21,7 @@ vi.mock("@/api/client", () => ({
 vi.mock("@/boot/rasterizza", () => ({ rasterizzaPagina: vi.fn(), MAX_PNG_BYTES: 1 }));
 
 import { api } from "@/api/client";
-import { useAppStore } from "@/store";
+import { alberoCambiato, selectIsDirty, useAppStore } from "@/store";
 import type { PageTreeNode, SynopticPage } from "@/types";
 
 const sin = (id: string): SynopticPage => ({ id, name: id, objects: [] });
@@ -53,23 +53,23 @@ describe("albero delle pagine nello store", () => {
     expect(ordine()).toEqual(["b", "a"]);
   });
 
-  it("spostare una pagina dentro un'altra cambia albero e ordine, e scrive una volta sola", () => {
+  // Passo 4 (23-09-2026): l'albero non si scrive più da solo dopo 300 ms.
+  // Entra nella cronologia come le pagine e parte col Salva del progetto.
+  it("spostare una pagina cambia albero e ordine, e NON scrive da sola", () => {
     reset([sin("a"), sin("b"), sin("c")]);
     stato().spostaPagina("a", "c", 0);
-    stato().spostaPagina("b", "c", 1); // due colpi ravvicinati
+    stato().spostaPagina("b", "c", 1);
     expect(albero()).toEqual([{ id: "c", children: [{ id: "a" }, { id: "b" }] }]);
     expect(ordine()).toEqual(["c", "a", "b"]);
+    vi.advanceTimersByTime(2000);
     expect(api.updatePageLayout).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(400);
-    expect(api.updatePageLayout).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(api.updatePageLayout).mock.calls[0][0]).toMatchObject({ page_tree: [{ id: "c" }] });
   });
 
-  it("un ciclo si rifiuta e non scrive niente", () => {
+  it("un ciclo si rifiuta", () => {
     reset([sin("a"), sin("b")], [{ id: "a", children: [{ id: "b" }] }]);
     stato().spostaPagina("a", "b", 0);
     expect(albero()).toEqual([{ id: "a", children: [{ id: "b" }] }]);
-    vi.advanceTimersByTime(400);
+    vi.advanceTimersByTime(2000);
     expect(api.updatePageLayout).not.toHaveBeenCalled();
   });
 
@@ -101,6 +101,55 @@ describe("albero delle pagine nello store", () => {
     expect(albero()).toEqual([{ id: "a", children: [{ id: "c" }, { id: "b" }] }]);
     stato().reorderPage("c", "up"); // già primo: resta
     expect(albero()).toEqual([{ id: "a", children: [{ id: "c" }, { id: "b" }] }]);
+  });
+
+  // ── Passo 4: annulla, «non salvato» e Salva unico ──────────────────────
+
+  it("Ctrl+Z rimette l'ordine di prima, e il redo lo ritoglie", () => {
+    reset([sin("a"), sin("b"), sin("c")]);
+    stato().spostaPagina("a", "c", 0);
+    expect(albero()).toEqual([{ id: "b" }, { id: "c", children: [{ id: "a" }] }]);
+    expect(ordine()).toEqual(["b", "c", "a"]);
+
+    stato().undo();
+    // Prima l'albero non c'era: annullando torna l'elenco piatto di partenza.
+    expect(albero()).toEqual([]);
+    expect(ordine()).toEqual(["a", "b", "c"]);
+
+    stato().redo();
+    expect(albero()).toEqual([{ id: "b" }, { id: "c", children: [{ id: "a" }] }]);
+    expect(ordine()).toEqual(["b", "c", "a"]);
+  });
+
+  it("un albero spostato conta come «non salvato», e l'annulla lo ripulisce", () => {
+    reset([sin("a"), sin("b")]);
+    useAppStore.setState({ savedPageTree: [] });
+    expect(selectIsDirty(stato())).toBe(false);
+
+    stato().spostaPagina("a", "b", 0);
+    expect(selectIsDirty(stato())).toBe(true);
+
+    // Annullare rimette esattamente l'albero salvato: non c'è più niente da
+    // salvare. Con un contatore di revisione questo caso direbbe «sporco».
+    stato().undo();
+    expect(alberoCambiato(stato())).toBe(false);
+  });
+
+  it("il Salva scrive l'albero una volta, e non lo riscrive se non è cambiato", async () => {
+    vi.useRealTimers();
+    reset([sin("a"), sin("b")]);
+    useAppStore.setState({ savedPageTree: [] });
+    stato().spostaPagina("a", "b", 0);
+
+    await stato().saveAll();
+    expect(api.updatePageLayout).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(api.updatePageLayout).mock.calls[0][0]).toMatchObject({
+      page_tree: [{ id: "b", children: [{ id: "a" }] }],
+    });
+
+    // Secondo salvataggio senza toccare niente: l'albero non riparte.
+    await stato().saveAll();
+    expect(api.updatePageLayout).toHaveBeenCalledTimes(1);
   });
 
   it("le pagine di boot non entrano mai nell'albero", () => {

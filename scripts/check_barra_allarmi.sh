@@ -93,6 +93,30 @@ for path, ago, nome in casi:
     if ago in open(path, encoding="utf-8").read(): ok(f"{nome} filtra su `active`")
     else: ko(f"{nome}: non trovo più il filtro su `active` in {path}")
 
+# ── Chi mostra allarmi deve anche chiederli (23-09-2026) ────────────────────
+#
+# `useAlarmStream()` è ciò che riempie `store.alarms`: una GET iniziale e poi il
+# WebSocket delle transizioni. Campanella e banner la chiamavano, l'elenco no —
+# quindi una pagina con **solo** un elenco allarmi restava vuota per sempre,
+# mentre nel runtime gli allarmi scattavano davvero. Nessun errore, nessuna
+# riga rossa: la tabella semplicemente non si riempiva. Il maintainer l'ha
+# trovato muovendo uno slider e aspettando tre allarmi che erano già attivi.
+#
+# La regola: un componente che legge `s.alarms` deve chiamare `useAlarmStream()`
+# nello stesso file. Il socket è condiviso, quindi chiamarla più volte non
+# costa una connessione in più.
+import re as _re
+for _f in [VIEWER_TS, BELL_TS, TS]:
+    _t = open(_f, encoding="utf-8").read()
+    _nome = _f.split("/")[-1]
+    if "(s) => s.alarms" not in _t and "s.alarms" not in _t:
+        continue
+    if "useAlarmStream()" in _t:
+        ok(f"{_nome} legge gli allarmi e li chiede (`useAlarmStream`)")
+    else:
+        ko(f"{_nome} legge `store.alarms` senza chiamare `useAlarmStream()`: "
+           "una pagina con solo quell'oggetto resterebbe vuota")
+
 src_rust = open(RUST, encoding="utf-8").read()
 for fn, nome in [("fn update_alarm_bell", "alarm_bell (LVGL)"),
                  ("fn update_alarm_viewer", "alarm_viewer (LVGL)")]:

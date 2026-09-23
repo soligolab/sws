@@ -12,6 +12,33 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Fixed
+- **L'elenco allarmi non chiedeva gli allarmi a nessuno** (segnalato dal maintainer il 23-09-2026: «muovendo lo slider non vedo partire gli allarmi»). Gli allarmi scattavano davvero — tre, sul
+  server, nello stesso momento in cui la tabella era vuota — ma `useAlarmStream()`, che è ciò che riempie l'elenco con una lettura iniziale e poi le transizioni dal WebSocket, era chiamata solo
+  dalla **campanella** e dal **banner**. Una pagina con solo un `alarm_viewer` restava vuota per sempre, senza un errore e senza una riga rossa: sembrava che gli allarmi non partissero. Ora lo
+  chiede anche l'elenco; il socket è condiviso, quindi due oggetti nella stessa pagina non aprono due connessioni. `check_barra_allarmi.sh` ha la regola: chi legge gli allarmi deve chiederli.
+- **In modalità tabella un allarme senza messaggio dava una riga vuota.** La modalità elenco ripiega già sull'id dell'allarme; la tabella no, e una colonna vuota sembra un difetto del widget
+  invece di un messaggio non scritto. Ora ripiegano tutte e due allo stesso modo.
+
+### Fixed
+- **Due difetti del pannello proprietà, segnalati provando l'editor** (23-09-2026), che hanno una causa sola: un controllo scritto a mano invece che preso da dove già esiste.
+  - **I campi Min/Max/Step dello slider erano coperti dalle frecce.** Tre colonne fisse in un pannello stretto lasciano al campo una quarantina di pixel, e dal 23-08-2026 una regola tiene gli
+    spinner **sempre visibili e larghi 20 px** — chiesta allora perché quelli nativi erano un bersaglio troppo piccolo. Le due cose stanno insieme solo se il campo ha spazio: ora la griglia va a
+    capo da sola, tre colonne quando il pannello è largo e due quando non ci stanno. Vale anche per gauge e barra di avanzamento, che avevano lo stesso difetto.
+  - **Il colore di sfondo dell'elenco allarmi non mostrava l'esadecimale**, mentre il gauge sì: era uno swatch disegnato a mano invece del campo colore condiviso. Erano **cinque** i campi
+    dell'oggetto in questo stato (sfondo, bordo della griglia, colore predefinito di text_list, linea dello sparkline, sfondo dell'elenco allarmi): ora passano tutti dallo stesso controllo, con
+    swatch, esadecimale e il ritorno all'automatico dove ha senso. Un colore si toglie cancellando il testo, in **tutti** i campi: prima solo lo sfondo dell'oggetto aveva un ✕ suo, che è sparito.
+    `check_colori.sh` ha un controllo nuovo che impedisce a un campo dell'oggetto di disegnarsi uno swatch per conto suo, e conta i quattordici che restano dentro le righe di elenco — quelli
+    aspettano il lavoro sulla riorganizzazione dei file dell'editor, dove il seme ora porta la misura.
+
+### Changed
+- **L'albero delle pagine si annulla e si salva col progetto** (Passo 4 del piano di stabilizzazione, punti B9 e B10). Era l'unica cosa dell'editor che si comportava diversamente da tutto il
+  resto: uno spostamento finiva sul server da solo dopo 300 millisecondi, fuori dalla cronologia e fuori dal Salva. Tre conseguenze, tutte visibili. **Ctrl+Z non annullava uno spostamento**, e
+  non c'era nessun altro modo di tornare indietro. Una pagina appena creata e mai salvata era **già** nell'albero sul server, quindi il pannello poteva leggere un ordine che nominava una pagina
+  inesistente. E il puntino «non salvato» non teneva conto dell'albero, quindi si poteva chiudere l'editor convinti di non avere modifiche in sospeso. Ora l'albero entra nella cronologia come le
+  pagine — con la sua voce, «Ordine delle pagine» — e parte con il Salva del progetto, **dopo** le pagine, così il viewer non vede mai un ordine più avanti del contenuto. L'annulla che rimette
+  esattamente l'albero salvato spegne il «non salvato», perché il confronto è sul contenuto e non su un contatore di revisione.
+
+### Fixed
 - **Il pannello LVGL parte dalla prima pagina dell'albero, non dalla prima in ordine alfabetico** (Passo 3 del piano di stabilizzazione, punto B7). Senza una pagina iniziale dichiarata il viewer
   prendeva la prima di `GET /api/synoptics`, che sono i nomi dei file ordinati dal filesystem: a decidere cosa vedeva il cliente all'accensione era l'alfabeto, e **rinominare una pagina cambiava
   la schermata di avvio**, mentre l'ordine messo nell'albero non contava niente. Ora si passa da `GET /api/pages/nav` e si prende la prima dell'albero riconciliato — riconciliato perché l'albero
