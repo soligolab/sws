@@ -21,6 +21,7 @@ import { ReAuthModal } from "@/components/ReAuthModal";
 import { azionePerSessioneRifiutata, MOTIVO_AUTENTICAZIONE_ACCESA } from "@/auth/sessioneScaduta";
 import { WelcomeScreen } from "@/components/WelcomeScreen";
 import { EditorShell } from "@/editor/EditorShell";
+import { LeftPanel } from "@/editor/LeftPanel";
 
 /** La Configurazione si carica **quando serve**, non all'avvio.
  *
@@ -871,6 +872,10 @@ export function App() {
 
       {/* Main area */}
       <main style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+        {/* Il pannello sinistro sta qui e non in EditorShell dal 24-09-2026:
+            resta visibile anche in Configurazione, dove mostra la vista ⚙
+            (l'albero delle schede). Vedi `editor/AlberoConfigurazione.tsx`. */}
+        <LeftPanel />
         {effectiveMode === "edit"   && <EditorShell />}
         {/* La Configurazione resta montata (nascosta) una volta aperta: le
             bozze delle sue schede — e la loro registrazione fra le sezioni

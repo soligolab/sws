@@ -182,6 +182,13 @@
       "runtime": "Runtime",
       "languages": "Languages",
       "ide": "IDE Preferences"
+    },
+    "rami": {
+      "progetto": "Project",
+      "dati": "Data",
+      "sicurezza": "Security",
+      "istanza": "Instance",
+      "ide": "IDE"
     }
   },
   "editor": {
@@ -212,14 +219,12 @@
     "ungroup": "Ungroup",
     "moveToGroup": "Move to group →",
     "noGroup": "No group",
-    "gotoProtocols": "Go to protocol configuration",
     "sectionPages": "PAGES",
     "sectionObjects": "OBJECTS",
     "paletteLvglHint": "LVGL project: only objects already supported by the engine are shown.",
     "paletteLvglBadgeTitle": "Also available for LVGL projects",
     "sectionPageObjects": "STRUCTURE",
     "sectionFunctions": "FUNCTIONS",
-    "sectionSources": "SOURCES",
     "historyBack": "Back to: {{label}}",
     "historyRestore": "Restore: {{label}}",
     "exportFailed": "Export failed: {{err}}",
@@ -297,7 +302,8 @@
     "unlockPage": "Unlock page",
     "lockPage": "Lock page (read-only)",
     "tagUsesCount": "{{count}} references",
-    "tagUsesNone": "No reference found"
+    "tagUsesNone": "No reference found",
+    "sectionConfig": "Configuration"
   },
   "canvas": {
     "empty": "No objects on this page.",
@@ -1639,7 +1645,6 @@
     "forScriptsThatStartOn": "For scripts that start on their own (at startup, at an interval, when a tag changes) see",
     "newFunction": "+ New function",
     "noTagsLoadAProject": "No tags — load a project.",
-    "noSourcesConfigured": "No sources configured.",
     "pointsToMissingPage": "points to a missing page",
     "bootPagesHeading": "Boot images",
     "bootPagesHint": "Images the panel shows while starting up. They are not panel pages: no viewer sees them. Only one is «enabled» and it is installed with the deploy.",

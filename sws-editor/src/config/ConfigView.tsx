@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Tenuta } from "@/components/Tenuta";
-import { normalizzaScheda, schedaDa, schedeVisibili, type IdScheda } from "@/config/schede";
+import { schedaDa, schedeVisibili, type IdScheda } from "@/config/schede";
 import { useAppStore } from "@/store";
 import { canConfigureProject } from "@/auth/permissions";
 import { S } from "@/config/comuni";
@@ -23,8 +23,11 @@ import { LanguagesTab } from "@/config/schede/LanguagesTab";
 import { BackupsTab } from "@/config/schede/BackupsTab";
 
 /** Il componente di ogni scheda. Un `Record` e non un elenco: se una scheda
- *  entra in `SCHEDE` e non qui, è il compilatore a dirlo. */
-const COMPONENTI: Record<IdScheda, React.ComponentType> = {
+ *  entra in `SCHEDE` e non qui, è il compilatore a dirlo. Le schede ospitate
+ *  (`ospite` in `schede.ts`) non hanno un componente: le disegna l'ospite, che
+ *  riceve la scheda scelta e sa quale delle sue viste mostrare. */
+type IdConComponente = Exclude<IdScheda, "types">;
+const COMPONENTI: Record<IdConComponente, React.ComponentType<{ scheda: IdScheda }>> = {
   tags: TagsTab,
   protocols: ProtocolsTab,
   alarms: AlarmsTab,
@@ -43,31 +46,29 @@ const COMPONENTI: Record<IdScheda, React.ComponentType> = {
   ide: IdePreferencesTab,
 };
 
+/** L'area della Configurazione. Dal 24-09-2026 non ha più una barra di schede
+ *  sua: la scheda la sceglie l'albero ⚙ del pannello sinistro
+ *  (`editor/AlberoConfigurazione.tsx`), e qui resta un'intestazione che dice
+ *  dove si è. */
 export function ConfigView() {
   const { t } = useTranslation();
   const storeTab    = useAppStore((s) => s.configTab);
   const setStoreTab = useAppStore((s) => s.setConfigTab);
-  const [tab, setTab] = useState<IdScheda>(() => normalizzaScheda(storeTab));
   const authRole = useAppStore((s) => s.authRole);
   const isAdmin = authRole === "Admin";
   const project          = useAppStore((s) => s.project);
   const projectLoadError = useAppStore((s) => s.projectLoadError);
 
-  // Sync when the store tab changes (e.g. navigateToConfig from LeftPanel).
-  useEffect(() => { setTab(normalizzaScheda(storeTab)); }, [storeTab]);
-
-  const handleSetTab = (t: IdScheda) => {
-    setTab(t);
-    setStoreTab(t);
-  };
-
   const visibili = schedeVisibili(isAdmin);
-  const corrente = schedaDa(tab);
+  const corrente = schedaDa(storeTab);
+  const tab = corrente.id as IdScheda;
+  // La scheda che ha il componente: sé stessa, o quella che la ospita.
+  const montata = (corrente.ospite ?? corrente.id) as IdConComponente;
 
   // Un non-admin che arriva su una scheda da admin (stato salvato, link,
   // ruolo cambiato) torna alle variabili.
   useEffect(() => {
-    if (corrente.soloAdmin && !isAdmin) handleSetTab("tags");
+    if (corrente.soloAdmin && !isAdmin) setStoreTab("tags");
   }, [tab, isAdmin]);
 
   // Guard: the tabs that initialise their local state from store.project
@@ -83,13 +84,11 @@ export function ConfigView() {
 
   return (
     <div style={S.page}>
-      {/* Tab bar */}
-      <div style={S.tabBar}>
-        {visibili.map((sc) => (
-          <button key={sc.id} style={S.tab(tab === sc.id)} onClick={() => handleSetTab(sc.id)}>
-            {t(`config.tabs.${sc.id}`)}
-          </button>
-        ))}
+      <div style={S.intestazione}>
+        <span style={{ color: "var(--brand-text-subtle, #64748b)" }}>{t(`config.rami.${corrente.ramo}`)}</span>
+        <span aria-hidden="true" style={{ color: "var(--brand-text-subtle, #64748b)" }}>›</span>
+        <span aria-hidden="true">{corrente.icona}</span>
+        <span style={{ color: "var(--brand-text, #e2e8f0)", fontWeight: 600 }}>{t(`config.tabs.${tab}`)}</span>
       </div>
 
       {/* Content */}
@@ -112,10 +111,12 @@ export function ConfigView() {
                 Salva unico le trova. Le altre (istanza, dispositivo) si
                 montano e smontano come prima. */}
             {visibili.map((sc) => {
+              if ("ospite" in sc) return null;
               const Scheda = COMPONENTI[sc.id];
+              const attiva = montata === sc.id;
               return sc.portaBozza
-                ? <Tenuta key={sc.id} attiva={tab === sc.id}><Scheda /></Tenuta>
-                : tab === sc.id && <Scheda key={sc.id} />;
+                ? <Tenuta key={sc.id} attiva={attiva}><Scheda scheda={tab} /></Tenuta>
+                : attiva && <Scheda key={sc.id} scheda={tab} />;
             })}
           </>
         )}

@@ -7,8 +7,11 @@ import { buildTagUsage, type TagUse } from "@/search/tagUsage";
 import { SvgCanvas } from "@/canvas/SvgCanvas";
 import { findBrokenNavLinks, findOrphanPageIds } from "@/pageLayout";
 import { resolvePageBackground } from "@/theme";
+import { AlberoConfigurazione } from "./AlberoConfigurazione";
+import { aggiungiOggetto, persistiFunzioni } from "./azioniEditor";
+import { canConfigureProject, canEditProject } from "@/auth/permissions";
 import { BarraIcone, IntestazioneSezione, PREFISSO_MEMORIA, TitoloVista, useSezioneAperta } from "./stilePannelli";
-import type { ObjectGroup, ProjectInfo, SynopticObject, SynopticPage } from "@/types";
+import type { ObjectGroup, SynopticObject, SynopticPage } from "@/types";
 import { BOOT_TYPES, eBoot, paginePerNavigazione, pagineDiBoot } from "@/boot/tipi";
 import { impostaBootAbilitata } from "@/boot/abilitata";
 import { discendentiDi, riconcilia, righe, spostaRispettoA, type ZonaRilascio } from "@/pageTree";
@@ -138,7 +141,14 @@ function PagesSection({ compresso, onToggleCompresso }: { compresso: boolean; on
   // qui era l'unico punto dell'IDE che non lo risolveva.
   const themeMode     = useAppStore((s) => s.themeMode);
   const currentPageId = useAppStore((s) => s.currentPageId);
-  const setCurrentPage = useAppStore((s) => s.setCurrentPage);
+  const scegliPagina  = useAppStore((s) => s.setCurrentPage);
+  // Dalla Configurazione (24-09-2026 il pannello è visibile anche lì) una
+  // pagina scelta nell'albero riporta all'editor: è lì che la si guarda.
+  const setCurrentPage = (id: string) => {
+    scegliPagina(id);
+    const st = useAppStore.getState();
+    if (st.appMode === "config") st.setAppMode("edit");
+  };
   const addPage       = useAppStore((s) => s.addPage);
   const deletePage    = useAppStore((s) => s.deletePage);
   const renamePage    = useAppStore((s) => s.renamePage);
@@ -1787,67 +1797,7 @@ function TagsSection() {
 
 // ── Sources section ───────────────────────────────────────────────────────────
 
-function SourcesSection({ project }: { project: ProjectInfo | null }) {
-  const corpo = useCorpo(200);
-  const { t } = useTranslation();
-  const navigateToConfig = useAppStore((s) => s.navigateToConfig);
-  const sources = project?.sources ?? [];
-
-  return (
-    <Section title={`${t("editor.sectionSources")} (${sources.length})`} defaultOpen={false} memoria="sinistra.sorgenti">
-      <div style={corpo}>
-        {sources.length === 0 ? (
-          <p style={{ padding: "8px 12px", fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", margin: 0 }}>
-            {t("leftPanel.noSourcesConfigured")}
-          </p>
-        ) : (
-          sources.map((src) => (
-            <div
-              key={src.id}
-              onClick={() => navigateToConfig("protocols")}
-              style={{ ...S.row(false), justifyContent: "space-between", cursor: "pointer" }}
-              title={t("editor.gotoProtocols")}
-            >
-              <span style={{ fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
-                {src.id}
-              </span>
-              <span style={{
-                fontSize: 9, fontWeight: 700, letterSpacing: 0.5, padding: "1px 4px", borderRadius: 3,
-                background: src.kind === "mqtt" ? "#4c1d95"
-                  : src.kind === "opcua_client" ? "#1d4733"
-                  : "#1e3a5f",
-                color: src.kind === "mqtt" ? "#c4b5fd"
-                  : src.kind === "opcua_client" ? "var(--brand-success-soft, #86efac)"
-                  : "#93c5fd",
-                flexShrink: 0,
-              }}>
-                {src.kind === "mqtt" ? "MQTT"
-                  : src.kind === "opcua_client" ? "OPC-UA"
-                  : src.kind === "host" ? "HOST"
-                  : "MBUS"}
-              </span>
-            </div>
-          ))
-        )}
-        <div style={{ padding: "4px 12px" }}>
-          <span
-            onClick={() => navigateToConfig("protocols")}
-            style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", fontStyle: "italic", cursor: "pointer" }}
-          >
-            Vai alla configurazione →
-          </span>
-        </div>
-      </div>
-    </Section>
-  );
-}
-
 // ── Main LeftPanel export ─────────────────────────────────────────────────────
-
-interface LeftPanelProps {
-  onAddObject: (type: SynopticObject["type"]) => void;
-  onFunctionsChanged: () => void;
-}
 
 // Resizable width, persisted across sessions (like other editor UI prefs
 // such as sws.uiLang). Plain localStorage — this is layout-only, no other
@@ -1856,7 +1806,7 @@ const LEFT_PANEL_WIDTH_KEY = "sws.leftPanelWidth";
 const LEFT_PANEL_MIN = 160;
 const LEFT_PANEL_MAX = 480;
 
-/** Le sei viste del pannello (T-56 passo 2).
+/** Le viste del pannello (T-56 passo 2).
  *
  *  Fino all'11-09-2026 erano sette fisarmoniche in colonna: aprendone più di
  *  una il pannello si allungava e le altre uscivano dallo schermo, e le
@@ -1865,13 +1815,17 @@ const LEFT_PANEL_MAX = 480;
  *
  *  Il costo dichiarato: chi guardava insieme l'albero degli oggetti e la
  *  palette ora paga un clic. Da provare sul campo; se dà fastidio, la seconda
- *  opzione (due zone fisse) resta a portata. */
+ *  opzione (due zone fisse) resta a portata.
+ *
+ *  Dal 24-09-2026 la vista «Sorgenti» (un elenco con «Vai alla configurazione
+ *  →») non c'è più: la sostituisce il ramo Progetto della vista ⚙, che porta
+ *  alla scheda giusta. */
 const VISTE = [
   { id: "palette",   icona: "➕", chiave: "editor.sectionObjects" },
   { id: "struttura", icona: "🗂", chiave: "editor.sectionPageObjects" },
   { id: "tag",       icona: "🏷", chiave: "editor.sectionTags" },
-  { id: "sorgenti",  icona: "🔌", chiave: "editor.sectionSources" },
   { id: "funzioni",  icona: "ƒ",  chiave: "editor.sectionFunctions" },
+  { id: "config",    icona: "⚙",  chiave: "editor.sectionConfig" },
 ] as const;
 type IdVista = (typeof VISTE)[number]["id"];
 
@@ -1889,10 +1843,13 @@ const ALTEZZA_ALBERO_PREDEFINITA = 240;
 const ALTEZZA_VISTE_MIN = 120;
 
 
-export function LeftPanel({ onAddObject, onFunctionsChanged }: LeftPanelProps) {
+export function LeftPanel() {
   const { t } = useTranslation();
-  const project    = useAppStore((s) => s.project);
   const setProject = useAppStore((s) => s.setProject);
+  const authRole   = useAppStore((s) => s.authRole);
+  const inConfig   = useAppStore((s) => s.appMode === "config");
+  const puoConfigurare = canConfigureProject(authRole);
+  const puoModificare  = canEditProject(authRole);
 
   const [vista, setVista] = useState<IdVista>(() => {
     try {
@@ -1905,6 +1862,17 @@ export function LeftPanel({ onAddObject, onFunctionsChanged }: LeftPanelProps) {
     setVista(v);
     try { localStorage.setItem(CHIAVE_VISTA, v); } catch { /* vedi sopra */ }
   };
+
+  // In Configurazione il pannello mostra solo ⚙: palette, struttura, tag e
+  // funzioni agiscono sul canvas, che lì non c'è. La scelta memorizzata non si
+  // tocca — tornando all'editor si ritrova la vista di prima. Senza il ruolo
+  // per configurare, ⚙ non c'è e basta.
+  const viste = VISTE.filter((v) =>
+    v.id === "config" ? puoConfigurare : !inConfig);
+  const mostrata: IdVista = inConfig ? "config"
+    : viste.some((v) => v.id === vista) ? vista : "palette";
+  // L'albero delle pagine porta all'editor: chi non può modificare non lo vede.
+  const conPagine = puoModificare;
 
   const [panelWidth, setPanelWidth] = useState<number>(() => {
     const stored = Number(localStorage.getItem(LEFT_PANEL_WIDTH_KEY));
@@ -1984,9 +1952,10 @@ export function LeftPanel({ onAddObject, onFunctionsChanged }: LeftPanelProps) {
     // La barra delle icone sta **fuori** dal pannello ridimensionabile: la sua
     // larghezza è fissa, e il trascinamento cambia solo lo spazio del contenuto.
     <div style={{ display: "flex", flexShrink: 0, position: "relative" }}>
-      <BarraIcone voci={VISTE} attiva={vista} onScegli={scegliVista} lato="sinistra" />
+      <BarraIcone voci={viste} attiva={mostrata} onScegli={scegliVista} lato="sinistra" />
       <div ref={colonnaRef} style={{ ...S.panel, width: panelWidth }}>
         <ModoVista.Provider value={true}>
+          {conPagine && (<>
           <div
             data-testid="albero-pagine"
             style={{
@@ -2003,12 +1972,15 @@ export function LeftPanel({ onAddObject, onFunctionsChanged }: LeftPanelProps) {
               style={{ flexShrink: 0, height: 5, cursor: "ns-resize", background: "var(--brand-surface-2, #334155)" }}
             />
           )}
+          </>)}
           <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-            {vista === "palette"   && <ObjectPalette onAdd={onAddObject} />}
-            {vista === "struttura" && <ObjectsSection />}
-            {vista === "funzioni"  && <FunctionsSection onFunctionsChanged={onFunctionsChanged} />}
-            {vista === "tag"       && <TagsSection />}
-            {vista === "sorgenti"  && <SourcesSection project={project} />}
+            {mostrata === "palette"   && <ObjectPalette onAdd={aggiungiOggetto} />}
+            {mostrata === "struttura" && <ObjectsSection />}
+            {mostrata === "funzioni"  && <FunctionsSection onFunctionsChanged={persistiFunzioni} />}
+            {mostrata === "tag"       && <TagsSection />}
+            {mostrata === "config"    && (
+              <Section title={t("editor.sectionConfig")}><AlberoConfigurazione /></Section>
+            )}
           </div>
         </ModoVista.Provider>
       </div>

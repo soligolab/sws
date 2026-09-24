@@ -11,6 +11,7 @@ vi.mock("@/api/client", async () => {
 });
 
 import { LeftPanel } from "../src/editor/LeftPanel";
+import { useAppStore } from "../src/store";
 
 /** Il pannello sinistro mostra **una vista per volta** (T-56 passo 2).
  *
@@ -27,10 +28,10 @@ const CHIAVE = "sws.pannelli.sinistra.vista";
 const titolo = (k: string) => i18n.t(`editor.${k}`);
 
 function monta() {
-  return render(<LeftPanel onAddObject={() => {}} onFunctionsChanged={() => {}} />);
+  return render(<LeftPanel />);
 }
 
-/** I cinque pulsanti della barra, nell'ordine in cui stanno sullo schermo. */
+/** I pulsanti della barra, nell'ordine in cui stanno sullo schermo. */
 function icone() {
   return screen.getAllByRole("tab");
 }
@@ -38,6 +39,9 @@ function icone() {
 describe("pannello sinistro — albero delle pagine fisso, una vista per volta sotto", () => {
   beforeEach(() => {
     try { localStorage.clear(); } catch { /* jsdom senza storage */ }
+    // Dal 24-09-2026 il pannello guarda ruolo e modalità: l'albero delle pagine
+    // c'è per chi può modificare, la vista ⚙ per chi può configurare.
+    useAppStore.setState({ authRole: "Admin", appMode: "edit", configTab: "tags" });
   });
 
   it("l'albero delle pagine c'è sempre, in alto, qualunque vista sia scelta", () => {
@@ -54,13 +58,13 @@ describe("pannello sinistro — albero delle pagine fisso, una vista per volta s
     monta();
     expect(screen.getByText(new RegExp("^" + titolo("sectionObjects")))).toBeTruthy();
     expect(screen.queryByText(titolo("sectionPageObjects"))).toBeNull();
-    expect(screen.queryByText(titolo("sectionSources"))).toBeNull();
+    expect(screen.queryByText(titolo("sectionConfig"))).toBeNull();
   });
 
   it("la barra ha una voce per vista (senza «Pagine»), e una sola risulta scelta", () => {
     monta();
     const scelte = icone().filter((b) => b.getAttribute("aria-selected") === "true");
-    expect(icone()).toHaveLength(5);
+    expect(icone()).toHaveLength(5); // palette, struttura, tag, funzioni, ⚙
     expect(scelte).toHaveLength(1);
   });
 
@@ -75,18 +79,19 @@ describe("pannello sinistro — albero delle pagine fisso, una vista per volta s
 
   it("la scelta sopravvive al ricaricamento", () => {
     const { unmount } = monta();
-    fireEvent.click(icone()[3]); // 🔌 Sorgenti
-    expect(localStorage.getItem(CHIAVE)).toBe("sorgenti");
+    fireEvent.click(icone()[4]); // ⚙ Configurazione
+    expect(localStorage.getItem(CHIAVE)).toBe("config");
     unmount();
     monta();
-    expect(screen.getByText(new RegExp("^" + titolo("sectionSources")))).toBeTruthy();
+    expect(screen.getByText(titolo("sectionConfig"))).toBeTruthy();
     expect(screen.getByText(titolo("sectionPages"))).toBeTruthy();
   });
 
   it("una vista memorizzata che non esiste più (anche «pagine», ora fissa) non lascia il pannello vuoto", () => {
     // Il caso si presenta togliendo o rinominando una vista: chi aveva
     // memorizzata quella vecchia deve ritrovarsi sulla palette, non sul nulla.
-    for (const vecchia of ["cronologia", "pagine"]) {
+    // «sorgenti» è sparita il 24-09-2026, sostituita dal ramo Progetto di ⚙.
+    for (const vecchia of ["cronologia", "pagine", "sorgenti"]) {
       localStorage.setItem(CHIAVE, vecchia);
       const { unmount } = monta();
       expect(screen.getByText(new RegExp("^" + titolo("sectionObjects")))).toBeTruthy();
@@ -107,5 +112,51 @@ describe("pannello sinistro — albero delle pagine fisso, una vista per volta s
     expect(screen.queryByText(i18n.t("leftPanel.newPage"))).toBeNull();
     fireEvent.click(screen.getByTitle(i18n.t("editor.treeShow")));
     expect(screen.getByText(i18n.t("leftPanel.newPage"))).toBeTruthy();
+  });
+});
+
+describe("pannello sinistro — la vista ⚙ della Configurazione (24-09-2026)", () => {
+  beforeEach(() => {
+    try { localStorage.clear(); } catch { /* jsdom senza storage */ }
+    useAppStore.setState({ authRole: "Admin", appMode: "edit", configTab: "tags" });
+  });
+
+  it("una foglia porta in Configurazione, sulla sua scheda", () => {
+    monta();
+    fireEvent.click(icone()[4]);
+    fireEvent.click(screen.getByTestId("foglia-config-faceplates"));
+    expect(useAppStore.getState().appMode).toBe("config");
+    expect(useAppStore.getState().configTab).toBe("faceplates");
+  });
+
+  it("«Tipi» è una foglia sua, sotto Progetto accanto a Variabili", () => {
+    monta();
+    fireEvent.click(icone()[4]);
+    fireEvent.click(screen.getByTestId("foglia-config-types"));
+    expect(useAppStore.getState().configTab).toBe("types");
+  });
+
+  it("in Configurazione la barra mostra solo ⚙, e la vista scelta prima resta memorizzata", () => {
+    localStorage.setItem(CHIAVE, "struttura");
+    useAppStore.setState({ appMode: "config" });
+    monta();
+    expect(icone()).toHaveLength(1);
+    expect(screen.getByText(titolo("sectionConfig"))).toBeTruthy();
+    expect(localStorage.getItem(CHIAVE)).toBe("struttura");
+  });
+
+  it("un non-admin non vede le foglie da admin", () => {
+    useAppStore.setState({ authRole: "Supervisor" });
+    monta();
+    fireEvent.click(icone()[icone().length - 1]);
+    expect(screen.getByTestId("foglia-config-tags")).toBeTruthy();
+    expect(screen.queryByTestId("foglia-config-users")).toBeNull();
+    expect(screen.queryByTestId("foglia-config-runtime")).toBeNull();
+  });
+
+  it("chi non può configurare non ha la vista ⚙", () => {
+    useAppStore.setState({ authRole: "Operator" });
+    monta();
+    expect(screen.queryByText("⚙")).toBeNull();
   });
 });

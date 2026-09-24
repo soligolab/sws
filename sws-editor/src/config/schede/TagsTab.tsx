@@ -1,3 +1,4 @@
+import type { IdScheda } from "@/config/schede";
 import React, { useMemo, useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { api } from "@/api/client";
@@ -18,7 +19,7 @@ import { TRANS_COMP, BarraConflittoSezione, S, SaveBar } from "@/config/comuni";
 
 type TagSortCol = "id" | "description" | "data_type" | "history" | "datastore_id" | "value";
 
-export function TagsTab() {
+export function TagsTab({ scheda }: { scheda: IdScheda }) {
   const { t } = useTranslation();
   const storeProject        = useAppStore((s) => s.project);
   const updateProjectTags   = useAppStore((s) => s.updateProjectTags);
@@ -57,10 +58,12 @@ export function TagsTab() {
   const allPages = useAppStore((s) => s.pages);
   const allFaceplates = useAppStore((s) => s.faceplates);
   const [showImport, setShowImport] = useState(false);
-  // Quale delle due sottoschede si vede. L'altra resta montata (`Tenuta`), o
-  // cambiando vista si perderebbe la bozza — lo stesso motivo per cui le
-  // schede di Configurazione non si smontano dal 22-09-2026.
-  const [vista, setVista] = useState<"variabili" | "tipi">("variabili");
+  // Quale delle due viste si vede: la sceglie l'albero della Configurazione,
+  // dove «Tipi» è una foglia sua (24-09-2026) ospitata da questa scheda.
+  // L'altra resta montata (`Tenuta`), o cambiando vista si perderebbe la
+  // bozza — lo stesso motivo per cui le schede di Configurazione non si
+  // smontano dal 22-09-2026.
+  const vista: "variabili" | "tipi" = scheda === "types" ? "tipi" : "variabili";
   const [revTipi, setRevTipi] = useState(0);
   const [importText, setImportText] = useState("");
   const [importMsg, setImportMsg]   = useState<string | null>(null);
@@ -346,26 +349,9 @@ export function TagsTab() {
           variabile, e tenerli in due schede separate rendeva possibile
           esportare le variabili senza i loro tipi — un file che non si può
           reimportare. Il Salva è uno (quello del progetto) e l'import/export
-          CSV copre entrambe, quindi stanno sopra il selettore. */}
+          CSV copre entrambe, quindi sta sopra tutte e due le viste. Il
+          selettore fra le due è diventato l'albero (24-09-2026). */}
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
-        <div style={{ display: "flex", gap: 2, background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 6, padding: 2 }}>
-          {(["variabili", "tipi"] as const).map((v) => (
-            <button
-              key={v}
-              onClick={() => setVista(v)}
-              style={{
-                border: "none", borderRadius: 4, cursor: "pointer", fontSize: 12,
-                padding: "4px 14px",
-                background: vista === v ? "var(--brand-surface-2, #334155)" : "transparent",
-                color: vista === v ? "var(--brand-text, #e2e8f0)" : "var(--brand-text-muted, #94a3b8)",
-                fontWeight: vista === v ? 700 : 400,
-              }}
-            >
-              {v === "variabili" ? t("cfgUi.variablesTags") : t("config.tabs.types")}
-              {v === "tipi" && (storeProject?.types ?? []).length > 0 ? ` (${(storeProject?.types ?? []).length})` : ""}
-            </button>
-          ))}
-        </div>
         <div style={{ flex: 1 }} />
         <button style={S.btn("ghost")} onClick={handleExportCsv} title={t("cfg.downloadTagsCsv")}>{t("cfgUi.exportCsv")}</button>
         <button style={S.btn("ghost")} onClick={() => setShowImport(true)} title={t("cfg.importTagsCsv")}>{t("cfgUi.importCsv")}</button>

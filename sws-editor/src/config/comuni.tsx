@@ -45,24 +45,18 @@ export const S = {
     background: "var(--brand-bg, #0f172a)",
     color: "var(--brand-text, #e2e8f0)",
   },
-  tabBar: {
+  /** «Ramo › Scheda» in cima all'area: dal 24-09-2026 la barra delle schede
+   *  non c'è più (le sceglie l'albero ⚙), e questo dice dove si è. */
+  intestazione: {
     display: "flex" as const,
-    gap: 2,
-    padding: "0 16px",
+    alignItems: "center" as const,
+    gap: 8,
+    padding: "10px 24px",
+    fontSize: 14,
     background: "var(--brand-surface, #1e293b)",
     borderBottom: "1px solid var(--brand-surface-2, #334155)",
     flexShrink: 0,
   },
-  tab: (active: boolean): React.CSSProperties => ({
-    padding: "10px 20px",
-    border: "none",
-    borderBottom: active ? "2px solid var(--brand-primary, #3b82f6)" : "2px solid transparent",
-    background: "transparent",
-    color: active ? "var(--brand-text, #e2e8f0)" : "var(--brand-text-subtle, #64748b)",
-    cursor: "pointer",
-    fontSize: 14,
-    fontWeight: active ? 600 : 400,
-  }),
   body: {
     flex: 1,
     overflow: "auto" as const,

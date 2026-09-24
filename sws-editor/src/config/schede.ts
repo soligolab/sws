@@ -25,6 +25,12 @@ export interface SchedaConfig {
   /** L'id della rotta `#config/<id>` e della chiave `config.tabs.<id>`. */
   id: string;
   ramo: RamoConfig;
+  /** Il glifo della foglia nell'albero della Configurazione. */
+  icona: string;
+  /** Una scheda che non ha un componente suo ma vive dentro un'altra: «types»
+   *  sta dentro «tags», perché variabili e tipi condividono bozza, Salva e CSV
+   *  (22-09-2026). Nell'albero è una foglia come le altre. */
+  ospite?: string;
   /** Visibile solo all'Admin; un non-admin che ci arriva torna a «tags». */
   soloAdmin: boolean;
   /** Porta una bozza del progetto: resta montata una volta vista (`Tenuta`),
@@ -37,37 +43,44 @@ export interface SchedaConfig {
 
 /** In ordine di barra. */
 export const SCHEDE = [
-  { id: "tags",          ramo: "progetto",  soloAdmin: false, portaBozza: true,  richiedeProgetto: true  },
-  { id: "protocols",     ramo: "progetto",  soloAdmin: false, portaBozza: true,  richiedeProgetto: true  },
-  { id: "alarms",        ramo: "progetto",  soloAdmin: false, portaBozza: true,  richiedeProgetto: true  },
-  { id: "scripts",       ramo: "progetto",  soloAdmin: false, portaBozza: true,  richiedeProgetto: false },
-  { id: "faceplates",    ramo: "progetto",  soloAdmin: false, portaBozza: true,  richiedeProgetto: false },
-  { id: "recipes",       ramo: "progetto",  soloAdmin: false, portaBozza: true,  richiedeProgetto: false },
-  { id: "notifications", ramo: "progetto",  soloAdmin: false, portaBozza: true,  richiedeProgetto: false },
-  { id: "languages",     ramo: "progetto",  soloAdmin: false, portaBozza: true,  richiedeProgetto: true  },
-  { id: "datastores",    ramo: "dati",      soloAdmin: true,  portaBozza: true,  richiedeProgetto: false },
-  { id: "users",         ramo: "sicurezza", soloAdmin: true,  portaBozza: false, richiedeProgetto: false },
-  { id: "resources",     ramo: "istanza",   soloAdmin: false, portaBozza: false, richiedeProgetto: false },
-  { id: "backups",       ramo: "istanza",   soloAdmin: true,  portaBozza: false, richiedeProgetto: false },
-  { id: "system",        ramo: "istanza",   soloAdmin: false, portaBozza: false, richiedeProgetto: false },
-  { id: "devices",       ramo: "istanza",   soloAdmin: true,  portaBozza: false, richiedeProgetto: false },
-  { id: "runtime",       ramo: "istanza",   soloAdmin: true,  portaBozza: false, richiedeProgetto: false },
-  { id: "ide",           ramo: "ide",       soloAdmin: false, portaBozza: false, richiedeProgetto: false },
+  { id: "tags",          ramo: "progetto",  icona: "🏷", soloAdmin: false, portaBozza: true,  richiedeProgetto: true  },
+  { id: "types",         ramo: "progetto",  icona: "🧬", soloAdmin: false, portaBozza: true,  richiedeProgetto: true,  ospite: "tags" },
+  { id: "protocols",     ramo: "progetto",  icona: "🔌", soloAdmin: false, portaBozza: true,  richiedeProgetto: true  },
+  { id: "alarms",        ramo: "progetto",  icona: "🔔", soloAdmin: false, portaBozza: true,  richiedeProgetto: true  },
+  { id: "scripts",       ramo: "progetto",  icona: "🐍", soloAdmin: false, portaBozza: true,  richiedeProgetto: false },
+  { id: "faceplates",    ramo: "progetto",  icona: "🧩", soloAdmin: false, portaBozza: true,  richiedeProgetto: false },
+  { id: "recipes",       ramo: "progetto",  icona: "📋", soloAdmin: false, portaBozza: true,  richiedeProgetto: false },
+  { id: "notifications", ramo: "progetto",  icona: "✉", soloAdmin: false, portaBozza: true,  richiedeProgetto: false },
+  { id: "languages",     ramo: "progetto",  icona: "🌐", soloAdmin: false, portaBozza: true,  richiedeProgetto: true  },
+  { id: "datastores",    ramo: "dati",      icona: "🗄", soloAdmin: true,  portaBozza: true,  richiedeProgetto: false },
+  { id: "users",         ramo: "sicurezza", icona: "👤", soloAdmin: true,  portaBozza: false, richiedeProgetto: false },
+  { id: "resources",     ramo: "istanza",   icona: "📦", soloAdmin: false, portaBozza: false, richiedeProgetto: false },
+  { id: "backups",       ramo: "istanza",   icona: "💾", soloAdmin: true,  portaBozza: false, richiedeProgetto: false },
+  { id: "system",        ramo: "istanza",   icona: "📊", soloAdmin: false, portaBozza: false, richiedeProgetto: false },
+  { id: "devices",       ramo: "istanza",   icona: "📟", soloAdmin: true,  portaBozza: false, richiedeProgetto: false },
+  { id: "runtime",       ramo: "istanza",   icona: "🔗", soloAdmin: true,  portaBozza: false, richiedeProgetto: false },
+  { id: "ide",           ramo: "ide",       icona: "🎛", soloAdmin: false, portaBozza: false, richiedeProgetto: false },
 ] as const satisfies readonly SchedaConfig[];
 
 export type IdScheda = (typeof SCHEDE)[number]["id"];
 
-/** «types» non è più una scheda: i tipi vivono dentro «tags», in una
- *  sottoscheda (22-09-2026). Resta accettato perché un vecchio valore salvato
- *  in `localStorage`, o un link, non deve lasciare il pannello vuoto. */
-export type AppConfigTab = IdScheda | "types";
+export type AppConfigTab = IdScheda;
 
-export const normalizzaScheda = (x: AppConfigTab): IdScheda => (x === "types" ? "tags" : x);
-
-export const eSchedaValida = (x: string): x is AppConfigTab =>
-  x === "types" || SCHEDE.some((s) => s.id === x);
+export const eSchedaValida = (x: string): x is AppConfigTab => SCHEDE.some((s) => s.id === x);
 
 export const schedeVisibili = (isAdmin: boolean) =>
   SCHEDE.filter((s) => isAdmin || !s.soloAdmin);
 
-export const schedaDa = (id: IdScheda) => SCHEDE.find((s) => s.id === id)!;
+/** Un id sconosciuto (un valore salvato da una versione con schede diverse)
+ *  ricade sulle variabili invece di lasciare il pannello vuoto. */
+export const schedaDa = (id: string): SchedaConfig =>
+  SCHEDE.find((s) => s.id === id) ?? SCHEDE[0];
+
+/** I rami dell'albero, nell'ordine in cui compaiono. */
+export const RAMI: readonly { id: RamoConfig; icona: string }[] = [
+  { id: "progetto",  icona: "📁" },
+  { id: "dati",      icona: "🗃" },
+  { id: "sicurezza", icona: "🔐" },
+  { id: "istanza",   icona: "🖥" },
+  { id: "ide",       icona: "🛠" },
+];

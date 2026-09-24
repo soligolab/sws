@@ -5,7 +5,7 @@ import { QDOT_BUILTIN_TYPES, SvgCanvas, normalizeFaceplateParams, type CanvasVie
 import { PALETTE } from "@/canvas/TrendCanvas";
 import { resolvePageBackground } from "@/theme";
 import { EditorToolbar } from "@/editor/EditorToolbar";
-import { LeftPanel } from "@/editor/LeftPanel";
+import { registraAggiunta } from "@/editor/azioniEditor";
 import { PageTabs } from "@/editor/PageTabs";
 /** L'editor Python si carica **quando si apre una funzione**, non prima.
  *
@@ -404,13 +404,6 @@ export function EditorShell() {
     [selectedIds, updateObjects],
   );
 
-  // Persist the whole `project.functions` list to the server. Called by the
-  // FunctionEditor's save button and by FunctionsSection's CRUD verbs (so
-  // add/rename/delete take effect for the run endpoint without a refresh).
-  const persistFunctions = () => {
-    const list = useAppStore.getState().project?.functions ?? [];
-    api.updateFunctions(list).catch(console.error);
-  };
 
   const [helpOpen, setHelpOpen] = useState(false);
   const [symbolPickPos, setSymbolPickPos] = useState<{ x: number; y: number } | null>(null);
@@ -600,6 +593,14 @@ export function EditorShell() {
     if (o) addObject(o);
   };
 
+  // La palette del pannello sinistro (che sta in App.tsx) aggiunge da qui.
+  // Senza dipendenze: `handleAddObject` chiude sugli oggetti della pagina,
+  // quindi va ri-registrata a ogni disegno.
+  useEffect(() => {
+    registraAggiunta(handleAddObject);
+  });
+  useEffect(() => () => registraAggiunta(null), []);
+
   // When a project-level function is selected, take over the whole main
   // area with the full-screen FunctionEditor. The LeftPanel stays on the
   // left (so the user can keep navigating between functions) but canvas
@@ -612,10 +613,6 @@ export function EditorShell() {
   if (selectedFn) {
     return (
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-        <LeftPanel
-          onAddObject={handleAddObject}
-          onFunctionsChanged={persistFunctions}
-        />
         <Suspense fallback={
           <div style={{ flex: 1, padding: 24, color: "var(--brand-text-subtle, #94a3b8)", fontSize: 13 }}>
             {t("editor.loadingPythonEditor")}
@@ -669,11 +666,8 @@ export function EditorShell() {
           onCancel={() => setSymbolPickPos(null)}
         />
       )}
-      {/* Left panel: project tree + object palette + settings */}
-      <LeftPanel
-        onAddObject={handleAddObject}
-        onFunctionsChanged={persistFunctions}
-      />
+      {/* Il pannello sinistro sta in App.tsx dal 24-09-2026: resta visibile
+          anche in Configurazione. La palette arriva qui da `azioniEditor`. */}
 
       {/* Canvas */}
       <div style={{ flex: 1, overflow: "hidden" }}>
