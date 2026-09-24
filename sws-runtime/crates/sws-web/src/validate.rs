@@ -33,6 +33,7 @@ use serde::Serialize;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 
+use sws_core::project::ProjectTargetKind;
 use sws_core::{Project, SourceDef, TopicMapping};
 
 use crate::synoptic::{SynopticObject, SynopticPage};
@@ -466,44 +467,78 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
     let tipi: HashSet<&str> = OBJECT_TYPES.iter().copied().collect();
     let enums: HashMap<&str, &[&str]> = FIELD_ENUMS.iter().copied().collect();
 
-    // ── Schermo pieno senza via d'uscita (B14, 23-09-2026) ──────────────────
+    // ── Pagine senza via d'uscita (B14, 23-09-2026; esteso a LVGL il
+    //    24-09-2026) ────────────────────────────────────────────────────────
     //
-    // Con `hide_viewer_chrome` il viewer nasconde la propria barra: sul
-    // pannello resta **solo la pagina**, e l'unico modo di cambiarla è ciò che
-    // sta dentro la pagina. Una pagina senza navigatore, senza navbutton e
-    // senza rotazione automatica, a schermo pieno, è una pagina da cui non si
-    // esce più — e non se ne accorge nessuno finché il pannello non è in
-    // campo, perché nell'IDE la barra c'è sempre.
-    if project
-        .page_layout
-        .as_ref()
-        .and_then(|l| l.hide_viewer_chrome)
-        == Some(true)
-        && pages.len() > 1
-    {
-        for pg in pages {
-            if pg.kind.as_deref() == Some("boot") {
-                continue; // l'immagine di accensione non naviga
-            }
-            let ha_uscita = pg
-                .objects
-                .iter()
-                .any(|o| matches!(o.obj_type.as_str(), "page_navigator" | "navbutton"));
-            // La rotazione automatica non salva il caso: porta via dalla
-            // pagina da sola, ma chi guarda non può **scegliere** dove
-            // andare, e la rotazione si attiva solo se qualcuno l'accende.
-            // Resta nel suggerimento come una delle tre vie d'uscita.
-            if !ha_uscita {
-                out.push(Finding::warn(
-                    format!("pages[{}].objects", pg.name),
-                    format!(
-                        "«{}» non ha né navigatore né navbutton, e il progetto è a schermo pieno",
-                        pg.name
-                    ),
-                    "a schermo pieno il viewer non mostra la sua barra: da questa pagina non si \
-                     esce. Mettici un `page_navigator`, un `navbutton`, oppure lasciala nella \
-                     rotazione automatica",
-                ));
+    // Una pagina senza navigatore e senza navbutton è una pagina da cui non si
+    // esce, **quando il viewer non mette una barra sua**. Nell'IDE non si vede
+    // mai, perché lì la barra c'è sempre: se ne accorge chi sta davanti al
+    // pannello, e a quel punto non ha nemmeno una barra indirizzi per rimediare.
+    //
+    // I due motivi per cui quella barra non c'è sono diversi e vanno detti
+    // diversi, perché mandano a guardare in posti diversi:
+    //
+    // - `hide_viewer_chrome`: è una **scelta** del progetto, e si disfa
+    //   togliendo la spunta;
+    // - **target LVGL**: non è una scelta, è il motore. Il viewer LVGL disegna
+    //   la pagina e basta, a schermo pieno o no — verificato il 24-09-2026 sul
+    //   WP630, dove una pagina senza navigatore ha intrappolato il maintainer
+    //   davanti allo schermo mentre la regola qui sotto taceva perché
+    //   `hide_viewer_chrome` non era impostato.
+    let motivo_senza_barra = {
+        let lvgl = matches!(
+            project.target.as_ref().map(|t| t.kind),
+            Some(ProjectTargetKind::LvglFramebuffer | ProjectTargetKind::LvglWayland)
+        );
+        let pieno = project
+            .page_layout
+            .as_ref()
+            .and_then(|l| l.hide_viewer_chrome)
+            == Some(true);
+        // LVGL per primo: quando valgono tutti e due, la ragione vera è il
+        // motore — togliere lo schermo pieno non farebbe comparire niente.
+        if lvgl {
+            Some((
+                "il progetto è per LVGL",
+                "il viewer LVGL non ha una barra propria",
+            ))
+        } else if pieno {
+            Some((
+                "il progetto è a schermo pieno",
+                "a schermo pieno il viewer non mostra la sua barra",
+            ))
+        } else {
+            None
+        }
+    };
+    if let Some((perche, spiegazione)) = motivo_senza_barra {
+        if pages.len() > 1 {
+            for pg in pages {
+                if pg.kind.as_deref() == Some("boot") {
+                    continue; // l'immagine di accensione non naviga
+                }
+                let ha_uscita = pg
+                    .objects
+                    .iter()
+                    .any(|o| matches!(o.obj_type.as_str(), "page_navigator" | "navbutton"));
+                // La rotazione automatica non salva il caso: porta via dalla
+                // pagina da sola, ma chi guarda non può **scegliere** dove
+                // andare, e la rotazione si attiva solo se qualcuno l'accende.
+                // Resta nel suggerimento come una delle tre vie d'uscita.
+                if !ha_uscita {
+                    out.push(Finding::warn(
+                        format!("pages[{}].objects", pg.name),
+                        format!(
+                            "«{}» non ha né navigatore né navbutton, e {perche}",
+                            pg.name
+                        ),
+                        format!(
+                            "{spiegazione}: da questa pagina non si esce. Mettici un \
+                             `page_navigator`, un `navbutton`, oppure lasciala nella rotazione \
+                             automatica"
+                        ),
+                    ));
+                }
             }
         }
     }
@@ -2024,6 +2059,51 @@ alarms: []
         let unica: SynopticPage =
             serde_yaml::from_str("id: pg1\nname: Unica\nobjects: []").unwrap();
         assert!(!cita(&semantic(&p, &[unica]), "non si esce"));
+    }
+
+    /// Su LVGL la barra del viewer **non esiste**, e non solo quando la si
+    /// nasconde: il motore disegna la pagina e basta. La regola di sopra
+    /// guardava solo `hide_viewer_chrome`, quindi un progetto per il pannello
+    /// passava in silenzio — misurato il 24-09-2026 sul WP630, dove una pagina
+    /// senza navigatore ha intrappolato il maintainer davanti allo schermo.
+    #[test]
+    fn su_lvgl_una_pagina_senza_uscita_si_dice_anche_senza_schermo_pieno() {
+        let senza: SynopticPage = serde_yaml::from_str(
+            "id: pg1\nname: Chiusa\nobjects:\n- { id: t, type: text, x: 10, y: 10, text: ciao }",
+        )
+        .unwrap();
+        let altra: SynopticPage =
+            serde_yaml::from_str("id: pg2\nname: Altra\nobjects: []").unwrap();
+
+        // Tutti e due i motori LVGL, perché la commutazione non li distingue.
+        for kind in ["lvgl_framebuffer", "lvgl_wayland"] {
+            let prog = format!(
+                "meta: {{ name: p, version: '1' }}\npage_layout: {{ size_mode: fixed }}\ntarget: {{ kind: {kind} }}\ntags: []\nsources: []\nalarms: []\n"
+            );
+            let p: Project = serde_yaml::from_str(&prog).unwrap();
+            let rs = semantic(&p, &[senza.clone(), altra.clone()]);
+            assert!(cita(&rs, "Chiusa"), "{kind}: {rs:?}");
+            assert!(cita(&rs, "non si esce"), "{kind}: {rs:?}");
+            // Il motivo dev'essere quello giusto: qui non c'entra lo schermo
+            // pieno, e dire la ragione sbagliata manda a cercare nel posto
+            // sbagliato.
+            assert!(cita(&rs, "LVGL"), "{kind}: {rs:?}");
+            // Resta un avviso: un progetto così si salva lo stesso.
+            assert!(errori(&rs).iter().all(|f| !f.message.contains("Chiusa")));
+            // Con un navigatore dentro non se ne parla più.
+            let con: SynopticPage = serde_yaml::from_str(
+                "id: pg1\nname: Chiusa\nobjects:\n- { id: n, type: page_navigator, x: 0, y: 430, width: 800, height: 46 }",
+            )
+            .unwrap();
+            assert!(!cita(&semantic(&p, &[con, altra.clone()]), "Chiusa"));
+        }
+
+        // Sul web, senza schermo pieno, la barra c'è: non si dice niente.
+        let web: Project = serde_yaml::from_str(
+            "meta: { name: p, version: '1' }\npage_layout: { size_mode: fixed }\ntarget: { kind: web }\ntags: []\nsources: []\nalarms: []\n",
+        )
+        .unwrap();
+        assert!(!cita(&semantic(&web, &[senza, altra]), "non si esce"));
     }
 
     // ── T-52: il fuori pagina spegne i rilievi semantici ────────────────────

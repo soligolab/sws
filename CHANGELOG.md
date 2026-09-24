@@ -24,6 +24,10 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   - Il file `trigger` resta, perché dice cosa il progetto vuole e costa niente; `status` continua a riferire com'è andata, ma ora lo scrive il runtime.
 
 ### Fixed
+- **L'avviso «da questa pagina non si esce» vale anche sui progetti per LVGL**, non solo a schermo pieno. La regola del 23-09 guardava solo `hide_viewer_chrome`, ma il viewer LVGL non ha una
+  barra propria in nessun caso: disegna la pagina e basta. Un progetto per il pannello passava quindi in silenzio — misurato il 24-09 sul WP630, dove una pagina senza navigatore ha lasciato
+  il maintainer davanti a uno schermo da cui non si torna indietro, e senza nemmeno una barra indirizzi per rimediare. L'avviso ora dice **quale** dei due motivi vale, perché mandano a
+  guardare in posti diversi: lo schermo pieno è una spunta da togliere, LVGL è il motore e non si disfa.
 - **Le pagine di boot non compaiono più fra i pulsanti di navigazione dell'anteprima** (B12 del piano di stabilizzazione). La barra del viewer mappava tutte le pagine invece delle sole
   sinottiche: l'immagine di accensione non è una pagina del pannello e non ci si naviga.
 - **Nel template `homeassistant-pro` la fascia allarmi copriva la barra di navigazione** (B13): arrivava a y 774 e la barra comincia a 738, quindi ne nascondeva i primi 36 pixel — i pulsanti per
