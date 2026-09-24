@@ -466,6 +466,48 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
     let tipi: HashSet<&str> = OBJECT_TYPES.iter().copied().collect();
     let enums: HashMap<&str, &[&str]> = FIELD_ENUMS.iter().copied().collect();
 
+    // ── Schermo pieno senza via d'uscita (B14, 23-09-2026) ──────────────────
+    //
+    // Con `hide_viewer_chrome` il viewer nasconde la propria barra: sul
+    // pannello resta **solo la pagina**, e l'unico modo di cambiarla è ciò che
+    // sta dentro la pagina. Una pagina senza navigatore, senza navbutton e
+    // senza rotazione automatica, a schermo pieno, è una pagina da cui non si
+    // esce più — e non se ne accorge nessuno finché il pannello non è in
+    // campo, perché nell'IDE la barra c'è sempre.
+    if project
+        .page_layout
+        .as_ref()
+        .and_then(|l| l.hide_viewer_chrome)
+        == Some(true)
+        && pages.len() > 1
+    {
+        for pg in pages {
+            if pg.kind.as_deref() == Some("boot") {
+                continue; // l'immagine di accensione non naviga
+            }
+            let ha_uscita = pg
+                .objects
+                .iter()
+                .any(|o| matches!(o.obj_type.as_str(), "page_navigator" | "navbutton"));
+            // La rotazione automatica non salva il caso: porta via dalla
+            // pagina da sola, ma chi guarda non può **scegliere** dove
+            // andare, e la rotazione si attiva solo se qualcuno l'accende.
+            // Resta nel suggerimento come una delle tre vie d'uscita.
+            if !ha_uscita {
+                out.push(Finding::warn(
+                    format!("pages[{}].objects", pg.name),
+                    format!(
+                        "«{}» non ha né navigatore né navbutton, e il progetto è a schermo pieno",
+                        pg.name
+                    ),
+                    "a schermo pieno il viewer non mostra la sua barra: da questa pagina non si \
+                     esce. Mettici un `page_navigator`, un `navbutton`, oppure lasciala nella \
+                     rotazione automatica",
+                ));
+            }
+        }
+    }
+
     // ── Tipi struttura (Fase 1b) ────────────────────────────────────────────
     let mut visti_tipo: HashSet<&str> = HashSet::new();
     for td in &project.types {
@@ -1937,6 +1979,51 @@ alarms: []
             .filter(|f| f.severity == Severity::Error)
             .cloned()
             .collect()
+    }
+
+    // ── B14: schermo pieno senza via d'uscita ───────────────────────────────
+
+    /// A schermo pieno il viewer non mostra la sua barra: una pagina senza
+    /// navigatore e senza navbutton è una pagina da cui non si esce, e nell'IDE
+    /// non si vede perché lì la barra c'è sempre.
+    #[test]
+    fn a_schermo_pieno_una_pagina_senza_uscita_si_dice() {
+        let prog = "meta: { name: p, version: '1' }\npage_layout: { size_mode: fixed, hide_viewer_chrome: true }\ntags: []\nsources: []\nalarms: []\n";
+        let p: Project = serde_yaml::from_str(prog).unwrap();
+        let senza: SynopticPage = serde_yaml::from_str(
+            "id: pg1\nname: Chiusa\nobjects:\n- { id: t, type: text, x: 10, y: 10, text: ciao }",
+        )
+        .unwrap();
+        let altra: SynopticPage =
+            serde_yaml::from_str("id: pg2\nname: Altra\nobjects: []").unwrap();
+
+        let rs = semantic(&p, &[senza.clone(), altra.clone()]);
+        assert!(cita(&rs, "Chiusa"), "{rs:?}");
+        assert!(cita(&rs, "non si esce"), "{rs:?}");
+        // È un avviso, non un errore: un progetto così si salva lo stesso.
+        assert!(errori(&rs).iter().all(|f| !f.message.contains("Chiusa")));
+
+        // L'altra pagina è nominata anche lei: non ha uscite nemmeno quella.
+        assert!(cita(&rs, "Altra"), "{rs:?}");
+
+        // Con un navigatore dentro, di «Chiusa» non si parla più.
+        let con: SynopticPage = serde_yaml::from_str(
+            "id: pg1\nname: Chiusa\nobjects:\n- { id: n, type: page_navigator, x: 0, y: 700, width: 800, height: 40 }",
+        )
+        .unwrap();
+        let rs2 = semantic(&p, &[con, altra.clone()]);
+        assert!(!cita(&rs2, "Chiusa"), "{rs2:?}");
+
+        // E senza schermo pieno non si dice niente: la barra del viewer c'è.
+        let normale: Project = serde_yaml::from_str(
+            "meta: { name: p, version: '1' }\npage_layout: { size_mode: fixed }\ntags: []\nsources: []\nalarms: []\n",
+        )
+        .unwrap();
+        assert!(!cita(&semantic(&normale, &[senza, altra]), "non si esce"));
+        // Una pagina sola: non c'è dove andare, e dirlo sarebbe rumore.
+        let unica: SynopticPage =
+            serde_yaml::from_str("id: pg1\nname: Unica\nobjects: []").unwrap();
+        assert!(!cita(&semantic(&p, &[unica]), "non si esce"));
     }
 
     // ── T-52: il fuori pagina spegne i rilievi semantici ────────────────────

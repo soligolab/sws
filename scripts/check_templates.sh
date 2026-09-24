@@ -323,6 +323,43 @@ for nome in nomi:
                  + (" …" if len(rotti) > 3 else "")
                  + f" (gli id veri sono {sorted(ids)[:3]})")
 
+    # ── Niente copre la barra di navigazione (B13, 23-09-2026) ─────────────
+    #
+    # Nel template `homeassistant-pro` la fascia allarmi arrivava a y 774 e la
+    # barra comincia a 738: ne copriva i primi 36 pixel, cioè i pulsanti con
+    # cui si cambia pagina. Che un banner si sovrapponga al **contenuto** è
+    # normale, è un overlay; che copra la **navigazione** no, perché il
+    # pannello diventa inutilizzabile proprio quando c'è un allarme.
+    #
+    # Si guardano solo gli oggetti dichiarati DOPO la barra: l'ordine
+    # nell'elenco è l'ordine di disegno, quindi un fondale dichiarato prima le
+    # sta dietro e non la nasconde.
+    for f_pag in pagine:
+        try:
+            pag = yaml.safe_load(open(f_pag))
+        except Exception:
+            continue  # già segnalata sopra
+        if not isinstance(pag, dict):
+            continue
+        oggetti = pag.get("objects") or []
+        for i, nav in enumerate(oggetti):
+            if nav.get("type") != "page_navigator":
+                continue
+            nx, ny = nav.get("x", 0), nav.get("y", 0)
+            nw, nh = nav.get("width") or 0, nav.get("height") or 0
+            for o in oggetti[i + 1:]:
+                ox, oy = o.get("x", 0), o.get("y", 0)
+                ow, oh = o.get("width") or 0, o.get("height") or 0
+                if ow == 0 or oh == 0:
+                    continue  # testi e simboli senza box dichiarato
+                if ox < nx + nw and ox + ow > nx and oy < ny + nh and oy + oh > ny:
+                    problema(
+                        f"{nome}: in «{pag.get('name')}» l'oggetto `{o.get('id')}` "
+                        f"({o.get('type')}, y {oy}–{round(oy + oh, 1)}) copre la barra di "
+                        f"navigazione `{nav.get('id')}` (y {ny}–{round(ny + nh, 1)}): "
+                        "i pulsanti per cambiare pagina diventano incliccabili"
+                    )
+
     fuori = sorted(tipi - PALETTE)
     if fuori:
         problema(f"{nome}: tipi che la palette non conosce → {fuori}")

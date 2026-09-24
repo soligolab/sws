@@ -4,6 +4,7 @@ import { api } from "@/api/client";
 import { getBrand } from "@/branding";
 import { SvgCanvas } from "@/canvas/SvgCanvas";
 import { collectTagIds } from "@/runtime-view/collectTagIds";
+import { paginePerNavigazione } from "@/boot/tipi";
 import { viewerFitScale, effectiveSizeMode } from "@/pageLayout";
 import { resolvePageBackground } from "@/theme";
 import { LoginScreen } from "@/components/LoginScreen";
@@ -378,7 +379,12 @@ export function RuntimeView() {
             />
           )}
           <div style={{ flex: 1, display: "flex", gap: 2 }}>
-          {pages.map((p) => (
+          {/* Le pagine di **boot** non sono pagine del pannello: sono
+              l'immagine di accensione, e nella barra di navigazione non ci
+              vanno. Qui si mappava `pages` intero, quindi nell'anteprima
+              dell'IDE comparivano come voci cliccabili accanto alle
+              sinottiche — B12 del piano di stabilizzazione. */}
+          {paginePerNavigazione(pages).map((p) => (
             <button
               key={p.id}
               onClick={() => { setAutoRotate(false); setCurrentPage(p.id); }}

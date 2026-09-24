@@ -76,3 +76,24 @@ describe("i tipi ammessi", () => {
     expect(eBoot({})).toBe(false);
   });
 });
+
+/** La barra del viewer deve passare da `paginePerNavigazione`, non da `pages`.
+ *
+ *  Un test sul **sorgente** e non sul rendering: montare `RuntimeView` vuol
+ *  dire montare lo store, il WebSocket dei tag e quello degli allarmi, per
+ *  verificare una riga. Il difetto (B12 del piano di stabilizzazione) era che
+ *  nell'anteprima dell'IDE le pagine di **boot** comparivano fra i pulsanti di
+ *  navigazione: non sono pagine del pannello, sono l'immagine di accensione.
+ */
+describe("la barra di navigazione del viewer", () => {
+  it("esclude le pagine di boot", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    // `import.meta.url` sotto vitest non è un file:// utilizzabile: si parte
+    // dalla radice del progetto, che è dove vitest gira.
+    const src = readFileSync(resolve("src/runtime-view/RuntimeView.tsx"), "utf-8");
+    expect(src).toContain("paginePerNavigazione(pages).map(");
+    // E non la versione senza filtro, che è com'era prima.
+    expect(src).not.toMatch(/\n\s*\{pages\.map\(\(p\) => \(/);
+  });
+});

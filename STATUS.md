@@ -74,7 +74,72 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — cinque lavori su `main`, tre da collaudare (2026-09-23)
+## ▶ Riprendere da qui — Passo 5 chiuso, il Passo 6 aspetta il pannello (2026-09-24)
+
+**Sul ramo `fix/rifiniture-navigazione`** (`8f6c14d9`), da mergiare. Il **Passo 5** del piano di
+stabilizzazione è completo:
+
+- **B11** era già fatto il 22-09 insieme alle zone termiche: il catalogo Host si prende dal runtime
+  remoto e la scheda lo dichiara. Piano superato su quel punto.
+- **B12** le pagine di **boot** non compaiono più fra i pulsanti di navigazione dell'anteprima.
+- **B13** in `homeassistant-pro` la fascia allarmi copriva i primi 36 pixel della barra di
+  navigazione: ora finisce dove la barra comincia, e `check_templates.sh` rifiuta qualunque oggetto
+  disegnato **dopo** la barra che la copra, su tutto il parco. Provata rossa.
+- **B14** il validatore avvisa quando, a schermo pieno, una pagina non ha né navigatore né
+  navbutton: da lì non si esce, e nell'IDE non si vede perché lì la barra c'è sempre. Il capitolo
+  05 del manuale lo spiega.
+
+**Il Passo 6 è aperto e aspetta il dispositivo.** Il WP630 oggi non rispondeva (né ping né HTTP):
+spento, o con un altro indirizzo. Quello che si poteva fare senza hardware è fatto:
+
+- **punto 2 verificato sul viewer LVGL vero**, girato qui con `--istantanea` su un progetto di prova
+  a cinque pagine e albero a due livelli: barra in fondo, colonna verticale, `children_of_current`
+  che su una foglia mostra le sorelle col percorso davanti, e una pagina esclusa da un navigatore
+  (`nav_items` con `hidden: true`) ma raggiunta da un altro. Tutti e quattro **funzionano**; sul
+  pannello resta la conferma a occhio, non la prova.
+- **punti 4 e 5 non si possono fare altrove**: il primo vuole unit systemd, podman rootless e il
+  launcher Pixsys; il secondo (Q55) vuole il viewer vero con un login a mano, perché è lì che la
+  combinazione «scrittura autenticata → 200» non è mai stata vista completare.
+
+**L'immagine per il pannello è pronta**: `dist/sws-runtime-2.11.1-aarch64-image.tar.gz`
+(`localhost/sws-runtime:2.11.1-arm64`, costruita il 24-09 con tutto il lavoro fino a `8f6c14d9`).
+Non pubblicata. Per installarla, come il 23-09: `scp` dell'archivio, `podman load`, `podman tag …
+ghcr.io/soligolab/sws-runtime:latest-arm64`, `systemctl --user restart sws-runtime.service`. Sul
+pannello c'era già un tag `prima-della-prova` per tornare all'immagine del registro.
+
+### Passo 6, fatto sul WP630 il 24-09-2026
+
+Immagine del giorno installata sul pannello (`podman load` + tag su `latest-arm64` + restart). Esiti:
+
+- **✓ punto 1** temperature 33,9 °C che si muovono, CPU 10,4 %, memoria 494/1979 MB, sorgenti attive.
+- **✓ punto 3** albero identico dopo deploy e dopo riavvio; storico conservato (16 415 campioni).
+- **✓ punto 6** il token arriva col deploy in `secrets.yaml` **0600**, il pannello lo legge, e tre
+  allarmi hanno fatto partire **tre messaggi Telegram veri**. Export normale senza `secrets.yaml` e
+  **senza il token in nessun file**; con `?segreti=1` c'è.
+- **✓ punto 2, anche sul pannello**: i quattro casi del navigatore sono stati renderizzati dal
+  binario aarch64 **dentro il container del WP630** (`podman exec … --istantanea`), e coincidono con
+  le immagini locali. Sullo **schermo** del pannello LVGL non ci va perché lì c'è Weston con
+  Chromium in kiosk e il viewer vuole il framebuffer via DRM: per vederlo a video va fermato
+  `weston.service`, che è di sistema.
+- **Storico di `test` perso durante il collaudo, per colpa mia**: deployare sul pannello un secondo
+  progetto (`nav`) cancella il precedente con il suo database — regola dichiarata in `remote.rs`,
+  «nome diverso = lo stai sostituendo». Erano 16 415 campioni di temperature di prova. Il modo
+  giusto era puntare il viewer del pannello al runtime locale, senza deployare.
+- **bloccato punto 4**, e si sa perché: il container scrive `boot-image/boot.png` e `trigger`, ma le
+  **unit systemd dell'host non sono installate** (il dispositivo era stato ripulito il 19-09), quindi
+  nessuno legge il trigger. **Il dubbio sui permessi del seme è sciolto**: la cartella è
+  `user:setup-user 755` e l'host ci scrive — provato.
+- **non applicabile punto 5** (Q55): vuole il viewer LVGL, che qui non gira.
+
+**Due cose imparate.** Su questo pannello il motore è Chromium, quindi un collaudo LVGL sul
+dispositivo vuole un'altra macchina o un cambio di configurazione. E **il deploy passa** anche con
+gli allarmi nel formato vecchio: il blocco del 23-09 ferma il salvataggio dall'IDE, non la
+distribuzione di un progetto che esiste già.
+
+**Resta da decidere**: installare le unit del boot sul WP630 (`install-container.sh`) per chiudere il
+punto 4 — è un'azione persistente sul dispositivo e aspetta il maintainer.
+
+## Riprendere da qui (precedente) — cinque lavori su `main`, tre da collaudare (2026-09-23)
 
 **Tutto su `main` e pushato.** Nessun ramo aperto. Cinque squash, in ordine:
 

@@ -113,7 +113,49 @@ all'ultimo scritto (nuovo `savedPageTree`); il «dirty» dell'IDE conta anche l'
 - **B13 `homeassistant-pro`**: il banner allarmi (`pro1_alarm_banner`, y 683.9–774) copre la barra di navigazione (y 738–782): spostare/ridurre il banner o alzare la barra (regole del parco R1–R5).
 - **B14 schermo pieno**: `hide_viewer_chrome` + navigatore. Nota nel manuale 05 e, se il maintainer vuole, un avviso nell'IDE quando una pagina non ha nessun mezzo di navigazione.
 
-## Passo 6 — Collaudo sul TC620  (nessun ramo; produce solo `STATUS.md` e, se serve, correzioni)
+## Passo 6 — Collaudo sul dispositivo  (nessun ramo; produce solo `STATUS.md` e, se serve, correzioni)
+
+> **24-09-2026.** Il TC620 in ufficio non c'è; il dispositivo di prova è il **WP630**, che quel
+> giorno però non rispondeva (spento, o con un altro indirizzo — «gli indirizzi cambiano ogni
+> sessione»). Quindi il Passo 6 è rimasto **aperto**, e nel frattempo è stato fatto in locale
+> tutto ciò che non richiede l'hardware. Sotto, per ogni punto, cosa è già verificato e cosa
+> resta.
+>
+> **Il punto 2 è verificato sul viewer LVGL vero** (quello del pannello, girato qui con
+> `--istantanea`), su un progetto di prova con cinque pagine e un albero a due livelli:
+> barra orizzontale in fondo ✓, colonna verticale ✓, `children_of_current` che su una foglia
+> mostra le sorelle col percorso davanti ✓, pagina esclusa da un navigatore (`nav_items` con
+> `hidden: true`) e raggiunta da un altro ✓. Sul pannello resta da confermare che si veda
+> uguale — stesso codice e stessa libreria, quindi è una conferma, non una prova.
+>
+> **I punti 4 e 5 non si possono fare altrove**: il primo vuole le unit systemd, podman rootless
+> e il launcher Pixsys; il secondo vuole il viewer vero con un login a mano, perché è lì che la
+> combinazione «scrittura autenticata → 200» non è mai stata osservata completare.
+
+### Esito del 24-09-2026, sul WP630 con l'immagine del giorno
+
+| | punto | esito |
+|---|---|---|
+| 1 | temperature e stabilità | **✓** 33,9 °C (le due zone termiche si muovono fra una lettura e l'altra), CPU 10,4 %, memoria 494/1979 MB, disco 4/10 GB, sorgenti attive. Il piano diceva «≈60 °C»: era il TC620, il WP630 sta più fresco |
+| 2 | navigatore web e LVGL | **✓ anche sul pannello.** I quattro casi (barra in fondo, colonna verticale, `children_of_current` con le sorelle e il percorso, pagina esclusa da un navigatore e raggiunta da un altro) sono stati renderizzati **dal binario aarch64 dentro il container del WP630**, con `podman exec … --istantanea`, e le immagini coincidono con quelle locali. Da sapere: sullo **schermo** del pannello non ci va, perché lì il compositore è **Weston con Chromium in kiosk** e il viewer LVGL vuole il framebuffer via DRM — per vederlo a video bisogna fermare `weston.service`, che è un servizio di sistema |
+| 3 | albero dopo deploy e riavvio | **✓** gerarchia e ordine identici dopo il deploy e dopo `systemctl restart`; storico conservato (16 415 campioni) |
+| 4 | immagine di boot nel container | **bloccato, e si sa perché.** Il container fa la sua parte: `boot-image/boot.png` e `trigger` ci sono. Le **unit systemd dell'host non sono installate**, quindi nessuno legge il trigger e `status` non nasce mai. **Il dubbio sui permessi è sciolto**: la cartella è `user:setup-user 755` e l'host ci scrive (provato) |
+| 5 | Q55, scrittura autenticata dal viewer LVGL | **non applicabile qui**: vuole il viewer LVGL, che su questo pannello non gira |
+| 6 | segreti e Telegram | **✓** il token arriva col deploy in `secrets.yaml` **0600**, il pannello lo legge, e tre allarmi hanno fatto partire **tre messaggi Telegram veri** (`telegram message sent to 1 chat(s)`, tre volte). Export normale: niente `secrets.yaml` e **il token non compare in nessun file**; con `?segreti=1` c'è |
+
+**Una perdita, causata dal collaudo stesso.** Per provare il navigatore ho deployato sul pannello un
+secondo progetto (`nav`), e questo ha **cancellato lo storico di `test`** (16 415 campioni). Non è un
+difetto: è la regola dichiarata in `remote.rs`, «nome diverso = lo stai sostituendo con un altro
+progetto, e preservarne lo storico non ha senso» — un dispositivo ospita un progetto solo. Il modo
+giusto era far leggere al viewer del pannello le pagine dal **runtime locale** (`--base-url` verso
+l'IDE), usando la macchina del pannello senza toccarne i progetti. Da fare così la prossima volta.
+
+**Due cose imparate che il piano non prevedeva.** La prima: su questo pannello il motore è Chromium, quindi
+«collaudo LVGL sul dispositivo» richiede o un altro dispositivo o un cambio di configurazione. La seconda: il
+**deploy passa** anche con un progetto che ha gli allarmi nel formato vecchio — il blocco del 23-09 ferma il
+*salvataggio* dall'IDE, non la distribuzione di un progetto che esiste già. È il comportamento giusto (un impianto
+in servizio non deve restare senza aggiornamenti perché gli allarmi sono da convertire), ma andava detto.
+
 Lista di controllo con i comandi (il maintainer esegue, Claude legge i risultati solo con il via libera per il dispositivo di quel giorno):
 1. Temperatura della sorgente Host (`thermal_zone` ≈ 60 °C) e stabilità di CPU/RAM/rete a 2 s.
 2. Navigatore web e **LVGL** sul pannello vero: barra in fondo, colonna verticale, `children_of_current`, pagina nascosta da un navigatore e raggiunta da un altro.

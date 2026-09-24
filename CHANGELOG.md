@@ -11,6 +11,18 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Fixed
+- **Le pagine di boot non compaiono più fra i pulsanti di navigazione dell'anteprima** (B12 del piano di stabilizzazione). La barra del viewer mappava tutte le pagine invece delle sole
+  sinottiche: l'immagine di accensione non è una pagina del pannello e non ci si naviga.
+- **Nel template `homeassistant-pro` la fascia allarmi copriva la barra di navigazione** (B13): arrivava a y 774 e la barra comincia a 738, quindi ne nascondeva i primi 36 pixel — i pulsanti per
+  cambiare pagina, proprio quando c'è un allarme. Il banner ora finisce dove la barra comincia. Che un banner si sovrapponga al **contenuto** è normale, è un overlay; coprire la **navigazione**
+  rende il pannello inutilizzabile, e `check_templates.sh` ora lo rifiuta su tutto il parco, guardando i soli oggetti disegnati dopo la barra.
+
+### Added
+- **Il validatore avvisa quando una pagina a schermo pieno non ha vie d'uscita** (B14). Con «viewer a schermo pieno» il viewer nasconde la propria barra e resta solo la pagina: senza un
+  `page_navigator` e senza `navbutton` non si esce più da lì, e nell'IDE non si vede perché lì la barra c'è sempre. Il capitolo 05 del manuale lo spiega accanto al navigatore, con la nota di
+  tenere libera la fascia dei bottoni.
+
 ### Changed
 - **Un tag, un allarme, più livelli dentro** (decisione del maintainer, 23-09-2026, nata provando tre allarmi sullo stesso tag e vedendoli scattare tutti insieme). Prima si dichiaravano N allarmi
   distinti sullo stesso dato per avere più soglie: con «sopra 60», «sopra 70» e «sopra 80» e il valore a 85 il runtime ne teneva **tre attivi**, l'operatore vedeva tre righe, la campanella contava

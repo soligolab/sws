@@ -124,6 +124,15 @@ Disponibile su web e LVGL, con le stesse voci e gli stessi pixel.
 Con `children_of_current` si costruisce un menù a livelli: le pagine di un ramo compaiono solo quando si è nel ramo. Una pagina nascosta a un
 navigatore resta raggiungibile da un altro. Il nome mostrato è quello della pagina (anche `{{token}}`) salvo etichetta propria.
 
+> **Schermo pieno e navigazione.** Con l'impostazione di progetto «viewer a schermo pieno»
+> (`hide_viewer_chrome`) il viewer nasconde la propria barra e la fascia allarmi, e sul pannello
+> resta **solo la pagina**. Da quel momento l'unico modo di cambiare pagina è ciò che hai messo tu
+> *dentro* la pagina: un `page_navigator`, dei `navbutton`, o la rotazione automatica. Una pagina
+> senza nessuno dei tre, a schermo pieno, è una pagina da cui non si esce più — e il validatore lo
+> dice, ma solo dopo il salvataggio. Il posto naturale per il navigatore è uno dei quattro bordi;
+> tieni libera la sua fascia, perché un banner allarmi che ci finisce sopra copre i bottoni proprio
+> quando servono.
+
 ---
 
 ### Checkbox (`checkbox`)
