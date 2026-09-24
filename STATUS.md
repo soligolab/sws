@@ -196,6 +196,22 @@ pannello, puoi usarlo per i test». Stato attuale, da sapere prima di toccarlo:
    resta**: su LVGL non c'è nessuna chrome, mai, e la regola B14 del 23-09 scatta **solo** con
    `hide_viewer_chrome`.
 
+### Sera del 24-09: il modello allarmi collaudato, e il pareggio corretto
+
+**Il collaudo che mancava è fatto.** Il maintainer ha riaperto `test`, il salvataggio è stato
+rifiutato come doveva, lui ha convertito gli allarmi a livelli, e la scala è stata provata dal vivo
+sul runtime: 65 → **un** allarme Info, 75 → lo stesso allarme passa a Critical, 85 → resta **uno**
+(dove prima ne partivano tre); conferma a 65 → `active_acked`; peggioramento a 75 → **torna da
+confermare**. Tutta la catena del modello del 23-09 regge.
+
+**Un difetto trovato proprio da quella conversione** (`01cb531b`): il progetto aveva due soglie
+**Critical**, a 70 e a 80, e a 85 vinceva sempre quella a 70 — perché a parità di severità vinceva
+la *prima* dichiarata. La soglia a 80 non sarebbe comparsa **mai, per nessun valore**. Adesso a
+parità vince **l'ultima vera**: i livelli si scrivono in scala crescente, quindi è la soglia più
+alta raggiunta. La regola sulla severità non è toccata. In più il validatore **avvisa** quando due
+livelli condividono la severità: non è un errore, ma di solito è un refuso, e sul pannello le due
+soglie si leggono uguali.
+
 ### Pomeriggio del 24-09: la guardia LVGL, e Q55 collaudato dal vivo
 
 **Due squash su `main`, nessun ramo rimasto.**
