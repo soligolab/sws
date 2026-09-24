@@ -5,6 +5,7 @@ import { TagInput } from "@/components/TagInput";
 import { PythonEditor, type PythonEditorHandle } from "@/components/PythonEditor";
 import type { GlobalScriptDef, ScriptTriggerKind } from "@/types";
 import { useAppStore } from "@/store";
+import { useFocus, usePubblicaElenco } from "@/config/fogliaConfig";
 import i18n from "@/i18n";
 import { SaveBar } from "@/config/comuni";
 
@@ -104,7 +105,24 @@ export function GlobalScriptsTab() {
 
   const cur = scripts[selected] ?? null;
 
+  // Il secondo livello dell'albero ⚙ (24-09-2026): una foglia per script. La
+  // foglia sceglie lo script, e un clic nell'elenco qui sotto aggiorna la
+  // foglia evidenziata — le due selezioni non devono mai dire cose diverse.
+  usePubblicaElenco("scripts", scripts.map((x) => ({ id: x.id, etichetta: x.id })));
+  const focus = useFocus("scripts", scripts.map((x) => x.id));
+  const setConfigFocus = useAppStore((s) => s.setConfigFocus);
+  useEffect(() => {
+    if (focus === null) return;
+    const i = scripts.findIndex((x) => x.id === focus);
+    if (i >= 0) setSelected(i);
+  }, [focus]);
+  function scegli(idx: number) {
+    setSelected(idx);
+    if (scripts[idx]) setConfigFocus(scripts[idx].id);
+  }
+
   function update(idx: number, patch: Partial<GlobalScriptDef>) {
+    if (patch.id !== undefined && scripts[idx]?.id === focus) setConfigFocus(patch.id);
     setTouched(true);
     setScripts((prev) => prev.map((s, i) => i === idx ? { ...s, ...patch } : s));
   }
@@ -134,6 +152,7 @@ export function GlobalScriptsTab() {
     setTouched(true);
     setScripts((prev) => [...prev, s]);
     setSelected(scripts.length);
+    setConfigFocus(s.id);
   }
 
   function removeScript(idx: number) {
@@ -166,7 +185,7 @@ export function GlobalScriptsTab() {
           {scripts.map((s, idx) => (
             <div
               key={s.id}
-              onClick={() => setSelected(idx)}
+              onClick={() => scegli(idx)}
               style={{
                 padding: "8px 10px",
                 borderRadius: 6,

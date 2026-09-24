@@ -12,6 +12,17 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Changed
+- **La Configurazione diventa un albero, sempre a portata di mano** (piano `docs/plans/2026-09-24-configurazione-ad-albero-piano.md`, idea del maintainer del 22-09). Il pannello sinistro sale da
+  `EditorShell` ad `App.tsx` e resta visibile anche in Configurazione, con una vista nuova **⚙**: rami Progetto, Dati, Sicurezza, Istanza, IDE, e dentro le schede. Una foglia porta alla sua scheda
+  anche partendo dall'editor; una pagina scelta nell'albero delle pagine riporta all'editor. La barra orizzontale delle schede sparisce, sostituita da un'intestazione «Ramo › Scheda › elemento».
+  - **Secondo livello**: Protocolli, Python, Faceplate, Ricette, Datastore e Utenti si aprono sui loro elementi. Un elemento apre la scheda su di sé (per le sorgenti: solo quella card), la scheda
+    torna all'elenco intero. Gli elementi vengono **dalla bozza** della scheda, quindi una sorgente aggiunta e non salvata compare subito; il focus segue la rinomina dell'id. Link `#config/<scheda>/<elemento>`.
+  - **«Tipi» è una foglia sua**: il selettore interno di Variabili sparisce, bozza, Salva e CSV restano condivisi.
+  - **Via la vista «Sorgenti»** del pannello sinistro (un elenco con «Vai alla configurazione →»): la sostituisce il ramo Progetto.
+- **`ConfigView.tsx` diviso in file**: da 11 914 righe a 125. Una scheda per file in `config/schede/`, le card e i modali delle sorgenti in `config/sorgenti/`, i pezzi comuni in
+  `config/comuni.tsx`. Spostamento puro, verificato riga per riga; una sola riga cambiata perché aveva un percorso relativo.
+- **Un registro solo per le schede della Configurazione** (`config/schede.ts`): prima erano quattro elenchi paralleli, fra store, `ConfigView` e `App.tsx`.
+
 - **L'immagine di accensione la chiede il container, via D-Bus** (vincolo del maintainer, 24-09-2026: «nell'host non puoi toccare nulla, tutto deve essere fatto con chiamate dBus dal container»).
   Prima il runtime scriveva un file `trigger` e sull'host tre pezzi installati a mano — una unit che osservava quel file, il suo servizio e uno script con `busctl` — chiamavano il launcher Pixsys.
   Quel file esisteva **solo** perché un container non parla col bus di sistema. Ora il quadlet monta il socket del bus e la chiamata la fa il runtime: le tre cose sull'host spariscono, e con
@@ -24,6 +35,8 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   - Il file `trigger` resta, perché dice cosa il progetto vuole e costa niente; `status` continua a riferire com'è andata, ma ora lo scrive il runtime.
 
 ### Fixed
+- **I link `#config/<scheda>` funzionano per tutte le schede**: l'elenco che li riconosceva ne aveva sette su sedici, e `#config/faceplates` apriva la scheda di prima.
+- **La scheda Runtime rimanda alle Variabili chi non è admin**, come le altre schede da admin: prima disegnava un pannello vuoto.
 - **Fra due livelli di pari severità vince l'ultimo dichiarato**, non più il primo (decisione del maintainer, 24-09). Il difetto si è visto su un progetto vero appena convertito al modello a livelli: due soglie Critical, a 70 e a 80, e con il valore a 85 compariva sempre quella a 70 — **la soglia a 80 non sarebbe comparsa mai, per nessun valore**. I livelli si scrivono in
   scala crescente, quindi l'ultimo vero è la soglia più alta raggiunta, ed è quello che ci si aspetta di leggere sul pannello. La regola sulla severità non cambia: vince sempre la più grave, qualunque sia l'ordine.
 - **Il validatore avvisa quando due livelli dello stesso allarme hanno la stessa severità.** Non è un errore — le due soglie restano distinte finché una sola è vera, e il progetto si salva — ma di solito è un refuso: chi voleva una scala ha dimenticato di abbassare la gravità del primo, e sul pannello le due soglie si leggono uguali.

@@ -93,6 +93,7 @@ export function App() {
   const mode             = useAppStore((s) => s.appMode);
   const setMode          = useAppStore((s) => s.setAppMode);
   const configTab        = useAppStore((s) => s.configTab);
+  const configFocus      = useAppStore((s) => s.configFocus);
   const navigateToConfig = useAppStore((s) => s.navigateToConfig);
   // Log drawer: state stays here (App owns <LogPanel>), the toggle moved into
   // the ☰ menu — it is a diagnostic, not a per-minute control.
@@ -358,10 +359,12 @@ export function App() {
     deepLinkApplied.current = true;
     const hash = window.location.hash.slice(1);
     if (hash.startsWith("config/")) {
-      const tab = hash.slice("config/".length);
+      // `#config/<scheda>` o `#config/<scheda>/<elemento>` (24-09-2026: le
+      // foglie di secondo livello dell'albero ⚙).
+      const [tab, elemento] = hash.slice("config/".length).split("/");
       // Tutte le schede del registro, non un elenco a parte: quello di prima ne
       // aveva sette su sedici, e `#config/faceplates` apriva la scheda precedente.
-      if (eSchedaValida(tab)) navigateToConfig(tab);
+      if (eSchedaValida(tab)) navigateToConfig(tab, elemento ? decodeURIComponent(elemento) : null);
       else setMode("config");
     } else if (hash === "edit" || hash === "config") {
       setMode(hash as Mode);
@@ -372,9 +375,11 @@ export function App() {
   // Keep hash in sync whenever mode or configTab changes (for bookmarking).
   useEffect(() => {
     if (!authToken || noActiveProject) return;
-    const hash = effectiveMode === "config" ? `config/${configTab}` : effectiveMode;
+    const hash = effectiveMode !== "config" ? effectiveMode
+      : configFocus ? `config/${configTab}/${encodeURIComponent(configFocus)}`
+      : `config/${configTab}`;
     history.replaceState(null, "", `#${hash}`);
-  }, [effectiveMode, configTab, authToken, noActiveProject]);
+  }, [effectiveMode, configTab, configFocus, authToken, noActiveProject]);
 
   // Listen for mid-session token expiry fired by api/client.ts
   //

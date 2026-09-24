@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useFocus, usePubblicaElenco } from "@/config/fogliaConfig";
+import { useAppStore } from "@/store";
 import { api } from "@/api/client";
 import { DataTable, type DataTableColumn } from "@/components/DataTable";
 import { TagInput } from "@/components/TagInput";
@@ -29,13 +31,23 @@ export function RecipesTab() {
 
   useEffect(() => { void loadList(); }, []);
 
+  const setConfigFocus = useAppStore((s) => s.setConfigFocus);
   const selectRecipe = async (id: string) => {
     try {
       const r = await api.getRecipe(id);
       setSelected(r);
       setTouched(false);
+      setConfigFocus(id);
     } catch { /* ignore */ }
   };
+
+  // Il secondo livello dell'albero ⚙ (24-09-2026): una foglia per ricetta. La
+  // foglia apre la ricetta, e aprirla da qui evidenzia la foglia.
+  usePubblicaElenco("recipes", recipes.map((r) => ({ id: r.id, etichetta: r.name || r.id })));
+  const focus = useFocus("recipes", recipes.map((r) => r.id));
+  useEffect(() => {
+    if (focus !== null && selected?.id !== focus) void selectRecipe(focus);
+  }, [focus]);
 
   const saveSelected = async () => {
     if (!selected) return;

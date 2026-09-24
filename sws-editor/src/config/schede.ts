@@ -31,6 +31,9 @@ export interface SchedaConfig {
    *  sta dentro «tags», perché variabili e tipi condividono bozza, Salva e CSV
    *  (22-09-2026). Nell'albero è una foglia come le altre. */
   ospite?: string;
+  /** Ha un elenco di elementi (sorgenti, faceplate, utenti…) che nell'albero
+   *  diventano foglie di secondo livello (24-09-2026). */
+  elementi?: boolean;
   /** Visibile solo all'Admin; un non-admin che ci arriva torna a «tags». */
   soloAdmin: boolean;
   /** Porta una bozza del progetto: resta montata una volta vista (`Tenuta`),
@@ -45,15 +48,15 @@ export interface SchedaConfig {
 export const SCHEDE = [
   { id: "tags",          ramo: "progetto",  icona: "🏷", soloAdmin: false, portaBozza: true,  richiedeProgetto: true  },
   { id: "types",         ramo: "progetto",  icona: "🧬", soloAdmin: false, portaBozza: true,  richiedeProgetto: true,  ospite: "tags" },
-  { id: "protocols",     ramo: "progetto",  icona: "🔌", soloAdmin: false, portaBozza: true,  richiedeProgetto: true  },
+  { id: "protocols",     ramo: "progetto",  icona: "🔌", soloAdmin: false, portaBozza: true,  richiedeProgetto: true,  elementi: true },
   { id: "alarms",        ramo: "progetto",  icona: "🔔", soloAdmin: false, portaBozza: true,  richiedeProgetto: true  },
-  { id: "scripts",       ramo: "progetto",  icona: "🐍", soloAdmin: false, portaBozza: true,  richiedeProgetto: false },
-  { id: "faceplates",    ramo: "progetto",  icona: "🧩", soloAdmin: false, portaBozza: true,  richiedeProgetto: false },
-  { id: "recipes",       ramo: "progetto",  icona: "📋", soloAdmin: false, portaBozza: true,  richiedeProgetto: false },
+  { id: "scripts",       ramo: "progetto",  icona: "🐍", soloAdmin: false, portaBozza: true,  richiedeProgetto: false, elementi: true },
+  { id: "faceplates",    ramo: "progetto",  icona: "🧩", soloAdmin: false, portaBozza: true,  richiedeProgetto: false, elementi: true },
+  { id: "recipes",       ramo: "progetto",  icona: "📋", soloAdmin: false, portaBozza: true,  richiedeProgetto: false, elementi: true },
   { id: "notifications", ramo: "progetto",  icona: "✉", soloAdmin: false, portaBozza: true,  richiedeProgetto: false },
   { id: "languages",     ramo: "progetto",  icona: "🌐", soloAdmin: false, portaBozza: true,  richiedeProgetto: true  },
-  { id: "datastores",    ramo: "dati",      icona: "🗄", soloAdmin: true,  portaBozza: true,  richiedeProgetto: false },
-  { id: "users",         ramo: "sicurezza", icona: "👤", soloAdmin: true,  portaBozza: false, richiedeProgetto: false },
+  { id: "datastores",    ramo: "dati",      icona: "🗄", soloAdmin: true,  portaBozza: true,  richiedeProgetto: false, elementi: true },
+  { id: "users",         ramo: "sicurezza", icona: "👤", soloAdmin: true,  portaBozza: false, richiedeProgetto: false, elementi: true },
   { id: "resources",     ramo: "istanza",   icona: "📦", soloAdmin: false, portaBozza: false, richiedeProgetto: false },
   { id: "backups",       ramo: "istanza",   icona: "💾", soloAdmin: true,  portaBozza: false, richiedeProgetto: false },
   { id: "system",        ramo: "istanza",   icona: "📊", soloAdmin: false, portaBozza: false, richiedeProgetto: false },

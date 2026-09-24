@@ -3,6 +3,7 @@ import { Trans, useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import type { DatastoreBackendConfig, DatastoreConfig, DatastoreStats } from "@/types";
 import { useAppStore } from "@/store";
+import { useFocus, usePubblicaElenco } from "@/config/fogliaConfig";
 import { TRANS_COMP, SaveBar } from "@/config/comuni";
 
 // ── DATASTORES tab ────────────────────────────────────────────────────────────
@@ -37,9 +38,18 @@ export function DatastoresTab() {
 
   const update = (ds: DatastoreConfig[]) => { setDatastores(ds); setDirty(true); };
 
+  // Il secondo livello dell'albero ⚙ (24-09-2026): una foglia per datastore.
+  // Con uno scelto si vede solo la sua scheda; dal primo livello, tutti.
+  usePubblicaElenco("datastores", datastores.map((d) => ({ id: d.id, etichetta: d.label || d.id })));
+  const focus = useFocus("datastores", datastores.map((d) => d.id));
+  const setConfigFocus = useAppStore((s) => s.setConfigFocus);
+
   const addDatastore = () => {
     const id = `ds_${Date.now()}`;
     update([...datastores, { id, label: "Nuovo datastore", backend: newSqliteConfig(), retention_rows: undefined, retention_days: undefined }]);
+    // Con un datastore scelto, il nuovo prende il suo posto (altrimenti
+    // resterebbe invisibile).
+    if (focus !== null) setConfigFocus(id);
   };
 
   const removeDatastore = (id: string) => update(datastores.filter((d) => d.id !== id));
@@ -50,8 +60,11 @@ export function DatastoresTab() {
     ));
   };
 
-  const patchDs = (id: string, patch: Partial<DatastoreConfig>) =>
+  const patchDs = (id: string, patch: Partial<DatastoreConfig>) => {
+    // L'id si cambia scrivendolo qui: il focus lo segue.
+    if (patch.id !== undefined && id === focus) setConfigFocus(patch.id);
     update(datastores.map((d) => d.id === id ? { ...d, ...patch } : d));
+  };
 
   const patchBackend = (id: string, patch: Partial<DatastoreBackendConfig>) =>
     update(datastores.map((d) => d.id === id ? { ...d, backend: { ...d.backend, ...patch } as DatastoreBackendConfig } : d));
@@ -250,6 +263,7 @@ export function DatastoresTab() {
       )}
 
       {datastores.map((ds) => {
+        if (focus !== null && ds.id !== focus) return null;
         const status = statusMap[ds.id];
         const stats  = statsMap[ds.id];
         return (

@@ -160,3 +160,50 @@ describe("pannello sinistro — la vista ⚙ della Configurazione (24-09-2026)",
     expect(screen.queryByText("⚙")).toBeNull();
   });
 });
+
+describe("pannello sinistro — le foglie di secondo livello (24-09-2026)", () => {
+  beforeEach(() => {
+    try { localStorage.clear(); } catch { /* jsdom senza storage */ }
+    useAppStore.setState({
+      authRole: "Admin", appMode: "edit", configTab: "tags", configFocus: null,
+      elenchiConfig: {},
+      project: { sources: [{ id: "plc1" }, { id: "mqtt1" }] } as never,
+    });
+  });
+
+  it("senza la scheda mai aperta, le sorgenti vengono dal progetto", () => {
+    monta();
+    fireEvent.click(icone()[4]);
+    fireEvent.click(screen.getByTestId("expand-config-protocols"));
+    expect(screen.getByTestId("elemento-config-protocols-plc1")).toBeTruthy();
+    expect(screen.getByTestId("elemento-config-protocols-mqtt1")).toBeTruthy();
+  });
+
+  it("la bozza pubblicata dalla scheda vince sul progetto", () => {
+    useAppStore.getState().pubblicaElencoConfig("protocols", [{ id: "nuova", etichetta: "nuova" }]);
+    monta();
+    fireEvent.click(icone()[4]);
+    fireEvent.click(screen.getByTestId("expand-config-protocols"));
+    expect(screen.getByTestId("elemento-config-protocols-nuova")).toBeTruthy();
+    expect(screen.queryByTestId("elemento-config-protocols-plc1")).toBeNull();
+  });
+
+  it("un elemento porta alla scheda con quel focus; il primo livello lo toglie", () => {
+    monta();
+    fireEvent.click(icone()[4]);
+    fireEvent.click(screen.getByTestId("expand-config-protocols"));
+    fireEvent.click(screen.getByTestId("elemento-config-protocols-mqtt1"));
+    expect(useAppStore.getState()).toMatchObject({ appMode: "config", configTab: "protocols", configFocus: "mqtt1" });
+    fireEvent.click(screen.getByTestId("foglia-config-protocols"));
+    expect(useAppStore.getState().configFocus).toBeNull();
+  });
+
+  it("una pubblicazione identica non cambia lo store (niente ridisegni a ogni tasto)", () => {
+    const pubblica = useAppStore.getState().pubblicaElencoConfig;
+    pubblica("scripts", [{ id: "a", etichetta: "a" }]);
+    const prima = useAppStore.getState().elenchiConfig;
+    pubblica("scripts", [{ id: "a", etichetta: "a" }]);
+    expect(useAppStore.getState().elenchiConfig).toBe(prima);
+  });
+});
+

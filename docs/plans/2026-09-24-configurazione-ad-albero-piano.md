@@ -3,7 +3,8 @@
 > Sessione di plan approfondita del 24-09-2026 sui due semi gemelli
 > [configurazione ad albero](../archive/2026-09-22-configurazione-ad-albero.md) e
 > [riorganizzare i file dell'editor](2026-09-22-riorganizzare-i-file-dell-editor.md), decisi insieme
-> come chiedono entrambi. **Stato: piano approvato nelle scelte di fondo (sotto), passi da eseguire.**
+> come chiedono entrambi. **Stato (24-09-2026 sera): passi 0-3 implementati su quattro rami annidati,
+> da collaudare a schermo col maintainer prima dello squash.** Vedi «Avanzamento» in fondo.
 >
 > Del secondo seme questo piano copre **solo `ConfigView.tsx`**. `EditorShell`, `SvgCanvas`, lo store e
 > i quattordici colori nelle righe di elenco restano materiale di quel seme, che resta vivo.
@@ -154,3 +155,29 @@ Chiude con `pnpm build`, `check_static.sh` e un giro a schermo sulle sedici sche
 `#config/<tab>` (e `#config/<tab>/<id>` al passo 3), una modifica in due schede diverse e un Salva unico
 che le prende entrambe, Tipi e Variabili con lo stesso Salva, rientro nell'editor senza perdere la
 bozza.
+
+## Avanzamento (24-09-2026, sera)
+
+Quattro rami annidati, uno per passo, ognuno figlio del precedente (regola «Un ramo alla volta»,
+opzione 2): `feat/config-albero-0-registro` → `-1-file` → `-2-vista` → `-3-foglie`. Nessuno mergiato:
+il collaudo a schermo è del maintainer. Su ciascuno `pnpm build`, i test (815) e le 26 guardie statiche
+sono verdi, e una prova Playwright su uno stack di scarto (porte 8673/8674, spento a fine prova) ha
+percorso tutte le schede.
+
+Differenze dal disegno sopra, decise durante l'esecuzione:
+
+- **Passo 0** — il rimbalzo dei non-admin ora copre anche Runtime, che prima disegnava un pannello vuoto.
+- **Passo 1** — i file hanno il nome del componente (`schede/TagsTab.tsx`, non `Variabili.tsx`): si
+  ritrovano cercando il nome che compare nel codice. Resta un ciclo di import innocuo
+  `DevicesTab ↔ RuntimeConnectionTab` (nessun nome letto al caricamento). Dei guardiani, solo
+  `check_tipi_scalari.sh` cercava `ConfigView.tsx` per nome: ora guarda tutta `config/`.
+- **Passo 2** — le due callback di `EditorShell` passano da `editor/azioniEditor.ts`. Senza `canEdit`
+  l'albero delle pagine non c'è (porterebbe a un editor vietato), senza `canConfigure` non c'è ⚙.
+  L'icona della foglia Preferenze IDE è 🎛, per non confondersi con ⚙ della vista.
+- **Passo 3** — il **pallino per l'elemento con modifiche non salvate non c'è**: le schede sanno
+  «qualcosa è cambiato», non «quale elemento» (tranne Faceplate). Se serve, è un lavoro a parte.
+  Nelle schede con elenco interno (Python, Faceplate, Ricette) l'elenco resta, e la foglia e l'elenco
+  si tengono allineati nei due sensi: da rivedere a schermo se sembra un doppione.
+
+Da guardare col maintainer: la resa delle icone emoji sul suo sistema (in Chromium headless alcune
+erano più alte del testo, corretto fissando l'altezza), e se i rami devono partire chiusi.

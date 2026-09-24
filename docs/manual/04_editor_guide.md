@@ -79,10 +79,13 @@ La modalità di progettazione del sinottico. Permette:
 
 ### Modalità Configurazione
 
-Tutta la configurazione non grafica del progetto, organizzata in tab: **Variabili** (tag),
-Protocolli, Allarmi, Script, Faceplates, Ricette, Notifiche, Datastore, Utenti, Risorse, Backup,
-Stato, Device, Runtime. Il tab **Variabili** mostra anche il *valore live* di ogni tag in tempo
-reale.
+Tutta la configurazione non grafica del progetto. Dal 2026-09-24 non ha più una barra di schede:
+le schede si scelgono dalla vista **⚙ Configurazione** del pannello sinistro, che resta visibile
+anche qui (vedi sotto). In cima all'area un'intestazione dice dove si è: *Progetto › Protocolli ›
+plc1*. La scheda **Variabili** mostra anche il *valore live* di ogni tag in tempo reale.
+
+I link del tipo `#config/<scheda>` e `#config/<scheda>/<elemento>` (per esempio
+`#config/protocols/plc1`) aprono direttamente quella scheda, o quell'elemento.
 
 > **Anteprima live del sinottico**: apri il **Viewer operatori** sulla porta 8443. Mostra le
 > pagine in sola lettura con i valori aggiornati via WebSocket e l'alarm banner sempre visibile.
@@ -94,7 +97,8 @@ reale.
 ![Left panel](screenshots/03_left_panel.png)
 
 Il pannello sinistro ha **in alto l'albero delle pagine, sempre visibile**, e sotto **una vista alla volta** scelta dalla barra delle icone
-(palette, struttura, tag, sorgenti, funzioni). Fra i due c'è un separatore da trascinare per cambiare l'altezza dell'albero, e un pulsante
+(palette, struttura, tag, funzioni, ⚙ configurazione). Il pannello c'è anche in modalità Configurazione, dove la barra mostra solo ⚙ e un
+clic su una pagina dell'albero riporta all'editor. Fra i due c'è un separatore da trascinare per cambiare l'altezza dell'albero, e un pulsante
 ▾ per comprimerlo (altezza e stato si ricordano).
 
 ### PAGINE — l'albero delle pagine
@@ -184,9 +188,21 @@ Crea funzioni che i widget richiamano su `on_press`/`on_release`.
 
 Elenco dei tag definiti nel progetto con valore live.
 
-### SORGENTI
+### ⚙ CONFIGURAZIONE — l'albero delle schede
 
-Riepilogo delle sorgenti dati (Modbus, OPC-UA, MQTT, ...) con stato connessione.
+Tutte le schede di configurazione in un albero, divise in rami: **Progetto** (Variabili, Tipi, Protocolli, Allarmi, Python, Faceplate,
+Ricette, Notifiche, Lingue), **Dati** (Datastore), **Sicurezza** (Utenti), **Istanza** (Risorse, Backup, Stato, Device, Runtime) e **IDE**
+(Preferenze). Le schede da amministratore compaiono solo all'Admin.
+
+- Un clic su una scheda la apre, anche partendo dall'editor.
+- Protocolli, Python, Faceplate, Ricette, Datastore e Utenti hanno accanto il numero di elementi e una freccia ▶ che li mostra: una foglia per
+  sorgente, script, faceplate, ricetta, datastore o utente. Un clic su un elemento apre la scheda **su quell'elemento solo** (per le sorgenti:
+  solo la sua card); un clic sulla scheda torna all'elenco intero.
+- Gli elementi vengono dalla **bozza**: una sorgente aggiunta e non ancora salvata compare subito. Aggiungendone una mentre ne è scelta un'altra,
+  la nuova prende il suo posto.
+- **Tipi** è una foglia sua, ma condivide con **Variabili** la bozza, il pulsante Salva e l'export/import CSV.
+
+Fino al 2026-09-24 qui c'era la vista **Sorgenti**, un elenco con «Vai alla configurazione →»: la sostituisce il ramo Progetto.
 
 ---
 

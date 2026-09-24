@@ -4,6 +4,7 @@ import { api } from "@/api/client";
 import { emptyHost } from "@/config/sorgenteHost";
 import type { SourceDef } from "@/types";
 import { useAppStore } from "@/store";
+import { useFocus, usePubblicaElenco } from "@/config/fogliaConfig";
 import { useSezioneSincronizzata } from "@/config/useSezioneSincronizzata";
 import { TRANS_COMP, BarraConflittoSezione, S, SaveBar } from "@/config/comuni";
 import { emptyModbus, emptyModbusRtu, sorgentiSenzaRigheVuote, emptyMqtt, emptyOpcUa, emptyOpcUaServer, emptyHomeAssistant, emptyS7 } from "@/config/sorgenti/vuote";
@@ -46,35 +47,44 @@ export function ProtocolsTab() {
     progetto: storeProject?.meta?.name,
   });
 
-  const addModbus = () =>
-    setSources((prev) => [...prev, emptyModbus()]);
+  const addModbus = () => aggiungi(emptyModbus());
 
-  const addModbusRtu = () =>
-    setSources((prev) => [...prev, emptyModbusRtu()]);
+  const addModbusRtu = () => aggiungi(emptyModbusRtu());
 
-  const addMqtt = () =>
-    setSources((prev) => [...prev, emptyMqtt()]);
+  const addMqtt = () => aggiungi(emptyMqtt());
 
-  const addOpcUa = () =>
-    setSources((prev) => [...prev, emptyOpcUa()]);
+  const addOpcUa = () => aggiungi(emptyOpcUa());
 
-  const addOpcUaServer = () =>
-    setSources((prev) => [...prev, emptyOpcUaServer()]);
+  const addOpcUaServer = () => aggiungi(emptyOpcUaServer());
 
-  const addHomeAssistant = () =>
-    setSources((prev) => [...prev, emptyHomeAssistant()]);
+  const addHomeAssistant = () => aggiungi(emptyHomeAssistant());
 
-  const addS7 = () =>
-    setSources((prev) => [...prev, emptyS7()]);
+  const addS7 = () => aggiungi(emptyS7());
 
-  const addEnIp = () =>
-    setSources((prev) => [...prev, emptyEnIp()]);
+  const addEnIp = () => aggiungi(emptyEnIp());
 
-  const addHost = () =>
-    setSources((prev) => [...prev, emptyHost()]);
+  const addHost = () => aggiungi(emptyHost());
 
-  const updateSource = (idx: number, updated: SourceDef) =>
+  // Il secondo livello dell'albero ⚙ (24-09-2026): una foglia per sorgente.
+  // Con una sorgente scelta si vede solo la sua card; dal primo livello, tutte.
+  usePubblicaElenco("protocols", sources.map((x) => ({ id: x.id, etichetta: x.id })));
+  const focus = useFocus("protocols", sources.map((x) => x.id));
+  const setConfigFocus = useAppStore((s) => s.setConfigFocus);
+
+  // Con una sorgente scelta, quella nuova prende il suo posto: resterebbe
+  // altrimenti invisibile, aggiunta in fondo a un elenco che non si vede.
+  function aggiungi(nuova: SourceDef) {
+    setSources((prev) => [...prev, nuova]);
+    if (focus !== null) setConfigFocus(nuova.id);
+  }
+
+  // L'id si cambia scrivendolo nella card: il focus lo segue, o la card
+  // sparirebbe dalla vista al primo tasto.
+  const updateSource = (idx: number, updated: SourceDef) => {
+    const prima = sources[idx];
+    if (focus !== null && prima?.id === focus && updated.id !== prima.id) setConfigFocus(updated.id);
     setSources((prev) => prev.map((s, i) => (i === idx ? updated : s)));
+  };
 
   const removeSource = (idx: number) =>
     setSources((prev) => prev.filter((_, i) => i !== idx));
@@ -145,6 +155,7 @@ export function ProtocolsTab() {
       )}
 
       {sources.map((src, i) => {
+        if (focus !== null && src.id !== focus) return null;
         if (src.kind === "modbus_tcp") {
           return (
             <ModbusSourceCard

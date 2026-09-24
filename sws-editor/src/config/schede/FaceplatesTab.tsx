@@ -5,6 +5,7 @@ import { genId } from "@/id";
 import { SvgObject, substituteFaceplateParams } from "@/canvas/SvgCanvas";
 import type { FaceplateParamDef, FaceplateDef, SynopticObject } from "@/types";
 import { useAppStore } from "@/store";
+import { useFocus, usePubblicaElenco } from "@/config/fogliaConfig";
 import { TRANS_COMP, S, SaveBar } from "@/config/comuni";
 
 // ── Faceplate live preview ──────────────────────────────────────────────────
@@ -90,9 +91,17 @@ export function FaceplatesTab() {
     return { instances, popups, pages: [...pageNames] };
   };
   const [faceplates, setLocal] = useState<FaceplateDef[]>(storeFaceplates);
-  const [selected, setSelected] = useState<string | null>(
+  const [selected, setSelezionato] = useState<string | null>(
     storeFaceplates[0]?.id ?? null
   );
+  // Il secondo livello dell'albero ⚙ (24-09-2026): una foglia per faceplate.
+  // Ogni scelta fatta qui aggiorna anche la foglia evidenziata, e una foglia
+  // scelta nell'albero sceglie il faceplate: le due selezioni sono una.
+  const setConfigFocus = useAppStore((s) => s.setConfigFocus);
+  const setSelected = (id: string | null) => {
+    setSelezionato(id);
+    if (id !== null) setConfigFocus(id);
+  };
   // Gli id modificati e non ancora scritti: il Salva unico li scrive tutti.
   const [modificati, setModificati] = useState<Set<string>>(new Set());
   const [loadErr, setLoadErr] = useState<string | null>(null);
@@ -110,6 +119,10 @@ export function FaceplatesTab() {
   }, []);
 
   const current = faceplates.find((f) => f.id === selected) ?? null;
+
+  usePubblicaElenco("faceplates", faceplates.map((f) => ({ id: f.id, etichetta: f.label || f.id })));
+  const focus = useFocus("faceplates", faceplates.map((f) => f.id));
+  useEffect(() => { if (focus !== null) setSelezionato(focus); }, [focus]);
 
   function updateCurrent(patch: Partial<FaceplateDef>) {
     if (!current) return;

@@ -59,6 +59,9 @@ export function ConfigView() {
   const project          = useAppStore((s) => s.project);
   const projectLoadError = useAppStore((s) => s.projectLoadError);
 
+  const focus    = useAppStore((s) => s.configFocus);
+  const etichettaFocus = useAppStore((s) =>
+    s.elenchiConfig[s.configTab]?.find((v) => v.id === s.configFocus)?.etichetta ?? s.configFocus);
   const visibili = schedeVisibili(isAdmin);
   const corrente = schedaDa(storeTab);
   const tab = corrente.id as IdScheda;
@@ -89,6 +92,10 @@ export function ConfigView() {
         <span aria-hidden="true" style={{ color: "var(--brand-text-subtle, #64748b)" }}>›</span>
         <span aria-hidden="true">{corrente.icona}</span>
         <span style={{ color: "var(--brand-text, #e2e8f0)", fontWeight: 600 }}>{t(`config.tabs.${tab}`)}</span>
+        {focus !== null && (<>
+          <span aria-hidden="true" style={{ color: "var(--brand-text-subtle, #64748b)" }}>›</span>
+          <span style={{ color: "var(--brand-text, #e2e8f0)" }}>{etichettaFocus}</span>
+        </>)}
       </div>
 
       {/* Content */}

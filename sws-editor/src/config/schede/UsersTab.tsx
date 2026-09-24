@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { api, type CreateUserBody, type UpdateUserBody, type UserRole, type UserSummary } from "@/api/client";
 import { useAppStore } from "@/store";
+import { useFocus, usePubblicaElenco } from "@/config/fogliaConfig";
 import { TRANS_COMP, S } from "@/config/comuni";
 
 // ── Main ConfigView ───────────────────────────────────────────────────────────
@@ -44,6 +45,12 @@ export function UsersTab() {
 
   useEffect(() => { void refresh(); }, []);
 
+  // Il secondo livello dell'albero ⚙ (24-09-2026): una foglia per utente. Con
+  // uno scelto la tabella mostra solo la sua riga; dal primo livello, tutte.
+  usePubblicaElenco("users", (users ?? []).map((u) => ({ id: u.username, etichetta: u.username })));
+  const focus = useFocus("users", (users ?? []).map((u) => u.username));
+  const setConfigFocus = useAppStore((s) => s.setConfigFocus);
+
   const fmtDate = (ms: number) => {
     if (!ms) return "—";
     const d = new Date(ms);
@@ -66,6 +73,9 @@ export function UsersTab() {
       });
       setNewUser({ username: "", password: "", role: "Operator", must_change_password: true });
       await refresh();
+      // Con un utente scelto, il nuovo prende il suo posto (altrimenti
+      // resterebbe fuori dalla tabella filtrata).
+      if (focus !== null) setConfigFocus(newUser.username.trim());
     } catch (e: any) {
       const msg = String(e?.message ?? "");
       if (msg.includes("primo_utente_non_admin")) {
@@ -172,7 +182,7 @@ export function UsersTab() {
               </tr>
             </thead>
             <tbody>
-              {users.map((u) => {
+              {users.filter((u) => focus === null || u.username === focus).map((u) => {
                 const isSelf = u.username === authUser;
                 return (
                   <tr key={u.username}>

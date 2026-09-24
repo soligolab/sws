@@ -242,6 +242,12 @@ export type AppMode = "edit" | "config";
 // L'elenco delle schede vive in `config/schede.ts`, il solo posto che lo dichiara.
 export type { AppConfigTab };
 
+/** Una foglia di secondo livello dell'albero della Configurazione. */
+export interface VoceElencoConfig {
+  id: string;
+  etichetta: string;
+}
+
 interface AppState {
   // Auth
   authToken: string | null;
@@ -621,7 +627,18 @@ interface AppState {
   configTab: AppConfigTab;
   setAppMode: (mode: AppMode) => void;
   setConfigTab: (tab: AppConfigTab) => void;
-  navigateToConfig: (tab: AppConfigTab) => void;
+  /** L'elemento scelto dentro la scheda (una sorgente, un faceplate, un
+   *  utente…): le foglie di secondo livello dell'albero ⚙. `null` = la scheda
+   *  intera, come prima del 24-09-2026. */
+  configFocus: string | null;
+  setConfigFocus: (focus: string | null) => void;
+  navigateToConfig: (tab: AppConfigTab, focus?: string | null) => void;
+  /** Gli elementi che le schede con un elenco pubblicano **dalla loro bozza**,
+   *  così l'albero mostra anche una sorgente aggiunta e non ancora salvata.
+   *  Assente finché la scheda non è mai stata aperta: l'albero legge allora il
+   *  progetto (vedi `editor/AlberoConfigurazione.tsx`). */
+  elenchiConfig: Partial<Record<AppConfigTab, VoceElencoConfig[]>>;
+  pubblicaElencoConfig: (tab: AppConfigTab, voci: VoceElencoConfig[]) => void;
 
   // Kiosk auto-rotate
   autoRotate: boolean;
@@ -2285,8 +2302,19 @@ export const useAppStore = create<AppState>((set, get) => {
     appMode: "edit",
     configTab: "tags",
     setAppMode: (appMode) => set({ appMode }),
-    setConfigTab: (configTab) => set({ configTab }),
-    navigateToConfig: (tab) => set({ appMode: "config", configTab: tab }),
+    setConfigTab: (configTab) => set({ configTab, configFocus: null }),
+    configFocus: null,
+    setConfigFocus: (configFocus) => set({ configFocus }),
+    navigateToConfig: (tab, focus = null) => set({ appMode: "config", configTab: tab, configFocus: focus }),
+    elenchiConfig: {},
+    pubblicaElencoConfig: (tab, voci) => set((s) => {
+      const prima = s.elenchiConfig[tab];
+      // Le schede pubblicano a ogni disegno della bozza: senza questo
+      // confronto ogni tasto premuto in una card ridisegnerebbe l'albero.
+      if (prima && prima.length === voci.length
+          && prima.every((v, i) => v.id === voci[i].id && v.etichetta === voci[i].etichetta)) return {};
+      return { elenchiConfig: { ...s.elenchiConfig, [tab]: voci } };
+    }),
 
     // Ripreso da localStorage: `setAutoRotate` lo scriveva ma nessuno lo
     // rileggeva all'avvio, quindi dopo un reboot del pannello la rotazione
