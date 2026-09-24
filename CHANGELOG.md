@@ -24,6 +24,9 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   - Il file `trigger` resta, perché dice cosa il progetto vuole e costa niente; `status` continua a riferire com'è andata, ma ora lo scrive il runtime.
 
 ### Fixed
+- **Fra due livelli di pari severità vince l'ultimo dichiarato**, non più il primo (decisione del maintainer, 24-09). Il difetto si è visto su un progetto vero appena convertito al modello a livelli: due soglie Critical, a 70 e a 80, e con il valore a 85 compariva sempre quella a 70 — **la soglia a 80 non sarebbe comparsa mai, per nessun valore**. I livelli si scrivono in
+  scala crescente, quindi l'ultimo vero è la soglia più alta raggiunta, ed è quello che ci si aspetta di leggere sul pannello. La regola sulla severità non cambia: vince sempre la più grave, qualunque sia l'ordine.
+- **Il validatore avvisa quando due livelli dello stesso allarme hanno la stessa severità.** Non è un errore — le due soglie restano distinte finché una sola è vera, e il progetto si salva — ma di solito è un refuso: chi voleva una scala ha dimenticato di abbassare la gravità del primo, e sul pannello le due soglie si leggono uguali.
 - **L'avviso «da questa pagina non si esce» vale anche sui progetti per LVGL**, non solo a schermo pieno. La regola del 23-09 guardava solo `hide_viewer_chrome`, ma il viewer LVGL non ha una
   barra propria in nessun caso: disegna la pagina e basta. Un progetto per il pannello passava quindi in silenzio — misurato il 24-09 sul WP630, dove una pagina senza navigatore ha lasciato
   il maintainer davanti a uno schermo da cui non si torna indietro, e senza nemmeno una barra indirizzi per rimediare. L'avviso ora dice **quale** dei due motivi vale, perché mandano a

@@ -33,6 +33,7 @@ use serde::Serialize;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 
+use sws_core::alarm::AlarmSeverity;
 use sws_core::project::ProjectTargetKind;
 use sws_core::{Project, SourceDef, TopicMapping};
 
@@ -819,6 +820,37 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
                 format!("project.alarms[{}].levels", a.id),
                 format!("l'allarme `{}` non ha nessun livello", a.id),
                 "senza condizioni non scatterà mai: aggiungi almeno un livello",
+            ));
+        }
+
+        // Due livelli con la stessa severità (24-09-2026). Non è un errore —
+        // le due soglie restano distinte finché una sola è vera, e il progetto
+        // si salva — ma di solito è un refuso: chi voleva una scala ha
+        // dimenticato di abbassare la gravità del primo. Sul pannello le due
+        // soglie diventano indistinguibili, ed è lì che si paga.
+        // Contate su un Vec e non su una mappa: `AlarmSeverity` non è `Hash`,
+        // e i livelli di un allarme sono pochi. L'ordine è per gravità
+        // decrescente, così l'avviso non cambia posto a ogni giro.
+        let mut severita: Vec<AlarmSeverity> = a.levels.iter().map(|l| l.severity).collect();
+        severita.sort_by_key(|s| std::cmp::Reverse(*s));
+        let mut ripetute: Vec<(AlarmSeverity, usize)> = Vec::new();
+        for s in severita {
+            match ripetute.last_mut() {
+                Some((prec, n)) if *prec == s => *n += 1,
+                _ => ripetute.push((s, 1)),
+            }
+        }
+        for (sev, n) in ripetute.into_iter().filter(|(_, n)| *n > 1) {
+            out.push(Finding::warn(
+                format!("project.alarms[{}].levels", a.id),
+                format!(
+                    "l'allarme `{}` ha {n} livelli con severità {sev:?}",
+                    a.id
+                ),
+                "due soglie con la stessa gravità sono di solito un refuso: sul pannello si \
+                 leggono uguali, e chi guarda non si accorge di essere passato alla peggiore. \
+                 Dai al livello più alto una severità più alta. Se invece le vuoi così, quando \
+                 sono vere insieme vince l'ultima dichiarata",
             ));
         }
     }
@@ -2643,6 +2675,39 @@ alarms: [{ id: al, tag: motore1.velocita, levels: [{ condition: { kind: above, t
             &pagina("- { id: t, type: text, x: 0, y: 0, tag: motore1.inesistente }"),
         );
         assert!(cita(&errori(&rs), "motore1.inesistente"), "{rs:?}");
+    }
+
+    /// Due livelli dello stesso allarme con la **stessa severità** sono di
+    /// solito un refuso — misurato il 24-09-2026 sul progetto del maintainer,
+    /// che aveva Critical a 70 e Critical a 80. Non è un errore: si salva, e
+    /// le due soglie restano distinte finché una sola è vera. È un avviso
+    /// perché sul pannello le due soglie diventano indistinguibili.
+    #[test]
+    fn due_livelli_con_la_stessa_severita_si_dicono() {
+        let prog = r#"
+meta: { name: prova, version: "1.0.0" }
+tags: [{ id: t1, data_type: f32 }]
+sources: []
+alarms:
+  - id: al
+    tag: t1
+    levels:
+      - { condition: { kind: above, threshold: 70 }, severity: Critical, message: settanta }
+      - { condition: { kind: above, threshold: 80 }, severity: Critical, message: ottanta }
+"#;
+        let rs = rilievi(prog, &pagina("- { id: t, type: text, x: 0, y: 0 }"));
+        assert!(cita(&rs, "Critical"), "{rs:?}");
+        assert!(cita(&rs, "al"), "{rs:?}");
+        // Avviso, non errore: il progetto si salva lo stesso.
+        assert!(errori(&rs).iter().all(|f| !f.message.contains("Critical")), "{rs:?}");
+
+        // Severità diverse: nessun rilievo. È il caso normale.
+        let ok = prog.replace(
+            "- { condition: { kind: above, threshold: 70 }, severity: Critical, message: settanta }",
+            "- { condition: { kind: above, threshold: 70 }, severity: Warning, message: settanta }",
+        );
+        let rs = rilievi(&ok, &pagina("- { id: t, type: text, x: 0, y: 0 }"));
+        assert!(!cita(&rs, "stessa severità"), "{rs:?}");
     }
 
     /// Un id piatto che coincide con un percorso: la risoluzione prova

@@ -273,16 +273,26 @@ impl AlarmDef {
     /// Il livello che vince fra quelli veri, e il suo indice.
     ///
     /// **La severità più alta**, qualunque sia l'ordine in cui le condizioni
-    /// sono scritte (decisione del maintainer, 23-09-2026); a parità vince la
-    /// prima dichiarata. Con soglie 60/70/80 e il valore a 85 l'allarme è
-    /// Critical, che è quello che uno si aspetta guardando il pannello — con
-    /// l'ordine di dichiarazione sarebbe stato Info, cioè il contrario.
+    /// sono scritte (decisione del maintainer, 23-09-2026). Con soglie
+    /// 60/70/80 e il valore a 85 l'allarme è Critical, che è quello che uno si
+    /// aspetta guardando il pannello — con l'ordine di dichiarazione sarebbe
+    /// stato Info, cioè il contrario.
+    ///
+    /// **A parità di severità vince l'ultima dichiarata fra quelle vere**
+    /// (decisione del maintainer, 24-09-2026; prima vinceva la prima). I
+    /// livelli si scrivono in scala crescente — così li ordina anche la
+    /// conversione dal formato vecchio — quindi l'ultima vera è la soglia più
+    /// alta raggiunta. Con la regola di prima, due Critical a 70 e a 80
+    /// facevano comparire sempre quello a 70: **il secondo non sarebbe
+    /// comparso mai, per nessun valore**, e il difetto si è visto su un
+    /// progetto vero. Il validatore ora avvisa quando due livelli condividono
+    /// la severità, perché di solito è un refuso.
     pub fn livello_vincente(&self, value: &TagValue) -> Option<(usize, AlarmLevel)> {
         self.livelli()
             .into_iter()
             .enumerate()
             .filter(|(_, l)| l.condition.evaluate(value))
-            .max_by_key(|(i, l)| (l.severity, std::cmp::Reverse(*i)))
+            .max_by_key(|(i, l)| (l.severity, *i))
     }
 }
 
@@ -1325,10 +1335,17 @@ mod tests {
         assert_eq!(v(10.0), None);
     }
 
-    /// A parità di severità vince la prima dichiarata: due modi di dire la
-    /// stessa gravità non devono dipendere dall'ordine di valutazione.
+    /// A parità di severità vince **l'ultima dichiarata fra quelle vere**
+    /// (decisione del maintainer, 24-09-2026).
+    ///
+    /// Fino a quel giorno vinceva la prima, e il difetto si è visto sul suo
+    /// progetto: due Critical a 70 e a 80: con il valore a 85 compariva
+    /// sempre quello a 70, e **il livello a 80 non sarebbe comparso mai, per
+    /// nessun valore**. I livelli si scrivono in scala crescente — così li
+    /// ordina anche la conversione — quindi l'ultimo vero è la soglia più
+    /// alta raggiunta, ed è quello che uno si aspetta di leggere.
     #[test]
-    fn a_parita_di_severita_vince_la_prima() {
+    fn a_parita_di_severita_vince_l_ultima() {
         let d = livelli(
             "a1",
             "t",
@@ -1347,7 +1364,11 @@ mod tests {
                 },
             ],
         );
+        // 50 supera tutte e due le soglie: vince la seconda.
         let (i, l) = d.livello_vincente(&TagValue::Float(50.0)).unwrap();
+        assert_eq!((i, l.message.as_str()), (1, "seconda"));
+        // 15 supera solo la prima: non c'è parità, e vince l'unica vera.
+        let (i, l) = d.livello_vincente(&TagValue::Float(15.0)).unwrap();
         assert_eq!((i, l.message.as_str()), (0, "prima"));
     }
 
