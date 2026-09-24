@@ -74,41 +74,16 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — configurazione ad albero: passi 0-3 su quattro rami annidati, da collaudare (2026-09-24, sera, ufficio)
+## ▶ Riprendere da qui — configurazione ad albero su `main`, ora i pallini per elemento (2026-09-25)
 
-**Niente mergiato, niente pushato.** Sessione di plan sui due semi gemelli del 22-09 (albero di
-configurazione + riorganizzazione dei file dell'editor), con le decisioni del maintainer, e poi
-l'esecuzione mentre il maintainer non era al PC. Piano:
-[`docs/plans/2026-09-24-configurazione-ad-albero-piano.md`](docs/plans/2026-09-24-configurazione-ad-albero-piano.md)
-(il seme dell'albero è in archivio come superato; quello della riorganizzazione resta vivo per
-EditorShell, SvgCanvas e store).
+**Passi 0-3 della configurazione ad albero su `main` e pushati**, quattro squash in ordine su
+istruzione del maintainer: `f553b1b8` (registro unico), `2abb7d98` (ConfigView diviso in file),
+`5ab63485` (vista ⚙), `aaa4b8e1` (foglie di secondo livello). I quattro rami annidati sono stati
+eliminati dopo il confronto degli alberi (mai pushati). Piano:
+[`docs/plans/2026-09-24-configurazione-ad-albero-piano.md`](docs/plans/2026-09-24-configurazione-ad-albero-piano.md).
 
-Rami, **annidati** (ognuno figlio del precedente, regola «un ramo alla volta» opzione 2):
-
-| ramo | cosa | commit |
-|---|---|---|
-| `feat/config-albero-0-registro` | `config/schede.ts`, un elenco solo al posto di quattro; ripara `#config/faceplates` | `1e960cc4` |
-| `feat/config-albero-1-file` | `ConfigView.tsx` da 11 914 righe a 125: `config/schede/`, `config/sorgenti/`, `config/comuni.tsx` — spostamento puro | `7e1f97a5`, `a8ddd704` |
-| `feat/config-albero-2-vista` | pannello sinistro in `App.tsx`, vista ⚙ con l'albero, via la barra orizzontale e la vista Sorgenti, Tipi foglia sua | `51d57ae9` |
-| `feat/config-albero-3-foglie` | secondo livello: sorgenti, script, faceplate, ricette, datastore, utenti; `#config/<scheda>/<elemento>` | `5019379c` |
-
-Su ciascuno: `pnpm build`, 815 test, 26 guardie statiche verdi (`cargo check` verde, Rust non
-toccato). Provato con Playwright su uno stack di scarto (8673/8674): tutte le schede da link e da
-clic, sorgenti non salvate che compaiono nell'albero, focus, bozza che sopravvive a un giro nell'editor.
-
-**Da fare, nell'ordine:**
-
-1. **Collaudo a schermo del maintainer** — sull'ultimo ramo (li contiene tutti): la vista ⚙
-   dall'editor, le foglie, Tipi/Variabili con lo stesso Salva, un elemento scelto, una sorgente
-   aggiunta, il ritorno all'editor da una pagina. Da guardare anche la resa delle icone emoji e se i
-   rami devono partire chiusi.
-2. **Squash**: dato che i rami sono annidati, basta uno squash dell'ultimo ramo su `main`
-   (`git merge --squash feat/config-albero-3-foglie`), oppure quattro squash in ordine se si vuole un
-   commit per passo — decisione del maintainer. Poi il confronto degli alberi e **tutti e quattro** i
-   rami eliminati.
-3. Push solo su istruzione.
-
-Non fatto, annotato nel piano: il pallino «modifiche non salvate» per il singolo elemento.
+**In corso**: il pallino «modificato» sulle singole voci dell'albero (richiesta del maintainer del
+25-09), l'unico pezzo che il passo 3 aveva lasciato fuori.
 
 ## Riprendere da qui (precedente) — nessun piano in corso, solo semi (2026-09-24)
 
