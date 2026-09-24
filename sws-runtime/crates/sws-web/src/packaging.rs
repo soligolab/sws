@@ -846,19 +846,12 @@ const CONTAINER_DEPLOY_EMBEDDED: &[(&str, &str)] = &[
         "sws-display-apply.sh",
         include_str!("../../../../deploy/container/sws-display-apply.sh"),
     ),
-    // Immagine di boot abilitata dal progetto (T-72 F5).
-    (
-        "sws-boot-image.service",
-        include_str!("../../../../deploy/container/sws-boot-image.service"),
-    ),
-    (
-        "sws-boot-image.path",
-        include_str!("../../../../deploy/container/sws-boot-image.path"),
-    ),
-    (
-        "sws-boot-image-apply.sh",
-        include_str!("../../../../deploy/container/sws-boot-image-apply.sh"),
-    ),
+    // L'immagine di boot non ha più niente sull'host: dal 24-09-2026 la chiede
+    // il runtime al launcher via D-Bus, da dentro il container
+    // (`launcher_dbus.rs`). Le tre cose che stavano qui — `sws-boot-image.path`,
+    // il suo `.service` e lo script con `busctl` — esistevano solo perché un
+    // container non parla col bus di sistema; adesso il quadlet monta il socket
+    // e il giro a file non serve più.
 ];
 
 /// I file di `deploy/container/` che l'installer legge **dalla propria
@@ -882,10 +875,8 @@ const CONTAINER_DEPLOY_FILES: &[&str] = &[
     "sws-display.service",
     "sws-display.path",
     "sws-display-apply.sh",
-    // Immagine di boot abilitata dal progetto (T-72 F5).
-    "sws-boot-image.service",
-    "sws-boot-image.path",
-    "sws-boot-image-apply.sh",
+    // L'immagine di boot non manda più niente sul dispositivo: la chiede il
+    // runtime al launcher via D-Bus dal container (24-09-2026).
 ];
 
 /// I percorsi assoluti dei file da spedire, o il nome del primo che manca.

@@ -79,6 +79,51 @@ Volume=/data/user/sws/config:/var/sws/config
 Volume=/data/user/sws/projects:/var/sws/projects
 Volume=/data/user/sws/logs:/var/sws/logs
 
+# Il bus di sistema, in sola lettura sul socket: serve al runtime per dire al
+# launcher Pixsys quale immagine di accensione usare
+# (`net.pixsys.Config1.Launcher.SetBackgroundImage`), dal **container**.
+#
+# Prima quella chiamata la faceva uno script sull'host, svegliato da una
+# `.path` unit che guardava un file `trigger`: tre pezzi installati sul
+# dispositivo, che esistevano solo perché un container non parla col bus.
+# Vincolo del maintainer del 24-09-2026: «nell'host non puoi toccare nulla,
+# tutto deve essere fatto con chiamate dBus dal container».
+#
+# **Cosa apre**: il socket dà accesso a *tutto* il bus di sistema, non al solo
+# launcher — sul dispositivo è già `srw-rw-rw-`, quindi non concede niente che
+# un processo dell'utente non avesse, ma il container smette di essere isolato
+# da quel lato. Se un giorno serve stringere, la strada è un proxy che inoltri
+# la sola interfaccia del launcher.
+Volume=/run/dbus/system_bus_socket:/run/dbus/system_bus_socket:ro
+
+# Dove sta, **vista dall'host**, la cartella che il container conosce come
+# `/var/sws/config`. Senza, il runtime direbbe al launcher un percorso che
+# sull'host non esiste: da dentro il container la mappatura non si deduce, e
+# un percorso sbagliato è peggio di nessuna chiamata (il launcher accetta e
+# poi non trova il file). Deve restare uguale al `Volume=` qui sopra.
+#
+# Sta in `[Container]` e non in `[Service]`: nella seconda finirebbe
+# nell'ambiente dell'unit systemd e **non** in quello del processo dentro il
+# container — provato sul WP630 il 24-09-2026, `printenv` nel container non la
+# vedeva e la chiamata al launcher non partiva, in silenzio.
+Environment=SWS_HOST_CONFIG_DIR=/data/user/sws/config
+
+# L'uid dentro il container deve essere lo stesso di fuori, o il bus di
+# sistema rifiuta la connessione.
+#
+# D-Bus autentica con EXTERNAL: il client **dichiara** il proprio uid e il
+# kernel ne riporta un altro al server, che confronta i due. In un container
+# rootless senza questa riga il processo è `root` (uid 0) dentro e uid 1000
+# fuori, i due numeri non coincidono e il bus risponde:
+#
+#   D-Bus handshake failed: EXTERNAL rejected by the server
+#
+# Misurato sul WP630 il 24-09-2026. Con `keep-id` l'uid interno è quello
+# dell'utente che lancia il container e i due coincidono: il launcher accetta.
+# I file sui volumi restano di quell'utente, come prima — cambia il numero
+# dentro il container, non il proprietario sul disco.
+UserNS=keep-id
+
 [Service]
 Restart=always
 RestartSec=5

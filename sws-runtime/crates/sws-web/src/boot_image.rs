@@ -111,6 +111,12 @@ pub async fn publish(config_dir: &Path, project_dir: &Path) {
                 let scritto = scrivi_se_diverso(&dir.join(TRIGGER), format!("{sha}\n").as_bytes()).await?;
                 if scritto {
                     tracing::info!(sha256 = %sha, bytes = png.len(), "boot-image: richiesta pubblicata");
+                    // Dal 24-09-2026 la chiamata al launcher la fa il runtime,
+                    // via D-Bus, da dentro il container: il `trigger` qui sopra
+                    // resta per i dispositivi che hanno ancora le unit
+                    // sull'host, ma su un container col socket montato non lo
+                    // aspetta più nessuno.
+                    applica_col_launcher(config_dir, &dir.join(PNG), &sha).await;
                 }
             }
             None => {
@@ -124,6 +130,47 @@ pub async fn publish(config_dir: &Path, project_dir: &Path) {
     .await;
     if let Err(e) = esito {
         tracing::warn!(dir = %dir.display(), "boot-image: richiesta non pubblicata: {e}");
+    }
+}
+
+/// Chiede al launcher di usare il PNG appena pubblicato, e scrive l'esito in
+/// `status` — lo stesso file che prima scriveva lo script sull'host, così la
+/// scheda Runtime continua a leggere da un posto solo.
+///
+/// Silenziosa quando il launcher non c'è: un PC di sviluppo non ha un
+/// `net.pixsys.Config1`, e non è un guasto del progetto.
+async fn applica_col_launcher(config_dir: &Path, png: &Path, sha: &str) {
+    let Some(host) = crate::launcher_dbus::percorso_host(config_dir, png) else {
+        tracing::debug!("boot-image: SWS_HOST_CONFIG_DIR non impostata, non chiamo il launcher");
+        return;
+    };
+    let esito = crate::launcher_dbus::imposta_immagine(&host).await;
+    let (parola, nota) = match &esito {
+        crate::launcher_dbus::Esito::Applicata { percorso_assoluto } => (
+            "applicata",
+            if *percorso_assoluto {
+                "compare al prossimo avvio del pannello (percorso assoluto: si appoggia a un \
+                 comportamento non documentato del launcher)"
+            } else {
+                "compare al prossimo avvio del pannello"
+            }
+            .to_string(),
+        ),
+        crate::launcher_dbus::Esito::NonSupportato => (
+            "non_supportato",
+            "questo dispositivo non espone net.pixsys.Config1.Launcher".to_string(),
+        ),
+        crate::launcher_dbus::Esito::PercorsoHostIgnoto => (
+            "errore",
+            "manca SWS_HOST_CONFIG_DIR: il container non sa il percorso sull'host".to_string(),
+        ),
+        crate::launcher_dbus::Esito::Errore(e) => ("errore", e.clone()),
+    };
+    tracing::info!(esito = parola, "boot-image: {nota}");
+    let testo = format!("esito={parola}\nsha256={sha}\nnota={nota}\n");
+    let path = dir_at(config_dir).join(STATO);
+    if let Err(e) = tokio::fs::write(&path, testo).await {
+        tracing::warn!(path = %path.display(), "boot-image: status non scritto: {e}");
     }
 }
 

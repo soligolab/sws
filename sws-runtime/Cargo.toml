@@ -32,6 +32,10 @@ repository   = "https://github.com/soligolab/sws"
 homepage     = "https://soligolab.example"
 
 [workspace.dependencies]
+# D-Bus, per parlare col launcher del pannello dal **container** (24-09-2026).
+# `default-features = false` + `tokio`: senza, zbus tira dentro async-io/smol e
+# ci ritroveremmo due reattori nello stesso processo.
+zbus             = { version = "5.19", default-features = false, features = ["tokio"] }
 # Async runtime
 tokio            = { version = "1.36",  features = ["full"] }
 tokio-util       = { version = "0.7" }

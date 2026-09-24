@@ -10,6 +10,7 @@ pub mod dispositivi;
 pub mod git_deploy;
 pub mod global_scripts;
 pub mod istantanea;
+pub mod launcher_dbus;
 pub mod metrics;
 pub mod netif;
 pub mod notifications;

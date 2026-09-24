@@ -139,6 +139,67 @@ distribuzione di un progetto che esiste già.
 **Resta da decidere**: installare le unit del boot sul WP630 (`install-container.sh`) per chiudere il
 punto 4 — è un'azione persistente sul dispositivo e aspetta il maintainer.
 
+### Aggiornamento del 24-09, mattina: il punto 4 è chiuso e LVGL è andato a schermo
+
+Tre righe della sezione qui sopra sono **superate**, e sono quelle che dicevano «non si può».
+
+- **Punto 4 chiuso, ma per un'altra strada.** Il maintainer ha posto il vincolo: «nell'host non
+  puoi toccare nulla, tutto deve essere fatto con chiamate dBus dal container». Quindi niente
+  `install-container.sh`: le tre cose sull'host (`.path`, `.service`, script con `busctl`) sono
+  state **cancellate** e la chiamata la fa il runtime, in `sws-web/src/launcher_dbus.rs`. Sul
+  pannello vero: `esito=applicata`, `GetBackgroundImage → "boot.png"`. Le due righe che mancavano
+  perché funzionasse sono nel quadlet — il socket del bus montato e `UserNS=keep-id`, senza cui
+  l'autenticazione EXTERNAL viene rifiutata (uid dichiarato 0 ≠ uid visto 1000).
+  **Sul ramo `feat/boot-image-dbus`, non ancora mergiato**: il maintainer vuole prima riavviare il
+  pannello e vedere l'immagine di accensione a occhio, perché il launcher legge il suo TOML solo
+  all'avvio.
+- **LVGL è andato sullo schermo del pannello, senza fermare Weston.** Non serviva: la unit di
+  commutazione già installata (`sws-display.path` + `sws-display-apply.sh`) fa tutto da sola quando
+  il progetto dichiara `target: lvgl`. Chromium spento, `sws-lvgl-viewer` avviato, pagina
+  «Impianto» disegnata. Il punto 5 (Q55) ora **è applicabile**: il viewer LVGL gira sul dispositivo.
+- **Come disegna, e non era scritto da nessuna parte**: il container del viewer non vede né
+  `/dev/fb0` né `/dev/dri`. Ha `SDL_VIDEODRIVER=x11` e `DISPLAY=:0`, e all'avvio parte un
+  **Xwayland** che presenta la finestra a Weston. La catena è `sws-lvgl-viewer → SDL/X11 → Xwayland
+  → Weston`. Non esiste una prova a schermo automatica: `weston-screenshooter` risponde
+  `unauthorized` e `/dev/fb0` è `root:video`. Si verifica per processi, per log, o con
+  `--istantanea` (che rende la pagina in un PNG senza schermo).
+
+**Il pannello resta su LVGL**, per decisione del maintainer: «non serve che rimetti a posto il
+pannello, puoi usarlo per i test». Stato attuale, da sapere prima di toccarlo:
+
+| cosa | stato |
+|---|---|
+| progetto attivo sul pannello | `nav` (da `~/sws_projects/nav-collaudo`), pagine 800×480 |
+| schermo | 1920×1080 — la pagina è centrata, con attorno il neutro `#0f172a` |
+| browser Pixsys | `SetEnabled=false` e unit `disabled`: **al riavvio non torna**, riparte LVGL |
+| immagine di accensione | `boot.png` registrata nel launcher, si vedrà al prossimo boot |
+
+**Due difetti riportati dal maintainer guardando lo schermo, e cosa sono davvero.**
+
+1. «Sinottico piccolo a centro schermo» — **non è un difetto**: è `size_mode: fixed` con pagine
+   800×480 su 1920×1080, e il web fa identico (cap a 1 voluto, `viewerFitScale`). Ma sotto c'è un
+   buco vero: **il viewer LVGL non legge `size_mode` affatto**, quindi in `ratio` il web scala a
+   riempire e LVGL resta 1:1 → seme
+   [2026-09-24-lvgl-ignora-size-mode.md](docs/plans/2026-09-24-lvgl-ignora-size-mode.md).
+2. «L'ultima pagina non ha la barra e non torno alla Home» — era `zona2` del progetto di collaudo,
+   scritta apposta senza navigatore; le ho aggiunto la barra e rideployato. **Il caso generale
+   resta**: su LVGL non c'è nessuna chrome, mai, e la regola B14 del 23-09 scatta **solo** con
+   `hide_viewer_chrome`.
+
+### Rimandato, da fare appena `feat/boot-image-dbus` è chiuso
+
+**Estendere B14 ai target LVGL** (scelta del maintainer, 24-09: «guardia nell'IDE»). In
+`sws-web/src/validate.rs:471-509` la condizione è `hide_viewer_chrome == Some(true)`; va aggiunto
+il caso `target.kind` ∈ {`LvglFramebuffer`, `LvglWayland`}, dove la barra del viewer non esiste per
+costruzione. Messaggio da adattare: lì non è «a schermo pieno», è «su LVGL». Test rosso prima, come
+sempre. Rimandato e non annidato perché non tocca gli stessi file del ramo aperto (regola «un ramo
+alla volta», terza opzione).
+
+Nota emersa strada facendo: `lvgl_framebuffer` e `lvgl_wayland` **non si distinguono** nella
+commutazione — lo script host avvia comunque il viewer col backend SDL predefinito. Il progetto di
+collaudo dichiara `lvgl_framebuffer` e gira via XWayland. Da guardare quando si toccherà la
+commutazione (vedi l'altro seme del giorno).
+
 ## Riprendere da qui (precedente) — cinque lavori su `main`, tre da collaudare (2026-09-23)
 
 **Tutto su `main` e pushato.** Nessun ramo aperto. Cinque squash, in ordine:

@@ -35,7 +35,7 @@ STATICHE=(
     check_templates         # tutti i template contro il runtime
     check_demo_templates    # i due gemelli "Demo Items" fra loro
     check_systemd_units     # trappole note nelle unit che spediamo
-    check_boot_image_apply  # lo script host dell'immagine di boot, provato con un launcher finto
+     # lo script host dell'immagine di boot, provato con un launcher finto
     check_synoptic_schema   # il vocabolario dato all'assistente IA contro le sue fonti
     check_session_start     # session_start.sh non deve poter perdere lavoro
     check_off_page          # «fuori pagina»: la stessa tabella in Rust e in TypeScript

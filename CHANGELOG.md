@@ -11,6 +11,18 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Changed
+- **L'immagine di accensione la chiede il container, via D-Bus** (vincolo del maintainer, 24-09-2026: «nell'host non puoi toccare nulla, tutto deve essere fatto con chiamate dBus dal container»).
+  Prima il runtime scriveva un file `trigger` e sull'host tre pezzi installati a mano — una unit che osservava quel file, il suo servizio e uno script con `busctl` — chiamavano il launcher Pixsys.
+  Quel file esisteva **solo** perché un container non parla col bus di sistema. Ora il quadlet monta il socket del bus e la chiamata la fa il runtime: le tre cose sull'host spariscono, e con
+  loro un pezzo di installazione che andava tenuto allineato a mano. Provato sul pannello: il launcher accetta l'immagine e la copia fra i suoi asset.
+  - **Due righe che non si vedevano dal codice.** La variabile col percorso host va dichiarata nella sezione del **container** e non in quella del servizio, o non arriva al processo. E serve
+    `UserNS=keep-id`: D-Bus autentica confrontando l'uid che il client dichiara con quello che il kernel riporta, e in un container rootless il processo è root dentro e un altro utente fuori —
+    i due numeri non coincidono e il bus rifiuta la connessione con «EXTERNAL rejected by the server».
+  - Il percorso che il launcher riceve è quello **dell'host**, non quello del container: la mappatura non è deducibile da dentro, quindi la dichiara il quadlet. Senza, il runtime non chiama
+    affatto — un percorso sbagliato è peggio di nessuna chiamata, perché il launcher accetta e poi non trova il file.
+  - Il file `trigger` resta, perché dice cosa il progetto vuole e costa niente; `status` continua a riferire com'è andata, ma ora lo scrive il runtime.
+
 ### Fixed
 - **Le pagine di boot non compaiono più fra i pulsanti di navigazione dell'anteprima** (B12 del piano di stabilizzazione). La barra del viewer mappava tutte le pagine invece delle sole
   sinottiche: l'immagine di accensione non è una pagina del pannello e non ci si naviga.

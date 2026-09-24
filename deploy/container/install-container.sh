@@ -76,11 +76,10 @@ USER_UNIT_DIR="$HOME/.config/systemd/user"
 DISPLAY_UNITS=(sws-display.service sws-display.path)
 VIEWER_UNIT_SRC="$SRC_DIR/sws-lvgl-viewer.container"
 APPLY_SRC="$SRC_DIR/sws-display-apply.sh"
-# T-72 F5 — l'immagine di boot abilitata dal progetto. Stesso schema di
-# `display-target`: il runtime scrive la richiesta, queste tre cose (sull'host,
-# unit utente, niente sudo) la portano al launcher Pixsys via D-Bus.
-BOOT_IMAGE_UNITS=(sws-boot-image.service sws-boot-image.path)
-BOOT_IMAGE_APPLY_SRC="$SRC_DIR/sws-boot-image-apply.sh"
+# L'immagine di boot non installa più niente sull'host (24-09-2026): la chiede
+# il runtime al launcher via D-Bus, da dentro il container. Il quadlet monta
+# `/run/dbus/system_bus_socket` e dichiara `SWS_HOST_CONFIG_DIR`; le tre cose
+# che stavano qui esistevano solo perché un container non parla col bus.
 # Lo script vive accanto all'installer sul dispositivo, non nella directory
 # dati: `sws-display.service` lo cerca a quel percorso fisso.
 APPLY_DST_DIR="/data/user/sws-container"
@@ -519,30 +518,6 @@ if [ "$AUTOSTART" -eq 1 ]; then
         echo "    commutazione web/LVGL installata (decide il progetto — vedi Q25)"
         INSTALL_DISPLAY=1
 
-        # T-72 F5 — l'immagine di boot. Dentro il ramo della commutazione: le due
-        # cose hanno lo stesso destino (le unit utente dell'host) e lo stesso
-        # modo di mancare, e chi ha i file dell'una ha quelli dell'altra.
-        INSTALL_BOOT_IMAGE=0
-        if [ -f "$BOOT_IMAGE_APPLY_SRC" ]; then
-            if [ "$BOOT_IMAGE_APPLY_SRC" != "$APPLY_DST_DIR/sws-boot-image-apply.sh" ]; then
-                install -m 0755 "$BOOT_IMAGE_APPLY_SRC" "$APPLY_DST_DIR/sws-boot-image-apply.sh"
-            else
-                chmod 0755 "$BOOT_IMAGE_APPLY_SRC"
-            fi
-            for u in "${BOOT_IMAGE_UNITS[@]}"; do
-                if [ -f "$SRC_DIR/$u" ]; then
-                    install -m 0644 "$SRC_DIR/$u" "$USER_UNIT_DIR/$u"
-                    [ "$DATA" != "/data/user/sws" ] && \
-                        sed -i "s|/data/user/sws/config/|$DATA/config/|g" "$USER_UNIT_DIR/$u"
-                fi
-            done
-            sed -i "s|^ExecStart=.*|ExecStart=$APPLY_DST_DIR/sws-boot-image-apply.sh|" \
-                "$USER_UNIT_DIR/sws-boot-image.service" 2>/dev/null || true
-            echo "    immagine di boot installata (decide il progetto — vedi T-72)"
-            INSTALL_BOOT_IMAGE=1
-        else
-            echo "    NOTA: sorgenti dell'immagine di boot assenti, salto quel pezzo." >&2
-        fi
     else
         echo "    NOTA: sorgenti della commutazione web/LVGL assenti, salto quel pezzo." >&2
         echo "          Il runtime funziona lo stesso; il pannello non commuterà da sé." >&2
@@ -582,11 +557,6 @@ if [ "$AUTOSTART" -eq 1 ]; then
         systemctl --user enable --now sws-display.path >/dev/null 2>&1 \
             || echo "    ATTENZIONE: sws-display.path non attivata." >&2
         systemctl --user enable sws-display.service >/dev/null 2>&1 || true
-    fi
-    if [ "${INSTALL_BOOT_IMAGE:-0}" -eq 1 ]; then
-        systemctl --user enable --now sws-boot-image.path >/dev/null 2>&1 \
-            || echo "    ATTENZIONE: sws-boot-image.path non attivata." >&2
-        systemctl --user enable sws-boot-image.service >/dev/null 2>&1 || true
     fi
 else
     echo "==> [5/6] avvio diretto (--no-autostart: non riparte dopo il reboot)"
@@ -726,19 +696,6 @@ for i in $(seq 1 30); do
                 echo "                Perché:  journalctl --user -u sws-display -n 30" >&2
             else
                 echo "    commutazione web/LVGL: attiva"
-            fi
-        fi
-        if [ "${INSTALL_BOOT_IMAGE:-0}" -eq 1 ]; then
-            GUASTE=""
-            for u in sws-boot-image.path sws-boot-image.service; do
-                [ "$(systemctl --user is-failed "$u" 2>/dev/null || true)" = "failed" ] \
-                    && GUASTE="$GUASTE $u"
-            done
-            if [ -n "$GUASTE" ]; then
-                echo "    ATTENZIONE: immagine di boot NON attiva —$GUASTE" >&2
-                echo "                Perché:  journalctl --user -u sws-boot-image -n 30" >&2
-            else
-                echo "    immagine di boot: attiva"
             fi
         fi
         echo
