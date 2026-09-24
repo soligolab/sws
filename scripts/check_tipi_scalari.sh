@@ -15,7 +15,7 @@
 #   1. ogni nome della fixture compare in `sws-core/src/tipo.rs` (nel `parse`)
 #      e in `sws-editor/src/tag/tipiScalari.ts`;
 #   2. nessuna `<option value="bool|int|float|string">` scritta a mano in
-#      ConfigView.tsx o nel modale rapido: le select passano da `<OpzioniTipo />`,
+#      Configurazione (src/config/) o nel modale rapido: le select passano da `<OpzioniTipo />`,
 #      altrimenti una quinta copia dell'elenco nasce e invecchia da sola;
 #   3. `validate.rs` non ha più la costante `TIPI_DATO`: il validatore chiede
 #      al catalogo, non a un elenco suo.
@@ -30,7 +30,10 @@ root = sys.argv[1]
 FIXTURE = f"{root}/tests/fixtures/tipi-scalari.json"
 RS = f"{root}/sws-runtime/crates/sws-core/src/tipo.rs"
 TS = f"{root}/sws-editor/src/tag/tipiScalari.ts"
-SELECT = [f"{root}/sws-editor/src/config/ConfigView.tsx", f"{root}/sws-editor/src/components/QuickCreateTagModal.tsx"]
+# Tutta la cartella della Configurazione, non un file: dal 24-09-2026 `ConfigView.tsx`
+# è diviso in una scheda per file, e un elenco di percorsi resterebbe indietro.
+import glob
+SELECT = sorted(glob.glob(f"{root}/sws-editor/src/config/**/*.tsx", recursive=True)) + [f"{root}/sws-editor/src/components/QuickCreateTagModal.tsx"]
 VALIDATE = f"{root}/sws-runtime/crates/sws-web/src/validate.rs"
 
 fatti = passati = 0

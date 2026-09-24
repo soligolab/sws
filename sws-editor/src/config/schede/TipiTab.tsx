@@ -19,7 +19,7 @@ import { OpzioniTipo } from "@/components/OpzioniTipo";
 import { normalizzaTipo } from "@/tag/tipiScalari";
 import { FormaNonValida, foglieDi } from "@/tag/forma";
 import type { Membro, TagDataType, TypeDef } from "@/types";
-import { S, SaveBar, SezionePendente } from "./ConfigView";
+import { S, SaveBar, SezionePendente } from "@/config/comuni";
 
 const IN: React.CSSProperties = {
   width: "100%", boxSizing: "border-box", background: "var(--brand-bg, #0f172a)",

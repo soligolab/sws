@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sorgentiSenzaRigheVuote } from "@/config/ConfigView";
+import { sorgentiSenzaRigheVuote } from "@/config/sorgenti/vuote";
 import type { SourceDef } from "@/types";
 
 /** Il caso vero: Sandokan, 2026-09-07. La sorgente `mqtt-casa` aveva 28 righe e
