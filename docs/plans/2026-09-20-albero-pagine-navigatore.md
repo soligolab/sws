@@ -57,6 +57,24 @@ e il clic che chiede la pagina giusta. **Restano**: collaudo del maintainer sull
 albero e navigatori laterali/verticali (oggi solo la barra in fondo a `demo-items`), e — fuori dal piano — le voci gerarchiche indentate in un
 navigatore verticale (`nav_indent`), non richieste.
 
+## Stato (24-09-2026): collaudato sul pannello vero, resta il template
+
+I due «restano» che dipendevano dall'hardware sono chiusi, e non sul TC620 ma sul **WP630**:
+
+- **Collaudo del maintainer**: fatto sull'IDE vero il 23-09 (rifiniture del blocco B) e sul pannello
+  il 24-09, navigando **col dito** fra le pagine.
+- **Prova sul dispositivo col container nuovo**: fatta. Prima con `podman exec … --istantanea` sui
+  quattro casi (barra in fondo, colonna verticale, `children_of_current` che su una foglia mostra le
+  sorelle col percorso davanti, pagina esclusa da un navigatore e raggiunta da un altro), poi **a
+  schermo**, col viewer LVGL che disegna sul pannello al posto di Chromium.
+
+**Resta una cosa sola**: un **template d'esempio** con albero e navigatori laterali/verticali —
+oggi nel parco c'è solo la barra in fondo di `demo-items`. È lavoro di contenuto, non di codice.
+
+**Un difetto trovato dal collaudo, e già corretto** (`a833177a`): una pagina senza navigatore su
+LVGL è un vicolo cieco, perché quel viewer non ha una barra propria. La regola B14 esisteva ma
+guardava solo `hide_viewer_chrome`. Ora copre anche i target LVGL.
+
 **Scarti dal piano, e perché**: la cache dell'elenco pagine lato LVGL è una `static` in `client.rs` (`aggiorna_pagine_nav`), non un `SharedPages` infilato in tutta
 la catena dei renderer; l'etichetta di `nav_items` la risolve il navigatore stesso (web: `vociNavigatore` con la lingua del contesto; LVGL: `resolve_msg` nel renderer),
 quindi `localizeObject` e la lista `TEXT_FIELDS` non sono cambiate; «Migra i testi» non tocca ancora le etichette degli override (nascono già come `{{token}}`

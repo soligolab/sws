@@ -12,9 +12,7 @@
 > spostano», perché citati da altri documenti e dal codice. Lo spostamento in archivio ha
 > riscritto tutti e 33 i riferimenti; un `git log --follow` continua a seguirli.
 
-**In corso, implementato e da collaudare** (20-09-2026): [albero delle pagine e navigatore](2026-09-20-albero-pagine-navigatore.md) —
-F1 (albero + pannello sinistro sempre visibile) e F2 (oggetto `page_navigator`, web + LVGL) sono su `feat/page-navigator`; restano il collaudo
-del maintainer e la prova sul pannello vero (container nuovo). Il resto sta nella tabella sotto — **semi**, non piani d'esecuzione.
+**In corso — resta solo un template** (aggiornato 24-09-2026): [albero delle pagine e navigatore](2026-09-20-albero-pagine-navigatore.md) — F1 (albero + pannello sinistro) e F2 (oggetto `page_navigator`, web + LVGL) sono su `main` e **collaudati sul WP630**, anche a schermo col viewer LVGL. Resta un **template d'esempio** con navigatori laterali/verticali: oggi c'è solo la barra in fondo di `demo-items`. Il resto sta nella tabella sotto — **semi**, non piani d'esecuzione.
 
 **Dal 2026-09-12, anche le questioni aperte di `docs/OPEN_QUESTIONS.md` diventano piani singoli**
 (istruzione del maintainer, tecnica da riusare in futuro) — non li decide questo passaggio, li

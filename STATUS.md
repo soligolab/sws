@@ -80,8 +80,16 @@
 file è stato spostato in [`docs/archive/`](docs/archive/2026-09-21-sessione-stabilizzazione.md).
 I due punti che il 24-09 mattina risultavano bloccati sono stati chiusi entrambi lo stesso giorno,
 e per vie che il piano non prevedeva: il **4** passando al D-Bus dal container (vincolo del
-maintainer), il **5** appena il viewer LVGL è andato a schermo sul pannello. Nessun ramo aperto;
-`main` è avanti a `origin` e **non è stato pushato**.
+maintainer), il **5** appena il viewer LVGL è andato a schermo sul pannello.
+
+**Nessun ramo aperto, tutto su `main` e pushato.** Quattro squash nella giornata: `fcfd4602`
+(immagine di accensione via D-Bus), `a833177a` (l'avviso «da qui non si esce» anche su LVGL),
+`01cb531b` (a parità di severità vince l'ultimo livello, più l'avviso sul doppione), e il collaudo
+di Q55 registrato in `b9b16659`.
+
+**Il primo lavoro che aspetta** è l'unica cosa rimasta del piano dell'albero pagine: un **template
+d'esempio** con navigatori laterali/verticali — nel parco c'è solo la barra in fondo di
+`demo-items`. È contenuto, non codice. Dopo, i **semi** in `docs/plans/`: tre sono nati oggi.
 
 Quello che segue è il resoconto della giornata, dal più recente.
 
