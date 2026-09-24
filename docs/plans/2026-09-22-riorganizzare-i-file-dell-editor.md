@@ -7,6 +7,10 @@
 > **Quando questo lavoro comincerà, il primo passo è una sessione di plan approfondita, in plan
 > mode e senza scrivere codice, per sviscerarne ogni dettaglio.** Questo file è materiale, non un
 > piano d'esecuzione.
+>
+> **24-09-2026**: la parte su `ConfigView.tsx` è entrata nel piano
+> [configurazione ad albero](2026-09-24-configurazione-ad-albero-piano.md), passo 1 — decisa insieme all'albero,
+> come chiedeva questo seme. Il resto (`EditorShell`, `SvgCanvas`, lo store, i colori nelle righe di elenco) resta qui.
 
 ## Misurato oggi (22-09-2026)
 
@@ -83,6 +87,6 @@ componenti**. Finché un controllo è una espressione JSX dentro una funzione de
 - **Niente cambi di comportamento nello stesso passo di uno spostamento**: un file che si muove e
   intanto cambia è un file di cui nessuno sa più se il difetto c'era prima.
 - Il `git log --follow` deve continuare a seguire i file: spostare, non riscrivere.
-- Si incrocia con il seme [«La configurazione diventa un albero laterale»](2026-09-22-configurazione-ad-albero.md),
+- Si incrocia con il seme [«La configurazione diventa un albero laterale»](../archive/2026-09-22-configurazione-ad-albero.md),
   che riorganizza la stessa superficie dal lato dell'interfaccia: **vanno decisi insieme**, o il
   secondo rifà quello che il primo ha appena spostato.
