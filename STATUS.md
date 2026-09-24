@@ -94,8 +94,8 @@ solo il template d'esempio nel parco, che è materiale dimostrativo e non un pez
 
 **Il prossimo lavoro si sceglie fra i semi** di `docs/plans/` — tre sono nati oggi — e la prima
 cosa da fare, qualunque si scelga, è una sessione di plan approfondita in plan mode. Fuori dai
-semi restano due cose annotate: il bump a **2.12.0** con le immagini ufficiali alla release, e
-`origin/feat/segreti-di-progetto` da cancellare (superato).
+semi resta annotato il bump a **2.12.0** con le immagini ufficiali alla release
+(`origin/feat/segreti-di-progetto`, superato, è stato cancellato il 24-09 sera dall'ufficio).
 
 Quello che segue è il resoconto della giornata, dal più recente.
 
