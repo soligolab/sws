@@ -19,6 +19,7 @@ import { Tenuta } from "@/components/Tenuta";
 import { RinominaTagModal } from "@/components/RinominaTagModal";
 import { OpzioniTipo } from "@/components/OpzioniTipo";
 import { TipiTab } from "./TipiTab";
+import { normalizzaScheda, schedaDa, schedeVisibili, type IdScheda } from "./schede";
 import { csvVariabiliETipi } from "@/tag/csvTag";
 import { normalizzaTipo } from "@/tag/tipiScalari";
 import { tipoDaEnIp, tipoDaS7 } from "@/tag/riconciliaTag";
@@ -11427,60 +11428,58 @@ function LanguagesTab() {
   );
 }
 
-// «types» non è più una scheda: i tipi vivono dentro «tags», in una
-// sottoscheda (22-09-2026). Restano nel tipo perché un vecchio valore salvato
-// in localStorage non deve far sparire il pannello: `tab` lo normalizza.
-type ConfigTab = "tags" | "types" | "protocols" | "alarms" | "datastores" | "scripts" | "faceplates" | "recipes" | "notifications" | "languages" | "users" | "resources" | "system" | "backups" | "devices" | "runtime" | "ide";
-
-/** Un «types» che arriva da uno stato salvato prima del 22-09-2026 (o da un
- *  link) non deve lasciare il pannello vuoto: i tipi ora stanno dentro
- *  «tags», e lì si finisce. */
-const normalizza = (x: ConfigTab): ConfigTab => (x === "types" ? "tags" : x);
+/** Il componente di ogni scheda. Un `Record` e non un elenco: se una scheda
+ *  entra in `SCHEDE` e non qui, è il compilatore a dirlo. */
+const COMPONENTI: Record<IdScheda, React.ComponentType> = {
+  tags: TagsTab,
+  protocols: ProtocolsTab,
+  alarms: AlarmsTab,
+  scripts: GlobalScriptsTab,
+  faceplates: FaceplatesTab,
+  recipes: RecipesTab,
+  notifications: NotificationsTab,
+  languages: LanguagesTab,
+  datastores: DatastoresTab,
+  users: UsersTab,
+  resources: ResourcesTab,
+  system: SystemTab,
+  backups: BackupsTab,
+  devices: DevicesTab,
+  runtime: RuntimeConnectionTab,
+  ide: IdePreferencesTab,
+};
 
 export function ConfigView() {
   const { t } = useTranslation();
-  const storeTab    = useAppStore((s) => s.configTab) as ConfigTab;
+  const storeTab    = useAppStore((s) => s.configTab);
   const setStoreTab = useAppStore((s) => s.setConfigTab);
-  const [tab, setTab] = useState<ConfigTab>(() => normalizza(storeTab));
+  const [tab, setTab] = useState<IdScheda>(() => normalizzaScheda(storeTab));
   const authRole = useAppStore((s) => s.authRole);
   const isAdmin = authRole === "Admin";
   const project          = useAppStore((s) => s.project);
   const projectLoadError = useAppStore((s) => s.projectLoadError);
 
   // Sync when the store tab changes (e.g. navigateToConfig from LeftPanel).
-  useEffect(() => { setTab(normalizza(storeTab)); }, [storeTab]);
+  useEffect(() => { setTab(normalizzaScheda(storeTab)); }, [storeTab]);
 
-  const handleSetTab = (t: ConfigTab) => {
+  const handleSetTab = (t: IdScheda) => {
     setTab(t);
     setStoreTab(t);
   };
 
-  // Hide the Utenti tab for non-admins; if the URL/state ever sneaks them
-  // onto it, bounce back to tags.
+  const visibili = schedeVisibili(isAdmin);
+  const corrente = schedaDa(tab);
+
+  // Un non-admin che arriva su una scheda da admin (stato salvato, link,
+  // ruolo cambiato) torna alle variabili.
   useEffect(() => {
-    if (tab === "users" && !isAdmin) handleSetTab("tags");
+    if (corrente.soloAdmin && !isAdmin) handleSetTab("tags");
   }, [tab, isAdmin]);
 
-  const visibleTabs: ConfigTab[] = isAdmin
-    ? ["tags", "protocols", "alarms", "scripts", "faceplates", "recipes", "notifications", "languages", "datastores", "users", "resources", "backups", "system", "devices", "runtime", "ide"]
-    : ["tags", "protocols", "alarms", "scripts", "faceplates", "recipes", "notifications", "languages", "resources", "system", "ide"];
-
-  // Bounce non-admins off the backups, datastores, devices tabs.
-  useEffect(() => {
-    if (tab === "backups"    && !isAdmin) handleSetTab("tags");
-    if (tab === "datastores" && !isAdmin) handleSetTab("tags");
-    if (tab === "devices"    && !isAdmin) handleSetTab("tags");
-  }, [tab, isAdmin]);
-
-  // Guard: tags/protocols/alarms tabs all initialise their local state from
-  // store.project. If project hasn't loaded yet, rendering them would show
-  // empty inputs over a populated YAML and a subsequent save would wipe the
-  // file. The other tabs are independent so they stay available.
-  const projectLoading = project === null
-    && tab !== "users" && tab !== "resources" && tab !== "system"
-    && tab !== "backups" && tab !== "datastores" && tab !== "scripts"
-    && tab !== "faceplates" && tab !== "recipes" && tab !== "notifications"
-    && tab !== "devices" && tab !== "runtime" && tab !== "ide";
+  // Guard: the tabs that initialise their local state from store.project
+  // must not render before it loads — empty inputs over a populated YAML,
+  // and a subsequent save would wipe the file. The others stay available.
+  const projectLoading = project === null && corrente.richiedeProgetto;
 
   // Belt-and-braces: App.tsx already gates mode="config" via effectiveMode,
   // so this is unreachable for non-Supervisor+ today. Kept so a future
@@ -11492,9 +11491,9 @@ export function ConfigView() {
     <div style={S.page}>
       {/* Tab bar */}
       <div style={S.tabBar}>
-        {visibleTabs.map((tb) => (
-          <button key={tb} style={S.tab(tab === tb)} onClick={() => handleSetTab(tb)}>
-            {t(`config.tabs.${tb}`)}
+        {visibili.map((sc) => (
+          <button key={sc.id} style={S.tab(tab === sc.id)} onClick={() => handleSetTab(sc.id)}>
+            {t(`config.tabs.${sc.id}`)}
           </button>
         ))}
       </div>
@@ -11518,22 +11517,12 @@ export function ConfigView() {
                 le sezioni pendenti sopravvivono al cambio di scheda, e il
                 Salva unico le trova. Le altre (istanza, dispositivo) si
                 montano e smontano come prima. */}
-            <Tenuta attiva={tab === "tags"}><TagsTab /></Tenuta>
-            <Tenuta attiva={tab === "protocols"}><ProtocolsTab /></Tenuta>
-            <Tenuta attiva={tab === "alarms"}><AlarmsTab /></Tenuta>
-            <Tenuta attiva={tab === "scripts"}><GlobalScriptsTab /></Tenuta>
-            <Tenuta attiva={tab === "faceplates"}><FaceplatesTab /></Tenuta>
-            <Tenuta attiva={tab === "recipes"}><RecipesTab /></Tenuta>
-            <Tenuta attiva={tab === "notifications"}><NotificationsTab /></Tenuta>
-            <Tenuta attiva={tab === "languages"}><LanguagesTab /></Tenuta>
-            <Tenuta attiva={tab === "datastores" && isAdmin}><DatastoresTab /></Tenuta>
-            {tab === "users"       && isAdmin && <UsersTab />}
-            {tab === "resources"   && <ResourcesTab />}
-            {tab === "system"      && <SystemTab />}
-            {tab === "backups"     && isAdmin && <BackupsTab />}
-            {tab === "devices"    && isAdmin && <DevicesTab />}
-            {tab === "runtime"    && isAdmin && <RuntimeConnectionTab />}
-            {tab === "ide"        && <IdePreferencesTab />}
+            {visibili.map((sc) => {
+              const Scheda = COMPONENTI[sc.id];
+              return sc.portaBozza
+                ? <Tenuta key={sc.id} attiva={tab === sc.id}><Scheda /></Tenuta>
+                : tab === sc.id && <Scheda key={sc.id} />;
+            })}
           </>
         )}
       </div>

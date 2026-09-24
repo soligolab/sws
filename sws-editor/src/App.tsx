@@ -41,6 +41,7 @@ const ConfigView = lazy(() =>
   import("@/config/ConfigView").then((m) => ({ default: m.ConfigView })));
 import { getBrand } from "@/branding";
 import { selectIsDirty, useAppStore } from "@/store";
+import { eSchedaValida } from "@/config/schede";
 import { pickInitialPageId } from "@/pageLayout";
 import { ordinaPagine } from "@/pageTree";
 import { useLogStream } from "@/ws/logStream";
@@ -351,14 +352,15 @@ export function App() {
   // ── URL hash deep-linking (#edit | #view | #config | #config/<tab>) ─────────
   // Read once after the app becomes active (authenticated + project open).
   const deepLinkApplied = useRef(false);
-  const VALID_TABS = ["tags","protocols","alarms","users","resources","system","backups"];
   useEffect(() => {
     if (!authToken || noActiveProject || deepLinkApplied.current) return;
     deepLinkApplied.current = true;
     const hash = window.location.hash.slice(1);
     if (hash.startsWith("config/")) {
       const tab = hash.slice("config/".length);
-      if (VALID_TABS.includes(tab)) navigateToConfig(tab as Parameters<typeof navigateToConfig>[0]);
+      // Tutte le schede del registro, non un elenco a parte: quello di prima ne
+      // aveva sette su sedici, e `#config/faceplates` apriva la scheda precedente.
+      if (eSchedaValida(tab)) navigateToConfig(tab);
       else setMode("config");
     } else if (hash === "edit" || hash === "config") {
       setMode(hash as Mode);

@@ -3,6 +3,7 @@ import i18n from "i18next";
 import { api, setAuthToken, ProjectChangedError, type RilievoProgetto } from "@/api/client";
 import { aggiungi, ordinaPagine, posizioneDi, riconcilia, rimuovi, sposta } from "@/pageTree";
 import { applyAppearance, getStoredMode, type ThemeMode } from "@/theme";
+import type { AppConfigTab } from "@/config/schede";
 import { genId } from "@/id";
 import { getStoredProjectLang, setStoredProjectLang, getStoredEditorPreviewLang, setStoredEditorPreviewLang } from "@/i18n/projectI18n";
 import { normalizeTrendObjects } from "@/canvas/trendModel";
@@ -238,7 +239,8 @@ export type AlignMode =
 
 export type Role = "Viewer" | "Operator" | "Supervisor" | "Admin";
 export type AppMode = "edit" | "config";
-export type AppConfigTab = "tags" | "types" | "protocols" | "alarms" | "scripts" | "faceplates" | "recipes" | "notifications" | "languages" | "datastores" | "users" | "resources" | "system" | "backups" | "devices" | "runtime" | "ide";
+// L'elenco delle schede vive in `config/schede.ts`, il solo posto che lo dichiara.
+export type { AppConfigTab };
 
 interface AppState {
   // Auth
