@@ -74,7 +74,7 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — la stabilizzazione è chiusa, piano archiviato (2026-09-24)
+## ▶ Riprendere da qui — nessun piano in corso, solo semi (2026-09-24)
 
 **Il piano di stabilizzazione del 21-09 è finito**: tutti e sette i passi, Passo 6 compreso, e il
 file è stato spostato in [`docs/archive/`](docs/archive/2026-09-21-sessione-stabilizzazione.md).
