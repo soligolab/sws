@@ -74,7 +74,17 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — Passo 5 chiuso, il Passo 6 aspetta il pannello (2026-09-24)
+## ▶ Riprendere da qui — la stabilizzazione è chiusa, piano archiviato (2026-09-24)
+
+**Il piano di stabilizzazione del 21-09 è finito**: tutti e sette i passi, Passo 6 compreso, e il
+file è stato spostato in [`docs/archive/`](docs/archive/2026-09-21-sessione-stabilizzazione.md).
+I due punti che il 24-09 mattina risultavano bloccati sono stati chiusi entrambi lo stesso giorno,
+e per vie che il piano non prevedeva: il **4** passando al D-Bus dal container (vincolo del
+maintainer), il **5** appena il viewer LVGL è andato a schermo sul pannello. Nessun ramo aperto;
+`main` è avanti a `origin` e **non è stato pushato**.
+
+Quello che segue è il resoconto della giornata, dal più recente.
+
 
 **Sul ramo `fix/rifiniture-navigazione`** (`8f6c14d9`), da mergiare. Il **Passo 5** del piano di
 stabilizzazione è completo:
@@ -185,6 +195,41 @@ pannello, puoi usarlo per i test». Stato attuale, da sapere prima di toccarlo:
    scritta apposta senza navigatore; le ho aggiunto la barra e rideployato. **Il caso generale
    resta**: su LVGL non c'è nessuna chrome, mai, e la regola B14 del 23-09 scatta **solo** con
    `hide_viewer_chrome`.
+
+### Pomeriggio del 24-09: la guardia LVGL, e Q55 collaudato dal vivo
+
+**Due squash su `main`, nessun ramo rimasto.**
+
+- `fcfd4602` — l'immagine di accensione via D-Bus. Collaudata a occhio: dopo spegnimento e
+  riaccensione il maintainer ha visto la propria immagine a barre verticali, e il pannello è
+  ripartito direttamente in LVGL.
+- `a833177a` — **la guardia B14 estesa ai target LVGL**. Non era una guardia nuova: quella del
+  23-09 esisteva già ma guardava solo `hide_viewer_chrome`, e su LVGL la barra non c'è **mai**.
+  Ora l'avviso dice anche **quale** dei due motivi vale, perché mandano a guardare in posti
+  diversi. Provata dal vivo su un'istanza separata alla 8462, poi confermata dal maintainer
+  nell'IDE.
+
+**Q55 è collaudato sul pannello** — era il punto 5, l'ultimo del Passo 6, e fino a stamattina era
+«non applicabile» perché il viewer LVGL non girava sul dispositivo. Pagina di prova con uno slider
+su un tag interno, trascinato **col dito** sul touch: il tag è passato da `0`/`Uncertain` a `19` e
+poi `69`, qualità **Good**, più scritture in fila tutte arrivate, e il viewer è rimasto vivo con lo
+stesso pid. La combinazione che Q55 dice bloccarsi — una PUT che riceve **200** dentro il binario
+del viewer — **completa**, col thread di rete del 20-09. Restano due cose, scritte nel piano
+[Q55](docs/plans/2026-09-18-post-bloccata-viewer-lvgl.md): la scrittura **con token** non è stata
+esercitata (il progetto di prova non ha utenti), e la causa del difetto originale **resta
+inspiegata**.
+
+**Da sapere per la prossima sessione sul pannello.**
+
+- Il runtime del WP630 serve in **HTTP**, non HTTPS: `http://192.168.1.110:8444` per l'IDE remoto,
+  `:8443` per il viewer. Con `https://` la connessione fallisce con un errore TLS che sembra un
+  problema di rete e non lo è. (L'indirizzo cambia fra le sessioni: `wp630-a-p3-07a077.local`.)
+- **`--istantanea --tocca` non esercita la rete**: il tocco sintetico produce il comando e lo
+  stampa, ma in quella modalità nessuno svuota le code (`main.rs:594`). Per collaudare una
+  scrittura serve il viewer vero e un dito vero.
+- **I `{{...}}` non sono binding di tag** ma token della tabella lingue. Un `text` mostra un valore
+  quando ha il campo `tag` e, se serve, `format: "… {value} …"`.
+- Il progetto sul pannello è `nav`, e ha una pagina **Scritture** con lo slider di prova.
 
 ### Rimandato, da fare appena `feat/boot-image-dbus` è chiuso
 
@@ -328,7 +373,7 @@ affidamento.
 ## Riprendere da qui (precedente) — Passo 2 (segreti di progetto): 2a→2g fatti sul ramo, manca il collaudo (2026-09-22, sera, dopo un blackout)
 
 **Ramo `feat/segreti-di-progetto`, non mergiato, mai pushato.** Sette commit, il Passo 2 del piano
-`docs/plans/2026-09-21-sessione-stabilizzazione.md` dal sotto-passo 2a al 2g:
+`docs/archive/2026-09-21-sessione-stabilizzazione.md` dal sotto-passo 2a al 2g:
 
 | | | commit |
 |---|---|---|
@@ -461,7 +506,7 @@ contro `--brand-text` invece di `--synoptic-text`), guardia sui `var(--brand…)
 - **Passo 1** (`f69f1152`): le 25 guardie con stack tornano verdi (esclusa `check_chiave_host`, che vuole un dispositivo). Nessun difetto del prodotto: fixture invecchiate («Page 1» di semina dal 19-09, scala 0..100 delle barre dal 12-09, istanze senza `--viewer-port` usate come dispositivi con utenti). `demo-items`: terza serie del bar chart ora visibile (`min: -50`).
 - Collaudati dal maintainer sul TC620: emoji, notifiche Telegram con allarme tokenizzato, «Migra i testi…», sorgente Host con seriale e nome host.
 
-**Piano in corso**: `docs/plans/2026-09-21-sessione-stabilizzazione.md` — un passo alla volta, un ramo alla volta. **Passo 2 (segreti di progetto) è dettagliato e aspetta cinque conferme del maintainer** prima del codice:
+**Piano in corso**: `docs/archive/2026-09-21-sessione-stabilizzazione.md` — un passo alla volta, un ramo alla volta. **Passo 2 (segreti di progetto) è dettagliato e aspetta cinque conferme del maintainer** prima del codice:
 1. tutti e sette i campi + le perdite (consigliato); 2. deploy: il dispositivo tiene il suo `secrets.yaml` se lo zip non lo porta (consigliato); 3. `.gitignore` anche nei repository esistenti (consigliato);
 4. `tls.key` a 0600 nello stesso passo (consigliato); 5. backup vecchi: solo avvertire (consigliato). Poi sotto-passi 2a-2h.
 

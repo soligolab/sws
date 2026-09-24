@@ -77,6 +77,36 @@ inspiegata** (opzione A, sotto). Non è stato fatto un collaudo dal vivo sul pan
 **Residuo, opzionale — la 2 del seme**: riprodurre nel viewer vero (SDL2 sotto Xvfb, clic sintetici, breadcrumb
 dopo l'`await`) e verificare l'ipotesi «chiamate LVGL da un thread worker».
 
+## Collaudo dal vivo sul WP630, 24-09-2026 — la scrittura completa
+
+Il limite dichiarato il 20-09 era: «Non è stato fatto un collaudo dal vivo sul pannello». Ora è
+fatto, perché nel frattempo il viewer LVGL è andato a schermo sul dispositivo vero.
+
+**Come.** Pagina di prova con uno slider legato a un tag interno (`prova.scrittura`, i16 0-100) e
+un testo con `format: "valore: {value}"`. Progetto deployato sul pannello, viewer a schermo, e il
+maintainer ha trascinato lo slider **col dito**.
+
+**Esito**: il tag è passato da `0`/`Uncertain` a `19`, poi `69`, con qualità **Good** letta dal
+runtime. Più scritture in fila — il trascinamento ne produce una serie — tutte arrivate e in
+ordine. Il viewer è rimasto vivo, **stesso pid**, e ha continuato a disegnare.
+
+Cioè: **la combinazione che Q55 dice bloccarsi — una PUT che riceve 200 dentro il binario del
+viewer — completa**, col thread di rete dedicato del 20-09.
+
+**Due cose che questo collaudo NON dice**, e vanno tenute diritte:
+
+1. **Non era autenticata.** Il progetto di prova non ha utenti, quindi la scrittura è partita senza
+   token. Il caso di Q36 — scrittura **con token** verso un 200 — resta da esercitare; serve un
+   utente nel progetto e un login sul touch del pannello.
+2. **Non spiega la causa.** Resta l'opzione A: il difetto originale non è mai stato riprodotto, e
+   la strada scelta è stata toglierlo di mezzo per costruzione invece di capirlo. Se un giorno
+   qualcuno rimette una `spawn` di rete in questo binario, il rischio torna intatto.
+
+**Una nota su come NON si collauda**: `--istantanea --tocca` **non** esercita la rete. Il tocco
+sintetico produce il comando e lo stampa (`comando prodotto: scrivere Int(79) su '…'`), ma in
+quella modalità nessuno svuota le code — è scritto nel codice, `main.rs:594`. Serve il viewer vero
+in esecuzione, con un tocco vero.
+
 ---
 
 ## Dalla scheda Q55 — `reqwest` via `rt_handle.spawn()` si blocca per sempre nel viewer LVGL, solo per una POST che riceve 200

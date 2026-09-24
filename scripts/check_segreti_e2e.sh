@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # I segreti di progetto, provati su runtime veri (sotto-passo 2h del piano
-# `docs/plans/2026-09-21-sessione-stabilizzazione.md`).
+# `docs/archive/2026-09-21-sessione-stabilizzazione.md`).
 #
 # PERCHÉ ESISTE, ACCANTO A `check_segreti.sh`
 #

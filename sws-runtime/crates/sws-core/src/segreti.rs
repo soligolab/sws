@@ -1,6 +1,6 @@
 //! Segreti di progetto: un file solo, `secrets.yaml`, invece di sette campi
 //! in chiaro sparsi in `project.yaml` (Passo 2 di
-//! `docs/plans/2026-09-21-sessione-stabilizzazione.md`, sotto-passo 2a —
+//! `docs/archive/2026-09-21-sessione-stabilizzazione.md`, sotto-passo 2a —
 //! piano approvato dal maintainer il 22-09-2026: tutti e sette i campi, il
 //! dispositivo tiene il suo `secrets.yaml` se un deploy non lo porta,
 //! `.gitignore` anche nei repository già esistenti, `tls.key` a 0600 nello
