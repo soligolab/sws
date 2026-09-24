@@ -68,8 +68,15 @@ I due «restano» che dipendevano dall'hardware sono chiusi, e non sul TC620 ma 
   sorelle col percorso davanti, pagina esclusa da un navigatore e raggiunta da un altro), poi **a
   schermo**, col viewer LVGL che disegna sul pannello al posto di Chromium.
 
-**Resta una cosa sola**: un **template d'esempio** con albero e navigatori laterali/verticali —
-oggi nel parco c'è solo la barra in fondo di `demo-items`. È lavoro di contenuto, non di codice.
+**Chiuso dal maintainer il 24-09-2026**: «per conto mio è concluso, ho fatto alcuni sinottici con
+il menù pagine in basso e sui lati, direi che il test è ok». Il collaudo che il piano chiedeva è
+quindi fatto, e sui suoi progetti veri invece che su un esempio costruito apposta.
+
+**Quello che resta fuori, dichiarato**: il **template d'esempio** con navigatori laterali/verticali
+non è stato aggiunto al parco di `examples/templates/`, dove c'è ancora solo la barra in fondo di
+`demo-items`. Non è un pezzo mancante della funzione — è materiale dimostrativo. Se un giorno
+servirà (per un manuale, per una demo, o per dare a `check_templates.sh` un caso verticale su cui
+lavorare), si fa in mezz'ora partendo dai sinottici del maintainer.
 
 **Un difetto trovato dal collaudo, e già corretto** (`a833177a`): una pagina senza navigatore su
 LVGL è un vicolo cieco, perché quel viewer non ha una barra propria. La regola B14 esisteva ma

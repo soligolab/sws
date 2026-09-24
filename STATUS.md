@@ -87,9 +87,15 @@ maintainer), il **5** appena il viewer LVGL è andato a schermo sul pannello.
 `01cb531b` (a parità di severità vince l'ultimo livello, più l'avviso sul doppione), e il collaudo
 di Q55 registrato in `b9b16659`.
 
-**Il primo lavoro che aspetta** è l'unica cosa rimasta del piano dell'albero pagine: un **template
-d'esempio** con navigatori laterali/verticali — nel parco c'è solo la barra in fondo di
-`demo-items`. È contenuto, non codice. Dopo, i **semi** in `docs/plans/`: tre sono nati oggi.
+**Non c'è nessun piano d'esecuzione in corso.** Anche l'albero delle pagine è stato chiuso dal
+maintainer il 24-09 («ho fatto alcuni sinottici con il menù pagine in basso e sui lati, direi che
+il test è ok») ed è in [archivio](docs/archive/2026-09-20-albero-pagine-navigatore.md); resta fuori
+solo il template d'esempio nel parco, che è materiale dimostrativo e non un pezzo mancante.
+
+**Il prossimo lavoro si sceglie fra i semi** di `docs/plans/` — tre sono nati oggi — e la prima
+cosa da fare, qualunque si scelga, è una sessione di plan approfondita in plan mode. Fuori dai
+semi restano due cose annotate: il bump a **2.12.0** con le immagini ufficiali alla release, e
+`origin/feat/segreti-di-progetto` da cancellare (superato).
 
 Quello che segue è il resoconto della giornata, dal più recente.
 
@@ -525,7 +531,7 @@ contro `--brand-text` invece di `--synoptic-text`), guardia sui `var(--brand…)
 
 **Fatto oggi, tutto su `main`** (release **2.11.0**, tag e container arm64/amd64 pubblicati; il push di oggi porta anche i commit successivi):
 - **Albero delle pagine** (`page_layout.page_tree`, sempre visibile in alto nel pannello sinistro) e **navigatore di pagine** (`page_navigator`, web + LVGL, `GET /api/pages/nav`), con
-  il fix del falso avviso «progetto cambiato» (`request()` rifissa la baseline; «Ricarica» chiede se ci sono pagine non salvate). Piano e scarti: `docs/plans/2026-09-20-albero-pagine-navigatore.md`.
+  il fix del falso avviso «progetto cambiato» (`request()` rifissa la baseline; «Ricarica» chiede se ci sono pagine non salvate). Piano e scarti: `docs/archive/2026-09-20-albero-pagine-navigatore.md`.
 - **Passo 0** (`62455157`): `kind` EtherNet/IP (`en_ip` → `enip`) con la guardia `check_source_kinds.sh`; `get_path` del registro progetti pota le voci morte; CI riprodotta in locale (fmt, clippy -D warnings, test workspace, lint, type-check: tutto verde; `cargo audit` non installato qui).
 - **Passo 1** (`f69f1152`): le 25 guardie con stack tornano verdi (esclusa `check_chiave_host`, che vuole un dispositivo). Nessun difetto del prodotto: fixture invecchiate («Page 1» di semina dal 19-09, scala 0..100 delle barre dal 12-09, istanze senza `--viewer-port` usate come dispositivi con utenti). `demo-items`: terza serie del bar chart ora visibile (`min: -50`).
 - Collaudati dal maintainer sul TC620: emoji, notifiche Telegram con allarme tokenizzato, «Migra i testi…», sorgente Host con seriale e nome host.
@@ -543,7 +549,7 @@ contro `--brand-text` invece di `--synoptic-text`), guardia sui `var(--brand…)
 
 **Versione 2.11.0** (bump nei quattro file e nei due lockfile, tag annotato). Dentro: fix del falso avviso «progetto cambiato» (`request()` rifissa la baseline del sorvegliante,
 «Ricarica» chiede se ci sono pagine non salvate), **albero delle pagine** (`page_layout.page_tree`, sempre visibile in alto nel pannello sinistro) e
-**navigatore di pagine** (`page_navigator`, web + LVGL, `GET /api/pages/nav`). Piano e scarti: `docs/plans/2026-09-20-albero-pagine-navigatore.md`.
+**navigatore di pagine** (`page_navigator`, web + LVGL, `GET /api/pages/nav`). Piano e scarti: `docs/archive/2026-09-20-albero-pagine-navigatore.md`.
 
 **Template**: `homeassistant-pro` usa albero e navigatore (mergiato). Il container 2.11.0 lo ricostruisce e pubblica chi ha lanciato la release.
 
