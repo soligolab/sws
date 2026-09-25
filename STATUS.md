@@ -74,25 +74,36 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — R3 e R4 su due rami annidati, da collaudare (2026-09-25 sera, ufficio)
+## ▶ Riprendere da qui — R3 e R4 su `main`, piano archiviato; manca il collaudo a schermo (2026-09-25 sera, ufficio)
 
-**Due rami locali, annidati, non mergiati e non pushati** (esistono solo sulla macchina dell'ufficio):
+**Tutto su `main` e pushato, nessun ramo aperto.** Il piano
+[`docs/archive/2026-09-25-menu-ad-albero-secondo-giro.md`](docs/archive/2026-09-25-menu-ad-albero-secondo-giro.md)
+è finito e archiviato. Su istruzione del maintainer («tu fai gli altri») R3 e R4 sono stati mergiati
+**prima** del suo collaudo a schermo:
 
-| ramo | cosa | commit |
-|---|---|---|
-| `feat/albero-oggetti` | **R3** — il ramo Oggetti con tutte le pagine (ordine e rientro del ramo Pagine), solo la corrente aperta e modificabile, ricerca unica che filtra l'albero | `e24d886c` |
-| `feat/proprieta-a-sezioni` (figlio del precedente) | **R4** — pannello destro a colonna unica: gruppi come rami, una sezione aperta più quelle appuntate 📌, la sezione resta cambiando oggetto se c'è, altrimenti l'affine | `ac994222` |
+- **R3** — il ramo Oggetti con tutte le pagine (ordine e rientro del ramo Pagine), solo la corrente aperta
+  e modificabile, ricerca unica che filtra l'albero (via «cerca in tutte le pagine»).
+- **R4** — il pannello destro a colonna unica. Rami che dicono cosa contengono: il tipo (col nome
+  dell'oggetto: Parametri o Testo, assente sulle forme), Posizione e aspetto, Dati e collegamenti,
+  Animazione e interazione. Una sezione aperta più quelle appuntate 📌; cambiando oggetto la sezione resta
+  se c'è, altrimenti si apre quella del tipo. Inventario dei campi invariato.
 
-Su entrambi: build, 828 test, 26 guardie e `cargo check` verdi; provati con Playwright su uno stack di
-scarto. **Manca il collaudo a schermo del maintainer**, poi due squash in ordine (R3, poi R4), i rami
-eliminati e il piano [`docs/plans/2026-09-25-menu-ad-albero-secondo-giro.md`](docs/plans/2026-09-25-menu-ad-albero-secondo-giro.md)
-in archivio (l'avanzamento è scritto nel piano, sul ramo).
+Build, 831 test, 26 guardie e `cargo check` verdi; provati con Playwright su stack di scarto.
+
+**Da fare, nell'ordine:**
+1. **Collaudo a schermo del maintainer** di R3 e R4 (forzare il ricarico dopo la build: l'IDE serve
+   `index-admin.html` senza `Cache-Control`).
+2. **Prove e2e**: adattate all'albero il 25-09 mattina, mai lanciate; dopo R3/R4 alcune potrebbero non
+   tornare (casella «cerca in tutte le pagine», barra di icone a destra).
+3. Buchi dichiarati da R3: figli delle sotto-griglie e dei faceplate nell'albero degli oggetti, trascinare
+   un oggetto fra pagine.
+4. Poi il prossimo lavoro si sceglie fra i semi di `docs/plans/`.
 
 ## Riprendere da qui (precedente) — il menù ad albero, secondo giro: R1 e R2 chiusi (2026-09-25 sera)
 
 **Tutto su `main`, nessun ramo aperto.** Sessione pomeridiana sul dev server, dopo quella del
 mattino che aveva fatto l'albero unico. Il piano è
-[docs/plans/2026-09-25-menu-ad-albero-secondo-giro.md](docs/plans/2026-09-25-menu-ad-albero-secondo-giro.md),
+[docs/archive/2026-09-25-menu-ad-albero-secondo-giro.md](docs/archive/2026-09-25-menu-ad-albero-secondo-giro.md),
 **quattro fasi, due fatte**.
 
 | commit | cosa |

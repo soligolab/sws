@@ -227,7 +227,7 @@ cambiare quali campi esistono, e quella guardia è ciò che lo dimostra. Se camb
 
 - **`LeftPanel.tsx` è a 1 902 righe** e R2+R3 lo toccano in profondità. I pezzi estratti
   (`RigaTagLive`, l'albero degli oggetti) escono in file propri: è la direzione del seme
-  [riorganizzare i file dell'editor](2026-09-22-riorganizzare-i-file-dell-editor.md), fatta per
+  [riorganizzare i file dell'editor](../plans/2026-09-22-riorganizzare-i-file-dell-editor.md), fatta per
   necessità invece che per programma.
 - **Tre alberi, tre implementazioni.** Questo piano non le unifica: sarebbe un quarto lavoro, e
   unificare mentre si cambia il contenuto è il modo di rompere entrambi. Se dopo R3 la duplicazione
