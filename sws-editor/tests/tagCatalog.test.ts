@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sourceTagIds, tagCatalog } from "../src/tagCatalog";
+import { radiceDi, sourceTagIds, tagCatalog } from "../src/tagCatalog";
 import type { ProjectInfo } from "../src/types";
 
 // Il catalogo esiste perché in molti progetti le variabili NON sono dichiarate:
@@ -71,5 +71,29 @@ describe("tagCatalog", () => {
   it("progetto senza nulla → catalogo vuoto (la UI mostra l'avviso, non nasconde il selettore)", () => {
     expect(tagCatalog(project({}))).toEqual([]);
     expect(tagCatalog(null)).toEqual([]);
+  });
+});
+
+describe("radiceDi — di quale variabile è figlio un percorso", () => {
+  /** Il caso che ha fatto nascere la funzione: un id piatto **con un punto
+   *  dentro**. Spezzando sul primo punto si otteneva «host», che nessuna riga
+   *  della tabella ha, e la variabile scelta nell'albero non si evidenziava. */
+  it("un id piatto che contiene un punto è sé stesso", () => {
+    const ids = ["host.Temeprature1", "host.Temeprature2", "radio_option"];
+    expect(radiceDi("host.Temeprature1", ids)).toBe("host.Temeprature1");
+    expect(radiceDi("radio_option", ids)).toBe("radio_option");
+  });
+
+  it("una foglia risale alla sua istanza", () => {
+    expect(radiceDi("motore1.velocita", ["motore1"])).toBe("motore1");
+    expect(radiceDi("valvole[2].stato", ["valvole"])).toBe("valvole");
+  });
+
+  it("fra due contenitori possibili vince il più lungo", () => {
+    expect(radiceDi("motore1.pid.kp", ["motore1", "motore1.pid"])).toBe("motore1.pid");
+  });
+
+  it("un percorso di nessuno non ha radice", () => {
+    expect(radiceDi("altro.cosa", ["motore1"])).toBeNull();
   });
 });

@@ -26,8 +26,9 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { useAppStore, type VoceElencoConfig } from "@/store";
-import { RAMI, SOTTORAMI, schedeVisibili, type IdScheda, type RamoConfig, type SchedaConfig, type SottoRamo } from "@/config/schede";
+import { RAMI, SCHEDE, SOTTORAMI, schedeVisibili, type IdScheda, type RamoConfig, type SchedaConfig, type SottoRamo } from "@/config/schede";
 import { useRepoDisponibile } from "@/config/repoDisponibile";
+import { AlberoTagLive } from "./AlberoTagLive";
 import { IntestazioneSezione, SPAZIO, TESTO, guideAlbero, useSezioneAperta } from "./stilePannelli";
 
 /** Gli elementi di ricette e utenti, che il progetto non porta: una richiesta
@@ -131,7 +132,7 @@ const stileIcona: React.CSSProperties = {
   flexShrink: 0, textAlign: "center", overflow: "hidden",
 };
 
-function Foglia({ scheda, elementi, modificata, dentroSottoRamo = false, ultimo = false }: {
+function Foglia({ scheda, elementi, modificata, dentroSottoRamo = false, ultimo = false, navigabile = true }: {
   scheda: SchedaConfig; elementi: VoceElencoConfig[] | null; modificata: boolean;
   /** Una foglia dentro un sotto-ramo sta un gradino più a destra, e con lei i
    *  suoi elementi. */
@@ -139,6 +140,9 @@ function Foglia({ scheda, elementi, modificata, dentroSottoRamo = false, ultimo 
   /** L'ultima voce del suo elenco: la verticale si ferma a metà e chiude
    *  l'angolo invece di proseguire nel vuoto. */
   ultimo?: boolean;
+  /** Chi non può configurare vede la foglia «Variabili» — le servono i valori
+   *  live che ci stanno sotto — ma il clic non apre la scheda di modifica. */
+  navigabile?: boolean;
 }) {
   const { t } = useTranslation();
   const inConfig   = useAppStore((s) => s.appMode === "config");
@@ -150,8 +154,11 @@ function Foglia({ scheda, elementi, modificata, dentroSottoRamo = false, ultimo 
   // Chiusa la prima volta: con dieci sorgenti e venti faceplate aperti insieme
   // l'albero smetterebbe di essere la mappa d'insieme che deve essere.
   const [aperta, commuta] = useSezioneAperta(`config.foglia.${id}`, false);
+  // Le variabili non hanno un elenco di elementi come le altre: hanno sotto
+  // **sé stesse, live** (25-09-2026). Sono centinaia, quindi nascono chiuse.
+  const tagLive = id === "tags";
   // Un elemento scelto (da un link, o dalla scheda stessa) apre il suo ramo.
-  const mostraFigli = elementi !== null && (aperta || (suQuesta && configFocus !== null));
+  const mostraFigli = tagLive ? aperta : elementi !== null && (aperta || (suQuesta && configFocus !== null));
   const gradino = dentroSottoRamo ? SPAZIO.l : 0;
 
   return (
@@ -165,7 +172,7 @@ function Foglia({ scheda, elementi, modificata, dentroSottoRamo = false, ultimo 
         paddingLeft: SPAZIO.l + SPAZIO.m + gradino - LARGHEZZA_FRECCIA,
         ...guideAlbero([], gancio(SPAZIO.l + SPAZIO.m + gradino, ultimo)),
       }}>
-        {elementi !== null && elementi.length > 0 ? (
+        {tagLive || (elementi !== null && elementi.length > 0) ? (
           <button
             type="button"
             data-testid={`expand-config-${id}`}
@@ -183,7 +190,7 @@ function Foglia({ scheda, elementi, modificata, dentroSottoRamo = false, ultimo 
           type="button"
           data-testid={`foglia-config-${id}`}
           aria-current={suQuesta && configFocus === null ? "page" : undefined}
-          onClick={() => navigateToConfig(id)}
+          onClick={navigabile ? () => navigateToConfig(id) : commuta}
           style={stileRiga(suQuesta && configFocus === null, 0)}
         >
           <span aria-hidden="true" style={stileIcona}>{scheda.icona}</span>
@@ -196,7 +203,8 @@ function Foglia({ scheda, elementi, modificata, dentroSottoRamo = false, ultimo 
           )}
         </button>
       </div>
-      {mostraFigli && elementi.map((v, i) => {
+      {mostraFigli && tagLive && <AlberoTagLive rientro={SPAZIO.l + SPAZIO.m + gradino + LARGHEZZA_FRECCIA} puoAprire={navigabile} />}
+      {mostraFigli && !tagLive && elementi !== null && elementi.map((v, i) => {
         const scelta = suQuesta && configFocus === v.id;
         return (
           <button
@@ -323,10 +331,26 @@ function Ramo({ ramo, icona, elementiDi, repo }: {
 
 /** I rami di configurazione. Stanno in fondo all'albero unico del pannello
  *  sinistro (`LeftPanel`), che scorre per intero. */
-export function AlberoConfigurazione() {
+export function AlberoConfigurazione({ soloVariabili = false }: {
+  /** Chi non può configurare non vede la Configurazione, ma **le variabili
+   *  live sì**: erano l'unica cosa che aveva nel pannello prima del
+   *  25-09-2026, e spostandole sotto una foglia di configurazione le avrebbe
+   *  perse. Vede quella foglia sola, e il clic apre i valori invece della
+   *  scheda di modifica. */
+  soloVariabili?: boolean;
+}) {
   const isAdmin = useAppStore((s) => s.authRole === "Admin");
   const elementiDi = useElementi(isAdmin);
   const repo = useRepoDisponibile();
+  if (soloVariabili) {
+    const tags = SCHEDE.find((s) => s.id === "tags");
+    if (!tags) return null;
+    return (
+      <div style={{ padding: `0 ${SPAZIO.m}px` }}>
+        <Foglia scheda={tags} elementi={null} modificata={false} ultimo navigabile={false} />
+      </div>
+    );
+  }
   return (
     <>
       {RAMI.map((r) => <Ramo key={r.id} ramo={r.id} icona={r.icona} elementiDi={elementiDi} repo={repo} />)}

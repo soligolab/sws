@@ -10,6 +10,8 @@ import { csvVariabiliETipi } from "@/tag/csvTag";
 import { normalizzaTipo } from "@/tag/tipiScalari";
 import type { GeneratorSpec, TagDataType, TagDef } from "@/types";
 import { buildTagUsage, usiDiUnTag } from "@/search/tagUsage";
+import { UsiDelTag } from "@/editor/RigaTagLive";
+import { radiceDi } from "@/tagCatalog";
 import { useAppStore } from "@/store";
 import { sourceTagIds } from "@/tagCatalog";
 import { useSezioneSincronizzata } from "@/config/useSezioneSincronizzata";
@@ -27,6 +29,27 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
   const tagValues           = useAppStore((s) => s.tagValues);
   const markSaveOk          = useAppStore((s) => s.markSaveOk);
   const datastoreIds        = storeProject?.datastores?.map((d) => ({ id: d.id, label: d.label })) ?? [];
+  const setCurrentPage      = useAppStore((s) => s.setCurrentPage);
+  const configFocus         = useAppStore((s) => s.configFocus);
+  const inQuestaScheda      = useAppStore((s) => s.configTab === "tags");
+  /** La variabile scelta nell'albero. Una foglia (`motore1.velocita`)
+   *  evidenzia la sua **radice**, che è la riga che la tabella ha davvero.
+   *
+   *  La radice non si ricava spezzando sul primo punto: un id piatto può
+   *  contenerne (`host.Temeprature1` è un tag intero, non un'istanza), e così
+   *  si evidenziava una riga «host» che non esiste — difetto trovato dal
+   *  maintainer al primo collaudo, 25-09-2026. Si guarda invece quali id
+   *  esistono davvero, e si prende il più lungo che sia prefisso del focus. */
+  const radiceScelta = useMemo(
+    () => (inQuestaScheda && configFocus
+      ? radiceDi(configFocus, (storeProject?.tags ?? []).map((x) => x.id))
+      : null),
+    [inQuestaScheda, configFocus, storeProject?.tags],
+  );
+  const rigaScelta = useRef<HTMLTableRowElement | null>(null);
+  React.useEffect(() => {
+    rigaScelta.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [radiceScelta]);
 
   // Una scheda vuota mostrava solo la riga dei filtri, e il maintainer — il
   // 18-09-2026 — ci ha scritto dentro la variabile che voleva creare. Quindi:
@@ -429,9 +452,19 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
             const usiTag = usiDiUnTag(tag, usedTagInfo, storeProject?.types ?? []);
             const uses = usiTag.length > 0 ? usiTag : undefined;
             const unused = tag.id.trim() !== "" && !uses;
+            // La variabile scelta nell'albero: qui si legge il suo dettaglio,
+            // perché il riquadro dentro l'albero «creava confusione»
+            // (maintainer, 25-09-2026). Una foglia evidenzia la sua radice.
+            const scelta = radiceScelta !== null && tag.id === radiceScelta;
             return (
               <React.Fragment key={i}>
-              <tr style={{ background: unused ? "rgba(245,158,11,0.07)" : i % 2 === 0 ? "transparent" : "var(--brand-bg, #0f172a)" }}>
+              <tr
+                ref={scelta ? rigaScelta : undefined}
+                style={{
+                  background: scelta ? "var(--brand-surface, #1e293b)" : unused ? "rgba(245,158,11,0.07)" : i % 2 === 0 ? "transparent" : "var(--brand-bg, #0f172a)",
+                  outline: scelta ? "1px solid var(--brand-primary, #3b82f6)" : undefined,
+                }}
+              >
                 <td style={{ ...S.td, textAlign: "center" }}
                   title={unused ? t("cfg.unusedHint") : uses ? `${t("cfg.usedIn")}: ${uses.slice(0, 4).map((u) => u.where).join(", ")}${uses.length > 4 ? "…" : ""}` : ""}>
                   {unused
@@ -570,6 +603,15 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
                           onClick={() => { if (!uses) removeTag(i); }}>✕</button>
                 </td>
               </tr>
+              {/* Il dettaglio della variabile scelta dall'albero: dove è
+                  usata, raggruppato. Qui c'è la larghezza per leggerlo. */}
+              {scelta && (
+                <tr style={{ background: "var(--brand-surface, #1e293b)" }}>
+                  <td colSpan={8} style={{ ...S.td, paddingTop: 4, paddingBottom: 8 }}>
+                    <UsiDelTag usi={usiTag} onVaiAPagina={setCurrentPage} />
+                  </td>
+                </tr>
+              )}
               {metaOpen.has(i) && (
                 <tr style={{ background: "#0a1628" }}>
                   <td colSpan={8} style={{ ...S.td, paddingTop: 6, paddingBottom: 8 }}>

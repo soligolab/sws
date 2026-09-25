@@ -1,9 +1,8 @@
-import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { useAppStore } from "@/store";
 import { findObjects } from "@/search/findObjects";
-import { buildTagUsage, type TagUse } from "@/search/tagUsage";
 import { SvgCanvas } from "@/canvas/SvgCanvas";
 import { findBrokenNavLinks, findOrphanPageIds } from "@/pageLayout";
 import { resolvePageBackground } from "@/theme";
@@ -1730,115 +1729,6 @@ function FunctionsSection({ onFunctionsChanged }: { onFunctionsChanged: () => vo
 
 // ── Tags section ──────────────────────────────────────────────────────────────
 
-function TagsSection() {
-  const corpo = useCorpo();
-  const { t: t2 }   = useTranslation();
-  const project     = useAppStore((s) => s.project);
-  const tagValues   = useAppStore((s) => s.tagValues);
-  const pages       = useAppStore((s) => s.pages);
-  const faceplates  = useAppStore((s) => s.faceplates);
-  const setCurrentPage = useAppStore((s) => s.setCurrentPage);
-  const [openTag, setOpenTag] = useState<string | null>(null);
-
-  const tags = project?.tags ?? [];
-  // F8.3 — stessa logica del tab Variabili, in un modulo condiviso.
-  const usage = useMemo(
-    () => buildTagUsage({
-      pages, faceplates, alarms: project?.alarms, tags,
-      globalScripts: project?.global_scripts,
-    }),
-    [pages, faceplates, project?.alarms, project?.global_scripts, tags],
-  );
-
-  const dot = (q: string) => {
-    const color = q === "Good" ? "var(--brand-success, #22c55e)" : q === "Bad" ? "var(--brand-danger, #ef4444)" : "var(--brand-warning, #eab308)";
-    return (
-      <span
-        style={{
-          display: "inline-block",
-          width: 6, height: 6,
-          borderRadius: "50%",
-          background: color,
-          flexShrink: 0,
-        }}
-      />
-    );
-  };
-
-  if (tags.length === 0) {
-    return (
-      <Section title={t2("editor.sectionTags")} defaultOpen={false} memoria="sinistra.tag" icona="🏷">
-        <p style={{ padding: "8px 12px", fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", margin: 0 }}>
-          {t2("leftPanel.noTagsLoadAProject")}
-        </p>
-      </Section>
-    );
-  }
-
-  return (
-    <Section title={`${t2("editor.sectionTags")} (${tags.length})`} defaultOpen={false} memoria="sinistra.tag" icona="🏷">
-      <div style={corpo}>
-        {tags.map((t) => {
-          const tv = tagValues[t.id];
-          // F8.3 — "dove è usato questo tag": click sulla riga per espandere
-          // l'elenco dei punti che lo riferiscono (pagine, allarmi, espressioni,
-          // script), con navigazione diretta alla pagina.
-          const uses = usage.get(t.id) ?? [];
-          const open = openTag === t.id;
-          return (
-            <div key={t.id}>
-              <div
-                style={{ ...S.row(open), gap: 6, justifyContent: "space-between", cursor: "pointer",
-                  ...guideAlbero([], { x: 13, finoA: 20, ultimo: t === tags[tags.length - 1] }) }}
-                onClick={() => setOpenTag(open ? null : t.id)}
-                title={uses.length > 0 ? t2("editor.tagUsesCount", { count: uses.length }) : t2("editor.tagUsesNone")}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 5, minWidth: 0 }}>
-                  {tv ? dot(tv.quality) : (
-                    <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: "var(--brand-surface-2, #334155)", flexShrink: 0 }} />
-                  )}
-                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11 }}>
-                    {t.id}
-                  </span>
-                  {/* Pallino ambra = nessun riferimento trovato, come nel tab Variabili. */}
-                  {uses.length === 0 && (
-                    <span style={{ display: "inline-block", width: 5, height: 5, borderRadius: "50%", background: "#f59e0b", flexShrink: 0 }} />
-                  )}
-                </div>
-                {tv != null && (
-                  <span style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 11, flexShrink: 0 }}>
-                    {String(tv.value)}
-                  </span>
-                )}
-              </div>
-              {open && (
-                <div style={{ padding: "2px 12px 4px 22px", background: "var(--brand-bg, #0f172a)" }}>
-                  {uses.length === 0 ? (
-                    <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)" }}>
-                      {t2("editor.tagUnused")}
-                    </div>
-                  ) : uses.map((u: TagUse, i: number) => (
-                    <div
-                      key={i}
-                      onClick={() => { if (u.pageId) setCurrentPage(u.pageId); }}
-                      style={{ fontSize: 10, color: "var(--brand-text-muted, #94a3b8)", padding: "1px 0",
-                               cursor: u.pageId ? "pointer" : "default", textDecoration: u.pageId ? "underline dotted" : undefined }}
-                    >
-                      · {u.where}
-                    </div>
-                  ))}
-                  <div style={{ fontSize: 9, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 2 }}>
-                    {t2("editor.tagUsageScope")}
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </Section>
-  );
-}
 
 // ── Sources section ───────────────────────────────────────────────────────────
 
@@ -1918,8 +1808,10 @@ export function LeftPanel() {
             {conPagine && <RamoStrumenti />}
             {conPagine && <ObjectsSection />}
             {conPagine && <FunctionsSection onFunctionsChanged={persistiFunzioni} />}
-            <TagsSection />
-            {puoConfigurare && <AlberoConfigurazione />}
+            {/* Le variabili non hanno più un ramo loro: stanno sotto
+                «Progetto › Variabili», dove si modificano (25-09-2026). Chi
+                non può configurare vede quella foglia e basta. */}
+            <AlberoConfigurazione soloVariabili={!puoConfigurare} />
           </div>
         </InAlbero.Provider>
       </div>

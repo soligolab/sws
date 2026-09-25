@@ -15,12 +15,21 @@ import { foglieDiTolleranti } from "@/tag/forma";
 import type { AlarmDef, FaceplateDef, GlobalScriptDef, SynopticPage, TagDef, TypeDef } from "@/types";
 import i18n from "i18next";
 
-/** Riferimenti trovati per un tag: dove, e (per le pagine) l'id dell'oggetto. */
+/** Dove vive un riferimento. Serve a raggruppare l'elenco invece di
+ *  sciorinarlo: «Pagine (2)», «Allarmi (1)» dice a colpo d'occhio da dove
+ *  arriva il grosso, un elenco piatto no (maintainer, 25-09-2026). */
+export type CategoriaUso = "pagina" | "allarme" | "espressione" | "script";
+
+/** Riferimenti trovati per un tag: dove, e (per le pagine) l'oggetto. */
 export interface TagUse {
   /** Testo pronto da mostrare, es. `pagina "Impianto"`. */
   where: string;
+  categoria: CategoriaUso;
   /** Id pagina, quando il riferimento è su una pagina (per navigarci). */
   pageId?: string;
+  /** Il nome dell'oggetto che lo usa, quando si sa: «pagina Home» dice dove
+   *  cercare, «Home › indicatore CPU» dice cosa si è trovato. */
+  oggetto?: string;
 }
 
 /** Gli usi di un tag **comprese le sue foglie**, per un'istanza.
@@ -76,28 +85,47 @@ export function buildTagUsage({
     if (!id) return;
     const arr = m.get(id) ?? [];
     // Tetto per riga: l'elenco serve a capire DOVE cercare, non a essere esaustivo.
-    if (arr.length < 12 && !arr.some((u) => u.where === use.where)) arr.push(use);
+    const uguale = (u: TagUse) => u.where === use.where && u.oggetto === use.oggetto;
+    if (arr.length < 12 && !arr.some(uguale)) arr.push(use);
     m.set(id, arr);
   };
 
+  // Oggetto per oggetto e non tutta la pagina in un colpo: così si sa **chi**
+  // usa il tag, non solo dove cercarlo. Costa una scansione per oggetto, che
+  // su una pagina vera sono decine, non migliaia.
   for (const pg of pages) {
-    for (const id of collectTagIds(pg.objects, faceplates)) {
-      add(id, { where: i18n.t("tagUsage.page", { name: pg.name }), pageId: pg.id });
+    for (const obj of pg.objects) {
+      // Il nome se c'è, altrimenti il **tipo**: l'id di un oggetto è generato
+      // (`mub8v3dph67et`) e non dice niente a chi legge — misurato guardando
+      // l'albero vero, 25-09-2026.
+      const nome = obj.name || obj.type;
+      for (const id of collectTagIds([obj], faceplates)) {
+        add(id, {
+          where: i18n.t("tagUsage.page", { name: pg.name }),
+          categoria: "pagina", pageId: pg.id, oggetto: nome,
+        });
+      }
     }
   }
   for (const a of alarms) {
-    add(a.tag, { where: i18n.t("tagUsage.alarm", { id: a.id }) });
-    if (a.inhibit_tag) add(a.inhibit_tag, { where: i18n.t("tagUsage.alarmInhibit", { id: a.id }) });
+    add(a.tag, { where: i18n.t("tagUsage.alarm", { id: a.id }), categoria: "allarme" });
+    if (a.inhibit_tag) {
+      add(a.inhibit_tag, { where: i18n.t("tagUsage.alarmInhibit", { id: a.id }), categoria: "allarme" });
+    }
   }
   for (const td of tags) {
     if (!td.expression) continue;
     for (const mm of td.expression.matchAll(EXPR_RE)) {
-      add(mm[2] ?? mm[4] ?? "", { where: `espressione di "${td.id}"` });
+      add(mm[2] ?? mm[4] ?? "", {
+        where: i18n.t("tagUsage.expression", { id: td.id }), categoria: "espressione",
+      });
     }
   }
   for (const gs of globalScripts) {
     for (const mm of gs.code.matchAll(EXPR_RE)) {
-      add(mm[2] ?? mm[4] ?? "", { where: `script "${gs.id}"` });
+      add(mm[2] ?? mm[4] ?? "", {
+        where: i18n.t("tagUsage.script", { id: gs.id }), categoria: "script",
+      });
     }
   }
   return m;

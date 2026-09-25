@@ -286,6 +286,22 @@
     "match_type": "type",
     "tagUnused": "No reference found in pages, alarms, expressions or scripts.",
     "tagUsageScope": "Recipes and Python functions are not checked.",
+    "raggruppaPer": "Group by:",
+    "raggruppaAltro": "Other",
+    "raggruppaSemplici": "Simple",
+    "raggruppaInterne": "Internal",
+    "raggruppa": {
+      "nessuno": "none",
+      "dato": "data type",
+      "tipo": "structure type",
+      "sorgente": "source"
+    },
+    "tagUsageGroup": {
+      "pagina": "Pages",
+      "allarme": "Alarms",
+      "espressione": "Expressions",
+      "script": "Scripts"
+    },
     "historyTitle": "History",
     "historyList": "Change history ({{n}} steps)",
     "historyEmpty": "Nothing to undo yet.",

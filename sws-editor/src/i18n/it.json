@@ -286,6 +286,22 @@
     "match_type": "tipo",
     "tagUnused": "Nessun riferimento trovato in pagine, allarmi, espressioni o script.",
     "tagUsageScope": "Ricette e funzioni Python non sono controllate.",
+    "raggruppaPer": "Raggruppa:",
+    "raggruppaAltro": "Altri",
+    "raggruppaSemplici": "Semplici",
+    "raggruppaInterne": "Interne",
+    "raggruppa": {
+      "nessuno": "nessuno",
+      "dato": "tipo di dato",
+      "tipo": "tipo struttura",
+      "sorgente": "sorgente"
+    },
+    "tagUsageGroup": {
+      "pagina": "Pagine",
+      "allarme": "Allarmi",
+      "espressione": "Espressioni",
+      "script": "Script"
+    },
     "historyTitle": "Cronologia",
     "historyList": "Cronologia delle modifiche ({{n}} passi)",
     "historyEmpty": "Nessuna modifica da annullare.",

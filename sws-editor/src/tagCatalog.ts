@@ -20,6 +20,23 @@ export interface TagCatalogEntry {
   livello?: number;
 }
 
+/** Di quale variabile dichiarata è figlio questo percorso.
+ *
+ *  Non si spezza sul primo punto: un id piatto può contenerne — in un
+ *  progetto vero c'è `host.Temeprature1`, che è un tag intero e non
+ *  un'istanza — e spezzando si otteneva un «host» che nessuna riga ha
+ *  (difetto trovato dal maintainer il 25-09-2026, cliccando l'albero delle
+ *  variabili). Si guardano invece gli id che esistono davvero, e si prende il
+ *  più lungo che sia prefisso del percorso: con `motore1` e `motore1.pid`
+ *  entrambi dichiarati, `motore1.pid.kp` appartiene al secondo.
+ *
+ *  Ritorna `null` se nessun id dichiarato lo contiene. */
+export function radiceDi(percorso: string, ids: readonly string[]): string | null {
+  if (ids.includes(percorso)) return percorso;
+  const contenitori = ids.filter((id) => percorso.startsWith(id + ".") || percorso.startsWith(id + "["));
+  return contenitori.sort((a, b) => b.length - a.length)[0] ?? null;
+}
+
 /** Quanti livelli sotto la radice sta un percorso: `motore1.pid.kp` → 2. */
 function profonditaDi(percorso: string, radice: string): number {
   const resto = percorso.slice(radice.length);

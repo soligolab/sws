@@ -141,12 +141,22 @@ describe("pannello sinistro — un albero solo", () => {
     expect(screen.queryByTestId("foglia-config-runtime")).toBeNull();
   });
 
-  it("chi non può modificare né configurare vede solo i tag", () => {
+  /** Dal 25-09-2026 le variabili live stanno **sotto** la foglia
+   *  «Variabili», non in un ramo loro. Chi non può configurare deve vederle
+   *  lo stesso — erano l'unica cosa che aveva nel pannello — quindi vede
+   *  quella foglia sola, e il clic apre i valori invece della scheda. */
+  it("chi non può modificare né configurare vede solo le variabili", () => {
     useAppStore.setState({ authRole: "Operator" });
     monta();
     expect(screen.queryByTestId("albero-pagine")).toBeNull();
     expect(screen.queryByText(i18n.t("leftPanel.strumenti"))).toBeNull();
-    expect(screen.queryByTestId("foglia-config-tags")).toBeNull();
+    // La foglia c'è, ma è l'unica: niente altre schede di configurazione.
+    expect(screen.getByTestId("foglia-config-tags")).toBeTruthy();
+    expect(screen.queryByTestId("foglia-config-alarms")).toBeNull();
+    expect(screen.queryByTestId("sottoramo-config-device")).toBeNull();
+    // E non porta alla scheda di modifica.
+    fireEvent.click(screen.getByTestId("foglia-config-tags"));
+    expect(useAppStore.getState().appMode).not.toBe("config");
   });
 });
 
