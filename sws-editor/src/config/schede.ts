@@ -13,7 +13,7 @@
  *
  *  Da qui derivano tutti e quattro. È anche il registro da cui l'albero della
  *  Configurazione prenderà rami e foglie (piano
- *  `docs/plans/2026-09-24-configurazione-ad-albero-piano.md`).
+ *  `docs/archive/2026-09-24-configurazione-ad-albero-piano.md`).
  *
  *  Niente JSX e niente import: lo importano sia lo store sia `ConfigView`, e un
  *  modulo di sole dichiarazioni non può creare cicli.

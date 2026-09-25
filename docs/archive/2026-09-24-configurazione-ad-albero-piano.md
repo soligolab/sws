@@ -1,8 +1,8 @@
 # Configurazione ad albero, e ConfigView diviso in file — piano
 
 > Sessione di plan approfondita del 24-09-2026 sui due semi gemelli
-> [configurazione ad albero](../archive/2026-09-22-configurazione-ad-albero.md) e
-> [riorganizzare i file dell'editor](2026-09-22-riorganizzare-i-file-dell-editor.md), decisi insieme
+> [configurazione ad albero](2026-09-22-configurazione-ad-albero.md) e
+> [riorganizzare i file dell'editor](../plans/2026-09-22-riorganizzare-i-file-dell-editor.md), decisi insieme
 > come chiedono entrambi. **Stato (24-09-2026 sera): passi 0-3 implementati su quattro rami annidati,
 > da collaudare a schermo col maintainer prima dello squash.** Vedi «Avanzamento» in fondo.
 >

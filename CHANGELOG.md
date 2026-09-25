@@ -21,7 +21,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 - **L'albero ⚙ dice dove ci sono modifiche non salvate**: un pallino, dello stesso colore del «● non salvato» della testata, sull'elemento cambiato (una sorgente, uno script, un
   faceplate, un datastore, la ricetta aperta), sulla sua scheda e sul ramo — così si vede anche a ramo chiuso. Le schede senza elementi lo prendono dalla loro bozza pendente. Un elemento
   cambiato e rimesso com'era non è modificato: il confronto è per valore.
-- **La Configurazione diventa un albero, sempre a portata di mano** (piano `docs/plans/2026-09-24-configurazione-ad-albero-piano.md`, idea del maintainer del 22-09). Il pannello sinistro sale da
+- **La Configurazione diventa un albero, sempre a portata di mano** (piano `docs/archive/2026-09-24-configurazione-ad-albero-piano.md`, idea del maintainer del 22-09). Il pannello sinistro sale da
   `EditorShell` ad `App.tsx` e resta visibile anche in Configurazione, con una vista nuova **⚙**: rami Progetto, Dati, Sicurezza, Istanza, IDE, e dentro le schede. Una foglia porta alla sua scheda
   anche partendo dall'editor; una pagina scelta nell'albero delle pagine riporta all'editor. La barra orizzontale delle schede sparisce, sostituita da un'intestazione «Ramo › Scheda › elemento».
   - **Secondo livello**: Protocolli, Python, Faceplate, Ricette, Datastore e Utenti si aprono sui loro elementi. Un elemento apre la scheda su di sé (per le sorgenti: solo quella card), la scheda

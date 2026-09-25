@@ -74,29 +74,37 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — il pannello sinistro è un albero solo, tutto su `main` (2026-09-25)
+## ▶ Riprendere da qui — il pannello sinistro è un albero solo; nessun piano in corso (2026-09-25)
 
-**Tutto su `main` e pushato, nessun ramo aperto.** In ordine, dopo i quattro squash dell'albero di
-configurazione (`f553b1b8`…`aaa4b8e1`):
+**Tutto su `main` e pushato, nessun ramo aperto.** Sessione iniziata il 24-09 sera all'ufficio
+(macchina riallineata: `main` era indietro di 15, `feat/segreti-di-progetto` cancellato anche su
+origin) e chiusa il 25-09 mattina. Il piano della giornata,
+[`docs/archive/2026-09-24-configurazione-ad-albero-piano.md`](docs/archive/2026-09-24-configurazione-ad-albero-piano.md),
+è **finito e archiviato**.
 
 | commit | cosa |
 |---|---|
-| `ded73294` | pallini «modificato» su elemento, scheda e ramo dell'albero |
-| `49752fd2` | fix: personalizzare un faceplate **builtin** dava sempre 409 (difetto anteriore all'albero) |
+| `f553b1b8` | registro unico delle schede (`config/schede.ts`); ripara `#config/<scheda>` per tutte |
+| `2abb7d98` | `ConfigView.tsx` da 11 914 righe a 125: `config/schede/`, `config/sorgenti/`, `config/comuni.tsx` |
+| `5ab63485` | vista ⚙: la Configurazione diventa un albero; Tipi foglia sua; via la vista Sorgenti |
+| `aaa4b8e1` | secondo livello: sorgenti, script, faceplate, ricette, datastore, utenti; `#config/<scheda>/<elemento>` |
+| `ded73294` | pallini «modificato» su elemento, scheda e ramo |
+| `49752fd2` | fix: personalizzare un faceplate **builtin** dava sempre 409 (difetto anteriore) |
 | `cc762ad0` | pagine e immagini di boot come rami in Configurazione (superato dal successivo) |
-| `683baf05` | **albero unico**: via la colonna di icone, via il blocco fisso delle pagine, via i pulsanti Editor/Configurazione in testata; la palette è il ramo «Strumenti» |
+| `683baf05` | **albero unico**: via colonna di icone, blocco fisso delle pagine e pulsanti Editor/Configurazione; la palette è il ramo «Strumenti»; dove si è lo decide il clic |
 
-Dove si è lo decide il clic nell'albero: pagina, strumento, oggetto o funzione → editor; foglia di
-configurazione → scheda. Uno strumento cliccato in Configurazione torna all'editor e aggiunge l'oggetto.
-
-**Da guardare:**
-1. Collaudo a schermo dell'albero unico da parte del maintainer (provato solo con Playwright su uno stack di
-   scarto): resa delle emoji, rami aperti/chiusi di partenza, righe della palette al posto dei riquadri.
-2. Le prove e2e (`bugcheck`, `screenshots`) sono state adattate all'albero (`vaiAllEditor`,
+**Da fare, nell'ordine:**
+1. **Collaudo a schermo del maintainer** dell'albero unico (provato solo con Playwright su stack di scarto):
+   resa delle emoji, rami aperti/chiusi di partenza, righe della palette al posto dei riquadri (22-09),
+   uno strumento cliccato dalla Configurazione, le foglie di secondo livello, i pallini.
+2. Le prove e2e (`bugcheck`, `screenshots`) sono adattate all'albero (`vaiAllEditor`,
    `vaiInConfigurazione` in `e2e/fixtures.ts`) ma **non lanciate**.
-3. Le schermate del manuale (`docs/manual/screenshots/03_left_panel.png` e le altre del pannello) mostrano
-   il pannello di prima: il seme «screenshot del manuale» resta rimandato a progetto stabilizzato.
-4. Il piano `docs/plans/2026-09-24-configurazione-ad-albero-piano.md` è finito e va archiviato.
+3. Le schermate del manuale mostrano il pannello di prima: il seme «screenshot del manuale» resta
+   rimandato a progetto stabilizzato.
+
+Dopo il collaudo non c'è nessun piano in corso: il prossimo lavoro si sceglie fra i semi di `docs/plans/`.
+Il seme «riorganizzare i file dell'editor» resta vivo per `EditorShell`, `SvgCanvas` e lo store (la parte
+`ConfigView` è fatta). Annotato anche il bump a **2.12.0** con le immagini alla release.
 
 ## Riprendere da qui (precedente) — nessun piano in corso, solo semi (2026-09-24)
 

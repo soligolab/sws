@@ -5,7 +5,7 @@
  *  Fino al 24-09-2026 la Configurazione era una barra di sedici schede in cima
  *  a un'area a sé, e il pannello sinistro in Configurazione non c'era. L'idea
  *  del maintainer (seme del 22-09, piano
- *  `docs/plans/2026-09-24-configurazione-ad-albero-piano.md`): un albero sempre
+ *  `docs/archive/2026-09-24-configurazione-ad-albero-piano.md`): un albero sempre
  *  a portata di mano, come negli SCADA che mettono il progetto in una colonna,
  *  per arrivare più in fretta a tutte le opzioni — anche mentre si disegna.
  *
