@@ -14,16 +14,31 @@ import type { SynopticObject } from "@/types";
 
 type Aggiungi = (type: SynopticObject["type"]) => void;
 let aggiungi: Aggiungi | null = null;
+/** Un oggetto chiesto mentre l'editor non c'era (dalla Configurazione): lo
+ *  aggiunge l'editor appena si monta. */
+let inAttesa: SynopticObject["type"] | null = null;
 
 /** Lo chiama `EditorShell` a ogni disegno, e con `null` quando si smonta. */
 export function registraAggiunta(f: Aggiungi | null): void {
   aggiungi = f;
+  if (f && inAttesa) {
+    const t = inAttesa;
+    inAttesa = null;
+    f(t);
+  }
 }
 
-/** La palette: senza editor montato (in Configurazione) non fa niente, ma lì
- *  la palette non si vede. */
+/** Il ramo Strumenti dell'albero. Dal 25-09-2026 si vede anche in
+ *  Configurazione, dove non c'è un editor montato: lì un oggetto riporta
+ *  all'editor, sulla pagina corrente, e si aggiunge appena l'editor c'è. */
 export function aggiungiOggetto(type: SynopticObject["type"]): void {
-  aggiungi?.(type);
+  const st = useAppStore.getState();
+  if (st.appMode === "config" || !aggiungi) {
+    inAttesa = type;
+    if (st.appMode === "config") st.setAppMode("edit");
+    return;
+  }
+  aggiungi(type);
 }
 
 /** Salva l'intera `project.functions`. La chiamano i verbi della vista

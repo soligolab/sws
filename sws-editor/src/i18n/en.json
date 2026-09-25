@@ -34,10 +34,6 @@
     "stats": "Stats"
   },
   "header": {
-    "mode": {
-      "editor": "Editor",
-      "config": "Configuration"
-    },
     "start": "Start",
     "stop": "Stop",
     "reboot": "Reboot",
@@ -197,7 +193,6 @@
     "addChildPage": "Add a child page",
     "treeShow": "Show the page tree",
     "treeHide": "Hide the page tree",
-    "treeDragToResize": "Drag to resize the page tree",
     "dblRename": "Double-click to rename",
     "rename": "Rename",
     "duplicate": "Duplicate",
@@ -220,10 +215,9 @@
     "moveToGroup": "Move to group →",
     "noGroup": "No group",
     "sectionPages": "PAGES",
-    "sectionObjects": "OBJECTS",
     "paletteLvglHint": "LVGL project: only objects already supported by the engine are shown.",
     "paletteLvglBadgeTitle": "Also available for LVGL projects",
-    "sectionPageObjects": "STRUCTURE",
+    "sectionPageObjects": "Page objects",
     "sectionFunctions": "FUNCTIONS",
     "historyBack": "Back to: {{label}}",
     "historyRestore": "Restore: {{label}}",
@@ -302,8 +296,7 @@
     "unlockPage": "Unlock page",
     "lockPage": "Lock page (read-only)",
     "tagUsesCount": "{{count}} references",
-    "tagUsesNone": "No reference found",
-    "sectionConfig": "Configuration"
+    "tagUsesNone": "No reference found"
   },
   "canvas": {
     "empty": "No objects on this page.",
@@ -1652,7 +1645,9 @@
     "bootEnableFailed": "Cannot set the enabled boot image: {{err}}",
     "noBootPages": "No boot images.",
     "newBootPage": "+ New boot image",
-    "paletteBootHint": "Boot image: static objects only (shapes, lines, pipes, text, images, symbols)."
+    "paletteBootHint": "Boot image: static objects only (shapes, lines, pipes, text, images, symbols).",
+    "strumenti": "Tools",
+    "strumentoAggiungi": "Click to add it to the current page"
   },
   "shell": {
     "offPage_one": "⚠ {{count}} object is off the sheet and will not be drawn at runtime. Drag it inside the dashed border to re-enable it, or enlarge the page.",

@@ -344,13 +344,18 @@ export function App() {
       setTtlBusy(false);
     }
   };
+  // Senza più il pulsante Editor/Configurazione (25-09-2026) dove si è lo
+  // decide l'albero: scegliere un oggetto della pagina o una funzione è un
+  // gesto da editor, e dalla Configurazione ci porta. Solo sul **cambio**: una
+  // selezione rimasta da prima non deve strappare via dalla Configurazione.
+  const selezioneOggetto = useAppStore((s) => s.selectedObjectId);
+  const selezioneFunzione = useAppStore((s) => s.selectedFunctionId);
+  useEffect(() => {
+    if ((selezioneOggetto || selezioneFunzione) && useAppStore.getState().appMode === "config") setMode("edit");
+  }, [selezioneOggetto, selezioneFunzione]);
   const effectiveMode: Mode =
     (mode === "edit"   && !canEdit)      ? "config" :
     mode;
-  const allowedModes: Mode[] = canEdit
-    ? (["edit", "config"] as Mode[])
-    : (["config"] as Mode[]);
-
   // ── URL hash deep-linking (#edit | #view | #config | #config/<tab>) ─────────
   // Read once after the app becomes active (authenticated + project open).
   const deepLinkApplied = useRef(false);
@@ -698,26 +703,10 @@ export function App() {
         <DirtyIndicator />
         <RilieviProgetto />
         <span style={{ flex: 1 }} />
-        <div style={{ display: "flex", gap: 4 }}>
-          {allowedModes.map((m) => (
-            <button
-              key={m}
-              onClick={() => setMode(m)}
-              style={{
-                padding: "5px 14px",
-                borderRadius: 4,
-                border: "none",
-                cursor: "pointer",
-                background: effectiveMode === m ? "var(--brand-primary, #3b82f6)" : "var(--brand-surface-2, #334155)",
-                color: effectiveMode === m ? "var(--brand-on-primary, #fff)" : "var(--brand-text, #e2e8f0)",
-                fontWeight: effectiveMode === m ? 600 : 400,
-                fontSize: 13,
-              }}
-            >
-              {t(m === "edit" ? "header.mode.editor" : "header.mode.config")}
-            </button>
-          ))}
-        </div>
+        {/* I pulsanti Editor / Configurazione non ci sono più (25-09-2026,
+            richiesta del maintainer): dove si è lo decide l'ultimo clic
+            nell'albero del pannello sinistro — una pagina porta all'editor,
+            una foglia di configurazione alla sua scheda. */}
         <RuntimeCtrl />
         {/* Apre la pagina operatore del runtime — quello connesso se c'è,
             altrimenti il locale. Sta accanto a Deploy di proposito: la domanda

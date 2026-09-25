@@ -66,7 +66,10 @@ nessun indicatore verde.
 
 ## Due modalità operative
 
-L'IDE commuta tra due modalità con i pulsanti **Editor** / **Configurazione** nell'header.
+L'IDE ha due modalità, **Editor** e **Configurazione**, ma dal 2026-09-25 non c'è più un pulsante per
+passare dall'una all'altra: lo decide l'ultimo clic nell'albero del pannello sinistro. Una pagina, uno
+strumento, un oggetto della pagina o una funzione portano all'editor; una foglia di configurazione porta
+alla sua scheda.
 
 ### Modalità Editor
 
@@ -96,11 +99,16 @@ I link del tipo `#config/<scheda>` e `#config/<scheda>/<elemento>` (per esempio
 
 ![Left panel](screenshots/03_left_panel.png)
 
-Il pannello sinistro ha **in alto l'albero delle pagine, sempre visibile**, e sotto **una vista alla volta** scelta dalla barra delle icone
-(palette, struttura, tag, funzioni, ⚙ configurazione). Il pannello c'è anche in modalità Configurazione, dove la barra mostra solo ⚙: lì
-pagine e immagini di boot non stanno fisse in cima ma sono i primi due rami dell'albero ⚙, con le stesse azioni, e un clic su una pagina
-riporta all'editor. Fra i due c'è un separatore da trascinare per cambiare l'altezza dell'albero, e un pulsante
-▾ per comprimerlo (altezza e stato si ricordano).
+Il pannello sinistro è **un albero solo**, lo stesso in editor e in Configurazione. Ogni ramo si apre e si
+chiude col suo triangolo, e lo stato si ricorda; scorre l'albero intero. Dall'alto:
+
+- **📄 Pagine** e **🖼 Immagini di boot**
+- **🧰 Strumenti** — gli oggetti da mettere nella pagina, per categoria (Forme, Controlli, Display, SCADA, Layout)
+- **🗂 Oggetti della pagina**, **ƒ Funzioni**, **🏷 Tag**
+- i rami di configurazione: **Progetto**, **Dati**, **Sicurezza**, **Istanza**, **IDE**
+
+Fino al 2026-09-25 c'erano una colonna di icone che sceglieva una vista alla volta, e il blocco delle pagine
+fisso in cima: le icone non ci sono più, e le pagine sono il primo ramo.
 
 ### PAGINE — l'albero delle pagine
 
@@ -115,7 +123,12 @@ viewer, schede, rotazione automatica, pagina iniziale). Prima del 2026-09-20 l'o
 - L'albero è salvato in `project.yaml` (`page_layout.page_tree`), subito, senza aspettare «Salva»; una pagina non ancora salvata sparisce dall'albero
   se ricarichi senza salvarla.
 
-### OGGETTI — Palette widget
+### 🧰 STRUMENTI — gli oggetti da mettere nella pagina
+
+Un clic su un oggetto lo aggiunge alla pagina corrente; se sei in Configurazione, prima torna all'editor.
+La **L** in fondo alla riga indica gli oggetti che il motore LVGL sa disegnare.
+
+#### Le categorie
 
 Widget divisi per categoria:
 
@@ -174,25 +187,24 @@ accorgersene senza aprire il viewer.
 In modalità **Fluida** la pagina non ha dimensioni dichiarate, quindi non ha un
 bordo: niente tavolo, niente resistenza, niente parcheggio.
 
-### OGGETTI PAGINA
+### 🗂 OGGETTI DELLA PAGINA
 
 Lista degli oggetti presenti nella pagina corrente.
 Click → seleziona l'oggetto nel canvas.
 Icone: elimina, blocca (impedisce selezione accidentale).
 
-### FUNZIONI
+### ƒ FUNZIONI
 
 Funzioni Python riutilizzabili del progetto.
 Crea funzioni che i widget richiamano su `on_press`/`on_release`.
 
-### TAG
+### 🏷 TAG
 
 Elenco dei tag definiti nel progetto con valore live.
 
-### ⚙ CONFIGURAZIONE — l'albero delle schede
+### I rami di configurazione
 
-Tutte le schede di configurazione in un albero, divise in rami (in modalità Configurazione preceduti da **Pagine** e **Immagini di boot**):
-**Progetto** (Variabili, Tipi, Protocolli, Allarmi, Python, Faceplate,
+Tutte le schede di configurazione, divise in rami: **Progetto** (Variabili, Tipi, Protocolli, Allarmi, Python, Faceplate,
 Ricette, Notifiche, Lingue), **Dati** (Datastore), **Sicurezza** (Utenti), **Istanza** (Risorse, Backup, Stato, Device, Runtime) e **IDE**
 (Preferenze). Le schede da amministratore compaiono solo all'Admin.
 

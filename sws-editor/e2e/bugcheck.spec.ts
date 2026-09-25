@@ -1,4 +1,4 @@
-import { test, expect, ensureLoggedIn } from "./fixtures";
+import { test, expect, ensureLoggedIn, vaiAllEditor } from "./fixtures";
 import { ADMIN, PROGETTO } from "./_env";
 test.use({ ignoreHTTPSErrors: true, viewport: { width: 1440, height: 900 } });
 
@@ -10,8 +10,7 @@ test("bug1: click object does not blank the page", async ({ page }) => {
   await page.waitForTimeout(800);
   const apri = page.getByRole("button", { name: /^Apri/ }).first();
   if (await apri.isVisible({ timeout: 1500 }).catch(() => false)) { await apri.click(); await page.waitForTimeout(1000); }
-  await page.getByRole("button", { name: /^Editor$/ }).first().click();
-  await page.waitForTimeout(800);
+  await vaiAllEditor(page);
   // click somewhere on the canvas objects area (an SVG <g> / rect)
   const rect = page.locator("svg rect").nth(3);
   await rect.click({ force: true }).catch(() => {});
@@ -32,8 +31,7 @@ test("bug2: new empty project has empty canvas", async ({ page, request }) => {
   await page.waitForTimeout(1000);
   const apri = page.getByRole("button", { name: /^Apri/ }).first();
   if (await apri.isVisible({ timeout: 1500 }).catch(() => false)) { await apri.click(); await page.waitForTimeout(1000); }
-  await page.getByRole("button", { name: /^Editor$/ }).first().click();
-  await page.waitForTimeout(800);
+  await vaiAllEditor(page);
   // empty project → the "no objects" empty-state or zero object rows
   const pageObjects = await page.evaluate(() => {
     const svg = document.querySelector("svg");

@@ -79,3 +79,17 @@ export async function authHeaders(request: APIRequestContext): Promise<Record<st
   const token = await adminToken(request);
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
+
+/** Porta all'editor. Dal 25-09-2026 non c'è più il pulsante «Editor» in
+ *  testata: dove si è lo decide l'albero del pannello sinistro, e una pagina
+ *  scelta lì apre l'editor su di lei. */
+export async function vaiAllEditor(page: import("@playwright/test").Page): Promise<void> {
+  await page.getByTestId("albero-pagine").locator('div[draggable="true"]').first().click();
+  await page.waitForTimeout(800);
+}
+
+/** Porta in Configurazione, sulla scheda `id` (una foglia dell'albero). */
+export async function vaiInConfigurazione(page: import("@playwright/test").Page, id = "tags"): Promise<void> {
+  await page.getByTestId(`foglia-config-${id}`).click();
+  await page.waitForTimeout(800);
+}

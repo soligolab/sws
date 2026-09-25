@@ -12,7 +12,7 @@
  */
 
 import { type Page } from "@playwright/test";
-import { test } from "./fixtures";
+import { test, vaiAllEditor, vaiInConfigurazione } from "./fixtures";
 import * as path from "path";
 import { fileURLToPath } from "url";
 
@@ -57,11 +57,9 @@ async function openIde(page: Page) {
 }
 
 async function toMode(page: Page, name: "Editor" | "Configurazione") {
-  const btn = page.getByRole("button", { name: new RegExp(`^${name}$`) }).first();
-  if (await btn.isVisible().catch(() => false)) {
-    await btn.click();
-    await page.waitForTimeout(800);
-  }
+  // Dal 25-09-2026 niente pulsanti in testata: si passa dall'albero.
+  if (name === "Editor") await vaiAllEditor(page);
+  else await vaiInConfigurazione(page);
 }
 
 async function configTab(page: Page, label: RegExp) {

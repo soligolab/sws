@@ -10,7 +10,7 @@ import { resolvePageBackground } from "@/theme";
 import { AlberoConfigurazione } from "./AlberoConfigurazione";
 import { aggiungiOggetto, persistiFunzioni } from "./azioniEditor";
 import { canConfigureProject, canEditProject } from "@/auth/permissions";
-import { BarraIcone, IntestazioneSezione, PREFISSO_MEMORIA, TitoloVista, useSezioneAperta } from "./stilePannelli";
+import { IntestazioneSezione, PREFISSO_MEMORIA, TitoloVista, useSezioneAperta } from "./stilePannelli";
 import type { ObjectGroup, SynopticObject, SynopticPage } from "@/types";
 import { BOOT_TYPES, eBoot, paginePerNavigazione, pagineDiBoot } from "@/boot/tipi";
 import { impostaBootAbilitata } from "@/boot/abilitata";
@@ -71,6 +71,12 @@ const S = {
  *  corpo prende tutta l'altezza invece del suo tetto in pixel. */
 const ModoVista = createContext(false);
 
+/** Vero quando la sezione è un **ramo dell'albero unico** del pannello
+ *  (25-09-2026: niente più colonna di icone). L'intestazione è quella dei rami
+ *  di configurazione, e il corpo non ha tetto: scorre l'albero intero, non la
+ *  singola sezione. */
+const InAlbero = createContext(false);
+
 /** L'altezza del corpo di una sezione.
  *
  *  In colonna ogni sezione ha il suo tetto (220, 300, 240… a seconda di quanto
@@ -79,6 +85,8 @@ const ModoVista = createContext(false);
  *  serve: la lista deve arrivare in fondo al pannello. */
 function useCorpo(tetto = 220): React.CSSProperties {
   const vista = useContext(ModoVista);
+  const albero = useContext(InAlbero);
+  if (albero) return { padding: "2px 0" };
   return vista
     ? { overflowY: "auto", padding: "4px 0", flex: 1, minHeight: 0 }
     : { overflowY: "auto", padding: "4px 0", maxHeight: tetto };
@@ -92,6 +100,7 @@ function Section({
   defaultOpen = true,
   headerAction,
   memoria,
+  icona,
 }: {
   title: string;
   children: React.ReactNode;
@@ -104,9 +113,20 @@ function Section({
    *  ricordava niente: si ripartiva dai default a ogni montaggio, e i default
    *  aprivano Pagine, Oggetti e Cronologia insieme. */
   memoria?: string;
+  /** Il glifo del ramo, quando la sezione sta nell'albero. */
+  icona?: string;
 }) {
   const vista = useContext(ModoVista);
+  const albero = useContext(InAlbero);
   const [open, commuta] = useSezioneAperta(memoria, defaultOpen);
+  if (albero) {
+    return (
+      <div style={{ padding: "0 8px" }}>
+        <IntestazioneSezione titolo={title} icona={icona} aperta={open} onToggle={commuta} azione={headerAction} />
+        {open && <div>{children}</div>}
+      </div>
+    );
+  }
   if (vista) {
     return (
       <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
@@ -129,8 +149,8 @@ function Section({
 
 const CHIAVE_ALBERO_CHIUSI = PREFISSO_MEMORIA + "sinistra.alberoChiusi";
 
-/** Un ramo dell'albero ⚙ per pagine e immagini di boot: stessa intestazione
- *  dei rami di configurazione (`AlberoConfigurazione`), apertura ricordata. */
+/** Un ramo dell'albero per pagine e immagini di boot: stessa intestazione
+ *  degli altri rami, apertura ricordata. */
 function RamoPagine({ titolo, icona, memoria, azione, children }: {
   titolo: string; icona: string; memoria: string; azione?: React.ReactNode; children: React.ReactNode;
 }) {
@@ -143,14 +163,7 @@ function RamoPagine({ titolo, icona, memoria, azione, children }: {
   );
 }
 
-function PagesSection({ compresso = false, onToggleCompresso = () => {}, rami = false }: {
-  compresso?: boolean;
-  onToggleCompresso?: () => void;
-  /** In Configurazione (25-09-2026): pagine e immagini di boot come due rami
-   *  dell'albero ⚙ invece del blocco fisso in cima al pannello. */
-  rami?: boolean;
-}) {
-  const corpo = useCorpo();
+function PagesSection() {
   const { t } = useTranslation();
   const tutte         = useAppStore((s) => s.pages);
   // L'elenco delle pagine del pannello: le pagine di boot hanno la loro sezione.
@@ -289,9 +302,7 @@ function PagesSection({ compresso = false, onToggleCompresso = () => {}, rami = 
     if (zona === "dentro" && chiusi.has(bersaglio)) { const n = new Set(chiusi); n.delete(bersaglio); ricordaChiusi(n); }
   };
 
-  // Il corpo in due pezzi (25-09-2026): nell'editor stanno uno sotto l'altro
-  // nel blocco fisso in cima al pannello; in Configurazione sono due rami
-  // dell'albero ⚙ (`rami`). Le righe, il trascinamento e le azioni sono gli stessi.
+  // Il corpo in due pezzi, uno per ramo dell'albero: pagine e immagini di boot.
   const corpoPagine = (
     <>
         {righeAlbero.map((r) => {
@@ -534,46 +545,19 @@ function PagesSection({ compresso = false, onToggleCompresso = () => {}, rami = 
     </>
   );
 
-  if (rami) {
-    return (
-      <>
-        {modale}
-        <RamoPagine titolo={t("editor.sectionPages")} icona="📄" memoria="config.pagine"
+  return (
+    <>
+      {modale}
+      <div data-testid="albero-pagine">
+        <RamoPagine titolo={t("editor.sectionPages")} icona="📄" memoria="albero.pagine"
           azione={<button style={S.iconBtn} title={t("editor.checkLinksTitle")} onClick={() => setLinkReportOpen(true)}>🔗</button>}>
           {corpoPagine}
         </RamoPagine>
-        <RamoPagine titolo={t("leftPanel.bootPagesHeading")} icona="🖼" memoria="config.boot">
-          {corpoBoot}
-        </RamoPagine>
-      </>
-    );
-  }
-  return (
-    <Section
-      title={t("editor.sectionPages")}
-      memoria="sinistra.pagine"
-      headerAction={
-        <>
-          <button style={S.iconBtn} title={t("editor.checkLinksTitle")}
-            onClick={() => setLinkReportOpen(true)}>🔗</button>
-          <button style={S.iconBtn} title={compresso ? t("editor.treeShow") : t("editor.treeHide")}
-            onClick={onToggleCompresso}>{compresso ? "▸" : "▾"}</button>
-        </>
-      }
-    >
-      {modale}
-      {!compresso && (
-      <div style={corpo}>
-        {corpoPagine}
-        <div style={{ padding: "10px 8px 2px", fontSize: 10, fontWeight: 700, letterSpacing: 0.5,
-                      textTransform: "uppercase", color: "var(--brand-text-subtle, #64748b)" }}
-             title={t("leftPanel.bootPagesHint")}>
-          {t("leftPanel.bootPagesHeading")}
-        </div>
-        {corpoBoot}
       </div>
-      )}
-    </Section>
+      <RamoPagine titolo={t("leftPanel.bootPagesHeading")} icona="🖼" memoria="albero.boot">
+        {corpoBoot}
+      </RamoPagine>
+    </>
   );
 }
 
@@ -726,82 +710,64 @@ function coloreGruppo(group: PaletteGroup, _mode: unknown): string {
   return chiaro ? group.colorLight : group.color;
 }
 
-function PaletteGroupAccordion({ group, onAdd, showLvglBadge }: { group: PaletteGroup; onAdd: (type: SynopticObject["type"]) => void; showLvglBadge: boolean }) {
+/** Una categoria della palette come sotto-ramo di Strumenti (25-09-2026):
+ *  una riga per oggetto, con l'icona nel colore del gruppo. Prima erano
+ *  riquadri su due colonne (22-09): nell'albero unico ogni cosa è una riga. */
+function GruppoStrumenti({ group, showLvglBadge }: { group: PaletteGroup; showLvglBadge: boolean }) {
   const { t } = useTranslation();
   const themeMode = useAppStore((s) => s.themeMode);
-  const [open, setOpen] = useState(group.defaultOpen ?? false);
+  const [open, commuta] = useSezioneAperta(`strumenti.${group.category}`, group.defaultOpen ?? false);
+  const colore = coloreGruppo(group, themeMode);
   return (
     <div>
-      <div
-        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 10px", cursor: "pointer", background: "var(--brand-bg, #0a111e)", borderBottom: "1px solid var(--brand-surface, #1e293b)" }}
-        onClick={() => setOpen((v) => !v)}
+      <button
+        type="button"
+        onClick={commuta}
+        aria-expanded={open}
+        style={{
+          width: "100%", display: "flex", alignItems: "center", gap: 6, padding: "3px 8px 3px 20px",
+          border: "none", background: "transparent", cursor: "pointer", textAlign: "left",
+        }}
       >
-        <span style={{ fontSize: 10, fontWeight: 700, color: coloreGruppo(group, themeMode), letterSpacing: 0.5 }}>
-          {t(`editor.palette.group.${group.category}`).toUpperCase()}
+        <span aria-hidden="true" style={{ fontSize: 9, width: 10, color: "var(--brand-text-subtle, #64748b)" }}>{open ? "▼" : "▶"}</span>
+        <span style={{ fontSize: 11, fontWeight: 700, color: colore, letterSpacing: 0.5 }}>
+          {t(`editor.palette.group.${group.category}`)}
         </span>
-        <span style={{ fontSize: 9, color: "var(--brand-text-subtle, #94a3b8)" }}>{open ? "▼" : "▶"}</span>
-      </div>
-      {open && (
-        // Due colonne di riquadri, icona sopra e nome sotto (richiesta del
-        // maintainer, 22-09-2026). Prima erano righe a tutta larghezza: con
-        // trentasei oggetti la colonna diventava lunghissima, e l'icona
-        // piccola accanto al testo non aiutava a riconoscere niente.
-        // `1fr 1fr` e non `auto-fill`: a due colonne le celle restano larghe
-        // abbastanza per un nome su due righe anche col pannello al minimo.
-        <div style={{ padding: 6, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-          {group.items.map(({ type, icon }) => (
-            <button
-              key={type}
-              onClick={() => onAdd(type)}
-              title={t(`editor.palette.item.${type}`)}
+      </button>
+      {open && group.items.map(({ type, icon }) => (
+        <button
+          key={type}
+          type="button"
+          data-testid={`strumento-${type}`}
+          onClick={() => aggiungiOggetto(type)}
+          title={t("leftPanel.strumentoAggiungi")}
+          style={{
+            width: "100%", display: "flex", alignItems: "center", gap: 6, padding: "3px 8px 3px 36px",
+            border: "none", borderRadius: 4, background: "transparent", cursor: "pointer", textAlign: "left",
+            fontSize: 12, color: "var(--brand-text-muted, #94a3b8)",
+          }}
+        >
+          <span aria-hidden="true" style={{ width: 16, height: 16, lineHeight: "16px", fontSize: 13, textAlign: "center", color: colore, flexShrink: 0 }}>
+            {icon}
+          </span>
+          <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {t(`editor.palette.item.${type}`)}
+          </span>
+          {/* In fondo alla riga e non sopra l'icona: nei riquadri c'era spazio,
+              in una riga d'albero copriva l'icona. */}
+          {showLvglBadge && LVGL_SUPPORTED_TYPES.has(type) && (
+            <span
+              title={t("editor.paletteLvglBadgeTitle")}
               style={{
-                background: "var(--brand-bg, #0f172a)",
-                border: "1px solid var(--brand-surface-2, #334155)",
-                borderRadius: 6,
-                color: "var(--brand-text-2, #cbd5e1)",
-                cursor: "pointer",
-                padding: "8px 4px 6px",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "flex-start",
-                gap: 5,
-                minWidth: 0,
-                // Le celle alte uguale: il nome va a capo invece di essere
-                // troncato, e la griglia non diventa un mosaico.
-                minHeight: 66,
+                flexShrink: 0, fontSize: 8, fontWeight: 700, lineHeight: 1,
+                color: "#0f172a", background: "#fbbf24", borderRadius: 2, padding: "1px 3px",
               }}
             >
-              <span style={{ position: "relative", fontSize: 22, lineHeight: 1, color: coloreGruppo(group, themeMode), flexShrink: 0 }}>
-                {icon}
-                {showLvglBadge && LVGL_SUPPORTED_TYPES.has(type) && (
-                  <span
-                    title={t("editor.paletteLvglBadgeTitle")}
-                    style={{
-                      position: "absolute",
-                      bottom: -4,
-                      right: -6,
-                      fontSize: 8,
-                      fontWeight: 700,
-                      lineHeight: 1,
-                      color: "#0f172a",
-                      background: "#fbbf24",
-                      borderRadius: 2,
-                      padding: "1px 2px",
-                      pointerEvents: "none",
-                    }}
-                  >
-                    L
-                  </span>
-                )}
-              </span>
-              <span style={{ fontSize: 10.5, lineHeight: 1.25, textAlign: "center", overflowWrap: "anywhere", minWidth: 0 }}>
-                {t(`editor.palette.item.${type}`)}
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
+              L
+            </span>
+          )}
+        </button>
+      ))}
     </div>
   );
 }
@@ -871,35 +837,29 @@ function paletteForTarget(isLvgl: boolean, paginaBoot = false): PaletteGroup[] {
     .filter((g) => g.items.length > 0);
 }
 
-function ObjectPalette({ onAdd }: { onAdd: (type: SynopticObject["type"]) => void }) {
+/** Il ramo «Strumenti» dell'albero (25-09-2026): la palette, che fino a
+ *  ieri era una vista a sé (➕). Sta in cima all'albero, prima dei rami di
+ *  configurazione, e c'è anche in Configurazione: un oggetto cliccato lì
+ *  riporta all'editor e si aggiunge alla pagina corrente. */
+function RamoStrumenti() {
   const { t } = useTranslation();
   const targetKind = useAppStore((s) => s.project?.target?.kind);
   const isLvgl = targetKind === "lvgl_framebuffer" || targetKind === "lvgl_wayland";
   const paginaBoot = useAppStore((s) => eBoot(s.pages.find((p) => p.id === s.currentPageId)));
   const groups = paletteForTarget(isLvgl, paginaBoot);
+  const [aperto, commuta] = useSezioneAperta("config.strumenti", true);
+  const nota = { fontSize: 11, color: "var(--brand-text-subtle, #64748b)", padding: "0 8px 6px 20px" };
   return (
-    <Section title={t("editor.sectionObjects")} memoria="sinistra.palette">
-      {paginaBoot && (
-        <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", padding: "0 4px 8px" }}>
-          {t("leftPanel.paletteBootHint")}
-        </div>
-      )}
-      {!paginaBoot && isLvgl && (
-        <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", padding: "0 4px 8px" }}>
-          {t("editor.paletteLvglHint")}
-        </div>
-      )}
-      {/* Lo scorrimento sta QUI, non in `Section`: come vista la sezione dà ai
-          figli tutta l'altezza con `overflow: hidden`, e chi ha una lista lunga
-          se la scorre da sé. Senza, il gruppo Display finiva sotto il bordo del
-          pannello e le ultime voci erano irraggiungibili (segnalato dal
-          maintainer il 22-09-2026 su un monitor basso). */}
-      <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+    <div style={{ padding: "0 8px" }}>
+      <IntestazioneSezione titolo={t("leftPanel.strumenti")} icona="🧰" aperta={aperto} onToggle={commuta} />
+      {aperto && (<>
+        {paginaBoot && <div style={nota}>{t("leftPanel.paletteBootHint")}</div>}
+        {!paginaBoot && isLvgl && <div style={nota}>{t("editor.paletteLvglHint")}</div>}
         {groups.map((group) => (
-          <PaletteGroupAccordion key={group.category} group={group} onAdd={onAdd} showLvglBadge={!isLvgl} />
+          <GruppoStrumenti key={group.category} group={group} showLvglBadge={!isLvgl} />
         ))}
-      </div>
-    </Section>
+      </>)}
+    </div>
   );
 }
 
@@ -1282,7 +1242,7 @@ function ObjectsSection() {
   }
 
   return (
-    <Section title={`${t("editor.sectionPageObjects")} (${allObjects.length})`} defaultOpen={false} memoria="sinistra.struttura">
+    <Section title={`${t("editor.sectionPageObjects")} (${allObjects.length})`} defaultOpen={false} memoria="sinistra.struttura" icona="🗂">
       <div style={{ padding: "4px 8px", borderBottom: "1px solid var(--brand-surface, #1e293b)" }}>
         <input
           type="text"
@@ -1638,7 +1598,7 @@ function FunctionsSection({ onFunctionsChanged }: { onFunctionsChanged: () => vo
   };
 
   return (
-    <Section title={`${t("editor.sectionFunctions")} (${functions.length})`} defaultOpen={false} memoria="sinistra.funzioni">
+    <Section title={`${t("editor.sectionFunctions")} (${functions.length})`} defaultOpen={false} memoria="sinistra.funzioni" icona="ƒ">
       <div style={corpo}>
         {functions.length === 0 && (
           <p style={{ padding: "8px 12px", fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", margin: 0 }}>
@@ -1776,7 +1736,7 @@ function TagsSection() {
 
   if (tags.length === 0) {
     return (
-      <Section title={t2("editor.sectionTags")} defaultOpen={false} memoria="sinistra.tag">
+      <Section title={t2("editor.sectionTags")} defaultOpen={false} memoria="sinistra.tag" icona="🏷">
         <p style={{ padding: "8px 12px", fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", margin: 0 }}>
           {t2("leftPanel.noTagsLoadAProject")}
         </p>
@@ -1785,7 +1745,7 @@ function TagsSection() {
   }
 
   return (
-    <Section title={`${t2("editor.sectionTags")} (${tags.length})`} defaultOpen={false} memoria="sinistra.tag">
+    <Section title={`${t2("editor.sectionTags")} (${tags.length})`} defaultOpen={false} memoria="sinistra.tag" icona="🏷">
       <div style={corpo}>
         {tags.map((t) => {
           const tv = tagValues[t.id];
@@ -1859,72 +1819,28 @@ const LEFT_PANEL_WIDTH_KEY = "sws.leftPanelWidth";
 const LEFT_PANEL_MIN = 160;
 const LEFT_PANEL_MAX = 480;
 
-/** Le viste del pannello (T-56 passo 2).
+/** Il pannello sinistro è **un albero solo** (25-09-2026, richiesta del
+ *  maintainer): pagine, immagini di boot, strumenti (la palette), oggetti della
+ *  pagina, funzioni, tag, e i rami di configurazione. Ogni ramo si apre e si
+ *  chiude, e lo ricorda; scorre l'albero intero.
  *
- *  Fino all'11-09-2026 erano sette fisarmoniche in colonna: aprendone più di
- *  una il pannello si allungava e le altre uscivano dallo schermo, e le
- *  intestazioni di sezioni diverse finivano appiccicate — «si fondono un po'
- *  tutte le sezioni». Ora se ne vede **una per volta**, a tutta altezza.
- *
- *  Il costo dichiarato: chi guardava insieme l'albero degli oggetti e la
- *  palette ora paga un clic. Da provare sul campo; se dà fastidio, la seconda
- *  opzione (due zone fisse) resta a portata.
- *
- *  Dal 24-09-2026 la vista «Sorgenti» (un elenco con «Vai alla configurazione
- *  →») non c'è più: la sostituisce il ramo Progetto della vista ⚙, che porta
- *  alla scheda giusta. */
-const VISTE = [
-  { id: "palette",   icona: "➕", chiave: "editor.sectionObjects" },
-  { id: "struttura", icona: "🗂", chiave: "editor.sectionPageObjects" },
-  { id: "tag",       icona: "🏷", chiave: "editor.sectionTags" },
-  { id: "funzioni",  icona: "ƒ",  chiave: "editor.sectionFunctions" },
-  { id: "config",    icona: "⚙",  chiave: "editor.sectionConfig" },
-] as const;
-type IdVista = (typeof VISTE)[number]["id"];
-
-/** Sotto il prefisso unico di `stilePannelli`, non `sws.leftPanel.vista` come
- *  proponeva il piano: le memorie dei pannelli devono poter essere azzerate
- *  tutte insieme, ed è lo stesso piano a chiederlo fra i rischi. */
-const CHIAVE_VISTA = PREFISSO_MEMORIA + "sinistra.vista";
-/** L'albero delle pagine sta **sempre** in alto nel pannello (20-09-2026: dopo T-56 le
- *  pagine sparivano appena si apriva la palette, e per cambiare pagina bisognava tornare
- *  indietro). Altezza e stato compresso si ricordano. */
-const CHIAVE_ALTEZZA_ALBERO = PREFISSO_MEMORIA + "sinistra.altezzaAlbero";
-const CHIAVE_ALBERO_COMPRESSO = PREFISSO_MEMORIA + "sinistra.alberoCompresso";
-const ALTEZZA_ALBERO_MIN = 90;
-const ALTEZZA_ALBERO_PREDEFINITA = 240;
-const ALTEZZA_VISTE_MIN = 120;
-
-
+ *  La storia, perché ogni forma di prima ha avuto un motivo:
+ *  - fino all'11-09-2026 sette fisarmoniche in colonna, con tetti di altezza
+ *    diversi, che «si fondevano»;
+ *  - T-56 (11-09) una vista per volta scelta da una colonna di icone;
+ *  - 20-09 le pagine fisse in cima, perché sparivano aprendo la palette;
+ *  - 24-09 la vista ⚙ con l'albero di configurazione, e il pannello anche in
+ *    Configurazione;
+ *  - 25-09 via le icone, via il pulsante Editor/Configurazione in testata, e
+ *    tutto nell'albero. Il problema del 20-09 non torna: le pagine sono il
+ *    primo ramo e restano aperte finché non le si chiude. */
 export function LeftPanel() {
   const { t } = useTranslation();
   const setProject = useAppStore((s) => s.setProject);
   const authRole   = useAppStore((s) => s.authRole);
-  const inConfig   = useAppStore((s) => s.appMode === "config");
   const puoConfigurare = canConfigureProject(authRole);
   const puoModificare  = canEditProject(authRole);
 
-  const [vista, setVista] = useState<IdVista>(() => {
-    try {
-      const v = localStorage.getItem(CHIAVE_VISTA);
-      if (VISTE.some((x) => x.id === v)) return v as IdVista;
-    } catch { /* senza memoria si riparte dalla palette */ }
-    return "palette";
-  });
-  const scegliVista = (v: IdVista) => {
-    setVista(v);
-    try { localStorage.setItem(CHIAVE_VISTA, v); } catch { /* vedi sopra */ }
-  };
-
-  // In Configurazione il pannello mostra solo ⚙: palette, struttura, tag e
-  // funzioni agiscono sul canvas, che lì non c'è. La scelta memorizzata non si
-  // tocca — tornando all'editor si ritrova la vista di prima. Senza il ruolo
-  // per configurare, ⚙ non c'è e basta.
-  const viste = VISTE.filter((v) =>
-    v.id === "config" ? puoConfigurare : !inConfig);
-  const mostrata: IdVista = inConfig ? "config"
-    : viste.some((v) => v.id === vista) ? vista : "palette";
-  // L'albero delle pagine porta all'editor: chi non può modificare non lo vede.
   const conPagine = puoModificare;
 
   const [panelWidth, setPanelWidth] = useState<number>(() => {
@@ -1961,84 +1877,19 @@ export function LeftPanel() {
     document.addEventListener("mouseup", onUp);
   };
 
-  // L'albero delle pagine in alto (fisso) e sotto le altre viste, con un separatore
-  // orizzontale trascinabile. L'altezza massima dipende da quella del pannello.
-  const colonnaRef = useRef<HTMLDivElement>(null);
-  const [altezzaAlbero, setAltezzaAlbero] = useState<number>(() => {
-    const v = Number(localStorage.getItem(CHIAVE_ALTEZZA_ALBERO));
-    return v >= ALTEZZA_ALBERO_MIN ? v : ALTEZZA_ALBERO_PREDEFINITA;
-  });
-  const altezzaRef = useRef(altezzaAlbero);
-  const [alberoCompresso, setAlberoCompresso] = useState<boolean>(() => {
-    try { return localStorage.getItem(CHIAVE_ALBERO_COMPRESSO) === "1"; } catch { return false; }
-  });
-  const commutaAlbero = () => {
-    setAlberoCompresso((v) => {
-      try { localStorage.setItem(CHIAVE_ALBERO_COMPRESSO, v ? "0" : "1"); } catch { /* vedi sopra */ }
-      return !v;
-    });
-  };
-  const onResizeAlberoStart = (e: React.MouseEvent) => {
-    e.preventDefault();
-    const startY = e.clientY;
-    const startH = altezzaAlbero;
-    const totale = colonnaRef.current?.getBoundingClientRect().height ?? 600;
-    document.body.style.cursor = "ns-resize";
-    document.body.style.userSelect = "none";
-    const onMove = (ev: MouseEvent) => {
-      const next = Math.min(Math.max(ALTEZZA_ALBERO_MIN, totale - ALTEZZA_VISTE_MIN), Math.max(ALTEZZA_ALBERO_MIN, startH + (ev.clientY - startY)));
-      altezzaRef.current = next;
-      setAltezzaAlbero(next);
-    };
-    const onUp = () => {
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-      try { localStorage.setItem(CHIAVE_ALTEZZA_ALBERO, String(altezzaRef.current)); } catch { /* vedi sopra */ }
-    };
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
-  };
-
   return (
-    // La barra delle icone sta **fuori** dal pannello ridimensionabile: la sua
-    // larghezza è fissa, e il trascinamento cambia solo lo spazio del contenuto.
     <div style={{ display: "flex", flexShrink: 0, position: "relative" }}>
-      <BarraIcone voci={viste} attiva={mostrata} onScegli={scegliVista} lato="sinistra" />
-      <div ref={colonnaRef} style={{ ...S.panel, width: panelWidth }}>
-        <ModoVista.Provider value={true}>
-          {/* In Configurazione le pagine stanno dentro l'albero ⚙, come rami. */}
-          {conPagine && !inConfig && (<>
-          <div
-            data-testid="albero-pagine"
-            style={{
-              flexShrink: 0, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden",
-              ...(alberoCompresso ? {} : { height: altezzaAlbero }),
-            }}
-          >
-            <PagesSection compresso={alberoCompresso} onToggleCompresso={commutaAlbero} />
+      <div style={{ ...S.panel, width: panelWidth }}>
+        <InAlbero.Provider value={true}>
+          <div data-testid="albero-pannello" style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "4px 0" }}>
+            {conPagine && <PagesSection />}
+            {conPagine && <RamoStrumenti />}
+            {conPagine && <ObjectsSection />}
+            {conPagine && <FunctionsSection onFunctionsChanged={persistiFunzioni} />}
+            <TagsSection />
+            {puoConfigurare && <AlberoConfigurazione />}
           </div>
-          {!alberoCompresso && (
-            <div
-              onMouseDown={onResizeAlberoStart}
-              title={t("editor.treeDragToResize")}
-              style={{ flexShrink: 0, height: 5, cursor: "ns-resize", background: "var(--brand-surface-2, #334155)" }}
-            />
-          )}
-          </>)}
-          <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-            {mostrata === "palette"   && <ObjectPalette onAdd={aggiungiOggetto} />}
-            {mostrata === "struttura" && <ObjectsSection />}
-            {mostrata === "funzioni"  && <FunctionsSection onFunctionsChanged={persistiFunzioni} />}
-            {mostrata === "tag"       && <TagsSection />}
-            {mostrata === "config"    && (
-              <Section title={t("editor.sectionConfig")}>
-                <AlberoConfigurazione testa={inConfig && conPagine ? <PagesSection rami /> : null} />
-              </Section>
-            )}
-          </div>
-        </ModoVista.Provider>
+        </InAlbero.Provider>
       </div>
       <div
         onMouseDown={onResizeStart}

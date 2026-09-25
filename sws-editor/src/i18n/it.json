@@ -34,10 +34,6 @@
     "stats": "Stats"
   },
   "header": {
-    "mode": {
-      "editor": "Editor",
-      "config": "Configurazione"
-    },
     "start": "Start",
     "stop": "Stop",
     "reboot": "Reboot",
@@ -197,7 +193,6 @@
     "addChildPage": "Aggiungi una pagina figlia",
     "treeShow": "Mostra l'albero delle pagine",
     "treeHide": "Nascondi l'albero delle pagine",
-    "treeDragToResize": "Trascina per ridimensionare l'albero delle pagine",
     "dblRename": "Doppio click per rinominare",
     "rename": "Rinomina",
     "duplicate": "Duplica",
@@ -220,10 +215,9 @@
     "moveToGroup": "Sposta in gruppo →",
     "noGroup": "Senza gruppo",
     "sectionPages": "PAGINE",
-    "sectionObjects": "OGGETTI",
     "paletteLvglHint": "Progetto LVGL: solo gli oggetti già supportati dal motore sono mostrati.",
     "paletteLvglBadgeTitle": "Disponibile anche per i progetti LVGL",
-    "sectionPageObjects": "STRUTTURA",
+    "sectionPageObjects": "Oggetti della pagina",
     "sectionFunctions": "FUNZIONI",
     "historyBack": "Torna a: {{label}}",
     "historyRestore": "Ripristina: {{label}}",
@@ -302,8 +296,7 @@
     "unlockPage": "Sblocca pagina",
     "lockPage": "Blocca pagina (sola lettura)",
     "tagUsesCount": "{{count}} riferimenti",
-    "tagUsesNone": "Nessun riferimento trovato",
-    "sectionConfig": "Configurazione"
+    "tagUsesNone": "Nessun riferimento trovato"
   },
   "canvas": {
     "empty": "Nessun oggetto in questa pagina.",
@@ -1652,7 +1645,9 @@
     "bootEnableFailed": "Impossibile impostare l'immagine di boot abilitata: {{err}}",
     "noBootPages": "Nessuna immagine di boot.",
     "newBootPage": "+ Nuova immagine di boot",
-    "paletteBootHint": "Immagine di boot: solo oggetti statici (forme, linee, tubi, testo, immagini, simboli)."
+    "paletteBootHint": "Immagine di boot: solo oggetti statici (forme, linee, tubi, testo, immagini, simboli).",
+    "strumenti": "Strumenti",
+    "strumentoAggiungi": "Clic per aggiungerlo alla pagina corrente"
   },
   "shell": {
     "offPage_one": "⚠ {{count}} oggetto è fuori dal foglio e non verrà disegnato a runtime. Trascinalo dentro il bordo tratteggiato per riattivarlo, oppure allarga la pagina.",

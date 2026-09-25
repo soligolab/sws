@@ -12,6 +12,10 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Changed
+- **Il pannello sinistro è un albero solo, e il pulsante Editor/Configurazione non c'è più** (richiesta del maintainer, 25-09). Via la colonna di icone e il blocco fisso delle pagine: dall'alto
+  Pagine, Immagini di boot, **Strumenti** (la palette, per categoria), Oggetti della pagina, Funzioni, Tag, e i rami di configurazione — ognuno chiudibile, con lo stato ricordato, uguale in editor
+  e in Configurazione. Dove si è lo decide il clic: una pagina, uno strumento, un oggetto o una funzione portano all'editor, una foglia di configurazione alla sua scheda. Uno strumento cliccato in
+  Configurazione torna all'editor e aggiunge l'oggetto alla pagina corrente. Le prove e2e passano dall'albero (`vaiAllEditor`, `vaiInConfigurazione` in `e2e/fixtures.ts`).
 - **In Configurazione pagine e immagini di boot sono rami dell'albero ⚙** (richiesta del maintainer, 25-09): il blocco fisso in cima al pannello lascia il posto a due rami, «Pagine» e
   «Immagini di boot», con le stesse righe, lo stesso trascinamento e le stesse azioni. Nell'editor il blocco resta fisso in cima, perché serve anche mentre si usa la palette (decisione del 20-09).
 - **L'albero ⚙ dice dove ci sono modifiche non salvate**: un pallino, dello stesso colore del «● non salvato» della testata, sull'elemento cambiato (una sorgente, uno script, un
