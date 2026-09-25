@@ -38,6 +38,9 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   - Il file `trigger` resta, perché dice cosa il progetto vuole e costa niente; `status` continua a riferire com'è andata, ma ora lo scrive il runtime.
 
 ### Fixed
+- **Personalizzare un faceplate builtin non dà più 409.** Un builtin (per esempio «Tank Level» dei template) non ha file nel progetto finché qualcuno non lo modifica: la GET rispondeva
+  col testo builtin e la sua versione, e la PUT confrontava quella versione col file assente — conflitto, sempre, con l'avviso «modificato da qualcun altro» senza che nessuno l'avesse
+  toccato. Ora, se il file non c'è, la base del confronto è il testo builtin. Il difetto era anteriore all'albero di Configurazione: misurato identico sulla build del 24-09 mattina.
 - **I link `#config/<scheda>` funzionano per tutte le schede**: l'elenco che li riconosceva ne aveva sette su sedici, e `#config/faceplates` apriva la scheda di prima.
 - **La scheda Runtime rimanda alle Variabili chi non è admin**, come le altre schede da admin: prima disegnava un pannello vuoto.
 - **Fra due livelli di pari severità vince l'ultimo dichiarato**, non più il primo (decisione del maintainer, 24-09). Il difetto si è visto su un progetto vero appena convertito al modello a livelli: due soglie Critical, a 70 e a 80, e con il valore a 85 compariva sempre quella a 70 — **la soglia a 80 non sarebbe comparsa mai, per nessun valore**. I livelli si scrivono in

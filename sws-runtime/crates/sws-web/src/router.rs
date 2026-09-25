@@ -5696,6 +5696,11 @@ async fn list_faceplates(State(s): State<AppState>) -> Response {
     Json(sorted).into_response()
 }
 
+/// Il testo di un faceplate builtin, se `id` è uno di loro.
+fn testo_builtin_faceplate(id: &str) -> Option<&'static str> {
+    BUILTIN_FACEPLATES.iter().find(|(bid, _)| *bid == id).map(|(_, yaml)| *yaml)
+}
+
 async fn get_faceplate(State(s): State<AppState>, Path(id): Path<String>) -> Response {
     let project_dir = match active_dir(&s).await {
         Ok(d) => d,
@@ -5707,11 +5712,8 @@ async fn get_faceplate(State(s): State<AppState>, Path(id): Path<String>) -> Res
         Ok(t) => t,
         Err(_) => {
             // Fall back to built-in.
-            match BUILTIN_FACEPLATES
-                .iter()
-                .find(|(bid, _)| *bid == id.as_str())
-            {
-                Some((_, yaml)) => yaml.to_string(),
+            match testo_builtin_faceplate(&id) {
+                Some(yaml) => yaml.to_string(),
                 None => return StatusCode::NOT_FOUND.into_response(),
             }
         }
@@ -5746,9 +5748,15 @@ async fn save_faceplate(
     // Q30, stesso meccanismo dei sinottici: un file per entità, e la corsa è
     // fra due che salvano lo stesso.
     let su_disco = tokio::fs::read_to_string(&path).await.ok();
+    // Un faceplate builtin non ha file nel progetto finché qualcuno non lo
+    // personalizza: la GET risponde col testo builtin e la sua versione, e
+    // quella è la versione su cui il client sta lavorando. Confrontarla col
+    // file assente rifiutava con un 409 **ogni** prima personalizzazione di un
+    // builtin (misurato il 25-09-2026 su «Tank Level» del template).
+    let base = su_disco.as_deref().or_else(|| testo_builtin_faceplate(&id));
     if let Some(r) = conflitto_di_versione(
         versione_attesa(&headers).as_deref(),
-        su_disco.as_deref(),
+        base,
         "Questo faceplate",
     ) {
         return r;
@@ -8902,6 +8910,21 @@ mod q30_file_tests {
         assert!(conflitto_di_versione(Some("qualcosa"), None, "X").is_some());
         // ...ma senza pretese si crea liberamente.
         assert!(conflitto_di_versione(None, None, "X").is_none());
+    }
+
+    /// Un faceplate builtin non ha file nel progetto finché non lo si
+    /// personalizza: la versione su cui il client lavora è quella del testo
+    /// builtin, e la prima personalizzazione deve passare. Fino al 25-09-2026
+    /// la base era il file assente, e ogni builtin modificato prendeva un 409.
+    #[test]
+    fn un_builtin_mai_personalizzato_si_salva_con_la_sua_versione() {
+        let (id, testo) = BUILTIN_FACEPLATES[0];
+        assert_eq!(testo_builtin_faceplate(id), Some(testo));
+        let base = None.or_else(|| testo_builtin_faceplate(id));
+        assert!(conflitto_di_versione(Some(&versione_di(testo)), base, "X").is_none());
+        // Una versione che non è quella builtin resta un conflitto.
+        assert!(conflitto_di_versione(Some("vecchia"), base, "X").is_some());
+        assert_eq!(testo_builtin_faceplate("non-esiste"), None);
     }
 
     /// La versione è dei **byte**: due contenuti diversi non possono
