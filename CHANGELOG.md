@@ -12,6 +12,11 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Changed
+- **Il pannello destro torna a una colonna sola** (R4, richiesta del maintainer del 25-09): via la colonna di icone che mostrava un gruppo per volta; i gruppi (Oggetto, Testo, Dato,
+  Comportamento, Resa) diventano rami chiudibili e le sezioni ci stanno sotto. **Una sezione aperta alla volta**, più quelle **appuntate** con 📌. Cambiando oggetto la sezione aperta resta
+  quella se il tipo nuovo ce l'ha, altrimenti si apre l'affine — e la scelta non si perde. L'inventario dei campi (`campiPannelloProprieta.json`) è invariato.
+  - **I rami dicono cosa contengono** (maintainer, 25-09: «gruppi poco chiari, parametri sepolti»): il primo porta **il nome del tipo** e tiene Parametri (o Testo), poi Posizione e
+    aspetto, Dati e collegamenti, Animazione e interazione. La sezione che si apre su un oggetto nuovo è quella del tipo: Parametri, Testo, o Aspetto sulle forme.
 - **Il ramo Oggetti mostra gli oggetti di tutte le pagine** (R3 del piano «il pannello ad albero, secondo giro»): le pagine nell'ordine e nel rientro del ramo Pagine, e sotto ognuna i suoi
   oggetti. Nasce aperta solo la pagina corrente, che tiene trascinamento, rinomina, menu contestuale e gruppi; un oggetto di un'altra pagina porta a quella pagina e lo seleziona. La ricerca è
   una sola e filtra l'albero stesso (nome, tipo, id, tag, testi): sparisce la casella «Cerca in tutte le pagine» con il suo elenco a parte.

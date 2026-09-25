@@ -243,6 +243,25 @@ Tieni **Shift** per mantenere le proporzioni.
 
 ### Proprietà nel pannello destro
 
+Il pannello destro è **una colonna sola**, come l'albero a sinistra. Le sezioni stanno sotto quattro rami, che
+si chiudono e lo ricordano:
+
+- **🎛 il tipo** (per esempio «Gauge», «Testo»): le impostazioni proprie dell'oggetto — *Parametri*, o *Testo*
+  su un testo. Non c'è sulle forme (rettangolo, ellisse, linea), che non ne hanno;
+- **📐 Posizione e aspetto**: Identità e posizione, Aspetto, Trasformazione, Livello e visibilità;
+- **🔗 Dati e collegamenti**: Dato (tag), Binding attivi, Indicatore di qualità;
+- **⚡ Animazione e interazione**: Movimento su percorso, Eventi, Sicurezza.
+
+- **Una sezione aperta alla volta**: aprendone una si chiude la precedente, così non si scorre.
+- **📌 Appunta** una sezione per tenerla aperta insieme alle altre (per esempio Aspetto mentre si lavora sulla
+  Trasformazione). Le sezioni appuntate valgono per tutti gli oggetti.
+- **Cambiando oggetto** la sezione aperta resta quella, se il tipo nuovo ce l'ha; altrimenti si apre quella
+  del tipo (Parametri su uno strumento, Testo su un testo, Aspetto su una forma). Tornando su un oggetto che
+  ce l'ha, si ritrova la sezione scelta.
+
+Fino al 2026-09-25 il pannello aveva una colonna di icone che mostrava un gruppo per volta, e i gruppi erano
+Oggetto, Testo, Dato, Comportamento e Resa — con Parametri dentro Dato.
+
 Ogni tipo di widget ha proprietà specifiche (vedi [05 — Widget Reference](05_widget_reference.md)).
 Le proprietà comuni a tutti gli oggetti sono:
 

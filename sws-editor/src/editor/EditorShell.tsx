@@ -1,4 +1,4 @@
-import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { QDOT_BUILTIN_TYPES, SvgCanvas, normalizeFaceplateParams, type CanvasViewApi } from "@/canvas/SvgCanvas";
@@ -31,7 +31,7 @@ import { useAppStore } from "@/store";
 import { coloreAuto, estraiHex, predefinito, regola } from "@/coloriPredefiniti";
 import { oggettoNuovo } from "./oggettiNuovi";
 import { CampoColore } from "./CampoColore";
-import { BarraIcone, IntestazioneSezione, PREFISSO_MEMORIA, RigaProprieta, SPAZIO, TESTO, TitoloVista, migraMemorieVecchie, useSezioneAperta } from "./stilePannelli";
+import { IntestazioneSezione, PREFISSO_MEMORIA, RigaProprieta, SPAZIO, TESTO, TitoloVista, migraMemorieVecchie, useSezioneAperta } from "./stilePannelli";
 import { cosaCancella, eliminaWaypoint, percorsoDaSalvare, puntiMovimento } from "@/canvas/percorsoMovimento";
 import { targetDaSalvare, versoRischioso } from "./targetProgetto";
 import { LinguaContenutiProvider } from "@/i18n/linguaContenuti";
@@ -61,7 +61,12 @@ const PANEL: React.CSSProperties = {
 const RIGHT_PANEL_WIDTH_KEY = "sws.rightPanelWidth";
 /** Sotto il prefisso unico di `stilePannelli`, come la vista del pannello
  *  sinistro: le memorie dei due pannelli si azzerano insieme. */
-const CHIAVE_GRUPPO_DESTRO = PREFISSO_MEMORIA + "destra.gruppo";
+/** La sezione aperta del pannello destro, per **nome** (R4, 25-09-2026). */
+const CHIAVE_SEZIONE_DESTRA = PREFISSO_MEMORIA + "destra.sezione";
+/** Le sezioni appuntate: restano aperte insieme a quella scelta. */
+const CHIAVE_APPUNTATE = PREFISSO_MEMORIA + "destra.appuntate";
+/** I rami (gruppi) chiusi del pannello destro. */
+const CHIAVE_RAMI_CHIUSI = PREFISSO_MEMORIA + "destra.ramiChiusi";
 const RIGHT_PANEL_MIN = 220;
 const RIGHT_PANEL_MAX = 560;
 
@@ -348,31 +353,13 @@ export function EditorShell() {
   const selected    = objects.find((o) => o.id === selectedId) ?? null;
   const multi       = selectedIds.length > 1;
 
-  // Il gruppo scelto nella barra a destra. Globale e non per tipo di oggetto:
-  // cambiare selezione non deve spostare il gruppo sotto le mani di chi sta
-  // lavorando, poniamo, sugli eventi di dieci pulsanti in fila.
-  const [gruppoDestro, setGruppoDestro] = useState<GruppoProprieta>(() => {
-    try {
-      return gruppoMemorizzato(localStorage.getItem(CHIAVE_GRUPPO_DESTRO));
-    } catch { /* senza memoria si riparte da Oggetto */ }
-    return "oggetto";
-  });
-  const scegliGruppo = (g: GruppoProprieta) => {
-    setGruppoDestro(g);
-    try { localStorage.setItem(CHIAVE_GRUPPO_DESTRO, g); } catch { /* vedi sopra */ }
-  };
-
-  // Il gruppo che si vede davvero: quello scelto se si applica al tipo
-  // selezionato, altrimenti Oggetto. La scelta in memoria resta com'è.
-  //
   // Il tipo che conta è quello del FIGLIO quando se ne sta editando uno
   // dentro una griglia (una cella o una sotto-cella) — non quello della
-  // griglia stessa, altrimenti un `text` annidato perderebbe la scheda
+  // griglia stessa, altrimenti un `text` annidato perderebbe la sezione
   // "Testo" perché "grid" non ce l'ha. Vedi `figlioProprietaAttivo`.
   const figlioAttivo = figlioProprietaAttivo(selected, selectedCellChild, selectedSubCell);
   const tipoVisto = figlioAttivo?.type ?? selected?.type;
   const paginaBoot = eBoot(currentPage);
-  const gruppoVisto = gruppoEffettivo(gruppoDestro, tipoVisto, paginaBoot);
   const gruppiVisibili = gruppiPerTipo(tipoVisto ?? "", paginaBoot);
   const mostraGruppi = barraGruppiVisibile(selected, multi, {
     cella: selectedCell?.objectId,
@@ -715,13 +702,11 @@ export function EditorShell() {
       <PannelloDestro
         larghezza={rightPanelWidth}
         onRidimensiona={onRightResizeStart}
-        titolo={mostraGruppi
-          ? t(GRUPPI_PROPRIETA.find((g) => g.id === gruppoVisto)!.chiave)
-          : t("props.panelTitle")}
-        gruppo={gruppoVisto}
+        titolo={t("props.panelTitle")}
+        tipo={tipoVisto ?? ""}
         gruppiVisibili={gruppiVisibili}
-        onScegliGruppo={scegliGruppo}
-        mostraBarra={mostraGruppi}
+        aSezioni={mostraGruppi}
+        chiaveOggetto={`${selected?.id ?? ""}|${figlioAttivo?.id ?? ""}`}
         bloccato={!!currentPage?.locked}
       >
         {multi ? (
@@ -1144,24 +1129,21 @@ function PanelBreadcrumb({ parts }: { parts: BreadcrumbPart[] }) {
  *  per `storageKey`, so switching between selected objects doesn't reset
  *  the user's preference. Body is only rendered when open (cheap collapse
  *  for sections that contain expensive UI like color pickers or galleries). */
-/** I quattro gruppi in cui si raccolgono le tredici sezioni canoniche del
- *  pannello proprietà, e l'ordine in cui stanno nella barra delle icone.
+/** I rami del pannello proprietà, nell'ordine in cui stanno nella colonna.
  *
- *  Prima dell'11-09-2026 le tredici sezioni stavano tutte in colonna: per
- *  arrivare a «Eventi» su un `rect` si scorreva oltre le altre dieci. Ora se
- *  ne vede un gruppo per volta, come a sinistra. Verificato sull'inventario
- *  dei 35 tipi che nessun gruppo resta mai vuoto: ogni tipo ne ha 2-3 sezioni
- *  per gruppo. */
+ *  Storia: fino all'11-09-2026 le sezioni stavano tutte in colonna; T-56 le ha
+ *  divise in gruppi astratti (Oggetto, Testo, Dato, Comportamento, Resa)
+ *  scelti da una barra di icone. Il 25-09-2026 la barra è sparita (R4) e i
+ *  gruppi sono diventati rami — e a quel punto il maintainer ha notato che i
+ *  nomi non dicevano cosa c'era dentro, e che «Parametri», la sezione che si
+ *  tocca di più, stava sepolta sotto «Dato». Ora i rami dicono il contenuto,
+ *  e il primo porta **il nome del tipo** e ne tiene le impostazioni proprie.
+ *  Esiste solo dove il tipo ne ha (non sulle forme). */
 export const GRUPPI_PROPRIETA = [
-  { id: "oggetto",       icona: "🧩", chiave: "props.gruppoOggetto" },
-  // Il blocco del testo è il più fitto del pannello — tipografia, allineamento,
-  // a capo, token di lingua — e su un `text` soffocava tutto il resto: sta in
-  // una scheda sua (richiesta del maintainer, 11-09-2026). È l'unico gruppo che
-  // non si applica a tutti i tipi, e riusa la chiave della sezione che contiene.
-  { id: "testo",         icona: "🅣", chiave: "props.sectionText", soloTipi: ["text"] },
-  { id: "dato",          icona: "📊", chiave: "props.gruppoDato" },
-  { id: "comportamento", icona: "⚡", chiave: "props.gruppoComportamento" },
-  { id: "resa",          icona: "👁", chiave: "props.gruppoResa" },
+  { id: "tipo",        icona: "🎛", chiave: "props.gruppoTipo" },
+  { id: "aspetto",     icona: "📐", chiave: "props.gruppoPosizioneAspetto" },
+  { id: "dati",        icona: "🔗", chiave: "props.gruppoDatiCollegamenti" },
+  { id: "interazione", icona: "⚡", chiave: "props.gruppoAnimazioneInterazione" },
 ] as const;
 export type GruppoProprieta = (typeof GRUPPI_PROPRIETA)[number]["id"];
 
@@ -1172,14 +1154,16 @@ export type GruppoProprieta = (typeof GRUPPI_PROPRIETA)[number]["id"];
  *  icone su un `text` e quattro su tutto il resto. */
 export function gruppiPerTipo(tipo: string, paginaBoot = false) {
   return GRUPPI_PROPRIETA
-    .filter((g) => !("soloTipi" in g) || (g.soloTipi as readonly string[]).includes(tipo))
-    // Su una pagina di boot non ci sono dati, eventi né comportamento: solo
-    // ciò che serve a disegnare un'immagine ferma (T-72).
+    // Il ramo del tipo c'è solo se il tipo ha qualcosa di suo: il testo, o i
+    // Parametri. Una forma ha solo posizione e aspetto.
+    .filter((g) => g.id !== "tipo" || tipo === "text" || TIPI_CON_PARAMETRI.includes(tipo))
+    // Su una pagina di boot non ci sono dati né interazione: solo ciò che serve
+    // a disegnare un'immagine ferma (T-72).
     .filter((g) => !paginaBoot || GRUPPI_BOOT.includes(g.id));
 }
 
-/** I gruppi del pannello proprietà che una pagina di boot ammette. */
-const GRUPPI_BOOT: readonly GruppoProprieta[] = ["oggetto", "testo", "resa"];
+/** I rami del pannello proprietà che una pagina di boot ammette. */
+const GRUPPI_BOOT: readonly GruppoProprieta[] = ["tipo", "aspetto"];
 
 // I tipi che hanno una sezione «Parametri» propria (T-56, sezione canonica 6).
 // Fuori restano rect, ellipse e line: sono forme, non strumenti, e non hanno
@@ -1193,38 +1177,74 @@ export const TIPI_CON_PARAMETRI: readonly string[] = [
   "text_list", "trend", "xy_plot",
 ];
 
-/** Il gruppo che più caratterizza un tipo: dove si va quando quello scelto
- *  non esiste per l'oggetto appena selezionato (richiesta del maintainer,
- *  21-09-2026). Un testo è la sua tipografia; uno strumento è i suoi
- *  Parametri, che stanno sotto Dato (la «sezione grande del tipo» di T-56);
- *  una forma ha solo aspetto e posizione. */
+/** Il ramo che più caratterizza un tipo: quello del tipo, dove ce l'ha;
+ *  altrimenti Posizione e aspetto (una forma). */
 export function gruppoAffine(tipo: string): GruppoProprieta {
-  if (tipo === "text") return "testo";
-  if (TIPI_CON_PARAMETRI.includes(tipo)) return "dato";
-  return "oggetto";
+  return tipo === "text" || TIPI_CON_PARAMETRI.includes(tipo) ? "tipo" : "aspetto";
 }
 
-/** Il gruppo da mostrare davvero: quello scelto, se si applica a questo tipo,
- *  altrimenti il gruppo affine al tipo (`gruppoAffine`) — e Oggetto se nemmeno
- *  quello si vede, come su una pagina di boot.
- *
- *  La **scelta memorizzata non si tocca**: chi stava sul testo e passa a un
- *  rettangolo vede Oggetto, a un gauge vede Dato, e tornando su un testo
- *  ritrova il testo. Scrivere il ripiego in memoria farebbe perdere la scelta
- *  a ogni clic sul canvas. */
-export function gruppoEffettivo(scelto: GruppoProprieta, tipo: string | undefined, paginaBoot = false): GruppoProprieta {
-  if (!tipo) return paginaBoot && !GRUPPI_BOOT.includes(scelto) ? "oggetto" : scelto;
-  const visibili = gruppiPerTipo(tipo, paginaBoot).map((g) => g.id);
-  if (visibili.includes(scelto)) return scelto;
-  const affine = gruppoAffine(tipo);
-  return visibili.includes(affine) ? affine : "oggetto";
+/** La sezione che più caratterizza un tipo, da aprire quando quella scelta
+ *  non c'è (decisione del maintainer, 25-09-2026): Testo su un testo,
+ *  Parametri su uno strumento, Aspetto su una forma. */
+export function sezioneAffine(tipo: string): string {
+  if (tipo === "text") return "testo";
+  if (TIPI_CON_PARAMETRI.includes(tipo)) return "parametri";
+  return "aspetto";
 }
+
+/** L'ordine delle sezioni canoniche dentro il loro ramo (R4, 25-09-2026). Una
+ *  tabella e non l'ordine di disegno: una sezione che si ridisegna da sola non
+ *  deve cambiare posto. Una chiave che manca qui va in fondo al suo ramo. */
+export const ORDINE_SEZIONI: readonly string[] = [
+  "parametri", "testo",                          // il tipo
+  "identita", "aspetto", "transform", "layer",   // Posizione e aspetto
+  "dato", "bindings", "quality",                 // Dati e collegamenti
+  "motion", "events", "security",                // Animazione e interazione
+];
+
+/** La sezione aperta davvero (R4): quella scelta, se l'oggetto ce l'ha;
+ *  altrimenti la prima del gruppo affine al tipo (`gruppoAffine`); altrimenti
+ *  la prima che c'è. Mai «nessuna» quando qualcosa c'è: un oggetto appena
+ *  selezionato con tutto chiuso è un pannello che sembra vuoto.
+ *
+ *  È la regola che il maintainer ha chiesto il 25-09-2026 — «se sono in una
+ *  sezione e cambio oggetto, nel momento in cui la stessa sezione è presente,
+ *  mantieni quella attiva» — spostata dal gruppo alla sezione. */
+export function sezioneEffettiva(
+  scelta: string | null,
+  presenti: readonly { chiave: string; gruppo: GruppoProprieta }[],
+  tipo: string,
+): string | null {
+  if (presenti.length === 0) return scelta;
+  if (scelta && presenti.some((p) => p.chiave === scelta)) return scelta;
+  const affine = sezioneAffine(tipo);
+  if (presenti.some((p) => p.chiave === affine)) return affine;
+  const ordinate = [...presenti].sort((a, b) => ORDINE_SEZIONI.indexOf(a.chiave) - ORDINE_SEZIONI.indexOf(b.chiave));
+  const gruppo = gruppoAffine(tipo);
+  return (ordinate.find((p) => p.gruppo === gruppo) ?? ordinate[0]).chiave;
+}
+
+/** Lo stato della colonna di sezioni, fornito da `PannelloDestro`. Assente
+ *  (null) fuori da un oggetto singolo: lì ogni sezione si apre e chiude da sé. */
+interface StatoFisarmonica {
+  aperta: string | null;
+  appuntate: ReadonlySet<string>;
+  ramiChiusi: ReadonlySet<string>;
+  /** I gruppi che valgono per il tipo mostrato: una sezione di un gruppo che non
+   *  c'è (Dato su una pagina di boot) non si disegna affatto. */
+  gruppiVisibili: ReadonlySet<string>;
+  /** Segna la sezione come presente e restituisce il suo `order` nella colonna. */
+  registra: (chiave: string, gruppo: GruppoProprieta) => number;
+  apri: (chiave: string | null) => void;
+  commutaAppunto: (chiave: string) => void;
+}
+const Fisarmonica = createContext<StatoFisarmonica | null>(null);
 
 /** Il gruppo scelto nella barra a destra. Le sezioni che dichiarano un
  *  `gruppo` diverso non si disegnano affatto — non sono nascoste con il CSS:
  *  un pannello che tiene in vita tredici sezioni per mostrarne tre paga il
  *  rendering di tutte a ogni battuta di tastiera in un campo. */
-export const GruppoAttivo = createContext<GruppoProprieta>("oggetto");
+export const GruppoAttivo = createContext<GruppoProprieta | "tutti">("aspetto");
 
 /** La barra dei gruppi si vede?
  *
@@ -1270,11 +1290,6 @@ export function avvisoRuoloMinimo(
   return !!minRole && progettoHaUtenti === false;
 }
 
-export function gruppoMemorizzato(grezzo: string | null): GruppoProprieta {
-  return GRUPPI_PROPRIETA.some((g) => g.id === grezzo)
-    ? (grezzo as GruppoProprieta)
-    : "oggetto";
-}
 
 /** Il guscio del pannello destro: intestazione ferma, contenuto che scorre,
  *  barra delle icone fuori dalla zona che si ridimensiona — la stessa forma
@@ -1288,21 +1303,81 @@ export function gruppoMemorizzato(grezzo: string | null): GruppoProprieta {
  *  contesto non era mai stato fornito e valeva il suo default. Con un
  *  componente, il filo si può provare da solo — vedi `pannelloDestro.test.tsx`. */
 export function PannelloDestro({
-  larghezza, onRidimensiona, titolo, gruppo, gruppiVisibili, onScegliGruppo, mostraBarra, bloccato, children,
+  larghezza, onRidimensiona, titolo, tipo, gruppiVisibili, aSezioni, chiaveOggetto, bloccato, children,
 }: {
   larghezza: number;
   onRidimensiona: (e: React.MouseEvent) => void;
   titolo: string;
-  gruppo: GruppoProprieta;
-  /** I gruppi da mostrare nella barra: dipendono dal tipo dell'oggetto
-   *  selezionato, vedi `gruppiPerTipo`. */
+  /** Il tipo dell'oggetto mostrato: decide la sezione affine. */
+  tipo: string;
+  /** I gruppi da mostrare come rami: dipendono dal tipo, vedi `gruppiPerTipo`. */
   gruppiVisibili: readonly { readonly id: string; readonly icona: string; readonly chiave: string }[];
-  onScegliGruppo: (g: GruppoProprieta) => void;
-  mostraBarra: boolean;
+  /** Un oggetto solo, con le sezioni canoniche: rami e fisarmonica. Altrimenti
+   *  (pagina, più oggetti, editor di cella) le sezioni fanno da sé. */
+  aSezioni: boolean;
+  /** Cambia quando cambia l'oggetto mostrato: azzera l'elenco delle sezioni presenti. */
+  chiaveOggetto: string;
   bloccato: boolean;
   children: React.ReactNode;
 }) {
   const { t } = useTranslation();
+  const leggi = (k: string, d: string) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } };
+  const scrivi = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* senza memoria */ } };
+
+  // La sezione scelta, per nome. Il ripiego sull'affine non la sovrascrive:
+  // chi stava su «Eventi» e passa a un testo vede «Testo», e tornando su un
+  // pulsante ritrova «Eventi» — la stessa regola che valeva per i gruppi.
+  const [scelta, setScelta] = useState<string | null>(() => leggi(CHIAVE_SEZIONE_DESTRA, "") || null);
+  const [appuntate, setAppuntate] = useState<Set<string>>(() => new Set(JSON.parse(leggi(CHIAVE_APPUNTATE, "[]")) as string[]));
+  const [ramiChiusi, setRamiChiusi] = useState<Set<string>>(() => new Set(JSON.parse(leggi(CHIAVE_RAMI_CHIUSI, "[]")) as string[]));
+  const [effettiva, setEffettiva] = useState<string | null>(scelta);
+
+  // Le sezioni presenti per l'oggetto mostrato: si registrano mentre si
+  // disegnano (una tabella scritta a mano ripeterebbe le condizioni del JSX,
+  // e divergerebbe). Il conto si fa prima che lo schermo si aggiorni.
+  const presenti = useMemo(() => new Map<string, GruppoProprieta>(), [chiaveOggetto, tipo]);
+  const ultimaAperta = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    const e = sezioneEffettiva(scelta, [...presenti].map(([chiave, gruppo]) => ({ chiave, gruppo })), tipo);
+    if (e !== effettiva) setEffettiva(e);
+    // Il ramo della sezione aperta si apre — ma solo quando la sezione
+    // **cambia**: una sezione aperta dentro un ramo chiuso è un pannello che
+    // sembra vuoto, però chi chiude a mano quel ramo deve poterlo fare.
+    if (e === ultimaAperta.current) return;
+    ultimaAperta.current = e;
+    const g = e ? presenti.get(e) : undefined;
+    if (g && ramiChiusi.has(g)) {
+      const n = new Set(ramiChiusi); n.delete(g); setRamiChiusi(n); scrivi(CHIAVE_RAMI_CHIUSI, JSON.stringify([...n]));
+    }
+  });
+
+  const indiceGruppo = new Map(gruppiVisibili.map((g, i) => [g.id, i]));
+  const fisarmonica: StatoFisarmonica = {
+    aperta: effettiva,
+    appuntate,
+    ramiChiusi,
+    gruppiVisibili: new Set(gruppiVisibili.map((g) => g.id)),
+    registra: (chiave, gruppo) => {
+      presenti.set(chiave, gruppo);
+      const posizione = ORDINE_SEZIONI.indexOf(chiave);
+      return ((indiceGruppo.get(gruppo) ?? 9) + 1) * 100 + (posizione < 0 ? 99 : posizione + 1);
+    },
+    apri: (chiave) => {
+      setScelta(chiave); setEffettiva(chiave);
+      scrivi(CHIAVE_SEZIONE_DESTRA, chiave ?? "");
+    },
+    commutaAppunto: (chiave) => {
+      const n = new Set(appuntate);
+      if (n.has(chiave)) n.delete(chiave); else n.add(chiave);
+      setAppuntate(n); scrivi(CHIAVE_APPUNTATE, JSON.stringify([...n]));
+    },
+  };
+  const commutaRamo = (g: string) => {
+    const n = new Set(ramiChiusi);
+    if (n.has(g)) n.delete(g); else n.add(g);
+    setRamiChiusi(n); scrivi(CHIAVE_RAMI_CHIUSI, JSON.stringify([...n]));
+  };
+
   return (
     <aside style={{
       display: "flex", flexShrink: 0, position: "relative",
@@ -1321,13 +1396,31 @@ export function PannelloDestro({
               form control (inputs/selects/buttons) in one shot — no need to
               thread a `disabled` prop through every ObjectProps variant. */}
           <fieldset disabled={bloccato} style={{ border: "none", margin: 0, padding: 0, display: "contents" }}>
-            <GruppoAttivo.Provider value={gruppo}>{children}</GruppoAttivo.Provider>
+            {aSezioni ? (
+              // R4 (25-09-2026): una colonna sola. I gruppi sono rami, e le
+              // sezioni ci si mettono sotto con `order` — sono figlie dirette
+              // di questa colonna, e così ognuna si disegna una volta sola.
+              <GruppoAttivo.Provider value="tutti">
+                <Fisarmonica.Provider value={fisarmonica}>
+                  {gruppiVisibili.map((g, i) => (
+                    <div key={g.id} data-testid={`ramo-proprieta-${g.id}`} style={{ order: (i + 1) * 100, marginTop: i ? SPAZIO.s : 0 }}>
+                      <IntestazioneSezione
+                        titolo={g.id === "tipo" ? t(`editor.palette.item.${tipo}`) : t(g.chiave)} icona={g.icona}
+                        aperta={!ramiChiusi.has(g.id)} onToggle={() => commutaRamo(g.id)} rilievo
+                      />
+                    </div>
+                  ))}
+                  {children}
+                </Fisarmonica.Provider>
+              </GruppoAttivo.Provider>
+            ) : (
+              // Pagina, più oggetti, editor di cella: nessun ramo, e ogni
+              // sezione si apre e chiude da sé.
+              <GruppoAttivo.Provider value="tutti">{children}</GruppoAttivo.Provider>
+            )}
           </fieldset>
         </div>
       </div>
-      {mostraBarra && (
-        <BarraIcone voci={gruppiVisibili} attiva={gruppo} onScegli={onScegliGruppo} lato="destra" />
-      )}
     </aside>
   );
 }
@@ -1457,22 +1550,53 @@ function CollapsibleSection({
   // disposto le sue sezioni prima dell'11-09-2026 riparte dai default: una
   // preferenza globale non può dire cosa volesse per **ciascun** tipo, e
   // inventarselo sarebbe peggio che ricominciare.
+  const { t } = useTranslation();
   const gruppoAttivo = useContext(GruppoAttivo);
+  const fis = useContext(Fisarmonica);
   const tipo = useContext(TipoOggetto);
   const chiave = storageKey ? (tipo ? `props.${tipo}.${storageKey}` : `props.${storageKey}`) : undefined;
   const [open, toggle] = useSezioneAperta(chiave, defaultOpen);
   // Dopo gli hook, mai prima: un `return` che li salta li fa scorrere di
   // posizione al render successivo, ed è il modo classico di rompere React.
-  if (gruppo && gruppo !== gruppoAttivo) return null;
+  if (gruppo && gruppoAttivo !== "tutti" && gruppo !== gruppoAttivo) return null;
+  // R4 (25-09-2026): nella colonna a sezioni una sola è aperta, più quelle
+  // appuntate; le sotto-sezioni (senza gruppo) restano libere.
+  if (fis && gruppo && !fis.gruppiVisibili.has(gruppo)) return null;
+  const inFisarmonica = !!fis && !!gruppo && !!storageKey;
+  const ordine = inFisarmonica ? fis.registra(storageKey!, gruppo!) : undefined;
+  if (inFisarmonica && fis.ramiChiusi.has(gruppo!)) return null;
+  const appuntata = inFisarmonica && fis.appuntate.has(storageKey!);
+  const aperta = inFisarmonica ? (fis.aperta === storageKey || appuntata) : open;
+  const commuta = inFisarmonica
+    ? () => {
+        if (!aperta) { fis.apri(storageKey!); return; }
+        if (appuntata) fis.commutaAppunto(storageKey!);
+        if (fis.aperta === storageKey) fis.apri(null);
+      }
+    : toggle;
+  const azione = inFisarmonica ? (
+    <>
+      {headerExtra}
+      <button
+        type="button"
+        data-testid={`pin-${storageKey}`}
+        onClick={() => fis.commutaAppunto(storageKey!)}
+        title={t(appuntata ? "props.sganciaSezione" : "props.appuntaSezione")}
+        aria-pressed={appuntata}
+        style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 10, padding: 0,
+                 opacity: appuntata ? 1 : 0.35, filter: appuntata ? "none" : "grayscale(1)" }}
+      >📌</button>
+    </>
+  ) : headerExtra;
   return (
-    <div style={{ borderTop: "1px solid var(--brand-surface, #1e293b)", paddingTop: 4, marginTop: 4 }}>
-      <IntestazioneSezione titolo={title} aperta={open} onToggle={toggle} azione={headerExtra} />
-      {!open && hint && (
+    <div style={{ borderTop: "1px solid var(--brand-surface, #1e293b)", paddingTop: 4, marginTop: 4, order: ordine }}>
+      <IntestazioneSezione titolo={title} aperta={aperta} onToggle={commuta} azione={azione} />
+      {!aperta && hint && (
         <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", fontStyle: "italic", margin: "0 0 4px 16px" }}>
           {hint}
         </div>
       )}
-      {open && <div style={{ paddingLeft: 4, paddingBottom: 4 }}>{children}</div>}
+      {aperta && <div style={{ paddingLeft: 4, paddingBottom: 4 }}>{children}</div>}
     </div>
   );
 }
@@ -2721,7 +2845,7 @@ export function ObjectProps({
           un'intestazione e tre righe di etichetta, circa 70 px — un terzo di
           quello che occupavano. Sopra i campi lunghi l'etichetta resta sopra,
           perché a pannello stretto a fianco mangerebbe larghezza al controllo. */}
-      <CollapsibleSection title={t("props.sectionIdentityGeometry")} storageKey="identita" gruppo="oggetto">
+      <CollapsibleSection title={t("props.sectionIdentityGeometry")} storageKey="identita" gruppo="aspetto">
         <RigaProprieta etichetta={t("props.name")} inLinea>
           <input
             type="text" style={INPUT}
@@ -2768,7 +2892,7 @@ export function ObjectProps({
         </div>
       </CollapsibleSection>
 
-      <CollapsibleSection title={t("props.sectionAppearance")} storageKey="aspetto" gruppo="oggetto">
+      <CollapsibleSection title={t("props.sectionAppearance")} storageKey="aspetto" gruppo="aspetto">
         {/* Fill */}
         {(obj.type === "rect" || obj.type === "ellipse" || obj.type === "button" || obj.type === "navbutton") &&
           field(t("props.color"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill")}</BindableInput>)}
@@ -2928,7 +3052,7 @@ export function ObjectProps({
         )}
       </CollapsibleSection>
 
-      <CollapsibleSection title={t("props.sectionData")} storageKey="dato" gruppo="dato">
+      <CollapsibleSection title={t("props.sectionData")} storageKey="dato" gruppo="dati">
         {/* Tag binding */}
         {!["navbutton","page_navigator","gauge","slider","checkbox","radio","led","progress_bar","trend","pipe","text_list","state_lamp","setpoint","xy_plot",
           // 2026-08-23: tipi dove obj.tag NON è il dato primario (serie/figli
@@ -2959,7 +3083,7 @@ export function ObjectProps({
       {/* 4 · Testo — solo per i tipi che ne hanno uno. Chiusa di default:
        *  chi disegna una pagina tocca prima posizione e colore. */}
       {obj.type === "text" && (
-        <CollapsibleSection title={t("props.sectionText")} storageKey="testo" gruppo="testo">
+        <CollapsibleSection title={t("props.sectionText")} storageKey="testo" gruppo="tipo">
           {/* Text object: static content + typography */}
           {obj.type === "text" && (
             <>
@@ -3099,7 +3223,7 @@ export function ObjectProps({
        *  nuovo dimenticato qui non perde la sezione in silenzio — perde i
        *  suoi campi, e il test d'inventario lo dice. */}
       {TIPI_CON_PARAMETRI.includes(obj.type) && (
-        <CollapsibleSection title={t("props.sectionParameters")} storageKey="parametri" gruppo="dato">
+        <CollapsibleSection title={t("props.sectionParameters")} storageKey="parametri" gruppo="tipo">
           {/* Button label + write value + built-in action */}
           {obj.type === "button" && (
             <>
@@ -4791,7 +4915,7 @@ export function ObjectProps({
       {/* F6.10 — MOVIMENTO su percorso (universale) */}
       <CollapsibleSection
         title={t("props.motion")}
-        storageKey="motion" gruppo="comportamento"
+        storageKey="motion" gruppo="interazione"
         headerExtra={obj.motion_tag ? <span style={{ fontSize: 10, color: "var(--brand-primary, #3b82f6)", fontWeight: 700 }}>●</span> : undefined}
       >
         {/* T-53 — fuori dalla guardia su `motion_tag`: il tracciato è
@@ -4909,7 +5033,7 @@ export function ObjectProps({
 
       {/* ── Cross-cutting: rotation / flip / opacity (advanced, collapsed) */}
       {SUPPORTS_TRANSFORM.has(obj.type) && (
-        <CollapsibleSection title={t("props.transform")} storageKey="transform" gruppo="resa">
+        <CollapsibleSection title={t("props.transform")} storageKey="transform" gruppo="aspetto">
           {field(t("props.rotationDeg"),
             <BindableInput obj={obj} propName="rotation" onChange={onChange}>
               <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
@@ -4988,7 +5112,7 @@ export function ObjectProps({
       )}
 
       {/* ── Cross-cutting: layer & visibility (advanced, collapsed) ─── */}
-      <CollapsibleSection title={t("props.layerVisibility")} storageKey="layer" gruppo="resa">
+      <CollapsibleSection title={t("props.layerVisibility")} storageKey="layer" gruppo="aspetto">
         <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 4, alignItems: "end" }}>
           <div><div style={LABEL}>z-index</div><BindableInput obj={obj} propName="z_index" onChange={onChange}>{numInput("z_index", 0)}</BindableInput></div>
           <button
@@ -5040,7 +5164,7 @@ export function ObjectProps({
       {obj.type !== "grid" && (
         <CollapsibleSection
           title={t("props.events")}
-          storageKey="events" gruppo="comportamento"
+          storageKey="events" gruppo="interazione"
           headerExtra={
             (obj.on_press_fn || obj.on_release_fn)
               ? <span style={{ fontSize: 10, color: "var(--brand-primary, #3b82f6)", fontWeight: 700 }}>
@@ -5073,7 +5197,7 @@ export function ObjectProps({
       {/* F3 — SICUREZZA: gating per ruolo + conferma comando, universali. */}
       <CollapsibleSection
         title={t("props.security")}
-        storageKey="security" gruppo="comportamento"
+        storageKey="security" gruppo="interazione"
         headerExtra={
           (obj.min_role || obj.require_confirm)
             ? <span style={{ fontSize: 10, color: "var(--brand-warning, #f59e0b)", fontWeight: 700 }}>●</span>
@@ -5132,7 +5256,7 @@ export function ObjectProps({
       {/* ── Quality dot — always present; hint when no tag bound ──────── */}
       <CollapsibleSection
         title={t("props.qualityIndicator")}
-        storageKey="quality" gruppo="resa"
+        storageKey="quality" gruppo="dati"
         hint={!obj.tag ? t("shell.setATagTagSection") : undefined}
       >
         {/* 2026-08-23: per i tipi dove obj.tag non è il dato primario, il tag
@@ -5208,7 +5332,7 @@ export function ObjectProps({
       {/* ── Binding attivi (audit) — always shown with count ──────────── */}
       <CollapsibleSection
         title={t("props.activeBindings")}
-        storageKey="bindings" gruppo="dato"
+        storageKey="bindings" gruppo="dati"
         headerExtra={
           <span style={{ fontSize: 10, color: obj.bindings && Object.keys(obj.bindings).length > 0 ? "var(--brand-primary, #3b82f6)" : "var(--brand-border, #475569)", fontWeight: 700 }}>
             ({obj.bindings ? Object.keys(obj.bindings).length : 0})
@@ -5248,16 +5372,19 @@ export function ObjectProps({
         )}
       </CollapsibleSection>
 
-      {/* Solo nel gruppo Oggetto, che è dove sta l'identità: cancellare è
+      {/* Solo nel ramo Posizione e aspetto, dove sta l'identità: cancellare è
           un'operazione su quella. Fino all'11-09-2026 stava in fondo a una
           colonna lunga, quindi lontano da tutto; con gruppi da due o tre
           sezioni finirebbe subito sotto il pollice in ognuno dei quattro, e un
           rosso distruttivo a portata di clic ovunque è un incidente che
           aspetta solo di succedere. */}
-      {gruppoAttivo === "oggetto" && (
+      {/* Nella colonna unica (R4, 25-09-2026) il gruppo attivo è «tutti»: il
+          pulsante va in fondo, dopo l'ultimo ramo, una volta sola. */}
+      {(gruppoAttivo === "aspetto" || gruppoAttivo === "tutti") && (
         <button
           onClick={onDelete}
           style={{
+            order: 10000,
             marginTop: 4,
             background: "var(--brand-danger-bg, #7f1d1d)", color: "var(--brand-danger-soft, #fca5a5)",
             border: "1px solid #991b1b", borderRadius: 4,

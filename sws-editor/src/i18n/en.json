@@ -1007,10 +1007,6 @@
     "gridSection": "Grid",
     "cellEvents": "Cell events",
     "childObject": "Child object",
-    "gruppoOggetto": "Object",
-    "gruppoDato": "Data",
-    "gruppoComportamento": "Behaviour",
-    "gruppoResa": "Rendering",
     "deleteObject": "Delete object",
     "sectionIdentityGeometry": "Identity & position",
     "motionShowTrack": "Show track on canvas",
@@ -1028,7 +1024,13 @@
     "colorAuto": "auto",
     "colorAutoHint": "Automatic colour: follows the page background. Edit it to make it fixed.",
     "colorAutoReset": "Back to automatic (follows the page background)",
-    "mixedValues": "(mixed)"
+    "mixedValues": "(mixed)",
+    "appuntaSezione": "Pin: stays open when others open",
+    "sganciaSezione": "Unpin: closes with the others again",
+    "gruppoTipo": "The type",
+    "gruppoPosizioneAspetto": "Position & appearance",
+    "gruppoDatiCollegamenti": "Data & links",
+    "gruppoAnimazioneInterazione": "Animation & interaction"
   },
   "shortcut": {
     "navCanvas": "Canvas navigation",

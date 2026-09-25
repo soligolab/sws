@@ -251,3 +251,17 @@ cambiare quali campi esistono, e quella guardia è ciò che lo dimostra. Se camb
   apre il ramo giusto; ricerca che filtra le pagine; drag&drop ancora funzionante.
 
 Un ramo alla volta, in quest'ordine, ognuno mergiato e cancellato prima del successivo.
+
+## Avanzamento (25-09-2026, sera, ufficio)
+
+- **R3** fatto su `feat/albero-oggetti` (`e24d886c`): il ramo Oggetti con tutte le pagine, ricerca unica
+  che filtra l'albero.
+- **R4** fatto su `feat/proprieta-a-sezioni`, **annidato** su R3 perché il maintainer non poteva
+  collaudare: decisioni del maintainer — **una sezione aperta più quelle appuntate** (📌), e i gruppi
+  come **intestazioni di ramo**. Le sezioni si registrano mentre si disegnano (nessuna tabella che
+  ripeta le condizioni del JSX); l'ordine dentro il ramo viene da `ORDINE_SEZIONI` e il raggruppamento
+  dall'`order` del flex, così ogni sezione si disegna una volta sola. `gruppoEffettivo`,
+  `gruppoMemorizzato` e la colonna di icone spariscono; `gruppoAffine` resta, per il ripiego.
+  Fuori dalla fisarmonica (pagina, più oggetti, editor di cella) le sezioni si aprono da sé.
+
+Entrambi aspettano il collaudo a schermo; poi due squash in ordine e il piano va in archivio.

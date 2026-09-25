@@ -1007,10 +1007,6 @@
     "gridSection": "Griglia",
     "cellEvents": "Eventi cella",
     "childObject": "Oggetto figlio",
-    "gruppoOggetto": "Oggetto",
-    "gruppoDato": "Dato",
-    "gruppoComportamento": "Comportamento",
-    "gruppoResa": "Resa",
     "deleteObject": "Elimina oggetto",
     "sectionIdentityGeometry": "Identità e posizione",
     "motionShowTrack": "Mostra tracciato sul canvas",
@@ -1028,7 +1024,13 @@
     "colorAuto": "auto",
     "colorAutoHint": "Colore automatico: segue lo sfondo della pagina. Toccalo per fissarlo.",
     "colorAutoReset": "Torna automatico (segue lo sfondo della pagina)",
-    "mixedValues": "(vari)"
+    "mixedValues": "(vari)",
+    "appuntaSezione": "Appunta: resta aperta anche aprendo le altre",
+    "sganciaSezione": "Sgancia: torna a chiudersi con le altre",
+    "gruppoTipo": "Il tipo",
+    "gruppoPosizioneAspetto": "Posizione e aspetto",
+    "gruppoDatiCollegamenti": "Dati e collegamenti",
+    "gruppoAnimazioneInterazione": "Animazione e interazione"
   },
   "shortcut": {
     "navCanvas": "Navigazione canvas",

@@ -4,7 +4,7 @@ import {
   BOOT_TYPES, chiavePagina, eBoot, nomeBootLibero, paginePerNavigazione, pagineDiBoot, sinotticiPoiBoot,
 } from "@/boot/tipi";
 import { findBrokenNavLinks, findOrphanPageIds, pickInitialPageId } from "@/pageLayout";
-import { gruppiPerTipo, gruppoEffettivo } from "@/editor/EditorShell";
+import { gruppiPerTipo } from "@/editor/EditorShell";
 import type { SynopticPage } from "@/types";
 
 const sin = (id: string, name = id): SynopticPage => ({ id, name, objects: [] });
@@ -54,17 +54,12 @@ describe("dove una pagina di boot non deve comparire", () => {
 });
 
 describe("il pannello proprietà di una pagina di boot", () => {
-  it("mostra solo oggetto, testo e resa: niente dati, eventi né comportamento", () => {
-    expect(gruppiPerTipo("rect", true).map((g) => g.id)).toEqual(["oggetto", "resa"]);
-    expect(gruppiPerTipo("text", true).map((g) => g.id)).toEqual(["oggetto", "testo", "resa"]);
-    expect(gruppiPerTipo("rect").map((g) => g.id)).toContain("dato");
+  it("mostra solo il tipo e posizione/aspetto: niente dati né interazione", () => {
+    expect(gruppiPerTipo("rect", true).map((g) => g.id)).toEqual(["aspetto"]);
+    expect(gruppiPerTipo("text", true).map((g) => g.id)).toEqual(["tipo", "aspetto"]);
+    expect(gruppiPerTipo("rect").map((g) => g.id)).toContain("dati");
   });
 
-  it("un gruppo scelto altrove ripiega su Oggetto entrando in una pagina di boot", () => {
-    expect(gruppoEffettivo("dato", "rect", true)).toBe("oggetto");
-    expect(gruppoEffettivo("dato", undefined, true)).toBe("oggetto");
-    expect(gruppoEffettivo("resa", "rect", true)).toBe("resa");
-  });
 });
 
 describe("i tipi ammessi", () => {

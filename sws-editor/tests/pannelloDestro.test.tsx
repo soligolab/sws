@@ -1,9 +1,7 @@
-import { render, screen, fireEvent } from "@testing-library/react";
-import { useContext, useState } from "react";
-import { describe, it, expect, vi } from "vitest";
+import { render, screen, fireEvent, within } from "@testing-library/react";
+import { describe, it, expect, beforeEach } from "vitest";
 import i18n from "../src/i18n";
-import { BarraIcone } from "../src/editor/stilePannelli";
-import { GRUPPI_PROPRIETA, GruppoAttivo, PannelloDestro, barraGruppiVisibile, figlioProprietaAttivo, gruppiPerTipo, gruppoAffine, gruppoEffettivo, gruppoMemorizzato } from "../src/editor/EditorShell";
+import { GRUPPI_PROPRIETA, ObjectProps, PannelloDestro, barraGruppiVisibile, figlioProprietaAttivo, gruppiPerTipo, gruppoAffine, sezioneAffine, sezioneEffettiva } from "../src/editor/EditorShell";
 import { PALETTE_GROUPS } from "../src/editor/LeftPanel";
 import type { GruppoProprieta } from "../src/editor/EditorShell";
 import type { SynopticObject } from "../src/types";
@@ -99,176 +97,130 @@ describe("il figlio che il pannello sta davvero mostrando", () => {
   });
 });
 
-describe("la barra delle icone", () => {
-  const monta = (attiva = "oggetto") => {
-    const onScegli = vi.fn();
-    render(<BarraIcone voci={GRUPPI_PROPRIETA} attiva={attiva} onScegli={onScegli} lato="destra" />);
-    return onScegli;
-  };
+/** R4 (25-09-2026): il pannello destro è **una colonna sola**. I gruppi sono
+ *  rami, dentro ci sono le sezioni; ne sta aperta una per volta, più quelle
+ *  appuntate. Si provano con `ObjectProps` vero dentro `PannelloDestro`: il
+ *  difetto dell'11-09 (un `Provider` dimenticato) insegna che il cablaggio va
+ *  provato col componente vero, non con una spia. */
+function Guscio({ obj }: { obj: SynopticObject }) {
+  return (
+    <PannelloDestro larghezza={280} onRidimensiona={() => {}} titolo="x"
+      tipo={obj.type} gruppiVisibili={gruppiPerTipo(obj.type)} aSezioni
+      chiaveOggetto={obj.id} bloccato={false}>
+      <ObjectProps obj={obj} pages={[]} functions={[]} onChange={() => {}} onDelete={() => {}} />
+    </PannelloDestro>
+  );
+}
+const oggetto = (id: string, type: string) => ({ id, type, x: 0, y: 0, width: 100, height: 40 }) as SynopticObject;
+const sezioniAperte = () => screen.queryAllByRole("button", { expanded: true })
+  .filter((b) => !b.closest("[data-testid^='ramo-proprieta-']"))
+  .map((b) => (b.textContent ?? "").replace("📌", "").trim());
+const titoloSezione = (k: string) => i18n.t(k);
+/** Il pulsante di una sezione, non quello del ramo omonimo (il ramo «Testo»
+ *  e la sezione «Testo» hanno lo stesso titolo). */
+const sezione = (re: RegExp) => screen.getAllByRole("button", { name: re })
+  .find((b) => !b.closest("[data-testid^='ramo-proprieta-']"))!;
 
-  it("ha una voce per gruppo, e una sola risulta scelta", () => {
-    monta();
-    const voci = screen.getAllByRole("tab");
-    expect(voci).toHaveLength(GRUPPI_PROPRIETA.length);
-    expect(voci.filter((b) => b.getAttribute("aria-selected") === "true")).toHaveLength(1);
+describe("il pannello destro a una colonna", () => {
+  beforeEach(() => { try { localStorage.clear(); } catch { /* jsdom */ } });
+
+  it("i gruppi sono rami, e c'è un ramo per gruppo del tipo", () => {
+    render(<Guscio obj={oggetto("a", "rect")} />);
+    const rami = screen.getAllByTestId(/^ramo-proprieta-/).map((e) => e.dataset.testid);
+    expect(rami).toEqual(gruppiPerTipo("rect").map((g) => `ramo-proprieta-${g.id}`));
+    expect(screen.queryAllByRole("tab")).toHaveLength(0);
   });
 
-  it("ogni icona porta il nome del gruppo, non solo il glifo", () => {
-    // Senza il `title` la barra è una fila di simboli da indovinare.
-    monta();
-    for (const g of GRUPPI_PROPRIETA) {
-      expect(screen.getByTitle(i18n.t(g.chiave))).toBeTruthy();
+  it("una sola sezione aperta: aprendone un'altra, la prima si chiude", () => {
+    render(<Guscio obj={oggetto("a", "rect")} />);
+    expect(sezioniAperte()).toHaveLength(1);
+    fireEvent.click(sezione(new RegExp(titoloSezione("props.transform"))));
+    expect(sezioniAperte()).toHaveLength(1);
+    expect(sezioniAperte()[0]).toContain(titoloSezione("props.transform"));
+  });
+
+  it("una sezione appuntata resta aperta insieme a quella scelta", () => {
+    render(<Guscio obj={oggetto("a", "rect")} />);
+    fireEvent.click(screen.getByTestId("pin-aspetto"));
+    fireEvent.click(sezione(new RegExp(titoloSezione("props.transform"))));
+    expect(sezioniAperte()).toHaveLength(2);
+  });
+
+  it("cambiando oggetto la sezione resta quella, se il tipo nuovo ce l'ha", () => {
+    const { rerender } = render(<Guscio obj={oggetto("a", "rect")} />);
+    fireEvent.click(sezione(new RegExp(titoloSezione("props.transform"))));
+    rerender(<Guscio obj={oggetto("b", "gauge")} />);
+    expect(sezioniAperte()).toHaveLength(1);
+    expect(sezioniAperte()[0]).toContain(titoloSezione("props.transform"));
+  });
+
+  it("se il tipo nuovo non ce l'ha si apre l'affine, e tornando si ritrova la scelta", () => {
+    const { rerender } = render(<Guscio obj={oggetto("a", "text")} />);
+    fireEvent.click(sezione(new RegExp("^" + titoloSezione("props.sectionText"))));
+    rerender(<Guscio obj={oggetto("b", "gauge")} />);
+    expect(sezioniAperte()[0]).toContain(titoloSezione("props.sectionParameters"));
+    rerender(<Guscio obj={oggetto("c", "text")} />);
+    expect(sezioniAperte()[0]).toContain(titoloSezione("props.sectionText"));
+  });
+
+  it("il pulsante «Elimina oggetto» c'è, una volta sola, anche nella colonna", () => {
+    render(<Guscio obj={oggetto("a", "rect")} />);
+    expect(screen.getAllByRole("button", { name: new RegExp(i18n.t("props.deleteObject")) })).toHaveLength(1);
+  });
+
+  it("un ramo chiuso nasconde le sue sezioni", () => {
+    render(<Guscio obj={oggetto("a", "rect")} />);
+    const ramo = within(screen.getByTestId("ramo-proprieta-aspetto")).getByRole("button");
+    fireEvent.click(ramo);
+    expect(screen.queryByRole("button", { name: new RegExp(titoloSezione("props.transform")) })).toBeNull();
+  });
+});
+
+describe("sezioneEffettiva", () => {
+  const p = (chiave: string, gruppo: GruppoProprieta) => ({ chiave, gruppo });
+  const rect = [p("identita", "aspetto"), p("aspetto", "aspetto"), p("dato", "dati"), p("transform", "aspetto")];
+  const gauge = [p("parametri", "tipo"), ...rect];
+  it("la scelta, se c'è", () => expect(sezioneEffettiva("transform", rect, "rect")).toBe("transform"));
+  it("altrimenti la sezione del tipo", () => {
+    expect(sezioneEffettiva("testo", gauge, "gauge")).toBe("parametri");
+    expect(sezioneEffettiva("testo", rect, "rect")).toBe("aspetto");
+  });
+  it("mai nessuna quando qualcosa c'è", () => expect(sezioneEffettiva(null, rect, "rect")).toBe("aspetto"));
+});
+
+describe("i rami dicono cosa contengono (25-09-2026)", () => {
+  it("il ramo del tipo c'è sui testi e sugli strumenti, non sulle forme", () => {
+    expect(gruppiPerTipo("text").map((g) => g.id)).toContain("tipo");
+    expect(gruppiPerTipo("gauge").map((g) => g.id)).toContain("tipo");
+    for (const forma of ["rect", "ellipse", "line"]) {
+      expect(gruppiPerTipo(forma).map((g) => g.id), forma).not.toContain("tipo");
     }
   });
 
-  it("il clic riporta il gruppo scelto, non quello attivo", () => {
-    const onScegli = monta();
-    fireEvent.click(screen.getAllByRole("tab")[2]);
-    expect(onScegli).toHaveBeenCalledWith(GRUPPI_PROPRIETA[2].id);
-  });
-});
-
-describe("il gruppo ricordato fra una sessione e l'altra", () => {
-  it("torna quello scelto l'ultima volta", () => {
-    expect(gruppoMemorizzato("comportamento")).toBe("comportamento");
-  });
-
-  it("senza memoria si parte da Oggetto", () => {
-    expect(gruppoMemorizzato(null)).toBe("oggetto");
-  });
-
-  it("un gruppo che non esiste più non lascia il pannello senza sezioni", () => {
-    // Il caso si presenta rinominando o togliendo un gruppo: chi aveva
-    // memorizzato quello vecchio deve ritrovarsi su Oggetto, non sul nulla.
-    expect(gruppoMemorizzato("avanzate")).toBe("oggetto");
-  });
-});
-
-/** **Il filo fra la barra e le sezioni**, che alla prima stesura non c'era.
- *
- *  Il `Provider` del contesto era stato dimenticato: la barra si illuminava, il
- *  titolo cambiava da OGGETTO a DATO, e sotto restavano le sezioni del gruppo
- *  Oggetto, perché `CollapsibleSection` leggeva il valore di default del
- *  contesto. Nessun test se n'era accorto — quello dell'inventario **fornisce
- *  lui** il contesto, quindi provava le sezioni e non il cablaggio.
- *
- *  Questi due provano il cablaggio, con un figlio finto che dichiara solo cosa
- *  vede: se il `Provider` sparisce di nuovo, diventano rossi. */
-function Spia() {
-  return <span data-testid="gruppo-visto">{useContext(GruppoAttivo)}</span>;
-}
-
-function montaPannello(iniziale: GruppoProprieta = "oggetto") {
-  function Guscio() {
-    const [gruppo, setGruppo] = useState<GruppoProprieta>(iniziale);
-    return (
-      <PannelloDestro
-        larghezza={280}
-        onRidimensiona={() => {}}
-        titolo={gruppo}
-        gruppo={gruppo}
-        gruppiVisibili={GRUPPI_PROPRIETA}
-        onScegliGruppo={setGruppo}
-        mostraBarra
-        bloccato={false}
-      >
-        <Spia />
-      </PannelloDestro>
-    );
-  }
-  return render(<Guscio />);
-}
-
-describe("la barra comanda davvero le sezioni", () => {
-  it("il contenuto vede il gruppo che il pannello dichiara", () => {
-    montaPannello("dato");
-    expect(screen.getByTestId("gruppo-visto").textContent).toBe("dato");
-  });
-
-  it("cliccando un'altra icona il contenuto vede il gruppo nuovo", () => {
-    montaPannello("oggetto");
-    expect(screen.getByTestId("gruppo-visto").textContent).toBe("oggetto");
-    fireEvent.click(screen.getAllByRole("tab")[2]);
-    expect(screen.getByTestId("gruppo-visto").textContent).toBe(GRUPPI_PROPRIETA[2].id);
-  });
-
-  it("senza barra il contenuto vede comunque il gruppo giusto", () => {
-    // Selezione multipla e celle di griglia: la barra non c'è, ma il contesto
-    // deve valere lo stesso — altrimenti le sezioni sparirebbero tutte.
-    render(
-      <PannelloDestro larghezza={280} onRidimensiona={() => {}} titolo="x"
-        gruppo="resa" gruppiVisibili={GRUPPI_PROPRIETA} onScegliGruppo={() => {}}
-        mostraBarra={false} bloccato={false}>
-        <Spia />
-      </PannelloDestro>,
-    );
-    expect(screen.getByTestId("gruppo-visto").textContent).toBe("resa");
-    expect(screen.queryAllByRole("tab")).toHaveLength(0);
-  });
-});
-
-describe("la scheda Testo c'è solo dove serve", () => {
-  it("su un testo la barra ha una scheda in più", () => {
-    const suTesto = gruppiPerTipo("text").map((g) => g.id);
-    const suRect  = gruppiPerTipo("rect").map((g) => g.id);
-    expect(suTesto).toContain("testo");
-    expect(suRect).not.toContain("testo");
-    expect(suTesto).toHaveLength(suRect.length + 1);
-  });
-
-  it("gli altri quattro gruppi valgono per ogni tipo", () => {
+  it("gli altri tre rami valgono per ogni tipo", () => {
     for (const tipo of ["rect", "text", "trend", "grid", "pipe"]) {
       const ids = gruppiPerTipo(tipo).map((g) => g.id);
-      for (const atteso of ["oggetto", "dato", "comportamento", "resa"]) {
+      for (const atteso of ["aspetto", "dati", "interazione"]) {
         expect(ids, `${tipo} senza ${atteso}`).toContain(atteso);
       }
     }
   });
 
-  it("passando da un testo a una forma si va su Oggetto, a uno strumento su Dato", () => {
-    // Senza ripiego il pannello resterebbe su una scheda che non esiste per
-    // l'oggetto nuovo, cioè vuoto. Il ripiego è il gruppo **affine** al tipo
-    // (21-09-2026): una forma ha solo aspetto e posizione, uno strumento ha i
-    // suoi Parametri sotto Dato.
-    expect(gruppoEffettivo("testo", "rect")).toBe("oggetto");
-    expect(gruppoEffettivo("testo", "button")).toBe("dato");
-    expect(gruppoEffettivo("testo", "gauge")).toBe("dato");
-  });
-
-  it("ma la scelta non si perde: tornando su un testo si ritrova il testo", () => {
-    // Il ripiego è solo su ciò che si vede, non su ciò che è memorizzato.
-    expect(gruppoEffettivo("testo", "text")).toBe("testo");
-  });
-
-  it("un gruppo che esiste per il tipo nuovo non si sposta", () => {
-    // Chi lavora sugli eventi di dieci pulsanti in fila non deve rincorrere la
-    // scheda a ogni oggetto piazzato.
-    expect(gruppoEffettivo("oggetto", "text")).toBe("oggetto");
-    expect(gruppoEffettivo("comportamento", "button")).toBe("comportamento");
-    expect(gruppoEffettivo("dato", "text")).toBe("dato");
-  });
-
-  it("un gruppo che vale per tutti passa indenne", () => {
-    expect(gruppoEffettivo("resa", "rect")).toBe("resa");
-    expect(gruppoEffettivo("resa", undefined)).toBe("resa");
-  });
-
-  it("su una pagina di boot il gruppo affine di uno strumento non può essere Dato", () => {
-    // Dato non c'è fra i gruppi di boot: si ripiega su Oggetto, non su una
-    // scheda invisibile.
-    expect(gruppoEffettivo("testo", "gauge", true)).toBe("oggetto");
+  it("il ramo del tipo è il primo", () => {
+    expect(GRUPPI_PROPRIETA[0].id).toBe("tipo");
   });
 });
 
 describe("il gruppo affine di ogni tipo", () => {
-  it("testo → Testo, strumenti → Dato, forme → Oggetto", () => {
-    expect(gruppoAffine("text")).toBe("testo");
-    expect(gruppoAffine("button")).toBe("dato");
-    expect(gruppoAffine("pipe")).toBe("dato");
-    expect(gruppoAffine("trend")).toBe("dato");
-    expect(gruppoAffine("rect")).toBe("oggetto");
-    expect(gruppoAffine("ellipse")).toBe("oggetto");
-    expect(gruppoAffine("line")).toBe("oggetto");
+  it("testi e strumenti → il ramo del tipo, forme → Posizione e aspetto", () => {
+    for (const t of ["text", "button", "pipe", "trend"]) expect(gruppoAffine(t), t).toBe("tipo");
+    for (const t of ["rect", "ellipse", "line"]) expect(gruppoAffine(t), t).toBe("aspetto");
+  });
+
+  it("la sezione affine: Testo, Parametri, o Aspetto sulle forme", () => {
+    expect(sezioneAffine("text")).toBe("testo");
+    expect(sezioneAffine("gauge")).toBe("parametri");
+    expect(sezioneAffine("rect")).toBe("aspetto");
   });
 
   it("per ogni tipo della palette è un gruppo che quel tipo mostra davvero", () => {
