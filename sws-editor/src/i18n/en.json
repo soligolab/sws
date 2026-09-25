@@ -213,9 +213,8 @@
     "collapse": "Collapse",
     "expand": "Expand",
     "locked": "Locked",
-    "filterPlaceholder": "Filter by name / type…",
     "noMatch": "No object matches the filter.",
-    "noObjects": "No objects on this page. Add them from the palette above.",
+    "noObjects": "No objects: add them from the Tools branch.",
     "groupSelectHint": "Click to select all members · drag to reorder · right-click for options",
     "renameGroup": "Rename group",
     "ungroup": "Ungroup",
@@ -277,7 +276,6 @@
         "xy_plot": "XY plot"
       }
     },
-    "searchAllPages": "Search all pages",
     "searchAllPlaceholder": "Search name / type / id / tag / text…",
     "match_name": "name",
     "match_id": "id",
@@ -319,7 +317,10 @@
     "unlockPage": "Unlock page",
     "lockPage": "Lock page (read-only)",
     "tagUsesCount": "{{count}} references",
-    "tagUsesNone": "No reference found"
+    "tagUsesNone": "No reference found",
+    "risultatiInPagine": "{{n}} results in {{pagine}} pages",
+    "paginaCorrente": "The page open in the editor",
+    "apriPagina": "Click to expand or collapse · double-click to go to the page"
   },
   "canvas": {
     "empty": "No objects on this page.",

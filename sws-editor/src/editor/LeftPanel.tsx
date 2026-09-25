@@ -908,7 +908,6 @@ type ContextMenuState =
   | { kind: "group";  id: string; x: number; y: number };
 
 function ObjectsSection() {
-  const corpo = useCorpo(300);
   const corpoPagina = useCorpo(280);
   const { t } = useTranslation();
   const pages               = useAppStore((s) => s.pages);
@@ -934,7 +933,20 @@ function ObjectsSection() {
   const setCurrentPage       = useAppStore((s) => s.setCurrentPage);
   const faceplates           = useAppStore((s) => s.faceplates);
 
-  const [allPagesSearch, setAllPagesSearch] = useState(false);
+  const project              = useAppStore((s) => s.project);
+  // R3 (25-09-2026): gli oggetti di **tutte** le pagine, nell'ordine e nel
+  // rientro del ramo Pagine. Nasce aperta solo la pagina corrente; le altre si
+  // aprono a mano, e il loro elenco si calcola solo allora.
+  const [pagineAperte, setPagineAperte] = useState<Set<string>>(() => new Set([currentPageId]));
+  useEffect(() => {
+    setPagineAperte((prev) => (prev.has(currentPageId) ? prev : new Set([...prev, currentPageId])));
+  }, [currentPageId]);
+  const commutaPagina = (id: string) =>
+    setPagineAperte((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
   const [renaming, setRenaming] = useState<string | null>(null);
   const [draft, setDraft]       = useState("");
   const [expandedGrids, setExpandedGrids] = useState<Set<string>>(new Set());
@@ -950,12 +962,18 @@ function ObjectsSection() {
   const allObjects = currentPage?.objects ?? [];
   const groups = currentPage?.groups ?? [];
   const fq = filter.trim().toLowerCase();
+  // La ricerca è una sola, su tutte le pagine (nome, tipo, id, tag, testi):
+  // prima c'erano un filtro sulla pagina e una casella «cerca in tutte le
+  // pagine» con un elenco a parte. Ora filtra l'albero stesso.
+  const hits = fq ? findObjects(pages, faceplates, fq) : [];
+  const hitsByPage = new Map<string, typeof hits>();
+  for (const hit of hits) {
+    const arr = hitsByPage.get(hit.pageId) ?? [];
+    if (!arr.some((h) => h.obj.id === hit.obj.id)) arr.push(hit);
+    hitsByPage.set(hit.pageId, arr);
+  }
   const filteredObjects = fq
-    ? allObjects.filter((o) =>
-        (o.name ?? "").toLowerCase().includes(fq) ||
-        o.type.toLowerCase().includes(fq) ||
-        o.id.toLowerCase().includes(fq)
-      )
+    ? (hitsByPage.get(currentPageId) ?? []).map((h) => h.obj)
     : allObjects;
 
   const buildTree = (): TreeNode[] => {
@@ -1259,74 +1277,67 @@ function ObjectsSection() {
   };
 
   const tree = buildTree();
-  // F8.3 — con "tutte le pagine" la ricerca copre anche i TAG e i testi degli
-  // oggetti, non solo nome/tipo/id, e i risultati sono raggruppati per pagina.
-  const globalHits = allPagesSearch && fq ? findObjects(pages, faceplates, fq) : [];
-  const hitsByPage = new Map<string, typeof globalHits>();
-  for (const hit of globalHits) {
-    const arr = hitsByPage.get(hit.pageId) ?? [];
-    arr.push(hit);
-    hitsByPage.set(hit.pageId, arr);
-  }
+  const navigabili = paginePerNavigazione(pages);
+  const perIdPagina = new Map(navigabili.map((p) => [p.id, p]));
+  const righePagine = righe(riconcilia(project?.page_layout?.page_tree, navigabili.map((p) => p.id)), new Set());
+  const totaleOggetti = navigabili.reduce((n, p) => n + p.objects.length, 0);
+
+  // Una pagina che non è la corrente, in sola lettura: un clic su un oggetto
+  // porta alla sua pagina e lo seleziona. Trascinare fra pagine è un'altra
+  // funzione (piano R3); rinomina e menu valgono sulla pagina corrente.
+  const corpoAltraPagina = (pg: SynopticPage, rientro: number) => {
+    const risultati = fq ? hitsByPage.get(pg.id) ?? [] : null;
+    const oggetti = risultati ? risultati.map((h) => h.obj) : pg.objects;
+    if (oggetti.length === 0) {
+      return (
+        <p style={{ padding: `2px 8px 2px ${rientro + 18}px`, fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", margin: 0 }}>
+          {t("editor.noObjects")}
+        </p>
+      );
+    }
+    return oggetti.map((o) => {
+      const hit = risultati?.find((h) => h.obj.id === o.id);
+      return (
+        <div
+          key={`${pg.id}-${o.id}`}
+          data-testid={`object-other-page-${o.id}`}
+          onClick={() => { setCurrentPage(pg.id); selectObject(o.id); }}
+          style={{ ...S.row(false), gap: 4, paddingRight: 4, paddingLeft: rientro + 18, cursor: "pointer" }}
+          title={`${o.type} · ${o.id}`}
+        >
+          <span style={{ fontSize: 9, color: "var(--brand-text-subtle, #94a3b8)", width: 34, flexShrink: 0, textTransform: "uppercase", letterSpacing: 0.5 }}>
+            {o.type.slice(0, 5)}
+          </span>
+          <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11 }}>
+            {o.name?.trim() || `${o.type}·${o.id.slice(-4)}`}
+          </span>
+          {hit && (
+            <span style={{ fontSize: 9, flexShrink: 0, padding: "1px 4px", borderRadius: 3,
+                           background: "var(--brand-surface-2, #334155)", color: "var(--brand-text-muted, #94a3b8)" }}>
+              {hit.reason === "tag" ? `tag ${hit.detail}` : hit.reason === "type" ? hit.obj.type : t(`editor.match_${hit.reason}`)}
+            </span>
+          )}
+        </div>
+      );
+    });
+  };
 
   return (
-    <Section title={`${t("editor.sectionPageObjects")} (${allObjects.length})`} defaultOpen={false} memoria="sinistra.struttura" icona="🗂">
+    <Section title={`${t("editor.sectionPageObjects")} (${totaleOggetti})`} defaultOpen={false} memoria="sinistra.struttura" icona="🗂">
       <div style={{ padding: "4px 8px", borderBottom: "1px solid var(--brand-surface, #1e293b)" }}>
         <input
           type="text"
-          placeholder={allPagesSearch ? t("editor.searchAllPlaceholder") : t("editor.filterPlaceholder")}
+          placeholder={t("editor.searchAllPlaceholder")}
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           style={{ width: "100%", boxSizing: "border-box", background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 3, padding: "3px 6px", fontSize: 11 }}
         />
-        <label style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 3, fontSize: 10, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer" }}>
-          <input type="checkbox" checked={allPagesSearch}
-            onChange={(e) => setAllPagesSearch(e.target.checked)}
-            style={{ accentColor: "var(--brand-primary, #3b82f6)" }} />
-          {t("editor.searchAllPages")}
-          {allPagesSearch && fq && (
-            <span style={{ marginLeft: "auto", color: "var(--brand-text-subtle, #64748b)" }}>
-              {globalHits.length}
-            </span>
-          )}
-        </label>
+        {fq && (
+          <div style={{ marginTop: 3, fontSize: 10, color: "var(--brand-text-subtle, #64748b)" }}>
+            {t("editor.risultatiInPagine", { n: hits.length, pagine: hitsByPage.size })}
+          </div>
+        )}
       </div>
-      {/* Risultati cross-pagina: un click porta alla pagina e seleziona. */}
-      {allPagesSearch && fq && (
-        <div style={corpo}>
-          {globalHits.length === 0 ? (
-            <p style={{ padding: "8px 12px", fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", margin: 0 }}>
-              {t("editor.noMatch")}
-            </p>
-          ) : [...hitsByPage.entries()].map(([pageId, hits]) => (
-            <div key={pageId}>
-              <div style={{ padding: "3px 10px", fontSize: 10, fontWeight: 700, letterSpacing: 0.4,
-                            color: "var(--brand-text-muted, #94a3b8)", background: "var(--brand-bg, #0f172a)" }}>
-                {hits[0].pageName} ({hits.length})
-              </div>
-              {hits.map((hit) => (
-                <div
-                  key={`${pageId}-${hit.obj.id}`}
-                  onClick={() => {
-                    if (pageId !== currentPageId) setCurrentPage(pageId);
-                    selectObject(hit.obj.id);
-                  }}
-                  style={{ ...S.row(hit.obj.id === selectedId), justifyContent: "space-between", cursor: "pointer" }}
-                  title={`${hit.obj.type} · ${hit.obj.id}`}
-                >
-                  <span style={{ fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
-                    {hit.obj.name ?? hit.obj.id}
-                  </span>
-                  <span style={{ fontSize: 9, flexShrink: 0, marginLeft: 6, padding: "1px 4px", borderRadius: 3,
-                                 background: "var(--brand-surface-2, #334155)", color: "var(--brand-text-muted, #94a3b8)" }}>
-                    {hit.reason === "tag" ? `tag ${hit.detail}` : hit.reason === "type" ? hit.obj.type : t(`editor.match_${hit.reason}`)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-      )}
       {selectedIds.length >= 2 && (
         <div style={{ padding: "3px 8px", borderBottom: "1px solid var(--brand-surface, #1e293b)" }}>
           <button
@@ -1337,7 +1348,44 @@ function ObjectsSection() {
           </button>
         </div>
       )}
-      <div style={{ ...corpoPagina, display: allPagesSearch && fq ? "none" : undefined }}>
+      <div style={corpoPagina}>
+        {fq && hits.length === 0 && (
+          <p style={{ padding: "8px 12px", fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", margin: 0 }}>
+            {t("editor.noMatch")}
+          </p>
+        )}
+        {righePagine.map((r) => {
+          const pg = perIdPagina.get(r.id);
+          if (!pg) return null;
+          if (fq && !hitsByPage.has(pg.id)) return null;
+          const corrente = pg.id === currentPageId;
+          const aperta = fq ? true : pagineAperte.has(pg.id);
+          const rientro = r.livello * 12;
+          return (
+            <React.Fragment key={pg.id}>
+              <div
+                data-testid={`objects-page-${pg.id}`}
+                style={{ ...S.row(false), gap: 4, paddingLeft: 4 + rientro, paddingRight: 4,
+                         fontWeight: corrente ? 700 : 400,
+                         color: corrente ? "var(--brand-text, #e2e8f0)" : "var(--brand-text-muted, #94a3b8)" }}
+                onClick={() => commutaPagina(pg.id)}
+                title={corrente ? t("editor.paginaCorrente") : t("editor.apriPagina")}
+              >
+                <span style={{ ...S.iconBtn, width: 14, fontSize: 8 }}>{aperta ? "▼" : "▶"}</span>
+                <span style={{ fontSize: 11, flexShrink: 0 }}>📄</span>
+                <span
+                  style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11 }}
+                  onDoubleClick={(e) => { e.stopPropagation(); setCurrentPage(pg.id); }}
+                >
+                  {pg.name}
+                </span>
+                <span style={{ fontSize: 10, color: "var(--brand-text-subtle, #64748b)", flexShrink: 0 }}>
+                  {fq ? hitsByPage.get(pg.id)?.length : pg.objects.length}
+                </span>
+              </div>
+              {aperta && !corrente && corpoAltraPagina(pg, rientro)}
+              {aperta && corrente && (
+                <div style={{ paddingLeft: rientro + 8 }}>
         {tree.length === 0 && (
           <p style={{ padding: "8px 12px", fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", margin: 0 }}>
             {fq ? t("editor.noMatch") : t("editor.noObjects")}
@@ -1438,6 +1486,11 @@ function ObjectsSection() {
             );
           }
           return renderObjectRow(node.obj, 0, iNodo === tree.length - 1);
+        })}
+                </div>
+              )}
+            </React.Fragment>
+          );
         })}
       </div>
       {menu && (

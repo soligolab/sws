@@ -213,9 +213,8 @@
     "collapse": "Comprimi",
     "expand": "Espandi",
     "locked": "Bloccato",
-    "filterPlaceholder": "Filtra per nome / tipo…",
     "noMatch": "Nessun oggetto corrisponde al filtro.",
-    "noObjects": "Nessun oggetto su questa pagina. Aggiungili dalla palette qui sopra.",
+    "noObjects": "Nessun oggetto: aggiungili dal ramo Strumenti.",
     "groupSelectHint": "Click per selezionare tutti i membri · trascina per riordinare · tasto destro per opzioni",
     "renameGroup": "Rinomina gruppo",
     "ungroup": "Separa gruppo",
@@ -277,7 +276,6 @@
         "xy_plot": "Grafico XY"
       }
     },
-    "searchAllPages": "Cerca in tutte le pagine",
     "searchAllPlaceholder": "Cerca nome / tipo / id / tag / testo…",
     "match_name": "nome",
     "match_id": "id",
@@ -319,7 +317,10 @@
     "unlockPage": "Sblocca pagina",
     "lockPage": "Blocca pagina (sola lettura)",
     "tagUsesCount": "{{count}} riferimenti",
-    "tagUsesNone": "Nessun riferimento trovato"
+    "tagUsesNone": "Nessun riferimento trovato",
+    "risultatiInPagine": "{{n}} risultati in {{pagine}} pagine",
+    "paginaCorrente": "La pagina aperta nell'editor",
+    "apriPagina": "Clic per aprire o chiudere · doppio clic per andare alla pagina"
   },
   "canvas": {
     "empty": "Nessun oggetto in questa pagina.",

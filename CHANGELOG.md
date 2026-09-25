@@ -12,6 +12,9 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Changed
+- **Il ramo Oggetti mostra gli oggetti di tutte le pagine** (R3 del piano «il pannello ad albero, secondo giro»): le pagine nell'ordine e nel rientro del ramo Pagine, e sotto ognuna i suoi
+  oggetti. Nasce aperta solo la pagina corrente, che tiene trascinamento, rinomina, menu contestuale e gruppi; un oggetto di un'altra pagina porta a quella pagina e lo seleziona. La ricerca è
+  una sola e filtra l'albero stesso (nome, tipo, id, tag, testi): sparisce la casella «Cerca in tutte le pagine» con il suo elenco a parte.
 - **Il ramo Istanza riorganizzato, e «Runtime» diviso in tre** (richiesta del maintainer, 25-09). Stato, Dispositivi e le schede del runtime stanno in un sotto-ramo «Device»; la scheda più lunga
   del repo — 1 740 righe — è diventata **Connessione**, **Installazione** e **Container**, tre file e tre voci distinte. Il pacchetto runtime e il deploy del binario, che sono strumenti di
   sviluppo, vivono in un sotto-ramo «Sviluppatore» che **non esiste** dove il runtime non gira da un checkout del repo. I campi «quale dispositivo» sono indipendenti fra Installazione e Container
