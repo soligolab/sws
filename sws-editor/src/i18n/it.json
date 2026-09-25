@@ -174,10 +174,17 @@
       "resources": "Risorse",
       "system": "Stato",
       "backups": "Backup",
-      "devices": "Device",
-      "runtime": "Runtime",
+      "devices": "Dispositivi",
+      "runtime": "Connessione",
+      "install": "Installazione",
+      "container": "Container",
+      "devpackage": "Pacchetto runtime",
       "languages": "Lingue",
       "ide": "Preferenze IDE"
+    },
+    "sottorami": {
+      "device": "Device",
+      "sviluppatore": "Sviluppatore"
     },
     "rami": {
       "progetto": "Progetto",

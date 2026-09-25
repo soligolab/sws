@@ -175,9 +175,16 @@
       "system": "Status",
       "backups": "Backup",
       "devices": "Devices",
-      "runtime": "Runtime",
+      "runtime": "Connection",
+      "install": "Install",
+      "container": "Container",
+      "devpackage": "Runtime package",
       "languages": "Languages",
       "ide": "IDE Preferences"
+    },
+    "sottorami": {
+      "device": "Device",
+      "sviluppatore": "Developer"
     },
     "rami": {
       "progetto": "Project",

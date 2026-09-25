@@ -28,7 +28,7 @@ function monta() {
 describe("pannello sinistro — un albero solo", () => {
   beforeEach(() => {
     try { localStorage.clear(); } catch { /* jsdom senza storage */ }
-    useAppStore.setState({ authRole: "Admin", appMode: "edit", configTab: "tags", configFocus: null, elenchiConfig: {}, pendingSections: {} });
+    useAppStore.setState({ authRole: "Admin", appMode: "edit", configTab: "tags", configFocus: null, elenchiConfig: {}, pendingSections: {}, repoDisponibile: false });
   });
 
   it("non c'è più la colonna di icone", () => {
@@ -81,6 +81,56 @@ describe("pannello sinistro — un albero solo", () => {
     monta();
     fireEvent.click(screen.getByTestId("foglia-config-types"));
     expect(useAppStore.getState().configTab).toBe("types");
+  });
+
+  /** Il livello in più del 25-09-2026: dentro Istanza, un sotto-ramo «Device»
+   *  che tiene insieme Stato, Dispositivi e le schede del runtime. Le foglie
+   *  che non stanno in un sotto-ramo (Risorse, Backup) restano dirette e si
+   *  disegnano **dopo**. */
+  it("le schede del dispositivo stanno in un sotto-ramo, le altre restano dirette", () => {
+    monta();
+    expect(screen.getByTestId("sottoramo-config-device")).toBeTruthy();
+    // Le foglie del sotto-ramo ci sono: Stato, Dispositivi e le tre in cui
+    // «Runtime» si è diviso il 25-09-2026.
+    for (const id of ["system", "devices", "runtime", "install", "container"]) {
+      expect(screen.getByTestId(`foglia-config-${id}`)).toBeTruthy();
+    }
+    // Risorse e Backup non sono in nessun sotto-ramo.
+    expect(screen.getByTestId("foglia-config-resources")).toBeTruthy();
+    expect(screen.getByTestId("foglia-config-backups")).toBeTruthy();
+  });
+
+  it("chiudendo il sotto-ramo le sue foglie spariscono, le dirette no", () => {
+    monta();
+    fireEvent.click(screen.getByTestId("sottoramo-config-device"));
+    expect(screen.queryByTestId("foglia-config-runtime")).toBeNull();
+    expect(screen.getByTestId("foglia-config-resources")).toBeTruthy();
+  });
+
+  /** Un sotto-ramo con tutte le foglie nascoste non si disegna: per un
+   *  Supervisor «Device» esiste ancora, ma con la sola foglia Stato. */
+  it("il sotto-ramo mostra solo le foglie che il ruolo può vedere", () => {
+    useAppStore.setState({ authRole: "Supervisor" });
+    monta();
+    expect(screen.getByTestId("sottoramo-config-device")).toBeTruthy();
+    expect(screen.getByTestId("foglia-config-system")).toBeTruthy();
+    expect(screen.queryByTestId("foglia-config-devices")).toBeNull();
+  });
+
+  /** Q51: gli strumenti di sviluppo esistono solo se il runtime gira da un
+   *  checkout del repo. Su un'installazione di un cliente il sotto-ramo non
+   *  deve comparire affatto — non basta che la scheda dentro sia vuota. */
+  it("il sotto-ramo Sviluppatore non c'è senza il repo", () => {
+    monta();
+    expect(screen.queryByTestId("sottoramo-config-sviluppatore")).toBeNull();
+    expect(screen.queryByTestId("foglia-config-devpackage")).toBeNull();
+  });
+
+  it("con il repo il sotto-ramo Sviluppatore compare", () => {
+    useAppStore.setState({ repoDisponibile: true });
+    monta();
+    expect(screen.getByTestId("sottoramo-config-sviluppatore")).toBeTruthy();
+    expect(screen.getByTestId("foglia-config-devpackage")).toBeTruthy();
   });
 
   it("un non-admin non vede le foglie da admin", () => {

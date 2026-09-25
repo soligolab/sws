@@ -649,6 +649,17 @@ interface AppState {
   setAutoRotate: (v: boolean) => void;
   setAutoRotateIntervalS: (v: number) => void;
 
+  /** Il runtime gira da un checkout del repo? (Q51)
+   *
+   *  `null` finché non si sa: fino ad allora la UI di sviluppo **non** si
+   *  disegna, così non lampeggia comparendo e sparendo. Era uno `useState`
+   *  privato di `RuntimeConnectionTab`; dal 25-09-2026 sta qui perché lo
+   *  legge anche l'albero, che deve decidere se mostrare il sotto-ramo
+   *  «Sviluppatore» — e su un'installazione di un cliente quel ramo non deve
+   *  comparire affatto. */
+  repoDisponibile: boolean | null;
+  setRepoDisponibile: (v: boolean) => void;
+
   // Remote runtime bridge (relay via /ws/remote/*)
   remoteConnected: boolean;
   remoteUrl: string | null;
@@ -2337,6 +2348,9 @@ export const useAppStore = create<AppState>((set, get) => {
       localStorage.setItem("sws:autoRotateIntervalS", String(autoRotateIntervalS));
       set({ autoRotateIntervalS });
     },
+
+    repoDisponibile: null,
+    setRepoDisponibile: (repoDisponibile) => set({ repoDisponibile }),
 
     remoteConnected: false,
     remoteUrl: null,

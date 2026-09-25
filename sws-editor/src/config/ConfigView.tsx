@@ -17,6 +17,10 @@ import { GlobalScriptsTab } from "@/config/schede/GlobalScriptsTab";
 import { FaceplatesTab } from "@/config/schede/FaceplatesTab";
 import { RecipesTab } from "@/config/schede/RecipesTab";
 import { NotificationsTab } from "@/config/schede/NotificationsTab";
+import { useRepoDisponibile } from "./repoDisponibile";
+import { ContainerTab } from "./schede/ContainerTab";
+import { InstallTab } from "./schede/InstallTab";
+import { DevPackageTab } from "./schede/DevPackageTab";
 import { RuntimeConnectionTab } from "@/config/schede/RuntimeConnectionTab";
 import { DevicesTab } from "@/config/schede/DevicesTab";
 import { LanguagesTab } from "@/config/schede/LanguagesTab";
@@ -43,6 +47,9 @@ const COMPONENTI: Record<IdConComponente, React.ComponentType<{ scheda: IdScheda
   backups: BackupsTab,
   devices: DevicesTab,
   runtime: RuntimeConnectionTab,
+  install: InstallTab,
+  container: ContainerTab,
+  devpackage: DevPackageTab,
   ide: IdePreferencesTab,
 };
 
@@ -62,7 +69,12 @@ export function ConfigView() {
   const focus    = useAppStore((s) => s.configFocus);
   const etichettaFocus = useAppStore((s) =>
     s.elenchiConfig[s.configTab]?.find((v) => v.id === s.configFocus)?.etichetta ?? s.configFocus);
-  const visibili = schedeVisibili(isAdmin);
+  // Il flag del repo va passato: con il default `false` le schede di sviluppo
+  // non verrebbero montate, e la foglia — che l'albero invece disegna, perché
+  // lì il flag c'è — aprirebbe un pannello vuoto. Difetto trovato dal
+  // maintainer al primo collaudo, 25-09-2026.
+  const repo = useRepoDisponibile();
+  const visibili = schedeVisibili(isAdmin, repo);
   const corrente = schedaDa(storeTab);
   const tab = corrente.id as IdScheda;
   // La scheda che ha il componente: sé stessa, o quella che la ospita.

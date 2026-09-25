@@ -129,7 +129,10 @@ test("07 — operator viewer (port 8443)", async ({ browser }) => {
 test("08 — device dashboard tab", async ({ page }) => {
   await openIde(page);
   await toMode(page, "Configurazione");
-  await configTab(page, /^Device$/);
+  // Dal 25-09-2026 la foglia si chiama «Dispositivi»: «Device» è il
+  // sotto-ramo che la contiene, e cliccare quello aprirebbe/chiuderebbe il
+  // ramo invece di una scheda.
+  await configTab(page, /^(Dispositivi|Devices)$/);
   await page.screenshot({ path: path.join(SHOTS, "08_device_tab.png") });
 });
 
@@ -150,11 +153,28 @@ test("09 — bar chart widget on canvas", async ({ page }) => {
   await page.screenshot({ path: path.join(SHOTS, "09_widget_bar_chart.png") });
 });
 
-test("10 — runtime / package builder tab", async ({ page }) => {
+test("10 — connessione al runtime", async ({ page }) => {
   await openIde(page);
   await toMode(page, "Configurazione");
-  await configTab(page, /^Runtime$/);
+  await configTab(page, /^(Connessione|Connection)$/);
   await page.screenshot({ path: path.join(SHOTS, "10_package_builder.png") });
+});
+
+// Le tre schede in cui «Runtime» si è diviso il 25-09-2026. La costruzione
+// del pacchetto non è più qui: sta nel sotto-ramo Sviluppatore, e compare
+// solo quando il runtime gira da un checkout del repo.
+test("10b — installazione su dispositivo", async ({ page }) => {
+  await openIde(page);
+  await toMode(page, "Configurazione");
+  await configTab(page, /^(Installazione|Install)$/);
+  await page.screenshot({ path: path.join(SHOTS, "10b_install.png") });
+});
+
+test("10c — gestione container", async ({ page }) => {
+  await openIde(page);
+  await toMode(page, "Configurazione");
+  await configTab(page, /^Container$/);
+  await page.screenshot({ path: path.join(SHOTS, "10c_container.png") });
 });
 
 test("11 — immagine di boot (T-72)", async ({ page }) => {

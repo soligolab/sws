@@ -132,6 +132,13 @@ quella forma non porta valore, qualità né gerarchia. Il ramo `tags` ha un **re
   la sua funzione è assorbita qui. Il test `pannelloSinistro.test.tsx:94` va riscritto di conseguenza
   — è il caso che dimostra che il ruolo minimo non è rimasto senza niente.
 - **Chiuso di default**, perché su un progetto vero sono centinaia di righe.
+- **Gli usi di una variabile si raggruppano per categoria** (decisione del maintainer, 25-09-2026,
+  guardando l'albero vero: «mostrati così quei dati non dicono nulla all'utente finale»). Oggi
+  espandendo un tag escono righe come `· page "Home"` e in fondo la frase «Recipes and Python
+  functions are not checked». Diventano: **Pagine (2)**, **Allarmi (1)**, **Espressioni**,
+  **Script**, ognuna col conteggio e le voci sotto — e la voce di pagina dice **quale oggetto**,
+  non solo la pagina. Il limite su ricette e Python smette di essere una riga di testo sotto ogni
+  tag e diventa un ⓘ da sfiorare.
 
 ## R3 — Gli oggetti di tutte le pagine · `feat/albero-oggetti`
 

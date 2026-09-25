@@ -26,7 +26,8 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { useAppStore, type VoceElencoConfig } from "@/store";
-import { RAMI, schedeVisibili, type IdScheda, type RamoConfig, type SchedaConfig } from "@/config/schede";
+import { RAMI, SOTTORAMI, schedeVisibili, type IdScheda, type RamoConfig, type SchedaConfig, type SottoRamo } from "@/config/schede";
+import { useRepoDisponibile } from "@/config/repoDisponibile";
 import { IntestazioneSezione, SPAZIO, TESTO, useSezioneAperta } from "./stilePannelli";
 
 /** Gli elementi di ricette e utenti, che il progetto non porta: una richiesta
@@ -105,8 +106,18 @@ const stileEtichetta: React.CSSProperties = {
   flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
 };
 
-function Foglia({ scheda, elementi, modificata }: {
+/** Altezza fissa: alcune emoji hanno un'altezza di riga diversa dal testo e
+ *  sfalsavano la riga di qualche pixel. */
+const stileIcona: React.CSSProperties = {
+  width: 16, height: 16, lineHeight: "16px", fontSize: 12,
+  flexShrink: 0, textAlign: "center", overflow: "hidden",
+};
+
+function Foglia({ scheda, elementi, modificata, dentroSottoRamo = false }: {
   scheda: SchedaConfig; elementi: VoceElencoConfig[] | null; modificata: boolean;
+  /** Una foglia dentro un sotto-ramo sta un gradino più a destra, e con lei i
+   *  suoi elementi. */
+  dentroSottoRamo?: boolean;
 }) {
   const { t } = useTranslation();
   const inConfig   = useAppStore((s) => s.appMode === "config");
@@ -120,6 +131,7 @@ function Foglia({ scheda, elementi, modificata }: {
   const [aperta, commuta] = useSezioneAperta(`config.foglia.${id}`, false);
   // Un elemento scelto (da un link, o dalla scheda stessa) apre il suo ramo.
   const mostraFigli = elementi !== null && (aperta || (suQuesta && configFocus !== null));
+  const gradino = dentroSottoRamo ? SPAZIO.l : 0;
 
   return (
     <>
@@ -129,11 +141,9 @@ function Foglia({ scheda, elementi, modificata }: {
           data-testid={`foglia-config-${id}`}
           aria-current={suQuesta && configFocus === null ? "page" : undefined}
           onClick={() => navigateToConfig(id)}
-          style={stileRiga(suQuesta && configFocus === null, SPAZIO.l + SPAZIO.m)}
+          style={stileRiga(suQuesta && configFocus === null, SPAZIO.l + SPAZIO.m + gradino)}
         >
-          {/* Altezza fissa: alcune emoji hanno un'altezza di riga diversa dal
-              testo e sfalsavano la foglia di qualche pixel. */}
-          <span aria-hidden="true" style={{ width: 16, height: 16, lineHeight: "16px", fontSize: 12, flexShrink: 0, textAlign: "center", overflow: "hidden" }}>{scheda.icona}</span>
+          <span aria-hidden="true" style={stileIcona}>{scheda.icona}</span>
           <span style={stileEtichetta}>{t(`config.tabs.${id}`)}</span>
           {modificata && <Pallino testid={`dirty-config-${id}`} />}
           {elementi !== null && (
@@ -168,7 +178,7 @@ function Foglia({ scheda, elementi, modificata }: {
             aria-current={scelta ? "page" : undefined}
             onClick={() => navigateToConfig(id, v.id)}
             title={v.etichetta}
-            style={stileRiga(scelta, SPAZIO.l * 2 + SPAZIO.m + 4)}
+            style={stileRiga(scelta, SPAZIO.l * 2 + SPAZIO.m + 4 + gradino)}
           >
             <span style={stileEtichetta}>{v.etichetta}</span>
             {v.modificato && <Pallino testid={`dirty-config-${id}-${v.id}`} />}
@@ -179,8 +189,49 @@ function Foglia({ scheda, elementi, modificata }: {
   );
 }
 
-function Ramo({ ramo, icona, elementiDi }: {
+type FogliaCalcolata = {
+  s: SchedaConfig; elementi: VoceElencoConfig[] | null; modificata: boolean;
+};
+
+/** Un raggruppamento dentro un ramo (25-09-2026): si apre e si chiude come il
+ *  ramo, ma disegna una riga come le foglie — perché sta al loro livello, non
+ *  a quello dei titoli. */
+function SottoRamoNodo({ id, icona, foglie }: {
+  id: SottoRamo; icona: string; foglie: FogliaCalcolata[];
+}) {
+  const { t } = useTranslation();
+  // Aperto la prima volta: sotto ci sono le cose che si guardano ogni giorno.
+  const [aperto, commuta] = useSezioneAperta(`config.sottoramo.${id}`, true);
+  if (!foglie.length) return null;
+
+  return (
+    <>
+      <button
+        type="button"
+        data-testid={`sottoramo-config-${id}`}
+        aria-expanded={aperto}
+        onClick={commuta}
+        style={stileRiga(false, SPAZIO.l + SPAZIO.m)}
+      >
+        <span aria-hidden="true" style={{ width: 9, flexShrink: 0, fontSize: 9, color: "var(--brand-text-subtle, #64748b)" }}>
+          {aperto ? "▼" : "▶"}
+        </span>
+        <span aria-hidden="true" style={stileIcona}>{icona}</span>
+        <span style={{ ...stileEtichetta, fontWeight: 600 }}>{t(`config.sottorami.${id}`)}</span>
+        {foglie.some((f) => f.modificata) && <Pallino testid={`dirty-sottoramo-${id}`} />}
+      </button>
+      {aperto && foglie.map(({ s, elementi, modificata }) => (
+        <Foglia key={s.id} scheda={s} elementi={elementi} modificata={modificata} dentroSottoRamo />
+      ))}
+    </>
+  );
+}
+
+function Ramo({ ramo, icona, elementiDi, repo }: {
   ramo: RamoConfig; icona: string; elementiDi: (id: IdScheda) => VoceElencoConfig[];
+  /** Q51: senza checkout del repo le schede di sviluppo non esistono, e il
+   *  loro sotto-ramo resta vuoto — quindi non si disegna. */
+  repo: boolean;
 }) {
   const { t } = useTranslation();
   const isAdmin = useAppStore((s) => s.authRole === "Admin");
@@ -188,11 +239,18 @@ function Ramo({ ramo, icona, elementiDi }: {
   const [aperto, commuta] = useSezioneAperta(`config.${ramo}`, true);
 
   const modificataFn = useSchedaModificata();
-  const foglie = schedeVisibili(isAdmin).filter((s) => s.ramo === ramo).map((s) => {
+  const foglie: FogliaCalcolata[] = schedeVisibili(isAdmin, repo).filter((s) => s.ramo === ramo).map((s) => {
     const elementi = "elementi" in s && s.elementi ? elementiDi(s.id) : null;
     return { s, elementi, modificata: modificataFn(s, elementi) };
   });
   if (!foglie.length) return null;
+
+  // Prima i sotto-rami, poi le foglie dirette: l'ordine è quello di
+  // `SOTTORAMI`, non quello in cui le schede stanno nel registro.
+  const sottorami = SOTTORAMI.filter((sr) => sr.ramo === ramo).map((sr) => ({
+    ...sr, foglie: foglie.filter((f) => f.s.sottoRamo === sr.id),
+  }));
+  const dirette = foglie.filter((f) => f.s.sottoRamo === undefined);
 
   return (
     <div style={{ padding: `0 ${SPAZIO.m}px` }}>
@@ -204,7 +262,10 @@ function Ramo({ ramo, icona, elementiDi }: {
         // Col ramo chiuso è l'unico segno che dentro c'è qualcosa da salvare.
         azione={foglie.some((f) => f.modificata) ? <Pallino testid={`dirty-ramo-${ramo}`} /> : undefined}
       />
-      {aperto && foglie.map(({ s, elementi, modificata }) => (
+      {aperto && sottorami.map((sr) => (
+        <SottoRamoNodo key={sr.id} id={sr.id} icona={sr.icona} foglie={sr.foglie} />
+      ))}
+      {aperto && dirette.map(({ s, elementi, modificata }) => (
         <Foglia key={s.id} scheda={s} elementi={elementi} modificata={modificata} />
       ))}
     </div>
@@ -216,9 +277,10 @@ function Ramo({ ramo, icona, elementiDi }: {
 export function AlberoConfigurazione() {
   const isAdmin = useAppStore((s) => s.authRole === "Admin");
   const elementiDi = useElementi(isAdmin);
+  const repo = useRepoDisponibile();
   return (
     <>
-      {RAMI.map((r) => <Ramo key={r.id} ramo={r.id} icona={r.icona} elementiDi={elementiDi} />)}
+      {RAMI.map((r) => <Ramo key={r.id} ramo={r.id} icona={r.icona} elementiDi={elementiDi} repo={repo} />)}
     </>
   );
 }

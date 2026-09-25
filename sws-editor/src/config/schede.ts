@@ -21,10 +21,19 @@
 
 export type RamoConfig = "progetto" | "dati" | "sicurezza" | "istanza" | "ide";
 
+/** Un raggruppamento **dentro** un ramo (25-09-2026). Nasce perché il ramo
+ *  Istanza aveva cinque foglie piatte di cui tre parlavano tutte del
+ *  dispositivo, e una — il pacchetto runtime — riguarda solo chi sviluppa SWS,
+ *  non chi lo usa. */
+export type SottoRamo = "device" | "sviluppatore";
+
 export interface SchedaConfig {
   /** L'id della rotta `#config/<id>` e della chiave `config.tabs.<id>`. */
   id: string;
   ramo: RamoConfig;
+  /** Il sotto-ramo dentro `ramo`, se la scheda ne sta in uno. Senza, è una
+   *  foglia diretta del ramo e si disegna **dopo** i sotto-rami. */
+  sottoRamo?: SottoRamo;
   /** Il glifo della foglia nell'albero della Configurazione. */
   icona: string;
   /** Una scheda che non ha un componente suo ma vive dentro un'altra: «types»
@@ -41,6 +50,9 @@ export interface SchedaConfig {
   sezione?: string;
   /** Visibile solo all'Admin; un non-admin che ci arriva torna a «tags». */
   soloAdmin: boolean;
+  /** Ha senso solo se il runtime gira da un checkout del repo (Q51): senza,
+   *  la scheda — e il sotto-ramo che la contiene — non si disegna affatto. */
+  richiedeRepo?: boolean;
   /** Porta una bozza del progetto: resta montata una volta vista (`Tenuta`),
    *  così il Salva unico la trova anche a scheda cambiata. */
   portaBozza: boolean;
@@ -64,9 +76,12 @@ export const SCHEDE = [
   { id: "users",         ramo: "sicurezza", icona: "👤", soloAdmin: true,  portaBozza: false, richiedeProgetto: false, elementi: true },
   { id: "resources",     ramo: "istanza",   icona: "📦", soloAdmin: false, portaBozza: false, richiedeProgetto: false },
   { id: "backups",       ramo: "istanza",   icona: "💾", soloAdmin: true,  portaBozza: false, richiedeProgetto: false },
-  { id: "system",        ramo: "istanza",   icona: "📊", soloAdmin: false, portaBozza: false, richiedeProgetto: false },
-  { id: "devices",       ramo: "istanza",   icona: "📟", soloAdmin: true,  portaBozza: false, richiedeProgetto: false },
-  { id: "runtime",       ramo: "istanza",   icona: "🔗", soloAdmin: true,  portaBozza: false, richiedeProgetto: false },
+  { id: "system",        ramo: "istanza",   icona: "📊", soloAdmin: false, portaBozza: false, richiedeProgetto: false, sottoRamo: "device" },
+  { id: "devices",       ramo: "istanza",   icona: "📇", soloAdmin: true,  portaBozza: false, richiedeProgetto: false, sottoRamo: "device" },
+  { id: "runtime",       ramo: "istanza",   icona: "🔗", soloAdmin: true,  portaBozza: false, richiedeProgetto: false, sottoRamo: "device" },
+  { id: "install",       ramo: "istanza",   icona: "⬇", soloAdmin: true,  portaBozza: false, richiedeProgetto: false, sottoRamo: "device" },
+  { id: "container",     ramo: "istanza",   icona: "🧱", soloAdmin: true,  portaBozza: false, richiedeProgetto: false, sottoRamo: "device" },
+  { id: "devpackage",    ramo: "istanza",   icona: "🏗", soloAdmin: true,  portaBozza: false, richiedeProgetto: false, sottoRamo: "sviluppatore", richiedeRepo: true },
   { id: "ide",           ramo: "ide",       icona: "🎛", soloAdmin: false, portaBozza: false, richiedeProgetto: false },
 ] as const satisfies readonly SchedaConfig[];
 
@@ -76,13 +91,26 @@ export type AppConfigTab = IdScheda;
 
 export const eSchedaValida = (x: string): x is AppConfigTab => SCHEDE.some((s) => s.id === x);
 
-export const schedeVisibili = (isAdmin: boolean) =>
-  SCHEDE.filter((s) => isAdmin || !s.soloAdmin);
+/** `repo` non ha un default di proposito: il 25-09-2026 il default `false` ha
+ *  fatto sì che `ConfigView` non montasse la scheda di sviluppo mentre
+ *  l'albero la disegnava — la foglia si apriva su un pannello vuoto. Chi
+ *  chiede le schede visibili deve dire se il repo c'è. */
+export const schedeVisibili = (isAdmin: boolean, repo: boolean) =>
+  SCHEDE.filter((s) => (isAdmin || !s.soloAdmin) && (repo || !("richiedeRepo" in s && s.richiedeRepo)));
 
 /** Un id sconosciuto (un valore salvato da una versione con schede diverse)
  *  ricade sulle variabili invece di lasciare il pannello vuoto. */
 export const schedaDa = (id: string): SchedaConfig =>
   SCHEDE.find((s) => s.id === id) ?? SCHEDE[0];
+
+/** I sotto-rami, nell'ordine in cui compaiono **dentro** il loro ramo. Le
+ *  foglie dirette del ramo vengono dopo: Device si apre tutti i giorni,
+ *  Risorse e Backup si toccano di rado (scelta del maintainer, 25-09-2026).
+ *  Un sotto-ramo senza foglie visibili non si disegna, come i rami vuoti. */
+export const SOTTORAMI: readonly { id: SottoRamo; ramo: RamoConfig; icona: string }[] = [
+  { id: "device",       ramo: "istanza", icona: "📟" },
+  { id: "sviluppatore", ramo: "istanza", icona: "🧪" },
+];
 
 /** I rami dell'albero, nell'ordine in cui compaiono. */
 export const RAMI: readonly { id: RamoConfig; icona: string }[] = [
