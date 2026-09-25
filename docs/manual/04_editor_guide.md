@@ -97,8 +97,9 @@ I link del tipo `#config/<scheda>` e `#config/<scheda>/<elemento>` (per esempio
 ![Left panel](screenshots/03_left_panel.png)
 
 Il pannello sinistro ha **in alto l'albero delle pagine, sempre visibile**, e sotto **una vista alla volta** scelta dalla barra delle icone
-(palette, struttura, tag, funzioni, ⚙ configurazione). Il pannello c'è anche in modalità Configurazione, dove la barra mostra solo ⚙ e un
-clic su una pagina dell'albero riporta all'editor. Fra i due c'è un separatore da trascinare per cambiare l'altezza dell'albero, e un pulsante
+(palette, struttura, tag, funzioni, ⚙ configurazione). Il pannello c'è anche in modalità Configurazione, dove la barra mostra solo ⚙: lì
+pagine e immagini di boot non stanno fisse in cima ma sono i primi due rami dell'albero ⚙, con le stesse azioni, e un clic su una pagina
+riporta all'editor. Fra i due c'è un separatore da trascinare per cambiare l'altezza dell'albero, e un pulsante
 ▾ per comprimerlo (altezza e stato si ricordano).
 
 ### PAGINE — l'albero delle pagine
@@ -190,7 +191,8 @@ Elenco dei tag definiti nel progetto con valore live.
 
 ### ⚙ CONFIGURAZIONE — l'albero delle schede
 
-Tutte le schede di configurazione in un albero, divise in rami: **Progetto** (Variabili, Tipi, Protocolli, Allarmi, Python, Faceplate,
+Tutte le schede di configurazione in un albero, divise in rami (in modalità Configurazione preceduti da **Pagine** e **Immagini di boot**):
+**Progetto** (Variabili, Tipi, Protocolli, Allarmi, Python, Faceplate,
 Ricette, Notifiche, Lingue), **Dati** (Datastore), **Sicurezza** (Utenti), **Istanza** (Risorse, Backup, Stato, Device, Runtime) e **IDE**
 (Preferenze). Le schede da amministratore compaiono solo all'Admin.
 

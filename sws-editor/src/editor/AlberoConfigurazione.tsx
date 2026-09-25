@@ -211,11 +211,16 @@ function Ramo({ ramo, icona, elementiDi }: {
   );
 }
 
-export function AlberoConfigurazione() {
+/** `testa`: i rami che stanno prima di quelli di configurazione. In
+ *  Configurazione sono pagine e immagini di boot (25-09-2026), che nell'editor
+ *  stanno invece fisse in cima al pannello; li passa `LeftPanel`, che ne
+ *  possiede la logica. */
+export function AlberoConfigurazione({ testa }: { testa?: React.ReactNode }) {
   const isAdmin = useAppStore((s) => s.authRole === "Admin");
   const elementiDi = useElementi(isAdmin);
   return (
     <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: `${SPAZIO.xs}px 0` }}>
+      {testa}
       {RAMI.map((r) => <Ramo key={r.id} ramo={r.id} icona={r.icona} elementiDi={elementiDi} />)}
     </div>
   );

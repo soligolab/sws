@@ -129,7 +129,27 @@ function Section({
 
 const CHIAVE_ALBERO_CHIUSI = PREFISSO_MEMORIA + "sinistra.alberoChiusi";
 
-function PagesSection({ compresso, onToggleCompresso }: { compresso: boolean; onToggleCompresso: () => void }) {
+/** Un ramo dell'albero ⚙ per pagine e immagini di boot: stessa intestazione
+ *  dei rami di configurazione (`AlberoConfigurazione`), apertura ricordata. */
+function RamoPagine({ titolo, icona, memoria, azione, children }: {
+  titolo: string; icona: string; memoria: string; azione?: React.ReactNode; children: React.ReactNode;
+}) {
+  const [aperto, commuta] = useSezioneAperta(memoria, true);
+  return (
+    <div style={{ padding: "0 8px" }}>
+      <IntestazioneSezione titolo={titolo} icona={icona} aperta={aperto} onToggle={commuta} azione={azione} />
+      {aperto && children}
+    </div>
+  );
+}
+
+function PagesSection({ compresso = false, onToggleCompresso = () => {}, rami = false }: {
+  compresso?: boolean;
+  onToggleCompresso?: () => void;
+  /** In Configurazione (25-09-2026): pagine e immagini di boot come due rami
+   *  dell'albero ⚙ invece del blocco fisso in cima al pannello. */
+  rami?: boolean;
+}) {
   const corpo = useCorpo();
   const { t } = useTranslation();
   const tutte         = useAppStore((s) => s.pages);
@@ -269,33 +289,11 @@ function PagesSection({ compresso, onToggleCompresso }: { compresso: boolean; on
     if (zona === "dentro" && chiusi.has(bersaglio)) { const n = new Set(chiusi); n.delete(bersaglio); ricordaChiusi(n); }
   };
 
-  return (
-    <Section
-      title={t("editor.sectionPages")}
-      memoria="sinistra.pagine"
-      headerAction={
-        <>
-          <button style={S.iconBtn} title={t("editor.checkLinksTitle")}
-            onClick={() => setLinkReportOpen(true)}>🔗</button>
-          <button style={S.iconBtn} title={compresso ? t("editor.treeShow") : t("editor.treeHide")}
-            onClick={onToggleCompresso}>{compresso ? "▸" : "▾"}</button>
-        </>
-      }
-    >
-      {linkReportOpen && (
-        <LinkReportModal
-          pages={pages}
-          orphanIds={orphanIds}
-          onClose={() => setLinkReportOpen(false)}
-          onJumpTo={(pageId, objId) => {
-            setCurrentPage(pageId);
-            if (objId) useAppStore.getState().selectObject(objId);
-            setLinkReportOpen(false);
-          }}
-        />
-      )}
-      {!compresso && (
-      <div style={corpo}>
+  // Il corpo in due pezzi (25-09-2026): nell'editor stanno uno sotto l'altro
+  // nel blocco fisso in cima al pannello; in Configurazione sono due rami
+  // dell'albero ⚙ (`rami`). Le righe, il trascinamento e le azioni sono gli stessi.
+  const corpoPagine = (
+    <>
         {righeAlbero.map((r) => {
           const p = perId.get(r.id);
           if (!p) return null;
@@ -439,11 +437,10 @@ function PagesSection({ compresso, onToggleCompresso }: { compresso: boolean; on
             }}
           />
         </div>
-        <div style={{ padding: "10px 8px 2px", fontSize: 10, fontWeight: 700, letterSpacing: 0.5,
-                      textTransform: "uppercase", color: "var(--brand-text-subtle, #64748b)" }}
-             title={t("leftPanel.bootPagesHint")}>
-          {t("leftPanel.bootPagesHeading")}
-        </div>
+    </>
+  );
+  const corpoBoot = (
+    <>
         {bootPages.map((p) => (
           <div
             key={p.id}
@@ -518,6 +515,62 @@ function PagesSection({ compresso, onToggleCompresso }: { compresso: boolean; on
             {t("leftPanel.newBootPage")}
           </button>
         </div>
+    </>
+  );
+  const modale = (
+    <>
+      {linkReportOpen && (
+        <LinkReportModal
+          pages={pages}
+          orphanIds={orphanIds}
+          onClose={() => setLinkReportOpen(false)}
+          onJumpTo={(pageId, objId) => {
+            setCurrentPage(pageId);
+            if (objId) useAppStore.getState().selectObject(objId);
+            setLinkReportOpen(false);
+          }}
+        />
+      )}
+    </>
+  );
+
+  if (rami) {
+    return (
+      <>
+        {modale}
+        <RamoPagine titolo={t("editor.sectionPages")} icona="📄" memoria="config.pagine"
+          azione={<button style={S.iconBtn} title={t("editor.checkLinksTitle")} onClick={() => setLinkReportOpen(true)}>🔗</button>}>
+          {corpoPagine}
+        </RamoPagine>
+        <RamoPagine titolo={t("leftPanel.bootPagesHeading")} icona="🖼" memoria="config.boot">
+          {corpoBoot}
+        </RamoPagine>
+      </>
+    );
+  }
+  return (
+    <Section
+      title={t("editor.sectionPages")}
+      memoria="sinistra.pagine"
+      headerAction={
+        <>
+          <button style={S.iconBtn} title={t("editor.checkLinksTitle")}
+            onClick={() => setLinkReportOpen(true)}>🔗</button>
+          <button style={S.iconBtn} title={compresso ? t("editor.treeShow") : t("editor.treeHide")}
+            onClick={onToggleCompresso}>{compresso ? "▸" : "▾"}</button>
+        </>
+      }
+    >
+      {modale}
+      {!compresso && (
+      <div style={corpo}>
+        {corpoPagine}
+        <div style={{ padding: "10px 8px 2px", fontSize: 10, fontWeight: 700, letterSpacing: 0.5,
+                      textTransform: "uppercase", color: "var(--brand-text-subtle, #64748b)" }}
+             title={t("leftPanel.bootPagesHint")}>
+          {t("leftPanel.bootPagesHeading")}
+        </div>
+        {corpoBoot}
       </div>
       )}
     </Section>
@@ -1955,7 +2008,8 @@ export function LeftPanel() {
       <BarraIcone voci={viste} attiva={mostrata} onScegli={scegliVista} lato="sinistra" />
       <div ref={colonnaRef} style={{ ...S.panel, width: panelWidth }}>
         <ModoVista.Provider value={true}>
-          {conPagine && (<>
+          {/* In Configurazione le pagine stanno dentro l'albero ⚙, come rami. */}
+          {conPagine && !inConfig && (<>
           <div
             data-testid="albero-pagine"
             style={{
@@ -1979,7 +2033,9 @@ export function LeftPanel() {
             {mostrata === "funzioni"  && <FunctionsSection onFunctionsChanged={persistiFunzioni} />}
             {mostrata === "tag"       && <TagsSection />}
             {mostrata === "config"    && (
-              <Section title={t("editor.sectionConfig")}><AlberoConfigurazione /></Section>
+              <Section title={t("editor.sectionConfig")}>
+                <AlberoConfigurazione testa={inConfig && conPagine ? <PagesSection rami /> : null} />
+              </Section>
             )}
           </div>
         </ModoVista.Provider>

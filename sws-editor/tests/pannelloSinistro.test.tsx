@@ -256,3 +256,26 @@ describe("eModificato", () => {
   it("un elemento nuovo, o rinominato, sì", () => expect(eModificato([salvato], { id: "b", x: 1 })).toBe(true));
 });
 
+describe("pannello sinistro — pagine e immagini di boot nell'albero ⚙ (25-09-2026)", () => {
+  beforeEach(() => {
+    try { localStorage.clear(); } catch { /* jsdom senza storage */ }
+    useAppStore.setState({ authRole: "Admin", appMode: "config", configTab: "tags", configFocus: null, elenchiConfig: {} });
+  });
+
+  it("in Configurazione il blocco fisso sparisce, e pagine e boot sono rami dell'albero", () => {
+    monta();
+    expect(screen.queryByTestId("albero-pagine")).toBeNull();
+    expect(screen.getByText(titolo("sectionPages"))).toBeTruthy();
+    expect(screen.getByText(i18n.t("leftPanel.bootPagesHeading"))).toBeTruthy();
+    expect(screen.getByText(i18n.t("leftPanel.newPage"))).toBeTruthy();
+  });
+
+  it("nell'editor il blocco fisso resta in cima, e ⚙ non ripete le pagine", () => {
+    useAppStore.setState({ appMode: "edit" });
+    monta();
+    fireEvent.click(icone()[4]);
+    expect(screen.getByTestId("albero-pagine")).toBeTruthy();
+    expect(screen.getAllByText(titolo("sectionPages"))).toHaveLength(1);
+  });
+});
+

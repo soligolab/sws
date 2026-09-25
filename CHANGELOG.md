@@ -12,6 +12,8 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Changed
+- **In Configurazione pagine e immagini di boot sono rami dell'albero ⚙** (richiesta del maintainer, 25-09): il blocco fisso in cima al pannello lascia il posto a due rami, «Pagine» e
+  «Immagini di boot», con le stesse righe, lo stesso trascinamento e le stesse azioni. Nell'editor il blocco resta fisso in cima, perché serve anche mentre si usa la palette (decisione del 20-09).
 - **L'albero ⚙ dice dove ci sono modifiche non salvate**: un pallino, dello stesso colore del «● non salvato» della testata, sull'elemento cambiato (una sorgente, uno script, un
   faceplate, un datastore, la ricetta aperta), sulla sua scheda e sul ramo — così si vede anche a ramo chiuso. Le schede senza elementi lo prendono dalla loro bozza pendente. Un elemento
   cambiato e rimesso com'era non è modificato: il confronto è per valore.
