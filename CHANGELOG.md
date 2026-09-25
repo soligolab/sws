@@ -12,6 +12,25 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Changed
+- **Il ramo Istanza riorganizzato, e «Runtime» diviso in tre** (richiesta del maintainer, 25-09). Stato, Dispositivi e le schede del runtime stanno in un sotto-ramo «Device»; la scheda più lunga
+  del repo — 1 740 righe — è diventata **Connessione**, **Installazione** e **Container**, tre file e tre voci distinte. Il pacchetto runtime e il deploy del binario, che sono strumenti di
+  sviluppo, vivono in un sotto-ramo «Sviluppatore» che **non esiste** dove il runtime non gira da un checkout del repo. I campi «quale dispositivo» sono indipendenti fra Installazione e Container
+  e si ricordano fra un giro e l'altro (mai la password); l'unica scrittura incrociata è voluta: un runtime scelto dalla ricerca in rete propone il suo host all'Installazione.
+- **Le variabili live stanno sotto «Progetto › Variabili»**, non più in un ramo loro: la foglia apre le variabili da modificare e sotto si vedono le stesse mentre si muovono. Le istanze di un tipo
+  struttura si espandono sulle loro foglie — prima di `motore1` non si vedeva nessun valore, perché il valore ce l'hanno le foglie — e l'elenco si raggruppa per tipo di dato, tipo struttura o
+  sorgente, con la scelta ricordata. Il dettaglio di una variabile (dove è usata) non si apre più dentro l'albero ma nella scheda, con la riga evidenziata e gli usi **raggruppati per categoria**;
+  gli oggetti vi compaiono col nome o col tipo, mai con l'id generato. Chi non può configurare continua a vedere le variabili: la foglia c'è, e per lui è in sola lettura.
+- **L'albero del pannello sinistro si legge come un albero**: freccia di apertura a sinistra a ogni livello (prima le foglie della configurazione l'avevano a destra, uniche) e un filetto a **L** che
+  collega ogni voce al suo genitore, con l'angolo chiuso sull'ultimo figlio. Il filetto ha un colore suo per tema, perché nel chiaro il grigio delle superfici spariva.
+
+### Fixed
+- **Gli usi di una variabile mostravano l'id generato dell'oggetto** (`Home › mub8v3dph67et`): ora il nome, o il tipo quando il nome non c'è.
+- **La variabile scelta nell'albero non si evidenziava se il suo id contiene un punto.** Per risalire da una foglia (`motore1.velocita`) alla sua riga spezzavo sul primo punto, ma
+  `host.Temeprature1` è un id **intero**, non un'istanza: si cercava una riga «host» che non esiste. Ora la radice si cerca fra gli id dichiarati, prendendo il più lungo che sia prefisso del percorso.
+- **«Pacchetto runtime» si apriva su un pannello vuoto**: l'albero disegnava la foglia e `ConfigView` non montava la scheda, perché il flag «c'è il repo» non gli veniva passato e il default era
+  «no». Il parametro non ha più un default: chi chiede le schede visibili deve dire se il repo c'è.
+- **Nell'elenco degli usi, «espressione di» e «script» erano scritti in italiano nel codice** invece di passare dalle traduzioni, che esistevano già in entrambe le lingue.
+
 - **Il pannello sinistro è un albero solo, e il pulsante Editor/Configurazione non c'è più** (richiesta del maintainer, 25-09). Via la colonna di icone e il blocco fisso delle pagine: dall'alto
   Pagine, Immagini di boot, **Strumenti** (la palette, per categoria), Oggetti della pagina, Funzioni, Tag, e i rami di configurazione — ognuno chiudibile, con lo stato ricordato, uguale in editor
   e in Configurazione. Dove si è lo decide il clic: una pagina, uno strumento, un oggetto o una funzione portano all'editor, una foglia di configurazione alla sua scheda. Uno strumento cliccato in
@@ -43,7 +62,6 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
     affatto — un percorso sbagliato è peggio di nessuna chiamata, perché il launcher accetta e poi non trova il file.
   - Il file `trigger` resta, perché dice cosa il progetto vuole e costa niente; `status` continua a riferire com'è andata, ma ora lo scrive il runtime.
 
-### Fixed
 - **Personalizzare un faceplate builtin non dà più 409.** Un builtin (per esempio «Tank Level» dei template) non ha file nel progetto finché qualcuno non lo modifica: la GET rispondeva
   col testo builtin e la sua versione, e la PUT confrontava quella versione col file assente — conflitto, sempre, con l'avviso «modificato da qualcun altro» senza che nessuno l'avesse
   toccato. Ora, se il file non c'è, la base del confronto è il testo builtin. Il difetto era anteriore all'albero di Configurazione: misurato identico sulla build del 24-09 mattina.

@@ -74,7 +74,48 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — il pannello sinistro è un albero solo; nessun piano in corso (2026-09-25)
+## ▶ Riprendere da qui — il menù ad albero, secondo giro: R1 e R2 chiusi (2026-09-25 sera)
+
+**Tutto su `main`, nessun ramo aperto.** Sessione pomeridiana sul dev server, dopo quella del
+mattino che aveva fatto l'albero unico. Il piano è
+[docs/plans/2026-09-25-menu-ad-albero-secondo-giro.md](docs/plans/2026-09-25-menu-ad-albero-secondo-giro.md),
+**quattro fasi, due fatte**.
+
+| commit | cosa |
+|---|---|
+| `7414a14a` | **R1** — il ramo Istanza riorganizzato: sotto-ramo «Device», «Runtime» diviso in Connessione/Installazione/Container, sotto-ramo «Sviluppatore» col pacchetto e il deploy binario |
+| `7452d7d3` | frecce a sinistra a ogni livello e filetti a **L** che collegano i rami, con colore per tema |
+| `1d9cb9b4` | **R2** — le variabili live sotto «Progetto › Variabili», istanze espandibili, raggruppamento scelto, dettaglio nella scheda invece che nell'albero |
+| `a41c19bd` | il piano guadagna la **fase R4** (pannello destro) |
+
+**Collaudato a schermo dal maintainer**, che ha trovato quattro difetti, tutti corretti prima del
+merge: la scheda di sviluppo non veniva montata, il ramo Sviluppatore aveva una voce sola, gli usi
+mostravano l'id generato degli oggetti, e la riga non si evidenziava per gli id che contengono un
+punto.
+
+**Da fare, nell'ordine:**
+
+1. **R3** — gli oggetti di **tutte** le pagine come albero, con la struttura di `page_tree`: la
+   ricerca cross-pagina diventa l'albero normale e la casella «cerca in tutte le pagine» sparisce.
+   Materiale pronto: `pageTree.ordinaPagine()` e `righe()`, più `findObjects` che già raggruppa
+   per pagina.
+2. **R4** — il pannello destro torna a una colonna di sezioni pieghevoli (le schede laterali sono
+   «poco funzionali»). Nel piano c'è il nodo da sciogliere per primo: quante sezioni restano
+   aperte insieme, visto che i gruppi erano nati l'11-09 proprio per non scorrere.
+3. Il **collaudo a schermo dell'albero unico** del mattino resta formalmente aperto, ma è stato
+   superato dai fatti: il pannello è stato usato tutto il pomeriggio.
+
+**Due cose da sapere prima di ricollaudare a schermo.** L'IDE serve `index-admin.html` **senza
+`Cache-Control`**: dopo un `pnpm build` il browser può continuare a eseguire i bundle vecchi, e un
+F5 normale non basta — ci è costato un giro di diagnosi a vuoto, il ricarico va forzato. E l'hash
+dell'URL **non** dice quale versione del codice sta girando: `#config/tags/<id>` si scriveva anche
+prima delle correzioni.
+
+**Semi nuovi di oggi**: [trasparenza e luminosità legabili a un tag, più polilinea e generatore di
+poligoni](docs/plans/2026-09-25-trasparenza-luminosita-e-forme.md) — nato da un tentativo vero del
+maintainer, che voleva un lampeggio *fade* e ha scoperto che le proprietà non esistono.
+
+## Riprendere da qui (precedente) — il pannello sinistro è un albero solo; nessun piano in corso (2026-09-25)
 
 **Tutto su `main` e pushato, nessun ramo aperto.** Sessione iniziata il 24-09 sera all'ufficio
 (macchina riallineata: `main` era indietro di 15, `feat/segreti-di-progetto` cancellato anche su
