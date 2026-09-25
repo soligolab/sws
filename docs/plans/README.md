@@ -12,7 +12,11 @@
 > spostano», perché citati da altri documenti e dal codice. Lo spostamento in archivio ha
 > riscritto tutti e 33 i riferimenti; un `git log --follow` continua a seguirli.
 
-**Nessun piano d'esecuzione in corso** (25-09-2026): l'ultimo, la configurazione ad albero, è finito ed è in [archivio](../archive/2026-09-24-configurazione-ad-albero-piano.md). Il resto sono **semi**, non piani d'esecuzione: ognuno va aperto con una sessione di plan approfondita prima di scrivere codice.
+**Proposto, in attesa del via libera** (25-09-2026): [il pannello ad albero, secondo giro](2026-09-25-menu-ad-albero-secondo-giro.md) — riorganizzare il ramo Istanza (un sotto-ramo «Device», Runtime diviso in tre, un menù sviluppatore), le variabili **live** sotto la foglia Tags, e gli oggetti di **tutte** le pagine come albero. Tre rami in sequenza, decisioni del maintainer già prese.
+
+**Ancora aperto, a fasi**: [gestione dei tag come oggetto unico](2026-09-21-gestione-tag-oggetto-unico.md) — Fasi 0-2 chiuse, restano **Fase 3 (Modbus)** e **Fase 4 (OPC-UA)**, più il collaudo a schermo della Fase 2. La riga in tabella lo dice già; la testa di questo indice diceva «nessun piano in corso» ed era imprecisa.
+
+Il resto sono **semi**, non piani d'esecuzione: ognuno va aperto con una sessione di plan approfondita prima di scrivere codice.
 
 **Dal 2026-09-12, anche le questioni aperte di `docs/OPEN_QUESTIONS.md` diventano piani singoli**
 (istruzione del maintainer, tecnica da riusare in futuro) — non li decide questo passaggio, li
