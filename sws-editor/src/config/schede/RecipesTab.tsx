@@ -43,7 +43,8 @@ export function RecipesTab() {
 
   // Il secondo livello dell'albero ⚙ (24-09-2026): una foglia per ricetta. La
   // foglia apre la ricetta, e aprirla da qui evidenzia la foglia.
-  usePubblicaElenco("recipes", recipes.map((r) => ({ id: r.id, etichetta: r.name || r.id })));
+  // Solo la ricetta aperta ha una bozza: le altre stanno sul disco.
+  usePubblicaElenco("recipes", recipes.map((r) => ({ id: r.id, etichetta: r.name || r.id, modificato: touched && selected?.id === r.id })));
   const focus = useFocus("recipes", recipes.map((r) => r.id));
   useEffect(() => {
     if (focus !== null && selected?.id !== focus) void selectRecipe(focus);

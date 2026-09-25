@@ -34,6 +34,11 @@ export interface SchedaConfig {
   /** Ha un elenco di elementi (sorgenti, faceplate, utenti…) che nell'albero
    *  diventano foglie di secondo livello (24-09-2026). */
   elementi?: boolean;
+  /** La chiave con cui la scheda registra la sua bozza fra le
+   *  `pendingSections` dello store: se c'è, la foglia porta il pallino
+   *  «modificato» (25-09-2026). Non sempre è l'id — Protocolli registra
+   *  `sources`, Python `global_scripts`. */
+  sezione?: string;
   /** Visibile solo all'Admin; un non-admin che ci arriva torna a «tags». */
   soloAdmin: boolean;
   /** Porta una bozza del progetto: resta montata una volta vista (`Tenuta`),
@@ -46,16 +51,16 @@ export interface SchedaConfig {
 
 /** In ordine di barra. */
 export const SCHEDE = [
-  { id: "tags",          ramo: "progetto",  icona: "🏷", soloAdmin: false, portaBozza: true,  richiedeProgetto: true  },
-  { id: "types",         ramo: "progetto",  icona: "🧬", soloAdmin: false, portaBozza: true,  richiedeProgetto: true,  ospite: "tags" },
-  { id: "protocols",     ramo: "progetto",  icona: "🔌", soloAdmin: false, portaBozza: true,  richiedeProgetto: true,  elementi: true },
-  { id: "alarms",        ramo: "progetto",  icona: "🔔", soloAdmin: false, portaBozza: true,  richiedeProgetto: true  },
-  { id: "scripts",       ramo: "progetto",  icona: "🐍", soloAdmin: false, portaBozza: true,  richiedeProgetto: false, elementi: true },
-  { id: "faceplates",    ramo: "progetto",  icona: "🧩", soloAdmin: false, portaBozza: true,  richiedeProgetto: false, elementi: true },
-  { id: "recipes",       ramo: "progetto",  icona: "📋", soloAdmin: false, portaBozza: true,  richiedeProgetto: false, elementi: true },
-  { id: "notifications", ramo: "progetto",  icona: "✉", soloAdmin: false, portaBozza: true,  richiedeProgetto: false },
-  { id: "languages",     ramo: "progetto",  icona: "🌐", soloAdmin: false, portaBozza: true,  richiedeProgetto: true  },
-  { id: "datastores",    ramo: "dati",      icona: "🗄", soloAdmin: true,  portaBozza: true,  richiedeProgetto: false, elementi: true },
+  { id: "tags",          ramo: "progetto",  icona: "🏷", soloAdmin: false, portaBozza: true,  richiedeProgetto: true, sezione: "tags"  },
+  { id: "types",         ramo: "progetto",  icona: "🧬", soloAdmin: false, portaBozza: true,  richiedeProgetto: true,  ospite: "tags", sezione: "types" },
+  { id: "protocols",     ramo: "progetto",  icona: "🔌", soloAdmin: false, portaBozza: true,  richiedeProgetto: true,  elementi: true, sezione: "sources" },
+  { id: "alarms",        ramo: "progetto",  icona: "🔔", soloAdmin: false, portaBozza: true,  richiedeProgetto: true, sezione: "alarms"  },
+  { id: "scripts",       ramo: "progetto",  icona: "🐍", soloAdmin: false, portaBozza: true,  richiedeProgetto: false, elementi: true, sezione: "global_scripts" },
+  { id: "faceplates",    ramo: "progetto",  icona: "🧩", soloAdmin: false, portaBozza: true,  richiedeProgetto: false, elementi: true, sezione: "faceplates" },
+  { id: "recipes",       ramo: "progetto",  icona: "📋", soloAdmin: false, portaBozza: true,  richiedeProgetto: false, elementi: true, sezione: "recipes" },
+  { id: "notifications", ramo: "progetto",  icona: "✉", soloAdmin: false, portaBozza: true,  richiedeProgetto: false, sezione: "notifications" },
+  { id: "languages",     ramo: "progetto",  icona: "🌐", soloAdmin: false, portaBozza: true,  richiedeProgetto: true, sezione: "languages"  },
+  { id: "datastores",    ramo: "dati",      icona: "🗄", soloAdmin: true,  portaBozza: true,  richiedeProgetto: false, elementi: true, sezione: "datastores" },
   { id: "users",         ramo: "sicurezza", icona: "👤", soloAdmin: true,  portaBozza: false, richiedeProgetto: false, elementi: true },
   { id: "resources",     ramo: "istanza",   icona: "📦", soloAdmin: false, portaBozza: false, richiedeProgetto: false },
   { id: "backups",       ramo: "istanza",   icona: "💾", soloAdmin: true,  portaBozza: false, richiedeProgetto: false },

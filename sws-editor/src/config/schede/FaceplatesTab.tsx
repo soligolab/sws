@@ -120,7 +120,7 @@ export function FaceplatesTab() {
 
   const current = faceplates.find((f) => f.id === selected) ?? null;
 
-  usePubblicaElenco("faceplates", faceplates.map((f) => ({ id: f.id, etichetta: f.label || f.id })));
+  usePubblicaElenco("faceplates", faceplates.map((f) => ({ id: f.id, etichetta: f.label || f.id, modificato: modificati.has(f.id) })));
   const focus = useFocus("faceplates", faceplates.map((f) => f.id));
   useEffect(() => { if (focus !== null) setSelezionato(focus); }, [focus]);
 

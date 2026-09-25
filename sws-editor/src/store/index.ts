@@ -246,6 +246,9 @@ export type { AppConfigTab };
 export interface VoceElencoConfig {
   id: string;
   etichetta: string;
+  /** La bozza di questo elemento è diversa da quella salvata (25-09-2026):
+   *  nell'albero porta il pallino. */
+  modificato?: boolean;
 }
 
 interface AppState {
@@ -2312,7 +2315,8 @@ export const useAppStore = create<AppState>((set, get) => {
       // Le schede pubblicano a ogni disegno della bozza: senza questo
       // confronto ogni tasto premuto in una card ridisegnerebbe l'albero.
       if (prima && prima.length === voci.length
-          && prima.every((v, i) => v.id === voci[i].id && v.etichetta === voci[i].etichetta)) return {};
+          && prima.every((v, i) => v.id === voci[i].id && v.etichetta === voci[i].etichetta
+            && !!v.modificato === !!voci[i].modificato)) return {};
       return { elenchiConfig: { ...s.elenchiConfig, [tab]: voci } };
     }),
 

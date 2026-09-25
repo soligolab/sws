@@ -69,6 +69,28 @@ function useElementi(isAdmin: boolean): (id: IdScheda) => VoceElencoConfig[] {
   };
 }
 
+/** Il pallino «modificato» (25-09-2026): stesso colore del «● non salvato»
+ *  della testata, perché dice la stessa cosa — e dice **dove**. */
+function Pallino({ testid }: { testid: string }) {
+  const { t } = useTranslation();
+  return (
+    <span
+      data-testid={testid}
+      title={t("app.unsavedShort")}
+      aria-label={t("app.unsavedShort")}
+      style={{ flexShrink: 0, width: 6, height: 6, borderRadius: "50%", background: "var(--brand-warning, #f59e0b)" }}
+    />
+  );
+}
+
+/** Una scheda è «modificata» se la sua bozza è fra le sezioni pendenti del
+ *  Salva unico, o se uno dei suoi elementi lo è. */
+function useSchedaModificata(): (s: SchedaConfig, elementi: VoceElencoConfig[] | null) => boolean {
+  const pendenti = useAppStore((s) => s.pendingSections);
+  return (s, elementi) =>
+    (s.sezione !== undefined && s.sezione in pendenti) || !!elementi?.some((v) => v.modificato);
+}
+
 const stileRiga = (scelta: boolean, rientro: number): React.CSSProperties => ({
   width: "100%", display: "flex", alignItems: "center", gap: SPAZIO.s,
   padding: `3px ${SPAZIO.m}px 3px ${rientro}px`,
@@ -83,7 +105,9 @@ const stileEtichetta: React.CSSProperties = {
   flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
 };
 
-function Foglia({ scheda, elementi }: { scheda: SchedaConfig; elementi: VoceElencoConfig[] | null }) {
+function Foglia({ scheda, elementi, modificata }: {
+  scheda: SchedaConfig; elementi: VoceElencoConfig[] | null; modificata: boolean;
+}) {
   const { t } = useTranslation();
   const inConfig   = useAppStore((s) => s.appMode === "config");
   const configTab  = useAppStore((s) => s.configTab);
@@ -111,6 +135,7 @@ function Foglia({ scheda, elementi }: { scheda: SchedaConfig; elementi: VoceElen
               testo e sfalsavano la foglia di qualche pixel. */}
           <span aria-hidden="true" style={{ width: 16, height: 16, lineHeight: "16px", fontSize: 12, flexShrink: 0, textAlign: "center", overflow: "hidden" }}>{scheda.icona}</span>
           <span style={stileEtichetta}>{t(`config.tabs.${id}`)}</span>
+          {modificata && <Pallino testid={`dirty-config-${id}`} />}
           {elementi !== null && (
             <span style={{ fontSize: TESTO.nota, color: "var(--brand-text-subtle, #64748b)", fontWeight: 400 }}>
               {elementi.length}
@@ -146,6 +171,7 @@ function Foglia({ scheda, elementi }: { scheda: SchedaConfig; elementi: VoceElen
             style={stileRiga(scelta, SPAZIO.l * 2 + SPAZIO.m + 4)}
           >
             <span style={stileEtichetta}>{v.etichetta}</span>
+            {v.modificato && <Pallino testid={`dirty-config-${id}-${v.id}`} />}
           </button>
         );
       })}
@@ -161,7 +187,11 @@ function Ramo({ ramo, icona, elementiDi }: {
   // Tutti aperti la prima volta: l'albero serve a vedere tutto d'un colpo.
   const [aperto, commuta] = useSezioneAperta(`config.${ramo}`, true);
 
-  const foglie = schedeVisibili(isAdmin).filter((s) => s.ramo === ramo);
+  const modificataFn = useSchedaModificata();
+  const foglie = schedeVisibili(isAdmin).filter((s) => s.ramo === ramo).map((s) => {
+    const elementi = "elementi" in s && s.elementi ? elementiDi(s.id) : null;
+    return { s, elementi, modificata: modificataFn(s, elementi) };
+  });
   if (!foglie.length) return null;
 
   return (
@@ -171,13 +201,11 @@ function Ramo({ ramo, icona, elementiDi }: {
         icona={icona}
         aperta={aperto}
         onToggle={commuta}
+        // Col ramo chiuso è l'unico segno che dentro c'è qualcosa da salvare.
+        azione={foglie.some((f) => f.modificata) ? <Pallino testid={`dirty-ramo-${ramo}`} /> : undefined}
       />
-      {aperto && foglie.map((s) => (
-        <Foglia
-          key={s.id}
-          scheda={s}
-          elementi={"elementi" in s && s.elementi ? elementiDi(s.id) : null}
-        />
+      {aperto && foglie.map(({ s, elementi, modificata }) => (
+        <Foglia key={s.id} scheda={s} elementi={elementi} modificata={modificata} />
       ))}
     </div>
   );

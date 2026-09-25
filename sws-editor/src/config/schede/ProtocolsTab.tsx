@@ -4,7 +4,7 @@ import { api } from "@/api/client";
 import { emptyHost } from "@/config/sorgenteHost";
 import type { SourceDef } from "@/types";
 import { useAppStore } from "@/store";
-import { useFocus, usePubblicaElenco } from "@/config/fogliaConfig";
+import { eModificato, useFocus, usePubblicaElenco } from "@/config/fogliaConfig";
 import { useSezioneSincronizzata } from "@/config/useSezioneSincronizzata";
 import { TRANS_COMP, BarraConflittoSezione, S, SaveBar } from "@/config/comuni";
 import { emptyModbus, emptyModbusRtu, sorgentiSenzaRigheVuote, emptyMqtt, emptyOpcUa, emptyOpcUaServer, emptyHomeAssistant, emptyS7 } from "@/config/sorgenti/vuote";
@@ -67,7 +67,7 @@ export function ProtocolsTab() {
 
   // Il secondo livello dell'albero ⚙ (24-09-2026): una foglia per sorgente.
   // Con una sorgente scelta si vede solo la sua card; dal primo livello, tutte.
-  usePubblicaElenco("protocols", sources.map((x) => ({ id: x.id, etichetta: x.id })));
+  usePubblicaElenco("protocols", sources.map((x) => ({ id: x.id, etichetta: x.id, modificato: eModificato(storeProject?.sources, x) })));
   const focus = useFocus("protocols", sources.map((x) => x.id));
   const setConfigFocus = useAppStore((s) => s.setConfigFocus);
 

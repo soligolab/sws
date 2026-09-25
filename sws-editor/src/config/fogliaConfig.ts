@@ -23,3 +23,14 @@ export function useFocus(tab: AppConfigTab, idPresenti: readonly string[]): stri
   const focus = useAppStore((s) => (s.configTab === tab ? s.configFocus : null));
   return focus !== null && idPresenti.includes(focus) ? focus : null;
 }
+
+/** Vero se l'elemento in bozza è diverso da quello salvato con lo stesso id,
+ *  o se nel salvato non c'è (appena aggiunto). Prima il riferimento — le
+ *  schede partono dall'array dello store, quindi un elemento mai toccato è
+ *  proprio lo stesso oggetto — e solo se differisce il confronto per valore:
+ *  un elemento cambiato e poi rimesso com'era non è modificato. */
+export function eModificato<T extends { id: string }>(salvati: readonly T[] | undefined, voce: T): boolean {
+  const salvato = salvati?.find((x) => x.id === voce.id);
+  if (!salvato) return true;
+  return salvato !== voce && JSON.stringify(salvato) !== JSON.stringify(voce);
+}

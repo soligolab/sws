@@ -3,7 +3,7 @@ import { Trans, useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import type { DatastoreBackendConfig, DatastoreConfig, DatastoreStats } from "@/types";
 import { useAppStore } from "@/store";
-import { useFocus, usePubblicaElenco } from "@/config/fogliaConfig";
+import { eModificato, useFocus, usePubblicaElenco } from "@/config/fogliaConfig";
 import { TRANS_COMP, SaveBar } from "@/config/comuni";
 
 // ── DATASTORES tab ────────────────────────────────────────────────────────────
@@ -40,7 +40,7 @@ export function DatastoresTab() {
 
   // Il secondo livello dell'albero ⚙ (24-09-2026): una foglia per datastore.
   // Con uno scelto si vede solo la sua scheda; dal primo livello, tutti.
-  usePubblicaElenco("datastores", datastores.map((d) => ({ id: d.id, etichetta: d.label || d.id })));
+  usePubblicaElenco("datastores", datastores.map((d) => ({ id: d.id, etichetta: d.label || d.id, modificato: eModificato(project?.datastores, d) })));
   const focus = useFocus("datastores", datastores.map((d) => d.id));
   const setConfigFocus = useAppStore((s) => s.setConfigFocus);
 

@@ -12,6 +12,7 @@ vi.mock("@/api/client", async () => {
 
 import { LeftPanel } from "../src/editor/LeftPanel";
 import { useAppStore } from "../src/store";
+import { eModificato } from "../src/config/fogliaConfig";
 
 /** Il pannello sinistro mostra **una vista per volta** (T-56 passo 2).
  *
@@ -205,5 +206,53 @@ describe("pannello sinistro — le foglie di secondo livello (24-09-2026)", () =
     pubblica("scripts", [{ id: "a", etichetta: "a" }]);
     expect(useAppStore.getState().elenchiConfig).toBe(prima);
   });
+});
+
+describe("pannello sinistro — i pallini «modificato» (25-09-2026)", () => {
+  beforeEach(() => {
+    try { localStorage.clear(); } catch { /* jsdom senza storage */ }
+    useAppStore.setState({
+      authRole: "Admin", appMode: "edit", configTab: "tags", configFocus: null,
+      elenchiConfig: {}, pendingSections: {},
+      project: { sources: [{ id: "plc1" }, { id: "mqtt1" }] } as never,
+    });
+  });
+
+  it("un elemento modificato porta il pallino, e con lui la sua scheda e il suo ramo", () => {
+    useAppStore.getState().pubblicaElencoConfig("protocols", [
+      { id: "plc1", etichetta: "plc1", modificato: true },
+      { id: "mqtt1", etichetta: "mqtt1" },
+    ]);
+    monta();
+    fireEvent.click(icone()[4]);
+    fireEvent.click(screen.getByTestId("expand-config-protocols"));
+    expect(screen.getByTestId("dirty-config-protocols-plc1")).toBeTruthy();
+    expect(screen.queryByTestId("dirty-config-protocols-mqtt1")).toBeNull();
+    expect(screen.getByTestId("dirty-config-protocols")).toBeTruthy();
+    expect(screen.getByTestId("dirty-ramo-progetto")).toBeTruthy();
+    expect(screen.queryByTestId("dirty-ramo-istanza")).toBeNull();
+  });
+
+  it("una scheda senza elementi prende il pallino dalla sua sezione pendente", () => {
+    useAppStore.setState({ pendingSections: { global_scripts: async () => {} } });
+    monta();
+    fireEvent.click(icone()[4]);
+    expect(screen.getByTestId("dirty-config-scripts")).toBeTruthy();
+    expect(screen.queryByTestId("dirty-config-tags")).toBeNull();
+  });
+
+  it("niente modifiche, niente pallini", () => {
+    monta();
+    fireEvent.click(icone()[4]);
+    expect(screen.queryAllByTestId(/^dirty-/)).toHaveLength(0);
+  });
+});
+
+describe("eModificato", () => {
+  const salvato = { id: "a", x: 1 };
+  it("lo stesso oggetto non è modificato", () => expect(eModificato([salvato], salvato)).toBe(false));
+  it("una copia uguale non è modificata", () => expect(eModificato([salvato], { id: "a", x: 1 })).toBe(false));
+  it("un valore diverso sì", () => expect(eModificato([salvato], { id: "a", x: 2 })).toBe(true));
+  it("un elemento nuovo, o rinominato, sì", () => expect(eModificato([salvato], { id: "b", x: 1 })).toBe(true));
 });
 
