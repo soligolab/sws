@@ -160,6 +160,69 @@ quella forma non porta valore, qualità né gerarchia. Il ramo `tags` ha un **re
 ricorsivo) non compaiono nell'albero nemmeno oggi, e i figli dei faceplate vivono in
 `FaceplateDef.objects` e non nella pagina. Se vanno mostrati è un lavoro a parte.
 
+## R4 — Il pannello destro torna a una colonna sola · `feat/proprieta-a-sezioni`
+
+**Richiesta del maintainer, 25-09-2026**, dopo aver usato il pannello sinistro ad albero: «il menù
+destro rifallo allo stesso modo di quello sinistro. Ora lo avevamo fatto a schede laterali ma è
+poco funzionale, preferisco tornare alla soluzione a scheda unica con delle sezioni che si aprono
+a foglie. Terrei il vincolo che se sono in una sezione e cambio oggetto, nel momento in cui la
+stessa sezione è presente, mantieni quella attiva.»
+
+### Cosa c'è oggi (misurato il 25-09-2026)
+
+- **Cinque gruppi** in `GRUPPI_PROPRIETA` (`EditorShell.tsx:1155-1165`): Oggetto 🧩, Testo 🅣 (solo
+  sui `text`), Dato 📊, Comportamento ⚡, Resa 👁. Una barra di icone ne mostra **uno per volta**.
+- **Diciannove `CollapsibleSection`** distribuite fra quei gruppi, dentro un `EditorShell.tsx` da
+  5 715 righe.
+- **Il vincolo che il maintainer chiede esiste già**, ma applicato ai gruppi invece che alle
+  sezioni: `gruppoEffettivo` (`:1215`) tiene il gruppo scelto se è fra quelli visibili per il tipo
+  nuovo, altrimenti ripiega su `gruppoAffine` (`:1201`). È la stessa regola, da spostare un livello
+  più giù.
+- **Perché i gruppi erano nati** — commento a `:1150`: «Prima dell'11-09-2026 le tredici sezioni
+  stavano tutte in colonna: per arrivare a *Eventi* su un `rect` si scorreva oltre le altre dieci».
+  Quel problema **torna** con la colonna unica, ed è il punto da risolvere bene: non basta togliere
+  la barra.
+
+### La forma
+
+Una colonna sola di sezioni pieghevoli, come i rami dell'albero a sinistra — stessa riga di
+intestazione (`IntestazioneSezione`), stessa freccia a sinistra, stessi filetti se servono.
+
+**Il nodo è quante ne stanno aperte insieme.** Tre strade, da decidere con il maintainer prima di
+scrivere codice:
+
+1. **Una sola aperta per volta** (fisarmonica vera): aprendone una si chiude la precedente. Lo
+   scorrimento sparisce per costruzione, ed è la lettura più vicina a «sezione attiva» che il
+   vincolo nomina. Si perde il confronto fra due sezioni lontane.
+2. **Quante se ne vogliono, tutte chiuse all'inizio tranne l'ultima usata**: più libera, ma su un
+   oggetto ricco si torna a scorrere.
+3. **Una sola aperta, più un fermo**: come la 1, con la possibilità di «appuntare» una sezione che
+   resta aperta anche cambiando le altre.
+
+### Il vincolo, tradotto
+
+La sezione aperta si ricorda **per nome**, non per posizione: cambiando oggetto, se il tipo nuovo
+ha una sezione con quello stesso nome resta aperta; se non ce l'ha, si apre quella **affine** —
+serve l'equivalente di `gruppoAffine` a livello di sezione, perché «nessuna aperta» su un oggetto
+appena selezionato è un pannello che sembra vuoto.
+
+### Passi
+
+1. Un **registro delle sezioni** come quello delle schede (`config/schede.ts`): id, chiave i18n,
+   per quali tipi vale, a quale gruppo apparteneva. Oggi l'informazione è sparsa fra il JSX e
+   `GRUPPI_PROPRIETA`; senza registro il «se esiste resta aperta» va scritto a mano sezione per
+   sezione.
+2. `sezioneEffettiva(scelta, tipo)` accanto a `gruppoEffettivo`, con gli stessi test.
+3. La colonna: via la barra di icone, le sezioni in fila con l'intestazione dell'albero.
+4. `GRUPPI_PROPRIETA` e `gruppoAffine` **spariscono** se non li usa più nessuno — o restano solo
+   come raggruppamento visivo fra le sezioni, da decidere al punto precedente.
+5. I test: `pannelloProprieta.test.tsx` e `pannelloDestro.test.tsx` parlano di gruppi in più punti.
+
+### Da non perdere
+
+L'inventario `campiPannelloProprieta.json` e la sua guardia: la riorganizzazione **non** deve
+cambiare quali campi esistono, e quella guardia è ciò che lo dimostra. Se cambia, è un difetto.
+
 ## Rischi
 
 - **`LeftPanel.tsx` è a 1 902 righe** e R2+R3 lo toccano in profondità. I pezzi estratti
