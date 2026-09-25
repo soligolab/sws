@@ -28,7 +28,7 @@ import { api } from "@/api/client";
 import { useAppStore, type VoceElencoConfig } from "@/store";
 import { RAMI, SOTTORAMI, schedeVisibili, type IdScheda, type RamoConfig, type SchedaConfig, type SottoRamo } from "@/config/schede";
 import { useRepoDisponibile } from "@/config/repoDisponibile";
-import { IntestazioneSezione, SPAZIO, TESTO, useSezioneAperta } from "./stilePannelli";
+import { IntestazioneSezione, SPAZIO, TESTO, guideAlbero, useSezioneAperta } from "./stilePannelli";
 
 /** Gli elementi di ricette e utenti, che il progetto non porta: una richiesta
  *  al montaggio dell'albero, come fanno le loro schede. */
@@ -106,6 +106,24 @@ const stileEtichetta: React.CSSProperties = {
   flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
 };
 
+/** Lo slot della freccia: la stessa larghezza che usano l'albero delle pagine
+ *  e quello degli oggetti, così i tre alberi del pannello si leggono come uno
+ *  solo. */
+const LARGHEZZA_FRECCIA = 14;
+/** La colonna su cui corrono le guide: quella della freccia, così la linea
+ *  esce da sotto la freccia del genitore e arriva ai suoi figli. */
+/** Le guide corrono al centro dello slot della freccia del figlio, e il
+ *  trattino entra fino al bordo sinistro della sua icona: la L che il
+ *  maintainer ha chiesto. `xIcona` è dove comincia l'icona della riga. */
+const COLONNA_RAMO = SPAZIO.l + SPAZIO.m - LARGHEZZA_FRECCIA + Math.round(LARGHEZZA_FRECCIA / 2);
+const gancio = (xIcona: number, ultimo: boolean, x = COLONNA_RAMO) =>
+  ({ x, finoA: xIcona - 2, ultimo });
+
+const stileFreccia: React.CSSProperties = {
+  flexShrink: 0, width: LARGHEZZA_FRECCIA, border: "none", background: "transparent",
+  cursor: "pointer", fontSize: 9, color: "var(--brand-text-subtle, #64748b)", padding: 0,
+};
+
 /** Altezza fissa: alcune emoji hanno un'altezza di riga diversa dal testo e
  *  sfalsavano la riga di qualche pixel. */
 const stileIcona: React.CSSProperties = {
@@ -113,11 +131,14 @@ const stileIcona: React.CSSProperties = {
   flexShrink: 0, textAlign: "center", overflow: "hidden",
 };
 
-function Foglia({ scheda, elementi, modificata, dentroSottoRamo = false }: {
+function Foglia({ scheda, elementi, modificata, dentroSottoRamo = false, ultimo = false }: {
   scheda: SchedaConfig; elementi: VoceElencoConfig[] | null; modificata: boolean;
   /** Una foglia dentro un sotto-ramo sta un gradino più a destra, e con lei i
    *  suoi elementi. */
   dentroSottoRamo?: boolean;
+  /** L'ultima voce del suo elenco: la verticale si ferma a metà e chiude
+   *  l'angolo invece di proseguire nel vuoto. */
+  ultimo?: boolean;
 }) {
   const { t } = useTranslation();
   const inConfig   = useAppStore((s) => s.appMode === "config");
@@ -135,13 +156,35 @@ function Foglia({ scheda, elementi, modificata, dentroSottoRamo = false }: {
 
   return (
     <>
-      <div style={{ display: "flex", alignItems: "center" }}>
+      {/* La freccia a sinistra, come a ogni altro livello dell'albero
+          (richiesta del maintainer, 25-09-2026: qui era l'unica a destra).
+          Lo slot si disegna anche quando non c'è nulla da aprire, o le
+          etichette delle foglie con e senza figli non sarebbero allineate. */}
+      <div style={{
+        display: "flex", alignItems: "center",
+        paddingLeft: SPAZIO.l + SPAZIO.m + gradino - LARGHEZZA_FRECCIA,
+        ...guideAlbero([], gancio(SPAZIO.l + SPAZIO.m + gradino, ultimo)),
+      }}>
+        {elementi !== null && elementi.length > 0 ? (
+          <button
+            type="button"
+            data-testid={`expand-config-${id}`}
+            aria-expanded={mostraFigli}
+            title={t(mostraFigli ? "editor.treeHide" : "editor.treeShow")}
+            onClick={commuta}
+            style={stileFreccia}
+          >
+            {mostraFigli ? "▼" : "▶"}
+          </button>
+        ) : (
+          <span style={{ width: LARGHEZZA_FRECCIA, flexShrink: 0 }} />
+        )}
         <button
           type="button"
           data-testid={`foglia-config-${id}`}
           aria-current={suQuesta && configFocus === null ? "page" : undefined}
           onClick={() => navigateToConfig(id)}
-          style={stileRiga(suQuesta && configFocus === null, SPAZIO.l + SPAZIO.m + gradino)}
+          style={stileRiga(suQuesta && configFocus === null, 0)}
         >
           <span aria-hidden="true" style={stileIcona}>{scheda.icona}</span>
           <span style={stileEtichetta}>{t(`config.tabs.${id}`)}</span>
@@ -152,23 +195,8 @@ function Foglia({ scheda, elementi, modificata, dentroSottoRamo = false }: {
             </span>
           )}
         </button>
-        {elementi !== null && elementi.length > 0 && (
-          <button
-            type="button"
-            data-testid={`expand-config-${id}`}
-            aria-expanded={mostraFigli}
-            title={t(mostraFigli ? "editor.treeHide" : "editor.treeShow")}
-            onClick={commuta}
-            style={{
-              flexShrink: 0, width: 18, border: "none", background: "transparent", cursor: "pointer",
-              fontSize: 9, color: "var(--brand-text-subtle, #64748b)", padding: 0,
-            }}
-          >
-            {mostraFigli ? "▼" : "▶"}
-          </button>
-        )}
       </div>
-      {mostraFigli && elementi.map((v) => {
+      {mostraFigli && elementi.map((v, i) => {
         const scelta = suQuesta && configFocus === v.id;
         return (
           <button
@@ -178,7 +206,16 @@ function Foglia({ scheda, elementi, modificata, dentroSottoRamo = false }: {
             aria-current={scelta ? "page" : undefined}
             onClick={() => navigateToConfig(id, v.id)}
             title={v.etichetta}
-            style={stileRiga(scelta, SPAZIO.l * 2 + SPAZIO.m + 4 + gradino)}
+            style={{
+              ...stileRiga(scelta, SPAZIO.l * 2 + SPAZIO.m + 4 + gradino),
+              // Un elemento è figlio della sua foglia: la verticale del ramo
+              // resta piena, la L parte dalla foglia.
+              ...guideAlbero([COLONNA_RAMO], {
+                x: SPAZIO.l + SPAZIO.m + gradino - Math.round(LARGHEZZA_FRECCIA / 2),
+                finoA: SPAZIO.l * 2 + SPAZIO.m + 4 + gradino - 2,
+                ultimo: i === elementi.length - 1,
+              }),
+            }}
           >
             <span style={stileEtichetta}>{v.etichetta}</span>
             {v.modificato && <Pallino testid={`dirty-config-${id}-${v.id}`} />}
@@ -206,22 +243,33 @@ function SottoRamoNodo({ id, icona, foglie }: {
 
   return (
     <>
-      <button
-        type="button"
-        data-testid={`sottoramo-config-${id}`}
-        aria-expanded={aperto}
-        onClick={commuta}
-        style={stileRiga(false, SPAZIO.l + SPAZIO.m)}
-      >
-        <span aria-hidden="true" style={{ width: 9, flexShrink: 0, fontSize: 9, color: "var(--brand-text-subtle, #64748b)" }}>
+      {/* Stessa struttura delle foglie: la freccia sta **fuori** dal bottone,
+          nello slot a sinistra. Così un sotto-ramo e una foglia diretta —
+          che sono allo stesso livello — hanno la freccia sulla stessa
+          colonna, e le foglie del sotto-ramo un gradino più a destra. */}
+      <div style={{
+        display: "flex", alignItems: "center",
+        paddingLeft: SPAZIO.l + SPAZIO.m - LARGHEZZA_FRECCIA,
+        ...guideAlbero([], gancio(SPAZIO.l + SPAZIO.m, false)),
+      }}>
+        <button
+          type="button"
+          data-testid={`sottoramo-config-${id}`}
+          aria-expanded={aperto}
+          onClick={commuta}
+          style={stileFreccia}
+        >
           {aperto ? "▼" : "▶"}
-        </span>
-        <span aria-hidden="true" style={stileIcona}>{icona}</span>
-        <span style={{ ...stileEtichetta, fontWeight: 600 }}>{t(`config.sottorami.${id}`)}</span>
-        {foglie.some((f) => f.modificata) && <Pallino testid={`dirty-sottoramo-${id}`} />}
-      </button>
-      {aperto && foglie.map(({ s, elementi, modificata }) => (
-        <Foglia key={s.id} scheda={s} elementi={elementi} modificata={modificata} dentroSottoRamo />
+        </button>
+        <button type="button" onClick={commuta} style={stileRiga(false, 0)}>
+          <span aria-hidden="true" style={stileIcona}>{icona}</span>
+          <span style={{ ...stileEtichetta, fontWeight: 600 }}>{t(`config.sottorami.${id}`)}</span>
+          {foglie.some((f) => f.modificata) && <Pallino testid={`dirty-sottoramo-${id}`} />}
+        </button>
+      </div>
+      {aperto && foglie.map(({ s, elementi, modificata }, i) => (
+        <Foglia key={s.id} scheda={s} elementi={elementi} modificata={modificata} dentroSottoRamo
+          ultimo={i === foglie.length - 1} />
       ))}
     </>
   );
@@ -265,8 +313,9 @@ function Ramo({ ramo, icona, elementiDi, repo }: {
       {aperto && sottorami.map((sr) => (
         <SottoRamoNodo key={sr.id} id={sr.id} icona={sr.icona} foglie={sr.foglie} />
       ))}
-      {aperto && dirette.map(({ s, elementi, modificata }) => (
-        <Foglia key={s.id} scheda={s} elementi={elementi} modificata={modificata} />
+      {aperto && dirette.map(({ s, elementi, modificata }, i) => (
+        <Foglia key={s.id} scheda={s} elementi={elementi} modificata={modificata}
+          ultimo={i === dirette.length - 1} />
       ))}
     </div>
   );

@@ -28,6 +28,75 @@ import { useTranslation } from "react-i18next";
  *  decisioni, non a spostarle da `padding: 5px` a `SPAZIO.cinque`. */
 export const SPAZIO = { xs: 4, s: 6, m: 8, l: 12 } as const;
 
+/** La larghezza dello slot della freccia, e il passo di un livello d'albero. */
+export const PASSO_ALBERO = 14;
+
+/** Le guide che collegano un nodo al suo genitore: una **L** che scende dalla
+ *  verticale del genitore ed entra a sinistra dell'icona del figlio, più le
+ *  verticali dei livelli più in alto (richiesta del maintainer, 25-09-2026).
+ *
+ *  Disegnate come sfondo della riga e non come bordi di contenitori annidati,
+ *  perché i quattro alberi del pannello hanno strutture diverse — pagine e
+ *  oggetti sono **righe piatte** con un numero di livello, la configurazione
+ *  ha nodi annidati — e questa è l'unica tecnica che vale per tutti senza
+ *  riscriverli.
+ *
+ *  `x` sono le colonne in pixel dove passa una guida: le sa il chiamante, che
+ *  conosce i propri rientri. `backgroundColor` resta libero, così la riga
+ *  selezionata conserva il suo colore.
+ */
+export interface GancioAlbero {
+  /** La colonna della verticale che scende dal genitore. */
+  x: number;
+  /** Dove finisce il trattino orizzontale: il bordo sinistro dell'icona. */
+  finoA: number;
+  /** L'ultimo figlio chiude l'angolo: la verticale si ferma a metà riga,
+   *  invece di proseguire sotto una voce che non ha sorelle dopo di sé. */
+  ultimo: boolean;
+}
+
+export function guideAlbero(
+  x: readonly number[],
+  gancio?: GancioAlbero,
+): React.CSSProperties {
+  if (x.length === 0 && !gancio) return {};
+  const tratto = "linear-gradient(var(--brand-guida, var(--brand-surface-2, #334155)) 0 0)";
+  const img: string[] = [];
+  const pos: string[] = [];
+  const dim: string[] = [];
+
+  for (const n of x) {
+    img.push(tratto); pos.push(`${n}px 0`); dim.push("1px 100%");
+  }
+  if (gancio) {
+    // La verticale del proprio livello: intera se dopo c'è una sorella, fino a
+    // metà riga se si è l'ultimo — è quella metà che disegna l'angolo.
+    img.push(tratto);
+    pos.push(`${gancio.x}px 0`);
+    dim.push(gancio.ultimo ? "1px 50%" : "1px 100%");
+    // E il trattino che entra fino all'icona.
+    const largo = Math.max(0, gancio.finoA - gancio.x);
+    if (largo > 0) {
+      img.push(tratto);
+      pos.push(`${gancio.x}px 50%`);
+      dim.push(`${largo}px 1px`);
+    }
+  }
+  return {
+    backgroundImage: img.join(", "),
+    backgroundPosition: pos.join(", "),
+    backgroundSize: dim.join(", "),
+    backgroundRepeat: "no-repeat",
+  };
+}
+
+/** Le colonne delle guide per un nodo di livello `livello` (0 = radice), con
+ *  la prima guida a `base` e un passo di `PASSO_ALBERO`. Un nodo di livello 0
+ *  non ha guide: non ha antenati da collegare. */
+export function colonneGuide(livello: number, base: number, passo = PASSO_ALBERO): number[] {
+  return Array.from({ length: Math.max(0, livello) }, (_, i) => base + i * passo);
+}
+
 /** Dimensioni del testo, per **rango** e non per posto: due righe dello stesso
  *  rango devono avere la stessa dimensione anche se vivono in pannelli
  *  diversi. */

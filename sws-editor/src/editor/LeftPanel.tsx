@@ -10,7 +10,7 @@ import { resolvePageBackground } from "@/theme";
 import { AlberoConfigurazione } from "./AlberoConfigurazione";
 import { aggiungiOggetto, persistiFunzioni } from "./azioniEditor";
 import { canConfigureProject, canEditProject } from "@/auth/permissions";
-import { IntestazioneSezione, PREFISSO_MEMORIA, TitoloVista, useSezioneAperta } from "./stilePannelli";
+import { IntestazioneSezione, PREFISSO_MEMORIA, TitoloVista, useSezioneAperta, colonneGuide, guideAlbero } from "./stilePannelli";
 import type { ObjectGroup, SynopticObject, SynopticPage } from "@/types";
 import { BOOT_TYPES, eBoot, paginePerNavigazione, pagineDiBoot } from "@/boot/tipi";
 import { impostaBootAbilitata } from "@/boot/abilitata";
@@ -305,7 +305,7 @@ function PagesSection() {
   // Il corpo in due pezzi, uno per ramo dell'albero: pagine e immagini di boot.
   const corpoPagine = (
     <>
-        {righeAlbero.map((r) => {
+        {righeAlbero.map((r, iRiga) => {
           const p = perId.get(r.id);
           if (!p) return null;
           const mostraAzioni = hoverId === p.id || p.id === currentPageId;
@@ -326,6 +326,15 @@ function PagesSection() {
               style={{
                 ...S.row(p.id === currentPageId), justifyContent: "space-between",
                 gap: 4, paddingLeft: 6 + r.livello * 14, position: "relative",
+                // La L che aggancia la pagina al suo genitore, più le
+                // verticali dei livelli più in alto (25-09-2026). «Ultimo
+                // figlio» si legge dalla riga dopo: se scende di livello (o
+                // non c'è), dopo questa non ci sono sorelle.
+                ...guideAlbero(colonneGuide(Math.max(0, r.livello - 1), 13), r.livello === 0 ? undefined : {
+                  x: 13 + (r.livello - 1) * 14,
+                  finoA: 18 + r.livello * 14,
+                  ultimo: (righeAlbero[iRiga + 1]?.livello ?? -1) < r.livello,
+                }),
                 ...(zona === "prima" ? { boxShadow: "inset 0 2px 0 var(--brand-primary, #3b82f6)" } : {}),
                 ...(zona === "dopo" ? { boxShadow: "inset 0 -2px 0 var(--brand-primary, #3b82f6)" } : {}),
                 ...(zona === "dentro" ? { outline: "1px solid var(--brand-primary, #3b82f6)", outlineOffset: -1 } : {}),
@@ -713,7 +722,7 @@ function coloreGruppo(group: PaletteGroup, _mode: unknown): string {
 /** Una categoria della palette come sotto-ramo di Strumenti (25-09-2026):
  *  una riga per oggetto, con l'icona nel colore del gruppo. Prima erano
  *  riquadri su due colonne (22-09): nell'albero unico ogni cosa è una riga. */
-function GruppoStrumenti({ group, showLvglBadge }: { group: PaletteGroup; showLvglBadge: boolean }) {
+function GruppoStrumenti({ group, showLvglBadge, ultimo }: { group: PaletteGroup; showLvglBadge: boolean; ultimo: boolean }) {
   const { t } = useTranslation();
   const themeMode = useAppStore((s) => s.themeMode);
   const [open, commuta] = useSezioneAperta(`strumenti.${group.category}`, group.defaultOpen ?? false);
@@ -727,6 +736,7 @@ function GruppoStrumenti({ group, showLvglBadge }: { group: PaletteGroup; showLv
         style={{
           width: "100%", display: "flex", alignItems: "center", gap: 6, padding: "3px 8px 3px 20px",
           border: "none", background: "transparent", cursor: "pointer", textAlign: "left",
+          ...guideAlbero([], { x: 13, finoA: 18, ultimo: ultimo && !open }),
         }}
       >
         <span aria-hidden="true" style={{ fontSize: 9, width: 10, color: "var(--brand-text-subtle, #64748b)" }}>{open ? "▼" : "▶"}</span>
@@ -734,7 +744,7 @@ function GruppoStrumenti({ group, showLvglBadge }: { group: PaletteGroup; showLv
           {t(`editor.palette.group.${group.category}`)}
         </span>
       </button>
-      {open && group.items.map(({ type, icon }) => (
+      {open && group.items.map(({ type, icon }, iItem) => (
         <button
           key={type}
           type="button"
@@ -745,6 +755,9 @@ function GruppoStrumenti({ group, showLvglBadge }: { group: PaletteGroup; showLv
             width: "100%", display: "flex", alignItems: "center", gap: 6, padding: "3px 8px 3px 36px",
             border: "none", borderRadius: 4, background: "transparent", cursor: "pointer", textAlign: "left",
             fontSize: 12, color: "var(--brand-text-muted, #94a3b8)",
+            ...guideAlbero(ultimo ? [] : [13], {
+              x: 27, finoA: 34, ultimo: iItem === group.items.length - 1,
+            }),
           }}
         >
           <span aria-hidden="true" style={{ width: 16, height: 16, lineHeight: "16px", fontSize: 13, textAlign: "center", color: colore, flexShrink: 0 }}>
@@ -856,7 +869,8 @@ function RamoStrumenti() {
         {paginaBoot && <div style={nota}>{t("leftPanel.paletteBootHint")}</div>}
         {!paginaBoot && isLvgl && <div style={nota}>{t("editor.paletteLvglHint")}</div>}
         {groups.map((group) => (
-          <GruppoStrumenti key={group.category} group={group} showLvglBadge={!isLvgl} />
+          <GruppoStrumenti key={group.category} group={group} showLvglBadge={!isLvgl}
+            ultimo={group === groups[groups.length - 1]} />
         ))}
       </>)}
     </div>
@@ -1143,7 +1157,7 @@ function ObjectsSection() {
       : { borderBottom: "2px solid #38bdf8", marginBottom: -2 };
   };
 
-  const renderObjectRow = (o: SynopticObject, indent = 0) => {
+  const renderObjectRow = (o: SynopticObject, indent = 0, ultimo = false) => {
     const isSel = o.id === selectedId;
     const isRen = o.id === renaming;
     const label = o.name?.trim() || `${o.type}·${o.id.slice(-4)}`;
@@ -1161,7 +1175,15 @@ function ObjectsSection() {
           onDrop={onDropObject}
           onContextMenu={(e) => { e.preventDefault(); setMenu({ kind: "object", id: o.id, x: e.clientX, y: e.clientY }); }}
           onClick={() => !isRen && selectObject(o.id)}
-          style={{ ...S.row(isSel), gap: 4, paddingRight: 4, paddingLeft: 4 + indent, ...indicatorFor("object", o.id) }}
+          style={{
+            ...S.row(isSel), gap: 4, paddingRight: 4, paddingLeft: 4 + indent,
+            // Un oggetto sciolto è figlio del ramo; dentro un gruppo, figlio
+            // del gruppo (`indent` vale 12 solo per i membri).
+            ...guideAlbero(indent > 0 ? [13] : [], {
+              x: indent > 0 ? 25 : 13, finoA: 6 + indent + 14, ultimo,
+            }),
+            ...indicatorFor("object", o.id),
+          }}
         >
           {isGrid ? (
             <button
@@ -1212,7 +1234,14 @@ function ObjectsSection() {
             <div
               key={`${o.id}-${c.row}-${c.col}`}
               onClick={() => { selectObject(o.id); setSelectedCell({ objectId: o.id, row: c.row, col: c.col }); setSelectedCellChild({ objectId: o.id, row: c.row, col: c.col }); }}
-              style={{ ...S.row(isChildSel), paddingLeft: indent + 24, paddingRight: 4, gap: 4, color: isChildSel ? "#5eead4" : "var(--brand-text-subtle, #64748b)", background: isChildSel ? "#0f2922" : "transparent" }}
+              style={{
+                ...S.row(isChildSel), paddingLeft: indent + 24, paddingRight: 4, gap: 4,
+                color: isChildSel ? "#5eead4" : "var(--brand-text-subtle, #64748b)",
+                background: isChildSel ? "#0f2922" : "transparent",
+                ...guideAlbero(indent > 0 ? [13, 25] : [13], {
+                  x: (indent > 0 ? 25 : 13) + 12, finoA: indent + 24, ultimo: false,
+                }),
+              }}
               title={`Cella R${c.row + 1}, C${c.col + 1}`}
             >
               <span style={{ fontSize: 10, flexShrink: 0, color: "var(--brand-text-subtle, #94a3b8)" }}>↳</span>
@@ -1333,7 +1362,7 @@ function ObjectsSection() {
             ⤓ Trascina qui per rimuovere dal gruppo
           </div>
         )}
-        {tree.map((node) => {
+        {tree.map((node, iNodo) => {
           if (node.kind === "group") {
             const { group, members } = node;
             const isExpanded = expandedGroups.has(group.id);
@@ -1352,6 +1381,7 @@ function ObjectsSection() {
                   onClick={() => members.length > 0 && selectMany(members.map((m) => m.id))}
                   style={{
                     ...S.row(allMembersSel),
+                    ...guideAlbero([], { x: 13, finoA: 18, ultimo: iNodo === tree.length - 1 && !isExpanded }),
                     gap: 4, paddingRight: 4,
                     background: allMembersSel ? "#1e3a5f" : "var(--brand-bg, #172033)",
                     color: allMembersSel ? "#93c5fd" : "var(--brand-text-subtle, #64748b)",
@@ -1404,11 +1434,11 @@ function ObjectsSection() {
                   >⊔</button>
                 </div>
                 {/* Group members */}
-                {isExpanded && members.map((o) => renderObjectRow(o, 12))}
+                {isExpanded && members.map((o, i) => renderObjectRow(o, 12, i === members.length - 1))}
               </React.Fragment>
             );
           }
-          return renderObjectRow(node.obj);
+          return renderObjectRow(node.obj, 0, iNodo === tree.length - 1);
         })}
       </div>
       {menu && (
@@ -1620,7 +1650,8 @@ function FunctionsSection({ onFunctionsChanged }: { onFunctionsChanged: () => vo
             <div
               key={f.id}
               onClick={() => !isRen && selectFunction(f.id)}
-              style={{ ...S.row(isSel), gap: 4, paddingRight: 4 }}
+              style={{ ...S.row(isSel), gap: 4, paddingRight: 4,
+                ...guideAlbero([], { x: 13, finoA: 20, ultimo: f === functions[functions.length - 1] }) }}
               title={f.description ?? f.name}
             >
               <span style={{
@@ -1757,7 +1788,8 @@ function TagsSection() {
           return (
             <div key={t.id}>
               <div
-                style={{ ...S.row(open), gap: 6, justifyContent: "space-between", cursor: "pointer" }}
+                style={{ ...S.row(open), gap: 6, justifyContent: "space-between", cursor: "pointer",
+                  ...guideAlbero([], { x: 13, finoA: 20, ultimo: t === tags[tags.length - 1] }) }}
                 onClick={() => setOpenTag(open ? null : t.id)}
                 title={uses.length > 0 ? t2("editor.tagUsesCount", { count: uses.length }) : t2("editor.tagUsesNone")}
               >

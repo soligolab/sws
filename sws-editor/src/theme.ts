@@ -42,6 +42,12 @@ const VAR_TEXT_SUBTLE   = "--brand-text-subtle";
  *  chrome dell'app; `--brand-surface-2` no, perché in chiaro è `#f1f5f9`, cioè
  *  indistinguibile da una pagina bianca. */
 const VAR_CANVAS_DESK   = "--brand-canvas-desk";
+/** Il filetto che collega i rami nel pannello sinistro (25-09-2026).
+ *
+ *  Ha una variabile sua e non riusa `--brand-surface-2` perché in chiaro
+ *  quel neutro è `#f1f5f9`, quasi bianco: la guida spariva. Qui serve un
+ *  tono che si veda su uno sfondo chiaro senza diventare un bordo. */
+const VAR_GUIDA_ALBERO  = "--brand-guida";
 const VAR_DANGER        = "--brand-danger";
 const VAR_DANGER_SOFT   = "--brand-danger-soft";
 const VAR_DANGER_BG     = "--brand-danger-bg";
@@ -106,6 +112,12 @@ const LIGHT_NEUTRALS: Neutrals = {
 // tavolo, distinguibile dal `#f8fafc` dell'app e da una pagina bianca.
 const DARK_DESK  = "#0a0f1a";
 const LIGHT_DESK = "#e2e8f0";
+
+// La guida dell'albero: in scuro basta il grigio delle superfici, in chiaro
+// serve scendere di parecchio — il maintainer, guardandola: «nel tema chiaro
+// il filo fallo più scuro perché ora si vede pochissimo».
+const DARK_GUIDA  = "#334155";
+const LIGHT_GUIDA = "#94a3b8";
 
 const DARK_STATUS: StatusColors = {
   danger: "#ef4444",  dangerSoft: "#fca5a5",  dangerBg: "#7f1d1d",
@@ -273,6 +285,7 @@ export function applyAppearance(mode: ThemeMode): ResolvedTheme {
   s.setProperty(CSS_VARS.textMuted, neutrals.textMuted);
   s.setProperty(VAR_TEXT_SUBTLE,    neutrals.textSubtle);
   s.setProperty(VAR_CANVAS_DESK,    resolved === "light" ? LIGHT_DESK : DARK_DESK);
+  s.setProperty(VAR_GUIDA_ALBERO,   resolved === "light" ? LIGHT_GUIDA : DARK_GUIDA);
 
   // Stato.
   s.setProperty(VAR_DANGER,       status.danger);
