@@ -74,7 +74,21 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — il menù ad albero, secondo giro: R1 e R2 chiusi (2026-09-25 sera)
+## ▶ Riprendere da qui — R3 e R4 su due rami annidati, da collaudare (2026-09-25 sera, ufficio)
+
+**Due rami locali, annidati, non mergiati e non pushati** (esistono solo sulla macchina dell'ufficio):
+
+| ramo | cosa | commit |
+|---|---|---|
+| `feat/albero-oggetti` | **R3** — il ramo Oggetti con tutte le pagine (ordine e rientro del ramo Pagine), solo la corrente aperta e modificabile, ricerca unica che filtra l'albero | `e24d886c` |
+| `feat/proprieta-a-sezioni` (figlio del precedente) | **R4** — pannello destro a colonna unica: gruppi come rami, una sezione aperta più quelle appuntate 📌, la sezione resta cambiando oggetto se c'è, altrimenti l'affine | `ac994222` |
+
+Su entrambi: build, 828 test, 26 guardie e `cargo check` verdi; provati con Playwright su uno stack di
+scarto. **Manca il collaudo a schermo del maintainer**, poi due squash in ordine (R3, poi R4), i rami
+eliminati e il piano [`docs/plans/2026-09-25-menu-ad-albero-secondo-giro.md`](docs/plans/2026-09-25-menu-ad-albero-secondo-giro.md)
+in archivio (l'avanzamento è scritto nel piano, sul ramo).
+
+## Riprendere da qui (precedente) — il menù ad albero, secondo giro: R1 e R2 chiusi (2026-09-25 sera)
 
 **Tutto su `main`, nessun ramo aperto.** Sessione pomeridiana sul dev server, dopo quella del
 mattino che aveva fatto l'albero unico. Il piano è
