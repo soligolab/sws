@@ -20,6 +20,22 @@ il guasto per cui questo script esiste (vedi l'intestazione dello script stesso,
 2026-09-02). Rilanciarlo di nuovo a metà sessione è economico ed è la scelta sicura anche se il
 rituale di inizio è già stato fatto una volta.
 
+## 0. Su quale macchina gira questa sessione
+
+`session_start.sh` stampa `utente@hostname` in testa. Cerca quell'hostname nella tabella
+«Le macchine» in testa a `docs/TEST_SETUPS.md` e aggiungi alle tre righe di stato una quarta:
+**«Sessione su `<hostname>` (<dove sta>), raggiunge: <dispositivi>.»**
+
+- **Non dedurre il luogo dal nome.** L'host `ufficio` è il PC **di casa** del maintainer (il suo
+  ufficio privato): il 25-09-2026 una sessione ha creduto di essere in ufficio per il nome e ha
+  proposto di «portare il lavoro a casa» per provarlo sul TC620, che era raggiungibile da lì.
+- **La macchina e il maintainer sono due cose.** Può lavorare in remoto su una macchina che sta
+  altrove: per un collaudo conta cosa raggiunge la macchina, non dove si trova lui. Se un compito
+  chiede un dispositivo che questa macchina non raggiunge, dillo e proponi la strada (push, e build
+  sulla macchina che lo raggiunge).
+- **Un hostname che non è in tabella**: chiedi al maintainer dove sta e cosa raggiunge, e aggiungi la
+  riga a `docs/TEST_SETUPS.md` (commit meta su `main`).
+
 ## 1. Rami locali potenzialmente obsoleti
 
 > Dal 2026-09-14 vale **«Un ramo alla volta»** (`CLAUDE.md`): un ramo si elimina appena mergiato,

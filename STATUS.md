@@ -87,17 +87,18 @@ Dentro, oltre a R3/R4 del giorno prima:
   vuoto e «Warning» sulle righe degli allarmi a livelli. Verificato dal vivo su uno stack di scarto.
 
 **Da fare, nell'ordine:**
-1. **A casa, sul TC620**: `./scripts/session_start.sh`, `./scripts/build_container.sh` (senza
-   `--push`), poi dall'editor lanciato dal repo Configurazione → Istanza → Device → Installazione →
-   «Archivio locale» → `sws-runtime-2.12.0-dev.1-aarch64-image.tar.gz`. È anche la prima prova da
-   tempo dell'installazione dall'IDE con l'archivio locale.
+1. **Sul TC620, dalla macchina `ufficio`** (che è il PC **di casa**, e raggiunge il TC620 —
+   `docs/TEST_SETUPS.md` §0): `./scripts/build_container.sh` (senza `--push`), poi dall'editor
+   lanciato dal repo Configurazione → Istanza → Device → Installazione → «Archivio locale» →
+   `sws-runtime-2.12.0-dev.1-aarch64-image.tar.gz`. È anche la prima prova da tempo
+   dell'installazione dall'IDE con l'archivio locale.
 2. **Collaudo a schermo** di R3, R4 e dello storico allarmi (web e LVGL), mergiati prima del collaudo
    su istruzione del maintainer.
 3. Le prove e2e, adattate ma mai lanciate.
-4. **Proposta in sospeso**: dividere `/riprendi` in due skill per luogo (casa/ufficio) oppure farle dire
-   su quale macchina gira e quali dispositivi raggiunge — da decidere col maintainer.
+4. `/riprendi` ha un passo 0 (26-09): dice su quale macchina gira la sessione e cosa raggiunge, dalla
+   tabella «Le macchine» di `docs/TEST_SETUPS.md` — una skill sola, decisione del maintainer.
 
-## Riprendere da qui (precedente) — R3 e R4 su `main`, piano archiviato; manca il collaudo a schermo (2026-09-25 sera, ufficio)
+## Riprendere da qui (precedente) — R3 e R4 su `main`, piano archiviato; manca il collaudo a schermo (2026-09-25 sera, host `ufficio`, cioè casa)
 
 **Tutto su `main` e pushato, nessun ramo aperto.** Il piano
 [`docs/archive/2026-09-25-menu-ad-albero-secondo-giro.md`](docs/archive/2026-09-25-menu-ad-albero-secondo-giro.md)

@@ -4,6 +4,29 @@
 > changes between sessions; this doc records the *categories* of test environments and the
 > conventions around using them. For up-to-date device addresses, ask the maintainer.
 
+## 0. Le macchine — quale è quale (leggere per prima)
+
+`session_start.sh` stampa `utente@hostname` in testa: questa tabella dice **dove sta** quella
+macchina e **quali dispositivi raggiunge**. Serve perché i nomi ingannano: l'host `ufficio` è il PC
+**di casa** (l'ufficio privato del maintainer), non quello del lavoro. Il 25-09-2026 una sessione ha
+creduto di essere «in ufficio» per il nome, e ha proposto di portare il lavoro «a casa» per provarlo
+sul TC620 — che era raggiungibile dalla macchina stessa.
+
+**Una sessione gira su una macchina; il maintainer può essere altrove** (in remoto su quella
+macchina). Il luogo che conta per un collaudo è quello della macchina: è lei che deve raggiungere il
+dispositivo.
+
+| hostname | dove sta | utente, repo | raggiunge | note |
+|---|---|---|---|---|
+| `ufficio` | **casa** del maintainer (ufficio privato) | `max_xxv`, `/home/max_xxv/sws` | **TC620** di casa (`tc620-a-p3-c6-07aff9.local`) | è la macchina della sezione 1 |
+| `frodo` | ufficio del lavoro, dev server headless | `pixsys`, `/home/pixsys/sws` | WP630 di prova (`192.168.1.x`), dispositivi Yocto della LAN ufficio | sezione 2 |
+| `theobroma` | ufficio del lavoro | `ut1`, `/home/ut1/sws` | — | **sola lettura**, disco al 99% (sezione 2) |
+
+Una macchina che non è in tabella va aggiunta la prima volta che una sessione ci gira, chiedendo al
+maintainer dove sta e cosa raggiunge — non dedotto dal nome.
+
+---
+
 ## Architettura porte (T-21)
 
 Il runtime avvia **due server HTTPS** su porte distinte:
@@ -19,7 +42,7 @@ basta accettarlo una volta per browser.
 
 ---
 
-## 1. Casa — Ubuntu desktop con monitor
+## 1. Casa — Ubuntu desktop con monitor (host `ufficio`)
 
 Un singolo PC desktop Linux con schermo. È l'unico posto in cui il maintainer può vedere
 `sws-kiosk` (GTK4 + WebKitGTK6) dal vivo su un display reale, senza Yocto/Wayland.
@@ -37,7 +60,7 @@ Il cert TLS (`tls.crt`/`tls.key` in `.run/config/`) è persistente tra restart.
 
 ---
 
-## 2. Ufficio — dev server (questa macchina)
+## 2. Ufficio del lavoro — dev server `frodo`
 
 **Dal 2026-08-31 il dev server è `frodo`**: `pixsys@frodo.local`, repo a `/home/pixsys/sws`,
 Debian 13 trixie. Ha quattro interfacce; quella di lavoro è `ens18` (`192.168.0.224/23`, e la
