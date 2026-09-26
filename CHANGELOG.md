@@ -12,6 +12,8 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Added
+- **La storia del progetto nella scheda Git** (Fase 1 del [gestore del repository](docs/plans/2026-09-26-gestore-repository-progetto.md)): i commit dal più recente, le modifiche
+  non ancora committate, i file cambiati da ciascuno e il diff colorato — di un file o di tutto, di un commit contro il precedente o fra due commit qualsiasi. Sola lettura.
 - **Versionare un progetto dall'IDE fino a GitHub** (26-09-2026), nato dal primo aggancio vero di un progetto (CasaDomotica) fatto come lo farebbe un utente. Il pannello diventa la foglia
   **Progetto › Git** (prima stava in fondo a Istanza › Device › Stato, fra CPU e disco). Si sceglie la **chiave SSH** del repository fra quelle in `~/.ssh` (scritta in `core.sshCommand`
   del solo progetto; una chiave con un URL `https://` è rifiutata e l'IDE propone la forma `git@…`), si **cambia l'URL** dopo l'aggancio, si imposta **chi firma i commit** del progetto
