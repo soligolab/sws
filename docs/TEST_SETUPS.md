@@ -18,9 +18,19 @@ dispositivo.
 
 | hostname | dove sta | utente, repo | raggiunge | note |
 |---|---|---|---|---|
-| `ufficio` | **casa** del maintainer (ufficio privato) | `max_xxv`, `/home/max_xxv/sws` | **TC620** di casa (`tc620-a-p3-c6-07aff9.local`) | è la macchina della sezione 1 |
+| `ufficio` | **casa** del maintainer (ufficio privato) — vedi la regola qui sotto | `max_xxv`, `/home/max_xxv/sws` | **TC620** di casa (`tc620-a-p3-c6-07aff9.local`, 192.168.1.204 il 26-09) | è la macchina della sezione 1 |
 | `frodo` | ufficio del lavoro, dev server headless | `pixsys`, `/home/pixsys/sws` | WP630 di prova (`192.168.1.x`), dispositivi Yocto della LAN ufficio | sezione 2 |
 | `theobroma` | ufficio del lavoro | `ut1`, `/home/ut1/sws` | — | **sola lettura**, disco al 99% (sezione 2) |
+
+**La regola per sapere se si è a casa** (maintainer, 26-09-2026): la macchina si chiama `ufficio`
+**e** il TC620 di casa risponde. Si verifica senza toccare il pannello — un ping, niente ssh
+(`CLAUDE.md` regola 5):
+
+```bash
+[ "$(hostname)" = ufficio ] && ping -c1 -W2 tc620-a-p3-c6-07aff9.local >/dev/null 2>&1 && echo "a casa"
+```
+
+Se il nome è `ufficio` ma il TC620 non risponde, non concludere niente: chiedi.
 
 Una macchina che non è in tabella va aggiunta la prima volta che una sessione ci gira, chiedendo al
 maintainer dove sta e cosa raggiunge — non dedotto dal nome.

@@ -33,6 +33,9 @@ rituale di inizio è già stato fatto una volta.
   altrove: per un collaudo conta cosa raggiunge la macchina, non dove si trova lui. Se un compito
   chiede un dispositivo che questa macchina non raggiunge, dillo e proponi la strada (push, e build
   sulla macchina che lo raggiunge).
+- **Casa o no, per l'host `ufficio`**: si è a casa se il TC620 di casa risponde a un ping
+  (`ping -c1 -W2 tc620-a-p3-c6-07aff9.local`) — regola del maintainer del 26-09-2026, con il comando
+  in `docs/TEST_SETUPS.md` §0. Solo il ping: mai ssh senza chiedere. Se non risponde, chiedi.
 - **Un hostname che non è in tabella**: chiedi al maintainer dove sta e cosa raggiunge, e aggiungi la
   riga a `docs/TEST_SETUPS.md` (commit meta su `main`).
 
