@@ -74,7 +74,28 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — storico allarmi su `main`, immagine di prova 2.12.0-dev.1 (2026-09-26)
+## ▶ Riprendere da qui — git dall'IDE fino a GitHub, rilievi che portano al problema (2026-09-26, pomeriggio)
+
+**Tutto su `main` e pushato, nessun ramo aperto.** CasaDomotica (`~/sws_projects/CasaDomotica`) è agganciato
+dall'IDE a `git@github.com:soligolab/sws_domotica.git` e pushato: il maintainer l'ha fatto come un utente, e ogni
+passo che si fermava è diventato una correzione (dettaglio nel `CHANGELOG`, squash unico dei rami annidati
+`feat/git-chiave-ssh` → `feat/rilievi-cliccabili`, entrambi eliminati).
+
+- **Git** — foglia Progetto › Git; chiave SSH per repository; URL modificabile; identità per progetto; stato senza
+  commit; `.gitignore` con `backups/` e `*.db*`; guardie 50 MB al commit e 100 MB al push; primo push con upstream;
+  repository nuovi su `main`. Collaudato dal vivo fino al push.
+- **Rilievi** — clic che porta all'elemento; segni ⚠/△ nell'albero; allarmi vecchi e tag condivisi dichiarati nella
+  scheda Allarmi con «Converti». Confermati dal maintainer.
+- **Piano-seme** [`docs/plans/2026-09-26-storico-troppo-grande.md`](docs/plans/2026-09-26-storico-troppo-grande.md):
+  590 MB di storico in 27 giorni su una casa, e i backup che lo copiano intero ogni volta.
+
+**Prossimo, chiesto dal maintainer:** un gestore minimale del repository nella scheda Git — elenco dei commit,
+tornare a uno precedente per provare, diff fra file, fork di un progetto. Da pianificare prima (piano in
+`docs/plans/`).
+
+Le voci «Da fare» della sessione della mattina (qui sotto) restano valide.
+
+## Riprendere da qui (precedente) — storico allarmi su `main`, immagine di prova 2.12.0-dev.1 (2026-09-26)
 
 **Tutto su `main` e pushato, nessun ramo aperto.** Versione dichiarata **`2.12.0-dev.1`**, con il tag
 omonimo: è la prima immagine di prova secondo la prassi nuova (HOWTO §19 — le versioni `-dev` non

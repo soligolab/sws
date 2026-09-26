@@ -11,6 +11,21 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### Added
+- **Versionare un progetto dall'IDE fino a GitHub** (26-09-2026), nato dal primo aggancio vero di un progetto (CasaDomotica) fatto come lo farebbe un utente. Il pannello diventa la foglia
+  **Progetto › Git** (prima stava in fondo a Istanza › Device › Stato, fra CPU e disco). Si sceglie la **chiave SSH** del repository fra quelle in `~/.ssh` (scritta in `core.sshCommand`
+  del solo progetto; una chiave con un URL `https://` è rifiutata e l'IDE propone la forma `git@…`), si **cambia l'URL** dopo l'aggancio, si imposta **chi firma i commit** del progetto
+  (vuoto = identità globale, che la scheda mostra). Il primo **Push** imposta da solo l'upstream, e i repository nuovi nascono su `main`.
+- **Guardie contro i file enormi in git**: il `.gitignore` del progetto esclude anche `backups/` e `*.db*`; un commit toglie dall'indice i dati già tracciati (come già `secrets.yaml`) e
+  lo dice; un file oltre 50 MB in staging ferma il commit; un file oltre 100 MB nei commit da pubblicare ferma il push **prima** di caricare (GitHub lo rifiuterebbe).
+- **I rilievi portano al problema**: un clic su un rilievo apre la scheda e l'elemento (sorgente, tag, script, datastore) o la pagina con l'oggetto selezionato; foglie ed elementi
+  dell'albero di Configurazione portano «⚠ n» (almeno un errore) o «△ n» (solo avvisi).
+- **Scheda Allarmi: il formato vecchio si vede**. Un allarme con la `condition` fuori dai livelli blocca il salvataggio di tutto il progetto ma a vederlo sembrava giusto: ora ha una
+  riga rossa con **Converti**, in testa c'è **Converti tutti (n)**, e gli allarmi che condividono un tag lo dicono. La conversione non cambia come scatta; il Salva resta dell'utente.
+
+### Fixed
+- **Stato git di un repository senza commit**: rispondeva 500 e il pannello restava senza bottoni, proprio senza «Commit».
+
 ### Changed
 - **Il pannello destro torna a una colonna sola** (R4, richiesta del maintainer del 25-09): via la colonna di icone che mostrava un gruppo per volta; i gruppi (Oggetto, Testo, Dato,
   Comportamento, Resa) diventano rami chiudibili e le sezioni ci stanno sotto. **Una sezione aperta alla volta**, più quelle **appuntate** con 📌. Cambiando oggetto la sezione aperta resta
