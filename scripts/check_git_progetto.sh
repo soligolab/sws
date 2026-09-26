@@ -4,7 +4,7 @@
 # «Riparti da qui», fanno quello che dicono?
 #
 # Perché esiste: il blocco dei salvataggi durante una prova (piano
-# `docs/plans/2026-09-26-gestore-repository-progetto.md`, Fase 2) è **un
+# `docs/archive/2026-09-26-gestore-repository-progetto.md`, Fase 2) è **un
 # filtro solo** davanti a tutte le rotte — `blocca_in_prova` in `router.rs` —
 # perché i file del progetto si scrivono da una dozzina di handler diversi. È
 # esattamente il tipo di cosa che si rompe in silenzio: basta che qualcuno

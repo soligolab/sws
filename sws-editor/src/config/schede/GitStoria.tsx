@@ -1,5 +1,5 @@
 // La storia del repository del progetto, nella scheda Git (piano
-// `docs/plans/2026-09-26-gestore-repository-progetto.md`, Fase 1): i commit,
+// `docs/archive/2026-09-26-gestore-repository-progetto.md`, Fase 1): i commit,
 // cosa ha cambiato ognuno, e il diff — delle modifiche non ancora committate,
 // di un commit contro il precedente, o fra due commit qualsiasi. Solo lettura:
 // tornare a un commit vecchio è la Fase 2.

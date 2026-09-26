@@ -1,5 +1,5 @@
 // La prova di un commit vecchio, detta in cima all'IDE (piano
-// `docs/plans/2026-09-26-gestore-repository-progetto.md`, Fase 2). In cima e
+// `docs/archive/2026-09-26-gestore-repository-progetto.md`, Fase 2). In cima e
 // non solo nella scheda Git perché il blocco vale ovunque: finché la prova
 // dura il runtime rifiuta ogni salvataggio del progetto (409 dal filtro
 // `blocca_in_prova`), e chi modifica un sinottico deve sapere perché.
