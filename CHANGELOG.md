@@ -12,8 +12,18 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Added
-- **La storia del progetto nella scheda Git** (Fase 1 del [gestore del repository](docs/plans/2026-09-26-gestore-repository-progetto.md)): i commit dal più recente, le modifiche
+- **La storia del progetto nella scheda Git** (Fase 1 del [gestore del repository](docs/archive/2026-09-26-gestore-repository-progetto.md)): i commit dal più recente, le modifiche
   non ancora committate, i file cambiati da ciascuno e il diff colorato — di un file o di tutto, di un commit contro il precedente o fra due commit qualsiasi. Sola lettura.
+- **Provare un commit vecchio** (Fase 2): il progetto torna com'era a quel commit, con un banner in cima all'IDE; finché la prova dura il runtime rifiuta ogni salvataggio del progetto
+  (anche un Deploy), da un filtro unico davanti a tutte le rotte. Si esce con «Torna all'ultima», o con «**Riparti da qui**», che crea un commit nuovo con quella versione senza
+  riscrivere la storia.
+- **Fork di un progetto da un commit** (Fase 3): un progetto nuovo com'era a quel commit, con la sua storia fino a lì e senza repository remoto; le credenziali «nuove» o «le stesse»,
+  scelta che l'IDE ricorda.
+- **La scheda Git spiega i suoi bottoni**: tooltip e «ⓘ Cosa fanno questi bottoni». La conferma del **Rollback** nomina il commit tolto, dice che si perdono le modifiche non committate
+  e avvisa se quel commit è già pubblicato.
+- **«Unisci qui»** sugli allarmi che osservano lo stesso tag: le soglie dell'altro diventano livelli di questo; la conferma elenca le impostazioni che si perderebbero. Un rilievo su un
+  allarme porta ora alla sua riga.
+- `scripts/check_git_progetto.sh` (con stack): la prova blocca davvero ogni salvataggio, fork e «Riparti da qui» fanno quello che dicono. Provata rossa con due falsificazioni.
 - **Versionare un progetto dall'IDE fino a GitHub** (26-09-2026), nato dal primo aggancio vero di un progetto (CasaDomotica) fatto come lo farebbe un utente. Il pannello diventa la foglia
   **Progetto › Git** (prima stava in fondo a Istanza › Device › Stato, fra CPU e disco). Si sceglie la **chiave SSH** del repository fra quelle in `~/.ssh` (scritta in `core.sshCommand`
   del solo progetto; una chiave con un URL `https://` è rifiutata e l'IDE propone la forma `git@…`), si **cambia l'URL** dopo l'aggancio, si imposta **chi firma i commit** del progetto
@@ -26,6 +36,10 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   riga rossa con **Converti**, in testa c'è **Converti tutti (n)**, e gli allarmi che condividono un tag lo dicono. La conversione non cambia come scatta; il Salva resta dell'utente.
 
 ### Fixed
+- **Il blocco degli allarmi nel formato vecchio non si ripete più su ogni sezione**: il Salva generale salva gli Allarmi per primi (corretti lì, passa tutto), e le altre sezioni
+  rifiutate ricevono una frase sola che dice dove andare, non lo stesso paragrafo tre volte.
+- Due guardie rimaste indietro, rosse senza che nessuno le lanciasse: `check_ack_reason.sh` (allarme nel formato vecchio) e l'e2e `import-tags` (il bottone «Configurazione» della
+  testata non c'è più dal 25-09). Le 28 guardie con stack ora sono tutte verdi.
 - **Stato git di un repository senza commit**: rispondeva 500 e il pannello restava senza bottoni, proprio senza «Commit».
 
 ### Changed

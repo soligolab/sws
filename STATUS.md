@@ -74,7 +74,17 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — tre rami annidati da collaudare: prova, fork, allarmi, spiegazioni (2026-09-26, sera)
+## ▶ Riprendere da qui — gestore del repository finito, tutto su `main` (2026-09-26, sera)
+
+**Tutto su `main`, nessun ramo aperto, NIENTE PUSHATO** (l'ultimo push è `46dcb0fb`): da pubblicare quando il
+maintainer lo chiede. Collaudato dal maintainer il 26-09 sera, poi uno squash solo della catena annidata
+(`efb60868`) e i quattro rami eliminati. Il piano del gestore è in
+[`docs/archive/2026-09-26-gestore-repository-progetto.md`](docs/archive/2026-09-26-gestore-repository-progetto.md).
+
+Restano, e aspettano il maintainer: il piano-seme dello **storico troppo grande** (e dei backup che lo copiano);
+l'immagine **2.12.0-dev.1 sul TC620** e il collaudo a schermo di R3/R4/storico allarmi (vedi la sezione della mattina).
+
+## Riprendere da qui (precedente) — tre rami annidati da collaudare: prova, fork, allarmi, spiegazioni (2026-09-26, sera)
 
 **Tre rami annidati, nessuno su `main`, niente pushato** (il maintainer era via: «risolvi in rami annidati, testo
 tutto al rientro»). La catena, dal basso: `main` → `feat/git-prova-commit` → `feat/git-fork` →
