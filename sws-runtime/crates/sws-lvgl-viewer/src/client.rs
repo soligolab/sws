@@ -339,9 +339,11 @@ async fn list_synoptics(base_url: &str) -> anyhow::Result<Vec<String>> {
 /// la maggioranza, e mostrare la prima pagina è meglio che non mostrare nulla.
 /// Un evento dello storico allarmi, come lo restituisce `GET /api/alarms/history`.
 ///
-/// Solo i campi che la tabella mostra. `AlarmEvent` lato runtime ne ha altri
-/// (chi ha confermato, la durata, quando è rientrato): dichiararli qui senza
-/// disegnarli darebbe l'impressione che siano usati.
+/// Solo i campi che la tabella usa. `AlarmEvent` lato runtime ne ha altri (chi
+/// ha confermato, la durata): dichiararli qui senza usarli darebbe
+/// l'impressione che servano. Rientro e `interrotto` servono dal 25-09-2026,
+/// quando la riga ha cominciato a nascere allo scatto: una riga può essere
+/// ancora aperta, e la colonna «Stato» lo dice.
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct AlarmHistoryEvent {
     pub alarm_id: String,
@@ -350,6 +352,28 @@ pub struct AlarmHistoryEvent {
     pub ts_activated_ms: u64,
     #[serde(default)]
     pub ts_acked_ms: Option<u64>,
+    #[serde(default)]
+    pub ts_normalized_ms: Option<u64>,
+    #[serde(default)]
+    pub interrotto: bool,
+}
+
+impl AlarmHistoryEvent {
+    /// La colonna «Stato»: interrotta, ancora attiva, rientrata ma da
+    /// confermare, o chiusa. Nell'ordine: una riga interrotta ha un rientro che
+    /// non è vero, quindi quel segno viene prima di tutto.
+    pub fn stato(&self) -> sws_core::testi_sistema::Testo {
+        use sws_core::testi_sistema::Testo;
+        if self.interrotto {
+            Testo::Interrotto
+        } else if self.ts_normalized_ms.is_none() {
+            Testo::Attivo
+        } else if self.ts_acked_ms.is_none() {
+            Testo::DaConfermare
+        } else {
+            Testo::Chiuso
+        }
+    }
 }
 
 /// Lo storico allarmi, il più recente per primo.
@@ -1187,6 +1211,31 @@ pub fn salva_lingua(codice: &str) {
 
 #[cfg(test)]
 mod tests_riconnessione {
+
+    /// La colonna «Stato» dello storico (25-09-2026): quattro casi, e una riga
+    /// interrotta lo dice anche se ha un rientro — quel rientro non è vero.
+    #[test]
+    fn lo_stato_di_una_riga_di_storico() {
+        use super::AlarmHistoryEvent;
+        use sws_core::testi_sistema::Testo;
+        let riga = |ack: Option<u64>, rientro: Option<u64>, interrotto: bool| {
+            serde_json::from_value::<AlarmHistoryEvent>(serde_json::json!({
+                "alarm_id": "a", "ts_activated_ms": 1,
+                "ts_acked_ms": ack, "ts_normalized_ms": rientro, "interrotto": interrotto,
+            }))
+            .unwrap()
+            .stato()
+        };
+        assert_eq!(riga(None, None, false), Testo::Attivo);
+        assert_eq!(riga(None, Some(5), false), Testo::DaConfermare);
+        assert_eq!(riga(Some(3), Some(5), false), Testo::Chiuso);
+        assert_eq!(riga(None, Some(5), true), Testo::Interrotto);
+        // Un runtime di prima non manda né rientro né `interrotto`.
+        let vecchio: AlarmHistoryEvent =
+            serde_json::from_str(r#"{"alarm_id":"a","ts_activated_ms":1}"#).unwrap();
+        assert_eq!(vecchio.stato(), Testo::Attivo);
+    }
+
     use super::{
         primo_id_dell_albero, prossima_attesa, NavPaginaDati, NavPagineDati, ATTESA_MAX, ATTESA_MIN,
     };

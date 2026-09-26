@@ -529,7 +529,10 @@
     "loadingReason": "Cerco nell'audit…",
     "noReason": "Nessun motivo registrato",
     "reasonNotFound": "Non trovato nell'audit recente",
-    "reasonLabel": "Motivo"
+    "reasonLabel": "Motivo",
+    "interrupted": "Interrotto",
+    "interruptedHint": "Chiuso senza finire il suo giro: runtime spento o caduto, o allarmi ricaricati",
+    "inProgress": "in corso"
   },
   "tagInput": {
     "select": "Seleziona tag",

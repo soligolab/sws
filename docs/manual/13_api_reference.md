@@ -205,7 +205,14 @@ curl -k -X POST https://localhost:8443/api/alarms/pressione_alta/shelve \
 
 ### GET /api/alarms/history
 
-Storico degli allarmi passati.
+Lo storico degli allarmi: una riga per scatto, la più recente per prima. Parametri facoltativi:
+`alarm_id`, `from_ms`, `to_ms` (sull'ora di attivazione), `limit` (predefinito 200).
+
+Ogni riga: `alarm_id`, `alarm_message` e `severity` (del livello più grave raggiunto),
+`ts_activated_ms`, `ts_acked_ms`, `acked_by`, `ts_normalized_ms`, `duration_s` (dallo scatto al
+rientro) e `interrotto` (la riga è stata chiusa da uno spegnimento, una caduta o una ricarica degli
+allarmi). Dal 2026-09-25 la riga c'è **dallo scatto**: `ts_normalized_ms` e `ts_acked_ms` sono `null`
+finché l'allarme non rientra o non viene confermato.
 
 ```bash
 curl -k "https://localhost:8443/api/alarms/history?limit=50" \

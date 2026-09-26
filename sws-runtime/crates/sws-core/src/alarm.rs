@@ -401,17 +401,39 @@ impl AlarmState {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Una riga dello storico allarmi: **uno scatto** di un allarme, dalla sua
+/// attivazione al rientro e alla conferma. La chiave è
+/// `(alarm_id, ts_activated_ms)`.
+///
+/// Dal 25-09-2026 la riga **nasce allo scatto** e si riscrive a ogni
+/// transizione (piano `2026-09-25-storico-allarmi-dallo-scatto.md`). Prima
+/// nasceva solo a evento completo, cioè dopo la conferma: un allarme che
+/// scattava, notificava su Telegram e rientrava senza che nessuno lo
+/// confermasse non entrava mai nello storico.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AlarmEvent {
     pub alarm_id: String,
+    /// Messaggio del livello **più grave raggiunto** durante lo scatto.
     pub alarm_message: String,
+    /// Severità del livello più grave raggiunto.
     pub severity: AlarmSeverity,
     pub ts_activated_ms: u64,
     pub ts_acked_ms: Option<u64>,
     pub ts_normalized_ms: Option<u64>,
+    /// Dallo scatto al rientro; vuota finché l'allarme è attivo.
     pub duration_s: Option<f64>,
     pub acked_by: Option<String>,
+    /// La riga è stata chiusa senza che l'allarme finisse il suo giro: il
+    /// runtime si è spento o è caduto, o gli allarmi sono stati ricaricati
+    /// (anche una modifica dall'IDE). Se l'allarme era ancora vero, riscatta
+    /// e apre una riga nuova.
+    #[serde(default)]
+    pub interrotto: bool,
 }
+
+/// Quante righe tiene lo storico in memoria (il ripiego quando il progetto
+/// non ha un datastore SQLite). Prima non aveva tetto.
+const RIGHE_IN_MEMORIA: usize = 1000;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShelvedAlarm {
@@ -423,16 +445,6 @@ pub struct ShelvedAlarm {
 }
 
 // ── Internal state ────────────────────────────────────────────────────────────
-
-#[derive(Debug, Clone)]
-struct OpenEvent {
-    alarm_id: String,
-    alarm_message: String,
-    severity: AlarmSeverity,
-    ts_activated_ms: u64,
-    ts_acked_ms: Option<u64>,
-    acked_by: Option<String>,
-}
 
 /// Per-alarm pending timer state for on_delay / off_delay.
 #[derive(Debug, Default)]
@@ -458,7 +470,10 @@ pub struct AlarmDb {
     inhibit_values: Arc<RwLock<HashMap<TagId, TagValue>>>,
     timers: Arc<RwLock<HashMap<String, AlarmTimer>>>,
     shelved: Arc<RwLock<HashMap<String, ShelvedAlarm>>>,
-    open_events: Arc<RwLock<HashMap<String, OpenEvent>>>,
+    /// La riga di ogni allarme che non ha ancora finito il suo giro (rientro
+    /// **e** conferma). È la stessa riga dello storico, tenuta qui per
+    /// aggiornarla alla transizione successiva.
+    open_events: Arc<RwLock<HashMap<String, AlarmEvent>>>,
     journal: Arc<RwLock<Vec<AlarmEvent>>>,
     tx: broadcast::Sender<AlarmState>,
     journal_cb: JournalCb,
@@ -488,7 +503,35 @@ impl AlarmDb {
         *self.journal_cb.write().await = Some(Box::new(cb));
     }
 
+    /// Stacca il callback: il progetto nuovo non ha dove scrivere lo storico.
+    /// Prima restava quello del progetto precedente, che continuava a
+    /// riceverne le righe.
+    pub async fn clear_journal_callback(&self) {
+        *self.journal_cb.write().await = None;
+    }
+
     pub async fn load(&self, defs: Vec<AlarmDef>) {
+        // Le righe ancora aperte si chiudono come interrotte **prima** di
+        // azzerare: prima sparivano senza lasciare traccia, e `load` gira anche
+        // a ogni modifica degli allarmi dall'IDE. Vanno al callback attuale,
+        // cioè allo store del progetto a cui appartenevano.
+        let now = now_ms();
+        let interrotte: Vec<AlarmEvent> = self
+            .open_events
+            .write()
+            .await
+            .drain()
+            .map(|(_, mut ev)| {
+                ev.interrotto = true;
+                if ev.ts_normalized_ms.is_none() {
+                    ev.ts_normalized_ms = Some(now);
+                    ev.duration_s = Some(durata_s(ev.ts_activated_ms, now));
+                }
+                ev
+            })
+            .collect();
+        self.registra(interrotte).await;
+
         let mut states = self.states.write().await;
         let mut by_tag = self.by_tag.write().await;
         let mut by_inhibit_tag = self.by_inhibit_tag.write().await;
@@ -528,8 +571,58 @@ impl AlarmDb {
     }
 
     pub async fn journal_snapshot(&self, limit: usize) -> Vec<AlarmEvent> {
+        self.journal_filtrato(None, None, None, limit).await
+    }
+
+    /// Lo storico in memoria con gli stessi filtri della query SQLite
+    /// (`alarm_id`, attivazione fra `from_ms` e `to_ms`), dal più recente. Il
+    /// ripiego di `/api/alarms/history` prima ignorava i filtri.
+    pub async fn journal_filtrato(
+        &self,
+        alarm_id: Option<&str>,
+        from_ms: Option<u64>,
+        to_ms: Option<u64>,
+        limit: usize,
+    ) -> Vec<AlarmEvent> {
         let j = self.journal.read().await;
-        j.iter().rev().take(limit).cloned().collect()
+        let mut v: Vec<AlarmEvent> = j
+            .iter()
+            .filter(|e| alarm_id.map_or(true, |a| e.alarm_id == a))
+            .filter(|e| from_ms.map_or(true, |f| e.ts_activated_ms >= f))
+            .filter(|e| to_ms.map_or(true, |t| e.ts_activated_ms <= t))
+            .cloned()
+            .collect();
+        v.sort_by(|a, b| b.ts_activated_ms.cmp(&a.ts_activated_ms));
+        v.truncate(limit);
+        v
+    }
+
+    /// Scrive le righe toccate: al callback (SQLite) e al giornale in memoria,
+    /// sostituendo la riga con la stessa chiave o aggiungendola. Fuori dai lock
+    /// degli stati, come prima.
+    async fn registra(&self, righe: Vec<AlarmEvent>) {
+        if righe.is_empty() {
+            return;
+        }
+        let cb = self.journal_cb.read().await;
+        let mut journal = self.journal.write().await;
+        for ev in righe {
+            if let Some(f) = cb.as_ref() {
+                f(ev.clone());
+            }
+            match journal
+                .iter()
+                .rposition(|e| e.alarm_id == ev.alarm_id && e.ts_activated_ms == ev.ts_activated_ms)
+            {
+                Some(i) => journal[i] = ev,
+                None => {
+                    journal.push(ev);
+                    if journal.len() > RIGHE_IN_MEMORIA {
+                        journal.remove(0);
+                    }
+                }
+            }
+        }
     }
 
     pub async fn evaluate(&self, tag_id: &str, tag_state: &TagState) {
@@ -651,17 +744,8 @@ impl AlarmDb {
             }
         }
 
-        // Persist completed events outside the state lock.
-        if !completed_events.is_empty() {
-            let cb = self.journal_cb.read().await;
-            let mut journal = self.journal.write().await;
-            for ev in completed_events {
-                if let Some(f) = cb.as_ref() {
-                    f(ev.clone());
-                }
-                journal.push(ev);
-            }
-        }
+        // Le righe toccate, fuori dal lock degli stati.
+        self.registra(completed_events).await;
         for st in to_emit {
             let _ = self.tx.send(st);
         }
@@ -691,19 +775,12 @@ impl AlarmDb {
         if let Some(ev) = open_events.get_mut(id) {
             ev.ts_acked_ms = Some(now);
             ev.acked_by = by.clone();
+            completed_events.push(ev.clone());
+            // Rientrato e confermato: il giro è finito, la riga esce dalla
+            // memoria (resta nello storico). La durata l'ha già fissata il
+            // rientro: prima qui si contava fino alla conferma.
             if next == IsaState::Normal {
-                let ev = open_events.remove(id).unwrap();
-                let duration_s = Some((now - ev.ts_activated_ms) as f64 / 1000.0);
-                completed_events.push(AlarmEvent {
-                    alarm_id: ev.alarm_id,
-                    alarm_message: ev.alarm_message,
-                    severity: ev.severity,
-                    ts_activated_ms: ev.ts_activated_ms,
-                    ts_acked_ms: ev.ts_acked_ms,
-                    ts_normalized_ms: s.normalized_at_ms,
-                    duration_s,
-                    acked_by: ev.acked_by,
-                });
+                open_events.remove(id);
             }
         }
 
@@ -711,16 +788,7 @@ impl AlarmDb {
         drop(states);
         drop(open_events);
 
-        if !completed_events.is_empty() {
-            let cb = self.journal_cb.read().await;
-            let mut journal = self.journal.write().await;
-            for ev in completed_events {
-                if let Some(f) = cb.as_ref() {
-                    f(ev.clone());
-                }
-                journal.push(ev);
-            }
-        }
+        self.registra(completed_events).await;
 
         let _ = self.tx.send(snap);
         true
@@ -781,7 +849,7 @@ fn eval_one(
     update_last_val: bool,
     states: &mut HashMap<String, AlarmState>,
     timers: &mut HashMap<String, AlarmTimer>,
-    open_events: &mut HashMap<String, OpenEvent>,
+    open_events: &mut HashMap<String, AlarmEvent>,
     inhibit_values: &HashMap<TagId, TagValue>,
     shelved_ids: &HashSet<String>,
     to_emit: &mut Vec<AlarmState>,
@@ -865,9 +933,23 @@ fn eval_one(
     // livello scende e la conferma resta valida.
     if let Some((idx, liv)) = &vincente {
         if fired && liv.severity > s.severity && s.isa_state != IsaState::Normal {
-            if s.isa_state == IsaState::ActiveAcked {
+            let era_confermato = s.isa_state == IsaState::ActiveAcked;
+            if era_confermato {
                 s.isa_state = IsaState::ActiveUnacked;
                 s.ack_at_ms = None;
+            }
+            // La riga tiene il livello **più grave raggiunto** (decisione del
+            // maintainer, 25-09-2026), e perde la conferma come il pannello.
+            if let Some(ev) = open_events.get_mut(id) {
+                if liv.severity > ev.severity {
+                    ev.severity = liv.severity;
+                    ev.alarm_message = liv.message.clone();
+                }
+                if era_confermato {
+                    ev.ts_acked_ms = None;
+                    ev.acked_by = None;
+                }
+                completed_events.push(ev.clone());
             }
             s.severity = liv.severity;
             s.message = liv.message.clone();
@@ -888,17 +970,23 @@ fn eval_one(
             s.activated_at_ms = Some(now);
             s.ack_at_ms = None;
             s.normalized_at_ms = None;
-            open_events.insert(
-                id.to_string(),
-                OpenEvent {
-                    alarm_id: id.to_string(),
-                    alarm_message: s.def.message.clone(),
-                    severity: s.def.severity,
-                    ts_activated_ms: now,
-                    ts_acked_ms: None,
-                    acked_by: None,
-                },
-            );
+            // La riga nasce **qui**, allo scatto — come la notifica. Messaggio
+            // e severità sono quelli del livello vincente (`s`, aggiornato
+            // sopra): `s.def` negli allarmi a livelli li ha vuoti, e fino al
+            // 25-09-2026 ogni riga usciva con messaggio vuoto e «Warning».
+            let ev = AlarmEvent {
+                alarm_id: id.to_string(),
+                alarm_message: s.message.clone(),
+                severity: s.severity,
+                ts_activated_ms: now,
+                ts_acked_ms: None,
+                ts_normalized_ms: None,
+                duration_s: None,
+                acked_by: None,
+                interrotto: false,
+            };
+            completed_events.push(ev.clone());
+            open_events.insert(id.to_string(), ev);
             s.sync_compat();
             to_emit.push(s.clone());
         }
@@ -906,6 +994,12 @@ fn eval_one(
         (IsaState::NormalUnacked, true) => {
             s.isa_state = IsaState::ActiveUnacked;
             s.activated_at_ms = Some(now);
+            // Stesso scatto, non ancora confermato: la riga torna attiva.
+            if let Some(ev) = open_events.get_mut(id) {
+                ev.ts_normalized_ms = None;
+                ev.duration_s = None;
+                completed_events.push(ev.clone());
+            }
             s.sync_compat();
             to_emit.push(s.clone());
         }
@@ -915,8 +1009,12 @@ fn eval_one(
             if cleared {
                 s.isa_state = IsaState::NormalUnacked;
                 s.normalized_at_ms = Some(now);
+                // Il caso che prima si perdeva: rientra senza conferma. La
+                // riga registra il rientro e resta in attesa della conferma.
                 if let Some(ev) = open_events.get_mut(id) {
-                    ev.ts_acked_ms = None;
+                    ev.ts_normalized_ms = Some(now);
+                    ev.duration_s = Some(durata_s(ev.ts_activated_ms, now));
+                    completed_events.push(ev.clone());
                 }
                 s.sync_compat();
                 to_emit.push(s.clone());
@@ -928,18 +1026,10 @@ fn eval_one(
             if cleared {
                 s.isa_state = IsaState::Normal;
                 s.normalized_at_ms = Some(now);
-                if let Some(ev) = open_events.remove(id) {
-                    let duration_s = Some((now - ev.ts_activated_ms) as f64 / 1000.0);
-                    completed_events.push(AlarmEvent {
-                        alarm_id: ev.alarm_id,
-                        alarm_message: ev.alarm_message,
-                        severity: ev.severity,
-                        ts_activated_ms: ev.ts_activated_ms,
-                        ts_acked_ms: ev.ts_acked_ms,
-                        ts_normalized_ms: Some(now),
-                        duration_s,
-                        acked_by: ev.acked_by,
-                    });
+                if let Some(mut ev) = open_events.remove(id) {
+                    ev.ts_normalized_ms = Some(now);
+                    ev.duration_s = Some(durata_s(ev.ts_activated_ms, now));
+                    completed_events.push(ev);
                 }
                 s.sync_compat();
                 to_emit.push(s.clone());
@@ -947,6 +1037,12 @@ fn eval_one(
         }
         _ => {}
     }
+}
+
+/// Secondi fra due istanti in millisecondi (zero se l'orologio è tornato
+/// indietro, invece di un panico per sottrazione).
+fn durata_s(da_ms: u64, a_ms: u64) -> f64 {
+    a_ms.saturating_sub(da_ms) as f64 / 1000.0
 }
 
 /// Adesso, in millisecondi dall'epoca Unix.
@@ -1317,6 +1413,125 @@ mod tests {
                 liv(80.0, AlarmSeverity::Critical),
             ],
         )
+    }
+
+    // ── Lo storico dallo scatto (25-09-2026) ──────────────────────────────────
+    //
+    // Prima una riga nasceva solo a evento completo, cioè dopo la conferma: un
+    // allarme che scattava, notificava e rientrava senza conferma non entrava
+    // mai nello storico. Ora la riga nasce allo scatto e si riscrive a ogni
+    // transizione, sempre la stessa (chiave `alarm_id` + `ts_activated_ms`).
+
+    /// Il caso del difetto: scatta, rientra, nessuno conferma.
+    #[tokio::test]
+    async fn la_riga_nasce_allo_scatto_e_resta_anche_senza_conferma() {
+        let db = AlarmDb::new(8);
+        db.load(vec![tre_livelli()]).await;
+        db.evaluate("t", &ts(TagValue::Float(75.0))).await;
+        let j = db.journal_snapshot(10).await;
+        assert_eq!(j.len(), 1, "la riga c'è già allo scatto");
+        assert!(j[0].ts_normalized_ms.is_none() && j[0].ts_acked_ms.is_none());
+
+        db.evaluate("t", &ts(TagValue::Float(5.0))).await;
+        let j = db.journal_snapshot(10).await;
+        assert_eq!(j.len(), 1, "stessa riga, aggiornata");
+        assert!(j[0].ts_normalized_ms.is_some(), "il rientro è scritto");
+        assert!(j[0].duration_s.is_some());
+        assert!(j[0].ts_acked_ms.is_none(), "e nessuno l'ha confermato");
+        assert!(!j[0].interrotto);
+    }
+
+    /// Il secondo difetto: sugli allarmi a livelli la riga usciva con
+    /// messaggio vuoto e severità Warning, qualunque livello fosse scattato.
+    #[tokio::test]
+    async fn la_riga_ha_messaggio_e_severita_del_livello() {
+        let db = AlarmDb::new(8);
+        db.load(vec![tre_livelli()]).await;
+        db.evaluate("t", &ts(TagValue::Float(85.0))).await;
+        let j = db.journal_snapshot(10).await;
+        assert_eq!(j[0].severity, AlarmSeverity::Critical);
+        assert_eq!(j[0].alarm_message, "sopra 80");
+    }
+
+    /// Stessa riga al livello più grave raggiunto; un peggioramento dopo la
+    /// conferma la riporta da confermare, come il pannello.
+    #[tokio::test]
+    async fn la_riga_tiene_il_livello_piu_grave_e_perde_la_conferma() {
+        let db = AlarmDb::new(8);
+        db.load(vec![tre_livelli()]).await;
+        db.evaluate("t", &ts(TagValue::Float(75.0))).await;
+        db.ack("a1", Some("mario".into())).await;
+        assert_eq!(db.journal_snapshot(10).await[0].acked_by.as_deref(), Some("mario"));
+
+        db.evaluate("t", &ts(TagValue::Float(85.0))).await;
+        let j = db.journal_snapshot(10).await;
+        assert_eq!(j.len(), 1);
+        assert_eq!(j[0].severity, AlarmSeverity::Critical);
+        assert!(j[0].ts_acked_ms.is_none() && j[0].acked_by.is_none());
+
+        // Migliorando, la riga resta al massimo raggiunto.
+        db.evaluate("t", &ts(TagValue::Float(65.0))).await;
+        let j = db.journal_snapshot(10).await;
+        assert_eq!(j[0].severity, AlarmSeverity::Critical);
+        assert_eq!(j[0].alarm_message, "sopra 80");
+    }
+
+    /// Riscatta prima della conferma: è lo stesso scatto, la riga torna attiva.
+    #[tokio::test]
+    async fn riscattare_prima_della_conferma_riapre_la_stessa_riga() {
+        let db = AlarmDb::new(8);
+        db.load(vec![tre_livelli()]).await;
+        db.evaluate("t", &ts(TagValue::Float(75.0))).await;
+        db.evaluate("t", &ts(TagValue::Float(5.0))).await;
+        db.evaluate("t", &ts(TagValue::Float(75.0))).await;
+        let j = db.journal_snapshot(10).await;
+        assert_eq!(j.len(), 1);
+        assert!(j[0].ts_normalized_ms.is_none() && j[0].duration_s.is_none());
+    }
+
+    /// Rientrato e confermato, e poi riscatta: è uno scatto nuovo, riga nuova.
+    #[tokio::test]
+    async fn uno_scatto_nuovo_e_una_riga_nuova() {
+        let db = AlarmDb::new(8);
+        db.load(vec![tre_livelli()]).await;
+        db.evaluate("t", &ts(TagValue::Float(75.0))).await;
+        db.evaluate("t", &ts(TagValue::Float(5.0))).await;
+        db.ack("a1", None).await;
+        std::thread::sleep(std::time::Duration::from_millis(2));
+        db.evaluate("t", &ts(TagValue::Float(75.0))).await;
+        assert_eq!(db.journal_snapshot(10).await.len(), 2);
+    }
+
+    /// Ricaricare gli allarmi (anche una modifica dall'IDE) chiude le righe
+    /// aperte come interrotte, e le passa al callback prima di azzerare.
+    #[tokio::test]
+    async fn ricaricare_chiude_le_righe_aperte_come_interrotte() {
+        let db = AlarmDb::new(8);
+        db.load(vec![tre_livelli()]).await;
+        let viste = Arc::new(std::sync::Mutex::new(Vec::<AlarmEvent>::new()));
+        let v2 = viste.clone();
+        db.set_journal_callback(move |ev| v2.lock().unwrap().push(ev)).await;
+        db.evaluate("t", &ts(TagValue::Float(75.0))).await;
+        db.load(vec![tre_livelli()]).await;
+        let viste = viste.lock().unwrap();
+        let ultima = viste.last().unwrap();
+        assert!(ultima.interrotto);
+        assert!(ultima.ts_normalized_ms.is_some());
+        assert_eq!(viste.len(), 2, "scatto, poi chiusura");
+    }
+
+    /// Il ripiego in memoria rispetta i filtri che l'API gli passa.
+    #[tokio::test]
+    async fn il_giornale_in_memoria_filtra_per_allarme() {
+        let db = AlarmDb::new(8);
+        let mut b = tre_livelli();
+        b.id = "b1".into();
+        b.tag = "u".into();
+        db.load(vec![tre_livelli(), b]).await;
+        db.evaluate("t", &ts(TagValue::Float(75.0))).await;
+        db.evaluate("u", &ts(TagValue::Float(75.0))).await;
+        assert_eq!(db.journal_filtrato(Some("b1"), None, None, 10).await.len(), 1);
+        assert_eq!(db.journal_snapshot(10).await.len(), 2);
     }
 
     /// Il caso che ha fatto nascere il modello: con soglie 60/70/80 e il

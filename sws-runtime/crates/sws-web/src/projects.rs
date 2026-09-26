@@ -840,17 +840,38 @@ pub async fn apply_loaded_project(
             .and_then(|r| r.primary_sqlite_store());
         historian.swap_store(hist_store).await;
     }
+    // `load` chiude come interrotte le righe ancora aperte e le passa al
+    // callback attuale, cioè allo store del progetto a cui appartenevano: va
+    // chiamato **prima** di agganciare quello nuovo.
     alarms.load(project.alarms).await;
-    // Wire the alarm journal → SQLite if a store is open.
+    // Lo storico allarmi → SQLite, se c'è uno store.
+    //
+    // **Uno scrittore solo** (25-09-2026): dalla stessa data ogni scatto
+    // riscrive la sua riga più volte (scatto, conferma, rientro), e con un
+    // `tokio::spawn` per riga l'aggiornamento poteva arrivare prima
+    // dell'inserimento. Un canale e un task ne tengono l'ordine; sostituendo
+    // il callback il canale si chiude e il task finisce dopo aver scritto
+    // ciò che aveva in coda.
     if let Some(store) = historian.sqlite_store().await {
+        // Ciò che una caduta ha lasciato aperto si chiude come interrotto,
+        // prima che gli allarmi di questo giro comincino a scrivere.
+        let chiuse = store.chiudi_eventi_interrotti(sws_core::now_ms()).await;
+        if chiuse > 0 {
+            info!(chiuse, "storico allarmi: righe rimaste aperte chiuse come interrotte");
+        }
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<sws_core::AlarmEvent>();
+        tokio::spawn(async move {
+            while let Some(ev) = rx.recv().await {
+                store.upsert_alarm_event(&ev).await;
+            }
+        });
         alarms
             .set_journal_callback(move |ev| {
-                let store = store.clone();
-                tokio::spawn(async move {
-                    store.append_alarm_event(&ev).await;
-                });
+                let _ = tx.send(ev);
             })
             .await;
+    } else {
+        alarms.clear_journal_callback().await;
     }
     resolve_mqtt_client_ids(
         &project.meta.name,

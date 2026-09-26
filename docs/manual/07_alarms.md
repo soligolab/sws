@@ -293,11 +293,31 @@ Se Telegram non è configurato, la chiamata solleva un errore leggibile ("Telegr
 
 ## Storico allarmi
 
-**Configurazione → Allarmi → Storico** mostra tutti gli allarmi passati con:
-- Timestamp attivazione
-- Timestamp ACK e utente che ha riconosciuto
-- Timestamp normalizzazione
-- Durata totale
+Lo storico ha **una riga per ogni scatto** di un allarme. Si legge nel widget `alarm_history` (web e
+pannello LVGL), nel pannello della campanella e via API.
+
+**La riga nasce allo scatto** (dal 2026-09-25), nello stesso momento in cui parte la notifica, e si
+aggiorna a ogni passaggio:
+
+| cosa succede | nella riga |
+|---|---|
+| l'allarme scatta | nasce, con messaggio e severità del livello scattato |
+| sale a un livello più grave | severità e messaggio del livello più grave raggiunto; se era già confermato, la conferma si azzera (va confermato di nuovo, come sul pannello) |
+| scende a un livello meno grave | niente: la riga tiene il massimo raggiunto |
+| qualcuno conferma | ora e utente della conferma |
+| rientra | ora del rientro e durata (dallo scatto al rientro) |
+| riscatta prima di essere confermato | è lo stesso scatto: la riga torna attiva |
+
+Una riga resta **aperta** finché l'allarme non è rientrato **e** confermato: nel widget web si legge
+«Attivo» / «Non confermato», sul pannello LVGL nella colonna **Stato** (Attivo, Da confermare, Chiuso).
+
+**Righe interrotte.** Se il runtime si spegne o cade, o se gli allarmi vengono ricaricati (anche una
+modifica dagli allarmi nell'IDE) mentre una riga è aperta, la riga si chiude come **interrotta**: il
+rientro indicato è l'ora dell'interruzione, non un rientro vero. Se l'allarme è ancora vero, riscatta
+subito e apre una riga nuova.
+
+Fino al 2026-09-25 la riga nasceva solo a evento completo, cioè dopo la conferma: un allarme che
+scattava, notificava e rientrava senza che nessuno lo confermasse non compariva mai nello storico.
 
 ```bash
 # Via API

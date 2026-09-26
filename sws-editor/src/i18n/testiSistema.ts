@@ -24,7 +24,8 @@ export type VoceSistema =
   | "ora" | "allarme" | "confermato" | "si" | "no"
   | "messaggio" | "severita" | "tag" | "valore" | "attivato"
   | "dati" | "unita" | "altro" | "nd"
-  | "allarme_attivo" | "escalation_non_riconosciuta";
+  | "allarme_attivo" | "escalation_non_riconosciuta"
+  | "stato" | "attivo" | "da_confermare" | "chiuso" | "interrotto";
 
 export const LINGUE_SISTEMA = ["it", "de", "fr", "es", "en"] as const;
 export type LinguaSistema = (typeof LINGUE_SISTEMA)[number];
@@ -47,6 +48,11 @@ export const TESTI_SISTEMA: Record<VoceSistema, Record<LinguaSistema, string>> =
   unita:      { it: "U.M.",      de: "Einh.",       fr: "Unité",     es: "Unidad",    en: "Unit" },
   altro:      { it: "altro",     de: "andere",      fr: "autres",    es: "otros",     en: "other" },
   nd:         { it: "N/D",       de: "k. A.",       fr: "N/D",       es: "N/D",       en: "N/A" },
+  stato: { it: "Stato", de: "Status", fr: "État", es: "Estado", en: "State" },
+  attivo: { it: "Attivo", de: "Aktiv", fr: "Actif", es: "Activo", en: "Active" },
+  da_confermare: { it: "Da conf.", de: "Offen", fr: "À acq.", es: "Por conf.", en: "To ack" },
+  chiuso: { it: "Chiuso", de: "Beendet", fr: "Clos", es: "Cerrado", en: "Closed" },
+  interrotto: { it: "Interr.", de: "Abgebr.", fr: "Interr.", es: "Interr.", en: "Interr." },
   allarme_attivo: {
     it: "🔴 ALLARME ATTIVO", de: "🔴 ALARM AKTIV", fr: "🔴 ALARME ACTIVE", es: "🔴 ALARMA ACTIVA", en: "🔴 ALARM ACTIVE",
   },

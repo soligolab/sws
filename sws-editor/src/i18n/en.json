@@ -529,7 +529,10 @@
     "loadingReason": "Looking it up in the audit log…",
     "noReason": "No reason recorded",
     "reasonNotFound": "Not found in the recent audit log",
-    "reasonLabel": "Reason"
+    "reasonLabel": "Reason",
+    "interrupted": "Interrupted",
+    "interruptedHint": "Closed before completing: runtime stopped or crashed, or alarms reloaded",
+    "inProgress": "in progress"
   },
   "tagInput": {
     "select": "Select tag",

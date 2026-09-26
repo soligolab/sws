@@ -6276,7 +6276,7 @@ fn render_alarm_history(
         use crate::testi_sistema::{testo as sistema, Testo};
         set_cell(ptr, 0, 0, sistema(Testo::Ora, lingua));
         set_cell(ptr, 0, 1, sistema(Testo::Allarme, lingua));
-        set_cell(ptr, 0, 2, sistema(Testo::Confermato, lingua));
+        set_cell(ptr, 0, 2, sistema(Testo::Stato, lingua));
         for (i, e) in eventi.iter().take(n).enumerate() {
             let r = (i + 1) as u16;
             set_cell(ptr, r, 0, &ora_utc(e.ts_activated_ms));
@@ -6292,19 +6292,9 @@ fn render_alarm_history(
                 resolve_msg(&e.alarm_message, lingua, lang_table)
             };
             set_cell(ptr, r, 1, &testo);
-            set_cell(
-                ptr,
-                r,
-                2,
-                crate::testi_sistema::testo(
-                    if e.ts_acked_ms.is_some() {
-                        crate::testi_sistema::Testo::Si
-                    } else {
-                        crate::testi_sistema::Testo::No
-                    },
-                    lingua,
-                ),
-            );
+            // Da quando la riga nasce allo scatto (25-09-2026) può essere
+            // ancora aperta: «Sì/No» sulla conferma non lo diceva.
+            set_cell(ptr, r, 2, sistema(e.stato(), lingua));
         }
     }
     Ok(())

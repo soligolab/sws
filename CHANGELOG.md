@@ -32,6 +32,18 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   collega ogni voce al suo genitore, con l'angolo chiuso sull'ultimo figlio. Il filetto ha un colore suo per tema, perché nel chiaro il grigio delle superfici spariva.
 
 ### Fixed
+- **Lo storico allarmi non perde più gli allarmi mai confermati.** Una riga entrava nello storico solo a evento completo, cioè dopo la conferma: un allarme che scattava, notificava su
+  Telegram e rientrava senza che nessuno lo confermasse non compariva mai — il caso normale su un impianto senza nessuno davanti allo schermo. Ora **la riga nasce allo scatto**, come la
+  notifica, e si aggiorna a ogni passaggio (piano `docs/plans/2026-09-25-storico-allarmi-dallo-scatto.md`):
+  - una riga per scatto, al **livello più grave raggiunto**; un peggioramento dopo la conferma ne azzera la conferma, come sul pannello;
+  - le righe lasciate aperte da uno spegnimento, una caduta o una ricarica degli allarmi (anche una modifica dall'IDE) si chiudono come **interrotte** (colonna nuova, la prima migrazione
+    dello schema dell'historian); prima sparivano;
+  - SQLite scrive con **un solo scrittore** per store, così l'aggiornamento di una riga non può superarne l'inserimento; senza SQLite lo storico in memoria ha un tetto di 1000 righe e il
+    ripiego di `/api/alarms/history` rispetta i filtri che ignorava;
+  - widget web: «Interrotto», durata «in corso», e una chiave di riga che non si duplica più con due scatti non confermati; pannello LVGL: colonna **Stato** (Attivo / Da confermare /
+    Chiuso / Interrotto).
+- **Le righe dello storico degli allarmi a livelli avevano messaggio vuoto e severità «Warning»**, qualunque livello fosse scattato: la riga prendeva i campi del formato vecchio invece di
+  quelli del livello in vigore. Trovato durante la sessione di plan del 25-09.
 - **Gli usi di una variabile mostravano l'id generato dell'oggetto** (`Home › mub8v3dph67et`): ora il nome, o il tipo quando il nome non c'è.
 - **La variabile scelta nell'albero non si evidenziava se il suo id contiene un punto.** Per risalire da una foglia (`motore1.velocita`) alla sua riga spezzavo sul primo punto, ma
   `host.Temeprature1` è un id **intero**, non un'istanza: si cercava una riga «host» che non esiste. Ora la radice si cerca fra gli id dichiarati, prendendo il più lungo che sia prefisso del percorso.

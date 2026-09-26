@@ -142,3 +142,38 @@ describe("il rimando al motivo dell'ACK è per Admin, non per chiunque veda lo s
     expect(await screen.findByText(/quello giusto/)).toBeTruthy();
   });
 });
+
+/** Dal 25-09-2026 la riga nasce allo scatto: lo storico mostra anche scatti
+ *  ancora aperti, non confermati o interrotti. */
+describe("AlarmHistory — righe aperte e interrotte", () => {
+  it("due scatti non confermati dello stesso allarme sono due righe", async () => {
+    const errori = vi.spyOn(console, "error").mockImplementation(() => {});
+    getAlarmHistory.mockResolvedValue([
+      eventoConfermato({ ts_activated_ms: 5_000, ts_acked_ms: null, acked_by: null }),
+      eventoConfermato({ ts_activated_ms: 1_000, ts_acked_ms: null, acked_by: null }),
+    ]);
+    render(<AlarmHistory />);
+    expect(await screen.findAllByText("alarmHist.unacked")).toHaveLength(2);
+    // Con la chiave di prima (id + ora della conferma, qui null per tutte e
+    // due) React segnalava una chiave duplicata.
+    expect(errori.mock.calls.some((c) => String(c[0]).includes("same key"))).toBe(false);
+    errori.mockRestore();
+  });
+
+  it("una riga aperta dice «Attivo» e «in corso»", async () => {
+    getAlarmHistory.mockResolvedValue([eventoConfermato({ ts_acked_ms: null, acked_by: null })]);
+    render(<AlarmHistory />);
+    expect(await screen.findByText("alarmHist.active")).toBeTruthy();
+    expect(screen.getByText("alarmHist.inProgress")).toBeTruthy();
+  });
+
+  it("una riga interrotta lo dice, invece di un'ora di rientro che non è vera", async () => {
+    getAlarmHistory.mockResolvedValue([
+      eventoConfermato({ ts_acked_ms: null, acked_by: null, ts_normalized_ms: 9_000, duration_s: 8, interrotto: true }),
+    ]);
+    render(<AlarmHistory />);
+    expect(await screen.findByText("alarmHist.interrupted")).toBeTruthy();
+    expect(screen.queryByText("alarmHist.active")).toBeNull();
+  });
+});
+

@@ -410,7 +410,7 @@ commutazione (vedi l'altro seme del giorno).
 
 ### Il seme ancora aperto
 
-[Lo storico allarmi perde gli allarmi mai confermati](docs/plans/2026-09-23-storico-allarmi-eventi-persi.md):
+[Lo storico allarmi perde gli allarmi mai confermati](docs/archive/2026-09-23-storico-allarmi-eventi-persi.md):
 un allarme che scatta, notifica e rientra senza conferma **non entra mai** nel registro, perché il
 journal scrive solo a ciclo ISA completo. Provato: tre allarmi scattati, uno confermato, un evento
 registrato. La direzione è del maintainer («l'allarme avvisa quando scatta»), ma la correzione tocca

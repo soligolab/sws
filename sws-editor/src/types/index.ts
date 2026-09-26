@@ -1691,6 +1691,9 @@ export interface AlarmEvent {
   ts_normalized_ms: number | null;
   duration_s: number | null;
   acked_by: string | null;
+  /** Riga chiusa senza che l'allarme finisse il suo giro: runtime spento o
+   *  caduto, o allarmi ricaricati (25-09-2026). Assente sui runtime vecchi. */
+  interrotto?: boolean;
 }
 
 /** One entry of the append-only, hash-chained audit log (OPEN_QUESTIONS Q8). */

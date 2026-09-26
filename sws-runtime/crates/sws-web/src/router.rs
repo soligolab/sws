@@ -2641,7 +2641,11 @@ async fn get_alarm_history(
             .query_alarm_events(q.alarm_id.as_deref(), q.from_ms, q.to_ms, q.limit)
             .await
     } else {
-        s.alarms.journal_snapshot(q.limit).await
+        // Stessi filtri della query SQLite: prima il ripiego li ignorava, e
+        // un widget legato a un allarme mostrava gli scatti di tutti.
+        s.alarms
+            .journal_filtrato(q.alarm_id.as_deref(), q.from_ms, q.to_ms, q.limit)
+            .await
     };
     Json(events)
 }

@@ -45,6 +45,51 @@ CREATE INDEX IF NOT EXISTS idx_alarm_events_ts  ON alarm_events(ts_activated_ms 
 CREATE INDEX IF NOT EXISTS idx_alarm_events_aid ON alarm_events(alarm_id);
 "#;
 
+/// La prima migrazione di questo crate (25-09-2026): fino ad allora lo schema
+/// cresceva solo con `CREATE … IF NOT EXISTS`, che su una tabella esistente
+/// non aggiunge colonne.
+///
+/// - `interrotto`: la riga è stata chiusa senza che l'allarme finisse il suo
+///   giro (runtime spento o caduto, allarmi ricaricati).
+/// - l'indice `(alarm_id, ts_activated_ms)`: la chiave con cui la riga si
+///   aggiorna a ogni transizione. **Non** `UNIQUE`: se un database vecchio
+///   avesse due righe con la stessa chiave, la creazione fallirebbe e il
+///   progetto non si aprirebbe più.
+fn migra_allarmi(c: &Connection) -> rusqlite::Result<()> {
+    let ha_colonna = c
+        .prepare("SELECT 1 FROM pragma_table_info('alarm_events') WHERE name = 'interrotto'")?
+        .exists([])?;
+    if !ha_colonna {
+        c.execute_batch(
+            "ALTER TABLE alarm_events ADD COLUMN interrotto INTEGER NOT NULL DEFAULT 0;",
+        )?;
+    }
+    c.execute_batch(
+        "CREATE INDEX IF NOT EXISTS idx_alarm_events_key ON alarm_events(alarm_id, ts_activated_ms);",
+    )
+}
+
+/// Scrive la riga di uno scatto: aggiorna quella con la stessa chiave, o la
+/// aggiunge. In transazione, così una lettura non vede mai mezza operazione.
+fn scrivi_riga(c: &Connection, ev: &AlarmEvent) -> rusqlite::Result<()> {
+    let tx = c.unchecked_transaction()?;
+    let sev = format!("{:?}", ev.severity);
+    let ts_act = ev.ts_activated_ms as i64;
+    let ts_ack = ev.ts_acked_ms.map(|v| v as i64);
+    let ts_norm = ev.ts_normalized_ms.map(|v| v as i64);
+    let toccate = tx.execute(
+        "UPDATE alarm_events SET alarm_message = ?3, severity = ?4, ts_acked_ms = ?5,                 ts_normalized_ms = ?6, duration_s = ?7, acked_by = ?8, interrotto = ?9           WHERE alarm_id = ?1 AND ts_activated_ms = ?2",
+        params![ev.alarm_id, ts_act, ev.alarm_message, sev, ts_ack, ts_norm, ev.duration_s, ev.acked_by, ev.interrotto],
+    )?;
+    if toccate == 0 {
+        tx.execute(
+            "INSERT INTO alarm_events              (alarm_id, alarm_message, severity, ts_activated_ms, ts_acked_ms, ts_normalized_ms, duration_s, acked_by, interrotto)              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            params![ev.alarm_id, ev.alarm_message, sev, ts_act, ts_ack, ts_norm, ev.duration_s, ev.acked_by, ev.interrotto],
+        )?;
+    }
+    tx.commit()
+}
+
 /// Thin async wrapper around a single SQLite connection.
 /// The PoC uses one connection serialised by a tokio Mutex — write rate is
 /// low enough (one record per tag update) that contention is not a concern.
@@ -72,6 +117,7 @@ impl SqliteStore {
             c.pragma_update(None, "journal_mode", "WAL")?;
             c.pragma_update(None, "synchronous", "NORMAL")?;
             c.execute_batch(SCHEMA)?;
+            migra_allarmi(&c)?;
             Ok(c)
         })
         .await??;
@@ -289,31 +335,50 @@ impl SqliteStore {
 
     // ── Alarm event journal ───────────────────────────────────────────────────
 
-    /// Persist one completed alarm event.
-    pub async fn append_alarm_event(&self, ev: &AlarmEvent) {
+    /// Scrive la riga di uno scatto (upsert per `alarm_id` + `ts_activated_ms`).
+    ///
+    /// Dal 25-09-2026 la riga nasce allo scatto e si riscrive a ogni
+    /// transizione; prima si scriveva una volta sola, a evento completo.
+    pub async fn upsert_alarm_event(&self, ev: &AlarmEvent) {
         let conn = self.conn.clone();
-        let alarm_id = ev.alarm_id.clone();
-        let msg = ev.alarm_message.clone();
-        let sev = format!("{:?}", ev.severity);
-        let ts_act = ev.ts_activated_ms as i64;
-        let ts_ack = ev.ts_acked_ms.map(|v| v as i64);
-        let ts_norm = ev.ts_normalized_ms.map(|v| v as i64);
-        let duration = ev.duration_s;
-        let acked_by = ev.acked_by.clone();
+        let ev = ev.clone();
         let res = task::spawn_blocking(move || -> rusqlite::Result<()> {
             let c = conn.blocking_lock();
-            c.execute(
-                "INSERT INTO alarm_events \
-                 (alarm_id, alarm_message, severity, ts_activated_ms, ts_acked_ms, ts_normalized_ms, duration_s, acked_by) \
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-                params![alarm_id, msg, sev, ts_act, ts_ack, ts_norm, duration, acked_by],
-            )?;
-            Ok(())
-        }).await;
+            scrivi_riga(&c, &ev)
+        })
+        .await;
         match res {
             Ok(Ok(())) => {}
-            Ok(Err(e)) => warn!("historian: alarm_event insert failed: {e}"),
+            Ok(Err(e)) => warn!("historian: alarm_event upsert failed: {e}"),
             Err(e) => warn!("historian: alarm_event task panicked: {e}"),
+        }
+    }
+
+    /// Chiude come interrotte le righe rimaste aperte (senza rientro o senza
+    /// conferma) da un giro precedente: runtime spento o caduto. Si chiama
+    /// quando il progetto aggancia lo store, prima che gli allarmi valutino.
+    /// Restituisce quante ne ha chiuse.
+    pub async fn chiudi_eventi_interrotti(&self, ora_ms: u64) -> usize {
+        let conn = self.conn.clone();
+        let ora = ora_ms as i64;
+        let res = task::spawn_blocking(move || -> rusqlite::Result<usize> {
+            let c = conn.blocking_lock();
+            c.execute(
+                "UPDATE alarm_events                     SET interrotto = 1,                         duration_s = COALESCE(duration_s, (?1 - ts_activated_ms) / 1000.0),                         ts_normalized_ms = COALESCE(ts_normalized_ms, ?1)                   WHERE interrotto = 0 AND (ts_normalized_ms IS NULL OR ts_acked_ms IS NULL)",
+                params![ora],
+            )
+        })
+        .await;
+        match res {
+            Ok(Ok(n)) => n,
+            Ok(Err(e)) => {
+                warn!("historian: chiusura righe interrotte fallita: {e}");
+                0
+            }
+            Err(e) => {
+                warn!("historian: chiusura righe interrotte, task panicked: {e}");
+                0
+            }
         }
     }
 
@@ -332,7 +397,7 @@ impl SqliteStore {
             // Use NULL-guard pattern: (?2 IS NULL OR col = ?2) avoids dynamic SQL.
             let mut stmt = c.prepare(
                 "SELECT alarm_id, alarm_message, severity, ts_activated_ms, \
-                        ts_acked_ms, ts_normalized_ms, duration_s, acked_by \
+                        ts_acked_ms, ts_normalized_ms, duration_s, acked_by, interrotto \
                    FROM alarm_events \
                   WHERE (?2 IS NULL OR alarm_id = ?2) \
                     AND (?3 IS NULL OR ts_activated_ms >= ?3) \
@@ -357,12 +422,13 @@ impl SqliteStore {
                         r.get::<_, Option<i64>>(5)?,
                         r.get::<_, Option<f64>>(6)?,
                         r.get::<_, Option<String>>(7)?,
+                        r.get::<_, bool>(8)?,
                     ))
                 },
             )?;
             let mut events = Vec::new();
             for r in rows {
-                let (aid, msg, sev_str, ts_act, ts_ack, ts_norm, dur, acked_by) = r?;
+                let (aid, msg, sev_str, ts_act, ts_ack, ts_norm, dur, acked_by, interrotto) = r?;
                 let severity = match sev_str.as_str() {
                     "Info" => AlarmSeverity::Info,
                     "Critical" => AlarmSeverity::Critical,
@@ -377,6 +443,7 @@ impl SqliteStore {
                     ts_normalized_ms: ts_norm.map(|v| v as u64),
                     duration_s: dur,
                     acked_by,
+                    interrotto,
                 });
             }
             Ok(events)
@@ -563,6 +630,84 @@ impl SqliteStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn riga(id: &str, ts: u64) -> AlarmEvent {
+        AlarmEvent {
+            alarm_id: id.into(),
+            alarm_message: "sopra 80".into(),
+            severity: AlarmSeverity::Critical,
+            ts_activated_ms: ts,
+            ts_acked_ms: None,
+            ts_normalized_ms: None,
+            duration_s: None,
+            acked_by: None,
+            interrotto: false,
+        }
+    }
+
+    /// La riga di uno scatto si scrive allo scatto e si **aggiorna**, non si
+    /// duplica: è ciò che rende possibile lo storico dallo scatto (25-09-2026).
+    #[tokio::test]
+    async fn upsert_scrive_e_poi_aggiorna_la_stessa_riga() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = SqliteStore::open(dir.path().join("a.db")).await.unwrap();
+        let mut ev = riga("a1", 1000);
+        store.upsert_alarm_event(&ev).await;
+        ev.ts_normalized_ms = Some(5000);
+        ev.duration_s = Some(4.0);
+        store.upsert_alarm_event(&ev).await;
+        store.upsert_alarm_event(&riga("a1", 9000)).await;
+        let righe = store.query_alarm_events(Some("a1"), None, None, 10).await;
+        assert_eq!(righe.len(), 2, "due scatti, due righe");
+        assert_eq!(righe[1], ev, "la prima riga è aggiornata, non duplicata");
+    }
+
+    /// Un database scritto prima della colonna `interrotto` si apre, e la
+    /// riceve: senza migrazione ogni scrittura fallirebbe.
+    #[tokio::test]
+    async fn un_database_vecchio_riceve_la_colonna_interrotto() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("vecchio.db");
+        {
+            let c = Connection::open(&path).unwrap();
+            c.execute_batch(
+                "CREATE TABLE alarm_events (id INTEGER PRIMARY KEY AUTOINCREMENT, alarm_id TEXT NOT NULL, \
+                 alarm_message TEXT NOT NULL DEFAULT '', severity TEXT NOT NULL DEFAULT 'Warning', \
+                 ts_activated_ms INTEGER NOT NULL, ts_acked_ms INTEGER, ts_normalized_ms INTEGER, \
+                 duration_s REAL, acked_by TEXT); \
+                 INSERT INTO alarm_events (alarm_id, ts_activated_ms, ts_acked_ms, ts_normalized_ms) VALUES ('v', 1, 2, 3);",
+            )
+            .unwrap();
+        }
+        let store = SqliteStore::open(&path).await.unwrap();
+        let righe = store.query_alarm_events(None, None, None, 10).await;
+        assert_eq!(righe.len(), 1);
+        assert!(!righe[0].interrotto);
+        store.upsert_alarm_event(&riga("a1", 1000)).await;
+        assert_eq!(store.query_alarm_events(None, None, None, 10).await.len(), 2);
+    }
+
+    /// Le righe aperte da un giro precedente (una caduta) si chiudono come
+    /// interrotte; quelle complete non si toccano.
+    #[tokio::test]
+    async fn le_righe_aperte_si_chiudono_come_interrotte() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = SqliteStore::open(dir.path().join("a.db")).await.unwrap();
+        store.upsert_alarm_event(&riga("aperta", 1000)).await;
+        let mut completa = riga("completa", 2000);
+        completa.ts_acked_ms = Some(2500);
+        completa.ts_normalized_ms = Some(3000);
+        completa.duration_s = Some(1.0);
+        store.upsert_alarm_event(&completa).await;
+
+        assert_eq!(store.chiudi_eventi_interrotti(11_000).await, 1);
+        let aperta = &store.query_alarm_events(Some("aperta"), None, None, 1).await[0];
+        assert!(aperta.interrotto);
+        assert_eq!(aperta.ts_normalized_ms, Some(11_000));
+        assert_eq!(aperta.duration_s, Some(10.0));
+        let completa_letta = &store.query_alarm_events(Some("completa"), None, None, 1).await[0];
+        assert_eq!(completa_letta, &completa);
+    }
 
     #[tokio::test]
     async fn vacuum_into_produces_a_consistent_copy() {

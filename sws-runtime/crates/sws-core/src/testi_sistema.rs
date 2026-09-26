@@ -50,6 +50,13 @@ pub enum Testo {
     Nd,
     AllarmeAttivo,
     EscalationNonRiconosciuta,
+    // La colonna «Stato» dello storico allarmi su LVGL (25-09-2026): da quando
+    // la riga nasce allo scatto, una riga può essere ancora aperta.
+    Stato,
+    Attivo,
+    DaConfermare,
+    Chiuso,
+    Interrotto,
 }
 
 /// Tutte le voci, per i test che devono iterarle senza ripetere l'elenco a
@@ -71,6 +78,11 @@ pub const TUTTI: &[Testo] = &[
     Testo::Nd,
     Testo::AllarmeAttivo,
     Testo::EscalationNonRiconosciuta,
+    Testo::Stato,
+    Testo::Attivo,
+    Testo::DaConfermare,
+    Testo::Chiuso,
+    Testo::Interrotto,
 ];
 
 /// Dal nome nella fixture alla voce. `None` = la fixture ha una voce che
@@ -93,6 +105,11 @@ pub fn da_nome(nome: &str) -> Option<Testo> {
         "nd" => Testo::Nd,
         "allarme_attivo" => Testo::AllarmeAttivo,
         "escalation_non_riconosciuta" => Testo::EscalationNonRiconosciuta,
+        "stato" => Testo::Stato,
+        "attivo" => Testo::Attivo,
+        "da_confermare" => Testo::DaConfermare,
+        "chiuso" => Testo::Chiuso,
+        "interrotto" => Testo::Interrotto,
         _ => return None,
     })
 }
@@ -196,6 +213,31 @@ pub fn testo(t: Testo, lingua: &str) -> &'static str {
         (EscalationNonRiconosciuta, "fr") => "⏫ ESCALADE : alarme non acquittée",
         (EscalationNonRiconosciuta, "es") => "⏫ ESCALADO: alarma no reconocida",
         (EscalationNonRiconosciuta, _) => "⏫ ESCALATION: alarm not acknowledged",
+        (Stato, "it") => "Stato",
+        (Stato, "de") => "Status",
+        (Stato, "fr") => "État",
+        (Stato, "es") => "Estado",
+        (Stato, _) => "State",
+        (Attivo, "it") => "Attivo",
+        (Attivo, "de") => "Aktiv",
+        (Attivo, "fr") => "Actif",
+        (Attivo, "es") => "Activo",
+        (Attivo, _) => "Active",
+        (DaConfermare, "it") => "Da conf.",
+        (DaConfermare, "de") => "Offen",
+        (DaConfermare, "fr") => "À acq.",
+        (DaConfermare, "es") => "Por conf.",
+        (DaConfermare, _) => "To ack",
+        (Chiuso, "it") => "Chiuso",
+        (Chiuso, "de") => "Beendet",
+        (Chiuso, "fr") => "Clos",
+        (Chiuso, "es") => "Cerrado",
+        (Chiuso, _) => "Closed",
+        (Interrotto, "it") => "Interr.",
+        (Interrotto, "de") => "Abgebr.",
+        (Interrotto, "fr") => "Interr.",
+        (Interrotto, "es") => "Interr.",
+        (Interrotto, _) => "Interr.",
     }
 }
 
