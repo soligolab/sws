@@ -1379,6 +1379,45 @@ pub async fn rename_project(
     Json(serde_json::json!({ "name": new_name })).into_response()
 }
 
+/// Dove nasce un progetto copiato da `src_dir` con il nome `dst_name`:
+/// accanto all'originale se è esterno a `projects_root`, dentro altrimenti.
+/// 409 se il nome è già preso, nel registro o sul disco. In comune fra
+/// «Duplica» e il fork da un commit (`POST /api/project/git/fork`).
+pub(crate) async fn cartella_nuovo_progetto(
+    s: &AppState,
+    src_dir: &std::path::Path,
+    dst_name: &str,
+) -> Result<PathBuf, Response> {
+    let conflitto = || {
+        (
+            StatusCode::CONFLICT,
+            "a project with the new name already exists",
+        )
+            .into_response()
+    };
+    if s.known_projects.get_path(dst_name).await.is_some() {
+        return Err(conflitto());
+    }
+    let dst_dir = if is_external(src_dir, s.projects_root.as_path()) {
+        match src_dir.parent() {
+            Some(parent) => parent.join(dst_name),
+            None => {
+                return Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "source project has no parent directory",
+                )
+                    .into_response())
+            }
+        }
+    } else {
+        s.projects_root.join(dst_name)
+    };
+    if tokio::fs::try_exists(&dst_dir).await.unwrap_or(false) {
+        return Err(conflitto());
+    }
+    Ok(dst_dir)
+}
+
 /// `POST /api/projects/:name/duplicate` — copy a project to a new folder.
 /// Body: `{ "new_name": "..." }`.
 /// External projects are duplicated as a sibling folder next to the
@@ -1400,34 +1439,10 @@ pub async fn duplicate_project(
     if !tokio::fs::try_exists(&src_dir).await.unwrap_or(false) {
         return StatusCode::NOT_FOUND.into_response();
     }
-    if s.known_projects.get_path(&dst_name).await.is_some() {
-        return (
-            StatusCode::CONFLICT,
-            "a project with the new name already exists",
-        )
-            .into_response();
-    }
-    let dst_dir = if is_external(&src_dir, s.projects_root.as_path()) {
-        match src_dir.parent() {
-            Some(parent) => parent.join(&dst_name),
-            None => {
-                return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "source project has no parent directory",
-                )
-                    .into_response()
-            }
-        }
-    } else {
-        s.projects_root.join(&dst_name)
+    let dst_dir = match cartella_nuovo_progetto(&s, &src_dir, &dst_name).await {
+        Ok(d) => d,
+        Err(r) => return r,
     };
-    if tokio::fs::try_exists(&dst_dir).await.unwrap_or(false) {
-        return (
-            StatusCode::CONFLICT,
-            "a project with the new name already exists",
-        )
-            .into_response();
-    }
     // Q30: come `create_backup_handler`, qui il lock protegge un **lettore** —
     // duplicare mentre un salvataggio è a metà produrrebbe una copia con un
     // project.yaml troncato, e il difetto si scoprirebbe aprendo il duplicato.

@@ -14,9 +14,9 @@ describe("destinazioneRilievo", () => {
       .toEqual({ kind: "config", tab: "tags", focus: "sandokan.power" });
   });
 
-  it("gli allarmi e i tipi aprono la scheda, senza elemento", () => {
+  it("un allarme apre la scheda sulla sua riga; i tipi la scheda sola", () => {
     expect(destinazioneRilievo("project.alarms[alm-rack].levels", pagine))
-      .toEqual({ kind: "config", tab: "alarms", focus: null });
+      .toEqual({ kind: "config", tab: "alarms", focus: "alm-rack" });
     expect(destinazioneRilievo("project.types[Motore].members[0].name", pagine))
       .toEqual({ kind: "config", tab: "types", focus: null });
   });

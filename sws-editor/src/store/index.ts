@@ -2492,7 +2492,13 @@ export const useAppStore = create<AppState>((set, get) => {
       // sa che stiamo salvando. Si ferma il ciclo: le sezioni successive
       // partono dagli stessi dati vecchi e prenderebbero lo stesso rifiuto,
       // riempiendo l'elenco degli errori di righe che dicono la stessa cosa.
-      const pending = Object.entries(get().pendingSections);
+      // **Allarmi per primi** (26-09-2026). Finché su disco c'è un allarme nel
+      // formato vecchio il server rifiuta il salvataggio di *ogni* sezione di
+      // project.yaml; chi l'ha appena convertito nella scheda Allarmi e salva
+      // tutto insieme vedeva rifiutate variabili e funzioni solo perché
+      // partivano prima. `sort` è stabile: le altre restano nel loro ordine.
+      const pending = Object.entries(get().pendingSections)
+        .sort(([a], [b]) => Number(b === "alarms") - Number(a === "alarms"));
       let conflitto = false;
       for (const [key, save] of pending) {
         try {

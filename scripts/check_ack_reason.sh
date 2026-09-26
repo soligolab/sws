@@ -41,9 +41,11 @@ bad()  { echo "  ✗ $1"; fail=$((fail+1)); }
 # Un allarme su un tag interno, poi lo si fa scattare.
 curl -sf -X PUT "$API/project/tags" -H 'Content-Type: application/json' \
   -d '[{"id":"t.press","description":"pressione"}]' > /dev/null
+# Livelli, non `condition` al primo livello: dal 23-09-2026 il formato vecchio
+# blocca il salvataggio (validate::blocco_salvataggio), e questa guardia lo usava.
 curl -sf -X PUT "$API/project/alarms" -H 'Content-Type: application/json' -d '[
-  {"id":"AL_PRESS","tag":"t.press","message":"Pressione alta","severity":"Warning",
-   "condition":{"kind":"above","threshold":10}}
+  {"id":"AL_PRESS","tag":"t.press",
+   "levels":[{"condition":{"kind":"above","threshold":10},"severity":"Warning","message":"Pressione alta"}]}
 ]' > /dev/null || bad "PUT /api/project/alarms non accettato"
 curl -sf -X PUT "$API/tags/t.press" -H 'Content-Type: application/json' -d '{"value": 42}' > /dev/null
 sleep 2

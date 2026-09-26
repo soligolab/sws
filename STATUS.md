@@ -74,7 +74,46 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — git dall'IDE fino a GitHub, rilievi che portano al problema (2026-09-26, pomeriggio)
+## ▶ Riprendere da qui — tre rami annidati da collaudare: prova, fork, allarmi, spiegazioni (2026-09-26, sera)
+
+**Tre rami annidati, nessuno su `main`, niente pushato** (il maintainer era via: «risolvi in rami annidati, testo
+tutto al rientro»). La catena, dal basso: `main` → `feat/git-prova-commit` → `feat/git-fork` →
+`feat/allarmi-409-chiaro`. Collaudati insieme, si chiudono con **uno** squash di `feat/allarmi-409-chiaro` (che
+contiene gli altri), poi controllo degli alberi ed eliminazione dei tre rami.
+
+Su `main` e **non pushati**: lo squash della Fase 1 (storia e diff, collaudata) e i due commit di documentazione.
+
+Da collaudare (riavviare prima `./scripts/start_editor_develop.sh`: quello in esecuzione ha solo la Fase 2):
+1. **Prova di un commit vecchio** (Fase 2) — Storia → un commit non ultimo → «🧪 Prova la versione…»: banner viola
+   ovunque, ogni salvataggio 409, «Torna all'ultima», «Riparti da qui» (commit nuovo, storia intatta).
+2. **Fork** (Fase 3) — Storia → un commit → «⑂ Fork da…» → nome, segreti spenti di default → «Apri il nuovo
+   progetto». Il nuovo ha la storia fino a quel commit e nessun `origin`.
+3. **Blocco allarmi** — con un allarme vecchio su disco: il Salva salva Allarmi per prima, e le altre sezioni
+   rifiutate dicono una frase sola invece del paragrafo intero.
+
+Aggiunti dopo, sullo stesso ramo in cima (`feat/allarmi-409-chiaro`):
+4. **Spiegazioni della scheda Git** — tooltip sui bottoni e «ⓘ Cosa fanno questi bottoni»; la conferma del
+   **Rollback** (che resta: deciso dal maintainer, «è utile») nomina il commit tolto, dice che si perdono le modifiche
+   non committate e avvisa se quel commit è già pubblicato.
+5. **«Unisci qui»** sugli allarmi che condividono un tag: le soglie dell'altro diventano livelli di questo; la
+   conferma elenca le impostazioni dell'allarme tolto che si perdono (ritardi, notifiche…). Il caso è
+   `sandokan_power_on`/`off` di CasaDomotica.
+6. **Un rilievo su un allarme porta alla sua riga**, evidenziata e scorsa al centro.
+
+7. **Credenziali nel fork**: scelta esplicita «nuove» / «le stesse di questo progetto» (maintainer: servono anche i
+   fork di impianti simili con credenziali uguali), ricordata nel browser fra un fork e l'altro.
+
+Nessuna decisione aperta. Tutte le prove HTTP sono state fatte su runtime di scarto (porta 18460), terminati.
+
+**Le guardie con stack, lanciate tutte il 26-09 sera** (ramo `feat/verifiche-stack`, annidato sopra gli altri tre):
+le 27 di `CON_STACK` una alla volta, più la nuova `check_git_progetto.sh` (porta 8674, provata rossa con due
+falsificazioni). 25 verdi al primo colpo; le 2 rosse erano guardie rimaste indietro, non difetti del codice:
+- `check_ack_reason` creava l'allarme nel formato vecchio, che dal 23-09 blocca il salvataggio → ora a livelli;
+- le e2e (`import-tags.spec.ts`) cliccavano il bottone «Configurazione» della testata, tolto il 25-09 → ora la
+  foglia `foglia-config-tags`. Suite e2e: 6 verdi, 1 saltata (la chat IA, che vuole un modello).
+Dopo le correzioni: **28 su 28 verdi**.
+
+## Riprendere da qui (precedente) — git dall'IDE fino a GitHub, rilievi che portano al problema (2026-09-26, pomeriggio)
 
 **Tutto su `main` e pushato, nessun ramo aperto.** CasaDomotica (`~/sws_projects/CasaDomotica`) è agganciato
 dall'IDE a `git@github.com:soligolab/sws_domotica.git` e pushato: il maintainer l'ha fatto come un utente, e ogni

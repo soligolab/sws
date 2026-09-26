@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { genId } from "@/id";
@@ -8,6 +8,7 @@ import { useAppStore } from "@/store";
 import { useSezioneSincronizzata } from "@/config/useSezioneSincronizzata";
 import { CampoTestoTradotto } from "@/editor/CampoTestoTradotto";
 import { TRANS_COMP, BarraConflittoSezione, S, SaveBar } from "@/config/comuni";
+import { livelliDi, unisciAllarmi } from "./unisciAllarmi";
 
 // ── ALARMS tab ────────────────────────────────────────────────────────────────
 
@@ -54,17 +55,21 @@ export function AlarmsTab() {
     setAlarms((prev) => prev.map((a, i) => (i === idx ? { ...a, ...patch } : a)));
   };
 
-  /** I livelli di un allarme, anche se è ancora nel formato vecchio: così la
-   *  tabella lo mostra e, appena qualcuno lo tocca, diventa nuovo. */
-  const livelliDi = (a: AlarmDef): AlarmLevel[] =>
-    a.levels?.length
-      ? a.levels
-      : [{
-          condition: a.condition ?? { kind: "bool_true" },
-          severity: a.severity,
-          message: a.message,
-          dead_band: a.dead_band,
-        }];
+  /** Unisce in `idx` gli altri allarmi sullo stesso tag (vedi
+   *  `unisciAllarmi.ts`). Se l'allarme tolto aveva impostazioni sue (ritardi,
+   *  notifiche…) diverse da questo, si chiede prima: quelle si perdono. */
+  const unisciQui = (idx: number) => {
+    const resta = alarms[idx];
+    const tag = resta.tag.trim();
+    const altri = alarms.filter((a, j) => j !== idx && a.tag.trim() === tag);
+    if (altri.length === 0) return;
+    const { unito, perse } = unisciAllarmi(resta, altri);
+    const domanda = t("cfgUi.alarmMergeConfirm", { id: resta.id, altri: altri.map((a) => a.id).join(", "), n: unito.levels?.length ?? 0 })
+      + (perse.length ? "\n\n" + t("cfgUi.alarmMergeLost", { elenco: perse.map((p) => `${p.id}: ${p.campi.join(", ")}`).join("\n") }) : "");
+    if (!window.confirm(domanda)) return;
+    setTouched(true);
+    setAlarms((prev) => prev.flatMap((a, j) => (j === idx ? [unito] : altri.includes(a) ? [] : [a])));
+  };
 
   /** Scrive un livello. Toccare un allarme vecchio lo **converte**: i campi di
    *  primo livello spariscono, ed è l'unico modo perché il salvataggio smetta
@@ -113,6 +118,16 @@ export function AlarmsTab() {
     setAlarms((prev) => prev.map(converti));
   };
   const quantiVecchi = alarms.filter(eVecchio).length;
+
+  // L'allarme scelto da un rilievo (clic nella tendina dei rilievi): la riga
+  // si evidenzia e scorre al centro, come fa la scheda Variabili.
+  const configFocus = useAppStore((s) => s.configFocus);
+  const inQuestaScheda = useAppStore((s) => s.configTab === "alarms");
+  const sceltoId = inQuestaScheda ? configFocus : null;
+  const rigaScelta = useRef<HTMLTableRowElement | null>(null);
+  useEffect(() => {
+    rigaScelta.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [sceltoId]);
   /** Gli altri allarmi sullo stesso tag: adesso un tag ne vuole uno solo, con
    *  più livelli. Unirli è una scelta (quale id resta, che messaggi), quindi
    *  qui si segnala e basta. */
@@ -214,12 +229,23 @@ export function AlarmsTab() {
                       </span>
                     )}
                     {altri.length > 0 && (
-                      <span>⚠ {t("cfgUi.alarmDuplicateTag", { tag: alm.tag, altri: altri.join(", ") })}</span>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                        ⚠ {t("cfgUi.alarmDuplicateTag", { tag: alm.tag, altri: altri.join(", ") })}
+                        <button type="button" style={S.btn("ghost")} onClick={() => unisciQui(i)} data-testid={`alarm-unisci-${i}`}>
+                          {t("cfgUi.alarmMerge")}
+                        </button>
+                      </span>
                     )}
                   </td>
                 </tr>
               )}
-              <tr style={{ background: sfondo }}>
+              <tr
+                ref={alm.id === sceltoId ? rigaScelta : undefined}
+                style={{
+                  background: alm.id === sceltoId ? "var(--brand-surface, #1e293b)" : sfondo,
+                  outline: alm.id === sceltoId ? "1px solid var(--brand-primary, #3b82f6)" : undefined,
+                }}
+              >
                 <td style={S.td}>
                   <input
                     style={S.inputSm}

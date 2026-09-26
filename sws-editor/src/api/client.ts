@@ -1707,6 +1707,33 @@ export const api = {
   gitDiff: (e: { from?: string; to?: string; path?: string }) =>
     request<{ diff: string }>(`/api/project/git/diff${qs(e)}`),
 
+  /** POST /api/project/git/prova — riporta il progetto al commit `sha`, in
+   *  prova: il runtime rifiuta ogni salvataggio finché non si esce. */
+  gitProva: (sha: string) =>
+    request<import("../types").ProvaInfo>("/api/project/git/prova", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sha }),
+    }),
+
+  /** POST /api/project/git/fork — un progetto nuovo nato dal commit `sha`, con
+   *  la sua storia e senza `origin`. Non lo apre. */
+  gitFork: (sha: string, newName: string, copiaSegreti: boolean) =>
+    request<{ name: string }>("/api/project/git/fork", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sha, new_name: newName, copia_segreti: copiaSegreti }),
+    }),
+
+  /** POST /api/project/git/prova/esci — torna all'ultima versione. */
+  gitProvaEsci: () =>
+    request<{ message: string }>("/api/project/git/prova/esci", { method: "POST" }),
+
+  /** POST /api/project/git/prova/riparti — «Riparti da qui»: un commit nuovo
+   *  con la versione provata, senza riscrivere la storia. */
+  gitProvaRiparti: () =>
+    request<{ message: string }>("/api/project/git/prova/riparti", { method: "POST" }),
+
   /** GET /api/project/git/ssh-keys — chiavi private in `~/.ssh` della macchina
    *  del runtime (è lì che gira git, non nel browser). */
   listGitSshKeys: () => request<string[]>("/api/project/git/ssh-keys"),

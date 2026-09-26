@@ -71,10 +71,11 @@ test("import progetto via menu fa comparire i tag (issue #2)", async ({ page, re
   const tagIds = ((await after.json()).tags ?? []).map((t: any) => t.id);
   expect(tagIds).toContain("pippo");
 
-  // 5. Configurazione → Variabili mostra il tag nel DOM (navigazione via UI).
-  await page.getByRole("button", { name: /^Configurazione$/ }).click();
-  await page.waitForTimeout(500);
-  await page.getByRole("button", { name: /^Variabili$/ }).click();
+  // 5. Progetto › Variabili mostra il tag nel DOM (navigazione via UI).
+  // Dalla foglia dell'albero: i bottoni «Editor / Configurazione» in testata
+  // non esistono più dal 25-09-2026 (l'albero unico li ha sostituiti), e il
+  // clic su «Configurazione» restava ad aspettare un bottone che non c'è.
+  await page.getByTestId("foglia-config-tags").click();
   await page.waitForTimeout(800);
   await expect(page.locator('input[value="pippo"]').first()).toBeVisible();
 

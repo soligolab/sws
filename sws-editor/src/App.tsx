@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, AuthError, NoProjectError, PasswordChangeRequiredError, RuntimeUnavailableError } from "@/api/client";
 import { BarraAvviso } from "@/components/BarraAvviso";
+import { BannerProvaGit } from "@/components/BannerProvaGit";
 import { ChangePasswordScreen } from "@/components/ChangePasswordScreen";
 import { BrandLogo } from "@/components/BrandLogo";
 import { DirtyIndicator } from "@/components/DirtyIndicator";
@@ -805,6 +806,8 @@ export function App() {
           sarebbero due modi di dire una cosa sola; cambia solo la frase, perché
           nel secondo caso c'è una modifica appena rifiutata di cui rendere
           conto. */}
+      <BannerProvaGit stileBottone={HDR_BTN} />
+
       {(projectChangedOutside || saveConflict) && (
           <BarraAvviso tono="attenzione" icona="⟳" stileBottone={HDR_BTN}
             ricarica={t("app.reloadNow")} onRicarica={handleReload}

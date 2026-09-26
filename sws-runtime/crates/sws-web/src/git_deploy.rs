@@ -53,6 +53,19 @@ pub struct GitStatus {
     /// Vero se nome o email sono impostati **per questo repository** e non
     /// vengono dalla configurazione globale.
     pub identita_locale: bool,
+    /// Prova in corso (Fase 2 del gestore): il progetto è stato riportato a un
+    /// commit vecchio per provarlo, e salvare è bloccato. `None` = no.
+    pub prova: Option<ProvaInfo>,
+}
+
+/// Il commit che si sta provando, e il ramo a cui si torna.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ProvaInfo {
+    pub sha: String,
+    pub short: String,
+    pub date: String,
+    pub message: String,
+    pub ramo: String,
 }
 
 /// Un commit nell'elenco della scheda Git (piano
@@ -168,6 +181,7 @@ impl GitDeploy {
             author_email: git_out(&dir, &["config", "user.email"]).ok().filter(|s| !s.is_empty()),
             identita_locale: git_out(&dir, &["config", "--local", "user.name"]).is_ok()
                 || git_out(&dir, &["config", "--local", "user.email"]).is_ok(),
+            prova: self.prova(),
         })
     }
 
@@ -662,6 +676,179 @@ impl GitDeploy {
         git_out_grezzo(&dir, &args)
     }
 
+    // ── Fase 2 del gestore: la prova di un commit vecchio ──────────────────
+    //
+    // Una prova è un HEAD **staccato** su un commit vecchio (`git checkout
+    // --detach`): i file del progetto diventano quelli di allora, la storia
+    // non si tocca, e `.git/sws-prova` ricorda il ramo a cui tornare. Mentre
+    // dura, il filtro `blocca_in_prova` del router rifiuta ogni salvataggio:
+    // un salvataggio finirebbe su nessun ramo, e al ritorno sparirebbe.
+
+    /// La prova in corso, se c'è.
+    pub fn prova(&self) -> Option<ProvaInfo> {
+        let sha = prova_in_corso(&self.project_dir)?;
+        let dir = self.project_dir.to_string_lossy().to_string();
+        let campo = |f: &str| git_out(&dir, &["log", "-1", &format!("--format={f}"), &sha]).unwrap_or_default();
+        Some(ProvaInfo {
+            short: campo("%h"),
+            date: campo("%cI"),
+            message: campo("%s"),
+            ramo: self.ramo_di_ritorno(),
+            sha,
+        })
+    }
+
+    fn marcatore_prova(&self) -> PathBuf {
+        self.project_dir.join(".git").join(MARCATORE_PROVA)
+    }
+
+    /// Il ramo da cui la prova è partita; `main` se il marcatore manca (una
+    /// prova cominciata a mano con `git checkout <sha>`).
+    fn ramo_di_ritorno(&self) -> String {
+        std::fs::read_to_string(self.marcatore_prova())
+            .ok()
+            .map(|r| r.trim().to_string())
+            .filter(|r| Self::ref_sicuro(r))
+            .unwrap_or_else(|| "main".into())
+    }
+
+    /// Entra in prova su `sha`. Rifiutato con modifiche non committate: un
+    /// checkout se le porterebbe dietro (o si fermerebbe a metà), e uno
+    /// stash automatico è una cosa da ricordare che nessuno ricorda.
+    pub fn entra_in_prova(&self, sha: &str) -> anyhow::Result<ProvaInfo> {
+        let dir = self.project_dir.to_string_lossy().to_string();
+        if prova_in_corso(&self.project_dir).is_some() {
+            anyhow::bail!("c'è già una prova in corso: torna all'ultima versione prima di provarne un'altra");
+        }
+        if !Self::ref_sicuro(sha) {
+            anyhow::bail!("revisione non valida: «{sha}»");
+        }
+        let sha = git_out(&dir, &["rev-parse", "--verify", "-q", &format!("{sha}^{{commit}}")])
+            .map_err(|_| anyhow::anyhow!("commit sconosciuto: «{sha}»"))?;
+        let sporco = git_out(&dir, &["status", "--porcelain"])?;
+        if !sporco.is_empty() {
+            anyhow::bail!(
+                "ci sono modifiche non committate: fai prima un Commit, poi prova la versione vecchia \
+                 (così tornando all'ultima le ritrovi)"
+            );
+        }
+        let ramo = git_out(&dir, &["symbolic-ref", "--short", "-q", "HEAD"])
+            .map_err(|_| anyhow::anyhow!("il repository non è su un ramo"))?;
+        std::fs::write(self.marcatore_prova(), format!("{ramo}\n"))?;
+        if let Err(e) = run_git(&dir, &["checkout", "-q", "--detach", &sha]) {
+            let _ = std::fs::remove_file(self.marcatore_prova());
+            return Err(e);
+        }
+        info!(dir = %self.project_dir.display(), %sha, %ramo, "git: prova di un commit vecchio");
+        self.prova().ok_or_else(|| anyhow::anyhow!("prova non riconosciuta dopo il checkout"))
+    }
+
+    /// Torna al ramo da cui la prova era partita, all'ultima versione.
+    pub fn esci_dalla_prova(&self) -> anyhow::Result<()> {
+        let dir = self.project_dir.to_string_lossy().to_string();
+        if prova_in_corso(&self.project_dir).is_none() {
+            let _ = std::fs::remove_file(self.marcatore_prova());
+            return Ok(());
+        }
+        let ramo = self.ramo_di_ritorno();
+        run_git(&dir, &["checkout", "-q", &ramo])?;
+        let _ = std::fs::remove_file(self.marcatore_prova());
+        info!(dir = %self.project_dir.display(), %ramo, "git: fine della prova");
+        Ok(())
+    }
+
+    /// «Riparti da qui»: torna sul ramo e ci scrive un commit **nuovo** con i
+    /// file del commit provato. La storia resta intera — i commit successivi
+    /// ci sono ancora, e si possono riprovare — e il commit si pubblica con il
+    /// Push di sempre, senza riscrivere niente su GitHub.
+    pub fn riparti_da_qui(&self) -> anyhow::Result<String> {
+        let dir = self.project_dir.to_string_lossy().to_string();
+        let prova = self
+            .prova()
+            .ok_or_else(|| anyhow::anyhow!("nessuna prova in corso"))?;
+        self.esci_dalla_prova()?;
+        // `:/` = tutto il repository. Con `--staged --worktree` spariscono
+        // anche i file nati dopo il commit provato, che un `checkout <sha> --
+        // .` lascerebbe dove sono.
+        run_git(
+            &dir,
+            &["restore", &format!("--source={}", prova.sha), "--staged", "--worktree", "--", ":/"],
+        )?;
+        if git_out(&dir, &["status", "--porcelain"])?.is_empty() {
+            return Ok(format!("la versione {} è già l'ultima: niente da ripristinare", prova.short));
+        }
+        let giorno = prova.date.get(..10).unwrap_or(&prova.date);
+        self.commit(&format!(
+            "Ripristinata la versione {} del {giorno} — {}",
+            prova.short, prova.message
+        ))
+    }
+
+    // ── Fase 3 del gestore: il fork ─────────────────────────────────────────
+
+    /// Un progetto nuovo in `dst`, nato dal commit `sha` di questo, con la
+    /// sua storia fino a lì (`git clone` locale: gli oggetti si copiano, non
+    /// si condividono). Nel nuovo:
+    /// - il ramo è `main`, sul commit scelto, anche se non era l'ultimo;
+    /// - `origin` **non c'è**: il nuovo non deve poter pubblicare sul
+    ///   repository dell'originale (si aggancia poi al suo dalla scheda Git);
+    /// - l'identità dei commit è la stessa, la chiave SSH no (una deploy key
+    ///   vale per un repository solo);
+    /// - `secrets.yaml`, che git non porta, si copia solo se `copia_segreti`:
+    ///   un fork per un altro impianto di solito vuole credenziali sue.
+    ///   Storico e backup non si copiano mai.
+    ///
+    /// Se qualcosa fallisce a metà, `dst` si cancella: niente progetti mezzi fatti.
+    pub fn fork_in(&self, dst: &std::path::Path, sha: &str, copia_segreti: bool) -> anyhow::Result<()> {
+        let dir = self.project_dir.to_string_lossy().to_string();
+        if !Self::ref_sicuro(sha) {
+            anyhow::bail!("revisione non valida: «{sha}»");
+        }
+        let sha = git_out(&dir, &["rev-parse", "--verify", "-q", &format!("{sha}^{{commit}}")])
+            .map_err(|_| anyhow::anyhow!("commit sconosciuto: «{sha}»"))?;
+        if dst.exists() {
+            anyhow::bail!("la cartella {} esiste già", dst.display());
+        }
+        let esito = (|| -> anyhow::Result<()> {
+            let dst_s = dst.to_string_lossy().to_string();
+            let out = Command::new("git")
+                .args(["clone", "-q", "--no-hardlinks", "--", &dir, &dst_s])
+                .output()
+                .map_err(|e| anyhow::anyhow!("git clone: {e}"))?;
+            if !out.status.success() {
+                anyhow::bail!("git clone: {}", String::from_utf8_lossy(&out.stderr).trim());
+            }
+            run_git(&dst_s, &["checkout", "-q", "-B", "main", &sha])?;
+            run_git(&dst_s, &["remote", "remove", "origin"])?;
+            for chiave in ["user.name", "user.email"] {
+                if let Ok(v) = git_out(&dir, &["config", "--local", chiave]) {
+                    run_git(&dst_s, &["config", "--local", chiave, &v])?;
+                }
+            }
+            // Un commit vecchio può essere di prima del `.gitignore` completo.
+            assicura_gitignore(&dst_s)?;
+            if copia_segreti {
+                let src = self.project_dir.join("secrets.yaml");
+                if src.is_file() {
+                    let d = dst.join("secrets.yaml");
+                    std::fs::copy(&src, &d)?;
+                    #[cfg(unix)]
+                    {
+                        use std::os::unix::fs::PermissionsExt;
+                        std::fs::set_permissions(&d, std::fs::Permissions::from_mode(0o600))?;
+                    }
+                }
+            }
+            Ok(())
+        })();
+        if esito.is_err() {
+            let _ = std::fs::remove_dir_all(dst);
+        }
+        esito?;
+        info!(src = %self.project_dir.display(), dst = %dst.display(), %sha, "git: fork del progetto");
+        Ok(())
+    }
+
     /// Nomi dei tag esistenti, più recente per prima.
     pub fn list_tags(&self) -> anyhow::Result<Vec<String>> {
         let dir = self.project_dir.to_string_lossy().to_string();
@@ -728,6 +915,48 @@ fn git_out(dir: &str, args: &[&str]) -> anyhow::Result<String> {
             String::from_utf8_lossy(&output.stderr).trim()
         ))
     }
+}
+
+/// Il file in `.git/` che ricorda il ramo da cui una prova è partita.
+const MARCATORE_PROVA: &str = "sws-prova";
+
+/// Lo sha provato, se `project_dir` è in prova: un HEAD staccato. Si legge
+/// `.git/HEAD` a mano, senza lanciare git, perché lo chiama il filtro del
+/// router a ogni richiesta che modifica.
+pub fn prova_in_corso(project_dir: &std::path::Path) -> Option<String> {
+    let head = std::fs::read_to_string(project_dir.join(".git").join("HEAD")).ok()?;
+    let head = head.trim();
+    (!head.starts_with("ref:") && !head.is_empty()).then(|| head.to_string())
+}
+
+/// Le rotte che, durante una prova, non devono poter cambiare i file del
+/// progetto. **Per prefisso**, così un endpoint nuovo sotto `/api/project/`
+/// è coperto senza che nessuno se ne ricordi. Restano aperti l'uso del
+/// runtime (scrivere un tag, confermare un allarme, applicare una ricetta),
+/// l'uscita dalla prova e la validazione, che non scrive.
+pub fn rotta_bloccata_in_prova(path: &str) -> bool {
+    // Il fork crea un progetto **nuovo** e non tocca questo: si può fare
+    // anche dalla versione che si sta provando.
+    const APERTE: &[&str] = &["/api/project/git/prova", "/api/project/git/fork", "/api/project/validate"];
+    if APERTE.iter().any(|a| path == *a || path.starts_with(&format!("{a}/"))) {
+        return false;
+    }
+    if path.starts_with("/api/recipes/") && path.ends_with("/apply") {
+        return false;
+    }
+    if path.starts_with("/api/backups/") {
+        return path.ends_with("/restore");
+    }
+    [
+        "/api/project/",
+        "/api/synoptics",
+        "/api/boot-pages",
+        "/api/faceplates",
+        "/api/recipes/",
+        "/api/auth/users",
+    ]
+    .iter()
+    .any(|p| path.starts_with(p))
 }
 
 /// Oltre questa misura un file non entra in un commit: è la soglia a cui
@@ -1509,5 +1738,124 @@ mod tests {
         assert!(gd.diff(None, None, Some("../fuori")).is_err());
         assert!(gd.diff(None, None, Some("/etc/passwd")).is_err());
         assert!(gd.diff(Some("HEAD"), None, None).is_err());
+    }
+
+    // ── Fase 2 del gestore: la prova ──────────────────────────────────────
+
+    #[test]
+    fn prova_entra_esce_e_ritrova_l_ultima() {
+        let (tmp, gd) = repo_con_storia();
+        let p = tmp.path();
+        let dir = p.to_string_lossy().to_string();
+        let log = gd.log(50, 0).unwrap();
+
+        // Con modifiche non committate non si entra.
+        assert!(gd.entra_in_prova(&log[1].sha).unwrap_err().to_string().contains("non committate"));
+        run_git(&dir, &["add", "-A"]).unwrap();
+        run_git(&dir, &["commit", "-q", "-m", "terzo"]).unwrap();
+
+        let prova = gd.entra_in_prova(&log[1].sha).unwrap();
+        assert_eq!(prova.message, "primo");
+        assert_eq!(prova.ramo, git_out(&dir, &["rev-parse", "--abbrev-ref", "@{-1}"]).unwrap());
+        assert!(gd.status().unwrap().prova.is_some());
+        assert_eq!(std::fs::read_to_string(p.join("project.yaml")).unwrap(), "meta: {name: p}\nuno: 1\n");
+        assert!(!p.join("pagina.yaml").exists());
+        assert!(gd.entra_in_prova(&log[0].sha).is_err(), "una prova alla volta");
+
+        gd.esci_dalla_prova().unwrap();
+        assert!(gd.status().unwrap().prova.is_none());
+        assert_eq!(std::fs::read_to_string(p.join("project.yaml")).unwrap(), "meta: {name: p}\nuno: 3\n");
+        assert!(p.join("pagina.yaml").exists());
+    }
+
+    #[test]
+    fn riparti_da_qui_fa_un_commit_nuovo_senza_perdere_la_storia() {
+        let (tmp, gd) = repo_con_storia();
+        let p = tmp.path();
+        let dir = p.to_string_lossy().to_string();
+        run_git(&dir, &["add", "-A"]).unwrap();
+        run_git(&dir, &["commit", "-q", "-m", "terzo"]).unwrap();
+        let log = gd.log(50, 0).unwrap();
+        let primo = log.last().unwrap().clone();
+
+        gd.entra_in_prova(&primo.sha).unwrap();
+        let msg = gd.riparti_da_qui().unwrap();
+        assert!(gd.status().unwrap().prova.is_none());
+        let dopo = gd.log(50, 0).unwrap();
+        assert_eq!(dopo.len(), log.len() + 1, "{msg}");
+        assert!(dopo[0].message.starts_with(&format!("Ripristinata la versione {}", primo.short)));
+        // I file sono quelli del primo commit: anche quelli nati dopo spariscono.
+        assert_eq!(std::fs::read_to_string(p.join("project.yaml")).unwrap(), "meta: {name: p}\nuno: 1\n");
+        assert!(!p.join("pagina.yaml").exists());
+        assert!(!p.join("nuovo.yaml").exists());
+    }
+
+    #[test]
+    fn rotte_bloccate_in_prova() {
+        for bloccata in [
+            "/api/project/alarms",
+            "/api/project/git/commit",
+            "/api/project/deploy",
+            "/api/project/qualcosa-di-nuovo",
+            "/api/synoptics/Home",
+            "/api/boot-pages/Boot",
+            "/api/faceplates/motore",
+            "/api/recipes/r1",
+            "/api/backups/2026-09-26T06-34-51Z/restore",
+            "/api/auth/users/mario",
+        ] {
+            assert!(rotta_bloccata_in_prova(bloccata), "{bloccata}");
+        }
+        for aperta in [
+            "/api/project/git/prova",
+            "/api/project/git/prova/esci",
+            "/api/project/validate",
+            "/api/project/git/fork",
+            "/api/recipes/r1/apply",
+            "/api/tags/boiler.t",
+            "/api/alarms/a1/ack",
+            "/api/backups",
+            "/api/auth/login",
+        ] {
+            assert!(!rotta_bloccata_in_prova(aperta), "{aperta}");
+        }
+    }
+
+    // ── Fase 3 del gestore: il fork ─────────────────────────────────────────
+
+    #[test]
+    fn fork_da_un_commit_vecchio() {
+        let (tmp, gd) = repo_con_storia();
+        let p = tmp.path();
+        let dir = p.to_string_lossy().to_string();
+        run_git(&dir, &["add", "-A"]).unwrap();
+        run_git(&dir, &["commit", "-q", "-m", "terzo"]).unwrap();
+        run_git(&dir, &["remote", "add", "origin", "git@example.org:a/b.git"]).unwrap();
+        run_git(&dir, &["config", "core.sshCommand", "ssh -i '/k/x' -o IdentitiesOnly=yes"]).unwrap();
+        std::fs::write(p.join("secrets.yaml"), "notifications.telegram.bot_token: x\n").unwrap();
+        let log = gd.log(50, 0).unwrap();
+        let secondo = &log[1];
+
+        let altrove = tempfile::tempdir().unwrap();
+        let dst = altrove.path().join("CasaFork");
+        gd.fork_in(&dst, &secondo.sha, false).unwrap();
+        let d = dst.to_string_lossy().to_string();
+
+        assert_eq!(git_out(&d, &["symbolic-ref", "--short", "HEAD"]).unwrap(), "main");
+        assert_eq!(git_out(&d, &["rev-parse", "HEAD"]).unwrap(), secondo.sha);
+        assert_eq!(GitDeploy::new(dst.clone()).log(50, 0).unwrap().len(), 2, "storia fino al commit scelto");
+        assert!(git_out(&d, &["remote"]).unwrap().is_empty(), "niente origin");
+        assert!(git_out(&d, &["config", "--local", "core.sshCommand"]).is_err(), "niente chiave");
+        assert_eq!(git_out(&d, &["config", "--local", "user.name"]).unwrap(), "Prova");
+        assert!(!dst.join("secrets.yaml").exists(), "segreti solo a richiesta");
+        assert!(std::fs::read_to_string(dst.join(".gitignore")).unwrap().contains("*.db"));
+        assert_eq!(std::fs::read_to_string(dst.join("project.yaml")).unwrap(), "meta: {name: p}\nuno: 2\n");
+
+        let dst2 = altrove.path().join("ConSegreti");
+        gd.fork_in(&dst2, &log[0].sha, true).unwrap();
+        assert!(dst2.join("secrets.yaml").exists());
+        assert!(gd.fork_in(&dst2, &log[0].sha, true).is_err(), "cartella già esistente");
+        assert!(gd.fork_in(&altrove.path().join("X"), "--upload-pack=x", false).is_err());
+        assert!(!altrove.path().join("X").exists());
     }
 }

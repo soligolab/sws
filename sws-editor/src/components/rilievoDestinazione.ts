@@ -16,7 +16,9 @@ const SEZIONI: Record<string, { tab: AppConfigTab; conElemento: boolean }> = {
   tags: { tab: "tags", conElemento: true },
   types: { tab: "types", conElemento: false },
   sources: { tab: "protocols", conElemento: true },
-  alarms: { tab: "alarms", conElemento: false },
+  // La scheda Allarmi non ha foglie nell'albero, ma evidenzia e scorre fino
+  // alla riga dell'allarme che le si passa (26-09-2026).
+  alarms: { tab: "alarms", conElemento: true },
   global_scripts: { tab: "scripts", conElemento: true },
   datastores: { tab: "datastores", conElemento: true },
   notifications: { tab: "notifications", conElemento: false },

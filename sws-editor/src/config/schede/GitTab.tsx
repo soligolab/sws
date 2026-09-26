@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { TRANS_COMP } from "@/config/comuni";
@@ -241,6 +241,10 @@ export function GitTab() {
     );
   }
 
+  // Durante una prova il runtime rifiuta ogni scrittura (409): i bottoni che
+  // scriverebbero si spengono, e il banner in cima dice come uscirne.
+  const inProva = !!gitStatus.prova;
+
   const dateStr = gitStatus.commit_date
     ? new Date(gitStatus.commit_date).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" })
     : "—";
@@ -282,7 +286,7 @@ export function GitTab() {
             {t("cfgUi.gitSetRemote")}
           </button>
         </div>
-        {selettoreChiave(gitStatus.ssh_key ?? "", cambiaChiave, busy)}
+        {selettoreChiave(gitStatus.ssh_key ?? "", cambiaChiave, busy || inProva)}
         <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", fontSize: 12, color: "var(--brand-text-subtle, #64748b)" }}>
           <span title={t("cfgUi.gitIdentityHint")}>{t("cfgUi.gitIdentity")}:</span>
           <input
@@ -298,7 +302,7 @@ export function GitTab() {
             style={{ flex: 1, minWidth: 160, background: "var(--brand-bg, #020617)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "4px 8px", fontSize: 12 }}
           />
           <button
-            disabled={busy}
+            disabled={busy || inProva}
             onClick={salvaAutore}
             style={{ padding: "4px 10px", background: "var(--brand-surface, #1e293b)", color: "var(--brand-text-2, #cbd5e1)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, fontSize: 11, cursor: busy ? "wait" : "pointer" }}
           >
@@ -312,34 +316,45 @@ export function GitTab() {
         </div>
         <div style={{ display: "flex", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
           <button
-            disabled={busy}
+            disabled={busy || inProva}
             onClick={() => runOp(() => api.triggerDeploy(), "Deploy")}
+            title={t("gitAiuto.deploy")}
             style={{ flex: 1, minWidth: 100, padding: "6px 10px", background: "#1e40af", border: "none", borderRadius: 4, color: "#fff", fontSize: 12, cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1 }}
           >
             ↑ Deploy (git pull)
           </button>
           {gitStatus.sha && <button
-            disabled={busy}
-            onClick={() => { if (confirm(t("cfg.gitResetConfirm"))) runOp(() => api.triggerRollback(), "Rollback"); }}
+            disabled={busy || inProva}
+            onClick={() => {
+              // Se l'ultimo commit è già sul remote, toglierlo qui fa divergere
+              // le due storie: il Push dopo verrà rifiutato. Va detto prima.
+              const pubblicato = !!gitStatus.remote_url && gitStatus.unpushed_commits === 0;
+              const testo = t("cfg.gitResetConfirm", { message: gitStatus.message })
+                + (pubblicato ? "\n\n" + t("cfg.gitResetConfirmPubblicato") : "");
+              if (confirm(testo)) runOp(() => api.triggerRollback(), "Rollback");
+            }}
+            title={t("gitAiuto.rollback")}
             style={{ flex: 1, minWidth: 100, padding: "6px 10px", background: "var(--brand-danger, #ef4444)", border: "none", borderRadius: 4, color: "var(--brand-on-danger, #fff)", fontSize: 12, cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1 }}
           >
             ↓ Rollback (HEAD~1)
           </button>}
           <button
-            disabled={busy}
+            disabled={busy || inProva}
             onClick={() => { setShowCommitForm((v) => !v); setOpMsg(null); }}
+            title={t("gitAiuto.commit")}
             style={{ flex: 1, minWidth: 100, padding: "6px 10px", background: "var(--brand-success, #22c55e)", border: "none", borderRadius: 4, color: "var(--brand-on-success, #fff)", fontSize: 12, cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1 }}
           >
             💾 Commit
           </button>
           {gitStatus?.remote_url && (
             <button
-              disabled={busy}
+              disabled={busy || inProva}
               onClick={() => {
                 if (confirm(t("cfg.gitPushConfirm"))) {
                   runOp(() => api.pushProject(), "Push");
                 }
               }}
+              title={t("gitAiuto.push")}
               style={{ flex: 1, minWidth: 100, padding: "6px 10px", background: "#7c3aed", border: "none", borderRadius: 4, color: "#fff", fontSize: 12, cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1 }}
             >
               ↑ Push{gitStatus.unpushed_commits > 0 ? ` (${gitStatus.unpushed_commits})` : ""}
@@ -382,9 +397,20 @@ export function GitTab() {
             {opMsg}
           </div>
         )}
+        <details style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 2 }}>
+          <summary style={{ cursor: "pointer", userSelect: "none" }}>ⓘ {t("gitAiuto.titolo")}</summary>
+          <dl style={{ margin: "6px 0 0", display: "grid", gridTemplateColumns: "max-content 1fr", gap: "4px 10px", lineHeight: 1.45 }}>
+            {(["deploy", "rollback", "commit", "push", "url", "chiave", "autore", "prova", "riparti", "fork", "tag"] as const).map((k) => (
+              <React.Fragment key={k}>
+                <dt style={{ color: "var(--brand-text-2, #cbd5e1)", fontWeight: 600 }}>{t(`gitAiuto.nome.${k}`)}</dt>
+                <dd style={{ margin: 0 }}>{t(`gitAiuto.${k}`)}</dd>
+              </React.Fragment>
+            ))}
+          </dl>
+        </details>
       </div>
 
-      <GitStoria versione={`${gitStatus.sha}|${gitStatus.clean}`} pulito={gitStatus.clean} />
+      <GitStoria versione={`${gitStatus.sha}|${gitStatus.clean}`} pulito={gitStatus.clean} inProva={inProva} />
 
       <div style={{ marginTop: 10, background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6, padding: "12px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

@@ -346,6 +346,14 @@ pub fn build(
             post(detect_telegram_chats),
         )
         .route("/api/project/rollback", post(trigger_rollback))
+        // Prova di un commit vecchio (piano 2026-09-26-gestore-repository-
+        // progetto, Fase 2): stessa classe di rischio del Rollback.
+        .route("/api/project/git/prova", post(git_entra_in_prova))
+        .route("/api/project/git/prova/esci", post(git_esci_dalla_prova))
+        .route("/api/project/git/prova/riparti", post(git_riparti_da_qui))
+        // Fork: un progetto nuovo da un commit (Fase 3) — crea una cartella di
+        // progetto come «Duplica», stessa classe di rischio.
+        .route("/api/project/git/fork", post(git_fork))
         // Bulk project export/import (single ZIP carrying project.yaml +
         // every synoptic). Destructive on the import side — Admin only.
         .route("/api/project/export", get(export_project_zip))
@@ -930,6 +938,10 @@ pub fn build(
             .not_found_service(ServeFile::new(fallback_html));
         app = app.fallback_service(fallback);
     }
+
+    // Una prova git in corso blocca ogni salvataggio del progetto, qualunque
+    // handler lo faccia: un punto solo, davanti a tutte le rotte.
+    app = app.layer(middleware::from_fn_with_state(state.clone(), blocca_in_prova));
 
     // HTTP request counter — applied to every route, identifies the matched
     // route template (not the raw URI) so cardinality stays bounded.
@@ -3091,6 +3103,10 @@ where
         .map(|m| m.keys().cloned().collect::<std::collections::HashSet<_>>())
         .unwrap_or_default();
 
+    // Gli allarmi prima della modifica: se questa richiesta non li tocca, il
+    // blocco del formato vecchio (sotto) risponde con una frase sola invece
+    // del testo intero — vedi `validate::blocco_salvataggio_altrove`.
+    let allarmi_prima = serde_json::to_value(&project.alarms).ok();
     f(&mut project);
     if let Err(e) = tokio::fs::create_dir_all(project_dir).await {
         warn!("cannot create project dir: {e}");
@@ -3105,6 +3121,17 @@ where
     // che l'utente ha appena digitato è lì, non nel testo grezzo che
     // `merge_preserved` conserva.
     if let Some(motivo) = crate::validate::blocco_salvataggio(&project) {
+        // Il testo intero serve a chi sta salvando gli allarmi. Alle altre
+        // sezioni (variabili, funzioni, lingue…), che il blocco lo subiscono
+        // senza poterci fare niente, basta dire dove andare: al primo progetto
+        // vero riaperto (26-09-2026) lo stesso paragrafo ripetuto tre volte
+        // nascondeva proprio quello.
+        let tocca_allarmi = serde_json::to_value(&project.alarms).ok() != allarmi_prima;
+        let motivo = if tocca_allarmi {
+            motivo
+        } else {
+            crate::validate::blocco_salvataggio_altrove(&project)
+        };
         return (StatusCode::CONFLICT, motivo).into_response();
     }
 
@@ -7390,6 +7417,173 @@ async fn get_git_diff(State(s): State<AppState>, Query(q): Query<GitDiffQuery>) 
     {
         Ok(Ok(testo)) => Json(serde_json::json!({ "diff": testo })).into_response(),
         Ok(Err(e)) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+/// Durante una prova git (il progetto riportato a un commit vecchio) ogni
+/// richiesta che cambierebbe i file del progetto si ferma qui con 409.
+///
+/// Perché un filtro e non un controllo negli handler: i file del progetto si
+/// scrivono da una dozzina di punti — `patch_project_se` per project.yaml, ma
+/// sinottici, pagine di boot, faceplate, ricette e utenti hanno handler loro,
+/// che non passano da `project_write_lock` — e un salvataggio fatto durante la
+/// prova finirebbe su nessun ramo, sparendo al ritorno. Quali rotte: vedi
+/// `git_deploy::rotta_bloccata_in_prova`, che copre per prefisso anche gli
+/// endpoint che verranno.
+async fn blocca_in_prova(State(s): State<AppState>, req: Request, next: Next) -> Response {
+    let modifica = !matches!(
+        *req.method(),
+        axum::http::Method::GET | axum::http::Method::HEAD | axum::http::Method::OPTIONS
+    );
+    if modifica && crate::git_deploy::rotta_bloccata_in_prova(req.uri().path()) {
+        if let Some(dir) = s.project_dir.read().await.clone() {
+            if let Some(sha) = crate::git_deploy::prova_in_corso(&dir) {
+                let breve = sha.get(..8).unwrap_or(&sha);
+                return (
+                    StatusCode::CONFLICT,
+                    format!(
+                        "Stai provando la versione {breve} del progetto: finché la prova dura non si \
+                         salva niente. Nella scheda Git scegli «Torna all'ultima» o «Riparti da qui»."
+                    ),
+                )
+                    .into_response();
+            }
+        }
+    }
+    next.run(req).await
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
+struct GitProvaBody {
+    sha: String,
+}
+
+/// Dopo un cambio dei file da git: il runtime rilegge il progetto e avvisa i
+/// client, come dopo un Deploy.
+async fn dopo_cambio_git(s: &AppState, dir: &std::path::Path, cosa: &str) {
+    soft_reload_project(s, dir).await;
+    signal_project_changed(s, cosa);
+}
+
+/// `POST /api/project/git/prova` — riporta il progetto a un commit vecchio,
+/// in prova: salvare è bloccato finché non si esce.
+async fn git_entra_in_prova(
+    State(s): State<AppState>,
+    Json(body): Json<GitProvaBody>,
+) -> impl IntoResponse {
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
+    let gd = crate::git_deploy::GitDeploy::new(dir.clone());
+    if !gd.is_git_repo() {
+        return (StatusCode::BAD_REQUEST, "not a git repository").into_response();
+    }
+    // Il lock: nessun salvataggio a metà mentre i file cambiano sotto.
+    let esito = {
+        let _scrittura = s.project_write_lock.lock().await;
+        tokio::task::spawn_blocking(move || gd.entra_in_prova(&body.sha)).await
+    };
+    match esito {
+        Ok(Ok(prova)) => {
+            dopo_cambio_git(&s, &dir, "git: prova").await;
+            Json(prova).into_response()
+        }
+        Ok(Err(e)) => (StatusCode::CONFLICT, e.to_string()).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
+struct GitForkBody {
+    sha: String,
+    new_name: String,
+    /// Copiare anche `secrets.yaml`, che git non porta. Spento di default
+    /// nell'editor: un fork per un altro impianto vuole credenziali sue.
+    #[serde(default)]
+    copia_segreti: bool,
+}
+
+/// `POST /api/project/git/fork` — un progetto nuovo nato da un commit di
+/// questo, con la sua storia, senza `origin`. Nome e collocazione come
+/// «Duplica» (`projects::cartella_nuovo_progetto`); il nuovo entra nel
+/// registro dei progetti ma **non** si apre: lo sceglie chi l'ha creato.
+async fn git_fork(State(s): State<AppState>, Json(body): Json<GitForkBody>) -> impl IntoResponse {
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
+    let nome = match crate::projects::safe_project_name(&body.new_name) {
+        Ok(n) => n,
+        Err(msg) => return (StatusCode::BAD_REQUEST, msg).into_response(),
+    };
+    let gd = crate::git_deploy::GitDeploy::new(dir.clone());
+    if !gd.is_git_repo() {
+        return (StatusCode::BAD_REQUEST, "not a git repository").into_response();
+    }
+    let dst = match crate::projects::cartella_nuovo_progetto(&s, &dir, &nome).await {
+        Ok(d) => d,
+        Err(r) => return r,
+    };
+    // Il lock protegge un **lettore**, come in «Duplica»: un salvataggio a
+    // metà durante la copia non deve finire nel fork.
+    let esito = {
+        let _scrittura = s.project_write_lock.lock().await;
+        let dst = dst.clone();
+        tokio::task::spawn_blocking(move || gd.fork_in(&dst, &body.sha, body.copia_segreti)).await
+    };
+    match esito {
+        Ok(Ok(())) => {
+            s.known_projects.touch(&nome, &dst).await;
+            (StatusCode::CREATED, Json(serde_json::json!({ "name": nome }))).into_response()
+        }
+        Ok(Err(e)) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+/// `POST /api/project/git/prova/esci` — torna all'ultima versione.
+async fn git_esci_dalla_prova(State(s): State<AppState>) -> impl IntoResponse {
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
+    let gd = crate::git_deploy::GitDeploy::new(dir.clone());
+    let esito = {
+        let _scrittura = s.project_write_lock.lock().await;
+        tokio::task::spawn_blocking(move || gd.esci_dalla_prova()).await
+    };
+    match esito {
+        Ok(Ok(())) => {
+            dopo_cambio_git(&s, &dir, "git: fine prova").await;
+            Json(serde_json::json!({ "message": "ok" })).into_response()
+        }
+        Ok(Err(e)) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+/// `POST /api/project/git/prova/riparti` — «Riparti da qui»: un commit nuovo
+/// con la versione provata, sul ramo, senza riscrivere la storia.
+async fn git_riparti_da_qui(State(s): State<AppState>) -> impl IntoResponse {
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
+    let gd = crate::git_deploy::GitDeploy::new(dir.clone());
+    let esito = {
+        let _scrittura = s.project_write_lock.lock().await;
+        tokio::task::spawn_blocking(move || gd.riparti_da_qui()).await
+    };
+    match esito {
+        Ok(Ok(msg)) => {
+            dopo_cambio_git(&s, &dir, "git: riparti da qui").await;
+            Json(serde_json::json!({ "message": msg })).into_response()
+        }
+        Ok(Err(e)) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
 }

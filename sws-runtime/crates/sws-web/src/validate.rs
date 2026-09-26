@@ -1683,6 +1683,30 @@ pub fn blocco_salvataggio(project: &Project) -> Option<String> {
     Some(m)
 }
 
+/// Il blocco del formato vecchio detto a una sezione che **non** sta salvando
+/// gli allarmi: una frase, con il numero e il posto dove si sistema. Il testo
+/// intero di [`blocco_salvataggio`] va solo a chi salva la scheda Allarmi.
+pub fn blocco_salvataggio_altrove(project: &Project) -> String {
+    let vecchi = project.alarms.iter().filter(|a| a.formato_vecchio()).count();
+    let mut tag = std::collections::HashMap::<&str, usize>::new();
+    for a in project.alarms.iter().filter(|a| !a.tag.is_empty()) {
+        *tag.entry(a.tag.as_str()).or_default() += 1;
+    }
+    let doppi = tag.values().filter(|n| **n > 1).count();
+    let mut cosa = Vec::new();
+    if vecchi > 0 {
+        cosa.push(format!("{vecchi} allarmi nel formato vecchio"));
+    }
+    if doppi > 0 {
+        cosa.push(format!("{doppi} tag con più di un allarme"));
+    }
+    format!(
+        "Salvataggio bloccato dalla scheda Allarmi ({}). Sistemala lì («Converti tutti») e salvala \
+         per prima: poi anche questa sezione si salva.",
+        cosa.join(", ")
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2886,5 +2910,34 @@ alarms: []
             rs.is_empty(),
             "il bersaglio deve passare pulito, invece: {rs:?}"
         );
+    }
+
+    /// Le sezioni che non salvano gli allarmi ricevono una frase sola, con il
+    /// conto e il posto dove si sistema; il testo intero resta per gli allarmi.
+    #[test]
+    fn blocco_detto_alle_altre_sezioni_in_una_frase() {
+        let p: Project = serde_yaml::from_str(
+            "meta: {name: p, version: '1'}
+alarms:
+- id: a
+  tag: t1
+  condition: {kind: above, threshold: 1.0}
+- id: b
+  tag: t2
+  levels:
+  - condition: {kind: above, threshold: 1.0}
+- id: c
+  tag: t2
+  levels:
+  - condition: {kind: below, threshold: 0.0}
+",
+        )
+        .unwrap();
+        assert!(blocco_salvataggio(&p).is_some());
+        let breve = blocco_salvataggio_altrove(&p);
+        assert!(breve.contains("1 allarmi nel formato vecchio"), "{breve}");
+        assert!(breve.contains("1 tag con più di un allarme"), "{breve}");
+        assert!(breve.contains("scheda Allarmi"), "{breve}");
+        assert!(breve.len() < blocco_salvataggio(&p).unwrap().len());
     }
 }

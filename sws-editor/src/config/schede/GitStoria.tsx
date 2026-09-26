@@ -7,6 +7,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, type CommitInfo, type FileCambiato } from "@/api/client";
+import { selectIsDirty, useAppStore } from "@/store";
 
 /** Cosa si sta guardando. */
 type Scelta =
@@ -57,8 +58,65 @@ export function VistaDiff({ testo }: { testo: string }) {
 
 /** `versione` cambia quando cambia il repository (sha o albero pulito/sporco):
  *  la storia si ricarica dopo un Commit, un Deploy, un Rollback. */
-export function GitStoria({ versione, pulito }: { versione: string; pulito: boolean }) {
+export function GitStoria({ versione, pulito, inProva }: { versione: string; pulito: boolean; inProva: boolean }) {
   const { t } = useTranslation();
+  const bozze = useAppStore(selectIsDirty);
+  const [provaErr, setProvaErr] = useState<string | null>(null);
+  // Fork (Fase 3): un progetto nuovo da questo commit.
+  const [forkAperto, setForkAperto] = useState(false);
+  const [forkNome, setForkNome] = useState("");
+  // Credenziali nel fork: una scelta esplicita, ricordata fra un fork e
+  // l'altro (26-09-2026, maintainer: «alle volte serve il fork per impianti
+  // simili con credenziali uguali»). Nel browser e non nel progetto: è
+  // un'abitudine di chi lavora, non un dato dell'impianto.
+  const [forkSegreti, setForkSegretiStato] = useState<boolean>(() => {
+    try { return localStorage.getItem("sws.git.forkSegreti") === "1"; } catch { return false; }
+  });
+  const setForkSegreti = (v: boolean) => {
+    setForkSegretiStato(v);
+    try { localStorage.setItem("sws.git.forkSegreti", v ? "1" : "0"); } catch { /* storage non disponibile */ }
+  };
+  const [forkEsito, setForkEsito] = useState<{ ok: boolean; testo: string; nome?: string } | null>(null);
+  const [forkOccupato, setForkOccupato] = useState(false);
+
+  const creaFork = async (c: CommitInfo) => {
+    setForkOccupato(true); setForkEsito(null);
+    try {
+      const r = await api.gitFork(c.sha, forkNome.trim(), forkSegreti);
+      setForkEsito({ ok: true, testo: t("gitFork.creato", { nome: r.name, short: c.short }), nome: r.name });
+      setForkAperto(false); setForkNome("");
+    } catch (e: any) {
+      setForkEsito({ ok: false, testo: String(e?.message ?? e) });
+    } finally {
+      setForkOccupato(false);
+    }
+  };
+
+  /** Aprire il fork lascia questo progetto: con bozze non salvate si chiede. */
+  const apriFork = async (nome: string) => {
+    if (bozze && !window.confirm(t("gitFork.bozzePerse"))) return;
+    try {
+      await api.openProject(nome);
+      window.location.reload();
+    } catch (e: any) {
+      setForkEsito({ ok: false, testo: String(e?.message ?? e) });
+    }
+  };
+
+  /** Entrare in prova: con modifiche non salvate nell'editor, o salvate e non
+   *  committate, si perderebbero (o si mescolerebbero) — si chiede prima. */
+  const prova = async (c: CommitInfo) => {
+    setProvaErr(null);
+    if (bozze) { setProvaErr(t("gitProva.primaSalva")); return; }
+    if (!pulito) { setProvaErr(t("gitProva.primaCommit")); return; }
+    if (!window.confirm(t("gitProva.conferma", { short: c.short, message: c.message }))) return;
+    try {
+      await api.gitProva(c.sha);
+      window.location.reload();
+    } catch (e: any) {
+      setProvaErr(String(e?.message ?? e));
+    }
+  };
   const [commit, setCommit] = useState<CommitInfo[]>([]);
   const [finiti, setFiniti] = useState(false);
   const [scelta, setScelta] = useState<Scelta | null>(null);
@@ -168,6 +226,78 @@ export function GitStoria({ versione, pulito }: { versione: string; pulito: bool
           </button>
         </div>
       )}
+
+      {scelta?.kind === "commit" && commit.length > 0 && (() => {
+        const c = commit.find((x) => x.sha === scelta.sha);
+        if (!c) return null;
+        const vecchio = c.sha !== commit[0].sha;
+        const bottone: React.CSSProperties = { padding: "4px 10px", borderRadius: 4, fontSize: 11, cursor: "pointer" };
+        return (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            {vecchio && !inProva && <button
+              type="button"
+              data-testid="git-prova-questa"
+              onClick={() => void prova(c)}
+              style={{ padding: "4px 10px", background: "#4c1d95", color: "#ede9fe", border: "1px solid #7c3aed", borderRadius: 4, fontSize: 11, cursor: "pointer" }}
+              title={t("gitProva.hint")}
+            >
+              🧪 {t("gitProva.provaQuesta", { short: c.short })}
+            </button>}
+            <button
+              type="button"
+              data-testid="git-fork-apri"
+              onClick={() => { setForkAperto((v) => !v); setForkEsito(null); }}
+              style={{ ...bottone, background: "var(--brand-surface, #1e293b)", color: "var(--brand-text-2, #cbd5e1)", border: "1px solid var(--brand-surface-2, #334155)" }}
+              title={t("gitFork.hint")}
+            >
+              ⑂ {t("gitFork.daQui", { short: c.short })}
+            </button>
+            {provaErr && <span style={{ fontSize: 11, color: "var(--brand-danger-soft, #fca5a5)" }}>{provaErr}</span>}
+          </div>
+          {forkAperto && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 12, color: "var(--brand-text-subtle, #64748b)" }}>
+              <input
+                value={forkNome}
+                onChange={(e) => setForkNome(e.target.value)}
+                placeholder={t("gitFork.nome")}
+                autoFocus
+                style={{ flex: 1, minWidth: 160, background: "var(--brand-bg, #020617)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "4px 8px", fontSize: 12 }}
+              />
+              <span style={{ display: "flex", alignItems: "center", gap: 10 }} title={t("gitFork.segretiHint")} role="radiogroup" aria-label={t("gitFork.credenziali")}>
+                <span>{t("gitFork.credenziali")}:</span>
+                <label style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
+                  <input type="radio" name="fork-segreti" checked={!forkSegreti} onChange={() => setForkSegreti(false)} />
+                  {t("gitFork.segretiNuove")}
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
+                  <input type="radio" name="fork-segreti" checked={forkSegreti} onChange={() => setForkSegreti(true)} />
+                  {t("gitFork.segretiUguali")}
+                </label>
+              </span>
+              <button
+                type="button"
+                disabled={forkOccupato || !forkNome.trim()}
+                onClick={() => void creaFork(c)}
+                style={{ ...bottone, background: "var(--brand-success, #22c55e)", color: "var(--brand-on-success, #fff)", border: "none" }}
+              >
+                {t("gitFork.crea")}
+              </button>
+            </div>
+          )}
+          {forkEsito && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: forkEsito.ok ? "#34d399" : "var(--brand-danger-soft, #fca5a5)" }}>
+              <span style={{ whiteSpace: "pre-wrap" }}>{forkEsito.testo}</span>
+              {forkEsito.ok && forkEsito.nome && (
+                <button type="button" onClick={() => void apriFork(forkEsito.nome!)} style={{ ...bottone, background: "var(--brand-primary, #3b82f6)", color: "var(--brand-on-primary, #fff)", border: "none" }}>
+                  {t("gitFork.apri")}
+                </button>
+              )}
+            </div>
+          )}
+          </div>
+        );
+      })()}
 
       {scelta && file && (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>

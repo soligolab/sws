@@ -1811,6 +1811,17 @@ export interface GitStatus {
   author_email: string | null;
   /** Nome o email impostati per questo repository e non ereditati. */
   identita_locale: boolean;
+  /** Prova di un commit vecchio in corso: salvare è bloccato finché dura. */
+  prova: ProvaInfo | null;
+}
+
+/** Il commit che si sta provando, e il ramo a cui si torna. */
+export interface ProvaInfo {
+  sha: string;
+  short: string;
+  date: string;
+  message: string;
+  ramo: string;
 }
 
 export interface ProjectFingerprint {
