@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { TRANS_COMP } from "@/config/comuni";
+import { GitStoria } from "./GitStoria";
 
 /** Il versionamento git del **progetto**, foglia «Git» del ramo Progetto
  *  (26-09-2026: prima stava in fondo a Istanza → Device → Stato, fra CPU e
@@ -382,6 +383,8 @@ export function GitTab() {
           </div>
         )}
       </div>
+
+      <GitStoria versione={`${gitStatus.sha}|${gitStatus.clean}`} pulito={gitStatus.clean} />
 
       <div style={{ marginTop: 10, background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6, padding: "12px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

@@ -2241,6 +2241,27 @@
     "errore": "Rinomina fallita: {{message}}",
     "occorrenze": "{{n}} occorrenze"
   },
+  "gitStoria": {
+    "titolo": "STORIA",
+    "nonCommittate": "Modifiche non committate",
+    "nFile": "{{n}} file",
+    "nessunCommit": "Nessun commit ancora.",
+    "altri": "Commit più vecchi…",
+    "confronta": "Confronta",
+    "da": "da",
+    "a": "a",
+    "vai": "Confronta",
+    "nessunFile": "Nessun file cambiato.",
+    "tutti": "Tutti i file ({{n}})",
+    "diffVuoto": "Nessuna differenza di testo (o un file binario).",
+    "stato": {
+      "A": "aggiunto",
+      "M": "modificato",
+      "D": "tolto",
+      "nuovo": "nuovo, non ancora nel repository",
+      "altro": "cambiato"
+    }
+  },
   "rilievi": {
     "conteggio": "{{n}} avvisi",
     "vai": "Vai all’elemento",

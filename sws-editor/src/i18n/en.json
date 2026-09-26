@@ -2241,6 +2241,27 @@
     "errore": "Rename failed: {{message}}",
     "occorrenze": "{{n}} occurrences"
   },
+  "gitStoria": {
+    "titolo": "HISTORY",
+    "nonCommittate": "Uncommitted changes",
+    "nFile": "{{n}} files",
+    "nessunCommit": "No commits yet.",
+    "altri": "Older commits…",
+    "confronta": "Compare",
+    "da": "from",
+    "a": "to",
+    "vai": "Compare",
+    "nessunFile": "No files changed.",
+    "tutti": "All files ({{n}})",
+    "diffVuoto": "No text differences (or a binary file).",
+    "stato": {
+      "A": "added",
+      "M": "modified",
+      "D": "removed",
+      "nuovo": "new, not yet in the repository",
+      "altro": "changed"
+    }
+  },
   "rilievi": {
     "conteggio": "{{n}} findings",
     "vai": "Go to the item",

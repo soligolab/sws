@@ -617,6 +617,31 @@ export interface RilievoProgetto {
   hint?: string;
 }
 
+/** Un commit dell'elenco della scheda Git (`git_deploy::CommitInfo`). */
+export interface CommitInfo {
+  sha: string;
+  short: string;
+  author: string;
+  email: string;
+  date: string;
+  message: string;
+  files: number;
+}
+
+/** Un file cambiato: lettera di git (A, M, D…) o «?» per un file nuovo mai aggiunto. */
+export interface FileCambiato {
+  path: string;
+  status: string;
+}
+
+/** Query string dei soli parametri presenti. */
+const qs = (p: Record<string, string | number | undefined>) => {
+  const u = new URLSearchParams();
+  for (const [k, v] of Object.entries(p)) if (v !== undefined && v !== "") u.set(k, String(v));
+  const s = u.toString();
+  return s ? `?${s}` : "";
+};
+
 export const api = {
   // Auth
   login: (username: string, password: string) =>
@@ -1668,6 +1693,19 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ remote_url: remoteUrl || null, ssh_key: sshKey || null }),
     }),
+
+  /** GET /api/project/git/log — i commit del ramo corrente, dal più recente. */
+  gitLog: (limit: number, skip: number) =>
+    request<CommitInfo[]>(`/api/project/git/log${qs({ limit, skip })}`),
+
+  /** GET /api/project/git/changes — i file cambiati. Nessun estremo = non
+   *  committato; solo `to` = quel commit contro il precedente; entrambi = due commit. */
+  gitChanges: (e: { from?: string; to?: string }) =>
+    request<FileCambiato[]>(`/api/project/git/changes${qs(e)}`),
+
+  /** GET /api/project/git/diff — il diff unificato, di un file o di tutto. */
+  gitDiff: (e: { from?: string; to?: string; path?: string }) =>
+    request<{ diff: string }>(`/api/project/git/diff${qs(e)}`),
 
   /** GET /api/project/git/ssh-keys — chiavi private in `~/.ssh` della macchina
    *  del runtime (è lì che gira git, non nel browser). */

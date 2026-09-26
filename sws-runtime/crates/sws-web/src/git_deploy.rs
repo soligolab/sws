@@ -55,6 +55,35 @@ pub struct GitStatus {
     pub identita_locale: bool,
 }
 
+/// Un commit nell'elenco della scheda Git (piano
+/// `2026-09-26-gestore-repository-progetto.md`, Fase 1).
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct CommitInfo {
+    pub sha: String,
+    pub short: String,
+    pub author: String,
+    pub email: String,
+    /// ISO 8601, data del commit.
+    pub date: String,
+    /// Prima riga del messaggio.
+    pub message: String,
+    /// Quanti file ha cambiato (0 per un commit vuoto).
+    pub files: u32,
+}
+
+/// Un file cambiato fra due versioni. `status` è la lettera di git
+/// (`A` aggiunto, `M` modificato, `D` tolto, `R` rinominato…) o `?` per un file
+/// nuovo non ancora tracciato, che git chiama «untracked».
+#[derive(Debug, Clone, serde::Serialize, PartialEq)]
+pub struct FileCambiato {
+    pub path: String,
+    pub status: String,
+}
+
+/// L'albero vuoto di git: il «genitore» del primo commit, e il punto di
+/// partenza del diff di un repository ancora senza commit.
+const ALBERO_VUOTO: &str = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
+
 pub struct GitDeploy {
     pub project_dir: PathBuf,
 }
@@ -491,6 +520,148 @@ impl GitDeploy {
         )
     }
 
+    /// I commit del ramo corrente, dal più recente, a pagine. Un repository
+    /// senza commit ha un elenco vuoto, non un errore.
+    pub fn log(&self, limit: u32, skip: u32) -> anyhow::Result<Vec<CommitInfo>> {
+        let dir = self.project_dir.to_string_lossy().to_string();
+        if git_out(&dir, &["rev-parse", "--verify", "-q", "HEAD"]).is_err() {
+            return Ok(Vec::new());
+        }
+        let (limit, skip) = (limit.clamp(1, 500).to_string(), skip.to_string());
+        // \x1e apre un commit, \x1f separa i campi: né l'uno né l'altro
+        // compaiono in un nome o in un messaggio.
+        let out = git_out(
+            &dir,
+            &[
+                "log",
+                "--format=%x1e%H%x1f%h%x1f%an%x1f%ae%x1f%cI%x1f%s",
+                "--shortstat",
+                "-n",
+                &limit,
+                "--skip",
+                &skip,
+            ],
+        )?;
+        Ok(out
+            .split('\x1e')
+            .filter(|r| !r.trim().is_empty())
+            .filter_map(|r| {
+                let (testa, resto) = r.split_once('\n').unwrap_or((r, ""));
+                let c: Vec<&str> = testa.split('\x1f').collect();
+                if c.len() < 6 {
+                    return None;
+                }
+                // « 3 files changed, 10 insertions(+)» — il primo numero.
+                let files = resto
+                    .split_whitespace()
+                    .next()
+                    .and_then(|n| n.parse().ok())
+                    .unwrap_or(0);
+                Some(CommitInfo {
+                    sha: c[0].into(),
+                    short: c[1].into(),
+                    author: c[2].into(),
+                    email: c[3].into(),
+                    date: c[4].into(),
+                    message: c[5].into(),
+                    files,
+                })
+            })
+            .collect())
+    }
+
+    /// I due estremi di un confronto, come argomenti per `git diff`.
+    /// - né `from` né `to`: le modifiche non committate (contro HEAD, o contro
+    ///   l'albero vuoto se non c'è ancora un commit) — un solo argomento;
+    /// - solo `to`: quel commit contro il suo genitore (il primo contro
+    ///   l'albero vuoto);
+    /// - entrambi: due commit qualsiasi.
+    fn estremi(&self, from: Option<&str>, to: Option<&str>) -> anyhow::Result<Vec<String>> {
+        let dir = self.project_dir.to_string_lossy().to_string();
+        let verifica = |rev: &str| -> anyhow::Result<String> {
+            if !Self::ref_sicuro(rev) {
+                anyhow::bail!("revisione non valida: «{rev}»");
+            }
+            git_out(&dir, &["rev-parse", "--verify", "-q", &format!("{rev}^{{commit}}")])
+                .map_err(|_| anyhow::anyhow!("commit sconosciuto: «{rev}»"))
+        };
+        match (from, to) {
+            (None, None) => Ok(vec![git_out(&dir, &["rev-parse", "--verify", "-q", "HEAD"])
+                .unwrap_or_else(|_| ALBERO_VUOTO.to_string())]),
+            (None, Some(t)) => {
+                let t = verifica(t)?;
+                let genitore = git_out(&dir, &["rev-parse", "--verify", "-q", &format!("{t}^")])
+                    .unwrap_or_else(|_| ALBERO_VUOTO.to_string());
+                Ok(vec![genitore, t])
+            }
+            (Some(f), Some(t)) => Ok(vec![verifica(f)?, verifica(t)?]),
+            (Some(_), None) => anyhow::bail!("«from» senza «to»"),
+        }
+    }
+
+    /// I file cambiati fra due versioni (vedi [`Self::estremi`]). Per le
+    /// modifiche non committate ci sono anche i file nuovi mai aggiunti.
+    pub fn file_cambiati(&self, from: Option<&str>, to: Option<&str>) -> anyhow::Result<Vec<FileCambiato>> {
+        let dir = self.project_dir.to_string_lossy().to_string();
+        let estremi = self.estremi(from, to)?;
+        let mut args = vec!["diff", "--name-status", "-z", "--no-renames"];
+        args.extend(estremi.iter().map(String::as_str));
+        // `-z --name-status`: lettera\0percorso\0, a coppie.
+        let campi = percorsi_z(&dir, &args);
+        let mut out: Vec<FileCambiato> = campi
+            .chunks(2)
+            .filter(|c| c.len() == 2)
+            .map(|c| FileCambiato { status: c[0].clone(), path: c[1].clone() })
+            .collect();
+        if from.is_none() && to.is_none() {
+            out.extend(
+                percorsi_z(&dir, &["ls-files", "--others", "--exclude-standard", "-z"])
+                    .into_iter()
+                    .map(|path| FileCambiato { path, status: "?".into() }),
+            );
+        }
+        out.sort_by(|a, b| a.path.cmp(&b.path));
+        Ok(out)
+    }
+
+    /// Il diff unificato fra due versioni (vedi [`Self::estremi`]), di un file
+    /// o di tutto il progetto. Un file nuovo non tracciato si confronta con
+    /// il nulla, come farebbe il commit che lo aggiunge.
+    pub fn diff(&self, from: Option<&str>, to: Option<&str>, path: Option<&str>) -> anyhow::Result<String> {
+        let dir = self.project_dir.to_string_lossy().to_string();
+        if let Some(p) = path {
+            if !percorso_sicuro(p) {
+                anyhow::bail!("percorso non valido: «{p}»");
+            }
+        }
+        let estremi = self.estremi(from, to)?;
+        let non_tracciato = from.is_none()
+            && to.is_none()
+            && path.is_some_and(|p| {
+                git_out(&dir, &["ls-files", "--error-unmatch", "--", p]).is_err()
+                    && self.project_dir.join(p).is_file()
+            });
+        let mut args: Vec<&str> = vec!["diff", "--no-color", "--no-ext-diff"];
+        if non_tracciato {
+            // `--no-index` esce con 1 quando i file differiscono: si guarda
+            // l'output, non il codice d'uscita.
+            args.extend(["--no-index", "--", "/dev/null", path.unwrap_or_default()]);
+            let out = Command::new("git")
+                .arg("-C")
+                .arg(&dir)
+                .args(&args)
+                .output()
+                .map_err(|e| anyhow::anyhow!("git diff: {e}"))?;
+            return Ok(String::from_utf8_lossy(&out.stdout).into_owned());
+        }
+        args.extend(estremi.iter().map(String::as_str));
+        args.push("--");
+        if let Some(p) = path {
+            args.push(p);
+        }
+        git_out_grezzo(&dir, &args)
+    }
+
     /// Nomi dei tag esistenti, più recente per prima.
     pub fn list_tags(&self) -> anyhow::Result<Vec<String>> {
         let dir = self.project_dir.to_string_lossy().to_string();
@@ -653,6 +824,32 @@ fn blob_enormi_da_pubblicare(dir: &str) -> Vec<(String, u64)> {
     enormi.sort();
     enormi.dedup();
     enormi
+}
+
+/// Un percorso di file del progetto da passare a git dopo `--`: relativo,
+/// senza risalire di cartella, senza caratteri di controllo.
+fn percorso_sicuro(p: &str) -> bool {
+    !p.is_empty()
+        && !p.starts_with('/')
+        && !p.starts_with('-')
+        && !p.split('/').any(|c| c == "..")
+        && !p.chars().any(|c| c.is_control())
+}
+
+/// Come [`git_out`], ma senza `trim`: in un diff gli spazi in coda a una riga
+/// sono contenuto.
+fn git_out_grezzo(dir: &str, args: &[&str]) -> anyhow::Result<String> {
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(dir)
+        .args(args)
+        .output()
+        .map_err(|e| anyhow::anyhow!("git {}: {e}", args.join(" ")))?;
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+    } else {
+        Err(anyhow::anyhow!("{}", String::from_utf8_lossy(&output.stderr).trim()))
+    }
 }
 
 /// Un nome o un'email da scrivere in `git config`: niente caratteri di
@@ -1234,5 +1431,83 @@ mod tests {
         assert!(git_out(&dir, &["rev-parse", "--verify", "-q", "@{upstream}"]).is_ok());
         assert_eq!(gd.unpushed_count(), 0);
         gd.push().unwrap(); // il secondo usa l'upstream già impostato
+    }
+
+    // ── Fase 1 del gestore: storia e diff ──────────────────────────────────
+
+    /// Un repository con due commit e una modifica non committata.
+    fn repo_con_storia() -> (TempDir, GitDeploy) {
+        let tmp = repo_di_prova();
+        let p = tmp.path().to_path_buf();
+        let dir = p.to_string_lossy().to_string();
+        std::fs::write(p.join("project.yaml"), "meta: {name: p}\nuno: 1\n").unwrap();
+        run_git(&dir, &["add", "-A"]).unwrap();
+        run_git(&dir, &["commit", "-q", "-m", "primo"]).unwrap();
+        std::fs::write(p.join("project.yaml"), "meta: {name: p}\nuno: 2\n").unwrap();
+        std::fs::write(p.join("pagina.yaml"), "x: 1\n").unwrap();
+        run_git(&dir, &["add", "-A"]).unwrap();
+        run_git(&dir, &["commit", "-q", "-m", "secondo"]).unwrap();
+        std::fs::write(p.join("project.yaml"), "meta: {name: p}\nuno: 3\n").unwrap();
+        std::fs::write(p.join("nuovo.yaml"), "y: 1\n").unwrap();
+        (tmp, GitDeploy::new(p))
+    }
+
+    #[test]
+    fn log_elenca_i_commit_dal_piu_recente() {
+        let (_tmp, gd) = repo_con_storia();
+        let log = gd.log(50, 0).unwrap();
+        assert_eq!(log.iter().map(|c| c.message.as_str()).collect::<Vec<_>>(), ["secondo", "primo"]);
+        assert_eq!(log[0].files, 2);
+        assert_eq!(log[1].files, 1);
+        assert_eq!(gd.log(1, 1).unwrap()[0].message, "primo");
+    }
+
+    #[test]
+    fn log_di_un_repo_senza_commit_e_vuoto() {
+        let tmp = repo_di_prova();
+        assert!(GitDeploy::new(tmp.path().to_path_buf()).log(50, 0).unwrap().is_empty());
+    }
+
+    #[test]
+    fn file_cambiati_nei_tre_modi() {
+        let (_tmp, gd) = repo_con_storia();
+        let log = gd.log(50, 0).unwrap();
+        let fc = |v: Vec<FileCambiato>| v.into_iter().map(|f| format!("{} {}", f.status, f.path)).collect::<Vec<_>>();
+
+        // non committate: il modificato e il nuovo mai aggiunto
+        assert_eq!(fc(gd.file_cambiati(None, None).unwrap()), ["? nuovo.yaml", "M project.yaml"]);
+        // un commit contro il genitore
+        assert_eq!(fc(gd.file_cambiati(None, Some(&log[0].sha)).unwrap()), ["A pagina.yaml", "M project.yaml"]);
+        // il primo commit contro l'albero vuoto
+        assert_eq!(fc(gd.file_cambiati(None, Some(&log[1].sha)).unwrap()), ["A project.yaml"]);
+        // due commit qualsiasi
+        assert_eq!(
+            fc(gd.file_cambiati(Some(&log[1].sha), Some(&log[0].sha)).unwrap()),
+            ["A pagina.yaml", "M project.yaml"]
+        );
+    }
+
+    #[test]
+    fn diff_nei_tre_modi_e_sui_file_nuovi() {
+        let (_tmp, gd) = repo_con_storia();
+        let log = gd.log(50, 0).unwrap();
+        let d = gd.diff(None, None, Some("project.yaml")).unwrap();
+        assert!(d.contains("-uno: 2") && d.contains("+uno: 3"), "{d}");
+        let d = gd.diff(None, Some(&log[0].sha), Some("project.yaml")).unwrap();
+        assert!(d.contains("-uno: 1") && d.contains("+uno: 2"), "{d}");
+        let d = gd.diff(Some(&log[1].sha), Some(&log[0].sha), None).unwrap();
+        assert!(d.contains("pagina.yaml") && d.contains("+uno: 2"), "{d}");
+        let d = gd.diff(None, None, Some("nuovo.yaml")).unwrap();
+        assert!(d.contains("+y: 1"), "{d}");
+    }
+
+    #[test]
+    fn diff_rifiuta_revisioni_e_percorsi_pericolosi() {
+        let (_tmp, gd) = repo_con_storia();
+        assert!(gd.diff(None, Some("--output=/tmp/x"), None).is_err());
+        assert!(gd.diff(None, Some("non-esiste"), None).is_err());
+        assert!(gd.diff(None, None, Some("../fuori")).is_err());
+        assert!(gd.diff(None, None, Some("/etc/passwd")).is_err());
+        assert!(gd.diff(Some("HEAD"), None, None).is_err());
     }
 }

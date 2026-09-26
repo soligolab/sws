@@ -1,6 +1,6 @@
 # Un gestore minimale del repository del progetto, nella scheda Git
 
-**Stato: piano — da approvare.** Richiesta del maintainer, 26-09-2026, subito dopo il primo progetto
+**Stato: approvato il 26-09-2026; Fase 1 in corso.** Richiesta del maintainer, 26-09-2026, subito dopo il primo progetto
 (CasaDomotica) agganciato a GitHub dall'IDE: «vedere i commit, scegliere se provare a tornare a uno
 precedente per dei test, fare il diff tra file e fare il fork di un progetto».
 

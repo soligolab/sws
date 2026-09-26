@@ -716,6 +716,11 @@ pub fn build(
         // GitOps status (read-only — any authenticated user)
         .route("/api/project/git-status", get(get_git_status))
         .route("/api/project/git/tags", get(list_git_tags))
+        // Storia e diff del repository del progetto (piano
+        // 2026-09-26-gestore-repository-progetto, Fase 1): sola lettura.
+        .route("/api/project/git/log", get(get_git_log))
+        .route("/api/project/git/changes", get(get_git_changes))
+        .route("/api/project/git/diff", get(get_git_diff))
         // Project fingerprint: SHA256 of project.yaml + all synoptics.
         // Clients compare local vs. remote fingerprint to verify deployment sync.
         .route("/api/project/fingerprint", get(get_project_fingerprint))
@@ -7310,6 +7315,84 @@ async fn get_project_fingerprint(State(s): State<AppState>) -> impl IntoResponse
 }
 
 // ── T-20 GitOps ──────────────────────────────────────────────────────────────
+
+#[derive(serde::Deserialize)]
+struct GitLogQuery {
+    #[serde(default = "git_log_limit")]
+    limit: u32,
+    #[serde(default)]
+    skip: u32,
+}
+fn git_log_limit() -> u32 {
+    50
+}
+
+/// `GET /api/project/git/log?limit&skip` — i commit del ramo corrente.
+async fn get_git_log(State(s): State<AppState>, Query(q): Query<GitLogQuery>) -> impl IntoResponse {
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
+    let gd = crate::git_deploy::GitDeploy::new(dir);
+    if !gd.is_git_repo() {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    match tokio::task::spawn_blocking(move || gd.log(q.limit, q.skip)).await {
+        Ok(Ok(v)) => Json(v).into_response(),
+        Ok(Err(e)) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+/// Gli estremi di un confronto: nessuno = modifiche non committate, solo
+/// `to` = quel commit contro il genitore, entrambi = due commit qualsiasi.
+#[derive(serde::Deserialize)]
+struct GitDiffQuery {
+    #[serde(default)]
+    from: Option<String>,
+    #[serde(default)]
+    to: Option<String>,
+    #[serde(default)]
+    path: Option<String>,
+}
+
+/// `GET /api/project/git/changes?from&to` — i file cambiati.
+async fn get_git_changes(State(s): State<AppState>, Query(q): Query<GitDiffQuery>) -> impl IntoResponse {
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
+    let gd = crate::git_deploy::GitDeploy::new(dir);
+    if !gd.is_git_repo() {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    match tokio::task::spawn_blocking(move || gd.file_cambiati(q.from.as_deref(), q.to.as_deref())).await {
+        Ok(Ok(v)) => Json(v).into_response(),
+        Ok(Err(e)) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+/// `GET /api/project/git/diff?from&to&path` — il diff unificato, in testo.
+async fn get_git_diff(State(s): State<AppState>, Query(q): Query<GitDiffQuery>) -> impl IntoResponse {
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
+    let gd = crate::git_deploy::GitDeploy::new(dir);
+    if !gd.is_git_repo() {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    match tokio::task::spawn_blocking(move || {
+        gd.diff(q.from.as_deref(), q.to.as_deref(), q.path.as_deref())
+    })
+    .await
+    {
+        Ok(Ok(testo)) => Json(serde_json::json!({ "diff": testo })).into_response(),
+        Ok(Err(e)) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
 
 /// `GET /api/project/git-status` — git commit info for the active project dir.
 async fn get_git_status(State(s): State<AppState>) -> impl IntoResponse {
