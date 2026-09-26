@@ -7,6 +7,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "@/store";
+import { destinazioneRilievo, type Destinazione } from "./rilievoDestinazione";
 
 export function RilieviProgetto() {
   const { t } = useTranslation();
@@ -14,6 +15,23 @@ export function RilieviProgetto() {
   const aggiornaRilievi = useAppStore((s) => s.aggiornaRilievi);
   const nomeProgetto = useAppStore((s) => s.project?.meta.name);
   const [aperto, setAperto] = useState(false);
+  const pages = useAppStore((s) => s.pages);
+  const navigateToConfig = useAppStore((s) => s.navigateToConfig);
+  const setAppMode = useAppStore((s) => s.setAppMode);
+  const setCurrentPage = useAppStore((s) => s.setCurrentPage);
+  const selectObject = useAppStore((s) => s.selectObject);
+
+  // Il clic porta dove sta il problema e chiude la tendina: aperta, coprirebbe
+  // proprio il modulo da correggere. Riaprirla per il rilievo dopo è un clic.
+  const vai = (d: Destinazione) => {
+    if (d.kind === "config") navigateToConfig(d.tab, d.focus);
+    else {
+      setAppMode("edit");
+      setCurrentPage(d.pageId);
+      if (d.objectId) selectObject(d.objectId);
+    }
+    setAperto(false);
+  };
   const ref = useRef<HTMLDivElement>(null);
 
   // Alla prima apertura di un progetto: i rilievi di com'è, prima di toccarlo.
@@ -49,15 +67,28 @@ export function RilieviProgetto() {
           boxShadow: "0 4px 16px rgba(0,0,0,0.5)", padding: 10, fontSize: 12,
         }}>
           <div style={{ color: "var(--brand-text-muted, #94a3b8)", marginBottom: 8 }}>{t("rilievi.intro")}</div>
-          {rilievi.map((r, i) => (
-            <div key={i} style={{ padding: "6px 0", borderTop: i ? "1px solid var(--brand-surface-2, #334155)" : "none" }}>
+          {rilievi.map((r, i) => {
+            const dest = destinazioneRilievo(r.path, pages);
+            return (
+            <div
+              key={i}
+              role={dest ? "button" : undefined}
+              tabIndex={dest ? 0 : undefined}
+              title={dest ? t("rilievi.vai") : undefined}
+              onClick={dest ? () => vai(dest) : undefined}
+              onKeyDown={dest ? (e) => { if (e.key === "Enter") vai(dest); } : undefined}
+              onMouseEnter={dest ? (e) => { e.currentTarget.style.background = "var(--brand-surface-2, #334155)"; } : undefined}
+              onMouseLeave={dest ? (e) => { e.currentTarget.style.background = "transparent"; } : undefined}
+              style={{ padding: "6px 4px", borderRadius: 4, cursor: dest ? "pointer" : "default", borderTop: i ? "1px solid var(--brand-surface-2, #334155)" : "none" }}
+            >
               <div style={{ color: r.severity === "error" ? "var(--brand-danger-soft, #fca5a5)" : "var(--brand-text, #e2e8f0)" }}>
                 {r.severity === "error" ? "⚠" : "△"} {r.message}
               </div>
               {r.hint && <div style={{ color: "var(--brand-text-muted, #94a3b8)", marginTop: 2 }}>{r.hint}</div>}
-              <div style={{ color: "var(--brand-text-subtle, #64748b)", fontFamily: "monospace", fontSize: 11, marginTop: 2 }}>{r.path}</div>
+              <div style={{ color: "var(--brand-text-subtle, #64748b)", fontFamily: "monospace", fontSize: 11, marginTop: 2 }}>{dest ? "→ " : ""}{r.path}</div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

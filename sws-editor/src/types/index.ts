@@ -1803,6 +1803,14 @@ export interface GitStatus {
   clean: boolean;
   last_deploy_ms: number | null;
   unpushed_commits: number;
+  /** Chiave SSH del repository: nome del file in `~/.ssh`, o il comando intero
+   *  se `core.sshCommand` non l'ha scritto l'IDE; `null` = quella di ssh. */
+  ssh_key: string | null;
+  /** Chi firma i commit, come lo vede git (locale, altrimenti globale). */
+  author_name: string | null;
+  author_email: string | null;
+  /** Nome o email impostati per questo repository e non ereditati. */
+  identita_locale: boolean;
 }
 
 export interface ProjectFingerprint {

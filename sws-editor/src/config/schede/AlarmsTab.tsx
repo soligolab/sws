@@ -96,6 +96,31 @@ export function AlarmsTab() {
     }));
   };
 
+  /** Formato vecchio: `condition` al primo livello, `levels` vuoto. Blocca il
+   *  salvataggio di **tutto** il progetto (`validate::blocco_salvataggio`), e
+   *  a vederlo non si distingue da un allarme giusto: per questo la riga lo
+   *  dice e offre il bottone (26-09-2026 — prima bisognava indovinare che
+   *  toccare un campo qualsiasi lo convertiva). */
+  const eVecchio = (a: AlarmDef) => !a.levels?.length && !!a.condition;
+  const converti = (a: AlarmDef): AlarmDef =>
+    eVecchio(a) ? { ...a, levels: livelliDi(a), condition: undefined, message: undefined, severity: undefined, dead_band: undefined } : a;
+  const convertiUno = (idx: number) => {
+    setTouched(true);
+    setAlarms((prev) => prev.map((a, i) => (i === idx ? converti(a) : a)));
+  };
+  const convertiTutti = () => {
+    setTouched(true);
+    setAlarms((prev) => prev.map(converti));
+  };
+  const quantiVecchi = alarms.filter(eVecchio).length;
+  /** Gli altri allarmi sullo stesso tag: adesso un tag ne vuole uno solo, con
+   *  più livelli. Unirli è una scelta (quale id resta, che messaggi), quindi
+   *  qui si segnala e basta. */
+  const altriSulTag = (idx: number) => {
+    const tag = alarms[idx].tag.trim();
+    return tag ? alarms.filter((a, j) => j !== idx && a.tag.trim() === tag).map((a) => a.id || "?") : [];
+  };
+
   const updateCondition = (idx: number, cond: AlarmCondition) =>
     updateLivello(idx, 0, { condition: cond });
 
@@ -135,6 +160,15 @@ export function AlarmsTab() {
         <Trans i18nKey="cfgUi.alarmsNotice" components={TRANS_COMP} />
       </div>
 
+      {quantiVecchi > 0 && (
+        <div style={{ ...S.notice, display: "flex", alignItems: "center", gap: 10, borderColor: "var(--brand-danger, #ef4444)", color: "var(--brand-danger-soft, #fca5a5)" }}>
+          <span style={{ flex: 1 }}>⚠ {t("cfgUi.alarmOldFormatAll", { n: quantiVecchi })}</span>
+          <button type="button" style={S.btn("primary")} onClick={convertiTutti} data-testid="alarms-converti-tutti">
+            {t("cfgUi.alarmConvertAll", { n: quantiVecchi })}
+          </button>
+        </div>
+      )}
+
       <table style={S.table}>
         <thead>
           <tr>
@@ -166,8 +200,25 @@ export function AlarmsTab() {
             const livelli = livelliDi(alm);
             const l0 = livelli[0];
             const sfondo = i % 2 === 0 ? "transparent" : "var(--brand-bg, #0f172a)";
+            const vecchio = eVecchio(alm);
+            const altri = altriSulTag(i);
             return (
               <React.Fragment key={i}>
+              {(vecchio || altri.length > 0) && (
+                <tr data-testid={`alarm-attenzione-${i}`} style={{ background: sfondo }}>
+                  <td colSpan={10} style={{ ...S.td, borderLeft: "3px solid var(--brand-danger, #ef4444)", color: "var(--brand-danger-soft, #fca5a5)", fontSize: 11 }}>
+                    {vecchio && (
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 8, marginRight: 12 }}>
+                        ⚠ {t("cfgUi.alarmOldFormat")}
+                        <button type="button" style={S.btn("ghost")} onClick={() => convertiUno(i)}>{t("cfgUi.alarmConvert")}</button>
+                      </span>
+                    )}
+                    {altri.length > 0 && (
+                      <span>⚠ {t("cfgUi.alarmDuplicateTag", { tag: alm.tag, altri: altri.join(", ") })}</span>
+                    )}
+                  </td>
+                </tr>
+              )}
               <tr style={{ background: sfondo }}>
                 <td style={S.td}>
                   <input

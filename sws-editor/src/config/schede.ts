@@ -72,6 +72,7 @@ export const SCHEDE = [
   { id: "recipes",       ramo: "progetto",  icona: "📋", soloAdmin: false, portaBozza: true,  richiedeProgetto: false, elementi: true, sezione: "recipes" },
   { id: "notifications", ramo: "progetto",  icona: "✉", soloAdmin: false, portaBozza: true,  richiedeProgetto: false, sezione: "notifications" },
   { id: "languages",     ramo: "progetto",  icona: "🌐", soloAdmin: false, portaBozza: true,  richiedeProgetto: true, sezione: "languages"  },
+  { id: "git",           ramo: "progetto",  icona: "🔀", soloAdmin: false, portaBozza: false, richiedeProgetto: false },
   { id: "datastores",    ramo: "dati",      icona: "🗄", soloAdmin: true,  portaBozza: true,  richiedeProgetto: false, elementi: true, sezione: "datastores" },
   { id: "users",         ramo: "sicurezza", icona: "👤", soloAdmin: true,  portaBozza: false, richiedeProgetto: false, elementi: true },
   { id: "resources",     ramo: "istanza",   icona: "📦", soloAdmin: false, portaBozza: false, richiedeProgetto: false },

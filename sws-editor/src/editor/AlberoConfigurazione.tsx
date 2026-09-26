@@ -22,13 +22,14 @@
  *  non è mai stata aperta, si leggono dal progetto; ricette e utenti non stanno
  *  nel progetto e si chiedono una volta al montaggio.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { useAppStore, type VoceElencoConfig } from "@/store";
 import { RAMI, SCHEDE, SOTTORAMI, schedeVisibili, type IdScheda, type RamoConfig, type SchedaConfig, type SottoRamo } from "@/config/schede";
 import { useRepoDisponibile } from "@/config/repoDisponibile";
 import { AlberoTagLive } from "./AlberoTagLive";
+import { chiaveRilievi, contaRilievi, type ConteggioRilievi } from "@/components/rilievoDestinazione";
 import { IntestazioneSezione, SPAZIO, TESTO, guideAlbero, useSezioneAperta } from "./stilePannelli";
 
 /** Gli elementi di ricette e utenti, che il progetto non porta: una richiesta
@@ -73,6 +74,41 @@ function useElementi(isAdmin: boolean): (id: IdScheda) => VoceElencoConfig[] {
 
 /** Il pallino «modificato» (25-09-2026): stesso colore del «● non salvato»
  *  della testata, perché dice la stessa cosa — e dice **dove**. */
+/** Quanti rilievi del validatore stanno dietro una foglia o un elemento
+ *  (26-09-2026): rosso se almeno uno è un errore — quelli che fermano il
+ *  salvataggio — ambra se sono solo avvisi. Senza, la tendina dei rilievi
+ *  diceva «28» e non dove. */
+function useRilievi(tab: string, focus: string | null = null): ConteggioRilievi | undefined {
+  const rilievi = useAppStore((s) => s.rilieviProgetto);
+  const pages = useAppStore((s) => s.pages);
+  const conteggi = useMemo(() => contaRilievi(rilievi, pages), [rilievi, pages]);
+  return conteggi.get(chiaveRilievi(tab, focus));
+}
+
+function SegnoRilievi({ c, testid }: { c: ConteggioRilievi | undefined; testid: string }) {
+  const { t } = useTranslation();
+  if (!c) return null;
+  const errore = c.errori > 0;
+  return (
+    <span
+      data-testid={testid}
+      title={t("rilievi.conteggio", { n: c.n })}
+      style={{
+        flexShrink: 0, fontSize: TESTO.nota, fontWeight: 600,
+        color: errore ? "var(--brand-danger-soft, #fca5a5)" : "var(--brand-warning, #f59e0b)",
+      }}
+    >
+      {errore ? "⚠" : "△"} {c.n}
+    </span>
+  );
+}
+
+/** Il segno su un elemento: un componente a sé perché l'hook sta dentro la
+ *  `map` degli elementi. */
+function RilieviElemento({ tab, focus }: { tab: string; focus: string }) {
+  return <SegnoRilievi c={useRilievi(tab, focus)} testid={`rilievi-config-${tab}-${focus}`} />;
+}
+
 function Pallino({ testid }: { testid: string }) {
   const { t } = useTranslation();
   return (
@@ -160,6 +196,7 @@ function Foglia({ scheda, elementi, modificata, dentroSottoRamo = false, ultimo 
   // Un elemento scelto (da un link, o dalla scheda stessa) apre il suo ramo.
   const mostraFigli = tagLive ? aperta : elementi !== null && (aperta || (suQuesta && configFocus !== null));
   const gradino = dentroSottoRamo ? SPAZIO.l : 0;
+  const rilieviFoglia = useRilievi(id);
 
   return (
     <>
@@ -196,6 +233,7 @@ function Foglia({ scheda, elementi, modificata, dentroSottoRamo = false, ultimo 
           <span aria-hidden="true" style={stileIcona}>{scheda.icona}</span>
           <span style={stileEtichetta}>{t(`config.tabs.${id}`)}</span>
           {modificata && <Pallino testid={`dirty-config-${id}`} />}
+          <SegnoRilievi c={rilieviFoglia} testid={`rilievi-config-${id}`} />
           {elementi !== null && (
             <span style={{ fontSize: TESTO.nota, color: "var(--brand-text-subtle, #64748b)", fontWeight: 400 }}>
               {elementi.length}
@@ -227,6 +265,7 @@ function Foglia({ scheda, elementi, modificata, dentroSottoRamo = false, ultimo 
           >
             <span style={stileEtichetta}>{v.etichetta}</span>
             {v.modificato && <Pallino testid={`dirty-config-${id}-${v.id}`} />}
+            <RilieviElemento tab={id} focus={v.id} />
           </button>
         );
       })}

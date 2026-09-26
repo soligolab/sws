@@ -1662,11 +1662,33 @@ export const api = {
    *  repository: `git init` (idempotente) + opzionale `remote_url`. Prima
    *  di questo, un progetto senza `.git` non aveva alcun percorso per
    *  iniziare a versionarlo da qui. */
-  initProjectGit: (remoteUrl?: string) =>
+  initProjectGit: (remoteUrl?: string, sshKey?: string) =>
     request<void>("/api/project/git/init", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ remote_url: remoteUrl || null }),
+      body: JSON.stringify({ remote_url: remoteUrl || null, ssh_key: sshKey || null }),
+    }),
+
+  /** GET /api/project/git/ssh-keys — chiavi private in `~/.ssh` della macchina
+   *  del runtime (è lì che gira git, non nel browser). */
+  listGitSshKeys: () => request<string[]>("/api/project/git/ssh-keys"),
+
+  /** PUT /api/project/git/identity — nome ed email dei commit di questo
+   *  progetto; vuoti = quelli globali di git. */
+  setGitIdentity: (name: string, email: string) =>
+    request<void>("/api/project/git/identity", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name.trim() || null, email: email.trim() || null }),
+    }),
+
+  /** PUT /api/project/git/ssh-key — chiave SSH del repository del progetto
+   *  (`core.sshCommand`); vuota = quella predefinita di ssh. */
+  setGitSshKey: (sshKey: string | null) =>
+    request<void>("/api/project/git/ssh-key", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ssh_key: sshKey || null }),
     }),
 
   /** GET /api/project/git/tags — elenco tag, più recente prima. */

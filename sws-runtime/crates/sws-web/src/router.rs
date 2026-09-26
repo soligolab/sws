@@ -391,6 +391,13 @@ pub fn build(
         // Aggancia il progetto a un repository (init + set/replace origin) — stessa
         // classe di rischio del push (configura dove finiscono commit/tag).
         .route("/api/project/git/init", post(git_init))
+        // Chiave SSH del repository del progetto: elenco da `~/.ssh` e scelta
+        // (`core.sshCommand`). Stessa classe di rischio del push: decide con
+        // quale identità si parla col remote.
+        .route("/api/project/git/ssh-keys", get(list_git_ssh_keys))
+        .route("/api/project/git/ssh-key", put(set_git_ssh_key))
+        // Chi firma i commit del progetto (user.name/user.email locali).
+        .route("/api/project/git/identity", put(set_git_identity))
         // Push/elimina un tag — stessa classe di rischio di push/rollback.
         .route("/api/project/git/tags/:name/push", post(push_git_tag))
         .route("/api/project/git/tags/:name", delete(delete_git_tag))
@@ -7416,6 +7423,10 @@ struct GitInitBody {
     /// sostituisce anche `origin`.
     #[serde(default)]
     remote_url: Option<String>,
+    /// Nome di una chiave in `~/.ssh` (vedi `GET /api/project/git/ssh-keys`);
+    /// `None` = quella che ssh sceglierebbe da solo.
+    #[serde(default)]
+    ssh_key: Option<String>,
 }
 
 /// `POST /api/project/git/init` — aggancia il progetto (non l'app SWS) a un
@@ -7434,9 +7445,89 @@ async fn git_init(State(s): State<AppState>, Json(body): Json<GitInitBody>) -> i
         .map(str::trim)
         .filter(|u| !u.is_empty())
         .map(String::from);
-    match tokio::task::spawn_blocking(move || gd.init_remote(remote_url.as_deref())).await {
+    let ssh_key = body.ssh_key.filter(|k| !k.trim().is_empty());
+    match tokio::task::spawn_blocking(move || {
+        gd.init_remote(remote_url.as_deref(), ssh_key.as_deref())
+    })
+    .await
+    {
         Ok(Ok(())) => StatusCode::NO_CONTENT.into_response(),
         Ok(Err(e)) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+/// `GET /api/project/git/ssh-keys` — i nomi delle chiavi private in `~/.ssh`
+/// della macchina che esegue git (quella del runtime, non del browser).
+async fn list_git_ssh_keys() -> impl IntoResponse {
+    match tokio::task::spawn_blocking(crate::git_deploy::chiavi_ssh_disponibili).await {
+        Ok(nomi) => Json(nomi).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
+struct GitSshKeyBody {
+    /// `None` (o vuoto) = torna alla chiave predefinita di ssh.
+    #[serde(default)]
+    ssh_key: Option<String>,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
+struct GitIdentityBody {
+    /// Vuoto o assente = si torna al valore globale di git.
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    email: Option<String>,
+}
+
+/// `PUT /api/project/git/identity` — nome ed email con cui si firmano i
+/// commit di **questo** progetto, nel suo `.git/config`.
+async fn set_git_identity(
+    State(s): State<AppState>,
+    Json(body): Json<GitIdentityBody>,
+) -> impl IntoResponse {
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
+    let gd = crate::git_deploy::GitDeploy::new(dir);
+    if !gd.is_git_repo() {
+        return (StatusCode::BAD_REQUEST, "not a git repository").into_response();
+    }
+    match tokio::task::spawn_blocking(move || {
+        gd.imposta_identita(body.name.as_deref(), body.email.as_deref())
+    })
+    .await
+    {
+        Ok(Ok(())) => StatusCode::NO_CONTENT.into_response(),
+        Ok(Err(e)) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+/// `PUT /api/project/git/ssh-key` — sceglie la chiave SSH del repository del
+/// progetto (per un repository già agganciato; al primo aggancio la porta
+/// `git/init`).
+async fn set_git_ssh_key(
+    State(s): State<AppState>,
+    Json(body): Json<GitSshKeyBody>,
+) -> impl IntoResponse {
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
+    let gd = crate::git_deploy::GitDeploy::new(dir);
+    if !gd.is_git_repo() {
+        return (StatusCode::BAD_REQUEST, "not a git repository").into_response();
+    }
+    let ssh_key = body.ssh_key.filter(|k| !k.trim().is_empty());
+    match tokio::task::spawn_blocking(move || gd.imposta_chiave_ssh(ssh_key.as_deref())).await {
+        Ok(Ok(())) => StatusCode::NO_CONTENT.into_response(),
+        Ok(Err(e)) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
 }

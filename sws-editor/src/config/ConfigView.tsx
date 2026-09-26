@@ -25,6 +25,7 @@ import { RuntimeConnectionTab } from "@/config/schede/RuntimeConnectionTab";
 import { DevicesTab } from "@/config/schede/DevicesTab";
 import { LanguagesTab } from "@/config/schede/LanguagesTab";
 import { BackupsTab } from "@/config/schede/BackupsTab";
+import { GitTab } from "@/config/schede/GitTab";
 
 /** Il componente di ogni scheda. Un `Record` e non un elenco: se una scheda
  *  entra in `SCHEDE` e non qui, è il compilatore a dirlo. Le schede ospitate
@@ -40,6 +41,7 @@ const COMPONENTI: Record<IdConComponente, React.ComponentType<{ scheda: IdScheda
   recipes: RecipesTab,
   notifications: NotificationsTab,
   languages: LanguagesTab,
+  git: GitTab,
   datastores: DatastoresTab,
   users: UsersTab,
   resources: ResourcesTab,
