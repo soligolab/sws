@@ -34,7 +34,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ### Fixed
 - **Lo storico allarmi non perde più gli allarmi mai confermati.** Una riga entrava nello storico solo a evento completo, cioè dopo la conferma: un allarme che scattava, notificava su
   Telegram e rientrava senza che nessuno lo confermasse non compariva mai — il caso normale su un impianto senza nessuno davanti allo schermo. Ora **la riga nasce allo scatto**, come la
-  notifica, e si aggiorna a ogni passaggio (piano `docs/plans/2026-09-25-storico-allarmi-dallo-scatto.md`):
+  notifica, e si aggiorna a ogni passaggio (piano `docs/archive/2026-09-25-storico-allarmi-dallo-scatto.md`):
   - una riga per scatto, al **livello più grave raggiunto**; un peggioramento dopo la conferma ne azzera la conferma, come sul pannello;
   - le righe lasciate aperte da uno spegnimento, una caduta o una ricarica degli allarmi (anche una modifica dall'IDE) si chiudono come **interrotte** (colonna nuova, la prima migrazione
     dello schema dell'historian); prima sparivano;

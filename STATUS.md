@@ -74,7 +74,30 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — R3 e R4 su `main`, piano archiviato; manca il collaudo a schermo (2026-09-25 sera, ufficio)
+## ▶ Riprendere da qui — storico allarmi su `main`, immagine di prova 2.12.0-dev.1 (2026-09-26)
+
+**Tutto su `main` e pushato, nessun ramo aperto.** Versione dichiarata **`2.12.0-dev.1`**, con il tag
+omonimo: è la prima immagine di prova secondo la prassi nuova (HOWTO §19 — le versioni `-dev` non
+hanno una sezione nel CHANGELOG, il lavoro resta sotto `[Unreleased]`).
+
+Dentro, oltre a R3/R4 del giorno prima:
+- **Storico allarmi dallo scatto** (`76f3cf48`, piano in
+  [`docs/archive/2026-09-25-storico-allarmi-dallo-scatto.md`](docs/archive/2026-09-25-storico-allarmi-dallo-scatto.md)):
+  la riga nasce allo scatto e si aggiorna; righe interrotte; colonna Stato su LVGL; corretti messaggio
+  vuoto e «Warning» sulle righe degli allarmi a livelli. Verificato dal vivo su uno stack di scarto.
+
+**Da fare, nell'ordine:**
+1. **A casa, sul TC620**: `./scripts/session_start.sh`, `./scripts/build_container.sh` (senza
+   `--push`), poi dall'editor lanciato dal repo Configurazione → Istanza → Device → Installazione →
+   «Archivio locale» → `sws-runtime-2.12.0-dev.1-aarch64-image.tar.gz`. È anche la prima prova da
+   tempo dell'installazione dall'IDE con l'archivio locale.
+2. **Collaudo a schermo** di R3, R4 e dello storico allarmi (web e LVGL), mergiati prima del collaudo
+   su istruzione del maintainer.
+3. Le prove e2e, adattate ma mai lanciate.
+4. **Proposta in sospeso**: dividere `/riprendi` in due skill per luogo (casa/ufficio) oppure farle dire
+   su quale macchina gira e quali dispositivi raggiunge — da decidere col maintainer.
+
+## Riprendere da qui (precedente) — R3 e R4 su `main`, piano archiviato; manca il collaudo a schermo (2026-09-25 sera, ufficio)
 
 **Tutto su `main` e pushato, nessun ramo aperto.** Il piano
 [`docs/archive/2026-09-25-menu-ad-albero-secondo-giro.md`](docs/archive/2026-09-25-menu-ad-albero-secondo-giro.md)

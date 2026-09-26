@@ -12,7 +12,7 @@
 > spostano», perché citati da altri documenti e dal codice. Lo spostamento in archivio ha
 > riscritto tutti e 33 i riferimenti; un `git log --follow` continua a seguirli.
 
-**In corso** (25-09-2026): [storico allarmi, la riga nasce allo scatto](2026-09-25-storico-allarmi-dallo-scatto.md) — un allarme che scatta e rientra senza conferma oggi non entra nello storico; la riga nascerà allo scatto e si completerà con rientro e conferma. Corregge anche messaggio vuoto e severità «Warning» sulle righe degli allarmi a livelli. Ramo `fix/storico-allarmi`. Il resto sono **semi**, non piani d'esecuzione.
+**Nessun piano d'esecuzione in corso** (26-09-2026): l'ultimo, lo storico allarmi dallo scatto, è su `main` ed è in [archivio](../archive/2026-09-25-storico-allarmi-dallo-scatto.md). Il resto sono **semi**, non piani d'esecuzione: ognuno va aperto con una sessione di plan approfondita prima di scrivere codice.
 
 **Ancora aperto, a fasi**: [gestione dei tag come oggetto unico](2026-09-21-gestione-tag-oggetto-unico.md) — Fasi 0-2 chiuse, restano **Fase 3 (Modbus)** e **Fase 4 (OPC-UA)**, più il collaudo a schermo della Fase 2. La riga in tabella lo dice già; la testa di questo indice diceva «nessun piano in corso» ed era imprecisa.
 
