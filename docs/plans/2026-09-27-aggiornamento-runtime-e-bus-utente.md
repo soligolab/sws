@@ -32,7 +32,8 @@ diventa *healthy*); al quadlet manca solo `AutoUpdate=registry`. Il viewer LVGL 
 
 30. **Decide un Admin, con una finestra**: il pannello sa che c'è una versione nuova; l'Admin preme «Aggiorna
     ora» o fissa una finestra (es. domenica alle 3). Nessun riavvio a sorpresa di un impianto in servizio.
-31. **Canali stabile / prova**: stabile segue le release, prova le `-dev`. Il pannello segue il suo canale.
+31. **Canali stabile / prova**: stabile segue le release, prova le immagini di prova (`-rc`, vedi sotto). Il pannello
+    segue il suo canale.
 32. **L'immagine si scarica da ghcr.io se raggiungibile, altrimenti dalla VPS** (un registry anche lì, raggiungibile
     via VPN).
 33. **Se la versione nuova non parte: torna alla precedente e avvisa** — rollback di podman, notifica coi canali
@@ -82,6 +83,46 @@ Sul TC620 (dev.5), con un container usa-e-getta della stessa immagine e un clien
   *healthy*», il quadlet deve avere **`Notify=healthy`** oltre a `AutoUpdate=registry`;
 - serve il client D-Bus nel runtime: `zbus` c'è già (lo usa `launcher_dbus.rs`), basta `Connection::session()` con
   `DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus`.
+
+## Decisioni della sessione di plan (27-09-2026, sera)
+
+36. **Le immagini di prova si chiamano `-rc`, non più `-dev`** (maintainer: «Al posto di dev chiamiamo rc le immagini
+    di test»). Si riparte da `2.12.0-rc.1`: in semver `-dev.5` < `-rc.1`, quindi nessun pannello la vede «più vecchia».
+    Le `-dev.3/4/5` già costruite restano com'erano (i loro tag, quando si fa il push, conservano il nome).
+37. **Il canale di prova si pubblica anche su ghcr.io**, pubblico: chiunque può vedere e scaricare le `-rc`.
+38. **I pannelli installati da archivio si aggiornano dall'IDE con un archivio** (via SSH, poi via VPN), come
+    l'installazione di oggi; non entrano nell'aggiornamento automatico.
+39. **Canale e finestra sono del dispositivo**, impostati dalla scheda Connessione e salvati nella config del runtime:
+    un deploy non li cambia.
+40. **Fasi: 1 «Aggiorna ora» → 2 finestra programmata → 3 avviso di rollback → 4 commutazione del display via bus.**
+
+## Misurato per il disegno (27-09, sera)
+
+- `podman auto-update` segue **lo stesso tag**: aggiorna quando cambia l'immagine dietro quel nome. Quindi i canali
+  sono **tag mobili**: stabile = `latest-<arch>` (esiste già: i pannelli installati dal registry lo seguono da oggi),
+  prova = `rc-<arch>` (nuovo). Un pannello installato da archivio (`localhost/…`) non ha un registry da seguire.
+- Il runtime **non sa quale immagine esegue** (`/run/.containerenv` è vuoto in un container rootless): lo dirà il
+  quadlet con una variabile (`SWS_IMAGE`), scritta dall'installer come già riscrive `Image=`.
+- ghcr.io elenca i tag senza credenziali (100 tag, 27-09): il runtime confronta la **sua** versione con la più alta del
+  suo canale.
+
+## Fase 1 — «Aggiorna ora»
+
+1. **Quadlet** (`sws-runtime.container`, e `AutoUpdate` anche sul viewer, stessa immagine): `AutoUpdate=registry`,
+   `Notify=healthy`, `Volume=/run/user/1000/bus:/run/user/1000/bus`,
+   `Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus`, `Environment=SWS_IMAGE=<riferimento>`
+   (riscritta dall'installer).
+2. **Pubblicazione** (`build_container.sh --push`): una `-rc` sposta `rc-<arch>`; una release sposta `latest-<arch>`
+   **e** `rc-<arch>` (il canale prova non resta indietro rispetto allo stabile).
+3. **Runtime**: `GET /api/update/status` → versione, immagine, canale (dal tag), versione disponibile nel canale,
+   «da archivio» se l'immagine è `localhost/…`; `POST /api/update/apply` (Admin) → risponde **prima**, poi
+   `StartUnit("podman-auto-update.service")` via `zbus` sul bus di sessione. Entrambe anche in `deploy_only_app`.
+4. **IDE**: proxy `/api/remote/update/*`; nella scheda Connessione una sezione «Aggiornamento del runtime»: versione,
+   disponibile, «Aggiorna ora» con conferma; per i pannelli da archivio il rimando all'Installazione.
+5. **Prassi**: HOWTO §19 e `check_release_coerente.sh` passano da `-dev` a `-rc`.
+
+Collaudo sul TC620: reinstallarlo **dal registry** sul canale prova, pubblicare una `-rc` più nuova, «Aggiorna ora»,
+verificare versione nuova e *healthy*; poi un'immagine rotta apposta per vedere il rollback.
 
 ## Visto il 27-09, da non dimenticare
 
