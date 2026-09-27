@@ -80,9 +80,9 @@
 tutto») e squashato; piano e due semi in archivio. Il TC620 gira la **2.12.0-dev.5**; CODESYS con
 `allow_url_override = false` (lo ha messo il maintainer: vedi `docs/TEST_SETUPS.md`). **Tag mancanti**:
 `2.12.0-dev.3`, `dev.4`, `dev.5` — da creare col push, quando lo chiede. Prossimo lavoro scelto: utenti e aziende
-([piano](docs/plans/2026-09-18-identita-utenti-istanze.md), 35 decisioni, compreso l'aggiornamento automatico del
-runtime), partendo dai pezzi utili anche in locale (utenti d'impianto «locali», significato di `ide_only`, mount di
-`/data/openvpn`, aggiornamento del runtime via bus utente).
+([piano](docs/plans/2026-09-18-identita-utenti-istanze.md), 29 decisioni), **preceduto** dal suo prerequisito
+[aggiornamento del runtime e bus utente](docs/plans/2026-09-27-aggiornamento-runtime-e-bus-utente.md) (assorbe la
+commutazione del display via D-Bus). Prima prova: il bus utente dal container sul TC620.
 
 ### Il ramo, com'era prima dello squash
 

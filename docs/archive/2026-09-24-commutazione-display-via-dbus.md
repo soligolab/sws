@@ -1,3 +1,5 @@
+> **Assorbito il 27-09-2026** nel piano [aggiornamento runtime e bus utente](../plans/2026-09-27-aggiornamento-runtime-e-bus-utente.md).
+
 # La commutazione web/LVGL senza niente sull'host — seme
 
 > Nato il 24-09-2026, subito dopo che l'immagine di accensione ha smesso di avere pezzi sull'host
