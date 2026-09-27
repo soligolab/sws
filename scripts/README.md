@@ -104,7 +104,7 @@ Il runtime parte in **HTTP plain** di default: nessun certificato, nessuna pagin
 accettazione, primo accesso diretto su `http://localhost:8444`. `localhost` è sempre un
 "secure context" nei browser moderni, quindi l'IDE funziona senza TLS.
 
-Il TLS si attiva **su richiesta** dall'IDE: **Configurazione → Stato → Certificato TLS**:
+Il TLS si attiva **su richiesta** dall'IDE: **Configurazione → Istanza → Device → Stato → Certificato TLS**:
 - **Genera self-signed** — crea `config/tls.crt`+`tls.key` e riavvia in HTTPS.
 - **Carica cert+key** — carica un certificato firmato (es. CA aziendale), validato lato server.
 - **Disabilita TLS** — rimuove i file e torna in HTTP.
@@ -366,7 +366,7 @@ Non duplica niente: una variabile e un `exec`. Due copie che differiscono per un
 in un mese. Se `SWS_PROJECTS_ROOT` è già impostata vince quella — lo script completa una scelta
 mancante, non ne scavalca una esplicita.
 
-Per connettere un runtime remoto: apri l'IDE → **ConfigView → Runtime →
+Per connettere un runtime remoto: apri l'IDE → **Configurazione → Istanza → Device → Connessione →
 "Connetti"** → inserisci URL, utente e password del runtime (es. `https://192.168.1.50:8444`).
 La connessione abilita sia il **deploy del progetto** sia la **visualizzazione live di tag e allarmi**
 in real-time tramite relay WebSocket (il token remoto rimane nel processo locale, mai nel browser).

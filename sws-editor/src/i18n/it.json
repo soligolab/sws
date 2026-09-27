@@ -558,7 +558,7 @@
       "scale": "Scala",
       "expr": "Espressione"
     },
-    "noTagsInProject": "Nessuna variabile disponibile. Dichiarale in Configurazione → Variabili, oppure aggiungi una sorgente: le variabili mappate dai protocolli compaiono qui automaticamente.",
+    "noTagsInProject": "Nessuna variabile disponibile. Dichiarale in Configurazione → Progetto → Variabili, oppure aggiungi una sorgente: le variabili mappate dai protocolli compaiono qui automaticamente.",
     "nuovoHint": "Variabile non dichiarata: al salvataggio del progetto verrà creata con il tipo dedotto. Clicca per definirla ora (tipo, unità, storico).",
     "inAttesaHint": "Definizione in attesa: verrà creata al salvataggio del progetto."
   },
@@ -1042,7 +1042,7 @@
     "targetLvglWayland": "LVGL — Wayland (pannelli Pixsys)",
     "targetHint": "Decide che cosa il pannello manda a schermo al prossimo deploy: il browser o il viewer LVGL. Un progetto senza motore dichiarato è web.",
     "targetRiskyConfirm": "PASSARE A LVGL\\n\\nIl motore LVGL disegna meno cose del browser: alcuni oggetti di questo progetto potrebbero non comparire sul pannello — simboli personalizzati, immagini PNG/JPG, barre orizzontali, torte non ad anello, e le azioni «Naviga a URL / Login / Logout» dei pulsanti.\\n\\nIl verso contrario (LVGL → web) non perde mai niente.\\n\\nProcedere?",
-    "minRoleNoAuthWarning": "Il progetto non ha utenti: ogni visitatore è Admin e il ruolo minimo non avrà effetto. Definisci gli utenti in Configurazione → Utenti.",
+    "minRoleNoAuthWarning": "Il progetto non ha utenti: ogni visitatore è Admin e il ruolo minimo non avrà effetto. Definisci gli utenti in Configurazione → Sicurezza → Utenti.",
     "colorAuto": "auto",
     "colorAutoHint": "Colore automatico: segue lo sfondo della pagina. Toccalo per fissarlo.",
     "colorAutoReset": "Torna automatico (segue lo sfondo della pagina)",
@@ -1316,7 +1316,7 @@
     "retentionDays": "Giorni di ritenzione",
     "add": "Aggiungi",
     "connect": "Connetti",
-    "telegramColHint": "Instradamento Telegram di questo allarme. \"Chat predefinite\" = quelle di Configurazione → Notifiche (comportamento storico).",
+    "telegramColHint": "Instradamento Telegram di questo allarme. \"Chat predefinite\" = quelle di Configurazione → Progetto → Notifiche (comportamento storico).",
     "tgModeGlobal": "Chat predefinite",
     "tgModeChats": "Chat specifiche",
     "tgModeOff": "Non notificare",
@@ -1395,7 +1395,7 @@
     "devicesNoneSaved": "Nessun dispositivo salvato. Cercalo in rete o aggiungilo qui sotto.",
     "devicesAdd": "Aggiungi dispositivo",
     "devicesAddToList": "+ Dispositivi",
-    "devicesAddToListTitle": "Registra in Configurazione → Dispositivi",
+    "devicesAddToListTitle": "Registra in Configurazione → Istanza → Device → Dispositivi",
     "devicesAlreadyIn": "già in lista",
     "devicesAdded": "«{{label}}» registrato fra i dispositivi",
     "devicesSaveFailed": "Lista dei dispositivi non salvata: {{err}}",
@@ -1827,7 +1827,7 @@
     "noResults": "Nessun risultato per \"{{filter}}\""
   },
   "tagInputMsg": {
-    "variableInferredFromThisSource": "Variabile dedotta dalle mappature di questa sorgente, non dichiarata in Configurazione → Variabili"
+    "variableInferredFromThisSource": "Variabile dedotta dalle mappature di questa sorgente, non dichiarata in Configurazione → Progetto → Variabili"
   },
   "recipePanel": {
     "noRecipeAvailable": "Nessuna ricetta disponibile."
@@ -1949,7 +1949,7 @@
     "overrideRemovedFromTheDevice": "✓ Override rimosso dal dispositivo.",
     "literalClientIdIdenticalOn": "client_id letterale: identico su ogni istanza che apre questo progetto.",
     "clientIdToSendTo": "client_id da inviare al dispositivo connesso",
-    "connectToADeviceFrom": "Connettiti a un dispositivo da Configurazione → Runtime per usare questo pulsante",
+    "connectToADeviceFrom": "Connettiti a un dispositivo da Configurazione → Istanza → Device → Connessione per usare questo pulsante",
     "sendClientIdToThe": "Invia Client ID al dispositivo connesso",
     "publishALastWillWhen": "Pubblica un last-will quando la connessione cade",
     "sparkplugBModeProtobufPayloads": "Modalità Sparkplug B (payloads protobuf — ignora topic normali)",
@@ -1965,7 +1965,7 @@
     "hostIntro": "Le risorse del dispositivo come tag, in sola lettura.",
     "hostCatalogoRemoto": "Zone, mount e interfacce lette dal dispositivo connesso ({{url}}).",
     "hostCatalogoRemotoVecchio": "Dispositivo connesso ({{url}}), ma il suo runtime è anteriore al 21-09-2026 e non espone il catalogo: aggiorna il container. Intanto i suggerimenti sono di QUESTA macchina e la zona va scritta a mano (sul dispositivo: cat /sys/class/thermal/thermal_zone*/type).",
-    "hostCatalogoLocale": "Nessun dispositivo connesso: i suggerimenti sono di QUESTA macchina, non del pannello. Collega il runtime dalla scheda Runtime per avere le sue zone.",
+    "hostCatalogoLocale": "Nessun dispositivo connesso: i suggerimenti sono di QUESTA macchina, non del pannello. Collega il runtime da Configurazione → Istanza → Device → Connessione per avere le sue zone.",
     "hostCatalogoAssente": "Catalogo non disponibile: scrivi il parametro a mano (sul dispositivo: cat /sys/class/thermal/thermal_zone*/type).",
     "hostSenzaParametro": "{{n}} metriche senza parametro: i loro tag resteranno Bad sul dispositivo.",
     "hostParamObbligatorio": "Parametro obbligatorio: senza, il tag resta Bad.",
@@ -2211,13 +2211,18 @@
     "title": "Immagine di boot",
     "loading": "Leggo lo stato dal dispositivo…",
     "unreadable": "Non riesco a leggere lo stato dal dispositivo.",
-    "noData": "Nessun dato: il dispositivo non ha le unit di installazione dell'immagine di boot, o non sono ancora scattate (si installano rieseguendo install-container.sh).",
+    "noData": "Nessun dato: il dispositivo non ha ancora ricevuto un progetto con l'immagine di boot.",
     "installed": "Installata il {{quando}}: compare al prossimo avvio del pannello.",
     "absolutePath": "(percorso assoluto: si appoggia a un comportamento non documentato del launcher; se Pixsys lo corregge, smette di funzionare)",
-    "pending": "In attesa: l'ultima richiesta non è ancora stata applicata dal dispositivo.",
+    "pending": "In attesa: il dispositivo non ha ancora applicato l'immagine pubblicata.",
     "unsupported": "Non supportata su questo dispositivo: nessun launcher Pixsys.",
     "none": "Nessuna immagine di boot abilitata nel progetto: il dispositivo tiene quella che ha.",
-    "error": "Errore: {{msg}}"
+    "error": "Errore: {{msg}}",
+    "factory": "Immagine di fabbrica ripristinata il {{quando}}: compare al prossimo avvio del pannello. Il prossimo deploy di un progetto con una pagina di boot abilitata la sostituisce.",
+    "resetBtn": "Ripristina l'immagine di fabbrica",
+    "resetConfirm": "L'immagine di accensione del pannello tornerà quella di fabbrica al prossimo avvio.\n\nIl prossimo deploy di un progetto con una pagina di boot abilitata la sostituirà di nuovo. Procedo?",
+    "resetBusy": "Ripristino…",
+    "resetError": "Ripristino non riuscito: {{msg}}"
   },
   "nav": {
     "orientation": "Orientamento",

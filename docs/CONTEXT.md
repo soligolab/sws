@@ -127,7 +127,7 @@ verificato dal server; il `min_role` sugli oggetti sinottici è solo client-side
 
 # Sul PC sviluppatore (IDE locale, no viewer):
 ./scripts/start_editor.sh    # IDE 8460 + companion HTTP 8090, dati in .run-editor/
-# → ConfigView → Runtime → «Connetti» per deployare su dispositivo remoto
+# → Configurazione → Istanza → Device → Connessione → «Connetti» per deployare su dispositivo remoto
 ```
 
 Il companion HTTP (8080/8090) serve ad accettare il certificato self-signed senza uscire

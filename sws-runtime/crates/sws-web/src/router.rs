@@ -450,7 +450,7 @@ pub fn build(
             "/api/discover/dispositivi",
             get(crate::discover::discover_dispositivi),
         )
-        // Q50: la lista dei dispositivi registrati (Configurazione → Dispositivi),
+        // Q50: la lista dei dispositivi registrati (Configurazione → Istanza → Device → Dispositivi),
         // sul server in <progetti>/.ambiente/dispositivi.yaml invece che nel
         // browser. Etichetta, URL, utente: mai la password.
         .route(
@@ -532,6 +532,10 @@ pub fn build(
 
     let system_ctrl_routes = Router::new()
         .route("/api/project/migrate", post(crate::system::migrate_project))
+        // Ripristino dell'immagine di fabbrica del pannello (27-09-2026): un
+        // comando sul dispositivo, non sul progetto, quindi Admin.
+        .route("/api/boot-image/reset", post(boot_image_reset))
+        .route("/api/remote/boot-image/reset", post(crate::remote::remote_boot_image_reset))
         .route("/api/system/stop", post(crate::system::system_stop))
         .route("/api/system/start", post(crate::system::system_start))
         .route("/api/system/reboot", post(crate::system::system_reboot))
@@ -1081,6 +1085,7 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         // router completo, sul TC620 rispondeva 404 (27-09). Il test
         // `ogni_chiamata_dell_ide_ha_la_sua_rotta_sul_dispositivo` ora lo vede.
         .route("/api/datastores/:id/clean-history", post(datastore_pulisci_storico))
+        .route("/api/boot-image/reset", post(boot_image_reset))
         // ── Override per-dispositivo del client id MQTT ────────────────────
         .route(
             "/api/mqtt/source/:id/client-id-override",
@@ -2494,6 +2499,19 @@ struct PuliziaBody {
 /// Esiste per gli storici scritti prima del 26-09-2026, quando il buffer dei
 /// grafici salvava ogni aggiornamento di ogni tag (CasaDomotica: 590 MB, 93 %
 /// ripetizioni). Da allora non si gonfiano più, ma quelli già gonfi restano.
+/// `POST /api/boot-image/reset` — l'immagine di accensione del pannello torna
+/// quella di fabbrica (`ResetBackgroundImage`). Risponde con lo stato nuovo.
+async fn boot_image_reset(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+) -> Response {
+    s.audit.log("boot_image.reset", Some(user.username), serde_json::json!({}));
+    match crate::boot_image::ripristina_fabbrica(&s.config_dir).await {
+        Ok(stato) => Json(stato).into_response(),
+        Err(e) => (StatusCode::CONFLICT, e).into_response(),
+    }
+}
+
 async fn datastore_pulisci_storico(
     State(s): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -6267,7 +6285,7 @@ pub fn signal_project_changed(s: &AppState, what: &str) {
             Some(dir) => {
                 crate::display_target::publish(&config_dir, &dir).await;
                 // T-72 F5: anche l'immagine di boot abilitata dal progetto.
-                crate::boot_image::publish(&config_dir, &dir).await;
+                crate::boot_image::publish(&config_dir, &dir, crate::boot_image::Occasione::Modifica).await;
             }
             // Non un `if let` muto: senza questa riga il caso «nessun progetto
             // attivo» era indistinguibile da «pubblicato correttamente», ed è
@@ -8045,7 +8063,7 @@ async fn update_project_notifications(
             .unwrap_or(false);
         if had_token && !keeps_telegram {
             warn!(
-                "notifications: la nuova configurazione non contiene Telegram —                  il bot_token salvato viene rimosso. Se non era intenzionale,                  ri-inseriscilo in Configurazione → Notifiche."
+                "notifications: la nuova configurazione non contiene Telegram —                  il bot_token salvato viene rimosso. Se non era intenzionale,                  ri-inseriscilo in Configurazione → Progetto → Notifiche."
             );
         }
     }
@@ -8252,7 +8270,7 @@ async fn update_project_page_layout(
         // deve installare. Non passa da `signal_project_changed`: nessun viewer
         // deve ricaricare niente per questo.
         let config_dir = s.config_dir.clone();
-        crate::boot_image::publish(&config_dir, &dir).await;
+        crate::boot_image::publish(&config_dir, &dir, crate::boot_image::Occasione::Modifica).await;
     }
     res
 }

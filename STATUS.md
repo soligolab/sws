@@ -74,7 +74,28 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — catena su `main` (squash `c631cd19`), dev.3 sul TC620; prossimo: immagine di boot dal container (2026-09-27)
+## ▶ Riprendere da qui — immagine di boot su `main`, dev.5 sul TC620; prossimo: utenti e aziende (2026-09-27, sera)
+
+**Su `main`, niente pushato, nessun ramo aperto.** `feat/boot-image-dbus` collaudato dal maintainer («ok, funziona
+tutto») e squashato; piano e due semi in archivio. Il TC620 gira la **2.12.0-dev.5**; CODESYS con
+`allow_url_override = false` (lo ha messo il maintainer: vedi `docs/TEST_SETUPS.md`). **Tag mancanti**:
+`2.12.0-dev.3`, `dev.4`, `dev.5` — da creare col push, quando lo chiede. Prossimo lavoro scelto: utenti e aziende
+([piano](docs/plans/2026-09-18-identita-utenti-istanze.md), 29 decisioni), partendo dai pezzi utili anche in
+locale (utenti d'impianto «locali», significato di `ide_only`, mount di `/data/openvpn`).
+
+### Il ramo, com'era prima dello squash
+
+**Un ramo aperto, `feat/boot-image-dbus`, niente pushato.** Piano
+[2026-09-27-immagine-di-boot-dal-container](docs/archive/2026-09-27-immagine-di-boot-dal-container.md) (sostituisce i
+due semi del 19-09, da archiviare con lo squash). Tre difetti del 24-09 corretti (launcher chiamato solo al
+cambio del trigger; `applicata`/`nota=` scritti ma `installato`/`messaggio` letti), via il `trigger`, pulsante
+«Ripristina l'immagine di fabbrica» nella scheda Runtime. **Provato sul TC620 con la 2.12.0-dev.4**: all'avvio
+l'immagine mai applicata dal 20-09 si applica da sola (`GetBackgroundImage → boot.png`); il ripristino dalla 8444
+→ `Default`, `status` `fabbrica`; riaprendo il progetto si riapplica. **Resta al maintainer**: il pulsante
+dall'IDE collegato (il proxy non l'ho provato per non toccare la connessione del suo editor) e l'immagine a
+schermo al prossimo riavvio del pannello. Poi squash, tag `2.12.0-dev.3`/`dev.4` col push quando lo chiede.
+
+## Riprendere da qui (precedente) — catena su `main` (squash `c631cd19`), dev.3 sul TC620 (2026-09-27)
 
 **Su `main`, niente pushato, nessun ramo aperto.** La catena dei nove rami descritta qui sotto è entrata in
 `main` con un solo squash (`c631cd19`) su ok del maintainer, alberi verificati, rami eliminati. Il TC620
@@ -85,8 +106,8 @@ esiste ancora**: va creato su `c631cd19` e pushato insieme a `main`, quando il m
 **Prossimo, scelto dal maintainer il 27-09** prima del lavoro grosso su utenti e aziende
 ([piano](docs/plans/2026-09-18-identita-utenti-istanze.md), prima sessione di plan fatta, 29 decisioni):
 immagine di boot dal container via D-Bus provata sul TC620 + pulsante «ripristino di fabbrica»
-([collaudo](docs/plans/2026-09-19-boot-image-collaudo-container.md),
-[ripristino](docs/plans/2026-09-19-boot-image-ripristino-di-fabbrica.md)). Archiviati
+([collaudo](docs/archive/2026-09-19-boot-image-collaudo-container.md),
+[ripristino](docs/archive/2026-09-19-boot-image-ripristino-di-fabbrica.md)). Archiviati
 `pannello-luce-forme` e `trasparenza-luminosita-e-forme`; `storico-troppo-grande` ridotto (restano formato
 del campione e backup).
 

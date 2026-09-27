@@ -160,7 +160,7 @@ Lista di controllo con i comandi (il maintainer esegue, Claude legge i risultati
 1. Temperatura della sorgente Host (`thermal_zone` ≈ 60 °C) e stabilità di CPU/RAM/rete a 2 s.
 2. Navigatore web e **LVGL** sul pannello vero: barra in fondo, colonna verticale, `children_of_current`, pagina nascosta da un navigatore e raggiunta da un altro.
 3. Albero: ordine e gerarchia dopo un deploy e un riavvio del runtime.
-4. **Immagine di boot dentro il container** (`docs/plans/2026-09-19-boot-image-collaudo-container.md`): con il runtime nel container, abilitare una pagina di boot e verificare `boot-image/status`.
+4. **Immagine di boot dentro il container** (`docs/archive/2026-09-19-boot-image-collaudo-container.md`): con il runtime nel container, abilitare una pagina di boot e verificare `boot-image/status`.
 5. **Q55**: una scrittura autenticata verso un 200 dal viewer LVGL (thread di rete) — osservare che completi; se sì, annotare la chiusura dell'ipotesi.
 6. Segreti (dopo il Passo 2): deploy di un progetto con Telegram e verifica che la notifica parta; export senza segreti.
 

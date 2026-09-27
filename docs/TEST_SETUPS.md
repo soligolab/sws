@@ -301,6 +301,20 @@ compreso perché dalla 2.6.5 il deploy usa `StrictHostKeyChecking=accept-new` e 
 - `docs/DEPLOY_CONTAINER_X86_64.md` — lo stesso su host x86_64.
 - `scripts/README.md` — overview script `start_runtime.sh` / `start_editor.sh` / `kiosk.sh`.
 
+## CODESYS si prende il browser all'avvio (TC620, 27-09-2026)
+
+Sintomo: dopo un riavvio il browser del pannello apre **Cockpit** (`http://127.0.0.1:9443`) invece di SWS, anche
+se il runtime è su e `sws-display` ha scritto `http://127.0.0.1:8443` pochi secondi prima.
+
+Misurato: `/etc/pixsys/main-config.toml` riscritto alle 19:04:02, **11 s dopo** `sws-display` (19:03:51), con
+`url = "http://127.0.0.1:9443"`; nella stessa sezione `[web_browser.main_app.codesys] allow_url_override = true`.
+Sul pannello girano `codesyscontrol` e `codesysedge`. Il maintainer: è il comportamento predefinito di CODESYS, e si
+toglie da una chiave della sua configurazione. Il journal di sistema non è leggibile né da `user` né da `pixsys`,
+quindi il colpevole è dedotto dall'orario, non letto nel log.
+
+Da ricordare: sui pannelli con CODESYS, **chi vince il browser è chi scrive per ultimo**. Il launcher Pixsys espone
+anche `net.pixsys.Config1.WebBrowser.SetCodesysAllowUrlOverride(b)` via D-Bus.
+
 ## Immagine di boot sul launcher Pixsys (T-72 F5, verificato il 2026-09-19)
 
 Dispositivo di prova: `user@tc620-a-p3-c6-07aff9.local` (TC620, PixsysOS 2.1.1, formattato il 19-09).

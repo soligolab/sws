@@ -1850,7 +1850,7 @@ export interface ProjectFingerprint {
   computed_at_ms: number;
 }
 
-/** Un dispositivo registrato in Configurazione → Dispositivi. Vive in
+/** Un dispositivo registrato in Configurazione → Istanza → Device → Dispositivi. Vive in
  *  `localStorage`, quindi **senza password**: quella si chiede quando serve e
  *  resta in memoria finché la pagina è aperta (vedi `passwordNelBrowser.ts`). */
 export interface SavedDevice {

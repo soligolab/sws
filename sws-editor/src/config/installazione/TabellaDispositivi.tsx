@@ -21,7 +21,7 @@ export function TabellaDispositivi(props: {
   errore: "unreachable" | "generic" | null;
   onScegli: (host: string) => void;
   /** Q50: se c'è, ogni riga ha un «+» che registra il dispositivo nella lista
-   *  di Configurazione → Dispositivi; `giaPresenti` (URL normalizzati) segna
+   *  di Configurazione → Istanza → Device → Dispositivi; `giaPresenti` (URL normalizzati) segna
    *  quelli che ci sono già. */
   onAggiungi?: (d: DispositivoRete) => void;
   giaPresenti?: (d: DispositivoRete) => boolean;

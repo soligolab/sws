@@ -293,7 +293,7 @@ impl Notifier {
                 PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("canale Telegram non disponibile")
             }),
             None => Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                "Telegram non configurato (Configurazione → Notifiche)",
+                "Telegram non configurato (Configurazione → Progetto → Notifiche)",
             )),
         }
     }

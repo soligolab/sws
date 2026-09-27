@@ -104,7 +104,7 @@ export function getRuntimeBaseUrl(): string {
 // `_forceLocalApi` sopra). Un setter esportato e mai chiamato non è neutro —
 // invita chi lo trova a rifare la stessa strada.
 //
-// Collegare un runtime remoto si fa in Configurazione → Runtime → Connetti,
+// Collegare un runtime remoto si fa in Configurazione → Istanza → Device → Connessione → Connetti,
 // che passa dal server: `POST /api/remote/connect` tiene il token nel processo
 // locale invece che nel browser, e abilita deploy e relay dei dati vivi.
 
@@ -290,7 +290,7 @@ export interface AvvisoRuntime {
 /** Com'è andata l'installazione dell'immagine di boot sul dispositivo (T-72 F5).
  *  Gemello di `boot_image::BootImageStato` in `sws-web`. */
 export interface BootImageStato {
-  /** `installato`, `non_supportato`, `nessuna_immagine`, `errore`. */
+  /** `installato`, `non_supportato`, `nessuna_immagine`, `fabbrica`, `errore`. */
   esito: string;
   sha256?: string | null;
   quando?: string | null;
@@ -1428,6 +1428,11 @@ export const api = {
    *  senza, copia di sicurezza accanto al database, poi toglie i campioni dei
    *  tag senza storico e le ripetizioni, e compatta. `remoto`: sul dispositivo
    *  collegato, via `/api/remote/database/:id/clean-history`. */
+  /** Ripristina l'immagine di accensione di fabbrica sul dispositivo collegato
+   *  (`ResetBackgroundImage`). Risponde con lo stato nuovo. */
+  ripristinaImmagineFabbrica: () =>
+    request<BootImageStato>("/api/remote/boot-image/reset", { method: "POST" }),
+
   pulisciStorico: (id: string, anteprima: boolean, remoto = false) =>
     request<{
       anteprima: boolean;
@@ -1611,7 +1616,7 @@ export const api = {
     request<{ message: string }>("/api/project/rollback", { method: "POST" }),
 
   /** Q48: installa il runtime come container rootless su un dispositivo, via
-   *  ssh — lo stesso endpoint di Configurazione → Runtime. Restituisce la
+   *  ssh — lo stesso endpoint di Configurazione → Istanza → Device → Connessione. Restituisce la
    *  Response grezza perché il corpo è un registro in streaming; il chiamante
    *  legge le righe e riconosce quelle «a macchina» (AZIONE: …). */
   /** POST /api/remote/deploy — distribuisce il progetto al runtime remoto

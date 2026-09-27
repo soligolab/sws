@@ -448,7 +448,7 @@ senza ritrasferire niente.
 
 ### Dall'IDE, senza toccare il terminale
 
-Configurazione → Runtime → **Installa su dispositivo** → *Container (Podman)*
+Configurazione → Istanza → Device → **Installazione** → *Container (Podman)*
 fa le stesse cose via SSH. La sorgente si sceglie lì:
 
 - **Registry** (default): sul dispositivo arrivano solo l'installer e la unit
@@ -623,7 +623,7 @@ curl -fs http://localhost:8444/health
 
 Poi dal browser: `http://<device>:8443` (viewer) e `http://<device>:8444` (IDE).
 Un runtime appena installato non ha progetti: si carica dall'editor con
-ConfigView → Runtime → Connetti su `http://<device>:8444` → Deploy. Nota la
+Configurazione → Istanza → Device → Connessione → Connetti su `http://<device>:8444` → Deploy. Nota la
 porta: le route di lifecycle progetto esistono **solo** sulla 8444, e `http`,
 non `https`, finché non si genera un certificato.
 
@@ -647,7 +647,7 @@ risposte 200, quindi `/` non entra nella cache offline.
   `--device /dev/ttyUSB0` (l'utente del device è già nel gruppo `dialout`).
 - **mDNS**: funziona in rete host, che è il default (vedi sopra). Con `--bridge`
   il multicast non esce e il dispositivo non viene rilevato.
-- **TLS**: il runtime parte in HTTP. Si abilita da ConfigView → Stato →
+- **TLS**: il runtime parte in HTTP. Si abilita da Configurazione → Istanza → Device → Stato →
   Certificato TLS; il certificato finisce in `/data/user/sws/config` e
   sopravvive al riavvio e alla sostituzione del container.
 - L'immagine gira come **root nel container** (che sotto rootless è comunque un

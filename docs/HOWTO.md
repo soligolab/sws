@@ -264,7 +264,7 @@ Due cause, entrambe lato browser, nessun guasto sul runtime:
 
 Procedura (senza terminale):
 
-1. Dall'IDE: Configurazione → Runtime → **"Scarica cert"** (passa dal backend, funziona anche
+1. Dall'IDE: Configurazione → Istanza → Device → Connessione → **"Scarica cert"** (passa dal backend, funziona anche
    prima di ogni accettazione — niente più `curl -k`). Importalo nel browser/OS, **oppure** usa
    l'accettazione rapida per sessione qui sotto.
 2. Accetta il certificato per **ciascun origin**: la pagina helper HTTP (porta 8080 sul
@@ -363,7 +363,7 @@ Le trappole, tutte già incontrate dal vivo:
   `pgrep -af build_container` prima di toccare `scripts/`.
 
 Sul dispositivo, poi, si aggiorna con `install-container.sh --pull` (senza argomento sceglie
-`latest-<arch>`), o dall'editor: Configurazione → Runtime → Installa su dispositivo (§12).
+`latest-<arch>`), o dall'editor: Configurazione → Istanza → Device → Installazione (§12).
 Dettagli in `docs/DEPLOY_CONTAINER_AARCH64.md`.
 
 ---
@@ -526,7 +526,7 @@ costerebbe circa **0,14 $**.
 | `claude-opus-5` | 5 $/Mtok | 0,50 $ | 25 $/Mtok |
 | `kimi-k3` | 3 $/Mtok | 0,30 $ | 15 $/Mtok |
 
-**Dal 2026-09-01 la si può mettere dall'IDE**: Configurazione → tab **IDE** → «Assistente IA»,
+**Dal 2026-09-01 la si può mettere dall'IDE**: Configurazione → IDE → **Preferenze IDE** → «Assistente IA»,
 dove si scelgono fornitore, modello e chiave. La chiave finisce in
 `<config_dir>/<fornitore>.key` con permessi `600`, e fornitore/modello in
 `<config_dir>/ai.yaml`. Due avvertenze che il pannello dice da sé:
@@ -831,7 +831,7 @@ Il grosso del tempo è la cross-compilazione Rust per aarch64. Due leve, se ti s
 
 ### Il deploy dall'IDE
 
-Nell'IDE: **Runtime → Gestione container → Deploy**, e poi
+Nell'IDE: **Configurazione → Istanza → Device → Installazione**, e poi
 
 | Campo | Valore |
 |---|---|
@@ -907,7 +907,7 @@ il collaudo sul dispositivo: la CI non ha un pannello.
 
 ## 12. Installare il runtime su un dispositivo dall'editor
 
-Configurazione → Runtime → «Installa su dispositivo», dal 2026-09-09 (Q52) un flusso in cinque
+Configurazione → Istanza → Device → Installazione, dal 2026-09-09 (Q52) un flusso in cinque
 passi. Vale per **qualunque** macchina Linux raggiungibile via ssh con podman: SWS non guarda la
 marca.
 
@@ -943,7 +943,7 @@ Da riga di comando la stessa sonda si lancia con
 
 ## 13. Dove sta la lista dei dispositivi registrati
 
-Dal 2026-09-10 (Q50) la lista di Configurazione → Dispositivi non è più nel browser: la tiene il
+Dal 2026-09-10 (Q50) la lista di Configurazione → Istanza → Device → Dispositivi non è più nel browser: la tiene il
 runtime che serve l'editor, nel file
 
 ```
@@ -957,7 +957,7 @@ davanti la tiene fuori dall'elenco dei progetti. Fa parte del backup della carte
 
 Come si riempie: a mano dal modulo in fondo alla scheda; da «Cerca dispositivi in rete», che
 elenca ciò che mDNS vede con un «+» per riga; da «+ Dispositivi» accanto a ogni runtime trovato da
-«Cerca runtime» in Configurazione → Runtime. La vecchia lista del browser si sposta sul server da
+«Cerca runtime» in Configurazione → Istanza → Device → Connessione. La vecchia lista del browser si sposta sul server da
 sola la prima volta che apri la scheda dopo l'aggiornamento, senza le password.
 
 Da riga di comando: `curl -s http://localhost:8460/api/devices` (o la porta del tuo editor) la
@@ -1122,11 +1122,11 @@ il deploy la installa sul pannello. Non è una pagina che il pannello mostra: **
    della pagina vedi l'anteprima del PNG che c'è sul server; «Rigenera PNG» lo rifà subito, «Scarica PNG» lo
    dà com'è. Se compare «PNG non aggiornato», il salvataggio è riuscito ma il PNG no: il messaggio dice perché.
    I font sono quelli del browser con cui salvi.
-4. **Deploy.** Il runtime pubblica il PNG e un pezzo sull'host lo porta al launcher Pixsys. **L'immagine
+4. **Deploy.** Il runtime pubblica il PNG e lo passa al launcher Pixsys via D-Bus, da dentro il container. **L'immagine
    compare al prossimo avvio del pannello**, non subito: il launcher legge la configurazione quando parte.
-5. **Controlla.** Configurazione → Runtime, dopo la connessione, riga «Immagine di boot»: *installata il …*,
-   *non supportata su questo dispositivo*, *errore: …*, o *in attesa*. È scritta dal dispositivo, quindi
-   arriva qualche secondo dopo il deploy.
+5. **Controlla.** Configurazione → Istanza → Device → Connessione, dopo la connessione, riga «Immagine di boot»: *installata il …*,
+   *non supportata su questo dispositivo*, *errore: …*, *in attesa*, o *immagine di fabbrica ripristinata*.
+   È scritta dal dispositivo, quindi arriva qualche secondo dopo il deploy.
 
 **Un formato per tutte le pagine.** La prima volta che imposti misure o sfondo su una pagina — sinottica o di
 boot — diventano il *formato predefinito* del progetto: le pagine nuove nascono così, e quelle che non hanno
@@ -1134,10 +1134,13 @@ ancora un valore proprio lo prendono. Si cambia a mano in Impostazioni pagine, d
 formato proprio» lo riscrive su richiesta.
 
 **Funziona solo** sui pannelli con il launcher Pixsys (PixsysOS ≥ 2.1) e **solo nel deploy a container**: il
-percorso `deploy/yocto/` non ha il canale. I dispositivi già installati ricevono i pezzi nuovi rieseguendo
-`install-container.sh` (Configurazione → Runtime → «Aggiorna»).
+percorso `deploy/yocto/` non ha il canale. I dispositivi già installati lo ricevono aggiornando il container
+(Configurazione → Istanza → Device → Installazione → «Aggiorna»).
 
-**Togliere l'immagine** (tornare a quella di fabbrica), sul dispositivo:
+**Togliere l'immagine** (tornare a quella di fabbrica): Configurazione → Istanza → Device → Connessione, dopo la connessione, riga
+«Immagine di boot» → **«Ripristina l'immagine di fabbrica»** (serve un account Admin sul dispositivo). Vale al
+prossimo avvio del pannello e **resta anche ai riavvii successivi**; il prossimo deploy di un progetto con una pagina di
+boot abilitata la sostituisce di nuovo. Dal dispositivo stesso, se l'IDE non c'è:
 
 ```sh
 busctl --system call net.pixsys.Config1 /net/pixsys/Config1/Launcher net.pixsys.Config1.Launcher ResetBackgroundImage
@@ -1162,8 +1165,8 @@ cambia, l'id no):
 
 | Chiave in `secrets.yaml` | Dov'è nell'IDE |
 |---|---|
-| `notifications.telegram.bot_token` | Configurazione → Notifiche → Telegram |
-| `notifications.smtp.password` | Configurazione → Notifiche → SMTP |
+| `notifications.telegram.bot_token` | Configurazione → Progetto → Notifiche → Telegram |
+| `notifications.smtp.password` | Configurazione → Progetto → Notifiche → SMTP |
 | `sources.<id>.password` | sorgente MQTT |
 | `sources.<id>.token` | sorgente HomeAssistant |
 | `sources.<id>.auth_password` | sorgente OPC-UA client, autenticazione utente/password |
@@ -1221,7 +1224,7 @@ grep -E 'bot_token|password|token' ~/sws_projects/<progetto>/project.yaml   # no
 
 Prassi decisa dal maintainer il 2026-09-25. Un'immagine costruita per collaudare lavoro non ancora
 rilasciato porta una **versione di prova**, così la riconosci sul pannello, in Configurazione →
-Stato, nella lista dei dispositivi («SWS v…») e nel nome dell'archivio in `dist/`. Senza, l'immagine
+Istanza → Device → Stato, nella lista dei dispositivi («SWS v…») e nel nome dell'archivio in `dist/`. Senza, l'immagine
 si chiamerebbe come l'ultima release e non sapresti quale delle due gira.
 
 **La forma è `<prossima release>-dev.<N>`**: `2.12.0-dev.1`, `2.12.0-dev.2`… In semver una

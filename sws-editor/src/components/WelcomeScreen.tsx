@@ -560,7 +560,7 @@ function NewProjectModal({
 // binario nativo con `systemctl restart` di sistema, la postura opposta al
 // container rootless di produzione, e salvava la password SSH in localStorage.
 //
-// Ora chiama lo stesso deploy container di Configurazione → Runtime: registry,
+// Ora chiama lo stesso deploy container di Configurazione → Istanza → Device → Installazione: registry,
 // architettura decisa dal dispositivo, niente password nel browser. È qui e non
 // solo in ConfigView perché questo è il caso «macchina nuova, nessun progetto
 // ancora»: ConfigView richiede un progetto aperto per convenzione del pannello.
@@ -776,7 +776,7 @@ function DeploySection() {
  * Qualunque cosa si inserisse, il footer continuava a dire «runtime locale».
  *
  * Non era solo inerte, era un doppione: collegare un runtime remoto si fa in
- * Configurazione → Runtime → Connetti, che passa dal server (il token resta nel
+ * Configurazione → Istanza → Device → Connessione → Connetti, che passa dal server (il token resta nel
  * processo locale, mai nel browser) e abilita deploy e relay dei dati vivi. Due
  * modi per la stessa cosa, di cui uno rotto, sono peggio di uno solo.
  *

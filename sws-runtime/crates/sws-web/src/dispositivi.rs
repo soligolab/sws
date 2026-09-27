@@ -1,6 +1,6 @@
 //! I dispositivi registrati (Q50, 2026-09-10): `GET`/`PUT /api/devices`.
 //!
-//! La scheda Configurazione → Dispositivi teneva la lista dei pannelli in
+//! La scheda Configurazione → Istanza → Device → Dispositivi teneva la lista dei pannelli in
 //! `localStorage`: del browser, non dell'installazione. Su un altro PC, o dopo
 //! aver svuotato il profilo, la lista era vuota. Ora vive sul server, in
 //! **`<cartella progetti>/.ambiente/dispositivi.yaml`** — scelta del maintainer:
@@ -90,7 +90,7 @@ pub(crate) fn scrivi(path: &Path, lista: &[DispositivoRegistrato]) -> Result<(),
         dispositivi: lista.to_vec(),
     };
     let testo = serde_yaml::to_string(&f).map_err(|e| format!("serializzazione: {e}"))?;
-    let intestazione = "# Dispositivi registrati nell'editor SWS (Configurazione → Dispositivi).\n\
+    let intestazione = "# Dispositivi registrati nell'editor SWS (Configurazione → Istanza → Device → Dispositivi).\n\
                         # Etichetta, URL della porta di gestione e utente: MAI la password.\n";
     let tmp = path.with_extension("yaml.tmp");
     std::fs::write(&tmp, format!("{intestazione}{testo}"))

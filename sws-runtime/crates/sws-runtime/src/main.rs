@@ -363,7 +363,7 @@ async fn main() -> anyhow::Result<()> {
     // TLS is opt-in: if config_dir/tls.crt exists, start in HTTPS mode.
     // Otherwise serve plain HTTP — localhost is a "secure context" in all
     // modern browsers, so the editor works without any cert acceptance step.
-    // Users can enable TLS from ConfigView → Stato → Certificato TLS.
+    // Users can enable TLS from Configurazione → Istanza → Device → Stato → Certificato TLS.
     std::fs::create_dir_all(&args.config).context("creating config directory")?;
     // La cartella dei progetti deve esistere prima che qualcuno la elenchi: il
     // default è fuori dal repo (Q46) e su una macchina nuova non c'è ancora.
@@ -372,7 +372,7 @@ async fn main() -> anyhow::Result<()> {
     let acceptor: Option<TlsAcceptor> = if args.config.join("tls.crt").exists() {
         Some(build_tls_acceptor(&args.config)?)
     } else {
-        info!("no TLS certificate found — plain HTTP mode (enable via ConfigView → Stato → Certificato TLS)");
+        info!("no TLS certificate found — plain HTTP mode (enable via Configurazione → Istanza → Device → Stato → Certificato TLS)");
         None
     };
 
@@ -1048,8 +1048,9 @@ async fn main() -> anyhow::Result<()> {
     // schermo seguirebbe una decisione vecchia.
     if let Ok(dir) = sws_web::router::active_dir(&app_state).await {
         sws_web::display_target::publish(&app_state.config_dir, &dir).await;
-        // T-72 F5: e l'immagine di boot abilitata, per lo stesso motivo.
-        sws_web::boot_image::publish(&app_state.config_dir, &dir).await;
+        // T-72 F5: e l'immagine di boot abilitata, per lo stesso motivo — ma
+        // come «avvio»: un ripristino di fabbrica resta fino al prossimo deploy.
+        sws_web::boot_image::publish(&app_state.config_dir, &dir, sws_web::boot_image::Occasione::Avvio).await;
     }
 
     // Runtime listener (synoptic, optional-auth): only started when --viewer-port is given.

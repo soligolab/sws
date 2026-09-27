@@ -558,7 +558,7 @@
       "expr": "Expression"
     },
     "bindPlaceholder": "e.g. demo.rotation",
-    "noTagsInProject": "No variables available. Declare them in Configuration → Variables, or add a source: variables mapped from protocols show up here automatically.",
+    "noTagsInProject": "No variables available. Declare them in Configuration → Project → Tags, or add a source: variables mapped from protocols show up here automatically.",
     "nuovoHint": "Undeclared variable: it will be created when the project is saved, with the inferred type. Click to define it now (type, unit, history).",
     "inAttesaHint": "Definition pending: it will be created when the project is saved."
   },
@@ -1042,7 +1042,7 @@
     "targetLvglWayland": "LVGL — Wayland (Pixsys panels)",
     "targetHint": "Decides what the panel puts on screen at the next deploy: the browser or the LVGL viewer. A project with no declared engine is web.",
     "targetRiskyConfirm": "SWITCHING TO LVGL\\n\\nThe LVGL engine draws fewer things than the browser: some objects in this project may not appear on the panel — custom symbols, PNG/JPG images, horizontal bars, non-donut pies, and the «Open URL / Login / Logout» button actions.\\n\\nThe other way round (LVGL → web) never loses anything.\\n\\nProceed?",
-    "minRoleNoAuthWarning": "This project has no users: every visitor is Admin and the minimum role will have no effect. Define users in Configuration → Users.",
+    "minRoleNoAuthWarning": "This project has no users: every visitor is Admin and the minimum role will have no effect. Define users in Configuration → Security → Users.",
     "colorAuto": "auto",
     "colorAutoHint": "Automatic colour: follows the page background. Edit it to make it fixed.",
     "colorAutoReset": "Back to automatic (follows the page background)",
@@ -1316,7 +1316,7 @@
     "retentionDays": "Retention days",
     "add": "Add",
     "connect": "Connect",
-    "telegramColHint": "Telegram routing for this alarm. \"Default chats\" = the ones in Configuration → Notifications (historic behaviour).",
+    "telegramColHint": "Telegram routing for this alarm. \"Default chats\" = the ones in Configuration → Project → Notifications (historic behaviour).",
     "tgModeGlobal": "Default chats",
     "tgModeChats": "Specific chats",
     "tgModeOff": "Do not notify",
@@ -1395,7 +1395,7 @@
     "devicesNoneSaved": "No device saved. Search the network or add one below.",
     "devicesAdd": "Add device",
     "devicesAddToList": "+ Devices",
-    "devicesAddToListTitle": "Register in Configuration → Devices",
+    "devicesAddToListTitle": "Register in Configuration → Instance → Device → Devices",
     "devicesAlreadyIn": "already listed",
     "devicesAdded": "“{{label}}” registered among the devices",
     "devicesSaveFailed": "Device list not saved: {{err}}",
@@ -1827,7 +1827,7 @@
     "noResults": "No results for \"{{filter}}\""
   },
   "tagInputMsg": {
-    "variableInferredFromThisSource": "Variable inferred from this source's mappings, not declared in Configuration → Variables"
+    "variableInferredFromThisSource": "Variable inferred from this source's mappings, not declared in Configuration → Project → Tags"
   },
   "recipePanel": {
     "noRecipeAvailable": "No recipe available."
@@ -1949,7 +1949,7 @@
     "overrideRemovedFromTheDevice": "✓ Override removed from the device.",
     "literalClientIdIdenticalOn": "literal client_id: identical on every instance that opens this project.",
     "clientIdToSendTo": "client_id to send to the connected device",
-    "connectToADeviceFrom": "Connect to a device from Configuration → Runtime to use this button",
+    "connectToADeviceFrom": "Connect to a device from Configuration → Instance → Device → Connection to use this button",
     "sendClientIdToThe": "Send Client ID to the connected device",
     "publishALastWillWhen": "Publish a last-will when the connection drops",
     "sparkplugBModeProtobufPayloads": "Sparkplug B mode (protobuf payloads — ignores normal topics)",
@@ -1965,7 +1965,7 @@
     "hostIntro": "Device resources as read-only tags.",
     "hostCatalogoRemoto": "Zones, mounts and interfaces read from the connected device ({{url}}).",
     "hostCatalogoRemotoVecchio": "Device connected ({{url}}), but its runtime predates 21-09-2026 and has no catalog: update the container. Meanwhile suggestions come from THIS machine and the zone must be typed by hand (on the device: cat /sys/class/thermal/thermal_zone*/type).",
-    "hostCatalogoLocale": "No device connected: suggestions come from THIS machine, not the panel. Connect the runtime from the Runtime tab to get its zones.",
+    "hostCatalogoLocale": "No device connected: suggestions come from THIS machine, not the panel. Connect the runtime from Configuration → Instance → Device → Connection to get its zones.",
     "hostCatalogoAssente": "Catalog unavailable: type the parameter by hand (on the device: cat /sys/class/thermal/thermal_zone*/type).",
     "hostSenzaParametro": "{{n}} metrics without a parameter: their tags will stay Bad on the device.",
     "hostParamObbligatorio": "Required parameter: without it the tag stays Bad.",
@@ -2211,13 +2211,18 @@
     "title": "Boot image",
     "loading": "Reading the status from the device…",
     "unreadable": "Cannot read the status from the device.",
-    "noData": "No data: the device does not have the boot-image installation units, or they have not fired yet (they are installed by re-running install-container.sh).",
+    "noData": "No data: the device has not yet received a project with a boot image.",
     "installed": "Installed on {{quando}}: it appears the next time the panel starts.",
     "absolutePath": "(absolute path: relies on undocumented launcher behavior; if Pixsys fixes it, it stops working)",
-    "pending": "Pending: the device has not applied the latest request yet.",
+    "pending": "Pending: the device has not applied the published image yet.",
     "unsupported": "Not supported on this device: no Pixsys launcher.",
     "none": "No boot image enabled in the project: the device keeps the one it has.",
-    "error": "Error: {{msg}}"
+    "error": "Error: {{msg}}",
+    "factory": "Factory image restored on {{quando}}: it appears at the next panel start. The next deploy of a project with an enabled boot page replaces it.",
+    "resetBtn": "Restore the factory image",
+    "resetConfirm": "The panel's start-up image will go back to the factory one at the next start.\n\nThe next deploy of a project with an enabled boot page will replace it again. Proceed?",
+    "resetBusy": "Restoring…",
+    "resetError": "Restore failed: {{msg}}"
   },
   "nav": {
     "orientation": "Orientation",

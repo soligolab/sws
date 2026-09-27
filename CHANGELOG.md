@@ -12,6 +12,8 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Added
+- **«Ripristina l'immagine di fabbrica»** in Configurazione → Istanza → Device → Connessione, sulla riga «Immagine di boot» del dispositivo collegato: `ResetBackgroundImage` via D-Bus,
+  con conferma, riservato agli Admin del dispositivo. Resta ai riavvii (il runtime ripartendo non la riapplica); il prossimo deploy sì.
 - **La storia del progetto nella scheda Git** (Fase 1 del [gestore del repository](docs/archive/2026-09-26-gestore-repository-progetto.md)): i commit dal più recente, le modifiche
   non ancora committate, i file cambiati da ciascuno e il diff colorato — di un file o di tutto, di un commit contro il precedente o fra due commit qualsiasi. Sola lettura.
 - **Provare un commit vecchio** (Fase 2): il progetto torna com'era a quel commit, con un banner in cima all'IDE; finché la prova dura il runtime rifiuta ogni salvataggio del progetto
@@ -36,6 +38,10 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   riga rossa con **Converti**, in testa c'è **Converti tutti (n)**, e gli allarmi che condividono un tag lo dicono. La conversione non cambia come scatta; il Salva resta dell'utente.
 
 ### Fixed
+- **L'immagine di boot arriva davvero al launcher.** Il runtime lo chiamava solo quando il PNG cambiava, e un pannello con l'immagine pubblicata ma mai
+  applicata (il TC620: PNG del 20-09, launcher ancora su «Default») non recuperava più; ora lo richiama finché l'esito non è `installato` per quel PNG. Chi scrive
+  e chi legge lo stato usano le stesse parole e le stesse chiavi (prima `applicata`/`nota`, che la scheda Runtime non riconosceva). Via il file `trigger`, rimasto
+  dal meccanismo sull'host tolto il 24-09: una strada sola, il D-Bus.
 - **«🧹 Pulisci storico» sul dispositivo collegato** rispondeva 404 su ogni container: la rotta mancava dalla porta di gestione (`--no-admin`), che serve un
   router ridotto, e lo stack di sviluppo — router completo — non lo mostrava. Trovato installando la 2.12.0-dev.2 sul TC620. Un test ora confronta ogni percorso che
   l'IDE chiama su un dispositivo con le rotte di quella porta: è la terza volta che succedeva (flussi `/ws/*`, `whoami`, ora questo).

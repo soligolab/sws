@@ -1,7 +1,7 @@
 import { foglieDiTolleranti } from "./tag/forma";
 import type { ProjectInfo } from "@/types";
 
-/** Da dove viene un id di variabile: dichiarato in Configurazione → Variabili,
+/** Da dove viene un id di variabile: dichiarato in Configurazione → Progetto → Variabili,
  *  o dedotto dalle mappature di una sorgente. */
 export type TagOrigin = "declared" | "source" | "leaf";
 

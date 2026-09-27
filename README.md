@@ -141,8 +141,8 @@ hosts) and installs a systemd-managed podman quadlet with no `sudo` required. Da
 `/data/user/sws/{projects,config,logs}`. The full procedure — cross-compile, publish, install,
 update — is in [docs/DEPLOY_CONTAINER_AARCH64.md](docs/DEPLOY_CONTAINER_AARCH64.md) and
 [docs/DEPLOY_CONTAINER_X86_64.md](docs/DEPLOY_CONTAINER_X86_64.md). For a device that can't
-reach the registry, the same install can be pushed from the IDE over SSH (*ConfigView → Runtime
-→ Installa su dispositivo*), which copies the archive instead of pulling.
+reach the registry, the same install can be pushed from the IDE over SSH (*Configuration → Instance → Device
+→ Install*), which copies the archive instead of pulling.
 
 **c) Yocto cross-compile** — the historical native path for Pixsys hardware (PX30, RK3399,
 RK3588): a native `aarch64` binary as a systemd service, no container involved. Since
@@ -165,8 +165,8 @@ Recover it from git history if you ever want to look; the container path that wo
 
 ### 3. Connecting the editor to a remote runtime
 
-From the standalone editor (or from any runtime's own admin IDE): **Configurazione → Runtime →
-Connetti**, enter the remote runtime's URL, username and password (e.g.
+From the standalone editor (or from any runtime's own admin IDE): **Configuration → Instance → Device → Connection →
+Connect**, enter the remote runtime's URL, username and password (e.g.
 `https://192.168.1.50:8444`). This does two things at once:
 
 - enables **Deploy** — pushing the open project to that runtime;
@@ -175,13 +175,13 @@ Connetti**, enter the remote runtime's URL, username and password (e.g.
   never sent to the browser.
 
 Devices on the same LAN are also auto-discoverable via mDNS from the multi-device dashboard
-(*ConfigView → Device*), no manual IP entry needed.
+(*Configuration → Instance → Device → Devices*), no manual IP entry needed.
 
 ### 4. Certificate management
 
 TLS is **opt-in**; SWS starts in plain HTTP by default (fine for `localhost`, which browsers
-already treat as a secure context). Activate it from **Configurazione → Stato → Certificato
-TLS**:
+already treat as a secure context). Activate it from **Configuration → Instance → Device → Status →
+TLS certificate**:
 
 - **Genera self-signed** — creates `tls.crt`/`tls.key` (SAN: `localhost`, `127.0.0.1`, the LAN
   IP) and restarts in HTTPS.
@@ -199,16 +199,16 @@ curl -k https://<device-ip>:8443/cert -o sws.crt
 ### 5. Deploying a project
 
 - **From the IDE**, connected to a remote runtime as above: the multi-device dashboard
-  (*ConfigView → Device*) deploys to one or many devices at once.
-- **Package builder** (*ConfigView → Runtime*, or `./scripts/package.sh` from the CLI) builds a
+  (*Configuration → Instance → Device → Devices*) deploys to one or many devices at once.
+- **Package builder** (*Configuration → Instance → Developer → Runtime package*, or `./scripts/package.sh` from the CLI) builds a
   distributable tarball — see [docs/manual/11_packaging_deploy.md](docs/manual/11_packaging_deploy.md).
 - **GitOps** — a project folder can be a git repository; pull and roll back per project from the
   IDE — see [docs/manual/12_gitops.md](docs/manual/12_gitops.md).
 
 ### 6. Viewing remote logs and variables
 
-Once the editor is connected to a remote runtime (§3), **ConfigView → Runtime** streams that
-device's logs live over WebSocket, and **ConfigView → Variabili** (or the operator viewer itself)
+Once the editor is connected to a remote runtime (§3), the device's logs stream live over WebSocket into the log drawer (**☰ Menu → Log**, target
+`remote:`), and **Configuration → Project → Tags** (or the operator viewer itself)
 shows live tag values via the same snapshot-plus-delta WebSocket protocol the runtime uses
 internally.
 
@@ -327,7 +327,7 @@ viewer, the admin IDE, and all comm plugins, and auto-opens the last active proj
 **Auth & TLS are both optional by default (PoC).** A project without a `users.yaml` runs in
 **no-auth mode** — all routes are open, no login screen. The runtime starts in **plain HTTP**
 unless a TLS certificate is present; HTTPS is enabled on demand from
-*Configurazione → Stato → Certificato TLS*.
+*Configuration → Instance → Device → Status → TLS certificate*.
 
 **Monorepo layout:**
 

@@ -21,7 +21,7 @@
 #
 # Di default parte in plain HTTP (nessun certificato necessario — localhost è
 # sempre un "secure context" nei browser moderni). TLS si abilita da
-# ConfigView → Stato → Certificato TLS dopo il primo avvio.
+# Configurazione → Istanza → Device → Stato → Certificato TLS dopo il primo avvio.
 #
 # Uso:
 #   ./scripts/start_editor.sh                # IDE su 8460, progetti in ~/sws_projects
@@ -224,7 +224,7 @@ SWS IDE$INST_LABEL — pronto (HTTPS)
 
   IDE locale : https://$LAN_IP:$ADMIN_PORT
 
-  → Per connettere un runtime: ConfigView → Runtime → Connetti
+  → Per connettere un runtime: Configurazione → Istanza → Device → Connessione → Connetti
     (abilita deploy progetto + visualizzazione tag/allarmi live)
 
   Primo accesso (cert non ancora accettato nel browser):
@@ -244,10 +244,10 @@ SWS IDE$INST_LABEL — pronto (HTTP)
   IDE locale : http://$LAN_IP:$ADMIN_PORT
   Progetti   : $PROJECTS_MOSTRATI   ($PROJECTS_ORIGINE)
 
-  → Per connettere un runtime: ConfigView → Runtime → Connetti
+  → Per connettere un runtime: Configurazione → Istanza → Device → Connessione → Connetti
     (abilita deploy progetto + visualizzazione tag/allarmi live)
 
-  Per abilitare HTTPS: ConfigView → Stato → Certificato TLS
+  Per abilitare HTTPS: Configurazione → Istanza → Device → Stato → Certificato TLS
   Stop: Ctrl-C
 ────────────────────────────────────────────────────────────────
 

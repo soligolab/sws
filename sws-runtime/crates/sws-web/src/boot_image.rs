@@ -2,31 +2,30 @@
 //!
 //! Il progetto dichiara quale pagina di boot è «abilitata»
 //! (`page_layout.boot_page_id`) e il browser ne ha già prodotto il PNG
-//! (`boot/<nome>.png`, F4). Qui il runtime **dice all'host cosa vuole**, con lo
-//! stesso schema di `display_target`: il runtime gira in un container rootless e
-//! non può parlare col D-Bus dell'host, dove vive il launcher Pixsys; scrive
-//! una richiesta in un file del volume condiviso, e un pezzo lato host
-//! (`deploy/container/sws-boot-image-apply.sh`) la applica.
+//! (`boot/<nome>.png`, F4). Qui il runtime lo copia nella sua config e chiede
+//! al launcher Pixsys di usarlo, **via D-Bus, da dentro il container**
+//! (`launcher_dbus.rs`, dal 24-09-2026).
 //!
 //! ```text
-//! <config_dir>/boot-image/boot.png   il PNG da installare
-//! <config_dir>/boot-image/trigger    lo SHA-256 del PNG, oppure `none`
-//! <config_dir>/boot-image/status     scritto dall'HOST: com'è andata
+//! <config_dir>/boot-image/boot.png   il PNG pubblicato (il launcher lo copia)
+//! <config_dir>/boot-image/status     com'è andata: letto da /api/system
 //! ```
 //!
-//! Una cartella e non due file accanto (`boot-image` + `boot-image.png`): il
-//! trigger e la cartella non possono avere lo stesso nome, e il piano del
-//! 18-09 li chiamava tutti e due `boot-image`.
+//! **Una strada sola dal 27-09-2026.** Fino ad allora c'era anche un file
+//! `trigger` per uno script sull'host, già tolto il 24-09: il runtime lo
+//! scriveva ancora e chiamava il launcher **solo quando il trigger cambiava**.
+//! Un pannello con un trigger scritto e mai applicato (il TC620: PNG del 20-09,
+//! launcher ancora su «Default») non recuperava più. Ora si chiama il launcher
+//! finché `status` non dice `installato` con lo SHA di quel PNG.
 //!
 //! ## Cosa NON fa
 //!
-//! - Non tocca l'immagine se il progetto non abilita nessuna pagina: `none` non
-//!   è «ripristina l'originale», è «non ho niente da installare». Il ripristino
-//!   di fabbrica (`ResetBackgroundImage`) sarà un'azione esplicita.
-//! - Non sa se il dispositivo è un Pixsys. Lo sa lo script host, che prova una
-//!   lettura D-Bus e scrive `non_supportato` se non risponde.
-//! - Non riscrive un contenuto identico: il trigger fa scattare un'unit
-//!   systemd, e scatterebbe a ogni salvataggio di una qualunque sezione.
+//! - Non tocca l'immagine se il progetto non abilita nessuna pagina: «nessuna
+//!   immagine» non è «ripristina l'originale». Il ripristino di fabbrica è
+//!   un'azione esplicita ([`ripristina_fabbrica`], pulsante nella scheda
+//!   Runtime).
+//! - Non richiama il launcher a ogni salvataggio: solo se il PNG è cambiato o
+//!   se l'ultima volta non è andata.
 
 use std::path::{Path, PathBuf};
 
@@ -35,10 +34,10 @@ use sha2::{Digest, Sha256};
 
 pub const DIR: &str = "boot-image";
 pub const PNG: &str = "boot.png";
-pub const TRIGGER: &str = "trigger";
 pub const STATO: &str = "status";
-/// Valore del trigger quando il progetto non abilita nessuna immagine.
-pub const NESSUNA: &str = "none";
+/// Il file che il runtime scriveva fino al 27-09-2026 per lo script sull'host:
+/// si toglie se c'è ancora, perché nessuno lo legge più.
+const TRIGGER_VECCHIO: &str = "trigger";
 
 pub fn dir_at(config_dir: &Path) -> PathBuf {
     config_dir.join(DIR)
@@ -96,31 +95,38 @@ async fn scrivi_se_diverso(path: &Path, contenuto: &[u8]) -> std::io::Result<boo
     Ok(true)
 }
 
-/// Pubblica la richiesta per l'host. Gli errori si registrano e basta: un
-/// progetto che non si legge o una directory non scrivibile non devono far
-/// fallire il salvataggio che ha provocato la chiamata.
-pub async fn publish(config_dir: &Path, project_dir: &Path) {
+/// Perché si pubblica: decide se un ripristino di fabbrica va rispettato.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Occasione {
+    /// L'avvio del runtime, col progetto già aperto da prima. Un ripristino di
+    /// fabbrica **resta**: il 27-09 sul TC620 il runtime, ripartendo, ha
+    /// riapplicato l'immagine subito dopo che il maintainer l'aveva tolta.
+    Avvio,
+    /// Il progetto è cambiato (deploy, apertura, import, una pagina salvata):
+    /// è la richiesta esplicita di usare l'immagine del progetto.
+    Modifica,
+}
+
+/// Pubblica il PNG della pagina abilitata e chiede al launcher di usarlo. Gli
+/// errori si registrano e basta: un progetto che non si legge o una directory
+/// non scrivibile non devono far fallire il salvataggio che ha provocato la
+/// chiamata.
+pub async fn publish(config_dir: &Path, project_dir: &Path, occasione: Occasione) {
     let dir = dir_at(config_dir);
+    let _ = tokio::fs::remove_file(dir.join(TRIGGER_VECCHIO)).await;
     let esito = async {
         match png_abilitato(project_dir).await {
             Some(png) => {
                 let sha = sha256_hex(&png);
-                // Prima il PNG, poi il trigger: l'host, che scatta sul trigger,
-                // deve trovare il file già al suo posto.
-                scrivi_se_diverso(&dir.join(PNG), &png).await?;
-                let scritto = scrivi_se_diverso(&dir.join(TRIGGER), format!("{sha}\n").as_bytes()).await?;
-                if scritto {
-                    tracing::info!(sha256 = %sha, bytes = png.len(), "boot-image: richiesta pubblicata");
-                    // Dal 24-09-2026 la chiamata al launcher la fa il runtime,
-                    // via D-Bus, da dentro il container: il `trigger` qui sopra
-                    // resta per i dispositivi che hanno ancora le unit
-                    // sull'host, ma su un container col socket montato non lo
-                    // aspetta più nessuno.
+                let cambiato = scrivi_se_diverso(&dir.join(PNG), &png).await?;
+                let attuale = leggi_file_stato(config_dir).await;
+                if serve_applicare(attuale.as_ref(), &sha, cambiato, occasione) {
+                    tracing::info!(sha256 = %sha, bytes = png.len(), cambiato, "boot-image: chiedo al launcher");
                     applica_col_launcher(config_dir, &dir.join(PNG), &sha).await;
                 }
             }
             None => {
-                if scrivi_se_diverso(&dir.join(TRIGGER), format!("{NESSUNA}\n").as_bytes()).await? {
+                if scrivi_se_diverso(&dir.join(STATO), b"esito=nessuna_immagine\n").await? {
                     tracing::info!("boot-image: nessuna immagine abilitata");
                 }
             }
@@ -129,57 +135,130 @@ pub async fn publish(config_dir: &Path, project_dir: &Path) {
     }
     .await;
     if let Err(e) = esito {
-        tracing::warn!(dir = %dir.display(), "boot-image: richiesta non pubblicata: {e}");
+        tracing::warn!(dir = %dir.display(), "boot-image: non pubblicata: {e}");
     }
 }
 
-/// Chiede al launcher di usare il PNG appena pubblicato, e scrive l'esito in
-/// `status` — lo stesso file che prima scriveva lo script sull'host, così la
-/// scheda Runtime continua a leggere da un posto solo.
+/// Il launcher va chiamato se il PNG è cambiato, oppure se non c'è ancora un
+/// `installato` per **questo** SHA: prima volta, un errore l'ultima volta, un
+/// ripristino di fabbrica, un pannello rimasto indietro (il TC620 del 27-09).
+/// Non a ogni salvataggio: la chiamata riscrive il TOML del launcher.
 ///
-/// Silenziosa quando il launcher non c'è: un PC di sviluppo non ha un
-/// `net.pixsys.Config1`, e non è un guasto del progetto.
+/// All'**avvio**, un ripristino di fabbrica si rispetta finché il PNG è lo
+/// stesso: dura fino al prossimo deploy, non fino al prossimo riavvio.
+fn serve_applicare(
+    attuale: Option<&BootImageStato>,
+    sha: &str,
+    png_cambiato: bool,
+    occasione: Occasione,
+) -> bool {
+    if png_cambiato {
+        return true;
+    }
+    if occasione == Occasione::Avvio && matches!(attuale, Some(s) if s.esito == "fabbrica") {
+        return false;
+    }
+    !matches!(attuale, Some(s) if s.esito == "installato" && s.sha256.as_deref() == Some(sha))
+}
+
+/// Chiede al launcher di usare il PNG appena pubblicato, e scrive l'esito in
+/// `status` con le chiavi che [`parse_stato`] legge.
+///
+/// Senza `SWS_HOST_CONFIG_DIR` non chiama e non scrive: un PC di sviluppo o
+/// un'istanza IDE non hanno un launcher, e non è un guasto del progetto.
 async fn applica_col_launcher(config_dir: &Path, png: &Path, sha: &str) {
     let Some(host) = crate::launcher_dbus::percorso_host(config_dir, png) else {
         tracing::debug!("boot-image: SWS_HOST_CONFIG_DIR non impostata, non chiamo il launcher");
         return;
     };
     let esito = crate::launcher_dbus::imposta_immagine(&host).await;
-    let (parola, nota) = match &esito {
-        crate::launcher_dbus::Esito::Applicata { percorso_assoluto } => (
-            "applicata",
-            if *percorso_assoluto {
-                "compare al prossimo avvio del pannello (percorso assoluto: si appoggia a un \
-                 comportamento non documentato del launcher)"
-            } else {
-                "compare al prossimo avvio del pannello"
-            }
-            .to_string(),
-        ),
-        crate::launcher_dbus::Esito::NonSupportato => (
-            "non_supportato",
-            "questo dispositivo non espone net.pixsys.Config1.Launcher".to_string(),
-        ),
-        crate::launcher_dbus::Esito::PercorsoHostIgnoto => (
-            "errore",
-            "manca SWS_HOST_CONFIG_DIR: il container non sa il percorso sull'host".to_string(),
-        ),
-        crate::launcher_dbus::Esito::Errore(e) => ("errore", e.clone()),
+    let stato = match &esito {
+        crate::launcher_dbus::Esito::Applicata { percorso_assoluto } => BootImageStato {
+            esito: "installato".into(),
+            sha256: Some(sha.to_string()),
+            percorso: Some(if *percorso_assoluto { "assoluto" } else { "relativo" }.into()),
+            ..Default::default()
+        },
+        crate::launcher_dbus::Esito::NonSupportato => BootImageStato {
+            esito: "non_supportato".into(),
+            messaggio: Some("questo dispositivo non espone net.pixsys.Config1.Launcher".into()),
+            ..Default::default()
+        },
+        crate::launcher_dbus::Esito::PercorsoHostIgnoto => BootImageStato {
+            esito: "errore".into(),
+            messaggio: Some("manca SWS_HOST_CONFIG_DIR: il container non sa il percorso sull'host".into()),
+            ..Default::default()
+        },
+        crate::launcher_dbus::Esito::Errore(e) => BootImageStato {
+            esito: "errore".into(),
+            sha256: Some(sha.to_string()),
+            messaggio: Some(e.clone()),
+            ..Default::default()
+        },
     };
-    tracing::info!(esito = parola, "boot-image: {nota}");
-    let testo = format!("esito={parola}\nsha256={sha}\nnota={nota}\n");
+    tracing::info!(esito = %stato.esito, messaggio = ?stato.messaggio, "boot-image: risposta del launcher");
+    scrivi_stato(config_dir, stato).await;
+}
+
+/// Torna all'immagine di fabbrica del pannello (`ResetBackgroundImage`) e
+/// scrive `esito=fabbrica`. Il PNG pubblicato **resta**: toglierlo lo farebbe
+/// risultare «cambiato» al prossimo avvio, che lo riapplicherebbe. Il prossimo
+/// deploy lo reinstalla, perché `status` non dice più `installato`.
+pub async fn ripristina_fabbrica(config_dir: &Path) -> Result<BootImageStato, String> {
+    match crate::launcher_dbus::ripristina().await {
+        crate::launcher_dbus::Esito::Applicata { .. } => {
+            let stato = BootImageStato { esito: "fabbrica".into(), ..Default::default() };
+            scrivi_stato(config_dir, stato).await;
+            Ok(leggi_stato(config_dir).await.unwrap_or_default())
+        }
+        crate::launcher_dbus::Esito::NonSupportato => {
+            Err("questo dispositivo non ha il launcher Pixsys: non c'è un'immagine di fabbrica da ripristinare".into())
+        }
+        crate::launcher_dbus::Esito::PercorsoHostIgnoto => Err("percorso host ignoto".into()),
+        crate::launcher_dbus::Esito::Errore(e) => Err(e),
+    }
+}
+
+async fn scrivi_stato(config_dir: &Path, mut stato: BootImageStato) {
+    stato.quando = Some(ora_iso());
+    let mut testo = format!("esito={}\n", stato.esito);
+    for (k, v) in [
+        ("sha256", &stato.sha256),
+        ("quando", &stato.quando),
+        ("percorso", &stato.percorso),
+        ("messaggio", &stato.messaggio),
+    ] {
+        if let Some(v) = v {
+            // Una riga per chiave: un a-capo nel messaggio del bus la spezzerebbe.
+            testo.push_str(&format!("{k}={}\n", v.replace('\n', " ")));
+        }
+    }
     let path = dir_at(config_dir).join(STATO);
-    if let Err(e) = tokio::fs::write(&path, testo).await {
+    if let Some(p) = path.parent() {
+        let _ = tokio::fs::create_dir_all(p).await;
+    }
+    if let Err(e) = crate::router::scrivi_atomico(&path, testo.as_bytes()).await {
         tracing::warn!(path = %path.display(), "boot-image: status non scritto: {e}");
     }
 }
 
-/// Com'è andata sull'host, come lo riferisce lo script (`status`), più cosa è
-/// stato chiesto (`trigger`). È il **primo file scritto dall'host che il
-/// runtime legge**.
+fn ora_iso() -> String {
+    let n = time::OffsetDateTime::now_utc();
+    format!(
+        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
+        n.year(),
+        n.month() as u8,
+        n.day(),
+        n.hour(),
+        n.minute(),
+        n.second()
+    )
+}
+
+/// Com'è andata col launcher (`status`), più lo SHA del PNG pubblicato adesso.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
 pub struct BootImageStato {
-    /// `installato`, `non_supportato`, `nessuna_immagine`, `errore`.
+    /// `installato`, `non_supportato`, `nessuna_immagine`, `fabbrica`, `errore`.
     pub esito: String,
     pub sha256: Option<String>,
     pub quando: Option<String>,
@@ -188,8 +267,8 @@ pub struct BootImageStato {
     /// assoluto), e se Pixsys lo corregge smette di funzionare.
     pub percorso: Option<String>,
     pub messaggio: Option<String>,
-    /// Lo SHA-256 (o `none`) che il runtime ha chiesto per ultimo. Se diverso da
-    /// `sha256`, l'host non ha ancora applicato l'ultima richiesta.
+    /// Lo SHA-256 del PNG pubblicato adesso. Se diverso da `sha256`, il
+    /// launcher non ha ancora quello: la scheda dice «in attesa».
     pub richiesta: Option<String>,
 }
 
@@ -218,16 +297,18 @@ pub fn parse_stato(testo: &str) -> Option<BootImageStato> {
     }
 }
 
-/// Lo stato per `/api/system`. `None` = nessun dato (l'host non ha mai scritto
-/// niente: dispositivo senza le unit, o non ancora scattate) — mai un errore.
+async fn leggi_file_stato(config_dir: &Path) -> Option<BootImageStato> {
+    parse_stato(&tokio::fs::read_to_string(dir_at(config_dir).join(STATO)).await.ok()?)
+}
+
+/// Lo stato per `/api/system`. `None` = nessun dato (il runtime non ha ancora
+/// chiesto niente al launcher) — mai un errore.
 pub async fn leggi_stato(config_dir: &Path) -> Option<BootImageStato> {
-    let dir = dir_at(config_dir);
-    let mut s = parse_stato(&tokio::fs::read_to_string(dir.join(STATO)).await.ok()?)?;
-    s.richiesta = tokio::fs::read_to_string(dir.join(TRIGGER))
+    let mut s = leggi_file_stato(config_dir).await?;
+    s.richiesta = tokio::fs::read(dir_at(config_dir).join(PNG))
         .await
         .ok()
-        .map(|t| t.trim().to_string())
-        .filter(|t| !t.is_empty());
+        .map(|b| sha256_hex(&b));
     Some(s)
 }
 
@@ -260,29 +341,38 @@ mod tests {
         }
     }
 
-    fn trigger(cfg: &Path) -> String {
-        std::fs::read_to_string(dir_at(cfg).join(TRIGGER)).unwrap()
+    fn stato(cfg: &Path) -> Option<String> {
+        std::fs::read_to_string(dir_at(cfg).join(STATO)).ok()
     }
 
     #[tokio::test]
-    async fn una_pagina_abilitata_con_png_pubblica_il_png_e_il_suo_sha() {
+    async fn una_pagina_abilitata_con_png_pubblica_il_png() {
         let (prj, cfg) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
         progetto(prj.path(), Some("b1"));
         pagina_con_png(prj.path(), "Splash", "b1", Some(PNG_FINTO)).await;
-        publish(cfg.path(), prj.path()).await;
-        assert_eq!(trigger(cfg.path()).trim(), sha256_hex(PNG_FINTO));
-        assert_eq!(
-            std::fs::read(dir_at(cfg.path()).join(PNG)).unwrap(),
-            PNG_FINTO
-        );
+        publish(cfg.path(), prj.path(), Occasione::Modifica).await;
+        assert_eq!(std::fs::read(dir_at(cfg.path()).join(PNG)).unwrap(), PNG_FINTO);
+        // Il file del meccanismo vecchio non si scrive più.
+        assert!(!dir_at(cfg.path()).join(TRIGGER_VECCHIO).exists());
     }
 
     #[tokio::test]
-    async fn nessuna_pagina_abilitata_scrive_none_e_non_tocca_il_png_precedente() {
+    async fn il_trigger_rimasto_da_una_versione_vecchia_si_toglie() {
+        let (prj, cfg) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+        let d = dir_at(cfg.path());
+        std::fs::create_dir_all(&d).unwrap();
+        std::fs::write(d.join(TRIGGER_VECCHIO), "abc\n").unwrap();
+        progetto(prj.path(), None);
+        publish(cfg.path(), prj.path(), Occasione::Modifica).await;
+        assert!(!d.join(TRIGGER_VECCHIO).exists());
+    }
+
+    #[tokio::test]
+    async fn nessuna_pagina_abilitata_lo_dice_e_non_scrive_png() {
         let (prj, cfg) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
         progetto(prj.path(), None);
-        publish(cfg.path(), prj.path()).await;
-        assert_eq!(trigger(cfg.path()).trim(), NESSUNA);
+        publish(cfg.path(), prj.path(), Occasione::Modifica).await;
+        assert_eq!(stato(cfg.path()).as_deref(), Some("esito=nessuna_immagine\n"));
         assert!(!dir_at(cfg.path()).join(PNG).exists());
     }
 
@@ -291,8 +381,8 @@ mod tests {
         let (prj, cfg) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
         progetto(prj.path(), Some("fantasma"));
         pagina_con_png(prj.path(), "Splash", "b1", Some(PNG_FINTO)).await;
-        publish(cfg.path(), prj.path()).await;
-        assert_eq!(trigger(cfg.path()).trim(), NESSUNA);
+        publish(cfg.path(), prj.path(), Occasione::Modifica).await;
+        assert!(!dir_at(cfg.path()).join(PNG).exists());
     }
 
     #[tokio::test]
@@ -300,37 +390,66 @@ mod tests {
         let (prj, cfg) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
         progetto(prj.path(), Some("b1"));
         pagina_con_png(prj.path(), "Splash", "b1", None).await;
-        publish(cfg.path(), prj.path()).await;
-        assert_eq!(trigger(cfg.path()).trim(), NESSUNA);
+        publish(cfg.path(), prj.path(), Occasione::Modifica).await;
+        assert!(!dir_at(cfg.path()).join(PNG).exists());
     }
 
-    #[tokio::test]
-    async fn una_richiesta_identica_non_riscrive_il_trigger() {
-        // Il trigger fa scattare un'unit systemd: riscriverlo a ogni salvataggio
-        // la farebbe girare a ogni salvataggio.
-        let (prj, cfg) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
-        progetto(prj.path(), Some("b1"));
-        pagina_con_png(prj.path(), "Splash", "b1", Some(PNG_FINTO)).await;
-        publish(cfg.path(), prj.path()).await;
-        let path = dir_at(cfg.path()).join(TRIGGER);
-        let prima = std::fs::metadata(&path).unwrap().modified().unwrap();
-        tokio::time::sleep(std::time::Duration::from_millis(30)).await;
-        publish(cfg.path(), prj.path()).await;
-        assert_eq!(std::fs::metadata(&path).unwrap().modified().unwrap(), prima);
+    fn st(esito: &str, sha: Option<&str>) -> BootImageStato {
+        BootImageStato { esito: esito.into(), sha256: sha.map(Into::into), ..Default::default() }
     }
 
+    /// Il difetto del TC620 (27-09): PNG pubblicato il 20-09, mai applicato,
+    /// e il launcher non si richiamava più perché il PNG non cambiava.
+    #[test]
+    fn il_launcher_si_richiama_finche_non_e_installato_quel_png() {
+        const M: Occasione = Occasione::Modifica;
+        // PNG già al suo posto, nessuno stato: si chiama.
+        assert!(serve_applicare(None, "aaa", false, M));
+        // L'ultima volta è andata male, o c'è stato un ripristino: si chiama.
+        assert!(serve_applicare(Some(&st("errore", Some("aaa"))), "aaa", false, M));
+        assert!(serve_applicare(Some(&st("fabbrica", None)), "aaa", false, M));
+        // Installato un PNG diverso: si chiama.
+        assert!(serve_applicare(Some(&st("installato", Some("bbb"))), "aaa", false, M));
+        // Installato proprio questo: non si richiama a ogni salvataggio.
+        assert!(!serve_applicare(Some(&st("installato", Some("aaa"))), "aaa", false, M));
+        // PNG cambiato: si chiama sempre.
+        assert!(serve_applicare(Some(&st("installato", Some("aaa"))), "aaa", true, M));
+    }
+
+    /// Il secondo difetto del TC620 (27-09): ripristino di fabbrica, riavvio,
+    /// e il runtime ripartendo riapplicava l'immagine del progetto.
+    #[test]
+    fn un_ripristino_di_fabbrica_resiste_al_riavvio_ma_non_al_deploy() {
+        let fabbrica = st("fabbrica", None);
+        assert!(!serve_applicare(Some(&fabbrica), "aaa", false, Occasione::Avvio));
+        assert!(serve_applicare(Some(&fabbrica), "aaa", false, Occasione::Modifica));
+        // All'avvio un PNG davvero nuovo si applica comunque.
+        assert!(serve_applicare(Some(&fabbrica), "aaa", true, Occasione::Avvio));
+        // E all'avvio un pannello mai applicato recupera (il primo difetto).
+        assert!(serve_applicare(None, "aaa", false, Occasione::Avvio));
+    }
+
+    /// Chi scrive `status` e chi lo legge usano le stesse chiavi: il 24-09 il
+    /// runtime scriveva `esito=applicata` e `nota=`, e la scheda mostrava la
+    /// parola grezza senza il messaggio.
     #[tokio::test]
-    async fn cambiare_il_png_cambia_il_trigger() {
-        let (prj, cfg) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
-        progetto(prj.path(), Some("b1"));
-        pagina_con_png(prj.path(), "Splash", "b1", Some(PNG_FINTO)).await;
-        publish(cfg.path(), prj.path()).await;
-        let prima = trigger(cfg.path());
-        boot::scrivi_png(prj.path(), "Splash", b"\x89PNG\r\n\x1a\naltro")
-            .await
-            .unwrap();
-        publish(cfg.path(), prj.path()).await;
-        assert_ne!(trigger(cfg.path()), prima);
+    async fn lo_stato_scritto_si_rilegge_con_le_stesse_chiavi() {
+        let cfg = tempfile::tempdir().unwrap();
+        scrivi_stato(
+            cfg.path(),
+            BootImageStato {
+                esito: "errore".into(),
+                sha256: Some("aaa".into()),
+                messaggio: Some("due\nrighe".into()),
+                ..Default::default()
+            },
+        )
+        .await;
+        let s = leggi_stato(cfg.path()).await.unwrap();
+        assert_eq!(s.esito, "errore");
+        assert_eq!(s.sha256.as_deref(), Some("aaa"));
+        assert_eq!(s.messaggio.as_deref(), Some("due righe"));
+        assert!(s.quando.is_some());
     }
 
     #[test]
@@ -347,15 +466,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn lo_stato_riporta_anche_cosa_e_stato_chiesto() {
+    async fn lo_stato_riporta_lo_sha_del_png_pubblicato() {
         let cfg = tempfile::tempdir().unwrap();
         assert_eq!(leggi_stato(cfg.path()).await, None);
         let d = dir_at(cfg.path());
         std::fs::create_dir_all(&d).unwrap();
         std::fs::write(d.join(STATO), "esito=installato\nsha256=aaa\n").unwrap();
-        std::fs::write(d.join(TRIGGER), "bbb\n").unwrap();
+        std::fs::write(d.join(PNG), PNG_FINTO).unwrap();
         let s = leggi_stato(cfg.path()).await.unwrap();
         assert_eq!(s.sha256.as_deref(), Some("aaa"));
-        assert_eq!(s.richiesta.as_deref(), Some("bbb"));
+        assert_eq!(s.richiesta, Some(sha256_hex(PNG_FINTO)));
     }
 }

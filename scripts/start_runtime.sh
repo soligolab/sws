@@ -239,7 +239,7 @@ SWS Runtime$INST_LABEL — pronto (HTTP)
   Viewer operatori : http://$LAN_IP:$VIEWER_PORT
   IDE/Admin        : http://$LAN_IP:$ADMIN_PORT
 
-  Per abilitare HTTPS: IDE → ConfigView → Stato → Certificato TLS
+  Per abilitare HTTPS: IDE → Configurazione → Istanza → Device → Stato → Certificato TLS
   Stop: Ctrl-C
 ────────────────────────────────────────────────────────────────
 

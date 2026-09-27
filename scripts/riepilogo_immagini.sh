@@ -165,7 +165,7 @@ cat <<'FINE'
     dentro     binario runtime + SPA + template; niente sorgenti, niente toolchain
 
   Per installarne una su un dispositivo (rootless, con l'utente limitato):
-    dall'editor   Configurazione → Runtime → «Installa su dispositivo», oppure
+    dall'editor   Configurazione → Istanza → Device → Installazione, oppure
                   dalla schermata iniziale «Installa runtime»: registry, l'arch
                   la sceglie il dispositivo
     a mano        ssh user@<device> e poi

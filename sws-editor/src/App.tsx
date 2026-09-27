@@ -315,7 +315,7 @@ export function App() {
   // (aggiornato da RuntimeConnectionTab/DevicesTab in ConfigView.tsx), non più
   // da un proprio specchio locale via localStorage/eventi: erano due fonti di
   // verità indipendenti che potevano disallinearsi (es. disconnessione dal
-  // bottone Deploy che non si rifletteva in Configurazione → Runtime).
+  // bottone Deploy che non si rifletteva in Configurazione → Istanza → Device → Connessione).
   const remoteConnected    = useAppStore((s) => s.remoteConnected);
   const setRemoteConnected = useAppStore((s) => s.setRemoteConnected);
 
@@ -700,7 +700,7 @@ export function App() {
             esce sempre con `""`. Un indicatore che non può accendersi è peggio
             di nessun indicatore, perché fa credere che l'assenza significhi
             qualcosa. Lo stato del runtime remoto **vero** — quello collegato da
-            Configurazione → Runtime, che passa dal server — lo mostrano il
+            Configurazione → Istanza → Device → Connessione, che passa dal server — lo mostrano il
             marcatore di `RuntimeCtrl` e la scheda Stato. */}
         <span style={{ color: "var(--brand-text-subtle, #94a3b8)", fontSize: 13 }}>
           {t("app.project")}: {project?.meta.name ?? "—"}
@@ -760,7 +760,7 @@ export function App() {
                     setRemoteConnected(true, lastTargetUrl);
                   } catch {
                     // Ultimo dispositivo irraggiungibile o credenziali cambiate
-                    // — porta l'utente su Configurazione → Runtime per un
+                    // — porta l'utente su Configurazione → Istanza → Device → Connessione per un
                     // tentativo manuale invece di fallire in silenzio.
                     navigateToConfig("runtime");
                   }

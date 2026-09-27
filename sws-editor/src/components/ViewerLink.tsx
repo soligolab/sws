@@ -34,7 +34,7 @@ export function ViewerLink() {
   // dall'IDE: l'accettazione fatta per :8444 non copre :8443).
   const [offerCertAction, setOfferCertAction] = useState(false);
   // `remoteUrl` nello store lo scrive RuntimeConnectionTab, quindi resta vuoto
-  // finché in questa sessione non si è aperta Configurazione → Runtime. Chi
+  // finché in questa sessione non si è aperta Configurazione → Istanza → Device → Connessione. Chi
   // ricarica l'IDE e vuole subito guardare il dispositivo si troverebbe il
   // bottone puntato al runtime locale. Una domanda al server al montaggio
   // dell'header costa una richiesta e toglie il caso.

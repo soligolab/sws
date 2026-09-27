@@ -133,6 +133,36 @@ pub async fn imposta_immagine(png_host: &str) -> Esito {
     }
 }
 
+/// Torna all'immagine di fabbrica (`ResetBackgroundImage`), verificato con
+/// `GetBackgroundImage == "Default"`. Come `SetBackgroundImage`, ha effetto al
+/// prossimo avvio. Misurato sul TC620 il 19-09-2026: funziona come `user`,
+/// senza polkit. `Applicata` qui vuol dire «ripristinata».
+pub async fn ripristina() -> Esito {
+    let conn = match zbus::Connection::system().await {
+        Ok(c) => c,
+        Err(e) => return Esito::Errore(format!("bus di sistema non raggiungibile: {e}")),
+    };
+    if let Err(e) = conn
+        .call_method(Some(SERVIZIO), OGGETTO, Some(INTERFACCIA), "ResetBackgroundImage", &())
+        .await
+    {
+        let testo = e.to_string();
+        if testo.contains("ServiceUnknown") || testo.contains("was not provided by any") {
+            return Esito::NonSupportato;
+        }
+        return Esito::Errore(format!("ResetBackgroundImage: {testo}"));
+    }
+    match conn
+        .call_method(Some(SERVIZIO), OGGETTO, Some(INTERFACCIA), "GetBackgroundImage", &())
+        .await
+        .and_then(|m| m.body().deserialize::<String>())
+    {
+        Ok(letto) if letto == "Default" => Esito::Applicata { percorso_assoluto: false },
+        Ok(letto) => Esito::Errore(format!("dopo il ripristino il launcher risponde «{letto}» invece di Default")),
+        Err(e) => Esito::Errore(format!("GetBackgroundImage: {e}")),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
