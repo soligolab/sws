@@ -2417,5 +2417,25 @@
     "membroSenzaTipo": "member `{{name}}` does not say its type",
     "membroTipoNonValido": "member `{{name}}`: type `{{tipo}}` is not valid",
     "tipoNonValido": "type `{{tipo}}` is not valid"
+  },
+  "aggiornamento": {
+    "titolo": "Runtime update",
+    "carico": "Asking the device…",
+    "illeggibile": "Cannot read the update status.",
+    "canale": {
+      "stabile": "stable channel",
+      "prova": "test channel",
+      "fissata": "pinned version",
+      "archivio": "installed from archive",
+      "sconosciuto": "unmanaged install"
+    },
+    "aggiornato": "Version {{versione}} ({{canale}}): up to date.",
+    "disponibile": "Version {{versione}} ({{canale}}): {{a}} is available.",
+    "registryErrore": "Version {{versione}} ({{canale}}). Cannot tell whether a newer one exists: {{msg}}",
+    "manuale": "Version {{versione}} ({{canale}}): it does not update by itself. To update it use Configuration → Instance → Device → Install.",
+    "pulsante": "Update now to {{a}}",
+    "inCorso": "Starting…",
+    "conferma": "The panel runtime goes from {{da}} to {{a}}.\n\nIt restarts: for a few seconds alarms, history and screen stop and the connection drops. If the new version does not start properly, the panel goes back to the previous one by itself.\n\nProceed?",
+    "avviato": "Update to {{a}} started: the runtime is restarting. Reconnect in a minute to see the new version."
   }
 }

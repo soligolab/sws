@@ -12,6 +12,13 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ## [Unreleased]
 
 ### Added
+- **Aggiornamento del runtime dall'IDE** (Fase 1 del [piano](docs/plans/2026-09-27-aggiornamento-runtime-e-bus-utente.md)): in Configurazione → Istanza →
+  Device → Connessione la sezione «Aggiornamento del runtime» dice versione e canale del pannello (stabile `latest-<arch>`, prova `rc-<arch>`) e se nel canale
+  c'è una versione più nuova, letta dal registry senza credenziali; «Aggiorna ora» (Admin, con conferma) fa avviare al pannello `podman-auto-update` via bus
+  utente di systemd. Il quadlet ha `AutoUpdate=registry` e `Notify=healthy`: se la versione nuova non diventa sana, podman torna alla precedente. I pannelli
+  installati da archivio restano manuali, e la sezione lo dice.
+- **Le immagini di prova si chiamano `-rc`** (`2.12.0-rc.1`), non più `-dev`; `build_container.sh --push` sposta `rc-<arch>` per una `-rc`, `latest-<arch>` e
+  `rc-<arch>` per una release (HOWTO §19).
 - **«Ripristina l'immagine di fabbrica»** in Configurazione → Istanza → Device → Connessione, sulla riga «Immagine di boot» del dispositivo collegato: `ResetBackgroundImage` via D-Bus,
   con conferma, riservato agli Admin del dispositivo. Resta ai riavvii (il runtime ripartendo non la riapplica); il prossimo deploy sì.
 - **La storia del progetto nella scheda Git** (Fase 1 del [gestore del repository](docs/archive/2026-09-26-gestore-repository-progetto.md)): i commit dal più recente, le modifiche

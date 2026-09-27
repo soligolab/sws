@@ -1,0 +1,75 @@
+import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { api, type StatoAggiornamento } from "@/api/client";
+
+/** L'aggiornamento del runtime collegato (piano 2026-09-27, Fase 1): che
+ *  versione gira, su quale canale, e se nel canale ce n'è una più nuova. «Aggiorna
+ *  ora» lo chiede al dispositivo, che avvia `podman-auto-update` via bus utente:
+ *  il runtime si riavvia e la connessione cade per qualche secondo. Se la versione
+ *  nuova non diventa sana, podman torna da solo alla precedente. */
+export function AggiornamentoRuntime() {
+  const { t } = useTranslation();
+  const [stato, setStato] = useState<StatoAggiornamento | null | undefined>(undefined);
+  const [errore, setErrore] = useState<string | null>(null);
+  const [avviato, setAvviato] = useState(false);
+  const [inCorso, setInCorso] = useState(false);
+
+  useEffect(() => {
+    let vivo = true;
+    api.remoteStatoAggiornamento()
+      .then((s) => { if (vivo) { setStato(s); setErrore(null); } })
+      .catch((e) => { if (vivo) { setStato(null); setErrore(e instanceof Error ? e.message : String(e)); } });
+    return () => { vivo = false; };
+  }, []);
+
+  const aggiorna = async () => {
+    if (!stato?.disponibile) return;
+    if (!window.confirm(t("aggiornamento.conferma", { da: stato.versione, a: stato.disponibile }))) return;
+    setInCorso(true);
+    try {
+      await api.remoteAvviaAggiornamento();
+      setAvviato(true);
+    } catch (e) {
+      setErrore(e instanceof Error ? e.message : String(e));
+    } finally {
+      setInCorso(false);
+    }
+  };
+
+  let riga: string;
+  let tono = "var(--brand-text-subtle, #64748b)";
+  if (errore) { riga = errore; tono = "var(--brand-danger, #ef4444)"; }
+  else if (stato === undefined) riga = t("aggiornamento.carico");
+  else if (stato === null) riga = t("aggiornamento.illeggibile");
+  else if (avviato) { riga = t("aggiornamento.avviato", { a: stato.disponibile }); tono = "var(--brand-warning, #f59e0b)"; }
+  else {
+    const canale = t(`aggiornamento.canale.${stato.canale}`);
+    if (stato.canale === "archivio" || stato.canale === "fissata" || stato.canale === "sconosciuto") {
+      riga = t("aggiornamento.manuale", { versione: stato.versione, canale });
+    } else if (stato.errore) {
+      riga = t("aggiornamento.registryErrore", { versione: stato.versione, canale, msg: stato.errore });
+    } else if (stato.disponibile) {
+      riga = t("aggiornamento.disponibile", { versione: stato.versione, canale, a: stato.disponibile });
+      tono = "var(--brand-warning, #f59e0b)";
+    } else {
+      riga = t("aggiornamento.aggiornato", { versione: stato.versione, canale });
+      tono = "var(--brand-success-soft, #4ade80)";
+    }
+  }
+
+  return (
+    <section>
+      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>
+        {t("aggiornamento.titolo")}
+      </div>
+      <span style={{ fontSize: 12, color: tono }}>{riga}</span>
+      {stato?.disponibile && !avviato && !errore && (
+        <div style={{ marginTop: 8 }}>
+          <button type="button" onClick={aggiorna} disabled={inCorso}>
+            {inCorso ? t("aggiornamento.inCorso") : t("aggiornamento.pulsante", { a: stato.disponibile })}
+          </button>
+        </div>
+      )}
+    </section>
+  );
+}

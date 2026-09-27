@@ -289,6 +289,15 @@ export interface AvvisoRuntime {
 
 /** Com'è andata l'installazione dell'immagine di boot sul dispositivo (T-72 F5).
  *  Gemello di `boot_image::BootImageStato` in `sws-web`. */
+/** Gemello di `aggiornamento::StatoAggiornamento` in `sws-web`. */
+export interface StatoAggiornamento {
+  versione: string;
+  immagine: string | null;
+  canale: "stabile" | "prova" | "fissata" | "archivio" | "sconosciuto";
+  disponibile: string | null;
+  errore: string | null;
+}
+
 export interface BootImageStato {
   /** `installato`, `non_supportato`, `nessuna_immagine`, `fabbrica`, `errore`. */
   esito: string;
@@ -1428,6 +1437,12 @@ export const api = {
    *  senza, copia di sicurezza accanto al database, poi toglie i campioni dei
    *  tag senza storico e le ripetizioni, e compatta. `remoto`: sul dispositivo
    *  collegato, via `/api/remote/database/:id/clean-history`. */
+  /** Versione, canale e versione disponibile del runtime collegato. */
+  remoteStatoAggiornamento: () => request<StatoAggiornamento>("/api/remote/update/status"),
+  /** «Aggiorna ora»: il dispositivo avvia podman-auto-update e si riavvia. */
+  remoteAvviaAggiornamento: () =>
+    request<StatoAggiornamento>("/api/remote/update/apply", { method: "POST" }),
+
   /** Ripristina l'immagine di accensione di fabbrica sul dispositivo collegato
    *  (`ResetBackgroundImage`). Risponde con lo stato nuovo. */
   ripristinaImmagineFabbrica: () =>

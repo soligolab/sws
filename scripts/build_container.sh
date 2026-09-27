@@ -301,14 +301,27 @@ if [ "$PUSH" -eq 1 ]; then
     # dispositivo prende l'ultima pubblicata senza che qualcuno debba ricordarsi
     # di aggiornare un numero dentro lo script a ogni release.
     TAG_LATEST="${REGISTRY}:latest-arm64"
-    TAGS=( "$TAG_VERSION" "$TAG_COMMIT" "$TAG_LATEST" )
+    # I canali dell'aggiornamento del runtime (27-09-2026) sono tag mobili:
+    # `latest-arm64` è lo stabile, `rc-arm64` la prova. Una `-rc` sposta solo
+    # la prova; una release sposta tutti e due, così il canale di prova non
+    # resta mai indietro rispetto allo stabile. Un'altra pre-release (le
+    # vecchie `-dev`) non sposta nessun canale.
+    TAG_RC="${REGISTRY}:rc-arm64"
+    case "$VERSION" in
+        *-rc.*) TAGS=( "$TAG_VERSION" "$TAG_COMMIT" "$TAG_RC" ) ;;
+        *-*)    TAGS=( "$TAG_VERSION" "$TAG_COMMIT" ) ;;
+        *)      TAGS=( "$TAG_VERSION" "$TAG_COMMIT" "$TAG_LATEST" "$TAG_RC" ) ;;
+    esac
     # Q53: `-arm64-generic` era un'immagine a parte (QEMU, non ottimizzata), e
     # dal 2026-09-10 è la STESSA immagine con un altro nome, così un dispositivo
     # installato con quel riferimento continua ad aggiornarsi. Dal 14-09 la
     # vecchia immagine non esiste più: questo resta un **alias**, e si pubblica
     # sempre. Cade quando nessun dispositivo lo usa più — e per saperlo serve
     # guardare i pull del registry, non indovinare.
-    TAGS+=( "${REGISTRY}:${VERSION}-arm64-generic" "${REGISTRY}:latest-arm64-generic" )
+    case "$VERSION" in
+        *-*) ;;  # pre-release: gli alias `-generic` restano alle release
+        *)   TAGS+=( "${REGISTRY}:${VERSION}-arm64-generic" "${REGISTRY}:latest-arm64-generic" ) ;;
+    esac
     echo "==> [4/4] pubblicazione su $REGISTRY"
     for t in "${TAGS[@]}"; do
         podman tag "$IMAGE" "$t"
@@ -316,7 +329,8 @@ if [ "$PUSH" -eq 1 ]; then
         podman push "$t"
     done
     echo
-    echo "    sul dispositivo:  ./install-container.sh --pull            # $TAG_LATEST"
+    echo "    sul dispositivo:  ./install-container.sh --pull            # $TAG_LATEST (stabile)"
+    echo "    canale di prova:  ./install-container.sh --pull $TAG_RC"
     echo "    per inchiodare la versione:  ./install-container.sh --pull $TAG_VERSION"
 fi
 

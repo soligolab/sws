@@ -234,7 +234,15 @@ if [ "$PUSH" -eq 1 ]; then
     # dell'installer è `latest-arm64`, quindi su x86_64 questo va passato a mano.
     TAG_LATEST="${REGISTRY}:latest-amd64"
     echo "==> [4/4] pubblicazione su $REGISTRY"
-    for t in "$TAG_VERSION" "$TAG_COMMIT" "$TAG_LATEST"; do
+    # Canali dell'aggiornamento (27-09-2026), come in build_container.sh:
+    # `-rc` sposta solo `rc-amd64`, una release sposta `latest-` e `rc-`.
+    TAG_RC="${REGISTRY}:rc-amd64"
+    case "$VERSION" in
+        *-rc.*) TAGS=( "$TAG_VERSION" "$TAG_COMMIT" "$TAG_RC" ) ;;
+        *-*)    TAGS=( "$TAG_VERSION" "$TAG_COMMIT" ) ;;
+        *)      TAGS=( "$TAG_VERSION" "$TAG_COMMIT" "$TAG_LATEST" "$TAG_RC" ) ;;
+    esac
+    for t in "${TAGS[@]}"; do
         podman tag "$IMAGE" "$t"
         echo "    push $t"
         podman push "$t"

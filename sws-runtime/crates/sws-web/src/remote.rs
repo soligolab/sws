@@ -774,6 +774,66 @@ pub async fn remote_download_database(
 /// sul dispositivo connesso (proxy: il browser non parla mai col device).
 /// Serve un dispositivo col runtime del 26-09-2026 o successivo: prima
 /// l'endpoint lì non esiste e la risposta lo dice.
+/// Gira una richiesta di aggiornamento al dispositivo collegato: stesso
+/// schema degli altri proxy, con i messaggi per i runtime che non la conoscono.
+async fn inoltra_aggiornamento(
+    s: &AppState,
+    user: &AuthUser,
+    metodo: reqwest::Method,
+    url: impl Fn(&str) -> String,
+) -> Response {
+    let target = match s.remote_target.read().await.clone() {
+        Some(t) => t,
+        None => return (StatusCode::BAD_REQUEST, "No remote runtime connected").into_response(),
+    };
+    if metodo == reqwest::Method::POST {
+        s.audit.log("remote.update_apply", Some(user.username.clone()), serde_json::json!({ "url": target.url }));
+    }
+    let client = make_remote_client(s, &target.url);
+    let base = target.url.trim_end_matches('/');
+    let mut req = client.request(metodo, url(base));
+    if !target.token.is_empty() {
+        req = req.header("Authorization", format!("Bearer {}", target.token));
+    }
+    match req.send().await {
+        Ok(r) if r.status().is_success() => {
+            let code = r.status();
+            let corpo: serde_json::Value = r.json().await.unwrap_or_default();
+            (StatusCode::from_u16(code.as_u16()).unwrap_or(StatusCode::OK), Json(corpo)).into_response()
+        }
+        Ok(r) if r.status() == StatusCode::NOT_FOUND || r.status() == StatusCode::METHOD_NOT_ALLOWED => (
+            StatusCode::BAD_GATEWAY,
+            "Il dispositivo non conosce l'aggiornamento del runtime: è precedente alla 2.12.0-rc.1, \
+             va aggiornato una volta dall'Installazione."
+                .to_string(),
+        )
+            .into_response(),
+        Ok(r) if r.status() == StatusCode::UNAUTHORIZED || r.status() == StatusCode::FORBIDDEN => (
+            StatusCode::BAD_GATEWAY,
+            "Il dispositivo ha rifiutato la richiesta (non autorizzato). Riconnettiti con \
+             credenziali admin e riprova."
+                .to_string(),
+        )
+            .into_response(),
+        Ok(r) => {
+            let code = r.status();
+            let testo = r.text().await.unwrap_or_default();
+            (StatusCode::BAD_GATEWAY, format!("Il dispositivo ha risposto {code}: {testo}")).into_response()
+        }
+        Err(e) => (StatusCode::BAD_GATEWAY, format!("Dispositivo non raggiungibile: {e}")).into_response(),
+    }
+}
+
+/// `GET /api/remote/update/status`
+pub async fn remote_update_status(State(s): State<AppState>, Extension(user): Extension<AuthUser>) -> Response {
+    inoltra_aggiornamento(&s, &user, reqwest::Method::GET, |base| format!("{base}/api/update/status")).await
+}
+
+/// `POST /api/remote/update/apply`
+pub async fn remote_update_apply(State(s): State<AppState>, Extension(user): Extension<AuthUser>) -> Response {
+    inoltra_aggiornamento(&s, &user, reqwest::Method::POST, |base| format!("{base}/api/update/apply")).await
+}
+
 /// `POST /api/remote/boot-image/reset` — il ripristino dell'immagine di
 /// fabbrica, girato al dispositivo collegato.
 pub async fn remote_boot_image_reset(

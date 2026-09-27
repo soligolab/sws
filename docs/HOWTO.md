@@ -36,7 +36,7 @@
 16. [Generare un'onda (rampa/triangolo/quadra) su un tag, senza scrivere Python](#16-generare-unonda-rampatriangoloquadra-su-un-tag-senza-scrivere-python)
 17. [Impostare l'immagine di boot del pannello](#17-impostare-limmagine-di-boot-del-pannello)
 18. [Dove stanno le password](#18-dove-stanno-le-password)
-19. [Dare un nome a un'immagine di prova: le versioni `-dev`](#19-dare-un-nome-a-unimmagine-di-prova-le-versioni--dev)
+19. [Dare un nome a un'immagine di prova: le versioni `-rc`](#19-dare-un-nome-a-unimmagine-di-prova-le-versioni--rc)
 
 ---
 
@@ -1220,40 +1220,47 @@ grep -E 'bot_token|password|token' ~/sws_projects/<progetto>/project.yaml   # no
 
 ---
 
-## 19. Dare un nome a un'immagine di prova: le versioni `-dev`
+## 19. Dare un nome a un'immagine di prova: le versioni `-rc`
 
-Prassi decisa dal maintainer il 2026-09-25. Un'immagine costruita per collaudare lavoro non ancora
-rilasciato porta una **versione di prova**, così la riconosci sul pannello, in Configurazione →
-Istanza → Device → Stato, nella lista dei dispositivi («SWS v…») e nel nome dell'archivio in `dist/`. Senza, l'immagine
-si chiamerebbe come l'ultima release e non sapresti quale delle due gira.
+Prassi decisa dal maintainer il 2026-09-25, e dal 2026-09-27 con `-rc` al posto di `-dev` («Al posto di dev
+chiamiamo rc le immagini di test»). Un'immagine costruita per collaudare lavoro non ancora rilasciato porta
+una **versione di prova**, così la riconosci sul pannello, in Configurazione → Istanza → Device → Stato,
+nella lista dei dispositivi («SWS v…») e nel nome dell'archivio in `dist/`. Senza, l'immagine si chiamerebbe
+come l'ultima release e non sapresti quale delle due gira.
 
-**La forma è `<prossima release>-dev.<N>`**: `2.12.0-dev.1`, `2.12.0-dev.2`… In semver una
-pre-release si ordina **prima** della release vera, quindi `2.12.0` risulta sempre più nuova di tutte
-le sue `-dev`. Un numero di patch più alto (`2.12.2-dev`) si ordinerebbe invece dopo `2.12.0`.
+**La forma è `<prossima release>-rc.<N>`**: `2.12.0-rc.1`, `2.12.0-rc.2`… In semver una pre-release si ordina
+**prima** della release vera, quindi `2.12.0` risulta sempre più nuova di tutte le sue `-rc`; e `-dev` viene
+prima di `-rc`, quindi `2.12.0-rc.1` è più nuova delle vecchie `2.12.0-dev.N`. Un numero di patch più alto
+(`2.12.2-rc.1`) si ordinerebbe invece dopo `2.12.0`.
 
 ### I passi
 
-1. Scegli N: `git tag -l '2.12.0-dev.*'` mostra quelle già usate, e si prende la successiva.
+1. Scegli N: `git tag -l '2.12.0-rc.*'` mostra quelle già usate, e si prende la successiva.
 2. Scrivi la versione nei **quattro file** che la portano (`sws-runtime/Cargo.toml`,
    `sws-runtime/crates/sws-kiosk/Cargo.toml`, `sws-runtime/crates/sws-lvgl-viewer/Cargo.toml`,
    `sws-editor/package.json`), poi `cargo check` per aggiornare `Cargo.lock`.
-3. Commit su `main` (`chore(dev): 2.12.0-dev.N`), **tag con lo stesso nome** e push di tutti e due:
-   `git push origin main 2.12.0-dev.N`. Il tag è obbligatorio: `check_release_coerente.sh` rifiuta
+3. Commit su `main` (`chore(rc): 2.12.0-rc.N`), **tag con lo stesso nome** e push di tutti e due:
+   `git push origin main 2.12.0-rc.N`. Il tag è obbligatorio: `check_release_coerente.sh` rifiuta
    un tag di versione che esiste solo sulla tua macchina.
 4. Sulla macchina che raggiunge il dispositivo: `./scripts/session_start.sh`, poi
-   `./scripts/build_container.sh` **senza `--push`**. L'archivio esce in
-   `dist/sws-runtime-2.12.0-dev.N-aarch64-image.tar.gz`.
-5. Installa dall'editor lanciato dal repo (`./scripts/start_editor_develop.sh`): Configurazione →
-   Istanza → Device → Installazione, passo «Immagine» → **Archivio locale** (§10 e §12).
+   `./scripts/build_container.sh`:
+   - **con `--push`** l'immagine va su ghcr.io e sposta il tag **`rc-arm64`**, il canale di prova: i pannelli
+     installati su quel canale la vedono in Configurazione → Istanza → Device → Connessione → «Aggiornamento del
+     runtime» e si aggiornano con «Aggiorna ora»;
+   - **senza `--push`** esce solo l'archivio `dist/sws-runtime-2.12.0-rc.N-aarch64-image.tar.gz`.
+5. Per un pannello installato da archivio: Configurazione → Istanza → Device → Installazione, passo «Immagine»
+   → **Archivio locale** (§10 e §12).
 
 ### Il CHANGELOG
 
-Una versione `-dev` **non** ha una sezione sua: il lavoro che contiene resta sotto `[Unreleased]` e
+Una versione `-rc` **non** ha una sezione sua: il lavoro che contiene resta sotto `[Unreleased]` e
 diventa la sezione della release vera quando la si fa. `check_release_coerente.sh` lo sa, e per una
-`-dev` non chiede la sezione.
+`-rc` (o una vecchia `-dev`) non chiede la sezione.
 
 ### Alla release
 
 Si scrive la versione vera (`2.12.0`) nei quattro file, `[Unreleased]` diventa `## [2.12.0]`, e si
-tagga come sempre (§5). I tag `-dev` restano: dicono quale commit era dentro ogni immagine di prova.
+tagga come sempre (§5). Il `--push` di una release sposta **`latest-arm64`** (canale stabile) **e `rc-arm64`**,
+così il canale di prova non resta indietro. I tag `-rc` (e i vecchi `-dev`) restano: dicono quale commit era
+dentro ogni immagine di prova.
 
