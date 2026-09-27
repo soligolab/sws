@@ -74,7 +74,23 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — nove rami annidati da collaudare: pannello, luce, forme, rotazione LVGL, apertura veloce, deploy su comando, storico a una strada, pulizia storico, allarmi al ricaricamento (2026-09-27)
+## ▶ Riprendere da qui — catena su `main` (squash `c631cd19`), dev.3 sul TC620; prossimo: immagine di boot dal container (2026-09-27)
+
+**Su `main`, niente pushato, nessun ramo aperto.** La catena dei nove rami descritta qui sotto è entrata in
+`main` con un solo squash (`c631cd19`) su ok del maintainer, alberi verificati, rami eliminati. Il TC620
+gira la **2.12.0-dev.3**, costruita dal ramo in cima (`b52e1e68`, stesso codice). **Il tag `2.12.0-dev.3` non
+esiste ancora**: va creato su `c631cd19` e pushato insieme a `main`, quando il maintainer chiede il push
+(`check_release_coerente.sh` rifiuta un tag solo locale).
+
+**Prossimo, scelto dal maintainer il 27-09** prima del lavoro grosso su utenti e aziende
+([piano](docs/plans/2026-09-18-identita-utenti-istanze.md), prima sessione di plan fatta, 29 decisioni):
+immagine di boot dal container via D-Bus provata sul TC620 + pulsante «ripristino di fabbrica»
+([collaudo](docs/plans/2026-09-19-boot-image-collaudo-container.md),
+[ripristino](docs/plans/2026-09-19-boot-image-ripristino-di-fabbrica.md)). Archiviati
+`pannello-luce-forme` e `trasparenza-luminosita-e-forme`; `storico-troppo-grande` ridotto (restano formato
+del campione e backup).
+
+### La catena, com'era prima dello squash
 
 **Quattro rami annidati, nessuno su `main`, niente pushato.** Piano
 [`docs/archive/2026-09-26-pannello-luce-forme.md`](docs/archive/2026-09-26-pannello-luce-forme.md), deciso col maintainer
