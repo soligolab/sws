@@ -59,6 +59,30 @@ Sul TC620, a mano: montare `/run/user/1000/bus` nel container (con `UserNS=keep-
 sistema) e da dentro avviare `podman-auto-update.service` e `sws-lvgl-viewer.service`. **Se l'autenticazione del bus
 utente non regge dal container, cambia la strada** per entrambi.
 
+## La prova, fatta il 27-09-2026 sera — il bus utente regge
+
+Sul TC620 (dev.5), con un container usa-e-getta della stessa immagine e un client D-Bus minimo in Python puro
+(nell'immagine non ci sono `busctl`, `systemctl`, `dbus-send`, né il modulo `dbus`):
+
+| prova | esito |
+|---|---|
+| `-v /run/user/1000/bus:/run/user/1000/bus` + `--userns=keep-id`, AUTH EXTERNAL | **OK** (uid dentro = 1000) |
+| `Hello`, `GetUnit("sws-runtime.service")` | risposta regolare |
+| `StartUnit("podman-auto-update.service", "replace")` | **avviata** (job 5044): il container comanda una unit utente |
+| stesso, **senza** `keep-id` | `REJECTED EXTERNAL` (uid dentro = 0): `UserNS=keep-id` è indispensabile, come per il bus di sistema |
+
+`podman auto-update` in quel giro è uscito 125 («no container with ID … found»): era il container usa-e-getta, sparito
+(`--rm`) mentre podman elencava. Lanciato direttamente, `podman auto-update --dry-run` → 0.
+
+**Da portare nel disegno:**
+- il runtime che avvia l'aggiornamento viene fermato e sostituito dall'aggiornamento stesso: va bene, perché il lavoro
+  gira nella unit `podman-auto-update.service`, non nel chiamante — ma la risposta HTTP a «Aggiorna ora» deve partire
+  **prima** di chiamare `StartUnit`;
+- il rollback di podman scatta se il riavvio della unit fallisce: perché «fallisce» voglia dire «non è diventato
+  *healthy*», il quadlet deve avere **`Notify=healthy`** oltre a `AutoUpdate=registry`;
+- serve il client D-Bus nel runtime: `zbus` c'è già (lo usa `launcher_dbus.rs`), basta `Connection::session()` con
+  `DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus`.
+
 ## Visto il 27-09, da non dimenticare
 
 - Sui pannelli con CODESYS, `allow_url_override = true` fa vincere CODESYS sul browser all'avvio
