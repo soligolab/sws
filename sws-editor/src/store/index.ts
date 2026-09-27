@@ -21,6 +21,7 @@ import {
 } from "@/boot/tipi";
 import type {
   AlarmDef,
+  PipePoint,
   LanguageTable,
   AlarmState,
   CustomSymbol,
@@ -517,6 +518,10 @@ interface AppState {
   selectMany: (ids: string[]) => void;
   clearSelection: () => void;
   addObject: (partial: Omit<SynopticObject, "id">) => void;
+  /** Polilinea in disegno a clic (26-09-2026): `"nuova"` prima del primo clic,
+   *  poi l'id dell'oggetto a cui i clic aggiungono punti; `null` = nessuna. */
+  polilineaInDisegno: string | null;
+  setPolilineaInDisegno: (v: string | null) => void;
   updateObject: (id: string, patch: Partial<SynopticObject>) => void;
   /** Cattura waypoint dal canvas (MOVIMENTO SU PERCORSO): id dell'oggetto in
    *  cattura, o null. Effimero, non persistito. */
@@ -665,6 +670,15 @@ interface AppState {
   remoteUrl: string | null;
   setRemoteConnected: (connected: boolean, url?: string | null) => void;
   remoteDeployStatus: "idle" | "syncing" | "ok" | "error";
+  /** Perché l'ultimo deploy è fallito, per il tooltip della testata. */
+  remoteDeployErrore: string | null;
+  /** Deploy automatico a ogni salvataggio (26-09-2026: interruttore della
+   *  testata, ricordato nel browser; acceso di default, com'era prima). */
+  deployAlSalvataggio: boolean;
+  setDeployAlSalvataggio: (v: boolean) => void;
+  /** Deploy su comando: `completo` porta anche utenti e segreti (col 428 da
+   *  confermare se il progetto non ha utenti); altrimenti solo il progetto. */
+  deployOra: (completo: boolean) => Promise<void>;
 }
 
 const first = makePage("Page 1");
@@ -698,21 +712,54 @@ const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
  * può dare — ogni salvataggio finirebbe col pallino rosso.
  */
 function autoDeployIfConnected() {
-  const { remoteConnected } = useAppStore.getState();
-  if (!remoteConnected) return;
-  useAppStore.setState({ remoteDeployStatus: "syncing" });
-  api.deployToRuntime({ replaceUsers: false })
-    .then(async (res) => {
-      if (res.body) {
-        const rdr = res.body.getReader();
-        while (!(await rdr.read()).done) { /* drain streaming body */ }
-      }
-      useAppStore.setState({ remoteDeployStatus: res.ok ? "ok" : "error" });
-    })
-    .catch(() => useAppStore.setState({ remoteDeployStatus: "error" }))
-    .finally(() => {
-      setTimeout(() => useAppStore.setState({ remoteDeployStatus: "idle" }), 3000);
-    });
+  const { remoteConnected, deployAlSalvataggio } = useAppStore.getState();
+  if (!remoteConnected || !deployAlSalvataggio || saltaDeployAutomatico) return;
+  void eseguiDeploy(false);
+}
+
+/** Dove si ricorda l'interruttore «deploy al salvataggio». */
+const CHIAVE_DEPLOY_AL_SALVATAGGIO = "sws.deploy.alSalvataggio";
+/** Vero mentre `deployOra` salva prima di inviare: quel salvataggio non deve
+ *  far partire anche il deploy automatico. */
+let saltaDeployAutomatico = false;
+
+/** L'unico punto che manda il progetto al runtime connesso (26-09-2026).
+ *  - progetto (`completo = false`, pulsante «Invia ora» e salvataggio):
+ *    niente utenti né segreti — il dispositivo tiene i suoi;
+ *  - completo («Utenti e segreti»): progetto, utenti e segreti; se il
+ *    progetto non ha utenti il server risponde 428 e chi guarda decide.
+ *  Il registro in streaming si legge fino in fondo: l'ultima riga che inizia
+ *  con ✗ è il motivo, e finisce nel tooltip della testata. */
+async function eseguiDeploy(completo: boolean, confermato = false): Promise<void> {
+  useAppStore.setState({ remoteDeployStatus: "syncing", remoteDeployErrore: null });
+  let errore: string | null = null;
+  try {
+    const res = await api.deployToRuntime({ replaceUsers: completo, conSegreti: completo, confirmNoUsers: confermato });
+    if (res.status === 428 && completo && !confermato) {
+      const d = await res.json().catch(() => ({} as { utenti_dispositivo?: string[] }));
+      const elenco = Array.isArray(d?.utenti_dispositivo) && d.utenti_dispositivo.length
+        ? d.utenti_dispositivo.join(", ") : i18n.t("cfg.deployNoUsersUnknown");
+      if (window.confirm(i18n.t("cfg.deployNoUsersConfirm", { utenti: elenco }))) return eseguiDeploy(true, true);
+      useAppStore.setState({ remoteDeployStatus: "idle" });
+      return;
+    }
+    if (!res.ok || !res.body) {
+      errore = (await res.text().catch(() => "")).trim() || `${res.status} ${res.statusText}`;
+    } else {
+      const rdr = res.body.getReader();
+      const dec = new TextDecoder();
+      let testo = "";
+      for (;;) { const { done, value } = await rdr.read(); if (done) break; testo += dec.decode(value, { stream: true }); }
+      const falliti = testo.split("\n").filter((l) => l.startsWith("✗"));
+      if (falliti.length) errore = falliti[falliti.length - 1].slice(1).trim();
+    }
+  } catch (e) {
+    errore = errText(e);
+  }
+  useAppStore.setState({ remoteDeployStatus: errore ? "error" : "ok", remoteDeployErrore: errore });
+  setTimeout(() => {
+    if (useAppStore.getState().remoteDeployStatus !== "syncing") useAppStore.setState({ remoteDeployStatus: "idle" });
+  }, errore ? 8000 : 3000);
 }
 
 /**
@@ -720,6 +767,13 @@ function autoDeployIfConnected() {
  * that was last persisted, or some section holds a draft. Returns a boolean
  * (not an object), so it is safe with zustand's default equality check.
  */
+/** I punti di un tubo o di una polilinea spostati di `d` su entrambi gli assi:
+ *  duplica e incolla spostavano solo `x/y/x2/y2`, e la copia di un tubo
+ *  finiva disegnata esattamente sopra l'originale (26-09-2026). */
+function spostaPunti(punti: PipePoint[] | undefined, d: number): PipePoint[] | undefined {
+  return punti && d !== 0 ? punti.map((p) => ({ x: p.x + d, y: p.y + d })) : punti;
+}
+
 export const selectIsDirty = (s: AppState) =>
   s.pagesRev !== s.savedPagesRev
   || Object.keys(s.pendingSections).length > 0
@@ -1630,6 +1684,8 @@ export const useAppStore = create<AppState>((set, get) => {
       });
     },
 
+    polilineaInDisegno: null,
+    setPolilineaInDisegno: (v) => set({ polilineaInDisegno: v }),
     capturePathTarget: null,
     setCapturePathTarget: (id) => set({ capturePathTarget: id }),
     previewEffects: false,
@@ -1678,6 +1734,7 @@ export const useAppStore = create<AppState>((set, get) => {
         y: (src.y ?? 0) + 20,
         x2: src.x2 != null ? src.x2 + 20 : undefined,
         y2: src.y2 != null ? src.y2 + 20 : undefined,
+        points: spostaPunti(src.points, 20),
       };
       set((s) => ({
         pages: s.pages.map((p) =>
@@ -1709,6 +1766,7 @@ export const useAppStore = create<AppState>((set, get) => {
             y: (src.y ?? 0) + 20,
             x2: src.x2 != null ? src.x2 + 20 : undefined,
             y2: src.y2 != null ? src.y2 + 20 : undefined,
+            points: spostaPunti(src.points, 20),
           };
         });
       set((s) => ({
@@ -1838,6 +1896,7 @@ export const useAppStore = create<AppState>((set, get) => {
           y: (src.y ?? 0) + offset,
           x2: src.x2 != null ? src.x2 + offset : undefined,
           y2: src.y2 != null ? src.y2 + offset : undefined,
+          points: spostaPunti(src.points, offset),
         };
         if (!samePage) delete out.group_id;
         return out;
@@ -1878,12 +1937,15 @@ export const useAppStore = create<AppState>((set, get) => {
       const cy = (minY + maxB) / 2;
 
       pushHistory("history.align", { mode });
-      const patches = new Map<string, { x?: number; y?: number; x2?: number; y2?: number; width?: number; height?: number }>();
+      const patches = new Map<string, { x?: number; y?: number; x2?: number; y2?: number; width?: number; height?: number; points?: PipePoint[] }>();
 
       const move = (o: SynopticObject, dx: number, dy: number) => {
-        const p: { x?: number; y?: number; x2?: number; y2?: number } = {};
+        const p: { x?: number; y?: number; x2?: number; y2?: number; points?: PipePoint[] } = {};
         if (dx !== 0) { p.x = (o.x ?? 0) + dx; if (o.x2 != null) p.x2 = o.x2 + dx; }
         if (dy !== 0) { p.y = (o.y ?? 0) + dy; if (o.y2 != null) p.y2 = o.y2 + dy; }
+        // Tubo e polilinea sono i loro punti (26-09-2026): senza, allineare
+        // spostava solo `x/y` e la forma restava dov'era.
+        if ((dx !== 0 || dy !== 0) && o.points) p.points = o.points.map((q) => ({ x: q.x + dx, y: q.y + dy }));
         return p;
       };
 
@@ -2357,6 +2419,23 @@ export const useAppStore = create<AppState>((set, get) => {
     setRemoteConnected: (connected, url = null) =>
       set({ remoteConnected: connected, remoteUrl: connected ? (url ?? null) : null }),
     remoteDeployStatus: "idle",
+    remoteDeployErrore: null,
+    deployAlSalvataggio: (() => { try { return localStorage.getItem(CHIAVE_DEPLOY_AL_SALVATAGGIO) !== "0"; } catch { return true; } })(),
+    setDeployAlSalvataggio: (v) => {
+      try { localStorage.setItem(CHIAVE_DEPLOY_AL_SALVATAGGIO, v ? "1" : "0"); } catch { /* senza memoria */ }
+      set({ deployAlSalvataggio: v });
+    },
+    deployOra: async (completo) => {
+      if (!get().remoteConnected || get().remoteDeployStatus === "syncing") return;
+      // Prima si salva ciò che è in sospeso, così parte quello che si vede — e
+      // il salvataggio non deve far partire il deploy automatico: ne partirebbero due.
+      if (selectIsDirty(get())) {
+        saltaDeployAutomatico = true;
+        try { await get().saveAll(); } finally { saltaDeployAutomatico = false; }
+        if (get().saveStatus === "error") return;
+      }
+      await eseguiDeploy(completo);
+    },
 
     setSaveStatus: (saveStatus, saveError = null) => set({ saveStatus, saveError }),
 

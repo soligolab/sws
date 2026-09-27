@@ -71,7 +71,7 @@ pub fn bbox_of(
             y2: y.max(ly2),
         };
     }
-    if obj_type == "pipe" && !points.is_empty() {
+    if (obj_type == "pipe" || obj_type == "polyline") && !points.is_empty() {
         let mut bb = BBox {
             x1: f64::MAX,
             y1: f64::MAX,
@@ -92,6 +92,53 @@ pub fn bbox_of(
         x2: x + w,
         y2: y + h,
     }
+}
+
+/// I vertici di un poligono regolare o di una stella inscritti nel box
+/// `x, y, w, h` (26-09-2026, tipo `polygon`). Gemello di `verticiPoligono` in
+/// `sws-editor/src/canvas/forme.ts`, con gli stessi numeri nei test: web e
+/// pannello devono disegnare **la stessa** stella.
+///
+/// - `lati` 3…24 (arrotondato); il primo vertice sta in alto, al centro.
+/// - Con `stella` i vertici sono il doppio, alternati fra il raggio pieno e
+///   `raggio_interno` % (default 50).
+/// - Il poligono si adatta al box (ellisse inscritta), poi si **ruota** di
+///   `rotazione` gradi in senso orario attorno al centro e si specchia: la
+///   rotazione è nei vertici, così vale uguale su un motore senza trasformate.
+#[allow(clippy::too_many_arguments)]
+pub fn vertici_poligono(
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
+    lati: Option<f64>,
+    stella: bool,
+    raggio_interno: Option<f64>,
+    rotazione: Option<f64>,
+    flip_h: bool,
+    flip_v: bool,
+) -> Vec<(f64, f64)> {
+    let n = lati.filter(|v| v.is_finite()).unwrap_or(6.0).round().clamp(3.0, 24.0) as usize;
+    let (cx, cy) = (x + w / 2.0, y + h / 2.0);
+    let (rx, ry) = (w / 2.0, h / 2.0);
+    let interno = raggio_interno.filter(|v| v.is_finite()).unwrap_or(50.0).clamp(1.0, 100.0) / 100.0;
+    let passi = if stella { n * 2 } else { n };
+    let rot = rotazione.filter(|v| v.is_finite()).unwrap_or(0.0).to_radians();
+    (0..passi)
+        .map(|i| {
+            let ang = -std::f64::consts::FRAC_PI_2 + i as f64 * std::f64::consts::TAU / passi as f64;
+            let k = if stella && i % 2 == 1 { interno } else { 1.0 };
+            let (mut dx, mut dy) = (rx * k * ang.cos(), ry * k * ang.sin());
+            if flip_h {
+                dx = -dx;
+            }
+            if flip_v {
+                dy = -dy;
+            }
+            let (s, c) = rot.sin_cos();
+            (cx + dx * c - dy * s, cy + dx * s + dy * c)
+        })
+        .collect()
 }
 
 /// «Fuori pagina»: la bbox non tocca **affatto** il rettangolo pagina.
@@ -259,5 +306,28 @@ mod tests {
         assert!(!is_off_page(&bb, Some(1280.0), None));
         assert!(!is_off_page(&bb, None, Some(800.0)));
         assert!(!is_off_page(&bb, Some(0.0), Some(0.0)));
+    }
+
+    // Gli stessi numeri di `forme.test.ts`.
+    #[test]
+    fn vertici_poligono_come_il_web() {
+        let v = vertici_poligono(0.0, 0.0, 100.0, 100.0, Some(6.0), false, None, None, false, false);
+        assert_eq!(v.len(), 6);
+        assert!((v[0].0 - 50.0).abs() < 1e-9 && v[0].1.abs() < 1e-9, "{:?}", v[0]);
+        assert!((v[1].0 - 93.30127).abs() < 1e-4 && (v[1].1 - 25.0).abs() < 1e-9, "{:?}", v[1]);
+        let s = vertici_poligono(0.0, 0.0, 100.0, 100.0, Some(5.0), true, None, None, false, false);
+        assert_eq!(s.len(), 10);
+        // Il secondo vertice è interno: raggio 25 a −54°.
+        assert!((s[1].0 - 64.69463).abs() < 1e-4 && (s[1].1 - 29.77457).abs() < 1e-4, "{:?}", s[1]);
+        let r = vertici_poligono(0.0, 0.0, 100.0, 100.0, Some(4.0), false, None, Some(90.0), false, false);
+        assert!((r[0].0 - 100.0).abs() < 1e-9 && (r[0].1 - 50.0).abs() < 1e-9, "{:?}", r[0]);
+        assert_eq!(vertici_poligono(0.0, 0.0, 10.0, 10.0, Some(99.0), false, None, None, false, false).len(), 24);
+        assert_eq!(vertici_poligono(0.0, 0.0, 10.0, 10.0, Some(1.0), false, None, None, false, false).len(), 3);
+    }
+
+    #[test]
+    fn bbox_della_polilinea_sono_i_suoi_punti() {
+        let b = bbox_of("polyline", 0.0, 0.0, 0.0, 0.0, None, None, &[(10.0, 5.0), (50.0, 40.0), (30.0, -2.0)]);
+        assert_eq!((b.x1, b.y1, b.x2, b.y2), (10.0, -2.0, 50.0, 40.0));
     }
 }

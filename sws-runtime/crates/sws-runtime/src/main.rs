@@ -579,6 +579,7 @@ async fn main() -> anyhow::Result<()> {
                     &functions,
                     &config_dir,
                     &instance_id,
+                    ide_only,
                 )
                 .await;
                 boot_services = Some((notifications, global_scripts, languages));
@@ -911,8 +912,13 @@ async fn main() -> anyhow::Result<()> {
     // Datastore registry recorder: routes updates to external backends.
     // Spawned at startup if --project already has datastores; also spawned
     // dynamically by open_project when the user opens a project later.
-    if let Some(reg) = registry.read().await.as_ref().map(Arc::clone) {
-        reg.spawn_recorder(tag_db.clone());
+    // Già avviato da `apply_loaded_project` se il progetto è stato aperto qui
+    // sopra: `spawn_recorder` non ne avvia un secondo (26-09-2026, prima erano
+    // due sullo stesso registro). Mai nell'IDE, che non registra dati.
+    if !ide_only {
+        if let Some(reg) = registry.read().await.as_ref().map(Arc::clone) {
+            reg.spawn_recorder(tag_db.clone());
+        }
     }
 
     let started_at = std::time::Instant::now();

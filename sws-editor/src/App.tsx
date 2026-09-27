@@ -274,6 +274,10 @@ export function App() {
   const resetDirty          = useAppStore((s) => s.resetDirty);
   const saveStatus          = useAppStore((s) => s.saveStatus);
   const remoteDeployStatus  = useAppStore((s) => s.remoteDeployStatus);
+  const remoteDeployErrore  = useAppStore((s) => s.remoteDeployErrore);
+  const deployAlSalvataggio = useAppStore((s) => s.deployAlSalvataggio);
+  const setDeployAlSalvataggio = useAppStore((s) => s.setDeployAlSalvataggio);
+  const deployOra           = useAppStore((s) => s.deployOra);
 
   // Role-gated UI surfaces. Supervisor + Admin get editor and config;
   // Viewer/Operator should use the runtime SPA (port 8443) instead.
@@ -772,6 +776,34 @@ export function App() {
             </button>
           );
         })()}
+        {/* Deploy su comando (26-09-2026, maintainer: «non sempre avviene
+            automaticamente al salvataggio e forse preferisco fare il deploy
+            solo su comando»). Due pulsanti distinti di proposito: il progetto,
+            e utenti + segreti, che cambiano chi entra e a cosa si collega. */}
+        {remoteConnected && (
+          <>
+            <button
+              data-testid="deploy-ora"
+              disabled={remoteDeployStatus === "syncing"}
+              onClick={() => void deployOra(false)}
+              title={remoteDeployErrore ? t("header.deployErrore", { motivo: remoteDeployErrore }) : t("header.deployOraTitle")}
+              style={{ ...HDR_BTN }}
+            >⬆ {t("header.deployOra")}</button>
+            <button
+              data-testid="deploy-utenti-segreti"
+              disabled={remoteDeployStatus === "syncing"}
+              onClick={() => { if (window.confirm(t("header.deployCompletoConfirm"))) void deployOra(true); }}
+              title={t("header.deployCompletoTitle")}
+              style={{ ...HDR_BTN }}
+            >👥🔑 {t("header.deployCompleto")}</button>
+            <label title={t("header.deployAlSalvataggioTitle")}
+              style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", cursor: "pointer", whiteSpace: "nowrap" }}>
+              <input type="checkbox" data-testid="deploy-al-salvataggio" checked={deployAlSalvataggio}
+                onChange={(e) => setDeployAlSalvataggio(e.target.checked)} />
+              {t("header.deployAlSalvataggio")}
+            </label>
+          </>
+        )}
         <UserMenu onLogout={handleLogout} />
         <MainMenu
           onLogout={handleLogout}

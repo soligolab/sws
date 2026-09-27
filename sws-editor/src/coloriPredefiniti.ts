@@ -53,6 +53,8 @@ export const PREDEFINITI: Record<string, Record<string, RegolaColore>> = {
   line:    { stroke: { auto: "testo" } },
   rect:    { fill: { hex: "#4a90d9" }, stroke: { auto: "testo" } },
   ellipse: { fill: { hex: "#4a90d9" }, stroke: { auto: "testo" } },
+  polyline: { fill: { hex: "#4a90d9" }, stroke: { auto: "testo" } },
+  polygon: { fill: { hex: "#4a90d9" }, stroke: { auto: "testo" } },
   button:  { fill: { hex: "#3b82f6" }, color: { hex: "#ffffff" } },
   navbutton: { fill: { hex: "#0f172a" }, stroke: { hex: "#3b82f6" }, color: { auto: "testo" } },
   gauge:   { color: { auto: "testo" }, stroke: { hex: "#e2e8f0" }, fill: { hex: "#22c55e" }, gauge_sp_color: { hex: "#f59e0b" } },

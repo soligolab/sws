@@ -71,6 +71,19 @@ if fail:
     sys.exit(1)
 
 print(f"  \033[32m✓\033[0m {len(motore)} tipi, identici da entrambe le parti")
+
+# Rotazione statica (26-09-2026): i tipi che il motore ruota devono essere quelli
+# che il pannello lascia ruotare (`SUPPORTS_TRANSFORM`), meno il `polygon`, che
+# ruota i suoi vertici e girerebbe due volte. Due elenchi a mano in due
+# linguaggi: senza questo controllo si staccano al primo tipo nuovo.
+SHELL = f"{root}/sws-editor/src/editor/EditorShell.tsx"
+ruotano  = estrai(RS, r'const TIPI_RUOTABILI: &\[&str\] = &\[(.*?)\];', "TIPI_RUOTABILI")
+pannello = estrai(SHELL, r'const SUPPORTS_TRANSFORM = new Set\(\[(.*?)\]\)', "SUPPORTS_TRANSFORM") - {"polygon"}
+if ruotano != pannello:
+    print(f"  \033[31m✗\033[0m rotazione: il motore ruota {sorted(ruotano - pannello)} in più e {sorted(pannello - ruotano)} in meno")
+    print( "      di quelli che il pannello lascia ruotare (SUPPORTS_TRANSFORM, polygon escluso).")
+    sys.exit(1)
+print(f"  \033[32m✓\033[0m rotazione: {len(ruotano)} tipi ruotano sul pannello LVGL come sul web")
 print()
 print("\033[32mIl badge «L» dice il vero.\033[0m")
 PY

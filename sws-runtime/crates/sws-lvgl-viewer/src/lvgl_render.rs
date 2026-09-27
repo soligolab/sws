@@ -70,6 +70,8 @@ const SUPPORTED_TYPES: &[&str] = &[
     "rect",
     "ellipse",
     "line",
+    "polyline",
+    "polygon",
     "text",
     "button",
     "led",
@@ -148,9 +150,23 @@ pub enum LiveKind {
         /// di qualità compresi, come sul web, dove stanno nello stesso `<g>` e
         /// quindi si attenuano e lampeggiano insieme all'oggetto.
         figli: Vec<*mut lvgl_sys::lv_obj_t>,
-        /// L'opacità dichiarata dall'oggetto, 255 se non ne dichiara: è il
-        /// punto di partenza su cui lampeggio e attenuazione scrivono sopra.
-        opa_base: u8,
+        /// L'opacità dichiarata dall'oggetto (0..1) e il suo legame a un tag,
+        /// se c'è: da questi due, a ogni frame, nasce il punto di partenza su
+        /// cui lampeggio e attenuazione scrivono sopra (26-09-2026: prima era
+        /// fissata alla creazione, e un'opacità legata a un tag non si muoveva).
+        opacita: Option<f64>,
+        legame_opacita: Option<serde_json::Value>,
+        /// Luminosità −100…+100 % e il suo legame, come l'opacità.
+        luminosita: Option<f64>,
+        legame_luce: Option<serde_json::Value>,
+        /// L'attenuazione per ruolo (Q36), che si moltiplica all'opacità.
+        role_factor: f64,
+        /// Il filtro colore di questo oggetto: grigio, luminosità e respiro in
+        /// un callback solo, perché LVGL ne ha uno slot per oggetto. In un
+        /// `Box` perché LVGL ne tiene il puntatore.
+        filtro: Box<FiltroLuce>,
+        stile: effects::StileLampeggio,
+        fondo_respiro: f64,
         lampeggio: effects::Lampeggio,
         rate_ms: u32,
         tag: Option<String>,
@@ -505,6 +521,9 @@ pub enum LiveKind {
         /// Ultimo angolo scritto, in decimi di grado: LVGL invalida a ogni
         /// scrittura, e un simbolo fermo non deve far ridisegnare la pagina.
         last_angolo: i16,
+        /// La rotazione statica del simbolo: il giro le si **somma**, come sul
+        /// web (la trasformata fuori, l'animazione dentro).
+        angolo_base: i16,
     },
     /// Movimento: i binding generici proprietà→tag applicati **a ogni frame**,
     /// non solo alla creazione.
@@ -625,7 +644,8 @@ pub struct LiveBinding {
 #[derive(Debug, Clone, PartialEq)]
 pub struct AppliedFx {
     opa: u8,
-    grigio: bool,
+    /// Stato del filtro colore già mandato: (grigio, luminosità×10, respiro×1000).
+    filtro: Option<(bool, i32, i32)>,
     bordo_visibile: bool,
     bordo_rgb: Option<(u8, u8, u8)>,
     bordo_acceso: bool,
@@ -636,7 +656,7 @@ impl Default for AppliedFx {
     fn default() -> Self {
         Self {
             opa: 0,
-            grigio: true,
+            filtro: None,
             bordo_visibile: true,
             bordo_rgb: None,
             bordo_acceso: false,
@@ -1878,6 +1898,64 @@ unsafe fn disable_clickable_from(screen_ptr: *mut lvgl_sys::lv_obj_t, da: u32) {
     }
 }
 
+/// I tipi che ruotano: gli stessi di `SUPPORTS_TRANSFORM` nel pannello
+/// (`sws-editor/src/editor/EditorShell.tsx`), cioè quelli che sul web passano
+/// da `applyTransform`. Il `polygon` ne è fuori di proposito: ruota i suoi
+/// vertici (`sws_core::vertici_poligono`), e ruotarlo anche qui lo girerebbe
+/// due volte.
+const TIPI_RUOTABILI: &[&str] = &[
+    "rect",
+    "ellipse",
+    "text",
+    "image",
+    "gauge",
+    "led",
+    "progress_bar",
+    "table",
+    "button",
+    "navbutton",
+    "symbol",
+    "lang_button",
+    "lang_selector",
+    "page_navigator",
+];
+
+/// `rotation` in gradi → decimi di grado 0…3599 per `transform_angle`; 0 se
+/// assente, non finita o multipla di 360.
+pub fn angolo_statico(rotation: Option<f64>) -> i16 {
+    let Some(r) = rotation.filter(|v| v.is_finite()) else { return 0 };
+    ((r * 10.0).round() as i64).rem_euclid(3600) as i16
+}
+
+/// Ruota i widget nati da un oggetto attorno al **centro dell'oggetto**
+/// (26-09-2026, Fase D del piano pannello-luce-forme; sul web lo fa
+/// `applyTransform`). Da LVGL 8.3 `transform_angle` vale per ogni widget, non
+/// solo per le immagini: l'oggetto va in un layer di trasformazione
+/// (`LV_LAYER_TYPE_TRANSFORM`, `lv_obj_style.c`). Il perno è relativo al
+/// widget, quindi si calcola per ciascuno: un gauge ha l'arco e l'etichetta in
+/// posti diversi, e devono girare insieme come un pezzo solo.
+///
+/// # Safety
+/// `screen_ptr` deve essere uno schermo LVGL vivo; si chiama nel ciclo di
+/// render, dove lo è per costruzione.
+unsafe fn apply_rotation_from(screen_ptr: *mut lvgl_sys::lv_obj_t, da: u32, angolo: i16, cx: f64, cy: f64) {
+    let dopo = lvgl_sys::lv_obj_get_child_cnt(screen_ptr);
+    for i in da..dopo {
+        let figlio = lvgl_sys::lv_obj_get_child(screen_ptr, i as i32);
+        if figlio.is_null() {
+            continue;
+        }
+        // La posizione va letta dopo il calcolo del layout: `set_pos` scrive lo
+        // stile, le coordinate arrivano al prossimo aggiornamento.
+        lvgl_sys::lv_obj_update_layout(figlio);
+        let fx = lvgl_sys::lv_obj_get_x(figlio) as f64;
+        let fy = lvgl_sys::lv_obj_get_y(figlio) as f64;
+        lvgl_sys::lv_obj_set_style_transform_pivot_x(figlio, (cx - fx).round() as lvgl_sys::lv_coord_t, 0);
+        lvgl_sys::lv_obj_set_style_transform_pivot_y(figlio, (cy - fy).round() as lvgl_sys::lv_coord_t, 0);
+        lvgl_sys::lv_obj_set_style_transform_angle(figlio, angolo, 0);
+    }
+}
+
 /// Il punto d'attacco di una pipe su un oggetto — la porta scelta sul suo
 /// riquadro.
 ///
@@ -1975,43 +2053,52 @@ fn punti_ancorati(pipe: &SynopticObject, oggetti: &[SynopticObject]) -> Option<V
 ///
 /// Si spegne mettendo `color_filter_opa` a zero, non togliendo il descrittore:
 /// il filtro viene applicato solo se l'opacità è diversa da zero.
-struct FiltroGrigio(lvgl_sys::lv_color_filter_dsc_t);
-// LVGL gira interamente sul thread principale in questo processo (vedi il
-// commento di modulo di `lvgl_display.rs`): il descrittore è di sola lettura e
-// non viene mai condiviso davvero fra thread.
-unsafe impl Sync for FiltroGrigio {}
+#[repr(C)]
+pub struct FiltroLuce {
+    /// Primo campo di proposito: il callback riceve il puntatore al
+    /// descrittore e lo riconverte a `FiltroLuce` (`#[repr(C)]` lo garantisce).
+    dsc: lvgl_sys::lv_color_filter_dsc_t,
+    grigio: bool,
+    luminosita: f32,
+    respiro: f32,
+}
 
-static FILTRO_GRIGIO: FiltroGrigio = FiltroGrigio(lvgl_sys::lv_color_filter_dsc_t {
-    filter_cb: Some(filtro_grigio_cb),
-    user_data: core::ptr::null_mut(),
-});
+impl FiltroLuce {
+    fn nuovo() -> Box<Self> {
+        Box::new(Self {
+            dsc: lvgl_sys::lv_color_filter_dsc_t {
+                filter_cb: Some(filtro_luce_cb),
+                user_data: core::ptr::null_mut(),
+            },
+            grigio: false,
+            luminosita: 0.0,
+            respiro: 1.0,
+        })
+    }
+    fn attivo(&self) -> bool {
+        self.grigio || self.luminosita != 0.0 || self.respiro < 1.0
+    }
+}
 
-/// Da colore a grigio della stessa luminosità.
-///
-/// La formula è quella di `lv_color_brightness` in `lv_color.h`
-/// (`(3R + B + 4G) / 8`), riscritta qui perché è `static inline` e quindi non
-/// arriva nei binding. Con `LV_COLOR_DEPTH 16` il colore è RGB565: si estraggono
-/// i tre campi, si riportano a scala 0..255, si calcola la luminosità e si
-/// ricostruisce un grigio.
-///
-/// `opa` è quanto il filtro deve "mordere": 0 = colore originale,
-/// 255 = grigio pieno. Il web usa 0.9, quindi resta un'ombra di tinta — che è
-/// ciò che distingue «attenuato» da «rotto».
-unsafe extern "C" fn filtro_grigio_cb(
-    _dsc: *const lvgl_sys::lv_color_filter_dsc_t,
+/// Il colore filtrato: estrae RGB565, lascia fare i conti a
+/// `effects::colore_filtrato` (pura, provata) e ricompone. È la formula di
+/// `lv_color_brightness` per il grigio (`(3R + B + 4G) / 8`, che in C è
+/// `static inline` e non arriva nei binding), più luminosità e respiro.
+unsafe extern "C" fn filtro_luce_cb(
+    dsc: *const lvgl_sys::lv_color_filter_dsc_t,
     c: lvgl_sys::lv_color_t,
-    opa: lvgl_sys::lv_opa_t,
+    _opa: lvgl_sys::lv_opa_t,
 ) -> lvgl_sys::lv_color_t {
+    if dsc.is_null() {
+        return c;
+    }
+    let f = &*(dsc as *const FiltroLuce);
     let full = c.full;
-    let r = ((full >> 11) & 0x1f) as u32 * 255 / 31;
-    let g = ((full >> 5) & 0x3f) as u32 * 255 / 63;
-    let b = (full & 0x1f) as u32 * 255 / 31;
-    let lum = ((3 * r + b + 4 * g) / 8).min(255);
-    // Mescola fra originale e grigio secondo `opa`, invece di sostituire: è
-    // così che `grayscale(0.9)` lascia un residuo di colore.
-    let a = opa as u32;
-    let mix = |orig: u32| (((orig * (255 - a)) + (lum * a)) / 255).min(255) as u8;
-    Color::from_rgb((mix(r), mix(g), mix(b))).into()
+    let r = (((full >> 11) & 0x1f) as u32 * 255 / 31) as u8;
+    let g = (((full >> 5) & 0x3f) as u32 * 255 / 63) as u8;
+    let b = ((full & 0x1f) as u32 * 255 / 31) as u8;
+    let rgb = effects::colore_filtrato((r, g, b), f.grigio, f.luminosita as f64, f.respiro as f64);
+    Color::from_rgb(rgb).into()
 }
 
 /// Crea i widget in più che gli effetti richiedono — bordo d'allarme e pallino
@@ -2039,7 +2126,19 @@ fn crea_effetti(
     let vuole_pallino = obj.quality_dot == Some(true);
     let vuole_attenuazione =
         obj.stale_after_s.is_some() || obj.bad_value_style.as_deref() == Some("gray");
-    if lampeggio == effects::Lampeggio::Mai && !vuole_bordo && !vuole_pallino && !vuole_attenuazione
+    // Opacità e luminosità legate a un tag, o una luminosità statica: servono
+    // anche loro il giro di ogni frame (26-09-2026, parità piena col web).
+    let legame = |k: &str| obj.bindings.as_ref().and_then(|m| m.get(k)).cloned();
+    let legame_opacita = legame("opacity");
+    let legame_luce = legame("brightness");
+    let vuole_luce = legame_opacita.is_some()
+        || legame_luce.is_some()
+        || obj.brightness.map(effects::luminosita_valida).unwrap_or(0.0) != 0.0;
+    if lampeggio == effects::Lampeggio::Mai
+        && !vuole_bordo
+        && !vuole_pallino
+        && !vuole_attenuazione
+        && !vuole_luce
     {
         return None;
     }
@@ -2130,10 +2229,27 @@ fn crea_effetti(
 
     let _ = tags; // lo stato iniziale lo mette il primo `update_bindings`
 
+    // Il filtro si attacca una volta, spento (opa 0): lo accende il primo
+    // `update_effects` se serve. Il puntatore resta valido quanto il `Box`.
+    let filtro = FiltroLuce::nuovo();
+    for f in &figli {
+        unsafe {
+            lvgl_sys::lv_obj_set_style_color_filter_dsc(*f, &filtro.dsc, 0);
+            lvgl_sys::lv_obj_set_style_color_filter_opa(*f, 0, 0);
+        }
+    }
+
     Some(LiveBinding {
         kind: LiveKind::Effects {
             figli,
-            opa_base: combined_opa(obj.opacity, role_factor).unwrap_or(255),
+            opacita: obj.opacity,
+            legame_opacita,
+            luminosita: obj.brightness,
+            legame_luce,
+            role_factor,
+            filtro,
+            stile: effects::stile_lampeggio_di(obj),
+            fondo_respiro: effects::fattore_fondo_respiro(obj.blink_fade_depth),
             lampeggio,
             rate_ms: obj
                 .blink_rate_ms
@@ -2335,6 +2451,8 @@ mod colori_predefiniti {
     pub const TABELLA: &[(&str, &str, &str)] = &[
         ("rect", "fill", "#4a90d9"),
         ("ellipse", "fill", "#4a90d9"),
+        ("polyline", "fill", "#4a90d9"),
+        ("polygon", "fill", "#4a90d9"),
         ("button", "fill", "#3b82f6"),
         ("button", "color", "#ffffff"),
         ("navbutton", "fill", "#0f172a"),
@@ -3712,6 +3830,120 @@ fn render_ellipse(
 /// `(x2-x1, y2-y1)` invece di `(x1,y1)`/`(x2,y2)`. Niente `set_size`: la classe
 /// `lv_line` si auto-dimensiona sul contenuto (`LV_SIZE_CONTENT`), chiamato da
 /// `lv_line_set_points` stesso.
+/// L'SVG di una polilinea o di un poligono, nel suo riquadro d'ingombro.
+pub struct FormaSvg {
+    pub svg: String,
+    pub x: i16,
+    pub y: i16,
+    pub w: i16,
+    pub h: i16,
+}
+
+/// Un colore dal progetto, riscritto `#rrggbb`: nell'SVG non entra mai una
+/// stringa del file così com'è.
+fn colore_svg(rgb: (u8, u8, u8)) -> String {
+    format!("#{:02x}{:02x}{:02x}", rgb.0, rgb.1, rgb.2)
+}
+
+/// Pura (niente LVGL): costruisce l'SVG di `polyline`/`polygon` in coordinate
+/// locali al riquadro d'ingombro, allargato di mezzo tratto più un pixel, così
+/// il bordo non viene tagliato. I vertici del poligono sono quelli di
+/// `sws_core::vertici_poligono` — gli stessi del web, rotazione compresa.
+/// `None` se non c'è niente da disegnare (meno di due punti).
+pub fn svg_forma(obj: &SynopticObject) -> Option<FormaSvg> {
+    let tipo = obj.obj_type.as_deref().unwrap_or("");
+    let (punti, chiusa, riempi): (Vec<(f64, f64)>, bool, bool) = if tipo == "polygon" {
+        let v = sws_core::geometry::vertici_poligono(
+            obj.x.unwrap_or(0.0),
+            obj.y.unwrap_or(0.0),
+            obj.width.unwrap_or(100.0),
+            obj.height.unwrap_or(100.0),
+            obj.sides,
+            obj.star == Some(true),
+            obj.star_inner,
+            obj.rotation,
+            obj.flip_h == Some(true),
+            obj.flip_v == Some(true),
+        );
+        (v, true, true)
+    } else {
+        let v: Vec<(f64, f64)> = obj
+            .points
+            .as_deref()
+            .unwrap_or(&[])
+            .iter()
+            .filter(|p| p.x.is_finite() && p.y.is_finite())
+            .map(|p| (p.x, p.y))
+            .collect();
+        let c = obj.closed == Some(true);
+        (v, c, c)
+    };
+    if punti.len() < 2 {
+        return None;
+    }
+    // Tratto: la polilinea ne ha sempre uno (automatico = tono testo della
+    // pagina, come la linea); il poligono solo se dichiarato, come il rect.
+    let tratto = obj.stroke.as_deref().and_then(parse_hex_color).or_else(|| {
+        (tipo == "polyline").then(colori_predefiniti::testo_pagina).flatten()
+    });
+    let spessore = obj
+        .stroke_width
+        .filter(|v| v.is_finite() && *v >= 0.0)
+        .unwrap_or(if tipo == "polyline" { 2.0 } else { 0.0 });
+    let margine = if tratto.is_some() { spessore / 2.0 + 1.0 } else { 1.0 };
+    let (mut x1, mut y1, mut x2, mut y2) = (f64::MAX, f64::MAX, f64::MIN, f64::MIN);
+    for (px, py) in &punti {
+        x1 = x1.min(*px);
+        y1 = y1.min(*py);
+        x2 = x2.max(*px);
+        y2 = y2.max(*py);
+    }
+    let (ox, oy) = ((x1 - margine).floor(), (y1 - margine).floor());
+    let w = ((x2 + margine).ceil() - ox).clamp(1.0, 2048.0);
+    let h = ((y2 + margine).ceil() - oy).clamp(1.0, 2048.0);
+    let pts = punti
+        .iter()
+        .map(|(px, py)| format!("{:.2},{:.2}", px - ox, py - oy))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let riempimento = if riempi {
+        obj.fill
+            .as_deref()
+            .and_then(parse_hex_color)
+            .or_else(|| parse_hex_color(predefinito_lvgl(tipo, "fill")))
+            .map(colore_svg)
+            .unwrap_or_else(|| "none".into())
+    } else {
+        "none".into()
+    };
+    let bordo = match tratto {
+        Some(rgb) if spessore > 0.0 => {
+            let trattini = obj
+                .stroke_dasharray
+                .as_deref()
+                .filter(|d| d.chars().all(|c| c.is_ascii_digit() || c == ' ' || c == '.' || c == ','))
+                .map(|d| format!(r#" stroke-dasharray="{d}""#))
+                .unwrap_or_default();
+            format!(
+                r#" stroke="{}" stroke-width="{spessore}" stroke-linejoin="round" stroke-linecap="round"{trattini}"#,
+                colore_svg(rgb)
+            )
+        }
+        _ => String::new(),
+    };
+    let elemento = if chiusa { "polygon" } else { "polyline" };
+    let svg = format!(
+        r#"<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}"><{elemento} points="{pts}" fill="{riempimento}"{bordo}/></svg>"#
+    );
+    Some(FormaSvg {
+        svg,
+        x: ox as i16,
+        y: oy as i16,
+        w: w as i16,
+        h: h as i16,
+    })
+}
+
 fn render_line(
     screen: &mut lvgl::Obj,
     obj: &SynopticObject,
@@ -8450,10 +8682,24 @@ fn disegna_svg(
     base_url: &str,
     rt_handle: &tokio::runtime::Handle,
 ) -> anyhow::Result<LiveBinding> {
-    let screen = genitore;
     let svg = crate::svg_assets::bytes_for(base_url, rt_handle, src)
         .ok_or_else(|| anyhow::anyhow!("SVG non disponibile"))?;
-    let raster = crate::svg_raster::rasterize(&svg, w as u32, h as u32)
+    disegna_svg_byte(genitore, x, y, w, h, &svg)
+}
+
+/// La seconda metà di `disegna_svg`: dai byte di un SVG al canvas. Separata il
+/// 26-09-2026 per polilinea e poligono, il cui SVG nasce in memoria
+/// (`svg_forma`) invece che da un file o da un simbolo.
+fn disegna_svg_byte(
+    genitore: &mut impl NativeObject,
+    x: i16,
+    y: i16,
+    w: i16,
+    h: i16,
+    svg: &[u8],
+) -> anyhow::Result<LiveBinding> {
+    let screen = genitore;
+    let raster = crate::svg_raster::rasterize(svg, w as u32, h as u32)
         .ok_or_else(|| anyhow::anyhow!("SVG non rasterizzabile a {w}x{h}"))?;
     let mut buf = raster.to_lvgl_true_color_alpha();
     // Le dimensioni del canvas si prendono dalla bitmap prodotta, non dai `w`/`h`
@@ -8646,6 +8892,7 @@ fn render_symbol(
             spin_tag: obj.symbol_spin_tag.clone(),
             spin_s: obj.symbol_spin_s.filter(|v| *v > 0.0).unwrap_or(2.0),
             last_angolo: i16::MIN,
+            angolo_base: angolo_statico(obj.rotation),
         },
     })
 }
@@ -9133,6 +9380,14 @@ fn dispatch_render(
         "rect" => render_rect(screen, obj, styles),
         "ellipse" => render_ellipse(screen, obj, styles),
         "line" => render_line(screen, obj, styles),
+        // Polilinea e poligono (26-09-2026): un SVG generato e rasterizzato
+        // con resvg, come le immagini. Niente `lv_canvas_draw_polygon`, che
+        // su un poligono concavo — una stella, una polilinea chiusa qualunque
+        // — non ritorna mai (schermo nero, il caso della fiamma del `boiler`).
+        "polyline" | "polygon" => match svg_forma(obj) {
+            Some(f) => disegna_svg_byte(screen, f.x, f.y, f.w, f.h, f.svg.as_bytes()).map(|b| live.push(b)),
+            None => Ok(()),
+        },
         "button" => render_button(screen, obj, styles, tag_tx),
         "navbutton" => render_navbutton(screen, obj, styles, nav_tx),
         "page_navigator" => render_page_navigator(
@@ -9755,6 +10010,17 @@ pub fn render_page_objects(
         if role_factor < 1.0 {
             unsafe { disable_clickable_from(screen_ptr, figli_prima) };
         }
+        // Rotazione statica (26-09-2026): prima il campo c'era nel modello e
+        // nessuno lo leggeva, e un oggetto ruotato nell'editor stava dritto
+        // sul pannello.
+        if TIPI_RUOTABILI.contains(&obj_type) {
+            let angolo = angolo_statico(obj.rotation);
+            if angolo != 0 {
+                let cx = obj.x.unwrap_or(0.0) + obj.width.unwrap_or(100.0) / 2.0;
+                let cy = obj.y.unwrap_or(0.0) + obj.height.unwrap_or(50.0) / 2.0;
+                unsafe { apply_rotation_from(screen_ptr, figli_prima, angolo, cx, cy) };
+            }
+        }
         // Effetti di stato (lampeggio, dato vecchio, qualità, bordo d'allarme).
         // Dopo l'opacità perché ne parte: `opa_base` è ciò che il progettista
         // ha dichiarato (moltiplicato per `role_factor`), e lampeggio e
@@ -9834,10 +10100,24 @@ pub fn render_page_objects(
 /// un'ottimizzazione facoltativa: `lv_obj_set_style_*` invalida l'oggetto, e
 /// senza il confronto una pagina con dieci oggetti "in effetti" si ridisegnerebbe
 /// per intero trenta volte al secondo anche stando perfettamente ferma.
+/// Quello che serve a `update_effects` per opacità, luminosità e lampeggio
+/// sfumato: raccolto in una struttura perché la firma aveva già tredici
+/// argomenti.
+struct LuceViva<'a> {
+    opacita: Option<f64>,
+    legame_opacita: &'a Option<serde_json::Value>,
+    luminosita: Option<f64>,
+    legame_luce: &'a Option<serde_json::Value>,
+    role_factor: f64,
+    filtro: &'a mut FiltroLuce,
+    stile: effects::StileLampeggio,
+    fondo_respiro: f64,
+}
+
 #[allow(clippy::too_many_arguments)]
 fn update_effects(
     figli: &[*mut lvgl_sys::lv_obj_t],
-    opa_base: u8,
+    luce: LuceViva<'_>,
     lampeggio: &effects::Lampeggio,
     rate_ms: u32,
     tag: &Option<String>,
@@ -9853,9 +10133,31 @@ fn update_effects(
     let now_ms = client::now_unix_ms();
     let allarmi = shared.lock().unwrap_or_else(|e| e.into_inner());
 
+    // ── opacità e luminosità, dal vivo ────────────────────────────────────
+    // Il legame vince sul valore statico; un tag che non risolve tiene il
+    // valore statico (come `resolve_binding_value` per tutto il resto).
+    let dal_vivo = |legame: &Option<serde_json::Value>, statico: Option<f64>| {
+        legame
+            .as_ref()
+            .and_then(|l| resolve_binding_value(l, tags))
+            .and_then(|v| v.as_f64())
+            .or(statico)
+    };
+    let opa_base = combined_opa(dal_vivo(luce.legame_opacita, luce.opacita), luce.role_factor).unwrap_or(255);
+    let luminosita = effects::luminosita_valida(dal_vivo(luce.legame_luce, luce.luminosita).unwrap_or(0.0));
+
     // ── lampeggio e attenuazione ──────────────────────────────────────────
-    let acceso = effects::deve_lampeggiare(lampeggio, tag.as_deref(), tags, &allarmi)
+    let lampeggia = effects::deve_lampeggiare(lampeggio, tag.as_deref(), tags, &allarmi);
+    // A scatti spegne l'opacità a metà periodo; sfumato fa respirare la
+    // luminosità e lascia l'opacità com'è.
+    let acceso = lampeggia
+        && luce.stile == effects::StileLampeggio::Scatti
         && !effects::fase_accesa(now_ms, rate_ms);
+    let respiro = if lampeggia && luce.stile == effects::StileLampeggio::Sfumato {
+        effects::fattore_respiro(now_ms, rate_ms, luce.fondo_respiro)
+    } else {
+        1.0
+    };
     let tv = tag.as_deref().and_then(|t| tags.get(t));
     let attenuato = effects::attenuato(stale_after_s, bad_gray, tv, now_ms);
     let opa = effects::opa_finale(opa_base, attenuato, acceso);
@@ -9866,25 +10168,29 @@ fn update_effects(
         }
         ultimo.opa = opa;
     }
-    if attenuato != ultimo.grigio {
+    // Il filtro colore: grigio, luminosità e respiro insieme. Si confronta su
+    // valori arrotondati — il respiro cambia a ogni frame, ma sotto il
+    // millesimo non si vede, e ridipingere costa.
+    let stato = (attenuato, (luminosita * 10.0).round() as i32, (respiro * 1000.0).round() as i32);
+    if Some(stato) != ultimo.filtro {
+        let prima_attivo = luce.filtro.attivo();
+        luce.filtro.grigio = attenuato;
+        luce.filtro.luminosita = luminosita as f32;
+        luce.filtro.respiro = respiro as f32;
+        let attivo = luce.filtro.attivo();
         for f in figli {
             unsafe {
-                lvgl_sys::lv_obj_set_style_color_filter_dsc(*f, &FILTRO_GRIGIO.0, 0);
-                // Il descrittore resta attaccato; a spegnere il filtro è
-                // l'opacità a zero. Rimuoverlo costerebbe una ricerca di stile
-                // in più senza cambiare il risultato.
-                lvgl_sys::lv_obj_set_style_color_filter_opa(
-                    *f,
-                    if attenuato {
-                        effects::FILTRO_GRIGIO_OPA
-                    } else {
-                        0
-                    },
-                    0,
-                );
+                if attivo != prima_attivo || ultimo.filtro.is_none() {
+                    // A spegnere il filtro è l'opacità a zero: così LVGL non
+                    // chiama nemmeno il callback per gli oggetti fermi.
+                    lvgl_sys::lv_obj_set_style_color_filter_opa(*f, if attivo { 255 } else { 0 }, 0);
+                }
+                // Il descrittore non è cambiato, i suoi numeri sì: va solo
+                // ridisegnato.
+                lvgl_sys::lv_obj_invalidate(*f);
             }
         }
-        ultimo.grigio = attenuato;
+        ultimo.filtro = Some(stato);
     }
 
     // ── bordo d'allarme ───────────────────────────────────────────────────
@@ -9986,7 +10292,14 @@ pub fn update_bindings(
     for b in bindings {
         if let LiveKind::Effects {
             figli,
-            opa_base,
+            opacita,
+            legame_opacita,
+            luminosita,
+            legame_luce,
+            role_factor,
+            filtro,
+            stile,
+            fondo_respiro,
             lampeggio,
             rate_ms,
             tag,
@@ -10003,7 +10316,16 @@ pub fn update_bindings(
         {
             update_effects(
                 figli,
-                *opa_base,
+                LuceViva {
+                    opacita: *opacita,
+                    legame_opacita,
+                    luminosita: *luminosita,
+                    legame_luce,
+                    role_factor: *role_factor,
+                    filtro,
+                    stile: *stile,
+                    fondo_respiro: *fondo_respiro,
+                },
                 lampeggio,
                 *rate_ms,
                 tag,
@@ -10576,6 +10898,7 @@ pub fn update_bindings(
                 spin_tag,
                 spin_s,
                 last_angolo,
+                angolo_base,
                 buf: _,
             } => {
                 let state = resolve_symbol_state(tags, state_tag, alarm_tag);
@@ -10599,9 +10922,9 @@ pub fn update_bindings(
                 }
                 let gira = deve_girare(spin.as_deref(), spin_tag, state, tags);
                 let angolo = if gira {
-                    angolo_rotazione(client::now_unix_ms(), *spin_s)
+                    (angolo_rotazione(client::now_unix_ms(), *spin_s) + *angolo_base).rem_euclid(3600)
                 } else {
-                    0
+                    *angolo_base
                 };
                 if angolo != *last_angolo {
                     unsafe {
@@ -12978,5 +13301,81 @@ mod navigatore_tests {
         assert!(cfg.items.is_empty() && !cfg.breadcrumb);
         assert!(!geo.verticale && geo.riempie);
         assert_eq!((geo.misura, geo.gap, geo.allineamento), (120.0, 4.0, 0));
+    }
+}
+
+#[cfg(test)]
+mod rotazione_tests {
+    use super::*;
+
+    #[test]
+    fn angolo_statico_in_decimi_normalizzato() {
+        assert_eq!(angolo_statico(None), 0);
+        assert_eq!(angolo_statico(Some(0.0)), 0);
+        assert_eq!(angolo_statico(Some(90.0)), 900);
+        assert_eq!(angolo_statico(Some(-90.0)), 2700);
+        assert_eq!(angolo_statico(Some(720.0)), 0);
+        assert_eq!(angolo_statico(Some(12.34)), 123);
+        assert_eq!(angolo_statico(Some(f64::NAN)), 0);
+    }
+
+    #[test]
+    fn il_poligono_non_ruota_due_volte() {
+        assert!(!TIPI_RUOTABILI.contains(&"polygon"));
+        assert!(TIPI_RUOTABILI.contains(&"rect"));
+    }
+}
+
+#[cfg(test)]
+mod forme_svg_tests {
+    use super::*;
+
+    fn oggetto(v: serde_json::Value) -> SynopticObject {
+        serde_json::from_value(v).unwrap()
+    }
+
+    #[test]
+    fn poligono_regolare_nel_suo_riquadro() {
+        let f = svg_forma(&oggetto(serde_json::json!({
+            "type": "polygon", "x": 100, "y": 50, "width": 100, "height": 100, "sides": 6, "fill": "#ff0000"
+        })))
+        .unwrap();
+        // Esagono col vertice in alto: il più a sinistra sta a 100 + 50 − 43,3 = 106,7,
+        // il più alto a 50; meno un pixel di margine, arrotondato in basso.
+        assert_eq!((f.x, f.y), (105, 49), "margine di un pixel senza bordo");
+        assert!(f.svg.contains("<polygon"), "{}", f.svg);
+        assert!(f.svg.contains(r##"fill="#ff0000""##), "{}", f.svg);
+        assert!(!f.svg.contains("stroke="), "senza bordo dichiarato: {}", f.svg);
+    }
+
+    #[test]
+    fn stella_e_polilinea_chiusa_sono_poligoni() {
+        let s = svg_forma(&oggetto(serde_json::json!({
+            "type": "polygon", "x": 0, "y": 0, "width": 50, "height": 50, "sides": 5, "star": true
+        })))
+        .unwrap();
+        let n = s.svg.split("points=\"").nth(1).unwrap().split('"').next().unwrap().split(' ').count();
+        assert_eq!(n, 10);
+        let c = svg_forma(&oggetto(serde_json::json!({
+            "type": "polyline", "x": 0, "y": 0, "closed": true,
+            "points": [{"x": 0, "y": 0}, {"x": 40, "y": 0}, {"x": 20, "y": 30}, {"x": 20, "y": 10}]
+        })))
+        .unwrap();
+        assert!(c.svg.contains("<polygon") && c.svg.contains("#4a90d9"), "{}", c.svg);
+    }
+
+    #[test]
+    fn polilinea_aperta_e_solo_tratto_e_un_colore_strano_non_entra() {
+        let o = svg_forma(&oggetto(serde_json::json!({
+            "type": "polyline", "x": 0, "y": 0, "stroke": "red\" onload=\"x", "stroke_width": 4,
+            "points": [{"x": 10, "y": 10}, {"x": 60, "y": 30}]
+        })))
+        .unwrap();
+        assert!(o.svg.contains("<polyline") && o.svg.contains(r#"fill="none""#), "{}", o.svg);
+        assert!(!o.svg.contains("onload"), "{}", o.svg);
+        let una = svg_forma(&oggetto(serde_json::json!({
+            "type": "polyline", "x": 0, "y": 0, "points": [{"x": 1, "y": 1}]
+        })));
+        assert!(una.is_none());
     }
 }

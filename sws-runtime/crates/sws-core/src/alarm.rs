@@ -477,6 +477,22 @@ pub struct AlarmDb {
     journal: Arc<RwLock<Vec<AlarmEvent>>>,
     tx: broadcast::Sender<AlarmState>,
     journal_cb: JournalCb,
+    /// Il progetto a cui appartengono gli allarmi caricati (vedi `carica`).
+    progetto: Arc<RwLock<Option<std::path::PathBuf>>>,
+    /// Lo stato messo da parte alla chiusura, per riprenderlo se lo stesso
+    /// progetto si riapre (vedi `chiudi`).
+    memoria: Arc<RwLock<Option<MemoriaAllarmi>>>,
+}
+
+/// Lo stato degli allarmi di un progetto, tenuto fra una chiusura e la
+/// riapertura dello stesso progetto.
+struct MemoriaAllarmi {
+    progetto: std::path::PathBuf,
+    stati: HashMap<String, AlarmState>,
+    sospesi: HashMap<String, ShelvedAlarm>,
+    aperte: HashMap<String, AlarmEvent>,
+    timer: HashMap<String, AlarmTimer>,
+    giornale: Vec<AlarmEvent>,
 }
 
 impl AlarmDb {
@@ -493,6 +509,8 @@ impl AlarmDb {
             journal: Arc::new(RwLock::new(Vec::new())),
             tx,
             journal_cb: Arc::new(RwLock::new(None)),
+            progetto: Arc::new(RwLock::new(None)),
+            memoria: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -510,40 +528,117 @@ impl AlarmDb {
         *self.journal_cb.write().await = None;
     }
 
+    /// Ricarica gli allarmi **dello stesso progetto** (salvataggio della scheda
+    /// Allarmi, ricarica a caldo): come `carica` con il progetto corrente.
     pub async fn load(&self, defs: Vec<AlarmDef>) {
-        // Le righe ancora aperte si chiudono come interrotte **prima** di
-        // azzerare: prima sparivano senza lasciare traccia, e `load` gira anche
-        // a ogni modifica degli allarmi dall'IDE. Vanno al callback attuale,
-        // cioè allo store del progetto a cui appartenevano.
-        let now = now_ms();
-        let interrotte: Vec<AlarmEvent> = self
-            .open_events
-            .write()
-            .await
-            .drain()
-            .map(|(_, mut ev)| {
-                ev.interrotto = true;
-                if ev.ts_normalized_ms.is_none() {
-                    ev.ts_normalized_ms = Some(now);
-                    ev.duration_s = Some(durata_s(ev.ts_activated_ms, now));
+        let progetto = self.progetto.read().await.clone();
+        self.carica(defs, progetto).await;
+    }
+
+    /// Chiude il progetto: lo stato degli allarmi si **mette da parte**, legato
+    /// alla cartella, invece di buttarlo via. Se lo stesso progetto si riapre
+    /// (un deploy sul dispositivo fa chiudi → sostituisci i file → riapri),
+    /// `carica` lo riprende; se se ne apre un altro, le righe rimaste aperte si
+    /// chiudono lì come interrotte. Senza progetto aperto non fa niente — così
+    /// una seconda chiusura non cancella la prima memoria.
+    pub async fn chiudi(&self) {
+        let Some(dir) = self.progetto.write().await.take() else { return };
+        let memoria = MemoriaAllarmi {
+            progetto: dir,
+            stati: std::mem::take(&mut *self.states.write().await),
+            sospesi: std::mem::take(&mut *self.shelved.write().await),
+            aperte: std::mem::take(&mut *self.open_events.write().await),
+            timer: std::mem::take(&mut *self.timers.write().await),
+            giornale: std::mem::take(&mut *self.journal.write().await),
+        };
+        self.by_tag.write().await.clear();
+        self.by_inhibit_tag.write().await.clear();
+        self.inhibit_values.write().await.clear();
+        *self.memoria.write().await = Some(memoria);
+    }
+
+    /// Carica gli allarmi del progetto `progetto` (26-09-2026).
+    ///
+    /// Un allarme che c'era già **nello stesso progetto** con la **stessa
+    /// definizione** tiene il suo stato: attivo o rientrato, riconosciuto o
+    /// no, sospeso, la sua riga di storico aperta, i timer di ritardo. Prima
+    /// ogni ricarica azzerava tutto: un allarme attivo e già riconosciuto
+    /// «scattava» di nuovo al primo aggiornamento del tag, e a ogni deploy — a
+    /// ogni «Invia ora» — partiva un Telegram per ogni allarme in corso, con
+    /// una riga «interrotta» e una nuova nello storico. Gli allarmi nuovi o
+    /// cambiati ripartono da zero; quelli spariti chiudono la loro riga come
+    /// interrotta. Con un progetto diverso non si eredita niente: due progetti
+    /// possono avere un allarme con lo stesso id.
+    pub async fn carica(&self, defs: Vec<AlarmDef>, progetto: Option<std::path::PathBuf>) {
+        // Da dove si può riprendere: lo stato vivo se è lo stesso progetto,
+        // altrimenti quello messo da parte alla chiusura se è di questo progetto.
+        let corrente = self.progetto.read().await.clone();
+        let memoria = self.memoria.write().await.take();
+        let (mut vecchi, altra_memoria) = match (&progetto, &corrente) {
+            (Some(p), Some(c)) if p == c => (Some(self.stato_vivo().await), memoria),
+            _ => match memoria {
+                Some(m) if progetto.as_ref() == Some(&m.progetto) => {
+                    let vivo = self.stato_vivo().await;
+                    (Some(m), Some(vivo))
                 }
-                ev
-            })
-            .collect();
+                altro => (None, altro),
+            },
+        };
+        // Le righe aperte che non si riprendono si chiudono come interrotte:
+        // quelle di un'altra memoria o dello stato vivo di un altro progetto,
+        // e quelle degli allarmi spariti o cambiati.
+        let mut interrotte: Vec<AlarmEvent> = Vec::new();
+        if let Some(m) = altra_memoria {
+            interrotte.extend(m.aperte.into_values());
+        }
+        if vecchi.is_none() {
+            interrotte.extend(self.open_events.write().await.drain().map(|(_, ev)| ev));
+        }
+        let firma = |d: &AlarmDef| serde_json::to_string(d).unwrap_or_default();
+        let tenuti: HashSet<String> = match &vecchi {
+            Some(v) => defs
+                .iter()
+                .filter(|d| v.stati.get(&d.id).is_some_and(|st| firma(&st.def) == firma(d)))
+                .map(|d| d.id.clone())
+                .collect(),
+            None => HashSet::new(),
+        };
+        if let Some(v) = vecchi.as_mut() {
+            let via: Vec<String> = v.aperte.keys().filter(|id| !tenuti.contains(*id)).cloned().collect();
+            for id in via {
+                if let Some(ev) = v.aperte.remove(&id) {
+                    interrotte.push(ev);
+                }
+            }
+        }
+        let now = now_ms();
+        for ev in interrotte.iter_mut() {
+            ev.interrotto = true;
+            if ev.ts_normalized_ms.is_none() {
+                ev.ts_normalized_ms = Some(now);
+                ev.duration_s = Some(durata_s(ev.ts_activated_ms, now));
+            }
+        }
         self.registra(interrotte).await;
 
         let mut states = self.states.write().await;
         let mut by_tag = self.by_tag.write().await;
         let mut by_inhibit_tag = self.by_inhibit_tag.write().await;
         let mut timers = self.timers.write().await;
+        let mut shelved = self.shelved.write().await;
+        let mut open_events = self.open_events.write().await;
         states.clear();
         by_tag.clear();
         by_inhibit_tag.clear();
         timers.clear();
-        self.shelved.write().await.clear();
-        self.open_events.write().await.clear();
-        self.journal.write().await.clear();
+        shelved.clear();
+        open_events.clear();
         self.inhibit_values.write().await.clear();
+        match vecchi.as_mut() {
+            // Stesso progetto: il giornale in memoria resta (è la sua storia).
+            Some(v) => *self.journal.write().await = std::mem::take(&mut v.giornale),
+            None => self.journal.write().await.clear(),
+        }
         for def in defs {
             by_tag
                 .entry(def.tag.clone())
@@ -555,8 +650,40 @@ impl AlarmDb {
                     .or_default()
                     .push(def.id.clone());
             }
-            timers.insert(def.id.clone(), AlarmTimer::default());
-            states.insert(def.id.clone(), AlarmState::from_def(def));
+            let ripreso = tenuti.contains(&def.id).then(|| vecchi.as_mut()).flatten();
+            match ripreso {
+                Some(v) => {
+                    let id = def.id.clone();
+                    if let Some(st) = v.stati.remove(&id) {
+                        states.insert(id.clone(), st);
+                    }
+                    timers.insert(id.clone(), v.timer.remove(&id).unwrap_or_default());
+                    if let Some(sh) = v.sospesi.remove(&id) {
+                        shelved.insert(id.clone(), sh);
+                    }
+                    if let Some(ev) = v.aperte.remove(&id) {
+                        open_events.insert(id, ev);
+                    }
+                }
+                None => {
+                    timers.insert(def.id.clone(), AlarmTimer::default());
+                    states.insert(def.id.clone(), AlarmState::from_def(def));
+                }
+            }
+        }
+        drop((states, by_tag, by_inhibit_tag, timers, shelved, open_events));
+        *self.progetto.write().await = progetto;
+    }
+
+    /// Lo stato vivo, tolto dalle mappe (che `carica` riempie subito dopo).
+    async fn stato_vivo(&self) -> MemoriaAllarmi {
+        MemoriaAllarmi {
+            progetto: self.progetto.read().await.clone().unwrap_or_default(),
+            stati: std::mem::take(&mut *self.states.write().await),
+            sospesi: std::mem::take(&mut *self.shelved.write().await),
+            aperte: std::mem::take(&mut *self.open_events.write().await),
+            timer: std::mem::take(&mut *self.timers.write().await),
+            giornale: std::mem::take(&mut *self.journal.write().await),
         }
     }
 
@@ -568,6 +695,18 @@ impl AlarmDb {
         let mut v: Vec<AlarmState> = self.states.read().await.values().cloned().collect();
         v.sort_by(|a, b| a.def.id.cmp(&b.def.id));
         v
+    }
+
+    /// Gli scatti con la riga di storico ancora aperta (id, istante di
+    /// scatto): dopo una ricarica sono quelli ripresi dal giro prima, e chi
+    /// chiude le righe rimaste aperte non li deve toccare.
+    pub async fn eventi_aperti(&self) -> Vec<(String, u64)> {
+        self.open_events
+            .read()
+            .await
+            .values()
+            .map(|ev| (ev.alarm_id.clone(), ev.ts_activated_ms))
+            .collect()
     }
 
     pub async fn journal_snapshot(&self, limit: usize) -> Vec<AlarmEvent> {
@@ -1107,6 +1246,65 @@ mod tests {
             quality: TagQuality::Good,
             timestamp_ms: 0,
         }
+    }
+
+    // ── lo stato sopravvive a ricarica e deploy (26-09-2026) ───────────────
+
+    fn soglia() -> AlarmDef {
+        def("t", "tag", AlarmCondition::Above { threshold: 80.0 })
+    }
+    fn dir(n: &str) -> Option<std::path::PathBuf> {
+        Some(std::path::PathBuf::from(format!("/progetti/{n}")))
+    }
+    /// Un allarme attivo e riconosciuto, nel progetto `a`.
+    async fn attivo_riconosciuto() -> AlarmDb {
+        let db = AlarmDb::new(64);
+        db.carica(vec![soglia()], dir("a")).await;
+        db.evaluate("tag", &ts(TagValue::Float(90.0))).await;
+        assert!(db.ack("t", Some("op".into())).await);
+        db
+    }
+
+    #[tokio::test]
+    async fn ricaricare_lo_stesso_progetto_non_fa_riscattare() {
+        let db = attivo_riconosciuto().await;
+        let mut rx = db.subscribe();
+        db.load(vec![soglia()]).await; // salvataggio della scheda Allarmi
+        db.evaluate("tag", &ts(TagValue::Float(91.0))).await;
+        let st = &db.snapshot().await[0];
+        assert!(st.active && st.acknowledged, "resta attivo e riconosciuto");
+        assert!(rx.try_recv().is_err(), "nessuna transizione: nessuna notifica");
+        assert!(db.journal_snapshot(10).await.iter().all(|e| !e.interrotto), "nessuna riga interrotta");
+    }
+
+    #[tokio::test]
+    async fn un_deploy_chiudi_e_riapri_riprende_lo_stato() {
+        let db = attivo_riconosciuto().await;
+        db.shelve("t", "manutenzione".into(), 3_600_000, "op".into()).await;
+        db.chiudi().await;
+        db.chiudi().await; // la seconda chiusura non cancella la memoria
+        db.carica(vec![soglia()], dir("a")).await;
+        let st = &db.snapshot().await[0];
+        assert!(st.active && st.acknowledged);
+        assert_eq!(db.shelved_snapshot().await.len(), 1, "la sospensione resta");
+    }
+
+    #[tokio::test]
+    async fn un_altro_progetto_o_un_allarme_cambiato_ripartono_da_zero() {
+        let db = attivo_riconosciuto().await;
+        // Le righe vanno al callback (SQLite): il giornale in memoria di «b»
+        // giustamente non ha quelle di «a».
+        let scritte = Arc::new(std::sync::Mutex::new(Vec::<AlarmEvent>::new()));
+        let s2 = scritte.clone();
+        db.set_journal_callback(move |ev| s2.lock().unwrap().push(ev)).await;
+        db.chiudi().await;
+        db.carica(vec![soglia()], dir("b")).await;
+        assert!(!db.snapshot().await[0].active, "progetto diverso: niente eredità");
+        assert!(scritte.lock().unwrap().iter().any(|e| e.interrotto), "la riga di «a» chiusa come interrotta");
+
+        let db = attivo_riconosciuto().await;
+        db.load(vec![def("t", "tag", AlarmCondition::Above { threshold: 50.0 })]).await;
+        assert!(!db.snapshot().await[0].active, "soglia cambiata: si rivaluta da zero");
     }
 
     #[tokio::test]

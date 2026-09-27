@@ -606,6 +606,10 @@ pub fn build(
             "/api/remote/database/:id/upload",
             post(crate::remote::remote_upload_database),
         )
+        .route(
+            "/api/remote/database/:id/clean-history",
+            post(crate::remote::remote_pulisci_storico),
+        )
         // Backup del dispositivo connesso — non quelli del progetto locale.
         .route(
             "/api/remote/backups",
@@ -751,6 +755,12 @@ pub fn build(
         .route("/api/datastores/:id/tags", get(datastore_tags))
         .route("/api/datastores/:id/delete-tag", post(datastore_delete_tag))
         .route("/api/datastores/:id/vacuum", post(datastore_vacuum))
+        // Pulizia dello storico gonfiato (26-09-2026): cancella dati, quindi
+        // solo admin come `purge`.
+        .route(
+            "/api/datastores/:id/clean-history",
+            post(datastore_pulisci_storico).route_layer(require_admin_layer.clone()),
+        )
         .route(
             "/api/datastores/:id/purge",
             post(datastore_purge).route_layer(require_admin_layer.clone()),
@@ -1066,6 +1076,11 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         // ── Datastore ──────────────────────────────────────────────────────
         .route("/api/datastores/:id/download", get(datastore_download))
         .route("/api/datastores/:id/upload", post(datastore_upload))
+        // «🧹 Pulisci storico» sul dispositivo collegato (26-09-2026). Mancava:
+        // provata solo sullo stack di sviluppo, dove la porta admin serve il
+        // router completo, sul TC620 rispondeva 404 (27-09). Il test
+        // `ogni_chiamata_dell_ide_ha_la_sua_rotta_sul_dispositivo` ora lo vede.
+        .route("/api/datastores/:id/clean-history", post(datastore_pulisci_storico))
         // ── Override per-dispositivo del client id MQTT ────────────────────
         .route(
             "/api/mqtt/source/:id/client-id-override",
@@ -2462,6 +2477,68 @@ async fn datastore_vacuum(
         }))
         .into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
+struct PuliziaBody {
+    #[serde(default)]
+    anteprima: bool,
+}
+
+/// `POST /api/datastores/:id/clean-history` — `{anteprima: true}` conta
+/// soltanto; senza, fa una copia del database accanto all'originale, toglie i
+/// campioni dei tag senza `history: true` e le ripetizioni, e compatta.
+///
+/// Esiste per gli storici scritti prima del 26-09-2026, quando il buffer dei
+/// grafici salvava ogni aggiornamento di ogni tag (CasaDomotica: 590 MB, 93 %
+/// ripetizioni). Da allora non si gonfiano più, ma quelli già gonfi restano.
+async fn datastore_pulisci_storico(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Path(id): Path<String>,
+    Json(body): Json<PuliziaBody>,
+) -> Response {
+    let Some(reg) = s.registry.read().await.as_ref().map(Arc::clone) else {
+        return (StatusCode::NOT_FOUND, "no datastores configured").into_response();
+    };
+    if body.anteprima {
+        return match reg.pulisci_storico_backend(&id, true).await {
+            Ok(e) => Json(serde_json::json!({ "anteprima": true, "esito": e })).into_response(),
+            Err(e) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
+        };
+    }
+    // La copia prima di toccare: accanto al database, con la data nel nome.
+    // Resta finché qualcuno non la cancella — è un file grande quanto
+    // l'originale, e il messaggio lo dice.
+    let Some(percorso) = reg.backend_db_path(&id) else {
+        return (StatusCode::BAD_REQUEST, "la pulizia dello storico vale solo per SQLite").into_response();
+    };
+    let quando = crate::backups::timestamp_name();
+    let copia = percorso.with_file_name(format!("historian-prima-della-pulizia-{quando}.db"));
+    if let Err(e) = reg.download_backend(&id, &copia).await {
+        return (StatusCode::INTERNAL_SERVER_ERROR, format!("copia di sicurezza non riuscita, niente toccato: {e}")).into_response();
+    }
+    s.audit.log(
+        "datastore.pulisci_storico",
+        Some(user.username),
+        serde_json::json!({ "datastore": id.clone(), "copia": copia.display().to_string() }),
+    );
+    let esito = match reg.pulisci_storico_backend(&id, false).await {
+        Ok(e) => e,
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    };
+    match reg.vacuum_backend(&id).await {
+        Ok((prima, dopo)) => Json(serde_json::json!({
+            "anteprima": false,
+            "esito": esito,
+            "copia": copia.display().to_string(),
+            "bytes_before": prima,
+            "bytes_after": dopo,
+        }))
+        .into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("pulito, ma la compattazione è fallita: {e}")).into_response(),
     }
 }
 
@@ -8072,6 +8149,11 @@ async fn riavvia_notifiche(s: &AppState, config: Option<sws_core::NotificationCo
     if let Some(old) = s.notification_supervisor.write().await.take() {
         old.stop();
     }
+    if s.ide_only {
+        // Stessa regola dell'apertura (`start_project_services`): nell'IDE
+        // salvare le notifiche non le accende.
+        return;
+    }
     if let Some(cfg) = config {
         // La tabella lingue si rilegge dal progetto aperto: cambiare le
         // notifiche non deve far ripartire il supervisore con una tabella
@@ -9732,5 +9814,61 @@ mod csv_tag_tests {
         m(&[("array", &righe[5][5]), ("unit", &righe[5][7])]).applica(&mut z);
         assert_eq!(z.array, Some(vec![2, 3]));
         assert_eq!(z.unit.as_deref(), Some("°C"));
+    }
+}
+
+#[cfg(test)]
+mod rotte_del_dispositivo {
+    //! Ogni rotta che l'IDE chiama su un dispositivo deve esistere in
+    //! `deploy_only_app`, il router della porta di gestione dei container
+    //! (`--no-admin`). Lo stack di sviluppo serve invece il router completo,
+    //! quindi una rotta dimenticata lì funziona in casa e dà 404 sul campo.
+    //! È successo tre volte: i flussi `/ws/*` (08-09), `whoami` (11-09) e
+    //! `clean-history` (27-09, trovato installando la dev.2 sul TC620).
+
+    /// I percorsi `{base}/api/...` di `remote.rs`, con `{}` al posto dei parametri.
+    fn chiamate_dell_ide() -> Vec<String> {
+        let src = include_str!("remote.rs");
+        let mut v: Vec<String> = src
+            .match_indices("{base}/api/")
+            .map(|(i, _)| {
+                let resto = &src[i + "{base}".len()..];
+                let fine = resto.find(['"', '?']).unwrap_or(resto.len());
+                resto[..fine].to_string()
+            })
+            .collect();
+        v.sort();
+        v.dedup();
+        v
+    }
+
+    /// Le rotte di `deploy_only_app`, con `{}` al posto di `:parametro`.
+    fn rotte_di_gestione() -> Vec<String> {
+        let src = include_str!("router.rs");
+        let inizio = src.find("fn deploy_only_app(").expect("deploy_only_app");
+        let fine = inizio + src[inizio..].find("\nfn ").expect("fine di deploy_only_app");
+        src[inizio..fine]
+            .split('"')
+            .filter(|p| p.starts_with("/api/"))
+            .map(|p| {
+                p.split('/')
+                    .map(|seg| if seg.starts_with(':') { "{}" } else { seg })
+                    .collect::<Vec<_>>()
+                    .join("/")
+            })
+            .collect()
+    }
+
+    #[test]
+    fn ogni_chiamata_dell_ide_ha_la_sua_rotta_sul_dispositivo() {
+        let chiamate = chiamate_dell_ide();
+        assert!(chiamate.len() >= 10, "lettura di remote.rs fallita: {chiamate:?}");
+        let rotte = rotte_di_gestione();
+        let mancanti: Vec<_> = chiamate.iter().filter(|c| !rotte.contains(c)).collect();
+        assert!(
+            mancanti.is_empty(),
+            "l'IDE chiama sul dispositivo rotte che la porta di gestione non ha \
+             (404 su ogni container): {mancanti:?}"
+        );
     }
 }

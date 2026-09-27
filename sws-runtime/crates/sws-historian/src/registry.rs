@@ -6,7 +6,14 @@
 //!
 //! The registry is `Arc`-wrapped by the caller; `spawn_recorder` takes an `Arc<Self>`.
 
-use std::{collections::HashMap, path::Path, sync::Arc};
+use std::{
+    collections::HashMap,
+    path::Path,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+};
 
 use sws_core::{Project, TagId};
 use tokio::sync::RwLock;
@@ -97,6 +104,14 @@ struct TagRoute {
 pub struct DatastoreRegistry {
     backends: Vec<(String, DatastoreBackend)>, // (id, backend)
     routes: RwLock<HashMap<TagId, TagRoute>>,
+    /// Il registratore è già partito: `spawn_recorder` non ne avvia un secondo.
+    /// Fino al 26-09-2026 all'avvio con `--project` ne partivano due (uno da
+    /// `apply_loaded_project`, uno da `main.rs`) sullo stesso registro.
+    registratore_avviato: AtomicBool,
+    /// Il registro è stato sostituito (progetto chiuso o riaperto): il suo
+    /// registratore si ferma al prossimo aggiornamento. Prima restava vivo per
+    /// sempre, e aprendo un progetto dopo l'altro i registratori si accumulavano.
+    chiuso: AtomicBool,
 }
 
 impl DatastoreRegistry {
@@ -179,6 +194,8 @@ impl DatastoreRegistry {
         Ok(Some(Arc::new(Self {
             backends,
             routes: RwLock::new(routes),
+            registratore_avviato: AtomicBool::new(false),
+            chiuso: AtomicBool::new(false),
         })))
     }
 
@@ -291,6 +308,23 @@ impl DatastoreRegistry {
         }
     }
 
+    /// `SqliteStore::pulisci_storico` sul backend indicato, con i tag
+    /// storicizzati di questo progetto (le rotte: foglie comprese). Solo SQLite.
+    pub async fn pulisci_storico_backend(
+        &self,
+        id: &str,
+        anteprima: bool,
+    ) -> anyhow::Result<crate::sqlite::EsitoPulizia> {
+        let tenere: Vec<String> = self.routes.read().await.keys().cloned().collect();
+        match self.backends.iter().find(|(bid, _)| bid == id) {
+            Some((_, crate::backend::DatastoreBackend::Sqlite(b))) => {
+                b.store().pulisci_storico(tenere, anteprima).await
+            }
+            Some(_) => anyhow::bail!("la pulizia dello storico vale solo per SQLite"),
+            None => anyhow::bail!("datastore '{id}' not found"),
+        }
+    }
+
     /// Return a list of all configured backend ids.
     pub fn backend_ids(&self) -> Vec<String> {
         self.backends.iter().map(|(id, _)| id.clone()).collect()
@@ -338,15 +372,31 @@ impl DatastoreRegistry {
         None
     }
 
+    /// Ferma il registratore di questo registro (al prossimo aggiornamento).
+    /// Da chiamare quando il registro viene sostituito o tolto.
+    pub fn chiudi(&self) {
+        self.chiuso.store(true, Ordering::SeqCst);
+    }
+
     /// Spawn a recorder task that subscribes to `tag_db` and routes every update.
+    ///
+    /// Una volta sola per registro: una seconda chiamata non avvia niente. Il
+    /// task finisce quando il registro è `chiudi`-uso o il `TagDb` si chiude.
     pub fn spawn_recorder(
         self: Arc<Self>,
         tag_db: Arc<sws_core::TagDb>,
     ) -> tokio::task::JoinHandle<()> {
+        if self.registratore_avviato.swap(true, Ordering::SeqCst) {
+            return tokio::spawn(async {});
+        }
         let mut rx = tag_db.subscribe();
         tokio::spawn(async move {
             loop {
+                if self.chiuso.load(Ordering::SeqCst) {
+                    break;
+                }
                 match rx.recv().await {
+                    Ok(_) if self.chiuso.load(Ordering::SeqCst) => break,
                     Ok(update) => {
                         // Fase 1e: l'aggiornamento di una radice composita si
                         // espande nelle sue foglie, che sono scalari e hanno
@@ -424,5 +474,33 @@ datastores:
         assert_eq!(routes["motore1.velocita"].filter.deadband, Some(0.5));
         assert_eq!(routes["motore1.marcia"].filter.deadband, None);
         assert_eq!(routes["piatto"].filter.deadband, Some(2.0));
+    }
+
+    /// Un registratore solo per registro, e si ferma alla chiusura (26-09-2026:
+    /// prima all'avvio con `--project` ne partivano due, e aprendo un progetto
+    /// dopo l'altro quelli vecchi restavano vivi).
+    #[tokio::test]
+    async fn un_registratore_solo_e_si_ferma_alla_chiusura() {
+        let dir = tempfile::tempdir().unwrap();
+        let reg = DatastoreRegistry::from_project(&progetto(), dir.path())
+            .await
+            .unwrap()
+            .expect("registro");
+        let db = Arc::new(sws_core::TagDb::new(64));
+        let _uno = reg.clone().spawn_recorder(db.clone());
+        let secondo = reg.clone().spawn_recorder(db.clone());
+        secondo.await.unwrap(); // il secondo finisce subito: non ha avviato niente
+        let store = reg.primary_sqlite_store().unwrap();
+        let conta = || async { store.total_samples().await.unwrap() };
+
+        db.set("piatto".into(), sws_core::TagValue::Float(1.0), sws_core::TagQuality::Good).await;
+        tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+        assert_eq!(conta().await, 1, "un campione, non due");
+
+        reg.chiudi();
+        db.set("piatto".into(), sws_core::TagValue::Float(50.0), sws_core::TagQuality::Good).await;
+        db.set("piatto".into(), sws_core::TagValue::Float(90.0), sws_core::TagQuality::Good).await;
+        tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+        assert_eq!(conta().await, 1, "chiuso: non registra più");
     }
 }

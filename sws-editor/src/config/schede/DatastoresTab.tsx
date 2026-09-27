@@ -182,6 +182,27 @@ export function DatastoresTab() {
     });
   };
 
+  /** Pulizia dello storico gonfiato prima del 26-09-2026: prima i conti, poi
+   *  la conferma con i numeri davanti, poi il lavoro (copia di sicurezza,
+   *  cancellazione, compattazione). Anche sul dispositivo collegato. */
+  const doPulisci = (ds: DatastoreConfig, remoto: boolean) =>
+    void withBusy(ds.id, async () => {
+      const n = (x: number) => x.toLocaleString();
+      const prova = await api.pulisciStorico(ds.id, true, remoto);
+      const { non_storicizzati, ripetuti, restanti } = prova.esito;
+      if (non_storicizzati + ripetuti === 0) return t("cfg.pulisciNienteDaFare");
+      if (!window.confirm(t(remoto ? "cfg.pulisciConfermaRemoto" : "cfg.pulisciConferma", {
+        non: n(non_storicizzati), rip: n(ripetuti), restano: n(restanti),
+      }))) return t("cfg.pulisciAnnullata");
+      const r = await api.pulisciStorico(ds.id, false, remoto);
+      if (!remoto) await loadStats(ds.id);
+      const mb = (x: number) => (x / 1024 / 1024).toFixed(1);
+      return t("cfg.pulisciFatta", {
+        tolte: n(r.esito.non_storicizzati + r.esito.ripetuti), restano: n(r.esito.restanti),
+        prima: mb(r.bytes_before ?? 0), dopo: mb(r.bytes_after ?? 0), copia: r.copia ?? "",
+      });
+    });
+
   const doVacuum = (ds: DatastoreConfig) =>
     void withBusy(ds.id, async () => {
       const r = await api.vacuumDatastore(ds.id);
@@ -343,6 +364,11 @@ export function DatastoresTab() {
                   style={{ background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>
                   {t("cfgUi.findOrphanTags")}
                 </button>
+                <button onClick={() => doPulisci(ds, false)} disabled={busyMgmt[ds.id]} data-testid="clean-history"
+                  title={t("cfg.pulisciTitle")}
+                  style={{ background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>
+                  🧹 {t("cfg.pulisci")}
+                </button>
                 <button onClick={() => doVacuum(ds)} disabled={busyMgmt[ds.id]}
                   title={t("cfg.vacuumTitle")}
                   style={{ background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>
@@ -365,6 +391,11 @@ export function DatastoresTab() {
                       title={t("cfg.downloadRemoteDbTitle")}
                       style={{ background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>
                       {t("cfgUi.downloadRemote")}
+                    </button>
+                    <button onClick={() => doPulisci(ds, true)} disabled={busyMgmt[ds.id]} data-testid="pulisci-storico-remoto"
+                      title={t("cfg.pulisciTitleRemoto")}
+                      style={{ background: "var(--brand-surface, #1e293b)", color: "var(--brand-text, #e2e8f0)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontSize: 11 }}>
+                      🧹 {t("cfg.pulisci")}
                     </button>
                     <button onClick={() => askUploadDb(ds, true)} disabled={busyMgmt[ds.id]}
                       title={t("cfg.uploadRemoteDbTitle")}

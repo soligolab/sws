@@ -404,6 +404,43 @@ objects:
   stroke_width: 2.0
   corner_radius: 8.0
   opacity: 0.45
+- id: d_poligono
+  type: polygon
+  x: 24.0
+  y: 664.0
+  width: 72.0
+  height: 72.0
+  sides: 6
+  fill: '#4a90d9'
+  stroke: '#e2e8f0'
+  stroke_width: 2.0
+- id: d_stella
+  type: polygon
+  x: 108.0
+  y: 664.0
+  width: 72.0
+  height: 72.0
+  sides: 5
+  star: true
+  star_inner: 45.0
+  fill: '#f59e0b'
+- id: d_polilinea
+  type: polyline
+  x: 200.0
+  y: 670.0
+  points:
+  - x: 200.0
+    y: 730.0
+  - x: 240.0
+    y: 670.0
+  - x: 280.0
+    y: 720.0
+  - x: 320.0
+    y: 672.0
+  - x: 380.0
+    y: 730.0
+  stroke: '#22c55e'
+  stroke_width: 3.0
 - id: o_page_navigator
   type: page_navigator
   x: 24.0

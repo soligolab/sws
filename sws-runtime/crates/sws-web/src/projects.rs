@@ -137,7 +137,11 @@ pub async fn start_project_services(
         info!(scripts = n, "global script supervisor started");
         *s.script_supervisor.write().await = Some(sc);
     }
-    if let Some(notif) = notifications {
+    // Nell'IDE niente supervisore delle notifiche: niente email, niente
+    // escalation, niente Telegram — l'editor non è l'impianto (26-09-2026).
+    if s.ide_only {
+        info!("istanza IDE: notifiche (Telegram, email, escalation) NON avviate");
+    } else if let Some(notif) = notifications {
         let ns = NotificationSupervisor::start(
             s.alarms.clone(),
             notif,
@@ -796,6 +800,11 @@ pub async fn apply_loaded_project(
     functions: &FunctionsRegistry,
     config_dir: &StdPath,
     instance_id: &str,
+    // Un'istanza IDE non registra dati (26-09-2026, maintainer: «perché l'IDE
+    // debba registrare dati? è solo un IDE»): niente campioni e niente
+    // eventi d'allarme sul disco del progetto. Il buffer in RAM dei grafici
+    // dal vivo resta.
+    ide_only: bool,
 ) -> (Option<NotificationConfig>, Vec<GlobalScriptDef>) {
     info!(
         name = %project.meta.name,
@@ -813,9 +822,16 @@ pub async fn apply_loaded_project(
     )
     .await;
     // Init datastore registry before consuming the project fields.
+    // Il registro di prima si ferma: senza, il suo registratore restava vivo e
+    // i registratori si accumulavano a ogni apertura.
+    if let Some(vecchio) = registry.read().await.as_ref() {
+        vecchio.chiudi();
+    }
     match DatastoreRegistry::from_project(&project, project_dir).await {
         Ok(Some(reg)) => {
-            reg.clone().spawn_recorder(db.clone());
+            if !ide_only {
+                reg.clone().spawn_recorder(db.clone());
+            }
             info!(
                 backends = project.datastores.len(),
                 "datastore registry initialised"
@@ -843,7 +859,7 @@ pub async fn apply_loaded_project(
     // `load` chiude come interrotte le righe ancora aperte e le passa al
     // callback attuale, cioè allo store del progetto a cui appartenevano: va
     // chiamato **prima** di agganciare quello nuovo.
-    alarms.load(project.alarms).await;
+    alarms.carica(project.alarms, Some(project_dir.to_path_buf())).await;
     // Lo storico allarmi → SQLite, se c'è uno store.
     //
     // **Uno scrittore solo** (25-09-2026): dalla stessa data ogni scatto
@@ -852,10 +868,16 @@ pub async fn apply_loaded_project(
     // dell'inserimento. Un canale e un task ne tengono l'ordine; sostituendo
     // il callback il canale si chiude e il task finisce dopo aver scritto
     // ciò che aveva in coda.
-    if let Some(store) = historian.sqlite_store().await {
+    if ide_only {
+        // Nell'IDE gli allarmi si valutano (li mostra l'editor), ma il loro
+        // storico non si scrive: non sono eventi d'impianto.
+        alarms.clear_journal_callback().await;
+    } else if let Some(store) = historian.sqlite_store().await {
         // Ciò che una caduta ha lasciato aperto si chiude come interrotto,
-        // prima che gli allarmi di questo giro comincino a scrivere.
-        let chiuse = store.chiudi_eventi_interrotti(sws_core::now_ms()).await;
+        // prima che gli allarmi di questo giro comincino a scrivere — tranne
+        // gli scatti che `carica` ha appena ripreso, ancora in corso.
+        let vive = alarms.eventi_aperti().await;
+        let chiuse = store.chiudi_eventi_interrotti(sws_core::now_ms(), &vive).await;
         if chiuse > 0 {
             info!(chiuse, "storico allarmi: righe rimaste aperte chiuse come interrotte");
         }
@@ -988,7 +1010,9 @@ pub async fn open_project(State(s): State<AppState>, Path(name): Path<String>) -
     crate::telegram::stop_sender(&s).await;
     s.db.clear().await;
     s.historian.clear().await;
-    s.alarms.load(vec![]).await;
+    // Messo da parte, non buttato: se si riapre lo stesso progetto (un deploy
+    // fa chiudi → sostituisci → riapri) gli allarmi riprendono il loro stato.
+    s.alarms.chiudi().await;
     s.functions.write().await.clear();
     s.derived_tags.write().await.clear();
     s.generator_tags.write().await.clear();
@@ -1017,6 +1041,7 @@ pub async fn open_project(State(s): State<AppState>, Path(name): Path<String>) -
         &s.functions,
         &s.config_dir,
         &s.instance_id,
+        s.ide_only,
     )
     .await;
     start_project_services(&s, notifications, global_scripts, languages).await;
@@ -1090,9 +1115,14 @@ pub async fn close_project(State(s): State<AppState>) -> Response {
     // Nessun tag: azzera scale, ruoli, tipi, calcolati, derivati e generatori.
     apply_tags(&s.db, &s.derived_tags, &s.generator_tags, &[], &[]).await;
     s.historian.swap_store(None).await; // RAM-only between projects
-    s.alarms.load(vec![]).await;
+    // Messo da parte, non buttato: se si riapre lo stesso progetto (un deploy
+    // fa chiudi → sostituisci → riapri) gli allarmi riprendono il loro stato.
+    s.alarms.chiudi().await;
     s.functions.write().await.clear();
     s.recipe_log.write().await.clear();
+    if let Some(vecchio) = s.registry.read().await.as_ref() {
+        vecchio.chiudi();
+    }
     *s.registry.write().await = None;
     s.auth.clear().await;
     *s.project_dir.write().await = None;

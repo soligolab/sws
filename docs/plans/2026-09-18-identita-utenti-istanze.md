@@ -52,6 +52,133 @@ hanno.
 
 ---
 
+## Sessione di plan — 27-09-2026 (in corso)
+
+Prima sessione dedicata, chiesta dal maintainer: «vorrei dessi meno cose possibili per scontate e ti
+confrontassi con me in modo sincero e costruttivo». Qui solo ciò che il maintainer ha **deciso**, con
+le sue parole, e ciò che è stato **misurato**; le proposte restano proposte finché non le sceglie.
+
+### Il punto di partenza (maintainer)
+
+> «l'ide potrà essere ospitato su un server dedicato (vps in internet). il PC dello sviluppatore e il
+> runtime saranno su una o due reti distinte. […] lo spazio avrà una gerarchia azienda/sviluppatore»
+
+### Deciso
+
+1. **I file del progetto stanno solo in cloud**, sulla VPS, con la possibilità di salvarli in locale.
+   («i file possiamo decidere che sono solo in Cloud con la possibilità di salvare il progetto in locale»)
+2. **La contemporaneità che conta è più utenti, ognuno sul proprio progetto** (non più utenti sullo
+   stesso progetto in tempo reale).
+3. **Un processo runtime per ogni progetto aperto** (strada «a»), con davanti uno strato che autentica e
+   instrada — non un runtime reso multi-progetto (strada «b»).
+
+### Misurato il 27-09
+
+- `AppState` (`router.rs:70`) tiene **un** progetto: `project_dir`, `db`, `alarms`, `historian`,
+  supervisori di sorgenti e script. Due utenti sulla stessa istanza si scambiano il progetto.
+- Un processo IDE con CasaDomotica aperto (42 tag, build debug): **86 MB** RSS, 10 thread.
+- Il processo IDE (`ide_only`) **avvia le sorgenti** (si collega a MQTT/Modbus/… agli indirizzi del
+  progetto) e **esegue gli script globali Python**; non registra lo storico e non manda notifiche
+  (26-09).
+- Più utenti sullo stesso progetto: esiste il blocco ottimistico (`If-Match`/409). Per file su pagine,
+  faceplate, ricette; **per tutto `project.yaml`** su tag, allarmi, sorgenti e notifiche.
+
+4. **IDE e runtime legati da una VPN** (proposta del maintainer), che arriva **solo al runtime**, non
+   alla LAN d'impianto: la VPS vede le API del pannello e nient'altro.
+5. **Nell'IDE ospitato sorgenti e script Python sono spenti**; i dati dal vivo arrivano dal runtime
+   attraverso il tunnel (il relay `remote_relay.rs` esiste già per il dispositivo collegato).
+6. **Firewall dei siti: «dipende dal cliente»** — serve comunque un modo che passi su TCP/443.
+7. **Componente VPN: adottare, non scrivere.** Headscale + Tailscale vanno bene, **ma** — maintainer:
+   «nel caso dei tc e wp esiste una implementazione openvpn predisposta». Da capire come è predisposta
+   prima di scegliere.
+
+8. **Solo OpenVPN**, anche per i dispositivi non Pixsys, che interessano **da subito**.
+9. **Un'istanza OpenVPN per azienda** sulla VPS: rete e CA proprie, isolamento per costruzione.
+10. **Pixsys: il container scrive `client.ovpn` e `secrets.txt` in `/data/openvpn`** (un mount in più
+    nell'installer) e la VPN parte al riavvio del pannello.
+11. **Non Pixsys: il client OpenVPN gira sull'host**, installato da `install-container.sh` — la regola
+    «l'host non si tocca» vale per i Pixsys.
+12. **Abbinamento con un codice mostrato sul pannello**, che lo sviluppatore inserisce nell'IDE.
+
+### Misurato sul TC620 il 27-09 (sola lettura, autorizzata)
+
+- OpenVPN **2.6.14** sull'host. `openvpn-auto-login.service` (root, `WantedBy=multi-user.target`) parte
+  **solo se** esistono `/data/openvpn/client.ovpn` e `/data/openvpn/secrets.txt`
+  (`ConditionPathExists`), con `--auth-user-pass secrets.txt`: **utente/password obbligatori**.
+  Oggi inattivo (file assenti). Presenti anche `openvpn-client@`/`openvpn-server@`, disabilitati.
+- `/data/openvpn` è di **`user:setup-user`**: il container (che gira come `user`, `keep-id`) può
+  scriverci se montata.
+- `net.pixsys.Config1` **non ha un metodo per la VPN** (Buzzer, Display, FactoryReset, Launcher, Time,
+  TouchReboot, USBDrives, UserApps, WebBrowser): senza root, la VPN si accende solo al riavvio.
+- Il tunnel termina sull'**host**: il vincolo «solo al runtime» va imposto dal lato VPS (firewall verso
+  la sola 8444, profilo senza `redirect-gateway` né rotte verso la LAN).
+
+13. **L'indirizzo della VPS è scritto nell'immagine, modificabile** in configurazione (per chi ospita
+    altrove). Il pannello lo usa in HTTPS, prima della VPN, per ritirare il profilo col codice.
+14. **Il codice di abbinamento appare in tutti e due i posti**: sullo schermo del pannello (web e LVGL)
+    e nella pagina locale del runtime, che vale anche per i dispositivi senza schermo.
+15. **Un progetto dello spazio cloud appartiene all'azienda**; gli sviluppatori ci lavorano con i
+    permessi che l'azienda dà, e se uno se ne va il progetto resta.
+16. **Due livelli ora (azienda → sviluppatori), il terzo previsto**: lo schema non deve impedire un
+    domani integratore → cliente finale → suoi progetti.
+
+17. **Registrazione libera delle aziende, ma VPN e pannelli dopo l'approvazione** dell'amministratore
+    della piattaforma: chi si registra prova l'editor con quote piccole; l'istanza OpenVPN e
+    l'abbinamento dei pannelli si attivano solo ad azienda approvata. Discusso prima di scegliere: la
+    registrazione libera porta dal primo rilascio invio email (verifica, recupero password),
+    anti-abuso, quote, termini e informativa privacy (GDPR).
+18. **Due ruoli nell'azienda: amministratore** (persone e dispositivi) **e sviluppatore** (progetti).
+19. **Accesso con email e password, 2FA (TOTP) opzionale**, che l'azienda può rendere obbligatoria.
+20. **Un pannello abbinato riceve qualunque progetto della sua azienda**: lo sviluppatore sceglie il
+    pannello al deploy, come oggi con «Connetti».
+
+21. **Utenti d'impianto: nel progetto, e anche sul pannello marcati «locali»** (opzione 3 di Q54): il
+    deploy sostituisce quelli del progetto e non tocca quelli nati sul pannello — la revoca arriva,
+    l'operatore creato in reparto resta.
+22. **Account cloud e account d'impianto separati**: l'account cloud apre l'IDE, il pannello ha solo i
+    suoi utenti. Un pannello resta usabile senza internet.
+23. **Quote dal primo rilascio: numero di progetti, spazio su disco, numero di pannelli**, per azienda.
+    *Nota:* «progetti aperti insieme» non è stata scelta come quota; ogni progetto aperto è un processo
+    sulla VPS, quindi lo spegnimento dei processi inattivi diventa l'unica difesa — da tenere presente
+    nel dimensionamento.
+24. **Al superamento si blocca solo ciò che crea** (nuovi progetti, pannelli, spazio): deploy e
+    pannelli già in servizio non si fermano mai.
+
+25. **Un container per ogni processo IDE** sulla VPS (podman rootless): montata solo la cartella del
+    progetto, rete solo verso la VPN della sua azienda. Riusa l'immagine del runtime.
+26. **Lo strato davanti è lo stesso binario in una modalità nuova** (es. `sws-runtime --gateway`):
+    login, aziende, quote, instradamento e avvio/spegnimento dei container.
+27. **L'IDE installabile resta**, accanto a quello ospitato, per chi non vuole il cloud o lavora
+    offline: stesso codice, senza gateway.
+28. **Email via SMTP configurabile**, senza legarsi a un fornitore.
+
+29. **Nessun ramo di sviluppo lungo** (maintainer: «No, ok, alla fine tutto questo lavoro ha senso
+    anche per un uso locale»). Il lavoro entra in `main` a pezzi piccoli, un ramo corto per volta come
+    da `CLAUDE.md`: il gateway come modalità nuova (`--gateway`) che finché nessuno la lancia non
+    cambia niente; **prima** i pezzi che toccano il codice condiviso e servono anche in locale — la
+    semantica di `ide_only`, gli utenti d'impianto «locali» (chiude Q54), il mount di `/data/openvpn`
+    nell'installer. Motivo: un ramo lungo accumula i conflitti di significato che git non vede, come
+    il 14-09.
+
+### Ancora aperto
+
+- Il **rischio più grosso non ancora misurato**: il ciclo completo su un pannello vero — codice
+  mostrato, profilo ritirato in HTTPS, riavvio, OpenVPN in TCP/443 verso un'istanza per azienda,
+  IDE in container che raggiunge la 8444 attraverso il tunnel. Va provato a mano **prima** di
+  scrivere il gateway: se un pezzo non regge (per esempio l'`auth-user-pass` obbligatorio, o il
+  firewall di un sito), cambia il disegno.
+- Il conflitto di significato già visto il 14-09 va ricontrollato: `ide_only` oggi vuol dire «nessuna
+  autenticazione». Nel container dietro il gateway deve voler dire «l'autenticazione la fa il
+  gateway», e le due cose non vanno confuse.
+- Gli utenti d'impianto (Q54) nel nuovo quadro.
+- Il resto è nell'elenco della conversazione e verrà riportato qui man mano che si decide.
+
+**Quando il lavoro partirà, la prima cosa resta una sessione di plan approfondita**: questa è la prima,
+non l'ultima.
+
+
+---
+
 ## Dalla scheda Q44 — Ospitare l'editor come servizio, con aziende, utenti e quote
 
 *Aperta il 2026-09-07 su richiesta del maintainer. Nessuna decisione presa.*

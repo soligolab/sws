@@ -657,6 +657,8 @@ export const PALETTE_GROUPS: PaletteGroup[] = [
     { type: "rect",    label: "Rettangolo", icon: "▭" },
     { type: "ellipse", label: "Ellisse",    icon: "○" },
     { type: "line",    label: "Linea",      icon: "╱" },
+    { type: "polyline", label: "Polilinea", icon: "〰" },
+    { type: "polygon", label: "Poligono",   icon: "⬡" },
     { type: "text",    label: "Testo",      icon: "T" },
     { type: "image",   label: "Immagine",   icon: "🖼" },
   ]},
@@ -788,6 +790,8 @@ function GruppoStrumenti({ group, showLvglBadge, ultimo }: { group: PaletteGroup
 // sws-lvgl-viewer/src/lvgl_render.rs SUPPORTED_TYPES — tenere allineati).
 // Man mano che il motore cresce (Fase 6+), questo elenco cresce con lui.
 const LVGL_SUPPORTED_TYPES = new Set<SynopticObject["type"]>([
+  // 26-09-2026: polilinea e poligono, rasterizzati con resvg come gli SVG.
+  "polyline", "polygon",
   // `image` dal 2026-08-26: il viewer LVGL rasterizza gli SVG con resvg
   // (D2). Vale per i `src` .svg — un png o un jpg mostrano il segnaposto.
   "image",

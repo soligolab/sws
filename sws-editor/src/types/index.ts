@@ -10,6 +10,8 @@ export type SynopticObjectType =
   | "rect"
   | "ellipse"
   | "line"
+  | "polyline"
+  | "polygon"
   | "text"
   | "image"
   // Controls
@@ -553,6 +555,10 @@ export interface SynopticObject {
   flip_v?: boolean;
   /** Opacity 0..1, default 1. Applies to all visual types. */
   opacity?: number;
+  /** Luminosità −100…+100 %, default 0: negativa verso il nero, positiva verso
+   *  il bianco, su tutto l'oggetto (immagini e simboli compresi). Legabile a un
+   *  tag con `bindings.brightness`. */
+  brightness?: number;
   /** Optional CSS transition duration in ms for CSS-animatable bound props
    *  (fill, stroke, opacity, transform). 0 or undefined → no animation. */
   transition_duration_ms?: number;
@@ -568,6 +574,11 @@ export interface SynopticObject {
   blink_tag?: string;
   /** Periodo del lampeggio in ms (default 800). */
   blink_rate_ms?: number;
+  /** Come lampeggia: "step" acceso/spento (default), "fade" respiro morbido
+   *  della luminosità fino a `blink_fade_depth`. Stesse condizioni di `blink_mode`. */
+  blink_style?: "step" | "fade";
+  /** Fondo del respiro del lampeggio sfumato, −100…0 % (default −60). */
+  blink_fade_depth?: number;
   /** Bordo colorato per severità quando il tag dell'oggetto ha un allarme
    *  attivo (F4.2); lampeggia finché non riconosciuto. Opt-in. */
   show_alarm_state?: boolean;
@@ -601,8 +612,18 @@ export interface SynopticObject {
   locked?: boolean;
   /** Optional group this object belongs to (id from SynopticPage.groups). */
   group_id?: string;
+  // ── Polilinea e poligono (26-09-2026) ────────────────────────────────
+  /** Polilinea: chiusa (l'ultimo punto torna al primo, e si può riempire). */
+  closed?: boolean;
+  /** Poligono: numero di lati, 3…24 (default 6). */
+  sides?: number;
+  /** Poligono: stella — i vertici raddoppiano, alternati fra esterno e interno. */
+  star?: boolean;
+  /** Poligono a stella: raggio interno in % del raggio pieno (default 50). */
+  star_inner?: number;
   // ── Pipe / connector (type === "pipe") ───────────────────────────────
-  /** Ordered array of waypoints (min 2). First/last overridden by from/to anchors at render time. */
+  /** Ordered array of waypoints (min 2). First/last overridden by from/to anchors at render time.
+   *  Anche i punti della polilinea (`polyline`). */
   points?: PipePoint[];
   /** How segments between waypoints are routed. Default "straight". */
   routing?: "straight" | "orthogonal" | "diagonal" | "bezier";

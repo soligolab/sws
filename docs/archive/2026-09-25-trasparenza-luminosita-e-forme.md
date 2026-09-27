@@ -1,5 +1,9 @@
 # Trasparenza, luminosità e forme nuove — seme
 
+> **Superato il 26-09-2026**: la sessione di plan approfondita c'è stata, e il piano vero è
+> [`2026-09-26-pannello-luce-forme.md`](2026-09-26-pannello-luce-forme.md) (Fasi B, C, D). Questo seme
+> resta come origine della richiesta.
+
 > Nato il 25-09-2026 da un tentativo vero del maintainer: «volevo agganciare un tag con una
 > waveform a un campo per modificare la trasparenza o la luminosità di un oggetto, ma mi sono reso
 > conto che non esistono queste proprietà. L'idea è mostrare led, grafica e testi con un effetto

@@ -6,7 +6,9 @@
 //! recorder task subscribes to `TagDb`'s broadcast and appends every update.
 //!
 //! When a `SqliteStore` is attached via `Historian::with_sqlite(...)`:
-//! - Every `record()` is also persisted (best-effort, non-blocking on errors).
+//! - `record()` resta in RAM: su disco scrive solo `DatastoreRegistry`, per i
+//!   tag con `history: true` e con i loro filtri (26-09-2026; prima ogni
+//!   aggiornamento di ogni tag finiva anche qui, nello stesso file).
 //! - On startup, `Historian::restore_from_sqlite()` reloads up to `max_per_tag`
 //!   recent samples per tag from disk into the in-memory ring.
 //! - `query()` falls back to SQLite for time ranges older than the in-memory ring.
@@ -140,8 +142,15 @@ impl Historian {
         self.buffers.write().await.clear();
     }
 
-    /// Append a sample for `tag`. Drops the oldest if the cap is hit.
-    /// Also persists to SQLite (best-effort) when a store is attached.
+    /// Append a sample for `tag` to the RAM ring. Drops the oldest if the cap is hit.
+    ///
+    /// **Solo RAM** dal 26-09-2026. Prima scriveva anche su SQLite ogni
+    /// aggiornamento di ogni tag, senza filtri, nello stesso file del registro
+    /// dei datastore: lo storico di CasaDomotica era per il 93 % ripetizioni
+    /// di tag che non avevano nemmeno `history: true`, e banda morta e
+    /// intervallo minimo dei tag storicizzati non servivano a niente. Su disco
+    /// scrive una strada sola, `DatastoreRegistry`; lo store qui resta per le
+    /// **letture** (`restore_recent`, grafici oltre il buffer).
     pub async fn record(&self, tag: &str, state: &TagState) {
         let sample = Sample {
             ts_ms: state.timestamp_ms,
@@ -154,10 +163,7 @@ impl Historian {
             if q.len() >= self.max_per_tag {
                 q.pop_front();
             }
-            q.push_back(sample.clone());
-        }
-        if let Some(store) = self.store.read().await.as_ref() {
-            store.append(tag, &sample).await;
+            q.push_back(sample);
         }
     }
 
@@ -260,6 +266,20 @@ mod tests {
         }
     }
 
+    /// `record` resta in RAM: con uno store attaccato non scrive su disco
+    /// (26-09-2026 — su disco scrive solo il registro dei datastore).
+    #[tokio::test]
+    async fn record_non_scrive_su_disco() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = crate::sqlite::SqliteStore::open(dir.path().join("h.db")).await.unwrap();
+        let h = Historian::new(100);
+        h.swap_store(Some(store.clone())).await;
+        h.record("t", &st(10, 1.0)).await;
+        h.record("t", &st(20, 1.0)).await;
+        assert_eq!(h.query("t", None, None).await.len(), 2, "in RAM ci sono");
+        assert_eq!(store.total_samples().await.unwrap(), 0, "su disco no");
+    }
+
     #[tokio::test]
     async fn record_and_query() {
         let h = Historian::new(100);
@@ -298,9 +318,16 @@ mod tests {
         // the reported bug: an unbounded query ("Tutto") must still see the
         // full SQLite history, not just what survives in the RAM ring.
         let store = crate::sqlite::SqliteStore::open(":memory:").await.unwrap();
-        let h = Historian::with_sqlite(3, store).await.unwrap();
+        let h = Historian::with_sqlite(3, store.clone()).await.unwrap();
+        // Dal 26-09-2026 su disco scrive il registro dei datastore, non
+        // `record`: qui lo fa lo store a mano, e il buffer in RAM riceve gli
+        // stessi campioni come dal registratore.
         for i in 0..6u64 {
-            h.record("t", &st(i * 10, i as f64)).await;
+            let s = st(i * 10, i as f64);
+            store
+                .append("t", &Sample { ts_ms: s.timestamp_ms, value: s.value.clone(), quality: s.quality.clone() })
+                .await;
+            h.record("t", &s).await;
         }
         let all = h.query("t", None, None).await;
         assert_eq!(all.len(), 6);

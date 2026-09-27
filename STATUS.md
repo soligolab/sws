@@ -74,7 +74,68 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — gestore del repository finito, tutto su `main` (2026-09-26, sera)
+## ▶ Riprendere da qui — nove rami annidati da collaudare: pannello, luce, forme, rotazione LVGL, apertura veloce, deploy su comando, storico a una strada, pulizia storico, allarmi al ricaricamento (2026-09-27)
+
+**Quattro rami annidati, nessuno su `main`, niente pushato.** Piano
+[`docs/archive/2026-09-26-pannello-luce-forme.md`](docs/archive/2026-09-26-pannello-luce-forme.md), deciso col maintainer
+in cinque giri di domande. Catena: `main` → `feat/pannello-un-livello` → `feat/luce-e-fade` →
+`feat/polilinea-poligoni` → `feat/rotazione-lvgl`. Collaudo unico, poi uno squash del ramo in cima.
+
+Su `main` e **non pushati** (6 commit): Fase 1 del gestore del repository e il gestore finito/archiviato.
+
+Da collaudare a schermo:
+1. **Pannello destro** — si aprono i rami (uno + 📌), dentro sottotitoli fissi; il ramo del tipo c'è per ogni
+   oggetto; il **tag del bottone** sta in «Bottone», accanto a modalità e valore; tubo e movimento senza terzo
+   livello (resta apribile solo «Stato e allarme» del tubo).
+2. **Luce** — Opacità e Luminosità in «Aspetto» per tutti i tipi, legabili col 🔗 (una waveform fa il fade);
+   lampeggio «Sfumato» con fondo del respiro (default −60 %); lo stesso su un pannello LVGL.
+3. **Forme** — Polilinea dalla palette: clic per punti, doppio clic/Invio finisce, Esc annulla; punti
+   trascinabili, «Dividi qui», Canc. Poligono: lati, stella, raggio interno, rotazione. Anche su LVGL.
+4. **Rotazione su LVGL** — un oggetto ruotato nell'editor ora gira anche sul pannello.
+
+Aggiunti dopo, su rami annidati sopra (`feat/apertura-veloce` → `feat/deploy-a-comando` → `feat/storico-una-strada`):
+5. **Apertura veloce** — aprire CasaDomotica aspettava ~9 s: `SELECT DISTINCT tag` leggeva tutto lo storico da
+   590 MB (7,2 s a disco freddo). Ora la lista dei tag si fa a salti sulla chiave: 0,01 s.
+6. **Deploy su comando** — in testata, a destra di Deploy: «⬆ Invia ora» (progetto, senza utenti né segreti),
+   «👥🔑 Utenti e segreti» (completo, con conferma), interruttore «al salvataggio» (acceso di default).
+
+7. **Storico a una strada, IDE quieto** (`feat/storico-una-strada`, ora il ramo in cima) — il buffer in RAM
+   dei grafici non scrive più su disco (era il 93 % dello storico di CasaDomotica); un registratore solo per
+   progetto, che si ferma quando il progetto cambia; l'IDE non registra campioni né eventi d'allarme e non
+   avvia notifiche (Telegram, email, escalation). Guardia `check_ide_quieto.sh`, provata rossa due volte.
+
+8. **Pulisci storico** (`feat/pulizia-storico`) — Configurazione → Dati → Database: «🧹
+   Pulisci storico», locale e sul dispositivo collegato (quello serve il runtime dev.2). Anteprima con i conti,
+   copia di sicurezza accanto al database, via i tag senza storico e le ripetizioni, compattazione. Usata sul
+   vero il 27-09 notte: CasaDomotica **590 → 36 MB** (6,4 M campioni non storicizzati + 217 k ripetizioni tolti,
+   484 k restano, integrità ok). La copia `history/historian-prima-della-pulizia-…db` (547 MB) si può cancellare
+   quando il maintainer è tranquillo.
+
+9. **Allarmi al ricaricamento** (`fix/allarmi-stato-al-ricaricamento`, ora il ramo in cima) — a ogni «Invia ora»
+   verso il runtime dev.1 arrivava un Telegram per ogni allarme in corso: il deploy chiude e riapre il progetto,
+   e gli allarmi ripartivano da zero, riscattando (e chiudendo come interrotta la riga di storico). Ora chiudere
+   il progetto mette da parte lo stato, e riaprire **lo stesso** progetto riprende attivo/riconosciuto/timer/
+   sospensione e la riga aperta degli allarmi con la definizione identica; un allarme cambiato, o un altro
+   progetto, riparte da zero come prima. Vale anche salvando la scheda Allarmi. Guardia
+   `check_allarmi_ricarica.sh`, provata rossa. **Sul dispositivo vale solo dopo l'aggiornamento a dev.2.**
+
+10. **Collaudo sul TC620 (27-09)** — la **2.12.0-dev.3** (costruita dal ramo in cima, non taggata) è installata sul TC620
+   con `install-container.sh --image` (cartella `~/sws-install` sul pannello). Provati dal vivo: chiudi/riapri di
+   CasaDomotica con `sandokan_power_on` attivo → stesso scatto, nessuna riga interrotta, nessun Telegram; «Pulisci
+   storico» in anteprima dalla porta di gestione → 200 (487 k non storicizzati, 170 k ripetuti, 137 k restano). La
+   dev.2 aveva 404 lì: la rotta mancava da `deploy_only_app`, corretta con un test che confronta le chiamate
+   dell'IDE con quella porta. Non provato: LVGL (il progetto è in modalità web). Lo script globale di CasaDomotica
+   fallisce a ogni avvio con `NameError: log` — è il progetto, non il runtime (`log` non esiste, c'è `print`).
+
+**Dopo il collaudo**: squash del ramo in cima (`fix/allarmi-stato-al-ricaricamento`), poi tag della versione di prova (ora **2.12.0-dev.3**) e container
+di prova da `main` (`./scripts/build_container.sh`, senza `--push`) — richiesto dal maintainer, «dopo il collaudo».
+
+Deviazione dal piano, detta al maintainer: su LVGL polilinea e poligono sono SVG rasterizzati (resvg) invece di
+triangoli per `lv_canvas_draw_polygon` — i concavi non bloccano, bordi e tratteggi uguali al browser.
+Guardie nuove con stack, tutte provate rosse: `check_luce_lvgl.sh`, `check_forme_lvgl.sh`. A fine catena **tutte le 30 guardie con stack verdi** al primo giro (e2e comprese). Seme nuovo:
+[`docs/plans/2026-09-26-specchio-su-lvgl.md`](docs/plans/2026-09-26-specchio-su-lvgl.md).
+
+## Riprendere da qui (precedente) — gestore del repository finito, tutto su `main` (2026-09-26, sera)
 
 **Tutto su `main`, nessun ramo aperto, NIENTE PUSHATO** (l'ultimo push è `46dcb0fb`): da pubblicare quando il
 maintainer lo chiede. Collaudato dal maintainer il 26-09 sera, poi uno squash solo della catena annidata
@@ -231,7 +292,7 @@ dell'URL **non** dice quale versione del codice sta girando: `#config/tags/<id>`
 prima delle correzioni.
 
 **Semi nuovi di oggi**: [trasparenza e luminosità legabili a un tag, più polilinea e generatore di
-poligoni](docs/plans/2026-09-25-trasparenza-luminosita-e-forme.md) — nato da un tentativo vero del
+poligoni](docs/archive/2026-09-25-trasparenza-luminosita-e-forme.md) — nato da un tentativo vero del
 maintainer, che voleva un lampeggio *fade* e ha scoperto che le proprietà non esistono.
 
 ## Riprendere da qui (precedente) — il pannello sinistro è un albero solo; nessun piano in corso (2026-09-25)

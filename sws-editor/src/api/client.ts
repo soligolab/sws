@@ -1424,6 +1424,23 @@ export const api = {
       body: JSON.stringify({ tag }),
     }),
 
+  /** POST /api/datastores/:id/clean-history — con `anteprima` conta e basta;
+   *  senza, copia di sicurezza accanto al database, poi toglie i campioni dei
+   *  tag senza storico e le ripetizioni, e compatta. `remoto`: sul dispositivo
+   *  collegato, via `/api/remote/database/:id/clean-history`. */
+  pulisciStorico: (id: string, anteprima: boolean, remoto = false) =>
+    request<{
+      anteprima: boolean;
+      esito: { non_storicizzati: number; ripetuti: number; restanti: number };
+      copia?: string; bytes_before?: number; bytes_after?: number;
+    }>(remoto
+      ? `/api/remote/database/${encodeURIComponent(id)}/clean-history`
+      : `/api/datastores/${encodeURIComponent(id)}/clean-history`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ anteprima }),
+    }),
+
   /** POST /api/datastores/:id/vacuum — recupera spazio su disco (SQLite).
    *  Ritorna le dimensioni prima/dopo: senza quelle non si distingue un VACUUM
    *  riuscito da uno che non aveva nulla da liberare. */
@@ -1609,7 +1626,7 @@ export const api = {
    *  Unico punto in cui si compone il corpo: prima la `fetch` era scritta due
    *  volte (qui e nell'auto-deploy dello store), ed è così che i due percorsi
    *  divergono senza che nessuno se ne accorga. */
-  deployToRuntime: async (opts: { replaceUsers: boolean; confirmNoUsers?: boolean }): Promise<Response> => {
+  deployToRuntime: async (opts: { replaceUsers: boolean; confirmNoUsers?: boolean; conSegreti?: boolean }): Promise<Response> => {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (TOKEN) headers["Authorization"] = `Bearer ${TOKEN}`;
     return fetch(`${getBaseUrl()}/api/remote/deploy`, {
@@ -1618,6 +1635,9 @@ export const api = {
       body: JSON.stringify({
         replace_users: opts.replaceUsers,
         confirm_no_users: opts.confirmNoUsers ?? false,
+        // Senza, il server porta i segreti (default storico). Il deploy «del
+        // progetto» li lascia sul dispositivo: vedi `deployOra` nello store.
+        con_segreti: opts.conSegreti ?? true,
       }),
     });
   },

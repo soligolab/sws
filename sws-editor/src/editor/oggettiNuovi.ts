@@ -27,6 +27,13 @@ export function oggettoNuovo(type: SynopticObject["type"], x: number, y: number)
         return { type, x, y, width: 120, height: 80, fill: "#4a90d9" };
       case "line":
         return { type, x, y, x2: x + 120, y2: y, stroke_width: 2 };
+      // 26-09-2026. La polilinea di solito nasce a clic (modalità disegno,
+      // `EditorShell.handleAddObject`): questa forma vale per chi la crea da
+      // codice (IA, test) e per il ripiego.
+      case "polyline":
+        return { type, x, y, points: [{ x, y: y + 40 }, { x: x + 60, y }, { x: x + 120, y: y + 40 }], stroke_width: 2 };
+      case "polygon":
+        return { type, x, y, width: 100, height: 100, sides: 6, fill: predefinito("polygon", "fill") };
       case "text":
         return { type, x, y: y + 14, text: "Testo", font_size: 14, text_anchor: "start" };
       case "button":

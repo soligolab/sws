@@ -217,6 +217,110 @@ pub fn opa_finale(base: u8, attenuato: bool, lampeggio_spento: bool) -> u8 {
     base
 }
 
+// ── luminosità e lampeggio sfumato (26-09-2026) ─────────────────────────────
+//
+// Piano `docs/archive/2026-09-26-pannello-luce-forme.md`, Fase B. Le formule
+// sono quelle di `sws-editor/src/canvas/luce.ts`, con gli stessi numeri nei
+// test (`luminosita_come_il_web`): negativa verso il nero (moltiplica),
+// positiva verso il bianco (c + (255 − c) × k).
+
+/// Come lampeggia un oggetto: a scatti (acceso/spento) o sfumato (la
+/// luminosità respira). `blink_style` assente vale «a scatti», come prima.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StileLampeggio {
+    Scatti,
+    Sfumato,
+}
+
+pub fn stile_lampeggio_di(obj: &SynopticObject) -> StileLampeggio {
+    match obj.blink_style.as_deref() {
+        Some("fade") => StileLampeggio::Sfumato,
+        _ => StileLampeggio::Scatti,
+    }
+}
+
+/// La profondità di default del respiro, −60 % (scelta del 26-09-2026).
+pub const PROFONDITA_RESPIRO_DEFAULT: f64 = -60.0;
+
+/// La luminosità dentro −100…+100; NaN vale 0.
+pub fn luminosita_valida(v: f64) -> f64 {
+    if v.is_finite() {
+        v.clamp(-100.0, 100.0)
+    } else {
+        0.0
+    }
+}
+
+/// Pendenza e intercetta (su 0..1) del filtro lineare per la luminosità `b`:
+/// gli stessi due numeri del `feComponentTransfer` del web. `None` a 0.
+pub fn parametri_luminosita(b: f64) -> Option<(f64, f64)> {
+    let v = luminosita_valida(b);
+    if v == 0.0 {
+        None
+    } else if v < 0.0 {
+        Some((1.0 + v / 100.0, 0.0))
+    } else {
+        let k = v / 100.0;
+        Some((1.0 - k, k))
+    }
+}
+
+/// Il fattore al fondo del respiro per una profondità −100…0 % (default −60):
+/// è il `brightness()` del keyframe `sws-obj-fade` sul web.
+pub fn fattore_fondo_respiro(profondita: Option<f64>) -> f64 {
+    let p = profondita
+        .filter(|v| v.is_finite())
+        .unwrap_or(PROFONDITA_RESPIRO_DEFAULT)
+        .clamp(-100.0, 0.0);
+    1.0 + p / 100.0
+}
+
+/// Il fattore del respiro in questo istante: 1 all'inizio e alla fine del
+/// periodo, `fondo` a metà, morbido in mezzo (coseno — sul web è `ease-in-out`
+/// fra 0 %, 50 % e 100 %). Guarda l'orologio comune, come `fase_accesa`, così
+/// gli oggetti che respirano allo stesso ritmo restano in fase.
+pub fn fattore_respiro(now_ms: u64, rate_ms: u32, fondo: f64) -> f64 {
+    let periodo = rate_ms.max(2) as u64;
+    let t = (now_ms % periodo) as f64 / periodo as f64;
+    let s = (1.0 - (2.0 * std::f64::consts::PI * t).cos()) / 2.0; // 0 → 1 → 0
+    1.0 - (1.0 - fondo) * s
+}
+
+/// Un canale 0..255 con la luminosità `b` applicata.
+fn canale_con_luminosita(c: u8, b: f64) -> u8 {
+    match parametri_luminosita(b) {
+        None => c,
+        Some((pendenza, intercetta)) => {
+            let v = c as f64 / 255.0 * pendenza + intercetta;
+            (v.clamp(0.0, 1.0) * 255.0).round() as u8
+        }
+    }
+}
+
+/// Il colore come lo vede lo schermo, messi insieme i tre effetti che passano
+/// dal filtro colore dell'oggetto — uno slot solo per oggetto in LVGL, quindi
+/// un solo callback che li combina, nello stesso ordine del web: il grigio del
+/// dato vecchio (`filter` sul `<g>` esterno), la luminosità di progetto (il
+/// filtro dell'involucro interno) e il respiro del lampeggio sfumato.
+pub fn colore_filtrato(rgb: (u8, u8, u8), grigio: bool, luminosita: f64, respiro: f64) -> (u8, u8, u8) {
+    let (mut r, mut g, mut b) = rgb;
+    if grigio {
+        let lum = ((3 * r as u32 + b as u32 + 4 * g as u32) / 8).min(255);
+        let a = FILTRO_GRIGIO_OPA as u32;
+        let mix = |orig: u8| (((orig as u32 * (255 - a)) + (lum * a)) / 255).min(255) as u8;
+        (r, g, b) = (mix(r), mix(g), mix(b));
+    }
+    r = canale_con_luminosita(r, luminosita);
+    g = canale_con_luminosita(g, luminosita);
+    b = canale_con_luminosita(b, luminosita);
+    if respiro < 1.0 {
+        let f = respiro.clamp(0.0, 1.0);
+        let m = |c: u8| (c as f64 * f).round() as u8;
+        (r, g, b) = (m(r), m(g), m(b));
+    }
+    (r, g, b)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -480,5 +584,41 @@ mod tests {
             (0xea, 0xb3, 0x08),
             "l'ignoto vale Warning"
         );
+    }
+
+    // ── luminosità e respiro: gli stessi numeri di `luce.test.ts` ──────────
+
+    #[test]
+    fn luminosita_come_il_web() {
+        assert_eq!(parametri_luminosita(0.0), None);
+        let (p, i) = parametri_luminosita(-40.0).unwrap();
+        assert!((p - 0.6).abs() < 1e-9 && i == 0.0);
+        let (p, i) = parametri_luminosita(25.0).unwrap();
+        assert!((p - 0.75).abs() < 1e-9 && (i - 0.25).abs() < 1e-9);
+        assert_eq!(luminosita_valida(250.0), 100.0);
+        assert_eq!(luminosita_valida(-300.0), -100.0);
+        assert_eq!(luminosita_valida(f64::NAN), 0.0);
+        assert!((fattore_fondo_respiro(None) - 0.4).abs() < 1e-9);
+        assert!((fattore_fondo_respiro(Some(-25.0)) - 0.75).abs() < 1e-9);
+        assert_eq!(fattore_fondo_respiro(Some(30.0)), 1.0);
+    }
+
+    #[test]
+    fn colore_filtrato_scurisce_schiarisce_e_respira() {
+        assert_eq!(colore_filtrato((200, 100, 0), false, 0.0, 1.0), (200, 100, 0));
+        assert_eq!(colore_filtrato((200, 100, 0), false, -50.0, 1.0), (100, 50, 0));
+        assert_eq!(colore_filtrato((0, 0, 0), false, 100.0, 1.0), (255, 255, 255));
+        assert_eq!(colore_filtrato((200, 100, 0), false, 0.0, 0.5), (100, 50, 0));
+        // Il grigio viene prima: un rosso puro scolora verso la sua luminanza.
+        let (r, g, b) = colore_filtrato((255, 0, 0), true, 0.0, 1.0);
+        assert!(r < 255 && g > 0 && b > 0, "{r} {g} {b}");
+    }
+
+    #[test]
+    fn il_respiro_va_da_uno_al_fondo_e_torna() {
+        assert!((fattore_respiro(0, 800, 0.4) - 1.0).abs() < 1e-9);
+        assert!((fattore_respiro(400, 800, 0.4) - 0.4).abs() < 1e-9);
+        let quarto = fattore_respiro(200, 800, 0.4);
+        assert!(quarto > 0.4 && quarto < 1.0, "{quarto}");
     }
 }

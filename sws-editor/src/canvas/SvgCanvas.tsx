@@ -37,6 +37,8 @@ import {
   softClampToPage,
 } from "@/pageLayout";
 import type { AlarmSeverity, AlarmState, CustomSymbol, FaceplateDef, FaceplateParamDef, GridCell, PageSizeMode, PipePoint, Sample, SynopticObject, TableRow, TagDef, TagState, TextListEntry } from "@/types";
+import { fattoreFondoRespiro, luminositaValida, parametriLuminosita } from "./luce";
+import { puntiSvg, verticiPoligono } from "./forme";
 
 // ── Canvas props ──────────────────────────────────────────────────────────────
 
@@ -627,21 +629,21 @@ function applyTransform(obj: SynopticObject, w: number, h: number, content: Reac
   const rot     = obj.rotation ?? 0;
   const sx      = obj.flip_h   ? -1 : 1;
   const sy      = obj.flip_v   ? -1 : 1;
-  const opacity = obj.opacity  ?? 1;
+  // L'opacità non sta più qui (26-09-2026): la applica `LuceOggetto` a ogni
+  // tipo, non solo ai 14 che chiamano questa funzione.
   const hasRotFlip = rot !== 0 || sx !== 1 || sy !== 1;
-  const hasOpacity = opacity < 1;
   const txStyle    = transitionStyle(obj);
   // Wrap when there is geometry to apply OR when a transition is active —
-  // the latter case ensures binding-driven rotation/opacity changes animate
-  // smoothly even if the static values are defaults (rot=0, opacity=1).
-  if (!hasRotFlip && !hasOpacity && !txStyle) return content;
+  // the latter case ensures binding-driven rotation changes animate
+  // smoothly even if the static values are defaults (rot=0).
+  if (!hasRotFlip && !txStyle) return content;
   const cx = obj.x + w / 2;
   const cy = obj.y + h / 2;
   const transform = hasRotFlip
     ? `rotate(${rot} ${cx} ${cy}) translate(${cx} ${cy}) scale(${sx} ${sy}) translate(${-cx} ${-cy})`
     : undefined;
   return (
-    <g transform={transform} opacity={hasOpacity ? opacity : undefined} style={txStyle}>
+    <g transform={transform} style={txStyle}>
       {content}
     </g>
   );
@@ -716,6 +718,33 @@ export function SvgCanvas({
   const viewerRole = useAppStore((s) => s.authRole);
   // D (2026-08-23): cattura waypoint dal canvas (motion_path). Esc esce.
   const captureTarget = useAppStore((s) => s.capturePathTarget);
+  // Polilinea a clic (26-09-2026): come la cattura, i clic non selezionano ma
+  // posano punti. Doppio clic o Invio finiscono, Esc annulla.
+  const polilineaInDisegno = useAppStore((s) => s.polilineaInDisegno);
+  const inDisegno = polilineaInDisegno !== null;
+  const [puntoMouse, setPuntoMouse] = useState<{ x: number; y: number } | null>(null);
+  const finisciPolilinea = (annulla: boolean) => {
+    const st = useAppStore.getState();
+    const id = st.polilineaInDisegno;
+    st.setPolilineaInDisegno(null);
+    setPuntoMouse(null);
+    if (!id || id === "nuova") return;
+    const o = objects.find((x) => x.id === id);
+    // Meno di due punti non è una polilinea: si toglie anche senza Esc.
+    if (annulla || puntiMovimento(o?.points).length < 2) {
+      st.selectObject(id);
+      st.deleteSelection();
+    }
+  };
+  useEffect(() => {
+    if (!inDisegno) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { e.preventDefault(); finisciPolilinea(true); }
+      if (e.key === "Enter") { e.preventDefault(); finisciPolilinea(false); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
   // Toggle "Anteprima effetti": blink/motion/bordi/stale anche in edit.
   const previewEffects = useAppStore((s) => s.previewEffects);
   // Crocino del waypoint attivo (focus/modifica di una cella della tabella).
@@ -983,6 +1012,23 @@ export function SvgCanvas({
       return;
     }
     if (e.button !== 0) return;
+    if (inDisegno) {
+      const p0 = toSvg(e.clientX - svgRect.left, e.clientY - svgRect.top);
+      const punto = { x: snap(p0.x), y: snap(p0.y) };
+      e.preventDefault();
+      // Il doppio clic arriva come due mousedown: il primo ha già posato il
+      // punto, il secondo (`detail` 2) chiude invece di posarne un doppione.
+      if (e.detail >= 2) { finisciPolilinea(false); return; }
+      const st = useAppStore.getState();
+      if (st.polilineaInDisegno === "nuova") {
+        st.addObject({ type: "polyline", x: punto.x, y: punto.y, stroke_width: 2, points: [punto] });
+        st.setPolilineaInDisegno(useAppStore.getState().selectedObjectId);
+      } else {
+        const o = objects.find((x) => x.id === st.polilineaInDisegno);
+        if (o) st.updateObject(o.id, { points: [...puntiMovimento(o.points), punto] });
+      }
+      return;
+    }
     // D (2026-08-23): modalità cattura waypoint — il click NON seleziona,
     // appende il punto (in coordinate pagina, con snap se attivo) al
     // motion_path dell'oggetto in cattura.
@@ -1009,6 +1055,10 @@ export function SvgCanvas({
     const svgRect = e.currentTarget.getBoundingClientRect();
     const screenX = e.clientX - svgRect.left;
     const screenY = e.clientY - svgRect.top;
+    if (inDisegno) {
+      const p = toSvg(screenX, screenY);
+      setPuntoMouse({ x: snap(p.x), y: snap(p.y) });
+    }
     const pt = toSvg(screenX, screenY);
 
     if (panDragRef.current) {
@@ -1159,6 +1209,15 @@ export function SvgCanvas({
             i === idx ? { x: snap(startObj.x + dx), y: snap(startObj.y + dy) } : p
           );
           onMove(objId, { motion_path: nuovi });
+        }
+      } else if (handle.startsWith("plp-")) {
+        // I punti di una polilinea (26-09-2026): stesso schema del percorso
+        // di movimento qui sopra, sul campo `points`.
+        const idx = parseInt(handle.slice(4));
+        const pObj = objects.find((o) => o.id === objId);
+        const punti = puntiMovimento(pObj?.points);
+        if (punti.length > idx) {
+          onMove(objId, { points: punti.map((p, i) => (i === idx ? { x: snap(startObj.x + dx), y: snap(startObj.y + dy) } : p)) });
         }
       } else if (handle.startsWith("wp-")) {
         const wpIdx = parseInt(handle.slice(3));
@@ -1504,7 +1563,7 @@ export function SvgCanvas({
       ds.dx2 = (obj.x2 ?? obj.x + 100) - (obj.x ?? 0);
       ds.dy2 = (obj.y2 ?? obj.y ?? 0)  - (obj.y ?? 0);
     }
-    if (obj.type === "pipe" && obj.points && obj.points.length >= 1) {
+    if ((obj.type === "pipe" || obj.type === "polyline") && obj.points && obj.points.length >= 1) {
       ds.offsetX = pt.x - obj.points[0].x;
       ds.offsetY = pt.y - obj.points[0].y;
       ds.startPoints = obj.points.map((p) => ({ ...p }));
@@ -1523,7 +1582,7 @@ export function SvgCanvas({
           y: o.y ?? 0,
           x2: o.type === "line" ? (o.x2 ?? o.x + 100) : undefined,
           y2: o.type === "line" ? (o.y2 ?? o.y ?? 0)  : undefined,
-          points: o.type === "pipe" ? o.points?.map((pp) => ({ ...pp })) : undefined,
+          points: o.type === "pipe" || o.type === "polyline" ? o.points?.map((pp) => ({ ...pp })) : undefined,
         }));
     }
     // T-52 — la gabbia del limite morbido. Si misura **qui** e non a ogni
@@ -1624,6 +1683,13 @@ export function SvgCanvas({
         onClose={() => setExpandedTrendObj(null)}
       />
     )}
+    {inDisegno && (
+      <div data-testid="aiuto-polilinea" style={{
+        position: "absolute", top: 8, left: "50%", transform: "translateX(-50%)", zIndex: 5,
+        background: "rgba(15,23,42,0.9)", color: "#e0f2fe", border: "1px solid #38bdf8", borderRadius: 6,
+        padding: "4px 10px", fontSize: 12, pointerEvents: "none", whiteSpace: "nowrap",
+      }}>{t("editor.polilineaAiuto")}</div>
+    )}
     <svg
       ref={svgRef}
       {...(() => {
@@ -1679,7 +1745,7 @@ export function SvgCanvas({
                // l'ultimo pixel (bordo compreso) di qualunque oggetto
                // posizionato a filo con pageWidth/pageHeight.
                overflow: "visible",
-               cursor: captureTarget ? "crosshair" : panDragRef.current ? "grabbing" : undefined }}
+               cursor: captureTarget || inDisegno ? "crosshair" : panDragRef.current ? "grabbing" : undefined }}
       onMouseDown={handleSvgMouseDown}
       onClick={() => {
         if (suppressClick.current) { suppressClick.current = false; return; }
@@ -1710,6 +1776,7 @@ export function SvgCanvas({
           spegne ogni blink (accessibilità) — l'attributo data-blink marca gli
           elementi animati inline. */}
       <style>{`@keyframes sws-obj-blink { 50% { opacity: 0.15 } }
+        @keyframes sws-obj-fade { 50% { filter: brightness(var(--sws-fondo-respiro, 0.4)) } }
         @keyframes sws-spin { to { transform: rotate(360deg) } }
         @keyframes sws-flow { to { stroke-dashoffset: -20 } }
         @keyframes sws-flow-rev { to { stroke-dashoffset: 20 } }
@@ -1738,7 +1805,7 @@ export function SvgCanvas({
       {/* In cattura waypoint il layer oggetti è trasparente al mouse:
           il crosshair resta e ogni click cattura un punto, anche sopra
           gli oggetti (Esc per uscire). */}
-      <g style={captureTarget ? { pointerEvents: "none" } : undefined}>
+      <g style={captureTarget || inDisegno ? { pointerEvents: "none" } : undefined}>
       {sortByZ(objects).map((obj) => {
         // Visibility: in view mode, skip non-visible objects entirely.
         // In edit mode, always render so the designer can still select them
@@ -1805,7 +1872,12 @@ export function SvgCanvas({
           // inventarne un terzo. Sta **dopo** il ramo `!visible && inEdit` così
           // vince sull'opacità 0.35, e **non** passa da `fxOn`/`previewEffects`.
           if (grayed || offPage) { st.filter = "grayscale(0.9)"; st.opacity = 0.55; }
-          if (blinkOn) st.animation = `sws-obj-blink ${obj.blink_rate_ms ?? 800}ms step-start infinite`;
+          // Lampeggio sfumato (26-09-2026): la luminosità respira fino al fondo
+          // scelto, morbida, con la stessa velocità e le stesse condizioni.
+          if (blinkOn && obj.blink_style === "fade") {
+            st.animation = `sws-obj-fade ${obj.blink_rate_ms ?? 800}ms ease-in-out infinite`;
+            (st as Record<string, unknown>)["--sws-fondo-respiro"] = fattoreFondoRespiro(obj.blink_fade_depth);
+          } else if (blinkOn) st.animation = `sws-obj-blink ${obj.blink_rate_ms ?? 800}ms step-start infinite`;
           return Object.keys(st).length > 0 ? st : undefined;
         })();
         // Press/release dispatch (view mode only). Each handler resolves the
@@ -1943,6 +2015,25 @@ export function SvgCanvas({
         </g>
       )}
 
+      {/* Polilinea a clic: i punti posati e il segmento che segue il mouse,
+          tratteggiato, più una riga che dice come si finisce. */}
+      {inDisegno && (() => {
+        const o = polilineaInDisegno && polilineaInDisegno !== "nuova"
+          ? objects.find((x) => x.id === polilineaInDisegno) : undefined;
+        const punti = puntiMovimento(o?.points);
+        const ultimo = punti[punti.length - 1];
+        const z = viewT.zoom;
+        return (
+          <g style={{ pointerEvents: "none" }}>
+            {punti.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r={3 / z} fill="#38bdf8" />)}
+            {ultimo && puntoMouse && (
+              <line x1={ultimo.x} y1={ultimo.y} x2={puntoMouse.x} y2={puntoMouse.y}
+                stroke="#38bdf8" strokeWidth={1.5 / z} strokeDasharray={`${6 / z} ${4 / z}`} />
+            )}
+          </g>
+        );
+      })()}
+
       {/* ── T-53 · il percorso di MOVIMENTO, modificabile qui ─────────────────
           Prima si vedeva solo il crocino della riga in modifica nella tabella:
           disegnare un percorso voleva dire immaginarlo e batterlo a macchina.
@@ -1954,8 +2045,17 @@ export function SvgCanvas({
           l'oggetto ci scorre sopra. */}
       {onMove && selIds.length === 1 && (() => {
         const obj = objects.find((o) => o.id === selIds[0]);
-        if (!tracciatoVisibile(obj, mostraTracciato)) return null;
-        const punti = puntiMovimento(obj!.motion_path);
+        // Lo stesso editor di punti vale per la polilinea (26-09-2026): i suoi
+        // `points` al posto del `motion_path`, con maniglie azzurre per non
+        // confonderli con un percorso di movimento.
+        const polilinea = obj?.type === "polyline";
+        if (!polilinea && !tracciatoVisibile(obj, mostraTracciato)) return null;
+        const punti = puntiMovimento(polilinea ? obj!.points : obj!.motion_path);
+        const tinta = polilinea ? "#38bdf8" : "#f59e0b";
+        const chiusa = polilinea && !!obj!.closed;
+        // Chiusa: c'è anche il segmento che torna dall'ultimo al primo punto.
+        const segmenti = chiusa ? punti.map((p, i) => [p, punti[(i + 1) % punti.length]] as const)
+          : punti.slice(0, -1).map((p, i) => [p, punti[i + 1]] as const);
         const z = viewT.zoom;
         const r = 5 / z, sw = 1.5 / z;
         const sceltoQui = (i: number) =>
@@ -1968,23 +2068,22 @@ export function SvgCanvas({
           // ruberebbero. Stesso trattamento del layer degli oggetti poco
           // sopra. Prima l'overlay non si disegnava affatto, quindi si posavano
           // punti alla cieca — segnalato dal maintainer al primo uso.
-          <g style={captureTarget ? { pointerEvents: "none" } : undefined}>
+          <g style={captureTarget || inDisegno ? { pointerEvents: "none" } : undefined}>
             {/* la polilinea, tratteggiata e inerte: il bersaglio dei click è
                 la linea spessa e trasparente qui sotto, così la linea visibile
                 può restare sottile senza diventare impossibile da prendere */}
-            {punti.length > 1 && (
+            {punti.length > 1 && !polilinea && (
               <polyline
                 points={punti.map((p) => `${p.x},${p.y}`).join(" ")}
-                fill="none" stroke="#f59e0b" strokeWidth={sw} strokeDasharray={`${6 / z} ${4 / z}`}
+                fill="none" stroke={tinta} strokeWidth={sw} strokeDasharray={`${6 / z} ${4 / z}`}
                 opacity={0.8} style={{ pointerEvents: "none" }}
               />
             )}
-            {punti.slice(0, -1).map((p, i) => {
-              const q = punti[i + 1];
+            {segmenti.map(([p, q], i) => {
               return (
                 <line key={`seg-${i}`}
                   x1={p.x} y1={p.y} x2={q.x} y2={q.y}
-                  stroke={segmentoQui(i) ? "#f59e0b" : "transparent"}
+                  stroke={segmentoQui(i) ? tinta : "transparent"}
                   strokeWidth={segmentoQui(i) ? 3 / z : 10 / z}
                   style={{ cursor: "pointer" }}
                   onMouseDown={(e) => {
@@ -1999,13 +2098,13 @@ export function SvgCanvas({
             {punti.map((p, i) => (
               <g key={`wp-${i}`}>
                 <line x1={p.x - 8 / z} y1={p.y} x2={p.x + 8 / z} y2={p.y}
-                  stroke="#f59e0b" strokeWidth={sw} style={{ pointerEvents: "none" }} />
+                  stroke={tinta} strokeWidth={sw} style={{ pointerEvents: "none" }} />
                 <line x1={p.x} y1={p.y - 8 / z} x2={p.x} y2={p.y + 8 / z}
-                  stroke="#f59e0b" strokeWidth={sw} style={{ pointerEvents: "none" }} />
+                  stroke={tinta} strokeWidth={sw} style={{ pointerEvents: "none" }} />
                 <circle
                   cx={p.x} cy={p.y} r={r}
-                  fill={sceltoQui(i) ? "#f59e0b" : "white"}
-                  stroke="#f59e0b" strokeWidth={sw}
+                  fill={sceltoQui(i) ? tinta : "white"}
+                  stroke={tinta} strokeWidth={sw}
                   style={{ cursor: "crosshair" }}
                   onMouseDown={(e) => {
                     e.stopPropagation();
@@ -2016,9 +2115,9 @@ export function SvgCanvas({
                     // Il bracket della history: `updateObject` pusha una voce a
                     // ogni chiamata, e senza questo un trascinamento
                     // riempirebbe la cronologia di un passo per pixel.
-                    openInteraction("history.moveRouteWaypoint", { n: i + 1 });
+                    openInteraction(polilinea ? "history.movePolylinePoint" : "history.moveRouteWaypoint", { n: i + 1 });
                     resizeRef.current = {
-                      objId: obj!.id, handle: `mwp-${i}`,
+                      objId: obj!.id, handle: `${polilinea ? "plp" : "mwp"}-${i}`,
                       startX: e.clientX, startY: e.clientY,
                       startObj: { x: p.x, y: p.y, width: 0, height: 0 },
                     };
@@ -2028,8 +2127,8 @@ export function SvgCanvas({
             ))}
             {segmentoScelto?.objectId === obj!.id && (() => {
               const i = segmentoScelto.index;
-              if (i >= punti.length - 1) return null;
-              const a = punti[i], b = punti[i + 1];
+              if (i >= segmenti.length) return null;
+              const [a, b] = segmenti[i];
               const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
               // Barretta in SVG puro e non in `foreignObject`: stesso idioma
               // delle maniglie (tutto diviso per lo zoom), e niente scala
@@ -2038,20 +2137,24 @@ export function SvgCanvas({
               const bottone = (dx: number, testo: string, onClick: () => void) => (
                 <g style={{ cursor: "pointer" }} onMouseDown={(e) => { e.stopPropagation(); onClick(); }}>
                   <rect x={cx - w / 2 + dx} y={cy - h - 8 / z} width={w} height={h} rx={4 / z}
-                    fill="var(--brand-surface, #1e293b)" stroke="#f59e0b" strokeWidth={sw} />
+                    fill="var(--brand-surface, #1e293b)" stroke={tinta} strokeWidth={sw} />
                   <text x={cx + dx} y={cy - h / 2 - 8 / z} fill="var(--brand-text, #e2e8f0)"
                     fontSize={fs} textAnchor="middle" dominantBaseline="middle"
                     style={{ userSelect: "none" }}>{testo}</text>
                 </g>
               );
               const scrivi = (nuovi: { x: number; y: number }[]) => {
-                onMove(obj!.id, { motion_path: percorsoDaSalvare(nuovi) });
+                onMove(obj!.id, polilinea ? { points: nuovi } : { motion_path: percorsoDaSalvare(nuovi) });
                 setSegmentoScelto(null);
               };
+              // Il segmento di chiusura (dall'ultimo al primo) si divide
+              // aggiungendo in fondo: è lì che sta, nell'ordine dei punti.
+              const dividi = () => i === punti.length - 1
+                ? [...punti, segmentoScelto.punto]
+                : dividiSegmento(punti, i, segmentoScelto.punto);
               return (
                 <>
-                  {bottone(-w / 2 - 2 / z, t("props.motionSplitHere"),
-                    () => scrivi(dividiSegmento(punti, i, segmentoScelto.punto)))}
+                  {bottone(-w / 2 - 2 / z, t("props.motionSplitHere"), () => scrivi(dividi()))}
                   {bottone(w / 2 + 2 / z, t("props.motionAppend"),
                     () => scrivi(aggiungiInCoda(punti, { x: obj!.x, y: obj!.y })))}
                 </>
@@ -2147,7 +2250,7 @@ export function SvgCanvas({
           maniglia di rotazione sopra il bordo alto. */}
       {onMove && selIds.length === 1 && (() => {
         const obj = objects.find((o) => o.id === selIds[0]);
-        if (!obj || obj.type === "line" || obj.type === "grid" || obj.type === "pipe") return null;
+        if (!obj || obj.type === "line" || obj.type === "grid" || obj.type === "pipe" || obj.type === "polyline") return null;
         // Un testo senza wrap non ha `width`/`height` e la sua `y` è la linea di
         // base: `objBBox` darebbe un rettangolo che parte SOTTO le lettere (e di
         // area zero su un testo appena creato, con le otto maniglie sovrapposte
@@ -3258,7 +3361,37 @@ function FaceplatePopup({ faceplateId, params, faceplates, objects, tagValues, c
   );
 }
 
+/** Opacità e luminosità di **ogni** oggetto (26-09-2026), sui valori già
+ *  risolti dai legami: un tag che oscilla (una waveform) le fa variare. Prima
+ *  l'opacità la applicavano solo i 14 tipi che passano da `applyTransform`, e la
+ *  luminosità non esisteva. Il `<g>` esterno di chi disegna la pagina resta
+ *  libero per le animazioni di lampeggio: le due cose si moltiplicano. */
 export function SvgObject(p: ObjProps) {
+  const r = resolveObject(p.obj, p.tagValues);
+  const opacita = typeof r.opacity === "number" && Number.isFinite(r.opacity) ? Math.max(0, Math.min(1, r.opacity)) : 1;
+  const luce = parametriLuminosita(luminositaValida(r.brightness));
+  const corpo = <SvgObjectCorpo {...p} />;
+  if (opacita >= 1 && !luce && !transitionStyle(r)) return corpo;
+  const idFiltro = luce ? `sws-luce-${r.id}` : undefined;
+  return (
+    <g opacity={opacita < 1 ? opacita : undefined} filter={idFiltro ? `url(#${idFiltro})` : undefined} style={transitionStyle(r)}>
+      {luce && (
+        <defs>
+          <filter id={idFiltro} colorInterpolationFilters="sRGB">
+            <feComponentTransfer>
+              <feFuncR type="linear" slope={luce.slope} intercept={luce.intercept} />
+              <feFuncG type="linear" slope={luce.slope} intercept={luce.intercept} />
+              <feFuncB type="linear" slope={luce.slope} intercept={luce.intercept} />
+            </feComponentTransfer>
+          </filter>
+        </defs>
+      )}
+      {corpo}
+    </g>
+  );
+}
+
+function SvgObjectCorpo(p: ObjProps) {
   const { objects, tagValues, selected, selectedCount = 0, isEditMode, customSymbols, faceplates = [], selectedCell, selectedCellChild, selectedCellRange, onSelect, onStartDrag, onWriteTag, onScript, onNavigate, onSelectCell, onSelectCellChild, onSelectCellRange, onExpandTrend } = p;
   const { t } = useTranslation();
   // Toggle "Anteprima effetti" (rotazioni simboli, flusso pipe) anche in edit.
@@ -3663,6 +3796,53 @@ export function SvgObject(p: ObjProps) {
     );
   }
 
+  // ── POLILINEA (26-09-2026) ──────────────────────────────────────────────────
+  // I punti sono assoluti, come il tubo. Chiusa torna al primo punto e si può
+  // riempire; aperta è solo tratto. Sotto il tratto visibile c'è una copia
+  // larga e trasparente: una polilinea sottile altrimenti non si prende col mouse.
+
+  if (obj.type === "polyline") {
+    const punti = puntiMovimento(obj.points);
+    if (punti.length < 2) return null;
+    const pts = puntiSvg(punti);
+    const Forma = obj.closed ? "polygon" : "polyline";
+    const xs = punti.map((p) => p.x), ys = punti.map((p) => p.y);
+    const bx = Math.min(...xs), by = Math.min(...ys);
+    return (
+      <>
+        {selRect(bx, by, Math.max(...xs) - bx, Math.max(...ys) - by)}
+        <Forma points={pts}
+          fill={obj.closed ? coloreEffettivo(obj, "fill") : "none"}
+          stroke={coloreEffettivo(obj, "stroke")} strokeWidth={obj.stroke_width ?? 2}
+          strokeDasharray={obj.stroke_dasharray || undefined} strokeLinejoin="round" strokeLinecap="round"
+          style={{ cursor: editCursor, ...transitionStyle(obj) }}
+          onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} />
+        <Forma points={pts} fill="none" stroke="transparent" strokeWidth={Math.max(10, (obj.stroke_width ?? 2) + 6)}
+          style={{ cursor: editCursor }}
+          onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} />
+      </>
+    );
+  }
+
+  // ── POLIGONO REGOLARE / STELLA (26-09-2026) ─────────────────────────────────
+  // Vertici da `verticiPoligono` (gemella di `sws-core::vertici_poligono`):
+  // rotazione e specchio sono già nei vertici, quindi niente `applyTransform`.
+
+  if (obj.type === "polygon") {
+    const w = obj.width ?? 100; const h = obj.height ?? 100;
+    return (
+      <>
+        {selRect(obj.x, obj.y, w, h)}
+        <polygon points={puntiSvg(verticiPoligono(obj))}
+          fill={coloreEffettivo(obj, "fill")}
+          stroke={obj.stroke ?? "none"} strokeWidth={obj.stroke_width ?? 0}
+          strokeDasharray={obj.stroke_dasharray || undefined} strokeLinejoin="round"
+          style={{ cursor: editCursor, ...transitionStyle(obj) }}
+          onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()} />
+      </>
+    );
+  }
+
   // ── PIPE ────────────────────────────────────────────────────────────────────
 
   if (obj.type === "pipe") {
@@ -3733,7 +3913,7 @@ export function SvgObject(p: ObjProps) {
 
     return (
       <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
-         style={{ cursor: editCursor, opacity: obj.opacity ?? 1 }}>
+         style={{ cursor: editCursor }}>
         <defs>
           {useGrad && (
             <linearGradient id={gradId} x1="0%" y1="0%" x2="0%" y2="100%">

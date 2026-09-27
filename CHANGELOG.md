@@ -36,6 +36,12 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   riga rossa con **Converti**, in testa c'è **Converti tutti (n)**, e gli allarmi che condividono un tag lo dicono. La conversione non cambia come scatta; il Salva resta dell'utente.
 
 ### Fixed
+- **«🧹 Pulisci storico» sul dispositivo collegato** rispondeva 404 su ogni container: la rotta mancava dalla porta di gestione (`--no-admin`), che serve un
+  router ridotto, e lo stack di sviluppo — router completo — non lo mostrava. Trovato installando la 2.12.0-dev.2 sul TC620. Un test ora confronta ogni percorso che
+  l'IDE chiama su un dispositivo con le rotte di quella porta: è la terza volta che succedeva (flussi `/ws/*`, `whoami`, ora questo).
+- **Un deploy non fa più riscattare gli allarmi** (e quindi non manda più un Telegram per ogni allarme in corso a ogni «Invia ora»): chiudere e riaprire lo stesso progetto,
+  o salvare la scheda Allarmi, riprende lo stato degli allarmi con la definizione invariata — attivo, riconosciuto, timer, sospensione e la riga di storico aperta, che non
+  viene più chiusa come interrotta. Un allarme modificato o un altro progetto ripartono da zero. Guardia `check_allarmi_ricarica.sh`.
 - **Il blocco degli allarmi nel formato vecchio non si ripete più su ogni sezione**: il Salva generale salva gli Allarmi per primi (corretti lì, passa tutto), e le altre sezioni
   rifiutate ricevono una frase sola che dice dove andare, non lo stesso paragrafo tre volte.
 - Due guardie rimaste indietro, rosse senza che nessuno le lanciasse: `check_ack_reason.sh` (allarme nel formato vecchio) e l'e2e `import-tags` (il bottone «Configurazione» della

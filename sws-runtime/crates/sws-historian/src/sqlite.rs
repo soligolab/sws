@@ -20,6 +20,27 @@ use tracing::{info, warn};
 
 use crate::Sample;
 
+/// Quante righe toglie (o toglierebbe, in anteprima) `pulisci_storico`, e
+/// quante ne restano.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct EsitoPulizia {
+    pub non_storicizzati: u64,
+    pub ripetuti: u64,
+    pub restanti: u64,
+}
+
+/// I tag distinti dello storico, **a salti sull'indice** invece che con
+/// `SELECT DISTINCT tag`: per ogni tag si chiede il primo tag successivo, e con
+/// la chiave primaria `(tag, ts_ms)` ogni domanda è una ricerca, non una
+/// lettura. Misurato il 26-09-2026 sullo storico di CasaDomotica (590 MB, 7
+/// milioni di righe, 73 tag): `DISTINCT` 7,2 s a disco freddo, cioè quasi tutta
+/// l'attesa all'apertura del progetto; questa 0,01 s. Esce in ordine alfabetico.
+const SQL_TAG_DISTINTI: &str = "WITH RECURSIVE t(tag) AS (
+    SELECT min(tag) FROM samples
+    UNION ALL
+    SELECT (SELECT min(tag) FROM samples WHERE tag > t.tag) FROM t WHERE t.tag IS NOT NULL
+) SELECT tag FROM t WHERE tag IS NOT NULL";
+
 const SCHEMA: &str = r#"
 CREATE TABLE IF NOT EXISTS samples (
     tag       TEXT    NOT NULL,
@@ -169,7 +190,7 @@ impl SqliteStore {
             // Distinct tags first
             let mut tags: Vec<String> = Vec::new();
             {
-                let mut stmt = c.prepare("SELECT DISTINCT tag FROM samples")?;
+                let mut stmt = c.prepare(SQL_TAG_DISTINTI)?;
                 let rows = stmt.query_map([], |r| r.get::<_, String>(0))?;
                 for r in rows {
                     tags.push(r?);
@@ -318,7 +339,7 @@ impl SqliteStore {
                 .optional()?
                 .flatten();
             let tag_count: i64 = c
-                .query_row("SELECT COUNT(DISTINCT tag) FROM samples", [], |r| r.get(0))
+                .query_row(&format!("SELECT COUNT(*) FROM ({SQL_TAG_DISTINTI})"), [], |r| r.get(0))
                 .optional()?
                 .unwrap_or(0);
             let size_bytes = std::fs::metadata(&path).ok().map(|m| m.len());
@@ -358,15 +379,29 @@ impl SqliteStore {
     /// conferma) da un giro precedente: runtime spento o caduto. Si chiama
     /// quando il progetto aggancia lo store, prima che gli allarmi valutino.
     /// Restituisce quante ne ha chiuse.
-    pub async fn chiudi_eventi_interrotti(&self, ora_ms: u64) -> usize {
+    ///
+    /// `vive` sono gli scatti (id, istante di scatto) che gli allarmi hanno
+    /// ripreso dal giro prima — ricarica o deploy dello stesso progetto,
+    /// 26-09-2026: quelle righe sono ancora aperte perché l'allarme è ancora
+    /// in corso, non perché qualcosa si è interrotto, e vanno lasciate stare.
+    pub async fn chiudi_eventi_interrotti(&self, ora_ms: u64, vive: &[(String, u64)]) -> usize {
         let conn = self.conn.clone();
         let ora = ora_ms as i64;
+        let vive: Vec<(String, i64)> = vive.iter().map(|(id, ts)| (id.clone(), *ts as i64)).collect();
         let res = task::spawn_blocking(move || -> rusqlite::Result<usize> {
-            let c = conn.blocking_lock();
-            c.execute(
-                "UPDATE alarm_events                     SET interrotto = 1,                         duration_s = COALESCE(duration_s, (?1 - ts_activated_ms) / 1000.0),                         ts_normalized_ms = COALESCE(ts_normalized_ms, ?1)                   WHERE interrotto = 0 AND (ts_normalized_ms IS NULL OR ts_acked_ms IS NULL)",
+            let mut c = conn.blocking_lock();
+            let tx = c.transaction()?;
+            tx.execute_batch("CREATE TEMP TABLE IF NOT EXISTS righe_vive (alarm_id TEXT, ts INTEGER); DELETE FROM righe_vive;")?;
+            for (id, ts) in &vive {
+                tx.execute("INSERT INTO righe_vive VALUES (?1, ?2)", params![id, ts])?;
+            }
+            let n = tx.execute(
+                "UPDATE alarm_events                     SET interrotto = 1,                         duration_s = COALESCE(duration_s, (?1 - ts_activated_ms) / 1000.0),                         ts_normalized_ms = COALESCE(ts_normalized_ms, ?1)                   WHERE interrotto = 0 AND (ts_normalized_ms IS NULL OR ts_acked_ms IS NULL)                     AND NOT EXISTS (SELECT 1 FROM righe_vive v                                      WHERE v.alarm_id = alarm_events.alarm_id                                        AND v.ts = alarm_events.ts_activated_ms)",
                 params![ora],
-            )
+            )?;
+            tx.execute_batch("DELETE FROM righe_vive;")?;
+            tx.commit()?;
+            Ok(n)
         })
         .await;
         match res {
@@ -471,13 +506,77 @@ impl SqliteStore {
         let conn = self.conn.clone();
         task::spawn_blocking(move || -> anyhow::Result<Vec<String>> {
             let c = conn.blocking_lock();
-            let mut stmt = c.prepare("SELECT DISTINCT tag FROM samples ORDER BY tag")?;
+            let mut stmt = c.prepare(SQL_TAG_DISTINTI)?;
             let rows = stmt.query_map([], |r| r.get::<_, String>(0))?;
             let mut out = Vec::new();
             for r in rows {
                 out.push(r?);
             }
             Ok(out)
+        })
+        .await?
+    }
+
+    /// Pulisce lo storico gonfiato dalla doppia scrittura di prima del
+    /// 26-09-2026 (vedi `Historian::record`): toglie i campioni dei tag che non
+    /// stanno in `tenere` (quelli senza `history: true`, compreso l'eventuale
+    /// tag col nome vuoto) e, per quelli che ci stanno, le **ripetizioni** —
+    /// il campione con valore e qualità uguali al precedente dello stesso tag.
+    /// L'ultimo campione di ogni tag resta sempre: dice «fino a qui valeva
+    /// così». I grafici disegnano gli stessi gradini.
+    ///
+    /// Con `anteprima` conta e basta. Tutto in una transazione; lo spazio si
+    /// recupera dopo, con `vacuum()`.
+    pub async fn pulisci_storico(&self, tenere: Vec<String>, anteprima: bool) -> anyhow::Result<EsitoPulizia> {
+        let conn = self.conn.clone();
+        task::spawn_blocking(move || -> anyhow::Result<EsitoPulizia> {
+            let mut c = conn.blocking_lock();
+            let tx = c.transaction()?;
+            tx.execute_batch(
+                "CREATE TEMP TABLE IF NOT EXISTS pul_tenere(tag TEXT PRIMARY KEY);
+                 DELETE FROM pul_tenere;
+                 DROP TABLE IF EXISTS pul_ripetuti;",
+            )?;
+            {
+                let mut ins = tx.prepare("INSERT OR IGNORE INTO pul_tenere(tag) VALUES (?1)")?;
+                for t in &tenere {
+                    ins.execute(params![t])?;
+                }
+            }
+            tx.execute_batch(
+                "CREATE TEMP TABLE pul_ripetuti AS
+                   SELECT tag, ts_ms FROM (
+                     SELECT tag, ts_ms, value, quality,
+                            LAG(value)   OVER w AS pv,
+                            LAG(quality) OVER w AS pq,
+                            LEAD(ts_ms)  OVER w AS nx
+                       FROM samples WHERE tag IN (SELECT tag FROM pul_tenere)
+                     WINDOW w AS (PARTITION BY tag ORDER BY ts_ms))
+                   WHERE value = pv AND quality = pq AND nx IS NOT NULL;",
+            )?;
+            let non_storicizzati: i64 = tx.query_row(
+                "SELECT COUNT(*) FROM samples WHERE tag NOT IN (SELECT tag FROM pul_tenere)",
+                [],
+                |r| r.get(0),
+            )?;
+            let ripetuti: i64 = tx.query_row("SELECT COUNT(*) FROM pul_ripetuti", [], |r| r.get(0))?;
+            let totale: i64 = tx.query_row("SELECT COUNT(*) FROM samples", [], |r| r.get(0))?;
+            if anteprima {
+                tx.rollback()?;
+            } else {
+                tx.execute("DELETE FROM samples WHERE tag NOT IN (SELECT tag FROM pul_tenere)", [])?;
+                tx.execute(
+                    "DELETE FROM samples WHERE (tag, ts_ms) IN (SELECT tag, ts_ms FROM pul_ripetuti)",
+                    [],
+                )?;
+                tx.execute_batch("DROP TABLE IF EXISTS pul_ripetuti; DELETE FROM pul_tenere;")?;
+                tx.commit()?;
+            }
+            Ok(EsitoPulizia {
+                non_storicizzati: non_storicizzati as u64,
+                ripetuti: ripetuti as u64,
+                restanti: (totale - non_storicizzati - ripetuti).max(0) as u64,
+            })
         })
         .await?
     }
@@ -599,7 +698,7 @@ impl SqliteStore {
             let c = conn.blocking_lock();
             let mut tags: Vec<String> = Vec::new();
             {
-                let mut stmt = c.prepare("SELECT DISTINCT tag FROM samples")?;
+                let mut stmt = c.prepare(SQL_TAG_DISTINTI)?;
                 let rows = stmt.query_map([], |r| r.get::<_, String>(0))?;
                 for r in rows { tags.push(r?); }
             }
@@ -700,7 +799,14 @@ mod tests {
         completa.duration_s = Some(1.0);
         store.upsert_alarm_event(&completa).await;
 
-        assert_eq!(store.chiudi_eventi_interrotti(11_000).await, 1);
+        // Uno scatto ripreso dagli allarmi (ricarica dello stesso progetto)
+        // resta aperto: l'allarme è ancora in corso.
+        store.upsert_alarm_event(&riga("ripresa", 1500)).await;
+        let vive = vec![("ripresa".to_string(), 1500)];
+        assert_eq!(store.chiudi_eventi_interrotti(11_000, &vive).await, 1);
+        let ripresa = &store.query_alarm_events(Some("ripresa"), None, None, 1).await[0];
+        assert!(!ripresa.interrotto);
+        assert_eq!(ripresa.ts_normalized_ms, None);
         let aperta = &store.query_alarm_events(Some("aperta"), None, None, 1).await[0];
         assert!(aperta.interrotto);
         assert_eq!(aperta.ts_normalized_ms, Some(11_000));
@@ -739,5 +845,61 @@ mod tests {
         assert_eq!(dest_samples.last().unwrap().ts_ms, 40);
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// La ricerca a salti dà gli stessi tag di `SELECT DISTINCT`, in ordine,
+    /// e il ricaricamento all'apertura li trova tutti con i loro ultimi campioni.
+    #[tokio::test]
+    async fn tag_distinti_a_salti_come_distinct() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = SqliteStore::open(dir.path().join("s.db")).await.unwrap();
+        for (tag, n) in [("b.tag", 3u64), ("a.tag", 5), ("c.tag", 1), ("a.tag.figlio", 2)] {
+            for i in 0..n {
+                let s = Sample { ts_ms: 1_000 + i, value: TagValue::Float(i as f64), quality: TagQuality::Good };
+                store.append(tag, &s).await;
+            }
+        }
+        let a_salti = store.distinct_tags().await.unwrap();
+        assert_eq!(a_salti, ["a.tag", "a.tag.figlio", "b.tag", "c.tag"]);
+        {
+            let c = store.conn.lock().await;
+            let mut st = c.prepare("SELECT DISTINCT tag FROM samples ORDER BY tag").unwrap();
+            let vecchio: Vec<String> = st.query_map([], |r| r.get(0)).unwrap().map(|r| r.unwrap()).collect();
+            assert_eq!(a_salti, vecchio);
+        }
+        let ricaricati = store.restore_recent(2).await.unwrap();
+        assert_eq!(ricaricati.len(), 4);
+        assert!(ricaricati.iter().all(|(_, v)| v.len() <= 2));
+        assert_eq!(store.full_stats().await.unwrap().4, 4, "tag_count");
+        // Uno storico vuoto non dà tag, e non va in errore.
+        let vuoto = SqliteStore::open(dir.path().join("v.db")).await.unwrap();
+        assert!(vuoto.distinct_tags().await.unwrap().is_empty());
+    }
+
+    /// La pulizia toglie i tag non storicizzati e le ripetizioni, tiene i
+    /// cambi (anche di sola qualità) e l'ultimo campione; l'anteprima conta e
+    /// non tocca niente.
+    #[tokio::test]
+    async fn pulisci_storico_toglie_il_superfluo() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = SqliteStore::open(dir.path().join("p.db")).await.unwrap();
+        let campione = |ts: u64, v: f64, q: TagQuality| Sample { ts_ms: ts, value: TagValue::Float(v), quality: q };
+        // storicizzato: 1 1 1 2 2 (Bad) 2 2 → restano 1(ts1) 2(ts4) 2Bad(ts5) 2(ts6) 2(ts7 ultimo)
+        let serie = [(1, 1.0, TagQuality::Good), (2, 1.0, TagQuality::Good), (3, 1.0, TagQuality::Good),
+                     (4, 2.0, TagQuality::Good), (5, 2.0, TagQuality::Bad), (6, 2.0, TagQuality::Good),
+                     (7, 2.0, TagQuality::Good)];
+        for (ts, v, q) in serie { store.append("tenuto", &campione(ts, v, q)).await; }
+        for ts in 1..=5 { store.append("scartato", &campione(ts, 0.0, TagQuality::Good)).await; }
+        store.append("", &campione(1, 0.0, TagQuality::Bad)).await;
+
+        let prova = store.pulisci_storico(vec!["tenuto".into()], true).await.unwrap();
+        assert_eq!(prova, EsitoPulizia { non_storicizzati: 6, ripetuti: 2, restanti: 5 });
+        assert_eq!(store.total_samples().await.unwrap(), 13, "l'anteprima non cancella");
+
+        let fatto = store.pulisci_storico(vec!["tenuto".into()], false).await.unwrap();
+        assert_eq!(fatto, prova);
+        assert_eq!(store.distinct_tags().await.unwrap(), ["tenuto"]);
+        let ts: Vec<u64> = store.query_range("tenuto", 0, 100).await.iter().map(|s| s.ts_ms).collect();
+        assert_eq!(ts, [1, 4, 5, 6, 7]);
     }
 }

@@ -64,7 +64,7 @@ CON_STACK=(
     check_project_write_safety check_spa_autoreload check_viewer_layout
     check_wysiwyg check_no_admin check_istantanea check_soft_edge check_fuori_pagina_lvgl
     check_simboli_lvgl check_contrasto check_tipo_scrittura check_ricette check_mqtt_topic_vuoto check_chiave_host check_connessione_remota
-    check_target_progetto check_primo_utente check_segreti_e2e check_git_progetto
+    check_target_progetto check_primo_utente check_segreti_e2e check_git_progetto check_luce_lvgl check_forme_lvgl check_ide_quieto check_allarmi_ricarica
 )
 
 # ── nessuna guardia resta fuori in silenzio ───────────────────────────────────

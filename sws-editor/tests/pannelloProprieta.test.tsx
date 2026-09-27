@@ -1,6 +1,6 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, beforeAll } from "vitest";
-import "../src/i18n";
+import i18n from "../src/i18n";
 import { GRUPPI_PROPRIETA, GruppoAttivo, ObjectProps, type GruppoProprieta } from "../src/editor/EditorShell";
 import { PALETTE_GROUPS } from "../src/editor/LeftPanel";
 import type { SynopticObject } from "../src/types";
@@ -110,6 +110,24 @@ describe("pannello proprietà — nessun campo perso nel riordino (T-56)", () =>
       const atteso = (inventario as Record<string, { sezioni: string[]; campi: string[] }>)[tipo];
       expect(atteso, `tipo «${tipo}» assente dall'inventario`).toBeDefined();
       expect(inventarioDi(tipo)).toEqual(atteso);
+    });
+  }
+});
+
+/** Regola UI 2 del maintainer (23-08-2026): mai due punti del pannello che
+ *  scrivono lo stesso campo. Per `obj.tag` i punti possibili sono due — «Tag»
+ *  (il dato, nel ramo del tipo) e «Tag di stato» (qualità, per i tipi che il
+ *  tag non lo usano come dato) — e finora li teneva insieme solo una lista a
+ *  mano. Dal 26-09-2026, con il tag spostato nel ramo del tipo, c'è la guardia. */
+describe("regola UI 2: il tag dell'oggetto si scrive da un punto solo", () => {
+  for (const tipo of TIPI) {
+    it(`${tipo}: al più un campo «Tag» o «Tag di stato»`, () => {
+      const etichette = [i18n.t("props.tag"), i18n.t("props.stateTag")];
+      let n = 0;
+      for (const g of GRUPPI_PROPRIETA) {
+        n += inventarioDelGruppo(tipo, g.id).campi.filter((c) => etichette.includes(c)).length;
+      }
+      expect(n).toBeLessThanOrEqual(1);
     });
   }
 });

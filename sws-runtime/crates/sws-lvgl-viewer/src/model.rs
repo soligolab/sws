@@ -275,6 +275,10 @@ pub struct SynopticObject {
     // prima il motore leggeva solo `points`, così una pipe tirata da un oggetto
     // all'altro nell'IDE finiva sul pannello dove capitava.
     pub points: Option<Vec<PipePoint>>,
+    pub closed: Option<bool>,
+    pub sides: Option<f64>,
+    pub star: Option<bool>,
+    pub star_inner: Option<f64>,
     pub routing: Option<String>,
     pub pipe_style: Option<String>,
     pub fill_level: Option<f64>,
@@ -508,6 +512,8 @@ pub struct SynopticObject {
     pub blink_mode: Option<String>,
     pub blink_tag: Option<String>,
     pub blink_rate_ms: Option<f64>,
+    pub blink_style: Option<String>,
+    pub blink_fade_depth: Option<f64>,
     pub bad_value_style: Option<String>,
     pub stale_after_s: Option<f64>,
     pub critical: Option<bool>,
@@ -526,6 +532,7 @@ pub struct SynopticObject {
     pub flip_h: Option<bool>,
     pub flip_v: Option<bool>,
     pub opacity: Option<f64>,
+    pub brightness: Option<f64>,
     pub transition_duration_ms: Option<u64>,
     pub quality_dot: Option<bool>,
     pub quality_dot_good_color: Option<String>,

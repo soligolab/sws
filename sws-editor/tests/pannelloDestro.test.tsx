@@ -1,9 +1,8 @@
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { describe, it, expect, beforeEach } from "vitest";
 import i18n from "../src/i18n";
-import { GRUPPI_PROPRIETA, ObjectProps, PannelloDestro, barraGruppiVisibile, figlioProprietaAttivo, gruppiPerTipo, gruppoAffine, sezioneAffine, sezioneEffettiva } from "../src/editor/EditorShell";
+import { GRUPPI_PROPRIETA, ObjectProps, PannelloDestro, barraGruppiVisibile, figlioProprietaAttivo, gruppiPerTipo, gruppoAffine, ramoEffettivo } from "../src/editor/EditorShell";
 import { PALETTE_GROUPS } from "../src/editor/LeftPanel";
-import type { GruppoProprieta } from "../src/editor/EditorShell";
 import type { SynopticObject } from "../src/types";
 
 /** La barra dei gruppi del pannello destro (T-56, seguito dell'11-09-2026).
@@ -97,104 +96,119 @@ describe("il figlio che il pannello sta davvero mostrando", () => {
   });
 });
 
-/** R4 (25-09-2026): il pannello destro è **una colonna sola**. I gruppi sono
- *  rami, dentro ci sono le sezioni; ne sta aperta una per volta, più quelle
- *  appuntate. Si provano con `ObjectProps` vero dentro `PannelloDestro`: il
- *  difetto dell'11-09 (un `Provider` dimenticato) insegna che il cablaggio va
- *  provato col componente vero, non con una spia. */
-function Guscio({ obj }: { obj: SynopticObject }) {
+/** Il pannello destro a **un livello** (26-09-2026, dopo R4 del 25-09): si
+ *  aprono i rami — uno scelto più gli appuntati 📌 — e le sezioni dentro un
+ *  ramo sono sottotitoli sempre visibili. Si prova con `ObjectProps` vero
+ *  dentro `PannelloDestro`: il difetto dell'11-09 (un `Provider` dimenticato)
+ *  insegna che il cablaggio va provato col componente vero, non con una spia. */
+function Guscio({ obj, boot = false }: { obj: SynopticObject; boot?: boolean }) {
   return (
     <PannelloDestro larghezza={280} onRidimensiona={() => {}} titolo="x"
-      tipo={obj.type} gruppiVisibili={gruppiPerTipo(obj.type)} aSezioni
-      chiaveOggetto={obj.id} bloccato={false}>
+      tipo={obj.type} gruppiVisibili={gruppiPerTipo(obj.type, boot)} aSezioni
+      chiaveOggetto={obj.id} bloccato={false} paginaBoot={boot}>
       <ObjectProps obj={obj} pages={[]} functions={[]} onChange={() => {}} onDelete={() => {}} />
     </PannelloDestro>
   );
 }
 const oggetto = (id: string, type: string) => ({ id, type, x: 0, y: 0, width: 100, height: 40 }) as SynopticObject;
-const sezioniAperte = () => screen.queryAllByRole("button", { expanded: true })
-  .filter((b) => !b.closest("[data-testid^='ramo-proprieta-']"))
-  .map((b) => (b.textContent ?? "").replace("📌", "").trim());
-const titoloSezione = (k: string) => i18n.t(k);
-/** Il pulsante di una sezione, non quello del ramo omonimo (il ramo «Testo»
- *  e la sezione «Testo» hanno lo stesso titolo). */
-const sezione = (re: RegExp) => screen.getAllByRole("button", { name: re })
-  .find((b) => !b.closest("[data-testid^='ramo-proprieta-']"))!;
+/** Gli id dei rami aperti, dall'intestazione (aria-expanded). */
+const ramiAperti = () => screen.getAllByTestId(/^ramo-proprieta-/)
+  .filter((r) => within(r).getAllByRole("button")[0].getAttribute("aria-expanded") === "true")
+  .map((r) => r.dataset.testid!.replace("ramo-proprieta-", ""));
+const intestazione = (g: string) => within(screen.getByTestId(`ramo-proprieta-${g}`)).getAllByRole("button")[0];
 
-describe("il pannello destro a una colonna", () => {
+describe("il pannello destro a un livello", () => {
   beforeEach(() => { try { localStorage.clear(); } catch { /* jsdom */ } });
 
-  it("i gruppi sono rami, e c'è un ramo per gruppo del tipo", () => {
+  it("c'è un ramo per gruppo, e il ramo del tipo c'è anche sulle forme", () => {
     render(<Guscio obj={oggetto("a", "rect")} />);
     const rami = screen.getAllByTestId(/^ramo-proprieta-/).map((e) => e.dataset.testid);
     expect(rami).toEqual(gruppiPerTipo("rect").map((g) => `ramo-proprieta-${g.id}`));
-    expect(screen.queryAllByRole("tab")).toHaveLength(0);
+    expect(rami).toContain("ramo-proprieta-tipo");
   });
 
-  it("una sola sezione aperta: aprendone un'altra, la prima si chiude", () => {
+  it("dentro un ramo non c'è niente da aprire: le sezioni sono sottotitoli", () => {
     render(<Guscio obj={oggetto("a", "rect")} />);
-    expect(sezioniAperte()).toHaveLength(1);
-    fireEvent.click(sezione(new RegExp(titoloSezione("props.transform"))));
-    expect(sezioniAperte()).toHaveLength(1);
-    expect(sezioniAperte()[0]).toContain(titoloSezione("props.transform"));
+    fireEvent.click(intestazione("aspetto"));
+    // Nessun pulsante apri/chiudi fuori dalle intestazioni dei rami.
+    const apribili = screen.queryAllByRole("button")
+      .filter((b) => b.getAttribute("aria-expanded") !== null && !b.closest("[data-testid^='ramo-proprieta-']"));
+    expect(apribili).toHaveLength(0);
+    expect(screen.getByTestId("sezione-transform")).toBeTruthy();
+    expect(screen.getByTestId("sezione-identita")).toBeTruthy();
   });
 
-  it("una sezione appuntata resta aperta insieme a quella scelta", () => {
-    render(<Guscio obj={oggetto("a", "rect")} />);
-    fireEvent.click(screen.getByTestId("pin-aspetto"));
-    fireEvent.click(sezione(new RegExp(titoloSezione("props.transform"))));
-    expect(sezioniAperte()).toHaveLength(2);
+  it("all'inizio è aperto il ramo del tipo, uno solo", () => {
+    render(<Guscio obj={oggetto("a", "button")} />);
+    expect(ramiAperti()).toEqual(["tipo"]);
   });
 
-  it("cambiando oggetto la sezione resta quella, se il tipo nuovo ce l'ha", () => {
+  it("un ramo alla volta: aprendone un altro il primo si chiude", () => {
+    render(<Guscio obj={oggetto("a", "button")} />);
+    fireEvent.click(intestazione("dati"));
+    expect(ramiAperti()).toEqual(["dati"]);
+  });
+
+  it("un ramo appuntato resta aperto insieme a quello scelto", () => {
+    render(<Guscio obj={oggetto("a", "button")} />);
+    fireEvent.click(screen.getByTestId("pin-ramo-tipo"));
+    fireEvent.click(intestazione("dati"));
+    expect(ramiAperti().sort()).toEqual(["dati", "tipo"]);
+  });
+
+  it("cambiando oggetto resta aperto l'ultimo ramo usato", () => {
     const { rerender } = render(<Guscio obj={oggetto("a", "rect")} />);
-    fireEvent.click(sezione(new RegExp(titoloSezione("props.transform"))));
+    fireEvent.click(intestazione("interazione"));
     rerender(<Guscio obj={oggetto("b", "gauge")} />);
-    expect(sezioniAperte()).toHaveLength(1);
-    expect(sezioniAperte()[0]).toContain(titoloSezione("props.transform"));
+    expect(ramiAperti()).toEqual(["interazione"]);
   });
 
-  it("se il tipo nuovo non ce l'ha si apre l'affine, e tornando si ritrova la scelta", () => {
-    const { rerender } = render(<Guscio obj={oggetto("a", "text")} />);
-    fireEvent.click(sezione(new RegExp("^" + titoloSezione("props.sectionText"))));
+  it("chiudere il ramo aperto vale per quell'oggetto: il prossimo riapre il ramo ricordato", () => {
+    const { rerender } = render(<Guscio obj={oggetto("a", "rect")} />);
+    fireEvent.click(intestazione("aspetto"));
+    fireEvent.click(intestazione("aspetto"));
+    expect(ramiAperti()).toEqual([]);
     rerender(<Guscio obj={oggetto("b", "gauge")} />);
-    expect(sezioniAperte()[0]).toContain(titoloSezione("props.sectionParameters"));
-    rerender(<Guscio obj={oggetto("c", "text")} />);
-    expect(sezioniAperte()[0]).toContain(titoloSezione("props.sectionText"));
+    expect(ramiAperti()).toEqual(["aspetto"]);
   });
 
-  it("il pulsante «Elimina oggetto» c'è, una volta sola, anche nella colonna", () => {
+  it("il tag del bottone sta nel ramo del bottone, accanto a modalità e valore", () => {
+    render(<Guscio obj={oggetto("a", "button")} />);
+    const tipo = screen.getAllByTestId(/^sezione-/).map((e) => e.dataset.testid);
+    expect(tipo).toContain("sezione-parametri");
+    expect(tipo).toContain("sezione-dato");
+    expect(screen.getByText(i18n.t("props.tag"))).toBeTruthy();
+    expect(screen.getByText(i18n.t("props.buttonMode"))).toBeTruthy();
+  });
+
+  it("su una pagina di boot il dato non compare, anche se il ramo del tipo c'è", () => {
+    render(<Guscio obj={oggetto("a", "rect")} boot />);
+    fireEvent.click(intestazione("tipo"));
+    expect(screen.queryByTestId("sezione-dato")).toBeNull();
+  });
+
+  it("il pulsante «Elimina oggetto» c'è, una volta sola", () => {
     render(<Guscio obj={oggetto("a", "rect")} />);
     expect(screen.getAllByRole("button", { name: new RegExp(i18n.t("props.deleteObject")) })).toHaveLength(1);
   });
-
-  it("un ramo chiuso nasconde le sue sezioni", () => {
-    render(<Guscio obj={oggetto("a", "rect")} />);
-    const ramo = within(screen.getByTestId("ramo-proprieta-aspetto")).getByRole("button");
-    fireEvent.click(ramo);
-    expect(screen.queryByRole("button", { name: new RegExp(titoloSezione("props.transform")) })).toBeNull();
-  });
 });
 
-describe("sezioneEffettiva", () => {
-  const p = (chiave: string, gruppo: GruppoProprieta) => ({ chiave, gruppo });
-  const rect = [p("identita", "aspetto"), p("aspetto", "aspetto"), p("dato", "dati"), p("transform", "aspetto")];
-  const gauge = [p("parametri", "tipo"), ...rect];
-  it("la scelta, se c'è", () => expect(sezioneEffettiva("transform", rect, "rect")).toBe("transform"));
-  it("altrimenti la sezione del tipo", () => {
-    expect(sezioneEffettiva("testo", gauge, "gauge")).toBe("parametri");
-    expect(sezioneEffettiva("testo", rect, "rect")).toBe("aspetto");
+describe("ramoEffettivo", () => {
+  const rami = ["tipo", "aspetto", "dati", "interazione"];
+  it("lo scelto, se c'è", () => expect(ramoEffettivo("dati", rami, "rect")).toBe("dati"));
+  it("altrimenti il ramo del tipo", () => expect(ramoEffettivo("sparito", rami, "rect")).toBe("tipo"));
+  it("mai nessuno quando qualcosa c'è, salvo chiusura esplicita", () => {
+    expect(ramoEffettivo(null, rami, "rect")).toBe("tipo");
+    expect(ramoEffettivo("dati", rami, "rect", true)).toBeNull();
   });
-  it("mai nessuna quando qualcosa c'è", () => expect(sezioneEffettiva(null, rect, "rect")).toBe("aspetto"));
+  it("il primo che c'è se manca anche il ramo del tipo", () => expect(ramoEffettivo(null, ["aspetto"], "rect")).toBe("aspetto"));
 });
 
-describe("i rami dicono cosa contengono (25-09-2026)", () => {
-  it("il ramo del tipo c'è sui testi e sugli strumenti, non sulle forme", () => {
-    expect(gruppiPerTipo("text").map((g) => g.id)).toContain("tipo");
-    expect(gruppiPerTipo("gauge").map((g) => g.id)).toContain("tipo");
-    for (const forma of ["rect", "ellipse", "line"]) {
-      expect(gruppiPerTipo(forma).map((g) => g.id), forma).not.toContain("tipo");
-    }
+describe("i rami dicono cosa contengono", () => {
+  it("il ramo del tipo c'è per ogni tipo della palette (26-09-2026)", () => {
+    const tipi = PALETTE_GROUPS.flatMap((g) => g.items.map((i) => i.type as string));
+    expect(tipi.length).toBeGreaterThan(30);
+    for (const tipo of tipi) expect(gruppiPerTipo(tipo).map((g) => g.id), tipo).toContain("tipo");
   });
 
   it("gli altri tre rami valgono per ogni tipo", () => {
@@ -206,29 +220,8 @@ describe("i rami dicono cosa contengono (25-09-2026)", () => {
     }
   });
 
-  it("il ramo del tipo è il primo", () => {
+  it("il ramo del tipo è il primo, ed è l'affine di ogni tipo", () => {
     expect(GRUPPI_PROPRIETA[0].id).toBe("tipo");
-  });
-});
-
-describe("il gruppo affine di ogni tipo", () => {
-  it("testi e strumenti → il ramo del tipo, forme → Posizione e aspetto", () => {
-    for (const t of ["text", "button", "pipe", "trend"]) expect(gruppoAffine(t), t).toBe("tipo");
-    for (const t of ["rect", "ellipse", "line"]) expect(gruppoAffine(t), t).toBe("aspetto");
-  });
-
-  it("la sezione affine: Testo, Parametri, o Aspetto sulle forme", () => {
-    expect(sezioneAffine("text")).toBe("testo");
-    expect(sezioneAffine("gauge")).toBe("parametri");
-    expect(sezioneAffine("rect")).toBe("aspetto");
-  });
-
-  it("per ogni tipo della palette è un gruppo che quel tipo mostra davvero", () => {
-    const tipi = PALETTE_GROUPS.flatMap((g) => g.items.map((i) => i.type as string));
-    expect(tipi.length).toBeGreaterThan(30);
-    for (const tipo of tipi) {
-      const visibili = gruppiPerTipo(tipo).map((g) => g.id);
-      expect(visibili, `${tipo}: gruppo affine non fra quelli visibili`).toContain(gruppoAffine(tipo));
-    }
+    for (const t of ["text", "button", "rect", "line"]) expect(gruppoAffine(t), t).toBe("tipo");
   });
 });

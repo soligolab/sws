@@ -1372,7 +1372,18 @@ fn controlla_oggetto(
         out.push(Finding::err(
             format!("{base}.points"),
             "una `line` non legge `points`: nessun motore lo disegna",
-            "una linea va da (x,y) a (x2,y2); per una spezzata serve una `pipe`",
+            "una linea va da (x,y) a (x2,y2); per una spezzata c'è la `polyline` \
+             (dal 26-09-2026; prima serviva una `pipe`)",
+        ));
+    }
+
+    // Una polilinea con meno di due punti non si vede su nessun motore, e
+    // non si riprende col mouse: è quasi sempre un disegno interrotto.
+    if t == "polyline" && o.points.as_ref().and_then(|p| p.as_array()).map_or(0, |a| a.len()) < 2 {
+        out.push(Finding::warn(
+            format!("{base}.points"),
+            "una `polyline` con meno di due punti non si disegna",
+            "aggiungi almeno due punti (`points: [{x, y}, {x, y}]`), o togli l'oggetto",
         ));
     }
 

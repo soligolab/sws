@@ -61,12 +61,11 @@ const PANEL: React.CSSProperties = {
 const RIGHT_PANEL_WIDTH_KEY = "sws.rightPanelWidth";
 /** Sotto il prefisso unico di `stilePannelli`, come la vista del pannello
  *  sinistro: le memorie dei due pannelli si azzerano insieme. */
-/** La sezione aperta del pannello destro, per **nome** (R4, 25-09-2026). */
-const CHIAVE_SEZIONE_DESTRA = PREFISSO_MEMORIA + "destra.sezione";
-/** Le sezioni appuntate: restano aperte insieme a quella scelta. */
-const CHIAVE_APPUNTATE = PREFISSO_MEMORIA + "destra.appuntate";
-/** I rami (gruppi) chiusi del pannello destro. */
-const CHIAVE_RAMI_CHIUSI = PREFISSO_MEMORIA + "destra.ramiChiusi";
+/** L'ultimo ramo aperto del pannello destro, per **id** (26-09-2026: la
+ *  fisarmonica è passata dalle sezioni ai rami). */
+const CHIAVE_RAMO_DESTRA = PREFISSO_MEMORIA + "destra.ramo";
+/** I rami appuntati 📌: restano aperti insieme a quello scelto. */
+const CHIAVE_RAMI_APPUNTATI = PREFISSO_MEMORIA + "destra.ramiAppuntati";
 const RIGHT_PANEL_MIN = 220;
 const RIGHT_PANEL_MAX = 560;
 
@@ -234,7 +233,7 @@ function SymbolPickerModal({ onPick, onCancel }: {
  *  `lang_button`/`lang_selector` were rendered with it there but missing
  *  here, so their transform panel was unreachable in the properties UI. */
 const SUPPORTS_TRANSFORM = new Set([
-  "rect", "ellipse", "text", "image",
+  "rect", "ellipse", "text", "image", "polygon",
   "gauge", "led", "progress_bar", "table",
   "button", "navbutton", "symbol",
   "lang_button", "lang_selector", "page_navigator",
@@ -576,6 +575,9 @@ export function EditorShell() {
     // Due tipi chiedono prima qualcosa all'utente e si creano dopo la scelta.
     if (type === "image") { setPendingImagePos({ x, y }); return; }
     if (type === "symbol") { setSymbolPickPos({ x, y }); return; }
+    // La polilinea si disegna a clic (26-09-2026, scelta del maintainer): la
+    // palette accende la modalità, e il canvas crea l'oggetto al primo clic.
+    if (type === "polyline") { useAppStore.getState().setPolilineaInDisegno("nuova"); return; }
     const o = oggettoNuovo(type, x, y);
     if (o) addObject(o);
   };
@@ -708,6 +710,7 @@ export function EditorShell() {
         aSezioni={mostraGruppi}
         chiaveOggetto={`${selected?.id ?? ""}|${figlioAttivo?.id ?? ""}`}
         bloccato={!!currentPage?.locked}
+        paginaBoot={paginaBoot}
       >
         {multi ? (
           <>
@@ -1152,11 +1155,10 @@ export type GruppoProprieta = (typeof GRUPPI_PROPRIETA)[number]["id"];
  *  Una scheda vuota è peggio di una scheda assente: si clicca, non succede
  *  niente, e si resta a chiedersi se sia rotta. Quindi la barra mostra cinque
  *  icone su un `text` e quattro su tutto il resto. */
-export function gruppiPerTipo(tipo: string, paginaBoot = false) {
+export function gruppiPerTipo(_tipo: string, paginaBoot = false) {
+  // Il ramo del tipo c'è per ogni oggetto dal 26-09-2026 (maintainer): anche
+  // una forma ha qualcosa di suo — il tag, il raggio degli angoli, gli estremi.
   return GRUPPI_PROPRIETA
-    // Il ramo del tipo c'è solo se il tipo ha qualcosa di suo: il testo, o i
-    // Parametri. Una forma ha solo posizione e aspetto.
-    .filter((g) => g.id !== "tipo" || tipo === "text" || TIPI_CON_PARAMETRI.includes(tipo))
     // Su una pagina di boot non ci sono dati né interazione: solo ciò che serve
     // a disegnare un'immagine ferma (T-72).
     .filter((g) => !paginaBoot || GRUPPI_BOOT.includes(g.id));
@@ -1177,66 +1179,56 @@ export const TIPI_CON_PARAMETRI: readonly string[] = [
   "text_list", "trend", "xy_plot",
 ];
 
-/** Il ramo che più caratterizza un tipo: quello del tipo, dove ce l'ha;
- *  altrimenti Posizione e aspetto (una forma). */
-export function gruppoAffine(tipo: string): GruppoProprieta {
-  return tipo === "text" || TIPI_CON_PARAMETRI.includes(tipo) ? "tipo" : "aspetto";
+/** Il ramo che più caratterizza un tipo: dal 26-09-2026 ogni tipo ha il suo. */
+export function gruppoAffine(_tipo: string): GruppoProprieta {
+  return "tipo";
 }
 
-/** La sezione che più caratterizza un tipo, da aprire quando quella scelta
- *  non c'è (decisione del maintainer, 25-09-2026): Testo su un testo,
- *  Parametri su uno strumento, Aspetto su una forma. */
-export function sezioneAffine(tipo: string): string {
-  if (tipo === "text") return "testo";
-  if (TIPI_CON_PARAMETRI.includes(tipo)) return "parametri";
-  return "aspetto";
-}
+/** Le sezioni che su una pagina di boot non hanno senso anche se il loro ramo
+ *  c'è: il dato (tag) sta nel ramo del tipo, ma un'immagine d'avvio non ha dati. */
+const SEZIONI_NON_BOOT: readonly string[] = ["dato"];
 
 /** L'ordine delle sezioni canoniche dentro il loro ramo (R4, 25-09-2026). Una
  *  tabella e non l'ordine di disegno: una sezione che si ridisegna da sola non
  *  deve cambiare posto. Una chiave che manca qui va in fondo al suo ramo. */
 export const ORDINE_SEZIONI: readonly string[] = [
-  "parametri", "testo",                          // il tipo
+  "parametri", "testo", "forma", "dato",         // il tipo
   "identita", "aspetto", "transform", "layer",   // Posizione e aspetto
-  "dato", "bindings", "quality",                 // Dati e collegamenti
+  "bindings", "quality",                         // Dati e collegamenti
   "motion", "events", "security",                // Animazione e interazione
 ];
 
-/** La sezione aperta davvero (R4): quella scelta, se l'oggetto ce l'ha;
- *  altrimenti la prima del gruppo affine al tipo (`gruppoAffine`); altrimenti
- *  la prima che c'è. Mai «nessuna» quando qualcosa c'è: un oggetto appena
- *  selezionato con tutto chiuso è un pannello che sembra vuoto.
+/** Il ramo aperto davvero (26-09-2026, dalle sezioni ai rami): l'ultimo
+ *  scelto, se l'oggetto ce l'ha; altrimenti il ramo del tipo; altrimenti il
+ *  primo che c'è. `null` solo se l'utente ha chiuso tutto su questo oggetto.
  *
- *  È la regola che il maintainer ha chiesto il 25-09-2026 — «se sono in una
- *  sezione e cambio oggetto, nel momento in cui la stessa sezione è presente,
- *  mantieni quella attiva» — spostata dal gruppo alla sezione. */
-export function sezioneEffettiva(
-  scelta: string | null,
-  presenti: readonly { chiave: string; gruppo: GruppoProprieta }[],
+ *  È la regola del 25-09-2026 — «se sono in una sezione e cambio oggetto, nel
+ *  momento in cui la stessa sezione è presente, mantieni quella attiva» —
+ *  spostata dalla sezione al ramo. */
+export function ramoEffettivo(
+  scelto: string | null,
+  presenti: readonly string[],
   tipo: string,
+  tuttoChiuso = false,
 ): string | null {
-  if (presenti.length === 0) return scelta;
-  if (scelta && presenti.some((p) => p.chiave === scelta)) return scelta;
-  const affine = sezioneAffine(tipo);
-  if (presenti.some((p) => p.chiave === affine)) return affine;
-  const ordinate = [...presenti].sort((a, b) => ORDINE_SEZIONI.indexOf(a.chiave) - ORDINE_SEZIONI.indexOf(b.chiave));
-  const gruppo = gruppoAffine(tipo);
-  return (ordinate.find((p) => p.gruppo === gruppo) ?? ordinate[0]).chiave;
+  if (tuttoChiuso || presenti.length === 0) return null;
+  if (scelto && presenti.includes(scelto)) return scelto;
+  const affine = gruppoAffine(tipo);
+  return presenti.includes(affine) ? affine : presenti[0];
 }
 
 /** Lo stato della colonna di sezioni, fornito da `PannelloDestro`. Assente
  *  (null) fuori da un oggetto singolo: lì ogni sezione si apre e chiude da sé. */
 interface StatoFisarmonica {
-  aperta: string | null;
-  appuntate: ReadonlySet<string>;
-  ramiChiusi: ReadonlySet<string>;
+  /** I rami aperti: quello scelto più gli appuntati. Le sezioni di un ramo
+   *  chiuso non si disegnano; quelle di un ramo aperto sono sottotitoli. */
+  ramiAperti: ReadonlySet<string>;
   /** I gruppi che valgono per il tipo mostrato: una sezione di un gruppo che non
-   *  c'è (Dato su una pagina di boot) non si disegna affatto. */
+   *  c'è (Interazione su una pagina di boot) non si disegna affatto. */
   gruppiVisibili: ReadonlySet<string>;
+  paginaBoot: boolean;
   /** Segna la sezione come presente e restituisce il suo `order` nella colonna. */
   registra: (chiave: string, gruppo: GruppoProprieta) => number;
-  apri: (chiave: string | null) => void;
-  commutaAppunto: (chiave: string) => void;
 }
 const Fisarmonica = createContext<StatoFisarmonica | null>(null);
 
@@ -1303,12 +1295,12 @@ export function avvisoRuoloMinimo(
  *  contesto non era mai stato fornito e valeva il suo default. Con un
  *  componente, il filo si può provare da solo — vedi `pannelloDestro.test.tsx`. */
 export function PannelloDestro({
-  larghezza, onRidimensiona, titolo, tipo, gruppiVisibili, aSezioni, chiaveOggetto, bloccato, children,
+  larghezza, onRidimensiona, titolo, tipo, gruppiVisibili, aSezioni, chiaveOggetto, bloccato, paginaBoot = false, children,
 }: {
   larghezza: number;
   onRidimensiona: (e: React.MouseEvent) => void;
   titolo: string;
-  /** Il tipo dell'oggetto mostrato: decide la sezione affine. */
+  /** Il tipo dell'oggetto mostrato: decide il ramo affine. */
   tipo: string;
   /** I gruppi da mostrare come rami: dipendono dal tipo, vedi `gruppiPerTipo`. */
   gruppiVisibili: readonly { readonly id: string; readonly icona: string; readonly chiave: string }[];
@@ -1318,64 +1310,63 @@ export function PannelloDestro({
   /** Cambia quando cambia l'oggetto mostrato: azzera l'elenco delle sezioni presenti. */
   chiaveOggetto: string;
   bloccato: boolean;
+  /** Pagina di boot: le sezioni senza senso lì (il dato) non si disegnano. */
+  paginaBoot?: boolean;
   children: React.ReactNode;
 }) {
   const { t } = useTranslation();
   const leggi = (k: string, d: string) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } };
   const scrivi = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* senza memoria */ } };
 
-  // La sezione scelta, per nome. Il ripiego sull'affine non la sovrascrive:
-  // chi stava su «Eventi» e passa a un testo vede «Testo», e tornando su un
-  // pulsante ritrova «Eventi» — la stessa regola che valeva per i gruppi.
-  const [scelta, setScelta] = useState<string | null>(() => leggi(CHIAVE_SEZIONE_DESTRA, "") || null);
-  const [appuntate, setAppuntate] = useState<Set<string>>(() => new Set(JSON.parse(leggi(CHIAVE_APPUNTATE, "[]")) as string[]));
-  const [ramiChiusi, setRamiChiusi] = useState<Set<string>>(() => new Set(JSON.parse(leggi(CHIAVE_RAMI_CHIUSI, "[]")) as string[]));
-  const [effettiva, setEffettiva] = useState<string | null>(scelta);
+  // Un livello solo (26-09-2026, maintainer: «quando apro uno dei livelli
+  // principali ci sono molti sotto livelli, proverei a portare tutto in un
+  // solo livello»). Si aprono i **rami**: uno scelto più gli appuntati 📌; le
+  // sezioni dentro un ramo sono sottotitoli, sempre visibili. Il ramo scelto
+  // si ricorda per nome: chi stava su «Dati» e passa a un oggetto che li ha
+  // resta su «Dati».
+  const [scelto, setScelto] = useState<string | null>(() => leggi(CHIAVE_RAMO_DESTRA, "") || null);
+  const [appuntati, setAppuntati] = useState<Set<string>>(() => new Set(JSON.parse(leggi(CHIAVE_RAMI_APPUNTATI, "[]")) as string[]));
+  // «Ho chiuso tutto» vale per l'oggetto su cui lo si è fatto: al cambio di
+  // oggetto si riapre il ramo ricordato (un pannello tutto chiuso sembra vuoto).
+  const [chiusoSu, setChiusoSu] = useState<string | null>(null);
 
-  // Le sezioni presenti per l'oggetto mostrato: si registrano mentre si
-  // disegnano (una tabella scritta a mano ripeterebbe le condizioni del JSX,
-  // e divergerebbe). Il conto si fa prima che lo schermo si aggiorni.
+  // I rami che hanno almeno una sezione per l'oggetto mostrato: le sezioni si
+  // registrano mentre si disegnano (una tabella scritta a mano ripeterebbe le
+  // condizioni del JSX), e un ramo vuoto non si mostra.
   const presenti = useMemo(() => new Map<string, GruppoProprieta>(), [chiaveOggetto, tipo]);
-  const ultimaAperta = useRef<string | null>(null);
+  const [conSezioni, setConSezioni] = useState<ReadonlySet<string> | null>(null);
   useLayoutEffect(() => {
-    const e = sezioneEffettiva(scelta, [...presenti].map(([chiave, gruppo]) => ({ chiave, gruppo })), tipo);
-    if (e !== effettiva) setEffettiva(e);
-    // Il ramo della sezione aperta si apre — ma solo quando la sezione
-    // **cambia**: una sezione aperta dentro un ramo chiuso è un pannello che
-    // sembra vuoto, però chi chiude a mano quel ramo deve poterlo fare.
-    if (e === ultimaAperta.current) return;
-    ultimaAperta.current = e;
-    const g = e ? presenti.get(e) : undefined;
-    if (g && ramiChiusi.has(g)) {
-      const n = new Set(ramiChiusi); n.delete(g); setRamiChiusi(n); scrivi(CHIAVE_RAMI_CHIUSI, JSON.stringify([...n]));
-    }
+    const n = new Set(presenti.values());
+    if (!conSezioni || n.size !== conSezioni.size || [...n].some((g) => !conSezioni.has(g))) setConSezioni(n);
   });
+
+  const visibili = gruppiVisibili.filter((g) => !conSezioni || conSezioni.has(g.id));
+  const effettivo = ramoEffettivo(scelto, visibili.map((g) => g.id), tipo, chiusoSu === chiaveOggetto);
+  const ramiAperti = new Set([...(effettivo ? [effettivo] : []), ...[...appuntati].filter((g) => visibili.some((v) => v.id === g))]);
 
   const indiceGruppo = new Map(gruppiVisibili.map((g, i) => [g.id, i]));
   const fisarmonica: StatoFisarmonica = {
-    aperta: effettiva,
-    appuntate,
-    ramiChiusi,
+    ramiAperti,
     gruppiVisibili: new Set(gruppiVisibili.map((g) => g.id)),
+    paginaBoot,
     registra: (chiave, gruppo) => {
       presenti.set(chiave, gruppo);
       const posizione = ORDINE_SEZIONI.indexOf(chiave);
       return ((indiceGruppo.get(gruppo) ?? 9) + 1) * 100 + (posizione < 0 ? 99 : posizione + 1);
     },
-    apri: (chiave) => {
-      setScelta(chiave); setEffettiva(chiave);
-      scrivi(CHIAVE_SEZIONE_DESTRA, chiave ?? "");
-    },
-    commutaAppunto: (chiave) => {
-      const n = new Set(appuntate);
-      if (n.has(chiave)) n.delete(chiave); else n.add(chiave);
-      setAppuntate(n); scrivi(CHIAVE_APPUNTATE, JSON.stringify([...n]));
-    },
+  };
+  const apri = (g: string) => { setScelto(g); setChiusoSu(null); scrivi(CHIAVE_RAMO_DESTRA, g); };
+  const commutaAppunto = (g: string) => {
+    const n = new Set(appuntati);
+    if (n.has(g)) n.delete(g); else n.add(g);
+    setAppuntati(n); scrivi(CHIAVE_RAMI_APPUNTATI, JSON.stringify([...n]));
   };
   const commutaRamo = (g: string) => {
-    const n = new Set(ramiChiusi);
-    if (n.has(g)) n.delete(g); else n.add(g);
-    setRamiChiusi(n); scrivi(CHIAVE_RAMI_CHIUSI, JSON.stringify([...n]));
+    if (!ramiAperti.has(g)) { apri(g); return; }
+    // Chiudere un ramo appuntato lo sgancia; chiudere quello scelto lascia il
+    // pannello chiuso su questo oggetto.
+    if (appuntati.has(g)) commutaAppunto(g);
+    if (g === effettivo) setChiusoSu(chiaveOggetto);
   };
 
   return (
@@ -1397,19 +1388,34 @@ export function PannelloDestro({
               thread a `disabled` prop through every ObjectProps variant. */}
           <fieldset disabled={bloccato} style={{ border: "none", margin: 0, padding: 0, display: "contents" }}>
             {aSezioni ? (
-              // R4 (25-09-2026): una colonna sola. I gruppi sono rami, e le
-              // sezioni ci si mettono sotto con `order` — sono figlie dirette
-              // di questa colonna, e così ognuna si disegna una volta sola.
+              // Una colonna sola: i rami sono le sole cose che si aprono, e le
+              // loro sezioni ci si mettono sotto con `order` — sono figlie
+              // dirette di questa colonna, e così ognuna si disegna una volta.
               <GruppoAttivo.Provider value="tutti">
                 <Fisarmonica.Provider value={fisarmonica}>
-                  {gruppiVisibili.map((g, i) => (
-                    <div key={g.id} data-testid={`ramo-proprieta-${g.id}`} style={{ order: (i + 1) * 100, marginTop: i ? SPAZIO.s : 0 }}>
-                      <IntestazioneSezione
-                        titolo={g.id === "tipo" ? t(`editor.palette.item.${tipo}`) : t(g.chiave)} icona={g.icona}
-                        aperta={!ramiChiusi.has(g.id)} onToggle={() => commutaRamo(g.id)} rilievo
-                      />
-                    </div>
-                  ))}
+                  {gruppiVisibili.map((g, i) => {
+                    if (conSezioni && !conSezioni.has(g.id)) return null;
+                    const appuntato = appuntati.has(g.id);
+                    return (
+                      <div key={g.id} data-testid={`ramo-proprieta-${g.id}`} style={{ order: (i + 1) * 100, marginTop: i ? SPAZIO.s : 0 }}>
+                        <IntestazioneSezione
+                          titolo={g.id === "tipo" ? t(`editor.palette.item.${tipo}`) : t(g.chiave)} icona={g.icona}
+                          aperta={ramiAperti.has(g.id)} onToggle={() => commutaRamo(g.id)} rilievo
+                          azione={
+                            <button
+                              type="button"
+                              data-testid={`pin-ramo-${g.id}`}
+                              onClick={() => commutaAppunto(g.id)}
+                              title={t(appuntato ? "props.sganciaRamo" : "props.appuntaRamo")}
+                              aria-pressed={appuntato}
+                              style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 10, padding: 0,
+                                       opacity: appuntato ? 1 : 0.35, filter: appuntato ? "none" : "grayscale(1)" }}
+                            >📌</button>
+                          }
+                        />
+                      </div>
+                    );
+                  })}
                   {children}
                 </Fisarmonica.Provider>
               </GruppoAttivo.Provider>
@@ -1445,6 +1451,15 @@ export function cancellaWaypointScelto(): boolean {
   const obj = st.pages
     .find((p) => p.id === st.currentPageId)?.objects
     .find((o) => o.id === w.objectId);
+  if (obj?.type === "polyline") {
+    // Il punto di una polilinea (26-09-2026). Sotto i due punti non si scende:
+    // una polilinea di un punto non si vede e non si riprende più col mouse,
+    // quindi il Canc lì non fa niente (per toglierla si cancella l'oggetto).
+    const punti = puntiMovimento(obj.points);
+    if (punti.length > 2) st.updateObject(w.objectId, { points: eliminaWaypoint(punti, w.index) });
+    st.setWaypointScelto(null);
+    return true;
+  }
   const rimasti = eliminaWaypoint(puntiMovimento(obj?.motion_path), w.index);
   st.updateObject(w.objectId, { motion_path: percorsoDaSalvare(rimasti) });
   st.setWaypointScelto(null);
@@ -1550,7 +1565,6 @@ function CollapsibleSection({
   // disposto le sue sezioni prima dell'11-09-2026 riparte dai default: una
   // preferenza globale non può dire cosa volesse per **ciascun** tipo, e
   // inventarselo sarebbe peggio che ricominciare.
-  const { t } = useTranslation();
   const gruppoAttivo = useContext(GruppoAttivo);
   const fis = useContext(Fisarmonica);
   const tipo = useContext(TipoOggetto);
@@ -1562,32 +1576,31 @@ function CollapsibleSection({
   // R4 (25-09-2026): nella colonna a sezioni una sola è aperta, più quelle
   // appuntate; le sotto-sezioni (senza gruppo) restano libere.
   if (fis && gruppo && !fis.gruppiVisibili.has(gruppo)) return null;
+  if (fis && fis.paginaBoot && storageKey && SEZIONI_NON_BOOT.includes(storageKey)) return null;
   const inFisarmonica = !!fis && !!gruppo && !!storageKey;
-  const ordine = inFisarmonica ? fis.registra(storageKey!, gruppo!) : undefined;
-  if (inFisarmonica && fis.ramiChiusi.has(gruppo!)) return null;
-  const appuntata = inFisarmonica && fis.appuntate.has(storageKey!);
-  const aperta = inFisarmonica ? (fis.aperta === storageKey || appuntata) : open;
-  const commuta = inFisarmonica
-    ? () => {
-        if (!aperta) { fis.apri(storageKey!); return; }
-        if (appuntata) fis.commutaAppunto(storageKey!);
-        if (fis.aperta === storageKey) fis.apri(null);
-      }
-    : toggle;
-  const azione = inFisarmonica ? (
-    <>
-      {headerExtra}
-      <button
-        type="button"
-        data-testid={`pin-${storageKey}`}
-        onClick={() => fis.commutaAppunto(storageKey!)}
-        title={t(appuntata ? "props.sganciaSezione" : "props.appuntaSezione")}
-        aria-pressed={appuntata}
-        style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 10, padding: 0,
-                 opacity: appuntata ? 1 : 0.35, filter: appuntata ? "none" : "grayscale(1)" }}
-      >📌</button>
-    </>
-  ) : headerExtra;
+  if (inFisarmonica) {
+    // Dentro un ramo la sezione è un **sottotitolo**, non un livello da aprire
+    // (26-09-2026). Si registra anche quando il ramo è chiuso: è così che il
+    // pannello sa quali rami hanno qualcosa da mostrare.
+    const ordine = fis.registra(storageKey!, gruppo!);
+    if (!fis.ramiAperti.has(gruppo!)) return null;
+    return (
+      <div data-testid={`sezione-${storageKey}`} style={{ order: ordine, paddingLeft: 4 }}>
+        <div style={{
+          display: "flex", alignItems: "center", gap: 6, marginTop: SPAZIO.s, marginBottom: 2,
+          fontSize: TESTO.nota, color: "var(--brand-text-subtle, #94a3b8)", fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase",
+        }}>
+          <span style={{ flex: 1 }}>{title}</span>
+          {headerExtra}
+        </div>
+        <div style={{ paddingBottom: 4 }}>{children}</div>
+      </div>
+    );
+  }
+  const aperta = open;
+  const commuta = toggle;
+  const azione = headerExtra;
+  const ordine = undefined;
   return (
     <div style={{ borderTop: "1px solid var(--brand-surface, #1e293b)", paddingTop: 4, marginTop: 4, order: ordine }}>
       <IntestazioneSezione titolo={title} aperta={aperta} onToggle={commuta} azione={azione} />
@@ -2813,7 +2826,7 @@ export function ObjectProps({
     </>
   );
 
-  const BOX_TYPES = ["rect", "ellipse", "button", "navbutton", "checkbox", "radio", "slider", "gauge", "led", "progress_bar", "table", "trend", "symbol", "grid", "page_navigator",
+  const BOX_TYPES = ["rect", "ellipse", "polygon", "button", "navbutton", "checkbox", "radio", "slider", "gauge", "led", "progress_bar", "table", "trend", "symbol", "grid", "page_navigator",
     // 2026-08-23: W/H per tutti i box-like (prima si ridimensionavano solo con le maniglie)
     "image", "xy_plot", "kpi_tile", "data_log", "alarm_viewer", "alarm_bell", "alarm_banner",
     "recipe_panel", "faceplate", "setpoint", "text_list", "state_lamp", "lang_button", "alarm_history",
@@ -2821,7 +2834,7 @@ export function ObjectProps({
   // F7.4: il testo entra fra i box-like solo col wrap attivo — senza wrap la
   // larghezza è stimata dal contenuto e i campi W/H non farebbero niente.
   const isShape = BOX_TYPES.includes(obj.type) || (obj.type === "text" && !!obj.text_wrap);
-  const hasStroke = obj.type === "rect" || obj.type === "ellipse" || obj.type === "line";
+  const hasStroke = ["rect", "ellipse", "line", "polyline", "polygon"].includes(obj.type);
   // Tipi che disegnano il layer di sfondo universale (bg_color/bg_image) in
   // SvgCanvas.tsx. Sottoinsieme iniziale scelto per coprire i pattern di
   // rendering più diversi; si estende insieme al rendering, non da solo.
@@ -2879,22 +2892,103 @@ export function ObjectProps({
               </RigaProprieta>
             </>
           )}
-          {obj.type === "line" && (
+        </div>
+      </CollapsibleSection>
+
+      {/* Il ramo del tipo c'è per ogni oggetto (26-09-2026): per le forme tiene
+          solo ciò che è proprio della forma — raggio degli angoli, estremi
+          della linea — mentre colore e bordo restano in «Posizione e aspetto». */}
+      {["rect", "line", "polygon", "polyline"].includes(obj.type) && (
+        <CollapsibleSection title={t("props.sectionShape")} storageKey="forma" gruppo="tipo">
+          {obj.type === "polygon" && (
             <>
+              {field(t("props.sides"), numInput("sides", 6))}
+              <RigaProprieta etichetta={t("props.star")} inLinea>
+                <input type="checkbox" checked={!!obj.star}
+                  onChange={(e) => onChange({ star: e.target.checked || undefined })} />
+              </RigaProprieta>
+              {obj.star && field(t("props.starInner"), numInput("star_inner", 50))}
+            </>
+          )}
+          {obj.type === "polyline" && (
+            <>
+              <RigaProprieta etichetta={t("props.closed")} inLinea>
+                <input type="checkbox" checked={!!obj.closed}
+                  onChange={(e) => onChange({ closed: e.target.checked || undefined })} />
+              </RigaProprieta>
+              <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 4px" }}>{t("props.polylinePointsHint")}</p>
+              {(obj.points ?? []).map((pt, i) => (
+                <div key={i} style={{ display: "flex", gap: 4, alignItems: "center", marginBottom: 2 }}>
+                  <span style={{ fontSize: 10, width: 16, color: "var(--brand-text-subtle, #94a3b8)" }}>{i + 1}</span>
+                  <input type="number" style={{ ...INPUT, flex: 1 }} value={pt.x}
+                    onChange={(e) => onChange({ points: (obj.points ?? []).map((p, j) => (j === i ? { ...p, x: Number(e.target.value) } : p)) })} />
+                  <input type="number" style={{ ...INPUT, flex: 1 }} value={pt.y}
+                    onChange={(e) => onChange({ points: (obj.points ?? []).map((p, j) => (j === i ? { ...p, y: Number(e.target.value) } : p)) })} />
+                  <button disabled={(obj.points ?? []).length <= 2} title={t("props.removeWaypoint")}
+                    onClick={() => onChange({ points: (obj.points ?? []).filter((_, j) => j !== i) })}
+                    style={{ ...INPUT, cursor: "pointer", width: 24, padding: "2px 4px", flex: "none" }}>−</button>
+                </div>
+              ))}
+            </>
+          )}
+          {obj.type === "rect" && field(t("props.cornerRadius"), numInput("corner_radius", 0))}
+          {obj.type === "line" && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 6px" }}>
               <RigaProprieta etichetta="X2" inLinea larghezzaEtichetta={18}>
                 <BindableInput obj={obj} propName="x2" onChange={onChange}>{numInput("x2", obj.x + 100)}</BindableInput>
               </RigaProprieta>
               <RigaProprieta etichetta="Y2" inLinea larghezzaEtichetta={18}>
                 <BindableInput obj={obj} propName="y2" onChange={onChange}>{numInput("y2", obj.y)}</BindableInput>
               </RigaProprieta>
-            </>
+            </div>
           )}
-        </div>
-      </CollapsibleSection>
+        </CollapsibleSection>
+      )}
 
       <CollapsibleSection title={t("props.sectionAppearance")} storageKey="aspetto" gruppo="aspetto">
+        {/* Opacità e luminosità per **ogni** tipo (26-09-2026, piano pannello-luce-
+            forme): prima l'opacità stava in «Trasformazione», che esiste solo per
+            14 tipi. Tutte e due si legano a un tag col 🔗 — una waveform fa il fade. */}
+        {field(t("props.opacityRange"),
+          <BindableInput obj={obj} propName="opacity" onChange={onChange}>
+            <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+              <input
+                type="number"
+                min={0} max={1} step={0.05}
+                value={obj.opacity ?? 1}
+                onChange={(e) => onChange({ opacity: Number(e.target.value) })}
+                style={{ ...INPUT, flex: 1 }}
+              />
+              <button
+                title={t("props.resetTo1")}
+                onClick={() => onChange({ opacity: undefined })}
+                style={{ ...INPUT, cursor: "pointer", padding: "3px 6px", width: 28 }}
+              >↺</button>
+            </div>
+          </BindableInput>
+        )}
+        {field(t("props.brightness"),
+          <BindableInput obj={obj} propName="brightness" onChange={onChange}>
+            <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+              <input
+                type="number"
+                min={-100} max={100} step={5}
+                value={obj.brightness ?? 0}
+                onChange={(e) => onChange({ brightness: Number(e.target.value) || undefined })}
+                style={{ ...INPUT, flex: 1 }}
+                title={t("props.brightnessHint")}
+              />
+              <button
+                title={t("props.resetTo0")}
+                onClick={() => onChange({ brightness: undefined })}
+                style={{ ...INPUT, cursor: "pointer", padding: "3px 6px", width: 28 }}
+              >↺</button>
+            </div>
+          </BindableInput>
+        )}
         {/* Fill */}
-        {(obj.type === "rect" || obj.type === "ellipse" || obj.type === "button" || obj.type === "navbutton") &&
+        {(obj.type === "rect" || obj.type === "ellipse" || obj.type === "button" || obj.type === "navbutton"
+          || obj.type === "polygon" || (obj.type === "polyline" && obj.closed)) &&
           field(t("props.color"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill")}</BindableInput>)}
 
         {/* Stroke */}
@@ -2914,20 +3008,21 @@ export function ObjectProps({
         )}
 
         {/* F7.6 — rifiniture di forma: raggio angoli, tratteggio, sfumatura. */}
-        {(obj.type === "rect" || obj.type === "navbutton") &&
+        {obj.type === "navbutton" &&
           field(t("props.cornerRadius"), numInput("corner_radius", 0))}
+        {["rect", "polyline", "polygon"].includes(obj.type) &&
+          field(t("props.borderDash"),
+            <select style={{ ...INPUT, cursor: "pointer" }}
+              value={obj.stroke_dasharray ?? ""}
+              onChange={(e) => onChange({ stroke_dasharray: e.target.value || undefined })}>
+              <option value="">{t("props.dashSolid")}</option>
+              <option value="6 3">{t("props.dashDashed")}</option>
+              <option value="2 3">{t("props.dashDotted")}</option>
+              <option value="10 4 2 4">{t("props.dashDashDot")}</option>
+            </select>
+          )}
         {obj.type === "rect" && (
           <>
-            {field(t("props.borderDash"),
-              <select style={{ ...INPUT, cursor: "pointer" }}
-                value={obj.stroke_dasharray ?? ""}
-                onChange={(e) => onChange({ stroke_dasharray: e.target.value || undefined })}>
-                <option value="">{t("props.dashSolid")}</option>
-                <option value="6 3">{t("props.dashDashed")}</option>
-                <option value="2 3">{t("props.dashDotted")}</option>
-                <option value="10 4 2 4">{t("props.dashDashDot")}</option>
-              </select>
-            )}
             {field(t("props.gradient"),
               <select style={{ ...INPUT, cursor: "pointer" }}
                 value={obj.fill_gradient ?? ""}
@@ -2950,17 +3045,6 @@ export function ObjectProps({
           </>
         )}
 
-        {/* F7.6 — adattamento dell'immagine al box. */}
-        {obj.type === "image" &&
-          field(t("props.imageFit"),
-            <select style={{ ...INPUT, cursor: "pointer" }}
-              value={obj.image_fit ?? "stretch"}
-              onChange={(e) => onChange({ image_fit: e.target.value === "stretch" ? undefined : (e.target.value as "contain" | "cover") })}>
-              <option value="stretch">{t("props.fitStretch")}</option>
-              <option value="contain">{t("props.fitContain")}</option>
-              <option value="cover">{t("props.fitCover")}</option>
-            </select>
-          )}
 
         {/* F7.6 — forma del led. */}
         {obj.type === "led" &&
@@ -3052,7 +3136,10 @@ export function ObjectProps({
         )}
       </CollapsibleSection>
 
-      <CollapsibleSection title={t("props.sectionData")} storageKey="dato" gruppo="dati">
+      {/* Il dato sta nel ramo del tipo (26-09-2026, maintainer: «per i bottoni non
+          trovo il menù in cui ci sia il tag da associare»): il tag di un bottone
+          stava in «Dati e collegamenti», lontano da modalità e valore da scrivere. */}
+      <CollapsibleSection title={t("props.sectionData")} storageKey="dato" gruppo="tipo">
         {/* Tag binding */}
         {!["navbutton","page_navigator","gauge","slider","checkbox","radio","led","progress_bar","trend","pipe","text_list","state_lamp","setpoint","xy_plot",
           // 2026-08-23: tipi dove obj.tag NON è il dato primario (serie/figli
@@ -4051,6 +4138,17 @@ export function ObjectProps({
           {/* Image (external URL) */}
           {obj.type === "image" && (
             <>
+              {/* Adattamento al box: accanto alla sorgente, nel ramo del tipo
+                  (26-09-2026; prima stava in «Aspetto»). */}
+              {field(t("props.imageFit"),
+                <select style={{ ...INPUT, cursor: "pointer" }}
+                  value={obj.image_fit ?? "stretch"}
+                  onChange={(e) => onChange({ image_fit: e.target.value === "stretch" ? undefined : (e.target.value as "contain" | "cover") })}>
+                  <option value="stretch">{t("props.fitStretch")}</option>
+                  <option value="contain">{t("props.fitContain")}</option>
+                  <option value="cover">{t("props.fitCover")}</option>
+                </select>
+              )}
               {field(t("props.imageUrl"),
                 <div style={{ display: "flex", gap: 4 }}>
                   <BindableInput obj={obj} propName="src" onChange={onChange}>
@@ -4730,7 +4828,8 @@ export function ObjectProps({
               )}
 
               {/* Fill level */}
-              <CollapsibleSection title={t("props.fluidFill")} storageKey="pipe-fill">
+              <>
+              <SottoTitolo chiave="fluidFill" />
                 {field(t("props.tagLevel"),
                   <TagInput
                     style={INPUT} placeholder={t("props.exLevel")}
@@ -4760,10 +4859,11 @@ export function ObjectProps({
                 </div>
                 {field(t("props.staticLevel"), numInput("fill_level", 0))}
                 {field(t("props.colorFluid"), <BindableInput obj={obj} propName="fill_color" onChange={onChange}>{colorInput("fill_color")}</BindableInput>)}
-              </CollapsibleSection>
+              </>
 
               {/* Markers */}
-              <CollapsibleSection title={t("props.endMarker")} storageKey="pipe-markers">
+              <>
+              <SottoTitolo chiave="endMarker" />
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
                   <div>
                     <div style={LABEL}>{t("props.markerStart")}</div>
@@ -4789,7 +4889,7 @@ export function ObjectProps({
                   </div>
                 </div>
                 {field(t("props.markerSize"), <BindableInput obj={obj} propName="marker_size" onChange={onChange}>{numInput("marker_size", 1)}</BindableInput>)}
-              </CollapsibleSection>
+              </>
 
               {/* State coloring */}
               <CollapsibleSection title={t("props.stateAndAlarm")} storageKey="pipe-state">
@@ -4811,7 +4911,8 @@ export function ObjectProps({
               </CollapsibleSection>
 
               {/* Label */}
-              <CollapsibleSection title={t("props.label")} storageKey="pipe-label">
+              <>
+              <SottoTitolo chiave="label" />
                 {field(t("props.text"), textInput("pipe_label", "es. P-101"))}
                 {field(t("props.tagValue"),
                   <TagInput style={INPUT} placeholder={t("props.exFlow")}
@@ -4831,10 +4932,11 @@ export function ObjectProps({
                   <TagInput style={INPUT} placeholder="es. pump1.flow (segno = direzione)" value={obj.pipe_flow_tag ?? ""}
                     onChange={(v) => onChange({ pipe_flow_tag: v || undefined })} />
                 )}
-              </CollapsibleSection>
+              </>
 
               {/* Connection anchoring */}
-              <CollapsibleSection title={t("props.snapObjects")} storageKey="pipe-anchor">
+              <>
+              <SottoTitolo chiave="snapObjects" />
                 <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 6px" }}>
                   {t("shell.whenSetTheFirstLast")}
                 </p>
@@ -4860,10 +4962,11 @@ export function ObjectProps({
                   <option value="left">{t("props.left")}</option>
                   <option value="right">{t("props.right")}</option>
                 </select>
-              </CollapsibleSection>
+              </>
 
               {/* Waypoints editor */}
-              <CollapsibleSection title={t("props.waypoint")} storageKey="pipe-points">
+              <>
+              <SottoTitolo chiave="waypoint" />
                 <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 4px" }}>
                   {t("shell.dragTheYellowPointsOn")}
                 </p>
@@ -4902,7 +5005,7 @@ export function ObjectProps({
                   }}>
                   {t("shell.addWaypoint")}
                 </button>
-              </CollapsibleSection>
+              </>
             </>
           )}
         </CollapsibleSection>
@@ -4958,8 +5061,9 @@ export function ObjectProps({
                 // crocini si trascinano sul canvas serve solo per correggere
                 // un punto digitando le cifre, e aperta occupava il pannello
                 // per una cosa che si fa di rado.
-                <CollapsibleSection title={t("props.motionCoordinates")} storageKey="motion-coord"
-                  hint={t("props.motionCoordinatesHint")}>
+                <>
+                <SottoTitolo chiave="motionCoordinates" />
+                <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 4px" }}>{t("props.motionCoordinatesHint")}</p>
                 <div style={{ marginBottom: 4 }}>
                   <div style={{ ...LABEL, display: "flex", alignItems: "center", gap: 6 }}>
                     {t("props.motionPathTable")}
@@ -5021,7 +5125,7 @@ export function ObjectProps({
                     onClick={() => setPts([...pts, { x: (pts[pts.length - 1]?.x ?? obj.x) + 50, y: pts[pts.length - 1]?.y ?? obj.y }])}
                   >+ {t("props.motionAddRow")}</button>
                 </div>
-                </CollapsibleSection>
+                </>
               );
             })()}
             <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "0 0 4px" }}>
@@ -5071,24 +5175,6 @@ export function ObjectProps({
               Flip verticale
             </label>
           </div>
-          {field(t("props.opacityRange"),
-            <BindableInput obj={obj} propName="opacity" onChange={onChange}>
-              <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                <input
-                  type="number"
-                  min={0} max={1} step={0.05}
-                  value={obj.opacity ?? 1}
-                  onChange={(e) => onChange({ opacity: Number(e.target.value) })}
-                  style={{ ...INPUT, flex: 1 }}
-                />
-                <button
-                  title={t("props.resetTo1")}
-                  onClick={() => onChange({ opacity: undefined })}
-                  style={{ ...INPUT, cursor: "pointer", padding: "3px 6px", width: 28 }}
-                >↺</button>
-              </div>
-            </BindableInput>
-          )}
           {field(t("props.transitionMs"),
             <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
               <input
@@ -5326,7 +5412,15 @@ export function ObjectProps({
           <TagInput style={INPUT} placeholder="es. plant.warning" value={obj.blink_tag ?? ""}
             onChange={(v) => onChange({ blink_tag: v || undefined })} />
         )}
+        {obj.blink_mode && field(t("props.blinkStyle"),
+          <select style={{ ...INPUT, cursor: "pointer" }} value={obj.blink_style ?? "step"}
+            onChange={(e) => onChange({ blink_style: e.target.value === "fade" ? "fade" : undefined })}>
+            <option value="step">{t("props.blinkStep")}</option>
+            <option value="fade">{t("props.blinkFade")}</option>
+          </select>
+        )}
         {obj.blink_mode && field(t("props.blinkRate"), numInput("blink_rate_ms", 800))}
+        {obj.blink_mode && obj.blink_style === "fade" && field(t("props.blinkFadeDepth"), numInput("blink_fade_depth", -60))}
       </CollapsibleSection>
 
       {/* ── Binding attivi (audit) — always shown with count ──────────── */}

@@ -290,6 +290,18 @@ pub async fn restart_sender(
     // con "channel not configured", che non è il problema reale.
     let telegram = telegram.filter(|t| !t.bot_token.trim().is_empty());
     let mut guard = s.telegram_sender.write().await;
+    // Un'istanza IDE non manda messaggi (26-09-2026, maintainer: «la modalità
+    // IDE avvia tutte le notifiche tipo Telegram»). Aprendo CasaDomotica
+    // nell'editor partiva un messaggio vero sulla chat dell'impianto. Nessun
+    // canale: le notifiche e il `send_telegram` degli script restano muti. Il
+    // pulsante «prova» della configurazione ha la sua strada ed è un gesto
+    // esplicito, quindi resta.
+    if s.ide_only {
+        if let Some(existing) = guard.as_ref() {
+            existing.set_config(None).await;
+        }
+        return None;
+    }
     if let Some(existing) = guard.as_ref() {
         existing.set_config(telegram).await;
         existing.set_lingua(lingua.0, lingua.1).await;

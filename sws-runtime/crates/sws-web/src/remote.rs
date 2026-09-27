@@ -770,6 +770,60 @@ pub async fn remote_download_database(
     }
 }
 
+/// `POST /api/remote/database/:id/clean-history` — come la pulizia locale,
+/// sul dispositivo connesso (proxy: il browser non parla mai col device).
+/// Serve un dispositivo col runtime del 26-09-2026 o successivo: prima
+/// l'endpoint lì non esiste e la risposta lo dice.
+pub async fn remote_pulisci_storico(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Path(id): Path<String>,
+    Json(body): Json<serde_json::Value>,
+) -> Response {
+    let target = match s.remote_target.read().await.clone() {
+        Some(t) => t,
+        None => return (StatusCode::BAD_REQUEST, "No remote runtime connected").into_response(),
+    };
+    s.audit.log(
+        "remote.pulisci_storico",
+        Some(user.username),
+        serde_json::json!({ "url": target.url, "id": id, "corpo": body.clone() }),
+    );
+    let client = make_remote_client(&s, &target.url);
+    let base = target.url.trim_end_matches('/');
+    let mut req = client
+        .post(format!("{base}/api/datastores/{}/clean-history", pct_encode(&id)))
+        .json(&body);
+    if !target.token.is_empty() {
+        req = req.header("Authorization", format!("Bearer {}", target.token));
+    }
+    match req.send().await {
+        Ok(r) if r.status().is_success() => {
+            let corpo: serde_json::Value = r.json().await.unwrap_or_default();
+            (StatusCode::OK, Json(corpo)).into_response()
+        }
+        Ok(r) if r.status() == StatusCode::NOT_FOUND || r.status() == StatusCode::METHOD_NOT_ALLOWED => (
+            StatusCode::BAD_GATEWAY,
+            "Il dispositivo non conosce la pulizia dello storico: aggiorna il suo runtime (2.12.0-dev.2 o successivo)."
+                .to_string(),
+        )
+            .into_response(),
+        Ok(r) if r.status() == StatusCode::UNAUTHORIZED || r.status() == StatusCode::FORBIDDEN => (
+            StatusCode::BAD_GATEWAY,
+            "Il dispositivo ha rifiutato la richiesta (non autorizzato). Riconnettiti con \
+             credenziali admin e riprova."
+                .to_string(),
+        )
+            .into_response(),
+        Ok(r) => {
+            let code = r.status();
+            let testo = r.text().await.unwrap_or_default();
+            (StatusCode::BAD_GATEWAY, format!("Il dispositivo ha risposto {code}: {testo}")).into_response()
+        }
+        Err(e) => (StatusCode::BAD_GATEWAY, format!("Richiesta al dispositivo fallita: {e}")).into_response(),
+    }
+}
+
 /// `POST /api/remote/database/:id/upload` — sostituisce il database del
 /// datastore indicato **sul dispositivo connesso**. Inoltra il corpo grezzo
 /// così com'è (già un file SQLite valido, prodotto da un download precedente
@@ -1345,6 +1399,13 @@ pub struct DeployBody {
     /// password» e l'utente ha detto sì. Senza, il caso si ferma con un 428.
     #[serde(default)]
     pub confirm_no_users: bool,
+    /// Porta anche `secrets.yaml`? **Acceso di default**, per i client di prima.
+    /// Il deploy «del progetto» dell'IDE (pulsante e salvataggio) lo spegne dal
+    /// 26-09-2026 (maintainer: utenti e segreti sono un gesto distinto dal
+    /// deploy): il dispositivo tiene allora i suoi, perché il deploy
+    /// conservativo toglie solo i file di disegno (`DESIGN_ARTIFACTS`).
+    #[serde(default = "vero")]
+    pub con_segreti: bool,
 }
 
 fn vero() -> bool {
@@ -1356,6 +1417,7 @@ impl Default for DeployBody {
         Self {
             replace_users: true,
             confirm_no_users: false,
+            con_segreti: true,
         }
     }
 }
@@ -1480,7 +1542,7 @@ pub async fn remote_deploy(
         };
 
         send("Esportazione progetto locale…");
-        let zip = match crate::router::build_project_zip(&proj_dir, target_legge_i_segreti).await {
+        let zip = match crate::router::build_project_zip(&proj_dir, target_legge_i_segreti && opz.con_segreti).await {
             Ok(z) => z,
             Err(e) => {
                 send(&format!("✗ {e}"));
@@ -1496,7 +1558,10 @@ pub async fn remote_deploy(
         // Passo 2 riceveva `secrets.yaml`, non lo leggeva, e le notifiche si
         // spegnevano senza che niente lo dicesse — mentre il token restava sul
         // suo disco in chiaro. Ora il file non parte e il motivo si legge qui.
-        if quanti_segreti > 0 && !target_legge_i_segreti {
+        if !opz.con_segreti && quanti_segreti > 0 {
+            send("Segreti non inviati: il dispositivo tiene i suoi (per aggiornarli, «Utenti e segreti»).");
+        }
+        if opz.con_segreti && quanti_segreti > 0 && !target_legge_i_segreti {
             send(&format!(
                 "⚠ Il dispositivo non sa leggere `secrets.yaml`: {quanti_segreti} credenziali del \
                  progetto NON viaggiano, e ciò che le usa (notifiche, broker, database) resterà \
@@ -1861,6 +1926,18 @@ mod tests {
     /// `replace_users` deve esserci in **tutte** le forme dell'URL, compreso il
     /// ritentativo dopo un 409, che non ha `deploy=true`: è il punto in cui
     /// storicamente si perdeva un parametro.
+    /// `con_segreti` assente vale **acceso**: un client di prima del 26-09-2026
+    /// (o una chiamata senza corpo) continua a portare i segreti.
+    #[test]
+    fn deploy_body_porta_i_segreti_salvo_richiesta() {
+        let vecchio: DeployBody = serde_json::from_str("{}").unwrap();
+        assert!(vecchio.con_segreti && vecchio.replace_users);
+        let progetto: DeployBody =
+            serde_json::from_str(r#"{"replace_users":false,"con_segreti":false}"#).unwrap();
+        assert!(!progetto.con_segreti && !progetto.replace_users);
+        assert!(DeployBody::default().con_segreti);
+    }
+
     #[test]
     fn l_url_di_upload_porta_sempre_replace_users() {
         let a = url_upload("http://d:8444", Some("impianto"), true, true);

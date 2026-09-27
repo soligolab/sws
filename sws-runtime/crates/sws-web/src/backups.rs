@@ -56,7 +56,7 @@ pub fn bak_dir(project_dir: &Path) -> PathBuf {
     project_dir.join("backups")
 }
 
-fn timestamp_name() -> String {
+pub(crate) fn timestamp_name() -> String {
     let now = OffsetDateTime::now_utc();
     // Filesystem-safe ISO 8601: colons in time → dashes. Keep the trailing
     // `Z` so the format is still recognisable as UTC ISO 8601.

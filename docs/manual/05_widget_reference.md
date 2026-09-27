@@ -44,6 +44,40 @@ Segmento con punto iniziale e finale separati.
 
 ---
 
+### Polilinea (`polyline`)
+
+Spezzata di quanti punti si vuole, aperta o chiusa. Si disegna **a clic**: dalla palette si entra in
+modalità disegno, ogni clic aggiunge un punto, doppio clic o Invio finisce, Esc annulla. Sul canvas i punti
+si trascinano; un clic su un segmento offre «Dividi qui» e «Aggiungi in coda»; Canc toglie il punto scelto
+(mai sotto i due).
+
+| Proprietà | Descrizione |
+|-----------|-------------|
+| `points` | I punti, in coordinate pagina (`[{x, y}, …]`, almeno due) |
+| `closed` | Chiusa: l'ultimo punto torna al primo, e si può riempire |
+| `fill` | Riempimento, solo da chiusa |
+| `stroke`, `stroke_width`, `stroke_dasharray` | Tratto |
+
+---
+
+### Poligono (`polygon`)
+
+Poligono regolare (3…24 lati) o stella, inscritto nel suo riquadro. La rotazione e lo specchio stanno nei
+vertici, quindi valgono uguali sul web e sul pannello LVGL.
+
+| Proprietà | Descrizione |
+|-----------|-------------|
+| `sides` | Numero di lati, 3…24 (default 6) |
+| `star` | Stella: i vertici raddoppiano, alternati fra esterno e interno |
+| `star_inner` | Raggio interno della stella, in % (default 50) |
+| `fill`, `stroke`, `stroke_width`, `stroke_dasharray` | Come il rettangolo |
+| `rotation`, `flip_h`, `flip_v` | Rotazione e specchio |
+
+Su LVGL polilinea e poligono si disegnano come un SVG rasterizzato (resvg): stesse forme, bordi e tratteggi
+del browser, anche quando sono concavi.
+
+---
+
 ### Testo (`text`)
 
 Etichetta statica o dinamica.

@@ -205,6 +205,31 @@ else
 fi
 
 echo
+echo "=== 6b. il deploy «del progetto» non porta i segreti: il dispositivo tiene i suoi ==="
+# 26-09-2026: «Invia ora» e il deploy al salvataggio mandano il progetto senza
+# utenti né segreti (`con_segreti: false`); utenti e segreti hanno il loro
+# pulsante. Qui il segreto locale cambia, e il dispositivo deve tenere il suo.
+curl -s -X PUT "$S/project/notifications" -H 'Content-Type: application/json' \
+  -d "{\"telegram\":{\"bot_token\":\"$TOKEN-NUOVO\",\"chat_ids\":[\"-100999\"]}}" -o /dev/null
+curl -s -N -X POST "$S/remote/deploy" -H 'Content-Type: application/json' \
+  -d '{"replace_users":false,"con_segreti":false}' > "$SCR/deploy-senza.out" 2>&1
+if grep -q "$TOKEN-NUOVO" "$TGT_SEC" 2>/dev/null; then
+  ko "il deploy senza segreti ha portato il token nuovo sul dispositivo"
+elif grep -q "$TOKEN" "$TGT_SEC" 2>/dev/null; then
+  ok "il dispositivo ha tenuto il suo token"
+else
+  ko "il dispositivo ha perso il suo token"
+fi
+grep -q "Segreti non inviati" "$SCR/deploy-senza.out" \
+  && ok "il registro del deploy lo dice" \
+  || ko "il registro non dice che i segreti non sono partiti"
+# E il deploy completo li porta (default di `con_segreti`).
+curl -s -N -X POST "$S/remote/deploy" > "$SCR/deploy-con.out" 2>&1
+grep -q "$TOKEN-NUOVO" "$TGT_SEC" 2>/dev/null \
+  && ok "il deploy completo porta il token nuovo" \
+  || ko "il deploy completo non ha portato il token nuovo"
+
+echo
 echo "=== 7. un deploy senza segreti non svuota il dispositivo ==="
 # Il caso dichiarato nel piano: «se lo zip non lo porta, il dispositivo tiene
 # il suo». Succede davvero quando si ridistribuisce un progetto da una

@@ -243,7 +243,7 @@ export function objectBBox(obj: GeomObj): BBox {
     const ly2 = Math.max(obj.y ?? 0, obj.y2 ?? obj.y ?? 0);
     return { x1: lx1, y1: ly1, x2: lx2, y2: ly2 };
   }
-  if (obj.type === "pipe" && obj.points && obj.points.length >= 1) {
+  if ((obj.type === "pipe" || obj.type === "polyline") && obj.points && obj.points.length >= 1) {
     const xs = obj.points.map((p) => p.x);
     const ys = obj.points.map((p) => p.y);
     return { x1: Math.min(...xs), y1: Math.min(...ys), x2: Math.max(...xs), y2: Math.max(...ys) };
@@ -341,7 +341,7 @@ export function translateObject(obj: GeomObj, dx: number, dy: number): Partial<S
     patch.x2 = (obj.x2 ?? (obj.x ?? 0) + 100) + dx;
     patch.y2 = (obj.y2 ?? obj.y ?? 0) + dy;
   }
-  if (obj.type === "pipe" && obj.points && obj.points.length >= 1) {
+  if ((obj.type === "pipe" || obj.type === "polyline") && obj.points && obj.points.length >= 1) {
     patch.points = obj.points.map((p) => ({ ...p, x: p.x + dx, y: p.y + dy }));
     // Come fa il trascinamento: `x`/`y` di una pipe seguono il primo waypoint,
     // o le due misure divergono e il pannello proprietà mostra un punto in cui

@@ -132,6 +132,13 @@ pub struct SynopticObject {
     pub blink_tag: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub blink_rate_ms: Option<f64>,
+    /// Come lampeggia: "step" acceso/spento (default) o "fade", la luminosità
+    /// che respira fino a `blink_fade_depth`. Stesse condizioni di `blink_mode`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub blink_style: Option<String>,
+    /// Fondo del respiro del lampeggio sfumato, −100…0 % (default −60).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub blink_fade_depth: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub show_alarm_state: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -462,6 +469,10 @@ pub struct SynopticObject {
     /// Opacity 0..1 (default 1).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub opacity: Option<f64>,
+    /// Luminosità −100…+100 % (default 0): negativa verso il nero, positiva
+    /// verso il bianco, su tutto l'oggetto. Legabile con `bindings.brightness`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub brightness: Option<f64>,
     /// Optional CSS transition duration (ms) for CSS-animatable bound props
     /// (fill / stroke / opacity / transform). 0 or absent → no animation.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -561,7 +572,20 @@ pub struct SynopticObject {
     pub spark_fill_opacity: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub spark_show_last: Option<bool>,
+    /// Polilinea: chiusa (l'ultimo punto torna al primo, e si può riempire).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub closed: Option<bool>,
+    /// Poligono: numero di lati, 3…24 (default 6).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sides: Option<f64>,
+    /// Poligono: stella, vertici alternati fra raggio pieno e `star_inner`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub star: Option<bool>,
+    /// Poligono a stella: raggio interno in % (default 50).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub star_inner: Option<f64>,
     // Pipe / connector (type === "pipe") — same pre-existing gap.
+    // Anche i punti della polilinea (`polyline`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub points: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
