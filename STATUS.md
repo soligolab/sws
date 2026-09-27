@@ -74,7 +74,29 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — immagine di boot su `main`, dev.5 sul TC620; prossimo: utenti e aziende (2026-09-27, sera)
+## ▶ Riprendere da qui — aggiornamento del runtime, Fase 1 scritta sul ramo `feat/aggiornamento-runtime-f1`, collaudo fermo al login di ghcr.io (2026-09-27, notte)
+
+**Un ramo aperto, `feat/aggiornamento-runtime-f1`, niente pushato.** Piano
+[aggiornamento runtime e bus utente](docs/plans/2026-09-27-aggiornamento-runtime-e-bus-utente.md) (decisioni 30-40;
+prerequisito del piano utenti e aziende). Prova del bus utente dal container sul TC620: **regge** (serve `keep-id`).
+Fase 1 scritta e verde (cargo, 423 test web, 926 vitest, 26 guardie): quadlet con `AutoUpdate=registry`,
+`Notify=healthy`, bus utente e `SWS_IMAGE`; runtime `aggiornamento.rs` + `/api/update/{status,apply}` (anche sulla
+porta di gestione); sezione «Aggiornamento del runtime» nella scheda Connessione; `--push` sposta `rc-<arch>` /
+`latest-<arch>`; **le immagini di prova si chiamano `-rc`** (HOWTO §19). Versione sul ramo: **2.12.0-rc.1**
+(immagine costruita in locale, non pubblicata).
+
+**Il collaudo si è fermato al punto 2: su questa macchina non ci sono credenziali per ghcr.io.** Da riprendere così:
+1. il maintainer fa `podman login ghcr.io -u <utente>` (token classic con `write:packages`);
+2. `build_container.sh --push` della rc.1 → `rc-arm64`; TC620 reinstallato **dal registry**:
+   `install-container.sh --pull ghcr.io/soligolab/sws-runtime:rc-arm64`;
+3. rc.2 pubblicata → la scheda dice «disponibile» → «Aggiorna ora» → il pannello torna su in rc.2;
+4. rc.3 **rotta apposta** sullo stesso canale → il pannello deve tornare alla rc.2 da solo; poi subito una rc.4 buona
+   (autorizzato dal maintainer: «prova a vedere se arrivi fino al punto 4»).
+
+Il TC620 gira ancora la **dev.5** (da archivio). Tag mancanti: `2.12.0-dev.3/4/5` (sui commit di `main`), da creare
+col push quando il maintainer lo chiede.
+
+## Riprendere da qui (precedente) — immagine di boot su `main`, dev.5 sul TC620 (2026-09-27, sera)
 
 **Su `main`, niente pushato, nessun ramo aperto.** `feat/boot-image-dbus` collaudato dal maintainer («ok, funziona
 tutto») e squashato; piano e due semi in archivio. Il TC620 gira la **2.12.0-dev.5**; CODESYS con
