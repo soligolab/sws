@@ -446,11 +446,11 @@ fi
 # I quattro file che dichiarano la versione. Un disallineamento qui è il difetto
 # che la 2.3.4 ha già dovuto correggere una volta (un Cargo.lock che continuava
 # a dire 2.1.0), e non si vede da nessun'altra parte.
-VERS="$( { grep -m1 -oE '^version = "[0-9.]+"' "$REPO/sws-runtime/Cargo.toml";
-           grep -m1 -oE '"version": "[0-9.]+"'  "$REPO/sws-editor/package.json";
-           grep -m1 -oE '^version = "[0-9.]+"' "$REPO/sws-runtime/crates/sws-kiosk/Cargo.toml";
-           grep -m1 -oE '^version = "[0-9.]+"' "$REPO/sws-runtime/crates/sws-lvgl-viewer/Cargo.toml";
-         } 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | sort -u )"
+VERS="$( { grep -m1 -oE '^version = "[0-9.]+(-[a-z]+\.[0-9]+)?"' "$REPO/sws-runtime/Cargo.toml";
+           grep -m1 -oE '"version": "[0-9.]+(-[a-z]+\.[0-9]+)?"'  "$REPO/sws-editor/package.json";
+           grep -m1 -oE '^version = "[0-9.]+(-[a-z]+\.[0-9]+)?"' "$REPO/sws-runtime/crates/sws-kiosk/Cargo.toml";
+           grep -m1 -oE '^version = "[0-9.]+(-[a-z]+\.[0-9]+)?"' "$REPO/sws-runtime/crates/sws-lvgl-viewer/Cargo.toml";
+         } 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+(-[a-z]+\.[0-9]+)?' | sort -u )"
 N_VERS="$(printf '%s\n' "$VERS" | grep -c .)"
 if [ "$N_VERS" -eq 1 ]; then
   ok "versione dichiarata: ${VERS} (coerente nei quattro file)"
