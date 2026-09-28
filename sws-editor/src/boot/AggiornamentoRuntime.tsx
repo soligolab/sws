@@ -63,6 +63,38 @@ export function AggiornamentoRuntime() {
         {t("aggiornamento.titolo")}
       </div>
       <span style={{ fontSize: 12, color: tono }}>{riga}</span>
+
+      {/* Cosa cambia, prima di premere (decisione 42). Le versioni sono in
+          ordine, dalla più vecchia alla più nuova: saltandone alcune si
+          leggono anche quelle in mezzo, che è il punto. Gli avvisi di
+          compatibilità stanno in cima a ogni versione e in rosso — sono
+          l'unica parte per cui vale la pena fermarsi. */}
+      {!avviato && !errore && (stato?.novita?.length ?? 0) > 0 && (
+        <div style={{ marginTop: 8, borderLeft: "2px solid var(--brand-surface-2, #334155)", paddingLeft: 8 }}>
+          {stato!.novita!.map((n) => (
+            <div key={n.versione} style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--brand-text-2, #cbd5e1)" }}>
+                {n.versione}
+              </div>
+              {n.compatibilita && (
+                <div style={{
+                  fontSize: 11, color: "var(--brand-danger-soft, #f87171)",
+                  whiteSpace: "pre-wrap", margin: "2px 0 4px",
+                }}>
+                  ⚠ {n.compatibilita}
+                </div>
+              )}
+              <div style={{
+                fontSize: 11, color: "var(--brand-text-muted, #94a3b8)",
+                whiteSpace: "pre-wrap", maxHeight: 180, overflowY: "auto",
+              }}>
+                {n.testo}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {stato?.disponibile && !avviato && !errore && (
         <div style={{ marginTop: 8 }}>
           <button type="button" onClick={aggiorna} disabled={inCorso}>

@@ -278,9 +278,22 @@ cp -r "$SPA_DIST/." "$CTX/www/"
 # --format docker is required, not cosmetic: HEALTHCHECK has no place in the
 # OCI image spec, so with the default (oci) podman drops it with a warning and
 # `podman ps` would never report healthy.
+# Il changelog viaggia **dentro** l'immagine (decisione 42, 28-09-2026): prima
+# di aggiornare un pannello si vuole leggere cosa cambia, e il runtime lo legge
+# dal registry come etichetta — pochi KB, nessun pull dell'immagine. Gli avvisi
+# di compatibilità stanno in un'etichetta a parte perché sono ciò che non si
+# deve perdere saltando versioni (decisione 43).
+NOTE="$(python3 "$REPO/scripts/changelog_sezione.py" "$VERSION" "$REPO/CHANGELOG.md" || true)"
+COMPAT="$(python3 "$REPO/scripts/changelog_sezione.py" "$VERSION" --compat "$REPO/CHANGELOG.md" || true)"
+if [ -z "$NOTE" ]; then
+    echo "    avviso: nel CHANGELOG non c'è una sezione per $VERSION — l'immagine non porterà le novità" >&2
+fi
+
 echo "==> [3/4] podman build --platform linux/arm64 -t $IMAGE"
 podman build --platform linux/arm64 --format docker \
     --build-arg "WITH_LVGL=$WITH_LVGL" \
+    --build-arg "SWS_CHANGELOG=$NOTE" \
+    --build-arg "SWS_COMPAT=$COMPAT" \
     -t "$IMAGE" \
     -f "$REPO/deploy/container/Containerfile.aarch64" \
     "$CTX"

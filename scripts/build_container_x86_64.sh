@@ -212,8 +212,14 @@ cp -r "$SPA_DIST/." "$CTX/www/"
 # ── 3. Build the image ────────────────────────────────────────────────────────
 # --format docker è indispensabile, non cosmetico: HEALTHCHECK non esiste nella
 # spec OCI, senza --format docker podman lo scarta con un warning silenzioso.
+# Le novità viaggiano dentro l'immagine (decisione 42): vedi build_container.sh.
+NOTE="$(python3 "$REPO/scripts/changelog_sezione.py" "$VERSION" "$REPO/CHANGELOG.md" || true)"
+COMPAT="$(python3 "$REPO/scripts/changelog_sezione.py" "$VERSION" --compat "$REPO/CHANGELOG.md" || true)"
+
 echo "==> [3/4] podman build --platform linux/amd64 -t $IMAGE"
 podman build --platform linux/amd64 --format docker \
+    --build-arg "SWS_CHANGELOG=$NOTE" \
+    --build-arg "SWS_COMPAT=$COMPAT" \
     -t "$IMAGE" \
     -f "$REPO/deploy/container/Containerfile.x86_64" \
     "$CTX"

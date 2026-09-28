@@ -89,9 +89,14 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
 # cache di tutto ciò che segue. Qui il layer apt è nativo e non emulato, quindi
 # costa secondi e non minuti, ma la regola resta la stessa del percorso
 # aarch64, dove è già costata 15 minuti di build.
+# Le novità viaggiano con l'immagine (decisione 42): vedi il gemello aarch64.
+ARG SWS_CHANGELOG=""
+ARG SWS_COMPAT=""
 LABEL org.opencontainers.image.source="https://github.com/soligolab/sws" \
       org.opencontainers.image.description="SWS runtime (x86_64) — viewer 8443, IDE/admin 8444, SPA inclusa. Montare i dati su /var/sws/{config,projects,logs}." \
-      org.opencontainers.image.licenses="AGPL-3.0-only"
+      org.opencontainers.image.licenses="AGPL-3.0-only" \
+      net.soligo.sws.changelog="$SWS_CHANGELOG" \
+      net.soligo.sws.compat="$SWS_COMPAT"
 
 ENTRYPOINT ["/usr/local/bin/sws-runtime"]
 # ── L'IDE sul dispositivo e' un caso particolare, non il default ────────────

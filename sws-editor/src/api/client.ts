@@ -296,6 +296,18 @@ export interface StatoAggiornamento {
   canale: "stabile" | "prova" | "fissata" | "archivio" | "sconosciuto";
   disponibile: string | null;
   errore: string | null;
+  /** Cosa cambia, letto dalle etichette delle immagini da attraversare: una
+   *  voce per versione, dalla più vecchia alla più nuova. Assente su un
+   *  dispositivo con immagini costruite prima della decisione 42. */
+  novita?: NovitaVersione[];
+}
+
+/** Gemello di `aggiornamento::NovitaVersione`. */
+export interface NovitaVersione {
+  versione: string;
+  testo: string;
+  /** Gli avvisi di compatibilità, che vanno in cima e chiedono attenzione. */
+  compatibilita?: string;
 }
 
 export interface BootImageStato {

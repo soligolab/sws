@@ -145,9 +145,22 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
 # testa invalida la cache di tutto ciò che segue, quindi il layer apt (~60 MB,
 # costruito sotto emulazione QEMU) verrebbe rifatto da zero a ogni ritocco dei
 # metadati. Provato: 10 minuti solo per arrivare a configurare python3.12.
+# Le novità di questa versione viaggiano con l'immagine (decisione 42,
+# 28-09-2026): il runtime le legge dal registry **senza scaricare l'immagine**
+# — le etichette stanno nel config blob, pochi KB — e le mostra prima di
+# aggiornare un pannello. Gli avvisi di compatibilità stanno in un'etichetta
+# loro: sono quelli da non perdere quando si saltano più versioni, e annegati
+# nel resto si perderebbero.
+#
+# Qui in fondo insieme alle altre, per la stessa ragione di cache spiegata
+# sopra: cambiano a ogni build, e in testa rifarebbero il layer apt.
+ARG SWS_CHANGELOG=""
+ARG SWS_COMPAT=""
 LABEL org.opencontainers.image.source="https://github.com/soligolab/sws" \
       org.opencontainers.image.description="SWS runtime (aarch64) — viewer 8443, IDE/admin 8444, SPA inclusa. Montare i dati su /var/sws/{config,projects,logs}." \
-      org.opencontainers.image.licenses="AGPL-3.0-only"
+      org.opencontainers.image.licenses="AGPL-3.0-only" \
+      net.soligo.sws.changelog="$SWS_CHANGELOG" \
+      net.soligo.sws.compat="$SWS_COMPAT"
 
 ENTRYPOINT ["/usr/local/bin/sws-runtime"]
 # ── L'IDE sul dispositivo e' un caso particolare, non il default ────────────
