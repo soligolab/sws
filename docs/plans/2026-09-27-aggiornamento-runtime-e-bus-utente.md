@@ -95,6 +95,7 @@ Sul TC620 (dev.5), con un container usa-e-getta della stessa immagine e un clien
 39. **Canale e finestra sono del dispositivo**, impostati dalla scheda Connessione e salvati nella config del runtime:
     un deploy non li cambia.
 40. **Fasi: 1 «Aggiorna ora» → 2 finestra programmata → 3 avviso di rollback → 4 commutazione del display via bus.**
+    (Il 28-09 si aggiunge la Fase 1b, avviso sul pannello e changelog: decisioni 41-44.)
 
 ## Misurato per il disegno (27-09, sera)
 
@@ -123,6 +124,28 @@ Sul TC620 (dev.5), con un container usa-e-getta della stessa immagine e un clien
 
 Collaudo sul TC620: reinstallarlo **dal registry** sul canale prova, pubblicare una `-rc` più nuova, «Aggiorna ora»,
 verificare versione nuova e *healthy*; poi un'immagine rotta apposta per vedere il rollback.
+
+## Avviso sul pannello e changelog (28-09-2026)
+
+Proposta del maintainer: «Se esistono degli utenti definiti ok per il meccanismo su Admin. Se non ci sono utenti
+tipicamente è una installazione di prova […] vorrei poter vedere un avviso di aggiornamento disponibile quando il
+runtime parte o viene riavviato […] mi basta premere un tasto. Sarebbe anche utile, prima, poter vedere un changelog
+[…] e se ci sono dei warning di compatibilità importanti, questo vale per tutte le modalità.»
+
+41. **Senza utenti, l'avviso compare sullo schermo del pannello, in web e in LVGL**: all'avvio o al riavvio il
+    runtime controlla il canale, e se c'è una versione nuova il pannello mostra «Novità / Aggiorna / Più tardi /
+    Ignora questa versione». Senza utenti chiunque è già Admin, quindi il pulsante non apre niente di nuovo. Con
+    utenti definiti l'avviso sul pannello non c'è: resta il percorso dell'Admin dall'IDE.
+42. **Il changelog viaggia dentro l'immagine come etichetta**: alla build, la sezione di CHANGELOG della versione (per
+    una `-rc`, `[Unreleased]`) e, a parte, i suoi avvisi di compatibilità. Il runtime le legge dal registry con la
+    stessa chiamata anonima dei tag — pochi KB, niente pull — e per un salto di più versioni legge l'etichetta di
+    **ogni** versione intermedia del canale, perché gli avvisi di una versione saltata sono quelli da non perdere.
+43. **Gli avvisi di compatibilità si scrivono in una sottosezione `### ⚠ Compatibilità`** della versione, nel
+    CHANGELOG. La finestra li mette in cima e chiede una conferma in più. Una guardia ne controlla il formato.
+44. **«Più tardi» e «Ignora questa versione»**: il primo nasconde l'avviso fino al prossimo avvio, il secondo finché
+    non esce una versione ancora più nuova.
+
+Queste entrano come **Fase 1b**, dopo il collaudo della Fase 1 e prima della finestra programmata.
 
 ## Visto il 27-09, da non dimenticare
 
