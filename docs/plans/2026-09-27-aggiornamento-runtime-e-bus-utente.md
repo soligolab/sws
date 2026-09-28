@@ -207,6 +207,14 @@ UTC. **Disegno:**
   runtime» mostra l'orologio del pannello, «Programma…», l'approvazione in corso con «Annulla», e il pilota automatico.
   Gli avvisi di compatibilità chiedono la seconda conferma anche quando si programma.
 
+### Questione aperta, emersa il 28-09: il quadlet non viaggia con l'aggiornamento
+
+`podman auto-update` sostituisce l'**immagine**; il quadlet sul pannello resta quello scritto dall'installer. Una riga
+nuova — `Timezone=local` della Fase 2, domani altro — arriva su un dispositivo solo reinstallandolo. Finché non si
+decide come, ogni rc che cambia il quadlet lo deve dire nella sua sottosezione `### ⚠ Compatibilità`, e il runtime
+dovrebbe accorgersi di girare con un quadlet vecchio (per esempio `SWS_QUADLET_VERSIONE` scritta dall'installer). Da
+decidere con il maintainer: è un seme, non una scelta.
+
 ## Visto il 27-09, da non dimenticare
 
 - Sui pannelli con CODESYS, `allow_url_override = true` fa vincere CODESYS sul browser all'avvio
