@@ -248,6 +248,20 @@ nuova che parte e poi non diventa *healthy* viene rimpiazzata dal rollback prima
 di qualche decina di secondi, l'esito è «non riuscito». Un `in_corso` a cui non segue nessun riavvio (niente di nuovo da
 installare) si chiude da sé dopo qualche minuto, senza esito.
 
+### Le Novità per chi usa il pannello, separate dal CHANGELOG (28-09, sera)
+
+Il maintainer, vedendo l'avviso sul pannello: «Dobbiamo rivedere il Changelog perché è troppo dettagliato e diventa
+illeggibile. Oltretutto gestirei anche la versione in inglese». Il `CHANGELOG.md` è per chi sviluppa; dall'immagine esce un
+testo diverso.
+
+55. **Un file `NOVITA.yaml`**: per ogni versione un elenco di voci brevi, ognuna con testo **italiano e inglese**, e gli
+    avvisi di compatibilità a parte, anche loro nelle due lingue. Una guardia controlla le due lingue e la lunghezza.
+56. **Per le `-rc` le Novità sono tutto ciò che arriverà nella release**, in forma breve (conferma la decisione 45, ma non più
+    col testo del CHANGELOG).
+57. **Il pannello e l'IDE le mostrano nella lingua dell'interfaccia**; se una voce manca in quella lingua, l'altra.
+58. **Le scrive Claude con ogni modifica visibile**, come il CHANGELOG; il maintainer le rivede al collaudo. Le voci della
+    2.12 fin qui le riassume Claude una volta.
+
 ### Questione aperta, emersa il 28-09: il quadlet non viaggia con l'aggiornamento
 
 `podman auto-update` sostituisce l'**immagine**; il quadlet sul pannello resta quello scritto dall'installer. Una riga
