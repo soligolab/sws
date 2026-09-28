@@ -126,6 +126,10 @@ pub fn migliore_nel_canale(tags: &[String], canale: &Canale, arch: &str) -> Opti
     tags.iter()
         .filter_map(|t| t.strip_suffix(&suffisso))
         .filter_map(Versione::leggi)
+        // La vecchia numerazione a calendario (`2026.7.0`, fino a luglio 2026)
+        // è ancora nel registry e in semver batterebbe ogni `2.x`: il TC620, il
+        // 28-09, dava «disponibile: 2026.7.0» a una 2.12.0-rc.1.
+        .filter(|v| v.numeri.0 < 1000)
         .filter(|v| match (&v.pre, canale) {
             (None, Canale::Stabile | Canale::Prova) => true,
             (Some((p, _)), Canale::Prova) => p == "rc",
@@ -298,6 +302,10 @@ mod tests {
         // La prova vede le rc, non le vecchie dev.
         assert_eq!(migliore_nel_canale(&tags, &Canale::Prova, "arm64"), Some(v("2.12.0-rc.2")));
         assert_eq!(migliore_nel_canale(&tags, &Canale::Archivio, "arm64"), None);
+        // La numerazione a calendario di luglio non è «più nuova».
+        let con_calendario: Vec<String> =
+            tags.iter().cloned().chain(["2026.7.0-arm64".to_string()]).collect();
+        assert_eq!(migliore_nel_canale(&con_calendario, &Canale::Stabile, "arm64"), Some(v("2.11.0")));
         // L'architettura conta: niente amd64 per un pannello arm64.
         assert_eq!(migliore_nel_canale(&tags, &Canale::Stabile, "amd64"), None);
     }
