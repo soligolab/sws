@@ -207,6 +207,26 @@ UTC. **Disegno:**
   runtime» mostra l'orologio del pannello, «Programma…», l'approvazione in corso con «Annulla», e il pilota automatico.
   Gli avvisi di compatibilità chiedono la seconda conferma anche quando si programma.
 
+### Collaudo della Fase 2 sul TC620 (28-09, sera)
+
+- rc.5 → rc.6 con «Aggiorna ora»; con la rc.6 sul pannello la finestra risponde, l'orologio del pannello è in **UTC** (il
+  quadlet del TC620 non ha `Timezone=local`: vedi la questione qui sotto).
+- **Il pilota automatico ha aggiornato da solo** rc.6 → rc.7 alle 19:45 del pannello, *healthy* in ~90 s, `ultimo_esito`
+  scritto.
+- **Visto dal maintainer**: ha scelto «21:41» intendendo la sua ora; il pannello era in UTC (19:40), quindi sarebbe scattato
+  alle 23:41 sue. L'orologio doppio c'era, ma col pannello in UTC le due ore coincidono e il campo non dice di che fuso è.
+- **Difetto**: il task della finestra rilegge la programmazione solo quando si sveglia (fino a un'ora): un cambio appena
+  salvato poteva scattare in ritardo. Per il collaudo si è riavviato il runtime.
+- **Difetto (Fase 1b)**: l'avviso a schermo non poteva comparire — leggeva `progettoHaUtenti`, che nel viewer non imposta
+  nessuno (solo l'IDE), e i test lo impostavano a mano. Corretto nella rc.7: lo chiede a `/api/system`, e ricontrolla quando
+  il runtime riparte (`uptime_s` che torna indietro), perché il viewer non ricarica la pagina a un riavvio.
+
+**Chiesto dal maintainer per le prossime versioni:**
+49. **Riprogrammare** un'approvazione o il pilota senza annullare e rifare.
+50. **Migliorare la sezione**; in particolare, a connessione avvenuta **i campi partono dall'ora del pannello** (non da 03:00
+    fisse), e accanto al campo c'è scritto di che fuso è l'ora.
+51. Il task della finestra si **sveglia subito** quando la programmazione cambia.
+
 ### Questione aperta, emersa il 28-09: il quadlet non viaggia con l'aggiornamento
 
 `podman auto-update` sostituisce l'**immagine**; il quadlet sul pannello resta quello scritto dall'installer. Una riga
