@@ -75,7 +75,9 @@ ricostruire il contesto senza dover rileggere la conversazione originale.
 ## 5. CHANGELOG.md
 
 Se in questa sessione sono stati aggiunti, corretti o rimossi comportamenti visibili non ancora
-loggati sotto `[Unreleased]`, aggiungili ora.
+loggati sotto `[Unreleased]`, aggiungili ora. E per quelli che nota chi usa il pannello, una voce
+breve in `NOVITA.yaml`, **italiano e inglese**: è quella che il pannello mostra prima di aggiornare
+(dal 28-09-2026; il CHANGELOG resta per chi sviluppa).
 
 ## 6. Niente decisioni architetturali prese qui
 

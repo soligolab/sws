@@ -183,11 +183,56 @@ pub struct StatoAggiornamento {
 #[derive(Debug, Clone, Serialize)]
 pub struct NovitaVersione {
     pub versione: String,
-    /// La sezione di CHANGELOG di quella versione.
+    /// Le Novità di quella versione, in italiano (NOVITA.yaml; per le immagini
+    /// costruite prima del 28-09-2026, la sezione del CHANGELOG).
     pub testo: String,
     /// I soli avvisi di compatibilità, che la finestra mette in cima.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub compatibilita: String,
+    /// Le stesse in inglese (decisione 57): chi mostra sceglie la lingua
+    /// dell'interfaccia, e se manca ripiega sull'italiano.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub testo_en: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub compatibilita_en: String,
+}
+
+/// Le Novità dalle etichette di un'immagine. Prima le brevi di NOVITA.yaml
+/// (`net.soligo.sws.novita.{it,en}`, dal 28-09-2026), poi il ripiego sulla
+/// sezione di CHANGELOG delle immagini di quel giorno (rc.3-rc.8). `None` se
+/// l'immagine non porta niente.
+pub fn novita_da_etichette(
+    versione: &str,
+    e: &std::collections::HashMap<String, String>,
+) -> Option<NovitaVersione> {
+    let leggi = |k: &str| e.get(k).cloned().unwrap_or_default();
+    let (testo, compatibilita) = if e.contains_key("net.soligo.sws.novita.it") {
+        (leggi("net.soligo.sws.novita.it"), leggi("net.soligo.sws.compat.it"))
+    } else {
+        (leggi("net.soligo.sws.changelog"), leggi("net.soligo.sws.compat"))
+    };
+    let n = NovitaVersione {
+        versione: versione.to_string(),
+        testo,
+        compatibilita,
+        testo_en: leggi("net.soligo.sws.novita.en"),
+        compatibilita_en: leggi("net.soligo.sws.compat.en"),
+    };
+    (!n.testo.is_empty() || !n.compatibilita.is_empty()).then_some(n)
+}
+
+/// Le rc portano tutte le Novità della release a cui arrivano (decisione 56):
+/// saltando dalla rc.8 alla rc.11 lo stesso testo arriverebbe tre volte. Resta
+/// una volta sola, sotto la versione più nuova che lo porta.
+pub fn senza_ripetizioni(voci: Vec<NovitaVersione>) -> Vec<NovitaVersione> {
+    let mut fuori: Vec<NovitaVersione> = Vec::new();
+    for n in voci {
+        match fuori.last_mut() {
+            Some(prec) if prec.testo == n.testo && prec.compatibilita == n.compatibilita => *prec = n,
+            _ => fuori.push(n),
+        }
+    }
+    fuori
 }
 
 fn formatta(v: &Versione) -> String {
@@ -369,14 +414,12 @@ async fn novita_da_attraversare(
     for v in da_leggere {
         let nome = formatta(&v);
         let Ok(e) = etichette(r, &format!("{nome}-{arch}")).await else { continue };
-        let testo = e.get("net.soligo.sws.changelog").cloned().unwrap_or_default();
-        let compatibilita = e.get("net.soligo.sws.compat").cloned().unwrap_or_default();
-        if testo.is_empty() && compatibilita.is_empty() {
-            continue; // un'immagine costruita prima della decisione 42
+        // Un'immagine costruita prima della decisione 42 non porta niente: si salta.
+        if let Some(n) = novita_da_etichette(&nome, &e) {
+            fuori.push(n);
         }
-        fuori.push(NovitaVersione { versione: nome, testo, compatibilita });
     }
-    fuori
+    senza_ripetizioni(fuori)
 }
 
 /// Avvia `podman-auto-update.service` sul bus utente. Il chiamante deve aver
@@ -494,5 +537,31 @@ mod tests {
         let tags = tag_del_registry(&r).await.unwrap();
         assert!(tags.len() > 100, "con ?n=1000 non ci si ferma a 100: {}", tags.len());
         assert!(migliore_nel_canale(&tags, &Canale::Stabile, "arm64").is_some());
+    }
+
+    #[test]
+    fn le_novita_brevi_prima_e_il_changelog_come_ripiego() {
+        use std::collections::HashMap;
+        let e = |c: &[(&str, &str)]| c.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect::<HashMap<_, _>>();
+        let nuove = novita_da_etichette("2.12.0-rc.9", &e(&[
+            ("net.soligo.sws.novita.it", "- breve"), ("net.soligo.sws.novita.en", "- short"),
+            ("net.soligo.sws.changelog", "63 000 caratteri"),
+        ])).unwrap();
+        assert_eq!((nuove.testo.as_str(), nuove.testo_en.as_str()), ("- breve", "- short"));
+        // Un'immagine del 28-09 (rc.3-rc.8): solo la sezione del CHANGELOG.
+        let vecchia = novita_da_etichette("2.12.0-rc.5", &e(&[("net.soligo.sws.changelog", "- lungo")])).unwrap();
+        assert_eq!((vecchia.testo.as_str(), vecchia.testo_en.as_str()), ("- lungo", ""));
+        assert!(novita_da_etichette("2.12.0-rc.2", &e(&[])).is_none());
+    }
+
+    #[test]
+    fn le_rc_con_le_stesse_novita_si_leggono_una_volta() {
+        let n = |v: &str, t: &str| NovitaVersione {
+            versione: v.into(), testo: t.into(), compatibilita: String::new(),
+            testo_en: String::new(), compatibilita_en: String::new(),
+        };
+        let fuori = senza_ripetizioni(vec![n("2.12.0-rc.9", "A"), n("2.12.0-rc.10", "A"), n("2.12.0", "B")]);
+        let nomi: Vec<_> = fuori.iter().map(|x| x.versione.as_str()).collect();
+        assert_eq!(nomi, ["2.12.0-rc.10", "2.12.0"]);
     }
 }

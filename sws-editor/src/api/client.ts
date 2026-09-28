@@ -320,9 +320,23 @@ export interface StatoAggiornamento {
 /** Gemello di `aggiornamento::NovitaVersione`. */
 export interface NovitaVersione {
   versione: string;
+  /** Le Novità in italiano (NOVITA.yaml). */
   testo: string;
   /** Gli avvisi di compatibilità, che vanno in cima e chiedono attenzione. */
   compatibilita?: string;
+  /** Le stesse in inglese; assenti nelle immagini costruite prima del 28-09-2026. */
+  testo_en?: string;
+  compatibilita_en?: string;
+}
+
+/** Le Novità nella lingua dell'interfaccia (decisione 57): l'inglese se
+ *  l'interfaccia è inglese e c'è, altrimenti l'italiano. */
+export function novitaNellaLingua(n: NovitaVersione, lingua: string): { testo: string; compatibilita: string } {
+  const en = lingua.startsWith("en");
+  return {
+    testo: (en && n.testo_en) || n.testo,
+    compatibilita: (en && n.compatibilita_en) || n.compatibilita || "",
+  };
 }
 
 export interface BootImageStato {

@@ -21,7 +21,7 @@
  */
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api, type StatoAggiornamento } from "@/api/client";
+import { api, novitaNellaLingua, type NovitaVersione, type StatoAggiornamento } from "@/api/client";
 
 const IGNORATA = "sws.aggiornamento.ignorata";
 
@@ -44,7 +44,8 @@ export function ripartito(prima: number | null, adesso: number): boolean {
 }
 
 export function AvvisoAggiornamento() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const nl = (n: NovitaVersione) => novitaNellaLingua(n, i18n.language);
   // Se il progetto ha utenti lo dice il runtime (`auth_required` di
   // `/api/system`), chiesto **da qui**. Il 28-09 l'avviso leggeva un valore
   // dello store che imposta solo l'IDE: nel viewer del pannello restava
@@ -91,7 +92,7 @@ export function AvvisoAggiornamento() {
   if (chiuso || !nuova || !senzaUtenti) return null;
   if (versioneIgnorata() === nuova) return null;
 
-  const avvisi = (stato?.novita ?? []).filter((n) => n.compatibilita);
+  const avvisi = (stato?.novita ?? []).filter((n) => nl(n).compatibilita);
 
   const aggiorna = async () => {
     setInCorso(true);
@@ -142,7 +143,7 @@ export function AvvisoAggiornamento() {
           }}>
             {avvisi.map((n) => (
               <div key={n.versione} style={{ fontSize: 12, color: "var(--brand-danger-soft, #fca5a5)", whiteSpace: "pre-wrap" }}>
-                ⚠ {n.compatibilita}
+                ⚠ {nl(n).compatibilita}
               </div>
             ))}
           </div>
@@ -162,7 +163,7 @@ export function AvvisoAggiornamento() {
                 {stato!.novita!.map((n) => (
                   <div key={n.versione} style={{ marginBottom: 8 }}>
                     <div style={{ fontSize: 12, fontWeight: 700, color: "var(--brand-text-2, #cbd5e1)" }}>{n.versione}</div>
-                    <div style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", whiteSpace: "pre-wrap" }}>{n.testo}</div>
+                    <div style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", whiteSpace: "pre-wrap" }}>{nl(n).testo}</div>
                   </div>
                 ))}
               </div>

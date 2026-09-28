@@ -213,14 +213,21 @@ cp -r "$SPA_DIST/." "$CTX/www/"
 # --format docker è indispensabile, non cosmetico: HEALTHCHECK non esiste nella
 # spec OCI, senza --format docker podman lo scarta con un warning silenzioso.
 # Le novità viaggiano dentro l'immagine (decisione 42): vedi build_container.sh.
-NOTE="$(python3 "$REPO/scripts/changelog_sezione.py" "$VERSION" "$REPO/CHANGELOG.md" || true)"
-COMPAT="$(python3 "$REPO/scripts/changelog_sezione.py" "$VERSION" --compat "$REPO/CHANGELOG.md" || true)"
+# Dal 28-09-2026 non la sezione del CHANGELOG (per chi sviluppa, illeggibile su
+# un pannello) ma le Novità brevi di NOVITA.yaml, in italiano e inglese
+# (decisioni 55-58). Una -rc porta quelle della release a cui arriverà.
+NOVITA_IT="$(python3 "$REPO/scripts/novita.py" "$VERSION" it || true)"
+NOVITA_EN="$(python3 "$REPO/scripts/novita.py" "$VERSION" en || true)"
+COMPAT_IT="$(python3 "$REPO/scripts/novita.py" "$VERSION" it --compat || true)"
+COMPAT_EN="$(python3 "$REPO/scripts/novita.py" "$VERSION" en --compat || true)"
 
 echo "==> [3/4] podman build --platform linux/amd64 -t $IMAGE"
 podman build --platform linux/amd64 --format docker \
     --build-arg "SWS_VERSION=$VERSION" \
-    --build-arg "SWS_CHANGELOG=$NOTE" \
-    --build-arg "SWS_COMPAT=$COMPAT" \
+    --build-arg "SWS_NOVITA_IT=$NOVITA_IT" \
+    --build-arg "SWS_NOVITA_EN=$NOVITA_EN" \
+    --build-arg "SWS_COMPAT_IT=$COMPAT_IT" \
+    --build-arg "SWS_COMPAT_EN=$COMPAT_EN" \
     -t "$IMAGE" \
     -f "$REPO/deploy/container/Containerfile.x86_64" \
     "$CTX"

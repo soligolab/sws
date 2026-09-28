@@ -283,18 +283,25 @@ cp -r "$SPA_DIST/." "$CTX/www/"
 # dal registry come etichetta — pochi KB, nessun pull dell'immagine. Gli avvisi
 # di compatibilità stanno in un'etichetta a parte perché sono ciò che non si
 # deve perdere saltando versioni (decisione 43).
-NOTE="$(python3 "$REPO/scripts/changelog_sezione.py" "$VERSION" "$REPO/CHANGELOG.md" || true)"
-COMPAT="$(python3 "$REPO/scripts/changelog_sezione.py" "$VERSION" --compat "$REPO/CHANGELOG.md" || true)"
-if [ -z "$NOTE" ]; then
-    echo "    avviso: nel CHANGELOG non c'è una sezione per $VERSION — l'immagine non porterà le novità" >&2
+# Dal 28-09-2026 non la sezione del CHANGELOG (per chi sviluppa, illeggibile su
+# un pannello) ma le Novità brevi di NOVITA.yaml, in italiano e inglese
+# (decisioni 55-58). Una -rc porta quelle della release a cui arriverà.
+NOVITA_IT="$(python3 "$REPO/scripts/novita.py" "$VERSION" it || true)"
+NOVITA_EN="$(python3 "$REPO/scripts/novita.py" "$VERSION" en || true)"
+COMPAT_IT="$(python3 "$REPO/scripts/novita.py" "$VERSION" it --compat || true)"
+COMPAT_EN="$(python3 "$REPO/scripts/novita.py" "$VERSION" en --compat || true)"
+if [ -z "$NOVITA_IT" ]; then
+    echo "    avviso: NOVITA.yaml non ha le Novità di $VERSION — l'immagine non le porterà" >&2
 fi
 
 echo "==> [3/4] podman build --platform linux/arm64 -t $IMAGE"
 podman build --platform linux/arm64 --format docker \
     --build-arg "WITH_LVGL=$WITH_LVGL" \
     --build-arg "SWS_VERSION=$VERSION" \
-    --build-arg "SWS_CHANGELOG=$NOTE" \
-    --build-arg "SWS_COMPAT=$COMPAT" \
+    --build-arg "SWS_NOVITA_IT=$NOVITA_IT" \
+    --build-arg "SWS_NOVITA_EN=$NOVITA_EN" \
+    --build-arg "SWS_COMPAT_IT=$COMPAT_IT" \
+    --build-arg "SWS_COMPAT_EN=$COMPAT_EN" \
     -t "$IMAGE" \
     -f "$REPO/deploy/container/Containerfile.aarch64" \
     "$CTX"

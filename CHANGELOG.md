@@ -95,6 +95,9 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 - **Stato git di un repository senza commit**: rispondeva 500 e il pannello restava senza bottoni, proprio senza «Commit».
 
 ### Changed
+- **Le Novità che il pannello e l'IDE mostrano prima di aggiornare sono brevi e in due lingue**: non più la sezione del CHANGELOG (per la 2.12 erano
+  63 000 caratteri, illeggibili su un pannello) ma le voci di `NOVITA.yaml`, una riga per cosa, in italiano e inglese, mostrate nella lingua
+  dell'interfaccia. Saltando più rc con le stesse Novità, si leggono una volta sola. Guardia `check_novita.sh` al posto di `check_changelog_etichetta.sh`.
 - **Il pannello destro torna a una colonna sola** (R4, richiesta del maintainer del 25-09): via la colonna di icone che mostrava un gruppo per volta; i gruppi (Oggetto, Testo, Dato,
   Comportamento, Resa) diventano rami chiudibili e le sezioni ci stanno sotto. **Una sezione aperta alla volta**, più quelle **appuntate** con 📌. Cambiando oggetto la sezione aperta resta
   quella se il tipo nuovo ce l'ha, altrimenti si apre l'affine — e la scelta non si perde. L'inventario dei campi (`campiPannelloProprieta.json`) è invariato.

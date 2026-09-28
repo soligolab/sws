@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api, type StatoAggiornamento } from "@/api/client";
+import { api, novitaNellaLingua, type NovitaVersione, type StatoAggiornamento } from "@/api/client";
 import { FinestraAggiornamento } from "./FinestraAggiornamento";
 
 /** L'aggiornamento del runtime collegato (piano 2026-09-27, Fase 1): che
@@ -9,7 +9,8 @@ import { FinestraAggiornamento } from "./FinestraAggiornamento";
  *  il runtime si riavvia e la connessione cade per qualche secondo. Se la versione
  *  nuova non diventa sana, podman torna da solo alla precedente. */
 export function AggiornamentoRuntime() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const nl = (n: NovitaVersione) => novitaNellaLingua(n, i18n.language);
   const [stato, setStato] = useState<StatoAggiornamento | null | undefined>(undefined);
   const [errore, setErrore] = useState<string | null>(null);
   const [avviato, setAvviato] = useState(false);
@@ -31,8 +32,8 @@ export function AggiornamentoRuntime() {
     // 43): quegli avvisi dicono che dopo l'aggiornamento qualcosa va rifatto,
     // e una sola conferma la si dà per abitudine.
     const avvisi = (stato.novita ?? [])
-      .filter((n) => n.compatibilita)
-      .map((n) => `${n.versione}: ${n.compatibilita}`);
+      .filter((n) => nl(n).compatibilita)
+      .map((n) => `${n.versione}: ${nl(n).compatibilita}`);
     return !(avvisi.length > 0 && !window.confirm(t("aggiornamento.confermaCompat", { avvisi: avvisi.join("\n\n") })));
   };
 
@@ -89,19 +90,19 @@ export function AggiornamentoRuntime() {
               <div style={{ fontSize: 11, fontWeight: 700, color: "var(--brand-text-2, #cbd5e1)" }}>
                 {n.versione}
               </div>
-              {n.compatibilita && (
+              {nl(n).compatibilita && (
                 <div style={{
                   fontSize: 11, color: "var(--brand-danger-soft, #f87171)",
                   whiteSpace: "pre-wrap", margin: "2px 0 4px",
                 }}>
-                  ⚠ {n.compatibilita}
+                  ⚠ {nl(n).compatibilita}
                 </div>
               )}
               <div style={{
                 fontSize: 11, color: "var(--brand-text-muted, #94a3b8)",
                 whiteSpace: "pre-wrap", maxHeight: 180, overflowY: "auto",
               }}>
-                {n.testo}
+                {nl(n).testo}
               </div>
             </div>
           ))}

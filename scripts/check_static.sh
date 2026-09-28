@@ -38,7 +38,7 @@ STATICHE=(
      # lo script host dell'immagine di boot, provato con un launcher finto
     check_synoptic_schema   # il vocabolario dato all'assistente IA contro le sue fonti
     check_session_start     # session_start.sh non deve poter perdere lavoro
-    check_changelog_etichetta  # il changelog che finisce nell'immagine: sezione giusta, avvisi a parte
+    check_novita               # le Novità che finiscono nell'immagine: due lingue, voci brevi, la versione c'è
     check_off_page          # «fuori pagina»: la stessa tabella in Rust e in TypeScript
     check_documenti         # le domande aperte: vivo + archivio senza buchi, rimandi che risolvono
     check_versione_progetto # chi riscrive project.yaml e chi se ne accorge (Q30)
