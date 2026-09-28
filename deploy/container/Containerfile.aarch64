@@ -156,7 +156,14 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
 # sopra: cambiano a ogni build, e in testa rifarebbero il layer apt.
 ARG SWS_CHANGELOG=""
 ARG SWS_COMPAT=""
+# La versione **nostra**: senza, l'immagine eredita da ubuntu:24.04
+# `org.opencontainers.image.version = 24.04`, e chi la legge (un registry, un
+# `podman inspect`) la prende per la versione di SWS. Visto il 28-09-2026 sulla
+# rc.3 appena pubblicata.
+ARG SWS_VERSION=""
 LABEL org.opencontainers.image.source="https://github.com/soligolab/sws" \
+      org.opencontainers.image.version="$SWS_VERSION" \
+      org.opencontainers.image.title="sws-runtime" \
       org.opencontainers.image.description="SWS runtime (aarch64) — viewer 8443, IDE/admin 8444, SPA inclusa. Montare i dati su /var/sws/{config,projects,logs}." \
       org.opencontainers.image.licenses="AGPL-3.0-only" \
       net.soligo.sws.changelog="$SWS_CHANGELOG" \

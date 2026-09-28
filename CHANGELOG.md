@@ -61,6 +61,8 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   riga rossa con **Converti**, in testa c'è **Converti tutti (n)**, e gli allarmi che condividono un tag lo dicono. La conversione non cambia come scatta; il Salva resta dell'utente.
 
 ### Fixed
+- **L'immagine dichiara la versione di SWS**: l'etichetta standard `org.opencontainers.image.version` diceva `24.04`, ereditata da Ubuntu, e chi la leggeva
+  la prendeva per la versione del runtime. Ora porta la versione vera (visto sulla 2.12.0-rc.3 appena pubblicata).
 - **L'immagine di boot arriva davvero al launcher.** Il runtime lo chiamava solo quando il PNG cambiava, e un pannello con l'immagine pubblicata ma mai
   applicata (il TC620: PNG del 20-09, launcher ancora su «Default») non recuperava più; ora lo richiama finché l'esito non è `installato` per quel PNG. Chi scrive
   e chi legge lo stato usano le stesse parole e le stesse chiavi (prima `applicata`/`nota`, che la scheda Runtime non riconosceva). Via il file `trigger`, rimasto

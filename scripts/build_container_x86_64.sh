@@ -218,6 +218,7 @@ COMPAT="$(python3 "$REPO/scripts/changelog_sezione.py" "$VERSION" --compat "$REP
 
 echo "==> [3/4] podman build --platform linux/amd64 -t $IMAGE"
 podman build --platform linux/amd64 --format docker \
+    --build-arg "SWS_VERSION=$VERSION" \
     --build-arg "SWS_CHANGELOG=$NOTE" \
     --build-arg "SWS_COMPAT=$COMPAT" \
     -t "$IMAGE" \

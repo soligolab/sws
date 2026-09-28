@@ -92,7 +92,11 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
 # Le novità viaggiano con l'immagine (decisione 42): vedi il gemello aarch64.
 ARG SWS_CHANGELOG=""
 ARG SWS_COMPAT=""
+# La versione nostra, non quella di Ubuntu ereditata (vedi il gemello aarch64).
+ARG SWS_VERSION=""
 LABEL org.opencontainers.image.source="https://github.com/soligolab/sws" \
+      org.opencontainers.image.version="$SWS_VERSION" \
+      org.opencontainers.image.title="sws-runtime" \
       org.opencontainers.image.description="SWS runtime (x86_64) — viewer 8443, IDE/admin 8444, SPA inclusa. Montare i dati su /var/sws/{config,projects,logs}." \
       org.opencontainers.image.licenses="AGPL-3.0-only" \
       net.soligo.sws.changelog="$SWS_CHANGELOG" \

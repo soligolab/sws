@@ -292,6 +292,7 @@ fi
 echo "==> [3/4] podman build --platform linux/arm64 -t $IMAGE"
 podman build --platform linux/arm64 --format docker \
     --build-arg "WITH_LVGL=$WITH_LVGL" \
+    --build-arg "SWS_VERSION=$VERSION" \
     --build-arg "SWS_CHANGELOG=$NOTE" \
     --build-arg "SWS_COMPAT=$COMPAT" \
     -t "$IMAGE" \
