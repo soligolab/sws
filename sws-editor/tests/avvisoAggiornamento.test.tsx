@@ -3,18 +3,21 @@ import { describe, expect, it, beforeEach, vi } from "vitest";
 
 // `vi.mock` è sollevato in cima al file, quindi non può leggere variabili
 // dichiarate qui sopra: `vi.hoisted` è il modo di crearle prima di lui.
-const { statoAggiornamento, avviaAggiornamento } = vi.hoisted(() => ({
+const { statoAggiornamento, avviaAggiornamento, getSystemStatus } = vi.hoisted(() => ({
   statoAggiornamento: vi.fn(),
   avviaAggiornamento: vi.fn().mockResolvedValue({}),
+  // Il viewer chiede da sé se il progetto ha utenti: il test simula la
+  // risposta del runtime, non inietta il valore nello store (è così che il
+  // difetto del 28-09 era rimasto invisibile).
+  getSystemStatus: vi.fn(),
 }));
 vi.mock("@/api/client", async () => {
   const actual = await vi.importActual<typeof import("@/api/client")>("@/api/client");
-  return { ...actual, api: { ...actual.api, statoAggiornamento, avviaAggiornamento } };
+  return { ...actual, api: { ...actual.api, statoAggiornamento, avviaAggiornamento, getSystemStatus } };
 });
 
 import i18n from "../src/i18n";
-import { AvvisoAggiornamento } from "../src/runtime-view/AvvisoAggiornamento";
-import { useAppStore } from "../src/store";
+import { AvvisoAggiornamento, CONTROLLO_RIAVVIO_MS, ripartito } from "../src/runtime-view/AvvisoAggiornamento";
 
 /** L'avviso di versione nuova sullo schermo del pannello (decisioni 41 e 44).
  *  Le regole di comparsa sono la parte che si sbaglia in silenzio: un avviso
@@ -30,7 +33,7 @@ describe("avviso di aggiornamento sul pannello", () => {
     try { localStorage.clear(); } catch { /* jsdom senza storage */ }
     statoAggiornamento.mockReset().mockResolvedValue(NUOVA);
     avviaAggiornamento.mockClear();
-    useAppStore.setState({ progettoHaUtenti: false });
+    getSystemStatus.mockReset().mockResolvedValue({ auth_required: false, uptime_s: 100 });
   });
 
   it("senza utenti e con una versione nuova, compare", async () => {
@@ -43,7 +46,7 @@ describe("avviso di aggiornamento sul pannello", () => {
   /** Con utenti definiti l'aggiornamento è dell'Admin, dall'IDE: sullo
    *  schermo non compare niente — e non si chiede nemmeno al registry. */
   it("con utenti definiti non compare, e non interroga il registry", async () => {
-    useAppStore.setState({ progettoHaUtenti: true });
+    getSystemStatus.mockResolvedValue({ auth_required: true, uptime_s: 100 });
     render(<AvvisoAggiornamento />);
     await waitFor(() => expect(statoAggiornamento).not.toHaveBeenCalled());
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -77,5 +80,31 @@ describe("avviso di aggiornamento sul pannello", () => {
     statoAggiornamento.mockResolvedValue({ ...NUOVA, disponibile: "2.12.0-rc.4" });
     render(<AvvisoAggiornamento />);
     expect(await screen.findByRole("dialog")).toBeTruthy();
+  });
+
+  it("un riavvio si riconosce dall'uptime che torna indietro", () => {
+    expect(ripartito(null, 5)).toBe(false);
+    expect(ripartito(100, 160)).toBe(false);
+    expect(ripartito(4498, 12)).toBe(true);
+  });
+
+  /** Il caso del TC620 del 28-09: il viewer era carico da ore, il runtime è
+   *  ripartito con una versione nuova nel canale, e la pagina non si ricarica. */
+  it("quando il runtime riparte, ricontrolla e l'avviso compare senza ricaricare la pagina", async () => {
+    vi.useFakeTimers();
+    try {
+      statoAggiornamento.mockResolvedValue({ ...NUOVA, disponibile: null, novita: [] });
+      getSystemStatus.mockResolvedValue({ auth_required: false, uptime_s: 4498 });
+      render(<AvvisoAggiornamento />);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(screen.queryByRole("dialog")).toBeNull();
+      // Il runtime riparte (uptime da capo) e ora nel canale c'è una versione nuova.
+      getSystemStatus.mockResolvedValue({ auth_required: false, uptime_s: 12 });
+      statoAggiornamento.mockResolvedValue(NUOVA);
+      await vi.advanceTimersByTimeAsync(CONTROLLO_RIAVVIO_MS);
+      expect(screen.getByRole("dialog")).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

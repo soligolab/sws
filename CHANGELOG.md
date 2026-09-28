@@ -66,6 +66,9 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   riga rossa con **Converti**, in testa c'è **Converti tutti (n)**, e gli allarmi che condividono un tag lo dicono. La conversione non cambia come scatta; il Salva resta dell'utente.
 
 ### Fixed
+- **L'avviso di versione nuova sullo schermo del pannello compare davvero, e anche dopo un riavvio del runtime**: aspettava di sapere se il progetto ha
+  utenti da un valore che imposta solo l'IDE, quindi nel viewer non si mostrava mai (i test lo impostavano a mano e non se ne accorgevano). Ora lo chiede al
+  runtime (`/api/system`), e ogni minuto guarda se il runtime è ripartito: in quel caso ricontrolla, senza bisogno di ricaricare la pagina.
 - **L'avviso di versione nuova sullo schermo del pannello può comparire davvero**: il viewer (porta 8443) chiedeva lo stato dell'aggiornamento a una rotta che
   su quella porta non c'era (404), quindi l'avviso non si mostrava mai. Ora c'è, riservata all'Admin: senza utenti passa, con utenti un anonimo è rifiutato.
   Un test lo tiene (trovato sul TC620).

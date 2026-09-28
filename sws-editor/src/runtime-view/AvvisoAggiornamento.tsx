@@ -22,7 +22,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, type StatoAggiornamento } from "@/api/client";
-import { useAppStore } from "@/store";
 
 const IGNORATA = "sws.aggiornamento.ignorata";
 
@@ -34,29 +33,62 @@ function ignora(versione: string): void {
   try { localStorage.setItem(IGNORATA, versione); } catch { /* storage negato */ }
 }
 
+/** Ogni quanto il viewer guarda se il runtime è ripartito: `/api/system` è
+ *  locale e leggero, e un riavvio si riconosce dall'`uptime_s` che torna
+ *  indietro. */
+export const CONTROLLO_RIAVVIO_MS = 60_000;
+
+/** Il runtime è ripartito se il suo `uptime_s` è sceso. */
+export function ripartito(prima: number | null, adesso: number): boolean {
+  return prima !== null && adesso < prima;
+}
+
 export function AvvisoAggiornamento() {
   const { t } = useTranslation();
-  const progettoHaUtenti = useAppStore((s) => s.progettoHaUtenti);
+  // Se il progetto ha utenti lo dice il runtime (`auth_required` di
+  // `/api/system`), chiesto **da qui**. Il 28-09 l'avviso leggeva un valore
+  // dello store che imposta solo l'IDE: nel viewer del pannello restava
+  // sconosciuto e l'avviso non compariva mai — e i test non se ne accorgevano,
+  // perché quel valore lo impostavano loro a mano.
+  const [senzaUtenti, setSenzaUtenti] = useState(false);
   const [stato, setStato] = useState<StatoAggiornamento | null>(null);
   const [chiuso, setChiuso] = useState(false);
   const [novitaAperte, setNovitaAperte] = useState(false);
   const [inCorso, setInCorso] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
 
-  // Una volta sola, all'avvio, e solo dove ha senso chiedere: con utenti
-  // definiti l'avviso non si mostra comunque, e la domanda al registry
-  // sarebbe traffico per niente.
+  // All'avvio del viewer, e di nuovo ogni volta che il runtime riparte: un
+  // pannello acceso da mesi non ricarica la pagina quando il runtime si
+  // riavvia (la ricarica scatta solo per un'interfaccia nuova), e senza questo
+  // l'avviso lo vedrebbe solo chi spegne e riaccende. Con utenti definiti non
+  // si chiede niente al registry: l'avviso non si mostrerebbe comunque.
   useEffect(() => {
-    if (progettoHaUtenti !== false) return;
     let vivo = true;
-    api.statoAggiornamento()
-      .then((s) => { if (vivo) setStato(s); })
-      .catch(() => { /* registry irraggiungibile: nessun avviso, e nessun allarme */ });
-    return () => { vivo = false; };
-  }, [progettoHaUtenti]);
+    let ultimoUptime: number | null = null;
+    const controlla = async (primaVolta: boolean) => {
+      let sys;
+      try { sys = await api.getSystemStatus(); } catch { return; }
+      if (!vivo) return;
+      const riavvio = ripartito(ultimoUptime, sys.uptime_s ?? 0);
+      ultimoUptime = sys.uptime_s ?? 0;
+      if (!primaVolta && !riavvio) return;
+      const libero = sys.auth_required === false;
+      setSenzaUtenti(libero);
+      if (!libero) return;
+      // «Più tardi» vale fino al prossimo avvio (decisione 44): è questo.
+      if (riavvio) setChiuso(false);
+      try {
+        const s = await api.statoAggiornamento();
+        if (vivo) setStato(s);
+      } catch { /* registry irraggiungibile: nessun avviso, e nessun allarme */ }
+    };
+    void controlla(true);
+    const id = window.setInterval(() => void controlla(false), CONTROLLO_RIAVVIO_MS);
+    return () => { vivo = false; window.clearInterval(id); };
+  }, []);
 
   const nuova = stato?.disponibile ?? null;
-  if (chiuso || !nuova || progettoHaUtenti !== false) return null;
+  if (chiuso || !nuova || !senzaUtenti) return null;
   if (versioneIgnorata() === nuova) return null;
 
   const avvisi = (stato?.novita ?? []).filter((n) => n.compatibilita);
