@@ -11,6 +11,7 @@ import { LoginScreen } from "@/components/LoginScreen";
 import { RecipePanel } from "@/components/RecipePanel";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UiLangSelect } from "@/components/UiLangSelect";
+import { AvvisoAggiornamento } from "./AvvisoAggiornamento";
 import { useAppStore } from "@/store";
 import { localizePageName, effectiveProjectLang, resolveMsg } from "@/i18n/projectI18n";
 import { LinguaContenutiProvider, useLinguaContenuti } from "@/i18n/linguaContenuti";
@@ -348,6 +349,9 @@ export function RuntimeView() {
 
   return (
     <LinguaContenutiProvider value={lingua}>
+    {/* L'avviso di versione nuova sta sopra tutto e fuori dal flusso: compare
+        solo su un pannello senza utenti, e solo all'avvio (decisione 41). */}
+    <AvvisoAggiornamento />
     <div
       style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}
       onTouchStart={handleTouchStart}

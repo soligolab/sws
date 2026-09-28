@@ -2419,6 +2419,15 @@
     "membroTipoNonValido": "membro `{{name}}`: tipo `{{tipo}}` non valido",
     "tipoNonValido": "tipo `{{tipo}}` non valido"
   },
+  "aggiornamentoPannello": {
+    "titolo": "Versione {{a}} disponibile",
+    "da": "Questo pannello gira la {{da}}.",
+    "novita": "Novità",
+    "aggiorna": "Aggiorna ora",
+    "piuTardi": "Più tardi",
+    "ignora": "Ignora questa versione",
+    "inCorso": "Aggiornamento avviato…"
+  },
   "aggiornamento": {
     "titolo": "Aggiornamento del runtime",
     "carico": "Chiedo al dispositivo…",

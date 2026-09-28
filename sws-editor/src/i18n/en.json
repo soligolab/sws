@@ -2419,6 +2419,15 @@
     "membroTipoNonValido": "member `{{name}}`: type `{{tipo}}` is not valid",
     "tipoNonValido": "type `{{tipo}}` is not valid"
   },
+  "aggiornamentoPannello": {
+    "titolo": "Version {{a}} available",
+    "da": "This panel runs {{da}}.",
+    "novita": "What's new",
+    "aggiorna": "Update now",
+    "piuTardi": "Later",
+    "ignora": "Skip this version",
+    "inCorso": "Update started…"
+  },
   "aggiornamento": {
     "titolo": "Runtime update",
     "carico": "Asking the device…",

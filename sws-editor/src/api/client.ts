@@ -1450,6 +1450,10 @@ export const api = {
    *  tag senza storico e le ripetizioni, e compatta. `remoto`: sul dispositivo
    *  collegato, via `/api/remote/database/:id/clean-history`. */
   /** Versione, canale e versione disponibile del runtime collegato. */
+  /** Lo stato dell'aggiornamento di **questo** runtime, non di uno remoto: lo
+   *  chiede il viewer sul pannello, che parla col runtime su cui gira. */
+  statoAggiornamento: () => request<StatoAggiornamento>("/api/update/status"),
+  avviaAggiornamento: () => request<StatoAggiornamento>("/api/update/apply", { method: "POST" }),
   remoteStatoAggiornamento: () => request<StatoAggiornamento>("/api/remote/update/status"),
   /** «Aggiorna ora»: il dispositivo avvia podman-auto-update e si riavvia. */
   remoteAvviaAggiornamento: () =>
