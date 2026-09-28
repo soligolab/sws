@@ -2213,7 +2213,7 @@
     "unreadable": "Cannot read the status from the device.",
     "noData": "No data: the device has not yet received a project with a boot image.",
     "installed": "Installed on {{quando}}: it appears the next time the panel starts.",
-    "absolutePath": "(absolute path: relies on undocumented launcher behavior; if Pixsys fixes it, it stops working)",
+    "absolutePath": "The image path is absolute: it works, but it relies on Pixsys launcher behaviour that is undocumented. If a firmware update changes it, set the boot image again from here.",
     "pending": "Pending: the device has not applied the published image yet.",
     "unsupported": "Not supported on this device: no Pixsys launcher.",
     "none": "No boot image enabled in the project: the device keeps the one it has.",

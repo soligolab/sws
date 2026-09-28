@@ -2213,7 +2213,7 @@
     "unreadable": "Non riesco a leggere lo stato dal dispositivo.",
     "noData": "Nessun dato: il dispositivo non ha ancora ricevuto un progetto con l'immagine di boot.",
     "installed": "Installata il {{quando}}: compare al prossimo avvio del pannello.",
-    "absolutePath": "(percorso assoluto: si appoggia a un comportamento non documentato del launcher; se Pixsys lo corregge, smette di funzionare)",
+    "absolutePath": "Il percorso dell'immagine è assoluto: funziona, ma si appoggia a un comportamento del launcher Pixsys che non è documentato. Se un aggiornamento del firmware lo cambia, l'immagine di accensione va reimpostata da qui.",
     "pending": "In attesa: il dispositivo non ha ancora applicato l'immagine pubblicata.",
     "unsupported": "Non supportata su questo dispositivo: nessun launcher Pixsys.",
     "none": "Nessuna immagine di boot abilitata nel progetto: il dispositivo tiene quella che ha.",

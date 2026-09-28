@@ -38,6 +38,7 @@ export function StatoBootImage() {
   }, []);
 
   let riga: string;
+  let nota: string | null = null;
   let tono = "var(--brand-text-subtle, #64748b)";
   if (errore) riga = t("bootStatus.unreadable");
   else if (stato === undefined) riga = t("bootStatus.loading");
@@ -49,7 +50,12 @@ export function StatoBootImage() {
         if (attesa) { riga = t("bootStatus.pending"); tono = "var(--brand-warning, #f59e0b)"; }
         else {
           riga = t("bootStatus.installed", { quando: stato.quando ?? "?" });
-          if (stato.percorso === "assoluto") riga += " " + t("bootStatus.absolutePath");
+          // Il percorso assoluto si appoggia a un comportamento non
+          // documentato del launcher. È una cosa che chi sviluppa deve sapere,
+          // ma appesa alla riga diceva a un utente finale solo che qualcosa
+          // può rompersi, senza dirgli cosa farci: dal 28-09-2026 è un ⓘ da
+          // sfiorare (scelta del maintainer).
+          nota = stato.percorso === "assoluto" ? t("bootStatus.absolutePath") : null;
           tono = "var(--brand-success-soft, #4ade80)";
         }
         break;
@@ -69,7 +75,18 @@ export function StatoBootImage() {
       <div style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>
         {t("bootStatus.title")}
       </div>
-      <span style={{ fontSize: 12, color: tono }}>{riga}</span>
+      <span style={{ fontSize: 12, color: tono }}>
+        {riga}
+        {nota && (
+          <span
+            title={nota}
+            aria-label={nota}
+            style={{ marginLeft: 4, color: "var(--brand-text-subtle, #64748b)", cursor: "help" }}
+          >
+            ⓘ
+          </span>
+        )}
+      </span>
       {stato && stato.esito !== "non_supportato" && stato.esito !== "fabbrica" && (
         <div style={{ marginTop: 8 }}>
           <button type="button" onClick={ripristina} disabled={inCorso}>
