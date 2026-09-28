@@ -2450,7 +2450,7 @@
   },
   "finestra": {
     "orologio": "Orologio del pannello: {{locale}} (UTC{{scostamento}}) · {{utc}} UTC",
-    "programmaLa": "Oppure programma la {{a}}:",
+    "programmaLa": "La {{a}} si può installare ora o a un'ora scelta.",
     "oggi": "oggi",
     "domani": "domani",
     "giorni": {
@@ -2462,15 +2462,33 @@
       "5": "venerdì",
       "6": "sabato"
     },
-    "programma": "Programma",
+    "programma": "Programma…",
     "programmata": "Programmato: la {{versione}} il {{locale}} ora del pannello ({{utc}} UTC). Se prima esce una versione più nuova, non aggiorna.",
     "annulla": "Annulla",
-    "pilota": "Pilota automatico: installa da solo le versioni nuove ogni",
     "ogniGiorno": "ogni giorno",
-    "pilotaAccendi": "Accendi",
+    "pilotaAccendi": "Accendi…",
     "pilotaConferma": "Con il pilota automatico il pannello installa da solo ogni versione nuova del suo canale, nella finestra scelta, senza chiedere e senza che nessuno ne legga prima le novità.\n\nLo accendo?",
-    "pilotaAcceso": "Pilota automatico acceso: {{giorni}} alle {{ora}} (ora del pannello). Prossimo controllo: {{prossimo}}.",
+    "pilotaAcceso": "Acceso: {{giorni}} alle {{ora}} (ora del pannello, {{fuso}}). Prossimo controllo: {{prossimo}}.",
     "pilotaSpegni": "Spegni",
-    "ultimo": "Ultima finestra: {{esito}}"
+    "ultimo": "Ultima finestra: {{esito}}",
+    "oraDelPannello": "ora del pannello ({{fuso}})",
+    "pannelloInUtc": "il pannello è in UTC: scegli le ore su questo orologio, non sul tuo",
+    "titoloProgrammato": "Aggiornamento programmato",
+    "titoloPilota": "Pilota automatico",
+    "installaLa": "Installa la {{a}}",
+    "modifica": "Modifica",
+    "salva": "Salva",
+    "chiudi": "Chiudi",
+    "pilotaSpento": "Spento: le versioni nuove si installano solo quando qualcuno le approva.",
+    "giorniBrevi": {
+      "0": "dom",
+      "1": "lun",
+      "2": "mar",
+      "3": "mer",
+      "4": "gio",
+      "5": "ven",
+      "6": "sab"
+    },
+    "nessunGiornoOgni": "(nessuno spuntato = ogni giorno)"
   }
 }

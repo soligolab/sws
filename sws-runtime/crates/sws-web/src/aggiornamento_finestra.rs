@@ -205,8 +205,19 @@ pub fn come_orologio(ms: i64) -> Option<Orologio> {
     })
 }
 
+/// Sveglia il task quando la programmazione cambia (richiesta 51, 28-09-2026):
+/// prima dormiva fino al vecchio evento, fino a un'ora, e un pilota appena
+/// spostato a fra un minuto sul TC620 non sarebbe scattato.
+static RISVEGLIO: tokio::sync::Notify = tokio::sync::Notify::const_new();
+
+/// Da chiamare dopo aver salvato una programmazione nuova.
+pub fn sveglia() {
+    RISVEGLIO.notify_one();
+}
+
 /// Il task che fa scattare le finestre. Dorme fino al prossimo evento, ma mai
-/// più di un'ora: la programmazione e l'orologio possono cambiare mentre dorme.
+/// più di un'ora (l'orologio può cambiare), e si sveglia subito se la
+/// programmazione cambia.
 pub async fn esegui(config_dir: PathBuf) {
     loop {
         let p = carica(&config_dir).await;
@@ -226,7 +237,11 @@ pub async fn esegui(config_dir: PathBuf) {
         }
 
         let attesa_ms = prima.map(|t| (t - ms).max(1_000)).unwrap_or(3_600_000).min(3_600_000);
-        tokio::time::sleep(std::time::Duration::from_millis(attesa_ms as u64)).await;
+        tokio::select! {
+            _ = tokio::time::sleep(std::time::Duration::from_millis(attesa_ms as u64)) => {}
+            // Programmazione cambiata: si ricomincia dal giro, con quella nuova.
+            _ = RISVEGLIO.notified() => continue,
+        }
 
         // Il pilota: è scattato se il suo istante è passato durante l'attesa.
         if let Some(t) = prossimo_pilota {
@@ -431,6 +446,26 @@ pub fn applica<T: TimeZone>(
     }
     p.pilota = r.pilota;
     Ok(p)
+}
+
+#[cfg(test)]
+mod risveglio {
+    /// Il task deve accorgersi subito di una programmazione nuova, non dopo
+    /// il sonno che aveva calcolato per quella vecchia (fino a un'ora).
+    #[tokio::test]
+    async fn una_programmazione_nuova_sveglia_il_task() {
+        let inizio = std::time::Instant::now();
+        let attesa = tokio::spawn(async {
+            tokio::select! {
+                _ = tokio::time::sleep(std::time::Duration::from_secs(3600)) => false,
+                _ = super::RISVEGLIO.notified() => true,
+            }
+        });
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        super::sveglia();
+        assert!(attesa.await.unwrap(), "non si è svegliato");
+        assert!(inizio.elapsed() < std::time::Duration::from_secs(2));
+    }
 }
 
 #[cfg(test)]

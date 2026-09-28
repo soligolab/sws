@@ -2581,6 +2581,7 @@ async fn finestra_scrivi(
             if let Err(e) = f::salva(&s.config_dir, &p).await {
                 return (StatusCode::INTERNAL_SERVER_ERROR, format!("non salvata: {e}")).into_response();
             }
+            f::sveglia();
             s.audit.log("update.schedule", Some(user.username), serde_json::to_value(&p).unwrap_or_default());
             Json(f::vista(&s.config_dir).await).into_response()
         }

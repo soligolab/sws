@@ -20,6 +20,10 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   mostra lo stato ma non le novità. Vale per la `2.12.0-rc.1` e la `rc.2`.
 
 ### Added
+- **La finestra dell'aggiornamento si riprogramma e parte dall'ora del pannello**: «Modifica» sposta un aggiornamento programmato o il pilota
+  automatico senza annullarli; a connessione avvenuta i campi propongono l'orologio del pannello più qualche minuto e dicono accanto di che fuso è l'ora
+  («ora del pannello, UTC+00:00»), con un avviso se il pannello è in UTC. Il pilota sceglie più giorni. Una programmazione appena salvata sveglia
+  subito il runtime, che prima poteva accorgersene fino a un'ora dopo.
 - **La finestra dell'aggiornamento del runtime** (Fase 2 del [piano](docs/plans/2026-09-27-aggiornamento-runtime-e-bus-utente.md)): nella sezione «Aggiornamento del
   runtime» si programma la versione disponibile per un giorno e un'ora **del pannello** (una volta sola), oppure si accende il **pilota automatico**, che
   a ogni finestra installa ciò che c'è di nuovo nel canale. L'orologio del pannello si vede in locale e in UTC. Un'approvazione non installa mai una
