@@ -68,5 +68,20 @@ reale="$(python3 scripts/changelog_sezione.py "$VERS" CHANGELOG.md)"
 [ -n "$reale" ] && ok "la versione dichiarata ($VERS) ha una sezione non vuota" \
                 || no "la versione dichiarata ($VERS) non ha niente nel CHANGELOG"
 
+# ── Il formato degli avvisi (decisione 43) ───────────────────────────────────
+#
+# Il titolo dev'essere esattamente «### ⚠ Compatibilità»: l'estrazione lo cerca
+# così, e una variante — «### Compatibilita», «#### ⚠ Compatibilità», il
+# simbolo mancante — non verrebbe letta e l'avviso non arriverebbe a chi
+# aggiorna. Un avviso che non compare è peggio di un avviso assente: chi
+# scrive crede di averlo dato.
+varianti="$(grep -nE '^#+ *.{0,3}[Cc]ompatibilit' CHANGELOG.md | grep -v '^[0-9]*:### ⚠ Compatibilità$' || true)"
+if [ -z "$varianti" ]; then
+  ok "nessuna intestazione di compatibilità scritta in un modo che l'estrazione non legge"
+else
+  no "intestazioni di compatibilità fuori formato (atteso «### ⚠ Compatibilità»):"
+  printf '      %s\n' "$varianti" | head -5
+fi
+
 printf '\033[32mchangelog nell'\''etichetta: %d/%d controlli verdi.\033[0m\n' "$verdi" "$((verdi+rossi))"
 [ "$rossi" -eq 0 ]

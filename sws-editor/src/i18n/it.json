@@ -2278,6 +2278,7 @@
     "punti": "Verrà cambiata in {{n}} punti:",
     "nonRinominabili": "Da fare a mano (il walker non può cambiarli):",
     "conferma": "Rinomina",
+    "confermaCompat": "Questa versione porta avvisi di compatibilità:\n\n{{avvisi}}\n\nVuoi aggiornare lo stesso?",
     "inCorso": "Rinomino…",
     "fatto": "Rinominata in {{n}} punti.",
     "errore": "Rinomina fallita: {{message}}",

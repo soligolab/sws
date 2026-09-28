@@ -25,6 +25,13 @@ export function AggiornamentoRuntime() {
   const aggiorna = async () => {
     if (!stato?.disponibile) return;
     if (!window.confirm(t("aggiornamento.conferma", { da: stato.versione, a: stato.disponibile }))) return;
+    // Con avvisi di compatibilità si chiede una conferma in più (decisione
+    // 43): quegli avvisi dicono che dopo l'aggiornamento qualcosa va rifatto,
+    // e una sola conferma la si dà per abitudine.
+    const avvisi = (stato.novita ?? [])
+      .filter((n) => n.compatibilita)
+      .map((n) => `${n.versione}: ${n.compatibilita}`);
+    if (avvisi.length > 0 && !window.confirm(t("aggiornamento.confermaCompat", { avvisi: avvisi.join("\n\n") }))) return;
     setInCorso(true);
     try {
       await api.remoteAvviaAggiornamento();
