@@ -20,6 +20,14 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   mostra lo stato ma non le novità. Vale per la `2.12.0-rc.1` e la `rc.2`.
 
 ### Added
+- **Il changelog viaggia dentro l'immagine, e si legge prima di aggiornare.** Alla build la sezione di CHANGELOG della versione finisce in un'etichetta OCI; il runtime la legge dal registry
+  **senza scaricare l'immagine** (le etichette stanno nel config blob: due richieste e pochi KB contro centinaia di MB) e la mostra nella sezione «Aggiornamento del runtime». Saltando più
+  versioni si leggono anche quelle in mezzo — fino a cinque — perché gli avvisi di una versione saltata sono quelli che nessuno leggerebbe mai.
+- **Gli avvisi di compatibilità hanno un posto loro**: una sottosezione `### ⚠ Compatibilità` nella versione, un'etichetta separata nell'immagine, il primo posto nella finestra, e una **seconda
+  conferma** prima di aggiornare. Una guardia controlla che il titolo sia scritto esattamente così: una variante non verrebbe letta, e un avviso che non compare è peggio di un avviso assente.
+- **Sul pannello senza utenti l'avviso compare a schermo**, all'avvio: una finestra con le novità, gli avvisi in cima, e tre scelte. «Più tardi» nasconde fino al prossimo avvio, **«Ignora questa
+  versione»** ricorda la scelta e tace finché non ne esce una più nuova. Con utenti definiti non compare e il registry non viene nemmeno interrogato: l'aggiornamento resta dell'Admin, dall'IDE.
+  Per ora solo nel viewer web; su LVGL arriverà.
 - **Aggiornamento del runtime dall'IDE** (Fase 1 del [piano](docs/plans/2026-09-27-aggiornamento-runtime-e-bus-utente.md)): in Configurazione → Istanza →
   Device → Connessione la sezione «Aggiornamento del runtime» dice versione e canale del pannello (stabile `latest-<arch>`, prova `rc-<arch>`) e se nel canale
   c'è una versione più nuova, letta dal registry senza credenziali; «Aggiorna ora» (Admin, con conferma) fa avviare al pannello `podman-auto-update` via bus

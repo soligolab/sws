@@ -74,7 +74,49 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — Fase 1 dell'aggiornamento su `main`, collaudata su due pannelli (2026-09-28, ufficio)
+## ▶ Riprendere da qui — Fase 1b scritta, aspetta una build: si finisce a casa (2026-09-28, sera)
+
+**Un ramo aperto, `feat/aggiornamento-f1b-changelog`, pushato su origin.** La Fase 1 è già su `main`
+(`add1b387`), collaudata in ufficio sul WP630; questo ramo è la **Fase 1b**, decisioni 41-44, scritta
+per intero ma **non collaudata**: serve un'immagine che porti le etichette nuove, e nessuna di quelle
+pubblicate ce l'ha.
+
+| commit | cosa |
+|---|---|
+| `65da7661` | **42** — il changelog viaggia nell'immagine come etichetta OCI; il runtime lo legge dal registry senza scaricarla, anche per le versioni intermedie (tetto: 5) |
+| `98cdea41` | **43** — avvisi di compatibilità: sottosezione `### ⚠ Compatibilità`, etichetta a parte, guardia sul formato (provata rossa), seconda conferma prima di aggiornare |
+| `604af0e9` | bump a **2.12.0-rc.3** e avvisi di compatibilità veri nel CHANGELOG |
+| `37fc20de` | **41 e 44** — l'avviso a schermo sul pannello senza utenti, con «Più tardi» e «Ignora questa versione»; cinque test sulle regole di comparsa |
+
+**Da fare a casa, in quest'ordine:**
+
+1. **La build della rc.3**: `./scripts/build_container.sh --push`. In ufficio era partita e l'ho
+   **fermata** a metà (serviva ~50 min sotto emulazione, e il maintainer voleva farla a casa):
+   **niente è stato pubblicato**, verificato — sul registry la rc.3 non c'è. `latest-arm64` resta la
+   2.11, il canale `rc-arm64` la rc.2.
+2. **Il collaudo**, che la build rende possibile: il TC620 (o il WP630) gira la rc.2 sul canale di
+   prova, quindi la sezione dell'IDE deve mostrare la **rc.3 con le novità e gli avvisi di
+   compatibilità** letti dal registry, e «Aggiorna ora» deve chiedere **due** conferme. È anche la
+   prova che le etichette si leggono senza scaricare l'immagine.
+3. **L'avviso a schermo** (41): si guarda su un pannello il cui progetto **non ha utenti**, al
+   riavvio del runtime.
+4. Poi lo squash su `main` e la cancellazione del ramo, anche su origin.
+
+**Resta fuori dalla Fase 1b**: l'avviso a schermo **su LVGL**. È l'altra metà della decisione 41 —
+ordine scelto dal maintainer, prima il web — e i pannelli che usano quel motore restano senza avviso
+finché non si fa.
+
+**Registry ripulito oggi**: da 128 etichette a 26, poi restano 13 build per commit da togliere
+quando si vuole (elenco e script nello scratchpad della sessione, `pulisci_registry.py`, prova in
+secco di default). La cosa da non dimenticare: su ghcr si cancella **l'immagine, non l'etichetta**,
+e `latest-arm64` **è la stessa immagine** di `2.11.0-arm64`.
+
+**Un difetto di `session_start.sh`, non ancora corretto**: il suo controllo sulle quattro versioni
+usa il regex `^version = "[0-9.]+"`, che **non accetta il suffisso** `-rc.3`. Da stamattina dice
+«i quattro file non sono d'accordo» con l'elenco vuoto, ed è falso — le guardie vere lo verificano
+davvero. Un file meta, si corregge in due minuti.
+
+## Riprendere da qui (precedente) — Fase 1 dell'aggiornamento su `main`, collaudata su due pannelli (2026-09-28, ufficio)
 
 **Tutto su `main`, nessun ramo aperto.** `feat/aggiornamento-runtime-f1` è stato squashato dopo il collaudo del
 maintainer in ufficio e cancellato; **resta da cancellare su origin**: `git push origin --delete
