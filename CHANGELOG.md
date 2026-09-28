@@ -61,6 +61,9 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   riga rossa con **Converti**, in testa c'è **Converti tutti (n)**, e gli allarmi che condividono un tag lo dicono. La conversione non cambia come scatta; il Salva resta dell'utente.
 
 ### Fixed
+- **L'avviso di versione nuova sullo schermo del pannello può comparire davvero**: il viewer (porta 8443) chiedeva lo stato dell'aggiornamento a una rotta che
+  su quella porta non c'era (404), quindi l'avviso non si mostrava mai. Ora c'è, riservata all'Admin: senza utenti passa, con utenti un anonimo è rifiutato.
+  Un test lo tiene (trovato sul TC620).
 - **L'immagine dichiara la versione di SWS**: l'etichetta standard `org.opencontainers.image.version` diceva `24.04`, ereditata da Ubuntu, e chi la leggeva
   la prendeva per la versione del runtime. Ora porta la versione vera (visto sulla 2.12.0-rc.3 appena pubblicata).
 - **L'immagine di boot arriva davvero al launcher.** Il runtime lo chiamava solo quando il PNG cambiava, e un pannello con l'immagine pubblicata ma mai
