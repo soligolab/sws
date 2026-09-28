@@ -183,6 +183,30 @@ Queste entrano come **Fase 1b**, dopo il collaudo della Fase 1 e prima della fin
 45. **Le novità di una `-rc` restano tutto `[Unreleased]`** (scelta del maintainer, 28-09): chi è sul canale di prova vede
     tutto ciò che arriverà nella prossima release — oggi ~63 000 caratteri — non la differenza fra una rc e l'altra.
 
+## Fase 2 — la finestra programmata (28-09-2026, sera)
+
+46. **Tutte e due le forme**: di default un'**approvazione una tantum** («aggiorna alla 2.12.1 domenica alle 3»); per pannello
+    si può accendere il **pilota automatico** («ogni domenica alle 3 installa ciò che c'è di nuovo nel canale»).
+47. **L'ora è quella locale del pannello**, e l'IDE mostra **data e ora del pannello sia locali sia UTC** accanto alla
+    finestra (maintainer: «così è impossibile confondersi»).
+48. **Si sceglie con giorno + ora** (oggi / domani / lunedì… e «alle 03:00»); sotto non c'è un cron visibile.
+
+**Misurato:** il TC620 è in `Europe/Rome`, il container in UTC (`/etc/localtime → …/UTC`); il `cron` del runtime lavora in
+UTC. **Disegno:**
+- quadlet: `Timezone=local` (podman copia il fuso dell'host nel container; tolta dall'installer sui podman 4.x come
+  `Notify=healthy`); nel runtime `chrono::Local` converte giorno + ora del pannello in un istante, cambio d'ora compreso;
+- `<config_dir>/aggiornamento.yaml` — del dispositivo, non del progetto (decisione 39): `approvazione` (versione +
+  istante) e `pilota` (giorni + ora);
+- un task nel runtime dorme fino al prossimo evento (al massimo un'ora, poi ricontrolla: la configurazione e l'orologio
+  possono cambiare) e lì chiama `stato()`:
+  - **approvazione**: aggiorna solo se il canale offre **ancora esattamente la versione approvata**. Podman installa la
+    testa del canale, non una versione precisa: se nel frattempo è uscita una più nuova, l'approvazione si annulla e lo
+    dice, perché nessuno ha letto quella;
+  - **pilota**: aggiorna se c'è qualunque versione più nuova;
+- `GET/PUT /api/update/schedule` (Admin, anche sulla porta di gestione), proxy nell'IDE; la sezione «Aggiornamento del
+  runtime» mostra l'orologio del pannello, «Programma…», l'approvazione in corso con «Annulla», e il pilota automatico.
+  Gli avvisi di compatibilità chiedono la seconda conferma anche quando si programma.
+
 ## Visto il 27-09, da non dimenticare
 
 - Sui pannelli con CODESYS, `allow_url_override = true` fa vincere CODESYS sul browser all'avvio
