@@ -536,6 +536,12 @@ pub fn build(
         // comando sul dispositivo, non sul progetto, quindi Admin.
         .route("/api/boot-image/reset", post(boot_image_reset))
         .route("/api/remote/boot-image/reset", post(crate::remote::remote_boot_image_reset))
+        // Aggiornamento del runtime (27-09-2026): lo stato del canale e
+        // «Aggiorna ora». Admin: riavvia il servizio.
+        .route("/api/update/status", get(aggiornamento_stato))
+        .route("/api/update/apply", post(aggiornamento_avvia))
+        .route("/api/remote/update/status", get(crate::remote::remote_update_status))
+        .route("/api/remote/update/apply", post(crate::remote::remote_update_apply))
         .route("/api/system/stop", post(crate::system::system_stop))
         .route("/api/system/start", post(crate::system::system_start))
         .route("/api/system/reboot", post(crate::system::system_reboot))
@@ -1086,6 +1092,9 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         // `ogni_chiamata_dell_ide_ha_la_sua_rotta_sul_dispositivo` ora lo vede.
         .route("/api/datastores/:id/clean-history", post(datastore_pulisci_storico))
         .route("/api/boot-image/reset", post(boot_image_reset))
+        // Aggiornamento del runtime (27-09-2026): chiamato dall'IDE collegato.
+        .route("/api/update/status", get(aggiornamento_stato))
+        .route("/api/update/apply", post(aggiornamento_avvia))
         // ── Override per-dispositivo del client id MQTT ────────────────────
         .route(
             "/api/mqtt/source/:id/client-id-override",
@@ -2499,6 +2508,43 @@ struct PuliziaBody {
 /// Esiste per gli storici scritti prima del 26-09-2026, quando il buffer dei
 /// grafici salvava ogni aggiornamento di ogni tag (CasaDomotica: 590 MB, 93 %
 /// ripetizioni). Da allora non si gonfiano più, ma quelli già gonfi restano.
+/// `GET /api/update/status` — versione, canale e versione disponibile.
+async fn aggiornamento_stato() -> Response {
+    Json(crate::aggiornamento::stato().await).into_response()
+}
+
+/// `POST /api/update/apply` — avvia l'aggiornamento del runtime. Risponde
+/// **prima** di chiedere a systemd: se l'aggiornamento c'è, questo processo
+/// viene fermato e sostituito, e la risposta non partirebbe più.
+async fn aggiornamento_avvia(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+) -> Response {
+    use crate::aggiornamento::Canale;
+    let st = crate::aggiornamento::stato().await;
+    if !matches!(st.canale, Canale::Stabile | Canale::Prova) {
+        return (
+            StatusCode::CONFLICT,
+            "Questo runtime non segue un canale del registry (installato da archivio, o con una \
+             versione fissata): si aggiorna dall'IDE, in Configurazione → Istanza → Device → Installazione.",
+        )
+            .into_response();
+    }
+    s.audit.log(
+        "update.apply",
+        Some(user.username),
+        serde_json::json!({ "versione": st.versione, "disponibile": st.disponibile, "immagine": st.immagine }),
+    );
+    tokio::spawn(async {
+        tokio::time::sleep(std::time::Duration::from_millis(800)).await;
+        match crate::aggiornamento::avvia().await {
+            Ok(()) => tracing::info!("aggiornamento del runtime avviato (podman-auto-update.service)"),
+            Err(e) => tracing::warn!("aggiornamento del runtime non avviato: {e}"),
+        }
+    });
+    (StatusCode::ACCEPTED, Json(st)).into_response()
+}
+
 /// `POST /api/boot-image/reset` — l'immagine di accensione del pannello torna
 /// quella di fabbrica (`ResetBackgroundImage`). Risponde con lo stato nuovo.
 async fn boot_image_reset(

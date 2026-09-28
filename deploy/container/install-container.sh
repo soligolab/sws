@@ -431,6 +431,21 @@ if [ "$AUTOSTART" -eq 1 ]; then
         echo "               Collegarsi a mano con http://<ip>:8444." >&2
     fi
     sed -i "s|^Image=.*|Image=$TAG|" "$UNIT_DIR/$NAME.container"
+    # Aggiornamento del runtime (27-09-2026): il runtime deve sapere che
+    # immagine esegue, il bus utente è quello dell'utente vero, e un'immagine
+    # da archivio non ha un registry da seguire.
+    sed -i "s|^Environment=SWS_IMAGE=.*|Environment=SWS_IMAGE=$TAG|" "$UNIT_DIR/$NAME.container"
+    sed -i "s|/run/user/1000/bus|/run/user/$(id -u)/bus|g" "$UNIT_DIR/$NAME.container"
+    case "$TAG" in
+        localhost/*)
+            sed -i "s|^AutoUpdate=|#AutoUpdate=|" "$UNIT_DIR/$NAME.container"
+            echo "    immagine da archivio: aggiornamento automatico spento (si aggiorna dall'IDE con un archivio)" ;;
+        *)  echo "    aggiornamento: canale ${TAG##*:} (lo avvia il runtime su richiesta di un Admin)" ;;
+    esac
+    if [ "${PODMAN_MAJ:-0}" -lt 5 ] 2>/dev/null; then
+        sed -i "s|^Notify=healthy|#Notify=healthy|" "$UNIT_DIR/$NAME.container"
+        echo "    podman ${PODMAN_VER:-?} < 5: Notify=healthy tolto — l'aggiornamento non torna indietro da solo" >&2
+    fi
     # La unit ha /data/user/sws hardcoded: riscrivere i mount se --data diverso.
     if [ "$DATA" != "/data/user/sws" ]; then
         sed -i "s|^Volume=/data/user/sws/|Volume=$DATA/|" "$UNIT_DIR/$NAME.container"
@@ -488,6 +503,7 @@ if [ "$AUTOSTART" -eq 1 ]; then
     if [ -f "$VIEWER_UNIT_SRC" ] && [ -f "$APPLY_SRC" ]; then
         install -m 0644 "$VIEWER_UNIT_SRC" "$UNIT_DIR/sws-lvgl-viewer.container"
         sed -i "s|^Image=.*|Image=$TAG|" "$UNIT_DIR/sws-lvgl-viewer.container"
+        case "$TAG" in localhost/*) sed -i "s|^AutoUpdate=|#AutoUpdate=|" "$UNIT_DIR/sws-lvgl-viewer.container" ;; esac
         [ "$DATA" != "/data/user/sws" ] && \
             sed -i "s|^Volume=/data/user/sws/|Volume=$DATA/|" "$UNIT_DIR/sws-lvgl-viewer.container"
 

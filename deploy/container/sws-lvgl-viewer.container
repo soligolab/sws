@@ -27,6 +27,10 @@ Wants=sws-runtime.service
 [Container]
 Image=ghcr.io/soligolab/sws-runtime:latest-arm64
 ContainerName=sws-lvgl-viewer
+# Stessa immagine del runtime: si aggiorna con lui. Se il viewer è fermo (il
+# progetto è in modalità web) la prossima volta parte già con l'immagine nuova,
+# perché il tag è lo stesso. L'installer la commenta per un'immagine da archivio.
+AutoUpdate=registry
 Entrypoint=sws-lvgl-viewer
 
 # Nessun `--page`: si parte dalla home page dichiarata dal progetto, e in

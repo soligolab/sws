@@ -95,6 +95,7 @@ Sul TC620 (dev.5), con un container usa-e-getta della stessa immagine e un clien
 39. **Canale e finestra sono del dispositivo**, impostati dalla scheda Connessione e salvati nella config del runtime:
     un deploy non li cambia.
 40. **Fasi: 1 «Aggiorna ora» → 2 finestra programmata → 3 avviso di rollback → 4 commutazione del display via bus.**
+    (Il 28-09 si aggiunge la Fase 1b, avviso sul pannello e changelog: decisioni 41-44.)
 
 ## Misurato per il disegno (27-09, sera)
 
@@ -123,6 +124,51 @@ Sul TC620 (dev.5), con un container usa-e-getta della stessa immagine e un clien
 
 Collaudo sul TC620: reinstallarlo **dal registry** sul canale prova, pubblicare una `-rc` più nuova, «Aggiorna ora»,
 verificare versione nuova e *healthy*; poi un'immagine rotta apposta per vedere il rollback.
+
+## Collaudo della Fase 1 sul TC620 (28-09-2026, mattina)
+
+Autorizzato dal maintainer fino al punto 4 («prova a vedere se arrivi fino al punto 4»), con `podman login ghcr.io`
+fatto da lui in `~/.config/containers/auth.json`.
+
+1. **rc.1 su `rc-arm64`**, verificata sul registry (i tre tag sulla stessa immagine, `latest-arm64` intatto). TC620
+   reinstallato **dal registry** sul canale di prova: quadlet con `AutoUpdate`, `Notify=healthy`, bus utente,
+   `SWS_IMAGE`; `systemctl show` → `Type=notify`.
+   **Difetto trovato**: la rc.1 diceva «disponibile: 2026.7.0» — il tag della vecchia numerazione a calendario è ancora
+   nel registry e in semver batte ogni `2.x`. Corretto nella rc.2 (versioni con prima cifra ≥ 1000 ignorate), test
+   provato rosso.
+2. **«Aggiorna ora» rc.1 → rc.2**: 202 subito; pull in 15 s, runtime giù ~5 s, *healthy* a ~35 s, `UPDATED true`. Poi
+   `podman-auto-update.service` ha cancellato dal pannello le immagini vecchie non usate (lo fa l'unit di sistema).
+3. **Immagine rotta apposta** (la rc.2 con `ENTRYPOINT sleep`, pubblicata **solo** come `rc-arm64`, senza tag di
+   versione): l'avvio scade a 90 s, `sleep` ignora SIGTERM e viene ucciso dopo altri 30 s, poi podman **rimette la rc.2**
+   e riavvia → rc.2 *healthy*. Il ritorno indietro funziona.
+   - **Ma podman dichiara il rollback «failed»** (`expected "done" but received "failed"`): il riavvio di `Restart=always`
+     e quello del rollback si sono sovrapposti, con un riavvio in più. **Per la Fase 3**: l'avviso deve guardare la
+     versione che gira alla fine, non il codice d'uscita di podman.
+   - **Disservizio con un'immagine rotta: ~2,5 minuti** (90 s di attesa + 30 s per fermarla + riavvii). La rc.2 impiega
+     ~35 s a diventare *healthy*: `TimeoutStartSec` (oggi 90 s) e il `TimeoutStopSec` si possono stringere — da tarare.
+4. `rc-arm64` rimesso subito sulla rc.2 buona; l'immagine rotta resta su ghcr.io solo come versione senza tag.
+
+## Avviso sul pannello e changelog (28-09-2026)
+
+Proposta del maintainer: «Se esistono degli utenti definiti ok per il meccanismo su Admin. Se non ci sono utenti
+tipicamente è una installazione di prova […] vorrei poter vedere un avviso di aggiornamento disponibile quando il
+runtime parte o viene riavviato […] mi basta premere un tasto. Sarebbe anche utile, prima, poter vedere un changelog
+[…] e se ci sono dei warning di compatibilità importanti, questo vale per tutte le modalità.»
+
+41. **Senza utenti, l'avviso compare sullo schermo del pannello, in web e in LVGL**: all'avvio o al riavvio il
+    runtime controlla il canale, e se c'è una versione nuova il pannello mostra «Novità / Aggiorna / Più tardi /
+    Ignora questa versione». Senza utenti chiunque è già Admin, quindi il pulsante non apre niente di nuovo. Con
+    utenti definiti l'avviso sul pannello non c'è: resta il percorso dell'Admin dall'IDE.
+42. **Il changelog viaggia dentro l'immagine come etichetta**: alla build, la sezione di CHANGELOG della versione (per
+    una `-rc`, `[Unreleased]`) e, a parte, i suoi avvisi di compatibilità. Il runtime le legge dal registry con la
+    stessa chiamata anonima dei tag — pochi KB, niente pull — e per un salto di più versioni legge l'etichetta di
+    **ogni** versione intermedia del canale, perché gli avvisi di una versione saltata sono quelli da non perdere.
+43. **Gli avvisi di compatibilità si scrivono in una sottosezione `### ⚠ Compatibilità`** della versione, nel
+    CHANGELOG. La finestra li mette in cima e chiede una conferma in più. Una guardia ne controlla il formato.
+44. **«Più tardi» e «Ignora questa versione»**: il primo nasconde l'avviso fino al prossimo avvio, il secondo finché
+    non esce una versione ancora più nuova.
+
+Queste entrano come **Fase 1b**, dopo il collaudo della Fase 1 e prima della finestra programmata.
 
 ## Visto il 27-09, da non dimenticare
 

@@ -2417,5 +2417,25 @@
     "membroSenzaTipo": "il membro `{{name}}` non dice di che tipo è",
     "membroTipoNonValido": "membro `{{name}}`: tipo `{{tipo}}` non valido",
     "tipoNonValido": "tipo `{{tipo}}` non valido"
+  },
+  "aggiornamento": {
+    "titolo": "Aggiornamento del runtime",
+    "carico": "Chiedo al dispositivo…",
+    "illeggibile": "Non riesco a leggere lo stato dell'aggiornamento.",
+    "canale": {
+      "stabile": "canale stabile",
+      "prova": "canale di prova",
+      "fissata": "versione fissata",
+      "archivio": "installato da archivio",
+      "sconosciuto": "installazione non gestita"
+    },
+    "aggiornato": "Versione {{versione}} ({{canale}}): è la più recente.",
+    "disponibile": "Versione {{versione}} ({{canale}}): disponibile la {{a}}.",
+    "registryErrore": "Versione {{versione}} ({{canale}}). Non so se ce n'è una più nuova: {{msg}}",
+    "manuale": "Versione {{versione}} ({{canale}}): non si aggiorna da sola. Per aggiornarla usa Configurazione → Istanza → Device → Installazione.",
+    "pulsante": "Aggiorna ora alla {{a}}",
+    "inCorso": "Avvio…",
+    "conferma": "Il runtime del pannello passa dalla {{da}} alla {{a}}.\n\nSi riavvia: per qualche secondo allarmi, storico e schermo si fermano e la connessione cade. Se la versione nuova non parte bene, il pannello torna da solo alla precedente.\n\nProcedo?",
+    "avviato": "Aggiornamento alla {{a}} avviato: il runtime si sta riavviando. Riconnettiti fra un minuto per vedere la versione nuova."
   }
 }

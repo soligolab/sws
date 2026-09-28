@@ -124,6 +124,41 @@ Environment=SWS_HOST_CONFIG_DIR=/data/user/sws/config
 # dentro il container, non il proprietario sul disco.
 UserNS=keep-id
 
+# ── Aggiornamento del runtime (27-09-2026) ──────────────────────────────────
+#
+# Piano docs/plans/2026-09-27-aggiornamento-runtime-e-bus-utente.md.
+#
+# `AutoUpdate=registry`: `podman auto-update` confronta l'immagine dietro il
+# tag di `Image=` con quella del registry e, se è cambiata, la scarica e
+# riavvia il servizio. Il tag è il **canale**: `latest-<arch>` (stabile) o
+# `rc-<arch>` (prova). Non parte da solo: il timer di podman resta spento, e
+# lo avvia il runtime quando un Admin lo chiede (o nella finestra scelta).
+# L'installer la commenta per un'immagine da archivio (`localhost/…`), che
+# non ha un registry da seguire.
+AutoUpdate=registry
+
+# `Notify=healthy`: il servizio risulta avviato solo quando l'HEALTHCHECK
+# passa. È ciò che rende sicuro l'aggiornamento: se la versione nuova non
+# diventa *healthy*, il riavvio fallisce e `podman auto-update` torna da solo
+# alla precedente. Esiste da podman 5: l'installer la toglie sui 4.x, che la
+# rifiuterebbero rendendo invalida l'intera unit.
+Notify=healthy
+
+# Il bus **utente** di systemd, per avviare `podman-auto-update.service` da
+# dentro il container (un container non può riavviare se stesso). Provato sul
+# TC620 il 27-09-2026: con `UserNS=keep-id` l'autenticazione passa, senza viene
+# rifiutata. Dà al runtime il comando delle unit dell'utente, non solo delle
+# nostre: scelta del maintainer, preferita al socket di podman, che darebbe il
+# controllo di tutti i container. L'installer adatta `1000` all'uid vero.
+Volume=/run/user/1000/bus:/run/user/1000/bus
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+
+# Quale immagine sta girando: da dentro il container non si sa
+# (`/run/.containerenv` è vuoto in un container rootless). La riscrive
+# l'installer uguale a `Image=`; il runtime ne ricava il canale e se è
+# un'installazione da archivio.
+Environment=SWS_IMAGE=ghcr.io/soligolab/sws-runtime:latest-arm64
+
 [Service]
 Restart=always
 RestartSec=5

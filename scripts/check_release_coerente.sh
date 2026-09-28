@@ -95,11 +95,11 @@ fi
 
 # ── 2. la versione dichiarata ha una sezione nel CHANGELOG ───────────────────
 echo "=== 2. la versione dichiarata è raccontata nel CHANGELOG ==="
-# Le versioni di prova (`2.12.0-dev.1`, prassi del 25-09-2026, HOWTO §19) non
+# Le versioni di prova (`2.12.0-rc.1`; fino al 27-09-2026 `-dev.N`; HOWTO §19) non
 # hanno una sezione loro: sono immagini da collaudare, non release, e il loro
 # lavoro resta sotto `[Unreleased]` fino alla release vera. Il tag lo vogliono
 # comunque (controllo 4): è ciò che rende l'immagine riconoscibile.
-if [[ "$VERSIONE" == *-dev.* ]]; then
+if [[ "$VERSIONE" == *-rc.* || "$VERSIONE" == *-dev.* ]]; then
     esito ok "\`$VERSIONE\` è una versione di prova: il suo lavoro sta sotto [Unreleased]"
 elif grep -q "^## \[${VERSIONE}\]" CHANGELOG.md; then
     esito ok "\`## [$VERSIONE]\` c'è"

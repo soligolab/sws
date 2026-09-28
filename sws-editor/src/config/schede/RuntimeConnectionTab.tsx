@@ -5,6 +5,7 @@ import { dispositivoDaRuntime } from "@/config/dispositiviRegistrati";
 import { selectIsDirty, useAppStore } from "@/store";
 import { INSTALL_HOST, ricorda } from "@/config/campiDispositivo";
 import { StatoBootImage } from "@/boot/StatoBootImage";
+import { AggiornamentoRuntime } from "@/boot/AggiornamentoRuntime";
 import { TRANS_COMP } from "@/config/comuni";
 import { registraDispositivo, flushBeforeDeploy } from "@/config/schede/DevicesTab";
 
@@ -914,6 +915,9 @@ export function RuntimeConnectionTab() {
       )}
 
       {/* T-72 F5 — com'è andata l'installazione dell'immagine di boot. */}
+      {/* Aggiornamento del runtime (27-09-2026). */}
+      {connected && <AggiornamentoRuntime />}
+
       {connected && <StatoBootImage />}
 
       {/* Live tag panel via /ws/remote/tags relay */}

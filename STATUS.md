@@ -74,14 +74,66 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — il lavoro è sul ramo `feat/aggiornamento-runtime-f1` (2026-09-28)
+## ▶ Riprendere da qui — Fase 1 dell'aggiornamento su `main`, collaudata su due pannelli (2026-09-28, ufficio)
 
-**Su `main` c'è solo fino alla sessione di plan dell'aggiornamento del runtime.** La Fase 1 (aggiornamento dal
-registry, «Aggiorna ora», immagini di prova `-rc`) è sul ramo **`feat/aggiornamento-runtime-f1`**, pushato su origin e
-collaudato sul TC620 (2.12.0-rc.2 sul canale di prova); aspetta l'ok del maintainer nell'IDE prima dello squash.
-**Il riepilogo completo è nello `STATUS.md` di quel ramo**: `git fetch && git checkout feat/aggiornamento-runtime-f1`.
+**Tutto su `main`, nessun ramo aperto.** `feat/aggiornamento-runtime-f1` è stato squashato dopo il collaudo del
+maintainer in ufficio e cancellato; **resta da cancellare su origin**: `git push origin --delete
+feat/aggiornamento-runtime-f1`.
 
-## Riprendere da qui (precedente) — immagine di boot su `main`, dev.5 sul TC620; prossimo: utenti e aziende (2026-09-27, sera)
+**Il collaudo, in ufficio, sul WP630** (il TC620 è a casa): installato dal registry sul canale di prova partendo
+dalla **rc.1** — pull della rc.1 e `podman tag` come `rc-arm64`, poi `install-container.sh --tag …:rc-arm64`, così
+restava un salto da fare. Il maintainer ha premuto «Aggiorna ora» nell'IDE: il pannello è passato alla **rc.2**, il
+container è tornato `healthy`, e progetto `test`, storico (16 MB) e sorgenti sono rimasti intatti. Verificato che
+`podman-auto-update.service` è **disabled** e non ha timer: l'aggiornamento non parte mai da sé.
+
+**Una prova che non è più isolabile**: il campo «disponibile» ora è vuoto per due motivi sovrapposti — la rc.2
+confronta bene le versioni *e* le immagini `2026.7.0` non esistono più nel registry (vedi sotto). Il fix del
+confronto si appoggia ai suoi test, non a questa osservazione.
+
+**Registry ripulito** (28-09, decisione del maintainer: «le release vecchie occupano spazio e hanno nomi non più
+coerenti»). Da **128 etichette a 26**, cancellando **47 immagini**: tutte le release dalla `0.1.0-dev` alla `2.10.1`
+e le tre CalVer `2026.7.0`. La cosa da non dimenticare, se si rifà: su ghcr si cancella **l'immagine, non
+l'etichetta**, e `latest-arm64` **è la stessa immagine** di `2.11.0-arm64` — la regola «via tutto tranne 2.12 e
+latest» avrebbe portato via il canale di produzione. Lo script sta nello scratchpad della sessione
+(`pulisci_registry.py`, prova in secco di default); restano 13 build per commit, da togliere quando si vuole.
+
+
+**Da fare per primo, in ufficio:** `git fetch && git checkout feat/aggiornamento-runtime-f1`, editor da quel ramo,
+Configurazione → Istanza → Device → Connessione → sezione «Aggiornamento del runtime» (il TC620 però è a casa: dall'ufficio
+si guarda con un pannello sul canale di prova, oppure si rimanda a casa). Poi squash su `main`, controllo alberi, ramo
+eliminato (anche su origin: `git push origin --delete feat/aggiornamento-runtime-f1`). Pubblicate su ghcr.io la **2.12.0-rc.1** e la
+**2.12.0-rc.2** (canale `rc-arm64`; `latest-arm64` intatto alla 2.11). Il TC620 è installato **dal registry sul canale di
+prova** e gira la rc.2. Collaudo fino al punto 4 fatto (dettagli nel piano): aggiornamento rc.1 → rc.2 in ~35 s, ritorno
+indietro da un'immagine rotta riuscito ma con due note per le fasi successive (podman dice «rollback failed» anche
+quando riesce; ~2,5 min di disservizio con un'immagine rotta). Resta: il maintainer guarda la sezione «Aggiornamento del
+runtime» nell'IDE, poi squash. Dopo: **Fase 1b** (avviso sul pannello senza utenti, changelog nell'immagine,
+decisioni 41-44). Il login di ghcr.io è in `~/.config/containers/auth.json` su `ufficio` (persistente).
+Il maintainer ha dato una password temporanea di `pixsys` sul TC620 **in chat**: non scritta da nessuna parte, da
+cambiare a fine collaudo.
+
+## Riprendere da qui (precedente) — Fase 1 scritta, collaudo fermo al login di ghcr.io (2026-09-27, notte)
+
+**Un ramo aperto, `feat/aggiornamento-runtime-f1`, niente pushato.** Piano
+[aggiornamento runtime e bus utente](docs/plans/2026-09-27-aggiornamento-runtime-e-bus-utente.md) (decisioni 30-40;
+prerequisito del piano utenti e aziende). Prova del bus utente dal container sul TC620: **regge** (serve `keep-id`).
+Fase 1 scritta e verde (cargo, 423 test web, 926 vitest, 26 guardie): quadlet con `AutoUpdate=registry`,
+`Notify=healthy`, bus utente e `SWS_IMAGE`; runtime `aggiornamento.rs` + `/api/update/{status,apply}` (anche sulla
+porta di gestione); sezione «Aggiornamento del runtime» nella scheda Connessione; `--push` sposta `rc-<arch>` /
+`latest-<arch>`; **le immagini di prova si chiamano `-rc`** (HOWTO §19). Versione sul ramo: **2.12.0-rc.1**
+(immagine costruita in locale, non pubblicata).
+
+**Il collaudo si è fermato al punto 2: su questa macchina non ci sono credenziali per ghcr.io.** Da riprendere così:
+1. il maintainer fa `podman login ghcr.io -u <utente>` (token classic con `write:packages`);
+2. `build_container.sh --push` della rc.1 → `rc-arm64`; TC620 reinstallato **dal registry**:
+   `install-container.sh --pull ghcr.io/soligolab/sws-runtime:rc-arm64`;
+3. rc.2 pubblicata → la scheda dice «disponibile» → «Aggiorna ora» → il pannello torna su in rc.2;
+4. rc.3 **rotta apposta** sullo stesso canale → il pannello deve tornare alla rc.2 da solo; poi subito una rc.4 buona
+   (autorizzato dal maintainer: «prova a vedere se arrivi fino al punto 4»).
+
+Il TC620 gira ancora la **dev.5** (da archivio). Tag mancanti: `2.12.0-dev.3/4/5` (sui commit di `main`), da creare
+col push quando il maintainer lo chiede.
+
+## Riprendere da qui (precedente) — immagine di boot su `main`, dev.5 sul TC620 (2026-09-27, sera)
 
 **Su `main`, niente pushato, nessun ramo aperto.** `feat/boot-image-dbus` collaudato dal maintainer («ok, funziona
 tutto») e squashato; piano e due semi in archivio. Il TC620 gira la **2.12.0-dev.5**; CODESYS con
