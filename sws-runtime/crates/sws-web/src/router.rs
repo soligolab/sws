@@ -540,6 +540,8 @@ pub fn build(
         // «Aggiorna ora». Admin: riavvia il servizio.
         .route("/api/update/status", get(aggiornamento_stato))
         .route("/api/update/apply", post(aggiornamento_avvia))
+        .route("/api/update/schedule", get(finestra_leggi).put(finestra_scrivi))
+        .route("/api/remote/update/schedule", get(crate::remote::remote_finestra_leggi).put(crate::remote::remote_finestra_scrivi))
         .route("/api/remote/update/status", get(crate::remote::remote_update_status))
         .route("/api/remote/update/apply", post(crate::remote::remote_update_apply))
         .route("/api/system/stop", post(crate::system::system_stop))
@@ -1095,6 +1097,7 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         // Aggiornamento del runtime (27-09-2026): chiamato dall'IDE collegato.
         .route("/api/update/status", get(aggiornamento_stato))
         .route("/api/update/apply", post(aggiornamento_avvia))
+        .route("/api/update/schedule", get(finestra_leggi).put(finestra_scrivi))
         // ── Override per-dispositivo del client id MQTT ────────────────────
         .route(
             "/api/mqtt/source/:id/client-id-override",
@@ -1192,9 +1195,21 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
         .route("/api/auth/verify-password", post(verify_password_handler))
         .route("/api/auth/refresh", post(refresh_session));
 
+    // L'avviso di versione nuova sullo schermo del pannello (decisioni 41 e 44,
+    // 28-09-2026) chiama queste due rotte **da qui**, dalla porta del viewer.
+    // Mancavano: la Fase 1b le aveva messe solo sulla porta admin e su quella
+    // di gestione, e l'avviso non poteva comparire mai (404, trovato il 28-09
+    // sul TC620). Admin: senza utenti l'Admin sintetico passa — ed è il solo
+    // caso in cui l'avviso si mostra —; con utenti, un anonimo prende 403.
+    let aggiornamento_routes = Router::new()
+        .route("/api/update/status", get(aggiornamento_stato))
+        .route("/api/update/apply", post(aggiornamento_avvia))
+        .route_layer(middleware::from_fn(require_admin));
+
     // Wrap all gated routes with optional_auth so every request has AuthUser.
     let gated = read_routes
         .merge(operator_routes)
+        .merge(aggiornamento_routes)
         .merge(self_service)
         .route_layer(middleware::from_fn_with_state(state.clone(), optional_auth));
 
@@ -2509,8 +2524,8 @@ struct PuliziaBody {
 /// grafici salvava ogni aggiornamento di ogni tag (CasaDomotica: 590 MB, 93 %
 /// ripetizioni). Da allora non si gonfiano più, ma quelli già gonfi restano.
 /// `GET /api/update/status` — versione, canale e versione disponibile.
-async fn aggiornamento_stato() -> Response {
-    Json(crate::aggiornamento::stato().await).into_response()
+async fn aggiornamento_stato(State(s): State<AppState>) -> Response {
+    Json(crate::aggiornamento::stato_con_esito(&s.config_dir).await).into_response()
 }
 
 /// `POST /api/update/apply` — avvia l'aggiornamento del runtime. Risponde
@@ -2535,6 +2550,7 @@ async fn aggiornamento_avvia(
         Some(user.username),
         serde_json::json!({ "versione": st.versione, "disponibile": st.disponibile, "immagine": st.immagine }),
     );
+    crate::aggiornamento_esito::segna_in_corso(&s.config_dir, &st.versione, st.disponibile.clone()).await;
     tokio::spawn(async {
         tokio::time::sleep(std::time::Duration::from_millis(800)).await;
         match crate::aggiornamento::avvia().await {
@@ -2543,6 +2559,35 @@ async fn aggiornamento_avvia(
         }
     });
     (StatusCode::ACCEPTED, Json(st)).into_response()
+}
+
+/// `GET /api/update/schedule` — la finestra dell'aggiornamento e l'orologio del pannello.
+async fn finestra_leggi(State(s): State<AppState>) -> Response {
+    Json(crate::aggiornamento_finestra::vista(&s.config_dir).await).into_response()
+}
+
+/// `PUT /api/update/schedule` — programma, annulla, accende o spegne il pilota.
+async fn finestra_scrivi(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Json(r): Json<crate::aggiornamento_finestra::Richiesta>,
+) -> Response {
+    use crate::aggiornamento_finestra as f;
+    let attuale = f::carica(&s.config_dir).await;
+    // Solo se si programma una versione nuova serve sapere cosa offre il canale.
+    let serve_stato = matches!(r.approvazione, Some(f::ApprovazioneRichiesta::Nuova { .. }));
+    let disponibile = if serve_stato { crate::aggiornamento::stato().await.disponibile } else { None };
+    match f::applica(&attuale, r, disponibile.as_deref(), &chrono::Local::now()) {
+        Ok(p) => {
+            if let Err(e) = f::salva(&s.config_dir, &p).await {
+                return (StatusCode::INTERNAL_SERVER_ERROR, format!("non salvata: {e}")).into_response();
+            }
+            f::sveglia();
+            s.audit.log("update.schedule", Some(user.username), serde_json::to_value(&p).unwrap_or_default());
+            Json(f::vista(&s.config_dir).await).into_response()
+        }
+        Err(e) => (StatusCode::BAD_REQUEST, e).into_response(),
+    }
 }
 
 /// `POST /api/boot-image/reset` — l'immagine di accensione del pannello torna
@@ -9921,6 +9966,23 @@ mod rotte_del_dispositivo {
                     .join("/")
             })
             .collect()
+    }
+
+    /// Le chiamate che il **viewer** (la porta 8443) fa per l'avviso di
+    /// versione nuova: la Fase 1b le aveva messe altrove, e l'avviso non
+    /// poteva comparire (404 sul TC620, 28-09-2026).
+    #[test]
+    fn l_avviso_del_viewer_ha_le_sue_rotte_sulla_porta_del_viewer() {
+        let src = include_str!("router.rs");
+        let inizio = src.find("fn build_runtime_inner(").expect("build_runtime_inner");
+        let fine = inizio + src[inizio..].find("\nfn ").expect("fine di build_runtime_inner");
+        let corpo = &src[inizio..fine];
+        for rotta in ["\"/api/update/status\"", "\"/api/update/apply\""] {
+            assert!(corpo.contains(rotta), "la porta del viewer non ha {rotta}: l'avviso sul pannello prende 404");
+        }
+        let avviso = include_str!("../../../../sws-editor/src/runtime-view/AvvisoAggiornamento.tsx");
+        assert!(avviso.contains("statoAggiornamento") && avviso.contains("avviaAggiornamento"),
+            "l'avviso non usa più queste chiamate: aggiornare il test");
     }
 
     #[test]

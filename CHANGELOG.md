@@ -11,7 +11,36 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### ⚠ Compatibilità
+
+- Un dispositivo che gira una versione **precedente alla 2.12.0-rc.1** non conosce l'aggiornamento dal registry: la
+  sezione «Aggiornamento del runtime» glielo dice, e va aggiornato una volta dall'Installazione. Dopo, si aggiorna
+  da sé su richiesta.
+- Le immagini pubblicate **prima del 28-09-2026** non portano il changelog come etichetta: per quelle la sezione
+  mostra lo stato ma non le novità. Vale per la `2.12.0-rc.1` e la `rc.2`.
+
 ### Added
+- **L'esito di ogni aggiornamento del runtime** (Fase 3 del piano): dopo un aggiornamento, anche del pilota automatico, il pannello senza utenti mostra
+  «Aggiornato dalla X alla Y» con le Novità della versione nuova, finché qualcuno non lo chiude; se la versione nuova non regge e podman torna indietro,
+  «non riuscito» in rosso. Lo stesso nella sezione Aggiornamento dell'IDE e su Telegram (le chat delle Notifiche). L'esito lo decide la versione che gira
+  dopo: la nuova scrive «riuscito» solo dopo due minuti di vita, la vecchia che si ritrova in funzione scrive «non riuscito».
+- **La finestra dell'aggiornamento si riprogramma e parte dall'ora del pannello**: «Modifica» sposta un aggiornamento programmato o il pilota
+  automatico senza annullarli; a connessione avvenuta i campi propongono l'orologio del pannello più qualche minuto e dicono accanto di che fuso è l'ora
+  («ora del pannello, UTC+00:00»), con un avviso se il pannello è in UTC. Il pilota sceglie più giorni. Una programmazione appena salvata sveglia
+  subito il runtime, che prima poteva accorgersene fino a un'ora dopo.
+- **La finestra dell'aggiornamento del runtime** (Fase 2 del [piano](docs/plans/2026-09-27-aggiornamento-runtime-e-bus-utente.md)): nella sezione «Aggiornamento del
+  runtime» si programma la versione disponibile per un giorno e un'ora **del pannello** (una volta sola), oppure si accende il **pilota automatico**, che
+  a ogni finestra installa ciò che c'è di nuovo nel canale. L'orologio del pannello si vede in locale e in UTC. Un'approvazione non installa mai una
+  versione diversa da quella approvata: se nel canale ne esce una più nuova, si annulla e lo dice; una finestra mancata di più di un'ora non si
+  recupera. Il quadlet dà al container il fuso del pannello (`Timezone=local`).
+- **Il changelog viaggia dentro l'immagine, e si legge prima di aggiornare.** Alla build la sezione di CHANGELOG della versione finisce in un'etichetta OCI; il runtime la legge dal registry
+  **senza scaricare l'immagine** (le etichette stanno nel config blob: due richieste e pochi KB contro centinaia di MB) e la mostra nella sezione «Aggiornamento del runtime». Saltando più
+  versioni si leggono anche quelle in mezzo — fino a cinque — perché gli avvisi di una versione saltata sono quelli che nessuno leggerebbe mai.
+- **Gli avvisi di compatibilità hanno un posto loro**: una sottosezione `### ⚠ Compatibilità` nella versione, un'etichetta separata nell'immagine, il primo posto nella finestra, e una **seconda
+  conferma** prima di aggiornare. Una guardia controlla che il titolo sia scritto esattamente così: una variante non verrebbe letta, e un avviso che non compare è peggio di un avviso assente.
+- **Sul pannello senza utenti l'avviso compare a schermo**, all'avvio: una finestra con le novità, gli avvisi in cima, e tre scelte. «Più tardi» nasconde fino al prossimo avvio, **«Ignora questa
+  versione»** ricorda la scelta e tace finché non ne esce una più nuova. Con utenti definiti non compare e il registry non viene nemmeno interrogato: l'aggiornamento resta dell'Admin, dall'IDE.
+  Per ora solo nel viewer web; su LVGL arriverà.
 - **Aggiornamento del runtime dall'IDE** (Fase 1 del [piano](docs/plans/2026-09-27-aggiornamento-runtime-e-bus-utente.md)): in Configurazione → Istanza →
   Device → Connessione la sezione «Aggiornamento del runtime» dice versione e canale del pannello (stabile `latest-<arch>`, prova `rc-<arch>`) e se nel canale
   c'è una versione più nuova, letta dal registry senza credenziali; «Aggiorna ora» (Admin, con conferma) fa avviare al pannello `podman-auto-update` via bus
@@ -45,6 +74,14 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   riga rossa con **Converti**, in testa c'è **Converti tutti (n)**, e gli allarmi che condividono un tag lo dicono. La conversione non cambia come scatta; il Salva resta dell'utente.
 
 ### Fixed
+- **L'avviso di versione nuova sullo schermo del pannello compare davvero, e anche dopo un riavvio del runtime**: aspettava di sapere se il progetto ha
+  utenti da un valore che imposta solo l'IDE, quindi nel viewer non si mostrava mai (i test lo impostavano a mano e non se ne accorgevano). Ora lo chiede al
+  runtime (`/api/system`), e ogni minuto guarda se il runtime è ripartito: in quel caso ricontrolla, senza bisogno di ricaricare la pagina.
+- **L'avviso di versione nuova sullo schermo del pannello può comparire davvero**: il viewer (porta 8443) chiedeva lo stato dell'aggiornamento a una rotta che
+  su quella porta non c'era (404), quindi l'avviso non si mostrava mai. Ora c'è, riservata all'Admin: senza utenti passa, con utenti un anonimo è rifiutato.
+  Un test lo tiene (trovato sul TC620).
+- **L'immagine dichiara la versione di SWS**: l'etichetta standard `org.opencontainers.image.version` diceva `24.04`, ereditata da Ubuntu, e chi la leggeva
+  la prendeva per la versione del runtime. Ora porta la versione vera (visto sulla 2.12.0-rc.3 appena pubblicata).
 - **L'immagine di boot arriva davvero al launcher.** Il runtime lo chiamava solo quando il PNG cambiava, e un pannello con l'immagine pubblicata ma mai
   applicata (il TC620: PNG del 20-09, launcher ancora su «Default») non recuperava più; ora lo richiama finché l'esito non è `installato` per quel PNG. Chi scrive
   e chi legge lo stato usano le stesse parole e le stesse chiavi (prima `applicata`/`nota`, che la scheda Runtime non riconosceva). Via il file `trigger`, rimasto
@@ -62,6 +99,9 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 - **Stato git di un repository senza commit**: rispondeva 500 e il pannello restava senza bottoni, proprio senza «Commit».
 
 ### Changed
+- **Le Novità che il pannello e l'IDE mostrano prima di aggiornare sono brevi e in due lingue**: non più la sezione del CHANGELOG (per la 2.12 erano
+  63 000 caratteri, illeggibili su un pannello) ma le voci di `NOVITA.yaml`, una riga per cosa, in italiano e inglese, mostrate nella lingua
+  dell'interfaccia. Saltando più rc con le stesse Novità, si leggono una volta sola. Guardia `check_novita.sh` al posto di `check_changelog_etichetta.sh`.
 - **Il pannello destro torna a una colonna sola** (R4, richiesta del maintainer del 25-09): via la colonna di icone che mostrava un gruppo per volta; i gruppi (Oggetto, Testo, Dato,
   Comportamento, Resa) diventano rami chiudibili e le sezioni ci stanno sotto. **Una sezione aperta alla volta**, più quelle **appuntate** con 📌. Cambiando oggetto la sezione aperta resta
   quella se il tipo nuovo ce l'ha, altrimenti si apre l'affine — e la scelta non si perde. L'inventario dei campi (`campiPannelloProprieta.json`) è invariato.

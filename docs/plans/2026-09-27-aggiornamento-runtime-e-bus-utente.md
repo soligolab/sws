@@ -170,6 +170,113 @@ runtime parte o viene riavviato […] mi basta premere un tasto. Sarebbe anche u
 
 Queste entrano come **Fase 1b**, dopo il collaudo della Fase 1 e prima della finestra programmata.
 
+## Collaudo della Fase 1b a casa (28-09-2026, sera)
+
+- rc.3 pubblicata con le etichette (`net.soligo.sws.changelog`, `.compat`), lette dal registry senza pull. Il piano
+  dell'ufficio aveva un buco: le novità le legge **il runtime del pannello**, quindi una rc.2 non può mostrare quelle della
+  rc.3. Il TC620 è stato portato alla rc.3 con «Aggiorna ora» (45 s), poi pubblicata la rc.4: la rc.3 vede «disponibile
+  2.12.0-rc.4» con novità e avviso di compatibilità.
+- **Difetto**: l'avviso a schermo chiamava `/api/update/*` dalla porta del viewer (8443), dove le rotte non c'erano (404):
+  non poteva comparire mai. Corretto nella rc.5, dietro `require_admin`, con un test provato rosso.
+- **Difetto minore**: l'immagine ereditava `org.opencontainers.image.version = 24.04` da Ubuntu; dalla rc.4 porta la
+  versione di SWS.
+45. **Le novità di una `-rc` restano tutto `[Unreleased]`** (scelta del maintainer, 28-09): chi è sul canale di prova vede
+    tutto ciò che arriverà nella prossima release — oggi ~63 000 caratteri — non la differenza fra una rc e l'altra.
+
+## Fase 2 — la finestra programmata (28-09-2026, sera)
+
+46. **Tutte e due le forme**: di default un'**approvazione una tantum** («aggiorna alla 2.12.1 domenica alle 3»); per pannello
+    si può accendere il **pilota automatico** («ogni domenica alle 3 installa ciò che c'è di nuovo nel canale»).
+47. **L'ora è quella locale del pannello**, e l'IDE mostra **data e ora del pannello sia locali sia UTC** accanto alla
+    finestra (maintainer: «così è impossibile confondersi»).
+48. **Si sceglie con giorno + ora** (oggi / domani / lunedì… e «alle 03:00»); sotto non c'è un cron visibile.
+
+**Misurato:** il TC620 è in `Europe/Rome`, il container in UTC (`/etc/localtime → …/UTC`); il `cron` del runtime lavora in
+UTC. **Disegno:**
+- quadlet: `Timezone=local` (podman copia il fuso dell'host nel container; tolta dall'installer sui podman 4.x come
+  `Notify=healthy`); nel runtime `chrono::Local` converte giorno + ora del pannello in un istante, cambio d'ora compreso;
+- `<config_dir>/aggiornamento.yaml` — del dispositivo, non del progetto (decisione 39): `approvazione` (versione +
+  istante) e `pilota` (giorni + ora);
+- un task nel runtime dorme fino al prossimo evento (al massimo un'ora, poi ricontrolla: la configurazione e l'orologio
+  possono cambiare) e lì chiama `stato()`:
+  - **approvazione**: aggiorna solo se il canale offre **ancora esattamente la versione approvata**. Podman installa la
+    testa del canale, non una versione precisa: se nel frattempo è uscita una più nuova, l'approvazione si annulla e lo
+    dice, perché nessuno ha letto quella;
+  - **pilota**: aggiorna se c'è qualunque versione più nuova;
+- `GET/PUT /api/update/schedule` (Admin, anche sulla porta di gestione), proxy nell'IDE; la sezione «Aggiornamento del
+  runtime» mostra l'orologio del pannello, «Programma…», l'approvazione in corso con «Annulla», e il pilota automatico.
+  Gli avvisi di compatibilità chiedono la seconda conferma anche quando si programma.
+
+### Collaudo della Fase 2 sul TC620 (28-09, sera)
+
+- rc.5 → rc.6 con «Aggiorna ora»; con la rc.6 sul pannello la finestra risponde, l'orologio del pannello è in **UTC** (il
+  quadlet del TC620 non ha `Timezone=local`: vedi la questione qui sotto).
+- **Il pilota automatico ha aggiornato da solo** rc.6 → rc.7 alle 19:45 del pannello, *healthy* in ~90 s, `ultimo_esito`
+  scritto.
+- **Visto dal maintainer**: ha scelto «21:41» intendendo la sua ora; il pannello era in UTC (19:40), quindi sarebbe scattato
+  alle 23:41 sue. L'orologio doppio c'era, ma col pannello in UTC le due ore coincidono e il campo non dice di che fuso è.
+- **Difetto**: il task della finestra rilegge la programmazione solo quando si sveglia (fino a un'ora): un cambio appena
+  salvato poteva scattare in ritardo. Per il collaudo si è riavviato il runtime.
+- **Difetto (Fase 1b)**: l'avviso a schermo non poteva comparire — leggeva `progettoHaUtenti`, che nel viewer non imposta
+  nessuno (solo l'IDE), e i test lo impostavano a mano. Corretto nella rc.7: lo chiede a `/api/system`, e ricontrolla quando
+  il runtime riparte (`uptime_s` che torna indietro), perché il viewer non ricarica la pagina a un riavvio.
+
+**Chiesto dal maintainer per le prossime versioni:**
+49. **Riprogrammare** un'approvazione o il pilota senza annullare e rifare.
+50. **Migliorare la sezione**; in particolare, a connessione avvenuta **i campi partono dall'ora del pannello** (non da 03:00
+    fisse), e accanto al campo c'è scritto di che fuso è l'ora.
+51. Il task della finestra si **sveglia subito** quando la programmazione cambia.
+
+### Fase 3 allargata: l'esito dell'aggiornamento (28-09, sera)
+
+Il maintainer, dopo il pilota automatico sul TC620: «sul pannello non vedo nessuna segnalazione di aggiornamento avvenuto e/o
+di changelog». Il pannello avvisava solo *prima*. La Fase 3 (prima: solo l'avviso di rollback) diventa l'esito di ogni
+aggiornamento.
+
+52. **«Aggiornato dalla X alla Y», con le novità di Y, in tre posti**: sullo schermo del pannello senza utenti (stesse
+    regole dell'avviso di prima), nell'IDE (sezione Aggiornamento, alla prima connessione dopo) e sui **canali di notifica
+    del progetto** (Telegram/email) — che col pilota automatico sono l'unico modo di saperlo quando nessuno guarda.
+53. **Se non riesce**, negli stessi posti e in evidenza: «aggiornamento alla X non riuscito, il pannello è tornato alla Y».
+    Si decide guardando **la versione che gira davvero** dopo, non il codice d'uscita di podman, che il 28-09 diceva
+    «rollback failed» a un rollback riuscito.
+54. **Sul pannello l'avviso resta finché qualcuno non lo chiude**, con «Novità» e «Chiudi»; chiuso una volta non ricompare
+    per quell'aggiornamento.
+
+**Disegno (da raffinare quando si scrive):** prima di `StartUnit` il runtime scrive in `aggiornamento.yaml` un `in_corso`
+(da, a, quando). All'avvio: se gira `a`, l'esito «riuscito» si scrive solo dopo un paio di minuti di vita — una versione
+nuova che parte e poi non diventa *healthy* viene rimpiazzata dal rollback prima —; se gira `da` con un `in_corso` di più
+di qualche decina di secondi, l'esito è «non riuscito». Un `in_corso` a cui non segue nessun riavvio (niente di nuovo da
+installare) si chiude da sé dopo qualche minuto, senza esito.
+
+**Scritta il 28-09, sera** (ramo `feat/aggiornamento-f3-esito`): `aggiornamento_esito.rs` (`in_corso` prima di `StartUnit`, esito
+all'avvio, conferma dopo 120 s, scadenza a 600 s), `evento` e `in_corso` in `/api/update/status`, riquadro sul pannello e riga
+nell'IDE, Telegram sulle chat globali. **Email no**: nel progetto un destinatario esiste solo per singolo allarme
+(`notify_email`); un destinatario di progetto per le notifiche di sistema sarebbe una decisione nuova. **Il primo esito
+visibile arriva dall'aggiornamento *successivo* a quello che installa questa versione**: `in_corso` lo scrive la versione
+che chiede, e le rc precedenti non lo scrivono.
+
+### Le Novità per chi usa il pannello, separate dal CHANGELOG (28-09, sera)
+
+Il maintainer, vedendo l'avviso sul pannello: «Dobbiamo rivedere il Changelog perché è troppo dettagliato e diventa
+illeggibile. Oltretutto gestirei anche la versione in inglese». Il `CHANGELOG.md` è per chi sviluppa; dall'immagine esce un
+testo diverso.
+
+55. **Un file `NOVITA.yaml`**: per ogni versione un elenco di voci brevi, ognuna con testo **italiano e inglese**, e gli
+    avvisi di compatibilità a parte, anche loro nelle due lingue. Una guardia controlla le due lingue e la lunghezza.
+56. **Per le `-rc` le Novità sono tutto ciò che arriverà nella release**, in forma breve (conferma la decisione 45, ma non più
+    col testo del CHANGELOG).
+57. **Il pannello e l'IDE le mostrano nella lingua dell'interfaccia**; se una voce manca in quella lingua, l'altra.
+58. **Le scrive Claude con ogni modifica visibile**, come il CHANGELOG; il maintainer le rivede al collaudo. Le voci della
+    2.12 fin qui le riassume Claude una volta.
+
+### Questione aperta, emersa il 28-09: il quadlet non viaggia con l'aggiornamento
+
+`podman auto-update` sostituisce l'**immagine**; il quadlet sul pannello resta quello scritto dall'installer. Una riga
+nuova — `Timezone=local` della Fase 2, domani altro — arriva su un dispositivo solo reinstallandolo. Finché non si
+decide come, ogni rc che cambia il quadlet lo deve dire nella sua sottosezione `### ⚠ Compatibilità`, e il runtime
+dovrebbe accorgersi di girare con un quadlet vecchio (per esempio `SWS_QUADLET_VERSIONE` scritta dall'installer). Da
+decidere con il maintainer: è un seme, non una scelta.
+
 ## Visto il 27-09, da non dimenticare
 
 - Sui pannelli con CODESYS, `allow_url_override = true` fa vincere CODESYS sul browser all'avvio

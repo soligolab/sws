@@ -1046,6 +1046,15 @@ async fn main() -> anyhow::Result<()> {
     // passa mai. Senza questa riga il file resterebbe fermo al valore scritto
     // l'ultima volta che qualcuno ha toccato il progetto, e dopo un riavvio lo
     // schermo seguirebbe una decisione vecchia.
+    // La finestra dell'aggiornamento del runtime (piano 2026-09-27, Fase 2):
+    // solo su un dispositivo. Un'istanza IDE non si aggiorna da sé, e il task
+    // non avrebbe niente da far scattare.
+    if !ide_only {
+        tokio::spawn(sws_web::aggiornamento_finestra::esegui(app_state.config_dir.as_ref().clone()));
+        // Fase 3: se questo avvio viene da un aggiornamento, com'è andato.
+        tokio::spawn(sws_web::aggiornamento_esito::all_avvio(app_state.clone()));
+    }
+
     if let Ok(dir) = sws_web::router::active_dir(&app_state).await {
         sws_web::display_target::publish(&app_state.config_dir, &dir).await;
         // T-72 F5: e l'immagine di boot abilitata, per lo stesso motivo — ma

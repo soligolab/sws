@@ -2278,6 +2278,7 @@
     "punti": "It will be changed in {{n}} places:",
     "nonRinominabili": "To do by hand (the walker cannot change them):",
     "conferma": "Rename",
+    "confermaCompat": "This version comes with compatibility warnings:\n\n{{avvisi}}\n\nUpdate anyway?",
     "inCorso": "Renaming…",
     "fatto": "Renamed in {{n}} places.",
     "errore": "Rename failed: {{message}}",
@@ -2418,6 +2419,15 @@
     "membroTipoNonValido": "member `{{name}}`: type `{{tipo}}` is not valid",
     "tipoNonValido": "type `{{tipo}}` is not valid"
   },
+  "aggiornamentoPannello": {
+    "titolo": "Version {{a}} available",
+    "da": "This panel runs {{da}}.",
+    "novita": "What's new",
+    "aggiorna": "Update now",
+    "piuTardi": "Later",
+    "ignora": "Skip this version",
+    "inCorso": "Update started…"
+  },
   "aggiornamento": {
     "titolo": "Runtime update",
     "carico": "Asking the device…",
@@ -2436,6 +2446,57 @@
     "pulsante": "Update now to {{a}}",
     "inCorso": "Starting…",
     "conferma": "The panel runtime goes from {{da}} to {{a}}.\n\nIt restarts: for a few seconds alarms, history and screen stop and the connection drops. If the new version does not start properly, the panel goes back to the previous one by itself.\n\nProceed?",
-    "avviato": "Update to {{a}} started: the runtime is restarting. Reconnect in a minute to see the new version."
+    "avviato": "Update to {{a}} started: the runtime is restarting. Reconnect in a minute to see the new version.",
+    "tornatoAlla": "the panel went back to {{da}}",
+    "inCorsoSulPannello": "An update is in progress on the panel: the outcome shows here in a couple of minutes."
+  },
+  "finestra": {
+    "orologio": "Panel clock: {{locale}} (UTC{{scostamento}}) · {{utc}} UTC",
+    "programmaLa": "{{a}} can be installed now or at a chosen time.",
+    "oggi": "today",
+    "domani": "tomorrow",
+    "giorni": {
+      "0": "Sunday",
+      "1": "Monday",
+      "2": "Tuesday",
+      "3": "Wednesday",
+      "4": "Thursday",
+      "5": "Friday",
+      "6": "Saturday"
+    },
+    "programma": "Schedule…",
+    "programmata": "Scheduled: {{versione}} on {{locale}} panel time ({{utc}} UTC). If a newer version comes out first, it does not update.",
+    "annulla": "Cancel",
+    "ogniGiorno": "every day",
+    "pilotaAccendi": "Turn on…",
+    "pilotaConferma": "With autopilot the panel installs every new version of its channel by itself, in the chosen window, without asking and without anyone reading its notes first.\n\nTurn it on?",
+    "pilotaAcceso": "On: {{giorni}} at {{ora}} (panel time, {{fuso}}). Next check: {{prossimo}}.",
+    "pilotaSpegni": "Turn off",
+    "ultimo": "Last window: {{esito}}",
+    "oraDelPannello": "panel time ({{fuso}})",
+    "pannelloInUtc": "the panel is on UTC: pick times on this clock, not yours",
+    "titoloProgrammato": "Scheduled update",
+    "titoloPilota": "Autopilot",
+    "installaLa": "Install {{a}}",
+    "modifica": "Edit",
+    "salva": "Save",
+    "chiudi": "Close",
+    "pilotaSpento": "Off: new versions are installed only when someone approves them.",
+    "giorniBrevi": {
+      "0": "Sun",
+      "1": "Mon",
+      "2": "Tue",
+      "3": "Wed",
+      "4": "Thu",
+      "5": "Fri",
+      "6": "Sat"
+    },
+    "nessunGiornoOgni": "(none ticked = every day)"
+  },
+  "esitoPannello": {
+    "riuscito": "Updated from {{da}} to {{a}}",
+    "nonRiuscito": "Update to {{a}} failed",
+    "nonRiuscitoSpiega": "The new version did not start properly, and the panel went back to {{da}} by itself. Nothing to do here: whoever manages the panel will take care of it.",
+    "chiudi": "Close"
   }
 }

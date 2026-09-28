@@ -67,3 +67,6 @@ sws-runtime/crates/*/sbom.json
 
 # log di diagnosi lasciati nel repo durante una sessione, non contenuto del progetto
 sws-logs-*.jsonl
+
+# Python compilato (script in scripts/)
+__pycache__/

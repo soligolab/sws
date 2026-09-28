@@ -289,6 +289,29 @@ export interface AvvisoRuntime {
 
 /** Com'è andata l'installazione dell'immagine di boot sul dispositivo (T-72 F5).
  *  Gemello di `boot_image::BootImageStato` in `sws-web`. */
+/** Gemelli di `aggiornamento_finestra` in `sws-web` (Fase 2). */
+export interface OrologioPannello { locale: string; utc: string; scostamento: string }
+export interface ApprovazioneFinestra { versione: string; quando_ms: number }
+export interface PilotaFinestra { giorni: number[]; ora: string }
+export interface VistaFinestra {
+  programma: { approvazione?: ApprovazioneFinestra; pilota?: PilotaFinestra; ultimo_esito?: string };
+  orologio: OrologioPannello;
+  approvazione_alle: OrologioPannello | null;
+  pilota_alle: OrologioPannello | null;
+}
+export interface RichiestaFinestra {
+  approvazione: ApprovazioneFinestra | { versione: string; giorno: "oggi" | "domani" | number; ora: string } | null;
+  pilota: PilotaFinestra | null;
+}
+
+/** Gemello di `aggiornamento_esito::Evento` (Fase 3). */
+export interface EventoAggiornamento {
+  id: number;
+  da: string;
+  a: string | null;
+  esito: "riuscito" | "non_riuscito";
+}
+
 /** Gemello di `aggiornamento::StatoAggiornamento` in `sws-web`. */
 export interface StatoAggiornamento {
   versione: string;
@@ -296,6 +319,38 @@ export interface StatoAggiornamento {
   canale: "stabile" | "prova" | "fissata" | "archivio" | "sconosciuto";
   disponibile: string | null;
   errore: string | null;
+  /** Cosa cambia, letto dalle etichette delle immagini da attraversare: una
+   *  voce per versione, dalla più vecchia alla più nuova. Assente su un
+   *  dispositivo con immagini costruite prima della decisione 42. */
+  novita?: NovitaVersione[];
+  /** L'ultimo aggiornamento concluso (Fase 3). */
+  evento?: EventoAggiornamento;
+  /** Le Novità della versione che gira, quando c'è un esito da mostrare. */
+  novita_installata?: NovitaVersione;
+  /** Un aggiornamento chiesto e non ancora concluso: l'esito arriva fra poco. */
+  in_corso?: boolean;
+}
+
+/** Gemello di `aggiornamento::NovitaVersione`. */
+export interface NovitaVersione {
+  versione: string;
+  /** Le Novità in italiano (NOVITA.yaml). */
+  testo: string;
+  /** Gli avvisi di compatibilità, che vanno in cima e chiedono attenzione. */
+  compatibilita?: string;
+  /** Le stesse in inglese; assenti nelle immagini costruite prima del 28-09-2026. */
+  testo_en?: string;
+  compatibilita_en?: string;
+}
+
+/** Le Novità nella lingua dell'interfaccia (decisione 57): l'inglese se
+ *  l'interfaccia è inglese e c'è, altrimenti l'italiano. */
+export function novitaNellaLingua(n: NovitaVersione, lingua: string): { testo: string; compatibilita: string } {
+  const en = lingua.startsWith("en");
+  return {
+    testo: (en && n.testo_en) || n.testo,
+    compatibilita: (en && n.compatibilita_en) || n.compatibilita || "",
+  };
 }
 
 export interface BootImageStato {
@@ -1438,7 +1493,19 @@ export const api = {
    *  tag senza storico e le ripetizioni, e compatta. `remoto`: sul dispositivo
    *  collegato, via `/api/remote/database/:id/clean-history`. */
   /** Versione, canale e versione disponibile del runtime collegato. */
+  /** Lo stato dell'aggiornamento di **questo** runtime, non di uno remoto: lo
+   *  chiede il viewer sul pannello, che parla col runtime su cui gira. */
+  statoAggiornamento: () => request<StatoAggiornamento>("/api/update/status"),
+  avviaAggiornamento: () => request<StatoAggiornamento>("/api/update/apply", { method: "POST" }),
   remoteStatoAggiornamento: () => request<StatoAggiornamento>("/api/remote/update/status"),
+  /** La finestra dell'aggiornamento e l'orologio del pannello collegato. */
+  remoteFinestra: () => request<VistaFinestra>("/api/remote/update/schedule"),
+  remoteScriviFinestra: (r: RichiestaFinestra) =>
+    request<VistaFinestra>("/api/remote/update/schedule", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(r),
+    }),
   /** «Aggiorna ora»: il dispositivo avvia podman-auto-update e si riavvia. */
   remoteAvviaAggiornamento: () =>
     request<StatoAggiornamento>("/api/remote/update/apply", { method: "POST" }),

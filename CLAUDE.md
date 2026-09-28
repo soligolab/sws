@@ -136,6 +136,6 @@ Do this *before* you run out of room, not after:
 
 1. `cargo check` / `pnpm build` / `./scripts/check_static.sh` green.
 2. Update `STATUS.md` — what was done, what's next, anything left half-finished.
-3. Update `CHANGELOG.md` under `[Unreleased]`.
+3. Update `CHANGELOG.md` under `[Unreleased]`, **and `NOVITA.yaml`** for anything a panel user would notice: one short line in Italian **and** English (it is what panels show before updating — `check_novita.sh` checks both languages and the length).
 4. Commit with `-s` and a clear message.
 5. Anything architectural that surfaced → a **short plan file** in `docs/plans/` (see «Plans»), not a decision. Not `docs/OPEN_QUESTIONS.md` any more.

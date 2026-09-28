@@ -1,0 +1,52 @@
+# Le Novità per chi usa il pannello — italiano e inglese.
+#
+# Non è il CHANGELOG: quello è per chi sviluppa (file, funzioni, il perché di
+# ogni difetto). Queste sono le poche righe che il pannello e l'IDE mostrano
+# **prima di aggiornare** (piano docs/plans/2026-09-27-aggiornamento-runtime-e-
+# bus-utente.md, decisioni 55-58): viaggiano dentro l'immagine come etichette, e
+# si leggono nella lingua dell'interfaccia.
+#
+# Regole (le controlla scripts/check_novita.sh):
+#   - una voce per cosa che chi usa SWS nota; `it` e `en` sempre tutte e due;
+#   - una voce sta in una riga o due (al massimo 220 caratteri per lingua);
+#   - `compatibilita`: ciò che va fatto a mano dopo l'aggiornamento, o che smette
+#     di funzionare. Il pannello lo mette in cima e chiede una conferma in più;
+#   - una `-rc` mostra la voce della release a cui porta (2.12.0-rc.8 → 2.12.0):
+#     tutto ciò che arriverà, non la differenza fra una rc e l'altra (decisione 56).
+#
+# Le scrive chi fa il lavoro, insieme al lavoro; il maintainer le rivede al collaudo.
+
+versioni:
+  - versione: "2.12.0"
+    voci:
+      - it: "Il runtime si aggiorna dall'IDE o dal pannello: canale stabile o di prova, «Aggiorna ora», una finestra programmata o il pilota automatico. Se la versione nuova non parte, torna da solo alla precedente."
+        en: "The runtime updates from the IDE or from the panel: stable or test channel, «Update now», a scheduled window or autopilot. If the new version does not start, it goes back to the previous one by itself."
+      - it: "Prima di aggiornare si leggono le novità e gli avvisi di compatibilità; sul pannello senza utenti compare un avviso a schermo."
+        en: "Before updating you can read what is new and the compatibility warnings; on a panel without users a notice appears on screen."
+      - it: "Dopo un aggiornamento il pannello dice «aggiornato dalla X alla Y», con le novità; se non riesce lo dice in rosso. L'esito arriva anche su Telegram."
+        en: "After an update the panel says «updated from X to Y», with what is new; if it fails it says so in red. The outcome also goes to Telegram."
+      - it: "Git nel progetto: storia e differenze, prova di un commit vecchio, fork di un progetto, invio a GitHub."
+        en: "Git in the project: history and diffs, trying an old commit, forking a project, pushing to GitHub."
+      - it: "Pannello delle proprietà a un solo livello; il tag di un pulsante sta accanto ai suoi parametri."
+        en: "Single-level property panel; a button's tag sits next to its parameters."
+      - it: "Trasparenza e luminosità su tutti gli oggetti, anche legate a una variabile; lampeggio sfumato; polilinee, poligoni e stelle; rotazione anche sui pannelli LVGL."
+        en: "Opacity and brightness on every object, also bound to a tag; fading blink; polylines, polygons and stars; rotation on LVGL panels too."
+      - it: "Deploy su comando: «Invia ora» e «Utenti e segreti» sono due pulsanti distinti; il deploy al salvataggio si può spegnere."
+        en: "Deploy on demand: «Send now» and «Users and secrets» are two separate buttons; deploy-on-save can be turned off."
+      - it: "Lo storico registra solo le variabili con lo storico attivo; «Pulisci storico» toglie le ripetizioni e compatta il database, anche sul dispositivo."
+        en: "History records only tags with history enabled; «Clean history» removes repetitions and compacts the database, on the device too."
+      - it: "Un deploy non fa più ripartire gli allarmi attivi: niente più Telegram ripetuti a ogni «Invia ora»."
+        en: "A deploy no longer re-triggers active alarms: no more repeated Telegram messages on every «Send now»."
+      - it: "L'immagine di accensione del pannello arriva al launcher Pixsys, e si può tornare a quella di fabbrica dall'IDE."
+        en: "The panel's start-up image reaches the Pixsys launcher, and the factory image can be restored from the IDE."
+      - it: "Variabili e tipi: strutture, array, formati di durata e di data, rinomina ovunque, import ed export CSV."
+        en: "Tags and types: structures, arrays, duration and date formats, rename everywhere, CSV import and export."
+      - it: "La Configurazione è un albero; i progetti grandi si aprono in fretta."
+        en: "Configuration is a tree; large projects open quickly."
+      - it: "Le password del progetto stanno in un file a parte e non compaiono più nei log."
+        en: "Project passwords live in a separate file and no longer show up in logs."
+    compatibilita:
+      - it: "Un pannello con una versione precedente alla 2.12.0-rc.1 non si aggiorna da solo: va aggiornato una volta da Configurazione → Istanza → Device → Installazione."
+        en: "A panel running a version older than 2.12.0-rc.1 cannot update itself: update it once from Configuration → Instance → Device → Install."
+      - it: "Il fuso del pannello, che serve alla finestra programmata, arriva solo reinstallando dall'Installazione: finché non lo si fa, le ore della finestra sono in UTC."
+        en: "The panel's time zone, needed by the scheduled window, arrives only by reinstalling from Install: until then, window times are in UTC."
