@@ -11,6 +11,14 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### ⚠ Compatibilità
+
+- Un dispositivo che gira una versione **precedente alla 2.12.0-rc.1** non conosce l'aggiornamento dal registry: la
+  sezione «Aggiornamento del runtime» glielo dice, e va aggiornato una volta dall'Installazione. Dopo, si aggiorna
+  da sé su richiesta.
+- Le immagini pubblicate **prima del 28-09-2026** non portano il changelog come etichetta: per quelle la sezione
+  mostra lo stato ma non le novità. Vale per la `2.12.0-rc.1` e la `rc.2`.
+
 ### Added
 - **Aggiornamento del runtime dall'IDE** (Fase 1 del [piano](docs/plans/2026-09-27-aggiornamento-runtime-e-bus-utente.md)): in Configurazione → Istanza →
   Device → Connessione la sezione «Aggiornamento del runtime» dice versione e canale del pannello (stabile `latest-<arch>`, prova `rc-<arch>`) e se nel canale
