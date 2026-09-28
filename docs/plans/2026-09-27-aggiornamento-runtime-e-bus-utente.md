@@ -269,6 +269,18 @@ testo diverso.
 58. **Le scrive Claude con ogni modifica visibile**, come il CHANGELOG; il maintainer le rivede al collaudo. Le voci della
     2.12 fin qui le riassume Claude una volta.
 
+### Fase 4 — la commutazione del display dal runtime (29-09-2026)
+
+Sessione di plan col maintainer; il seme del 24-09 è in archivio. **Decisioni:**
+59. **Via il ripiego per PixsysOS < 2.1** (`systemctl disable/enable` al posto di `SetEnabled`): lì la commutazione risulta
+    «non supportata».
+60. **CODESYS non si tocca**: se `allow_url_override` è acceso, lo stato della commutazione lo segnala; la configurazione di
+    CODESYS resta di chi installa.
+61. **Il file `display-target` sparisce**: il runtime smette di scriverlo — e così i pezzi vecchi sull'host non scattano più —
+    e lo stato della commutazione si legge dall'IDE, nella scheda Stato.
+62. **I pezzi vecchi sull'host (`sws-display.path/.service`, `sws-display-apply.sh`) li toglie l'installer** alla prossima
+    reinstallazione; nel frattempo restano inerti.
+
 ### Questione aperta, emersa il 28-09: il quadlet non viaggia con l'aggiornamento
 
 `podman auto-update` sostituisce l'**immagine**; il quadlet sul pannello resta quello scritto dall'installer. Una riga
