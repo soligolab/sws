@@ -74,7 +74,14 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — immagine di boot su `main`, dev.5 sul TC620; prossimo: utenti e aziende (2026-09-27, sera)
+## ▶ Riprendere da qui — il lavoro è sul ramo `feat/aggiornamento-runtime-f1` (2026-09-28)
+
+**Su `main` c'è solo fino alla sessione di plan dell'aggiornamento del runtime.** La Fase 1 (aggiornamento dal
+registry, «Aggiorna ora», immagini di prova `-rc`) è sul ramo **`feat/aggiornamento-runtime-f1`**, pushato su origin e
+collaudato sul TC620 (2.12.0-rc.2 sul canale di prova); aspetta l'ok del maintainer nell'IDE prima dello squash.
+**Il riepilogo completo è nello `STATUS.md` di quel ramo**: `git fetch && git checkout feat/aggiornamento-runtime-f1`.
+
+## Riprendere da qui (precedente) — immagine di boot su `main`, dev.5 sul TC620; prossimo: utenti e aziende (2026-09-27, sera)
 
 **Su `main`, niente pushato, nessun ramo aperto.** `feat/boot-image-dbus` collaudato dal maintainer («ok, funziona
 tutto») e squashato; piano e due semi in archivio. Il TC620 gira la **2.12.0-dev.5**; CODESYS con
