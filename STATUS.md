@@ -74,7 +74,25 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — Fase 1b scritta, aspetta una build: si finisce a casa (2026-09-28, sera)
+## ▶ Riprendere da qui — Fase 1b collaudata sul TC620 fino alla rc.5; manca solo l'avviso a schermo, alla prossima rc vera (2026-09-28, sera, casa)
+
+**Un ramo aperto, `feat/aggiornamento-f1b-changelog`** (preso da origin a casa; commit locali non ancora pushati).
+Pubblicate su `rc-arm64` la **rc.3**, la **rc.4** e la **rc.5** (`latest-arm64` intatto alla 2.11). Il TC620 è sulla
+**2.12.0-rc.5**, canale di prova, *healthy*.
+
+Collaudato a casa:
+- le etichette del changelog si leggono dal registry senza pull; un salto rc.3 → rc.5 mostra le novità di **rc.4 e rc.5**;
+- «Aggiorna ora» rc.2 → rc.3 (45 s) e rc.3 → rc.5 (40 s);
+- **due difetti trovati e corretti**: l'avviso a schermo chiamava rotte assenti sulla porta del viewer (404 → corretto nella
+  rc.5, test provato rosso); l'immagine si dichiarava `version = 24.04` (dalla rc.4 porta la versione di SWS);
+- `session_start.sh` accetta le versioni `-rc.N` (`60b01c78`).
+
+**Resta, alla prossima rc che nasce da lavoro vero** (regola del maintainer: «non sprecare build»): con il TC620 sulla
+rc.5, pubblicare la rc.6 e riavviare il runtime → sul pannello (CasaDomotica non ha utenti) deve comparire l'avviso
+«Novità / Aggiorna / Più tardi / Ignora questa versione». Poi squash del ramo. L'avviso **su LVGL** resta fuori dalla 1b.
+Decisione 45: le novità di una `-rc` restano tutto `[Unreleased]`.
+
+## Riprendere da qui (precedente) — Fase 1b scritta, aspetta una build: si finisce a casa (2026-09-28, sera)
 
 **Un ramo aperto, `feat/aggiornamento-f1b-changelog`, pushato su origin.** La Fase 1 è già su `main`
 (`add1b387`), collaudata in ufficio sul WP630; questo ramo è la **Fase 1b**, decisioni 41-44, scritta
