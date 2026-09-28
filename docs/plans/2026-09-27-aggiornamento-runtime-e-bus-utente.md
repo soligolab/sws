@@ -227,6 +227,27 @@ UTC. **Disegno:**
     fisse), e accanto al campo c'è scritto di che fuso è l'ora.
 51. Il task della finestra si **sveglia subito** quando la programmazione cambia.
 
+### Fase 3 allargata: l'esito dell'aggiornamento (28-09, sera)
+
+Il maintainer, dopo il pilota automatico sul TC620: «sul pannello non vedo nessuna segnalazione di aggiornamento avvenuto e/o
+di changelog». Il pannello avvisava solo *prima*. La Fase 3 (prima: solo l'avviso di rollback) diventa l'esito di ogni
+aggiornamento.
+
+52. **«Aggiornato dalla X alla Y», con le novità di Y, in tre posti**: sullo schermo del pannello senza utenti (stesse
+    regole dell'avviso di prima), nell'IDE (sezione Aggiornamento, alla prima connessione dopo) e sui **canali di notifica
+    del progetto** (Telegram/email) — che col pilota automatico sono l'unico modo di saperlo quando nessuno guarda.
+53. **Se non riesce**, negli stessi posti e in evidenza: «aggiornamento alla X non riuscito, il pannello è tornato alla Y».
+    Si decide guardando **la versione che gira davvero** dopo, non il codice d'uscita di podman, che il 28-09 diceva
+    «rollback failed» a un rollback riuscito.
+54. **Sul pannello l'avviso resta finché qualcuno non lo chiude**, con «Novità» e «Chiudi»; chiuso una volta non ricompare
+    per quell'aggiornamento.
+
+**Disegno (da raffinare quando si scrive):** prima di `StartUnit` il runtime scrive in `aggiornamento.yaml` un `in_corso`
+(da, a, quando). All'avvio: se gira `a`, l'esito «riuscito» si scrive solo dopo un paio di minuti di vita — una versione
+nuova che parte e poi non diventa *healthy* viene rimpiazzata dal rollback prima —; se gira `da` con un `in_corso` di più
+di qualche decina di secondi, l'esito è «non riuscito». Un `in_corso` a cui non segue nessun riavvio (niente di nuovo da
+installare) si chiude da sé dopo qualche minuto, senza esito.
+
 ### Questione aperta, emersa il 28-09: il quadlet non viaggia con l'aggiornamento
 
 `podman auto-update` sostituisce l'**immagine**; il quadlet sul pannello resta quello scritto dall'installer. Una riga
