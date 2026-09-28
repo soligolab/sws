@@ -107,4 +107,52 @@ describe("avviso di aggiornamento sul pannello", () => {
       vi.useRealTimers();
     }
   });
+
+  /** Fase 3 (decisioni 52-54): dopo un aggiornamento, anche del pilota
+   *  automatico, il pannello dice com'è andata. */
+  it("dopo un aggiornamento riuscito dice da dove a dove, e chiuso non ricompare", async () => {
+    statoAggiornamento.mockResolvedValue({
+      ...NUOVA, versione: "2.12.0-rc.9", disponibile: null, novita: [],
+      evento: { id: 7, da: "2.12.0-rc.8", a: "2.12.0-rc.9", esito: "riuscito" },
+      novita_installata: { versione: "2.12.0-rc.9", testo: "- breve", testo_en: "- short" },
+    });
+    const { unmount } = render(<AvvisoAggiornamento />);
+    const d = await screen.findByRole("dialog");
+    expect(d.textContent).toContain("2.12.0-rc.8");
+    expect(d.textContent).toContain("2.12.0-rc.9");
+    fireEvent.click(screen.getByText(i18n.t("esitoPannello.chiudi")));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    unmount();
+    render(<AvvisoAggiornamento />);
+    await waitFor(() => expect(statoAggiornamento).toHaveBeenCalled());
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("un aggiornamento non riuscito lo dice, anche se la versione è quella di prima", async () => {
+    statoAggiornamento.mockResolvedValue({
+      ...NUOVA, disponibile: null, novita: [],
+      evento: { id: 8, da: "2.12.0-rc.8", a: "2.12.0-rc.9", esito: "non_riuscito" },
+    });
+    render(<AvvisoAggiornamento />);
+    expect((await screen.findByRole("dialog")).textContent).toContain(i18n.t("esitoPannello.nonRiuscito", { a: "2.12.0-rc.9" }));
+  });
+
+  /** L'esito «riuscito» arriva un paio di minuti dopo il ricaricamento della pagina. */
+  it("mentre un aggiornamento è in corso, richiede finché l'esito arriva", async () => {
+    vi.useFakeTimers();
+    try {
+      statoAggiornamento.mockResolvedValue({ ...NUOVA, disponibile: null, novita: [], in_corso: true });
+      render(<AvvisoAggiornamento />);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(screen.queryByRole("dialog")).toBeNull();
+      statoAggiornamento.mockResolvedValue({
+        ...NUOVA, disponibile: null, novita: [],
+        evento: { id: 9, da: "2.12.0-rc.8", a: "2.12.0-rc.9", esito: "riuscito" },
+      });
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(screen.getByRole("dialog")).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

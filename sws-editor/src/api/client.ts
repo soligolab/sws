@@ -304,6 +304,14 @@ export interface RichiestaFinestra {
   pilota: PilotaFinestra | null;
 }
 
+/** Gemello di `aggiornamento_esito::Evento` (Fase 3). */
+export interface EventoAggiornamento {
+  id: number;
+  da: string;
+  a: string | null;
+  esito: "riuscito" | "non_riuscito";
+}
+
 /** Gemello di `aggiornamento::StatoAggiornamento` in `sws-web`. */
 export interface StatoAggiornamento {
   versione: string;
@@ -315,6 +323,12 @@ export interface StatoAggiornamento {
    *  voce per versione, dalla più vecchia alla più nuova. Assente su un
    *  dispositivo con immagini costruite prima della decisione 42. */
   novita?: NovitaVersione[];
+  /** L'ultimo aggiornamento concluso (Fase 3). */
+  evento?: EventoAggiornamento;
+  /** Le Novità della versione che gira, quando c'è un esito da mostrare. */
+  novita_installata?: NovitaVersione;
+  /** Un aggiornamento chiesto e non ancora concluso: l'esito arriva fra poco. */
+  in_corso?: boolean;
 }
 
 /** Gemello di `aggiornamento::NovitaVersione`. */

@@ -24,6 +24,17 @@ import { useTranslation } from "react-i18next";
 import { api, novitaNellaLingua, type NovitaVersione, type StatoAggiornamento } from "@/api/client";
 
 const IGNORATA = "sws.aggiornamento.ignorata";
+/** L'esito chiuso: «chiuso una volta non ricompare per quell'aggiornamento»
+ *  (decisione 54). Si ricorda l'id dell'evento. */
+const ESITO_CHIUSO = "sws.aggiornamento.esitoChiuso";
+
+function esitoChiuso(): number | null {
+  try { const v = localStorage.getItem(ESITO_CHIUSO); return v === null ? null : Number(v); } catch { return null; }
+}
+
+function chiudiEsito(id: number): void {
+  try { localStorage.setItem(ESITO_CHIUSO, String(id)); } catch { /* storage negato */ }
+}
 
 function versioneIgnorata(): string | null {
   try { return localStorage.getItem(IGNORATA); } catch { return null; }
@@ -37,6 +48,8 @@ function ignora(versione: string): void {
  *  locale e leggero, e un riavvio si riconosce dall'`uptime_s` che torna
  *  indietro. */
 export const CONTROLLO_RIAVVIO_MS = 60_000;
+/** Ogni quanto si richiede lo stato mentre un aggiornamento è in corso. */
+export const RICHIESTA_ESITO_MS = 30_000;
 
 /** Il runtime è ripartito se il suo `uptime_s` è sceso. */
 export function ripartito(prima: number | null, adesso: number): boolean {
@@ -54,6 +67,7 @@ export function AvvisoAggiornamento() {
   const [senzaUtenti, setSenzaUtenti] = useState(false);
   const [stato, setStato] = useState<StatoAggiornamento | null>(null);
   const [chiuso, setChiuso] = useState(false);
+  const [esitoVisto, setEsitoVisto] = useState(false);
   const [novitaAperte, setNovitaAperte] = useState(false);
   const [inCorso, setInCorso] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
@@ -78,15 +92,72 @@ export function AvvisoAggiornamento() {
       if (!libero) return;
       // «Più tardi» vale fino al prossimo avvio (decisione 44): è questo.
       if (riavvio) setChiuso(false);
+      await leggiStato();
+    };
+    // Dopo un aggiornamento la pagina si ricarica subito, ma l'esito «riuscito»
+    // si scrive solo dopo un paio di minuti di vita della versione nuova:
+    // finché il runtime dice «in corso», si richiede ogni 30 secondi.
+    let richiesta: number | undefined;
+    const leggiStato = async () => {
       try {
         const s = await api.statoAggiornamento();
-        if (vivo) setStato(s);
+        if (!vivo) return;
+        setStato(s);
+        if (s.in_corso) richiesta = window.setTimeout(() => void leggiStato(), RICHIESTA_ESITO_MS);
       } catch { /* registry irraggiungibile: nessun avviso, e nessun allarme */ }
     };
     void controlla(true);
     const id = window.setInterval(() => void controlla(false), CONTROLLO_RIAVVIO_MS);
-    return () => { vivo = false; window.clearInterval(id); };
+    return () => { vivo = false; window.clearInterval(id); window.clearTimeout(richiesta); };
   }, []);
+
+  // Prima l'esito dell'ultimo aggiornamento (Fase 3, decisioni 52-54): con il
+  // pilota automatico è l'unico modo, davanti al pannello, di sapere che è
+  // cambiato qualcosa.
+  const evento = stato?.evento ?? null;
+  if (senzaUtenti && evento && !esitoVisto && esitoChiuso() !== evento.id) {
+    const ok = evento.esito === "riuscito";
+    const inst = stato?.novita_installata ? nl(stato.novita_installata) : null;
+    return (
+      <div role="dialog" aria-modal="true" aria-label={t(ok ? "esitoPannello.riuscito" : "esitoPannello.nonRiuscito", { da: evento.da, a: evento.a ?? "?" })}
+        style={{ position: "fixed", inset: 0, zIndex: 9000, background: "rgba(2, 6, 23, 0.72)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+        <div style={{
+          background: "var(--brand-surface, #1e293b)",
+          border: `1px solid ${ok ? "var(--brand-surface-2, #334155)" : "var(--brand-danger, #ef4444)"}`,
+          borderRadius: 8, padding: 20, maxWidth: 520, width: "100%", maxHeight: "80vh", overflowY: "auto",
+          boxShadow: "0 10px 40px rgba(0,0,0,0.5)",
+        }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: ok ? "var(--brand-text, #e2e8f0)" : "var(--brand-danger-soft, #fca5a5)", marginBottom: 6 }}>
+            {ok ? "✅ " : "⚠ "}{t(ok ? "esitoPannello.riuscito" : "esitoPannello.nonRiuscito", { da: evento.da, a: evento.a ?? "?" })}
+          </div>
+          {!ok && (
+            <div style={{ fontSize: 13, color: "var(--brand-text-muted, #94a3b8)" }}>{t("esitoPannello.nonRiuscitoSpiega", { da: evento.da })}</div>
+          )}
+          {ok && inst?.compatibilita && (
+            <div style={{ marginTop: 12, padding: "8px 10px", borderRadius: 4, background: "var(--brand-danger-bg, #450a0a)", border: "1px solid var(--brand-danger, #ef4444)", fontSize: 12, color: "var(--brand-danger-soft, #fca5a5)", whiteSpace: "pre-wrap" }}>
+              ⚠ {inst.compatibilita}
+            </div>
+          )}
+          {ok && inst?.testo && (
+            <div style={{ marginTop: 12 }}>
+              <button type="button" onClick={() => setNovitaAperte(!novitaAperte)}
+                style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 13, color: "var(--brand-primary, #3b82f6)" }}>
+                {novitaAperte ? "▼" : "▶"} {t("aggiornamentoPannello.novita")}
+              </button>
+              {novitaAperte && (
+                <div style={{ marginTop: 6, maxHeight: "32vh", overflowY: "auto", fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", whiteSpace: "pre-wrap" }}>{inst.testo}</div>
+              )}
+            </div>
+          )}
+          <div style={{ marginTop: 16, display: "flex", justifyContent: "flex-end" }}>
+            <button type="button" onClick={() => { chiudiEsito(evento.id); setEsitoVisto(true); setNovitaAperte(false); }}>
+              {t("esitoPannello.chiudi")}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const nuova = stato?.disponibile ?? null;
   if (chiuso || !nuova || !senzaUtenti) return null;

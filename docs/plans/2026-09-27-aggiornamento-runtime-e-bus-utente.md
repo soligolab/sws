@@ -248,6 +248,13 @@ nuova che parte e poi non diventa *healthy* viene rimpiazzata dal rollback prima
 di qualche decina di secondi, l'esito è «non riuscito». Un `in_corso` a cui non segue nessun riavvio (niente di nuovo da
 installare) si chiude da sé dopo qualche minuto, senza esito.
 
+**Scritta il 28-09, sera** (ramo `feat/aggiornamento-f3-esito`): `aggiornamento_esito.rs` (`in_corso` prima di `StartUnit`, esito
+all'avvio, conferma dopo 120 s, scadenza a 600 s), `evento` e `in_corso` in `/api/update/status`, riquadro sul pannello e riga
+nell'IDE, Telegram sulle chat globali. **Email no**: nel progetto un destinatario esiste solo per singolo allarme
+(`notify_email`); un destinatario di progetto per le notifiche di sistema sarebbe una decisione nuova. **Il primo esito
+visibile arriva dall'aggiornamento *successivo* a quello che installa questa versione**: `in_corso` lo scrive la versione
+che chiede, e le rc precedenti non lo scrivono.
+
 ### Le Novità per chi usa il pannello, separate dal CHANGELOG (28-09, sera)
 
 Il maintainer, vedendo l'avviso sul pannello: «Dobbiamo rivedere il Changelog perché è troppo dettagliato e diventa

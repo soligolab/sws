@@ -2446,7 +2446,9 @@
     "pulsante": "Aggiorna ora alla {{a}}",
     "inCorso": "Avvio…",
     "conferma": "Il runtime del pannello passa dalla {{da}} alla {{a}}.\n\nSi riavvia: per qualche secondo allarmi, storico e schermo si fermano e la connessione cade. Se la versione nuova non parte bene, il pannello torna da solo alla precedente.\n\nProcedo?",
-    "avviato": "Aggiornamento alla {{a}} avviato: il runtime si sta riavviando. Riconnettiti fra un minuto per vedere la versione nuova."
+    "avviato": "Aggiornamento alla {{a}} avviato: il runtime si sta riavviando. Riconnettiti fra un minuto per vedere la versione nuova.",
+    "tornatoAlla": "il pannello è tornato alla {{da}}",
+    "inCorsoSulPannello": "Un aggiornamento è in corso sul pannello: l'esito compare qui fra un paio di minuti."
   },
   "finestra": {
     "orologio": "Orologio del pannello: {{locale}} (UTC{{scostamento}}) · {{utc}} UTC",
@@ -2490,5 +2492,11 @@
       "6": "sab"
     },
     "nessunGiornoOgni": "(nessuno spuntato = ogni giorno)"
+  },
+  "esitoPannello": {
+    "riuscito": "Aggiornato dalla {{da}} alla {{a}}",
+    "nonRiuscito": "Aggiornamento alla {{a}} non riuscito",
+    "nonRiuscitoSpiega": "La versione nuova non è partita bene, e il pannello è tornato da solo alla {{da}}. Non c'è niente da fare qui: se ne occupa chi gestisce il pannello.",
+    "chiudi": "Chiudi"
   }
 }

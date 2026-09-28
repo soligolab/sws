@@ -2446,7 +2446,9 @@
     "pulsante": "Update now to {{a}}",
     "inCorso": "Starting…",
     "conferma": "The panel runtime goes from {{da}} to {{a}}.\n\nIt restarts: for a few seconds alarms, history and screen stop and the connection drops. If the new version does not start properly, the panel goes back to the previous one by itself.\n\nProceed?",
-    "avviato": "Update to {{a}} started: the runtime is restarting. Reconnect in a minute to see the new version."
+    "avviato": "Update to {{a}} started: the runtime is restarting. Reconnect in a minute to see the new version.",
+    "tornatoAlla": "the panel went back to {{da}}",
+    "inCorsoSulPannello": "An update is in progress on the panel: the outcome shows here in a couple of minutes."
   },
   "finestra": {
     "orologio": "Panel clock: {{locale}} (UTC{{scostamento}}) · {{utc}} UTC",
@@ -2490,5 +2492,11 @@
       "6": "Sat"
     },
     "nessunGiornoOgni": "(none ticked = every day)"
+  },
+  "esitoPannello": {
+    "riuscito": "Updated from {{da}} to {{a}}",
+    "nonRiuscito": "Update to {{a}} failed",
+    "nonRiuscitoSpiega": "The new version did not start properly, and the panel went back to {{da}} by itself. Nothing to do here: whoever manages the panel will take care of it.",
+    "chiudi": "Close"
   }
 }

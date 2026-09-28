@@ -15,6 +15,7 @@ export function AggiornamentoRuntime() {
   const [errore, setErrore] = useState<string | null>(null);
   const [avviato, setAvviato] = useState(false);
   const [inCorso, setInCorso] = useState(false);
+  const [esitoChiusoOra, setEsitoChiusoOra] = useState(false);
 
   useEffect(() => {
     let vivo = true;
@@ -71,11 +72,37 @@ export function AggiornamentoRuntime() {
     }
   }
 
+  // L'esito dell'ultimo aggiornamento (Fase 3): chiuso una volta, non ricompare.
+  const evento = stato?.evento ?? null;
+  const chiaveEsito = "sws.ide.aggiornamento.esitoChiuso";
+  let esitoGiaChiuso = false;
+  try { esitoGiaChiuso = evento !== null && localStorage.getItem(chiaveEsito) === String(evento.id); } catch { /* storage negato */ }
+
   return (
     <section>
       <div style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>
         {t("aggiornamento.titolo")}
       </div>
+      {evento && !esitoGiaChiuso && !esitoChiusoOra && (
+        <div style={{
+          marginBottom: 8, fontSize: 12, padding: "6px 8px", borderRadius: 4,
+          border: `1px solid ${evento.esito === "riuscito" ? "var(--brand-success-soft, #4ade80)" : "var(--brand-danger, #ef4444)"}`,
+          color: evento.esito === "riuscito" ? "var(--brand-success-soft, #4ade80)" : "var(--brand-danger-soft, #fca5a5)",
+          display: "flex", gap: 8, alignItems: "center", justifyContent: "space-between",
+        }}>
+          <span>
+            {evento.esito === "riuscito" ? "✅ " : "⚠ "}
+            {t(evento.esito === "riuscito" ? "esitoPannello.riuscito" : "esitoPannello.nonRiuscito", { da: evento.da, a: evento.a ?? "?" })}
+            {evento.esito !== "riuscito" && <> — {t("aggiornamento.tornatoAlla", { da: evento.da })}</>}
+          </span>
+          <button type="button" onClick={() => { try { localStorage.setItem(chiaveEsito, String(evento.id)); } catch { /* */ } setEsitoChiusoOra(true); }}>
+            {t("esitoPannello.chiudi")}
+          </button>
+        </div>
+      )}
+      {stato?.in_corso && !avviato && (
+        <div style={{ marginBottom: 8, fontSize: 12, color: "var(--brand-warning, #f59e0b)" }}>{t("aggiornamento.inCorsoSulPannello")}</div>
+      )}
       <span style={{ fontSize: 12, color: tono }}>{riga}</span>
 
       {/* Cosa cambia, prima di premere (decisione 42). Le versioni sono in

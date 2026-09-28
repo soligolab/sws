@@ -177,6 +177,18 @@ pub struct StatoAggiornamento {
     /// una voce per versione, dalla più vecchia alla più nuova.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub novita: Vec<NovitaVersione>,
+    /// L'ultimo aggiornamento concluso, riuscito o no (Fase 3): pannello e IDE
+    /// lo mostrano finché qualcuno non lo chiude.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub evento: Option<crate::aggiornamento_esito::Evento>,
+    /// Le Novità della versione che gira, per «Aggiornato alla Y: cosa cambia».
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub novita_installata: Option<NovitaVersione>,
+    /// Un aggiornamento chiesto e non ancora concluso: l'esito «riuscito»
+    /// arriva dopo un paio di minuti di vita della versione nuova, e chi
+    /// mostra l'esito deve sapere che vale la pena richiedere.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub in_corso: bool,
 }
 
 /// Le novità di una versione, come viaggiano dentro la sua immagine.
@@ -368,6 +380,9 @@ pub async fn stato() -> StatoAggiornamento {
         disponibile: None,
         errore: None,
         novita: Vec::new(),
+        evento: None,
+        novita_installata: None,
+        in_corso: false,
     };
     let (Some(arch), Some(r)) = (arch, immagine.as_deref().and_then(scomponi)) else {
         return st;
@@ -385,6 +400,28 @@ pub async fn stato() -> StatoAggiornamento {
         Err(e) => st.errore = Some(e),
     }
     st
+}
+
+/// Lo stato con l'esito dell'ultimo aggiornamento (Fase 3) e, se c'è un esito
+/// da mostrare, le Novità della versione che gira. Le Novità si leggono dal
+/// registry solo in quel caso: sono due richieste in più.
+pub async fn stato_con_esito(config_dir: &std::path::Path) -> StatoAggiornamento {
+    let mut st = stato().await;
+    let p = crate::aggiornamento_finestra::carica(config_dir).await;
+    st.evento = p.evento;
+    st.in_corso = p.in_corso.is_some();
+    if st.evento.is_some() {
+        st.novita_installata = novita_di_questa().await;
+    }
+    st
+}
+
+async fn novita_di_questa() -> Option<NovitaVersione> {
+    let immagine = std::env::var("SWS_IMAGE").ok()?;
+    let (_, arch) = canale(Some(&immagine));
+    let r = scomponi(&immagine)?;
+    let e = etichette(&r, &format!("{VERSIONE}-{}", arch?)).await.ok()?;
+    novita_da_etichette(VERSIONE, &e)
 }
 
 /// Il massimo di versioni di cui si leggono le etichette in un colpo.

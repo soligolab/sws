@@ -20,6 +20,10 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   mostra lo stato ma non le novità. Vale per la `2.12.0-rc.1` e la `rc.2`.
 
 ### Added
+- **L'esito di ogni aggiornamento del runtime** (Fase 3 del piano): dopo un aggiornamento, anche del pilota automatico, il pannello senza utenti mostra
+  «Aggiornato dalla X alla Y» con le Novità della versione nuova, finché qualcuno non lo chiude; se la versione nuova non regge e podman torna indietro,
+  «non riuscito» in rosso. Lo stesso nella sezione Aggiornamento dell'IDE e su Telegram (le chat delle Notifiche). L'esito lo decide la versione che gira
+  dopo: la nuova scrive «riuscito» solo dopo due minuti di vita, la vecchia che si ritrova in funzione scrive «non riuscito».
 - **La finestra dell'aggiornamento si riprogramma e parte dall'ora del pannello**: «Modifica» sposta un aggiornamento programmato o il pilota
   automatico senza annullarli; a connessione avvenuta i campi propongono l'orologio del pannello più qualche minuto e dicono accanto di che fuso è l'ora
   («ora del pannello, UTC+00:00»), con un avviso se il pannello è in UTC. Il pilota sceglie più giorni. Una programmazione appena salvata sveglia

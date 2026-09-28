@@ -38,6 +38,12 @@ pub struct Programma {
     /// Com'è andata l'ultima volta che la finestra è scattata (o perché no).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ultimo_esito: Option<String>,
+    /// Un aggiornamento chiesto e non ancora concluso (Fase 3).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub in_corso: Option<crate::aggiornamento_esito::InCorso>,
+    /// L'ultimo aggiornamento concluso, riuscito o no (Fase 3).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub evento: Option<crate::aggiornamento_esito::Evento>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -267,6 +273,7 @@ async fn scatta_approvazione(config_dir: &Path, mut p: Programma, a: Approvazion
     }
     tracing::info!(esito = ?p.ultimo_esito, "finestra dell'aggiornamento (approvazione)");
     if azione == Azione::Aggiorna {
+        crate::aggiornamento_esito::segna_in_corso(config_dir, &st.versione, Some(a.versione.clone())).await;
         if let Err(e) = crate::aggiornamento::avvia().await {
             tracing::warn!("finestra dell'aggiornamento: avvio non riuscito: {e}");
         }
@@ -285,6 +292,7 @@ async fn scatta_pilota(config_dir: &Path) {
     let _ = salva(config_dir, &p).await;
     tracing::info!(esito = ?p.ultimo_esito, "finestra dell'aggiornamento (pilota)");
     if st.disponibile.is_some() {
+        crate::aggiornamento_esito::segna_in_corso(config_dir, &st.versione, st.disponibile.clone()).await;
         if let Err(e) = crate::aggiornamento::avvia().await {
             tracing::warn!("pilota automatico: avvio non riuscito: {e}");
         }
@@ -362,7 +370,7 @@ mod tests {
         let p = Programma {
             approvazione: Some(Approvazione { versione: "2.12.1".into(), quando_ms: 42 }),
             pilota: Some(Pilota { giorni: vec![0], ora: "03:00".into() }),
-            ultimo_esito: None,
+            ..Default::default()
         };
         let y = serde_yaml::to_string(&p).unwrap();
         assert_eq!(serde_yaml::from_str::<Programma>(&y).unwrap(), p);

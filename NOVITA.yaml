@@ -23,6 +23,8 @@ versioni:
         en: "The runtime updates from the IDE or from the panel: stable or test channel, «Update now», a scheduled window or autopilot. If the new version does not start, it goes back to the previous one by itself."
       - it: "Prima di aggiornare si leggono le novità e gli avvisi di compatibilità; sul pannello senza utenti compare un avviso a schermo."
         en: "Before updating you can read what is new and the compatibility warnings; on a panel without users a notice appears on screen."
+      - it: "Dopo un aggiornamento il pannello dice «aggiornato dalla X alla Y», con le novità; se non riesce lo dice in rosso. L'esito arriva anche su Telegram."
+        en: "After an update the panel says «updated from X to Y», with what is new; if it fails it says so in red. The outcome also goes to Telegram."
       - it: "Git nel progetto: storia e differenze, prova di un commit vecchio, fork di un progetto, invio a GitHub."
         en: "Git in the project: history and diffs, trying an old commit, forking a project, pushing to GitHub."
       - it: "Pannello delle proprietà a un solo livello; il tag di un pulsante sta accanto ai suoi parametri."

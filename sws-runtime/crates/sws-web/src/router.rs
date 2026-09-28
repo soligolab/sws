@@ -2524,8 +2524,8 @@ struct PuliziaBody {
 /// grafici salvava ogni aggiornamento di ogni tag (CasaDomotica: 590 MB, 93 %
 /// ripetizioni). Da allora non si gonfiano più, ma quelli già gonfi restano.
 /// `GET /api/update/status` — versione, canale e versione disponibile.
-async fn aggiornamento_stato() -> Response {
-    Json(crate::aggiornamento::stato().await).into_response()
+async fn aggiornamento_stato(State(s): State<AppState>) -> Response {
+    Json(crate::aggiornamento::stato_con_esito(&s.config_dir).await).into_response()
 }
 
 /// `POST /api/update/apply` — avvia l'aggiornamento del runtime. Risponde
@@ -2550,6 +2550,7 @@ async fn aggiornamento_avvia(
         Some(user.username),
         serde_json::json!({ "versione": st.versione, "disponibile": st.disponibile, "immagine": st.immagine }),
     );
+    crate::aggiornamento_esito::segna_in_corso(&s.config_dir, &st.versione, st.disponibile.clone()).await;
     tokio::spawn(async {
         tokio::time::sleep(std::time::Duration::from_millis(800)).await;
         match crate::aggiornamento::avvia().await {
