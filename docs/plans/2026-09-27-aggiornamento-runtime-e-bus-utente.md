@@ -170,6 +170,19 @@ runtime parte o viene riavviato […] mi basta premere un tasto. Sarebbe anche u
 
 Queste entrano come **Fase 1b**, dopo il collaudo della Fase 1 e prima della finestra programmata.
 
+## Collaudo della Fase 1b a casa (28-09-2026, sera)
+
+- rc.3 pubblicata con le etichette (`net.soligo.sws.changelog`, `.compat`), lette dal registry senza pull. Il piano
+  dell'ufficio aveva un buco: le novità le legge **il runtime del pannello**, quindi una rc.2 non può mostrare quelle della
+  rc.3. Il TC620 è stato portato alla rc.3 con «Aggiorna ora» (45 s), poi pubblicata la rc.4: la rc.3 vede «disponibile
+  2.12.0-rc.4» con novità e avviso di compatibilità.
+- **Difetto**: l'avviso a schermo chiamava `/api/update/*` dalla porta del viewer (8443), dove le rotte non c'erano (404):
+  non poteva comparire mai. Corretto nella rc.5, dietro `require_admin`, con un test provato rosso.
+- **Difetto minore**: l'immagine ereditava `org.opencontainers.image.version = 24.04` da Ubuntu; dalla rc.4 porta la
+  versione di SWS.
+45. **Le novità di una `-rc` restano tutto `[Unreleased]`** (scelta del maintainer, 28-09): chi è sul canale di prova vede
+    tutto ciò che arriverà nella prossima release — oggi ~63 000 caratteri — non la differenza fra una rc e l'altra.
+
 ## Visto il 27-09, da non dimenticare
 
 - Sui pannelli con CODESYS, `allow_url_override = true` fa vincere CODESYS sul browser all'avvio
