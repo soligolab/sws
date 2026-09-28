@@ -289,6 +289,21 @@ export interface AvvisoRuntime {
 
 /** Com'è andata l'installazione dell'immagine di boot sul dispositivo (T-72 F5).
  *  Gemello di `boot_image::BootImageStato` in `sws-web`. */
+/** Gemelli di `aggiornamento_finestra` in `sws-web` (Fase 2). */
+export interface OrologioPannello { locale: string; utc: string; scostamento: string }
+export interface ApprovazioneFinestra { versione: string; quando_ms: number }
+export interface PilotaFinestra { giorni: number[]; ora: string }
+export interface VistaFinestra {
+  programma: { approvazione?: ApprovazioneFinestra; pilota?: PilotaFinestra; ultimo_esito?: string };
+  orologio: OrologioPannello;
+  approvazione_alle: OrologioPannello | null;
+  pilota_alle: OrologioPannello | null;
+}
+export interface RichiestaFinestra {
+  approvazione: ApprovazioneFinestra | { versione: string; giorno: "oggi" | "domani" | number; ora: string } | null;
+  pilota: PilotaFinestra | null;
+}
+
 /** Gemello di `aggiornamento::StatoAggiornamento` in `sws-web`. */
 export interface StatoAggiornamento {
   versione: string;
@@ -1455,6 +1470,14 @@ export const api = {
   statoAggiornamento: () => request<StatoAggiornamento>("/api/update/status"),
   avviaAggiornamento: () => request<StatoAggiornamento>("/api/update/apply", { method: "POST" }),
   remoteStatoAggiornamento: () => request<StatoAggiornamento>("/api/remote/update/status"),
+  /** La finestra dell'aggiornamento e l'orologio del pannello collegato. */
+  remoteFinestra: () => request<VistaFinestra>("/api/remote/update/schedule"),
+  remoteScriviFinestra: (r: RichiestaFinestra) =>
+    request<VistaFinestra>("/api/remote/update/schedule", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(r),
+    }),
   /** «Aggiorna ora»: il dispositivo avvia podman-auto-update e si riavvia. */
   remoteAvviaAggiornamento: () =>
     request<StatoAggiornamento>("/api/remote/update/apply", { method: "POST" }),

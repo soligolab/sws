@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, type StatoAggiornamento } from "@/api/client";
+import { FinestraAggiornamento } from "./FinestraAggiornamento";
 
 /** L'aggiornamento del runtime collegato (piano 2026-09-27, Fase 1): che
  *  versione gira, su quale canale, e se nel canale ce n'è una più nuova. «Aggiorna
@@ -22,16 +23,21 @@ export function AggiornamentoRuntime() {
     return () => { vivo = false; };
   }, []);
 
-  const aggiorna = async () => {
-    if (!stato?.disponibile) return;
-    if (!window.confirm(t("aggiornamento.conferma", { da: stato.versione, a: stato.disponibile }))) return;
+  // Le conferme valgono uguali per «Aggiorna ora» e per «Programma» (Fase 2).
+  const conferma = (): boolean => {
+    if (!stato?.disponibile) return false;
+    if (!window.confirm(t("aggiornamento.conferma", { da: stato.versione, a: stato.disponibile }))) return false;
     // Con avvisi di compatibilità si chiede una conferma in più (decisione
     // 43): quegli avvisi dicono che dopo l'aggiornamento qualcosa va rifatto,
     // e una sola conferma la si dà per abitudine.
     const avvisi = (stato.novita ?? [])
       .filter((n) => n.compatibilita)
       .map((n) => `${n.versione}: ${n.compatibilita}`);
-    if (avvisi.length > 0 && !window.confirm(t("aggiornamento.confermaCompat", { avvisi: avvisi.join("\n\n") }))) return;
+    return !(avvisi.length > 0 && !window.confirm(t("aggiornamento.confermaCompat", { avvisi: avvisi.join("\n\n") })));
+  };
+
+  const aggiorna = async () => {
+    if (!conferma()) return;
     setInCorso(true);
     try {
       await api.remoteAvviaAggiornamento();
@@ -108,6 +114,11 @@ export function AggiornamentoRuntime() {
             {inCorso ? t("aggiornamento.inCorso") : t("aggiornamento.pulsante", { a: stato.disponibile })}
           </button>
         </div>
+      )}
+
+      {/* La finestra (Fase 2): solo per chi segue un canale del registry. */}
+      {stato && !avviato && !errore && (stato.canale === "stabile" || stato.canale === "prova") && (
+        <FinestraAggiornamento stato={stato} conferma={conferma} />
       )}
     </section>
   );

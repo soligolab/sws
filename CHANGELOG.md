@@ -20,6 +20,11 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   mostra lo stato ma non le novità. Vale per la `2.12.0-rc.1` e la `rc.2`.
 
 ### Added
+- **La finestra dell'aggiornamento del runtime** (Fase 2 del [piano](docs/plans/2026-09-27-aggiornamento-runtime-e-bus-utente.md)): nella sezione «Aggiornamento del
+  runtime» si programma la versione disponibile per un giorno e un'ora **del pannello** (una volta sola), oppure si accende il **pilota automatico**, che
+  a ogni finestra installa ciò che c'è di nuovo nel canale. L'orologio del pannello si vede in locale e in UTC. Un'approvazione non installa mai una
+  versione diversa da quella approvata: se nel canale ne esce una più nuova, si annulla e lo dice; una finestra mancata di più di un'ora non si
+  recupera. Il quadlet dà al container il fuso del pannello (`Timezone=local`).
 - **Il changelog viaggia dentro l'immagine, e si legge prima di aggiornare.** Alla build la sezione di CHANGELOG della versione finisce in un'etichetta OCI; il runtime la legge dal registry
   **senza scaricare l'immagine** (le etichette stanno nel config blob: due richieste e pochi KB contro centinaia di MB) e la mostra nella sezione «Aggiornamento del runtime». Saltando più
   versioni si leggono anche quelle in mezzo — fino a cinque — perché gli avvisi di una versione saltata sono quelli che nessuno leggerebbe mai.

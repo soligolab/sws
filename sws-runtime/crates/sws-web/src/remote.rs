@@ -780,18 +780,22 @@ async fn inoltra_aggiornamento(
     s: &AppState,
     user: &AuthUser,
     metodo: reqwest::Method,
+    corpo: Option<serde_json::Value>,
     url: impl Fn(&str) -> String,
 ) -> Response {
     let target = match s.remote_target.read().await.clone() {
         Some(t) => t,
         None => return (StatusCode::BAD_REQUEST, "No remote runtime connected").into_response(),
     };
-    if metodo == reqwest::Method::POST {
-        s.audit.log("remote.update_apply", Some(user.username.clone()), serde_json::json!({ "url": target.url }));
+    if metodo != reqwest::Method::GET {
+        s.audit.log("remote.update", Some(user.username.clone()), serde_json::json!({ "url": target.url, "metodo": metodo.as_str() }));
     }
     let client = make_remote_client(s, &target.url);
     let base = target.url.trim_end_matches('/');
     let mut req = client.request(metodo, url(base));
+    if let Some(c) = corpo {
+        req = req.json(&c);
+    }
     if !target.token.is_empty() {
         req = req.header("Authorization", format!("Bearer {}", target.token));
     }
@@ -824,14 +828,28 @@ async fn inoltra_aggiornamento(
     }
 }
 
+/// `GET /api/remote/update/schedule`
+pub async fn remote_finestra_leggi(State(s): State<AppState>, Extension(user): Extension<AuthUser>) -> Response {
+    inoltra_aggiornamento(&s, &user, reqwest::Method::GET, None, |base| format!("{base}/api/update/schedule")).await
+}
+
+/// `PUT /api/remote/update/schedule`
+pub async fn remote_finestra_scrivi(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Json(corpo): Json<serde_json::Value>,
+) -> Response {
+    inoltra_aggiornamento(&s, &user, reqwest::Method::PUT, Some(corpo), |base| format!("{base}/api/update/schedule")).await
+}
+
 /// `GET /api/remote/update/status`
 pub async fn remote_update_status(State(s): State<AppState>, Extension(user): Extension<AuthUser>) -> Response {
-    inoltra_aggiornamento(&s, &user, reqwest::Method::GET, |base| format!("{base}/api/update/status")).await
+    inoltra_aggiornamento(&s, &user, reqwest::Method::GET, None, |base| format!("{base}/api/update/status")).await
 }
 
 /// `POST /api/remote/update/apply`
 pub async fn remote_update_apply(State(s): State<AppState>, Extension(user): Extension<AuthUser>) -> Response {
-    inoltra_aggiornamento(&s, &user, reqwest::Method::POST, |base| format!("{base}/api/update/apply")).await
+    inoltra_aggiornamento(&s, &user, reqwest::Method::POST, None, |base| format!("{base}/api/update/apply")).await
 }
 
 /// `POST /api/remote/boot-image/reset` — il ripristino dell'immagine di

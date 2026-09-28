@@ -61,5 +61,10 @@ tokio-tungstenite.workspace  = true
 metrics                      = { workspace = true }
 metrics-exporter-prometheus  = { workspace = true }
 time                         = { workspace = true }
+# La finestra dell'aggiornamento (28-09-2026) è nell'ora **locale del pannello**,
+# cambio d'ora compreso: `time` non sa leggere il fuso di sistema in modo sicuro
+# in un processo multithread, `chrono::Local` sì (legge /etc/localtime, che il
+# quadlet riempie con `Timezone=local`). Era già nel Cargo.lock, tirato da altri.
+chrono                       = { version = "0.4", default-features = false, features = ["clock", "std", "serde"] }
 
 [dev-dependencies]

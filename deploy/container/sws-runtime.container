@@ -153,6 +153,12 @@ Notify=healthy
 Volume=/run/user/1000/bus:/run/user/1000/bus
 Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 
+# Il fuso del pannello, per la finestra dell'aggiornamento (Fase 2, 28-09-2026):
+# «domenica alle 3» sono le 3 del pannello, cambio d'ora compreso. Senza, il
+# container è in UTC anche su un pannello in ora italiana (misurato sul TC620).
+# Podman copia il fuso dell'host nel container: non si monta né si tocca niente.
+Timezone=local
+
 # Quale immagine sta girando: da dentro il container non si sa
 # (`/run/.containerenv` è vuoto in un container rootless). La riscrive
 # l'installer uguale a `Image=`; il runtime ne ricava il canale e se è

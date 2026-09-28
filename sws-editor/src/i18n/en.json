@@ -2447,5 +2447,30 @@
     "inCorso": "Starting…",
     "conferma": "The panel runtime goes from {{da}} to {{a}}.\n\nIt restarts: for a few seconds alarms, history and screen stop and the connection drops. If the new version does not start properly, the panel goes back to the previous one by itself.\n\nProceed?",
     "avviato": "Update to {{a}} started: the runtime is restarting. Reconnect in a minute to see the new version."
+  },
+  "finestra": {
+    "orologio": "Panel clock: {{locale}} (UTC{{scostamento}}) · {{utc}} UTC",
+    "programmaLa": "Or schedule {{a}}:",
+    "oggi": "today",
+    "domani": "tomorrow",
+    "giorni": {
+      "0": "Sunday",
+      "1": "Monday",
+      "2": "Tuesday",
+      "3": "Wednesday",
+      "4": "Thursday",
+      "5": "Friday",
+      "6": "Saturday"
+    },
+    "programma": "Schedule",
+    "programmata": "Scheduled: {{versione}} on {{locale}} panel time ({{utc}} UTC). If a newer version comes out first, it does not update.",
+    "annulla": "Cancel",
+    "pilota": "Autopilot: install new versions by itself every",
+    "ogniGiorno": "every day",
+    "pilotaAccendi": "Turn on",
+    "pilotaConferma": "With autopilot the panel installs every new version of its channel by itself, in the chosen window, without asking and without anyone reading its notes first.\n\nTurn it on?",
+    "pilotaAcceso": "Autopilot on: {{giorni}} at {{ora}} (panel time). Next check: {{prossimo}}.",
+    "pilotaSpegni": "Turn off",
+    "ultimo": "Last window: {{esito}}"
   }
 }

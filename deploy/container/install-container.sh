@@ -444,7 +444,8 @@ if [ "$AUTOSTART" -eq 1 ]; then
     esac
     if [ "${PODMAN_MAJ:-0}" -lt 5 ] 2>/dev/null; then
         sed -i "s|^Notify=healthy|#Notify=healthy|" "$UNIT_DIR/$NAME.container"
-        echo "    podman ${PODMAN_VER:-?} < 5: Notify=healthy tolto — l'aggiornamento non torna indietro da solo" >&2
+        sed -i "s|^Timezone=local|#Timezone=local|" "$UNIT_DIR/$NAME.container"
+        echo "    podman ${PODMAN_VER:-?} < 5: Notify=healthy e Timezone tolti — l'aggiornamento non torna indietro da solo, e la finestra è in UTC" >&2
     fi
     # La unit ha /data/user/sws hardcoded: riscrivere i mount se --data diverso.
     if [ "$DATA" != "/data/user/sws" ]; then

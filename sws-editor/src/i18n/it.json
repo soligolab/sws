@@ -2447,5 +2447,30 @@
     "inCorso": "Avvio…",
     "conferma": "Il runtime del pannello passa dalla {{da}} alla {{a}}.\n\nSi riavvia: per qualche secondo allarmi, storico e schermo si fermano e la connessione cade. Se la versione nuova non parte bene, il pannello torna da solo alla precedente.\n\nProcedo?",
     "avviato": "Aggiornamento alla {{a}} avviato: il runtime si sta riavviando. Riconnettiti fra un minuto per vedere la versione nuova."
+  },
+  "finestra": {
+    "orologio": "Orologio del pannello: {{locale}} (UTC{{scostamento}}) · {{utc}} UTC",
+    "programmaLa": "Oppure programma la {{a}}:",
+    "oggi": "oggi",
+    "domani": "domani",
+    "giorni": {
+      "0": "domenica",
+      "1": "lunedì",
+      "2": "martedì",
+      "3": "mercoledì",
+      "4": "giovedì",
+      "5": "venerdì",
+      "6": "sabato"
+    },
+    "programma": "Programma",
+    "programmata": "Programmato: la {{versione}} il {{locale}} ora del pannello ({{utc}} UTC). Se prima esce una versione più nuova, non aggiorna.",
+    "annulla": "Annulla",
+    "pilota": "Pilota automatico: installa da solo le versioni nuove ogni",
+    "ogniGiorno": "ogni giorno",
+    "pilotaAccendi": "Accendi",
+    "pilotaConferma": "Con il pilota automatico il pannello installa da solo ogni versione nuova del suo canale, nella finestra scelta, senza chiedere e senza che nessuno ne legga prima le novità.\n\nLo accendo?",
+    "pilotaAcceso": "Pilota automatico acceso: {{giorni}} alle {{ora}} (ora del pannello). Prossimo controllo: {{prossimo}}.",
+    "pilotaSpegni": "Spegni",
+    "ultimo": "Ultima finestra: {{esito}}"
   }
 }

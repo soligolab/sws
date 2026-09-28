@@ -11,6 +11,7 @@ pub mod git_deploy;
 pub mod global_scripts;
 pub mod istantanea;
 pub mod aggiornamento;
+pub mod aggiornamento_finestra;
 pub mod launcher_dbus;
 pub mod metrics;
 pub mod netif;

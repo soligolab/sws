@@ -540,6 +540,8 @@ pub fn build(
         // «Aggiorna ora». Admin: riavvia il servizio.
         .route("/api/update/status", get(aggiornamento_stato))
         .route("/api/update/apply", post(aggiornamento_avvia))
+        .route("/api/update/schedule", get(finestra_leggi).put(finestra_scrivi))
+        .route("/api/remote/update/schedule", get(crate::remote::remote_finestra_leggi).put(crate::remote::remote_finestra_scrivi))
         .route("/api/remote/update/status", get(crate::remote::remote_update_status))
         .route("/api/remote/update/apply", post(crate::remote::remote_update_apply))
         .route("/api/system/stop", post(crate::system::system_stop))
@@ -1095,6 +1097,7 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         // Aggiornamento del runtime (27-09-2026): chiamato dall'IDE collegato.
         .route("/api/update/status", get(aggiornamento_stato))
         .route("/api/update/apply", post(aggiornamento_avvia))
+        .route("/api/update/schedule", get(finestra_leggi).put(finestra_scrivi))
         // ── Override per-dispositivo del client id MQTT ────────────────────
         .route(
             "/api/mqtt/source/:id/client-id-override",
@@ -2555,6 +2558,34 @@ async fn aggiornamento_avvia(
         }
     });
     (StatusCode::ACCEPTED, Json(st)).into_response()
+}
+
+/// `GET /api/update/schedule` — la finestra dell'aggiornamento e l'orologio del pannello.
+async fn finestra_leggi(State(s): State<AppState>) -> Response {
+    Json(crate::aggiornamento_finestra::vista(&s.config_dir).await).into_response()
+}
+
+/// `PUT /api/update/schedule` — programma, annulla, accende o spegne il pilota.
+async fn finestra_scrivi(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Json(r): Json<crate::aggiornamento_finestra::Richiesta>,
+) -> Response {
+    use crate::aggiornamento_finestra as f;
+    let attuale = f::carica(&s.config_dir).await;
+    // Solo se si programma una versione nuova serve sapere cosa offre il canale.
+    let serve_stato = matches!(r.approvazione, Some(f::ApprovazioneRichiesta::Nuova { .. }));
+    let disponibile = if serve_stato { crate::aggiornamento::stato().await.disponibile } else { None };
+    match f::applica(&attuale, r, disponibile.as_deref(), &chrono::Local::now()) {
+        Ok(p) => {
+            if let Err(e) = f::salva(&s.config_dir, &p).await {
+                return (StatusCode::INTERNAL_SERVER_ERROR, format!("non salvata: {e}")).into_response();
+            }
+            s.audit.log("update.schedule", Some(user.username), serde_json::to_value(&p).unwrap_or_default());
+            Json(f::vista(&s.config_dir).await).into_response()
+        }
+        Err(e) => (StatusCode::BAD_REQUEST, e).into_response(),
+    }
 }
 
 /// `POST /api/boot-image/reset` — l'immagine di accensione del pannello torna
