@@ -1079,7 +1079,7 @@ pub async fn open_project(State(s): State<AppState>, Path(name): Path<String>) -
     //
     // Effetto misurato sul WP630 il 2026-08-28: si caricava un progetto LVGL e
     // il pannello restava sulla schermata di prima. Nessun errore: il file
-    // `display-target` semplicemente non veniva mai scritto.
+    // la commutazione dello schermo semplicemente non partiva.
     crate::router::signal_project_changed(&s, "open");
 
     // Every successful open — not just creation — refreshes last_opened_ms,

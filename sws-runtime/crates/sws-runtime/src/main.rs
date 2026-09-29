@@ -1056,7 +1056,9 @@ async fn main() -> anyhow::Result<()> {
     }
 
     if let Ok(dir) = sws_web::router::active_dir(&app_state).await {
-        sws_web::display_target::publish(&app_state.config_dir, &dir).await;
+        if !ide_only {
+            sws_web::display_target::publish(&app_state.config_dir, &dir, sws_web::display_target::Motivo::Avvio).await;
+        }
         // T-72 F5: e l'immagine di boot abilitata, per lo stesso motivo — ma
         // come «avvio»: un ripristino di fabbrica resta fino al prossimo deploy.
         sws_web::boot_image::publish(&app_state.config_dir, &dir, sws_web::boot_image::Occasione::Avvio).await;

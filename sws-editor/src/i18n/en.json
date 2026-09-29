@@ -2498,5 +2498,21 @@
     "nonRiuscito": "Update to {{a}} failed",
     "nonRiuscitoSpiega": "The new version did not start properly, and the panel went back to {{da}} by itself. Nothing to do here: whoever manages the panel will take care of it.",
     "chiudi": "Close"
+  },
+  "statoDisplay": {
+    "titolo": "Panel screen",
+    "carico": "Reading the device status…",
+    "nessuno": "No switch yet (runtime just started, or older than 2.12.0-rc.10).",
+    "esito": {
+      "web": "The browser is on screen, as the project asks.",
+      "lvgl": "The LVGL viewer is on screen, as the project asks.",
+      "ripiego_lvgl": "The project asks for the web, but the browser did not start: the LVGL viewer is on screen.",
+      "configurazione": "The panel is in configuration mode (STOP at power-on): the screen stays on Cockpit.",
+      "indeciso": "The launcher did not decide the mode in time: the screen was not touched.",
+      "non_supportato": "This device has no controllable Pixsys launcher (PixsysOS 2.1 or later needed): the screen is not switched.",
+      "errore": "Switch failed (the project asks for «{{voluto}}»).",
+      "altro": "{{esito}}"
+    },
+    "codesys": "CODESYS can change the browser address (allow_url_override): at start-up it might take the screen back."
   }
 }

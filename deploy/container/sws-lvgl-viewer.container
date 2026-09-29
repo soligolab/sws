@@ -6,8 +6,8 @@
 #
 # NON si avvia da sé: manca di proposito `[Install] WantedBy=`.
 #
-# È `sws-display.service` a deciderlo, leggendo `display-target` (Q25) — cioè
-# il file in cui il runtime scrive quale motore il progetto vuole a schermo.
+# Lo decide il runtime (Q25; dal 29-09-2026 via bus utente, `display_target.rs`),
+# secondo il motore che il progetto vuole a schermo.
 # Se questa unit si avviasse per conto suo, al boot si ritroverebbero il
 # browser e il viewer accesi insieme, sovrapposti sullo stesso schermo: è
 # esattamente com'era prima che questo meccanismo esistesse.

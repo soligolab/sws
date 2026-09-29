@@ -353,6 +353,16 @@ export function novitaNellaLingua(n: NovitaVersione, lingua: string): { testo: s
   };
 }
 
+/** Gemello di `display_target::StatoDisplay` in `sws-web`. */
+export interface StatoDisplay {
+  voluto: string;
+  /** `web`, `lvgl`, `ripiego_lvgl`, `configurazione`, `indeciso`, `non_supportato`, `errore`. */
+  esito: string;
+  messaggio: string | null;
+  codesys_url_override: boolean | null;
+  quando: string;
+}
+
 export interface BootImageStato {
   /** `installato`, `non_supportato`, `nessuna_immagine`, `fabbrica`, `errore`. */
   esito: string;
@@ -369,6 +379,8 @@ export interface SystemStatus {
   runtime_version: string;
   /** Opzionale: un runtime più vecchio, o senza le unit di installazione, non lo manda. */
   boot_image?: BootImageStato | null;
+  /** L'ultima commutazione dello schermo del pannello (Fase 4, 29-09-2026). */
+  display?: StatoDisplay | null;
   uptime_s: number;
   /** Q52 (dal 2.7.2): architettura del binario (`aarch64`, `x86_64`), nome
    *  della macchina, motore del container o null se nativo. Opzionali perché
@@ -1643,9 +1655,8 @@ export const api = {
    *  `null` toglie il campo, cioè torna al default: un progetto senza `target`
    *  è web, come tutti quelli creati prima che il campo esistesse.
    *
-   *  Non è decorativo: il runtime scrive `web`/`lvgl` in `display-target`, e
-   *  sul pannello `sws-display-apply.sh` commuta lo schermo fra browser e
-   *  viewer LVGL al deploy successivo. */
+   *  Non è decorativo: il runtime del pannello commuta lo schermo fra browser e
+   *  viewer LVGL (via D-Bus, dal 29-09-2026) al deploy successivo. */
   updateProjectTarget: (target: { kind: ProjectTargetKind; framebuffer_device?: string } | null) =>
     request<void>("/api/project/target", {
       method: "PUT",

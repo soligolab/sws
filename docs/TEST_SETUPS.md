@@ -203,7 +203,8 @@ systemctl is-active chromium@wp-control.service   # active = modalità configura
 ```
 
 distingue le due modalità in modo esatto, con due query che l'utente `user` può fare senza sudo.
-È su questo che si regge `sws-display-apply.sh`.
+È su questo che si regge la commutazione dello schermo (dal 29-09-2026 nel runtime, `display_target.rs`,
+che fa le stesse due domande via D-Bus).
 
 **Cosa non fare**, pena rendere il dispositivo non configurabile:
 
@@ -223,8 +224,8 @@ misurato sul WP630 il 2026-08-28) e si ripiega su `systemctl disable --now`, che
 `17-chromium.rules` concede all'utente senza sudo. In quel ripiego serve `disable` e non `stop`:
 altrimenti il symlink in `desktop.target.wants` resta e al riavvio il browser torna su.
 
-**Il ripiego è temporaneo.** `sws-display-apply.sh` lo marca con la parola `RIPIEGO`: si trova
-cercandola, e va tolto quando 2.1.0 sarà su tutti i prodotti.
+**Il ripiego non c'è più** (29-09-2026, decisione 59 del piano dell'aggiornamento): con la
+commutazione nel runtime, su PixsysOS < 2.1 lo schermo risulta «non supportato» e non si commuta.
 
 **Da verificare quando 2.1.0 arriva** (oggi non provabile, nessun dispositivo ce l'ha): che
 `SetEnabled=false` basti da solo, cioè che il launcher **rimuova** anche il symlink già esistente in
@@ -304,9 +305,9 @@ compreso perché dalla 2.6.5 il deploy usa `StrictHostKeyChecking=accept-new` e 
 ## CODESYS si prende il browser all'avvio (TC620, 27-09-2026)
 
 Sintomo: dopo un riavvio il browser del pannello apre **Cockpit** (`http://127.0.0.1:9443`) invece di SWS, anche
-se il runtime è su e `sws-display` ha scritto `http://127.0.0.1:8443` pochi secondi prima.
+se il runtime è su e la commutazione ha scritto `http://127.0.0.1:8443` pochi secondi prima.
 
-Misurato: `/etc/pixsys/main-config.toml` riscritto alle 19:04:02, **11 s dopo** `sws-display` (19:03:51), con
+Misurato: `/etc/pixsys/main-config.toml` riscritto alle 19:04:02, **11 s dopo** la commutazione (19:03:51), con
 `url = "http://127.0.0.1:9443"`; nella stessa sezione `[web_browser.main_app.codesys] allow_url_override = true`.
 Sul pannello girano `codesyscontrol` e `codesysedge`. Il maintainer: è il comportamento predefinito di CODESYS, e si
 toglie da una chiave della sua configurazione. Il journal di sistema non è leggibile né da `user` né da `pixsys`,

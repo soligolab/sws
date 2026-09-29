@@ -3,17 +3,22 @@
 #
 # PERCHÉ ESISTE
 #
-# `target.kind` non è un campo decorativo: all'apertura e a ogni salvataggio il
-# runtime scrive `web` o `lvgl` nel file `display-target`, e sul pannello
-# `sws-display-apply.sh` commuta lo schermo fra browser e viewer LVGL. Prima di
+# `target.kind` non è un campo decorativo: all'apertura e a ogni cambio il
+# runtime commuta lo schermo del pannello fra browser e viewer LVGL (dal
+# 29-09-2026 da sé, via D-Bus; prima scrivendo `display-target` per uno script
+# sull'host), e il motore voluto si legge in `/api/system` → `display`. Prima di
 # T-58 si cambiava editando `project.yaml` a mano, con una trappola: il runtime
 # riscrive il file **dalla memoria** al primo salvataggio, quindi la modifica
 # fatta a progetto aperto spariva senza dire niente.
 #
-# Questa guardia prova la catena intera — rotta → `project.yaml` →
-# `display-target` — perché è esattamente dove un cablaggio dimenticato non si
+# Questa guardia prova la catena intera — rotta → `project.yaml` → motore
+# voluto dal runtime — perché è esattamente dove un cablaggio dimenticato non si
 # vede: la rotta risponde 204, il file su disco cambia, e il pannello continua
 # a mostrare quello di prima.
+#
+# Il runtime gira in modalità **dispositivo** (con la porta viewer): un'istanza
+# IDE non commuta niente. Su un PC senza launcher Pixsys la commutazione risulta
+# «non supportata» e lo schermo non si tocca, ma il motore voluto è registrato.
 #
 # Uso:  ./scripts/check_target_progetto.sh
 set -u
@@ -23,26 +28,25 @@ SCR="${TMPDIR:-/tmp}/sws-check-target"
 PORT=8577
 rm -rf "$SCR"; mkdir -p "$SCR"/{config,projects}
 "$BIN" --config "$SCR/config" --projects-root "$SCR/projects" \
-  --templates-root "$REPO/examples/templates" --admin-port "$PORT" > "$SCR/log" 2>&1 &
+  --templates-root "$REPO/examples/templates" --admin-port "$PORT" --viewer-port 8578 > "$SCR/log" 2>&1 &
 PID=$!
 trap 'kill -TERM "$PID" 2>/dev/null' EXIT
 sleep 8
 
 A="http://localhost:$PORT/api"
-DT="$SCR/config/display-target"
 ESITO=0
 ok() { echo "  ✓ $1"; }
 ko() { echo "  ✗ $1"; ESITO=1; }
 kind() { grep -A 1 '^target:' "$SCR/projects/prova/project.yaml" 2>/dev/null | grep kind | sed 's/.*: *//'; }
-motore() { tr -d '[:space:]' < "$DT" 2>/dev/null; }
+motore() { sleep 1; curl -s "$A/system" | python3 -c 'import json,sys; print((json.load(sys.stdin).get("display") or {}).get("voluto",""))' 2>/dev/null; }
 
 echo "=== preparazione ==="
 curl -s -X POST "$A/projects" -H 'Content-Type: application/json' -d '{"name":"prova"}' >/dev/null
 curl -s -X POST "$A/projects/prova/open" >/dev/null; sleep 1
-echo "  project.yaml: $(kind || echo '(nessun target)')   display-target: $(motore || echo ASSENTE)"
+echo "  project.yaml: $(kind || echo '(nessun target)')   motore voluto: $(motore || echo ASSENTE)"
 
-echo "=== 1. un progetto nuovo è web, e il file lo dice ==="
-[ "$(motore)" = "web" ] && ok "display-target = web" || ko "display-target = '$(motore)' invece di web"
+echo "=== 1. un progetto nuovo è web, e il runtime lo sa ==="
+[ "$(motore)" = "web" ] && ok "motore voluto = web" || ko "motore voluto = '$(motore)' invece di web"
 [ -z "$(kind)" ] && ok "project.yaml non ha un target esplicito (web è l'assenza del campo)" \
                  || ko "project.yaml ha kind='$(kind)': web dovrebbe essere assenza"
 
@@ -52,11 +56,11 @@ COD=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$A/project/target" \
 [ "$COD" = "204" ] && ok "PUT /api/project/target → 204" || ko "atteso 204, ricevuto $COD"
 sleep 1
 [ "$(kind)" = "lvgl_wayland" ] && ok "project.yaml: kind = lvgl_wayland" || ko "project.yaml: kind = '$(kind)'"
-# È il punto che conta: senza la riscrittura di `display-target` la conversione
-# resterebbe senza effetto fino a un salvataggio qualsiasi, e il pannello
+# È il punto che conta: senza la commutazione al cambio di target la
+# conversione resterebbe senza effetto fino a un'apertura, e il pannello
 # continuerebbe a mostrare il browser.
-[ "$(motore)" = "lvgl" ] && ok "display-target è passato a lvgl — il pannello commuterà" \
-                         || ko "display-target = '$(motore)': la conversione non arriva al pannello"
+[ "$(motore)" = "lvgl" ] && ok "il runtime vuole lvgl — il pannello commuta" \
+                         || ko "motore voluto = '$(motore)': la conversione non arriva al pannello"
 
 echo "=== 3. e riporta a web togliendo il campo ==="
 COD=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$A/project/target" \
@@ -64,7 +68,7 @@ COD=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$A/project/target" \
 [ "$COD" = "204" ] && ok "PUT con corpo null → 204" || ko "atteso 204, ricevuto $COD"
 sleep 1
 [ -z "$(kind)" ] && ok "il campo target è sparito da project.yaml" || ko "kind = '$(kind)', doveva sparire"
-[ "$(motore)" = "web" ] && ok "display-target è tornato a web" || ko "display-target = '$(motore)'"
+[ "$(motore)" = "web" ] && ok "il runtime è tornato a volere il web" || ko "motore voluto = '$(motore)'"
 
 echo "=== 4. un motore che non esiste è rifiutato, non scritto ==="
 COD=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$A/project/target" \

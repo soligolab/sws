@@ -281,6 +281,16 @@ Sessione di plan col maintainer; il seme del 24-09 è in archivio. **Decisioni:*
 62. **I pezzi vecchi sull'host (`sws-display.path/.service`, `sws-display-apply.sh`) li toglie l'installer** alla prossima
     reinstallazione; nel frattempo restano inerti.
 
+**Collaudo sul TC620 (29-09, notte, in autonomia su richiesta del maintainer):**
+- rc.9 → rc.10 con «Aggiorna ora»; all'avvio il runtime ha commutato sul web da sé (`esito web`, browser attivo, viewer fermo,
+  CODESYS senza override). **Fase 3 vista dal vivo**: `evento riuscito` rc.9 → rc.10 e Telegram «runtime aggiornato».
+- Copia di prova di CasaDomotica con `target: lvgl_wayland`, senza allarmi, notifiche né sorgenti: aperta → browser fermo,
+  `SetEnabled=false`, viewer attivo (`esito lvgl`); riaperta CasaDomotica → viewer fermo, `SetEnabled=true`, browser attivo.
+  Copia tolta. Riaprire CasaDomotica dopo un altro progetto fa ripartire i suoi allarmi (la memoria tiene l'ultimo progetto
+  chiuso): un Telegram per `sandokan_power_on`, messo in conto.
+- Reinstallazione dal registry con l'installer nuovo: via `sws-display.path/.service`, lo script e `display-target`; il quadlet
+  ha `Timezone=local` (orologio del pannello UTC+02:00, il pilota passa alle 19:45 locali).
+
 ### Questione aperta, emersa il 28-09: il quadlet non viaggia con l'aggiornamento
 
 `podman auto-update` sostituisce l'**immagine**; il quadlet sul pannello resta quello scritto dall'installer. Una riga

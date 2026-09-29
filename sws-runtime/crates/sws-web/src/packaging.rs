@@ -834,18 +834,10 @@ const CONTAINER_DEPLOY_EMBEDDED: &[(&str, &str)] = &[
         "sws-lvgl-viewer.container",
         include_str!("../../../../deploy/container/sws-lvgl-viewer.container"),
     ),
-    (
-        "sws-display.service",
-        include_str!("../../../../deploy/container/sws-display.service"),
-    ),
-    (
-        "sws-display.path",
-        include_str!("../../../../deploy/container/sws-display.path"),
-    ),
-    (
-        "sws-display-apply.sh",
-        include_str!("../../../../deploy/container/sws-display-apply.sh"),
-    ),
+    // Nemmeno la commutazione web/LVGL, dal 29-09-2026: la fa il runtime via
+    // D-Bus (`display_target.rs`). `sws-display.path`, il suo `.service` e
+    // `sws-display-apply.sh` non si spediscono più; l'installer li toglie dai
+    // dispositivi che li hanno.
     // L'immagine di boot non ha più niente sull'host: dal 24-09-2026 la chiede
     // il runtime al launcher via D-Bus, da dentro il container
     // (`launcher_dbus.rs`). Le tre cose che stavano qui — `sws-boot-image.path`,
@@ -870,11 +862,9 @@ const CONTAINER_DEPLOY_EMBEDDED: &[(&str, &str)] = &[
 const CONTAINER_DEPLOY_FILES: &[&str] = &[
     "install-container.sh",
     "sws-runtime.container",
-    // Commutazione fra vista web e vista LVGL (Q25).
+    // Il viewer LVGL (Q25): lo avvia il runtime quando il progetto lo chiede.
+    // La commutazione non spedisce più niente sull'host (29-09-2026).
     "sws-lvgl-viewer.container",
-    "sws-display.service",
-    "sws-display.path",
-    "sws-display-apply.sh",
     // L'immagine di boot non manda più niente sul dispositivo: la chiede il
     // runtime al launcher via D-Bus dal container (24-09-2026).
 ];
@@ -1895,15 +1885,12 @@ mod tests {
                     }
                 }
             }
-            // Forma `DISPLAY_UNITS=(a.service b.path)`.
-            if let Some(r) = riga.strip_prefix("DISPLAY_UNITS=(") {
-                for nome in r.trim_end_matches(')').split_whitespace() {
-                    attesi.push(nome.to_string());
-                }
-            }
         }
+        // Dal 29-09-2026 l'installer legge due file soli: il quadlet del runtime e
+        // quello del viewer. La commutazione web/LVGL non ha più pezzi sull'host
+        // (i nomi vecchi sono in `DISPLAY_UNITS_VECCHIE`, ma solo per toglierli).
         assert!(
-            attesi.len() >= 5,
+            attesi.len() >= 2 && attesi.contains(&"sws-runtime.container".to_string()),
             "estratti solo {} nomi da install-container.sh: l'estrazione non funziona più, \
              non è che lo script ne legga meno. Nomi: {attesi:?}",
             attesi.len()

@@ -6371,10 +6371,19 @@ pub fn signal_project_changed(s: &AppState, what: &str) {
     let config_dir = s.config_dir.clone();
     let project_dir = s.project_dir.clone();
     let what = what.to_string();
+    let ide_only = s.ide_only;
     tokio::spawn(async move {
         match project_dir.read().await.clone() {
             Some(dir) => {
-                crate::display_target::publish(&config_dir, &dir).await;
+                // Fase 4 (29-09-2026): il runtime commuta lo schermo da sé. Mai
+                // da un'istanza IDE, che non ha uno schermo di pannello.
+                if !ide_only {
+                    let motivo = match what.as_str() {
+                        "open" | "import" | "restore" => crate::display_target::Motivo::Progetto,
+                        _ => crate::display_target::Motivo::Modifica,
+                    };
+                    crate::display_target::publish(&config_dir, &dir, motivo).await;
+                }
                 // T-72 F5: anche l'immagine di boot abilitata dal progetto.
                 crate::boot_image::publish(&config_dir, &dir, crate::boot_image::Occasione::Modifica).await;
             }
@@ -8390,9 +8399,10 @@ impl From<ProjectTargetBody> for sws_core::project::ProjectTarget {
 /// `PUT /api/project/target` — cambia il motore di rendering del progetto
 /// attivo. Corpo `null` = torna al default (web), togliendo il campo.
 ///
-/// **Non è un campo decorativo**: all'apertura e a ogni salvataggio il runtime
-/// scrive `web` o `lvgl` nel file `display-target`, e sul pannello
-/// `sws-display-apply.sh` commuta lo schermo fra browser e viewer LVGL. Quindi
+/// **Non è un campo decorativo**: all'apertura e a ogni cambio del target il
+/// runtime del pannello commuta lo schermo fra browser e viewer LVGL (via D-Bus,
+/// `display_target.rs`; fino al 29-09-2026 scrivendo `display-target` per uno
+/// script sull'host). Quindi
 /// convertire un progetto cambia che cosa si vede sul pannello al deploy
 /// successivo.
 ///
@@ -8429,8 +8439,10 @@ async fn update_project_target(
         // Il file che fa commutare lo schermo del pannello: si riscrive subito,
         // non al prossimo salvataggio, altrimenti la conversione resterebbe
         // senza effetto fino a una modifica qualsiasi.
-        let config_dir = s.config_dir.clone();
-        crate::display_target::publish(&config_dir, &dir).await;
+        if !s.ide_only {
+            let config_dir = s.config_dir.clone();
+            crate::display_target::publish(&config_dir, &dir, crate::display_target::Motivo::Modifica).await;
+        }
     }
     res
 }

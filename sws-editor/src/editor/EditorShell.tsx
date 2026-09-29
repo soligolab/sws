@@ -2026,7 +2026,7 @@ function useMaterializzaRatio() {
  *  `project.yaml` a mano — con una trappola: il runtime riscrive il file
  *  **dalla memoria** al primo salvataggio, quindi la modifica fatta a progetto
  *  aperto spariva senza dire niente. Passando dalla rotta il progetto in
- *  memoria si aggiorna e `display-target` si riscrive da sé.
+ *  memoria si aggiorna e il runtime del pannello commuta lo schermo da sé.
  *
  *  **Il verso rischioso è uno solo** e va detto prima, non dopo: LVGL → web non
  *  perde niente, perché il browser disegna più tipi di quanti ne disegni il

@@ -74,7 +74,23 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — aggiornamento del runtime, Fasi 1b, 2 e 3 su `main`; TC620 sulla rc.9 (2026-09-29)
+## ▶ Riprendere da qui — Fase 4 (commutazione del display dal runtime) collaudata sul TC620; ramo da squashare (2026-09-29, notte)
+
+**Un ramo aperto, `feat/aggiornamento-f4-display`, niente pushato.** Fatto in autonomia su richiesta del maintainer («prosegui in
+autonomia fino a completare la fase 4»). La commutazione web/LVGL la fa il runtime via D-Bus (`display_target.rs`); via
+`display-target` e i tre pezzi sull'host; `check_via_di_fuga.sh` riscritta sul codice Rust (provata rossa),
+`check_target_progetto.sh` in modalità dispositivo; lo stato in Connessione → «Schermo del pannello». Decisioni 59-62.
+
+**Collaudato sul TC620 con la 2.12.0-rc.10** (dettagli nel piano): commutazione sul web all'avvio, andata e ritorno LVGL/web
+con un progetto di prova (tolto), pulizia dell'installer, `Timezone=local`. **Fase 3 vista dal vivo**: esito «riuscito» rc.9 →
+rc.10 e Telegram. **Da guardare al mattino**: sul pannello il riquadro «Aggiornato dalla 2.12.0-rc.9 alla 2.12.0-rc.10»
+(da chiudere); su Telegram due messaggi della notte (l'aggiornamento, e `sandokan_power_on` ripartito riaprendo CasaDomotica
+dopo il progetto di prova). Il pilota automatico del TC620 è ora il lunedì alle 19:45 **ora locale**.
+
+**Poi**: ok del maintainer → squash, push (con il tag `2.12.0-rc.10`). **Aperti nel piano**: il quadlet che non viaggia
+con l'aggiornamento; un destinatario email di progetto; l'avviso su LVGL.
+
+## Riprendere da qui (precedente) — aggiornamento del runtime, Fasi 1b, 2 e 3 su `main`; TC620 sulla rc.9 (2026-09-29)
 
 **Su `main`, nessun ramo aperto in locale.** Squash dei rami annidati `feat/aggiornamento-f1b-changelog` →
 `feat/aggiornamento-f2-finestra` → `feat/aggiornamento-f3-esito`, su ok del maintainer. **Da fare al prossimo push**:
