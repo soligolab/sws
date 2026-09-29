@@ -147,6 +147,20 @@ destinatario di progetto né un modo di spedire fuori dal supervisore allarmi.
   git e dall'export, mascherata nella GET. Da verificare che `SmtpConfig.password` sia già fra i
   campi-segreto, e aggiungerla altrimenti (`check_segreti.sh` ha la tabella).
 
+### Riverifica del 29-09 sera (casa) e decisioni del maintainer
+
+Misurato: la password SMTP è **già** un segreto (`segreti.rs`, `notifications.smtp.password`), quindi quel punto è fatto.
+Oggi le notifiche partono così — scatto: email ai `notify_email` + Telegram secondo `telegram_mode`; escalation: email agli
+`escalate_to` + Telegram con lo stesso instradamento; **rientro: niente**.
+
+- **A chi va l'email di un allarme: come Telegram, con un modo per allarme** — destinatari di progetto (default), solo i suoi
+  (`notify_email`), o nessuna email. Lo stesso schema Globale/Chat/Off che gli allarmi hanno già per Telegram.
+- **L'escalation resta per allarme**, con `escalate_to` migrato a `{indirizzo, lingua}` come `notify_email`; nella tabella una
+  riga «escalation» per scegliere i canali.
+- **«Versione nuova» si notifica una volta per versione**, ricordata in `aggiornamento.yaml`.
+- **Default della tabella: come oggi** — scatto ed escalation: email ✓ Telegram ✓; rientro: nessun canale (è nuovo);
+  esito aggiornamento: Telegram ✓; versione nuova: nessun canale. Nessun progetto cambia comportamento al primo avvio.
+
 ### Passi
 
 1. `Destinatario` e la lettura tollerante, con i test dei due formati (**prima rossi**).
