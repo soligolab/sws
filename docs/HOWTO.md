@@ -44,7 +44,8 @@
 
 > ⚠️ **Capitolo scaduto** (constatato l'11-09-2026, traccia **T-67**). Il `podman run` di quindici
 > flag che segue è oggi la quadlet `deploy/container/sws-lvgl-viewer.container`, e lo
-> spegni-browser/accendi-viewer è `sws-display-apply.sh` guidato dal `target` del progetto (Q25).
+> spegni-browser/accendi-viewer lo fa il runtime, via D-Bus, guidato dal `target` del progetto (Q25;
+> fino al 29-09-2026 era lo script `sws-display-apply.sh` sull'host).
 > Resta valido solo per provare un **binario di sviluppo**, non un'immagine installata.
 
 Contesto: `sws-lvgl-viewer` è un companion opzionale di `sws-runtime`, non un fork (vedi
@@ -975,7 +976,7 @@ Sta lì e non in Configurazione perché è lì che vivono già le altre impostaz
 progetto — modalità pagina, home page — e tenerne due case è il modo di farle divergere.
 
 Passando da qui **la trappola del percorso manuale non esiste**: il progetto in memoria si
-aggiorna, `display-target` si riscrive subito, e convertendo **verso** LVGL compare l'avviso su
+aggiorna, il runtime del pannello commuta subito, e convertendo **verso** LVGL compare l'avviso su
 cosa può sparire. *(Fino all'11-09-2026 il pulsante non c'era: T-58.)*
 
 ### A mano, a progetto chiuso
@@ -998,9 +999,10 @@ Serve ancora quando il progetto non è aperto nell'editor, o da riga di comando.
 
 ### Che cosa succede dopo, sul dispositivo
 
-Il campo non è decorativo: all'apertura e a ogni salvataggio il runtime scrive `web` o `lvgl` nel
-file `display-target` (`display_target::publish`), e sul pannello `sws-display-apply.sh` commuta
-lo schermo — spegne il viewer LVGL e accende il browser, o il contrario. Quindi convertire un
+Il campo non è decorativo: all'apertura e a ogni cambio del target il runtime del pannello
+commuta lo schermo da sé, via D-Bus (`display_target.rs`, dal 29-09-2026) — spegne il viewer LVGL e
+accende il browser, o il contrario. Com'è andata si legge in Configurazione → Istanza → Device →
+Connessione, riga «Schermo del pannello». Quindi convertire un
 progetto **cambia che cosa si vede sul pannello** al primo deploy successivo.
 
 ### La direzione conta

@@ -179,7 +179,7 @@ TimeoutStopSec=30
 # schermata che si apre tenendo premuto STOP all'avvio. Impianto, storico e
 # allarmi non si fermano perché qualcuno sta sistemando la rete.
 #
-# È deliberato, non una svista rispetto a `sws-display.service`, che invece si
+# È deliberato, non una svista rispetto alla commutazione dello schermo, che invece si
 # astiene dal toccare lo schermo in quella modalità: la configurazione riguarda
 # il *dispositivo*, non l'*applicazione*.
 WantedBy=default.target

@@ -99,6 +99,11 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 - **Stato git di un repository senza commit**: rispondeva 500 e il pannello restava senza bottoni, proprio senza «Commit».
 
 ### Changed
+- **La commutazione web/LVGL la fa il runtime, via D-Bus, da dentro il container** (Fase 4 del piano dell'aggiornamento): non più `display-target` +
+  `sws-display.path/.service` + `sws-display-apply.sh` sull'host. Stesse regole — la modalità configurazione (STOP all'accensione) non si tocca, si aspetta
+  che il launcher si decida, il viewer si riavvia a ogni progetto nuovo, l'URL prima dell'avvio del browser, ripiego su LVGL se il browser non parte —
+  con una guardia (`check_via_di_fuga.sh`) riscritta sul codice Rust. Lo stato si legge in Connessione → «Schermo del pannello». Via il ripiego per
+  PixsysOS < 2.1. L'installer toglie i pezzi vecchi dai dispositivi che li hanno; finché non li toglie restano inerti.
 - **Le Novità che il pannello e l'IDE mostrano prima di aggiornare sono brevi e in due lingue**: non più la sezione del CHANGELOG (per la 2.12 erano
   63 000 caratteri, illeggibili su un pannello) ma le voci di `NOVITA.yaml`, una riga per cosa, in italiano e inglese, mostrate nella lingua
   dell'interfaccia. Saltando più rc con le stesse Novità, si leggono una volta sola. Guardia `check_novita.sh` al posto di `check_changelog_etichetta.sh`.

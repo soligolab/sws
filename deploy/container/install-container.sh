@@ -68,20 +68,18 @@ UNIT_SRC="$SRC_DIR/sws-runtime.container"
 
 # Q25 — commutazione fra motore web e motore LVGL.
 #
-# Il runtime scrive in `display-target` quale motore il progetto vuole a
-# schermo; queste tre cose, che stanno sull'host, lo applicano. Sono unit
-# **utente**, come il quadlet del runtime: niente sudo, niente modificato
-# nell'OS Pixsys.
+# La commutazione web/LVGL non installa più niente sull'host (29-09-2026, Fase 4
+# del piano dell'aggiornamento): la fa il runtime, via D-Bus, da dentro il
+# container. Restano i nomi dei tre pezzi di prima (`sws-display.path`,
+# `.service` e lo script), perché l'installer li **toglie** se li trova.
 USER_UNIT_DIR="$HOME/.config/systemd/user"
-DISPLAY_UNITS=(sws-display.service sws-display.path)
+DISPLAY_UNITS_VECCHIE=(sws-display.path sws-display.service)
 VIEWER_UNIT_SRC="$SRC_DIR/sws-lvgl-viewer.container"
-APPLY_SRC="$SRC_DIR/sws-display-apply.sh"
 # L'immagine di boot non installa più niente sull'host (24-09-2026): la chiede
 # il runtime al launcher via D-Bus, da dentro il container. Il quadlet monta
 # `/run/dbus/system_bus_socket` e dichiara `SWS_HOST_CONFIG_DIR`; le tre cose
 # che stavano qui esistevano solo perché un container non parla col bus.
-# Lo script vive accanto all'installer sul dispositivo, non nella directory
-# dati: `sws-display.service` lo cerca a quel percorso fisso.
+# Dove stava lo script della commutazione vecchia, per toglierlo.
 APPLY_DST_DIR="/data/user/sws-container"
 
 IMAGE_ARCHIVE=""
@@ -494,52 +492,43 @@ if [ "$AUTOSTART" -eq 1 ]; then
     #
     # Si installa sempre, anche su un dispositivo che userà solo il web: un
     # progetto LVGL può arrivare domani, e allora il pannello lo mostra da sé.
-    # Il costo di averle installate e inerti è nullo — `sws-lvgl-viewer` non ha
-    # `WantedBy=`, quindi non parte finché non è `sws-display` a chiederlo.
+    # Il costo di averla installata e inerte è nullo — `sws-lvgl-viewer` non ha
+    # `WantedBy=`, quindi non parte finché non è il runtime a chiederlo.
     #
     # Mancano i sorgenti? Non è un motivo per far fallire l'installazione del
     # runtime, che è la cosa importante: si avvisa e si va avanti. Chi copia
     # solo `install-container.sh` e la unit del runtime — cosa che il README ha
     # sempre permesso — deve continuare a ottenere un dispositivo funzionante.
-    if [ -f "$VIEWER_UNIT_SRC" ] && [ -f "$APPLY_SRC" ]; then
+    if [ -f "$VIEWER_UNIT_SRC" ]; then
         install -m 0644 "$VIEWER_UNIT_SRC" "$UNIT_DIR/sws-lvgl-viewer.container"
         sed -i "s|^Image=.*|Image=$TAG|" "$UNIT_DIR/sws-lvgl-viewer.container"
         case "$TAG" in localhost/*) sed -i "s|^AutoUpdate=|#AutoUpdate=|" "$UNIT_DIR/sws-lvgl-viewer.container" ;; esac
         [ "$DATA" != "/data/user/sws" ] && \
             sed -i "s|^Volume=/data/user/sws/|Volume=$DATA/|" "$UNIT_DIR/sws-lvgl-viewer.container"
 
-        mkdir -p "$USER_UNIT_DIR" "$APPLY_DST_DIR"
-        # Sul dispositivo l'installer gira **dentro** la directory in cui
-        # installa (`/data/user/sws-container`), quindi sorgente e destinazione
-        # sono lo stesso file: `install` fallisce, e con `set -e` l'installazione
-        # si interrompe a metà — con il container del runtime già rimosso al
-        # passo 4. Succede solo sul dispositivo, mai da un checkout del repo.
-        if [ "$APPLY_SRC" != "$APPLY_DST_DIR/sws-display-apply.sh" ]; then
-            install -m 0755 "$APPLY_SRC" "$APPLY_DST_DIR/sws-display-apply.sh"
-        else
-            chmod 0755 "$APPLY_SRC"
-        fi
-        for u in "${DISPLAY_UNITS[@]}"; do
-            if [ -f "$SRC_DIR/$u" ]; then
-                install -m 0644 "$SRC_DIR/$u" "$USER_UNIT_DIR/$u"
-                # Il percorso dei dati è scritto nelle unit: se l'utente ha
-                # scelto un --data diverso, va riscritto anche lì, altrimenti
-                # l'osservatore guarda un file che nessuno scrive mai — e non
-                # commuterebbe niente, in silenzio.
-                [ "$DATA" != "/data/user/sws" ] && \
-                    sed -i "s|/data/user/sws/config/|$DATA/config/|g" "$USER_UNIT_DIR/$u"
-            fi
-        done
-        sed -i "s|^ExecStart=.*|ExecStart=$APPLY_DST_DIR/sws-display-apply.sh|" \
-            "$USER_UNIT_DIR/sws-display.service" 2>/dev/null || true
-        echo "    commutazione web/LVGL installata (decide il progetto — vedi Q25)"
+        echo "    viewer LVGL installato (lo avvia il runtime quando il progetto lo chiede)"
         INSTALL_DISPLAY=1
 
     else
-        echo "    NOTA: sorgenti della commutazione web/LVGL assenti, salto quel pezzo." >&2
-        echo "          Il runtime funziona lo stesso; il pannello non commuterà da sé." >&2
+        echo "    NOTA: quadlet del viewer LVGL assente, salto quel pezzo." >&2
+        echo "          Il runtime funziona lo stesso; un progetto LVGL non andrà a schermo." >&2
         INSTALL_DISPLAY=0
     fi
+
+    # La commutazione vecchia sull'host (fino al 29-09-2026): via, se c'è.
+    # Finché restava, era inerte (il runtime non scrive più `display-target`),
+    # ma un pezzo che non fa niente sull'host è un pezzo che un giorno confonde.
+    VECCHIA=0
+    for u in "${DISPLAY_UNITS_VECCHIE[@]}"; do
+        if [ -f "$USER_UNIT_DIR/$u" ]; then
+            systemctl --user disable --now "$u" >/dev/null 2>&1 || true
+            rm -f "$USER_UNIT_DIR/$u"
+            VECCHIA=1
+        fi
+    done
+    [ -f "$APPLY_DST_DIR/sws-display-apply.sh" ] && { rm -f "$APPLY_DST_DIR/sws-display-apply.sh"; VECCHIA=1; }
+    rm -f "$DATA/config/display-target"
+    [ "$VECCHIA" -eq 1 ] && echo "    commutazione web/LVGL sull'host tolta: ora la fa il runtime"
 
     systemctl --user daemon-reload
     systemctl --user start "$NAME"
@@ -556,7 +545,7 @@ if [ "$AUTOSTART" -eq 1 ]; then
     # retroilluminazione accesa. Un'ora di diagnosi.
     #
     # Solo se era già attivo: se il progetto non è LVGL non deve partire ora —
-    # chi decide è `sws-display`, che scatta sul file del progetto.
+    # chi decide è il runtime, all'avvio.
     if systemctl --user is-active --quiet sws-lvgl-viewer.service 2>/dev/null; then
         if systemctl --user restart sws-lvgl-viewer.service 2>/dev/null; then
             echo "        companion LVGL riavviato sull'immagine nuova"
@@ -567,14 +556,6 @@ if [ "$AUTOSTART" -eq 1 ]; then
         fi
     fi
 
-    if [ "${INSTALL_DISPLAY:-0}" -eq 1 ]; then
-        # `enable` e non `start` sulla .path: deve esserci anche dopo un
-        # riavvio, ed è il suo scatto — non questo comando — a mandare a
-        # schermo il motore giusto.
-        systemctl --user enable --now sws-display.path >/dev/null 2>&1 \
-            || echo "    ATTENZIONE: sws-display.path non attivata." >&2
-        systemctl --user enable sws-display.service >/dev/null 2>&1 || true
-    fi
 else
     echo "==> [5/6] avvio diretto (--no-autostart: non riparte dopo il reboot)"
     PORTS=(-p 8443:8443 -p 8444:8444)
@@ -661,7 +642,7 @@ for i in $(seq 1 30); do
         # raggiunge mai `desktop.target`. Avviare noi `main-app` coprirebbe la
         # via di fuga con cui si sistema un dispositivo mal configurato: chi
         # decide è il launcher. Niente sudo, lo concede la regola polkit
-        # 17-chromium.rules (stesso meccanismo di sws-display-apply.sh).
+        # 17-chromium.rules (la stessa che concede al runtime la commutazione).
         if systemctl is-active --quiet chromium@main-app.service 2>/dev/null; then
             if systemctl restart chromium@main-app.service 2>/dev/null; then
                 echo "    browser del pannello ricaricato sul nuovo URL"
@@ -677,44 +658,31 @@ for i in $(seq 1 30); do
             # DISABILITATO apposta — configurazione giusta, non un guasto. Un
             # messaggio che tira a indovinare manda a cercare dalla parte
             # sbagliata, e costa più del silenzio.
-            if [ "$(cat "$DATA/config/display-target" 2>/dev/null || true)" = "lvgl" ]; then
+            if curl -fs --max-time 2 http://localhost:8443/api/system 2>/dev/null | grep -q '"voluto":"lvgl"'; then
                 echo "    browser del pannello non attivo: giusto così, il progetto è LVGL"
                 echo "                (lo schermo lo prende sws-lvgl-viewer)"
             else
                 echo "    browser del pannello non attivo: non lo tocco." >&2
                 echo "                Se lo schermo resta nero, sul dispositivo COME UTENTE user:" >&2
                 echo "                  systemctl status desktop.target" >&2
-                echo "                  systemctl --user status sws-lvgl-viewer sws-display.path" >&2
+                echo "                  systemctl --user status sws-lvgl-viewer" >&2
             fi
         fi
 
-        # La commutazione web/LVGL è viva, o è già morta?
-        #
-        # `systemctl --user enable --now sws-display.path` riesce anche quando
-        # l'unit va in `failed` due secondi dopo: l'installazione diceva "fatto"
-        # e il pannello non commutava più. Sul WP630 il 2026-08-31 le due unit
-        # erano failed **da dieci secondi dopo l'accensione** e nessuno lo
-        # sapeva, perché il difetto non toglie niente di visibile finché non si
-        # carica un progetto con un motore diverso.
-        #
-        # Il controllo va qui e non subito dopo l'`enable`: i trenta secondi di
-        # attesa della `/health` sono passati, quindi un'unit che cicla ha già
-        # avuto tutto il tempo di sbattere contro il suo limite di riavvii.
-        if [ "${INSTALL_DISPLAY:-0}" -eq 1 ]; then
-            GUASTE=""
-            for u in sws-display.path sws-display.service; do
-                [ "$(systemctl --user is-failed "$u" 2>/dev/null || true)" = "failed" ] \
-                    && GUASTE="$GUASTE $u"
-            done
-            if [ -n "$GUASTE" ]; then
-                echo "    ATTENZIONE: commutazione web/LVGL NON attiva —$GUASTE" >&2
-                echo "                Il runtime funziona, ma caricare un progetto con un" >&2
-                echo "                motore diverso non cambierà ciò che si vede a schermo." >&2
-                echo "                Perché:  journalctl --user -u sws-display -n 30" >&2
-            else
-                echo "    commutazione web/LVGL: attiva"
-            fi
-        fi
+        # Com'è andata la commutazione dello schermo: la fa il runtime (Fase 4),
+        # e la dice in `/api/system`. Si aspetta un poco, perché il runtime
+        # attende che il launcher si decida.
+        ESITO=""
+        for _ in $(seq 1 15); do
+            ESITO="$(curl -fs --max-time 2 http://localhost:8443/api/system 2>/dev/null \
+                | python3 -c 'import json,sys; d=json.load(sys.stdin).get("display") or {}; print(d.get("esito",""), "-", d.get("messaggio") or "")' 2>/dev/null || true)"
+            case "$ESITO" in ""|" - ") sleep 2 ;; *) break ;; esac
+        done
+        case "$ESITO" in
+            ""|" - ") echo "    commutazione web/LVGL: il runtime non ha ancora detto niente (vedi Configurazione → Istanza → Device → Connessione)" ;;
+            web*|lvgl*) echo "    commutazione web/LVGL: $ESITO" ;;
+            *) echo "    ATTENZIONE: commutazione web/LVGL: $ESITO" >&2 ;;
+        esac
         echo
         for a in $IPS; do
             echo "    viewer : http://$a:8443     IDE : http://$a:8444"

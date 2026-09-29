@@ -155,6 +155,10 @@ pub struct SystemStatus {
     /// nessun dato (dispositivo senza le unit, o non ancora scattate) — mai un
     /// errore.
     pub boot_image: Option<crate::boot_image::BootImageStato>,
+    /// Com'è andata l'ultima commutazione dello schermo (Fase 4, decisione 61:
+    /// lo stato si legge da qui, non più da un file). `None` = nessuna ancora.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub display: Option<crate::display_target::StatoDisplay>,
 }
 
 /// Il nome della macchina, come lo dà `hostname`; `sws-runtime` se non c'è
@@ -331,6 +335,7 @@ pub async fn compute_system_status(
         hostname: hostname_locale(),
         container: detect_container_engine(),
         boot_image: None,
+        display: None,
     }
 }
 
@@ -438,6 +443,7 @@ pub async fn get_system_status(State(state): State<AppState>) -> Json<SystemStat
     )
     .await;
     status.boot_image = boot_image;
+    status.display = crate::display_target::stato();
     Json(status)
 }
 

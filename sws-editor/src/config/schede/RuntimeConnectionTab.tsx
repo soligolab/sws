@@ -5,6 +5,7 @@ import { dispositivoDaRuntime } from "@/config/dispositiviRegistrati";
 import { selectIsDirty, useAppStore } from "@/store";
 import { INSTALL_HOST, ricorda } from "@/config/campiDispositivo";
 import { StatoBootImage } from "@/boot/StatoBootImage";
+import { StatoDisplay } from "@/boot/StatoDisplay";
 import { AggiornamentoRuntime } from "@/boot/AggiornamentoRuntime";
 import { TRANS_COMP } from "@/config/comuni";
 import { registraDispositivo, flushBeforeDeploy } from "@/config/schede/DevicesTab";
@@ -917,6 +918,9 @@ export function RuntimeConnectionTab() {
       {/* T-72 F5 — com'è andata l'installazione dell'immagine di boot. */}
       {/* Aggiornamento del runtime (27-09-2026). */}
       {connected && <AggiornamentoRuntime />}
+
+      {/* Fase 4: cosa c'è sullo schermo del pannello, e perché. */}
+      {connected && <StatoDisplay />}
 
       {connected && <StatoBootImage />}
 

@@ -2498,5 +2498,21 @@
     "nonRiuscito": "Aggiornamento alla {{a}} non riuscito",
     "nonRiuscitoSpiega": "La versione nuova non è partita bene, e il pannello è tornato da solo alla {{da}}. Non c'è niente da fare qui: se ne occupa chi gestisce il pannello.",
     "chiudi": "Chiudi"
+  },
+  "statoDisplay": {
+    "titolo": "Schermo del pannello",
+    "carico": "Leggo lo stato dal dispositivo…",
+    "nessuno": "Nessuna commutazione ancora (runtime appena partito, o precedente alla 2.12.0-rc.10).",
+    "esito": {
+      "web": "A schermo il browser, come chiede il progetto.",
+      "lvgl": "A schermo il viewer LVGL, come chiede il progetto.",
+      "ripiego_lvgl": "Il progetto chiede il web, ma il browser non è partito: a schermo c'è il viewer LVGL.",
+      "configurazione": "Il pannello è in modalità configurazione (STOP all'accensione): lo schermo resta a Cockpit.",
+      "indeciso": "Il launcher non ha deciso la modalità in tempo: lo schermo non è stato toccato.",
+      "non_supportato": "Questo dispositivo non ha un launcher Pixsys che si possa comandare (serve PixsysOS 2.1 o successivo): lo schermo non si commuta.",
+      "errore": "Commutazione non riuscita (il progetto chiede «{{voluto}}»).",
+      "altro": "{{esito}}"
+    },
+    "codesys": "CODESYS può cambiare l'indirizzo del browser (allow_url_override): all'avvio potrebbe riprendersi lo schermo."
   }
 }

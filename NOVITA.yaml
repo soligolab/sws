@@ -41,6 +41,8 @@ versioni:
         en: "The panel's start-up image reaches the Pixsys launcher, and the factory image can be restored from the IDE."
       - it: "Variabili e tipi: strutture, array, formati di durata e di data, rinomina ovunque, import ed export CSV."
         en: "Tags and types: structures, arrays, duration and date formats, rename everywhere, CSV import and export."
+      - it: "Il passaggio fra schermo web e LVGL lo fa il runtime del pannello, senza pezzi installati sul sistema; com'è andata si vede nella scheda Connessione."
+        en: "Switching the screen between web and LVGL is done by the panel runtime, with nothing installed on the system; the outcome shows in the Connection tab."
       - it: "La Configurazione è un albero; i progetti grandi si aprono in fretta."
         en: "Configuration is a tree; large projects open quickly."
       - it: "Le password del progetto stanno in un file a parte e non compaiono più nei log."
