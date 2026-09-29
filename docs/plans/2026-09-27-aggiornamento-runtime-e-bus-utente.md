@@ -293,6 +293,8 @@ Sessione di plan col maintainer; il seme del 24-09 è in archivio. **Decisioni:*
 
 ### Questione aperta, emersa il 28-09: il quadlet non viaggia con l'aggiornamento
 
+> Dal 29-09 è un seme suo: [2026-09-29-quadlet-che-non-viaggia](2026-09-29-quadlet-che-non-viaggia.md).
+
 `podman auto-update` sostituisce l'**immagine**; il quadlet sul pannello resta quello scritto dall'installer. Una riga
 nuova — `Timezone=local` della Fase 2, domani altro — arriva su un dispositivo solo reinstallandolo. Finché non si
 decide come, ogni rc che cambia il quadlet lo deve dire nella sua sottosezione `### ⚠ Compatibilità`, e il runtime
