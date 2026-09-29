@@ -8,10 +8,22 @@ description: Ciclo di ripresa lavoro sul repo sws — rilevazione rami locali po
 Segui questi passi in ordine. Fermati a chiedere conferma dove indicato: questa skill
 **propone**, non decide al posto del maintainer — coerente con le regole di `CLAUDE.md`.
 
-Se non è già stato fatto in questa sessione, esegui prima il rituale di inizio sessione
-descritto in `CLAUDE.md` (`./scripts/session_start.sh`, poi `docs/CONTEXT.md` →
-`STATUS.md` → `docs/OPEN_QUESTIONS.md`, poi tre righe di stato) e aspetta il via libera
-prima di scrivere codice. I passi seguenti assumono che sia già stato fatto.
+**Primo passo, sempre: lancia tu `./scripts/session_start.sh`**, anche se in questa sessione
+è già stato lanciato — richiesta del maintainer del 29-09-2026 («lancia tu lo script session
+start e mettilo nella skill»). `/riprendi` si usa quando si cambia macchina, cioè proprio quando
+origin può essersi mosso da un'altra parte dopo l'ultimo controllo: una sessione lunga che lo
+aveva lanciato al mattino non vede il lavoro pushato nel pomeriggio da un'altra macchina.
+
+Leggi quello che stampa e dillo nelle righe di stato:
+- **se origin porta commit nuovi** (main indietro, rami remoti nuovi), riprendi da quelli;
+- **se origin non porta niente ma il maintainer dice di aver lavorato altrove**, dillo subito: quel
+  lavoro è rimasto sull'altra macchina (una sessione chiusa senza `/finalizza-giornata`, o un push
+  fallito). Non ripartire da `main` come se niente fosse — si rischia di rifare lo stesso lavoro o
+  di divergere. Visto il 29-09-2026: il lavoro del pomeriggio in ufficio non era su origin.
+
+Poi, se non è già stato fatto in questa sessione, il resto del rituale di inizio sessione di
+`CLAUDE.md` (`docs/CONTEXT.md` → `STATUS.md` → `docs/OPEN_QUESTIONS.md`, poi le righe di stato),
+e aspetta il via libera prima di scrivere codice.
 
 **Qualunque richiesta di sincronizzarsi con origin — «fai pull», «aggiorna», «fetch» — durante
 questo ciclo passa da `./scripts/session_start.sh`, mai da un `git pull`/`git fetch` a mano.**
