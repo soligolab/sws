@@ -10178,12 +10178,29 @@ fn update_effects(
         luce.filtro.luminosita = luminosita as f32;
         luce.filtro.respiro = respiro as f32;
         let attivo = luce.filtro.attivo();
+        // Lo stesso filtro, due strade, perché LVGL ne ha due: il
+        // `color_filter_cb` per i colori che disegna lui (rect, bordi, testo)
+        // e `img_recolor` per i pixel di un'immagine, che il primo non tocca.
+        // Fino al 29-09-2026 c'era solo la prima, e su polilinee, poligoni,
+        // simboli e path — che sono bitmap SVG rasterizzate — il fade non si
+        // vedeva affatto: l'oggetto restava acceso fisso. Il blink a scatti
+        // invece funzionava, perché passa dall'opacità. Le due strade non si
+        // sommano: un widget nativo non ha immagine da ricolorare, e
+        // un'immagine il color filter non lo riceve.
+        let recolor = effects::recolor_per(attenuato, luminosita, respiro);
         for f in figli {
             unsafe {
                 if attivo != prima_attivo || ultimo.filtro.is_none() {
                     // A spegnere il filtro è l'opacità a zero: così LVGL non
                     // chiama nemmeno il callback per gli oggetti fermi.
                     lvgl_sys::lv_obj_set_style_color_filter_opa(*f, if attivo { 255 } else { 0 }, 0);
+                }
+                match recolor {
+                    Some((rgb, opa)) => {
+                        lvgl_sys::lv_obj_set_style_img_recolor(*f, Color::from_rgb(rgb).into(), 0);
+                        lvgl_sys::lv_obj_set_style_img_recolor_opa(*f, opa, 0);
+                    }
+                    None => lvgl_sys::lv_obj_set_style_img_recolor_opa(*f, 0, 0),
                 }
                 // Il descrittore non è cambiato, i suoi numeri sì: va solo
                 // ridisegnato.

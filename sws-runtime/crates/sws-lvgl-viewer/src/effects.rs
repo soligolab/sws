@@ -286,6 +286,61 @@ pub fn fattore_respiro(now_ms: u64, rate_ms: u32, fondo: f64) -> f64 {
     1.0 - (1.0 - fondo) * s
 }
 
+/// Lo stesso filtro, ma per un oggetto disegnato come **immagine**, dove il
+/// color filter di LVGL non arriva.
+///
+/// # Perché serve (29-09-2026)
+///
+/// Il maintainer, guardando un demo sul WP630: «un oggetto polilinea che aveva
+/// il fade abilitato... si è fermato ed è acceso fisso». Misurato: il blink **a
+/// scatti** funziona su quegli oggetti e il **fade** no. I due passano per
+/// strade diverse — a scatti spegne l'opacità dell'oggetto, che vale anche per
+/// un'immagine; il fade passa dal `color_filter_cb` dello stile, che tocca i
+/// colori disegnati da LVGL e non i pixel di una `lv_img`. Polilinee, poligoni,
+/// simboli e path sono bitmap SVG rasterizzate: il filtro non li vedeva.
+///
+/// Per un'immagine la strada è `img_recolor` + `img_recolor_opa`, che fa un
+/// mix uniforme `out = in·(1−a) + C·a`. Questa funzione ricava `C` e `a`
+/// **dal filtro stesso**, invece di reinventare la formula: applica
+/// [`colore_filtrato`] al nero e al bianco e risolve le due equazioni che ne
+/// escono, canale per canale. Per luminosità e respiro — che agiscono su ogni
+/// canale per conto suo — il risultato è **esatto**, non un'approssimazione:
+/// scurire di `f` è mescolare col nero ad alpha `1−f`, schiarire di `k` è
+/// mescolare col bianco ad alpha `k`.
+///
+/// L'unico che resta fuori è il **grigio** dello stale: desaturare mescola i
+/// canali fra loro, e un recolor uniforme non lo sa fare. Lì si ripiega sul
+/// grigio medio, che sullo schermo dice la stessa cosa — «questo dato è
+/// vecchio» — anche se non è la stessa matematica.
+///
+/// `None` quando non c'è niente da applicare: il chiamante spegne il recolor
+/// invece di scrivere un mix a zero.
+pub fn recolor_per(grigio: bool, luminosita: f64, respiro: f64) -> Option<((u8, u8, u8), u8)> {
+    let n = colore_filtrato((0, 0, 0), grigio, luminosita, respiro);
+    let b = colore_filtrato((255, 255, 255), grigio, luminosita, respiro);
+    let canali = [(n.0, b.0), (n.1, b.1), (n.2, b.2)];
+    // a_c = 1 − (bianco_c − nero_c)/255, cioè quanto il filtro ha compresso
+    // l'intervallo fra nero e bianco.
+    let somma: f64 = canali
+        .iter()
+        .map(|(nc, bc)| 1.0 - (*bc as f64 - *nc as f64) / 255.0)
+        .sum();
+    let a = (somma / 3.0).clamp(0.0, 1.0);
+    if a <= 0.002 {
+        // Il grigio non comprime nulla fra nero e bianco: se è lui l'unico
+        // effetto, va trattato a parte o non si vedrebbe.
+        if !grigio {
+            return None;
+        }
+        return Some(((128, 128, 128), FILTRO_GRIGIO_OPA));
+    }
+    let colore = |nc: u8| ((nc as f64 / a).round().clamp(0.0, 255.0)) as u8;
+    Some((
+        (colore(n.0), colore(n.1), colore(n.2)),
+        (a * 255.0).round().clamp(0.0, 255.0) as u8,
+    ))
+}
+
 /// Un canale 0..255 con la luminosità `b` applicata.
 fn canale_con_luminosita(c: u8, b: f64) -> u8 {
     match parametri_luminosita(b) {
@@ -621,4 +676,66 @@ mod tests {
         let quarto = fattore_respiro(200, 800, 0.4);
         assert!(quarto > 0.4 && quarto < 1.0, "{quarto}");
     }
+    /// Il fade su un oggetto disegnato come immagine: la polilinea del demo
+    /// sul WP630, ferma e accesa fissa (29-09-2026).
+    #[test]
+    fn il_respiro_diventa_un_velo_nero_della_stessa_forza() {
+        // Respiro a 0,4 = il colore vale il 40 %: mescolare col nero al 60 %.
+        let ((r, g, b), a) = recolor_per(false, 0.0, 0.4).unwrap();
+        assert_eq!((r, g, b), (0, 0, 0), "si scurisce col nero");
+        assert_eq!(a, 153, "0,6 × 255");
+        // E il conto torna davvero: il recolor su un colore qualunque dà lo
+        // stesso risultato del filtro. È la prova che non è un'imitazione.
+        for c in [(255u8, 0u8, 0u8), (74, 144, 217), (10, 200, 30)] {
+            let atteso = colore_filtrato(c, false, 0.0, 0.4);
+            let mix = |orig: u8, rec: u8| {
+                (((orig as u32 * (255 - a as u32)) + rec as u32 * a as u32) / 255) as u8
+            };
+            let avuto = (mix(c.0, r), mix(c.1, g), mix(c.2, b));
+            for (x, y) in [(avuto.0, atteso.0), (avuto.1, atteso.1), (avuto.2, atteso.2)] {
+                assert!(
+                    (x as i32 - y as i32).abs() <= 1,
+                    "recolor {avuto:?} contro filtro {atteso:?} su {c:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn schiarire_e_un_velo_bianco_scurire_uno_nero() {
+        let ((r, g, b), a) = recolor_per(false, 50.0, 1.0).unwrap();
+        assert_eq!((r, g, b), (255, 255, 255));
+        assert_eq!(a, 128, "k = 0,5");
+        let ((r, _, _), a) = recolor_per(false, -50.0, 1.0).unwrap();
+        assert_eq!(r, 0);
+        // 127 e non 128: scurire e schiarire non sono simmetrici su 255
+        // livelli, e mezzo punto si perde nell'arrotondamento. Su uno schermo
+        // è invisibile; fissare 128 vorrebbe dire scrivere un test che
+        // pretende più precisione di quanta ne esista.
+        assert_eq!(a, 127);
+    }
+
+    #[test]
+    fn senza_effetti_non_si_dipinge_niente() {
+        // Un mix a zero costa comunque un ridisegno: meglio spegnere il
+        // recolor del tutto.
+        assert_eq!(recolor_per(false, 0.0, 1.0), None);
+    }
+
+    #[test]
+    fn lo_stale_ripiega_sul_grigio_medio() {
+        // La desaturazione un recolor uniforme non la sa fare: si accetta il
+        // grigio medio, che sullo schermo dice la stessa cosa.
+        let ((r, g, b), a) = recolor_per(true, 0.0, 1.0).unwrap();
+        assert_eq!((r, g, b), (128, 128, 128));
+        assert_eq!(a, FILTRO_GRIGIO_OPA);
+    }
+
+    #[test]
+    fn respiro_e_luminosita_insieme_si_compongono() {
+        // −50 % di luminosità e respiro a 0,5: il colore vale 0,5 × 0,5.
+        let ((_, _, _), a) = recolor_per(false, -50.0, 0.5).unwrap();
+        assert_eq!(a, 191, "1 − 0,25 = 0,75 → 191");
+    }
+
 }

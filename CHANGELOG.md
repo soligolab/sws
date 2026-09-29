@@ -82,6 +82,13 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   riga rossa con **Converti**, in testa c'è **Converti tutti (n)**, e gli allarmi che condividono un tag lo dicono. La conversione non cambia come scatta; il Salva resta dell'utente.
 
 ### Fixed
+- **Il lampeggio sfumato si vede anche su polilinee, poligoni, simboli e path.** Su quegli oggetti — che il motore LVGL disegna come bitmap SVG
+  rasterizzate — il fade non ha mai funzionato: l'oggetto restava acceso fisso. Il blink **a scatti** invece si vedeva, perché passa dall'opacità, ed è
+  per questo che il difetto è rimasto invisibile: «il lampeggio funziona» era vero per metà. LVGL ha due strade per alterare i colori — il
+  `color_filter_cb` dello stile, che tocca ciò che disegna lui, e `img_recolor`, che tocca i pixel di un'immagine — e il viewer ne percorreva una sola.
+  Il recolor si ricava ora **dal filtro stesso**, applicandolo al nero e al bianco e risolvendo le due equazioni: per luminosità e respiro il risultato
+  è esatto, non un'imitazione. Resta fuori il grigio dello stale, che desatura mescolando i canali: lì si ripiega sul grigio medio. Guardia nuova,
+  `check_fade_raster.sh`, provata rossa.
 - **L'avviso di versione nuova sullo schermo del pannello compare davvero, e anche dopo un riavvio del runtime**: aspettava di sapere se il progetto ha
   utenti da un valore che imposta solo l'IDE, quindi nel viewer non si mostrava mai (i test lo impostavano a mano e non se ne accorgevano). Ora lo chiede al
   runtime (`/api/system`), e ogni minuto guarda se il runtime è ripartito: in quel caso ricontrolla, senza bisogno di ricaricare la pagina.
