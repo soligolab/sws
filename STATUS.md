@@ -74,51 +74,79 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — R1 chiuso e collaudato sul WP630; restano il fade e R2 (2026-09-29, pomeriggio)
+## ▶ Riprendere da qui — avviso su LVGL collaudato, fade sugli oggetti raster corretto (2026-09-29, sera)
 
-**R1 — l'avviso di aggiornamento su LVGL — è su `main`** (squash `72f5462f`, ramo cancellato, alberi
-identici). Versione **2.12.0-rc.12**, pubblicata su ghcr insieme alla rc.11.
+Due lavori chiusi, **nessun ramo aperto**. Versione **2.12.0-rc.12**, pubblicata su ghcr insieme
+alla rc.11 (canale di prova `rc-arm64`).
 
-**Collaudato sul WP630 dal maintainer**, catena intera dal vetro: l'avviso è comparso da solo sul
+### R1 — l'avviso di aggiornamento su LVGL · squash `72f5462f`
+
+La decisione 41 diceva «in web **e** in LVGL», e fino alla rc.10 era fatta a metà.
+**Collaudato sul WP630 dal maintainer, catena intera dal vetro**: l'avviso è comparso da solo sul
 demo LVGL, «Aggiorna ora» ha aggiornato il pannello dalla rc.11 alla rc.12, e l'esito «riuscito» è
-comparso dopo i due minuti di conferma (evento `1790688606306`, `da: 2.12.0-rc.11`,
-`a: 2.12.0-rc.12`, con le Novità della versione installata).
+comparso dopo i due minuti di conferma (evento `1790688606306`).
 
-Il registry resta interrogato **all'avvio e ai riavvii del runtime**, non a orologio: scelta
-riconfermata dal maintainer, con la conseguenza scritta accanto alla costante — un pannello acceso
-scopre una versione nuova quando il runtime riparte.
+- `client.rs`: `stato_aggiornamento()` — `Ok(None)` sul 401/403, perché un progetto con utenti non
+  è un guasto di rete e la differenza decide se **spegnere** il controllo; `avvia_aggiornamento()`;
+  `fetch_system` torna anche `uptime_s`.
+- `aggiornamento.rs` (nuovo): `ripartito()`, `da_mostrare()` (l'esito **prima** della versione
+  nuova), la memoria in `~/.config/sws/lvgl_aggiornamento.json`, il thread di controllo. Dieci
+  test, provati rossi tre volte.
+- `lvgl_avviso.rs` (nuovo): l'overlay sul layer superiore, che sopravvive al cambio pagina.
+- le undici frasi sono passate dall'i18n dell'IDE alla **tabella del testo di sistema**, in cinque
+  lingue: nel viewer web l'avviso segue ora la lingua dei **contenuti**, nella scheda IDE quella
+  dell'IDE.
+- `--avviso-di-prova <nuova|riuscito|non-riuscito>` per guardarlo senza aspettare una versione
+  nuova (l'istantanea non esercita la rete, quindi era l'unico modo).
 
-### Il difetto trovato durante il collaudo: il fade sugli oggetti raster
+**Deciso**: il registry resta interrogato **all'avvio e ai riavvii del runtime**, non a orologio.
+Conseguenza, scritta accanto alla costante: un pannello acceso scopre una versione nuova quando il
+runtime riparte.
 
-Il maintainer: «una polilinea che aveva il fade abilitato... si è fermata ed è accesa fissa».
-**Non è una regressione della rc.11**: il fade non ha mai funzionato sugli oggetti disegnati come
-bitmap SVG. Riprodotto e misurato sul dev server, sei istantanee a fasi diverse:
+### Il fade sugli oggetti raster · squash `4a4a7bba`
 
-| oggetto | effetto | esito |
-|---|---|---|
-| poligono | blink a scatti | funziona (alterna) |
-| rect | fade | funziona (156 → 213 → 246 → 255 → 246) |
-| polilinea | fade | **fermo**, identico in tutti gli scatti |
+Trovato dal maintainer durante il collaudo: «una polilinea che aveva il fade abilitato... si è
+fermata ed è accesa fissa». **Non una regressione**: su polilinee, poligoni, simboli e path il
+fade non aveva mai funzionato. LVGL ha due strade per i colori — `color_filter_cb` per ciò che
+disegna lui, `img_recolor` per i pixel di un'immagine — e il viewer ne percorreva una sola. Il
+blink **a scatti** invece si vedeva, perché passa dall'opacità: «il lampeggio funziona» era vero
+per metà, ed è per questo che il difetto è rimasto in piedi.
 
-Il blink a scatti agisce sull'**opacità** dell'oggetto e quindi vale anche per un'immagine; il fade
-passa dal **color filter** di LVGL, che tocca i colori disegnati dallo stile e non i pixel di una
-`lv_img`. La strada per le immagini è `img_recolor` + `img_recolor_opa`, mai percorsa.
+`effects::recolor_per` ricava colore e alpha **dal filtro stesso**, applicandolo al nero e al
+bianco e risolvendo le due equazioni: per luminosità e respiro è esatto, e un test lo prova
+confrontando recolor e filtro su colori arbitrari. Fuori resta il grigio dello stale, che desatura
+mescolando i canali: ripiega sul grigio medio, dichiarato.
 
-La riproduzione è in `~/sws_projects/fade-prova` (il demo del maintainer più due rect di prova) e si
-verifica con `--istantanea` a istanti diversi, confrontando il colore medio dell'area.
+Misura con cinque istantanee: la polilinea passa da escursione **0** a **107**, in fase col rect
+nativo. Guardia nuova `check_fade_raster.sh` (sorella di `check_luce_lvgl.sh`), provata rossa.
 
-### Da fare
+**Resta da fare: il collaudo a schermo.** La misura è oggettiva ma il maintainer non l'ha ancora
+visto sul vetro — si guarda alla prossima immagine che sale sul WP630. La riproduzione è in
+`~/sws_projects/fade-prova` (il demo del pannello più due rect di prova).
 
-- **il fade sugli oggetti raster** (sopra) — difetto, diagnosi già fatta;
-- **R2**: l'email come canale di notifica (destinatari `{indirizzo, lingua}`, tabella eventi ×
-  canali, `email_sender` in `AppState`) — vedi
-  [il piano delle due code](docs/plans/2026-09-29-code-aggiornamento.md);
-- a code chiuse, il piano del 27-09 va in archivio.
+### Prossimo passo
 
-**Non ancora pushato**: `main` è avanti di alcuni commit rispetto a origin.
+**R2** del [piano delle due code](docs/plans/2026-09-29-code-aggiornamento.md): l'email come
+canale di notifica — destinatari di progetto `{indirizzo, lingua}` migrando i `notify_email`
+esistenti, tabella eventi × canali nella scheda Notifiche, `email_sender` in `AppState` perché
+anche l'esito dell'aggiornamento esca via posta. Per il collaudo serve l'SMTP vero del maintainer
+(la password va in `secrets.yaml`). A code chiuse, il piano del 27-09 va in archivio.
+
+### Il WP630, com'è rimasto
+
+Gira la **2.12.0-rc.12** sul canale di prova, display su **LVGL** col demo del maintainer,
+progetto `LVGL_TEST` senza utenti. Il container del viewer si aggiorna con l'immagine, quindi
+`podman auto-update` più un `systemctl --user restart sws-lvgl-viewer.service` bastano a portarlo
+avanti.
+
+### Sul dev server d'ufficio
+
+L'**IDE di sviluppo è lasciato acceso** su `http://192.168.0.201:8460` (rc.12, progetti in
+`~/sws_projects`), su richiesta del maintainer: va ricompilato e riavviato quando il codice cambia.
 
 **Seme nuovo**: [il disco che cresce](docs/plans/2026-09-29-pulizia-disco-periodica.md) — 42 dei
-79 GB di `target` sono sola cache `incremental`. Il disco del dev server è al 94%.
+79 GB di `target` sono sola cache `incremental`, e `clean_disk_space.sh` è un'accetta che non può
+stare in `/finalizza-giornata`. Il disco è al **94%**.
 
 ## ▶ Riprendere da qui — aggiornamento del runtime finito (Fasi 1-4), tutto su `main` e pushato (2026-09-29)
 
