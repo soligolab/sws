@@ -2419,15 +2419,6 @@
     "membroTipoNonValido": "member `{{name}}`: type `{{tipo}}` is not valid",
     "tipoNonValido": "type `{{tipo}}` is not valid"
   },
-  "aggiornamentoPannello": {
-    "titolo": "Version {{a}} available",
-    "da": "This panel runs {{da}}.",
-    "novita": "What's new",
-    "aggiorna": "Update now",
-    "piuTardi": "Later",
-    "ignora": "Skip this version",
-    "inCorso": "Update started…"
-  },
   "aggiornamento": {
     "titolo": "Runtime update",
     "carico": "Asking the device…",
@@ -2492,12 +2483,6 @@
       "6": "Sat"
     },
     "nessunGiornoOgni": "(none ticked = every day)"
-  },
-  "esitoPannello": {
-    "riuscito": "Updated from {{da}} to {{a}}",
-    "nonRiuscito": "Update to {{a}} failed",
-    "nonRiuscitoSpiega": "The new version did not start properly, and the panel went back to {{da}} by itself. Nothing to do here: whoever manages the panel will take care of it.",
-    "chiudi": "Close"
   },
   "statoDisplay": {
     "titolo": "Panel screen",

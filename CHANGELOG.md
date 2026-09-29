@@ -20,6 +20,14 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   mostra lo stato ma non le novità. Vale per la `2.12.0-rc.1` e la `rc.2`.
 
 ### Added
+- **L'avviso di aggiornamento anche sul pannello LVGL** (la decisione 41 diceva «in web **e** in LVGL», e fino alla `rc.10` era fatta a metà): su un
+  pannello senza utenti, l'esito dell'ultimo aggiornamento e l'avviso di versione nuova compaiono anche sullo schermo LVGL, con gli avvisi di
+  compatibilità in rosso e in cima, le Novità scorrevoli, e i tre pulsanti «Ignora questa versione» / «Più tardi» / «Aggiorna ora». L'overlay sta sul
+  layer superiore e **sopravvive al cambio pagina**. «Più tardi» vale fino al riavvio del runtime, «Ignora» finché non esce una versione più nuova
+  ancora (ricordato in `~/.config/sws/lvgl_aggiornamento.json`). Il pannello si accorge del riavvio dall'`uptime_s` che scende, ed è così che scopre
+  che l'aggiornamento che aveva chiesto è andato in porto.
+- **`--avviso-di-prova <nuova|riuscito|non-riuscito>`** sul viewer LVGL: mostra un avviso finto per guardarlo senza aspettare una versione nuova vera.
+  È anche l'unico modo di vederlo in un'istantanea, che la rete non la esercita.
 - **L'esito di ogni aggiornamento del runtime** (Fase 3 del piano): dopo un aggiornamento, anche del pilota automatico, il pannello senza utenti mostra
   «Aggiornato dalla X alla Y» con le Novità della versione nuova, finché qualcuno non lo chiude; se la versione nuova non regge e podman torna indietro,
   «non riuscito» in rosso. Lo stesso nella sezione Aggiornamento dell'IDE e su Telegram (le chat delle Notifiche). L'esito lo decide la versione che gira
@@ -99,6 +107,9 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 - **Stato git di un repository senza commit**: rispondeva 500 e il pannello restava senza bottoni, proprio senza «Commit».
 
 ### Changed
+- **Le frasi dell'avviso di aggiornamento sono testo di sistema**: stavano in `aggiornamentoPannello.*`/`esitoPannello.*` dell'i18n dell'IDE — due
+  lingue, e la lingua dell'interfaccia — e ora stanno nella tabella condivisa (`tests/fixtures/testi-sistema.json`) in **cinque** lingue. Nel viewer web
+  l'avviso segue quindi la lingua dei **contenuti**, come le intestazioni di tabella accanto a lui; nella scheda dell'IDE resta quella dell'IDE.
 - **La commutazione web/LVGL la fa il runtime, via D-Bus, da dentro il container** (Fase 4 del piano dell'aggiornamento): non più `display-target` +
   `sws-display.path/.service` + `sws-display-apply.sh` sull'host. Stesse regole — la modalità configurazione (STOP all'accensione) non si tocca, si aspetta
   che il launcher si decida, il viewer si riavvia a ogni progetto nuovo, l'URL prima dell'avvio del browser, ripiego su LVGL se il browser non parte —

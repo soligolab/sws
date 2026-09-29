@@ -28,9 +28,11 @@
 //! La registrazione del display bypassa `lvgl::Display::register()` (bug di
 //! lifetime confermato, `docs/OPEN_QUESTIONS.md` Q14) — vedi `lvgl_display.rs`.
 
+mod aggiornamento;
 mod client;
 mod drm_display;
 mod effects;
+mod lvgl_avviso;
 mod lvgl_display;
 mod lvgl_font;
 mod lvgl_indev;
@@ -131,6 +133,15 @@ struct Args {
     /// cogliere una fase precisa di un lampeggio.
     #[arg(long, default_value_t = 500)]
     istantanea_ms: u64,
+
+    /// Mostra un avviso di aggiornamento **finto**, per guardarlo senza
+    /// aspettare che esista una versione nuova davvero: `nuova`, `riuscito`,
+    /// `non-riuscito`. Funziona anche con `--istantanea`, che è l'unico modo
+    /// di vedere questo overlay senza un pannello davanti — la rete
+    /// l'istantanea non la esercita. Senza questa opzione l'avviso è quello
+    /// vero e nient'altro.
+    #[arg(long)]
+    avviso_di_prova: Option<String>,
 
     /// Backend di rendering. "sdl2" (default) apre una finestra SDL2 — vedi
     /// docs/OPEN_QUESTIONS.md Q14 per i bug noti su Wayland/X11/kmsdrm reali.
@@ -298,7 +309,10 @@ fn main() -> anyhow::Result<()> {
             // (true)` non è quindi un ripiego per il caso raro, è il
             // percorso NORMALE su ogni runtime con utenti — motivo in più
             // per non trattarlo come rumore.
-            let auth_required = client::fetch_system(&args.base_url).await.unwrap_or(true);
+            let auth_required = client::fetch_system(&args.base_url)
+                .await
+                .map(|s| s.auth_required)
+                .unwrap_or(true);
             anyhow::Ok((
                 page,
                 shared_tags,
@@ -410,6 +424,38 @@ fn main() -> anyhow::Result<()> {
     // lo stesso indev del mouse SDL2, non ne registra uno diverso.
     lvgl_indev::init_pointer_indev()?;
 
+    // L'avviso di aggiornamento a schermo (decisione 41: «in web **e** in
+    // LVGL»). `senza_utenti` parte da quel che `/api/system` ha già detto
+    // all'avvio; il thread lo riverifica ogni minuto, perché fra un avvio e
+    // l'altro di un pannello acceso da mesi il progetto può aver preso utenti.
+    let avviso: aggiornamento::SharedAvviso =
+        std::sync::Arc::new(std::sync::Mutex::new(aggiornamento::StatoAvviso {
+            senza_utenti: !auth_required,
+            visto: aggiornamento::Visto::carica(),
+            ..Default::default()
+        }));
+    match args.avviso_di_prova.as_deref() {
+        None => aggiornamento::avvia_controllo(
+            avviso.clone(),
+            args.base_url.clone(),
+            shared_session.clone(),
+        ),
+        Some(quale) => {
+            let Some(finto) = aggiornamento::stato_di_prova(quale) else {
+                anyhow::bail!(
+                    "--avviso-di-prova vuole `nuova`, `riuscito` o `non-riuscito`, non '{quale}'"
+                );
+            };
+            // Niente thread di controllo: il primo giro sovrascriverebbe il
+            // finto con quel che dice il runtime, che è appunto niente.
+            let mut g = avviso.lock().unwrap_or_else(|e| e.into_inner());
+            g.senza_utenti = true;
+            g.stato = Some(finto);
+            g.visto = aggiornamento::Visto::default();
+            g.generazione += 1;
+        }
+    }
+
     // Istantanea: disegna, salva, esce. Prima di registrare l'indev e prima
     // di qualunque backend — non serve né un puntatore né una finestra.
     if let Some(percorso) = args.istantanea.clone() {
@@ -427,6 +473,9 @@ fn main() -> anyhow::Result<()> {
             &nav_rx,
             &lang_table,
             &shared_lang,
+            &avviso,
+            &shared_session,
+            &args.base_url,
         )?;
         drop(rt);
         return Ok(());
@@ -461,6 +510,7 @@ fn main() -> anyhow::Result<()> {
             lang_table,
             shared_lang,
             shared_session,
+            avviso,
         )?;
         drop(rt);
         return Ok(());
@@ -486,6 +536,7 @@ fn main() -> anyhow::Result<()> {
         lang_table,
         shared_lang,
         shared_session,
+        avviso,
     )?;
     drop(rt);
     Ok(())
@@ -544,8 +595,14 @@ fn scrivi_istantanea(
     // da quella del pannello non prova niente.
     lang_table: &model::LanguageTable,
     shared_lang: &client::SharedLang,
+    // L'avviso di aggiornamento entra anche qui: con `--avviso-di-prova` è
+    // l'unico modo di vederlo disegnato senza un pannello davanti.
+    avviso: &aggiornamento::SharedAvviso,
+    shared_session: &session::SharedSession,
+    base_url: &str,
 ) -> anyhow::Result<()> {
     const PASSO_MS: u64 = 16;
+    let mut overlay_avviso = lvgl_avviso::Overlay::new();
     let giri = (per_ms / PASSO_MS).max(1);
     let punti: Vec<(i32, i32)> = match tocca {
         None => Vec::new(),
@@ -585,6 +642,17 @@ fn scrivi_istantanea(
                 .clone();
             lvgl_render::update_bindings(live_bindings, &tags, lang_table, shared_lang);
         }
+        overlay_avviso.sincronizza(
+            avviso,
+            &shared_lang
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .clone(),
+            base_url,
+            shared_session,
+            hor_res,
+            ver_res,
+        );
         lvgl::task_handler();
         lvgl::tick_inc(Duration::from_millis(PASSO_MS));
     }
@@ -690,6 +758,9 @@ fn run_drm(
     lang_table: model::LanguageTable,
     shared_lang: client::SharedLang,
     shared_session: session::SharedSession,
+    // L'avviso di aggiornamento: il thread di controllo lo aggiorna, il loop
+    // lo disegna. Vedi `lvgl_avviso`.
+    avviso: aggiornamento::SharedAvviso,
 ) -> anyhow::Result<()> {
     // Diagnosi PRIMA di aprire il device.
     //
@@ -745,6 +816,9 @@ fn run_drm(
     );
 
     let mut frame_buf = vec![0u8; (hor_res * ver_res * 3) as usize];
+    // Vive quanto il loop: dentro ci sono i contesti delle callback, che LVGL
+    // tiene per puntatore.
+    let mut overlay_avviso = lvgl_avviso::Overlay::new();
 
     loop {
         let frame_start = Instant::now();
@@ -760,6 +834,21 @@ fn run_drm(
 
         lvgl::task_handler();
         lvgl::tick_inc(Duration::from_millis(16));
+
+        // L'avviso di aggiornamento, se c'è qualcosa da dire. Costa un lock e
+        // un confronto di interi per frame: ridisegna solo quando lo stato
+        // cambia davvero (vedi `Overlay::sincronizza`).
+        overlay_avviso.sincronizza(
+            &avviso,
+            &shared_lang
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .clone(),
+            &base_url,
+            &shared_session,
+            hor_res,
+            ver_res,
+        );
 
         while let Ok(cmd) = tag_rx.try_recv() {
             let base_url = base_url.clone();
@@ -881,6 +970,9 @@ fn run_window(
     lang_table: model::LanguageTable,
     shared_lang: client::SharedLang,
     shared_session: session::SharedSession,
+    // L'avviso di aggiornamento: il thread di controllo lo aggiorna, il loop
+    // lo disegna. Vedi `lvgl_avviso`.
+    avviso: aggiornamento::SharedAvviso,
 ) -> anyhow::Result<()> {
     let sdl_context = sdl2::init().map_err(|e| anyhow::anyhow!("sdl2::init: {e}"))?;
     let video = sdl_context
@@ -935,6 +1027,9 @@ fn run_window(
         .map_err(|e| anyhow::anyhow!("event_pump: {e}"))?;
 
     let mut frame_buf = vec![0u8; (hor_res * ver_res * 3) as usize];
+    // Vive quanto il loop: dentro ci sono i contesti delle callback, che LVGL
+    // tiene per puntatore.
+    let mut overlay_avviso = lvgl_avviso::Overlay::new();
     let pitch = (hor_res * 3) as usize;
     let mut mouse_pressed = false;
 
@@ -1042,6 +1137,21 @@ fn run_window(
         // sotto.
         lvgl::task_handler();
         lvgl::tick_inc(Duration::from_millis(16));
+
+        // L'avviso di aggiornamento, se c'è qualcosa da dire. Costa un lock e
+        // un confronto di interi per frame: ridisegna solo quando lo stato
+        // cambia davvero (vedi `Overlay::sincronizza`).
+        overlay_avviso.sincronizza(
+            &avviso,
+            &shared_lang
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .clone(),
+            &base_url,
+            &shared_session,
+            hor_res,
+            ver_res,
+        );
 
         // Scrittura tag generate da click/drag in questo frame: girate a un
         // task async sul runtime tokio del processo (già vivo per il task WS

@@ -150,11 +150,7 @@ pub async fn fetch_languages(base_url: &str) -> anyhow::Result<LanguageTable> {
 /// sintetico). Stesso principio di tolleranza di `fetch_languages`: gli
 /// altri ~15 campi di `SystemInfo` non dichiarati qui vengono ignorati da
 /// serde, non generano errori.
-pub async fn fetch_system(base_url: &str) -> anyhow::Result<bool> {
-    #[derive(Deserialize)]
-    struct SystemAuthOnly {
-        auth_required: bool,
-    }
+pub async fn fetch_system(base_url: &str) -> anyhow::Result<StatoSistema> {
     let mut url = reqwest::Url::parse(base_url)?;
     url.path_segments_mut()
         .map_err(|_| anyhow::anyhow!("base URL non può avere path segments (cannot-be-a-base)"))?
@@ -164,8 +160,158 @@ pub async fn fetch_system(base_url: &str) -> anyhow::Result<bool> {
         .use_preconfigured_tls(pinned_client_config(base_url)?)
         .build()?;
     let resp = client.get(url).send().await?.error_for_status()?;
-    let wrapper = resp.json::<SystemAuthOnly>().await?;
-    Ok(wrapper.auth_required)
+    let wrapper = resp.json::<StatoSistema>().await?;
+    Ok(wrapper)
+}
+
+/// I due campi di `/api/system` che servono a questo client. `uptime_s` si è
+/// aggiunto il 29-09-2026 con l'avviso di aggiornamento: quando scende, il
+/// runtime è ripartito — ed è così che il pannello si accorge che
+/// l'aggiornamento che aveva chiesto è andato in porto, senza che nessuno
+/// glielo dica. Stessa logica di `ripartito()` nel gemello web
+/// (`sws-editor/src/runtime-view/AvvisoAggiornamento.tsx`).
+#[derive(Debug, Clone, Deserialize)]
+pub struct StatoSistema {
+    pub auth_required: bool,
+    /// Da quanti secondi gira **questo** processo del runtime.
+    #[serde(default)]
+    pub uptime_s: u64,
+}
+
+/// Le novità di una versione, come arrivano da `GET /api/update/status`.
+///
+/// # Perché è dichiarata qui e non condivisa
+///
+/// Il tipo di partenza è `sws_web::aggiornamento::NovitaVersione`, che è
+/// `Serialize` e vive nel crate del server: questo binario non dipende da
+/// `sws-web` (è il client, non il server) e tirarselo dentro per cinque campi
+/// sarebbe sproporzionato. Vale la stessa tolleranza di `fetch_languages` e
+/// `fetch_system`: i campi non dichiarati qui serde li ignora, e quelli che il
+/// server **omette** quando sono vuoti (`skip_serializing_if`) hanno tutti un
+/// `default`. Il gemello TypeScript fa lo stesso da sempre.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
+pub struct NovitaVersione {
+    pub versione: String,
+    /// Le novità in italiano (da `NOVITA.yaml`, nelle etichette dell'immagine).
+    #[serde(default)]
+    pub testo: String,
+    /// I soli avvisi di compatibilità, che vanno in cima.
+    #[serde(default)]
+    pub compatibilita: String,
+    #[serde(default)]
+    pub testo_en: String,
+    #[serde(default)]
+    pub compatibilita_en: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EsitoAggiornamento {
+    Riuscito,
+    NonRiuscito,
+}
+
+/// L'ultimo aggiornamento concluso (`sws_web::aggiornamento_esito::Evento`).
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+pub struct EventoAggiornamento {
+    /// Identifica l'evento per «Chiudi»: chiuso una volta, non ricompare.
+    pub id: i64,
+    pub da: String,
+    /// Per «non riuscito», la versione che si era provato a installare.
+    #[serde(default)]
+    pub a: Option<String>,
+    pub esito: EsitoAggiornamento,
+}
+
+/// `GET /api/update/status` — quel che ne serve al pannello.
+///
+/// Manca `canale` di proposito: il server riempie `disponibile` **solo** per un
+/// runtime che segue un canale del registry (`aggiornamento::stato()`), quindi
+/// «c'è una versione nuova» e «questo pannello si sa aggiornare da sé» sono la
+/// stessa condizione, e una copia dell'enum `Canale` qui non deciderebbe niente
+/// di più.
+#[derive(Debug, Clone, Default, PartialEq, Deserialize)]
+pub struct StatoAggiornamento {
+    pub versione: String,
+    /// La versione più nuova del canale, se è più nuova di questa.
+    #[serde(default)]
+    pub disponibile: Option<String>,
+    /// Cosa cambia, una voce per versione da attraversare.
+    #[serde(default)]
+    pub novita: Vec<NovitaVersione>,
+    /// L'ultimo aggiornamento concluso, finché qualcuno non lo chiude.
+    #[serde(default)]
+    pub evento: Option<EventoAggiornamento>,
+    /// Le Novità della versione che gira, per «Aggiornato alla Y: cosa cambia».
+    #[serde(default)]
+    pub novita_installata: Option<NovitaVersione>,
+    /// Un aggiornamento chiesto e non ancora concluso.
+    #[serde(default)]
+    pub in_corso: bool,
+}
+
+/// `GET /api/update/status` sulla porta del viewer (registrata in
+/// `sws-web/src/router.rs` dietro `require_admin`).
+///
+/// **`Ok(None)` non è un errore**: è il 401/403 di un progetto che ha utenti,
+/// dove un anonimo non ha titolo per sapere nulla di aggiornamenti e l'avviso
+/// non si deve mostrare affatto (decisione 41: solo su un pannello senza
+/// utenti). Distinguerlo da un guasto di rete conta, perché il primo caso deve
+/// **spegnere** il controllo periodico invece di ritentare ogni minuto.
+pub async fn stato_aggiornamento(
+    base_url: &str,
+    token: Option<&str>,
+) -> anyhow::Result<Option<StatoAggiornamento>> {
+    let mut url = reqwest::Url::parse(base_url)?;
+    url.path_segments_mut()
+        .map_err(|_| anyhow::anyhow!("base URL non può avere path segments (cannot-be-a-base)"))?
+        .push("api")
+        .push("update")
+        .push("status");
+    let client = reqwest::Client::builder()
+        .use_preconfigured_tls(pinned_client_config(base_url)?)
+        .build()?;
+    let mut req = client.get(url);
+    if let Some(t) = token {
+        req = req.header("Authorization", format!("Bearer {t}"));
+    }
+    let resp = req.send().await?;
+    if matches!(
+        resp.status(),
+        reqwest::StatusCode::UNAUTHORIZED | reqwest::StatusCode::FORBIDDEN
+    ) {
+        return Ok(None);
+    }
+    let resp = resp.error_for_status()?;
+    Ok(Some(resp.json::<StatoAggiornamento>().await?))
+}
+
+/// `POST /api/update/apply` — chiede l'aggiornamento del runtime.
+///
+/// Il server risponde **prima** di chiedere a systemd, perché subito dopo
+/// questo stesso processo viene fermato e sostituito: una risposta arrivata
+/// non vuol dire che l'aggiornamento sia riuscito, solo che è stato chiesto.
+/// Chi ha premuto lo scopre dal riavvio del runtime e poi dall'esito.
+///
+/// Va in coda al thread di rete (`net_worker::Comando::AvviaAggiornamento`) e
+/// non chiamata dal loop di rendering: è una POST, cioè esattamente la forma
+/// che il 13-09 ha bloccato per sempre il viewer (Q55).
+pub async fn avvia_aggiornamento(base_url: &str, token: Option<&str>) -> anyhow::Result<()> {
+    let mut url = reqwest::Url::parse(base_url)?;
+    url.path_segments_mut()
+        .map_err(|_| anyhow::anyhow!("base URL non può avere path segments (cannot-be-a-base)"))?
+        .push("api")
+        .push("update")
+        .push("apply");
+    let client = reqwest::Client::builder()
+        .use_preconfigured_tls(pinned_client_config(base_url)?)
+        .build()?;
+    let mut req = client.post(url);
+    if let Some(t) = token {
+        req = req.header("Authorization", format!("Bearer {t}"));
+    }
+    req.send().await?.error_for_status()?;
+    Ok(())
 }
 
 /// `POST /api/auth/login` — stesso endpoint del web

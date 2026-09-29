@@ -2419,15 +2419,6 @@
     "membroTipoNonValido": "membro `{{name}}`: tipo `{{tipo}}` non valido",
     "tipoNonValido": "tipo `{{tipo}}` non valido"
   },
-  "aggiornamentoPannello": {
-    "titolo": "Versione {{a}} disponibile",
-    "da": "Questo pannello gira la {{da}}.",
-    "novita": "Novità",
-    "aggiorna": "Aggiorna ora",
-    "piuTardi": "Più tardi",
-    "ignora": "Ignora questa versione",
-    "inCorso": "Aggiornamento avviato…"
-  },
   "aggiornamento": {
     "titolo": "Aggiornamento del runtime",
     "carico": "Chiedo al dispositivo…",
@@ -2492,12 +2483,6 @@
       "6": "sab"
     },
     "nessunGiornoOgni": "(nessuno spuntato = ogni giorno)"
-  },
-  "esitoPannello": {
-    "riuscito": "Aggiornato dalla {{da}} alla {{a}}",
-    "nonRiuscito": "Aggiornamento alla {{a}} non riuscito",
-    "nonRiuscitoSpiega": "La versione nuova non è partita bene, e il pannello è tornato da solo alla {{da}}. Non c'è niente da fare qui: se ne occupa chi gestisce il pannello.",
-    "chiudi": "Chiudi"
   },
   "statoDisplay": {
     "titolo": "Schermo del pannello",

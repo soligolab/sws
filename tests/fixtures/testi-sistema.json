@@ -17,30 +17,245 @@
     "italiano solo perché lo era chi ha scritto il codice.",
     "",
     "`confermato` è abbreviato in tutte le lingue: è l'intestazione di una colonna",
-    "stretta, e una parola intera la farebbe tagliare sul vetro."
+    "stretta, e una parola intera la farebbe tagliare sul vetro.",
+    "",
+    "Dal 29-09-2026 ci sono anche le frasi dell'avviso di aggiornamento (agg_*,",
+    "esito_*): stavano in `aggiornamentoPannello.*`/`esitoPannello.*` di",
+    "it.json/en.json, cioè due lingue e la lingua dell'IDE, mentre servivano",
+    "anche al pannello LVGL. Sono testo di sistema a tutti gli effetti — le",
+    "scrive il runtime, le legge un operatore davanti al vetro — quindi stanno",
+    "qui, in cinque lingue e nella lingua dei contenuti.",
+    "",
+    "Sono le prime voci con un **segnaposto**: `{a}` la versione nuova, `{da}`",
+    "quella che gira. Chi le usa sostituisce (`testo_con` in Rust,",
+    "`testoSistemaCon` in TypeScript). La forma è `{nome}` e non `{{nome}}`",
+    "perché non passano più da i18next."
   ],
   "ripiego": "en",
   "voci": {
-    "ora":        { "it": "Ora",       "de": "Zeit",        "fr": "Heure",     "es": "Hora",      "en": "Time" },
-    "allarme":    { "it": "Allarme",   "de": "Alarm",       "fr": "Alarme",    "es": "Alarma",    "en": "Alarm" },
-    "confermato": { "it": "Conf.",     "de": "Best.",       "fr": "Acq.",      "es": "Conf.",     "en": "Ack" },
-    "si":         { "it": "sì",        "de": "ja",          "fr": "oui",       "es": "sí",        "en": "yes" },
-    "no":         { "it": "no",        "de": "nein",        "fr": "non",       "es": "no",        "en": "no" },
-    "messaggio":  { "it": "Messaggio", "de": "Meldung",     "fr": "Message",   "es": "Mensaje",   "en": "Message" },
-    "severita":   { "it": "Severità",  "de": "Schweregrad", "fr": "Gravité",   "es": "Severidad", "en": "Severity" },
-    "tag":        { "it": "Tag",       "de": "Tag",         "fr": "Tag",       "es": "Tag",       "en": "Tag" },
-    "valore":     { "it": "Valore",    "de": "Wert",        "fr": "Valeur",    "es": "Valor",     "en": "Value" },
-    "attivato":   { "it": "Attivato",  "de": "Ausgelöst",   "fr": "Déclenché", "es": "Activado",  "en": "Triggered" },
-    "dati":       { "it": "Dati",      "de": "Daten",       "fr": "Données",   "es": "Datos",     "en": "Data" },
-    "unita":      { "it": "U.M.",      "de": "Einh.",       "fr": "Unité",     "es": "Unidad",    "en": "Unit" },
-    "altro":      { "it": "altro",     "de": "andere",      "fr": "autres",    "es": "otros",     "en": "other" },
-    "nd":         { "it": "N/D",       "de": "k. A.",       "fr": "N/D",       "es": "N/D",       "en": "N/A" },
-    "stato": { "it": "Stato", "de": "Status", "fr": "État", "es": "Estado", "en": "State" },
-    "attivo": { "it": "Attivo", "de": "Aktiv", "fr": "Actif", "es": "Activo", "en": "Active" },
-    "da_confermare": { "it": "Da conf.", "de": "Offen", "fr": "À acq.", "es": "Por conf.", "en": "To ack" },
-    "chiuso": { "it": "Chiuso", "de": "Beendet", "fr": "Clos", "es": "Cerrado", "en": "Closed" },
-    "interrotto": { "it": "Interr.", "de": "Abgebr.", "fr": "Interr.", "es": "Interr.", "en": "Interr." },
-    "allarme_attivo":              { "it": "🔴 ALLARME ATTIVO", "de": "🔴 ALARM AKTIV", "fr": "🔴 ALARME ACTIVE", "es": "🔴 ALARMA ACTIVA", "en": "🔴 ALARM ACTIVE" },
-    "escalation_non_riconosciuta": { "it": "⏫ ESCALATION: allarme non riconosciuto", "de": "⏫ ESKALATION: Alarm nicht quittiert", "fr": "⏫ ESCALADE : alarme non acquittée", "es": "⏫ ESCALADO: alarma no reconocida", "en": "⏫ ESCALATION: alarm not acknowledged" }
+    "ora": {
+      "it": "Ora",
+      "de": "Zeit",
+      "fr": "Heure",
+      "es": "Hora",
+      "en": "Time"
+    },
+    "allarme": {
+      "it": "Allarme",
+      "de": "Alarm",
+      "fr": "Alarme",
+      "es": "Alarma",
+      "en": "Alarm"
+    },
+    "confermato": {
+      "it": "Conf.",
+      "de": "Best.",
+      "fr": "Acq.",
+      "es": "Conf.",
+      "en": "Ack"
+    },
+    "si": {
+      "it": "sì",
+      "de": "ja",
+      "fr": "oui",
+      "es": "sí",
+      "en": "yes"
+    },
+    "no": {
+      "it": "no",
+      "de": "nein",
+      "fr": "non",
+      "es": "no",
+      "en": "no"
+    },
+    "messaggio": {
+      "it": "Messaggio",
+      "de": "Meldung",
+      "fr": "Message",
+      "es": "Mensaje",
+      "en": "Message"
+    },
+    "severita": {
+      "it": "Severità",
+      "de": "Schweregrad",
+      "fr": "Gravité",
+      "es": "Severidad",
+      "en": "Severity"
+    },
+    "tag": {
+      "it": "Tag",
+      "de": "Tag",
+      "fr": "Tag",
+      "es": "Tag",
+      "en": "Tag"
+    },
+    "valore": {
+      "it": "Valore",
+      "de": "Wert",
+      "fr": "Valeur",
+      "es": "Valor",
+      "en": "Value"
+    },
+    "attivato": {
+      "it": "Attivato",
+      "de": "Ausgelöst",
+      "fr": "Déclenché",
+      "es": "Activado",
+      "en": "Triggered"
+    },
+    "dati": {
+      "it": "Dati",
+      "de": "Daten",
+      "fr": "Données",
+      "es": "Datos",
+      "en": "Data"
+    },
+    "unita": {
+      "it": "U.M.",
+      "de": "Einh.",
+      "fr": "Unité",
+      "es": "Unidad",
+      "en": "Unit"
+    },
+    "altro": {
+      "it": "altro",
+      "de": "andere",
+      "fr": "autres",
+      "es": "otros",
+      "en": "other"
+    },
+    "nd": {
+      "it": "N/D",
+      "de": "k. A.",
+      "fr": "N/D",
+      "es": "N/D",
+      "en": "N/A"
+    },
+    "stato": {
+      "it": "Stato",
+      "de": "Status",
+      "fr": "État",
+      "es": "Estado",
+      "en": "State"
+    },
+    "attivo": {
+      "it": "Attivo",
+      "de": "Aktiv",
+      "fr": "Actif",
+      "es": "Activo",
+      "en": "Active"
+    },
+    "da_confermare": {
+      "it": "Da conf.",
+      "de": "Offen",
+      "fr": "À acq.",
+      "es": "Por conf.",
+      "en": "To ack"
+    },
+    "chiuso": {
+      "it": "Chiuso",
+      "de": "Beendet",
+      "fr": "Clos",
+      "es": "Cerrado",
+      "en": "Closed"
+    },
+    "interrotto": {
+      "it": "Interr.",
+      "de": "Abgebr.",
+      "fr": "Interr.",
+      "es": "Interr.",
+      "en": "Interr."
+    },
+    "allarme_attivo": {
+      "it": "🔴 ALLARME ATTIVO",
+      "de": "🔴 ALARM AKTIV",
+      "fr": "🔴 ALARME ACTIVE",
+      "es": "🔴 ALARMA ACTIVA",
+      "en": "🔴 ALARM ACTIVE"
+    },
+    "escalation_non_riconosciuta": {
+      "it": "⏫ ESCALATION: allarme non riconosciuto",
+      "de": "⏫ ESKALATION: Alarm nicht quittiert",
+      "fr": "⏫ ESCALADE : alarme non acquittée",
+      "es": "⏫ ESCALADO: alarma no reconocida",
+      "en": "⏫ ESCALATION: alarm not acknowledged"
+    },
+    "agg_titolo": {
+      "it": "Versione {a} disponibile",
+      "de": "Version {a} verfügbar",
+      "fr": "Version {a} disponible",
+      "es": "Versión {a} disponible",
+      "en": "Version {a} available"
+    },
+    "agg_da": {
+      "it": "Questo pannello gira la {da}.",
+      "de": "Dieses Panel läuft mit {da}.",
+      "fr": "Ce panneau exécute la {da}.",
+      "es": "Este panel ejecuta la {da}.",
+      "en": "This panel runs {da}."
+    },
+    "agg_novita": {
+      "it": "Novità",
+      "de": "Neuerungen",
+      "fr": "Nouveautés",
+      "es": "Novedades",
+      "en": "What's new"
+    },
+    "agg_aggiorna": {
+      "it": "Aggiorna ora",
+      "de": "Jetzt aktualisieren",
+      "fr": "Mettre à jour",
+      "es": "Actualizar ahora",
+      "en": "Update now"
+    },
+    "agg_piu_tardi": {
+      "it": "Più tardi",
+      "de": "Später",
+      "fr": "Plus tard",
+      "es": "Más tarde",
+      "en": "Later"
+    },
+    "agg_ignora": {
+      "it": "Ignora questa versione",
+      "de": "Diese Version überspringen",
+      "fr": "Ignorer cette version",
+      "es": "Omitir esta versión",
+      "en": "Skip this version"
+    },
+    "agg_in_corso": {
+      "it": "Aggiornamento avviato…",
+      "de": "Aktualisierung gestartet…",
+      "fr": "Mise à jour lancée…",
+      "es": "Actualización iniciada…",
+      "en": "Update started…"
+    },
+    "esito_riuscito": {
+      "it": "Aggiornato dalla {da} alla {a}",
+      "de": "Von {da} auf {a} aktualisiert",
+      "fr": "Mis à jour de {da} vers {a}",
+      "es": "Actualizado de {da} a {a}",
+      "en": "Updated from {da} to {a}"
+    },
+    "esito_non_riuscito": {
+      "it": "Aggiornamento alla {a} non riuscito",
+      "de": "Aktualisierung auf {a} fehlgeschlagen",
+      "fr": "Échec de la mise à jour vers {a}",
+      "es": "Error al actualizar a {a}",
+      "en": "Update to {a} failed"
+    },
+    "esito_spiega": {
+      "it": "La versione nuova non è partita bene, e il pannello è tornato da solo alla {da}. Non c'è niente da fare qui: se ne occupa chi gestisce il pannello.",
+      "de": "Die neue Version ist nicht richtig gestartet, und das Panel ist von selbst auf {da} zurückgekehrt. Hier ist nichts zu tun: darum kümmert sich, wer das Panel verwaltet.",
+      "fr": "La nouvelle version n'a pas démarré correctement, et le panneau est revenu tout seul à la {da}. Rien à faire ici : la personne qui gère le panneau s'en occupe.",
+      "es": "La versión nueva no arrancó bien, y el panel volvió solo a la {da}. Aquí no hay nada que hacer: se encarga quien gestiona el panel.",
+      "en": "The new version did not start properly, and the panel went back to {da} by itself. Nothing to do here: whoever manages the panel will take care of it."
+    },
+    "esito_chiudi": {
+      "it": "Chiudi",
+      "de": "Schließen",
+      "fr": "Fermer",
+      "es": "Cerrar",
+      "en": "Close"
+    }
   }
 }

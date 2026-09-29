@@ -74,6 +74,44 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — R1: l'avviso di aggiornamento su LVGL, scritto e verde, da collaudare (2026-09-29, pomeriggio)
+
+Ramo aperto: **`feat/aggiornamento-lvgl-avviso`**, versione **2.12.0-rc.11**. Piano:
+[`docs/plans/2026-09-29-code-aggiornamento.md`](docs/plans/2026-09-29-code-aggiornamento.md) —
+le due code dell'aggiornamento, prima LVGL poi l'email.
+
+**R1 (passi 1-4) fatto.** `cargo check`, `pnpm build`, `check_static.sh` (27/27), 1007 test
+TypeScript, 225 del viewer: tutti verdi. Commit `0c7e1ab3` → `a1e0bf06`.
+
+- `client.rs`: `stato_aggiornamento()` (con `Ok(None)` sul 401/403 — un progetto con utenti non è
+  un guasto di rete, e la differenza decide se **spegnere** il controllo) e `avvia_aggiornamento()`;
+  `fetch_system` ora torna anche `uptime_s`.
+- `net_worker.rs`: `Comando::AvviaAggiornamento`, perché è una POST (Q55).
+- `aggiornamento.rs` (nuovo): `ripartito()`, `da_mostrare()`, la memoria su
+  `~/.config/sws/lvgl_aggiornamento.json`, il thread di controllo (60 s, 30 s a esito in corso).
+  Dieci test, **provati rossi tre volte**.
+- `lvgl_avviso.rs` (nuovo): l'overlay sul layer superiore, che sopravvive al cambio pagina.
+- Le undici frasi sono passate da `aggiornamentoPannello.*`/`esitoPannello.*` dell'i18n alla
+  **tabella del testo di sistema**, in cinque lingue (scelta del maintainer): il viewer web ora le
+  prende da lì e segue la lingua dei **contenuti**; la scheda IDE le prende da lì con la lingua
+  dell'IDE.
+- `--avviso-di-prova <nuova|riuscito|non-riuscito>`: l'unico modo di guardare l'overlay senza un
+  pannello davanti. Le tre istantanee sono state guardate sul dev server.
+
+**Dove si è fermata la sessione.** Collaudo sul **WP630** (`user@wp630-a-p3-07a077.local`, messo a
+disposizione dal maintainer). Strada scelta: **due rc**. La `rc.11` è in costruzione e va su ghcr
+(canale di prova) — con quella si aggiorna il pannello e si prova il disegno con
+`--avviso-di-prova`; poi una **`rc.12`** fa comparire l'avviso **vero**, e «Aggiorna ora» porta
+all'aggiornamento e all'esito. È l'unico modo di collaudare tutta la catena.
+
+**Poi**: R2 — l'email come canale di notifica (destinatari `{indirizzo, lingua}`, tabella eventi ×
+canali, `email_sender` in `AppState`). A code chiuse, il piano del 27-09 va in archivio.
+
+**Seme nuovo**: [il disco che cresce](docs/plans/2026-09-29-pulizia-disco-periodica.md) — il
+checkout pesa 100 GB, `target` 79, e **42 GB sono la sola cache `incremental`**.
+`clean_disk_space.sh` esiste ma è un'accetta: non può stare in `/finalizza-giornata`. Il disco di
+questo server è al **94%**.
+
 ## ▶ Riprendere da qui — aggiornamento del runtime finito (Fasi 1-4), tutto su `main` e pushato (2026-09-29)
 
 **Su `main` e su origin, nessun ramo aperto.** Squash della Fase 4 `77c958f7`, tag `2.12.0-rc.10` pushato. Del piano

@@ -16,7 +16,13 @@ vi.mock("@/api/client", async () => {
   return { ...actual, api: { ...actual.api, statoAggiornamento, avviaAggiornamento, getSystemStatus } };
 });
 
-import i18n from "../src/i18n";
+// Le parole non vengono più da i18next: dal 29-09-2026 stanno nella tabella
+// del testo di sistema, in cinque lingue e nella lingua dei **contenuti**.
+// Il test le prende dalla stessa tabella del componente — non le riscrive a
+// mano, o verificherebbe la propria copia.
+import { testoSistema, testoSistemaCon } from "../src/i18n/testiSistema";
+/** La lingua dei contenuti che `useLinguaContenuti` dà a progetto assente. */
+const L = "en";
 import { AvvisoAggiornamento, CONTROLLO_RIAVVIO_MS, ripartito } from "../src/runtime-view/AvvisoAggiornamento";
 
 /** L'avviso di versione nuova sullo schermo del pannello (decisioni 41 e 44).
@@ -61,7 +67,7 @@ describe("avviso di aggiornamento sul pannello", () => {
 
   it("«Più tardi» chiude ma non ricorda", async () => {
     const { unmount } = render(<AvvisoAggiornamento />);
-    fireEvent.click(await screen.findByText(i18n.t("aggiornamentoPannello.piuTardi")));
+    fireEvent.click(await screen.findByText(testoSistema("agg_piu_tardi", L)));
     expect(screen.queryByRole("dialog")).toBeNull();
     unmount();
     render(<AvvisoAggiornamento />);
@@ -70,7 +76,7 @@ describe("avviso di aggiornamento sul pannello", () => {
 
   it("«Ignora questa versione» ricorda, ma solo quella versione", async () => {
     const { unmount } = render(<AvvisoAggiornamento />);
-    fireEvent.click(await screen.findByText(i18n.t("aggiornamentoPannello.ignora")));
+    fireEvent.click(await screen.findByText(testoSistema("agg_ignora", L)));
     unmount();
     render(<AvvisoAggiornamento />);
     await waitFor(() => expect(statoAggiornamento).toHaveBeenCalled());
@@ -120,7 +126,7 @@ describe("avviso di aggiornamento sul pannello", () => {
     const d = await screen.findByRole("dialog");
     expect(d.textContent).toContain("2.12.0-rc.8");
     expect(d.textContent).toContain("2.12.0-rc.9");
-    fireEvent.click(screen.getByText(i18n.t("esitoPannello.chiudi")));
+    fireEvent.click(screen.getByText(testoSistema("esito_chiudi", L)));
     expect(screen.queryByRole("dialog")).toBeNull();
     unmount();
     render(<AvvisoAggiornamento />);
@@ -134,7 +140,7 @@ describe("avviso di aggiornamento sul pannello", () => {
       evento: { id: 8, da: "2.12.0-rc.8", a: "2.12.0-rc.9", esito: "non_riuscito" },
     });
     render(<AvvisoAggiornamento />);
-    expect((await screen.findByRole("dialog")).textContent).toContain(i18n.t("esitoPannello.nonRiuscito", { a: "2.12.0-rc.9" }));
+    expect((await screen.findByRole("dialog")).textContent).toContain(testoSistemaCon("esito_non_riuscito", L, { a: "2.12.0-rc.9" }));
   });
 
   /** L'esito «riuscito» arriva un paio di minuti dopo il ricaricamento della pagina. */

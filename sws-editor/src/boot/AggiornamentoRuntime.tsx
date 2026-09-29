@@ -2,6 +2,11 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, novitaNellaLingua, type NovitaVersione, type StatoAggiornamento } from "@/api/client";
 import { FinestraAggiornamento } from "./FinestraAggiornamento";
+// Le due frasi sull'esito le scrive il runtime e le mostrano tre posti (qui,
+// il viewer web, il pannello LVGL): stanno nella tabella del testo di sistema,
+// una volta sola. Qui però la lingua è quella dell'**IDE** — questa è una
+// scheda di configurazione, non lo schermo di un impianto.
+import { testoSistema, testoSistemaCon } from "@/i18n/testiSistema";
 
 /** L'aggiornamento del runtime collegato (piano 2026-09-27, Fase 1): che
  *  versione gira, su quale canale, e se nel canale ce n'è una più nuova. «Aggiorna
@@ -92,11 +97,11 @@ export function AggiornamentoRuntime() {
         }}>
           <span>
             {evento.esito === "riuscito" ? "✅ " : "⚠ "}
-            {t(evento.esito === "riuscito" ? "esitoPannello.riuscito" : "esitoPannello.nonRiuscito", { da: evento.da, a: evento.a ?? "?" })}
+            {testoSistemaCon(evento.esito === "riuscito" ? "esito_riuscito" : "esito_non_riuscito", i18n.language, { da: evento.da, a: evento.a ?? "?" })}
             {evento.esito !== "riuscito" && <> — {t("aggiornamento.tornatoAlla", { da: evento.da })}</>}
           </span>
           <button type="button" onClick={() => { try { localStorage.setItem(chiaveEsito, String(evento.id)); } catch { /* */ } setEsitoChiusoOra(true); }}>
-            {t("esitoPannello.chiudi")}
+            {testoSistema("esito_chiudi", i18n.language)}
           </button>
         </div>
       )}

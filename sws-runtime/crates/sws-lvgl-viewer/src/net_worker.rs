@@ -54,6 +54,15 @@ pub enum Comando {
         id: String,
         token: Option<String>,
     },
+    /// «Aggiorna ora» dell'avviso di aggiornamento (29-09-2026). Sta qui con le
+    /// scritture per la stessa ragione delle altre — è una POST, la forma che
+    /// ha bloccato il viewer il 13-09 — e per una in più: la risposta arriva
+    /// **prima** che systemd sostituisca il processo, quindi il loop di
+    /// rendering non deve nemmeno provare ad aspettarla.
+    AvviaAggiornamento {
+        base_url: String,
+        token: Option<String>,
+    },
 }
 
 impl Comando {
@@ -62,6 +71,7 @@ impl Comando {
             Comando::PutTag { tag, .. } => format!("scrittura del tag '{tag}'"),
             Comando::AckAlarm { alarm_id, .. } => format!("ack dell'allarme '{alarm_id}'"),
             Comando::ApplyRecipe { id, .. } => format!("applicazione della ricetta '{id}'"),
+            Comando::AvviaAggiornamento { .. } => "avvio dell'aggiornamento".to_string(),
         }
     }
 }
@@ -84,6 +94,9 @@ async fn esegui(cmd: Comando) -> anyhow::Result<()> {
             id,
             token,
         } => client::apply_recipe(base_url, id, token).await,
+        Comando::AvviaAggiornamento { base_url, token } => {
+            client::avvia_aggiornamento(&base_url, token.as_deref()).await
+        }
     }
 }
 
@@ -260,6 +273,23 @@ mod tests {
             "{}",
             visti[1]
         );
+    }
+
+    #[test]
+    fn la_richiesta_di_aggiornamento_e_una_post_col_token() {
+        let (base, visti) = server(200, false);
+        let r = esegui_bloccando(
+            &rt(),
+            Comando::AvviaAggiornamento {
+                base_url: base,
+                token: Some("tok".into()),
+            },
+            Duration::from_secs(5),
+        );
+        assert_eq!(r, Ok(()));
+        let req = visti.lock().unwrap()[0].to_lowercase();
+        assert!(req.starts_with("post /api/update/apply"), "{req}");
+        assert!(req.contains("authorization: bearer tok"), "{req}");
     }
 
     #[test]

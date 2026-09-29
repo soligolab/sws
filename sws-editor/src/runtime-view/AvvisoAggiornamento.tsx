@@ -20,8 +20,9 @@
  *  altrimenti non sarebbe un ignorare, sarebbe un rimandare.
  */
 import { useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
 import { api, novitaNellaLingua, type NovitaVersione, type StatoAggiornamento } from "@/api/client";
+import { useLinguaContenuti } from "@/i18n/linguaContenuti";
+import { testoSistema, testoSistemaCon } from "@/i18n/testiSistema";
 
 const IGNORATA = "sws.aggiornamento.ignorata";
 /** L'esito chiuso: «chiuso una volta non ricompare per quell'aggiornamento»
@@ -57,8 +58,14 @@ export function ripartito(prima: number | null, adesso: number): boolean {
 }
 
 export function AvvisoAggiornamento() {
-  const { t, i18n } = useTranslation();
-  const nl = (n: NovitaVersione) => novitaNellaLingua(n, i18n.language);
+  // Dal 29-09-2026 le parole vengono dalla tabella del testo di sistema
+  // (`@/i18n/testiSistema`) e non da `t()`, e la lingua è quella dei
+  // **contenuti**: è la stessa scelta già fatta per le intestazioni di tabella
+  // del viewer, e qui pesa di più — su LVGL, dove questo avviso ha il suo
+  // gemello, una lingua dell'IDE non esiste proprio. Prima erano due lingue,
+  // ora cinque.
+  const { lang } = useLinguaContenuti();
+  const nl = (n: NovitaVersione) => novitaNellaLingua(n, lang);
   // Se il progetto ha utenti lo dice il runtime (`auth_required` di
   // `/api/system`), chiesto **da qui**. Il 28-09 l'avviso leggeva un valore
   // dello store che imposta solo l'IDE: nel viewer del pannello restava
@@ -119,7 +126,7 @@ export function AvvisoAggiornamento() {
     const ok = evento.esito === "riuscito";
     const inst = stato?.novita_installata ? nl(stato.novita_installata) : null;
     return (
-      <div role="dialog" aria-modal="true" aria-label={t(ok ? "esitoPannello.riuscito" : "esitoPannello.nonRiuscito", { da: evento.da, a: evento.a ?? "?" })}
+      <div role="dialog" aria-modal="true" aria-label={testoSistemaCon(ok ? "esito_riuscito" : "esito_non_riuscito", lang, { da: evento.da, a: evento.a ?? "?" })}
         style={{ position: "fixed", inset: 0, zIndex: 9000, background: "rgba(2, 6, 23, 0.72)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
         <div style={{
           background: "var(--brand-surface, #1e293b)",
@@ -128,10 +135,10 @@ export function AvvisoAggiornamento() {
           boxShadow: "0 10px 40px rgba(0,0,0,0.5)",
         }}>
           <div style={{ fontSize: 16, fontWeight: 700, color: ok ? "var(--brand-text, #e2e8f0)" : "var(--brand-danger-soft, #fca5a5)", marginBottom: 6 }}>
-            {ok ? "✅ " : "⚠ "}{t(ok ? "esitoPannello.riuscito" : "esitoPannello.nonRiuscito", { da: evento.da, a: evento.a ?? "?" })}
+            {ok ? "✅ " : "⚠ "}{testoSistemaCon(ok ? "esito_riuscito" : "esito_non_riuscito", lang, { da: evento.da, a: evento.a ?? "?" })}
           </div>
           {!ok && (
-            <div style={{ fontSize: 13, color: "var(--brand-text-muted, #94a3b8)" }}>{t("esitoPannello.nonRiuscitoSpiega", { da: evento.da })}</div>
+            <div style={{ fontSize: 13, color: "var(--brand-text-muted, #94a3b8)" }}>{testoSistemaCon("esito_spiega", lang, { da: evento.da })}</div>
           )}
           {ok && inst?.compatibilita && (
             <div style={{ marginTop: 12, padding: "8px 10px", borderRadius: 4, background: "var(--brand-danger-bg, #450a0a)", border: "1px solid var(--brand-danger, #ef4444)", fontSize: 12, color: "var(--brand-danger-soft, #fca5a5)", whiteSpace: "pre-wrap" }}>
@@ -142,7 +149,7 @@ export function AvvisoAggiornamento() {
             <div style={{ marginTop: 12 }}>
               <button type="button" onClick={() => setNovitaAperte(!novitaAperte)}
                 style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 13, color: "var(--brand-primary, #3b82f6)" }}>
-                {novitaAperte ? "▼" : "▶"} {t("aggiornamentoPannello.novita")}
+                {novitaAperte ? "▼" : "▶"} {testoSistema("agg_novita", lang)}
               </button>
               {novitaAperte && (
                 <div style={{ marginTop: 6, maxHeight: "32vh", overflowY: "auto", fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", whiteSpace: "pre-wrap" }}>{inst.testo}</div>
@@ -151,7 +158,7 @@ export function AvvisoAggiornamento() {
           )}
           <div style={{ marginTop: 16, display: "flex", justifyContent: "flex-end" }}>
             <button type="button" onClick={() => { chiudiEsito(evento.id); setEsitoVisto(true); setNovitaAperte(false); }}>
-              {t("esitoPannello.chiudi")}
+              {testoSistema("esito_chiudi", lang)}
             </button>
           </div>
         </div>
@@ -183,7 +190,7 @@ export function AvvisoAggiornamento() {
     <div
       role="dialog"
       aria-modal="true"
-      aria-label={t("aggiornamentoPannello.titolo", { a: nuova })}
+      aria-label={testoSistemaCon("agg_titolo", lang, { a: nuova })}
       style={{
         position: "fixed", inset: 0, zIndex: 9000,
         background: "rgba(2, 6, 23, 0.72)",
@@ -198,10 +205,10 @@ export function AvvisoAggiornamento() {
         boxShadow: "0 10px 40px rgba(0,0,0,0.5)",
       }}>
         <div style={{ fontSize: 16, fontWeight: 700, color: "var(--brand-text, #e2e8f0)", marginBottom: 6 }}>
-          {t("aggiornamentoPannello.titolo", { a: nuova })}
+          {testoSistemaCon("agg_titolo", lang, { a: nuova })}
         </div>
         <div style={{ fontSize: 13, color: "var(--brand-text-muted, #94a3b8)" }}>
-          {t("aggiornamentoPannello.da", { da: stato?.versione ?? "?" })}
+          {testoSistemaCon("agg_da", lang, { da: stato?.versione ?? "?" })}
         </div>
 
         {/* Gli avvisi di compatibilità stanno in cima e non si nascondono:
@@ -227,7 +234,7 @@ export function AvvisoAggiornamento() {
               onClick={() => setNovitaAperte(!novitaAperte)}
               style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 13, color: "var(--brand-primary, #3b82f6)" }}
             >
-              {novitaAperte ? "▼" : "▶"} {t("aggiornamentoPannello.novita")}
+              {novitaAperte ? "▼" : "▶"} {testoSistema("agg_novita", lang)}
             </button>
             {novitaAperte && (
               <div style={{ marginTop: 6, maxHeight: "32vh", overflowY: "auto" }}>
@@ -248,10 +255,10 @@ export function AvvisoAggiornamento() {
 
         <div style={{ marginTop: 16, display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
           <button type="button" onClick={() => { ignora(nuova); setChiuso(true); }} disabled={inCorso}>
-            {t("aggiornamentoPannello.ignora")}
+            {testoSistema("agg_ignora", lang)}
           </button>
           <button type="button" onClick={() => setChiuso(true)} disabled={inCorso}>
-            {t("aggiornamentoPannello.piuTardi")}
+            {testoSistema("agg_piu_tardi", lang)}
           </button>
           <button
             type="button"
@@ -259,7 +266,7 @@ export function AvvisoAggiornamento() {
             disabled={inCorso}
             style={{ fontWeight: 600, background: "#1d4ed8", color: "#fff", border: "1px solid var(--brand-primary-hover, #2563eb)", borderRadius: 5, padding: "6px 14px", cursor: "pointer" }}
           >
-            {inCorso ? t("aggiornamentoPannello.inCorso") : t("aggiornamentoPannello.aggiorna")}
+            {inCorso ? testoSistema("agg_in_corso", lang) : testoSistema("agg_aggiorna", lang)}
           </button>
         </div>
       </div>

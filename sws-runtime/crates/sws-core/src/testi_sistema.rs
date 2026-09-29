@@ -57,6 +57,20 @@ pub enum Testo {
     DaConfermare,
     Chiuso,
     Interrotto,
+    // Le frasi dell'avviso di aggiornamento sullo schermo del pannello
+    // (29-09-2026): le uniche con un segnaposto — `{a}` la versione nuova,
+    // `{da}` quella che gira — che si sostituisce con `testo_con`.
+    AggTitolo,
+    AggDa,
+    AggNovita,
+    AggAggiorna,
+    AggPiuTardi,
+    AggIgnora,
+    AggInCorso,
+    EsitoRiuscito,
+    EsitoNonRiuscito,
+    EsitoSpiega,
+    EsitoChiudi,
 }
 
 /// Tutte le voci, per i test che devono iterarle senza ripetere l'elenco a
@@ -83,6 +97,17 @@ pub const TUTTI: &[Testo] = &[
     Testo::DaConfermare,
     Testo::Chiuso,
     Testo::Interrotto,
+    Testo::AggTitolo,
+    Testo::AggDa,
+    Testo::AggNovita,
+    Testo::AggAggiorna,
+    Testo::AggPiuTardi,
+    Testo::AggIgnora,
+    Testo::AggInCorso,
+    Testo::EsitoRiuscito,
+    Testo::EsitoNonRiuscito,
+    Testo::EsitoSpiega,
+    Testo::EsitoChiudi,
 ];
 
 /// Dal nome nella fixture alla voce. `None` = la fixture ha una voce che
@@ -110,6 +135,17 @@ pub fn da_nome(nome: &str) -> Option<Testo> {
         "da_confermare" => Testo::DaConfermare,
         "chiuso" => Testo::Chiuso,
         "interrotto" => Testo::Interrotto,
+        "agg_titolo" => Testo::AggTitolo,
+        "agg_da" => Testo::AggDa,
+        "agg_novita" => Testo::AggNovita,
+        "agg_aggiorna" => Testo::AggAggiorna,
+        "agg_piu_tardi" => Testo::AggPiuTardi,
+        "agg_ignora" => Testo::AggIgnora,
+        "agg_in_corso" => Testo::AggInCorso,
+        "esito_riuscito" => Testo::EsitoRiuscito,
+        "esito_non_riuscito" => Testo::EsitoNonRiuscito,
+        "esito_spiega" => Testo::EsitoSpiega,
+        "esito_chiudi" => Testo::EsitoChiudi,
         _ => return None,
     })
 }
@@ -238,7 +274,89 @@ pub fn testo(t: Testo, lingua: &str) -> &'static str {
         (Interrotto, "fr") => "Interr.",
         (Interrotto, "es") => "Interr.",
         (Interrotto, _) => "Interr.",
+
+        (AggTitolo, "it") => "Versione {a} disponibile",
+        (AggTitolo, "de") => "Version {a} verfügbar",
+        (AggTitolo, "fr") => "Version {a} disponible",
+        (AggTitolo, "es") => "Versión {a} disponible",
+        (AggTitolo, _) => "Version {a} available",
+
+        (AggDa, "it") => "Questo pannello gira la {da}.",
+        (AggDa, "de") => "Dieses Panel läuft mit {da}.",
+        (AggDa, "fr") => "Ce panneau exécute la {da}.",
+        (AggDa, "es") => "Este panel ejecuta la {da}.",
+        (AggDa, _) => "This panel runs {da}.",
+
+        (AggNovita, "it") => "Novità",
+        (AggNovita, "de") => "Neuerungen",
+        (AggNovita, "fr") => "Nouveautés",
+        (AggNovita, "es") => "Novedades",
+        (AggNovita, _) => "What's new",
+
+        (AggAggiorna, "it") => "Aggiorna ora",
+        (AggAggiorna, "de") => "Jetzt aktualisieren",
+        (AggAggiorna, "fr") => "Mettre à jour",
+        (AggAggiorna, "es") => "Actualizar ahora",
+        (AggAggiorna, _) => "Update now",
+
+        (AggPiuTardi, "it") => "Più tardi",
+        (AggPiuTardi, "de") => "Später",
+        (AggPiuTardi, "fr") => "Plus tard",
+        (AggPiuTardi, "es") => "Más tarde",
+        (AggPiuTardi, _) => "Later",
+
+        (AggIgnora, "it") => "Ignora questa versione",
+        (AggIgnora, "de") => "Diese Version überspringen",
+        (AggIgnora, "fr") => "Ignorer cette version",
+        (AggIgnora, "es") => "Omitir esta versión",
+        (AggIgnora, _) => "Skip this version",
+
+        (AggInCorso, "it") => "Aggiornamento avviato…",
+        (AggInCorso, "de") => "Aktualisierung gestartet…",
+        (AggInCorso, "fr") => "Mise à jour lancée…",
+        (AggInCorso, "es") => "Actualización iniciada…",
+        (AggInCorso, _) => "Update started…",
+
+        (EsitoRiuscito, "it") => "Aggiornato dalla {da} alla {a}",
+        (EsitoRiuscito, "de") => "Von {da} auf {a} aktualisiert",
+        (EsitoRiuscito, "fr") => "Mis à jour de {da} vers {a}",
+        (EsitoRiuscito, "es") => "Actualizado de {da} a {a}",
+        (EsitoRiuscito, _) => "Updated from {da} to {a}",
+
+        (EsitoNonRiuscito, "it") => "Aggiornamento alla {a} non riuscito",
+        (EsitoNonRiuscito, "de") => "Aktualisierung auf {a} fehlgeschlagen",
+        (EsitoNonRiuscito, "fr") => "Échec de la mise à jour vers {a}",
+        (EsitoNonRiuscito, "es") => "Error al actualizar a {a}",
+        (EsitoNonRiuscito, _) => "Update to {a} failed",
+
+        (EsitoSpiega, "it") => "La versione nuova non è partita bene, e il pannello è tornato da solo alla {da}. Non c'è niente da fare qui: se ne occupa chi gestisce il pannello.",
+        (EsitoSpiega, "de") => "Die neue Version ist nicht richtig gestartet, und das Panel ist von selbst auf {da} zurückgekehrt. Hier ist nichts zu tun: darum kümmert sich, wer das Panel verwaltet.",
+        (EsitoSpiega, "fr") => "La nouvelle version n'a pas démarré correctement, et le panneau est revenu tout seul à la {da}. Rien à faire ici : la personne qui gère le panneau s'en occupe.",
+        (EsitoSpiega, "es") => "La versión nueva no arrancó bien, y el panel volvió solo a la {da}. Aquí no hay nada que hacer: se encarga quien gestiona el panel.",
+        (EsitoSpiega, _) => "The new version did not start properly, and the panel went back to {da} by itself. Nothing to do here: whoever manages the panel will take care of it.",
+
+        (EsitoChiudi, "it") => "Chiudi",
+        (EsitoChiudi, "de") => "Schließen",
+        (EsitoChiudi, "fr") => "Fermer",
+        (EsitoChiudi, "es") => "Cerrar",
+        (EsitoChiudi, _) => "Close",
     }
+}
+
+/// La stessa parola, con i segnaposto sostituiti: `{a}`, `{da}`.
+///
+/// Esiste perché le frasi dell'avviso di aggiornamento sono le prime voci non
+/// atomiche della tabella («Versione {a} disponibile»). La sostituzione è
+/// letterale e non un motore di template: due segnaposto in undici frasi non
+/// giustificano nient'altro, e il gemello TypeScript (`testoSistemaCon`) fa la
+/// stessa identica cosa — condizione perché le due copie restino confrontabili
+/// a occhio e dalla guardia.
+pub fn testo_con(t: Testo, lingua: &str, valori: &[(&str, &str)]) -> String {
+    let mut s = testo(t, lingua).to_string();
+    for (nome, v) in valori {
+        s = s.replace(&format!("{{{nome}}}"), v);
+    }
+    s
 }
 
 #[cfg(test)]

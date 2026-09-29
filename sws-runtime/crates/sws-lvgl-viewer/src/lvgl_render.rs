@@ -1215,7 +1215,7 @@ fn render_cell_border(
     Ok(())
 }
 
-fn text_cstring(s: &str) -> CString {
+pub(crate) fn text_cstring(s: &str) -> CString {
     CString::new(s).unwrap_or_else(|_| CString::new("?").unwrap())
 }
 
