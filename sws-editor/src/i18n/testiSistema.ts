@@ -35,8 +35,9 @@ export type VoceSistema =
   | "agg_piu_tardi"
   | "agg_ignora"
   | "agg_in_corso"
-  | "esito_riuscito"
-  | "esito_non_riuscito"
+  | "esito_titolo_ok"
+  | "esito_titolo_ko"
+  | "esito_versioni"
   | "esito_spiega"
   | "esito_chiudi";
 
@@ -97,26 +98,33 @@ export const TESTI_SISTEMA: Record<VoceSistema, Record<LinguaSistema, string>> =
     es: "Actualización iniciada…",
     en: "Update started…",
   },
-  esito_riuscito: {
-    it: "Aggiornato dalla {da} alla {a}",
-    de: "Von {da} auf {a} aktualisiert",
-    fr: "Mis à jour de {da} vers {a}",
-    es: "Actualizado de {da} a {a}",
-    en: "Updated from {da} to {a}",
+  esito_titolo_ok: {
+    it: "Aggiornamento completato",
+    de: "Aktualisierung abgeschlossen",
+    fr: "Mise à jour terminée",
+    es: "Actualización completada",
+    en: "Update completed",
   },
-  esito_non_riuscito: {
-    it: "Aggiornamento alla {a} non riuscito",
-    de: "Aktualisierung auf {a} fehlgeschlagen",
-    fr: "Échec de la mise à jour vers {a}",
-    es: "Error al actualizar a {a}",
-    en: "Update to {a} failed",
+  esito_titolo_ko: {
+    it: "Aggiornamento non riuscito",
+    de: "Aktualisierung fehlgeschlagen",
+    fr: "Échec de la mise à jour",
+    es: "Error en la actualización",
+    en: "Update failed",
+  },
+  esito_versioni: {
+    it: "Il pannello è passato dalla {da} alla {a}.",
+    de: "Das Panel ist von {da} auf {a} gewechselt.",
+    fr: "Le panneau est passé de la {da} à la {a}.",
+    es: "El panel ha pasado de la {da} a la {a}.",
+    en: "The panel went from {da} to {a}.",
   },
   esito_spiega: {
-    it: "La versione nuova non è partita bene, e il pannello è tornato da solo alla {da}. Non c'è niente da fare qui: se ne occupa chi gestisce il pannello.",
-    de: "Die neue Version ist nicht richtig gestartet, und das Panel ist von selbst auf {da} zurückgekehrt. Hier ist nichts zu tun: darum kümmert sich, wer das Panel verwaltet.",
-    fr: "La nouvelle version n'a pas démarré correctement, et le panneau est revenu tout seul à la {da}. Rien à faire ici : la personne qui gère le panneau s'en occupe.",
-    es: "La versión nueva no arrancó bien, y el panel volvió solo a la {da}. Aquí no hay nada que hacer: se encarga quien gestiona el panel.",
-    en: "The new version did not start properly, and the panel went back to {da} by itself. Nothing to do here: whoever manages the panel will take care of it.",
+    it: "Il pannello ha provato a passare alla {a}: la versione nuova non è partita bene, ed è tornato da solo alla {da}. Non c'è niente da fare qui: se ne occupa chi gestisce il pannello.",
+    de: "Das Panel hat versucht, auf {a} zu wechseln: die neue Version ist nicht richtig gestartet, und es ist von selbst auf {da} zurückgekehrt. Hier ist nichts zu tun: darum kümmert sich, wer das Panel verwaltet.",
+    fr: "Le panneau a tenté de passer à la {a} : la nouvelle version n'a pas démarré correctement, et il est revenu tout seul à la {da}. Rien à faire ici : la personne qui gère le panneau s'en occupe.",
+    es: "El panel intentó pasar a la {a}: la versión nueva no arrancó bien, y volvió solo a la {da}. Aquí no hay nada que hacer: se encarga quien gestiona el panel.",
+    en: "The panel tried to move to {a}: the new version did not start properly, and it went back to {da} by itself. Nothing to do here: whoever manages the panel will take care of it.",
   },
   esito_chiudi: { it: "Chiudi", de: "Schließen", fr: "Fermer", es: "Cerrar", en: "Close" },
   allarme_attivo: {

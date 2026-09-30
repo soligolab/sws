@@ -12,13 +12,22 @@ import { livelliDi, unisciAllarmi } from "./unisciAllarmi";
 
 // ── ALARMS tab ────────────────────────────────────────────────────────────────
 
+/** Un allarme nuovo nasce **nel formato a livelli**, non in quello vecchio.
+ *
+ *  Fino al 30-09-2026 questa funzione costruiva `condition`/`message`/
+ *  `severity` al primo livello, cioè esattamente la forma che dal 26-09 è
+ *  «vecchia»: ogni allarme appena creato faceva comparire «1 allarme è nel
+ *  formato vecchio e blocca il salvataggio», e all'utente veniva detto che il
+ *  suo allarme nuovo era da convertire. Il maintainer, provandolo su un
+ *  progetto che di allarmi non ne aveva: «quando genero un nuovo allarme...
+ *  vedo ⚠ 1 alarms are in the old format».
+ *
+ *  Il modello a livelli è arrivato con la scheda, questo costruttore no. */
 function emptyAlarm(): AlarmDef {
   return {
     id: `alm-${genId()}`,
     tag: "",
-    condition: { kind: "above", threshold: 0 },
-    message: "",
-    severity: "Warning",
+    levels: [{ condition: { kind: "above", threshold: 0 }, severity: "Warning", message: "" }],
   };
 }
 

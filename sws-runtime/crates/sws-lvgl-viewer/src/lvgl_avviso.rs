@@ -359,45 +359,54 @@ impl Overlay {
             Avviso::Esito { evento, novita } => {
                 let ok = evento.esito == EsitoAggiornamento::Riuscito;
                 let a = evento.a.clone().unwrap_or_else(|| "?".into());
+                // Il titolo dice in due parole **cosa è successo**, le versioni
+                // stanno nella riga sotto. Fino al 30-09-2026 erano tutte
+                // insieme nel titolo — «Updated from X to Y» — e il maintainer,
+                // leggendolo sul WP630 con un solo pulsante «Chiudi», ha capito
+                // che gli si annunciasse un aggiornamento *disponibile*. Un
+                // messaggio che va decifrato alla prima lettura è un messaggio
+                // sbagliato, anche quando ogni parola è vera.
                 let titolo = format!(
                     "{} {}",
                     if ok { "✅" } else { "⚠" },
-                    testo_con(
+                    testo(
                         if ok {
-                            Testo::EsitoRiuscito
+                            Testo::EsitoTitoloOk
                         } else {
-                            Testo::EsitoNonRiuscito
+                            Testo::EsitoTitoloKo
                         },
                         lingua,
-                        &[("da", &evento.da), ("a", &a)],
                     )
                 );
-                let n = if ok {
-                    novita
+                let (sotto, compatibilita, corpo) = if ok {
+                    let n = novita
                         .as_ref()
                         .map(|n| aggiornamento::novita_nella_lingua(n, lingua))
-                        .unwrap_or_default()
-                } else {
-                    // Il «non riuscito» non ha Novità da dare: la versione
-                    // nuova non è mai partita. Al loro posto la spiegazione.
+                        .unwrap_or_default();
                     (
-                        testo_con(Testo::EsitoSpiega, lingua, &[("da", &evento.da)]),
+                        testo_con(Testo::EsitoVersioni, lingua, &[("da", &evento.da), ("a", &a)]),
+                        if n.1.is_empty() {
+                            String::new()
+                        } else {
+                            format!("⚠ {}", n.1)
+                        },
+                        n.0,
+                    )
+                } else {
+                    // Il «non riuscito» non ha Novità da dare: la versione nuova
+                    // non è mai partita. Al loro posto la spiegazione, che nomina
+                    // tutte e due le versioni e quindi si regge da sola.
+                    (
                         String::new(),
+                        String::new(),
+                        testo_con(Testo::EsitoSpiega, lingua, &[("da", &evento.da), ("a", &a)]),
                     )
                 };
                 Contenuto {
                     titolo,
-                    sotto: if ok && !n.0.is_empty() {
-                        testo(Testo::AggNovita, lingua).to_string()
-                    } else {
-                        String::new()
-                    },
-                    compatibilita: if n.1.is_empty() {
-                        String::new()
-                    } else {
-                        format!("⚠ {}", n.1)
-                    },
-                    corpo: n.0,
+                    sotto,
+                    compatibilita,
+                    corpo,
                     pulsanti: vec![(
                         testo(Testo::EsitoChiudi, lingua).to_string(),
                         Azione::ChiudiEsito(evento.id),

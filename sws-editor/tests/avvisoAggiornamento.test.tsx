@@ -140,7 +140,11 @@ describe("avviso di aggiornamento sul pannello", () => {
       evento: { id: 8, da: "2.12.0-rc.8", a: "2.12.0-rc.9", esito: "non_riuscito" },
     });
     render(<AvvisoAggiornamento />);
-    expect((await screen.findByRole("dialog")).textContent).toContain(testoSistemaCon("esito_non_riuscito", L, { a: "2.12.0-rc.9" }));
+    const riquadro = (await screen.findByRole("dialog")).textContent ?? "";
+    // Il titolo dice cosa è successo, la riga sotto con quali versioni: prima
+    // stavano insieme, e si leggevano come l'annuncio di un aggiornamento.
+    expect(riquadro).toContain(testoSistema("esito_titolo_ko", L));
+    expect(riquadro).toContain(testoSistemaCon("esito_spiega", L, { da: "2.12.0-rc.8", a: "2.12.0-rc.9" }));
   });
 
   /** L'esito «riuscito» arriva un paio di minuti dopo il ricaricamento della pagina. */

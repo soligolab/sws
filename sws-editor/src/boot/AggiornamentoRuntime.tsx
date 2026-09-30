@@ -97,7 +97,9 @@ export function AggiornamentoRuntime() {
         }}>
           <span>
             {evento.esito === "riuscito" ? "✅ " : "⚠ "}
-            {testoSistemaCon(evento.esito === "riuscito" ? "esito_riuscito" : "esito_non_riuscito", i18n.language, { da: evento.da, a: evento.a ?? "?" })}
+            {testoSistema(evento.esito === "riuscito" ? "esito_titolo_ok" : "esito_titolo_ko", i18n.language)}
+            {" — "}
+            {testoSistemaCon("esito_versioni", i18n.language, { da: evento.da, a: evento.a ?? "?" })}
             {evento.esito !== "riuscito" && <> — {t("aggiornamento.tornatoAlla", { da: evento.da })}</>}
           </span>
           <button type="button" onClick={() => { try { localStorage.setItem(chiaveEsito, String(evento.id)); } catch { /* */ } setEsitoChiusoOra(true); }}>

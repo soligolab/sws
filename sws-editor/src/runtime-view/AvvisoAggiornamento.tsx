@@ -126,7 +126,7 @@ export function AvvisoAggiornamento() {
     const ok = evento.esito === "riuscito";
     const inst = stato?.novita_installata ? nl(stato.novita_installata) : null;
     return (
-      <div role="dialog" aria-modal="true" aria-label={testoSistemaCon(ok ? "esito_riuscito" : "esito_non_riuscito", lang, { da: evento.da, a: evento.a ?? "?" })}
+      <div role="dialog" aria-modal="true" aria-label={testoSistema(ok ? "esito_titolo_ok" : "esito_titolo_ko", lang)}
         style={{ position: "fixed", inset: 0, zIndex: 9000, background: "rgba(2, 6, 23, 0.72)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
         <div style={{
           background: "var(--brand-surface, #1e293b)",
@@ -135,11 +135,16 @@ export function AvvisoAggiornamento() {
           boxShadow: "0 10px 40px rgba(0,0,0,0.5)",
         }}>
           <div style={{ fontSize: 16, fontWeight: 700, color: ok ? "var(--brand-text, #e2e8f0)" : "var(--brand-danger-soft, #fca5a5)", marginBottom: 6 }}>
-            {ok ? "✅ " : "⚠ "}{testoSistemaCon(ok ? "esito_riuscito" : "esito_non_riuscito", lang, { da: evento.da, a: evento.a ?? "?" })}
+            {ok ? "✅ " : "⚠ "}{testoSistema(ok ? "esito_titolo_ok" : "esito_titolo_ko", lang)}
           </div>
-          {!ok && (
-            <div style={{ fontSize: 13, color: "var(--brand-text-muted, #94a3b8)" }}>{testoSistemaCon("esito_spiega", lang, { da: evento.da })}</div>
-          )}
+          {/* Il titolo dice cosa è successo, questa riga con quali versioni:
+              insieme, come erano fino al 30-09-2026, si leggevano come
+              l'annuncio di un aggiornamento da fare. */}
+          <div style={{ fontSize: 13, color: "var(--brand-text-muted, #94a3b8)" }}>
+            {ok
+              ? testoSistemaCon("esito_versioni", lang, { da: evento.da, a: evento.a ?? "?" })
+              : testoSistemaCon("esito_spiega", lang, { da: evento.da, a: evento.a ?? "?" })}
+          </div>
           {ok && inst?.compatibilita && (
             <div style={{ marginTop: 12, padding: "8px 10px", borderRadius: 4, background: "var(--brand-danger-bg, #450a0a)", border: "1px solid var(--brand-danger, #ef4444)", fontSize: 12, color: "var(--brand-danger-soft, #fca5a5)", whiteSpace: "pre-wrap" }}>
               ⚠ {inst.compatibilita}
