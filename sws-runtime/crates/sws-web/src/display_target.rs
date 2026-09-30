@@ -1,6 +1,6 @@
 //! Quale motore di rendering deve occupare lo schermo del pannello (Q25), e la
 //! commutazione vera e propria, **dal runtime, via D-Bus** (Fase 4 del piano
-//! `docs/plans/2026-09-27-aggiornamento-runtime-e-bus-utente.md`, 29-09-2026).
+//! `docs/archive/2026-09-27-aggiornamento-runtime-e-bus-utente.md`, 29-09-2026).
 //!
 //! Il progetto lo dichiara: `target.kind` vale `web`, `lvgl_framebuffer` o
 //! `lvgl_wayland`.

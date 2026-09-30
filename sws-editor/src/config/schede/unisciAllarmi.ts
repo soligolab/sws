@@ -22,7 +22,7 @@ export const livelliDi = (a: AlarmDef): AlarmLevel[] =>
  *  restano quelle dell'allarme che resta. */
 const DELL_ALLARME = [
   "on_delay_s", "off_delay_s", "inhibit_tag", "inhibit_condition", "notify_url",
-  "notify_email", "escalate_after_s", "escalate_to", "telegram_mode", "telegram_chat_ids",
+  "notify_email", "email_mode", "escalate_after_s", "escalate_to", "telegram_mode", "telegram_chat_ids",
 ] as const;
 
 export interface Fusione {

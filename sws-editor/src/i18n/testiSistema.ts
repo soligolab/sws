@@ -24,7 +24,7 @@ export type VoceSistema =
   | "ora" | "allarme" | "confermato" | "si" | "no"
   | "messaggio" | "severita" | "tag" | "valore" | "attivato"
   | "dati" | "unita" | "altro" | "nd"
-  | "allarme_attivo" | "escalation_non_riconosciuta"
+  | "allarme_attivo" | "escalation_non_riconosciuta" | "allarme_rientrato"
   | "stato" | "attivo" | "da_confermare" | "chiuso" | "interrotto"
   // L'avviso di aggiornamento sullo schermo del pannello (29-09-2026): le
   // uniche voci con un segnaposto, `{a}` e `{da}` — vedi `testoSistemaCon`.
@@ -136,6 +136,9 @@ export const TESTI_SISTEMA: Record<VoceSistema, Record<LinguaSistema, string>> =
     fr: "⏫ ESCALADE : alarme non acquittée",
     es: "⏫ ESCALADO: alarma no reconocida",
     en: "⏫ ESCALATION: alarm not acknowledged",
+  },
+  allarme_rientrato: {
+    it: "🟢 RIENTRATO: allarme tornato normale", de: "🟢 ZURÜCKGEKEHRT: Alarm wieder normal", fr: "🟢 RETOUR : alarme revenue à la normale", es: "🟢 NORMALIZADA: alarma de vuelta a la normalidad", en: "🟢 CLEARED: alarm back to normal",
   },
 };
 

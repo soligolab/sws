@@ -19,6 +19,7 @@ import type {
   MqttBrowseRequest,
   MqttBrowseResponse,
   NotificationConfig,
+  SmtpConfig,
   PageLayoutConfig,
   OpcUaBrowseRequest,
   OpcUaBrowseResponse,
@@ -1669,6 +1670,19 @@ export const api = {
       method: "PUT",
       headers: { "Content-Type": "application/json", ...seVersionato("/api/project/page-layout") },
       body: JSON.stringify(config),
+    }),
+
+  /** Manda un'email di prova e **aspetta** l'esito: a differenza degli invii
+   *  veri, qui l'errore è il prodotto — è quello che dice se host, porta,
+   *  credenziali e STARTTLS sono giusti. Risolve con l'elenco dei destinatari
+   *  a cui è partita. La password si passa così com'è: se è il placeholder
+   *  mascherato (o vuota) il server usa quella salvata, e la prova percorre la
+   *  stessa catena degli allarmi. */
+  testEmail: (req: { smtp: SmtpConfig; to?: string[] }) =>
+    request<string>("/api/notifications/test-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req),
     }),
 
   /** Send a one-off Telegram test message. Resolves on success; rejects with

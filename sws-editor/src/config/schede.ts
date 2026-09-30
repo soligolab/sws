@@ -25,7 +25,15 @@ export type RamoConfig = "progetto" | "dati" | "sicurezza" | "istanza" | "ide";
  *  Istanza aveva cinque foglie piatte di cui tre parlavano tutte del
  *  dispositivo, e una — il pacchetto runtime — riguarda solo chi sviluppa SWS,
  *  non chi lo usa. */
-export type SottoRamo = "device" | "sviluppatore";
+export type SottoRamo = "device" | "sviluppatore" | "notifiche";
+// «notifiche» è il primo sotto-ramo fuori da Istanza (30-09-2026): la scheda
+// Notifiche era diventata cinque sezioni in colonna — lingua, SMTP,
+// destinatari, tabella eventi, Telegram — e il maintainer ha chiesto di
+// dividerla. Le tre foglie condividono **una sola bozza**, con il meccanismo
+// che già tiene insieme «Variabili» e «Tipi»: una scheda porta il componente,
+// le altre sono sue `ospite`. Un salvataggio parziale qui ha già cancellato
+// sezioni una volta, e tre schede con tre bozze sarebbero tre occasioni di
+// rifarlo.
 
 export interface SchedaConfig {
   /** L'id della rotta `#config/<id>` e della chiave `config.tabs.<id>`. */
@@ -70,7 +78,9 @@ export const SCHEDE = [
   { id: "scripts",       ramo: "progetto",  icona: "🐍", soloAdmin: false, portaBozza: true,  richiedeProgetto: false, elementi: true, sezione: "global_scripts" },
   { id: "faceplates",    ramo: "progetto",  icona: "🧩", soloAdmin: false, portaBozza: true,  richiedeProgetto: false, elementi: true, sezione: "faceplates" },
   { id: "recipes",       ramo: "progetto",  icona: "📋", soloAdmin: false, portaBozza: true,  richiedeProgetto: false, elementi: true, sezione: "recipes" },
-  { id: "notifications", ramo: "progetto",  icona: "✉", soloAdmin: false, portaBozza: true,  richiedeProgetto: false, sezione: "notifications" },
+  { id: "notifications", ramo: "progetto",  icona: "✉", soloAdmin: false, portaBozza: true,  richiedeProgetto: false, sezione: "notifications", sottoRamo: "notifiche" },
+  { id: "telegram",      ramo: "progetto",  icona: "💬", soloAdmin: false, portaBozza: true,  richiedeProgetto: false, sezione: "notifications", sottoRamo: "notifiche", ospite: "notifications" },
+  { id: "eventi",        ramo: "progetto",  icona: "🔀", soloAdmin: false, portaBozza: true,  richiedeProgetto: false, sezione: "notifications", sottoRamo: "notifiche", ospite: "notifications" },
   { id: "languages",     ramo: "progetto",  icona: "🌐", soloAdmin: false, portaBozza: true,  richiedeProgetto: true, sezione: "languages"  },
   { id: "git",           ramo: "progetto",  icona: "🔀", soloAdmin: false, portaBozza: false, richiedeProgetto: false },
   { id: "datastores",    ramo: "dati",      icona: "🗄", soloAdmin: true,  portaBozza: true,  richiedeProgetto: false, elementi: true, sezione: "datastores" },
@@ -87,6 +97,14 @@ export const SCHEDE = [
 ] as const satisfies readonly SchedaConfig[];
 
 export type IdScheda = (typeof SCHEDE)[number]["id"];
+
+/** Gli id delle schede **ospitate**: non hanno un componente loro, le disegna
+ *  chi le ospita. Derivato dal registro e non scritto a mano: il 30-09-2026 le
+ *  foglie nuove di Notifiche hanno fatto fallire la compilazione contro un
+ *  `Exclude<IdScheda, "types">` che elencava un ospite solo — un elenco in più
+ *  da tenere allineato, cioè esattamente quello che questo file esiste per
+ *  evitare. */
+export type IdOspitato = Extract<(typeof SCHEDE)[number], { ospite: string }>["id"];
 
 export type AppConfigTab = IdScheda;
 
@@ -109,6 +127,7 @@ export const schedaDa = (id: string): SchedaConfig =>
  *  Risorse e Backup si toccano di rado (scelta del maintainer, 25-09-2026).
  *  Un sotto-ramo senza foglie visibili non si disegna, come i rami vuoti. */
 export const SOTTORAMI: readonly { id: SottoRamo; ramo: RamoConfig; icona: string }[] = [
+  { id: "notifiche",    ramo: "progetto", icona: "✉" },
   { id: "device",       ramo: "istanza", icona: "📟" },
   { id: "sviluppatore", ramo: "istanza", icona: "🧪" },
 ];

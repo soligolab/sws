@@ -50,6 +50,9 @@ pub enum Testo {
     Nd,
     AllarmeAttivo,
     EscalationNonRiconosciuta,
+    // Il rientro di un allarme, per le notifiche (29-09-2026: la tabella
+    // eventi × canali ha una riga «rientro», che prima non esisteva).
+    AllarmeRientrato,
     // La colonna «Stato» dello storico allarmi su LVGL (25-09-2026): da quando
     // la riga nasce allo scatto, una riga può essere ancora aperta.
     Stato,
@@ -93,6 +96,7 @@ pub const TUTTI: &[Testo] = &[
     Testo::Nd,
     Testo::AllarmeAttivo,
     Testo::EscalationNonRiconosciuta,
+    Testo::AllarmeRientrato,
     Testo::Stato,
     Testo::Attivo,
     Testo::DaConfermare,
@@ -132,6 +136,7 @@ pub fn da_nome(nome: &str) -> Option<Testo> {
         "nd" => Testo::Nd,
         "allarme_attivo" => Testo::AllarmeAttivo,
         "escalation_non_riconosciuta" => Testo::EscalationNonRiconosciuta,
+        "allarme_rientrato" => Testo::AllarmeRientrato,
         "stato" => Testo::Stato,
         "attivo" => Testo::Attivo,
         "da_confermare" => Testo::DaConfermare,
@@ -252,6 +257,11 @@ pub fn testo(t: Testo, lingua: &str) -> &'static str {
         (EscalationNonRiconosciuta, "fr") => "⏫ ESCALADE : alarme non acquittée",
         (EscalationNonRiconosciuta, "es") => "⏫ ESCALADO: alarma no reconocida",
         (EscalationNonRiconosciuta, _) => "⏫ ESCALATION: alarm not acknowledged",
+        (AllarmeRientrato, "it") => "🟢 RIENTRATO: allarme tornato normale",
+        (AllarmeRientrato, "de") => "🟢 ZURÜCKGEKEHRT: Alarm wieder normal",
+        (AllarmeRientrato, "fr") => "🟢 RETOUR : alarme revenue à la normale",
+        (AllarmeRientrato, "es") => "🟢 NORMALIZADA: alarma de vuelta a la normalidad",
+        (AllarmeRientrato, _) => "🟢 CLEARED: alarm back to normal",
         (Stato, "it") => "Stato",
         (Stato, "de") => "Status",
         (Stato, "fr") => "État",

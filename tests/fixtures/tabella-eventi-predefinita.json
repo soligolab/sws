@@ -1,0 +1,25 @@
+{
+  "_perche": "La tabella eventi × canali predefinita (29-09-2026): la stessa in sws-core (TabellaEventi::default) e nell'editor (TABELLA_PREDEFINITA). I default riproducono il comportamento di prima; se una delle due copie cambia da sola, un progetto salvato dall'IDE scriverebbe caselle diverse da quelle che il runtime applica.",
+  "tabella": {
+    "scatto": {
+      "email": true,
+      "telegram": true
+    },
+    "rientro": {
+      "email": false,
+      "telegram": false
+    },
+    "escalation": {
+      "email": true,
+      "telegram": true
+    },
+    "esito_aggiornamento": {
+      "email": false,
+      "telegram": true
+    },
+    "versione_nuova": {
+      "email": false,
+      "telegram": false
+    }
+  }
+}

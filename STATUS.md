@@ -74,12 +74,40 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — il lavoro in corso è sul ramo `feat/notifiche-email-progetto` (2026-09-30)
+## ▶ Riprendere da qui — tutto converge sulla rc.13 (2026-09-30)
 
-**R2 (l'email come canale di notifica) è scritto e verde sul ramo `feat/notifiche-email-progetto`**, pushato su origin;
-manca il collaudo con l'SMTP vero del maintainer, poi lo squash. **Il riepilogo completo e i passi del collaudo sono nello
-`STATUS.md` di quel ramo**: `git fetch && git checkout feat/notifiche-email-progetto`. Su `main` ci sono la skill
-`/riprendi` che lancia sempre `session_start.sh` e le decisioni di R2 nel [piano delle due code](docs/plans/2026-09-29-code-aggiornamento.md).
+**Ramo unico aperto: `feat/notifiche-email-progetto`**, che ora porta dentro anche `main`. Il
+maintainer ha scelto di collaudare **tutto insieme sulla rc.13**, sul WP630 in LVGL.
+
+### Cosa ci sarà dentro
+
+- **R2 — l'email come canale** (commit `c16ece30`, scritto ieri sera a casa): destinatari di
+  progetto `{indirizzo, lingua}`, tabella eventi × canali (fixture condivisa
+  `tests/fixtures/tabella-eventi-predefinita.json`), un'email per lingua, rientro come evento
+  nuovo, esito dell'aggiornamento e versione nuova anche via email. Migrazione del formato vecchio
+  provata su una copia di CasaDomotica (nessun progetto vero usa `notify_email`).
+- **L'esito dell'aggiornamento riscritto** e **l'allarme nuovo che non nasce «vecchio»** (da
+  `main`, squash di oggi): vedi la sezione più sotto.
+- **Il fade sugli oggetti raster** (già su `main` da ieri).
+- **Un pulsante di prova per l'SMTP**, chiesto dal maintainer oggi: dove si configura il server
+  serve poterlo provare, come già si fa per Telegram (`api.testTelegram`).
+
+### Cosa è già stato provato sul campo
+
+Il maintainer ha fatto scattare un allarme sul WP630 in LVGL: **email e Telegram arrivano**. È il
+canale email **per singolo allarme**, che esisteva già da prima di R2 (`alm-slider` ha
+`notify_email` ed `escalate_to`) — ma vuol dire che il trasporto SMTP (infomaniak, 587, STARTTLS)
+funziona dal pannello, ed è la parte che di solito dà problemi. Di R2 restano da provare i
+destinatari di progetto, l'email per lingua, la tabella eventi × canali e l'esito
+dell'aggiornamento via posta.
+
+### Il WP630, com'è adesso
+
+Gira la **rc.12**, progetto `LVGL_TEST` in LVGL. Oggi gli ho messo `languages.default: it` (era
+`en`, ed è per questo che l'esito compariva in inglese: il testo di sistema segue la lingua dei
+contenuti, regola confermata). L'esito dell'aggiornamento **non è stato chiuso**, quindi dovrebbe
+essere ancora a schermo, ora in italiano.
+
 
 ## Riprendere da qui (precedente) — avviso su LVGL collaudato, fade sugli oggetti raster corretto (2026-09-29, sera)
 
@@ -133,7 +161,7 @@ visto sul vetro — si guarda alla prossima immagine che sale sul WP630. La ripr
 
 ### Prossimo passo
 
-**R2** del [piano delle due code](docs/plans/2026-09-29-code-aggiornamento.md): l'email come
+**R2** del [piano delle due code](docs/archive/2026-09-29-code-aggiornamento.md): l'email come
 canale di notifica — destinatari di progetto `{indirizzo, lingua}` migrando i `notify_email`
 esistenti, tabella eventi × canali nella scheda Notifiche, `email_sender` in `AppState` perché
 anche l'esito dell'aggiornamento esca via posta. Per il collaudo serve l'SMTP vero del maintainer
@@ -158,7 +186,7 @@ stare in `/finalizza-giornata`. Il disco è al **94%**.
 ## ▶ Riprendere da qui — aggiornamento del runtime finito (Fasi 1-4), tutto su `main` e pushato (2026-09-29)
 
 **Su `main` e su origin, nessun ramo aperto.** Squash della Fase 4 `77c958f7`, tag `2.12.0-rc.10` pushato. Del piano
-[aggiornamento runtime e bus utente](docs/plans/2026-09-27-aggiornamento-runtime-e-bus-utente.md) sono fatte le Fasi 1, 1b, 2, 3,
+[aggiornamento runtime e bus utente](docs/archive/2026-09-27-aggiornamento-runtime-e-bus-utente.md) sono fatte le Fasi 1, 1b, 2, 3,
 4 e le Novità brevi it/en; restano un destinatario email di progetto e l'avviso a schermo su LVGL. Nuovo seme:
 [il quadlet che non viaggia con l'aggiornamento](docs/plans/2026-09-29-quadlet-che-non-viaggia.md). **Prossimo lavoro in fila**:
 il [piano utenti e aziende](docs/plans/2026-09-18-identita-utenti-istanze.md) (29 decisioni), di cui l'aggiornamento era il
@@ -185,7 +213,7 @@ dopo il progetto di prova). Il pilota automatico del TC620 è ora il lunedì all
 `git push origin --delete feat/aggiornamento-f1b-changelog` (il ramo della 1b esiste ancora su origin) e i tag
 `2.12.0-rc.3` … `2.12.0-rc.9`.
 
-Dentro (piano [aggiornamento runtime e bus utente](docs/plans/2026-09-27-aggiornamento-runtime-e-bus-utente.md), decisioni
+Dentro (piano [aggiornamento runtime e bus utente](docs/archive/2026-09-27-aggiornamento-runtime-e-bus-utente.md), decisioni
 41-58):
 - **1b** — il changelog nell'immagine, gli avvisi di compatibilità con la seconda conferma, l'avviso a schermo sul pannello
   senza utenti (corretto due volte: rotte assenti sulla porta del viewer, e `progettoHaUtenti` che nel viewer nessuno
@@ -304,7 +332,7 @@ cambiare a fine collaudo.
 ## Riprendere da qui (precedente) — Fase 1 scritta, collaudo fermo al login di ghcr.io (2026-09-27, notte)
 
 **Un ramo aperto, `feat/aggiornamento-runtime-f1`, niente pushato.** Piano
-[aggiornamento runtime e bus utente](docs/plans/2026-09-27-aggiornamento-runtime-e-bus-utente.md) (decisioni 30-40;
+[aggiornamento runtime e bus utente](docs/archive/2026-09-27-aggiornamento-runtime-e-bus-utente.md) (decisioni 30-40;
 prerequisito del piano utenti e aziende). Prova del bus utente dal container sul TC620: **regge** (serve `keep-id`).
 Fase 1 scritta e verde (cargo, 423 test web, 926 vitest, 26 guardie): quadlet con `AutoUpdate=registry`,
 `Notify=healthy`, bus utente e `SWS_IMAGE`; runtime `aggiornamento.rs` + `/api/update/{status,apply}` (anche sulla
@@ -330,7 +358,7 @@ tutto») e squashato; piano e due semi in archivio. Il TC620 gira la **2.12.0-de
 `allow_url_override = false` (lo ha messo il maintainer: vedi `docs/TEST_SETUPS.md`). **Tag mancanti**:
 `2.12.0-dev.3`, `dev.4`, `dev.5` — da creare col push, quando lo chiede. Prossimo lavoro scelto: utenti e aziende
 ([piano](docs/plans/2026-09-18-identita-utenti-istanze.md), 29 decisioni), **preceduto** dal suo prerequisito
-[aggiornamento del runtime e bus utente](docs/plans/2026-09-27-aggiornamento-runtime-e-bus-utente.md) (assorbe la
+[aggiornamento del runtime e bus utente](docs/archive/2026-09-27-aggiornamento-runtime-e-bus-utente.md) (assorbe la
 commutazione del display via D-Bus). Prima prova: il bus utente dal container sul TC620.
 
 ### Il ramo, com'era prima dello squash

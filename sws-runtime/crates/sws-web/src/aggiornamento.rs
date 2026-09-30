@@ -1,4 +1,4 @@
-//! Aggiornamento del runtime (piano `docs/plans/2026-09-27-aggiornamento-runtime-e-bus-utente.md`, Fase 1).
+//! Aggiornamento del runtime (piano `docs/archive/2026-09-27-aggiornamento-runtime-e-bus-utente.md`, Fase 1).
 //!
 //! Il runtime sa **che versione è** (compilata dentro) e, dalla variabile
 //! `SWS_IMAGE` che l'installer scrive nel quadlet, **che immagine esegue**. Il
@@ -408,12 +408,40 @@ pub async fn stato() -> StatoAggiornamento {
 pub async fn stato_con_esito(config_dir: &std::path::Path) -> StatoAggiornamento {
     let mut st = stato().await;
     let p = crate::aggiornamento_finestra::carica(config_dir).await;
-    st.evento = p.evento;
+    st.evento = p.evento.filter(|e| riguarda_questa_versione(e, VERSIONE));
     st.in_corso = p.in_corso.is_some();
     if st.evento.is_some() {
         st.novita_installata = novita_di_questa().await;
     }
     st
+}
+
+/// Un esito parla della versione che gira **adesso**: se ne gira un'altra, è
+/// storia vecchia e non va più mostrato.
+///
+/// # Perché (30-09-2026)
+///
+/// Il maintainer aggiorna il pannello dalla rc.12 alla rc.13 e legge sullo
+/// schermo «aggiornato dalla rc.11 alla rc.12»: era l'esito del giorno prima,
+/// che non aveva chiuso. «Chiuso una volta non ricompare» (decisione 54) dice
+/// cosa fare quando qualcuno lo chiude, e nessuno aveva detto cosa fare quando
+/// **arriva una versione nuova** — così restava lì a raccontare un
+/// aggiornamento che non era più l'ultimo, contraddicendo il pannello sotto.
+///
+/// Le due condizioni non sono la stessa: dopo un aggiornamento **riuscito**
+/// gira la versione di arrivo, dopo uno **non riuscito** gira quella di
+/// partenza, perché podman è tornato indietro. Confrontare sempre con `a`
+/// butterebbe via ogni «non riuscito» appena scritto — che è l'esito che più
+/// conta far vedere.
+pub(crate) fn riguarda_questa_versione(
+    e: &crate::aggiornamento_esito::Evento,
+    versione_adesso: &str,
+) -> bool {
+    use crate::aggiornamento_esito::Esito;
+    match e.esito {
+        Esito::Riuscito => e.a.as_deref() == Some(versione_adesso),
+        Esito::NonRiuscito => e.da == versione_adesso,
+    }
 }
 
 async fn novita_di_questa() -> Option<NovitaVersione> {
@@ -601,4 +629,41 @@ mod tests {
         let nomi: Vec<_> = fuori.iter().map(|x| x.versione.as_str()).collect();
         assert_eq!(nomi, ["2.12.0-rc.10", "2.12.0"]);
     }
+    /// Il 30-09-2026: aggiornato il pannello dalla rc.12 alla rc.13, sullo
+    /// schermo restava «aggiornato dalla rc.11 alla rc.12» — l'esito del
+    /// giorno prima, mai chiuso.
+    #[test]
+    fn un_esito_di_due_versioni_fa_non_si_mostra_piu() {
+        use crate::aggiornamento_esito::{Esito, Evento};
+        let vecchio = Evento {
+            id: 1,
+            da: "2.12.0-rc.11".into(),
+            a: Some("2.12.0-rc.12".into()),
+            esito: Esito::Riuscito,
+        };
+        assert!(
+            !riguarda_questa_versione(&vecchio, "2.12.0-rc.13"),
+            "un esito che parla di una versione che non gira più è storia vecchia"
+        );
+        assert!(
+            riguarda_questa_versione(&vecchio, "2.12.0-rc.12"),
+            "finché gira quella versione, l'esito è suo e va mostrato"
+        );
+    }
+
+    #[test]
+    fn un_non_riuscito_appena_scritto_si_mostra_eccome() {
+        use crate::aggiornamento_esito::{Esito, Evento};
+        // Dopo un ritorno indietro gira la versione di PARTENZA: confrontare
+        // con `a` butterebbe via proprio l'esito che più conta far vedere.
+        let fallito = Evento {
+            id: 2,
+            da: "2.12.0-rc.12".into(),
+            a: Some("2.12.0-rc.13".into()),
+            esito: Esito::NonRiuscito,
+        };
+        assert!(riguarda_questa_versione(&fallito, "2.12.0-rc.12"));
+        assert!(!riguarda_questa_versione(&fallito, "2.13.0"));
+    }
+
 }

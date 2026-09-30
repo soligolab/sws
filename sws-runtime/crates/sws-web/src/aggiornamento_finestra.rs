@@ -1,5 +1,5 @@
 //! La finestra dell'aggiornamento del runtime (piano
-//! `docs/plans/2026-09-27-aggiornamento-runtime-e-bus-utente.md`, Fase 2).
+//! `docs/archive/2026-09-27-aggiornamento-runtime-e-bus-utente.md`, Fase 2).
 //!
 //! Due forme, entrambe del **dispositivo** e non del progetto (decisione 39), in
 //! `<config_dir>/aggiornamento.yaml`:
@@ -44,6 +44,10 @@ pub struct Programma {
     /// L'ultimo aggiornamento concluso, riuscito o no (Fase 3).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub evento: Option<crate::aggiornamento_esito::Evento>,
+    /// L'ultima versione nuova già notificata sui canali (29-09-2026: «una volta
+    /// per versione», non a ogni avvio).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub versione_notificata: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

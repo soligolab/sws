@@ -909,6 +909,7 @@ mod tests {
                 inhibit_tag: None,
                 inhibit_condition: None,
                 notify_email: None,
+                email_mode: None,
                 escalate_after_s: None,
                 escalate_to: None,
                 telegram_mode: None,

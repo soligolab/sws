@@ -225,15 +225,22 @@ pub struct AlarmDef {
     /// Defaults to `BoolTrue` when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub inhibit_condition: Option<AlarmCondition>,
-    /// Email addresses to notify on alarm activation.
+    /// I destinatari **propri** di questo allarme, per `AlarmEmailMode::Propri`.
+    /// Fino al 29-09-2026 erano semplici indirizzi, e i progetti di allora si
+    /// leggono ancora (vedi [`Destinatario`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub notify_email: Option<Vec<String>>,
+    pub notify_email: Option<Vec<Destinatario>>,
+    /// Dove va l'email di questo allarme. **Assente** vuol dire: i suoi
+    /// destinatari se ne ha (è ciò che facevano i progetti scritti prima del
+    /// campo), altrimenti quelli di progetto — vedi [`AlarmDef::modo_email`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub email_mode: Option<AlarmEmailMode>,
     /// Seconds after activation before escalating (if alarm not ACKed).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub escalate_after_s: Option<f64>,
-    /// Email addresses to notify on escalation.
+    /// I destinatari dell'escalation (per allarme, decisione del 29-09-2026).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub escalate_to: Option<Vec<String>>,
+    pub escalate_to: Option<Vec<Destinatario>>,
     /// Where this alarm's Telegram message goes. **Absent means `Global`**, so
     /// projects written before this field existed keep notifying every chat —
     /// which is what they did, and silently changing that would lose alarms.
@@ -245,6 +252,18 @@ pub struct AlarmDef {
 }
 
 impl AlarmDef {
+    /// Il modo email effettivo. Un allarme senza `email_mode` scritto prima del
+    /// 29-09-2026 mandava solo ai suoi `notify_email`: se li ha, resta così;
+    /// se non li ha, prende quelli di progetto — che nei progetti vecchi non ci
+    /// sono, quindi niente cambia finché qualcuno non li aggiunge.
+    pub fn modo_email(&self) -> AlarmEmailMode {
+        match self.email_mode {
+            Some(m) => m,
+            None if self.notify_email.as_ref().is_some_and(|v| !v.is_empty()) => AlarmEmailMode::Propri,
+            None => AlarmEmailMode::Progetto,
+        }
+    }
+
     /// I livelli effettivi: quelli dichiarati, o il formato vecchio letto come
     /// un livello solo. Il motore passa **sempre** di qui, così un progetto
     /// non ancora convertito continua a proteggere l'impianto mentre qualcuno
@@ -294,6 +313,57 @@ impl AlarmDef {
             .filter(|(_, l)| l.condition.evaluate(value))
             .max_by_key(|(i, l)| (l.severity, *i))
     }
+}
+
+/// Un destinatario email: l'indirizzo e, se diversa da quella del canale, la
+/// lingua in cui scrivergli (decisione del 29-09-2026: «`{indirizzo, lingua}`
+/// subito», una migrazione sola invece di due).
+///
+/// Si legge **anche la stringa nuda** dei progetti scritti prima, così un
+/// progetto vecchio si apre com'era; si scrive sempre nella forma nuova.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(from = "DestinatarioLetto")]
+pub struct Destinatario {
+    pub indirizzo: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lingua: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum DestinatarioLetto {
+    Nudo(String),
+    Pieno {
+        indirizzo: String,
+        #[serde(default)]
+        lingua: Option<String>,
+    },
+}
+
+impl From<DestinatarioLetto> for Destinatario {
+    fn from(d: DestinatarioLetto) -> Self {
+        match d {
+            DestinatarioLetto::Nudo(indirizzo) => Destinatario { indirizzo, lingua: None },
+            DestinatarioLetto::Pieno { indirizzo, lingua } => Destinatario {
+                indirizzo,
+                // Una lingua vuota è «come il canale», non una lingua.
+                lingua: lingua.filter(|l| !l.trim().is_empty()),
+            },
+        }
+    }
+}
+
+/// Dove va l'email di un allarme — lo stesso schema di [`AlarmTelegramMode`]
+/// (scelta del maintainer, 29-09-2026).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AlarmEmailMode {
+    /// I destinatari di progetto (Configurazione → Notifiche).
+    Progetto,
+    /// Solo i destinatari propri dell'allarme (`notify_email`).
+    Propri,
+    /// Nessuna email per questo allarme.
+    Off,
 }
 
 /// Per-alarm Telegram routing.
@@ -1233,6 +1303,7 @@ mod tests {
             inhibit_tag: None,
             inhibit_condition: None,
             notify_email: None,
+            email_mode: None,
             escalate_after_s: None,
             escalate_to: None,
             telegram_mode: None,
@@ -1964,5 +2035,38 @@ mod qualita_tests {
             attivo(&db).await,
             "una sorgente caduta ha spento un allarme vero"
         );
+    }
+}
+
+#[cfg(test)]
+mod destinatari_email {
+    use super::*;
+
+    /// Un progetto scritto prima del 29-09-2026 ha indirizzi nudi: si apre.
+    #[test]
+    fn si_leggono_le_stringhe_nude_e_la_forma_nuova() {
+        let v: Vec<Destinatario> = serde_yaml::from_str(
+            "- mario@x.it\n- {indirizzo: hans@y.de, lingua: de}\n- {indirizzo: ana@z.es, lingua: ''}\n",
+        )
+        .unwrap();
+        assert_eq!(v[0], Destinatario { indirizzo: "mario@x.it".into(), lingua: None });
+        assert_eq!(v[1].lingua.as_deref(), Some("de"));
+        assert_eq!(v[2].lingua, None, "una lingua vuota è «come il canale»");
+        // Si scrive sempre la forma nuova.
+        let y = serde_yaml::to_string(&v[0]).unwrap();
+        assert!(y.contains("indirizzo: mario@x.it"), "{y}");
+    }
+
+    fn allarme(yaml: &str) -> AlarmDef {
+        serde_yaml::from_str(&format!("id: a\ntag: t\n{yaml}")).unwrap()
+    }
+
+    /// Un allarme vecchio con i suoi indirizzi continua a mandare solo a quelli.
+    #[test]
+    fn il_modo_email_riproduce_il_comportamento_di_prima() {
+        assert_eq!(allarme("notify_email: [mario@x.it]\n").modo_email(), AlarmEmailMode::Propri);
+        assert_eq!(allarme("").modo_email(), AlarmEmailMode::Progetto);
+        assert_eq!(allarme("notify_email: [mario@x.it]\nemail_mode: off\n").modo_email(), AlarmEmailMode::Off);
+        assert_eq!(allarme("email_mode: progetto\nnotify_email: [a@b.c]\n").modo_email(), AlarmEmailMode::Progetto);
     }
 }

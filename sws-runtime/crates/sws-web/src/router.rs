@@ -337,6 +337,7 @@ pub fn build(
             put(update_project_backup_config),
         )
         .route("/api/notifications/test-telegram", post(test_telegram))
+        .route("/api/notifications/test-email", post(test_email))
         .route(
             "/api/notifications/telegram-bot",
             post(telegram_bot_identity),
@@ -8750,6 +8751,104 @@ async fn test_telegram(
     match crate::telegram::send_message(&client, &token, &req.chat_ids, &text).await {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => (StatusCode::BAD_GATEWAY, format!("{e:#}")).into_response(),
+    }
+}
+
+#[derive(Deserialize)]
+struct TestEmailRequest {
+    smtp: sws_core::project::SmtpConfig,
+    /// A chi mandarla. Vuoto: i destinatari di progetto, e se non ce ne sono
+    /// il mittente stesso — che è sempre una casella del maintainer.
+    #[serde(default)]
+    to: Vec<String>,
+}
+
+/// `POST /api/notifications/test-email` — manda **una** email di prova e
+/// aspetta l'esito.
+///
+/// # Perché aspetta, a differenza di tutti gli altri invii
+///
+/// Le email vere sono fire-and-forget: partono su un task e un fallimento
+/// finisce nel log, perché nessuno deve restare fermo ad aspettare la posta
+/// mentre un impianto va. Qui è l'opposto: chi ha appena scritto host, porta e
+/// password vuole sapere **adesso** se quei dati sono giusti, e soprattutto
+/// vuole leggere l'errore vero — «authentication failed», «connection
+/// refused», un nome di host che non risolve. Un pulsante di prova che dice
+/// solo «inviata» non prova niente.
+///
+/// Chiesto dal maintainer il 30-09-2026: «dove configuro SMTP serve un
+/// pulsante di test». Gemello di `test_telegram`, compresa la regola della
+/// password mascherata: la UI non ha mai il segreto in chiaro (il server non
+/// lo rimanda indietro), quindi se arriva il placeholder o il campo vuoto si
+/// usa quella salvata — ed è anche ciò che fa provare la **stessa** catena che
+/// manderà gli allarmi, invece di una configurazione che esiste solo qui.
+async fn test_email(State(s): State<AppState>, Json(req): Json<TestEmailRequest>) -> Response {
+    let mut smtp = req.smtp;
+    let salvata = match active_dir(&s).await {
+        Ok(dir) => Project::load(&dir).ok(),
+        Err(_) => None,
+    };
+    let cfg_salvata = salvata.as_ref().and_then(|p| p.notifications.clone());
+    if smtp
+        .password
+        .as_deref()
+        .map(|p| p == MASKED_PASSWORD || p.trim().is_empty())
+        .unwrap_or(true)
+    {
+        smtp.password = cfg_salvata
+            .as_ref()
+            .and_then(|n| n.smtp.as_ref())
+            .and_then(|s| s.password.clone());
+    }
+    if smtp.host.trim().is_empty() || smtp.from.trim().is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            "Servono almeno l'host SMTP e l'indirizzo del mittente.",
+        )
+            .into_response();
+    }
+    let mut to: Vec<String> = req
+        .to
+        .into_iter()
+        .map(|a| a.trim().to_string())
+        .filter(|a| !a.is_empty())
+        .collect();
+    if to.is_empty() {
+        to = cfg_salvata
+            .as_ref()
+            .map(|n| {
+                n.destinatari_email
+                    .iter()
+                    .map(|d| d.indirizzo.clone())
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+    }
+    if to.is_empty() {
+        to = vec![smtp.from.clone()];
+    }
+    let elenco = to.join(", ");
+    let corpo = format!(
+        "Prova di invio da SWS.\n\nSe leggi questo messaggio, il server di posta configurato nel \
+         progetto funziona: host {}, porta {}, mittente {}.",
+        smtp.host,
+        smtp.port.unwrap_or(587),
+        smtp.from
+    );
+    match tokio::task::spawn_blocking(move || {
+        crate::notifications::invia_una_prova(&smtp, &to, "[SWS] Prova di invio", &corpo)
+    })
+    .await
+    {
+        // JSON e non testo semplice: il client fa `res.json()` su ogni
+        // risposta con un corpo.
+        Ok(Ok(())) => (StatusCode::OK, Json(elenco)).into_response(),
+        Ok(Err(e)) => (StatusCode::BAD_GATEWAY, format!("{e:#}")).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("invio non eseguito: {e}"),
+        )
+            .into_response(),
     }
 }
 

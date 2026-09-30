@@ -1,5 +1,5 @@
 //! L'esito di un aggiornamento del runtime (piano
-//! `docs/plans/2026-09-27-aggiornamento-runtime-e-bus-utente.md`, Fase 3,
+//! `docs/archive/2026-09-27-aggiornamento-runtime-e-bus-utente.md`, Fase 3,
 //! decisioni 52-54).
 //!
 //! Il maintainer, il 28-09-2026, dopo che il pilota automatico aveva aggiornato
@@ -86,14 +86,25 @@ pub fn decidi(ic: &InCorso, versione_adesso: &str, adesso_ms: i64) -> Decisione 
     }
 }
 
-/// Il testo per i canali del progetto (Telegram).
-pub fn messaggio(host: &str, e: &Evento) -> String {
+/// Il testo per i canali del progetto, nella lingua `lingua` — le stesse frasi
+/// dell'avviso a schermo (`testi_sistema`), così Telegram, email e pannello
+/// dicono la stessa cosa.
+pub fn messaggio(host: &str, e: &Evento, lingua: &str) -> String {
+    use sws_core::testi_sistema::{testo, testo_con, Testo};
+    let a = e.a.as_deref().unwrap_or("?");
+    // Titolo e versioni separati, come nell'avviso a schermo dal 30-09-2026:
+    // su Telegram e in una casella di posta il titolo è la riga che si legge
+    // nell'anteprima, e «Aggiornamento completato» dice già tutto.
     match e.esito {
-        Esito::Riuscito => format!("✅ {host}: runtime aggiornato dalla {} alla {}", e.da, e.a.as_deref().unwrap_or("?")),
+        Esito::Riuscito => format!(
+            "✅ {host}: {} — {}",
+            testo(Testo::EsitoTitoloOk, lingua),
+            testo_con(Testo::EsitoVersioni, lingua, &[("da", &e.da), ("a", a)])
+        ),
         Esito::NonRiuscito => format!(
-            "⚠️ {host}: aggiornamento {}non riuscito — il pannello è tornato alla {}",
-            e.a.as_deref().map(|a| format!("alla {a} ")).unwrap_or_default(),
-            e.da
+            "⚠️ {host}: {} — {}",
+            testo(Testo::EsitoTitoloKo, lingua),
+            testo_con(Testo::EsitoSpiega, lingua, &[("da", &e.da), ("a", a)])
         ),
     }
 }
@@ -152,10 +163,41 @@ pub async fn all_avvio(s: crate::router::AppState) {
         tracing::warn!("aggiornamento: esito non salvato: {e}");
     }
     let host = hostname();
-    let testo = messaggio(&host, &esito);
-    tracing::info!(esito = ?esito.esito, "{testo}");
-    if let Some(t) = s.telegram_sender.read().await.as_ref() {
-        let _ = t.message_sender().send(crate::telegram::TelegramMessage::global(testo));
+    tracing::info!(esito = ?esito.esito, "{}", messaggio(&host, &esito, "it"));
+    // Sui canali che la tabella eventi × canali sceglie per l'esito (29-09-2026:
+    // anche l'email, ai destinatari di progetto), ognuno nella sua lingua.
+    crate::notifications::invia_sistema(&s, crate::notifications::EventoSistema::EsitoAggiornamento, |l| {
+        messaggio(&host, &esito, l)
+    })
+    .await;
+}
+
+/// All'avvio: se nel canale c'è una versione nuova non ancora notificata, la si
+/// dice sui canali scelti per «versione nuova» — **una volta per versione**
+/// (29-09-2026), ricordata in `aggiornamento.yaml`, perché un pannello che si
+/// riavvia spesso non ripeta lo stesso messaggio.
+pub async fn versione_nuova_all_avvio(s: crate::router::AppState) {
+    // Dopo l'esito e dopo che le notifiche del progetto sono partite.
+    tokio::time::sleep(std::time::Duration::from_secs(90)).await;
+    let st = crate::aggiornamento::stato().await;
+    let Some(nuova) = st.disponibile else { return };
+    let dir = s.config_dir.as_ref().clone();
+    if carica(&dir).await.versione_notificata.as_deref() == Some(nuova.as_str()) {
+        return;
+    }
+    let host = hostname();
+    let partito = crate::notifications::invia_sistema(&s, crate::notifications::EventoSistema::VersioneNuova, |l| {
+        format!(
+            "🆕 {host}: {}",
+            sws_core::testi_sistema::testo_con(sws_core::testi_sistema::Testo::AggTitolo, l, &[("a", &nuova)])
+        )
+    })
+    .await;
+    if partito {
+        let mut p = carica(&dir).await;
+        p.versione_notificata = Some(nuova.clone());
+        let _ = salva(&dir, &p).await;
+        tracing::info!(versione = %nuova, "versione nuova notificata");
     }
 }
 
@@ -186,8 +228,12 @@ mod tests {
     #[test]
     fn i_messaggi_dicono_da_dove_a_dove() {
         let ok = Evento { id: 1, da: "2.12.0-rc.8".into(), a: Some("2.12.0-rc.9".into()), esito: Esito::Riuscito };
-        assert_eq!(messaggio("tc620", &ok), "✅ tc620: runtime aggiornato dalla 2.12.0-rc.8 alla 2.12.0-rc.9");
+        let it = messaggio("tc620", &ok, "it");
+        assert!(it.starts_with("✅ tc620: ") && it.contains("2.12.0-rc.8") && it.contains("2.12.0-rc.9"), "{it}");
+        // Nella lingua del destinatario, non cablato in italiano.
+        assert_ne!(messaggio("tc620", &ok, "en"), it);
         let ko = Evento { esito: Esito::NonRiuscito, ..ok };
-        assert!(messaggio("tc620", &ko).contains("non riuscito") && messaggio("tc620", &ko).contains("tornato alla 2.12.0-rc.8"));
+        let k = messaggio("tc620", &ko, "it");
+        assert!(k.starts_with("⚠️") && k.contains("2.12.0-rc.8"), "{k}");
     }
 }

@@ -25,6 +25,8 @@ versioni:
         en: "Before updating you can read what is new and the compatibility warnings; on a panel without users a notice appears on screen."
       - it: "Dopo un aggiornamento il pannello dice «aggiornato dalla X alla Y», con le novità; se non riesce lo dice in rosso. L'esito arriva anche su Telegram."
         en: "After an update the panel says «updated from X to Y», with what is new; if it fails it says so in red. The outcome also goes to Telegram."
+      - it: "Email come Telegram: destinatari di progetto con la loro lingua, una tabella che sceglie quali eventi escono su quale canale, e un pulsante che prova il server di posta e dice cosa non va."
+        en: "Email works like Telegram: project recipients with their own language, a table that chooses which events go out on which channel, and a button that tests the mail server and says what is wrong."
       - it: "Git nel progetto: storia e differenze, prova di un commit vecchio, fork di un progetto, invio a GitHub."
         en: "Git in the project: history and diffs, trying an old commit, forking a project, pushing to GitHub."
       - it: "Pannello delle proprietà a un solo livello; il tag di un pulsante sta accanto ai suoi parametri."

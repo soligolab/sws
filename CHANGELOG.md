@@ -20,6 +20,16 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   mostra lo stato ma non le novità. Vale per la `2.12.0-rc.1` e la `rc.2`.
 
 ### Added
+- **Un pulsante che prova il server di posta**, dove lo si configura: manda un'email di prova e **aspetta la risposta del server**, così un host sbagliato, una
+  password rifiutata o una porta chiusa si vedono subito e con il messaggio vero. Gli invii veri restano fire-and-forget — un allarme non aspetta la posta — ma
+  una configurazione che non si può provare si scopre sbagliata al primo allarme, cioè nel momento peggiore. La password mascherata fa usare quella salvata,
+  quindi la prova percorre la stessa catena degli allarmi; senza destinatari di progetto l'email va al mittente.
+- **L'email come canale di notifica, al pari di Telegram** (R2 del piano delle due code): destinatari email **di progetto** `{indirizzo, lingua}` nella
+  scheda Notifiche, e una **tabella eventi × canali** (allarme scattato, rientrato, escalation, esito di un aggiornamento, versione nuova) con i default che
+  riproducono il comportamento di prima. Ogni allarme sceglie dove va la sua email come già per Telegram: destinatari di progetto, solo i suoi, nessuna. Ogni
+  destinatario riceve nella sua lingua (un messaggio per lingua). Il rientro di un allarme si può notificare (prima no). L'esito dell'aggiornamento e la
+  versione nuova (una volta per versione) escono anche via email, nella lingua di ciascuno. I `notify_email`/`escalate_to` scritti come semplici indirizzi
+  si leggono ancora e si riscrivono nella forma nuova. Fixture condivisa `tests/fixtures/tabella-eventi-predefinita.json` fra Rust e editor.
 - **L'avviso di aggiornamento anche sul pannello LVGL** (la decisione 41 diceva «in web **e** in LVGL», e fino alla `rc.10` era fatta a metà): su un
   pannello senza utenti, l'esito dell'ultimo aggiornamento e l'avviso di versione nuova compaiono anche sullo schermo LVGL, con gli avvisi di
   compatibilità in rosso e in cima, le Novità scorrevoli, e i tre pulsanti «Ignora questa versione» / «Più tardi» / «Aggiorna ora». L'overlay sta sul
@@ -36,7 +46,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   automatico senza annullarli; a connessione avvenuta i campi propongono l'orologio del pannello più qualche minuto e dicono accanto di che fuso è l'ora
   («ora del pannello, UTC+00:00»), con un avviso se il pannello è in UTC. Il pilota sceglie più giorni. Una programmazione appena salvata sveglia
   subito il runtime, che prima poteva accorgersene fino a un'ora dopo.
-- **La finestra dell'aggiornamento del runtime** (Fase 2 del [piano](docs/plans/2026-09-27-aggiornamento-runtime-e-bus-utente.md)): nella sezione «Aggiornamento del
+- **La finestra dell'aggiornamento del runtime** (Fase 2 del [piano](docs/archive/2026-09-27-aggiornamento-runtime-e-bus-utente.md)): nella sezione «Aggiornamento del
   runtime» si programma la versione disponibile per un giorno e un'ora **del pannello** (una volta sola), oppure si accende il **pilota automatico**, che
   a ogni finestra installa ciò che c'è di nuovo nel canale. L'orologio del pannello si vede in locale e in UTC. Un'approvazione non installa mai una
   versione diversa da quella approvata: se nel canale ne esce una più nuova, si annulla e lo dice; una finestra mancata di più di un'ora non si
@@ -49,7 +59,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 - **Sul pannello senza utenti l'avviso compare a schermo**, all'avvio: una finestra con le novità, gli avvisi in cima, e tre scelte. «Più tardi» nasconde fino al prossimo avvio, **«Ignora questa
   versione»** ricorda la scelta e tace finché non ne esce una più nuova. Con utenti definiti non compare e il registry non viene nemmeno interrogato: l'aggiornamento resta dell'Admin, dall'IDE.
   Per ora solo nel viewer web; su LVGL arriverà.
-- **Aggiornamento del runtime dall'IDE** (Fase 1 del [piano](docs/plans/2026-09-27-aggiornamento-runtime-e-bus-utente.md)): in Configurazione → Istanza →
+- **Aggiornamento del runtime dall'IDE** (Fase 1 del [piano](docs/archive/2026-09-27-aggiornamento-runtime-e-bus-utente.md)): in Configurazione → Istanza →
   Device → Connessione la sezione «Aggiornamento del runtime» dice versione e canale del pannello (stabile `latest-<arch>`, prova `rc-<arch>`) e se nel canale
   c'è una versione più nuova, letta dal registry senza credenziali; «Aggiorna ora» (Admin, con conferma) fa avviare al pannello `podman-auto-update` via bus
   utente di systemd. Il quadlet ha `AutoUpdate=registry` e `Notify=healthy`: se la versione nuova non diventa sana, podman torna alla precedente. I pannelli

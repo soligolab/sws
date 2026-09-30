@@ -13,13 +13,13 @@ pub mod traduzione;
 
 pub use alarm::{
     now_ms, AlarmCondition, AlarmDb, AlarmDef, AlarmEvent, AlarmLevel, AlarmSeverity, AlarmState,
-    AlarmTelegramMode, IsaState, ShelvedAlarm, TelegramRouting,
+    AlarmEmailMode, AlarmTelegramMode, Destinatario, IsaState, ShelvedAlarm, TelegramRouting,
 };
 pub use geometry::{bbox_of, is_off_page, BBox, CASI_FUORI_PAGINA};
 pub use logbus::{LogBus, LogEvent, DEFAULT_LOG_CAPACITY};
 pub use percorso::{Foglia, Forma, Segmento};
 pub use project::{
-    AffixPosition, CanaleNotifica, CustomSymbol, CustomSymbolAttribution, DatastoreBackendConfig,
+    AffixPosition, CanaleNotifica, CanaliEvento, CustomSymbol, CustomSymbolAttribution, DatastoreBackendConfig,
     DatastoreConfig, EnIpConfig, EnIpDataType, EnIpTagMapping, EntityMapping, FunctionDef,
     FunctionParam, GeneratorSpec, GlobalScriptDef, HomeAssistantConfig, HostConfig, HostMetric,
     HostMetricMapping, LangEntry, LanguageTable, Membro, ModbusRtuConfig, ModbusTcpConfig,
@@ -27,7 +27,7 @@ pub use project::{
     OpcUaNodeMapping, OpcUaServerConfig, OpcUaServerNodeMapping, PageLayoutConfig, PageSizeMode,
     PageTreeNode, Project, ProjectMeta, ProjectTarget, ProjectTargetKind, RandomClientId,
     RegisterMapping, S7Config, S7DataType, S7TagMapping, ScriptTrigger, SmtpConfig, SourceDef,
-    SparkplugConfig, SparkplugMetricMapping, TagDef, TelegramConfig, TopicMapping, TypeDef,
+    SparkplugConfig, SparkplugMetricMapping, TabellaEventi, TagDef, TelegramConfig, TopicMapping, TypeDef,
     MAX_FUNCTION_CODE_BYTES,
 };
 pub use tag::{

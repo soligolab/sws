@@ -1,5 +1,5 @@
 //! L'avviso di aggiornamento sullo schermo del pannello (decisioni 41, 44 e
-//! 52-54 del piano `docs/plans/2026-09-27-aggiornamento-runtime-e-bus-utente.md`).
+//! 52-54 del piano `docs/archive/2026-09-27-aggiornamento-runtime-e-bus-utente.md`).
 //!
 //! È il gemello di `sws-editor/src/runtime-view/AvvisoAggiornamento.tsx`: la
 //! decisione 41 dice «in web **e** in LVGL», e fino al 29-09-2026 era fatta

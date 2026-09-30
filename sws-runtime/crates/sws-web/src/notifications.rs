@@ -16,9 +16,13 @@ use lettre::{
     message::header::ContentType, transport::smtp::authentication::Credentials, Message,
     SmtpTransport, Transport,
 };
-use std::{collections::HashSet, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap, HashSet},
+    sync::Arc,
+};
 use sws_core::now_ms;
 use sws_core::{
+    AlarmEmailMode, Destinatario,
     AlarmDb, AlarmState, IsaState, LanguageTable, NotificationConfig, SmtpConfig, TagValue,
     TelegramRouting,
 };
@@ -152,6 +156,8 @@ struct EtichetteNotifica {
     attivo: &'static str,
     /// Il titolo dell'escalation. Stessa storia.
     escalation: &'static str,
+    /// Il titolo del rientro (29-09-2026: prima il rientro non si notificava).
+    rientro: &'static str,
 }
 
 fn etichette(lingua: &str) -> EtichetteNotifica {
@@ -170,6 +176,7 @@ fn etichette(lingua: &str) -> EtichetteNotifica {
         attivato: testo(Testo::Attivato, lingua),
         attivo: testo(Testo::AllarmeAttivo, lingua),
         escalation: testo(Testo::EscalationNonRiconosciuta, lingua),
+        rientro: testo(Testo::AllarmeRientrato, lingua),
     }
 }
 
@@ -184,6 +191,8 @@ fn etichette(lingua: &str) -> EtichetteNotifica {
 enum Evento {
     Attivazione,
     Escalation,
+    /// L'allarme è tornato normale (riga «rientro» della tabella eventi × canali).
+    Rientro,
 }
 
 impl Evento {
@@ -191,6 +200,7 @@ impl Evento {
         match self {
             Evento::Attivazione => e.attivo,
             Evento::Escalation => e.escalation,
+            Evento::Rientro => e.rientro,
         }
     }
     /// Il marcatore nell'oggetto dell'email. **Fisso in ogni lingua**, di
@@ -200,6 +210,7 @@ impl Evento {
         match self {
             Evento::Attivazione => "[SWS ALARM]",
             Evento::Escalation => "[SWS ESCALATION]",
+            Evento::Rientro => "[SWS CLEARED]",
         }
     }
 }
@@ -272,6 +283,116 @@ fn send_telegram(tx: &mpsc::UnboundedSender<TelegramMessage>, state: &AlarmState
     }
 }
 
+/// A chi va l'email di un allarme (29-09-2026): il modo dell'allarme, come
+/// per Telegram. `Progetto` → i destinatari di progetto; `Propri` → i suoi
+/// `notify_email`; `Off` → nessuno.
+fn destinatari_allarme(def: &sws_core::AlarmDef, di_progetto: &[Destinatario]) -> Vec<Destinatario> {
+    match def.modo_email() {
+        AlarmEmailMode::Progetto => di_progetto.to_vec(),
+        AlarmEmailMode::Propri => def.notify_email.clone().unwrap_or_default(),
+        AlarmEmailMode::Off => Vec::new(),
+    }
+}
+
+/// I destinatari raggruppati per lingua: la loro, altrimenti quella del canale.
+/// Un messaggio si compone una volta per lingua, non una per indirizzo.
+fn per_lingua(destinatari: &[Destinatario], lingua_canale: &str) -> BTreeMap<String, Vec<String>> {
+    let mut gruppi: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for d in destinatari {
+        let indirizzo = d.indirizzo.trim();
+        if indirizzo.is_empty() {
+            continue;
+        }
+        let lingua = d.lingua.clone().unwrap_or_else(|| lingua_canale.to_string());
+        gruppi.entry(lingua).or_default().push(indirizzo.to_string());
+    }
+    gruppi
+}
+
+/// Compone (oggetto, corpo) per ogni lingua e spedisce, senza bloccare il
+/// runtime. Gli errori si registrano e basta.
+fn spedisci_email(
+    smtp: &Arc<SmtpConfig>,
+    destinatari: &[Destinatario],
+    lingua_canale: &str,
+    cosa: &str,
+    componi: impl Fn(&str) -> (String, String),
+) {
+    for (lingua, to) in per_lingua(destinatari, lingua_canale) {
+        let (subject, body) = componi(&lingua);
+        let smtp = Arc::clone(smtp);
+        let cosa = cosa.to_string();
+        tokio::spawn(async move {
+            match tokio::task::spawn_blocking(move || send_email_sync(&smtp, &to, &subject, &body)).await {
+                Ok(Ok(())) => info!(%cosa, %lingua, "email sent"),
+                Ok(Err(e)) => warn!(%cosa, "email failed: {e}"),
+                Err(e) => warn!("email task panicked: {e}"),
+            }
+        });
+    }
+}
+
+/// Un invio **sincrono** di prova, con l'errore vero al chiamante.
+///
+/// È `send_email_sync` esposta apposta per il pulsante di prova della scheda
+/// Notifiche (30-09-2026): tutto il resto del modulo spedisce e dimentica,
+/// qui invece l'errore è il prodotto — è quello che dice se host, porta,
+/// credenziali e STARTTLS sono giusti. Da chiamare dentro `spawn_blocking`:
+/// il trasporto di `lettre` è sincrono e bloccherebbe il runtime async.
+pub fn invia_una_prova(
+    cfg: &SmtpConfig,
+    to: &[String],
+    subject: &str,
+    body: &str,
+) -> anyhow::Result<()> {
+    send_email_sync(cfg, to, subject, body)
+}
+
+/// Un evento di sistema da notificare (non un allarme).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EventoSistema {
+    EsitoAggiornamento,
+    VersioneNuova,
+}
+
+/// Manda un evento di sistema sui canali che la tabella eventi × canali del
+/// progetto aperto sceglie per lui: Telegram alle chat globali, email ai
+/// destinatari di progetto, ognuno nella sua lingua. `testo(lingua)` compone il
+/// messaggio. Restituisce se è partito su almeno un canale.
+pub async fn invia_sistema(
+    s: &crate::router::AppState,
+    evento: EventoSistema,
+    testo: impl Fn(&str) -> String,
+) -> bool {
+    let Ok(dir) = crate::router::active_dir(s).await else { return false };
+    let Ok(project) = sws_core::project::Project::load(&dir) else { return false };
+    let Some(cfg) = project.notifications.clone() else { return false };
+    let tabella = cfg.tabella();
+    let riga = match evento {
+        EventoSistema::EsitoAggiornamento => tabella.esito_aggiornamento,
+        EventoSistema::VersioneNuova => tabella.versione_nuova,
+    };
+    let ripiego = project.languages.default.clone();
+    let mut partito = false;
+    if riga.telegram {
+        if let Some(t) = s.telegram_sender.read().await.as_ref() {
+            let lingua = cfg.lingua_per(sws_core::CanaleNotifica::Telegram, &ripiego);
+            partito |= t.message_sender().send(TelegramMessage::global(testo(&lingua))).is_ok();
+        }
+    }
+    if riga.email && !cfg.destinatari_email.is_empty() {
+        if let Some(smtp) = cfg.smtp.clone().map(Arc::new) {
+            let lingua = cfg.lingua_per(sws_core::CanaleNotifica::Email, &ripiego);
+            spedisci_email(&smtp, &cfg.destinatari_email, &lingua, "evento di sistema", |l| {
+                let t = testo(l);
+                (format!("[SWS] {t}"), t)
+            });
+            partito = true;
+        }
+    }
+    partito
+}
+
 pub struct NotificationSupervisor {
     cancel: CancellationToken,
 }
@@ -303,6 +424,8 @@ impl NotificationSupervisor {
         let languages = std::sync::Arc::new(languages);
         let cancel = CancellationToken::new();
         let cancel_clone = cancel.clone();
+        let destinatari_progetto: Arc<Vec<Destinatario>> = Arc::new(config.destinatari_email.clone());
+        let tabella = config.tabella();
         let smtp: Option<Arc<SmtpConfig>> = config.smtp.map(Arc::new);
         let telegram = telegram_tx;
 
@@ -321,7 +444,8 @@ impl NotificationSupervisor {
         }
 
         tokio::spawn(async move {
-            // Task A: subscribe to alarm broadcasts, notify on activation.
+            // Task A: subscribe to alarm broadcasts, notify on activation and
+            // (29-09-2026) on return to normal, per la tabella eventi × canali.
             let mut alarm_rx = alarm_db.subscribe();
             let smtp_a = smtp.clone();
             let tg_a = telegram.clone();
@@ -329,32 +453,39 @@ impl NotificationSupervisor {
             let lingua_email_a = lingua_email.clone();
             let lingua_tg_a = lingua_tg.clone();
             let lingue_attiva = languages.clone();
+            let dest_a = destinatari_progetto.clone();
+            let tab_a = tabella.clone();
             tokio::spawn(async move {
+                // Chi era attivo: il rientro è il passaggio da attivo a non attivo.
+                let mut attivi: HashMap<String, bool> = HashMap::new();
                 loop {
                     tokio::select! {
                         res = alarm_rx.recv() => {
                             match res {
                                 Ok(state) => {
-                                    if state.isa_state != IsaState::ActiveUnacked { continue; }
-                                    // Email (opt-in per-alarm via notify_email), nella lingua del canale.
-                                    if let Some(smtp) = &smtp_a {
-                                        if let Some(to) = state.def.notify_email.clone().filter(|v| !v.is_empty()) {
-                                            let subject = alarm_subject(Evento::Attivazione, &state, &lingua_email_a, &lingue_attiva);
-                                            let body = alarm_body(&state, Evento::Attivazione, &lingua_email_a, &lingue_attiva);
-                                            let smtp = Arc::clone(smtp);
-                                            let id = state.def.id.clone();
-                                            tokio::spawn(async move {
-                                                match tokio::task::spawn_blocking(move || send_email_sync(&smtp, &to, &subject, &body)).await {
-                                                    Ok(Ok(())) => info!(alarm = %id, "alarm email sent"),
-                                                    Ok(Err(e)) => warn!(alarm = %id, "alarm email failed: {e}"),
-                                                    Err(e)     => warn!("alarm email task panicked: {e}"),
-                                                }
+                                    let era_attivo = attivi.insert(state.def.id.clone(), state.active).unwrap_or(false);
+                                    let (evento, canali) = if state.isa_state == IsaState::ActiveUnacked {
+                                        (Evento::Attivazione, tab_a.scatto)
+                                    } else if era_attivo && !state.active {
+                                        (Evento::Rientro, tab_a.rientro)
+                                    } else {
+                                        continue;
+                                    };
+                                    // Email: i destinatari secondo il modo dell'allarme, ognuno nella sua lingua.
+                                    if canali.email {
+                                        if let Some(smtp) = &smtp_a {
+                                            let dest = destinatari_allarme(&state.def, &dest_a);
+                                            let (st, tab) = (state.clone(), lingue_attiva.clone());
+                                            spedisci_email(smtp, &dest, &lingua_email_a, &state.def.id, |l| {
+                                                (alarm_subject(evento, &st, l, &tab), alarm_body(&st, evento, l, &tab))
                                             });
                                         }
                                     }
                                     // Telegram, instradato dal singolo allarme, nella SUA lingua.
-                                    if let Some(tx) = &tg_a {
-                                        send_telegram(tx, &state, alarm_body(&state, Evento::Attivazione, &lingua_tg_a, &lingue_attiva));
+                                    if canali.telegram {
+                                        if let Some(tx) = &tg_a {
+                                            send_telegram(tx, &state, alarm_body(&state, evento, &lingua_tg_a, &lingue_attiva));
+                                        }
                                     }
                                 }
                                 Err(broadcast::error::RecvError::Lagged(n)) => {
@@ -406,36 +537,21 @@ impl NotificationSupervisor {
                         continue;
                     }
                     guard.insert(key);
-                    // Email escalation (only if escalate_to recipients set), nella lingua del canale.
-                    if let Some(smtp) = &smtp_b {
-                        if let Some(to) = state.def.escalate_to.clone().filter(|v| !v.is_empty()) {
-                            let subject = alarm_subject(
-                                Evento::Escalation,
-                                state,
-                                &lingua_email_b,
-                                &lingue_esc,
-                            );
-                            let body =
-                                alarm_body(state, Evento::Escalation, &lingua_email_b, &lingue_esc);
-                            let smtp = Arc::clone(smtp);
-                            let id = state.def.id.clone();
-                            tokio::spawn(async move {
-                                match tokio::task::spawn_blocking(move || {
-                                    send_email_sync(&smtp, &to, &subject, &body)
-                                })
-                                .await
-                                {
-                                    Ok(Ok(())) => info!(alarm = %id, "escalation email sent"),
-                                    Ok(Err(e)) => {
-                                        warn!(alarm = %id, "escalation email failed: {e}")
-                                    }
-                                    Err(e) => warn!("escalation task panicked: {e}"),
-                                }
+                    // Email escalation ai suoi `escalate_to`, ognuno nella sua lingua.
+                    if tabella.escalation.email {
+                        if let Some(smtp) = &smtp_b {
+                            let dest = state.def.escalate_to.clone().unwrap_or_default();
+                            let (st, tab) = (state.clone(), lingue_esc.clone());
+                            spedisci_email(smtp, &dest, &lingua_email_b, &state.def.id, |l| {
+                                (
+                                    alarm_subject(Evento::Escalation, &st, l, &tab),
+                                    alarm_body(&st, Evento::Escalation, l, &tab),
+                                )
                             });
                         }
                     }
                     // Telegram escalation, con lo stesso instradamento, nella SUA lingua.
-                    if let Some(tx) = &tg_b {
+                    if let (true, Some(tx)) = (tabella.escalation.telegram, &tg_b) {
                         send_telegram(
                             tx,
                             state,
@@ -598,6 +714,8 @@ mod corpo_notifica_tests {
         // lingue diverse, con ripiego sulla predefinita delle notifiche.
         use sws_core::{CanaleNotifica, NotificationConfig};
         let cfg = NotificationConfig {
+            destinatari_email: Vec::new(),
+            eventi: None,
             smtp: None,
             telegram: None,
             notify_lang: Some("it".into()),
@@ -612,6 +730,8 @@ mod corpo_notifica_tests {
     fn senza_lingua_di_canale_vale_la_predefinita_e_poi_quella_del_progetto() {
         use sws_core::{CanaleNotifica, NotificationConfig};
         let solo_predefinita = NotificationConfig {
+            destinatari_email: Vec::new(),
+            eventi: None,
             smtp: None,
             telegram: None,
             notify_lang: Some("de".into()),
@@ -627,6 +747,8 @@ mod corpo_notifica_tests {
             "de"
         );
         let niente = NotificationConfig {
+            destinatari_email: Vec::new(),
+            eventi: None,
             smtp: None,
             telegram: None,
             notify_lang: None,
@@ -637,3 +759,41 @@ mod corpo_notifica_tests {
         assert_eq!(niente.lingua_per(CanaleNotifica::Email, "it"), "it");
     }
 }
+
+#[cfg(test)]
+mod destinatari_tests {
+    use super::*;
+
+    fn d(i: &str, l: Option<&str>) -> Destinatario {
+        Destinatario { indirizzo: i.into(), lingua: l.map(Into::into) }
+    }
+    fn allarme(yaml: &str) -> sws_core::AlarmDef {
+        serde_yaml::from_str(&format!("id: a\ntag: t\n{yaml}")).unwrap()
+    }
+
+    /// Il modo email dell'allarme sceglie i destinatari, come per Telegram.
+    #[test]
+    fn i_destinatari_seguono_il_modo_dell_allarme() {
+        let progetto = vec![d("capo@x.it", None)];
+        // Senza modo e senza indirizzi propri: quelli di progetto.
+        assert_eq!(destinatari_allarme(&allarme(""), &progetto), progetto);
+        // Un allarme vecchio con i suoi indirizzi: solo quelli, come prima.
+        let vecchio = allarme("notify_email: [turno@x.it]\n");
+        assert_eq!(destinatari_allarme(&vecchio, &progetto), vec![d("turno@x.it", None)]);
+        // Spento: nessuno.
+        assert!(destinatari_allarme(&allarme("email_mode: off\n"), &progetto).is_empty());
+    }
+
+    /// Ognuno nella sua lingua; chi non ne dichiara una, quella del canale.
+    #[test]
+    fn un_messaggio_per_lingua_non_uno_per_indirizzo() {
+        let g = per_lingua(
+            &[d("a@x.it", None), d("hans@y.de", Some("de")), d("b@x.it", None), d("  ", None)],
+            "it",
+        );
+        assert_eq!(g.get("it").unwrap(), &vec!["a@x.it".to_string(), "b@x.it".to_string()]);
+        assert_eq!(g.get("de").unwrap(), &vec!["hans@y.de".to_string()]);
+        assert_eq!(g.len(), 2, "un indirizzo vuoto non è un destinatario");
+    }
+}
+

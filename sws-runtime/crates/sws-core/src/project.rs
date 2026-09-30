@@ -1327,6 +1327,15 @@ pub struct NotificationConfig {
     pub smtp: Option<SmtpConfig>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub telegram: Option<TelegramConfig>,
+    /// I destinatari email **di progetto** (29-09-2026): l'equivalente dei
+    /// `chat_ids` di Telegram. Li usano gli allarmi in modo «progetto» e gli
+    /// eventi di sistema (esito dell'aggiornamento, versione nuova).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub destinatari_email: Vec<crate::alarm::Destinatario>,
+    /// Quali eventi escono su quali canali (tabella eventi × canali). Assente =
+    /// i default, che riproducono il comportamento di prima.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub eventi: Option<TabellaEventi>,
     /// In che lingua si scrivono email e messaggi Telegram.
     ///
     /// Una notifica **non ha uno schermo**, quindi non ha «la lingua
@@ -1354,6 +1363,69 @@ pub struct NotificationConfig {
     pub notify_lang_telegram: Option<String>,
 }
 
+/// Su quali canali esce un evento.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CanaliEvento {
+    #[serde(default)]
+    pub email: bool,
+    #[serde(default)]
+    pub telegram: bool,
+}
+
+impl CanaliEvento {
+    pub const fn di(email: bool, telegram: bool) -> Self {
+        Self { email, telegram }
+    }
+    pub fn per(&self, canale: CanaleNotifica) -> bool {
+        match canale {
+            CanaleNotifica::Email => self.email,
+            CanaleNotifica::Telegram => self.telegram,
+        }
+    }
+}
+
+/// La tabella eventi × canali della scheda Notifiche (29-09-2026). Ogni riga
+/// assente prende il suo default, e i default sono **ciò che succedeva
+/// prima**: scatto ed escalation su email e Telegram, rientro su niente (non
+/// esisteva), esito dell'aggiornamento su Telegram, versione nuova su niente.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TabellaEventi {
+    #[serde(default = "TabellaEventi::d_scatto")]
+    pub scatto: CanaliEvento,
+    #[serde(default = "TabellaEventi::d_niente")]
+    pub rientro: CanaliEvento,
+    #[serde(default = "TabellaEventi::d_scatto")]
+    pub escalation: CanaliEvento,
+    #[serde(default = "TabellaEventi::d_esito")]
+    pub esito_aggiornamento: CanaliEvento,
+    #[serde(default = "TabellaEventi::d_niente")]
+    pub versione_nuova: CanaliEvento,
+}
+
+impl TabellaEventi {
+    fn d_scatto() -> CanaliEvento {
+        CanaliEvento::di(true, true)
+    }
+    fn d_niente() -> CanaliEvento {
+        CanaliEvento::di(false, false)
+    }
+    fn d_esito() -> CanaliEvento {
+        CanaliEvento::di(false, true)
+    }
+}
+
+impl Default for TabellaEventi {
+    fn default() -> Self {
+        Self {
+            scatto: Self::d_scatto(),
+            rientro: Self::d_niente(),
+            escalation: Self::d_scatto(),
+            esito_aggiornamento: Self::d_esito(),
+            versione_nuova: Self::d_niente(),
+        }
+    }
+}
+
 /// I canali su cui esce una notifica. Ognuno può avere la propria lingua.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CanaleNotifica {
@@ -1362,6 +1434,11 @@ pub enum CanaleNotifica {
 }
 
 impl NotificationConfig {
+    /// La tabella effettiva: quella scritta, o i default.
+    pub fn tabella(&self) -> TabellaEventi {
+        self.eventi.clone().unwrap_or_default()
+    }
+
     /// La lingua in cui scrivere su `canale`: quella del canale, altrimenti la
     /// predefinita delle notifiche, altrimenti `ripiego` (la lingua principale
     /// della tabella del progetto).
@@ -1942,3 +2019,21 @@ impl SourceDef {
         self
     }
 }
+
+#[cfg(test)]
+mod tabella_eventi_tests {
+    use super::*;
+
+    /// La stessa tabella che l'editor considera predefinita: una fixture sola.
+    #[test]
+    fn i_default_sono_quelli_della_fixture_condivisa() {
+        let f: serde_json::Value =
+            serde_json::from_str(include_str!("../../../../tests/fixtures/tabella-eventi-predefinita.json")).unwrap();
+        let attesa: TabellaEventi = serde_json::from_value(f["tabella"].clone()).unwrap();
+        assert_eq!(TabellaEventi::default(), attesa);
+        // Una riga assente prende il suo default, non «spento».
+        let parziale: TabellaEventi = serde_json::from_str(r#"{"rientro":{"email":true,"telegram":false}}"#).unwrap();
+        assert!(parziale.scatto.telegram && parziale.esito_aggiornamento.telegram && parziale.rientro.email);
+    }
+}
+

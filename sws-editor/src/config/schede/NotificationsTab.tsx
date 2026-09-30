@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { api } from "@/api/client";
-import type { NotificationConfig, SmtpConfig, TelegramConfig } from "@/types";
+import type { CanaliEvento, Destinatario, NotificationConfig, SmtpConfig, TabellaEventi, TelegramConfig } from "@/types";
+import { TABELLA_PREDEFINITA } from "@/types";
+import { DestinatariEmail } from "@/config/DestinatariEmail";
 import { useAppStore } from "@/store";
 import { TRANS_COMP, S, MASKED, SaveBar } from "@/config/comuni";
 
@@ -21,18 +23,36 @@ export function NotificationsTab() {
   const [smtp, setSmtp] = useState<SmtpConfig>(initial?.smtp ?? emptySmtp());
   const [tgEnabled, setTgEnabled] = useState<boolean>(initial?.telegram != null);
   const [tg, setTg] = useState<TelegramConfig>(initial?.telegram ?? { bot_token: "", chat_ids: [] });
-  // Q57 — in che lingua parla una notifica. Una predefinita e, se serve, una
-  // per canale: "" = «come la predefinita», che il runtime tratta come non
-  // dichiarata. Fino al 18-09-2026 `notify_lang` non aveva nessun controllo qui
-  // — si impostava solo a mano nel YAML — e **il salvataggio di questa scheda
-  // lo cancellava**, perché il payload era `{ smtp, telegram }` e basta.
-  const [notifyLang, setNotifyLang] = useState<string>(initial?.notify_lang ?? "");
-  const [notifyLangEmail, setNotifyLangEmail] = useState<string>(initial?.notify_lang_email ?? "");
-  const [notifyLangTg, setNotifyLangTg] = useState<string>(initial?.notify_lang_telegram ?? "");
-  const lingueProgetto = storeProject?.languages?.langs ?? [];
-  const linguaPrincipale = storeProject?.languages?.default ?? "";
+  // Q57 — in che lingua parla una notifica. Dal 30-09-2026 quei tre campi si
+  // scelgono in **Lingue**, su richiesta del maintainer: sono una scelta di
+  // lingua, e lì stanno con le altre. Vivono però nella stessa sezione del
+  // progetto che salva questa scheda, quindi qui non si tengono in uno stato
+  // locale — si rileggono **dallo store al momento del salvataggio** (vedi
+  // `handleSave`). Tenerli in uno stato preso al mount vorrebbe dire
+  // riscrivere sopra, con i valori di prima, quello che intanto Lingue ha
+  // cambiato: è la forma esatta del difetto già pagato qui, un salvataggio
+  // che cancella ciò che la scheda non sa di avere.
+  // 29-09-2026: i destinatari email di progetto e la tabella eventi × canali.
+  // Stanno nel payload **sempre**, come le lingue: il difetto già pagato qui
+  // era un salvataggio che cancellava ciò che la scheda non rimandava.
+  const [destinatari, setDestinatari] = useState<Destinatario[]>(initial?.destinatari_email ?? []);
+  const [eventi, setEventi] = useState<TabellaEventi>({ ...TABELLA_PREDEFINITA, ...(initial?.eventi ?? {}) });
+  // Quale delle tre foglie è aperta. Il registro dice che «telegram» ed
+  // «eventi» sono ospiti di «notifications»: ConfigView monta sempre questo
+  // componente, e la foglia decide **cosa mostrare**, non cosa tenere. La
+  // bozza resta una — tre bozze su una sola sezione del progetto sarebbero
+  // tre occasioni di rifare il salvataggio parziale che una volta ha già
+  // cancellato le sezioni non incluse (vedi il commento in testa al file).
+  const foglia = useAppStore((s) => s.configTab);
+  const mostraSmtp = foglia === "notifications";
+  const mostraTelegram = foglia === "telegram";
+  const mostraEventi = foglia === "eventi";
+
   const [testing, setTesting] = useState(false);
   const [testMsg, setTestMsg] = useState<string | null>(null);
+  // Prova SMTP: stato suo, perché i due esiti non devono sovrascriversi.
+  const [provaMail, setProvaMail] = useState(false);
+  const [esitoMail, setEsitoMail] = useState<string | null>(null);
   const [detecting, setDetecting] = useState(false);
   const [detected, setDetected] = useState<{ id: string; label: string; type: string }[]>([]);
   const [detectMsg, setDetectMsg] = useState<string | null>(null);
@@ -74,13 +94,22 @@ export function NotificationsTab() {
     setSaving(true);
     setError(null);
     try {
-      const config: NotificationConfig | null = (enabled || tgEnabled)
+      const lingueAdesso = useAppStore.getState().project?.notifications;
+      const destinatariPieni = destinatari.filter((d) => d.indirizzo.trim() !== "");
+      const tabellaCambiata = JSON.stringify(eventi) !== JSON.stringify(TABELLA_PREDEFINITA);
+      const config: NotificationConfig | null = (enabled || tgEnabled || destinatariPieni.length > 0 || tabellaCambiata)
         ? {
             smtp: enabled ? smtp : undefined,
             telegram: tgEnabled ? tg : undefined,
-            notify_lang: notifyLang || undefined,
-            notify_lang_email: notifyLangEmail || undefined,
-            notify_lang_telegram: notifyLangTg || undefined,
+            destinatari_email: destinatariPieni.length ? destinatariPieni : undefined,
+            // Scritta solo se diversa dai default: un progetto che non la tocca
+            // non si trova il YAML riempito di caselle.
+            eventi: tabellaCambiata ? eventi : undefined,
+            // Non sono di questa scheda: si prendono da quel che c'è adesso
+            // nello store, non da una copia fatta al mount.
+            notify_lang: lingueAdesso?.notify_lang,
+            notify_lang_email: lingueAdesso?.notify_lang_email,
+            notify_lang_telegram: lingueAdesso?.notify_lang_telegram,
           }
         : null;
       await api.saveNotifications(config);
@@ -116,6 +145,28 @@ export function NotificationsTab() {
       setTestMsg("✗ " + (e instanceof Error ? e.message : String(e)));
     } finally {
       setTesting(false);
+    }
+  };
+
+  /** Manda un'email di prova e **aspetta** l'esito, che è il punto: chi ha
+   *  appena scritto host, porta e password vuole leggere l'errore vero —
+   *  «authentication failed», un host che non risolve — non un «inviata» che
+   *  non prova niente. Chiesto dal maintainer il 30-09-2026.
+   *
+   *  La password va al server così com'è: se è il placeholder (o vuota) usa
+   *  quella salvata, quindi la prova percorre la stessa catena degli allarmi
+   *  invece di una configurazione che esiste solo qui. Senza destinatari di
+   *  progetto il server manda al mittente, che è sempre una casella vera. */
+  const handleTestEmail = async () => {
+    setProvaMail(true);
+    setEsitoMail(null);
+    try {
+      const a = await api.testEmail({ smtp, to: destinatari.map((d) => d.indirizzo).filter(Boolean) });
+      setEsitoMail("✓ " + t("cfgUi.smtpTestInviata", { a: a || smtp.from }));
+    } catch (e: unknown) {
+      setEsitoMail("✗ " + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setProvaMail(false);
     }
   };
 
@@ -189,28 +240,7 @@ export function NotificationsTab() {
       <SaveBar onSave={handleSave} saving={saving} saved={saved}
         section="notifications"
         dirty={touched} />
-      <div style={S.sectionTitle}>{t("cfg.notifLang.title")}</div>
-      <div style={S.notice}>{t("cfg.notifLang.notice")}</div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, maxWidth: 640, marginBottom: 20 }}>
-        {([
-          ["default", notifyLang, setNotifyLang, t("cfg.notifLang.default"), t("cfg.notifLang.projectMain", { lang: linguaPrincipale })],
-          ["email", notifyLangEmail, setNotifyLangEmail, t("cfg.notifLang.email"), t("cfg.notifLang.asDefault")],
-          ["telegram", notifyLangTg, setNotifyLangTg, t("cfg.notifLang.telegram"), t("cfg.notifLang.asDefault")],
-        ] as const).map(([k, valore, imposta, etichetta, vuoto]) => (
-          <label key={k} style={{ fontSize: 12 }}>
-            <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>{etichetta}</div>
-            <select
-              value={valore}
-              onChange={(e) => { setTouched(true); imposta(e.target.value); }}
-              style={{ ...S.input, width: "100%" }}
-            >
-              <option value="">{vuoto}</option>
-              {lingueProgetto.map((l) => <option key={l} value={l}>{l}</option>)}
-            </select>
-          </label>
-        ))}
-      </div>
-
+      {mostraSmtp && (<>
       <div style={S.sectionTitle}>NOTIFICHE EMAIL</div>
       <div style={S.notice}>
         <Trans i18nKey="cfgUi.smtpNotice" components={TRANS_COMP} />
@@ -286,9 +316,74 @@ export function NotificationsTab() {
               STARTTLS (raccomandato su porta 587)
             </label>
           </div>
+
+          {/* La prova sta qui, accanto ai campi che prova: una configurazione
+              di posta che non si può provare si scopre sbagliata al primo
+              allarme, cioè nel momento peggiore. */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12 }}>
+            <button
+              style={S.btn("ghost")}
+              onClick={handleTestEmail}
+              disabled={provaMail || smtp.host.trim() === "" || smtp.from.trim() === ""}
+              title={t("cfgUi.smtpTestTitle")}
+            >
+              {provaMail ? t("cfgUi.smtpTestInvio") : t("cfgUi.smtpTest")}
+            </button>
+            {esitoMail && (
+              <span style={{ fontSize: 12, color: esitoMail.startsWith("✓") ? "var(--brand-success, #22c55e)" : "var(--brand-danger, #ef4444)" }}>
+                {esitoMail}
+              </span>
+            )}
+          </div>
         </div>
       )}
 
+      <div style={{ ...S.sectionTitle, marginTop: 24 }}>{t("notifiche.destinatariTitolo")}</div>
+      <div style={S.notice}>{t("notifiche.destinatariNota")}</div>
+      <div style={{ maxWidth: 640, marginBottom: 20 }}>
+        <DestinatariEmail value={destinatari}
+          onChange={(v) => { setTouched(true); setDestinatari(v ?? []); }} />
+      </div>
+
+      </>)}
+
+      {mostraEventi && (<>
+      <div style={{ ...S.sectionTitle, marginTop: 24 }}>{t("notifiche.eventiTitolo")}</div>
+      <div style={S.notice}>{t("notifiche.eventiNota")}</div>
+      <table style={{ borderCollapse: "collapse", fontSize: 12, marginBottom: 20 }}>
+        <thead>
+          <tr>
+            <th style={{ textAlign: "left", padding: "4px 12px 4px 0" }}>{t("notifiche.evento")}</th>
+            <th style={{ padding: "4px 12px" }}>Email</th>
+            <th style={{ padding: "4px 12px" }}>Telegram</th>
+          </tr>
+        </thead>
+        <tbody>
+          {(["scatto", "rientro", "escalation", "esito_aggiornamento", "versione_nuova"] as const).map((riga) => (
+            <tr key={riga}>
+              <td style={{ padding: "4px 12px 4px 0" }}>{t(`notifiche.eventi.${riga}`)}</td>
+              {(["email", "telegram"] as const).map((canale) => (
+                <td key={canale} style={{ textAlign: "center", padding: "4px 12px" }}>
+                  <input
+                    type="checkbox"
+                    aria-label={`${t(`notifiche.eventi.${riga}`)} — ${canale}`}
+                    checked={eventi[riga][canale]}
+                    onChange={(e) => {
+                      setTouched(true);
+                      const aggiornata: CanaliEvento = { ...eventi[riga], [canale]: e.target.checked };
+                      setEventi({ ...eventi, [riga]: aggiornata });
+                    }}
+                  />
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      </>)}
+
+      {mostraTelegram && (<>
       <div style={{ ...S.sectionTitle, marginTop: 24 }}>NOTIFICHE TELEGRAM</div>
       <div style={S.notice}>
         <Trans i18nKey="cfgUi.telegramNotice" components={TRANS_COMP} />
@@ -431,6 +526,8 @@ export function NotificationsTab() {
           </div>
         </div>
       )}
+
+      </>)}
 
       {error && (
         <div style={{ color: "var(--brand-danger, #ef4444)", fontSize: 12, marginTop: 8 }}>{error}</div>

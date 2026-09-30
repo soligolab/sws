@@ -3,7 +3,8 @@ import { Trans, useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { genId } from "@/id";
 import { TagInput } from "@/components/TagInput";
-import type { AlarmCondition, AlarmDef, AlarmLevel, AlarmSeverity, AlarmTelegramMode } from "@/types";
+import type { AlarmCondition, AlarmDef, AlarmEmailMode, AlarmLevel, AlarmSeverity, AlarmTelegramMode } from "@/types";
+import { DestinatariEmail } from "@/config/DestinatariEmail";
 import { useAppStore } from "@/store";
 import { useSezioneSincronizzata } from "@/config/useSezioneSincronizzata";
 import { CampoTestoTradotto } from "@/editor/CampoTestoTradotto";
@@ -410,17 +411,27 @@ export function AlarmsTab() {
                     value={alm.inhibit_tag ?? ""}
                     onChange={(v) => updateAlarm(i, { inhibit_tag: v || undefined })}
                   />
-                  <input
-                    style={{ ...S.inputSm, marginTop: 4, fontSize: 11 }}
-                    placeholder={t("cfg.emailRecipients")}
-                    title="notify_email: invia email su attivazione (separati da virgola)"
-                    value={alm.notify_email?.join(", ") ?? ""}
-                    onChange={(e) => {
-                      const raw = e.target.value;
-                      const emails = raw ? raw.split(",").map((s) => s.trim()).filter(Boolean) : undefined;
-                      updateAlarm(i, { notify_email: emails?.length ? emails : undefined });
-                    }}
-                  />
+                  {/* L'email dell'allarme, come Telegram (29-09-2026): il modo sceglie
+                      i destinatari. Assente = i propri se ci sono, altrimenti quelli
+                      di progetto: è ciò che facevano i progetti di prima. */}
+                  <div style={{ display: "flex", gap: 4, marginTop: 4, alignItems: "center" }}>
+                    <span style={{ fontSize: 11 }}>{t("cfg.emailModo")}</span>
+                    <select
+                      style={{ ...S.inputSm, fontSize: 11 }}
+                      value={alm.email_mode ?? (alm.notify_email?.length ? "propri" : "progetto")}
+                      onChange={(e) => updateAlarm(i, { email_mode: e.target.value as AlarmEmailMode })}
+                    >
+                      <option value="progetto">{t("cfg.emailModoProgetto")}</option>
+                      <option value="propri">{t("cfg.emailModoPropri")}</option>
+                      <option value="off">{t("cfg.emailModoOff")}</option>
+                    </select>
+                  </div>
+                  {(alm.email_mode ?? (alm.notify_email?.length ? "propri" : "progetto")) === "propri" && (
+                    <div style={{ marginTop: 4 }}>
+                      <DestinatariEmail compatto value={alm.notify_email}
+                        onChange={(v) => updateAlarm(i, { notify_email: v })} />
+                    </div>
+                  )}
                   <div style={{ display: "flex", gap: 4, marginTop: 4 }}>
                     <input
                       style={{ ...S.inputSm, width: "40%", fontSize: 11 }}
@@ -430,18 +441,14 @@ export function AlarmsTab() {
                       value={alm.escalate_after_s ?? ""}
                       onChange={(e) => updateAlarm(i, { escalate_after_s: e.target.value !== "" ? Number(e.target.value) : undefined })}
                     />
-                    <input
-                      style={{ ...S.inputSm, width: "60%", fontSize: 11 }}
-                      placeholder={t("cfg.emailEscalation")}
-                      title="escalate_to: destinatari escalation (separati da virgola)"
-                      value={alm.escalate_to?.join(", ") ?? ""}
-                      onChange={(e) => {
-                        const raw = e.target.value;
-                        const emails = raw ? raw.split(",").map((s) => s.trim()).filter(Boolean) : undefined;
-                        updateAlarm(i, { escalate_to: emails?.length ? emails : undefined });
-                      }}
-                    />
                   </div>
+                  {alm.escalate_after_s ? (
+                    <div style={{ marginTop: 4 }}>
+                      <div style={{ fontSize: 11 }}>{t("cfg.emailEscalation")}</div>
+                      <DestinatariEmail compatto value={alm.escalate_to}
+                        onChange={(v) => updateAlarm(i, { escalate_to: v })} />
+                    </div>
+                  ) : null}
                 </td>
                 <td style={S.td}>
                   {/* Instradamento Telegram. L'assenza del campo vale "global":

@@ -189,6 +189,13 @@
       "es": "⏫ ESCALADO: alarma no reconocida",
       "en": "⏫ ESCALATION: alarm not acknowledged"
     },
+    "allarme_rientrato": {
+      "it": "🟢 RIENTRATO: allarme tornato normale",
+      "de": "🟢 ZURÜCKGEKEHRT: Alarm wieder normal",
+      "fr": "🟢 RETOUR : alarme revenue à la normale",
+      "es": "🟢 NORMALIZADA: alarma de vuelta a la normalidad",
+      "en": "🟢 CLEARED: alarm back to normal"
+    },
     "agg_titolo": {
       "it": "Versione {a} disponibile",
       "de": "Version {a} verfügbar",

@@ -1416,9 +1416,44 @@ export interface TelegramConfig {
   chat_ids: string[];
 }
 
+/** Un destinatario email, con la lingua in cui scrivergli (29-09-2026). */
+export interface Destinatario {
+  indirizzo: string;
+  /** Assente = la lingua del canale email. */
+  lingua?: string;
+}
+
+/** Dove va l'email di un allarme, come `telegram_mode` per Telegram. */
+export type AlarmEmailMode = "progetto" | "propri" | "off";
+
+export interface CanaliEvento { email: boolean; telegram: boolean }
+
+/** La tabella eventi × canali della scheda Notifiche. Assente = i default, che
+ *  riproducono il comportamento di prima (vedi `TABELLA_PREDEFINITA`). */
+export interface TabellaEventi {
+  scatto: CanaliEvento;
+  rientro: CanaliEvento;
+  escalation: CanaliEvento;
+  esito_aggiornamento: CanaliEvento;
+  versione_nuova: CanaliEvento;
+}
+
+/** Gemello di `TabellaEventi::default()` in `sws-core`. */
+export const TABELLA_PREDEFINITA: TabellaEventi = {
+  scatto: { email: true, telegram: true },
+  rientro: { email: false, telegram: false },
+  escalation: { email: true, telegram: true },
+  esito_aggiornamento: { email: false, telegram: true },
+  versione_nuova: { email: false, telegram: false },
+};
+
 export interface NotificationConfig {
   smtp?: SmtpConfig;
   telegram?: TelegramConfig;
+  /** I destinatari email di progetto: l'equivalente dei `chat_ids` di Telegram. */
+  destinatari_email?: Destinatario[];
+  /** Quali eventi escono su quali canali. */
+  eventi?: TabellaEventi;
   /** Lingua predefinita di email e Telegram. Una notifica non ha uno schermo,
    *  quindi non ha «la lingua corrente»: si decide nel progetto. Assente = la
    *  lingua principale della tabella lingue. */
@@ -1614,12 +1649,16 @@ export interface AlarmDef {
   inhibit_tag?: string;
   /** Condition on inhibit_tag that means "alarm is inhibited" (default: bool_true). */
   inhibit_condition?: AlarmCondition;
-  /** Email recipients for alarm activation notification. */
-  notify_email?: string[];
+  /** I destinatari **propri** dell'allarme, per `email_mode: "propri"`.
+   *  Fino al 29-09-2026 erano stringhe; il server li rimanda sempre come oggetti. */
+  notify_email?: Destinatario[];
+  /** Dove va l'email: assente = i propri se ci sono, altrimenti quelli di progetto
+   *  (è ciò che facevano i progetti scritti prima del campo). */
+  email_mode?: AlarmEmailMode;
   /** Seconds after which an unacknowledged alarm triggers escalation email. */
   escalate_after_s?: number;
-  /** Email recipients for escalation. */
-  escalate_to?: string[];
+  /** I destinatari dell'escalation. */
+  escalate_to?: Destinatario[];
   /**
    * Where this alarm's Telegram message goes. **Absent = "global"**: projects
    * written before this field existed notified every configured chat, and

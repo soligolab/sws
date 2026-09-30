@@ -41,6 +41,21 @@ export function LanguagesTab() {
   useEffect(() => { if (storeTable) setTable(storeTable); }, [storeTable]);
 
   // Intenzione dell'utente, non confronto strutturale (vedi TagsTab).
+  // In che lingua parlano le notifiche (Q57). Dal 30-09-2026 si scelgono qui,
+  // su richiesta del maintainer: sono una scelta di lingua, e stanno con le
+  // altre invece che in fondo alla scheda Notifiche.
+  //
+  // Vivono però nella sezione `notifications` del progetto, che la scheda
+  // Notifiche salva per intero: per questo il salvataggio qui sotto la
+  // ricompone **da quel che c'è adesso nello store**, cambiando solo questi
+  // tre campi. Due schede possono scrivere la stessa sezione solo così — un
+  // payload composto da una copia vecchia è il difetto già pagato, quello che
+  // cancellava le sezioni non incluse.
+  const notif = useAppStore((st) => st.project?.notifications);
+  const aggiornaNotifiche = useAppStore((st) => st.updateProjectNotifications);
+  const [notifyLang, setNotifyLang] = useState<string>(notif?.notify_lang ?? "");
+  const [notifyLangEmail, setNotifyLangEmail] = useState<string>(notif?.notify_lang_email ?? "");
+  const [notifyLangTg, setNotifyLangTg] = useState<string>(notif?.notify_lang_telegram ?? "");
   const [touched, setTouched] = useState(false);
   const patch = (p: Partial<LanguageTable>) => { setTouched(true); setTable((tb) => ({ ...tb, ...p })); };
 
@@ -127,6 +142,24 @@ export function LanguagesTab() {
     try {
       await api.updateLanguages(clean);
       updateLanguages(clean);
+      // La sezione notifiche si tocca solo se una delle tre lingue è cambiata,
+      // e si ricompone da quella corrente: gli altri campi (server, token,
+      // destinatari, tabella eventi) passano di qui senza essere riscritti.
+      const adesso = useAppStore.getState().project?.notifications;
+      const cambiate =
+        (adesso?.notify_lang ?? "") !== notifyLang ||
+        (adesso?.notify_lang_email ?? "") !== notifyLangEmail ||
+        (adesso?.notify_lang_telegram ?? "") !== notifyLangTg;
+      if (cambiate) {
+        const nuova = {
+          ...(adesso ?? {}),
+          notify_lang: notifyLang || undefined,
+          notify_lang_email: notifyLangEmail || undefined,
+          notify_lang_telegram: notifyLangTg || undefined,
+        };
+        await api.saveNotifications(nuova);
+        aggiornaNotifiche(nuova);
+      }
       setTable(clean);
       setTouched(false);
       // Senza questo il watcher del progetto scambia il NOSTRO salvataggio per
@@ -359,6 +392,30 @@ export function LanguagesTab() {
     <div style={S.section}>
       <SaveBar onSave={handleSave} saving={saving} saved={saved} savedNotice={t("langtab.saved")} section="languages" dirty={touched} />
       <div style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 12, lineHeight: 1.5 }}>{t("langtab.intro")}</div>
+
+      {/* In che lingua parlano le notifiche: una predefinita e, se serve, una
+          per canale. "" = «come la predefinita». */}
+      <div style={{ ...S.sectionTitle, marginTop: 4 }}>{t("cfg.notifLang.title")}</div>
+      <div style={S.notice}>{t("cfg.notifLang.notice")}</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, maxWidth: 640, marginBottom: 20 }}>
+        {([
+          ["default", notifyLang, setNotifyLang, t("cfg.notifLang.default"), t("cfg.notifLang.projectMain", { lang: table.default })],
+          ["email", notifyLangEmail, setNotifyLangEmail, t("cfg.notifLang.email"), t("cfg.notifLang.asDefault")],
+          ["telegram", notifyLangTg, setNotifyLangTg, t("cfg.notifLang.telegram"), t("cfg.notifLang.asDefault")],
+        ] as const).map(([k, valore, imposta, etichetta, vuoto]) => (
+          <label key={k} style={{ fontSize: 12 }}>
+            <div style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 4 }}>{etichetta}</div>
+            <select
+              value={valore}
+              onChange={(e) => { setTouched(true); imposta(e.target.value); }}
+              style={{ ...S.input, width: "100%" }}
+            >
+              <option value="">{vuoto}</option>
+              {table.langs.map((l) => <option key={l} value={l}>{l}</option>)}
+            </select>
+          </label>
+        ))}
+      </div>
 
       <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
         <span style={{ fontSize: 12, color: "var(--brand-text-2, #cbd5e1)" }}>{t("langtab.projectLang")}:</span>

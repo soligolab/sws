@@ -178,7 +178,7 @@
       "scripts": "Python",
       "faceplates": "Faceplates",
       "recipes": "Recipes",
-      "notifications": "Notifications",
+      "notifications": "SMTP",
       "users": "Users",
       "resources": "Resources",
       "system": "Status",
@@ -189,11 +189,14 @@
       "container": "Container",
       "devpackage": "Runtime package",
       "languages": "Languages",
-      "ide": "IDE Preferences"
+      "ide": "IDE Preferences",
+      "telegram": "Telegram",
+      "eventi": "What and where"
     },
     "sottorami": {
       "device": "Device",
-      "sviluppatore": "Developer"
+      "sviluppatore": "Developer",
+      "notifiche": "Notifications"
     },
     "rami": {
       "progetto": "Project",
@@ -1480,7 +1483,11 @@
     "backupRemoteSectionTitle": "BACKUPS ON THE CONNECTED REMOTE DEVICE",
     "renameTag": "Rename everywhere",
     "deleteUsedHint": "Used in {{n}} places: remove the references first ({{dove}})",
-    "renameNeedsSaved": "Only a saved variable can be renamed"
+    "renameNeedsSaved": "Only a saved variable can be renamed",
+    "emailModo": "Email:",
+    "emailModoProgetto": "project recipients",
+    "emailModoPropri": "its own only",
+    "emailModoOff": "none"
   },
   "langtab": {
     "migrate": "Migrate texts…",
@@ -2191,7 +2198,11 @@
     "saveProjectHint": "Save the whole project: pages, variables, sources, alarms and every other modified tab (Ctrl+S).",
     "unsavedInTab": "Unsaved changes in this tab",
     "tagInAttesa": "{{n}} variables pending, created when the project is saved: {{ids}}",
-    "tagCreati": "{{n}} variables created: {{ids}}"
+    "tagCreati": "{{n}} variables created: {{ids}}",
+    "smtpTest": "Send test email",
+    "smtpTestInvio": "Sending…",
+    "smtpTestTitle": "Sends a test email with these settings and waits for the server's answer: if something is wrong, the message says what. With no project recipients it goes to the sender.",
+    "smtpTestInviata": "Sent to {{a}}."
   },
   "boot": {
     "pngTooLarge": "PNG too large ({{kb}} KB, max 5120 KB): it was not uploaded",
@@ -2499,5 +2510,25 @@
       "altro": "{{esito}}"
     },
     "codesys": "CODESYS can change the browser address (allow_url_override): at start-up it might take the screen back."
+  },
+  "destinatari": {
+    "linguaTitolo": "The language to write to this recipient in",
+    "linguaCanale": "as the channel",
+    "togli": "Remove",
+    "aggiungi": "recipient"
+  },
+  "notifiche": {
+    "destinatariTitolo": "PROJECT EMAIL RECIPIENTS",
+    "destinatariNota": "They receive the emails of alarms in «project recipients» mode (the default) and of system events, such as the outcome of an update. Each in their own language, or in the email one.",
+    "eventiTitolo": "WHAT IS NOTIFIED, AND WHERE",
+    "eventiNota": "For each event, the channels it goes out on. Telegram goes to the chats configured below (or the alarm's own); email to the alarm's recipients or the project ones.",
+    "evento": "Event",
+    "eventi": {
+      "scatto": "Alarm raised",
+      "rientro": "Alarm cleared",
+      "escalation": "Escalation (alarm not acknowledged)",
+      "esito_aggiornamento": "Outcome of a runtime update",
+      "versione_nuova": "New version available"
+    }
   }
 }

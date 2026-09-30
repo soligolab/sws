@@ -178,7 +178,7 @@
       "scripts": "Python",
       "faceplates": "Faceplates",
       "recipes": "Ricette",
-      "notifications": "Notifiche",
+      "notifications": "SMTP",
       "users": "Utenti",
       "resources": "Risorse",
       "system": "Stato",
@@ -189,11 +189,14 @@
       "container": "Container",
       "devpackage": "Pacchetto runtime",
       "languages": "Lingue",
-      "ide": "Preferenze IDE"
+      "ide": "Preferenze IDE",
+      "telegram": "Telegram",
+      "eventi": "Cosa e dove"
     },
     "sottorami": {
       "device": "Device",
-      "sviluppatore": "Sviluppatore"
+      "sviluppatore": "Sviluppatore",
+      "notifiche": "Notifiche"
     },
     "rami": {
       "progetto": "Progetto",
@@ -1480,7 +1483,11 @@
     "backupRemoteSectionTitle": "BACKUP SUL DISPOSITIVO REMOTO CONNESSO",
     "renameTag": "Rinomina ovunque",
     "deleteUsedHint": "Usata in {{n}} punti: togli prima i riferimenti ({{dove}})",
-    "renameNeedsSaved": "Si rinomina una variabile già salvata"
+    "renameNeedsSaved": "Si rinomina una variabile già salvata",
+    "emailModo": "Email:",
+    "emailModoProgetto": "destinatari di progetto",
+    "emailModoPropri": "solo i suoi",
+    "emailModoOff": "nessuna"
   },
   "langtab": {
     "migrate": "Migra i testi…",
@@ -2191,7 +2198,11 @@
     "saveProjectHint": "Salva tutto il progetto: pagine, variabili, sorgenti, allarmi e le altre schede modificate (Ctrl+S).",
     "unsavedInTab": "Modifiche non salvate in questa scheda",
     "tagInAttesa": "{{n}} variabili in attesa, si creano al salvataggio del progetto: {{ids}}",
-    "tagCreati": "{{n}} variabili create: {{ids}}"
+    "tagCreati": "{{n}} variabili create: {{ids}}",
+    "smtpTest": "Invia email di prova",
+    "smtpTestInvio": "Invio…",
+    "smtpTestTitle": "Manda un'email di prova con questi dati e aspetta la risposta del server: se qualcosa non va, il messaggio dice cosa. Senza destinatari di progetto la manda al mittente.",
+    "smtpTestInviata": "Inviata a {{a}}."
   },
   "boot": {
     "pngTooLarge": "PNG troppo grande ({{kb}} KB, max 5120 KB): non è stato caricato",
@@ -2499,5 +2510,25 @@
       "altro": "{{esito}}"
     },
     "codesys": "CODESYS può cambiare l'indirizzo del browser (allow_url_override): all'avvio potrebbe riprendersi lo schermo."
+  },
+  "destinatari": {
+    "linguaTitolo": "La lingua in cui scrivere a questo destinatario",
+    "linguaCanale": "come il canale",
+    "togli": "Togli",
+    "aggiungi": "destinatario"
+  },
+  "notifiche": {
+    "destinatariTitolo": "DESTINATARI EMAIL DI PROGETTO",
+    "destinatariNota": "Ricevono le email degli allarmi in modo «destinatari di progetto» (il predefinito) e degli eventi di sistema, come l'esito di un aggiornamento. Ognuno nella sua lingua, o in quella delle email.",
+    "eventiTitolo": "COSA SI NOTIFICA, E DOVE",
+    "eventiNota": "Per ogni evento, i canali su cui esce. Telegram va alle chat configurate sotto (o a quelle dell'allarme); l'email ai destinatari dell'allarme o a quelli di progetto.",
+    "evento": "Evento",
+    "eventi": {
+      "scatto": "Allarme scattato",
+      "rientro": "Allarme rientrato",
+      "escalation": "Escalation (allarme non riconosciuto)",
+      "esito_aggiornamento": "Esito di un aggiornamento del runtime",
+      "versione_nuova": "Versione nuova disponibile"
+    }
   }
 }
