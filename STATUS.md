@@ -74,114 +74,60 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — tutto converge sulla rc.13 (2026-09-30)
+## ▶ Riprendere da qui — aggiornamento ed email chiusi, nessun ramo aperto (2026-09-30)
 
-**Ramo unico aperto: `feat/notifiche-email-progetto`**, che ora porta dentro anche `main`. Il
-maintainer ha scelto di collaudare **tutto insieme sulla rc.13**, sul WP630 in LVGL.
+**Le due code sono chiuse e i due piani sono in archivio.** Versione **2.12.0-rc.13**, sul canale
+di prova. Nessun ramo aperto; `main` è avanti di alcuni commit su origin (**non ancora pushato**),
+e `origin/feat/notifiche-email-progetto` è da cancellare al prossimo push.
 
-### Cosa ci sarà dentro
+### Cosa è stato collaudato sul WP630, dal maintainer
 
-- **R2 — l'email come canale** (commit `c16ece30`, scritto ieri sera a casa): destinatari di
-  progetto `{indirizzo, lingua}`, tabella eventi × canali (fixture condivisa
-  `tests/fixtures/tabella-eventi-predefinita.json`), un'email per lingua, rientro come evento
-  nuovo, esito dell'aggiornamento e versione nuova anche via email. Migrazione del formato vecchio
-  provata su una copia di CasaDomotica (nessun progetto vero usa `notify_email`).
-- **L'esito dell'aggiornamento riscritto** e **l'allarme nuovo che non nasce «vecchio»** (da
-  `main`, squash di oggi): vedi la sezione più sotto.
-- **Il fade sugli oggetti raster** (già su `main` da ieri).
-- **Un pulsante di prova per l'SMTP**, chiesto dal maintainer oggi: dove si configura il server
-  serve poterlo provare, come già si fa per Telegram (`api.testTelegram`).
+- **L'avviso di aggiornamento su LVGL** (R1): avviso, «Aggiorna ora», aggiornamento vero, esito.
+- **Il fade** sulla polilinea del demo: «funziona».
+- **Il pulsante di prova SMTP**: funziona, e con l'errore vero («Invalid login or password»).
+- **Le notifiche** (R2): «mi sembra che le notifiche ora siano complete».
 
-### Cosa è già stato provato sul campo
+### Il lavoro di oggi, in ordine
 
-Il maintainer ha fatto scattare un allarme sul WP630 in LVGL: **email e Telegram arrivano**. È il
-canale email **per singolo allarme**, che esisteva già da prima di R2 (`alm-slider` ha
-`notify_email` ed `escalate_to`) — ma vuol dire che il trasporto SMTP (infomaniak, 587, STARTTLS)
-funziona dal pannello, ed è la parte che di solito dà problemi. Di R2 restano da provare i
-destinatari di progetto, l'email per lingua, la tabella eventi × canali e l'esito
-dell'aggiornamento via posta.
+1. `fix`: l'esito dell'aggiornamento si legge — titolo («Aggiornamento completato») e versioni
+   separate — e un **allarme nuovo non nasce «vecchio»** (`emptyAlarm` costruiva ancora
+   `condition`, cioè la forma che il server rifiuta).
+2. `feat`: **R2**, l'email come canale — destinatari di progetto `{indirizzo, lingua}`, tabella
+   eventi × canali, un'email per lingua, esito dell'aggiornamento via posta.
+3. `feat`: il **pulsante di prova SMTP**, che a differenza di tutti gli altri invii **aspetta**
+   l'esito: è l'errore il prodotto.
+4. `fix`: **un esito non sopravvive alla versione che racconta** — il pannello, passato alla
+   rc.13, mostrava ancora «aggiornato dalla rc.11 alla rc.12» di due giorni prima.
+5. `feat`: la scheda Notifiche **divisa in tre foglie** (SMTP coi suoi destinatari, Telegram,
+   «Cosa e dove») e la lingua delle notifiche spostata in **Lingue**.
 
-### Il WP630, com'è adesso
+### Due difetti trovati e non ancora corretti
 
-Gira la **rc.12**, progetto `LVGL_TEST` in LVGL. Oggi gli ho messo `languages.default: it` (era
-`en`, ed è per questo che l'esito compariva in inglese: il testo di sistema segue la lingua dei
-contenuti, regola confermata). L'esito dell'aggiornamento **non è stato chiuso**, quindi dovrebbe
-essere ancora a schermo, ora in italiano.
+- **Il deploy non segnala il cambio di progetto.** `upload_project_zip` scrive i file e non chiama
+  `signal_project_changed`: il pannello continua a mostrare la pagina vecchia finché non si
+  riavvia (il maintainer l'ha visto cambiando tipo di linea e sfondo). Letto nel codice, non
+  ipotizzato. Resta da **decidere** se basta segnalare (il viewer ridisegna, ma tag e allarmi in
+  memoria restano i vecchi) o se un deploy sul progetto attivo debba **riaprirlo**, come fa
+  l'apertura dall'IDE — che però riavvia anche le sorgenti.
+- **Il trend non disegna se la variabile non cambia.** Diagnosi probabile, **da riprodurre**: il
+  trend si alimenta solo dallo storico, che registra al cambiamento; con un valore fermo la
+  finestra è vuota e manca l'ancoraggio all'ultimo campione precedente. Se è così il difetto è
+  nell'historian e riguarda **anche il viewer web**.
 
+### Il prossimo passo
 
-## Riprendere da qui (precedente) — avviso su LVGL collaudato, fade sugli oggetti raster corretto (2026-09-29, sera)
+Una **rc.14** con il fix dell'esito superato e la scheda divisa, da installare **dal pannello**:
+così il maintainer vede in un colpo solo l'avviso di versione nuova, «Aggiorna ora» e l'esito col
+testo nuovo. Poi il piano grosso, [utenti e aziende](docs/plans/2026-09-18-identita-utenti-istanze.md),
+che chiede **due volte** di aprirsi con una sessione di plan approfondita.
 
-Due lavori chiusi, **nessun ramo aperto**. Versione **2.12.0-rc.12**, pubblicata su ghcr insieme
-alla rc.11 (canale di prova `rc-arm64`).
+### Le macchine
 
-### R1 — l'avviso di aggiornamento su LVGL · squash `72f5462f`
-
-La decisione 41 diceva «in web **e** in LVGL», e fino alla rc.10 era fatta a metà.
-**Collaudato sul WP630 dal maintainer, catena intera dal vetro**: l'avviso è comparso da solo sul
-demo LVGL, «Aggiorna ora» ha aggiornato il pannello dalla rc.11 alla rc.12, e l'esito «riuscito» è
-comparso dopo i due minuti di conferma (evento `1790688606306`).
-
-- `client.rs`: `stato_aggiornamento()` — `Ok(None)` sul 401/403, perché un progetto con utenti non
-  è un guasto di rete e la differenza decide se **spegnere** il controllo; `avvia_aggiornamento()`;
-  `fetch_system` torna anche `uptime_s`.
-- `aggiornamento.rs` (nuovo): `ripartito()`, `da_mostrare()` (l'esito **prima** della versione
-  nuova), la memoria in `~/.config/sws/lvgl_aggiornamento.json`, il thread di controllo. Dieci
-  test, provati rossi tre volte.
-- `lvgl_avviso.rs` (nuovo): l'overlay sul layer superiore, che sopravvive al cambio pagina.
-- le undici frasi sono passate dall'i18n dell'IDE alla **tabella del testo di sistema**, in cinque
-  lingue: nel viewer web l'avviso segue ora la lingua dei **contenuti**, nella scheda IDE quella
-  dell'IDE.
-- `--avviso-di-prova <nuova|riuscito|non-riuscito>` per guardarlo senza aspettare una versione
-  nuova (l'istantanea non esercita la rete, quindi era l'unico modo).
-
-**Deciso**: il registry resta interrogato **all'avvio e ai riavvii del runtime**, non a orologio.
-Conseguenza, scritta accanto alla costante: un pannello acceso scopre una versione nuova quando il
-runtime riparte.
-
-### Il fade sugli oggetti raster · squash `4a4a7bba`
-
-Trovato dal maintainer durante il collaudo: «una polilinea che aveva il fade abilitato... si è
-fermata ed è accesa fissa». **Non una regressione**: su polilinee, poligoni, simboli e path il
-fade non aveva mai funzionato. LVGL ha due strade per i colori — `color_filter_cb` per ciò che
-disegna lui, `img_recolor` per i pixel di un'immagine — e il viewer ne percorreva una sola. Il
-blink **a scatti** invece si vedeva, perché passa dall'opacità: «il lampeggio funziona» era vero
-per metà, ed è per questo che il difetto è rimasto in piedi.
-
-`effects::recolor_per` ricava colore e alpha **dal filtro stesso**, applicandolo al nero e al
-bianco e risolvendo le due equazioni: per luminosità e respiro è esatto, e un test lo prova
-confrontando recolor e filtro su colori arbitrari. Fuori resta il grigio dello stale, che desatura
-mescolando i canali: ripiega sul grigio medio, dichiarato.
-
-Misura con cinque istantanee: la polilinea passa da escursione **0** a **107**, in fase col rect
-nativo. Guardia nuova `check_fade_raster.sh` (sorella di `check_luce_lvgl.sh`), provata rossa.
-
-**Resta da fare: il collaudo a schermo.** La misura è oggettiva ma il maintainer non l'ha ancora
-visto sul vetro — si guarda alla prossima immagine che sale sul WP630. La riproduzione è in
-`~/sws_projects/fade-prova` (il demo del pannello più due rect di prova).
-
-### Prossimo passo
-
-**R2** del [piano delle due code](docs/archive/2026-09-29-code-aggiornamento.md): l'email come
-canale di notifica — destinatari di progetto `{indirizzo, lingua}` migrando i `notify_email`
-esistenti, tabella eventi × canali nella scheda Notifiche, `email_sender` in `AppState` perché
-anche l'esito dell'aggiornamento esca via posta. Per il collaudo serve l'SMTP vero del maintainer
-(la password va in `secrets.yaml`). A code chiuse, il piano del 27-09 va in archivio.
-
-### Il WP630, com'è rimasto
-
-Gira la **2.12.0-rc.12** sul canale di prova, display su **LVGL** col demo del maintainer,
-progetto `LVGL_TEST` senza utenti. Il container del viewer si aggiorna con l'immagine, quindi
-`podman auto-update` più un `systemctl --user restart sws-lvgl-viewer.service` bastano a portarlo
-avanti.
-
-### Sul dev server d'ufficio
-
-L'**IDE di sviluppo è lasciato acceso** su `http://192.168.0.201:8460` (rc.12, progetti in
-`~/sws_projects`), su richiesta del maintainer: va ricompilato e riavviato quando il codice cambia.
-
-**Seme nuovo**: [il disco che cresce](docs/plans/2026-09-29-pulizia-disco-periodica.md) — 42 dei
-79 GB di `target` sono sola cache `incremental`, e `clean_disk_space.sh` è un'accetta che non può
-stare in `/finalizza-giornata`. Il disco è al **94%**.
+- **WP630**: rc.13, progetto `LVGL_TEST` in LVGL, `languages.default: it`.
+- **theobroma** (questa): l'**IDE di sviluppo resta acceso** su `http://192.168.0.201:8460`, alla
+  rc.13, progetti in `~/sws_projects`. La riga di `docs/TEST_SETUPS.md` che la dà per «sola
+  lettura, raggiunge: —» è **superata**: da qui si compila, si costruiscono e si pubblicano le
+  immagini arm64, e si raggiunge il WP630. Disco al 95%.
 
 ## ▶ Riprendere da qui — aggiornamento del runtime finito (Fasi 1-4), tutto su `main` e pushato (2026-09-29)
 
