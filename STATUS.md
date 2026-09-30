@@ -74,7 +74,14 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — avviso su LVGL collaudato, fade sugli oggetti raster corretto (2026-09-29, sera)
+## ▶ Riprendere da qui — il lavoro in corso è sul ramo `feat/notifiche-email-progetto` (2026-09-30)
+
+**R2 (l'email come canale di notifica) è scritto e verde sul ramo `feat/notifiche-email-progetto`**, pushato su origin;
+manca il collaudo con l'SMTP vero del maintainer, poi lo squash. **Il riepilogo completo e i passi del collaudo sono nello
+`STATUS.md` di quel ramo**: `git fetch && git checkout feat/notifiche-email-progetto`. Su `main` ci sono la skill
+`/riprendi` che lancia sempre `session_start.sh` e le decisioni di R2 nel [piano delle due code](docs/plans/2026-09-29-code-aggiornamento.md).
+
+## Riprendere da qui (precedente) — avviso su LVGL collaudato, fade sugli oggetti raster corretto (2026-09-29, sera)
 
 Due lavori chiusi, **nessun ramo aperto**. Versione **2.12.0-rc.12**, pubblicata su ghcr insieme
 alla rc.11 (canale di prova `rc-arm64`).
