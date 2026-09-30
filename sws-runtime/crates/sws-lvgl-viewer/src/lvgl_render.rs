@@ -346,20 +346,9 @@ pub enum LiveKind {
         ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
         rows: Vec<TableRow>,
     },
-    /// Trend: una `lv_chart_series_t` per tag (serie 0 = `tag`, serie 1+ =
-    /// `extra_tags`), ciascuna alimentata dal proprio `SharedHistory` (un
-    /// task di polling REST in background, non `/ws/tags` — la storia non è
-    /// un delta live). `window_s` fissa la finestra temporale e raddoppia da
-    /// costante di conversione (vedi `render_trend`: le coordinate X del
-    /// chart sono secondi-dall'inizio-finestra, non Unix ms assoluti —
-    /// `lv_coord_t` è un `i16`, un Unix ms non ci entrerebbe). `autofit`
-    /// true quando `y_min`/`y_max` sono entrambi assenti nel synottico.
-    Trend {
-        ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
-        series: Vec<TrendSeriesBinding>,
-        window_s: u64,
-        autofit: bool,
-    },
+    /// Trend: disegnato in proprio su un canvas (`trend.rs`), testi come
+    /// etichette figlie. In una scatola: è grosso, e gli altri rami no.
+    Trend(Box<TrendVivo>),
     /// Lista allarmi attivi (solo modalità `"list"`, vedi `render_alarm_viewer`):
     /// `rows.len()` slot fissi (uno per `alarm_viewer_max_rows`), il
     /// contenuto di ciascuno viene riassegnato a ogni frame in base a quali
@@ -579,16 +568,35 @@ pub struct BarChartBarBinding {
     show_values: bool,
 }
 
-/// Una serie del trend: il puntatore LVGL, la sorgente dati condivisa col
-/// task di polling, e l'ultimo stato visto — `last_seen_version`/
-/// `last_samples` esistono solo per evitare di riscrivere gli stessi punti
-/// (e richiamare `lv_chart_refresh`) a ogni frame quando il poller non ha
-/// ancora prodotto un aggiornamento nuovo (vedi `SharedHistory`).
-pub struct TrendSeriesBinding {
-    ser: *mut lvgl_sys::lv_chart_series_t,
-    shared: SharedHistory,
-    last_seen_version: u64,
-    last_samples: Vec<HistorySample>,
+/// Un tocco sul trend, messo in coda dalla callback LVGL e consumato da
+/// `aggiorna_trend` nello stesso thread.
+#[derive(Debug, Clone, Copy)]
+pub enum ToccoTrend {
+    Premi(f32, f32),
+    Trascina(f32, f32),
+    Rilascia,
+    Perso,
+}
+
+type CodaTocchi = std::rc::Rc<RefCell<Vec<ToccoTrend>>>;
+
+/// Il trend a schermo: canvas e suo buffer, configurazione, stato
+/// dell'operatore, il poller, e l'ultima scena (serve ai tocchi: dove stanno
+/// legenda e pulsanti).
+pub struct TrendVivo {
+    canvas: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    buf: Vec<u8>,
+    pixmap: resvg::tiny_skia::Pixmap,
+    sfondo: Option<resvg::tiny_skia::Pixmap>,
+    cfg: crate::trend::Config,
+    stato: crate::trend::Stato,
+    feed: client::SharedTrend,
+    versione_vista: u64,
+    dati: crate::trend::Dati,
+    scena: crate::trend::Scena,
+    etichette: Vec<core::ptr::NonNull<lvgl_sys::lv_obj_t>>,
+    tocchi: CodaTocchi,
+    sporco: bool,
 }
 
 /// Una coppia X/Y del `xy_plot` (F5.3x/T-70): il puntatore della serie
@@ -981,67 +989,113 @@ const TREND_PALETTE: [(u8, u8, u8); 6] = [
     (6, 182, 212),  // #06b6d4
 ];
 
-/// Porta `resolveSeriesColor()` di `TrendCanvas.tsx` (riga ~28): stile
-/// esplicito per indice > tutto, poi (solo per la serie 0) `line_color`,
-/// poi la palette a rotazione.
-/// Una traccia del trend, già risolta: quale tag leggere e con che colore.
-#[derive(Debug, PartialEq, Eq)]
-pub struct ResolvedTrace {
-    pub tag: String,
-    pub color: Option<String>,
+/// Le tracce di un trend, come `trendTraces(obj)` del web (`trendModel.ts`),
+/// con tutti gli stili.
+///
+/// La 2.1.0 ha unificato tag e stile in `trend_tags[]`; il formato di prima
+/// (`tag` + `extra_tags` + `trend_series_styles` + `line_color`) resta come
+/// ripiego, perché è quello che gira sui dispositivi finché nessuno riapre il
+/// progetto nell'IDE — e un motore che lo ignorava disegnava grafici vuoti.
+///
+/// Le tracce nascoste **ci sono** (in legenda, spente): l'operatore le
+/// riaccende toccandole. Colori come `resolveSeriesColor()`: quello della
+/// traccia, poi `line_color` per la prima, poi la tavolozza per indice.
+pub fn tracce_trend(obj: &SynopticObject) -> Vec<crate::trend::Traccia> {
+    use crate::model::TrendTrace;
+    let voci: Vec<TrendTrace> = match obj.trend_tags.as_ref() {
+        Some(t) => t.clone(),
+        None => {
+            let stili = obj.trend_series_styles.clone().unwrap_or_default();
+            let mut ids = vec![obj.tag.clone().unwrap_or_default()];
+            ids.extend(obj.extra_tags.clone().unwrap_or_default());
+            ids.into_iter()
+                .enumerate()
+                .map(|(i, tag)| {
+                    let st = stili.get(i).cloned().unwrap_or_default();
+                    TrendTrace {
+                        tag,
+                        label: None,
+                        hidden: st.hidden,
+                        color: st.color,
+                        width: st.width,
+                        dash: st.dash,
+                        fill: st.fill,
+                        fill_opacity: st.fill_opacity,
+                        smooth: st.smooth,
+                        own_scale: st.own_scale,
+                    }
+                })
+                .collect()
+        }
+    };
+    voci.into_iter()
+        .filter(|t| !t.tag.trim().is_empty())
+        .enumerate()
+        .map(|(i, t)| {
+            let colore = t
+                .color
+                .as_deref()
+                .and_then(parse_hex_color)
+                .or_else(|| if i == 0 { obj.line_color.as_deref().and_then(parse_hex_color) } else { None })
+                .unwrap_or(crate::trend::TAVOLOZZA[i % crate::trend::TAVOLOZZA.len()]);
+            crate::trend::Traccia {
+                nome: t.label.clone().unwrap_or_else(|| t.tag.clone()),
+                colore,
+                spessore: t.width.unwrap_or(1.5).clamp(0.5, 20.0) as f32,
+                tratto: crate::trend::Tratto::da(t.dash.as_deref()),
+                riempi: t.fill.unwrap_or(false),
+                opacita_riempimento: t.fill_opacity.unwrap_or(0.15).clamp(0.0, 1.0) as f32,
+                smussa: t.smooth.unwrap_or(false),
+                scala_propria: t.own_scale.unwrap_or(false),
+                nascosta: t.hidden.unwrap_or(false),
+                tag: t.tag,
+            }
+        })
+        .collect()
 }
 
-/// Da dove prendere le tracce di un trend.
-///
-/// La 2.1.0 ha unificato tag e stile in `trend_tags[]` e la migrazione riscrive
-/// le pagine al primo salvataggio. Questo motore continuava a leggere solo
-/// `tag` + `extra_tags`: su un progetto migrato non trovava più niente e il
-/// grafico restava **vuoto**. Il ripiego sul formato vecchio non è cortesia
-/// verso il passato — è il formato che gira sui dispositivi in servizio finché
-/// nessuno riapre il progetto nell'IDE.
-///
-/// Pura per poter essere verificata senza un display: è qui che sta la scelta
-/// che si era rotta, non nelle chiamate FFI che seguono.
-pub fn resolve_trend_traces(obj: &SynopticObject) -> Vec<ResolvedTrace> {
-    // Formato nuovo, se presente e con almeno una traccia utile. Un
-    // `trend_tags: []` non deve far ripiegare sul formato vecchio: significa
-    // "nessuna traccia", ed è una risposta legittima.
-    if let Some(traces) = obj.trend_tags.as_ref() {
-        return traces
-            .iter()
-            .filter(|t| !t.hidden.unwrap_or(false))
-            .filter(|t| !t.tag.trim().is_empty())
-            .map(|t| ResolvedTrace {
-                tag: t.tag.clone(),
-                color: t.color.clone(),
-            })
-            .collect();
+/// La configurazione del trend dai campi dell'oggetto, con i ripieghi del web.
+pub fn config_trend(obj: &SynopticObject, w: u32, h: u32) -> crate::trend::Config {
+    use crate::trend::{FormatoOra, OrdineData};
+    let d = FormatoOra::default();
+    let colore = |c: &Option<String>| c.as_deref().and_then(parse_hex_color);
+    crate::trend::Config {
+        w,
+        h,
+        tracce: tracce_trend(obj),
+        finestra_s: obj.window_s.unwrap_or(60.0).max(1.0),
+        y_min: obj.y_min,
+        y_max: obj.y_max,
+        formato: FormatoOra {
+            ordine: match obj.trend_dt_date_order.as_deref() {
+                Some("mdy") => OrdineData::Mga,
+                Some("ymd") => OrdineData::Amg,
+                _ => OrdineData::Gma,
+            },
+            separatore: obj.trend_dt_separator.clone().unwrap_or(d.separatore),
+            h12: obj.trend_dt_time_format.as_deref() == Some("12h"),
+            secondi: obj.trend_dt_show_seconds.unwrap_or(d.secondi),
+            anno: obj.trend_dt_show_year.unwrap_or(d.anno),
+            due_righe: obj.trend_dt_two_lines.unwrap_or(d.due_righe),
+            sempre_data: obj.trend_dt_always_show_date.unwrap_or(d.sempre_data),
+        },
+        soglie: obj.trend_show_thresholds.unwrap_or(false),
+        warn_low: obj.warn_low,
+        warn_high: obj.warn_high,
+        alarm_low: obj.alarm_low,
+        alarm_high: obj.alarm_high,
+        marcatori: obj.trend_show_alarm_markers.unwrap_or(false),
+        log: obj.trend_log_scale.unwrap_or(false),
+        unita: obj.unit.clone(),
+        // Senza `bg_color`: la regola `*` della tabella condivisa, #0f172a.
+        sfondo: colore(&obj.bg_color).unwrap_or((0x0f, 0x17, 0x2a)),
+        assi: colore(&obj.axis_color),
+        assi_predefinito: parse_hex_color(predefinito_lvgl("trend", "axis_color")).unwrap_or((0x64, 0x74, 0x8b)),
+        griglia: colore(&obj.grid_color)
+            .unwrap_or_else(|| parse_hex_color(predefinito_lvgl("trend", "grid_color")).unwrap_or((0x1e, 0x29, 0x3b))),
+        passo_pan_s: obj.pan_step_s,
+        lingua: "it".into(),
     }
-
-    // Formato precedente: `tag` è la serie 0, `extra_tags` le successive, e i
-    // colori stanno a parte in `trend_series_styles` — la precedenza la applica
-    // `trend_series_color`, non questa funzione.
-    let mut out = Vec::new();
-    if let Some(t) = obj.tag.as_deref() {
-        if !t.trim().is_empty() {
-            out.push(ResolvedTrace {
-                tag: t.to_string(),
-                color: None,
-            });
-        }
-    }
-    if let Some(extra) = &obj.extra_tags {
-        out.extend(
-            extra
-                .iter()
-                .filter(|t| !t.trim().is_empty())
-                .map(|t| ResolvedTrace {
-                    tag: t.clone(),
-                    color: None,
-                }),
-        );
-    }
-    out
 }
 
 /// Una coppia X/Y del `xy_plot`, già risolta.
@@ -1110,23 +1164,6 @@ unsafe fn chart_add_series(
     )
 }
 
-fn trend_series_color(i: usize, obj: &SynopticObject) -> (u8, u8, u8) {
-    if let Some(rgb) = obj
-        .trend_series_styles
-        .as_ref()
-        .and_then(|v| v.get(i))
-        .and_then(|s| s.color.as_deref())
-        .and_then(parse_hex_color)
-    {
-        return rgb;
-    }
-    if i == 0 {
-        if let Some(rgb) = obj.line_color.as_deref().and_then(parse_hex_color) {
-            return rgb;
-        }
-    }
-    TREND_PALETTE[i % TREND_PALETTE.len()]
-}
 
 /// Porta `SEV_COLOR` di `alarmSeverity.ts` (i valori di fallback — questo
 /// motore non ha un tema CSS da risolvere, quindi solo l'hex conta).
@@ -2466,6 +2503,8 @@ mod colori_predefiniti {
         ("symbol", "state_alarm_color", "#ef4444"),
         ("alarm_viewer", "alarm_viewer_bg_color", "#0f172a"),
         ("pie_chart", "pie_group_color", "#64748b"),
+        ("trend", "axis_color", "#64748b"),
+        ("trend", "grid_color", "#1e293b"),
     ];
 
     /// L'hex della tabella. Panica su una coppia assente: è un errore del
@@ -4441,105 +4480,323 @@ fn update_table_data_cells(
     }
 }
 
-/// Trend: `lv_chart` in modalità `SCATTER` (non `LINE`) — a differenza di
-/// `LINE`, dove l'asse X è solo l'indice del punto nell'array (spaziatura
-/// uniforme fittizia), `SCATTER` accetta una X esplicita per punto, quindi il
-/// grafico riflette il vero istante di ogni campione invece di far sembrare
-/// uniformemente distribuiti campioni che potrebbero non esserlo (gap del
-/// tag, deadband dello storico, ecc.) — verificato leggendo `lv_chart.h`
-/// prima di scegliere, non assunto. Coordinate X in **secondi dall'inizio
-/// della finestra**, non Unix ms assoluti: `lv_coord_t` è un `i16` (`vedi
-/// LV_USE_LARGE_COORD` in `lv_conf.h`, qui disattivato), un Unix ms reale
-/// (13 cifre) non ci entrerebbe nemmeno lontanamente — da qui anche il
-/// clamp di `window_s` a `i16::MAX` secondi (~9h, ben oltre qualunque
-/// finestra trend sensata per un pannello).
+/// Trend: canvas disegnato da `trend.rs` con tiny-skia, testi come etichette
+/// LVGL figlie, dati da un poller per oggetto (`client::spawn_trend_poller`).
 ///
-/// I dati arrivano da un poller REST in background per serie
-/// (`client::spawn_history_poller`), non da `/ws/tags`: lo storico non è un
-/// delta live, va interrogato a intervalli (`GET /api/history/:tag`, come fa
-/// `TrendCanvas.tsx`). `update_bindings` legge `SharedHistory` a ogni frame
-/// ma riscrive il chart solo quando il poller ha prodotto una versione
-/// nuova.
+/// Fino al 30-09-2026 era un `lv_chart`, che onorava solo colore delle tracce
+/// e range Y: sfondo, stile della linea, assi, legenda, soglie non c'erano, e
+/// le coordinate `i16` arrotondavano i valori all'intero. Il maintainer aveva
+/// cambiato stile della linea e sfondo sul WP630 e non li vedeva.
 fn render_trend(
     screen: &mut lvgl::Obj,
     obj: &SynopticObject,
     base_url: &str,
     rt_handle: &tokio::runtime::Handle,
 ) -> anyhow::Result<LiveBinding> {
-    let mut chart = Chart::create(screen).map_err(|e| anyhow::anyhow!("Chart::create: {e:?}"))?;
-    set_pos_size(&mut chart, obj, 360.0, 180.0)?;
-    let ptr = chart.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    let w = obj.width.unwrap_or(360.0).round().clamp(40.0, 2048.0) as u32;
+    let h = obj.height.unwrap_or(180.0).round().clamp(40.0, 2048.0) as u32;
+    let cfg = config_trend(obj, w, h);
 
-    // Stesso range accettato da lv_coord_t (i16) — vedi commento sopra.
-    let window_s = obj
-        .window_s
-        .unwrap_or(60.0)
-        .round()
-        .clamp(1.0, i16::MAX as f64) as u64;
-    let autofit = obj.y_min.is_none() && obj.y_max.is_none();
+    let mut canvas = unsafe {
+        let ptr = lvgl_sys::lv_canvas_create(screen.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr());
+        let nn = core::ptr::NonNull::new(ptr).ok_or_else(|| anyhow::anyhow!("lv_canvas_create ha restituito null"))?;
+        <lvgl::Obj as Widget>::from_raw(nn)
+    };
+    canvas
+        .set_pos(obj.x.unwrap_or(0.0).round() as i16, obj.y.unwrap_or(0.0).round() as i16)
+        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    let canvas_ptr = canvas.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
 
-    let traces = resolve_trend_traces(obj);
-
+    // Opaco (RGB565, 2 byte per pixel): lo sfondo del trend copre sempre tutto
+    // il riquadro, come sul web — l'alfa costerebbe un byte in più a pixel.
+    let mut buf = vec![0u8; 2 * w as usize * h as usize];
+    let pixmap = resvg::tiny_skia::Pixmap::new(w, h).ok_or_else(|| anyhow::anyhow!("pixmap {w}x{h}"))?;
+    let tocchi: CodaTocchi = Default::default();
     unsafe {
-        lvgl_sys::lv_chart_set_type(
-            ptr.as_ptr(),
-            lvgl_sys::LV_CHART_TYPE_SCATTER as lvgl_sys::lv_chart_type_t,
+        lvgl_sys::lv_canvas_set_buffer(
+            canvas_ptr.as_ptr(),
+            buf.as_mut_ptr() as *mut std::ffi::c_void,
+            w as lvgl_sys::lv_coord_t,
+            h as lvgl_sys::lv_coord_t,
+            lvgl_sys::LV_IMG_CF_TRUE_COLOR as lvgl_sys::lv_img_cf_t,
         );
-        lvgl_sys::lv_chart_set_div_line_count(ptr.as_ptr(), 3, 3);
-        lvgl_sys::lv_chart_set_range(
-            ptr.as_ptr(),
-            lvgl_sys::LV_CHART_AXIS_PRIMARY_X as lvgl_sys::lv_chart_axis_t,
-            0,
-            window_s as i16,
+        lvgl_sys::lv_obj_add_flag(canvas_ptr.as_ptr(), lvgl_sys::LV_OBJ_FLAG_CLICKABLE);
+        // Il dito che trascina sul grafico legge i valori: non deve far
+        // scorrere la pagina sotto.
+        lvgl_sys::lv_obj_clear_flag(
+            canvas_ptr.as_ptr(),
+            lvgl_sys::LV_OBJ_FLAG_SCROLL_CHAIN_HOR | lvgl_sys::LV_OBJ_FLAG_SCROLL_CHAIN_VER,
         );
-        let (y_lo, y_hi) = match (obj.y_min, obj.y_max) {
-            (Some(lo), Some(hi)) => (lo.round() as i16, hi.round() as i16),
-            _ => (0, 100), // placeholder prima del primo poll quando in autofit
-        };
-        lvgl_sys::lv_chart_set_range(
-            ptr.as_ptr(),
-            lvgl_sys::LV_CHART_AXIS_PRIMARY_Y as lvgl_sys::lv_chart_axis_t,
-            y_lo,
-            y_hi,
-        );
+        let ctx: &'static CodaTocchi = Box::leak(Box::new(tocchi.clone()));
+        for code in [
+            lvgl_sys::lv_event_code_t_LV_EVENT_PRESSED,
+            lvgl_sys::lv_event_code_t_LV_EVENT_PRESSING,
+            lvgl_sys::lv_event_code_t_LV_EVENT_RELEASED,
+            lvgl_sys::lv_event_code_t_LV_EVENT_PRESS_LOST,
+        ] {
+            lvgl_sys::lv_obj_add_event_cb(
+                canvas_ptr.as_ptr(),
+                Some(sws_trend_tocco_cb),
+                code,
+                ctx as *const CodaTocchi as *mut std::ffi::c_void,
+            );
+        }
     }
 
-    let backfill = obj.opcua_backfill.unwrap_or(false);
-    let mut series = Vec::with_capacity(traces.len());
-    for (i, trace) in traces.iter().enumerate() {
-        // Il colore della traccia (formato nuovo) vince; se assente si ricade
-        // sulla precedenza di prima — `trend_series_styles[i]`, poi
-        // `line_color` per la serie 0, poi la tavolozza.
-        let rgb = trace
-            .color
-            .as_deref()
-            .and_then(parse_hex_color)
-            .unwrap_or_else(|| trend_series_color(i, obj));
-        let tag = &trace.tag;
-        let ser = unsafe { chart_add_series(ptr, rgb) };
-        let shared = client::spawn_history_poller(
-            rt_handle,
-            base_url.to_string(),
-            tag.clone(),
-            window_s,
-            backfill,
-        );
-        series.push(TrendSeriesBinding {
-            ser,
-            shared,
-            last_seen_version: 0,
-            last_samples: Vec::new(),
-        });
-    }
+    // Lo sfondo a immagine: solo SVG, come ogni immagine su questo motore
+    // (nessun decoder raster compilato, Q16).
+    let sfondo = obj
+        .bg_image
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty() && s.to_ascii_lowercase().contains(".svg"))
+        .and_then(|src| {
+            crate::svg_assets::bytes_for(base_url, rt_handle, &crate::svg_assets::SvgSource::Url(src.to_string()))
+        })
+        .and_then(|b| crate::svg_raster::rasterize_stretch(&b, w, h));
 
+    let feed = client::spawn_trend_poller(
+        rt_handle,
+        base_url.to_string(),
+        cfg.tracce.iter().map(|t| t.tag.clone()).collect(),
+        cfg.finestra_s,
+        w,
+        obj.opcua_backfill.unwrap_or(false),
+        cfg.marcatori,
+    );
+    let stato = crate::trend::Stato::nuovo(&cfg);
     Ok(LiveBinding {
-        kind: LiveKind::Trend {
-            ptr,
-            series,
-            window_s,
-            autofit,
-        },
+        kind: LiveKind::Trend(Box::new(TrendVivo {
+            canvas: canvas_ptr,
+            buf,
+            pixmap,
+            sfondo,
+            cfg,
+            stato,
+            feed,
+            versione_vista: 0,
+            dati: Default::default(),
+            scena: Default::default(),
+            etichette: Vec::new(),
+            tocchi,
+            sporco: true,
+        })),
     })
+}
+
+/// Mette in coda i tocchi sul trend, in coordinate del canvas.
+unsafe extern "C" fn sws_trend_tocco_cb(e: *mut lvgl_sys::lv_event_t) {
+    let coda = &*(lvgl_sys::lv_event_get_user_data(e) as *const CodaTocchi);
+    let code = lvgl_sys::lv_event_get_code(e);
+    let evento = match code {
+        lvgl_sys::lv_event_code_t_LV_EVENT_RELEASED => ToccoTrend::Rilascia,
+        lvgl_sys::lv_event_code_t_LV_EVENT_PRESS_LOST => ToccoTrend::Perso,
+        _ => {
+            let indev = lvgl_sys::lv_indev_get_act();
+            if indev.is_null() {
+                return;
+            }
+            let mut p = lvgl_sys::lv_point_t { x: 0, y: 0 };
+            lvgl_sys::lv_indev_get_point(indev, &mut p);
+            let mut a = lvgl_sys::lv_area_t { x1: 0, y1: 0, x2: 0, y2: 0 };
+            lvgl_sys::lv_obj_get_coords(lvgl_sys::lv_event_get_current_target(e), &mut a);
+            let (x, y) = ((p.x - a.x1) as f32, (p.y - a.y1) as f32);
+            if code == lvgl_sys::lv_event_code_t_LV_EVENT_PRESSED {
+                ToccoTrend::Premi(x, y)
+            } else {
+                ToccoTrend::Trascina(x, y)
+            }
+        }
+    };
+    coda.borrow_mut().push(evento);
+}
+
+/// Un campione dello storico come numero; `None` alza la penna (un testo che
+/// non è un numero, un valore composto).
+fn valore_trend(v: &TagValue) -> Option<f64> {
+    let n = match v {
+        TagValue::Bool(b) => f64::from(u8::from(*b)),
+        TagValue::Int(i) => *i as f64,
+        TagValue::Float(f) => *f,
+        TagValue::Str(s) => s.trim().parse::<f64>().ok()?,
+        _ => return None,
+    };
+    n.is_finite().then_some(n)
+}
+
+/// Dalla risposta del poller ai dati che `trend.rs` disegna. I dati a secchi
+/// si disegnano come sul web: la linea sulla media al centro del secchio, la
+/// banda min/max al suo inizio.
+fn dati_trend(r: &client::TrendRisposta, lingua: &str, table: &LanguageTable) -> crate::trend::Dati {
+    use crate::trend::{Campione, Marcatore, Secchio};
+    let mut d = crate::trend::Dati::default();
+    for (i, grezzi) in r.serie.iter().enumerate() {
+        match r.secchi.get(i).and_then(|s| s.as_ref()) {
+            Some((b, secchi)) => {
+                d.serie.push(secchi.iter().map(|s| Campione { ts: s.ts_ms + b / 2, v: Some(s.avg) }).collect());
+                d.bande.push(secchi.iter().map(|s| Secchio { ts: s.ts_ms, min: s.min, max: s.max }).collect());
+            }
+            None => {
+                d.serie.push(grezzi.iter().map(|s| Campione { ts: s.ts_ms, v: valore_trend(&s.value) }).collect());
+                d.bande.push(Vec::new());
+            }
+        }
+    }
+    d.allarmi = r
+        .allarmi
+        .iter()
+        .map(|e| Marcatore {
+            ts: e.ts_activated_ms,
+            colore: match e.severity.as_str() {
+                "Info" => (0x3b, 0x82, 0xf6),
+                "Critical" => (0xef, 0x44, 0x44),
+                _ => (0xf5, 0x9e, 0x0b),
+            },
+            messaggio: resolve_msg(&e.alarm_message, lingua, table),
+        })
+        .collect();
+    d
+}
+
+/// Il font del pannello a `px`, o quello di LVGL se FreeType non c'è.
+fn font_trend(px: u16) -> *const lvgl_sys::lv_font_t {
+    lvgl_font::at_size(px).unwrap_or(unsafe { &lvgl_sys::lv_font_montserrat_14 as *const _ })
+}
+
+fn misura_trend(testo: &str, px: u16) -> (f32, f32) {
+    let c = text_cstring(testo);
+    let mut p = lvgl_sys::lv_point_t { x: 0, y: 0 };
+    unsafe {
+        lvgl_sys::lv_txt_get_size(
+            &mut p,
+            c.as_ptr(),
+            font_trend(px),
+            0,
+            0,
+            i16::MAX as lvgl_sys::lv_coord_t,
+            lvgl_sys::LV_TEXT_FLAG_NONE as lvgl_sys::lv_text_flag_t,
+        );
+    }
+    (p.x as f32, p.y as f32)
+}
+
+/// Un frame del trend: tocchi, dati nuovi, e il ridisegno solo se qualcosa è
+/// cambiato — il poller risponde ogni 2 s, il ciclo gira a 60 fps.
+fn aggiorna_trend(t: &mut TrendVivo, lingua: &str, table: &LanguageTable) {
+    use crate::trend::{Esito, Orizz, Vert};
+    let ora = client::now_unix_ms();
+    if t.cfg.lingua != lingua {
+        t.cfg.lingua = lingua.to_string();
+        t.sporco = true;
+    }
+    let eventi: Vec<ToccoTrend> = t.tocchi.borrow_mut().drain(..).collect();
+    let mut nuovo_intervallo = false;
+    for e in eventi {
+        match e {
+            ToccoTrend::Premi(x, y) => {
+                t.stato.premi(x, y, ora);
+                t.sporco = true;
+            }
+            ToccoTrend::Trascina(x, y) => t.sporco |= t.stato.trascina(x, y, ora),
+            ToccoTrend::Rilascia => match t.stato.rilascia(&t.cfg, &t.scena, ora) {
+                Esito::Niente => {}
+                Esito::Ridisegna => t.sporco = true,
+                Esito::NuovoIntervallo => {
+                    t.sporco = true;
+                    nuovo_intervallo = true;
+                }
+            },
+            ToccoTrend::Perso => {
+                t.stato.pressione = None;
+                t.sporco = true;
+            }
+        }
+    }
+    // Il dito tenuto fermo diventa una selezione anche senza muoversi.
+    if let Some(p) = t.stato.pressione.filter(|p| !p.seleziona) {
+        t.stato.trascina(p.x, p.y, ora);
+        t.sporco |= t.stato.pressione.is_some_and(|p| p.seleziona);
+    }
+    if nuovo_intervallo {
+        let (da, a) = t.stato.intervallo(&t.cfg, ora);
+        {
+            let mut r = t.feed.richiesta.lock().unwrap_or_else(|e| e.into_inner());
+            r.diretta = t.stato.in_diretta();
+            r.da = da;
+            r.a = a;
+            r.gen += 1;
+        }
+        t.feed.sveglia.notify_one();
+    }
+    {
+        let g = t.feed.risposta.lock().unwrap_or_else(|e| e.into_inner());
+        if g.versione != t.versione_vista {
+            t.versione_vista = g.versione;
+            t.dati = dati_trend(&g, lingua, table);
+            t.sporco = true;
+        }
+    }
+    if !t.sporco {
+        return;
+    }
+    t.sporco = false;
+
+    let misura = |s: &str, px: u16| misura_trend(s, px).0;
+    let scena = crate::trend::disegna(
+        &t.cfg,
+        &t.dati,
+        &t.stato,
+        ora,
+        t.sfondo.as_ref(),
+        &mut t.pixmap,
+        &misura,
+        &crate::trend::ora_locale,
+    );
+    // RGBA premoltiplicato ma opaco (lo sfondo copre tutto) → RGB565.
+    for (o, p) in t.buf.chunks_exact_mut(2).zip(t.pixmap.data().chunks_exact(4)) {
+        let v: u16 = ((p[0] as u16 & 0xF8) << 8) | ((p[1] as u16 & 0xFC) << 3) | (p[2] as u16 >> 3);
+        o[0] = (v & 0xFF) as u8;
+        o[1] = (v >> 8) as u8;
+    }
+    unsafe {
+        lvgl_sys::lv_obj_invalidate(t.canvas.as_ptr());
+    }
+
+    // Le scritte: un'etichetta per testo, create quando servono e nascoste
+    // quando avanzano — mai distrutte e ricreate a ogni frame.
+    while t.etichette.len() < scena.testi.len() {
+        let p = unsafe { lvgl_sys::lv_label_create(t.canvas.as_ptr()) };
+        match core::ptr::NonNull::new(p) {
+            Some(nn) => t.etichette.push(nn),
+            None => break,
+        }
+    }
+    for (k, lp) in t.etichette.iter().enumerate() {
+        let lp = lp.as_ptr();
+        let Some(tx) = scena.testi.get(k) else {
+            unsafe { lvgl_sys::lv_obj_add_flag(lp, lvgl_sys::LV_OBJ_FLAG_HIDDEN) };
+            continue;
+        };
+        let (lw, lh) = misura_trend(&tx.testo, tx.px);
+        let x = match tx.orizz {
+            Orizz::Sx => tx.x,
+            Orizz::Centro => tx.x - lw / 2.0,
+            Orizz::Dx => tx.x - lw,
+        };
+        let y = match tx.vert {
+            Vert::Alto => tx.y,
+            Vert::Mezzo => tx.y - lh / 2.0,
+            Vert::Basso => tx.y - lh,
+        };
+        unsafe {
+            lvgl_sys::lv_label_set_text(lp, text_cstring(&tx.testo).as_ptr());
+            lvgl_sys::lv_obj_set_style_text_font(lp, font_trend(tx.px), 0);
+            lvgl_sys::lv_obj_set_style_text_color(lp, Color::from_rgb(tx.colore).into(), 0);
+            lvgl_sys::lv_obj_set_pos(lp, x.round() as lvgl_sys::lv_coord_t, y.round() as lvgl_sys::lv_coord_t);
+            lvgl_sys::lv_obj_clear_flag(lp, lvgl_sys::LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+    t.scena = scena;
 }
 
 /// `sparkline`: stesso principio del `trend` (poller REST in background via
@@ -9005,6 +9262,15 @@ fn localize_object(obj: &SynopticObject, lang: &str, table: &LanguageTable) -> S
                 .collect(),
         );
     }
+    // I nomi delle tracce del trend in legenda (30-09-2026), come
+    // `projectI18n.ts` sul web.
+    if let Some(tracce) = &mut out.trend_tags {
+        for t in tracce.iter_mut() {
+            if let Some(l) = &t.label {
+                t.label = Some(resolve_msg(l, lang, table));
+            }
+        }
+    }
     // I campi che fino al 15-09-2026 restavano grezzi qui e tradotti sul web.
     if let Some(v) = &out.format {
         out.format = Some(resolve_msg(v, lang, table));
@@ -10648,14 +10914,7 @@ pub fn update_bindings(
             LiveKind::Table { ptr, rows } => {
                 update_table_data_cells(*ptr, rows, tags);
             }
-            LiveKind::Trend {
-                ptr,
-                series,
-                window_s,
-                autofit,
-            } => {
-                update_trend(*ptr, series, *window_s, *autofit);
-            }
+            LiveKind::Trend(t) => aggiorna_trend(t, &lingua, lang_table),
             LiveKind::AlarmViewer {
                 shared,
                 empty_ptr,
@@ -11337,94 +11596,7 @@ fn update_alarm_viewer(
 /// qualunque cambia evita quel bug per costruzione, al costo di qualche
 /// riscrittura in più non strettamente necessaria (accettabile: succede al
 /// massimo al ritmo del poll, ogni 2s, non a ogni frame).
-fn update_trend(
-    ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
-    series: &mut [TrendSeriesBinding],
-    window_s: u64,
-    autofit: bool,
-) {
-    let mut any_changed = false;
-    for sb in series.iter_mut() {
-        let (version, samples) = {
-            let guard = sb.shared.lock().unwrap_or_else(|e| e.into_inner());
-            (guard.0, guard.1.clone())
-        };
-        if version != sb.last_seen_version {
-            sb.last_seen_version = version;
-            sb.last_samples = samples;
-            any_changed = true;
-        }
-    }
-    if !any_changed {
-        return;
-    }
-
-    let point_count = series
-        .iter()
-        .map(|sb| sb.last_samples.len())
-        .max()
-        .unwrap_or(0)
-        .max(1);
-    unsafe {
-        lvgl_sys::lv_chart_set_point_count(ptr.as_ptr(), point_count as u16);
-    }
-
-    let now_ms = client::now_unix_ms();
-    let window_start_ms = now_ms.saturating_sub(window_s.saturating_mul(1000));
-    let mut y_lo = f64::INFINITY;
-    let mut y_hi = f64::NEG_INFINITY;
-    for sb in series.iter() {
-        for i in 0..point_count {
-            match sb.last_samples.get(i) {
-                Some(s) => {
-                    let x = (s.ts_ms.saturating_sub(window_start_ms) / 1000).min(window_s) as i16;
-                    let y_f = tag_value_as_f64(&s.value);
-                    y_lo = y_lo.min(y_f);
-                    y_hi = y_hi.max(y_f);
-                    unsafe {
-                        lvgl_sys::lv_chart_set_value_by_id2(
-                            ptr.as_ptr(),
-                            sb.ser,
-                            i as u16,
-                            x,
-                            y_f.round() as i16,
-                        );
-                    }
-                }
-                None => unsafe {
-                    // LV_CHART_POINT_NONE su entrambe le coordinate: "non
-                    // disegnare questo punto" (vedi lv_chart.h) — serie più
-                    // corte della point_count del chart (imposta dalla serie
-                    // più lunga, vedi sopra) restano corrette invece di
-                    // mostrare l'ultimo valore stantio in quegli slot.
-                    let none = lvgl_sys::LV_CHART_POINT_NONE as i16;
-                    lvgl_sys::lv_chart_set_value_by_id2(ptr.as_ptr(), sb.ser, i as u16, none, none);
-                },
-            }
-        }
-    }
-
-    if autofit && y_lo.is_finite() && y_hi.is_finite() {
-        let (lo, hi) = if (y_hi - y_lo) < 1.0 {
-            (y_lo - 1.0, y_hi + 1.0)
-        } else {
-            (y_lo, y_hi)
-        };
-        unsafe {
-            lvgl_sys::lv_chart_set_range(
-                ptr.as_ptr(),
-                lvgl_sys::LV_CHART_AXIS_PRIMARY_Y as lvgl_sys::lv_chart_axis_t,
-                lo.round() as i16,
-                hi.round() as i16,
-            );
-        }
-    }
-    unsafe {
-        lvgl_sys::lv_chart_refresh(ptr.as_ptr());
-    }
-}
-
-/// Versione a una sola serie di `update_trend`, sempre autofit — niente
+/// Una sola serie, sempre autofit — niente
 /// `point_cnt` da riconciliare fra più serie (il problema per cui
 /// `update_trend` riscrive tutte le serie insieme non esiste con una sola).
 fn update_sparkline(
@@ -12019,94 +12191,132 @@ mod binding_tests {
             tag: tag.to_string(),
             hidden,
             color: color.map(str::to_string),
+            ..Default::default()
         }
     }
 
-    /// La regressione che ha motivato il lotto: dopo la migrazione 2.1.0 le
-    /// tracce stanno in `trend_tags` e il motore le cercava in `tag`, quindi il
-    /// grafico restava vuoto.
+    fn tag_di(r: &[crate::trend::Traccia]) -> Vec<&str> {
+        r.iter().map(|t| t.tag.as_str()).collect()
+    }
+
+    /// La regressione della 2.1.0: le tracce stanno in `trend_tags` e il
+    /// motore le cercava in `tag`, quindi il grafico restava vuoto.
     #[test]
     fn il_formato_nuovo_viene_letto() {
         let obj = SynopticObject {
-            trend_tags: Some(vec![
-                traccia("t1", None, Some("#ff0000")),
-                traccia("t2", None, None),
-            ]),
+            trend_tags: Some(vec![traccia("t1", None, Some("#ff0000")), traccia("t2", None, None)]),
             ..Default::default()
         };
-        let r = resolve_trend_traces(&obj);
-        assert_eq!(r.len(), 2);
-        assert_eq!(r[0].tag, "t1");
-        assert_eq!(r[0].color.as_deref(), Some("#ff0000"));
-        assert_eq!(r[1].color, None);
+        let r = tracce_trend(&obj);
+        assert_eq!(tag_di(&r), vec!["t1", "t2"]);
+        assert_eq!(r[0].colore, (255, 0, 0));
+        // Senza colore, la tavolozza per indice come `resolveSeriesColor()`.
+        assert_eq!(r[1].colore, crate::trend::TAVOLOZZA[1]);
+    }
+
+    /// Il difetto del WP630 (30-09-2026): lo stile della traccia non arrivava.
+    #[test]
+    fn lo_stile_della_traccia_arriva_tutto() {
+        let obj = SynopticObject {
+            trend_tags: Some(vec![crate::model::TrendTrace {
+                tag: "t".into(),
+                label: Some("Temperatura".into()),
+                width: Some(3.0),
+                dash: Some("dashed".into()),
+                fill: Some(true),
+                fill_opacity: Some(0.4),
+                smooth: Some(true),
+                own_scale: Some(true),
+                ..Default::default()
+            }]),
+            ..Default::default()
+        };
+        let t = &tracce_trend(&obj)[0];
+        assert_eq!(t.nome, "Temperatura");
+        assert_eq!(t.spessore, 3.0);
+        assert_eq!(t.tratto, crate::trend::Tratto::Tratteggio);
+        assert!(t.riempi && t.smussa && t.scala_propria);
+        assert_eq!(t.opacita_riempimento, 0.4);
     }
 
     /// I progetti sui dispositivi in servizio non sono ancora migrati: devono
-    /// continuare a disegnare.
+    /// continuare a disegnare, con i loro stili per indice.
     #[test]
     fn il_formato_precedente_continua_a_funzionare() {
         let obj = SynopticObject {
             tag: Some("principale".into()),
             extra_tags: Some(vec!["secondo".into(), "terzo".into()]),
-            ..Default::default()
-        };
-        let r = resolve_trend_traces(&obj);
-        assert_eq!(
-            r.iter().map(|t| t.tag.as_str()).collect::<Vec<_>>(),
-            vec!["principale", "secondo", "terzo"]
-        );
-    }
-
-    #[test]
-    fn le_tracce_nascoste_non_si_disegnano() {
-        let obj = SynopticObject {
-            trend_tags: Some(vec![
-                traccia("visibile", Some(false), None),
-                traccia("nascosta", Some(true), None),
+            line_color: Some("#00ff00".into()),
+            trend_series_styles: Some(vec![
+                Default::default(),
+                crate::model::TrendSeriesStyle { dash: Some("dotted".into()), ..Default::default() },
             ]),
             ..Default::default()
         };
-        let r = resolve_trend_traces(&obj);
-        assert_eq!(r.len(), 1);
-        assert_eq!(r[0].tag, "visibile");
+        let r = tracce_trend(&obj);
+        assert_eq!(tag_di(&r), vec!["principale", "secondo", "terzo"]);
+        assert_eq!(r[0].colore, (0, 255, 0));
+        assert_eq!(r[1].tratto, crate::trend::Tratto::Punti);
+    }
+
+    /// Le nascoste restano in legenda, spente: l'operatore le riaccende.
+    #[test]
+    fn le_tracce_nascoste_partono_spente_ma_ci_sono() {
+        let obj = SynopticObject {
+            trend_tags: Some(vec![traccia("visibile", Some(false), None), traccia("nascosta", Some(true), None)]),
+            ..Default::default()
+        };
+        let r = tracce_trend(&obj);
+        assert_eq!(tag_di(&r), vec!["visibile", "nascosta"]);
+        assert!(r[1].nascosta);
     }
 
     /// Un elenco vuoto significa "nessuna traccia", non "usa il formato
     /// vecchio": ripiegare qui farebbe ricomparire tag che l'utente ha tolto.
     #[test]
     fn elenco_vuoto_non_fa_ripiegare_sul_formato_vecchio() {
-        let obj = SynopticObject {
-            trend_tags: Some(vec![]),
-            tag: Some("vecchio".into()),
-            ..Default::default()
-        };
-        assert!(resolve_trend_traces(&obj).is_empty());
+        let obj = SynopticObject { trend_tags: Some(vec![]), tag: Some("vecchio".into()), ..Default::default() };
+        assert!(tracce_trend(&obj).is_empty());
     }
 
     #[test]
     fn i_tag_vuoti_vengono_scartati_in_entrambi_i_formati() {
         let nuovo = SynopticObject {
-            trend_tags: Some(vec![
-                traccia("  ", None, None),
-                traccia("buono", None, None),
-            ]),
+            trend_tags: Some(vec![traccia("  ", None, None), traccia("buono", None, None)]),
             ..Default::default()
         };
-        assert_eq!(resolve_trend_traces(&nuovo).len(), 1);
-
+        assert_eq!(tag_di(&tracce_trend(&nuovo)), vec!["buono"]);
         let vecchio = SynopticObject {
             tag: Some("".into()),
             extra_tags: Some(vec!["".into(), "buono".into()]),
             ..Default::default()
         };
-        let r = resolve_trend_traces(&vecchio);
-        assert_eq!(r.len(), 1);
-        assert_eq!(r[0].tag, "buono");
+        assert_eq!(tag_di(&tracce_trend(&vecchio)), vec!["buono"]);
     }
 
     #[test]
     fn un_trend_senza_niente_non_produce_serie() {
-        assert!(resolve_trend_traces(&SynopticObject::default()).is_empty());
+        assert!(tracce_trend(&SynopticObject::default()).is_empty());
+    }
+
+    #[test]
+    fn la_configurazione_prende_sfondo_e_colori_del_progetto() {
+        let obj = SynopticObject {
+            bg_color: Some("#102030".into()),
+            grid_color: Some("#405060".into()),
+            trend_dt_date_order: Some("ymd".into()),
+            trend_dt_time_format: Some("12h".into()),
+            ..Default::default()
+        };
+        let c = config_trend(&obj, 360, 180);
+        assert_eq!(c.sfondo, (0x10, 0x20, 0x30));
+        assert_eq!(c.griglia, (0x40, 0x50, 0x60));
+        assert_eq!(c.assi, None);
+        assert_eq!(c.formato.ordine, crate::trend::OrdineData::Amg);
+        assert!(c.formato.h12);
+        // Senza colori, quelli predefiniti del tipo.
+        let d = config_trend(&SynopticObject::default(), 360, 180);
+        assert_eq!(d.sfondo, (0x0f, 0x17, 0x2a));
     }
 
     #[test]

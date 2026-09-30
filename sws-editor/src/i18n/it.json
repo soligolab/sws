@@ -1685,8 +1685,6 @@
     "unsavedNote": "C'erano modifiche non salvate: l'assistente ha letto le pagine dal disco, quindi le pagine sostituite tornano alla versione salvata. Ctrl+Z annulla tutto."
   },
   "trendCanvas": {
-    "noTag": "Tag non configurato",
-    "waiting": "In attesa di campioni…",
     "downloadCsv": "Scarica CSV",
     "panBack": "Indietro nel tempo",
     "panForward": "Avanti nel tempo"

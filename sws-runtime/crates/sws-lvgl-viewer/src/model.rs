@@ -189,12 +189,7 @@ pub struct SynopticObject {
     /// Backfill dallo storico OPC-UA, solo al primo poll — passthrough del
     /// parametro querystring `backfill` di `GET /api/history/:tag`.
     pub opcua_backfill: Option<bool>,
-    /// Solo `color` è onorato da `render_trend`; `width`/`dash`/`fill`/
-    /// `fill_opacity`/`smooth` esistono nello schema web ma non hanno
-    /// equivalente disegnato qui — gap dichiarato (non un nome mancante),
-    /// stesso principio di tolleranza silenziosa di serde spiegato in cima
-    /// al file: un campo non dichiarato qui viene ignorato, non genera
-    /// errori di parsing.
+    /// Stili per indice del formato legacy (0 = `tag`, i = `extra_tags[i-1]`).
     pub trend_series_styles: Option<Vec<TrendSeriesStyle>>,
     /// Tracce del trend nel formato introdotto dalla 2.1.0, che ha unificato
     /// tag e stile in un elenco solo. La migrazione riscrive le pagine al primo
@@ -707,29 +702,37 @@ pub struct BarChartSeries {
     pub max: Option<f64>,
 }
 
-/// Porta (parzialmente) `TrendSeriesStyle` di `types/index.ts` — vedi
-/// `SynopticObject::trend_series_styles` per quali campi sono davvero
-/// disegnati.
-#[derive(Debug, Deserialize, Clone)]
+/// Porta `TrendSeriesStyle` di `types/index.ts` (formato legacy, stili per
+/// indice). Dal 30-09-2026 il trend LVGL disegna tutti i campi.
+#[derive(Debug, Deserialize, Clone, Default)]
 pub struct TrendSeriesStyle {
     pub color: Option<String>,
+    pub width: Option<f64>,
+    pub dash: Option<String>,
+    pub fill: Option<bool>,
+    pub fill_opacity: Option<f64>,
+    pub smooth: Option<bool>,
+    pub own_scale: Option<bool>,
+    pub hidden: Option<bool>,
 }
 
 /// Porta `TrendTrace` di `types/index.ts` — il formato con cui la 2.1.0 ha
-/// unificato tag e stile in un elenco solo.
-///
-/// Dichiarati qui solo i campi che questo motore sa usare: `tag`, `color`,
-/// `hidden`. `label` (legenda), `own_scale` (secondo asse Y), `width`, `dash`,
-/// `fill`, `fill_opacity` e `smooth` esistono nello schema web ma non hanno
-/// equivalente disegnato — gap dichiarato, non un nome dimenticato. Serde li
-/// ignora senza errori, come tutto il resto del file.
-#[derive(Debug, Deserialize, Clone)]
+/// unificato tag e stile in un elenco solo. Dal 30-09-2026 il trend LVGL
+/// (`trend.rs`) disegna tutti i campi: nome in legenda, spessore, tratteggio,
+/// riempimento, smussatura, scala propria, visibilità di partenza.
+#[derive(Debug, Deserialize, Clone, Default)]
 pub struct TrendTrace {
     pub tag: String,
-    /// Traccia esclusa dal disegno. Onorata perché una traccia nascosta che
-    /// comparisse comunque sarebbe visibilmente sbagliata, non un dettaglio.
+    pub label: Option<String>,
+    /// Visibilità **di partenza**: l'operatore la cambia toccando la legenda.
     pub hidden: Option<bool>,
     pub color: Option<String>,
+    pub width: Option<f64>,
+    pub dash: Option<String>,
+    pub fill: Option<bool>,
+    pub fill_opacity: Option<f64>,
+    pub smooth: Option<bool>,
+    pub own_scale: Option<bool>,
 }
 
 /// Una coppia X/Y del `xy_plot` (F5.3x/T-70). `label`/`width`/`dash` esistono

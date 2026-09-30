@@ -20,6 +20,15 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   mostra lo stato ma non le novità. Vale per la `2.12.0-rc.1` e la `rc.2`.
 
 ### Added
+- **Il trend del pannello LVGL completo, come quello web** (30-09-2026; il maintainer aveva cambiato stile della linea e sfondo sul WP630 e
+  non li vedeva). Non è più un `lv_chart`, che onorava solo i colori delle tracce e arrotondava i valori all'intero (coordinate `i16`): ora il
+  grafico si disegna con tiny-skia (`sws-lvgl-viewer/src/trend.rs`, puro e provato) su un canvas, con i testi come etichette LVGL. Ha sfondo
+  (colore e immagine SVG), colori di assi e griglia, spessore, tratteggio, riempimento e smussatura per traccia, scale proprie a sinistra,
+  scala log, unità, soglie, marcatori degli allarmi, legenda con i nomi (tradotti) e le tracce nascoste da riaccendere, formato di data e ora,
+  valore corrente, finestre lunghe a secchi con la banda min/max, ◀/▶. Al tocco: legenda, pan, **trascinare legge i valori**, tenere fermo
+  mezzo secondo e trascinare fa lo zoom (⟲ lo annulla). Un poller per trend che **si ferma quando la pagina se ne va** (prima i poller dello
+  storico vivevano per sempre, Q14). Due testi di sistema nuovi (`trend_nessun_tag`, `trend_in_attesa`), usati anche dal web nella lingua dei
+  contenuti invece che in quella dell'IDE.
 - **Un pulsante che prova il server di posta**, dove lo si configura: manda un'email di prova e **aspetta la risposta del server**, così un host sbagliato, una
   password rifiutata o una porta chiusa si vedono subito e con il messaggio vero. Gli invii veri restano fire-and-forget — un allarme non aspetta la posta — ma
   una configurazione che non si può provare si scopre sbagliata al primo allarme, cioè nel momento peggiore. La password mascherata fa usare quella salvata,

@@ -1685,8 +1685,6 @@
     "unsavedNote": "There were unsaved changes: the assistant read the pages from disk, so the replaced pages go back to the saved version. Ctrl+Z undoes everything."
   },
   "trendCanvas": {
-    "noTag": "Tag not configured",
-    "waiting": "Waiting for samples…",
     "downloadCsv": "Download CSV",
     "panBack": "Back in time",
     "panForward": "Forward in time"

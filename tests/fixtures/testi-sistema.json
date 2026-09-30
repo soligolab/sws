@@ -279,6 +279,20 @@
       "fr": "Fermer",
       "es": "Cerrar",
       "en": "Close"
+    },
+    "trend_nessun_tag": {
+      "it": "Tag non configurato",
+      "de": "Kein Tag konfiguriert",
+      "fr": "Aucun tag configuré",
+      "es": "Tag no configurado",
+      "en": "No tag configured"
+    },
+    "trend_in_attesa": {
+      "it": "In attesa di campioni…",
+      "de": "Warte auf Messwerte…",
+      "fr": "En attente d'échantillons…",
+      "es": "Esperando muestras…",
+      "en": "Waiting for samples…"
     }
   }
 }

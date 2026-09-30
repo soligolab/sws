@@ -328,19 +328,26 @@ Ogni riga mostra l'etichetta nella colonna sinistra e il valore live nella destr
 
 ### Trend (`trend`)
 
-Grafico storico con Canvas 2D, pan e zoom.
+Grafico storico multi-traccia. Stesso disegno sul web e sul pannello LVGL (dal 30-09-2026).
 
 | Proprietà | Descrizione |
 |-----------|-------------|
-| `tag` | Tag primario |
-| `extra_tags` | Tag aggiuntivi sovrapposti (multi-serie) |
-| `window_s` | Finestra temporale in secondi |
-| `y_min, y_max` | Range Y (auto se omessi) |
-| `line_color` | Colore linea primaria |
-| `opcua_backfill` | Backfill dati storici OPC-UA al mount |
+| `trend_tags[]` | Tracce: `tag`, `label` (nome in legenda), `color`, `width`, `dash` (`solid`/`dashed`/`dotted`), `fill` + `fill_opacity`, `smooth`, `own_scale` (asse Y proprio a sinistra), `hidden` (spenta alla partenza) |
+| `window_s` | Finestra temporale in secondi; oltre 15 minuti i dati arrivano aggregati, con la banda min/max |
+| `y_min, y_max` | Range Y fisso (autofit se assenti o entrambi 0) |
+| `trend_log_scale` | Scala Y logaritmica (solo scala condivisa, valori > 0) |
+| `unit` | Unità sulla tacca più alta dell'asse Y |
+| `trend_show_thresholds` | Linee di `warn_low/high` (ambra) e `alarm_low/high` (rosso) |
+| `trend_show_alarm_markers` | Marcatori degli allarmi scattati nella finestra |
+| `trend_dt_*` | Formato di data e ora dell'asse dei tempi |
+| `bg_color`, `bg_image`, `axis_color`, `grid_color` | Aspetto (su LVGL `bg_image` solo SVG) |
+| `pan_step_s` | Passo di ◀/▶ (default un quarto della finestra) |
+| `opcua_backfill` | Backfill dallo storico OPC-UA al primo caricamento |
 
-Il trend supporta pan (trascinamento) e zoom (rotella mouse). Cliccando sul titolo si apre
-la vista espansa a schermo intero.
+Uso: toccare/cliccare una voce della legenda la nasconde o la mostra; ◀/▶ spostano la finestra nel
+passato. Sul web il passaggio del mouse legge i valori e il trascinamento seleziona uno zoom (⟲ lo
+annulla). **Sul pannello** trascinare il dito legge i valori; per lo zoom si tiene il dito fermo mezzo
+secondo e poi si trascina. Solo web: scarico CSV, vista espansa, cursori di misura.
 
 ---
 

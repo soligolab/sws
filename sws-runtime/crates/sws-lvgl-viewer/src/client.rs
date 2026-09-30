@@ -502,6 +502,9 @@ pub struct AlarmHistoryEvent {
     pub ts_normalized_ms: Option<u64>,
     #[serde(default)]
     pub interrotto: bool,
+    /// Il colore del marcatore sul trend (30-09-2026): `Info`/`Warning`/`Critical`.
+    #[serde(default)]
+    pub severity: String,
 }
 
 impl AlarmHistoryEvent {
@@ -864,6 +867,204 @@ pub fn spawn_history_poller(
         }
     });
     shared
+}
+
+/// Un secchio dello storico aggregato (`GET /api/history/:tag?bucket_ms=`),
+/// solo i campi che il trend disegna: la media è la linea, min e max la banda.
+#[derive(Debug, Clone, Deserialize)]
+pub struct HistoryBucket {
+    pub ts_ms: u64,
+    pub min: f64,
+    pub max: f64,
+    pub avg: f64,
+}
+
+/// Cosa il trend vuole vedere: la finestra che scorre, o un intervallo fisso
+/// (spostato coi pulsanti o selezionato col dito). `gen` cresce a ogni
+/// cambio, così il poller sa che un intervallo fisso va chiesto di nuovo.
+#[derive(Debug, Clone, Default)]
+pub struct TrendRichiesta {
+    pub diretta: bool,
+    pub da: u64,
+    pub a: u64,
+    pub gen: u64,
+}
+
+/// L'ultima risposta. `secchi[i]` è `Some` quando la traccia `i` è arrivata
+/// aggregata, con la larghezza del secchio.
+#[derive(Debug, Clone, Default)]
+pub struct TrendRisposta {
+    pub versione: u64,
+    pub serie: Vec<Vec<HistorySample>>,
+    pub secchi: Vec<Option<(u64, Vec<HistoryBucket>)>>,
+    pub allarmi: Vec<AlarmHistoryEvent>,
+}
+
+pub struct TrendFeed {
+    pub richiesta: Mutex<TrendRichiesta>,
+    pub risposta: Mutex<TrendRisposta>,
+    pub sveglia: tokio::sync::Notify,
+}
+
+pub type SharedTrend = Arc<TrendFeed>;
+
+/// Oltre questa finestra i dati arrivano a secchi, come sul web (F5.2): un
+/// trend su 30 giorni non scarica tutti i campioni.
+const SECCHI_OLTRE_MS: u64 = 15 * 60_000;
+
+/// Il poller di un trend: **uno per oggetto**, non uno per traccia come
+/// `spawn_history_poller`, perché le tracce vanno chieste tutte sullo stesso
+/// intervallo, e l'intervallo lo decide l'operatore (◀/▶, zoom).
+///
+/// In diretta chiede ogni 2 s (il `pollMs` del web); su un intervallo fisso
+/// chiede una volta per cambio. Il tocco di un pulsante lo sveglia subito.
+///
+/// **Si ferma da solo** quando la pagina se ne va: il trend tiene l'altro
+/// capo dell'`Arc`, e quando resta solo questo non c'è più nessuno a cui
+/// rispondere. È il limite Q14 dei poller che vivevano per sempre, chiuso
+/// almeno qui.
+pub fn spawn_trend_poller(
+    rt_handle: &tokio::runtime::Handle,
+    base_url: String,
+    tags: Vec<String>,
+    finestra_s: f64,
+    larghezza_px: u32,
+    backfill: bool,
+    allarmi: bool,
+) -> SharedTrend {
+    let feed: SharedTrend = Arc::new(TrendFeed {
+        richiesta: Mutex::new(TrendRichiesta { diretta: true, ..Default::default() }),
+        risposta: Mutex::new(TrendRisposta::default()),
+        sveglia: tokio::sync::Notify::new(),
+    });
+    let bg = feed.clone();
+    rt_handle.spawn(async move {
+        let mut primo = true;
+        let mut gen_servita: Option<u64> = None;
+        loop {
+            if Arc::strong_count(&bg) == 1 {
+                break;
+            }
+            let req = bg.richiesta.lock().unwrap_or_else(|e| e.into_inner()).clone();
+            if req.diretta || gen_servita != Some(req.gen) {
+                let (da, a) = if req.diretta {
+                    let ora = now_unix_ms();
+                    (ora.saturating_sub((finestra_s * 1000.0) as u64), ora)
+                } else {
+                    (req.da, req.a)
+                };
+                let span = a.saturating_sub(da);
+                let secchio = (span > SECCHI_OLTRE_MS).then(|| {
+                    let colonne = (larghezza_px as f64 - 60.0).max(200.0);
+                    ((span as f64 / colonne).round() as u64).max(1000)
+                });
+                let bf = primo && backfill;
+                let mut serie = Vec::with_capacity(tags.len());
+                let mut secchi = Vec::with_capacity(tags.len());
+                let mut ok = true;
+                for tag in &tags {
+                    match secchio {
+                        Some(b) => match fetch_history_buckets(&base_url, tag, da, a, b, bf).await {
+                            Ok(v) => {
+                                serie.push(Vec::new());
+                                secchi.push(Some((b, v)));
+                            }
+                            Err(e) => {
+                                eprintln!("[trend] storico a secchi di '{tag}' fallito: {e}");
+                                ok = false;
+                            }
+                        },
+                        None => match fetch_history(&base_url, tag, da, a, bf).await {
+                            Ok(v) => {
+                                serie.push(v);
+                                secchi.push(None);
+                            }
+                            Err(e) => {
+                                eprintln!("[trend] storico di '{tag}' fallito: {e}");
+                                ok = false;
+                            }
+                        },
+                    }
+                }
+                let eventi = if allarmi {
+                    fetch_alarm_history_range(&base_url, da, a, 200).await.unwrap_or_default()
+                } else {
+                    Vec::new()
+                };
+                // Un giro fallito tiene i dati di prima, come il web.
+                if ok {
+                    primo = false;
+                    gen_servita = Some(req.gen);
+                    let mut g = bg.risposta.lock().unwrap_or_else(|e| e.into_inner());
+                    g.versione = g.versione.wrapping_add(1);
+                    g.serie = serie;
+                    g.secchi = secchi;
+                    g.allarmi = eventi;
+                }
+            }
+            tokio::select! {
+                _ = tokio::time::sleep(std::time::Duration::from_secs(2)) => {}
+                _ = bg.sveglia.notified() => {}
+            }
+        }
+    });
+    feed
+}
+
+/// `GET /api/history/:tag?from=&to=&bucket_ms=` — l'aggregato del web
+/// (`api.getHistoryBuckets`).
+pub async fn fetch_history_buckets(
+    base_url: &str,
+    tag: &str,
+    from_ms: u64,
+    to_ms: u64,
+    bucket_ms: u64,
+    backfill: bool,
+) -> anyhow::Result<Vec<HistoryBucket>> {
+    let mut url = reqwest::Url::parse(base_url)?;
+    url.path_segments_mut()
+        .map_err(|_| anyhow::anyhow!("base URL non può avere path segments (cannot-be-a-base)"))?
+        .push("api")
+        .push("history")
+        .push(tag);
+    {
+        let mut q = url.query_pairs_mut();
+        q.append_pair("from", &from_ms.to_string());
+        q.append_pair("to", &to_ms.to_string());
+        q.append_pair("bucket_ms", &bucket_ms.to_string());
+        if backfill {
+            q.append_pair("backfill", "true");
+        }
+    }
+    let client = reqwest::Client::builder()
+        .use_preconfigured_tls(pinned_client_config(base_url)?)
+        .build()?;
+    let resp = client.get(url).send().await?.error_for_status()?;
+    Ok(resp.json::<Vec<HistoryBucket>>().await?)
+}
+
+/// Gli allarmi scattati in un intervallo, per i marcatori del trend.
+pub async fn fetch_alarm_history_range(
+    base_url: &str,
+    from_ms: u64,
+    to_ms: u64,
+    limit: usize,
+) -> anyhow::Result<Vec<AlarmHistoryEvent>> {
+    let mut url = reqwest::Url::parse(base_url)?;
+    url.path_segments_mut()
+        .map_err(|_| anyhow::anyhow!("base URL non può avere path segments (cannot-be-a-base)"))?
+        .push("api")
+        .push("alarms")
+        .push("history");
+    url.query_pairs_mut()
+        .append_pair("from_ms", &from_ms.to_string())
+        .append_pair("to_ms", &to_ms.to_string())
+        .append_pair("limit", &limit.to_string());
+    let client = reqwest::Client::builder()
+        .use_preconfigured_tls(pinned_client_config(base_url)?)
+        .build()?;
+    let resp = client.get(url).send().await?.error_for_status()?;
+    Ok(resp.json::<Vec<AlarmHistoryEvent>>().await?)
 }
 
 #[derive(Debug, Deserialize)]

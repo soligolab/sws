@@ -65,7 +65,7 @@ web=$(campi_web | sort -u)
 lvgl=$(campi_lvgl | sort -u)
 
 # Alcuni campi il pannello non li può tradurre perché il suo modello **non ha
-# nemmeno il campo**: `TableRow.unit`, `XySeries.label` e `TrendTrace.label`
+# nemmeno il campo**: `TableRow.unit` e `XySeries.label`
 # esistono solo lato web.
 #
 # `symbol_states` era in questo elenco per mezz'ora, con la scusa sbagliata: il
@@ -84,7 +84,6 @@ MODEL="sws-runtime/crates/sws-lvgl-viewer/src/model.rs"
 ASSENTI_DAL_MODELLO=(
     "table_rows[]:unit:TableRow"
     "xy_series[]:label:XySeries"
-    "trend_tags[]:label:TrendTrace"
 )
 scusati=""
 for voce in "${ASSENTI_DAL_MODELLO[@]}"; do

@@ -46,6 +46,7 @@ mod svg_raster;
 mod testi_sistema;
 mod tls;
 mod touch_indev;
+mod trend;
 
 use std::sync::mpsc;
 use std::time::{Duration, Instant};

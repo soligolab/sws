@@ -111,6 +111,21 @@ pub fn rasterize(svg: &[u8], w: u32, h: u32) -> Option<Raster> {
     })
 }
 
+/// Rasterizza `svg` **stirato** a `w`×`h`, senza tenere le proporzioni: è lo
+/// sfondo del trend, che sul web è `drawImage(img, 0, 0, w, h)`. Il limite per
+/// lato è più largo di [`MAX_SIDE`] perché un trend può occupare lo schermo.
+pub fn rasterize_stretch(svg: &[u8], w: u32, h: u32) -> Option<resvg::tiny_skia::Pixmap> {
+    if w == 0 || h == 0 || w > 2048 || h > 2048 {
+        return None;
+    }
+    let tree = resvg::usvg::Tree::from_data(svg, &resvg::usvg::Options::default()).ok()?;
+    let mut pixmap = resvg::tiny_skia::Pixmap::new(w, h)?;
+    let size = tree.size();
+    let t = resvg::tiny_skia::Transform::from_scale(w as f32 / size.width(), h as f32 / size.height());
+    resvg::render(&tree, t, &mut pixmap.as_mut());
+    Some(pixmap)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

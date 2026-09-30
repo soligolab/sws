@@ -75,6 +75,10 @@ pub enum Testo {
     EsitoVersioni,
     EsitoSpiega,
     EsitoChiudi,
+    // Il trend senza dati (30-09-2026): lo scrive il motore dentro il grafico,
+    // sul web e sul pannello LVGL.
+    TrendNessunTag,
+    TrendInAttesa,
 }
 
 /// Tutte le voci, per i test che devono iterarle senza ripetere l'elenco a
@@ -114,6 +118,8 @@ pub const TUTTI: &[Testo] = &[
     Testo::EsitoVersioni,
     Testo::EsitoSpiega,
     Testo::EsitoChiudi,
+    Testo::TrendNessunTag,
+    Testo::TrendInAttesa,
 ];
 
 /// Dal nome nella fixture alla voce. `None` = la fixture ha una voce che
@@ -154,6 +160,8 @@ pub fn da_nome(nome: &str) -> Option<Testo> {
         "esito_versioni" => Testo::EsitoVersioni,
         "esito_spiega" => Testo::EsitoSpiega,
         "esito_chiudi" => Testo::EsitoChiudi,
+        "trend_nessun_tag" => Testo::TrendNessunTag,
+        "trend_in_attesa" => Testo::TrendInAttesa,
         _ => return None,
     })
 }
@@ -359,6 +367,18 @@ pub fn testo(t: Testo, lingua: &str) -> &'static str {
         (EsitoChiudi, "fr") => "Fermer",
         (EsitoChiudi, "es") => "Cerrar",
         (EsitoChiudi, _) => "Close",
+
+        (TrendNessunTag, "it") => "Tag non configurato",
+        (TrendNessunTag, "de") => "Kein Tag konfiguriert",
+        (TrendNessunTag, "fr") => "Aucun tag configuré",
+        (TrendNessunTag, "es") => "Tag no configurado",
+        (TrendNessunTag, _) => "No tag configured",
+
+        (TrendInAttesa, "it") => "In attesa di campioni…",
+        (TrendInAttesa, "de") => "Warte auf Messwerte…",
+        (TrendInAttesa, "fr") => "En attente d'échantillons…",
+        (TrendInAttesa, "es") => "Esperando muestras…",
+        (TrendInAttesa, _) => "Waiting for samples…",
     }
 }
 

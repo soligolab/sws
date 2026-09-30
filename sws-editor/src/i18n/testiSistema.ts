@@ -39,7 +39,10 @@ export type VoceSistema =
   | "esito_titolo_ko"
   | "esito_versioni"
   | "esito_spiega"
-  | "esito_chiudi";
+  | "esito_chiudi"
+  // Il trend senza dati (30-09-2026): lo scrive il motore dentro il grafico.
+  | "trend_nessun_tag"
+  | "trend_in_attesa";
 
 export const LINGUE_SISTEMA = ["it", "de", "fr", "es", "en"] as const;
 export type LinguaSistema = (typeof LINGUE_SISTEMA)[number];
@@ -127,6 +130,8 @@ export const TESTI_SISTEMA: Record<VoceSistema, Record<LinguaSistema, string>> =
     en: "The panel tried to move to {a}: the new version did not start properly, and it went back to {da} by itself. Nothing to do here: whoever manages the panel will take care of it.",
   },
   esito_chiudi: { it: "Chiudi", de: "Schließen", fr: "Fermer", es: "Cerrar", en: "Close" },
+  trend_nessun_tag: { it: "Tag non configurato", de: "Kein Tag konfiguriert", fr: "Aucun tag configuré", es: "Tag no configurado", en: "No tag configured" },
+  trend_in_attesa: { it: "In attesa di campioni…", de: "Warte auf Messwerte…", fr: "En attente d'échantillons…", es: "Esperando muestras…", en: "Waiting for samples…" },
   allarme_attivo: {
     it: "🔴 ALLARME ATTIVO", de: "🔴 ALARM AKTIV", fr: "🔴 ALARME ACTIVE", es: "🔴 ALARMA ACTIVA", en: "🔴 ALARM ACTIVE",
   },

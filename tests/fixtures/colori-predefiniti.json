@@ -77,7 +77,8 @@
     ["text_list", "text_list_default_color"],
     ["symbol", "state_off_color"], ["symbol", "state_on_color"], ["symbol", "state_alarm_color"],
     ["alarm_viewer", "alarm_viewer_bg_color"],
-    ["pie_chart", "pie_group_color"]
+    ["pie_chart", "pie_group_color"],
+    ["trend", "axis_color"], ["trend", "grid_color"]
   ],
   "casi_normalizzazione": [
     { "ingresso": "var(--brand-text, #e2e8f0)",           "atteso": null,      "nota": "il token del testo diventa automatico" },

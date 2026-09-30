@@ -5,6 +5,7 @@ import { predefinito } from "@/coloriPredefiniti";
 import type { AlarmEvent, BucketSample, Sample, TrendSeriesStyle } from "@/types";
 import { useLinguaContenuti } from "@/i18n/linguaContenuti";
 import { resolveMsg } from "@/i18n/projectI18n";
+import { testoSistema } from "@/i18n/testiSistema";
 
 /**
  * Multi-tag trend chart on a 2D canvas. Polls GET /api/history/:tag for each
@@ -636,9 +637,11 @@ export function TrendCanvas({
       ctx.fillStyle = "#475569";
       ctx.font = "11px system-ui, sans-serif, 'SWS Emoji'";
       ctx.textAlign = "center";
+      // Testo di sistema (30-09-2026): lo scrive il motore dentro la pagina,
+      // quindi nella lingua dei contenuti — lo stesso che scrive il pannello LVGL.
       const msg = tags.length === 0 || tags.every((tag) => !tag)
-        ? t("trendCanvas.noTag")
-        : t("trendCanvas.waiting");
+        ? testoSistema("trend_nessun_tag", lingua.lang)
+        : testoSistema("trend_in_attesa", lingua.lang);
       ctx.fillText(msg, width / 2, height / 2);
       return;
     }
@@ -1133,7 +1136,7 @@ export function TrendCanvas({
         ctx.fillText(fmtValue(lastN), PAD_LEFT + plotW - 4, PAD_TOP + 4);
       }
     }
-  }, [series, envelopes, width, height, colors, yMin, yMax, hoverX, tags.join(","), windowS, isHistorical, explicitFromMs, explicitToMs, offsetMs, effHidden, seriesStyles, dragStartX, dragCurX, dtDateOrder, dtSeparator, dtTimeFormat, dtShowSeconds, dtShowYear, dtTwoLines, dtAlwaysShowDate, showThresholds, warnLow, warnHigh, alarmLow, alarmHigh, showAlarmMarkers, alarmEvents, bgColor, bgImage, bgImgTick, axisColor, gridColor, logScale, yUnit, cursors, measureMode, seriesLabels, editPreview, t]);
+  }, [series, envelopes, width, height, colors, yMin, yMax, hoverX, tags.join(","), windowS, isHistorical, explicitFromMs, explicitToMs, offsetMs, effHidden, seriesStyles, dragStartX, dragCurX, dtDateOrder, dtSeparator, dtTimeFormat, dtShowSeconds, dtShowYear, dtTwoLines, dtAlwaysShowDate, showThresholds, warnLow, warnHigh, alarmLow, alarmHigh, showAlarmMarkers, alarmEvents, bgColor, bgImage, bgImgTick, axisColor, gridColor, logScale, yUnit, cursors, measureMode, seriesLabels, editPreview, lingua, t]);
 
   const hasSeries = series.some((s) => s.length > 0);
 
