@@ -74,6 +74,49 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — predefiniti espliciti Fasi 1-4 e trend fermo, su tre rami annidati da collaudare (2026-10-01)
+
+**Su `main`** (pushato con questa chiusura): il **trend LVGL completo** come il web (`35aec344`, squash di
+`feat/trend-lvgl-completo`), **2.12.0-rc.14**, collaudata dal maintainer sul TC620 (applicativo `rc14_lvgl`). Tag
+`2.12.0-rc.14` creato su quel commit e pushato. La rc.14 era stata costruita dal ramo prima dello squash: stesso albero.
+
+**Tre rami annidati, pushati, NON ancora su `main`** — si collaudano insieme e si mergiano con **uno squash solo**
+del ramo in cima (poi controllo alberi ed eliminazione dei tre):
+
+1. `fix/sfondi-predefiniti-colore` (`dcd32988`) — selettore colore negli sfondi predefiniti del progetto
+   (Impostazioni pagine del progetto). Provato dal maintainer insieme alla Fase 1.
+2. `feat/predefiniti-espliciti` (`966dca9e`) — piano `docs/plans/2026-09-30-predefiniti-espliciti.md`:
+   - **Fase 1** (IDE, **collaudata**): tabella dei predefiniti non-colore, valori fissi scritti nel file alla
+     creazione e all'apertura (`riempiPredefiniti`), pannello che dichiara auto/predef./nessuno/derivato e i vuoti
+     voluti, label dello slider, guardia `check_predefiniti.sh`.
+   - **Fasi 2-4** (pannello LVGL, **da collaudare**): colori e sfondi che LVGL ignorava (il `data_log` bianco),
+     campi non-colore (etichette, gauge, kpi_tile, text_list, tubo), **grafico a barre** e **tabella/data_log
+     rifatti** come trend su canvas tiny-skia (`barre.rs`, `tabella.rs`: ordinamento, filtri, celle scrivibili col
+     tastierino, scelte del maintainer), poi estremità e flusso del tubo (`tubo.rs`), delta del kpi_tile, titolo Y
+     ruotato. Test che legge il sorgente: ogni coppia chiesta a `predefinito_lvgl` sta in `TABELLA` (due panici presi
+     solo alle fotografie).
+3. `fix/trend-valore-fermo` (`9b164fae`, **in cima**) — il secondo difetto dell'ufficio: trend vuoto con un valore
+   fermo. `GET /api/history?ancora=true`: ultimo valore prima della finestra ripetuto all'inizio, ultimo noto
+   prolungato alla fine; trend e sparkline (web e LVGL) la chiedono. Provato dal vivo sull'API e su LVGL.
+
+Verdi sul ramo in cima: `cargo check`, 263 test viewer, 27 historian, 1044 vitest, `pnpm build`, 28 guardie
+statiche, `check_istantanea.sh`.
+
+**Prossimo passo, in ufficio:**
+1. `./scripts/session_start.sh`, poi `git checkout fix/trend-valore-fermo`.
+2. **rc.15**: bump dei quattro file a `2.12.0-rc.15` sul ramo, `./scripts/build_container.sh --push`, aggiornamento del
+   pannello (WP630/TC620) dal canale di prova — prova insieme anche «Aggiorna ora».
+3. Collaudo sul pannello: una pagina con tutti i tipi (sfondi, gauge, barre, tabella con ordinamento/filtro/scrittura,
+   data_log, tubi con frecce e flusso, kpi_tile) e un trend su un tag che non cambia.
+4. Se va: squash di `fix/trend-valore-fermo` su `main`, tag `2.12.0-rc.15`, eliminazione dei tre rami.
+
+**Da dire al maintainer**: sul web le estremità del tubo sono scalate per lo spessore (marker SVG in unità
+`strokeWidth`): su un tubo da 10 px il pallino è largo 100 px, e il pannello ora fa lo stesso — forse non è voluto.
+Notato anche: il `data_log` in modalità modifica dell'editor mostra un segnaposto («Data log — tag») invece del
+rendering vero, contro la regola WYSIWYG.
+
+**L'editor di sviluppo** gira lanciato dalla sessione (`start_editor_develop.sh`, 8460/8090).
+
 ## ▶ Riprendere da qui — aggiornamento ed email chiusi, nessun ramo aperto (2026-09-30)
 
 **Le due code sono chiuse e i due piani sono in archivio.** Versione **2.12.0-rc.13**, sul canale
