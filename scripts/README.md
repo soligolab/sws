@@ -338,9 +338,18 @@ Permette di creare e modificare progetti localmente, anche senza un runtime atti
 - `8460` — IDE/admin locale
 
 ```sh
-./scripts/start_editor.sh                # IDE su 8460, progetti in ~/sws_projects
-./scripts/start_editor.sh --instance 2   # IDE su 8462, configurazione in .run-editor-2/
+./scripts/start_editor.sh                 # IDE su 8460, progetti in ~/sws_projects
+./scripts/start_editor.sh --instance 2    # IDE su 8462, configurazione in .run-editor-2/
+./scripts/start_editor.sh --brand pixsys  # con il branding Pixsys invece di SWS
 ```
+
+`--brand` (o `SWS_BRAND`, che `--brand` sopravanza) sceglie il branding senza toccare un file
+versionato: scrive `dist/branding/active.json`, mentre `public/branding/active.json` resta `sws`
+per tutti. Serve perché il brand va **provato mentre si lavora** — il maintainer tiene l'IDE in
+modalità Pixsys sulle macchine d'ufficio e in SWS standard a casa (02-10-2026) — e prima l'unica
+strada era modificare il file del repo, che poi viaggia con git e cambia il brand anche all'altra
+macchina. Un brand inesistente ferma l'avvio ed elenca quelli che ci sono, invece di partire in
+silenzio con quello sbagliato.
 
 **Questa è la corsa di produzione**, e dal 18-09-2026 lo è davvero: i progetti finiscono dove li
 mette il runtime — `~/sws_projects`, fuori dal repo — oppure dove dice `SWS_PROJECTS_ROOT`. Lo
@@ -356,7 +365,7 @@ stampa la radice **e da dove viene**, perché un percorso implicito era metà de
 ## `start_editor_develop.sh` — lo stesso IDE, con i progetti nel checkout
 
 Per sviluppare: imposta `SWS_PROJECTS_ROOT` a `.run-editor/projects` e passa la mano a
-`start_editor.sh`. I progetti di prova stanno accanto al codice e se ne vanno con la cartella
+`start_editor.sh`, al quale **inoltra tutti gli argomenti** — `--instance`, `--no-spa`, `--brand`. I progetti di prova stanno accanto al codice e se ne vanno con la cartella
 `.run-*`.
 
 ```sh

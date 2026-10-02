@@ -56,7 +56,9 @@ LVGL non ha uno zoom di display: non si moltiplica una matrice e si è finito.
 
 ## Da misurare quando si comincia
 
-- Che risoluzioni hanno davvero i pannelli Pixsys in gioco (il seme
-  [preset-pixsys-catalogo](2026-09-19-preset-pixsys-catalogo.md) dice che i modelli non sono nel
-  repo: è la stessa lacuna).
+- Che risoluzioni hanno davvero i pannelli Pixsys in gioco. **Non è più una lacuna**: il 02-10-2026
+  il maintainer ha dato la nomenclatura, e le risoluzioni sono **quattro** — 1024×600 (7"),
+  1024×768 (8"), 1280×800 (10,1" e 12,1"), 1920×1080 (15,6"). Sono quelle su cui ragionare per le
+  taglie di font; i venti modelli che le portano stanno nel
+  [piano dei preset](../archive/2026-10-02-preset-pixsys-catalogo.md).
 - Quante taglie di font servirebbero in B e in A, e quanta memoria costano sul pannello più piccolo.

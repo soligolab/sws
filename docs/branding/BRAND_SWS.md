@@ -100,14 +100,36 @@ Landing directory per gli export: `docs/branding/boot-backgrounds/`.
 
 ### Risoluzioni target
 
-| Pollici | Risoluzione | Aspect | Stato |
-|---------|-------------|--------|-------|
-| 4.3"    | 480 × 272   | 16:9   | da confermare |
-| 7"      | 800 × 480   | 5:3    | confermato (TD710) |
-| 10.1"   | 1280 × 800  | 16:10  | da confermare |
-| 10.1"   | 1280 × 768  | 5:3    | confermato (device attuale) |
-| 15"     | 1366 × 768  | 16:9   | da confermare |
-| 15.6"   | 1920 × 1080 | 16:9   | da confermare |
+Le risoluzioni dei pannelli **si leggono nel nome del modello**. La nomenclatura (maintainer,
+02-10-2026) è `{WP|TC}` + una cifra di touch + due cifre di schermo:
+
+- `WP` = WebPanel, `TC` = TouchController — due linee commerciali, lo stesso prodotto per noi;
+- la prima cifra è il touch: **5, 6** capacitivo · **7, 8** resistivo;
+- le ultime due sono lo schermo, ed è lì che sta la risoluzione.
+
+Per ogni schermo esiste **un** modello capacitivo e **uno** resistivo, e la cifra del touch
+dipende dalla serie: **5/7** sul 7", **6/8** su tutti gli altri. Venti modelli in tutto (dieci per
+linea), **quattro** risoluzioni. Le altre combinazioni che la nomenclatura permetterebbe — un
+`WP670`, un `TC515` — non esistono a catalogo.
+
+| Codice | Pollici | Risoluzione | Aspect | Esempi |
+|--------|---------|-------------|--------|--------|
+| `70`   | 7"      | 1024 × 600  | 16:10  | WP570 e WP770 (cap./res.), TC570 e TC770 |
+| `00`   | 8"      | 1024 × 768  | 4:3    | WP600 e WP800, TC600 e TC800 |
+| `15`   | 10,1"   | 1280 × 800  | 16:10  | WP615 e WP815, TC615 e TC815 |
+| `20`   | 12,1"   | 1280 × 800  | 16:10  | WP620 e WP820, TC620 e TC820 |
+| `30`   | 15,6"   | 1920 × 1080 | 16:9   | WP630 e WP830, TC630 e TC830 |
+
+Questa tabella e i preset dell'IDE
+(`sws-editor/public/branding/pixsys/brand.json` → `device_presets`) dicono la stessa cosa, e
+`sws-editor/tests/presetPixsys.test.ts` lo verifica: il nome contiene la risoluzione, quindi un
+preset che la contraddice diventa rosso.
+
+**Risoluzioni senza un pannello che le porti** — 480 × 272 (4,3"), 800 × 480 (7"), 1280 × 768
+(10,1") e 1366 × 768 (15"). Stavano qui come «da confermare» da mesi: nessun modello a catalogo le
+ha, e l'800 × 480 era del TD710, una serie che non esiste più. Non sono sparite: vivono fra le
+risoluzioni **generiche** dell'IDE (`STANDARD_DEVICE_PRESETS` in `sws-editor/src/pageLayout.ts`),
+dove un preset senza nome di prodotto è al suo posto.
 
 ### Metodo consigliato
 

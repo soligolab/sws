@@ -36,6 +36,15 @@ export function referenceResolutionFor(aspectRatio: string | undefined): { width
 /** Generic standard resolutions for "Fisso" mode — always available
  *  regardless of the active brand. */
 export const STANDARD_DEVICE_PRESETS: { label: string; width: number; height: number }[] = [
+  // Risoluzioni senza un prodotto che le porti. Tre vengono dalla tabella di
+  // `docs/branding/BRAND_SWS.md`, dove sono rimaste per mesi «da confermare»
+  // perché nessun modello Pixsys le ha; 800×480 era del TD710, una serie che
+  // non esiste più. Qui sono al loro posto: chi disegna per un display che non
+  // è dei vostri le trova, e nessuno le scambia per pannelli a catalogo.
+  { label: "4,3\" (480×272)", width: 480, height: 272 },
+  { label: "7\" (800×480)", width: 800, height: 480 },
+  { label: "10,1\" 5:3 (1280×768)", width: 1280, height: 768 },
+  { label: "15\" 16:9 (1366×768)", width: 1366, height: 768 },
   { label: "16:10 (1280×800)", width: 1280, height: 800 },
   { label: "HD 16:9 (1280×720)", width: 1280, height: 720 },
   { label: "Full HD 16:9 (1920×1080)", width: 1920, height: 1080 },

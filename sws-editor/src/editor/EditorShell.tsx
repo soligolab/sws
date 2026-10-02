@@ -24,7 +24,7 @@ import { BindableInput } from "@/components/BindableInput";
 import { ImageBrowser } from "@/components/ImageBrowser";
 import { SYMBOL_LIST } from "@/symbols/library";
 import { ASPECT_RATIOS, editorFitSize, effectiveSizeMode, getDevicePresets, isOffPage, referenceResolutionFor, STANDARD_DEVICE_PRESETS, translateObject } from "@/pageLayout";
-import { getBrand } from "@/branding";
+import { getBrand, type DevicePreset } from "@/branding";
 import { genId } from "@/id";
 import type { SymbolMeta } from "@/symbols/library";
 import { useAppStore } from "@/store";
@@ -267,6 +267,23 @@ function buildMixedKeys(objs: SynopticObject[]): Set<keyof SynopticObject> {
 }
 
 // ── EditorShell ───────────────────────────────────────────────────────────────
+
+/** I preset del brand divisi per gruppo, nell'ordine in cui il brand li
+ *  dichiara — che per Pixsys è per pollici crescenti, non per numero di
+ *  modello: chi cerca sa che schermo ha davanti, non il codice. Le voci senza
+ *  `group` stanno insieme sotto il nome del brand, com'era prima che i gruppi
+ *  esistessero. */
+function presetPerGruppo(): [string, DevicePreset[]][] {
+  const brand = getBrand();
+  const gruppi: [string, DevicePreset[]][] = [];
+  for (const p of brand.devicePresets) {
+    const nome = p.group ?? brand.shortName;
+    const esistente = gruppi.find(([g]) => g === nome);
+    if (esistente) esistente[1].push(p);
+    else gruppi.push([nome, [p]]);
+  }
+  return gruppi;
+}
 
 export function EditorShell() {
   const { t } = useTranslation();
@@ -1855,11 +1872,16 @@ function PageProps({
               <optgroup label="Standard">
                 {STANDARD_DEVICE_PRESETS.map((d) => <option key={d.label} value={d.label}>{d.label}</option>)}
               </optgroup>
-              {getBrand().devicePresets.length > 0 && (
-                <optgroup label={getBrand().shortName}>
-                  {getBrand().devicePresets.map((d) => <option key={d.label} value={d.label}>{d.label}</option>)}
+              {/* Un gruppo per linea di prodotto. Dal 02-10-2026 i modelli
+                  Pixsys sono quaranta — WebPanel e TouchController, quattro
+                  touch per cinque schermi — e in un elenco piatto non si
+                  trovava più il proprio pannello. Un brand che non dichiara
+                  `group` continua ad avere un gruppo solo col suo nome. */}
+              {presetPerGruppo().map(([gruppo, voci]) => (
+                <optgroup key={gruppo} label={gruppo}>
+                  {voci.map((d) => <option key={d.label} value={d.label}>{d.label}</option>)}
                 </optgroup>
-              )}
+              ))}
             </select>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 6px" }}>

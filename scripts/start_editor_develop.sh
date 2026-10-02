@@ -24,6 +24,10 @@
 # Uso: gli stessi argomenti di `start_editor.sh`.
 #   ./scripts/start_editor_develop.sh
 #   ./scripts/start_editor_develop.sh --instance 2 --no-spa
+#   ./scripts/start_editor_develop.sh --brand pixsys    # col branding Pixsys
+#
+# Gli argomenti passano tutti a `start_editor.sh`, che li interpreta: qui si
+# legge solo `--instance`, perché serve a scegliere la cartella di lavoro.
 #
 # Per lavorare sui progetti veri (fuori dal repo) senza cambiare script:
 #   SWS_PROJECTS_ROOT=~/sws_projects ./scripts/start_editor_develop.sh

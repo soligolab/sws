@@ -26,10 +26,12 @@
 # Uso:
 #   ./scripts/start_editor.sh                # IDE su 8460, progetti in ~/sws_projects
 #   ./scripts/start_editor.sh --instance 2   # IDE su 8462, config in .run-editor-2/
+#   ./scripts/start_editor.sh --brand pixsys # IDE col branding Pixsys
 #   ./scripts/start_editor_develop.sh        # progetti dentro il checkout
 #
 # Variabili d'ambiente (opzionali):
 #   SWS_PROJECTS_ROOT  dove tenere i progetti (default del runtime: ~/sws_projects)
+#   SWS_BRAND          il branding da attivare (come --brand, che ha la precedenza)
 #   SWS_ADMIN_USER / SWS_ADMIN_PASSWORD   per creare un utente admin all'avvio
 #   RUST_LOG=debug   per log verbosi
 
@@ -40,6 +42,15 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # ── Parse --instance N ────────────────────────────────────────────────────────
 INSTANCE=1
 SPA_BUILD=1
+# Il branding da attivare. Vuoto = si lascia quello che dice
+# `public/branding/active.json`, cioè il default del repo.
+#
+# Esiste perché il brand va provato mentre si lavora: il maintainer tiene l'IDE
+# in modalità Pixsys sulle macchine d'ufficio e in SWS standard a casa
+# (02-10-2026), e senza un parametro l'unica strada era modificare un file
+# versionato — che poi viaggia con git e cambia il brand anche all'altra
+# macchina.
+BRAND="${SWS_BRAND:-}"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --instance) INSTANCE="$2"; shift 2 ;;
@@ -47,7 +58,8 @@ while [[ $# -gt 0 ]]; do
     # lavorando solo sul Rust e i dieci secondi di vite danno fastidio, o per
     # provare deliberatamente una dist vecchia.
     --no-spa)   SPA_BUILD=0; shift ;;
-    *) echo "uso: $0 [--instance N] [--no-spa]" >&2; exit 2 ;;
+    --brand)    BRAND="$2"; shift 2 ;;
+    *) echo "uso: $0 [--instance N] [--no-spa] [--brand ID]" >&2; exit 2 ;;
   esac
 done
 
@@ -185,7 +197,18 @@ sync_branding() {
   local dst="$REPO_ROOT/sws-editor/dist/branding"
   if [ -d "$src" ] && [ -d "$REPO_ROOT/sws-editor/dist" ]; then
     rm -rf "$dst" && cp -r "$src" "$dst"
-    echo "[editor] branding sincronizzato (attivo: $(grep -o '\"brand\"[^,}]*' "$src/active.json" 2>/dev/null || echo '?'))"
+    # `--brand` scrive SOLO nella dist, mai in public: il file versionato resta
+    # il default del repo, e due macchine possono girare con brand diversi
+    # senza che git le metta d'accordo per forza.
+    if [ -n "$BRAND" ]; then
+      if [ ! -f "$src/$BRAND/brand.json" ]; then
+        echo "[editor] ERRORE: branding '$BRAND' inesistente. Disponibili:" >&2
+        for d in "$src"/*/; do [ -f "$d/brand.json" ] && echo "[editor]   $(basename "$d")" >&2; done
+        exit 2
+      fi
+      printf '{ "brand": "%s" }\n' "$BRAND" > "$dst/active.json"
+    fi
+    echo "[editor] branding sincronizzato (attivo: $(grep -o '\"brand\"[^,}]*' "$dst/active.json" 2>/dev/null || echo '?'))"
   fi
 }
 sync_branding

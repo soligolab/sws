@@ -17,14 +17,131 @@
     "onPrimary": "#ffffff"
   },
   "device_presets": [
-    { "label": "Pixsys TD710 — 7\" (800×480)", "width": 800, "height": 480 },
-    { "label": "Pixsys WP570 — 7\" (1024×600)", "width": 1024, "height": 600 },
-    { "label": "Pixsys WP800 — 8\" 4:3 (1024×768)", "width": 1024, "height": 768 },
-    { "label": "Pixsys WP815/WP615 — 10.1\" (1280×800)", "width": 1280, "height": 800 },
-    { "label": "Pixsys WP820/WP620 — 12.1\" (1280×800)", "width": 1280, "height": 800 },
-    { "label": "Pixsys WP830/WP630 — 15.6\" (1920×1080)", "width": 1920, "height": 1080 }
+    {
+      "label": "WP570 — 7\" capacitivo (1024×600)",
+      "group": "WebPanel",
+      "width": 1024,
+      "height": 600
+    },
+    {
+      "label": "WP770 — 7\" resistivo (1024×600)",
+      "group": "WebPanel",
+      "width": 1024,
+      "height": 600
+    },
+    {
+      "label": "WP600 — 8\" capacitivo (1024×768)",
+      "group": "WebPanel",
+      "width": 1024,
+      "height": 768
+    },
+    {
+      "label": "WP800 — 8\" resistivo (1024×768)",
+      "group": "WebPanel",
+      "width": 1024,
+      "height": 768
+    },
+    {
+      "label": "WP615 — 10,1\" capacitivo (1280×800)",
+      "group": "WebPanel",
+      "width": 1280,
+      "height": 800
+    },
+    {
+      "label": "WP815 — 10,1\" resistivo (1280×800)",
+      "group": "WebPanel",
+      "width": 1280,
+      "height": 800
+    },
+    {
+      "label": "WP620 — 12,1\" capacitivo (1280×800)",
+      "group": "WebPanel",
+      "width": 1280,
+      "height": 800
+    },
+    {
+      "label": "WP820 — 12,1\" resistivo (1280×800)",
+      "group": "WebPanel",
+      "width": 1280,
+      "height": 800
+    },
+    {
+      "label": "WP630 — 15,6\" capacitivo (1920×1080)",
+      "group": "WebPanel",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "label": "WP830 — 15,6\" resistivo (1920×1080)",
+      "group": "WebPanel",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "label": "TC570 — 7\" capacitivo (1024×600)",
+      "group": "TouchController",
+      "width": 1024,
+      "height": 600
+    },
+    {
+      "label": "TC770 — 7\" resistivo (1024×600)",
+      "group": "TouchController",
+      "width": 1024,
+      "height": 600
+    },
+    {
+      "label": "TC600 — 8\" capacitivo (1024×768)",
+      "group": "TouchController",
+      "width": 1024,
+      "height": 768
+    },
+    {
+      "label": "TC800 — 8\" resistivo (1024×768)",
+      "group": "TouchController",
+      "width": 1024,
+      "height": 768
+    },
+    {
+      "label": "TC615 — 10,1\" capacitivo (1280×800)",
+      "group": "TouchController",
+      "width": 1280,
+      "height": 800
+    },
+    {
+      "label": "TC815 — 10,1\" resistivo (1280×800)",
+      "group": "TouchController",
+      "width": 1280,
+      "height": 800
+    },
+    {
+      "label": "TC620 — 12,1\" capacitivo (1280×800)",
+      "group": "TouchController",
+      "width": 1280,
+      "height": 800
+    },
+    {
+      "label": "TC820 — 12,1\" resistivo (1280×800)",
+      "group": "TouchController",
+      "width": 1280,
+      "height": 800
+    },
+    {
+      "label": "TC630 — 15,6\" capacitivo (1920×1080)",
+      "group": "TouchController",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "label": "TC830 — 15,6\" resistivo (1920×1080)",
+      "group": "TouchController",
+      "width": 1920,
+      "height": 1080
+    }
   ],
   "data_path_presets": [
-    { "label": "Pixsys (Yocto WP5xx/WP6xx/WP8xx) — /data/user/sws", "path": "/data/user/sws" }
+    {
+      "label": "Pixsys (Yocto WP5xx/WP6xx/WP8xx) — /data/user/sws",
+      "path": "/data/user/sws"
+    }
   ]
 }

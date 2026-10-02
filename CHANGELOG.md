@@ -20,6 +20,16 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   mostra lo stato ma non le novità. Vale per la `2.12.0-rc.1` e la `rc.2`.
 
 ### Added
+- **`--brand` sugli script di avvio dell'IDE** (`start_editor.sh`, `start_editor_develop.sh`, o la variabile `SWS_BRAND`): sceglie il branding senza
+  toccare un file versionato — scrive `dist/branding/active.json` e lascia `public/branding/active.json` al default del repo, così due macchine possono
+  girare con brand diversi. Un brand inesistente ferma l'avvio ed elenca quelli disponibili, invece di partire in silenzio con quello sbagliato.
+- **I preset dispositivo sono il catalogo Pixsys intero**: da sei voci scritte a mano ai **venti modelli** del catalogo, divise in due gruppi nel menù — WebPanel e
+  TouchController. Il maintainer ha dato la nomenclatura (`{WP|TC}` + cifra del touch, 5/6 capacitivo e 7/8 resistivo, + due cifre di schermo: `70` 7"
+  1024×600, `00` 8" 1024×768, `15` 10,1" 1280×800, `20` 12,1" 1280×800, `30` 15,6" 1920×1080), per ogni schermo un capacitivo e un resistivo. Siccome **il nome contiene la
+  risoluzione**, un test verifica invece di fidarsi: diventa rosso un modello con dimensione, pollici, touch o gruppo sbagliati, e anche uno **inventato** —
+  la nomenclatura genererebbe un `WP670`, il catalogo no. Dentro ogni gruppo gli schermi sono in
+  ordine di pollici, non di codice. Le risoluzioni senza un pannello che le porti — 480×272, 800×480, 1280×768, 1366×768 — sono passate fra le generiche,
+  dove un preset senza nome di prodotto è al suo posto; la serie TD non esiste più.
 - **Sul pannello LVGL anche le estremità e il flusso animato del tubo** (freccia, pallino, flangia; tratteggio che scorre, all'indietro
   con un valore negativo, spento dal suo tag), **la variazione percentuale del kpi_tile** (▲/▼ sulla finestra precedente) e **il
   titolo dell'asse Y del grafico a barre** ruotato come sul web.

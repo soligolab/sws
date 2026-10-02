@@ -56,6 +56,13 @@ export interface DevicePreset {
   label: string;
   width: number;
   height: number;
+  /** Il gruppo in cui la voce compare nel menù dei preset. Nasce il
+   *  02-10-2026, quando i modelli Pixsys sono passati da sei a quaranta: in un
+   *  elenco piatto non si trovava più niente, e WebPanel e TouchController
+   *  sono due linee che il maintainer vuole distinte. Assente = il brand non
+   *  raggruppa, e le voci finiscono tutte sotto il suo `shortName`, come
+   *  prima. */
+  group?: string;
 }
 
 export interface DataPathPreset {
