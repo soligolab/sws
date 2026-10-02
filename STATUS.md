@@ -74,6 +74,46 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — preset Pixsys fatti; il pannello aspetta la release (2026-10-02, sera)
+
+**Nessun ramo aperto.** Squash `45e6c198`. Versione dichiarata **2.12.0-rc.15**, **non pushata**.
+
+### Fatto oggi
+
+- **I preset dispositivo sono il catalogo Pixsys**: venti modelli (per ogni schermo un capacitivo e
+  uno resistivo — 570/770, 600/800, 615/815, 620/820, 630/830 — per `WP` e `TC`), in due gruppi
+  ordinati per pollici. Il seme del 19-09 è in archivio: la nomenclatura data dal maintainer ha
+  sciolto la domanda che poneva, perché **il nome contiene la risoluzione**.
+  Il test verifica l'**appartenenza al catalogo**, non la generabilità: la regola produrrebbe anche
+  `WP670` e `TC515`, che non esistono.
+- **`--brand` sugli script di avvio dell'IDE** (anche `SWS_BRAND`): il branding si sceglie senza
+  toccare un file versionato. Serve perché l'IDE va in **Pixsys in ufficio** e in **SWS standard a
+  casa** — istruzione del maintainer.
+- Prima, nella stessa giornata: predefiniti espliciti, trend con valore fermo, predefiniti dentro
+  le griglie, memoria del viewer che sopravvive al riavvio (squash `e66485ee`).
+
+### Cosa resta aperto
+
+- **Il confronto a schermo IDE/LVGL** degli oggetti, rimandato dal maintainer all'**installazione
+  pulita** della release. Il progetto `~/sws_projects/collaudo-rc15` è pronto: 140 oggetti, tutti e
+  38 i tipi, quattro pagine 1920×1080, con i predefiniti verificati 240 su 240.
+- **Nessun tag**: dopo il bump che ha prodotto l'immagine `2.12.0-rc.15` sono entrati altri commit,
+  quindi `main` non è l'albero pubblicato su ghcr. Il tag va messo sulla versione che si costruirà
+  per l'installazione pulita.
+- **Il deploy non segnala il cambio di progetto**: segnalare soltanto, o riaprire il progetto?
+  Decisione del maintainer.
+- Le **estremità del tubo** scalate per lo spessore e il **`data_log` col segnaposto** in modifica:
+  due pareri ancora da dare.
+- Semi vivi della stessa famiglia: [il viewer che non riparte](docs/plans/2026-10-01-viewer-non-riparte-dopo-aggiornamento.md)
+  e [il quadlet che non viaggia](docs/plans/2026-09-29-quadlet-che-non-viaggia.md) — cui si aggiunge
+  il volume del viewer, che pure arriva solo reinstallando.
+
+### Le macchine
+
+- **WP630** (`user@wp630-a-p3-07a077.local`): rc.15.
+- **theobroma** (questa): **l'IDE lo avvio e lo tengo allineato io**, su
+  `http://192.168.0.201:8460`, **in modalità Pixsys** (`--brand pixsys`). A casa va in SWS standard.
+
 ## ▶ Riprendere da qui — predefiniti espliciti e trend fermo su `main`; il pannello aspetta la release (2026-10-02)
 
 **Nessun ramo aperto.** Squash unico di `fix/trend-valore-fermo`, che portava dentro i tre rami
