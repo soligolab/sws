@@ -1,7 +1,7 @@
 # Lo specchio (`flip_h` / `flip_v`) sul pannello LVGL
 
 > Scritto il 02-10-2026 nella sessione di plan che il seme
-> [`2026-09-26-specchio-su-lvgl.md`](../archive/2026-09-26-specchio-su-lvgl.md) chiedeva prima di
+> [`2026-09-26-specchio-su-lvgl.md`](2026-09-26-specchio-su-lvgl.md) chiedeva prima di
 > toccare qualunque cosa. Quel seme è ora in archivio: questo piano lo apre e lo chiude.
 
 ## Contesto

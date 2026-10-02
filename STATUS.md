@@ -74,6 +74,56 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — lo specchio si vede sul pannello (2026-10-02, chiusura)
+
+**Nessun ramo aperto.** Squash `19a82387`. Versione dichiarata **2.12.0-rc.15**.
+
+### Fatto
+
+- **`flip_h`/`flip_v` funzionano sul viewer LVGL.** Stavano nel modello e nessuno li leggeva: un
+  oggetto specchiato nell'editor arrivava dritto sul vetro. LVGL 8.3 **non ha uno specchio di
+  stile** (`transform_zoom` rifiuta i negativi), quindi non c'era una via unica come
+  `apply_rotation_from` per la rotazione — quattro famiglie, quattro tecniche:
+  - **immagini e simboli caricati nel progetto** → lo specchio entra nella `Transform` di resvg,
+    mentre il disegno è ancora vettoriale (`svg_raster.rs::specchia`);
+  - **i 33 simboli della libreria** non sono SVG ma primitive disegnate alla dimensione finale →
+    si ribalta il buffer del canvas (`specchia_buffer`), una permutazione esatta che li copre
+    tutti insieme. La dimensione si **calcola** (3 byte/pixel): `data_size` è 0 sui canvas LVGL,
+    e con quella il ribaltamento non faceva nulla;
+  - **gauge** → angoli dell'arco riflessi **e verso di crescita invertito** (`angoli_gauge`
+    restituisce anche `scambia`). Senza il secondo pezzo lo specchio sposta il disegno e lascia il
+    minimo dov'era;
+  - **barra** → `LV_BASE_DIR_RTL`, il lato da cui si riempie.
+- **Testo, tabella, pulsanti, selettore lingua e navigatore pagine non specchiano**, per scelta:
+  specchiare i glifi vorrebbe dire un secondo motore tipografico nel pannello accanto a quello di
+  LVGL. Dichiarato nel manuale (§ «Lo specchio sul pannello LVGL») e nel commento sopra l'elenco
+  dei tipi — è una divergenza voluta dal web, non una dimenticanza.
+- **Verifiche**: 12 test puri nuovi, **3 provati rossi**; `check_forme_lvgl.sh` esteso con la
+  **pompa** dritta e specchiata — la valvola che avevo usato prima è simmetrica e non provava
+  niente — **provata rossa**. `cargo check`, `pnpm build`, `check_static.sh` (28/28) verdi.
+- Piano d'esecuzione e seme del 26-09 **entrambi in archivio**.
+
+### Cosa resta aperto
+
+- **Il confronto a schermo IDE/LVGL**, specchio compreso, resta rimandato all'**installazione
+  pulita** della release: `~/sws_projects/collaudo-rc15` è pronto (140 oggetti, 38 tipi, quattro
+  pagine 1920×1080). Lo specchio sul pannello non è ancora stato visto da occhi umani: le prove
+  sono la guardia fotografica e i test puri.
+- Invariato dal resoconto precedente: **nessun tag** (dopo il bump della rc.15 sono entrati altri
+  commit, quindi `main` non è l'albero su ghcr), il **deploy che non segnala** il cambio progetto
+  (segnalare o riaprire? decisione del maintainer), le **estremità del tubo** scalate e il
+  **`data_log` col segnaposto** in modifica — due pareri ancora da dare.
+- Semi vivi: [il viewer che non riparte](docs/plans/2026-10-01-viewer-non-riparte-dopo-aggiornamento.md)
+  e [il quadlet che non viaggia](docs/plans/2026-09-29-quadlet-che-non-viaggia.md).
+
+### Le macchine
+
+- **WP630** (`user@wp630-a-p3-07a077.local`): rc.15.
+- **theobroma** (questa): l'IDE lo avvio e lo tengo allineato io, su `http://192.168.0.201:8460`,
+  **in modalità Pixsys** (`--brand pixsys`). A casa va in SWS standard.
+
+---
+
 ## ▶ Riprendere da qui — preset Pixsys fatti; il pannello aspetta la release (2026-10-02, sera)
 
 **Nessun ramo aperto.** Squash `45e6c198`. Versione dichiarata **2.12.0-rc.15**, **non pushata**.
