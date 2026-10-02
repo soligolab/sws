@@ -1990,6 +1990,13 @@ struct HistoryQuery {
     /// deduplicated against the local historian samples.
     #[serde(default)]
     backfill: bool,
+    /// Per i trend (1-10-2026): ripete all'inizio della finestra l'ultimo
+    /// valore registrato prima e prolunga l'ultimo noto fino alla fine
+    /// (`sws_historian::ancora`). Senza, un valore fermo da più della finestra
+    /// dava un grafico vuoto. L'esportazione CSV e gli altri usi restano i
+    /// campioni veri.
+    #[serde(default)]
+    ancora: bool,
 }
 
 async fn get_history(
@@ -2001,6 +2008,23 @@ async fn get_history(
 
     if q.backfill {
         samples = opcua_backfill_history(&s, &tag, q.from, q.to, samples).await;
+    }
+
+    let adesso = sws_core::now_ms();
+    let a = q.to.unwrap_or(adesso).min(adesso);
+    // Una finestra tutta nel futuro non ha niente da ripetere.
+    if let (true, Some(da)) = (q.ancora, q.from.filter(|da| *da < a)) {
+        let mut prima = s.historian.ultimo_prima(&tag, da).await;
+        // Nessun campione registrato prima: vale il valore corrente, se è
+        // più vecchio della finestra (un tag mai cambiato dall'avvio).
+        if prima.is_none() {
+            prima = s.db.get(&tag).await.filter(|t| t.timestamp_ms <= da).map(|t| sws_historian::Sample {
+                ts_ms: t.timestamp_ms,
+                value: t.value,
+                quality: t.quality,
+            });
+        }
+        samples = sws_historian::ancora(samples, prima, da, a);
     }
 
     if let Some(bucket_ms) = q.bucket_ms {

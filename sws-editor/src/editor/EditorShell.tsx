@@ -31,6 +31,7 @@ import { useAppStore } from "@/store";
 import { coloreAuto, estraiHex, predefinito, regola } from "@/coloriPredefiniti";
 import { oggettoNuovo } from "./oggettiNuovi";
 import { CampoColore } from "./CampoColore";
+import { regolaCampo, type MotivoVuoto } from "@/predefinitiCampi";
 import { IntestazioneSezione, PREFISSO_MEMORIA, RigaProprieta, SPAZIO, TESTO, TitoloVista, migraMemorieVecchie, useSezioneAperta } from "./stilePannelli";
 import { cosaCancella, eliminaWaypoint, percorsoDaSalvare, puntiMovimento } from "@/canvas/percorsoMovimento";
 import { targetDaSalvare, versoRischioso } from "./targetProgetto";
@@ -2210,8 +2211,18 @@ function ProjectPageLayoutSettings() {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
           <input type="number" style={INPUT} placeholder={t("props.widthPx")} value={defW} onChange={(e) => setDefW(e.target.value)} />
           <input type="number" style={INPUT} placeholder={t("props.heightPx")} value={defH} onChange={(e) => setDefH(e.target.value)} />
-          <input type="text" style={INPUT} placeholder={t("props.backgroundLight")} value={defBg} onChange={(e) => setDefBg(e.target.value)} />
-          <input type="text" style={INPUT} placeholder={t("props.backgroundDark")} value={defBgDark} onChange={(e) => setDefBgDark(e.target.value)} />
+          {/* Il controllo colore condiviso (30-09-2026: qui c'era solo il testo).
+              Testo vuoto = nessun predefinito di progetto. */}
+          <div style={{ minWidth: 0 }}>
+            <div style={LABEL}>{t("props.backgroundLight")}</div>
+            <CampoColore valore={defBg || undefined} regola={{ hex: "#0f172a" }} sfondo="#0f172a"
+              onChange={(v) => setDefBg(v ?? "")} />
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <div style={LABEL}>{t("props.backgroundDark")}</div>
+            <CampoColore valore={defBgDark || undefined} regola={{ hex: defBg || "#0f172a" }} sfondo="#0f172a"
+              onChange={(v) => setDefBgDark(v ?? "")} />
+          </div>
         </div>
         <button
           type="button"
@@ -2626,15 +2637,41 @@ export function ObjectProps({
     <RigaProprieta key={label} etichetta={label}>{content}</RigaProprieta>
   );
 
-  const numInput = (key: keyof SynopticObject, fallback: number) => (
-    <input
-      type="number"
-      style={INPUT}
-      value={mixedKeys.has(key) ? "" : (obj[key] !== undefined ? (obj[key] as number) : fallback)}
-      placeholder={mixedKeys.has(key) ? "(vari)" : undefined}
-      onChange={(e) => onChange({ [key]: e.target.value === "" ? undefined : Number(e.target.value) } as Partial<SynopticObject>)}
-    />
+  // Un campo senza valore nel file non si mostra più come se l'avesse
+  // (30-09-2026): un «vuoto voluto» della tabella (`predefinitiCampi.ts`) lo
+  // dice accanto al campo — «adatta ai dati», «nessuna etichetta» — e un
+  // ripiego non salvato si vede in corsivo, non come un numero scritto. Prima
+  // il range Y del trend mostrava 0/100 mentre il grafico si adattava ai dati.
+  const statoVuoto = (key: keyof SynopticObject) => {
+    if (mixedKeys.has(key)) return undefined;
+    const v = obj[key];
+    if (v !== undefined && v !== null && v !== "") return undefined;
+    const r = regolaCampo(obj.type, key as string);
+    return r && "vuoto" in r ? r.vuoto : undefined;
+  };
+  const chipVuoto = (motivo: MotivoVuoto) => (
+    <span style={{ fontSize: 10, color: "var(--brand-text-muted, #94a3b8)", flex: "none", whiteSpace: "nowrap" }}
+      title={t(`props.vuotoHint.${motivo}`)}>
+      {t(`props.vuoto.${motivo}`)}
+    </span>
   );
+  const numInput = (key: keyof SynopticObject, fallback: number) => {
+    const motivo = statoVuoto(key);
+    const assente = !mixedKeys.has(key) && obj[key] === undefined;
+    const input = (
+      <input
+        type="number"
+        style={{ ...INPUT, ...(assente && !motivo ? { fontStyle: "italic", color: "var(--brand-text-muted, #94a3b8)" } : {}), ...(motivo ? { flex: 1, minWidth: 0 } : {}) }}
+        value={mixedKeys.has(key) || motivo ? "" : (obj[key] !== undefined ? (obj[key] as number) : fallback)}
+        placeholder={mixedKeys.has(key) ? "(vari)" : undefined}
+        title={assente && !motivo ? t("props.valoreNonSalvato") : undefined}
+        onChange={(e) => onChange({ [key]: e.target.value === "" ? undefined : Number(e.target.value) } as Partial<SynopticObject>)}
+      />
+    );
+    return motivo
+      ? <div style={{ display: "flex", gap: 6, alignItems: "center" }}>{input}{chipVuoto(motivo)}</div>
+      : input;
+  };
 
   // Un solo imbuto per tutti i tipi di oggetto: i campi che l'operatore legge
   // passano dalla tabella lingue e diventano `{{chiave}}` da soli (Fase 3); gli
@@ -2647,21 +2684,31 @@ export function ObjectProps({
   // una chiave sola condivisa senza che nessuno l'abbia chiesto, e «(vari)» non
   // è un testo da mettere in tabella.
   const textInput = (key: keyof SynopticObject, placeholder?: string, title?: string) => {
+    // Un campo in tabella non usa il segnaposto di chi chiama (30-09-2026):
+    // «Gauge», «Setpoint», «Data log» erano grigi nel campo e nessuno dei due
+    // motori li disegnava. Il vuoto voluto lo dice l'etichetta accanto.
+    const inTabella = !!regolaCampo(obj.type, key as string);
+    const motivo = statoVuoto(key);
+    const segnaposto = inTabella ? undefined : placeholder;
+    const conChip = (el: React.ReactNode) => {
+      if (!motivo) return el;
+      return <div style={{ display: "flex", gap: 6, alignItems: "center" }}><div style={{ flex: 1, minWidth: 0 }}>{el}</div>{chipVuoto(motivo)}</div>;
+    };
     if (TEXT_FIELDS.includes(key) && !mixedKeys.has(key)) {
-      return (
+      return conChip(
         <CampoTestoTradotto
           valore={obj[key] as string | undefined}
-          placeholder={placeholder}
+          placeholder={segnaposto}
           stile={INPUT}
           onChange={(nuovo) => onChange({ [key]: nuovo } as Partial<SynopticObject>)}
         />
       );
     }
-    return (
+    return conChip(
       <input
         type="text"
         style={INPUT}
-        placeholder={mixedKeys.has(key) ? "(vari)" : placeholder}
+        placeholder={mixedKeys.has(key) ? "(vari)" : segnaposto}
         title={title}
         value={mixedKeys.has(key) ? "" : ((obj[key] as string) ?? "")}
         onChange={(e) => onChange({ [key]: e.target.value } as Partial<SynopticObject>)}
@@ -3314,7 +3361,7 @@ export function ObjectProps({
           {/* Button label + write value + built-in action */}
           {obj.type === "button" && (
             <>
-              {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "Bottone")}</BindableInput>)}
+              {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
               {field(t("props.labelColor"), <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color")}</BindableInput>)}
               {field(t("props.buttonMode"), (
                 <select style={{ ...INPUT, cursor: "pointer" }} value={obj.button_mode ?? "write"}
@@ -3450,7 +3497,7 @@ export function ObjectProps({
             const targetMissing = !!obj.target_page && !pages.some((p) => p.id === obj.target_page);
             return (
               <>
-                {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", t("shell.goToPage"))}</BindableInput>)}
+                {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
                 {field(t("props.targetPage"),
                   <select
                     style={{
@@ -3485,7 +3532,7 @@ export function ObjectProps({
           {/* Language button (T-40) */}
           {obj.type === "lang_button" && (
             <>
-              {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "IT")}</BindableInput>)}
+              {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
               {field(t("props.targetLang"),
                 <select style={{ ...INPUT, cursor: "pointer" }} value={obj.target_lang ?? ""}
                   onChange={(e) => onChange({ target_lang: e.target.value || undefined })}>
@@ -3506,7 +3553,7 @@ export function ObjectProps({
           {/* Gauge */}
           {obj.type === "gauge" && (
             <>
-              {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "Gauge")}</BindableInput>)}
+              {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
               {field(t("props.tag"), tagInput("es. pump1.speed"))}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
                 <div><div style={LABEL}>Min</div><BindableInput obj={obj} propName="min" onChange={onChange}>{numInput("min", 0)}</BindableInput></div>
@@ -3600,6 +3647,9 @@ export function ObjectProps({
           {obj.type === "slider" && (
             <>
               {field(t("props.tag"), tagInput("es. pump1.speed"))}
+              {/* 30-09-2026: il web disegna `label` dello slider da sempre, ma il
+                  pannello non aveva il campo — si poteva solo ereditare da un file. */}
+              {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
               {field(t("props.color"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill")}</BindableInput>)}
               <div style={GRIGLIA_NUMERICA}>
                 <div><div style={LABEL}>Min</div><BindableInput obj={obj} propName="min" onChange={onChange}>{numInput("min", 0)}</BindableInput></div>
@@ -3635,7 +3685,7 @@ export function ObjectProps({
           {/* Setpoint */}
           {obj.type === "setpoint" && (
             <>
-              {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "Setpoint")}</BindableInput>)}
+              {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
               {field(t("props.tag"), tagInput("es. pump1.speed_sp"))}
               {field(t("props.unit"), <BindableInput obj={obj} propName="unit" onChange={onChange}>{textInput("unit", "")}</BindableInput>)}
               {field(t("props.decimals"), <BindableInput obj={obj} propName="decimals" onChange={onChange}>{numInput("decimals", 1)}</BindableInput>)}
@@ -3654,7 +3704,7 @@ export function ObjectProps({
           {/* Checkbox */}
           {obj.type === "checkbox" && (
             <>
-              {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "Checkbox")}</BindableInput>)}
+              {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
               {field(t("props.tag"), tagInput("es. pump1.run"))}
               {field(t("props.color"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill")}</BindableInput>)}
               {field(t("props.valueOn"),
@@ -3691,7 +3741,7 @@ export function ObjectProps({
           {/* Radio */}
           {obj.type === "radio" && (
             <>
-              {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "Radio")}</BindableInput>)}
+              {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
               {field(t("props.tag"), tagInput("es. pump1.mode"))}
               {field(t("props.color"), <BindableInput obj={obj} propName="fill" onChange={onChange}>{colorInput("fill")}</BindableInput>)}
               {field(t("props.orientation"),
@@ -3718,7 +3768,7 @@ export function ObjectProps({
           {/* LED */}
           {obj.type === "led" && (
             <>
-              {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "")}</BindableInput>)}
+              {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
               {field(t("props.tag"), tagInput("es. pump1.run"))}
               {field(t("props.valueOn"),
                 <BindableInput obj={obj} propName="on_value" onChange={onChange}>
@@ -3740,7 +3790,7 @@ export function ObjectProps({
           {/* Progress bar */}
           {obj.type === "progress_bar" && (
             <>
-              {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "")}</BindableInput>)}
+              {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
               {field(t("props.tag"), tagInput("es. tank1.level"))}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
                 <div><div style={LABEL}>Min</div><BindableInput obj={obj} propName="min" onChange={onChange}>{numInput("min", 0)}</BindableInput></div>
@@ -4444,7 +4494,7 @@ export function ObjectProps({
           {/* Sparkline */}
           {obj.type === "kpi_tile" && (
             <>
-              {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "KPI")}</BindableInput>)}
+              {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
               {field(t("props.tag"), tagInput("es. plant.power"))}
               {field(t("props.unit"), <BindableInput obj={obj} propName="unit" onChange={onChange}>{textInput("unit", "")}</BindableInput>)}
               {field(t("props.decimals"), <BindableInput obj={obj} propName="decimals" onChange={onChange}>{numInput("decimals", 1)}</BindableInput>)}
@@ -4458,7 +4508,7 @@ export function ObjectProps({
 
           {obj.type === "data_log" && (
             <>
-              {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label", "Data log")}</BindableInput>)}
+              {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
               {field(t("props.tag"), tagInput("es. plant.power"))}
               {field(t("props.windowS"), numInput("window_s", 3600))}
               {field(t("props.pageSize"), numInput("datalog_page_size", 25))}

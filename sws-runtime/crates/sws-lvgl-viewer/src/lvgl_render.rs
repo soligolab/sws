@@ -219,6 +219,8 @@ pub enum LiveKind {
         spec: PipeFill,
         buf: Vec<lvgl_sys::lv_point_t>,
         last_level: f64,
+        /// Il corpo, per i colori di stato e l'etichetta dal vivo (Fase 3).
+        corpo: Box<PipeCorpo>,
     },
     /// SVG rasterizzato (simbolo vendored/custom, widget `image`).
     ///
@@ -325,6 +327,10 @@ pub enum LiveKind {
         /// L'ultimo colore mandato a LVGL, per non invalidare il widget
         /// trenta volte al secondo quando non è cambiato niente.
         rgb_arco: (u8, u8, u8),
+        /// `decimals` del progetto (Fase 3, 30-09-2026: era sempre 1).
+        decimali: usize,
+        /// La lancetta del setpoint (`gauge_sp_tag`) e il suo tag.
+        sp: Option<(*mut lvgl_sys::lv_meter_indicator_t, String)>,
     },
     /// Cerchio colorato (come `led`, ma `lv_obj` normale: legge `bg_color`
     /// dallo `Style` senza le sorprese di `lv_led`) + label testo a fianco,
@@ -339,13 +345,8 @@ pub enum LiveKind {
         default_label: Option<String>,
         default_color: Option<String>,
     },
-    /// Tabella statica (righe fisse da `table_rows`, non un datagrid dinamico):
-    /// solo le colonne valore/qualità cambiano dal vivo, la colonna
-    /// label e l'intestazione sono fissate alla creazione.
-    Table {
-        ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
-        rows: Vec<TableRow>,
-    },
+    /// Tabella e data_log disegnati come il web (`tabella.rs`), su un canvas.
+    Tabella(Box<TabellaViva>),
     /// Trend: disegnato in proprio su un canvas (`trend.rs`), testi come
     /// etichette figlie. In una scatola: è grosso, e gli altri rami no.
     Trend(Box<TrendVivo>),
@@ -372,12 +373,19 @@ pub enum LiveKind {
         entries: Vec<TextListEntry>,
         default_label: Option<String>,
         default_color: Option<String>,
+        /// `color` dell'oggetto: il colore di una voce che non ne ha uno suo.
+        colore_testo: Option<String>,
     },
-    /// Una `lv_bar` per serie, affiancate (equivalente dell'orientamento
-    /// `"vertical"` del web: barre verticali una accanto all'altra — vedi
-    /// `render_bar_chart` per perché l'orientamento `"horizontal"` non è
-    /// distinto qui). `value_ptr` è la label col valore sopra la barra.
-    BarChart { bars: Vec<BarChartBarBinding> },
+    /// Il grafico a barre disegnato come sul web (`barre.rs`), su un canvas.
+    Barre(Box<BarreVive>),
+    /// La variazione percentuale in alto a destra del `kpi_tile`.
+    KpiDelta {
+        label: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+        shared: client::SharedDelta,
+        mostrato: Option<Option<f64>>,
+        destra: f64,
+        y: f64,
+    },
     /// Grafico compatto senza assi/griglia, stesso principio del `trend`
     /// (poller REST in background, non `/ws/tags`) ma una sola serie e senza
     /// range Y fisso — sempre autofit, come `SparklineWidget` in
@@ -552,20 +560,6 @@ pub enum SymbolState {
     Off,
     On,
     Alarm,
-}
-
-/// Uno slot barra di `bar_chart`: la `lv_bar` stessa più la label del
-/// valore sopra, entrambe ricreate una volta e aggiornate a ogni frame —
-/// stesso principio di `BarLike`, ma qui serve anche il testo del valore
-/// (il web lo disegna sempre, `bar_show_values`).
-pub struct BarChartBarBinding {
-    bar_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
-    value_ptr: Option<core::ptr::NonNull<lvgl_sys::lv_obj_t>>,
-    tag: String,
-    min: f64,
-    max: f64,
-    unit: String,
-    show_values: bool,
 }
 
 /// Un tocco sul trend, messo in coda dalla callback LVGL e consumato da
@@ -1087,8 +1081,7 @@ pub fn config_trend(obj: &SynopticObject, w: u32, h: u32) -> crate::trend::Confi
         marcatori: obj.trend_show_alarm_markers.unwrap_or(false),
         log: obj.trend_log_scale.unwrap_or(false),
         unita: obj.unit.clone(),
-        // Senza `bg_color`: la regola `*` della tabella condivisa, #0f172a.
-        sfondo: colore(&obj.bg_color).unwrap_or((0x0f, 0x17, 0x2a)),
+        sfondo: colore_campo(obj.bg_color.as_deref(), "trend", "bg_color"),
         assi: colore(&obj.axis_color),
         assi_predefinito: parse_hex_color(predefinito_lvgl("trend", "axis_color")).unwrap_or((0x64, 0x74, 0x8b)),
         griglia: colore(&obj.grid_color)
@@ -1209,6 +1202,161 @@ fn apply_bg_color<W: Widget<Part = Part>>(
     // per tutta la durata di interpret_page.
     styles.push(style);
     Ok(())
+}
+
+/// Il colore di un campo, o il predefinito della tabella condivisa
+/// (`colori-predefiniti.json`, coppie `lvgl`). Fase 2 del piano dei
+/// predefiniti espliciti (30-09-2026): prima molti widget non leggevano il
+/// campo affatto e restavano col tema di LVGL — il `data_log` bianco.
+fn colore_campo(v: Option<&str>, tipo: &str, campo: &str) -> (u8, u8, u8) {
+    v.and_then(parse_hex_color)
+        .or_else(|| parse_hex_color(predefinito_lvgl(tipo, campo)))
+        .unwrap_or((0x80, 0x80, 0x80))
+}
+
+/// Setter di stile **locali all'oggetto** (`lv_obj_set_style_*`, selettore =
+/// parte | stato). Non creano `Style` da tenere vivi: LVGL copia il valore.
+/// Servono dove il web colora parti che il tema di LVGL dipinge da sé
+/// (indicatore di una barra, manopola, spunta, bordo).
+mod stile {
+    use super::Color;
+    pub type P = *mut lvgl_sys::lv_obj_t;
+    pub const MAIN: u32 = lvgl_sys::LV_PART_MAIN;
+    pub const INDICATORE: u32 = lvgl_sys::LV_PART_INDICATOR;
+    pub const MANOPOLA: u32 = lvgl_sys::LV_PART_KNOB;
+    pub const SPUNTATO: u32 = lvgl_sys::LV_STATE_CHECKED;
+
+    pub unsafe fn sfondo(p: P, rgb: (u8, u8, u8), sel: u32) {
+        lvgl_sys::lv_obj_set_style_bg_color(p, Color::from_rgb(rgb).into(), sel);
+        lvgl_sys::lv_obj_set_style_bg_opa(p, lvgl_sys::LV_OPA_COVER as u8, sel);
+    }
+    pub unsafe fn trasparente(p: P, sel: u32) {
+        lvgl_sys::lv_obj_set_style_bg_opa(p, 0, sel);
+    }
+    /// Un bordo solo se c'è un colore e uno spessore: altrimenti **nessuno**,
+    /// anche quello che il tema metterebbe (il web disegna `stroke="none"`).
+    pub unsafe fn bordo(p: P, rgb: Option<(u8, u8, u8)>, spessore: f64, sel: u32) {
+        match rgb.filter(|_| spessore > 0.0) {
+            Some(c) => {
+                lvgl_sys::lv_obj_set_style_border_color(p, Color::from_rgb(c).into(), sel);
+                lvgl_sys::lv_obj_set_style_border_opa(p, lvgl_sys::LV_OPA_COVER as u8, sel);
+                lvgl_sys::lv_obj_set_style_border_width(p, spessore.round().max(1.0) as i16, sel);
+            }
+            None => lvgl_sys::lv_obj_set_style_border_width(p, 0, sel),
+        }
+    }
+    pub const CELLE: u32 = lvgl_sys::LV_PART_ITEMS;
+    pub unsafe fn testo(p: P, rgb: (u8, u8, u8), sel: u32) {
+        lvgl_sys::lv_obj_set_style_text_color(p, Color::from_rgb(rgb).into(), sel);
+    }
+    pub unsafe fn font(p: P, px: u16, sel: u32) {
+        if let Some(f) = crate::lvgl_font::at_size(px) {
+            lvgl_sys::lv_obj_set_style_text_font(p, f, sel);
+        }
+    }
+    pub unsafe fn margini(p: P, verticale: i16, orizzontale: i16, sel: u32) {
+        lvgl_sys::lv_obj_set_style_pad_top(p, verticale, sel);
+        lvgl_sys::lv_obj_set_style_pad_bottom(p, verticale, sel);
+        lvgl_sys::lv_obj_set_style_pad_left(p, orizzontale, sel);
+        lvgl_sys::lv_obj_set_style_pad_right(p, orizzontale, sel);
+    }
+    pub unsafe fn raggio(p: P, r: f64, sel: u32) {
+        lvgl_sys::lv_obj_set_style_radius(p, r.round().max(0.0) as i16, sel);
+    }
+    /// La sfumatura del web (`fill_gradient`): dal colore chiaro in alto/a
+    /// sinistra allo scuro. LVGL 8.3 non ha la radiale: diventa verticale.
+    pub unsafe fn sfumatura(p: P, verso: &str, chiaro: (u8, u8, u8), scuro: (u8, u8, u8)) {
+        let dir = if verso == "horizontal" { lvgl_sys::LV_GRAD_DIR_HOR } else { lvgl_sys::LV_GRAD_DIR_VER };
+        lvgl_sys::lv_obj_set_style_bg_color(p, Color::from_rgb(chiaro).into(), 0);
+        lvgl_sys::lv_obj_set_style_bg_grad_color(p, Color::from_rgb(scuro).into(), 0);
+        lvgl_sys::lv_obj_set_style_bg_grad_dir(p, dir as u8, 0);
+    }
+}
+
+/// `lightenHex`/`darkenHex` del web (`SvgCanvas.tsx`, `blendHex`): verso il
+/// bianco del 45 % o verso il nero del 40 %, per gli estremi di una sfumatura
+/// non dichiarati.
+fn schiarisci((r, g, b): (u8, u8, u8), verso_bianco: bool) -> (u8, u8, u8) {
+    let (dest, t) = if verso_bianco { (255.0, 0.45) } else { (0.0, 0.40) };
+    let f = |c: u8| (c as f64 + (dest - c as f64) * t).round() as u8;
+    (f(r), f(g), f(b))
+}
+
+/// Il riquadro che il web disegna dietro molti widget: sfondo (`bg_color` o il
+/// predefinito del tipo), angoli e un bordo sottile. Va creato **prima** del
+/// widget: LVGL disegna i figli nell'ordine di creazione.
+fn riquadro(
+    screen: &mut lvgl::Obj,
+    obj: &SynopticObject,
+    tipo: &str,
+    predef: (f64, f64),
+    bordo: Option<(u8, u8, u8)>,
+    raggio: f64,
+) -> anyhow::Result<()> {
+    let mut o = create_child_obj(screen)?;
+    set_pos_size(&mut o, obj, predef.0, predef.1)?;
+    let p = o.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+    unsafe {
+        stile::sfondo(p, colore_campo(obj.bg_color.as_deref(), tipo, "bg_color"), stile::MAIN);
+        stile::bordo(p, bordo, 1.0, stile::MAIN);
+        stile::raggio(p, raggio, stile::MAIN);
+        lvgl_sys::lv_obj_clear_flag(p, lvgl_sys::LV_OBJ_FLAG_CLICKABLE | lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
+    }
+    Ok(())
+}
+
+/// La tabella scura del web (`DataTable` con `dark`): sfondo del tipo, bordo
+/// #334155, celle trasparenti col testo chiaro. Prima il tema di LVGL la
+/// disegnava bianca (Fase 2, 30-09-2026).
+unsafe fn tabella_scura(p: stile::P, obj: &SynopticObject, tipo: &str) {
+    stile::sfondo(p, colore_campo(obj.bg_color.as_deref(), tipo, "bg_color"), stile::MAIN);
+    stile::bordo(p, Some((0x33, 0x41, 0x55)), 1.0, stile::MAIN);
+    stile::raggio(p, 4.0, stile::MAIN);
+    stile::margini(p, 4, 4, stile::MAIN);
+    stile::trasparente(p, stile::CELLE);
+    stile::testo(p, (0xe2, 0xe8, 0xf0), stile::CELLE);
+    stile::font(p, 11, stile::CELLE);
+    stile::bordo(p, Some((0x1e, 0x29, 0x3b)), 1.0, stile::CELLE);
+    stile::margini(p, 2, 6, stile::CELLE);
+}
+
+/// Un'etichetta piccola come quelle del web (corpo 11, grigio #94a3b8 di
+/// default): `y_base` è la linea di base del `<text>` SVG, `larghezza` = Some
+/// per centrarla in quella larghezza a partire da `x`, None per allinearla a
+/// sinistra in `x`. Fase 3 (30-09-2026): gauge, led, barra, slider e
+/// data_log avevano `label` nel file e sul pannello non la mostravano.
+fn etichetta_piccola(
+    screen: &mut lvgl::Obj,
+    testo: &str,
+    x: f64,
+    y_base: f64,
+    larghezza: Option<f64>,
+    colore: (u8, u8, u8),
+) -> anyhow::Result<()> {
+    let mut l = Label::create(screen).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+    l.set_text(&text_cstring(testo)).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+    let p = l.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+    unsafe {
+        stile::font(p, 11, stile::MAIN);
+        stile::testo(p, colore, stile::MAIN);
+        // Centrata sulla larghezza VERA del testo, non dentro un riquadro
+        // fisso: un riquadro largo che esce dallo schermo lo fa scorrere.
+        let x = match larghezza {
+            Some(w) => x + w / 2.0 - larghezza_testo(p) / 2.0,
+            None => x,
+        };
+        // La base del testo SVG sta ~11 px sotto il bordo alto di una riga da 11.
+        lvgl_sys::lv_obj_set_pos(p, x.round() as lvgl_sys::lv_coord_t, (y_base - 11.0).round() as lvgl_sys::lv_coord_t);
+    }
+    Ok(())
+}
+
+const GRIGIO_ETICHETTA: (u8, u8, u8) = (0x94, 0xa3, 0xb8);
+
+/// La larghezza di un'etichetta dal suo contenuto (font già impostato).
+unsafe fn larghezza_testo(p: stile::P) -> f64 {
+    lvgl_sys::lv_obj_update_layout(p);
+    lvgl_sys::lv_obj_get_width(p) as f64
 }
 
 /// F7 — bordo di una cella di griglia (`GridCell`/`SubCellEntry::border_color`),
@@ -1791,24 +1939,6 @@ fn match_text_list_entry<'a>(
     })
 }
 
-/// Una lettera per la colonna qualità della tabella — la versione web usa un
-/// pallino colorato (`qualityColor`), qui una colonna di solo testo:
-/// `lv_table` non ha un modo semplice di colorare il background di una
-/// singola cella (solo bit di controllo generici + un callback
-/// `LV_EVENT_DRAW_PART_BEGIN` per applicarli — troppo per questo primo giro,
-/// vedi Q14). Una sola lettera, non un'abbreviazione più lunga
-/// ("OK"/"BAD"/"UNC"): con `LV_TABLE_CELL_CTRL_TEXT_CROP` la riga resta a
-/// un'altezza di riga singola, ma dentro quello spazio il testo continua
-/// comunque ad andare a capo se non ci sta in larghezza — verificato con
-/// screenshot, non risolvibile solo allargando la colonna quanto basterebbe
-/// per 3 lettere senza sottrarre spazio alle altre due colonne.
-fn quality_abbrev(q: &TagQuality) -> &'static str {
-    match q {
-        TagQuality::Good => "G",
-        TagQuality::Bad => "B",
-        TagQuality::Uncertain => "U",
-    }
-}
 
 /// Porta la parte rilevante di `isVisible()`: `visible_tag` (truthy live)
 /// prevale su `visible` statico, che a sua volta prevale sul default "true".
@@ -2412,14 +2542,23 @@ fn render_rect(
     let mut o = create_child_obj(screen)?;
     set_pos_size(&mut o, obj, 100.0, 50.0)?;
     // Era `#555555` (web: `#555`), mentre un rettangolo piazzato nasce `#4a90d9`:
-    // la tabella condivisa ha scelto ciò che si vede alla creazione.
-    apply_bg_color(
-        &mut o,
-        obj.fill
-            .as_deref()
-            .unwrap_or(predefinito_lvgl("rect", "fill")),
-        styles,
-    )?;
+    // la tabella condivisa ha scelto ciò che si vede alla creazione. Come il
+    // web, un `bg_color` vecchio fa da riempimento se `fill` manca.
+    let base = colore_campo(obj.fill.as_deref().or(obj.bg_color.as_deref()), "rect", "fill");
+    let p = o.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+    // Fase 2 (30-09-2026): bordo, angoli e sfumatura, che il web disegnava e
+    // qui mancavano. Il bordo tratteggiato non esiste in LVGL: resta pieno.
+    unsafe {
+        stile::sfondo(p, base, stile::MAIN);
+        stile::raggio(p, obj.corner_radius.unwrap_or(0.0), stile::MAIN);
+        stile::bordo(p, obj.stroke.as_deref().and_then(parse_hex_color), obj.stroke_width.unwrap_or(0.0), stile::MAIN);
+        if let Some(verso) = obj.fill_gradient.as_deref().filter(|v| !v.is_empty()) {
+            let chiaro = obj.gradient_light_color.as_deref().and_then(parse_hex_color).unwrap_or_else(|| schiarisci(base, true));
+            let scuro = obj.gradient_dark_color.as_deref().and_then(parse_hex_color).unwrap_or_else(|| schiarisci(base, false));
+            stile::sfumatura(p, verso, chiaro, scuro);
+        }
+    }
+    let _ = styles;
     Ok(())
 }
 
@@ -2505,6 +2644,27 @@ mod colori_predefiniti {
         ("pie_chart", "pie_group_color", "#64748b"),
         ("trend", "axis_color", "#64748b"),
         ("trend", "grid_color", "#1e293b"),
+        ("navbutton", "stroke", "#3b82f6"),
+        ("progress_bar", "fill", "#3b82f6"),
+        ("progress_bar", "bg_color", "#1e293b"),
+        ("slider", "fill", "#3b82f6"),
+        ("checkbox", "fill", "#3b82f6"),
+        ("radio", "fill", "#3b82f6"),
+        ("gauge", "stroke", "#e2e8f0"),
+        ("gauge", "gauge_sp_color", "#f59e0b"),
+        ("data_log", "bg_color", "#0f172a"),
+        ("bar_chart", "bg_color", "#0f172a"),
+        ("pie_chart", "bg_color", "#0f172a"),
+        ("pie_chart", "pie_hole_color", "#0f172a"),
+        ("xy_plot", "bg_color", "#0f172a"),
+        ("kpi_tile", "bg_color", "#1e293b"),
+        ("alarm_history", "bg_color", "#1e293b"),
+        ("recipe_panel", "bg_color", "#1e293b"),
+        ("state_lamp", "text_list_default_color", "#94a3b8"),
+        ("alarm_bell", "fill", "#1e293b"),
+        ("pipe", "state_alarm_color", "#ef4444"),
+        ("trend", "bg_color", "#0f172a"),
+        ("table", "bg_color", "#1e293b"),
     ];
 
     /// L'hex della tabella. Panica su una coppia assente: è un errore del
@@ -3011,12 +3171,34 @@ fn render_navbutton(
             .unwrap_or(predefinito_lvgl("navbutton", "fill")),
         styles,
     )?;
+    // Fase 2 (30-09-2026): il bordo del web (`stroke`, 1.5 px, angoli 4).
+    unsafe {
+        let p = btn.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+        stile::bordo(p, Some(colore_campo(obj.stroke.as_deref(), "navbutton", "stroke")), obj.stroke_width.unwrap_or(1.5), stile::MAIN);
+        stile::raggio(p, obj.corner_radius.unwrap_or(4.0), stile::MAIN);
+    }
+    // Fase 3 (30-09-2026): come il web — un ▶ nel colore `color` (o il blu
+    // primario) a 10 px dal bordo, e l'etichetta a 28 px nel colore del testo.
+    // Prima era «> etichetta» tutto insieme.
+    let mut freccia = Label::create(&mut btn).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+    freccia.set_text(&text_cstring("▶")).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
     let mut lbl = Label::create(&mut btn).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-    lbl.set_text(&text_cstring(&format!(
-        "> {}",
-        obj.label.as_deref().unwrap_or("Go to page")
-    )))
-    .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+    lbl.set_text(&text_cstring(obj.label.as_deref().unwrap_or("Go to page")))
+        .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+    unsafe {
+        let f = freccia.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+        let l = lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+        let bp = btn.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+        stile::margini(bp, 0, 0, stile::MAIN);
+        lvgl_sys::lv_obj_align(f, lvgl_sys::LV_ALIGN_LEFT_MID as lvgl_sys::lv_align_t, 10, 0);
+        lvgl_sys::lv_obj_align(l, lvgl_sys::LV_ALIGN_LEFT_MID as lvgl_sys::lv_align_t, 28, 0);
+        stile::testo(f, obj.color.as_deref().and_then(parse_hex_color).unwrap_or((0x3b, 0x82, 0xf6)), stile::MAIN);
+        if let Some(c) = obj.color.as_deref().and_then(parse_hex_color).or_else(colori_predefiniti::testo_pagina) {
+            stile::testo(l, c, stile::MAIN);
+        }
+        stile::font(f, 14, stile::MAIN);
+        stile::font(l, 13, stile::MAIN);
+    }
 
     if let Some(target_page) = &obj.target_page {
         let ptr = btn.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
@@ -3246,6 +3428,12 @@ fn render_led(
     let mut led = Led::create(screen).map_err(|e| anyhow::anyhow!("Led::create: {e:?}"))?;
     let d = obj.width.unwrap_or(24.0);
     set_pos_size(&mut led, obj, d, d)?;
+    if let Some(l) = obj.label.as_deref().filter(|l| !l.is_empty()) {
+        // Sotto il LED, centrata: `y + 2r + 14` come sul web. Una larghezza
+        // abbondante perché un'etichetta più larga del LED resti centrata.
+        let (x, y) = (obj.x.unwrap_or(0.0), obj.y.unwrap_or(0.0));
+        etichetta_piccola(screen, l, x + d / 2.0 - 100.0, y + d + 14.0, Some(200.0), GRIGIO_ETICHETTA)?;
+    }
 
     let on_value = obj.on_value.clone().unwrap_or(OnValue::Bool(true));
     let on_color = obj
@@ -3331,6 +3519,18 @@ fn render_slider(
     // esistono lv_slider_set_range/set_value dedicati, si riusano quelli di
     // bar (confermato dai bindgen bindings reali, non da supposizione) — vedi
     // init_bar_like, condivisa con progress_bar per lo stesso motivo.
+    if let Some(l) = obj.label.as_deref().filter(|l| !l.is_empty()) {
+        etichetta_piccola(
+            screen, l, obj.x.unwrap_or(0.0), obj.y.unwrap_or(0.0) + 11.0, Some(obj.width.unwrap_or(200.0)), GRIGIO_ETICHETTA,
+        )?;
+    }
+    // Fase 2 (30-09-2026): il web colora indicatore e manopola col
+    // riempimento (`accentColor`); qui restavano del blu del tema.
+    unsafe {
+        let c = colore_campo(obj.fill.as_deref(), "slider", "fill");
+        stile::sfondo(ptr.as_ptr(), c, stile::INDICATORE);
+        stile::sfondo(ptr.as_ptr(), c, stile::MANOPOLA);
+    }
     let binding = init_bar_like(screen, ptr, obj, tags)?;
 
     // Solo lo slider è interattivo — non progress_bar, che condivide
@@ -3361,6 +3561,16 @@ fn render_progress_bar(
     let mut bar = Bar::create(screen).map_err(|e| anyhow::anyhow!("Bar::create: {e:?}"))?;
     set_pos_size(&mut bar, obj, 200.0, 24.0)?;
     let ptr = bar.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    if let Some(l) = obj.label.as_deref().filter(|l| !l.is_empty()) {
+        etichetta_piccola(screen, l, obj.x.unwrap_or(0.0), obj.y.unwrap_or(0.0) - 4.0, None, GRIGIO_ETICHETTA)?;
+    }
+    // Fase 2 (30-09-2026): traccia e riempimento del web, non quelli del tema.
+    unsafe {
+        stile::sfondo(ptr.as_ptr(), colore_campo(obj.bg_color.as_deref(), "progress_bar", "bg_color"), stile::MAIN);
+        stile::sfondo(ptr.as_ptr(), colore_campo(obj.fill.as_deref(), "progress_bar", "fill"), stile::INDICATORE);
+        stile::raggio(ptr.as_ptr(), 4.0, stile::MAIN);
+        stile::raggio(ptr.as_ptr(), 4.0, stile::INDICATORE);
+    }
     init_bar_like(screen, ptr, obj, tags)
 }
 
@@ -3415,248 +3625,166 @@ fn init_bar_like(
     })
 }
 
-/// `bar_chart`: una `lv_bar` per serie, affiancate. Solo l'orientamento
-/// `"vertical"` (il default web) è disegnato — `"horizontal"` è segnalato
-/// come non supportato invece di renderizzare l'orientamento sbagliato,
-/// stesso principio già usato per `alarm_viewer_mode`. La scelta fra
-/// riempimento orizzontale/verticale in `lv_bar` è automatica in base
-/// all'aspect ratio del widget stesso (`hor = barw >= barh`, verificato in
-/// `lv_bar.c` prima di scrivere questo codice): bastano barre più alte che
-/// larghe per ottenere un riempimento verticale, nessun flag dedicato da
-/// impostare.
-/// La scala su cui si può disegnare una soglia, se ce n'è una sola.
-///
-/// Le soglie (`warn_high`, `alarm_high`, …) sono un valore solo, e una riga
-/// tirata attraverso il grafico dice «sopra questa altezza si è in allarme».
-/// L'affermazione regge **solo se tutte le barre misurano sulla stessa scala**:
-/// con scale diverse la stessa altezza vale numeri diversi, e la riga
-/// mentirebbe su tutte le barre tranne una.
-///
-/// La scala è quella su cui le **barre** sono davvero disegnate, cioè quella
-/// delle serie (`lv_bar_set_range` per barra). Non quella dell'oggetto: se
-/// `min`/`max` dell'oggetto fossero diversi, una riga tirata su quelli starebbe
-/// alla quota sbagliata rispetto alle barre — proprio il genere di bugia che
-/// questa funzione esiste per evitare.
-///
-/// Restituisce `Some` solo quando **tutte le serie hanno lo stesso
-/// intervallo**, e `None` quando ne hanno di diversi.
-///
-/// Il motore web usa invece **sempre** una scala comune, ricalcolata dai valori
-/// a ogni disegno, e ignora il `min`/`max` delle singole serie: è una differenza
-/// di progettazione fra i due motori, segnata come **Q28** e non decisa qui.
-fn scala_comune(obj: &SynopticObject, serie: &[(f64, f64)]) -> Option<(f64, f64)> {
-    let primo = *serie.first()?;
-    if !serie.iter().all(|s| *s == primo) || primo.1 <= primo.0 {
-        return None;
-    }
-    // L'oggetto dichiara una scala diversa da quella su cui le barre sono
-    // disegnate: le soglie seguono le barre, ed è meglio dirlo.
-    if let (Some(lo), Some(hi)) = (obj.min, obj.max) {
-        if (lo, hi) != primo {
-            eprintln!(
-                "[bar_chart] '{}': `min`/`max` dell'oggetto ({lo}..{hi}) diversi dalla scala delle \
-                 serie ({}..{}) — le barre e le soglie usano quella delle serie.",
-                obj.id.as_deref().unwrap_or("?"), primo.0, primo.1
-            );
-        }
-    }
-    Some(primo)
+/// Il grafico a barre a schermo: canvas e buffer, configurazione, i tag delle
+/// serie e gli ultimi valori disegnati (per ridisegnare solo quando cambiano).
+pub struct BarreVive {
+    canvas: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    buf: Vec<u8>,
+    pixmap: resvg::tiny_skia::Pixmap,
+    cfg: crate::barre::Config,
+    tags: Vec<String>,
+    ultimi: Vec<f64>,
+    etichette: Vec<core::ptr::NonNull<lvgl_sys::lv_obj_t>>,
 }
 
-/// Le soglie da disegnare, con il colore, in ordine dall'alto verso il basso.
-///
-/// Solo quelle dichiarate e dentro la scala: una soglia fuori scala darebbe una
-/// riga appiccicata al bordo, che si scambia per il bordo stesso.
-fn soglie_da_disegnare(obj: &SynopticObject, scala: (f64, f64)) -> Vec<(f64, (u8, u8, u8))> {
-    let (lo, hi) = scala;
-    [
-        (obj.alarm_high, (239, 68, 68)),
-        (obj.warn_high, (245, 158, 11)),
-        (obj.warn_low, (245, 158, 11)),
-        (obj.alarm_low, (239, 68, 68)),
-    ]
-    .into_iter()
-    .filter_map(|(v, c)| v.filter(|v| *v > lo && *v < hi).map(|v| (v, c)))
-    .collect()
-}
-
+/// `bar_chart`: disegnato in proprio (`barre.rs`) come il web, dal 30-09-2026.
+/// Prima era una `lv_bar` per serie: solo verticale (l'orizzontale non si
+/// disegnava), niente impilato, tacche, soglie a scala per serie, legenda.
 fn render_bar_chart(
     screen: &mut lvgl::Obj,
     obj: &SynopticObject,
-    styles: &mut Vec<Style>,
+    _styles: &mut Vec<Style>,
     tags: &TagSnapshot,
 ) -> anyhow::Result<LiveBinding> {
-    let orient = obj.bar_orientation.as_deref().unwrap_or("vertical");
-    if orient != "vertical" {
-        anyhow::bail!("bar_orientation '{orient}' non supportato da LVGL (solo 'vertical')");
-    }
-    let series = obj.bar_series.clone().unwrap_or_default();
-    let w = obj.width.unwrap_or(240.0);
-    let h = obj.height.unwrap_or(180.0);
-    let show_values = obj.bar_show_values.unwrap_or(true);
-    let show_labels = obj.bar_show_labels.unwrap_or(true);
-    let unit = obj.unit.clone().unwrap_or_default();
-
-    let pad_t = if show_values { 16.0 } else { 4.0 };
-    let pad_b = if show_labels { 16.0 } else { 4.0 };
-    let plot_h = (h - pad_t - pad_b).max(8.0);
-    let n = series.len().max(1);
-    let slot_w = w / n as f64;
-    let gap = obj.bar_gap.unwrap_or(0.2).clamp(0.0, 0.9);
-    // `bar_w < plot_h` non è solo estetico: `lv_bar.c` decide il riempimento
-    // orizzontale/verticale confrontando le dimensioni del widget stesso
-    // (`hor = barw >= barh`), quindi con poche serie/gap piccolo/box largo
-    // `slot_w * (1 - gap)` può facilmente restare più largo che alto —
-    // provato dal vivo: due sole serie su un box 280×110 davano barre
-    // riempite da sinistra invece che dal basso, nonostante l'orientamento
-    // "vertical" dichiarato. Il clamp qui sotto garantisce il riempimento
-    // verticale indipendentemente da quante serie/quanto gap sceglie il
-    // synottico, non solo nel caso comune con molte serie strette.
-    let bar_w = (slot_w * (1.0 - gap)).min(plot_h * 0.9).max(4.0);
-
-    let mut bars = Vec::with_capacity(series.len());
-    for (i, s) in series.iter().enumerate() {
-        let min = s.min.unwrap_or(0.0);
-        let max = s.max.unwrap_or(100.0);
-        let bx = obj.x.unwrap_or(0.0) + i as f64 * slot_w + (slot_w - bar_w) / 2.0;
-
-        let mut bar = Bar::create(screen).map_err(|e| anyhow::anyhow!("Bar::create: {e:?}"))?;
-        bar.set_pos(
-            bx.round() as i16,
-            (obj.y.unwrap_or(0.0) + pad_t).round() as i16,
-        )
-        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-        bar.set_size(bar_w.round() as i16, plot_h.round() as i16)
-            .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
-        let bar_ptr = bar.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
-        unsafe {
-            lvgl_sys::lv_bar_set_range(bar_ptr.as_ptr(), min.round() as i32, max.round() as i32);
-        }
-        if let Some(rgb) = parse_hex_color(&s.color) {
-            let mut indic_style = Style::default();
-            indic_style.set_bg_color(Color::from_rgb(rgb));
-            bar.add_style(Part::Indicator, &mut indic_style)
-                .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
-            styles.push(indic_style);
-        }
-
-        let value_ptr = if show_values {
-            let mut lbl =
-                Label::create(screen).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-            lbl.set_pos(bx.round() as i16, obj.y.unwrap_or(0.0).round() as i16)
-                .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-            lbl.set_text(&text_cstring(""))
-                .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
-            Some(lbl.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?)
-        } else {
-            None
-        };
-
-        if show_labels {
-            let mut lbl =
-                Label::create(screen).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
-            lbl.set_pos(
-                bx.round() as i16,
-                (obj.y.unwrap_or(0.0) + pad_t + plot_h + 2.0).round() as i16,
-            )
-            .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-            lbl.set_text(&text_cstring(&s.label))
-                .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
-        }
-
-        bars.push(BarChartBarBinding {
-            bar_ptr,
-            value_ptr,
-            tag: s.tag.clone(),
-            min,
-            max,
-            unit: unit.clone(),
-            show_values,
-        });
-    }
-
-    // Valore iniziale, stessa logica di update_bindings — evita un frame
-    // vuoto/a zero prima del primo giro di update_bindings.
-    for b in &bars {
-        let raw = lookup(tags, &Some(b.tag.clone()))
-            .map(|t| tag_value_as_f64(&t.value))
-            .unwrap_or(b.min)
-            .clamp(b.min.min(b.max), b.min.max(b.max));
-        unsafe {
-            lvgl_sys::lv_bar_set_value(
-                b.bar_ptr.as_ptr(),
-                raw.round() as i32,
-                lvgl::Animation::OFF.into(),
-            );
-            if let Some(vp) = b.value_ptr {
-                lvgl_sys::lv_label_set_text(
-                    vp.as_ptr(),
-                    text_cstring(&format!("{raw:.1}{}", b.unit)).as_ptr(),
-                );
-            }
-        }
-    }
-
-    // ── soglie: righe orizzontali attraverso il grafico ──────────────────
-    //
-    // Un grafico a barre senza le sue soglie mostra dei numeri; con le soglie
-    // mostra se quei numeri vanno bene. È la differenza che serve a chi guarda
-    // il pannello da lontano.
-    if obj.bar_show_thresholds != Some(false) {
-        let intervalli: Vec<(f64, f64)> = series
+    let w = obj.width.unwrap_or(240.0).round().clamp(20.0, 2048.0) as u32;
+    let h = obj.height.unwrap_or(180.0).round().clamp(20.0, 2048.0) as u32;
+    let serie = obj.bar_series.clone().unwrap_or_default();
+    let cfg = crate::barre::Config {
+        w,
+        h,
+        serie: serie
             .iter()
-            .map(|s| (s.min.unwrap_or(0.0), s.max.unwrap_or(100.0)))
-            .collect();
-        match scala_comune(obj, &intervalli) {
-            Some(scala) => {
-                let x0 = obj.x.unwrap_or(0.0);
-                let y0 = obj.y.unwrap_or(0.0) + pad_t;
-                for (valore, rgb) in soglie_da_disegnare(obj, scala) {
-                    let frazione = (valore - scala.0) / (scala.1 - scala.0);
-                    let y = y0 + plot_h * (1.0 - frazione);
-                    let mut ln =
-                        Line::create(screen).map_err(|e| anyhow::anyhow!("Line::create: {e:?}"))?;
-                    ln.set_pos(x0.round() as i16, y.round() as i16)
-                        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-                    let pts: &'static [lvgl_sys::lv_point_t; 2] = Box::leak(Box::new([
-                        lvgl_sys::lv_point_t { x: 0, y: 0 },
-                        lvgl_sys::lv_point_t {
-                            x: w.round() as i16,
-                            y: 0,
-                        },
-                    ]));
-                    let lp = ln.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
-                    unsafe { lvgl_sys::lv_line_set_points(lp.as_ptr(), pts.as_ptr(), 2) };
-                    let mut st = Style::default();
-                    st.set_line_color(Color::from_rgb(rgb));
-                    st.set_line_width(1);
-                    ln.add_style(Part::Main, &mut st)
-                        .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
-                    styles.push(st);
-                }
-            }
-            None if obj.alarm_high.is_some()
-                || obj.warn_high.is_some()
-                || obj.alarm_low.is_some()
-                || obj.warn_low.is_some() =>
-            {
-                // Detto, non taciuto: chi ha dichiarato delle soglie e non le
-                // vede deve poter capire perché in una riga di registro,
-                // invece di credere a un difetto del pannello.
-                eprintln!(
-                    "[bar_chart] '{}': soglie dichiarate ma non disegnate — le serie hanno scale diverse, \
-                     e una riga sola mentirebbe su tutte tranne una. Dichiara `min`/`max` sull'oggetto \
-                     per una scala comune.",
-                    obj.id.as_deref().unwrap_or("?")
-                );
-            }
-            None => {}
+            .map(|s| crate::barre::Serie {
+                etichetta: s.label.clone(),
+                colore: parse_hex_color(&s.color),
+                min: s.min,
+                max: s.max,
+            })
+            .collect(),
+        orizzontale: obj.bar_orientation.as_deref() == Some("horizontal"),
+        impilato: obj.bar_mode.as_deref() == Some("stacked"),
+        gap: obj.bar_gap.unwrap_or(0.2),
+        valori: obj.bar_show_values != Some(false),
+        etichette: obj.bar_show_labels != Some(false),
+        soglie: obj.bar_show_thresholds != Some(false),
+        legenda: obj.bar_show_legend == Some(true),
+        tacche: obj.bar_ticks.unwrap_or(0.0).round().max(0.0) as u32,
+        decimali: obj.decimals.unwrap_or(1) as usize,
+        unita: obj.unit.clone().unwrap_or_default(),
+        min: obj.min,
+        max: obj.max,
+        warn_low: obj.warn_low,
+        warn_high: obj.warn_high,
+        alarm_low: obj.alarm_low,
+        alarm_high: obj.alarm_high,
+        sfondo: colore_campo(obj.bg_color.as_deref(), "bar_chart", "bg_color"),
+        titolo_y: obj.bar_y_label.clone(),
+    };
+    let (canvas, buf) = canvas_alfa(screen, obj, w, h)?;
+    // Il titolo dell'asse Y ruotato di −90° come sul web (1-10-2026; prima
+    // non si vedeva, poi orizzontale): un'etichetta girata attorno al centro.
+    if let Some(t) = cfg.titolo_y.as_deref().filter(|t| !t.is_empty()) {
+        let (cx, cy) = crate::barre::centro_titolo(&cfg);
+        let mut l = Label::create(screen).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+        l.set_text(&text_cstring(t)).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+        let p = l.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+        unsafe {
+            stile::font(p, 10, stile::MAIN);
+            stile::testo(p, GRIGIO_ETICHETTA, stile::MAIN);
+            let lw = larghezza_testo(p);
+            let lh = lvgl_sys::lv_obj_get_height(p) as f64;
+            let (ax, ay) = (obj.x.unwrap_or(0.0) + cx as f64, obj.y.unwrap_or(0.0) + cy as f64);
+            lvgl_sys::lv_obj_set_pos(p, (ax - lw / 2.0).round() as i16, (ay - lh / 2.0).round() as i16);
+            lvgl_sys::lv_obj_set_style_transform_pivot_x(p, (lw / 2.0).round() as i16, 0);
+            lvgl_sys::lv_obj_set_style_transform_pivot_y(p, (lh / 2.0).round() as i16, 0);
+            lvgl_sys::lv_obj_set_style_transform_angle(p, 2700, 0);
         }
     }
+    let pixmap = resvg::tiny_skia::Pixmap::new(w, h).ok_or_else(|| anyhow::anyhow!("pixmap {w}x{h}"))?;
+    let mut vive = Box::new(BarreVive {
+        canvas,
+        buf,
+        pixmap,
+        cfg,
+        tags: serie.iter().map(|s| s.tag.clone()).collect(),
+        ultimi: Vec::new(),
+        etichette: Vec::new(),
+    });
+    aggiorna_barre(&mut vive, tags);
+    Ok(LiveBinding { kind: LiveKind::Barre(vive) })
+}
 
-    Ok(LiveBinding {
-        kind: LiveKind::BarChart { bars },
-    })
+/// Ridisegna le barre se un valore è cambiato. Un tag assente o non numerico
+/// vale 0, come sul web.
+fn aggiorna_barre(b: &mut BarreVive, tags: &TagSnapshot) {
+    let valori: Vec<f64> = b
+        .tags
+        .iter()
+        .map(|t| {
+            lookup(tags, &Some(t.clone()))
+                .map(|v| tag_value_as_f64(&v.value))
+                .filter(|v| v.is_finite())
+                .unwrap_or(0.0)
+        })
+        .collect();
+    if valori == b.ultimi {
+        return;
+    }
+    let testi = crate::barre::disegna(&b.cfg, &valori, &mut b.pixmap);
+    b.ultimi = valori;
+    pixmap_in_buffer_alfa(&b.pixmap, &mut b.buf);
+    unsafe { lvgl_sys::lv_obj_invalidate(b.canvas.as_ptr()) };
+    scrivi_testi(b.canvas, &mut b.etichette, &testi);
+}
+
+/// Un `lv_canvas` con l'alfa (3 byte per pixel, RGB565 + alfa) alla posizione
+/// dell'oggetto: per i widget disegnati in proprio con angoli trasparenti.
+fn canvas_alfa(
+    screen: &mut lvgl::Obj,
+    obj: &SynopticObject,
+    w: u32,
+    h: u32,
+) -> anyhow::Result<(core::ptr::NonNull<lvgl_sys::lv_obj_t>, Vec<u8>)> {
+    let mut buf = vec![0u8; 3 * w as usize * h as usize];
+    unsafe {
+        let p = lvgl_sys::lv_canvas_create(screen.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr());
+        let nn = core::ptr::NonNull::new(p).ok_or_else(|| anyhow::anyhow!("lv_canvas_create ha restituito null"))?;
+        lvgl_sys::lv_obj_set_pos(nn.as_ptr(), obj.x.unwrap_or(0.0).round() as i16, obj.y.unwrap_or(0.0).round() as i16);
+        lvgl_sys::lv_canvas_set_buffer(
+            nn.as_ptr(),
+            buf.as_mut_ptr() as *mut std::ffi::c_void,
+            w as lvgl_sys::lv_coord_t,
+            h as lvgl_sys::lv_coord_t,
+            lvgl_sys::LV_IMG_CF_TRUE_COLOR_ALPHA as lvgl_sys::lv_img_cf_t,
+        );
+        Ok((nn, buf))
+    }
+}
+
+/// tiny-skia (RGBA premoltiplicato) → il formato di `canvas_alfa`, nello
+/// stesso buffer (niente allocazioni a ogni ridisegno).
+fn pixmap_in_buffer_alfa(px: &resvg::tiny_skia::Pixmap, buf: &mut [u8]) {
+    for (o, p) in buf.chunks_exact_mut(3).zip(px.data().chunks_exact(4)) {
+        let a = p[3];
+        let un = |c: u8| if a == 0 || a == 255 { c } else { ((c as u16 * 255) / a as u16).min(255) as u8 };
+        let (r, g, b) = (un(p[0]), un(p[1]), un(p[2]));
+        let v: u16 = ((r as u16 & 0xF8) << 8) | ((g as u16 & 0xFC) << 3) | (b as u16 >> 3);
+        o[0] = (v & 0xFF) as u8;
+        o[1] = (v >> 8) as u8;
+        o[2] = a;
+    }
+}
+
+/// La spunta di checkbox e radio come sul web: spuntata piena del
+/// riempimento, vuota con il bordo `#64748b` (Fase 2, 30-09-2026: prima era il
+/// blu del tema qualunque colore avesse l'oggetto).
+fn colora_spunta(p: stile::P, c: (u8, u8, u8)) {
+    unsafe {
+        stile::bordo(p, Some((0x64, 0x74, 0x8b)), 2.0, stile::INDICATORE);
+        stile::trasparente(p, stile::INDICATORE);
+        stile::sfondo(p, c, stile::INDICATORE | stile::SPUNTATO);
+        stile::bordo(p, Some(c), 2.0, stile::INDICATORE | stile::SPUNTATO);
+    }
 }
 
 fn render_checkbox(
@@ -3675,9 +3803,12 @@ fn render_checkbox(
         obj.y.unwrap_or(0.0).round() as i16,
     )
     .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-    cb.set_text(&text_cstring(obj.label.as_deref().unwrap_or("Checkbox")))
+    // Senza etichetta il web non scrive niente (Fase 3, 30-09-2026: qui
+    // compariva «Checkbox»).
+    cb.set_text(&text_cstring(obj.label.as_deref().unwrap_or("")))
         .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
     let ptr = cb.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    colora_spunta(ptr.as_ptr(), colore_campo(obj.fill.as_deref(), "checkbox", "fill"));
 
     // Stessa semantica di SvgCanvas.tsx: checked_value/unchecked_value
     // default a true/false ma possono essere qualunque scalare (es. stringhe
@@ -3780,6 +3911,7 @@ fn render_radio(
         cb.set_text(&text_cstring(&opt.label))
             .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
         let ptr = cb.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+        colora_spunta(ptr.as_ptr(), colore_campo(obj.fill.as_deref(), "radio", "fill"));
         apply_checked_state(ptr, checkbox_is_checked(lookup(tags, &obj.tag), &opt.value));
         ptrs.push(ptr);
     }
@@ -3858,6 +3990,11 @@ fn render_ellipse(
     o.add_style(Part::Main, &mut radius_style)
         .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
     styles.push(radius_style);
+    // Fase 2 (30-09-2026): il contorno, che il web disegna e qui mancava.
+    let p = o.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+    unsafe {
+        stile::bordo(p, obj.stroke.as_deref().and_then(parse_hex_color), obj.stroke_width.unwrap_or(0.0), stile::MAIN);
+    }
     Ok(())
 }
 
@@ -4054,7 +4191,22 @@ fn render_gauge(
     obj: &SynopticObject,
     tags: &TagSnapshot,
 ) -> anyhow::Result<LiveBinding> {
+    if let Some(l) = obj.label.as_deref().filter(|l| !l.is_empty()) {
+        etichetta_piccola(
+            screen, l, obj.x.unwrap_or(0.0), obj.y.unwrap_or(0.0) + 14.0, Some(obj.width.unwrap_or(180.0)),
+            obj.color.as_deref().and_then(parse_hex_color).unwrap_or(GRIGIO_ETICHETTA),
+        )?;
+    }
     let mut meter = Meter::create(screen).map_err(|e| anyhow::anyhow!("Meter::create: {e:?}"))?;
+    // Fase 2 (30-09-2026): il web non ha un disco dietro il quadrante; il
+    // tema di LVGL lo disegnava bianco, con i numeri scuri sopra.
+    unsafe {
+        let p = meter.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+        stile::trasparente(p, stile::MAIN);
+        stile::bordo(p, None, 0.0, stile::MAIN);
+        stile::testo(p, (0x94, 0xa3, 0xb8), stile::MAIN);
+        stile::testo(p, (0x94, 0xa3, 0xb8), lvgl_sys::LV_PART_TICKS);
+    }
     // `lv_meter` non forza mai una forma circolare da solo: segue fedelmente
     // il box assegnato, quindi width != height produce uno sfondo ovale (non
     // un vero cerchio) — scoperto sul primo test su hardware reale
@@ -4101,33 +4253,36 @@ fn render_gauge(
     .or_else(|| obj.fill.as_deref().and_then(parse_hex_color))
     .unwrap_or((34, 197, 94)); // #22c55e, stesso default del web
 
-    let (needle_indic, arc_indic) = unsafe {
+    let (needle_indic, arc_indic, scala) = unsafe {
         let scale = lvgl_sys::lv_meter_add_scale(ptr.as_ptr());
+        // Fase 3 (30-09-2026): angoli e tacche del progetto. Il web misura da
+        // mezzogiorno in senso orario, LVGL da ore tre: ampiezza = fine −
+        // inizio, rotazione = inizio − 90. Col predefinito (−135…135) viene il
+        // 270/135 che qui era cablato.
+        let (ampiezza, rotazione) = angoli_gauge(obj.gauge_start_angle, obj.gauge_end_angle);
         lvgl_sys::lv_meter_set_scale_range(
             ptr.as_ptr(),
             scale,
             min.round() as i32,
             max.round() as i32,
-            270,
-            135,
+            ampiezza,
+            rotazione,
         );
-        lvgl_sys::lv_meter_set_scale_ticks(
-            ptr.as_ptr(),
-            scale,
-            21,
-            2,
-            6,
-            lvgl_sys::lv_palette_main(lvgl_sys::lv_palette_t_LV_PALETTE_GREY),
-        );
-        lvgl_sys::lv_meter_set_scale_major_ticks(
-            ptr.as_ptr(),
-            scale,
-            4,
-            3,
-            10,
-            Color::from_rgb((148, 163, 184)).into(),
-            10,
-        );
+        // Come il web: con `gauge_ticks` = n, n tacche numerate; senza, nessuna
+        // tacca e solo i numeri di minimo e massimo alle estremità (qui
+        // c'erano sempre 21 tacche e 6 numeri).
+        let tacche = obj.gauge_ticks.map(|t| t.round() as u16).filter(|t| *t > 1);
+        let grigio = Color::from_rgb((0x64, 0x74, 0x8b)).into();
+        match tacche {
+            Some(n) => {
+                lvgl_sys::lv_meter_set_scale_ticks(ptr.as_ptr(), scale, n, 1, 8, grigio);
+                lvgl_sys::lv_meter_set_scale_major_ticks(ptr.as_ptr(), scale, 1, 1, 8, grigio, 12);
+            }
+            None => {
+                lvgl_sys::lv_meter_set_scale_ticks(ptr.as_ptr(), scale, 2, 0, 0, grigio);
+                lvgl_sys::lv_meter_set_scale_major_ticks(ptr.as_ptr(), scale, 1, 0, 0, grigio, 14);
+            }
+        }
 
         // Fasce colorate fisse (gauge_zones, Q trovata nella verifica F9c del
         // 2026-09-12): un arco per fascia, aggiunto PRIMA di quello del
@@ -4140,7 +4295,7 @@ fn render_gauge(
                 continue;
             };
             let zone_arc =
-                lvgl_sys::lv_meter_add_arc(ptr.as_ptr(), scale, 6, Color::from_rgb(rgb).into(), 0);
+                lvgl_sys::lv_meter_add_arc(ptr.as_ptr(), scale, 10, Color::from_rgb(rgb).into(), 0);
             lvgl_sys::lv_meter_set_indicator_start_value(
                 ptr.as_ptr(),
                 zone_arc,
@@ -4154,7 +4309,7 @@ fn render_gauge(
         }
 
         let arc =
-            lvgl_sys::lv_meter_add_arc(ptr.as_ptr(), scale, 6, Color::from_rgb(arc_rgb).into(), 0);
+            lvgl_sys::lv_meter_add_arc(ptr.as_ptr(), scale, 10, Color::from_rgb(arc_rgb).into(), 0);
         lvgl_sys::lv_meter_set_indicator_start_value(ptr.as_ptr(), arc, min.round() as i32);
         lvgl_sys::lv_meter_set_indicator_end_value(ptr.as_ptr(), arc, raw.round() as i32);
 
@@ -4162,13 +4317,32 @@ fn render_gauge(
             ptr.as_ptr(),
             scale,
             3,
-            Color::from_rgb((226, 232, 240)).into(),
+            // Fase 2 (30-09-2026): `stroke` del gauge, non un grigio fisso.
+            Color::from_rgb(colore_campo(obj.stroke.as_deref(), "gauge", "stroke")).into(),
             -8,
         );
         lvgl_sys::lv_meter_set_indicator_value(ptr.as_ptr(), needle, raw.round() as i32);
 
-        (needle, arc)
+        (needle, arc, scale)
     };
+    // Il setpoint (`gauge_sp_tag`): una lancetta sottile nel colore
+    // `gauge_sp_color`, come sul web (Fase 3; su LVGL non esisteva).
+    let sp = match obj.gauge_sp_tag.as_deref().filter(|t| !t.is_empty()) {
+        Some(t) => unsafe {
+            let ind = lvgl_sys::lv_meter_add_needle_line(
+                ptr.as_ptr(),
+                scala,
+                2,
+                Color::from_rgb(colore_campo(obj.gauge_sp_color.as_deref(), "gauge", "gauge_sp_color")).into(),
+                0,
+            );
+            let v = lookup(tags, &Some(t.to_string())).map(|x| tag_value_as_f64(&x.value)).unwrap_or(min);
+            lvgl_sys::lv_meter_set_indicator_value(ptr.as_ptr(), ind, v.round() as i32);
+            Some((ind, t.to_string()))
+        },
+        None => None,
+    };
+    let decimali = obj.decimals.unwrap_or(1) as usize;
 
     // Testo valore, centrato in basso nel quadrante (stesso posto del web) —
     // widget figlio separato, aggiornato dal vivo come qualunque altro Text.
@@ -4206,7 +4380,7 @@ fn render_gauge(
         .map(|u| format!(" {u}"))
         .unwrap_or_default();
     value_label
-        .set_text(&text_cstring(&format!("{raw:.1}{unit_suffix}")))
+        .set_text(&text_cstring(&format!("{raw:.decimali$}{unit_suffix}")))
         .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
     let value_ptr = value_label
         .raw()
@@ -4229,8 +4403,19 @@ fn render_gauge(
                 .and_then(parse_hex_color)
                 .unwrap_or((34, 197, 94)),
             rgb_arco: arc_rgb,
+            decimali,
+            sp,
         },
     })
+}
+
+/// Angoli del gauge dal web a LVGL: (ampiezza, rotazione) in gradi. Il web
+/// misura da mezzogiorno in senso orario, LVGL da ore tre.
+fn angoli_gauge(inizio: Option<f64>, fine: Option<f64>) -> (u32, u32) {
+    let (a, b) = (inizio.unwrap_or(-135.0), fine.unwrap_or(135.0));
+    let ampiezza = (b - a).abs().clamp(1.0, 360.0).round() as u32;
+    let rotazione = ((a.min(b) - 90.0).rem_euclid(360.0)).round() as u32;
+    (ampiezza, rotazione)
 }
 
 /// Stesso modello dati di `text_list` (`value`→`label`→`color`, con match per
@@ -4317,6 +4502,60 @@ fn render_state_lamp(
 /// `text_list`: stessa logica dati di `state_lamp` (`match_text_list_entry`
 /// contro `text_list_entries`), ma senza il cerchio colorato — solo
 /// un'etichetta, il cui colore segue quello dell'entry quando c'è.
+/// Il colore di un `text_list` come sul web (`SvgCanvas.tsx`, ramo text_list):
+/// la voce col suo colore; una voce senza colore → `color` dell'oggetto o il
+/// testo della pagina; nessuna voce → `text_list_default_color` o il predefinito
+/// della tabella (#94a3b8). Era `#f1f5f9` qui e `#94a3b8` sul web (Fase 2,
+/// 30-09-2026).
+fn colore_text_list(
+    entry: Option<&TextListEntry>,
+    colore_oggetto: Option<&str>,
+    ripiego: Option<&str>,
+) -> Option<(u8, u8, u8)> {
+    match entry {
+        Some(e) => e
+            .color
+            .as_deref()
+            .or(colore_oggetto)
+            .and_then(parse_hex_color)
+            .or_else(colori_predefiniti::testo_pagina),
+        None => Some(colore_campo(ripiego, "text_list", "text_list_default_color")),
+    }
+}
+
+/// Il testo di un `text_list` come sul web: la voce, poi `text_list_default`,
+/// poi il valore stesso, poi «N/D» nella lingua dei contenuti. Qui prima,
+/// senza voce né ripiego, non si scriveva niente (Fase 3, 30-09-2026).
+fn testo_text_list(
+    entry: Option<&TextListEntry>,
+    ripiego: Option<&str>,
+    tv: Option<&TagSnapshotValue>,
+    lingua: &str,
+) -> String {
+    if let Some(e) = entry {
+        return e.label.clone();
+    }
+    if let Some(r) = ripiego {
+        return r.to_string();
+    }
+    match tv.map(|t| &t.value) {
+        Some(TagValue::Bool(b)) => b.to_string(),
+        Some(TagValue::Int(i)) => i.to_string(),
+        Some(TagValue::Float(f)) => fmt_numero_js(*f),
+        Some(TagValue::Str(s)) => s.clone(),
+        _ => crate::testi_sistema::testo(crate::testi_sistema::Testo::Nd, lingua).to_string(),
+    }
+}
+
+/// `String(n)` di JavaScript per i casi che contano: un intero senza «.0».
+fn fmt_numero_js(f: f64) -> String {
+    if f.is_finite() && f.fract() == 0.0 && f.abs() < 1e15 {
+        format!("{}", f as i64)
+    } else {
+        format!("{f}")
+    }
+}
+
 fn render_text_list(
     screen: &mut lvgl::Obj,
     obj: &SynopticObject,
@@ -4325,27 +4564,34 @@ fn render_text_list(
     let entries = obj.text_list_entries.clone().unwrap_or_default();
     let tv = lookup(tags, &obj.tag);
     let entry = match_text_list_entry(&entries, tv);
-    let label_text = entry
-        .map(|e| e.label.clone())
-        .or_else(|| obj.text_list_default.clone())
-        .unwrap_or_default();
-    let label_hex = entry
-        .and_then(|e| e.color.clone())
-        .or_else(|| obj.text_list_default_color.clone())
-        .unwrap_or_else(|| "#f1f5f9".to_string());
+    let label_text = testo_text_list(entry, obj.text_list_default.as_deref(), tv, "it");
+    let colore = colore_text_list(entry, obj.color.as_deref(), obj.text_list_default_color.as_deref());
 
+    // Fase 3 (30-09-2026): il testo sta nel riquadro come sul web — largo quanto
+    // l'oggetto, allineato secondo `text_anchor` (al centro di default), a metà
+    // altezza, nel corpo `font_size` (16 di default). Prima era in alto a
+    // sinistra, nel corpo del tema.
+    let w = obj.width.unwrap_or(120.0);
+    let h = obj.height.unwrap_or(32.0);
+    let corpo = obj.font_size.unwrap_or(16.0).round().clamp(6.0, 200.0);
     let mut label = Label::create(screen).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
     label
         .set_pos(
             obj.x.unwrap_or(0.0).round() as i16,
-            obj.y.unwrap_or(0.0).round() as i16,
+            (obj.y.unwrap_or(0.0) + (h - corpo * 1.2) / 2.0).round() as i16,
         )
         .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
+    unsafe {
+        let lp = label.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+        lvgl_sys::lv_obj_set_width(lp, w.round() as lvgl_sys::lv_coord_t);
+        lvgl_sys::lv_obj_set_style_text_align(lp, allineamento_righe(Some(obj.text_anchor.as_deref().unwrap_or("middle"))), 0);
+        stile::font(lp, corpo as u16, stile::MAIN);
+    }
     label
         .set_text(&text_cstring(&label_text))
         .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
     let mut label_style = Style::default();
-    if let Some(rgb) = parse_hex_color(&label_hex) {
+    if let Some(rgb) = colore {
         label_style.set_text_color(Color::from_rgb(rgb));
     }
     label
@@ -4361,123 +4607,407 @@ fn render_text_list(
             entries,
             default_label: obj.text_list_default.clone(),
             default_color: obj.text_list_default_color.clone(),
+            colore_testo: obj.color.clone(),
         },
     })
 }
 
-/// Tabella statica a 3 colonne (label/valore/qualità) da `table_rows` — non
-/// un datagrid dinamico (niente sort/pagine, stessa scelta della versione
-/// web). `lv_table` si auto-dimensiona sul contenuto (`LV_SIZE_CONTENT`,
-/// come `lv_line`): niente `set_size`, solo `set_pos` + larghezze colonna.
-///
-/// Ogni cella usa `LV_TABLE_CELL_CTRL_TEXT_CROP`: forza l'altezza riga a una
-/// singola riga di testo indipendentemente dal contenuto (verificato in
-/// `lv_table.c` — senza, `lv_table` va a capo dentro la cella e fa crescere
-/// l'intera riga). **Non basta da solo**: dentro quell'altezza fissa il testo
-/// che non entra in larghezza continua comunque ad andare a capo (verificato
-/// con screenshot — "OK"/"UNC" a 45px di colonna si spezzavano su due righe
-/// una lettera per riga). La combinazione che funziona è crop + contenuto
-/// garantito corto: colonna qualità a una sola lettera (`quality_abbrev`),
-/// non un'abbreviazione a 2-3 lettere.
+/// Una colonna della tabella web (`table_columns`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ColTab {
+    Etichetta,
+    Valore,
+    Unita,
+    Qualita,
+    Ora,
+}
+
+enum SorgenteTabella {
+    /// `table`: righe dal progetto, celle ricalcolate dai tag.
+    Righe { rows: Vec<TableRow>, colonne: Vec<ColTab> },
+    /// `data_log`: righe fisse, lette una volta dallo storico.
+    Fisse,
+}
+
+/// Cosa fare quando il tastierino si chiude.
+enum AzioneTastiera {
+    Filtro(usize),
+    Scrivi(String),
+}
+
+/// La tabella a schermo: canvas, stato dell'operatore (ordinamento, filtri,
+/// scorrimento), righe calcolate, e il tastierino eventualmente aperto.
+pub struct TabellaViva {
+    canvas: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    buf: Vec<u8>,
+    pixmap: resvg::tiny_skia::Pixmap,
+    cfg: crate::tabella::Config,
+    stato: crate::tabella::Stato,
+    scena: crate::tabella::Scena,
+    etichette: Vec<core::ptr::NonNull<lvgl_sys::lv_obj_t>>,
+    tocchi: CodaTocchi,
+    sorgente: SorgenteTabella,
+    righe: Vec<crate::tabella::Riga>,
+    sporco: bool,
+    tastiera: Option<(EsitoTastiera, AzioneTastiera)>,
+    tx: Option<mpsc::Sender<TagCommand>>,
+}
+
+/// Le colonne di `table_columns` (array di stringhe), o quelle di default.
+fn colonne_tabella(v: Option<&serde_json::Value>) -> Vec<ColTab> {
+    let dalle = |n: &str| match n {
+        "label" => Some(ColTab::Etichetta),
+        "value" => Some(ColTab::Valore),
+        "unit" => Some(ColTab::Unita),
+        "quality" => Some(ColTab::Qualita),
+        "time" => Some(ColTab::Ora),
+        _ => None,
+    };
+    let c: Vec<ColTab> = v
+        .and_then(|v| v.as_array())
+        .map(|a| a.iter().filter_map(|x| x.as_str()).filter_map(dalle).collect())
+        .unwrap_or_default();
+    if c.is_empty() {
+        vec![ColTab::Etichetta, ColTab::Valore, ColTab::Qualita]
+    } else {
+        c
+    }
+}
+
+fn colore_qualita(q: &TagQuality) -> (u8, u8, u8) {
+    match q {
+        TagQuality::Good => (0x22, 0xc5, 0x5e),
+        TagQuality::Bad => (0xef, 0x44, 0x44),
+        _ => (0xea, 0xb3, 0x08),
+    }
+}
+
+/// `HH:MM:SS` nell'ora del pannello (`toLocaleTimeString` del web).
+fn ora_hms(ts_ms: u64) -> String {
+    let o = crate::trend::ora_locale(ts_ms);
+    format!("{:02}:{:02}:{:02}", o.ora, o.minuto, o.secondo)
+}
+
+/// Le celle di una riga come le calcola `SvgCanvas.tsx` (ramo `table`).
+fn riga_tabella(r: &TableRow, colonne: &[ColTab], tags: &TagSnapshot) -> crate::tabella::Riga {
+    use crate::tabella::{Cella, Chiave};
+    let tv = tags.get(&r.tag);
+    let num = tv.and_then(|t| match &t.value {
+        TagValue::Int(i) => Some(*i as f64),
+        TagValue::Float(f) if f.is_finite() => Some(*f),
+        TagValue::Str(s) => s.trim().parse::<f64>().ok(),
+        _ => None,
+    });
+    let con_unita = colonne.contains(&ColTab::Unita);
+    let testo_valore = match tv {
+        None => "—".to_string(),
+        Some(t) => match (&r.format, num, r.decimals) {
+            (Some(f), _, _) => format_value(&t.value, Some(f)),
+            (None, Some(n), Some(d)) => crate::trend::to_fixed(n, d as usize),
+            _ => match &t.value {
+                // `String(v)` del web: 63.5 → «63.5», non «63.50».
+                TagValue::Float(f) => fmt_numero_js(*f),
+                v => format_value(v, Some("{value}")),
+            },
+        }
+        .to_string()
+            + &if con_unita || r.format.is_some() {
+                String::new()
+            } else {
+                r.unit.as_deref().filter(|u| !u.is_empty()).map(|u| format!(" {u}")).unwrap_or_default()
+            },
+    };
+    let colore_valore = num
+        .and_then(|n| threshold_color(n, r.alarm_low, r.warn_low, r.warn_high, r.alarm_high))
+        .unwrap_or_else(|| match tv.map(|t| &t.quality) {
+            Some(TagQuality::Good) => colori_predefiniti::testo_pagina().unwrap_or((0xe2, 0xe8, 0xf0)),
+            Some(TagQuality::Bad) => (0xef, 0x44, 0x44),
+            Some(_) => (0xea, 0xb3, 0x08),
+            None => (0x47, 0x55, 0x69),
+        });
+    let testo2 = (0xcb, 0xd5, 0xe1);
+    let celle = colonne
+        .iter()
+        .map(|c| match c {
+            ColTab::Etichetta => Cella { testo: r.label.clone(), colore: testo2, punto: None, chiave: Chiave::Testo(r.label.clone()) },
+            ColTab::Unita => {
+                let u = r.unit.clone().unwrap_or_default();
+                Cella { testo: u.clone(), colore: testo2, punto: None, chiave: Chiave::Testo(u) }
+            }
+            ColTab::Qualita => Cella {
+                testo: String::new(),
+                colore: testo2,
+                punto: tv.map(|t| colore_qualita(&t.quality)),
+                chiave: Chiave::Testo(tv.map(|t| format!("{:?}", t.quality)).unwrap_or_default()),
+            },
+            ColTab::Ora => {
+                let ts = tv.map(|t| t.ts).unwrap_or(0);
+                Cella {
+                    testo: if ts > 0 { ora_hms(ts) } else { "—".into() },
+                    colore: testo2,
+                    punto: None,
+                    chiave: Chiave::Numero(ts as f64),
+                }
+            }
+            ColTab::Valore => Cella {
+                testo: testo_valore.clone(),
+                colore: colore_valore,
+                punto: None,
+                chiave: num.map(Chiave::Numero).unwrap_or(Chiave::Testo(testo_valore.clone())),
+            },
+        })
+        .collect();
+    let scrivibile = (r.writable == Some(true)).then(|| colonne.iter().position(|c| *c == ColTab::Valore)).flatten();
+    crate::tabella::Riga { celle, scrivibile }
+}
+
+/// `table`: disegnata come il web (`tabella.rs`) dal 1-10-2026. Prima era una
+/// `lv_table` col tema, a tre colonne fisse, senza ordinamento, filtri, soglie
+/// per riga né celle scrivibili — «totalmente diversa dal web».
 fn render_table(
     screen: &mut lvgl::Obj,
     obj: &SynopticObject,
     tags: &TagSnapshot,
+    tag_tx: &mpsc::Sender<TagCommand>,
+    lingua: &str,
 ) -> anyhow::Result<LiveBinding> {
-    let mut table = Table::create(screen).map_err(|e| anyhow::anyhow!("Table::create: {e:?}"))?;
-    table
-        .set_pos(
-            obj.x.unwrap_or(0.0).round() as i16,
-            obj.y.unwrap_or(0.0).round() as i16,
-        )
-        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-
+    use crate::testi_sistema::{testo, Testo};
+    use crate::trend::Orizz;
     let rows = obj.table_rows.clone().unwrap_or_default();
-    let row_cnt = (rows.len() + 1) as u16;
-    table
-        .set_col_cnt(3)
-        .map_err(|e| anyhow::anyhow!("set_col_cnt: {e:?}"))?;
-    table
-        .set_row_cnt(row_cnt)
-        .map_err(|e| anyhow::anyhow!("set_row_cnt: {e:?}"))?;
+    let colonne = colonne_tabella(obj.table_columns.as_ref());
+    let ordinabile = obj.table_sortable != Some(false);
+    let w = obj.width.unwrap_or(300.0).round().clamp(40.0, 2048.0) as u32;
+    let h = obj.height.unwrap_or(26.0 + rows.len() as f64 * 24.0 + 2.0).round().clamp(30.0, 2048.0) as u32;
+    let cfg = crate::tabella::Config {
+        w,
+        h,
+        colonne: colonne
+            .iter()
+            .map(|c| {
+                let (intestazione, larghezza, allinea, filtrabile) = match c {
+                    ColTab::Etichetta => (
+                        obj.table_label_header.clone().unwrap_or_else(|| testo(Testo::Dati, lingua).to_uppercase()),
+                        None,
+                        Orizz::Sx,
+                        true,
+                    ),
+                    ColTab::Unita => (testo(Testo::Unita, lingua).to_string(), Some(52.0), Orizz::Sx, false),
+                    ColTab::Qualita => ("Q".to_string(), Some(28.0), Orizz::Centro, false),
+                    ColTab::Ora => (testo(Testo::Ora, lingua).to_string(), Some(72.0), Orizz::Sx, false),
+                    ColTab::Valore => (testo(Testo::Valore, lingua).to_uppercase(), None, Orizz::Dx, false),
+                };
+                crate::tabella::Colonna { intestazione, larghezza, allinea, ordinabile, filtrabile }
+            })
+            .collect(),
+        corpo_px: obj.table_font_size.unwrap_or(11.0).round().clamp(6.0, 40.0) as u16,
+        sfondo: colore_campo(obj.bg_color.as_deref(), "table", "bg_color"),
+        filtri: obj.table_filterable == Some(true),
+        vuoto: "—".into(),
+    };
+    let righe = rows.iter().map(|r| riga_tabella(r, &colonne, tags)).collect();
+    let viva = crea_tabella_viva(screen, obj, cfg, righe, SorgenteTabella::Righe { rows, colonne }, Some(tag_tx.clone()))?;
+    Ok(LiveBinding { kind: LiveKind::Tabella(viva) })
+}
 
-    let w = obj.width.unwrap_or(300.0);
-    let ptr = table.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+/// Canvas, tocchi e primo disegno di una tabella (table e data_log).
+fn crea_tabella_viva(
+    screen: &mut lvgl::Obj,
+    obj: &SynopticObject,
+    cfg: crate::tabella::Config,
+    righe: Vec<crate::tabella::Riga>,
+    sorgente: SorgenteTabella,
+    tx: Option<mpsc::Sender<TagCommand>>,
+) -> anyhow::Result<Box<TabellaViva>> {
+    let (w, h) = (cfg.w, cfg.h);
+    let (canvas, buf) = canvas_alfa(screen, obj, w, h)?;
+    let tocchi: CodaTocchi = Default::default();
     unsafe {
-        lvgl_sys::lv_table_set_col_width(ptr.as_ptr(), 0, (w * 0.40) as i16);
-        lvgl_sys::lv_table_set_col_width(ptr.as_ptr(), 1, (w * 0.40) as i16);
-        lvgl_sys::lv_table_set_col_width(ptr.as_ptr(), 2, (w * 0.20) as i16);
-        for row in 0..row_cnt {
-            for col in 0..3 {
-                lvgl_sys::lv_table_add_cell_ctrl(
-                    ptr.as_ptr(),
-                    row,
-                    col,
-                    lvgl_sys::LV_TABLE_CELL_CTRL_TEXT_CROP as lvgl_sys::lv_table_cell_ctrl_t,
-                );
+        lvgl_sys::lv_obj_add_flag(canvas.as_ptr(), lvgl_sys::LV_OBJ_FLAG_CLICKABLE);
+        lvgl_sys::lv_obj_clear_flag(
+            canvas.as_ptr(),
+            lvgl_sys::LV_OBJ_FLAG_SCROLL_CHAIN_HOR | lvgl_sys::LV_OBJ_FLAG_SCROLL_CHAIN_VER,
+        );
+        let ctx: &'static CodaTocchi = Box::leak(Box::new(tocchi.clone()));
+        for code in [
+            lvgl_sys::lv_event_code_t_LV_EVENT_PRESSED,
+            lvgl_sys::lv_event_code_t_LV_EVENT_PRESSING,
+            lvgl_sys::lv_event_code_t_LV_EVENT_RELEASED,
+            lvgl_sys::lv_event_code_t_LV_EVENT_PRESS_LOST,
+        ] {
+            lvgl_sys::lv_obj_add_event_cb(canvas.as_ptr(), Some(sws_trend_tocco_cb), code, ctx as *const CodaTocchi as *mut std::ffi::c_void);
+        }
+    }
+    let stato = crate::tabella::Stato::nuovo(&cfg);
+    let mut t = Box::new(TabellaViva {
+        canvas,
+        buf,
+        pixmap: resvg::tiny_skia::Pixmap::new(w, h).ok_or_else(|| anyhow::anyhow!("pixmap {w}x{h}"))?,
+        cfg,
+        stato,
+        scena: Default::default(),
+        etichette: Vec::new(),
+        tocchi,
+        sorgente,
+        righe,
+        sporco: true,
+        tastiera: None,
+        tx,
+    });
+    ridisegna_tabella(&mut t);
+    Ok(t)
+}
+
+fn ridisegna_tabella(t: &mut TabellaViva) {
+    let misura = |s: &str, px: u16| misura_trend(s, px).0;
+    let scena = crate::tabella::disegna(&t.cfg, &t.righe, &t.stato, &mut t.pixmap, &misura);
+    pixmap_in_buffer_alfa(&t.pixmap, &mut t.buf);
+    unsafe { lvgl_sys::lv_obj_invalidate(t.canvas.as_ptr()) };
+    scrivi_testi(t.canvas, &mut t.etichette, &scena.testi);
+    t.scena = scena;
+    t.sporco = false;
+}
+
+/// Un frame della tabella: celle dai tag, tocchi, esito del tastierino.
+fn aggiorna_tabella(t: &mut TabellaViva, tags: &TagSnapshot) {
+    use crate::tabella::Esito;
+    if let SorgenteTabella::Righe { rows, colonne } = &t.sorgente {
+        let nuove: Vec<_> = rows.iter().map(|r| riga_tabella(r, colonne, tags)).collect();
+        if nuove != t.righe {
+            t.righe = nuove;
+            t.sporco = true;
+        }
+    }
+    let eventi: Vec<ToccoTrend> = t.tocchi.borrow_mut().drain(..).collect();
+    for e in eventi {
+        match e {
+            ToccoTrend::Premi(x, y) => t.stato.premi(x, y),
+            ToccoTrend::Trascina(_, y) => t.sporco |= t.stato.trascina(y, t.scena.scorri_max),
+            ToccoTrend::Perso => t.stato.annulla(),
+            ToccoTrend::Rilascia => match t.stato.rilascia(&t.scena) {
+                Esito::Niente => {}
+                Esito::Ridisegna => t.sporco = true,
+                Esito::Filtro(c) => {
+                    let iniziale = t.stato.filtri.get(c).cloned().unwrap_or_default();
+                    if let Some(es) = apri_tastiera(false, &iniziale) {
+                        t.tastiera = Some((es, AzioneTastiera::Filtro(c)));
+                    }
+                }
+                Esito::Scrivi(i) => {
+                    if let SorgenteTabella::Righe { rows, colonne } = &t.sorgente {
+                        let tag = rows[i].tag.clone();
+                        let iniziale = colonne
+                            .iter()
+                            .position(|c| *c == ColTab::Valore)
+                            .and_then(|c| t.righe.get(i).map(|r| r.celle[c].testo.clone()))
+                            .unwrap_or_default();
+                        let iniziale = iniziale.split_whitespace().next().unwrap_or("").replace('—', "");
+                        if let Some(es) = apri_tastiera(true, &iniziale) {
+                            t.tastiera = Some((es, AzioneTastiera::Scrivi(tag)));
+                        }
+                    }
+                }
+            },
+        }
+    }
+    let chiuso = t.tastiera.as_ref().and_then(|(es, _)| es.borrow_mut().take());
+    if let Some(risultato) = chiuso {
+        if let Some((_, azione)) = t.tastiera.take() {
+            match (azione, risultato) {
+                (AzioneTastiera::Filtro(c), Some(testo)) => {
+                    if let Some(f) = t.stato.filtri.get_mut(c) {
+                        *f = testo;
+                    }
+                    t.stato.scorri = 0.0;
+                    t.sporco = true;
+                }
+                (AzioneTastiera::Scrivi(tag), Some(testo)) => {
+                    let valore = match testo.trim().parse::<f64>() {
+                        Ok(n) => TagValue::Float(n),
+                        Err(_) => TagValue::Str(testo),
+                    };
+                    if let Some(tx) = &t.tx {
+                        let _ = tx.send(TagCommand { tag, value: valore });
+                    }
+                }
+                _ => {}
             }
         }
     }
-
-    // Le due intestazioni seguivano un campo sbagliato/un letterale diverso da
-    // quello del web (`SvgCanvas.tsx`): `obj.label` è l'etichetta generica del
-    // widget, non l'intestazione della colonna — quella è `table_label_header`
-    // (assente = "DATI", stesso default). La seconda colonna sul web è sempre
-    // "VALORE", non configurabile: "VAL" era solo un refuso.
-    table
-        .set_cell_value(
-            0,
-            0,
-            &text_cstring(obj.table_label_header.as_deref().unwrap_or("DATI")),
-        )
-        .map_err(|e| anyhow::anyhow!("set_cell_value: {e:?}"))?;
-    table
-        .set_cell_value(0, 1, &text_cstring("VALORE"))
-        .map_err(|e| anyhow::anyhow!("set_cell_value: {e:?}"))?;
-    table
-        .set_cell_value(0, 2, &text_cstring("Q"))
-        .map_err(|e| anyhow::anyhow!("set_cell_value: {e:?}"))?;
-    for (i, row) in rows.iter().enumerate() {
-        table
-            .set_cell_value((i + 1) as u16, 0, &text_cstring(&row.label))
-            .map_err(|e| anyhow::anyhow!("set_cell_value: {e:?}"))?;
+    if t.sporco {
+        ridisegna_tabella(t);
     }
-    update_table_data_cells(ptr, &rows, tags);
-
-    Ok(LiveBinding {
-        kind: LiveKind::Table { ptr, rows },
-    })
 }
 
-/// Colonne valore/qualità di una riga tabella — condivisa tra creazione e
-/// aggiornamento (stesso principio di `led_state`/`text_color_hex`) così le
-/// due strade non possono divergere.
-fn update_table_data_cells(
-    ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
-    rows: &[TableRow],
-    tags: &TagSnapshot,
-) {
-    for (i, row) in rows.iter().enumerate() {
-        let tv = tags.get(&row.tag);
-        let val_text = tv
-            .map(|t| format_value(&t.value, row.format.as_deref()))
-            .unwrap_or_else(|| "-".to_string());
-        let qual_text = tv.map(|t| quality_abbrev(&t.quality)).unwrap_or("-");
-        unsafe {
-            lvgl_sys::lv_table_set_cell_value(
-                ptr.as_ptr(),
-                (i + 1) as u16,
-                1,
-                text_cstring(&val_text).as_ptr(),
-            );
-            lvgl_sys::lv_table_set_cell_value(
-                ptr.as_ptr(),
-                (i + 1) as u16,
-                2,
-                text_cstring(qual_text).as_ptr(),
-            );
-        }
+/// La risoluzione vera del display, non quella di compilazione: sul WP630
+/// (1280×800) un tastierino grande `HOR_RES`×`VER_RES` lasciava scoperta la
+/// pagina a destra e in basso (1-10-2026).
+fn risoluzione() -> (i16, i16) {
+    unsafe {
+        let (w, h) = (
+            lvgl_sys::lv_disp_get_hor_res(core::ptr::null_mut()),
+            lvgl_sys::lv_disp_get_ver_res(core::ptr::null_mut()),
+        );
+        if w > 0 && h > 0 { (w, h) } else { (HOR_RES as i16, VER_RES as i16) }
     }
+}
+
+/// L'esito di un tastierino: `None` finché è aperto, poi `Some(Some(testo))`
+/// per OK o `Some(None)` per Annulla.
+type EsitoTastiera = std::rc::Rc<RefCell<Option<Option<String>>>>;
+
+struct TastieraCtx {
+    overlay: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    textarea: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    esito: EsitoTastiera,
+}
+
+/// Un tastierino a schermo intero sul layer superiore, aperto su richiesta
+/// (celle scrivibili e filtri della tabella): numerico o alfabetico. Stesso
+/// aspetto di quello del setpoint; alla chiusura si cancella da sé.
+fn apri_tastiera(numerica: bool, iniziale: &str) -> Option<EsitoTastiera> {
+    unsafe {
+        let top = lvgl_sys::lv_disp_get_layer_top(core::ptr::null_mut());
+        let ov = core::ptr::NonNull::new(lvgl_sys::lv_obj_create(top))?;
+        lvgl_sys::lv_obj_set_pos(ov.as_ptr(), 0, 0);
+        let (lw, lh) = risoluzione();
+        lvgl_sys::lv_obj_set_size(ov.as_ptr(), lw, lh);
+        stile::sfondo(ov.as_ptr(), (15, 23, 42), stile::MAIN);
+        stile::bordo(ov.as_ptr(), None, 0.0, stile::MAIN);
+        lvgl_sys::lv_obj_clear_flag(ov.as_ptr(), lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
+        let ta = core::ptr::NonNull::new(lvgl_sys::lv_textarea_create(ov.as_ptr()))?;
+        lvgl_sys::lv_obj_set_pos(ta.as_ptr(), 20, 20);
+        lvgl_sys::lv_obj_set_size(ta.as_ptr(), lw - 40, 50);
+        lvgl_sys::lv_textarea_set_one_line(ta.as_ptr(), true);
+        if numerica {
+            lvgl_sys::lv_textarea_set_accepted_chars(ta.as_ptr(), c"0123456789.-".as_ptr());
+        }
+        lvgl_sys::lv_textarea_set_text(ta.as_ptr(), text_cstring(iniziale).as_ptr());
+        let kb = core::ptr::NonNull::new(lvgl_sys::lv_keyboard_create(ov.as_ptr()))?;
+        lvgl_sys::lv_keyboard_set_textarea(kb.as_ptr(), ta.as_ptr());
+        lvgl_sys::lv_keyboard_set_mode(
+            kb.as_ptr(),
+            if numerica { lvgl_sys::LV_KEYBOARD_MODE_NUMBER } else { lvgl_sys::LV_KEYBOARD_MODE_TEXT_LOWER } as lvgl_sys::lv_keyboard_mode_t,
+        );
+        crate::lvgl_font::restore_symbols_on(kb.as_ptr());
+        let esito: EsitoTastiera = Default::default();
+        let ctx: &'static TastieraCtx = Box::leak(Box::new(TastieraCtx { overlay: ov, textarea: ta, esito: esito.clone() }));
+        for code in [lvgl_sys::lv_event_code_t_LV_EVENT_READY, lvgl_sys::lv_event_code_t_LV_EVENT_CANCEL] {
+            lvgl_sys::lv_obj_add_event_cb(kb.as_ptr(), Some(sws_tastiera_cb), code, ctx as *const TastieraCtx as *mut std::ffi::c_void);
+        }
+        Some(esito)
+    }
+}
+
+unsafe extern "C" fn sws_tastiera_cb(e: *mut lvgl_sys::lv_event_t) {
+    let ctx = &*(lvgl_sys::lv_event_get_user_data(e) as *const TastieraCtx);
+    let risultato = if lvgl_sys::lv_event_get_code(e) == lvgl_sys::lv_event_code_t_LV_EVENT_READY {
+        let c = lvgl_sys::lv_textarea_get_text(ctx.textarea.as_ptr());
+        Some(if c.is_null() { String::new() } else { std::ffi::CStr::from_ptr(c).to_string_lossy().into_owned() })
+    } else {
+        None
+    };
+    *ctx.esito.borrow_mut() = Some(risultato);
+    lvgl_sys::lv_obj_del_async(ctx.overlay.as_ptr());
 }
 
 /// Trend: canvas disegnato da `trend.rs` con tiny-skia, testi come etichette
@@ -4680,10 +5210,53 @@ fn misura_trend(testo: &str, px: u16) -> (f32, f32) {
     (p.x as f32, p.y as f32)
 }
 
+/// Scrive i testi di un widget disegnato in proprio (trend, barre) con
+/// etichette LVGL figlie del canvas: create quando servono e nascoste quando
+/// avanzano — mai distrutte e ricreate a ogni frame.
+fn scrivi_testi(
+    canvas: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    etichette: &mut Vec<core::ptr::NonNull<lvgl_sys::lv_obj_t>>,
+    testi: &[crate::trend::Testo],
+) {
+    use crate::trend::{Orizz, Vert};
+    while etichette.len() < testi.len() {
+        let p = unsafe { lvgl_sys::lv_label_create(canvas.as_ptr()) };
+        match core::ptr::NonNull::new(p) {
+            Some(nn) => etichette.push(nn),
+            None => break,
+        }
+    }
+    for (k, lp) in etichette.iter().enumerate() {
+        let lp = lp.as_ptr();
+        let Some(tx) = testi.get(k) else {
+            unsafe { lvgl_sys::lv_obj_add_flag(lp, lvgl_sys::LV_OBJ_FLAG_HIDDEN) };
+            continue;
+        };
+        let (lw, lh) = misura_trend(&tx.testo, tx.px);
+        let x = match tx.orizz {
+            Orizz::Sx => tx.x,
+            Orizz::Centro => tx.x - lw / 2.0,
+            Orizz::Dx => tx.x - lw,
+        };
+        let y = match tx.vert {
+            Vert::Alto => tx.y,
+            Vert::Mezzo => tx.y - lh / 2.0,
+            Vert::Basso => tx.y - lh,
+        };
+        unsafe {
+            lvgl_sys::lv_label_set_text(lp, text_cstring(&tx.testo).as_ptr());
+            lvgl_sys::lv_obj_set_style_text_font(lp, font_trend(tx.px), 0);
+            lvgl_sys::lv_obj_set_style_text_color(lp, Color::from_rgb(tx.colore).into(), 0);
+            lvgl_sys::lv_obj_set_pos(lp, x.round() as lvgl_sys::lv_coord_t, y.round() as lvgl_sys::lv_coord_t);
+            lvgl_sys::lv_obj_clear_flag(lp, lvgl_sys::LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+}
+
 /// Un frame del trend: tocchi, dati nuovi, e il ridisegno solo se qualcosa è
 /// cambiato — il poller risponde ogni 2 s, il ciclo gira a 60 fps.
 fn aggiorna_trend(t: &mut TrendVivo, lingua: &str, table: &LanguageTable) {
-    use crate::trend::{Esito, Orizz, Vert};
+    use crate::trend::Esito;
     let ora = client::now_unix_ms();
     if t.cfg.lingua != lingua {
         t.cfg.lingua = lingua.to_string();
@@ -4762,40 +5335,7 @@ fn aggiorna_trend(t: &mut TrendVivo, lingua: &str, table: &LanguageTable) {
         lvgl_sys::lv_obj_invalidate(t.canvas.as_ptr());
     }
 
-    // Le scritte: un'etichetta per testo, create quando servono e nascoste
-    // quando avanzano — mai distrutte e ricreate a ogni frame.
-    while t.etichette.len() < scena.testi.len() {
-        let p = unsafe { lvgl_sys::lv_label_create(t.canvas.as_ptr()) };
-        match core::ptr::NonNull::new(p) {
-            Some(nn) => t.etichette.push(nn),
-            None => break,
-        }
-    }
-    for (k, lp) in t.etichette.iter().enumerate() {
-        let lp = lp.as_ptr();
-        let Some(tx) = scena.testi.get(k) else {
-            unsafe { lvgl_sys::lv_obj_add_flag(lp, lvgl_sys::LV_OBJ_FLAG_HIDDEN) };
-            continue;
-        };
-        let (lw, lh) = misura_trend(&tx.testo, tx.px);
-        let x = match tx.orizz {
-            Orizz::Sx => tx.x,
-            Orizz::Centro => tx.x - lw / 2.0,
-            Orizz::Dx => tx.x - lw,
-        };
-        let y = match tx.vert {
-            Vert::Alto => tx.y,
-            Vert::Mezzo => tx.y - lh / 2.0,
-            Vert::Basso => tx.y - lh,
-        };
-        unsafe {
-            lvgl_sys::lv_label_set_text(lp, text_cstring(&tx.testo).as_ptr());
-            lvgl_sys::lv_obj_set_style_text_font(lp, font_trend(tx.px), 0);
-            lvgl_sys::lv_obj_set_style_text_color(lp, Color::from_rgb(tx.colore).into(), 0);
-            lvgl_sys::lv_obj_set_pos(lp, x.round() as lvgl_sys::lv_coord_t, y.round() as lvgl_sys::lv_coord_t);
-            lvgl_sys::lv_obj_clear_flag(lp, lvgl_sys::LV_OBJ_FLAG_HIDDEN);
-        }
-    }
+    scrivi_testi(t.canvas, &mut t.etichette, &scena.testi);
     t.scena = scena;
 }
 
@@ -5138,7 +5678,13 @@ fn render_alarm_banner(
 
     let mut container = create_child_obj(screen)?;
     set_pos_size(&mut container, obj, width, height)?;
-    apply_bg_color(&mut container, "#1e293b", styles)?;
+    // Fase 2 (30-09-2026): il web lo lascia trasparente se `bg_color` manca;
+    // qui era sempre #1e293b.
+    match obj.bg_color.as_deref().and_then(parse_hex_color) {
+        Some(c) => unsafe { stile::sfondo(container.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr(), c, stile::MAIN) },
+        None => unsafe { stile::trasparente(container.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr(), stile::MAIN) },
+    }
+    unsafe { stile::bordo(container.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr(), None, 0.0, stile::MAIN) };
     let container_ptr = container.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     unsafe {
         lvgl_sys::lv_obj_clear_flag(
@@ -5251,6 +5797,13 @@ fn render_xy_plot(
         .add_style(Part::Main, &mut bg_style)
         .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
     styles.push(bg_style);
+    // Fase 2 (30-09-2026): lo sfondo scuro e il bordo del web, niente griglia
+    // (qui era il grafico bianco del tema).
+    unsafe {
+        stile::sfondo(ptr.as_ptr(), colore_campo(obj.bg_color.as_deref(), "xy_plot", "bg_color"), stile::MAIN);
+        stile::bordo(ptr.as_ptr(), Some((0x33, 0x41, 0x55)), 1.0, stile::MAIN);
+        stile::raggio(ptr.as_ptr(), 0.0, stile::MAIN);
+    }
 
     let trail_s = obj.xy_trail_s.unwrap_or(30.0).round().clamp(1.0, 600.0) as u64;
     let sample_ms = obj
@@ -5265,7 +5818,7 @@ fn render_xy_plot(
             ptr.as_ptr(),
             lvgl_sys::LV_CHART_TYPE_SCATTER as lvgl_sys::lv_chart_type_t,
         );
-        lvgl_sys::lv_chart_set_div_line_count(ptr.as_ptr(), 3, 3);
+        lvgl_sys::lv_chart_set_div_line_count(ptr.as_ptr(), 0, 0);
         lvgl_sys::lv_chart_set_range(
             ptr.as_ptr(),
             lvgl_sys::LV_CHART_AXIS_PRIMARY_X as lvgl_sys::lv_chart_axis_t,
@@ -5454,6 +6007,8 @@ fn render_pie_chart(
     let h = obj.height.unwrap_or(200.0).round().clamp(8.0, 1000.0) as i16;
     let inner_ratio = obj.pie_inner_ratio.unwrap_or(0.5).clamp(0.1, 0.9);
     let slices = obj.pie_slices.clone().unwrap_or_default();
+    // Fase 2 (30-09-2026): il riquadro del web dietro la torta.
+    riquadro(screen, obj, "pie_chart", (200.0, 200.0), Some((0x1e, 0x29, 0x3b)), 4.0)?;
 
     let mut canvas = unsafe {
         let ptr = lvgl_sys::lv_canvas_create(
@@ -5507,7 +6062,13 @@ fn render_pie_chart(
         obj.pie_group_label.clone(),
         obj.pie_group_color.clone(),
     );
-    let foro = obj.pie_hole_color.as_deref().and_then(parse_hex_color);
+    // Come il web: foro ?? sfondo ?? #0f172a (Fase 2, 30-09-2026; qui senza
+    // `pie_hole_color` restava trasparente).
+    let foro = Some(colore_campo(
+        obj.pie_hole_color.as_deref().or(obj.bg_color.as_deref()),
+        "pie_chart",
+        "pie_hole_color",
+    ));
     draw_pie_donut(
         canvas_ptr,
         w,
@@ -5911,7 +6472,7 @@ fn render_setpoint(
         .set_pos(0, 0)
         .map_err(|e| anyhow::anyhow!("set_pos overlay: {e:?}"))?;
     overlay
-        .set_size(HOR_RES as i16, VER_RES as i16)
+        .set_size(risoluzione().0, risoluzione().1)
         .map_err(|e| anyhow::anyhow!("set_size overlay: {e:?}"))?;
     let mut overlay_style = Style::default();
     overlay_style.set_bg_color(Color::from_rgb((15, 23, 42)));
@@ -5931,7 +6492,7 @@ fn render_setpoint(
         .set_pos(20, 20)
         .map_err(|e| anyhow::anyhow!("set_pos textarea: {e:?}"))?;
     textarea
-        .set_size((HOR_RES as i16) - 40, 50)
+        .set_size(risoluzione().0 - 40, 50)
         .map_err(|e| anyhow::anyhow!("set_size textarea: {e:?}"))?;
     let textarea_ptr = textarea.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     unsafe {
@@ -6534,6 +7095,10 @@ fn render_alarm_bell(
         .set_text(&text_cstring("Allarmi"))
         .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
     let btn_ptr = btn.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    // Fase 2 (30-09-2026): `fill` o #1e293b come il web, non il blu del tema.
+    unsafe {
+        stile::sfondo(btn_ptr.as_ptr(), colore_campo(obj.fill.as_deref(), "alarm_bell", "fill"), stile::MAIN);
+    }
 
     let mut badge = create_child_obj(&mut btn)?;
     badge
@@ -6750,6 +7315,15 @@ fn render_alarm_history(
         )
         .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
     let ptr = table.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+    // Fase 2 (30-09-2026): la tabella scura del web, non quella bianca del tema.
+    unsafe {
+        lvgl_sys::lv_obj_set_size(
+            ptr.as_ptr(),
+            obj.width.unwrap_or(420.0).round() as lvgl_sys::lv_coord_t,
+            obj.height.unwrap_or(220.0).round() as lvgl_sys::lv_coord_t,
+        );
+        tabella_scura(ptr.as_ptr(), obj, "alarm_history");
+    }
 
     let n = eventi.len().min(righe_max);
     unsafe {
@@ -6806,7 +7380,11 @@ fn render_data_log(
     obj: &SynopticObject,
     base_url: &str,
     rt_handle: &tokio::runtime::Handle,
-) -> anyhow::Result<()> {
+    lingua: &str,
+) -> anyhow::Result<LiveBinding> {
+    use crate::tabella::{Cella, Chiave, Colonna, Riga};
+    use crate::testi_sistema::{testo, Testo};
+    use crate::trend::Orizz;
     let Some(tag) = obj.tag.clone() else {
         anyhow::bail!("data_log senza tag");
     };
@@ -6823,49 +7401,76 @@ fn render_data_log(
         .map(|u| format!(" {u}"))
         .unwrap_or_default();
 
-    let ora_ms = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or(0);
+    let ora_ms = client::now_unix_ms();
     let da_ms = ora_ms.saturating_sub((finestra_s * 1000.0) as u64);
     let campioni = rt_handle
         .block_on(client::fetch_history(base_url, &tag, da_ms, ora_ms, false))
         .unwrap_or_else(|e| {
             // Storico non raggiungibile: tabella vuota con le intestazioni,
-            // non un oggetto mancante. Una tabella vuota dice "non ci sono
-            // dati"; un buco nella pagina non dice niente.
+            // non un oggetto mancante.
             eprintln!("[data_log] {tag}: storico non disponibile ({e})");
             Vec::new()
         });
 
-    let mut table = Table::create(screen).map_err(|e| anyhow::anyhow!("Table::create: {e:?}"))?;
-    table
-        .set_pos(
-            obj.x.unwrap_or(0.0).round() as i16,
-            obj.y.unwrap_or(0.0).round() as i16,
-        )
-        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
-    let ptr = table.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
-
-    let n = campioni.len().min(righe_max);
-    unsafe {
-        lvgl_sys::lv_table_set_col_cnt(ptr.as_ptr(), 2);
-        lvgl_sys::lv_table_set_row_cnt(ptr.as_ptr(), (n + 1) as u16);
-        let larghezza = obj.width.unwrap_or(380.0).round() as i16;
-        lvgl_sys::lv_table_set_col_width(ptr.as_ptr(), 0, (larghezza / 2) as lvgl_sys::lv_coord_t);
-        lvgl_sys::lv_table_set_col_width(ptr.as_ptr(), 1, (larghezza / 2) as lvgl_sys::lv_coord_t);
-        set_cell(ptr, 0, 0, "Ora");
-        set_cell(ptr, 0, 1, "Valore");
-        // I più recenti in alto: `fetch_history` li dà in ordine crescente di
-        // tempo, il web li rovescia (`hist.slice().reverse()`) e qui si fa lo
-        // stesso. Su un pannello si guarda cosa è appena successo.
-        for (i, c) in campioni.iter().rev().take(n).enumerate() {
-            set_cell(ptr, (i + 1) as u16, 0, &ora_utc(c.ts_ms));
-            let v = tag_value_as_f64(&c.value);
-            set_cell(ptr, (i + 1) as u16, 1, &format!("{v:.decimali$}{unita}"));
-        }
+    // Con l'etichetta, come sul web: il riquadro occupa tutto l'oggetto,
+    // l'etichetta sta in alto a sinistra e la tabella sotto.
+    let (ox, oy) = (obj.x.unwrap_or(0.0), obj.y.unwrap_or(0.0));
+    let (ow, oh) = (obj.width.unwrap_or(380.0), obj.height.unwrap_or(240.0));
+    let etichetta = obj.label.as_deref().filter(|l| !l.is_empty());
+    if let Some(l) = etichetta {
+        riquadro(screen, obj, "data_log", (380.0, 240.0), Some((0x33, 0x41, 0x55)), 4.0)?;
+        etichetta_piccola(screen, l, ox + 6.0, oy + 14.0, None, GRIGIO_ETICHETTA)?;
     }
-    Ok(())
+    let dentro = if etichetta.is_some() {
+        SynopticObject { x: Some(ox + 4.0), y: Some(oy + 18.0), width: Some(ow - 8.0), height: Some(oh - 22.0), ..obj.clone() }
+    } else {
+        obj.clone()
+    };
+
+    // 1-10-2026 (Fase 4): lo stesso motore della tabella, con le colonne del
+    // web — data e ora locali, valore a destra, pallino della qualità — i più
+    // recenti in alto. Prima: una `lv_table` a due colonne con l'ora in UTC.
+    let testo2 = (0xcb, 0xd5, 0xe1);
+    let righe: Vec<Riga> = campioni
+        .iter()
+        .rev()
+        .take(righe_max)
+        .map(|c| {
+            let o = crate::trend::ora_locale(c.ts_ms);
+            let quando = format!("{:02}/{:02}, {:02}:{:02}:{:02}", o.giorno, o.mese, o.ora, o.minuto, o.secondo);
+            let v = tag_value_as_f64(&c.value);
+            let q = c.quality.clone().unwrap_or(TagQuality::Good);
+            Riga {
+                celle: vec![
+                    Cella { testo: quando, colore: testo2, punto: None, chiave: Chiave::Numero(c.ts_ms as f64) },
+                    Cella {
+                        testo: format!("{}{unita}", crate::trend::to_fixed(v, decimali)),
+                        colore: testo2,
+                        punto: None,
+                        chiave: Chiave::Numero(v),
+                    },
+                    Cella { testo: String::new(), colore: testo2, punto: Some(colore_qualita(&q)), chiave: Chiave::Testo(String::new()) },
+                ],
+                scrivibile: None,
+            }
+        })
+        .collect();
+    let col = |i: String, l: Option<f32>, a: Orizz| Colonna { intestazione: i, larghezza: l, allinea: a, ordinabile: false, filtrabile: false };
+    let cfg = crate::tabella::Config {
+        w: dentro.width.unwrap_or(380.0).round().clamp(40.0, 2048.0) as u32,
+        h: dentro.height.unwrap_or(240.0).round().clamp(30.0, 2048.0) as u32,
+        colonne: vec![
+            col(testo(Testo::Ora, lingua).to_string(), None, Orizz::Sx),
+            col(testo(Testo::Valore, lingua).to_string(), None, Orizz::Dx),
+            col("Q".into(), Some(28.0), Orizz::Centro),
+        ],
+        corpo_px: 11,
+        sfondo: colore_campo(obj.bg_color.as_deref(), "data_log", "bg_color"),
+        filtri: false,
+        vuoto: "—".into(),
+    };
+    let viva = crea_tabella_viva(screen, &dentro, cfg, righe, SorgenteTabella::Fisse, None)?;
+    Ok(LiveBinding { kind: LiveKind::Tabella(viva) })
 }
 
 /// Scrive una cella della tabella.
@@ -6924,18 +7529,24 @@ fn render_kpi_tile(
     sfondo
         .set_size(w.round() as i16, h.round() as i16)
         .map_err(|e| anyhow::anyhow!("set_size: {e:?}"))?;
-    apply_bg_color(
-        &mut sfondo,
-        obj.bg_color.as_deref().unwrap_or("#0f172a"),
-        styles,
-    )?;
+    // Fase 2 (30-09-2026): #1e293b come il web, dalla tabella condivisa
+    // (qui era #0f172a).
+    unsafe {
+        let p = sfondo.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+        stile::sfondo(p, colore_campo(obj.bg_color.as_deref(), "kpi_tile", "bg_color"), stile::MAIN);
+        stile::bordo(p, Some((0x33, 0x41, 0x55)), 1.0, stile::MAIN);
+        stile::raggio(p, 6.0, stile::MAIN);
+    }
+    let _ = &styles;
 
     // Etichetta: il nome del KPI, non un valore. `text` statico, nessun tag —
     // altrimenti `render_text` mostrerebbe il valore anche qui.
     let mut etichetta = SynopticObject {
         obj_type: Some("text".into()),
         x: Some(x + 10.0),
-        y: Some(y + 6.0),
+        // Fase 3 (30-09-2026): corpo 11 come sul web (linea di base a y+16).
+        y: Some(y + 5.0),
+        font_size: Some(11.0),
         text: Some(
             obj.label
                 .clone()
@@ -6957,16 +7568,22 @@ fn render_kpi_tile(
         .as_deref()
         .map(|u| format!(" {u}"))
         .unwrap_or_default();
+    // Fase 3 (30-09-2026), come il web: corpo 26 (linea di base a y+44), i
+    // decimali del progetto, «—» finché non c'è un valore (qui compariva il
+    // nome del tag), e il colore per soglia sempre acceso.
+    let decimali = obj.decimals.unwrap_or(1);
     let valore = SynopticObject {
         obj_type: Some("text".into()),
         x: Some(x + 10.0),
-        y: Some(y + 28.0),
+        y: Some(y + 22.0),
+        font_size: Some(26.0),
         tag: obj.tag.clone(),
+        text: Some("—".into()),
         format: Some(format!(
             "{}{unita}",
-            obj.format.clone().unwrap_or_else(|| "{value}".into())
+            obj.format.clone().unwrap_or_else(|| format!("{{value:.{decimali}f}}"))
         )),
-        text_color_by_threshold: obj.text_color_by_threshold,
+        text_color_by_threshold: Some(true),
         alarm_low: obj.alarm_low,
         warn_low: obj.warn_low,
         warn_high: obj.warn_high,
@@ -6978,6 +7595,19 @@ fn render_kpi_tile(
         screen, &valore, styles, tags, lingua, lang_table,
     )?);
 
+    // La variazione sulla finestra in alto a destra (`KpiDelta` del web,
+    // 1-10-2026): ▲ verde o ▼ rosso, media contro la finestra precedente.
+    if let Some(t) = obj.tag.clone().filter(|t| !t.is_empty()) {
+        let mut l = Label::create(screen).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+        l.set_text(&text_cstring("")).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+        let lp = l.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+        unsafe { stile::font(lp.as_ptr(), 11, stile::MAIN) };
+        let shared = client::spawn_kpi_delta(rt_handle, base_url.to_string(), t, obj.spark_window_s.unwrap_or(3600.0));
+        live.push(LiveBinding {
+            kind: LiveKind::KpiDelta { label: lp, shared, mostrato: None, destra: x + w - 6.0, y: y + 6.0 },
+        });
+    }
+
     // Sparkline in basso, come sul web. Solo se c'è un tag: senza, il web non
     // la disegna affatto.
     if obj.tag.is_some() {
@@ -6988,8 +7618,11 @@ fn render_kpi_tile(
             width: Some(w - 12.0),
             height: Some(30.0),
             tag: obj.tag.clone(),
-            window_s: obj.spark_window_s.or(obj.window_s),
-            stroke: obj.spark_color.clone(),
+            // `render_sparkline` legge `spark_window_s`: passandogli `window_s`
+            // la finestra era sempre 60 s, qualunque cosa dicesse il progetto
+            // (Fase 3, 30-09-2026). Predefinito del kpi: 3600.
+            spark_window_s: obj.spark_window_s.or(Some(3600.0)),
+            spark_color: obj.spark_color.clone(),
             ..Default::default()
         };
         // Un fallimento della sparkline (storico non raggiungibile) non deve
@@ -7128,7 +7761,8 @@ fn render_pipe(
     }
     let assoluti: Vec<(f64, f64)> = waypoints.iter().map(|p| (p.x, p.y)).collect();
     let (ox, oy) = origine_polilinea(&assoluti);
-    let sw = obj.stroke_width.unwrap_or(6.0).round() as i16;
+    // 8 come sul web (qui era 6).
+    let sw = obj.stroke_width.unwrap_or(8.0).round() as i16;
 
     // ── Corpo del tubo: sempre tutta la polilinea, sempre il colore di stato ──
     //
@@ -7136,9 +7770,6 @@ fn render_pipe(
     // superava l'1%, e il tubo appariva pieno in modo uniforme a qualunque
     // livello — segnalato sul WP630 il 2026-08-26. Il livello non si vedeva
     // affatto: si vedeva solo "c'è del liquido / non ce n'è".
-    let mut body = Line::create(screen).map_err(|e| anyhow::anyhow!("Line::create: {e:?}"))?;
-    body.set_pos(ox.round() as i16, oy.round() as i16)
-        .map_err(|e| anyhow::anyhow!("set_pos: {e:?}"))?;
     let body_pts: Vec<lvgl_sys::lv_point_t> = assoluti
         .iter()
         .map(|(x, y)| lvgl_sys::lv_point_t {
@@ -7147,28 +7778,65 @@ fn render_pipe(
         })
         .collect();
     let body_leaked: &'static [lvgl_sys::lv_point_t] = Box::leak(body_pts.into_boxed_slice());
-    let body_ptr = body.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
-    unsafe {
-        lvgl_sys::lv_line_set_points(
-            body_ptr.as_ptr(),
-            body_leaked.as_ptr(),
-            body_leaked.len() as u16,
-        );
-    }
-    let mut body_style = Style::default();
-    // Senza `stroke` il tubo segue lo sfondo della pagina col tono sottile
-    // (`#64748b` su scuro, `#475569` su chiaro), come sul web.
-    let rgb = obj
+
+    // Fase 3 (30-09-2026): gli stili del web. «tube» = ombra scura sotto,
+    // corpo, riflesso chiaro sopra (LVGL non sfuma una linea nello spessore:
+    // tre linee fanno lo stesso effetto); «wire» = sottile e tratteggiato;
+    // «flat» col tratteggio del progetto. Prima c'era solo il corpo piatto.
+    let stile_tubo = obj.pipe_style.as_deref().unwrap_or("flat");
+    let base = obj
         .stroke
         .as_deref()
         .and_then(parse_hex_color)
         .unwrap_or_else(colori_predefiniti::sottile_pagina);
-    body_style.set_line_color(Color::from_rgb(rgb));
-    body_style.set_line_width(sw);
-    body_style.set_line_rounded(true);
-    body.add_style(Part::Main, &mut body_style)
-        .map_err(|e| anyhow::anyhow!("add_style: {e:?}"))?;
-    styles.push(body_style);
+    let colori = ColoriTubo {
+        base,
+        acceso: obj.state_on_color.as_deref().and_then(parse_hex_color),
+        spento: obj.state_off_color.as_deref().and_then(parse_hex_color),
+        allarme: colore_campo(obj.state_alarm_color.as_deref(), "pipe", "state_alarm_color"),
+        ha_stato: obj.state_tag.as_deref().is_some_and(|t| !t.is_empty()),
+    };
+    let colore0 = colori.scegli(lookup(tags, &obj.alarm_tag), lookup(tags, &obj.state_tag));
+    let chiaro_fisso = obj.gradient_light_color.as_deref().and_then(parse_hex_color);
+    let scuro_fisso = obj.gradient_dark_color.as_deref().and_then(parse_hex_color);
+    let sw_f = sw as f64;
+    let wire_sw = (sw_f / 4.0).round().max(2.0);
+    let corpo_sw = if stile_tubo == "wire" { wire_sw } else { sw_f };
+    let tratteggio = obj
+        .stroke_dasharray
+        .as_deref()
+        .or(if stile_tubo == "wire" { Some("6,3") } else { None })
+        .and_then(schema_tratteggio);
+    let mut linee = Vec::new();
+    let mut nuova_linea = |screen: &mut lvgl::Obj, ruolo: RuoloLinea, larghezza: f64| -> anyhow::Result<()> {
+        let l = Line::create(screen).map_err(|e| anyhow::anyhow!("Line::create: {e:?}"))?;
+        let p = l.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+        unsafe {
+            lvgl_sys::lv_obj_set_pos(p.as_ptr(), ox.round() as i16, oy.round() as i16);
+            lvgl_sys::lv_line_set_points(p.as_ptr(), body_leaked.as_ptr(), body_leaked.len() as u16);
+            lvgl_sys::lv_obj_set_style_line_width(p.as_ptr(), larghezza.round().max(1.0) as i16, 0);
+            lvgl_sys::lv_obj_set_style_line_rounded(p.as_ptr(), true, 0);
+            if ruolo == RuoloLinea::Corpo {
+                if let Some((pieno, vuoto)) = tratteggio {
+                    lvgl_sys::lv_obj_set_style_line_dash_width(p.as_ptr(), pieno, 0);
+                    lvgl_sys::lv_obj_set_style_line_dash_gap(p.as_ptr(), vuoto, 0);
+                }
+            }
+            if ruolo == RuoloLinea::Riflesso {
+                lvgl_sys::lv_obj_set_style_line_opa(p.as_ptr(), 140, 0);
+            }
+        }
+        linee.push((p, ruolo));
+        Ok(())
+    };
+    if stile_tubo == "tube" {
+        nuova_linea(screen, RuoloLinea::Ombra, sw_f + 2.0)?;
+    }
+    nuova_linea(screen, RuoloLinea::Corpo, corpo_sw)?;
+    if stile_tubo == "tube" {
+        nuova_linea(screen, RuoloLinea::Riflesso, (sw_f * 0.22).round().max(1.0))?;
+    }
+    let _ = &styles;
 
     // ── Riempimento: una seconda linea, più sottile, lunga quanto il livello ──
     //
@@ -7212,14 +7880,243 @@ fn render_pipe(
     let level = spec.level(tags);
     apply_pipe_fill(fill_ptr, &spec, &mut buf, level);
 
+    // L'etichetta al punto di mezzo, sopra di `pipe_label_offset` (10): dal
+    // tag col suo formato, o il testo fisso (Fase 3; su LVGL non c'era).
+    let meta = spec.waypoints[(spec.waypoints.len() - 1) / 2];
+    let formato = obj.pipe_label_format.clone().unwrap_or_else(|| "{value}".into());
+    let etichetta_tag = obj.pipe_label_tag.clone().filter(|t| !t.is_empty());
+    let fisso = obj.pipe_label.clone().or_else(|| obj.label.clone()).filter(|t| !t.is_empty());
+    let etichetta = if etichetta_tag.is_some() || fisso.is_some() {
+        let mut l = Label::create(screen).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
+        let testo = match lookup(tags, &etichetta_tag) {
+            Some(t) => format_value(&t.value, Some(&formato)),
+            None => fisso.clone().unwrap_or_default(),
+        };
+        l.set_text(&text_cstring(&testo)).map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
+        let p = l.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
+        let corpo_px = obj.font_size.unwrap_or(12.0).round().clamp(6.0, 200.0);
+        unsafe {
+            stile::font(p.as_ptr(), corpo_px as u16, stile::MAIN);
+            stile::testo(p.as_ptr(), obj.color.as_deref().and_then(parse_hex_color).unwrap_or((0xe2, 0xe8, 0xf0)), stile::MAIN);
+            let base_y = meta.1 - obj.pipe_label_offset.unwrap_or(10.0);
+            let lw = larghezza_testo(p.as_ptr());
+            lvgl_sys::lv_obj_set_pos(p.as_ptr(), (meta.0 - lw / 2.0).round() as i16, (base_y - corpo_px).round() as i16);
+        }
+        Some(p)
+    } else {
+        None
+    };
+
+    // Estremità e flusso animato (1-10-2026): un canvas sopra il tubo, solo
+    // se servono — un tubo semplice resta fatto di sole linee.
+    let inizio = crate::tubo::Estremita::da(obj.start_marker.as_deref());
+    let fine = crate::tubo::Estremita::da(obj.end_marker.as_deref());
+    let flusso = (obj.pipe_flow == Some(true)).then(|| obj.pipe_flow_tag.clone());
+    let extra = if inizio.is_some() || fine.is_some() || flusso.is_some() {
+        let mut ex = crate::tubo::Extra {
+            punti: Vec::new(),
+            spessore_corpo: corpo_sw as f32,
+            spessore: sw_f as f32,
+            inizio,
+            fine,
+            dimensione: obj.marker_size.unwrap_or(1.0) as f32,
+            colore_flusso: obj.fill_color.as_deref().and_then(parse_hex_color).unwrap_or((0xe2, 0xe8, 0xf0)),
+        };
+        let pts = &spec.waypoints;
+        let margine = (ex.lato() as f64).max(sw_f) + 4.0;
+        let (minx, maxx) = pts.iter().fold((f64::MAX, f64::MIN), |(a, b), p| (a.min(p.0), b.max(p.0)));
+        let (miny, maxy) = pts.iter().fold((f64::MAX, f64::MIN), |(a, b), p| (a.min(p.1), b.max(p.1)));
+        let (bx, by) = (minx - margine, miny - margine);
+        let (bw, bh) = (maxx - minx + 2.0 * margine, maxy - miny + 2.0 * margine);
+        ex.punti = pts.iter().map(|p| ((p.0 - bx) as f32, (p.1 - by) as f32)).collect();
+        let riquadro_obj = SynopticObject { x: Some(bx), y: Some(by), ..Default::default() };
+        let (w, h) = (bw.round().clamp(1.0, 2048.0) as u32, bh.round().clamp(1.0, 2048.0) as u32);
+        let (canvas, buf) = canvas_alfa(screen, &riquadro_obj, w, h)?;
+        Some(ExtraTubo {
+            canvas,
+            buf,
+            pixmap: resvg::tiny_skia::Pixmap::new(w, h).ok_or_else(|| anyhow::anyhow!("pixmap {w}x{h}"))?,
+            extra: ex,
+            flusso,
+            disegnato: None,
+        })
+    } else {
+        None
+    };
+
+    let mut corpo = Box::new(PipeCorpo {
+        linee,
+        stato_tag: obj.state_tag.clone(),
+        allarme_tag: obj.alarm_tag.clone(),
+        colori,
+        chiaro_fisso,
+        scuro_fisso,
+        ultimo: None,
+        etichetta,
+        etichetta_tag,
+        formato,
+        extra,
+    });
+    corpo.colora(colore0);
+    corpo.aggiorna(tags);
+
     Ok(LiveBinding {
         kind: LiveKind::PipeFill {
             fill_ptr,
             spec,
             buf,
             last_level: level,
+            corpo,
         },
     })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum RuoloLinea {
+    Ombra,
+    Corpo,
+    Riflesso,
+}
+
+/// I colori del corpo di un tubo e la regola del web per sceglierli:
+/// allarme acceso → `state_alarm_color`; stato acceso → `state_on_color` (o la
+/// base); con un `state_tag` spento → `state_off_color` (o la base).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ColoriTubo {
+    base: (u8, u8, u8),
+    acceso: Option<(u8, u8, u8)>,
+    spento: Option<(u8, u8, u8)>,
+    allarme: (u8, u8, u8),
+    ha_stato: bool,
+}
+
+/// «Vero» come in JavaScript: un bool vero, un numero diverso da zero, un
+/// testo non vuoto.
+fn vero_js(v: &TagValue) -> bool {
+    match v {
+        TagValue::Bool(b) => *b,
+        TagValue::Int(i) => *i != 0,
+        TagValue::Float(f) => *f != 0.0 && !f.is_nan(),
+        TagValue::Str(s) => !s.is_empty(),
+        _ => true,
+    }
+}
+
+impl ColoriTubo {
+    fn scegli(&self, allarme: Option<&TagSnapshotValue>, stato: Option<&TagSnapshotValue>) -> (u8, u8, u8) {
+        if allarme.is_some_and(|t| vero_js(&t.value)) {
+            return self.allarme;
+        }
+        if stato.is_some_and(|t| vero_js(&t.value)) {
+            return self.acceso.unwrap_or(self.base);
+        }
+        if self.ha_stato {
+            return self.spento.unwrap_or(self.base);
+        }
+        self.base
+    }
+}
+
+/// Il corpo del tubo dal vivo: le sue linee, i tag di stato, l'etichetta.
+pub struct PipeCorpo {
+    linee: Vec<(core::ptr::NonNull<lvgl_sys::lv_obj_t>, RuoloLinea)>,
+    stato_tag: Option<String>,
+    allarme_tag: Option<String>,
+    colori: ColoriTubo,
+    chiaro_fisso: Option<(u8, u8, u8)>,
+    scuro_fisso: Option<(u8, u8, u8)>,
+    ultimo: Option<(u8, u8, u8)>,
+    etichetta: Option<core::ptr::NonNull<lvgl_sys::lv_obj_t>>,
+    etichetta_tag: Option<String>,
+    formato: String,
+    /// Estremità e flusso animato (`tubo.rs`), su un canvas sopra il tubo.
+    extra: Option<ExtraTubo>,
+}
+
+/// Il canvas delle parti del tubo che una linea non sa fare.
+pub struct ExtraTubo {
+    canvas: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    buf: Vec<u8>,
+    pixmap: resvg::tiny_skia::Pixmap,
+    extra: crate::tubo::Extra,
+    /// `pipe_flow` acceso: `Some(pipe_flow_tag)` (vuoto = sempre).
+    flusso: Option<Option<String>>,
+    disegnato: Option<((u8, u8, u8), Option<f32>)>,
+}
+
+impl ExtraTubo {
+    fn disegna(&mut self, colore: (u8, u8, u8), flusso: Option<f32>) {
+        if self.disegnato == Some((colore, flusso)) {
+            return;
+        }
+        self.disegnato = Some((colore, flusso));
+        crate::tubo::disegna(&self.extra, colore, flusso, &mut self.pixmap);
+        pixmap_in_buffer_alfa(&self.pixmap, &mut self.buf);
+        unsafe { lvgl_sys::lv_obj_invalidate(self.canvas.as_ptr()) };
+    }
+
+    /// Lo scostamento del flusso adesso, o `None` se il flusso è spento: come
+    /// il web, un `pipe_flow_tag` falso lo spegne, e un valore negativo lo
+    /// fa scorrere all'indietro.
+    fn flusso_ora(&self, tags: &TagSnapshot) -> Option<f32> {
+        let tag = self.flusso.as_ref()?;
+        let mut indietro = false;
+        if let Some(t) = tag.as_deref().filter(|t| !t.is_empty()) {
+            let v = lookup(tags, &Some(t.to_string()))?;
+            if !vero_js(&v.value) {
+                return None;
+            }
+            indietro = matches!(v.value, TagValue::Int(i) if i < 0) || matches!(v.value, TagValue::Float(f) if f < 0.0);
+        }
+        Some(crate::tubo::scostamento(client::now_unix_ms(), indietro))
+    }
+}
+
+impl PipeCorpo {
+    /// Colora le linee: ombra e riflesso derivano dal colore del corpo come i
+    /// gradienti del web (`darkenHex`/`lightenHex`), se il progetto non li fissa.
+    fn colora(&mut self, c: (u8, u8, u8)) {
+        if self.ultimo == Some(c) {
+            return;
+        }
+        self.ultimo = Some(c);
+        for (p, ruolo) in &self.linee {
+            let rgb = match ruolo {
+                RuoloLinea::Corpo => c,
+                RuoloLinea::Ombra => self.scuro_fisso.unwrap_or_else(|| schiarisci(c, false)),
+                RuoloLinea::Riflesso => self.chiaro_fisso.unwrap_or_else(|| schiarisci(c, true)),
+            };
+            unsafe { lvgl_sys::lv_obj_set_style_line_color(p.as_ptr(), Color::from_rgb(rgb).into(), 0) };
+        }
+    }
+
+    fn aggiorna(&mut self, tags: &TagSnapshot) {
+        let c = self.colori.scegli(lookup(tags, &self.allarme_tag), lookup(tags, &self.stato_tag));
+        self.colora(c);
+        if let Some(x) = self.extra.as_mut() {
+            let f = x.flusso_ora(tags);
+            x.disegna(c, f);
+        }
+        if let (Some(p), Some(t)) = (self.etichetta, lookup(tags, &self.etichetta_tag)) {
+            let testo = format_value(&t.value, Some(&self.formato));
+            unsafe { lvgl_sys::lv_label_set_text(p.as_ptr(), text_cstring(&testo).as_ptr()) };
+        }
+    }
+}
+
+/// `stroke_dasharray` del web («6,3», «6 3») → (pieno, vuoto) per LVGL, che
+/// ha un tratteggio a due valori soli.
+fn schema_tratteggio(s: &str) -> Option<(i16, i16)> {
+    let n: Vec<f64> = s
+        .split(|c: char| c == ',' || c.is_whitespace())
+        .filter(|t| !t.is_empty())
+        .filter_map(|t| t.parse().ok())
+        .collect();
+    match n.as_slice() {
+        [a] if *a > 0.0 => Some((a.round() as i16, a.round() as i16)),
+        [a, b, ..] if *a > 0.0 => Some((a.round() as i16, b.round().max(0.0) as i16)),
+        _ => None,
+    }
 }
 
 /// Tutto ciò che serve a ricalcolare il riempimento di una pipe quando il tag
@@ -7667,7 +8564,15 @@ fn render_recipe_panel(
 
     let mut container = create_child_obj(screen)?;
     set_pos_size(&mut container, obj, w, h)?;
-    apply_bg_color(&mut container, "#1e293b", styles)?;
+    // Fase 2 (30-09-2026): `bg_color` del progetto, che qui era ignorato.
+    unsafe {
+        stile::sfondo(
+            container.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr(),
+            colore_campo(obj.bg_color.as_deref(), "recipe_panel", "bg_color"),
+            stile::MAIN,
+        );
+    }
+    let _ = &styles;
     let container_ptr = container.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
     unsafe {
         lvgl_sys::lv_obj_clear_flag(
@@ -9246,6 +10151,9 @@ fn localize_object(obj: &SynopticObject, lang: &str, table: &LanguageTable) -> S
             rows.iter()
                 .map(|r| TableRow {
                     label: resolve_msg(&r.label, lang, table),
+                    // L'unità della riga (1-10-2026): il web la traduce, e
+                    // ora il modello del pannello ce l'ha.
+                    unit: r.unit.as_ref().map(|u| resolve_msg(u, lang, table)),
                     ..r.clone()
                 })
                 .collect(),
@@ -9460,7 +10368,10 @@ fn render_lang_button(
     let label_text = obj
         .label
         .clone()
-        .unwrap_or_else(|| target_lang.to_uppercase());
+        .unwrap_or_else(|| {
+            // Senza lingua di destinazione il web scrive «LANG» (Fase 3).
+            if target_lang.is_empty() { "LANG".to_string() } else { target_lang.to_uppercase() }
+        });
     let mut lbl = Label::create(&mut btn).map_err(|e| anyhow::anyhow!("Label::create: {e:?}"))?;
     lbl.set_text(&text_cstring(&label_text))
         .map_err(|e| anyhow::anyhow!("set_text: {e:?}"))?;
@@ -9677,7 +10588,7 @@ fn dispatch_render(
         "radio" => render_radio(screen, obj, tags, tag_tx).map(|b| live.push(b)),
         "gauge" => render_gauge(screen, obj, tags).map(|b| live.push(b)),
         "state_lamp" => render_state_lamp(screen, obj, tags).map(|b| live.push(b)),
-        "table" => render_table(screen, obj, tags).map(|b| live.push(b)),
+        "table" => render_table(screen, obj, tags, tag_tx, &current_lang).map(|b| live.push(b)),
         "trend" => render_trend(screen, obj, base_url, rt_handle).map(|b| live.push(b)),
         "alarm_viewer" => {
             render_alarm_viewer(screen, obj, styles, shared_alarms, ack_tx).map(|b| live.push(b))
@@ -9754,7 +10665,7 @@ fn dispatch_render(
             &current_lang,
             lang_table,
         ),
-        "data_log" => render_data_log(screen, obj, base_url, rt_handle),
+        "data_log" => render_data_log(screen, obj, base_url, rt_handle, &current_lang).map(|b| live.push(b)),
         "alarm_history" => {
             render_alarm_history(screen, obj, base_url, rt_handle, &current_lang, lang_table)
         }
@@ -10667,7 +11578,9 @@ pub fn update_bindings(
                 spec,
                 buf,
                 last_level,
+                corpo,
             } => {
+                corpo.aggiorna(tags);
                 let level = spec.level(tags);
                 // Si ridisegna solo a variazione percettibile: ricostruire la
                 // polilinea a ogni frame costerebbe senza cambiare un pixel.
@@ -10822,6 +11735,8 @@ pub fn update_bindings(
                 soglie,
                 rgb_base,
                 rgb_arco,
+                decimali,
+                sp,
             } => {
                 let raw = lookup(tags, tag)
                     .map(|t| tag_value_as_f64(&t.value))
@@ -10855,10 +11770,16 @@ pub fn update_bindings(
                         lvgl_sys::lv_obj_invalidate(ptr.as_ptr());
                         *rgb_arco = voluto;
                     }
+                    let d = *decimali;
                     lvgl_sys::lv_label_set_text(
                         value_ptr.as_ptr(),
-                        text_cstring(&format!("{raw:.1}{unit_suffix}")).as_ptr(),
+                        text_cstring(&format!("{raw:.d$}{unit_suffix}")).as_ptr(),
                     );
+                    if let Some((ind, t)) = sp {
+                        if let Some(v) = tags.get(t.as_str()).map(|x| tag_value_as_f64(&x.value)) {
+                            lvgl_sys::lv_meter_set_indicator_value(ptr.as_ptr(), *ind, v.round() as i32);
+                        }
+                    }
                 }
             }
             LiveKind::StateLamp {
@@ -10911,9 +11832,7 @@ pub fn update_bindings(
                     }
                 }
             }
-            LiveKind::Table { ptr, rows } => {
-                update_table_data_cells(*ptr, rows, tags);
-            }
+            LiveKind::Tabella(t) => aggiorna_tabella(t, tags),
             LiveKind::Trend(t) => aggiorna_trend(t, &lingua, lang_table),
             LiveKind::AlarmViewer {
                 shared,
@@ -10941,23 +11860,18 @@ pub fn update_bindings(
                 entries,
                 default_label,
                 default_color,
+                colore_testo,
             } => {
                 let tv = lookup(tags, tag);
                 let entry = match_text_list_entry(entries, tv);
-                let label_text = entry
-                    .map(|e| e.label.clone())
-                    .or_else(|| default_label.clone())
-                    .unwrap_or_default();
-                let label_hex = entry
-                    .and_then(|e| e.color.clone())
-                    .or_else(|| default_color.clone())
-                    .unwrap_or_else(|| "#f1f5f9".to_string());
+                let label_text = testo_text_list(entry, default_label.as_deref(), tv, &lingua);
+                let colore = colore_text_list(entry, colore_testo.as_deref(), default_color.as_deref());
                 unsafe {
                     lvgl_sys::lv_label_set_text(
                         label_ptr.as_ptr(),
                         text_cstring(&label_text).as_ptr(),
                     );
-                    if let Some(rgb) = parse_hex_color(&label_hex) {
+                    if let Some(rgb) = colore {
                         label_style.set_text_color(Color::from_rgb(rgb));
                         lvgl_sys::lv_obj_refresh_style(
                             label_ptr.as_ptr(),
@@ -10967,7 +11881,24 @@ pub fn update_bindings(
                     }
                 }
             }
-            LiveKind::BarChart { bars } => update_bar_chart(bars, tags),
+            LiveKind::Barre(b) => aggiorna_barre(b, tags),
+            LiveKind::KpiDelta { label, shared, mostrato, destra, y } => {
+                let d = *shared.lock().unwrap_or_else(|e| e.into_inner());
+                if *mostrato != Some(d) {
+                    *mostrato = Some(d);
+                    let (testo, colore) = match d {
+                        Some(v) if v >= 0.0 => (format!("▲ {}%", crate::trend::to_fixed(v.abs(), 1)), (0x22, 0xc5, 0x5e)),
+                        Some(v) => (format!("▼ {}%", crate::trend::to_fixed(v.abs(), 1)), (0xef, 0x44, 0x44)),
+                        None => (String::new(), (0, 0, 0)),
+                    };
+                    unsafe {
+                        lvgl_sys::lv_label_set_text(label.as_ptr(), text_cstring(&testo).as_ptr());
+                        stile::testo(label.as_ptr(), colore, stile::MAIN);
+                        let lw = larghezza_testo(label.as_ptr());
+                        lvgl_sys::lv_obj_set_pos(label.as_ptr(), (*destra - lw).round() as i16, y.round() as i16);
+                    }
+                }
+            }
             LiveKind::Sparkline {
                 ptr,
                 ser,
@@ -11669,32 +12600,6 @@ fn update_sparkline(
     }
 }
 
-/// Aggiorna un `bar_chart`: stessa guardia anti-"combattimento durante il
-/// drag" di `BarLike` non serve qui (le barre non sono trascinabili), quindi
-/// scrive sempre il valore corrente.
-fn update_bar_chart(bars: &mut [BarChartBarBinding], tags: &TagSnapshot) {
-    for b in bars.iter() {
-        let raw = lookup(tags, &Some(b.tag.clone()))
-            .map(|t| tag_value_as_f64(&t.value))
-            .unwrap_or(b.min)
-            .clamp(b.min.min(b.max), b.min.max(b.max));
-        unsafe {
-            lvgl_sys::lv_bar_set_value(
-                b.bar_ptr.as_ptr(),
-                raw.round() as i32,
-                lvgl::Animation::OFF.into(),
-            );
-            if b.show_values {
-                if let Some(vp) = b.value_ptr {
-                    lvgl_sys::lv_label_set_text(
-                        vp.as_ptr(),
-                        text_cstring(&format!("{raw:.1}{}", b.unit)).as_ptr(),
-                    );
-                }
-            }
-        }
-    }
-}
 
 /// Chi finisce nella barra allarmi: gli allarmi **da confermare**, cioè attivi
 /// non confermati *e* rientrati non confermati (ISA-18.2). Diverge di proposito
@@ -12182,6 +13087,139 @@ mod binding_tests {
         let b = json!({ "x": { "tag": "liv", "in_min": 0, "in_max": 100, "out_min": 0, "out_max": 640 } });
         let g = resolve_geometry(&b, &t, Some(0.0), None, &fermo());
         assert_eq!(g.dx, 320);
+    }
+
+    // ── Fase 2 dei predefiniti espliciti (30-09-2026) ───────────────────────
+
+    #[test]
+    fn un_colore_mancante_prende_il_predefinito_della_tabella() {
+        assert_eq!(colore_campo(None, "data_log", "bg_color"), (0x0f, 0x17, 0x2a));
+        assert_eq!(colore_campo(None, "kpi_tile", "bg_color"), (0x1e, 0x29, 0x3b));
+        assert_eq!(colore_campo(Some("#ff0000"), "kpi_tile", "bg_color"), (255, 0, 0));
+        // Un valore illeggibile non lascia il tema di LVGL: vale il predefinito.
+        assert_eq!(colore_campo(Some("rosso"), "data_log", "bg_color"), (0x0f, 0x17, 0x2a));
+    }
+
+    #[test]
+    fn schiarire_e_scurire_come_blendhex_del_web() {
+        // blendHex("#4a90d9", "#ffffff", 0.45) = #9bc2ea; con "#000000", 0.40 = #2c5682.
+        assert_eq!(schiarisci((0x4a, 0x90, 0xd9), true), (0x9b, 0xc2, 0xea));
+        assert_eq!(schiarisci((0x4a, 0x90, 0xd9), false), (0x2c, 0x56, 0x82));
+    }
+
+    #[test]
+    fn il_text_list_senza_voce_usa_il_grigio_del_web() {
+        // Era #f1f5f9 qui e #94a3b8 sul web.
+        assert_eq!(colore_text_list(None, None, None), Some((0x94, 0xa3, 0xb8)));
+        assert_eq!(colore_text_list(None, None, Some("#ef4444")), Some((0xef, 0x44, 0x44)));
+        let voce = TextListEntry {
+            value: json!(1),
+            label: "x".into(),
+            color: Some("#22c55e".into()),
+            value_min: None,
+            value_max: None,
+        };
+        assert_eq!(colore_text_list(Some(&voce), None, None), Some((0x22, 0xc5, 0x5e)));
+        let senza = TextListEntry { color: None, ..voce };
+        assert_eq!(colore_text_list(Some(&senza), Some("#123456"), None), Some((0x12, 0x34, 0x56)));
+    }
+
+    // ── Fase 3 dei predefiniti espliciti (30-09-2026) ───────────────────────
+
+    #[test]
+    fn gli_angoli_del_gauge_passano_dal_web_a_lvgl() {
+        // Il predefinito dà il 270/135 che era cablato.
+        assert_eq!(angoli_gauge(None, None), (270, 135));
+        // Mezzo quadrante in alto: da −90 (ore 9) a 90 (ore 3).
+        assert_eq!(angoli_gauge(Some(-90.0), Some(90.0)), (180, 180));
+        // Cerchio intero da mezzogiorno.
+        assert_eq!(angoli_gauge(Some(0.0), Some(360.0)), (360, 270));
+    }
+
+    fn valore(v: TagValue) -> TagSnapshotValue {
+        TagSnapshotValue { value: v, quality: TagQuality::Good, ts: 0 }
+    }
+
+    #[test]
+    fn il_text_list_senza_voce_mostra_ripiego_valore_o_nd() {
+        assert_eq!(testo_text_list(None, Some("Fermo"), None, "it"), "Fermo");
+        assert_eq!(testo_text_list(None, None, Some(&valore(TagValue::Int(7))), "it"), "7");
+        assert_eq!(testo_text_list(None, None, Some(&valore(TagValue::Float(2.0))), "it"), "2");
+        assert_eq!(testo_text_list(None, None, Some(&valore(TagValue::Float(2.5))), "it"), "2.5");
+        assert_eq!(testo_text_list(None, None, None, "it"), "N/D");
+    }
+
+    #[test]
+    fn il_tubo_sceglie_il_colore_come_il_web() {
+        let c = ColoriTubo {
+            base: (1, 1, 1),
+            acceso: Some((2, 2, 2)),
+            spento: None,
+            allarme: (9, 9, 9),
+            ha_stato: true,
+        };
+        let si = valore(TagValue::Bool(true));
+        let no = valore(TagValue::Int(0));
+        assert_eq!(c.scegli(Some(&si), Some(&si)), (9, 9, 9));
+        assert_eq!(c.scegli(Some(&no), Some(&si)), (2, 2, 2));
+        // Stato spento senza colore proprio: la base.
+        assert_eq!(c.scegli(None, Some(&no)), (1, 1, 1));
+        assert!(vero_js(&TagValue::Str("x".into())) && !vero_js(&TagValue::Str(String::new())));
+    }
+
+    #[test]
+    fn il_tratteggio_del_web_diventa_pieno_e_vuoto() {
+        assert_eq!(schema_tratteggio("6,3"), Some((6, 3)));
+        assert_eq!(schema_tratteggio("4 2 1"), Some((4, 2)));
+        assert_eq!(schema_tratteggio("5"), Some((5, 5)));
+        assert_eq!(schema_tratteggio(""), None);
+    }
+
+    // ── Fase 4: la tabella come il web (1-10-2026) ──────────────────────────
+
+    fn riga(tag: &str) -> TableRow {
+        TableRow {
+            label: "Pompa".into(),
+            tag: tag.into(),
+            format: None,
+            unit: Some("bar".into()),
+            decimals: Some(2),
+            writable: Some(true),
+            warn_low: None,
+            warn_high: Some(5.0),
+            alarm_low: None,
+            alarm_high: Some(8.0),
+        }
+    }
+
+    #[test]
+    fn le_colonne_della_tabella_vengono_dal_progetto() {
+        assert_eq!(colonne_tabella(None), vec![ColTab::Etichetta, ColTab::Valore, ColTab::Qualita]);
+        assert_eq!(colonne_tabella(Some(&json!(["value", "unit", "boh"]))), vec![ColTab::Valore, ColTab::Unita]);
+    }
+
+    #[test]
+    fn il_valore_della_riga_ha_decimali_unita_e_soglie_come_il_web() {
+        let cols = vec![ColTab::Etichetta, ColTab::Valore, ColTab::Qualita];
+        let t = snapshot(&[("p", TagValue::Float(6.0))]);
+        let r = riga_tabella(&riga("p"), &cols, &t);
+        assert_eq!(r.celle[1].testo, "6.00 bar");
+        // Sopra `warn_high`: ambra.
+        assert_eq!(r.celle[1].colore, (0xea, 0xb3, 0x08));
+        assert_eq!(r.scrivibile, Some(1));
+        assert!(r.celle[2].punto.is_some());
+        // Con la colonna unità, l'unità non si ripete nel valore.
+        let r = riga_tabella(&riga("p"), &[ColTab::Valore, ColTab::Unita], &t);
+        assert_eq!(r.celle[0].testo, "6.00");
+        assert_eq!(r.celle[1].testo, "bar");
+        // Senza valore: il trattino e il grigio del web.
+        // Senza decimali: come `String(v)` del web.
+        let senza = TableRow { decimals: None, ..riga("q") };
+        let t2 = snapshot(&[("q", TagValue::Float(63.5))]);
+        assert_eq!(riga_tabella(&senza, &cols, &t2).celle[1].testo, "63.5 bar");
+        let r = riga_tabella(&riga("assente"), &cols, &t);
+        assert_eq!(r.celle[1].testo, "—");
+        assert_eq!(r.celle[1].colore, (0x47, 0x55, 0x69));
     }
 
     // ── Tracce del trend: formato nuovo, ripiego sul vecchio ────────────────
@@ -13135,111 +14173,6 @@ mod binding_tests {
             "un modo sconosciuto vale percentuale, come sul web"
         );
     }
-
-    // ── soglie del grafico a barre ────────────────────────────────────────
-
-    fn obj_scala(min: Option<f64>, max: Option<f64>) -> SynopticObject {
-        SynopticObject {
-            min,
-            max,
-            ..Default::default()
-        }
-    }
-
-    /// La scala è quella delle **serie**, perché è su quella che le barre sono
-    /// disegnate: seguire il `min`/`max` dell'oggetto metterebbe la riga a una
-    /// quota che non corrisponde a nessuna barra.
-    #[test]
-    fn la_scala_e_quella_su_cui_le_barre_sono_disegnate() {
-        let o = obj_scala(Some(0.0), Some(200.0));
-        assert_eq!(
-            scala_comune(&o, &[(0.0, 100.0), (0.0, 100.0)]),
-            Some((0.0, 100.0))
-        );
-    }
-
-    #[test]
-    fn la_scala_e_comune_se_tutte_le_serie_dicono_la_stessa() {
-        let o = obj_scala(None, None);
-        assert_eq!(
-            scala_comune(&o, &[(0.0, 100.0), (0.0, 100.0)]),
-            Some((0.0, 100.0))
-        );
-    }
-
-    /// Con scale diverse la stessa altezza vale numeri diversi: una riga sola
-    /// mentirebbe su tutte le barre tranne una, quindi non si disegna.
-    #[test]
-    fn con_scale_diverse_non_ce_una_scala_su_cui_tirare_la_riga() {
-        let o = obj_scala(None, None);
-        assert_eq!(scala_comune(&o, &[(0.0, 100.0), (0.0, 50.0)]), None);
-        // Nemmeno dichiarandola sull'oggetto: le barre restano su scale
-        // diverse, e la riga mentirebbe comunque.
-        assert_eq!(
-            scala_comune(
-                &obj_scala(Some(0.0), Some(100.0)),
-                &[(0.0, 100.0), (0.0, 50.0)]
-            ),
-            None
-        );
-    }
-
-    #[test]
-    fn una_scala_degenere_non_e_una_scala() {
-        assert_eq!(
-            scala_comune(&obj_scala(None, None), &[(3.0, 3.0)]),
-            None,
-            "intervallo vuoto"
-        );
-        assert_eq!(
-            scala_comune(&obj_scala(None, None), &[(10.0, 1.0)]),
-            None,
-            "invertito"
-        );
-        assert_eq!(
-            scala_comune(&obj_scala(None, None), &[]),
-            None,
-            "nessuna serie"
-        );
-    }
-
-    #[test]
-    fn le_soglie_escono_ordinate_dallalto_al_basso() {
-        let o = SynopticObject {
-            alarm_low: Some(10.0),
-            warn_low: Some(20.0),
-            warn_high: Some(70.0),
-            alarm_high: Some(90.0),
-            ..Default::default()
-        };
-        let s = soglie_da_disegnare(&o, (0.0, 100.0));
-        assert_eq!(
-            s.iter().map(|(v, _)| *v).collect::<Vec<_>>(),
-            vec![90.0, 70.0, 20.0, 10.0]
-        );
-        assert_eq!(s[0].1, (239, 68, 68), "allarme in rosso");
-        assert_eq!(s[1].1, (245, 158, 11), "avviso in ambra");
-    }
-
-    /// Una soglia fuori scala darebbe una riga appiccicata al bordo, che si
-    /// scambia per il bordo stesso.
-    #[test]
-    fn le_soglie_fuori_scala_non_si_disegnano() {
-        let o = SynopticObject {
-            alarm_high: Some(500.0),
-            alarm_low: Some(-10.0),
-            warn_high: Some(70.0),
-            ..Default::default()
-        };
-        let s = soglie_da_disegnare(&o, (0.0, 100.0));
-        assert_eq!(s.len(), 1);
-        assert_eq!(s[0].0, 70.0);
-    }
-
-    #[test]
-    fn senza_soglie_dichiarate_non_si_disegna_niente() {
-        assert!(soglie_da_disegnare(&SynopticObject::default(), (0.0, 100.0)).is_empty());
-    }
 }
 
 /// Il risolutore dei token `{{chiave}}`, sulla **stessa tabella di casi** che
@@ -13290,6 +14223,40 @@ mod colori_predefiniti_tests {
         let testo = std::fs::read_to_string(percorso)
             .unwrap_or_else(|e| panic!("la tabella condivisa manca ({percorso}): {e}"));
         serde_json::from_str(&testo).expect("tabella condivisa non valida")
+    }
+
+    /// Ogni coppia che il codice chiede a `predefinito_lvgl`/`colore_campo`
+    /// deve stare in `TABELLA`: una mancante non è un colore sbagliato, è un
+    /// viewer che si chiude sul pannello (`predefinito_lvgl` va in panico).
+    /// Successo due volte il 30-09/1-10-2026 (`trend.axis_color`,
+    /// `table.bg_color`), prese entrambe solo alla prima fotografia.
+    #[test]
+    fn ogni_coppia_chiesta_dal_codice_sta_in_tabella() {
+        let sorgente = include_str!("lvgl_render.rs");
+        let mut mancanti = Vec::new();
+        for (i, _) in sorgente.match_indices("predefinito_lvgl(\"").chain(sorgente.match_indices("colore_campo(")) {
+            let inizio_riga = sorgente[..i].rfind('\n').map_or(0, |n| n + 1);
+            if sorgente[inizio_riga..i].trim_start().starts_with("//") {
+                continue;
+            }
+            let resto: String = sorgente[i..].chars().take(200).collect();
+            let dentro: Vec<&str> = resto.split('"').collect();
+            // predefinito_lvgl("tipo", "campo") → ["predefinito_lvgl(", tipo, ", ", campo, ...]
+            // colore_campo(x, "tipo", "campo") → [..., tipo, ", ", campo, ...]
+            if dentro.len() < 4 || dentro[2].trim() != "," {
+                continue;
+            }
+            let (tipo, campo) = (dentro[1], dentro[3]);
+            if tipo.contains(' ') || campo.contains(' ') || tipo.is_empty() {
+                continue;
+            }
+            if !TABELLA.iter().any(|(t, c, _)| *t == tipo && *c == campo) {
+                mancanti.push(format!("{tipo}.{campo}"));
+            }
+        }
+        mancanti.sort();
+        mancanti.dedup();
+        assert!(mancanti.is_empty(), "coppie usate dal codice ma assenti da TABELLA: {mancanti:?}");
     }
 
     #[test]

@@ -24,7 +24,6 @@
 //! runtime risponde 403 e `client::stato_aggiornamento` lo traduce in
 //! `Ok(None)`, che **spegne** il controllo invece di ritentare ogni minuto.
 
-use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -77,9 +76,8 @@ pub struct Visto {
     pub esito_chiuso: Option<i64>,
 }
 
-fn percorso() -> Option<PathBuf> {
-    let home = std::env::var_os("HOME")?;
-    Some(PathBuf::from(home).join(".config/sws/lvgl_aggiornamento.json"))
+fn percorso() -> Option<std::path::PathBuf> {
+    Some(crate::cartella_stato()?.join("lvgl_aggiornamento.json"))
 }
 
 impl Visto {

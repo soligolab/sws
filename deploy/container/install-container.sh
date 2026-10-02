@@ -250,7 +250,7 @@ fi
 # --pull-only precede un purge sarebbero comunque cancellate un attimo dopo.
 if [ "$PULL_ONLY" -eq 0 ]; then
 echo "==> [1/6] directory dati $DATA"
-for d in projects config logs; do
+for d in projects config logs viewer; do
     if [ -d "$DATA/$d" ]; then
         echo "    $d (già presente, contenuto conservato)"
     else

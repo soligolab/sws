@@ -14,19 +14,26 @@
 // la confronta con la fixture voce per voce; il test Rust di lvgl_render.rs fa
 // lo stesso con i letterali del pannello. Stesso schema di `testiSistema.ts`.
 //
-// Due regole possibili per un campo:
+// Tre regole possibili per un campo:
 //   - `{ hex }`: un colore fisso, scritto nel file alla creazione;
 //   - `{ auto }`: **nessun colore nel file**. L'oggetto segue lo sfondo della
 //     pagina — tono «testo» (chiaro su scuro, scuro su chiaro) o «sottile» (il
 //     grigio di una tubazione) — come già facevano il testo web via
 //     `--synoptic-text` e LVGL via `default_text_rgb`. Il pannello mostra il
 //     colore effettivo con la dicitura «auto»; toccarlo lo rende esplicito.
+//   - `{ vuoto }` (30-09-2026): nessun colore nel file **per scelta** — «nessuno»
+//     (non si disegna: il bordo di un rettangolo, lo sfondo di un testo) o
+//     «derivato» (calcolato da un altro colore dell'oggetto, come i gradienti
+//     dal riempimento). Il pannello lo dichiara invece di mostrare un segnaposto:
+//     il 30-09 un `data_log` mostrava `#0f172a` in grigio, il file non diceva
+//     niente, e il pannello LVGL lo disegnava bianco.
 
 import type { SynopticObject, SynopticPage } from "@/types";
 import { defaultObjectSubtleColor, defaultObjectTextColor } from "@/theme";
 
 export type Tono = "testo" | "sottile";
-export type RegolaColore = { auto: Tono } | { hex: string };
+export type Vuoto = "nessuno" | "derivato";
+export type RegolaColore = { auto: Tono } | { hex: string } | { vuoto: Vuoto };
 
 /** Il tono in hex per uno sfondo noto; per uno sfondo ignoto, il token CSS che
  *  il canvas SVG sa risolvere da solo (`--synoptic-*`, iniettato sull'`<svg>`). */
@@ -42,29 +49,30 @@ export const PREDEFINITI: Record<string, Record<string, RegolaColore>> = {
     fill:   { hex: "#3b82f6" },
     stroke: { auto: "testo" },
     color:  { auto: "testo" },
-    bg_color: { hex: "#0f172a" },
-    gradient_light_color: { hex: "#ffffff" },
-    gradient_dark_color:  { hex: "#000000" },
+    bg_color: { vuoto: "nessuno" },
+    gradient_light_color: { vuoto: "derivato" },
+    gradient_dark_color:  { vuoto: "derivato" },
     quality_dot_good_color:      { hex: "#22c55e" },
     quality_dot_uncertain_color: { hex: "#eab308" },
     quality_dot_bad_color:       { hex: "#ef4444" },
   },
   text:    { color: { auto: "testo" } },
   line:    { stroke: { auto: "testo" } },
-  rect:    { fill: { hex: "#4a90d9" }, stroke: { auto: "testo" } },
-  ellipse: { fill: { hex: "#4a90d9" }, stroke: { auto: "testo" } },
+  rect:    { fill: { hex: "#4a90d9" }, stroke: { vuoto: "nessuno" } },
+  ellipse: { fill: { hex: "#4a90d9" }, stroke: { vuoto: "nessuno" } },
   polyline: { fill: { hex: "#4a90d9" }, stroke: { auto: "testo" } },
-  polygon: { fill: { hex: "#4a90d9" }, stroke: { auto: "testo" } },
+  polygon: { fill: { hex: "#4a90d9" }, stroke: { vuoto: "nessuno" } },
   button:  { fill: { hex: "#3b82f6" }, color: { hex: "#ffffff" } },
   navbutton: { fill: { hex: "#0f172a" }, stroke: { hex: "#3b82f6" }, color: { auto: "testo" } },
   gauge:   { color: { auto: "testo" }, stroke: { hex: "#e2e8f0" }, fill: { hex: "#22c55e" }, gauge_sp_color: { hex: "#f59e0b" } },
   led:     { on_color: { hex: "#22c55e" }, off_color: { hex: "#374151" } },
-  progress_bar: { fill: { hex: "#3b82f6" } },
+  progress_bar: { fill: { hex: "#3b82f6" }, bg_color: { hex: "#1e293b" } },
   slider:   { fill: { hex: "#3b82f6" } },
   checkbox: { fill: { hex: "#3b82f6" } },
   radio:    { fill: { hex: "#3b82f6" } },
   setpoint: { fill: { hex: "#3b82f6" } },
-  pipe:    { stroke: { auto: "sottile" }, fill_color: { hex: "#3b82f6" }, gradient_light_color: { hex: "#94a3b8" }, gradient_dark_color: { hex: "#334155" } },
+  pipe:    { stroke: { auto: "sottile" }, fill_color: { hex: "#3b82f6" }, gradient_light_color: { vuoto: "derivato" }, gradient_dark_color: { vuoto: "derivato" },
+             state_off_color: { vuoto: "derivato" }, state_on_color: { vuoto: "derivato" }, state_alarm_color: { hex: "#ef4444" } },
   sparkline: { spark_color: { hex: "#3b82f6" } },
   text_list:  { color: { auto: "testo" }, text_list_default_color: { hex: "#94a3b8" } },
   state_lamp: { text_list_default_color: { hex: "#94a3b8" } },
@@ -72,9 +80,18 @@ export const PREDEFINITI: Record<string, Record<string, RegolaColore>> = {
   grid:    { grid_border_color: { hex: "#64748b" } },
   alarm_bell:   { fill: { hex: "#1e293b" } },
   alarm_viewer: { alarm_viewer_bg_color: { hex: "#0f172a" } },
-  trend:     { axis_color: { hex: "#64748b" }, grid_color: { hex: "#1e293b" } },
-  bar_chart: { axis_color: { hex: "#64748b" }, grid_color: { hex: "#1e293b" } },
-  pie_chart: { pie_hole_color: { hex: "#0f172a" }, pie_group_color: { hex: "#64748b" } },
+  trend:     { axis_color: { hex: "#64748b" }, grid_color: { hex: "#1e293b" }, bg_color: { hex: "#0f172a" } },
+  bar_chart: { axis_color: { hex: "#64748b" }, grid_color: { hex: "#1e293b" }, bg_color: { hex: "#0f172a" } },
+  pie_chart: { pie_hole_color: { hex: "#0f172a" }, pie_group_color: { hex: "#64748b" }, bg_color: { hex: "#0f172a" } },
+  // Gli sfondi dei widget che il web disegna pieni (30-09-2026): prima stavano
+  // solo nei `?? "#…"` di SvgCanvas, e il pannello mostrava per tutti `*`.
+  xy_plot:   { bg_color: { hex: "#0f172a" } },
+  data_log:  { bg_color: { hex: "#0f172a" } },
+  kpi_tile:  { bg_color: { hex: "#1e293b" } },
+  table:     { bg_color: { hex: "#1e293b" } },
+  alarm_history: { bg_color: { hex: "#1e293b" } },
+  recipe_panel:  { bg_color: { hex: "#1e293b" } },
+  lang_button:   { bg_color: { hex: "#334155" } },
 };
 
 /** La regola per `campo` di un oggetto di `tipo`: quella del tipo, poi quella
@@ -202,5 +219,8 @@ export function coloreEffettivo(obj: SynopticObject, campo: string, sfondo?: str
   if (esplicito) return esplicito;
   const r = regola(obj.type, campo) ?? { auto: "testo" as Tono };
   if ("hex" in r) return r.hex;
+  // «Derivato» lo calcola chi disegna (da un altro colore): qui non c'è un
+  // valore da dare, e «none» è il meno sorprendente per chi lo usasse.
+  if ("vuoto" in r) return "none";
   return coloreAuto(r.auto, sfondo);
 }

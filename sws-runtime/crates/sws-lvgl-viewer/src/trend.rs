@@ -452,15 +452,24 @@ pub struct Scena {
 
 // ── Formato dei numeri e delle ore ──────────────────────────────────────────
 
+/// `Number.prototype.toFixed` di JavaScript: la metà si arrotonda lontano da
+/// zero (32,5 → «33»), mentre `format!("{:.0}")` di Rust la porta al pari
+/// («32»). Una tacca che dice un numero diverso dal web è una divergenza vera.
+pub fn to_fixed(v: f64, d: usize) -> String {
+    let m = 10f64.powi(d as i32);
+    let r = (v * m).round() / m;
+    format!("{r:.d$}")
+}
+
 /// `fmtValue` di `TrendCanvas.tsx`.
 pub fn fmt_valore(v: f64) -> String {
     if v.is_finite() && v.fract() == 0.0 && v.abs() < 1e15 {
         return format!("{}", v as i64);
     }
     if v.abs() >= 1000.0 {
-        return format!("{v:.0}");
+        return to_fixed(v, 0);
     }
-    format!("{v:.2}")
+    to_fixed(v, 2)
 }
 
 /// `fmtOffset` di `TrendCanvas.tsx`: «45s», «12m», «2h05m».
@@ -1219,6 +1228,9 @@ mod tests {
         assert_eq!(fmt_valore(-12.0), "-12");
         assert_eq!(fmt_valore(0.375), "0.38");
         assert_eq!(fmt_valore(1234.56), "1235");
+        // La metà lontano da zero, come `toFixed`: «33», non «32».
+        assert_eq!(to_fixed(32.5, 0), "33");
+        assert_eq!(to_fixed(0.125, 2), "0.13");
         assert_eq!(fmt_scostamento(25_000), "25s");
         // Come `Math.round` del web: 45 s sono già «1m».
         assert_eq!(fmt_scostamento(45_000), "1m");

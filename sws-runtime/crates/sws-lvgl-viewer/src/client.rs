@@ -736,6 +736,9 @@ pub use sws_core::now_ms as now_unix_ms;
 pub struct HistorySample {
     pub ts_ms: u64,
     pub value: TagValue,
+    /// Il pallino della colonna Q del data_log (1-10-2026).
+    #[serde(default)]
+    pub quality: Option<TagQuality>,
 }
 
 /// `GET /api/history/:tag?from=&to=&backfill=` — stesso endpoint REST
@@ -747,6 +750,20 @@ pub async fn fetch_history(
     from_ms: u64,
     to_ms: u64,
     backfill: bool,
+) -> anyhow::Result<Vec<HistorySample>> {
+    fetch_history_con(base_url, tag, from_ms, to_ms, backfill, false).await
+}
+
+/// Come `fetch_history`; con `ancora` (trend e sparkline, 1-10-2026) il runtime
+/// ripete l'ultimo valore prima della finestra all'inizio e prolunga l'ultimo
+/// noto fino alla fine: un valore fermo si disegna invece di restare vuoto.
+pub async fn fetch_history_con(
+    base_url: &str,
+    tag: &str,
+    from_ms: u64,
+    to_ms: u64,
+    backfill: bool,
+    ancora: bool,
 ) -> anyhow::Result<Vec<HistorySample>> {
     let mut url = reqwest::Url::parse(base_url)?;
     url.path_segments_mut()
@@ -760,6 +777,9 @@ pub async fn fetch_history(
         q.append_pair("to", &to_ms.to_string());
         if backfill {
             q.append_pair("backfill", "true");
+        }
+        if ancora {
+            q.append_pair("ancora", "true");
         }
     }
     let client = reqwest::Client::builder()
@@ -854,7 +874,7 @@ pub fn spawn_history_poller(
             let from_ms = now_ms.saturating_sub(window_s.saturating_mul(1000));
             let do_backfill = first && backfill;
             first = false;
-            match fetch_history(&base_url, &tag, from_ms, now_ms, do_backfill).await {
+            match fetch_history_con(&base_url, &tag, from_ms, now_ms, do_backfill, true).await {
                 Ok(samples) => {
                     let mut guard = shared_bg.lock().unwrap_or_else(|e| e.into_inner());
                     guard.0 = guard.0.wrapping_add(1);
@@ -974,7 +994,7 @@ pub fn spawn_trend_poller(
                                 ok = false;
                             }
                         },
-                        None => match fetch_history(&base_url, tag, da, a, bf).await {
+                        None => match fetch_history_con(&base_url, tag, da, a, bf, true).await {
                             Ok(v) => {
                                 serie.push(v);
                                 secchi.push(None);
@@ -1011,6 +1031,58 @@ pub fn spawn_trend_poller(
     feed
 }
 
+#[derive(Debug, Clone, Deserialize)]
+struct StatisticheStorico {
+    count: u64,
+    avg: f64,
+}
+
+async fn fetch_media(base_url: &str, tag: &str, da: u64, a: u64) -> anyhow::Result<StatisticheStorico> {
+    let mut url = reqwest::Url::parse(base_url)?;
+    url.path_segments_mut()
+        .map_err(|_| anyhow::anyhow!("base URL non può avere path segments (cannot-be-a-base)"))?
+        .push("api")
+        .push("history")
+        .push(tag)
+        .push("stats");
+    url.query_pairs_mut()
+        .append_pair("from_ms", &da.to_string())
+        .append_pair("to_ms", &a.to_string());
+    let client = reqwest::Client::builder()
+        .use_preconfigured_tls(pinned_client_config(base_url)?)
+        .build()?;
+    Ok(client.get(url).send().await?.error_for_status()?.json().await?)
+}
+
+/// La variazione percentuale del `kpi_tile` (`KpiDelta` sul web): la media
+/// della finestra contro quella della finestra prima, ogni 30 s. `None` se
+/// una delle due è vuota o la precedente vale zero. Si ferma quando la pagina
+/// se ne va, come il poller del trend.
+pub type SharedDelta = Arc<Mutex<Option<f64>>>;
+
+pub fn spawn_kpi_delta(rt_handle: &tokio::runtime::Handle, base_url: String, tag: String, finestra_s: f64) -> SharedDelta {
+    let shared: SharedDelta = Arc::new(Mutex::new(None));
+    let bg = shared.clone();
+    rt_handle.spawn(async move {
+        loop {
+            if Arc::strong_count(&bg) == 1 {
+                break;
+            }
+            let ora = now_unix_ms();
+            let w = (finestra_s * 1000.0) as u64;
+            let cur = fetch_media(&base_url, &tag, ora.saturating_sub(w), ora).await;
+            let prev = fetch_media(&base_url, &tag, ora.saturating_sub(2 * w), ora.saturating_sub(w)).await;
+            let delta = match (cur, prev) {
+                (Ok(c), Ok(p)) if c.count > 0 && p.count > 0 && p.avg != 0.0 => Some((c.avg - p.avg) / p.avg.abs() * 100.0),
+                _ => None,
+            };
+            *bg.lock().unwrap_or_else(|e| e.into_inner()) = delta;
+            tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+        }
+    });
+    shared
+}
+
 /// `GET /api/history/:tag?from=&to=&bucket_ms=` — l'aggregato del web
 /// (`api.getHistoryBuckets`).
 pub async fn fetch_history_buckets(
@@ -1032,6 +1104,8 @@ pub async fn fetch_history_buckets(
         q.append_pair("from", &from_ms.to_string());
         q.append_pair("to", &to_ms.to_string());
         q.append_pair("bucket_ms", &bucket_ms.to_string());
+        // Solo i trend chiedono i secchi: il valore fermo vale anche qui.
+        q.append_pair("ancora", "true");
         if backfill {
             q.append_pair("backfill", "true");
         }

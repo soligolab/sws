@@ -218,6 +218,19 @@ impl Historian {
         samples
     }
 
+    /// L'ultimo campione di `tag` prima di `ts_ms`: dal buffer in RAM, o dallo
+    /// store SQLite se in RAM non ce n'è uno abbastanza vecchio.
+    pub async fn ultimo_prima(&self, tag: &str, ts_ms: u64) -> Option<Sample> {
+        {
+            let buf = self.buffers.read().await;
+            if let Some(s) = buf.get(tag).and_then(|q| q.iter().rev().find(|s| s.ts_ms < ts_ms)) {
+                return Some(s.clone());
+            }
+        }
+        let store = self.store.read().await.clone()?;
+        store.last_before(tag, ts_ms).await
+    }
+
     /// Delete SQLite samples older than `cutoff_ms`.
     /// No-op when no SQLite store is attached.
     pub async fn prune_older_than_ms(&self, cutoff_ms: u64) {
@@ -251,6 +264,61 @@ impl Historian {
                 }
             }
         })
+    }
+}
+
+/// Il trend di un valore **fermo** (1-10-2026). Lo storico registra un
+/// campione quando la variabile si aggiorna: se è ferma da più della finestra,
+/// nella finestra non c'è niente e il grafico resta «in attesa», sul web e sul
+/// pannello — il secondo difetto segnalato dall'ufficio il 30-09-2026.
+///
+/// Il valore però **vale ancora**: l'ultimo registrato prima della finestra
+/// (`prima`) si ripete all'inizio (`da`), e l'ultimo noto si prolunga fino alla
+/// fine (`a`, già limitata ad adesso da chi chiama). Un campione già esattamente
+/// sui bordi non si duplica.
+pub fn ancora(mut campioni: Vec<Sample>, prima: Option<Sample>, da: u64, a: u64) -> Vec<Sample> {
+    if let Some(p) = prima {
+        if campioni.first().is_none_or(|s| s.ts_ms > da) {
+            campioni.insert(0, Sample { ts_ms: da, ..p });
+        }
+    }
+    if let Some(ultimo) = campioni.last().cloned() {
+        if ultimo.ts_ms < a {
+            campioni.push(Sample { ts_ms: a, ..ultimo });
+        }
+    }
+    campioni
+}
+
+#[cfg(test)]
+mod test_ancora {
+    use super::*;
+
+    fn s(ts: u64, v: f64) -> Sample {
+        Sample { ts_ms: ts, value: TagValue::Float(v), quality: TagQuality::Good }
+    }
+
+    #[test]
+    fn un_valore_fermo_da_ore_si_disegna_su_tutta_la_finestra() {
+        let r = ancora(vec![], Some(s(10, 5.0)), 1000, 2000);
+        assert_eq!(r.iter().map(|x| x.ts_ms).collect::<Vec<_>>(), vec![1000, 2000]);
+        assert!(r.iter().all(|x| x.value == TagValue::Float(5.0)));
+    }
+
+    #[test]
+    fn coi_campioni_nella_finestra_si_aggiungono_solo_i_bordi() {
+        let r = ancora(vec![s(1500, 7.0)], Some(s(900, 5.0)), 1000, 2000);
+        assert_eq!(
+            r.iter().map(|x| (x.ts_ms, x.value.clone())).collect::<Vec<_>>(),
+            vec![(1000, TagValue::Float(5.0)), (1500, TagValue::Float(7.0)), (2000, TagValue::Float(7.0))]
+        );
+    }
+
+    #[test]
+    fn niente_storia_niente_invenzioni_e_niente_doppioni() {
+        assert!(ancora(vec![], None, 1000, 2000).is_empty());
+        let r = ancora(vec![s(1000, 1.0), s(2000, 2.0)], Some(s(500, 0.0)), 1000, 2000);
+        assert_eq!(r.len(), 2);
     }
 }
 

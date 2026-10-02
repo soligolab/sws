@@ -772,6 +772,16 @@ pub struct TableRow {
     pub label: String,
     pub tag: String,
     pub format: Option<String>,
+    /// F7.1 (Table 2.0): dal 1-10-2026 anche sul pannello (Fase 4 dei
+    /// predefiniti espliciti) — unità, decimali, cella scrivibile, soglie
+    /// per riga, come `TableRow` di `types/index.ts`.
+    pub unit: Option<String>,
+    pub decimals: Option<u8>,
+    pub writable: Option<bool>,
+    pub warn_low: Option<f64>,
+    pub warn_high: Option<f64>,
+    pub alarm_low: Option<f64>,
+    pub alarm_high: Option<f64>,
 }
 
 /// Porta `LanguageTable` di `types/index.ts` (`sws-core::project::LanguageTable`

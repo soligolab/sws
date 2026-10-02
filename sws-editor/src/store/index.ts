@@ -9,6 +9,7 @@ import { getStoredProjectLang, setStoredProjectLang, getStoredEditorPreviewLang,
 import { normalizeTrendObjects } from "@/canvas/trendModel";
 import { normalizeXyObjects } from "@/canvas/xyModel";
 import { normalizzaColoriOggetti } from "@/coloriPredefiniti";
+import { riempiPredefinitiOggetti } from "@/predefinitiCampi";
 import { pianoCreazione } from "@/tag/riconciliaTag";
 import { motivoIdNonValido, rinomina, type EsitoRinomina } from "@/tag/rinominaTag";
 import type { SegmentoScelto, WaypointScelto } from "@/canvas/percorsoMovimento";
@@ -1179,7 +1180,12 @@ export const useAppStore = create<AppState>((set, get) => {
         pages: pages.map((p) => {
           // E i colori `var(…)` scritti dall'IDE fino al 21-09-2026 → hex o
           // automatico (D2 del piano colori): stesso taglio, stesso momento.
-          const objs = normalizzaColoriOggetti(normalizeXyObjects(normalizeTrendObjects(p.objects)));
+          // E i predefiniti fissi mancanti scritti nel file (30-09-2026): un
+          // valore che il file non dice, i due motori lo indovinano ciascuno
+          // a modo suo — il `data_log` scuro sul web e bianco sul pannello.
+          const objs = riempiPredefinitiOggetti(
+            normalizzaColoriOggetti(normalizeXyObjects(normalizeTrendObjects(p.objects))),
+          );
           return objs === p.objects ? p : { ...p, objects: objs };
         }),
         currentPageId: currentPageId ?? paginePerNavigazione(pages)[0]?.id ?? pages[0]?.id ?? first.id,

@@ -155,8 +155,8 @@ mod = open(MODULO, encoding="utf-8").read()
 mancanti = []
 for tipo, campi in fx["predefiniti"].items():
     for campo_, reg in campi.items():
-        val = reg.get("hex") or reg.get("auto")
-        if not re.search(rf'\b{re.escape(campo_)}:\s*\{{\s*(hex|auto):\s*"{re.escape(val)}"', mod):
+        val = reg.get("hex") or reg.get("auto") or reg.get("vuoto")
+        if not re.search(rf'\b{re.escape(campo_)}:\s*\{{\s*(hex|auto|vuoto):\s*"{re.escape(val)}"', mod):
             mancanti.append(f"{tipo}.{campo_} = {val}")
 esito(not mancanti, "ogni voce della fixture compare in coloriPredefiniti.ts" + ("".join("\n      " + m for m in mancanti)))
 

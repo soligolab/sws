@@ -418,7 +418,7 @@ export function TrendCanvas({
           const data = await Promise.all(
             tags.map((t) =>
               t
-                ? api.getHistoryBuckets(t, { fromMs: fMs, toMs: tMs, bucketMs, backfill: backfill || undefined })
+                ? api.getHistoryBuckets(t, { fromMs: fMs, toMs: tMs, bucketMs, backfill: backfill || undefined, ancora: true })
                 : Promise.resolve([] as BucketSample[])
             )
           );
@@ -432,7 +432,7 @@ export function TrendCanvas({
           const data = await Promise.all(
             tags.map((t) =>
               t
-                ? api.getHistory(t, { fromMs: fMs, toMs: tMs, backfill: backfill || undefined })
+                ? api.getHistory(t, { fromMs: fMs, toMs: tMs, backfill: backfill || undefined, ancora: true })
                 : Promise.resolve([] as Sample[])
             )
           );

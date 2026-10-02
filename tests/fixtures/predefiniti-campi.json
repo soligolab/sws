@@ -1,0 +1,87 @@
+{
+  "_perche": [
+    "Il valore che un campo NON-colore ha quando il progetto non lo dichiara (i",
+    "colori stanno in colori-predefiniti.json). Nasce il 30-09-2026: un data_log",
+    "era scuro nell'editor e bianco sul pannello, e il campo mostrava solo un",
+    "segnaposto grigio. Fuori dai colori non c'era nessuna tabella: ogni ripiego",
+    "era un letterale nel codice di ciascun motore, e da lì nascono le divergenze",
+    "fra web e LVGL.",
+    "",
+    "`campi[tipo][campo]` è o `{\"valore\": …}` (un predefinito fisso: si scrive nel",
+    "file alla creazione e all'apertura di un progetto vecchio, `riempiPredefiniti`)",
+    "o `{\"vuoto\": motivo}` (nessun valore nel file PER SCELTA, e il pannello lo",
+    "dichiara invece di mostrare un numero o un segnaposto finto):",
+    "  adatta           — la scala si adatta ai dati;",
+    "  nome_tag         — si mostra il nome del tag;",
+    "  nessuna          — non si mostra nessuna etichetta;",
+    "  codice_lingua    — si mostra il codice della lingua di destinazione;",
+    "  tacche_predefinite — tacche disegnate dal widget a passo fisso;",
+    "  dal_passo        — decimali calcolati dal passo (step < 1 → 2, se no 0).",
+    "",
+    "I valori sono quelli che il WEB disegnava il 30-09-2026 (è il riferimento",
+    "WYSIWYG): scriverli nel file non cambia l'aspetto di nessun oggetto sul web, e",
+    "il pannello LVGL li riceve dal file invece di indovinarli. Li leggono",
+    "`sws-editor/tests/predefinitiCampi.test.ts` (confronto col modulo",
+    "`src/predefinitiCampi.ts`) e la guardia `scripts/check_predefiniti.sh`."
+  ],
+  "motivi": ["adatta", "nome_tag", "nessuna", "codice_lingua", "tacche_predefinite", "dal_passo"],
+  "campi": {
+    "text":       { "font_size": { "valore": 14 } },
+    "text_list":  { "font_size": { "valore": 16 } },
+    "state_lamp": { "font_size": { "valore": 13 } },
+    "pipe":       { "font_size": { "valore": 12 } },
+    "button":     { "label": { "valore": "Button" } },
+    "navbutton":  { "label": { "valore": "Go to page" } },
+    "lang_button": { "label": { "vuoto": "codice_lingua" } },
+    "checkbox":   { "label": { "vuoto": "nessuna" } },
+    "radio":      { "label": { "vuoto": "nessuna" } },
+    "led":        { "label": { "vuoto": "nessuna" } },
+    "gauge": {
+      "label": { "vuoto": "nessuna" },
+      "min": { "valore": 0 }, "max": { "valore": 100 }, "decimals": { "valore": 1 },
+      "gauge_start_angle": { "valore": -135 }, "gauge_end_angle": { "valore": 135 },
+      "gauge_ticks": { "vuoto": "tacche_predefinite" }
+    },
+    "progress_bar": {
+      "label": { "vuoto": "nessuna" },
+      "min": { "valore": 0 }, "max": { "valore": 100 }, "decimals": { "valore": 1 }
+    },
+    "slider": {
+      "label": { "vuoto": "nessuna" },
+      "min": { "valore": 0 }, "max": { "valore": 100 }, "step": { "valore": 1 },
+      "decimals": { "vuoto": "dal_passo" }
+    },
+    "setpoint": {
+      "label": { "vuoto": "nessuna" },
+      "decimals": { "valore": 1 }, "step": { "valore": 1 }
+    },
+    "kpi_tile": {
+      "label": { "vuoto": "nome_tag" },
+      "spark_window_s": { "valore": 3600 }, "decimals": { "valore": 1 }
+    },
+    "data_log": {
+      "label": { "vuoto": "nessuna" },
+      "window_s": { "valore": 3600 }, "datalog_page_size": { "valore": 25 }, "decimals": { "valore": 1 }
+    },
+    "trend": {
+      "window_s": { "valore": 60 },
+      "y_min": { "vuoto": "adatta" }, "y_max": { "vuoto": "adatta" }
+    },
+    "sparkline": {
+      "spark_window_s": { "valore": 60 },
+      "y_min": { "vuoto": "adatta" }, "y_max": { "vuoto": "adatta" }
+    },
+    "xy_plot": {
+      "xy_trail_s": { "valore": 30 }, "xy_sample_ms": { "valore": 200 },
+      "xy_x_min": { "vuoto": "adatta" }, "xy_x_max": { "vuoto": "adatta" },
+      "xy_y_min": { "vuoto": "adatta" }, "xy_y_max": { "vuoto": "adatta" }
+    },
+    "bar_chart": {
+      "bar_gap": { "valore": 0.2 }, "decimals": { "valore": 1 },
+      "min": { "vuoto": "adatta" }, "max": { "vuoto": "adatta" }
+    },
+    "pie_chart":    { "pie_inner_ratio": { "valore": 0.5 }, "decimals": { "valore": 1 } },
+    "alarm_viewer": { "alarm_viewer_max_rows": { "valore": 5 } },
+    "symbol":       { "symbol_spin_s": { "valore": 2 } }
+  }
+}

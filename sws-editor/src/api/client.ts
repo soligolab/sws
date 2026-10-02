@@ -1213,12 +1213,14 @@ export const api = {
   getLogFile: (date: string) => request<LogEvent[]>(`/api/logs/file?date=${encodeURIComponent(date)}`),
 
   // Historian
-  getHistory: (tag: string, opts?: { fromMs?: number; toMs?: number; limit?: number; backfill?: boolean }) => {
+  getHistory: (tag: string, opts?: { fromMs?: number; toMs?: number; limit?: number; backfill?: boolean; ancora?: boolean }) => {
     const params = new URLSearchParams();
     if (opts?.fromMs   !== undefined) params.set("from",     String(opts.fromMs));
     if (opts?.toMs     !== undefined) params.set("to",       String(opts.toMs));
     if (opts?.limit    !== undefined) params.set("limit",    String(opts.limit));
     if (opts?.backfill)               params.set("backfill", "true");
+    // Trend e sparkline (1-10-2026): un valore fermo si disegna lo stesso.
+    if (opts?.ancora)                 params.set("ancora",   "true");
     const qs = params.toString();
     return request<Sample[]>(
       `/api/history/${encodeURIComponent(tag)}${qs ? "?" + qs : ""}`,
@@ -1238,11 +1240,12 @@ export const api = {
 
   /** F5.1: storico aggregato a bucket — ~un bucket per pixel qualunque sia
    *  la finestra; min/max preservano i picchi che la media nasconderebbe. */
-  getHistoryBuckets: (tag: string, opts: { fromMs: number; toMs: number; bucketMs: number; backfill?: boolean }) => {
+  getHistoryBuckets: (tag: string, opts: { fromMs: number; toMs: number; bucketMs: number; backfill?: boolean; ancora?: boolean }) => {
     const params = new URLSearchParams({
       from: String(opts.fromMs), to: String(opts.toMs), bucket_ms: String(opts.bucketMs),
     });
     if (opts.backfill) params.set("backfill", "true");
+    if (opts.ancora) params.set("ancora", "true");
     return request<BucketSample[]>(
       `/api/history/${encodeURIComponent(tag)}?${params.toString()}`,
     );

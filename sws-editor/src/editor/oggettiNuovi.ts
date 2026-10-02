@@ -12,6 +12,7 @@
 
 import type { SynopticObject } from "@/types";
 import { predefinito } from "@/coloriPredefiniti";
+import { riempiPredefiniti } from "@/predefinitiCampi";
 
 /** L'oggetto nuovo di `type` in (`x`, `y`), o `null` per i tipi che prima
  *  chiedono qualcosa all'utente (`image`: un file; `symbol`: quale simbolo) e
@@ -20,6 +21,13 @@ import { predefinito } from "@/coloriPredefiniti";
 export type OggettoNuovo = Omit<SynopticObject, "id">;
 
 export function oggettoNuovo(type: SynopticObject["type"], x: number, y: number): OggettoNuovo | null {
+  // Ogni predefinito fisso delle tabelle finisce nel file già alla nascita
+  // (30-09-2026), non solo i pochi scritti a mano qui sotto.
+  const o = forma(type, x, y);
+  return o && (riempiPredefiniti(o as SynopticObject) as OggettoNuovo);
+}
+
+function forma(type: SynopticObject["type"], x: number, y: number): OggettoNuovo | null {
     switch (type) {
       case "rect":
         return { type, x, y, width: 150, height: 80, fill: "#4a90d9" };

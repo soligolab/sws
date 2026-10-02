@@ -389,6 +389,7 @@
       "Color",
       "Critical command (password)",
       "H",
+      "Label",
       "Max",
       "Min",
       "Minimum role to operate",

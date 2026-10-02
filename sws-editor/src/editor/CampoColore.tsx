@@ -28,7 +28,7 @@ export function CampoColore({
 }: {
   /** Il valore nel progetto, com'è (può essere un vecchio `var(…)`). */
   valore: unknown;
-  /** La regola della tabella per questo tipo×campo; assente = nessun «auto». */
+  /** La regola della tabella per questo tipo×campo; assente = testo automatico. */
   regola: RegolaColore | undefined;
   /** Lo sfondo della pagina corrente, **sempre** hex: senza, un campo
    *  automatico non avrebbe un colore da mostrare. */
@@ -41,44 +41,71 @@ export function CampoColore({
 }) {
   const { t } = useTranslation();
   const esplicito = normalizzaColore(valore);
-  const puoEssereAuto = !!regola && "auto" in regola;
+  // Cosa succede quando il file non dice niente (30-09-2026: il pannello lo
+  // **dichiara**, invece di un segnaposto grigio che sembrava un valore).
+  //   auto     → il colore segue la pagina: lo si mostra, con «auto»;
+  //   hex      → il predefinito della tabella: lo si mostra, con «predef.»
+  //              (dopo `riempiPredefiniti` capita solo in casi rari);
+  //   nessuno  → non si disegna;  derivato → calcolato da un altro colore.
+  const stato: "esplicito" | "auto" | "hex" | "nessuno" | "derivato" = esplicito
+    ? "esplicito"
+    : !regola ? "auto"
+    : "auto" in regola ? "auto"
+    : "hex" in regola ? "hex"
+    : regola.vuoto;
   const effettivo =
-    esplicito ?? (regola ? ("hex" in regola ? regola.hex : coloreAuto(regola.auto, sfondo)) : coloreAuto("testo", sfondo));
+    esplicito ?? (regola && "hex" in regola ? regola.hex
+      : regola && "auto" in regola ? coloreAuto(regola.auto, sfondo)
+      : !regola ? coloreAuto("testo", sfondo)
+      : undefined);
   const perSwatch = estraiHex(effettivo) ?? "#808080";
-  const auto = puoEssereAuto && !esplicito;
+  // Il ↺ riporta allo stato senza valore: c'è per ogni regola che ne ha uno
+  // voluto (auto, nessuno, derivato), non per un predefinito fisso.
+  const haStatoVuoto = !!regola && !("hex" in regola);
+  const etichetta: Record<string, [string, string]> = {
+    auto: [t("props.colorAuto"), t("props.colorAutoHint")],
+    hex: [t("props.colorPredefinito"), t("props.colorPredefinitoHint")],
+    nessuno: [t("props.colorNessuno"), t("props.colorNessunoHint")],
+    derivato: [t("props.colorDerivato"), t("props.colorDerivatoHint")],
+  };
+  const dichiarato = !mixed && stato !== "esplicito" ? etichetta[stato] : undefined;
+  // Il colore che si vede davvero, scritto in chiaro (corsivo: non è nel file).
+  const mostrato = mixed ? "" : stato === "esplicito" ? (typeof valore === "string" ? valore : "")
+    : stato === "auto" || stato === "hex" ? perSwatch : "";
 
   return (
     <div style={{ display: "flex", gap: 6, alignItems: "center", ...style }}>
       <input
         type="color"
-        style={{ ...INPUT, padding: 2, height: 28, width: 44, cursor: "pointer", flex: "none", opacity: mixed ? 0.4 : 1 }}
+        style={{ ...INPUT, padding: 2, height: 28, width: 44, cursor: "pointer", flex: "none",
+          opacity: mixed || stato === "nessuno" || stato === "derivato" ? 0.4 : 1 }}
         value={mixed ? "#808080" : perSwatch}
-        title={auto ? t("props.colorAutoHint") : undefined}
+        title={dichiarato?.[1]}
         onChange={(e) => onChange(e.target.value)}
       />
       <input
         type="text"
-        style={{ ...INPUT, flex: 1, minWidth: 0 }}
-        placeholder={mixed ? t("props.mixedValues") : perSwatch}
-        value={mixed || auto ? "" : (typeof valore === "string" ? valore : "")}
-        title={auto ? t("props.colorAutoHint") : undefined}
-        // Testo vuoto = «non impostato», **sempre**, non solo sui campi che
-        // hanno un automatico. È l'unico gesto per togliere un colore, e
-        // dev'essere lo stesso ovunque: prima i campi con un «assente» valido
-        // (lo sfondo di un oggetto, quello dell'elenco allarmi) si svuotavano
-        // ognuno col suo bottone, e solo alcuni ce l'avevano.
+        style={{ ...INPUT, flex: 1, minWidth: 0, ...(stato !== "esplicito" ? { fontStyle: "italic", color: "var(--brand-text-muted, #94a3b8)" } : {}) }}
+        placeholder={mixed ? t("props.mixedValues") : undefined}
+        value={mostrato}
+        title={dichiarato?.[1]}
+        // Testo vuoto = «non impostato», **sempre**. È l'unico gesto per
+        // togliere un colore, e dev'essere lo stesso ovunque. Scrivere sopra
+        // il colore mostrato in corsivo lo rende esplicito.
         onChange={(e) => onChange(e.target.value === "" ? undefined : e.target.value)}
       />
-      {auto && (
-        <span style={{ fontSize: 10, color: "var(--brand-text-muted, #94a3b8)", flex: "none" }} title={t("props.colorAutoHint")}>
-          {t("props.colorAuto")}
+      {dichiarato && (
+        <span style={{ fontSize: 10, color: "var(--brand-text-muted, #94a3b8)", flex: "none" }} title={dichiarato[1]}>
+          {dichiarato[0]}
         </span>
       )}
-      {puoEssereAuto && !auto && !mixed && (
+      {haStatoVuoto && stato === "esplicito" && !mixed && (
         <button
           type="button"
           onClick={() => onChange(undefined)}
-          title={t("props.colorAutoReset")}
+          title={regola && "vuoto" in regola
+            ? t(regola.vuoto === "nessuno" ? "props.colorNessunoReset" : "props.colorDerivatoReset")
+            : t("props.colorAutoReset")}
           style={{ ...INPUT, width: "auto", padding: "0 6px", cursor: "pointer", flex: "none" }}
         >↺</button>
       )}

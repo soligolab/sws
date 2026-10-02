@@ -107,8 +107,7 @@ pub type SharedSession = Arc<Mutex<SessionState>>;
 /// chiave dei fornitori IA (`percorsi_chiave_di` in `sws-web/src/ai/client.rs`),
 /// un file in più nella stessa convenzione, non un percorso nuovo inventato.
 fn session_path() -> Option<PathBuf> {
-    let home = std::env::var_os("HOME")?;
-    Some(PathBuf::from(home).join(".config/sws/lvgl_session.json"))
+    Some(crate::cartella_stato()?.join("lvgl_session.json"))
 }
 
 impl SessionState {

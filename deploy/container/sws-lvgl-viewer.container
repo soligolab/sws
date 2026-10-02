@@ -53,11 +53,22 @@ PodmanArgs=--ipc=host --userns=keep-id
 # dell'utente vanno montati, altrimenti il viewer non trova nessun display.
 Volume=/tmp/.X11-unix:/tmp/.X11-unix
 Volume=/run/user/1000:/run/user/1000
+# Quel che il viewer deve ricordare fra un riavvio e l'altro: l'esito
+# dell'aggiornamento già chiuso, la versione ignorata, la sessione. Senza
+# questo volume finiva nel filesystem effimero del container, e **ogni deploy
+# di progetto riavvia il viewer**: il 02-10-2026 il riquadro «Aggiornamento
+# completato», chiuso la mattina, ricompariva a ogni deploy, e «Ignora questa
+# versione» non sopravviveva a niente. `install-container.sh` riscrive il
+# prefisso `/data/user/sws/` quando i dati stanno altrove, come per il runtime.
+Volume=/data/user/sws/viewer:/var/sws/viewer
 Environment=DISPLAY=:0
 Environment=XDG_RUNTIME_DIR=/run/user/1000
 # x11 e non wayland: il percorso Wayland nativo va in SIGSEGV su questo
 # hardware (docs/OPEN_QUESTIONS.md Q14). XWayland regge.
 Environment=SDL_VIDEODRIVER=x11
+# Dichiarata, non dedotta da HOME: dentro l'immagine HOME è /home/ubuntu, che
+# è un dettaglio dell'immagine e non una scelta di nessuno.
+Environment=SWS_VIEWER_DATA=/var/sws/viewer
 
 [Service]
 # `on-failure` e non `always`: quando `sws-display` lo ferma perché il progetto

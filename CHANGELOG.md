@@ -20,6 +20,33 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   mostra lo stato ma non le novità. Vale per la `2.12.0-rc.1` e la `rc.2`.
 
 ### Added
+- **Sul pannello LVGL anche le estremità e il flusso animato del tubo** (freccia, pallino, flangia; tratteggio che scorre, all'indietro
+  con un valore negativo, spento dal suo tag), **la variazione percentuale del kpi_tile** (▲/▼ sulla finestra precedente) e **il
+  titolo dell'asse Y del grafico a barre** ruotato come sul web.
+- **Predefiniti espliciti, Fase 4 — la tabella del pannello come quella web** («totalmente diversa», al collaudo del maintainer):
+  disegnata in proprio (`tabella.rs`), con le colonne del progetto, intestazioni nella lingua dei contenuti, valori con decimali,
+  unità e soglie per riga, pallino di qualità, ora locale; **ordinamento** toccando l'intestazione, **filtri** e **celle
+  scrivibili** col tastierino a schermo; scorrimento col dito. Il data_log usa lo stesso motore (data e ora locali, prima UTC,
+  e il pallino di qualità). I tastierini a schermo, anche quello del setpoint, coprono il display vero invece di 800×480.
+- **Predefiniti espliciti, Fase 3 — i campi non-colore che il pannello LVGL ignorava**: etichette di gauge, LED, barra, slider e
+  data_log; navbutton col ▶; gauge con angoli, tacche, decimali e setpoint del progetto; kpi_tile con la finestra vera della
+  sparkline (era sempre 60 s) e «—» senza valore; text_list col testo di ripiego, il valore o «N/D»; tubo con stili tube/wire,
+  tratteggio, colori di stato dal vivo ed etichetta. **Il grafico a barre è rifatto** come il trend (disegnato con tiny-skia):
+  orizzontale (prima non si disegnava), impilato, tacche, soglie e legenda come sul web.
+- **Predefiniti espliciti, Fase 2 — il pannello LVGL legge i colori che ignorava** (il `data_log` bianco del TC620): sfondi dei widget
+  (data_log e storico allarmi come tabelle scure, kpi_tile, xy_plot, riquadro dietro barre e torta, banner trasparente), bordo/angoli/
+  sfumatura dei rettangoli, contorno delle ellissi, bordo del navbutton, colori di barra, slider, checkbox e radio, niente più disco
+  bianco dietro il gauge (e l'ago segue `stroke`), foro della torta, campanella, text_list col grigio del web. Ogni ripiego viene dalla
+  tabella condivisa (20 coppie nuove), non da letterali sparsi.
+- **Predefiniti espliciti, Fase 1** (piano `docs/plans/2026-09-30-predefiniti-espliciti.md`; un `data_log` era scuro nell'editor e bianco sul
+  pannello, e il campo sfondo mostrava solo un segnaposto). Una tabella dei predefiniti anche per i campi non-colore
+  (`tests/fixtures/predefiniti-campi.json`, `src/predefinitiCampi.ts`), e i valori fissi — colori compresi — si **scrivono nel file**
+  alla creazione e **all'apertura di un progetto vecchio** (`riempiPredefiniti`, nella catena di `setPages`): i due motori leggono lo
+  stesso valore invece di indovinarlo. Il pannello proprietà non finge più: i campi vuoti per scelta dicono perché («auto · adatta ai
+  dati», «nessuna etichetta», «nome del tag»), i colori dichiarano «auto», «predef.», «nessuno» o «derivato», un numero non salvato
+  si vede in corsivo, e i segnaposto che nessuno disegnava («Gauge», «Setpoint», «Data log»…) sono spariti. La tabella colori ha una
+  terza regola, `vuoto` (nessuno/derivato), e sfondi per tipo invece di un `*` che valeva #0f172a anche dove il web è trasparente.
+  Lo slider ha il campo «Etichetta» che il web disegnava già. Guardia nuova `check_predefiniti.sh`.
 - **Il trend del pannello LVGL completo, come quello web** (30-09-2026; il maintainer aveva cambiato stile della linea e sfondo sul WP630 e
   non li vedeva). Non è più un `lv_chart`, che onorava solo i colori delle tracce e arrotondava i valori all'intero (coordinate `i16`): ora il
   grafico si disegna con tiny-skia (`sws-lvgl-viewer/src/trend.rs`, puro e provato) su un canvas, con i testi come etichette LVGL. Ha sfondo
@@ -101,6 +128,22 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   riga rossa con **Converti**, in testa c'è **Converti tutti (n)**, e gli allarmi che condividono un tag lo dicono. La conversione non cambia come scatta; il Salva resta dell'utente.
 
 ### Fixed
+- **Quel che il pannello LVGL ricorda non si perde più a ogni deploy.** L'esito dell'aggiornamento già chiuso, la versione ignorata e la sessione del viewer
+  finivano nel filesystem effimero del container (`$HOME/.config/sws`, con `HOME=/home/ubuntu`), che il quadlet non montava: siccome ogni deploy di progetto
+  riavvia il viewer, il riquadro «Aggiornamento completato» ricompariva già chiuso, e «Ignora questa versione» non ignorava oltre il riavvio. Ora il quadlet
+  monta `/data/user/sws/viewer` e la cartella è **dichiarata** (`SWS_VIEWER_DATA`) invece che dedotta da `HOME`, che è un dettaglio dell'immagine. **Arriva
+  reinstallando dall'Installazione**: il quadlet non viaggia con l'aggiornamento dell'immagine.
+- **I predefiniti arrivano anche dentro le griglie.** `riempiPredefiniti` percorreva i soli oggetti di primo livello della pagina: un led dentro una cella
+  restava senza `on_color`, un testo senza `font_size`. Trovato su un progetto di collaudo con tutti e 38 i tipi — 234 campi su 240 erano scritti, e i sei
+  mancanti stavano tutti in una griglia. Conta perché un valore che il file non dice i due motori lo indovinano ciascuno a modo suo, che è il difetto per cui
+  la tabella dei predefiniti esiste. Ora si scende nelle celle e nelle sotto-celle, come fa già `collectTagIds`.
+- **Il trend con un valore fermo si disegna** (difetto segnalato dall'ufficio il 30-09-2026): lo storico registra un campione solo quando la
+  variabile cambia, e con un valore fermo da più della finestra il grafico restava «in attesa», sul web e sul pannello. Ora i trend e le
+  sparkline chiedono lo storico con `ancora=true`: il runtime ripete all'inizio della finestra l'ultimo valore registrato prima (dalla RAM,
+  da SQLite o dal valore corrente del tag) e prolunga l'ultimo noto fino alla fine (`sws_historian::ancora`). CSV e data_log restano i
+  campioni veri.
+- **Il selettore colore negli sfondi predefiniti del progetto** (Impostazioni pagine del progetto, chiaro e scuro): erano due campi di testo, ora
+  usano il controllo colore condiviso come lo sfondo della singola pagina. Il campo vuoto resta «nessun predefinito».
 - **Il lampeggio sfumato si vede anche su polilinee, poligoni, simboli e path.** Su quegli oggetti — che il motore LVGL disegna come bitmap SVG
   rasterizzate — il fade non ha mai funzionato: l'oggetto restava acceso fisso. Il blink **a scatti** invece si vedeva, perché passa dall'opacità, ed è
   per questo che il difetto è rimasto invisibile: «il lampeggio funziona» era vero per metà. LVGL ha due strade per alterare i colori — il

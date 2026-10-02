@@ -242,6 +242,36 @@ impl SqliteStore {
     /// Fetch all samples for a tag in `[from_ms, to_ms]` (inclusive),
     /// ordered chronologically. Used by `Historian::query` as a fallback
     /// for ranges older than the in-memory ring.
+    /// L'ultimo campione di `tag` **prima** di `ts_ms` — l'ancoraggio di un
+    /// trend su un valore fermo (1-10-2026). `None` se non ce n'è.
+    pub async fn last_before(&self, tag: &str, ts_ms: u64) -> Option<Sample> {
+        let conn = self.conn.clone();
+        let tag = tag.to_string();
+        task::spawn_blocking(move || -> Option<Sample> {
+            let c = conn.blocking_lock();
+            let (ts, value_json, q): (i64, String, String) = c
+                .query_row(
+                    "SELECT ts_ms, value, quality FROM samples
+                      WHERE tag = ?1 AND ts_ms < ?2 ORDER BY ts_ms DESC LIMIT 1",
+                    params![tag, ts_ms as i64],
+                    |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+                )
+                .ok()?;
+            Some(Sample {
+                ts_ms: ts as u64,
+                value: serde_json::from_str(&value_json).ok()?,
+                quality: match q.as_str() {
+                    "Good" => TagQuality::Good,
+                    "Bad" => TagQuality::Bad,
+                    _ => TagQuality::Uncertain,
+                },
+            })
+        })
+        .await
+        .ok()
+        .flatten()
+    }
+
     pub async fn query_range(&self, tag: &str, from_ms: u64, to_ms: u64) -> Vec<Sample> {
         let conn = self.conn.clone();
         let tag = tag.to_string();

@@ -28,7 +28,87 @@
 //! La registrazione del display bypassa `lvgl::Display::register()` (bug di
 //! lifetime confermato, `docs/OPEN_QUESTIONS.md` Q14) — vedi `lvgl_display.rs`.
 
+/// Dove il viewer tiene quel che deve sopravvivere a un riavvio: l'esito
+/// dell'aggiornamento già chiuso, la versione ignorata, la sessione.
+///
+/// # Perché non è più `$HOME/.config/sws` e basta (02-10-2026)
+///
+/// Nel container del pannello `HOME` è `/home/ubuntu`, dentro il filesystem
+/// effimero: il quadlet del viewer monta solo il socket X11 e
+/// `/run/user/1000`. Ogni deploy di progetto riavvia il viewer, il container
+/// si ricrea e quella cartella riparte vuota — così l'esito «Aggiornamento
+/// completato» ricompariva a ogni deploy, già chiuso quella mattina, e
+/// «Ignora questa versione» non ignorava un bel niente oltre il riavvio.
+///
+/// Ora il quadlet monta una cartella vera e la **dichiara** qui dentro:
+/// dipendere da `HOME` voleva dire dipendere da quale utente l'immagine usa,
+/// che è un dettaglio dell'immagine e non una scelta di nessuno. Fuori dal
+/// container — sviluppo, `--istantanea` — la variabile non c'è e si ripiega su
+/// `$HOME/.config/sws`, dove stava prima.
+pub fn cartella_stato() -> Option<std::path::PathBuf> {
+    cartella_da(
+        std::env::var_os("SWS_VIEWER_DATA"),
+        std::env::var_os("HOME"),
+    )
+}
+
+/// La regola, separata dall'ambiente perché si possa provarla: la variabile
+/// vince se c'è e non è vuota, altrimenti `$HOME/.config/sws`, e senza
+/// nemmeno `HOME` non c'è posto dove scrivere.
+fn cartella_da(
+    dichiarata: Option<std::ffi::OsString>,
+    home: Option<std::ffi::OsString>,
+) -> Option<std::path::PathBuf> {
+    if let Some(d) = dichiarata {
+        if !d.is_empty() {
+            return Some(std::path::PathBuf::from(d));
+        }
+    }
+    Some(std::path::PathBuf::from(home?).join(".config/sws"))
+}
+
+#[cfg(test)]
+mod prove_cartella_stato {
+    use super::cartella_da;
+    use std::ffi::OsString;
+
+    fn s(x: &str) -> Option<OsString> {
+        Some(OsString::from(x))
+    }
+
+    #[test]
+    fn la_cartella_dichiarata_vince_su_home() {
+        // Nel container HOME è /home/ubuntu, dentro il filesystem effimero:
+        // scrivere lì vuol dire perdere tutto al riavvio del container, che
+        // avviene a ogni deploy di progetto.
+        assert_eq!(
+            cartella_da(s("/var/sws/viewer"), s("/home/ubuntu")).unwrap(),
+            std::path::Path::new("/var/sws/viewer")
+        );
+    }
+
+    #[test]
+    fn senza_la_variabile_si_ripiega_dove_stava_prima() {
+        // Sviluppo e `--istantanea`: nessun quadlet, nessuna variabile.
+        assert_eq!(
+            cartella_da(None, s("/home/ut1")).unwrap(),
+            std::path::Path::new("/home/ut1/.config/sws")
+        );
+        // Una variabile vuota non è una dichiarazione.
+        assert_eq!(
+            cartella_da(s(""), s("/home/ut1")).unwrap(),
+            std::path::Path::new("/home/ut1/.config/sws")
+        );
+    }
+
+    #[test]
+    fn senza_niente_non_cè_posto_dove_scrivere() {
+        assert!(cartella_da(None, None).is_none());
+    }
+}
+
 mod aggiornamento;
+mod barre;
 mod client;
 mod drm_display;
 mod effects;
@@ -43,10 +123,12 @@ mod net_worker;
 mod session;
 mod svg_assets;
 mod svg_raster;
+mod tabella;
 mod testi_sistema;
 mod tls;
 mod touch_indev;
 mod trend;
+mod tubo;
 
 use std::sync::mpsc;
 use std::time::{Duration, Instant};

@@ -74,48 +74,52 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — predefiniti espliciti Fasi 1-4 e trend fermo, su tre rami annidati da collaudare (2026-10-01)
+## ▶ Riprendere da qui — predefiniti espliciti e trend fermo su `main`; il pannello aspetta la release (2026-10-02)
 
-**Su `main`** (pushato con questa chiusura): il **trend LVGL completo** come il web (`35aec344`, squash di
-`feat/trend-lvgl-completo`), **2.12.0-rc.14**, collaudata dal maintainer sul TC620 (applicativo `rc14_lvgl`). Tag
-`2.12.0-rc.14` creato su quel commit e pushato. La rc.14 era stata costruita dal ramo prima dello squash: stesso albero.
+**Nessun ramo aperto.** Squash unico di `fix/trend-valore-fermo`, che portava dentro i tre rami
+annidati più i due difetti trovati collaudando. Versione dichiarata **2.12.0-rc.15**.
 
-**Tre rami annidati, pushati, NON ancora su `main`** — si collaudano insieme e si mergiano con **uno squash solo**
-del ramo in cima (poi controllo alberi ed eliminazione dei tre):
+### Cosa è entrato
 
-1. `fix/sfondi-predefiniti-colore` (`dcd32988`) — selettore colore negli sfondi predefiniti del progetto
-   (Impostazioni pagine del progetto). Provato dal maintainer insieme alla Fase 1.
-2. `feat/predefiniti-espliciti` (`966dca9e`) — piano `docs/plans/2026-09-30-predefiniti-espliciti.md`:
-   - **Fase 1** (IDE, **collaudata**): tabella dei predefiniti non-colore, valori fissi scritti nel file alla
-     creazione e all'apertura (`riempiPredefiniti`), pannello che dichiara auto/predef./nessuno/derivato e i vuoti
-     voluti, label dello slider, guardia `check_predefiniti.sh`.
-   - **Fasi 2-4** (pannello LVGL, **da collaudare**): colori e sfondi che LVGL ignorava (il `data_log` bianco),
-     campi non-colore (etichette, gauge, kpi_tile, text_list, tubo), **grafico a barre** e **tabella/data_log
-     rifatti** come trend su canvas tiny-skia (`barre.rs`, `tabella.rs`: ordinamento, filtri, celle scrivibili col
-     tastierino, scelte del maintainer), poi estremità e flusso del tubo (`tubo.rs`), delta del kpi_tile, titolo Y
-     ruotato. Test che legge il sorgente: ogni coppia chiesta a `predefinito_lvgl` sta in `TABELLA` (due panici presi
-     solo alle fotografie).
-3. `fix/trend-valore-fermo` (`9b164fae`, **in cima**) — il secondo difetto dell'ufficio: trend vuoto con un valore
-   fermo. `GET /api/history?ancora=true`: ultimo valore prima della finestra ripetuto all'inizio, ultimo noto
-   prolungato alla fine; trend e sparkline (web e LVGL) la chiedono. Provato dal vivo sull'API e su LVGL.
+- **Predefiniti espliciti**, Fasi 1-4 ([piano](docs/plans/2026-09-30-predefiniti-espliciti.md)):
+  tabella unica anche per i campi non-colore, valori scritti nel file, e sul pannello i colori e
+  gli sfondi che LVGL ignorava, il grafico a barre e la tabella/data_log rifatti su canvas.
+- **Il trend con un valore fermo si disegna** — il secondo difetto segnalato dall'ufficio.
+- **I predefiniti arrivano anche dentro le griglie**: il riempimento guardava i soli oggetti di
+  primo livello, e un led in una cella restava senza colore.
+- **Quel che il viewer LVGL ricorda sopravvive al riavvio del container** (esito chiuso, versione
+  ignorata, sessione): volume nel quadlet, cartella dichiarata con `SWS_VIEWER_DATA`.
 
-Verdi sul ramo in cima: `cargo check`, 263 test viewer, 27 historian, 1044 vitest, `pnpm build`, 28 guardie
-statiche, `check_istantanea.sh`.
+### Collaudato dal maintainer
 
-**Prossimo passo, in ufficio:**
-1. `./scripts/session_start.sh`, poi `git checkout fix/trend-valore-fermo`.
-2. **rc.15**: bump dei quattro file a `2.12.0-rc.15` sul ramo, `./scripts/build_container.sh --push`, aggiornamento del
-   pannello (WP630/TC620) dal canale di prova — prova insieme anche «Aggiorna ora».
-3. Collaudo sul pannello: una pagina con tutti i tipi (sfondi, gauge, barre, tabella con ordinamento/filtro/scrittura,
-   data_log, tubi con frecce e flusso, kpi_tile) e un trend su un tag che non cambia.
-4. Se va: squash di `fix/trend-valore-fermo` su `main`, tag `2.12.0-rc.15`, eliminazione dei tre rami.
+Sul WP630 con la rc.15: avviso di aggiornamento, «Aggiorna ora», **esito col testo nuovo**, trend
+su un tag fermo. Dall'IDE, sul progetto `collaudo-rc15`: i predefiniti scritti nel file, **240 su
+240** dopo la correzione delle griglie (erano 234).
 
-**Da dire al maintainer**: sul web le estremità del tubo sono scalate per lo spessore (marker SVG in unità
-`strokeWidth`): su un tubo da 10 px il pallino è largo 100 px, e il pannello ora fa lo stesso — forse non è voluto.
-Notato anche: il `data_log` in modalità modifica dell'editor mostra un segnaposto («Data log — tag») invece del
-rendering vero, contro la regola WYSIWYG.
+### Cosa resta aperto
 
-**L'editor di sviluppo** gira lanciato dalla sessione (`start_editor_develop.sh`, 8460/8090).
+- **Il confronto a schermo IDE/LVGL** degli oggetti: si chiude sull'**installazione pulita** della
+  release, scelta del maintainer («aspettiamo la release finale e poi farò un'installazione
+  pulita»). Il progetto `~/sws_projects/collaudo-rc15` è pronto apposta: 140 oggetti, tutti e 38 i
+  tipi, quattro pagine 1920×1080.
+- **Nessun tag su questo commit**: dopo il bump che ha prodotto l'immagine `2.12.0-rc.15` sono
+  entrati due fix, quindi questo albero **non è** quello pubblicato su ghcr. Il tag va messo sulla
+  versione che si costruirà per l'installazione pulita.
+- **Il deploy non segnala il cambio di progetto** (`upload_project_zip` non chiama
+  `signal_project_changed`): segnalare soltanto, o riaprire il progetto? Decisione del maintainer.
+- Le **estremità del tubo** scalate per lo spessore e il **`data_log` col segnaposto** in modifica
+  (contro la regola WYSIWYG): due pareri ancora da dare.
+- Semi vivi: [il viewer che non riparte dopo un
+  aggiornamento](docs/plans/2026-10-01-viewer-non-riparte-dopo-aggiornamento.md), [il quadlet che
+  non viaggia](docs/plans/2026-09-29-quadlet-che-non-viaggia.md) — due casi della stessa famiglia,
+  cui ora si aggiunge il volume del viewer, che pure arriva solo reinstallando.
+
+### Le macchine
+
+- **WP630** (`user@wp630-a-p3-07a077.local`): rc.15, raggiungibile.
+- **theobroma** (questa): **l'IDE di sviluppo su `http://192.168.0.201:8460` lo avvio e lo tengo
+  allineato io**, a ogni modifica del codice — istruzione del maintainer, è da lì che verifica.
+
 
 ## ▶ Riprendere da qui — aggiornamento ed email chiusi, nessun ramo aperto (2026-09-30)
 

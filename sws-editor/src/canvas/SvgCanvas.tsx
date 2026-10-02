@@ -2911,7 +2911,7 @@ function SparklineWidget({ tag, windowS, width, height, color, strokeWidth, fill
     if (!tag) return;
     let cancelled = false;
     const now = Date.now();
-    api.getHistory(tag, { fromMs: now - windowS * 1000, toMs: now })
+    api.getHistory(tag, { fromMs: now - windowS * 1000, toMs: now, ancora: true })
       .then((hist) => {
         if (cancelled) return;
         const seeded = hist
