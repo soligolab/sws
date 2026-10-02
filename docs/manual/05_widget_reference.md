@@ -76,6 +76,18 @@ vertici, quindi valgono uguali sul web e sul pannello LVGL.
 Su LVGL polilinea e poligono si disegnano come un SVG rasterizzato (resvg): stesse forme, bordi e tratteggi
 del browser, anche quando sono concavi.
 
+### Lo specchio sul pannello LVGL
+
+`flip_h` e `flip_v` funzionano sul pannello per gli oggetti in cui lo specchio si vede: **simboli** (quelli
+della libreria e quelli caricati nel progetto), **immagini**, **polilinee e poligoni**, il **gauge** — dove
+l'arco si ribalta e il valore cresce dall'altra parte — e la **barra di avanzamento**, che si riempie dal lato
+opposto. Su rettangoli, ellissi e led non cambia niente, perché specchiati sono identici a sé stessi.
+
+**Non** si specchiano, e questa è una differenza voluta rispetto al browser: **testo, tabella, pulsanti,
+selettore lingua e navigatore pagine**. Specchiare quei widget vorrebbe dire ribaltarne anche le scritte, e
+un'etichetta allo specchio su un impianto non serve a nessuno; farlo costerebbe un secondo motore tipografico
+nel pannello accanto a quello che già disegna tutti gli altri testi.
+
 ---
 
 ### Testo (`text`)

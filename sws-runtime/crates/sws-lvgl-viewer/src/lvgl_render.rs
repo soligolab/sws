@@ -493,6 +493,11 @@ pub enum LiveKind {
         buf: Vec<u8>,
         w: i16,
         h: i16,
+        /// Lo specchio dell'oggetto: serve **qui** e non solo alla creazione,
+        /// perché il simbolo si ridisegna a ogni cambio di stato e senza
+        /// questi due una valvola specchiata tornerebbe dritta appena si apre.
+        flip_h: bool,
+        flip_v: bool,
         symbol_id: String,
         state_tag: Option<String>,
         alarm_tag: Option<String>,
@@ -2070,6 +2075,29 @@ unsafe fn disable_clickable_from(screen_ptr: *mut lvgl_sys::lv_obj_t, da: u32) {
 /// da `applyTransform`. Il `polygon` ne è fuori di proposito: ruota i suoi
 /// vertici (`sws_core::vertici_poligono`), e ruotarlo anche qui lo girerebbe
 /// due volte.
+/// # Lo specchio, invece, non vale per tutti (02-10-2026)
+///
+/// `flip_h`/`flip_v` sul pannello sono una cosa per famiglia, perché LVGL 8.3
+/// non ha uno specchio di stile — `transform_zoom` non accetta valori
+/// negativi — e non c'è una via unica come per la rotazione:
+///
+/// - **simboli e immagini** si specchiano nell'SVG, prima di rasterizzare
+///   (`svg_raster::specchia`): esatto e senza perdita;
+/// - **polilinee e poligoni** lo facevano già nei vertici, e qui non si
+///   toccano: specchiarli due volte li raddrizzerebbe;
+/// - **gauge e barra** si specchiano nella logica — angoli riflessi e verso
+///   del riempimento — perché sono widget nativi;
+/// - **rect, ellisse e led** non hanno bisogno di niente: specchiati sono
+///   identici a sé stessi;
+/// - **testo, tabella, pulsanti, selettori e navigatore pagine NON si
+///   specchiano**, ed è una scelta, non una dimenticanza. Sul web lo fanno,
+///   quindi è una divergenza dichiarata: specchiare i glifi vorrebbe dire
+///   disegnare il testo dentro il canvas, cioè una seconda pipeline
+///   tipografica nel pannello accanto a quella di LVGL — anche i widget già
+///   «su canvas» (tabella, trend, barre) ci disegnano solo la geometria e il
+///   testo lo appoggiano sopra con etichette vere (`scrivi_testi`). Un
+///   costo grosso per un'etichetta allo specchio, che su un impianto non
+///   serve a nessuno.
 const TIPI_RUOTABILI: &[&str] = &[
     "rect",
     "ellipse",
@@ -3570,6 +3598,20 @@ fn render_progress_bar(
         stile::sfondo(ptr.as_ptr(), colore_campo(obj.fill.as_deref(), "progress_bar", "fill"), stile::INDICATORE);
         stile::raggio(ptr.as_ptr(), 4.0, stile::MAIN);
         stile::raggio(ptr.as_ptr(), 4.0, stile::INDICATORE);
+        // Lo specchio di una barra è il verso in cui si riempie, e LVGL lo sa
+        // fare da sé (02-10-2026): `base_dir` destra-sinistra. Non c'è niente
+        // da ribaltare — una barra è simmetrica — ma riempirsi da destra è
+        // esattamente ciò che si vede sul web con `flip_h`.
+        //
+        // `flip_v` su una barra orizzontale non cambia nulla, ed è giusto
+        // così: il verso che conta è quello in cui corre l'indicatore.
+        if obj.flip_h == Some(true) {
+            lvgl_sys::lv_obj_set_style_base_dir(
+                ptr.as_ptr(),
+                lvgl_sys::LV_BASE_DIR_RTL as lvgl_sys::lv_base_dir_t,
+                stile::MAIN,
+            );
+        }
     }
     init_bar_like(screen, ptr, obj, tags)
 }
@@ -4259,12 +4301,18 @@ fn render_gauge(
         // mezzogiorno in senso orario, LVGL da ore tre: ampiezza = fine −
         // inizio, rotazione = inizio − 90. Col predefinito (−135…135) viene il
         // 270/135 che qui era cablato.
-        let (ampiezza, rotazione) = angoli_gauge(obj.gauge_start_angle, obj.gauge_end_angle);
+        let (ampiezza, rotazione, scambia) = angoli_gauge(
+            obj.gauge_start_angle,
+            obj.gauge_end_angle,
+            obj.flip_h == Some(true),
+            obj.flip_v == Some(true),
+        );
+        let (da, a_) = if scambia { (max, min) } else { (min, max) };
         lvgl_sys::lv_meter_set_scale_range(
             ptr.as_ptr(),
             scale,
-            min.round() as i32,
-            max.round() as i32,
+            da.round() as i32,
+            a_.round() as i32,
             ampiezza,
             rotazione,
         );
@@ -4411,11 +4459,35 @@ fn render_gauge(
 
 /// Angoli del gauge dal web a LVGL: (ampiezza, rotazione) in gradi. Il web
 /// misura da mezzogiorno in senso orario, LVGL da ore tre.
-fn angoli_gauge(inizio: Option<f64>, fine: Option<f64>) -> (u32, u32) {
-    let (a, b) = (inizio.unwrap_or(-135.0), fine.unwrap_or(135.0));
+///
+/// `flip_h`/`flip_v` specchiano l'arco (02-10-2026). Un `lv_meter` non si può
+/// ribaltare come un'immagine — LVGL 8.3 non ha uno specchio di stile — ma
+/// l'arco è descritto da due angoli, e riflettere due numeri è esatto quanto
+/// ribaltare dei pixel: attorno all'asse verticale un angolo misurato da
+/// mezzogiorno diventa il suo opposto, attorno a quello orizzontale diventa
+/// `180 − θ`.
+///
+/// Non basta però girare l'arco: va invertito anche **il verso in cui cresce
+/// il valore**, altrimenti lo specchio sposterebbe il disegno lasciando il
+/// minimo dove stava — un quadrante speculare che si legge come prima. Il
+/// verso lo decide l'ordine di `min`/`max` passati a
+/// `lv_meter_set_scale_range`, e per questo la funzione dice **anche** se gli
+/// estremi vanno scambiati.
+fn angoli_gauge(inizio: Option<f64>, fine: Option<f64>, flip_h: bool, flip_v: bool) -> (u32, u32, bool) {
+    let (mut a, mut b) = (inizio.unwrap_or(-135.0), fine.unwrap_or(135.0));
+    if flip_h {
+        a = -a;
+        b = -b;
+    }
+    if flip_v {
+        a = 180.0 - a;
+        b = 180.0 - b;
+    }
     let ampiezza = (b - a).abs().clamp(1.0, 360.0).round() as u32;
     let rotazione = ((a.min(b) - 90.0).rem_euclid(360.0)).round() as u32;
-    (ampiezza, rotazione)
+    // Uno specchio solo inverte il verso; due lo rimettono come prima, perché
+    // insieme sono una rotazione di mezzo giro e una rotazione non ribalta.
+    (ampiezza, rotazione, flip_h != flip_v)
 }
 
 /// Stesso modello dati di `text_list` (`value`→`label`→`color`, con match per
@@ -8776,6 +8848,50 @@ const SYM_PANEL: (u8, u8, u8) = (30, 41, 59); // #1e293b
 /// ma per le 16 forme builtin invece che per i tipi di oggetto. `state_c` è
 /// il colore di stato già risolto (`off`/`on`/`alarm`), stesso principio di
 /// `stateFill()` in `library.tsx`.
+/// Specchia in place un buffer di canvas LVGL `LV_IMG_CF_TRUE_COLOR_ALPHA`:
+/// tre byte per pixel (colore RGB565 + alfa), `w`×`h`.
+///
+/// # Perché qui si specchiano i pixel, e per gli SVG no
+///
+/// I 33 simboli della libreria non sono SVG: `svg_assets::VENDORED` è vuota
+/// dal 13-09-2026, e ciascuno è disegnato con primitive LVGL
+/// (`sym_rect`/`sym_circle`/`sym_polygon`) **direttamente alla dimensione
+/// finale**. Non esiste un vettoriale da cui ripartire, quindi ribaltare
+/// questo buffer non butta via niente: è una permutazione esatta alla
+/// risoluzione nativa, non un ricampionamento. Per un'immagine o un simbolo
+/// custom, che un vettoriale ce l'hanno, lo specchio sta invece prima — nella
+/// trasformazione di `svg_raster::specchia`, dove conserva la qualità anche
+/// ingrandendo.
+///
+/// L'alternativa sarebbe stata riflettere le coordinate dentro le primitive,
+/// ma sono chiamate 180 volte nei 33 simboli: la stessa immagine a schermo,
+/// al prezzo di toccare tutte quelle righe.
+fn specchia_buffer(buf: &mut [u8], w: usize, h: usize, flip_h: bool, flip_v: bool) {
+    const BPP: usize = 3;
+    if (!flip_h && !flip_v) || w == 0 || h == 0 || buf.len() < w * h * BPP {
+        return;
+    }
+    if flip_h {
+        for y in 0..h {
+            let riga = &mut buf[y * w * BPP..(y + 1) * w * BPP];
+            for x in 0..w / 2 {
+                let (a, b) = (x * BPP, (w - 1 - x) * BPP);
+                for k in 0..BPP {
+                    riga.swap(a + k, b + k);
+                }
+            }
+        }
+    }
+    if flip_v {
+        for y in 0..h / 2 {
+            let (su, giu) = (y * w * BPP, (h - 1 - y) * w * BPP);
+            for k in 0..w * BPP {
+                buf.swap(su + k, giu + k);
+            }
+        }
+    }
+}
+
 fn draw_symbol(
     canvas_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
     id: &str,
@@ -8783,6 +8899,8 @@ fn draw_symbol(
     state_c: (u8, u8, u8),
     w: i16,
     h: i16,
+    flip_h: bool,
+    flip_v: bool,
 ) {
     unsafe {
         lvgl_sys::lv_canvas_fill_bg(canvas_ptr.as_ptr(), Color::from_rgb((0, 0, 0)).into(), 0);
@@ -9679,6 +9797,24 @@ fn draw_symbol(
             // #7f1d1d
         }
     }
+    // Lo specchio dopo il disegno, sul buffer del canvas: così vale per tutti
+    // e 33 i simboli insieme, e per **entrambe** le strade che portano qui —
+    // la creazione e il ridisegno quando lo stato cambia.
+    if flip_h || flip_v {
+        unsafe {
+            let dsc = lvgl_sys::lv_canvas_get_img(canvas_ptr.as_ptr());
+            if !dsc.is_null() && !(*dsc).data.is_null() && w > 0 && h > 0 {
+                // La dimensione si **calcola**, non si legge: per un canvas
+                // LVGL lascia `data_size` a zero, e fidandosene lo specchio
+                // non faceva niente (misurato il 02-10-2026 — tre byte per
+                // pixel attesi, zero dichiarati). È lo stesso conto che fa
+                // `render_symbol` quando alloca il buffer.
+                let n = 3 * w as usize * h as usize;
+                let buf = std::slice::from_raw_parts_mut((*dsc).data as *mut u8, n);
+                specchia_buffer(buf, w as usize, h as usize, flip_h, flip_v);
+            }
+        }
+    }
     unsafe {
         lvgl_sys::lv_obj_invalidate(canvas_ptr.as_ptr());
     }
@@ -9820,6 +9956,8 @@ fn render_svg_raster(
         src,
         base_url,
         rt_handle,
+        obj.flip_h == Some(true),
+        obj.flip_v == Some(true),
     )
 }
 
@@ -9843,10 +9981,15 @@ fn disegna_svg(
     src: &crate::svg_assets::SvgSource,
     base_url: &str,
     rt_handle: &tokio::runtime::Handle,
+    // Lo specchio dell'oggetto: lo applica il rasterizzatore, sulla
+    // trasformazione vettoriale. Le forme (polilinea, poligono) passano
+    // `false`: specchiano già nei vertici, e farlo due volte le raddrizza.
+    flip_h: bool,
+    flip_v: bool,
 ) -> anyhow::Result<LiveBinding> {
     let svg = crate::svg_assets::bytes_for(base_url, rt_handle, src)
         .ok_or_else(|| anyhow::anyhow!("SVG non disponibile"))?;
-    disegna_svg_byte(genitore, x, y, w, h, &svg)
+    disegna_svg_byte(genitore, x, y, w, h, &svg, flip_h, flip_v)
 }
 
 /// La seconda metà di `disegna_svg`: dai byte di un SVG al canvas. Separata il
@@ -9859,9 +10002,11 @@ fn disegna_svg_byte(
     w: i16,
     h: i16,
     svg: &[u8],
+    flip_h: bool,
+    flip_v: bool,
 ) -> anyhow::Result<LiveBinding> {
     let screen = genitore;
-    let raster = crate::svg_raster::rasterize(svg, w as u32, h as u32)
+    let raster = crate::svg_raster::rasterize(svg, w as u32, h as u32, flip_h, flip_v)
         .ok_or_else(|| anyhow::anyhow!("SVG non rasterizzabile a {w}x{h}"))?;
     let mut buf = raster.to_lvgl_true_color_alpha();
     // Le dimensioni del canvas si prendono dalla bitmap prodotta, non dai `w`/`h`
@@ -10025,7 +10170,8 @@ fn render_symbol(
         &on_color,
         &alarm_color,
     );
-    draw_symbol(canvas_ptr, &symbol_id, state, state_c, w, h);
+    draw_symbol(canvas_ptr, &symbol_id, state, state_c, w, h,
+        obj.flip_h == Some(true), obj.flip_v == Some(true));
 
     // Il perno della rotazione al centro del simbolo: senza, LVGL ruota
     // attorno all'angolo in alto a sinistra e la ventola se ne va per la
@@ -10041,6 +10187,8 @@ fn render_symbol(
             buf,
             w,
             h,
+            flip_h: obj.flip_h == Some(true),
+            flip_v: obj.flip_v == Some(true),
             symbol_id,
             state_tag: obj.state_tag.clone(),
             alarm_tag: obj.alarm_tag.clone(),
@@ -10357,6 +10505,11 @@ fn render_lang_button(
             &src,
             base_url,
             rt_handle,
+            // Il `lang_button` è fra i tipi che non specchiano (02-10-2026):
+            // è un pulsante con un testo, e un testo allo specchio non lo
+            // vuole nessuno su un impianto.
+            false,
+            false,
         ) {
             Ok(b) => live.push(b),
             Err(e) => eprintln!(
@@ -10562,7 +10715,7 @@ fn dispatch_render(
         // su un poligono concavo — una stella, una polilinea chiusa qualunque
         // — non ritorna mai (schermo nero, il caso della fiamma del `boiler`).
         "polyline" | "polygon" => match svg_forma(obj) {
-            Some(f) => disegna_svg_byte(screen, f.x, f.y, f.w, f.h, f.svg.as_bytes()).map(|b| live.push(b)),
+            Some(f) => disegna_svg_byte(screen, f.x, f.y, f.w, f.h, f.svg.as_bytes(), false, false).map(|b| live.push(b)),
             None => Ok(()),
         },
         "button" => render_button(screen, obj, styles, tag_tx),
@@ -12092,6 +12245,8 @@ pub fn update_bindings(
                 canvas_ptr,
                 w,
                 h,
+                flip_h,
+                flip_v,
                 symbol_id,
                 state_tag,
                 alarm_tag,
@@ -12123,7 +12278,7 @@ pub fn update_bindings(
                 // "acceso" con colori diversi, e guardare solo lo stato
                 // lascerebbe il simbolo del colore di prima.
                 if Some(state) != *last_state || Some(rgb) != *last_rgb {
-                    draw_symbol(*canvas_ptr, symbol_id, state, rgb, *w, *h);
+                    draw_symbol(*canvas_ptr, symbol_id, state, rgb, *w, *h, *flip_h, *flip_v);
                     *last_state = Some(state);
                     *last_rgb = Some(rgb);
                 }
@@ -13129,11 +13284,104 @@ mod binding_tests {
     #[test]
     fn gli_angoli_del_gauge_passano_dal_web_a_lvgl() {
         // Il predefinito dà il 270/135 che era cablato.
-        assert_eq!(angoli_gauge(None, None), (270, 135));
+        assert_eq!(angoli_gauge(None, None, false, false), (270, 135, false));
         // Mezzo quadrante in alto: da −90 (ore 9) a 90 (ore 3).
-        assert_eq!(angoli_gauge(Some(-90.0), Some(90.0)), (180, 180));
+        assert_eq!(angoli_gauge(Some(-90.0), Some(90.0), false, false), (180, 180, false));
         // Cerchio intero da mezzogiorno.
-        assert_eq!(angoli_gauge(Some(0.0), Some(360.0)), (360, 270));
+        assert_eq!(angoli_gauge(Some(0.0), Some(360.0), false, false), (360, 270, false));
+    }
+
+    // ── Lo specchio (02-10-2026) ────────────────────────────────────────────
+
+    /// Un buffer 3×2 con un pixel riconoscibile per posizione: il primo byte
+    /// vale `10·x + y`, così dopo lo specchio si legge dove è finito ciascuno.
+    fn tela(w: usize, h: usize) -> Vec<u8> {
+        let mut b = vec![0u8; w * h * 3];
+        for y in 0..h {
+            for x in 0..w {
+                b[(y * w + x) * 3] = (10 * x + y) as u8;
+            }
+        }
+        b
+    }
+    fn primo_byte(b: &[u8], w: usize, x: usize, y: usize) -> u8 {
+        b[(y * w + x) * 3]
+    }
+
+    #[test]
+    fn lo_specchio_del_buffer_scambia_le_colonne() {
+        // È la strada dei 33 simboli builtin, che non sono SVG: disegnati con
+        // primitive alla dimensione finale, si specchiano ribaltando il
+        // buffer — una permutazione esatta, non un ricampionamento.
+        let (w, h) = (3, 2);
+        let mut b = tela(w, h);
+        specchia_buffer(&mut b, w, h, true, false);
+        assert_eq!(primo_byte(&b, w, 0, 0), 20, "la colonna 2 è finita in 0");
+        assert_eq!(primo_byte(&b, w, 2, 0), 0, "e la 0 in 2");
+        assert_eq!(primo_byte(&b, w, 1, 1), 11, "la colonna di mezzo resta dov'è");
+    }
+
+    #[test]
+    fn lo_specchio_del_buffer_scambia_le_righe() {
+        let (w, h) = (3, 2);
+        let mut b = tela(w, h);
+        specchia_buffer(&mut b, w, h, false, true);
+        assert_eq!(primo_byte(&b, w, 0, 0), 1, "la riga 1 è salita in 0");
+        assert_eq!(primo_byte(&b, w, 0, 1), 0);
+    }
+
+    #[test]
+    fn senza_specchio_il_buffer_non_si_tocca() {
+        let (w, h) = (3, 2);
+        let b = tela(w, h);
+        let mut copia = b.clone();
+        specchia_buffer(&mut copia, w, h, false, false);
+        assert_eq!(copia, b);
+    }
+
+    #[test]
+    fn un_buffer_piu_corto_del_dovuto_non_fa_danni() {
+        // Difesa, non ottimismo: il buffer arriva da LVGL attraverso un
+        // puntatore grezzo, e leggere oltre la fine sarebbe un segfault sul
+        // pannello invece di un simbolo storto.
+        let mut corto = vec![0u8; 5];
+        specchia_buffer(&mut corto, 3, 2, true, true);
+        assert_eq!(corto, vec![0u8; 5]);
+    }
+
+    #[test]
+    fn un_quadrante_simmetrico_specchiato_cambia_verso_non_forma() {
+        // Il predefinito −135…135 è simmetrico attorno all'asse verticale: lo
+        // specchio orizzontale lo lascia dov'è. Ma il valore deve crescere
+        // dall'altra parte, altrimenti il gauge «specchiato» si leggerebbe
+        // esattamente come prima — ed è il verso, non il disegno, la cosa che
+        // qualcuno vuole quando specchia uno strumento.
+        let (amp, rot, scambia) = angoli_gauge(None, None, true, false);
+        assert_eq!((amp, rot), (270, 135), "un arco simmetrico non si sposta");
+        assert!(scambia, "ma gli estremi sì: il minimo passa dall'altra parte");
+    }
+
+    #[test]
+    fn un_quadrante_asimmetrico_si_sposta_davvero() {
+        // Da mezzogiorno a ore 3 (0…90): specchiato in orizzontale diventa da
+        // ore 9 a mezzogiorno (−90…0), cioè rotazione 180 invece di 270.
+        assert_eq!(angoli_gauge(Some(0.0), Some(90.0), false, false), (90, 270, false));
+        assert_eq!(angoli_gauge(Some(0.0), Some(90.0), true, false), (90, 180, true));
+    }
+
+    #[test]
+    fn lo_specchio_verticale_ribalta_attorno_allorizzontale() {
+        // 0…90 (da mezzogiorno a ore 3) diventa 180…90, cioè il quadrante in
+        // basso a destra: `180 − θ`.
+        assert_eq!(angoli_gauge(Some(0.0), Some(90.0), false, true), (90, 0, true));
+    }
+
+    #[test]
+    fn due_specchi_non_invertono_il_verso() {
+        // Insieme sono una rotazione di mezzo giro, e una rotazione non
+        // ribalta: il minimo resta il minimo.
+        let (_, _, scambia) = angoli_gauge(Some(0.0), Some(90.0), true, true);
+        assert!(!scambia);
     }
 
     fn valore(v: TagValue) -> TagSnapshotValue {

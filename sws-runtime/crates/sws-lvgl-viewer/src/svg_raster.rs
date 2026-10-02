@@ -79,13 +79,48 @@ impl Raster {
 /// un'icona che non si vede e un runtime che viene ucciso dal kernel.
 pub const MAX_SIDE: u32 = 512;
 
+/// `base` con lo specchio applicato **dopo**, attorno al riquadro `w`×`h`.
+///
+/// # Perché lo specchio sta qui e non sui pixel
+///
+/// `flip_h`/`flip_v` erano nel modello del viewer e nessuno li leggeva: un
+/// simbolo specchiato nell'editor arrivava dritto sul pannello (seme del
+/// 26-09-2026). LVGL 8.3 non ha uno specchio di stile — `transform_zoom` non
+/// accetta valori negativi — quindi la via è un'altra per ogni famiglia di
+/// oggetti; per i simboli e le immagini, che passano da qui, è questa.
+///
+/// Si specchia **mentre il disegno è ancora vettoriale**, non ribaltando i
+/// pixel già rasterizzati (scelta del maintainer, 02-10-2026): a dimensioni
+/// normali il risultato è lo stesso, ma su un pannello grande o un simbolo
+/// ingrandito un ribaltamento di pixel perde quello che il vettoriale
+/// conserva. E non costa un passaggio in più: è la stessa `Transform` che
+/// `resvg::render` riceve comunque.
+///
+/// Lo specchio va **dopo** la scala e la centratura: `pre_concat` applica
+/// `base` per prima, e il ribaltamento poi lavora sul riquadro di
+/// destinazione, dove `w` e `h` sono quelli veri.
+fn specchia(
+    base: resvg::tiny_skia::Transform,
+    w: u32,
+    h: u32,
+    flip_h: bool,
+    flip_v: bool,
+) -> resvg::tiny_skia::Transform {
+    if !flip_h && !flip_v {
+        return base;
+    }
+    let (sx, tx) = if flip_h { (-1.0, w as f32) } else { (1.0, 0.0) };
+    let (sy, ty) = if flip_v { (-1.0, h as f32) } else { (1.0, 0.0) };
+    resvg::tiny_skia::Transform::from_row(sx, 0.0, 0.0, sy, tx, ty).pre_concat(base)
+}
+
 /// Rasterizza `svg` a `w`×`h` pixel.
 ///
 /// `None` quando l'SVG non si interpreta o le dimensioni chieste sono fuori
 /// scala: chi chiama disegna il proprio segnaposto, come già fa per un simbolo
 /// sconosciuto. Un'icona mancante è un difetto visibile; un runtime che muore
 /// per una bitmap assurda no.
-pub fn rasterize(svg: &[u8], w: u32, h: u32) -> Option<Raster> {
+pub fn rasterize(svg: &[u8], w: u32, h: u32, flip_h: bool, flip_v: bool) -> Option<Raster> {
     if w == 0 || h == 0 || w > MAX_SIDE || h > MAX_SIDE {
         return None;
     }
@@ -101,7 +136,13 @@ pub fn rasterize(svg: &[u8], w: u32, h: u32) -> Option<Raster> {
     let scale = (w as f32 / size.width()).min(h as f32 / size.height());
     let dx = (w as f32 - size.width() * scale) / 2.0;
     let dy = (h as f32 - size.height() * scale) / 2.0;
-    let transform = resvg::tiny_skia::Transform::from_translate(dx, dy).pre_scale(scale, scale);
+    let transform = specchia(
+        resvg::tiny_skia::Transform::from_translate(dx, dy).pre_scale(scale, scale),
+        w,
+        h,
+        flip_h,
+        flip_v,
+    );
     resvg::render(&tree, transform, &mut pixmap.as_mut());
 
     Some(Raster {
@@ -133,9 +174,73 @@ mod tests {
     const CERCHIO: &[u8] = br##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
         <circle cx="50" cy="50" r="40" fill="#ff0000"/></svg>"##;
 
+    /// Una forma **asimmetrica**: un triangolo che punta a destra e sta nella
+    /// metà alta. Un cerchio non servirebbe a provare lo specchio — specchiato
+    /// è identico a sé stesso, ed è proprio per questo che `rect`, `ellipse` e
+    /// `led` non hanno bisogno di niente.
+    const FRECCIA: &[u8] = br##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+        <polygon points="10,10 90,30 10,45" fill="#ff0000"/></svg>"##;
+
+    /// Dove sta il rosso: quanti pixel accesi nella metà sinistra e in quella alta.
+    fn peso(r: &Raster) -> (usize, usize) {
+        let (mut sinistra, mut alto) = (0, 0);
+        for y in 0..r.height as usize {
+            for x in 0..r.width as usize {
+                let i = (y * r.width as usize + x) * 4;
+                if r.pixels[i + 3] > 128 {
+                    if x < r.width as usize / 2 { sinistra += 1; }
+                    if y < r.height as usize / 2 { alto += 1; }
+                }
+            }
+        }
+        (sinistra, alto)
+    }
+
+    #[test]
+    fn lo_specchio_orizzontale_sposta_la_forma_dall_altra_parte() {
+        // Il difetto del seme: `flip_h` era nel modello e il rasterizzatore
+        // non lo guardava, così un simbolo specchiato nell'editor arrivava
+        // dritto sul pannello.
+        let dritto = rasterize(FRECCIA, 64, 64, false, false).unwrap();
+        let girato = rasterize(FRECCIA, 64, 64, true, false).unwrap();
+        let (s_dritto, _) = peso(&dritto);
+        let (s_girato, _) = peso(&girato);
+        assert!(s_dritto > s_girato, "la freccia punta a destra: dritta pesa di più a sinistra ({s_dritto} contro {s_girato})");
+        // E lo specchio non perde né aggiunge inchiostro: è la stessa forma.
+        let acceso = |r: &Raster| r.pixels.chunks_exact(4).filter(|p| p[3] > 128).count();
+        assert_eq!(acceso(&dritto), acceso(&girato), "lo specchio non deve cambiare l'area disegnata");
+    }
+
+    #[test]
+    fn lo_specchio_verticale_lavora_sull_altro_asse() {
+        let dritto = rasterize(FRECCIA, 64, 64, false, false).unwrap();
+        let girato = rasterize(FRECCIA, 64, 64, false, true).unwrap();
+        let (_, a_dritto) = peso(&dritto);
+        let (_, a_girato) = peso(&girato);
+        assert!(a_dritto > a_girato, "la freccia sta in alto: dritta pesa di più in alto ({a_dritto} contro {a_girato})");
+    }
+
+    #[test]
+    fn i_due_specchi_insieme_sono_una_rotazione_di_mezzo_giro() {
+        // h+v equivale a 180°: la forma finisce nell'angolo opposto.
+        let dritto = rasterize(FRECCIA, 64, 64, false, false).unwrap();
+        let doppio = rasterize(FRECCIA, 64, 64, true, true).unwrap();
+        let (s_d, a_d) = peso(&dritto);
+        let (s_x, a_x) = peso(&doppio);
+        assert!(s_d > s_x && a_d > a_x, "con tutti e due gli specchi la forma passa nell'angolo opposto");
+    }
+
+    #[test]
+    fn senza_specchio_la_trasformazione_e_quella_di_prima() {
+        // `specchia` deve restituire `base` identica: è ciò che garantisce
+        // che i tipi che non specchiano disegnino esattamente come ieri.
+        let base = resvg::tiny_skia::Transform::from_translate(3.0, 5.0).pre_scale(2.0, 2.0);
+        assert_eq!(specchia(base, 64, 64, false, false), base);
+    }
+
     #[test]
     fn rasterizza_un_svg_semplice() {
-        let r = rasterize(CERCHIO, 64, 64).expect("un cerchio deve rasterizzarsi");
+        let r = rasterize(CERCHIO, 64, 64, false, false).expect("un cerchio deve rasterizzarsi");
         assert_eq!((r.width, r.height), (64, 64));
         assert_eq!(r.bytes(), 64 * 64 * 4);
         // il centro deve essere rosso: se fosse trasparente avremmo prodotto
@@ -151,8 +256,8 @@ mod tests {
 
     #[test]
     fn un_svg_malformato_non_fa_esplodere_niente() {
-        assert!(rasterize(b"non sono un svg", 32, 32).is_none());
-        assert!(rasterize(b"", 32, 32).is_none());
+        assert!(rasterize(b"non sono un svg", 32, 32, false, false).is_none());
+        assert!(rasterize(b"", 32, 32, false, false).is_none());
     }
 
     /// Il limite esiste perché un SVG può dichiarare qualunque dimensione, e
@@ -160,12 +265,12 @@ mod tests {
     /// ucciso dal kernel.
     #[test]
     fn le_dimensioni_assurde_vengono_rifiutate() {
-        assert!(rasterize(CERCHIO, 0, 32).is_none());
-        assert!(rasterize(CERCHIO, 32, 0).is_none());
-        assert!(rasterize(CERCHIO, MAX_SIDE + 1, 32).is_none());
-        assert!(rasterize(CERCHIO, 32, MAX_SIDE + 1).is_none());
+        assert!(rasterize(CERCHIO, 0, 32, false, false).is_none());
+        assert!(rasterize(CERCHIO, 32, 0, false, false).is_none());
+        assert!(rasterize(CERCHIO, MAX_SIDE + 1, 32, false, false).is_none());
+        assert!(rasterize(CERCHIO, 32, MAX_SIDE + 1, false, false).is_none());
         assert!(
-            rasterize(CERCHIO, MAX_SIDE, MAX_SIDE).is_some(),
+            rasterize(CERCHIO, MAX_SIDE, MAX_SIDE, false, false).is_some(),
             "il limite stesso deve passare"
         );
     }
@@ -174,7 +279,7 @@ mod tests {
     /// quadrato e centrato, non stirato.
     #[test]
     fn le_proporzioni_si_mantengono() {
-        let r = rasterize(CERCHIO, 128, 64).expect("deve rasterizzarsi");
+        let r = rasterize(CERCHIO, 128, 64, false, false).expect("deve rasterizzarsi");
         // Colonna al bordo sinistro: fuori dal cerchio centrato, quindi vuota.
         let bordo = (32 * 128 + 2) * 4;
         assert_eq!(
@@ -192,7 +297,7 @@ mod tests {
 
     #[test]
     fn la_conversione_per_lvgl_usa_tre_byte_per_pixel() {
-        let r = rasterize(CERCHIO, 16, 16).expect("deve rasterizzarsi");
+        let r = rasterize(CERCHIO, 16, 16, false, false).expect("deve rasterizzarsi");
         let buf = r.to_lvgl_true_color_alpha();
         assert_eq!(
             buf.len(),
@@ -258,7 +363,7 @@ mod tests {
             let svg = std::fs::read(&file)
                 .unwrap_or_else(|e| panic!("{id}: {} non leggibile: {e}", file.display()));
             let r =
-                rasterize(&svg, 96, 96).unwrap_or_else(|| panic!("{id}: resvg non lo interpreta"));
+                rasterize(&svg, 96, 96, false, false).unwrap_or_else(|| panic!("{id}: resvg non lo interpreta"));
             let pieni = r.pixels.chunks_exact(4).filter(|p| p[3] > 16).count();
             // Soglia al 10%, misurata il 2026-08-26 sugli undici vendored di
             // allora (dal 23% al 55% di pixel pieni): lascia margine a un

@@ -20,6 +20,12 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   mostra lo stato ma non le novità. Vale per la `2.12.0-rc.1` e la `rc.2`.
 
 ### Added
+- **Lo specchio (`flip_h`/`flip_v`) funziona anche sul pannello LVGL**: prima i due campi stavano nel modello e nessuno li leggeva, così un oggetto
+  specchiato nell'editor arrivava dritto sul vetro. LVGL 8.3 non ha uno specchio di stile (`transform_zoom` non accetta valori negativi), quindi la via è
+  una per famiglia: **immagini e simboli caricati** si specchiano nella trasformazione vettoriale, prima di rasterizzare; i **33 simboli della libreria** —
+  che non sono SVG ma disegni con primitive alla dimensione finale — ribaltando il buffer del canvas, il che li copre tutti insieme ed è una permutazione
+  esatta; il **gauge** riflettendo gli angoli dell'arco **e invertendo il verso di crescita**, altrimenti si sposterebbe il disegno lasciando il minimo
+  dov'era; la **barra** col verso di riempimento. Testo, tabella e pulsanti non si specchiano, per scelta. Guardia fotografica estesa, provata rossa.
 - **`--brand` sugli script di avvio dell'IDE** (`start_editor.sh`, `start_editor_develop.sh`, o la variabile `SWS_BRAND`): sceglie il branding senza
   toccare un file versionato — scrive `dist/branding/active.json` e lascia `public/branding/active.json` al default del repo, così due macchine possono
   girare con brand diversi. Un brand inesistente ferma l'avvio ed elenca quelli disponibili, invece di partire in silenzio con quello sbagliato.

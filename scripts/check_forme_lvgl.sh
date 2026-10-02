@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Polilinea e poligono sul pannello LVGL: si disegnano, e i concavi non lo
-# bloccano? E un oggetto ruotato gira anche sul pannello?
+# bloccano? E un oggetto ruotato gira, uno specchiato si specchia?
 #
 # Perché esiste: `lv_canvas_draw_polygon` di LVGL 8 su un poligono concavo non
 # ritorna mai — schermo nero e nessun log, il caso della fiamma del simbolo
@@ -54,7 +54,9 @@ curl -sf -X PUT "$API/synoptics/Pagina%201" -H 'Content-Type: application/json' 
      "points":[{"x":420,"y":20},{"x":580,"y":100},{"x":420,"y":180},{"x":470,"y":100}]},
     {"id":"zigzag","type":"polyline","x":620,"y":40,"stroke":"#ef4444","stroke_width":6,
      "points":[{"x":620,"y":160},{"x":660,"y":40},{"x":700,"y":160},{"x":740,"y":40},{"x":780,"y":160}]},
-    {"id":"ruotato","type":"rect","x":300,"y":300,"width":200,"height":40,"rotation":90,"fill":"#a855f7"}
+    {"id":"ruotato","type":"rect","x":300,"y":300,"width":200,"height":40,"rotation":90,"fill":"#a855f7"},
+    {"id":"pompa","type":"symbol","x":20,"y":280,"width":120,"height":120,"symbol_id":"pump","state_off_color":"#38bdf8"},
+    {"id":"pompa_sp","type":"symbol","x":160,"y":280,"width":120,"height":120,"symbol_id":"pump","state_off_color":"#38bdf8","flip_h":true}
   ]}' > /dev/null
 
 echo "== il motore LVGL disegna la pagina, e finisce =="
@@ -99,6 +101,18 @@ casi = [
     # il contrario (rotazione statica su LVGL, Fase D del 26-09-2026).
     ("rettangolo ruotato di 90°: la barra è verticale", (400, 390), (0xa8, 0x55, 0xf7)),
     ("rettangolo ruotato di 90°: a destra del centro c'è il fondo", (480, 320), fondo),
+    # Lo specchio (02-10-2026). La pompa builtin ha il bocchettone a destra:
+    # specchiata deve averlo a sinistra. Si guarda proprio lì, perché il corpo
+    # è un cerchio — simmetrico, e quindi muto sullo specchio. I 33 simboli
+    # della libreria non sono SVG: sono disegnati con primitive alla
+    # dimensione finale, e si specchiano ribaltando il buffer del canvas.
+    #
+    # Pompa in (20,280) 120×120: il bocchettone sta a x≈84..98 su 100, cioè
+    # verso 20+108=128; specchiata (160,280) finisce verso 160+14=174.
+    ("la pompa ha il bocchettone a destra", (128, 338), (0x38, 0xbd, 0xf8)),
+    ("alla sua sinistra c'è il fondo", (26, 338), fondo),
+    ("la pompa specchiata ce l'ha a sinistra", (174, 338), (0x38, 0xbd, 0xf8)),
+    ("e a destra ha il fondo", (276, 338), fondo),
 ]
 for nome, (x, y), atteso in casi:
     c = pixel(x, y)
