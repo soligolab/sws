@@ -1,6 +1,6 @@
 # Perché lo storico di CasaDomotica è così grande
 
-**Stato: seme — ridotto il 27-09-2026. La causa principale è corretta (su `main` con lo squash del 27-09; prima sul ramo `feat/storico-una-strada`, 26-09 sera): una strada sola verso il disco, e l'IDE non registra. C'è anche la pulizia degli storici già gonfi («Pulisci storico», `feat/pulizia-storico`: CasaDomotica 590 → 36 MB). Restano da decidere il formato del campione e i backup che copiano lo storico.** Annotato su richiesta del maintainer il 26-09-2026, durante l'aggancio
+**Stato: piano d'esecuzione dal 03-10-2026 (sezione in fondo: formato compatto e backup). Prima: seme — ridotto il 27-09-2026. La causa principale è corretta (su `main` con lo squash del 27-09; prima sul ramo `feat/storico-una-strada`, 26-09 sera): una strada sola verso il disco, e l'IDE non registra. C'è anche la pulizia degli storici già gonfi («Pulisci storico», `feat/pulizia-storico`: CasaDomotica 590 → 36 MB). Restano da decidere il formato del campione e i backup che copiano lo storico.** Annotato su richiesta del maintainer il 26-09-2026, durante l'aggancio
 di CasaDomotica a git: «annota per dopo il capire perché il database è così grande».
 
 > **Quando questo lavoro comincia, il primo passo è una sessione di plan approfondita dedicata,
@@ -70,3 +70,81 @@ dei soli 20 tag storicizzati, filtrati.
    qualità come intero. Con quale migrazione dei database esistenti?
 4. I backup automatici devono copiare lo storico ogni volta, o solo il progetto (e lo storico a
    parte, più di rado o su richiesta)?
+
+---
+
+# Piano del 03-10-2026 — approvato
+
+> Sessione di plan del 03-10-2026, un piano solo per tre semi (pulizia del disco, immagini sul pannello,
+> storico). Le misure di oggi sono nel piano generale; qui la parte di questo seme.
+
+**Scelte del maintainer (03-10-2026):** disco → **solo `incremental`**; immagini → si tengono **quella in uso e
+la precedente**; storico → **backup e formato insieme**. Poi, rivedendo il piano: **la pulizia non parte da
+sola**. Dopo un aggiornamento riuscito si propongono **quattro scelte** — «Conferma e pulisci», «Conferma dopo il
+prossimo riavvio», «Più tardi», «Torna alla versione precedente» — e il ritorno riporta **anche i dati**:
+un'**istantanea di config + progetti con lo storico** presa prima di ogni aggiornamento, **su entrambi i canali**.
+Dopo un ritorno, niente aggiornamenti automatici **verso la versione scartata** (si riprende con una più nuova o
+con «Aggiorna ora»). Il ritorno coi dati è indispensabile proprio per il §3: la migrazione dello storico è a senso
+unico, e la versione vecchia non leggerebbe il formato nuovo.
+
+**Ordine dei rami (un ramo alla volta):**
+1. `feat/pota-incremental` → collaudo qui, squash, eliminato.
+2. `feat/aggiornamento-con-ritorno` da `main` → **rc.17**; poi **annidato** `feat/storico-compatto` → **rc.18**.
+   Le due rc servono entrambe al collaudo vero: rc.16 → rc.17 (la rc.16 non sa fare l'istantanea: si vede la
+   proposta, senza ritorno dei dati), poi rc.17 → rc.18 (istantanea presa dalla rc.17, storico migrato dalla rc.18,
+   «Torna alla precedente» → rc.17 con lo storico vecchio leggibile). Due squash dopo la conferma.
+
+### 3. Lo storico compatto e i backup
+
+**Formato** (`sws-historian/src/sqlite.rs`, l'unico che tocca le tabelle):
+```sql
+CREATE TABLE tag_storico (id INTEGER PRIMARY KEY, nome TEXT NOT NULL UNIQUE);
+CREATE TABLE campioni (
+  tag_id  INTEGER NOT NULL,   -- tag_storico.id
+  ts_ms   INTEGER NOT NULL,
+  tipo    INTEGER NOT NULL,   -- 0 bool, 1 int, 2 float, 3 testo, 4 json (array/struttura)
+  valore,                     -- senza affinità: 0/1, i64 esatto, REAL, TEXT
+  qualita INTEGER NOT NULL,   -- 0 Good, 1 Uncertain, 2 Bad
+  PRIMARY KEY (tag_id, ts_ms)) WITHOUT ROWID;
+CREATE INDEX idx_campioni_ts ON campioni(ts_ms);
+CREATE VIEW samples AS SELECT … -- tag, ts_ms, value (JSON), quality (testo): chi legge il file a mano
+                                -- (e le guardie con stack) continua a funzionare
+```
+- Conversione `TagValue` ↔ (`tipo`, `valore`) in due funzioni pure, testate su ogni variante (Int oltre 2^53,
+  Float intero, testo, array, struttura). Cache `nome → id` in `SqliteStore` (riempita all'apertura).
+- Tutte le query riscritte sul nuovo schema: `append`, `restore_recent`, `last_before`, `query_range`,
+  `prune_older_than_ms`, `prune_excess_rows`, `total_samples`, `full_stats`, `distinct_tags` (da `tag_storico` che
+  ha campioni), `delete_tag`, `pulisci_storico` (LAG su `tipo, valore, qualita`).
+- **Migrazione all'apertura** (`migra_campioni`, accanto a `migra_allarmi`): se esiste una **tabella** `samples` →
+  in una transazione: `tag_storico` dai tag distinti, `campioni` da `samples` con `json_type(value)` per il tipo
+  (testo `'Good'/'Bad'/…` o intero per la qualità, per i database di prova vecchi), `DROP TABLE samples`, vista;
+  poi `VACUUM`. Log con righe e byte prima/dopo. Test: database vecchio finto → stesse letture prima e dopo.
+- **Backup** (`sws-web/src/backups.rs`): `backup_now(dir, con_storico: bool)`. Il giro automatico (`main.rs`) e
+  `migra_segreti_se_serve` **senza** storico; il pulsante «Crea backup» (`create_backup_handler`) **con** storico,
+  scritto con `SqliteStore::vacuum_into` (copia coerente, già compattata) invece della copia grezza; mai i file
+  `historian-prima-della-pulizia-*`. Il ripristino lascia già stare `history/` se il backup non ce l'ha (verificato
+  in `restore_backup`); un test lo blinda.
+- `scripts/check_database_mgmt.sh` / `check_deploy_preserve.sh` (guardie con stack) creano `samples` vecchio stile:
+  con la migrazione e la vista restano valide; si rilanciano una volta.
+
+### Documenti
+
+Per ciascun ramo: CHANGELOG, `NOVITA.yaml` (ritorno e storico: sì, con riga di compatibilità «il ritorno coi dati
+vale dagli aggiornamenti fatti da una versione ≥ rc.17»; incremental: no, è sviluppo), manuale (capitolo packaging:
+conferma, pulizia, ritorno; capitolo storico/backup), HOWTO (capitolo nuovo «tornare alla versione precedente»),
+`STATUS.md`, piano in archivio.
+
+### Verifica
+
+- **Ramo 1**: test shell provato rosso; `./scripts/pota_incremental.sh` a vuoto e poi `--esegui` qui (attesi ~80 GB
+  liberati), poi `cargo check` per misurare il costo della prima build dopo. Conferma del maintainer, squash.
+- **Ramo 2 (rc.17)**: `cargo test`, vitest, `pnpm build`, `check_static.sh`. Sul TC620 rc.16 → rc.17 da archivio
+  (l'IDE chiede l'istantanea alla rc.16 → 404, si prosegue): dopo 120 s compare la domanda; si prova «Più tardi»
+  (torna dopo un riavvio) e «Dopo il prossimo riavvio» (riavvio → immagini 9 → 2, nessuna domanda).
+- **Ramo 3 (rc.18)**: test di `sws-historian` (conversione, migrazione, letture uguali prima/dopo), migrazione su
+  una **copia** di `CasaDomotica/history/historian.db` (dimensione, conteggi per tag, trend dal vivo con
+  `start_editor_develop.sh`). Sul TC620 rc.17 → rc.18: istantanea presa dalla rc.17, storico da 91 MB migrato,
+  trend uguali; poi **«Torna alla precedente»** → rc.17 con lo storico vecchio leggibile e gli aggiornamenti
+  automatici fermi sulla rc.18; infine «Aggiorna ora» di nuovo e «Conferma e pulisci». SSH in lettura per
+  controllare (`podman images`, JSON dello stato, dimensione del db, `journalctl --user -u 'sws-immagini-*'`).
+  Conferma del maintainer, due squash, push solo su istruzione.

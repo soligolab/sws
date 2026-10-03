@@ -1,6 +1,6 @@
 # Il disco che cresce senza misura — una pulizia periodica, non un'accetta
 
-> **Seme, non un piano d'esecuzione.** Quando questo lavoro comincerà, il primo passo è una
+> **Piano d'esecuzione dal 03-10-2026** (sezione in fondo). Era un seme: Quando questo lavoro comincerà, il primo passo è una
 > **sessione di plan approfondita e dedicata** che rimisuri tutto e ne sviscerti ogni dettaglio:
 > le misure qui sotto sono di oggi e invecchiano in fretta, e una regola di cancellazione scritta
 > mesi prima di essere applicata è una regola che mente.
@@ -82,3 +82,62 @@ lo stesso genere di guasto.
   questo. `clean_disk_space.sh` lo tiene già dietro un flag apposta.
 - **Una pulizia dentro un rituale è una pulizia che nessuno guarda più**: se sbaglia, sbaglia in
   silenzio ogni sera. Vale la regola delle guardie — va provata rossa prima di fidarsene.
+
+---
+
+# Piano del 03-10-2026 — approvato
+
+> Sessione di plan del 03-10-2026, un piano solo per tre semi (pulizia del disco, immagini sul pannello,
+> storico). Le misure di oggi sono nel piano generale; qui la parte di questo seme.
+
+**Scelte del maintainer (03-10-2026):** disco → **solo `incremental`**; immagini → si tengono **quella in uso e
+la precedente**; storico → **backup e formato insieme**. Poi, rivedendo il piano: **la pulizia non parte da
+sola**. Dopo un aggiornamento riuscito si propongono **quattro scelte** — «Conferma e pulisci», «Conferma dopo il
+prossimo riavvio», «Più tardi», «Torna alla versione precedente» — e il ritorno riporta **anche i dati**:
+un'**istantanea di config + progetti con lo storico** presa prima di ogni aggiornamento, **su entrambi i canali**.
+Dopo un ritorno, niente aggiornamenti automatici **verso la versione scartata** (si riprende con una più nuova o
+con «Aggiorna ora»). Il ritorno coi dati è indispensabile proprio per il §3: la migrazione dello storico è a senso
+unico, e la versione vecchia non leggerebbe il formato nuovo.
+
+**Ordine dei rami (un ramo alla volta):**
+1. `feat/pota-incremental` → collaudo qui, squash, eliminato.
+2. `feat/aggiornamento-con-ritorno` da `main` → **rc.17**; poi **annidato** `feat/storico-compatto` → **rc.18**.
+   Le due rc servono entrambe al collaudo vero: rc.16 → rc.17 (la rc.16 non sa fare l'istantanea: si vede la
+   proposta, senza ritorno dei dati), poi rc.17 → rc.18 (istantanea presa dalla rc.17, storico migrato dalla rc.18,
+   «Torna alla precedente» → rc.17 con lo storico vecchio leggibile). Due squash dopo la conferma.
+
+### 1. La cache incrementale di cargo
+
+- `scripts/pota_incremental.sh [--giorni N] [--esegui]` (default 2 giorni, senza `--esegui` dice solo cosa
+  toglierebbe): cartelle in `*/incremental/` con mtime più vecchia di N giorni, nei tre target
+  (`sws-runtime/target`, `crates/sws-kiosk/target`, `crates/sws-lvgl-viewer/target`), profili `debug` e `release`.
+  **Esclusi** `target/aarch64-*` e tutto `deps`. Stampa spazio prima/dopo e quanto ha liberato.
+- Se gira un `cargo`/`rustc` con cwd in questo checkout (`/proc/*/cwd`), non tocca niente e lo dice.
+- `tests/shell/pota-incremental.sh`: albero finto (cartelle vecchie/nuove con `touch -d`, un `aarch64` vecchio, una
+  `deps` vecchia) → restano le nuove, l'`aarch64` e `deps`. Lanciato da una guardia nuova
+  `scripts/check_pota_incremental.sh` (in `check_static.sh`), provata rossa.
+- `.claude/skills/finalizza-giornata/SKILL.md`: passo nuovo **dopo il push** — `./scripts/pota_incremental.sh
+  --esegui`; un errore non fa fallire la chiusura. `clean_disk_space.sh` resta l'accetta per le emergenze (una riga
+  che rimanda allo script nuovo).
+
+### Documenti
+
+Per ciascun ramo: CHANGELOG, `NOVITA.yaml` (ritorno e storico: sì, con riga di compatibilità «il ritorno coi dati
+vale dagli aggiornamenti fatti da una versione ≥ rc.17»; incremental: no, è sviluppo), manuale (capitolo packaging:
+conferma, pulizia, ritorno; capitolo storico/backup), HOWTO (capitolo nuovo «tornare alla versione precedente»),
+`STATUS.md`, piano in archivio.
+
+### Verifica
+
+- **Ramo 1**: test shell provato rosso; `./scripts/pota_incremental.sh` a vuoto e poi `--esegui` qui (attesi ~80 GB
+  liberati), poi `cargo check` per misurare il costo della prima build dopo. Conferma del maintainer, squash.
+- **Ramo 2 (rc.17)**: `cargo test`, vitest, `pnpm build`, `check_static.sh`. Sul TC620 rc.16 → rc.17 da archivio
+  (l'IDE chiede l'istantanea alla rc.16 → 404, si prosegue): dopo 120 s compare la domanda; si prova «Più tardi»
+  (torna dopo un riavvio) e «Dopo il prossimo riavvio» (riavvio → immagini 9 → 2, nessuna domanda).
+- **Ramo 3 (rc.18)**: test di `sws-historian` (conversione, migrazione, letture uguali prima/dopo), migrazione su
+  una **copia** di `CasaDomotica/history/historian.db` (dimensione, conteggi per tag, trend dal vivo con
+  `start_editor_develop.sh`). Sul TC620 rc.17 → rc.18: istantanea presa dalla rc.17, storico da 91 MB migrato,
+  trend uguali; poi **«Torna alla precedente»** → rc.17 con lo storico vecchio leggibile e gli aggiornamenti
+  automatici fermi sulla rc.18; infine «Aggiorna ora» di nuovo e «Conferma e pulisci». SSH in lettura per
+  controllare (`podman images`, JSON dello stato, dimensione del db, `journalctl --user -u 'sws-immagini-*'`).
+  Conferma del maintainer, due squash, push solo su istruzione.
