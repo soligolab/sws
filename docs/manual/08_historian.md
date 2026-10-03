@@ -32,6 +32,25 @@ Tag update (da plugin PLC)
 Il ring buffer garantisce bassa latenza per il trend live.
 SQLite garantisce persistenza tra restart del runtime.
 
+### Il formato del file (dal 03-10-2026)
+
+`history/historian.db` tiene il nome di ogni tag una volta sola (tabella `tag_storico`) e i campioni in
+`campioni (tag_id, ts_ms, tipo, valore, qualita)`: il valore col suo tipo (booleano, intero esatto, reale, testo, o
+JSON per array e strutture), la qualità come numero (0 Good, 1 Uncertain, 2 Bad). Occupa circa la metà del formato
+di prima (CasaDomotica: 36 → 18 MB; la copia da 7 milioni di righe 547 → 227 MB). Un file del formato di prima si
+converte da solo alla prima apertura, **in sottofondo**: il runtime parte subito, registra già nel formato nuovo, e un
+thread sposta le righe vecchie a lotti (una transazione ciascuno: se il pannello si spegne a metà, riprende da lì),
+poi compatta. Finché non ha finito — un minuto o due per un milione di righe — i trend mostrano il passato in parte. La vista `samples (tag, ts_ms, value, quality)` rifà la
+forma di prima per chi legge il file con `sqlite3`. Un pannello aggiornato a questa versione e poi riportato alla
+precedente con «Torna alla …» riprende lo storico dall'istantanea presa prima dell'aggiornamento (HOWTO §21): la
+versione di prima non sa leggere il formato nuovo.
+
+### Backup e storico
+
+I backup automatici (ogni N minuti) **non** contengono lo storico: lo copiavano intero a ogni giro (CasaDomotica: 7
+backup, 3,8 GB). «Crea backup» lo contiene, copiato in modo coerente anche mentre il runtime registra, e senza le
+copie `historian-prima-della-pulizia-*`. Ripristinare un backup senza storico lascia lo storico com'è.
+
 ---
 
 ## Configurazione campionamento

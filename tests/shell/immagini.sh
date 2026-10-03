@@ -37,13 +37,19 @@ case "\$1 \$2" in
      esac ;;
   "rmi -f") rm -rf "\$DB/\$3" ;;
   "tag "*) : ;;
+  "info --format") echo "$T/storage" ;;
 esac
 EOF
 cat > "$T/bin/systemctl" <<EOF
 #!/usr/bin/env bash
 echo "systemctl \$*" >> "$LOG"
 EOF
-chmod +x "$T/bin/podman" "$T/bin/systemctl"
+# df finto: lo spazio libero cresce di 100 per ogni immagine tolta.
+cat > "$T/bin/df" <<EOF
+#!/usr/bin/env bash
+echo Avail; echo \$(( 10000 - 100 * \$(ls "$DB" | wc -l) ))
+EOF
+chmod +x "$T/bin/podman" "$T/bin/systemctl" "$T/bin/df"
 export PATH="$T/bin:$PATH"
 
 immagine() {  # immagine <id> <versione> <byte> <creata> <nomi>
@@ -76,7 +82,7 @@ j() { python3 -c "import json,sys; d=json.load(open('$C/immagini.json')); print(
 bash "$S" stato "$C" > "$T/out.log"
 prova "stato prima volta: attuale eee"                 "[ \"\$(j \"d['attuale']['id']\")\" = eee ]"
 prova "stato prima volta: precedente la più recente"   "[ \"\$(j \"d['precedente']['versione']\")\" = 2.12.0-rc.16 ]"
-prova "stato: recuperabili = le altre tre"             "[ \"\$(j \"d['recuperabili_byte']\")\" = 300 ]"
+prova "stato: da togliere = le altre tre"              "[ \"\$(j \"d['da_togliere']\")\" = 3 ]"
 
 # ── stato dopo un aggiornamento: quella di prima diventa la precedente ────────
 immagine fff 2.12.0-rc.18 100 50 "localhost/sws-runtime:2.12.0-rc.18-arm64"

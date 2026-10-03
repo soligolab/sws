@@ -58,8 +58,10 @@ pub struct StatoImmagini {
     pub quando_ms: i64,
     pub attuale: Option<Immagine>,
     pub precedente: Option<Immagine>,
+    /// Quante immagini toglierebbe una pulizia adesso. Non i byte: le immagini
+    /// condividono gli strati, e sommarli contava lo stesso spazio più volte.
     #[serde(default)]
-    pub recuperabili_byte: u64,
+    pub da_togliere: u32,
     #[serde(default)]
     pub pulizia: Option<Pulizia>,
 }
@@ -88,6 +90,13 @@ pub struct Memoria {
     pub pulisci_al_prossimo_avvio: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ultimo_ritorno: Option<Ritorno>,
+    /// Si è appena tornati alla versione di prima: l'immagine che gira vale già
+    /// come confermata (03-10-2026, collaudo sul TC620 — senza, la versione a cui
+    /// si era tornati chiedeva «confermare l'aggiornamento dalla rc.18 alla
+    /// rc.17?», con un «Torna alla rc.18» che riportava proprio dove si era
+    /// scelto di non stare).
+    #[serde(default)]
+    pub appena_tornato: bool,
 }
 
 /// La domanda aperta, per l'IDE e per il pannello.
@@ -99,7 +108,8 @@ pub struct Domanda {
     /// C'è l'istantanea dei dati: il ritorno riporta anche quelli.
     pub istantanea: bool,
     pub istantanea_quando_ms: Option<i64>,
-    pub recuperabili_byte: u64,
+    /// Quante immagini toglierebbe «Conferma e pulisci».
+    pub da_togliere: u32,
 }
 
 /// Lo stato per `/api/system`.
@@ -131,7 +141,7 @@ pub fn decidi_domanda(s: &StatoImmagini, m: &Memoria, versione: &str, ist: Optio
         // L'istantanea vale solo se è stata presa dalla versione a cui si torna.
         istantanea: ist.is_some_and(|i| i.versione == prec.versione),
         istantanea_quando_ms: ist.filter(|i| i.versione == prec.versione).map(|i| i.quando_ms),
-        recuperabili_byte: s.recuperabili_byte,
+        da_togliere: s.da_togliere,
     })
 }
 
@@ -239,7 +249,8 @@ pub async fn all_avvio(config: PathBuf) {
         }
         m.ultimo_ritorno = Some(r);
         // La domanda su questa immagine non ha senso: ci si è appena tornati.
-        m.confermata = None;
+        // L'ID dell'immagine lo dice lo script, al giro di `stato` qui sotto.
+        m.appena_tornato = true;
         m.pulisci_al_prossimo_avvio = false;
         salva_memoria(&config, &m).await;
         let _ = tokio::fs::remove_file(config.join(FILE_RITORNO)).await;
@@ -258,6 +269,11 @@ pub async fn all_avvio(config: PathBuf) {
         }
     };
     let versione = crate::aggiornamento::VERSIONE;
+    if m.appena_tornato {
+        m.appena_tornato = false;
+        m.confermata = s.attuale.as_ref().map(|a| a.id.clone());
+        salva_memoria(&config, &m).await;
+    }
     // Un'istantanea presa da questa stessa versione viene da un aggiornamento
     // che non è avvenuto (podman è tornato indietro da solo) o da un ritorno già
     // fatto: non riporta a niente.
@@ -332,7 +348,7 @@ mod tests {
             quando_ms: 1,
             attuale: Some(img(att, "2.12.0-rc.18")),
             precedente: prec.map(|p| img(p, "2.12.0-rc.17")),
-            recuperabili_byte: 5,
+            da_togliere: 3,
             pulizia: None,
         }
     }
@@ -371,7 +387,7 @@ mod tests {
 
     #[test]
     fn il_json_dello_script_si_legge() {
-        let t = r#"{"quando_ms":1759480000000,"attuale":{"id":"66c7","nomi":"localhost/sws-runtime:2.12.0-rc.16-arm64","versione":"2.12.0-rc.16","byte":480000000},"precedente":null,"recuperabili_byte":863000000,"pulizia":{"quando_ms":1,"tolte":[{"id":"c937","nomi":"","byte":473000000}],"liberati_byte":473000000,"istantanea_tolta":true}}"#;
+        let t = r#"{"quando_ms":1759480000000,"attuale":{"id":"66c7","nomi":"localhost/sws-runtime:2.12.0-rc.16-arm64","versione":"2.12.0-rc.16","byte":480000000},"precedente":null,"da_togliere":7,"pulizia":{"quando_ms":1,"tolte":[{"id":"c937","nomi":"","byte":473000000}],"liberati_byte":473000000,"istantanea_tolta":true}}"#;
         let s: StatoImmagini = serde_json::from_str(t).unwrap();
         assert_eq!(s.attuale.unwrap().versione, "2.12.0-rc.16");
         assert!(s.precedente.is_none());

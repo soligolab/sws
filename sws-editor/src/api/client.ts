@@ -386,7 +386,8 @@ export interface DomandaConferma {
   /** C'è l'istantanea dei dati: il ritorno riporta anche quelli. */
   istantanea: boolean;
   istantanea_quando_ms: number | null;
-  recuperabili_byte: number;
+  /** Quante immagini toglierebbe «Conferma e pulisci». */
+  da_togliere: number;
 }
 
 export interface PuliziaImmagini {

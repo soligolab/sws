@@ -65,7 +65,7 @@ export function ConfermaAggiornamento() {
         <>
           <div style={{ fontSize: 12, color: "var(--brand-warning, #f59e0b)" }}>{t("confermaAggiornamento.domanda", { da: d.da, a: d.a })}</div>
           <div style={sotto}>{t(d.istantanea ? "confermaAggiornamento.conDati" : "confermaAggiornamento.senzaDati")}</div>
-          {d.recuperabili_byte > 0 && <div style={sotto}>{t("confermaAggiornamento.recuperabili", { mb: mb(d.recuperabili_byte) })}</div>}
+          {d.da_togliere > 0 && <div style={sotto}>{t("confermaAggiornamento.daTogliere", { n: d.da_togliere })}</div>}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
             <button type="button" disabled={inviando} onClick={() => void rispondi("pulisci")}>{t("confermaAggiornamento.pulisci")}</button>
             <button type="button" disabled={inviando} onClick={() => void rispondi("dopo_riavvio")}>{t("confermaAggiornamento.dopoRiavvio")}</button>

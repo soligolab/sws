@@ -1,0 +1,614 @@
+# TC620 — sistema (03-10-2026).
+#
+# Un esempio di **tipo struttura**: la variabile `tc620` è un'istanza del tipo
+# `host`, che raccoglie tutto ciò che il protocollo Host legge da un TC620
+# (CPU e core, carico, memoria, temperature, dischi, rete, identità). Le
+# mappature della sorgente puntano alle **foglie** (`tc620.core_pct[3]`,
+# `tc620.disco_progetti.libero_gb`), e i tipi `disco` e `interfaccia_rete`
+# mostrano i membri annidati.
+#
+# I parametri (zone termiche, mount, interfacce) sono quelli che il catalogo
+# Host di un TC620 riporta: su un altro dispositivo si leggono da Configurazione
+# → Sorgenti → Host, e una foglia senza parametro valido resta Bad.
+#
+# L'orologio in testata è un'espressione Python (`time.strftime`) in ora locale
+# del pannello; si ricalcola a ogni aggiornamento di un tag, cioè ogni secondo
+# col polling Host a 1000 ms.
+meta:
+  name: tc620-sistema
+  version: 1.0.0
+target:
+  kind: lvgl_framebuffer
+types:
+- id: disco
+  description: Un punto di montaggio del pannello (protocollo Host)
+  members:
+  - name: usato_pct
+    description: Spazio usato
+    data_type: f32
+    unit: '%'
+    decimals: 1
+    range_lo: 0.0
+    range_hi: 100.0
+    history_min_interval_ms: 10000
+  - name: libero_gb
+    description: Spazio libero
+    data_type: f64
+    unit: GB
+    decimals: 2
+    history_min_interval_ms: 10000
+- id: interfaccia_rete
+  description: Il traffico di un'interfaccia di rete del pannello (protocollo Host)
+  members:
+  - name: rx_bps
+    description: Byte al secondo ricevuti
+    data_type: f64
+    unit: B/s
+    decimals: 0
+    history_min_interval_ms: 10000
+  - name: tx_bps
+    description: Byte al secondo trasmessi
+    data_type: f64
+    unit: B/s
+    decimals: 0
+    history_min_interval_ms: 10000
+- id: host
+  description: Tutto ciò che il protocollo Host legge da un TC620 — CPU, memoria, temperature, dischi, rete, identità
+  members:
+  - name: cpu_pct
+    description: Utilizzo CPU totale
+    data_type: f32
+    unit: '%'
+    decimals: 1
+    range_lo: 0.0
+    range_hi: 100.0
+    history_min_interval_ms: 10000
+  - name: core_pct
+    description: Utilizzo di ogni core (il TC620 ne ha 6)
+    data_type: f32
+    array:
+    - 6
+    unit: '%'
+    decimals: 1
+    range_lo: 0.0
+    range_hi: 100.0
+    history_min_interval_ms: 10000
+  - name: carico_1m
+    description: Carico medio a 1 minuto
+    data_type: f32
+    decimals: 2
+    history_min_interval_ms: 10000
+  - name: carico_5m
+    description: Carico medio a 5 minuti
+    data_type: f32
+    decimals: 2
+    history_min_interval_ms: 10000
+  - name: carico_15m
+    description: Carico medio a 15 minuti
+    data_type: f32
+    decimals: 2
+    history_min_interval_ms: 10000
+  - name: ram_usata_pct
+    description: Memoria usata
+    data_type: f32
+    unit: '%'
+    decimals: 1
+    range_lo: 0.0
+    range_hi: 100.0
+    history_min_interval_ms: 10000
+  - name: ram_usata_mb
+    description: Memoria usata
+    data_type: f64
+    unit: MB
+    decimals: 0
+    history_min_interval_ms: 10000
+  - name: ram_disponibile_mb
+    description: Memoria disponibile
+    data_type: f64
+    unit: MB
+    decimals: 0
+    history_min_interval_ms: 10000
+  - name: ram_totale_mb
+    description: Memoria totale
+    data_type: f64
+    unit: MB
+    decimals: 0
+    history_min_interval_ms: 10000
+  - name: swap_usata_pct
+    description: Swap usata
+    data_type: f32
+    unit: '%'
+    decimals: 1
+    history_min_interval_ms: 10000
+  - name: temperatura_cpu
+    description: Zona termica cpu-thermal
+    data_type: f32
+    unit: °C
+    decimals: 1
+    history_min_interval_ms: 10000
+  - name: temperatura_gpu
+    description: Zona termica gpu-thermal
+    data_type: f32
+    unit: °C
+    decimals: 1
+    history_min_interval_ms: 10000
+  - name: temperatura_mule_1
+    description: Sensore hwmon mule/temp1
+    data_type: f32
+    unit: °C
+    decimals: 1
+    history_min_interval_ms: 10000
+  - name: temperatura_mule_2
+    description: Sensore hwmon mule/temp2
+    data_type: f32
+    unit: °C
+    decimals: 1
+    history_min_interval_ms: 10000
+  - name: disco_sistema
+    description: Il disco di sistema (/)
+    type_ref: disco
+  - name: disco_progetti
+    description: Il disco dei progetti (/var/sws/projects)
+    type_ref: disco
+  - name: ethernet0
+    type_ref: interfaccia_rete
+  - name: ethernet1
+    type_ref: interfaccia_rete
+  - name: uptime_s
+    description: Da quanto è acceso il pannello
+    data_type: u64
+    unit: s
+    history_min_interval_ms: 60000
+  - name: hostname
+    description: Nome di rete del pannello
+    data_type: string
+    history: false
+  - name: numero_serie
+    description: Numero di serie della scheda (device-tree)
+    data_type: string
+    history: false
+  - name: modello
+    description: Modello della scheda
+    data_type: string
+    history: false
+tags:
+- id: tc620
+  description: Il pannello stesso, letto dal protocollo Host
+  type_ref: host
+  history: true
+- id: orologio.ora
+  data_type: string
+  description: Ora locale del pannello (HH:MM:SS)
+  expression: 'import time
+
+    time.strftime(''%H:%M:%S'')'
+- id: orologio.data
+  data_type: string
+  description: Data locale del pannello (GG/MM/AAAA)
+  expression: 'import time
+
+    time.strftime(''%d/%m/%Y'')'
+sources:
+- kind: host
+  id: host-tc620
+  poll_interval_ms: 1000
+  metrics:
+  - tag: tc620.cpu_pct
+    metric: cpu_pct
+  - tag: tc620.core_pct[0]
+    metric: cpu_core_pct
+    param: '0'
+  - tag: tc620.core_pct[1]
+    metric: cpu_core_pct
+    param: '1'
+  - tag: tc620.core_pct[2]
+    metric: cpu_core_pct
+    param: '2'
+  - tag: tc620.core_pct[3]
+    metric: cpu_core_pct
+    param: '3'
+  - tag: tc620.core_pct[4]
+    metric: cpu_core_pct
+    param: '4'
+  - tag: tc620.core_pct[5]
+    metric: cpu_core_pct
+    param: '5'
+  - tag: tc620.carico_1m
+    metric: load1
+  - tag: tc620.carico_5m
+    metric: load5
+  - tag: tc620.carico_15m
+    metric: load15
+  - tag: tc620.ram_usata_pct
+    metric: mem_used_pct
+  - tag: tc620.ram_usata_mb
+    metric: mem_used_mb
+  - tag: tc620.ram_disponibile_mb
+    metric: mem_available_mb
+  - tag: tc620.ram_totale_mb
+    metric: mem_total_mb
+  - tag: tc620.swap_usata_pct
+    metric: swap_used_pct
+  - tag: tc620.temperatura_cpu
+    metric: temp
+    param: cpu-thermal
+  - tag: tc620.temperatura_gpu
+    metric: temp
+    param: gpu-thermal
+  - tag: tc620.temperatura_mule_1
+    metric: temp
+    param: mule/temp1
+  - tag: tc620.temperatura_mule_2
+    metric: temp
+    param: mule/temp2
+  - tag: tc620.disco_sistema.usato_pct
+    metric: disk_used_pct
+    param: /
+  - tag: tc620.disco_sistema.libero_gb
+    metric: disk_free_gb
+    param: /
+  - tag: tc620.disco_progetti.usato_pct
+    metric: disk_used_pct
+    param: /var/sws/projects
+  - tag: tc620.disco_progetti.libero_gb
+    metric: disk_free_gb
+    param: /var/sws/projects
+  - tag: tc620.ethernet0.rx_bps
+    metric: net_rx_bps
+    param: ethernet0
+  - tag: tc620.ethernet0.tx_bps
+    metric: net_tx_bps
+    param: ethernet0
+  - tag: tc620.ethernet1.rx_bps
+    metric: net_rx_bps
+    param: ethernet1
+  - tag: tc620.ethernet1.tx_bps
+    metric: net_tx_bps
+    param: ethernet1
+  - tag: tc620.uptime_s
+    metric: uptime_s
+  - tag: tc620.hostname
+    metric: hostname
+  - tag: tc620.numero_serie
+    metric: serial_number
+  - tag: tc620.modello
+    metric: model
+alarms:
+- id: tc620_cpu_calda
+  tag: tc620.temperatura_cpu
+  levels:
+  - condition:
+      kind: above
+      threshold: 75.0
+    severity: Warning
+    message: '{{t0058}}'
+  - condition:
+      kind: above
+      threshold: 85.0
+    severity: Critical
+    message: '{{t0059}}'
+- id: tc620_disco_pieno
+  tag: tc620.disco_progetti.usato_pct
+  levels:
+  - condition:
+      kind: above
+      threshold: 90.0
+    severity: Warning
+    message: '{{t0060}}'
+page_layout:
+  size_mode: fixed
+  home_page_id: tc620_panoramica
+  page_tree:
+  - id: tc620_panoramica
+  - id: tc620_cpu
+  - id: tc620_memoria
+  - id: tc620_temperature
+  - id: tc620_dischi
+  - id: tc620_rete
+languages:
+  default: it
+  langs:
+  - it
+  - en
+  - es
+  entries:
+  - key: t0001
+    values:
+      it: CPU
+      en: CPU
+      es: CPU
+  - key: t0002
+    values:
+      it: RAM usata
+      en: RAM used
+      es: RAM usada
+  - key: t0003
+    values:
+      it: Temperatura CPU
+      en: CPU temperature
+      es: Temperatura de CPU
+  - key: t0004
+    values:
+      it: Disco progetti
+      en: Projects disk
+      es: Disco de proyectos
+  - key: t0005
+    values:
+      it: CPU e RAM — ultimi 10 minuti
+      en: CPU and RAM — last 10 minutes
+      es: CPU y RAM — últimos 10 minutos
+  - key: t0006
+    values:
+      it: Temperature — ultimi 10 minuti
+      en: Temperatures — last 10 minutes
+      es: Temperaturas — últimos 10 minutos
+  - key: t0007
+    values:
+      it: GPU
+      en: GPU
+      es: GPU
+  - key: t0008
+    values:
+      it: Panoramica
+      en: Overview
+      es: Resumen
+  - key: t0009
+    values:
+      it: Modello
+      en: Model
+      es: Modelo
+  - key: t0010
+    values:
+      it: Numero di serie
+      en: Serial number
+      es: Número de serie
+  - key: t0011
+    values:
+      it: Nome di rete
+      en: Hostname
+      es: Nombre de red
+  - key: t0012
+    values:
+      it: Acceso da
+      en: Up for
+      es: Encendido desde
+  - key: t0013
+    values:
+      it: CPU totale
+      en: Total CPU
+      es: CPU total
+  - key: t0014
+    values:
+      it: Utilizzo per core
+      en: Usage per core
+      es: Uso por núcleo
+  - key: t0015
+    values:
+      it: '0'
+      en: '0'
+      es: '0'
+  - key: t0016
+    values:
+      it: '1'
+      en: '1'
+      es: '1'
+  - key: t0017
+    values:
+      it: '2'
+      en: '2'
+      es: '2'
+  - key: t0018
+    values:
+      it: '3'
+      en: '3'
+      es: '3'
+  - key: t0019
+    values:
+      it: '4'
+      en: '4'
+      es: '4'
+  - key: t0020
+    values:
+      it: '5'
+      en: '5'
+      es: '5'
+  - key: t0021
+    values:
+      it: Carico 1 min
+      en: Load 1 min
+      es: Carga 1 min
+  - key: t0022
+    values:
+      it: Carico 5 min
+      en: Load 5 min
+      es: Carga 5 min
+  - key: t0023
+    values:
+      it: Carico 15 min
+      en: Load 15 min
+      es: Carga 15 min
+  - key: t0024
+    values:
+      it: Core — ultimi 10 minuti
+      en: Cores — last 10 minutes
+      es: Núcleos — últimos 10 minutos
+  - key: t0025
+    values:
+      it: Core 0
+      en: Core 0
+      es: Núcleo 0
+  - key: t0026
+    values:
+      it: Core 1
+      en: Core 1
+      es: Núcleo 1
+  - key: t0027
+    values:
+      it: Core 2
+      en: Core 2
+      es: Núcleo 2
+  - key: t0028
+    values:
+      it: Core 3
+      en: Core 3
+      es: Núcleo 3
+  - key: t0029
+    values:
+      it: Core 4
+      en: Core 4
+      es: Núcleo 4
+  - key: t0030
+    values:
+      it: Core 5
+      en: Core 5
+      es: Núcleo 5
+  - key: t0031
+    values:
+      it: Totale
+      en: Total
+      es: Total
+  - key: t0032
+    values:
+      it: Swap usata
+      en: Swap used
+      es: Swap usada
+  - key: t0033
+    values:
+      it: RAM disponibile
+      en: RAM available
+      es: RAM disponible
+  - key: t0034
+    values:
+      it: RAM totale
+      en: RAM total
+      es: RAM total
+  - key: t0035
+    values:
+      it: '{value:.0f} MB'
+      en: '{value:.0f} MB'
+      es: '{value:.0f} MB'
+  - key: t0036
+    values:
+      it: Memoria — ultimi 10 minuti
+      en: Memory — last 10 minutes
+      es: Memoria — últimos 10 minutos
+  - key: t0037
+    values:
+      it: Memoria
+      en: Memory
+      es: Memoria
+  - key: t0038
+    values:
+      it: Scheda 1
+      en: Board 1
+      es: Placa 1
+  - key: t0039
+    values:
+      it: Scheda 2
+      en: Board 2
+      es: Placa 2
+  - key: t0040
+    values:
+      it: Temperature
+      en: Temperatures
+      es: Temperaturas
+  - key: t0041
+    values:
+      it: Disco di sistema (/)
+      en: System disk (/)
+      es: Disco del sistema (/)
+  - key: t0042
+    values:
+      it: Disco progetti (/var/sws/projects)
+      en: Projects disk (/var/sws/projects)
+      es: Disco de proyectos (/var/sws/projects)
+  - key: t0043
+    values:
+      it: Spazio libero
+      en: Free space
+      es: Espacio libre
+  - key: t0044
+    values:
+      it: '{value:.2f} GB'
+      en: '{value:.2f} GB'
+      es: '{value:.2f} GB'
+  - key: t0045
+    values:
+      it: Spazio usato — ultimi 10 minuti
+      en: Space used — last 10 minutes
+      es: Espacio usado — últimos 10 minutos
+  - key: t0046
+    values:
+      it: Dischi
+      en: Disks
+      es: Discos
+  - key: t0047
+    values:
+      it: ethernet0
+      en: ethernet0
+      es: ethernet0
+  - key: t0048
+    values:
+      it: Ricevuti
+      en: Received
+      es: Recibidos
+  - key: t0049
+    values:
+      it: Trasmessi
+      en: Sent
+      es: Enviados
+  - key: t0050
+    values:
+      it: '{value:.0f} B/s'
+      en: '{value:.0f} B/s'
+      es: '{value:.0f} B/s'
+  - key: t0051
+    values:
+      it: ethernet1
+      en: ethernet1
+      es: ethernet1
+  - key: t0052
+    values:
+      it: Traffico — ultimi 10 minuti (byte al secondo)
+      en: Traffic — last 10 minutes (bytes per second)
+      es: Tráfico — últimos 10 minutos (bytes por segundo)
+  - key: t0053
+    values:
+      it: ethernet0 ricevuti
+      en: ethernet0 received
+      es: ethernet0 recibidos
+  - key: t0054
+    values:
+      it: ethernet0 trasmessi
+      en: ethernet0 sent
+      es: ethernet0 enviados
+  - key: t0055
+    values:
+      it: ethernet1 ricevuti
+      en: ethernet1 received
+      es: ethernet1 recibidos
+  - key: t0056
+    values:
+      it: ethernet1 trasmessi
+      en: ethernet1 sent
+      es: ethernet1 enviados
+  - key: t0057
+    values:
+      it: Rete
+      en: Network
+      es: Red
+  - key: t0058
+    values:
+      it: Temperatura CPU elevata
+      en: High CPU temperature
+      es: Temperatura de CPU elevada
+  - key: t0059
+    values:
+      it: Temperatura CPU critica
+      en: Critical CPU temperature
+      es: Temperatura de CPU crítica
+  - key: t0060
+    values:
+      it: Disco progetti quasi pieno
+      en: Projects disk almost full
+      es: Disco de proyectos casi lleno

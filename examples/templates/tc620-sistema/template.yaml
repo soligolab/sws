@@ -1,0 +1,3 @@
+id: tc620-sistema
+label: "TC620 — sistema"
+description: "Le informazioni di sistema di un Pixsys TC620 (CPU, memoria, temperature, dischi, rete) in una variabile di tipo struttura, con una pagina di grafici per tipologia. Testata con orologio e dati del dispositivo su tutte le pagine. 1280x800, motore LVGL."

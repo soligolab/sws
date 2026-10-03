@@ -72,13 +72,19 @@ descrivi() {  # descrivi <id>: l'oggetto JSON di un'immagine (o null)
         "$(js "$id")" "$(js "$(nomi "$id")")" "$(js "$(versione "$id")")" "$(byte "$id")"
 }
 
+# Le immagini condividono gli strati: la somma delle loro dimensioni conta lo
+# stesso spazio più volte (sul TC620, 3,78 GB contro gli 863 MB veri). Prima
+# della pulizia si dice quante se ne toglierebbero; dopo, quanto spazio si è
+# liberato davvero sul disco di podman.
+libero() { df -B1 --output=avail "$(podman info --format '{{.Store.GraphRoot}}' 2>/dev/null || echo /)" 2>/dev/null | tail -1 | tr -d ' '; }
+
 scrivi_json() {  # scrivi_json <attuale> <precedente> <pulizia-json>
-    local att="$1" prec="$2" pul="$3" rec=0 id
+    local att="$1" prec="$2" pul="$3" n=0 id
     for id in $(immagini_sws); do
-        [ "$id" = "$att" ] || [ "$id" = "$prec" ] || usata "$id" || rec=$(( rec + $(byte "$id") ))
+        [ "$id" = "$att" ] || [ "$id" = "$prec" ] || usata "$id" || n=$(( n + 1 ))
     done
-    printf '{"quando_ms":%s,"attuale":%s,"precedente":%s,"recuperabili_byte":%s,"pulizia":%s}\n' \
-        "$(ora_ms)" "$(descrivi "$att")" "$(descrivi "$prec")" "$rec" "$pul" > "$JSON.tmp" && mv "$JSON.tmp" "$JSON"
+    printf '{"quando_ms":%s,"attuale":%s,"precedente":%s,"da_togliere":%s,"pulizia":%s}\n' \
+        "$(ora_ms)" "$(descrivi "$att")" "$(descrivi "$prec")" "$n" "$pul" > "$JSON.tmp" && mv "$JSON.tmp" "$JSON"
 }
 
 cmd_stato() {
@@ -108,21 +114,24 @@ cmd_stato() {
 cmd_pulisci() {
     local att; att="$(attuale_id)"
     leggi_stato
-    local prec="$S_PRECEDENTE" id tolte="" lib=0 n=0 b
+    local prec="$S_PRECEDENTE" id tolte="" n=0 b prima dopo lib
     [ "$S_ATTUALE" = "$att" ] || prec="$S_ATTUALE"
+    prima="$(libero)"
     for id in $(immagini_sws); do
         [ "$id" = "$att" ] || [ "$id" = "$prec" ] && continue
         usata "$id" && continue
         b="$(byte "$id")"
         local nm; nm="$(nomi "$id")"
         if podman rmi -f "$id" >/dev/null 2>&1; then
-            lib=$(( lib + b )); n=$(( n + 1 ))
+            n=$(( n + 1 ))
             tolte="$tolte${tolte:+,}{\"id\":$(js "$id"),\"nomi\":$(js "$nm"),\"byte\":$b}"
             echo "tolta $id ($nm)"
         fi
     done
     local ista=false
     if [ -d "$ISTA" ]; then rm -rf "$ISTA" && ista=true; fi
+    dopo="$(libero)"
+    lib=$(( ${dopo:-0} - ${prima:-0} )); [ "$lib" -lt 0 ] && lib=0
     scrivi_stato "$att" "$prec"
     scrivi_json "$att" "$prec" "{\"quando_ms\":$(ora_ms),\"tolte\":[$tolte],\"liberati_byte\":$lib,\"istantanea_tolta\":$ista}"
     echo "pulizia: $n immagini tolte, $lib byte; istantanea tolta: $ista"

@@ -115,6 +115,8 @@ R3_DEBITO = {
     "demo-items-lvgl":    (4, 0,   "inventario: 4 pagine per coprire 35 tipi di widget; nessuna pagina supera il tetto di oggetti"),
     "demo-items-web":     (4, 0,   "inventario: 4 pagine per coprire 35 tipi di widget; nessuna pagina supera il tetto di oggetti"),
     "homeassistant-demo": (3, 62,  "due oggetti sopra il tetto nella pagina di panoramica"),
+    "tc620-sistema":      (6, 0,   "richiesta del maintainer (03-10-2026): una pagina di grafici per tipologia di "
+                                   "informazione di sistema; nessuna pagina supera il tetto di oggetti"),
 }
 
 # R5 — indirizzi. `localhost` e i nomi mDNS di prodotto (`homeassistant.local`)

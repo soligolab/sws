@@ -29,28 +29,13 @@ pub struct EsitoPulizia {
     pub restanti: u64,
 }
 
-/// I tag distinti dello storico, **a salti sull'indice** invece che con
-/// `SELECT DISTINCT tag`: per ogni tag si chiede il primo tag successivo, e con
-/// la chiave primaria `(tag, ts_ms)` ogni domanda è una ricerca, non una
-/// lettura. Misurato il 26-09-2026 sullo storico di CasaDomotica (590 MB, 7
-/// milioni di righe, 73 tag): `DISTINCT` 7,2 s a disco freddo, cioè quasi tutta
-/// l'attesa all'apertura del progetto; questa 0,01 s. Esce in ordine alfabetico.
-const SQL_TAG_DISTINTI: &str = "WITH RECURSIVE t(tag) AS (
-    SELECT min(tag) FROM samples
-    UNION ALL
-    SELECT (SELECT min(tag) FROM samples WHERE tag > t.tag) FROM t WHERE t.tag IS NOT NULL
-) SELECT tag FROM t WHERE tag IS NOT NULL";
+/// I tag con almeno un campione, in ordine alfabetico. Dal 03-10-2026 i nomi
+/// stanno una volta sola in `tag_storico`: per ognuno basta una ricerca sulla
+/// chiave primaria di `campioni`.
+const SQL_TAG_DISTINTI: &str = "SELECT nome FROM tag_storico t \
+    WHERE EXISTS (SELECT 1 FROM campioni c WHERE c.tag_id = t.id) ORDER BY nome";
 
 const SCHEMA: &str = r#"
-CREATE TABLE IF NOT EXISTS samples (
-    tag       TEXT    NOT NULL,
-    ts_ms     INTEGER NOT NULL,
-    value     TEXT    NOT NULL,  -- JSON-encoded TagValue
-    quality   TEXT    NOT NULL,  -- "Good" | "Bad" | "Uncertain"
-    PRIMARY KEY (tag, ts_ms)
-) WITHOUT ROWID;
-CREATE INDEX IF NOT EXISTS idx_samples_ts ON samples(ts_ms);
-
 CREATE TABLE IF NOT EXISTS alarm_events (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     alarm_id        TEXT    NOT NULL,
@@ -65,6 +50,242 @@ CREATE TABLE IF NOT EXISTS alarm_events (
 CREATE INDEX IF NOT EXISTS idx_alarm_events_ts  ON alarm_events(ts_activated_ms DESC);
 CREATE INDEX IF NOT EXISTS idx_alarm_events_aid ON alarm_events(alarm_id);
 "#;
+
+/// I campioni nel formato compatto (03-10-2026, piano
+/// `docs/plans/2026-09-26-storico-troppo-grande.md`). Prima il nome del tag stava
+/// in ogni riga — e, con `WITHOUT ROWID`, anche in ogni voce dell'indice sul
+/// tempo —, il valore era JSON in testo e la qualità una parola: ~75 byte a
+/// campione su CasaDomotica, il 40 % nell'indice. Ora il nome sta una volta in
+/// `tag_storico`, il valore ha il suo tipo e la qualità è un numero.
+///
+/// `valore` è dichiarato **senza tipo**: SQLite tiene ogni valore col suo
+/// (intero esatto, reale, testo), e `tipo` dice come rileggerlo — un `Int`
+/// oltre 2^53 resta esatto, un `Float` intero resta `Float`.
+///
+/// La vista `samples` rifà la forma di prima per chi legge il file a mano (e per
+/// le guardie con lo stack, che lo interrogano così).
+const SCHEMA_CAMPIONI: &str = r#"
+CREATE TABLE IF NOT EXISTS tag_storico (
+    id   INTEGER PRIMARY KEY,
+    nome TEXT    NOT NULL UNIQUE
+);
+CREATE TABLE IF NOT EXISTS campioni (
+    tag_id  INTEGER NOT NULL,   -- tag_storico.id
+    ts_ms   INTEGER NOT NULL,
+    tipo    INTEGER NOT NULL,   -- 0 bool, 1 int, 2 float, 3 testo, 4 json (array, struttura)
+    valore,
+    qualita INTEGER NOT NULL,   -- 0 Good, 1 Uncertain, 2 Bad
+    PRIMARY KEY (tag_id, ts_ms)
+) WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS idx_campioni_ts ON campioni(ts_ms);
+CREATE VIEW IF NOT EXISTS samples AS
+    SELECT t.nome AS tag, c.ts_ms AS ts_ms,
+           CASE c.tipo WHEN 0 THEN (CASE c.valore WHEN 0 THEN 'false' ELSE 'true' END)
+                       WHEN 3 THEN json_quote(c.valore)
+                       WHEN 4 THEN c.valore
+                       ELSE CAST(c.valore AS TEXT) END AS value,
+           CASE c.qualita WHEN 0 THEN 'Good' WHEN 1 THEN 'Uncertain' ELSE 'Bad' END AS quality
+      FROM campioni c JOIN tag_storico t ON t.id = c.tag_id;
+"#;
+
+const T_BOOL: i64 = 0;
+const T_INT: i64 = 1;
+const T_FLOAT: i64 = 2;
+const T_TESTO: i64 = 3;
+const T_JSON: i64 = 4;
+
+/// Un valore nella forma del database: (`tipo`, `valore`).
+pub fn codifica(v: &TagValue) -> (i64, rusqlite::types::Value) {
+    use rusqlite::types::Value as V;
+    match v {
+        TagValue::Bool(b) => (T_BOOL, V::Integer(*b as i64)),
+        TagValue::Int(i) => (T_INT, V::Integer(*i)),
+        TagValue::Float(f) => (T_FLOAT, V::Real(*f)),
+        TagValue::Str(s) => (T_TESTO, V::Text(s.clone())),
+        altro => (T_JSON, V::Text(serde_json::to_string(altro).unwrap_or_else(|_| "null".into()))),
+    }
+}
+
+/// Il contrario di [`codifica`]. Un valore illeggibile torna `Float(0.0)`, come
+/// faceva il formato JSON con un JSON rotto.
+pub fn decodifica(tipo: i64, v: rusqlite::types::Value) -> TagValue {
+    use rusqlite::types::Value as V;
+    match (tipo, v) {
+        (T_BOOL, V::Integer(i)) => TagValue::Bool(i != 0),
+        (T_INT, V::Integer(i)) => TagValue::Int(i),
+        (T_INT, V::Real(f)) => TagValue::Int(f as i64),
+        (T_FLOAT, V::Real(f)) => TagValue::Float(f),
+        (T_FLOAT, V::Integer(i)) => TagValue::Float(i as f64),
+        (T_TESTO, V::Text(s)) => TagValue::Str(s),
+        (T_JSON, V::Text(s)) => serde_json::from_str(&s).unwrap_or(TagValue::Float(0.0)),
+        _ => TagValue::Float(0.0),
+    }
+}
+
+pub fn qualita_num(q: &TagQuality) -> i64 {
+    match q {
+        TagQuality::Good => 0,
+        TagQuality::Uncertain => 1,
+        TagQuality::Bad => 2,
+    }
+}
+
+pub fn qualita_da(n: i64) -> TagQuality {
+    match n {
+        0 => TagQuality::Good,
+        2 => TagQuality::Bad,
+        _ => TagQuality::Uncertain,
+    }
+}
+
+/// Un campione da una riga `(ts_ms, tipo, valore, qualita)`.
+fn campione(r: &rusqlite::Row<'_>) -> rusqlite::Result<Sample> {
+    Ok(Sample {
+        ts_ms: r.get::<_, i64>(0)? as u64,
+        value: decodifica(r.get(1)?, r.get(2)?),
+        quality: qualita_da(r.get(3)?),
+    })
+}
+
+/// L'id di un tag, creandolo se è nuovo.
+fn id_tag(c: &Connection, nome: &str) -> rusqlite::Result<i64> {
+    c.prepare_cached("INSERT OR IGNORE INTO tag_storico(nome) VALUES (?1)")?.execute(params![nome])?;
+    c.prepare_cached("SELECT id FROM tag_storico WHERE nome = ?1")?.query_row(params![nome], |r| r.get(0))
+}
+
+/// Prepara la migrazione dal formato di prima (la **tabella** `samples`), con
+/// sole operazioni istantanee: rinomina la tabella vecchia in `samples_vecchi`,
+/// crea quelle nuove e registra i nomi dei tag. Le righe le sposta poi
+/// [`migra_a_lotti`] in sottofondo. Torna `true` se ci sono righe da spostare
+/// (anche da una migrazione interrotta).
+///
+/// Perché non tutto subito (03-10-2026, collaudo sul TC620): il runtime apre il
+/// progetto **prima** di mettersi in ascolto, e systemd (`Notify=healthy`) dà 90 s
+/// all'avvio. 1,3 milioni di righe hanno chiesto 85 s: un po' di più e systemd
+/// avrebbe fermato il runtime a metà, la transazione sarebbe tornata indietro, e
+/// il giro dopo sarebbe ripartito da capo — per sempre.
+fn prepara_migrazione(c: &mut Connection) -> rusqlite::Result<bool> {
+    let tabella = |c: &Connection, nome: &str| -> rusqlite::Result<bool> {
+        c.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?1")?.exists(params![nome])
+    };
+    if tabella(c, "samples")? {
+        let tx = c.transaction()?;
+        // L'indice sul tempo serviva alla tabella vecchia; senza, i DELETE dei
+        // lotti costano la metà.
+        tx.execute_batch("DROP INDEX IF EXISTS idx_samples_ts; ALTER TABLE samples RENAME TO samples_vecchi;")?;
+        tx.commit()?;
+    }
+    c.execute_batch(SCHEMA_CAMPIONI)?;
+    if !tabella(c, "samples_vecchi")? {
+        return Ok(false);
+    }
+    c.execute(
+        "INSERT OR IGNORE INTO tag_storico(nome)
+         WITH RECURSIVE t(tag) AS (
+             SELECT min(tag) FROM samples_vecchi
+             UNION ALL
+             SELECT (SELECT min(tag) FROM samples_vecchi WHERE tag > t.tag) FROM t WHERE t.tag IS NOT NULL
+         ) SELECT tag FROM t WHERE tag IS NOT NULL",
+        [],
+    )?;
+    Ok(true)
+}
+
+/// Quante righe sposta ogni transazione di [`migra_a_lotti`]: poche abbastanza
+/// da tenere il lock di scrittura per poco (le registrazioni dal vivo aspettano
+/// col `busy_timeout`), abbastanza da finire in fretta.
+const LOTTO: i64 = 5_000;
+
+/// Quante volte [`migra_a_lotti`] riparte dopo un errore prima di lasciar
+/// perdere fino alla prossima apertura.
+const TENTATIVI_MIGRAZIONE: u32 = 12;
+
+/// Sposta le righe da `samples_vecchi` a `campioni`, un lotto per transazione,
+/// in ordine di chiave: un lotto finito resta finito anche se il processo si
+/// ferma, e alla prossima apertura si riparte da lì. Il valore si converte in
+/// Rust, col parser della lettura di prima: la conversione SQL da testo a reale
+/// sbaglia l'ultima cifra su alcuni valori (54.108249059935716 contro
+/// 54.10824905993571, sulla copia di CasaDomotica). `INSERT OR IGNORE`: se nel
+/// frattempo la registrazione dal vivo ha scritto la stessa chiave, vince lei.
+/// Alla fine toglie la tabella vecchia e compatta.
+pub fn migra_a_lotti(path: &std::path::Path) -> rusqlite::Result<u64> {
+    let mut c = Connection::open(path)?;
+    c.busy_timeout(std::time::Duration::from_secs(60))?;
+    let prima = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+    let mut ids: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
+    let mut totale = 0u64;
+    loop {
+        // IMMEDIATE: il lock di scrittura si prende all'inizio, e lì il
+        // `busy_timeout` aspetta. Con una transazione differita (lettura, poi
+        // scrittura) SQLite in WAL rifiuta il passaggio a scrittura **subito**
+        // se nel frattempo la registrazione dal vivo ha scritto — «database is
+        // locked» 50 ms dopo l'avvio, visto sul TC620 il 03-10-2026.
+        let tx = c.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let mut righe: Vec<(String, i64, TagValue, i64)> = Vec::new();
+        {
+            let mut leggi = tx.prepare_cached(
+                "SELECT tag, ts_ms, value, quality FROM samples_vecchi ORDER BY tag, ts_ms LIMIT ?1",
+            )?;
+            let mut rs = leggi.query(params![LOTTO])?;
+            while let Some(r) = rs.next()? {
+                // Il valore era JSON in testo; i database di prova delle guardie
+                // lo scrivono come numero. Un JSON rotto resta testo.
+                let valore = match r.get_ref(2)? {
+                    rusqlite::types::ValueRef::Text(t) => {
+                        let t = String::from_utf8_lossy(t);
+                        serde_json::from_str::<TagValue>(&t).unwrap_or_else(|_| TagValue::Str(t.into_owned()))
+                    }
+                    rusqlite::types::ValueRef::Integer(i) => TagValue::Int(i),
+                    rusqlite::types::ValueRef::Real(f) => TagValue::Float(f),
+                    _ => TagValue::Float(0.0),
+                };
+                let qualita = match r.get_ref(3)? {
+                    rusqlite::types::ValueRef::Text(b"Bad") => 2,
+                    rusqlite::types::ValueRef::Text(b"Uncertain") => 1,
+                    _ => 0,
+                };
+                righe.push((r.get(0)?, r.get(1)?, valore, qualita));
+            }
+        }
+        let Some((ultimo_tag, ultimo_ts, _, _)) = righe.last().cloned() else {
+            tx.commit()?;
+            break;
+        };
+        {
+            let mut scrivi = tx.prepare_cached(
+                "INSERT OR IGNORE INTO campioni (tag_id, ts_ms, tipo, valore, qualita) VALUES (?1, ?2, ?3, ?4, ?5)",
+            )?;
+            for (tag, ts, valore, qualita) in &righe {
+                let id = match ids.get(tag) {
+                    Some(id) => *id,
+                    None => {
+                        let id = id_tag(&tx, tag)?;
+                        ids.insert(tag.clone(), id);
+                        id
+                    }
+                };
+                let (tipo, v) = codifica(valore);
+                scrivi.execute(params![id, ts, tipo, v, qualita])?;
+            }
+        }
+        tx.execute(
+            "DELETE FROM samples_vecchi WHERE (tag, ts_ms) <= (?1, ?2)",
+            params![ultimo_tag, ultimo_ts],
+        )?;
+        tx.commit()?;
+        totale += righe.len() as u64;
+    }
+    c.execute_batch("DROP TABLE samples_vecchi;")?;
+    // Lo spazio si recupera solo con un VACUUM. Se non riesce (disco pieno, o
+    // la registrazione tiene il lock troppo a lungo) lo storico è comunque nel
+    // formato nuovo, e «Compatta» lo farà dopo.
+    if let Err(e) = c.execute_batch("VACUUM; PRAGMA wal_checkpoint(TRUNCATE);") {
+        warn!(path = %path.display(), "historian: VACUUM dopo la migrazione non riuscito: {e}");
+    }
+    let dopo = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+    info!(path = %path.display(), righe = totale, prima, dopo, "historian: storico portato al formato compatto");
+    Ok(totale)
+}
 
 /// La prima migrazione di questo crate (25-09-2026): fino ad allora lo schema
 /// cresceva solo con `CREATE … IF NOT EXISTS`, che su una tabella esistente
@@ -131,6 +352,9 @@ pub fn copia_coerente(sorgente: &std::path::Path, dest: &std::path::Path) -> rus
 pub struct SqliteStore {
     conn: Arc<Mutex<Connection>>,
     path: PathBuf,
+    /// Vero finché la migrazione dal formato di prima gira in sottofondo
+    /// ([`migra_a_lotti`]): intanto il passato si vede solo in parte.
+    migrazione: Arc<std::sync::atomic::AtomicBool>,
 }
 
 /// (campioni, primo ts, ultimo ts, byte su disco… — vedi `stats`): il tipo grezzo
@@ -142,28 +366,73 @@ impl SqliteStore {
     pub async fn open(path: impl Into<PathBuf>) -> anyhow::Result<Self> {
         let path = path.into();
         let path_for_open = path.clone();
-        let conn = task::spawn_blocking(move || -> anyhow::Result<Connection> {
+        let conn = task::spawn_blocking(move || -> anyhow::Result<(Connection, bool)> {
             if let Some(parent) = path_for_open.parent() {
                 std::fs::create_dir_all(parent).ok();
             }
-            let c = Connection::open(&path_for_open)?;
+            let mut c = Connection::open(&path_for_open)?;
             // WAL mode keeps reads (restore) unblocked by writes (recording).
             c.pragma_update(None, "journal_mode", "WAL")?;
             c.pragma_update(None, "synchronous", "NORMAL")?;
+            // Durante la migrazione in sottofondo due connessioni scrivono: chi
+            // trova il lock preso aspetta invece di perdere il campione.
+            c.busy_timeout(std::time::Duration::from_secs(5))?;
             c.execute_batch(SCHEMA)?;
             migra_allarmi(&c)?;
-            Ok(c)
+            let da_migrare = prepara_migrazione(&mut c)?;
+            Ok((c, da_migrare))
         })
         .await??;
+        let (conn, da_migrare) = conn;
+        let migrazione = Arc::new(std::sync::atomic::AtomicBool::new(da_migrare));
+        if da_migrare {
+            info!(path = %path.display(), "historian: storico nel formato di prima, lo converto in sottofondo");
+            let p = path.clone();
+            let flag = migrazione.clone();
+            std::thread::Builder::new()
+                .name("storico-migrazione".into())
+                .spawn(move || {
+                    // Un lotto che fallisce (lock conteso troppo a lungo, disco
+                    // pieno per un momento) non ferma la migrazione fino al
+                    // prossimo avvio: si riprova, e ogni lotto già fatto resta fatto.
+                    for tentativo in 1..=TENTATIVI_MIGRAZIONE {
+                        match migra_a_lotti(&p) {
+                            Ok(_) => break,
+                            Err(e) if tentativo < TENTATIVI_MIGRAZIONE => {
+                                warn!(path = %p.display(), tentativo, "historian: migrazione fermata, riprovo fra 5 s: {e}");
+                                std::thread::sleep(std::time::Duration::from_secs(5));
+                            }
+                            Err(e) => {
+                                warn!(path = %p.display(), "historian: migrazione interrotta, riprende alla prossima apertura: {e}");
+                            }
+                        }
+                    }
+                    flag.store(false, std::sync::atomic::Ordering::SeqCst);
+                })
+                .ok();
+        }
         info!(path = %path.display(), "historian: SQLite store opened");
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
             path,
+            migrazione,
         })
     }
 
     pub fn path(&self) -> &std::path::Path {
         &self.path
+    }
+
+    /// La migrazione dal formato di prima gira ancora in sottofondo.
+    pub fn migrazione_in_corso(&self) -> bool {
+        self.migrazione.load(std::sync::atomic::Ordering::SeqCst)
+    }
+
+    /// Aspetta che la migrazione in sottofondo finisca (test e strumenti).
+    pub async fn attendi_migrazione(&self) {
+        while self.migrazione_in_corso() {
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
     }
 
     /// Append one sample. Best-effort: errors are logged, not propagated, so
@@ -172,18 +441,15 @@ impl SqliteStore {
         let conn = self.conn.clone();
         let tag = tag.to_string();
         let ts = sample.ts_ms as i64;
-        let value = serde_json::to_string(&sample.value).unwrap_or_else(|_| "null".to_string());
-        let quality = match sample.quality {
-            TagQuality::Good => "Good",
-            TagQuality::Bad => "Bad",
-            TagQuality::Uncertain => "Uncertain",
-        };
+        let (tipo, valore) = codifica(&sample.value);
+        let qualita = qualita_num(&sample.quality);
         let res = task::spawn_blocking(move || -> rusqlite::Result<()> {
             let c = conn.blocking_lock();
-            c.execute(
-                "INSERT OR REPLACE INTO samples (tag, ts_ms, value, quality) VALUES (?1, ?2, ?3, ?4)",
-                params![tag, ts, value, quality],
-            )?;
+            let id = id_tag(&c, &tag)?;
+            c.prepare_cached(
+                "INSERT OR REPLACE INTO campioni (tag_id, ts_ms, tipo, valore, qualita) VALUES (?1, ?2, ?3, ?4, ?5)",
+            )?
+            .execute(params![id, ts, tipo, valore, qualita])?;
             Ok(())
         }).await;
         match res {
@@ -199,52 +465,25 @@ impl SqliteStore {
         let conn = self.conn.clone();
         let out = task::spawn_blocking(move || -> rusqlite::Result<Vec<(String, Vec<Sample>)>> {
             let c = conn.blocking_lock();
-
-            // Distinct tags first
-            let mut tags: Vec<String> = Vec::new();
+            let mut tags: Vec<(i64, String)> = Vec::new();
             {
-                let mut stmt = c.prepare(SQL_TAG_DISTINTI)?;
-                let rows = stmt.query_map([], |r| r.get::<_, String>(0))?;
-                for r in rows {
+                let mut stmt = c.prepare(
+                    "SELECT id, nome FROM tag_storico t WHERE EXISTS (SELECT 1 FROM campioni c WHERE c.tag_id = t.id) ORDER BY nome",
+                )?;
+                for r in stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))? {
                     tags.push(r?);
                 }
             }
-
             let mut out: Vec<(String, Vec<Sample>)> = Vec::with_capacity(tags.len());
-            for tag in tags {
-                let mut stmt = c.prepare(
-                    "SELECT ts_ms, value, quality
-                       FROM samples
-                      WHERE tag = ?1
-                      ORDER BY ts_ms DESC
-                      LIMIT ?2",
-                )?;
-                let rows = stmt.query_map(params![tag, limit as i64], |r| {
-                    Ok((
-                        r.get::<_, i64>(0)?,
-                        r.get::<_, String>(1)?,
-                        r.get::<_, String>(2)?,
-                    ))
-                })?;
-                let mut samples: Vec<Sample> = Vec::new();
-                for r in rows {
-                    let (ts, value_json, q) = r?;
-                    let value: TagValue =
-                        serde_json::from_str(&value_json).unwrap_or(TagValue::Float(0.0));
-                    let quality = match q.as_str() {
-                        "Good" => TagQuality::Good,
-                        "Bad" => TagQuality::Bad,
-                        _ => TagQuality::Uncertain,
-                    };
-                    samples.push(Sample {
-                        ts_ms: ts as u64,
-                        value,
-                        quality,
-                    });
-                }
+            let mut stmt = c.prepare(
+                "SELECT ts_ms, tipo, valore, qualita FROM campioni WHERE tag_id = ?1 ORDER BY ts_ms DESC LIMIT ?2",
+            )?;
+            for (id, nome) in tags {
+                let mut samples: Vec<Sample> =
+                    stmt.query_map(params![id, limit as i64], campione)?.collect::<rusqlite::Result<_>>()?;
                 // Restore chronological order (we fetched DESC for the LIMIT)
                 samples.reverse();
-                out.push((tag, samples));
+                out.push((nome, samples));
             }
             Ok(out)
         })
@@ -262,23 +501,13 @@ impl SqliteStore {
         let tag = tag.to_string();
         task::spawn_blocking(move || -> Option<Sample> {
             let c = conn.blocking_lock();
-            let (ts, value_json, q): (i64, String, String) = c
-                .query_row(
-                    "SELECT ts_ms, value, quality FROM samples
-                      WHERE tag = ?1 AND ts_ms < ?2 ORDER BY ts_ms DESC LIMIT 1",
-                    params![tag, ts_ms as i64],
-                    |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
-                )
-                .ok()?;
-            Some(Sample {
-                ts_ms: ts as u64,
-                value: serde_json::from_str(&value_json).ok()?,
-                quality: match q.as_str() {
-                    "Good" => TagQuality::Good,
-                    "Bad" => TagQuality::Bad,
-                    _ => TagQuality::Uncertain,
-                },
-            })
+            c.query_row(
+                "SELECT c.ts_ms, c.tipo, c.valore, c.qualita FROM campioni c JOIN tag_storico t ON t.id = c.tag_id
+                  WHERE t.nome = ?1 AND c.ts_ms < ?2 ORDER BY c.ts_ms DESC LIMIT 1",
+                params![tag, ts_ms as i64],
+                campione,
+            )
+            .ok()
         })
         .await
         .ok()
@@ -291,35 +520,12 @@ impl SqliteStore {
         let res = task::spawn_blocking(move || -> rusqlite::Result<Vec<Sample>> {
             let c = conn.blocking_lock();
             let mut stmt = c.prepare(
-                "SELECT ts_ms, value, quality
-                   FROM samples
-                  WHERE tag = ?1 AND ts_ms >= ?2 AND ts_ms <= ?3
-                  ORDER BY ts_ms ASC",
+                "SELECT c.ts_ms, c.tipo, c.valore, c.qualita FROM campioni c JOIN tag_storico t ON t.id = c.tag_id
+                  WHERE t.nome = ?1 AND c.ts_ms >= ?2 AND c.ts_ms <= ?3
+                  ORDER BY c.ts_ms ASC",
             )?;
-            let rows = stmt.query_map(params![tag, from_ms as i64, to_ms as i64], |r| {
-                Ok((
-                    r.get::<_, i64>(0)?,
-                    r.get::<_, String>(1)?,
-                    r.get::<_, String>(2)?,
-                ))
-            })?;
-            let mut samples = Vec::new();
-            for r in rows {
-                let (ts, value_json, q) = r?;
-                let value: TagValue =
-                    serde_json::from_str(&value_json).unwrap_or(TagValue::Float(0.0));
-                let quality = match q.as_str() {
-                    "Good" => TagQuality::Good,
-                    "Bad" => TagQuality::Bad,
-                    _ => TagQuality::Uncertain,
-                };
-                samples.push(Sample {
-                    ts_ms: ts as u64,
-                    value,
-                    quality,
-                });
-            }
-            Ok(samples)
+            let v = stmt.query_map(params![tag, from_ms as i64, to_ms as i64], campione)?.collect();
+            v
         })
         .await;
         match res {
@@ -342,7 +548,7 @@ impl SqliteStore {
         let n = task::spawn_blocking(move || -> rusqlite::Result<usize> {
             let c = conn.blocking_lock();
             c.execute(
-                "DELETE FROM samples WHERE ts_ms < ?1",
+                "DELETE FROM campioni WHERE ts_ms < ?1",
                 params![cutoff_ms as i64],
             )
         })
@@ -355,7 +561,7 @@ impl SqliteStore {
         let conn = self.conn.clone();
         let n = task::spawn_blocking(move || -> rusqlite::Result<i64> {
             let c = conn.blocking_lock();
-            c.query_row("SELECT COUNT(*) FROM samples", [], |r| r.get(0))
+            c.query_row("SELECT COUNT(*) FROM campioni", [], |r| r.get(0))
                 .optional()
                 .map(|v| v.unwrap_or(0))
         })
@@ -370,15 +576,15 @@ impl SqliteStore {
         task::spawn_blocking(move || -> anyhow::Result<StatsGrezze> {
             let c = conn.blocking_lock();
             let sample_count: i64 = c
-                .query_row("SELECT COUNT(*) FROM samples", [], |r| r.get(0))
+                .query_row("SELECT COUNT(*) FROM campioni", [], |r| r.get(0))
                 .optional()?
                 .unwrap_or(0);
             let oldest_ms: Option<i64> = c
-                .query_row("SELECT MIN(ts_ms) FROM samples", [], |r| r.get(0))
+                .query_row("SELECT MIN(ts_ms) FROM campioni", [], |r| r.get(0))
                 .optional()?
                 .flatten();
             let newest_ms: Option<i64> = c
-                .query_row("SELECT MAX(ts_ms) FROM samples", [], |r| r.get(0))
+                .query_row("SELECT MAX(ts_ms) FROM campioni", [], |r| r.get(0))
                 .optional()?
                 .flatten();
             let tag_count: i64 = c
@@ -588,28 +794,28 @@ impl SqliteStore {
             }
             tx.execute_batch(
                 "CREATE TEMP TABLE pul_ripetuti AS
-                   SELECT tag, ts_ms FROM (
-                     SELECT tag, ts_ms, value, quality,
-                            LAG(value)   OVER w AS pv,
-                            LAG(quality) OVER w AS pq,
+                   SELECT tag_id, ts_ms FROM (
+                     SELECT tag_id, ts_ms, tipo, valore, qualita,
+                            LAG(tipo)    OVER w AS pt,
+                            LAG(valore)  OVER w AS pv,
+                            LAG(qualita) OVER w AS pq,
                             LEAD(ts_ms)  OVER w AS nx
-                       FROM samples WHERE tag IN (SELECT tag FROM pul_tenere)
-                     WINDOW w AS (PARTITION BY tag ORDER BY ts_ms))
-                   WHERE value = pv AND quality = pq AND nx IS NOT NULL;",
+                       FROM campioni
+                      WHERE tag_id IN (SELECT id FROM tag_storico WHERE nome IN (SELECT tag FROM pul_tenere))
+                     WINDOW w AS (PARTITION BY tag_id ORDER BY ts_ms))
+                   WHERE tipo = pt AND valore IS pv AND qualita = pq AND nx IS NOT NULL;",
             )?;
-            let non_storicizzati: i64 = tx.query_row(
-                "SELECT COUNT(*) FROM samples WHERE tag NOT IN (SELECT tag FROM pul_tenere)",
-                [],
-                |r| r.get(0),
-            )?;
+            const FUORI: &str = "tag_id NOT IN (SELECT id FROM tag_storico WHERE nome IN (SELECT tag FROM pul_tenere))";
+            let non_storicizzati: i64 =
+                tx.query_row(&format!("SELECT COUNT(*) FROM campioni WHERE {FUORI}"), [], |r| r.get(0))?;
             let ripetuti: i64 = tx.query_row("SELECT COUNT(*) FROM pul_ripetuti", [], |r| r.get(0))?;
-            let totale: i64 = tx.query_row("SELECT COUNT(*) FROM samples", [], |r| r.get(0))?;
+            let totale: i64 = tx.query_row("SELECT COUNT(*) FROM campioni", [], |r| r.get(0))?;
             if anteprima {
                 tx.rollback()?;
             } else {
-                tx.execute("DELETE FROM samples WHERE tag NOT IN (SELECT tag FROM pul_tenere)", [])?;
+                tx.execute(&format!("DELETE FROM campioni WHERE {FUORI}"), [])?;
                 tx.execute(
-                    "DELETE FROM samples WHERE (tag, ts_ms) IN (SELECT tag, ts_ms FROM pul_ripetuti)",
+                    "DELETE FROM campioni WHERE (tag_id, ts_ms) IN (SELECT tag_id, ts_ms FROM pul_ripetuti)",
                     [],
                 )?;
                 tx.execute_batch("DROP TABLE IF EXISTS pul_ripetuti; DELETE FROM pul_tenere;")?;
@@ -634,7 +840,11 @@ impl SqliteStore {
         let tag = tag.to_string();
         task::spawn_blocking(move || -> anyhow::Result<u64> {
             let c = conn.blocking_lock();
-            let n = c.execute("DELETE FROM samples WHERE tag = ?1", params![tag])?;
+            let n = c.execute(
+                "DELETE FROM campioni WHERE tag_id = (SELECT id FROM tag_storico WHERE nome = ?1)",
+                params![tag],
+            )?;
+            c.execute("DELETE FROM tag_storico WHERE nome = ?1", params![tag])?;
             Ok(n as u64)
         })
         .await?
@@ -739,26 +949,26 @@ impl SqliteStore {
         let conn = self.conn.clone();
         task::spawn_blocking(move || -> anyhow::Result<u64> {
             let c = conn.blocking_lock();
-            let mut tags: Vec<String> = Vec::new();
+            let mut tags: Vec<i64> = Vec::new();
             {
-                let mut stmt = c.prepare(SQL_TAG_DISTINTI)?;
-                let rows = stmt.query_map([], |r| r.get::<_, String>(0))?;
+                let mut stmt = c.prepare("SELECT id FROM tag_storico")?;
+                let rows = stmt.query_map([], |r| r.get::<_, i64>(0))?;
                 for r in rows { tags.push(r?); }
             }
             let mut deleted = 0u64;
             for tag in &tags {
                 let count: i64 = c.query_row(
-                    "SELECT COUNT(*) FROM samples WHERE tag = ?1",
+                    "SELECT COUNT(*) FROM campioni WHERE tag_id = ?1",
                     params![tag], |r| r.get(0),
                 ).optional()?.unwrap_or(0);
                 if count as u64 > max_rows {
                     let cutoff: i64 = c.query_row(
-                        "SELECT ts_ms FROM samples WHERE tag = ?1 ORDER BY ts_ms DESC LIMIT 1 OFFSET ?2",
+                        "SELECT ts_ms FROM campioni WHERE tag_id = ?1 ORDER BY ts_ms DESC LIMIT 1 OFFSET ?2",
                         params![tag, max_rows as i64],
                         |r| r.get(0),
                     )?;
                     let n = c.execute(
-                        "DELETE FROM samples WHERE tag = ?1 AND ts_ms <= ?2",
+                        "DELETE FROM campioni WHERE tag_id = ?1 AND ts_ms <= ?2",
                         params![tag, cutoff],
                     )?;
                     deleted += n as u64;
@@ -892,6 +1102,215 @@ mod tests {
 
     /// La ricerca a salti dà gli stessi tag di `SELECT DISTINCT`, in ordine,
     /// e il ricaricamento all'apertura li trova tutti con i loro ultimi campioni.
+    #[test]
+    fn ogni_valore_torna_com_era() {
+        use std::collections::BTreeMap;
+        let mut st = BTreeMap::new();
+        st.insert("a".to_string(), TagValue::Int(1));
+        st.insert("b".to_string(), TagValue::Str("x".into()));
+        for v in [
+            TagValue::Bool(true),
+            TagValue::Bool(false),
+            TagValue::Int(9_007_199_254_740_993), // oltre 2^53: un REAL lo perderebbe
+            TagValue::Int(-5),
+            TagValue::Float(3.0), // intero ma Float: deve restare Float
+            TagValue::Float(52.08393020255071),
+            TagValue::Str("ciao «mondo»".into()),
+            TagValue::Array(vec![TagValue::Int(1), TagValue::Float(2.5)]),
+            TagValue::Struct(st),
+        ] {
+            let (t, x) = codifica(&v);
+            assert_eq!(decodifica(t, x), v);
+        }
+        for q in [TagQuality::Good, TagQuality::Uncertain, TagQuality::Bad] {
+            assert_eq!(qualita_da(qualita_num(&q)), q);
+        }
+    }
+
+    /// Un database del formato di prima (nome in ogni riga, valore JSON,
+    /// qualità in parole) si apre già convertito: stesse letture, stessa vista
+    /// `samples` per chi lo legge a mano, e più piccolo.
+    #[tokio::test]
+    async fn il_formato_vecchio_si_converte_all_apertura() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("historian.db");
+        {
+            let c = Connection::open(&path).unwrap();
+            c.execute_batch(
+                "CREATE TABLE samples (tag TEXT NOT NULL, ts_ms INTEGER NOT NULL, value TEXT NOT NULL,
+                     quality TEXT NOT NULL, PRIMARY KEY (tag, ts_ms)) WITHOUT ROWID;
+                 CREATE INDEX idx_samples_ts ON samples(ts_ms);",
+            )
+            .unwrap();
+            let righe = [
+                ("finestra.cucina", 10, "true", "Good"),
+                ("finestra.cucina", 20, "false", "Bad"),
+                ("contatore", 10, "9007199254740993", "Good"),
+                ("temperatura", 10, "21.5", "Uncertain"),
+                ("temperatura", 20, "22.0", "Good"),
+                ("stato.nome", 10, "\"Soggiorno\"", "Good"),
+                ("array", 10, "[1,2.5]", "Good"),
+                ("rotto", 10, "non è json", "Good"),
+            ];
+            for (t, ts, v, q) in righe {
+                c.execute("INSERT INTO samples VALUES (?1, ?2, ?3, ?4)", params![t, ts, v, q]).unwrap();
+            }
+            for i in 0..2000 {
+                c.execute("INSERT INTO samples VALUES ('carico.lungo.nome.del.tag', ?1, ?2, 'Good')", params![1000 + i, format!("{}.5", i)])
+                    .unwrap();
+            }
+        }
+        let store = SqliteStore::open(&path).await.unwrap();
+        store.attendi_migrazione().await;
+        assert_eq!(store.total_samples().await.unwrap(), 2008);
+        let q = |t: &'static str| {
+            let s = store.clone();
+            async move { s.query_range(t, 0, 10_000).await }
+        };
+        assert_eq!(q("finestra.cucina").await.iter().map(|s| s.value.clone()).collect::<Vec<_>>(), vec![TagValue::Bool(true), TagValue::Bool(false)]);
+        assert_eq!(q("finestra.cucina").await[1].quality, TagQuality::Bad);
+        assert_eq!(q("contatore").await[0].value, TagValue::Int(9_007_199_254_740_993));
+        assert_eq!(q("temperatura").await[1].value, TagValue::Float(22.0));
+        assert_eq!(q("temperatura").await[0].quality, TagQuality::Uncertain);
+        assert_eq!(q("stato.nome").await[0].value, TagValue::Str("Soggiorno".into()));
+        assert_eq!(q("array").await[0].value, TagValue::Array(vec![TagValue::Int(1), TagValue::Float(2.5)]));
+        assert_eq!(q("rotto").await[0].value, TagValue::Str("non è json".into()));
+        assert_eq!(store.distinct_tags().await.unwrap().len(), 7);
+        // La vista per chi legge il file a mano.
+        let c = Connection::open(&path).unwrap();
+        let (v, qq): (String, String) = c
+            .query_row("SELECT value, quality FROM samples WHERE tag = 'temperatura' AND ts_ms = 10", [], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap();
+        assert_eq!((v.as_str(), qq.as_str()), ("21.5", "Uncertain"));
+        let tipo: String = c.query_row("SELECT type FROM sqlite_master WHERE name = 'samples'", [], |r| r.get(0)).unwrap();
+        assert_eq!(tipo, "view");
+        // Una seconda apertura non rifà niente.
+        drop(store);
+        let store = SqliteStore::open(&path).await.unwrap();
+        assert_eq!(store.total_samples().await.unwrap(), 2008);
+    }
+
+    /// Una migrazione interrotta (processo fermato a metà) riparte da dove era
+    /// arrivata, e intanto le registrazioni dal vivo vanno nel formato nuovo.
+    #[tokio::test]
+    async fn la_migrazione_interrotta_riprende_e_il_vivo_non_aspetta() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("historian.db");
+        {
+            let mut c = Connection::open(&path).unwrap();
+            c.execute_batch(
+                "CREATE TABLE samples (tag TEXT NOT NULL, ts_ms INTEGER NOT NULL, value TEXT NOT NULL,
+                     quality TEXT NOT NULL, PRIMARY KEY (tag, ts_ms)) WITHOUT ROWID;",
+            )
+            .unwrap();
+            let tx = c.transaction().unwrap();
+            for i in 0..12_000i64 {
+                tx.execute("INSERT INTO samples VALUES ('a', ?1, ?2, 'Good')", params![i, format!("{i}.25")]).unwrap();
+            }
+            tx.commit().unwrap();
+            // Il primo pezzo, come se un processo si fosse fermato dopo un lotto.
+            assert!(prepara_migrazione(&mut c).unwrap());
+            let id = id_tag(&c, "a").unwrap();
+            for i in 0..5_000i64 {
+                c.execute("INSERT INTO campioni VALUES (?1, ?2, 2, ?3, 0)", params![id, i, i as f64 + 0.25]).unwrap();
+            }
+            c.execute("DELETE FROM samples_vecchi WHERE ts_ms < 5000", []).unwrap();
+        }
+        let store = SqliteStore::open(&path).await.unwrap();
+        // Il vivo scrive subito, anche a migrazione in corso.
+        store.append("b", &Sample { ts_ms: 99_999, value: TagValue::Int(7), quality: TagQuality::Good }).await;
+        store.attendi_migrazione().await;
+        assert_eq!(store.total_samples().await.unwrap(), 12_001);
+        let a = store.query_range("a", 0, 20_000).await;
+        assert_eq!(a.len(), 12_000);
+        assert_eq!(a[11_999].value, TagValue::Float(11_999.25));
+        assert_eq!(store.query_range("b", 0, 200_000).await[0].value, TagValue::Int(7));
+        let c = Connection::open(&path).unwrap();
+        let resta: i64 = c.query_row("SELECT COUNT(*) FROM sqlite_master WHERE name = 'samples_vecchi'", [], |r| r.get(0)).unwrap();
+        assert_eq!(resta, 0, "a migrazione finita la tabella vecchia non c'è più");
+    }
+
+    /// La registrazione dal vivo che scrive di continuo durante la migrazione
+    /// non deve fermarla: al TC620, con la transazione differita, il primo
+    /// lotto falliva con «database is locked» dopo 50 ms (03-10-2026).
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn la_migrazione_regge_le_scritture_dal_vivo() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("historian.db");
+        {
+            let mut c = Connection::open(&path).unwrap();
+            c.execute_batch(
+                "CREATE TABLE samples (tag TEXT NOT NULL, ts_ms INTEGER NOT NULL, value TEXT NOT NULL,
+                     quality TEXT NOT NULL, PRIMARY KEY (tag, ts_ms)) WITHOUT ROWID;",
+            )
+            .unwrap();
+            let tx = c.transaction().unwrap();
+            for i in 0..40_000i64 {
+                tx.execute("INSERT INTO samples VALUES (?1, ?2, ?3, 'Good')", params![format!("t{}", i % 20), i, format!("{i}.5")])
+                    .unwrap();
+            }
+            tx.commit().unwrap();
+        }
+        let store = SqliteStore::open(&path).await.unwrap();
+        let mut scritti = 0u64;
+        let mut ts = 1_000_000u64;
+        while store.migrazione_in_corso() {
+            store.append("vivo", &Sample { ts_ms: ts, value: TagValue::Float(1.0), quality: TagQuality::Good }).await;
+            ts += 1;
+            scritti += 1;
+            tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+        }
+        assert!(scritti > 0, "la migrazione è durata zero: il test non prova niente");
+        let c = Connection::open(&path).unwrap();
+        let resta: i64 = c.query_row("SELECT COUNT(*) FROM sqlite_master WHERE name = 'samples_vecchi'", [], |r| r.get(0)).unwrap();
+        assert_eq!(resta, 0, "la migrazione si è fermata a metà");
+        assert_eq!(store.total_samples().await.unwrap() as u64, 40_000 + scritti);
+    }
+
+    /// La migrazione su un database vero, su una **copia**: conteggi per tag
+    /// uguali, letture uguali, dimensione prima e dopo. Non gira da sola:
+    /// `SWS_STORICO_PROVA=<historian.db> cargo test -p sws-historian -- --ignored --nocapture`.
+    #[tokio::test]
+    #[ignore]
+    async fn migrazione_su_un_database_vero() {
+        let Ok(orig) = std::env::var("SWS_STORICO_PROVA") else { return };
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("historian.db");
+        copia_coerente(std::path::Path::new(&orig), &path).unwrap();
+        let prima_byte = std::fs::metadata(&path).unwrap().len();
+        let (conti, campione): (Vec<(String, i64)>, Vec<(String, i64, String, String)>) = {
+            let c = Connection::open(&path).unwrap();
+            let conti = c.prepare("SELECT tag, COUNT(*) FROM samples GROUP BY tag ORDER BY tag").unwrap()
+                .query_map([], |r| Ok((r.get(0)?, r.get(1)?))).unwrap().map(|r| r.unwrap()).collect();
+            let campione = c.prepare("SELECT tag, ts_ms, value, quality FROM samples ORDER BY ts_ms DESC LIMIT 200").unwrap()
+                .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?))).unwrap().map(|r| r.unwrap()).collect();
+            (conti, campione)
+        };
+        let t0 = std::time::Instant::now();
+        let store = SqliteStore::open(&path).await.unwrap();
+        let apertura = t0.elapsed();
+        store.attendi_migrazione().await;
+        let tempo = t0.elapsed();
+        let dopo_byte = std::fs::metadata(&path).unwrap().len();
+        let c = Connection::open(&path).unwrap();
+        let conti_dopo: Vec<(String, i64)> = c.prepare("SELECT tag, COUNT(*) FROM samples GROUP BY tag ORDER BY tag").unwrap()
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?))).unwrap().map(|r| r.unwrap()).collect();
+        assert_eq!(conti, conti_dopo, "stessi campioni per tag");
+        for (tag, ts, v, q) in &campione {
+            let s = store.query_range(tag, *ts as u64, *ts as u64).await;
+            assert_eq!(s.len(), 1, "{tag} {ts}");
+            let atteso: TagValue = serde_json::from_str(v).unwrap();
+            assert_eq!(s[0].value, atteso, "{tag} {ts}");
+            assert_eq!(format!("{:?}", s[0].quality), *q);
+        }
+        let righe: i64 = conti.iter().map(|(_, n)| n).sum();
+        println!(
+            "migrazione: {} tag, {righe} righe, {:.1} MB → {:.1} MB ({:.0} %), apertura {:.2} s, in sottofondo {:.1} s",
+            conti.len(), prima_byte as f64 / 1e6, dopo_byte as f64 / 1e6,
+            100.0 * dopo_byte as f64 / prima_byte as f64, apertura.as_secs_f64(), tempo.as_secs_f64()
+        );
+    }
+
     #[tokio::test]
     async fn tag_distinti_a_salti_come_distinct() {
         let dir = tempfile::tempdir().unwrap();

@@ -196,7 +196,7 @@ describe("avviso di aggiornamento sul pannello", () => {
   });
 
   // ── Dopo un aggiornamento: confermare, rimandare, tornare (03-10-2026) ──────
-  const DOMANDA = { da: "2.12.0-rc.17", a: "2.12.0-rc.18", istantanea: true, istantanea_quando_ms: 1, recuperabili_byte: 5e8 };
+  const DOMANDA = { da: "2.12.0-rc.17", a: "2.12.0-rc.18", istantanea: true, istantanea_quando_ms: 1, da_togliere: 7 };
   const CONFERMA = { domanda: DOMANDA, pulizia_al_prossimo_avvio: false, ultima_pulizia: null, ultimo_ritorno: null, in_corso: null };
   const daA = { da: DOMANDA.da, a: DOMANDA.a };
 

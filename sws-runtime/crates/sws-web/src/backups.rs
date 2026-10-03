@@ -110,7 +110,21 @@ fn dir_size(path: &Path) -> u64 {
 
 /// Take a snapshot now. Returns the path of the freshly-created directory.
 /// Errors propagate up; caller logs.
+///
+/// **Senza lo storico** (03-10-2026): è il backup automatico, che gira ogni N
+/// minuti. Copiava `history/` intera a ogni giro — CasaDomotica aveva 7 backup
+/// da ~550 MB, 3,8 GB — e la copiava a byte mentre il runtime ci scriveva, che
+/// può dare un database che non si riapre. Il ripristino di un backup senza
+/// storico lascia stare quello vivo (vedi [`restore_backup`]).
 pub fn backup_now(project_dir: &Path) -> std::io::Result<PathBuf> {
+    backup_now_con(project_dir, false)
+}
+
+/// Come [`backup_now`], e con `storico` anche `history/`: ogni database copiato
+/// in modo coerente ([`sws_historian::sqlite::copia_coerente`]), senza i
+/// `-wal`/`-shm` e senza le copie `historian-prima-della-pulizia-*`. È il backup
+/// chiesto a mano con «Crea backup».
+pub fn backup_now_con(project_dir: &Path, storico: bool) -> std::io::Result<PathBuf> {
     let dst = bak_dir(project_dir).join(timestamp_name());
     std::fs::create_dir_all(&dst)?;
     for name in BACKED_UP {
@@ -119,9 +133,40 @@ pub fn backup_now(project_dir: &Path) -> std::io::Result<PathBuf> {
             continue;
         }
         let to = dst.join(name);
+        if *name == "history" {
+            if storico {
+                copia_storico(&src, &to)?;
+            }
+            continue;
+        }
         copy_recursive(&src, &to)?;
     }
     Ok(dst)
+}
+
+/// `history/` in un backup: i database con una copia coerente, niente file di
+/// appoggio di SQLite né copie «prima della pulizia» (547 MB su CasaDomotica).
+fn copia_storico(src: &Path, dst: &Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(dst)?;
+    for e in std::fs::read_dir(src)? {
+        let e = e?;
+        let nome = e.file_name().to_string_lossy().into_owned();
+        if nome.starts_with("historian-prima-della-pulizia")
+            || nome.ends_with("-wal")
+            || nome.ends_with("-shm")
+            || nome.ends_with("-journal")
+            || !e.path().is_file()
+        {
+            continue;
+        }
+        let to = dst.join(&nome);
+        if nome.ends_with(".db") && sws_historian::sqlite::copia_coerente(&e.path(), &to).is_ok() {
+            continue;
+        }
+        let _ = std::fs::remove_file(&to);
+        std::fs::copy(e.path(), &to)?;
+    }
+    Ok(())
 }
 
 /// Enumerate every backup directory in `<project>/backups/`, newest first.
@@ -280,7 +325,8 @@ pub async fn create_backup_handler(State(s): State<AppState>) -> Response {
     // salvataggio è a metà archivia un progetto che non è mai esistito — e un
     // backup incoerente si scopre il giorno in cui serve.
     let _scrittura = s.project_write_lock.lock().await;
-    match backup_now(&dir) {
+    // Il backup a mano porta anche lo storico (03-10-2026); quello automatico no.
+    match backup_now_con(&dir, true) {
         Ok(path) => {
             let name = path
                 .file_name()
@@ -451,6 +497,23 @@ mod tests {
         assert!(project.join("synoptics/Page 1.yaml").exists());
     }
 
+    /// Il backup automatico non porta lo storico, e ripristinarlo non tocca
+    /// quello vivo (03-10-2026).
+    #[test]
+    fn il_backup_automatico_lascia_stare_lo_storico() {
+        let tmp = TempDir::new().unwrap();
+        let project = tmp.path();
+        write(project, "project.yaml", "name: test\n");
+        write(project, "history/historian.db", "storico di prima");
+        let snap = backup_now(project).unwrap();
+        assert!(!snap.join("history").exists());
+        write(project, "history/historian.db", "storico di adesso");
+        write(project, "project.yaml", "name: cambiato\n");
+        restore_backup(project, &snap.file_name().unwrap().to_string_lossy()).unwrap();
+        assert_eq!(std::fs::read_to_string(project.join("project.yaml")).unwrap(), "name: test\n");
+        assert_eq!(std::fs::read_to_string(project.join("history/historian.db")).unwrap(), "storico di adesso");
+    }
+
     #[test]
     fn zip_directory_preserves_files_and_binary_content() {
         let tmp = TempDir::new().unwrap();
@@ -461,8 +524,11 @@ mod tests {
         let db_path = project.join("history/historian.db");
         std::fs::create_dir_all(db_path.parent().unwrap()).unwrap();
         std::fs::write(&db_path, [0u8, 159, 146, 150, 1, 2, 3]).unwrap();
+        // Quelle che un backup non deve portare.
+        std::fs::write(project.join("history/historian.db-wal"), "wal").unwrap();
+        std::fs::write(project.join("history/historian-prima-della-pulizia-x.db"), "grande").unwrap();
 
-        let snap = backup_now(project).unwrap();
+        let snap = backup_now_con(project, true).unwrap();
         let zip_bytes = zip_directory(&snap).unwrap();
 
         let mut archive = zip::ZipArchive::new(std::io::Cursor::new(zip_bytes)).unwrap();

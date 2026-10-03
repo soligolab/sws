@@ -759,6 +759,18 @@ fn install_sh(remote_dir: &str) -> String {
     format!("cd {remote_dir} && chmod +x install-container.sh && ./install-container.sh")
 }
 
+/// Dopo un'installazione da archivio riuscita, l'archivio sul dispositivo non
+/// serve più: `podman load` l'ha già messo nello storage (03-10-2026). Sul TC620
+/// `/tmp` è un tmpfs, e i 155 MB dell'archivio restavano in **RAM** fino al
+/// riavvio. Si toglie solo quel file — mai la cartella, che l'utente può aver
+/// scelto altrove. `None` per il registry: lì non c'è archivio.
+fn cmd_togli_archivio(remote_dir: &str, image: &ImageSpec) -> Option<String> {
+    match image {
+        ImageSpec::Archive(f) => Some(format!("cd {remote_dir} && rm -f -- {f}")),
+        ImageSpec::Registry(_) => None,
+    }
+}
+
 /// Build the remote `install-container.sh` invocation. Split out from
 /// `deploy_device_container` so it's unit-testable without an actual SSH
 /// round-trip — mirrors `resolve_dist_file`/`parse_image_tarball` above.
@@ -1373,6 +1385,22 @@ pub async fn deploy_device_container(
             send("==> Health check: OK");
         } else {
             send("WARN: health check non risponde — il servizio potrebbe ancora essere in avvio");
+        }
+
+        if let Some(cmd) = cmd_togli_archivio(&req.remote_dir, &image_spec) {
+            let tolto = run_ssh_cmd(
+                use_sshpass,
+                &req.password,
+                "ssh",
+                &["-p", &port_str, "-o", "StrictHostKeyChecking=accept-new", &host_str, &cmd],
+                &send,
+            )
+            .await;
+            send(if tolto {
+                "==> archivio tolto dal dispositivo (l'immagine è già caricata)"
+            } else {
+                "WARN: archivio non tolto dal dispositivo: resta nella cartella temporanea fino al riavvio"
+            });
         }
 
         send("DONE");
@@ -2271,6 +2299,15 @@ mod tests {
         ] {
             assert_eq!(build_manage_cmd(action, "", false, "").unwrap(), expected);
         }
+    }
+
+    #[test]
+    fn l_archivio_si_toglie_solo_da_archivio() {
+        assert_eq!(
+            cmd_togli_archivio("/tmp/sws-deploy", &ImageSpec::Archive("sws-runtime-2.12.0-rc.18-aarch64-image.tar.gz".into())).as_deref(),
+            Some("cd /tmp/sws-deploy && rm -f -- sws-runtime-2.12.0-rc.18-aarch64-image.tar.gz")
+        );
+        assert!(cmd_togli_archivio("/tmp/sws-deploy", &ImageSpec::Registry(String::new())).is_none());
     }
 
     #[test]

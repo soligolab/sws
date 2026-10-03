@@ -2295,6 +2295,24 @@ pub(crate) fn lingua_iniziale(lang: Option<&str>) -> sws_core::LanguageTable {
     }
 }
 
+/// Le sorgenti che non hanno indirizzi da rivedere: leggono la macchina su cui
+/// gira il runtime. Un template fatto solo di queste (03-10-2026, `tc620-sistema`)
+/// non deve partire con le sorgenti ferme: non c'è niente dell'esempio da
+/// correggere, e il pannello mostrava tutto «Uncertain» senza dire perché.
+const SORGENTI_LOCALI: &[&str] = &["host"];
+
+/// Il progetto ha almeno una sorgente che parla con qualcun altro (un PLC, un
+/// broker, un server): solo allora gli indirizzi dell'esempio vanno rivisti.
+fn ha_sorgenti_con_indirizzi(doc: &serde_yaml::Value) -> bool {
+    doc.get("sources")
+        .and_then(|s| s.as_sequence())
+        .is_some_and(|v| {
+            v.iter().any(|s| {
+                s.get("kind").and_then(|k| k.as_str()).is_none_or(|k| !SORGENTI_LOCALI.contains(&k))
+            })
+        })
+}
+
 /// Accende `sorgenti_da_rivedere` sul progetto appena copiato da un template.
 ///
 /// Sta qui e non dentro `patch_project_name` per la stessa ragione di
@@ -2303,6 +2321,9 @@ pub(crate) fn lingua_iniziale(lang: Option<&str>) -> sws_core::LanguageTable {
 async fn segna_sorgenti_da_rivedere(yaml_path: &StdPath) -> anyhow::Result<()> {
     let raw = tokio::fs::read_to_string(yaml_path).await?;
     let mut doc: serde_yaml::Value = serde_yaml::from_str(&raw)?;
+    if !ha_sorgenti_con_indirizzi(&doc) {
+        return Ok(());
+    }
     if let Some(m) = doc.as_mapping_mut() {
         m.insert(
             serde_yaml::Value::String("sorgenti_da_rivedere".into()),
@@ -2581,6 +2602,15 @@ mod tests {
     /// applicativo completo; quello che può rompersi in silenzio è la scrittura
     /// nel YAML — un campo messo nel posto sbagliato, o un `project.yaml` che
     /// dopo non si rilegge più.
+    #[test]
+    fn solo_le_sorgenti_con_indirizzi_vanno_rivedute() {
+        let y = |t: &str| serde_yaml::from_str::<serde_yaml::Value>(t).unwrap();
+        assert!(!ha_sorgenti_con_indirizzi(&y("sources:\n- kind: host\n  id: h\n")));
+        assert!(!ha_sorgenti_con_indirizzi(&y("meta: {name: x}\n")));
+        assert!(ha_sorgenti_con_indirizzi(&y("sources:\n- kind: host\n  id: h\n- kind: modbus\n  id: m\n")));
+        assert!(ha_sorgenti_con_indirizzi(&y("sources:\n- id: senza_kind\n")));
+    }
+
     #[tokio::test]
     async fn il_flag_finisce_nel_project_yaml_e_il_file_resta_leggibile() {
         let dir = tempfile::tempdir().unwrap();

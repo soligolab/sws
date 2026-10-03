@@ -20,6 +20,23 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   mostra lo stato ma non le novità. Vale per la `2.12.0-rc.1` e la `rc.2`.
 
 ### Added
+- **Lo storico compatto** (piano `docs/plans/2026-09-26-storico-troppo-grande.md`). `sws-historian/src/sqlite.rs`:
+  `tag_storico (id, nome)` + `campioni (tag_id, ts_ms, tipo, valore, qualita)` WITHOUT ROWID, `valore` senza
+  affinità (intero esatto, reale, testo, JSON per array/strutture), vista `samples` con la forma di prima. Migrazione
+  **in sottofondo a lotti** (`prepara_migrazione` istantanea all'apertura, poi `migra_a_lotti` su un thread, 5 000 righe
+  per transazione, ripresa dopo un'interruzione): al collaudo sul TC620 la migrazione in una transazione sola durava
+  85 s su 90 di `TimeoutStartSec`, perché il runtime apre il progetto prima di mettersi in ascolto, e systemd l'ha
+  riavviato; con uno storico più grande sarebbe ripartita da capo per sempre. Ora l'apertura costa 0,02 s. Le righe
+  si convertono **in Rust** col parser della lettura di prima. Ogni lotto è `BEGIN IMMEDIATE` e un lotto fallito si
+  riprova (12 volte, 5 s): sulla rc.19 la transazione differita falliva con «database is locked» 50 ms dopo l'avvio
+  appena la registrazione dal vivo scriveva (test `la_migrazione_regge_le_scritture_dal_vivo`, rosso 3 su 3 prima). La
+  conversione SQL da
+  testo a reale sbagliava l'ultima cifra (54.108249059935716 contro 54.10824905993571, visto sulla copia di
+  CasaDomotica). Su copie vere: 36,2 → 18,4 MB (484 255 righe, 10 s), 546,9 → 226,7 MB (7,1 milioni, 130 s in
+  debug), ogni valore e ogni conteggio per tag uguali (test `migrazione_su_un_database_vero`, ignorato, con
+  `SWS_STORICO_PROVA`). **Backup**: quelli automatici senza `history/` (`backup_now`), «Crea backup» con lo storico
+  copiato da `copia_coerente` e senza `-wal`/`-shm`/copie «prima della pulizia» (`backup_now_con`); testi della scheda
+  Backup aggiornati.
 - **L'aggiornamento con ritorno** (piano `docs/plans/2026-10-03-pulizia-immagini-dopo-aggiornamento.md`). Prima di ogni
   aggiornamento il runtime prende un'istantanea di config e progetti in `<config>/istantanea/` (`istantanea_dati.rs`;
   i database con `VACUUM INTO` da una connessione di sola lettura, `sws_historian::sqlite::copia_coerente`; senza
@@ -31,6 +48,8 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   attuale, precedente e in uso, e istantanea), `dopo_riavvio`, `piu_tardi`, `ritorna` (ferma, rimette i dati
   togliendo i `-wal` nuovi, quadlet o `podman tag` sulla precedente, riavvia). La versione scartata
   (`aggiornamento.yaml: versione_scartata`) non torna con finestra o pilota; «Aggiorna ora» la libera.
+  Dopo un ritorno l'immagine a cui si è tornati vale già come confermata (`appena_tornato`): al collaudo la rc.17
+  ripristinata chiedeva «confermare l'aggiornamento dalla rc.18?», con un «Torna alla rc.18».
   `POST /api/aggiornamento/conferma` e `/istantanea` (+ remote), `/api/system: conferma_aggiornamento`. IDE: riquadro
   «Dopo l'aggiornamento»; pannello web e LVGL: la domanda con le quattro scelte e il secondo passo del ritorno (otto
   testi di sistema nuovi). Test: `tests/shell/immagini.sh` (23 controlli, provato rosso, in `check_quadlet.sh`), Rust
@@ -176,6 +195,9 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   riga rossa con **Converti**, in testa c'è **Converti tutti (n)**, e gli allarmi che condividono un tag lo dicono. La conversione non cambia come scatta; il Salva resta dell'utente.
 
 ### Fixed
+- **L'archivio del deploy restava in RAM sul pannello**: dopo un'installazione da archivio riuscita il deploy
+  container toglie l'archivio dal dispositivo (`cmd_togli_archivio`, solo il file, mai la cartella). Sul TC620
+  `/tmp/sws-deploy` è un tmpfs e i 155 MB restavano occupati fino al riavvio.
 - `install-container.sh --uninstall` toglie anche il quadlet e il container del viewer LVGL.
 - **Quel che il pannello LVGL ricorda non si perde più a ogni deploy.** L'esito dell'aggiornamento già chiuso, la versione ignorata e la sessione del viewer
   finivano nel filesystem effimero del container (`$HOME/.config/sws`, con `HOME=/home/ubuntu`), che il quadlet non montava: siccome ogni deploy di progetto
