@@ -121,6 +121,10 @@ pub struct TagDb {
     /// scritture utente (API/WS/ricette). Aggiornata insieme a `scales`.
     /// Un tag assente dall'insieme non è vincolato: è il caso storico.
     computed_tags: Arc<RwLock<std::collections::HashSet<TagId>>>,
+    /// I tag per cui un valore in arrivo da un plugin è già stato saturato o
+    /// rifiutato dalla conversione al tipo (03-10-2026): il log lo dice **una
+    /// volta per tag**, non a ogni lettura.
+    conversione_segnalata: Arc<std::sync::Mutex<std::collections::HashSet<TagId>>>,
 }
 
 impl TagDb {
@@ -133,6 +137,7 @@ impl TagDb {
             write_roles: Arc::new(RwLock::new(HashMap::new())),
             data_types: Arc::new(RwLock::new(HashMap::new())),
             computed_tags: Arc::new(RwLock::new(std::collections::HashSet::new())),
+            conversione_segnalata: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
             forme: Arc::new(RwLock::new(HashMap::new())),
             qualita_foglie: Arc::new(RwLock::new(HashMap::new())),
         }
@@ -170,7 +175,8 @@ impl TagDb {
     /// e numeriche, che i vecchi progetti usano davvero) e rifiuta il resto
     /// con un messaggio che nomina tag, tipo dichiarato e valore ricevuto.
     /// Il percorso inverso — i plugin che leggono dal campo via `ingest` —
-    /// non passa di qui: lì il tipo lo determina il protocollo.
+    /// non passa di qui: dal 03-10-2026 ha la sua conversione, che arrotonda e
+    /// satura invece di rifiutare (vedi [`ingest`](Self::ingest)).
     pub async fn coerce_for_write(&self, id: &str, value: TagValue) -> Result<TagValue, String> {
         let Some(want) = self.data_types.read().await.get(id).cloned() else {
             return Ok(value);
@@ -264,13 +270,57 @@ impl TagDb {
     /// scaling raw→eng se il tag lo definisce. Gli altri produttori (script,
     /// tag derivati, populate iniziale, API su tag virtuali) usano `set()`:
     /// producono già valori ingegneristici e scalarli due volte sarebbe un bug.
+    ///
+    /// Dal 03-10-2026 il valore, **dopo** lo scaling, si porta al tipo dichiarato
+    /// del tag o della foglia ([`TipoScalare::converti_lettura`]): un `i32` non
+    /// tiene più 29,8, un `u64` non tiene più 237593.0. Saturato → Uncertain;
+    /// non convertibile → resta l'ultimo valore, marcato Bad. Un tag senza tipo
+    /// dichiarato (creato al volo) passa com'era.
+    ///
+    /// [`TipoScalare::converti_lettura`]: crate::tipo::TipoScalare::converti_lettura
     pub async fn ingest(&self, id: TagId, value: TagValue, quality: TagQuality) {
         let scaled = match (self.scales.read().await.get(&id).copied(), value) {
             (Some(s), TagValue::Float(v)) => TagValue::Float(s.to_eng(v)),
             (Some(s), TagValue::Int(v)) => TagValue::Float(s.to_eng(v as f64)),
             (_, v) => v,
         };
-        self.set(id, scaled, quality).await;
+        let tipo = self
+            .data_types
+            .read()
+            .await
+            .get(&id)
+            .and_then(|n| crate::tipo::TipoScalare::parse(n).map(|t| (n.clone(), t)));
+        let Some((nome, tipo)) = tipo else {
+            self.set(id, scaled, quality).await;
+            return;
+        };
+        match tipo.converti_lettura(scaled.clone()) {
+            crate::tipo::Lettura::Ok(v) => self.set(id, v, quality).await,
+            crate::tipo::Lettura::Saturato(v) => {
+                self.segnala_conversione(&id, || {
+                    format!("il tag «{id}» è dichiarato {nome}: {} saturato a {}", crate::tipo::descrivi(&scaled), crate::tipo::descrivi(&v))
+                });
+                let q = if quality == TagQuality::Bad { TagQuality::Bad } else { TagQuality::Uncertain };
+                self.set(id, v, q).await;
+            }
+            crate::tipo::Lettura::Rifiutato(ricevuto) => {
+                self.segnala_conversione(&id, || {
+                    format!("il tag «{id}» è dichiarato {nome}, dal protocollo arriva {ricevuto}: resta l'ultimo valore, marcato Bad")
+                });
+                self.marca_qualita(&id, TagQuality::Bad).await;
+            }
+        }
+    }
+
+    fn segnala_conversione(&self, id: &str, testo: impl FnOnce() -> String) {
+        let prima_volta = self
+            .conversione_segnalata
+            .lock()
+            .map(|mut s| s.insert(id.to_string()))
+            .unwrap_or(false);
+        if prima_volta {
+            tracing::warn!("{}", testo());
+        }
     }
 
     pub async fn set(&self, id: TagId, value: TagValue, quality: TagQuality) {
@@ -1024,5 +1074,48 @@ mod tests {
         let db = TagDb::new(16);
         db.marca_qualita("mai.esistito", TagQuality::Bad).await;
         assert!(db.get("mai.esistito").await.is_none());
+    }
+
+    // ── La conversione in lettura (03-10-2026) ───────────────────────────────
+
+    #[tokio::test]
+    async fn ingest_porta_il_valore_al_tipo_dichiarato() {
+        let db = TagDb::new(64);
+        db.set_data_types(
+            [
+                ("temp".to_string(), "i32".to_string()),
+                ("uptime".to_string(), "u64".to_string()),
+                ("reg".to_string(), "u16".to_string()),
+                ("mqtt".to_string(), "float".to_string()),
+                ("nome".to_string(), "string".to_string()),
+            ]
+            .into(),
+        )
+        .await;
+        db.ingest("temp".into(), TagValue::Float(29.8), TagQuality::Good).await;
+        assert_eq!(db.get("temp").await.unwrap().value, TagValue::Int(30), "reale su intero: arrotondato");
+        db.ingest("uptime".into(), TagValue::Float(237593.0), TagQuality::Good).await;
+        assert_eq!(db.get("uptime").await.unwrap().value, TagValue::Int(237593));
+
+        // Fuori intervallo: saturato e Uncertain.
+        db.ingest("reg".into(), TagValue::Int(-5), TagQuality::Good).await;
+        let r = db.get("reg").await.unwrap();
+        assert_eq!((r.value, r.quality), (TagValue::Int(0), TagQuality::Uncertain));
+        db.ingest("reg".into(), TagValue::Int(70_000), TagQuality::Good).await;
+        assert_eq!(db.get("reg").await.unwrap().value, TagValue::Int(65_535));
+
+        // Non convertibile: resta l'ultimo valore, marcato Bad.
+        db.ingest("mqtt".into(), TagValue::Float(1.5), TagQuality::Good).await;
+        db.ingest("mqtt".into(), TagValue::Bool(true), TagQuality::Good).await;
+        let m = db.get("mqtt").await.unwrap();
+        assert_eq!((m.value, m.quality), (TagValue::Float(1.5), TagQuality::Bad));
+
+        // Un numero su un testo: convertito.
+        db.ingest("nome".into(), TagValue::Int(7), TagQuality::Good).await;
+        assert_eq!(db.get("nome").await.unwrap().value, TagValue::Str("7".into()));
+
+        // Un tag senza tipo dichiarato passa com'era.
+        db.ingest("libero".into(), TagValue::Float(29.8), TagQuality::Good).await;
+        assert_eq!(db.get("libero").await.unwrap().value, TagValue::Float(29.8));
     }
 }

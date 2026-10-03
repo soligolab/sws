@@ -127,7 +127,7 @@ export function AlberoTagLive({ rientro = 20, puoAprire = true }: {
             {foglie.map((f, i) => (
               <RigaTagLive
                 key={f.percorso}
-                tag={{ id: f.percorso }}
+                tag={{ id: f.percorso, decimals: f.membro?.decimals, unit: f.membro?.unit }}
                 etichetta={f.percorso.slice(tg.id.length).replace(/^\./, "")}
                 valore={tagValues[f.percorso]}
                 usi={usiDi(f.percorso)}

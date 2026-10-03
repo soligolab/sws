@@ -50,6 +50,8 @@ versioni:
       - it: "Le password del progetto stanno in un file a parte e non compaiono più nei log."
         en: "Project passwords live in a separate file and no longer show up in logs."
     compatibilita:
+      - it: "I valori dei protocolli prendono il tipo dichiarato: un tag dichiarato numero che riceve un booleano o un testo diventa Bad. Correggere il tipo nella scheda Variabili."
+        en: "Protocol values now take the declared type: a tag declared as a number that receives a boolean or text turns Bad. Fix the type in the Tags tab."
       - it: "Un pannello con una versione precedente alla 2.12.0-rc.1 non si aggiorna da solo: va aggiornato una volta da Configurazione → Istanza → Device → Installazione."
         en: "A panel running a version older than 2.12.0-rc.1 cannot update itself: update it once from Configuration → Instance → Device → Install."
       - it: "Dopo l'aggiornamento il pannello chiede di aggiornare la configurazione del servizio («Aggiorna»): si riavvia una seconda volta. Installato prima del 27-09-2026: reinstallare dall'Installazione."

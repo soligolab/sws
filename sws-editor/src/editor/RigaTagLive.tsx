@@ -108,8 +108,26 @@ function Nota({ testo }: { testo: string }) {
   );
 }
 
+/** Il valore come lo mostra l'albero (03-10-2026): i decimali dichiarati dal
+ *  tag o dal membro, e senza, al massimo tre (un `f32` letto dal campo arrivava
+ *  come 22.97979736328125); poi l'unità. Testi, booleani e interi come sono. */
+export function testoValoreTag(v: unknown, decimals?: number, unit?: string): string {
+  let s: string;
+  if (typeof v === "number" && Number.isFinite(v) && !Number.isInteger(v)) {
+    s = decimals != null ? v.toFixed(decimals) : String(Number(v.toFixed(3)));
+  } else if (typeof v === "number" && Number.isInteger(v) && decimals != null && decimals > 0) {
+    s = v.toFixed(decimals);
+  } else if (v !== null && typeof v === "object") {
+    s = JSON.stringify(v);
+  } else {
+    s = String(v);
+  }
+  return unit && typeof v === "number" ? `${s} ${unit}` : s;
+}
+
 export function RigaTagLive({ tag, valore, usi, aperta, onToggle, onApri, stileRiga, figli, etichetta }: {
-  tag: Pick<TagDef, "id">;
+  /** Per una foglia, decimali e unità vengono dal membro del tipo. */
+  tag: Pick<TagDef, "id" | "decimals" | "unit">;
   valore?: TagState;
   usi: readonly TagUse[];
   /** Solo per le istanze: se le foglie sono in vista. */
@@ -165,7 +183,7 @@ export function RigaTagLive({ tag, valore, usi, aperta, onToggle, onApri, stileR
         </div>
         {valore != null && (
           <span style={{ color: "var(--brand-text-subtle, #64748b)", fontSize: 11, flexShrink: 0 }}>
-            {String(valore.value)}
+            {testoValoreTag(valore.value, tag.decimals, tag.unit)}
           </span>
         )}
       </div>

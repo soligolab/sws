@@ -2617,7 +2617,9 @@ mod tests {
         let yaml = dir.path().join("project.yaml");
         tokio::fs::write(
             &yaml,
-            "meta:\n  name: pippo\n  version: 0.1.0\ntags: []\nsources: []\n",
+            // Una sorgente con indirizzi: è il caso per cui il flag esiste (dal
+            // 03-10-2026 un progetto con sole sorgenti `host` non lo riceve).
+            "meta:\n  name: pippo\n  version: 0.1.0\ntags: []\nsources:\n- kind: mqtt\n  id: m\n  host: mqtt.example.invalid\n  port: 1883\n  topics: []\n",
         )
         .await
         .unwrap();

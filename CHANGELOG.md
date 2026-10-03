@@ -195,6 +195,14 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   riga rossa con **Converti**, in testa c'è **Converti tutti (n)**, e gli allarmi che condividono un tag lo dicono. La conversione non cambia come scatta; il Salva resta dell'utente.
 
 ### Fixed
+- **I valori che arrivano dai protocolli prendono il tipo dichiarato** (decisione del maintainer, 03-10-2026). Fino a
+  ieri il tipo valeva solo per le scritture dell'utente (Q27) e un `i32` letto dall'Host teneva 29,8, un `u64` 237593.0.
+  `TagDb::ingest`, dopo lo scaling, applica `TipoScalare::converti_lettura` al tipo del tag o della foglia: reale su
+  intero **arrotondato**; fuori intervallo **saturato** e Uncertain; non convertibile (booleano su un numero, testo non
+  numerico, composito su uno scalare, NaN) → resta l'ultimo valore, marcato **Bad**; un avviso nel log una volta per tag.
+  Attenzione ai progetti vecchi con il tipo di default `float` su sorgenti che mandano booleani o testi: ora quei tag
+  diventano Bad, e il log dice quale. L'albero dei tag dell'IDE mostra i decimali e l'unità dichiarati, anche per le
+  foglie delle istanze (`testoValoreTag`).
 - **L'archivio del deploy restava in RAM sul pannello**: dopo un'installazione da archivio riuscita il deploy
   container toglie l'archivio dal dispositivo (`cmd_togli_archivio`, solo il file, mai la cartella). Sul TC620
   `/tmp/sws-deploy` è un tmpfs e i 155 MB restavano occupati fino al riavvio.

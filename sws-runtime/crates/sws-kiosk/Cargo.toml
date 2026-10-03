@@ -1,6 +1,6 @@
 [package]
 name    = "sws-kiosk"
-version = "2.12.0-rc.20"
+version = "2.12.0-rc.21"
 edition = "2021"
 
 [[bin]]

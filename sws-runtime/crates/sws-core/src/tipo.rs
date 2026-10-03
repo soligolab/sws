@@ -235,6 +235,97 @@ impl TipoScalare {
         }
     }
 
+    /// La conversione **in lettura** (03-10-2026, decisione del maintainer): un
+    /// valore che arriva da un plugin si porta al tipo dichiarato del tag (o
+    /// della foglia). Diversa da [`coerce`](Self::coerce), che vale per le
+    /// scritture dell'utente e rifiuta ogni perdita: qui il valore viene dal
+    /// campo, e un 29,8 su un `i32` è un 30, non un errore.
+    ///
+    /// - reale su intero → **arrotondato**;
+    /// - fuori dall'intervallo del tipo → **saturato** al limite, e chi chiama
+    ///   lo marca Uncertain ([`Lettura::Saturato`]); così anche un testo più
+    ///   lungo del massimo, troncato;
+    /// - testo numerico su un numero, numero o booleano su un testo → convertiti
+    ///   (non perdono niente);
+    /// - tutto il resto — un booleano su un numero, un testo non numerico, un
+    ///   valore composito su uno scalare, NaN — **non entra**
+    ///   ([`Lettura::Rifiutato`]): chi chiama lascia l'ultimo valore e marca Bad.
+    pub fn converti_lettura(&self, v: TagValue) -> Lettura {
+        use TagValue::*;
+        let intero = |f: f64| -> Lettura {
+            if !f.is_finite() {
+                return Lettura::Rifiutato(descrivi(&Float(f)));
+            }
+            let (lo, hi) = self.intervallo().unwrap_or((i64::MIN, i64::MAX));
+            let r = f.round();
+            if r < lo as f64 {
+                Lettura::Saturato(Int(lo))
+            } else if r > hi as f64 {
+                Lettura::Saturato(Int(hi))
+            } else {
+                Lettura::Ok(Int(r as i64))
+            }
+        };
+        let intero_i = |i: i64| -> Lettura {
+            let (lo, hi) = self.intervallo().unwrap_or((i64::MIN, i64::MAX));
+            if i < lo {
+                Lettura::Saturato(Int(lo))
+            } else if i > hi {
+                Lettura::Saturato(Int(hi))
+            } else {
+                Lettura::Ok(Int(i))
+            }
+        };
+        let reale = |f: f64| -> Lettura {
+            if !f.is_finite() {
+                return Lettura::Rifiutato(descrivi(&Float(f)));
+            }
+            if matches!(self, Self::F32) && f.abs() > f32::MAX as f64 {
+                return Lettura::Saturato(Float(f.signum() * f32::MAX as f64));
+            }
+            Lettura::Ok(Float(f))
+        };
+        match (self.categoria(), v) {
+            (Categoria::Bool, Bool(b)) => Lettura::Ok(Bool(b)),
+            (Categoria::Bool, Str(s)) => match s.trim().to_ascii_lowercase().as_str() {
+                "true" | "1" => Lettura::Ok(Bool(true)),
+                "false" | "0" => Lettura::Ok(Bool(false)),
+                _ => Lettura::Rifiutato(descrivi(&Str(s))),
+            },
+            (Categoria::Intero | Categoria::Tempo, Int(i)) => intero_i(i),
+            (Categoria::Intero | Categoria::Tempo, Float(f)) => intero(f),
+            (Categoria::Intero | Categoria::Tempo, Str(s)) => match s.trim().parse::<i64>() {
+                Ok(i) => intero_i(i),
+                Err(_) => match s.trim().parse::<f64>() {
+                    Ok(f) => intero(f),
+                    Err(_) => Lettura::Rifiutato(descrivi(&Str(s))),
+                },
+            },
+            (Categoria::Reale, Float(f)) => reale(f),
+            (Categoria::Reale, Int(i)) => reale(i as f64),
+            (Categoria::Reale, Str(s)) => match s.trim().parse::<f64>() {
+                Ok(f) => reale(f),
+                Err(_) => Lettura::Rifiutato(descrivi(&Str(s))),
+            },
+            (Categoria::Testo, v @ (Str(_) | Int(_) | Float(_) | Bool(_))) => {
+                let s = match v {
+                    Str(s) => s,
+                    Int(i) => i.to_string(),
+                    Float(f) => f.to_string(),
+                    Bool(b) => b.to_string(),
+                    _ => unreachable!(),
+                };
+                match self {
+                    Self::Stringa { max_len: Some(n) } if s.chars().count() > *n as usize => {
+                        Lettura::Saturato(Str(s.chars().take(*n as usize).collect()))
+                    }
+                    _ => Lettura::Ok(Str(s)),
+                }
+            }
+            (_, v) => Lettura::Rifiutato(descrivi(&v)),
+        }
+    }
+
     fn reale(&self, f: f64) -> Result<TagValue, String> {
         if matches!(self, Self::F32) && !(f as f32).is_finite() {
             return Err(format!(
@@ -244,6 +335,18 @@ impl TipoScalare {
         }
         Ok(TagValue::Float(f))
     }
+}
+
+/// L'esito di [`TipoScalare::converti_lettura`].
+#[derive(Debug, Clone, PartialEq)]
+pub enum Lettura {
+    /// Convertito senza perdere niente (o arrotondato da reale a intero).
+    Ok(TagValue),
+    /// Portato al limite del tipo: va marcato Uncertain.
+    Saturato(TagValue),
+    /// Non convertibile: resta l'ultimo valore, marcato Bad. Porta il valore
+    /// ricevuto in parole, per il log.
+    Rifiutato(String),
 }
 
 /// Il valore ricevuto, in parole, per i messaggi d'errore.
@@ -435,5 +538,31 @@ mod tests {
         assert_eq!(TipoScalare::F32.registri(), 2);
         assert_eq!(TipoScalare::I64.registri(), 4);
         assert_eq!(TipoScalare::parse("string(7)").unwrap().registri(), 4);
+    }
+
+    #[test]
+    fn la_conversione_in_lettura() {
+        use crate::tipo::Lettura::*;
+        use TagValue::*;
+        let t = |n: &str| TipoScalare::parse(n).unwrap();
+        assert_eq!(t("i32").converti_lettura(Float(29.8)), Ok(Int(30)));
+        assert_eq!(t("i32").converti_lettura(Float(-2.5)), Ok(Int(-3)), "arrotondamento lontano dallo zero, come f64::round");
+        assert_eq!(t("u8").converti_lettura(Int(300)), Saturato(Int(255)));
+        assert_eq!(t("u16").converti_lettura(Float(-0.4)), Ok(Int(0)));
+        assert_eq!(t("u16").converti_lettura(Float(-0.6)), Saturato(Int(0)));
+        assert_eq!(t("i64").converti_lettura(Str(" 42 ".into())), Ok(Int(42)));
+        assert_eq!(t("i64").converti_lettura(Str("4.6".into())), Ok(Int(5)));
+        assert!(matches!(t("i64").converti_lettura(Str("abc".into())), Rifiutato(_)));
+        assert!(matches!(t("i64").converti_lettura(Bool(true)), Rifiutato(_)));
+        assert!(matches!(t("f64").converti_lettura(Bool(true)), Rifiutato(_)));
+        assert!(matches!(t("f64").converti_lettura(Float(f64::NAN)), Rifiutato(_)));
+        assert_eq!(t("f64").converti_lettura(Int(3)), Ok(Float(3.0)));
+        assert_eq!(t("f32").converti_lettura(Float(1e300)), Saturato(Float(f32::MAX as f64)));
+        assert_eq!(t("bool").converti_lettura(Str("1".into())), Ok(Bool(true)));
+        assert!(matches!(t("bool").converti_lettura(Int(1)), Rifiutato(_)));
+        assert_eq!(t("string").converti_lettura(Float(2.5)), Ok(Str("2.5".into())));
+        assert_eq!(t("string(3)").converti_lettura(Str("abcdef".into())), Saturato(Str("abc".into())));
+        assert!(matches!(t("f64").converti_lettura(Array(vec![])), Rifiutato(_)));
+        assert_eq!(t("datetime").converti_lettura(Float(1.5)), Ok(Int(2)));
     }
 }
