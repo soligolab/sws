@@ -14,7 +14,7 @@
 #
 # `clean_disk_space.sh` resta l'accetta per le emergenze (cancella tutto
 # `target/debug`); questo è il giro di tutti i giorni, chiamato da
-# `/finalizza-giornata` dopo il push. Piano: docs/plans/2026-09-29-pulizia-disco-periodica.md
+# `/finalizza-giornata` dopo il push. Piano: docs/archive/2026-09-29-pulizia-disco-periodica.md
 #
 # Cosa NON tocca mai: `deps/`, `build/`, `.fingerprint/`, la cross-build
 # `target/aarch64-*` (ricompilarla costa decine di minuti e un container).

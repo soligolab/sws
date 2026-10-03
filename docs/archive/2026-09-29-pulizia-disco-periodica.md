@@ -1,6 +1,6 @@
 # Il disco che cresce senza misura — una pulizia periodica, non un'accetta
 
-> **Piano d'esecuzione dal 03-10-2026** (sezione in fondo). Era un seme: Quando questo lavoro comincerà, il primo passo è una
+> **Fatto il 03-10-2026** (piano in fondo; squash su `main`). Era un seme: Quando questo lavoro comincerà, il primo passo è una
 > **sessione di plan approfondita e dedicata** che rimisuri tutto e ne sviscerti ogni dettaglio:
 > le misure qui sotto sono di oggi e invecchiano in fretta, e una regola di cancellazione scritta
 > mesi prima di essere applicata è una regola che mente.

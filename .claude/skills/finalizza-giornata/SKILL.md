@@ -120,7 +120,7 @@ Toglie le cartelle di `*/incremental/` non toccate da 2 giorni nei tre target de
 cross-build `aarch64`, e salta da sé un target con una compilazione in corso. Il 03-10-2026 erano 84,5 GB su un
 disco al 97 %, e il `cargo check` dopo ha impiegato 6 s. Se esce con un errore, riportalo e prosegui: la giornata
 è già chiusa. Riporta nella conferma finale la riga che stampa («liberati N GB»).
-Piano: `docs/plans/2026-09-29-pulizia-disco-periodica.md`.
+Piano: `docs/archive/2026-09-29-pulizia-disco-periodica.md`.
 
 ## 9. Conferma finale
 

@@ -20,7 +20,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   mostra lo stato ma non le novità. Vale per la `2.12.0-rc.1` e la `rc.2`.
 
 ### Added
-- **La cache incrementale di cargo si pota a fine giornata** (piano `docs/plans/2026-09-29-pulizia-disco-periodica.md`).
+- **La cache incrementale di cargo si pota a fine giornata** (piano `docs/archive/2026-09-29-pulizia-disco-periodica.md`).
   `scripts/pota_incremental.sh [--giorni N] [--esegui]` toglie le cartelle di `*/incremental/` non toccate da N giorni
   (default 2) nei tre target; mai `deps/`, mai la cross-build `aarch64`, e salta un target il cui `.cargo-lock` è
   preso. `/finalizza-giornata` la lancia dopo il push. Prima corsa sul PC di casa: 84,5 GB liberati (disco dal 97 %
