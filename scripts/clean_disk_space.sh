@@ -7,6 +7,10 @@
 # sws-kiosk + sws-lvgl-viewer, esclusi dal workspace e quindi mai toccati da
 # un `cargo clean` sul principale) è di gran lunga il maggior consumatore.
 #
+# È l'accetta per le emergenze: il giro di tutti i giorni è
+# `scripts/pota_incremental.sh` (solo la cache incrementale vecchia, chiamato da
+# /finalizza-giornata), che non costringe a ricompilare le dipendenze.
+#
 # Default: cancella solo cose rigenerabili senza perdita di dati (target/debug,
 # node_modules, immagini podman dangling). `target/release`, `.bak/` dei
 # progetti, le cartelle `.run*` di test e la cache cargo NON vengono toccati

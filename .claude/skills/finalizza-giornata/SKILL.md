@@ -108,9 +108,24 @@ Non serve chiedere di nuovo "vuoi che pushi?": l'invocazione di questa skill è 
 libera. Se il push fallisce (rete, storia divergente da un push fatto altrove), riportalo e
 proponi `./scripts/session_start.sh` per capire cosa è successo — mai un push forzato.
 
+## 8b. La cache incrementale di cargo
+
+**Dopo** il push, mai prima — una pulizia non deve poter far fallire la chiusura:
+
+```
+./scripts/pota_incremental.sh --esegui
+```
+
+Toglie le cartelle di `*/incremental/` non toccate da 2 giorni nei tre target del repo; mai `deps/`, mai la
+cross-build `aarch64`, e salta da sé un target con una compilazione in corso. Il 03-10-2026 erano 84,5 GB su un
+disco al 97 %, e il `cargo check` dopo ha impiegato 6 s. Se esce con un errore, riportalo e prosegui: la giornata
+è già chiusa. Riporta nella conferma finale la riga che stampa («liberati N GB»).
+Piano: `docs/plans/2026-09-29-pulizia-disco-periodica.md`.
+
 ## 9. Conferma finale
 
 Riporta al maintainer, in poche righe:
 
 - cosa è stato pushato (`git log --oneline <hash-prima>..main` o l'hash finale di `origin/main`);
+- quanto ha liberato la potatura della cache incrementale;
 - che lo stato è pronto per `/riprendi` da qualunque macchina.
