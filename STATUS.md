@@ -91,7 +91,8 @@ nell'immagine). Piano in [archivio](docs/archive/2026-10-02-quadlet-che-viaggia.
   è simulato `podman auto-update` cambiando solo `Image=`. Ha ancora 9 immagini (863 MB recuperabili).
 - **Prossimo**: il seme [pulizia delle immagini dopo un aggiornamento](docs/plans/2026-10-03-pulizia-immagini-dopo-aggiornamento.md),
   scelto dal maintainer come piano successivo — si apre con una sessione di plan.
-- Il maintainer deve cambiare la password di `pixsys` sul TC620 (è passata in chat).
+- L'accesso SSH al TC620 è con chiave (`pixsys` e `user`). La password di `pixsys` resta quella: è un dispositivo di
+  test, non un prodotto (decisione del maintainer, 03-10-2026).
 - Restano dai giorni scorsi: pareri sui marker grandi delle pipe e sul segnaposto del `data_log` in edit, la decisione
   su «il deploy non segnala il cambio di progetto», il confronto IDE/LVGL della rc.15. La riga del piano dei
   predefiniti espliciti in `docs/plans/README.md` dice ancora «in corso» benché sia su `main`.
@@ -431,8 +432,8 @@ indietro da un'immagine rotta riuscito ma con due note per le fasi successive (p
 quando riesce; ~2,5 min di disservizio con un'immagine rotta). Resta: il maintainer guarda la sezione «Aggiornamento del
 runtime» nell'IDE, poi squash. Dopo: **Fase 1b** (avviso sul pannello senza utenti, changelog nell'immagine,
 decisioni 41-44). Il login di ghcr.io è in `~/.config/containers/auth.json` su `ufficio` (persistente).
-Il maintainer ha dato una password temporanea di `pixsys` sul TC620 **in chat**: non scritta da nessuna parte, da
-cambiare a fine collaudo.
+Il maintainer ha dato la password di `pixsys` sul TC620 **in chat**: non scritta da nessuna parte. Resta quella
+(dispositivo di test, decisione del 03-10-2026).
 
 ## Riprendere da qui (precedente) — Fase 1 scritta, collaudo fermo al login di ghcr.io (2026-09-27, notte)
 
