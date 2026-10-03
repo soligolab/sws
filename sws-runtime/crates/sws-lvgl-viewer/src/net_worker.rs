@@ -63,6 +63,11 @@ pub enum Comando {
         base_url: String,
         token: Option<String>,
     },
+    /// La configurazione del servizio riscritta dal pannello (02-10-2026).
+    AggiornaQuadlet {
+        base_url: String,
+        token: Option<String>,
+    },
 }
 
 impl Comando {
@@ -72,6 +77,7 @@ impl Comando {
             Comando::AckAlarm { alarm_id, .. } => format!("ack dell'allarme '{alarm_id}'"),
             Comando::ApplyRecipe { id, .. } => format!("applicazione della ricetta '{id}'"),
             Comando::AvviaAggiornamento { .. } => "avvio dell'aggiornamento".to_string(),
+            Comando::AggiornaQuadlet { .. } => "aggiornamento della configurazione del servizio".to_string(),
         }
     }
 }
@@ -96,6 +102,9 @@ async fn esegui(cmd: Comando) -> anyhow::Result<()> {
         } => client::apply_recipe(base_url, id, token).await,
         Comando::AvviaAggiornamento { base_url, token } => {
             client::avvia_aggiornamento(&base_url, token.as_deref()).await
+        }
+        Comando::AggiornaQuadlet { base_url, token } => {
+            client::aggiorna_quadlet(&base_url, token.as_deref()).await
         }
     }
 }

@@ -3,9 +3,10 @@ import { describe, expect, it, beforeEach, vi } from "vitest";
 
 // `vi.mock` è sollevato in cima al file, quindi non può leggere variabili
 // dichiarate qui sopra: `vi.hoisted` è il modo di crearle prima di lui.
-const { statoAggiornamento, avviaAggiornamento, getSystemStatus } = vi.hoisted(() => ({
+const { statoAggiornamento, avviaAggiornamento, getSystemStatus, aggiornaQuadlet } = vi.hoisted(() => ({
   statoAggiornamento: vi.fn(),
   avviaAggiornamento: vi.fn().mockResolvedValue({}),
+  aggiornaQuadlet: vi.fn().mockResolvedValue({}),
   // Il viewer chiede da sé se il progetto ha utenti: il test simula la
   // risposta del runtime, non inietta il valore nello store (è così che il
   // difetto del 28-09 era rimasto invisibile).
@@ -13,7 +14,7 @@ const { statoAggiornamento, avviaAggiornamento, getSystemStatus } = vi.hoisted((
 }));
 vi.mock("@/api/client", async () => {
   const actual = await vi.importActual<typeof import("@/api/client")>("@/api/client");
-  return { ...actual, api: { ...actual.api, statoAggiornamento, avviaAggiornamento, getSystemStatus } };
+  return { ...actual, api: { ...actual.api, statoAggiornamento, avviaAggiornamento, getSystemStatus, aggiornaQuadlet } };
 });
 
 // Le parole non vengono più da i18next: dal 29-09-2026 stanno nella tabella
@@ -164,5 +165,32 @@ describe("avviso di aggiornamento sul pannello", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  // ── Il quadlet che viaggia (02-10-2026) ────────────────────────────────────
+  const QUADLET_VECCHIO = { installata: 0, attesa: 1, da_aggiornare: true, si_puo_aggiornare: true, motivo: null, ultimo_esito: null };
+
+  it("senza utenti e con la configurazione del servizio vecchia, la offre e la aggiorna", async () => {
+    statoAggiornamento.mockResolvedValue({ ...NUOVA, disponibile: null, novita: [] });
+    getSystemStatus.mockResolvedValue({ auth_required: false, uptime_s: 100, quadlet: QUADLET_VECCHIO });
+    aggiornaQuadlet.mockClear();
+    render(<AvvisoAggiornamento />);
+    expect(await screen.findByText(new RegExp(testoSistema("quadlet_titolo", L)))).toBeTruthy();
+    expect(screen.getByText(testoSistemaCon("quadlet_spiega", L, { da: "0", a: "1" }))).toBeTruthy();
+    fireEvent.click(screen.getByText(testoSistema("agg_aggiorna", L)));
+    await waitFor(() => expect(aggiornaQuadlet).toHaveBeenCalledTimes(1));
+  });
+
+  it("con utenti, o se il pannello non sa aggiornarla da sé, non la offre", async () => {
+    statoAggiornamento.mockResolvedValue({ ...NUOVA, disponibile: null, novita: [] });
+    getSystemStatus.mockResolvedValue({ auth_required: true, uptime_s: 100, quadlet: QUADLET_VECCHIO });
+    const { unmount } = render(<AvvisoAggiornamento />);
+    await waitFor(() => expect(getSystemStatus).toHaveBeenCalled());
+    expect(screen.queryByRole("dialog")).toBeNull();
+    unmount();
+    getSystemStatus.mockResolvedValue({ auth_required: false, uptime_s: 100, quadlet: { ...QUADLET_VECCHIO, si_puo_aggiornare: false } });
+    render(<AvvisoAggiornamento />);
+    await waitFor(() => expect(statoAggiornamento).toHaveBeenCalled());
+    expect(screen.queryByText(new RegExp(testoSistema("quadlet_titolo", L)))).toBeNull();
   });
 });

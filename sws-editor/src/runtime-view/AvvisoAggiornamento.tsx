@@ -20,7 +20,7 @@
  *  altrimenti non sarebbe un ignorare, sarebbe un rimandare.
  */
 import { useEffect, useState } from "react";
-import { api, novitaNellaLingua, type NovitaVersione, type StatoAggiornamento } from "@/api/client";
+import { api, novitaNellaLingua, type NovitaVersione, type StatoAggiornamento, type StatoQuadlet } from "@/api/client";
 import { useLinguaContenuti } from "@/i18n/linguaContenuti";
 import { testoSistema, testoSistemaCon } from "@/i18n/testiSistema";
 
@@ -78,6 +78,11 @@ export function AvvisoAggiornamento() {
   const [novitaAperte, setNovitaAperte] = useState(false);
   const [inCorso, setInCorso] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
+  // Il quadlet che viaggia (02-10-2026): la configurazione del servizio più
+  // vecchia di quella della versione che gira. «Più tardi» vale fino al
+  // prossimo avvio del runtime, come per la versione nuova.
+  const [quadlet, setQuadlet] = useState<StatoQuadlet | null>(null);
+  const [quadletRimandato, setQuadletRimandato] = useState(false);
 
   // All'avvio del viewer, e di nuovo ogni volta che il runtime riparte: un
   // pannello acceso da mesi non ricarica la pagina quando il runtime si
@@ -93,6 +98,8 @@ export function AvvisoAggiornamento() {
       if (!vivo) return;
       const riavvio = ripartito(ultimoUptime, sys.uptime_s ?? 0);
       ultimoUptime = sys.uptime_s ?? 0;
+      setQuadlet(sys.quadlet ?? null);
+      if (riavvio) setQuadletRimandato(false);
       if (!primaVolta && !riavvio) return;
       const libero = sys.auth_required === false;
       setSenzaUtenti(libero);
@@ -164,6 +171,49 @@ export function AvvisoAggiornamento() {
           <div style={{ marginTop: 16, display: "flex", justifyContent: "flex-end" }}>
             <button type="button" onClick={() => { chiudiEsito(evento.id); setEsitoVisto(true); setNovitaAperte(false); }}>
               {testoSistema("esito_chiudi", lang)}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Poi la configurazione del servizio da aggiornare: dopo un aggiornamento che
+  // porta quadlet nuovi è il passo che resta, e davanti al pannello non c'è un IDE.
+  if (senzaUtenti && quadlet?.da_aggiornare && quadlet.si_puo_aggiornare && !quadletRimandato) {
+    const daA = { da: String(quadlet.installata ?? "?"), a: String(quadlet.attesa ?? "?") };
+    const aggiornaQuadlet = async () => {
+      setInCorso(true);
+      setErrore(null);
+      try {
+        await api.aggiornaQuadlet();
+        // Il pannello si riavvia e questa pagina cade: niente da mostrare dopo.
+      } catch (e) {
+        setErrore(e instanceof Error ? e.message : String(e));
+        setInCorso(false);
+      }
+    };
+    return (
+      <div role="dialog" aria-modal="true" aria-label={testoSistema("quadlet_titolo", lang)}
+        style={{ position: "fixed", inset: 0, zIndex: 9000, background: "rgba(2, 6, 23, 0.72)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+        <div style={{
+          background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)",
+          borderRadius: 8, padding: 20, maxWidth: 520, width: "100%", boxShadow: "0 10px 40px rgba(0,0,0,0.5)",
+        }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: "var(--brand-text, #e2e8f0)", marginBottom: 6 }}>
+            ⚙ {testoSistema("quadlet_titolo", lang)}
+          </div>
+          <div style={{ fontSize: 13, color: "var(--brand-text-muted, #94a3b8)" }}>
+            {testoSistemaCon("quadlet_spiega", lang, daA)}
+          </div>
+          {errore && <div style={{ marginTop: 10, fontSize: 12, color: "var(--brand-danger-soft, #f87171)" }}>{errore}</div>}
+          <div style={{ marginTop: 16, display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <button type="button" onClick={() => setQuadletRimandato(true)} disabled={inCorso}>
+              {testoSistema("agg_piu_tardi", lang)}
+            </button>
+            <button type="button" onClick={() => void aggiornaQuadlet()} disabled={inCorso}
+              style={{ fontWeight: 600, background: "#1d4ed8", color: "#fff", border: "1px solid var(--brand-primary-hover, #2563eb)", borderRadius: 5, padding: "6px 14px", cursor: "pointer" }}>
+              {inCorso ? testoSistema("agg_in_corso", lang) : testoSistema("agg_aggiorna", lang)}
             </button>
           </div>
         </div>

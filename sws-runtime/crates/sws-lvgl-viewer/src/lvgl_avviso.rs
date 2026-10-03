@@ -52,6 +52,9 @@ use sws_core::testi_sistema::{testo, testo_con, Testo};
 enum Azione {
     Aggiorna,
     PiuTardi,
+    /// La configurazione del servizio (02-10-2026).
+    AggiornaQuadlet,
+    PiuTardiQuadlet,
     Ignora(String),
     ChiudiEsito(i64),
 }
@@ -80,6 +83,11 @@ unsafe extern "C" fn sws_avviso_cb(e: *mut lvgl_sys::lv_event_t) {
             aggiornamento::avvia(&ctx.stato, &ctx.base_url, token);
         }
         Azione::PiuTardi => aggiornamento::rimanda(&ctx.stato),
+        Azione::AggiornaQuadlet => {
+            let token = ctx.sessione.lock().unwrap_or_else(|e| e.into_inner()).token.clone();
+            aggiornamento::aggiorna_quadlet(&ctx.stato, &ctx.base_url, token);
+        }
+        Azione::PiuTardiQuadlet => aggiornamento::rimanda_quadlet(&ctx.stato),
         Azione::Ignora(v) => aggiornamento::ignora(&ctx.stato, v),
         Azione::ChiudiEsito(id) => aggiornamento::chiudi_esito(&ctx.stato, *id),
     }
@@ -414,6 +422,20 @@ impl Overlay {
                     )],
                 }
             }
+            Avviso::Quadlet { da, a } => Contenuto {
+                titolo: format!("⚙ {}", testo(Testo::QuadletTitolo, lingua)),
+                sotto: String::new(),
+                compatibilita: String::new(),
+                corpo: testo_con(Testo::QuadletSpiega, lingua, &[("da", da), ("a", a)]),
+                pulsanti: vec![
+                    (testo(Testo::AggPiuTardi, lingua).to_string(), Azione::PiuTardiQuadlet, false),
+                    (
+                        testo(if avvio_chiesto { Testo::AggInCorso } else { Testo::AggAggiorna }, lingua).to_string(),
+                        Azione::AggiornaQuadlet,
+                        true,
+                    ),
+                ],
+            },
             Avviso::VersioneNuova { da, a, novita } => {
                 let mut compatibilita = String::new();
                 let mut corpo = String::new();

@@ -285,6 +285,14 @@ compreso perché dalla 2.6.5 il deploy usa `StrictHostKeyChecking=accept-new` e 
 
 ---
 
+## I quadlet sui pannelli (02-10-2026)
+
+Ogni quadlet porta la sua versione nella `Description` (`[quadlet N]`). Per vederla sul pannello, come utente `user`:
+`systemctl --user show -p Description sws-runtime.service sws-lvgl-viewer.service`. Un pannello installato prima del
+02-10 ha i quadlet senza numero (= 0): dopo l'aggiornamento alla versione che porta la funzione, l'IDE (Istanza →
+Device → Connessione → Configurazione del servizio) o lo schermo propongono di aggiornarli. Log del passaggio:
+`journalctl --user -u 'sws-quadlet-aggiorna-*'`. HOWTO §20.
+
 ## Convenzioni
 
 - **Username sui device Yocto**: `pixsys` per default.

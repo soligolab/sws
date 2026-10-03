@@ -74,6 +74,28 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — il quadlet che viaggia, collaudato sul TC620 (2026-10-03)
+
+**Nessun ramo aperto.** Squash del ramo `feat/quadlet-che-viaggia` su `main`, tag **2.12.0-rc.16** (immagine arm64
+pubblicata su `rc-arm64` dal commit di ramo `1ff473b4`; la correzione della cache sotto è arrivata dopo e non c'è
+nell'immagine). Piano in [archivio](docs/archive/2026-10-02-quadlet-che-viaggia.md).
+
+- I quadlet portano `[quadlet N]` nella `Description` e viaggiano dentro l'immagine; il pannello rileva quelli vecchi
+  e li riscrive con conferma (IDE → Istanza → Device, o l'avviso sul pannello web/LVGL) con un servizio transitorio sul
+  bus utente che lancia `install-container.sh --solo-unita`. Il viewer ha `Restart=always` e il runtime lo sorveglia.
+- **Collaudo 03-10 sul TC620**: 0 → 1 riuscito, tutto conservato (immagine, dati, rete, device-tree, bus,
+  `Timezone=local`); viewer fermato a mano ripartito in ~30 s. Sul TC620 il servizio gira sotto **`user`** (uid 1000),
+  non `pixsys`: l'SSH con chiave ora entra su entrambi.
+- Difetto visto e corretto: `/api/system` diceva «in corso» per un minuto dopo l'esito (cache di 60 s) — ora si svuota.
+- **Il TC620 è su `localhost/sws-runtime:2.12.0-rc.16-arm64`**, caricato a mano: per collaudare il percorso nuovo si
+  è simulato `podman auto-update` cambiando solo `Image=`. Ha ancora 9 immagini (863 MB recuperabili).
+- **Prossimo**: il seme [pulizia delle immagini dopo un aggiornamento](docs/plans/2026-10-03-pulizia-immagini-dopo-aggiornamento.md),
+  scelto dal maintainer come piano successivo — si apre con una sessione di plan.
+- Il maintainer deve cambiare la password di `pixsys` sul TC620 (è passata in chat).
+- Restano dai giorni scorsi: pareri sui marker grandi delle pipe e sul segnaposto del `data_log` in edit, la decisione
+  su «il deploy non segnala il cambio di progetto», il confronto IDE/LVGL della rc.15. La riga del piano dei
+  predefiniti espliciti in `docs/plans/README.md` dice ancora «in corso» benché sia su `main`.
+
 ## ▶ Riprendere da qui — lo specchio si vede sul pannello (2026-10-02, chiusura)
 
 **Nessun ramo aperto.** Squash `19a82387`. Versione dichiarata **2.12.0-rc.15**.
@@ -113,8 +135,8 @@
   commit, quindi `main` non è l'albero su ghcr), il **deploy che non segnala** il cambio progetto
   (segnalare o riaprire? decisione del maintainer), le **estremità del tubo** scalate e il
   **`data_log` col segnaposto** in modifica — due pareri ancora da dare.
-- Semi vivi: [il viewer che non riparte](docs/plans/2026-10-01-viewer-non-riparte-dopo-aggiornamento.md)
-  e [il quadlet che non viaggia](docs/plans/2026-09-29-quadlet-che-non-viaggia.md).
+- Semi vivi: [il viewer che non riparte](docs/archive/2026-10-01-viewer-non-riparte-dopo-aggiornamento.md)
+  e [il quadlet che non viaggia](docs/archive/2026-09-29-quadlet-che-non-viaggia.md).
 
 ### Le macchine
 
@@ -154,8 +176,8 @@
   Decisione del maintainer.
 - Le **estremità del tubo** scalate per lo spessore e il **`data_log` col segnaposto** in modifica:
   due pareri ancora da dare.
-- Semi vivi della stessa famiglia: [il viewer che non riparte](docs/plans/2026-10-01-viewer-non-riparte-dopo-aggiornamento.md)
-  e [il quadlet che non viaggia](docs/plans/2026-09-29-quadlet-che-non-viaggia.md) — cui si aggiunge
+- Semi vivi della stessa famiglia: [il viewer che non riparte](docs/archive/2026-10-01-viewer-non-riparte-dopo-aggiornamento.md)
+  e [il quadlet che non viaggia](docs/archive/2026-09-29-quadlet-che-non-viaggia.md) — cui si aggiunge
   il volume del viewer, che pure arriva solo reinstallando.
 
 ### Le macchine
@@ -200,8 +222,8 @@ su un tag fermo. Dall'IDE, sul progetto `collaudo-rc15`: i predefiniti scritti n
 - Le **estremità del tubo** scalate per lo spessore e il **`data_log` col segnaposto** in modifica
   (contro la regola WYSIWYG): due pareri ancora da dare.
 - Semi vivi: [il viewer che non riparte dopo un
-  aggiornamento](docs/plans/2026-10-01-viewer-non-riparte-dopo-aggiornamento.md), [il quadlet che
-  non viaggia](docs/plans/2026-09-29-quadlet-che-non-viaggia.md) — due casi della stessa famiglia,
+  aggiornamento](docs/archive/2026-10-01-viewer-non-riparte-dopo-aggiornamento.md), [il quadlet che
+  non viaggia](docs/archive/2026-09-29-quadlet-che-non-viaggia.md) — due casi della stessa famiglia,
   cui ora si aggiunge il volume del viewer, che pure arriva solo reinstallando.
 
 ### Le macchine
@@ -271,7 +293,7 @@ che chiede **due volte** di aprirsi con una sessione di plan approfondita.
 **Su `main` e su origin, nessun ramo aperto.** Squash della Fase 4 `77c958f7`, tag `2.12.0-rc.10` pushato. Del piano
 [aggiornamento runtime e bus utente](docs/archive/2026-09-27-aggiornamento-runtime-e-bus-utente.md) sono fatte le Fasi 1, 1b, 2, 3,
 4 e le Novità brevi it/en; restano un destinatario email di progetto e l'avviso a schermo su LVGL. Nuovo seme:
-[il quadlet che non viaggia con l'aggiornamento](docs/plans/2026-09-29-quadlet-che-non-viaggia.md). **Prossimo lavoro in fila**:
+[il quadlet che non viaggia con l'aggiornamento](docs/archive/2026-09-29-quadlet-che-non-viaggia.md). **Prossimo lavoro in fila**:
 il [piano utenti e aziende](docs/plans/2026-09-18-identita-utenti-istanze.md) (29 decisioni), di cui l'aggiornamento era il
 prerequisito.
 

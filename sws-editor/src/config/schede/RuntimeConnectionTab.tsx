@@ -7,6 +7,7 @@ import { INSTALL_HOST, ricorda } from "@/config/campiDispositivo";
 import { StatoBootImage } from "@/boot/StatoBootImage";
 import { StatoDisplay } from "@/boot/StatoDisplay";
 import { AggiornamentoRuntime } from "@/boot/AggiornamentoRuntime";
+import { ConfigurazioneServizio } from "@/boot/ConfigurazioneServizio";
 import { TRANS_COMP } from "@/config/comuni";
 import { registraDispositivo, flushBeforeDeploy } from "@/config/schede/DevicesTab";
 
@@ -918,6 +919,9 @@ export function RuntimeConnectionTab() {
       {/* T-72 F5 — com'è andata l'installazione dell'immagine di boot. */}
       {/* Aggiornamento del runtime (27-09-2026). */}
       {connected && <AggiornamentoRuntime />}
+
+      {/* Il quadlet che viaggia (02-10-2026): la configurazione del servizio. */}
+      {connected && <ConfigurazioneServizio />}
 
       {/* Fase 4: cosa c'è sullo schermo del pannello, e perché. */}
       {connected && <StatoDisplay />}

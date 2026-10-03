@@ -2518,6 +2518,21 @@
     },
     "nessunGiornoOgni": "(none ticked = every day)"
   },
+  "configurazioneServizio": {
+    "titolo": "Service configuration",
+    "carico": "Reading the device state…",
+    "nonApplicabile": "Not applicable: the runtime does not run in a container with quadlets.",
+    "aggiornata": "Up to date (version {{v}}).",
+    "daAggiornare": "Needs updating: the panel has version {{da}}, this image wants {{a}}. New lines (time zone, viewer restart…) do not apply until it is updated.",
+    "aggiorna": "Update",
+    "conferma": "Rewrite the service configuration on the panel (version {{da}} → {{a}})?\n\nThe panel restarts: the plant is unreachable for a few seconds.",
+    "avviato": "Update started: the panel is restarting.",
+    "esito": {
+      "in_corso": "Configuration update in progress…",
+      "riuscito": "Last configuration update succeeded ({{da}} → {{a}}).",
+      "non_riuscito": "The last configuration update did NOT succeed ({{da}} → {{a}}): reinstall from Installation."
+    }
+  },
   "statoDisplay": {
     "titolo": "Panel screen",
     "carico": "Reading the device status…",

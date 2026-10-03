@@ -79,6 +79,10 @@ pub enum Testo {
     // sul web e sul pannello LVGL.
     TrendNessunTag,
     TrendInAttesa,
+    // La configurazione del servizio da aggiornare (02-10-2026, il quadlet che
+    // viaggia): l'avviso sullo schermo del pannello, con `{da}` e `{a}`.
+    QuadletTitolo,
+    QuadletSpiega,
 }
 
 /// Tutte le voci, per i test che devono iterarle senza ripetere l'elenco a
@@ -120,6 +124,8 @@ pub const TUTTI: &[Testo] = &[
     Testo::EsitoChiudi,
     Testo::TrendNessunTag,
     Testo::TrendInAttesa,
+    Testo::QuadletTitolo,
+    Testo::QuadletSpiega,
 ];
 
 /// Dal nome nella fixture alla voce. `None` = la fixture ha una voce che
@@ -162,6 +168,8 @@ pub fn da_nome(nome: &str) -> Option<Testo> {
         "esito_chiudi" => Testo::EsitoChiudi,
         "trend_nessun_tag" => Testo::TrendNessunTag,
         "trend_in_attesa" => Testo::TrendInAttesa,
+        "quadlet_titolo" => Testo::QuadletTitolo,
+        "quadlet_spiega" => Testo::QuadletSpiega,
         _ => return None,
     })
 }
@@ -379,6 +387,18 @@ pub fn testo(t: Testo, lingua: &str) -> &'static str {
         (TrendInAttesa, "fr") => "En attente d'échantillons…",
         (TrendInAttesa, "es") => "Esperando muestras…",
         (TrendInAttesa, _) => "Waiting for samples…",
+
+        (QuadletTitolo, "it") => "Configurazione del servizio da aggiornare",
+        (QuadletTitolo, "de") => "Dienstkonfiguration aktualisieren",
+        (QuadletTitolo, "fr") => "Configuration du service à mettre à jour",
+        (QuadletTitolo, "es") => "Configuración del servicio por actualizar",
+        (QuadletTitolo, _) => "Service configuration needs updating",
+
+        (QuadletSpiega, "it") => "Il pannello ha la configurazione {da}, questa versione vuole la {a}. Aggiornandola il pannello si riavvia.",
+        (QuadletSpiega, "de") => "Das Panel hat die Konfiguration {da}, diese Version erwartet {a}. Beim Aktualisieren startet das Panel neu.",
+        (QuadletSpiega, "fr") => "Le panneau a la configuration {da}, cette version attend la {a}. La mise à jour redémarre le panneau.",
+        (QuadletSpiega, "es") => "El panel tiene la configuración {da}, esta versión espera la {a}. Al actualizarla, el panel se reinicia.",
+        (QuadletSpiega, _) => "The panel has configuration {da}, this version expects {a}. Updating it restarts the panel.",
     }
 }
 

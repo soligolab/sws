@@ -2518,6 +2518,21 @@
     },
     "nessunGiornoOgni": "(nessuno spuntato = ogni giorno)"
   },
+  "configurazioneServizio": {
+    "titolo": "Configurazione del servizio",
+    "carico": "Leggo lo stato dal dispositivo…",
+    "nonApplicabile": "Non applicabile: il runtime non gira in un container con i quadlet.",
+    "aggiornata": "Aggiornata (versione {{v}}).",
+    "daAggiornare": "Da aggiornare: il pannello ha la versione {{da}}, questa immagine vuole la {{a}}. Le righe nuove (fuso orario, riavvio del viewer…) non valgono finché non la si aggiorna.",
+    "aggiorna": "Aggiorna",
+    "conferma": "Riscrivere la configurazione del servizio sul pannello (versione {{da}} → {{a}})?\n\nIl pannello si riavvia: per qualche secondo l'impianto non è raggiungibile.",
+    "avviato": "Aggiornamento avviato: il pannello si sta riavviando.",
+    "esito": {
+      "in_corso": "Aggiornamento della configurazione in corso…",
+      "riuscito": "Ultimo aggiornamento della configurazione riuscito ({{da}} → {{a}}).",
+      "non_riuscito": "L'ultimo aggiornamento della configurazione NON è riuscito ({{da}} → {{a}}): reinstallare dall'Installazione."
+    }
+  },
   "statoDisplay": {
     "titolo": "Schermo del pannello",
     "carico": "Leggo lo stato dal dispositivo…",

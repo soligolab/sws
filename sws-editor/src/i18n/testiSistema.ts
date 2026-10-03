@@ -42,7 +42,10 @@ export type VoceSistema =
   | "esito_chiudi"
   // Il trend senza dati (30-09-2026): lo scrive il motore dentro il grafico.
   | "trend_nessun_tag"
-  | "trend_in_attesa";
+  | "trend_in_attesa"
+  // La configurazione del servizio da aggiornare (02-10-2026): `{da}`, `{a}`.
+  | "quadlet_titolo"
+  | "quadlet_spiega";
 
 export const LINGUE_SISTEMA = ["it", "de", "fr", "es", "en"] as const;
 export type LinguaSistema = (typeof LINGUE_SISTEMA)[number];
@@ -132,6 +135,8 @@ export const TESTI_SISTEMA: Record<VoceSistema, Record<LinguaSistema, string>> =
   esito_chiudi: { it: "Chiudi", de: "Schließen", fr: "Fermer", es: "Cerrar", en: "Close" },
   trend_nessun_tag: { it: "Tag non configurato", de: "Kein Tag konfiguriert", fr: "Aucun tag configuré", es: "Tag no configurado", en: "No tag configured" },
   trend_in_attesa: { it: "In attesa di campioni…", de: "Warte auf Messwerte…", fr: "En attente d'échantillons…", es: "Esperando muestras…", en: "Waiting for samples…" },
+  quadlet_titolo: { it: "Configurazione del servizio da aggiornare", de: "Dienstkonfiguration aktualisieren", fr: "Configuration du service à mettre à jour", es: "Configuración del servicio por actualizar", en: "Service configuration needs updating" },
+  quadlet_spiega: { it: "Il pannello ha la configurazione {da}, questa versione vuole la {a}. Aggiornandola il pannello si riavvia.", de: "Das Panel hat die Konfiguration {da}, diese Version erwartet {a}. Beim Aktualisieren startet das Panel neu.", fr: "Le panneau a la configuration {da}, cette version attend la {a}. La mise à jour redémarre le panneau.", es: "El panel tiene la configuración {da}, esta versión espera la {a}. Al actualizarla, el panel se reinicia.", en: "The panel has configuration {da}, this version expects {a}. Updating it restarts the panel." },
   allarme_attivo: {
     it: "🔴 ALLARME ATTIVO", de: "🔴 ALARM AKTIV", fr: "🔴 ALARME ACTIVE", es: "🔴 ALARMA ACTIVA", en: "🔴 ALARM ACTIVE",
   },

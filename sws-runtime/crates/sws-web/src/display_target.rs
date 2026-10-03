@@ -137,7 +137,62 @@ fn registra(voluto: &str, esito: &str, messaggio: Option<String>, codesys: Optio
 /// Pubblica il motore del progetto: se serve, commuta lo schermo. Torna subito
 /// — la commutazione può aspettare il launcher fino a un minuto — e gli errori
 /// si registrano nello stato, senza far fallire chi l'ha chiamata.
+/// Quante volte di fila il viewer deve risultare spento, con motore LVGL, prima
+/// che la sorveglianza lo riavvii: una volta sola può essere il momento in cui
+/// `podman auto-update` lo sta sostituendo.
+const SPENTO_DI_FILA: u32 = 2;
+const GIRO_SORVEGLIANZA_S: u64 = 30;
+
+/// La decisione della sorveglianza, senza D-Bus: quante volte di fila il viewer
+/// è stato visto spento con il motore LVGL applicato, e se va riavviato.
+pub fn sorveglia_passo(applicato: Option<&str>, viewer_attivo: bool, spento_prima: u32) -> (u32, bool) {
+    if applicato != Some(LVGL) || viewer_attivo {
+        return (0, false);
+    }
+    let n = spento_prima + 1;
+    (n, n >= SPENTO_DI_FILA)
+}
+
+/// La sorveglianza del viewer (02-10-2026, il viewer che non riparte): sul
+/// WP630, dopo «Aggiorna ora», il viewer è rimasto spento — `podman
+/// auto-update` lo aveva fermato e nessuno lo ha riacceso, perché un arresto
+/// chiesto non fa scattare `Restart=`. Ogni 30 s: se il motore applicato è
+/// LVGL e il viewer è spento due volte di fila, lo si riavvia e lo si dice.
+pub fn sorveglia_viewer() {
+    static AVVIATA: std::sync::OnceLock<()> = std::sync::OnceLock::new();
+    if AVVIATA.set(()).is_err() {
+        return;
+    }
+    tokio::spawn(async {
+        let mut spento = 0;
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(GIRO_SORVEGLIANZA_S)).await;
+            let Ok(utente) = zbus::Connection::session().await else { continue };
+            let applicato = *APPLICATO.lock().await;
+            let attivo = bus::unit_attiva(&utente, VIEWER).await;
+            let (n, riavvia) = sorveglia_passo(applicato, attivo, spento);
+            spento = n;
+            if riavvia {
+                let r = bus::unit(&utente, "StartUnit", VIEWER).await;
+                registra(
+                    LVGL,
+                    if r.is_ok() { LVGL } else { "errore" },
+                    Some(match r {
+                        Ok(()) => "il viewer LVGL era spento: riavviato dalla sorveglianza del runtime".into(),
+                        Err(e) => format!("il viewer LVGL è spento e non riparte: {e}"),
+                    }),
+                    None,
+                );
+                spento = 0;
+            }
+        }
+    });
+}
+
 pub async fn publish(_config_dir: &Path, project_dir: &Path, motivo: Motivo) {
+    if motivo == Motivo::Avvio {
+        sorveglia_viewer();
+    }
     let project = match Project::load(project_dir) {
         Ok(p) => p,
         Err(e) => {
@@ -159,8 +214,9 @@ pub async fn publish(_config_dir: &Path, project_dir: &Path, motivo: Motivo) {
     });
 }
 
-/// Le operazioni D-Bus, una per riga di quello che faceva lo script.
-mod bus {
+/// Le operazioni D-Bus, una per riga di quello che faceva lo script. Le usa
+/// anche `quadlet.rs` (02-10-2026), sul bus utente.
+pub(crate) mod bus {
     use zbus::{zvariant::OwnedValue, Connection};
 
     const SD: &str = "org.freedesktop.systemd1";
@@ -188,6 +244,39 @@ mod bus {
             .and_then(|v| String::try_from(v).ok())
             .map(|s| s == "active")
             .unwrap_or(false)
+    }
+
+    /// Una proprietà stringa di un'unità (`Description`, `LoadState`…),
+    /// caricandola se serve: `GetUnit` fallisce per un'unità mai avviata, come il
+    /// viewer su un progetto web, `LoadUnit` no.
+    pub async fn proprieta_unita(c: &Connection, unit: &str, proprieta: &str) -> Option<String> {
+        let m = c.call_method(Some(SD), SD_PATH, Some(SD_IFACE), "LoadUnit", &(unit)).await.ok()?;
+        let path = m.body().deserialize::<zbus::zvariant::OwnedObjectPath>().ok()?;
+        let r = c
+            .call_method(Some(SD), path.as_str(), Some("org.freedesktop.DBus.Properties"), "Get",
+                &("org.freedesktop.systemd1.Unit", proprieta))
+            .await
+            .ok()?;
+        r.body().deserialize::<OwnedValue>().ok().and_then(|v| String::try_from(v).ok())
+    }
+
+    /// Un servizio **transitorio** dell'utente che esegue `argv` sull'host
+    /// (02-10-2026, il quadlet che viaggia): sopravvive al riavvio del runtime
+    /// che provoca, perché lo tiene systemd e non questo processo. Si toglie da
+    /// sé quando finisce, anche se fallisce (`CollectMode`).
+    pub async fn avvia_transitorio(c: &Connection, nome: &str, descrizione: &str, argv: &[String]) -> Result<(), String> {
+        use zbus::zvariant::Value;
+        let exec: Vec<(String, Vec<String>, bool)> = vec![(argv[0].clone(), argv.to_vec(), false)];
+        let proprieta: Vec<(&str, Value)> = vec![
+            ("Description", Value::from(descrizione)),
+            ("ExecStart", Value::from(exec)),
+            ("CollectMode", Value::from("inactive-or-failed")),
+        ];
+        let aux: Vec<(&str, Vec<(&str, Value)>)> = Vec::new();
+        c.call_method(Some(SD), SD_PATH, Some(SD_IFACE), "StartTransientUnit", &(nome, "replace", proprieta, aux))
+            .await
+            .map(|_| ())
+            .map_err(|e| format!("StartTransientUnit {nome}: {e}"))
     }
 
     pub async fn unit(c: &Connection, metodo: &str, unit: &str) -> Result<(), String> {
@@ -267,9 +356,18 @@ async fn commuta(voluto: &'static str, azione: Azione) -> Option<&'static str> {
     };
 
     if azione == Azione::RiavviaViewer {
-        let r = bus::unit(&utente, "RestartUnit", VIEWER).await;
-        registra(voluto, if r.is_ok() { LVGL } else { "errore" }, r.err(), codesys);
-        return Some(LVGL);
+        // Un riavvio fallito non si dà per fatto (02-10-2026: prima tornava LVGL
+        // comunque, e nessuno riprovava); la sorveglianza del viewer lo riprende.
+        return match bus::unit(&utente, "RestartUnit", VIEWER).await {
+            Ok(()) => {
+                registra(voluto, LVGL, None, codesys);
+                Some(LVGL)
+            }
+            Err(e) => {
+                registra(voluto, "errore", Some(e), codesys);
+                None
+            }
+        };
     }
 
     if voluto == LVGL {
@@ -326,6 +424,19 @@ async fn commuta(voluto: &'static str, azione: Azione) -> Option<&'static str> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn la_sorveglianza_riavvia_il_viewer_solo_dopo_due_giri_spento_con_lvgl() {
+        // Web: il viewer spento è giusto.
+        assert_eq!(sorveglia_passo(Some(WEB), false, 5), (0, false));
+        // LVGL e acceso: niente.
+        assert_eq!(sorveglia_passo(Some(LVGL), true, 1), (0, false));
+        // LVGL e spento: al primo giro si aspetta, al secondo si riavvia.
+        assert_eq!(sorveglia_passo(Some(LVGL), false, 0), (1, false));
+        assert_eq!(sorveglia_passo(Some(LVGL), false, 1), (2, true));
+        // Nessun motore applicato ancora: non si tocca.
+        assert_eq!(sorveglia_passo(None, false, 3), (0, false));
+    }
+
     use super::*;
 
     /// Il progetto si costruisce dal YAML, non con un letterale di struct.

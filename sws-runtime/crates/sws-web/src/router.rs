@@ -541,10 +541,12 @@ pub fn build(
         // «Aggiorna ora». Admin: riavvia il servizio.
         .route("/api/update/status", get(aggiornamento_stato))
         .route("/api/update/apply", post(aggiornamento_avvia))
+        .route("/api/quadlet/aggiorna", post(quadlet_aggiorna))
         .route("/api/update/schedule", get(finestra_leggi).put(finestra_scrivi))
         .route("/api/remote/update/schedule", get(crate::remote::remote_finestra_leggi).put(crate::remote::remote_finestra_scrivi))
         .route("/api/remote/update/status", get(crate::remote::remote_update_status))
         .route("/api/remote/update/apply", post(crate::remote::remote_update_apply))
+        .route("/api/remote/quadlet/aggiorna", post(crate::remote::remote_quadlet_aggiorna))
         .route("/api/system/stop", post(crate::system::system_stop))
         .route("/api/system/start", post(crate::system::system_start))
         .route("/api/system/reboot", post(crate::system::system_reboot))
@@ -1098,6 +1100,7 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         // Aggiornamento del runtime (27-09-2026): chiamato dall'IDE collegato.
         .route("/api/update/status", get(aggiornamento_stato))
         .route("/api/update/apply", post(aggiornamento_avvia))
+        .route("/api/quadlet/aggiorna", post(quadlet_aggiorna))
         .route("/api/update/schedule", get(finestra_leggi).put(finestra_scrivi))
         // ── Override per-dispositivo del client id MQTT ────────────────────
         .route(
@@ -1205,6 +1208,7 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
     let aggiornamento_routes = Router::new()
         .route("/api/update/status", get(aggiornamento_stato))
         .route("/api/update/apply", post(aggiornamento_avvia))
+        .route("/api/quadlet/aggiorna", post(quadlet_aggiorna))
         .route_layer(middleware::from_fn(require_admin));
 
     // Wrap all gated routes with optional_auth so every request has AuthUser.
@@ -2581,6 +2585,36 @@ async fn aggiornamento_avvia(
         match crate::aggiornamento::avvia().await {
             Ok(()) => tracing::info!("aggiornamento del runtime avviato (podman-auto-update.service)"),
             Err(e) => tracing::warn!("aggiornamento del runtime non avviato: {e}"),
+        }
+    });
+    (StatusCode::ACCEPTED, Json(st)).into_response()
+}
+
+/// `POST /api/quadlet/aggiorna` — riscrive i quadlet del pannello dai template
+/// di questa immagine (02-10-2026, il quadlet che viaggia). Risponde **prima**
+/// di lanciare: il servizio transitorio riavvia questo processo.
+async fn quadlet_aggiorna(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+) -> Response {
+    let st = crate::quadlet::stato(&s.config_dir).await;
+    if !st.da_aggiornare {
+        return (StatusCode::CONFLICT, "La configurazione del servizio è già aggiornata.").into_response();
+    }
+    if !st.si_puo_aggiornare {
+        return (StatusCode::CONFLICT, st.motivo.clone().unwrap_or_default()).into_response();
+    }
+    s.audit.log(
+        "quadlet.aggiorna",
+        Some(user.username),
+        serde_json::json!({ "da": st.installata, "a": st.attesa }),
+    );
+    let dir = s.config_dir.as_ref().clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(800)).await;
+        match crate::quadlet::aggiorna(&dir).await {
+            Ok(()) => tracing::info!("quadlet: aggiornamento avviato"),
+            Err(e) => tracing::warn!("quadlet: aggiornamento non avviato: {e}"),
         }
     });
     (StatusCode::ACCEPTED, Json(st)).into_response()

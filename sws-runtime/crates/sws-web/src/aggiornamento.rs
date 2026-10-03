@@ -476,15 +476,63 @@ async fn novita_da_attraversare(
         da_leggere = da_leggere.split_off(da_leggere.len() - TETTO_NOVITA);
     }
     let mut fuori = Vec::new();
+    // La versione di quadlet più alta fra quelle in arrivo (02-10-2026).
+    let mut quadlet_nuovo: Option<(String, u32)> = None;
     for v in da_leggere {
         let nome = formatta(&v);
         let Ok(e) = etichette(r, &format!("{nome}-{arch}")).await else { continue };
+        if let Some(q) = e.get("net.soligo.sws.quadlet").and_then(|q| q.trim().parse::<u32>().ok()) {
+            if quadlet_nuovo.as_ref().is_none_or(|(_, n)| q >= *n) {
+                quadlet_nuovo = Some((nome.clone(), q));
+            }
+        }
         // Un'immagine costruita prima della decisione 42 non porta niente: si salta.
         if let Some(n) = novita_da_etichette(&nome, &e) {
             fuori.push(n);
         }
     }
-    senza_ripetizioni(fuori)
+    let mut fuori = senza_ripetizioni(fuori);
+    // Se la versione nuova vuole un quadlet più recente di quello di adesso, lo
+    // si dice fra gli avvisi di compatibilità, una volta, sotto quella versione:
+    // la doppia conferma lo mostra prima di aggiornare.
+    if let Some((nome, q)) = quadlet_nuovo {
+        if let Some((it, en)) = nota_quadlet(crate::quadlet::versione_attesa().await, q) {
+            match fuori.iter_mut().find(|n| n.versione == nome) {
+                Some(n) => {
+                    aggiungi_riga(&mut n.compatibilita, it);
+                    aggiungi_riga(&mut n.compatibilita_en, en);
+                }
+                None => fuori.push(NovitaVersione {
+                    versione: nome,
+                    testo: String::new(),
+                    compatibilita: format!("- {it}"),
+                    testo_en: String::new(),
+                    compatibilita_en: format!("- {en}"),
+                }),
+            }
+        }
+    }
+    fuori
+}
+
+fn aggiungi_riga(testo: &mut String, riga: &str) {
+    if !testo.is_empty() && !testo.ends_with('\n') {
+        testo.push('\n');
+    }
+    testo.push_str("- ");
+    testo.push_str(riga);
+}
+
+/// La riga di compatibilità quando la versione in arrivo porta quadlet più
+/// recenti di quelli che questa immagine si aspetta. Senza un numero attuale
+/// (fuori da un container) non si dice niente.
+pub fn nota_quadlet(attesa_adesso: Option<u32>, nuova: u32) -> Option<(&'static str, &'static str)> {
+    (attesa_adesso? < nuova).then_some((
+        "Dopo l'aggiornamento la configurazione del servizio va aggiornata: Istanza → Device → \
+         Connessione → «Configurazione del servizio» → Aggiorna (il pannello si riavvia una seconda volta).",
+        "After the update the service configuration must be updated: Instance → Device → Connection → \
+         «Service configuration» → Update (the panel restarts a second time).",
+    ))
 }
 
 /// Avvia `podman-auto-update.service` sul bus utente. Il chiamante deve aver
@@ -507,6 +555,13 @@ pub async fn avvia() -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn la_nota_del_quadlet_solo_se_la_versione_nuova_lo_alza() {
+        assert!(nota_quadlet(Some(1), 2).is_some());
+        assert!(nota_quadlet(Some(2), 2).is_none());
+        assert!(nota_quadlet(None, 5).is_none());
+    }
+
     use super::*;
 
     fn v(s: &str) -> Versione {

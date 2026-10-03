@@ -185,6 +185,16 @@ Azioni disponibili:
   container. Con **"Cancella anche i dati"** (richiede conferma), cancella
   anche la directory dati — altrimenti resta sul disco.
 
+### La configurazione del servizio (i quadlet)
+
+L'aggiornamento automatico (`podman auto-update`) sostituisce l'immagine ma non i quadlet del pannello. Dal 02-10-2026
+il pannello sa se i suoi quadlet sono più vecchi di quelli della versione che gira (il numero `[quadlet N]` nella
+`Description`) e li sa riscrivere da sé: in **Istanza → Device → Connessione**, riquadro **Configurazione del
+servizio**, pulsante **Aggiorna** (il pannello si riavvia); sui pannelli senza utenti lo propone anche lo schermo.
+Riscrive i quadlet dai template dell'immagine con `install-container.sh --solo-unita`, conservando immagine, cartella
+dati e rete. Come la reinstallazione, riporta ai valori del template le modifiche fatte da **Gestione container**
+(avvio al boot, politica di riavvio). Dettagli: HOWTO §20.
+
 ### Comandi equivalenti da riga di comando
 
 ```bash

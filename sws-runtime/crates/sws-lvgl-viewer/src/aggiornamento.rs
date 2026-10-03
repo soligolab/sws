@@ -29,7 +29,7 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
-use crate::client::{self, EventoAggiornamento, NovitaVersione, StatoAggiornamento};
+use crate::client::{self, EventoAggiornamento, NovitaVersione, QuadletSistema, StatoAggiornamento};
 
 /// Ogni quanto si guarda se il runtime è ripartito. Gemello di
 /// `CONTROLLO_RIAVVIO_MS` nel web.
@@ -115,6 +115,12 @@ pub enum Avviso {
         /// Le Novità della versione che gira, per «Aggiornato alla Y: cosa cambia».
         novita: Option<NovitaVersione>,
     },
+    /// La configurazione del servizio è più vecchia di quella della versione
+    /// che gira, e il pannello la sa aggiornare (02-10-2026).
+    Quadlet {
+        da: String,
+        a: String,
+    },
     /// C'è una versione più nuova.
     VersioneNuova {
         /// Quella che gira adesso.
@@ -169,6 +175,30 @@ pub fn da_mostrare(
     }
 }
 
+/// La regola completa: [`da_mostrare`] più la configurazione del servizio,
+/// che sta **dopo l'esito e prima della versione nuova**, come sul web —
+/// dopo un aggiornamento che porta quadlet nuovi è il passo che resta.
+pub fn da_mostrare_tutto(
+    stato: Option<&StatoAggiornamento>,
+    senza_utenti: bool,
+    rimandato: bool,
+    visto: &Visto,
+    quadlet: Option<&QuadletSistema>,
+    quadlet_rimandato: bool,
+) -> Avviso {
+    let base = da_mostrare(stato, senza_utenti, rimandato, visto);
+    if !senza_utenti || matches!(base, Avviso::Esito { .. }) {
+        return base;
+    }
+    match quadlet {
+        Some(q) if q.da_aggiornare && q.si_puo_aggiornare && !quadlet_rimandato => Avviso::Quadlet {
+            da: q.installata.map(|v| v.to_string()).unwrap_or_else(|| "?".into()),
+            a: q.attesa.map(|v| v.to_string()).unwrap_or_else(|| "?".into()),
+        },
+        _ => base,
+    }
+}
+
 /// Le novità nella lingua dei contenuti, con ripiego sull'italiano quando la
 /// versione inglese non c'è — stessa regola di `novitaNellaLingua` nel web
 /// (decisione 57). Torna `(testo, compatibilità)`.
@@ -198,6 +228,10 @@ pub struct StatoAvviso {
     pub visto: Visto,
     /// «Aggiorna ora» è stato premuto: il pulsante cambia testo e si spegne.
     pub avvio_chiesto: bool,
+    /// La configurazione del servizio, da `/api/system` (02-10-2026).
+    pub quadlet: Option<QuadletSistema>,
+    /// «Più tardi» sulla configurazione: fino al prossimo avvio del runtime.
+    pub quadlet_rimandato: bool,
     /// Cresce a ogni cambiamento: il disegno ridisegna l'overlay solo quando
     /// serve, invece di ricostruirlo a ogni frame.
     pub generazione: u64,
@@ -211,11 +245,13 @@ impl StatoAvviso {
     }
 
     pub fn avviso(&self) -> Avviso {
-        da_mostrare(
+        da_mostrare_tutto(
             self.stato.as_ref(),
             self.senza_utenti,
             self.rimandato,
             &self.visto,
+            self.quadlet.as_ref(),
+            self.quadlet_rimandato,
         )
     }
 }
@@ -226,6 +262,27 @@ pub fn rimanda(s: &SharedAvviso) {
         g.rimandato = true;
         g.cambiato();
     }
+}
+
+/// «Più tardi» sulla configurazione del servizio.
+pub fn rimanda_quadlet(s: &SharedAvviso) {
+    if let Ok(mut g) = s.lock() {
+        g.quadlet_rimandato = true;
+        g.cambiato();
+    }
+}
+
+/// «Aggiorna» sulla configurazione del servizio: la richiesta va al thread di
+/// rete, e da lì il pannello si riavvia.
+pub fn aggiorna_quadlet(s: &SharedAvviso, base_url: &str, token: Option<String>) {
+    if let Ok(mut g) = s.lock() {
+        g.avvio_chiesto = true;
+        g.cambiato();
+    }
+    crate::net_worker::invia(crate::net_worker::Comando::AggiornaQuadlet {
+        base_url: base_url.to_string(),
+        token,
+    });
 }
 
 /// «Ignora questa versione»: ricordato su disco.
@@ -324,6 +381,14 @@ async fn giro(
         // «Più tardi» vale fino al prossimo avvio del runtime (decisione 44).
         if riavvio && g.rimandato {
             g.rimandato = false;
+            g.cambiato();
+        }
+        if riavvio && g.quadlet_rimandato {
+            g.quadlet_rimandato = false;
+            g.cambiato();
+        }
+        if g.quadlet != sys.quadlet {
+            g.quadlet = sys.quadlet.clone();
             g.cambiato();
         }
         // Il riavvio è anche la fine dell'aggiornamento che avevamo chiesto.
@@ -549,6 +614,36 @@ mod tests {
             da_mostrare(Some(&st), true, false, &vecchia),
             Avviso::VersioneNuova { .. }
         ));
+    }
+
+    fn q(da: u32, a: u32, si_puo: bool) -> QuadletSistema {
+        QuadletSistema { installata: Some(da), attesa: Some(a), da_aggiornare: da < a, si_puo_aggiornare: si_puo }
+    }
+
+    #[test]
+    fn la_configurazione_vecchia_si_offre_dopo_l_esito_e_prima_della_versione_nuova() {
+        let v = Visto::default();
+        let quad = q(0, 1, true);
+        // Prima della versione nuova.
+        assert_eq!(
+            da_mostrare_tutto(Some(&con_nuova()), true, false, &v, Some(&quad), false),
+            Avviso::Quadlet { da: "0".into(), a: "1".into() }
+        );
+        // L'esito viene prima di tutto.
+        let mut st = con_nuova();
+        st.evento = Some(evento(7));
+        assert!(matches!(da_mostrare_tutto(Some(&st), true, false, &v, Some(&quad), false), Avviso::Esito { .. }));
+        // Anche senza stato dell'aggiornamento (registry irraggiungibile).
+        assert!(matches!(da_mostrare_tutto(None, true, false, &v, Some(&quad), false), Avviso::Quadlet { .. }));
+    }
+
+    #[test]
+    fn la_configurazione_non_si_offre_con_utenti_rimandata_o_se_non_si_puo() {
+        let v = Visto::default();
+        assert_eq!(da_mostrare_tutto(None, false, false, &v, Some(&q(0, 1, true)), false), Avviso::Niente);
+        assert_eq!(da_mostrare_tutto(None, true, false, &v, Some(&q(0, 1, true)), true), Avviso::Niente);
+        assert_eq!(da_mostrare_tutto(None, true, false, &v, Some(&q(0, 1, false)), false), Avviso::Niente);
+        assert_eq!(da_mostrare_tutto(None, true, false, &v, Some(&q(1, 1, true)), false), Avviso::Niente);
     }
 
     #[test]

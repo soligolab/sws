@@ -112,6 +112,9 @@ COPY fonts/           /etc/sws/fonts/
 # che cambia invalida tutti quelli sotto. Invertirli farebbe ritrasferire i
 # 14 MB del binario a ogni ritocco del frontend.
 COPY www/            /var/sws/www/
+# I quadlet e l'installer di questa versione (02-10-2026): il runtime li confronta
+# con quelli installati e li sa riscrivere — docs/plans/2026-10-02-quadlet-che-viaggia.md.
+COPY quadlet/        /usr/share/sws/quadlet/
 
 # Punti di mount dei dati persistenti. Vanno montati come volumi podman:
 # senza, config e progetti vivono nel layer scrivibile e spariscono col
@@ -167,6 +170,9 @@ ARG SWS_COMPAT_EN=""
 # `podman inspect`) la prende per la versione di SWS. Visto il 28-09-2026 sulla
 # rc.3 appena pubblicata.
 ARG SWS_VERSION=""
+# La versione dei quadlet di questa immagine: il runtime la legge dal registry
+# prima di aggiornare, per dire se dopo servirà aggiornare la configurazione.
+ARG SWS_QUADLET=""
 LABEL org.opencontainers.image.source="https://github.com/soligolab/sws" \
       org.opencontainers.image.version="$SWS_VERSION" \
       org.opencontainers.image.title="sws-runtime" \
@@ -177,7 +183,8 @@ LABEL org.opencontainers.image.source="https://github.com/soligolab/sws" \
       net.soligo.sws.compat.it="$SWS_COMPAT_IT" \
       net.soligo.sws.compat.en="$SWS_COMPAT_EN" \
       net.soligo.sws.changelog="$SWS_NOVITA_IT" \
-      net.soligo.sws.compat="$SWS_COMPAT_IT"
+      net.soligo.sws.compat="$SWS_COMPAT_IT" \
+      net.soligo.sws.quadlet="$SWS_QUADLET"
 
 ENTRYPOINT ["/usr/local/bin/sws-runtime"]
 # ── L'IDE sul dispositivo e' un caso particolare, non il default ────────────

@@ -14,6 +14,7 @@ pub mod aggiornamento;
 pub mod aggiornamento_esito;
 pub mod aggiornamento_finestra;
 pub mod launcher_dbus;
+pub mod quadlet;
 pub mod metrics;
 pub mod netif;
 pub mod notifications;

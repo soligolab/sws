@@ -21,8 +21,8 @@ versioni:
     voci:
       - it: "Il runtime si aggiorna dall'IDE o dal pannello: canale stabile o di prova, «Aggiorna ora», una finestra programmata o il pilota automatico. Se la versione nuova non parte, torna da solo alla precedente."
         en: "The runtime updates from the IDE or from the panel: stable or test channel, «Update now», a scheduled window or autopilot. If the new version does not start, it goes back to the previous one by itself."
-      - it: "Prima di aggiornare si leggono le novità e gli avvisi di compatibilità; sul pannello senza utenti compare un avviso a schermo."
-        en: "Before updating you can read what is new and the compatibility warnings; on a panel without users a notice appears on screen."
+      - it: "Prima di aggiornare si leggono le novità e gli avvisi di compatibilità; sul pannello senza utenti compare un avviso a schermo; il pannello sa aggiornare da sé la propria configurazione del servizio."
+        en: "Before updating you can read what is new and the compatibility warnings; on a panel without users a notice appears on screen; the panel can update its own service configuration."
       - it: "Dopo un aggiornamento il pannello dice «aggiornato dalla X alla Y», con le novità; se non riesce lo dice in rosso. L'esito arriva anche su Telegram."
         en: "After an update the panel says «updated from X to Y», with what is new; if it fails it says so in red. The outcome also goes to Telegram."
       - it: "Email come Telegram: destinatari di progetto con la loro lingua, una tabella che sceglie quali eventi escono su quale canale, e un pulsante che prova il server di posta e dice cosa non va."
@@ -52,5 +52,5 @@ versioni:
     compatibilita:
       - it: "Un pannello con una versione precedente alla 2.12.0-rc.1 non si aggiorna da solo: va aggiornato una volta da Configurazione → Istanza → Device → Installazione."
         en: "A panel running a version older than 2.12.0-rc.1 cannot update itself: update it once from Configuration → Instance → Device → Install."
-      - it: "Il fuso del pannello, che serve alla finestra programmata, arriva solo reinstallando dall'Installazione: finché non lo si fa, le ore della finestra sono in UTC."
-        en: "The panel's time zone, needed by the scheduled window, arrives only by reinstalling from Install: until then, window times are in UTC."
+      - it: "Dopo l'aggiornamento il pannello chiede di aggiornare la configurazione del servizio («Aggiorna»): si riavvia una seconda volta. Installato prima del 27-09-2026: reinstallare dall'Installazione."
+        en: "After the update the panel asks to update its service configuration («Update»): it restarts a second time. Installed before 27-09-2026: reinstall from Install."

@@ -176,6 +176,21 @@ pub struct StatoSistema {
     /// Da quanti secondi gira **questo** processo del runtime.
     #[serde(default)]
     pub uptime_s: u64,
+    /// La configurazione del servizio (i quadlet) rispetto a quella che la
+    /// versione che gira si aspetta (02-10-2026). Assente su un runtime vecchio.
+    #[serde(default)]
+    pub quadlet: Option<QuadletSistema>,
+}
+
+/// `quadlet` di `GET /api/system`: solo quel che serve all'avviso a schermo.
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+pub struct QuadletSistema {
+    pub installata: Option<u32>,
+    pub attesa: Option<u32>,
+    #[serde(default)]
+    pub da_aggiornare: bool,
+    #[serde(default)]
+    pub si_puo_aggiornare: bool,
 }
 
 /// Le novità di una versione, come arrivano da `GET /api/update/status`.
@@ -297,12 +312,20 @@ pub async fn stato_aggiornamento(
 /// non chiamata dal loop di rendering: è una POST, cioè esattamente la forma
 /// che il 13-09 ha bloccato per sempre il viewer (Q55).
 pub async fn avvia_aggiornamento(base_url: &str, token: Option<&str>) -> anyhow::Result<()> {
+    post_vuoto(base_url, &["api", "update", "apply"], token).await
+}
+
+/// `POST /api/quadlet/aggiorna` (02-10-2026): il pannello riscrive i suoi
+/// quadlet e si riavvia.
+pub async fn aggiorna_quadlet(base_url: &str, token: Option<&str>) -> anyhow::Result<()> {
+    post_vuoto(base_url, &["api", "quadlet", "aggiorna"], token).await
+}
+
+async fn post_vuoto(base_url: &str, percorso: &[&str], token: Option<&str>) -> anyhow::Result<()> {
     let mut url = reqwest::Url::parse(base_url)?;
     url.path_segments_mut()
         .map_err(|_| anyhow::anyhow!("base URL non può avere path segments (cannot-be-a-base)"))?
-        .push("api")
-        .push("update")
-        .push("apply");
+        .extend(percorso);
     let client = reqwest::Client::builder()
         .use_preconfigured_tls(pinned_client_config(base_url)?)
         .build()?;

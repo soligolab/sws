@@ -1053,6 +1053,9 @@ async fn main() -> anyhow::Result<()> {
         tokio::spawn(sws_web::aggiornamento_finestra::esegui(app_state.config_dir.as_ref().clone()));
         // Fase 3: se questo avvio viene da un aggiornamento, com'è andato.
         tokio::spawn(sws_web::aggiornamento_esito::all_avvio(app_state.clone()));
+        // Il quadlet che viaggia (02-10-2026): com'è andato un aggiornamento dei
+        // quadlet chiesto prima di questo riavvio.
+        tokio::spawn(sws_web::quadlet::all_avvio(app_state.config_dir.as_ref().clone()));
         // E la versione nuova, una volta per versione, sui canali scelti.
         tokio::spawn(sws_web::aggiornamento_esito::versione_nuova_all_avvio(app_state.clone()));
     }

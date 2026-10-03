@@ -376,12 +376,27 @@ export interface BootImageStato {
   richiesta?: string | null;
 }
 
+/** Il quadlet che viaggia (02-10-2026): `GET /api/system` → `quadlet`. */
+export interface StatoQuadlet {
+  /** Versione installata (la più bassa fra runtime e viewer); null = non leggibile. */
+  installata: number | null;
+  /** Versione dei quadlet dell'immagine che gira. */
+  attesa: number | null;
+  da_aggiornare: boolean;
+  si_puo_aggiornare: boolean;
+  motivo: string | null;
+  ultimo_esito: { esito: "in_corso" | "riuscito" | "non_riuscito"; da: number; a: number; quando_ms: number } | null;
+}
+
 export interface SystemStatus {
   runtime_version: string;
   /** Opzionale: un runtime più vecchio, o senza le unit di installazione, non lo manda. */
   boot_image?: BootImageStato | null;
   /** L'ultima commutazione dello schermo del pannello (Fase 4, 29-09-2026). */
   display?: StatoDisplay | null;
+  /** La configurazione del servizio (i quadlet) del pannello rispetto a quella
+   *  dell'immagine che gira (02-10-2026). Assente fuori da un container. */
+  quadlet?: StatoQuadlet | null;
   uptime_s: number;
   /** Q52 (dal 2.7.2): architettura del binario (`aarch64`, `x86_64`), nome
    *  della macchina, motore del container o null se nativo. Opzionali perché
@@ -1513,6 +1528,8 @@ export const api = {
    *  chiede il viewer sul pannello, che parla col runtime su cui gira. */
   statoAggiornamento: () => request<StatoAggiornamento>("/api/update/status"),
   avviaAggiornamento: () => request<StatoAggiornamento>("/api/update/apply", { method: "POST" }),
+  /** Il pannello riscrive i suoi quadlet e si riavvia (02-10-2026). */
+  aggiornaQuadlet: () => request<StatoQuadlet>("/api/quadlet/aggiorna", { method: "POST" }),
   remoteStatoAggiornamento: () => request<StatoAggiornamento>("/api/remote/update/status"),
   /** La finestra dell'aggiornamento e l'orologio del pannello collegato. */
   remoteFinestra: () => request<VistaFinestra>("/api/remote/update/schedule"),
@@ -1525,6 +1542,10 @@ export const api = {
   /** «Aggiorna ora»: il dispositivo avvia podman-auto-update e si riavvia. */
   remoteAvviaAggiornamento: () =>
     request<StatoAggiornamento>("/api/remote/update/apply", { method: "POST" }),
+  /** Riscrive i quadlet del pannello dai template della sua immagine (02-10-2026):
+   *  il pannello si riavvia. */
+  remoteAggiornaQuadlet: () =>
+    request<StatoQuadlet>("/api/remote/quadlet/aggiorna", { method: "POST" }),
 
   /** Ripristina l'immagine di accensione di fabbrica sul dispositivo collegato
    *  (`ResetBackgroundImage`). Risponde con lo stato nuovo. */

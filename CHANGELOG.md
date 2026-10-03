@@ -20,6 +20,17 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   mostra lo stato ma non le novità. Vale per la `2.12.0-rc.1` e la `rc.2`.
 
 ### Added
+- **Il quadlet che viaggia** (piano `docs/archive/2026-10-02-quadlet-che-viaggia.md`; `podman auto-update` cambia l'immagine ma
+  non i quadlet, e righe come `Timezone=local` arrivavano solo reinstallando). Ogni quadlet porta `[quadlet N]` nella
+  `Description`; l'immagine porta i suoi quadlet e l'installer in `/usr/share/sws/quadlet/` (etichetta
+  `net.soligo.sws.quadlet`); il runtime legge le versioni installate dal bus utente (`quadlet.rs`) e, se sono vecchie, lo dice
+  (`/api/system`, IDE «Configurazione del servizio», schermo del pannello senza utenti) e le **riscrive con conferma**: un
+  servizio transitorio sul bus utente lancia `install-container.sh --solo-unita` (nuova modalità: solo i quadlet, con
+  immagine, dati e rete di quelli installati). Prima di un aggiornamento che alza il quadlet, una riga fra gli avvisi di
+  compatibilità. Guardia `check_quadlet.sh` (hash per versione, provata rossa) col test shell di `--solo-unita`.
+- **Il viewer LVGL riparte**: `Restart=always` nel suo quadlet (un arresto chiesto non lo fa ripartire comunque), un
+  riavvio fallito non si dà più per fatto, e una sorveglianza del runtime lo riavvia se resta spento con il motore LVGL
+  (sul WP630, dopo «Aggiorna ora», era rimasto senza schermo).
 - **Lo specchio (`flip_h`/`flip_v`) funziona anche sul pannello LVGL**: prima i due campi stavano nel modello e nessuno li leggeva, così un oggetto
   specchiato nell'editor arrivava dritto sul vetro. LVGL 8.3 non ha uno specchio di stile (`transform_zoom` non accetta valori negativi), quindi la via è
   una per famiglia: **immagini e simboli caricati** si specchiano nella trasformazione vettoriale, prima di rasterizzare; i **33 simboli della libreria** —
@@ -144,6 +155,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   riga rossa con **Converti**, in testa c'è **Converti tutti (n)**, e gli allarmi che condividono un tag lo dicono. La conversione non cambia come scatta; il Salva resta dell'utente.
 
 ### Fixed
+- `install-container.sh --uninstall` toglie anche il quadlet e il container del viewer LVGL.
 - **Quel che il pannello LVGL ricorda non si perde più a ogni deploy.** L'esito dell'aggiornamento già chiuso, la versione ignorata e la sessione del viewer
   finivano nel filesystem effimero del container (`$HOME/.config/sws`, con `HOME=/home/ubuntu`), che il quadlet non montava: siccome ogni deploy di progetto
   riavvia il viewer, il riquadro «Aggiornamento completato» ricompariva già chiuso, e «Ignora questa versione» non ignorava oltre il riavvio. Ora il quadlet

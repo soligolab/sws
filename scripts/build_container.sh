@@ -273,6 +273,13 @@ if [ "$WITH_LVGL" -eq 1 ]; then
 fi
 cp -r "$REPO/examples/templates/." "$CTX/templates/"
 cp -r "$SPA_DIST/." "$CTX/www/"
+# I quadlet e l'installer viaggiano dentro l'immagine (02-10-2026, piano del
+# quadlet che viaggia): dopo un `podman auto-update` il runtime sa qual è il
+# quadlet giusto per la versione che gira, e lo sa riscrivere dal pannello.
+mkdir -p "$CTX/quadlet"
+install -m 644 "$REPO/deploy/container/sws-runtime.container" "$REPO/deploy/container/sws-lvgl-viewer.container" "$CTX/quadlet/"
+install -m 755 "$REPO/deploy/container/install-container.sh" "$CTX/quadlet/"
+QUADLET="$(sed -n 's/^Description=.*\[quadlet \([0-9]*\)\].*/\1/p' "$REPO/deploy/container/sws-runtime.container")"
 
 # ── 3. Build the image ────────────────────────────────────────────────────────
 # --format docker is required, not cosmetic: HEALTHCHECK has no place in the
@@ -302,6 +309,7 @@ podman build --platform linux/arm64 --format docker \
     --build-arg "SWS_NOVITA_EN=$NOVITA_EN" \
     --build-arg "SWS_COMPAT_IT=$COMPAT_IT" \
     --build-arg "SWS_COMPAT_EN=$COMPAT_EN" \
+    --build-arg "SWS_QUADLET=$QUADLET" \
     -t "$IMAGE" \
     -f "$REPO/deploy/container/Containerfile.aarch64" \
     "$CTX"

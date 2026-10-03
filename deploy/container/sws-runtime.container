@@ -17,7 +17,14 @@
 #   journalctl --user -u sws-runtime -f
 
 [Unit]
-Description=SWS runtime (container podman)
+# La versione del quadlet sta nella `Description` (02-10-2026): systemd la espone
+# come proprietà dell'unità, e il runtime la legge dal bus utente senza vedere
+# questo file. Si alza a OGNI cambio di questo file o del gemello del viewer
+# (stesso numero sui due: `scripts/check_quadlet.sh`). Un pannello con un numero
+# più basso di quello dell'immagine che gira mostra «configurazione del servizio
+# da aggiornare», e la si aggiorna dall'IDE o dal pannello — vedi
+# docs/plans/2026-10-02-quadlet-che-viaggia.md.
+Description=SWS runtime (container podman) [quadlet 1]
 Documentation=file:///data/user/sws-container/README
 After=network-online.target
 Wants=network-online.target

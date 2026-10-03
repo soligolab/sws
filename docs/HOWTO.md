@@ -1266,3 +1266,40 @@ tagga come sempre (§5). Il `--push` di una release sposta **`latest-arm64`** (c
 così il canale di prova non resta indietro. I tag `-rc` (e i vecchi `-dev`) restano: dicono quale commit era
 dentro ogni immagine di prova.
 
+---
+
+## 20. Aggiornare la configurazione del servizio (i quadlet) di un pannello
+
+> 02-10-2026, piano [`docs/archive/2026-10-02-quadlet-che-viaggia.md`](archive/2026-10-02-quadlet-che-viaggia.md).
+
+`podman auto-update` cambia l'**immagine**, non i quadlet (`~/.config/containers/systemd/sws-runtime.container`
+e `sws-lvgl-viewer.container`): una riga nuova di un quadlet non arriva con l'aggiornamento. Da questa versione ogni
+quadlet porta un numero nella `Description` (`[quadlet N]`), l'immagine porta i quadlet della sua versione in
+`/usr/share/sws/quadlet/`, e il pannello confronta i due numeri.
+
+### Sul pannello
+
+- **IDE**: Configurazione → Istanza → Device → Connessione → riquadro **«Configurazione del servizio»**. Dice la
+  versione installata e quella attesa; se è vecchia, **Aggiorna**. Il pannello si riavvia.
+- **Schermo del pannello** (solo pannelli senza utenti, come l'avviso di aggiornamento): compare «Configurazione del
+  servizio da aggiornare», con **Più tardi** / **Aggiorna**.
+- **Prima di un aggiornamento**: se la versione nuova porta quadlet più recenti, fra gli avvisi di compatibilità c'è
+  «dopo l'aggiornamento la configurazione del servizio va aggiornata» — il pannello si riavvierà due volte.
+
+Come funziona: il runtime copia installer e template dell'immagine in `<dati>/config/quadlet-nuovo/` e avvia, sul bus
+utente, un servizio transitorio `sws-quadlet-aggiorna-<ora>.service` che esegue
+`install-container.sh --solo-unita`: riscrive **solo** i quadlet (immagine, cartella dati e rete li legge da quelli
+installati), fa `daemon-reload` e riavvia runtime e viewer. Scrive solo nella home dell'utente, come l'installer.
+L'esito («riuscito» / «non riuscito») lo misura il runtime che riparte. Il log del passaggio:
+`journalctl --user -u 'sws-quadlet-aggiorna-*'` sul pannello.
+
+Se il riquadro dice di **reinstallare**: il pannello è più vecchio del 27-09-2026 (niente bus utente) o non sa dove
+sono i suoi dati sull'host — Istanza → Device → Installazione, come prima.
+
+### Quando si cambia un quadlet (sviluppo)
+
+1. Si alza `[quadlet N]` nella `Description` di **entrambi** i file in `deploy/container/` (stesso numero).
+2. `./scripts/check_quadlet.sh --aggiorna` registra i nuovi hash in `tests/fixtures/quadlet-versioni.json`.
+3. Senza il punto 1 `check_quadlet.sh` (in `check_static.sh`) è rosso: un quadlet cambiato con lo stesso numero è una
+   riga che non arriverebbe mai ai pannelli.
+

@@ -847,6 +847,12 @@ pub async fn remote_update_status(State(s): State<AppState>, Extension(user): Ex
     inoltra_aggiornamento(&s, &user, reqwest::Method::GET, None, |base| format!("{base}/api/update/status")).await
 }
 
+/// `POST /api/remote/quadlet/aggiorna` (02-10-2026): riscrive i quadlet del
+/// pannello dai template della sua immagine — il quadlet che viaggia.
+pub async fn remote_quadlet_aggiorna(State(s): State<AppState>, Extension(user): Extension<AuthUser>) -> Response {
+    inoltra_aggiornamento(&s, &user, reqwest::Method::POST, None, |base| format!("{base}/api/quadlet/aggiorna")).await
+}
+
 /// `POST /api/remote/update/apply`
 pub async fn remote_update_apply(State(s): State<AppState>, Extension(user): Extension<AuthUser>) -> Response {
     inoltra_aggiornamento(&s, &user, reqwest::Method::POST, None, |base| format!("{base}/api/update/apply")).await

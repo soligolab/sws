@@ -53,6 +53,7 @@ STATICHE=(
     check_testi_sistema     # «Ora», «sì», «N/D»: una tabella, e le due implementazioni la contengono parola per parola
     check_colori            # i colori predefiniti sono una tabella sola: creazione, pannello e template senza var(--), swatch sempre hex
     check_predefiniti       # i predefiniti dei campi: una tabella scritta nei file (creazione e apertura), e i ripieghi web che non la contraddicono
+    check_quadlet           # i quadlet portano la loro versione, cambiano solo alzandola, viaggiano nell'immagine e --solo-unita li sa riscrivere
     check_tipi_scalari      # i tipi delle variabili (D5) sono una tabella sola: fixture, tipo.rs, tipiScalari.ts, select e validatore d'accordo
     check_tag_refs          # i campi-tag scalari di un oggetto: la stessa lista in Rust e in TS
     check_segreti           # i sette campi segreti: tabella sola, project.yaml a elenco chiuso, niente token nei log, template puliti

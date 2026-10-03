@@ -33,6 +33,11 @@
 #   ./install-container.sh --migrate-volumes   # recupera i dati dai volumi nominati
 #                                              # delle installazioni pre-2026-07-28
 #   ./install-container.sh --no-autostart      # solo podman run, nessuna unit
+#   ./install-container.sh --solo-unita        # riscrive SOLO i quadlet da questi
+#                                              # template, con l'immagine, i dati e la
+#                                              # rete di quelli già installati, e
+#                                              # riavvia: nessun pull, nessun container
+#                                              # rifatto (02-10-2026, lo usa il runtime)
 #   ./install-container.sh --uninstall         # rimuove servizio e container
 #   ./install-container.sh --uninstall --purge # ...e anche i dati (!)
 #
@@ -41,6 +46,9 @@
 # registry: l'immagine è pubblica, quindi nessuna credenziale.
 
 set -euo pipefail
+# Lanciato dal runtime con un servizio transitorio (`--solo-unita`, 02-10-2026)
+# l'ambiente può non avere USER, e con `set -u` il linger fallirebbe per quello.
+USER="${USER:-$(id -un)}"
 
 # Ripiego per il caso "nessuna immagine indicata, uso quella già presente".
 # Con --image il riferimento vero si legge da `podman load`, con --pull è
@@ -104,6 +112,12 @@ MIGRATE_VOLUMES=0
 # runtime con l'URL corretto.
 HOST_NETWORK=1
 AUTOSTART=1
+# `--solo-unita` (02-10-2026): i quadlet viaggiano dentro l'immagine, e il
+# runtime, quando quelli installati sono più vecchi, copia questo script coi
+# template nella cartella config e lo fa girare sull'host con un'unità
+# transitoria sul bus utente. Riscrive solo il passo 5 — piano
+# docs/archive/2026-10-02-quadlet-che-viaggia.md.
+SOLO_UNITA=0
 UNINSTALL=0
 PURGE=0
 
@@ -142,6 +156,7 @@ while [ $# -gt 0 ]; do
         # chi la ha nelle dita o in uno script.
         --host-network)  HOST_NETWORK=1; shift ;;
         --no-autostart)  AUTOSTART=0; shift ;;
+        --solo-unita)    SOLO_UNITA=1; shift ;;
         --uninstall)     UNINSTALL=1; shift ;;
         --purge)         PURGE=1; shift ;;
         *) echo "Flag non riconosciuta: $1" >&2; exit 1 ;;
@@ -155,6 +170,11 @@ if [ "$UNINSTALL" -eq 1 ]; then
     echo "==> rimozione servizio e container"
     systemctl --user disable --now "$NAME" 2>/dev/null || true
     rm -f "$UNIT_DIR/$NAME.container"
+    # Anche il viewer: restava installato, e un `daemon-reload` lo rigenerava
+    # puntato a un runtime che non c'era più (trovato il 02-10-2026).
+    systemctl --user stop sws-lvgl-viewer.service 2>/dev/null || true
+    rm -f "$UNIT_DIR/sws-lvgl-viewer.container"
+    podman rm -f sws-lvgl-viewer >/dev/null 2>&1 || true
     systemctl --user daemon-reload 2>/dev/null || true
     podman rm -f "$NAME" >/dev/null 2>&1 || true
     if [ "$PURGE" -eq 1 ]; then
@@ -165,6 +185,23 @@ if [ "$UNINSTALL" -eq 1 ]; then
     fi
     echo "==> fatto."
     exit 0
+fi
+
+# ── Solo le unità: i parametri vengono dai quadlet già installati ─────────────
+# Chi chiama (il runtime) non conosce il percorso dati sull'host né la rete con
+# cui il pannello fu installato: li sa il quadlet che c'è adesso. Senza quel
+# file non c'è niente da riscrivere — serve un'installazione completa.
+if [ "$SOLO_UNITA" -eq 1 ]; then
+    ESISTENTE="$UNIT_DIR/$NAME.container"
+    [ -f "$ESISTENTE" ] || {
+        echo "ERRORE: --solo-unita senza $ESISTENTE: qui serve un'installazione completa." >&2
+        exit 1; }
+    TAG="$(sed -n 's/^Image=//p' "$ESISTENTE" | head -1)"
+    TAG_EXPLICIT=1
+    VECCHI_DATI="$(sed -n 's|^Volume=\(.*\)/config:/var/sws/config.*|\1|p' "$ESISTENTE" | head -1)"
+    [ -n "$VECCHI_DATI" ] && DATA="$VECCHI_DATI"
+    if grep -q '^Network=host' "$ESISTENTE"; then HOST_NETWORK=1; else HOST_NETWORK=0; fi
+    echo "==> solo le unità: immagine $TAG, dati $DATA, rete $([ "$HOST_NETWORK" -eq 1 ] && echo host || echo bridge)"
 fi
 
 # ── 0. Validazione degli input ────────────────────────────────────────────────
@@ -375,6 +412,9 @@ fi
 # www risponderebbe alle API servendo però una interfaccia vuota, e dal browser
 # quella diagnosi è tutt'altro che ovvia (già costata tempo quando la SPA
 # viaggiava a parte e il bind mount restava vuoto).
+if [ "$SOLO_UNITA" -eq 1 ]; then
+    echo "==> [3-4/6] solo le unità: immagine e container restano quelli che girano"
+else
 echo "==> [3/6] verifico che l'immagine contenga la SPA"
 if podman run --rm --entrypoint /usr/bin/test "$TAG" -f /var/sws/www/index.html 2>/dev/null; then
     echo "    /var/sws/www/index.html presente"
@@ -391,6 +431,7 @@ fi
 echo "==> [4/6] rimuovo il container precedente, se c'è"
 systemctl --user stop "$NAME" 2>/dev/null || true
 podman rm -f "$NAME" >/dev/null 2>&1 || true
+fi
 
 # ── 5. Avvio ──────────────────────────────────────────────────────────────────
 # Nessun mount per www: la SPA è contenuto dell'immagine, e montarci sopra una
@@ -531,7 +572,13 @@ if [ "$AUTOSTART" -eq 1 ]; then
     [ "$VECCHIA" -eq 1 ] && echo "    commutazione web/LVGL sull'host tolta: ora la fa il runtime"
 
     systemctl --user daemon-reload
-    systemctl --user start "$NAME"
+    if [ "$SOLO_UNITA" -eq 1 ]; then
+        # Il runtime gira ancora (è lui che ha chiesto): va riavviato perché le
+        # righe nuove del quadlet valgono solo per un container ricreato.
+        systemctl --user restart "$NAME"
+    else
+        systemctl --user start "$NAME"
+    fi
 
     # Il companion LVGL, se sta girando, va RIAVVIATO: il suo quadlet punta
     # all'immagine appena sostituita, ma un container già avviato continua con

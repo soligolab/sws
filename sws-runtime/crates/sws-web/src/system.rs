@@ -159,6 +159,10 @@ pub struct SystemStatus {
     /// lo stato si legge da qui, non più da un file). `None` = nessuna ancora.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub display: Option<crate::display_target::StatoDisplay>,
+    /// La configurazione del servizio (i quadlet) rispetto a quella che questa
+    /// immagine si aspetta (02-10-2026). `None` fuori da un container.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub quadlet: Option<crate::quadlet::Stato>,
 }
 
 /// Il nome della macchina, come lo dà `hostname`; `sws-runtime` se non c'è
@@ -336,6 +340,7 @@ pub async fn compute_system_status(
         container: detect_container_engine(),
         boot_image: None,
         display: None,
+        quadlet: None,
     }
 }
 
@@ -444,7 +449,52 @@ pub async fn get_system_status(State(state): State<AppState>) -> Json<SystemStat
     .await;
     status.boot_image = boot_image;
     status.display = crate::display_target::stato();
+    // Il quadlet (02-10-2026): letto dal bus utente, con un minuto di cache —
+    // l'IDE interroga ogni 8 s, e le versioni cambiano solo con un riavvio.
+    let q = quadlet_in_cache(&state.config_dir).await;
+    if q.attesa.is_some() {
+        if q.da_aggiornare {
+            status.avvisi.push(Avviso {
+                gravita: "avviso",
+                dove: "configurazione del servizio".into(),
+                messaggio: format!(
+                    "La configurazione del servizio sul pannello (quadlet {}) è più vecchia di quella di \
+                     questa versione ({}): le righe nuove non valgono finché non la si aggiorna.",
+                    q.installata.map(|v| v.to_string()).unwrap_or_else(|| "?".into()),
+                    q.attesa.unwrap_or(0)
+                ),
+                rimedio: if q.si_puo_aggiornare {
+                    "Istanza → Device → Connessione → «Configurazione del servizio» → Aggiorna (il pannello si riavvia).".into()
+                } else {
+                    q.motivo.clone().unwrap_or_default()
+                },
+            });
+        }
+        status.quadlet = Some(q);
+    }
     Json(status)
+}
+
+static QUADLET_CACHE: tokio::sync::Mutex<Option<(std::time::Instant, crate::quadlet::Stato)>> =
+    tokio::sync::Mutex::const_new(None);
+
+/// Dimentica lo stato in cache: lo chiama chi ha appena scritto un esito, così
+/// `/api/system` non mostra per un minuto «in corso» un aggiornamento già
+/// concluso (visto sul TC620 il 03-10-2026).
+pub(crate) async fn quadlet_svuota_cache() {
+    *QUADLET_CACHE.lock().await = None;
+}
+
+async fn quadlet_in_cache(config_dir: &std::path::Path) -> crate::quadlet::Stato {
+    let mut g = QUADLET_CACHE.lock().await;
+    if let Some((quando, st)) = g.as_ref() {
+        if quando.elapsed() < std::time::Duration::from_secs(60) {
+            return st.clone();
+        }
+    }
+    let st = crate::quadlet::stato(config_dir).await;
+    *g = Some((std::time::Instant::now(), st.clone()));
+    st
 }
 
 /// `POST /api/project/migrate` — re-save the active project in the current

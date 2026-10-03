@@ -17,7 +17,8 @@
 #   journalctl --user -u sws-lvgl-viewer -f
 
 [Unit]
-Description=SWS viewer LVGL (container podman)
+# La versione del quadlet: vedi il commento gemello in sws-runtime.container.
+Description=SWS viewer LVGL (container podman) [quadlet 1]
 # Il runtime deve esserci: il viewer legge da lui pagine, tag e allarmi. Non
 # `Requires=`, perché un viewer che aspetta è meglio di un viewer che non parte:
 # il runtime può tardare qualche secondo dopo un riavvio.
@@ -71,10 +72,13 @@ Environment=SDL_VIDEODRIVER=x11
 Environment=SWS_VIEWER_DATA=/var/sws/viewer
 
 [Service]
-# `on-failure` e non `always`: quando `sws-display` lo ferma perché il progetto
-# è passato al web, quella è un'uscita voluta e non va annullata da un riavvio
-# automatico.
-Restart=on-failure
+# `always` dal 02-10-2026 (era `on-failure` dalla nascita). Il motivo di prima —
+# «quando lo si ferma perché il progetto è passato al web non deve ripartire» —
+# non regge: un arresto CHIESTO (`StopUnit` dal runtime, `systemctl stop`)
+# systemd non lo fa ripartire mai, con nessun `Restart=`. Con `on-failure`
+# invece un'uscita pulita del viewer lasciava il pannello senza schermo: visto
+# sul WP630 il 01-10-2026, dopo «Aggiorna ora».
+Restart=always
 # Margine per il caso in cui Weston o il runtime non siano ancora pronti al
 # boot: il viewer esce, riprova, e alla terza o quarta trova tutto in piedi.
 RestartSec=5
