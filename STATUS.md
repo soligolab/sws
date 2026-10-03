@@ -74,6 +74,17 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — i valori dei protocolli prendono il tipo dichiarato (2026-10-03, notte)
+
+**Nessun ramo aperto.** Squash su `main`, tag **2.12.0-rc.21**, su origin.
+
+- `TagDb::ingest` porta i valori dei plugin al tipo dichiarato (tag o foglia): reale su intero arrotondato, fuori
+  intervallo saturato e Uncertain, non convertibile → ultimo valore e Bad (scelte del maintainer). L'albero dei tag
+  dell'IDE mostra decimali e unità, anche per le foglie. Collaudato sul TC620 e confermato dal maintainer.
+- Il TC620 gira la rc.21 con `tc620-sistema`; la domanda «rc.20 → rc.21» è aperta (l'istantanea c'è).
+- Dei tre semi annotati nella sezione sotto, questo è chiuso; restano da scrivere: l'istanza di un tipo che non si scopre
+  dalla scheda Tipi, e il deploy che cancella senza avvisare il progetto precedente sul pannello.
+
 ## ▶ Riprendere da qui — aggiornamento con ritorno, storico compatto, template TC620 (2026-10-03, sera)
 
 **Nessun ramo aperto.** Su `main` e su origin: `f89dd6cd` (cache incrementale), `5037f7a6` (aggiornamento con
