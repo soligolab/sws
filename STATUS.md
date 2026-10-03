@@ -82,8 +82,8 @@
   intervallo saturato e Uncertain, non convertibile → ultimo valore e Bad (scelte del maintainer). L'albero dei tag
   dell'IDE mostra decimali e unità, anche per le foglie. Collaudato sul TC620 e confermato dal maintainer.
 - Il TC620 gira la rc.21 con `tc620-sistema`; la domanda «rc.20 → rc.21» è aperta (l'istantanea c'è).
-- Dei tre semi annotati nella sezione sotto, questo è chiuso; restano da scrivere: l'istanza di un tipo che non si scopre
-  dalla scheda Tipi, e il deploy che cancella senza avvisare il progetto precedente sul pannello.
+- Dei tre semi annotati nella sezione sotto, questo è chiuso; gli altri due sono un seme unico:
+  [istanze e deploy che sostituisce](docs/plans/2026-10-03-istanze-e-deploy-che-sostituisce.md).
 
 ## ▶ Riprendere da qui — aggiornamento con ritorno, storico compatto, template TC620 (2026-10-03, sera)
 
