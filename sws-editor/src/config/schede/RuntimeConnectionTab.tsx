@@ -8,6 +8,7 @@ import { StatoBootImage } from "@/boot/StatoBootImage";
 import { StatoDisplay } from "@/boot/StatoDisplay";
 import { AggiornamentoRuntime } from "@/boot/AggiornamentoRuntime";
 import { ConfigurazioneServizio } from "@/boot/ConfigurazioneServizio";
+import { ConfermaAggiornamento } from "@/boot/ConfermaAggiornamento";
 import { TRANS_COMP } from "@/config/comuni";
 import { registraDispositivo, flushBeforeDeploy } from "@/config/schede/DevicesTab";
 
@@ -919,6 +920,9 @@ export function RuntimeConnectionTab() {
       {/* T-72 F5 — com'è andata l'installazione dell'immagine di boot. */}
       {/* Aggiornamento del runtime (27-09-2026). */}
       {connected && <AggiornamentoRuntime />}
+
+      {/* Dopo un aggiornamento (03-10-2026): confermare, rimandare, tornare indietro. */}
+      {connected && <ConfermaAggiornamento />}
 
       {/* Il quadlet che viaggia (02-10-2026): la configurazione del servizio. */}
       {connected && <ConfigurazioneServizio />}

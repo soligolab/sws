@@ -195,6 +195,16 @@ Riscrive i quadlet dai template dell'immagine con `install-container.sh --solo-u
 dati e rete. Come la reinstallazione, riporta ai valori del template le modifiche fatte da **Gestione container**
 (avvio al boot, politica di riavvio). Dettagli: HOWTO §20.
 
+### Dopo un aggiornamento: confermare o tornare indietro
+
+Dal 03-10-2026 ogni aggiornamento (dal registro o da archivio) lascia sul pannello la versione di prima e
+un'istantanea dei dati presa subito prima. Dopo due minuti di vita della versione nuova, in **Istanza → Device →
+Connessione**, riquadro **Dopo l'aggiornamento** (e sullo schermo dei pannelli senza utenti), si sceglie: **Conferma e
+pulisci** (toglie le immagini vecchie, tiene la precedente, e l'istantanea), **Conferma dopo il prossimo riavvio**,
+**Più tardi**, o **Torna alla …** (immagine e dati di prima; quanto scritto dopo l'aggiornamento si perde). Dopo un
+ritorno, finestra e pilota automatico non reinstallano la versione scartata. Senza spazio per l'istantanea
+l'aggiornamento non parte. Dettagli: HOWTO §21.
+
 ### Comandi equivalenti da riga di comando
 
 ```bash

@@ -542,11 +542,15 @@ pub fn build(
         .route("/api/update/status", get(aggiornamento_stato))
         .route("/api/update/apply", post(aggiornamento_avvia))
         .route("/api/quadlet/aggiorna", post(quadlet_aggiorna))
+        .route("/api/aggiornamento/conferma", post(conferma_aggiornamento))
+        .route("/api/aggiornamento/istantanea", post(istantanea_dati_prendi))
         .route("/api/update/schedule", get(finestra_leggi).put(finestra_scrivi))
         .route("/api/remote/update/schedule", get(crate::remote::remote_finestra_leggi).put(crate::remote::remote_finestra_scrivi))
         .route("/api/remote/update/status", get(crate::remote::remote_update_status))
         .route("/api/remote/update/apply", post(crate::remote::remote_update_apply))
         .route("/api/remote/quadlet/aggiorna", post(crate::remote::remote_quadlet_aggiorna))
+        .route("/api/remote/aggiornamento/conferma", post(crate::remote::remote_conferma_aggiornamento))
+        .route("/api/remote/aggiornamento/istantanea", post(crate::remote::remote_istantanea_dati))
         .route("/api/system/stop", post(crate::system::system_stop))
         .route("/api/system/start", post(crate::system::system_start))
         .route("/api/system/reboot", post(crate::system::system_reboot))
@@ -1101,6 +1105,8 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         .route("/api/update/status", get(aggiornamento_stato))
         .route("/api/update/apply", post(aggiornamento_avvia))
         .route("/api/quadlet/aggiorna", post(quadlet_aggiorna))
+        .route("/api/aggiornamento/conferma", post(conferma_aggiornamento))
+        .route("/api/aggiornamento/istantanea", post(istantanea_dati_prendi))
         .route("/api/update/schedule", get(finestra_leggi).put(finestra_scrivi))
         // ── Override per-dispositivo del client id MQTT ────────────────────
         .route(
@@ -1209,6 +1215,8 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
         .route("/api/update/status", get(aggiornamento_stato))
         .route("/api/update/apply", post(aggiornamento_avvia))
         .route("/api/quadlet/aggiorna", post(quadlet_aggiorna))
+        .route("/api/aggiornamento/conferma", post(conferma_aggiornamento))
+        .route("/api/aggiornamento/istantanea", post(istantanea_dati_prendi))
         .route_layer(middleware::from_fn(require_admin));
 
     // Wrap all gated routes with optional_auth so every request has AuthUser.
@@ -2579,6 +2587,14 @@ async fn aggiornamento_avvia(
         Some(user.username),
         serde_json::json!({ "versione": st.versione, "disponibile": st.disponibile, "immagine": st.immagine }),
     );
+    // «Aggiorna ora» è esplicito: una versione scartata con un ritorno smette di
+    // esserlo (03-10-2026).
+    crate::aggiornamento_finestra::scarta_versione(&s.config_dir, None).await;
+    // L'istantanea dei dati prima di rispondere: se non si può prendere, chi ha
+    // premuto deve leggerne il perché.
+    if let Err(e) = crate::istantanea_dati::prendi(&st.versione).await {
+        return (StatusCode::CONFLICT, e).into_response();
+    }
     crate::aggiornamento_esito::segna_in_corso(&s.config_dir, &st.versione, st.disponibile.clone()).await;
     tokio::spawn(async {
         tokio::time::sleep(std::time::Duration::from_millis(800)).await;
@@ -2618,6 +2634,73 @@ async fn quadlet_aggiorna(
         }
     });
     (StatusCode::ACCEPTED, Json(st)).into_response()
+}
+
+#[derive(serde::Deserialize)]
+struct SceltaConferma {
+    scelta: String,
+}
+
+/// `POST /api/aggiornamento/conferma` — la risposta alla domanda dopo un
+/// aggiornamento (03-10-2026): `pulisci`, `dopo_riavvio`, `piu_tardi`, `ritorna`.
+async fn conferma_aggiornamento(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Json(r): Json<SceltaConferma>,
+) -> Response {
+    if !matches!(r.scelta.as_str(), "pulisci" | "dopo_riavvio" | "piu_tardi" | "ritorna") {
+        return (StatusCode::BAD_REQUEST, format!("scelta sconosciuta: {}", r.scelta)).into_response();
+    }
+    let st = crate::conferma_aggiornamento::stato(&s.config_dir).await;
+    let Some(d) = st.domanda else {
+        return (StatusCode::CONFLICT, "Nessun aggiornamento da confermare.").into_response();
+    };
+    s.audit.log(
+        "update.conferma",
+        Some(user.username),
+        serde_json::json!({ "scelta": r.scelta, "da": d.da, "a": d.a, "istantanea": d.istantanea }),
+    );
+    match r.scelta.as_str() {
+        // Il ritorno ferma questo processo: si risponde prima.
+        "ritorna" => {
+            let dir = s.config_dir.as_ref().clone();
+            tokio::spawn(async move {
+                tokio::time::sleep(std::time::Duration::from_millis(800)).await;
+                if let Err(e) = crate::conferma_aggiornamento::scegli(&dir, "ritorna").await {
+                    tracing::warn!("ritorno alla versione precedente non avviato: {e}");
+                }
+            });
+            (StatusCode::ACCEPTED, Json(serde_json::json!({ "scelta": "ritorna" }))).into_response()
+        }
+        // La pulizia può durare: parte, e l'esito arriva in /api/system.
+        "pulisci" => {
+            let dir = s.config_dir.as_ref().clone();
+            tokio::spawn(async move {
+                if let Err(e) = crate::conferma_aggiornamento::scegli(&dir, "pulisci").await {
+                    tracing::warn!("pulizia delle immagini non riuscita: {e}");
+                }
+            });
+            (StatusCode::ACCEPTED, Json(serde_json::json!({ "scelta": "pulisci" }))).into_response()
+        }
+        altra => match crate::conferma_aggiornamento::scegli(&s.config_dir, altra).await {
+            Ok(()) => Json(serde_json::json!({ "scelta": altra })).into_response(),
+            Err(e) => (StatusCode::CONFLICT, e).into_response(),
+        },
+    }
+}
+
+/// `POST /api/aggiornamento/istantanea` — l'istantanea dei dati prima di un
+/// aggiornamento da archivio: la chiede l'IDE prima del deploy (03-10-2026).
+async fn istantanea_dati_prendi(State(s): State<AppState>, Extension(user): Extension<AuthUser>) -> Response {
+    let _scrittura = s.project_write_lock.lock().await;
+    match crate::istantanea_dati::prendi(crate::aggiornamento::VERSIONE).await {
+        Ok(Some(info)) => {
+            s.audit.log("update.istantanea", Some(user.username), serde_json::json!({ "byte": info.byte }));
+            Json(info).into_response()
+        }
+        Ok(None) => (StatusCode::CONFLICT, "Non è un dispositivo: niente istantanea.").into_response(),
+        Err(e) => (StatusCode::CONFLICT, e).into_response(),
+    }
 }
 
 /// `GET /api/update/schedule` — la finestra dell'aggiornamento e l'orologio del pannello.

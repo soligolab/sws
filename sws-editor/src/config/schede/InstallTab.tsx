@@ -151,6 +151,25 @@ export function InstallTab() {
     setContainerLog([]);
     setChiaveHostCambiata(false);
     try {
+      // L'istantanea dei dati sul pannello collegato, prima di sostituirne
+      // l'immagine (03-10-2026): è ciò che permette, dopo, di tornare alla
+      // versione di prima con i suoi dati. Non con un'installazione pulita, che
+      // i dati li cancella apposta; un runtime più vecchio non la sa fare.
+      if (remoteConnected && !cleanInstall) {
+        setContainerLog([t("cfg.istantaneaPrendo")]);
+        try {
+          const ist = await api.remoteIstantanea();
+          setContainerLog((l) => [...l, t("cfg.istantaneaPresa", { mb: Math.round(ist.byte / 1_000_000), v: ist.versione })]);
+        } catch (e) {
+          const m = e instanceof Error ? e.message : String(e);
+          // Spazio insufficiente: fermarsi, come fa il pannello stesso.
+          if (/[Ss]pazio insufficiente/.test(m)) {
+            setContainerLog((l) => [...l, `ERROR: ${m}`]);
+            return;
+          }
+          setContainerLog((l) => [...l, t("cfg.istantaneaNessuna", { motivo: m })]);
+        }
+      }
       const res = await api.deployDeviceContainer(containerDeployPayload({
         source: containerSource,
         imageTarball: selectedContainerPkg,

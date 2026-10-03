@@ -278,7 +278,9 @@ cp -r "$SPA_DIST/." "$CTX/www/"
 # quadlet giusto per la versione che gira, e lo sa riscrivere dal pannello.
 mkdir -p "$CTX/quadlet"
 install -m 644 "$REPO/deploy/container/sws-runtime.container" "$REPO/deploy/container/sws-lvgl-viewer.container" "$CTX/quadlet/"
-install -m 755 "$REPO/deploy/container/install-container.sh" "$CTX/quadlet/"
+# E dal 03-10-2026 lo script delle immagini: stato, pulizia e ritorno alla
+# versione precedente dopo un aggiornamento (conferma_aggiornamento.rs).
+install -m 755 "$REPO/deploy/container/install-container.sh" "$REPO/deploy/container/immagini.sh" "$CTX/quadlet/"
 QUADLET="$(sed -n 's/^Description=.*\[quadlet \([0-9]*\)\].*/\1/p' "$REPO/deploy/container/sws-runtime.container")"
 
 # ── 3. Build the image ────────────────────────────────────────────────────────

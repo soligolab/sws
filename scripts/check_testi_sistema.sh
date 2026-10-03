@@ -52,6 +52,10 @@ voci = f["voci"]
 
 print(f"=== la fixture: {len(voci)} voci, ripiego «{f['ripiego']}» ===")
 esito(len(voci) >= 5, f"almeno le cinque parole del pannello ({len(voci)} voci)")
+# Una voce scritta accanto a `voci` invece che dentro non la legge nessuno, e
+# nessun altro controllo se ne accorge (03-10-2026: sette voci finite lì).
+fuori = [k for k in f if k not in ("_perche", "ripiego", "voci")]
+esito(not fuori, "la fixture ha solo _perche, ripiego e voci" + (f" — fuori posto: {fuori}" if fuori else ""))
 esito(all(f["ripiego"] in l for l in voci.values()),
       f"ogni voce ha la lingua di ripiego «{f['ripiego']}»")
 

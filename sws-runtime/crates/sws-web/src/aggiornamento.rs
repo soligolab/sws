@@ -535,6 +535,18 @@ pub fn nota_quadlet(attesa_adesso: Option<u32>, nuova: u32) -> Option<(&'static 
     ))
 }
 
+/// Prima l'istantanea dei dati, poi «in corso», poi l'aggiornamento
+/// (03-10-2026). L'unico passaggio da cui partono finestra, pilota automatico e
+/// «Aggiorna ora»: se l'istantanea non si può prendere (spazio), l'aggiornamento
+/// non parte — senza, «Torna alla versione precedente» riporterebbe l'immagine
+/// ma non i dati, e una versione che ha cambiato il formato dei dati lascerebbe
+/// quella vecchia senza poterli leggere.
+pub async fn prepara_e_avvia(config_dir: &std::path::Path, da: &str, a: Option<String>) -> Result<(), String> {
+    crate::istantanea_dati::prendi(da).await?;
+    crate::aggiornamento_esito::segna_in_corso(config_dir, da, a).await;
+    avvia().await
+}
+
 /// Avvia `podman-auto-update.service` sul bus utente. Il chiamante deve aver
 /// **già risposto**: se l'aggiornamento c'è, questo processo verrà fermato.
 pub async fn avvia() -> Result<(), String> {

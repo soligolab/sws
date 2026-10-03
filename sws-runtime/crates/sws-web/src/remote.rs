@@ -853,6 +853,21 @@ pub async fn remote_quadlet_aggiorna(State(s): State<AppState>, Extension(user):
     inoltra_aggiornamento(&s, &user, reqwest::Method::POST, None, |base| format!("{base}/api/quadlet/aggiorna")).await
 }
 
+/// `POST /api/remote/aggiornamento/conferma` — la risposta alla domanda dopo un aggiornamento.
+pub async fn remote_conferma_aggiornamento(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Json(corpo): Json<serde_json::Value>,
+) -> Response {
+    inoltra_aggiornamento(&s, &user, reqwest::Method::POST, Some(corpo), |base| format!("{base}/api/aggiornamento/conferma")).await
+}
+
+/// `POST /api/remote/aggiornamento/istantanea` — l'istantanea dei dati prima di
+/// un deploy da archivio.
+pub async fn remote_istantanea_dati(State(s): State<AppState>, Extension(user): Extension<AuthUser>) -> Response {
+    inoltra_aggiornamento(&s, &user, reqwest::Method::POST, None, |base| format!("{base}/api/aggiornamento/istantanea")).await
+}
+
 /// `POST /api/remote/update/apply`
 pub async fn remote_update_apply(State(s): State<AppState>, Extension(user): Extension<AuthUser>) -> Response {
     inoltra_aggiornamento(&s, &user, reqwest::Method::POST, None, |base| format!("{base}/api/update/apply")).await

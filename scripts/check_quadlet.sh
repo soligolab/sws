@@ -20,7 +20,9 @@
 #      tests/fixtures/quadlet-versioni.json — un file cambiato con lo stesso
 #      numero è rosso;
 #   3. l'immagine li porta con sé (Containerfile) e l'installer sa riscriverli
-#      da soli (`--solo-unita`).
+#      da soli (`--solo-unita`);
+#   4. accanto viaggia `immagini.sh` (stato, pulizia e ritorno dopo un
+#      aggiornamento, 03-10-2026), provato su un pannello finto.
 #
 # Uso:
 #   ./scripts/check_quadlet.sh            controlla
@@ -29,7 +31,7 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 
 exec python3 - "${1:-}" <<'PY'
-import hashlib, json, re, sys
+import hashlib, json, re, subprocess, sys
 
 FILE = ["deploy/container/sws-runtime.container", "deploy/container/sws-lvgl-viewer.container"]
 FIXTURE = "tests/fixtures/quadlet-versioni.json"
@@ -102,7 +104,6 @@ for cf in ["deploy/container/Containerfile.aarch64", "deploy/container/Container
 inst = open("deploy/container/install-container.sh", encoding="utf-8").read()
 if "--solo-unita" in inst:
     ok("install-container.sh sa riscrivere solo le unità (--solo-unita)")
-    import subprocess
     r = subprocess.run(["bash", "tests/shell/solo-unita.sh"], capture_output=True, text=True)
     for riga in r.stdout.strip().splitlines():
         print("  " + riga.strip() if not riga.startswith("  ") else riga)
@@ -110,6 +111,19 @@ if "--solo-unita" in inst:
         ko("--solo-unita su un pannello finto: vedi sopra")
 else:
     ko("install-container.sh non ha --solo-unita")
+
+# Lo script delle immagini (03-10-2026): viaggia accanto ai quadlet, e la sua
+# pulizia e il suo ritorno si provano su un pannello finto.
+for b in ["scripts/build_container.sh", "scripts/build_container_x86_64.sh"]:
+    if "deploy/container/immagini.sh" in open(b, encoding="utf-8").read():
+        ok(f"{b}: l'immagine porta immagini.sh")
+    else:
+        ko(f"{b}: non mette immagini.sh in /usr/share/sws/quadlet")
+r = subprocess.run(["bash", "tests/shell/immagini.sh"], capture_output=True, text=True)
+for riga in r.stdout.strip().splitlines():
+    print(riga if riga.startswith("  ") else "  " + riga.strip())
+if r.returncode != 0:
+    ko("immagini.sh su un pannello finto: vedi sopra")
 
 print()
 print("\033[32mquadlet: versione coerente.\033[0m" if ESITO == 0 else "\033[31mquadlet: la versione non dice il vero.\033[0m")

@@ -68,3 +68,4 @@ time                         = { workspace = true }
 chrono                       = { version = "0.4", default-features = false, features = ["clock", "std", "serde"] }
 
 [dev-dependencies]
+rusqlite.workspace = true

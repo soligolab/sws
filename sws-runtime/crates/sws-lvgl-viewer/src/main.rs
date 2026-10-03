@@ -219,8 +219,9 @@ struct Args {
 
     /// Mostra un avviso di aggiornamento **finto**, per guardarlo senza
     /// aspettare che esista una versione nuova davvero: `nuova`, `riuscito`,
-    /// `non-riuscito`, o `quadlet` (la configurazione del servizio da
-    /// aggiornare, 02-10-2026). Funziona anche con `--istantanea`, che è l'unico modo
+    /// `non-riuscito`, `quadlet` (la configurazione del servizio da
+    /// aggiornare, 02-10-2026), `conferma` o `ritorno` (la domanda dopo un
+    /// aggiornamento e il suo secondo passo, 03-10-2026). Funziona anche con `--istantanea`, che è l'unico modo
     /// di vedere questo overlay senza un pannello davanti — la rete
     /// l'istantanea non la esercita. Senza questa opzione l'avviso è quello
     /// vero e nient'altro.
@@ -527,15 +528,24 @@ fn main() -> anyhow::Result<()> {
         Some(quale) => {
             // La configurazione del servizio da aggiornare: nessuno stato
             // dell'aggiornamento, solo il quadlet vecchio.
+            // La domanda dopo un aggiornamento (03-10-2026): `conferma`, e
+            // `ritorno` per il secondo passo di «Torna alla …».
+            let conferma = matches!(quale, "conferma" | "ritorno").then(|| client::DomandaSistema {
+                da: "2.12.0-rc.17".into(),
+                a: "2.12.0-rc.18".into(),
+                istantanea: true,
+            });
             let (finto, quadlet) = if quale == "quadlet" {
                 (
                     None,
                     Some(client::QuadletSistema { installata: Some(0), attesa: Some(1), da_aggiornare: true, si_puo_aggiornare: true }),
                 )
+            } else if conferma.is_some() {
+                (None, None)
             } else {
                 let Some(finto) = aggiornamento::stato_di_prova(quale) else {
                     anyhow::bail!(
-                        "--avviso-di-prova vuole `nuova`, `riuscito`, `non-riuscito` o `quadlet`, non '{quale}'"
+                        "--avviso-di-prova vuole `nuova`, `riuscito`, `non-riuscito`, `quadlet`, `conferma` o `ritorno`, non '{quale}'"
                     );
                 };
                 (Some(finto), None)
@@ -546,6 +556,8 @@ fn main() -> anyhow::Result<()> {
             g.senza_utenti = true;
             g.stato = finto;
             g.quadlet = quadlet;
+            g.ritorno_chiesto = quale == "ritorno";
+            g.conferma = conferma;
             g.visto = aggiornamento::Visto::default();
             g.generazione += 1;
         }

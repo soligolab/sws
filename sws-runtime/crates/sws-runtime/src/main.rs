@@ -1056,6 +1056,14 @@ async fn main() -> anyhow::Result<()> {
         // Il quadlet che viaggia (02-10-2026): com'è andato un aggiornamento dei
         // quadlet chiesto prima di questo riavvio.
         tokio::spawn(sws_web::quadlet::all_avvio(app_state.config_dir.as_ref().clone()));
+        // Dopo un aggiornamento (03-10-2026): confermare, rimandare, tornare
+        // indietro. Le cartelle dei dati servono all'istantanea presa prima di
+        // ogni aggiornamento.
+        sws_web::istantanea_dati::imposta_radici(
+            app_state.config_dir.as_ref().clone(),
+            app_state.projects_root.as_ref().clone(),
+        );
+        tokio::spawn(sws_web::conferma_aggiornamento::all_avvio(app_state.config_dir.as_ref().clone()));
         // E la versione nuova, una volta per versione, sui canali scelti.
         tokio::spawn(sws_web::aggiornamento_esito::versione_nuova_all_avvio(app_state.clone()));
     }

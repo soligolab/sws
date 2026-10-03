@@ -55,6 +55,11 @@ enum Azione {
     /// La configurazione del servizio (02-10-2026).
     AggiornaQuadlet,
     PiuTardiQuadlet,
+    /// Dopo un aggiornamento (03-10-2026): la risposta che va al runtime
+    /// (`pulisci`, `dopo_riavvio`, `piu_tardi`, `ritorna`)…
+    Conferma(&'static str),
+    /// …e il passo intermedio del ritorno, avanti e indietro.
+    ChiediRitorno(bool),
     Ignora(String),
     ChiudiEsito(i64),
 }
@@ -88,6 +93,11 @@ unsafe extern "C" fn sws_avviso_cb(e: *mut lvgl_sys::lv_event_t) {
             aggiornamento::aggiorna_quadlet(&ctx.stato, &ctx.base_url, token);
         }
         Azione::PiuTardiQuadlet => aggiornamento::rimanda_quadlet(&ctx.stato),
+        Azione::Conferma(scelta) => {
+            let token = ctx.sessione.lock().unwrap_or_else(|e| e.into_inner()).token.clone();
+            aggiornamento::rispondi_conferma(&ctx.stato, &ctx.base_url, token, scelta);
+        }
+        Azione::ChiediRitorno(si) => aggiornamento::chiedi_ritorno(&ctx.stato, *si),
         Azione::Ignora(v) => aggiornamento::ignora(&ctx.stato, v),
         Azione::ChiudiEsito(id) => aggiornamento::chiudi_esito(&ctx.stato, *id),
     }
@@ -436,6 +446,40 @@ impl Overlay {
                     ),
                 ],
             },
+            Avviso::Conferma { da, a, istantanea, ritorno_chiesto } => {
+                let v = [("da", da.as_str()), ("a", a.as_str())];
+                let corpo = if *istantanea {
+                    format!("{}\n\n{}", testo_con(Testo::ConfSpiega, lingua, &v), testo(Testo::ConfDati, lingua))
+                } else {
+                    testo_con(Testo::ConfSpiega, lingua, &v)
+                };
+                let pulsanti = if *ritorno_chiesto {
+                    vec![
+                        (testo(Testo::ConfAnnulla, lingua).to_string(), Azione::ChiediRitorno(false), false),
+                        (
+                            if avvio_chiesto { testo(Testo::AggInCorso, lingua).to_string() } else { testo_con(Testo::ConfRitorna, lingua, &v) },
+                            Azione::Conferma("ritorna"),
+                            true,
+                        ),
+                    ]
+                } else {
+                    vec![
+                        (testo_con(Testo::ConfRitorna, lingua, &v), Azione::ChiediRitorno(true), false),
+                        (testo(Testo::AggPiuTardi, lingua).to_string(), Azione::Conferma("piu_tardi"), false),
+                        (testo(Testo::ConfDopoRiavvio, lingua).to_string(), Azione::Conferma("dopo_riavvio"), false),
+                        (testo(Testo::ConfPulisci, lingua).to_string(), Azione::Conferma("pulisci"), true),
+                    ]
+                };
+                Contenuto {
+                    titolo: testo(Testo::ConfTitolo, lingua).to_string(),
+                    // Il secondo passo del ritorno lo dice in rosso, dove stanno
+                    // gli avvisi di compatibilità.
+                    sotto: String::new(),
+                    compatibilita: if *ritorno_chiesto { format!("⚠ {}", testo_con(Testo::ConfRitornaSicuro, lingua, &v)) } else { String::new() },
+                    corpo,
+                    pulsanti,
+                }
+            }
             Avviso::VersioneNuova { da, a, novita } => {
                 let mut compatibilita = String::new();
                 let mut corpo = String::new();

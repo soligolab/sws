@@ -163,6 +163,11 @@ pub struct SystemStatus {
     /// immagine si aspetta (02-10-2026). `None` fuori da un container.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub quadlet: Option<crate::quadlet::Stato>,
+    /// Dopo un aggiornamento: la domanda (confermare, rimandare, tornare
+    /// indietro), l'ultima pulizia e l'ultimo ritorno (03-10-2026). `None` fuori
+    /// da un dispositivo.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub conferma_aggiornamento: Option<crate::conferma_aggiornamento::Stato>,
 }
 
 /// Il nome della macchina, come lo dà `hostname`; `sws-runtime` se non c'è
@@ -341,6 +346,7 @@ pub async fn compute_system_status(
         boot_image: None,
         display: None,
         quadlet: None,
+        conferma_aggiornamento: None,
     }
 }
 
@@ -471,6 +477,9 @@ pub async fn get_system_status(State(state): State<AppState>) -> Json<SystemStat
             });
         }
         status.quadlet = Some(q);
+    }
+    if crate::conferma_aggiornamento::disponibile() {
+        status.conferma_aggiornamento = Some(crate::conferma_aggiornamento::stato(&state.config_dir).await);
     }
     Json(status)
 }

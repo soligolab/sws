@@ -377,6 +377,43 @@ export interface BootImageStato {
 }
 
 /** Il quadlet che viaggia (02-10-2026): `GET /api/system` → `quadlet`. */
+/** Dopo un aggiornamento (03-10-2026): la domanda — confermare, rimandare,
+ *  tornare indietro — l'ultima pulizia delle immagini e l'ultimo ritorno. */
+export interface DomandaConferma {
+  /** La versione di prima: quella a cui «ritorna» riporta. */
+  da: string;
+  a: string;
+  /** C'è l'istantanea dei dati: il ritorno riporta anche quelli. */
+  istantanea: boolean;
+  istantanea_quando_ms: number | null;
+  recuperabili_byte: number;
+}
+
+export interface PuliziaImmagini {
+  quando_ms: number;
+  tolte: { id: string; nomi: string; byte: number }[];
+  liberati_byte: number;
+  istantanea_tolta: boolean;
+}
+
+export interface RitornoVersione {
+  quando_ms: number;
+  esito: string;
+  scartata: string;
+  dati: boolean;
+  motivo?: string | null;
+}
+
+export interface StatoConferma {
+  domanda: DomandaConferma | null;
+  pulizia_al_prossimo_avvio: boolean;
+  ultima_pulizia: PuliziaImmagini | null;
+  ultimo_ritorno: RitornoVersione | null;
+  in_corso: string | null;
+}
+
+export type SceltaConferma = "pulisci" | "dopo_riavvio" | "piu_tardi" | "ritorna";
+
 export interface StatoQuadlet {
   /** Versione installata (la più bassa fra runtime e viewer); null = non leggibile. */
   installata: number | null;
@@ -397,6 +434,7 @@ export interface SystemStatus {
   /** La configurazione del servizio (i quadlet) del pannello rispetto a quella
    *  dell'immagine che gira (02-10-2026). Assente fuori da un container. */
   quadlet?: StatoQuadlet | null;
+  conferma_aggiornamento?: StatoConferma | null;
   uptime_s: number;
   /** Q52 (dal 2.7.2): architettura del binario (`aarch64`, `x86_64`), nome
    *  della macchina, motore del container o null se nativo. Opzionali perché
@@ -1530,6 +1568,13 @@ export const api = {
   avviaAggiornamento: () => request<StatoAggiornamento>("/api/update/apply", { method: "POST" }),
   /** Il pannello riscrive i suoi quadlet e si riavvia (02-10-2026). */
   aggiornaQuadlet: () => request<StatoQuadlet>("/api/quadlet/aggiorna", { method: "POST" }),
+  /** La risposta alla domanda dopo un aggiornamento, sul pannello stesso. */
+  confermaAggiornamento: (scelta: SceltaConferma) =>
+    request<{ scelta: string }>("/api/aggiornamento/conferma", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scelta }),
+    }),
   remoteStatoAggiornamento: () => request<StatoAggiornamento>("/api/remote/update/status"),
   /** La finestra dell'aggiornamento e l'orologio del pannello collegato. */
   remoteFinestra: () => request<VistaFinestra>("/api/remote/update/schedule"),
@@ -1546,6 +1591,16 @@ export const api = {
    *  il pannello si riavvia. */
   remoteAggiornaQuadlet: () =>
     request<StatoQuadlet>("/api/remote/quadlet/aggiorna", { method: "POST" }),
+  /** La risposta alla domanda dopo un aggiornamento, sul pannello collegato. */
+  remoteConfermaAggiornamento: (scelta: SceltaConferma) =>
+    request<{ scelta: string }>("/api/remote/aggiornamento/conferma", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scelta }),
+    }),
+  /** L'istantanea dei dati sul pannello collegato, prima di un deploy da archivio. */
+  remoteIstantanea: () =>
+    request<{ versione: string; quando_ms: number; byte: number }>("/api/remote/aggiornamento/istantanea", { method: "POST" }),
 
   /** Ripristina l'immagine di accensione di fabbrica sul dispositivo collegato
    *  (`ResetBackgroundImage`). Risponde con lo stato nuovo. */

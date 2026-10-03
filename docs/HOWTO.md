@@ -37,6 +37,8 @@
 17. [Impostare l'immagine di boot del pannello](#17-impostare-limmagine-di-boot-del-pannello)
 18. [Dove stanno le password](#18-dove-stanno-le-password)
 19. [Dare un nome a un'immagine di prova: le versioni `-rc`](#19-dare-un-nome-a-unimmagine-di-prova-le-versioni--rc)
+20. [Aggiornare la configurazione del servizio (i quadlet) di un pannello](#20-aggiornare-la-configurazione-del-servizio-i-quadlet-di-un-pannello)
+21. [Dopo un aggiornamento: confermare, rimandare, tornare alla versione precedente](#21-dopo-un-aggiornamento-confermare-rimandare-tornare-alla-versione-precedente)
 
 ---
 
@@ -223,6 +225,16 @@ maggior consumatore è quasi sempre `target/debug` — sia quello del workspace 
 esclusi dal workspace (`sws-kiosk`, `sws-lvgl-viewer`, che un `cargo clean` sul workspace non
 tocca). Cargo non fa mai pulizia automatica di questi alberi: crescono indefinitamente finché non
 li si svuota a mano.
+
+Prima dell'accetta, il giro leggero (03-10-2026): toglie solo la cache incrementale non toccata da due
+giorni, e non costringe a ricompilare le dipendenze. Lo lancia già `/finalizza-giornata` dopo il push.
+
+```bash
+./scripts/pota_incremental.sh            # dice cosa toglierebbe
+./scripts/pota_incremental.sh --esegui   # toglie (84,5 GB la prima volta, sul PC di casa)
+```
+
+Se non basta:
 
 ```bash
 ./scripts/clean_disk_space.sh
@@ -1302,4 +1314,50 @@ sono i suoi dati sull'host — Istanza → Device → Installazione, come prima.
 2. `./scripts/check_quadlet.sh --aggiorna` registra i nuovi hash in `tests/fixtures/quadlet-versioni.json`.
 3. Senza il punto 1 `check_quadlet.sh` (in `check_static.sh`) è rosso: un quadlet cambiato con lo stesso numero è una
    riga che non arriverebbe mai ai pannelli.
+
+---
+
+## 21. Dopo un aggiornamento: confermare, rimandare, tornare alla versione precedente
+
+> 03-10-2026, piano [`docs/plans/2026-10-03-pulizia-immagini-dopo-aggiornamento.md`](plans/2026-10-03-pulizia-immagini-dopo-aggiornamento.md).
+
+Un aggiornamento lascia sul pannello **la versione di prima** e, da questa versione, **un'istantanea dei dati** presa
+subito prima (config e progetti, storico compreso, senza `backups/` e log): così ci si può tornare. Finché
+l'aggiornamento non è confermato, immagine e istantanea occupano spazio.
+
+### La domanda
+
+Dopo due minuti di vita della versione nuova compare la domanda — nell'IDE (**Istanza → Device → Connessione →
+«Dopo l'aggiornamento»**) e, sui pannelli senza utenti, sullo schermo:
+
+| Scelta | Cosa fa |
+|---|---|
+| **Conferma e pulisci** | toglie le immagini SWS vecchie (tiene quella che gira e la precedente) e l'istantanea |
+| **Conferma dopo il prossimo riavvio** | la pulizia parte da sola al prossimo avvio riuscito: per chi vuole vedere il pannello ripartire una volta prima di fidarsi |
+| **Più tardi** | la domanda torna al prossimo avvio |
+| **Torna alla …** | ferma il pannello, rimette config e progetti dall'istantanea, riporta la versione di prima e riparte. **Quanto scritto dopo l'aggiornamento si perde** (storico compreso). Chiede conferma |
+
+Dopo un ritorno, finestra e pilota automatico **non** reinstallano la versione scartata; «Aggiorna ora» sì, e la
+toglie dalla lista nera. Se l'aggiornamento era partito da una versione che l'istantanea non la prendeva (prima della
+2.12.0-rc.17), il ritorno riporta solo l'immagine, e lo dice.
+
+### Da dove parte l'istantanea
+
+- **Dal registro** (Aggiorna ora, finestra, pilota): la prende il runtime prima di avviare `podman auto-update`. Se lo
+  spazio non basta (serve 1,5 × la sua dimensione), **l'aggiornamento non parte** e lo dice: si conferma il giro
+  precedente o si libera spazio.
+- **Da archivio** (Installazione dall'IDE, con il pannello collegato): la chiede l'IDE prima del deploy, e il log del
+  deploy dice com'è andata. Con «installazione pulita» no: i dati li cancella apposta.
+
+### Come funziona, e dove guardare
+
+Lo fa `immagini.sh` (dentro l'immagine in `/usr/share/sws/quadlet/`), copiato in `<dati>/config/pulizia/` e lanciato
+dal runtime come servizio transitorio dell'utente — niente SSH, niente file di sistema:
+
+- `immagini.sh stato` registra l'immagine che gira in `<dati>/config/immagini.stato`; se è cambiata, quella di prima
+  diventa la «precedente» (così si accorge di un aggiornamento da qualunque canale). Riassunto in `immagini.json`.
+- `immagini.sh pulisci` / `ritorna`: l'esito in `immagini.json` e in `ritorno.json`.
+- Il log: `journalctl --user -u 'sws-immagini-*'` sul pannello.
+- Riconosce le immagini SWS dall'etichetta `org.opencontainers.image.source=https://github.com/soligolab/sws`, anche
+  quelle rimaste senza nome; non tocca mai un'immagine usata da un container.
 

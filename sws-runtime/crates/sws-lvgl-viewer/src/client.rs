@@ -180,6 +180,25 @@ pub struct StatoSistema {
     /// versione che gira si aspetta (02-10-2026). Assente su un runtime vecchio.
     #[serde(default)]
     pub quadlet: Option<QuadletSistema>,
+    /// Dopo un aggiornamento: la domanda da fare (03-10-2026). Assente su un
+    /// runtime vecchio o fuori da un dispositivo.
+    #[serde(default)]
+    pub conferma_aggiornamento: Option<ConfermaSistema>,
+}
+
+/// `conferma_aggiornamento` di `GET /api/system`: solo la domanda.
+#[derive(Debug, Clone, Deserialize, PartialEq, Default)]
+pub struct ConfermaSistema {
+    #[serde(default)]
+    pub domanda: Option<DomandaSistema>,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+pub struct DomandaSistema {
+    pub da: String,
+    pub a: String,
+    #[serde(default)]
+    pub istantanea: bool,
 }
 
 /// `quadlet` di `GET /api/system`: solo quel che serve all'avviso a schermo.
@@ -319,6 +338,24 @@ pub async fn avvia_aggiornamento(base_url: &str, token: Option<&str>) -> anyhow:
 /// quadlet e si riavvia.
 pub async fn aggiorna_quadlet(base_url: &str, token: Option<&str>) -> anyhow::Result<()> {
     post_vuoto(base_url, &["api", "quadlet", "aggiorna"], token).await
+}
+
+/// `POST /api/aggiornamento/conferma` (03-10-2026): la risposta alla domanda
+/// dopo un aggiornamento — `pulisci`, `dopo_riavvio`, `piu_tardi`, `ritorna`.
+pub async fn conferma_aggiornamento(base_url: &str, token: Option<&str>, scelta: &str) -> anyhow::Result<()> {
+    let mut url = reqwest::Url::parse(base_url)?;
+    url.path_segments_mut()
+        .map_err(|_| anyhow::anyhow!("base URL non può avere path segments (cannot-be-a-base)"))?
+        .extend(["api", "aggiornamento", "conferma"]);
+    let client = reqwest::Client::builder()
+        .use_preconfigured_tls(pinned_client_config(base_url)?)
+        .build()?;
+    let mut req = client.post(url).json(&serde_json::json!({ "scelta": scelta }));
+    if let Some(t) = token {
+        req = req.header("Authorization", format!("Bearer {t}"));
+    }
+    req.send().await?.error_for_status()?;
+    Ok(())
 }
 
 async fn post_vuoto(base_url: &str, percorso: &[&str], token: Option<&str>) -> anyhow::Result<()> {

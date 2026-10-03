@@ -68,6 +68,12 @@ pub enum Comando {
         base_url: String,
         token: Option<String>,
     },
+    /// La risposta alla domanda dopo un aggiornamento (03-10-2026).
+    ConfermaAggiornamento {
+        base_url: String,
+        token: Option<String>,
+        scelta: String,
+    },
 }
 
 impl Comando {
@@ -78,6 +84,7 @@ impl Comando {
             Comando::ApplyRecipe { id, .. } => format!("applicazione della ricetta '{id}'"),
             Comando::AvviaAggiornamento { .. } => "avvio dell'aggiornamento".to_string(),
             Comando::AggiornaQuadlet { .. } => "aggiornamento della configurazione del servizio".to_string(),
+            Comando::ConfermaAggiornamento { scelta, .. } => format!("risposta «{scelta}» alla conferma dell'aggiornamento"),
         }
     }
 }
@@ -105,6 +112,9 @@ async fn esegui(cmd: Comando) -> anyhow::Result<()> {
         }
         Comando::AggiornaQuadlet { base_url, token } => {
             client::aggiorna_quadlet(&base_url, token.as_deref()).await
+        }
+        Comando::ConfermaAggiornamento { base_url, token, scelta } => {
+            client::conferma_aggiornamento(&base_url, token.as_deref(), &scelta).await
         }
     }
 }

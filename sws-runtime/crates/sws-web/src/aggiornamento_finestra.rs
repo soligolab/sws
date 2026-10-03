@@ -48,6 +48,28 @@ pub struct Programma {
     /// per versione», non a ogni avvio).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub versione_notificata: Option<String>,
+    /// La versione da cui l'operatore è tornato indietro (03-10-2026): finestra e
+    /// pilota automatico non ci aggiornano da soli. «Aggiorna ora» resta libero, e
+    /// la cancella.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub versione_scartata: Option<String>,
+}
+
+/// Ricorda (o dimentica) la versione scartata con un ritorno.
+pub async fn scarta_versione(config_dir: &Path, v: Option<String>) {
+    let mut p = carica(config_dir).await;
+    if p.versione_scartata != v {
+        p.versione_scartata = v;
+        if let Err(e) = salva(config_dir, &p).await {
+            tracing::warn!("aggiornamento.yaml: versione scartata non salvata: {e}");
+        }
+    }
+}
+
+/// Un aggiornamento automatico (finestra o pilota) verso `disponibile` va
+/// saltato perché è la versione scartata? Pura.
+pub fn e_scartata(p: &Programma, disponibile: Option<&str>) -> bool {
+    matches!((p.versione_scartata.as_deref(), disponibile), (Some(s), Some(d)) if s == d)
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -264,7 +286,13 @@ pub async fn esegui(config_dir: PathBuf) {
 
 async fn scatta_approvazione(config_dir: &Path, mut p: Programma, a: Approvazione) {
     let st = crate::aggiornamento::stato().await;
-    let azione = decidi_approvazione(&a, st.disponibile.as_deref(), Local::now().timestamp_millis());
+    let mut azione = decidi_approvazione(&a, st.disponibile.as_deref(), Local::now().timestamp_millis());
+    if azione == Azione::Aggiorna && e_scartata(&p, st.disponibile.as_deref()) {
+        azione = Azione::Niente(format!(
+            "la {} è stata scartata con un ritorno alla versione precedente: non si aggiorna da sola (usa «Aggiorna ora»)",
+            a.versione
+        ));
+    }
     // L'approvazione si consuma **prima** di aggiornare: se l'aggiornamento
     // riesce, questo processo viene sostituito e non tornerebbe a toglierla.
     p.approvazione = None;
@@ -277,9 +305,11 @@ async fn scatta_approvazione(config_dir: &Path, mut p: Programma, a: Approvazion
     }
     tracing::info!(esito = ?p.ultimo_esito, "finestra dell'aggiornamento (approvazione)");
     if azione == Azione::Aggiorna {
-        crate::aggiornamento_esito::segna_in_corso(config_dir, &st.versione, Some(a.versione.clone())).await;
-        if let Err(e) = crate::aggiornamento::avvia().await {
+        if let Err(e) = crate::aggiornamento::prepara_e_avvia(config_dir, &st.versione, Some(a.versione.clone())).await {
             tracing::warn!("finestra dell'aggiornamento: avvio non riuscito: {e}");
+            let mut p = carica(config_dir).await;
+            p.ultimo_esito = Some(format!("{}: aggiornamento non avviato: {e}", ora_breve()));
+            let _ = salva(config_dir, &p).await;
         }
     }
 }
@@ -287,7 +317,12 @@ async fn scatta_approvazione(config_dir: &Path, mut p: Programma, a: Approvazion
 async fn scatta_pilota(config_dir: &Path) {
     let st = crate::aggiornamento::stato().await;
     let mut p = carica(config_dir).await;
+    let scartata = e_scartata(&p, st.disponibile.as_deref());
     let esito = match (&st.disponibile, &st.errore) {
+        (Some(v), _) if scartata => format!(
+            "{}: pilota automatico, la {v} è stata scartata con un ritorno: non si aggiorna da sola",
+            ora_breve()
+        ),
         (Some(v), _) => format!("{}: pilota automatico, aggiornamento alla {v} avviato", ora_breve()),
         (None, Some(e)) => format!("{}: pilota automatico, registry non raggiungibile: {e}", ora_breve()),
         (None, None) => format!("{}: pilota automatico, nessuna versione nuova", ora_breve()),
@@ -295,10 +330,12 @@ async fn scatta_pilota(config_dir: &Path) {
     p.ultimo_esito = Some(esito);
     let _ = salva(config_dir, &p).await;
     tracing::info!(esito = ?p.ultimo_esito, "finestra dell'aggiornamento (pilota)");
-    if st.disponibile.is_some() {
-        crate::aggiornamento_esito::segna_in_corso(config_dir, &st.versione, st.disponibile.clone()).await;
-        if let Err(e) = crate::aggiornamento::avvia().await {
+    if st.disponibile.is_some() && !scartata {
+        if let Err(e) = crate::aggiornamento::prepara_e_avvia(config_dir, &st.versione, st.disponibile.clone()).await {
             tracing::warn!("pilota automatico: avvio non riuscito: {e}");
+            let mut p = carica(config_dir).await;
+            p.ultimo_esito = Some(format!("{}: aggiornamento non avviato: {e}", ora_breve()));
+            let _ = salva(config_dir, &p).await;
         }
     }
 }
@@ -321,6 +358,16 @@ mod tests {
     }
     fn ora(s: &str) -> NaiveTime {
         leggi_ora(s).unwrap()
+    }
+
+    #[test]
+    fn la_versione_scartata_non_torna_da_sola() {
+        let mut p = Programma::default();
+        assert!(!e_scartata(&p, Some("2.12.0-rc.18")));
+        p.versione_scartata = Some("2.12.0-rc.18".into());
+        assert!(e_scartata(&p, Some("2.12.0-rc.18")));
+        assert!(!e_scartata(&p, Some("2.12.0-rc.19")), "una versione più nuova sì");
+        assert!(!e_scartata(&p, None));
     }
 
     #[test]

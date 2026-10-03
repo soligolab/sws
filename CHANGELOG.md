@@ -20,6 +20,22 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   mostra lo stato ma non le novità. Vale per la `2.12.0-rc.1` e la `rc.2`.
 
 ### Added
+- **L'aggiornamento con ritorno** (piano `docs/plans/2026-10-03-pulizia-immagini-dopo-aggiornamento.md`). Prima di ogni
+  aggiornamento il runtime prende un'istantanea di config e progetti in `<config>/istantanea/` (`istantanea_dati.rs`;
+  i database con `VACUUM INTO` da una connessione di sola lettura, `sws_historian::sqlite::copia_coerente`; senza
+  `backups/`, log, `-wal`/`-shm` e copie «prima della pulizia»); senza spazio (1,5 × la stima) l'aggiornamento non
+  parte. Dal registro passa da `aggiornamento::prepara_e_avvia` (finestra e pilota) e da `/api/update/apply`; da
+  archivio l'IDE chiama `/api/remote/aggiornamento/istantanea` prima del deploy. Dopo `CONFERMA_S` di vita
+  `conferma_aggiornamento.rs` lancia `immagini.sh stato` sull'host (servizio transitorio, script dentro l'immagine
+  accanto ai quadlet) e, se c'è una precedente non confermata, apre la domanda: `pulisci` (immagini SWS tranne
+  attuale, precedente e in uso, e istantanea), `dopo_riavvio`, `piu_tardi`, `ritorna` (ferma, rimette i dati
+  togliendo i `-wal` nuovi, quadlet o `podman tag` sulla precedente, riavvia). La versione scartata
+  (`aggiornamento.yaml: versione_scartata`) non torna con finestra o pilota; «Aggiorna ora» la libera.
+  `POST /api/aggiornamento/conferma` e `/istantanea` (+ remote), `/api/system: conferma_aggiornamento`. IDE: riquadro
+  «Dopo l'aggiornamento»; pannello web e LVGL: la domanda con le quattro scelte e il secondo passo del ritorno (otto
+  testi di sistema nuovi). Test: `tests/shell/immagini.sh` (23 controlli, provato rosso, in `check_quadlet.sh`), Rust
+  puri su istantanea/domanda/versione scartata, vitest del dialogo. `check_testi_sistema.sh` ora fallisce su una voce
+  scritta fuori da `voci` (era successo a sette voci, e nessun controllo se n'era accorto).
 - **La cache incrementale di cargo si pota a fine giornata** (piano `docs/archive/2026-09-29-pulizia-disco-periodica.md`).
   `scripts/pota_incremental.sh [--giorni N] [--esegui]` toglie le cartelle di `*/incremental/` non toccate da N giorni
   (default 2) nei tre target; mai `deps/`, mai la cross-build `aarch64`, e salta un target il cui `.cargo-lock` è

@@ -20,7 +20,7 @@
  *  altrimenti non sarebbe un ignorare, sarebbe un rimandare.
  */
 import { useEffect, useState } from "react";
-import { api, novitaNellaLingua, type NovitaVersione, type StatoAggiornamento, type StatoQuadlet } from "@/api/client";
+import { api, novitaNellaLingua, type NovitaVersione, type SceltaConferma, type StatoAggiornamento, type StatoConferma, type StatoQuadlet } from "@/api/client";
 import { useLinguaContenuti } from "@/i18n/linguaContenuti";
 import { testoSistema, testoSistemaCon } from "@/i18n/testiSistema";
 
@@ -83,6 +83,11 @@ export function AvvisoAggiornamento() {
   // prossimo avvio del runtime, come per la versione nuova.
   const [quadlet, setQuadlet] = useState<StatoQuadlet | null>(null);
   const [quadletRimandato, setQuadletRimandato] = useState(false);
+  // Dopo un aggiornamento (03-10-2026): confermare, rimandare o tornare
+  // indietro. La domanda la tiene il runtime; qui si risponde.
+  const [conferma, setConferma] = useState<StatoConferma | null>(null);
+  const [confermaChiusa, setConfermaChiusa] = useState(false);
+  const [ritornoChiesto, setRitornoChiesto] = useState(false);
 
   // All'avvio del viewer, e di nuovo ogni volta che il runtime riparte: un
   // pannello acceso da mesi non ricarica la pagina quando il runtime si
@@ -99,7 +104,8 @@ export function AvvisoAggiornamento() {
       const riavvio = ripartito(ultimoUptime, sys.uptime_s ?? 0);
       ultimoUptime = sys.uptime_s ?? 0;
       setQuadlet(sys.quadlet ?? null);
-      if (riavvio) setQuadletRimandato(false);
+      setConferma(sys.conferma_aggiornamento ?? null);
+      if (riavvio) { setQuadletRimandato(false); setConfermaChiusa(false); setRitornoChiesto(false); }
       if (!primaVolta && !riavvio) return;
       const libero = sys.auth_required === false;
       setSenzaUtenti(libero);
@@ -215,6 +221,82 @@ export function AvvisoAggiornamento() {
               style={{ fontWeight: 600, background: "#1d4ed8", color: "#fff", border: "1px solid var(--brand-primary-hover, #2563eb)", borderRadius: 5, padding: "6px 14px", cursor: "pointer" }}>
               {inCorso ? testoSistema("agg_in_corso", lang) : testoSistema("agg_aggiorna", lang)}
             </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Poi la domanda dopo un aggiornamento: finché non si conferma, la versione
+  // di prima resta sul pannello (e i suoi dati nell'istantanea).
+  const domanda = conferma?.domanda ?? null;
+  if (senzaUtenti && domanda && !confermaChiusa) {
+    const daA = { da: domanda.da, a: domanda.a };
+    const rispondi = async (scelta: SceltaConferma) => {
+      setInCorso(true);
+      setErrore(null);
+      try {
+        await api.confermaAggiornamento(scelta);
+        // «Ritorna» riavvia il pannello e questa pagina cade; per le altre la
+        // domanda è chiusa.
+        if (scelta !== "ritorna") { setConfermaChiusa(true); setInCorso(false); }
+      } catch (e) {
+        setErrore(e instanceof Error ? e.message : String(e));
+        setInCorso(false);
+      }
+    };
+    return (
+      <div role="dialog" aria-modal="true" aria-label={testoSistema("conf_titolo", lang)}
+        style={{ position: "fixed", inset: 0, zIndex: 9000, background: "rgba(2, 6, 23, 0.72)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+        <div style={{
+          background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)",
+          borderRadius: 8, padding: 20, maxWidth: 560, width: "100%", boxShadow: "0 10px 40px rgba(0,0,0,0.5)",
+        }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: "var(--brand-text, #e2e8f0)", marginBottom: 6 }}>
+            {testoSistema("conf_titolo", lang)}
+          </div>
+          <div style={{ fontSize: 13, color: "var(--brand-text-muted, #94a3b8)" }}>
+            {testoSistemaCon("conf_spiega", lang, daA)}
+          </div>
+          {domanda.istantanea && (
+            <div style={{ marginTop: 8, fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>
+              {testoSistema("conf_dati", lang)}
+            </div>
+          )}
+          {ritornoChiesto && (
+            <div style={{ marginTop: 12, padding: "8px 10px", borderRadius: 4, background: "var(--brand-danger-bg, #450a0a)", border: "1px solid var(--brand-danger, #ef4444)", fontSize: 13, color: "var(--brand-danger-soft, #fca5a5)" }}>
+              {testoSistemaCon("conf_ritorna_sicuro", lang, daA)}
+            </div>
+          )}
+          {errore && <div style={{ marginTop: 10, fontSize: 12, color: "var(--brand-danger-soft, #f87171)" }}>{errore}</div>}
+          <div style={{ marginTop: 16, display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            {ritornoChiesto ? (
+              <>
+                <button type="button" onClick={() => setRitornoChiesto(false)} disabled={inCorso}>
+                  {testoSistema("conf_annulla", lang)}
+                </button>
+                <button type="button" onClick={() => void rispondi("ritorna")} disabled={inCorso}
+                  style={{ fontWeight: 600, background: "var(--brand-danger, #b91c1c)", color: "#fff", border: "none", borderRadius: 5, padding: "6px 14px", cursor: "pointer" }}>
+                  {inCorso ? testoSistema("agg_in_corso", lang) : testoSistemaCon("conf_ritorna", lang, daA)}
+                </button>
+              </>
+            ) : (
+              <>
+                <button type="button" onClick={() => setRitornoChiesto(true)} disabled={inCorso}>
+                  {testoSistemaCon("conf_ritorna", lang, daA)}
+                </button>
+                <button type="button" onClick={() => void rispondi("piu_tardi")} disabled={inCorso}>
+                  {testoSistema("agg_piu_tardi", lang)}
+                </button>
+                <button type="button" onClick={() => void rispondi("dopo_riavvio")} disabled={inCorso}>
+                  {testoSistema("conf_dopo_riavvio", lang)}
+                </button>
+                <button type="button" onClick={() => void rispondi("pulisci")} disabled={inCorso}
+                  style={{ fontWeight: 600, background: "#1d4ed8", color: "#fff", border: "1px solid var(--brand-primary-hover, #2563eb)", borderRadius: 5, padding: "6px 14px", cursor: "pointer" }}>
+                  {inCorso ? testoSistema("agg_in_corso", lang) : testoSistema("conf_pulisci", lang)}
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>

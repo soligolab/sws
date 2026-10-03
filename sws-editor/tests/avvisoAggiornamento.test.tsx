@@ -3,10 +3,11 @@ import { describe, expect, it, beforeEach, vi } from "vitest";
 
 // `vi.mock` è sollevato in cima al file, quindi non può leggere variabili
 // dichiarate qui sopra: `vi.hoisted` è il modo di crearle prima di lui.
-const { statoAggiornamento, avviaAggiornamento, getSystemStatus, aggiornaQuadlet } = vi.hoisted(() => ({
+const { statoAggiornamento, avviaAggiornamento, getSystemStatus, aggiornaQuadlet, confermaAggiornamento } = vi.hoisted(() => ({
   statoAggiornamento: vi.fn(),
   avviaAggiornamento: vi.fn().mockResolvedValue({}),
   aggiornaQuadlet: vi.fn().mockResolvedValue({}),
+  confermaAggiornamento: vi.fn().mockResolvedValue({}),
   // Il viewer chiede da sé se il progetto ha utenti: il test simula la
   // risposta del runtime, non inietta il valore nello store (è così che il
   // difetto del 28-09 era rimasto invisibile).
@@ -14,7 +15,7 @@ const { statoAggiornamento, avviaAggiornamento, getSystemStatus, aggiornaQuadlet
 }));
 vi.mock("@/api/client", async () => {
   const actual = await vi.importActual<typeof import("@/api/client")>("@/api/client");
-  return { ...actual, api: { ...actual.api, statoAggiornamento, avviaAggiornamento, getSystemStatus, aggiornaQuadlet } };
+  return { ...actual, api: { ...actual.api, statoAggiornamento, avviaAggiornamento, getSystemStatus, aggiornaQuadlet, confermaAggiornamento } };
 });
 
 // Le parole non vengono più da i18next: dal 29-09-2026 stanno nella tabella
@@ -192,5 +193,49 @@ describe("avviso di aggiornamento sul pannello", () => {
     render(<AvvisoAggiornamento />);
     await waitFor(() => expect(statoAggiornamento).toHaveBeenCalled());
     expect(screen.queryByText(new RegExp(testoSistema("quadlet_titolo", L)))).toBeNull();
+  });
+
+  // ── Dopo un aggiornamento: confermare, rimandare, tornare (03-10-2026) ──────
+  const DOMANDA = { da: "2.12.0-rc.17", a: "2.12.0-rc.18", istantanea: true, istantanea_quando_ms: 1, recuperabili_byte: 5e8 };
+  const CONFERMA = { domanda: DOMANDA, pulizia_al_prossimo_avvio: false, ultima_pulizia: null, ultimo_ritorno: null, in_corso: null };
+  const daA = { da: DOMANDA.da, a: DOMANDA.a };
+
+  it("senza utenti propone le quattro scelte, e «Conferma e pulisci» risponde e chiude", async () => {
+    statoAggiornamento.mockResolvedValue({ ...NUOVA, disponibile: null, novita: [] });
+    getSystemStatus.mockResolvedValue({ auth_required: false, uptime_s: 300, conferma_aggiornamento: CONFERMA });
+    confermaAggiornamento.mockClear();
+    render(<AvvisoAggiornamento />);
+    expect(await screen.findByText(testoSistema("conf_titolo", L))).toBeTruthy();
+    expect(screen.getByText(testoSistemaCon("conf_spiega", L, daA))).toBeTruthy();
+    // C'è l'istantanea: lo si dice, perché tornando si perde quanto scritto dopo.
+    expect(screen.getByText(testoSistema("conf_dati", L))).toBeTruthy();
+    for (const k of ["agg_piu_tardi", "conf_dopo_riavvio", "conf_pulisci"] as const) expect(screen.getByText(testoSistema(k, L))).toBeTruthy();
+    fireEvent.click(screen.getByText(testoSistema("conf_pulisci", L)));
+    await waitFor(() => expect(confermaAggiornamento).toHaveBeenCalledWith("pulisci"));
+    await waitFor(() => expect(screen.queryByText(testoSistema("conf_titolo", L))).toBeNull());
+  });
+
+  it("«Torna» chiede conferma prima di partire, e si può annullare", async () => {
+    statoAggiornamento.mockResolvedValue({ ...NUOVA, disponibile: null, novita: [] });
+    getSystemStatus.mockResolvedValue({ auth_required: false, uptime_s: 300, conferma_aggiornamento: CONFERMA });
+    confermaAggiornamento.mockClear();
+    render(<AvvisoAggiornamento />);
+    fireEvent.click(await screen.findByText(testoSistemaCon("conf_ritorna", L, daA)));
+    // Il primo clic non torna: chiede se davvero.
+    expect(confermaAggiornamento).not.toHaveBeenCalled();
+    expect(screen.getByText(testoSistemaCon("conf_ritorna_sicuro", L, daA))).toBeTruthy();
+    fireEvent.click(screen.getByText(testoSistema("conf_annulla", L)));
+    expect(screen.queryByText(testoSistemaCon("conf_ritorna_sicuro", L, daA))).toBeNull();
+    fireEvent.click(screen.getByText(testoSistemaCon("conf_ritorna", L, daA)));
+    fireEvent.click(screen.getByText(testoSistemaCon("conf_ritorna", L, daA)));
+    await waitFor(() => expect(confermaAggiornamento).toHaveBeenCalledWith("ritorna"));
+  });
+
+  it("con utenti la domanda non compare sul pannello (si risponde dall'IDE)", async () => {
+    statoAggiornamento.mockResolvedValue({ ...NUOVA, disponibile: null, novita: [] });
+    getSystemStatus.mockResolvedValue({ auth_required: true, uptime_s: 300, conferma_aggiornamento: CONFERMA });
+    render(<AvvisoAggiornamento />);
+    await waitFor(() => expect(getSystemStatus).toHaveBeenCalled());
+    expect(screen.queryByText(testoSistema("conf_titolo", L))).toBeNull();
   });
 });

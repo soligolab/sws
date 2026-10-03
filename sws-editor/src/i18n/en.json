@@ -1512,7 +1512,10 @@
     "emailModo": "Email:",
     "emailModoProgetto": "project recipients",
     "emailModoPropri": "its own only",
-    "emailModoOff": "none"
+    "emailModoOff": "none",
+    "istantaneaPrendo": "==> Data snapshot on the connected panel...",
+    "istantaneaPresa": "    snapshot taken ({{mb}} MB, version {{v}})",
+    "istantaneaNessuna": "    no snapshot ({{motivo}}): going back will only restore the image"
   },
   "langtab": {
     "migrate": "Migrate texts…",
@@ -2532,6 +2535,33 @@
       "riuscito": "Last configuration update succeeded ({{da}} → {{a}}).",
       "non_riuscito": "The last configuration update did NOT succeed ({{da}} → {{a}}): reinstall from Installation."
     }
+  },
+  "confermaAggiornamento": {
+    "titolo": "After the update",
+    "carico": "Reading state from the device…",
+    "nonApplicabile": "Not applicable: the runtime does not run in a container, or its version does not know confirmation yet (older than 2.12.0-rc.17).",
+    "nessuna": "No update to confirm.",
+    "domanda": "The panel runs {{a}}: {{da}} is still on the panel and you can go back to it until you confirm.",
+    "conDati": "There is a data snapshot taken before the update: going back restores it too, and anything written since is lost.",
+    "senzaDati": "There is no data snapshot (the update started from a version that did not take one): going back only restores the image.",
+    "recuperabili": "Space freed by confirming: {{mb}} MB.",
+    "pulisci": "Confirm and clean up",
+    "dopoRiavvio": "Confirm after the next restart",
+    "piuTardi": "Later",
+    "ritorna": "Go back to {{da}}",
+    "confermaRitorno": "Go back to {{da}}?\n\nThe panel stops, restores {{cosa}} and restarts with {{da}}. {{a}} will not be reinstalled on its own (window and autopilot will skip it): resume with «Update now».",
+    "cosaDati": "the image and the data from before the update (anything written since is lost)",
+    "cosaImmagine": "the image (data stays as it is)",
+    "prenotata": "Clean-up booked: it runs on its own at the next successful start.",
+    "inCorso": {
+      "pulisci": "Clean-up in progress…",
+      "ritorna": "Going back to the previous version: the panel is restarting."
+    },
+    "ultimaPulizia": "Last clean-up: {{n}} images removed, {{mb}} MB freed.",
+    "ultimoRitorno": "Last go-back: discarded {{v}} ({{dati}}).",
+    "ritornoDati": "with data",
+    "ritornoSoloImmagine": "image only",
+    "ritornoFallito": "Last go-back FAILED: {{motivo}}"
   },
   "statoDisplay": {
     "titolo": "Panel screen",

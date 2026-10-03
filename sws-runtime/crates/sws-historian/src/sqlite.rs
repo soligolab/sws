@@ -111,6 +111,19 @@ fn scrivi_riga(c: &Connection, ev: &AlarmEvent) -> rusqlite::Result<()> {
     tx.commit()
 }
 
+/// Copia coerente di un database SQLite **da un'altra connessione** (03-10-2026,
+/// l'istantanea prima di un aggiornamento): `VACUUM INTO` da una connessione di
+/// sola lettura vede un'istantanea del file, WAL compreso, anche mentre il
+/// runtime ci scrive — una copia dei byte di `db`+`-wal` presa a metà di una
+/// scrittura può non riaprirsi. Il risultato è un solo file, già compattato.
+/// Sincrona: chi la chiama sta già su un thread bloccante.
+pub fn copia_coerente(sorgente: &std::path::Path, dest: &std::path::Path) -> rusqlite::Result<()> {
+    let c = Connection::open_with_flags(sorgente, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)?;
+    c.busy_timeout(std::time::Duration::from_secs(10))?;
+    c.execute("VACUUM INTO ?1", params![dest.to_string_lossy().into_owned()])?;
+    Ok(())
+}
+
 /// Thin async wrapper around a single SQLite connection.
 /// The PoC uses one connection serialised by a tokio Mutex — write rate is
 /// low enough (one record per tag update) that contention is not a concern.

@@ -83,6 +83,16 @@ pub enum Testo {
     // viaggia): l'avviso sullo schermo del pannello, con `{da}` e `{a}`.
     QuadletTitolo,
     QuadletSpiega,
+    // Dopo un aggiornamento: confermare, rimandare o tornare indietro
+    // (03-10-2026). `{da}` è la versione di prima, `{a}` quella che gira.
+    ConfTitolo,
+    ConfSpiega,
+    ConfDati,
+    ConfPulisci,
+    ConfDopoRiavvio,
+    ConfRitorna,
+    ConfRitornaSicuro,
+    ConfAnnulla,
 }
 
 /// Tutte le voci, per i test che devono iterarle senza ripetere l'elenco a
@@ -126,6 +136,14 @@ pub const TUTTI: &[Testo] = &[
     Testo::TrendInAttesa,
     Testo::QuadletTitolo,
     Testo::QuadletSpiega,
+    Testo::ConfTitolo,
+    Testo::ConfSpiega,
+    Testo::ConfDati,
+    Testo::ConfPulisci,
+    Testo::ConfDopoRiavvio,
+    Testo::ConfRitorna,
+    Testo::ConfRitornaSicuro,
+    Testo::ConfAnnulla,
 ];
 
 /// Dal nome nella fixture alla voce. `None` = la fixture ha una voce che
@@ -170,6 +188,14 @@ pub fn da_nome(nome: &str) -> Option<Testo> {
         "trend_in_attesa" => Testo::TrendInAttesa,
         "quadlet_titolo" => Testo::QuadletTitolo,
         "quadlet_spiega" => Testo::QuadletSpiega,
+        "conf_titolo" => Testo::ConfTitolo,
+        "conf_spiega" => Testo::ConfSpiega,
+        "conf_dati" => Testo::ConfDati,
+        "conf_pulisci" => Testo::ConfPulisci,
+        "conf_dopo_riavvio" => Testo::ConfDopoRiavvio,
+        "conf_ritorna" => Testo::ConfRitorna,
+        "conf_ritorna_sicuro" => Testo::ConfRitornaSicuro,
+        "conf_annulla" => Testo::ConfAnnulla,
         _ => return None,
     })
 }
@@ -399,6 +425,54 @@ pub fn testo(t: Testo, lingua: &str) -> &'static str {
         (QuadletSpiega, "fr") => "Le panneau a la configuration {da}, cette version attend la {a}. La mise à jour redémarre le panneau.",
         (QuadletSpiega, "es") => "El panel tiene la configuración {da}, esta versión espera la {a}. Al actualizarla, el panel se reinicia.",
         (QuadletSpiega, _) => "The panel has configuration {da}, this version expects {a}. Updating it restarts the panel.",
+
+        (ConfTitolo, "it") => "Confermare l'aggiornamento?",
+        (ConfTitolo, "de") => "Aktualisierung bestätigen?",
+        (ConfTitolo, "fr") => "Confirmer la mise à jour ?",
+        (ConfTitolo, "es") => "¿Confirmar la actualización?",
+        (ConfTitolo, _) => "Confirm the update?",
+
+        (ConfSpiega, "it") => "Il pannello ora gira con la {a}. Finché non confermi, la {da} resta sul pannello e ci si può tornare.",
+        (ConfSpiega, "de") => "Das Panel läuft jetzt mit {a}. Bis zur Bestätigung bleibt {da} auf dem Panel und man kann zurückkehren.",
+        (ConfSpiega, "fr") => "Le panneau tourne maintenant avec la {a}. Tant que vous ne confirmez pas, la {da} reste sur le panneau et on peut y revenir.",
+        (ConfSpiega, "es") => "El panel funciona ahora con la {a}. Hasta que confirmes, la {da} sigue en el panel y se puede volver a ella.",
+        (ConfSpiega, _) => "The panel now runs {a}. Until you confirm, {da} stays on the panel and you can go back to it.",
+
+        (ConfDati, "it") => "Tornando indietro si riprendono anche i dati di prima dell'aggiornamento: quelli scritti dopo si perdono.",
+        (ConfDati, "de") => "Beim Zurückkehren werden auch die Daten von vor der Aktualisierung wiederhergestellt: später geschriebene gehen verloren.",
+        (ConfDati, "fr") => "En revenant, les données d'avant la mise à jour sont aussi restaurées : celles écrites après sont perdues.",
+        (ConfDati, "es") => "Al volver también se recuperan los datos de antes de la actualización: los escritos después se pierden.",
+        (ConfDati, _) => "Going back also restores the data from before the update: anything written since is lost.",
+
+        (ConfPulisci, "it") => "Conferma e pulisci",
+        (ConfPulisci, "de") => "Bestätigen und aufräumen",
+        (ConfPulisci, "fr") => "Confirmer et nettoyer",
+        (ConfPulisci, "es") => "Confirmar y limpiar",
+        (ConfPulisci, _) => "Confirm and clean up",
+
+        (ConfDopoRiavvio, "it") => "Conferma dopo il riavvio",
+        (ConfDopoRiavvio, "de") => "Nach dem Neustart bestätigen",
+        (ConfDopoRiavvio, "fr") => "Confirmer après le redémarrage",
+        (ConfDopoRiavvio, "es") => "Confirmar tras el reinicio",
+        (ConfDopoRiavvio, _) => "Confirm after restart",
+
+        (ConfRitorna, "it") => "Torna alla {da}",
+        (ConfRitorna, "de") => "Zurück zu {da}",
+        (ConfRitorna, "fr") => "Revenir à la {da}",
+        (ConfRitorna, "es") => "Volver a la {da}",
+        (ConfRitorna, _) => "Go back to {da}",
+
+        (ConfRitornaSicuro, "it") => "Tornare davvero alla {da}? Il pannello si riavvia.",
+        (ConfRitornaSicuro, "de") => "Wirklich zu {da} zurückkehren? Das Panel startet neu.",
+        (ConfRitornaSicuro, "fr") => "Revenir vraiment à la {da} ? Le panneau redémarre.",
+        (ConfRitornaSicuro, "es") => "¿Volver realmente a la {da}? El panel se reinicia.",
+        (ConfRitornaSicuro, _) => "Really go back to {da}? The panel restarts.",
+
+        (ConfAnnulla, "it") => "Annulla",
+        (ConfAnnulla, "de") => "Abbrechen",
+        (ConfAnnulla, "fr") => "Annuler",
+        (ConfAnnulla, "es") => "Cancelar",
+        (ConfAnnulla, _) => "Cancel",
     }
 }
 

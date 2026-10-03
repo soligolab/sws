@@ -1512,7 +1512,10 @@
     "emailModo": "Email:",
     "emailModoProgetto": "destinatari di progetto",
     "emailModoPropri": "solo i suoi",
-    "emailModoOff": "nessuna"
+    "emailModoOff": "nessuna",
+    "istantaneaPrendo": "==> Istantanea dei dati sul pannello collegato...",
+    "istantaneaPresa": "    istantanea presa ({{mb}} MB, versione {{v}})",
+    "istantaneaNessuna": "    nessuna istantanea ({{motivo}}): tornando indietro si riporterà solo l'immagine"
   },
   "langtab": {
     "migrate": "Migra i testi…",
@@ -2532,6 +2535,33 @@
       "riuscito": "Ultimo aggiornamento della configurazione riuscito ({{da}} → {{a}}).",
       "non_riuscito": "L'ultimo aggiornamento della configurazione NON è riuscito ({{da}} → {{a}}): reinstallare dall'Installazione."
     }
+  },
+  "confermaAggiornamento": {
+    "titolo": "Dopo l'aggiornamento",
+    "carico": "Leggo lo stato dal dispositivo…",
+    "nonApplicabile": "Non applicabile: il runtime non gira in un container, o la sua versione non conosce ancora la conferma (precedente alla 2.12.0-rc.17).",
+    "nessuna": "Nessun aggiornamento da confermare.",
+    "domanda": "Il pannello gira con la {{a}}: la {{da}} è ancora sul pannello e ci si può tornare finché non si conferma.",
+    "conDati": "C'è l'istantanea dei dati presa prima dell'aggiornamento: tornando indietro si riprendono anche quelli, e si perde quanto scritto dopo.",
+    "senzaDati": "Non c'è un'istantanea dei dati (l'aggiornamento è partito da una versione che non la prendeva): tornando indietro si riporta solo l'immagine.",
+    "recuperabili": "Spazio recuperabile confermando: {{mb}} MB.",
+    "pulisci": "Conferma e pulisci",
+    "dopoRiavvio": "Conferma dopo il prossimo riavvio",
+    "piuTardi": "Più tardi",
+    "ritorna": "Torna alla {{da}}",
+    "confermaRitorno": "Tornare alla {{da}}?\n\nIl pannello si ferma, riprende {{cosa}} e riparte con la {{da}}. La {{a}} non verrà reinstallata da sola (finestra e pilota automatico la salteranno): si riprende con «Aggiorna ora».",
+    "cosaDati": "immagine e dati di prima dell'aggiornamento (quanto scritto dopo si perde)",
+    "cosaImmagine": "l'immagine (i dati restano quelli attuali)",
+    "prenotata": "Pulizia prenotata: parte da sola al prossimo avvio riuscito.",
+    "inCorso": {
+      "pulisci": "Pulizia in corso…",
+      "ritorna": "Ritorno alla versione precedente in corso: il pannello si riavvia."
+    },
+    "ultimaPulizia": "Ultima pulizia: {{n}} immagini tolte, {{mb}} MB liberati.",
+    "ultimoRitorno": "Ultimo ritorno: scartata la {{v}} ({{dati}}).",
+    "ritornoDati": "con i dati",
+    "ritornoSoloImmagine": "solo l'immagine",
+    "ritornoFallito": "Ultimo ritorno NON riuscito: {{motivo}}"
   },
   "statoDisplay": {
     "titolo": "Schermo del pannello",

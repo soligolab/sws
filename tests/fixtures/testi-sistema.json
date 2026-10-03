@@ -307,6 +307,62 @@
       "fr": "Le panneau a la configuration {da}, cette version attend la {a}. La mise à jour redémarre le panneau.",
       "es": "El panel tiene la configuración {da}, esta versión espera la {a}. Al actualizarla, el panel se reinicia.",
       "en": "The panel has configuration {da}, this version expects {a}. Updating it restarts the panel."
+    },
+    "conf_titolo": {
+      "it": "Confermare l'aggiornamento?",
+      "de": "Aktualisierung bestätigen?",
+      "fr": "Confirmer la mise à jour ?",
+      "es": "¿Confirmar la actualización?",
+      "en": "Confirm the update?"
+    },
+    "conf_spiega": {
+      "it": "Il pannello ora gira con la {a}. Finché non confermi, la {da} resta sul pannello e ci si può tornare.",
+      "de": "Das Panel läuft jetzt mit {a}. Bis zur Bestätigung bleibt {da} auf dem Panel und man kann zurückkehren.",
+      "fr": "Le panneau tourne maintenant avec la {a}. Tant que vous ne confirmez pas, la {da} reste sur le panneau et on peut y revenir.",
+      "es": "El panel funciona ahora con la {a}. Hasta que confirmes, la {da} sigue en el panel y se puede volver a ella.",
+      "en": "The panel now runs {a}. Until you confirm, {da} stays on the panel and you can go back to it."
+    },
+    "conf_dati": {
+      "it": "Tornando indietro si riprendono anche i dati di prima dell'aggiornamento: quelli scritti dopo si perdono.",
+      "de": "Beim Zurückkehren werden auch die Daten von vor der Aktualisierung wiederhergestellt: später geschriebene gehen verloren.",
+      "fr": "En revenant, les données d'avant la mise à jour sont aussi restaurées : celles écrites après sont perdues.",
+      "es": "Al volver también se recuperan los datos de antes de la actualización: los escritos después se pierden.",
+      "en": "Going back also restores the data from before the update: anything written since is lost."
+    },
+    "conf_pulisci": {
+      "it": "Conferma e pulisci",
+      "de": "Bestätigen und aufräumen",
+      "fr": "Confirmer et nettoyer",
+      "es": "Confirmar y limpiar",
+      "en": "Confirm and clean up"
+    },
+    "conf_dopo_riavvio": {
+      "it": "Conferma dopo il riavvio",
+      "de": "Nach dem Neustart bestätigen",
+      "fr": "Confirmer après le redémarrage",
+      "es": "Confirmar tras el reinicio",
+      "en": "Confirm after restart"
+    },
+    "conf_ritorna": {
+      "it": "Torna alla {da}",
+      "de": "Zurück zu {da}",
+      "fr": "Revenir à la {da}",
+      "es": "Volver a la {da}",
+      "en": "Go back to {da}"
+    },
+    "conf_ritorna_sicuro": {
+      "it": "Tornare davvero alla {da}? Il pannello si riavvia.",
+      "de": "Wirklich zu {da} zurückkehren? Das Panel startet neu.",
+      "fr": "Revenir vraiment à la {da} ? Le panneau redémarre.",
+      "es": "¿Volver realmente a la {da}? El panel se reinicia.",
+      "en": "Really go back to {da}? The panel restarts."
+    },
+    "conf_annulla": {
+      "it": "Annulla",
+      "de": "Abbrechen",
+      "fr": "Annuler",
+      "es": "Cancelar",
+      "en": "Cancel"
     }
   }
 }
