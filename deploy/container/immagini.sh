@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Le immagini del runtime sul pannello, dopo un aggiornamento (03-10-2026, piano
-# docs/plans/2026-10-03-pulizia-immagini-dopo-aggiornamento.md).
+# docs/archive/2026-10-03-pulizia-immagini-dopo-aggiornamento.md).
 #
 # Gira sull'HOST come utente del servizio, lanciato dal runtime con un servizio
 # transitorio sul bus utente (come `install-container.sh --solo-unita`): dentro il

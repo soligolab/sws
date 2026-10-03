@@ -1,6 +1,6 @@
 # Le immagini vecchie che restano sul pannello dopo un aggiornamento
 
-> **Piano d'esecuzione dal 03-10-2026** (sezione in fondo: l'aggiornamento con ritorno). Era un seme (03-10-2026). Richiesta del maintainer durante il collaudo del
+> **Fatto il 03-10-2026** (squash `5037f7a6` + `59a8f9d5`, collaudato sul TC620 rc.16 → rc.20; piano in fondo: l'aggiornamento con ritorno). Era un seme (03-10-2026). Richiesta del maintainer durante il collaudo del
 > [quadlet che viaggia](../archive/2026-10-02-quadlet-che-viaggia.md): «l'aggiornamento automatico del
 > container del dispositivo può fare pulizia dei download precedenti una volta confermato
 > l'aggiornamento?»

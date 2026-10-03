@@ -74,6 +74,34 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — aggiornamento con ritorno, storico compatto, template TC620 (2026-10-03, sera)
+
+**Nessun ramo aperto.** Su `main` e su origin: `f89dd6cd` (cache incrementale), `5037f7a6` (aggiornamento con
+ritorno), `59a8f9d5` (storico compatto + template TC620), tag **2.12.0-rc.20**. Piani in archivio:
+[cache incrementale](docs/archive/2026-09-29-pulizia-disco-periodica.md),
+[aggiornamento con ritorno](docs/archive/2026-10-03-pulizia-immagini-dopo-aggiornamento.md),
+[storico](docs/archive/2026-09-26-storico-troppo-grande.md).
+
+- **Cache di cargo**: `scripts/pota_incremental.sh` in `/finalizza-giornata` dopo il push (84,5 GB la prima volta).
+- **Aggiornamento con ritorno**: istantanea di config e progetti prima di ogni aggiornamento; dopo 120 s la domanda
+  (conferma e pulisci / dopo il riavvio / più tardi / torna con i dati), IDE e pannello web/LVGL; `immagini.sh` sull'host.
+  HOWTO §21.
+- **Storico compatto**: conversione in sottofondo a lotti con ripresa; backup automatici senza storico.
+- **Template `tc620-sistema`**: tipo `host` con 31 foglie, orologio locale, sei pagine; storico ogni 10 s.
+- **Collaudo TC620 rc.16 → rc.20**: tutto verde alla fine. Difetti trovati e corretti strada facendo: MB gonfiati
+  (strati condivisi), conversione che sfiorava il timeout di systemd, archivio rimasto in `/tmp`, domanda dopo il
+  ritorno, «database is locked» della conversione in sottofondo, sorgenti host ferme nei progetti da template.
+- **Il TC620 adesso**: rc.20 (immagini rc.20 + rc.19), progetto `tc620-sistema` con lo storico acceso. In `/tmp/sws-deploy`
+  restano gli archivi rc.17/rc.18 di prima della correzione: spariscono al riavvio. **Lo storico di `rc14_lvgl` sul
+  pannello è stato perso** dal deploy di `tc620-sistema` (il deploy con un altro nome sostituisce il progetto): il
+  progetto è intatto in `.run-editor/projects/rc14_lvgl`.
+- **Semi nuovi**: [log del device nell'IDE](docs/plans/2026-10-03-log-del-device-nell-ide.md). Da registrare come seme
+  (detto al maintainer, non ancora scritto): l'istanza di un tipo non si scopre dalla scheda Tipi, e i valori che arrivano
+  da una sorgente non vengono convertiti al tipo della foglia (`i32` che tiene 29,8, `u64` che tiene 237593.0); e il deploy
+  che cancella senza avvisare il progetto precedente sul pannello.
+- Restano dai giorni scorsi: pareri sui marker delle pipe e sul segnaposto del `data_log` in edit, la decisione su «il
+  deploy non segnala il cambio di progetto», il confronto IDE/LVGL della rc.15.
+
 ## ▶ Riprendere da qui — il quadlet che viaggia, collaudato sul TC620 (2026-10-03)
 
 **Nessun ramo aperto.** Squash del ramo `feat/quadlet-che-viaggia` su `main`, tag **2.12.0-rc.16** (immagine arm64
@@ -89,7 +117,7 @@ nell'immagine). Piano in [archivio](docs/archive/2026-10-02-quadlet-che-viaggia.
 - Difetto visto e corretto: `/api/system` diceva «in corso» per un minuto dopo l'esito (cache di 60 s) — ora si svuota.
 - **Il TC620 è su `localhost/sws-runtime:2.12.0-rc.16-arm64`**, caricato a mano: per collaudare il percorso nuovo si
   è simulato `podman auto-update` cambiando solo `Image=`. Ha ancora 9 immagini (863 MB recuperabili).
-- **Prossimo**: il seme [pulizia delle immagini dopo un aggiornamento](docs/plans/2026-10-03-pulizia-immagini-dopo-aggiornamento.md),
+- **Prossimo**: il seme [pulizia delle immagini dopo un aggiornamento](docs/archive/2026-10-03-pulizia-immagini-dopo-aggiornamento.md),
   scelto dal maintainer come piano successivo — si apre con una sessione di plan.
 - L'accesso SSH al TC620 è con chiave (`pixsys` e `user`). La password di `pixsys` resta quella: è un dispositivo di
   test, non un prodotto (decisione del maintainer, 03-10-2026).
@@ -617,7 +645,7 @@ passo che si fermava è diventato una correzione (dettaglio nel `CHANGELOG`, squ
   repository nuovi su `main`. Collaudato dal vivo fino al push.
 - **Rilievi** — clic che porta all'elemento; segni ⚠/△ nell'albero; allarmi vecchi e tag condivisi dichiarati nella
   scheda Allarmi con «Converti». Confermati dal maintainer.
-- **Piano-seme** [`docs/plans/2026-09-26-storico-troppo-grande.md`](docs/plans/2026-09-26-storico-troppo-grande.md):
+- **Piano-seme** [`docs/archive/2026-09-26-storico-troppo-grande.md`](docs/archive/2026-09-26-storico-troppo-grande.md):
   590 MB di storico in 27 giorni su una casa, e i backup che lo copiano intero ogni volta.
 
 **Prossimo, chiesto dal maintainer:** un gestore minimale del repository nella scheda Git — elenco dei commit,

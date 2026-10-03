@@ -118,7 +118,7 @@ caricato a mano e **solo** `Image=` cambiata nei quadlet senza numero. Risultato
 
 Notato: il servizio gira sotto `user` (uid 1000), non sotto `pixsys`. «Gestione container» dell'IDE ritocca
 `WantedBy=`/`Restart=` via SSH; l'aggiornamento della configurazione le riporta al template, come la reinstallazione
-(scritto nel manuale). Seguito: [pulizia delle immagini dopo un aggiornamento](../plans/2026-10-03-pulizia-immagini-dopo-aggiornamento.md).
+(scritto nel manuale). Seguito: [pulizia delle immagini dopo un aggiornamento](2026-10-03-pulizia-immagini-dopo-aggiornamento.md).
 
 ## Verifica
 

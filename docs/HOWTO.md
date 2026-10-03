@@ -1319,7 +1319,7 @@ sono i suoi dati sull'host — Istanza → Device → Installazione, come prima.
 
 ## 21. Dopo un aggiornamento: confermare, rimandare, tornare alla versione precedente
 
-> 03-10-2026, piano [`docs/plans/2026-10-03-pulizia-immagini-dopo-aggiornamento.md`](plans/2026-10-03-pulizia-immagini-dopo-aggiornamento.md).
+> 03-10-2026, piano [`docs/archive/2026-10-03-pulizia-immagini-dopo-aggiornamento.md`](archive/2026-10-03-pulizia-immagini-dopo-aggiornamento.md).
 
 Un aggiornamento lascia sul pannello **la versione di prima** e, da questa versione, **un'istantanea dei dati** presa
 subito prima (config e progetti, storico compreso, senza `backups/` e log): così ci si può tornare. Finché

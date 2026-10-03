@@ -52,7 +52,7 @@ CREATE INDEX IF NOT EXISTS idx_alarm_events_aid ON alarm_events(alarm_id);
 "#;
 
 /// I campioni nel formato compatto (03-10-2026, piano
-/// `docs/plans/2026-09-26-storico-troppo-grande.md`). Prima il nome del tag stava
+/// `docs/archive/2026-09-26-storico-troppo-grande.md`). Prima il nome del tag stava
 /// in ogni riga — e, con `WITHOUT ROWID`, anche in ogni voce dell'indice sul
 /// tempo —, il valore era JSON in testo e la qualità una parola: ~75 byte a
 /// campione su CasaDomotica, il 40 % nell'indice. Ora il nome sta una volta in

@@ -1,6 +1,6 @@
 # Perché lo storico di CasaDomotica è così grande
 
-**Stato: piano d'esecuzione dal 03-10-2026 (sezione in fondo: formato compatto e backup). Prima: seme — ridotto il 27-09-2026. La causa principale è corretta (su `main` con lo squash del 27-09; prima sul ramo `feat/storico-una-strada`, 26-09 sera): una strada sola verso il disco, e l'IDE non registra. C'è anche la pulizia degli storici già gonfi («Pulisci storico», `feat/pulizia-storico`: CasaDomotica 590 → 36 MB). Restano da decidere il formato del campione e i backup che copiano lo storico.** Annotato su richiesta del maintainer il 26-09-2026, durante l'aggancio
+**Stato: fatto il 03-10-2026** (squash `59a8f9d5`, 2.12.0-rc.20; piano in fondo: formato compatto e backup). Prima: seme — ridotto il 27-09-2026. La causa principale è corretta (su `main` con lo squash del 27-09; prima sul ramo `feat/storico-una-strada`, 26-09 sera): una strada sola verso il disco, e l'IDE non registra. C'è anche la pulizia degli storici già gonfi («Pulisci storico», `feat/pulizia-storico`: CasaDomotica 590 → 36 MB). Restano da decidere il formato del campione e i backup che copiano lo storico.** Annotato su richiesta del maintainer il 26-09-2026, durante l'aggancio
 di CasaDomotica a git: «annota per dopo il capire perché il database è così grande».
 
 > **Quando questo lavoro comincia, il primo passo è una sessione di plan approfondita dedicata,

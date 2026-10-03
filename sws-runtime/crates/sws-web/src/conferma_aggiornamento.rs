@@ -1,5 +1,5 @@
 //! Dopo un aggiornamento: confermare, rimandare o tornare indietro (03-10-2026,
-//! piano `docs/plans/2026-10-03-pulizia-immagini-dopo-aggiornamento.md`).
+//! piano `docs/archive/2026-10-03-pulizia-immagini-dopo-aggiornamento.md`).
 //!
 //! Dopo [`CONFERMA_S`] secondi di vita il runtime fa girare `immagini.sh stato`
 //! sull'host (servizio transitorio sul bus utente): lo script registra

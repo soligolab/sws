@@ -1,5 +1,5 @@
 //! L'istantanea dei dati prima di un aggiornamento (03-10-2026, piano
-//! `docs/plans/2026-10-03-pulizia-immagini-dopo-aggiornamento.md`).
+//! `docs/archive/2026-10-03-pulizia-immagini-dopo-aggiornamento.md`).
 //!
 //! Tornare alla versione precedente non basta riportare l'immagine: una versione
 //! nuova può aver cambiato i dati in un modo che quella vecchia non sa leggere
