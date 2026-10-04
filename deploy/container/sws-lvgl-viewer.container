@@ -18,7 +18,7 @@
 
 [Unit]
 # La versione del quadlet: vedi il commento gemello in sws-runtime.container.
-Description=SWS viewer LVGL (container podman) [quadlet 1]
+Description=SWS viewer LVGL (container podman) [quadlet 2]
 # Il runtime deve esserci: il viewer legge da lui pagine, tag e allarmi. Non
 # `Requires=`, perché un viewer che aspetta è meglio di un viewer che non parte:
 # il runtime può tardare qualche secondo dopo un riavvio.

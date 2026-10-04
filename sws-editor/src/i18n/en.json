@@ -1570,7 +1570,26 @@
     "modbusSolaLetturaHint": "Read-only: writes to this register are refused.",
     "modbusModelloCol": "Model",
     "modbusAnnullaHint": "Removes the device just added: it has not been saved yet.",
-    "modbusEliminaHint": "Removes the device from the bus; it becomes final when the Protocols are saved. Type and variable created from the catalog stay."
+    "modbusEliminaHint": "Removes the device from the bus; it becomes final when the Protocols are saved. Type and variable created from the catalog stay.",
+    "serialeDalDispositivo": "Ports of the connected device ({{url}}), as its runtime sees them.",
+    "serialeRemotoVecchio": "The connected device runs a runtime that cannot list ports (needs 2.12.0-rc.22): showing this PC's.",
+    "serialeDaQuestoPc": "No device connected: ports of this PC. Connect to the panel to see its own.",
+    "serialeNonVista": "The runtime does not see this port.",
+    "serialeNonVistaContainer": "The runtime (in a container) does not see this port: the service does not pass it. Update the service configuration (quadlet 2).",
+    "serialeOk": "Port reachable{{link}}.",
+    "serialeOccupata": "Port already open exclusively (usually by the runtime itself, which is using it).",
+    "serialePermesso": "The port exists but the runtime cannot open it: permissions (dialout group).",
+    "serialeNessuna": "No serial port found.",
+    "serialeNessunaContainer": "The runtime runs in a container and sees no serial port: the service configuration needs updating (quadlet 2).",
+    "serialeRileggi": "Read the ports again",
+    "serialeScegli": "— choose a port —",
+    "serialeInserisciAMano": "✎ Type it in…",
+    "serialeAManoEtichetta": "typed",
+    "serialeTornaElenco": "Back to the port list",
+    "serialeAccesso": {
+      "permesso": "no permission",
+      "occupata": "in use"
+    }
   },
   "langtab": {
     "migrate": "Migrate texts…",

@@ -1570,7 +1570,26 @@
     "modbusSolaLetturaHint": "Sola lettura: la scrittura verso questo registro è rifiutata.",
     "modbusModelloCol": "Modello",
     "modbusAnnullaHint": "Toglie il dispositivo appena aggiunto: non è ancora stato salvato.",
-    "modbusEliminaHint": "Toglie il dispositivo dal bus; diventa definitivo salvando i Protocolli. Tipo e variabile creati dal catalogo restano."
+    "modbusEliminaHint": "Toglie il dispositivo dal bus; diventa definitivo salvando i Protocolli. Tipo e variabile creati dal catalogo restano.",
+    "serialeDalDispositivo": "Porte del dispositivo connesso ({{url}}), viste dal suo runtime.",
+    "serialeRemotoVecchio": "Il dispositivo connesso ha un runtime che non sa elencare le porte (serve la 2.12.0-rc.22): mostro quelle di questo PC.",
+    "serialeDaQuestoPc": "Nessun dispositivo connesso: porte di questo PC. Connettiti al pannello per vedere le sue.",
+    "serialeNonVista": "Il runtime non vede questa porta.",
+    "serialeNonVistaContainer": "Il runtime (in container) non vede questa porta: il servizio non gliela passa. Aggiorna la configurazione del servizio (quadlet 2).",
+    "serialeOk": "Porta raggiungibile{{link}}.",
+    "serialeOccupata": "Porta già aperta in esclusiva (di solito dal runtime stesso, che la sta usando).",
+    "serialePermesso": "La porta c'è ma il runtime non può aprirla: permessi (gruppo dialout).",
+    "serialeNessuna": "Nessuna porta seriale trovata.",
+    "serialeNessunaContainer": "Il runtime gira in un container e non vede nessuna porta seriale: la configurazione del servizio è da aggiornare (quadlet 2).",
+    "serialeRileggi": "Rileggi le porte",
+    "serialeScegli": "— scegli una porta —",
+    "serialeInserisciAMano": "✎ Inserisci a mano…",
+    "serialeAManoEtichetta": "a mano",
+    "serialeTornaElenco": "Torna all'elenco delle porte",
+    "serialeAccesso": {
+      "permesso": "senza permessi",
+      "occupata": "in uso"
+    }
   },
   "langtab": {
     "migrate": "Migra i testi…",

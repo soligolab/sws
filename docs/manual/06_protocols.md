@@ -155,6 +155,13 @@ sources:
             address: 100
 ```
 
+**La porta seriale** si sceglie da una tendina con le porte **del dispositivo connesso**, viste dal suo runtime
+(`GET /api/host/seriali`): i nomi delle prese Pixsys (`/dev/ttyCOM1` → `ttyS2` sul TC620), le UART, gli adattatori USB,
+con accanto se il runtime la può aprire. Senza dispositivo connesso mostra quelle del PC e lo dice; «✎ Inserisci a
+mano…» permette di scriverla comunque (pannello spento o non raggiungibile). Nel container il runtime vede solo le
+porte che il servizio gli passa: serve la configurazione del servizio **quadlet 2** (dalla 2.12.0-rc.22), che il
+pannello propone di aggiornare.
+
 Gli slave sulla stessa linea vanno in **un** bus: due sorgenti RTU sulla stessa porta si contendono la linea (il
 validatore lo segnala). I parametri del dispositivo sono quelli di Modbus TCP.
 

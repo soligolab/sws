@@ -664,6 +664,87 @@ pub async fn get_host_catalog() -> Json<HostCatalog> {
     })
 }
 
+/// Una porta seriale vista da questo runtime (04-10-2026).
+#[derive(serde::Serialize, Debug, PartialEq)]
+pub struct PortaSeriale {
+    /// Il percorso da scrivere nel campo della sorgente: `/dev/ttyCOM1`.
+    pub percorso: String,
+    /// Se è un collegamento, dove porta (`ttyS2`): le regole udev Pixsys danno
+    /// i nomi delle prese (`ttyCOM1` = RS485-1).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub collegamento: Option<String>,
+    /// `ok`, `permesso` (esiste ma il runtime non la apre: gruppo dialout?),
+    /// `occupata` (già aperta in esclusiva, di solito dal runtime stesso).
+    pub accesso: &'static str,
+}
+
+#[derive(serde::Serialize)]
+pub struct PorteSeriali {
+    pub porte: Vec<PortaSeriale>,
+    /// Il runtime gira in un container: vede solo le porte che il servizio gli
+    /// passa (quadlet, `AddDevice=`). Una lista vuota lì vuol dire quello.
+    pub container: bool,
+}
+
+/// I nomi di file che sono porte seriali: le UART (`ttyS`, `ttyAMA`, `ttymxc`),
+/// gli adattatori USB (`ttyUSB`, `ttyACM`) e i nomi delle prese Pixsys (`ttyCOM`).
+pub fn e_nome_seriale(nome: &str) -> bool {
+    ["ttyS", "ttyUSB", "ttyACM", "ttyAMA", "ttymxc", "ttyCOM", "ttyLP", "ttySC"].iter().any(|p| {
+        nome.strip_prefix(p).is_some_and(|r| !r.is_empty() && r.chars().all(|c| c.is_ascii_digit()))
+    })
+}
+
+/// Prova ad aprire la porta senza diventarne il terminale e senza bloccare:
+/// è il solo modo onesto di sapere se il runtime **può** usarla (permessi e
+/// gruppi dentro un container rootless non si leggono dai bit del file).
+fn accesso_porta(p: &std::path::Path) -> &'static str {
+    use std::os::unix::fs::OpenOptionsExt;
+    // O_NOCTTY | O_NONBLOCK su Linux (uguali su x86_64 e aarch64).
+    const FLAG: i32 = 0o400 | 0o4000;
+    match std::fs::OpenOptions::new().read(true).write(true).custom_flags(FLAG).open(p) {
+        Ok(_) => "ok",
+        Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => "permesso",
+        Err(e) if e.raw_os_error() == Some(16) => "occupata", // EBUSY: TIOCEXCL di chi la usa
+        Err(_) => "permesso",
+    }
+}
+
+/// Le porte seriali in una cartella (di solito `/dev`), in ordine di nome.
+pub fn porte_seriali_in(dev: &std::path::Path) -> Vec<PortaSeriale> {
+    let Ok(rd) = std::fs::read_dir(dev) else { return Vec::new() };
+    let mut out: Vec<PortaSeriale> = rd
+        .flatten()
+        .filter_map(|e| {
+            let nome = e.file_name().to_string_lossy().to_string();
+            if !e_nome_seriale(&nome) {
+                return None;
+            }
+            let p = e.path();
+            let collegamento = std::fs::read_link(&p).ok().map(|l| l.to_string_lossy().to_string());
+            Some(PortaSeriale { percorso: p.to_string_lossy().to_string(), collegamento, accesso: accesso_porta(&p) })
+        })
+        .collect();
+    // I nomi delle prese (collegamenti) prima: sono quelli da scegliere.
+    // Per numero, non per lettera: ttyS2 prima di ttyS10.
+    let chiave = |p: &PortaSeriale| {
+        let n = p.percorso.trim_end_matches(|c: char| c.is_ascii_digit());
+        let num: u32 = p.percorso[n.len()..].parse().unwrap_or(0);
+        (p.collegamento.is_none(), n.to_string(), num)
+    };
+    out.sort_by_key(chiave);
+    out
+}
+
+/// `GET /api/host/seriali` — le porte seriali che **questo** runtime vede e
+/// può aprire, per il campo «Porta seriale» di Modbus RTU (04-10-2026). L'editor
+/// lo chiede al dispositivo connesso (`/api/remote/host/seriali`): il collaudo
+/// del 04-10 aveva `/dev/ttyCOM1` scritto a mano, giusto sul pannello ma
+/// invisibile dal container, e niente lo diceva.
+pub async fn get_porte_seriali() -> Json<PorteSeriali> {
+    let porte = tokio::task::spawn_blocking(|| porte_seriali_in(std::path::Path::new("/dev"))).await.unwrap_or_default();
+    Json(PorteSeriali { porte, container: std::path::Path::new("/run/.containerenv").exists() })
+}
+
 /// `GET /api/system/tls` — returns whether TLS is currently active.
 pub async fn get_tls_status(State(s): State<AppState>) -> Json<TlsStatus> {
     let enabled = s.config_dir.join("tls.crt").exists();
@@ -1195,3 +1276,34 @@ mod tests_container_engine {
         assert!(!super::hostname_locale().is_empty());
     }
 }
+
+#[cfg(test)]
+mod porte_seriali_tests {
+    use super::*;
+
+    #[test]
+    fn i_nomi_delle_seriali() {
+        for n in ["ttyS0", "ttyS12", "ttyUSB0", "ttyACM1", "ttyCOM1", "ttymxc3", "ttyAMA0"] {
+            assert!(e_nome_seriale(n), "{n}");
+        }
+        for n in ["tty", "tty0", "ttyS", "ttySx", "ttyprintk", "console", "ttyCOM1.bak"] {
+            assert!(!e_nome_seriale(n), "{n}");
+        }
+    }
+
+    #[test]
+    fn i_collegamenti_prima_e_dove_portano() {
+        let d = tempfile::tempdir().unwrap();
+        std::fs::write(d.path().join("ttyS2"), b"").unwrap();
+        std::fs::write(d.path().join("ttyS0"), b"").unwrap();
+        std::fs::write(d.path().join("ttyS10"), b"").unwrap();
+        std::fs::write(d.path().join("null"), b"").unwrap();
+        std::os::unix::fs::symlink("ttyS2", d.path().join("ttyCOM1")).unwrap();
+        let p = porte_seriali_in(d.path());
+        let nomi: Vec<_> = p.iter().map(|x| x.percorso.rsplit('/').next().unwrap().to_string()).collect();
+        assert_eq!(nomi, vec!["ttyCOM1", "ttyS0", "ttyS2", "ttyS10"]);
+        assert_eq!(p[0].collegamento.as_deref(), Some("ttyS2"));
+        assert_eq!(p[0].accesso, "ok", "un file normale si apre");
+    }
+}
+

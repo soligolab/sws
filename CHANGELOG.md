@@ -20,6 +20,9 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   mostra lo stato ma non le novità. Vale per la `2.12.0-rc.1` e la `rc.2`.
 
 ### Added
+- **La porta seriale di Modbus RTU da una tendina** con le porte del dispositivo connesso (`GET /api/host/seriali` e
+  `/api/remote/host/seriali`: nomi, collegamenti udev, se il runtime la apre; se gira in un container), con
+  «✎ Inserisci a mano…» quando il dispositivo non è raggiungibile e la riga di stato della porta scelta.
 - **Catalogo dei dispositivi noti, Pixsys** (piano `docs/archive/2026-10-04-catalogo-dispositivi.md`). File JSON per
   modello in `catalogo/dispositivi/<marca>/` (prodotto, `--catalog-root`) e in `<config>/catalogo-dispositivi/`
   (utente, vince a parità di id), **riletti a ogni richiesta** (`sws-web/src/catalogo.rs`, `GET
@@ -239,6 +242,11 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   riga rossa con **Converti**, in testa c'è **Converti tutti (n)**, e gli allarmi che condividono un tag lo dicono. La conversione non cambia come scatta; il Salva resta dell'utente.
 
 ### Fixed
+- **Modbus RTU nel container non apriva nessuna porta seriale** (collaudo con due MCM260X sul TC620, 04-10-2026): il
+  quadlet non passava nessun device e, in rootless con `keep-id`, il gruppo `dialout` si perdeva («Permission denied»
+  anche col device presente, provato con podman 5.7). **Quadlet 2**: `AddDevice=-/dev/…` per le prese Pixsys
+  (`ttyCOMn`), le UART (`ttyS`, `ttymxc`) e gli adattatori USB/ACM (il trattino salta quelle che mancano) e
+  `GroupAdd=keep-groups`. Il pannello propone l'aggiornamento del servizio come per il quadlet 1.
 - **Riaprire un progetto con un dispositivo Modbus senza mappature mandava in bianco l'IDE** (04-10-2026, trovato
   facendo gli screenshot del catalogo): il runtime salva il dispositivo senza `registers` (omette le liste vuote) e
   l'IDE leggeva `registers.length`. `dispositiviDi` ora lo porta sempre a lista; test.

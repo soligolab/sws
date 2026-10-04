@@ -1043,6 +1043,20 @@ export interface DispositivoModbus {
   registers: RegisterMapping[];
 }
 
+/** Una porta seriale vista da un runtime (`GET /api/host/seriali`). */
+export interface PortaSeriale {
+  percorso: string;
+  /** Dove porta, se è un collegamento (`ttyCOM1` → `ttyS2`). */
+  collegamento?: string;
+  accesso: "ok" | "permesso" | "occupata";
+}
+
+export interface PorteSeriali {
+  porte: PortaSeriale[];
+  /** Il runtime gira in un container: vede solo le porte che il servizio gli passa. */
+  container: boolean;
+}
+
 /** Un testo in due lingue, dal catalogo dei dispositivi. */
 export interface TestoIt { it: string; en: string }
 

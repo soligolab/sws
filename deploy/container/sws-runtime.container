@@ -24,7 +24,7 @@
 # più basso di quello dell'immagine che gira mostra «configurazione del servizio
 # da aggiornare», e la si aggiorna dall'IDE o dal pannello — vedi
 # docs/plans/2026-10-02-quadlet-che-viaggia.md.
-Description=SWS runtime (container podman) [quadlet 1]
+Description=SWS runtime (container podman) [quadlet 2]
 Documentation=file:///data/user/sws-container/README
 After=network-online.target
 Wants=network-online.target
@@ -130,6 +130,49 @@ Environment=SWS_HOST_CONFIG_DIR=/data/user/sws/config
 # I file sui volumi restano di quell'utente, come prima — cambia il numero
 # dentro il container, non il proprietario sul disco.
 UserNS=keep-id
+
+# ── Le porte seriali (quadlet 2, 04-10-2026) ────────────────────────────────
+#
+# Modbus RTU apre una porta seriale, e un container vede solo i device che gli
+# si passano: fino al quadlet 1 nessuno, e al collaudo del 04-10-2026 (due
+# MCM260X su /dev/ttyCOM1 del TC620) non partiva un byte, senza un errore che
+# dicesse perché sul pannello.
+#
+# Il trattino iniziale: la porta si passa **se esiste**, altrimenti si salta
+# (lo fa il generatore quadlet; con `podman run --device` una porta mancante
+# farebbe fallire l'avvio). Così lo stesso file va bene su pannelli diversi:
+# i nomi delle prese Pixsys (`ttyCOMn`, collegamenti udev: sul TC620 `ttyCOM1`
+# = RS485-1 = `ttyS2`, `ttyCOM2` = `ttyS0`), le UART (`ttyS`, `ttymxc` degli
+# i.MX), gli adattatori USB. Un adattatore USB inserito **dopo** l'avvio del
+# servizio non si vede finché il servizio non riparte.
+AddDevice=-/dev/ttyCOM1
+AddDevice=-/dev/ttyCOM2
+AddDevice=-/dev/ttyCOM3
+AddDevice=-/dev/ttyCOM4
+AddDevice=-/dev/ttyS0
+AddDevice=-/dev/ttyS1
+AddDevice=-/dev/ttyS2
+AddDevice=-/dev/ttyS3
+AddDevice=-/dev/ttyS4
+AddDevice=-/dev/ttyS5
+AddDevice=-/dev/ttymxc0
+AddDevice=-/dev/ttymxc1
+AddDevice=-/dev/ttymxc2
+AddDevice=-/dev/ttymxc3
+AddDevice=-/dev/ttymxc4
+AddDevice=-/dev/ttyUSB0
+AddDevice=-/dev/ttyUSB1
+AddDevice=-/dev/ttyUSB2
+AddDevice=-/dev/ttyUSB3
+AddDevice=-/dev/ttyACM0
+AddDevice=-/dev/ttyACM1
+
+# Le porte sono `root:dialout` 0660, e `user` è in `dialout`. In un container
+# rootless con `keep-id` il gruppo supplementare si perde, e l'apertura fallisce
+# con «Permission denied» anche se il device c'è (provato il 04-10-2026 con
+# podman 5.7 e crun). `keep-groups` (solo crun, che è quello del pannello)
+# porta dentro i gruppi dell'utente.
+GroupAdd=keep-groups
 
 # ── Aggiornamento del runtime (27-09-2026) ──────────────────────────────────
 #

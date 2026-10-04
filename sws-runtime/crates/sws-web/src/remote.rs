@@ -1261,6 +1261,12 @@ pub async fn remote_host_catalog(State(s): State<AppState>) -> Response {
     proxy_get_json(&s, "/api/host/catalog").await
 }
 
+/// `GET /api/remote/host/seriali` — le porte seriali **del dispositivo
+/// connesso**, viste dal suo runtime (dentro il container, se ci gira).
+pub async fn remote_porte_seriali(State(s): State<AppState>) -> Response {
+    proxy_get_json(&s, "/api/host/seriali").await
+}
+
 /// Una GET al dispositivo connesso, con la sua sessione, e il JSON com'è.
 /// 400 senza dispositivo; 502 con il codice e il testo del dispositivo se
 /// risponde male, così l'errore che arriva all'editor dice da che parte è.

@@ -35,6 +35,7 @@ import type {
   Sample,
   SourceDef,
   StatoSorgente,
+  PorteSeriali,
   ElencoCatalogo,
   VoceCatalogo,
   XyPoint,
@@ -2075,6 +2076,15 @@ export const api = {
    *  con un runtime anteriore al 21-09-2026, che non ha la rotta. */
   remoteHostCatalog: () =>
     request<{ temperature: string[]; mount: string[]; interfacce: string[]; core: number }>("/api/remote/host/catalog"),
+
+  /** GET /api/host/seriali — le porte seriali che il runtime di **questa**
+   *  macchina vede e può aprire (04-10-2026). */
+  porteSeriali: () => request<PorteSeriali>("/api/host/seriali"),
+
+  /** GET /api/remote/host/seriali — le porte del **dispositivo connesso**,
+   *  viste dal suo runtime (dentro il container). Fallisce con un runtime
+   *  anteriore alla 2.12.0-rc.22, che non ha la rotta. */
+  remotePorteSeriali: () => request<PorteSeriali>("/api/remote/host/seriali"),
 
   /** POST /api/remote/project/delete — delete the active project on the
    *  connected remote runtime. Resolves on success, throws with the runtime's

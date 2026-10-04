@@ -581,6 +581,8 @@ pub fn build(
                 .delete(crate::traduttore::delete_config_traduzione),
         )
         .route("/api/host/catalog", get(crate::system::get_host_catalog))
+        // Le porte seriali che questo runtime vede e può aprire (04-10-2026).
+        .route("/api/host/seriali", get(crate::system::get_porte_seriali))
         .route("/api/system/tls", get(crate::system::get_tls_status))
         .route(
             "/api/system/tls/generate",
@@ -600,6 +602,7 @@ pub fn build(
             "/api/remote/host/catalog",
             get(crate::remote::remote_host_catalog),
         )
+        .route("/api/remote/host/seriali", get(crate::remote::remote_porte_seriali))
         .route("/api/remote/deploy", post(crate::remote::remote_deploy))
         .route(
             "/api/remote/project/delete",
@@ -1080,6 +1083,8 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         // il 21-09-2026 due metriche `temp` sono state salvate senza zona e
         // sono rimaste Bad in silenzio. Sola lettura, nessun segreto.
         .route("/api/host/catalog", get(crate::system::get_host_catalog))
+        // Le porte seriali che questo runtime vede e può aprire (04-10-2026).
+        .route("/api/host/seriali", get(crate::system::get_porte_seriali))
         // ── Utenti: azione deliberata, separata dal deploy ─────────────────
         //
         // I verbi sono quelli che `remote.rs` usa davvero (`PUT`, non `POST`):

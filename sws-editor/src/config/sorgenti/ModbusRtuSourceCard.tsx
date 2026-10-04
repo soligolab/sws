@@ -5,6 +5,7 @@ import { S } from "@/config/comuni";
 import { dispositiviDi } from "@/config/sorgenti/modbusDispositivi";
 import { ElencoDispositiviModbus, PallinoStato } from "@/config/sorgenti/DispositiviModbus";
 import { useStatoSorgenti } from "@/config/sorgenti/statoSorgenti";
+import { CampoPortaSeriale } from "@/config/sorgenti/CampoPortaSeriale";
 
 // ── Modbus RTU: il bus ────────────────────────────────────────────────────────
 
@@ -56,7 +57,7 @@ export function ModbusRtuSourceCard({
           {/* Serial port parameters */}
           <div style={{
             display: "grid",
-            gridTemplateColumns: "1fr 120px 80px 80px 80px 80px",
+            gridTemplateColumns: "1fr 280px 110px 120px 80px 80px",
             gap: 12,
             marginBottom: 16,
           }}>
@@ -65,12 +66,7 @@ export function ModbusRtuSourceCard({
               <input style={S.input} value={source.id}
                 onChange={(e) => setField("id", e.target.value)} spellCheck={false} />
             </div>
-            <div>
-              <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.serialDevice")}</label>
-              <input style={S.input} value={source.device}
-                onChange={(e) => setField("device", e.target.value)} spellCheck={false}
-                placeholder="/dev/ttyUSB0" />
-            </div>
+            <CampoPortaSeriale value={source.device} onChange={(v) => setField("device", v)} idLista={`porte-${source.id}`} />
             <div>
               <label style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 }}>{t("cfg.baudRate")}</label>
               <input style={S.input} type="number" min={1200} max={921600} step={100}
