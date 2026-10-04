@@ -55,6 +55,7 @@ exec "$SWS_HOME/sws-runtime" \
     --config         "$SWS_HOME/config" \
     --projects-root  "$SWS_HOME/projects" \
     --templates-root "$SWS_HOME/templates" \
+    --catalog-root "$SWS_HOME/catalogo/dispositivi" \
     --www            "$SWS_HOME/www" \
     --viewer-port    8443 \
     --admin-port     8444 \

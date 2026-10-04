@@ -56,5 +56,6 @@ exec "$HERE/bin/sws-runtime" \
     --config         "$CONFIG_DIR" \
     --projects-root  "$PROJECTS_ROOT" \
     --templates-root "$HERE/templates" \
+    --catalog-root "$HERE/catalogo/dispositivi" \
     --admin-port     "$PORT" \
     --www            "$HERE/www"

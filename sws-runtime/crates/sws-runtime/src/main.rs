@@ -64,6 +64,12 @@ struct Args {
     #[arg(long, default_value = "/var/sws/templates")]
     templates_root: PathBuf,
 
+    /// Il catalogo dei dispositivi noti del prodotto: `<marca>/<modello>.json`,
+    /// riletti a ogni richiesta. Quelli dell'utente stanno in
+    /// `<config>/catalogo-dispositivi` e vincono a parità di id.
+    #[arg(long, default_value = "/var/sws/catalogo/dispositivi")]
+    catalog_root: PathBuf,
+
     /// Legacy single-project flag. When set, the runtime auto-opens this
     /// project at boot (backwards compat for the launcher scripts and operator
     /// containers).
@@ -353,6 +359,7 @@ async fn main() -> anyhow::Result<()> {
         config         = %args.config.display(),
         projects_root  = %args.projects_root.display(),
         templates_root = %args.templates_root.display(),
+        catalog_root = %args.catalog_root.display(),
         project        = ?args.project.as_ref().map(|p| p.display().to_string()),
         logs           = %logs_dir.display(),
         retention      = retention_days,
@@ -994,6 +1001,7 @@ async fn main() -> anyhow::Result<()> {
         active_dir,
         Arc::new(args.projects_root.clone()),
         Arc::new(args.templates_root.clone()),
+        Arc::new(args.catalog_root.clone()),
         log_bus,
         Arc::new(logs_dir),
         started_at,

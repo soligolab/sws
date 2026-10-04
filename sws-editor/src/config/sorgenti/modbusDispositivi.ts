@@ -21,7 +21,15 @@ export function eBusModbus(s: SourceDef): s is BusModbus {
 
 /** I dispositivi del bus, col formato di prima letto come un dispositivo. */
 export function dispositiviDi(bus: BusModbus): DispositivoModbus[] {
-  if (bus.devices && bus.devices.length > 0) return bus.devices;
+  // Un dispositivo senza mappature arriva dal server **senza** `registers` (il
+  // runtime omette le liste vuote): l'IDE lo vuole sempre come lista. Senza,
+  // riaprire un progetto con un dispositivo appena aggiunto mandava in bianco
+  // la pagina (collaudo del 04-10-2026).
+  if (bus.devices && bus.devices.length > 0) {
+    return bus.devices.every((d) => Array.isArray(d.registers))
+      ? bus.devices
+      : bus.devices.map((d) => (Array.isArray(d.registers) ? d : { ...d, registers: [] }));
+  }
   const registers = bus.registers ?? [];
   if (registers.length === 0) return [];
   const d: DispositivoModbus = { unit_id: bus.unit_id ?? 1, registers };

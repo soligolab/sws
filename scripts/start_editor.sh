@@ -76,6 +76,7 @@ fi
 
 CONFIG_DIR="$RUN_DIR/config"
 TEMPLATES_ROOT="$REPO_ROOT/examples/templates"
+CATALOG_ROOT="$REPO_ROOT/catalogo/dispositivi"
 LOG_DIR="$RUN_DIR/logs"
 
 # ── Dove vivono i progetti ────────────────────────────────────────────────────
@@ -282,6 +283,7 @@ exec "$REPO_ROOT/sws-runtime/target/debug/sws-runtime" \
   --config         "$CONFIG_DIR"     \
   "${PROJECTS_ARGS[@]}"              \
   --templates-root "$TEMPLATES_ROOT" \
+  --catalog-root "$CATALOG_ROOT" \
   --admin-port     "$ADMIN_PORT"     \
   "${HTTP_ARGS[@]}"                  \
   "${PROJECT_ARGS[@]}"               \

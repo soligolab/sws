@@ -254,6 +254,9 @@ export interface VoceElencoConfig {
   /** Un terzo livello (04-10-2026): i dispositivi di un bus Modbus. Il loro
    *  id è il focus della scheda, come per gli elementi. */
   figli?: VoceElencoConfig[];
+  /** Il modello del catalogo da cui viene un dispositivo («pixsys/atr244@1»):
+   *  l'albero ne mostra icona e descrizione. */
+  modello?: string;
 }
 
 interface AppState {

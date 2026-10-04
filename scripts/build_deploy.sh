@@ -112,11 +112,12 @@ make_package() {
 
     echo "==> Staging $name ($role) ..."
     rm -rf "$stage"
-    mkdir -p "$stage/bin" "$stage/www" "$stage/templates"
+    mkdir -p "$stage/bin" "$stage/www" "$stage/templates" "$stage/catalogo"
 
     install -m 755 "$binary" "$stage/bin/sws-runtime"
     cp -r "$SPA_DIST/." "$stage/www/"
     [ -d "$REPO/examples/templates" ] && cp -r "$REPO/examples/templates/." "$stage/templates/"
+    [ -d "$REPO/catalogo" ] && cp -r "$REPO/catalogo/." "$stage/catalogo/"
 
     case "$role" in
         runtime-generic)

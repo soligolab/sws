@@ -1,0 +1,75 @@
+{
+  "id": "pixsys/_mcm_analogici",
+  "descrizione": {
+    "it": "Moduli MCM: ingressi e uscite analogici (registri 30-33, 40-41)",
+    "en": "MCM modules: analog inputs and outputs (registers 30-33, 40-41)"
+  },
+  "registri": [
+    {
+      "nome": "ai1",
+      "indirizzo": 30,
+      "formato": "i16",
+      "accesso": "r",
+      "gruppo": "ingressi",
+      "descrizione": {
+        "it": "Ingresso analogico 1: 0-10000 per 0-10 V / 0-20 mA, o °C × 10 per termocoppia/RTD",
+        "en": "Analog input 1: 0-10000 for 0-10 V / 0-20 mA, or °C × 10 for TC/RTD"
+      }
+    },
+    {
+      "nome": "ai2",
+      "indirizzo": 31,
+      "formato": "i16",
+      "accesso": "r",
+      "gruppo": "ingressi",
+      "descrizione": {
+        "it": "Ingresso analogico 2: 0-10000 per 0-10 V / 0-20 mA, o °C × 10 per termocoppia/RTD",
+        "en": "Analog input 2: 0-10000 for 0-10 V / 0-20 mA, or °C × 10 for TC/RTD"
+      }
+    },
+    {
+      "nome": "ai3",
+      "indirizzo": 32,
+      "formato": "i16",
+      "accesso": "r",
+      "gruppo": "ingressi",
+      "descrizione": {
+        "it": "Ingresso analogico 3: 0-10000 per 0-10 V / 0-20 mA, o °C × 10 per termocoppia/RTD",
+        "en": "Analog input 3: 0-10000 for 0-10 V / 0-20 mA, or °C × 10 for TC/RTD"
+      }
+    },
+    {
+      "nome": "ai4",
+      "indirizzo": 33,
+      "formato": "i16",
+      "accesso": "r",
+      "gruppo": "ingressi",
+      "descrizione": {
+        "it": "Ingresso analogico 4: 0-10000 per 0-10 V / 0-20 mA, o °C × 10 per termocoppia/RTD",
+        "en": "Analog input 4: 0-10000 for 0-10 V / 0-20 mA, or °C × 10 for TC/RTD"
+      }
+    },
+    {
+      "nome": "ao1",
+      "indirizzo": 40,
+      "formato": "i16",
+      "accesso": "rw",
+      "gruppo": "uscite",
+      "descrizione": {
+        "it": "Uscita analogica 1: 0-10000 per 0-10 V o 0/4-20 mA",
+        "en": "Analog output 1: 0-10000 for 0-10 V or 0/4-20 mA"
+      }
+    },
+    {
+      "nome": "ao2",
+      "indirizzo": 41,
+      "formato": "i16",
+      "accesso": "rw",
+      "gruppo": "uscite",
+      "descrizione": {
+        "it": "Uscita analogica 2: 0-10000 per 0-10 V o 0/4-20 mA",
+        "en": "Analog output 2: 0-10000 for 0-10 V or 0/4-20 mA"
+      }
+    }
+  ]
+}

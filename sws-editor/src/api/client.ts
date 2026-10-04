@@ -35,6 +35,8 @@ import type {
   Sample,
   SourceDef,
   StatoSorgente,
+  ElencoCatalogo,
+  VoceCatalogo,
   XyPoint,
   RecipeApplyEvent,
   RecipeApplyResult,
@@ -1410,6 +1412,12 @@ export const api = {
 
   // Upload a project ZIP to create a new project (pre-auth).
   // `name` is optional — falls back to the name in manifest.json inside the ZIP.
+  // Il catalogo dei dispositivi noti, riletto dal runtime a ogni richiesta (04-10-2026).
+  catalogoDispositivi: () => request<ElencoCatalogo>("/api/catalogo/dispositivi"),
+  voceCatalogo: (id: string) => request<VoceCatalogo>(`/api/catalogo/dispositivi/${id}`),
+  /** L'icona di una voce: un file accanto al suo JSON, servito pre-auth (un <img> non porta il token). */
+  urlFileCatalogo: (marca: string, file: string) => [getBaseUrl(), "api/catalogo/dispositivi", marca, file].join("/"),
+
   // Stato delle sorgenti avviate e dei loro dispositivi (04-10-2026).
   statoSorgenti: () =>
     request<Record<string, StatoSorgente>>("/api/sources/stato"),

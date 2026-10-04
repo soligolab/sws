@@ -1,0 +1,26 @@
+{
+  "id": "pixsys/str571",
+  "versione": 1,
+  "marca": "Pixsys",
+  "modello": "STR571",
+  "famiglia": "Indicatori STR",
+  "descrizione": {
+    "it": "Display remoto Modbus",
+    "en": "Modbus remote display"
+  },
+  "immagine": "str571.jpg",
+  "modbus": {
+    "ordine": "cdab",
+    "timeout_ms": 1000,
+    "seriale": {
+      "baud_rate": 19200,
+      "parity": "N",
+      "data_bits": 8,
+      "stop_bits": 1
+    }
+  },
+  "includi": [
+    "pixsys/_comuni",
+    "pixsys/_str"
+  ]
+}

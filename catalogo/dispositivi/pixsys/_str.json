@@ -1,0 +1,117 @@
+{
+  "id": "pixsys/_str",
+  "descrizione": {
+    "it": "Indicatori STR: ingressi, I/O digitali, variabili remote",
+    "en": "STR indicators: inputs, digital I/O, remote variables"
+  },
+  "registri": [
+    {
+      "nome": "ingresso",
+      "indirizzo": 100,
+      "formato": "i16",
+      "accesso": "r",
+      "gruppo": "processo",
+      "descrizione": {
+        "it": "Ingresso analogico principale, scalato secondo il range d'ingresso (valore come sul display, senza virgola)",
+        "en": "Main analog input, scaled per the input range (as on the display, without the decimal point)"
+      }
+    },
+    {
+      "nome": "potenziometro",
+      "indirizzo": 101,
+      "formato": "i16",
+      "accesso": "r",
+      "gruppo": "processo",
+      "descrizione": {
+        "it": "Ingresso potenziometro",
+        "en": "Potentiometer input"
+      }
+    },
+    {
+      "nome": "ingressi_digitali",
+      "indirizzo": 102,
+      "accesso": "r",
+      "gruppo": "processo",
+      "descrizione": {
+        "it": "Stato degli ingressi digitali",
+        "en": "Digital inputs status"
+      },
+      "bit": [
+        {
+          "bit": 0,
+          "nome": "di1",
+          "descrizione": {
+            "it": "Ingresso digitale 1",
+            "en": "Digital input 1"
+          }
+        },
+        {
+          "bit": 1,
+          "nome": "di2",
+          "descrizione": {
+            "it": "Ingresso digitale 2",
+            "en": "Digital input 2"
+          }
+        },
+        {
+          "bit": 2,
+          "nome": "di3",
+          "descrizione": {
+            "it": "Ingresso digitale 3",
+            "en": "Digital input 3"
+          }
+        }
+      ]
+    },
+    {
+      "nome": "uscite",
+      "indirizzo": 103,
+      "accesso": "r",
+      "gruppo": "processo",
+      "descrizione": {
+        "it": "Stato dei relè d'uscita",
+        "en": "Relay outputs status"
+      },
+      "bit": [
+        {
+          "bit": 0,
+          "nome": "out1",
+          "descrizione": {
+            "it": "Uscita 1",
+            "en": "Output 1"
+          }
+        },
+        {
+          "bit": 1,
+          "nome": "out2",
+          "descrizione": {
+            "it": "Uscita 2",
+            "en": "Output 2"
+          }
+        }
+      ]
+    },
+    {
+      "nome": "remota1",
+      "indirizzo": 104,
+      "formato": "i16",
+      "accesso": "rw",
+      "gruppo": "comandi",
+      "descrizione": {
+        "it": "Variabile remota 1 (display master/slave)",
+        "en": "Remote variable 1 (master/slave display)"
+      }
+    },
+    {
+      "nome": "remota2",
+      "indirizzo": 105,
+      "formato": "i16",
+      "accesso": "rw",
+      "gruppo": "comandi",
+      "descrizione": {
+        "it": "Variabile remota 2 (display master/slave)",
+        "en": "Remote variable 2 (master/slave display)"
+      }
+    }
+  ]
+}

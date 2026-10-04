@@ -32,6 +32,12 @@ describe("dispositiviDi / conDispositivi", () => {
     expect(dispositiviDi({ ...vecchio, registers: [] })).toEqual([]);
   });
 
+  it("un dispositivo salvato senza mappature arriva senza `registers`: diventa una lista vuota", () => {
+    const dalServer = { ...linea, devices: [{ unit_id: 5 }] } as unknown as ModbusRtuSource;
+    expect(dispositiviDi(dalServer)).toEqual([{ unit_id: 5, registers: [] }]);
+    expect(dispositiviDi(linea)).toBe(linea.devices); // stessa referenza quando non serve niente
+  });
+
   it("conDispositivi passa al formato nuovo e toglie i campi di prima", () => {
     const b = conDispositivi(vecchio, dispositiviDi(vecchio));
     expect(b.registers).toBeUndefined();

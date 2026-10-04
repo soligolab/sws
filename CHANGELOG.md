@@ -20,6 +20,21 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   mostra lo stato ma non le novità. Vale per la `2.12.0-rc.1` e la `rc.2`.
 
 ### Added
+- **Catalogo dei dispositivi noti, Pixsys** (piano `docs/plans/2026-10-04-catalogo-dispositivi.md`). File JSON per
+  modello in `catalogo/dispositivi/<marca>/` (prodotto, `--catalog-root`) e in `<config>/catalogo-dispositivi/`
+  (utente, vince a parità di id), **riletti a ogni richiesta** (`sws-web/src/catalogo.rs`, `GET
+  /api/catalogo/dispositivi[/:marca/:nome]`, pre-auth come i template); frammenti `_*.json` condivisi. Pixsys: 16
+  modelli su 7 frammenti dalla mappa del maintainer — l'MCM260X nelle sue sei varianti (1AD…9AD, I/O dalla tabella dei
+  codici d'ordine di pixsys.net) — icone da pixsys.net. Nell'IDE, «+ Dal catalogo…» nel bus crea
+  tipo del modello, variabile istanza e dispositivo con le mappature dei gruppi scelti (`daCatalogo.ts`). Il motore
+  Modbus impara `formato` (tipo sul filo + scala sempre), `bit` (leggi-modifica-scrivi) e `sola_lettura`, con una
+  cache per giro; colonne Formato/Bit/R nella tabella. Guardia `check_catalogo.sh`; HOWTO capitolo 22. Provato con un
+  simulatore che imita un MCM260X: valori con segno e scala, bit, scrittura di DO3 e AO1, DI rifiutato.
+  Nell'albero della Configurazione ogni dispositivo dal catalogo mostra icona e «modello · unit» sotto il nome (la
+  descrizione nel tooltip); la card del bus ha la colonna Modello.
+  La card del dispositivo ha in testata **«Annulla»** (dispositivo appena aggiunto, non ancora salvato) o **«Elimina»**
+  (già salvato): toglie il dispositivo dalla bozza e torna al bus. Prima dopo «+ Aggiungi dispositivo» non si tornava
+  indietro.
 - **Modbus a bus → dispositivi → tag** (piano `docs/plans/2026-10-04-bus-e-dispositivi.md`). Una sorgente Modbus è un
   bus con `devices` (unit id, nome, `modello`, ordine, polling, timeout, registri); il formato di prima si legge come un
   bus con un dispositivo (`ModbusTcpConfig::dispositivi`, unico punto). Una sessione per bus: la porta seriale si apre
@@ -224,6 +239,9 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   riga rossa con **Converti**, in testa c'è **Converti tutti (n)**, e gli allarmi che condividono un tag lo dicono. La conversione non cambia come scatta; il Salva resta dell'utente.
 
 ### Fixed
+- **Riaprire un progetto con un dispositivo Modbus senza mappature mandava in bianco l'IDE** (04-10-2026, trovato
+  facendo gli screenshot del catalogo): il runtime salva il dispositivo senza `registers` (omette le liste vuote) e
+  l'IDE leggeva `registers.length`. `dispositiviDi` ora lo porta sempre a lista; test.
 - **Configurazione → Tag, «Tag da sorgenti»: le foglie di un'istanza non compaiono più come tag senza variabile.** `tc620.cpu_pct` mappato su una sorgente veniva offerto con «Abilita storico» anche se `tc620` è un'istanza (con lo storico già acceso), e il pulsante creava un tag piatto in collisione con l'istanza. Ora la sezione usa lo stesso controllo del salvataggio (`ePercorsoDiUnaRadice`).
 - **Il deploy dalla scheda Dispositivi passa dallo stesso codice della testata** (04-10-2026). Il browser caricava lo
   ZIP direttamente sul pannello: un progetto con un altro nome veniva attivato senza una domanda, e rimandare lo

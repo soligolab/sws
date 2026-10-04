@@ -53,6 +53,7 @@ RUN apt-get update && \
 
 COPY bin/sws-runtime /usr/local/bin/sws-runtime
 COPY templates/      /var/sws/templates/
+COPY catalogo/       /var/sws/catalogo/
 
 # La SPA sta DENTRO l'immagine, come nel percorso aarch64 e per le stesse
 # ragioni (vedi il commento esteso in Containerfile.aarch64): col registry i
@@ -135,6 +136,7 @@ ENTRYPOINT ["/usr/local/bin/sws-runtime"]
 CMD ["--config", "/var/sws/config", \
      "--projects-root", "/var/sws/projects", \
      "--templates-root", "/var/sws/templates", \
+     "--catalog-root", "/var/sws/catalogo/dispositivi", \
      "--www", "/var/sws/www", \
      "--viewer-port", "8443", \
      "--admin-port", "8444", \

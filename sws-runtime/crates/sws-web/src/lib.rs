@@ -2,6 +2,7 @@ pub mod ai;
 pub mod backups;
 pub mod boot;
 pub mod boot_image;
+pub mod catalogo;
 pub mod certificati;
 pub mod cron;
 pub mod discover;

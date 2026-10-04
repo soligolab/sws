@@ -1551,7 +1551,7 @@
     "modbusBit": "{{n}} bit · {{tipo}}",
     "modbusComePrima": "(come prima)",
     "modbusStoricoHint": "Tipo storico (float, int, bool, string): si legge un registro u16 per la scala, come prima. Con un tipo preciso (i16, u32, f32…) i registri e la decodifica vengono dal tipo.",
-    "modbusScalaSoloStorici": "La scala vale per i tipi storici; per un tipo preciso si usa la scala del tag o del membro.",
+    "modbusScalaSoloStorici": "La scala vale per i tipi storici o con un formato sul filo; per un tipo preciso senza formato si usa la scala del tag o del membro.",
     "modbusOrdine": "Ordine parole/byte",
     "modbusOrdineHint": "Come il dispositivo mette i valori su più registri (u32, f32, f64…). È un fatto del dispositivo: lo dice il suo manuale.",
     "modbusOrdini": {
@@ -1559,7 +1559,18 @@
       "cdab": "CDAB (parole scambiate)",
       "badc": "BADC (byte scambiati)",
       "dcba": "DCBA (tutto rovesciato)"
-    }
+    },
+    "modbusDalCatalogo": "+ Dal catalogo…",
+    "modbusFormato": "Formato",
+    "modbusFormatoHint": "Come leggere il registro sul filo (i16, u32, f32…): decide i registri al posto del tipo della variabile, e la scala si applica sempre. Vuoto = dal tipo della variabile.",
+    "modbusDalTipo": "dal tipo",
+    "modbusBitCol": "Bit",
+    "modbusBitHint": "Un bit (0-15) del registro, letto come vero/falso. In scrittura il registro si legge, si cambia il bit e si riscrive.",
+    "modbusSolaLettura": "R",
+    "modbusSolaLetturaHint": "Sola lettura: la scrittura verso questo registro è rifiutata.",
+    "modbusModelloCol": "Modello",
+    "modbusAnnullaHint": "Toglie il dispositivo appena aggiunto: non è ancora stato salvato.",
+    "modbusEliminaHint": "Toglie il dispositivo dal bus; diventa definitivo salvando i Protocolli. Tipo e variabile creati dal catalogo restano."
   },
   "langtab": {
     "migrate": "Migra i testi…",
@@ -2649,5 +2660,34 @@
       "esito_aggiornamento": "Esito di un aggiornamento del runtime",
       "versione_nuova": "Versione nuova disponibile"
     }
+  },
+  "catalogo": {
+    "titolo": "Catalogo dei dispositivi — bus {{bus}}",
+    "intro": "Un dispositivo completo e già configurato: tipo, variabile e mappature dei registri. I registri vengono dai file del catalogo; se trovi un'inesattezza si corregge il file, senza aggiornare.",
+    "cerca": "Cerca un modello…",
+    "carico": "Carico il catalogo…",
+    "vuoto": "Nessun modello trovato.",
+    "utente": "tuo",
+    "fileRotti": "Questi file del catalogo non si leggono:",
+    "nomeVariabile": "Nome della variabile",
+    "unitOccupato": "L'unit id {{unit}} c'è già su questo bus.",
+    "gruppi": "Registri da leggere",
+    "gruppo": {
+      "identificazione": "Identificazione",
+      "processo": "Processo",
+      "comandi": "Comandi",
+      "configurazione": "Configurazione",
+      "ingressi": "Ingressi",
+      "uscite": "Uscite",
+      "altro": "Altro"
+    },
+    "anteprima": "Crea la variabile «{{nome}}» del tipo «{{tipo}}» ({{membri}} membri) e un dispositivo con {{n}} mappature.",
+    "tipoRiusato": "Il tipo c'è già, uguale: si riusa.",
+    "avvisoTipoNuovo": "Il tipo «{{base}}» c'è già ma è diverso: ne creo uno nuovo, «{{tipo}}», per non cambiare i dispositivi che usano il primo.",
+    "avvisoNonSeriale": "Questo modello non è seriale (Modbus TCP): su una linea RS-485 non risponderà.",
+    "avvisoSeriale": "Il modello di fabbrica parla a {{voce}}, il bus è a {{bus}}: controlla che dispositivo e bus coincidano.",
+    "avvisoFuoriProduzione": "Modello fuori produzione.",
+    "indietro": "← Indietro",
+    "aggiungi": "Aggiungi al bus"
   }
 }

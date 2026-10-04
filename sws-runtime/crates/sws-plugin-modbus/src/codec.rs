@@ -235,6 +235,44 @@ pub fn codifica_bit(v: &TagValue) -> Result<bool, String> {
     }
 }
 
+/// Con un **formato sul filo** (catalogo dei dispositivi, 04-10-2026): il
+/// registro si decodifica col formato e la scala si applica sempre. Scala 1 su
+/// un intero resta intero.
+pub fn decodifica_formato(formato: &TipoScalare, regs: &[u16], ordine: OrdineModbus, scala: f64) -> Result<TagValue, String> {
+    let v = decodifica(Some(formato), regs, ordine, 1.0)?;
+    if scala == 1.0 {
+        return Ok(v);
+    }
+    let n = numero(&v).ok_or("valore non numerico")?;
+    Ok(TagValue::Float(n * scala))
+}
+
+/// Il contrario: il valore diviso per la scala, arrotondato se il formato è
+/// intero, controllato sull'intervallo del formato.
+pub fn codifica_formato(formato: &TipoScalare, v: &TagValue, ordine: OrdineModbus, scala: f64) -> Result<Vec<u16>, String> {
+    if scala == 1.0 {
+        return codifica(Some(formato), v, ordine, 1.0);
+    }
+    if scala == 0.0 {
+        return Err("scala zero".into());
+    }
+    let n = numero(v).ok_or("valore non numerico")?;
+    codifica(Some(formato), &TagValue::Float(n / scala), ordine, 1.0)
+}
+
+/// Un bit di un registro.
+pub fn estrai_bit(registro: u16, bit: u8) -> bool {
+    bit < 16 && (registro >> bit) & 1 == 1
+}
+
+/// Il registro con un bit cambiato.
+pub fn imposta_bit(registro: u16, bit: u8, acceso: bool) -> u16 {
+    if bit >= 16 {
+        return registro;
+    }
+    if acceso { registro | (1 << bit) } else { registro & !(1 << bit) }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -329,5 +367,27 @@ mod tests {
         assert_eq!(codifica_bit(&TagValue::Int(0)).unwrap(), false);
         assert_eq!(codifica_bit(&TagValue::Str("on".into())).unwrap(), true);
         assert!(codifica_bit(&TagValue::Str("forse".into())).is_err());
+    }
+
+    #[test]
+    fn formato_sul_filo_con_la_scala() {
+        // −2 su un i16 × 0.1 = −0.2: il segno c'è, la scala anche.
+        let v = decodifica_formato(&t("i16"), &[0xFFFE], Abcd, 0.1).unwrap();
+        assert!(matches!(v, TagValue::Float(f) if (f + 0.2).abs() < 1e-9), "{v:?}");
+        assert_eq!(decodifica_formato(&t("u16"), &[250], Abcd, 1.0).unwrap(), TagValue::Int(250));
+        // Scrittura: 25.3 / 0.1 = 253, −0.2 → 0xFFFE.
+        assert_eq!(codifica_formato(&t("i16"), &TagValue::Float(25.3), Abcd, 0.1).unwrap(), vec![253]);
+        assert_eq!(codifica_formato(&t("i16"), &TagValue::Float(-0.2), Abcd, 0.1).unwrap(), vec![0xFFFE]);
+        assert!(codifica_formato(&t("i16"), &TagValue::Float(4000.0), Abcd, 0.1).is_err(), "40000 non sta in un i16");
+        assert!(codifica_formato(&t("i16"), &TagValue::Float(1.0), Abcd, 0.0).is_err());
+    }
+
+    #[test]
+    fn bit_di_un_registro() {
+        assert!(estrai_bit(0b1010, 1));
+        assert!(!estrai_bit(0b1010, 2));
+        assert!(!estrai_bit(0xFFFF, 16));
+        assert_eq!(imposta_bit(0b1010, 0, true), 0b1011);
+        assert_eq!(imposta_bit(0b1010, 3, false), 0b0010);
     }
 }

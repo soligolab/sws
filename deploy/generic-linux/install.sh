@@ -77,6 +77,10 @@ echo "==> Installing templates..."
 rm -rf "$INSTALL_DIR/templates"
 cp -r  "$SCRIPT_DIR/templates" "$INSTALL_DIR/templates"
 
+echo "==> Installing the device catalog..."
+rm -rf "$INSTALL_DIR/catalogo"
+[ -d "$SCRIPT_DIR/catalogo" ] && cp -r "$SCRIPT_DIR/catalogo" "$INSTALL_DIR/catalogo"
+
 echo "==> Installing systemd service..."
 cp "$SCRIPT_DIR/sws-runtime.service" "$SERVICE_FILE"
 

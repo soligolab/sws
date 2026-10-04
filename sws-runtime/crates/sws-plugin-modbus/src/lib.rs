@@ -24,7 +24,12 @@
 
 pub mod codec;
 
-use std::{collections::HashSet, io, sync::Arc, time::Duration};
+use std::{
+    collections::{HashMap, HashSet},
+    io,
+    sync::Arc,
+    time::Duration,
+};
 use sws_core::stato_sorgenti::{Collegamento, StatoSorgenti};
 use sws_core::{
     AreaModbus, DispositivoModbus, ModbusRtuConfig, ModbusTcpConfig, OrdineModbus, RegisterMapping, TagDb,
@@ -105,6 +110,11 @@ pub struct Mappatura {
     pub address: u16,
     pub scale: f64,
     pub slots: Vec<Slot>,
+    /// Il tipo sul filo, se la mappatura lo dichiara (catalogo, 04-10-2026).
+    pub formato: Option<sws_core::TipoScalare>,
+    /// Un bit di un registro.
+    pub bit: Option<u8>,
+    pub sola_lettura: bool,
 }
 
 /// Il layout di ogni mappatura, dai tipi e dalle forme che il `TagDb` conosce
@@ -112,6 +122,24 @@ pub struct Mappatura {
 pub async fn prepara(db: &TagDb, registri: &[RegisterMapping]) -> Vec<Mappatura> {
     let mut out = Vec::with_capacity(registri.len());
     for r in registri {
+        // Formato sul filo o bit (catalogo, 04-10-2026): un registro (o il
+        // formato) letto così, qualunque sia il tipo del tag.
+        let formato = r.formato.as_deref().and_then(sws_core::TipoScalare::parse);
+        if r.bit.is_some() || formato.is_some() {
+            let tipo = if r.bit.is_some() { sws_core::TipoScalare::U16 } else { formato.clone().unwrap() };
+            let n = tipo.registri();
+            out.push(Mappatura {
+                tag: r.tag.clone(),
+                area: r.area,
+                address: r.address,
+                scale: r.scale,
+                slots: vec![Slot { percorso: r.tag.clone(), tipo: Some(tipo), offset: 0, n }],
+                formato: if r.bit.is_some() { None } else { formato },
+                bit: r.bit,
+                sola_lettura: r.sola_lettura,
+            });
+            continue;
+        }
         let foglie: Vec<(String, sws_core::TipoScalare)> = match db.forma(&r.tag).await {
             Some(f) => f.foglie(&r.tag, &[]).into_iter().map(|f| (f.percorso, f.tipo)).collect(),
             None => Vec::new(),
@@ -127,6 +155,9 @@ pub async fn prepara(db: &TagDb, registri: &[RegisterMapping]) -> Vec<Mappatura>
             address: r.address,
             scale: r.scale,
             slots: codec::layout(&r.tag, tipo_piatto, &foglie, r.area.a_bit()),
+            formato: None,
+            bit: None,
+            sola_lettura: r.sola_lettura,
         });
     }
     out
@@ -159,9 +190,19 @@ pub async fn leggi_giro<D: Dispositivo>(
     sorgente: &str,
 ) -> anyhow::Result<EsitoGiro> {
     let mut esito_giro = EsitoGiro::default();
+    // Una lettura per blocco in un giro: dieci bit della stessa word sono una
+    // richiesta sola (catalogo, 04-10-2026).
+    let mut cache: HashMap<(AreaModbus, u16, u16), Letti> = HashMap::new();
     for m in mappature {
         let n = codec::totale(&m.slots);
-        let esito = tokio::time::timeout(timeout, dev.leggi(m.area, m.address, n)).await;
+        let chiave = (m.area, m.address, n);
+        let esito = match cache.get(&chiave) {
+            Some(l) => Ok(Ok(l.clone())),
+            None => tokio::time::timeout(timeout, dev.leggi(m.area, m.address, n)).await,
+        };
+        if let Ok(Ok(l)) = &esito {
+            cache.insert(chiave, l.clone());
+        }
         let letti = match esito {
             Ok(Ok(l)) => l,
             Ok(Err(e)) if e_trasporto(&e) => {
@@ -191,6 +232,12 @@ pub async fn leggi_giro<D: Dispositivo>(
         for s in &m.slots {
             let (a, b) = (s.offset as usize, (s.offset + s.n) as usize);
             let valore = match &letti {
+                Letti::Registri(r) if r.len() >= b && m.bit.is_some() => {
+                    Ok(TagValue::Bool(codec::estrai_bit(r[a], m.bit.unwrap_or(0))))
+                }
+                Letti::Registri(r) if r.len() >= b && m.formato.is_some() => {
+                    codec::decodifica_formato(m.formato.as_ref().unwrap(), &r[a..b], ordine, m.scale)
+                }
                 Letti::Registri(r) if r.len() >= b => codec::decodifica(s.tipo.as_ref(), &r[a..b], ordine, m.scale),
                 Letti::Bit(bit) if bit.len() > a => Ok(codec::decodifica_bit(s.tipo.as_ref(), bit[a])),
                 _ => Err("risposta più corta del blocco".into()),
@@ -246,9 +293,12 @@ pub async fn scrivi<D: Dispositivo>(
 ) -> anyhow::Result<()> {
     let (tag, percorso, valore) = req;
     let Some(m) = mappature.iter().find(|m| m.tag == tag) else { return Ok(()) };
-    if !m.area.scrivibile() {
-        warn!(source = %sorgente, %tag, area = ?m.area, "Modbus: scrittura rifiutata, area di sola lettura");
+    if !m.area.scrivibile() || m.sola_lettura {
+        warn!(source = %sorgente, %tag, area = ?m.area, "Modbus: scrittura rifiutata, registro di sola lettura");
         return Ok(());
+    }
+    if let Some(bit) = m.bit {
+        return scrivi_bit_di_registro(dev, db, m, bit, &valore, sorgente).await;
     }
     let pezzi = match da_scrivere(m, percorso.as_deref(), &valore) {
         Ok(p) => p,
@@ -268,9 +318,16 @@ pub async fn scrivi<D: Dispositivo>(
                 }
             }
         } else {
-            match codec::codifica(slot.tipo.as_ref(), &v, ordine, m.scale) {
+            let codificato = match &m.formato {
+                Some(f) => codec::codifica_formato(f, &v, ordine, m.scale),
+                None => codec::codifica(slot.tipo.as_ref(), &v, ordine, m.scale),
+            };
+            match codificato {
                 Ok(regs) => {
-                    let eco = codec::decodifica(slot.tipo.as_ref(), &regs, ordine, m.scale);
+                    let eco = match &m.formato {
+                        Some(f) => codec::decodifica_formato(f, &regs, ordine, m.scale),
+                        None => codec::decodifica(slot.tipo.as_ref(), &regs, ordine, m.scale),
+                    };
                     (dev.scrivi_registri(addr, &regs).await, eco)
                 }
                 Err(e) => {
@@ -293,6 +350,49 @@ pub async fn scrivi<D: Dispositivo>(
         }
     }
     Ok(())
+}
+
+/// La scrittura di un bit dentro un registro: si legge il registro, si cambia
+/// il bit, si riscrive. Fra la lettura e la scrittura il dispositivo può aver
+/// cambiato un altro bit della stessa word: è il limite del leggi-modifica-
+/// scrivi su Modbus, che non ha una scrittura di bit nei registri.
+async fn scrivi_bit_di_registro<D: Dispositivo>(
+    dev: &mut D,
+    db: &TagDb,
+    m: &Mappatura,
+    bit: u8,
+    valore: &TagValue,
+    sorgente: &str,
+) -> anyhow::Result<()> {
+    let acceso = match codec::codifica_bit(valore) {
+        Ok(b) => b,
+        Err(e) => {
+            warn!(source = %sorgente, tag = %m.tag, "Modbus: scrittura rifiutata: {e}");
+            return Ok(());
+        }
+    };
+    let prima = match dev.leggi(m.area, m.address, 1).await {
+        Ok(Letti::Registri(r)) if !r.is_empty() => r[0],
+        Ok(_) => return Ok(()),
+        Err(e) if e_trasporto(&e) => return Err(anyhow::anyhow!("lettura di {} @{}: {e}", m.tag, m.address)),
+        Err(e) => {
+            warn!(source = %sorgente, tag = %m.tag, "Modbus: il dispositivo rifiuta la lettura prima della scrittura del bit: {e}");
+            return Ok(());
+        }
+    };
+    let dopo = codec::imposta_bit(prima, bit, acceso);
+    match dev.scrivi_registri(m.address, &[dopo]).await {
+        Ok(()) => {
+            db.ingest(m.tag.clone(), TagValue::Bool(acceso), TagQuality::Good).await;
+            info!(source = %sorgente, tag = %m.tag, addr = m.address, bit, "Modbus: scrittura del bit OK");
+            Ok(())
+        }
+        Err(e) if e_trasporto(&e) => Err(anyhow::anyhow!("scrittura di {} @{}: {e}", m.tag, m.address)),
+        Err(e) => {
+            warn!(source = %sorgente, tag = %m.tag, "Modbus: il dispositivo rifiuta la scrittura del bit: {e}");
+            Ok(())
+        }
+    }
 }
 
 /// Un dispositivo del bus durante una sessione: la sua configurazione e il suo

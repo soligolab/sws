@@ -28,6 +28,7 @@ RUN_DIR="$REPO_ROOT/.run"
 CONFIG_DIR="$RUN_DIR/config"
 PROJECTS_ROOT="${PROJECTS_ROOT:-$RUN_DIR/projects}"
 TEMPLATES_ROOT="${TEMPLATES_ROOT:-$REPO_ROOT/examples/templates}"
+CATALOG_ROOT="${CATALOG_ROOT:-$REPO_ROOT/catalogo/dispositivi}"
 LOG_DIR="$RUN_DIR/logs"
 BINARY_DIR="$REPO_ROOT/sws-runtime/target/release"
 
@@ -66,6 +67,7 @@ echo "[kiosk] starting runtime in background; logs → $LOG_DIR/runtime.log"
   --config "$CONFIG_DIR" \
   --projects-root "$PROJECTS_ROOT" \
   --templates-root "$TEMPLATES_ROOT" \
+  --catalog-root "$CATALOG_ROOT" \
   > "$LOG_DIR/runtime.log" 2>&1 &
 RUNTIME_PID=$!
 

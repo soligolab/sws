@@ -22,10 +22,13 @@ struct Finto {
     mute: HashSet<u8>,
     /// Le unità a cui sono andate le scritture, in ordine.
     scritture_a: Vec<u8>,
+    /// Quante letture sono arrivate al dispositivo.
+    letture: u32,
 }
 
 impl Dispositivo for Finto {
     async fn leggi(&mut self, area: AreaModbus, addr: u16, n: u16) -> io::Result<Letti> {
+        self.letture += 1;
         if self.mute.contains(&self.unita) {
             std::future::pending::<()>().await;
         }
@@ -68,7 +71,7 @@ impl Dispositivo for Finto {
 }
 
 fn mappa(tag: &str, address: u16, area: AreaModbus) -> RegisterMapping {
-    RegisterMapping { tag: tag.into(), address, scale: 1.0, area }
+    RegisterMapping { tag: tag.into(), address, scale: 1.0, area, formato: None, bit: None, sola_lettura: false }
 }
 
 fn membro(nome: &str, tipo: &str) -> Membro {
@@ -363,4 +366,76 @@ async fn la_scrittura_seleziona_l_unita_giusta() {
     scrivi(&mut dev, &db, &m, u.ordine, ("b".into(), None, TagValue::Int(42)), "p").await.unwrap();
     assert_eq!(dev.scritture_a, vec![5]);
     assert_eq!(dev.scritture, vec![(9, vec![42])]);
+}
+
+// ── Formato sul filo, bit, sola lettura (catalogo dei dispositivi, 04-10-2026) ──
+
+fn con(r: RegisterMapping, f: impl FnOnce(&mut RegisterMapping)) -> RegisterMapping {
+    let mut r = r;
+    f(&mut r);
+    r
+}
+
+#[tokio::test]
+async fn formato_e_scala_portano_il_segno_e_i_decimali_in_un_f32() {
+    // Il caso Pixsys: PV su un i16 con un decimale implicito, −12.5 °C.
+    let db = db_con(&[tag("pv", "f32")], &[]).await;
+    let mut dev = Finto::default();
+    dev.registri.insert(1000, (-125i16) as u16);
+    let r = con(mappa("pv", 1000, AreaModbus::Holding), |r| {
+        r.formato = Some("i16".into());
+        r.scale = 0.1;
+    });
+    giro(&mut dev, &db, &[r], OrdineModbus::Abcd).await.unwrap();
+    let (v, q) = val(&db, "pv").await;
+    assert!(matches!(v, TagValue::Float(f) if (f + 12.5).abs() < 1e-6), "{v:?}");
+    assert_eq!(q, TagQuality::Good);
+}
+
+#[tokio::test]
+async fn i_bit_della_stessa_word_sono_una_lettura_sola() {
+    let db = db_con(&[tag("a1", "bool"), tag("a2", "bool"), tag("man", "bool")], &[]).await;
+    let mut dev = Finto::default();
+    dev.registri.insert(1004, 0b10_0000_0001); // bit 0 e bit 9
+    let bit = |t: &str, b: u8| con(mappa(t, 1004, AreaModbus::Holding), |r| r.bit = Some(b));
+    giro(&mut dev, &db, &[bit("a1", 0), bit("a2", 1), bit("man", 9)], OrdineModbus::Abcd).await.unwrap();
+    assert_eq!(val(&db, "a1").await.0, TagValue::Bool(true));
+    assert_eq!(val(&db, "a2").await.0, TagValue::Bool(false));
+    assert_eq!(val(&db, "man").await.0, TagValue::Bool(true));
+    assert_eq!(dev.letture, 1, "tre bit, un registro, una richiesta");
+}
+
+#[tokio::test]
+async fn scrivere_un_bit_cambia_solo_quel_bit() {
+    let db = db_con(&[tag("do3", "bool")], &[]).await;
+    let mut dev = Finto::default();
+    dev.registri.insert(20, 0b0001);
+    let m = prepara(&db, &[con(mappa("do3", 20, AreaModbus::Holding), |r| r.bit = Some(3))]).await;
+    scrivi(&mut dev, &db, &m, OrdineModbus::Abcd, ("do3".into(), None, TagValue::Bool(true)), "p").await.unwrap();
+    assert_eq!(dev.registri[&20], 0b1001, "bit 0 intatto, bit 3 acceso");
+    scrivi(&mut dev, &db, &m, OrdineModbus::Abcd, ("do3".into(), None, TagValue::Bool(false)), "p").await.unwrap();
+    assert_eq!(dev.registri[&20], 0b0001);
+    assert_eq!(val(&db, "do3").await.0, TagValue::Bool(false), "l'eco");
+}
+
+#[tokio::test]
+async fn una_scrittura_con_formato_divide_per_la_scala() {
+    let db = db_con(&[tag("sp1", "f32")], &[]).await;
+    let mut dev = Finto::default();
+    let m = prepara(&db, &[con(mappa("sp1", 2000, AreaModbus::Holding), |r| {
+        r.formato = Some("i16".into());
+        r.scale = 0.1;
+    })])
+    .await;
+    scrivi(&mut dev, &db, &m, OrdineModbus::Abcd, ("sp1".into(), None, TagValue::Float(-5.5)), "p").await.unwrap();
+    assert_eq!(dev.scritture, vec![(2000, vec![(-55i16) as u16])]);
+}
+
+#[tokio::test]
+async fn sola_lettura_rifiuta_anche_su_holding() {
+    let db = db_con(&[tag("pv", "u16")], &[]).await;
+    let mut dev = Finto::default();
+    let m = prepara(&db, &[con(mappa("pv", 1000, AreaModbus::Holding), |r| r.sola_lettura = true)]).await;
+    scrivi(&mut dev, &db, &m, OrdineModbus::Abcd, ("pv".into(), None, TagValue::Int(1)), "p").await.unwrap();
+    assert!(dev.scritture.is_empty());
 }

@@ -1551,7 +1551,7 @@
     "modbusBit": "{{n}} bit · {{tipo}}",
     "modbusComePrima": "(as before)",
     "modbusStoricoHint": "Legacy type (float, int, bool, string): one u16 register times the scale is read, as before. With a precise type (i16, u32, f32…) registers and decoding come from the type.",
-    "modbusScalaSoloStorici": "The scale applies to legacy types; for a precise type use the scale of the tag or member.",
+    "modbusScalaSoloStorici": "The scale applies to legacy types or with a wire format; for a precise type without format use the scale of the tag or member.",
     "modbusOrdine": "Word/byte order",
     "modbusOrdineHint": "How the device lays out values on several registers (u32, f32, f64…). It is a device fact: see its manual.",
     "modbusOrdini": {
@@ -1559,7 +1559,18 @@
       "cdab": "CDAB (swapped words)",
       "badc": "BADC (swapped bytes)",
       "dcba": "DCBA (fully reversed)"
-    }
+    },
+    "modbusDalCatalogo": "+ From the catalog…",
+    "modbusFormato": "Format",
+    "modbusFormatoHint": "How to read the register on the wire (i16, u32, f32…): it sets the registers instead of the variable type, and the scale always applies. Empty = from the variable type.",
+    "modbusDalTipo": "from type",
+    "modbusBitCol": "Bit",
+    "modbusBitHint": "One bit (0-15) of the register, read as true/false. When writing, the register is read, the bit changed and written back.",
+    "modbusSolaLettura": "R",
+    "modbusSolaLetturaHint": "Read-only: writes to this register are refused.",
+    "modbusModelloCol": "Model",
+    "modbusAnnullaHint": "Removes the device just added: it has not been saved yet.",
+    "modbusEliminaHint": "Removes the device from the bus; it becomes final when the Protocols are saved. Type and variable created from the catalog stay."
   },
   "langtab": {
     "migrate": "Migrate texts…",
@@ -2649,5 +2660,34 @@
       "esito_aggiornamento": "Outcome of a runtime update",
       "versione_nuova": "New version available"
     }
+  },
+  "catalogo": {
+    "titolo": "Device catalog — bus {{bus}}",
+    "intro": "A complete, preconfigured device: type, variable and register mappings. The registers come from the catalog files; if you find a mistake, fix the file, no update needed.",
+    "cerca": "Search a model…",
+    "carico": "Loading the catalog…",
+    "vuoto": "No model found.",
+    "utente": "yours",
+    "fileRotti": "These catalog files cannot be read:",
+    "nomeVariabile": "Variable name",
+    "unitOccupato": "Unit id {{unit}} is already on this bus.",
+    "gruppi": "Registers to read",
+    "gruppo": {
+      "identificazione": "Identification",
+      "processo": "Process",
+      "comandi": "Commands",
+      "configurazione": "Configuration",
+      "ingressi": "Inputs",
+      "uscite": "Outputs",
+      "altro": "Other"
+    },
+    "anteprima": "Creates the variable «{{nome}}» of type «{{tipo}}» ({{membri}} members) and a device with {{n}} mappings.",
+    "tipoRiusato": "The type already exists, identical: it is reused.",
+    "avvisoTipoNuovo": "Type «{{base}}» already exists but is different: creating a new one, «{{tipo}}», so the devices using the first do not change.",
+    "avvisoNonSeriale": "This model is not serial (Modbus TCP): it will not answer on an RS-485 line.",
+    "avvisoSeriale": "The model's factory setting is {{voce}}, the bus is {{bus}}: check that device and bus match.",
+    "avvisoFuoriProduzione": "Discontinued model.",
+    "indietro": "← Back",
+    "aggiungi": "Add to the bus"
   }
 }

@@ -1,0 +1,27 @@
+{
+  "id": "pixsys/atr142",
+  "versione": 1,
+  "marca": "Pixsys",
+  "modello": "ATR142",
+  "famiglia": "Regolatori ATR",
+  "descrizione": {
+    "it": "Regolatore PID (fuori produzione)",
+    "en": "PID controller (discontinued)"
+  },
+  "immagine": "atr142.jpg",
+  "modbus": {
+    "ordine": "cdab",
+    "timeout_ms": 1000,
+    "seriale": {
+      "baud_rate": 19200,
+      "parity": "N",
+      "data_bits": 8,
+      "stop_bits": 1
+    }
+  },
+  "includi": [
+    "pixsys/_comuni",
+    "pixsys/_atr"
+  ],
+  "fuori_produzione": true
+}

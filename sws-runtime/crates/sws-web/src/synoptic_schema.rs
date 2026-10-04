@@ -519,34 +519,13 @@ pub const SOURCE_MODBUS_TCP_DISPOSITIVOMODBUS_FIELDS: &[Field] = &[
 
 /// Campi di `RegisterMapping`, usato dentro la sorgente `modbus_tcp`.
 pub const SOURCE_MODBUS_TCP_REGISTERMAPPING_FIELDS: &[Field] = &[
-    Field {
-        name: "tag",
-        ty: "string",
-        required: true,
-        group: "",
-        doc: "TagId to write the value into.",
-    },
-    Field {
-        name: "address",
-        ty: "number",
-        required: true,
-        group: "",
-        doc: "Holding register start address (0-based).",
-    },
-    Field {
-        name: "scale",
-        ty: "number",
-        required: false,
-        group: "",
-        doc: "Multiply the raw u16 word by this before storing. Default 1.0.",
-    },
-    Field {
-        name: "area",
-        ty: "AreaModbus",
-        required: false,
-        group: "",
-        doc: "L'area (Fase 3): holding, input, coil o discrete input.",
-    },
+    Field { name: "tag", ty: "string", required: true, group: "", doc: "TagId to write the value into." },
+    Field { name: "address", ty: "number", required: true, group: "", doc: "Holding register start address (0-based)." },
+    Field { name: "scale", ty: "number", required: false, group: "", doc: "Multiply the raw u16 word by this before storing. Default 1.0." },
+    Field { name: "area", ty: "AreaModbus", required: false, group: "", doc: "L'area (Fase 3): holding, input, coil o discrete input." },
+    Field { name: "formato", ty: "string", required: false, group: "", doc: "Il tipo **sul filo** (catalogo dei dispositivi, 04-10-2026): `i16`, `u32`, `f32`… Se c'è, decide registri e decodifica al posto del tipo del tag, e `scale` si applica sempre (`i16` × 0.1 → 10.0 in un tag `f32`)." },
+    Field { name: "bit", ty: "number", required: false, group: "", doc: "Un bit (0-15) di un registro → un bool. In scrittura il registro si legge, si cambia il bit e si riscrive." },
+    Field { name: "sola_lettura", ty: "bool", required: false, group: "", doc: "La scrittura è rifiutata anche su un holding register (i registri «R» del manuale del dispositivo)." },
 ];
 
 /// Campi della sorgente `modbus_rtu` (ModbusRtuConfig).
@@ -577,34 +556,13 @@ pub const SOURCE_MODBUS_RTU_DISPOSITIVOMODBUS_FIELDS: &[Field] = &[
 
 /// Campi di `RegisterMapping`, usato dentro la sorgente `modbus_rtu`.
 pub const SOURCE_MODBUS_RTU_REGISTERMAPPING_FIELDS: &[Field] = &[
-    Field {
-        name: "tag",
-        ty: "string",
-        required: true,
-        group: "",
-        doc: "TagId to write the value into.",
-    },
-    Field {
-        name: "address",
-        ty: "number",
-        required: true,
-        group: "",
-        doc: "Holding register start address (0-based).",
-    },
-    Field {
-        name: "scale",
-        ty: "number",
-        required: false,
-        group: "",
-        doc: "Multiply the raw u16 word by this before storing. Default 1.0.",
-    },
-    Field {
-        name: "area",
-        ty: "AreaModbus",
-        required: false,
-        group: "",
-        doc: "L'area (Fase 3): holding, input, coil o discrete input.",
-    },
+    Field { name: "tag", ty: "string", required: true, group: "", doc: "TagId to write the value into." },
+    Field { name: "address", ty: "number", required: true, group: "", doc: "Holding register start address (0-based)." },
+    Field { name: "scale", ty: "number", required: false, group: "", doc: "Multiply the raw u16 word by this before storing. Default 1.0." },
+    Field { name: "area", ty: "AreaModbus", required: false, group: "", doc: "L'area (Fase 3): holding, input, coil o discrete input." },
+    Field { name: "formato", ty: "string", required: false, group: "", doc: "Il tipo **sul filo** (catalogo dei dispositivi, 04-10-2026): `i16`, `u32`, `f32`… Se c'è, decide registri e decodifica al posto del tipo del tag, e `scale` si applica sempre (`i16` × 0.1 → 10.0 in un tag `f32`)." },
+    Field { name: "bit", ty: "number", required: false, group: "", doc: "Un bit (0-15) di un registro → un bool. In scrittura il registro si legge, si cambia il bit e si riscrive." },
+    Field { name: "sola_lettura", ty: "bool", required: false, group: "", doc: "La scrittura è rifiutata anche su un holding register (i registri «R» del manuale del dispositivo)." },
 ];
 
 /// Campi della sorgente `opcua_server` (OpcUaServerConfig).

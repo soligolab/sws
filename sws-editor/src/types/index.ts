@@ -1014,6 +1014,13 @@ export interface RegisterMapping {
   scale: number;
   /** Fase 3 (04-10-2026): l'area. Assente = holding, come prima. */
   area?: "holding" | "input" | "coil" | "discrete";
+  /** Il tipo sul filo (catalogo, 04-10-2026): decide i registri al posto del
+   *  tipo del tag, e la scala si applica sempre. */
+  formato?: string;
+  /** Un bit (0-15) di un registro → bool. */
+  bit?: number;
+  /** Scrittura rifiutata anche su holding. */
+  sola_lettura?: boolean;
 }
 
 /** Ordine di parole e byte dei valori su più registri (Fase 3). Assente = abcd. */
@@ -1034,6 +1041,56 @@ export interface DispositivoModbus {
   /** Assente = 3000. */
   timeout_ms?: number;
   registers: RegisterMapping[];
+}
+
+/** Un testo in due lingue, dal catalogo dei dispositivi. */
+export interface TestoIt { it: string; en: string }
+
+/** Un bit di una word del catalogo: diventa un membro bool. */
+export interface BitCatalogo { bit: number; nome: string; descrizione?: TestoIt }
+
+/** Un registro di una voce del catalogo (`catalogo/dispositivi/<marca>/*.json`). */
+export interface RegistroCatalogo {
+  nome: string;
+  indirizzo: number;
+  area?: "holding" | "input" | "coil" | "discrete";
+  formato?: string;
+  scala?: number;
+  tipo?: string;
+  unita?: string;
+  accesso: "r" | "rw";
+  gruppo?: string;
+  predefinito?: boolean;
+  descrizione?: TestoIt;
+  bit?: BitCatalogo[];
+}
+
+/** Una voce dell'elenco del catalogo. */
+export interface VoceCatalogoElenco {
+  id: string;
+  marca: string;
+  modello: string;
+  famiglia?: string;
+  descrizione?: TestoIt;
+  immagine?: string;
+  origine: "prodotto" | "utente";
+}
+
+export interface ElencoCatalogo {
+  voci: VoceCatalogoElenco[];
+  errori?: { file: string; errore: string }[];
+}
+
+/** Una voce intera, con gli include risolti dal runtime. */
+export interface VoceCatalogo extends VoceCatalogoElenco {
+  versione?: number;
+  fuori_produzione?: boolean;
+  modbus?: {
+    ordine?: OrdineModbus;
+    timeout_ms?: number;
+    seriale?: { baud_rate: number; parity: string; data_bits: number; stop_bits: number };
+  };
+  registri: RegistroCatalogo[];
 }
 
 /** Lo stato di un bus o di un dispositivo (`GET /api/sources/stato`). */

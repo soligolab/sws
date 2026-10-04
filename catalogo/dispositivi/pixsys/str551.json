@@ -1,0 +1,26 @@
+{
+  "id": "pixsys/str551",
+  "versione": 1,
+  "marca": "Pixsys",
+  "modello": "STR551",
+  "famiglia": "Indicatori STR",
+  "descrizione": {
+    "it": "Indicatore da pannello 96x48 con ingresso analogico, ritrasmissione e RS485 Modbus RTU",
+    "en": "Panel meter 96x48 with analog input, retransmission and RS485 Modbus RTU"
+  },
+  "immagine": "str551.jpg",
+  "modbus": {
+    "ordine": "cdab",
+    "timeout_ms": 1000,
+    "seriale": {
+      "baud_rate": 19200,
+      "parity": "N",
+      "data_bits": 8,
+      "stop_bits": 1
+    }
+  },
+  "includi": [
+    "pixsys/_comuni",
+    "pixsys/_str"
+  ]
+}

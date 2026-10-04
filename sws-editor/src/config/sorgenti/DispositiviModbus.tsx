@@ -10,13 +10,16 @@ import { useAppStore } from "@/store";
 import { emptyRegister } from "@/config/sorgenti/vuote";
 import { CampoOrdineModbus, TabellaRegistriModbus } from "@/config/sorgenti/TabellaRegistriModbus";
 import {
-  type BusModbus, conDispositivi, dispositiviDi, etichettaDispositivo, focusDispositivo, nuovoDispositivo,
+  type BusModbus, conDispositivi, dispositiviDi, eBusModbus, etichettaDispositivo, focusDispositivo, nuovoDispositivo,
   TIMEOUT_MODBUS_MS,
 } from "@/config/sorgenti/modbusDispositivi";
 import {
   COLORI_STATO, coloreStato, statoDispositivo, useStatoSorgenti,
 } from "@/config/sorgenti/statoSorgenti";
 import type { StatoCollegamento } from "@/types";
+import { api } from "@/api/client";
+import { CatalogoDispositiviModal, IconaCatalogo, useElencoCatalogo, voceDelModello } from "@/config/sorgenti/CatalogoDispositiviModal";
+import type { DaCatalogo } from "@/config/sorgenti/daCatalogo";
 
 const ETICHETTA = { fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 } as const;
 
@@ -39,10 +42,31 @@ export function PallinoStato({ stato, testid }: { stato: StatoCollegamento | und
 /** L'elenco dei dispositivi nella card del bus: si apre un dispositivo
  *  dall'albero o da qui. */
 export function ElencoDispositiviModbus<B extends BusModbus>({ bus, onChange }: { bus: B; onChange: (b: B) => void }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigateToConfig = useAppStore((s) => s.navigateToConfig);
   const stato = useStatoSorgenti()[bus.id];
+  const elencoCatalogo = useElencoCatalogo();
+  const [catalogo, setCatalogo] = useState(false);
+  const updateProjectTags = useAppStore((s) => s.updateProjectTags);
+  const updateProjectTypes = useAppStore((s) => s.updateProjectTypes);
+  const markSaveOk = useAppStore((s) => s.markSaveOk);
   const dispositivi = dispositiviDi(bus);
+  // Dal catalogo: tipo e variabile si salvano subito (il tipo prima, perché la
+  // variabile lo nomina), il dispositivo va nella bozza dei Protocolli come
+  // ogni altra modifica al bus.
+  const daCatalogoConfermato = async (r: DaCatalogo) => {
+    if (!r.riusaTipo) {
+      const tipi = [...(useAppStore.getState().project?.types ?? []), r.tipo];
+      await api.updateTypes(tipi);
+      updateProjectTypes(tipi);
+    }
+    const tags = [...(useAppStore.getState().project?.tags ?? []), r.tag];
+    await api.updateTags(tags);
+    updateProjectTags(tags);
+    markSaveOk();
+    onChange(conDispositivi(bus, [...dispositivi, r.dispositivo]));
+    navigateToConfig("protocols", focusDispositivo(bus.id, r.dispositivo.unit_id));
+  };
   const aggiungi = () => {
     const d = nuovoDispositivo(bus);
     onChange(conDispositivi(bus, [...dispositivi, d]));
@@ -62,8 +86,10 @@ export function ElencoDispositiviModbus<B extends BusModbus>({ bus, onChange }: 
           <thead>
             <tr>
               <th style={S.th}></th>
+              <th style={S.th}></th>
               <th style={S.th}>{t("cfg.unitId")}</th>
               <th style={S.th}>{t("cfg.modbusNome")}</th>
+              <th style={S.th}>{t("cfg.modbusModelloCol")}</th>
               <th style={S.th}>{t("cfg.modbusMappature")}</th>
               <th style={S.th}></th>
             </tr>
@@ -72,8 +98,15 @@ export function ElencoDispositiviModbus<B extends BusModbus>({ bus, onChange }: 
             {dispositivi.map((d) => (
               <tr key={d.unit_id} data-testid={`modbus-dev-row-${bus.id}-${d.unit_id}`}>
                 <td style={S.td}><PallinoStato stato={statoDispositivo(stato, d.unit_id)} /></td>
+                <td style={S.td}>{voceDelModello(elencoCatalogo, d.modello) && <IconaCatalogo voce={voceDelModello(elencoCatalogo, d.modello)!} lato={28} />}</td>
                 <td style={S.td}>{d.unit_id}</td>
                 <td style={S.td}>{d.nome || "—"}</td>
+                <td style={{ ...S.td, color: "var(--brand-text-subtle, #94a3b8)" }}
+                  title={voceDelModello(elencoCatalogo, d.modello)?.descrizione?.[i18n.language?.startsWith("en") ? "en" : "it"]}>
+                  {voceDelModello(elencoCatalogo, d.modello)
+                    ? `${voceDelModello(elencoCatalogo, d.modello)!.marca} ${voceDelModello(elencoCatalogo, d.modello)!.modello}`
+                    : (d.modello ?? "—")}
+                </td>
                 <td style={S.td}>{d.registers.length}</td>
                 <td style={{ ...S.td, textAlign: "right", whiteSpace: "nowrap" }}>
                   <button style={S.btn("ghost")} onClick={() => navigateToConfig("protocols", focusDispositivo(bus.id, d.unit_id))}>
@@ -86,9 +119,15 @@ export function ElencoDispositiviModbus<B extends BusModbus>({ bus, onChange }: 
           </tbody>
         </table>
       )}
-      <button style={S.btn("ghost")} onClick={aggiungi} data-testid={`modbus-dev-add-${bus.id}`}>
-        {t("cfg.modbusAggiungiDispositivo")}
-      </button>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button style={S.btn("ghost")} onClick={aggiungi} data-testid={`modbus-dev-add-${bus.id}`}>
+          {t("cfg.modbusAggiungiDispositivo")}
+        </button>
+        <button style={S.btn("ghost")} onClick={() => setCatalogo(true)} data-testid={`modbus-dev-catalog-${bus.id}`}>
+          {t("cfg.modbusDalCatalogo")}
+        </button>
+      </div>
+      {catalogo && <CatalogoDispositiviModal bus={bus} onConferma={daCatalogoConfermato} onClose={() => setCatalogo(false)} />}
     </>
   );
 }
@@ -103,10 +142,25 @@ export function DispositivoModbusCard<B extends BusModbus>({ bus, unit, onChange
   const { t } = useTranslation();
   const navigateToConfig = useAppStore((s) => s.navigateToConfig);
   const stato = useStatoSorgenti()[bus.id];
+  const voceCatalogo = voceDelModello(useElencoCatalogo(), dispositiviDi(bus).find((x) => x.unit_id === unit)?.modello);
   const [quickCreate, setQuickCreate] = useState<{ rowIdx: number; prefill: string } | null>(null);
+  // Il dispositivo c'è nel progetto salvato? Se no, è appena aggiunto: il
+  // pulsante dice «Annulla» invece di «Elimina» (richiesta del maintainer,
+  // 04-10-2026: dopo «+ Aggiungi dispositivo» non c'era modo di tornare
+  // indietro). L'effetto è lo stesso: esce dalla bozza, e finché non si salva
+  // niente è definitivo.
+  const salvato = useAppStore((s) => {
+    const b = s.project?.sources?.find((x) => x.id === bus.id);
+    return !!b && eBusModbus(b) && dispositiviDi(b).some((x) => x.unit_id === unit);
+  });
   const dispositivi = dispositiviDi(bus);
   const d = dispositivi.find((x) => x.unit_id === unit);
   if (!d) return null;
+
+  const togli = () => {
+    onChange(conDispositivi(bus, dispositivi.filter((x) => x.unit_id !== unit)));
+    navigateToConfig("protocols", bus.id);
+  };
 
   const cambia = (patch: Partial<DispositivoModbus>) => {
     const nuovo = { ...d, ...patch };
@@ -125,6 +179,7 @@ export function DispositivoModbusCard<B extends BusModbus>({ bus, unit, onChange
       <div style={S.cardHead}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <PallinoStato stato={statoDispositivo(stato, unit)} testid={`modbus-dev-state-${bus.id}-${unit}`} />
+          {voceCatalogo && <IconaCatalogo voce={voceCatalogo} lato={32} />}
           <span style={{ fontSize: 11, color: "var(--brand-warning, #f59e0b)", fontWeight: 700, letterSpacing: 1 }}>
             {bus.kind === "modbus_rtu" ? "MODBUS RTU" : "MODBUS TCP"}
           </span>
@@ -134,6 +189,10 @@ export function DispositivoModbusCard<B extends BusModbus>({ bus, unit, onChange
           <span style={{ color: "var(--brand-text-subtle, #64748b)" }}>›</span>
           <span style={{ fontWeight: 600, color: "var(--brand-text, #e2e8f0)" }}>{etichettaDispositivo(d)}</span>
         </div>
+        <button style={S.btn(salvato ? "danger" : "ghost")} onClick={togli} data-testid={`modbus-dev-remove-${bus.id}-${unit}`}
+          title={t(salvato ? "cfg.modbusEliminaHint" : "cfg.modbusAnnullaHint")}>
+          {t(salvato ? "cfgUi.delete" : "common.cancel")}
+        </button>
       </div>
       <div style={{ padding: "14px 16px" }}>
         <div style={{ marginBottom: 16, display: "grid", gridTemplateColumns: "90px 1fr 160px 140px 140px", gap: 12 }}>
@@ -166,7 +225,7 @@ export function DispositivoModbusCard<B extends BusModbus>({ bus, unit, onChange
         </div>
         {d.modello && (
           <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #94a3b8)", marginBottom: 12 }} data-testid="modello-dispositivo">
-            {t("cfg.modbusModello", { modello: d.modello })}
+            {t("cfg.modbusModello", { modello: voceCatalogo ? `${voceCatalogo.marca} ${voceCatalogo.modello} (${d.modello})` : d.modello })}
           </div>
         )}
 

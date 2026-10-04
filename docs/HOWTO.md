@@ -39,6 +39,7 @@
 19. [Dare un nome a un'immagine di prova: le versioni `-rc`](#19-dare-un-nome-a-unimmagine-di-prova-le-versioni--rc)
 20. [Aggiornare la configurazione del servizio (i quadlet) di un pannello](#20-aggiornare-la-configurazione-del-servizio-i-quadlet-di-un-pannello)
 21. [Dopo un aggiornamento: confermare, rimandare, tornare alla versione precedente](#21-dopo-un-aggiornamento-confermare-rimandare-tornare-alla-versione-precedente)
+22. [Aggiungere o correggere un dispositivo nel catalogo](#22-aggiungere-o-correggere-un-dispositivo-nel-catalogo)
 
 ---
 
@@ -1360,4 +1361,56 @@ dal runtime come servizio transitorio dell'utente — niente SSH, niente file di
 - Il log: `journalctl --user -u 'sws-immagini-*'` sul pannello.
 - Riconosce le immagini SWS dall'etichetta `org.opencontainers.image.source=https://github.com/soligolab/sws`, anche
   quelle rimaste senza nome; non tocca mai un'immagine usata da un container.
+
+## 22. Aggiungere o correggere un dispositivo nel catalogo
+
+Il catalogo dei dispositivi noti (Configurazione → Protocolli → un bus Modbus → «+ Dal catalogo…») è fatto di **file
+JSON letti a ogni apertura**: si corregge un file e la volta dopo il catalogo è già cambiato, senza ricompilare né
+riavviare.
+
+**Dove stanno**
+- Quelli del prodotto: nel repo `catalogo/dispositivi/<marca>/<modello>.json`; sul pannello
+  `/var/sws/catalogo/dispositivi/` (dentro l'immagine: si cambiano con un aggiornamento).
+- I tuoi: `<config>/catalogo-dispositivi/<marca>/<modello>.json` — sul pannello `/var/sws/config/catalogo-dispositivi/`
+  (sopravvive agli aggiornamenti), con l'editor di sviluppo `.run-editor/config/catalogo-dispositivi/`. **Stesso nome di
+  file = vince il tuo**: per correggere un modello del prodotto solo da te, copialo lì e modificalo. Nel catalogo
+  compare con l'etichetta «tuo».
+
+**Il formato**, in breve (esempio completo: `catalogo/dispositivi/pixsys/atr244.json` e `_atr.json`):
+
+```json
+{
+  "id": "acme/x100",                         // = marca/nome del file
+  "versione": 1,
+  "marca": "Acme", "modello": "X100", "famiglia": "Regolatori",
+  "descrizione": { "it": "…", "en": "…" },
+  "immagine": "x100.jpg",                    // accanto al JSON, al massimo 100 KB
+  "modbus": { "ordine": "cdab", "timeout_ms": 1000,
+              "seriale": { "baud_rate": 19200, "parity": "N", "data_bits": 8, "stop_bits": 1 } },
+  "includi": ["acme/_comuni"],               // frammenti condivisi: file che cominciano con _
+  "registri": [
+    { "nome": "pv", "indirizzo": 1000, "formato": "i16", "scala": 0.1, "unita": "°C",
+      "accesso": "r", "gruppo": "processo", "descrizione": { "it": "…", "en": "…" } },
+    { "nome": "stato", "indirizzo": 1004, "accesso": "r", "gruppo": "processo",
+      "bit": [ { "bit": 0, "nome": "allarme1", "descrizione": { "it": "…", "en": "…" } } ] }
+  ]
+}
+```
+
+- `formato` è come si legge il registro (`i16`, `u16`, `i32`, `u32`, `f32`…; default `u16`); `scala` moltiplica (0.1
+  per un decimale); il membro del tipo diventa `f32` se c'è una scala, altrimenti prende il formato (o `tipo`, se lo
+  scrivi).
+- `bit`: ogni bit della word diventa un membro vero/falso col suo nome.
+- `accesso: "r"` = sola lettura (la scrittura è rifiutata).
+- `gruppo` raccoglie i registri nelle spunte del catalogo; `"predefinito": false` lascia il gruppo non spuntato
+  (serve per i registri di configurazione).
+- Un registro con lo stesso `nome` di uno incluso lo **sostituisce**: un modello corregge un frammento della famiglia.
+
+**Prima di committare un file del prodotto**: `./scripts/check_catalogo.sh` (è anche in `check_static.sh`) controlla
+JSON, include, formati, bit, nomi ripetuti, le due lingue e l'immagine. Un file tuo sbagliato non rompe niente: il
+catalogo lo elenca in fondo con l'errore.
+
+**Cosa succede aggiungendolo a un bus**: nasce un tipo `<marca>_<modello>` con tutti i registri (riusato dal secondo
+dispositivo dello stesso modello), una variabile istanza (es. `atr244_3`) e un dispositivo del bus con una mappatura
+per membro dei gruppi spuntati. Tipo e variabile si salvano subito; il dispositivo va salvato coi Protocolli.
 

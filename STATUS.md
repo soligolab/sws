@@ -74,6 +74,27 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — quattro rami annidati, catalogo dei dispositivi Pixsys (2026-10-04, sera)
+
+**Rami aperti, annidati:** `feat/istanze-e-deploy-con-conferma` → `feat/tag-3-modbus` → `feat/modbus-dispositivi` →
+`feat/catalogo-dispositivi`. Collaudati dal maintainer: istanze/deploy. Il resto aspetta il collaudo **fisico** che il
+maintainer farà con un **MCM260X-9AD**.
+- **Fatto su `feat/catalogo-dispositivi`** (piano [catalogo dispositivi](docs/plans/2026-10-04-catalogo-dispositivi.md)):
+  file JSON in `catalogo/dispositivi/pixsys/` (16 modelli — MCM260X in sei varianti, 1AD…9AD — su 7 frammenti, icone da pixsys.net, fonti nel README della
+  cartella), riletti a ogni richiesta; cartella utente `<config>/catalogo-dispositivi/`; «+ Dal catalogo…» nel bus crea
+  tipo, variabile e dispositivo; il motore Modbus ha `formato`, `bit`, `sola_lettura` e la cache per giro. HOWTO cap. 22.
+- **Provato qui** con un simulatore che imita un MCM260X, nell'editor di sviluppo (browser headless, screenshot mandati
+  al maintainer) e su un runtime di prova per le scritture: AI1 −125 col segno, firmware 1.05, DI0/DI2 accesi, DO3
+  scritto senza toccare DO0, AO1 = 7777, DI4 rifiutato (sola lettura). Progetti di prova cancellati, processi fermati.
+- **Al collaudo con l'MCM260X-9AD vero**: la mappa dei registri viene dal documento fornito dal maintainer, **non è
+  verificata sul manuale** — indirizzi, numero di I/O della versione 9AD, decimali degli ingressi analogici. Un errore
+  si corregge nel JSON (`_mcm_di.json`, `_mcm_do.json`, `_mcm_analogici.json`, o il file della variante), senza ricompilare. Il bus va creato RTU (l'MCM260X è Modbus RTU / CANopen),
+  19200 8N1 di fabbrica secondo la mappa.
+- Nota: i membri dei gruppi non spuntati (es. «configurazione») esistono nel tipo ma non si leggono; nel TagDb partono
+  col valore iniziale dell'istanza, e risultano «Good» a 0 — da guardare (non è del catalogo: è come nascono i membri
+  delle istanze).
+- **Poi**: squash dei quattro rami su `main` nell'ordine dell'annidamento, eliminazione dei rami, archivio dei piani.
+
 ## ▶ Riprendere da qui — tre rami annidati, Modbus a bus → dispositivi (2026-10-04, pomeriggio)
 
 **Rami aperti, annidati:** `feat/istanze-e-deploy-con-conferma` (da `main`) → `feat/tag-3-modbus` →

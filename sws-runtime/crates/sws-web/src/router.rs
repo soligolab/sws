@@ -106,6 +106,9 @@ pub struct AppState {
     pub project_dir: ActiveProjectDir,
     pub projects_root: Arc<PathBuf>,
     pub templates_root: Arc<PathBuf>,
+    /// Il catalogo dei dispositivi del prodotto (`--catalog-root`); quello
+    /// dell'utente sta in `config_dir`. Vedi `catalogo.rs`.
+    pub catalog_root: Arc<PathBuf>,
     pub logs: Arc<LogBus>,
     pub logs_dir: Arc<PathBuf>,
     pub started_at: std::time::Instant,
@@ -226,6 +229,7 @@ pub fn build(
     project_dir: ActiveProjectDir,
     projects_root: Arc<PathBuf>,
     templates_root: Arc<PathBuf>,
+    catalog_root: Arc<PathBuf>,
     logs: Arc<LogBus>,
     logs_dir: Arc<PathBuf>,
     started_at: std::time::Instant,
@@ -271,6 +275,7 @@ pub fn build(
         project_dir,
         projects_root,
         templates_root,
+        catalog_root,
         logs,
         logs_dir,
         started_at,
@@ -877,6 +882,11 @@ pub fn build(
                 .layer(DefaultBodyLimit::max(LIMITE_CORPO_UPLOAD)),
         )
         .route("/api/templates", get(crate::templates::list_templates))
+        // Il catalogo dei dispositivi noti (04-10-2026): dati di prodotto come i
+        // template, e pre-auth per lo stesso motivo — più uno: le icone si
+        // caricano con un <img>, che non può portare il token.
+        .route("/api/catalogo/dispositivi", get(crate::catalogo::elenco_handler))
+        .route("/api/catalogo/dispositivi/:marca/:nome", get(crate::catalogo::voce_handler))
         // Mini directory browser backing the "choose a destination folder"
         // picker in the New Project dialog. Pre-auth like the rest of this
         // group — no session exists yet when creating the first project.

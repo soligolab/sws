@@ -92,6 +92,7 @@ RUN apt-get update && \
 # immagine, vedi docs/DEPLOY_CONTAINER_AARCH64.md per il comando completo.
 COPY bin/             /usr/local/bin/
 COPY templates/      /var/sws/templates/
+COPY catalogo/       /var/sws/catalogo/
 
 # Font emoji (T-71), solo con --with-lvgl: scripts/build_container.sh popola
 # fonts/ solo in quel caso, quindi con --no-lvgl questo layer è vuoto — un
@@ -202,6 +203,7 @@ ENTRYPOINT ["/usr/local/bin/sws-runtime"]
 CMD ["--config", "/var/sws/config", \
      "--projects-root", "/var/sws/projects", \
      "--templates-root", "/var/sws/templates", \
+     "--catalog-root", "/var/sws/catalogo/dispositivi", \
      "--www", "/var/sws/www", \
      "--viewer-port", "8443", \
      "--admin-port", "8444", \

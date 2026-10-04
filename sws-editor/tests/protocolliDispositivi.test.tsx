@@ -45,7 +45,7 @@ describe("Protocolli: bus → dispositivi", () => {
     const voci = useAppStore.getState().elenchiConfig.protocols!;
     expect(voci[0].figli).toEqual([
       { id: "linea/1", etichetta: "unit 1" },
-      { id: "linea/3", etichetta: "inverter · 3" },
+      { id: "linea/3", etichetta: "inverter · 3", modello: "pixsys/atr244@1" },
     ]);
   });
 
@@ -65,6 +65,29 @@ describe("Protocolli: bus → dispositivi", () => {
     fireEvent.click(screen.getByTestId("modbus-dev-add-linea"));
     expect(useAppStore.getState().configFocus).toBe("linea/2");
     expect(screen.getByTestId("modbus-dev-card-linea-2")).toBeTruthy();
+  });
+
+  it("un dispositivo appena aggiunto si annulla; uno salvato si elimina; si torna al bus", () => {
+    useAppStore.setState({ configFocus: "linea" });
+    render(<ProtocolsTab />);
+    fireEvent.click(screen.getByTestId("modbus-dev-add-linea"));
+    const annulla = screen.getByTestId("modbus-dev-remove-linea-2");
+    expect(annulla.textContent).toMatch(/Annulla|Cancel/);
+    fireEvent.click(annulla);
+    expect(useAppStore.getState().configFocus).toBe("linea");
+    expect(useAppStore.getState().elenchiConfig.protocols![0].figli!.map((f) => f.id)).toEqual(["linea/1", "linea/3"]);
+    expect(useAppStore.getState().elenchiConfig.protocols![0].modificato).toBe(false); // tornati al salvato
+
+  });
+
+  it("un dispositivo già salvato dice Elimina", () => {
+    useAppStore.setState({ configFocus: "linea/3" });
+    render(<ProtocolsTab />);
+    const elimina = screen.getByTestId("modbus-dev-remove-linea-3");
+    expect(elimina.textContent).toMatch(/Elimina|Delete/);
+    fireEvent.click(elimina);
+    expect(useAppStore.getState().configFocus).toBe("linea");
+    expect(useAppStore.getState().elenchiConfig.protocols![0].figli!.map((f) => f.id)).toEqual(["linea/1"]);
   });
 
   it("un progetto di prima si apre senza risultare modificato, e passa ai devices alla prima modifica", () => {

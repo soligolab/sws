@@ -1,0 +1,26 @@
+{
+  "id": "pixsys/drr460",
+  "versione": 1,
+  "marca": "Pixsys",
+  "modello": "DRR460",
+  "famiglia": "Indicatori DRR",
+  "descrizione": {
+    "it": "Regolatore / indicatore da guida DIN",
+    "en": "DIN-rail controller / indicator"
+  },
+  "immagine": "drr460.jpg",
+  "modbus": {
+    "ordine": "cdab",
+    "timeout_ms": 1000,
+    "seriale": {
+      "baud_rate": 19200,
+      "parity": "N",
+      "data_bits": 8,
+      "stop_bits": 1
+    }
+  },
+  "includi": [
+    "pixsys/_comuni",
+    "pixsys/_drr"
+  ]
+}

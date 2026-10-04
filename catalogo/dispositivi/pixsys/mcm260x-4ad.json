@@ -1,0 +1,181 @@
+{
+  "id": "pixsys/mcm260x-4ad",
+  "versione": 1,
+  "marca": "Pixsys",
+  "modello": "MCM260X-4AD",
+  "famiglia": "Moduli I/O MCM260X",
+  "descrizione": {
+    "it": "Modulo I/O remoto Modbus RTU / CANopen: 8 ingressi digitali PNP, 8 uscite a relè 5 A, 3 encoder. Gli encoder/contatori non sono ancora nel catalogo: la mappa dei registri non li riporta.",
+    "en": "Remote I/O module Modbus RTU / CANopen: 8 PNP digital inputs, 8 relay outputs 5 A, 3 encoders. Encoders/counters are not in the catalog yet: the register map does not list them."
+  },
+  "immagine": "mcm260x-3ad.jpg",
+  "modbus": {
+    "ordine": "cdab",
+    "timeout_ms": 1000,
+    "seriale": {
+      "baud_rate": 19200,
+      "parity": "N",
+      "data_bits": 8,
+      "stop_bits": 1
+    }
+  },
+  "includi": [
+    "pixsys/_comuni",
+    "pixsys/_mcm_di",
+    "pixsys/_mcm_do"
+  ],
+  "registri": [
+    {
+      "nome": "ingressi_digitali",
+      "indirizzo": 10,
+      "accesso": "r",
+      "gruppo": "ingressi",
+      "descrizione": {
+        "it": "Ingressi digitali DI0-DI7",
+        "en": "Digital inputs DI0-DI7"
+      },
+      "bit": [
+        {
+          "bit": 0,
+          "nome": "di0",
+          "descrizione": {
+            "it": "Ingresso digitale 0",
+            "en": "Digital input 0"
+          }
+        },
+        {
+          "bit": 1,
+          "nome": "di1",
+          "descrizione": {
+            "it": "Ingresso digitale 1",
+            "en": "Digital input 1"
+          }
+        },
+        {
+          "bit": 2,
+          "nome": "di2",
+          "descrizione": {
+            "it": "Ingresso digitale 2",
+            "en": "Digital input 2"
+          }
+        },
+        {
+          "bit": 3,
+          "nome": "di3",
+          "descrizione": {
+            "it": "Ingresso digitale 3",
+            "en": "Digital input 3"
+          }
+        },
+        {
+          "bit": 4,
+          "nome": "di4",
+          "descrizione": {
+            "it": "Ingresso digitale 4",
+            "en": "Digital input 4"
+          }
+        },
+        {
+          "bit": 5,
+          "nome": "di5",
+          "descrizione": {
+            "it": "Ingresso digitale 5",
+            "en": "Digital input 5"
+          }
+        },
+        {
+          "bit": 6,
+          "nome": "di6",
+          "descrizione": {
+            "it": "Ingresso digitale 6",
+            "en": "Digital input 6"
+          }
+        },
+        {
+          "bit": 7,
+          "nome": "di7",
+          "descrizione": {
+            "it": "Ingresso digitale 7",
+            "en": "Digital input 7"
+          }
+        }
+      ]
+    },
+    {
+      "nome": "uscite_digitali",
+      "indirizzo": 20,
+      "accesso": "rw",
+      "gruppo": "uscite",
+      "descrizione": {
+        "it": "Comando delle uscite DO0-DO7",
+        "en": "Outputs command DO0-DO7"
+      },
+      "bit": [
+        {
+          "bit": 0,
+          "nome": "do0",
+          "descrizione": {
+            "it": "Uscita a relè 0",
+            "en": "Relay output 0"
+          }
+        },
+        {
+          "bit": 1,
+          "nome": "do1",
+          "descrizione": {
+            "it": "Uscita a relè 1",
+            "en": "Relay output 1"
+          }
+        },
+        {
+          "bit": 2,
+          "nome": "do2",
+          "descrizione": {
+            "it": "Uscita a relè 2",
+            "en": "Relay output 2"
+          }
+        },
+        {
+          "bit": 3,
+          "nome": "do3",
+          "descrizione": {
+            "it": "Uscita a relè 3",
+            "en": "Relay output 3"
+          }
+        },
+        {
+          "bit": 4,
+          "nome": "do4",
+          "descrizione": {
+            "it": "Uscita a relè 4",
+            "en": "Relay output 4"
+          }
+        },
+        {
+          "bit": 5,
+          "nome": "do5",
+          "descrizione": {
+            "it": "Uscita a relè 5",
+            "en": "Relay output 5"
+          }
+        },
+        {
+          "bit": 6,
+          "nome": "do6",
+          "descrizione": {
+            "it": "Uscita a relè 6",
+            "en": "Relay output 6"
+          }
+        },
+        {
+          "bit": 7,
+          "nome": "do7",
+          "descrizione": {
+            "it": "Uscita a relè 7",
+            "en": "Relay output 7"
+          }
+        }
+      ]
+    }
+  ]
+}

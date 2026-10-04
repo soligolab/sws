@@ -68,6 +68,10 @@ echo "==> Installing templates..."
 rm -rf "$SWS_HOME/templates"
 cp -r  "$SCRIPT_DIR/templates" "$SWS_HOME/templates"
 
+echo "==> Installing the device catalog..."
+rm -rf "$SWS_HOME/catalogo"
+[ -d "$SCRIPT_DIR/catalogo" ] && cp -r "$SCRIPT_DIR/catalogo" "$SWS_HOME/catalogo"
+
 # Seed the env file only on the very first install so upgrades never clobber
 # the operator's credentials.
 if [ ! -f "$SWS_HOME/runtime.env" ]; then

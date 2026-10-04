@@ -1608,6 +1608,51 @@ fn controlli_modbus<'a>(src: &'a SourceDef, id: &'a str, porte_rtu: &mut HashMap
              dispositivo, oppure toglili",
         ));
     }
+    // Formato sul filo e bit (catalogo dei dispositivi, 04-10-2026).
+    let mut righe: Vec<(String, &sws_core::RegisterMapping)> = Vec::new();
+    if devices.is_empty() {
+        righe.extend(registers.iter().enumerate().map(|(i, r)| (format!("registers[{i}]"), r)));
+    }
+    for (d, dev) in devices.iter().enumerate() {
+        righe.extend(dev.registers.iter().enumerate().map(|(i, r)| (format!("devices[{d}].registers[{i}]"), r)));
+    }
+    for (dove, r) in righe {
+        let formato = r.formato.as_deref().map(|f| (f, sws_core::TipoScalare::parse(f)));
+        if let Some((f, t)) = &formato {
+            if !matches!(t, Some(t) if !matches!(t, sws_core::TipoScalare::Stringa { .. } | sws_core::TipoScalare::DateTime)) {
+                out.push(Finding::err(
+                    format!("project.sources[{id}].{dove}.formato"),
+                    format!("formato `{f}` non è un tipo numerico"),
+                    "usa un tipo scalare numerico: i16, u16, i32, u32, f32, i64, u64, f64",
+                ));
+            }
+        }
+        if let Some(b) = r.bit {
+            if b > 15 {
+                out.push(Finding::err(
+                    format!("project.sources[{id}].{dove}.bit"),
+                    format!("bit {b}: un registro ne ha 16, da 0 a 15"),
+                    "correggi il numero del bit",
+                ));
+            }
+            if r.area.a_bit() {
+                out.push(Finding::err(
+                    format!("project.sources[{id}].{dove}.bit"),
+                    "`bit` su un'area a bit (coil, discrete)",
+                    "`bit` estrae un bit da un registro: su coil e discrete ogni indirizzo è già un bit, toglilo",
+                ));
+            }
+            if let Some((f, _)) = &formato {
+                if !matches!(*f, "u16" | "i16") {
+                    out.push(Finding::err(
+                        format!("project.sources[{id}].{dove}.formato"),
+                        format!("`bit` con formato `{f}`"),
+                        "un bit si estrae da un registro a 16 bit: togli il formato o usa u16",
+                    ));
+                }
+            }
+        }
+    }
     let mut visti = HashSet::new();
     for (d, dev) in devices.iter().enumerate() {
         if !visti.insert(dev.unit_id) {
@@ -2932,6 +2977,36 @@ alarms: []
             rs.iter().any(|f| f.path == "project.sources[linea].devices[0].registers[1].tag"),
             "il tag non dichiarato dentro un dispositivo: {rs:?}"
         );
+    }
+
+    /// Formato sul filo e bit (catalogo dei dispositivi, 04-10-2026).
+    #[test]
+    fn formato_e_bit_si_controllano() {
+        let prog = r#"
+meta: { name: prova, version: "1.0.0" }
+tags: [{ id: a, data_type: f32 }]
+sources:
+  - kind: modbus_tcp
+    id: plc
+    host: h
+    devices:
+      - unit_id: 1
+        registers:
+          - { tag: a, address: 0, formato: i16, scale: 0.1 }
+          - { tag: a, address: 1, formato: string(4) }
+          - { tag: a, address: 2, bit: 16 }
+          - { tag: a, address: 3, bit: 2, area: coil }
+          - { tag: a, address: 4, bit: 2, formato: f32 }
+alarms: []
+"#;
+        let rs = rilievi(prog, &pagina("- { id: x, type: rect, x: 0, y: 0 }"));
+        let e = errori(&rs);
+        let su = |p: &str| e.iter().any(|f| f.path == format!("project.sources[plc].devices[0].{p}"));
+        assert!(!su("registers[0].formato"), "i16 va bene: {rs:?}");
+        assert!(su("registers[1].formato"), "{rs:?}");
+        assert!(su("registers[2].bit"), "{rs:?}");
+        assert!(su("registers[3].bit"), "{rs:?}");
+        assert!(su("registers[4].formato"), "{rs:?}");
     }
 
     #[test]

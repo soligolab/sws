@@ -1,0 +1,26 @@
+{
+  "id": "pixsys/mcm260x-5ad",
+  "versione": 1,
+  "marca": "Pixsys",
+  "modello": "MCM260X-5AD",
+  "famiglia": "Moduli I/O MCM260X",
+  "descrizione": {
+    "it": "Modulo I/O remoto Modbus RTU / CANopen: 4 ingressi analogici universali (TC, RTD, V, mA), 2 uscite analogiche",
+    "en": "Remote I/O module Modbus RTU / CANopen: 4 universal analog inputs (TC, RTD, V, mA), 2 analog outputs"
+  },
+  "immagine": "mcm260x-3ad.jpg",
+  "modbus": {
+    "ordine": "cdab",
+    "timeout_ms": 1000,
+    "seriale": {
+      "baud_rate": 19200,
+      "parity": "N",
+      "data_bits": 8,
+      "stop_bits": 1
+    }
+  },
+  "includi": [
+    "pixsys/_comuni",
+    "pixsys/_mcm_analogici"
+  ]
+}

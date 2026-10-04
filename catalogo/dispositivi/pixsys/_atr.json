@@ -1,0 +1,222 @@
+{
+  "id": "pixsys/_atr",
+  "descrizione": {
+    "it": "Regolatori ATR: variabili di processo, stato e comandi",
+    "en": "ATR controllers: process variables, status and commands"
+  },
+  "registri": [
+    {
+      "nome": "pv1",
+      "indirizzo": 1000,
+      "formato": "i16",
+      "scala": 0.1,
+      "unita": "°C",
+      "accesso": "r",
+      "gruppo": "processo",
+      "descrizione": {
+        "it": "Variabile di processo AI1 (ingresso principale), decimali secondo il parametro Dec.P del dispositivo: la scala 0.1 vale per un decimale, correggila se serve",
+        "en": "Process variable AI1 (main input), decimals per the device's Dec.P parameter: scale 0.1 is for one decimal, change it if needed"
+      }
+    },
+    {
+      "nome": "pv2",
+      "indirizzo": 1001,
+      "formato": "i16",
+      "scala": 0.1,
+      "unita": "°C",
+      "accesso": "r",
+      "gruppo": "processo",
+      "descrizione": {
+        "it": "Variabile di processo AI2 (ingresso ausiliario), decimali secondo il parametro Dec.P del dispositivo: la scala 0.1 vale per un decimale, correggila se serve",
+        "en": "Process variable AI2 (auxiliary input), decimals per the device's Dec.P parameter: scale 0.1 is for one decimal, change it if needed"
+      }
+    },
+    {
+      "nome": "setpoint_attivo",
+      "indirizzo": 1002,
+      "formato": "i16",
+      "scala": 0.1,
+      "unita": "°C",
+      "accesso": "r",
+      "gruppo": "processo",
+      "descrizione": {
+        "it": "Setpoint attivo, decimali secondo il parametro Dec.P del dispositivo: la scala 0.1 vale per un decimale, correggila se serve",
+        "en": "Active setpoint, decimals per the device's Dec.P parameter: scale 0.1 is for one decimal, change it if needed"
+      }
+    },
+    {
+      "nome": "potenza",
+      "indirizzo": 1003,
+      "formato": "i16",
+      "scala": 0.1,
+      "unita": "%",
+      "accesso": "r",
+      "gruppo": "processo",
+      "descrizione": {
+        "it": "Potenza in uscita, -100.0 … +100.0 %",
+        "en": "Output power, -100.0 … +100.0 %"
+      }
+    },
+    {
+      "nome": "stato",
+      "indirizzo": 1004,
+      "accesso": "r",
+      "gruppo": "processo",
+      "descrizione": {
+        "it": "Parola di stato",
+        "en": "Status word"
+      },
+      "bit": [
+        {
+          "bit": 0,
+          "nome": "allarme1",
+          "descrizione": {
+            "it": "Allarme 1 attivo",
+            "en": "Alarm 1 active"
+          }
+        },
+        {
+          "bit": 1,
+          "nome": "allarme2",
+          "descrizione": {
+            "it": "Allarme 2 attivo",
+            "en": "Alarm 2 active"
+          }
+        },
+        {
+          "bit": 2,
+          "nome": "allarme3",
+          "descrizione": {
+            "it": "Allarme 3 attivo",
+            "en": "Alarm 3 active"
+          }
+        },
+        {
+          "bit": 3,
+          "nome": "allarme4",
+          "descrizione": {
+            "it": "Allarme 4 attivo",
+            "en": "Alarm 4 active"
+          }
+        },
+        {
+          "bit": 4,
+          "nome": "uscita_caldo",
+          "descrizione": {
+            "it": "Uscita di riscaldamento attiva",
+            "en": "Heating output active"
+          }
+        },
+        {
+          "bit": 5,
+          "nome": "uscita_freddo",
+          "descrizione": {
+            "it": "Uscita di raffreddamento attiva",
+            "en": "Cooling output active"
+          }
+        },
+        {
+          "bit": 8,
+          "nome": "tuning_in_corso",
+          "descrizione": {
+            "it": "Autotuning in corso",
+            "en": "Tuning in progress"
+          }
+        },
+        {
+          "bit": 9,
+          "nome": "manuale",
+          "descrizione": {
+            "it": "Modo manuale (falso = automatico)",
+            "en": "Manual mode (false = automatic)"
+          }
+        },
+        {
+          "bit": 10,
+          "nome": "errore_sensore1",
+          "descrizione": {
+            "it": "Sensore 1 aperto o in errore",
+            "en": "Sensor 1 open or in error"
+          }
+        },
+        {
+          "bit": 11,
+          "nome": "errore_sensore2",
+          "descrizione": {
+            "it": "Sensore 2 aperto o in errore",
+            "en": "Sensor 2 open or in error"
+          }
+        }
+      ]
+    },
+    {
+      "nome": "parola_allarmi",
+      "indirizzo": 1005,
+      "accesso": "r",
+      "gruppo": "processo",
+      "descrizione": {
+        "it": "Parola degli allarmi attivi",
+        "en": "Active alarms word"
+      }
+    },
+    {
+      "nome": "sp1",
+      "indirizzo": 2000,
+      "formato": "i16",
+      "scala": 0.1,
+      "unita": "°C",
+      "accesso": "rw",
+      "gruppo": "comandi",
+      "descrizione": {
+        "it": "Setpoint 1 (fra Min.SP e Max.SP), decimali secondo il parametro Dec.P del dispositivo: la scala 0.1 vale per un decimale, correggila se serve",
+        "en": "Setpoint 1 (between Min.SP and Max.SP), decimals per the device's Dec.P parameter: scale 0.1 is for one decimal, change it if needed"
+      }
+    },
+    {
+      "nome": "sp2",
+      "indirizzo": 2001,
+      "formato": "i16",
+      "scala": 0.1,
+      "unita": "°C",
+      "accesso": "rw",
+      "gruppo": "comandi",
+      "descrizione": {
+        "it": "Setpoint 2, decimali secondo il parametro Dec.P del dispositivo: la scala 0.1 vale per un decimale, correggila se serve",
+        "en": "Setpoint 2, decimals per the device's Dec.P parameter: scale 0.1 is for one decimal, change it if needed"
+      }
+    },
+    {
+      "nome": "potenza_manuale",
+      "indirizzo": 2002,
+      "formato": "i16",
+      "scala": 0.1,
+      "unita": "%",
+      "accesso": "rw",
+      "gruppo": "comandi",
+      "descrizione": {
+        "it": "Potenza in modo manuale, -100.0 … +100.0 %",
+        "en": "Manual mode power, -100.0 … +100.0 %"
+      }
+    },
+    {
+      "nome": "modo",
+      "indirizzo": 2003,
+      "accesso": "rw",
+      "gruppo": "comandi",
+      "descrizione": {
+        "it": "Modo: 0 = stop, 1 = automatico, 2 = manuale",
+        "en": "Mode: 0 = stop, 1 = automatic, 2 = manual"
+      }
+    },
+    {
+      "nome": "comando_tuning",
+      "indirizzo": 2004,
+      "accesso": "rw",
+      "gruppo": "comandi",
+      "descrizione": {
+        "it": "1 = avvia l'autotuning",
+        "en": "1 = start automatic tuning"
+      }
+    }
+  ]
+}

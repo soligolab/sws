@@ -33,6 +33,20 @@ collegata o non ancora salvata). È lo stato visto dal runtime con cui l'IDE par
 con un dispositivo; l'IDE lo riscrive nel formato nuovo alla prima modifica di un dispositivo. Con `devices` presenti, i
 campi di prima sono ignorati (il validatore lo segnala).
 
+### Il catalogo dei dispositivi
+
+Dentro un bus, **«+ Dal catalogo…»** aggiunge un dispositivo completo e già configurato: si sceglie il modello (con la
+sua icona), l'unit id, il nome della variabile e i gruppi di registri da leggere. Nascono un **tipo** per il modello
+(tutti i suoi registri, i bit delle word come membri vero/falso, unità e decimali), una **variabile** istanza di quel
+tipo e il **dispositivo** del bus con le mappature, l'ordine dei byte e il timeout del modello. Un secondo dispositivo
+dello stesso modello riusa il tipo. Tipo e variabile si salvano subito; il dispositivo si salva coi Protocolli.
+
+Oggi il catalogo ha i Pixsys ATR121/142/144/244, STR551/561/571, MCM260X nelle sei varianti (1AD, 2AD, 3AD, 4AD,
+5AD, 9AD, ognuna coi suoi I/O), MCM280X, DRR245/460, dalla mappa dei registri
+fornita da Pixsys — **da verificare sul manuale di ogni prodotto** (i decimali `Dec.P` in particolare: la scala
+proposta è 0.1). I file stanno in `catalogo/dispositivi/` e si leggono a ogni apertura: correggerli o aggiungerne è
+spiegato in `docs/HOWTO.md`, capitolo 22.
+
 ### Configurazione YAML
 
 ```yaml
@@ -87,7 +101,10 @@ sources:
 | `tag` | ID tag SWS: un tag, una **foglia** (`m1.velocita`) o la **radice** di un'istanza (`m1`) |
 | `area` | `holding` (default, FC3/FC6/FC16), `input` (FC4, sola lettura), `coil` (FC1/FC5/FC15, bit), `discrete` (FC2, bit, sola lettura) |
 | `address` | Indirizzo di partenza (0-based) |
-| `scale` | Solo per i tipi storici: valore_tag = valore_raw × scale |
+| `scale` | Per i tipi storici, o con un `formato`: valore_tag = valore_raw × scale |
+| `formato` | Il tipo **sul filo** (`i16`, `u32`, `f32`…): decide registri e decodifica al posto del tipo del tag, e la scala si applica sempre — un `i16` × 0.1 dà −12.5 in un tag `f32` |
+| `bit` | Un bit (0-15) del registro, letto come vero/falso; in scrittura il registro si legge, si cambia il bit e si riscrive. Più bit della stessa word sono una lettura sola |
+| `sola_lettura` | La scrittura è rifiutata anche su un holding register |
 
 E sul dispositivo: `ordine: abcd | cdab | badc | dcba` (default `abcd`), come il dispositivo mette i valori su più
 registri — ABCD parola alta e byte alto prima, CDAB parole scambiate, BADC byte scambiati, DCBA tutto rovesciato.

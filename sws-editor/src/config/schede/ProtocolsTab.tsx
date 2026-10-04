@@ -76,7 +76,9 @@ export function ProtocolsTab() {
   usePubblicaElenco("protocols", sources.map((x): VoceElencoConfig => {
     const voce: VoceElencoConfig = { id: x.id, etichetta: x.id, modificato: eModificato(storeProject?.sources, x) };
     if (eBusModbus(x)) {
-      voce.figli = dispositiviDi(x).map((d) => ({ id: focusDispositivo(x.id, d.unit_id), etichetta: etichettaDispositivo(d) }));
+      voce.figli = dispositiviDi(x).map((d) => ({
+        id: focusDispositivo(x.id, d.unit_id), etichetta: etichettaDispositivo(d), ...(d.modello ? { modello: d.modello } : {}),
+      }));
     }
     return voce;
   }));

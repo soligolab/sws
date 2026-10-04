@@ -1,0 +1,28 @@
+{
+  "id": "pixsys/mcm260x-9ad",
+  "versione": 1,
+  "marca": "Pixsys",
+  "modello": "MCM260X-9AD",
+  "famiglia": "Moduli I/O MCM260X",
+  "descrizione": {
+    "it": "Modulo I/O remoto Modbus RTU / CANopen: 4 ingressi e 2 uscite analogici, 16 linee digitali PNP configurabili come ingressi o uscite, 4 encoder. Gli encoder/contatori non sono ancora nel catalogo: la mappa dei registri non li riporta.",
+    "en": "Remote I/O module Modbus RTU / CANopen: 4 analog inputs and 2 outputs, 16 PNP digital lines selectable as inputs or outputs, 4 encoders. Encoders/counters are not in the catalog yet: the register map does not list them."
+  },
+  "immagine": "mcm260x-9ad.jpg",
+  "modbus": {
+    "ordine": "cdab",
+    "timeout_ms": 1000,
+    "seriale": {
+      "baud_rate": 19200,
+      "parity": "N",
+      "data_bits": 8,
+      "stop_bits": 1
+    }
+  },
+  "includi": [
+    "pixsys/_comuni",
+    "pixsys/_mcm_di",
+    "pixsys/_mcm_do",
+    "pixsys/_mcm_analogici"
+  ]
+}

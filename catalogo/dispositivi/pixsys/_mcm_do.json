@@ -1,0 +1,149 @@
+{
+  "id": "pixsys/_mcm_do",
+  "descrizione": {
+    "it": "Moduli MCM: word delle uscite digitali (registro 20)",
+    "en": "MCM modules: digital outputs word (register 20)"
+  },
+  "registri": [
+    {
+      "nome": "uscite_digitali",
+      "indirizzo": 20,
+      "accesso": "rw",
+      "gruppo": "uscite",
+      "descrizione": {
+        "it": "Comando delle uscite DO0-DO15",
+        "en": "Outputs command DO0-DO15"
+      },
+      "bit": [
+        {
+          "bit": 0,
+          "nome": "do0",
+          "descrizione": {
+            "it": "Uscita digitale 0",
+            "en": "Digital output 0"
+          }
+        },
+        {
+          "bit": 1,
+          "nome": "do1",
+          "descrizione": {
+            "it": "Uscita digitale 1",
+            "en": "Digital output 1"
+          }
+        },
+        {
+          "bit": 2,
+          "nome": "do2",
+          "descrizione": {
+            "it": "Uscita digitale 2",
+            "en": "Digital output 2"
+          }
+        },
+        {
+          "bit": 3,
+          "nome": "do3",
+          "descrizione": {
+            "it": "Uscita digitale 3",
+            "en": "Digital output 3"
+          }
+        },
+        {
+          "bit": 4,
+          "nome": "do4",
+          "descrizione": {
+            "it": "Uscita digitale 4",
+            "en": "Digital output 4"
+          }
+        },
+        {
+          "bit": 5,
+          "nome": "do5",
+          "descrizione": {
+            "it": "Uscita digitale 5",
+            "en": "Digital output 5"
+          }
+        },
+        {
+          "bit": 6,
+          "nome": "do6",
+          "descrizione": {
+            "it": "Uscita digitale 6",
+            "en": "Digital output 6"
+          }
+        },
+        {
+          "bit": 7,
+          "nome": "do7",
+          "descrizione": {
+            "it": "Uscita digitale 7",
+            "en": "Digital output 7"
+          }
+        },
+        {
+          "bit": 8,
+          "nome": "do8",
+          "descrizione": {
+            "it": "Uscita digitale 8",
+            "en": "Digital output 8"
+          }
+        },
+        {
+          "bit": 9,
+          "nome": "do9",
+          "descrizione": {
+            "it": "Uscita digitale 9",
+            "en": "Digital output 9"
+          }
+        },
+        {
+          "bit": 10,
+          "nome": "do10",
+          "descrizione": {
+            "it": "Uscita digitale 10",
+            "en": "Digital output 10"
+          }
+        },
+        {
+          "bit": 11,
+          "nome": "do11",
+          "descrizione": {
+            "it": "Uscita digitale 11",
+            "en": "Digital output 11"
+          }
+        },
+        {
+          "bit": 12,
+          "nome": "do12",
+          "descrizione": {
+            "it": "Uscita digitale 12",
+            "en": "Digital output 12"
+          }
+        },
+        {
+          "bit": 13,
+          "nome": "do13",
+          "descrizione": {
+            "it": "Uscita digitale 13",
+            "en": "Digital output 13"
+          }
+        },
+        {
+          "bit": 14,
+          "nome": "do14",
+          "descrizione": {
+            "it": "Uscita digitale 14",
+            "en": "Digital output 14"
+          }
+        },
+        {
+          "bit": 15,
+          "nome": "do15",
+          "descrizione": {
+            "it": "Uscita digitale 15",
+            "en": "Digital output 15"
+          }
+        }
+      ]
+    }
+  ]
+}

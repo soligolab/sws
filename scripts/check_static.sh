@@ -58,6 +58,7 @@ STATICHE=(
     check_tipi_scalari      # i tipi delle variabili (D5) sono una tabella sola: fixture, tipo.rs, tipiScalari.ts, select e validatore d'accordo
     check_tag_refs          # i campi-tag scalari di un oggetto: la stessa lista in Rust e in TS
     check_segreti           # i sette campi segreti: tabella sola, project.yaml a elenco chiuso, niente token nei log, template puliti
+    check_catalogo          # il catalogo dei dispositivi: JSON validi, include risolti, formati e bit sensati, due lingue, immagini leggere
 )
 
 # Vogliono uno stack in ascolto, podman o un dispositivo: a mano, non qui.

@@ -1,0 +1,26 @@
+{
+  "id": "pixsys/mcm260x-1ad",
+  "versione": 1,
+  "marca": "Pixsys",
+  "modello": "MCM260X-1AD",
+  "famiglia": "Moduli I/O MCM260X",
+  "descrizione": {
+    "it": "Modulo I/O remoto Modbus RTU / CANopen: 16 uscite digitali PNP",
+    "en": "Remote I/O module Modbus RTU / CANopen: 16 PNP digital outputs"
+  },
+  "immagine": "mcm260x-1ad.jpg",
+  "modbus": {
+    "ordine": "cdab",
+    "timeout_ms": 1000,
+    "seriale": {
+      "baud_rate": 19200,
+      "parity": "N",
+      "data_bits": 8,
+      "stop_bits": 1
+    }
+  },
+  "includi": [
+    "pixsys/_comuni",
+    "pixsys/_mcm_do"
+  ]
+}

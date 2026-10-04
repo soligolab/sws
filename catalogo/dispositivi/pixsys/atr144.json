@@ -1,0 +1,26 @@
+{
+  "id": "pixsys/atr144",
+  "versione": 1,
+  "marca": "Pixsys",
+  "modello": "ATR144",
+  "famiglia": "Regolatori ATR",
+  "descrizione": {
+    "it": "Regolatore PID 32x74 mm compatto, programmabile via NFC, RS485 opzionale",
+    "en": "Compact PID controller 32x74 mm, NFC programmable, optional RS485"
+  },
+  "immagine": "atr144.jpg",
+  "modbus": {
+    "ordine": "cdab",
+    "timeout_ms": 1000,
+    "seriale": {
+      "baud_rate": 19200,
+      "parity": "N",
+      "data_bits": 8,
+      "stop_bits": 1
+    }
+  },
+  "includi": [
+    "pixsys/_comuni",
+    "pixsys/_atr"
+  ]
+}

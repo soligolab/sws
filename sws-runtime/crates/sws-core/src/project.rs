@@ -692,7 +692,7 @@ impl ModbusRtuConfig {
 }
 
 /// L'area Modbus di una mappatura (Fase 3, 04-10-2026).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AreaModbus {
     /// Holding register, FC3/FC6/FC16: lettura e scrittura. Il default, ed è
@@ -751,6 +751,19 @@ pub struct RegisterMapping {
     /// L'area (Fase 3): holding, input, coil o discrete input.
     #[serde(default, skip_serializing_if = "AreaModbus::e_predefinita")]
     pub area: AreaModbus,
+    /// Il tipo **sul filo** (catalogo dei dispositivi, 04-10-2026): `i16`,
+    /// `u32`, `f32`… Se c'è, decide registri e decodifica al posto del tipo del
+    /// tag, e `scale` si applica sempre (`i16` × 0.1 → 10.0 in un tag `f32`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub formato: Option<String>,
+    /// Un bit (0-15) di un registro → un bool. In scrittura il registro si
+    /// legge, si cambia il bit e si riscrive.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bit: Option<u8>,
+    /// La scrittura è rifiutata anche su un holding register (i registri «R»
+    /// del manuale del dispositivo).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub sola_lettura: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

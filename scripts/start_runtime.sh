@@ -59,6 +59,7 @@ CONFIG_DIR="$RUN_DIR/config"
 # di sviluppo tiene i progetti in .run*/projects come sempre (gitignored).
 PROJECTS_ROOT="${SWS_PROJECTS_ROOT:-$RUN_DIR/projects}"
 TEMPLATES_ROOT="$REPO_ROOT/examples/templates"
+CATALOG_ROOT="$REPO_ROOT/catalogo/dispositivi"
 LOG_DIR="$RUN_DIR/logs"
 
 PYTHON_PATH=$(which python3 2>/dev/null || echo "")
@@ -250,6 +251,7 @@ exec "$REPO_ROOT/sws-runtime/target/debug/sws-runtime" \
   --config         "$CONFIG_DIR"         \
   --projects-root  "$PROJECTS_ROOT"      \
   --templates-root "$TEMPLATES_ROOT"     \
+  --catalog-root "$CATALOG_ROOT"         \
   --viewer-port    "$VIEWER_PORT"        \
   --admin-port     "$ADMIN_PORT"         \
   "${HTTP_ARGS[@]}"                      \

@@ -1,0 +1,27 @@
+{
+  "id": "pixsys/drr245",
+  "versione": 1,
+  "marca": "Pixsys",
+  "modello": "DRR245",
+  "famiglia": "Indicatori DRR",
+  "descrizione": {
+    "it": "Indicatore / convertitore da guida DIN (fuori produzione)",
+    "en": "DIN-rail indicator / converter (discontinued)"
+  },
+  "immagine": "drr245.jpg",
+  "modbus": {
+    "ordine": "cdab",
+    "timeout_ms": 1000,
+    "seriale": {
+      "baud_rate": 19200,
+      "parity": "N",
+      "data_bits": 8,
+      "stop_bits": 1
+    }
+  },
+  "includi": [
+    "pixsys/_comuni",
+    "pixsys/_drr"
+  ],
+  "fuori_produzione": true
+}

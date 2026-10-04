@@ -1,0 +1,75 @@
+{
+  "id": "pixsys/_comuni",
+  "descrizione": {
+    "it": "Registri comuni alla maggior parte dei dispositivi Pixsys (0-5)",
+    "en": "Registers shared by most Pixsys devices (0-5)"
+  },
+  "registri": [
+    {
+      "nome": "codice_modello",
+      "indirizzo": 0,
+      "accesso": "r",
+      "gruppo": "identificazione",
+      "descrizione": {
+        "it": "Codice numerico del modello",
+        "en": "Numeric model code"
+      }
+    },
+    {
+      "nome": "firmware",
+      "indirizzo": 1,
+      "scala": 0.01,
+      "accesso": "r",
+      "gruppo": "identificazione",
+      "descrizione": {
+        "it": "Revisione firmware (100 = v1.00)",
+        "en": "Firmware revision (100 = v1.00)"
+      }
+    },
+    {
+      "nome": "indirizzo_slave",
+      "indirizzo": 2,
+      "accesso": "rw",
+      "gruppo": "configurazione",
+      "predefinito": false,
+      "descrizione": {
+        "it": "Indirizzo Modbus dello slave (1-247)",
+        "en": "Slave Modbus address (1-247)"
+      }
+    },
+    {
+      "nome": "codice_baud",
+      "indirizzo": 3,
+      "accesso": "rw",
+      "gruppo": "configurazione",
+      "predefinito": false,
+      "descrizione": {
+        "it": "Velocità: 0=4800, 1=9600, 2=19200, 3=38400, 4=57600, 5=115200",
+        "en": "Baud rate: 0=4800, 1=9600, 2=19200, 3=38400, 4=57600, 5=115200"
+      }
+    },
+    {
+      "nome": "codice_parita",
+      "indirizzo": 4,
+      "accesso": "rw",
+      "gruppo": "configurazione",
+      "predefinito": false,
+      "descrizione": {
+        "it": "Parità e stop: 0=8-N-1, 1=8-E-1, 2=8-O-1, 3=8-N-2",
+        "en": "Parity and stop bits: 0=8-N-1, 1=8-E-1, 2=8-O-1, 3=8-N-2"
+      }
+    },
+    {
+      "nome": "ritardo_seriale",
+      "indirizzo": 5,
+      "accesso": "rw",
+      "gruppo": "configurazione",
+      "predefinito": false,
+      "unita": "ms",
+      "descrizione": {
+        "it": "Ritardo di risposta (0-100 ms)",
+        "en": "Response delay (0-100 ms)"
+      }
+    }
+  ]
+}

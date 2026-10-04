@@ -34,6 +34,7 @@ import { IntestazioneSezione, SPAZIO, TESTO, guideAlbero, useSezioneAperta } fro
 import { PallinoStato } from "@/config/sorgenti/DispositiviModbus";
 import { statoDispositivo, useStatoSorgenti } from "@/config/sorgenti/statoSorgenti";
 import { dispositiviDi, eBusModbus, etichettaDispositivo, focusDispositivo } from "@/config/sorgenti/modbusDispositivi";
+import { IconaCatalogo, useElencoCatalogo, voceDelModello } from "@/config/sorgenti/CatalogoDispositiviModal";
 
 /** Gli elementi di ricette e utenti, che il progetto non porta: una richiesta
  *  al montaggio dell'albero, come fanno le loro schede. */
@@ -67,7 +68,9 @@ function useElementi(isAdmin: boolean): (id: IdScheda) => VoceElencoConfig[] {
       case "protocols":  return (project?.sources ?? []).map((x) => ({
         id: x.id, etichetta: x.id,
         figli: eBusModbus(x)
-          ? dispositiviDi(x).map((d) => ({ id: focusDispositivo(x.id, d.unit_id), etichetta: etichettaDispositivo(d) }))
+          ? dispositiviDi(x).map((d) => ({
+              id: focusDispositivo(x.id, d.unit_id), etichetta: etichettaDispositivo(d), ...(d.modello ? { modello: d.modello } : {}),
+            }))
           : undefined,
       }));
       case "scripts":    return (project?.global_scripts ?? []).map((x) => ({ id: x.id, etichetta: x.id }));
@@ -119,6 +122,31 @@ function StatoProtocollo({ bus, unit }: { bus: string; unit?: number }) {
   const s = useStatoSorgenti()[bus];
   return <PallinoStato stato={unit === undefined ? s : statoDispositivo(s, unit)}
     testid={unit === undefined ? `stato-albero-${bus}` : `stato-albero-${bus}-${unit}`} />;
+}
+
+/** Un nodo dispositivo (04-10-2026): il suo nome, e sotto la descrizione del
+ *  modello del catalogo con l'icona — «Pixsys MCM260X-9AD». La descrizione
+ *  lunga sta nel tooltip. Senza modello, solo il nome. */
+function EtichettaDispositivo({ etichetta, modello, unit }: { etichetta: string; modello?: string; unit: number }) {
+  const { i18n } = useTranslation();
+  const voce = voceDelModello(useElencoCatalogo(), modello);
+  if (!voce) return <span style={stileEtichetta}>{etichetta}</span>;
+  const lingua = i18n.language?.startsWith("en") ? "en" : "it";
+  return (
+    <>
+      <IconaCatalogo voce={voce} lato={20} />
+      <span style={{ ...stileEtichetta, display: "flex", flexDirection: "column", lineHeight: 1.2 }}
+        title={`${voce.marca} ${voce.modello}${voce.descrizione?.[lingua] ? ` — ${voce.descrizione[lingua]}` : ""}`}>
+        {/* Il nome sopra, senza l'unit id (l'albero è stretto): l'unit id va
+            sotto, accanto al modello. */}
+        <span style={stileEtichetta}>{etichetta.replace(/ · \d+$/, "")}</span>
+        <span style={{ ...stileEtichetta, fontSize: TESTO.nota, fontWeight: 400, color: "var(--brand-text-subtle, #64748b)" }}
+          data-testid="descrizione-dispositivo">
+          {voce.modello} · unit {unit}
+        </span>
+      </span>
+    </>
+  );
 }
 
 function RilieviElemento({ tab, focus }: { tab: string; focus: string }) {
@@ -309,7 +337,7 @@ function Foglia({ scheda, elementi, modificata, dentroSottoRamo = false, ultimo 
                 }}
               >
                 {id === "protocols" && <StatoProtocollo bus={v.id} unit={unit} />}
-                <span style={stileEtichetta}>{f.etichetta}</span>
+                <EtichettaDispositivo etichetta={f.etichetta} modello={f.modello} unit={unit} />
                 <RilieviElemento tab={id} focus={f.id} />
               </button>
             );

@@ -1,0 +1,26 @@
+{
+  "id": "pixsys/atr121",
+  "versione": 1,
+  "marca": "Pixsys",
+  "modello": "ATR121",
+  "famiglia": "Regolatori ATR",
+  "descrizione": {
+    "it": "Regolatore PID 32x74 mm, ingresso analogico universale",
+    "en": "PID controller 32x74 mm, universal analog input"
+  },
+  "immagine": "atr121.jpg",
+  "modbus": {
+    "ordine": "cdab",
+    "timeout_ms": 1000,
+    "seriale": {
+      "baud_rate": 19200,
+      "parity": "N",
+      "data_bits": 8,
+      "stop_bits": 1
+    }
+  },
+  "includi": [
+    "pixsys/_comuni",
+    "pixsys/_atr"
+  ]
+}

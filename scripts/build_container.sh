@@ -259,7 +259,7 @@ fi
 CTX="$OUT_DIR/container-context"
 echo "==> [2/4] staging build context in $CTX"
 rm -rf "$CTX"
-mkdir -p "$CTX/bin" "$CTX/templates" "$CTX/www" "$CTX/fonts"
+mkdir -p "$CTX/bin" "$CTX/templates" "$CTX/catalogo" "$CTX/www" "$CTX/fonts"
 install -m 755 "$BIN" "$CTX/bin/sws-runtime"
 if [ "$WITH_LVGL" -eq 1 ]; then
     install -m 755 "$LVGL_BIN" "$CTX/bin/sws-lvgl-viewer"
@@ -272,6 +272,7 @@ if [ "$WITH_LVGL" -eq 1 ]; then
         "$CTX/fonts/NotoEmoji-Regular.ttf"
 fi
 cp -r "$REPO/examples/templates/." "$CTX/templates/"
+cp -r "$REPO/catalogo/." "$CTX/catalogo/"
 cp -r "$SPA_DIST/." "$CTX/www/"
 # I quadlet e l'installer viaggiano dentro l'immagine (02-10-2026, piano del
 # quadlet che viaggia): dopo un `podman auto-update` il runtime sa qual è il

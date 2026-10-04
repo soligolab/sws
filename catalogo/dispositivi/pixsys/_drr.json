@@ -1,0 +1,63 @@
+{
+  "id": "pixsys/_drr",
+  "descrizione": {
+    "it": "Indicatori e convertitori DRR",
+    "en": "DRR indicators and converters"
+  },
+  "registri": [
+    {
+      "nome": "valore1",
+      "indirizzo": 500,
+      "formato": "i16",
+      "accesso": "r",
+      "gruppo": "processo",
+      "descrizione": {
+        "it": "Valore convertito dell'ingresso 1",
+        "en": "Converted value of input 1"
+      }
+    },
+    {
+      "nome": "valore2",
+      "indirizzo": 501,
+      "formato": "i16",
+      "accesso": "r",
+      "gruppo": "processo",
+      "descrizione": {
+        "it": "Valore convertito dell'ingresso 2",
+        "en": "Converted value of input 2"
+      }
+    },
+    {
+      "nome": "ritrasmissione",
+      "indirizzo": 502,
+      "accesso": "r",
+      "gruppo": "processo",
+      "descrizione": {
+        "it": "Valore grezzo del DAC di ritrasmissione",
+        "en": "Raw retransmission DAC value"
+      }
+    },
+    {
+      "nome": "soglia_allarme1",
+      "indirizzo": 510,
+      "formato": "i16",
+      "accesso": "rw",
+      "gruppo": "comandi",
+      "descrizione": {
+        "it": "Soglia dell'allarme 1",
+        "en": "Alarm 1 threshold"
+      }
+    },
+    {
+      "nome": "soglia_allarme2",
+      "indirizzo": 511,
+      "formato": "i16",
+      "accesso": "rw",
+      "gruppo": "comandi",
+      "descrizione": {
+        "it": "Soglia dell'allarme 2",
+        "en": "Alarm 2 threshold"
+      }
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "id": "pixsys/mcm280x",
+  "versione": 1,
+  "marca": "Pixsys",
+  "modello": "MCM280X",
+  "famiglia": "Moduli I/O MCM",
+  "descrizione": {
+    "it": "Modulo I/O remoto Modbus TCP/IP su Ethernet, I/O analogici e digitali programmabili",
+    "en": "Remote I/O module Modbus TCP/IP over Ethernet, programmable analog and digital I/O"
+  },
+  "immagine": "mcm280x.jpg",
+  "modbus": {
+    "ordine": "cdab",
+    "timeout_ms": 1000
+  },
+  "includi": [
+    "pixsys/_comuni",
+    "pixsys/_mcm_di",
+    "pixsys/_mcm_do",
+    "pixsys/_mcm_analogici"
+  ]
+}

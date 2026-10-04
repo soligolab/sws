@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import i18n from "../src/i18n";
 
@@ -8,7 +8,9 @@ import i18n from "../src/i18n";
 vi.mock("@/api/client", async () => {
   const actual = await vi.importActual<typeof import("@/api/client")>("@/api/client");
   return { ...actual, api: { ...actual.api, getProject: vi.fn().mockResolvedValue(null),
-    listRecipes: vi.fn().mockResolvedValue([]), listUsers: vi.fn().mockResolvedValue([]) } };
+    listRecipes: vi.fn().mockResolvedValue([]), listUsers: vi.fn().mockResolvedValue([]),
+    catalogoDispositivi: vi.fn().mockResolvedValue({ voci: [{ id: "pixsys/mcm260x-9ad", marca: "Pixsys", modello: "MCM260X-9AD",
+      descrizione: { it: "Modulo I/O remoto", en: "Remote I/O module" }, origine: "prodotto" }] }) } };
 });
 
 import { LeftPanel } from "../src/editor/LeftPanel";
@@ -209,6 +211,22 @@ describe("pannello sinistro — le foglie di secondo livello (24-09-2026)", () =
     const prima = useAppStore.getState().elenchiConfig;
     pubblica("protocols", [{ id: "linea", etichetta: "linea", figli: [{ id: "linea/1", etichetta: "unit 1" }, { id: "linea/2", etichetta: "unit 2" }] }]);
     expect(useAppStore.getState().elenchiConfig).not.toBe(prima);
+  });
+
+  it("un dispositivo dal catalogo mostra sotto il nome il modello e l'unit id (04-10-2026)", async () => {
+    useAppStore.setState({
+      project: { sources: [{ id: "linea", kind: "modbus_rtu", devices: [
+        { unit_id: 1, nome: "io", modello: "pixsys/mcm260x-9ad@1", registers: [] }, { unit_id: 2 }] }] } as never,
+    });
+    monta();
+    fireEvent.click(screen.getByTestId("expand-config-protocols"));
+    const riga = screen.getByTestId("elemento-config-protocols-linea/1");
+    await waitFor(() => expect(riga.textContent).toContain("MCM260X-9AD · unit 1"));
+    expect(riga.textContent).toContain("io");
+    const titoli = [...riga.querySelectorAll("[title]")].map((e) => e.getAttribute("title"));
+    expect(titoli.some((x) => /^Pixsys MCM260X-9AD — (Modulo I\/O remoto|Remote I\/O module)$/.test(x ?? ""))).toBe(true);
+    // Senza modello, e salvato senza `registers`: solo il nome, e nessun crash.
+    expect(screen.getByTestId("elemento-config-protocols-linea/2").textContent).toContain("unit 2");
   });
 
   it("una pubblicazione identica non cambia lo store (niente ridisegni a ogni tasto)", () => {

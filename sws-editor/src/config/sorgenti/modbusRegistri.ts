@@ -34,8 +34,13 @@ export function registriMappatura(
   tagId: string,
   area: AreaModbus | undefined,
   project: Pick<ProjectInfo, "tags" | "types"> | null | undefined,
+  filo?: { formato?: string; bit?: number },
 ): RegistriMappatura {
   const aBit = area === "coil" || area === "discrete";
+  // Catalogo (04-10-2026): un bit di un registro, o un formato sul filo, dicono
+  // da soli cosa si legge, qualunque sia il tipo del tag.
+  if (filo?.bit !== undefined) return { n: 1, dettaglio: `bit ${filo.bit}`, storico: false };
+  if (filo?.formato) return { n: registriDiTipo(filo.formato), dettaglio: filo.formato, storico: false };
   const tags = project?.tags ?? [];
   const types = project?.types ?? [];
   const id = tagId.trim();

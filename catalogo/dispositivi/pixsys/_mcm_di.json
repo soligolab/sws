@@ -1,0 +1,149 @@
+{
+  "id": "pixsys/_mcm_di",
+  "descrizione": {
+    "it": "Moduli MCM: word degli ingressi digitali (registro 10)",
+    "en": "MCM modules: digital inputs word (register 10)"
+  },
+  "registri": [
+    {
+      "nome": "ingressi_digitali",
+      "indirizzo": 10,
+      "accesso": "r",
+      "gruppo": "ingressi",
+      "descrizione": {
+        "it": "Ingressi digitali DI0-DI15",
+        "en": "Digital inputs DI0-DI15"
+      },
+      "bit": [
+        {
+          "bit": 0,
+          "nome": "di0",
+          "descrizione": {
+            "it": "Ingresso digitale 0",
+            "en": "Digital input 0"
+          }
+        },
+        {
+          "bit": 1,
+          "nome": "di1",
+          "descrizione": {
+            "it": "Ingresso digitale 1",
+            "en": "Digital input 1"
+          }
+        },
+        {
+          "bit": 2,
+          "nome": "di2",
+          "descrizione": {
+            "it": "Ingresso digitale 2",
+            "en": "Digital input 2"
+          }
+        },
+        {
+          "bit": 3,
+          "nome": "di3",
+          "descrizione": {
+            "it": "Ingresso digitale 3",
+            "en": "Digital input 3"
+          }
+        },
+        {
+          "bit": 4,
+          "nome": "di4",
+          "descrizione": {
+            "it": "Ingresso digitale 4",
+            "en": "Digital input 4"
+          }
+        },
+        {
+          "bit": 5,
+          "nome": "di5",
+          "descrizione": {
+            "it": "Ingresso digitale 5",
+            "en": "Digital input 5"
+          }
+        },
+        {
+          "bit": 6,
+          "nome": "di6",
+          "descrizione": {
+            "it": "Ingresso digitale 6",
+            "en": "Digital input 6"
+          }
+        },
+        {
+          "bit": 7,
+          "nome": "di7",
+          "descrizione": {
+            "it": "Ingresso digitale 7",
+            "en": "Digital input 7"
+          }
+        },
+        {
+          "bit": 8,
+          "nome": "di8",
+          "descrizione": {
+            "it": "Ingresso digitale 8",
+            "en": "Digital input 8"
+          }
+        },
+        {
+          "bit": 9,
+          "nome": "di9",
+          "descrizione": {
+            "it": "Ingresso digitale 9",
+            "en": "Digital input 9"
+          }
+        },
+        {
+          "bit": 10,
+          "nome": "di10",
+          "descrizione": {
+            "it": "Ingresso digitale 10",
+            "en": "Digital input 10"
+          }
+        },
+        {
+          "bit": 11,
+          "nome": "di11",
+          "descrizione": {
+            "it": "Ingresso digitale 11",
+            "en": "Digital input 11"
+          }
+        },
+        {
+          "bit": 12,
+          "nome": "di12",
+          "descrizione": {
+            "it": "Ingresso digitale 12",
+            "en": "Digital input 12"
+          }
+        },
+        {
+          "bit": 13,
+          "nome": "di13",
+          "descrizione": {
+            "it": "Ingresso digitale 13",
+            "en": "Digital input 13"
+          }
+        },
+        {
+          "bit": 14,
+          "nome": "di14",
+          "descrizione": {
+            "it": "Ingresso digitale 14",
+            "en": "Digital input 14"
+          }
+        },
+        {
+          "bit": 15,
+          "nome": "di15",
+          "descrizione": {
+            "it": "Ingresso digitale 15",
+            "en": "Digital input 15"
+          }
+        }
+      ]
+    }
+  ]
+}

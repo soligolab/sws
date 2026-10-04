@@ -6,6 +6,8 @@ import { S } from "@/config/comuni";
 import { registriMappatura, type AreaModbus } from "@/config/sorgenti/modbusRegistri";
 
 const AREE: AreaModbus[] = ["holding", "input", "coil", "discrete"];
+/** I formati sul filo (catalogo, 04-10-2026): «dal tipo» è il vuoto. */
+const FORMATI = ["", "i16", "u16", "i32", "u32", "f32", "i64", "u64", "f64"];
 const ORDINI: OrdineModbus[] = ["abcd", "cdab", "badc", "dcba"];
 
 /** Ordine di parole e byte della sorgente (Fase 3, 04-10-2026). */
@@ -40,24 +42,28 @@ export function TabellaRegistriModbus({ registri, setRegister, removeRegister, o
       <table style={{ ...S.table, marginBottom: 8 }}>
         <thead>
           <tr>
-            <th style={{ ...S.th, width: "34%" }}>{t("cfg.variableTagId")}</th>
-            <th style={{ ...S.th, width: "16%" }}>{t("cfg.modbusArea")}</th>
-            <th style={{ ...S.th, width: "14%" }}>{t("cfg.registerAddr")}</th>
-            <th style={{ ...S.th, width: "14%" }}>{t("cfg.scale")}</th>
-            <th style={{ ...S.th, width: "18%" }}>{t("cfg.modbusRegistri")}</th>
+            <th style={{ ...S.th, width: "28%" }}>{t("cfg.variableTagId")}</th>
+            <th style={{ ...S.th, width: "13%" }}>{t("cfg.modbusArea")}</th>
+            <th style={{ ...S.th, width: "9%" }}>{t("cfg.registerAddr")}</th>
+            <th style={{ ...S.th, width: "10%" }} title={t("cfg.modbusFormatoHint")}>{t("cfg.modbusFormato")}</th>
+            <th style={{ ...S.th, width: "7%" }} title={t("cfg.modbusBitHint")}>{t("cfg.modbusBitCol")}</th>
+            <th style={{ ...S.th, width: "9%" }}>{t("cfg.scale")}</th>
+            <th style={{ ...S.th, width: "5%" }} title={t("cfg.modbusSolaLetturaHint")}>{t("cfg.modbusSolaLettura")}</th>
+            <th style={{ ...S.th, width: "14%" }}>{t("cfg.modbusRegistri")}</th>
             <th style={S.th} />
           </tr>
         </thead>
         <tbody>
           {registri.length === 0 && (
             <tr>
-              <td colSpan={6} style={{ ...S.td, color: "var(--brand-text-subtle, #94a3b8)", textAlign: "center", padding: 12 }}>
+              <td colSpan={9} style={{ ...S.td, color: "var(--brand-text-subtle, #94a3b8)", textAlign: "center", padding: 12 }}>
                 {t("cfgUi.noRegistersAddAMapping")}
               </td>
             </tr>
           )}
           {registri.map((r, i) => {
-            const reg = registriMappatura(r.tag, r.area, project);
+            const reg = registriMappatura(r.tag, r.area, project, r);
+            const scalaAttiva = reg.storico || !!r.formato;
             const aBit = r.area === "coil" || r.area === "discrete";
             return (
               <tr key={i} style={{ background: i % 2 === 0 ? "transparent" : "var(--brand-bg, #0f172a)33" }}>
@@ -79,9 +85,23 @@ export function TabellaRegistriModbus({ registri, setRegister, removeRegister, o
                     onChange={(e) => setRegister(i, { address: Number(e.target.value) })} />
                 </td>
                 <td style={S.td}>
+                  <select style={S.inputSm} value={r.formato ?? ""} disabled={aBit || r.bit !== undefined}
+                    onChange={(e) => setRegister(i, { formato: e.target.value || undefined })}>
+                    {FORMATI.map((f) => <option key={f} value={f}>{f || t("cfg.modbusDalTipo")}</option>)}
+                  </select>
+                </td>
+                <td style={S.td}>
+                  <input style={S.inputSm} type="number" min={0} max={15} value={r.bit ?? ""} disabled={aBit}
+                    onChange={(e) => setRegister(i, { bit: e.target.value === "" ? undefined : Math.max(0, Math.min(15, Number(e.target.value))) })} />
+                </td>
+                <td style={S.td}>
                   <input style={S.inputSm} type="number" step="0.001" value={r.scale}
                     onChange={(e) => setRegister(i, { scale: Number(e.target.value) })}
-                    disabled={!reg.storico} title={reg.storico ? undefined : t("cfg.modbusScalaSoloStorici")} />
+                    disabled={!scalaAttiva} title={scalaAttiva ? undefined : t("cfg.modbusScalaSoloStorici")} />
+                </td>
+                <td style={{ ...S.td, textAlign: "center" }}>
+                  <input type="checkbox" checked={!!r.sola_lettura} title={t("cfg.modbusSolaLetturaHint")}
+                    onChange={(e) => setRegister(i, { sola_lettura: e.target.checked || undefined })} />
                 </td>
                 <td style={{ ...S.td, color: "var(--brand-text-subtle, #64748b)", fontSize: 11 }}
                   title={reg.storico ? t("cfg.modbusStoricoHint") : undefined}>
