@@ -505,8 +505,8 @@ def const_of(kind):
 # il legame tag↔device, cioè la parte che un assistente deve saper scrivere.
 MAPPINGS = {
     "MqttConfig":       ["TopicMapping"],
-    "ModbusTcpConfig":  ["RegisterMapping"],
-    "ModbusRtuConfig":  ["RegisterMapping"],
+    "ModbusTcpConfig":  ["DispositivoModbus", "RegisterMapping"],
+    "ModbusRtuConfig":  ["DispositivoModbus", "RegisterMapping"],
     "OpcUaClientConfig": ["OpcUaNodeMapping"],
     "OpcUaServerConfig": ["OpcUaServerNodeMapping"],
     "HomeAssistantConfig": ["EntityMapping"],

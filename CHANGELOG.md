@@ -20,6 +20,15 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   mostra lo stato ma non le novità. Vale per la `2.12.0-rc.1` e la `rc.2`.
 
 ### Added
+- **Modbus a bus → dispositivi → tag** (piano `docs/plans/2026-10-04-bus-e-dispositivi.md`). Una sorgente Modbus è un
+  bus con `devices` (unit id, nome, `modello`, ordine, polling, timeout, registri); il formato di prima si legge come un
+  bus con un dispositivo (`ModbusTcpConfig::dispositivi`, unico punto). Una sessione per bus: la porta seriale si apre
+  una volta, gli slave si interrogano a turno; uno slave muto marca Bad i suoi tag e non chiude il bus, che riconnette
+  solo per un guasto di trasporto o se tacciono tutti. Stato per sorgente e dispositivo (`sws_core::stato_sorgenti`,
+  `GET /api/sources/stato`) con un pallino nell'albero della Configurazione, che ha un terzo livello per i dispositivi.
+  Validatore: unit id doppio, formati mescolati, porta seriale di due sorgenti. Predisposto per il catalogo dei
+  dispositivi noti (seme `docs/plans/2026-10-04-catalogo-dispositivi.md`): `modello` e `nuovoDispositivo(bus, base?)`.
+  Provato dal vivo con un simulatore a due slave più uno assente.
 - **Modbus con i tipi, a blocchi, che non si ferma** (Fase 3 del piano tag, `docs/plans/2026-09-21-gestione-tag-oggetto-unico.md`).
   Quattro aree per mappatura (`area`: holding, input, coil, discrete), ordine di parole/byte per sorgente (`ordine`:
   abcd/cdab/badc/dcba). Numero di registri e decodifica dal tipo dichiarato (`codec.rs`: `i16` con segno, 32 e 64 bit,

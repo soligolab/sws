@@ -7,6 +7,7 @@ pub mod pin_tls;
 pub mod project;
 pub mod riconnessione;
 pub mod segreti;
+pub mod stato_sorgenti;
 pub mod tag;
 pub mod testi_sistema;
 pub mod tipo;
@@ -23,7 +24,7 @@ pub use project::{
     AffixPosition, CanaleNotifica, CanaliEvento, CustomSymbol, CustomSymbolAttribution, DatastoreBackendConfig,
     DatastoreConfig, EnIpConfig, EnIpDataType, EnIpTagMapping, EntityMapping, FunctionDef,
     FunctionParam, GeneratorSpec, GlobalScriptDef, HomeAssistantConfig, HostConfig, HostMetric,
-    AreaModbus, HostMetricMapping, LangEntry, LanguageTable, Membro, ModbusRtuConfig, ModbusTcpConfig, OrdineModbus,
+    AreaModbus, DispositivoModbus, HostMetricMapping, LangEntry, LanguageTable, Membro, ModbusRtuConfig, ModbusTcpConfig, OrdineModbus,
     MqttConfig, MqttLastWill, MqttTlsConfig, NotificationConfig, OpcUaAuth, OpcUaClientConfig,
     OpcUaNodeMapping, OpcUaServerConfig, OpcUaServerNodeMapping, PageLayoutConfig, PageSizeMode,
     PageTreeNode, Project, ProjectMeta, ProjectTarget, ProjectTargetKind, RandomClientId,

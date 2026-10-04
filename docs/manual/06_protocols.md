@@ -14,37 +14,71 @@ Ogni sorgente dati è definita nel `project.yaml` e configurabile dall'interfacc
 
 Connessione a PLC con interfaccia Ethernet tramite protocollo Modbus TCP (porta 502 default).
 
+### Bus e dispositivi (dal 04-10-2026)
+
+Una sorgente Modbus è un **bus**: per TCP un indirizzo, per RTU una porta seriale. Dentro ci sono i **dispositivi**
+(`devices`), uno per unit id, e dentro ogni dispositivo le sue mappature. Un gateway Modbus TCP con più apparecchi
+dietro, o una linea RS-485 con più slave, è **una** sorgente con più dispositivi: la connessione si apre una volta e i
+dispositivi si interrogano a turno, ognuno col suo intervallo, ordine di parole/byte e timeout.
+
+Nell'IDE: Configurazione → Protocolli → il bus → i suoi dispositivi, nell'albero a sinistra. La card del bus ha la
+connessione, l'intervallo predefinito e l'elenco dei dispositivi («+ Aggiungi dispositivo» prende il primo unit id
+libero); la card del dispositivo ha unit id, nome, ordine, intervallo (vuoto = quello del bus), timeout e mappature.
+
+**Stato**: un pallino accanto al bus e a ogni dispositivo, nell'albero e nelle card — verde risponde, ambra risponde ma
+qualche registro dà errore, rosso non risponde (il motivo nel tooltip), grigio non attivo (sorgente ferma, mai
+collegata o non ancora salvata). È lo stato visto dal runtime con cui l'IDE parla.
+
+**Il formato di prima** (`unit_id`, `ordine` e `registers` sulla sorgente, senza `devices`) si legge ancora come un bus
+con un dispositivo; l'IDE lo riscrive nel formato nuovo alla prima modifica di un dispositivo. Con `devices` presenti, i
+campi di prima sono ignorati (il validatore lo segnala).
+
 ### Configurazione YAML
 
 ```yaml
 sources:
   - kind: modbus_tcp
-    id: plc1
+    id: gateway1
     host: "192.168.1.100"
     port: 502
-    unit_id: 1
-    poll_interval_ms: 500
-    registers:
-      - tag: plc1.pressione
-        address: 0          # Holding register (40001 in notazione Modicon = indirizzo 0)
-        scale: 0.1          # Moltiplica il valore grezzo
-      - tag: plc1.temperatura
-        address: 10
-        scale: 0.01
-      - tag: plc1.valvola
-        address: 100
-        scale: 1
+    poll_interval_ms: 500      # predefinito per i dispositivi
+    devices:
+      - unit_id: 1
+        nome: pompa
+        registers:
+          - tag: pompa.pressione
+            address: 0          # Holding register (40001 in notazione Modicon = indirizzo 0)
+            scale: 0.1          # Moltiplica il valore grezzo (tipi storici)
+      - unit_id: 2
+        nome: inverter
+        ordine: cdab            # questo dispositivo mette la parola bassa prima
+        poll_interval_ms: 200   # il suo intervallo
+        timeout_ms: 1000        # default 3000
+        registers:
+          - tag: inverter.velocita
+            address: 10
 ```
 
 ### Parametri
 
 | Parametro | Descrizione | Default |
 |-----------|-------------|---------|
-| `host` | IP o hostname del PLC | — |
+| `host` | IP o hostname del PLC o del gateway | — |
 | `port` | Porta TCP | `502` |
-| `unit_id` | Indirizzo Modbus (1-247) | `1` |
-| `poll_interval_ms` | Intervallo polling | `500` |
-| `registers[]` | Array di mapping registro→tag | — |
+| `poll_interval_ms` | Intervallo di polling predefinito dei dispositivi | `1000` |
+| `devices[]` | I dispositivi sul bus | — |
+
+### Parametri del dispositivo
+
+| Parametro | Descrizione | Default |
+|-----------|-------------|---------|
+| `unit_id` | Indirizzo Modbus (1-247), unico nel bus | `1` |
+| `nome` | Etichetta libera | — |
+| `modello` | Da dove viene il dispositivo (`marca/prodotto@versione`); lo riempirà il catalogo dei dispositivi noti | — |
+| `ordine` | Ordine di parole/byte (vedi sotto) | `abcd` |
+| `poll_interval_ms` | Intervallo di questo dispositivo | quello del bus |
+| `timeout_ms` | Attesa massima di una risposta | `3000` |
+| `registers[]` | Mappature registro→tag | — |
 
 ### Mapping registri
 
@@ -55,7 +89,7 @@ sources:
 | `address` | Indirizzo di partenza (0-based) |
 | `scale` | Solo per i tipi storici: valore_tag = valore_raw × scale |
 
-E sulla sorgente: `ordine: abcd | cdab | badc | dcba` (default `abcd`), come il dispositivo mette i valori su più
+E sul dispositivo: `ordine: abcd | cdab | badc | dcba` (default `abcd`), come il dispositivo mette i valori su più
 registri — ABCD parola alta e byte alto prima, CDAB parole scambiate, BADC byte scambiati, DCBA tutto rovesciato.
 
 **I registri vengono dal tipo** (dal 04-10-2026). Un tag dichiarato `i16` si legge con segno, un `u32`/`i32`/`f32`
@@ -69,8 +103,9 @@ progetti fatti prima) si legge come sempre, un registro `u16` per la scala. Per 
 dichiara il tag `f32`.
 
 **Errori**: un registro che il dispositivo rifiuta (indirizzo che non esiste) marca Bad solo i suoi tag, gli altri
-continuano; una connessione persa, o nessuna risposta per tre giri, marca Bad tutto e la sorgente riconnette da sola
-con un'attesa crescente (1 → 30 s). La notazione Modicon (`40001` = address 0) richiede di sottrarre 40001.
+continuano; un dispositivo che non risponde marca Bad i suoi tag e diventa rosso, mentre gli altri del bus continuano;
+una connessione persa, o nessun dispositivo che risponda per tre giri, marca Bad tutto e il bus riconnette da solo con
+un'attesa crescente (1 → 30 s). La notazione Modicon (`40001` = address 0) richiede di sottrarre 40001.
 
 ---
 
@@ -89,13 +124,22 @@ sources:
     parity: "N"               # N=nessuna, E=pari, O=dispari
     data_bits: 8
     stop_bits: 1
-    unit_id: 1
     poll_interval_ms: 1000
-    registers:
-      - tag: plc_seriale.livello
-        address: 0
-        scale: 0.1
+    devices:                  # gli slave sulla linea: la porta si apre una volta sola
+      - unit_id: 1
+        registers:
+          - tag: serbatoio.livello
+            address: 0
+            scale: 0.1
+      - unit_id: 5
+        nome: contatore
+        registers:
+          - tag: contatore.energia
+            address: 100
 ```
+
+Gli slave sulla stessa linea vanno in **un** bus: due sorgenti RTU sulla stessa porta si contendono la linea (il
+validatore lo segnala). I parametri del dispositivo sono quelli di Modbus TCP.
 
 ### Parametri seriali
 

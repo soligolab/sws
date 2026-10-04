@@ -713,8 +713,11 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
     let mut visti_src: HashSet<String> = HashSet::new();
     // Per ogni tag: se una sorgente MQTT lo mappa, sa anche scriverlo?
     let mut mqtt_per_tag: HashMap<&str, bool> = HashMap::new();
+    // Porta seriale → la prima sorgente RTU che la usa (bus e dispositivi).
+    let mut porte_rtu: HashMap<&str, &str> = HashMap::new();
     for src in &project.sources {
         let id = source_id(src);
+        controlli_modbus(src, id, &mut porte_rtu, &mut out);
         if id.trim().is_empty() {
             out.push(Finding::err(
                 "project.sources[]",
@@ -1562,22 +1565,73 @@ fn topic_mappings(src: &SourceDef) -> Vec<&TopicMapping> {
     }
 }
 
+fn mappature_modbus<'a>(
+    devices: &'a [sws_core::DispositivoModbus],
+    registers: &'a [sws_core::RegisterMapping],
+    out: &mut Vec<(String, &'a str)>,
+) {
+    if devices.is_empty() {
+        for (i, r) in registers.iter().enumerate() {
+            out.push((format!("registers[{i}].tag"), r.tag.as_str()));
+        }
+    }
+    for (d, dev) in devices.iter().enumerate() {
+        for (i, r) in dev.registers.iter().enumerate() {
+            out.push((format!("devices[{d}].registers[{i}].tag"), r.tag.as_str()));
+        }
+    }
+}
+
+/// Bus e dispositivi Modbus (04-10-2026): unit id unici nel bus, formato di
+/// prima non mescolato al nuovo, una porta seriale aperta da un bus solo.
+fn controlli_modbus<'a>(src: &'a SourceDef, id: &'a str, porte_rtu: &mut HashMap<&'a str, &'a str>, out: &mut Vec<Finding>) {
+    let (devices, registers) = match src {
+        SourceDef::ModbusTcp(c) => (&c.devices, &c.registers),
+        SourceDef::ModbusRtu(c) => {
+            if let Some(prima) = porte_rtu.insert(c.device.as_str(), id) {
+                out.push(Finding::warn(
+                    format!("project.sources[{id}].device"),
+                    format!("la porta `{}` è anche della sorgente `{prima}`", c.device),
+                    "una porta seriale si apre una volta sola: le due sorgenti si contendono la \
+                     linea. Metti tutti gli slave come dispositivi di un solo bus",
+                ));
+            }
+            (&c.devices, &c.registers)
+        }
+        _ => return,
+    };
+    if !devices.is_empty() && !registers.is_empty() {
+        out.push(Finding::warn(
+            format!("project.sources[{id}].registers"),
+            "la sorgente ha sia `devices` sia `registers` del formato di prima",
+            "con `devices` i `registers` sulla sorgente sono ignorati: spostali in un \
+             dispositivo, oppure toglili",
+        ));
+    }
+    let mut visti = HashSet::new();
+    for (d, dev) in devices.iter().enumerate() {
+        if !visti.insert(dev.unit_id) {
+            out.push(Finding::err(
+                format!("project.sources[{id}].devices[{d}].unit_id"),
+                format!("unit id {} ripetuto nello stesso bus", dev.unit_id),
+                "due dispositivi con lo stesso indirizzo rispondono alla stessa richiesta: \
+                 dai a ciascuno il suo unit id",
+            ));
+        }
+    }
+}
+
 /// Le mappature (percorso, tag) delle sorgenti **non MQTT**: registri Modbus,
 /// nodi OPC-UA (client e server), entità Home Assistant, tag S7 ed
 /// EtherNet/IP, metriche Host. MQTT ha la sua regola sopra, con l'errore.
 fn mappature_tag(src: &SourceDef) -> Vec<(String, &str)> {
     let mut out = Vec::new();
     match src {
-        SourceDef::ModbusTcp(c) => {
-            for (i, r) in c.registers.iter().enumerate() {
-                out.push((format!("registers[{i}].tag"), r.tag.as_str()));
-            }
-        }
-        SourceDef::ModbusRtu(c) => {
-            for (i, r) in c.registers.iter().enumerate() {
-                out.push((format!("registers[{i}].tag"), r.tag.as_str()));
-            }
-        }
+        // Il percorso punta dove il registro sta davvero nel YAML: nel formato di
+        // prima (`registers`) o dentro un dispositivo (`devices`). Stessa regola
+        // di `dispositivi()`: con `devices` i campi di prima sono ignorati.
+        SourceDef::ModbusTcp(c) => mappature_modbus(&c.devices, &c.registers, &mut out),
+        SourceDef::ModbusRtu(c) => mappature_modbus(&c.devices, &c.registers, &mut out),
         SourceDef::OpcUaClient(c) => {
             for (i, n) in c.nodes.iter().enumerate() {
                 out.push((format!("nodes[{i}].tag"), n.tag.as_str()));
@@ -2848,6 +2902,36 @@ alarms: []
             "{rs:?}"
         );
         assert!(errori(&rs).is_empty(), "sono avvisi, non errori: {rs:?}");
+    }
+
+    /// Bus e dispositivi (04-10-2026).
+    #[test]
+    fn i_dispositivi_modbus_si_controllano() {
+        let prog = r#"
+meta: { name: prova, version: "1.0.0" }
+tags: [{ id: a, data_type: u16 }]
+sources:
+  - kind: modbus_rtu
+    id: linea
+    device: /dev/ttyS1
+    registers: [{ tag: a, address: 0 }]
+    devices:
+      - { unit_id: 2, registers: [{ tag: a, address: 1 }, { tag: fantasma, address: 2 }] }
+      - { unit_id: 2 }
+  - { kind: modbus_rtu, id: linea2, device: /dev/ttyS1, devices: [{ unit_id: 9 }] }
+alarms: []
+"#;
+        let rs = rilievi(prog, &pagina("- { id: x, type: rect, x: 0, y: 0 }"));
+        assert!(
+            errori(&rs).iter().any(|f| f.path == "project.sources[linea].devices[1].unit_id"),
+            "unit id doppio: {rs:?}"
+        );
+        assert!(rs.iter().any(|f| f.path == "project.sources[linea].registers"), "formati mescolati: {rs:?}");
+        assert!(rs.iter().any(|f| f.path == "project.sources[linea2].device" && f.message.contains("linea")), "porta doppia: {rs:?}");
+        assert!(
+            rs.iter().any(|f| f.path == "project.sources[linea].devices[0].registers[1].tag"),
+            "il tag non dichiarato dentro un dispositivo: {rs:?}"
+        );
     }
 
     #[test]

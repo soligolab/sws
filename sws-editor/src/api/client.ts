@@ -34,6 +34,7 @@ import type {
   ProjectTarget,
   Sample,
   SourceDef,
+  StatoSorgente,
   XyPoint,
   RecipeApplyEvent,
   RecipeApplyResult,
@@ -1409,6 +1410,10 @@ export const api = {
 
   // Upload a project ZIP to create a new project (pre-auth).
   // `name` is optional — falls back to the name in manifest.json inside the ZIP.
+  // Stato delle sorgenti avviate e dei loro dispositivi (04-10-2026).
+  statoSorgenti: () =>
+    request<Record<string, StatoSorgente>>("/api/sources/stato"),
+
   // MQTT broker browse: connect ephemerally, subscribe #, return discovered topics.
   browseMqttTopics: (req: MqttBrowseRequest): Promise<MqttBrowseResponse> =>
     request<MqttBrowseResponse>("/api/sources/mqtt/browse", {

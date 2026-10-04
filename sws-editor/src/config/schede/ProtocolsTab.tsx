@@ -17,6 +17,11 @@ import { OpcUaServerSourceCard } from "@/config/sorgenti/OpcUaServerSourceCard";
 import { ModbusSourceCard } from "@/config/sorgenti/ModbusSourceCard";
 import { ModbusRtuSourceCard } from "@/config/sorgenti/ModbusRtuSourceCard";
 import { MqttSourceCard } from "@/config/sorgenti/MqttSourceCard";
+import { DispositivoModbusCard } from "@/config/sorgenti/DispositiviModbus";
+import {
+  dispositiviDi, eBusModbus, etichettaDispositivo, focusDispositivo, idElementiProtocolli, leggiFocus,
+} from "@/config/sorgenti/modbusDispositivi";
+import type { VoceElencoConfig } from "@/store";
 
 // ── PROTOCOLS tab ─────────────────────────────────────────────────────────────
 
@@ -67,8 +72,18 @@ export function ProtocolsTab() {
 
   // Il secondo livello dell'albero ⚙ (24-09-2026): una foglia per sorgente.
   // Con una sorgente scelta si vede solo la sua card; dal primo livello, tutte.
-  usePubblicaElenco("protocols", sources.map((x) => ({ id: x.id, etichetta: x.id, modificato: eModificato(storeProject?.sources, x) })));
-  const focus = useFocus("protocols", sources.map((x) => x.id));
+  // Un bus Modbus ha un terzo livello, i suoi dispositivi (04-10-2026).
+  usePubblicaElenco("protocols", sources.map((x): VoceElencoConfig => {
+    const voce: VoceElencoConfig = { id: x.id, etichetta: x.id, modificato: eModificato(storeProject?.sources, x) };
+    if (eBusModbus(x)) {
+      voce.figli = dispositiviDi(x).map((d) => ({ id: focusDispositivo(x.id, d.unit_id), etichetta: etichettaDispositivo(d) }));
+    }
+    return voce;
+  }));
+  const focusGrezzo = useFocus("protocols", idElementiProtocolli(sources));
+  const scelto = leggiFocus(focusGrezzo, sources);
+  // Il bus scelto, anche quando è scelto un suo dispositivo.
+  const focus = scelto?.bus ?? null;
   const setConfigFocus = useAppStore((s) => s.setConfigFocus);
 
   // Con una sorgente scelta, quella nuova prende il suo posto: resterebbe
@@ -156,6 +171,17 @@ export function ProtocolsTab() {
 
       {sources.map((src, i) => {
         if (focus !== null && src.id !== focus) return null;
+        if (eBusModbus(src) && scelto?.unit != null) {
+          return (
+            <DispositivoModbusCard
+              key={i}
+              bus={src}
+              unit={scelto.unit}
+              onChange={(updated) => updateSource(i, updated)}
+              onCreateTag={handleCreateTag}
+            />
+          );
+        }
         if (src.kind === "modbus_tcp") {
           return (
             <ModbusSourceCard
@@ -163,7 +189,6 @@ export function ProtocolsTab() {
               source={src}
               onChange={(updated) => updateSource(i, updated)}
               onDelete={() => removeSource(i)}
-              onCreateTag={handleCreateTag}
             />
           );
         }
@@ -174,7 +199,6 @@ export function ProtocolsTab() {
               source={src}
               onChange={(updated) => updateSource(i, updated)}
               onDelete={() => removeSource(i)}
-              onCreateTag={handleCreateTag}
             />
           );
         }

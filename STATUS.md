@@ -74,6 +74,32 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — tre rami annidati, Modbus a bus → dispositivi (2026-10-04, pomeriggio)
+
+**Rami aperti, annidati:** `feat/istanze-e-deploy-con-conferma` (da `main`) → `feat/tag-3-modbus` →
+`feat/modbus-dispositivi`. Collaudati dal maintainer: «Crea istanza», la conferma del deploy e il deploy dalla scheda
+Dispositivi. Il maintainer ha detto: Modbus (Fase 3) **lo collauda dopo**, e intanto «inizia la riorganizzazione a
+device».
+- **Fatto su `feat/modbus-dispositivi`** (piano d'esecuzione [bus → dispositivi](docs/plans/2026-10-04-bus-e-dispositivi.md)):
+  `devices` dentro la sorgente Modbus TCP/RTU (il formato di prima si legge ancora), una sessione per bus con ordine,
+  polling e timeout per dispositivo, stato per dispositivo (`GET /api/sources/stato`) col pallino nell'albero della
+  Configurazione (terzo livello), validatore. Provato dal vivo su un simulatore `pymodbus` a due slave più uno assente:
+  valori giusti per ogni slave, lo slave assente rosso senza fermare gli altri, caduta e ritorno del bus.
+- **Da collaudare a schermo (maintainer)**: Configurazione → Protocolli con un bus Modbus, i dispositivi nell'albero,
+  aggiunta/apertura di un dispositivo, un progetto col formato di prima. L'editor di sviluppo va **riavviato** per
+  avere l'endpoint dello stato (il backend è compilato all'avvio).
+- **Poi**: squash dei tre rami su `main` (ordine: istanze/deploy, Modbus Fase 3, bus → dispositivi), eliminazione dei
+  rami, archivio dei piani; una rc quando si vuole provare sul pannello.
+- **Seme nuovo**: [catalogo dei dispositivi noti](docs/plans/2026-10-04-catalogo-dispositivi.md) — il modello del
+  dispositivo è già pronto ad agganciarlo (`modello`, `nuovoDispositivo(bus, base?)`).
+- Nota: lo stato delle sorgenti è servito dal router completo (IDE, porta admin), non dal viewer del runtime; l'IDE
+  connesso a un dispositivo remoto mostra lo stato **della propria istanza**, non del pannello (da decidere quando
+  servirà, insieme agli altri protocolli).
+- Nota: `examples/templates/enip-demo/project.yaml` dice `kind: en_ip` e il serde vuole `enip`, eppure
+  `tutti_i_template_si_caricano` passa — da capire a parte.
+- Nota: in Tag da sorgenti le foglie di un'istanza non compaiono più come «senza variabile» (`2bbe9e3b`, su
+  `feat/tag-3-modbus`).
+
 ## ▶ Riprendere da qui — due rami annidati in attesa di collaudo (2026-10-04)
 
 **Rami aperti, annidati:** `feat/istanze-e-deploy-con-conferma` (da `main`) → `feat/tag-3-modbus` (sopra). Il primo

@@ -527,6 +527,8 @@ pub fn build(
         .route("/api/sources/opcua/history", post(opcua_history_handler))
         // HomeAssistant entity browse: proxy GET /api/states to HA and return entities.
         .route("/api/sources/ha/browse", post(ha_browse_handler))
+        // Stato delle sorgenti e dei loro dispositivi (04-10-2026).
+        .route("/api/sources/stato", get(stato_sorgenti_handler))
         .route("/api/system", get(crate::system::get_system_status))
         .route("/api/project/deploy", post(trigger_deploy))
         .route_layer(middleware::from_fn(require_operator));
@@ -7405,6 +7407,13 @@ struct HaBrowsedEntity {
     friendly_name: Option<String>,
     /// Non-empty attribute names for this entity (sorted, for UI display).
     attributes: Vec<String>,
+}
+
+/// `GET /api/sources/stato`: per ogni sorgente avviata, lo stato del bus e dei
+/// suoi dispositivi. Le sorgenti ferme (o l'acquisizione disarmata) non ci
+/// sono: l'IDE le mostra «non attive».
+async fn stato_sorgenti_handler(State(s): State<AppState>) -> Response {
+    Json(s.supervisor.stato.istantanea()).into_response()
 }
 
 async fn ha_browse_handler(

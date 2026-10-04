@@ -22,7 +22,7 @@
  *  non è mai stata aperta, si leggono dal progetto; ricette e utenti non stanno
  *  nel progetto e si chiedono una volta al montaggio.
  */
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { useAppStore, type VoceElencoConfig } from "@/store";
@@ -31,6 +31,9 @@ import { useRepoDisponibile } from "@/config/repoDisponibile";
 import { AlberoTagLive } from "./AlberoTagLive";
 import { chiaveRilievi, contaRilievi, type ConteggioRilievi } from "@/components/rilievoDestinazione";
 import { IntestazioneSezione, SPAZIO, TESTO, guideAlbero, useSezioneAperta } from "./stilePannelli";
+import { PallinoStato } from "@/config/sorgenti/DispositiviModbus";
+import { statoDispositivo, useStatoSorgenti } from "@/config/sorgenti/statoSorgenti";
+import { dispositiviDi, eBusModbus, etichettaDispositivo, focusDispositivo } from "@/config/sorgenti/modbusDispositivi";
 
 /** Gli elementi di ricette e utenti, che il progetto non porta: una richiesta
  *  al montaggio dell'albero, come fanno le loro schede. */
@@ -61,7 +64,12 @@ function useElementi(isAdmin: boolean): (id: IdScheda) => VoceElencoConfig[] {
     const p = pubblicati[id];
     if (p) return p;
     switch (id) {
-      case "protocols":  return (project?.sources ?? []).map((x) => ({ id: x.id, etichetta: x.id }));
+      case "protocols":  return (project?.sources ?? []).map((x) => ({
+        id: x.id, etichetta: x.id,
+        figli: eBusModbus(x)
+          ? dispositiviDi(x).map((d) => ({ id: focusDispositivo(x.id, d.unit_id), etichetta: etichettaDispositivo(d) }))
+          : undefined,
+      }));
       case "scripts":    return (project?.global_scripts ?? []).map((x) => ({ id: x.id, etichetta: x.id }));
       case "faceplates": return faceplates.map((f) => ({ id: f.id, etichetta: f.label || f.id }));
       case "datastores": return (project?.datastores ?? []).map((d) => ({ id: d.id, etichetta: d.label || d.id }));
@@ -105,6 +113,14 @@ function SegnoRilievi({ c, testid }: { c: ConteggioRilievi | undefined; testid: 
 
 /** Il segno su un elemento: un componente a sé perché l'hook sta dentro la
  *  `map` degli elementi. */
+/** Il pallino di stato di una sorgente o di un dispositivo (04-10-2026). Un
+ *  componente a sé perché il polling parta solo con la foglia Protocolli aperta. */
+function StatoProtocollo({ bus, unit }: { bus: string; unit?: number }) {
+  const s = useStatoSorgenti()[bus];
+  return <PallinoStato stato={unit === undefined ? s : statoDispositivo(s, unit)}
+    testid={unit === undefined ? `stato-albero-${bus}` : `stato-albero-${bus}-${unit}`} />;
+}
+
 function RilieviElemento({ tab, focus }: { tab: string; focus: string }) {
   return <SegnoRilievi c={useRilievi(tab, focus)} testid={`rilievi-config-${tab}-${focus}`} />;
 }
@@ -244,9 +260,12 @@ function Foglia({ scheda, elementi, modificata, dentroSottoRamo = false, ultimo 
       {mostraFigli && tagLive && <AlberoTagLive rientro={SPAZIO.l + SPAZIO.m + gradino + LARGHEZZA_FRECCIA} puoAprire={navigabile} />}
       {mostraFigli && !tagLive && elementi !== null && elementi.map((v, i) => {
         const scelta = suQuesta && configFocus === v.id;
+        const rientroElemento = SPAZIO.l * 2 + SPAZIO.m + 4 + gradino;
+        const xElemento = SPAZIO.l + SPAZIO.m + gradino - Math.round(LARGHEZZA_FRECCIA / 2);
+        const ultimoElemento = i === elementi.length - 1;
         return (
+          <React.Fragment key={v.id}>
           <button
-            key={v.id}
             type="button"
             data-testid={`elemento-config-${id}-${v.id}`}
             aria-current={scelta ? "page" : undefined}
@@ -263,10 +282,39 @@ function Foglia({ scheda, elementi, modificata, dentroSottoRamo = false, ultimo 
               }),
             }}
           >
+            {id === "protocols" && <StatoProtocollo bus={v.id} />}
             <span style={stileEtichetta}>{v.etichetta}</span>
             {v.modificato && <Pallino testid={`dirty-config-${id}-${v.id}`} />}
             <RilieviElemento tab={id} focus={v.id} />
           </button>
+          {/* Il terzo livello (04-10-2026): i dispositivi di un bus Modbus. */}
+          {(v.figli ?? []).map((f, j, tutti) => {
+            const sceltoFiglio = suQuesta && configFocus === f.id;
+            const unit = Number(f.id.slice(f.id.lastIndexOf("/") + 1));
+            return (
+              <button
+                key={f.id}
+                type="button"
+                data-testid={`elemento-config-${id}-${f.id}`}
+                aria-current={sceltoFiglio ? "page" : undefined}
+                onClick={() => navigateToConfig(id, f.id)}
+                title={f.etichetta}
+                style={{
+                  ...stileRiga(sceltoFiglio, rientroElemento + SPAZIO.l + 4),
+                  ...guideAlbero(ultimoElemento ? [COLONNA_RAMO] : [COLONNA_RAMO, xElemento], {
+                    x: rientroElemento + 4,
+                    finoA: rientroElemento + SPAZIO.l + 2,
+                    ultimo: j === tutti.length - 1,
+                  }),
+                }}
+              >
+                {id === "protocols" && <StatoProtocollo bus={v.id} unit={unit} />}
+                <span style={stileEtichetta}>{f.etichetta}</span>
+                <RilieviElemento tab={id} focus={f.id} />
+              </button>
+            );
+          })}
+          </React.Fragment>
         );
       })}
     </>

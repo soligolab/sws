@@ -14,10 +14,21 @@ struct Finto {
     /// Ogni operazione fallisce come una connessione chiusa.
     caduto: bool,
     scritture: Vec<(u16, Vec<u16>)>,
+    /// Il dispositivo selezionato sul bus (bus e dispositivi, 04-10-2026).
+    unita: u8,
+    /// Registri propri di un'unità: vincono su `registri`.
+    per_unita: HashMap<(u8, u16), u16>,
+    /// Unità che non rispondono mai (la richiesta resta appesa).
+    mute: HashSet<u8>,
+    /// Le unità a cui sono andate le scritture, in ordine.
+    scritture_a: Vec<u8>,
 }
 
 impl Dispositivo for Finto {
     async fn leggi(&mut self, area: AreaModbus, addr: u16, n: u16) -> io::Result<Letti> {
+        if self.mute.contains(&self.unita) {
+            std::future::pending::<()>().await;
+        }
         if self.caduto {
             return Err(io::Error::new(io::ErrorKind::BrokenPipe, "chiuso"));
         }
@@ -27,7 +38,11 @@ impl Dispositivo for Finto {
         Ok(if area.a_bit() {
             Letti::Bit((addr..addr + n).map(|a| *self.bit.get(&a).unwrap_or(&false)).collect())
         } else {
-            Letti::Registri((addr..addr + n).map(|a| *self.registri.get(&a).unwrap_or(&0)).collect())
+            Letti::Registri(
+                (addr..addr + n)
+                    .map(|a| *self.per_unita.get(&(self.unita, a)).or(self.registri.get(&a)).unwrap_or(&0))
+                    .collect(),
+            )
         })
     }
     async fn scrivi_registri(&mut self, addr: u16, regs: &[u16]) -> io::Result<()> {
@@ -38,6 +53,7 @@ impl Dispositivo for Finto {
             self.registri.insert(addr + i as u16, *r);
         }
         self.scritture.push((addr, regs.to_vec()));
+        self.scritture_a.push(self.unita);
         Ok(())
     }
     async fn scrivi_bit(&mut self, addr: u16, bit: &[bool]) -> io::Result<()> {
@@ -45,6 +61,9 @@ impl Dispositivo for Finto {
             self.bit.insert(addr + i as u16, *b);
         }
         Ok(())
+    }
+    fn imposta_unita(&mut self, unita: u8) {
+        self.unita = unita;
     }
 }
 
@@ -96,9 +115,11 @@ fn tipo_motore() -> TypeDef {
     }
 }
 
-async fn giro(dev: &mut Finto, db: &TagDb, regs: &[RegisterMapping], ordine: OrdineModbus) -> anyhow::Result<()> {
+const T: Duration = Duration::from_secs(3);
+
+async fn giro(dev: &mut Finto, db: &TagDb, regs: &[RegisterMapping], ordine: OrdineModbus) -> anyhow::Result<EsitoGiro> {
     let m = prepara(db, regs).await;
-    leggi_giro(dev, db, &m, ordine, &mut HashSet::new(), &mut 0, "prova").await
+    leggi_giro(dev, db, &m, ordine, T, &mut HashSet::new(), "prova").await
 }
 
 async fn val(db: &TagDb, id: &str) -> (TagValue, TagQuality) {
@@ -160,20 +181,17 @@ async fn un_registro_in_errore_non_ferma_gli_altri() {
 }
 
 #[tokio::test]
-async fn un_guasto_di_trasporto_chiude_la_sessione_e_tre_giri_muti_anche() {
+async fn un_guasto_di_trasporto_chiude_la_sessione() {
     let db = db_con(&[tag("a", "u16")], &[]).await;
     let regs = [mappa("a", 0, AreaModbus::Holding)];
     let mut dev = Finto { caduto: true, ..Default::default() };
     assert!(giro(&mut dev, &db, &regs, OrdineModbus::Abcd).await.is_err());
-    // Solo eccezioni, giro dopo giro: al terzo si riconnette.
+    // Un'eccezione invece è una risposta del dispositivo: il giro va avanti.
     let mut dev = Finto::default();
     dev.eccezioni.insert(0);
-    let m = prepara(&db, &regs).await;
-    let (mut err, mut muti) = (HashSet::new(), 0u32);
-    for _ in 0..2 {
-        assert!(leggi_giro(&mut dev, &db, &m, OrdineModbus::Abcd, &mut err, &mut muti, "p").await.is_ok());
-    }
-    assert!(leggi_giro(&mut dev, &db, &m, OrdineModbus::Abcd, &mut err, &mut muti, "p").await.is_err());
+    let e = giro(&mut dev, &db, &regs, OrdineModbus::Abcd).await.unwrap();
+    assert_eq!(e.risposte, 0);
+    assert!(e.errore.unwrap().contains("Illegal data address"));
 }
 
 #[tokio::test]
@@ -208,4 +226,141 @@ async fn sulle_aree_di_sola_lettura_non_si_scrive() {
     let m = prepara(&db, &[mappa("i", 0, AreaModbus::Input)]).await;
     scrivi(&mut dev, &db, &m, OrdineModbus::Abcd, ("i".into(), None, TagValue::Int(5)), "p").await.unwrap();
     assert!(dev.scritture.is_empty());
+}
+
+// ── Bus e dispositivi (04-10-2026) ──────────────────────────────────────────
+
+fn disp(unit_id: u8, regs: Vec<RegisterMapping>) -> DispositivoModbus {
+    DispositivoModbus {
+        unit_id,
+        nome: String::new(),
+        modello: None,
+        ordine: OrdineModbus::Abcd,
+        poll_interval_ms: None,
+        timeout_ms: 500,
+        registers: regs,
+    }
+}
+
+/// Fa girare una sessione per `per` (tempo virtuale) e la ferma.
+async fn sessione_per(
+    dev: Finto,
+    db: &TagDb,
+    unita: &mut [Unita],
+    stato: &StatoSorgenti,
+    rx: mpsc::Receiver<WriteRequest>,
+    per: Duration,
+) -> anyhow::Result<()> {
+    let cancel = CancellationToken::new();
+    let c = cancel.clone();
+    let rx = Mutex::new(rx);
+    let fermo = async move {
+        tokio::time::sleep(per).await;
+        c.cancel();
+    };
+    let (r, ()) = tokio::join!(sessione(dev, "bus", unita, db, stato, &rx, &cancel), fermo);
+    r
+}
+
+#[tokio::test(start_paused = true)]
+async fn due_dispositivi_sullo_stesso_bus_ognuno_col_suo_ordine() {
+    let db = db_con(&[tag("a", "f32"), tag("b", "f32")], &[]).await;
+    let mut dev = Finto::default();
+    // 1.5 = 0x3FC0_0000: unità 1 in ABCD, unità 2 in CDAB, stessi indirizzi.
+    dev.per_unita.insert((1, 0), 0x3FC0);
+    dev.per_unita.insert((1, 1), 0x0000);
+    dev.per_unita.insert((2, 0), 0x0000);
+    dev.per_unita.insert((2, 1), 0x3FC0);
+    let d2 = DispositivoModbus { ordine: OrdineModbus::Cdab, ..disp(2, vec![mappa("b", 0, AreaModbus::Holding)]) };
+    let mut unita = vec![Unita::da(&disp(1, vec![mappa("a", 0, AreaModbus::Holding)]), 1000), Unita::da(&d2, 1000)];
+    let stato = StatoSorgenti::new();
+    let (_tx, rx) = mpsc::channel(4);
+    sessione_per(dev, &db, &mut unita, &stato, rx, Duration::from_millis(100)).await.unwrap();
+    assert_eq!(val(&db, "a").await, (TagValue::Float(1.5), TagQuality::Good));
+    assert_eq!(val(&db, "b").await, (TagValue::Float(1.5), TagQuality::Good));
+    let s = stato.istantanea();
+    assert_eq!(s["bus"].dispositivi[&1].stato, Collegamento::Ok);
+    assert_eq!(s["bus"].dispositivi[&2].stato, Collegamento::Ok);
+}
+
+#[tokio::test(start_paused = true)]
+async fn uno_slave_muto_non_ferma_il_bus_tutti_muti_si() {
+    let db = db_con(&[tag("a", "u16"), tag("b", "u16")], &[]).await;
+    let mut dev = Finto::default();
+    dev.registri.insert(0, 7);
+    dev.mute.insert(2);
+    db.set("b".into(), TagValue::Int(0), TagQuality::Uncertain).await;
+    let mut unita = vec![
+        Unita::da(&disp(1, vec![mappa("a", 0, AreaModbus::Holding)]), 1000),
+        Unita::da(&disp(2, vec![mappa("b", 0, AreaModbus::Holding)]), 1000),
+    ];
+    let stato = StatoSorgenti::new();
+    let (_tx, rx) = mpsc::channel(4);
+    // Dieci giri: lo slave 2 tace sempre, la sessione regge.
+    sessione_per(dev, &db, &mut unita, &stato, rx, Duration::from_secs(10)).await.expect("il bus resta su");
+    assert_eq!(val(&db, "a").await, (TagValue::Int(7), TagQuality::Good));
+    assert_eq!(val(&db, "b").await.1, TagQuality::Bad);
+    let s = stato.istantanea();
+    assert_eq!(s["bus"].dispositivi[&1].stato, Collegamento::Ok);
+    assert_eq!(s["bus"].dispositivi[&2].stato, Collegamento::NonRisponde);
+    assert!(s["bus"].dispositivi[&2].errore.as_deref().unwrap().contains("500 ms"));
+
+    // Tutti muti: al terzo giro la sessione esce per riconnettere.
+    let mut dev = Finto::default();
+    dev.mute.extend([1, 2]);
+    let (_tx, rx) = mpsc::channel(4);
+    let r = sessione_per(dev, &db, &mut unita, &stato, rx, Duration::from_secs(60)).await;
+    assert!(r.unwrap_err().to_string().contains("nessun dispositivo risponde"));
+}
+
+#[tokio::test(start_paused = true)]
+async fn ogni_dispositivo_col_suo_intervallo() {
+    let db = db_con(&[tag("a", "u16"), tag("b", "u16")], &[]).await;
+    let dev = Finto::default();
+    let veloce = DispositivoModbus { poll_interval_ms: Some(100), ..disp(1, vec![mappa("a", 0, AreaModbus::Holding)]) };
+    let mut unita = vec![Unita::da(&veloce, 1000), Unita::da(&disp(2, vec![mappa("b", 0, AreaModbus::Holding)]), 1000)];
+    assert_eq!(unita[0].intervallo, Duration::from_millis(100));
+    assert_eq!(unita[1].intervallo, Duration::from_millis(1000), "vuoto = quello del bus");
+    let stato = StatoSorgenti::new();
+    let (_tx, rx) = mpsc::channel(4);
+    sessione_per(dev, &db, &mut unita, &stato, rx, Duration::from_millis(50)).await.unwrap();
+}
+
+#[tokio::test(start_paused = true)]
+async fn una_scrittura_va_allo_slave_che_mappa_il_tag() {
+    let db = db_con(&[tag("a", "u16"), tag("b", "u16")], &[]).await;
+    let dev = Finto::default();
+    let mut unita = vec![
+        Unita::da(&disp(1, vec![mappa("a", 0, AreaModbus::Holding)]), 60_000),
+        Unita::da(&disp(5, vec![mappa("b", 9, AreaModbus::Holding)]), 60_000),
+    ];
+    let stato = StatoSorgenti::new();
+    let (tx, rx) = mpsc::channel(4);
+    tx.send(("b".into(), None, TagValue::Int(42))).await.unwrap();
+    let cancel = CancellationToken::new();
+    let rx = Mutex::new(rx);
+    let c = cancel.clone();
+    let mut dev = dev;
+    // La sessione consuma il dispositivo: si osserva l'eco nel TagDb.
+    let fermo = async move {
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        c.cancel();
+    };
+    dev.imposta_unita(1);
+    let (r, ()) = tokio::join!(sessione(dev, "bus", &mut unita, &db, &stato, &rx, &cancel), fermo);
+    r.unwrap();
+    assert_eq!(val(&db, "b").await, (TagValue::Int(42), TagQuality::Good), "eco della scrittura");
+}
+
+#[tokio::test]
+async fn la_scrittura_seleziona_l_unita_giusta() {
+    // Lo stesso instradamento, guardando il dispositivo finto dopo.
+    let db = db_con(&[tag("b", "u16")], &[]).await;
+    let mut dev = Finto::default();
+    let u = Unita::da(&disp(5, vec![mappa("b", 9, AreaModbus::Holding)]), 1000);
+    dev.imposta_unita(u.unit_id);
+    let m = prepara(&db, &u.registri).await;
+    scrivi(&mut dev, &db, &m, u.ordine, ("b".into(), None, TagValue::Int(42)), "p").await.unwrap();
+    assert_eq!(dev.scritture_a, vec![5]);
+    assert_eq!(dev.scritture, vec![(9, vec![42])]);
 }

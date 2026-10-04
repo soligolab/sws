@@ -251,6 +251,9 @@ export interface VoceElencoConfig {
   /** La bozza di questo elemento è diversa da quella salvata (25-09-2026):
    *  nell'albero porta il pallino. */
   modificato?: boolean;
+  /** Un terzo livello (04-10-2026): i dispositivi di un bus Modbus. Il loro
+   *  id è il focus della scheda, come per gli elementi. */
+  figli?: VoceElencoConfig[];
 }
 
 interface AppState {
@@ -2423,7 +2426,8 @@ export const useAppStore = create<AppState>((set, get) => {
       // confronto ogni tasto premuto in una card ridisegnerebbe l'albero.
       if (prima && prima.length === voci.length
           && prima.every((v, i) => v.id === voci[i].id && v.etichetta === voci[i].etichetta
-            && !!v.modificato === !!voci[i].modificato)) return {};
+            && !!v.modificato === !!voci[i].modificato
+            && JSON.stringify(v.figli ?? []) === JSON.stringify(voci[i].figli ?? []))) return {};
       return { elenchiConfig: { ...s.elenchiConfig, [tab]: voci } };
     }),
 

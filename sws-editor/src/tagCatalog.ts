@@ -84,7 +84,8 @@ export function sourceTagIds(project: ProjectInfo | null | undefined): Map<strin
       if (typeof t === "string" && t !== "" && !out.has(t)) out.set(t, name);
     };
     for (const e of s.entities  ?? []) push(e?.tag);   // HomeAssistant
-    for (const r of s.registers ?? []) push(r?.tag);   // Modbus TCP/RTU
+    for (const r of s.registers ?? []) push(r?.tag);   // Modbus TCP/RTU, formato di prima
+    for (const d of s.devices   ?? []) for (const r of d?.registers ?? []) push(r?.tag);   // Modbus, bus → dispositivi
     for (const t of s.tags      ?? []) push(t?.tag);   // S7, EtherNet/IP
     for (const n of s.nodes     ?? []) push(n?.tag);   // OPC-UA
     for (const t of s.topics    ?? []) push(t?.tag);   // MQTT

@@ -499,10 +499,22 @@ pub const SOURCE_MODBUS_TCP_FIELDS: &[Field] = &[
     Field { name: "id", ty: "string", required: true, group: "", doc: "" },
     Field { name: "host", ty: "string", required: true, group: "", doc: "" },
     Field { name: "port", ty: "number", required: false, group: "", doc: "" },
+    Field { name: "unit_id", ty: "number", required: false, group: "", doc: "Formato di prima del 04-10-2026 (un dispositivo per sorgente): vale solo se `devices` è vuoto. Vedi [`ModbusTcpConfig::dispositivi`]." },
+    Field { name: "poll_interval_ms", ty: "number", required: false, group: "", doc: "Intervallo di lettura predefinito dei dispositivi del bus, in ms." },
+    Field { name: "ordine", ty: "OrdineModbus", required: false, group: "", doc: "Formato di prima: l'ordine dell'unico dispositivo." },
+    Field { name: "registers", ty: "RegisterMapping[]", required: false, group: "", doc: "Formato di prima: i registri dell'unico dispositivo." },
+    Field { name: "devices", ty: "DispositivoModbus[]", required: false, group: "", doc: "I dispositivi sul bus (04-10-2026): per un gateway, più unit id dietro lo stesso indirizzo." },
+];
+
+/// Campi di `DispositivoModbus`, usato dentro la sorgente `modbus_tcp`.
+pub const SOURCE_MODBUS_TCP_DISPOSITIVOMODBUS_FIELDS: &[Field] = &[
     Field { name: "unit_id", ty: "number", required: false, group: "", doc: "" },
-    Field { name: "poll_interval_ms", ty: "number", required: false, group: "", doc: "How often to poll all registers, in milliseconds." },
-    Field { name: "ordine", ty: "OrdineModbus", required: false, group: "", doc: "Ordine di parole e byte dei valori su più registri (Fase 3, 04-10-2026): un fatto del dispositivo, quindi della sorgente." },
-    Field { name: "registers", ty: "RegisterMapping[]", required: true, group: "", doc: "" },
+    Field { name: "nome", ty: "string", required: false, group: "", doc: "Etichetta libera («inverter»)." },
+    Field { name: "modello", ty: "string", required: false, group: "", doc: "Da dove viene il dispositivo («marca/prodotto@versione»): lo riempirà il catalogo dei dispositivi noti; oggi solo a mano." },
+    Field { name: "ordine", ty: "OrdineModbus", required: false, group: "", doc: "" },
+    Field { name: "poll_interval_ms", ty: "number", required: false, group: "", doc: "Vuoto = quello del bus." },
+    Field { name: "timeout_ms", ty: "number", required: false, group: "", doc: "Attesa massima di una risposta, in ms." },
+    Field { name: "registers", ty: "RegisterMapping[]", required: false, group: "", doc: "" },
 ];
 
 /// Campi di `RegisterMapping`, usato dentro la sorgente `modbus_tcp`.
@@ -539,76 +551,28 @@ pub const SOURCE_MODBUS_TCP_REGISTERMAPPING_FIELDS: &[Field] = &[
 
 /// Campi della sorgente `modbus_rtu` (ModbusRtuConfig).
 pub const SOURCE_MODBUS_RTU_FIELDS: &[Field] = &[
-    Field {
-        name: "id",
-        ty: "string",
-        required: true,
-        group: "",
-        doc: "",
-    },
-    Field {
-        name: "device",
-        ty: "string",
-        required: true,
-        group: "",
-        doc: "Serial device path, e.g. `/dev/ttyS0` or `/dev/ttyUSB0`.",
-    },
-    Field {
-        name: "baud_rate",
-        ty: "number",
-        required: false,
-        group: "",
-        doc: "Baud rate, e.g. 9600, 19200, 115200.",
-    },
-    Field {
-        name: "parity",
-        ty: "string",
-        required: false,
-        group: "",
-        doc: "Parity: \"N\" (none), \"E\" (even), \"O\" (odd). Default \"N\".",
-    },
-    Field {
-        name: "data_bits",
-        ty: "number",
-        required: false,
-        group: "",
-        doc: "Data bits: 7 or 8. Default 8.",
-    },
-    Field {
-        name: "stop_bits",
-        ty: "number",
-        required: false,
-        group: "",
-        doc: "Stop bits: 1 or 2. Default 1.",
-    },
-    Field {
-        name: "unit_id",
-        ty: "number",
-        required: false,
-        group: "",
-        doc: "",
-    },
-    Field {
-        name: "poll_interval_ms",
-        ty: "number",
-        required: false,
-        group: "",
-        doc: "",
-    },
-    Field {
-        name: "ordine",
-        ty: "OrdineModbus",
-        required: false,
-        group: "",
-        doc: "",
-    },
-    Field {
-        name: "registers",
-        ty: "RegisterMapping[]",
-        required: true,
-        group: "",
-        doc: "",
-    },
+    Field { name: "id", ty: "string", required: true, group: "", doc: "" },
+    Field { name: "device", ty: "string", required: true, group: "", doc: "Serial device path, e.g. `/dev/ttyS0` or `/dev/ttyUSB0`." },
+    Field { name: "baud_rate", ty: "number", required: false, group: "", doc: "Baud rate, e.g. 9600, 19200, 115200." },
+    Field { name: "parity", ty: "string", required: false, group: "", doc: "Parity: \"N\" (none), \"E\" (even), \"O\" (odd). Default \"N\"." },
+    Field { name: "data_bits", ty: "number", required: false, group: "", doc: "Data bits: 7 or 8. Default 8." },
+    Field { name: "stop_bits", ty: "number", required: false, group: "", doc: "Stop bits: 1 or 2. Default 1." },
+    Field { name: "unit_id", ty: "number", required: false, group: "", doc: "Formato di prima (un dispositivo per sorgente), come in TCP." },
+    Field { name: "poll_interval_ms", ty: "number", required: false, group: "", doc: "" },
+    Field { name: "ordine", ty: "OrdineModbus", required: false, group: "", doc: "" },
+    Field { name: "registers", ty: "RegisterMapping[]", required: false, group: "", doc: "" },
+    Field { name: "devices", ty: "DispositivoModbus[]", required: false, group: "", doc: "Gli slave sulla linea (04-10-2026): la porta si apre una volta sola e gli slave si interrogano a turno." },
+];
+
+/// Campi di `DispositivoModbus`, usato dentro la sorgente `modbus_rtu`.
+pub const SOURCE_MODBUS_RTU_DISPOSITIVOMODBUS_FIELDS: &[Field] = &[
+    Field { name: "unit_id", ty: "number", required: false, group: "", doc: "" },
+    Field { name: "nome", ty: "string", required: false, group: "", doc: "Etichetta libera («inverter»)." },
+    Field { name: "modello", ty: "string", required: false, group: "", doc: "Da dove viene il dispositivo («marca/prodotto@versione»): lo riempirà il catalogo dei dispositivi noti; oggi solo a mano." },
+    Field { name: "ordine", ty: "OrdineModbus", required: false, group: "", doc: "" },
+    Field { name: "poll_interval_ms", ty: "number", required: false, group: "", doc: "Vuoto = quello del bus." },
+    Field { name: "timeout_ms", ty: "number", required: false, group: "", doc: "Attesa massima di una risposta, in ms." },
+    Field { name: "registers", ty: "RegisterMapping[]", required: false, group: "", doc: "" },
 ];
 
 /// Campi di `RegisterMapping`, usato dentro la sorgente `modbus_rtu`.

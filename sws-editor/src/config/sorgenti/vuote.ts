@@ -9,9 +9,8 @@ export function emptyModbus(): ModbusTcpSource {
     id: `plc-${genId()}`,
     host: "192.168.1.10",
     port: 502,
-    unit_id: 1,
     poll_interval_ms: 1000,
-    registers: [],
+    devices: [{ unit_id: 1, registers: [] }],
   };
 }
 
@@ -24,9 +23,8 @@ export function emptyModbusRtu(): ModbusRtuSource {
     parity: "N",
     data_bits: 8,
     stop_bits: 1,
-    unit_id: 1,
     poll_interval_ms: 1000,
-    registers: [],
+    devices: [{ unit_id: 1, registers: [] }],
   };
 }
 

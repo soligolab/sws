@@ -13,16 +13,24 @@
 //!   [`sws_core::riconnessione::con_attesa`];
 //! - la scrittura su una foglia scrive solo i suoi registri.
 //!
+//! Bus e dispositivi (04-10-2026): una sorgente è un **bus** (una porta seriale,
+//! un indirizzo TCP) con più **dispositivi** (unit id), interrogati a turno da
+//! una sola sessione, ognuno col suo ordine, intervallo e timeout. Uno slave che
+//! non risponde marca Bad i suoi tag e basta; il bus si riapre solo per un
+//! guasto di trasporto o se tutti i dispositivi tacciono.
+//!
 //! Statically linked for the PoC. Dynamic .so loading via a C ABI is deferred
 //! until third-party plugin support is needed (OPEN_QUESTIONS Q3).
 
 pub mod codec;
 
 use std::{collections::HashSet, io, sync::Arc, time::Duration};
+use sws_core::stato_sorgenti::{Collegamento, StatoSorgenti};
 use sws_core::{
-    AreaModbus, ModbusRtuConfig, ModbusTcpConfig, OrdineModbus, RegisterMapping, TagDb, TagQuality, TagValue,
-    TagWriteBus, WriteRequest,
+    AreaModbus, DispositivoModbus, ModbusRtuConfig, ModbusTcpConfig, OrdineModbus, RegisterMapping, TagDb,
+    TagQuality, TagValue, TagWriteBus, WriteRequest,
 };
+use tokio::time::Instant;
 use tokio::sync::{mpsc, Mutex};
 use tokio_modbus::prelude::*;
 use tokio_serial::{DataBits, Parity, SerialPortBuilderExt, StopBits};
@@ -31,10 +39,9 @@ use tracing::{info, warn};
 
 use codec::Slot;
 
-/// Quanto aspettare una risposta prima di considerare la richiesta persa.
-const TIMEOUT: Duration = Duration::from_secs(3);
-/// Giri consecutivi in cui **nessuna** mappatura ha risposto: allora non è un
-/// registro sbagliato, è il dispositivo che non c'è più, e si riconnette.
+/// Giri consecutivi in cui **nessuna** mappatura di un dispositivo ha risposto:
+/// allora non è un registro sbagliato, è il dispositivo che non c'è. Se tacciono
+/// così **tutti** i dispositivi del bus, si riconnette.
 const GIRI_MUTI_PER_RICONNETTERE: u32 = 3;
 
 /// Quel che arriva da una lettura.
@@ -50,6 +57,8 @@ pub trait Dispositivo {
     async fn leggi(&mut self, area: AreaModbus, addr: u16, n: u16) -> io::Result<Letti>;
     async fn scrivi_registri(&mut self, addr: u16, regs: &[u16]) -> io::Result<()>;
     async fn scrivi_bit(&mut self, addr: u16, bit: &[bool]) -> io::Result<()>;
+    /// Il dispositivo del bus a cui vanno le richieste seguenti.
+    fn imposta_unita(&mut self, unita: u8);
 }
 
 impl Dispositivo for client::Context {
@@ -72,6 +81,9 @@ impl Dispositivo for client::Context {
             [b] => self.write_single_coil(addr, *b).await,
             _ => self.write_multiple_coils(addr, bit).await,
         }
+    }
+    fn imposta_unita(&mut self, unita: u8) {
+        self.set_slave(Slave(unita));
     }
 }
 
@@ -126,21 +138,30 @@ async fn marca_bad(db: &TagDb, m: &Mappatura) {
     }
 }
 
-/// Un giro di lettura. `Err` solo per un guasto di trasporto (o troppi giri
-/// muti): chi chiama chiude la sessione e riconnette.
+/// Com'è andato un giro su un dispositivo.
+#[derive(Debug, Default)]
+pub struct EsitoGiro {
+    /// Mappature che hanno risposto.
+    pub risposte: usize,
+    /// Il primo errore del giro, per lo stato del dispositivo.
+    pub errore: Option<String>,
+}
+
+/// Un giro di lettura su un dispositivo. `Err` solo per un guasto di
+/// trasporto: chi chiama chiude la sessione e riconnette.
 pub async fn leggi_giro<D: Dispositivo>(
     dev: &mut D,
     db: &TagDb,
     mappature: &[Mappatura],
     ordine: OrdineModbus,
+    timeout: Duration,
     in_errore: &mut HashSet<String>,
-    giri_muti: &mut u32,
     sorgente: &str,
-) -> anyhow::Result<()> {
-    let mut risposte = 0usize;
+) -> anyhow::Result<EsitoGiro> {
+    let mut esito_giro = EsitoGiro::default();
     for m in mappature {
         let n = codec::totale(&m.slots);
-        let esito = tokio::time::timeout(TIMEOUT, dev.leggi(m.area, m.address, n)).await;
+        let esito = tokio::time::timeout(timeout, dev.leggi(m.area, m.address, n)).await;
         let letti = match esito {
             Ok(Ok(l)) => l,
             Ok(Err(e)) if e_trasporto(&e) => {
@@ -150,18 +171,20 @@ pub async fn leggi_giro<D: Dispositivo>(
                 if in_errore.insert(m.tag.clone()) {
                     warn!(source = %sorgente, tag = %m.tag, address = m.address, "Modbus: il dispositivo risponde con un errore: {e} — tag Bad, gli altri continuano");
                 }
+                esito_giro.errore.get_or_insert_with(|| format!("{} @{}: {e}", m.tag, m.address));
                 marca_bad(db, m).await;
                 continue;
             }
             Err(_) => {
                 if in_errore.insert(m.tag.clone()) {
-                    warn!(source = %sorgente, tag = %m.tag, address = m.address, "Modbus: nessuna risposta in {} s — tag Bad", TIMEOUT.as_secs());
+                    warn!(source = %sorgente, tag = %m.tag, address = m.address, "Modbus: nessuna risposta in {} ms — tag Bad", timeout.as_millis());
                 }
+                esito_giro.errore.get_or_insert_with(|| format!("nessuna risposta in {} ms", timeout.as_millis()));
                 marca_bad(db, m).await;
                 continue;
             }
         };
-        risposte += 1;
+        esito_giro.risposte += 1;
         if in_errore.remove(&m.tag) {
             info!(source = %sorgente, tag = %m.tag, "Modbus: la mappatura risponde di nuovo");
         }
@@ -181,16 +204,7 @@ pub async fn leggi_giro<D: Dispositivo>(
             }
         }
     }
-    if !mappature.is_empty() && risposte == 0 {
-        *giri_muti += 1;
-        if *giri_muti >= GIRI_MUTI_PER_RICONNETTERE {
-            *giri_muti = 0;
-            return Err(anyhow::anyhow!("nessuna risposta per {GIRI_MUTI_PER_RICONNETTERE} giri"));
-        }
-    } else {
-        *giri_muti = 0;
-    }
-    Ok(())
+    Ok(esito_giro)
 }
 
 /// Gli slot da scrivere per una richiesta del bus, con il valore di ciascuno.
@@ -281,36 +295,116 @@ pub async fn scrivi<D: Dispositivo>(
     Ok(())
 }
 
-/// Una sessione: il ciclo di lettura e le scritture, finché la connessione regge.
-#[allow(clippy::too_many_arguments)]
-async fn sessione<D: Dispositivo>(
+/// Un dispositivo del bus durante una sessione: la sua configurazione e il suo
+/// stato di lettura.
+#[derive(Debug)]
+pub struct Unita {
+    pub unit_id: u8,
+    pub ordine: OrdineModbus,
+    pub timeout: Duration,
+    pub intervallo: Duration,
+    pub registri: Vec<RegisterMapping>,
+    in_errore: HashSet<String>,
+    giri_muti: u32,
+    prossimo: Instant,
+}
+
+impl Unita {
+    pub fn da(d: &DispositivoModbus, poll_bus_ms: u64) -> Self {
+        Self {
+            unit_id: d.unit_id,
+            ordine: d.ordine,
+            timeout: Duration::from_millis(d.timeout_ms.max(10)),
+            intervallo: Duration::from_millis(d.poll_interval_ms.unwrap_or(poll_bus_ms).max(10)),
+            registri: d.registers.clone(),
+            in_errore: HashSet::new(),
+            giri_muti: 0,
+            prossimo: Instant::now(),
+        }
+    }
+
+    /// Muto da abbastanza giri da far pensare che il guasto sia del bus.
+    pub fn muto(&self) -> bool {
+        self.giri_muti >= GIRI_MUTI_PER_RICONNETTERE
+    }
+
+    fn possiede(&self, tag: &str) -> bool {
+        self.registri.iter().any(|r| r.tag == tag)
+    }
+}
+
+/// Un giro su un dispositivo: lo seleziona, legge, aggiorna il suo stato.
+/// `Err` solo per un guasto di trasporto.
+pub async fn giro_unita<D: Dispositivo>(
+    dev: &mut D,
+    db: &TagDb,
+    u: &mut Unita,
+    stato: &StatoSorgenti,
+    sorgente: &str,
+) -> anyhow::Result<()> {
+    dev.imposta_unita(u.unit_id);
+    let m = prepara(db, &u.registri).await;
+    let esito = leggi_giro(dev, db, &m, u.ordine, u.timeout, &mut u.in_errore, sorgente).await?;
+    if m.is_empty() {
+        return Ok(());
+    }
+    if esito.risposte == 0 {
+        u.giri_muti += 1;
+        if stato.dispositivo(sorgente, u.unit_id, Collegamento::NonRisponde, esito.errore) {
+            warn!(source = %sorgente, unit_id = u.unit_id, "Modbus: il dispositivo non risponde — i suoi tag Bad, gli altri continuano");
+        }
+    } else {
+        u.giri_muti = 0;
+        if stato.dispositivo(sorgente, u.unit_id, Collegamento::Ok, esito.errore) {
+            info!(source = %sorgente, unit_id = u.unit_id, "Modbus: il dispositivo risponde");
+        }
+    }
+    Ok(())
+}
+
+/// Una sessione sul bus: i dispositivi a turno, ognuno col suo intervallo, e le
+/// scritture, finché la connessione regge.
+pub async fn sessione<D: Dispositivo>(
     mut dev: D,
     sorgente: &str,
-    registri: &[RegisterMapping],
-    poll_ms: u64,
-    ordine: OrdineModbus,
+    unita: &mut [Unita],
     db: &TagDb,
+    stato: &StatoSorgenti,
     write_rx: &Mutex<mpsc::Receiver<WriteRequest>>,
     cancel: &CancellationToken,
 ) -> anyhow::Result<()> {
     let mut rx = write_rx.lock().await;
-    let mut ticker = tokio::time::interval(Duration::from_millis(poll_ms.max(10)));
-    ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-    let mut in_errore = HashSet::new();
-    let mut giri_muti = 0u32;
+    for u in unita.iter_mut() {
+        u.prossimo = Instant::now();
+        u.giri_muti = 0;
+    }
     loop {
+        let prossimo = unita.iter().map(|u| u.prossimo).min().unwrap_or_else(|| Instant::now() + Duration::from_secs(3600));
         tokio::select! {
             _ = cancel.cancelled() => return Ok(()),
-            _ = ticker.tick() => {
-                let m = prepara(db, registri).await;
-                leggi_giro(&mut dev, db, &m, ordine, &mut in_errore, &mut giri_muti, sorgente).await?;
+            _ = tokio::time::sleep_until(prossimo) => {
+                let adesso = Instant::now();
+                for u in unita.iter_mut().filter(|u| u.prossimo <= adesso) {
+                    giro_unita(&mut dev, db, u, stato, sorgente).await?;
+                    u.prossimo = Instant::now() + u.intervallo;
+                }
+                if !unita.is_empty() && unita.iter().all(Unita::muto) {
+                    return Err(anyhow::anyhow!("nessun dispositivo risponde da {GIRI_MUTI_PER_RICONNETTERE} giri"));
+                }
             }
             Some(req) = rx.recv() => {
-                let m = prepara(db, registri).await;
-                scrivi(&mut dev, db, &m, ordine, req, sorgente).await?;
+                let Some(u) = unita.iter_mut().find(|u| u.possiede(&req.0)) else { continue };
+                dev.imposta_unita(u.unit_id);
+                let m = prepara(db, &u.registri).await;
+                scrivi(&mut dev, db, &m, u.ordine, req, sorgente).await?;
             }
         }
     }
+}
+
+/// Tutte le mappature del bus, di tutti i dispositivi.
+fn tutti_i_registri(dispositivi: &[DispositivoModbus]) -> Vec<RegisterMapping> {
+    dispositivi.iter().flat_map(|d| d.registers.iter().cloned()).collect()
 }
 
 /// Registra le mappature sul bus: la radice basta, una scrittura su una foglia
@@ -329,36 +423,62 @@ async fn tutti_bad(db: &TagDb, registri: &[RegisterMapping]) {
     }
 }
 
-/// Modbus TCP: sessioni una dopo l'altra finché `cancel` non scatta.
-pub async fn run(cfg: ModbusTcpConfig, db: Arc<TagDb>, bus: Arc<TagWriteBus>, cancel: CancellationToken) {
-    let rx = registra(&bus, &cfg.registers).await;
+/// Esegue una sessione e ne riporta l'esito nello stato del bus.
+async fn con_stato(stato: &StatoSorgenti, sorgente: &str, r: anyhow::Result<()>) -> anyhow::Result<()> {
+    if let Err(e) = &r {
+        stato.caduta(sorgente, e.to_string());
+    }
+    r
+}
+
+/// Modbus TCP: sessioni una dopo l'altra finché `cancel` non scatta. Più
+/// dispositivi = più unit id dietro lo stesso indirizzo (un gateway).
+pub async fn run(cfg: ModbusTcpConfig, db: Arc<TagDb>, bus: Arc<TagWriteBus>, stato: Arc<StatoSorgenti>, cancel: CancellationToken) {
+    let dispositivi = cfg.dispositivi();
+    let registri = tutti_i_registri(&dispositivi);
+    stato.registra(&cfg.id, dispositivi.iter().map(|d| d.unit_id));
+    let rx = registra(&bus, &registri).await;
     let addr: std::net::SocketAddr = match format!("{}:{}", cfg.host, cfg.port).parse() {
         Ok(a) => a,
         Err(e) => {
             warn!(source = %cfg.id, "Modbus TCP: indirizzo non valido «{}:{}»: {e} — ferma finché non si corregge la configurazione", cfg.host, cfg.port);
-            tutti_bad(&db, &cfg.registers).await;
+            stato.caduta(&cfg.id, format!("indirizzo non valido: {e}"));
+            tutti_bad(&db, &registri).await;
             return;
         }
     };
+    let mut unita: Vec<Unita> = dispositivi.iter().map(|d| Unita::da(d, cfg.poll_interval_ms)).collect();
+    let primo = unita.first().map(|u| u.unit_id).unwrap_or(cfg.unit_id);
+    let unita = Mutex::new(&mut unita);
     sws_core::riconnessione::con_attesa(
         &cfg.id,
         cancel.clone(),
         || async {
-            info!(source = %cfg.id, %addr, unit_id = cfg.unit_id, "Modbus TCP: connessione");
-            let ctx = tcp::connect_slave(addr, Slave(cfg.unit_id))
-                .await
-                .map_err(|e| anyhow::anyhow!("connessione a {addr}: {e}"))?;
-            info!(source = %cfg.id, "Modbus TCP: connesso");
-            sessione(ctx, &cfg.id, &cfg.registers, cfg.poll_interval_ms, cfg.ordine, &db, &rx, &cancel).await
+            info!(source = %cfg.id, %addr, dispositivi = dispositivi.len(), "Modbus TCP: connessione");
+            let r = async {
+                let ctx = tcp::connect_slave(addr, Slave(primo))
+                    .await
+                    .map_err(|e| anyhow::anyhow!("connessione a {addr}: {e}"))?;
+                info!(source = %cfg.id, "Modbus TCP: connesso");
+                stato.bus(&cfg.id, Collegamento::Ok, None);
+                let mut u = unita.lock().await;
+                sessione(ctx, &cfg.id, u.as_mut_slice(), &db, &stato, &rx, &cancel).await
+            }
+            .await;
+            con_stato(&stato, &cfg.id, r).await
         },
-        || tutti_bad(&db, &cfg.registers),
+        || tutti_bad(&db, &registri),
     )
     .await;
 }
 
-/// Modbus RTU (seriale): stesso motore, trasporto diverso.
-pub async fn run_rtu(cfg: ModbusRtuConfig, db: Arc<TagDb>, bus: Arc<TagWriteBus>, cancel: CancellationToken) {
-    let rx = registra(&bus, &cfg.registers).await;
+/// Modbus RTU (seriale): la porta si apre una volta per tutto il bus, gli
+/// slave si interrogano a turno.
+pub async fn run_rtu(cfg: ModbusRtuConfig, db: Arc<TagDb>, bus: Arc<TagWriteBus>, stato: Arc<StatoSorgenti>, cancel: CancellationToken) {
+    let dispositivi = cfg.dispositivi();
+    let registri = tutti_i_registri(&dispositivi);
+    stato.registra(&cfg.id, dispositivi.iter().map(|d| d.unit_id));
+    let rx = registra(&bus, &registri).await;
     let parity = match cfg.parity.to_ascii_uppercase().as_str() {
         "E" => Parity::Even,
         "O" => Parity::Odd,
@@ -366,24 +486,33 @@ pub async fn run_rtu(cfg: ModbusRtuConfig, db: Arc<TagDb>, bus: Arc<TagWriteBus>
     };
     let data_bits = if cfg.data_bits == 7 { DataBits::Seven } else { DataBits::Eight };
     let stop_bits = if cfg.stop_bits == 2 { StopBits::Two } else { StopBits::One };
+    let mut unita: Vec<Unita> = dispositivi.iter().map(|d| Unita::da(d, cfg.poll_interval_ms)).collect();
+    let primo = unita.first().map(|u| u.unit_id).unwrap_or(cfg.unit_id);
+    let unita = Mutex::new(&mut unita);
     sws_core::riconnessione::con_attesa(
         &cfg.id,
         cancel.clone(),
         || async {
-            info!(source = %cfg.id, device = %cfg.device, baud = cfg.baud_rate, unit_id = cfg.unit_id, "Modbus RTU: apertura");
-            let stream = tokio_serial::new(&cfg.device, cfg.baud_rate)
-                .parity(parity)
-                .data_bits(data_bits)
-                .stop_bits(stop_bits)
-                .open_native_async()
-                .map_err(|e| anyhow::anyhow!("apertura di {}: {e}", cfg.device))?;
-            let ctx = rtu::connect_slave(stream, Slave(cfg.unit_id))
-                .await
-                .map_err(|e| anyhow::anyhow!("connessione RTU {}: {e}", cfg.device))?;
-            info!(source = %cfg.id, "Modbus RTU: connesso");
-            sessione(ctx, &cfg.id, &cfg.registers, cfg.poll_interval_ms, cfg.ordine, &db, &rx, &cancel).await
+            info!(source = %cfg.id, device = %cfg.device, baud = cfg.baud_rate, dispositivi = dispositivi.len(), "Modbus RTU: apertura");
+            let r = async {
+                let stream = tokio_serial::new(&cfg.device, cfg.baud_rate)
+                    .parity(parity)
+                    .data_bits(data_bits)
+                    .stop_bits(stop_bits)
+                    .open_native_async()
+                    .map_err(|e| anyhow::anyhow!("apertura di {}: {e}", cfg.device))?;
+                let ctx = rtu::connect_slave(stream, Slave(primo))
+                    .await
+                    .map_err(|e| anyhow::anyhow!("connessione RTU {}: {e}", cfg.device))?;
+                info!(source = %cfg.id, "Modbus RTU: porta aperta");
+                stato.bus(&cfg.id, Collegamento::Ok, None);
+                let mut u = unita.lock().await;
+                sessione(ctx, &cfg.id, u.as_mut_slice(), &db, &stato, &rx, &cancel).await
+            }
+            .await;
+            con_stato(&stato, &cfg.id, r).await
         },
-        || tutti_bad(&db, &cfg.registers),
+        || tutti_bad(&db, &registri),
     )
     .await;
 }

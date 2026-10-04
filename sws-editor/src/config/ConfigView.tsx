@@ -69,8 +69,17 @@ export function ConfigView() {
   const projectLoadError = useAppStore((s) => s.projectLoadError);
 
   const focus    = useAppStore((s) => s.configFocus);
-  const etichettaFocus = useAppStore((s) =>
-    s.elenchiConfig[s.configTab]?.find((v) => v.id === s.configFocus)?.etichetta ?? s.configFocus);
+  // Un figlio (il dispositivo di un bus Modbus, 04-10-2026) si legge «bus › dispositivo».
+  const etichettaFocus = useAppStore((s) => {
+    const voci = s.elenchiConfig[s.configTab] ?? [];
+    const v = voci.find((x) => x.id === s.configFocus);
+    if (v) return v.etichetta;
+    for (const g of voci) {
+      const f = g.figli?.find((x) => x.id === s.configFocus);
+      if (f) return `${g.etichetta} › ${f.etichetta}`;
+    }
+    return s.configFocus;
+  });
   // Il flag del repo va passato: con il default `false` le schede di sviluppo
   // non verrebbero montate, e la foglia — che l'albero invece disegna, perché
   // lì il flag c'è — aprirebbe un pannello vuoto. Difetto trovato dal

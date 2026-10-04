@@ -194,6 +194,23 @@ describe("pannello sinistro — le foglie di secondo livello (24-09-2026)", () =
     expect(useAppStore.getState().configFocus).toBeNull();
   });
 
+  it("un bus Modbus si apre sui suoi dispositivi, terzo livello (04-10-2026)", () => {
+    useAppStore.setState({
+      project: { sources: [{ id: "linea", kind: "modbus_rtu", devices: [{ unit_id: 1, registers: [] }, { unit_id: 3, nome: "inverter", registers: [] }] }] } as never,
+    });
+    monta();
+    fireEvent.click(screen.getByTestId("expand-config-protocols"));
+    expect(screen.getByTestId("elemento-config-protocols-linea/1").textContent).toContain("unit 1");
+    fireEvent.click(screen.getByTestId("elemento-config-protocols-linea/3"));
+    expect(useAppStore.getState()).toMatchObject({ appMode: "config", configTab: "protocols", configFocus: "linea/3" });
+    // Un cambio dei soli figli si ripubblica: l'albero segue un dispositivo aggiunto.
+    const pubblica = useAppStore.getState().pubblicaElencoConfig;
+    pubblica("protocols", [{ id: "linea", etichetta: "linea", figli: [{ id: "linea/1", etichetta: "unit 1" }] }]);
+    const prima = useAppStore.getState().elenchiConfig;
+    pubblica("protocols", [{ id: "linea", etichetta: "linea", figli: [{ id: "linea/1", etichetta: "unit 1" }, { id: "linea/2", etichetta: "unit 2" }] }]);
+    expect(useAppStore.getState().elenchiConfig).not.toBe(prima);
+  });
+
   it("una pubblicazione identica non cambia lo store (niente ridisegni a ogni tasto)", () => {
     const pubblica = useAppStore.getState().pubblicaElencoConfig;
     pubblica("scripts", [{ id: "a", etichetta: "a" }]);

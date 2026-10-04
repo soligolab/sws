@@ -51,6 +51,9 @@ pub struct SourceSupervisor {
     /// `set_pki_root`.
     opcua_pki_root: tokio::sync::RwLock<std::path::PathBuf>,
     sources: Mutex<HashMap<String, RunningSource>>,
+    /// Lo stato di ogni sorgente e dei suoi dispositivi (04-10-2026), per il
+    /// pallino nell'albero della Configurazione: `GET /api/sources/stato`.
+    pub stato: Arc<sws_core::stato_sorgenti::StatoSorgenti>,
     /// Le sorgenti non registrano write-back. Vero sulle **istanze IDE**.
     ///
     /// Un IDE apre il progetto per poterlo modificare, non per governare
@@ -95,6 +98,7 @@ impl SourceSupervisor {
             mqtt_certificati,
             opcua_pki_root: tokio::sync::RwLock::new(default_pki_root()),
             sources: Mutex::new(HashMap::new()),
+            stato: Arc::new(sws_core::stato_sorgenti::StatoSorgenti::new()),
             armed: std::sync::atomic::AtomicBool::new(true),
             sola_lettura: std::sync::atomic::AtomicBool::new(false),
         });
@@ -321,17 +325,18 @@ impl SourceSupervisor {
         let bus = self.bus.clone();
         let cancel_for_task = cancel.clone();
         let id_for_log = id.clone();
+        let stato = self.stato.clone();
         let handle = match def {
             SourceDef::ModbusTcp(cfg) => {
                 info!(source = %id_for_log, "starting Modbus TCP task");
                 tokio::spawn(async move {
-                    sws_plugin_modbus::run(cfg, db, bus, cancel_for_task).await;
+                    sws_plugin_modbus::run(cfg, db, bus, stato, cancel_for_task).await;
                 })
             }
             SourceDef::ModbusRtu(cfg) => {
                 info!(source = %id_for_log, device = %cfg.device, "starting Modbus RTU task");
                 tokio::spawn(async move {
-                    sws_plugin_modbus::run_rtu(cfg, db, bus, cancel_for_task).await;
+                    sws_plugin_modbus::run_rtu(cfg, db, bus, stato, cancel_for_task).await;
                 })
             }
             SourceDef::Mqtt(cfg) => {
@@ -426,6 +431,7 @@ impl SourceSupervisor {
                 warn!(source = %id, "source task did not stop within 2 s — aborted");
             }
         }
+        self.stato.rimuovi(id);
         // Release the tag routes on the write bus.
         if !running.owned_tags.is_empty() {
             self.bus.unregister_many(&running.owned_tags).await;
@@ -474,8 +480,8 @@ fn max_silence_of(s: &SourceDef) -> Option<Duration> {
 
 fn tags_of(s: &SourceDef) -> Vec<String> {
     match s {
-        SourceDef::ModbusTcp(c) => c.registers.iter().map(|r| r.tag.clone()).collect(),
-        SourceDef::ModbusRtu(c) => c.registers.iter().map(|r| r.tag.clone()).collect(),
+        SourceDef::ModbusTcp(c) => c.dispositivi().iter().flat_map(|d| d.registers.iter().map(|r| r.tag.clone())).collect(),
+        SourceDef::ModbusRtu(c) => c.dispositivi().iter().flat_map(|d| d.registers.iter().map(|r| r.tag.clone())).collect(),
         SourceDef::OpcUaServer(c) => c.nodes.iter().map(|n| n.tag.clone()).collect(),
         SourceDef::Mqtt(c) => c.topics.iter().map(|t| t.tag.clone()).collect(),
         SourceDef::OpcUaClient(c) => c.nodes.iter().map(|n| n.tag.clone()).collect(),

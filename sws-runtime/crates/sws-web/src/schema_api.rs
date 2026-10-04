@@ -401,6 +401,7 @@ pub async fn schema_source(Query(q): Query<KindQuery>) -> Response {
         "kind": kind,
         "campi": campi.iter().map(campo_json).collect::<Vec<_>>(),
         "mapping": mapping_json(kind),
+        "dispositivo": dispositivo_json(kind),
         "esempio_yaml": sch::SOURCE_EXAMPLES.iter().find(|(k, _)| *k == kind).map(|(_, e)| *e),
     }))
     .into_response()
@@ -425,6 +426,17 @@ fn mapping_json(kind: &str) -> Value {
         "s7" => sch::SOURCE_S7_S7TAGMAPPING_FIELDS,
         "enip" => sch::SOURCE_ENIP_ENIPTAGMAPPING_FIELDS,
         _ => &[],
+    };
+    json!(campi.iter().map(campo_json).collect::<Vec<_>>())
+}
+
+/// Modbus (04-10-2026): la sorgente è un bus, i registri stanno dentro i
+/// suoi `devices`. `null` per gli altri protocolli.
+fn dispositivo_json(kind: &str) -> Value {
+    let campi: &[sch::Field] = match kind {
+        "modbus_tcp" => sch::SOURCE_MODBUS_TCP_DISPOSITIVOMODBUS_FIELDS,
+        "modbus_rtu" => sch::SOURCE_MODBUS_RTU_DISPOSITIVOMODBUS_FIELDS,
+        _ => return Value::Null,
     };
     json!(campi.iter().map(campo_json).collect::<Vec<_>>())
 }

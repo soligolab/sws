@@ -1019,15 +1019,50 @@ export interface RegisterMapping {
 /** Ordine di parole e byte dei valori su più registri (Fase 3). Assente = abcd. */
 export type OrdineModbus = "abcd" | "cdab" | "badc" | "dcba";
 
+/** Un dispositivo su un bus Modbus (04-10-2026). Autosufficiente: una voce
+ *  del futuro catalogo di dispositivi noti è un `DispositivoModbus` senza
+ *  `unit_id`. Vedi `config/sorgenti/modbusDispositivi.ts`. */
+export interface DispositivoModbus {
+  unit_id: number;
+  nome?: string;
+  /** Da dove viene («marca/prodotto@versione»): lo riempirà il catalogo. */
+  modello?: string;
+  /** Assente = abcd. */
+  ordine?: OrdineModbus;
+  /** Assente = quello del bus. */
+  poll_interval_ms?: number;
+  /** Assente = 3000. */
+  timeout_ms?: number;
+  registers: RegisterMapping[];
+}
+
+/** Lo stato di un bus o di un dispositivo (`GET /api/sources/stato`). */
+export interface StatoCollegamento {
+  stato: "mai_connesso" | "ok" | "non_risponde";
+  errore?: string;
+  da_ms: number;
+}
+
+/** Lo stato di una sorgente avviata: il bus, e i dispositivi per unit id. */
+export interface StatoSorgente extends StatoCollegamento {
+  dispositivi?: Record<string, StatoCollegamento>;
+}
+
 export interface ModbusTcpSource {
   kind: "modbus_tcp";
   id: string;
   host: string;
   port: number;
-  unit_id: number;
+  /** Formato di prima (un dispositivo per sorgente): vale solo senza `devices`. */
+  unit_id?: number;
+  /** Predefinito per i dispositivi del bus. */
   poll_interval_ms: number;
+  /** Formato di prima. */
   ordine?: OrdineModbus;
-  registers: RegisterMapping[];
+  /** Formato di prima. */
+  registers?: RegisterMapping[];
+  /** Più unit id dietro lo stesso indirizzo (un gateway). */
+  devices?: DispositivoModbus[];
 }
 
 export interface ModbusRtuSource {
@@ -1043,10 +1078,14 @@ export interface ModbusRtuSource {
   data_bits: number;
   /** Stop bits: 1 or 2. Default 1. */
   stop_bits: number;
-  unit_id: number;
+  /** Formato di prima (un dispositivo per sorgente): vale solo senza `devices`. */
+  unit_id?: number;
   poll_interval_ms: number;
   ordine?: OrdineModbus;
-  registers: RegisterMapping[];
+  /** Formato di prima. */
+  registers?: RegisterMapping[];
+  /** Gli slave sulla linea: la porta si apre una volta sola. */
+  devices?: DispositivoModbus[];
 }
 
 export interface TopicMapping {

@@ -562,16 +562,23 @@ pub struct ModbusTcpConfig {
     pub host: String,
     #[serde(default = "default_modbus_port")]
     pub port: u16,
-    #[serde(default = "default_unit_id")]
+    /// Formato di prima del 04-10-2026 (un dispositivo per sorgente): vale solo
+    /// se `devices` è vuoto. Vedi [`ModbusTcpConfig::dispositivi`].
+    #[serde(default = "default_unit_id", skip_serializing_if = "e_unit_id_predefinito")]
     pub unit_id: u8,
-    /// How often to poll all registers, in milliseconds.
+    /// Intervallo di lettura predefinito dei dispositivi del bus, in ms.
     #[serde(default = "default_poll_interval_ms")]
     pub poll_interval_ms: u64,
-    /// Ordine di parole e byte dei valori su più registri (Fase 3, 04-10-2026):
-    /// un fatto del dispositivo, quindi della sorgente.
+    /// Formato di prima: l'ordine dell'unico dispositivo.
     #[serde(default, skip_serializing_if = "OrdineModbus::e_predefinito")]
     pub ordine: OrdineModbus,
+    /// Formato di prima: i registri dell'unico dispositivo.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub registers: Vec<RegisterMapping>,
+    /// I dispositivi sul bus (04-10-2026): per un gateway, più unit id dietro
+    /// lo stesso indirizzo.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub devices: Vec<DispositivoModbus>,
 }
 
 /// Modbus RTU (serial) source. Mirrors `ModbusTcpConfig` but uses a serial
@@ -593,13 +600,95 @@ pub struct ModbusRtuConfig {
     /// Stop bits: 1 or 2. Default 1.
     #[serde(default = "default_stop_bits")]
     pub stop_bits: u8,
-    #[serde(default = "default_unit_id")]
+    /// Formato di prima (un dispositivo per sorgente), come in TCP.
+    #[serde(default = "default_unit_id", skip_serializing_if = "e_unit_id_predefinito")]
     pub unit_id: u8,
     #[serde(default = "default_poll_interval_ms")]
     pub poll_interval_ms: u64,
     #[serde(default, skip_serializing_if = "OrdineModbus::e_predefinito")]
     pub ordine: OrdineModbus,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub registers: Vec<RegisterMapping>,
+    /// Gli slave sulla linea (04-10-2026): la porta si apre una volta sola e
+    /// gli slave si interrogano a turno.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub devices: Vec<DispositivoModbus>,
+}
+
+/// Un dispositivo su un bus Modbus (04-10-2026). Autosufficiente: tutto quello
+/// che serve a interrogarlo sta qui e niente sul bus, così una voce del futuro
+/// catalogo di dispositivi noti è un `DispositivoModbus` senza `unit_id`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DispositivoModbus {
+    #[serde(default = "default_unit_id")]
+    pub unit_id: u8,
+    /// Etichetta libera («inverter»).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub nome: String,
+    /// Da dove viene il dispositivo («marca/prodotto@versione»): lo riempirà il
+    /// catalogo dei dispositivi noti; oggi solo a mano.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub modello: Option<String>,
+    #[serde(default, skip_serializing_if = "OrdineModbus::e_predefinito")]
+    pub ordine: OrdineModbus,
+    /// Vuoto = quello del bus.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub poll_interval_ms: Option<u64>,
+    /// Attesa massima di una risposta, in ms.
+    #[serde(default = "default_timeout_modbus_ms", skip_serializing_if = "e_timeout_modbus_predefinito")]
+    pub timeout_ms: u64,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub registers: Vec<RegisterMapping>,
+}
+
+pub const TIMEOUT_MODBUS_MS: u64 = 3000;
+
+/// Sul bus `unit_id` è del formato di prima: col default non si scrive, così un
+/// bus con `devices` non porta un `unit_id: 1` che sembra voler dire qualcosa.
+fn e_unit_id_predefinito(v: &u8) -> bool {
+    *v == default_unit_id()
+}
+
+fn default_timeout_modbus_ms() -> u64 {
+    TIMEOUT_MODBUS_MS
+}
+
+fn e_timeout_modbus_predefinito(v: &u64) -> bool {
+    *v == TIMEOUT_MODBUS_MS
+}
+
+/// Il formato di prima del 04-10-2026 letto come un bus con un dispositivo:
+/// l'**unico** punto in cui quel formato viene interpretato.
+fn dispositivi_modbus(devices: &[DispositivoModbus], unit_id: u8, ordine: OrdineModbus, registers: &[RegisterMapping]) -> Vec<DispositivoModbus> {
+    if !devices.is_empty() {
+        return devices.to_vec();
+    }
+    if registers.is_empty() {
+        return Vec::new();
+    }
+    vec![DispositivoModbus {
+        unit_id,
+        nome: String::new(),
+        modello: None,
+        ordine,
+        poll_interval_ms: None,
+        timeout_ms: TIMEOUT_MODBUS_MS,
+        registers: registers.to_vec(),
+    }]
+}
+
+impl ModbusTcpConfig {
+    /// I dispositivi del bus, col formato di prima letto come un dispositivo.
+    pub fn dispositivi(&self) -> Vec<DispositivoModbus> {
+        dispositivi_modbus(&self.devices, self.unit_id, self.ordine, &self.registers)
+    }
+}
+
+impl ModbusRtuConfig {
+    /// I dispositivi del bus, col formato di prima letto come un dispositivo.
+    pub fn dispositivi(&self) -> Vec<DispositivoModbus> {
+        dispositivi_modbus(&self.devices, self.unit_id, self.ordine, &self.registers)
+    }
 }
 
 /// L'area Modbus di una mappatura (Fase 3, 04-10-2026).
@@ -650,7 +739,7 @@ impl OrdineModbus {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RegisterMapping {
     /// TagId to write the value into.
     pub tag: String,
@@ -2094,3 +2183,44 @@ mod tabella_eventi_tests {
     }
 }
 
+
+#[cfg(test)]
+mod dispositivi_modbus_tests {
+    use super::*;
+
+    fn rtu(yaml: &str) -> ModbusRtuConfig {
+        serde_yaml::from_str(yaml).unwrap()
+    }
+
+    #[test]
+    fn il_formato_di_prima_e_un_bus_con_un_dispositivo() {
+        let c = rtu("id: l\ndevice: /dev/ttyS1\nunit_id: 4\nordine: cdab\nregisters: [{tag: a, address: 1}]\n");
+        let d = c.dispositivi();
+        assert_eq!(d.len(), 1);
+        assert_eq!((d[0].unit_id, d[0].ordine, d[0].timeout_ms), (4, OrdineModbus::Cdab, TIMEOUT_MODBUS_MS));
+        assert_eq!(d[0].registers[0].tag, "a");
+    }
+
+    #[test]
+    fn con_devices_i_campi_di_prima_sono_ignorati() {
+        let c = rtu(
+            "id: l\ndevice: /dev/ttyS1\nregisters: [{tag: vecchio, address: 1}]\ndevices:\n  - {unit_id: 2, registers: [{tag: a, address: 0}]}\n  - {unit_id: 3, nome: inverter, modello: x/y@1, poll_interval_ms: 500, timeout_ms: 800, registers: []}\n",
+        );
+        let d = c.dispositivi();
+        assert_eq!(d.iter().map(|x| x.unit_id).collect::<Vec<_>>(), vec![2, 3]);
+        assert_eq!(d[1].poll_interval_ms, Some(500));
+        assert_eq!(d[1].modello.as_deref(), Some("x/y@1"));
+        assert!(d.iter().all(|x| x.registers.iter().all(|r| r.tag != "vecchio")));
+    }
+
+    #[test]
+    fn un_bus_vuoto_non_ha_dispositivi_e_il_formato_nuovo_non_scrive_i_campi_vecchi() {
+        let c = rtu("id: l\ndevice: /dev/ttyS1\n");
+        assert!(c.dispositivi().is_empty(), "registers ora è facoltativo");
+        let c = rtu("id: l\ndevice: /dev/ttyS1\ndevices: [{unit_id: 2}]\n");
+        let y = serde_yaml::to_string(&c).unwrap();
+        assert!(!y.contains("registers: []"), "{y}");
+        assert!(!y.contains("timeout_ms"), "predefinito omesso: {y}");
+        assert_eq!(y.matches("unit_id").count(), 1, "solo quello del dispositivo: {y}");
+    }
+}
