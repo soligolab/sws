@@ -74,6 +74,25 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — rc.23 dal collaudo MCM260X sul TC620 (2026-10-04, notte)
+
+**Nessun ramo aperto.** Su `main` e su origin: `c080f9d6` (collaudo MCM260X) + `chore(rc): 2.12.0-rc.23`, tag
+**2.12.0-rc.23**, immagine sul canale `rc-arm64`.
+- **Collaudo sul TC620** (rc.22 installata, quadlet corretto **a mano** sul pannello: `PodmanArgs=--group-add
+  keep-groups` e `AddDevice=-/dev/ttyCOMn:/dev/ttyCOMn`, numero ancora «2»):
+  - i due MCM260X stanno su **`/dev/ttyCOM2`** (= `ttyS0`, RS485-2) a 57600 8N1, **non** su `ttyCOM1`; RS-485 del
+    driver non serve;
+  - 5AD (unit 1): sonde impostate nel modulo **AI1 PTC1K (12)**, AI2-AI4 **NTC10K (11)** (provate tutte: solo
+    queste danno valori validi) → 25.0 / 26.0 / 29.0 / 27.4 °C;
+  - 9AD (unit 2): mappa verificata indirizzo per indirizzo, I/O non ancora provati dal vivo.
+- **Da provare con la rc.23**: aggiornamento automatico dal canale di prova, poi «configurazione del servizio da
+  aggiornare» 2 → 3; i pallini di stato presi dal pannello; rifare i tre MCM dal catalogo (annidati) e togliere i tipi
+  piatti vecchi e i `_v2` rimasti senza istanze.
+- **Semi nuovi**: [trend LVGL come il web](docs/plans/2026-10-04-trend-lvgl-come-il-web.md),
+  [configuratore dei moduli all'avvio](docs/plans/2026-10-04-configuratore-moduli.md).
+- Nota: la rc.22 su `rc-arm64` ha il quadlet 2 che podman 5.0.2 rifiuta (servizio che sparisce): la rc.23 la
+  sostituisce sullo stesso canale.
+
 ## ▶ Riprendere da qui — quattro rami su main; seriali nel container per il collaudo MCM (2026-10-04, sera)
 
 **Su `main`** (non pushato), squash su richiesta del maintainer prima del collaudo fisico: `61f24864` istanze/deploy,
