@@ -14,6 +14,7 @@ import { UsiDelTag } from "@/editor/RigaTagLive";
 import { radiceDi } from "@/tagCatalog";
 import { useAppStore } from "@/store";
 import { sourceTagIds } from "@/tagCatalog";
+import { tagSorgenteSenzaVariabile } from "@/tag/riconciliaTag";
 import { useSezioneSincronizzata } from "@/config/useSezioneSincronizzata";
 import { TRANS_COMP, BarraConflittoSezione, S, SaveBar } from "@/config/comuni";
 
@@ -799,8 +800,7 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
 
       {/* Orphan source tags — present in protocol sources but missing from project.tags */}
       {(() => {
-        const explicitIds = new Set(tags.map(t => t.id));
-        const orphanIds = [...sourceTagIds(storeProject).keys()].filter(id => !explicitIds.has(id));
+        const orphanIds = tagSorgenteSenzaVariabile(sourceTagIds(storeProject).keys(), tags);
         if (orphanIds.length === 0) return null;
         return (
           <div style={{ marginTop: 16, borderTop: "1px solid var(--brand-surface, #1e293b)", paddingTop: 12 }}>

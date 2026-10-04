@@ -1519,7 +1519,29 @@
     "deploySostituisceConfirm": "Deploying «{{progetto}}» deletes from the panel:\n{{elenco}}\n\nThe history of these projects is lost. Continue?",
     "deploySostituisceVoce": "  • «{{nome}}», with {{mb}} MB of history",
     "deploySostituisceVoceSenzaPeso": "  • «{{nome}}», with its history",
-    "deployAnnullato": "Deploy cancelled."
+    "deployAnnullato": "Deploy cancelled.",
+    "modbusMappature": "MAPPINGS",
+    "modbusArea": "Area",
+    "modbusRegistri": "Registers",
+    "modbusAree": {
+      "holding": "Holding (read/write)",
+      "input": "Input (read-only)",
+      "coil": "Coil (bit, read/write)",
+      "discrete": "Discrete input (bit, read-only)"
+    },
+    "modbusRegistriN": "{{n}} × 16 bit · {{tipo}}",
+    "modbusBit": "{{n}} bit · {{tipo}}",
+    "modbusComePrima": "(as before)",
+    "modbusStoricoHint": "Legacy type (float, int, bool, string): one u16 register times the scale is read, as before. With a precise type (i16, u32, f32…) registers and decoding come from the type.",
+    "modbusScalaSoloStorici": "The scale applies to legacy types; for a precise type use the scale of the tag or member.",
+    "modbusOrdine": "Word/byte order",
+    "modbusOrdineHint": "How the device lays out values on several registers (u32, f32, f64…). It is a device fact: see its manual.",
+    "modbusOrdini": {
+      "abcd": "ABCD (standard, big-endian)",
+      "cdab": "CDAB (swapped words)",
+      "badc": "BADC (swapped bytes)",
+      "dcba": "DCBA (fully reversed)"
+    }
   },
   "langtab": {
     "migrate": "Migrate texts…",

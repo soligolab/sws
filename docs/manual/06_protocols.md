@@ -50,11 +50,27 @@ sources:
 
 | Campo | Descrizione |
 |-------|-------------|
-| `tag` | ID tag SWS |
-| `address` | Indirizzo registro holding (0-based) |
-| `scale` | Fattore moltiplicativo: valore_tag = valore_raw × scale |
+| `tag` | ID tag SWS: un tag, una **foglia** (`m1.velocita`) o la **radice** di un'istanza (`m1`) |
+| `area` | `holding` (default, FC3/FC6/FC16), `input` (FC4, sola lettura), `coil` (FC1/FC5/FC15, bit), `discrete` (FC2, bit, sola lettura) |
+| `address` | Indirizzo di partenza (0-based) |
+| `scale` | Solo per i tipi storici: valore_tag = valore_raw × scale |
 
-**Note**: SWS legge i Holding Registers (FC3). La notazione Modicon (`40001` = address 0, `40011` = address 10) richiede di sottrarre 40001.
+E sulla sorgente: `ordine: abcd | cdab | badc | dcba` (default `abcd`), come il dispositivo mette i valori su più
+registri — ABCD parola alta e byte alto prima, CDAB parole scambiate, BADC byte scambiati, DCBA tutto rovesciato.
+
+**I registri vengono dal tipo** (dal 04-10-2026). Un tag dichiarato `i16` si legge con segno, un `u32`/`i32`/`f32`
+occupa 2 registri, un `u64`/`i64`/`f64` 4, un `string(10)` 5 (due caratteri per registro), un `bool` 1. Mappando la
+**radice** di un'istanza (un tipo struttura, Configurazione → Variabili → Tipi) si legge **un blocco**: i membri uno dopo
+l'altro, nell'ordine dichiarato; sulle aree a bit ogni membro è un bit. Una scrittura su una foglia scrive solo i suoi
+registri. La colonna «Registri» della card dice quanti ne legge ogni riga.
+
+**Compatibilità**: un tag col tipo **storico** (`float`, `int`, `bool`, `string`, o senza tipo — il caso di tutti i
+progetti fatti prima) si legge come sempre, un registro `u16` per la scala. Per leggere un `f32` su due registri si
+dichiara il tag `f32`.
+
+**Errori**: un registro che il dispositivo rifiuta (indirizzo che non esiste) marca Bad solo i suoi tag, gli altri
+continuano; una connessione persa, o nessuna risposta per tre giri, marca Bad tutto e la sorgente riconnette da sola
+con un'attesa crescente (1 → 30 s). La notazione Modicon (`40001` = address 0) richiede di sottrarre 40001.
 
 ---
 

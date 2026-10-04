@@ -12,3 +12,6 @@ tokio-util.workspace = true
 s7 = "0.1.9"
 byteorder.workspace = true
 sws-core = { path = "../sws-core" }
+
+[dev-dependencies]
+serde_yaml.workspace = true

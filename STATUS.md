@@ -74,6 +74,21 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — due rami annidati in attesa di collaudo (2026-10-04)
+
+**Rami aperti, annidati:** `feat/istanze-e-deploy-con-conferma` (da `main`) → `feat/tag-3-modbus` (sopra). Il primo
+aspetta il collaudo del maintainer (rimandato al 04-10): «Crea istanza» nella scheda Tipi e la conferma del deploy che
+sostituirebbe un progetto con un altro nome — tutto nell'IDE, l'editor di sviluppo gira già con quel codice. Il secondo
+(Fase 3 del piano tag) è fatto e provato su un simulatore `pymodbus`: Modbus con tipi, aree, blocchi, ordine dei byte,
+scrittura su foglia; e la riconnessione con attesa crescente per Modbus, S7, EtherNet/IP, OPC-UA, HomeAssistant
+(`sws_core::riconnessione`). Squash di tutti e due dopo il collaudo; nessuna immagine nuova ancora (rc.22 quando serve
+provarli sul pannello).
+- **Dopo il collaudo e gli squash**: sessione di plan sul seme [bus → dispositivi → tag](docs/plans/2026-10-04-bus-e-dispositivi.md)
+  (scelta del maintainer: partire da un `main` pulito).
+
+- Nota: `tests/avvisoAggiornamento.test.tsx` «quando il runtime riparte…» è fallito una volta nella suite completa e
+  passa tre volte su tre da solo: test con i timer, instabile sotto carico.
+
 ## ▶ Riprendere da qui — i valori dei protocolli prendono il tipo dichiarato (2026-10-03, notte)
 
 **Nessun ramo aperto.** Squash su `main`, tag **2.12.0-rc.21**, su origin.

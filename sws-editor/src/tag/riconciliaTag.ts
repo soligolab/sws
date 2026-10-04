@@ -148,6 +148,17 @@ export function ePercorsoDiUnaRadice(id: string, radici: readonly string[]): boo
   return radici.some((r) => id.startsWith(`${r}.`) || id.startsWith(`${r}[`));
 }
 
+/** I tag delle sorgenti che non hanno ancora una variabile: né dichiarati, né
+ *  foglie di un'istanza o di un array dichiarato. `tc620.cpu_pct` mappato
+ *  sull'host non è «orfano» se `tc620` è un'istanza: è già una sua foglia, con
+ *  lo storico della radice — e offrirgli «Abilita storico» creerebbe un tag
+ *  piatto in collisione con l'istanza. */
+export function tagSorgenteSenzaVariabile(daSorgenti: Iterable<string>, tags: readonly TagDef[]): string[] {
+  const dichiarati = new Set(tags.map((t) => t.id));
+  const radici = tags.filter((t) => t.type_ref || t.array).map((t) => t.id);
+  return [...daSorgenti].filter((id) => !dichiarati.has(id) && !ePercorsoDiUnaRadice(id, radici));
+}
+
 /** I tag da creare al salvataggio: ogni id referenziato e non dichiarato,
  *  con la definizione in attesa se c'è, altrimenti dedotta. Ordinati per id,
  *  senza doppioni. Vuoto = niente da fare, niente PUT. */

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import "../src/i18n";
-import { deduciTipo, ePercorsoDiUnaRadice, pianoCreazione, riferimentiDelProgetto, tipoDaEnIp, tipoDaS7 } from "../src/tag/riconciliaTag";
+import { deduciTipo, ePercorsoDiUnaRadice, pianoCreazione, tagSorgenteSenzaVariabile, riferimentiDelProgetto, tipoDaEnIp, tipoDaS7 } from "../src/tag/riconciliaTag";
 import { buildTagUsage, usiDiUnTag } from "../src/search/tagUsage";
 import type { ProjectInfo, SynopticObject, SynopticPage, TagDef, TypeDef } from "../src/types";
 
@@ -175,5 +175,17 @@ describe("usiDiUnTag — gli usi di una foglia sono usi della radice", () => {
     });
     // due foglie, la stessa pagina: un solo punto d'uso
     expect(usiDiUnTag(istanza, usi2, types)).toHaveLength(1);
+  });
+});
+
+describe("tagSorgenteSenzaVariabile", () => {
+  it("le foglie di un'istanza dichiarata non sono tag senza variabile", () => {
+    const tags = [
+      { id: "tc620", type_ref: "sistema", history: true },
+      { id: "valvole", array: { lunghezza: 3 } },
+      { id: "t1", data_type: "f32" },
+    ] as any;
+    const daSorgenti = ["tc620.cpu_pct", "tc620.core_pct[0]", "valvole[2]", "t1", "t2", "tc620bis.x"];
+    expect(tagSorgenteSenzaVariabile(daSorgenti, tags)).toEqual(["t2", "tc620bis.x"]);
   });
 });

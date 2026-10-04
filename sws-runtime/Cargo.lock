@@ -3722,6 +3722,7 @@ dependencies = [
  "sha2 0.10.9",
  "tempfile",
  "tokio",
+ "tokio-util",
  "tracing",
  "unicode-properties",
 ]
@@ -3809,6 +3810,7 @@ name = "sws-plugin-modbus"
 version = "2.12.0-rc.21"
 dependencies = [
  "anyhow",
+ "serde_yaml",
  "sws-core",
  "tokio",
  "tokio-modbus",
@@ -3852,6 +3854,7 @@ dependencies = [
  "anyhow",
  "byteorder",
  "s7",
+ "serde_yaml",
  "sws-core",
  "tokio",
  "tokio-util",

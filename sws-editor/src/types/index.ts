@@ -1012,7 +1012,12 @@ export interface RegisterMapping {
   tag: string;
   address: number;
   scale: number;
+  /** Fase 3 (04-10-2026): l'area. Assente = holding, come prima. */
+  area?: "holding" | "input" | "coil" | "discrete";
 }
+
+/** Ordine di parole e byte dei valori su più registri (Fase 3). Assente = abcd. */
+export type OrdineModbus = "abcd" | "cdab" | "badc" | "dcba";
 
 export interface ModbusTcpSource {
   kind: "modbus_tcp";
@@ -1021,6 +1026,7 @@ export interface ModbusTcpSource {
   port: number;
   unit_id: number;
   poll_interval_ms: number;
+  ordine?: OrdineModbus;
   registers: RegisterMapping[];
 }
 
@@ -1039,6 +1045,7 @@ export interface ModbusRtuSource {
   stop_bits: number;
   unit_id: number;
   poll_interval_ms: number;
+  ordine?: OrdineModbus;
   registers: RegisterMapping[];
 }
 

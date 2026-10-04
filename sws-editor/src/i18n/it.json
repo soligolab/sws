@@ -1519,7 +1519,29 @@
     "deploySostituisceConfirm": "Il deploy di «{{progetto}}» cancella dal pannello:\n{{elenco}}\n\nLo storico di questi progetti si perde. Continuare?",
     "deploySostituisceVoce": "  • «{{nome}}», con {{mb}} MB di storico",
     "deploySostituisceVoceSenzaPeso": "  • «{{nome}}», col suo storico",
-    "deployAnnullato": "Deploy annullato."
+    "deployAnnullato": "Deploy annullato.",
+    "modbusMappature": "MAPPATURE",
+    "modbusArea": "Area",
+    "modbusRegistri": "Registri",
+    "modbusAree": {
+      "holding": "Holding (lettura/scrittura)",
+      "input": "Input (sola lettura)",
+      "coil": "Coil (bit, lettura/scrittura)",
+      "discrete": "Discrete input (bit, sola lettura)"
+    },
+    "modbusRegistriN": "{{n}} × 16 bit · {{tipo}}",
+    "modbusBit": "{{n}} bit · {{tipo}}",
+    "modbusComePrima": "(come prima)",
+    "modbusStoricoHint": "Tipo storico (float, int, bool, string): si legge un registro u16 per la scala, come prima. Con un tipo preciso (i16, u32, f32…) i registri e la decodifica vengono dal tipo.",
+    "modbusScalaSoloStorici": "La scala vale per i tipi storici; per un tipo preciso si usa la scala del tag o del membro.",
+    "modbusOrdine": "Ordine parole/byte",
+    "modbusOrdineHint": "Come il dispositivo mette i valori su più registri (u32, f32, f64…). È un fatto del dispositivo: lo dice il suo manuale.",
+    "modbusOrdini": {
+      "abcd": "ABCD (standard, big-endian)",
+      "cdab": "CDAB (parole scambiate)",
+      "badc": "BADC (byte scambiati)",
+      "dcba": "DCBA (tutto rovesciato)"
+    }
   },
   "langtab": {
     "migrate": "Migra i testi…",

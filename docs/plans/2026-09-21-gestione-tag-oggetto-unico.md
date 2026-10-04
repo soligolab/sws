@@ -45,8 +45,108 @@ Il catalogo dei **tipi scalari ricchi** (D5: enum `TipoScalare` in sws-core, ali
 **Non fatto, e deciso di non farlo qui**: la tabella delle variabili ad albero espandibile — le foglie si vedono nel selettore e nell'anteprima della scheda «Tipi», e la scheda Variabili resta piatta finché non c'è un progetto vero con abbastanza istanze da dire come vada organizzata. `BindableInput` non ha completamento: il suo campo tag è un `TagInput`, quindi l'ha già; il ramo espressione no.)*
 Scheda «Tipi» (definizione strutture e array), tabella variabili ad albero espandibile, `TagInput`/`BindableInput` con completamento di percorso, istanza che alimenta `{tag_prefix}` dei faceplate, IA (`elenca_tag`/`schema_tag` conoscono percorsi e tipi; rigenerare lo schema, `check_synoptic_schema.sh`), esportazione/import CSV, aggiornamento delle guardie (`check_templates.sh`, `check_tipo_scrittura.sh`).
 
-### Fase 3 — Modbus (priorità del maintainer)
+### Fase 3 — Modbus (priorità del maintainer) — *fatta il 04-10-2026 sul ramo `feat/tag-3-modbus`, provata su un simulatore `pymodbus` (TCP, ordine CDAB): `i16` −2, storico ×0,1, `f32`, struttura a blocco, coil; scrittura su una foglia che cambia solo i suoi due registri; simulatore fermato → tutti Bad, riavviato → riconnessione in 3 s. Collaudo del maintainer su un dispositivo vero quando c'è*
 Mappatura a radice: blocco di N registri (`read_holding_registers(addr, n)`) con N **derivato dal tipo** (D5: `u16` = 1 registro, `u32`/`f32` = 2, `u64`/`f64` = 4, `string(n)` = n/2, struttura = somma dei membri nell'ordine dichiarato, array = lunghezza × elemento); ordine di parole e byte come impostazione **della sorgente**, non del tipo; scrittura con `write_multiple_registers`. **Con la fase si correggono i difetti trovati**: u16 letti senza segno (i16 negativi come grandi positivi), scala applicata due volte sull'eco di scrittura, errore di lettura che abortisce l'intera sessione.
+
+
+**Piano di dettaglio del 04-10-2026** (sessione di plan, ramo `feat/tag-3-modbus`; contesto misurato nel piano
+in `~/.claude/plans`, riportato qui per intero dalle scelte in poi):
+
+**Scelte del maintainer (04-10-2026):** tutte e **quattro le aree** (holding, input, coil, discrete input); **ordine di
+parole/byte per sorgente**, default ABCD; errori → **Bad e si riprova** (un registro in errore marca solo i suoi tag,
+connessione caduta → tutti Bad e riconnessione con attesa crescente); un **bool in un blocco occupa un registro**.
+
+Un ramo, annidato su `feat/istanze-e-deploy-con-conferma` (in attesa di collaudo): `feat/tag-3-modbus`.
+
+#### Modello (`sws-core/src/project.rs`)
+
+- `RegisterMapping` + `area: AreaModbus` (`holding` | `input` | `coil` | `discrete`, default `holding`, serde minuscolo,
+  omesso se default). `address` resta l'indirizzo di partenza.
+- `ModbusTcpConfig` / `ModbusRtuConfig` + `ordine: OrdineModbus` (`abcd` | `cdab` | `badc` | `dcba`, default `abcd`).
+- **Regola di compatibilità (necessaria):** un tag col **nome di tipo storico** (`float`, `int`, `bool`, `string`, o
+  assente) mappato su un registro si legge **come oggi**: 1 registro `u16` × `scale`. Altrimenti un progetto vecchio,
+  con il default `float` = `f64`, comincerebbe a leggere 4 registri. Solo un tipo ricco dichiarato (`u16`, `i16`,
+  `u32`, `f32`, `string(10)`…) o un'istanza/array attiva la decodifica per tipo. Lo dice il manuale.
+
+#### Codifica (`sws-plugin-modbus`, modulo nuovo `codec.rs`, puro)
+
+- `decodifica(tipo, &[u16], ordine) -> TagValue` e `codifica(tipo, &TagValue, ordine) -> Result<Vec<u16>, String>`:
+  `bool` (≠0), `i8/u8/i16/u16` (1 registro, con segno per gli `i`), `i32/u32/f32` (2), `i64/u64/f64` (4), `string(n)`
+  (n/2 registri, ASCII, due caratteri per registro, `\0` in coda), `datetime` come `u64` ms.
+- Ordine: ABCD = parola alta prima, byte alto prima; CDAB parole scambiate; BADC byte scambiati in ogni parola; DCBA
+  tutto rovesciato — una funzione sola che permuta i byte del blocco.
+- `layout(radice, forma | tipo) -> Vec<Slot { percorso, tipo, offset, n }>`: scalare = uno slot; istanza = un slot per
+  foglia **nell'ordine dichiarato dei membri**, offset cumulativi (`registri()`, bool = 1); array = elemento × lunghezza.
+  Per coil/discrete ogni foglia è 1 bit, offset in bit.
+- Coil/discrete su un tag numerico: il bit diventa `Int(0|1)` (e non un Bool, che la conversione al tipo rifiuterebbe).
+
+#### Lettura, scrittura, robustezza (`lib.rs` riscritto)
+
+- **Un solo motore per TCP e RTU**: `sessione(ctx: client::Context, …)` generica; `run`/`run_rtu` aprono la connessione
+  e la passano. Fine della duplicazione.
+- **Ciclo di lettura**: per ogni mappatura, una lettura del blocco intero (`read_holding_registers`/
+  `read_input_registers`/`read_coils`/`read_discrete_inputs` con `n` = totale del layout), poi `ingest` per foglia
+  (percorso) — la conversione al tipo e la qualità per foglia (D6) sono già nel `TagDb`. Timeout per richiesta (3 s).
+- **Errori**: risposta d'errore Modbus (eccezione) o timeout su una mappatura → `marca_qualita(Bad)` sui suoi tag e
+  avanti; errore di trasporto (connessione chiusa/reset/EOF) → tutti Bad, si esce dalla sessione e `run` **riconnette**
+  con attesa 1 → 2 → 4 … 30 s, interrompibile da `cancel`; log una volta per stato (non a ogni giro).
+- **Scrittura**: scalare → `write_single_register` (n = 1) o `write_multiple_registers`; **foglia** di una radice mappata
+  a blocco → si scrivono solo i registri del suo slot (`address + offset`); radice composita → tutto il blocco; coil →
+  `write_single_coil`/`write_multiple_coils`; input/discrete → rifiutata con un avviso (sola lettura). Eco nel `TagDb`
+  con lo stesso percorso della lettura (test che la scala non si applichi due volte, e correzione se succede).
+- Registrazione sul bus: la radice **e** le sue foglie (`bus.register`), così una scrittura su `motore1.velocita`
+  arriva a questa sorgente.
+
+#### Gli altri protocolli con lo stesso problema (richiesta del maintainer, 04-10-2026)
+
+Misurato oggi:
+- **Riconnessione**: Modbus, **S7, EtherNet/IP, OPC-UA, HomeAssistant** chiudono il task al primo errore di sessione col
+  log «stopped (save config to retry)», che **non è vero**: il watchdog del supervisore
+  (`sws-web/src/source_supervisor.rs`, `restart_dead_sources`) li riavvia ogni 30 s, senza attesa crescente. Il commento
+  in testa a HomeAssistant dice addirittura «Reconnects with 5 s backoff», e non lo fa. MQTT e Sparkplug riconnettono
+  da sé (5 s fissi).
+- **Un dato in errore che butta giù la sessione**: Modbus e **S7** (`read_tag(...)?` nel ciclo); EtherNet/IP marca Bad
+  il solo tag e prosegue (giusto); OPC-UA lavora a sottoscrizioni (un nodo non valido fallisce alla creazione).
+
+Correzione comune:
+- `sws-core`, modulo nuovo `riconnessione.rs`: `pub async fn con_attesa(id, cancel, sessione: impl FnMut() -> Future<Output =
+  anyhow::Result<()>>)` — esegue la sessione; se torna con errore, log **una volta** («sessione caduta: …, riprovo fra
+  N s»), attesa 1 → 2 → 4 … 30 s interrompibile da `cancel`, e l'attesa torna a 1 s dopo una sessione durata più di un
+  minuto. Funzione pura per la sequenza delle attese, testata.
+- Modbus, S7, EtherNet/IP, OPC-UA, HomeAssistant: `run` usa `con_attesa`, marca Bad i propri tag a ogni caduta, e non
+  scrive più «save config to retry». Gli errori di configurazione permanenti (HomeAssistant senza token, indirizzo non
+  valido) restano «fermi finché non si corregge», detto così. MQTT/Sparkplug restano come sono (già riconnettono).
+- S7: un `read_tag` in errore marca Bad quel tag e prosegue; un errore di trasporto (worker caduto, connessione persa)
+  chiude la sessione → `con_attesa`.
+- Il watchdog resta la rete di sicurezza per un task che termina davvero (panic).
+- **Fuori da questa fase, detto nel piano a fasi**: la scrittura su una foglia e le strutture a blocco per S7,
+  EtherNet/IP, OPC-UA, MQTT — sono le Fasi 4-5, non un difetto di robustezza.
+
+#### IDE (`ModbusSourceCard.tsx`)
+
+- Colonna **Area** (select con le quattro), colonna **Registri** calcolata e in sola lettura (dal tipo del tag o dalla
+  forma dell'istanza: `bit` di `tipiScalari.ts`, foglie da `tag/forma.ts`; «1 (u16, come prima)» per i nomi storici),
+  campo di sorgente **Ordine parole/byte** (ABCD/CDAB/BADC/DCBA con una riga di spiegazione). i18n it/en.
+- Il campo Tag accetta già foglie e radici (`TagInput`).
+
+#### Documenti
+
+Piano a fasi (Fase 3 → fatta, con le scelte), CHANGELOG, `NOVITA.yaml`, manuale (capitolo protocolli: aree, tipi, ordine,
+blocchi, compatibilità dei nomi storici), HOWTO se utile («mappare una struttura su un blocco di registri»).
+
+#### Verifica
+
+- Rust, puri: `codec` per ogni tipo e ogni ordine (valori noti, round-trip, segno di `i16`, `f32` di riferimento),
+  `layout` di struttura/array/annidati, regola dei nomi storici, coil su numerico.
+- Rust, integrazione (`tokio-modbus` feature `server` in dev-dependency): un server TCP in memoria; una sorgente con
+  una mappatura scalare `i16`, una `f32` CDAB, un'istanza a blocco, un coil; si verificano i valori nel `TagDb`, una
+  scrittura su foglia che cambia solo i suoi registri, un registro che risponde con eccezione (solo i suoi tag Bad), e
+  il server fermato e riavviato (tutti Bad → riconnessione → di nuovo Good).
+- `con_attesa`: sequenza delle attese, ritorno a 1 s dopo una sessione lunga, uscita immediata con `cancel` (test con
+  `tokio::time::pause`). S7: un tag in errore non ferma gli altri (test sul ciclo con un lettore finto).
+- `cargo test --workspace`, vitest della card (colonna Registri, ordine), `pnpm build`, `check_static.sh`.
+- Dal vivo (maintainer, quando c'è un dispositivo Modbus o il simulatore `pymodbus` su questo PC): lettura e scrittura
+  di una struttura a blocco.
 
 ### Fase 4 — OPC-UA (priorità del maintainer)
 Browse che ritorna DataType, ValueRank, ArrayDimensions (oggi non li legge, `browse_one_level`); lettura di `Variant::Array` (con `NumericRange`) e di strutture via `DataTypeTreeBuilder`/`DynamicStructure` di async-opcua 0.18; scrittura con `index_range`; il wizard crea **tipo + istanza** da un nodo struttura. Correzioni: fine del `Float(0.0)` inventato per i valori non gestiti (si mantiene l'ultimo valore con qualità Bad/Uncertain), scala applicata anche ai valori sottoscritti, tipo dell'Variant scritto in base al DataType del nodo. OPC-UA **server** (oggi tutto `Double`): esporre foglie come nodi figli, strutture vere dopo.

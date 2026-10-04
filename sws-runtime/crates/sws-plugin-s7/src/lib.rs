@@ -17,21 +17,35 @@ use sws_core::{
     S7Config, S7DataType, S7TagMapping, TagDb, TagQuality, TagValue, TagWriteBus, WriteRequest,
 };
 
-/// Entry point. Runs the S7 polling loop for `cfg` until `cancel` fires.
+/// Giri consecutivi in cui **nessun** tag ha risposto: il PLC non c'è più, si
+/// riconnette (04-10-2026, come Modbus).
+const GIRI_MUTI_PER_RICONNETTERE: u32 = 3;
+
+/// Entry point. Runs the S7 polling loop for `cfg` until `cancel` fires,
+/// reopening the session with a growing wait when it falls
+/// (`sws_core::riconnessione`, 04-10-2026: before, the first error ended the task
+/// and the log said «stopped (save config to retry)», which was not true — the
+/// supervisor's watchdog restarted it every 30 s).
 pub async fn run(cfg: S7Config, db: Arc<TagDb>, bus: Arc<TagWriteBus>, cancel: CancellationToken) {
     // Register writable tags on the write bus.
-    let (write_tx, mut write_rx) = mpsc::channel::<WriteRequest>(32);
+    let (write_tx, write_rx) = mpsc::channel::<WriteRequest>(32);
     for tm in cfg.tags.iter().filter(|t| t.writable) {
         bus.register(tm.tag.clone(), write_tx.clone()).await;
     }
     drop(write_tx);
+    let write_rx = tokio::sync::Mutex::new(write_rx);
 
-    if let Err(e) = session(&cfg, &db, &mut write_rx, cancel).await {
-        warn!(source = %cfg.id, "S7 error: {e:#} — stopped (save config to retry)");
-        for tm in &cfg.tags {
-            db.marca_qualita(&tm.tag, TagQuality::Bad).await;
-        }
-    }
+    sws_core::riconnessione::con_attesa(
+        &cfg.id,
+        cancel.clone(),
+        || async { session(&cfg, &db, &mut *write_rx.lock().await, cancel.clone()).await },
+        || async {
+            for tm in &cfg.tags {
+                db.marca_qualita(&tm.tag, TagQuality::Bad).await;
+            }
+        },
+    )
+    .await;
 }
 
 async fn session(
@@ -82,6 +96,8 @@ async fn session(
         .map(|(i, t)| (t.tag.clone(), i))
         .collect();
 
+    let mut in_errore: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut giri_muti = 0u32;
     loop {
         tokio::select! {
             _ = cancel.cancelled() => {
@@ -90,11 +106,36 @@ async fn session(
             }
 
             _ = ticker.tick() => {
-                // Poll all tags.
+                // Poll all tags. Un tag che il PLC rifiuta (indirizzo sbagliato,
+                // DB inesistente) diventa Bad e gli altri continuano; il worker
+                // caduto o nessuna risposta per alcuni giri chiudono la sessione.
+                let mut risposte = 0usize;
                 for tm in &tags {
-                    let bytes = read_tag(&req_tx, &resp_rx, tm)?;
-                    let val = bytes_to_tagvalue(&bytes, tm);
-                    db.ingest(tm.tag.clone(), val, TagQuality::Good).await;
+                    match read_tag(&req_tx, &resp_rx, tm) {
+                        Ok(bytes) => {
+                            risposte += 1;
+                            if in_errore.remove(&tm.tag) {
+                                info!(source = %cfg.id, tag = %tm.tag, "S7: il tag risponde di nuovo");
+                            }
+                            let val = bytes_to_tagvalue(&bytes, tm);
+                            db.ingest(tm.tag.clone(), val, TagQuality::Good).await;
+                        }
+                        Err(ErroreLettura::Worker) => return Err(anyhow::anyhow!("worker S7 caduto")),
+                        Err(ErroreLettura::Plc(e)) => {
+                            if in_errore.insert(tm.tag.clone()) {
+                                warn!(source = %cfg.id, tag = %tm.tag, "S7: lettura rifiutata: {e} — tag Bad, gli altri continuano");
+                            }
+                            db.marca_qualita(&tm.tag, TagQuality::Bad).await;
+                        }
+                    }
+                }
+                if !tags.is_empty() && risposte == 0 {
+                    giri_muti += 1;
+                    if giri_muti >= GIRI_MUTI_PER_RICONNETTERE {
+                        return Err(anyhow::anyhow!("nessuna risposta per {GIRI_MUTI_PER_RICONNETTERE} giri"));
+                    }
+                } else {
+                    giri_muti = 0;
                 }
             }
 
@@ -219,26 +260,30 @@ fn tag_byte_len(tm: &S7TagMapping) -> i32 {
     }
 }
 
+/// Perché una lettura non è andata: il worker non c'è più (la sessione va
+/// riaperta) o il PLC ha rifiutato quel tag (solo lui diventa Bad).
+#[derive(Debug, PartialEq)]
+enum ErroreLettura {
+    Worker,
+    Plc(String),
+}
+
 fn read_tag(
     tx: &std::sync::mpsc::Sender<S7Request>,
     rx: &std::sync::mpsc::Receiver<S7Response>,
     tm: &S7TagMapping,
-) -> anyhow::Result<Vec<u8>> {
+) -> Result<Vec<u8>, ErroreLettura> {
     tx.send(S7Request::Read {
         area: tm.area.clone(),
         db_num: tm.db_num,
         byte_offset: tm.byte_offset,
         len: tag_byte_len(tm),
     })
-    .map_err(|_| anyhow::anyhow!("worker thread gone"))?;
-
-    match rx
-        .recv()
-        .map_err(|_| anyhow::anyhow!("worker thread gone"))?
-    {
+    .map_err(|_| ErroreLettura::Worker)?;
+    match rx.recv().map_err(|_| ErroreLettura::Worker)? {
         S7Response::Data(b) => Ok(b),
-        S7Response::Err(e) => Err(anyhow::anyhow!("{e}")),
-        S7Response::Ok => Err(anyhow::anyhow!("unexpected Ok on read")),
+        S7Response::Err(e) => Err(ErroreLettura::Plc(e)),
+        S7Response::Ok => Err(ErroreLettura::Plc("risposta inattesa a una lettura".into())),
     }
 }
 
@@ -358,4 +403,31 @@ fn tagvalue_to_bytes(val: &TagValue, tm: &S7TagMapping) -> Vec<u8> {
         }
     }
     buf
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn mappatura() -> S7TagMapping {
+        serde_yaml::from_str("tag: t\narea: db\ndb_num: 1\nbyte_offset: 0\ndata_type: int\n").unwrap()
+    }
+
+    /// Il PLC che rifiuta un tag non è la connessione persa (04-10-2026): solo
+    /// quel tag diventa Bad, e la sessione continua.
+    #[test]
+    fn un_rifiuto_del_plc_e_un_worker_caduto_sono_due_cose() {
+        let (req_tx, req_rx) = std::sync::mpsc::channel::<S7Request>();
+        let (resp_tx, resp_rx) = std::sync::mpsc::channel::<S7Response>();
+        let h = std::thread::spawn(move || {
+            if let Ok(S7Request::Read { .. }) = req_rx.recv() {
+                let _ = resp_tx.send(S7Response::Err("address out of range".into()));
+            }
+            // poi il worker se ne va
+        });
+        let tm = mappatura();
+        assert_eq!(read_tag(&req_tx, &resp_rx, &tm), Err(ErroreLettura::Plc("address out of range".into())));
+        h.join().unwrap();
+        assert_eq!(read_tag(&req_tx, &resp_rx, &tm), Err(ErroreLettura::Worker));
+    }
 }

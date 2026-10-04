@@ -1,8 +1,8 @@
 // HomeAssistant protocol plugin.
 //
 // Connects to a HA instance via REST (initial state fetch) + WebSocket
-// (live state_changed events + call_service write-back).  Reconnects with 5 s
-// backoff on any error — same pattern as the MQTT plugin.
+// (live state_changed events + call_service write-back).  Reconnects with a
+// growing wait (1 → 30 s) on any error: `sws_core::riconnessione::con_attesa`.
 //
 // Only ws:// / http:// URLs are supported (no TLS).  For wss:// add
 // tokio-tungstenite's "rustls-tls-webpki-roots" feature.
@@ -40,12 +40,21 @@ pub async fn run(
         return;
     }
 
-    if let Err(e) = run_session(&cfg, &db, &bus, &entity_map, cancel).await {
-        warn!(source = %cfg.id, "HomeAssistant session ended: {e:#} — stopped (save config to retry)");
-        for m in &cfg.entities {
-            db.marca_qualita(&m.tag, TagQuality::Bad).await;
-        }
-    }
+    // Il commento in testa diceva «Reconnects with 5 s backoff», ma al primo
+    // errore il task finiva con «stopped (save config to retry)» e aspettava il
+    // watchdog del supervisore. Dal 04-10-2026 riconnette davvero, con
+    // un'attesa crescente.
+    sws_core::riconnessione::con_attesa(
+        &cfg.id,
+        cancel.clone(),
+        || run_session(&cfg, &db, &bus, &entity_map, cancel.clone()),
+        || async {
+            for m in &cfg.entities {
+                db.marca_qualita(&m.tag, TagQuality::Bad).await;
+            }
+        },
+    )
+    .await;
 }
 
 async fn run_session(

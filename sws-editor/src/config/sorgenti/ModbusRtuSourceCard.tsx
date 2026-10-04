@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { QuickCreateTagModal } from "@/components/QuickCreateTagModal";
-import { TagInput } from "@/components/TagInput";
 import type { ModbusRtuSource, RegisterMapping, TagDef } from "@/types";
 import { S } from "@/config/comuni";
 import { emptyRegister } from "@/config/sorgenti/vuote";
+import { CampoOrdineModbus, TabellaRegistriModbus } from "@/config/sorgenti/TabellaRegistriModbus";
 
 // ── Modbus RTU card ───────────────────────────────────────────────────────────
 
@@ -127,65 +127,11 @@ export function ModbusRtuSourceCard({
                 value={source.poll_interval_ms}
                 onChange={(e) => setField("poll_interval_ms", Number(e.target.value))} />
             </div>
+            <CampoOrdineModbus value={source.ordine} onChange={(o) => setField("ordine", o === "abcd" ? undefined : o)} />
           </div>
 
-          {/* Register mappings — shared structure with Modbus TCP */}
-          <div style={{ marginBottom: 6, fontSize: 12, color: "var(--brand-text-subtle, #64748b)", fontWeight: 600, letterSpacing: 0.5 }}>
-            MAPPATURA REGISTRI HOLDING
-          </div>
-          <table style={{ ...S.table, marginBottom: 8 }}>
-            <thead>
-              <tr>
-                <th style={{ ...S.th, width: "40%" }}>{t("cfg.variableTagId")}</th>
-                <th style={{ ...S.th, width: "20%" }}>{t("cfg.registerAddr")}</th>
-                <th style={{ ...S.th, width: "20%" }}>{t("cfg.scale")}</th>
-                <th style={{ ...S.th, width: "20%" }}>{t("cfg.dataType")}</th>
-                <th style={S.th} />
-              </tr>
-            </thead>
-            <tbody>
-              {source.registers.length === 0 && (
-                <tr>
-                  <td colSpan={5} style={{ ...S.td, color: "var(--brand-text-subtle, #94a3b8)", textAlign: "center", padding: 12 }}>
-                    {t("cfgUi.noRegistersAddAMapping")}
-                  </td>
-                </tr>
-              )}
-              {source.registers.map((r, i) => (
-                <tr key={i} style={{ background: i % 2 === 0 ? "transparent" : "var(--brand-bg, #0f172a)33" }}>
-                  <td style={S.td}>
-                    <div style={{ display: "flex", gap: 4 }}>
-                      <TagInput
-                        style={S.inputSm}
-                        placeholder="pump1.speed"
-                        value={r.tag}
-                        onChange={(v) => setRegister(i, { tag: v })}
-                      />
-                      <button
-                        style={{ ...S.btn("ghost"), padding: "4px 7px", fontSize: 14, lineHeight: 1 }}
-                        title={t("cfg.createTag")}
-                        onClick={() => setQuickCreate({ rowIdx: i, prefill: r.tag })}
-                      >＋</button>
-                    </div>
-                  </td>
-                  <td style={S.td}>
-                    <input style={S.inputSm} type="number" min={0}
-                      value={r.address}
-                      onChange={(e) => setRegister(i, { address: Number(e.target.value) })} />
-                  </td>
-                  <td style={S.td}>
-                    <input style={S.inputSm} type="number" step="0.001"
-                      value={r.scale}
-                      onChange={(e) => setRegister(i, { scale: Number(e.target.value) })} />
-                  </td>
-                  <td style={{ ...S.td, color: "var(--brand-text-subtle, #64748b)", fontSize: 11 }}>Float (×scala)</td>
-                  <td style={{ ...S.td, textAlign: "right" }}>
-                    <button style={S.btn("danger")} onClick={() => removeRegister(i)}>✕</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <TabellaRegistriModbus registri={source.registers} setRegister={setRegister} removeRegister={removeRegister}
+            onQuickCreate={(rowIdx, prefill) => setQuickCreate({ rowIdx, prefill })} />
 
           <button style={S.btn("ghost")} onClick={addRegister}>
             {t("cfgUi.addRegister")}

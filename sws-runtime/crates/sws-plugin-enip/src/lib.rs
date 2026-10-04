@@ -27,18 +27,27 @@ pub async fn run(
     bus: Arc<TagWriteBus>,
     cancel: CancellationToken,
 ) {
-    let (write_tx, mut write_rx) = mpsc::channel::<WriteRequest>(32);
+    let (write_tx, write_rx) = mpsc::channel::<WriteRequest>(32);
     for tm in cfg.tags.iter().filter(|t| t.writable) {
         bus.register(tm.tag.clone(), write_tx.clone()).await;
     }
     drop(write_tx);
+    let write_rx = tokio::sync::Mutex::new(write_rx);
 
-    if let Err(e) = session(&cfg, &db, &mut write_rx, cancel).await {
-        warn!(source = %cfg.id, "EtherNet/IP error: {e:#} — stopped (save config to retry)");
-        for tm in &cfg.tags {
-            db.marca_qualita(&tm.tag, TagQuality::Bad).await;
-        }
-    }
+    // Una sessione caduta si riapre con un'attesa crescente (04-10-2026): prima
+    // il task finiva, il log diceva «stopped (save config to retry)» e la
+    // sorgente aspettava il watchdog del supervisore.
+    sws_core::riconnessione::con_attesa(
+        &cfg.id,
+        cancel.clone(),
+        || async { session(&cfg, &db, &mut *write_rx.lock().await, cancel.clone()).await },
+        || async {
+            for tm in &cfg.tags {
+                db.marca_qualita(&tm.tag, TagQuality::Bad).await;
+            }
+        },
+    )
+    .await;
 }
 
 async fn session(

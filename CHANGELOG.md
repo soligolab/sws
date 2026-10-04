@@ -20,6 +20,18 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   mostra lo stato ma non le novità. Vale per la `2.12.0-rc.1` e la `rc.2`.
 
 ### Added
+- **Modbus con i tipi, a blocchi, che non si ferma** (Fase 3 del piano tag, `docs/plans/2026-09-21-gestione-tag-oggetto-unico.md`).
+  Quattro aree per mappatura (`area`: holding, input, coil, discrete), ordine di parole/byte per sorgente (`ordine`:
+  abcd/cdab/badc/dcba). Numero di registri e decodifica dal tipo dichiarato (`codec.rs`: `i16` con segno, 32 e 64 bit,
+  testo); la radice di un'istanza si legge come un blocco, una foglia per pezzo, e una scrittura su una foglia scrive
+  solo i suoi registri. **Compatibilità**: i nomi di tipo storici (`float`/`int`/`bool`/`string`/nessuno) leggono un
+  `u16` × scala come prima. Un'eccezione marca Bad solo la sua mappatura; un guasto di trasporto o tre giri muti
+  riaprono la sessione. TCP e RTU con lo stesso motore; la card dell'IDE con area, registri calcolati e ordine, una sola
+  per i due. 14 test su un dispositivo finto (provati rossi) + 5 vitest del calcolo dei registri.
+- **Le sorgenti riconnettono da sé** (`sws_core::riconnessione::con_attesa`, 1 → 30 s): Modbus, S7, EtherNet/IP, OPC-UA e
+  HomeAssistant finivano il task al primo errore col log «stopped (save config to retry)», falso — li riavviava il
+  watchdog ogni 30 s. S7: un tag rifiutato dal PLC non ferma più gli altri. OPC-UA riapre anche una sessione chiusa dal
+  server.
 - **«Crea istanza» nella scheda Tipi, e il deploy che chiede prima di cancellare** (piano
   `docs/plans/2026-10-03-istanze-e-deploy-che-sostituisce.md`). Tipi: sotto il tipo scelto, «nessuna istanza» detto
   chiaramente, un nome proposto unico (`tag/istanze.ts`) e il pulsante che salva il tipo se serve, aggiunge la variabile
@@ -203,6 +215,13 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   riga rossa con **Converti**, in testa c'è **Converti tutti (n)**, e gli allarmi che condividono un tag lo dicono. La conversione non cambia come scatta; il Salva resta dell'utente.
 
 ### Fixed
+- **Configurazione → Tag, «Tag da sorgenti»: le foglie di un'istanza non compaiono più come tag senza variabile.** `tc620.cpu_pct` mappato su una sorgente veniva offerto con «Abilita storico» anche se `tc620` è un'istanza (con lo storico già acceso), e il pulsante creava un tag piatto in collisione con l'istanza. Ora la sezione usa lo stesso controllo del salvataggio (`ePercorsoDiUnaRadice`).
+- **Il deploy dalla scheda Dispositivi passa dallo stesso codice della testata** (04-10-2026). Il browser caricava lo
+  ZIP direttamente sul pannello: un progetto con un altro nome veniva attivato senza una domanda, e rimandare lo
+  stesso progetto chiedeva «sovrascrivere?» e poi lo **cancellava per intero, storico compreso** (al collaudo ha tolto
+  dal TC620 lo storico di `tc620-sistema` raccolto dal giorno prima). Ora `deployToTarget` collega il dispositivo e usa
+  `/api/remote/deploy`: stesso nome → database e backup conservati, altro nome → la domanda col peso dello storico.
+  Anche il ritentativo del server dopo un 409 ora conserva lo stato (`preserve_state=true` + `deploy=true`).
 - **I valori che arrivano dai protocolli prendono il tipo dichiarato** (decisione del maintainer, 03-10-2026). Fino a
   ieri il tipo valeva solo per le scritture dell'utente (Q27) e un `i32` letto dall'Host teneva 29,8, un `u64` 237593.0.
   `TagDb::ingest`, dopo lo scaling, applica `TipoScalare::converti_lettura` al tipo del tag o della foglia: reale su

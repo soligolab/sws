@@ -163,6 +163,18 @@ impl TagDb {
         r
     }
 
+    /// Il tipo dichiarato di un tag o di una foglia, come scritto nello YAML
+    /// (Fase 3: il plugin Modbus ne deriva quanti registri leggere).
+    pub async fn tipo_dichiarato(&self, id: &str) -> Option<String> {
+        self.data_types.read().await.get(id).cloned()
+    }
+
+    /// La forma di una radice composita (Fase 3: le foglie, nell'ordine
+    /// dichiarato, sono il layout di un blocco di registri).
+    pub async fn forma(&self, id: &str) -> Option<Forma> {
+        self.forme.read().await.get(id).cloned()
+    }
+
     /// Sostituisce la mappa dei `data_type` dichiarati (Q27). Stessi punti
     /// di refresh di `set_scales`.
     pub async fn set_data_types(&self, types: HashMap<TagId, String>) {

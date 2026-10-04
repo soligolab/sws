@@ -496,48 +496,13 @@ pub const SOURCE_FIELDS: &[(&str, &[Field])] = &[
 
 /// Campi della sorgente `modbus_tcp` (ModbusTcpConfig).
 pub const SOURCE_MODBUS_TCP_FIELDS: &[Field] = &[
-    Field {
-        name: "id",
-        ty: "string",
-        required: true,
-        group: "",
-        doc: "",
-    },
-    Field {
-        name: "host",
-        ty: "string",
-        required: true,
-        group: "",
-        doc: "",
-    },
-    Field {
-        name: "port",
-        ty: "number",
-        required: false,
-        group: "",
-        doc: "",
-    },
-    Field {
-        name: "unit_id",
-        ty: "number",
-        required: false,
-        group: "",
-        doc: "",
-    },
-    Field {
-        name: "poll_interval_ms",
-        ty: "number",
-        required: false,
-        group: "",
-        doc: "How often to poll all registers, in milliseconds.",
-    },
-    Field {
-        name: "registers",
-        ty: "RegisterMapping[]",
-        required: true,
-        group: "",
-        doc: "",
-    },
+    Field { name: "id", ty: "string", required: true, group: "", doc: "" },
+    Field { name: "host", ty: "string", required: true, group: "", doc: "" },
+    Field { name: "port", ty: "number", required: false, group: "", doc: "" },
+    Field { name: "unit_id", ty: "number", required: false, group: "", doc: "" },
+    Field { name: "poll_interval_ms", ty: "number", required: false, group: "", doc: "How often to poll all registers, in milliseconds." },
+    Field { name: "ordine", ty: "OrdineModbus", required: false, group: "", doc: "Ordine di parole e byte dei valori su più registri (Fase 3, 04-10-2026): un fatto del dispositivo, quindi della sorgente." },
+    Field { name: "registers", ty: "RegisterMapping[]", required: true, group: "", doc: "" },
 ];
 
 /// Campi di `RegisterMapping`, usato dentro la sorgente `modbus_tcp`.
@@ -562,6 +527,13 @@ pub const SOURCE_MODBUS_TCP_REGISTERMAPPING_FIELDS: &[Field] = &[
         required: false,
         group: "",
         doc: "Multiply the raw u16 word by this before storing. Default 1.0.",
+    },
+    Field {
+        name: "area",
+        ty: "AreaModbus",
+        required: false,
+        group: "",
+        doc: "L'area (Fase 3): holding, input, coil o discrete input.",
     },
 ];
 
@@ -624,6 +596,13 @@ pub const SOURCE_MODBUS_RTU_FIELDS: &[Field] = &[
         doc: "",
     },
     Field {
+        name: "ordine",
+        ty: "OrdineModbus",
+        required: false,
+        group: "",
+        doc: "",
+    },
+    Field {
         name: "registers",
         ty: "RegisterMapping[]",
         required: true,
@@ -654,6 +633,13 @@ pub const SOURCE_MODBUS_RTU_REGISTERMAPPING_FIELDS: &[Field] = &[
         required: false,
         group: "",
         doc: "Multiply the raw u16 word by this before storing. Default 1.0.",
+    },
+    Field {
+        name: "area",
+        ty: "AreaModbus",
+        required: false,
+        group: "",
+        doc: "L'area (Fase 3): holding, input, coil o discrete input.",
     },
 ];
 

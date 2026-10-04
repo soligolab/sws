@@ -86,17 +86,25 @@ fn build_client_builder(pki_dir: &Path, trust_all: bool) -> ClientBuilder {
 /// its own subdirectory so multiple servers don't share the same identity.
 pub async fn run(cfg: OpcUaClientConfig, db: Arc<TagDb>, bus: Arc<TagWriteBus>, pki_dir: PathBuf) {
     let source_pki = pki_dir.join(&cfg.id);
-    match run_once(&cfg, &db, &bus, &source_pki).await {
-        Ok(()) => info!(source = %cfg.id, "opcua: session ended cleanly"),
-        Err(e) => {
-            warn!(source = %cfg.id, "opcua: session error: {e} — stopped (save config to retry)")
-        }
-    }
-    for n in &cfg.nodes {
-        if let Some(state) = db.get(&n.tag).await {
-            db.ingest(n.tag.clone(), state.value, TagQuality::Bad).await;
-        }
-    }
+    // Il supervisore ferma questa sorgente interrompendo il task: il token non
+    // scatta mai, serve solo alla firma di `con_attesa`. Una sessione finita
+    // «pulita» dal server si riapre lo stesso (04-10-2026: prima il task
+    // terminava, col log «stopped (save config to retry)», e aspettava il
+    // watchdog del supervisore).
+    sws_core::riconnessione::con_attesa(
+        &cfg.id,
+        tokio_util::sync::CancellationToken::new(),
+        || async {
+            run_once(&cfg, &db, &bus, &source_pki).await?;
+            Err(anyhow::anyhow!("sessione chiusa dal server"))
+        },
+        || async {
+            for n in &cfg.nodes {
+                db.marca_qualita(&n.tag, TagQuality::Bad).await;
+            }
+        },
+    )
+    .await;
 }
 
 async fn run_once(

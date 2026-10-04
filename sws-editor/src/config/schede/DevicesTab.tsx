@@ -2,10 +2,10 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, RuntimeUnavailableError, type DispositivoRete } from "@/api/client";
 import { TabellaDispositivi } from "@/config/installazione/TabellaDispositivi";
-import { modoAccesso, spiegaCredenzialiMancanti, spiegaLoginFallito } from "@/config/credenzialiDispositivo";
+import { modoAccesso, spiegaCredenzialiMancanti } from "@/config/credenzialiDispositivo";
 import { CHIAVE_LEGACY, chiaveUrl, dispositivoDaRete, eGiaInLista, leggiListaLegacy, unisciDispositivo } from "@/config/dispositiviRegistrati";
 import type { SavedDevice } from "@/types";
-import { selectIsDirty, useAppStore } from "@/store";
+import { selectIsDirty, testoSostituzione, useAppStore } from "@/store";
 import i18n from "@/i18n";
 import { RT_URL_KEY, RT_USER_KEY } from "@/config/schede/RuntimeConnectionTab";
 
@@ -44,6 +44,16 @@ export async function flushBeforeDeploy(onLog: (msg: string) => void): Promise<b
   return true;
 }
 
+/** Il deploy dalla scheda Dispositivi (04-10-2026): **lo stesso del pulsante
+ *  Deploy in testata**, passando dal server dell'IDE (`/api/remote/deploy`).
+ *
+ *  Prima il browser caricava lo ZIP direttamente sul pannello, con regole sue:
+ *  un progetto con un altro nome restava sul pannello e il nuovo veniva attivato
+ *  senza una domanda; lo stesso nome chiedeva «sovrascrivere?» e poi lo
+ *  **cancellava per intero, storico compreso** — al collaudo del 04-10 ha tolto
+ *  dal TC620 lo storico di `tc620-sistema` rimandando lo stesso progetto. Ora:
+ *  stesso nome → pagine sostituite, database e backup conservati; altro nome →
+ *  la domanda che nomina il progetto e il peso del suo storico. */
 async function deployToTarget(
   target: string,
   user: string,
@@ -52,102 +62,54 @@ async function deployToTarget(
 ): Promise<boolean> {
   try {
     if (!await flushBeforeDeploy(onLog)) return false;
-    onLog(i18n.t("cfgUi.exportingTheProjectFromThe"));
-    // true: il deploy vuole SEMPRE i segreti — un dispositivo che li riceve
-    // senza non si collega a niente (Passo 2, 2d). Diverso da «Esporta» nel
-    // menù, che di default li esclude.
-    const exportRes = await api.exportProjectZip(true);
-    const cd = exportRes.headers.get("content-disposition") ?? "";
-    const nameMatch = cd.match(/filename="([^"]+)"/);
-    const zipName = nameMatch?.[1] ?? "project.zip";
-    const projectName = zipName.replace(/\.zip$/, "");
-    const zipBlob = await exportRes.blob();
-    onLog(`✓ Esportato: ${zipName} (${(zipBlob.size / 1024).toFixed(1)} KB)`);
-
-    // T-68 — si chiede prima al pannello se il login serve. Su un pannello
-    // appena installato non ci sono utenti: tentare il login fallisce per
-    // forza (quell'utente non esiste) e **cinque fallimenti bloccano
-    // l'account per un minuto**, con ogni nuovo tentativo che allunga il
-    // blocco. È la stessa lezione di T-57, che era stata applicata a
-    // «Connetti» e non a questo percorso.
-    const authRequired = await fetch(`${target}/api/system`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => (typeof j?.auth_required === "boolean" ? (j.auth_required as boolean) : undefined))
-      .catch(() => undefined);
-
-    let remoteToken: string | null = null;
-    switch (modoAccesso(authRequired, user, pass)) {
-      case "senza-login":
-        onLog(i18n.t("cfgUi.thePanelHasNoUsers"));
-        break;
-      case "credenziali-mancanti":
-        throw new Error(spiegaCredenzialiMancanti());
-      case "login": {
-        onLog("Login al target…");
-        const loginRes = await fetch(`${target}/api/auth/login`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username: user, password: pass }),
-        });
-        if (!loginRes.ok) {
-          throw new Error(spiegaLoginFallito(loginRes.status, loginRes.headers.get("Retry-After")));
-        }
-        remoteToken = (await loginRes.json()).token;
-        onLog("✓ Login OK");
-        break;
-      }
+    // Il server dell'IDE fa il deploy verso il dispositivo **collegato**: lo si
+    // collega, come fa il pulsante «Connetti» di questa scheda.
+    const conn = await api.remoteConnect(target, user || undefined, pass || undefined);
+    if (!conn.ok) {
+      if (modoAccesso(undefined, user, pass) === "credenziali-mancanti") throw new Error(spiegaCredenzialiMancanti());
+      throw new Error(conn.error ?? i18n.t("cfgUi.unknownError"));
     }
-    // Senza token non si manda l'header: su un pannello senza utenti un
-    // `Bearer null` sarebbe una credenziale finta, e il runtime la
-    // tratterebbe come tale.
-    const autorizzazione: Record<string, string> =
-      remoteToken ? { "Authorization": `Bearer ${remoteToken}` } : {};
-
-    onLog("Upload ZIP al target…");
-    let uploadRes = await fetch(`${target}/api/projects/upload`, {
-      method: "POST",
-      headers: { "Content-Type": "application/zip", ...autorizzazione },
-      body: zipBlob,
-    });
-    if (uploadRes.status === 409) {
-      const conflict = await uploadRes.json().catch(() => ({}));
-      const realName = (conflict as any).name ?? projectName;
-      const ok = window.confirm(i18n.t("cfg.overwriteRemoteProjectConfirm", { name: realName }));
-      if (!ok) throw new Error("Deploy annullato dall'utente.");
-      onLog(`Rimozione di "${realName}" dal target…`);
-      await fetch(`${target}/api/projects/close`, { method: "POST", headers: autorizzazione }).catch(() => {});
-      const delRes = await fetch(`${target}/api/projects/${encodeURIComponent(realName)}`,
-        { method: "DELETE", headers: autorizzazione });
-      if (!delRes.ok) {
-        const body = await delRes.text().catch(() => "");
-        throw new Error(`Impossibile rimuovere "${realName}": ${delRes.status}${body ? ` — ${body}` : ""}`);
-      }
-      onLog(`✓ Rimosso "${realName}"`);
-      uploadRes = await fetch(`${target}/api/projects/upload`, {
-        method: "POST",
-        headers: { "Content-Type": "application/zip", ...autorizzazione },
-        body: zipBlob,
+    useAppStore.getState().setRemoteConnected(true, target);
+    let confermaUtenti = false;
+    let confermaSostituzione = false;
+    for (;;) {
+      const res = await api.deployToRuntime({
+        replaceUsers: true, conSegreti: true, confirmNoUsers: confermaUtenti, confirmReplace: confermaSostituzione,
       });
+      if (res.status === 428) {
+        const d = await res.json().catch(() => ({})) as {
+          conferma?: string; utenti_dispositivo?: string[]; progetto?: string;
+          progetti?: { nome: string; storico_byte?: number | null }[];
+        };
+        if (d.conferma === "sostituisce-progetti" && !confermaSostituzione) {
+          if (!window.confirm(testoSostituzione(d.progetto, d.progetti ?? []))) throw new Error(i18n.t("cfg.deployAnnullato"));
+          confermaSostituzione = true;
+          continue;
+        }
+        if (!confermaUtenti) {
+          const elenco = d.utenti_dispositivo?.length ? d.utenti_dispositivo.join(", ") : i18n.t("cfg.deployNoUsersUnknown");
+          if (!window.confirm(i18n.t("cfg.deployNoUsersConfirm", { utenti: elenco }))) throw new Error(i18n.t("cfg.deployAnnullato"));
+          confermaUtenti = true;
+          continue;
+        }
+      }
+      if (!res.ok || !res.body) {
+        const dett = (await res.text().catch(() => "")).trim();
+        throw new Error(dett || `${res.status} ${res.statusText}`);
+      }
+      const rdr = res.body.getReader();
+      const dec = new TextDecoder();
+      let fallito = false;
+      for (;;) {
+        const { done, value } = await rdr.read();
+        if (done) break;
+        dec.decode(value).split("\n").filter(Boolean).forEach((riga) => {
+          if (riga.startsWith("✗")) fallito = true;
+          onLog(riga);
+        });
+      }
+      return !fallito;
     }
-    if (!uploadRes.ok) {
-      const body = await uploadRes.text().catch(() => "");
-      throw new Error(`Upload fallito: ${uploadRes.status}${body ? ` — ${body}` : ""}`);
-    }
-    const { name: uploadedName } = await uploadRes.json();
-    onLog(i18n.t("cfgUi.uploadedAs", { name: uploadedName }));
-
-    onLog(i18n.t("cfgUi.activatingProject"));
-    const openRes = await fetch(`${target}/api/projects/${encodeURIComponent(uploadedName)}/open`, {
-      method: "POST",
-      headers: autorizzazione,
-    });
-    if (!openRes.ok) {
-      const body = await openRes.text().catch(() => "");
-      throw new Error(`Attivazione fallita: ${openRes.status}${body ? ` — ${body}` : ""}`);
-    }
-    onLog(`✓ "${uploadedName}" attivo sul runtime`);
-    onLog("🚀 Deploy completato!");
-    return true;
   } catch (e: any) {
     onLog(`✗ ${e?.message ?? String(e)}`);
     return false;

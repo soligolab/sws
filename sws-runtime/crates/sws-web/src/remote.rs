@@ -1906,7 +1906,10 @@ pub async fn remote_deploy(
             let _ = r.send().await;
 
             // delete the conflicting project
-            let mut r = client.delete(format!("{base}/api/projects/{}", pct_encode(&existing)));
+            // Lo stesso nome è lo stesso progetto ridistribuito: si tolgono solo i
+            // file di disegno, database e backup restano (04-10-2026 — prima qui si
+            // cancellava tutto, storico compreso).
+            let mut r = client.delete(format!("{base}/api/projects/{}?preserve_state=true", pct_encode(&existing)));
             if let Some(h) = &auth_hdr {
                 r = r.header("Authorization", h);
             }
@@ -1921,13 +1924,13 @@ pub async fn remote_deploy(
                 send(&format!("✗ Delete fallito: {}", del.status()));
                 return;
             }
-            send(&format!("✓ Rimosso \"{existing}\""));
+            send(&format!("✓ \"{existing}\": pagine sostituite, database e backup conservati"));
 
-            // Ritentativo: la cartella è stata appena rimossa, quindi niente
-            // `deploy=true` — ma `replace_users` deve esserci lo stesso, ed è
-            // per questo che l'URL si compone in un posto solo.
+            // Ritentativo: la cartella è rimasta (svuotata dei soli file di
+            // disegno), quindi `deploy=true` col suo nome — e `replace_users`,
+            // che è il motivo per cui l'URL si compone in un posto solo.
             let mut req = client
-                .post(url_upload(&base, None, false, opz.replace_users))
+                .post(url_upload(&base, Some(&existing), true, opz.replace_users))
                 .header("Content-Type", "application/zip")
                 .body(zip.clone());
             if let Some(h) = &auth_hdr {
@@ -2142,7 +2145,7 @@ mod tests {
     }
 
     /// `replace_users` deve esserci in **tutte** le forme dell'URL, compreso il
-    /// ritentativo dopo un 409, che non ha `deploy=true`: è il punto in cui
+    /// ritentativo dopo un 409 (che dal 04-10-2026 conserva lo stato e ha `deploy=true`): è il punto in cui
     /// storicamente si perdeva un parametro.
     /// `con_segreti` assente vale **acceso**: un client di prima del 26-09-2026
     /// (o una chiamata senza corpo) continua a portare i segreti.

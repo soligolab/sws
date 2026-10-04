@@ -12,3 +12,6 @@ tokio-serial.workspace = true
 tracing.workspace      = true
 anyhow.workspace       = true
 sws-core       = { path = "../sws-core" }
+
+[dev-dependencies]
+serde_yaml.workspace = true

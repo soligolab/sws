@@ -567,6 +567,10 @@ pub struct ModbusTcpConfig {
     /// How often to poll all registers, in milliseconds.
     #[serde(default = "default_poll_interval_ms")]
     pub poll_interval_ms: u64,
+    /// Ordine di parole e byte dei valori su più registri (Fase 3, 04-10-2026):
+    /// un fatto del dispositivo, quindi della sorgente.
+    #[serde(default, skip_serializing_if = "OrdineModbus::e_predefinito")]
+    pub ordine: OrdineModbus,
     pub registers: Vec<RegisterMapping>,
 }
 
@@ -593,7 +597,57 @@ pub struct ModbusRtuConfig {
     pub unit_id: u8,
     #[serde(default = "default_poll_interval_ms")]
     pub poll_interval_ms: u64,
+    #[serde(default, skip_serializing_if = "OrdineModbus::e_predefinito")]
+    pub ordine: OrdineModbus,
     pub registers: Vec<RegisterMapping>,
+}
+
+/// L'area Modbus di una mappatura (Fase 3, 04-10-2026).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AreaModbus {
+    /// Holding register, FC3/FC6/FC16: lettura e scrittura. Il default, ed è
+    /// quella di tutti i progetti di prima.
+    #[default]
+    Holding,
+    /// Input register, FC4: sola lettura.
+    Input,
+    /// Coil, FC1/FC5/FC15: bit, lettura e scrittura.
+    Coil,
+    /// Discrete input, FC2: bit, sola lettura.
+    Discrete,
+}
+
+impl AreaModbus {
+    pub fn e_predefinita(&self) -> bool {
+        *self == Self::Holding
+    }
+    /// Bit (coil, discrete) invece di registri a 16 bit.
+    pub fn a_bit(&self) -> bool {
+        matches!(self, Self::Coil | Self::Discrete)
+    }
+    pub fn scrivibile(&self) -> bool {
+        matches!(self, Self::Holding | Self::Coil)
+    }
+}
+
+/// Come un valore su più registri mette parole e byte. ABCD = parola alta
+/// prima, byte alto prima (il Modbus «standard»); CDAB = parole scambiate;
+/// BADC = byte scambiati in ogni parola; DCBA = tutto rovesciato.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum OrdineModbus {
+    #[default]
+    Abcd,
+    Cdab,
+    Badc,
+    Dcba,
+}
+
+impl OrdineModbus {
+    pub fn e_predefinito(&self) -> bool {
+        *self == Self::Abcd
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -605,6 +659,9 @@ pub struct RegisterMapping {
     /// Multiply the raw u16 word by this before storing. Default 1.0.
     #[serde(default = "default_scale")]
     pub scale: f64,
+    /// L'area (Fase 3): holding, input, coil o discrete input.
+    #[serde(default, skip_serializing_if = "AreaModbus::e_predefinita")]
+    pub area: AreaModbus,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
