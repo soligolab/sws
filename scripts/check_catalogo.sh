@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # check_catalogo.sh — il catalogo dei dispositivi noti si legge e dice il vero.
 #
-# PERCHÉ ESISTE (04-10-2026, piano docs/plans/2026-10-04-catalogo-dispositivi.md)
+# PERCHÉ ESISTE (04-10-2026, piano docs/archive/2026-10-04-catalogo-dispositivi.md)
 #
 # Il catalogo è fatto di file JSON letti a caldo dal runtime: apposta, perché
 # correggere un registro sia cambiare un file. Il prezzo è che nessun

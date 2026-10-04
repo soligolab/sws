@@ -1,5 +1,5 @@
 /** Un dispositivo completo dal catalogo dei dispositivi noti (04-10-2026,
- *  piano `docs/plans/2026-10-04-catalogo-dispositivi.md`).
+ *  piano `docs/archive/2026-10-04-catalogo-dispositivi.md`).
  *
  *  Una voce del catalogo (un modello, es. Pixsys ATR244) diventa tre cose:
  *  - un **tipo** per il modello (`pixsys_atr244`), un membro per registro e un

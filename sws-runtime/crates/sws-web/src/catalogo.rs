@@ -1,5 +1,5 @@
 //! Il catalogo dei dispositivi noti (04-10-2026, piano
-//! `docs/plans/2026-10-04-catalogo-dispositivi.md`).
+//! `docs/archive/2026-10-04-catalogo-dispositivi.md`).
 //!
 //! Un file JSON per modello, `<marca>/<modello>.json`, **riletto a ogni
 //! richiesta**: correggere un registro è cambiare un file, senza ricompilare né

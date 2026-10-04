@@ -74,12 +74,24 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — quattro rami su main; seriali nel container per il collaudo MCM (2026-10-04, sera)
+
+**Su `main`** (non pushato), squash su richiesta del maintainer prima del collaudo fisico: `61f24864` istanze/deploy,
+`2fa62935` Modbus Fase 3 + riconnessione + deploy unificato, `9ff83436` bus → dispositivi, `641e9d36` catalogo Pixsys.
+Rami eliminati, piani in archivio.
+- **Collaudo fisico in corso**: MCM260X-5AD (id 1) e MCM260X-9AD (id 2) su `/dev/ttyCOM1` (= `ttyS2`, regola udev
+  Pixsys `90-pixsys-hw-symlinks.rules`; `ttyCOM2` = `ttyS0`), 57600 8N1. Non comunicavano per tre motivi: il bus era
+  solo nell'editor del PC (che apriva `/dev/ttyCOM1` sul PC), il TC620 gira la rc.21 (non conosce bus/catalogo), e il
+  quadlet **non passa nessuna seriale al container** (porte `root:dialout` 0660, `user` è in `dialout`).
+- **Prossimo**: ramo per la tendina delle porte seriali lette dal dispositivo connesso + quadlet 2 con
+  `AddDevice=-/dev/...` e `GroupAdd=keep-groups` (podman 5.0.2, crun 1.14 sul TC620); poi la 2.12.0-rc.22 da `main`.
+
 ## ▶ Riprendere da qui — quattro rami annidati, catalogo dei dispositivi Pixsys (2026-10-04, sera)
 
 **Rami aperti, annidati:** `feat/istanze-e-deploy-con-conferma` → `feat/tag-3-modbus` → `feat/modbus-dispositivi` →
 `feat/catalogo-dispositivi`. Collaudati dal maintainer: istanze/deploy. Il resto aspetta il collaudo **fisico** che il
 maintainer farà con un **MCM260X-9AD**.
-- **Fatto su `feat/catalogo-dispositivi`** (piano [catalogo dispositivi](docs/plans/2026-10-04-catalogo-dispositivi.md)):
+- **Fatto su `feat/catalogo-dispositivi`** (piano [catalogo dispositivi](docs/archive/2026-10-04-catalogo-dispositivi.md)):
   file JSON in `catalogo/dispositivi/pixsys/` (16 modelli — MCM260X in sei varianti, 1AD…9AD — su 7 frammenti, icone da pixsys.net, fonti nel README della
   cartella), riletti a ogni richiesta; cartella utente `<config>/catalogo-dispositivi/`; «+ Dal catalogo…» nel bus crea
   tipo, variabile e dispositivo; il motore Modbus ha `formato`, `bit`, `sola_lettura` e la cache per giro. HOWTO cap. 22.
@@ -101,7 +113,7 @@ maintainer farà con un **MCM260X-9AD**.
 `feat/modbus-dispositivi`. Collaudati dal maintainer: «Crea istanza», la conferma del deploy e il deploy dalla scheda
 Dispositivi. Il maintainer ha detto: Modbus (Fase 3) **lo collauda dopo**, e intanto «inizia la riorganizzazione a
 device».
-- **Fatto su `feat/modbus-dispositivi`** (piano d'esecuzione [bus → dispositivi](docs/plans/2026-10-04-bus-e-dispositivi.md)):
+- **Fatto su `feat/modbus-dispositivi`** (piano d'esecuzione [bus → dispositivi](docs/archive/2026-10-04-bus-e-dispositivi.md)):
   `devices` dentro la sorgente Modbus TCP/RTU (il formato di prima si legge ancora), una sessione per bus con ordine,
   polling e timeout per dispositivo, stato per dispositivo (`GET /api/sources/stato`) col pallino nell'albero della
   Configurazione (terzo livello), validatore. Provato dal vivo su un simulatore `pymodbus` a due slave più uno assente:
@@ -111,7 +123,7 @@ device».
   avere l'endpoint dello stato (il backend è compilato all'avvio).
 - **Poi**: squash dei tre rami su `main` (ordine: istanze/deploy, Modbus Fase 3, bus → dispositivi), eliminazione dei
   rami, archivio dei piani; una rc quando si vuole provare sul pannello.
-- **Seme nuovo**: [catalogo dei dispositivi noti](docs/plans/2026-10-04-catalogo-dispositivi.md) — il modello del
+- **Seme nuovo**: [catalogo dei dispositivi noti](docs/archive/2026-10-04-catalogo-dispositivi.md) — il modello del
   dispositivo è già pronto ad agganciarlo (`modello`, `nuovoDispositivo(bus, base?)`).
 - Nota: lo stato delle sorgenti è servito dal router completo (IDE, porta admin), non dal viewer del runtime; l'IDE
   connesso a un dispositivo remoto mostra lo stato **della propria istanza**, non del pannello (da decidere quando
@@ -130,7 +142,7 @@ sostituirebbe un progetto con un altro nome — tutto nell'IDE, l'editor di svil
 scrittura su foglia; e la riconnessione con attesa crescente per Modbus, S7, EtherNet/IP, OPC-UA, HomeAssistant
 (`sws_core::riconnessione`). Squash di tutti e due dopo il collaudo; nessuna immagine nuova ancora (rc.22 quando serve
 provarli sul pannello).
-- **Dopo il collaudo e gli squash**: sessione di plan sul seme [bus → dispositivi → tag](docs/plans/2026-10-04-bus-e-dispositivi.md)
+- **Dopo il collaudo e gli squash**: sessione di plan sul seme [bus → dispositivi → tag](docs/archive/2026-10-04-bus-e-dispositivi.md)
   (scelta del maintainer: partire da un `main` pulito).
 
 - Nota: `tests/avvisoAggiornamento.test.tsx` «quando il runtime riparte…» è fallito una volta nella suite completa e
@@ -145,7 +157,7 @@ provarli sul pannello).
   dell'IDE mostra decimali e unità, anche per le foglie. Collaudato sul TC620 e confermato dal maintainer.
 - Il TC620 gira la rc.21 con `tc620-sistema`; la domanda «rc.20 → rc.21» è aperta (l'istantanea c'è).
 - Dei tre semi annotati nella sezione sotto, questo è chiuso; gli altri due sono un seme unico:
-  [istanze e deploy che sostituisce](docs/plans/2026-10-03-istanze-e-deploy-che-sostituisce.md).
+  [istanze e deploy che sostituisce](docs/archive/2026-10-03-istanze-e-deploy-che-sostituisce.md).
 
 ## ▶ Riprendere da qui — aggiornamento con ritorno, storico compatto, template TC620 (2026-10-03, sera)
 

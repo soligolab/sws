@@ -1,6 +1,6 @@
 # Catalogo Pixsys
 
-I dispositivi Pixsys del catalogo dei dispositivi noti (piano `docs/plans/2026-10-04-catalogo-dispositivi.md`).
+I dispositivi Pixsys del catalogo dei dispositivi noti (piano `docs/archive/2026-10-04-catalogo-dispositivi.md`).
 
 ## Da dove vengono i registri
 

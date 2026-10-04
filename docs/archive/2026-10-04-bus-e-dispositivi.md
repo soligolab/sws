@@ -5,7 +5,7 @@
 
 ## Context
 
-Seme [`docs/plans/2026-10-04-bus-e-dispositivi.md`](2026-10-04-bus-e-dispositivi.md), richiesta del
+Seme [`docs/archive/2026-10-04-bus-e-dispositivi.md`](2026-10-04-bus-e-dispositivi.md), richiesta del
 maintainer: configurare il **bus**, dentro i **dispositivi** per id, dentro i **tag**. Oggi una sorgente Modbus è una
 connessione con **un solo** `unit_id` (`ModbusTcpConfig`/`ModbusRtuConfig`, `sws-core/src/project.rs:560/579`), e il
 caso RTU è anche un difetto: due slave sulla stessa RS-485 = due sorgenti che aprono la stessa porta seriale
@@ -16,7 +16,7 @@ caso RTU è anche un difetto: due slave sulla stessa RS-485 = due sorgenti che a
 **ordine parole/byte, intervallo di polling, timeout**; **stato per dispositivo** con un pallino nell'albero.
 
 Ramo: `feat/modbus-dispositivi` **annidato** su `feat/tag-3-modbus` (tocca gli stessi file del motore Modbus; quel ramo
-aspetta il collaudo dal vivo). Primo commit: questo piano in `docs/plans/2026-10-04-bus-e-dispositivi.md` (il seme
+aspetta il collaudo dal vivo). Primo commit: questo piano in `docs/archive/2026-10-04-bus-e-dispositivi.md` (il seme
 diventa piano d'esecuzione).
 
 ## Modello (`sws-core/src/project.rs`)
@@ -105,7 +105,7 @@ diventa piano d'esecuzione).
 
 ## Predisposto per il catalogo di dispositivi noti (richiesta del 04-10-2026)
 
-Il catalogo non si fa in questo giro: diventa un **seme** `docs/plans/2026-10-04-catalogo-dispositivi.md` (idea, misure,
+Il catalogo non si fa in questo giro: diventa un **seme** `docs/archive/2026-10-04-catalogo-dispositivi.md` (idea, misure,
 la frase della sessione di plan approfondita), con la riga «seme — decisione» nel README dei piani. Questo giro però
 lascia pronti i punti a cui il catalogo si aggancerà, così dopo non si rifà niente:
 - **Il dispositivo è autosufficiente e copiabile**: tutto quello che serve a interrogarlo (ordine, timeout, polling,

@@ -1,5 +1,5 @@
 /** «Dal catalogo…»: un dispositivo completo, preconfigurato, dentro un bus
- *  Modbus (04-10-2026, piano `docs/plans/2026-10-04-catalogo-dispositivi.md`).
+ *  Modbus (04-10-2026, piano `docs/archive/2026-10-04-catalogo-dispositivi.md`).
  *
  *  Due passi: si sceglie il modello (con la sua icona), poi unit id, nome della
  *  variabile e gruppi di registri da leggere. La conferma passa al chiamante

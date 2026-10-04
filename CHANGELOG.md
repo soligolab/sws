@@ -20,7 +20,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   mostra lo stato ma non le novità. Vale per la `2.12.0-rc.1` e la `rc.2`.
 
 ### Added
-- **Catalogo dei dispositivi noti, Pixsys** (piano `docs/plans/2026-10-04-catalogo-dispositivi.md`). File JSON per
+- **Catalogo dei dispositivi noti, Pixsys** (piano `docs/archive/2026-10-04-catalogo-dispositivi.md`). File JSON per
   modello in `catalogo/dispositivi/<marca>/` (prodotto, `--catalog-root`) e in `<config>/catalogo-dispositivi/`
   (utente, vince a parità di id), **riletti a ogni richiesta** (`sws-web/src/catalogo.rs`, `GET
   /api/catalogo/dispositivi[/:marca/:nome]`, pre-auth come i template); frammenti `_*.json` condivisi. Pixsys: 16
@@ -35,14 +35,14 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   La card del dispositivo ha in testata **«Annulla»** (dispositivo appena aggiunto, non ancora salvato) o **«Elimina»**
   (già salvato): toglie il dispositivo dalla bozza e torna al bus. Prima dopo «+ Aggiungi dispositivo» non si tornava
   indietro.
-- **Modbus a bus → dispositivi → tag** (piano `docs/plans/2026-10-04-bus-e-dispositivi.md`). Una sorgente Modbus è un
+- **Modbus a bus → dispositivi → tag** (piano `docs/archive/2026-10-04-bus-e-dispositivi.md`). Una sorgente Modbus è un
   bus con `devices` (unit id, nome, `modello`, ordine, polling, timeout, registri); il formato di prima si legge come un
   bus con un dispositivo (`ModbusTcpConfig::dispositivi`, unico punto). Una sessione per bus: la porta seriale si apre
   una volta, gli slave si interrogano a turno; uno slave muto marca Bad i suoi tag e non chiude il bus, che riconnette
   solo per un guasto di trasporto o se tacciono tutti. Stato per sorgente e dispositivo (`sws_core::stato_sorgenti`,
   `GET /api/sources/stato`) con un pallino nell'albero della Configurazione, che ha un terzo livello per i dispositivi.
   Validatore: unit id doppio, formati mescolati, porta seriale di due sorgenti. Predisposto per il catalogo dei
-  dispositivi noti (seme `docs/plans/2026-10-04-catalogo-dispositivi.md`): `modello` e `nuovoDispositivo(bus, base?)`.
+  dispositivi noti (seme `docs/archive/2026-10-04-catalogo-dispositivi.md`): `modello` e `nuovoDispositivo(bus, base?)`.
   Provato dal vivo con un simulatore a due slave più uno assente.
 - **Modbus con i tipi, a blocchi, che non si ferma** (Fase 3 del piano tag, `docs/plans/2026-09-21-gestione-tag-oggetto-unico.md`).
   Quattro aree per mappatura (`area`: holding, input, coil, discrete), ordine di parole/byte per sorgente (`ordine`:
@@ -57,7 +57,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   watchdog ogni 30 s. S7: un tag rifiutato dal PLC non ferma più gli altri. OPC-UA riapre anche una sessione chiusa dal
   server.
 - **«Crea istanza» nella scheda Tipi, e il deploy che chiede prima di cancellare** (piano
-  `docs/plans/2026-10-03-istanze-e-deploy-che-sostituisce.md`). Tipi: sotto il tipo scelto, «nessuna istanza» detto
+  `docs/archive/2026-10-03-istanze-e-deploy-che-sostituisce.md`). Tipi: sotto il tipo scelto, «nessuna istanza» detto
   chiaramente, un nome proposto unico (`tag/istanze.ts`) e il pulsante che salva il tipo se serve, aggiunge la variabile
   con `type_ref` e porta alla sua riga; spento con la bozza delle Variabili toccata. Deploy: `remote_deploy` legge i
   progetti del pannello prima di toccare qualunque cosa e, se ce n'è uno con un altro nome, risponde 428

@@ -5,7 +5,7 @@
 
 ## Context
 
-Seme [`docs/plans/2026-10-04-catalogo-dispositivi.md`](2026-10-04-catalogo-dispositivi.md). Il
+Seme [`docs/archive/2026-10-04-catalogo-dispositivi.md`](2026-10-04-catalogo-dispositivi.md). Il
 maintainer ha fornito la mappa registri Modbus della maggior parte dei prodotti Pixsys (upload
 `Pixsys_Modbus_Register_Map.md`: registri comuni 0-5, regolatori ATR 1000-1005/2000-2004, indicatori STR 100-105, I/O
 MCM 10-41, convertitori DRR 500-511, word a bit, CDAB) e chiede un **catalogo di dispositivi preconfigurati da inserire
@@ -24,7 +24,7 @@ dispositivo, `nuovoDispositivo(bus, base?)`.
 - JSON **nel prodotto + cartella utente** (stesso id: vince l'utente), riletti a ogni apertura del catalogo.
 
 Ramo `feat/catalogo-dispositivi`, **annidato** su `feat/modbus-dispositivi` (ne usa i tipi e le card). Primo commit:
-questo piano in `docs/plans/2026-10-04-catalogo-dispositivi.md` (il seme diventa piano d'esecuzione).
+questo piano in `docs/archive/2026-10-04-catalogo-dispositivi.md` (il seme diventa piano d'esecuzione).
 
 ## 1. Il motore Modbus: formato, bit, sola lettura
 

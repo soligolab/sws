@@ -52,7 +52,7 @@ export function prossimoUnitId(bus: BusModbus): number {
 }
 
 /** Un dispositivo nuovo per il bus. `base` è il punto d'aggancio del futuro
- *  catalogo dei dispositivi noti (seme `docs/plans/2026-10-04-catalogo-dispositivi.md`):
+ *  catalogo dei dispositivi noti (seme `docs/archive/2026-10-04-catalogo-dispositivi.md`):
  *  la voce scelta, senza unit id. Oggi è vuoto. */
 export function nuovoDispositivo(bus: BusModbus, base?: Omit<DispositivoModbus, "unit_id">): DispositivoModbus {
   return {
