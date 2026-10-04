@@ -12,7 +12,8 @@ import { S } from "@/config/comuni";
 import { useAppStore } from "@/store";
 import { motivoNomeIstanza } from "@/tag/istanze";
 import { type BusModbus, dispositiviDi, prossimoUnitId } from "@/config/sorgenti/modbusDispositivi";
-import { type DaCatalogo, daCatalogo, gruppiDi, nomeProposto, urlImmagine } from "@/config/sorgenti/daCatalogo";
+import { type DaCatalogo, daCatalogo, gruppiDi, idTipoDaVoce, nomeProposto, urlImmagine } from "@/config/sorgenti/daCatalogo";
+import { variabiliRiassociabili } from "@/config/sorgenti/variabiliDispositivo";
 
 const ETICHETTA = { fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 } as const;
 
@@ -67,6 +68,9 @@ export function CatalogoDispositiviModal({ bus, onConferma, onClose }: {
   const [nome, setNome] = useState("");
   const [gruppi, setGruppi] = useState<Set<string>>(new Set());
   const [lavoro, setLavoro] = useState(false);
+  // Riassociare (04-10-2026): una variabile dello stesso modello rimasta senza
+  // dispositivo — tenuta quando lo si è eliminato — invece di crearne una nuova.
+  const [esistente, setEsistente] = useState("");
 
   useEffect(() => {
     api.catalogoDispositivi().then(setElenco).catch((e) => setErrore(e instanceof Error ? e.message : String(e)));
@@ -77,6 +81,7 @@ export function CatalogoDispositiviModal({ bus, onConferma, onClose }: {
     try {
       const piena = await api.voceCatalogo(v.id);
       setVoce(piena);
+      setEsistente("");
       setNome(nomeProposto(v.id, unit, idTag));
       setGruppi(new Set(gruppiDi(piena).filter((g) => g.predefinito).map((g) => g.nome)));
     } catch (e) {
@@ -94,9 +99,11 @@ export function CatalogoDispositiviModal({ bus, onConferma, onClose }: {
   }
 
   const unitOccupato = dispositiviDi(bus).some((d) => d.unit_id === unit);
-  const motivoNome = motivoNomeIstanza(nome, idTag);
+  const riassociabili = voce && project ? variabiliRiassociabili({ ...project, sources: project.sources ?? [] }, idTipoDaVoce(voce.id)) : [];
+  const scelta = riassociabili.find((x) => x.tag.id === esistente);
+  const motivoNome = scelta ? null : motivoNomeIstanza(nome, idTag);
   const risultato = voce && !unitOccupato && !motivoNome
-    ? daCatalogo(voce, bus, { unit, nome: nome.trim(), gruppi, lingua }, project?.types ?? [])
+    ? daCatalogo(voce, bus, { unit, nome: scelta ? scelta.tag.id : nome.trim(), gruppi, lingua, esistente: scelta }, project?.types ?? [])
     : null;
 
   const conferma = async () => {
@@ -176,8 +183,21 @@ export function CatalogoDispositiviModal({ bus, onConferma, onClose }: {
               </div>
               <div>
                 <label style={ETICHETTA}>{t("catalogo.nomeVariabile")}</label>
-                <input style={{ ...S.input, ...(motivoNome ? { borderColor: "var(--brand-danger, #ef4444)" } : {}) }} value={nome} spellCheck={false}
-                  onChange={(e) => setNome(e.target.value)} data-testid="catalogo-nome" />
+                <div style={{ display: "flex", gap: 6 }}>
+                  {riassociabili.length > 0 && (
+                    <select style={{ ...S.input, width: scelta ? "100%" : "45%" }} value={esistente} data-testid="catalogo-esistente"
+                      onChange={(e) => setEsistente(e.target.value)}>
+                      <option value="">{t("catalogo.variabileNuova")}</option>
+                      {riassociabili.map((x) => (
+                        <option key={x.tag.id} value={x.tag.id}>{t("catalogo.variabileEsistente", { nome: x.tag.id, tipo: x.tipo.id })}</option>
+                      ))}
+                    </select>
+                  )}
+                  {!scelta && (
+                    <input style={{ ...S.input, ...(motivoNome ? { borderColor: "var(--brand-danger, #ef4444)" } : {}) }} value={nome} spellCheck={false}
+                      onChange={(e) => setNome(e.target.value)} data-testid="catalogo-nome" />
+                  )}
+                </div>
               </div>
             </div>
             {unitOccupato && <div style={{ fontSize: 11, color: "var(--brand-danger-soft, #f87171)", marginBottom: 8 }}>{t("catalogo.unitOccupato", { unit })}</div>}
@@ -200,8 +220,10 @@ export function CatalogoDispositiviModal({ bus, onConferma, onClose }: {
 
             {risultato && (
               <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #94a3b8)", marginBottom: 12 }} data-testid="catalogo-anteprima">
-                {t("catalogo.anteprima", { tipo: risultato.tipo.id, nome: risultato.tag.id, n: risultato.dispositivo.registers.length, membri: risultato.tipo.members.length })}
-                {risultato.riusaTipo && <> {t("catalogo.tipoRiusato")}</>}
+                {risultato.riusaVariabile
+                  ? t("catalogo.anteprimaRiassocia", { nome: risultato.tag.id, tipo: risultato.tipo.id, n: risultato.dispositivo.registers.length })
+                  : t("catalogo.anteprima", { tipo: risultato.tipo.id, nome: risultato.tag.id, n: risultato.dispositivo.registers.length, membri: risultato.foglie })}
+                {risultato.riusaTipo && !risultato.riusaVariabile && <> {t("catalogo.tipoRiusato")}</>}
               </div>
             )}
             {risultato?.avvisi.map((a) => (

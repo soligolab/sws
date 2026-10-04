@@ -1,6 +1,6 @@
 {
   "id": "pixsys/mcm260x-1ad",
-  "versione": 1,
+  "versione": 2,
   "marca": "Pixsys",
   "modello": "MCM260X-1AD",
   "famiglia": "Moduli I/O MCM260X",
@@ -10,7 +10,7 @@
   },
   "immagine": "mcm260x-1ad.jpg",
   "modbus": {
-    "ordine": "cdab",
+    "ordine": "abcd",
     "timeout_ms": 1000,
     "seriale": {
       "baud_rate": 19200,
@@ -20,7 +20,158 @@
     }
   },
   "includi": [
-    "pixsys/_comuni",
-    "pixsys/_mcm_do"
+    "pixsys/_mcm260x"
+  ],
+  "registri": [
+    {
+      "nome": "compatibilita_mcm260",
+      "indirizzo": 3,
+      "accesso": "rw",
+      "gruppo": "configurazione",
+      "descrizione": {
+        "it": "Modalità compatibilità con la vecchia serie MCM260: 1 attiva, 0 no",
+        "en": "Compatibility mode with the old MCM260 series: 1 on, 0 off"
+      }
+    },
+    {
+      "nome": "uscite_digitali",
+      "indirizzo": 1100,
+      "accesso": "rw",
+      "gruppo": "uscite",
+      "descrizione": {
+        "it": "Stato delle uscite digitali 1-16 (default 0)",
+        "en": "Digital outputs 1-16 status (default 0)"
+      },
+      "bit": [
+        {
+          "bit": 0,
+          "nome": "do1",
+          "descrizione": {
+            "it": "Uscita digitale 1",
+            "en": "Digital output 1"
+          }
+        },
+        {
+          "bit": 1,
+          "nome": "do2",
+          "descrizione": {
+            "it": "Uscita digitale 2",
+            "en": "Digital output 2"
+          }
+        },
+        {
+          "bit": 2,
+          "nome": "do3",
+          "descrizione": {
+            "it": "Uscita digitale 3",
+            "en": "Digital output 3"
+          }
+        },
+        {
+          "bit": 3,
+          "nome": "do4",
+          "descrizione": {
+            "it": "Uscita digitale 4",
+            "en": "Digital output 4"
+          }
+        },
+        {
+          "bit": 4,
+          "nome": "do5",
+          "descrizione": {
+            "it": "Uscita digitale 5",
+            "en": "Digital output 5"
+          }
+        },
+        {
+          "bit": 5,
+          "nome": "do6",
+          "descrizione": {
+            "it": "Uscita digitale 6",
+            "en": "Digital output 6"
+          }
+        },
+        {
+          "bit": 6,
+          "nome": "do7",
+          "descrizione": {
+            "it": "Uscita digitale 7",
+            "en": "Digital output 7"
+          }
+        },
+        {
+          "bit": 7,
+          "nome": "do8",
+          "descrizione": {
+            "it": "Uscita digitale 8",
+            "en": "Digital output 8"
+          }
+        },
+        {
+          "bit": 8,
+          "nome": "do9",
+          "descrizione": {
+            "it": "Uscita digitale 9",
+            "en": "Digital output 9"
+          }
+        },
+        {
+          "bit": 9,
+          "nome": "do10",
+          "descrizione": {
+            "it": "Uscita digitale 10",
+            "en": "Digital output 10"
+          }
+        },
+        {
+          "bit": 10,
+          "nome": "do11",
+          "descrizione": {
+            "it": "Uscita digitale 11",
+            "en": "Digital output 11"
+          }
+        },
+        {
+          "bit": 11,
+          "nome": "do12",
+          "descrizione": {
+            "it": "Uscita digitale 12",
+            "en": "Digital output 12"
+          }
+        },
+        {
+          "bit": 12,
+          "nome": "do13",
+          "descrizione": {
+            "it": "Uscita digitale 13",
+            "en": "Digital output 13"
+          }
+        },
+        {
+          "bit": 13,
+          "nome": "do14",
+          "descrizione": {
+            "it": "Uscita digitale 14",
+            "en": "Digital output 14"
+          }
+        },
+        {
+          "bit": 14,
+          "nome": "do15",
+          "descrizione": {
+            "it": "Uscita digitale 15",
+            "en": "Digital output 15"
+          }
+        },
+        {
+          "bit": 15,
+          "nome": "do16",
+          "descrizione": {
+            "it": "Uscita digitale 16",
+            "en": "Digital output 16"
+          }
+        }
+      ]
+    }
   ]
 }

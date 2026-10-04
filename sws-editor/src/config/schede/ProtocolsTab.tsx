@@ -17,7 +17,7 @@ import { OpcUaServerSourceCard } from "@/config/sorgenti/OpcUaServerSourceCard";
 import { ModbusSourceCard } from "@/config/sorgenti/ModbusSourceCard";
 import { ModbusRtuSourceCard } from "@/config/sorgenti/ModbusRtuSourceCard";
 import { MqttSourceCard } from "@/config/sorgenti/MqttSourceCard";
-import { DispositivoModbusCard } from "@/config/sorgenti/DispositiviModbus";
+import { DispositivoModbusCard, SalvaBusContext } from "@/config/sorgenti/DispositiviModbus";
 import {
   dispositiviDi, eBusModbus, etichettaDispositivo, focusDispositivo, idElementiProtocolli, leggiFocus,
 } from "@/config/sorgenti/modbusDispositivi";
@@ -106,6 +106,17 @@ export function ProtocolsTab() {
   const removeSource = (idx: number) =>
     setSources((prev) => prev.filter((_, i) => i !== idx));
 
+  // «Salva subito questo bus» per le card (04-10-2026): la bozza delle
+  // sorgenti con il bus cambiato, salvata come col pulsante Salva — le altre
+  // modifiche della bozza vanno con lei, e lo dice il manuale.
+  const salvaBus = async (bus: SourceDef) => {
+    const prossime = sources.some((x) => x.id === bus.id) ? sources.map((x) => (x.id === bus.id ? bus : x)) : [...sources, bus];
+    const puliti = sorgentiSenzaRigheVuote(prossime);
+    await api.updateSources(puliti);
+    updateProjectSources(puliti);
+    setSources(puliti);
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -128,6 +139,7 @@ export function ProtocolsTab() {
   };
 
   return (
+    <SalvaBusContext.Provider value={salvaBus}>
     <div style={S.section}>
       {/* `sources !== storeProject.sources` è intenzione dell'utente, non
           confronto strutturale: `sync.applica` assegna proprio l'array dello
@@ -320,5 +332,6 @@ export function ProtocolsTab() {
         </div>
       )}
     </div>
+    </SalvaBusContext.Provider>
   );
 }

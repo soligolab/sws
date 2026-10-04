@@ -35,11 +35,19 @@ campi di prima sono ignorati (il validatore lo segnala).
 
 ### Il catalogo dei dispositivi
 
-Dentro un bus, **«+ Dal catalogo…»** aggiunge un dispositivo completo e già configurato: si sceglie il modello (con la
-sua icona), l'unit id, il nome della variabile e i gruppi di registri da leggere. Nascono un **tipo** per il modello
+Dentro un bus, **«+ Dal catalogo…»** aggiunge un dispositivo completo e già configurato (tipo, variabile e
+dispositivo si salvano subito, insieme alle altre modifiche aperte nei Protocolli): si sceglie il modello (con la
+sua icona), l'unit id, il nome della variabile e i gruppi di registri da leggere. Nascono dei **tipi annidati** per il modello — un sotto-tipo per gruppo (`pixsys_mcm260x_9ad__ingressi`) e il tipo
+della variabile con un membro per gruppo scelto, così le variabili si leggono `mcm260x_9ad.ingressi.di1`,
+`mcm260x_9ad.diagnostica.errore_fram` — e, prima di queste righe, nascevano un **tipo** per il modello
 (tutti i suoi registri, i bit delle word come membri vero/falso, unità e decimali), una **variabile** istanza di quel
 tipo e il **dispositivo** del bus con le mappature, l'ordine dei byte e il timeout del modello. Un secondo dispositivo
 dello stesso modello riusa il tipo. Tipo e variabile si salvano subito; il dispositivo si salva coi Protocolli.
+
+**Eliminare un dispositivo** salvato chiede cosa fare delle sue variabili: «Dispositivo e variabili» toglie anche le
+variabili che nessun altro mappa (e i tipi rimasti senza istanze); «Solo il dispositivo» le tiene, e un dispositivo nuovo
+dello stesso modello le riprende dal catalogo scegliendo **«Riprendi …»** al posto di «Variabile nuova»: grafici,
+allarmi e storico che le usano restano agganciati.
 
 Oggi il catalogo ha i Pixsys ATR121/142/144/244, STR551/561/571, MCM260X nelle sei varianti (1AD, 2AD, 3AD, 4AD,
 5AD, 9AD, ognuna coi suoi I/O), MCM280X, DRR245/460, dalla mappa dei registri

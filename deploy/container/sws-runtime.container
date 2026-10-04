@@ -24,7 +24,7 @@
 # più basso di quello dell'immagine che gira mostra «configurazione del servizio
 # da aggiornare», e la si aggiorna dall'IDE o dal pannello — vedi
 # docs/plans/2026-10-02-quadlet-che-viaggia.md.
-Description=SWS runtime (container podman) [quadlet 2]
+Description=SWS runtime (container podman) [quadlet 3]
 Documentation=file:///data/user/sws-container/README
 After=network-online.target
 Wants=network-online.target
@@ -138,6 +138,11 @@ UserNS=keep-id
 # MCM260X su /dev/ttyCOM1 del TC620) non partiva un byte, senza un errore che
 # dicesse perché sul pannello.
 #
+# Le prese Pixsys con la forma `host:container`: sono collegamenti udev, e
+# podman 5.0.2 (TC620) li segue e crea nel container solo la destinazione
+# (`ttyS2`), non il nome che il progetto usa (`ttyCOM1`). Provato sul TC620 il
+# 04-10-2026: con `/dev/ttyCOM1:/dev/ttyCOM1` il nome c'è e la porta si apre.
+#
 # Il trattino iniziale: la porta si passa **se esiste**, altrimenti si salta
 # (lo fa il generatore quadlet; con `podman run --device` una porta mancante
 # farebbe fallire l'avvio). Così lo stesso file va bene su pannelli diversi:
@@ -145,10 +150,10 @@ UserNS=keep-id
 # = RS485-1 = `ttyS2`, `ttyCOM2` = `ttyS0`), le UART (`ttyS`, `ttymxc` degli
 # i.MX), gli adattatori USB. Un adattatore USB inserito **dopo** l'avvio del
 # servizio non si vede finché il servizio non riparte.
-AddDevice=-/dev/ttyCOM1
-AddDevice=-/dev/ttyCOM2
-AddDevice=-/dev/ttyCOM3
-AddDevice=-/dev/ttyCOM4
+AddDevice=-/dev/ttyCOM1:/dev/ttyCOM1
+AddDevice=-/dev/ttyCOM2:/dev/ttyCOM2
+AddDevice=-/dev/ttyCOM3:/dev/ttyCOM3
+AddDevice=-/dev/ttyCOM4:/dev/ttyCOM4
 AddDevice=-/dev/ttyS0
 AddDevice=-/dev/ttyS1
 AddDevice=-/dev/ttyS2
@@ -172,7 +177,14 @@ AddDevice=-/dev/ttyACM1
 # con «Permission denied» anche se il device c'è (provato il 04-10-2026 con
 # podman 5.7 e crun). `keep-groups` (solo crun, che è quello del pannello)
 # porta dentro i gruppi dell'utente.
-GroupAdd=keep-groups
+#
+# Come `PodmanArgs` e non `GroupAdd=`: la chiave `GroupAdd` i quadlet la
+# conoscono solo dalle versioni di podman più nuove, e il generatore del TC620
+# (podman 5.0.2) **rifiuta l'intero file** per una chiave sconosciuta —
+# «unsupported key 'GroupAdd'», e `sws-runtime.service` non esiste più: il
+# pannello resta senza runtime (successo all'installazione della rc.22,
+# 04-10-2026). `PodmanArgs` c'è da podman 4.5 e passa l'opzione così com'è.
+PodmanArgs=--group-add keep-groups
 
 # ── Aggiornamento del runtime (27-09-2026) ──────────────────────────────────
 #

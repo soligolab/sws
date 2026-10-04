@@ -20,6 +20,19 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   mostra lo stato ma non le novità. Vale per la `2.12.0-rc.1` e la `rc.2`.
 
 ### Added
+- **I dispositivi dal catalogo sono tipi annidati per gruppo** (richiesta del maintainer, 04-10-2026): la variabile ha
+  un membro per gruppo (`mcm260x_9ad.diagnostica.errore_fram`, `mcm260x_9ad.ingressi.di1`), ogni gruppo è un
+  sotto-tipo del modello (`pixsys_mcm260x_9ad__ingressi`) condiviso da tutte le scelte. Eliminare un dispositivo con le
+  variabili toglie a cascata i sotto-tipi rimasti senza nessuno; «Riprendi» su un tipo piatto di prima resta piatto se
+  ha già tutti i membri, altrimenti passa all'annidato e lo dice (i percorsi cambiano).
+- **La variabile di un dispositivo dal catalogo ha solo i gruppi spuntati** (scelta del maintainer, 04-10-2026: un 9AD
+  con i soli ingressi creava 89 membri, la maggior parte non letti e «Good a 0»). Il tipo prende il nome dalla scelta
+  (`pixsys_mcm260x_9ad` = tutti i gruppi, `pixsys_mcm260x_9ad_ingressi`…) e due dispositivi con la stessa scelta lo
+  condividono; «Riprendi» con gruppi in più passa la variabile al tipo più largo, coi membri di prima invariati.
+- **Eliminare un dispositivo chiede delle sue variabili** (richiesta del maintainer, 04-10-2026): «Dispositivo e
+  variabili» toglie anche le variabili che nessun altro mappa e i tipi rimasti senza istanze; «Solo il dispositivo» le
+  tiene, e **«Dal catalogo» → «Riprendi …»** le riassocia a un dispositivo nuovo dello stesso modello (grafici,
+  allarmi e storico restano). `variabiliDispositivo.ts`.
 - **La porta seriale di Modbus RTU da una tendina** con le porte del dispositivo connesso (`GET /api/host/seriali` e
   `/api/remote/host/seriali`: nomi, collegamenti udev, se il runtime la apre; se gira in un container), con
   «✎ Inserisci a mano…» quando il dispositivo non è raggiungibile e la riga di stato della porta scelta.
@@ -242,6 +255,17 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   riga rossa con **Converti**, in testa c'è **Converti tutti (n)**, e gli allarmi che condividono un tag lo dicono. La conversione non cambia come scatta; il Salva resta dell'utente.
 
 ### Fixed
+- **I pallini di stato dei dispositivi erano quelli del PC anche con l'IDE connesso a un pannello** (collaudo sul
+  TC620, 04-10-2026: bus rosso «/dev/ttyCOM2 non esiste» sopra valori che si aggiornavano). Ora vengono dal pannello
+  (`/api/remote/sources/stato`, e `/api/sources/stato` anche sulla porta admin in modalità «solo gestione»); un
+  pannello con un runtime più vecchio dà pallini grigi, non quelli del PC.
+- **Un dispositivo dal catalogo restava nella bozza dei Protocolli** mentre tipo e variabile erano già salvati: una
+  rinomina della variabile e il salvataggio della bozza vecchia hanno creato al collaudo 127 variabili piatte orfane
+  (`mcm260x_5ad_1.ai1`…). Ora tipo, variabile e dispositivo si salvano insieme, in quest'ordine (`SalvaBusContext`).
+- **Il catalogo MCM260X aveva la mappa sbagliata** (collaudo sul TC620, 04-10-2026): la mappa generica Pixsys non vale per
+  gli MCM260X. Rigenerate le sei varianti dal manuale 2300.10.265 RevG §9.2 (DI 1000, DO 1100, AI 5AD 1000-1003 / 9AD
+  1001-1004, AO 1100/1101, flag di stato a bit, giunto freddo, encoder a 32 bit, tipo di sonda e di uscita), e
+  verificato indirizzo per indirizzo su un 5AD e un 9AD veri. Il registro 4, che la mappa generica leggeva, non esiste.
 - **Modbus RTU nel container non apriva nessuna porta seriale** (collaudo con due MCM260X sul TC620, 04-10-2026): il
   quadlet non passava nessun device e, in rootless con `keep-id`, il gruppo `dialout` si perdeva («Permission denied»
   anche col device presente, provato con podman 5.7). **Quadlet 2**: `AddDevice=-/dev/…` per le prese Pixsys

@@ -1,16 +1,16 @@
 {
   "id": "pixsys/mcm260x-9ad",
-  "versione": 1,
+  "versione": 2,
   "marca": "Pixsys",
   "modello": "MCM260X-9AD",
   "famiglia": "Moduli I/O MCM260X",
   "descrizione": {
-    "it": "Modulo I/O remoto Modbus RTU / CANopen: 4 ingressi e 2 uscite analogici, 16 linee digitali PNP configurabili come ingressi o uscite, 4 encoder. Gli encoder/contatori non sono ancora nel catalogo: la mappa dei registri non li riporta.",
-    "en": "Remote I/O module Modbus RTU / CANopen: 4 analog inputs and 2 outputs, 16 PNP digital lines selectable as inputs or outputs, 4 encoders. Encoders/counters are not in the catalog yet: the register map does not list them."
+    "it": "Modulo I/O remoto Modbus RTU / CANopen: 4 ingressi e 2 uscite analogici, 16 linee digitali PNP configurabili come ingressi o uscite, 4 encoder/contatori. Il tipo di sonda di ogni ingresso va impostato (tipo_sensore_aiN)",
+    "en": "Remote I/O module Modbus RTU / CANopen: 4 analog inputs and 2 outputs, 16 PNP digital lines selectable as inputs or outputs, 4 encoders/counters. Each input's probe type must be set (tipo_sensore_aiN)"
   },
   "immagine": "mcm260x-9ad.jpg",
   "modbus": {
-    "ordine": "cdab",
+    "ordine": "abcd",
     "timeout_ms": 1000,
     "seriale": {
       "baud_rate": 19200,
@@ -20,9 +20,802 @@
     }
   },
   "includi": [
-    "pixsys/_comuni",
-    "pixsys/_mcm_di",
-    "pixsys/_mcm_do",
-    "pixsys/_mcm_analogici"
+    "pixsys/_mcm260x"
+  ],
+  "registri": [
+    {
+      "nome": "flag_stato",
+      "indirizzo": 6,
+      "accesso": "r",
+      "gruppo": "diagnostica",
+      "descrizione": {
+        "it": "Flag di stato/errore",
+        "en": "Status/error flags"
+      },
+      "bit": [
+        {
+          "bit": 0,
+          "nome": "errore_parametri",
+          "descrizione": {
+            "it": "Parametri di configurazione errati",
+            "en": "Wrong configuration parameters"
+          }
+        },
+        {
+          "bit": 1,
+          "nome": "errore_conteggi_encoder",
+          "descrizione": {
+            "it": "Valori conteggi encoder errati",
+            "en": "Wrong encoder count values"
+          }
+        },
+        {
+          "bit": 3,
+          "nome": "errore_dati_taratura",
+          "descrizione": {
+            "it": "Dati di taratura errati",
+            "en": "Wrong calibration data"
+          }
+        },
+        {
+          "bit": 4,
+          "nome": "errore_costanti_taratura",
+          "descrizione": {
+            "it": "Costanti di taratura errate",
+            "en": "Wrong calibration constants"
+          }
+        },
+        {
+          "bit": 5,
+          "nome": "errore_memoria_canopen",
+          "descrizione": {
+            "it": "Dati memoria CANopen errati",
+            "en": "Wrong CANopen memory data"
+          }
+        },
+        {
+          "bit": 6,
+          "nome": "taratura_mancante",
+          "descrizione": {
+            "it": "Taratura mancante",
+            "en": "Calibration missing"
+          }
+        },
+        {
+          "bit": 7,
+          "nome": "parametro_fuori_range",
+          "descrizione": {
+            "it": "Parametro fuori range",
+            "en": "Parameter out of range"
+          }
+        },
+        {
+          "bit": 8,
+          "nome": "errore_fram",
+          "descrizione": {
+            "it": "Errore memoria FRam",
+            "en": "FRam memory error"
+          }
+        },
+        {
+          "bit": 9,
+          "nome": "terminale_offline",
+          "descrizione": {
+            "it": "Terminale offline",
+            "en": "Terminal offline"
+          }
+        },
+        {
+          "bit": 10,
+          "nome": "password_nfc_assente",
+          "descrizione": {
+            "it": "Password NFC non impostata",
+            "en": "NFC password not set"
+          }
+        },
+        {
+          "bit": 11,
+          "nome": "tensione_bassa",
+          "descrizione": {
+            "it": "Bassa tensione di alimentazione",
+            "en": "Low supply voltage"
+          }
+        },
+        {
+          "bit": 12,
+          "nome": "ai1_fuori_range",
+          "descrizione": {
+            "it": "AI1 fuori range",
+            "en": "AI1 out of range"
+          }
+        },
+        {
+          "bit": 13,
+          "nome": "ai2_fuori_range",
+          "descrizione": {
+            "it": "AI2 fuori range",
+            "en": "AI2 out of range"
+          }
+        },
+        {
+          "bit": 14,
+          "nome": "ai3_fuori_range",
+          "descrizione": {
+            "it": "AI3 fuori range",
+            "en": "AI3 out of range"
+          }
+        },
+        {
+          "bit": 15,
+          "nome": "ai4_fuori_range",
+          "descrizione": {
+            "it": "AI4 fuori range",
+            "en": "AI4 out of range"
+          }
+        }
+      ]
+    },
+    {
+      "nome": "ingressi_digitali",
+      "indirizzo": 1000,
+      "accesso": "r",
+      "gruppo": "ingressi",
+      "descrizione": {
+        "it": "Stato degli ingressi digitali 1-16",
+        "en": "Digital inputs 1-16 status"
+      },
+      "bit": [
+        {
+          "bit": 0,
+          "nome": "di1",
+          "descrizione": {
+            "it": "Ingresso digitale 1",
+            "en": "Digital input 1"
+          }
+        },
+        {
+          "bit": 1,
+          "nome": "di2",
+          "descrizione": {
+            "it": "Ingresso digitale 2",
+            "en": "Digital input 2"
+          }
+        },
+        {
+          "bit": 2,
+          "nome": "di3",
+          "descrizione": {
+            "it": "Ingresso digitale 3",
+            "en": "Digital input 3"
+          }
+        },
+        {
+          "bit": 3,
+          "nome": "di4",
+          "descrizione": {
+            "it": "Ingresso digitale 4",
+            "en": "Digital input 4"
+          }
+        },
+        {
+          "bit": 4,
+          "nome": "di5",
+          "descrizione": {
+            "it": "Ingresso digitale 5",
+            "en": "Digital input 5"
+          }
+        },
+        {
+          "bit": 5,
+          "nome": "di6",
+          "descrizione": {
+            "it": "Ingresso digitale 6",
+            "en": "Digital input 6"
+          }
+        },
+        {
+          "bit": 6,
+          "nome": "di7",
+          "descrizione": {
+            "it": "Ingresso digitale 7",
+            "en": "Digital input 7"
+          }
+        },
+        {
+          "bit": 7,
+          "nome": "di8",
+          "descrizione": {
+            "it": "Ingresso digitale 8",
+            "en": "Digital input 8"
+          }
+        },
+        {
+          "bit": 8,
+          "nome": "di9",
+          "descrizione": {
+            "it": "Ingresso digitale 9",
+            "en": "Digital input 9"
+          }
+        },
+        {
+          "bit": 9,
+          "nome": "di10",
+          "descrizione": {
+            "it": "Ingresso digitale 10",
+            "en": "Digital input 10"
+          }
+        },
+        {
+          "bit": 10,
+          "nome": "di11",
+          "descrizione": {
+            "it": "Ingresso digitale 11",
+            "en": "Digital input 11"
+          }
+        },
+        {
+          "bit": 11,
+          "nome": "di12",
+          "descrizione": {
+            "it": "Ingresso digitale 12",
+            "en": "Digital input 12"
+          }
+        },
+        {
+          "bit": 12,
+          "nome": "di13",
+          "descrizione": {
+            "it": "Ingresso digitale 13",
+            "en": "Digital input 13"
+          }
+        },
+        {
+          "bit": 13,
+          "nome": "di14",
+          "descrizione": {
+            "it": "Ingresso digitale 14",
+            "en": "Digital input 14"
+          }
+        },
+        {
+          "bit": 14,
+          "nome": "di15",
+          "descrizione": {
+            "it": "Ingresso digitale 15",
+            "en": "Digital input 15"
+          }
+        },
+        {
+          "bit": 15,
+          "nome": "di16",
+          "descrizione": {
+            "it": "Ingresso digitale 16",
+            "en": "Digital input 16"
+          }
+        }
+      ]
+    },
+    {
+      "nome": "uscite_digitali",
+      "indirizzo": 1100,
+      "accesso": "rw",
+      "gruppo": "uscite",
+      "descrizione": {
+        "it": "Stato delle uscite digitali 1-16 (default 0)",
+        "en": "Digital outputs 1-16 status (default 0)"
+      },
+      "bit": [
+        {
+          "bit": 0,
+          "nome": "do1",
+          "descrizione": {
+            "it": "Uscita digitale 1",
+            "en": "Digital output 1"
+          }
+        },
+        {
+          "bit": 1,
+          "nome": "do2",
+          "descrizione": {
+            "it": "Uscita digitale 2",
+            "en": "Digital output 2"
+          }
+        },
+        {
+          "bit": 2,
+          "nome": "do3",
+          "descrizione": {
+            "it": "Uscita digitale 3",
+            "en": "Digital output 3"
+          }
+        },
+        {
+          "bit": 3,
+          "nome": "do4",
+          "descrizione": {
+            "it": "Uscita digitale 4",
+            "en": "Digital output 4"
+          }
+        },
+        {
+          "bit": 4,
+          "nome": "do5",
+          "descrizione": {
+            "it": "Uscita digitale 5",
+            "en": "Digital output 5"
+          }
+        },
+        {
+          "bit": 5,
+          "nome": "do6",
+          "descrizione": {
+            "it": "Uscita digitale 6",
+            "en": "Digital output 6"
+          }
+        },
+        {
+          "bit": 6,
+          "nome": "do7",
+          "descrizione": {
+            "it": "Uscita digitale 7",
+            "en": "Digital output 7"
+          }
+        },
+        {
+          "bit": 7,
+          "nome": "do8",
+          "descrizione": {
+            "it": "Uscita digitale 8",
+            "en": "Digital output 8"
+          }
+        },
+        {
+          "bit": 8,
+          "nome": "do9",
+          "descrizione": {
+            "it": "Uscita digitale 9",
+            "en": "Digital output 9"
+          }
+        },
+        {
+          "bit": 9,
+          "nome": "do10",
+          "descrizione": {
+            "it": "Uscita digitale 10",
+            "en": "Digital output 10"
+          }
+        },
+        {
+          "bit": 10,
+          "nome": "do11",
+          "descrizione": {
+            "it": "Uscita digitale 11",
+            "en": "Digital output 11"
+          }
+        },
+        {
+          "bit": 11,
+          "nome": "do12",
+          "descrizione": {
+            "it": "Uscita digitale 12",
+            "en": "Digital output 12"
+          }
+        },
+        {
+          "bit": 12,
+          "nome": "do13",
+          "descrizione": {
+            "it": "Uscita digitale 13",
+            "en": "Digital output 13"
+          }
+        },
+        {
+          "bit": 13,
+          "nome": "do14",
+          "descrizione": {
+            "it": "Uscita digitale 14",
+            "en": "Digital output 14"
+          }
+        },
+        {
+          "bit": 14,
+          "nome": "do15",
+          "descrizione": {
+            "it": "Uscita digitale 15",
+            "en": "Digital output 15"
+          }
+        },
+        {
+          "bit": 15,
+          "nome": "do16",
+          "descrizione": {
+            "it": "Uscita digitale 16",
+            "en": "Digital output 16"
+          }
+        }
+      ]
+    },
+    {
+      "nome": "giunto_freddo_ai12",
+      "indirizzo": 8,
+      "formato": "i16",
+      "scala": 0.1,
+      "unita": "°C",
+      "accesso": "r",
+      "gruppo": "diagnostica",
+      "descrizione": {
+        "it": "Temperatura del giunto freddo degli ingressi AI1-AI2",
+        "en": "Cold junction temperature of inputs AI1-AI2"
+      }
+    },
+    {
+      "nome": "giunto_freddo_ai34",
+      "indirizzo": 9,
+      "formato": "i16",
+      "scala": 0.1,
+      "unita": "°C",
+      "accesso": "r",
+      "gruppo": "diagnostica",
+      "descrizione": {
+        "it": "Temperatura del giunto freddo degli ingressi AI3-AI4",
+        "en": "Cold junction temperature of inputs AI3-AI4"
+      }
+    },
+    {
+      "nome": "ai1",
+      "indirizzo": 1001,
+      "formato": "i16",
+      "scala": 0.1,
+      "unita": "°C",
+      "accesso": "r",
+      "gruppo": "ingressi",
+      "descrizione": {
+        "it": "Valore dell'ingresso analogico AI1: decimi di grado con una sonda di temperatura (unità dal parametro «tipo gradi»); con un segnale normalizzato è il valore fra i limiti 2026-2033, e la scala va rimessa a 1. Con il sensore «disabilitato» (default) vale 0",
+        "en": "Analog input AI1 value: tenths of a degree with a temperature probe (unit from the «degrees type» parameter); with a standard signal it is the value between limits 2026-2033, and the scale must be set back to 1. With the sensor «disabled» (default) it reads 0"
+      }
+    },
+    {
+      "nome": "ai2",
+      "indirizzo": 1002,
+      "formato": "i16",
+      "scala": 0.1,
+      "unita": "°C",
+      "accesso": "r",
+      "gruppo": "ingressi",
+      "descrizione": {
+        "it": "Valore dell'ingresso analogico AI2: decimi di grado con una sonda di temperatura (unità dal parametro «tipo gradi»); con un segnale normalizzato è il valore fra i limiti 2026-2033, e la scala va rimessa a 1. Con il sensore «disabilitato» (default) vale 0",
+        "en": "Analog input AI2 value: tenths of a degree with a temperature probe (unit from the «degrees type» parameter); with a standard signal it is the value between limits 2026-2033, and the scale must be set back to 1. With the sensor «disabled» (default) it reads 0"
+      }
+    },
+    {
+      "nome": "ai3",
+      "indirizzo": 1003,
+      "formato": "i16",
+      "scala": 0.1,
+      "unita": "°C",
+      "accesso": "r",
+      "gruppo": "ingressi",
+      "descrizione": {
+        "it": "Valore dell'ingresso analogico AI3: decimi di grado con una sonda di temperatura (unità dal parametro «tipo gradi»); con un segnale normalizzato è il valore fra i limiti 2026-2033, e la scala va rimessa a 1. Con il sensore «disabilitato» (default) vale 0",
+        "en": "Analog input AI3 value: tenths of a degree with a temperature probe (unit from the «degrees type» parameter); with a standard signal it is the value between limits 2026-2033, and the scale must be set back to 1. With the sensor «disabled» (default) it reads 0"
+      }
+    },
+    {
+      "nome": "ai4",
+      "indirizzo": 1004,
+      "formato": "i16",
+      "scala": 0.1,
+      "unita": "°C",
+      "accesso": "r",
+      "gruppo": "ingressi",
+      "descrizione": {
+        "it": "Valore dell'ingresso analogico AI4: decimi di grado con una sonda di temperatura (unità dal parametro «tipo gradi»); con un segnale normalizzato è il valore fra i limiti 2026-2033, e la scala va rimessa a 1. Con il sensore «disabilitato» (default) vale 0",
+        "en": "Analog input AI4 value: tenths of a degree with a temperature probe (unit from the «degrees type» parameter); with a standard signal it is the value between limits 2026-2033, and the scale must be set back to 1. With the sensor «disabled» (default) it reads 0"
+      }
+    },
+    {
+      "nome": "ao1",
+      "indirizzo": 1101,
+      "formato": "i16",
+      "accesso": "rw",
+      "gruppo": "uscite",
+      "descrizione": {
+        "it": "Valore dell'uscita analogica AO1, in digit fra i limiti 2062-2065 (default 0-1000 = 0-10 V o 4-20 mA)",
+        "en": "Analog output AO1 value, in digits between limits 2062-2065 (default 0-1000 = 0-10 V or 4-20 mA)"
+      }
+    },
+    {
+      "nome": "ao2",
+      "indirizzo": 1102,
+      "formato": "i16",
+      "accesso": "rw",
+      "gruppo": "uscite",
+      "descrizione": {
+        "it": "Valore dell'uscita analogica AO2, in digit fra i limiti 2062-2065 (default 0-1000 = 0-10 V o 4-20 mA)",
+        "en": "Analog output AO2 value, in digits between limits 2062-2065 (default 0-1000 = 0-10 V or 4-20 mA)"
+      }
+    },
+    {
+      "nome": "tipo_sensore_ai1",
+      "indirizzo": 2021,
+      "accesso": "rw",
+      "gruppo": "configurazione",
+      "descrizione": {
+        "it": "Tipo di sensore di AI1: 0 disabilitato (default), 1 Tc-K, 2 Tc-S, 3 Tc-R, 4 Tc-J, 5 Tc-T, 6 Tc-E, 7 Tc-N, 8 Tc-B, 9 Pt100, 10 Ni100, 11 NTC10K, 12 PTC1K, 13 Pt500, 14 Pt1000, 15 0-1 V, 16 0-5 V, 17 0-10 V, 18 0-20 mA, 19 4-20 mA, 20 0-60 mV, 21 potenziometro",
+        "en": "AI1 sensor type: 0 disabled (default), 1 Tc-K, 2 Tc-S, 3 Tc-R, 4 Tc-J, 5 Tc-T, 6 Tc-E, 7 Tc-N, 8 Tc-B, 9 Pt100, 10 Ni100, 11 NTC10K, 12 PTC1K, 13 Pt500, 14 Pt1000, 15 0-1 V, 16 0-5 V, 17 0-10 V, 18 0-20 mA, 19 4-20 mA, 20 0-60 mV, 21 potentiometer"
+      }
+    },
+    {
+      "nome": "tipo_sensore_ai2",
+      "indirizzo": 2022,
+      "accesso": "rw",
+      "gruppo": "configurazione",
+      "descrizione": {
+        "it": "Tipo di sensore di AI2: 0 disabilitato (default), 1 Tc-K, 2 Tc-S, 3 Tc-R, 4 Tc-J, 5 Tc-T, 6 Tc-E, 7 Tc-N, 8 Tc-B, 9 Pt100, 10 Ni100, 11 NTC10K, 12 PTC1K, 13 Pt500, 14 Pt1000, 15 0-1 V, 16 0-5 V, 17 0-10 V, 18 0-20 mA, 19 4-20 mA, 20 0-60 mV, 21 potenziometro",
+        "en": "AI2 sensor type: 0 disabled (default), 1 Tc-K, 2 Tc-S, 3 Tc-R, 4 Tc-J, 5 Tc-T, 6 Tc-E, 7 Tc-N, 8 Tc-B, 9 Pt100, 10 Ni100, 11 NTC10K, 12 PTC1K, 13 Pt500, 14 Pt1000, 15 0-1 V, 16 0-5 V, 17 0-10 V, 18 0-20 mA, 19 4-20 mA, 20 0-60 mV, 21 potentiometer"
+      }
+    },
+    {
+      "nome": "tipo_sensore_ai3",
+      "indirizzo": 2023,
+      "accesso": "rw",
+      "gruppo": "configurazione",
+      "descrizione": {
+        "it": "Tipo di sensore di AI3: 0 disabilitato (default), 1 Tc-K, 2 Tc-S, 3 Tc-R, 4 Tc-J, 5 Tc-T, 6 Tc-E, 7 Tc-N, 8 Tc-B, 9 Pt100, 10 Ni100, 11 NTC10K, 12 PTC1K, 13 Pt500, 14 Pt1000, 15 0-1 V, 16 0-5 V, 17 0-10 V, 18 0-20 mA, 19 4-20 mA, 20 0-60 mV, 21 potenziometro",
+        "en": "AI3 sensor type: 0 disabled (default), 1 Tc-K, 2 Tc-S, 3 Tc-R, 4 Tc-J, 5 Tc-T, 6 Tc-E, 7 Tc-N, 8 Tc-B, 9 Pt100, 10 Ni100, 11 NTC10K, 12 PTC1K, 13 Pt500, 14 Pt1000, 15 0-1 V, 16 0-5 V, 17 0-10 V, 18 0-20 mA, 19 4-20 mA, 20 0-60 mV, 21 potentiometer"
+      }
+    },
+    {
+      "nome": "tipo_sensore_ai4",
+      "indirizzo": 2024,
+      "accesso": "rw",
+      "gruppo": "configurazione",
+      "descrizione": {
+        "it": "Tipo di sensore di AI4: 0 disabilitato (default), 1 Tc-K, 2 Tc-S, 3 Tc-R, 4 Tc-J, 5 Tc-T, 6 Tc-E, 7 Tc-N, 8 Tc-B, 9 Pt100, 10 Ni100, 11 NTC10K, 12 PTC1K, 13 Pt500, 14 Pt1000, 15 0-1 V, 16 0-5 V, 17 0-10 V, 18 0-20 mA, 19 4-20 mA, 20 0-60 mV, 21 potenziometro",
+        "en": "AI4 sensor type: 0 disabled (default), 1 Tc-K, 2 Tc-S, 3 Tc-R, 4 Tc-J, 5 Tc-T, 6 Tc-E, 7 Tc-N, 8 Tc-B, 9 Pt100, 10 Ni100, 11 NTC10K, 12 PTC1K, 13 Pt500, 14 Pt1000, 15 0-1 V, 16 0-5 V, 17 0-10 V, 18 0-20 mA, 19 4-20 mA, 20 0-60 mV, 21 potentiometer"
+      }
+    },
+    {
+      "nome": "tipo_gradi",
+      "indirizzo": 2025,
+      "accesso": "rw",
+      "gruppo": "configurazione",
+      "descrizione": {
+        "it": "Unità delle temperature: 0 °C (default), 1 °F, 2 K",
+        "en": "Temperature unit: 0 °C (default), 1 °F, 2 K"
+      }
+    },
+    {
+      "nome": "tipo_uscita_ao1",
+      "indirizzo": 2060,
+      "accesso": "rw",
+      "gruppo": "configurazione",
+      "descrizione": {
+        "it": "Tipo dell'uscita AO1: 0 0-10 V (default), 1 4-20 mA",
+        "en": "AO1 output type: 0 0-10 V (default), 1 4-20 mA"
+      }
+    },
+    {
+      "nome": "tipo_uscita_ao2",
+      "indirizzo": 2061,
+      "accesso": "rw",
+      "gruppo": "configurazione",
+      "descrizione": {
+        "it": "Tipo dell'uscita AO2: 0 0-10 V (default), 1 4-20 mA",
+        "en": "AO2 output type: 0 0-10 V (default), 1 4-20 mA"
+      }
+    },
+    {
+      "nome": "enc1_conteggi",
+      "indirizzo": 1005,
+      "formato": "i32",
+      "accesso": "r",
+      "gruppo": "encoder",
+      "descrizione": {
+        "it": "Conteggi encoder/contatore 1 (32 bit, word alta prima)",
+        "en": "Encoder/counter 1 counts (32 bit, high word first)"
+      }
+    },
+    {
+      "nome": "enc2_conteggi",
+      "indirizzo": 1007,
+      "formato": "i32",
+      "accesso": "r",
+      "gruppo": "encoder",
+      "descrizione": {
+        "it": "Conteggi encoder/contatore 2 (32 bit, word alta prima)",
+        "en": "Encoder/counter 2 counts (32 bit, high word first)"
+      }
+    },
+    {
+      "nome": "enc3_conteggi",
+      "indirizzo": 1009,
+      "formato": "i32",
+      "accesso": "r",
+      "gruppo": "encoder",
+      "descrizione": {
+        "it": "Conteggi encoder/contatore 3 (32 bit, word alta prima)",
+        "en": "Encoder/counter 3 counts (32 bit, high word first)"
+      }
+    },
+    {
+      "nome": "enc4_conteggi",
+      "indirizzo": 1011,
+      "formato": "i32",
+      "accesso": "r",
+      "gruppo": "encoder",
+      "descrizione": {
+        "it": "Conteggi encoder/contatore 4 (32 bit, word alta prima)",
+        "en": "Encoder/counter 4 counts (32 bit, high word first)"
+      }
+    },
+    {
+      "nome": "enc1_conteggi_1s",
+      "indirizzo": 1013,
+      "formato": "i32",
+      "accesso": "r",
+      "gruppo": "encoder",
+      "descrizione": {
+        "it": "Conteggi dell'encoder 1 in 1 s",
+        "en": "Encoder 1 counts in 1 s"
+      }
+    },
+    {
+      "nome": "enc2_conteggi_1s",
+      "indirizzo": 1015,
+      "formato": "i32",
+      "accesso": "r",
+      "gruppo": "encoder",
+      "descrizione": {
+        "it": "Conteggi dell'encoder 2 in 1 s",
+        "en": "Encoder 2 counts in 1 s"
+      }
+    },
+    {
+      "nome": "enc3_conteggi_1s",
+      "indirizzo": 1017,
+      "formato": "i32",
+      "accesso": "r",
+      "gruppo": "encoder",
+      "descrizione": {
+        "it": "Conteggi dell'encoder 3 in 1 s",
+        "en": "Encoder 3 counts in 1 s"
+      }
+    },
+    {
+      "nome": "enc4_conteggi_1s",
+      "indirizzo": 1019,
+      "formato": "i32",
+      "accesso": "r",
+      "gruppo": "encoder",
+      "descrizione": {
+        "it": "Conteggi dell'encoder 4 in 1 s",
+        "en": "Encoder 4 counts in 1 s"
+      }
+    },
+    {
+      "nome": "enc1_conteggi_100ms",
+      "indirizzo": 1021,
+      "formato": "i32",
+      "accesso": "r",
+      "gruppo": "encoder",
+      "descrizione": {
+        "it": "Conteggi dell'encoder 1 in 100 ms",
+        "en": "Encoder 1 counts in 100 ms"
+      }
+    },
+    {
+      "nome": "enc2_conteggi_100ms",
+      "indirizzo": 1023,
+      "formato": "i32",
+      "accesso": "r",
+      "gruppo": "encoder",
+      "descrizione": {
+        "it": "Conteggi dell'encoder 2 in 100 ms",
+        "en": "Encoder 2 counts in 100 ms"
+      }
+    },
+    {
+      "nome": "enc3_conteggi_100ms",
+      "indirizzo": 1025,
+      "formato": "i32",
+      "accesso": "r",
+      "gruppo": "encoder",
+      "descrizione": {
+        "it": "Conteggi dell'encoder 3 in 100 ms",
+        "en": "Encoder 3 counts in 100 ms"
+      }
+    },
+    {
+      "nome": "enc4_conteggi_100ms",
+      "indirizzo": 1027,
+      "formato": "i32",
+      "accesso": "r",
+      "gruppo": "encoder",
+      "descrizione": {
+        "it": "Conteggi dell'encoder 4 in 100 ms",
+        "en": "Encoder 4 counts in 100 ms"
+      }
+    },
+    {
+      "nome": "enc1_comando",
+      "indirizzo": 1103,
+      "accesso": "rw",
+      "gruppo": "encoder",
+      "descrizione": {
+        "it": "Comandi encoder 1: bit 0 carica il preset, bit 1 carica il preset al prossimo impulso Z (tornano a 0 da soli)",
+        "en": "Encoder 1 commands: bit 0 loads the preset, bit 1 loads it at the next Z pulse (reset by themselves)"
+      }
+    },
+    {
+      "nome": "enc2_comando",
+      "indirizzo": 1104,
+      "accesso": "rw",
+      "gruppo": "encoder",
+      "descrizione": {
+        "it": "Comandi encoder 2: bit 0 carica il preset, bit 1 carica il preset al prossimo impulso Z (tornano a 0 da soli)",
+        "en": "Encoder 2 commands: bit 0 loads the preset, bit 1 loads it at the next Z pulse (reset by themselves)"
+      }
+    },
+    {
+      "nome": "enc3_comando",
+      "indirizzo": 1105,
+      "accesso": "rw",
+      "gruppo": "encoder",
+      "descrizione": {
+        "it": "Comandi encoder 3: bit 0 carica il preset, bit 1 carica il preset al prossimo impulso Z (tornano a 0 da soli)",
+        "en": "Encoder 3 commands: bit 0 loads the preset, bit 1 loads it at the next Z pulse (reset by themselves)"
+      }
+    },
+    {
+      "nome": "enc4_comando",
+      "indirizzo": 1106,
+      "accesso": "rw",
+      "gruppo": "encoder",
+      "descrizione": {
+        "it": "Comandi encoder 4: bit 0 carica il preset, bit 1 carica il preset al prossimo impulso Z (tornano a 0 da soli)",
+        "en": "Encoder 4 commands: bit 0 loads the preset, bit 1 loads it at the next Z pulse (reset by themselves)"
+      }
+    },
+    {
+      "nome": "setup_enc1",
+      "indirizzo": 2073,
+      "accesso": "rw",
+      "gruppo": "configurazione",
+      "descrizione": {
+        "it": "Modalità dell'encoder/contatore 1: 0 disabilitato, 1-4 encoder x2/x4 A-B(-Z), 5 contatore up, 6 down",
+        "en": "Encoder/counter 1 mode: 0 disabled, 1-4 encoder x2/x4 A-B(-Z), 5 counter up, 6 down"
+      }
+    },
+    {
+      "nome": "setup_enc2",
+      "indirizzo": 2074,
+      "accesso": "rw",
+      "gruppo": "configurazione",
+      "descrizione": {
+        "it": "Modalità dell'encoder/contatore 2: 0 disabilitato, 1-4 encoder x2/x4 A-B(-Z), 5 contatore up, 6 down",
+        "en": "Encoder/counter 2 mode: 0 disabled, 1-4 encoder x2/x4 A-B(-Z), 5 counter up, 6 down"
+      }
+    },
+    {
+      "nome": "setup_enc3",
+      "indirizzo": 2075,
+      "accesso": "rw",
+      "gruppo": "configurazione",
+      "descrizione": {
+        "it": "Modalità dell'encoder/contatore 3: 0 disabilitato, 1-4 encoder x2/x4 A-B(-Z), 5 contatore up, 6 down",
+        "en": "Encoder/counter 3 mode: 0 disabled, 1-4 encoder x2/x4 A-B(-Z), 5 counter up, 6 down"
+      }
+    },
+    {
+      "nome": "setup_enc4",
+      "indirizzo": 2076,
+      "accesso": "rw",
+      "gruppo": "configurazione",
+      "descrizione": {
+        "it": "Modalità dell'encoder/contatore 4: 0 disabilitato, 1-4 encoder x2/x4 A-B(-Z), 5 contatore up, 6 down",
+        "en": "Encoder/counter 4 mode: 0 disabled, 1-4 encoder x2/x4 A-B(-Z), 5 counter up, 6 down"
+      }
+    }
   ]
 }

@@ -1,16 +1,16 @@
 {
   "id": "pixsys/mcm260x-5ad",
-  "versione": 1,
+  "versione": 2,
   "marca": "Pixsys",
   "modello": "MCM260X-5AD",
   "famiglia": "Moduli I/O MCM260X",
   "descrizione": {
-    "it": "Modulo I/O remoto Modbus RTU / CANopen: 4 ingressi analogici universali (TC, RTD, V, mA), 2 uscite analogiche",
-    "en": "Remote I/O module Modbus RTU / CANopen: 4 universal analog inputs (TC, RTD, V, mA), 2 analog outputs"
+    "it": "Modulo I/O remoto Modbus RTU / CANopen: 4 ingressi analogici universali (TC, RTD, V, mA), 2 uscite analogiche. Il tipo di sonda di ogni ingresso va impostato (tipo_sensore_aiN): di fabbrica è disabilitato",
+    "en": "Remote I/O module Modbus RTU / CANopen: 4 universal analog inputs (TC, RTD, V, mA), 2 analog outputs. Each input's probe type must be set (tipo_sensore_aiN): disabled by default"
   },
   "immagine": "mcm260x-3ad.jpg",
   "modbus": {
-    "ordine": "cdab",
+    "ordine": "abcd",
     "timeout_ms": 1000,
     "seriale": {
       "baud_rate": 19200,
@@ -20,7 +20,320 @@
     }
   },
   "includi": [
-    "pixsys/_comuni",
-    "pixsys/_mcm_analogici"
+    "pixsys/_mcm260x"
+  ],
+  "registri": [
+    {
+      "nome": "flag_stato",
+      "indirizzo": 6,
+      "accesso": "r",
+      "gruppo": "diagnostica",
+      "descrizione": {
+        "it": "Flag di stato/errore",
+        "en": "Status/error flags"
+      },
+      "bit": [
+        {
+          "bit": 0,
+          "nome": "errore_parametri",
+          "descrizione": {
+            "it": "Parametri di configurazione errati",
+            "en": "Wrong configuration parameters"
+          }
+        },
+        {
+          "bit": 1,
+          "nome": "errore_conteggi_encoder",
+          "descrizione": {
+            "it": "Valori conteggi encoder errati",
+            "en": "Wrong encoder count values"
+          }
+        },
+        {
+          "bit": 3,
+          "nome": "errore_dati_taratura",
+          "descrizione": {
+            "it": "Dati di taratura errati",
+            "en": "Wrong calibration data"
+          }
+        },
+        {
+          "bit": 4,
+          "nome": "errore_costanti_taratura",
+          "descrizione": {
+            "it": "Costanti di taratura errate",
+            "en": "Wrong calibration constants"
+          }
+        },
+        {
+          "bit": 5,
+          "nome": "errore_memoria_canopen",
+          "descrizione": {
+            "it": "Dati memoria CANopen errati",
+            "en": "Wrong CANopen memory data"
+          }
+        },
+        {
+          "bit": 6,
+          "nome": "taratura_mancante",
+          "descrizione": {
+            "it": "Taratura mancante",
+            "en": "Calibration missing"
+          }
+        },
+        {
+          "bit": 7,
+          "nome": "parametro_fuori_range",
+          "descrizione": {
+            "it": "Parametro fuori range",
+            "en": "Parameter out of range"
+          }
+        },
+        {
+          "bit": 8,
+          "nome": "errore_fram",
+          "descrizione": {
+            "it": "Errore memoria FRam",
+            "en": "FRam memory error"
+          }
+        },
+        {
+          "bit": 9,
+          "nome": "terminale_offline",
+          "descrizione": {
+            "it": "Terminale offline",
+            "en": "Terminal offline"
+          }
+        },
+        {
+          "bit": 10,
+          "nome": "password_nfc_assente",
+          "descrizione": {
+            "it": "Password NFC non impostata",
+            "en": "NFC password not set"
+          }
+        },
+        {
+          "bit": 11,
+          "nome": "tensione_bassa",
+          "descrizione": {
+            "it": "Bassa tensione di alimentazione",
+            "en": "Low supply voltage"
+          }
+        },
+        {
+          "bit": 12,
+          "nome": "ai1_fuori_range",
+          "descrizione": {
+            "it": "AI1 fuori range",
+            "en": "AI1 out of range"
+          }
+        },
+        {
+          "bit": 13,
+          "nome": "ai2_fuori_range",
+          "descrizione": {
+            "it": "AI2 fuori range",
+            "en": "AI2 out of range"
+          }
+        },
+        {
+          "bit": 14,
+          "nome": "ai3_fuori_range",
+          "descrizione": {
+            "it": "AI3 fuori range",
+            "en": "AI3 out of range"
+          }
+        },
+        {
+          "bit": 15,
+          "nome": "ai4_fuori_range",
+          "descrizione": {
+            "it": "AI4 fuori range",
+            "en": "AI4 out of range"
+          }
+        }
+      ]
+    },
+    {
+      "nome": "compatibilita_mcm260",
+      "indirizzo": 3,
+      "accesso": "rw",
+      "gruppo": "configurazione",
+      "descrizione": {
+        "it": "Modalità compatibilità con la vecchia serie MCM260: 1 attiva, 0 no",
+        "en": "Compatibility mode with the old MCM260 series: 1 on, 0 off"
+      }
+    },
+    {
+      "nome": "giunto_freddo_ai12",
+      "indirizzo": 8,
+      "formato": "i16",
+      "scala": 0.1,
+      "unita": "°C",
+      "accesso": "r",
+      "gruppo": "diagnostica",
+      "descrizione": {
+        "it": "Temperatura del giunto freddo degli ingressi AI1-AI2",
+        "en": "Cold junction temperature of inputs AI1-AI2"
+      }
+    },
+    {
+      "nome": "giunto_freddo_ai34",
+      "indirizzo": 9,
+      "formato": "i16",
+      "scala": 0.1,
+      "unita": "°C",
+      "accesso": "r",
+      "gruppo": "diagnostica",
+      "descrizione": {
+        "it": "Temperatura del giunto freddo degli ingressi AI3-AI4",
+        "en": "Cold junction temperature of inputs AI3-AI4"
+      }
+    },
+    {
+      "nome": "ai1",
+      "indirizzo": 1000,
+      "formato": "i16",
+      "scala": 0.1,
+      "unita": "°C",
+      "accesso": "r",
+      "gruppo": "ingressi",
+      "descrizione": {
+        "it": "Valore dell'ingresso analogico AI1: decimi di grado con una sonda di temperatura (unità dal parametro «tipo gradi»); con un segnale normalizzato è il valore fra i limiti 2026-2033, e la scala va rimessa a 1. Con il sensore «disabilitato» (default) vale 0",
+        "en": "Analog input AI1 value: tenths of a degree with a temperature probe (unit from the «degrees type» parameter); with a standard signal it is the value between limits 2026-2033, and the scale must be set back to 1. With the sensor «disabled» (default) it reads 0"
+      }
+    },
+    {
+      "nome": "ai2",
+      "indirizzo": 1001,
+      "formato": "i16",
+      "scala": 0.1,
+      "unita": "°C",
+      "accesso": "r",
+      "gruppo": "ingressi",
+      "descrizione": {
+        "it": "Valore dell'ingresso analogico AI2: decimi di grado con una sonda di temperatura (unità dal parametro «tipo gradi»); con un segnale normalizzato è il valore fra i limiti 2026-2033, e la scala va rimessa a 1. Con il sensore «disabilitato» (default) vale 0",
+        "en": "Analog input AI2 value: tenths of a degree with a temperature probe (unit from the «degrees type» parameter); with a standard signal it is the value between limits 2026-2033, and the scale must be set back to 1. With the sensor «disabled» (default) it reads 0"
+      }
+    },
+    {
+      "nome": "ai3",
+      "indirizzo": 1002,
+      "formato": "i16",
+      "scala": 0.1,
+      "unita": "°C",
+      "accesso": "r",
+      "gruppo": "ingressi",
+      "descrizione": {
+        "it": "Valore dell'ingresso analogico AI3: decimi di grado con una sonda di temperatura (unità dal parametro «tipo gradi»); con un segnale normalizzato è il valore fra i limiti 2026-2033, e la scala va rimessa a 1. Con il sensore «disabilitato» (default) vale 0",
+        "en": "Analog input AI3 value: tenths of a degree with a temperature probe (unit from the «degrees type» parameter); with a standard signal it is the value between limits 2026-2033, and the scale must be set back to 1. With the sensor «disabled» (default) it reads 0"
+      }
+    },
+    {
+      "nome": "ai4",
+      "indirizzo": 1003,
+      "formato": "i16",
+      "scala": 0.1,
+      "unita": "°C",
+      "accesso": "r",
+      "gruppo": "ingressi",
+      "descrizione": {
+        "it": "Valore dell'ingresso analogico AI4: decimi di grado con una sonda di temperatura (unità dal parametro «tipo gradi»); con un segnale normalizzato è il valore fra i limiti 2026-2033, e la scala va rimessa a 1. Con il sensore «disabilitato» (default) vale 0",
+        "en": "Analog input AI4 value: tenths of a degree with a temperature probe (unit from the «degrees type» parameter); with a standard signal it is the value between limits 2026-2033, and the scale must be set back to 1. With the sensor «disabled» (default) it reads 0"
+      }
+    },
+    {
+      "nome": "ao1",
+      "indirizzo": 1100,
+      "formato": "i16",
+      "accesso": "rw",
+      "gruppo": "uscite",
+      "descrizione": {
+        "it": "Valore dell'uscita analogica AO1, in digit fra i limiti 2062-2065 (default 0-1000 = 0-10 V o 4-20 mA)",
+        "en": "Analog output AO1 value, in digits between limits 2062-2065 (default 0-1000 = 0-10 V or 4-20 mA)"
+      }
+    },
+    {
+      "nome": "ao2",
+      "indirizzo": 1101,
+      "formato": "i16",
+      "accesso": "rw",
+      "gruppo": "uscite",
+      "descrizione": {
+        "it": "Valore dell'uscita analogica AO2, in digit fra i limiti 2062-2065 (default 0-1000 = 0-10 V o 4-20 mA)",
+        "en": "Analog output AO2 value, in digits between limits 2062-2065 (default 0-1000 = 0-10 V or 4-20 mA)"
+      }
+    },
+    {
+      "nome": "tipo_sensore_ai1",
+      "indirizzo": 2021,
+      "accesso": "rw",
+      "gruppo": "configurazione",
+      "descrizione": {
+        "it": "Tipo di sensore di AI1: 0 disabilitato (default), 1 Tc-K, 2 Tc-S, 3 Tc-R, 4 Tc-J, 5 Tc-T, 6 Tc-E, 7 Tc-N, 8 Tc-B, 9 Pt100, 10 Ni100, 11 NTC10K, 12 PTC1K, 13 Pt500, 14 Pt1000, 15 0-1 V, 16 0-5 V, 17 0-10 V, 18 0-20 mA, 19 4-20 mA, 20 0-60 mV, 21 potenziometro",
+        "en": "AI1 sensor type: 0 disabled (default), 1 Tc-K, 2 Tc-S, 3 Tc-R, 4 Tc-J, 5 Tc-T, 6 Tc-E, 7 Tc-N, 8 Tc-B, 9 Pt100, 10 Ni100, 11 NTC10K, 12 PTC1K, 13 Pt500, 14 Pt1000, 15 0-1 V, 16 0-5 V, 17 0-10 V, 18 0-20 mA, 19 4-20 mA, 20 0-60 mV, 21 potentiometer"
+      }
+    },
+    {
+      "nome": "tipo_sensore_ai2",
+      "indirizzo": 2022,
+      "accesso": "rw",
+      "gruppo": "configurazione",
+      "descrizione": {
+        "it": "Tipo di sensore di AI2: 0 disabilitato (default), 1 Tc-K, 2 Tc-S, 3 Tc-R, 4 Tc-J, 5 Tc-T, 6 Tc-E, 7 Tc-N, 8 Tc-B, 9 Pt100, 10 Ni100, 11 NTC10K, 12 PTC1K, 13 Pt500, 14 Pt1000, 15 0-1 V, 16 0-5 V, 17 0-10 V, 18 0-20 mA, 19 4-20 mA, 20 0-60 mV, 21 potenziometro",
+        "en": "AI2 sensor type: 0 disabled (default), 1 Tc-K, 2 Tc-S, 3 Tc-R, 4 Tc-J, 5 Tc-T, 6 Tc-E, 7 Tc-N, 8 Tc-B, 9 Pt100, 10 Ni100, 11 NTC10K, 12 PTC1K, 13 Pt500, 14 Pt1000, 15 0-1 V, 16 0-5 V, 17 0-10 V, 18 0-20 mA, 19 4-20 mA, 20 0-60 mV, 21 potentiometer"
+      }
+    },
+    {
+      "nome": "tipo_sensore_ai3",
+      "indirizzo": 2023,
+      "accesso": "rw",
+      "gruppo": "configurazione",
+      "descrizione": {
+        "it": "Tipo di sensore di AI3: 0 disabilitato (default), 1 Tc-K, 2 Tc-S, 3 Tc-R, 4 Tc-J, 5 Tc-T, 6 Tc-E, 7 Tc-N, 8 Tc-B, 9 Pt100, 10 Ni100, 11 NTC10K, 12 PTC1K, 13 Pt500, 14 Pt1000, 15 0-1 V, 16 0-5 V, 17 0-10 V, 18 0-20 mA, 19 4-20 mA, 20 0-60 mV, 21 potenziometro",
+        "en": "AI3 sensor type: 0 disabled (default), 1 Tc-K, 2 Tc-S, 3 Tc-R, 4 Tc-J, 5 Tc-T, 6 Tc-E, 7 Tc-N, 8 Tc-B, 9 Pt100, 10 Ni100, 11 NTC10K, 12 PTC1K, 13 Pt500, 14 Pt1000, 15 0-1 V, 16 0-5 V, 17 0-10 V, 18 0-20 mA, 19 4-20 mA, 20 0-60 mV, 21 potentiometer"
+      }
+    },
+    {
+      "nome": "tipo_sensore_ai4",
+      "indirizzo": 2024,
+      "accesso": "rw",
+      "gruppo": "configurazione",
+      "descrizione": {
+        "it": "Tipo di sensore di AI4: 0 disabilitato (default), 1 Tc-K, 2 Tc-S, 3 Tc-R, 4 Tc-J, 5 Tc-T, 6 Tc-E, 7 Tc-N, 8 Tc-B, 9 Pt100, 10 Ni100, 11 NTC10K, 12 PTC1K, 13 Pt500, 14 Pt1000, 15 0-1 V, 16 0-5 V, 17 0-10 V, 18 0-20 mA, 19 4-20 mA, 20 0-60 mV, 21 potenziometro",
+        "en": "AI4 sensor type: 0 disabled (default), 1 Tc-K, 2 Tc-S, 3 Tc-R, 4 Tc-J, 5 Tc-T, 6 Tc-E, 7 Tc-N, 8 Tc-B, 9 Pt100, 10 Ni100, 11 NTC10K, 12 PTC1K, 13 Pt500, 14 Pt1000, 15 0-1 V, 16 0-5 V, 17 0-10 V, 18 0-20 mA, 19 4-20 mA, 20 0-60 mV, 21 potentiometer"
+      }
+    },
+    {
+      "nome": "tipo_gradi",
+      "indirizzo": 2025,
+      "accesso": "rw",
+      "gruppo": "configurazione",
+      "descrizione": {
+        "it": "Unità delle temperature: 0 °C (default), 1 °F, 2 K",
+        "en": "Temperature unit: 0 °C (default), 1 °F, 2 K"
+      }
+    },
+    {
+      "nome": "tipo_uscita_ao1",
+      "indirizzo": 2060,
+      "accesso": "rw",
+      "gruppo": "configurazione",
+      "descrizione": {
+        "it": "Tipo dell'uscita AO1: 0 0-10 V (default), 1 4-20 mA",
+        "en": "AO1 output type: 0 0-10 V (default), 1 4-20 mA"
+      }
+    },
+    {
+      "nome": "tipo_uscita_ao2",
+      "indirizzo": 2061,
+      "accesso": "rw",
+      "gruppo": "configurazione",
+      "descrizione": {
+        "it": "Tipo dell'uscita AO2: 0 0-10 V (default), 1 4-20 mA",
+        "en": "AO2 output type: 0 0-10 V (default), 1 4-20 mA"
+      }
+    }
   ]
 }

@@ -1,6 +1,12 @@
 /** Lo stato delle sorgenti e dei loro dispositivi, per i pallini dell'albero
  *  della Configurazione e delle card (04-10-2026).
  *
+ *  Con un dispositivo connesso lo stato è **il suo**: l'albero dei tag mostra i
+ *  valori del pannello, e al collaudo del 04-10-2026 i pallini erano invece
+ *  quelli del runtime dell'IDE sul PC (bus rosso: «/dev/ttyCOM2 non esiste»)
+ *  sopra variabili che si aggiornavano. Un runtime del pannello che non ha la
+ *  rotta (anteriore alla rc.23) dà pallini grigi, non quelli del PC.
+ *
  *  Un solo polling di `GET /api/sources/stato` (ogni 5 s) finché almeno un
  *  componente lo guarda: l'albero e la card aperta non ne fanno due. È lo
  *  stato del runtime con cui l'IDE parla. Una sorgente assente dalla risposta
@@ -8,6 +14,7 @@
  */
 import { useSyncExternalStore } from "react";
 import { api } from "@/api/client";
+import { useAppStore } from "@/store";
 import type { StatoCollegamento, StatoSorgente } from "@/types";
 
 const INTERVALLO_MS = 5000;
@@ -18,7 +25,7 @@ let timer: ReturnType<typeof setInterval> | null = null;
 
 async function leggi() {
   try {
-    istantanea = await api.statoSorgenti();
+    istantanea = useAppStore.getState().remoteConnected ? await api.remoteStatoSorgenti() : await api.statoSorgenti();
   } catch {
     // Nessun progetto aperto, o un runtime di prima che non ha l'endpoint:
     // niente pallini, nessun errore a schermo.

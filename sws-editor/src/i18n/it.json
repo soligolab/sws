@@ -1589,7 +1589,14 @@
     "serialeAccesso": {
       "permesso": "senza permessi",
       "occupata": "in uso"
-    }
+    },
+    "eliminaDispositivoTitolo": "Eliminare il dispositivo {{unit}} dal bus {{bus}}?",
+    "eliminaDispositivoVariabili": "Le sue variabili: {{variabili}}.",
+    "eliminaDispositivoTipi": "Il tipo {{tipi}} non lo usa nessun altro: se ne andrebbe con loro.",
+    "eliminaDispositivoTenere": "Tenendole, un dispositivo nuovo dello stesso modello le può riprendere («Dal catalogo» → variabile esistente): restano grafici, allarmi e storico che le usano.",
+    "eliminaDispositivoSenzaVariabili": "Il dispositivo non ha variabili sue da eliminare.",
+    "eliminaSoloDispositivo": "Solo il dispositivo",
+    "eliminaConVariabili": "Dispositivo e variabili"
   },
   "langtab": {
     "migrate": "Migra i testi…",
@@ -2698,7 +2705,9 @@
       "configurazione": "Configurazione",
       "ingressi": "Ingressi",
       "uscite": "Uscite",
-      "altro": "Altro"
+      "altro": "Altro",
+      "diagnostica": "Diagnostica",
+      "encoder": "Encoder"
     },
     "anteprima": "Crea la variabile «{{nome}}» del tipo «{{tipo}}» ({{membri}} membri) e un dispositivo con {{n}} mappature.",
     "tipoRiusato": "Il tipo c'è già, uguale: si riusa.",
@@ -2707,6 +2716,12 @@
     "avvisoSeriale": "Il modello di fabbrica parla a {{voce}}, il bus è a {{bus}}: controlla che dispositivo e bus coincidano.",
     "avvisoFuoriProduzione": "Modello fuori produzione.",
     "indietro": "← Indietro",
-    "aggiungi": "Aggiungi al bus"
+    "aggiungi": "Aggiungi al bus",
+    "variabileNuova": "Variabile nuova",
+    "variabileEsistente": "Riprendi «{{nome}}» ({{tipo}})",
+    "anteprimaRiassocia": "Riassocia la variabile esistente «{{nome}}» ({{tipo}}): un dispositivo con {{n}} mappature, niente di nuovo da creare.",
+    "avvisoMembriMancanti": "{{n}} registri del catalogo non hanno un membro nel tipo «{{tipo}}» (versione precedente del catalogo): non vengono letti.",
+    "avvisoTipoAllargato": "La variabile passa dal tipo «{{da}}» a «{{a}}», che ha anche i gruppi scelti: i membri che aveva restano gli stessi, con il loro storico.",
+    "avvisoPercorsiCambiano": "«{{nome}}» ha un tipo piatto di prima e le mancano dei membri: passa al tipo annidato «{{tipo}}», e i percorsi cambiano (es. {{nome}}.ingressi.di1 al posto di {{nome}}.di1): grafici e allarmi che usano i vecchi vanno ricollegati."
   }
 }

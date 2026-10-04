@@ -1,0 +1,203 @@
+{
+  "id": "pixsys/_mcm260x",
+  "descrizione": {
+    "it": "MCM260X: registri comuni a tutte le varianti (manuale MCM260X 2300.10.265 RevG, §9.2)",
+    "en": "MCM260X: registers common to all variants (MCM260X manual 2300.10.265 RevG, §9.2)"
+  },
+  "registri": [
+    {
+      "nome": "tipo_dispositivo",
+      "indirizzo": 0,
+      "accesso": "r",
+      "gruppo": "identificazione",
+      "descrizione": {
+        "it": "Codice del dispositivo: 521-524 = MCM260X-1..4AD, 525 = 5AD, 529 = 9AD",
+        "en": "Device code: 521-524 = MCM260X-1..4AD, 525 = 5AD, 529 = 9AD"
+      }
+    },
+    {
+      "nome": "firmware",
+      "indirizzo": 1,
+      "scala": 0.01,
+      "accesso": "r",
+      "gruppo": "identificazione",
+      "descrizione": {
+        "it": "Versione firmware (108 = v1.08)",
+        "en": "Firmware version (108 = v1.08)"
+      }
+    },
+    {
+      "nome": "versione_boot",
+      "indirizzo": 2,
+      "scala": 0.01,
+      "accesso": "r",
+      "gruppo": "identificazione",
+      "descrizione": {
+        "it": "Versione del programma di boot",
+        "en": "Boot program version"
+      }
+    },
+    {
+      "nome": "indirizzo_slave",
+      "indirizzo": 5,
+      "accesso": "r",
+      "gruppo": "identificazione",
+      "descrizione": {
+        "it": "Indirizzo slave Modbus impostato",
+        "en": "Configured Modbus slave address"
+      }
+    },
+    {
+      "nome": "flag_stato",
+      "indirizzo": 6,
+      "accesso": "r",
+      "gruppo": "diagnostica",
+      "descrizione": {
+        "it": "Flag di stato/errore",
+        "en": "Status/error flags"
+      },
+      "bit": [
+        {
+          "bit": 0,
+          "nome": "errore_parametri",
+          "descrizione": {
+            "it": "Parametri di configurazione errati",
+            "en": "Wrong configuration parameters"
+          }
+        },
+        {
+          "bit": 1,
+          "nome": "errore_conteggi_encoder",
+          "descrizione": {
+            "it": "Valori conteggi encoder errati",
+            "en": "Wrong encoder count values"
+          }
+        },
+        {
+          "bit": 3,
+          "nome": "errore_dati_taratura",
+          "descrizione": {
+            "it": "Dati di taratura errati",
+            "en": "Wrong calibration data"
+          }
+        },
+        {
+          "bit": 4,
+          "nome": "errore_costanti_taratura",
+          "descrizione": {
+            "it": "Costanti di taratura errate",
+            "en": "Wrong calibration constants"
+          }
+        },
+        {
+          "bit": 5,
+          "nome": "errore_memoria_canopen",
+          "descrizione": {
+            "it": "Dati memoria CANopen errati",
+            "en": "Wrong CANopen memory data"
+          }
+        },
+        {
+          "bit": 6,
+          "nome": "taratura_mancante",
+          "descrizione": {
+            "it": "Taratura mancante",
+            "en": "Calibration missing"
+          }
+        },
+        {
+          "bit": 7,
+          "nome": "parametro_fuori_range",
+          "descrizione": {
+            "it": "Parametro fuori range",
+            "en": "Parameter out of range"
+          }
+        },
+        {
+          "bit": 8,
+          "nome": "errore_fram",
+          "descrizione": {
+            "it": "Errore memoria FRam",
+            "en": "FRam memory error"
+          }
+        },
+        {
+          "bit": 9,
+          "nome": "terminale_offline",
+          "descrizione": {
+            "it": "Terminale offline",
+            "en": "Terminal offline"
+          }
+        },
+        {
+          "bit": 10,
+          "nome": "password_nfc_assente",
+          "descrizione": {
+            "it": "Password NFC non impostata",
+            "en": "NFC password not set"
+          }
+        },
+        {
+          "bit": 11,
+          "nome": "tensione_bassa",
+          "descrizione": {
+            "it": "Bassa tensione di alimentazione",
+            "en": "Low supply voltage"
+          }
+        },
+        {
+          "bit": 12,
+          "nome": "ai1_fuori_range",
+          "descrizione": {
+            "it": "AI1 fuori range",
+            "en": "AI1 out of range"
+          }
+        },
+        {
+          "bit": 13,
+          "nome": "ai2_fuori_range",
+          "descrizione": {
+            "it": "AI2 fuori range",
+            "en": "AI2 out of range"
+          }
+        }
+      ]
+    },
+    {
+      "nome": "flag_terminale",
+      "indirizzo": 7,
+      "accesso": "r",
+      "gruppo": "diagnostica",
+      "descrizione": {
+        "it": "Flag di stato/errore del terminale",
+        "en": "Terminal status/error flags"
+      },
+      "bit": [
+        {
+          "bit": 0,
+          "nome": "errore_eeprom_lettura",
+          "descrizione": {
+            "it": "Errore lettura memoria EEPROM",
+            "en": "EEPROM read error"
+          }
+        },
+        {
+          "bit": 1,
+          "nome": "errore_eeprom_scrittura",
+          "descrizione": {
+            "it": "Errore scrittura memoria EEPROM",
+            "en": "EEPROM write error"
+          }
+        },
+        {
+          "bit": 2,
+          "nome": "errore_parametri_terminale",
+          "descrizione": {
+            "it": "Parametri del terminale errati",
+            "en": "Wrong terminal parameters"
+          }
+        }
+      ]
+    }
+  ]
+}

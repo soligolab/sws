@@ -14,7 +14,7 @@ const VOCE = {
     { nome: "indirizzo_slave", indirizzo: 2, accesso: "rw", gruppo: "configurazione", predefinito: false },
   ],
 };
-const { catalogoDispositivi, voceCatalogo, updateTypes, updateTags, chiamate } = vi.hoisted(() => {
+const { catalogoDispositivi, voceCatalogo, updateTypes, updateTags, updateSources, chiamate } = vi.hoisted(() => {
   const chiamate: string[] = [];
   return {
     chiamate,
@@ -22,13 +22,14 @@ const { catalogoDispositivi, voceCatalogo, updateTypes, updateTags, chiamate } =
     voceCatalogo: vi.fn(),
     updateTypes: vi.fn().mockImplementation(async () => { chiamate.push("types"); }),
     updateTags: vi.fn().mockImplementation(async () => { chiamate.push("tags"); }),
+    updateSources: vi.fn().mockImplementation(async () => { chiamate.push("sources"); }),
   };
 });
 vi.mock("@/api/client", async () => {
   const actual = await vi.importActual<typeof import("@/api/client")>("@/api/client");
   return {
     ...actual,
-    api: { ...actual.api, catalogoDispositivi, voceCatalogo, updateTypes, updateTags, statoSorgenti: vi.fn().mockResolvedValue({}) },
+    api: { ...actual.api, catalogoDispositivi, voceCatalogo, updateTypes, updateTags, updateSources, statoSorgenti: vi.fn().mockResolvedValue({}) },
   };
 });
 
@@ -56,7 +57,7 @@ describe("Dal catalogo", () => {
     });
   });
 
-  it("cerca, sceglie, aggiunge: tipo poi variabile, dispositivo nella bozza", async () => {
+  it("cerca, sceglie, aggiunge: tipo, variabile e dispositivo salvati subito, in quest'ordine", async () => {
     render(<ProtocolsTab />);
     fireEvent.click(screen.getByTestId("modbus-dev-catalog-linea"));
     await waitFor(() => expect(screen.getByTestId("catalog-item-pixsys/atr244")).toBeTruthy());
@@ -70,15 +71,18 @@ describe("Dal catalogo", () => {
     expect((screen.getByTestId("catalogo-unit") as HTMLInputElement).value).toBe("2"); // l'1 è occupato
     expect((screen.getByTestId("catalogo-nome") as HTMLInputElement).value).toBe("atr244_2");
     expect((screen.getByTestId("catalogo-gruppo-configurazione") as HTMLInputElement).checked).toBe(false);
-    expect(screen.getByTestId("catalogo-anteprima").textContent).toContain("pixsys_atr244");
+    expect(screen.getByTestId("catalogo-anteprima").textContent).toContain("pixsys_atr244_processo"); // configurazione non spuntata
 
     fireEvent.click(screen.getByTestId("catalogo-aggiungi"));
     await waitFor(() => expect(useAppStore.getState().configFocus).toBe("linea/2"));
-    expect(chiamate).toEqual(["types", "tags"]);
-    expect(updateTags.mock.calls[0][0]).toEqual([expect.objectContaining({ id: "atr244_2", type_ref: "pixsys_atr244" })]);
+    expect(chiamate).toEqual(["types", "tags", "sources"]);
+    expect(updateTags.mock.calls[0][0]).toEqual([expect.objectContaining({ id: "atr244_2", type_ref: "pixsys_atr244_processo" })]);
+    expect(updateTypes.mock.calls[0][0][0].members.map((m: { name: string }) => m.name)).toEqual(["pv1"]);
     const voci = useAppStore.getState().elenchiConfig.protocols!;
     expect(voci[0].figli?.map((f) => f.id)).toEqual(["linea/1", "linea/2"]);
-    expect(voci[0].modificato).toBe(true); // la bozza dei Protocolli aspetta il Salva
+    // Salvato subito: niente bozza che resti indietro (le 127 variabili orfane del collaudo).
+    expect(voci[0].modificato).toBe(false);
+    expect(updateSources.mock.calls[0][0][0].devices.map((d: { unit_id: number }) => d.unit_id)).toEqual([1, 2]);
     expect(screen.getByTestId("modbus-dev-card-linea-2")).toBeTruthy();
   });
 
@@ -92,5 +96,23 @@ describe("Dal catalogo", () => {
     expect((screen.getByTestId("catalogo-nome") as HTMLInputElement).value).toBe("atr244_2_2");
     fireEvent.change(screen.getByTestId("catalogo-unit"), { target: { value: "1" } });
     expect((screen.getByTestId("catalogo-aggiungi") as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("riprende una variabile esistente dello stesso modello, senza crearne", async () => {
+    useAppStore.setState({ project: { ...useAppStore.getState().project!,
+      tags: [{ id: "atr_forno", description: "", type_ref: "pixsys_atr244" }],
+      types: [{ id: "pixsys_atr244", members: [{ name: "pv1", data_type: "f32" }] }] } as never });
+    render(<ProtocolsTab />);
+    fireEvent.click(screen.getByTestId("modbus-dev-catalog-linea"));
+    await waitFor(() => screen.getByTestId("catalog-item-pixsys/atr244"));
+    fireEvent.click(screen.getByTestId("catalog-item-pixsys/atr244"));
+    const sel = (await screen.findByTestId("catalogo-esistente")) as HTMLSelectElement;
+    fireEvent.change(sel, { target: { value: "atr_forno" } });
+    expect(screen.queryByTestId("catalogo-nome")).toBeNull();
+    expect(screen.getByTestId("catalogo-anteprima").textContent).toContain("atr_forno");
+    fireEvent.click(screen.getByTestId("catalogo-aggiungi"));
+    await waitFor(() => expect(chiamate).toEqual(["sources"])); // né tipo né variabile nuovi
+    const regs = updateSources.mock.calls.at(-1)![0][0].devices[1].registers;
+    expect(regs.map((r: { tag: string }) => r.tag)).toEqual(["atr_forno.pv1"]); // solo i membri che il tipo ha
   });
 });

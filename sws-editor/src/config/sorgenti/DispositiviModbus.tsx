@@ -1,7 +1,7 @@
 /** Bus e dispositivi Modbus nell'IDE (04-10-2026): l'elenco dei dispositivi
  *  dentro la card del bus, e la card di un dispositivo (unit id, ordine,
  *  polling, timeout, mappature). La logica pura sta in `modbusDispositivi.ts`. */
-import { useState } from "react";
+import { createContext, useContext, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { QuickCreateTagModal } from "@/components/QuickCreateTagModal";
 import type { DispositivoModbus, RegisterMapping, TagDef } from "@/types";
@@ -20,6 +20,91 @@ import type { StatoCollegamento } from "@/types";
 import { api } from "@/api/client";
 import { CatalogoDispositiviModal, IconaCatalogo, useElencoCatalogo, voceDelModello } from "@/config/sorgenti/CatalogoDispositiviModal";
 import type { DaCatalogo } from "@/config/sorgenti/daCatalogo";
+import { pianoEliminazione } from "@/config/sorgenti/variabiliDispositivo";
+
+/** «Salva subito questo bus» (04-10-2026), dato dalla scheda Protocolli: salva
+ *  la bozza delle sorgenti con il bus cambiato. Serve quando una modifica del
+ *  bus va insieme a variabili e tipi salvati subito (dal catalogo, eliminare
+ *  un dispositivo con le sue variabili): una bozza rimasta indietro, salvata
+ *  dopo una rinomina, ha creato al collaudo 127 variabili piatte orfane. */
+export const SalvaBusContext = createContext<((bus: BusModbus) => Promise<void>) | null>(null);
+
+/** La domanda all'eliminazione di un dispositivo salvato: con o senza le sue
+ *  variabili (richiesta del maintainer, 04-10-2026). Senza contesto (fuori
+ *  dalla scheda Protocolli) toglie dalla bozza e basta. */
+function useEliminaDispositivo<B extends BusModbus>(bus: B, onChange: (b: B) => void) {
+  const { t } = useTranslation();
+  const salvaBus = useContext(SalvaBusContext);
+  const navigateToConfig = useAppStore((s) => s.navigateToConfig);
+  const updateProjectTags = useAppStore((s) => s.updateProjectTags);
+  const updateProjectTypes = useAppStore((s) => s.updateProjectTypes);
+  const markSaveOk = useAppStore((s) => s.markSaveOk);
+  const [unit, setUnit] = useState<number | null>(null);
+  const [lavoro, setLavoro] = useState(false);
+  const [errore, setErrore] = useState<string | null>(null);
+  const project = useAppStore((s) => s.project);
+  const piano = unit !== null && project ? pianoEliminazione({ ...project, sources: project.sources ?? [] }, bus, unit) : null;
+
+  const esegui = async (conVariabili: boolean) => {
+    if (unit === null) return;
+    setLavoro(true);
+    setErrore(null);
+    try {
+      const senza = conDispositivi(bus, dispositiviDi(bus).filter((x) => x.unit_id !== unit));
+      // Prima la sorgente (non nomina più le variabili), poi le variabili, poi
+      // i tipi (che le variabili nominavano): mai un riferimento appeso.
+      if (salvaBus) await salvaBus(senza); else onChange(senza);
+      if (conVariabili && piano && piano.variabili.length > 0) {
+        await api.updateTags(piano.tags);
+        updateProjectTags(piano.tags);
+        if (piano.tipi.length > 0) {
+          await api.updateTypes(piano.types);
+          updateProjectTypes(piano.types);
+        }
+      }
+      markSaveOk();
+      setUnit(null);
+      navigateToConfig("protocols", bus.id);
+    } catch (e) {
+      setErrore(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLavoro(false);
+    }
+  };
+
+  const modale = unit === null ? null : (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10000 }}
+      onMouseDown={(e) => { if (e.target === e.currentTarget) setUnit(null); }}>
+      <div data-testid="elimina-dispositivo-modal" style={{ background: "var(--brand-surface, #1e293b)", border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 8, padding: 20, width: "min(520px, 94vw)" }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--brand-text, #e2e8f0)", marginBottom: 8 }}>
+          {t("cfg.eliminaDispositivoTitolo", { unit, bus: bus.id })}
+        </div>
+        {piano && piano.variabili.length > 0 ? (
+          <div style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", lineHeight: 1.5 }}>
+            {t("cfg.eliminaDispositivoVariabili", { variabili: piano.variabili.join(", ") })}
+            {piano.tipi.length > 0 && <> {t("cfg.eliminaDispositivoTipi", { tipi: piano.tipi.join(", ") })}</>}
+            <div style={{ marginTop: 6 }}>{t("cfg.eliminaDispositivoTenere")}</div>
+          </div>
+        ) : (
+          <div style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)" }}>{t("cfg.eliminaDispositivoSenzaVariabili")}</div>
+        )}
+        {errore && <div style={{ fontSize: 12, color: "var(--brand-danger-soft, #f87171)", marginTop: 8 }}>{errore}</div>}
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
+          <button style={S.btn("ghost")} onClick={() => setUnit(null)} disabled={lavoro}>{t("common.cancel")}</button>
+          <button style={S.btn("ghost")} onClick={() => void esegui(false)} disabled={lavoro} data-testid="elimina-solo-dispositivo">
+            {t("cfg.eliminaSoloDispositivo")}
+          </button>
+          {piano && piano.variabili.length > 0 && (
+            <button style={S.btn("danger")} onClick={() => void esegui(true)} disabled={lavoro} data-testid="elimina-con-variabili">
+              {t("cfg.eliminaConVariabili")}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+  return { chiedi: (u: number) => { setErrore(null); setUnit(u); }, modale };
+}
 
 const ETICHETTA = { fontSize: 11, color: "var(--brand-text-subtle, #64748b)", display: "block", marginBottom: 3 } as const;
 
@@ -51,20 +136,28 @@ export function ElencoDispositiviModbus<B extends BusModbus>({ bus, onChange }: 
   const updateProjectTypes = useAppStore((s) => s.updateProjectTypes);
   const markSaveOk = useAppStore((s) => s.markSaveOk);
   const dispositivi = dispositiviDi(bus);
-  // Dal catalogo: tipo e variabile si salvano subito (il tipo prima, perché la
-  // variabile lo nomina), il dispositivo va nella bozza dei Protocolli come
-  // ogni altra modifica al bus.
+  const salvaBus = useContext(SalvaBusContext);
+  const elimina = useEliminaDispositivo(bus, onChange);
+  // Dal catalogo: tipo, variabile **e dispositivo** si salvano subito, in
+  // quest'ordine (ognuno nomina il precedente). Prima il dispositivo restava
+  // nella bozza: una rinomina della variabile nel frattempo e il salvataggio
+  // della bozza vecchia hanno creato 127 variabili orfane (collaudo 04-10-2026).
   const daCatalogoConfermato = async (r: DaCatalogo) => {
     if (!r.riusaTipo) {
-      const tipi = [...(useAppStore.getState().project?.types ?? []), r.tipo];
+      // I sotto-tipi dei gruppi e il tipo della variabile, in una volta sola.
+      const tipi = [...(useAppStore.getState().project?.types ?? []), ...r.tipiNuovi];
       await api.updateTypes(tipi);
       updateProjectTypes(tipi);
     }
-    const tags = [...(useAppStore.getState().project?.tags ?? []), r.tag];
-    await api.updateTags(tags);
-    updateProjectTags(tags);
+    if (!r.riusaVariabile) {
+      const attuali = useAppStore.getState().project?.tags ?? [];
+      const tags = r.sostituisciVariabile ? attuali.map((x) => (x.id === r.tag.id ? r.tag : x)) : [...attuali, r.tag];
+      await api.updateTags(tags);
+      updateProjectTags(tags);
+    }
+    const nuovo = conDispositivi(bus, [...dispositivi, r.dispositivo]);
+    if (salvaBus) await salvaBus(nuovo); else onChange(nuovo);
     markSaveOk();
-    onChange(conDispositivi(bus, [...dispositivi, r.dispositivo]));
     navigateToConfig("protocols", focusDispositivo(bus.id, r.dispositivo.unit_id));
   };
   const aggiungi = () => {
@@ -72,7 +165,14 @@ export function ElencoDispositiviModbus<B extends BusModbus>({ bus, onChange }: 
     onChange(conDispositivi(bus, [...dispositivi, d]));
     navigateToConfig("protocols", focusDispositivo(bus.id, d.unit_id));
   };
-  const togli = (unit: number) => onChange(conDispositivi(bus, dispositivi.filter((d) => d.unit_id !== unit)));
+  // Un dispositivo che c'è nel progetto salvato: la domanda sulle variabili.
+  // Uno solo nella bozza: via dalla bozza, non ha niente di salvato.
+  const busSalvato = useAppStore((s) => s.project?.sources?.find((x) => x.id === bus.id));
+  const salvati = new Set(busSalvato && eBusModbus(busSalvato) ? dispositiviDi(busSalvato).map((x) => x.unit_id) : []);
+  const togli = (unit: number) => {
+    if (salvati.has(unit)) elimina.chiedi(unit);
+    else onChange(conDispositivi(bus, dispositivi.filter((d) => d.unit_id !== unit)));
+  };
   return (
     <>
       <div style={{ marginBottom: 6, fontSize: 12, color: "var(--brand-text-subtle, #64748b)", fontWeight: 600, letterSpacing: 0.5 }}>
@@ -128,6 +228,7 @@ export function ElencoDispositiviModbus<B extends BusModbus>({ bus, onChange }: 
         </button>
       </div>
       {catalogo && <CatalogoDispositiviModal bus={bus} onConferma={daCatalogoConfermato} onClose={() => setCatalogo(false)} />}
+      {elimina.modale}
     </>
   );
 }
@@ -153,11 +254,13 @@ export function DispositivoModbusCard<B extends BusModbus>({ bus, unit, onChange
     const b = s.project?.sources?.find((x) => x.id === bus.id);
     return !!b && eBusModbus(b) && dispositiviDi(b).some((x) => x.unit_id === unit);
   });
+  const elimina = useEliminaDispositivo(bus, onChange);
   const dispositivi = dispositiviDi(bus);
   const d = dispositivi.find((x) => x.unit_id === unit);
   if (!d) return null;
 
   const togli = () => {
+    if (salvato) { elimina.chiedi(unit); return; }
     onChange(conDispositivi(bus, dispositivi.filter((x) => x.unit_id !== unit)));
     navigateToConfig("protocols", bus.id);
   };
@@ -236,6 +339,7 @@ export function DispositivoModbusCard<B extends BusModbus>({ bus, unit, onChange
           {t("cfgUi.addRegister")}
         </button>
       </div>
+      {elimina.modale}
       {quickCreate !== null && (
         <QuickCreateTagModal
           initialId={quickCreate.prefill}

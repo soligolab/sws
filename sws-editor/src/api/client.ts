@@ -1422,6 +1422,9 @@ export const api = {
   // Stato delle sorgenti avviate e dei loro dispositivi (04-10-2026).
   statoSorgenti: () =>
     request<Record<string, StatoSorgente>>("/api/sources/stato"),
+  /** Lo stesso, del **dispositivo connesso** (dalla 2.12.0-rc.23). */
+  remoteStatoSorgenti: () =>
+    request<Record<string, StatoSorgente>>("/api/remote/sources/stato"),
 
   // MQTT broker browse: connect ephemerally, subscribe #, return discovered topics.
   browseMqttTopics: (req: MqttBrowseRequest): Promise<MqttBrowseResponse> =>

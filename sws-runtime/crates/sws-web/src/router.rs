@@ -603,6 +603,7 @@ pub fn build(
             get(crate::remote::remote_host_catalog),
         )
         .route("/api/remote/host/seriali", get(crate::remote::remote_porte_seriali))
+        .route("/api/remote/sources/stato", get(crate::remote::remote_stato_sorgenti))
         .route("/api/remote/deploy", post(crate::remote::remote_deploy))
         .route(
             "/api/remote/project/delete",
@@ -1085,6 +1086,9 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         .route("/api/host/catalog", get(crate::system::get_host_catalog))
         // Le porte seriali che questo runtime vede e può aprire (04-10-2026).
         .route("/api/host/seriali", get(crate::system::get_porte_seriali))
+        // Lo stato delle sorgenti e dei dispositivi (04-10-2026): l'IDE connesso
+        // colora i pallini dell'albero con quello del pannello, non del PC.
+        .route("/api/sources/stato", get(stato_sorgenti_handler))
         // ── Utenti: azione deliberata, separata dal deploy ─────────────────
         //
         // I verbi sono quelli che `remote.rs` usa davvero (`PUT`, non `POST`):

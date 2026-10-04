@@ -1267,6 +1267,14 @@ pub async fn remote_porte_seriali(State(s): State<AppState>) -> Response {
     proxy_get_json(&s, "/api/host/seriali").await
 }
 
+/// `GET /api/remote/sources/stato` — lo stato delle sorgenti e dei dispositivi
+/// **del dispositivo connesso**. Al collaudo del 04-10-2026 l'albero mostrava i
+/// valori del TC620 e i pallini del PC: bus rosso («/dev/ttyCOM2 non esiste»)
+/// sopra variabili che si aggiornavano.
+pub async fn remote_stato_sorgenti(State(s): State<AppState>) -> Response {
+    proxy_get_json(&s, "/api/sources/stato").await
+}
+
 /// Una GET al dispositivo connesso, con la sua sessione, e il JSON com'è.
 /// 400 senza dispositivo; 502 con il codice e il testo del dispositivo se
 /// risponde male, così l'errore che arriva all'editor dice da che parte è.

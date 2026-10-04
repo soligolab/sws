@@ -439,3 +439,51 @@ async fn sola_lettura_rifiuta_anche_su_holding() {
     scrivi(&mut dev, &db, &m, OrdineModbus::Abcd, ("pv".into(), None, TagValue::Int(1)), "p").await.unwrap();
     assert!(dev.scritture.is_empty());
 }
+
+#[tokio::test(start_paused = true)]
+async fn una_word_muta_si_aspetta_una_volta_sola_per_giro() {
+    // Sedici bit della stessa word su uno slave muto: una richiesta, non sedici.
+    let tags: Vec<TagDef> = (0..16).map(|i| tag(&format!("b{i}"), "bool")).collect();
+    let db = db_con(&tags, &[]).await;
+    for i in 0..16 {
+        db.set(format!("b{i}"), TagValue::Bool(false), TagQuality::Uncertain).await;
+    }
+    let mut dev = Finto::default();
+    dev.mute.insert(0);
+    let regs: Vec<RegisterMapping> = (0..16).map(|i| con(mappa(&format!("b{i}"), 10, AreaModbus::Holding), |r| r.bit = Some(i))).collect();
+    let prima = tokio::time::Instant::now();
+    let e = giro(&mut dev, &db, &regs, OrdineModbus::Abcd).await.unwrap();
+    assert_eq!(e.risposte, 0);
+    assert_eq!(dev.letture, 1, "una sola richiesta per la word muta");
+    assert!(prima.elapsed() < Duration::from_secs(4), "un timeout, non sedici: {:?}", prima.elapsed());
+    assert_eq!(val(&db, "b15").await.1, TagQuality::Bad);
+}
+
+/// Tipi annidati dal catalogo (04-10-2026): `io.ingressi.di1` è un bit della word
+/// 1000, `io.ingressi.ai1` un i16 × 0.1, su un'istanza il cui tipo ha un membro
+/// che è a sua volta un tipo.
+#[tokio::test]
+async fn le_foglie_annidate_si_leggono_come_le_altre() {
+    let ingressi = TypeDef {
+        id: "m__ingressi".into(),
+        description: String::new(),
+        members: vec![membro("di1", "bool"), membro("ai1", "f32")],
+    };
+    let top: TypeDef = serde_yaml::from_str("id: m\nmembers:\n  - {name: ingressi, type_ref: m__ingressi}\n").unwrap();
+    let db = db_con(&[istanza("io", "m")], &[top, ingressi]).await;
+    let mut dev = Finto::default();
+    dev.registri.insert(1000, 0b1);
+    dev.registri.insert(1001, (-125i16) as u16);
+    let regs = [
+        con(mappa("io.ingressi.di1", 1000, AreaModbus::Holding), |r| r.bit = Some(0)),
+        con(mappa("io.ingressi.ai1", 1001, AreaModbus::Holding), |r| {
+            r.formato = Some("i16".into());
+            r.scale = 0.1;
+        }),
+    ];
+    giro(&mut dev, &db, &regs, OrdineModbus::Abcd).await.unwrap();
+    assert_eq!(val(&db, "io.ingressi.di1").await, (TagValue::Bool(true), TagQuality::Good));
+    let (v, q) = val(&db, "io.ingressi.ai1").await;
+    assert!(matches!(v, TagValue::Float(f) if (f + 12.5).abs() < 1e-6), "{v:?}");
+    assert_eq!(q, TagQuality::Good);
+}

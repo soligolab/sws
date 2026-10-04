@@ -2979,6 +2979,28 @@ alarms: []
         );
     }
 
+    /// Tipi annidati dal catalogo (04-10-2026): una mappatura su una foglia di
+    /// un sotto-tipo (`io.ingressi.di1`) è dichiarata, non un tag fantasma.
+    #[test]
+    fn una_foglia_di_un_tipo_annidato_e_dichiarata() {
+        let prog = r#"
+meta: { name: prova, version: "1.0.0" }
+types:
+  - { id: m__ingressi, members: [{ name: di1, data_type: bool }] }
+  - { id: m, members: [{ name: ingressi, type_ref: m__ingressi }] }
+tags: [{ id: io, type_ref: m }]
+sources:
+  - kind: modbus_rtu
+    id: linea
+    device: /dev/ttyCOM2
+    devices:
+      - { unit_id: 2, registers: [{ tag: io.ingressi.di1, address: 1000, bit: 0 }] }
+alarms: []
+"#;
+        let rs = rilievi(prog, &pagina("- { id: x, type: rect, x: 0, y: 0 }"));
+        assert!(!cita(&rs, "io.ingressi.di1"), "{rs:?}");
+    }
+
     /// Formato sul filo e bit (catalogo dei dispositivi, 04-10-2026).
     #[test]
     fn formato_e_bit_si_controllano() {

@@ -36,8 +36,14 @@ Prese dal sito pixsys.net il 04-10-2026, ridotte a 160×160:
 
 ## Le varianti MCM260X
 
-Dalla tabella dei codici d'ordine della pagina del prodotto (04-10-2026): 1AD 16 DO; 2AD 16 DI + 3 encoder; 3AD 8 DI + 8
-DO + 3 encoder; 4AD 8 DI + 8 relè; 5AD 4 AI + 2 AO; 9AD 4 AI + 2 AO + 16 linee digitali selezionabili come DI o DO + 4
-encoder. Le word 10 (DI) e 20 (DO) e gli analogici 30-33/40-41 vengono dalla mappa generica MCM: **da verificare** sul
-manuale di ogni variante, in particolare quale bit corrisponde a quale morsetto nelle 3AD e 4AD (qui: i bit 0-7).
-Gli encoder/contatori non ci sono: la mappa non riporta i loro registri.
+**Dal manuale** `docs/2300.10.265-A5-RevG.pdf` (MCM260X, rev. G), §9.2 «Aree di comunicazione Modbus RTU», non dalla
+mappa generica: quella metteva gli I/O a 10-41 e i registri comuni a 0-5, mentre gli MCM260X hanno DI in 1000, DO in
+1100, AI del 5AD in 1000-1003 (del 9AD in 1001-1004), AO in 1100-1101 (9AD 1101-1102), e il registro 4 non esiste
+(una lettura che lo include viene rifiutata). Frammento `_mcm260x` (0, 1, 2, 5, 6, 7) e un file per variante; gli
+encoder (32 bit, word alta prima: ordine ABCD) e i parametri di configurazione che servono (tipo di sonda AI1-4, unità,
+tipo di uscita AO, setup encoder del 9AD). Verificato sul campo il 04-10-2026: un 5AD (unit 1) e un 9AD (unit 2) sul
+TC620 accettano tutti gli indirizzi del catalogo. Di fabbrica il tipo di sonda è «disabilitato»: gli AI valgono 0 finché
+non si imposta `tipo_sensore_aiN`.
+
+L'MCM280X usa ancora i frammenti `_mcm_di`, `_mcm_do`, `_mcm_analogici` della mappa generica: **da verificare** sul suo
+manuale.

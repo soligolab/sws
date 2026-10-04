@@ -1,16 +1,16 @@
 {
   "id": "pixsys/mcm260x-2ad",
-  "versione": 1,
+  "versione": 2,
   "marca": "Pixsys",
   "modello": "MCM260X-2AD",
   "famiglia": "Moduli I/O MCM260X",
   "descrizione": {
-    "it": "Modulo I/O remoto Modbus RTU / CANopen: 16 ingressi digitali PNP, 3 encoder. Gli encoder/contatori non sono ancora nel catalogo: la mappa dei registri non li riporta.",
-    "en": "Remote I/O module Modbus RTU / CANopen: 16 PNP digital inputs, 3 encoders. Encoders/counters are not in the catalog yet: the register map does not list them."
+    "it": "Modulo I/O remoto Modbus RTU / CANopen: 16 ingressi digitali PNP, 3 encoder/contatori",
+    "en": "Remote I/O module Modbus RTU / CANopen: 16 PNP digital inputs, 3 encoders/counters"
   },
   "immagine": "mcm260x-3ad.jpg",
   "modbus": {
-    "ordine": "cdab",
+    "ordine": "abcd",
     "timeout_ms": 1000,
     "seriale": {
       "baud_rate": 19200,
@@ -20,7 +20,287 @@
     }
   },
   "includi": [
-    "pixsys/_comuni",
-    "pixsys/_mcm_di"
+    "pixsys/_mcm260x"
+  ],
+  "registri": [
+    {
+      "nome": "compatibilita_mcm260",
+      "indirizzo": 3,
+      "accesso": "rw",
+      "gruppo": "configurazione",
+      "descrizione": {
+        "it": "Modalità compatibilità con la vecchia serie MCM260: 1 attiva, 0 no",
+        "en": "Compatibility mode with the old MCM260 series: 1 on, 0 off"
+      }
+    },
+    {
+      "nome": "ingressi_digitali",
+      "indirizzo": 1000,
+      "accesso": "r",
+      "gruppo": "ingressi",
+      "descrizione": {
+        "it": "Stato degli ingressi digitali 1-16",
+        "en": "Digital inputs 1-16 status"
+      },
+      "bit": [
+        {
+          "bit": 0,
+          "nome": "di1",
+          "descrizione": {
+            "it": "Ingresso digitale 1",
+            "en": "Digital input 1"
+          }
+        },
+        {
+          "bit": 1,
+          "nome": "di2",
+          "descrizione": {
+            "it": "Ingresso digitale 2",
+            "en": "Digital input 2"
+          }
+        },
+        {
+          "bit": 2,
+          "nome": "di3",
+          "descrizione": {
+            "it": "Ingresso digitale 3",
+            "en": "Digital input 3"
+          }
+        },
+        {
+          "bit": 3,
+          "nome": "di4",
+          "descrizione": {
+            "it": "Ingresso digitale 4",
+            "en": "Digital input 4"
+          }
+        },
+        {
+          "bit": 4,
+          "nome": "di5",
+          "descrizione": {
+            "it": "Ingresso digitale 5",
+            "en": "Digital input 5"
+          }
+        },
+        {
+          "bit": 5,
+          "nome": "di6",
+          "descrizione": {
+            "it": "Ingresso digitale 6",
+            "en": "Digital input 6"
+          }
+        },
+        {
+          "bit": 6,
+          "nome": "di7",
+          "descrizione": {
+            "it": "Ingresso digitale 7",
+            "en": "Digital input 7"
+          }
+        },
+        {
+          "bit": 7,
+          "nome": "di8",
+          "descrizione": {
+            "it": "Ingresso digitale 8",
+            "en": "Digital input 8"
+          }
+        },
+        {
+          "bit": 8,
+          "nome": "di9",
+          "descrizione": {
+            "it": "Ingresso digitale 9",
+            "en": "Digital input 9"
+          }
+        },
+        {
+          "bit": 9,
+          "nome": "di10",
+          "descrizione": {
+            "it": "Ingresso digitale 10",
+            "en": "Digital input 10"
+          }
+        },
+        {
+          "bit": 10,
+          "nome": "di11",
+          "descrizione": {
+            "it": "Ingresso digitale 11",
+            "en": "Digital input 11"
+          }
+        },
+        {
+          "bit": 11,
+          "nome": "di12",
+          "descrizione": {
+            "it": "Ingresso digitale 12",
+            "en": "Digital input 12"
+          }
+        },
+        {
+          "bit": 12,
+          "nome": "di13",
+          "descrizione": {
+            "it": "Ingresso digitale 13",
+            "en": "Digital input 13"
+          }
+        },
+        {
+          "bit": 13,
+          "nome": "di14",
+          "descrizione": {
+            "it": "Ingresso digitale 14",
+            "en": "Digital input 14"
+          }
+        },
+        {
+          "bit": 14,
+          "nome": "di15",
+          "descrizione": {
+            "it": "Ingresso digitale 15",
+            "en": "Digital input 15"
+          }
+        },
+        {
+          "bit": 15,
+          "nome": "di16",
+          "descrizione": {
+            "it": "Ingresso digitale 16",
+            "en": "Digital input 16"
+          }
+        }
+      ]
+    },
+    {
+      "nome": "enc1_conteggi",
+      "indirizzo": 1003,
+      "formato": "i32",
+      "accesso": "r",
+      "gruppo": "encoder",
+      "descrizione": {
+        "it": "Conteggi encoder/contatore 1 (32 bit, word alta prima)",
+        "en": "Encoder/counter 1 counts (32 bit, high word first)"
+      }
+    },
+    {
+      "nome": "enc2_conteggi",
+      "indirizzo": 1005,
+      "formato": "i32",
+      "accesso": "r",
+      "gruppo": "encoder",
+      "descrizione": {
+        "it": "Conteggi encoder/contatore 2 (32 bit, word alta prima)",
+        "en": "Encoder/counter 2 counts (32 bit, high word first)"
+      }
+    },
+    {
+      "nome": "enc3_conteggi",
+      "indirizzo": 1007,
+      "formato": "i32",
+      "accesso": "r",
+      "gruppo": "encoder",
+      "descrizione": {
+        "it": "Conteggi encoder/contatore 3 (32 bit, word alta prima)",
+        "en": "Encoder/counter 3 counts (32 bit, high word first)"
+      }
+    },
+    {
+      "nome": "enc1_conteggi_1s",
+      "indirizzo": 1009,
+      "formato": "i32",
+      "accesso": "r",
+      "gruppo": "encoder",
+      "descrizione": {
+        "it": "Conteggi dell'encoder 1 in 1 s",
+        "en": "Encoder 1 counts in 1 s"
+      }
+    },
+    {
+      "nome": "enc2_conteggi_1s",
+      "indirizzo": 1011,
+      "formato": "i32",
+      "accesso": "r",
+      "gruppo": "encoder",
+      "descrizione": {
+        "it": "Conteggi dell'encoder 2 in 1 s",
+        "en": "Encoder 2 counts in 1 s"
+      }
+    },
+    {
+      "nome": "enc3_conteggi_1s",
+      "indirizzo": 1013,
+      "formato": "i32",
+      "accesso": "r",
+      "gruppo": "encoder",
+      "descrizione": {
+        "it": "Conteggi dell'encoder 3 in 1 s",
+        "en": "Encoder 3 counts in 1 s"
+      }
+    },
+    {
+      "nome": "enc1_conteggi_100ms",
+      "indirizzo": 1015,
+      "formato": "i32",
+      "accesso": "r",
+      "gruppo": "encoder",
+      "descrizione": {
+        "it": "Conteggi dell'encoder 1 in 100 ms",
+        "en": "Encoder 1 counts in 100 ms"
+      }
+    },
+    {
+      "nome": "enc2_conteggi_100ms",
+      "indirizzo": 1017,
+      "formato": "i32",
+      "accesso": "r",
+      "gruppo": "encoder",
+      "descrizione": {
+        "it": "Conteggi dell'encoder 2 in 100 ms",
+        "en": "Encoder 2 counts in 100 ms"
+      }
+    },
+    {
+      "nome": "enc3_conteggi_100ms",
+      "indirizzo": 1019,
+      "formato": "i32",
+      "accesso": "r",
+      "gruppo": "encoder",
+      "descrizione": {
+        "it": "Conteggi dell'encoder 3 in 100 ms",
+        "en": "Encoder 3 counts in 100 ms"
+      }
+    },
+    {
+      "nome": "enc1_comando",
+      "indirizzo": 1101,
+      "accesso": "rw",
+      "gruppo": "encoder",
+      "descrizione": {
+        "it": "Comandi encoder 1: bit 0 carica il preset, bit 1 carica il preset al prossimo impulso Z (tornano a 0 da soli)",
+        "en": "Encoder 1 commands: bit 0 loads the preset, bit 1 loads it at the next Z pulse (reset by themselves)"
+      }
+    },
+    {
+      "nome": "enc2_comando",
+      "indirizzo": 1102,
+      "accesso": "rw",
+      "gruppo": "encoder",
+      "descrizione": {
+        "it": "Comandi encoder 2: bit 0 carica il preset, bit 1 carica il preset al prossimo impulso Z (tornano a 0 da soli)",
+        "en": "Encoder 2 commands: bit 0 loads the preset, bit 1 loads it at the next Z pulse (reset by themselves)"
+      }
+    },
+    {
+      "nome": "enc3_comando",
+      "indirizzo": 1103,
+      "accesso": "rw",
+      "gruppo": "encoder",
+      "descrizione": {
+        "it": "Comandi encoder 3: bit 0 carica il preset, bit 1 carica il preset al prossimo impulso Z (tornano a 0 da soli)",
+        "en": "Encoder 3 commands: bit 0 loads the preset, bit 1 loads it at the next Z pulse (reset by themselves)"
+      }
+    }
   ]
 }

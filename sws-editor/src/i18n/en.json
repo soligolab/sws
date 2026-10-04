@@ -1589,7 +1589,14 @@
     "serialeAccesso": {
       "permesso": "no permission",
       "occupata": "in use"
-    }
+    },
+    "eliminaDispositivoTitolo": "Delete device {{unit}} from bus {{bus}}?",
+    "eliminaDispositivoVariabili": "Its variables: {{variabili}}.",
+    "eliminaDispositivoTipi": "Type {{tipi}} is not used by anything else: it would go with them.",
+    "eliminaDispositivoTenere": "Keeping them, a new device of the same model can take them back («From the catalog» → existing variable): charts, alarms and history using them stay.",
+    "eliminaDispositivoSenzaVariabili": "The device has no variables of its own to delete.",
+    "eliminaSoloDispositivo": "Only the device",
+    "eliminaConVariabili": "Device and variables"
   },
   "langtab": {
     "migrate": "Migrate texts…",
@@ -2698,7 +2705,9 @@
       "configurazione": "Configuration",
       "ingressi": "Inputs",
       "uscite": "Outputs",
-      "altro": "Other"
+      "altro": "Other",
+      "diagnostica": "Diagnostics",
+      "encoder": "Encoders"
     },
     "anteprima": "Creates the variable «{{nome}}» of type «{{tipo}}» ({{membri}} members) and a device with {{n}} mappings.",
     "tipoRiusato": "The type already exists, identical: it is reused.",
@@ -2707,6 +2716,12 @@
     "avvisoSeriale": "The model's factory setting is {{voce}}, the bus is {{bus}}: check that device and bus match.",
     "avvisoFuoriProduzione": "Discontinued model.",
     "indietro": "← Back",
-    "aggiungi": "Add to the bus"
+    "aggiungi": "Add to the bus",
+    "variabileNuova": "New variable",
+    "variabileEsistente": "Take back «{{nome}}» ({{tipo}})",
+    "anteprimaRiassocia": "Re-associates the existing variable «{{nome}}» ({{tipo}}): a device with {{n}} mappings, nothing new to create.",
+    "avvisoMembriMancanti": "{{n}} catalog registers have no member in type «{{tipo}}» (older catalog version): they are not read.",
+    "avvisoTipoAllargato": "The variable moves from type «{{da}}» to «{{a}}», which also has the chosen groups: its existing members stay the same, with their history.",
+    "avvisoPercorsiCambiano": "«{{nome}}» has an older flat type missing some members: it moves to the nested type «{{tipo}}», and the paths change (e.g. {{nome}}.ingressi.di1 instead of {{nome}}.di1): charts and alarms using the old ones need reconnecting."
   }
 }

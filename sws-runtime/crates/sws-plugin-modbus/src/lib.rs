@@ -193,9 +193,16 @@ pub async fn leggi_giro<D: Dispositivo>(
     // Una lettura per blocco in un giro: dieci bit della stessa word sono una
     // richiesta sola (catalogo, 04-10-2026).
     let mut cache: HashMap<(AreaModbus, u16, u16), Letti> = HashMap::new();
+    // E i blocchi che nel giro non hanno risposto: sedici bit di una word muta
+    // erano sedici attese da un secondo (collaudo sul TC620, 04-10-2026).
+    let mut muti: HashSet<(AreaModbus, u16, u16)> = HashSet::new();
     for m in mappature {
         let n = codec::totale(&m.slots);
         let chiave = (m.area, m.address, n);
+        if muti.contains(&chiave) {
+            marca_bad(db, m).await;
+            continue;
+        }
         let esito = match cache.get(&chiave) {
             Some(l) => Ok(Ok(l.clone())),
             None => tokio::time::timeout(timeout, dev.leggi(m.area, m.address, n)).await,
@@ -209,6 +216,7 @@ pub async fn leggi_giro<D: Dispositivo>(
                 return Err(anyhow::anyhow!("lettura di {} @{}: {e}", m.tag, m.address));
             }
             Ok(Err(e)) => {
+                muti.insert(chiave);
                 if in_errore.insert(m.tag.clone()) {
                     warn!(source = %sorgente, tag = %m.tag, address = m.address, "Modbus: il dispositivo risponde con un errore: {e} — tag Bad, gli altri continuano");
                 }
@@ -217,6 +225,7 @@ pub async fn leggi_giro<D: Dispositivo>(
                 continue;
             }
             Err(_) => {
+                muti.insert(chiave);
                 if in_errore.insert(m.tag.clone()) {
                     warn!(source = %sorgente, tag = %m.tag, address = m.address, "Modbus: nessuna risposta in {} ms — tag Bad", timeout.as_millis());
                 }
