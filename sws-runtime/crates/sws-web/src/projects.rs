@@ -172,6 +172,18 @@ pub struct ProjectListEntry {
     /// rename/delete semantics in the UI (never touches the maintainer's own
     /// folder on disk).
     pub external: bool,
+    /// Quanto pesa lo storico (`history/`) del progetto, in byte (03-10-2026):
+    /// l'IDE lo dice prima di un deploy che sostituirebbe questo progetto.
+    /// Assente da un runtime più vecchio.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub storico_byte: Option<u64>,
+}
+
+/// La somma dei file in `<progetto>/history/` (un livello: lì ci sono solo i
+/// database e le loro copie). `None` se la cartella non c'è.
+fn peso_storico(progetto: &StdPath) -> Option<u64> {
+    let rd = std::fs::read_dir(progetto.join("history")).ok()?;
+    Some(rd.flatten().filter_map(|e| e.metadata().ok()).filter(|m| m.is_file()).map(|m| m.len()).sum())
 }
 
 #[derive(Deserialize)]
@@ -333,6 +345,7 @@ pub async fn list_projects(State(s): State<AppState>) -> Response {
                         path: path.to_string_lossy().to_string(),
                         last_opened_ms: None,
                         external: false,
+                        storico_byte: None,
                     },
                 );
             }
@@ -366,11 +379,15 @@ pub async fn list_projects(State(s): State<AppState>) -> Response {
                 path: reg_entry.path.to_string_lossy().to_string(),
                 last_opened_ms: Some(reg_entry.last_opened_ms),
                 external,
+                storico_byte: None,
             },
         );
     }
 
     let mut entries: Vec<ProjectListEntry> = by_name.into_values().collect();
+    for e in &mut entries {
+        e.storico_byte = peso_storico(StdPath::new(&e.path));
+    }
     // Most recently opened first; untouched legacy entries (no registry
     // timestamp) sort after every timestamped one, alphabetically among
     // themselves.

@@ -1515,7 +1515,11 @@
     "emailModoOff": "none",
     "istantaneaPrendo": "==> Data snapshot on the connected panel...",
     "istantaneaPresa": "    snapshot taken ({{mb}} MB, version {{v}})",
-    "istantaneaNessuna": "    no snapshot ({{motivo}}): going back will only restore the image"
+    "istantaneaNessuna": "    no snapshot ({{motivo}}): going back will only restore the image",
+    "deploySostituisceConfirm": "Deploying «{{progetto}}» deletes from the panel:\n{{elenco}}\n\nThe history of these projects is lost. Continue?",
+    "deploySostituisceVoce": "  • «{{nome}}», with {{mb}} MB of history",
+    "deploySostituisceVoceSenzaPeso": "  • «{{nome}}», with its history",
+    "deployAnnullato": "Deploy cancelled."
   },
   "langtab": {
     "migrate": "Migrate texts…",
@@ -2445,7 +2449,14 @@
     "intervalloMin": "Min interval (ms)",
     "ruoloScrittura": "Min write role",
     "anteprima": "WHAT YOU GET — the parts of an instance of this type",
-    "nessunaFoglia": "No members."
+    "nessunaFoglia": "No members.",
+    "nessunaIstanza": "This type has no instances yet: its parts only exist in a tag of this type.",
+    "nomeIstanza": "New tag of this type:",
+    "creaIstanza": "Create instance",
+    "salvaPrimaVariabili": "Save the changes to Tags first.",
+    "nomeVuoto": "A name is needed.",
+    "nomeCaratteri": "No spaces, dots or square brackets: they would be confused with the path of the parts.",
+    "nomeEsiste": "A tag with this name already exists."
   },
   "forma": {
     "tipoNonDichiarato": "type `{{id}}` is not declared",

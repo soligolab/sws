@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { api, getAuthToken, getBaseUrl, RuntimeUnavailableError, type DiscoveredRuntime, dimenticaVersioneProgetto } from "@/api/client";
+import { testoSostituzione } from "@/store";
 import { dispositivoDaRuntime } from "@/config/dispositiviRegistrati";
 import { selectIsDirty, useAppStore } from "@/store";
 import { INSTALL_HOST, ricorda } from "@/config/campiDispositivo";
@@ -306,26 +307,35 @@ export function RuntimeConnectionTab() {
    *  l'utente ha risposto al `window.confirm` del 428, e allora la funzione si
    *  richiama **una sola volta**: il flag è già a `true` e il server non può
    *  chiedere di nuovo. */
-  const eseguiDeploy = async (confermato: boolean): Promise<void> => {
+  const eseguiDeploy = async (confermato: boolean, sostituzioneConfermata = false): Promise<void> => {
       const res = await api.deployToRuntime({
         replaceUsers: sostituisciUtenti,
         confirmNoUsers: confermato,
+        confirmReplace: sostituzioneConfermata,
       });
 
       // 428: il server ha guardato e si è fermato **prima** di toccare qualcosa.
-      // Il progetto non ha utenti e il dispositivo ne ha: proseguire lo
-      // lascerebbe accessibile senza password. La decisione è di chi guarda lo
-      // schermo, non del codice.
+      // Due casi: il deploy cancellerebbe progetti con un altro nome (03-10-2026),
+      // o il progetto non ha utenti e il dispositivo ne ha. La decisione è di
+      // chi guarda lo schermo, non del codice.
+      const d428 = res.status === 428 ? await res.clone().json().catch(() => ({} as any)) : null;
+      if (d428?.conferma === "sostituisce-progetti" && !sostituzioneConfermata) {
+        if (!window.confirm(testoSostituzione(d428.progetto, d428.progetti ?? []))) {
+          setDeployLog((l) => [...l, "✗ " + t("cfg.deployAnnullato")]);
+          return;
+        }
+        return eseguiDeploy(confermato, true);
+      }
       if (res.status === 428 && !confermato) {
-        const d = await res.json().catch(() => ({} as any));
+        const d = d428 ?? {};
         const elenco = Array.isArray(d?.utenti_dispositivo) && d.utenti_dispositivo.length
           ? d.utenti_dispositivo.join(", ")
           : t("cfg.deployNoUsersUnknown");
         if (!window.confirm(t("cfg.deployNoUsersConfirm", { utenti: elenco }))) {
-          setDeployLog((l) => [...l, "✗ Deploy annullato."]);
+          setDeployLog((l) => [...l, "✗ " + t("cfg.deployAnnullato")]);
           return;
         }
-        return eseguiDeploy(true);
+        return eseguiDeploy(true, sostituzioneConfermata);
       }
 
       if (!res.ok || !res.body) {

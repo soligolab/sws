@@ -1818,7 +1818,7 @@ export const api = {
    *  Unico punto in cui si compone il corpo: prima la `fetch` era scritta due
    *  volte (qui e nell'auto-deploy dello store), ed è così che i due percorsi
    *  divergono senza che nessuno se ne accorga. */
-  deployToRuntime: async (opts: { replaceUsers: boolean; confirmNoUsers?: boolean; conSegreti?: boolean }): Promise<Response> => {
+  deployToRuntime: async (opts: { replaceUsers: boolean; confirmNoUsers?: boolean; conSegreti?: boolean; confirmReplace?: boolean }): Promise<Response> => {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (TOKEN) headers["Authorization"] = `Bearer ${TOKEN}`;
     return fetch(`${getBaseUrl()}/api/remote/deploy`, {
@@ -1830,6 +1830,9 @@ export const api = {
         // Senza, il server porta i segreti (default storico). Il deploy «del
         // progetto» li lascia sul dispositivo: vedi `deployOra` nello store.
         con_segreti: opts.conSegreti ?? true,
+        // Il deploy cancellerebbe dal pannello progetti con un altro nome: la
+        // conferma l'ha data l'utente (03-10-2026).
+        confirm_replace: opts.confirmReplace ?? false,
       }),
     });
   },

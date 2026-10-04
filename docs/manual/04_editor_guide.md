@@ -37,7 +37,7 @@ SWS  Project: default  [Editor] [Configurazione]  User: admin  Admin  Griglia: 1
 | **Griglia: 10px** | Snap-to-grid — imposta il passo della griglia (10, 20, 5 px o libero) |
 | **RUN / STOP** | Avvia o ferma l'acquisizione dal campo — vedi sotto |
 | **Reboot** | Riavvia il runtime (ricarica configurazione) |
-| **● Deploy** | Distribuisce la versione locale su un runtime remoto |
+| **● Deploy** | Distribuisce la versione locale su un runtime remoto. Se sul pannello c'è un progetto con un **altro nome**, prima chiede conferma: il deploy lo cancella, storico compreso, e la domanda dice quale e quanto pesa |
 | **⚠ (contatore)** | Avvisi del runtime: compare solo se c'è qualcosa che non va |
 | **Log** | Apre il pannello log in tempo reale |
 | **≡ Menu** | Salva tutto, importa/esporta progetto, simboli personalizzati |
@@ -200,7 +200,12 @@ Crea funzioni che i widget richiamano su `on_press`/`on_release`.
 
 ### 🏷 TAG
 
-Elenco dei tag definiti nel progetto con valore live.
+Elenco dei tag definiti nel progetto con valore live, con i decimali e l'unità dichiarati.
+
+Un **tipo** (Configurazione → Variabili → Tipi) da solo non produce variabili: le sue parti esistono solo in una
+variabile di quel tipo, un'**istanza**. Nella scheda Tipi, sotto il tipo scelto, «Crea istanza» la crea col nome proposto
+(modificabile) e porta alla sua riga fra le Variabili; da lì le sue parti (`sistema.cpu_pct`) compaiono nell'albero e nei
+selettori dei tag. Il template «TC620 — sistema» ne è un esempio completo.
 
 ### I rami di configurazione
 

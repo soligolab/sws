@@ -30,6 +30,8 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
   const markSaveOk          = useAppStore((s) => s.markSaveOk);
   const datastoreIds        = storeProject?.datastores?.map((d) => ({ id: d.id, label: d.label })) ?? [];
   const setCurrentPage      = useAppStore((s) => s.setCurrentPage);
+  const setConfigTab        = useAppStore((s) => s.setConfigTab);
+  const setConfigFocus      = useAppStore((s) => s.setConfigFocus);
   const configFocus         = useAppStore((s) => s.configFocus);
   const inQuestaScheda      = useAppStore((s) => s.configTab === "tags");
   /** La variabile scelta nell'albero. Una foglia (`motore1.velocita`)
@@ -380,7 +382,10 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
         <button style={S.btn("ghost")} onClick={() => setShowImport(true)} title={t("cfg.importTagsCsv")}>{t("cfgUi.importCsv")}</button>
       </div>
 
-      <Tenuta attiva={vista === "tipi"}><TipiTab key={revTipi} incorporata /></Tenuta>
+      <Tenuta attiva={vista === "tipi"}>
+        <TipiTab key={revTipi} incorporata variabiliToccate={touched}
+          onIstanzaCreata={(id) => { setTags(conRigaVuota(useAppStore.getState().project?.tags ?? [])); setConfigTab("tags"); setConfigFocus(id); }} />
+      </Tenuta>
       <Tenuta attiva={vista === "variabili"}>
       <div style={S.notice}>
         <Trans i18nKey="cfgUi.variablesNotice" values={{ tab: t("config.tabs.protocols") }} components={TRANS_COMP} />

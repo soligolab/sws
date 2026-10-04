@@ -1553,6 +1553,55 @@ pub struct DeployBody {
     /// conservativo toglie solo i file di disegno (`DESIGN_ARTIFACTS`).
     #[serde(default = "vero")]
     pub con_segreti: bool,
+    /// L'editor ha mostrato «il deploy cancella dal pannello questi progetti,
+    /// storico compreso» e l'utente ha detto sì (03-10-2026). Senza, il caso si
+    /// ferma con un 428 `sostituisce-progetti`.
+    #[serde(default)]
+    pub confirm_replace: bool,
+}
+
+/// Un progetto sul pannello che il deploy cancellerebbe.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub(crate) struct DaSostituire {
+    pub nome: String,
+    /// Il peso del suo storico, se il pannello lo dice (runtime dal 03-10-2026).
+    pub storico_byte: Option<u64>,
+}
+
+/// I progetti sul pannello che il deploy di `nome` cancellerebbe **per intero**:
+/// tutti quelli con un altro nome (lo stesso nome si ridistribuisce conservando
+/// database e backup). Senza nome — manifest illeggibile — li cancellerebbe
+/// tutti, ed è così che va detto. Pura.
+pub(crate) fn progetti_da_sostituire(sul_pannello: &[DaSostituire], nome: Option<&str>) -> Vec<DaSostituire> {
+    sul_pannello.iter().filter(|p| Some(p.nome.as_str()) != nome).cloned().collect()
+}
+
+/// L'elenco dei progetti del pannello, col peso dello storico. Vuoto se non si
+/// legge: allora non si chiede niente, come prima (e il deploy non riuscirebbe
+/// comunque a cancellarli, perché li legge dalla stessa rotta).
+async fn leggi_progetti_dispositivo(
+    client: &reqwest::Client,
+    base: &str,
+    auth_hdr: &Option<String>,
+) -> Vec<DaSostituire> {
+    let mut r = client.get(format!("{base}/api/projects"));
+    if let Some(h) = auth_hdr {
+        r = r.header("Authorization", h);
+    }
+    let Ok(resp) = r.send().await else { return Vec::new() };
+    if !resp.status().is_success() {
+        return Vec::new();
+    }
+    let v: serde_json::Value = resp.json().await.unwrap_or_default();
+    v.as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(|p| {
+                    Some(DaSostituire { nome: p["name"].as_str()?.to_string(), storico_byte: p["storico_byte"].as_u64() })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn vero() -> bool {
@@ -1565,6 +1614,7 @@ impl Default for DeployBody {
             replace_users: true,
             confirm_no_users: false,
             con_segreti: true,
+            confirm_replace: false,
         }
     }
 }
@@ -1678,6 +1728,27 @@ pub async fn remote_deploy(
             })),
         )
             .into_response();
+    }
+
+    // Il deploy di un progetto con un altro nome cancella dal pannello quello
+    // che c'era, storico compreso (03-10-2026: `rc14_lvgl` sparito dal TC620
+    // senza una domanda). Si chiede prima di toccare qualunque cosa. Il nome è
+    // quello che finirà nel manifest dello ZIP: `meta.name`.
+    if !opz.confirm_replace {
+        let nome = sws_core::Project::load(&proj_dir).ok().map(|p| p.meta.name);
+        let sul_pannello = leggi_progetti_dispositivo(&client, &base, &auth_hdr).await;
+        let da_sostituire = progetti_da_sostituire(&sul_pannello, nome.as_deref());
+        if !da_sostituire.is_empty() {
+            return (
+                StatusCode::PRECONDITION_REQUIRED,
+                Json(serde_json::json!({
+                    "conferma": "sostituisce-progetti",
+                    "progetto": nome,
+                    "progetti": da_sostituire,
+                })),
+            )
+                .into_response();
+        }
     }
 
     let (tx, rx) = tokio::sync::mpsc::channel::<String>(64);
@@ -2118,6 +2189,20 @@ mod tests {
     /// Corpo assente = default, non «tutto spento»: l'auto-deploy dello store
     /// chiama senza corpo, e un default a `false` gli farebbe fare una cosa
     /// diversa da quella dichiarata.
+    #[test]
+    fn il_deploy_sostituisce_solo_i_progetti_con_un_altro_nome() {
+        let p = |n: &str, b: Option<u64>| DaSostituire { nome: n.into(), storico_byte: b };
+        let pannello = vec![p("rc14_lvgl", Some(51_000_000)), p("tc620-sistema", Some(1_000))];
+        assert_eq!(progetti_da_sostituire(&pannello, Some("tc620-sistema")), vec![p("rc14_lvgl", Some(51_000_000))]);
+        assert!(progetti_da_sostituire(&[p("tc620-sistema", None)], Some("tc620-sistema")).is_empty());
+        assert!(progetti_da_sostituire(&[], Some("x")).is_empty());
+        assert_eq!(progetti_da_sostituire(&pannello, None).len(), 2, "senza nome li cancellerebbe tutti");
+        let d: DeployBody = serde_json::from_str(r#"{"confirm_replace": true}"#).unwrap();
+        assert!(d.confirm_replace);
+        let d: DeployBody = serde_json::from_str("{}").unwrap();
+        assert!(!d.confirm_replace);
+    }
+
     #[test]
     fn il_corpo_del_deploy_ha_i_default_giusti() {
         let d = DeployBody::default();

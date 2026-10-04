@@ -1515,7 +1515,11 @@
     "emailModoOff": "nessuna",
     "istantaneaPrendo": "==> Istantanea dei dati sul pannello collegato...",
     "istantaneaPresa": "    istantanea presa ({{mb}} MB, versione {{v}})",
-    "istantaneaNessuna": "    nessuna istantanea ({{motivo}}): tornando indietro si riporterà solo l'immagine"
+    "istantaneaNessuna": "    nessuna istantanea ({{motivo}}): tornando indietro si riporterà solo l'immagine",
+    "deploySostituisceConfirm": "Il deploy di «{{progetto}}» cancella dal pannello:\n{{elenco}}\n\nLo storico di questi progetti si perde. Continuare?",
+    "deploySostituisceVoce": "  • «{{nome}}», con {{mb}} MB di storico",
+    "deploySostituisceVoceSenzaPeso": "  • «{{nome}}», col suo storico",
+    "deployAnnullato": "Deploy annullato."
   },
   "langtab": {
     "migrate": "Migra i testi…",
@@ -2445,7 +2449,14 @@
     "intervalloMin": "Intervallo min (ms)",
     "ruoloScrittura": "Ruolo min. scrittura",
     "anteprima": "COSA OTTIENI — le parti di un'istanza di questo tipo",
-    "nessunaFoglia": "Nessun membro."
+    "nessunaFoglia": "Nessun membro.",
+    "nessunaIstanza": "Questo tipo non ha ancora istanze: le sue parti esistono solo in una variabile di questo tipo.",
+    "nomeIstanza": "Nuova variabile di questo tipo:",
+    "creaIstanza": "Crea istanza",
+    "salvaPrimaVariabili": "Salva prima le modifiche alle Variabili.",
+    "nomeVuoto": "Serve un nome.",
+    "nomeCaratteri": "Niente spazi, punti o parentesi quadre: si confonderebbero con il percorso delle parti.",
+    "nomeEsiste": "Esiste già una variabile con questo nome."
   },
   "forma": {
     "tipoNonDichiarato": "tipo `{{id}}` non dichiarato",

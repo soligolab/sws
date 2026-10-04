@@ -731,18 +731,46 @@ let saltaDeployAutomatico = false;
  *    progetto non ha utenti il server risponde 428 e chi guarda decide.
  *  Il registro in streaming si legge fino in fondo: l'ultima riga che inizia
  *  con ✗ è il motivo, e finisce nel tooltip della testata. */
-async function eseguiDeploy(completo: boolean, confermato = false): Promise<void> {
+/** Il testo della conferma prima di un deploy che cancella dal pannello
+ *  progetti con un altro nome (03-10-2026). Puro, per i test. */
+export function testoSostituzione(
+  progetto: string | null | undefined,
+  progetti: { nome: string; storico_byte?: number | null }[],
+): string {
+  const elenco = progetti
+    .map((p) => (p.storico_byte != null
+      ? i18n.t("cfg.deploySostituisceVoce", { nome: p.nome, mb: (p.storico_byte / 1_000_000).toFixed(1) })
+      : i18n.t("cfg.deploySostituisceVoceSenzaPeso", { nome: p.nome })))
+    .join("\n");
+  return i18n.t("cfg.deploySostituisceConfirm", { progetto: progetto ?? "?", elenco });
+}
+
+async function eseguiDeploy(completo: boolean, confermato = false, sostituzioneConfermata = false): Promise<void> {
   useAppStore.setState({ remoteDeployStatus: "syncing", remoteDeployErrore: null });
   let errore: string | null = null;
   try {
-    const res = await api.deployToRuntime({ replaceUsers: completo, conSegreti: completo, confirmNoUsers: confermato });
-    if (res.status === 428 && completo && !confermato) {
-      const d = await res.json().catch(() => ({} as { utenti_dispositivo?: string[] }));
-      const elenco = Array.isArray(d?.utenti_dispositivo) && d.utenti_dispositivo.length
-        ? d.utenti_dispositivo.join(", ") : i18n.t("cfg.deployNoUsersUnknown");
-      if (window.confirm(i18n.t("cfg.deployNoUsersConfirm", { utenti: elenco }))) return eseguiDeploy(true, true);
-      useAppStore.setState({ remoteDeployStatus: "idle" });
-      return;
+    const res = await api.deployToRuntime({
+      replaceUsers: completo, conSegreti: completo, confirmNoUsers: confermato, confirmReplace: sostituzioneConfermata,
+    });
+    if (res.status === 428) {
+      const d = await res.json().catch(() => ({} as Record<string, unknown>)) as {
+        conferma?: string; utenti_dispositivo?: string[]; progetto?: string;
+        progetti?: { nome: string; storico_byte?: number | null }[];
+      };
+      // Il deploy cancellerebbe progetti con un altro nome: si chiede, e
+      // annullando non si tocca niente.
+      if (d.conferma === "sostituisce-progetti" && !sostituzioneConfermata) {
+        if (window.confirm(testoSostituzione(d.progetto, d.progetti ?? []))) return eseguiDeploy(completo, confermato, true);
+        useAppStore.setState({ remoteDeployStatus: "idle" });
+        return;
+      }
+      if (completo && !confermato) {
+        const elenco = Array.isArray(d?.utenti_dispositivo) && d.utenti_dispositivo.length
+          ? d.utenti_dispositivo.join(", ") : i18n.t("cfg.deployNoUsersUnknown");
+        if (window.confirm(i18n.t("cfg.deployNoUsersConfirm", { utenti: elenco }))) return eseguiDeploy(true, true, sostituzioneConfermata);
+        useAppStore.setState({ remoteDeployStatus: "idle" });
+        return;
+      }
     }
     if (!res.ok || !res.body) {
       errore = (await res.text().catch(() => "")).trim() || `${res.status} ${res.statusText}`;

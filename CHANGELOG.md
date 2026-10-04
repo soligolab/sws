@@ -20,6 +20,14 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   mostra lo stato ma non le novità. Vale per la `2.12.0-rc.1` e la `rc.2`.
 
 ### Added
+- **«Crea istanza» nella scheda Tipi, e il deploy che chiede prima di cancellare** (piano
+  `docs/plans/2026-10-03-istanze-e-deploy-che-sostituisce.md`). Tipi: sotto il tipo scelto, «nessuna istanza» detto
+  chiaramente, un nome proposto unico (`tag/istanze.ts`) e il pulsante che salva il tipo se serve, aggiunge la variabile
+  con `type_ref` e porta alla sua riga; spento con la bozza delle Variabili toccata. Deploy: `remote_deploy` legge i
+  progetti del pannello prima di toccare qualunque cosa e, se ce n'è uno con un altro nome, risponde 428
+  `sostituisce-progetti` con nomi e peso dello storico (`list_projects` → `storico_byte`); l'IDE chiede conferma e ritenta
+  con `confirm_replace` (barra in testata, deploy al salvataggio e scheda Connessione). Al collaudo del 03-10 il deploy di
+  `tc620-sistema` aveva cancellato `rc14_lvgl` dal TC620 senza una domanda.
 - **Lo storico compatto** (piano `docs/archive/2026-09-26-storico-troppo-grande.md`). `sws-historian/src/sqlite.rs`:
   `tag_storico (id, nome)` + `campioni (tag_id, ts_ms, tipo, valore, qualita)` WITHOUT ROWID, `valore` senza
   affinità (intero esatto, reale, testo, JSON per array/strutture), vista `samples` con la forma di prima. Migrazione

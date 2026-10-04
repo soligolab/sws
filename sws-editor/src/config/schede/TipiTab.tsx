@@ -11,13 +11,14 @@
 // Sta in un file suo e non dentro `ConfigView.tsx`, che è già a 11 600 righe
 // (vedi il seme `docs/plans/2026-09-22-riorganizzare-i-file-dell-editor.md`).
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { useAppStore } from "@/store";
 import { OpzioniTipo } from "@/components/OpzioniTipo";
 import { normalizzaTipo } from "@/tag/tipiScalari";
 import { FormaNonValida, foglieDi } from "@/tag/forma";
+import { motivoNomeIstanza, nomeIstanzaProposto } from "@/tag/istanze";
 import type { Membro, TagDataType, TypeDef } from "@/types";
 import { S, SaveBar, SezionePendente } from "@/config/comuni";
 
@@ -51,12 +52,20 @@ function membroVuoto(): Membro {
  *  la barra del Salva e l'introduzione le mette il guscio, non lei. La bozza
  *  si registra lo stesso fra le sezioni pendenti — è quello che fa arrivare i
  *  tipi al Salva unico del progetto. */
-export function TipiTab({ incorporata = false }: { incorporata?: boolean } = {}) {
+export function TipiTab({ incorporata = false, onIstanzaCreata, variabiliToccate = false }: {
+  incorporata?: boolean;
+  /** Dopo «Crea istanza»: chi ospita la scheda porta l'utente alla variabile. */
+  onIstanzaCreata?: (id: string) => void;
+  /** La bozza delle Variabili ha modifiche non salvate: creare un'istanza
+   *  scriverebbe i tag sopra quella bozza, quindi il pulsante si spegne. */
+  variabiliToccate?: boolean;
+} = {}) {
   const { t } = useTranslation();
   const storeTypes = useAppStore((s) => s.project?.types);
   const storeTags = useAppStore((s) => s.project?.tags);
   const updateProjectTypes = useAppStore((s) => s.updateProjectTypes);
   const markSaveOk = useAppStore((s) => s.markSaveOk);
+  const updateProjectTags = useAppStore((s) => s.updateProjectTags);
 
   const [types, setTypes] = useState<TypeDef[]>(() => storeTypes ?? []);
   const [scelto, setScelto] = useState<string | null>(() => storeTypes?.[0]?.id ?? null);
@@ -94,6 +103,37 @@ export function TipiTab({ incorporata = false }: { incorporata?: boolean } = {})
       return { foglie: [], errore: e instanceof FormaNonValida ? e.message : String(e) };
     }
   }, [corrente, types]);
+
+  // «Crea istanza» (03-10-2026): un tipo senza istanze non produce variabili, e
+  // fino a oggi niente lo diceva né portava a crearne una.
+  const idTag = useMemo(() => (storeTags ?? []).map((x) => x.id), [storeTags]);
+  const [nomeIstanza, setNomeIstanza] = useState("");
+  const [creando, setCreando] = useState(false);
+  const [erroreIstanza, setErroreIstanza] = useState<string | null>(null);
+  useEffect(() => {
+    if (corrente) setNomeIstanza(nomeIstanzaProposto(corrente.id, idTag));
+    setErroreIstanza(null);
+  }, [corrente?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const motivoNome = motivoNomeIstanza(nomeIstanza, idTag);
+  const creaIstanza = async () => {
+    if (!corrente || motivoNome || variabiliToccate) return;
+    setCreando(true);
+    setErroreIstanza(null);
+    try {
+      // Il tipo deve esistere sul server prima della variabile che lo usa.
+      if (touched) await handleSave();
+      const attuali = useAppStore.getState().project?.tags ?? [];
+      const nuovi = [...attuali, { id: nomeIstanza.trim(), description: "", type_ref: corrente.id, history: false }];
+      await api.updateTags(nuovi);
+      updateProjectTags(nuovi);
+      markSaveOk();
+      onIstanzaCreata?.(nomeIstanza.trim());
+    } catch (e) {
+      setErroreIstanza(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCreando(false);
+    }
+  };
 
   const aggiungiTipo = () => {
     const base = t("tipiTab.nuovoId");
@@ -210,11 +250,29 @@ export function TipiTab({ incorporata = false }: { incorporata?: boolean } = {})
                 </label>
               </div>
 
-              {istanze.length > 0 && (
-                <div style={{ ...S.notice, marginBottom: 10 }}>
-                  {t("tipiTab.istanze", { n: istanze.length, ids: istanze.slice(0, 6).join(", ") })}
+              <div style={{ ...S.notice, marginBottom: 10 }}>
+                <div>
+                  {istanze.length > 0
+                    ? t("tipiTab.istanze", { n: istanze.length, ids: istanze.slice(0, 6).join(", ") })
+                    : t("tipiTab.nessunaIstanza")}
                 </div>
-              )}
+                <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginTop: 6 }}>
+                  <span style={{ fontSize: 11 }}>{t("tipiTab.nomeIstanza")}</span>
+                  <input style={{ ...IN, width: 180 }} value={nomeIstanza}
+                    onChange={(e) => setNomeIstanza(e.target.value)} spellCheck={false} />
+                  <button style={S.btn("primary")} onClick={() => void creaIstanza()}
+                    disabled={creando || !!motivoNome || variabiliToccate}
+                    title={variabiliToccate ? t("tipiTab.salvaPrimaVariabili") : motivoNome ? t(motivoNome) : undefined}>
+                    {t("tipiTab.creaIstanza")}
+                  </button>
+                  {(variabiliToccate || motivoNome) && (
+                    <span style={{ fontSize: 11, color: "var(--brand-warning, #f59e0b)" }}>
+                      {variabiliToccate ? t("tipiTab.salvaPrimaVariabili") : t(motivoNome!)}
+                    </span>
+                  )}
+                  {erroreIstanza && <span style={{ fontSize: 11, color: "var(--brand-danger, #ef4444)" }}>{erroreIstanza}</span>}
+                </div>
+              </div>
 
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
