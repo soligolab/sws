@@ -83,8 +83,13 @@ Rami eliminati, piani in archivio.
   Pixsys `90-pixsys-hw-symlinks.rules`; `ttyCOM2` = `ttyS0`), 57600 8N1. Non comunicavano per tre motivi: il bus era
   solo nell'editor del PC (che apriva `/dev/ttyCOM1` sul PC), il TC620 gira la rc.21 (non conosce bus/catalogo), e il
   quadlet **non passa nessuna seriale al container** (porte `root:dialout` 0660, `user` è in `dialout`).
-- **Prossimo**: ramo per la tendina delle porte seriali lette dal dispositivo connesso + quadlet 2 con
-  `AddDevice=-/dev/...` e `GroupAdd=keep-groups` (podman 5.0.2, crun 1.14 sul TC620); poi la 2.12.0-rc.22 da `main`.
+- **Fatto** (`a56110d8`): quadlet 2 (`AddDevice=-/dev/…`, `GroupAdd=keep-groups`, provato con podman 5.7: senza
+  keep-groups «Permission denied»), `GET /api/host/seriali` + remoto, tendina delle porte con «Inserisci a mano…».
+  **2.12.0-rc.22** costruita e pubblicata sul canale `rc-arm64` su richiesta del maintainer, per provare anche
+  l'aggiornamento automatico.
+- **Collaudo sul TC620**: aggiornamento alla rc.22 dal canale di prova → «configurazione del servizio da aggiornare»
+  (quadlet 1 → 2) → deploy del progetto col bus `rtu-COM1` (MCM260X-5AD id 1, -9AD id 2, 57600 8N1) → la tendina
+  deve mostrare `/dev/ttyCOM1 → ttyS2` raggiungibile, i pallini verdi, i LED di comunicazione accesi.
 
 ## ▶ Riprendere da qui — quattro rami annidati, catalogo dei dispositivi Pixsys (2026-10-04, sera)
 
