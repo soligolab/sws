@@ -76,8 +76,13 @@
 
 ## ▶ Riprendere da qui — rc.23 dal collaudo MCM260X sul TC620 (2026-10-04, notte)
 
-**Nessun ramo aperto.** Su `main` e su origin: `c080f9d6` (collaudo MCM260X) + `chore(rc): 2.12.0-rc.23`, tag
-**2.12.0-rc.23**, immagine sul canale `rc-arm64`.
+**Nessun ramo aperto.** Su `main` e su origin: `c080f9d6` (collaudo MCM260X) + `22b8a1fa` (`chore(rc):
+2.12.0-rc.23`), tag **2.12.0-rc.23**. Immagine pubblicata e verificata: `rc-arm64` = `2.12.0-rc.23-arm64` =
+`22b8a1fa-arm64`, etichette versione 2.12.0-rc.23 e quadlet 3; archivio `dist/sws-runtime-2.12.0-rc.23-aarch64-image.tar.gz`
+(155 MB).
+- **Primo passo della prossima sessione**: il maintainer installa la rc.23 sul TC620 (il pannello ha la rc.22 **da
+  archivio**: l'aggiornamento automatico lì è spento, quindi o reinstallazione dal canale `rc-arm64` per provarlo, o di
+  nuovo dall'archivio) e conferma; poi quadlet 2 → 3, i tre MCM rifatti dal catalogo (annidati), deploy, pallini verdi.
 - **Collaudo sul TC620** (rc.22 installata, quadlet corretto **a mano** sul pannello: `PodmanArgs=--group-add
   keep-groups` e `AddDevice=-/dev/ttyCOMn:/dev/ttyCOMn`, numero ancora «2»):
   - i due MCM260X stanno su **`/dev/ttyCOM2`** (= `ttyS0`, RS485-2) a 57600 8N1, **non** su `ttyCOM1`; RS-485 del
