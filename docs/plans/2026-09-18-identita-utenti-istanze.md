@@ -152,8 +152,35 @@ le sue parole, e ciò che è stato **misurato**; le proposte restano proposte fi
     progetto, rete solo verso la VPN della sua azienda. Riusa l'immagine del runtime.
 26. **Lo strato davanti è lo stesso binario in una modalità nuova** (es. `sws-runtime --gateway`):
     login, aziende, quote, instradamento e avvio/spegnimento dei container.
-27. **L'IDE installabile resta**, accanto a quello ospitato, per chi non vuole il cloud o lavora
-    offline: stesso codice, senza gateway.
+27. **Solo cloud, con la porta del self-host tenuta aperta** (riscritta il 05-10-2026; prima diceva
+    «l'IDE installabile resta, accanto a quello ospitato, per chi non vuole il cloud o lavora
+    offline»). Parole del maintainer: «il servizio per ora lo fornirò solo cloud, è quello che penso
+    essere il business model migliore. Vorrei però tenermi sempre la strada aperta per fornirlo in
+    self-host, può anche essere un container che il cliente avvierà su un suo server, non è
+    indispensabile sia installabile sul singolo PC».
+
+    Quindi **non si vende** l'IDE installabile, ma **non si rende impossibile** darlo domani come
+    container su un server del cliente. È un vincolo di architettura, non una funzionalità da
+    costruire adesso — e un vincolo del genere vive solo se è scritto come regola, perché le
+    dipendenze dal cloud si infilano una alla volta senza che nessuno le decida:
+    - **il cloud è un modo di far girare l'IDE, non un prodotto diverso**: un'istanza con una sola
+      azienda e nessun gateway deve restare una configurazione valida, non un caso rotto;
+    - **il gateway è opzionale**: `ide_only` dietro il gateway non può diventare l'unico modo in cui
+      l'autenticazione funziona (vedi la lettera d nella tabella CRA più sopra);
+    - **nessun indirizzo della VPS compilato dentro**: già previsto dalla decisione 13, qui diventa
+      anche un requisito del self-host;
+    - **niente verifiche che telefonano a casa** per licenze o quote: le quote sono dello strato
+      gateway, non del nucleo.
+
+    Costa poco mantenerlo perché **oggi quella strada esiste già**: `scripts/start_editor.sh` è
+    letteralmente «l'IDE come lo avvierebbe un cliente», e il runtime gira in container da sempre.
+    Il rischio non è costruirla, è lasciarla marcire. Da decidere nella sessione di plan: se basta
+    tenerla viva con una guardia che avvii l'IDE senza gateway né azienda, o se serve di più.
+
+    **Nota CRA**: finché è solo cloud, l'IDE è un servizio e sta fuori dal perimetro del regolamento.
+    Il giorno in cui un container self-host viene consegnato a un cliente, quello **è** un prodotto
+    con elementi digitali e si porta dietro gli obblighi da fabbricante. Non è un motivo per non
+    farlo: è un costo che si attiva alla consegna, e va saputo prima di prometterlo a qualcuno.
 28. **Email via SMTP configurabile**, senza legarsi a un fornitore.
 
 29. **Nessun ramo di sviluppo lungo** (maintainer: «No, ok, alla fine tutto questo lavoro ha senso
@@ -222,7 +249,7 @@ per ciò che si immette sul mercato da allora. Non è un parere legale (vedi la 
 | 19 — email e password, 2FA TOTP opzionale | Copre la lettera d per l'IDE ospitato; **2FA** è un buon argomento nella valutazione del rischio |
 | 21, 22 — utenti d'impianto nel progetto e «locali» sul pannello, account cloud separati, pannello usabile senza internet | Il pannello deve avere **sempre** un'autenticazione propria, anche offline: coerente. Manca il caso «pannello appena installato, nessun progetto»: oggi è aperto |
 | 26 — il gateway (`--gateway`) fa login e instradamento | Per l'IDE ospitato il requisito è soddisfatto dal gateway: `ide_only` dietro il gateway = «l'autenticazione la fa il gateway» (già annotato in «Ancora aperto») |
-| 27 — l'IDE installabile resta | **In contraddizione, da chiarire.** Il 05-10-2026 il maintainer ha detto che il prodotto «non verrà distribuito come installabile ma sarà sempre accessibile da un dominio web» (`sws.soligolab.net`), e che il cliente installa **solo il runtime**. Se l'IDE installabile sparisce, la 27 va riscritta e con lei cadono i casi d'uso offline appesi; se resta per l'IDE di sviluppo, il CRA pesa come scritto prima: senza gateway non ha password. Prima domanda della sessione di plan |
+| 27 — solo cloud, self-host tenuto possibile (riscritta il 05-10-2026) | Finché è solo cloud l'IDE è un servizio e sta fuori dal CRA; il requisito «nessun IDE senza autenticazione» resta per ragioni sue, non del regolamento. Il giorno in cui il container self-host viene consegnato, diventa un prodotto e servono gli obblighi da fabbricante — compresa l'**opzione 2 di Q56** (utenti dell'installazione), che quindi non è cancellata ma rimandata |
 | 29 — prima i pezzi che toccano il codice condiviso e servono anche in locale | I vincoli CRA sono proprio di questo tipo: si possono fare **prima** del gateway e della VPN |
 
 ### Cosa serve (vincoli, non ancora un disegno)

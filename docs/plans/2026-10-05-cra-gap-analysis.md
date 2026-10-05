@@ -166,11 +166,13 @@ il motivo dove è servito.
 
 - **Classificazione del prodotto** (categoria predefinita, autovalutazione modulo A): da confermare con chi segue
   la conformità, non è un parere che questo documento possa dare.
-- **L'IDE installabile.** La decisione 27 del piano utenti dice «l'IDE installabile resta, accanto a quello
-  ospitato, per chi non vuole il cloud o lavora offline». Il 05-10-2026 il maintainer ha detto che il prodotto
-  «non verrà distribuito come installabile ma sarà sempre accessibile da un dominio web». Le due frasi non stanno
-  insieme: o la 27 va riscritta, o vale solo per l'IDE di sviluppo. **Da chiarire quando si apre il piano utenti**,
-  perché da lì dipendono i casi d'uso offline che ci stanno appesi.
+- ~~L'IDE installabile.~~ **Chiuso il 05-10-2026**: la decisione 27 del piano utenti è stata riscritta. Il
+  servizio si fornisce **solo cloud** — è il business model scelto — ma la strada del **self-host resta aperta**,
+  eventualmente come container che il cliente avvia su un proprio server; non deve per forza essere installabile su
+  un singolo PC. Finché è solo cloud, l'IDE è un servizio e sta fuori dal perimetro CRA; il giorno in cui un
+  container self-host viene consegnato a un cliente, quello è un prodotto con elementi digitali e porta con sé gli
+  obblighi da fabbricante. Il vincolo da rispettare da subito è architetturale, non normativo: il cloud deve
+  restare *un modo di far girare l'IDE*, non un prodotto diverso.
 
 ## Fonti
 

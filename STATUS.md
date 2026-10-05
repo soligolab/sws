@@ -104,11 +104,20 @@
 - **Nulla è ancora sul mercato**, quindi **nemmeno l'art. 14 è attivo**: serve pronto prima della prima consegna,
   non oggi. La prima stesura della gap analysis diceva «già in ritardo» ed era sbagliata; corretta nel documento.
 
-### Da chiarire alla prossima sessione
+### La decisione 27, riscritta
 
-La **decisione 27** del piano utenti («l'IDE installabile resta, accanto a quello ospitato») contraddice «non verrà
-distribuito come installabile». O la 27 si riscrive, o vale solo per l'IDE di sviluppo — e da lì dipendono i casi
-d'uso offline appesi. È annotato in tutti e due i piani.
+Il servizio si fornisce **solo cloud** — business model scelto — ma la strada del **self-host resta aperta**, al
+limite come container che il cliente avvia su un suo server; non deve essere installabile sul singolo PC. Non è una
+funzionalità da costruire ora: è un **vincolo di architettura** scritto nel piano, perché le dipendenze dal cloud si
+infilano una alla volta senza che nessuno le decida. Le quattro regole: il cloud è un modo di far girare l'IDE e non
+un prodotto diverso (un'istanza con una sola azienda e senza gateway resta valida); il gateway è opzionale e non può
+diventare l'unico posto dove l'autenticazione esiste; nessun indirizzo della VPS compilato dentro; niente verifiche
+che telefonano a casa. Costa poco perché la strada esiste già — `scripts/start_editor.sh` è «l'IDE come lo avvierebbe
+un cliente» — il rischio è lasciarla marcire.
+
+Conseguenza CRA, da sapere prima di prometterlo a qualcuno: finché è solo cloud l'IDE è un servizio e sta fuori dal
+regolamento; il giorno in cui il container self-host viene **consegnato**, è un prodotto con elementi digitali e si
+porta dietro gli obblighi da fabbricante.
 
 ### Prossimo passo
 
