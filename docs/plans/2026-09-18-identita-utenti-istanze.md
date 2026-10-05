@@ -97,7 +97,25 @@ le sue parole, e ciò che è stato **misurato**; le proposte restano proposte fi
    prima di scegliere.
 
 8. **Solo OpenVPN**, anche per i dispositivi non Pixsys, che interessano **da subito**.
-9. **Un'istanza OpenVPN per azienda** sulla VPS: rete e CA proprie, isolamento per costruzione.
+9. ~~**Un'istanza OpenVPN per azienda** sulla VPS: rete e CA proprie, isolamento per costruzione.~~
+   **Corretta il 05-10-2026 — un'istanza sola, isolamento per configurazione.** Il motivo è
+   aritmetico e non si aggira: la decisione 36 mette la VPN sulla **443**, e quella porta la lega un
+   processo solo. Un proxy davanti non aiuta, perché i client OpenVPN non mandano SNI — haproxy non
+   ha niente con cui distinguere il pannello dell'azienda A da quello dell'azienda B. Le alternative
+   erano un IPv4 pubblico per azienda (isolamento intatto, si paga per IP) o la 443 solo per le
+   prove; il maintainer ha scelto l'istanza unica.
+
+   Quindi: **un endpoint per tutti**, e la separazione fra aziende la fanno `client-config-dir` con
+   **sottoreti fisse per azienda** e le regole del firewall. È un cambio di natura, non di dettaglio:
+   si passa da «isolamento per costruzione» a «isolamento per configurazione», dove un errore in una
+   regola mette due clienti sulla stessa rete invece di dare un errore. Due conseguenze obbligatorie,
+   non facoltative:
+   - **una guardia** che verifichi che le sottoreti per azienda siano disgiunte e che le regole del
+     firewall le rispettino, perché questo è esattamente il tipo di difetto che non si manifesta
+     finché non è grave;
+   - **si dice a chi prova** che l'isolamento è per configurazione. Il giorno in cui un cliente lo
+     mette per contratto, la strada è l'IPv4 dedicato con la sua istanza, e la decisione 9
+     originale torna valida per lui.
 10. **Pixsys: il container scrive `client.ovpn` e `secrets.txt` in `/data/openvpn`** (un mount in più
     nell'installer) e la VPN parte al riavvio del pannello.
 11. **Non Pixsys: il client OpenVPN gira sull'host**, installato da `install-container.sh` — la regola
@@ -182,6 +200,43 @@ le sue parole, e ciò che è stato **misurato**; le proposte restano proposte fi
     con elementi digitali e si porta dietro gli obblighi da fabbricante. Non è un motivo per non
     farlo: è un costo che si attiva alla consegna, e va saputo prima di prometterlo a qualcuno.
 28. **Email via SMTP configurabile**, senza legarsi a un fornitore.
+
+36. **Le porte pubbliche: la 443 è della VPN, l'IDE sta altrove** (05-10-2026). Parole del
+    maintainer: «l'IDE non è necessario sia sulla porta 443, basta un redirect dalla porta 80 quando
+    uno apre la pagina, se non vede la pagina il problema è della sua rete. Più importante è la VPN
+    sulla 443 perché se non si raggiunge il pannello diventa difficile capire cosa non vada».
+
+    La ragione è la diagnosticabilità, ed è buona: un IDE che non si apre è un guasto che l'utente
+    vede e capisce; un pannello che non si collega è invisibile. Quindi **80** → reindirizzamento,
+    **443** → OpenVPN, IDE su una porta TLS dedicata.
+    - *Effetto collaterale favorevole*: con la 80 libera, Let's Encrypt funziona con la sfida
+      HTTP-01 senza girarci intorno — la 443 occupata avrebbe lasciato solo DNS-01.
+    - *Il prezzo, dichiarato*: gli sviluppatori di un'azienda di automazione lavorano spesso
+      **dentro** l'impianto del cliente, dietro lo stesso firewall ostile che preoccupa per il
+      pannello. Lì una porta non standard può essere bloccata proprio mentre si è davanti alla
+      macchina. Accettato consapevolmente.
+
+37. **Il server è un VPS OVH** (05-10-2026), si parte dal **VPS-1** (2 vCore, 4 GB, 40 GB NVMe) con
+    l'idea di salire fino al VPS-4 se serve. È KVM, quindi podman annidato e `/dev/net/tun`
+    funzionano senza i contorsionismi di un LXC non privilegiato.
+
+    Perché 4 GB bastano per cominciare: **la decisione 5 è anche un dimensionamento**. Nell'IDE
+    ospitato sorgenti e script Python sono spenti, quindi un progetto aperto non interroga nessun bus
+    e non esegue niente a ciclo — la CPU per progetto è quasi zero e il vincolo è la memoria
+    (~150-250 MB per progetto aperto in release). Lo stesso vale per il disco: senza registratore
+    dei datastore lo storico non cresce, e il costo fisso è l'immagine.
+
+    **Il numero da sorvegliare non è quanti si registrano, ma quanti progetti sono aperti insieme** —
+    e la decisione 23 ha scelto di *non* farne una quota, lasciando come unica difesa lo spegnimento
+    dei processi inattivi (Fase 4 del piano d'esecuzione). Finché quello non c'è, dieci schede
+    dimenticate sono dieci container vivi.
+
+    Tre vincoli operativi: **non si compila sul VPS** (una `target/` di questo workspace si mangia i
+    40 GB da sola — build altrove, immagini su ghcr, il VPS fa `pull`); **datacenter UE**, perché con
+    la registrazione libera si trattano dati personali (decisione 17 e GDPR); **la porta 25 in uscita
+    è bloccata di default sui VPS OVH**, e morde sulla verifica dell'indirizzo — serve un relay su
+    587, con PTR, SPF e DKIM, o le email di registrazione finiscono nello spam e la demo sembra
+    rotta.
 
 29. **Nessun ramo di sviluppo lungo** (maintainer: «No, ok, alla fine tutto questo lavoro ha senso
     anche per un uso locale»). Il lavoro entra in `main` a pezzi piccoli, un ramo corto per volta come
