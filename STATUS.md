@@ -96,11 +96,11 @@
 
 ### Due fatti nuovi che cambiano il perimetro
 
-- **Il prodotto è un servizio su dominio**, `sws.soligolab.net`: il cliente installa **solo il runtime** (immagine +
+- **Il prodotto è un servizio su dominio**, `sws.soligo.net`: il cliente installa **solo il runtime** (immagine +
   viewer LVGL), l'IDE è ospitato. Il prodotto CRA è quindi il solo runtime; l'IDE ospitato è SaaS fuori perimetro
   CRA (art. 3(2): non è *integrale* al prodotto, il pannello funziona senza Internet) — ma resta un IDE esposto a
   Internet **che oggi non ha mai password** (`senza_autenticazione()`, Q56). È il difetto più urgente del repo,
-  indipendentemente dal CRA, e `sws.soligolab.net` non si accende prima di averlo chiuso.
+  indipendentemente dal CRA, e `sws.soligo.net` non si accende prima di averlo chiuso.
 - **Nulla è ancora sul mercato**, quindi **nemmeno l'art. 14 è attivo**: serve pronto prima della prima consegna,
   non oggi. La prima stesura della gap analysis diceva «già in ritardo» ed era sbagliata; corretta nel documento.
 
