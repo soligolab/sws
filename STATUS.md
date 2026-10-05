@@ -74,6 +74,57 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — 2.12.0 rilasciata; si comincia il tronco cloud (2026-10-05, sera)
+
+**Nessun ramo aperto.** Tag **2.12.0** su origin, immagine pubblicata e verificata.
+
+### Il rilascio
+
+- `7cca282d chore(release): 2.12.0`, tag `2.12.0`, pushati. Prima release dalla 2.11.1 del 21-09: dentro ci sono
+  l'aggiornamento dal registry, l'email come canale, Modbus a bus e dispositivi, il catalogo Pixsys, i predefiniti
+  espliciti e lo specchio su LVGL.
+- **Immagine verificata sul registry**, non solo in locale: `2.12.0-arm64`, `latest-arm64` e `rc-arm64` puntano tutti
+  a `sha256:95ead1fd…`; etichette `org.opencontainers.image.version=2.12.0` e `net.soligo.sws.quadlet=3`. Pubblicati
+  anche gli alias `-generic` e il tag di commit `7cca282d-arm64`. Archivio
+  `dist/sws-runtime-2.12.0-aarch64-image.tar.gz` (149 MB).
+- Un rilascio sposta **tutti e due** i canali, quindi chi è su `rc-arm64` non resta indietro rispetto allo stabile.
+- `NOVITA.yaml` non è stato toccato: le rc annunciavano già la 2.12.0, che è il comportamento previsto.
+
+### Il primo passo della prossima sessione
+
+**L'installazione pulita della 2.12.0 sul TC620**, che è il collaudo su cui era stato rimandato tutto il lavoro LVGL:
+i **predefiniti delle Fasi 2, 3 e 4** e lo **specchio** sono su `main` con guardie e test, ma nessuno li ha ancora
+visti sul vetro. Il progetto `~/sws_projects/collaudo-rc15` è pronto (140 oggetti, 38 tipi, quattro pagine
+1920×1080). Se emerge qualcosa è una 2.12.1. Restano anche quadlet 2 → 3, i tre MCM rifatti dal catalogo, il deploy e
+gli I/O del 9AD mai provati dal vivo.
+
+### Disco di theobroma
+
+Era al 98%. `pota_incremental.sh --esegui` ha liberato **58,1 GB** (960 cartelle di cache incrementale di cargo più
+vecchie di due giorni); la potatura delle immagini di `ut1` ha portato il deposito da 7,0 a **3,6 GB** reali. Ora 95%.
+**Resta da fare a mano**: l'archivio immagini di **root** (`sudo podman rmi -a -f`) — una ventina di immagini
+`-arm64-generic` del vecchio percorso di build, niente di più nuovo della 2.7.1, nessun build attuale le usa.
+
+> **Attenzione a come si misurano**: `podman system df` somma le dimensioni nominali e conta lo stesso strato
+> condiviso molte volte. Dichiarava 49 GB quando il deposito ne occupava 4,8 veri. Si guarda `du` sul deposito, non
+> la colonna SIZE.
+
+### Un difetto da correggere subito
+
+**`scripts/build_container.sh` esce con codice 0 quando lo staging fallisce.** Visto dal vivo oggi: due build
+lanciati per errore in parallelo si sono scontrati sulla cartella di staging — che lo script cancella e ricrea a
+ogni avvio (`rm -rf "$CTX"`, riga 260) — e uno dei due ha stampato tre `cp: cannot create … File exists` e si è
+chiuso dichiarando successo. Un build che fallisce la preparazione del contesto e dice di avere funzionato è il
+modo esatto in cui si pubblica un'immagine incompleta senza accorgersene. Serve `set -e` sullo staging o un
+controllo esplicito sui `cp`, e una prova rossa.
+
+### Poi
+
+**Fase 1 del [tronco cloud](docs/plans/2026-10-05-cloud-utenti-aziende-spazi.md)**: il crate `sws-identita`,
+l'identità sopra i progetti, e l'IDE che smette di non chiedere la password.
+
+---
+
 ## ▶ Riprendere da qui — le cinque decisioni CRA sono prese; il prossimo lavoro è utenti/aziende/spazi (2026-10-05, sera)
 
 **Nessun ramo aperto.** Solo documenti, nessun codice.
