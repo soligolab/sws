@@ -40,6 +40,10 @@ hanno.
 
 ## Da tenere d'occhio nel frattempo
 
+- **CRA (Cyber Resilience Act)** — dal 05-10-2026 questo piano porta anche il punto 1 della
+  [gap analysis CRA](2026-10-05-cra-gap-analysis.md): sezione «Vincoli dal CRA» più sotto. Cambia il peso
+  di Q56 e del primo accesso al pannello: da «prezzo dichiarato» a requisito prima dell'immissione sul mercato.
+
 - **Q60 (workspace)** sta nella stessa coda: se l'editor diventa un servizio multi-azienda,
   «dove vivono i progetti» cambia natura, e le due decisioni si condizionano.
 - **Q46** (il selettore di cartelle confinato nella radice) è una decisione di sicurezza già
@@ -183,6 +187,61 @@ toccano lo stesso installer, e con gli aggiornamenti i pannelli seguono le versi
 
 **Quando il lavoro partirà, la prima cosa resta una sessione di plan approfondita**: questa è la prima,
 non l'ultima.
+
+
+---
+
+## Vincoli dal CRA — 05-10-2026
+
+Dalla [gap analysis CRA](2026-10-05-cra-gap-analysis.md), punto 1 («senza utenti il pannello è aperto, un'istanza
+IDE non ha mai password»), integrato qui su richiesta del maintainer perché è lo stesso lavoro. Il CRA (Reg. UE
+2024/2847, Allegato I parte I) chiede prodotti **sicuri per impostazione predefinita** (lettera b) e **protetti da
+accessi non autorizzati** con autenticazione e gestione delle identità (lettera d), con le misure **dall'11-12-2027**
+per ciò che si immette sul mercato da allora. Non è un parere legale (vedi la gap analysis).
+
+### Misurato il 05-10-2026
+
+- `senza_autenticazione(ide_only, ha_utenti) = ide_only || !ha_utenti` (`sws-web/src/router.rs`): un **pannello
+  senza utenti** serve tutto con un Admin sintetico; un'**istanza IDE** non chiede mai la password (Q56).
+- Il TC620 di prova (rc.22, senza utenti) risponde `200` senza login su `:8444/api/projects` e `:8444/metrics`.
+- Sul **router completo** (IDE, e un pannello lanciato senza `--no-admin`) sono **pre-auth sempre**, anche con utenti:
+  `/api/projects` (lista e creazione), `open`, `rename`, `duplicate`, `DELETE /api/projects/:name`, `close`,
+  `upload`, `/api/fs/browse-dirs`, `/api/fs/mkdir`, `/api/templates`, `/api/catalogo/dispositivi…`, `/metrics`,
+  `/cert` (blocco `project_lifecycle` + `open` in `build()`). Motivo dichiarato nel codice: la schermata iniziale le
+  chiama prima che esista una sessione. Sul pannello con `--no-admin` la stessa gestione sta in `deploy_only_app`
+  dietro `require_admin`, che però **passa** quando non ci sono utenti.
+- Già in linea col CRA: password **argon2**, **limite ai tentativi** di login (`sws-auth`), ruoli
+  Viewer/Operator/Admin, `auth.login`/`auth.login_failed`/`auth.users_replaced` nel registro di audit a catena
+  firmata, guardia «il primo utente di un dispositivo è un Admin» (14-09), `applica_seed_di_recupero`.
+
+### Come si incastra con le decisioni del 27-09
+
+| Decisione del 27-09 | Cosa aggiunge il CRA |
+|---|---|
+| 12, 14 — codice di abbinamento mostrato sul pannello e nella pagina locale | Lo stesso meccanismo può dare il **primo accesso sicuro** al pannello: niente Admin sintetico, una credenziale (o un codice monouso) visibile solo a chi ha il pannello davanti o la sua pagina locale. *Proposta, [D]* |
+| 19 — email e password, 2FA TOTP opzionale | Copre la lettera d per l'IDE ospitato; **2FA** è un buon argomento nella valutazione del rischio |
+| 21, 22 — utenti d'impianto nel progetto e «locali» sul pannello, account cloud separati, pannello usabile senza internet | Il pannello deve avere **sempre** un'autenticazione propria, anche offline: coerente. Manca il caso «pannello appena installato, nessun progetto»: oggi è aperto |
+| 26 — il gateway (`--gateway`) fa login e instradamento | Per l'IDE ospitato il requisito è soddisfatto dal gateway: `ide_only` dietro il gateway = «l'autenticazione la fa il gateway» (già annotato in «Ancora aperto») |
+| 27 — l'IDE installabile resta | Qui il CRA pesa di più: un IDE installato **senza gateway** oggi non ha password. Serve l'**opzione 2 di Q56** (utenti dell'installazione) anche per lui, non solo per l'ospitato. *[D]* |
+| 29 — prima i pezzi che toccano il codice condiviso e servono anche in locale | I vincoli CRA sono proprio di questo tipo: si possono fare **prima** del gateway e della VPN |
+
+### Cosa serve (vincoli, non ancora un disegno)
+
+1. **Nessun accesso amministrativo anonimo sul pannello**, nemmeno senza progetto o senza `users.yaml`.
+2. **Nessun IDE senza autenticazione** quando è raggiungibile da altri (installabile o ospitato).
+3. **Rotte pre-auth ridotte a una lista bianca esplicita** (login, `health`, `cert`, il minimo per la schermata
+   iniziale), con un test che fallisca se se ne aggiunge una; `/metrics` autenticato o solo su loopback.
+4. **Recupero** documentato (credenziale persa) che non riapra il pannello a tutti: oggi c'è
+   `applica_seed_di_recupero`, da rileggere con questo vincolo.
+5. **Ripristino di fabbrica** degli account e dei segreti insieme ai dati (CRA lettera m), che riporti al primo
+   accesso sicuro e non a un pannello aperto.
+
+### Proposta di primo pezzo (da decidere)
+
+In linea con la decisione 29 — un pezzo piccolo, in `main`, utile anche in locale, prima di VPS e VPN:
+**il primo accesso del pannello** (punto 1) e **la lista bianca delle rotte pre-auth** (punto 3). Non dipendono da
+aziende, gateway né VPN, e chiudono il caso misurato oggi sul TC620. Gli utenti dell'installazione per l'IDE
+(punto 2) vengono subito dopo, perché toccano `ide_only` e quindi la semantica che il gateway erediterà. **[D]**
 
 
 ---

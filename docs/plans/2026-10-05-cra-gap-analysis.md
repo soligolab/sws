@@ -15,7 +15,7 @@ SWS parte **meglio della media** su processo e tracciabilità — politica di di
 hash firmata, password argon2 con limite ai tentativi, aggiornamenti con istantanea e ritorno, segreti separati e
 mascherati. Ma ha **lacune strutturali su «sicuro per impostazione predefinita»**, che è il cuore dell'Allegato I:
 
-1. **Senza utenti il pannello è aperto** (Admin sintetico, `senza_autenticazione()` in `sws-web/src/router.rs`), e
+1. **Senza utenti il pannello è aperto** — *integrato nel piano [identità, utenti e istanze](2026-09-18-identita-utenti-istanze.md), sezione «Vincoli dal CRA»* — (Admin sintetico, `senza_autenticazione()` in `sws-web/src/router.rs`), e
    un'istanza IDE non ha mai password (Q56). Il TC620 di prova oggi risponde `200` senza login su `:8444/api/projects`
    e `/metrics`.
 2. **HTTP in chiaro di default** (`plain HTTP mode` in `sws-runtime/src/main.rs`), TLS solo autofirmato e opzionale.
@@ -93,7 +93,10 @@ Legenda: ✅ c'è · ⚠️ parziale · ❌ manca.
 
 **P1 — sicuro per default (blocco più grosso, ~2027)**
 4. Primo avvio con credenziale obbligatoria (niente Admin sintetico sul pannello); IDE esposto con autenticazione
-   (chiude Q56 / Q44); rotte pre-auth ridotte al minimo (lista bianca: login, health, cert).
+   (chiude Q56 / Q44); rotte pre-auth ridotte al minimo (lista bianca: login, health, cert). **Integrato nel piano
+   della gestione utenti**: [identità, utenti e istanze](2026-09-18-identita-utenti-istanze.md), sezione «Vincoli
+   dal CRA», che lo incastra con le decisioni del 27-09 (codice di abbinamento, 2FA, utenti d'impianto, gateway) e
+   propone come primo pezzo il primo accesso del pannello e la lista bianca delle rotte pre-auth.
 5. TLS di default (certificato generato al primo avvio, HTTP solo come rimando); verifica dei certificati di campo
    accesa di default (MQTT Q49, OPC-UA `trust_all_certs: false` con fiducia esplicita, policy diversa da `None`).
 6. Reset di fabbrica sicuro (requisito m) e ritorno alle impostazioni sicure (b).
