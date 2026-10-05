@@ -92,11 +92,15 @@ le sue parole, e ciò che è stato **misurato**; le proposte restano proposte fi
 5. **Nell'IDE ospitato sorgenti e script Python sono spenti**; i dati dal vivo arrivano dal runtime
    attraverso il tunnel (il relay `remote_relay.rs` esiste già per il dispositivo collegato).
 6. **Firewall dei siti: «dipende dal cliente»** — serve comunque un modo che passi su TCP/443.
-7. **Componente VPN: adottare, non scrivere.** Headscale + Tailscale vanno bene, **ma** — maintainer:
+> ⚠️ **Le decisioni 7-11 sono superate dalla 38 (05-10-2026): niente VPN.** Restano scritte perché
+> il ragionamento che ha portato alla 38 si capisce solo leggendole, e perché le misure fatte sul
+> TC620 il 27-09 restano vere. Non vanno implementate.
+
+7. ~~**Componente VPN: adottare, non scrivere.**~~ Headscale + Tailscale vanno bene, **ma** — maintainer:
    «nel caso dei tc e wp esiste una implementazione openvpn predisposta». Da capire come è predisposta
    prima di scegliere.
 
-8. **Solo OpenVPN**, anche per i dispositivi non Pixsys, che interessano **da subito**.
+8. ~~**Solo OpenVPN**~~, anche per i dispositivi non Pixsys, che interessano **da subito**.
 9. ~~**Un'istanza OpenVPN per azienda** sulla VPS: rete e CA proprie, isolamento per costruzione.~~
    **Corretta il 05-10-2026 — un'istanza sola, isolamento per configurazione.** Il motivo è
    aritmetico e non si aggira: la decisione 36 mette la VPN sulla **443**, e quella porta la lega un
@@ -116,9 +120,9 @@ le sue parole, e ciò che è stato **misurato**; le proposte restano proposte fi
    - **si dice a chi prova** che l'isolamento è per configurazione. Il giorno in cui un cliente lo
      mette per contratto, la strada è l'IPv4 dedicato con la sua istanza, e la decisione 9
      originale torna valida per lui.
-10. **Pixsys: il container scrive `client.ovpn` e `secrets.txt` in `/data/openvpn`** (un mount in più
+10. ~~**Pixsys: il container scrive `client.ovpn` e `secrets.txt` in `/data/openvpn`**~~ (un mount in più
     nell'installer) e la VPN parte al riavvio del pannello.
-11. **Non Pixsys: il client OpenVPN gira sull'host**, installato da `install-container.sh` — la regola
+11. ~~**Non Pixsys: il client OpenVPN gira sull'host**~~, installato da `install-container.sh` — la regola
     «l'host non si tocca» vale per i Pixsys.
 12. **Abbinamento con un codice mostrato sul pannello**, che lo sviluppatore inserisce nell'IDE.
 
@@ -201,7 +205,10 @@ le sue parole, e ciò che è stato **misurato**; le proposte restano proposte fi
     farlo: è un costo che si attiva alla consegna, e va saputo prima di prometterlo a qualcuno.
 28. **Email via SMTP configurabile**, senza legarsi a un fornitore.
 
-36. **Le porte pubbliche: la 443 è della VPN, l'IDE sta altrove** (05-10-2026). Parole del
+36. **Le porte pubbliche** (05-10-2026). *Nota del 05-10, sera: con la decisione 38 il conflitto che
+    ha generato questa decisione non esiste più — il tunnel dei pannelli usa SNI, quindi la 443 la
+    condividono. Resta valido il principio sulla diagnosticabilità, e resta vero che Let's Encrypt
+    con la 80 libera è più semplice.* Testo originale: la 443 è della VPN, l'IDE sta altrove. Parole del
     maintainer: «l'IDE non è necessario sia sulla porta 443, basta un redirect dalla porta 80 quando
     uno apre la pagina, se non vede la pagina il problema è della sua rete. Più importante è la VPN
     sulla 443 perché se non si raggiunge il pannello diventa difficile capire cosa non vada».
@@ -216,9 +223,64 @@ le sue parole, e ciò che è stato **misurato**; le proposte restano proposte fi
       pannello. Lì una porta non standard può essere bloccata proprio mentre si è davanti alla
       macchina. Accettato consapevolmente.
 
-37. **Il server è un VPS OVH** (05-10-2026), si parte dal **VPS-1** (2 vCore, 4 GB, 40 GB NVMe) con
-    l'idea di salire fino al VPS-4 se serve. È KVM, quindi podman annidato e `/dev/net/tun`
-    funzionano senza i contorsionismi di un LXC non privilegiato.
+38. **Niente VPN: un tunnel per dispositivo** (05-10-2026). Supera le decisioni 7, 8, 9, 10 e 11.
+
+    **Il motivo è un modello di minaccia che prima non era stato messo per iscritto**, parole del
+    maintainer: «il runtime del PLC potenzialmente è modificabile dall'utente visto che può ottenere
+    l'accesso root al dispositivo». Un pannello non è un endpoint fidato: è hardware del cliente, e
+    il cliente può farne quello che vuole. Metterlo dentro una VPN significa mettere hardware
+    potenzialmente ostile dentro una rete condivisa con gli altri clienti.
+
+    **E «un'istanza per azienda» proteggeva meno di quanto il nome prometta.** Due istanze sulla
+    stessa macchina hanno due `tun`, ma l'inoltro fra i due lo governa sempre lo stesso kernel e le
+    stesse `iptables`: l'isolamento del *traffico* resta regolamentare. Quello che le CA separate
+    comprano davvero è l'isolamento dell'**autenticazione** — un pannello compromesso dell'azienda A
+    non può entrare nella VPN della B. Buono, ma paga la 443 (una porta, un processo) o degli IPv4
+    aggiuntivi.
+
+    **La domanda giusta non era quale VPN, ma se serve una rete.** Il requisito della decisione 4 è
+    «la VPS vede le API del pannello e nient'altro»: non è una rete, è un canale verso la 8444. Una
+    VPN dà a ogni pannello un indirizzo su un segmento condiviso e poi passa la vita a vietare con
+    delle regole tutto ciò che quel segmento per sua natura permette.
+
+    **Quindi**: il pannello apre **lui** una connessione persistente al gateway, in TLS sulla 443, e
+    il gateway la multiplexa. Ogni pannello ha una **sessione**, non un indirizzo. Fra due pannelli
+    non esiste nessun segmento comune, quindi non c'è niente da vietare: l'isolamento è strutturale,
+    e il gateway decide per ogni richiesta quale azienda può parlare con quale pannello. Un pannello
+    compromesso può impersonare **sé stesso** e nient'altro — che è il massimo ottenibile, visto che
+    i suoi dati sono comunque suoi.
+
+    **Quello che si guadagna, oltre all'isolamento:**
+    - la **443 torna condivisibile** con l'IDE: il tunnel è TLS con SNI, quindi haproxy smista. Il
+      conflitto che aveva prodotto le decisioni 36 e la correzione della 9 **sparisce**;
+    - niente `/dev/net/tun`, niente root, **niente riavvio del pannello** — cade il problema
+      misurato il 27-09, cioè che `net.pixsys.Config1` non ha un metodo per la VPN e quindi il
+      tunnel partiva solo al reboot;
+    - niente `/data/openvpn` da montare nell'installer (10), niente client sull'host per i non
+      Pixsys (11): **la stessa strada per tutti i dispositivi**, che era l'obiettivo della 8;
+    - solo uscite dal pannello: nessuna porta in ingresso, nessuna regola da chiedere al cliente.
+
+    **Quello che costa, detto senza sconti**: è codice nostro invece di un componente adottato, e
+    contraddice la decisione 7. Va scritto un multiplexer con riconnessione, keepalive, backpressure
+    e timeout, e i flussi dal vivo (`/ws/tags`, `/ws/alarms`, `/ws/logs`) devono passare di lì.
+
+    **Ma costa molto meno di quanto sembri, ed è stato verificato**: tutte le operazioni remote
+    dell'IDE compongono `{base}/api/…` a partire da `RemoteTarget.url` (`remote.rs:600, 665, 726,
+    794`, e `inoltra_aggiornamento` per tutte quelle di aggiornamento). Puntare quel `base` a
+    `https://<gateway>/dev/<pannello>` fa funzionare **l'intero strato remoto già scritto** —
+    connessione, deploy, utenti, backup, database, aggiornamenti — senza riscriverlo. E
+    `remote_relay.rs` fa già da ponte ai WebSocket, nell'altro verso. Il pezzo davvero nuovo è il
+    lato pannello (una connessione uscente che inoltra a `localhost:8444`) e il multiplexer nel
+    gateway.
+
+    **Resta valido** della parte VPN: la decisione 12/14 (codice di abbinamento) — che ora è anche il
+    modo in cui il pannello riceve la credenziale del tunnel — e la 13 (l'indirizzo del server
+    scritto nell'immagine e modificabile), che diventa l'indirizzo del gateway.
+
+39. **Il server è un VPS OVH** (05-10-2026), si parte dal **VPS-1** (2 vCore, 4 GB, 40 GB NVMe) con
+    l'idea di salire fino al VPS-4 se serve. È KVM, quindi **podman annidato** funziona senza i
+    contorsionismi di un LXC non privilegiato — ed era il motivo principale per preferire una VM.
+    (Con la decisione 38 cade il secondo motivo, `/dev/net/tun`: non serve più a nessuno.)
 
     Perché 4 GB bastano per cominciare: **la decisione 5 è anche un dimensionamento**. Nell'IDE
     ospitato sorgenti e script Python sono spenti, quindi un progetto aperto non interroga nessun bus
