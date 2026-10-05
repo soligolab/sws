@@ -74,6 +74,19 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — gap analysis CRA, integrata nel piano utenti (2026-10-05)
+
+**Nessun ramo aperto**, tutto su origin. Lavoro di analisi, nessun codice.
+- [Gap analysis CRA](docs/plans/2026-10-05-cra-gap-analysis.md) (Reg. UE 2024/2847): buona base di processo, lacune su
+  «sicuro per default» (pannello aperto senza utenti, HTTP in chiaro, TLS di campo non verificato), aggiornamenti non
+  firmati, procedura **art. 14 già in vigore dall'11-09-2026**. Roadmap P0/P1/P2 e **5 decisioni del maintainer**
+  (fabbricante, periodo di supporto, auto-update di default, primo avvio, priorità).
+- Il punto 1 (utenti) è **integrato** nel [piano identità, utenti e istanze](docs/plans/2026-09-18-identita-utenti-istanze.md),
+  sezione «Vincoli dal CRA»: misure, incastro con le decisioni del 27-09, cinque vincoli, primo pezzo proposto (primo
+  accesso del pannello + lista bianca delle rotte pre-auth) — **da decidere**.
+- **Ancora da fare sul TC620**, dalla sezione sotto: installare la rc.23, quadlet 2 → 3, rifare i tre MCM dal catalogo
+  (annidati), deploy.
+
 ## ▶ Riprendere da qui — rc.23 dal collaudo MCM260X sul TC620 (2026-10-04, notte)
 
 **Nessun ramo aperto.** Su `main` e su origin: `c080f9d6` (collaudo MCM260X) + `22b8a1fa` (`chore(rc):
