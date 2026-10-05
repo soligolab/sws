@@ -74,6 +74,56 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — le cinque decisioni CRA sono prese; il prossimo lavoro è utenti/aziende/spazi (2026-10-05, sera)
+
+**Nessun ramo aperto.** Solo documenti, nessun codice.
+
+### Le cinque decisioni, risolte una alla volta
+
+1. **Fabbricante: Soligonet, sola.** I pannelli Pixsys sono banco di sviluppo, il prodotto è software e solo del
+   maintainer: Pixsys non immette nulla sul mercato ed esce dal quadro CRA.
+2. **Supporto: 5 anni dall'ultima release**, supportata solo l'ultima, niente backport. Da scrivere in `SECURITY.md`.
+3. **Aggiornamenti di sicurezza accesi di default**, con finestra, istantanea e ritorno automatico.
+   **Prerequisito**: prima si chiude [il viewer che non riparte](docs/plans/2026-10-01-viewer-non-riparte-dopo-aggiornamento.md),
+   altrimenti l'automatico notturno spegne schermi senza nessuno davanti. Quel seme non è più uno fra tanti.
+4. **Primo avvio: il codice di abbinamento è anche il primo accesso.** Un meccanismo solo: codice monouso sullo
+   schermo LVGL e sulla pagina locale, nessun accesso prima che venga usato, prima credenziale fissata da chi lo
+   inserisce nell'IDE. Spariscono l'Admin sintetico e `senza_autenticazione()`.
+5. **Priorità: il CRA resta sul fondo, come linea guida.** Si fa il P0 (documentale, poche ore) e poi il lavoro
+   vero: **utenti, aziende, spazi di lavoro, registrazione, 2FA** — serve al maintainer per mostrare il progetto a
+   possibili aziende da un sito web. TLS di default, certificati di campo, reset di fabbrica, firma delle immagini,
+   SBOM di prodotto e fascicolo tecnico **non** si fanno ora: restano scritti come lista della spesa.
+
+### Due fatti nuovi che cambiano il perimetro
+
+- **Il prodotto è un servizio su dominio**, `sws.soligolab.net`: il cliente installa **solo il runtime** (immagine +
+  viewer LVGL), l'IDE è ospitato. Il prodotto CRA è quindi il solo runtime; l'IDE ospitato è SaaS fuori perimetro
+  CRA (art. 3(2): non è *integrale* al prodotto, il pannello funziona senza Internet) — ma resta un IDE esposto a
+  Internet **che oggi non ha mai password** (`senza_autenticazione()`, Q56). È il difetto più urgente del repo,
+  indipendentemente dal CRA, e `sws.soligolab.net` non si accende prima di averlo chiuso.
+- **Nulla è ancora sul mercato**, quindi **nemmeno l'art. 14 è attivo**: serve pronto prima della prima consegna,
+  non oggi. La prima stesura della gap analysis diceva «già in ritardo» ed era sbagliata; corretta nel documento.
+
+### Da chiarire alla prossima sessione
+
+La **decisione 27** del piano utenti («l'IDE installabile resta, accanto a quello ospitato») contraddice «non verrà
+distribuito come installabile». O la 27 si riscrive, o vale solo per l'IDE di sviluppo — e da lì dipendono i casi
+d'uso offline appesi. È annotato in tutti e due i piani.
+
+### Prossimo passo
+
+**Sessione di plan approfondita sul [piano identità, utenti e istanze](docs/plans/2026-09-18-identita-utenti-istanze.md)**,
+in Plan mode e senza codice: 29 decisioni del 27-09, più le due nuove (primo accesso, priorità), più la
+contraddizione sulla 27. Il primo pezzo non è più il pannello ma il tronco cloud — registrazione, aziende, spazi di
+lavoro, 2FA — con dentro il primo accesso e la lista bianca delle rotte pre-auth, che sono lo stesso lavoro visto
+dall'altro lato.
+
+Invariato: il TC620 (rc.23, quadlet 2 → 3, i tre MCM dal catalogo, deploy) e tutto il collaudo a schermo LVGL —
+predefiniti Fasi 2-4 e specchio — aspettano l'installazione pulita. Da `theobroma` non si raggiunge nessun
+dispositivo.
+
+---
+
 ## ▶ Riprendere da qui — gap analysis CRA, integrata nel piano utenti (2026-10-05)
 
 **Nessun ramo aperto**, tutto su origin. Lavoro di analisi, nessun codice.

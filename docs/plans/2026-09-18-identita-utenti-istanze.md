@@ -218,11 +218,11 @@ per ciò che si immette sul mercato da allora. Non è un parere legale (vedi la 
 
 | Decisione del 27-09 | Cosa aggiunge il CRA |
 |---|---|
-| 12, 14 — codice di abbinamento mostrato sul pannello e nella pagina locale | Lo stesso meccanismo può dare il **primo accesso sicuro** al pannello: niente Admin sintetico, una credenziale (o un codice monouso) visibile solo a chi ha il pannello davanti o la sua pagina locale. *Proposta, [D]* |
+| 12, 14 — codice di abbinamento mostrato sul pannello e nella pagina locale | **Deciso il 05-10-2026**: lo stesso meccanismo **è** il primo accesso. Al primo avvio il pannello genera un codice monouso, lo mostra sullo schermo LVGL e sulla pagina locale, e finché non viene usato non entra nessuno nemmeno in lettura; chi lo inserisce nell'IDE rivendica il pannello e fissa la prima credenziale. Spariscono l'Admin sintetico e `senza_autenticazione()`, e non nasce nessuna password di fabbrica |
 | 19 — email e password, 2FA TOTP opzionale | Copre la lettera d per l'IDE ospitato; **2FA** è un buon argomento nella valutazione del rischio |
 | 21, 22 — utenti d'impianto nel progetto e «locali» sul pannello, account cloud separati, pannello usabile senza internet | Il pannello deve avere **sempre** un'autenticazione propria, anche offline: coerente. Manca il caso «pannello appena installato, nessun progetto»: oggi è aperto |
 | 26 — il gateway (`--gateway`) fa login e instradamento | Per l'IDE ospitato il requisito è soddisfatto dal gateway: `ide_only` dietro il gateway = «l'autenticazione la fa il gateway» (già annotato in «Ancora aperto») |
-| 27 — l'IDE installabile resta | Qui il CRA pesa di più: un IDE installato **senza gateway** oggi non ha password. Serve l'**opzione 2 di Q56** (utenti dell'installazione) anche per lui, non solo per l'ospitato. *[D]* |
+| 27 — l'IDE installabile resta | **In contraddizione, da chiarire.** Il 05-10-2026 il maintainer ha detto che il prodotto «non verrà distribuito come installabile ma sarà sempre accessibile da un dominio web» (`sws.soligolab.net`), e che il cliente installa **solo il runtime**. Se l'IDE installabile sparisce, la 27 va riscritta e con lei cadono i casi d'uso offline appesi; se resta per l'IDE di sviluppo, il CRA pesa come scritto prima: senza gateway non ha password. Prima domanda della sessione di plan |
 | 29 — prima i pezzi che toccano il codice condiviso e servono anche in locale | I vincoli CRA sono proprio di questo tipo: si possono fare **prima** del gateway e della VPN |
 
 ### Cosa serve (vincoli, non ancora un disegno)
@@ -236,12 +236,27 @@ per ciò che si immette sul mercato da allora. Non è un parere legale (vedi la 
 5. **Ripristino di fabbrica** degli account e dei segreti insieme ai dati (CRA lettera m), che riporti al primo
    accesso sicuro e non a un pannello aperto.
 
-### Proposta di primo pezzo (da decidere)
+### Il primo pezzo — e perché l'ordine è cambiato (05-10-2026)
 
-In linea con la decisione 29 — un pezzo piccolo, in `main`, utile anche in locale, prima di VPS e VPN:
-**il primo accesso del pannello** (punto 1) e **la lista bianca delle rotte pre-auth** (punto 3). Non dipendono da
-aziende, gateway né VPN, e chiudono il caso misurato oggi sul TC620. Gli utenti dell'installazione per l'IDE
-(punto 2) vengono subito dopo, perché toccano `ide_only` e quindi la semantica che il gateway erediterà. **[D]**
+La proposta era: **primo accesso del pannello** (punto 1) e **lista bianca delle rotte pre-auth** (punto 3) — piccoli,
+in locale, prima di VPS e VPN, in linea con la decisione 29.
+
+Il maintainer ha dato un'altra ragione, che viene prima di quella tecnica: «il prossimo step che mi interessa è
+l'implementazione utenti/aziende/spazi di lavoro … vorrei mostrare il lavoro tramite un sito web ad alcune possibili
+aziende facendo capire la strada che ha preso il progetto. È sempre un PoC quindi non mi serve una compliance CRA
+pesante ma i meccanismi chiave tipo la registrazione degli utenti, la 2FA e un po' di infrastruttura base mi servono».
+
+**Quindi il primo pezzo è il tronco cloud** — registrazione, aziende, spazi di lavoro, 2FA — e non il pannello. Non è
+in conflitto con la proposta di prima: il primo accesso (decisione 4 del CRA, ormai presa) e la lista bianca delle
+rotte pre-auth **sono lo stesso lavoro visto dall'altro lato**, e un IDE che sta per vivere su un dominio pubblico non
+può accendersi senza. Entrano quindi nel primo pezzo invece di precederlo.
+
+**Il criterio per tutto il resto**, parole sue: «la CRA deve rimanere un po' sul fondo come linea guida». Non è il
+programma di lavoro: è il metro con cui si giudicano scelte che hanno un'altra ragione. Vedi
+[gap analysis CRA](2026-10-05-cra-gap-analysis.md) §7, decisione 5.
+
+**La prima cosa della sessione di plan resta una sessione di plan**: 29 decisioni, più queste, più la contraddizione
+sulla 27 qui sopra. Niente codice prima.
 
 
 ---

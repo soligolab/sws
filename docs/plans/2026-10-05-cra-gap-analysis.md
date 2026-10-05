@@ -31,11 +31,12 @@ mascherati. Ma ha **lacune strutturali su «sicuro per impostazione predefinita�
 
 | Tema | Stato | Note |
 |---|---|---|
-| Prodotto | runtime (`sws-runtime`), IDE (`sws-editor`), immagine container `sws-runtime` (arm64/amd64), viewer LVGL, installer | Tutti «prodotti con elementi digitali» se messi a disposizione sul mercato |
-| Fabbricante **[D]** | da stabilire | Chi immette sul mercato: Soligolab (immagine pubblica su `ghcr.io/soligolab`) e/o Pixsys (se SWS viaggia preinstallato sui pannelli). Licenza AGPL-3.0: se SWS fosse solo open source non commerciale varrebbe il regime leggero dello «steward» (art. 24); con vendita o supporto a pagamento sono obblighi pieni da fabbricante |
+| Prodotto CRA | **il runtime**: immagine `sws-runtime` (arm64/amd64), archivio offline, viewer LVGL | È l'unica parte che il cliente **installa**, quindi l'unica messa a disposizione sul mercato come prodotto |
+| Fuori perimetro CRA | **l'IDE ospitato** su `sws.soligolab.net` | Servizio, non prodotto. Il CRA prende un servizio remoto solo se è *integrale* a un prodotto (art. 3(2)): qui il pannello esegue il progetto già deployato e resta usabile senza Internet (decisioni 21-22 del piano utenti), quindi non lo è. Restano NIS2 (soglie dimensionali verosimilmente non raggiunte) e il GDPR — e restano, a maggior ragione, i requisiti di sicurezza: è un IDE esposto a Internet |
+| Fabbricante | **Soligonet, sola** (deciso 05-10-2026) | Il prodotto è software e solo suo; i pannelli Pixsys sono **banco di sviluppo**, non prodotti venduti con SWS dentro. Pixsys non immette nulla sul mercato e non è fabbricante di niente ai fini del CRA — il branding `pixsys` nell'IDE non cambia questo |
 | Classificazione | probabilmente **categoria predefinita** | Gli SCADA/IACS non compaiono negli elenchi dell'Allegato III (classi I e II) né IV nel testo finale → autovalutazione (modulo A, art. 32). **Da confermare** |
 | Date | art. 14 dall'**11-09-2026**; tutto il resto dall'**11-12-2027** | Le segnalazioni valgono già, anche per prodotti immessi prima |
-| Stato del prodotto | PoC (CONTEXT.md) | Gli obblighi scattano con l'immissione sul mercato: se dei TC620 con SWS sono già venduti, valgono già quelli dell'art. 14 |
+| Stato del prodotto | PoC (CONTEXT.md), **nulla ancora sul mercato** | Gli obblighi scattano con l'immissione sul mercato. Niente è nelle mani di terzi, quindi **nemmeno l'art. 14 è ancora attivo**: serve pronto *prima della prima consegna*, non oggi. La prima stesura di questo documento diceva «già in ritardo» — era sbagliato, e la correzione cambia la fretta di tutto il P0 |
 | Norme di riferimento | IEC 62443-4-1 (processo), 62443-4-2 (componenti), 62443-3-3 (sistema) | Le norme armonizzate CRA sono in preparazione; IEC 62443 è il riferimento naturale per un prodotto di automazione |
 
 ## 3. Allegato I, parte I — requisiti del prodotto
@@ -111,17 +112,65 @@ Legenda: ✅ c'è · ⚠️ parziale · ❌ manca.
     dimensione su tutte le rotte di scrittura; `/metrics` dietro autenticazione.
 12. Montaggi D-Bus ristretti (proxy della sola interfaccia del launcher, già ipotizzato nel quadlet).
 
-## 7. Decisioni per il maintainer
+## 7. Decisioni del maintainer — prese il 05-10-2026
 
-1. **Chi è il fabbricante** (Soligolab, Pixsys, entrambi per prodotti diversi) e se SWS resta anche open source
-   (AGPL): cambia il regime (fabbricante vs steward) e chi firma la dichiarazione.
-2. **Periodo di supporto** e politica delle versioni supportate (oggi solo l'ultima).
-3. **Aggiornamenti automatici di sicurezza attivi di default** o no (con motivazione IEC 62443 nella valutazione del
-   rischio).
-4. **Modello del primo avvio**: credenziale generata (stampata a schermo sul pannello), creata dall'IDE al primo
-   deploy, o altro.
-5. Priorità rispetto alla roadmap funzionale (bus/dispositivi, trend LVGL, configuratore): P0 è indipendente e
-   piccolo; P1 tocca autenticazione, TLS e installazione su tutti i pannelli.
+Le cinque **[D]** sono state poste una alla volta e risolte tutte. Quello che segue è ciò che è stato deciso, con
+il motivo dove è servito.
+
+1. **Fabbricante: Soligonet, sola.** Posta prima come «Soligonet e/o Pixsys», è stata riaperta e corretta nella
+   stessa sessione: «l'utilizzo di prodotti Pixsys è solo a scopo di sviluppo, il prodotto è solo software e solo
+   mio». Pixsys esce dal quadro CRA. Vedi §2.
+
+2. **Periodo di supporto: 5 anni dall'ultima release, supportata solo l'ultima.** È il minimo di norma del CRA, e
+   conserva la regola di oggi: le correzioni di sicurezza escono sull'ultima versione e chi vuole restare sicuro
+   aggiorna. Niente backport, niente rami di manutenzione — con un solo sviluppatore sarebbe un impegno che non si
+   regge. Da scrivere in `SECURITY.md`, che oggi dice «solo l'ultima release» senza dichiarare un periodo.
+   **Conseguenza da documentare nelle istruzioni d'uso**: un pannello che non può aggiornare (validazione di
+   processo, impianto fermo) resta scoperto.
+
+3. **Aggiornamenti di sicurezza: accesi di default**, con finestra di manutenzione, istantanea prima e ritorno
+   automatico se il servizio non diventa `healthy`; disattivabili dalla configurazione, e la disattivazione va
+   nell'audit. Costa poco perché la macchina c'è già tutta: oggi manca solo che il timer nasca acceso.
+   **Prerequisito non negoziabile**: prima va chiuso il seme
+   [il viewer non riparte dopo un aggiornamento](2026-10-01-viewer-non-riparte-dopo-aggiornamento.md). Un
+   aggiornamento automatico notturno su quel difetto spegne schermi senza nessuno davanti — il contrario di un
+   aggiornamento di sicurezza.
+
+4. **Primo avvio: il codice di abbinamento è anche il primo accesso.** Un meccanismo solo invece di due. Al primo
+   avvio il pannello genera un codice monouso e lo mostra sullo schermo LVGL **e** sulla pagina locale (decisioni
+   12 e 14 del piano utenti); finché non viene usato non entra nessuno, nemmeno in lettura; chi ce l'ha davanti lo
+   inserisce nell'IDE, rivendica il pannello e fissa la prima credenziale vera. Spariscono l'Admin sintetico e
+   `senza_autenticazione()`, e non nasce nessuna password di fabbrica. Scioglie la proposta marcata *[D]* alla
+   riga 221 del piano utenti.
+
+5. **Priorità: P0 sì, ma il lavoro vero è il P1 di utenti, aziende e spazi di lavoro.** Parole del maintainer: «il
+   prossimo step che mi interessa è l'implementazione utenti/aziende/spazi di lavoro (P1) … vorrei mostrare il
+   lavoro tramite un sito web ad alcune possibili aziende facendo capire la strada che ha preso il progetto. È
+   sempre un PoC quindi non mi serve una compliance CRA pesante ma i meccanismi chiave tipo la registrazione degli
+   utenti, la 2FA e un po' di infrastruttura base mi servono. La CRA deve rimanere un po' sul fondo come linea
+   guida».
+
+   **Come si traduce**, ed è il criterio con cui leggere tutto il resto di questo documento: il CRA **non è il
+   programma di lavoro**. È il metro con cui si giudicano le scelte di un lavoro che ha un'altra ragione — far
+   vedere il progetto a delle aziende. Quindi:
+   - si fa il **P0** (contatti veri, `security.txt`, procedura art. 14, pagina degli avvisi): poche ore, nessun
+     codice, e serve comunque prima della prima consegna;
+   - si fa il **P1 limitatamente a utenti, aziende, spazi di lavoro, registrazione e 2FA**, perché è la
+     funzionalità che il maintainer vuole mostrare — e di conseguenza il primo accesso (decisione 4) e la lista
+     bianca delle rotte pre-auth entrano gratis, essendo lo stesso lavoro;
+   - **non** si fanno adesso TLS di default, verifica dei certificati di campo, reset di fabbrica, firma delle
+     immagini, SBOM di prodotto, valutazione del rischio e fascicolo tecnico. Restano scritti qui, come lista
+     della spesa per quando ci sarà un prodotto da consegnare davvero.
+
+### Quello che resta aperto dopo queste cinque
+
+- **Classificazione del prodotto** (categoria predefinita, autovalutazione modulo A): da confermare con chi segue
+  la conformità, non è un parere che questo documento possa dare.
+- **L'IDE installabile.** La decisione 27 del piano utenti dice «l'IDE installabile resta, accanto a quello
+  ospitato, per chi non vuole il cloud o lavora offline». Il 05-10-2026 il maintainer ha detto che il prodotto
+  «non verrà distribuito come installabile ma sarà sempre accessibile da un dominio web». Le due frasi non stanno
+  insieme: o la 27 va riscritta, o vale solo per l'IDE di sviluppo. **Da chiarire quando si apre il piano utenti**,
+  perché da lì dipendono i casi d'uso offline che ci stanno appesi.
 
 ## Fonti
 
