@@ -131,10 +131,16 @@ il motivo dove è servito.
 3. **Aggiornamenti di sicurezza: accesi di default**, con finestra di manutenzione, istantanea prima e ritorno
    automatico se il servizio non diventa `healthy`; disattivabili dalla configurazione, e la disattivazione va
    nell'audit. Costa poco perché la macchina c'è già tutta: oggi manca solo che il timer nasca acceso.
-   **Prerequisito non negoziabile**: prima va chiuso il seme
-   [il viewer non riparte dopo un aggiornamento](2026-10-01-viewer-non-riparte-dopo-aggiornamento.md). Un
-   aggiornamento automatico notturno su quel difetto spegne schermi senza nessuno davanti — il contrario di un
-   aggiornamento di sicurezza.
+   **Prerequisito, riscritto il 06-10-2026.** La prima stesura diceva «prima va chiuso il seme del viewer che non
+   riparte»: **era già chiuso**, assorbito dal [piano del quadlet che viaggia](../archive/2026-10-02-quadlet-che-viaggia.md)
+   §4 e risolto nella rc.16 (`Restart=always`, sorveglianza ogni 30 s, guardia `check_quadlet.sh` provata rossa,
+   collaudato sul TC620). Avevo letto il nome del seme invece del suo stato.
+
+   Il vincolo vero è un altro, e sopravvive alla correzione: quella riparazione sta nel **quadlet**, non
+   nell'immagine, e raggiunge un pannello solo quando qualcuno accetta «aggiorna la configurazione del servizio».
+   Accendere l'automatico di default su pannelli fermi al quadlet 2 vuol dire aggiornarli di notte con il viewer che
+   ancora non riparte — il contrario di un aggiornamento di sicurezza. Quindi: **l'automatico si accende per un
+   pannello che è al quadlet 3**, e il passaggio al 3 resta un gesto consapevole di chi ha il pannello davanti.
 
 4. **Primo avvio: il codice di abbinamento è anche il primo accesso.** Un meccanismo solo invece di due. Al primo
    avvio il pannello genera un codice monouso e lo mostra sullo schermo LVGL **e** sulla pagina locale (decisioni

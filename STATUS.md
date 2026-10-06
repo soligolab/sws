@@ -151,8 +151,15 @@ l'identità sopra i progetti, e l'IDE che smette di non chiedere la password.
    maintainer: Pixsys non immette nulla sul mercato ed esce dal quadro CRA.
 2. **Supporto: 5 anni dall'ultima release**, supportata solo l'ultima, niente backport. Da scrivere in `SECURITY.md`.
 3. **Aggiornamenti di sicurezza accesi di default**, con finestra, istantanea e ritorno automatico.
-   **Prerequisito**: prima si chiude [il viewer che non riparte](docs/plans/2026-10-01-viewer-non-riparte-dopo-aggiornamento.md),
-   altrimenti l'automatico notturno spegne schermi senza nessuno davanti. Quel seme non è più uno fra tanti.
+   ~~**Prerequisito**: prima si chiude il viewer che non riparte.~~ **Corretto il 06-10-2026: era già chiuso.** Il
+   difetto è stato assorbito dal [piano del quadlet che viaggia](docs/archive/2026-10-02-quadlet-che-viaggia.md) §4 e
+   risolto nella **rc.16**: `Restart=always` e sorveglianza ogni 30 s nel quadlet 3, guardia `check_quadlet.sh`
+   provata rossa, collaudato sul TC620. Avevo guardato il nome del seme invece del suo stato.
+   **Resta però un vincolo vero, e non è lo stesso**: la correzione vive nel **quadlet**, non nell'immagine, quindi
+   arriva a un pannello solo quando qualcuno accetta «aggiorna la configurazione del servizio». Accendere
+   l'automatico di default su un parco di pannelli fermi al quadlet 2 significa aggiornarli di notte con il viewer
+   che ancora non riparte. Il prerequisito giusto è **che il pannello sia al quadlet 3**, non che il difetto sia
+   corretto.
 4. **Primo avvio: il codice di abbinamento è anche il primo accesso.** Un meccanismo solo: codice monouso sullo
    schermo LVGL e sulla pagina locale, nessun accesso prima che venga usato, prima credenziale fissata da chi lo
    inserisce nell'IDE. Spariscono l'Admin sintetico e `senza_autenticazione()`.
