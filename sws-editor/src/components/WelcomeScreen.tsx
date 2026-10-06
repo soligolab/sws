@@ -925,7 +925,23 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
   return (
     <div style={{
       display: "flex", flexDirection: "column", alignItems: "center",
-      justifyContent: "center", height: "100vh",
+      // `minHeight` e non `height`, `overflowY` e il centraggio affidato al
+      // `margin: auto` del figlio invece che a `justify-content: center`.
+      //
+      // Prima era `height: 100vh` + `justifyContent: center` senza overflow:
+      // con pochi progetti si vedeva bene, con qualche decina il contenuto
+      // sforava e il centraggio lo spingeva fuori da TUTTI E DUE i lati —
+      // quindi i primi progetti diventavano irraggiungibili e non c'era
+      // barra di scorrimento. Alzare il solo `overflow` non basta: con
+      // `justify-content: center` la parte sopra resta inarrivabile anche in
+      // un contenitore scorrevole, mentre un `margin: auto` cede quando lo
+      // spazio finisce. Segnalato dal maintainer il 06-10-2026.
+      // `height` e non `minHeight`: il documento NON scorre — `index-admin.html`
+      // mette `overflow: hidden` su html e body di proposito, perche «viewer e
+      // IDE gestiscono lo scorrimento nei propri contenitori». Con `minHeight`
+      // questo div cresceva oltre la finestra e il corpo lo tagliava: nessuna
+      // barra, contenuto perduto. Primo tentativo del 06-10-2026, sbagliato.
+      height: "100vh", overflowY: "auto", padding: "32px 0", boxSizing: "border-box",
       background: "var(--brand-bg, #0f172a)", color: "var(--brand-text, #e2e8f0)",
       fontFamily: "system-ui, sans-serif, 'SWS Emoji'",
     }}>
@@ -938,7 +954,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
       )}
       {showInstalla && <InstallaRuntimeModal onClose={() => setShowInstalla(false)} />}
 
-      <div style={{ width: 480, maxWidth: "90vw" }}>
+      <div style={{ width: 480, maxWidth: "90vw", margin: "auto" }}>
         {/* logo / title */}
         <div style={{ textAlign: "center", marginBottom: 32 }}>
           <div style={{ fontSize: 36, fontWeight: 700, letterSpacing: 2, color: "var(--brand-text, #e2e8f0)" }}>SWS</div>

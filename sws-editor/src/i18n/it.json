@@ -599,7 +599,8 @@
     "pwOldWrong": "La vecchia password non è corretta.",
     "pwChangeError": "Errore nel cambio password. Riprova.",
     "welcomeUser": "Benvenuto",
-    "mustSetNewPassword": ". Per continuare devi impostare una nuova password."
+    "mustSetNewPassword": ". Per continuare devi impostare una nuova password.",
+    "email": "Email"
   },
   "props": {
     "diag45": "45° diagonale",
@@ -2723,5 +2724,18 @@
     "avvisoMembriMancanti": "{{n}} registri del catalogo non hanno un membro nel tipo «{{tipo}}» (versione precedente del catalogo): non vengono letti.",
     "avvisoTipoAllargato": "La variabile passa dal tipo «{{da}}» a «{{a}}», che ha anche i gruppi scelti: i membri che aveva restano gli stessi, con il loro storico.",
     "avvisoPercorsiCambiano": "«{{nome}}» ha un tipo piatto di prima e le mancano dei membri: passa al tipo annidato «{{tipo}}», e i percorsi cambiano (es. {{nome}}.ingressi.di1 al posto di {{nome}}.di1): grafici e allarmi che usano i vecchi vanno ricollegati."
+  },
+  "primoAccesso": {
+    "titolo": "primo accesso",
+    "spiegazione": "Questa installazione non ha ancora nessun utente. Crea l'amministratore. Il codice è stampato nei log del servizio all'avvio: serve a dimostrare che hai accesso alla macchina, non solo a questa pagina.",
+    "codice": "Codice di primo accesso",
+    "email": "Email",
+    "nome": "Nome (facoltativo)",
+    "password": "Password (almeno 8 caratteri)",
+    "ripetiPassword": "Ripeti la password",
+    "passwordCorta": "La password deve essere di almeno 8 caratteri.",
+    "nonCombaciano": "Le due password non combaciano.",
+    "crea": "Crea l'amministratore",
+    "creazione": "Creazione…"
   }
 }

@@ -99,6 +99,21 @@ pub struct AppState {
     /// La decisione la prende `main.rs`, che è l'unico posto a sapere se il
     /// listener del viewer è stato aperto.
     pub ide_only: bool,
+    /// Gli utenti **dell'installazione**: chi apre l'IDE. Presente solo sulle
+    /// istanze IDE — su un dispositivo gli utenti sono quelli del progetto, e
+    /// mescolare i due elenchi è il guasto del 14-09-2026 (vedi `sws-identita`).
+    pub identita: Option<sws_identita::Identita>,
+    /// `--senza-autenticazione`: scorciatoia **dichiarata** per lo sviluppo
+    /// locale. `main.rs` rifiuta di partire se il listener non è su loopback,
+    /// quindi non può restare accesa per sbaglio su un server.
+    pub senza_auth_sviluppo: bool,
+    /// Codice monouso del **primo accesso**, stampato all'avvio quando
+    /// l'installazione non ha ancora nessun utente. Dimostra accesso alla
+    /// macchina invece di fidarsi di chi arriva per primo alla pagina
+    /// (decisione 42; è lo stesso meccanismo del codice di abbinamento dei
+    /// pannelli, decisione CRA 4). Smette di valere da sé appena un utente
+    /// esiste: la rotta che lo usa rifiuta se `ha_utenti`.
+    pub token_primo_accesso: Option<Arc<String>>,
     pub project_epoch: Arc<tokio::sync::watch::Sender<u64>>,
     pub functions: FunctionsRegistry,
     pub derived_tags: DerivedTagsRegistry,
@@ -245,6 +260,11 @@ pub fn build(
     audit: Arc<sws_audit::AuditLog>,
     known_projects: Arc<crate::project_registry::ProjectRegistry>,
     instance_id: Arc<String>,
+    // Utenti dell'installazione (solo IDE) e scorciatoia di sviluppo: vedi i
+    // campi omonimi di `AppState`.
+    identita: Option<sws_identita::Identita>,
+    senza_auth_sviluppo: bool,
+    token_primo_accesso: Option<Arc<String>>,
     // Lo `AppState` torna al chiamante insieme ai due router: `main.rs` deve
     // avviare i servizi del progetto auto-aperto al boot (notifiche, script
     // globali) e quei supervisori vivono qui dentro.
@@ -258,6 +278,9 @@ pub fn build(
     // Q49: l'archivio delle impronte vive accanto alla configurazione, come known_hosts.
     let certificati = Arc::new(crate::certificati::store_dispositivi(&config_dir));
     let state = AppState {
+        identita,
+        senza_auth_sviluppo,
+        token_primo_accesso,
         db,
         bus,
         alarms,
@@ -852,11 +875,24 @@ pub fn build(
         .merge(self_service)
         .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
 
-    // Pre-auth project lifecycle endpoints — the WelcomeScreen calls these
-    // before any session token exists. They operate on `projects_root` and
-    // `templates_root` only (no AuthState dependency).
-    // GET /api/project is also pre-auth: the WelcomeScreen needs to know
-    // whether a project is active (503 = none) before any session exists.
+    // ── Ciclo di vita del progetto: dietro l'autenticazione dal 06-10-2026 ──
+    //
+    // Era **pre-auth** per una ragione vera: la WelcomeScreen chiamava queste
+    // rotte prima che un token potesse esistere, perché su un IDE non c'era
+    // nessun login da superare. Il prezzo era grosso e scritto nel codice —
+    // creare, aprire, rinominare, cancellare e caricare un progetto, più
+    // `/api/fs/browse-dirs` e `/api/fs/mkdir` che navigano il filesystem,
+    // **senza alcuna credenziale**.
+    //
+    // Quel vincolo è caduto con l'archivio delle identità: ora un IDE ha un
+    // login *prima* della WelcomeScreen, quindi quando queste rotte vengono
+    // chiamate un token c'è. Su un dispositivo senza utenti la fonte è
+    // `Nessuna` e `require_auth` inietta l'Admin sintetico: per lui non cambia
+    // niente.
+    //
+    // Segnalato dal maintainer il 06-10-2026, appena creato il primo
+    // amministratore: «la lista dei progetti dovrebbe essere mostrata dopo il
+    // login, ora si vede subito».
     let project_lifecycle = Router::new()
         .route("/api/project", get(get_project))
         .route(
@@ -919,13 +955,27 @@ pub fn build(
     });
 
     // Always-open routes: liveness probes + login + cert download + project lifecycle.
+    // Il gruppo prende il livello di autenticazione qui, accanto alla propria
+    // definizione: il «chi può chiamarle» sta dove si legge cosa sono.
+    let project_lifecycle = project_lifecycle
+        .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
+    let protected = protected.merge(project_lifecycle);
+
     let open = Router::new()
         .route("/health", get(|| async { "ok" }))
         .route("/metrics", get(crate::metrics::get_metrics))
         .route("/cert", get(get_cert))
         .route("/sw.js", sw_unregister)
         .route("/api/auth/login", post(login))
-        .merge(project_lifecycle);
+        // Primo accesso dell'installazione: pre-auth per necessità — servono a
+        // decidere QUALE schermata mostrare, e a quel punto nessun token può
+        // esistere. La creazione è protetta dal codice stampato all'avvio e si
+        // chiude da sé appena un utente esiste.
+        .route("/api/identita/stato", get(identita_stato))
+        .route(
+            "/api/identita/primo-amministratore",
+            post(identita_primo_amministratore),
+        );
 
     // ── La porta stretta di `--no-admin` ─────────────────────────────────────
     //
@@ -1282,28 +1332,223 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
 /// or the `?token=...` query string (the latter is for browser WebSocket
 /// upgrades, which cannot set custom headers). Inserts the resolved
 /// username into request extensions for downstream handlers.
-/// Questa richiesta va servita in modalità **no-auth** (Admin sintetico)?
+/// Da dove vengono gli utenti per questa richiesta.
 ///
-/// Due casi, e il secondo è quello nuovo:
+/// Sostituisce il booleano `senza_autenticazione(ide_only, ha_utenti)`, che
+/// confondeva due domande diverse — *esiste un elenco di utenti?* e *quale
+/// elenco?* — e rispondeva «nessuna autenticazione» a tutt'e due.
 ///
-/// - **Nessun utente definito** — il comportamento di sempre: un runtime appena
-///   installato, o con un progetto che non ha `users.yaml`, non può chiedere un
-///   login che non esiste ancora.
-/// - **L'istanza è un IDE** (`AppState::ide_only`, cioè `start_editor.sh` senza
-///   `--viewer-port`). Qui `users.yaml` **non governa l'IDE**: è il file che
-///   viaggia col deploy e che governa il **dispositivo**. Fino al 14-09-2026 i
-///   due usi erano lo stesso elenco, e definire il primo utente del pannello —
-///   un Operator — chiudeva fuori dall'editor chi lo stava definendo: la
-///   richiesta successiva trovava l'autenticazione accesa, il token che
-///   l'editor porta in no-auth è un sentinella che il server non ha mai
-///   emesso, e l'unico account esistente non poteva comunque configurare
-///   niente. Il progetto restava inaccessibile senza toccare i file a mano.
+/// Il guasto che quel booleano curava era vero: il 14-09-2026, definire il
+/// primo utente di un progetto (un Operator, pensato per il pannello) chiudeva
+/// fuori dall'editor chi lo stava definendo, perché `users.yaml` governava
+/// **anche** il runtime che serviva l'IDE. La cura però spegneva
+/// l'autenticazione sull'IDE *del tutto*, e il prezzo era dichiarato in Q56:
+/// «un IDE raggiungibile in rete non ha più password». Su `localhost` non si
+/// nota; su `sws.soligo.net` è inaccettabile.
 ///
-/// Il prezzo è dichiarato in `docs/OPEN_QUESTIONS.md` Q56: un IDE **raggiungibile
-/// in rete** non ha più password. Sul PC di sviluppo è `localhost`; su un host
-/// esposto la risposta vera è Q44 (utenti *sopra* i progetti), non questa.
-pub fn senza_autenticazione(ide_only: bool, ha_utenti: bool) -> bool {
-    ide_only || !ha_utenti
+/// La risposta non è scegliere fra i due elenchi: è **tenerli separati**.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FonteAutenticazione {
+    /// Admin sintetico, nessuna credenziale richiesta. Due soli casi, e
+    /// nessuno dei due è «è un IDE»:
+    /// - `--senza-autenticazione`, scorciatoia dichiarata per lo sviluppo
+    ///   locale, che `main.rs` accetta solo su loopback;
+    /// - un **dispositivo** senza utenti, che non può chiedere un login che
+    ///   non esiste ancora. Sparirà in Fase 6, quando il primo accesso del
+    ///   pannello sarà il codice di abbinamento (decisione CRA 4).
+    Nessuna,
+    /// `users.yaml` del progetto: gli utenti d'impianto, che viaggiano col
+    /// deploy. È il caso del dispositivo.
+    Progetto,
+    /// `identita.db` dell'installazione: chi apre l'IDE.
+    Installazione,
+}
+
+/// Decide la fonte. Funzione pura, così si prova senza alzare un server.
+pub fn fonte_autenticazione(
+    ide_only: bool,
+    ha_utenti_progetto: bool,
+    ha_identita: bool,
+    senza_auth_sviluppo: bool,
+) -> FonteAutenticazione {
+    if senza_auth_sviluppo {
+        return FonteAutenticazione::Nessuna;
+    }
+    if ide_only {
+        // Un IDE senza archivio delle identità non esiste: `main.rs` lo apre
+        // sempre. Se mancasse, meglio chiudere che aprire.
+        return if ha_identita {
+            FonteAutenticazione::Installazione
+        } else {
+            FonteAutenticazione::Installazione
+        };
+    }
+    if ha_utenti_progetto {
+        FonteAutenticazione::Progetto
+    } else {
+        FonteAutenticazione::Nessuna
+    }
+}
+
+/// Stato del primo accesso di un'installazione, per la schermata iniziale.
+///
+/// È **pre-auth** per necessità: serve a decidere *quale* schermata mostrare,
+/// e a quel punto nessun token può esistere. Non rivela nulla di utile a chi
+/// non è già davanti alla macchina — dice soltanto se un amministratore esiste.
+async fn identita_stato(State(s): State<AppState>) -> Response {
+    let Some(id) = s.identita.as_ref() else {
+        return Json(serde_json::json!({"gestita": false})).into_response();
+    };
+    let ha = id.ha_utenti().await.unwrap_or(true);
+    Json(serde_json::json!({
+        "gestita": true,
+        "serve_primo_amministratore": !ha,
+    }))
+    .into_response()
+}
+
+#[derive(serde::Deserialize)]
+struct PrimoAmministratore {
+    codice: String,
+    email: String,
+    #[serde(default)]
+    nome: String,
+    password: String,
+}
+
+/// Crea il **primo** amministratore dell'installazione.
+///
+/// Due condizioni, e servono tutt'e due:
+///
+/// - **non esiste ancora nessun utente.** Appena ne esiste uno questa rotta
+///   smette di funzionare per sempre, quindi non è una porta di servizio;
+/// - **il codice monouso combacia** con quello stampato all'avvio nei log. È
+///   la prova che chi sta creando l'account ha accesso alla *macchina*, non
+///   solo alla pagina: chiude il buco classico di chi arriva per primo alla
+///   schermata iniziale di uno strumento appena installato. Stessa idea del
+///   codice di abbinamento dei pannelli (decisione CRA 4), e la stessa cosa
+///   che Portainer ha preteso da noi installandolo sul VPS il 06-10-2026.
+async fn identita_primo_amministratore(
+    State(s): State<AppState>,
+    Json(req): Json<PrimoAmministratore>,
+) -> Response {
+    let Some(id) = s.identita.as_ref() else {
+        return (StatusCode::SERVICE_UNAVAILABLE, "nessun archivio delle identità").into_response();
+    };
+    match id.ha_utenti().await {
+        Ok(true) => {
+            return (
+                StatusCode::CONFLICT,
+                "esiste già un utente: il primo accesso è chiuso",
+            )
+                .into_response()
+        }
+        Ok(false) => {}
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+    let atteso = match s.token_primo_accesso.as_ref() {
+        Some(t) => t.as_str().to_string(),
+        None => {
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                "nessun codice di primo accesso: riavvia il servizio per generarne uno",
+            )
+                .into_response()
+        }
+    };
+    // Confronto a tempo costante: un confronto che esce al primo carattere
+    // diverso dice, con il tempo che impiega, quanti caratteri erano giusti.
+    let combacia = atteso.len() == req.codice.len()
+        && atteso
+            .bytes()
+            .zip(req.codice.bytes())
+            .fold(0u8, |acc, (a, b)| acc | (a ^ b))
+            == 0;
+    if !combacia {
+        warn!("primo accesso: codice errato");
+        s.audit.log(
+            "identita.primo_accesso_rifiutato",
+            None,
+            serde_json::json!({"motivo": "codice errato"}),
+        );
+        return (StatusCode::FORBIDDEN, "codice errato").into_response();
+    }
+    match id
+        .crea_utente(
+            &req.email,
+            &req.nome,
+            &req.password,
+            sws_identita::Ruolo::Amministratore,
+            false,
+        )
+        .await
+    {
+        Ok(u) => {
+            info!(email = %u.email, "primo amministratore creato");
+            s.audit.log(
+                "identita.primo_amministratore",
+                Some(u.email.clone()),
+                serde_json::json!({}),
+            );
+            Json(serde_json::json!({"email": u.email})).into_response()
+        }
+        Err(e) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
+    }
+}
+
+/// La fonte in vigore per questa istanza, adesso.
+pub async fn fonte_auth_corrente(s: &AppState) -> FonteAutenticazione {
+    fonte_autenticazione(
+        s.ide_only,
+        s.auth.has_users().await,
+        s.identita.is_some(),
+        s.senza_auth_sviluppo,
+    )
+}
+
+/// Traduce un utente dell'installazione nel `Role` che il resto del router già
+/// conosce.
+///
+/// **Oggi tutti e due i ruoli diventano `Admin`**, e va detto perché invece di
+/// lasciarlo scoprire: chi apre l'IDE deve poter lavorare, e `permissions.ts`
+/// nell'editor non ammette meno di Admin — è l'altra metà del guasto del
+/// 14-09. La distinzione fra amministratore e sviluppatore (decisione 18)
+/// diventa reale in Fase 3, quando esisteranno le aziende e il ruolo dirà chi
+/// gestisce le persone e chi i progetti. Mapparla adesso su `Role` vorrebbe
+/// dire inventare permessi che nessuno ha deciso.
+fn auth_user_da_identita(u: sws_identita::Utente) -> AuthUser {
+    AuthUser {
+        username: u.email,
+        role: Role::Admin,
+        must_change_password: u.deve_cambiare_password,
+        allowed_zones: vec![],
+    }
+}
+
+/// Il token della richiesta: intestazione `Authorization`, oppure `?token=`
+/// per i WebSocket, che non possono mandare intestazioni.
+fn token_della_richiesta(req: &Request) -> Option<String> {
+    req.headers()
+        .get(header::AUTHORIZATION)
+        .and_then(|h| h.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .map(|t| t.to_string())
+        .or_else(|| {
+            let q = req.uri().query().unwrap_or("");
+            url_form_decode(q)
+                .into_iter()
+                .find(|(k, _)| k == "token")
+                .map(|(_, v)| v)
+        })
+}
+
+fn admin_sintetico() -> AuthUser {
+    AuthUser {
+        username: "admin".to_string(),
+        role: Role::Admin,
+        must_change_password: false,
+        allowed_zones: vec![],
+    }
 }
 
 /// Va rifiutata questa creazione perché lascerebbe l'istanza senza nessuno che
@@ -1324,49 +1569,35 @@ pub fn primo_utente_non_amministratore(ide_only: bool, ha_utenti: bool, ruolo: R
 }
 
 async fn require_auth(State(s): State<AppState>, mut req: Request, next: Next) -> Response {
-    // No users defined (no project, or project without users) → open / no-auth mode.
-    // Inject a synthetic AuthUser so all downstream handlers see an Admin-level
-    // caller — the frontend never shows the login screen and all routes work.
-    // Un'istanza IDE resta in no-auth anche *con* utenti definiti: vedi
-    // `senza_autenticazione`.
-    if senza_autenticazione(s.ide_only, s.auth.has_users().await) {
-        req.extensions_mut().insert(AuthUser {
-            username: "admin".to_string(),
-            role: Role::Admin,
-            must_change_password: false,
-            allowed_zones: vec![],
-        });
+    let fonte = fonte_auth_corrente(&s).await;
+
+    if fonte == FonteAutenticazione::Nessuna {
+        req.extensions_mut().insert(admin_sintetico());
         return next.run(req).await;
     }
 
-    let token = req
-        .headers()
-        .get(header::AUTHORIZATION)
-        .and_then(|h| h.to_str().ok())
-        .and_then(|s| s.strip_prefix("Bearer "))
-        .map(|t| t.to_string())
-        .or_else(|| {
-            let uri = req.uri();
-            let q = uri.query().unwrap_or("");
-            url_form_decode(q)
-                .into_iter()
-                .find(|(k, _)| k == "token")
-                .map(|(_, v)| v)
-        });
+    let Some(token) = token_della_richiesta(&req) else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
 
-    let Some(token) = token else {
+    let utente = match fonte {
+        FonteAutenticazione::Nessuna => unreachable!("gestita sopra"),
+        FonteAutenticazione::Progetto => s.auth.validate(&token).await.map(|i| AuthUser {
+            username: i.username,
+            role: i.role,
+            must_change_password: i.must_change_password,
+            allowed_zones: i.allowed_zones,
+        }),
+        FonteAutenticazione::Installazione => match s.identita.as_ref() {
+            Some(id) => id.valida(&token).await.map(auth_user_da_identita),
+            None => None,
+        },
+    };
+
+    let Some(utente) = utente else {
         return StatusCode::UNAUTHORIZED.into_response();
     };
-    let Some(info) = s.auth.validate(&token).await else {
-        return StatusCode::UNAUTHORIZED.into_response();
-    };
-    let must_change = info.must_change_password;
-    req.extensions_mut().insert(AuthUser {
-        username: info.username,
-        role: info.role,
-        must_change_password: must_change,
-        allowed_zones: info.allowed_zones,
-    });
+    req.extensions_mut().insert(utente);
     next.run(req).await
 }
 
@@ -1443,40 +1674,31 @@ async fn require_admin(req: Request, next: Next) -> Response {
 /// Used by the runtime router (port 8443) to allow anonymous read-only access
 /// to the synoptic SPA without removing the role-check guards on write routes.
 async fn optional_auth(State(s): State<AppState>, mut req: Request, next: Next) -> Response {
-    // No users defined → no-auth mode: inject synthetic Admin (mirrors require_auth).
-    // La decisione è una sola per tutto il router: `senza_autenticazione`.
-    if senza_autenticazione(s.ide_only, s.auth.has_users().await) {
-        req.extensions_mut().insert(AuthUser {
-            username: "admin".to_string(),
-            role: Role::Admin,
-            must_change_password: false,
-            allowed_zones: vec![],
-        });
+    // La decisione è una sola per tutto il router: `fonte_auth_corrente`.
+    let fonte = fonte_auth_corrente(&s).await;
+    if fonte == FonteAutenticazione::Nessuna {
+        req.extensions_mut().insert(admin_sintetico());
         return next.run(req).await;
     }
 
-    let token = req
-        .headers()
-        .get(header::AUTHORIZATION)
-        .and_then(|h| h.to_str().ok())
-        .and_then(|v| v.strip_prefix("Bearer "))
-        .map(|t| t.to_string())
-        .or_else(|| {
-            let q = req.uri().query().unwrap_or("");
-            url_form_decode(q)
-                .into_iter()
-                .find(|(k, _)| k == "token")
-                .map(|(_, v)| v)
-        });
+    let token = token_della_richiesta(&req);
 
     let auth_user = if let Some(tok) = token {
-        if let Some(info) = s.auth.validate(&tok).await {
-            AuthUser {
-                username: info.username,
-                role: info.role,
-                must_change_password: info.must_change_password,
-                allowed_zones: info.allowed_zones,
-            }
+        let trovato = match fonte {
+            FonteAutenticazione::Nessuna => unreachable!("gestita sopra"),
+            FonteAutenticazione::Progetto => s.auth.validate(&tok).await.map(|i| AuthUser {
+                username: i.username,
+                role: i.role,
+                must_change_password: i.must_change_password,
+                allowed_zones: i.allowed_zones,
+            }),
+            FonteAutenticazione::Installazione => match s.identita.as_ref() {
+                Some(id) => id.valida(&tok).await.map(auth_user_da_identita),
+                None => None,
+            },
+        };
+        if let Some(info) = trovato {
+            info
         } else {
             // Expired / unknown token → anonymous
             AuthUser {
@@ -1564,6 +1786,49 @@ async fn login(
             return StatusCode::FORBIDDEN.into_response();
         }
     }
+    // Su un'istanza IDE le credenziali sono quelle dell'installazione, non
+    // quelle del progetto: `users.yaml` governa il pannello, non l'editor.
+    if fonte_auth_corrente(&s).await == FonteAutenticazione::Installazione {
+        let Some(id) = s.identita.as_ref() else {
+            return StatusCode::SERVICE_UNAVAILABLE.into_response();
+        };
+        return match id.accedi(&creds.username, &creds.password).await {
+            Ok(a) => {
+                s.audit.log(
+                    "auth.login",
+                    Some(a.utente.email.clone()),
+                    serde_json::json!({"ruolo": a.utente.ruolo.come_testo(), "fonte": "installazione"}),
+                );
+                // La forma della risposta è quella che il frontend già conosce
+                // (`LoginOk`): email al posto di username, e il ruolo tradotto.
+                Json(serde_json::json!({
+                    "token": a.token,
+                    "username": a.utente.email,
+                    "role": "Admin",
+                    "expires_at_ms": a.scade_ms,
+                    "must_change_password": a.utente.deve_cambiare_password,
+                }))
+                .into_response()
+            }
+            Err(sws_identita::Rifiuto::Bloccato { riprova_fra }) => (
+                StatusCode::TOO_MANY_REQUESTS,
+                [(
+                    axum::http::header::RETRY_AFTER,
+                    riprova_fra.as_secs().to_string(),
+                )],
+            )
+                .into_response(),
+            Err(motivo) => {
+                s.audit.log(
+                    "auth.login_failed",
+                    Some(creds.username.clone()),
+                    serde_json::json!({"fonte": "installazione", "motivo": motivo.to_string()}),
+                );
+                StatusCode::UNAUTHORIZED.into_response()
+            }
+        };
+    }
+
     match s.auth.login(&creds).await {
         Ok(ok) => {
             s.audit.log(
@@ -9821,25 +10086,44 @@ mod q30_file_tests {
 mod primo_utente_tests {
     use super::*;
 
+    use FonteAutenticazione as F;
+
     #[test]
-    fn un_ide_non_si_autentica_mai() {
-        // Il caso del guasto: utenti definiti **e** istanza IDE. Prima del
-        // 14-09-2026 qui si tornava `false` e l'editor si chiudeva fuori da
-        // solo un istante dopo aver scritto `users.yaml`.
-        assert!(senza_autenticazione(true, true));
-        assert!(senza_autenticazione(true, false));
+    fn un_ide_usa_gli_utenti_dell_installazione() {
+        // Dal 06-10-2026. Prima qui si tornava «nessuna autenticazione» in
+        // tutti e due i casi, ed era il prezzo dichiarato di Q56: un IDE
+        // raggiungibile in rete senza password. Il guasto che quella scelta
+        // curava — scrivere `users.yaml` e chiudersi fuori dal proprio editor —
+        // resta curato, perché l'IDE non guarda più quell'elenco.
+        assert_eq!(fonte_autenticazione(true, true, true, false), F::Installazione);
+        assert_eq!(fonte_autenticazione(true, false, true, false), F::Installazione);
     }
 
     #[test]
-    fn un_dispositivo_con_utenti_chiede_il_login() {
-        assert!(!senza_autenticazione(false, true));
+    fn un_ide_non_torna_aperto_se_l_archivio_manca() {
+        // Se per qualunque ragione l'archivio delle identità non c'è, si chiude
+        // invece di aprire: un guasto non deve diventare una porta.
+        assert_eq!(fonte_autenticazione(true, true, false, false), F::Installazione);
+    }
+
+    #[test]
+    fn la_scorciatoia_di_sviluppo_vince_su_tutto() {
+        // `--senza-autenticazione`, che `main.rs` accetta solo su loopback.
+        assert_eq!(fonte_autenticazione(true, true, true, true), F::Nessuna);
+        assert_eq!(fonte_autenticazione(false, true, false, true), F::Nessuna);
+    }
+
+    #[test]
+    fn un_dispositivo_con_utenti_usa_quelli_del_progetto() {
+        assert_eq!(fonte_autenticazione(false, true, false, false), F::Progetto);
     }
 
     #[test]
     fn un_dispositivo_senza_utenti_resta_aperto() {
-        // Invariato: un pannello appena installato non può chiedere un login
-        // che non esiste ancora.
-        assert!(senza_autenticazione(false, false));
+        // Invariato, e per ora: un pannello appena installato non può chiedere
+        // un login che non esiste ancora. Sparisce in Fase 6, quando il primo
+        // accesso sarà il codice di abbinamento (decisione CRA 4).
+        assert_eq!(fonte_autenticazione(false, false, false, false), F::Nessuna);
     }
 
     #[test]

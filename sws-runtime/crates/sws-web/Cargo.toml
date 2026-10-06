@@ -66,6 +66,8 @@ time                         = { workspace = true }
 # in un processo multithread, `chrono::Local` sì (legge /etc/localtime, che il
 # quadlet riempie con `Timezone=local`). Era già nel Cargo.lock, tirato da altri.
 chrono                       = { version = "0.4", default-features = false, features = ["clock", "std", "serde"] }
+# Utenti dell'installazione (chi apre l'IDE), distinti da quelli del progetto.
+sws-identita                 = { path = "../sws-identita" }
 
 [dev-dependencies]
 rusqlite.workspace = true

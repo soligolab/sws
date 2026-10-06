@@ -17,6 +17,14 @@
 # Le scrive chi fa il lavoro, insieme al lavoro; il maintainer le rivede al collaudo.
 
 versioni:
+  - versione: "2.13.0"
+    voci:
+      - it: "L'IDE ha i suoi utenti: si entra con email e password, distinti dagli utenti del progetto che viaggiano col deploy e proteggono l'impianto."
+        en: "The IDE has its own users: you log in with email and password, separate from the project users that travel with the deploy and protect the plant."
+    compatibilita:
+      - it: "L'IDE adesso chiede le credenziali. Al primo avvio il servizio stampa nei log un codice di primo accesso: incollalo nell'IDE per creare l'amministratore. Sui pannelli non cambia nulla."
+        en: "The IDE now asks for credentials. At first start the service prints a first-access code in its log: paste it into the IDE to create the administrator. Nothing changes on panels."
+
   - versione: "2.12.0"
     voci:
       - it: "Il runtime si aggiorna dall'IDE o dal pannello: canale stabile o di prova, «Aggiorna ora», una finestra programmata o il pilota automatico. Se la versione nuova non parte, torna da solo alla precedente."

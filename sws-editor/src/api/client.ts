@@ -792,6 +792,27 @@ export const api = {
       body: JSON.stringify({ username, password }),
     }),
 
+  /// Il primo accesso di un'installazione: serve a sapere QUALE schermata
+  /// mostrare, quindi si chiama prima che un token possa esistere.
+  identitaStato: () =>
+    request<{ gestita: boolean; serve_primo_amministratore?: boolean }>(
+      "/api/identita/stato",
+    ),
+
+  /// Crea il primo amministratore. Il `codice` è quello stampato all'avvio nei
+  /// log del servizio: dimostra accesso alla macchina, non solo alla pagina.
+  creaPrimoAmministratore: (
+    codice: string,
+    email: string,
+    nome: string,
+    password: string,
+  ) =>
+    request<{ email: string }>("/api/identita/primo-amministratore", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ codice, email, nome, password }),
+    }),
+
   logout: () =>
     request<void>("/api/auth/logout", { method: "POST" }),
 

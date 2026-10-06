@@ -26,7 +26,25 @@ export function LoginScreen({
 } = {}) {
   const { t } = useTranslation();
   const setAuth = useAppStore((s) => s.setAuth);
-  const [username, setUsername] = useState("admin");
+  // Su un'istanza IDE le credenziali sono quelle dell'INSTALLAZIONE e
+  // l'identità è l'email; su un pannello sono quelle del progetto, dove
+  // l'utente si chiama davvero `admin` (lo crea il seme di recupero) e
+  // precompilarlo aiuta. Dal 06-10-2026 lo si chiede invece di indovinarlo:
+  // proporre «admin» su un IDE che vuole un indirizzo è un suggerimento
+  // sbagliato, ed è stato segnalato appena creato il primo amministratore.
+  const [perInstallazione, setPerInstallazione] = useState<boolean | null>(null);
+  const [username, setUsername] = useState("");
+  useEffect(() => {
+    let vivo = true;
+    api.identitaStato()
+      .then((st) => {
+        if (!vivo) return;
+        setPerInstallazione(!!st.gestita);
+        if (!st.gestita) setUsername("admin");
+      })
+      .catch(() => { if (vivo) { setPerInstallazione(false); setUsername("admin"); } });
+    return () => { vivo = false; };
+  }, []);
   const [password, setPassword] = useState("");
   const [error, setError]       = useState<string | null>(null);
   const [busy, setBusy]         = useState(false);
@@ -100,12 +118,14 @@ export function LoginScreen({
           </div>
         )}
         <div>
-          <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 4 }}>{t("auth.user")}</label>
+          <label style={{ fontSize: 11, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 4 }}>
+            {perInstallazione ? t("auth.email") : t("auth.user")}
+          </label>
           <input
-            type="text"
+            type={perInstallazione ? "email" : "text"}
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            autoComplete="username"
+            autoComplete={perInstallazione ? "email" : "username"}
             disabled={isLocked}
             style={input}
           />
@@ -129,7 +149,7 @@ export function LoginScreen({
         )}
         <button
           type="submit"
-          disabled={busy || !password || isLocked}
+          disabled={busy || !password || !username || isLocked}
           style={{
             background: isLocked ? "var(--brand-surface-2, #334155)" : busy ? "#1e3a8a" : "var(--brand-primary, #3b82f6)",
             color: isLocked ? "var(--brand-text-subtle, #64748b)" : busy ? "#fff" : "var(--brand-on-primary, #fff)",

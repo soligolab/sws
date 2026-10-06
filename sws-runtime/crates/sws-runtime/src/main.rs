@@ -29,7 +29,7 @@ use tokio_rustls::{
     TlsAcceptor,
 };
 use tower::Service;
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 use crate::log_layer::LogBusLayer;
@@ -136,6 +136,17 @@ struct Args {
     /// functions remain. Requires --viewer-port.
     #[arg(long)]
     no_admin: bool,
+
+    /// Scorciatoia per lo sviluppo locale: nessuna autenticazione, Admin
+    /// sintetico come prima del 06-10-2026.
+    ///
+    /// Va **chiesta a voce alta** sulla riga di comando, e il processo
+    /// **rifiuta di partire se il listener non e su loopback**: il CRA vieta
+    /// le credenziali predefinite, non un opt-out dichiarato. Il verso conta —
+    /// fino a ieri l'assenza di password era il default silenzioso di ogni
+    /// IDE, oggi e una cosa che si deve chiedere.
+    #[arg(long)]
+    senza_autenticazione: bool,
 
     /// Plain HTTP port for the TLS certificate acceptance helper page.
     /// Serves a small interactive page (no cert needed) that guides the user
@@ -985,6 +996,65 @@ async fn main() -> anyhow::Result<()> {
     let known_projects =
         Arc::new(sws_web::project_registry::ProjectRegistry::load(&config_dir).await);
 
+    // ── La scorciatoia di sviluppo non deve poter vivere su un server ───────
+    if args.senza_autenticazione {
+        match detect_lan_ip() {
+            Some(ip) if raggiungibile_da_internet(ip) => {
+                error!(
+                    "--senza-autenticazione rifiutato: questa macchina e raggiungibile da \
+                     Internet ({ip}). E una scorciatoia per lo sviluppo locale, non una \
+                     configurazione: su un server esporrebbe l'IDE a chiunque."
+                );
+                anyhow::bail!("--senza-autenticazione su una macchina con indirizzo pubblico");
+            }
+            _ => {
+                warn!(
+                    "AUTENTICAZIONE DISATTIVATA (--senza-autenticazione): chiunque raggiunga \
+                     questa istanza ha i poteri di amministratore. Solo per lo sviluppo locale."
+                );
+            }
+        }
+    }
+
+    // ── Identita dell'installazione (chi apre l'IDE) ────────────────────────
+    //
+    // Solo sulle istanze IDE: su un dispositivo gli utenti sono quelli del
+    // progetto, che viaggiano col deploy. Due archivi, due scopi — mescolarli
+    // e il guasto del 14-09-2026 (vedi il crate `sws-identita`).
+    let identita = if ide_only {
+        match sws_identita::Identita::apri(config_dir.join("identita.db")).await {
+            Ok(i) => Some(i),
+            Err(e) => {
+                error!("archivio delle identita non apribile: {e}");
+                return Err(e);
+            }
+        }
+    } else {
+        None
+    };
+
+    // Codice monouso del primo accesso: si genera solo se non c'e ancora
+    // nessun utente, e si stampa dove lo legge chi ha accesso alla macchina.
+    // E la prova di presenza fisica che sostituisce la fiducia in chi arriva
+    // per primo alla pagina (decisione 42).
+    let token_primo_accesso = match identita.as_ref() {
+        Some(id) if !id.ha_utenti().await.unwrap_or(true) => {
+            let t = uuid::Uuid::new_v4().simple().to_string();
+            println!();
+            println!("  ════════════════════════════════════════════════════════════");
+            println!("  PRIMO ACCESSO — nessun utente in questa installazione.");
+            println!();
+            println!("    codice: {t}");
+            println!();
+            println!("  Aprilo nell'IDE e crea l'amministratore. Il codice vale");
+            println!("  finche non esiste un utente, poi smette da se.");
+            println!("  ════════════════════════════════════════════════════════════");
+            println!();
+            Some(std::sync::Arc::new(t))
+        }
+        _ => None,
+    };
+
     let (runtime_app, admin_app, app_state) = sws_web::router::build(
         tag_db,
         bus,
@@ -1017,6 +1087,9 @@ async fn main() -> anyhow::Result<()> {
         audit,
         known_projects,
         instance_id,
+        identita,
+        args.senza_autenticazione,
+        token_primo_accesso,
     );
 
     // Servizi del progetto auto-aperto al boot: canale Telegram, script globali,
@@ -1591,6 +1664,27 @@ fn announce_mdns(viewer_port: u16, admin_port: u16, tls: bool) -> Option<mdns_sd
             warn!("mDNS: register failed: {e}");
             None
         }
+    }
+}
+
+/// Un indirizzo con cui questa macchina sarebbe raggiungibile **da Internet**?
+///
+/// Serve alla guardia di `--senza-autenticazione`. La regola che avevo in mente
+/// all'inizio — «solo su loopback» — non reggeva alla realta: l'IDE di sviluppo
+/// si apre dal PC del maintainer attraverso la LAN (`192.168.0.201:8460`), e una
+/// guardia su loopback avrebbe reso il flag inutilizzabile proprio nel caso per
+/// cui esiste. Il discriminante giusto non e «non loopback», e «raggiungibile
+/// dal mondo»: una LAN privata va bene, un VPS con indirizzo pubblico no.
+///
+/// Nel dubbio si rifiuta: un IPv6 che non sia loopback viene trattato come
+/// pubblico, perche distinguere gli indirizzi locali unici richiede API non
+/// ancora stabili e sbagliare in quella direzione aprirebbe un IDE.
+fn raggiungibile_da_internet(ip: std::net::IpAddr) -> bool {
+    match ip {
+        std::net::IpAddr::V4(v4) => {
+            !(v4.is_private() || v4.is_loopback() || v4.is_link_local() || v4.is_unspecified())
+        }
+        std::net::IpAddr::V6(v6) => !v6.is_loopback(),
     }
 }
 

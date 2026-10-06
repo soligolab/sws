@@ -450,7 +450,14 @@ pub async fn get_system_status(State(state): State<AppState>) -> Json<SystemStat
         dir_guard.as_deref(),
         state.started_at,
         state.ide_only,
-        state.auth.has_users().await,
+        // `auth_required` dice al frontend se mostrare il login, e dal
+        // 06-10-2026 la domanda non e piu «il progetto ha utenti?» ma «questa
+        // istanza chiede credenziali?». Su un IDE la risposta viene
+        // dall'archivio dell'installazione, non da `users.yaml`: era proprio
+        // quella confusione a far credere all'editor di essere in modalita
+        // aperta mentre il progetto aveva utenti.
+        crate::router::fonte_auth_corrente(&state).await
+            != crate::router::FonteAutenticazione::Nessuna,
     )
     .await;
     status.boot_image = boot_image;

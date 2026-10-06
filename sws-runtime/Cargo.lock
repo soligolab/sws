@@ -3744,6 +3744,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "sws-identita"
+version = "2.12.0"
+dependencies = [
+ "anyhow",
+ "argon2",
+ "rusqlite",
+ "serde",
+ "sha2 0.10.9",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "sws-lvgl-viewer"
 version = "2.12.0"
 dependencies = [
@@ -3893,6 +3908,7 @@ dependencies = [
  "sws-auth",
  "sws-core",
  "sws-historian",
+ "sws-identita",
  "sws-pyscript",
  "sws-web",
  "time",
@@ -3901,6 +3917,7 @@ dependencies = [
  "tower 0.4.13",
  "tracing",
  "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]
@@ -3931,6 +3948,7 @@ dependencies = [
  "sws-auth",
  "sws-core",
  "sws-historian",
+ "sws-identita",
  "sws-plugin-enip",
  "sws-plugin-homeassistant",
  "sws-plugin-host",

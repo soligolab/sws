@@ -11,6 +11,47 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ## [Unreleased]
 
+### ⚠ Compatibilità
+
+- **L'IDE adesso chiede le credenziali.** Fino alla 2.12.0 un'istanza IDE non si autenticava mai, nemmeno con utenti
+  definiti: era il prezzo dichiarato di Q56, e su un host raggiungibile in rete voleva dire un editor aperto a chiunque.
+  Al primo avvio dopo l'aggiornamento il servizio **stampa nei log un codice di primo accesso**: lo si incolla nell'IDE
+  per creare l'amministratore, e da lì si entra con email e password. Il codice smette di valere appena un utente
+  esiste. Per lo sviluppo locale resta `--senza-autenticazione`, che il runtime **rifiuta** se la macchina ha un
+  indirizzo pubblico. **Sui pannelli non cambia nulla**: lì gli utenti restano quelli del progetto.
+
+### Added
+
+- **Identità dell'installazione** (crate `sws-identita`): chi apre l'IDE, in un archivio SQLite
+  `<config>/identita.db`, distinto dagli utenti del progetto che viaggiano col deploy. Due archivi, due scopi —
+  mescolarli è il guasto del 14-09, quando definire il primo utente di un progetto chiudeva fuori dal proprio editor.
+  Sessioni **persistite** (dietro un gateway che riavvia container, una sessione in RAM butta fuori a ogni riavvio) e
+  token salvato come SHA-256, mai in chiaro. Nessuna dipendenza nuova.
+- `scripts/check_rotte_preauth.sh`: le rotte raggiungibili senza credenziali sono una **lista bianca dichiarata**, con
+  il motivo accanto a ciascuna, e la guardia fallisce se ne compare una fuori elenco.
+
+### Changed
+
+- Il booleano `senza_autenticazione(ide_only, ha_utenti)` è sostituito da un enum esplicito con tre fonti —
+  `Nessuna`, `Progetto` (`users.yaml`), `Installazione` (`identita.db`). Confondeva due domande diverse: *esiste un
+  elenco di utenti?* e *quale elenco?*
+- **Il ciclo di vita del progetto è dietro l'autenticazione**: creare, aprire, rinominare, cancellare e caricare un
+  progetto, più `/api/fs/browse-dirs` e `/api/fs/mkdir` che navigano il filesystem. Era pre-auth per necessità — la
+  WelcomeScreen li chiamava prima che un token potesse esistere — e quel vincolo è caduto con il login dell'IDE.
+- La schermata di accesso chiede **Email** su un IDE e non propone più `admin`, che era il nome di un utente di
+  progetto; sui pannelli resta com'era, perché lì `admin` esiste davvero.
+
+### Fixed
+
+- **La lista dei progetti non scorreva** con molti progetti: il contenitore aveva `height: 100vh` e
+  `justify-content: center` senza `overflow`, e il centraggio spingeva il contenuto fuori da entrambi i lati rendendo
+  irraggiungibili i primi. Lo scorrimento è interno al contenitore, perché il documento non scorre di proposito.
+- **«Chiudi progetto» disconnetteva**: chiamava `clearAuth()`, residuo di quando chiudere riportava a una schermata
+  che funzionava senza credenziali.
+- **Le pagine non si caricavano** all'apertura di un progetto. L'effetto dipendeva dal solo token e funzionava per
+  **effetto collaterale**: aprire un progetto cambiava il token, e quel cambio lo faceva ripartire. Con una sessione
+  che dura, la coincidenza è sparita.
+
 ## [2.12.0] — 2026-10-05
 
 ### ⚠ Compatibilità

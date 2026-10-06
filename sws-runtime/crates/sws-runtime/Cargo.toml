@@ -32,6 +32,8 @@ metrics.workspace            = true
 
 sws-core      = { path = "../sws-core" }
 sws-web       = { path = "../sws-web" }
+sws-identita = { path = "../sws-identita" }
+uuid.workspace = true
 sws-auth      = { path = "../sws-auth" }
 sws-historian = { path = "../sws-historian" }
 sws-audit     = { path = "../sws-audit" }

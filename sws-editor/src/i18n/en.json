@@ -599,7 +599,8 @@
     "pwOldWrong": "The old password is incorrect.",
     "pwChangeError": "Error changing password. Try again.",
     "welcomeUser": "Welcome",
-    "mustSetNewPassword": ". To continue you must set a new password."
+    "mustSetNewPassword": ". To continue you must set a new password.",
+    "email": "Email"
   },
   "props": {
     "diag45": "45° diagonal",
@@ -2723,5 +2724,18 @@
     "avvisoMembriMancanti": "{{n}} catalog registers have no member in type «{{tipo}}» (older catalog version): they are not read.",
     "avvisoTipoAllargato": "The variable moves from type «{{da}}» to «{{a}}», which also has the chosen groups: its existing members stay the same, with their history.",
     "avvisoPercorsiCambiano": "«{{nome}}» has an older flat type missing some members: it moves to the nested type «{{tipo}}», and the paths change (e.g. {{nome}}.ingressi.di1 instead of {{nome}}.di1): charts and alarms using the old ones need reconnecting."
+  },
+  "primoAccesso": {
+    "titolo": "first access",
+    "spiegazione": "This installation has no users yet. Create the administrator. The code is printed in the service log at start-up: it proves you have access to the machine, not just to this page.",
+    "codice": "First-access code",
+    "email": "Email",
+    "nome": "Name (optional)",
+    "password": "Password (at least 8 characters)",
+    "ripetiPassword": "Repeat the password",
+    "passwordCorta": "The password must be at least 8 characters long.",
+    "nonCombaciano": "The two passwords do not match.",
+    "crea": "Create the administrator",
+    "creazione": "Creating…"
   }
 }

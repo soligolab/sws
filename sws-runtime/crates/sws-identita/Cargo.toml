@@ -1,0 +1,21 @@
+[package]
+name    = "sws-identita"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+tokio.workspace    = true
+argon2.workspace   = true
+rusqlite.workspace = true
+serde.workspace    = true
+tracing.workspace  = true
+anyhow.workspace   = true
+uuid.workspace     = true
+sha2.workspace     = true
+
+[dev-dependencies]
+# Lo schema, le migrazioni e la scadenza delle sessioni si provano solo su un
+# database vero: in memoria non si verifica che sopravvivano a un riavvio, che
+# è metà del motivo per cui questo crate esiste.
+tempfile = "3"

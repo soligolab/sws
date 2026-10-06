@@ -18,6 +18,7 @@ import { apriFinestra, sorvegliaChiusura } from "@/apriFinestra";
 import { idEditore, Ponte } from "@/ai/ponte";
 import { riassumi } from "@/ai/riassunto";
 import { LoginScreen } from "@/components/LoginScreen";
+import { PrimoAmministratoreScreen } from "@/components/PrimoAmministratoreScreen";
 import { ReAuthModal } from "@/components/ReAuthModal";
 import { azionePerSessioneRifiutata, MOTIVO_AUTENTICAZIONE_ACCESA } from "@/auth/sessioneScaduta";
 import { WelcomeScreen } from "@/components/WelcomeScreen";
@@ -443,6 +444,20 @@ export function App() {
   // Si rilegge a ogni cambio di progetto (`project?.meta?.name`) perché
   // `users.yaml` è **per progetto**: aprire un progetto diverso cambia la
   // risposta.
+  // Questa installazione non ha ancora nessun amministratore?
+  //
+  // Si chiede PRIMA di qualunque token, perché è la domanda che decide quale
+  // schermata mostrare: con zero utenti la schermata di accesso sarebbe un
+  // vicolo cieco — non c'è nessuno con cui accedere.
+  const [servePrimoAmministratore, setServePrimoAmministratore] = useState(false);
+  useEffect(() => {
+    let vivo = true;
+    api.identitaStato()
+      .then((st) => { if (vivo) setServePrimoAmministratore(!!st.serve_primo_amministratore); })
+      .catch(() => { /* runtime vecchio o non raggiungibile: si prosegue come prima */ });
+    return () => { vivo = false; };
+  }, []);
+
   useEffect(() => {
     if (!authToken || noActiveProject) return;
     let vivo = true;
@@ -477,13 +492,17 @@ export function App() {
       })
       .catch((e) => {
         if (e instanceof NoProjectError) {
+          // NON si cancella il token: dal 06-10-2026 la WelcomeScreen chiama
+          // rotte autenticate (elenco e creazione dei progetti, i modelli, la
+          // scelta della cartella). Prima erano pre-auth e buttare via il
+          // token era innocuo; ora lascerebbe la schermata senza credenziali —
+          // lista vuota, «Da modello» spento, cartelle non creabili.
           setNoActiveProject(true);
-          clearAuth();
         } else if (e instanceof RuntimeUnavailableError) {
           // Runtime non raggiungibile → WelcomeScreen; la WelcomeScreen
-          // gestirà il retry/errore quando l'utente interagisce.
+          // gestirà il retry/errore quando l'utente interagisce. Anche qui il
+          // token resta: il runtime che non risponde non dice nulla su chi sei.
           setNoActiveProject(true);
-          clearAuth();
         } else if (e instanceof AuthError) {
           clearAuth();
         } else if (e instanceof PasswordChangeRequiredError) {
@@ -522,7 +541,14 @@ export function App() {
         setFaceplates(loaded);
       })
       .catch(() => { /* non-critical — no faceplates configured */ });
-  }, [authToken, mustChangePassword]);
+    // `noActiveProject` fra le dipendenze dal 06-10-2026. Prima bastava
+    // `authToken` perche aprire un progetto **cambiava il token**: la
+    // WelcomeScreen faceva clearAuth + setAuth(sentinella), e quel cambio
+    // faceva ripartire questo effetto. Funzionava per effetto collaterale. Ora
+    // che la sessione dell'installazione sopravvive all'apertura, il token
+    // resta identico e senza questa dipendenza l'effetto non ripartiva mai:
+    // progetto aperto, nessuna pagina caricata.
+  }, [authToken, mustChangePassword, noActiveProject]);
 
   // resetDirty() before leaving: after a "close without saving" the store
   // still holds the modified pages, and a later F5 on the WelcomeScreen
@@ -530,7 +556,12 @@ export function App() {
   const executeClose = async () => {
     resetDirty();
     try { await api.closeProject(); } catch { /* ignore */ }
-    clearAuth();
+    // NIENTE clearAuth: chiudere un progetto non e disconnettersi, e per
+    // disconnettersi c'e gia `executeLogout`. Il `clearAuth` qui aveva senso
+    // finche chiudere riportava a una WelcomeScreen che funzionava senza
+    // credenziali; dal 06-10-2026 quella schermata le richiede, e buttare via
+    // il token significava chiedere di nuovo le credenziali per una cosa che
+    // non le riguarda.
     resetProjectState();
     setNoActiveProject(true);
   };
@@ -635,6 +666,25 @@ export function App() {
   // Blank while the first getProject()+whoami() round-trip is in flight.
   if (bootstrapping) return null;
 
+  // ── Prima di tutto: chi sei? ────────────────────────────────────────────
+  //
+  // Questi due rami stavano DOPO la WelcomeScreen, e andava bene finché il
+  // selettore dei progetti funzionava senza credenziali. Dal 06-10-2026 non
+  // più: elenco, creazione, modelli e scelta della cartella sono dietro
+  // l'autenticazione, quindi una WelcomeScreen senza token non mostrerebbe
+  // nulla e non lascerebbe fare nulla — una schermata viva che non funziona,
+  // che è peggio di una schermata di accesso.
+  if (!authToken && servePrimoAmministratore) {
+    return (
+      <PrimoAmministratoreScreen
+        onFatto={() => setServePrimoAmministratore(false)}
+      />
+    );
+  }
+  if (!authToken) {
+    return <LoginScreen motivo={motivoAccesso} />;
+  }
+
   // No active project → show project picker (WelcomeScreen).
   if (noActiveProject) {
     return (
@@ -644,12 +694,25 @@ export function App() {
             // visible while we probe auth state — avoids a LoginScreen flash.
             // No-auth mode: server injects synthetic admin → 200.
             // Auth mode: swap_store invalidated old session → 401.
+            // Attenzione a cosa significa qui un `whoami` riuscito.
+            //
+            // Prima del 06-10-2026 voleva dire una cosa sola: il server è in
+            // modalità senza utenti e ha risposto con l'Admin sintetico. Da
+            // qui il sentinella. Ma con gli utenti dell'installazione può
+            // voler dire l'opposto — che il token è **buono** — e sostituirlo
+            // col sentinella distruggerebbe una sessione valida un istante
+            // dopo aver aperto il progetto.
+            //
+            // Quindi: se un token vero c'è e funziona, si tiene.
+            const avevaTokenVero = !!authToken && authToken !== "no-auth";
             try {
               const me = await api.whoami();
-              clearAuth();
-              setAuth("no-auth", me.username, me.role, me.must_change_password);
+              if (!avevaTokenVero) {
+                clearAuth();
+                setAuth("no-auth", me.username, me.role, me.must_change_password);
+              }
             } catch {
-              clearAuth(); // has users → LoginScreen correct
+              clearAuth(); // la sessione non vale più → LoginScreen, giustamente
             }
             // Clear any leftover project/pages from before this screen was
             // shown, so EditorShell remounts empty instead of flashing the
@@ -662,13 +725,6 @@ export function App() {
     );
   }
 
-  if (!authToken) {
-    const handleCancelLogin = async () => {
-      try { await api.closeProject(); } catch { /* ignore */ }
-      setNoActiveProject(true);
-    };
-    return <LoginScreen onCancel={handleCancelLogin} motivo={motivoAccesso} />;
-  }
 
   if (mustChangePassword) {
     return <ChangePasswordScreen />;
