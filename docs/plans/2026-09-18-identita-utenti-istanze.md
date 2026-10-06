@@ -358,6 +358,40 @@ le sue parole, e ciò che è stato **misurato**; le proposte restano proposte fi
     nell'installer. Motivo: un ramo lungo accumula i conflitti di significato che git non vede, come
     il 14-09.
 
+42. **Una console di amministrazione della piattaforma** (06-10-2026). Richiesta del maintainer: «la
+    configurazione la metterei in una pagina web di amministrazione del servizio, dove vedrò le
+    richieste di creazione delle aziende e degli utenti e potrò approvarle. L'idea è che a quella
+    pagina entrerò con utente e password, poi configuro l'SMTP e poi abilito anche per l'admin il
+    2FA».
+
+    Non è una pagina di impostazioni: è **un posto**, e raccoglie tre decisioni già prese che finora
+    non avevano un luogo — l'approvazione delle aziende (17), la configurazione SMTP (28),
+    l'attivazione della 2FA (19).
+
+    **SMTP scelto: Infomaniak**, `mail.infomaniak.com:587` STARTTLS. La decisione 28 («senza legarsi
+    a un fornitore») resta valida: il fornitore è una configurazione, non un'assunzione nel codice.
+    Le credenziali sono **segreti di installazione**: file 0600 in `<config_dir>`, fuori da git e
+    fuori dall'export, come già vale per `secrets.yaml` dei progetti. La console ne cambia il
+    contenuto, non il posto.
+
+    **Il problema d'ordine, e la sua soluzione.** «Entro con utente e password» presuppone un
+    amministratore che esista già, e non può averlo creato una registrazione via email: l'SMTP si
+    configura *dopo* essere entrati. Il primo accesso deve quindi nascere altrove — e il meccanismo
+    giusto è lo stesso della **decisione CRA 4**: un **codice monouso stampato all'avvio** (nei log
+    del servizio, non raggiungibile da chi arriva alla pagina), che dimostra accesso alla macchina
+    invece di fidarsi di chi preme per primo. È esattamente ciò che Portainer ha preteso da noi il
+    06-10 installandolo sul VPS, e funziona.
+
+    **La 2FA dopo l'SMTP è l'ordine corretto**, con una condizione: all'attivazione si generano
+    **codici di recupero** da conservare fuori dal sistema. Senza, un telefono perso più una posta
+    che non parte significa nessuna strada di ritorno — e la posta, su un VPS OVH, dipende da un
+    relay esterno che può essere giù proprio quando serve.
+
+    **Dove entra nelle fasi**: la console nasce nella **Fase 3** (è lì che vivono aziende e
+    approvazioni) e si riempie nella **Fase 5** (SMTP, registrazione, 2FA). Il primo accesso con
+    codice monouso è lo stesso codice della Fase 1 per l'installazione locale: un meccanismo, due
+    usi.
+
 ### Prerequisito: aggiornamento automatico del runtime (27-09-2026, sera)
 
 Chiesto dal maintainer come parte di questo piano, poi **spostato in un piano suo** perché propedeutico
