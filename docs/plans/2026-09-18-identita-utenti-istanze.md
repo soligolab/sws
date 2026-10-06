@@ -206,8 +206,8 @@ le sue parole, e ciò che è stato **misurato**; le proposte restano proposte fi
 28. **Email via SMTP configurabile**, senza legarsi a un fornitore.
 
 36. **Le porte pubbliche** (05-10-2026). *Nota del 05-10, sera: con la decisione 38 il conflitto che
-    ha generato questa decisione non esiste più — il tunnel dei pannelli usa SNI, quindi la 443 la
-    condividono. Resta valido il principio sulla diagnosticabilità, e resta vero che Let's Encrypt
+    ha generato questa decisione non esiste più — il tunnel dei pannelli è HTTPS, quindi la 443 la
+    condividono dietro lo stesso proxy. Resta valido il principio sulla diagnosticabilità, e resta vero che Let's Encrypt
     con la 80 libera è più semplice.* Testo originale: la 443 è della VPN, l'IDE sta altrove. Parole del
     maintainer: «l'IDE non è necessario sia sulla porta 443, basta un redirect dalla porta 80 quando
     uno apre la pagina, se non vede la pagina il problema è della sua rete. Più importante è la VPN
@@ -251,7 +251,8 @@ le sue parole, e ciò che è stato **misurato**; le proposte restano proposte fi
     i suoi dati sono comunque suoi.
 
     **Quello che si guadagna, oltre all'isolamento:**
-    - la **443 torna condivisibile** con l'IDE: il tunnel è TLS con SNI, quindi haproxy smista. Il
+    - la **443 torna condivisibile** con l'IDE: il tunnel è HTTPS con WebSocket, quindi lo instrada un
+      proxy HTTP qualunque (decisione 40) — non serve nemmeno guardare l'SNI. Il
       conflitto che aveva prodotto le decisioni 36 e la correzione della 9 **sparisce**;
     - niente `/dev/net/tun`, niente root, **niente riavvio del pannello** — cade il problema
       misurato il 27-09, cioè che `net.pixsys.Config1` non ha un metodo per la VPN e quindi il
@@ -300,6 +301,34 @@ le sue parole, e ciò che è stato **misurato**; le proposte restano proposte fi
     è bloccata di default sui VPS OVH**, e morde sulla verifica dell'indirizzo — serve un relay su
     587, con PTR, SPF e DKIM, o le email di registrazione finiscono nello spam e la demo sembra
     rotta.
+
+40. **La porta di casa è Traefik, la GUI sui container è Portainer** (06-10-2026). Richiesta del
+    maintainer: «sul VPS vorrei implementare qualcosa tipo Traefik o simile ma con GUI e vorrei fosse
+    il modo per ospitare più servizi in container».
+
+    **Nota sulla GUI, perché la richiesta non si può soddisfare come posta**: la dashboard di Traefik
+    è di **sola lettura** — la configurazione resta file ed etichette dei container. La GUI che si
+    ottiene con questa coppia è quindi **sui container** (Portainer: avviare, fermare, guardare i
+    log), non sull'instradamento, che si configura con le etichette. In cambio: quando si aggiunge un
+    servizio non c'è niente da configurare nel proxy, perché Traefik lo scopre da sé.
+
+    **Semplificazione che viene dalla decisione 38**: il tunnel dei pannelli è una connessione TLS
+    uscente che parla WebSocket, cioè HTTPS normale. La porta di casa non ha quindi bisogno di
+    instradamento TCP né di guardare l'SNI grezzo — le basta HTTP, WebSocket e Let's Encrypt. Finché
+    sulla 443 c'era OpenVPN serviva haproxy con l'SNI; ora non più, e le menzioni precedenti in questi
+    piani sono state corrette.
+
+    **Il confine, che è la parte da non sbagliare.** Il proxy possiede 80 e 443, fa i certificati e
+    instrada **per nome host** verso i servizi della macchina, il gateway SWS fra questi. **Non**
+    instrada verso i container dei progetti: quella non è una scelta per nome ma dipende
+    dall'autenticazione (chi sei, di che azienda, puoi aprire questo progetto) e dal ciclo di vita
+    (avviarli a richiesta, spegnerli da fermi — l'unica difesa contro le schede dimenticate, visto che
+    «progetti aperti insieme» non è una quota, decisione 23). Due proxy in serie vanno bene; un proxy
+    che fa il mestiere del gateway no.
+
+    **Trappola da configurare esplicitamente**: i **timeout di inattività**. Un proxy che chiude le
+    connessioni ferme dopo un minuto taglia il tunnel dei pannelli, ed è esattamente il guasto che la
+    Fase 0 del piano d'esecuzione deve misurare. Va alzato, non lasciato al default.
 
 29. **Nessun ramo di sviluppo lungo** (maintainer: «No, ok, alla fine tutto questo lavoro ha senso
     anche per un uso locale»). Il lavoro entra in `main` a pezzi piccoli, un ramo corto per volta come

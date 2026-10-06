@@ -38,8 +38,10 @@ Quello che serve su quella macchina, e che **non** è ancora stato fatto (dalle 
 
 - DNS `sws.soligo.net` → quell'IP, e **Let's Encrypt con la sfida HTTP-01**: la 80 è libera perché
   serve solo a reindirizzare, quindi la via semplice è disponibile;
-- **haproxy sulla 443**, che smista per SNI fra l'IDE e il tunnel dei pannelli. Dopo la decisione 38
-  i due convivono sulla stessa porta e non c'è più conflitto;
+- **Traefik** come porta di casa (80 e 443, certificati, instradamento per nome host) e **Portainer**
+  per la GUI sui container — decisione 40. Dopo la decisione 38 il tunnel dei pannelli è HTTPS con
+  WebSocket, quindi non serve instradamento TCP: basta un proxy HTTP. **Attenzione ai timeout di
+  inattività**, che vanno allungati o tagliano il tunnel;
 - **podman rootless** con gli intervalli subuid/subgid per l'utente di servizio: il gateway avvia un
   container per ogni progetto aperto;
 - un **relay SMTP sulla 587**, con PTR, SPF e DKIM: sui VPS OVH la porta 25 in uscita è bloccata di
