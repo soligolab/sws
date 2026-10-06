@@ -125,14 +125,28 @@ vecchie di due giorni); la potatura delle immagini di `ut1` ha portato il deposi
 > condiviso molte volte. Dichiarava 49 GB quando il deposito ne occupava 4,8 veri. Si guarda `du` sul deposito, non
 > la colonna SIZE.
 
-### Un difetto da correggere subito
+### ~~Un difetto da correggere subito~~ — era mio, non dello script (corretto il 06-10-2026)
 
-**`scripts/build_container.sh` esce con codice 0 quando lo staging fallisce.** Visto dal vivo oggi: due build
-lanciati per errore in parallelo si sono scontrati sulla cartella di staging — che lo script cancella e ricrea a
-ogni avvio (`rm -rf "$CTX"`, riga 260) — e uno dei due ha stampato tre `cp: cannot create … File exists` e si è
-chiuso dichiarando successo. Un build che fallisce la preparazione del contesto e dice di avere funzionato è il
-modo esatto in cui si pubblica un'immagine incompleta senza accorgersene. Serve `set -e` sullo staging o un
-controllo esplicito sui `cp`, e una prova rossa.
+Il 05-10 avevo scritto che **`scripts/build_container.sh` esce con codice 0 quando lo staging
+fallisce**. **È falso, e l'ho provato falso.** Lo script ha `set -euo pipefail` e si ferma
+correttamente: con un `cp` che fallisce davvero esce con **1**.
+
+A mascherare l'errore era il **modo in cui lo lanciavo io**: `script | tail` restituisce il codice
+di uscita di `tail`, che riesce sempre. Il `pipefail` dentro lo script governa le pipe interne a
+quello script, non quella della shell che lo invoca. Riproduzione:
+
+```
+./t.sh …              → exit = 1
+./t.sh … 2>&1 | tail  → exit = 0        (con lo stesso errore stampato)
+```
+
+**La regola per me**: quando l'esito di un comando conta, non lo si incanala in `tail`. O si
+guarda `${PIPESTATUS[0]}`, o si scrive l'output in un file e lo si legge dopo.
+
+Resta vero il resto di quella giornata: due build lanciati per errore in parallelo si sono
+scontrati sulla cartella di staging, che lo script cancella e ricrea a ogni avvio
+(`rm -rf "$CTX"`, riga 260). Quello era un errore di conduzione, non di codice, e la causa prima
+era aver dato per morto un processo vivo perché il suo file di output era vuoto.
 
 ### Poi
 
