@@ -277,7 +277,8 @@ le sue parole, e ciò che è stato **misurato**; le proposte restano proposte fi
     modo in cui il pannello riceve la credenziale del tunnel — e la 13 (l'indirizzo del server
     scritto nell'immagine e modificabile), che diventa l'indirizzo del gateway.
 
-39. **Il server è un VPS OVH** (05-10-2026), si parte dal **VPS-1** (2 vCore, 4 GB, 40 GB NVMe) con
+39. **Il server è un VPS OVH** (05-10-2026; **preso il 06-10-2026**: `debian@vps-5ea9b77b.vps.ovh.net`,
+    dedicato all'IDE SWS — scheda in [TEST_SETUPS](../TEST_SETUPS.md) §0), si parte dal **VPS-1** (2 vCore, 4 GB, 40 GB NVMe) con
     l'idea di salire fino al VPS-4 se serve. È KVM, quindi **podman annidato** funziona senza i
     contorsionismi di un LXC non privilegiato — ed era il motivo principale per preferire una VM.
     (Con la decisione 38 cade il secondo motivo, `/dev/net/tun`: non serve più a nessuno.)

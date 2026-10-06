@@ -21,6 +21,32 @@ dispositivo.
 | `ufficio` | **casa** del maintainer (ufficio privato) — vedi la regola qui sotto | `max_xxv`, `/home/max_xxv/sws` | **TC620** di casa (`tc620-a-p3-c6-07aff9.local`, 192.168.1.204 il 26-09) | è la macchina della sezione 1 |
 | `frodo` | ufficio del lavoro, dev server headless | `pixsys`, `/home/pixsys/sws` | WP630 di prova (`192.168.1.x`), dispositivi Yocto della LAN ufficio | sezione 2 |
 | `theobroma` | ufficio del lavoro | `ut1`, `/home/ut1/sws` | — | **sola lettura**, disco al 99% (sezione 2) |
+| `vps-5ea9b77b.vps.ovh.net` | **VPS OVH**, datacenter UE | `debian` | Internet; i pannelli lo raggiungono **loro**, con una connessione uscente (decisione 38) | **Non è una macchina di sviluppo**: ospiterà l'IDE su `sws.soligo.net`. Preso il 06-10-2026 — vedi sotto |
+
+### Il VPS di `sws.soligo.net` (dal 06-10-2026)
+
+`debian@vps-5ea9b77b.vps.ovh.net`, preso per ospitare l'IDE come servizio. È una **VM KVM**, non un
+LXC: podman annidato funziona senza i contorsionismi di un container non privilegiato, ed era la
+ragione principale di quella scelta. Piano **VPS-1** (2 vCore, 4 GB, 40 GB NVMe), espandibile fino
+al VPS-4; il dimensionamento e il perché stanno nella **decisione 39** del
+[piano identità, utenti e istanze](plans/2026-09-18-identita-utenti-istanze.md).
+
+**Vale la regola 5 di `CLAUDE.md`: non ci si entra in SSH senza chiedere.** Non è un dispositivo di
+prova ma una macchina che un giorno sarà in servizio, quindi se mai la regola valeva, vale qui.
+
+Quello che serve su quella macchina, e che **non** è ancora stato fatto (dalle decisioni 36, 38, 39):
+
+- DNS `sws.soligo.net` → quell'IP, e **Let's Encrypt con la sfida HTTP-01**: la 80 è libera perché
+  serve solo a reindirizzare, quindi la via semplice è disponibile;
+- **haproxy sulla 443**, che smista per SNI fra l'IDE e il tunnel dei pannelli. Dopo la decisione 38
+  i due convivono sulla stessa porta e non c'è più conflitto;
+- **podman rootless** con gli intervalli subuid/subgid per l'utente di servizio: il gateway avvia un
+  container per ogni progetto aperto;
+- un **relay SMTP sulla 587**, con PTR, SPF e DKIM: sui VPS OVH la porta 25 in uscita è bloccata di
+  default, e senza relay le email di verifica della registrazione non partono o finiscono nello spam;
+- **non si compila lì**: una `target/` di questo workspace si mangia i 40 GB da sola. Build altrove,
+  immagini su ghcr, il VPS fa `pull`. Serve quindi anche l'immagine **amd64** pubblicata, che oggi la
+  CI costruisce solo come build di sviluppo (prerequisito della Fase 4 del piano del tronco cloud).
 
 **La regola per sapere se si è a casa** (maintainer, 26-09-2026): la macchina si chiama `ufficio`
 **e** il TC620 di casa risponde. Si verifica senza toccare il pannello — un ping, niente ssh
