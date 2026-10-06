@@ -116,7 +116,7 @@ Non è più un cancello: si può fare in parallelo alla Fase 1.
 > **Da `theobroma` non si fa**: questa macchina non raggiunge nessun dispositivo. Serve il maintainer
 > a casa (TC620) o una sessione su `frodo` (WP630).
 
-### Fase 1 — l'identità sopra i progetti, e l'IDE che chiede la password
+### Fase 1 — l'identità sopra i progetti, e l'IDE che chiede la password ✅ FATTA (06-10-2026)
 
 Il pezzo che serve a tutto il resto, e che si usa **anche senza cloud**.
 
@@ -135,7 +135,7 @@ Il pezzo che serve a tutto il resto, e che si usa **anche senza cloud**.
 che con fonte `Installazione` e nessun token risponda 401 su una rotta che oggi passa; a schermo,
 l'IDE su 8460 che chiede le credenziali.
 
-### Fase 2 — la lista bianca delle rotte pre-auth
+### Fase 2 — la lista bianca delle rotte pre-auth ✅ FATTA (06-10-2026)
 
 Possibile **solo dopo** la Fase 1: oggi `project_lifecycle` è pre-auth perché la WelcomeScreen chiama
 prima che un token esista, e con il login dell'installazione quel vincolo cade.
@@ -145,6 +145,25 @@ prima che un token esista, e con il login dell'installazione quel vincolo cade.
 - **`scripts/check_rotte_preauth.sh`**: la lista bianca è scritta, e la guardia fallisce se una rotta
   nasce fuori da `require_auth`. Sul modello del test di `deploy_only_app` (`router.rs:10237`), che
   fa già questo mestiere dall'altro lato. **Da provare rossa.**
+
+> **Fasi 1 e 2 chiuse il 06-10-2026**, squash `9fc2a391`, collaudate dal maintainer. Quello che è
+> stato fatto diversamente da come era scritto qui:
+>
+> - **`--senza-autenticazione` non rifiuta «fuori da loopback»** ma «se la macchina è raggiungibile
+>   da Internet». La regola scritta nel piano non reggeva alla realtà: l'IDE di sviluppo si apre
+>   dalla LAN, e su loopback il flag sarebbe stato inutile proprio nel caso per cui esiste.
+> - **Il sentinella `"no-auth"` non è stato rimosso**: si disattiva da solo, perché viene impostato
+>   solo quando `whoami()` riesce senza token, e ora quella chiamata risponde 401. Toglierlo del
+>   tutto tocca anche il viewer e le finestre staccate; resta per quando serviranno davvero.
+> - **In più**: il primo accesso con codice monouso (decisione 42), che il piano collocava in Fase 6
+>   per i pannelli. Serviva già qui — senza, un'installazione senza utenti non avrebbe nessuno con
+>   cui accedere.
+>
+> Tre difetti trovati al collaudo, due introdotti da questo lavoro, tutti della stessa famiglia: il
+> token era usato **di nascosto come segnale di «è cambiato qualcosa»**. Chiudere un progetto
+> disconnetteva; le pagine si caricavano solo perché aprire un progetto cambiava il token; la lista
+> dei progetti non scorreva. Una sessione che dura ha tolto quel segnale a chi lo usava senza
+> dichiararlo — da tenere a mente per le fasi che vengono.
 
 ### Fase 3 — aziende, spazi di lavoro, quote
 

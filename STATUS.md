@@ -90,6 +90,52 @@ Nessun codice, solo diagnosi (sessione da casa, TC620 raggiungibile). Il TC620 g
   il runtime lo applica al modulo.
 - Da pulire nel progetto: i tipi `pixsys_mcm260x_5ad_v2` e `…_9ad_v2`, piatti e senza istanze.
 
+## ▶ Riprendere da qui — l'IDE chiede le credenziali (2026-10-06, sera)
+
+**Nessun ramo aperto.** Squash `9fc2a391`. Fasi 1 e 2 del
+[tronco cloud](docs/plans/2026-10-05-cloud-utenti-aziende-spazi.md), collaudate dal maintainer.
+
+### Cosa è cambiato
+
+- Crate **`sws-identita`**: gli utenti dell'**installazione** (chi apre l'IDE) in un SQLite
+  `<config>/identita.db`, distinti da quelli del **progetto**, che viaggiano col deploy. Sessioni
+  persistite, token salvato come SHA-256. Nessuna dipendenza nuova.
+- `senza_autenticazione(ide_only, ha_utenti)` **non esiste più**: enum con tre fonti — `Nessuna`,
+  `Progetto`, `Installazione`.
+- **Primo accesso con codice monouso** stampato all'avvio (decisione 42). Si chiude da sé appena un
+  utente esiste.
+- `--senza-autenticazione` per lo sviluppo: rifiuta se la macchina ha un **indirizzo pubblico** —
+  non «se non è loopback», che avrebbe reso il flag inutile visto che l'IDE si apre dalla LAN.
+- **Fase 2**: ciclo di vita del progetto e `/api/fs/*` dietro `require_auth`, con la guardia
+  **`check_rotte_preauth.sh`** (32ª) che tiene la lista delle rotte aperte come elenco dichiarato.
+  Provata rossa; la prima stesura aveva un punto cieco sulle rotte scritte su più righe.
+
+### La lezione da portarsi dietro
+
+Tre difetti al collaudo, due introdotti da questo lavoro, **tutti della stessa famiglia**: il token
+era usato di nascosto come segnale di «è cambiato qualcosa». Chiudere un progetto disconnetteva; le
+pagine si caricavano solo perché aprire un progetto cambiava il token; la lista non scorreva. Una
+sessione che **dura** ha tolto quel segnale a chi lo usava senza dichiararlo. Se nelle fasi
+successive qualcosa non si aggiorna, guardare lì per primo.
+
+### Sul pannello non cambia niente
+
+Un dispositivo continua a usare `users.yaml`, e senza utenti resta aperto come prima — sparirà in
+Fase 6 col codice di abbinamento. `NOVITA.yaml` ha la voce **2.13.0** con l'avviso di
+compatibilità: l'IDE adesso chiede le credenziali.
+
+### Prossimo passo
+
+**Fase 3**: aziende, spazi di lavoro, quote — e con loro la console di amministrazione (decisione
+42) dove si approvano le aziende e si associa il marchio (decisione 43).
+
+Aspetta una tua scelta il **relay SMTP** (Infomaniak, `mail.infomaniak.com:587` STARTTLS): servono
+le credenziali. Morde in Fase 5, sulla verifica degli indirizzi.
+
+Invariato sul TC620: il deploy del progetto rifatto e il collaudo a schermo del lavoro LVGL.
+
+---
+
 ## ▶ Riprendere da qui — il VPS di sws.soligo.net è in piedi (2026-10-06, sera)
 
 **Nessun ramo aperto.** Squash `90e3ad48`, configurazione in [`deploy/vps/`](deploy/vps/).
