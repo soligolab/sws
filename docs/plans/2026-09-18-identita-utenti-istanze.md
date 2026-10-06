@@ -330,6 +330,26 @@ le sue parole, e ciò che è stato **misurato**; le proposte restano proposte fi
     connessioni ferme dopo un minuto taglia il tunnel dei pannelli, ed è esattamente il guasto che la
     Fase 0 del piano d'esecuzione deve misurare. Va alzato, non lasciato al default.
 
+41. **Un nome per servizio, e niente proxy Cloudflare** (06-10-2026). `sws.soligo.net` per l'IDE,
+    `tunnel.soligo.net` per la connessione dei pannelli; tutti e due su Cloudflare come **solo DNS**,
+    nuvola grigia, risolti a `37.187.181.142`. Maintainer: «credo sia meglio dividere i nomi dei vari
+    servizi».
+
+    **Perché dividere i nomi conviene**, al di là di Cloudflare: due nomi sono **due certificati**,
+    quindi un problema su uno non spegne l'altro; il tunnel può **traslocare** su un'altra macchina
+    cambiando un record DNS, senza toccare l'IDE né i pannelli già installati; i log e le regole del
+    firewall si leggono per nome invece che per percorso; e il giorno che si volesse riaccendere uno
+    scudo davanti all'interfaccia pubblica, lo si accende **solo su quella**.
+
+    **Perché il proxy sta spento.** Con la nuvola arancione Cloudflare non è un DNS ma un
+    intermediario: termina il TLS, quindi vedrebbe in chiaro i progetti e i dati d'impianto dei
+    clienti; impone la sfida **DNS-01** per il certificato (token API da custodire sul server, invece
+    della più semplice HTTP-01); e **chiude le connessioni ferme** dopo un centinaio di secondi, cioè
+    taglia un tunnel che per sua natura sta zitto per ore — rimediabile con dei ping, ma aggiunge un
+    terzo da sospettare ogni volta che un impianto si scollega. In cambio dava scudo anti-DDoS e IP
+    nascosto: su un servizio che ancora nessuno conosce, valore reale ma basso. Si riaccende con un
+    clic quando servirà, e la destinazione naturale è accenderlo **solo su `sws.soligo.net`**.
+
 29. **Nessun ramo di sviluppo lungo** (maintainer: «No, ok, alla fine tutto questo lavoro ha senso
     anche per un uso locale»). Il lavoro entra in `main` a pezzi piccoli, un ramo corto per volta come
     da `CLAUDE.md`: il gateway come modalità nuova (`--gateway`) che finché nessuno la lancia non

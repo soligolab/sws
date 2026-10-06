@@ -63,7 +63,7 @@ Materiale pronto da riusare: **`rusqlite`** (bundled) è già dipendenza del wor
 ## Architettura
 
 ```
-              sws.soligo.net          Traefik :443 instrada per nome host
+      sws.soligo.net · tunnel.soligo.net     Traefik :443 instrada per nome host
                      │                 :80 → reindirizzamento, e sfida HTTP-01
        ┌─────────────┴─────────────┐
        ▼                           ▼

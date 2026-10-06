@@ -21,7 +21,7 @@ dispositivo.
 | `ufficio` | **casa** del maintainer (ufficio privato) — vedi la regola qui sotto | `max_xxv`, `/home/max_xxv/sws` | **TC620** di casa (`tc620-a-p3-c6-07aff9.local`, 192.168.1.204 il 26-09) | è la macchina della sezione 1 |
 | `frodo` | ufficio del lavoro, dev server headless | `pixsys`, `/home/pixsys/sws` | WP630 di prova (`192.168.1.x`), dispositivi Yocto della LAN ufficio | sezione 2 |
 | `theobroma` | ufficio del lavoro | `ut1`, `/home/ut1/sws` | — | **sola lettura**, disco al 99% (sezione 2) |
-| `vps-5ea9b77b.vps.ovh.net` | **VPS OVH**, datacenter UE | `debian` | Internet; i pannelli lo raggiungono **loro**, con una connessione uscente (decisione 38) | **Non è una macchina di sviluppo**: ospiterà l'IDE su `sws.soligo.net`. Preso il 06-10-2026 — vedi sotto |
+| `vps-5ea9b77b.vps.ovh.net` | **VPS OVH**, datacenter UE | `debian` | Internet; i pannelli lo raggiungono **loro**, con una connessione uscente (decisione 38) | **Non è una macchina di sviluppo**: ospita `sws.soligo.net` (IDE) e `tunnel.soligo.net` (pannelli). Preso il 06-10-2026 — vedi sotto |
 
 ### Il VPS di `sws.soligo.net` (dal 06-10-2026)
 
@@ -36,7 +36,9 @@ prova ma una macchina che un giorno sarà in servizio, quindi se mai la regola v
 
 Quello che serve su quella macchina, e che **non** è ancora stato fatto (dalle decisioni 36, 38, 39):
 
-- DNS `sws.soligo.net` → quell'IP, e **Let's Encrypt con la sfida HTTP-01**: la 80 è libera perché
+- ✅ **DNS fatto il 06-10-2026**: `sws.soligo.net` (IDE) e `tunnel.soligo.net` (connessione dei
+  pannelli) → **37.187.181.142**, su Cloudflare **con il proxy spento** su entrambi — decisione 41.
+- **Let's Encrypt con la sfida HTTP-01**: la 80 è libera perché
   serve solo a reindirizzare, quindi la via semplice è disponibile;
 - **Traefik** come porta di casa (80 e 443, certificati, instradamento per nome host) e **Portainer**
   per la GUI sui container — decisione 40. Dopo la decisione 38 il tunnel dei pannelli è HTTPS con
