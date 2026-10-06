@@ -74,6 +74,22 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — collaudo MCM sul TC620 dopo la 2.12.0 (2026-10-06)
+
+Nessun codice, solo diagnosi (sessione da casa, TC620 raggiungibile). Il TC620 gira la **2.12.0**.
+- **Il 5AD ha la configurazione delle sonde** (`tipo_sensore_ai1…4` = 12, 11, 11, 11 nella memoria del modulo) e legge
+  24-29 °C, tutto Good: il modulo non ha perso niente.
+- **Il progetto rifatto nell'editor non è ancora sul pannello**: il pannello gira ancora `tc620-sistema` coi tipi piatti
+  (`mcm260x_5ad`, `mcm260x_9ad`); nell'editor il progetto ha i tipi annidati (`mcm260x_5ad_1.ingressi.ai1`,
+  `mcm260x_9ad_2.diagnostica…`) → serve il **deploy**, poi i pallini e l'albero dei tag tornano a coincidere.
+- **«Il tipo di sonda non è configurato»** che vedeva il maintainer: il 5AD è stato rifatto col **solo gruppo
+  «ingressi»**, quindi `configurazione.tipo_sensore_aiN` non è nel progetto. Rimedio subito: «Dal catalogo» →
+  «Riprendi `mcm260x_5ad_1`» con **Configurazione** spuntata (tipo allargato, percorsi `ingressi.*` invariati).
+- **Proposto al maintainer, non deciso**: aprire la sessione di plan sul seme
+  [configuratore dei moduli](docs/plans/2026-10-04-configuratore-moduli.md), così il tipo di sonda sta nel progetto e
+  il runtime lo applica al modulo.
+- Da pulire nel progetto: i tipi `pixsys_mcm260x_5ad_v2` e `…_9ad_v2`, piatti e senza istanze.
+
 ## ▶ Riprendere da qui — 2.12.0 rilasciata; si comincia il tronco cloud (2026-10-05, sera)
 
 **Nessun ramo aperto.** Tag **2.12.0** su origin, immagine pubblicata e verificata.
