@@ -392,6 +392,38 @@ le sue parole, e ciò che è stato **misurato**; le proposte restano proposte fi
     codice monouso è lo stesso codice della Fase 1 per l'installazione locale: un meccanismo, due
     usi.
 
+43. **Il marchio di un'azienda si sceglie da un catalogo, nella console** (06-10-2026). Richiesta del
+    maintainer: «nella pagina admin, all'azienda devo poter associare il branding». Scelto il
+    **catalogo di marchi preparati da lui**, non il caricamento libero. Chiude la terza gamba della
+    richiesta originale di Q44 (aziende, utenti, **branding relativo**).
+
+    **È la scelta più economica, e non per poco.** Senza caricamenti non c'è niente da
+    immagazzinare né da servire dinamicamente: i marchi restano file statici dentro l'immagine,
+    dove sono già (`sws-editor/public/branding/<id>/`), e al gateway basta annunciare a ogni azienda
+    un `active.json` diverso. Il frontend **non cambia di una riga**: `loadBranding()`
+    (`sws-editor/src/branding/index.ts:151`) fa già `fetch("/branding/active.json")` e non sa da
+    dove arrivi la risposta.
+
+    **Due cose misurate il 06-10-2026 che hanno portato a questa scelta.**
+
+    *Il logo è un SVG* (`logo.svg`, `favicon.svg`). Un SVG caricato da un'azienda e servito dalla
+    stessa origine dell'IDE può contenere `<script>`, che girerebbe **dentro** la pagina
+    dell'editor con la sessione dell'utente. È la via di attacco classica di «è solo un'immagine».
+    Con il catalogo il problema **non esiste**; il giorno del caricamento libero servono o soli
+    formati raster, o una ripulitura dell'SVG fatta sul serio, o un'origine separata.
+
+    *Un marchio non è solo aspetto: contiene il catalogo prodotti.* Il `brand.json` di Pixsys porta
+    `device_presets` con i venti modelli sistemati il 02-10. Quindi assegnare un marchio assegna
+    anche **quali pannelli l'azienda vede** scegliendo la dimensione di una pagina. Per un
+    rivenditore Pixsys è giusto; per un'azienda che vuole solo il proprio logo è un effetto
+    collaterale non richiesto.
+
+    **Conseguenza accettata, da riaprire quando morderà**: con il catalogo la coppia
+    aspetto + dispositivi resta unita, perché un marchio è un file solo. Il giorno in cui servirà
+    dare a un'azienda il logo di uno e i dispositivi di un altro — o nessun catalogo — la risposta è
+    separare le due cose sull'azienda invece che dentro il `brand.json`. Non si fa adesso: si sa che
+    è lì.
+
 ### Prerequisito: aggiornamento automatico del runtime (27-09-2026, sera)
 
 Chiesto dal maintainer come parte di questo piano, poi **spostato in un piano suo** perché propedeutico

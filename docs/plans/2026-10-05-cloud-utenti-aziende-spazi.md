@@ -170,9 +170,12 @@ prima che un token esista, e con il login dell'installazione quel vincolo cade.
   voler dire *l'autenticazione la fa il gateway*, e le due cose non vanno confuse».
 - Container podman rootless, immagine del runtime, montata **solo** la cartella del progetto
   (decisione 25).
-- **Branding per azienda**: qui diventa facile e chiude la richiesta di Q44. Oggi
-  `sws-editor/src/branding/index.ts:151` fa `fetch("/branding/active.json")`; il gateway lo serve per
-  azienda invece che statico, e il frontend non cambia di una riga.
+- **Branding per azienda** (decisione 43): il gateway serve `/branding/active.json` per azienda
+  invece che statico, e il frontend non cambia di una riga —
+  `sws-editor/src/branding/index.ts:151` fa già quella fetch. Con il **catalogo** scelto il 06-10
+  non c'è niente da caricare né da immagazzinare: i marchi restano file statici nell'immagine.
+  L'**associazione azienda → marchio** si fa dalla console di amministrazione (decisione 42), che
+  nasce in Fase 3.
 - **Prerequisito infrastrutturale**: il canale di rilascio oggi è `rc-arm64`, e il gateway su un
   server x86 deve avviare un'immagine **amd64**, che la CI costruisce solo come build di sviluppo. Va
   pubblicata su ghcr prima di questa fase.
