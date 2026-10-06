@@ -1,0 +1,7 @@
+[Unit]
+Description=Archivio dello stato, una volta al giorno
+[Timer]
+OnCalendar=daily
+Persistent=true
+[Install]
+WantedBy=timers.target

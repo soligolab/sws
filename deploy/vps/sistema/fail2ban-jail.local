@@ -1,0 +1,16 @@
+# Blocco degli indirizzi insistenti. NON e la difesa contro gli attacchi a
+# password: quelle sono spente (sshd_config.d/50-cloud-init.conf). Serve a non
+# sprecare CPU per 22.000 tentativi al giorno e a tenere i log leggibili.
+[DEFAULT]
+# Debian 13 tiene i log nel journal, non in /var/log/auth.log
+backend  = systemd
+# I blocchi li applica ufw, cosi si vedono in `ufw status` e non in un posto a parte
+banaction = ufw
+bantime  = 1h
+findtime = 10m
+maxretry = 3
+# Non bloccare mai se stessi
+ignoreip = 127.0.0.1/8 ::1
+
+[sshd]
+enabled = true

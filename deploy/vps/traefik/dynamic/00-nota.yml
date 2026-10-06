@@ -1,0 +1,3 @@
+# Configurazione DINAMICA — questa cartella si ricarica a caldo.
+# Un file per servizio, cosi si trova. Qui dentro vanno router, service e
+# middleware; le porte e i certificati stanno nel traefik.yml statico.

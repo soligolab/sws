@@ -1,0 +1,29 @@
+# Portainer — GUI per gestire i container.
+#
+# NON e' esposto su Internet: ascolta solo su 127.0.0.1. Ci si arriva con un
+# tunnel SSH dalla propria macchina:
+#     ssh -L 9000:127.0.0.1:9000 debian@37.187.181.142
+#     poi apri http://localhost:9000
+#
+# Il socket di podman montato qui dentro da' a Portainer il controllo completo
+# dei container, che equivale al controllo della macchina. E' inevitabile per
+# uno strumento che gestisce container, ed e' il motivo per cui a Traefik
+# (esposto su Internet) quel socket NON e' stato dato.
+[Unit]
+Description=Portainer — GUI sui container
+After=network-online.target
+
+[Container]
+Image=docker.io/portainer/portainer-ce:latest
+ContainerName=portainer
+Network=sws-rete.network
+PublishPort=127.0.0.1:9000:9000
+Volume=%h/sws-vps/portainer-dati:/data
+Volume=%t/podman/podman.sock:/var/run/docker.sock
+
+[Service]
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

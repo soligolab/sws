@@ -1,0 +1,30 @@
+# Quadlet: systemd legge questo file e ne genera un servizio utente.
+#   systemctl --user start|stop|status traefik
+#   journalctl --user -u traefik -f
+# Dopo averlo modificato: systemctl --user daemon-reload
+[Unit]
+Description=Traefik — la porta di casa del VPS (80 e 443)
+After=network-online.target
+
+[Container]
+Image=docker.io/library/traefik:v3
+AutoUpdate=registry
+
+# Le porte basse si possono legare senza root grazie a
+# /etc/sysctl.d/99-sws-porte.conf (ip_unprivileged_port_start = 80).
+PublishPort=80:80
+PublishPort=443:443
+Network=sws-rete.network
+
+# Configurazione in sola lettura: il proxy non deve poter riscrivere le proprie
+# regole. acme.json invece e' scrivibile, ci tiene i certificati e la chiave.
+Volume=%h/sws-vps/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+Volume=%h/sws-vps/traefik/dynamic:/etc/traefik/dynamic:ro
+Volume=%h/sws-vps/traefik/acme.json:/etc/traefik/acme.json
+
+[Service]
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

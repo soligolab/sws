@@ -1,0 +1,5 @@
+[Unit]
+Description=Archivio datato dello stato (certificati, Portainer)
+[Service]
+Type=oneshot
+ExecStart=%h/sws-vps/salva-stato.sh

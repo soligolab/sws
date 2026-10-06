@@ -1,0 +1,8 @@
+# Rete interna dei servizi. Solo Traefik pubblica porte sull'host; tutto il
+# resto vive qui dentro e si raggiunge PER NOME dal proxy. Un servizio che non
+# pubblica porte non e' raggiungibile da fuori: isolamento per costruzione.
+[Unit]
+Description=Rete interna dei servizi dietro Traefik
+
+[Network]
+NetworkName=sws-rete

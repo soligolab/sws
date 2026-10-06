@@ -1,0 +1,87 @@
+# Configurazione STATICA di Traefik — si legge SOLO all'avvio.
+# Se cambi qualcosa qui dentro, il servizio va riavviato:
+#     systemctl --user restart traefik
+# I router e i servizi NON stanno qui: stanno in dynamic/, che si ricarica a caldo.
+
+global:
+  checkNewVersion: false      # niente chiamate verso l'esterno per curiosare le versioni
+  sendAnonymousUsage: false   # niente telemetria
+
+# ── Le porte su cui ascolta ──────────────────────────────────────────────────
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      # Un client puo mandare X_Auth_User sperando che a valle venga letto come
+      # X-Auth-User, falsificando cosi le intestazioni che il proxy gestisce.
+      # Qui conta davvero: il gateway SWS passera l identita ai container dei
+      # progetti con un intestazione. `delete` la toglie e lascia passare la
+      # richiesta; `reject` la rifiuterebbe, rompendo client legittimi un po
+      # strani senza aggiungere sicurezza.
+      aliasHeadersStrategy: delete
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true     # 301: i browser se lo ricordano
+    # Nota: il reindirizzamento NON rompe Let's Encrypt. Traefik risponde alle
+    # verifiche ACME su questa porta prima di applicare il redirect.
+
+  websecure:
+    address: ":443"
+    http:
+      # Un client puo mandare X_Auth_User sperando che a valle venga letto come
+      # X-Auth-User, falsificando cosi le intestazioni che il proxy gestisce.
+      # Qui conta davvero: il gateway SWS passera l identita ai container dei
+      # progetti con un intestazione. `delete` la toglie e lascia passare la
+      # richiesta; `reject` la rifiuterebbe, rompendo client legittimi un po
+      # strani senza aggiungere sicurezza.
+      aliasHeadersStrategy: delete
+      tls:
+        certResolver: letsencrypt
+    transport:
+      respondingTimeouts:
+        # Il tunnel dei pannelli e' una connessione che sta zitta per ore: con i
+        # valori predefiniti verrebbe chiusa. Zero = nessun limite sulla durata
+        # di lettura e scrittura; l'idle a un'ora lascia respiro ai WebSocket.
+        readTimeout: 0
+        writeTimeout: 0
+        idleTimeout: 3600s
+
+# ── Da dove arriva la configurazione dinamica ────────────────────────────────
+# Scelta deliberata: FILE, non le etichette dei container. Due ragioni.
+#  1. La configurazione sta in un posto solo, leggibile e versionabile in git,
+#     invece che sparsa nelle definizioni dei container.
+#  2. Con le etichette Traefik dovrebbe parlare col socket dei container, che
+#     equivale a dargli i poteri di root sulla macchina. A un processo esposto
+#     su Internet non si da'.
+providers:
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true
+
+# ── Certificati ──────────────────────────────────────────────────────────────
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: mauro@soligo.net
+      storage: /etc/traefik/acme.json
+      # SERVER DI PROVA. I certificati sono validi ma firmati da una CA che i
+      # browser non riconoscono: serve a non bruciare i limiti di Let's Encrypt
+      # mentre si sbaglia. Per passare alla produzione: commenta la riga
+      # caServer, SVUOTA acme.json, e riavvia.
+      # PRODUZIONE dal 06-10-2026. Per tornare alla prova, togli il commento qui
+      # e SVUOTA acme.json (contiene anche l account presso la CA).
+      # caServer: https://acme-staging-v02.api.letsencrypt.org/directory
+      httpChallenge:
+        entryPoint: web
+
+# ── Cruscotto ────────────────────────────────────────────────────────────────
+# Acceso ma NON esposto: non c'e' nessun router che ci porti. Si guarda da un
+# tunnel SSH (vedi STATO.md). E' comunque di sola lettura.
+api:
+  dashboard: true
+
+log:
+  level: INFO
+accessLog: {}

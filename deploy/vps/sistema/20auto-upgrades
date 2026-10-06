@@ -1,0 +1,9 @@
+// Aggiornamenti automatici: solo quelli di SICUREZZA (vedi 50unattended-upgrades).
+// Il riavvio automatico e DISATTIVATO di proposito: un kernel nuovo richiede un
+// riavvio per entrare in funzione, ma una macchina che si riavvia da sola e
+// comoda finche non lo fa nel momento sbagliato. Conseguenza da sapere: gli
+// aggiornamenti del kernel restano installati e inattivi finche non si riavvia.
+//   Cosa aspetta un riavvio:  ls /var/run/reboot-required
+APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Unattended-Upgrade "1";
+APT::Periodic::AutocleanInterval "7";
