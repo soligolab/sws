@@ -90,6 +90,57 @@ Nessun codice, solo diagnosi (sessione da casa, TC620 raggiungibile). Il TC620 g
   il runtime lo applica al modulo.
 - Da pulire nel progetto: i tipi `pixsys_mcm260x_5ad_v2` e `…_9ad_v2`, piatti e senza istanze.
 
+## ▶ Riprendere da qui — il VPS di sws.soligo.net è in piedi (2026-10-06, sera)
+
+**Nessun ramo aperto.** Squash `90e3ad48`, configurazione in [`deploy/vps/`](deploy/vps/).
+
+### Il server
+
+`debian@vps-5ea9b77b.vps.ovh.net` (37.187.181.142), VPS-1 OVH, Debian 13. Ospita **l'IDE come
+servizio**; non ci si compila nulla. Due nomi, entrambi Cloudflare **solo DNS**:
+`sws.soligo.net` (IDE) e `tunnel.soligo.net` (pannelli) — decisione 41.
+
+- **Traefik** su 80 e 443 **senza root** (`ip_unprivileged_port_start=80`, invece di far girare come
+  root il processo esposto a Internet), certificato Let's Encrypt con sfida HTTP-01, rinnovo
+  automatico, timeout lunghi già tarati per il tunnel dei pannelli.
+- **Configurazione a file, non a etichette**: in un posto solo e versionabile, e soprattutto Traefik
+  **non ha il socket dei container** — che equivale ai poteri di root.
+- **Rete interna**: solo Traefik pubblica porte, gli altri servizi non sono raggiungibili se non
+  passando dal proxy.
+- **Portainer** chiuso su `127.0.0.1`, si raggiunge con un tunnel SSH.
+- **Sicurezza dell'accesso**: password SSH spente, firewall a tre porte, `fail2ban`. La macchina
+  riceveva **22 063 tentativi falliti in 24 ore** *con le password attive* — l'inganno era che
+  `sshd_config` diceva `no` e il file di cloud-init, che vince, diceva `yes`.
+- **Aggiornamenti automatici** di sistema e immagini; **archivio giornaliero** dello stato.
+- **Collaudato dal maintainer**: lucchetto valido su `https://sws.soligo.net`. Il **404** sotto è lo
+  stato corretto — nessun router serve quel nome finché non arriva l'IDE.
+
+### Immagine amd64 su ghcr
+
+Pubblicata e verificata: `2.12.0-amd64`, `latest-amd64`, `rc-amd64` → `sha256:9b9bc0c6…`. Era il
+prerequisito della Fase 4: il canale di rilascio era solo `rc-arm64` e il gateway gira su x86.
+*Nota*: esiste anche un tag `f69c6d0b-amd64` il cui hash non è più nella storia, perché il commit
+del ramo è stato corretto dopo. Innocuo, ma non risolve.
+
+### Decisioni del maintainer su quella macchina
+
+La **password di `debian` resta** (per SSH non serve più, si entra solo con chiave) e il **database
+di Portainer resta in chiaro**, da cifrare più avanti. Sono scelte, non arretrati: stanno in
+`deploy/vps/STATO.md` sotto «Decisioni prese, non dimenticanze», con le loro conseguenze.
+
+### Prossimo passo
+
+**Fase 1 del [tronco cloud](docs/plans/2026-10-05-cloud-utenti-aziende-spazi.md)**: il crate
+`sws-identita`, l'identità sopra i progetti, e l'IDE che smette di non chiedere la password.
+
+Aspetta invece una tua scelta il **relay SMTP sulla 587** (OVH blocca la 25 in uscita): serve un
+fornitore e delle credenziali. Morde alla Fase 5, sulla verifica degli indirizzi in registrazione.
+
+Invariato: sul TC620 restano il deploy del progetto rifatto e il collaudo a schermo del lavoro
+LVGL — predefiniti Fasi 2-4 e specchio, mai visti sul vetro.
+
+---
+
 ## ▶ Riprendere da qui — 2.12.0 rilasciata; si comincia il tronco cloud (2026-10-05, sera)
 
 **Nessun ramo aperto.** Tag **2.12.0** su origin, immagine pubblicata e verificata.
