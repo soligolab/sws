@@ -2737,5 +2737,102 @@
     "nonCombaciano": "The two passwords do not match.",
     "crea": "Create the administrator",
     "creazione": "Creating…"
+  },
+  "console": {
+    "titolo": "Administration",
+    "verifica": "Checking…",
+    "si": "yes",
+    "no": "no",
+    "nonPermesso": "This console is not for you",
+    "nonPermessoSpiegazione": "You need to be a platform administrator: that is who approves companies, and it is a different role from administering your own. Ask whoever administers this installation.",
+    "scheda": {
+      "aziende": "Companies",
+      "persone": "People",
+      "installazione": "This installation",
+      "marchi": "Brands",
+      "posta": "Mail"
+    },
+    "stato": {
+      "in_prova": "trial",
+      "approvata": "approved",
+      "sospesa": "suspended"
+    },
+    "ruolo": {
+      "Amministratore": "administrator",
+      "Sviluppatore": "developer"
+    },
+    "aziende": {
+      "crea": "Create company",
+      "nomePlaceholder": "Name of the new company",
+      "nessuna": "No companies.",
+      "implicita": "(this installation)",
+      "stato": "Status",
+      "marchio": "Brand",
+      "marchioPredefinito": "default",
+      "conDispositivi": "{{n}} panels",
+      "marchioNota": "A brand also carries the catalogue of available panels, not just the logo.",
+      "versione": "Default version",
+      "versionePlaceholder": "e.g. 2.12.0",
+      "versioneAvviso": "No effect yet: nothing starts containers per version until the gateway exists. This is the default for new projects, not the version a project opens with — that belongs to the project.",
+      "colonnaNome": "Company",
+      "colonnaStato": "Status",
+      "colonnaMarchio": "Brand",
+      "colonnaVersione": "Version"
+    },
+    "persone": {
+      "email": "Email",
+      "nome": "Name",
+      "passwordIniziale": "Initial password",
+      "crea": "Create",
+      "passwordAvviso": "You choose the password, so two people know it: whoever signs in must change it on first access.",
+      "disattivato": "deactivated",
+      "senzaNome": "no name",
+      "azienda": "Add to a company",
+      "scegliAzienda": "choose…",
+      "piattaforma": "Platform administrator",
+      "piattaformaNota": "Approves companies. A different role from administering your own company, not a higher grade.",
+      "disattiva": "Deactivate"
+    },
+    "installazione": {
+      "versione": "Version",
+      "modo": "Mode",
+      "progetto": "Open project",
+      "autenticazione": "Asks for credentials",
+      "container": "In a container",
+      "host": "Machine",
+      "arch": "Architecture"
+    },
+    "marchi": {
+      "nomeNuovo": "Name of the new brand",
+      "crea": "Create brand",
+      "nome": "Name",
+      "nomeBreve": "Short name",
+      "logo": "Logo",
+      "colori": "Colours",
+      "salva": "Save",
+      "elimina": "Delete",
+      "proprio": "of this installation",
+      "delProdotto": "shipped",
+      "delProdottoAvviso": "This brand ships with the product. Saving creates a copy belonging to this installation that covers it: the original stays underneath and comes back if you delete the copy.",
+      "avanzato": "IDE defaults (JSON)",
+      "avanzatoNota": "Available panels, data paths and shades: edited as text because they are structured lists, and seeing what you write is more honest than an editor that hides half of them.",
+      "jsonNonValido": "The defaults JSON is not valid:"
+    },
+    "posta": {
+      "host": "Server",
+      "porta": "Port",
+      "mittente": "From",
+      "utente": "Username",
+      "password": "Password",
+      "starttls": "STARTTLS",
+      "salva": "Save",
+      "salvata": "Configuration saved.",
+      "prova": "Test send",
+      "indirizzo": "To which address",
+      "invia": "Send",
+      "inviata": "Sent to {{a}}. If it does not arrive, check the spam folder too.",
+      "provaNota": "Otherwise a wrong configuration shows up the day someone registers and receives nothing — and registration gets the blame.",
+      "ovhAvviso": "On OVH VPS outbound port 25 is blocked: you need a relay on 587 (Infomaniak: mail.infomaniak.com). Without PTR, SPF and DKIM the mail lands in spam."
+    }
   }
 }

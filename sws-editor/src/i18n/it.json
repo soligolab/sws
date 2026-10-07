@@ -2737,5 +2737,102 @@
     "nonCombaciano": "Le due password non combaciano.",
     "crea": "Crea l'amministratore",
     "creazione": "Creazione…"
+  },
+  "console": {
+    "titolo": "Amministrazione",
+    "verifica": "Verifica in corso…",
+    "si": "sì",
+    "no": "no",
+    "nonPermesso": "Questa console non è per te",
+    "nonPermessoSpiegazione": "Serve essere amministratore di piattaforma: è chi approva le aziende, ed è un ruolo diverso dall'amministrare la propria. Chiedi a chi amministra questa installazione.",
+    "scheda": {
+      "aziende": "Aziende",
+      "persone": "Persone",
+      "installazione": "Questa installazione",
+      "marchi": "Marchi",
+      "posta": "Posta"
+    },
+    "stato": {
+      "in_prova": "in prova",
+      "approvata": "approvata",
+      "sospesa": "sospesa"
+    },
+    "ruolo": {
+      "Amministratore": "amministratore",
+      "Sviluppatore": "sviluppatore"
+    },
+    "aziende": {
+      "crea": "Crea azienda",
+      "nomePlaceholder": "Nome della nuova azienda",
+      "nessuna": "Nessuna azienda.",
+      "implicita": "(questa installazione)",
+      "stato": "Stato",
+      "marchio": "Marchio",
+      "marchioPredefinito": "predefinito",
+      "conDispositivi": "{{n}} pannelli",
+      "marchioNota": "Un marchio porta con sé anche il catalogo dei pannelli disponibili, non solo il logo.",
+      "versione": "Versione predefinita",
+      "versionePlaceholder": "es. 2.12.0",
+      "versioneAvviso": "Non ha ancora effetto: nessuno avvia container per versione finché non c'è il gateway. È il predefinito per i progetti nuovi, non la versione con cui si apre un progetto — quella è del progetto.",
+      "colonnaNome": "Azienda",
+      "colonnaStato": "Stato",
+      "colonnaMarchio": "Marchio",
+      "colonnaVersione": "Versione"
+    },
+    "persone": {
+      "email": "Email",
+      "nome": "Nome",
+      "passwordIniziale": "Password iniziale",
+      "crea": "Crea",
+      "passwordAvviso": "La password la scegli tu, quindi la conoscete in due: chi entra deve cambiarla al primo accesso.",
+      "disattivato": "disattivato",
+      "senzaNome": "nessun nome",
+      "azienda": "Iscrivi a un'azienda",
+      "scegliAzienda": "scegli…",
+      "piattaforma": "Amministratore di piattaforma",
+      "piattaformaNota": "Approva le aziende. È un ruolo diverso dall'amministrare la propria azienda, non un grado più alto.",
+      "disattiva": "Disattiva"
+    },
+    "installazione": {
+      "versione": "Versione",
+      "modo": "Modalità",
+      "progetto": "Progetto aperto",
+      "autenticazione": "Chiede le credenziali",
+      "container": "In container",
+      "host": "Macchina",
+      "arch": "Architettura"
+    },
+    "marchi": {
+      "nomeNuovo": "Nome del nuovo marchio",
+      "crea": "Crea marchio",
+      "nome": "Nome",
+      "nomeBreve": "Nome breve",
+      "logo": "Logo",
+      "colori": "Colori",
+      "salva": "Salva",
+      "elimina": "Elimina",
+      "proprio": "di questa installazione",
+      "delProdotto": "del prodotto",
+      "delProdottoAvviso": "Questo marchio arriva con il prodotto. Salvando ne crei una versione di questa installazione che lo copre: l'originale resta sotto e torna se cancelli la copia.",
+      "avanzato": "Predefiniti dell'IDE (JSON)",
+      "avanzatoNota": "Pannelli disponibili, percorsi dati e tonalità: si modificano come testo perché sono elenchi strutturati, e vedere cosa si scrive è più onesto di un editor che ne nasconde metà.",
+      "jsonNonValido": "Il JSON dei predefiniti non è valido:"
+    },
+    "posta": {
+      "host": "Server",
+      "porta": "Porta",
+      "mittente": "Mittente",
+      "utente": "Utente",
+      "password": "Password",
+      "starttls": "STARTTLS",
+      "salva": "Salva",
+      "salvata": "Configurazione salvata.",
+      "prova": "Prova di invio",
+      "indirizzo": "A quale indirizzo",
+      "invia": "Invia",
+      "inviata": "Inviata a {{a}}. Se non arriva, guarda anche nella posta indesiderata.",
+      "provaNota": "Una configurazione sbagliata altrimenti si scopre il giorno in cui qualcuno si registra e non riceve niente — e la colpa sembra della registrazione.",
+      "ovhAvviso": "Sui VPS OVH la porta 25 in uscita è bloccata: serve un relay sulla 587 (Infomaniak: mail.infomaniak.com). Senza PTR, SPF e DKIM le email finiscono nella posta indesiderata."
+    }
   }
 }

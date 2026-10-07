@@ -45,6 +45,7 @@ STATICHE=(
     check_manuale_widget    # il capitolo dei widget nomina tutti i tipi della palette
     check_password_browser  # nessuna password salvata in localStorage/sessionStorage
     check_rotte_preauth     # le rotte senza credenziali sono una lista bianca dichiarata, non una conseguenza
+    check_amministrazione   # ogni rotta della console passa dalla sua guardia, e da nessun'altra parte
     check_sonda             # la sonda del dispositivo (Q52) gira con sh -s e stampa solo fatti
     check_barra_allarmi     # alarm_banner: web e LVGL selezionano gli stessi stati ISA
     check_via_di_fuga       # la via di fuga STOP del pannello resta raggiungibile

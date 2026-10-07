@@ -1,4 +1,6 @@
 pub mod ai;
+pub mod amministrazione;
+pub mod marchi;
 pub mod backups;
 pub mod boot;
 pub mod boot_image;

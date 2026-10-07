@@ -777,6 +777,47 @@ const qs = (p: Record<string, string | number | undefined>) => {
   return s ? `?${s}` : "";
 };
 
+/** Un'azienda, come la vede la console. */
+export type Azienda = {
+  id: number;
+  nome: string;
+  stato: "in_prova" | "approvata" | "sospesa";
+  marchio: string | null;
+  /** Predefinita per i progetti NUOVI, non la versione con cui si apre un
+   *  progetto — quella e del progetto (decisione 44). Oggi inerte. */
+  versione_predefinita: string | null;
+  implicita: boolean;
+  max_progetti: number | null;
+  max_pannelli: number | null;
+  max_byte: number | null;
+  creata_ms: number;
+};
+
+/** Un utente **dell'installazione**: chi apre l'IDE. Distinto dagli utenti del
+ *  progetto, che viaggiano col deploy e proteggono l'impianto. */
+export type UtenteInstallazione = {
+  id: number;
+  email: string;
+  nome: string;
+  ruolo: "Amministratore" | "Sviluppatore";
+  attivo: boolean;
+  deve_cambiare_password: boolean;
+  amministratore_piattaforma: boolean;
+  creato_ms: number;
+};
+
+/** Un marchio del catalogo. `dispositivi` dice quanti pannelli porta con se:
+ *  un marchio non e solo aspetto (decisione 43). */
+export type Marchio = { id: string; nome: string; dispositivi: number };
+
+/** Un marchio come lo vede la console, col suo contenuto per intero.
+ *  `proprio` distingue i marchi dell'INSTALLAZIONE (modificabili) da quelli
+ *  del PRODOTTO, che un aggiornamento dell'immagine riscriverebbe. */
+export type MarchioCompleto = Marchio & {
+  proprio: boolean;
+  contenuto: Record<string, unknown>;
+};
+
 export const api = {
   // Auth
   login: (username: string, password: string) =>
@@ -812,6 +853,93 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ codice, email, nome, password }),
     }),
+
+  // ── Console di amministrazione ─────────────────────────────────────────
+  // Tutte dietro `require_amministratore_piattaforma`: un utente senza quel
+  // ruolo riceve 403, ed e cosi che la console scopre di non essere per lui.
+  amministrazioneAziende: () =>
+    request<Azienda[]>("/api/amministrazione/aziende"),
+
+  amministrazioneCreaAzienda: (nome: string) =>
+    request<Azienda>("/api/amministrazione/aziende", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nome }),
+    }),
+
+  /// Campo **assente** = non toccare, campo a **`null`** = metti a vuoto. La
+  /// distinzione la regge `doppia_opzione` lato Rust: qui basta non mandare
+  /// cio che non si sta cambiando.
+  amministrazioneModificaAzienda: (id: number, m: Record<string, unknown>) =>
+    request<void>(`/api/amministrazione/aziende/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(m),
+    }),
+
+  amministrazioneUtenti: () =>
+    request<UtenteInstallazione[]>("/api/amministrazione/utenti"),
+
+  amministrazioneCreaUtente: (u: { email: string; nome: string; password: string; amministratore?: boolean; azienda_id?: number }) =>
+    request<UtenteInstallazione>("/api/amministrazione/utenti", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(u),
+    }),
+
+  amministrazioneModificaUtente: (id: number, m: Record<string, unknown>) =>
+    request<void>(`/api/amministrazione/utenti/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(m),
+    }),
+
+  amministrazioneSmtp: () =>
+    request<{ configurata: boolean; smtp?: { host?: string; port?: number; from?: string; username?: string; password?: string; starttls?: boolean } }>(
+      "/api/amministrazione/smtp",
+    ),
+
+  /// La password arriva mascherata e si rimanda com'e: il server la legge come
+  /// «tieni quella di prima». Cosi si cambia l'host senza ridigitare un
+  /// segreto che non si e mai visto.
+  amministrazioneSalvaSmtp: (c: Record<string, unknown>) =>
+    request<void>("/api/amministrazione/smtp", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(c),
+    }),
+
+  amministrazioneProvaSmtp: (a: string) =>
+    request<void>("/api/amministrazione/smtp/prova", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ a }),
+    }),
+
+  amministrazioneMarchi: () =>
+    request<MarchioCompleto[]>("/api/amministrazione/marchi"),
+
+  /// Scrive SEMPRE fra i marchi dell'installazione, anche quando l'id e di uno
+  /// del prodotto: «modificare Pixsys» vuol dire crearne una versione propria
+  /// che lo copre, e l'originale resta sotto.
+  amministrazioneSalvaMarchio: (id: string, contenuto: Record<string, unknown>) =>
+    request<void>(`/api/amministrazione/marchi/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(contenuto),
+    }),
+
+  amministrazioneEliminaMarchio: (id: string) =>
+    request<void>(`/api/amministrazione/marchi/${encodeURIComponent(id)}`, { method: "DELETE" }),
+
+  /// Il corpo sono i byte del file: un file per richiesta, il nome nel
+  /// percorso. Le estensioni ammesse e il tetto di dimensione li impone il
+  /// server (marchi.rs), non questo client.
+  amministrazioneCaricaFileMarchio: (id: string, nome: string, file: Blob) =>
+    request<void>(
+      `/api/amministrazione/marchi/${encodeURIComponent(id)}/file/${encodeURIComponent(nome)}`,
+      { method: "PUT", body: file },
+    ),
 
   logout: () =>
     request<void>("/api/auth/logout", { method: "POST" }),

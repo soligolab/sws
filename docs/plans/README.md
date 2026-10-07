@@ -18,6 +18,13 @@ approfondita che il seme [identità, utenti e istanze](2026-09-18-identita-utent
 chiedeva; quel seme **resta** e non si archivia, perché tiene le decisioni numerate (1-39) e il
 testo integrale di Q44, Q54 e Q56. Chiude anche Q60.
 
+**Fasi 1 e 2 chiuse** il 06-10-2026 (squash `9591acaf`): l'IDE ha i suoi utenti e le rotte aperte
+sono una lista dichiarata. In corso la **Fase 3a**, che ha un piano suo —
+[aziende e console](2026-10-06-aziende-e-console.md): le aziende, e una console di amministrazione
+**separata dall'IDE**, perché decide su quale versione gira ogni azienda e lo strumento che governa
+le versioni non può essere fissato a una di esse. La **3b**, dopo, sposterà i progetti sotto la
+cartella dell'azienda — ed è quella che può perdere dati, quindi va affrontata da sola.
+
 (Questa riga diceva «nessun piano d'esecuzione in corso» dal 26-09.)
 
 **Ancora aperto, a fasi**: [gestione dei tag come oggetto unico](2026-09-21-gestione-tag-oggetto-unico.md) — Fasi 0-2 chiuse, restano **Fase 3 (Modbus)** e **Fase 4 (OPC-UA)**, più il collaudo a schermo della Fase 2. La riga in tabella lo dice già; la testa di questo indice diceva «nessun piano in corso» ed era imprecisa.

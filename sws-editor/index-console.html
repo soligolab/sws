@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SWS — Amministrazione</title>
+    <style>
+      /* Font emoji servito dal runtime: il Chromium del pannello (Yocto Pixsys)
+         non ne ha nessuno e disegna `[]`. Stesso Noto Emoji monocromo che usa
+         il viewer LVGL, quindi i due motori mostrano gli stessi glifi. Sta in
+         coda a ogni stack `font-family` dell'app: si usa solo per i caratteri
+         che nessun altro font ha (unicode-range limita comunque il download). */
+      @font-face {
+        font-family: "SWS Emoji";
+        src: url("/fonts/NotoEmoji-Regular.ttf") format("truetype");
+        unicode-range: U+2600-27BF, U+2B50, U+1F000-1FAFF;
+        font-display: swap;
+      }
+      /* La console di amministrazione (06-10-2026). Non e una finestra
+         dell'IDE: e un'applicazione a se, perche da qui si decidera su quale
+         versione gira ogni azienda e lo strumento che governa le versioni non
+         puo essere fissato a una di esse (decisione 44). Oggi la serve il
+         runtime dell'IDE, domani il gateway.
+
+         Deliberatamente minimale: la tabella dei token di colore NON si copia
+         qui. `applyBranding()`/`applyAppearance()` le scrivono comunque come
+         proprietà inline su :root al boot, e in `index.html` e
+         `index-admin.html` quel blocco porta già un «keep in sync» — una terza
+         copia si disallineerebbe alla prima modifica del tema. Il prezzo è un
+         lampo di scuro prima che il JS parta, su una finestra di servizio. */
+      html, body { height: 100%; margin: 0; overflow: hidden; }
+      body {
+        background: var(--brand-bg, #0f172a);
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif, "SWS Emoji";
+      }
+      #root { height: 100%; }
+    </style>
+    <script>
+      /* Pre-paint del tema, come in index-admin.html: senza, la finestra nasce
+         scura anche per chi lavora in tema chiaro. */
+      (function () {
+        try {
+          var m = localStorage.getItem("sws.theme") || "system";
+          var dark = m === "dark" || (m !== "light" &&
+            window.matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+          document.documentElement.style.setProperty("color-scheme", dark ? "dark" : "light");
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/console-main.tsx"></script>
+  </body>
+</html>

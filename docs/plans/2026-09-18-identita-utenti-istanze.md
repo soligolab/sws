@@ -424,6 +424,65 @@ le sue parole, e ciò che è stato **misurato**; le proposte restano proposte fi
     separare le due cose sull'azienda invece che dentro il `brand.json`. Non si fa adesso: si sa che
     è lì.
 
+44. **La versione sta sul progetto, non sull'azienda** (06-10-2026). Il maintainer, mentre si
+    scriveva la Fase 3a: «se l'azienda ha decine di pannelli e non sono tutti aggiornati potrà
+    aprire il progetto con una istanza specifica?».
+
+    **Il timore è fondato, e in modo concreto.** Ogni scrittura di `project.yaml` passa da
+    `stamp_and_serialize` (`sws-core/src/project.rs:1956`), che marchia il progetto con la versione
+    del runtime che l'ha scritto; `needs_update()` è letteralmente
+    `saved_by != runtime_version()`. Quindi aprire con un IDE più nuovo e salvare una virgola
+    timbra il progetto con la versione nuova — e da lì il deploy su un pannello rimasto indietro è
+    una scommessa, perché in più punti il formato usa `deny_unknown_fields` e un campo nato dopo
+    non viene ignorato: fa fallire il caricamento.
+
+    **L'azienda è l'unità sbagliata.** Quello che si deploya su un parco di pannelli è il
+    **progetto**, e due progetti della stessa azienda possono vivere su parchi diversi.
+
+    Quindi: il **progetto** porta la sua versione, l'**azienda** fissa il predefinito per i progetti
+    nuovi e il tetto massimo. Il dato per progetto **non va inventato**: è `saved_by`, che esiste
+    già, e il pulsante «⚠ Aggiorna progetto» — oggi solo un avviso che il progetto viene da un
+    runtime diverso — diventa il gesto deliberato con cui si porta avanti un progetto *e i suoi
+    pannelli*, quando sono pronti.
+
+    **Il costo operativo, precisato dal maintainer lo stesso giorno**: il gateway dovrà saper
+    avviare **più versioni insieme**, e su ghcr **le release restano, le immagini di prova no** —
+    «le immagini di test si possono potare, solo le release saranno fissate dal momento in cui
+    andremo in produzione». Quindi l'impegno è limitato e sostenibile: non tutte le immagini per
+    sempre, solo quelle rilasciate, e solo da quando c'è qualcuno in produzione.
+
+    **Regola che ne discende, e va applicata dove si sceglie la versione**: un progetto può essere
+    legato solo a una **release**, mai a una `rc` né a un tag di commit. Quelle si potano, e un
+    progetto legato a un'immagine potata non si riapre più. Il selettore della console e il gateway
+    devono offrire solo release; un progetto che arrivasse marchiato con una `rc` va trattato come
+    «da aggiornare», non come «da avviare su quella rc».
+
+45. **I marchi si configurano dalla console, logo compreso** (06-10-2026). Corregge la decisione
+    43, che aveva scelto un catalogo preparato a mano **proprio per evitare i caricamenti**.
+    Richiesta del maintainer: «nella console prevedi il concetto di branding, che deve essere un
+    menù a parte in cui configuro i brand (che di fatto sono stili grafici e default dell'IDE) e
+    poi nella gestione delle aziende associo ad ogni azienda un brand».
+
+    **Dove vivono**: `<config_dir>/branding/<id>/`, con lo stesso schema del catalogo dispositivi —
+    quelli del prodotto restano nell'immagine, quelli dell'installazione in configurazione, e a
+    parità di identificativo vince l'utente (`catalogo.rs`, `Radici::trova`). Così i marchi che si
+    spediscono restano e quelli creati sopravvivono agli aggiornamenti.
+
+    **Il logo si può caricare, SVG compreso, e non serve ripulirlo.** Il fatto che lo permette:
+    il logo si disegna con `<img src=…>` (`BrandLogo.tsx:15`), e uno script dentro un SVG **non
+    viene eseguito** quando l'SVG è caricato come immagine — gira solo se il file è aperto come
+    documento, cioè navigandoci sopra o dentro un `iframe`. Quella strada si chiude servendo i file
+    dei marchi da una **rotta nostra** invece che da `ServeDir`, con
+    `Content-Security-Policy: default-src 'none'; sandbox` e `X-Content-Type-Options: nosniff`:
+    neutralizza gli script anche a chi ci naviga sopra apposta, e costa un'intestazione invece di
+    un sanificatore di SVG — che sarebbe stato un lavoro a sé, con una superficie d'errore sua.
+
+    **Conseguenza da non dimenticare**: quella rotta dev'essere **pre-auth**, perché la schermata
+    di accesso mostra il logo prima che esista un token. Va quindi nella lista bianca di
+    `check_rotte_preauth.sh`, con il motivo — ed è l'unica rotta aperta che serve file scrivibili
+    da fuori, quindi è anche quella su cui l'elenco delle estensioni ammesse e il limite di
+    dimensione contano davvero.
+
 ### Prerequisito: aggiornamento automatico del runtime (27-09-2026, sera)
 
 Chiesto dal maintainer come parte di questo piano, poi **spostato in un piano suo** perché propedeutico

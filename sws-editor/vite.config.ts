@@ -55,6 +55,14 @@ export default defineConfig({
         // l'URL deve essere esattamente `/index-chat.html`, perché `/chat`
         // cadrebbe nel fallback SPA e restituirebbe l'IDE.
         chat:  "index-chat.html",
+        // La console di amministrazione (06-10-2026). **Applicazione a sé**,
+        // non una schermata dell'IDE: da lì si decide su quale versione gira
+        // ogni azienda, e lo strumento che governa le versioni non può essere
+        // fissato a una di esse (decisione 44). Oggi la serve il runtime
+        // dell'IDE, domani il gateway.
+        // Stesso vincolo di log e chat sull'URL: `/index-console.html`
+        // esatto, perché `/amministrazione` cadrebbe nel fallback SPA.
+        console: "index-console.html",
       },
       output: {
         manualChunks(id) {

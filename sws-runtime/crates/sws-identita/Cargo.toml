@@ -18,4 +18,5 @@ sha2.workspace     = true
 # Lo schema, le migrazioni e la scadenza delle sessioni si provano solo su un
 # database vero: in memoria non si verifica che sopravvivano a un riavvio, che
 # è metà del motivo per cui questo crate esiste.
+serde_json.workspace = true
 tempfile = "3"

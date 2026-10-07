@@ -56,6 +56,17 @@ esito() {
 #   /api/identita/primo-amministratore   protetta dal codice stampato
 #                                        all'avvio; si chiude da sé appena un
 #                                        utente esiste
+#   /branding/:marchio/:file             logo e favicon: la schermata di
+#                                        ACCESSO li mostra, quindi prima che
+#                                        un token esista. ⚠ È l'unica rotta
+#                                        aperta che serve file SCRIVIBILI da
+#                                        fuori (la console li carica), ed è
+#                                        per questo che `marchi.rs` limita le
+#                                        estensioni a un elenco chiuso, pone
+#                                        un tetto di 1 MB e manda
+#                                        `Content-Security-Policy` +
+#                                        `nosniff`: un SVG caricato da terzi
+#                                        non deve poter eseguire script
 ATTESE=(
     "/health"
     "/metrics"
@@ -64,6 +75,7 @@ ATTESE=(
     "/api/auth/login"
     "/api/identita/stato"
     "/api/identita/primo-amministratore"
+    "/branding/:marchio/:file"
 )
 
 echo "── Rotte raggiungibili senza credenziali ──"

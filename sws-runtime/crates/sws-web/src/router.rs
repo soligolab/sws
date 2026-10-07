@@ -99,6 +99,11 @@ pub struct AppState {
     /// La decisione la prende `main.rs`, che è l'unico posto a sapere se il
     /// listener del viewer è stato aperto.
     pub ide_only: bool,
+    /// La cartella della SPA (`--www`), quando c'è. Serve alla console per
+    /// elencare i marchi disponibili, che sono file statici lì dentro: il Rust
+    /// non ha mai saputo nulla dei marchi, e l'unico modo di conoscerli è
+    /// guardare la cartella che li serve.
+    pub www_dir: Option<Arc<PathBuf>>,
     /// Gli utenti **dell'installazione**: chi apre l'IDE. Presente solo sulle
     /// istanze IDE — su un dispositivo gli utenti sono quelli del progetto, e
     /// mescolare i due elenchi è il guasto del 14-09-2026 (vedi `sws-identita`).
@@ -278,6 +283,7 @@ pub fn build(
     // Q49: l'archivio delle impronte vive accanto alla configurazione, come known_hosts.
     let certificati = Arc::new(crate::certificati::store_dispositivi(&config_dir));
     let state = AppState {
+        www_dir: www_dir.clone().map(Arc::new),
         identita,
         senza_auth_sviluppo,
         token_primo_accesso,
@@ -961,6 +967,20 @@ pub fn build(
         .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
     let protected = protected.merge(project_lifecycle);
 
+    // ── La console di amministrazione ───────────────────────────────────────
+    //
+    // Due livelli, e l'ordine conta: prima si dice CHI sei (`require_auth`),
+    // poi se puoi stare qui (`require_amministratore_piattaforma`) — che legge
+    // l'`AuthUser` che il primo ha messo nelle estensioni.
+    //
+    // `scripts/check_amministrazione.sh` verifica che ogni rotta dichiarata in
+    // `amministrazione.rs` arrivi qui dentro: la protezione non dipende dal
+    // ricordarsene.
+    let amministrazione = crate::amministrazione::rotte()
+        .route_layer(middleware::from_fn(require_amministratore_piattaforma))
+        .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
+    let protected = protected.merge(amministrazione);
+
     let open = Router::new()
         .route("/health", get(|| async { "ok" }))
         .route("/metrics", get(crate::metrics::get_metrics))
@@ -972,6 +992,12 @@ pub fn build(
         // esistere. La creazione è protetta dal codice stampato all'avvio e si
         // chiude da sé appena un utente esiste.
         .route("/api/identita/stato", get(identita_stato))
+        // I file dei marchi: logo, favicon, brand.json. **Pre-auth perché la
+        // schermata di accesso mostra il logo** prima che un token esista.
+        // Non passa da `ServeDir` di proposito: guarda in due radici (l'utente
+        // vince sul prodotto) e manda le intestazioni che rendono inerte uno
+        // script dentro un SVG caricato dalla console — vedi `marchi.rs`.
+        .route("/branding/:marchio/:file", get(crate::marchi::file_marchio))
         .route(
             "/api/identita/primo-amministratore",
             post(identita_primo_amministratore),
@@ -1522,6 +1548,7 @@ fn auth_user_da_identita(u: sws_identita::Utente) -> AuthUser {
         role: Role::Admin,
         must_change_password: u.deve_cambiare_password,
         allowed_zones: vec![],
+        amministratore_piattaforma: u.amministratore_piattaforma,
     }
 }
 
@@ -1548,6 +1575,9 @@ fn admin_sintetico() -> AuthUser {
         role: Role::Admin,
         must_change_password: false,
         allowed_zones: vec![],
+        // Con `--senza-autenticazione` si è tutto: una scorciatoia che lasciasse
+        // fuori la console la renderebbe inutilizzabile proprio in sviluppo.
+        amministratore_piattaforma: true,
     }
 }
 
@@ -1587,6 +1617,9 @@ async fn require_auth(State(s): State<AppState>, mut req: Request, next: Next) -
             role: i.role,
             must_change_password: i.must_change_password,
             allowed_zones: i.allowed_zones,
+            // Gli utenti del progetto non amministrano la piattaforma: quel
+            // concetto nel loro elenco non esiste.
+            amministratore_piattaforma: false,
         }),
         FonteAutenticazione::Installazione => match s.identita.as_ref() {
             Some(id) => id.valida(&token).await.map(auth_user_da_identita),
@@ -1608,6 +1641,11 @@ pub struct AuthUser {
     pub must_change_password: bool,
     /// Empty = all zones allowed.
     pub allowed_zones: Vec<String>,
+    /// Chi approva le aziende (decisione 17). **Asse diverso** da `role`, non
+    /// un grado più alto: un Admin di progetto non amministra la piattaforma,
+    /// e un amministratore d'azienda non deve poter approvare sé stesso.
+    /// Sempre falso per gli utenti del progetto: quel concetto lì non esiste.
+    pub amministratore_piattaforma: bool,
 }
 
 /// When the user is flagged "must change password", any API call other
@@ -1658,6 +1696,27 @@ async fn require_supervisor(req: Request, next: Next) -> Response {
     next.run(req).await
 }
 
+/// Solo l'amministratore di piattaforma.
+///
+/// Un 403, non un 404: la console esiste e lo sa anche chi non può usarla —
+/// nasconderla non protegge nulla e rende illeggibile il guasto a chi si
+/// aspettava di entrare.
+async fn require_amministratore_piattaforma(req: Request, next: Next) -> Response {
+    let ok = req
+        .extensions()
+        .get::<AuthUser>()
+        .map(|u| u.amministratore_piattaforma)
+        .unwrap_or(false);
+    if !ok {
+        return (
+            StatusCode::FORBIDDEN,
+            "serve un amministratore di piattaforma",
+        )
+            .into_response();
+    }
+    next.run(req).await
+}
+
 async fn require_admin(req: Request, next: Next) -> Response {
     if let Some(code) = check_role(&req, Role::Admin) {
         return code.into_response();
@@ -1691,6 +1750,7 @@ async fn optional_auth(State(s): State<AppState>, mut req: Request, next: Next) 
                 role: i.role,
                 must_change_password: i.must_change_password,
                 allowed_zones: i.allowed_zones,
+                amministratore_piattaforma: false,
             }),
             FonteAutenticazione::Installazione => match s.identita.as_ref() {
                 Some(id) => id.valida(&tok).await.map(auth_user_da_identita),
@@ -1706,6 +1766,7 @@ async fn optional_auth(State(s): State<AppState>, mut req: Request, next: Next) 
                 role: Role::Viewer,
                 must_change_password: false,
                 allowed_zones: vec![],
+                amministratore_piattaforma: false,
             }
         }
     } else {
@@ -1715,6 +1776,7 @@ async fn optional_auth(State(s): State<AppState>, mut req: Request, next: Next) 
             role: Role::Viewer,
             must_change_password: false,
             allowed_zones: vec![],
+            amministratore_piattaforma: false,
         }
     };
     req.extensions_mut().insert(auth_user);
@@ -1931,6 +1993,7 @@ async fn whoami(req: Request) -> Json<Whoami> {
             role: Role::Viewer,
             must_change_password: false,
             allowed_zones: vec![],
+            amministratore_piattaforma: false,
         });
     Json(Whoami {
         username: user.username,
@@ -10087,6 +10150,60 @@ mod primo_utente_tests {
     use super::*;
 
     use FonteAutenticazione as F;
+
+    /// Da dove arriva `amministratore_piattaforma`, e dove non deve arrivare.
+    ///
+    /// È un booleano che apre la console: l'errore realistico non è nella
+    /// guardia — che legge un campo e basta — ma nel costruire un `AuthUser`
+    /// con il valore sbagliato. Qui si guardano i tre posti dove nasce.
+    #[test]
+    fn solo_chi_deve_amministra_la_piattaforma() {
+        // Un utente del PROGETTO non amministra la piattaforma: quel concetto
+        // nel suo elenco non esiste.
+        let progetto = AuthUser {
+            username: "operatore".into(),
+            role: Role::Admin,
+            must_change_password: false,
+            allowed_zones: vec![],
+            amministratore_piattaforma: false,
+        };
+        assert!(!progetto.amministratore_piattaforma);
+
+        // Un utente dell'INSTALLAZIONE se lo porta dall'archivio, qualunque
+        // sia il suo ruolo in azienda.
+        let senza = auth_user_da_identita(sws_identita::Utente {
+            id: 1,
+            email: "chi@soligo.net".into(),
+            nome: String::new(),
+            ruolo: sws_identita::Ruolo::Amministratore,
+            attivo: true,
+            deve_cambiare_password: false,
+            amministratore_piattaforma: false,
+            creato_ms: 0,
+        });
+        assert!(
+            !senza.amministratore_piattaforma,
+            "un amministratore d'azienda non deve poter approvare sé stesso"
+        );
+        let con = auth_user_da_identita(sws_identita::Utente {
+            id: 2,
+            email: "capo@soligo.net".into(),
+            nome: String::new(),
+            ruolo: sws_identita::Ruolo::Sviluppatore,
+            attivo: true,
+            deve_cambiare_password: false,
+            amministratore_piattaforma: true,
+            creato_ms: 0,
+        });
+        assert!(
+            con.amministratore_piattaforma,
+            "il flag dell'archivio non arriva all'AuthUser"
+        );
+
+        // Con `--senza-autenticazione` si è tutto, console compresa:
+        // altrimenti la scorciatoia di sviluppo la renderebbe inutilizzabile.
+        assert!(admin_sintetico().amministratore_piattaforma);
+    }
 
     #[test]
     fn un_ide_usa_gli_utenti_dell_installazione() {
