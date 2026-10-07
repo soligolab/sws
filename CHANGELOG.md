@@ -21,6 +21,20 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   indirizzo pubblico. **Sui pannelli non cambia nulla**: lì gli utenti restano quelli del progetto.
 
 ### Added
+- **Le aziende, e una console di amministrazione separata dall'IDE.** Le aziende esistono sempre: un'installazione
+  singola ne ha una sola, implicita, che non compare mai — una forma sola di sistema invece di due. La console
+  (`/index-console.html`) è un'**applicazione a sé** e non una schermata dell'editor, perché da lì si deciderà su
+  quale versione gira ogni azienda e lo strumento che governa le versioni non può essere fissato a una di esse.
+  Cinque schermate: aziende (approvazione, marchio, versione predefinita), **marchi configurabili** con il logo
+  caricabile, persone, posta dell'installazione con prova di invio, stato della macchina.
+- I **marchi** si modificano dalla console e vivono in `<config>/branding/`, con lo schema del catalogo dispositivi:
+  quelli del prodotto restano nell'immagine e l'utente vince a parità di identificativo, quindi modificarne uno
+  spedito ne crea una copia che lo copre invece di sovrascriverlo — cancellando la copia l'originale torna. Gli SVG
+  si possono caricare senza sanificarli: il logo si disegna con `<img>`, dove gli script non vengono eseguiti, e la
+  navigazione diretta al file è chiusa da `Content-Security-Policy` e `nosniff` su una rotta dedicata.
+- `scripts/check_amministrazione.sh`: ogni rotta della console passa dalla sua guardia e da nessun'altra parte.
+  La protezione vive lontano dalle funzioni che protegge, quindi basta registrare una rotta nel gruppo sbagliato
+  perché sparisca senza che niente si rompa.
 
 - **Identità dell'installazione** (crate `sws-identita`): chi apre l'IDE, in un archivio SQLite
   `<config>/identita.db`, distinto dagli utenti del progetto che viaggiano col deploy. Due archivi, due scopi —

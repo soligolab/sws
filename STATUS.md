@@ -90,6 +90,60 @@ Nessun codice, solo diagnosi (sessione da casa, TC620 raggiungibile). Il TC620 g
   il runtime lo applica al modulo.
 - Da pulire nel progetto: i tipi `pixsys_mcm260x_5ad_v2` e `…_9ad_v2`, piatti e senza istanze.
 
+## ▶ Riprendere da qui — la console di amministrazione esiste (2026-10-07)
+
+**Nessun ramo aperto.** Squash `51c88008`. Fase **3a** chiusa, collaudata dal maintainer
+(«funziona, è abbastanza minimale ma per ora va bene»).
+
+### Cosa c'è
+
+- **Aziende** in `identita.db` (schema 2), con appartenenze e ruoli. Esistono **sempre**: un'installazione
+  singola ne ha una implicita che non si mostra mai.
+- **Console** su `/index-console.html`: applicazione a sé, non una schermata dell'IDE. Cinque schermate —
+  aziende, marchi, persone, posta, questa installazione. Colonna a sinistra, elenco con dettaglio a lato.
+- **Marchi configurabili**, logo compreso, in `<config>/branding/`; l'utente copre il prodotto e cancellando
+  la copia l'originale torna.
+- **Posta dell'installazione** in `<config>/smtp.yaml` (0600), password mascherata in lettura, prova di invio.
+- `check_amministrazione.sh`, 33ª guardia, provata rossa in due modi.
+
+### Due riparazioni che l'archivio fa da sé, trovate su dati veri
+
+L'**azienda implicita** per un archivio che ha utenti e nessuna azienda, e l'**amministratore di piattaforma**
+quando nessuno lo è. La seconda è emersa perché il maintainer non riusciva ad aprire la console: il suo utente
+era nato prima che la colonna esistesse, quindi col valore di default. Non un errore — **una porta murata**, che
+si scopre solo provando. È il promemoria che una migrazione non è «aggiungi la colonna» ma «cosa succede a chi
+c'era già».
+
+### Decisioni prese ieri, nel seme
+
+- **44** — la versione sta sul **progetto**, non sull'azienda: un'azienda con decine di pannelli non li ha tutti
+  aggiornati, e ciò che si deploya su un parco di pannelli è il progetto. Il dato esiste già (`saved_by`). Un
+  progetto si lega solo a una **release**, mai a una `rc`, perché quelle si potano.
+- **45** — i marchi si configurano dalla console, SVG compresi, senza sanificatore.
+
+### Dove stanno le tre cose chieste il 07-10
+
+Registrate nel [piano](docs/plans/2026-10-05-cloud-utenti-aziende-spazi.md): **risorse del server** — piccola,
+i dati ci sono già in `/api/system`, si fa quando conviene; **backup per azienda** — non è nuova, è una domanda
+aperta di Q44, e ha senso solo **dopo la 3b**; **regole VPN** — ⚠ la VPN non esiste più (decisione 38), la
+domanda equivalente è quali pannelli appartengono a un'azienda, ed è la **Fase 6**.
+
+Aggiunta la **Fase 3c**: i ruoli che governano qualcosa e l'amministratore d'azienda confinato alla sua azienda.
+Dopo la 3b, perché confinare vuol dire sapere di chi è ogni cosa — e finché i progetti non appartengono a
+un'azienda quella domanda non ha risposta per metà del contenuto.
+
+### Prossimo passo
+
+**Fase 3b**, il pezzo pericoloso: i progetti sotto `<radice>/<azienda>/<progetto>`, il registro indicizzato per
+azienda e nome (oggi due aziende con un progetto «impianto» si sovrascrivono, `project_registry.rs:49`), la
+regola `is_external` che diventerebbe vera per tutti (`projects.rs:1162`), e il confinamento mancante su
+`upload_project_zip` (`projects.rs:1815`) — **un buco già presente oggi**.
+
+Invariato: sul TC620 il deploy del progetto rifatto e il collaudo a schermo del lavoro LVGL. Da `theobroma` non
+si raggiunge nessun dispositivo.
+
+---
+
 ## ▶ Riprendere da qui — l'IDE chiede le credenziali (2026-10-06, sera)
 
 **Nessun ramo aperto.** Squash `9fc2a391`. Fasi 1 e 2 del

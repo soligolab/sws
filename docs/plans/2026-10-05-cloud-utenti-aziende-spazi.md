@@ -165,7 +165,7 @@ prima che un token esista, e con il login dell'installazione quel vincolo cade.
 > dei progetti non scorreva. Una sessione che dura ha tolto quel segnale a chi lo usava senza
 > dichiararlo — da tenere a mente per le fasi che vengono.
 
-### Fase 3 — aziende, spazi di lavoro, quote
+### Fase 3 — aziende, spazi di lavoro, quote  ·  **3a FATTA** (06-10-2026)
 
 - `identita.db` cresce: `aziende` (stato in prova/approvata/sospesa, quote), `membri` (amministratore
   | sviluppatore, decisione 18), `inviti`, `progetti` (azienda → cartella).
@@ -176,6 +176,28 @@ prima che un token esista, e con il login dell'installazione quel vincolo cade.
 - Quote per azienda: progetti, pannelli, spazio (decisione 23). **Al superamento si blocca solo ciò
   che crea** (decisione 24): un deploy e un pannello in servizio non si fermano mai.
 - Amministratore di piattaforma: approva le aziende (decisione 17).
+
+### Fase 3c — i ruoli governano qualcosa, e l'amministratore vede solo la sua azienda
+
+Richiesta del maintainer il 07-10-2026: «una configurazione dei ruoli degli utenti, per esempio
+potrei voler definire per una azienda un amministratore che vede solo la sua azienda e può
+approvare nuovi utenti».
+
+**Oggi i due ruoli esistono nei dati e non governano niente**: `membri.ruolo` è
+`amministratore | sviluppatore` (decisione 18), ma la console è accessibile **solo**
+all'amministratore di piattaforma e mostra tutto. Il pezzo che manca non è il ruolo — è il
+**confinamento**: la stessa console, aperta da un amministratore d'azienda, deve vedere la sua
+azienda e nient'altro.
+
+**Perché dopo la 3b e non prima.** Confinare significa rispondere «di quale azienda è questa
+cosa?» per ogni oggetto che la console mostra. Finché i progetti non appartengono a un'azienda —
+cioè fino alla 3b — quella domanda non ha risposta per metà del contenuto, e si finirebbe a
+confinare gli utenti e non i progetti: un confinamento a metà è peggio di nessuno, perché sembra
+esserci.
+
+**L'approvazione dei nuovi utenti** che il maintainer nomina si incastra invece con la
+**registrazione** (Fase 5): è lì che nascono utenti da approvare. Il ruolo si confina in 3c, il
+pulsante «approva» compare in 5.
 
 ### Fase 4 — il gateway
 
@@ -255,6 +277,29 @@ Per ogni fase, la *definition of done* di `CLAUDE.md`: `cargo check`, `pnpm buil
 - **La prova di isolamento** (Fase 6): un pannello che tenta di raggiungere un pannello di un'altra
   azienda non deve avere nessuna strada — e con la decisione 38 non deve esistere nemmeno
   l'indirizzo da provare.
+
+## Chiesto dal maintainer il 07-10-2026, e dove sta ciascuna cosa
+
+Tre aspetti, con la fase in cui hanno senso e il perché — due stanno altrove, uno ha bisogno di
+una correzione.
+
+**Stato delle risorse del server.** Piccolo e indipendente: `/api/system` restituisce **già** CPU,
+memoria e disco (`system.rs`), e la schermata «Questa installazione» della console è il posto dove
+mostrarli. Non ha bisogno di una fase: si fa quando conviene, ed è mezza giornata.
+
+**Gestione ed esportazione dei backup.** Questa invece **non è piccola, e non è nuova**: è una
+delle domande aperte di Q44, «backup e ripristino **per azienda**, non per progetto come oggi». I
+backup esistono (`backups.rs`) ma sono per progetto, e finché un progetto non appartiene a
+un'azienda non esiste la cosa da esportare. Quindi: **dopo la 3b**, e il testo della domanda è già
+nel seme — non serve riscriverlo.
+
+**Regole VPN per azienda — ⚠ qui c'è da correggere un modello.** La VPN **non esiste più**: la
+decisione 38 del 05-10 l'ha sostituita con un **tunnel per dispositivo**, proprio perché un
+pannello può essere rooted dal cliente e una VPN lo metterebbe su una rete condivisa con gli altri.
+Non ci saranno quindi «regole VPN»: la domanda equivalente è **quali pannelli appartengono a
+un'azienda e cosa possono raggiungere**, e la risposta è strutturale invece che regolamentare — il
+gateway decide per ogni richiesta, e fra due pannelli non esiste nessun segmento comune da vietare.
+È la **Fase 6**, e il maintainer stesso l'aveva messa in attesa di quel momento.
 
 ## Quello che questo piano **non** fa
 
