@@ -1,8 +1,10 @@
 # Fase 3a — aziende, e una console di amministrazione separata dall'IDE
 
-> **Destinazione nel repo**: `docs/plans/2026-10-06-aziende-e-console.md`, scritto col primo commit
-> del ramo. È il dettaglio della **Fase 3** del
-> [tronco cloud](2026-10-05-cloud-utenti-aziende-spazi.md), aperto con una
+> **Archiviato l'08-10-2026**, a lavoro fatto e confermato a schermo (squash `59eb0ed6`). Nato in
+> `docs/plans/`, dove la riga qui sopra diceva di scriverlo col primo commit del ramo.
+>
+> È il dettaglio della **Fase 3a** del
+> [tronco cloud](../plans/2026-10-05-cloud-utenti-aziende-spazi.md), aperto con una
 > sessione di plan dedicata su richiesta del maintainer.
 
 ## Contesto

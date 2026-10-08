@@ -1,6 +1,6 @@
 # Fase 3b — i progetti stanno nell'azienda, e si indirizzano per azienda
 
-> Dettaglio della **Fase 3b** del [tronco cloud](2026-10-05-cloud-utenti-aziende-spazi.md).
+> Dettaglio della **Fase 3b** del [tronco cloud](../plans/2026-10-05-cloud-utenti-aziende-spazi.md).
 > La 3a — aziende e console — è chiusa e confermata a schermo il 07-10-2026.
 > Ramo: `feat/progetti-per-azienda`.
 
