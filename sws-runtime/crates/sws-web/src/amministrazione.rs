@@ -17,6 +17,8 @@
 //! `scripts/check_amministrazione.sh` verifica che ogni rotta dichiarata in
 //! questo file sia dentro quel gruppo, e fallisce se una ne esce.
 
+use crate::router::AuthUser;
+use axum::Extension;
 use axum::{
     extract::{Path, State},
     http::StatusCode,
@@ -67,7 +69,11 @@ struct NuovaAzienda {
     nome: String,
 }
 
-async fn crea_azienda(State(s): State<AppState>, Json(req): Json<NuovaAzienda>) -> Response {
+async fn crea_azienda(
+    State(s): State<AppState>,
+    Extension(chi): Extension<AuthUser>,
+    Json(req): Json<NuovaAzienda>,
+) -> Response {
     let id = match identita(&s) {
         Ok(i) => i,
         Err(r) => return r,
@@ -77,7 +83,7 @@ async fn crea_azienda(State(s): State<AppState>, Json(req): Json<NuovaAzienda>) 
             info!(azienda = %a.nome, "azienda creata dalla console");
             s.audit.log(
                 "amministrazione.azienda_creata",
-                None,
+                Some(chi.username.clone()),
                 serde_json::json!({"nome": a.nome, "id": a.id}),
             );
             Json(a).into_response()
@@ -88,6 +94,7 @@ async fn crea_azienda(State(s): State<AppState>, Json(req): Json<NuovaAzienda>) 
 
 async fn modifica_azienda(
     State(s): State<AppState>,
+    Extension(chi): Extension<AuthUser>,
     Path(azienda_id): Path<i64>,
     Json(m): Json<ModificaAzienda>,
 ) -> Response {
@@ -102,7 +109,7 @@ async fn modifica_azienda(
         Ok(()) => {
             s.audit.log(
                 "amministrazione.azienda_modificata",
-                None,
+                Some(chi.username.clone()),
                 serde_json::json!({"id": azienda_id, "stato": stato}),
             );
             StatusCode::NO_CONTENT.into_response()
@@ -113,15 +120,47 @@ async fn modifica_azienda(
 
 // ── Persone ──────────────────────────────────────────────────────────────────
 
+/// L'elenco delle persone, **con le loro appartenenze**.
+///
+/// Le appartenenze viaggiano insieme all'utente e non su una chiamata a parte:
+/// la console deve poter mostrare «di quali aziende fa parte» accanto al nome,
+/// e senza questo dato l'unica cosa che poteva fare era offrire un menu per
+/// aggiungere — senza mai dire a cosa. Il 07-10-2026 il maintainer ha
+/// giustamente cercato un pulsante che non c'era: il difetto non era il
+/// pulsante, era che la pagina non sapeva cosa mostrare.
 async fn elenca_utenti(State(s): State<AppState>) -> Response {
     let id = match identita(&s) {
         Ok(i) => i,
         Err(r) => return r,
     };
-    match id.elenca().await {
-        Ok(v) => Json(v).into_response(),
-        Err(e) => errore(e),
+    let utenti = match id.elenca().await {
+        Ok(v) => v,
+        Err(e) => return errore(e),
+    };
+    let aziende = id.elenca_aziende().await.unwrap_or_default();
+    let mut fuori = Vec::new();
+    for u in utenti {
+        let appartenenze = id.aziende_di(u.id).await.unwrap_or_default();
+        let elenco: Vec<_> = appartenenze
+            .iter()
+            .filter_map(|(aid, ruolo)| {
+                aziende.iter().find(|a| a.id == *aid).map(|a| {
+                    serde_json::json!({
+                        "id": a.id,
+                        "nome": if a.implicita { "—".to_string() } else { a.nome.clone() },
+                        "implicita": a.implicita,
+                        "ruolo": ruolo.come_testo(),
+                    })
+                })
+            })
+            .collect();
+        let mut v = serde_json::to_value(&u).unwrap_or_default();
+        if let Some(o) = v.as_object_mut() {
+            o.insert("aziende".into(), serde_json::Value::Array(elenco));
+        }
+        fuori.push(v);
     }
+    Json(fuori).into_response()
 }
 
 #[derive(Deserialize)]
@@ -136,7 +175,11 @@ struct NuovoUtente {
     azienda_id: Option<i64>,
 }
 
-async fn crea_utente(State(s): State<AppState>, Json(req): Json<NuovoUtente>) -> Response {
+async fn crea_utente(
+    State(s): State<AppState>,
+    Extension(chi): Extension<AuthUser>,
+    Json(req): Json<NuovoUtente>,
+) -> Response {
     let id = match identita(&s) {
         Ok(i) => i,
         Err(r) => return r,
@@ -157,8 +200,8 @@ async fn crea_utente(State(s): State<AppState>, Json(req): Json<NuovoUtente>) ->
             }
             s.audit.log(
                 "amministrazione.utente_creato",
-                Some(u.email.clone()),
-                serde_json::json!({"ruolo": ruolo.come_testo(), "azienda": req.azienda_id}),
+                Some(chi.username.clone()),
+                serde_json::json!({"creato": u.email, "ruolo": ruolo.come_testo(), "azienda": req.azienda_id}),
             );
             Json(u).into_response()
         }
@@ -172,13 +215,36 @@ struct ModificaUtente {
     /// illeggibile il registro di audit, che cita gli utenti per nome.
     attivo: Option<bool>,
     amministratore_piattaforma: Option<bool>,
-    /// Iscrizione a un'azienda, con il ruolo.
-    azienda_id: Option<i64>,
-    amministratore: Option<bool>,
+    /// Il nome visualizzato. L'email no: e l'identita, ed e la chiave con cui
+    /// il registro di audit cita le persone.
+    nome: Option<String>,
+    /// Il ruolo nell'installazione.
+    ruolo: Option<String>,
+    /// **Tutte** le appartenenze volute, non una differenza da applicare.
+    ///
+    /// Il pannello della console salva lo stato che si vede: manda l'elenco
+    /// intero e il server lo fa diventare vero in una transazione. Prima
+    /// c'erano `azienda_id` + `amministratore` per aggiungerne una e
+    /// `togli_da_azienda` per toglierne una, cioe tre campi per una cosa sola
+    /// e un'operazione per volta: con un pannello che salva tutto insieme,
+    /// un errore a meta avrebbe lasciato l'utente in uno stato che nessuno
+    /// aveva chiesto.
+    aziende: Option<Vec<Appartenenza>>,
+    /// Reset della password dall'amministrazione: chiude le sessioni e
+    /// obbliga l'interessato a sceglierne una sua al primo accesso.
+    nuova_password: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct Appartenenza {
+    azienda_id: i64,
+    #[serde(default)]
+    amministratore: bool,
 }
 
 async fn modifica_utente(
     State(s): State<AppState>,
+    Extension(chi): Extension<AuthUser>,
     Path(utente_id): Path<i64>,
     Json(m): Json<ModificaUtente>,
 ) -> Response {
@@ -186,10 +252,48 @@ async fn modifica_utente(
         Ok(i) => i,
         Err(r) => return r,
     };
-    if m.attivo == Some(false) {
-        if let Err(e) = id.disattiva(utente_id).await {
+    // L'ordine conta. Il nome e il ruolo per primi, perche non possono
+    // fallire per causa d'altri; i rifiuti che proteggono l'installazione
+    // («e l'ultimo amministratore») vengono dopo, e fermano il salvataggio
+    // prima di aver toccato quello che li riguarda.
+    let ruolo_nuovo = match m.ruolo.as_deref() {
+        None => None,
+        Some("amministratore") => Some(Ruolo::Amministratore),
+        Some("sviluppatore") => Some(Ruolo::Sviluppatore),
+        Some(altro) => {
+            return (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Json(serde_json::json!({"error": "ruolo", "detail": format!("ruolo sconosciuto «{altro}»")})),
+            )
+                .into_response()
+        }
+    };
+    if let Err(e) = id.aggiorna_utente(utente_id, m.nome.as_deref(), ruolo_nuovo).await {
+        return errore(e);
+    }
+    match m.attivo {
+        Some(false) => {
+            if let Err(e) = id.disattiva(utente_id).await {
+                return errore(e);
+            }
+        }
+        Some(true) => {
+            if let Err(e) = id.riattiva(utente_id).await {
+                return errore(e);
+            }
+        }
+        None => {}
+    }
+    if let Some(ref pw) = m.nuova_password {
+        if let Err(e) = id.reimposta_password(utente_id, pw).await {
             return errore(e);
         }
+        // Nel registro va CHE è stata reimpostata, mai il valore.
+        s.audit.log(
+            "amministrazione.password_reimpostata",
+            Some(chi.username.clone()),
+            serde_json::json!({"id": utente_id}),
+        );
     }
     if let Some(v) = m.amministratore_piattaforma {
         if let Err(e) = id.imposta_amministratore_piattaforma(utente_id, v).await {
@@ -198,19 +302,23 @@ async fn modifica_utente(
             return errore(e);
         }
     }
-    if let Some(a) = m.azienda_id {
-        let ruolo = if m.amministratore.unwrap_or(false) {
-            Ruolo::Amministratore
-        } else {
-            Ruolo::Sviluppatore
-        };
-        if let Err(e) = id.iscrivi(a, utente_id, ruolo).await {
+    if let Some(volute) = m.aziende {
+        let volute: Vec<(i64, Ruolo)> = volute
+            .into_iter()
+            .map(|a| {
+                (
+                    a.azienda_id,
+                    if a.amministratore { Ruolo::Amministratore } else { Ruolo::Sviluppatore },
+                )
+            })
+            .collect();
+        if let Err(e) = id.imposta_appartenenze(utente_id, volute).await {
             return errore(e);
         }
     }
     s.audit.log(
         "amministrazione.utente_modificato",
-        None,
+        Some(chi.username.clone()),
         serde_json::json!({"id": utente_id, "attivo": m.attivo}),
     );
     StatusCode::NO_CONTENT.into_response()
@@ -264,6 +372,7 @@ async fn leggi_posta(State(s): State<AppState>) -> Response {
 /// una password che non ha mai visto.
 async fn scrivi_posta(
     State(s): State<AppState>,
+    Extension(chi): Extension<AuthUser>,
     Json(mut nuova): Json<sws_core::SmtpConfig>,
 ) -> Response {
     if nuova.password.as_deref() == Some(MASCHERA) {
@@ -286,7 +395,7 @@ async fn scrivi_posta(
     // Nel registro va CHE è cambiata, non cosa: il contenuto è un segreto.
     s.audit.log(
         "amministrazione.smtp_salvata",
-        None,
+        Some(chi.username.clone()),
         serde_json::json!({"host": nuova.host}),
     );
     StatusCode::NO_CONTENT.into_response()
@@ -302,7 +411,11 @@ struct Prova {
 /// Senza, una configurazione sbagliata si scopre il giorno in cui qualcuno si
 /// registra e non riceve niente — cioè quando il guasto è invisibile e la
 /// colpa sembra della registrazione.
-async fn prova_posta(State(s): State<AppState>, Json(req): Json<Prova>) -> Response {
+async fn prova_posta(
+    State(s): State<AppState>,
+    Extension(chi): Extension<AuthUser>,
+    Json(req): Json<Prova>,
+) -> Response {
     let Some(cfg) = leggi_smtp(&s).await else {
         return (StatusCode::PRECONDITION_FAILED, "la posta non è configurata").into_response();
     };
@@ -320,7 +433,7 @@ async fn prova_posta(State(s): State<AppState>, Json(req): Json<Prova>) -> Respo
         Ok(Ok(())) => {
             s.audit.log(
                 "amministrazione.smtp_prova",
-                None,
+                Some(chi.username.clone()),
                 serde_json::json!({"a": req.a, "esito": "ok"}),
             );
             StatusCode::NO_CONTENT.into_response()

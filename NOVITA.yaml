@@ -19,6 +19,20 @@
 versioni:
   - versione: "2.13.0"
     voci:
+      - it: "Dopo il log-out si rientra sull'elenco dei progetti, non dentro quello aperto prima: così chi entra non si ritrova il lavoro di qualcun altro."
+        en: "After logging out you come back to the project list, not into the project that was open: nobody inherits someone else's work."
+      - it: "Ogni azienda può avere progetti con lo stesso nome di un'altra: i progetti ora si indirizzano per azienda, e chi non ne fa parte non li raggiunge."
+        en: "Each company can have projects with the same name as another: projects are now addressed per company, and non-members cannot reach them."
+      - it: "Nella console il pannello di un utente si salva con un pulsante: nome, ruolo, aziende e password si cambiano insieme, e si vede quando ci sono modifiche in sospeso."
+        en: "In the console a user's panel is saved with a button: name, role, companies and password change together, and pending changes are visible."
+      - it: "L'elenco dei progetti si vede a icone come in un file browser, con un interruttore per tornare alla lista di prima."
+        en: "The project list is shown as icons like a file browser, with a switch to go back to the previous list."
+      - it: "Una barra sopra l'elenco dei progetti dice chi sei e per quale azienda, e da lì si raggiungono la console di amministrazione, il cambio password e l'uscita."
+        en: "A bar above the project list shows who you are and for which company, and from there you reach the administration console, the password change and the logout."
+      - it: "Ogni azienda vede solo i propri progetti. Chi amministra la piattaforma li vede tutti, in una sezione a parte e contrassegnati."
+        en: "Each company sees only its own projects. Platform administrators see them all, in a separate marked section."
+      - it: "Cambiare la propria password non chiude più la sessione in corso: restano chiuse le altre, che la vecchia password poteva aprire."
+        en: "Changing your own password no longer ends your current session: the other ones still close, since the old password could open them."
       - it: "L'IDE ha i suoi utenti: si entra con email e password, distinti dagli utenti del progetto che viaggiano col deploy e proteggono l'impianto."
         en: "The IDE has its own users: you log in with email and password, separate from the project users that travel with the deploy and protect the plant."
     compatibilita:

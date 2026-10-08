@@ -46,6 +46,9 @@ STATICHE=(
     check_password_browser  # nessuna password salvata in localStorage/sessionStorage
     check_rotte_preauth     # le rotte senza credenziali sono una lista bianca dichiarata, non una conseguenza
     check_amministrazione   # ogni rotta della console passa dalla sua guardia, e da nessun'altra parte
+    check_confinamento      # chi riceve un percorso da fuori lo confina nella radice dei progetti (Q46), tutti
+    check_audit_attore      # ogni azione della console di amministrazione dice chi l'ha fatta
+    check_indirizzo_progetto # chi riceve l'indirizzo di un progetto passa dal risolutore che verifica l'azienda
     check_sonda             # la sonda del dispositivo (Q52) gira con sh -s e stampa solo fatti
     check_barra_allarmi     # alarm_banner: web e LVGL selezionano gli stessi stati ISA
     check_via_di_fuga       # la via di fuga STOP del pannello resta raggiungibile

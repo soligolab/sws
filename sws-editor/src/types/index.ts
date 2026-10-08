@@ -1905,6 +1905,17 @@ export interface ShelvedAlarm {
 
 export interface ProjectListEntry {
   name: string;
+  /** L'azienda a cui appartiene, quando non e quella implicita.
+   *  Assente = «questa installazione»: la schermata non la nomina, perche chi
+   *  ha un impianto solo non ha motivo di sapere che il concetto esiste. */
+  /** `<azienda>/<nome>`, con `-` per l'azienda implicita: e **l'indirizzo**
+   *  del progetto, quello che va nelle rotte. Il nome da solo non basta piu
+   *  da quando due aziende possono avere un «impianto» ciascuna. */
+  riferimento: string;
+  azienda?: string;
+  /** Vero per i progetti di un'azienda a cui NON appartieni: li vede solo
+   *  l'amministratore di piattaforma, in una sezione a parte. */
+  altra_azienda?: boolean;
   has_project_yaml: boolean;
   last_modified_ms: number | null;
   /** Absolute path on the runtime's filesystem — may live outside the
@@ -1913,8 +1924,11 @@ export interface ProjectListEntry {
   /** Last create/open timestamp (registry-tracked); null for a legacy
    *  project never touched by the recent-projects registry yet. */
   last_opened_ms: number | null;
-  /** True when the project's folder is NOT a direct child of projects_root
-   *  — drives softer "remove from list" vs. destructive "delete" UI. */
+  /** True when the project's folder lives OUTSIDE projects_root — drives the
+   *  softer "remove from list" instead of the destructive "delete".
+   *  Dal 07-10-2026 non e piu «non e figlio diretto della radice»: con i
+   *  progetti sotto la cartella dell'azienda quella regola li avrebbe
+   *  dichiarati esterni tutti. */
   external: boolean;
 }
 

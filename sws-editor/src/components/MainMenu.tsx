@@ -101,7 +101,13 @@ export function MainMenu({
     if (!newName || newName === currentName) return;
     setRenaming(true); setIoStat(null);
     try {
-      await api.renameProject(currentName, newName);
+      // L'indirizzo del progetto aperto lo sa il server, non noi: qui dentro
+      // c'e solo `meta.name`, e un nome nudo vale «azienda implicita». Su un
+      // progetto in una cartella d'azienda la rinomina rispondeva 404 —
+      // segnalato dal maintainer il 07-10-2026, entrato come utente pixsys.
+      const stato = await api.getSystemStatus();
+      const rif = stato.active_project_riferimento ?? `-/${currentName}`;
+      await api.renameProject(rif, newName);
       // Q30 — si **rilegge** invece di correggere `meta.name` in memoria.
       //
       // Rinominare riscrive `project.yaml` sul server (`patch_project_name`

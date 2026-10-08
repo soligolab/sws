@@ -414,7 +414,11 @@ export function RuntimeConnectionTab() {
       setPullAsk({
         blob,
         name: suggested,
-        localNames: locals.map((p) => p.name),
+        // Solo quelli in RADICE: l'importazione crea li, quindi solo li puo
+        // esserci un omonimo da sostituire. Un progetto con lo stesso nome in
+        // una cartella d'azienda non e in conflitto con niente, e offrirsi di
+        // cancellarlo sarebbe offrirsi di cancellare il progetto sbagliato.
+        localNames: locals.filter((p) => p.riferimento?.startsWith("-/")).map((p) => p.name),
         savedBy,
         localVersion,
         dirty: selectIsDirty(useAppStore.getState()),
@@ -451,13 +455,15 @@ export function RuntimeConnectionTab() {
       // progetto attivo la delete risponderebbe 409 a sua volta.
       if (ask.localNames.includes(name)) {
         log(t("cfgUi.removingLocalSameName", { name }));
-        await api.deleteProject(name);
+        // L'import da un dispositivo arriva sempre nella radice, cioe
+        // nell'azienda implicita: e da li che va tolto l'omonimo.
+        await api.deleteProject(`-/${name}`);
       }
 
       log(`Import come "${name}"…`);
       const created = await api.uploadProjectZip(ask.blob, name);
       log(`Apertura di "${created.name}"…`);
-      await api.openProject(created.name);
+      await api.openProject(created.riferimento);
       // Q30: la versione vista è quella del progetto di **prima**. Tenerla
       // farebbe rifiutare il primo salvataggio su quello nuovo con un 409 che
       // non ha nessuna corsa dietro — un conflitto inventato insegna a

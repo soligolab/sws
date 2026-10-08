@@ -455,6 +455,10 @@ export interface SystemStatus {
    *  runtime più vecchio, che non ha il campo. */
   mode?: "ide" | "runtime";
   active_project: string | null;
+  /** `<azienda>/<nome>` del progetto aperto, `-` per l'azienda implicita.
+   *  Dentro l'editor e l'unico modo di sapere a quale azienda appartiene
+   *  quello che si sta modificando: l'elenco iniziale ce l'ha, l'editor no. */
+  active_project_riferimento?: string | null;
   project_saved_by: string | null;
   project_needs_update: boolean;
   tag_count: number;
@@ -795,7 +799,15 @@ export type Azienda = {
 
 /** Un utente **dell'installazione**: chi apre l'IDE. Distinto dagli utenti del
  *  progetto, che viaggiano col deploy e proteggono l'impianto. */
+/** Un'appartenenza: l'azienda e il ruolo che l'utente vi ha. */
+export type Appartenenza = { id: number; nome: string; implicita: boolean; ruolo: string };
+
 export type UtenteInstallazione = {
+  /** Le aziende di cui fa parte. Viaggiano con l'utente e non su una chiamata
+   *  a parte, perche la pagina deve poterle MOSTRARE accanto al nome: senza,
+   *  l'unica cosa che poteva fare era offrire un menu per aggiungere, senza
+   *  mai dire a cosa. */
+  aziende?: Appartenenza[];
   id: number;
   email: string;
   nome: string;
@@ -818,6 +830,16 @@ export type MarchioCompleto = Marchio & {
   contenuto: Record<string, unknown>;
 };
 
+/** Un riferimento `<azienda>/<nome>` nei due segmenti di percorso che e.
+ *
+ * `encodeURIComponent` sull'intera stringa trasformerebbe la barra in `%2F`,
+ * che molti reverse proxy normalizzano o rifiutano: i segmenti si codificano
+ * uno per uno e la barra resta una barra.
+ */
+function rotta(riferimento: string): string {
+  return riferimento.split("/").map(encodeURIComponent).join("/");
+}
+
 export const api = {
   // Auth
   login: (username: string, password: string) =>
@@ -827,6 +849,8 @@ export const api = {
       role: UserRole;
       expires_at_ms: number | null;
       must_change_password: boolean;
+      /** Solo per gli utenti dell'installazione: decide se offrire la console. */
+      amministratore_piattaforma?: boolean;
     }>("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -857,6 +881,14 @@ export const api = {
   // ── Console di amministrazione ─────────────────────────────────────────
   // Tutte dietro `require_amministratore_piattaforma`: un utente senza quel
   // ruolo riceve 403, ed e cosi che la console scopre di non essere per lui.
+  /// Le aziende di chi e collegato. Non l'elenco della console, che e di
+  /// tutte e lo vede solo l'amministratore di piattaforma: queste sono le
+  /// proprie, e servono a decidere se mostrare una scelta.
+  mieAziende: () =>
+    request<{ id: number; nome: string; implicita: boolean; ruolo: string }[]>(
+      "/api/identita/mie-aziende",
+    ),
+
   amministrazioneAziende: () =>
     request<Azienda[]>("/api/amministrazione/aziende"),
 
@@ -948,9 +980,12 @@ export const api = {
     request<{ expires_at_ms: number | null }>("/api/auth/refresh", { method: "POST" }),
 
   whoami: () =>
-    request<{ username: string; role: UserRole; must_change_password: boolean }>(
-      "/api/auth/whoami",
-    ),
+    request<{
+      username: string;
+      role: UserRole;
+      must_change_password: boolean;
+      amministratore_piattaforma?: boolean;
+    }>("/api/auth/whoami"),
 
   changePassword: (oldPassword: string, newPassword: string) =>
     request<void>("/api/auth/change-password", {
@@ -1502,8 +1537,8 @@ export const api = {
   listProjects: () =>
     request<ProjectListEntry[]>("/api/projects"),
 
-  createProject: async (req: { name: string; template?: string; parent_path?: string; target?: ProjectTarget; lang?: string }) => {
-    const r = await request<{ name: string }>("/api/projects", {
+  createProject: async (req: { name: string; template?: string; parent_path?: string; target?: ProjectTarget; lang?: string; azienda_id?: number }) => {
+    const r = await request<{ name: string; riferimento: string }>("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(req),
@@ -1525,9 +1560,18 @@ export const api = {
       body: JSON.stringify({ parent, name }),
     }),
 
-  openProject: async (name: string) => {
+  /**
+   * `riferimento` e `<azienda>/<nome>` — l'indirizzo del progetto, non il suo
+   * nome: dal 07-10-2026 due aziende possono avere un «impianto» ciascuna, e
+   * il nome da solo non dice piu quale. `-` e l'azienda implicita.
+   *
+   * I due segmenti si codificano **separatamente**: la barra fra loro deve
+   * restare una barra, mentre una barra dentro un nome non deve esistere e
+   * comunque non passerebbe (`safe_project_name` la rifiuta a monte).
+   */
+  openProject: async (riferimento: string) => {
     const r = await request<{ name: string; must_login: boolean }>(
-      `/api/projects/${encodeURIComponent(name)}/open`,
+      `/api/projects/${rotta(riferimento)}/open`,
       { method: "POST" },
     );
     segnalaCambioProgettoNostro();
@@ -1539,18 +1583,18 @@ export const api = {
     segnalaCambioProgettoNostro();
   },
 
-  deleteProject: (name: string) =>
-    request<void>(`/api/projects/${encodeURIComponent(name)}`, { method: "DELETE" }),
+  deleteProject: (riferimento: string) =>
+    request<void>(`/api/projects/${rotta(riferimento)}`, { method: "DELETE" }),
 
-  renameProject: (name: string, newName: string) =>
-    request<{ name: string }>(`/api/projects/${encodeURIComponent(name)}/rename`, {
+  renameProject: (riferimento: string, newName: string) =>
+    request<{ name: string }>(`/api/projects/${rotta(riferimento)}/rename`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ new_name: newName }),
     }),
 
-  duplicateProject: (name: string, newName: string) =>
-    request<{ name: string }>(`/api/projects/${encodeURIComponent(name)}/duplicate`, {
+  duplicateProject: (riferimento: string, newName: string) =>
+    request<{ name: string }>(`/api/projects/${rotta(riferimento)}/duplicate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ new_name: newName }),
@@ -2013,7 +2057,7 @@ export const api = {
     });
   },
 
-  uploadProjectZip: async (file: Blob, name?: string, parentPath?: string): Promise<{ name: string }> => {
+  uploadProjectZip: async (file: Blob, name?: string, parentPath?: string): Promise<{ name: string; riferimento: string }> => {
     const params = new URLSearchParams();
     if (name) params.set("name", name);
     if (parentPath) params.set("parent_path", parentPath);
@@ -2100,7 +2144,7 @@ export const api = {
   /** POST /api/project/git/fork — un progetto nuovo nato dal commit `sha`, con
    *  la sua storia e senza `origin`. Non lo apre. */
   gitFork: (sha: string, newName: string, copiaSegreti: boolean) =>
-    request<{ name: string }>("/api/project/git/fork", {
+    request<{ name: string; riferimento: string }>("/api/project/git/fork", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ sha, new_name: newName, copia_segreti: copiaSegreti }),

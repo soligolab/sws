@@ -980,7 +980,9 @@ export const useAppStore = create<AppState>((set, get) => {
     setAuth: (token, username, role, mustChangePassword = false, expiresAtMs) => {
       setAuthToken(token);
       writePersistedAuth({ token, username, role, must_change_password: mustChangePassword, expires_at_ms: expiresAtMs });
-      set({ authToken: token, authUser: username, authRole: role, mustChangePassword, expiresAtMs: expiresAtMs ?? null });
+      // E spento anche qui: una sessione appena ottenuta non puo essere
+      // scaduta, qualunque cosa sia successa un istante prima.
+      set({ authToken: token, authUser: username, authRole: role, mustChangePassword, expiresAtMs: expiresAtMs ?? null, reAuthNeeded: false });
     },
 
     setExpiresAtMs: (ms) => {
@@ -1011,7 +1013,15 @@ export const useAppStore = create<AppState>((set, get) => {
     clearAuth: () => {
       setAuthToken(null);
       writePersistedAuth(null);
-      set({ authToken: null, authUser: null, authRole: null, expiresAtMs: null, mustChangePassword: false });
+      // `reAuthNeeded` va spento qui, e non sopravvivere al logout.
+      //
+      // Un 401 in volo mentre si esce — una richiesta partita prima che il
+      // server invalidasse il token — accende il modale «sessione scaduta»
+      // mentre `authToken` c'e ancora. Nessuno lo spegneva piu: restava
+      // acceso attraverso il logout e ricompariva **subito dopo il login
+      // successivo**, su una sessione nuova di zecca. Segnalato dal
+      // maintainer il 07-10-2026.
+      set({ authToken: null, authUser: null, authRole: null, expiresAtMs: null, mustChangePassword: false, reAuthNeeded: false });
     },
 
     setNoActiveProject: (flag) => set({ noActiveProject: flag }),

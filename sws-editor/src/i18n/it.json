@@ -508,7 +508,17 @@
     "installRuntimeTitle": "Installa il runtime su un dispositivo",
     "installRuntime": "Installa il runtime su un dispositivo",
     "installIntro": "Installa il runtime SWS come container (podman rootless, nessun sudo) su un dispositivo raggiungibile via SSH, prendendo l'immagine dal registry: l'architettura la decide il dispositivo. La password resta in questo modulo e non viene salvata.",
-    "installStart": "Avvio installazione → {{user}}@{{host}}:{{port}} (container, registry{{ref}})"
+    "installStart": "Avvio installazione → {{user}}@{{host}}:{{port}} (container, registry{{ref}})",
+    "aziendaLabel": "Azienda",
+    "aziendaQuestaInstallazione": "Questa installazione",
+    "barraMenu": "Il tuo account",
+    "barraConsole": "Console di amministrazione",
+    "barraCambiaPassword": "Cambia password",
+    "barraEsci": "Esci",
+    "barraNAziende": "{{n}} aziende",
+    "altreAziende": "Altre aziende — le vedi come amministratore di piattaforma",
+    "vistaGriglia": "Icone",
+    "vistaLista": "Elenco"
   },
   "logs": {
     "history": "Storico…",
@@ -600,7 +610,9 @@
     "pwChangeError": "Errore nel cambio password. Riprova.",
     "welcomeUser": "Benvenuto",
     "mustSetNewPassword": ". Per continuare devi impostare una nuova password.",
-    "email": "Email"
+    "email": "Email",
+    "annulla": "Annulla",
+    "logout": "Esci"
   },
   "props": {
     "diag45": "45° diagonale",
@@ -2791,7 +2803,26 @@
       "scegliAzienda": "scegli…",
       "piattaforma": "Amministratore di piattaforma",
       "piattaformaNota": "Approva le aziende. È un ruolo diverso dall'amministrare la propria azienda, non un grado più alto.",
-      "disattiva": "Disattiva"
+      "disattiva": "Disattiva",
+      "appartenenze": "Fa parte di",
+      "nessunaAppartenenza": "Nessuna azienda.",
+      "questaInstallazione": "Questa installazione",
+      "togli": "Togli da questa azienda",
+      "aggiungi": "Aggiungi",
+      "comeAmministratore": "come amministratore dell'azienda",
+      "reset": "Reimposta la password",
+      "nuovaPassword": "Nuova password (min 8)",
+      "reimposta": "Reimposta",
+      "resetNota": "Chiude tutte le sue sessioni e lo obbliga a sceglierne una sua al primo accesso: questa la conoscete in due.",
+      "nonSalvate": "modifiche non salvate",
+      "emailNonCambia": "L'indirizzo non si cambia: è l'identità con cui il registro cita questa persona.",
+      "ruolo": "Ruolo nell'installazione",
+      "salva": "Salva",
+      "salvataggio": "Salvataggio…",
+      "annulla": "Annulla",
+      "abbandona": "Ci sono modifiche non salvate su questo utente. Abbandonarle?",
+      "resetInSospeso": "La password verrà reimpostata al salvataggio. Finché non salvi, quella vecchia funziona ancora.",
+      "passwordCorta": "La password deve essere di almeno 8 caratteri."
     },
     "installazione": {
       "versione": "Versione",

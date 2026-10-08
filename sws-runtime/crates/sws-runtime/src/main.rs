@@ -994,7 +994,7 @@ async fn main() -> anyhow::Result<()> {
     // outside projects_root). Borrows config_dir; build() below takes it by
     // value afterward, so this must load first.
     let known_projects =
-        Arc::new(sws_web::project_registry::ProjectRegistry::load(&config_dir).await);
+        Arc::new(sws_web::project_registry::ProjectRegistry::load(&config_dir, &args.projects_root).await);
 
     // ── La scorciatoia di sviluppo non deve poter vivere su un server ───────
     if args.senza_autenticazione {

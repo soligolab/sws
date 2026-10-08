@@ -5,6 +5,8 @@ import { ListaControlli } from "@/config/installazione/ListaControlli";
 import { imageRefDaVariante, installazioneConsentita } from "@/config/installazione/sondaggio";
 import type { BrowseDirEntry, ProjectListEntry, ProjectTargetKind, TemplateEntry } from "@/types";
 import { containerDeployPayload } from "@/containerDeploy";
+import { BarraIdentita } from "@/components/BarraIdentita";
+import { ChangePasswordScreen } from "@/components/ChangePasswordScreen";
 
 // ── styles ────────────────────────────────────────────────────────────────────
 
@@ -253,12 +255,25 @@ function NewProjectModal({
   initialTab = "empty",
 }: {
   onClose: () => void;
-  onCreate: (name: string) => void;
+  onCreate: (riferimento: string, nome: string) => void;
   /** Tab to open on. "zip" is used by the "open from a ZIP on my PC" entry. */
   initialTab?: NewProjectTab;
 }) {
   const { t, i18n } = useTranslation();
   const [tab, setTab]                 = useState<NewProjectTab>(initialTab);
+  // Le aziende di chi e collegato. Il selettore compare SOLO a chi sta in piu
+  // di una (decisione del maintainer, 07-10-2026): chi ne ha una sola non deve
+  // incontrare un concetto che per lui non esiste.
+  const [mieAziende, setMieAziende] = useState<{ id: number; nome: string; implicita: boolean }[]>([]);
+  const [aziendaScelta, setAziendaScelta] = useState<number | null>(null);
+  useEffect(() => {
+    api.mieAziende()
+      .then((v) => {
+        setMieAziende(v);
+        if (v.length === 1) setAziendaScelta(v[0].id);
+      })
+      .catch(() => { /* runtime senza identita: nessuna scelta da fare */ });
+  }, []);
   const [name, setName]               = useState("");
   const [templates, setTemplates]     = useState<TemplateEntry[]>([]);
   const [selectedTpl, setSelectedTpl] = useState<string>("");
@@ -291,7 +306,7 @@ function NewProjectModal({
         // name is optional — backend reads it from manifest.json if blank
         const nameOverride = name.trim() || undefined;
         const result = await api.uploadProjectZip(zipFile, nameOverride, trimmedParent);
-        onCreate(result.name);
+        onCreate(result.riferimento, result.name);
       } else {
         const trimmed = name.trim();
         if (!trimmed) { setError(t("welcome.errNoName")); setBusy(false); return; }
@@ -302,8 +317,11 @@ function NewProjectModal({
           : undefined;
         // La lingua dell'IDE diventa la lingua principale del progetto nuovo: un
         // progetto che nasce senza lingua non può ancora dire niente (18-09-2026).
-        await api.createProject({ name: trimmed, template: tab === "template" ? selectedTpl : undefined, parent_path: trimmedParent, target, lang: i18n.language });
-        onCreate(trimmed);
+        const creato = await api.createProject({ name: trimmed, template: tab === "template" ? selectedTpl : undefined, parent_path: trimmedParent, target, lang: i18n.language, azienda_id: aziendaScelta ?? undefined });
+        // Il riferimento lo decide il SERVER: dipende dall'azienda scelta, e
+        // ricostruirlo qui vorrebbe dire conoscere la cartella di ogni
+        // azienda — un secondo posto che dice la stessa cosa.
+        onCreate(creato.riferimento, creato.name);
       }
     } catch (e: any) {
       setError(e?.message ?? t("welcome.errCreate"));
@@ -426,6 +444,27 @@ function NewProjectModal({
             <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 4 }}>
               {t("welcome.folderNameHint")}
             </div>
+          </div>
+        )}
+
+        {/* L'azienda, SOLO a chi sta in piu di una. Chi ne ha una sola non
+            vede nulla e il progetto nasce dov'e sempre nato. */}
+        {mieAziende.length > 1 && (
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", display: "block", marginBottom: 6 }}>
+              {t("welcome.aziendaLabel")}
+            </label>
+            <select
+              style={INPUT}
+              value={aziendaScelta ?? ""}
+              onChange={(e) => setAziendaScelta(e.target.value ? Number(e.target.value) : null)}
+            >
+              {mieAziende.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.implicita ? t("welcome.aziendaQuestaInstallazione") : a.nome}
+                </option>
+              ))}
+            </select>
           </div>
         )}
 
@@ -823,7 +862,43 @@ interface WelcomeScreenProps {
   onProjectOpened: () => void;
 }
 
-type EditingState = { name: string; mode: "rename" | "duplicate"; value: string };
+/** `rif` e l'indirizzo (`<azienda>/<nome>`), `name` serve solo a mostrarlo e
+ *  a precompilare il campo: due aziende possono avere lo stesso nome, quindi
+ *  la riga in lavorazione si identifica col riferimento. */
+type EditingState = { rif: string; name: string; mode: "rename" | "duplicate"; value: string };
+
+/** Dove il browser ricorda se l'elenco era a griglia o a lista. */
+const VISTA_SALVATA = "sws.welcome.vista";
+
+/**
+ * Raggruppa i progetti per azienda, con quelli **senza** azienda per primi.
+ *
+ * I progetti dell'azienda implicita non hanno il campo: su un'installazione
+ * singola finiscono tutti nel primo gruppo, che non ha titolo, e la schermata
+ * resta identica a prima che le aziende esistessero. È il punto in cui si
+ * decide che un concetto non si mostra a chi non ne ha bisogno.
+ */
+function raggruppa(
+  progetti: ProjectListEntry[],
+): { azienda?: string; altra: boolean; elenco: ProjectListEntry[] }[] {
+  const gruppi = new Map<string, { azienda?: string; altra: boolean; elenco: ProjectListEntry[] }>();
+  for (const p of progetti) {
+    const azienda = p.azienda || undefined;
+    const altra = p.altra_azienda === true;
+    const k = `${altra ? "1" : "0"}\u0000${azienda ?? ""}`;
+    const g = gruppi.get(k);
+    if (g) g.elenco.push(p);
+    else gruppi.set(k, { azienda, altra, elenco: [p] });
+  }
+  return [...gruppi.values()].sort((a, b) => {
+    // Le aziende altrui in fondo, sempre: sono un di piu per chi amministra,
+    // non il motivo per cui si e aperta questa schermata.
+    if (a.altra !== b.altra) return a.altra ? 1 : -1;
+    if (a.azienda === undefined) return -1;
+    if (b.azienda === undefined) return 1;
+    return a.azienda.localeCompare(b.azienda);
+  });
+}
 
 export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
   const { t } = useTranslation();
@@ -836,6 +911,27 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
   const [showInstalla, setShowInstalla] = useState(false);
   const [editing, setEditing]     = useState<EditingState | null>(null);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
+  // Il cambio password volontario, chiesto dal menu della barra. Riusa la
+  // schermata del cambio OBBLIGATO invece di una seconda copia del modulo:
+  // due punti che scrivono la stessa password sono due punti che divergono.
+  const [cambioPassword, setCambioPassword] = useState(false);
+  // Griglia o lista. La griglia e la predefinita (richiesta del maintainer del
+  // 07-10-2026: «l'elenco dei progetti potrebbe essere fatto ad icone stile
+  // file browser?»), la lista resta perche con i percorsi lunghi e piu
+  // leggibile. La scelta e una comodita del singolo browser, non un dato: vive
+  // in `localStorage`, e se `localStorage` non c'e si riparte dalla griglia.
+  const [vista, setVista] = useState<"griglia" | "lista">(() => {
+    try {
+      return localStorage.getItem(VISTA_SALVATA) === "lista" ? "lista" : "griglia";
+    } catch {
+      return "griglia";
+    }
+  });
+  const [sorvolato, setSorvolato] = useState<string | null>(null);
+  const cambiaVista = (v: "griglia" | "lista") => {
+    setVista(v);
+    try { localStorage.setItem(VISTA_SALVATA, v); } catch { /* finestra privata */ }
+  };
 
   const loadProjects = async () => {
     setLoading(true);
@@ -851,10 +947,12 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
 
   useEffect(() => { loadProjects(); }, []);
 
-  const handleOpen = async (name: string) => {
-    setOpening(name); setError(null);
+  // Si apre per **riferimento**: `nome` resta solo per i messaggi.
+  const handleOpen = async (rif: string, nome: string) => {
+    setOpening(rif); setError(null);
+    const name = nome;
     try {
-      await api.openProject(name);
+      await api.openProject(rif);
       // Q30: la versione vista è quella del progetto di **prima**. Tenerla
       // farebbe rifiutare il primo salvataggio su quello nuovo con un 409 che
       // non ha nessuna corsa dietro — un conflitto inventato insegna a
@@ -868,10 +966,10 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
     }
   };
 
-  const handleCreated = async (name: string) => {
+  const handleCreated = async (rif: string, nome: string) => {
     setShowNew(false);
     await loadProjects();
-    await handleOpen(name);
+    await handleOpen(rif, nome);
   };
 
   const handleDelete = async (p: ProjectListEntry) => {
@@ -879,9 +977,9 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
       ? t("welcome.confirmRemoveExternal", { name: p.name })
       : t("welcome.confirmDelete", { name: p.name });
     if (!window.confirm(confirmMsg)) return;
-    setActionBusy(p.name); setError(null);
+    setActionBusy(p.riferimento); setError(null);
     try {
-      await api.deleteProject(p.name);
+      await api.deleteProject(p.riferimento);
       await loadProjects();
     } catch (e: any) {
       setError(t(p.external ? "welcome.errRemove" : "welcome.errDelete", { name: p.name, err: e?.message ?? e }));
@@ -892,12 +990,12 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
 
   const commitRename = async () => {
     if (!editing || editing.mode !== "rename") return;
-    const { name, value } = editing;
+    const { rif, name, value } = editing;
     const newName = value.trim();
     if (!newName || newName === name) { setEditing(null); return; }
-    setActionBusy(name); setEditing(null); setError(null);
+    setActionBusy(rif); setEditing(null); setError(null);
     try {
-      await api.renameProject(name, newName);
+      await api.renameProject(rif, newName);
       await loadProjects();
     } catch (e: any) {
       setError(t("welcome.errRename", { name, err: e?.message ?? e }));
@@ -908,12 +1006,12 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
 
   const commitDuplicate = async () => {
     if (!editing || editing.mode !== "duplicate") return;
-    const { name, value } = editing;
+    const { rif, name, value } = editing;
     const newName = value.trim();
     if (!newName) { setEditing(null); return; }
-    setActionBusy(name); setEditing(null); setError(null);
+    setActionBusy(rif); setEditing(null); setError(null);
     try {
-      await api.duplicateProject(name, newName);
+      await api.duplicateProject(rif, newName);
       await loadProjects();
     } catch (e: any) {
       setError(t("welcome.errDuplicate", { name, err: e?.message ?? e }));
@@ -921,6 +1019,13 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
       setActionBusy(null);
     }
   };
+
+  // Il cambio password volontario prende tutta la schermata, come quello
+  // obbligato: e lo stesso modulo, e mostrarlo in due vesti diverse a seconda
+  // di come ci si arriva sarebbe la stessa cosa detta due volte.
+  if (cambioPassword) {
+    return <ChangePasswordScreen onAnnulla={() => setCambioPassword(false)} />;
+  }
 
   return (
     <div style={{
@@ -954,7 +1059,12 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
       )}
       {showInstalla && <InstallaRuntimeModal onClose={() => setShowInstalla(false)} />}
 
-      <div style={{ width: 480, maxWidth: "90vw", margin: "auto" }}>
+      <BarraIdentita onCambiaPassword={() => setCambioPassword(true)} />
+
+      {/* La griglia vuole spazio: con 480px starebbero tre piastrelle per
+          riga e il resto della finestra resterebbe vuoto. La lista no — i
+          percorsi lunghi si leggono meglio in una colonna stretta. */}
+      <div style={{ width: vista === "griglia" ? 1080 : 480, maxWidth: "92vw", margin: "auto" }}>
         {/* logo / title */}
         <div style={{ textAlign: "center", marginBottom: 32 }}>
           <div style={{ fontSize: 36, fontWeight: 700, letterSpacing: 2, color: "var(--brand-text, #e2e8f0)" }}>SWS</div>
@@ -962,6 +1072,29 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
             {t("welcome.selectOrCreate")}
           </div>
         </div>
+
+        {/* Griglia o lista. Due icone e basta: e una comodita, non
+            un'impostazione, e non merita ne una pagina ne un menu. */}
+        {!loading && projects.length > 0 && (
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 4, marginBottom: 10 }}>
+            {(["griglia", "lista"] as const).map((quale) => (
+              <button
+                key={quale}
+                onClick={() => cambiaVista(quale)}
+                title={t(quale === "griglia" ? "welcome.vistaGriglia" : "welcome.vistaLista")}
+                aria-pressed={vista === quale}
+                style={{
+                  background: vista === quale ? "var(--brand-surface-2, #334155)" : "transparent",
+                  color: vista === quale ? "var(--brand-text, #e2e8f0)" : "var(--brand-text-subtle, #64748b)",
+                  border: "1px solid var(--brand-surface-2, #334155)",
+                  borderRadius: 4, padding: "3px 9px", cursor: "pointer", fontSize: 13, lineHeight: 1.4,
+                }}
+              >
+                {quale === "griglia" ? "▦" : "☰"}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* project list */}
         <div style={{ marginBottom: 16 }}>
@@ -976,10 +1109,45 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
               {t("welcome.noProjects")}
             </div>
           )}
-          {!loading && projects.map((p) => {
-            const isOpening  = openingName === p.name;
-            const isBusy     = actionBusy  === p.name;
-            const isEditing  = editing?.name === p.name;
+          {/* Raggruppati per azienda (scelta del maintainer, 07-10-2026).
+              I progetti senza azienda — quella implicita — vengono per primi e
+              SENZA titolo: chi ha un'installazione sola non deve incontrare un
+              concetto che per lui non esiste. Il titolo compare solo dove c'e
+              davvero un'azienda da nominare. */}
+          {!loading && raggruppa(projects).map((g, i, tutti) => (
+            <div key={`${g.altra ? "1" : "0"}-${g.azienda ?? ""}`}>
+              {/* Lo stacco prima della PRIMA azienda altrui: tutto quello che
+                  sta sotto non e tuo, e va detto una volta sola invece che
+                  ripetuto su ogni riga (scelta del maintainer, 07-10-2026). */}
+              {g.altra && !tutti[i - 1]?.altra && (
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  margin: "26px 0 2px", paddingTop: 14,
+                  borderTop: "1px solid var(--brand-surface-2, #334155)",
+                  fontSize: 11, letterSpacing: 0.4,
+                  color: "var(--brand-text-subtle, #64748b)",
+                }}>
+                  <span>⚑</span>
+                  <span>{t("welcome.altreAziende")}</span>
+                </div>
+              )}
+              {g.azienda && (
+                <div style={{
+                  fontSize: 11, textTransform: "uppercase", letterSpacing: 0.6,
+                  color: "var(--brand-text-subtle, #64748b)",
+                  margin: "18px 0 6px", paddingLeft: 2,
+                }}>
+                  {g.azienda}
+                </div>
+              )}
+              <div style={vista === "griglia"
+                ? { display: "flex", flexWrap: "wrap", gap: 12, marginTop: 4 }
+                : {}}
+              >
+              {g.elenco.map((p) => {
+            const isOpening  = openingName === p.riferimento;
+            const isBusy     = actionBusy  === p.riferimento;
+            const isEditing  = editing?.rif === p.riferimento;
             const isRenaming = isEditing && editing?.mode === "rename";
             const isDuping   = isEditing && editing?.mode === "duplicate";
             const dimmed     = (openingName || actionBusy) && !isOpening && !isBusy;
@@ -989,6 +1157,150 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
               color: "var(--brand-text-muted, #94a3b8)", fontSize: 15, padding: "2px 5px",
               borderRadius: 4, lineHeight: 1,
             };
+
+            // ── I pezzi interattivi, definiti UNA volta ──────────────────
+            //
+            // Griglia e lista sono due disposizioni della stessa cosa, non due
+            // schermate: se la rinomina esistesse in due copie di JSX, alla
+            // prima correzione ne resterebbe corretta una sola. Qui si
+            // definiscono i pezzi, sotto si compongono.
+            const campoNome = (
+              <input
+                autoFocus
+                style={{ ...INPUT, padding: "3px 8px", fontSize: 14, width: "100%" }}
+                value={editing?.value ?? ""}
+                onChange={(e) => setEditing({ ...editing!, value: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter")  { e.preventDefault(); commitRename(); }
+                  if (e.key === "Escape") setEditing(null);
+                }}
+                onBlur={commitRename}
+                onClick={(e) => e.stopPropagation()}
+              />
+            );
+
+            const distintivoEsterno = p.external ? (
+              <span style={{
+                fontSize: 10, fontWeight: 500, color: "var(--brand-text-subtle, #64748b)",
+                border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "1px 5px",
+              }}>
+                {t("welcome.externalBadge")}
+              </span>
+            ) : null;
+
+            const quando = p.last_opened_ms
+              ? t("welcome.lastOpened", { date: formatDate(p.last_opened_ms) })
+              : t("welcome.lastModified", { date: formatDate(p.last_modified_ms) });
+
+            const azioni = (
+              <div style={{ display: "flex", gap: 2, flexShrink: 0 }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  title={t("editor.rename")}
+                  style={{ ...ACT_BTN, color: isRenaming ? "var(--brand-primary, #3b82f6)" : "var(--brand-text-muted, #94a3b8)" }}
+                  onClick={() => setEditing({ rif: p.riferimento, name: p.name, mode: "rename", value: p.name })}
+                >✎</button>
+                <button
+                  title={t("editor.duplicate")}
+                  style={{ ...ACT_BTN, color: isDuping ? "#a855f7" : "var(--brand-text-muted, #94a3b8)" }}
+                  onClick={() => setEditing({ rif: p.riferimento, name: p.name, mode: "duplicate", value: p.name + " (copia)" })}
+                >⧉</button>
+                <button
+                  title={p.external ? t("welcome.removeFromList") : t("editor.delete")}
+                  style={{ ...ACT_BTN }}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = "var(--brand-danger, #ef4444)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = "var(--brand-text-muted, #94a3b8)")}
+                  onClick={() => handleDelete(p)}
+                >✕</button>
+              </div>
+            );
+
+            const pannelloDuplica = (
+              <div
+                style={{
+                  display: "flex", gap: 8, alignItems: "center",
+                  padding: "8px 12px", background: "var(--brand-surface, #1e293b)",
+                  border: "1px solid #a855f7", borderTop: "none",
+                  borderRadius: "0 0 8px 8px",
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <span style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", whiteSpace: "nowrap" }}>{t("welcome.copyName")}</span>
+                <input
+                  autoFocus
+                  style={{ ...INPUT, padding: "4px 8px", fontSize: 13, flex: 1, minWidth: 0 }}
+                  value={editing?.value ?? ""}
+                  onChange={(e) => setEditing({ ...editing!, value: e.target.value })}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter")  { e.preventDefault(); commitDuplicate(); }
+                    if (e.key === "Escape") setEditing(null);
+                  }}
+                />
+                <button style={{ ...BTN_PRIMARY, padding: "4px 12px", fontSize: 13 }}
+                  onClick={commitDuplicate}>✓</button>
+                <button style={{ ...BTN_GHOST, padding: "4px 10px", fontSize: 13 }}
+                  onClick={() => setEditing(null)}>✗</button>
+              </div>
+            );
+
+            const apriSePossibile = () => {
+              if (!openingName && !actionBusy && !isEditing) handleOpen(p.riferimento, p.name);
+            };
+
+            // ── La piastrella ────────────────────────────────────────────
+            if (vista === "griglia") {
+              const mostraAzioni = sorvolato === p.name || isEditing;
+              return (
+                <div
+                  key={p.name}
+                  onMouseEnter={() => setSorvolato(p.name)}
+                  onMouseLeave={() => setSorvolato((v) => (v === p.name ? null : v))}
+                  onClick={apriSePossibile}
+                  title={p.path}
+                  style={{
+                    position: "relative", width: 158, boxSizing: "border-box",
+                    padding: "14px 10px 12px", borderRadius: 8, textAlign: "center",
+                    background: "var(--brand-surface, #1e293b)",
+                    border: `1px solid ${isOpening ? "var(--brand-primary, #3b82f6)" : isBusy ? "var(--brand-warning, #f59e0b)" : "var(--brand-surface-2, #334155)"}`,
+                    opacity: dimmed ? 0.45 : 1,
+                    cursor: (openingName || actionBusy || isEditing) ? "default" : "pointer",
+                  }}
+                >
+                  {/* Le azioni appaiono al passaggio del mouse. Restano visibili
+                      mentre si rinomina o si duplica: sparire sotto il cursore
+                      che le ha appena usate e il modo piu rapido di perdere il
+                      filo di cosa si stava facendo. */}
+                  <div style={{
+                    position: "absolute", top: 4, right: 4,
+                    opacity: mostraAzioni ? 1 : 0,
+                    transition: "opacity .12s",
+                    pointerEvents: mostraAzioni ? "auto" : "none",
+                  }}>
+                    {!isOpening && !isBusy && azioni}
+                  </div>
+
+                  <div style={{ fontSize: 40, lineHeight: 1, marginBottom: 8 }}>📁</div>
+
+                  {isRenaming ? campoNome : (
+                    <div style={{
+                      fontWeight: 600, fontSize: 13, color: "var(--brand-text, #e2e8f0)",
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                    }}>
+                      {p.name}
+                    </div>
+                  )}
+
+                  <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 3 }}>
+                    {isOpening ? t("welcome.opening") : isBusy ? "…" : quando}
+                  </div>
+
+                  {distintivoEsterno && <div style={{ marginTop: 5 }}>{distintivoEsterno}</div>}
+
+                  {isDuping && <div style={{ marginTop: 8, textAlign: "left" }}>{pannelloDuplica}</div>}
+                </div>
+              );
+            }
 
             return (
               <div key={p.name} style={{ marginBottom: 8 }}>
@@ -1000,9 +1312,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
                     borderColor: isOpening ? "var(--brand-primary, #3b82f6)" : isBusy ? "var(--brand-warning, #f59e0b)" : "var(--brand-surface-2, #334155)",
                     cursor: (openingName || actionBusy || isEditing) ? "default" : "pointer",
                   }}
-                  onClick={() => {
-                    if (!openingName && !actionBusy && !isEditing) handleOpen(p.name);
-                  }}
+                  onClick={apriSePossibile}
                 >
                   {/* icon */}
                   <div style={{
@@ -1013,36 +1323,14 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
 
                   {/* name + date */}
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    {isRenaming ? (
-                      <input
-                        autoFocus
-                        style={{ ...INPUT, padding: "3px 8px", fontSize: 14, width: "100%" }}
-                        value={editing!.value}
-                        onChange={(e) => setEditing({ ...editing!, value: e.target.value })}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter")  { e.preventDefault(); commitRename(); }
-                          if (e.key === "Escape") setEditing(null);
-                        }}
-                        onBlur={commitRename}
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    ) : (
+                    {isRenaming ? campoNome : (
                       <div style={{ fontWeight: 600, fontSize: 15, color: "var(--brand-text, #e2e8f0)", display: "flex", alignItems: "center", gap: 6 }}>
                         {p.name}
-                        {p.external && (
-                          <span style={{
-                            fontSize: 10, fontWeight: 500, color: "var(--brand-text-subtle, #64748b)",
-                            border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "1px 5px",
-                          }}>
-                            {t("welcome.externalBadge")}
-                          </span>
-                        )}
+                        {distintivoEsterno}
                       </div>
                     )}
                     <div style={{ fontSize: 12, color: "var(--brand-text-subtle, #64748b)", marginTop: 2 }}>
-                      {p.last_opened_ms
-                        ? t("welcome.lastOpened", { date: formatDate(p.last_opened_ms) })
-                        : t("welcome.lastModified", { date: formatDate(p.last_modified_ms) })}
+                      {quando}
                     </div>
                     <div
                       style={{
@@ -1056,29 +1344,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
                   </div>
 
                   {/* action buttons */}
-                  {!isOpening && !isBusy && (
-                    <div style={{ display: "flex", gap: 2, flexShrink: 0 }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <button
-                        title={t("editor.rename")}
-                        style={{ ...ACT_BTN, color: isRenaming ? "var(--brand-primary, #3b82f6)" : "var(--brand-text-muted, #94a3b8)" }}
-                        onClick={() => setEditing({ name: p.name, mode: "rename", value: p.name })}
-                      >✎</button>
-                      <button
-                        title={t("editor.duplicate")}
-                        style={{ ...ACT_BTN, color: isDuping ? "#a855f7" : "var(--brand-text-muted, #94a3b8)" }}
-                        onClick={() => setEditing({ name: p.name, mode: "duplicate", value: p.name + " (copia)" })}
-                      >⧉</button>
-                      <button
-                        title={p.external ? t("welcome.removeFromList") : t("editor.delete")}
-                        style={{ ...ACT_BTN }}
-                        onMouseEnter={(e) => (e.currentTarget.style.color = "var(--brand-danger, #ef4444)")}
-                        onMouseLeave={(e) => (e.currentTarget.style.color = "var(--brand-text-muted, #94a3b8)")}
-                        onClick={() => handleDelete(p)}
-                      >✕</button>
-                    </div>
-                  )}
+                  {!isOpening && !isBusy && azioni}
 
                   {/* status label */}
                   {isOpening && <div style={{ fontSize: 13, color: "var(--brand-text-muted, #94a3b8)", flexShrink: 0 }}>{t("welcome.opening")}</div>}
@@ -1088,37 +1354,13 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
                   )}
                 </div>
 
-                {/* duplicate name input — shown below card */}
-                {isDuping && (
-                  <div
-                    style={{
-                      display: "flex", gap: 8, alignItems: "center",
-                      padding: "8px 12px", background: "var(--brand-surface, #1e293b)",
-                      border: "1px solid #a855f7", borderTop: "none",
-                      borderRadius: "0 0 8px 8px",
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <span style={{ fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", whiteSpace: "nowrap" }}>{t("welcome.copyName")}</span>
-                    <input
-                      autoFocus
-                      style={{ ...INPUT, padding: "4px 8px", fontSize: 13, flex: 1 }}
-                      value={editing!.value}
-                      onChange={(e) => setEditing({ ...editing!, value: e.target.value })}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter")  { e.preventDefault(); commitDuplicate(); }
-                        if (e.key === "Escape") setEditing(null);
-                      }}
-                    />
-                    <button style={{ ...BTN_PRIMARY, padding: "4px 12px", fontSize: 13 }}
-                      onClick={commitDuplicate}>✓</button>
-                    <button style={{ ...BTN_GHOST, padding: "4px 10px", fontSize: 13 }}
-                      onClick={() => setEditing(null)}>✗</button>
-                  </div>
-                )}
+                {isDuping && pannelloDuplica}
               </div>
             );
           })}
+              </div>
+            </div>
+          ))}
         </div>
 
         {error && (

@@ -58,7 +58,7 @@ CLIENT = f"{root}/sws-editor/src/api/client.ts"
 RIMEDI_RAW = {
     "/api/project/import":
         "MainMenu.handleImport rilegge con getProject() subito dopo l'import",
-    "/api/projects/:name/rename":
+    "/api/projects/:azienda/:nome/rename":
         "MainMenu.handleRename rilegge con getProject() (la risposta è {name}, senza ETag)",
     "/api/projects/upload":
         "ConfigView chiama dimenticaVersioneProgetto() e poi openProject()",

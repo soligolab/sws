@@ -74,6 +74,44 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — Fase 3b chiusa, manca il collaudo a schermo (2026-10-07)
+
+Ramo **`feat/progetti-per-azienda`**, 5 commit, **non pushato**. `main` fermo a `b921f6c7`.
+`cargo check`, 476 test `sws-web`, 34 `sws-identita`, `pnpm build`, **36/36 guardie**: verdi.
+L'IDE sulla **8460 gira con questo codice** — ricompilato e riavviato.
+
+**Cosa c'è dentro**
+
+- `fix(auth)` — cambiare la propria password non chiude più la sessione di chi la cambia
+  (`cambia_password_tenendo`). Le *altre* muoiono ancora. Riprodotto con curl prima e dopo.
+- `feat` — barra sopra l'elenco progetti (chi sei, azienda, console, cambio password, esci) e
+  **filtro per appartenenza nell'elenco**, che prima non c'era affatto.
+- `feat` — elenco a icone con interruttore griglia/lista; registro di audit con l'attore su ogni
+  azione di console (`check_audit_attore.sh`).
+- `feat(console)` — il pannello utente **si salva** (nome, ruolo, appartenenze, password, attivo,
+  tutto insieme); API nuove `aggiorna_utente`, `imposta_appartenenze`, `riattiva`;
+  `assicura_cartelle_aziende` per le aziende nate senza cartella.
+- `feat(progetti)` — **Fase 3b**: `/api/projects/<azienda>/<nome>/…`, risolutore unico con
+  verifica di appartenenza (404, non 403), registro indicizzato per riferimento,
+  `check_indirizzo_progetto.sh`. La forma a un segmento resta per i **dispositivi** non ancora
+  aggiornati.
+
+**Da fare, in ordine**
+
+1. **Collaudo a schermo del maintainer** — è l'unico pezzo mancante della *definition of done* per
+   l'intero ramo. L'elenco delle prove è nella conversazione; le due che contano di più: due
+   aziende con un progetto omonimo, e un utente non-amministratore che vede solo le sue.
+2. Poi: squash merge, eliminazione del ramo, push.
+3. Archiviare `docs/plans/2026-10-07-progetti-per-azienda-fase-3b.md` a collaudo fatto.
+
+**Resta aperto**: le **quote** (colonne sì, conteggio no) — dichiarate fuori perimetro nel piano
+3b, vanno nella 3c insieme ai ruoli che delimitano davvero.
+
+**Dati di prova sulla macchina**: progetti spostati in `~/sws_projects/pixsys/` (LVGL, LVGL_TEST,
+F2.2) e `~/sws_projects/sws/` (F3, fade-prova). `mauro@soligo.net` è membro di *Questa
+installazione* e *sws*, **non** di *pixsys*: quei progetti li vede come amministratore di
+piattaforma, nella sezione «Altre aziende ⚑». È voluto.
+
 ## ▶ Riprendere da qui — collaudo MCM sul TC620 dopo la 2.12.0 (2026-10-06)
 
 Nessun codice, solo diagnosi (sessione da casa, TC620 raggiungibile). Il TC620 gira la **2.12.0**.

@@ -508,7 +508,17 @@
     "installRuntimeTitle": "Install the runtime on a device",
     "installRuntime": "Install the runtime on a device",
     "installIntro": "Installs the SWS runtime as a container (rootless podman, no sudo) on a device reachable over SSH, pulling the image from the registry: the device picks its architecture. The password stays in this form and is not saved.",
-    "installStart": "Starting installation → {{user}}@{{host}}:{{port}} (container, registry{{ref}})"
+    "installStart": "Starting installation → {{user}}@{{host}}:{{port}} (container, registry{{ref}})",
+    "aziendaLabel": "Company",
+    "aziendaQuestaInstallazione": "This installation",
+    "barraMenu": "Your account",
+    "barraConsole": "Administration console",
+    "barraCambiaPassword": "Change password",
+    "barraEsci": "Log out",
+    "barraNAziende": "{{n}} companies",
+    "altreAziende": "Other companies — visible to you as a platform administrator",
+    "vistaGriglia": "Icons",
+    "vistaLista": "List"
   },
   "logs": {
     "history": "History…",
@@ -600,7 +610,9 @@
     "pwChangeError": "Error changing password. Try again.",
     "welcomeUser": "Welcome",
     "mustSetNewPassword": ". To continue you must set a new password.",
-    "email": "Email"
+    "email": "Email",
+    "annulla": "Cancel",
+    "logout": "Log out"
   },
   "props": {
     "diag45": "45° diagonal",
@@ -2791,7 +2803,26 @@
       "scegliAzienda": "choose…",
       "piattaforma": "Platform administrator",
       "piattaformaNota": "Approves companies. A different role from administering your own company, not a higher grade.",
-      "disattiva": "Deactivate"
+      "disattiva": "Deactivate",
+      "appartenenze": "Member of",
+      "nessunaAppartenenza": "No companies.",
+      "questaInstallazione": "This installation",
+      "togli": "Remove from this company",
+      "aggiungi": "Add",
+      "comeAmministratore": "as company administrator",
+      "reset": "Reset the password",
+      "nuovaPassword": "New password (min 8)",
+      "reimposta": "Reset",
+      "resetNota": "Closes all their sessions and forces them to pick their own at first sign-in: this one is known by two people.",
+      "nonSalvate": "unsaved changes",
+      "emailNonCambia": "The address cannot be changed: it is the identity the audit log cites this person by.",
+      "ruolo": "Role in the installation",
+      "salva": "Save",
+      "salvataggio": "Saving…",
+      "annulla": "Cancel",
+      "abbandona": "There are unsaved changes on this user. Discard them?",
+      "resetInSospeso": "The password will be reset when you save. Until then, the old one still works.",
+      "passwordCorta": "The password must be at least 8 characters."
     },
     "installazione": {
       "versione": "Version",

@@ -158,6 +158,25 @@ pub async fn start_project_services(
 #[derive(Serialize)]
 pub struct ProjectListEntry {
     pub name: String,
+    /// `<azienda>/<nome>`, con `-` per l'azienda implicita: è **l'indirizzo**
+    /// del progetto, quello che va nelle rotte. Il nome da solo non basta più
+    /// da quando due aziende possono avere un «impianto» ciascuna.
+    pub riferimento: String,
+    /// Il nome dell'azienda a cui appartiene, quando non e quella implicita.
+    /// `None` = l'azienda implicita, cioe «questa installazione»: la
+    /// schermata non deve nominarla, perche chi ha un impianto solo non ha
+    /// motivo di sapere che esiste il concetto.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub azienda: Option<String>,
+    /// Vero quando il progetto sta in un'azienda a cui chi guarda **non**
+    /// appartiene. Puo capitare solo a un amministratore di piattaforma: a
+    /// tutti gli altri questi progetti non arrivano proprio.
+    ///
+    /// Serve alla schermata per tenerli in una sezione a parte e contrassegnarli
+    /// (scelta del maintainer, 07-10-2026): vederli e utile per l'assistenza,
+    /// confonderli con i propri no.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub altra_azienda: bool,
     pub has_project_yaml: bool,
     pub last_modified_ms: Option<u64>,
     /// Absolute path on the server's filesystem — lets the UI disambiguate
@@ -209,6 +228,11 @@ pub struct CreateProjectRequest {
     /// absent, behavior is 100% unchanged from before this field existed.
     #[serde(default)]
     pub parent_path: Option<String>,
+    /// L'azienda a cui il progetto appartiene. Il server ne ricava la
+    /// cartella: il client non manda mai un percorso per questa strada, cosi
+    /// non c'e un secondo modo di dire dove va un progetto.
+    #[serde(default)]
+    pub azienda_id: Option<i64>,
     /// Target di rendering scelto nel wizard (Web/LVGL). `None` = Web,
     /// comportamento invariato. Solo per progetti vuoti (`template: None`) —
     /// i progetti da template restano sempre Web per ora, vedi ADR 0002.
@@ -219,6 +243,10 @@ pub struct CreateProjectRequest {
 #[derive(Serialize)]
 pub struct OpenProjectResponse {
     pub name: String,
+    /// Vero solo se le credenziali sono quelle del **progetto**: aprirne uno
+    /// ne cambia l'elenco degli utenti e azzera quelle sessioni. Per chi usa
+    /// le credenziali dell'**installazione** non cambia niente, e dirgli di
+    /// riautenticarsi sarebbe falso.
     pub must_login: bool,
 }
 
@@ -302,9 +330,15 @@ pub fn safe_project_name(name: &str) -> Result<String, &'static str> {
 /// `GET /api/projects` — list subfolders of `projects_root` that contain a
 /// `project.yaml`. Pre-auth so the WelcomeScreen can populate without a
 /// session.
-pub async fn list_projects(State(s): State<AppState>) -> Response {
+pub async fn list_projects(
+    State(s): State<AppState>,
+    chi: Option<axum::Extension<crate::router::AuthUser>>,
+) -> Response {
     let root: &StdPath = s.projects_root.as_path();
-    let mut by_name: std::collections::HashMap<String, ProjectListEntry> =
+    // Indicizzata per **riferimento**, non per nome: con le cartelle per
+    // azienda due progetti possono chiamarsi uguale, e una mappa per nome ne
+    // perderebbe uno in silenzio — che è esattamente il guasto da chiudere.
+    let mut per_riferimento: std::collections::HashMap<String, ProjectListEntry> =
         std::collections::HashMap::new();
 
     // 1. Legacy scan of projects_root — finds pre-existing root-scoped
@@ -336,10 +370,17 @@ pub async fn list_projects(State(s): State<AppState>) -> Response {
                     .ok()
                     .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
                     .map(|d| d.as_millis() as u64);
-                by_name.insert(
-                    name.clone(),
+                let riferimento = crate::project_registry::riferimento(
+                    crate::project_registry::AZIENDA_IMPLICITA,
+                    &name,
+                );
+                per_riferimento.insert(
+                    riferimento.clone(),
                     ProjectListEntry {
                         name,
+                        riferimento,
+                        azienda: None,
+                        altra_azienda: false,
                         has_project_yaml: true,
                         last_modified_ms,
                         path: path.to_string_lossy().to_string(),
@@ -353,27 +394,99 @@ pub async fn list_projects(State(s): State<AppState>) -> Response {
         Err(e) => warn!("list_projects: cannot read {}: {e}", root.display()),
     }
 
+    // 1b. Le cartelle delle aziende, un livello piu sotto.
+    //
+    // L'azienda IMPLICITA ha la cartella vuota, cioe la radice stessa: i suoi
+    // progetti li ha gia trovati la scansione qui sopra, e non si sposta
+    // niente su un'installazione che esisteva gia. Le altre aziende hanno una
+    // sottocartella, e si scandisce quella.
+    if let Some(identita) = s.identita.as_ref() {
+        for azienda in identita.elenca_aziende().await.unwrap_or_default() {
+            if azienda.cartella.is_empty() {
+                continue; // implicita: e la radice, gia fatta
+            }
+            let dir_azienda = root.join(&azienda.cartella);
+            let Ok(mut dir) = tokio::fs::read_dir(&dir_azienda).await else {
+                continue; // nessun progetto ancora: la cartella puo non esserci
+            };
+            while let Ok(Some(entry)) = dir.next_entry().await {
+                let path = entry.path();
+                let Some(name) = path.file_name().and_then(|n| n.to_str()).map(String::from) else {
+                    continue;
+                };
+                if name.starts_with('.') {
+                    continue;
+                }
+                let Ok(meta) = tokio::fs::metadata(&path).await else { continue };
+                if !meta.is_dir() {
+                    continue;
+                }
+                if !tokio::fs::try_exists(path.join("project.yaml")).await.unwrap_or(false) {
+                    continue;
+                }
+                let last_modified_ms = meta
+                    .modified()
+                    .ok()
+                    .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                    .map(|d| d.as_millis() as u64);
+                let riferimento =
+                    crate::project_registry::riferimento(&azienda.cartella, &name);
+                per_riferimento.insert(
+                    riferimento.clone(),
+                    ProjectListEntry {
+                        name,
+                        riferimento,
+                        azienda: Some(azienda.nome.clone()),
+                        altra_azienda: false,
+                        has_project_yaml: true,
+                        last_modified_ms,
+                        path: path.to_string_lossy().to_string(),
+                        last_opened_ms: None,
+                        external: false,
+                        storico_byte: None,
+                    },
+                );
+            }
+        }
+    }
+
     // 2. Registry entries — covers projects created/opened at a custom
     //    parent_path (never found by the scan above), and refreshes
     //    last_opened_ms/path for anything the scan already picked up.
-    for (name, reg_entry) in s.known_projects.snapshot().await {
+    for (rif, reg_entry) in s.known_projects.snapshot().await {
         let yaml_path = reg_entry.path.join("project.yaml");
         if !tokio::fs::try_exists(&yaml_path).await.unwrap_or(false) {
             // Stale entry (folder moved/deleted outside SWS) — skip rather
             // than show a dead link in the welcome list.
             continue;
         }
-        let external = reg_entry.path.parent() != Some(root);
+        // Stessa regola di `is_external`, non una seconda copia: prima qui
+        // c'era `parent() != Some(root)` ripetuto a mano, e con le cartelle
+        // per azienda avrebbe detto «esterno» per ogni progetto d'azienda.
+        let external = is_external(&reg_entry.path, root);
+        // L'azienda si ricava dalla cartella: il percorso E il fatto, quindi
+        // non c'e un secondo posto da tenere allineato.
+        let azienda_reg = per_riferimento.get(&rif).and_then(|e| e.azienda.clone());
+        // Il nome e la coda del riferimento. Una chiave senza barra non
+        // dovrebbe esistere dopo la migrazione del registro: se c'e, la si
+        // tratta come implicita invece di lasciare una voce senza nome.
+        let name = match rif.split_once('/') {
+            Some((_, n)) => n.to_string(),
+            None => rif.clone(),
+        };
         let last_modified_ms = tokio::fs::metadata(&reg_entry.path)
             .await
             .ok()
             .and_then(|m| m.modified().ok())
             .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
             .map(|d| d.as_millis() as u64);
-        by_name.insert(
-            name.clone(),
+        per_riferimento.insert(
+            rif.clone(),
             ProjectListEntry {
                 name,
+                riferimento: rif,
+                azienda: azienda_reg,
+                altra_azienda: false,
                 has_project_yaml: true,
                 last_modified_ms,
                 path: reg_entry.path.to_string_lossy().to_string(),
@@ -384,7 +497,8 @@ pub async fn list_projects(State(s): State<AppState>) -> Response {
         );
     }
 
-    let mut entries: Vec<ProjectListEntry> = by_name.into_values().collect();
+    let mut entries: Vec<ProjectListEntry> = per_riferimento.into_values().collect();
+    marca_e_filtra_per_appartenenza(&s, chi.map(|e| e.0), &mut entries).await;
     for e in &mut entries {
         e.storico_byte = peso_storico(StdPath::new(&e.path));
     }
@@ -398,6 +512,256 @@ pub async fn list_projects(State(s): State<AppState>) -> Response {
             .then_with(|| a.name.cmp(&b.name))
     });
     Json(entries).into_response()
+}
+
+/// Le aziende di chi sta guardando, lette una volta sola.
+///
+/// Nomi **e** cartelle insieme: l'elenco ragiona per nome (e quello che si
+/// mostra), l'indirizzo di un progetto ragiona per cartella (e quello che sta
+/// sul disco). Due chiavi diverse della stessa cosa, prese dalla stessa
+/// lettura — perche prenderle da due letture e il modo in cui iniziano a non
+/// combaciare.
+#[derive(Default)]
+pub struct Appartenenze {
+    pub nomi: Vec<String>,
+    pub cartelle: Vec<String>,
+    /// Se fa parte dell'azienda implicita, cioe della radice.
+    pub implicita: bool,
+    /// Se non c'e `identita`, o se chi guarda non e un utente
+    /// dell'installazione (admin sintetico, utente di progetto): allora non
+    /// si filtra e non si nega niente, come e sempre stato sul dispositivo.
+    pub fuori_dal_modello: bool,
+}
+
+pub async fn appartenenze_di(s: &AppState, chi: Option<&crate::router::AuthUser>) -> Appartenenze {
+    let fuori = Appartenenze { fuori_dal_modello: true, ..Default::default() };
+    let (Some(identita), Some(chi)) = (s.identita.as_ref(), chi) else {
+        return fuori;
+    };
+    let Ok(utenti) = identita.elenca().await else { return fuori };
+    let Some(io) = utenti.iter().find(|u| u.email == chi.username) else {
+        return fuori;
+    };
+    let tutte = identita.elenca_aziende().await.unwrap_or_default();
+    let mut a = Appartenenze::default();
+    for (aid, _) in identita.aziende_di(io.id).await.unwrap_or_default() {
+        if let Some(az) = tutte.iter().find(|x| x.id == aid) {
+            if az.cartella.is_empty() {
+                a.implicita = true;
+            } else {
+                a.cartelle.push(az.cartella.clone());
+            }
+            a.nomi.push(az.nome.clone());
+        }
+    }
+    a
+}
+
+/// Un progetto risolto da un riferimento `<azienda>/<nome>`.
+pub struct Progetto {
+    /// La chiave con cui lo conosce il registro: `<azienda>/<nome>`.
+    pub chiave: String,
+    pub nome: String,
+    pub dir: PathBuf,
+}
+
+/// Dall'indirizzo al progetto, **passando dall'autorizzazione**.
+///
+/// È l'unico punto da cui si risale da un riferimento a una cartella, e lo è
+/// di proposito. Prima ogni rotta prendeva un nome e lo risolveva da sé:
+/// l'appartenenza non la guardava nessuna, il filtro viveva solo
+/// nell'**elenco**, e un elenco non è una guardia — chi conosceva il nome di
+/// un progetto di un'altra azienda lo apriva lo stesso.
+///
+/// **404 e non 403** quando l'azienda non è tua: un 403 confermerebbe che quel
+/// progetto esiste, che è precisamente la cosa che non deve sapere. Chi
+/// amministra la piattaforma passa comunque, come nell'elenco.
+pub async fn risolvi_progetto(
+    s: &AppState,
+    chi: Option<&crate::router::AuthUser>,
+    azienda: &str,
+    nome: &str,
+) -> Result<Progetto, Response> {
+    let nome = safe_project_name(nome)
+        .map_err(|m| (StatusCode::BAD_REQUEST, m).into_response())?;
+    // Il segmento dell'azienda passa dallo stesso setaccio del nome: è un
+    // pezzo di percorso quanto l'altro, e `..` qui varrebbe `..` lì.
+    if azienda != crate::project_registry::AZIENDA_IMPLICITA {
+        safe_project_name(azienda)
+            .map_err(|m| (StatusCode::BAD_REQUEST, format!("azienda: {m}")).into_response())?;
+    }
+    let chiave = crate::project_registry::riferimento(azienda, &nome);
+
+    let app = appartenenze_di(s, chi).await;
+    if !app.fuori_dal_modello {
+        // **La stessa funzione dell'elenco**, con la chiave che serve qui.
+        // `visibilita` non sa se le stai dando nomi o cartelle: sa dire se
+        // quell'azienda è tua. Scriverne una seconda versione per le cartelle
+        // vorrebbe dire due regole da tenere d'accordo, e una delle due
+        // prima o poi resterebbe indietro — che è esattamente come è nato il
+        // buco che questo risolutore chiude.
+        let segmento = (azienda != crate::project_registry::AZIENDA_IMPLICITA).then_some(azienda);
+        let piattaforma = chi.is_some_and(|c| c.amministratore_piattaforma);
+        if visibilita(segmento, &app.cartelle, app.implicita, piattaforma).is_none() {
+            return Err((StatusCode::NOT_FOUND, "project not found").into_response());
+        }
+    }
+
+    // Il registro per primo: copre i progetti «esterni», che stanno fuori
+    // dalla radice e che nessuna scansione troverebbe.
+    let dir = match s.known_projects.get_path(&chiave).await {
+        Some(p) => p,
+        None if azienda == crate::project_registry::AZIENDA_IMPLICITA => {
+            s.projects_root.join(&nome)
+        }
+        None => s.projects_root.join(azienda).join(&nome),
+    };
+    Ok(Progetto { chiave, nome, dir })
+}
+
+// ── Le forme a UN segmento: `/api/projects/<nome>/...` ───────────────────────
+//
+// Restano, e non per nostalgia. L'IDE distribuisce su **dispositivi**, e un
+// dispositivo con un runtime più vecchio conosce solo questa forma: è quella
+// che `remote.rs` gli manda. Toglierla qui romperebbe il deploy verso ogni
+// pannello non ancora aggiornato — e su un pannello le aziende non esistono
+// comunque, c'è un progetto solo.
+//
+// **Non è una scorciatoia che salta i controlli**: un segmento solo vuol dire
+// azienda implicita, e da lì in poi è la stessa strada, stesso risolutore,
+// stessa verifica di appartenenza.
+
+/// Avvisa quando la forma vecchia arriva dove non dovrebbe più arrivare.
+///
+/// Su un **dispositivo** è normale: aziende non ce ne sono, e `remote.rs`
+/// manda esattamente questo. Su un'istanza **IDE** no — lì l'elenco porta il
+/// riferimento di ogni progetto, quindi un indirizzo a un segmento solo è un
+/// chiamante che non è stato aggiornato. Il guaio è che non fallisce: si
+/// risolve sull'azienda implicita, e se per caso esiste un omonimo in radice
+/// l'operazione riesce **sul progetto sbagliato**. Un `rename` sarebbe un
+/// errore visibile, un `delete` no.
+///
+/// Successo il 07-10-2026 con «rinomina» dal menu dell'editor, che mandava
+/// `meta.name` e basta.
+fn avvisa_se_indirizzo_vecchio(s: &AppState, nome: &str) {
+    if s.identita.is_some() {
+        warn!(
+            progetto = %nome,
+            "indirizzo di progetto a un segmento su un'istanza IDE: \
+             risolto sull'azienda implicita. Il chiamante dovrebbe mandare \
+             «<azienda>/<nome>» — «-» per l'implicita."
+        );
+    }
+}
+
+pub async fn open_project_implicito(
+    State(s): State<AppState>,
+    chi: Option<axum::Extension<crate::router::AuthUser>>,
+    Path(nome): Path<String>,
+) -> Response {
+    avvisa_se_indirizzo_vecchio(&s, &nome);
+    let implicita = crate::project_registry::AZIENDA_IMPLICITA.to_string();
+    open_project(State(s), chi, Path((implicita, nome))).await
+}
+
+pub async fn delete_project_implicito(
+    State(s): State<AppState>,
+    chi: Option<axum::Extension<crate::router::AuthUser>>,
+    Path(nome): Path<String>,
+    q: Query<DeleteQuery>,
+) -> Response {
+    avvisa_se_indirizzo_vecchio(&s, &nome);
+    let implicita = crate::project_registry::AZIENDA_IMPLICITA.to_string();
+    delete_project(State(s), chi, Path((implicita, nome)), q).await
+}
+
+pub async fn rename_project_implicito(
+    State(s): State<AppState>,
+    chi: Option<axum::Extension<crate::router::AuthUser>>,
+    Path(nome): Path<String>,
+    req: Json<RenameRequest>,
+) -> Response {
+    avvisa_se_indirizzo_vecchio(&s, &nome);
+    let implicita = crate::project_registry::AZIENDA_IMPLICITA.to_string();
+    rename_project(State(s), chi, Path((implicita, nome)), req).await
+}
+
+pub async fn duplicate_project_implicito(
+    State(s): State<AppState>,
+    chi: Option<axum::Extension<crate::router::AuthUser>>,
+    Path(nome): Path<String>,
+    req: Json<RenameRequest>,
+) -> Response {
+    avvisa_se_indirizzo_vecchio(&s, &nome);
+    let implicita = crate::project_registry::AZIENDA_IMPLICITA.to_string();
+    duplicate_project(State(s), chi, Path((implicita, nome)), req).await
+}
+
+/// Toglie dall'elenco i progetti delle aziende altrui, e contrassegna quelli
+/// che restano a chi puo vederli comunque.
+///
+/// **Prima non c'era nessun filtro**: la scansione trovava le cartelle di
+/// tutte le aziende e le serviva a chiunque fosse collegato, cioe uno
+/// sviluppatore dell'azienda A vedeva — e poteva aprire — i progetti
+/// dell'azienda B. Le cartelle per azienda sono nate il 07-10-2026 e il filtro
+/// e nato lo stesso giorno: una separazione che si vede solo nel percorso non
+/// e una separazione.
+///
+/// L'amministratore di piattaforma li vede **tutti**, contrassegnati
+/// (decisione del maintainer, 07-10-2026): e il mestiere di chi fa assistenza,
+/// e nasconderglieli lo costringerebbe a iscriversi ovunque.
+///
+/// Su un dispositivo non c'e `identita` e non ci sono aziende: li non si filtra
+/// niente, come e sempre stato.
+async fn marca_e_filtra_per_appartenenza(
+    s: &AppState,
+    chi: Option<crate::router::AuthUser>,
+    entries: &mut Vec<ProjectListEntry>,
+) {
+    let piattaforma = chi.as_ref().is_some_and(|c| c.amministratore_piattaforma);
+    let app = appartenenze_di(s, chi.as_ref()).await;
+    if app.fuori_dal_modello {
+        return; // dispositivo o admin sintetico: nessun filtro, come sempre
+    }
+    entries.retain_mut(|e| {
+        match visibilita(e.azienda.as_deref(), &app.nomi, app.implicita, piattaforma) {
+            Some(altra) => {
+                e.altra_azienda = altra;
+                true
+            }
+            None => false,
+        }
+    });
+}
+
+/// La regola, da sola: `None` = non si vede, `Some(altra)` = si vede, e
+/// `altra` dice se va contrassegnato come di un'azienda non tua.
+///
+/// Funzione pura, cosi si prova senza alzare un server — stessa scelta di
+/// `router::fonte_autenticazione`. Una regola di visibilita sepolta dentro un
+/// handler e una regola che nessun test puo guardare.
+/// `azienda` e `mie` vanno nella **stessa chiave**, e quale sia la sceglie il
+/// chiamante: l'elenco ragiona per nome d'azienda (è quello che mostra),
+/// l'indirizzo di un progetto per cartella (è quello che sta sul disco).
+/// `None` è sempre l'azienda implicita.
+pub fn visibilita(
+    azienda: Option<&str>,
+    mie: &[String],
+    membro_implicita: bool,
+    amministratore_piattaforma: bool,
+) -> Option<bool> {
+    let mia = match azienda {
+        // Nessuna azienda = l'azienda implicita, cioe la radice stessa.
+        None => membro_implicita,
+        Some(nome) => mie.iter().any(|n| n == nome),
+    };
+    if mia {
+        Some(false)
+    } else if amministratore_piattaforma {
+        Some(true)
+    } else {
+        None
+    }
 }
 
 /// `POST /api/projects` — create a new project folder under `projects_root`,
@@ -434,12 +798,26 @@ pub async fn create_project(
                 }
             }
         }
-        None => s.projects_root.as_ref().clone(),
+        None => match cartella_dell_azienda(&s, req.azienda_id).await {
+            Ok(p) => p,
+            Err(m) => return (StatusCode::BAD_REQUEST, m).into_response(),
+        },
     };
 
-    // Uniqueness must hold across BOTH the projects_root scan and the registry
-    // (a name already used by an external project can't be reused here).
-    if s.known_projects.get_path(&safe_name).await.is_some() {
+    // Il riferimento del progetto nuovo. Un `parent_path` scelto a mano
+    // rende il progetto «esterno», e un esterno non sta in nessuna azienda:
+    // segmento implicito.
+    let segmento = match req.parent_path.as_deref().filter(|p| !p.trim().is_empty()) {
+        Some(_) => crate::project_registry::AZIENDA_IMPLICITA.to_string(),
+        None => segmento_dell_azienda(&s, req.azienda_id).await,
+    };
+    let chiave = crate::project_registry::riferimento(&segmento, &safe_name);
+
+    // L'unicità vale **dentro l'azienda**, non in tutta l'installazione: due
+    // aziende possono avere un «impianto» ciascuna, ed è tutto il punto delle
+    // cartelle per azienda. Prima la chiave era il nome nudo e la seconda
+    // azienda si sentiva dire «esiste già» per un progetto che non vedeva.
+    if s.known_projects.get_path(&chiave).await.is_some() {
         return (StatusCode::CONFLICT, "project already exists").into_response();
     }
     let target = parent_dir.join(&safe_name);
@@ -560,11 +938,11 @@ pub async fn create_project(
     // Every created project — root-scoped or at a custom parent_path — enters
     // the known-projects registry, so the "recent projects" list picks it up
     // immediately (not just custom-path ones).
-    s.known_projects.touch(&safe_name, &target).await;
+    s.known_projects.touch(&chiave, &target).await;
 
     (
         StatusCode::CREATED,
-        Json(serde_json::json!({ "name": safe_name })),
+        Json(serde_json::json!({ "name": safe_name, "riferimento": chiave })),
     )
         .into_response()
 }
@@ -943,19 +1321,18 @@ pub async fn apply_loaded_project(
     (project.notifications, project.global_scripts)
 }
 
-pub async fn open_project(State(s): State<AppState>, Path(name): Path<String>) -> Response {
+pub async fn open_project(
+    State(s): State<AppState>,
+    chi: Option<axum::Extension<crate::router::AuthUser>>,
+    Path((azienda, nome)): Path<(String, String)>,
+) -> Response {
     // Un solo cambio-progetto alla volta: vedi `AppState::project_switch_lock`.
     let _switch = s.project_switch_lock.lock().await;
-    let safe_name = match safe_project_name(&name) {
-        Ok(n) => n,
-        Err(msg) => return (StatusCode::BAD_REQUEST, msg).into_response(),
+    let p = match risolvi_progetto(&s, chi.as_ref().map(|e| &e.0), &azienda, &nome).await {
+        Ok(p) => p,
+        Err(r) => return r,
     };
-    // Resolve via the registry first (covers custom-path/external projects),
-    // falling back to the default projects_root location as before.
-    let project_dir = match s.known_projects.get_path(&safe_name).await {
-        Some(p) => p,
-        None => s.projects_root.join(&safe_name),
-    };
+    let (safe_name, chiave, project_dir) = (p.nome, p.chiave, p.dir);
     if !tokio::fs::try_exists(&project_dir).await.unwrap_or(false) {
         return (StatusCode::NOT_FOUND, "project not found").into_response();
     }
@@ -1102,11 +1479,23 @@ pub async fn open_project(State(s): State<AppState>, Path(name): Path<String>) -
     // Every successful open — not just creation — refreshes last_opened_ms,
     // which is what makes this a "recent projects" list rather than just a
     // "created projects" list.
-    s.known_projects.touch(&safe_name, &project_dir).await;
+    s.known_projects.touch(&chiave, &project_dir).await;
+
+    // `must_login` solo quando le credenziali sono quelle del PROGETTO.
+    //
+    // Aprire un progetto fa `swap_store`, che azzera le sessioni di
+    // `sws-auth` — ed e giusto, perche cambiando progetto cambia l'elenco di
+    // chi puo entrare. Ma la sessione di chi usa l'IDE vive nell'archivio
+    // dell'INSTALLAZIONE, che con il progetto non c'entra: dichiararla
+    // scaduta era falso, e il maintainer si e trovato a riautenticarsi
+    // all'apertura di ogni progetto, con una sessione appena creata
+    // (07-10-2026).
+    let deve_riautenticarsi = crate::router::fonte_auth_corrente(&s).await
+        == crate::router::FonteAutenticazione::Progetto;
 
     Json(OpenProjectResponse {
         name: safe_name,
-        must_login: true,
+        must_login: deve_riautenticarsi,
     })
     .into_response()
 }
@@ -1160,19 +1549,97 @@ pub struct RenameRequest {
 /// `parent_path`). Derived from the path rather than stored, so there's
 /// nothing to keep in sync.
 fn is_external(dir: &StdPath, root: &StdPath) -> bool {
-    dir.parent() != Some(root)
+    // `starts_with` e non «il genitore e la radice», dal 07-10-2026: con i
+    // progetti sotto la cartella dell'azienda — `<radice>/<azienda>/<nome>` —
+    // il genitore non e piu la radice, e la vecchia regola avrebbe dichiarato
+    // **esterni tutti i progetti di ogni azienda**. Non un errore cosmetico:
+    // «esterno» governa la cancellazione (toglie solo dal registro e lascia i
+    // file), la rinomina (non muove la cartella) e la duplicazione (accanto
+    // all'originale). Tutti e tre avrebbero cambiato comportamento in silenzio.
+    //
+    // Esterno resta quello che e sempre stato: un progetto registrato che vive
+    // FUORI dalla radice dei progetti, creato prima che Q46 lo impedisse.
+    !dir.starts_with(root)
+}
+
+/// La cartella in cui va un progetto di quell'azienda, creandola se manca.
+///
+/// L'azienda **implicita** ha la cartella vuota, cioe la radice stessa: su
+/// un'installazione che esisteva gia i progetti restano dove sono, e le
+/// aziende nuove nascono in sottocartelle accanto a loro. Una migrazione che
+/// non muove dati e una migrazione che non puo perderli.
+///
+/// Senza `azienda_id` si usa la radice, che e il comportamento di sempre.
+/// Il segmento dell'azienda ricavato da **dove sta** il progetto.
+///
+/// Serve dove l'azienda non arriva come id ma come posizione sul disco —
+/// l'upload, per esempio. Un progetto subito sotto la radice, o fuori dalla
+/// radice del tutto, è dell'azienda implicita; uno un livello più sotto
+/// appartiene alla cartella che lo contiene. Il percorso è il fatto.
+pub fn segmento_da_percorso(radice: &StdPath, dir: &StdPath) -> String {
+    let implicita = crate::project_registry::AZIENDA_IMPLICITA.to_string();
+    let Some(genitore) = dir.parent() else { return implicita };
+    if genitore == radice {
+        return implicita;
+    }
+    match genitore.strip_prefix(radice) {
+        // Esattamente un livello: `<radice>/<azienda>/<progetto>`.
+        Ok(resto) if resto.components().count() == 1 => resto.to_string_lossy().to_string(),
+        _ => implicita,
+    }
+}
+
+/// Il **segmento** dell'azienda per un riferimento: la sua cartella, o `-`.
+///
+/// Gemello di [`cartella_dell_azienda`], che dà la directory: l'uno serve a
+/// scrivere l'indirizzo, l'altro a scrivere sul disco, e vengono dalla stessa
+/// riga del database perché siano sempre d'accordo.
+async fn segmento_dell_azienda(s: &AppState, azienda_id: Option<i64>) -> String {
+    let implicita = crate::project_registry::AZIENDA_IMPLICITA.to_string();
+    let (Some(id), Some(identita)) = (azienda_id, s.identita.as_ref()) else {
+        return implicita;
+    };
+    let Ok(aziende) = identita.elenca_aziende().await else {
+        return implicita;
+    };
+    match aziende.iter().find(|a| a.id == id) {
+        Some(a) if !a.cartella.is_empty() => a.cartella.clone(),
+        _ => implicita,
+    }
+}
+
+async fn cartella_dell_azienda(
+    s: &AppState,
+    azienda_id: Option<i64>,
+) -> Result<PathBuf, String> {
+    let radice = s.projects_root.as_ref().clone();
+    let (Some(id), Some(identita)) = (azienda_id, s.identita.as_ref()) else {
+        return Ok(radice);
+    };
+    let aziende = identita
+        .elenca_aziende()
+        .await
+        .map_err(|e| format!("aziende: {e}"))?;
+    let Some(a) = aziende.iter().find(|a| a.id == id) else {
+        return Err(format!("nessuna azienda con id {id}"));
+    };
+    if a.cartella.is_empty() {
+        return Ok(radice);
+    }
+    let dir = radice.join(&a.cartella);
+    // Anche qui il confinamento, benche la cartella venga dal nostro
+    // database e non da fuori: e una riga, e rende la regola vera senza
+    // eccezioni — le eccezioni sono il modo in cui queste cose si riaprono.
+    let dir = dentro_radice_nuovo(&radice, &dir).map_err(|m| format!("cartella azienda: {m}"))?;
+    tokio::fs::create_dir_all(&dir)
+        .await
+        .map_err(|e| format!("creazione cartella azienda: {e}"))?;
+    Ok(dir)
 }
 
 /// Resolve a project name to its directory: registry first (covers external
 /// and any previously-touched root project), falling back to the legacy
 /// `projects_root/<name>` location.
-async fn resolve_project_dir(s: &AppState, name: &str) -> PathBuf {
-    match s.known_projects.get_path(name).await {
-        Some(p) => p,
-        None => s.projects_root.join(name),
-    }
-}
-
 /// `DELETE /api/projects/:name` — remove a project. For a root-scoped project
 /// this deletes the folder on disk (today's behavior); for an external
 /// project (custom parent_path, e.g. the maintainer's Documents folder or a
@@ -1226,15 +1693,16 @@ pub(crate) fn deve_svuotare_utenti(replace_users: Option<bool>, bundle_ha_utenti
 
 pub async fn delete_project(
     State(s): State<AppState>,
-    Path(name): Path<String>,
+    chi: Option<axum::Extension<crate::router::AuthUser>>,
+    Path((azienda, nome)): Path<(String, String)>,
     Query(q): Query<DeleteQuery>,
 ) -> Response {
     let _switch = s.project_switch_lock.lock().await;
-    let safe_name = match safe_project_name(&name) {
-        Ok(n) => n,
-        Err(msg) => return (StatusCode::BAD_REQUEST, msg).into_response(),
+    let p = match risolvi_progetto(&s, chi.as_ref().map(|e| &e.0), &azienda, &nome).await {
+        Ok(p) => p,
+        Err(r) => return r,
     };
-    let target = resolve_project_dir(&s, &safe_name).await;
+    let (safe_name, chiave, target) = (p.nome, p.chiave, p.dir);
     if !tokio::fs::try_exists(&target).await.unwrap_or(false) {
         return StatusCode::NOT_FOUND.into_response();
     }
@@ -1250,7 +1718,7 @@ pub async fn delete_project(
     }
 
     if is_external(&target, s.projects_root.as_path()) {
-        s.known_projects.remove(&safe_name).await;
+        s.known_projects.remove(&chiave).await;
         info!(name = %safe_name, path = %target.display(), "external project removed from list (files untouched)");
         return StatusCode::NO_CONTENT.into_response();
     }
@@ -1304,7 +1772,7 @@ pub async fn delete_project(
         )
             .into_response();
     }
-    s.known_projects.remove(&safe_name).await;
+    s.known_projects.remove(&chiave).await;
     // Clear the auto-open marker if it pointed at the deleted project, so the
     // runtime doesn't try to reopen a missing directory on next restart.
     let marker = s.projects_root.join(".active-project");
@@ -1325,17 +1793,22 @@ pub async fn delete_project(
 /// change.
 pub async fn rename_project(
     State(s): State<AppState>,
-    Path(name): Path<String>,
+    chi: Option<axum::Extension<crate::router::AuthUser>>,
+    Path((azienda, nome)): Path<(String, String)>,
     Json(req): Json<RenameRequest>,
 ) -> Response {
-    let old_name = match safe_project_name(&name) {
-        Ok(n) => n,
-        Err(msg) => return (StatusCode::BAD_REQUEST, msg).into_response(),
+    let p = match risolvi_progetto(&s, chi.as_ref().map(|e| &e.0), &azienda, &nome).await {
+        Ok(p) => p,
+        Err(r) => return r,
     };
+    let (old_name, chiave_vecchia) = (p.nome, p.chiave);
     let new_name = match safe_project_name(&req.new_name) {
         Ok(n) => n,
         Err(msg) => return (StatusCode::BAD_REQUEST, msg).into_response(),
     };
+    // Rinominare non cambia azienda: la chiave nuova sta nello stesso
+    // segmento di quella vecchia.
+    let chiave_nuova = crate::project_registry::riferimento(&azienda, &new_name);
     if old_name == new_name {
         return (
             StatusCode::BAD_REQUEST,
@@ -1343,12 +1816,12 @@ pub async fn rename_project(
         )
             .into_response();
     }
-    let old_dir = resolve_project_dir(&s, &old_name).await;
+    let old_dir = p.dir;
     if !tokio::fs::try_exists(&old_dir).await.unwrap_or(false) {
         return StatusCode::NOT_FOUND.into_response();
     }
     // The new name must be free both in the registry and in projects_root.
-    if s.known_projects.get_path(&new_name).await.is_some() {
+    if s.known_projects.get_path(&chiave_nuova).await.is_some() {
         return (
             StatusCode::CONFLICT,
             "a project with the new name already exists",
@@ -1373,12 +1846,19 @@ pub async fn rename_project(
             )
                 .into_response();
         }
-        s.known_projects.rename_key(&old_name, &new_name).await;
+        s.known_projects.rename_key(&chiave_vecchia, &chiave_nuova).await;
         info!(old = %old_name, new = %new_name, path = %old_dir.display(), "external project renamed (folder unchanged)");
         return Json(serde_json::json!({ "name": new_name })).into_response();
     }
 
-    let new_dir = s.projects_root.join(&new_name);
+    // **Accanto alla cartella di prima**, non nella radice. Con `projects_root`
+    // un progetto di un'azienda cambiava nome e usciva dalla sua cartella,
+    // finendo fra quelli di tutti: la rinomina diventava un trasloco che
+    // nessuno aveva chiesto.
+    let new_dir = match old_dir.parent() {
+        Some(genitore) => genitore.join(&new_name),
+        None => s.projects_root.join(&new_name),
+    };
     if tokio::fs::try_exists(&new_dir).await.unwrap_or(false) {
         return (
             StatusCode::CONFLICT,
@@ -1420,9 +1900,9 @@ pub async fn rename_project(
             *lock = Some(new_dir.clone());
         }
     }
-    s.known_projects.remove(&old_name).await;
-    s.known_projects.touch(&new_name, &new_dir).await;
-    info!(old = %old_name, new = %new_name, "project renamed");
+    s.known_projects.remove(&chiave_vecchia).await;
+    s.known_projects.touch(&chiave_nuova, &new_dir).await;
+    info!(old = %chiave_vecchia, new = %chiave_nuova, "project renamed");
     Json(serde_json::json!({ "name": new_name })).into_response()
 }
 
@@ -1442,23 +1922,26 @@ pub(crate) async fn cartella_nuovo_progetto(
         )
             .into_response()
     };
-    if s.known_projects.get_path(dst_name).await.is_some() {
+    // **Accanto all'originale, sempre.** Prima il ramo non-esterno diceva
+    // `projects_root.join(dst_name)`: la copia di un progetto d'azienda
+    // nasceva nella radice, cioe fuori dall'azienda, e l'originale e la copia
+    // finivano in due posti diversi. Il genitore vale per tutti e due i casi,
+    // ed e anche quello che tiene il duplicato nella stessa azienda.
+    let Some(genitore) = src_dir.parent() else {
+        return Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "source project has no parent directory",
+        )
+            .into_response());
+    };
+    let dst_dir = genitore.join(dst_name);
+    let chiave = crate::project_registry::riferimento(
+        &segmento_da_percorso(s.projects_root.as_path(), &dst_dir),
+        dst_name,
+    );
+    if s.known_projects.get_path(&chiave).await.is_some() {
         return Err(conflitto());
     }
-    let dst_dir = if is_external(src_dir, s.projects_root.as_path()) {
-        match src_dir.parent() {
-            Some(parent) => parent.join(dst_name),
-            None => {
-                return Err((
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "source project has no parent directory",
-                )
-                    .into_response())
-            }
-        }
-    } else {
-        s.projects_root.join(dst_name)
-    };
     if tokio::fs::try_exists(&dst_dir).await.unwrap_or(false) {
         return Err(conflitto());
     }
@@ -1471,18 +1954,22 @@ pub(crate) async fn cartella_nuovo_progetto(
 /// original (same custom parent), not pulled into `projects_root`.
 pub async fn duplicate_project(
     State(s): State<AppState>,
-    Path(name): Path<String>,
+    chi: Option<axum::Extension<crate::router::AuthUser>>,
+    Path((azienda, nome)): Path<(String, String)>,
     Json(req): Json<RenameRequest>,
 ) -> Response {
-    let src_name = match safe_project_name(&name) {
-        Ok(n) => n,
-        Err(msg) => return (StatusCode::BAD_REQUEST, msg).into_response(),
+    let p = match risolvi_progetto(&s, chi.as_ref().map(|e| &e.0), &azienda, &nome).await {
+        Ok(p) => p,
+        Err(r) => return r,
     };
+    let (src_name, src_dir) = (p.nome, p.dir);
     let dst_name = match safe_project_name(&req.new_name) {
         Ok(n) => n,
         Err(msg) => return (StatusCode::BAD_REQUEST, msg).into_response(),
     };
-    let src_dir = resolve_project_dir(&s, &src_name).await;
+    // La copia nasce **nella stessa azienda** dell'originale: duplicare non e
+    // un modo di spostare un progetto da un'azienda all'altra.
+    let chiave_dst = crate::project_registry::riferimento(&azienda, &dst_name);
     if !tokio::fs::try_exists(&src_dir).await.unwrap_or(false) {
         return StatusCode::NOT_FOUND.into_response();
     }
@@ -1499,7 +1986,7 @@ pub async fn duplicate_project(
         let _ = tokio::fs::remove_dir_all(&dst_dir).await;
         return (StatusCode::INTERNAL_SERVER_ERROR, "copy failed").into_response();
     }
-    s.known_projects.touch(&dst_name, &dst_dir).await;
+    s.known_projects.touch(&chiave_dst, &dst_dir).await;
     info!(src = %src_name, dst = %dst_name, "project duplicated");
     (
         StatusCode::CREATED,
@@ -1822,6 +2309,25 @@ pub async fn upload_project_zip(
                 )
                     .into_response();
             }
+            // Q46 anche qui, dal 07-10-2026. Prima questo ramo faceva un
+            // `create_dir_all` su **qualunque** percorso assoluto, senza
+            // passare dal confinamento: un chiamante poteva materializzare
+            // alberi di directory ovunque il processo potesse scrivere, e
+            // depositarci dentro un progetto. `create_project` era stato
+            // corretto il 09-09; questo no, ed è rimasto aperto un mese.
+            //
+            // Si usa `dentro_radice_nuovo` e non `dentro_radice` perché qui
+            // una cartella nuova ci vuole davvero: è il caso «primo progetto
+            // di un'azienda», cioè `<radice>/<azienda>` che ancora non esiste.
+            // Quella funzione ne concede **una sola**, sotto un genitore che
+            // esiste già ed è dentro la radice: una risalita o un percorso
+            // profondo inventato vengono rifiutati.
+            let parent = match dentro_radice_nuovo(s.projects_root.as_ref(), &parent) {
+                Ok(c) => c,
+                Err(m) => {
+                    return (StatusCode::BAD_REQUEST, format!("parent_path: {m}")).into_response()
+                }
+            };
             if let Err(e) = tokio::fs::create_dir_all(&parent).await {
                 warn!("upload_project_zip: mkdir parent {}: {e}", parent.display());
                 return (
@@ -1835,7 +2341,11 @@ pub async fn upload_project_zip(
         None => s.projects_root.as_ref().clone(),
     };
     // In deploy la cartella DEVE esistere già: il conflitto non è un errore.
-    if !q.deploy && s.known_projects.get_path(&safe_name).await.is_some() {
+    let chiave_caricato = crate::project_registry::riferimento(
+        &segmento_da_percorso(s.projects_root.as_path(), &parent_dir.join(&safe_name)),
+        &safe_name,
+    );
+    if !q.deploy && s.known_projects.get_path(&chiave_caricato).await.is_some() {
         return (
             StatusCode::CONFLICT,
             axum::Json(serde_json::json!({ "name": safe_name })),
@@ -1996,11 +2506,11 @@ pub async fn upload_project_zip(
         }
     }
 
-    s.known_projects.touch(&safe_name, &target).await;
+    s.known_projects.touch(&chiave_caricato, &target).await;
     info!(name = %safe_name, "project created from uploaded ZIP");
     (
         StatusCode::CREATED,
-        Json(serde_json::json!({ "name": safe_name })),
+        Json(serde_json::json!({ "name": safe_name, "riferimento": chiave_caricato })),
     )
         .into_response()
 }
@@ -2966,6 +3476,96 @@ datastores:
             dentro_radice(&radice, &radice.join("scorciatoia")).is_err(),
             "un link dentro la radice che punta fuori è fuori"
         );
+    }
+
+    /// La forma che usa l'**upload**: la cartella di un'azienda che non esiste
+    /// ancora, sotto la radice che esiste.
+    ///
+    /// Fino al 07-10-2026 `upload_project_zip` non passava da qui affatto:
+    /// faceva `create_dir_all` su qualunque percorso assoluto gli arrivasse.
+    /// `create_project` era stato corretto il 09-09 con Q46, l'upload no — e
+    /// il buco e rimasto aperto un mese, su una rotta che fino a ieri era
+    /// perfino pre-auth.
+
+    /// La stessa regola, data in **cartelle** invece che in nomi: è così che
+    /// la usa `risolvi_progetto` per decidere se un indirizzo è tuo.
+    ///
+    /// Sta qui, accanto all'altro, perché la funzione è una sola: se
+    /// qualcuno ne scrivesse una seconda per le cartelle, questi due test
+    /// resterebbero verdi mentre le due regole divergono.
+    #[test]
+    fn la_stessa_regola_vale_per_le_cartelle() {
+        use super::visibilita;
+        let mie_cartelle = vec!["sws".to_string()];
+
+        // `-` nell'indirizzo = azienda implicita = `None` qui.
+        assert_eq!(visibilita(None, &mie_cartelle, true, false), Some(false));
+        assert_eq!(visibilita(None, &mie_cartelle, false, false), None);
+        assert_eq!(visibilita(Some("sws"), &mie_cartelle, false, false), Some(false));
+        // Un'azienda che non e tua: 404, perche `None` qui diventa 404 la.
+        assert_eq!(visibilita(Some("pixsys"), &mie_cartelle, true, false), None);
+        // L'amministratore di piattaforma passa, come nell'elenco.
+        assert_eq!(visibilita(Some("pixsys"), &mie_cartelle, true, true), Some(true));
+    }
+
+    /// Il segmento dell'azienda si ricava da **dove sta** il progetto.
+    #[test]
+    fn il_segmento_viene_dal_percorso() {
+        use super::segmento_da_percorso;
+        let radice = StdPath::new("/progetti");
+        // Subito sotto la radice: azienda implicita.
+        assert_eq!(segmento_da_percorso(radice, StdPath::new("/progetti/impianto")), "-");
+        // Un livello piu sotto: la cartella e l'azienda.
+        assert_eq!(segmento_da_percorso(radice, StdPath::new("/progetti/acme/impianto")), "acme");
+        // Fuori dalla radice — un progetto «esterno» — non sta in nessuna
+        // azienda: implicita, come e sempre stato.
+        assert_eq!(segmento_da_percorso(radice, StdPath::new("/altrove/impianto")), "-");
+        // Due livelli sotto non e una cartella d'azienda: non si inventa
+        // un'azienda da un percorso che non ha quella forma.
+        assert_eq!(segmento_da_percorso(radice, StdPath::new("/progetti/a/b/impianto")), "-");
+    }
+
+    /// Chi non e di quell'azienda non vede quei progetti; l'amministratore di
+    /// piattaforma li vede contrassegnati.
+    ///
+    /// Prima del 07-10-2026 non c'era nessun filtro: la scansione trovava le
+    /// cartelle di tutte le aziende e le serviva a chiunque fosse collegato.
+    #[test]
+    fn i_progetti_di_un_altra_azienda_non_si_vedono() {
+        use super::visibilita;
+        let mie = vec!["Soligonet".to_string()];
+
+        // I propri: visibili e non contrassegnati.
+        assert_eq!(visibilita(Some("Soligonet"), &mie, false, false), Some(false));
+        // Quelli dell'azienda implicita, se ne fai parte.
+        assert_eq!(visibilita(None, &mie, true, false), Some(false));
+        assert_eq!(visibilita(None, &mie, false, false), None);
+        // Di un'altra azienda: invisibili a chi non amministra la piattaforma.
+        assert_eq!(visibilita(Some("Pixsys"), &mie, true, false), None);
+        // E visibili, contrassegnati, a chi la amministra.
+        assert_eq!(visibilita(Some("Pixsys"), &mie, true, true), Some(true));
+        // Anche l'amministratore vede i PROPRI senza contrassegno: il
+        // contrassegno dice «non e tua», non «sei amministratore».
+        assert_eq!(visibilita(Some("Soligonet"), &mie, true, true), Some(false));
+    }
+
+    #[test]
+    fn una_cartella_di_azienda_nuova_si_puo_creare_ma_solo_dentro_la_radice() {
+        let d = tempfile::tempdir().unwrap();
+        let radice = d.path();
+
+        // Il caso buono: `<radice>/acme` non esiste, la radice si.
+        let ok = dentro_radice_nuovo(radice, &radice.join("acme"));
+        assert!(ok.is_ok(), "cartella d'azienda nuova rifiutata: {ok:?}");
+
+        // Un livello inventato in piu: il genitore non esiste, si rifiuta.
+        assert!(dentro_radice_nuovo(radice, &radice.join("acme").join("impianto")).is_err());
+
+        // Fuori dalla radice: rifiutato anche se il genitore esiste.
+        assert!(dentro_radice_nuovo(radice, &PathBuf::from("/tmp/altrove-sws")).is_err());
+
+        // Risalita mascherata.
+        assert!(dentro_radice_nuovo(radice, &radice.join("..").join("fuori")).is_err());
     }
 
     #[test]

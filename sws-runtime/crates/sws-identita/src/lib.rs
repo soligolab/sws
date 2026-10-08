@@ -130,6 +130,9 @@ pub struct Azienda {
     /// commento nello schema: **non ha ancora effetto**.
     pub versione_predefinita: Option<String>,
     pub implicita: bool,
+    /// La cartella sotto la radice dei progetti. Vuota = la radice stessa,
+    /// che e il caso dell'azienda implicita.
+    pub cartella: String,
     pub max_progetti: Option<i64>,
     pub max_pannelli: Option<i64>,
     pub max_byte: Option<i64>,
@@ -356,6 +359,17 @@ CREATE TABLE IF NOT EXISTS aziende (
     -- a schermo.
     versione_predefinita TEXT,
     implicita        INTEGER NOT NULL DEFAULT 0,
+    -- La cartella sotto la radice dei progetti. Fissata alla creazione e MAI
+    -- cambiata dopo: rinominare un'azienda non deve spostare le cartelle dei
+    -- suoi progetti, che e un'operazione su dati veri con un modo di fallire
+    -- a meta.
+    --
+    -- Per l'azienda IMPLICITA e la stringa vuota, cioe la radice stessa.
+    -- Cosi su un'installazione che esisteva gia nessun progetto si sposta:
+    -- i suoi restano dove sono, e le aziende nuove nascono in sottocartelle
+    -- accanto a loro. Una migrazione che non muove dati e una migrazione che
+    -- non puo perderli.
+    cartella         TEXT    NOT NULL DEFAULT '',
     -- Quote (decisione 23). Anche queste senza effetto in 3a: le colonne ci
     -- sono, il conteggio arriva con la 3b.
     max_progetti     INTEGER,
@@ -384,7 +398,12 @@ CREATE INDEX IF NOT EXISTS idx_membri_utente ON membri(utente_id);
 /// approva le aziende (decisione 17) fa un altro mestiere rispetto a chi
 /// amministra la propria. Un amministratore d'azienda non deve poter approvare
 /// se stesso.
-const COLONNE_V2: &[(&str, &str)] = &[(
+const COLONNE_V2: &[(&str, &str)] = &[
+    (
+        "aziende",
+        "ALTER TABLE aziende ADD COLUMN cartella TEXT NOT NULL DEFAULT ''",
+    ),
+    (
     "utenti",
     "ALTER TABLE utenti ADD COLUMN amministratore_piattaforma INTEGER NOT NULL DEFAULT 0",
 )];
@@ -429,6 +448,7 @@ impl Identita {
             percorso,
         };
         id.assicura_azienda_implicita().await?;
+        id.assicura_cartelle_aziende().await?;
         id.assicura_amministratore_piattaforma().await?;
         Ok(id)
     }
@@ -740,10 +760,40 @@ impl Identita {
     /// Non è zelo: se la password è stata cambiata perché si temeva fosse nota a qualcun altro,
     /// lasciare vive le sessioni aperte rende il cambio inutile — chi era dentro resta dentro.
     pub async fn cambia_password(&self, utente_id: i64, nuova: &str) -> anyhow::Result<()> {
+        self.cambia_password_tenendo(utente_id, nuova, None).await
+    }
+
+    /// Come [`Identita::cambia_password`], ma puo **risparmiare una
+    /// sessione**: quella con cui il cambio e stato chiesto.
+    ///
+    /// Cambiare la password chiude le sessioni, ed e giusto: se la vecchia
+    /// password era nota a qualcun altro, le sessioni che ci stanno sopra sono
+    /// sue quanto tue. Ma chiuderle **tutte** chiude anche quella di chi sta
+    /// facendo il cambio in quel momento, e il risultato e che l'operazione
+    /// riesce e la risposta successiva e un 401: l'IDE annuncia «sessione
+    /// scaduta, riautenticati» un istante dopo un cambio andato a buon fine.
+    ///
+    /// Peggio nel caso che conta davvero, il cambio **obbligato** dopo un
+    /// reset dall'amministrazione: li non si entra per scelta, si entra per
+    /// forza, e l'unica azione concessa butta fuori chi la compie. Segnalato
+    /// dal maintainer il 07-10-2026 — «se faccio il login in un progetto mi
+    /// dice che e scaduta la sessione e devo riautenticarmi anche appena
+    /// aperto».
+    ///
+    /// `tenere` e l'impronta del token da risparmiare. `None` le chiude tutte,
+    /// ed e il comportamento giusto quando a cambiare la password e qualcun
+    /// altro: li nessuna sessione aperta e quella di chi sta agendo.
+    pub async fn cambia_password_tenendo(
+        &self,
+        utente_id: i64,
+        nuova: &str,
+        tenere: Option<&str>,
+    ) -> anyhow::Result<()> {
         if nuova.len() < 8 {
             anyhow::bail!("la password deve essere di almeno 8 caratteri");
         }
         let hash = cifra_password(nuova)?;
+        let risparmiata = tenere.map(impronta);
         let conn = self.conn.clone();
         task::spawn_blocking(move || -> anyhow::Result<()> {
             let c = conn.lock().unwrap();
@@ -755,7 +805,122 @@ impl Identita {
             if n == 0 {
                 anyhow::bail!("nessun utente con id {utente_id}");
             }
+            match risparmiata {
+                Some(imp) => c.execute(
+                    "DELETE FROM sessioni WHERE utente_id = ?1 AND impronta_token <> ?2",
+                    params![utente_id, imp],
+                )?,
+                None => c.execute(
+                    "DELETE FROM sessioni WHERE utente_id = ?1",
+                    params![utente_id],
+                )?,
+            };
+            Ok(())
+        })
+        .await?
+    }
+
+    /// Il cambio fatto **dall'interessato**: verifica quella attuale.
+    ///
+    /// Separata da [`Identita::reimposta_password`], che e il reset
+    /// dell'amministratore: li la vecchia password non la si chiede perche chi
+    /// resetta non la conosce, qui si deve chiedere perche altrimenti bastera
+    /// trovare una sessione aperta per cambiarla.
+    ///
+    /// Spegne `deve_cambiare_password`: adesso quella password la conosce una
+    /// persona sola.
+    ///
+    /// `sessione_corrente` e il token con cui la richiesta e arrivata: resta
+    /// viva, tutte le altre no. Vedi [`Identita::cambia_password_tenendo`].
+    pub async fn cambia_password_propria(
+        &self,
+        email: &str,
+        attuale: &str,
+        nuova: &str,
+        sessione_corrente: Option<&str>,
+    ) -> anyhow::Result<()> {
+        if nuova.len() < 8 {
+            anyhow::bail!("la nuova password deve essere di almeno 8 caratteri");
+        }
+        if nuova == attuale {
+            anyhow::bail!("la nuova password e uguale a quella attuale");
+        }
+        let chiave = email.trim().to_lowercase();
+        let conn = self.conn.clone();
+        let chiave_sql = chiave.clone();
+        let trovato: Option<(i64, String)> = task::spawn_blocking(move || {
+            let c = conn.lock().unwrap();
+            c.query_row(
+                "SELECT id, hash_password FROM utenti WHERE email = ?1 AND attivo = 1",
+                params![chiave_sql],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .optional()
+            .ok()
+            .flatten()
+        })
+        .await?;
+        let Some((id, hash)) = trovato else {
+            anyhow::bail!("nessun utente attivo con l'indirizzo «{email}»");
+        };
+        if !verifica_password(attuale, &hash) {
+            anyhow::bail!("la password attuale non e corretta");
+        }
+        self.cambia_password_tenendo(id, nuova, sessione_corrente)
+            .await
+    }
+
+    /// **Reimposta** la password dall'amministrazione.
+    ///
+    /// Diversa da [`Identita::cambia_password`], che è il cambio fatto
+    /// dall'interessato, su due punti che contano:
+    ///
+    /// - lascia `deve_cambiare_password` **acceso**: la password l'ha scelta
+    ///   qualcun altro, quindi la conoscono in due finché non la cambia lui;
+    /// - chiude comunque tutte le sue sessioni. Un reset che lascia dentro chi
+    ///   era già collegato non è un reset, e il caso in cui serve è proprio
+    ///   quello in cui si teme che la password sia nota a qualcun altro.
+    pub async fn reimposta_password(&self, utente_id: i64, nuova: &str) -> anyhow::Result<()> {
+        if nuova.len() < 8 {
+            anyhow::bail!("la password deve essere di almeno 8 caratteri");
+        }
+        let hash = cifra_password(nuova)?;
+        let conn = self.conn.clone();
+        task::spawn_blocking(move || -> anyhow::Result<()> {
+            let c = conn.lock().unwrap();
+            let n = c.execute(
+                "UPDATE utenti SET hash_password = ?1, deve_cambiare_password = 1,
+                                   aggiornato_ms = ?2 WHERE id = ?3",
+                params![hash, ora_ms() as i64, utente_id],
+            )?;
+            if n == 0 {
+                anyhow::bail!("nessun utente con id {utente_id}");
+            }
             c.execute("DELETE FROM sessioni WHERE utente_id = ?1", params![utente_id])?;
+            Ok(())
+        })
+        .await??;
+        info!(utente = utente_id, "password reimpostata dall'amministrazione");
+        Ok(())
+    }
+
+    /// Riattiva un utente disattivato.
+    ///
+    /// Mancava: la console sapeva disattivare e non riaccendere, cioe la
+    /// disattivazione era una porta a senso unico e l'unico rimedio era
+    /// toccare il database a mano. Non ridà le sessioni — quelle erano cadute
+    /// e vanno rifatte entrando — e non tocca la password.
+    pub async fn riattiva(&self, utente_id: i64) -> anyhow::Result<()> {
+        let conn = self.conn.clone();
+        task::spawn_blocking(move || -> anyhow::Result<()> {
+            let c = conn.lock().unwrap();
+            let n = c.execute(
+                "UPDATE utenti SET attivo = 1, aggiornato_ms = ?1 WHERE id = ?2",
+                params![ora_ms() as i64, utente_id],
+            )?;
+            if n == 0 {
+                anyhow::bail!("nessun utente con id {utente_id}");
+            }
             Ok(())
         })
         .await?
@@ -769,6 +934,34 @@ impl Identita {
         let conn = self.conn.clone();
         task::spawn_blocking(move || -> anyhow::Result<()> {
             let c = conn.lock().unwrap();
+            // Non si resta senza nessuno che possa amministrare.
+            //
+            // Questa guardia mancava, e il 07-10-2026 il maintainer si e
+            // disattivato da solo restando chiuso fuori: c'era il rifiuto su
+            // «togli il ruolo all'ultimo amministratore», ma non su
+            // «disattiva l'ultimo amministratore» — due strade per lo stesso
+            // risultato, e ne era chiusa una. Una regola che vale per un
+            // percorso e non per l'altro non e una regola.
+            let altri: i64 = c.query_row(
+                "SELECT COUNT(*) FROM utenti
+                 WHERE amministratore_piattaforma = 1 AND attivo = 1 AND id != ?1",
+                params![utente_id],
+                |r| r.get(0),
+            )?;
+            let io_amministro: i64 = c
+                .query_row(
+                    "SELECT amministratore_piattaforma FROM utenti WHERE id = ?1 AND attivo = 1",
+                    params![utente_id],
+                    |r| r.get(0),
+                )
+                .optional()?
+                .unwrap_or(0);
+            if io_amministro == 1 && altri == 0 {
+                anyhow::bail!(
+                    "e l'ultimo amministratore di piattaforma attivo: disattivarlo \
+                     chiuderebbe fuori tutti, te compreso"
+                );
+            }
             c.execute(
                 "UPDATE utenti SET attivo = 0, aggiornato_ms = ?1 WHERE id = ?2",
                 params![ora_ms() as i64, utente_id],
@@ -790,6 +983,64 @@ impl Identita {
     /// Non e un caso di scuola: l'installazione di sviluppo ha gia un
     /// amministratore creato in Fase 1 e nessuna azienda, quindi il primo
     /// archivio ad attraversare questa migrazione e uno vero.
+    /// Da una cartella alle aziende che non ce l'hanno.
+    ///
+    /// La colonna `cartella` e arrivata il 07-10-2026 con un valore
+    /// predefinito vuoto, e le aziende **gia esistenti** se lo sono tenute.
+    /// Una cartella vuota vuol dire «la radice stessa»: giusto per l'azienda
+    /// implicita, sbagliato per tutte le altre. Due aziende cosi **sono** la
+    /// radice, i loro progetti si mescolano con quelli di tutti, e la
+    /// scansione a due livelli le salta perche non ha una sottocartella da
+    /// guardare. Visto sull'installazione di sviluppo: `pixsys` e `sws`,
+    /// create prima della funzione, erano entrambe la radice.
+    ///
+    /// Non sposta niente sul disco: assegna il nome della cartella, e la
+    /// cartella nasce quando ci finisce dentro il primo progetto.
+    pub async fn assicura_cartelle_aziende(&self) -> anyhow::Result<Vec<String>> {
+        let conn = self.conn.clone();
+        let sistemate = task::spawn_blocking(move || -> anyhow::Result<Vec<String>> {
+            let c = conn.lock().unwrap();
+            let senza: Vec<(i64, String)> = {
+                let mut q = c
+                    .prepare("SELECT id, nome FROM aziende WHERE implicita = 0 AND cartella = ''")?;
+                let righe = q
+                    .query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?)))?
+                    .collect::<Result<Vec<_>, _>>()?;
+                righe
+            };
+            let mut fatte = Vec::new();
+            for (id, nome) in senza {
+                // Stessa regola di `crea_azienda`: la cartella e unica quanto
+                // il nome, e se e gia presa si aggiunge un numero.
+                let mut cartella = Self::cartella_da_nome(&nome);
+                let mut n = 2;
+                while c
+                    .query_row(
+                        "SELECT 1 FROM aziende WHERE cartella = ?1",
+                        params![cartella],
+                        |_| Ok(()),
+                    )
+                    .optional()?
+                    .is_some()
+                {
+                    cartella = format!("{}-{n}", Self::cartella_da_nome(&nome));
+                    n += 1;
+                }
+                c.execute(
+                    "UPDATE aziende SET cartella = ?1, aggiornata_ms = ?2 WHERE id = ?3",
+                    params![cartella, ora_ms() as i64, id],
+                )?;
+                fatte.push(format!("{nome} -> {cartella}"));
+            }
+            Ok(fatte)
+        })
+        .await??;
+        if !sistemate.is_empty() {
+            info!(aziende = ?sistemate, "assegnata la cartella ad aziende che non ne avevano");
+        }
+        Ok(sistemate)
+    }
+
     pub async fn assicura_azienda_implicita(&self) -> anyhow::Result<Option<i64>> {
         let conn = self.conn.clone();
         let creata = task::spawn_blocking(move || -> anyhow::Result<Option<i64>> {
@@ -852,6 +1103,23 @@ impl Identita {
             if quanti > 0 {
                 return Ok(None);
             }
+            // Nessuno ATTIVO puo amministrare. Se non c'e nemmeno un utente
+            // attivo, l'installazione e irrecuperabile dall'interfaccia: non
+            // esiste nessuno con cui accedere per rimediare. In quel caso si
+            // riattiva, oltre a promuovere.
+            //
+            // Successo per davvero il 07-10-2026, su dati veri.
+            let attivi: i64 =
+                c.query_row("SELECT COUNT(*) FROM utenti WHERE attivo = 1", [], |r| r.get(0))?;
+            if attivi == 0 {
+                c.execute(
+                    "UPDATE utenti SET attivo = 1, aggiornato_ms = ?1 WHERE id = (
+                         SELECT id FROM utenti
+                         ORDER BY (ruolo = 'amministratore') DESC, id ASC LIMIT 1
+                     )",
+                    params![ora_ms() as i64],
+                )?;
+            }
             // Prima gli amministratori, poi chiunque: in ordine di anzianita.
             let scelto: Option<(i64, String)> = c
                 .query_row(
@@ -881,19 +1149,62 @@ impl Identita {
         Ok(promosso)
     }
 
+    /// Il nome della cartella per un'azienda, ricavato dal nome.
+    ///
+    /// Minuscole, solo lettere, cifre e trattini. Non e un dettaglio estetico:
+    /// quella stringa diventa una cartella sul disco di un server, e un nome
+    /// d'azienda puo contenere spazi, accenti, barre e punti.
+    pub fn cartella_da_nome(nome: &str) -> String {
+        let s: String = nome
+            .to_lowercase()
+            .chars()
+            .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+            .collect();
+        let s = s.trim_matches('-').to_string();
+        let s: String = s.chars().fold(String::new(), |mut acc, c| {
+            if !(c == '-' && acc.ends_with('-')) {
+                acc.push(c);
+            }
+            acc
+        });
+        if s.is_empty() {
+            "azienda".to_string()
+        } else {
+            s.chars().take(48).collect()
+        }
+    }
+
     pub async fn crea_azienda(&self, nome: &str) -> anyhow::Result<Azienda> {
         let nome = nome.trim().to_string();
         if nome.is_empty() {
             anyhow::bail!("il nome dell'azienda non puo essere vuoto");
         }
+        let cartella = Self::cartella_da_nome(&nome);
         let conn = self.conn.clone();
         task::spawn_blocking(move || -> anyhow::Result<Azienda> {
             let c = conn.lock().unwrap();
             let adesso = ora_ms();
+            // La cartella dev'essere unica quanto il nome: due aziende che
+            // si chiamano «Acme S.p.A.» e «Acme SpA» darebbero la stessa, e i
+            // loro progetti finirebbero mescolati sul disco.
+            let mut cartella = cartella.clone();
+            let mut n = 2;
+            while c
+                .query_row(
+                    "SELECT 1 FROM aziende WHERE cartella = ?1",
+                    params![cartella],
+                    |_| Ok(()),
+                )
+                .optional()?
+                .is_some()
+            {
+                cartella = format!("{}-{n}", Self::cartella_da_nome(&nome));
+                n += 1;
+            }
             c.execute(
-                "INSERT INTO aziende (nome, stato, implicita, creata_ms, aggiornata_ms)
-                 VALUES (?1, 'in_prova', 0, ?2, ?2)",
-                params![nome, adesso as i64],
+                "INSERT INTO aziende (nome, stato, implicita, cartella, creata_ms, aggiornata_ms)
+                 VALUES (?1, 'in_prova', 0, ?2, ?3, ?3)",
+                params![nome, cartella, adesso as i64],
             )
             .map_err(|e| match e {
                 rusqlite::Error::SqliteFailure(f, _)
@@ -906,6 +1217,7 @@ impl Identita {
             Ok(Azienda {
                 id: c.last_insert_rowid(),
                 nome,
+                cartella,
                 stato: StatoAzienda::InProva,
                 marchio: None,
                 versione_predefinita: None,
@@ -925,7 +1237,7 @@ impl Identita {
             let c = conn.lock().unwrap();
             let mut q = c.prepare(
                 "SELECT id, nome, stato, marchio, versione_predefinita, implicita,
-                        max_progetti, max_pannelli, max_byte, creata_ms
+                        max_progetti, max_pannelli, max_byte, creata_ms, cartella
                  FROM aziende ORDER BY implicita DESC, nome",
             )?;
             let righe = q
@@ -941,6 +1253,7 @@ impl Identita {
                         max_pannelli: r.get(7)?,
                         max_byte: r.get(8)?,
                         creata_ms: r.get::<_, i64>(9)? as u64,
+                        cartella: r.get(10)?,
                     })
                 })?
                 .collect::<Result<Vec<_>, _>>()?;
@@ -1005,6 +1318,87 @@ impl Identita {
     }
 
     /// Iscrive un utente a un'azienda, o ne cambia il ruolo.
+    /// Il **nome** e il **ruolo** di un utente. L'email no: e la sua identita
+    /// e la chiave con cui il registro di audit lo cita.
+    ///
+    /// `None` vuol dire «non toccare», non «svuota»: un pannello che salva
+    /// tutto insieme manda anche i campi che non ha cambiato, e distinguere
+    /// «assente» da «vuoto» e l'unico modo perche svuotare un nome resti
+    /// possibile senza diventare un incidente.
+    pub async fn aggiorna_utente(
+        &self,
+        utente_id: i64,
+        nome: Option<&str>,
+        ruolo: Option<Ruolo>,
+    ) -> anyhow::Result<()> {
+        if nome.is_none() && ruolo.is_none() {
+            return Ok(());
+        }
+        let nome = nome.map(|v| v.trim().to_string());
+        let ruolo = ruolo.map(|r| r.come_testo().to_string());
+        let conn = self.conn.clone();
+        task::spawn_blocking(move || -> anyhow::Result<()> {
+            let c = conn.lock().unwrap();
+            if let Some(n) = nome {
+                c.execute(
+                    "UPDATE utenti SET nome = ?1, aggiornato_ms = ?2 WHERE id = ?3",
+                    params![n, ora_ms() as i64, utente_id],
+                )?;
+            }
+            if let Some(r) = ruolo {
+                c.execute(
+                    "UPDATE utenti SET ruolo = ?1, aggiornato_ms = ?2 WHERE id = ?3",
+                    params![r, ora_ms() as i64, utente_id],
+                )?;
+            }
+            Ok(())
+        })
+        .await?
+    }
+
+    /// Sostituisce **tutte** le appartenenze di un utente con quelle date.
+    ///
+    /// Non una serie di `iscrivi`/`disiscrivi`: il pannello della console
+    /// salva lo stato che si vede, e mandarlo come differenze vorrebbe dire
+    /// calcolarle da una parte e applicarle dall'altra, con il rischio che un
+    /// errore a meta lasci l'utente in uno stato che nessuno ha chiesto. Qui
+    /// arriva l'elenco intero e si applica **in una transazione**: o c'e tutto
+    /// o non c'e niente.
+    pub async fn imposta_appartenenze(
+        &self,
+        utente_id: i64,
+        volute: Vec<(i64, Ruolo)>,
+    ) -> anyhow::Result<()> {
+        let conn = self.conn.clone();
+        task::spawn_blocking(move || -> anyhow::Result<()> {
+            let mut c = conn.lock().unwrap();
+            let tx = c.transaction()?;
+            tx.execute("DELETE FROM membri WHERE utente_id = ?1", params![utente_id])?;
+            for (azienda_id, ruolo) in &volute {
+                // L'azienda deve esistere: una chiave straniera che punta nel
+                // vuoto renderebbe l'utente membro di niente, e l'elenco delle
+                // sue aziende lo salterebbe in silenzio.
+                let esiste: Option<i64> = tx
+                    .query_row(
+                        "SELECT id FROM aziende WHERE id = ?1",
+                        params![azienda_id],
+                        |r| r.get(0),
+                    )
+                    .optional()?;
+                if esiste.is_none() {
+                    anyhow::bail!("nessuna azienda con id {azienda_id}");
+                }
+                tx.execute(
+                    "INSERT INTO membri (azienda_id, utente_id, ruolo) VALUES (?1, ?2, ?3)",
+                    params![azienda_id, utente_id, ruolo.come_testo()],
+                )?;
+            }
+            tx.commit()?;
+            Ok(())
+        })
+        .await?
+    }
+
     pub async fn iscrivi(&self, azienda_id: i64, utente_id: i64, ruolo: Ruolo) -> anyhow::Result<()> {
         let conn = self.conn.clone();
         task::spawn_blocking(move || -> anyhow::Result<()> {
@@ -1013,6 +1407,25 @@ impl Identita {
                 "INSERT INTO membri (azienda_id, utente_id, ruolo) VALUES (?1, ?2, ?3)
                  ON CONFLICT(azienda_id, utente_id) DO UPDATE SET ruolo = excluded.ruolo",
                 params![azienda_id, utente_id, ruolo.come_testo()],
+            )?;
+            Ok(())
+        })
+        .await?
+    }
+
+    /// Toglie un utente da un'azienda.
+    ///
+    /// Non tocca l'utente: resta, con le sue altre appartenenze. Togliere
+    /// qualcuno da un'azienda e un'altra cosa dal disattivarlo, e confonderle
+    /// significherebbe che per escluderlo da un cliente lo si chiude fuori da
+    /// tutti.
+    pub async fn disiscrivi(&self, azienda_id: i64, utente_id: i64) -> anyhow::Result<()> {
+        let conn = self.conn.clone();
+        task::spawn_blocking(move || -> anyhow::Result<()> {
+            let c = conn.lock().unwrap();
+            c.execute(
+                "DELETE FROM membri WHERE azienda_id = ?1 AND utente_id = ?2",
+                params![azienda_id, utente_id],
             )?;
             Ok(())
         })
@@ -1220,6 +1633,51 @@ mod test {
         );
     }
 
+    /// Un'azienda nata prima della colonna `cartella` ne riceve una
+    /// all'apertura dell'archivio.
+    ///
+    /// Senza, quelle aziende **sono** la radice dei progetti: i loro progetti
+    /// si mescolano con quelli di tutti e la scansione a due livelli le salta.
+    /// Successo davvero, su `pixsys` e `sws` dell'installazione di sviluppo.
+    #[tokio::test]
+    async fn un_azienda_senza_cartella_ne_riceve_una() {
+        let (id, _d) = archivio().await;
+        // Prima l'azienda implicita, che nasce solo se un utente esiste: serve
+        // per provare che la migrazione NON la tocca.
+        id.crea_utente("m@soligo.net", "Mauro", "unapassword", Ruolo::Amministratore, false)
+            .await
+            .unwrap();
+        assert!(id.assicura_azienda_implicita().await.unwrap().is_some());
+        let a = id.crea_azienda("Pixsys").await.unwrap();
+        let b = id.crea_azienda("Acme").await.unwrap();
+        // Si riporta la situazione di allora: cartella vuota, come la metteva
+        // il valore predefinito della colonna appena aggiunta.
+        {
+            let c = id.conn.lock().unwrap();
+            c.execute("UPDATE aziende SET cartella = '' WHERE id IN (?1, ?2)", params![a.id, b.id])
+                .unwrap();
+        }
+
+        let sistemate = id.assicura_cartelle_aziende().await.unwrap();
+        assert_eq!(sistemate.len(), 2, "sistemate: {sistemate:?}");
+
+        let dopo = id.elenca_aziende().await.unwrap();
+        for x in dopo.iter().filter(|x| !x.implicita) {
+            assert!(!x.cartella.is_empty(), "«{}» e rimasta senza cartella", x.nome);
+        }
+        // E restano distinte: due aziende nella stessa cartella mescolerebbero
+        // i progetti, che e il guasto da cui nasce tutto questo.
+        let mut cartelle: Vec<_> = dopo.iter().filter(|x| !x.implicita).map(|x| x.cartella.clone()).collect();
+        cartelle.sort();
+        cartelle.dedup();
+        assert_eq!(cartelle.len(), 2, "due aziende hanno la stessa cartella");
+
+        // L'azienda IMPLICITA non si tocca: la sua cartella vuota e la radice,
+        // ed e il motivo per cui nessun progetto esistente si e spostato.
+        let implicita = dopo.iter().find(|x| x.implicita).unwrap();
+        assert_eq!(implicita.cartella, "");
+    }
+
     #[tokio::test]
     async fn uscire_invalida_il_token() {
         let (id, _d) = archivio().await;
@@ -1247,13 +1705,76 @@ mod test {
         assert!(id.accedi("m@soligo.net", "nuovapassword").await.is_ok());
     }
 
+    /// Il cambio fatto **dall'interessato** chiude le altre sessioni e tiene
+    /// la propria.
+    ///
+    /// Senza la seconda meta, il cambio riesce e la richiesta dopo prende un
+    /// 401: l'IDE mostra «sessione scaduta» un istante dopo un'operazione
+    /// andata a buon fine, e nel caso del cambio **obbligato** dopo un reset
+    /// l'unica azione concessa butta fuori chi la compie. Segnalato dal
+    /// maintainer il 07-10-2026 e riprodotto con `curl` prima di correggerlo.
     #[tokio::test]
-    async fn disattivare_butta_fuori_subito() {
+    async fn cambiare_la_propria_password_non_butta_fuori_chi_la_cambia() {
+        let (id, _d) = archivio().await;
+        id.crea_utente("m@soligo.net", "Mauro", "unapassword", Ruolo::Sviluppatore, false)
+            .await
+            .unwrap();
+        let mia = id.accedi("m@soligo.net", "unapassword").await.unwrap();
+        let altrove = id.accedi("m@soligo.net", "unapassword").await.unwrap();
+
+        id.cambia_password_propria(
+            "m@soligo.net",
+            "unapassword",
+            "nuovapassword",
+            Some(&mia.token),
+        )
+        .await
+        .unwrap();
+
+        let ancora = id.valida(&mia.token).await;
+        assert!(
+            ancora.is_some(),
+            "la sessione di chi ha cambiato la password e stata chiusa dal cambio stesso"
+        );
+        assert!(
+            !ancora.unwrap().deve_cambiare_password,
+            "l'obbligo di cambio password e rimasto acceso dopo il cambio"
+        );
+        assert!(
+            id.valida(&altrove.token).await.is_none(),
+            "le ALTRE sessioni devono morire: la vecchia password poteva essere nota a qualcun altro"
+        );
+    }
+
+    /// Il reset dall'amministrazione chiude **tutto**, compresa la sessione
+    /// dell'interessato: li la password l'ha scelta qualcun altro.
+    #[tokio::test]
+    async fn reimpostare_chiude_anche_la_sessione_dell_interessato() {
         let (id, _d) = archivio().await;
         let u = id
             .crea_utente("m@soligo.net", "Mauro", "unapassword", Ruolo::Sviluppatore, false)
             .await
             .unwrap();
+        let a = id.accedi("m@soligo.net", "unapassword").await.unwrap();
+        id.reimposta_password(u.id, "provvisoria1").await.unwrap();
+        assert!(id.valida(&a.token).await.is_none());
+    }
+
+    #[tokio::test]
+    async fn disattivare_butta_fuori_subito() {
+        let (id, _d) = archivio().await;
+        // Serve un secondo amministratore perche la disattivazione sia
+        // permessa: dal 07-10-2026 non ci si puo disattivare restando
+        // l'ultimo. Questo test guarda la REVOCA, non quella regola.
+        let u = id
+            .crea_utente("m@soligo.net", "Mauro", "unapassword", Ruolo::Sviluppatore, false)
+            .await
+            .unwrap();
+        let altro = id
+            .crea_utente("capo@soligo.net", "Capo", "unapassword", Ruolo::Amministratore, false)
+            .await
+            .unwrap();
+        id.imposta_amministratore_piattaforma(altro.id, true).await.unwrap();
         let a = id.accedi("m@soligo.net", "unapassword").await.unwrap();
         id.disattiva(u.id).await.unwrap();
         assert!(id.valida(&a.token).await.is_none(), "revoca non arrivata");
@@ -1381,6 +1902,114 @@ mod test {
     }
 
     #[tokio::test]
+    async fn il_giro_completo_del_reset_e_del_cambio() {
+        // Il percorso vero che il maintainer ha provato il 07-10-2026:
+        // l'amministratore reimposta, l'interessato entra, e deve poter
+        // cambiare la password. Il cambio passava da `sws-auth`, dove un
+        // utente dell'installazione non esiste: rispondeva «not_found», che
+        // l'interfaccia mostrava come «errore» — obbligato a cambiarla e
+        // impossibilitato a farlo.
+        let (id, _d) = archivio().await;
+        let u = id
+            .crea_utente("edp@pixsys.net", "E", "unapassword", Ruolo::Sviluppatore, false)
+            .await
+            .unwrap();
+        id.reimposta_password(u.id, "dataDaAltri").await.unwrap();
+
+        let dentro = id.accedi("edp@pixsys.net", "dataDaAltri").await.unwrap();
+        assert!(dentro.utente.deve_cambiare_password);
+
+        // Con la password attuale sbagliata non si cambia, e il motivo si legge.
+        let no = id
+            .cambia_password_propria("edp@pixsys.net", "sbagliata", "unasuapassword", None)
+            .await;
+        assert!(no.is_err());
+        assert!(no.unwrap_err().to_string().contains("attuale"));
+
+        // Con quella giusta si cambia, e l'obbligo si spegne.
+        id.cambia_password_propria("edp@pixsys.net", "dataDaAltri", "unasuapassword", None)
+            .await
+            .unwrap();
+        let ora = id.accedi("edp@pixsys.net", "unasuapassword").await.unwrap();
+        assert!(
+            !ora.utente.deve_cambiare_password,
+            "cambiata da lui e resta l'obbligo: ora la conosce una persona sola"
+        );
+    }
+
+    #[tokio::test]
+    async fn il_reset_chiude_le_sessioni_e_obbliga_a_cambiarla() {
+        let (id, _d) = archivio().await;
+        let u = id
+            .crea_utente("m@soligo.net", "M", "unapassword", Ruolo::Sviluppatore, false)
+            .await
+            .unwrap();
+        let a = id.accedi("m@soligo.net", "unapassword").await.unwrap();
+        assert!(!a.utente.deve_cambiare_password);
+
+        id.reimposta_password(u.id, "nuovapassword").await.unwrap();
+
+        // Chi era dentro esce: un reset che lascia dentro chi era collegato
+        // non è un reset, e serve proprio quando si teme che la password sia
+        // nota a qualcun altro.
+        assert!(id.valida(&a.token).await.is_none(), "sessione sopravvissuta al reset");
+        assert!(id.accedi("m@soligo.net", "unapassword").await.is_err());
+
+        // E chi entra deve sceglierne una sua: questa la conoscono in due.
+        let dopo = id.accedi("m@soligo.net", "nuovapassword").await.unwrap();
+        assert!(
+            dopo.utente.deve_cambiare_password,
+            "password scelta da altri e non si è obbligati a cambiarla"
+        );
+    }
+
+    #[tokio::test]
+    async fn non_ci_si_puo_disattivare_restando_l_ultimo() {
+        // Il 07-10-2026 il maintainer si e disattivato dalla console e si e
+        // trovato chiuso fuori: il rifiuto esisteva su «togli il ruolo» e non
+        // su «disattiva», cioe su una delle due strade per lo stesso esito.
+        let (id, _d) = archivio().await;
+        let solo = id
+            .crea_utente("m@soligo.net", "M", "unapassword", Ruolo::Amministratore, false)
+            .await
+            .unwrap();
+        assert!(
+            id.disattiva(solo.id).await.is_err(),
+            "disattivato l'ultimo amministratore: installazione chiusa a tutti"
+        );
+        // Con un secondo amministratore il primo si puo disattivare.
+        let due = id
+            .crea_utente("b@soligo.net", "B", "unapassword", Ruolo::Amministratore, false)
+            .await
+            .unwrap();
+        id.imposta_amministratore_piattaforma(due.id, true).await.unwrap();
+        id.disattiva(solo.id).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn un_installazione_senza_utenti_attivi_si_riapre_da_se() {
+        // La rete di sicurezza sotto la guardia: se per qualunque strada non
+        // resta nessun utente attivo, dall'interfaccia non si rimedia —
+        // non c'e nessuno con cui accedere. Alla riapertura si riattiva.
+        let dir = tempfile::tempdir().unwrap();
+        let percorso = dir.path().join("identita.db");
+        {
+            let id = Identita::apri(&percorso).await.unwrap();
+            id.crea_utente("m@soligo.net", "M", "unapassword", Ruolo::Amministratore, false)
+                .await
+                .unwrap();
+            let c = id.conn.lock().unwrap();
+            c.execute("UPDATE utenti SET attivo = 0", []).unwrap();
+        }
+        let id2 = Identita::apri(&percorso).await.unwrap();
+        let utenti = id2.elenca().await.unwrap();
+        assert!(
+            utenti.iter().any(|u| u.attivo && u.amministratore_piattaforma),
+            "riaperto senza nessuno che possa entrare: installazione murata"
+        );
+    }
+
+    #[tokio::test]
     async fn chi_amministra_gia_non_viene_sostituito() {
         let (id, _d) = archivio().await;
         let primo = id
@@ -1395,6 +2024,52 @@ mod test {
         let quanti = utenti.iter().filter(|u| u.amministratore_piattaforma).count();
         assert_eq!(quanti, 1, "promosso qualcuno che non serviva");
         assert!(utenti.iter().find(|u| u.id == primo.id).unwrap().amministratore_piattaforma);
+    }
+
+    #[test]
+    fn la_cartella_di_un_azienda_e_sicura_su_un_filesystem() {
+        // Quella stringa diventa una cartella sul disco di un server, e un
+        // nome d'azienda puo contenere spazi, accenti, barre e punti.
+        assert_eq!(Identita::cartella_da_nome("Acme S.p.A."), "acme-s-p-a");
+        assert_eq!(Identita::cartella_da_nome("Società Così"), "societ-cos");
+        assert_eq!(Identita::cartella_da_nome("  Beta  "), "beta");
+        // Niente risalite, niente separatori, niente nomi vuoti o nascosti.
+        assert_eq!(Identita::cartella_da_nome("../etc"), "etc");
+        assert_eq!(Identita::cartella_da_nome("a/b"), "a-b");
+        assert_eq!(Identita::cartella_da_nome("..."), "azienda");
+        assert_eq!(Identita::cartella_da_nome(""), "azienda");
+        assert!(!Identita::cartella_da_nome("...a...b...").starts_with('.'));
+    }
+
+    #[tokio::test]
+    async fn due_nomi_diversi_non_possono_dare_la_stessa_cartella() {
+        // «Acme S.p.A.» e «Acme SpA» darebbero entrambi `acme-s-p-a` e
+        // `acme-spa`… ma «Acme!» e «Acme?» darebbero tutti e due `acme`, e i
+        // loro progetti finirebbero mescolati sulla stessa cartella.
+        let (id, _d) = archivio().await;
+        let a = id.crea_azienda("Acme!").await.unwrap();
+        let b = id.crea_azienda("Acme?").await.unwrap();
+        assert_eq!(a.cartella, "acme");
+        assert_ne!(b.cartella, a.cartella, "due aziende sulla stessa cartella");
+        assert_eq!(b.cartella, "acme-2");
+    }
+
+    #[tokio::test]
+    async fn l_azienda_implicita_sta_nella_radice() {
+        // La sua cartella e la stringa vuota: cosi su un'installazione che
+        // esisteva gia nessun progetto si sposta.
+        let dir = tempfile::tempdir().unwrap();
+        let percorso = dir.path().join("identita.db");
+        {
+            let id = Identita::apri(&percorso).await.unwrap();
+            id.crea_utente("m@soligo.net", "M", "unapassword", Ruolo::Amministratore, false)
+                .await
+                .unwrap();
+        }
+        let id2 = Identita::apri(&percorso).await.unwrap();
+        let a = &id2.elenca_aziende().await.unwrap()[0];
+        assert!(a.implicita);
+        assert_eq!(a.cartella, "", "l'azienda implicita non sta nella radice");
     }
 
     #[tokio::test]

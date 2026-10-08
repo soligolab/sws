@@ -875,7 +875,10 @@ pub fn build(
         .route("/api/auth/logout", post(logout))
         .route("/api/auth/change-password", post(change_password))
         .route("/api/auth/verify-password", post(verify_password_handler))
-        .route("/api/auth/refresh", post(refresh_session));
+        .route("/api/auth/refresh", post(refresh_session))
+        // Le proprie aziende: serve a decidere se mostrare una scelta, quindi
+        // sta col gruppo self-service e non con la console.
+        .route("/api/identita/mie-aziende", get(mie_aziende));
 
     let protected = blocking
         .merge(self_service)
@@ -906,20 +909,38 @@ pub fn build(
             get(crate::projects::list_projects).post(crate::projects::create_project),
         )
         .route(
-            "/api/projects/:name/open",
+            "/api/projects/:azienda/:nome/open",
             post(crate::projects::open_project),
         )
+        // La forma a un segmento, per i dispositivi non ancora aggiornati:
+        // vale «azienda implicita» e passa dallo stesso risolutore.
         .route(
-            "/api/projects/:name/rename",
+            "/api/projects/:nome/open",
+            post(crate::projects::open_project_implicito),
+        )
+        .route(
+            "/api/projects/:azienda/:nome/rename",
             post(crate::projects::rename_project),
         )
         .route(
-            "/api/projects/:name/duplicate",
+            "/api/projects/:nome/rename",
+            post(crate::projects::rename_project_implicito),
+        )
+        .route(
+            "/api/projects/:azienda/:nome/duplicate",
             post(crate::projects::duplicate_project),
         )
         .route(
-            "/api/projects/:name",
+            "/api/projects/:nome/duplicate",
+            post(crate::projects::duplicate_project_implicito),
+        )
+        .route(
+            "/api/projects/:azienda/:nome",
             delete(crate::projects::delete_project),
+        )
+        .route(
+            "/api/projects/:nome",
+            delete(crate::projects::delete_project_implicito),
         )
         .route("/api/projects/close", post(crate::projects::close_project))
         .route(
@@ -1108,7 +1129,7 @@ pub fn build(
 /// | Cosa | Rotte |
 /// |---|---|
 /// | login | `POST /api/auth/login` |
-/// | deploy | `GET /api/projects`, `POST /api/projects/upload`, `POST /api/projects/:name/open`, `POST /api/projects/close`, `DELETE /api/projects/:name` |
+/// | deploy | `GET /api/projects`, `POST /api/projects/upload`, `POST /api/projects/:azienda/:nome/open`, `POST /api/projects/close`, `DELETE /api/projects/:azienda/:nome` |
 /// | pull | `GET /api/project/export` |
 /// | stato | `GET /api/system`, `GET /api/project` |
 /// | utenti | `GET/POST /api/auth/users`, `POST /api/auth/users-file` |
@@ -1145,9 +1166,11 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
             "/api/projects/upload",
             post(pj::upload_project_zip).layer(DefaultBodyLimit::max(LIMITE_CORPO_UPLOAD)),
         )
-        .route("/api/projects/:name/open", post(pj::open_project))
+        .route("/api/projects/:azienda/:nome/open", post(pj::open_project))
+        .route("/api/projects/:nome/open", post(pj::open_project_implicito))
         .route("/api/projects/close", post(pj::close_project))
-        .route("/api/projects/:name", delete(pj::delete_project))
+        .route("/api/projects/:azienda/:nome", delete(pj::delete_project))
+        .route("/api/projects/:nome", delete(pj::delete_project_implicito))
         // ── Pull: il verso opposto ─────────────────────────────────────────
         .route("/api/project/export", get(export_project_zip))
         // ── Stato, che l'IDE legge per dire com'è il dispositivo ───────────
@@ -1416,6 +1439,47 @@ pub fn fonte_autenticazione(
     }
 }
 
+/// `GET /api/identita/mie-aziende` — le aziende di chi è collegato.
+///
+/// Non è l'elenco della console: quello lo vede solo l'amministratore di
+/// piattaforma e contiene tutte le aziende. Questo contiene **le proprie**, ed
+/// è quello che serve all'IDE per sapere se mostrare una scelta: chi sta in
+/// un'azienda sola non deve incontrare nessun selettore (decisione del
+/// maintainer, 07-10-2026).
+async fn mie_aziende(State(s): State<AppState>, req: Request) -> Response {
+    let Some(id) = s.identita.as_ref() else {
+        return Json(Vec::<serde_json::Value>::new()).into_response();
+    };
+    let Some(utente) = req.extensions().get::<AuthUser>().cloned() else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+    // L'`AuthUser` porta l'email, non l'id: si risale di lì.
+    let Ok(utenti) = id.elenca().await else {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    };
+    let Some(u) = utenti.iter().find(|u| u.email == utente.username) else {
+        // Admin sintetico (`--senza-autenticazione`) o utente di progetto:
+        // nessuna appartenenza, quindi nessun selettore. Non è un errore.
+        return Json(Vec::<serde_json::Value>::new()).into_response();
+    };
+    let appartenenze = id.aziende_di(u.id).await.unwrap_or_default();
+    let tutte = id.elenca_aziende().await.unwrap_or_default();
+    let mie: Vec<_> = appartenenze
+        .iter()
+        .filter_map(|(aid, ruolo)| {
+            tutte.iter().find(|a| a.id == *aid).map(|a| {
+                serde_json::json!({
+                    "id": a.id,
+                    "nome": a.nome,
+                    "implicita": a.implicita,
+                    "ruolo": ruolo.come_testo(),
+                })
+            })
+        })
+        .collect();
+    Json(mie).into_response()
+}
+
 /// Stato del primo accesso di un'installazione, per la schermata iniziale.
 ///
 /// È **pre-auth** per necessità: serve a decidere *quale* schermata mostrare,
@@ -1511,6 +1575,19 @@ async fn identita_primo_amministratore(
     {
         Ok(u) => {
             info!(email = %u.email, "primo amministratore creato");
+            // E subito la sua azienda implicita, con lui dentro.
+            //
+            // Nasceva solo all'apertura dell'archivio, cioe al riavvio
+            // successivo: fra la creazione del primo amministratore e quel
+            // riavvio l'installazione non aveva nessuna azienda, i progetti
+            // creati in radice non erano di nessuno, e chi li aveva appena
+            // fatti se li vedeva arrivare nella sezione «altre aziende» —
+            // oppure non li vedeva affatto, se non amministrava la
+            // piattaforma. Proprio al primo avvio, che e l'unico momento in
+            // cui nessuno sa ancora come dovrebbe andare.
+            if let Err(e) = id.assicura_azienda_implicita().await {
+                warn!("azienda implicita dopo il primo amministratore: {e}");
+            }
             s.audit.log(
                 "identita.primo_amministratore",
                 Some(u.email.clone()),
@@ -1856,6 +1933,26 @@ async fn login(
         };
         return match id.accedi(&creds.username, &creds.password).await {
             Ok(a) => {
+                // **Entrare chiude il progetto aperto.**
+                //
+                // Il progetto attivo e uno stato globale dell'istanza, non di
+                // chi e collegato: senza questo, chi entra eredita il progetto
+                // di chi c'era prima. Due conseguenze, e la seconda e seria:
+                //
+                // - si finisce dentro l'editor invece che sull'elenco, e per
+                //   cambiare progetto bisogna chiuderlo a mano. Segnalato dal
+                //   maintainer il 07-10-2026 facendo log-out da un progetto;
+                // - il progetto ereditato puo essere di un'azienda che il
+                //   nuovo arrivato non puo vedere. Le rotte `/api/project/*`
+                //   lavorano sull'**attivo** e non hanno nessun indirizzo da
+                //   verificare: la separazione per azienda, che `risolvi_progetto`
+                //   difende all'apertura, qui verrebbe scavalcata da chi non ha
+                //   aperto niente.
+                //
+                // Solo su un'istanza IDE: su un **pannello** la fonte e il
+                // progetto, e chiudere l'impianto perche qualcuno fa il login
+                // sarebbe esattamente il contrario di cio che serve.
+                let _ = crate::projects::close_project(State(s.clone())).await;
                 s.audit.log(
                     "auth.login",
                     Some(a.utente.email.clone()),
@@ -1869,6 +1966,7 @@ async fn login(
                     "role": "Admin",
                     "expires_at_ms": a.scade_ms,
                     "must_change_password": a.utente.deve_cambiare_password,
+                    "amministratore_piattaforma": a.utente.amministratore_piattaforma,
                 }))
                 .into_response()
             }
@@ -1948,8 +2046,24 @@ async fn logout(State(s): State<AppState>, req: Request) -> StatusCode {
         .and_then(|h| h.to_str().ok())
         .and_then(|h| h.strip_prefix("Bearer "));
     if let Some(t) = token {
-        let actor = s.auth.validate(t).await.map(|si| si.username);
+        // Chi sta uscendo. Si cercava **solo** in `sws-auth`, cioe fra gli
+        // utenti del progetto: su un'istanza IDE la sessione vive in
+        // `identita`, quindi l'attore era sempre `None` e nel registro di
+        // audit ogni `auth.logout` risultava anonimo — accanto a un
+        // `auth.login` che il nome ce l'aveva. Una regola applicata a una
+        // strada e non all'altra, come il cambio password del 07-10-2026.
+        let mut actor = s.auth.validate(t).await.map(|si| si.username);
+        if actor.is_none() {
+            if let Some(id) = s.identita.as_ref() {
+                actor = id.valida(t).await.map(|u| u.email);
+            }
+        }
         s.auth.logout(t).await;
+        // E anche nell'archivio dell'installazione: senza, uscire lasciava la
+        // sessione viva e il token nel browser continuava a funzionare.
+        if let Some(id) = s.identita.as_ref() {
+            let _ = id.esci(t).await;
+        }
         s.audit.log("auth.logout", actor, serde_json::json!({}));
     }
     StatusCode::NO_CONTENT
@@ -1980,6 +2094,12 @@ struct Whoami {
     username: String,
     role: Role,
     must_change_password: bool,
+    /// Serve alla schermata iniziale per decidere se offrire la console di
+    /// amministrazione, che altrimenti si raggiunge solo digitandone
+    /// l'indirizzo. Falso per gli utenti di progetto: li quel concetto non
+    /// esiste.
+    #[serde(default)]
+    amministratore_piattaforma: bool,
 }
 
 async fn whoami(req: Request) -> Json<Whoami> {
@@ -1999,6 +2119,7 @@ async fn whoami(req: Request) -> Json<Whoami> {
         username: user.username,
         role: user.role,
         must_change_password: user.must_change_password,
+        amministratore_piattaforma: user.amministratore_piattaforma,
     })
 }
 
@@ -2108,6 +2229,10 @@ async fn change_password(State(s): State<AppState>, req: Request) -> Response {
         Some(u) => u,
         None => return StatusCode::UNAUTHORIZED.into_response(),
     };
+    // Prima di consumare la richiesta: serve piu sotto per **non** chiudere la
+    // sessione di chi sta cambiando la password. Vedi
+    // `Identita::cambia_password_tenendo`.
+    let sessione_corrente = token_della_richiesta(&req);
     // Re-read the JSON body manually since we already consumed `req` for
     // extensions. axum 0.7 doesn't let us pass both req and Json by value
     // without re-architecting the handler — extract the body manually.
@@ -2119,6 +2244,43 @@ async fn change_password(State(s): State<AppState>, req: Request) -> Response {
         Ok(b) => b,
         Err(e) => return (StatusCode::BAD_REQUEST, format!("json: {e}")).into_response(),
     };
+    // Su un'istanza IDE la password sta nell'archivio dell'installazione, non
+    // in `users.yaml`. Mancava, e il risultato era un 404 «not_found» che il
+    // frontend mostrava come «errore» e basta: chi entrava con una password
+    // reimpostata era obbligato a cambiarla e **non poteva farlo**. Segnalato
+    // dal maintainer il 07-10-2026.
+    if fonte_auth_corrente(&s).await == FonteAutenticazione::Installazione {
+        let Some(id) = s.identita.as_ref() else {
+            return StatusCode::SERVICE_UNAVAILABLE.into_response();
+        };
+        return match id
+            .cambia_password_propria(
+                &user.username,
+                &body.old_password,
+                &body.new_password,
+                sessione_corrente.as_deref(),
+            )
+            .await
+        {
+            Ok(()) => {
+                s.audit.log(
+                    "auth.password_cambiata",
+                    Some(user.username.clone()),
+                    serde_json::json!({"fonte": "installazione"}),
+                );
+                StatusCode::NO_CONTENT.into_response()
+            }
+            // Il motivo vero, non un codice: «la password attuale non è
+            // corretta» e «è uguale a quella di prima» sono cose diverse, e
+            // chi le legge sa cosa fare. Un «errore» generico no.
+            Err(e) => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Json(serde_json::json!({"error": "invalid_password", "detail": e.to_string()})),
+            )
+                .into_response(),
+        };
+    }
+
     match s.auth.change_password(&user.username, body).await {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => user_error_to_response(e),
@@ -8230,8 +8392,16 @@ async fn git_fork(State(s): State<AppState>, Json(body): Json<GitForkBody>) -> i
     };
     match esito {
         Ok(Ok(())) => {
-            s.known_projects.touch(&nome, &dst).await;
-            (StatusCode::CREATED, Json(serde_json::json!({ "name": nome }))).into_response()
+            let chiave = crate::project_registry::riferimento(
+                &crate::projects::segmento_da_percorso(s.projects_root.as_path(), &dst),
+                &nome,
+            );
+            s.known_projects.touch(&chiave, &dst).await;
+            (
+                StatusCode::CREATED,
+                Json(serde_json::json!({ "name": nome, "riferimento": chiave })),
+            )
+                .into_response()
         }
         Ok(Err(e)) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),

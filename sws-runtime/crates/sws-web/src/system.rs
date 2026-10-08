@@ -94,6 +94,16 @@ pub struct SystemStatus {
     /// «questa istanza ha un viewer» è una proprietà del processo.
     pub mode: &'static str,
     pub active_project: Option<String>,
+    /// L'**indirizzo** del progetto aperto: `<azienda>/<nome>`, con `-` per
+    /// l'azienda implicita.
+    ///
+    /// Il nome da solo non basta più per rivolgersi a un progetto, e chi sta
+    /// *dentro* l'editor non ha nessun altro modo di sapere di quale azienda
+    /// sia quello che ha aperto: la schermata iniziale ce l'ha nell'elenco,
+    /// l'editor no. Senza, «rinomina» dal menu mandava il nome nudo e si
+    /// sentiva rispondere 404 su ogni progetto che non stia nella radice —
+    /// segnalato dal maintainer il 07-10-2026, entrato come utente pixsys.
+    pub active_project_riferimento: Option<String>,
     /// Runtime version that last saved the active project's `project.yaml`
     /// (`None` if no project is open or the file predates version stamping).
     pub project_saved_by: Option<String>,
@@ -275,6 +285,9 @@ pub async fn compute_system_status(
     // un chiamante che lo dimenticasse non deve poter restituire un campo
     // sbagliato in silenzio.
     auth_required: bool,
+    // Stessa ragione delle due sopra: serve a ricavare l'azienda dal percorso
+    // del progetto aperto, e qui `AppState` non c'è.
+    radice_progetti: &Path,
 ) -> SystemStatus {
     let mut sys = System::new_all();
     sys.refresh_all();
@@ -284,6 +297,12 @@ pub async fn compute_system_status(
     let active_project = project_dir
         .and_then(|p| p.file_name())
         .map(|n| n.to_string_lossy().into_owned());
+    let active_project_riferimento = project_dir.zip(active_project.as_deref()).map(|(p, nome)| {
+        crate::project_registry::riferimento(
+            &crate::projects::segmento_da_percorso(radice_progetti, p),
+            nome,
+        )
+    });
 
     // Version-drift detection: read the on-disk project to compare the runtime
     // that saved it against this build. Cheap (a small YAML file) and only when
@@ -323,6 +342,7 @@ pub async fn compute_system_status(
         uptime_s: started_at.elapsed().as_secs(),
         mode: mode_label(ide_only),
         active_project,
+        active_project_riferimento,
         project_saved_by,
         project_needs_update,
         tag_count,
@@ -458,6 +478,7 @@ pub async fn get_system_status(State(state): State<AppState>) -> Json<SystemStat
         // aperta mentre il progetto aveva utenti.
         crate::router::fonte_auth_corrente(&state).await
             != crate::router::FonteAutenticazione::Nessuna,
+        state.projects_root.as_path(),
     )
     .await;
     status.boot_image = boot_image;
@@ -946,6 +967,7 @@ mod tests {
             started,
             false,
             false,
+        Path::new("/tmp"),
         )
         .await;
 
@@ -973,6 +995,7 @@ mod tests {
             Instant::now(),
             false,
             false,
+        Path::new("/tmp"),
         )
         .await;
         assert!(status.active_project.is_none());
@@ -1003,6 +1026,7 @@ mod tests {
             Instant::now(),
             true,
             false,
+        Path::new("/tmp"),
         )
         .await;
         assert_eq!(ide.mode, "ide", "senza viewer l'istanza è un IDE");
@@ -1016,6 +1040,7 @@ mod tests {
             Instant::now(),
             false,
             false,
+        Path::new("/tmp"),
         )
         .await;
         assert_eq!(
@@ -1081,6 +1106,7 @@ mod tests {
             Instant::now(),
             false,
             false,
+        Path::new("/tmp"),
         )
         .await;
         assert_eq!(status.alarm_active_count, 1);

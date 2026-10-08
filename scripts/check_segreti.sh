@@ -91,7 +91,11 @@ fi
 # scende, non sale: chi ne aggiunge uno spiega qui perché, e soprattutto come
 # ci passano i segreti (la risposta giusta è «da scrivi_progetto»).
 declare -A TETTO=(
-    [sws-runtime/crates/sws-web/src/projects.rs]=9        # crea/duplica/rinomina/migra: ogni scrittura passa da scrivi_progetto
+    [sws-runtime/crates/sws-web/src/projects.rs]=10       # crea/duplica/rinomina/migra: ogni scrittura passa da scrivi_progetto.
+                                                         # +1 dal 07-10-2026: la scansione delle cartelle d'azienda in list_projects
+                                                         # guarda se project.yaml ESISTE per capire se una cartella e un progetto.
+                                                         # Non lo apre e non lo scrive, quindi nessun segreto ci passa: e la stessa
+                                                         # prova che la scansione della radice faceva gia un livello piu su.
     [sws-runtime/crates/sws-web/src/router.rs]=6          # patch_project, export, import, impronta
     [sws-runtime/crates/sws-web/src/backups.rs]=1         # BACKED_UP: il nome del file, non una scrittura
     [sws-runtime/crates/sws-web/src/istantanea.rs]=2      # confronto fra istantanee (sola lettura)

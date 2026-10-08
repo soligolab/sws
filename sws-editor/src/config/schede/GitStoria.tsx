@@ -76,14 +76,16 @@ export function GitStoria({ versione, pulito, inProva }: { versione: string; pul
     setForkSegretiStato(v);
     try { localStorage.setItem("sws.git.forkSegreti", v ? "1" : "0"); } catch { /* storage non disponibile */ }
   };
-  const [forkEsito, setForkEsito] = useState<{ ok: boolean; testo: string; nome?: string } | null>(null);
+  const [forkEsito, setForkEsito] = useState<{ ok: boolean; testo: string; nome?: string; rif?: string } | null>(null);
   const [forkOccupato, setForkOccupato] = useState(false);
 
   const creaFork = async (c: CommitInfo) => {
     setForkOccupato(true); setForkEsito(null);
     try {
       const r = await api.gitFork(c.sha, forkNome.trim(), forkSegreti);
-      setForkEsito({ ok: true, testo: t("gitFork.creato", { nome: r.name, short: c.short }), nome: r.name });
+      // Il fork nasce nella stessa azienda del progetto di partenza: il
+      // riferimento lo dice il server, e con quello lo si apre.
+      setForkEsito({ ok: true, testo: t("gitFork.creato", { nome: r.name, short: c.short }), nome: r.name, rif: r.riferimento });
       setForkAperto(false); setForkNome("");
     } catch (e: any) {
       setForkEsito({ ok: false, testo: String(e?.message ?? e) });
@@ -93,10 +95,10 @@ export function GitStoria({ versione, pulito, inProva }: { versione: string; pul
   };
 
   /** Aprire il fork lascia questo progetto: con bozze non salvate si chiede. */
-  const apriFork = async (nome: string) => {
+  const apriFork = async (riferimento: string) => {
     if (bozze && !window.confirm(t("gitFork.bozzePerse"))) return;
     try {
-      await api.openProject(nome);
+      await api.openProject(riferimento);
       window.location.reload();
     } catch (e: any) {
       setForkEsito({ ok: false, testo: String(e?.message ?? e) });
@@ -289,7 +291,7 @@ export function GitStoria({ versione, pulito, inProva }: { versione: string; pul
             <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: forkEsito.ok ? "#34d399" : "var(--brand-danger-soft, #fca5a5)" }}>
               <span style={{ whiteSpace: "pre-wrap" }}>{forkEsito.testo}</span>
               {forkEsito.ok && forkEsito.nome && (
-                <button type="button" onClick={() => void apriFork(forkEsito.nome!)} style={{ ...bottone, background: "var(--brand-primary, #3b82f6)", color: "var(--brand-on-primary, #fff)", border: "none" }}>
+                <button type="button" onClick={() => void apriFork(forkEsito.rif!)} style={{ ...bottone, background: "var(--brand-primary, #3b82f6)", color: "var(--brand-on-primary, #fff)", border: "none" }}>
                   {t("gitFork.apri")}
                 </button>
               )}

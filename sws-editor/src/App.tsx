@@ -686,6 +686,20 @@ export function App() {
   }
 
   // No active project → show project picker (WelcomeScreen).
+  // Il cambio password obbligatorio viene PRIMA del selettore dei progetti.
+  //
+  // Stava dopo, e il risultato era che chi entrava con una password
+  // reimpostata da un amministratore vedeva la lista dei progetti come se
+  // niente fosse: l'obbligo saltava fuori solo quando una chiamata veniva
+  // rifiutata, cioe provando ad aprire un progetto. Segnalato dal maintainer
+  // il 07-10-2026 provando il reset dalla console.
+  //
+  // È un obbligo, non un avviso: finche quella password e nota a due persone
+  // non si fa nient'altro.
+  if (mustChangePassword) {
+    return <ChangePasswordScreen />;
+  }
+
   if (noActiveProject) {
     return (
       <WelcomeScreen
@@ -726,9 +740,6 @@ export function App() {
   }
 
 
-  if (mustChangePassword) {
-    return <ChangePasswordScreen />;
-  }
 
   // Role gate: Operator/Viewer cannot use the IDE on port 8444.
   if (!canConfigureProject(authRole)) {

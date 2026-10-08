@@ -13,6 +13,12 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### ⚠ Compatibilità
 
+- **I progetti si indirizzano per azienda**: `POST /api/projects/<azienda>/<nome>/open` e simili, con `-` per
+  l'azienda implicita. **La forma a un segmento resta** (`/api/projects/<nome>/open`) e vale «azienda implicita»,
+  perché è quella che l'IDE manda ai dispositivi: un pannello con un runtime più vecchio continua a ricevere il
+  deploy senza accorgersi di niente. Non è una scorciatoia che salta i controlli — passa dallo stesso risolutore e
+  dalla stessa verifica di appartenenza.
+
 - **L'IDE adesso chiede le credenziali.** Fino alla 2.12.0 un'istanza IDE non si autenticava mai, nemmeno con utenti
   definiti: era il prezzo dichiarato di Q56, e su un host raggiungibile in rete voleva dire un editor aperto a chiunque.
   Al primo avvio dopo l'aggiornamento il servizio **stampa nei log un codice di primo accesso**: lo si incolla nell'IDE
@@ -21,6 +27,19 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   indirizzo pubblico. **Sui pannelli non cambia nulla**: lì gli utenti restano quelli del progetto.
 
 ### Added
+- **Il pannello di un utente, nella console, si salva.** Prima ogni comando si applicava da solo appena lo toccavi —
+  nessuna conferma, nessun riscontro — e nome e ruolo non si potevano cambiare affatto. Ora il pannello è un modulo:
+  nome, ruolo, amministratore di piattaforma, appartenenze, reset della password e attivazione si modificano in
+  locale e si scrivono tutti insieme con «Salva», con un «● modifiche non salvate» visibile e un «Annulla». Le
+  appartenenze arrivano al server **per intero** e si applicano in una transazione, invece di una chiamata per
+  modifica. Si può finalmente anche **riattivare** un utente disattivato.
+- **L'elenco dei progetti a icone**, stile file browser, con un interruttore in alto a destra per tornare alle righe
+  di prima; la scelta se la ricorda il browser. In griglia la colonna si allarga a tutta la finestra e le azioni
+  (rinomina, duplica, elimina) compaiono al passaggio del mouse.
+- **Una barra sopra l'elenco dei progetti**: chi sei, per conto di quale azienda, e un menu con la console di
+  amministrazione (solo a chi la amministra), il cambio password e l'uscita. Prima la console si raggiungeva solo
+  digitando `/index-console.html` a mano, e dalla schermata dei progetti non si poteva nemmeno uscire. Sta solo lì,
+  non dentro l'editor: a progetto aperto lo spazio verticale è del canvas.
 - **Le aziende, e una console di amministrazione separata dall'IDE.** Le aziende esistono sempre: un'installazione
   singola ne ha una sola, implicita, che non compare mai — una forma sola di sistema invece di due. La console
   (`/index-console.html`) è un'**applicazione a sé** e non una schermata dell'editor, perché da lì si deciderà su
@@ -55,7 +74,56 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 - La schermata di accesso chiede **Email** su un IDE e non propone più `admin`, che era il nome di un utente di
   progetto; sui pannelli resta com'era, perché lì `admin` esiste davvero.
 
+### Security
+- **Chi conosce il nome non apre più il progetto di un'altra azienda.** Il filtro per appartenenza viveva solo
+  nell'elenco, e un elenco non è una guardia: `open`, `rename`, `duplicate` e `delete` prendevano un nome e lo
+  risolvevano per conto loro, senza guardare a chi appartenesse. Ora passano tutte da un risolutore unico che
+  verifica l'azienda e risponde **404** — non 403, che confermerebbe l'esistenza di ciò che non si deve vedere.
+  Guardia nuova `check_indirizzo_progetto.sh`.
+- **I progetti di un'altra azienda non si vedono più.** L'elenco non filtrava niente: trovava le cartelle di tutte le
+  aziende e le serviva a chiunque fosse collegato, cioè uno sviluppatore dell'azienda A vedeva — e poteva aprire — i
+  progetti dell'azienda B. L'amministratore di piattaforma li vede tutti, in una sezione a parte e contrassegnati.
+
 ### Fixed
+- **Dopo un log-out si torna all'elenco dei progetti, non dentro quello di prima.** Il progetto aperto è uno stato
+  globale dell'istanza e non di chi è collegato: rientrando si ereditava il progetto di chi c'era prima — e poteva
+  essere di un'azienda che il nuovo arrivato non può vedere, perché le rotte `/api/project/*` lavorano sull'attivo
+  e non hanno nessun indirizzo da verificare. Ora entrare chiude il progetto aperto, **solo su un'istanza IDE**:
+  su un pannello chiudere l'impianto perché qualcuno fa il login sarebbe il contrario di ciò che serve.
+- **Il modale «sessione scaduta» non sopravvive più al log-out.** Un 401 in volo mentre si usciva lo accendeva, e
+  nessuno lo spegneva: ricompariva subito dopo il login successivo, su una sessione nuova di zecca.
+- **«Rinomina» dal menu dell'editor funziona anche fuori dalla radice.** Mandava `meta.name` e basta, cioè un
+  indirizzo senza azienda, e su un progetto dentro una cartella d'azienda rispondeva «404 project not found».
+  Dentro l'editor l'azienda non si sapeva: ora `GET /api/system` porta `active_project_riferimento`, l'indirizzo
+  del progetto aperto. Un indirizzo a un segmento su un'istanza IDE lascia ora un avviso nei log, perché non
+  fallisce da solo: si risolve sull'azienda implicita, e con un omonimo in radice agirebbe sul progetto sbagliato.
+- L'importazione da un dispositivo propone di sostituire solo un omonimo **in radice**, che è dove l'import crea:
+  un progetto con lo stesso nome dentro un'azienda non è in conflitto con niente.
+- **Rinominare o duplicare un progetto d'azienda non lo porta più fuori dall'azienda.** Tutti e due calcolavano la
+  destinazione come `<radice dei progetti>/<nome nuovo>`: un progetto in `acme/` cambiava nome e si ritrovava nella
+  radice, fra quelli di tutti. Ora nascono accanto all'originale.
+- **Due aziende possono avere un progetto con lo stesso nome.** Il registro era indicizzato per nome: l'ultima che
+  lo apriva vinceva, e l'altra si ritrovava la voce puntata alla cartella sbagliata. La chiave ora è
+  `<azienda>/<nome>`, e le voci vecchie si migrano leggendo **dove sta** il progetto invece di assumerlo in radice.
+- **Al primo avvio l'azienda implicita nasce con il primo amministratore**, non al riavvio successivo. In mezzo
+  l'installazione non aveva nessuna azienda, e i progetti appena creati finivano fra quelli «di altre aziende» —
+  o sparivano del tutto a chi non amministra la piattaforma.
+- **Un'azienda creata prima delle cartelle per azienda ne riceve una all'avvio.** La colonna è nata con un valore
+  vuoto e le aziende già esistenti se lo sono tenuto — ma una cartella vuota vuol dire «la radice stessa», che è
+  giusto solo per l'azienda implicita: due aziende così *erano* la radice, i loro progetti si mescolavano con quelli
+  di tutti e la scansione le saltava. Visto sull'installazione di sviluppo, su due aziende su tre.
+- **Il registro di audit dice chi ha fatto cosa, anche dalla console.** Tutte le voci `amministrazione.*` erano
+  **anonime**: chi aveva reimpostato una password, salvato la posta o sospeso un'azienda non era scritto da nessuna
+  parte, proprio nelle azioni che più vanno attribuite perché riguardano altre persone. Anche `auth.logout` lo era, e
+  per il motivo di sempre: l'attore si cercava solo fra gli utenti del progetto, mentre su un'istanza IDE la sessione
+  vive nell'archivio dell'installazione. Guardia nuova `check_audit_attore.sh`.
+- **Cambiare la propria password non butta più fuori chi la cambia.** Il cambio cancellava *tutte* le sessioni
+  dell'utente, inclusa quella con cui la richiesta era in corso: l'operazione riusciva e la richiesta subito dopo
+  prendeva un 401, cioè l'IDE annunciava «sessione scaduta, riautenticati» un istante dopo un cambio andato a buon
+  fine. Peggio nel cambio **obbligato** dopo un reset dall'amministrazione, dove era l'unica azione concessa. Le
+  **altre** sessioni muoiono ancora, perché la vecchia password poteva essere nota a qualcun altro.
+- Aprire un progetto non dichiara più «devi riautenticarti» su un'istanza IDE: l'apertura azzera le sessioni degli
+  utenti *del progetto*, che con la sessione dell'IDE non c'entrano nulla.
 
 - **La lista dei progetti non scorreva** con molti progetti: il contenitore aveva `height: 100vh` e
   `justify-content: center` senza `overflow`, e il centraggio spingeva il contenuto fuori da entrambi i lati rendendo
