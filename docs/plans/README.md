@@ -18,12 +18,17 @@ approfondita che il seme [identità, utenti e istanze](2026-09-18-identita-utent
 chiedeva; quel seme **resta** e non si archivia, perché tiene le decisioni numerate (1-39) e il
 testo integrale di Q44, Q54 e Q56. Chiude anche Q60.
 
-**Fasi 1 e 2 chiuse** il 06-10-2026 (squash `9591acaf`): l'IDE ha i suoi utenti e le rotte aperte
-sono una lista dichiarata. In corso la **Fase 3a**, che ha un piano suo —
-[aziende e console](2026-10-06-aziende-e-console.md): le aziende, e una console di amministrazione
-**separata dall'IDE**, perché decide su quale versione gira ogni azienda e lo strumento che governa
-le versioni non può essere fissato a una di esse. La **3b**, dopo, sposterà i progetti sotto la
-cartella dell'azienda — ed è quella che può perdere dati, quindi va affrontata da sola.
+**Fasi 1, 2, 3a e 3b chiuse.** 1 e 2 il 06-10-2026 (squash `9591acaf`): l'IDE ha i suoi utenti e le
+rotte aperte sono una lista dichiarata. **3a e 3b** l'08-10-2026 (squash `59eb0ed6`), con un piano
+ciascuna, ora in archivio: [aziende e console](../archive/2026-10-06-aziende-e-console.md) e
+[i progetti nell'azienda](../archive/2026-10-07-progetti-per-azienda-fase-3b.md). Le aziende
+esistono (l'implicita non si mostra), la console di amministrazione è un'applicazione a sé, e i
+progetti si indirizzano `/<azienda>/<nome>` passando da un risolutore che verifica l'appartenenza.
+
+**Resta la Fase 3c**, e il piano di tronco la descrive solo a grandi linee: i **ruoli che
+delimitano davvero** (oggi amministratore e sviluppatore diventano tutti e due `Admin`) e le
+**quote**, che hanno le colonne e nessun conteggio. Prima di scrivere codice va aperta una sessione
+di plan dedicata, come per la 3a e la 3b.
 
 (Questa riga diceva «nessun piano d'esecuzione in corso» dal 26-09.)
 
