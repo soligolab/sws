@@ -43,20 +43,40 @@ amministratore d'azienda, deve mostrare la sua azienda e nient'altro.
 - Le quote: un conteggio al momento della creazione, e un rifiuto che dice **quale** limite è
   stato raggiunto e qual è.
 
-## Le domande da risolvere prima di scrivere codice
+## Le risposte del maintainer (08-10-2026)
 
-1. **Un amministratore d'azienda può creare utenti**, o solo gestire quelli che già ci sono? Se
-   può crearli, un'azienda può riempirsi di account senza che la piattaforma lo sappia — a meno
-   che la quota non conti anche quelli.
-2. **Può togliere e mettere le persone nella sua azienda**? Metterle vuol dire poter aggiungere un
-   indirizzo qualunque, cioè invitare: e l'invito è Fase 5.
-3. **Vede le quote della sua azienda** (quanto ha usato su quanto) o sono un fatto della
-   piattaforma che a lui non riguarda?
-4. **Chi sceglie il marchio di un'azienda**: la piattaforma, o l'azienda stessa? La decisione 43
-   lo assegna all'azienda, ma non dice chi lo decide.
-5. **Cosa succede al superamento di una quota**: si rifiuta e basta, o si avvisa prima di
-   arrivarci?
+> «un amministratore di azienda può creare i suoi utenti in libertà, non è un problema il numero
+> di utenti di una azienda ma lo spazio, il numero di progetti contemporanei aperti (quindi il
+> numero di container da avviare etc) che saranno definiti dall'admin globale. All'interno delle
+> risorse che l'azienda ha concordato con l'admin globale, l'amministratore dell'azienda può fare
+> tutto. Sia admin globale sia i singoli admin devono avere un sinottico dove poter visualizzare
+> in un colpo d'occhio unico tutte le risorse disponibili e quante sono al limite.»
 
-**L'approvazione dei nuovi utenti** che il maintainer nomina nella richiesta **non è qui**: nasce
-con la registrazione libera, che è Fase 5. In 3c si confina il ruolo; il pulsante «approva»
-compare quando ci sarà qualcuno da approvare.
+Da qui discendono quattro cose, e due di esse cambiano il piano:
+
+1. **Gli utenti non sono una quota.** La colonna che la 3a aveva previsto per contarli non serve:
+   un'azienda ne crea quanti vuole. Il suo amministratore li crea **in libertà**, e questo
+   risponde anche alla domanda su chi può aggiungere persone.
+2. **Le quote sono due, e sono risorse della macchina**: lo **spazio su disco** e il **numero di
+   progetti aperti contemporaneamente**, che è il numero di container da avviare. La seconda non
+   è un conteggio di righe in un database: è un limite su ciò che gira, e vive dove i container
+   si avviano — cioè nel **gateway, Fase 4**. In 3c si può contare e mostrare; farla *rispettare*
+   davvero richiede chi avvia i container.
+3. **Il confine è la risorsa, non il permesso.** «Dentro le risorse concordate l'amministratore
+   d'azienda può fare tutto» semplifica la 3c: non serve un elenco di cosa può e non può, serve
+   che veda **solo la sua azienda** e che le quote lo fermino.
+4. **Un sinottico delle risorse**, per tutti e due i ruoli: l'admin globale vede tutte le aziende,
+   quello d'azienda la sua. È la parte **nuova** rispetto a come il tronco cloud descriveva la
+   3c, ed è quella da progettare per prima perché decide quali numeri il resto deve produrre.
+
+### Quello che resta da decidere
+
+Le domande aperte sono ora sul **sinottico** e sul **comportamento al limite**; quelle su chi può
+creare utenti e chi può aggiungerli all'azienda sono risolte sopra. Si affrontano una alla volta,
+su richiesta del maintainer.
+
+- Che forma ha il sinottico e dove vive (una schermata della console? la sua prima pagina?).
+- Quali risorse mostra oltre alle due nominate, e con quale rappresentazione.
+- Cosa succede quando una quota è raggiunta, e se si avvisa prima di arrivarci.
+- Chi sceglie il marchio di un'azienda: la piattaforma o l'azienda stessa (decisione 43 lo assegna
+  all'azienda, ma non dice chi lo decide).
