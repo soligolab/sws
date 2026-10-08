@@ -25,10 +25,11 @@ ciascuna, ora in archivio: [aziende e console](../archive/2026-10-06-aziende-e-c
 esistono (l'implicita non si mostra), la console di amministrazione è un'applicazione a sé, e i
 progetti si indirizzano `/<azienda>/<nome>` passando da un risolutore che verifica l'appartenenza.
 
-**Prossima: la Fase 3c**, che ha il suo piano —
-[i ruoli confinano, e le quote contano](2026-10-08-fase-3c-ruoli-confinati-e-quote.md), scritto
-l'08-10-2026 con le misure di quel giorno. **Non è approvato**: porta in fondo cinque domande che
-il maintainer deve risolvere prima che si scriva codice.
+**In corso: la Fase 3c** —
+[i ruoli confinano, e le quote contano](2026-10-08-fase-3c-ruoli-confinati-e-quote.md),
+**approvata l'08-10-2026** con cinque decisioni prese una alla volta. La parte nuova rispetto al
+tronco cloud è il **sinottico delle risorse** come prima pagina della console, che decide quali
+numeri tutto il resto deve produrre.
 
 (Questa riga diceva «nessun piano d'esecuzione in corso» dal 26-09.)
 

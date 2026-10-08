@@ -1,8 +1,8 @@
 # Fase 3c — i ruoli confinano, e le quote contano
 
 > Dettaglio della **Fase 3c** del [tronco cloud](2026-10-05-cloud-utenti-aziende-spazi.md).
-> 3a e 3b sono chiuse e in archivio. **Questo piano non è ancora approvato**: le domande in fondo
-> vanno risposte dal maintainer prima di scrivere codice.
+> 3a e 3b sono chiuse e in archivio. **Approvato l'08-10-2026**: le decisioni in fondo sono del
+> maintainer, prese una alla volta.
 
 ## Da dove nasce
 
@@ -69,14 +69,39 @@ Da qui discendono quattro cose, e due di esse cambiano il piano:
    quello d'azienda la sua. È la parte **nuova** rispetto a come il tronco cloud descriveva la
    3c, ed è quella da progettare per prima perché decide quali numeri il resto deve produrre.
 
-### Quello che resta da decidere
+### Le decisioni (maintainer, 08-10-2026)
 
-Le domande aperte sono ora sul **sinottico** e sul **comportamento al limite**; quelle su chi può
-creare utenti e chi può aggiungerli all'azienda sono risolte sopra. Si affrontano una alla volta,
-su richiesta del maintainer.
+1. **Il sinottico è la prima pagina della console.** Aprendo `/index-console.html` la prima cosa è
+   lo stato delle risorse; le altre sezioni restano nella barra laterale. Stessa schermata per
+   tutti e due i ruoli, contenuto confinato: l'admin globale vede una riga per azienda, quello
+   d'azienda vede solo la sua.
+2. **Cosa mostra**: per azienda lo **spazio**, spaccato in *progetti* e **storico** — chi arriva
+   al limite di solito ci arriva per lo storico, non per i sinottici, e saperlo cambia cosa si va
+   a cancellare — e i **progetti aperti**. In fondo, separato, lo stato della macchina (disco,
+   RAM, CPU), che non è di nessuna azienda ma dice se il limite vero sta arrivando per tutti.
+   **Niente numeri senza un tetto** accanto a quelli che un tetto ce l'hanno: un conteggio
+   affiancato a una barra sembra una quota anche quando non lo è.
+3. **Al limite**: sopra una soglia si **avvisa** (nel sinottico e in cima alla schermata
+   progetti), al 100% si **rifiuta** l'azione che farebbe crescere la risorsa, con un messaggio
+   che dice quale limite e quanto vale. **Quello che già gira non si ferma**: lo storico continua
+   a scrivere, perché fermarlo perderebbe dati d'impianto.
+4. **Il marchio lo sceglie solo la piattaforma.** L'azienda lo vede e non lo cambia: un marchio è
+   anche il nome di qualcun altro, e sbagliarlo è un problema legale, non estetico. (Precisa la
+   decisione 43, che lo assegnava all'azienda senza dire chi lo decide.)
+5. **I «progetti aperti» si configurano e si mostrano, non si applicano** — e lo si **dichiara a
+   schermo**. Oggi un'istanza ha un progetto solo e i container li avvierà il gateway: il tetto
+   concordato esiste già, così quando il gateway arriva non si ricontratta niente, ma nessun
+   codice finge di farlo rispettare. È lo stesso patto dichiarato che la 3a ha fatto con
+   `versione_fissata`.
 
-- Che forma ha il sinottico e dove vive (una schermata della console? la sua prima pagina?).
-- Quali risorse mostra oltre alle due nominate, e con quale rappresentazione.
-- Cosa succede quando una quota è raggiunta, e se si avvisa prima di arrivarci.
-- Chi sceglie il marchio di un'azienda: la piattaforma o l'azienda stessa (decisione 43 lo assegna
-  all'azienda, ma non dice chi lo decide).
+**Non decise perché discendono**: chi entra nella console (piattaforma **oppure** amministratore
+di almeno un'azienda — chi è solo sviluppatore resta fuori, come oggi) e quali sezioni restano
+alla sola piattaforma (**Posta** e **Questa installazione**, che non sono di nessuna azienda; e
+per gli altri non compaiono affatto, non «compaiono e danno 403»).
+
+## Come si misura lo spazio
+
+Non a ogni richiesta: sommare le dimensioni di un albero di cartelle costa, e il sinottico si
+apre spesso. Un conteggio periodico con l'ultimo valore in cache, e il momento della misura
+scritto accanto al numero — un dato vecchio che si dichiara vecchio è utile, uno che finge di
+essere fresco no.
