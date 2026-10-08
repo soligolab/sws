@@ -25,10 +25,10 @@ ciascuna, ora in archivio: [aziende e console](../archive/2026-10-06-aziende-e-c
 esistono (l'implicita non si mostra), la console di amministrazione è un'applicazione a sé, e i
 progetti si indirizzano `/<azienda>/<nome>` passando da un risolutore che verifica l'appartenenza.
 
-**Resta la Fase 3c**, e il piano di tronco la descrive solo a grandi linee: i **ruoli che
-delimitano davvero** (oggi amministratore e sviluppatore diventano tutti e due `Admin`) e le
-**quote**, che hanno le colonne e nessun conteggio. Prima di scrivere codice va aperta una sessione
-di plan dedicata, come per la 3a e la 3b.
+**Prossima: la Fase 3c**, che ha il suo piano —
+[i ruoli confinano, e le quote contano](2026-10-08-fase-3c-ruoli-confinati-e-quote.md), scritto
+l'08-10-2026 con le misure di quel giorno. **Non è approvato**: porta in fondo cinque domande che
+il maintainer deve risolvere prima che si scriva codice.
 
 (Questa riga diceva «nessun piano d'esecuzione in corso» dal 26-09.)
 
