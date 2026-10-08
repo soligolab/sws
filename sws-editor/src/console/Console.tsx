@@ -3,11 +3,15 @@ import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { useAppStore } from "@/store";
 import { LoginScreen } from "@/components/LoginScreen";
+import { BarraIdentita } from "@/components/BarraIdentita";
+import { useMarchioDellAzienda } from "@/branding/perAzienda";
+import { ChangePasswordScreen } from "@/components/ChangePasswordScreen";
 import { Aziende } from "./Aziende";
 import { Persone } from "./Persone";
 import { Marchi } from "./Marchi";
 import { Posta } from "./Posta";
 import { Installazione } from "./Installazione";
+import { Risorse } from "./Risorse";
 
 /**
  * La console di amministrazione della piattaforma.
@@ -22,12 +26,24 @@ import { Installazione } from "./Installazione";
  * stesso `localStorage["sws.auth"]`, quindi chi è già entrato nell'IDE si
  * ritrova dentro senza riautenticarsi.
  */
-type Scheda = "aziende" | "marchi" | "persone" | "posta" | "installazione";
+type Scheda = "risorse" | "aziende" | "marchi" | "persone" | "posta" | "installazione";
+
+/** Le sezioni che non sono di nessuna azienda, e restano alla piattaforma.
+ *
+ *  Per gli altri **non compaiono**, invece di comparire e dare 403: un
+ *  comando che non puo riuscire non si offre. */
+const SOLO_PIATTAFORMA: Scheda[] = ["posta", "installazione"];
 
 export function Console() {
   const { t } = useTranslation();
   const authToken = useAppStore((s) => s.authToken);
-  const [scheda, setScheda] = useState<Scheda>("aziende");
+  // La prima pagina e il sinottico delle risorse (scelta del maintainer,
+  // 08-10-2026): aprendo la console la prima cosa e lo stato delle risorse e
+  // quante sono al limite.
+  const [scheda, setScheda] = useState<Scheda>("risorse");
+  const [piattaforma, setPiattaforma] = useState(false);
+  const [cambioPassword, setCambioPassword] = useState(false);
+  useMarchioDellAzienda(authToken);
   const [permesso, setPermesso] = useState<boolean | null>(null);
   const [errore, setErrore] = useState<string | null>(null);
 
@@ -53,6 +69,16 @@ export function Console() {
 
   useEffect(verifica, [verifica]);
 
+  // Chi amministra la piattaforma vede due sezioni in piu. Lo dice il server:
+  // dedurlo dal ruolo nel token sarebbe sbagliato, perche amministrare la
+  // piattaforma e un asse diverso dal ruolo nel progetto.
+  useEffect(() => {
+    if (!authToken) return;
+    api.whoami()
+      .then((me) => setPiattaforma(me.amministratore_piattaforma === true))
+      .catch(() => setPiattaforma(false));
+  }, [authToken]);
+
   if (!authToken) return <LoginScreen />;
 
   if (permesso === null) {
@@ -73,8 +99,18 @@ export function Console() {
     );
   }
 
+  if (cambioPassword) {
+    return <ChangePasswordScreen onAnnulla={() => setCambioPassword(false)} />;
+  }
+
   return (
-    <div style={{ height: "100%", display: "flex", color: "var(--brand-text, #e2e8f0)" }}>
+    // Colonna: la barra in cima, il resto sotto. Prima la console non aveva
+    // ne' il nome di chi era dentro ne' un modo di uscirne — si entrava e
+    // l'unica via era riscrivere l'indirizzo. Segnalato dal maintainer
+    // l'08-10-2026.
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", color: "var(--brand-text, #e2e8f0)" }}>
+      <BarraIdentita dove="console" onCambiaPassword={() => setCambioPassword(true)} />
+      <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
       {/* Colonna a sinistra invece di una barra in alto (scelta del maintainer,
           06-10-2026): regge la crescita — posta, quote, pannelli, registro —
           ed è la stessa forma della Configurazione dell'IDE, che è già un
@@ -93,7 +129,9 @@ export function Console() {
           </div>
         </div>
         <nav style={{ padding: 8, display: "flex", flexDirection: "column", gap: 2 }}>
-          {(["aziende", "marchi", "persone", "posta", "installazione"] as Scheda[]).map((s) => (
+          {(["risorse", "aziende", "marchi", "persone", "posta", "installazione"] as Scheda[])
+            .filter((s) => piattaforma || !SOLO_PIATTAFORMA.includes(s))
+            .map((s) => (
             <button
               key={s}
               onClick={() => setScheda(s)}
@@ -112,12 +150,14 @@ export function Console() {
       </aside>
 
       <main style={{ flex: 1, overflowY: "auto", padding: 18, minWidth: 0 }}>
-        {scheda === "aziende" && <Aziende />}
-        {scheda === "marchi" && <Marchi />}
+        {scheda === "risorse" && <Risorse />}
+        {scheda === "aziende" && <Aziende piattaforma={piattaforma} />}
+        {scheda === "marchi" && <Marchi piattaforma={piattaforma} />}
         {scheda === "persone" && <Persone />}
         {scheda === "posta" && <Posta />}
         {scheda === "installazione" && <Installazione />}
       </main>
+      </div>
     </div>
   );
 }

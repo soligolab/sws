@@ -878,7 +878,8 @@ pub fn build(
         .route("/api/auth/refresh", post(refresh_session))
         // Le proprie aziende: serve a decidere se mostrare una scelta, quindi
         // sta col gruppo self-service e non con la console.
-        .route("/api/identita/mie-aziende", get(mie_aziende));
+        .route("/api/identita/mie-aziende", get(mie_aziende))
+        .route("/api/identita/marchio", get(marchio_mio));
 
     let protected = blocking
         .merge(self_service)
@@ -991,14 +992,32 @@ pub fn build(
     // ── La console di amministrazione ───────────────────────────────────────
     //
     // Due livelli, e l'ordine conta: prima si dice CHI sei (`require_auth`),
-    // poi se puoi stare qui (`require_amministratore_piattaforma`) — che legge
-    // l'`AuthUser` che il primo ha messo nelle estensioni.
+    // poi se puoi stare qui — che legge l'`AuthUser` che il primo ha messo
+    // nelle estensioni.
+    //
+    // **Due gruppi dal 08-10-2026 (Fase 3c).** Finché la console era aperta
+    // alla sola piattaforma bastava una guardia e una risposta: «vedi tutto»
+    // oppure «non entri». Ora ci entra anche chi amministra **un'azienda**, e
+    // le rotte si dividono per chi le può chiamare:
+    //
+    // - `rotte_di_piattaforma`: posta, catalogo dei marchi, creazione di
+    //   un'azienda. Non sono di nessuna azienda.
+    // - `rotte_di_azienda`: aziende e persone, che ogni handler **confina**
+    //   a ciò che chi guarda amministra. Il filtro sta nell'handler perché a
+    //   essere filtrato è il contenuto, non il diritto di chiamare.
     //
     // `scripts/check_amministrazione.sh` verifica che ogni rotta dichiarata in
-    // `amministrazione.rs` arrivi qui dentro: la protezione non dipende dal
-    // ricordarsene.
-    let amministrazione = crate::amministrazione::rotte()
+    // `amministrazione.rs` arrivi in uno dei due: la protezione non dipende
+    // dal ricordarsene.
+    let amministrazione = crate::amministrazione::rotte_di_piattaforma()
         .route_layer(middleware::from_fn(require_amministratore_piattaforma))
+        .merge(
+            crate::amministrazione::rotte_di_azienda()
+                .route_layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    require_console,
+                )),
+        )
         .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
     let protected = protected.merge(amministrazione);
 
@@ -1480,6 +1499,46 @@ async fn mie_aziende(State(s): State<AppState>, req: Request) -> Response {
     Json(mie).into_response()
 }
 
+/// `GET /api/identita/marchio` — il marchio di chi è collegato.
+///
+/// **Perché serve.** Il marchio lo risolve il frontend leggendo
+/// `/branding/active.json`, che è **uno per installazione** e viene letto
+/// prima del login: a quel punto non si sa ancora di chi sarà la sessione.
+/// Finché l'IDE era di una ditta sola andava bene; con le aziende no — il
+/// maintainer, entrato come utente di `pixsys`, non trovava i preset dei
+/// dispositivi Pixsys, che stanno nel `brand.json` di quel marchio.
+///
+/// Qui il marchio è quello della **sua** azienda, e il frontend ricarica il
+/// tema dopo l'accesso. `null` = il marchio standard, cioè `active.json`
+/// com'era.
+///
+/// **Chi sta in più aziende con marchi diversi**: si prende la prima per id
+/// che ne ha uno. Il caso esiste e non ha una risposta giusta a priori — un
+/// IDE mostra un marchio solo — ma sceglierne uno in modo stabile è meglio
+/// che mostrarne uno a caso a ogni accesso.
+async fn marchio_mio(State(s): State<AppState>, req: Request) -> Response {
+    let vuoto = || Json(serde_json::json!({"marchio": serde_json::Value::Null})).into_response();
+    let Some(id) = s.identita.as_ref() else { return vuoto() };
+    let Some(utente) = req.extensions().get::<AuthUser>().cloned() else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+    let Ok(utenti) = id.elenca().await else { return vuoto() };
+    let Some(io) = utenti.iter().find(|u| u.email == utente.username) else {
+        return vuoto();
+    };
+    let tutte = id.elenca_aziende().await.unwrap_or_default();
+    let mut mie: Vec<_> = id
+        .aziende_di(io.id)
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|(aid, _)| tutte.iter().find(|a| a.id == aid))
+        .collect();
+    mie.sort_by_key(|a| a.id);
+    let marchio = mie.iter().find_map(|a| a.marchio.clone());
+    Json(serde_json::json!({ "marchio": marchio })).into_response()
+}
+
 /// Stato del primo accesso di un'installazione, per la schermata iniziale.
 ///
 /// È **pre-auth** per necessità: serve a decidere *quale* schermata mostrare,
@@ -1788,6 +1847,34 @@ async fn require_amministratore_piattaforma(req: Request, next: Next) -> Respons
         return (
             StatusCode::FORBIDDEN,
             "serve un amministratore di piattaforma",
+        )
+            .into_response();
+    }
+    next.run(req).await
+}
+
+/// Chi può entrare nella console: la piattaforma, **oppure** chi amministra
+/// almeno un'azienda.
+///
+/// Non basta appartenere a un'azienda: essere sviluppatore non dà nessun
+/// titolo ad amministrarla, e chi è solo sviluppatore resta fuori come prima.
+///
+/// **403 e non 404**, al contrario dell'indirizzo di un progetto: che la
+/// console esista non è un segreto — ci si arriva da un menu — e dire «serve
+/// un amministratore» è un'informazione utile, non una conferma di qualcosa
+/// che non si doveva sapere.
+async fn require_console(State(s): State<AppState>, req: Request, next: Next) -> Response {
+    let chi = req.extensions().get::<AuthUser>().cloned();
+    if chi.as_ref().is_some_and(|u| u.amministratore_piattaforma) {
+        return next.run(req).await;
+    }
+    let app = crate::projects::appartenenze_di(&s, chi.as_ref()).await;
+    // Su un dispositivo non c'è `identita` e la console non ha senso: lì
+    // `fuori_dal_modello` è vero e non si entra.
+    if app.fuori_dal_modello || app.amministrate.is_empty() {
+        return (
+            StatusCode::FORBIDDEN,
+            "serve un amministratore di piattaforma o di un'azienda",
         )
             .into_response();
     }

@@ -525,6 +525,14 @@ pub async fn list_projects(
 pub struct Appartenenze {
     pub nomi: Vec<String>,
     pub cartelle: Vec<String>,
+    /// Gli id di **tutte** le aziende di cui fa parte, con qualunque ruolo.
+    pub ids: Vec<i64>,
+    /// Gli id di quelle che **amministra**. Sottoinsieme di `ids`.
+    ///
+    /// E questo, non `ids`, a decidere chi entra nella console e cosa ci
+    /// vede: essere sviluppatore di un'azienda non da' nessun titolo ad
+    /// amministrarla.
+    pub amministrate: Vec<i64>,
     /// Se fa parte dell'azienda implicita, cioe della radice.
     pub implicita: bool,
     /// Se non c'e `identita`, o se chi guarda non e un utente
@@ -544,7 +552,7 @@ pub async fn appartenenze_di(s: &AppState, chi: Option<&crate::router::AuthUser>
     };
     let tutte = identita.elenca_aziende().await.unwrap_or_default();
     let mut a = Appartenenze::default();
-    for (aid, _) in identita.aziende_di(io.id).await.unwrap_or_default() {
+    for (aid, ruolo) in identita.aziende_di(io.id).await.unwrap_or_default() {
         if let Some(az) = tutte.iter().find(|x| x.id == aid) {
             if az.cartella.is_empty() {
                 a.implicita = true;
@@ -552,6 +560,10 @@ pub async fn appartenenze_di(s: &AppState, chi: Option<&crate::router::AuthUser>
                 a.cartelle.push(az.cartella.clone());
             }
             a.nomi.push(az.nome.clone());
+            a.ids.push(az.id);
+            if ruolo == sws_identita::Ruolo::Amministratore {
+                a.amministrate.push(az.id);
+            }
         }
     }
     a

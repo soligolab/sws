@@ -22,12 +22,21 @@ import { useAppStore } from "@/store";
  * nella sola azienda implicita non deve incontrare un concetto che per lui
  * non esiste — è la stessa regola dei titoli di gruppo nell'elenco.
  */
-export function BarraIdentita({ onCambiaPassword }: { onCambiaPassword: () => void }) {
+export function BarraIdentita({
+  onCambiaPassword,
+  dove = "ide",
+}: {
+  onCambiaPassword: () => void;
+  /** Dove sta la barra. Una sola barra per due posti: nell'IDE offre la
+   *  console, nella console offre il ritorno all'IDE. Due componenti
+   *  sarebbero due «Esci» da tenere d'accordo. */
+  dove?: "ide" | "console";
+}) {
   const { t } = useTranslation();
   const authUser = useAppStore((s) => s.authUser);
   const clearAuth = useAppStore((s) => s.clearAuth);
   const [amministratore, setAmministratore] = useState(false);
-  const [aziende, setAziende] = useState<{ nome: string; implicita: boolean }[]>([]);
+  const [aziende, setAziende] = useState<{ nome: string; implicita: boolean; ruolo?: string }[]>([]);
   const [aperto, setAperto] = useState(false);
   const box = useRef<HTMLDivElement | null>(null);
 
@@ -55,6 +64,10 @@ export function BarraIdentita({ onCambiaPassword }: { onCambiaPassword: () => vo
     };
   }, [aperto]);
 
+  // Chi amministra almeno un'azienda entra in console quanto chi amministra
+  // la piattaforma: il ruolo lo porta gia `mie-aziende`, non serve chiederlo
+  // di nuovo.
+  const amministraUnAzienda = aziende.some((a) => a.ruolo === "amministratore");
   const proprie = aziende.filter((a) => !a.implicita);
   const etichettaAzienda =
     proprie.length === 0
@@ -85,7 +98,13 @@ export function BarraIdentita({ onCambiaPassword }: { onCambiaPassword: () => vo
         // La barra sta in cima alla finestra, non dentro la colonna centrata
         // dell'elenco: il contenitore ha `padding: 32px 0`, quindi si risale
         // di altrettanto invece di cambiare il padding e muovere tutto.
-        margin: "-32px 0 28px", position: "sticky", top: -32, zIndex: 5,
+        // Nella WelcomeScreen la barra sta dentro un contenitore con
+        // `padding: 32px 0` e deve risalirlo; nella console sta in cima a una
+        // colonna e non deve muoversi.
+        margin: dove === "console" ? 0 : "-32px 0 28px",
+        position: dove === "console" ? "static" : "sticky",
+        top: dove === "console" ? undefined : -32,
+        zIndex: 5,
         // Il contenitore e una colonna flex con `align-items: center`: senza
         // `stretch` la barra sarebbe larga quanto il suo contenuto e centrata.
         alignSelf: "stretch", flexShrink: 0, boxSizing: "border-box",
@@ -127,13 +146,27 @@ export function BarraIdentita({ onCambiaPassword }: { onCambiaPassword: () => vo
           >
             {/* Solo a chi la console serve davvero: a un utente normale
                 l'indirizzo risponderebbe 403, e un comando che non può
-                riuscire non si offre. */}
-            {amministratore && (
+                riuscire non si offre.
+                **Non basta l'amministratore di piattaforma**: dal 08-10-2026
+                nella console entra anche chi amministra un'azienda, e a lui
+                il link non compariva — segnalato dal maintainer entrando
+                come amministratore di una sola azienda. */}
+            {dove === "ide" && (amministratore || amministraUnAzienda) && (
               <button
                 style={voce}
                 onClick={() => { window.location.href = "/index-console.html"; }}
               >
                 {t("welcome.barraConsole")}
+              </button>
+            )}
+            {/* E la via del ritorno, che dalla console non c'era: si entrava
+                e l'unico modo di uscirne era riscrivere l'indirizzo. */}
+            {dove === "console" && (
+              <button
+                style={voce}
+                onClick={() => { window.location.href = "/index-admin.html"; }}
+              >
+                {t("welcome.barraIde")}
               </button>
             )}
             <button style={voce} onClick={() => { setAperto(false); onCambiaPassword(); }}>

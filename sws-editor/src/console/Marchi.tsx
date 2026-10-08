@@ -21,7 +21,11 @@ import {
  * è onesto — si vede esattamente cosa si sta scrivendo — invece di un editor a
  * metà che nasconde metà dei campi.
  */
-export function Marchi() {
+/** `piattaforma` decide se si puo **modificare**, non cosa si vede: il
+ *  server l'elenco lo confina gia da se. Chi amministra un'azienda vede il
+ *  suo marchio e basta, e i comandi per cambiarlo non gli compaiono — un
+ *  comando che non puo riuscire non si offre. */
+export function Marchi({ piattaforma = true }: { piattaforma?: boolean }) {
   const { t } = useTranslation();
   const [marchi, setMarchi] = useState<MarchioCompleto[]>([]);
   const [sceltaId, setSceltaId] = useState<string | null>(null);
@@ -115,6 +119,10 @@ export function Marchi() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {!piattaforma && (
+        <div style={avviso}>{t("console.marchi.soloLettura")}</div>
+      )}
+      {piattaforma && (
       <form onSubmit={crea} style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <input
           value={nuovo}
@@ -126,6 +134,7 @@ export function Marchi() {
           {t("console.marchi.crea")}
         </button>
       </form>
+      )}
 
       {err && <div style={stileErrore}>{err}</div>}
 
@@ -227,8 +236,10 @@ export function Marchi() {
             </div>
 
             <div style={{ display: "flex", gap: 8 }}>
+              {piattaforma && (
               <button onClick={salva} style={pulsante(true)}>{t("console.marchi.salva")}</button>
-              {scelto.proprio && (
+              )}
+              {piattaforma && scelto.proprio && (
                 <button
                   onClick={async () => {
                     setErr(null);

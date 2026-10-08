@@ -137,7 +137,10 @@ pub async fn file_marchio(
 // ── Amministrare i marchi (dietro la console) ────────────────────────────────
 
 /// `GET /api/amministrazione/marchi` — l'elenco, con l'origine di ciascuno.
-pub async fn elenca(State(s): State<AppState>) -> Response {
+pub async fn elenca(
+    State(s): State<AppState>,
+    axum::Extension(chi): axum::Extension<crate::router::AuthUser>,
+) -> Response {
     let (utente, prodotto) = radici(&s);
     let mut trovati: Vec<serde_json::Value> = Vec::new();
     let mut visti: Vec<String> = Vec::new();
@@ -177,6 +180,29 @@ pub async fn elenca(State(s): State<AppState>) -> Response {
         }
     }
     trovati.sort_by(|a, b| a["id"].as_str().cmp(&b["id"].as_str()));
+
+    // **Chi amministra un'azienda vede il suo marchio, non il catalogo.**
+    //
+    // Il marchio lo sceglie la piattaforma (decisione del maintainer,
+    // 08-10-2026): a chi non lo sceglie, il catalogo non serve — e nel cloud
+    // i marchi delle altre aziende sono marchi di clienti diversi, cioè
+    // l'elenco direbbe a ciascuno chi sono gli altri. Segnalato dal
+    // maintainer provando la console come amministratore di una sola azienda.
+    //
+    // Resta visibile il **suo**, perché sapere con che faccia si presenta il
+    // proprio pannello è cosa sua.
+    if let Some(mie) = crate::amministrazione::confine_pubblico(&s, &chi).await {
+        let aziende = match s.identita.as_ref() {
+            Some(id) => id.elenca_aziende().await.unwrap_or_default(),
+            None => Vec::new(),
+        };
+        let suoi: Vec<String> = aziende
+            .iter()
+            .filter(|a| mie.contains(&a.id))
+            .filter_map(|a| a.marchio.clone())
+            .collect();
+        trovati.retain(|m| m["id"].as_str().is_some_and(|id| suoi.iter().any(|x| x == id)));
+    }
     Json(trovati).into_response()
 }
 

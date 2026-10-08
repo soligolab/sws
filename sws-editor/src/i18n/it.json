@@ -518,7 +518,8 @@
     "barraNAziende": "{{n}} aziende",
     "altreAziende": "Altre aziende — le vedi come amministratore di piattaforma",
     "vistaGriglia": "Icone",
-    "vistaLista": "Elenco"
+    "vistaLista": "Elenco",
+    "barraIde": "Torna all'editor"
   },
   "logs": {
     "history": "Storico…",
@@ -2756,13 +2757,14 @@
     "si": "sì",
     "no": "no",
     "nonPermesso": "Questa console non è per te",
-    "nonPermessoSpiegazione": "Serve essere amministratore di piattaforma: è chi approva le aziende, ed è un ruolo diverso dall'amministrare la propria. Chiedi a chi amministra questa installazione.",
+    "nonPermessoSpiegazione": "Serve essere amministratore di piattaforma, oppure di almeno un'azienda. Chiedi a chi amministra questa installazione.",
     "scheda": {
       "aziende": "Aziende",
       "persone": "Persone",
       "installazione": "Questa installazione",
       "marchi": "Marchi",
-      "posta": "Posta"
+      "posta": "Posta",
+      "risorse": "Risorse"
     },
     "stato": {
       "in_prova": "in prova",
@@ -2789,7 +2791,19 @@
       "colonnaNome": "Azienda",
       "colonnaStato": "Stato",
       "colonnaMarchio": "Marchio",
-      "colonnaVersione": "Versione"
+      "colonnaVersione": "Versione",
+      "spazio": "Spazio concordato (GB)",
+      "progettiAperti": "Progetti aperti contemporaneamente",
+      "senzaLimite": "nessun limite",
+      "progettiApertiAvviso": "Il tetto si concorda e si vede, ma non è ancora applicato: lo farà rispettare il gateway, quando ogni progetto aperto sarà un container a sé.",
+      "marchioEsclusivo": "Un marchio è di una sola azienda: quelli già assegnati non compaiono. Se serve a due, duplicalo con un altro nome.",
+      "nome": "Nome",
+      "nonSalvate": "modifiche non salvate",
+      "salva": "Salva",
+      "salvataggio": "Salvataggio…",
+      "annulla": "Annulla",
+      "abbandona": "Ci sono modifiche non salvate su questa azienda. Abbandonarle?",
+      "soloLettura": "Stato, marchio, versione e risorse li decide chi amministra la piattaforma: qui li vedi, non li cambi. Di tuo puoi cambiare il nome."
     },
     "persone": {
       "email": "Email",
@@ -2847,7 +2861,8 @@
       "delProdottoAvviso": "Questo marchio arriva con il prodotto. Salvando ne crei una versione di questa installazione che lo copre: l'originale resta sotto e torna se cancelli la copia.",
       "avanzato": "Predefiniti dell'IDE (JSON)",
       "avanzatoNota": "Pannelli disponibili, percorsi dati e tonalità: si modificano come testo perché sono elenchi strutturati, e vedere cosa si scrive è più onesto di un editor che ne nasconde metà.",
-      "jsonNonValido": "Il JSON dei predefiniti non è valido:"
+      "jsonNonValido": "Il JSON dei predefiniti non è valido:",
+      "soloLettura": "Il marchio della tua azienda lo assegna chi amministra la piattaforma: qui lo vedi, non lo cambi."
     },
     "posta": {
       "host": "Server",
@@ -2864,6 +2879,22 @@
       "inviata": "Inviata a {{a}}. Se non arriva, guarda anche nella posta indesiderata.",
       "provaNota": "Una configurazione sbagliata altrimenti si scopre il giorno in cui qualcuno si registra e non riceve niente — e la colpa sembra della registrazione.",
       "ovhAvviso": "Sui VPS OVH la porta 25 in uscita è bloccata: serve un relay sulla 587 (Infomaniak: mail.infomaniak.com). Senza PTR, SPF e DKIM le email finiscono nella posta indesiderata."
+    },
+    "risorse": {
+      "attendi": "Misuro le risorse…",
+      "spazio": "Spazio",
+      "progetti": "progetti",
+      "storico": "storico",
+      "progettiAperti": "Progetti aperti",
+      "macchina": "Questa macchina",
+      "disco": "Disco",
+      "ram": "Memoria",
+      "cpu": "CPU",
+      "quasiEsaurito": "quasi esaurito",
+      "esaurito": "esaurito",
+      "senzaTetto": "nessun limite concordato",
+      "tettoNonApplicato": "Il tetto è concordato ma non ancora applicato: lo farà rispettare il gateway, quando ogni progetto aperto sarà un container a sé.",
+      "misurato": "Misurato alle {{ora}}. Le dimensioni si ricalcolano una volta al minuto."
     }
   }
 }

@@ -148,15 +148,27 @@ export function getBrand(): Brand {
  * Resolve the active brand from public/branding/active.json → the chosen
  * brand's brand.json. Any failure falls back to SWS so the app still boots.
  */
-export async function loadBranding(): Promise<Brand> {
+export async function loadBranding(forzato?: string | null): Promise<Brand> {
   try {
     // no-store: active.json / brand.json are meant to be edited on the deployed
     // tree and picked up on reload, so never serve a cached copy.
-    const active = await fetch("/branding/active.json", { cache: "no-store" }).then((r) => {
-      if (!r.ok) throw new Error(`active.json ${r.status}`);
-      return r.json();
-    });
-    const id: string = active?.brand || "sws";
+    // `forzato` e il marchio dell'AZIENDA di chi e collegato, che il server
+    // dice solo dopo l'accesso (`GET /api/identita/marchio`). Prima del login
+    // non si sa di chi sara la sessione, quindi vale `active.json`, che e uno
+    // per installazione — ed era l'unico fino al 08-10-2026, quando il
+    // maintainer entrando come utente di `pixsys` non ha trovato i preset dei
+    // dispositivi Pixsys: stanno nel `brand.json` di quel marchio, e quel
+    // marchio nessuno lo stava caricando.
+    let id: string;
+    if (forzato) {
+      id = forzato;
+    } else {
+      const active = await fetch("/branding/active.json", { cache: "no-store" }).then((r) => {
+        if (!r.ok) throw new Error(`active.json ${r.status}`);
+        return r.json();
+      });
+      id = active?.brand || "sws";
+    }
 
     const meta = await fetch(`/branding/${id}/brand.json`, { cache: "no-store" }).then((r) => {
       if (!r.ok) throw new Error(`brand.json ${r.status}`);

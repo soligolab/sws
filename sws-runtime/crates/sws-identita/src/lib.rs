@@ -1288,6 +1288,35 @@ impl Identita {
                 )?;
             }
             if let Some(v) = m.marchio {
+                // **Un marchio e di una sola azienda.** Regola del maintainer
+                // dell'08-10-2026: «ogni Company usa di default SWS oppure
+                // puo avere un brand suo custom ed e uno solo ed esclusivo
+                // (non ci saranno per esempio 2 company col brand Pixsys ma
+                // al massimo lo duplichero in due)».
+                //
+                // Non e una convenzione da ricordare: se due aziende
+                // condividessero un marchio, la console di ciascuna
+                // mostrerebbe un marchio che parla anche per l'altra, e
+                // cambiarlo per una lo cambierebbe per tutte e due senza che
+                // nessuna delle due lo sappia.
+                //
+                // `NULL` e il caso normale e non si vincola: vuol dire «il
+                // marchio standard», che e di tutti.
+                if let Some(nome) = v.as_deref() {
+                    let altra: Option<String> = c
+                        .query_row(
+                            "SELECT nome FROM aziende WHERE marchio = ?1 AND id != ?2",
+                            params![nome, id],
+                            |r| r.get(0),
+                        )
+                        .optional()?;
+                    if let Some(altra) = altra {
+                        anyhow::bail!(
+                            "il marchio «{nome}» e gia di «{altra}»: un marchio e di una sola \
+                             azienda. Duplicalo con un altro nome se serve a tutte e due."
+                        );
+                    }
+                }
                 c.execute("UPDATE aziende SET marchio = ?1 WHERE id = ?2", params![v, id])?;
             }
             if let Some(v) = m.versione_predefinita {
@@ -1631,6 +1660,41 @@ mod test {
             id2.valida(&token).await.is_some(),
             "la sessione non è sopravvissuta alla riapertura dell'archivio"
         );
+    }
+
+    /// Un marchio e di una sola azienda: assegnarlo a una seconda si rifiuta.
+    ///
+    /// Regola del maintainer dell'08-10-2026. Il caso normale — `NULL`, cioe
+    /// il marchio standard — resta di tutte.
+    #[tokio::test]
+    async fn un_marchio_e_di_una_sola_azienda() {
+        let (id, _d) = archivio().await;
+        let a = id.crea_azienda("Acme").await.unwrap();
+        let b = id.crea_azienda("Rossi").await.unwrap();
+
+        let con_marchio = |m: Option<&str>| ModificaAzienda {
+            marchio: Some(m.map(|x| x.to_string())),
+            ..Default::default()
+        };
+
+        id.aggiorna_azienda(a.id, con_marchio(Some("pixsys"))).await.unwrap();
+
+        let e = id
+            .aggiorna_azienda(b.id, con_marchio(Some("pixsys")))
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(e.contains("pixsys") && e.contains("Acme"), "{e}");
+
+        // Riassegnarlo a chi ce l'ha gia non e un conflitto con se stessa.
+        id.aggiorna_azienda(a.id, con_marchio(Some("pixsys"))).await.unwrap();
+
+        // Il marchio standard — nessun marchio — resta di tutte.
+        id.aggiorna_azienda(a.id, con_marchio(None)).await.unwrap();
+        id.aggiorna_azienda(b.id, con_marchio(None)).await.unwrap();
+
+        // E liberato, si puo dare a un'altra.
+        id.aggiorna_azienda(b.id, con_marchio(Some("pixsys"))).await.unwrap();
     }
 
     /// Un'azienda nata prima della colonna `cartella` ne riceve una

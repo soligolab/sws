@@ -51,15 +51,50 @@ fn errore(e: impl std::fmt::Display) -> Response {
     (StatusCode::BAD_REQUEST, e.to_string()).into_response()
 }
 
+/// Il confine di chi sta guardando la console.
+///
+/// `None` = la piattaforma, che non ha confine. `Some(ids)` = le aziende che
+/// quella persona amministra, e **solo** quelle: essere sviluppatore di
+/// un'azienda non dà nessun titolo ad amministrarla.
+///
+/// Un posto solo. Il confinamento della 3c è la stessa domanda ripetuta su
+/// ogni oggetto che la console mostra — «di quale azienda è questo?» — e la
+/// risposta la deve dare una funzione sola, o le risposte divergono. È la
+/// lezione di `visibilita()` per i progetti, applicata qui.
+/// Lo stesso confine, per chi sta in un altro modulo (`marchi.rs`).
+///
+/// La funzione resta una sola: esporla e meglio che lasciarne nascere una
+/// seconda altrove, che e il modo in cui le due risposte iniziano a divergere.
+pub async fn confine_pubblico(s: &AppState, chi: &AuthUser) -> Option<Vec<i64>> {
+    confine(s, chi).await
+}
+
+async fn confine(s: &AppState, chi: &AuthUser) -> Option<Vec<i64>> {
+    if chi.amministratore_piattaforma {
+        return None;
+    }
+    Some(crate::projects::appartenenze_di(s, Some(chi)).await.amministrate)
+}
+
 // ── Aziende ──────────────────────────────────────────────────────────────────
 
-async fn elenca_aziende(State(s): State<AppState>) -> Response {
+async fn elenca_aziende(
+    State(s): State<AppState>,
+    Extension(chi): Extension<AuthUser>,
+) -> Response {
     let id = match identita(&s) {
         Ok(i) => i,
         Err(r) => return r,
     };
+    let mie = confine(&s, &chi).await;
     match id.elenca_aziende().await {
-        Ok(v) => Json(v).into_response(),
+        Ok(v) => {
+            let v: Vec<_> = match &mie {
+                None => v,
+                Some(ids) => v.into_iter().filter(|a| ids.contains(&a.id)).collect(),
+            };
+            Json(v).into_response()
+        }
         Err(e) => errore(e),
     }
 }
@@ -102,6 +137,36 @@ async fn modifica_azienda(
         Ok(i) => i,
         Err(r) => return r,
     };
+    // **Il confine, prima di toccare qualunque cosa.** Un elenco filtrato non
+    // e una guardia: chi amministra un'azienda conosce gli id delle altre
+    // (gli bastano le sue appartenenze passate) e senza questo potrebbe
+    // modificarle. Stessa lezione di `risolvi_progetto` nella 3b.
+    //
+    // 404 e non 403: che quell'azienda esista non e cosa sua.
+    if let Some(mie) = confine(&s, &chi).await {
+        if !mie.contains(&azienda_id) {
+            return (StatusCode::NOT_FOUND, "nessuna azienda con questo id").into_response();
+        }
+        // E dentro la **sua** azienda non puo toccare tutto: approvazione,
+        // marchio e quote sono della piattaforma — sono cio che l'azienda ha
+        // *concordato*, e una parte che rinegozia da sola non e un accordo.
+        let riservati = m.stato.is_some()
+            || m.marchio.is_some()
+            || m.versione_predefinita.is_some()
+            || m.max_progetti.is_some()
+            || m.max_pannelli.is_some()
+            || m.max_byte.is_some();
+        if riservati {
+            return (
+                StatusCode::FORBIDDEN,
+                Json(serde_json::json!({
+                    "error": "riservato_alla_piattaforma",
+                    "detail": "stato, marchio, versione e quote li decide l'amministratore di piattaforma"
+                })),
+            )
+                .into_response();
+        }
+    }
     // Lo stato di un'azienda è la cosa che decide se può avere pannelli e VPN
     // (decisione 17): va nel registro, non solo nel log.
     let stato = m.stato.map(|v| v.come_testo());
@@ -128,7 +193,10 @@ async fn modifica_azienda(
 /// aggiungere — senza mai dire a cosa. Il 07-10-2026 il maintainer ha
 /// giustamente cercato un pulsante che non c'era: il difetto non era il
 /// pulsante, era che la pagina non sapeva cosa mostrare.
-async fn elenca_utenti(State(s): State<AppState>) -> Response {
+async fn elenca_utenti(
+    State(s): State<AppState>,
+    Extension(chi): Extension<AuthUser>,
+) -> Response {
     let id = match identita(&s) {
         Ok(i) => i,
         Err(r) => return r,
@@ -137,10 +205,26 @@ async fn elenca_utenti(State(s): State<AppState>) -> Response {
         Ok(v) => v,
         Err(e) => return errore(e),
     };
+    let mie = confine(&s, &chi).await;
     let aziende = id.elenca_aziende().await.unwrap_or_default();
     let mut fuori = Vec::new();
     for u in utenti {
         let appartenenze = id.aziende_di(u.id).await.unwrap_or_default();
+        // Chi amministra un'azienda vede le persone **di quell'azienda**, e
+        // di ciascuna solo le appartenenze che lo riguardano: che il tale sia
+        // anche di un altro cliente non e cosa sua.
+        if let Some(ids) = &mie {
+            if !appartenenze.iter().any(|(aid, _)| ids.contains(aid)) {
+                continue;
+            }
+        }
+        let appartenenze: Vec<_> = match &mie {
+            None => appartenenze,
+            Some(ids) => appartenenze
+                .into_iter()
+                .filter(|(aid, _)| ids.contains(aid))
+                .collect(),
+        };
         let elenco: Vec<_> = appartenenze
             .iter()
             .filter_map(|(aid, ruolo)| {
@@ -191,6 +275,25 @@ async fn crea_utente(
     };
     // `deve_cambiare_password: true` sempre: la password l'ha scelta chi crea
     // l'account, non chi lo userà, e finché non la cambia la conoscono in due.
+    // Chi amministra un'azienda crea utenti **in liberta** (decisione del
+    // maintainer, 08-10-2026: il numero di utenti non e una quota) — ma solo
+    // dentro una delle sue. Senza azienda l'utente nascerebbe fuori da
+    // qualunque confine, e non sarebbe piu suo da gestire.
+    if let Some(mie) = confine(&s, &chi).await {
+        match req.azienda_id {
+            Some(a) if mie.contains(&a) => {}
+            _ => {
+                return (
+                    StatusCode::FORBIDDEN,
+                    Json(serde_json::json!({
+                        "error": "fuori_dalle_tue_aziende",
+                        "detail": "un utente nuovo va messo in un'azienda che amministri"
+                    })),
+                )
+                    .into_response()
+            }
+        }
+    }
     match id.crea_utente(&req.email, &req.nome, &req.password, ruolo, true).await {
         Ok(u) => {
             if let Some(a) = req.azienda_id {
@@ -252,6 +355,26 @@ async fn modifica_utente(
         Ok(i) => i,
         Err(r) => return r,
     };
+    // **Il confine.** Il bersaglio dev'essere una persona di una delle mie
+    // aziende, e i poteri della piattaforma restano alla piattaforma.
+    let mie = confine(&s, &chi).await;
+    if let Some(mie) = &mie {
+        let sue = id.aziende_di(utente_id).await.unwrap_or_default();
+        if !sue.iter().any(|(aid, _)| mie.contains(aid)) {
+            return (StatusCode::NOT_FOUND, "nessun utente con questo id").into_response();
+        }
+        if m.amministratore_piattaforma.is_some() {
+            return (
+                StatusCode::FORBIDDEN,
+                Json(serde_json::json!({
+                    "error": "riservato_alla_piattaforma",
+                    "detail": "l'amministratore di piattaforma lo nomina la piattaforma"
+                })),
+            )
+                .into_response();
+        }
+    }
+
     // L'ordine conta. Il nome e il ruolo per primi, perche non possono
     // fallire per causa d'altri; i rifiuti che proteggono l'installazione
     // («e l'ultimo amministratore») vengono dopo, e fermano il salvataggio
@@ -303,7 +426,7 @@ async fn modifica_utente(
         }
     }
     if let Some(volute) = m.aziende {
-        let volute: Vec<(i64, Ruolo)> = volute
+        let mut volute: Vec<(i64, Ruolo)> = volute
             .into_iter()
             .map(|a| {
                 (
@@ -312,6 +435,32 @@ async fn modifica_utente(
                 )
             })
             .collect();
+        if let Some(mie) = &mie {
+            // `imposta_appartenenze` sostituisce l'elenco INTERO. Chi
+            // amministra un'azienda ne vede solo una fetta, e salvando
+            // cancellerebbe le appartenenze che non vede — quelle di un altro
+            // cliente, che non sono cosa sua ne' da vedere ne' da togliere.
+            // Quindi: si tiene cio che sta fuori dal suo confine e si
+            // sostituisce solo cio che ci sta dentro.
+            if volute.iter().any(|(aid, _)| !mie.contains(aid)) {
+                return (
+                    StatusCode::FORBIDDEN,
+                    Json(serde_json::json!({
+                        "error": "fuori_dalle_tue_aziende",
+                        "detail": "puoi cambiare solo le appartenenze alle aziende che amministri"
+                    })),
+                )
+                    .into_response();
+            }
+            let fuori: Vec<(i64, Ruolo)> = id
+                .aziende_di(utente_id)
+                .await
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|(aid, _)| !mie.contains(aid))
+                .collect();
+            volute.extend(fuori);
+        }
         if let Err(e) = id.imposta_appartenenze(utente_id, volute).await {
             return errore(e);
         }
@@ -453,18 +602,37 @@ async fn prova_posta(
 /// Tutte le rotte della console, **senza** il livello di autenticazione: lo
 /// applica `router.rs`, insieme a `require_auth`, così il «chi può» sta in un
 /// posto solo.
-pub fn rotte() -> Router<AppState> {
+/// Le rotte aperte anche a chi amministra **un'azienda**, non la piattaforma.
+///
+/// Ognuna confina da sé ciò che restituisce: `elenca_aziende` dà le aziende
+/// che chi guarda amministra, `elenca_utenti` le persone di quelle aziende.
+/// Il confinamento sta **nell'handler** e non in un filtro attorno, perché
+/// quello che va filtrato è il contenuto della risposta, non il diritto di
+/// fare la chiamata.
+pub fn rotte_di_azienda() -> Router<AppState> {
     Router::new()
-        .route(
-            "/api/amministrazione/aziende",
-            get(elenca_aziende).post(crea_azienda),
-        )
+        .route("/api/amministrazione/risorse", get(risorse))
+        .route("/api/amministrazione/aziende", get(elenca_aziende))
         .route("/api/amministrazione/aziende/:id", patch(modifica_azienda))
         .route(
             "/api/amministrazione/utenti",
             get(elenca_utenti).post(crea_utente),
         )
         .route("/api/amministrazione/utenti/:id", patch(modifica_utente))
+        // I marchi si **leggono** per mostrarli; sceglierli è della
+        // piattaforma (decisione del maintainer, 08-10-2026: un marchio è
+        // anche il nome di qualcun altro).
+        .route("/api/amministrazione/marchi", get(crate::marchi::elenca))
+}
+
+/// Le rotte che restano alla sola piattaforma.
+///
+/// Non sono di nessuna azienda: la posta è dell'installazione, i marchi sono
+/// un catalogo comune, e creare un'azienda è l'atto con cui la piattaforma
+/// accetta un cliente nuovo.
+pub fn rotte_di_piattaforma() -> Router<AppState> {
+    Router::new()
+        .route("/api/amministrazione/aziende", axum::routing::post(crea_azienda))
         .route(
             "/api/amministrazione/smtp",
             get(leggi_posta).put(scrivi_posta),
@@ -477,10 +645,6 @@ pub fn rotte() -> Router<AppState> {
         // di database, e portano con sé la questione di come servirli senza
         // che un SVG caricato da terzi possa eseguire script.
         .route(
-            "/api/amministrazione/marchi",
-            get(crate::marchi::elenca),
-        )
-        .route(
             "/api/amministrazione/marchi/:id",
             axum::routing::put(crate::marchi::salva).delete(crate::marchi::elimina),
         )
@@ -488,4 +652,164 @@ pub fn rotte() -> Router<AppState> {
             "/api/amministrazione/marchi/:id/file/:nome",
             axum::routing::put(crate::marchi::carica_file),
         )
+}
+
+// ── Le risorse ───────────────────────────────────────────────────────────────
+//
+// La prima pagina della console (decisione del maintainer, 08-10-2026): «un
+// sinottico dove poter visualizzare in un colpo d'occhio unico tutte le
+// risorse disponibili e quante sono al limite».
+//
+// Due risorse hanno un tetto concordato — lo **spazio** e i **progetti
+// aperti** — e una terza, lo stato della macchina, non è di nessuna azienda
+// ma dice se il limite vero sta arrivando per tutti.
+//
+// **Lo spazio si spacca in progetti e storico.** Chi arriva al limite ci
+// arriva quasi sempre per lo storico, che cresce da solo nel tempo mentre i
+// sinottici no: dire «sei pieno» senza dire di cosa non aiuta a decidere cosa
+// cancellare.
+
+/// Per quanto vale una misura prima di rifarla.
+///
+/// Sommare le dimensioni di un albero di cartelle costa, e il sinottico si
+/// apre spesso: si misura una volta al minuto e si serve l'ultimo valore. Il
+/// momento della misura viaggia nella risposta — **un dato vecchio che si
+/// dichiara vecchio è utile, uno che finge di essere fresco no**.
+const VALIDITA_MISURA_MS: u64 = 60_000;
+
+static MISURA: std::sync::OnceLock<tokio::sync::Mutex<Option<(u64, serde_json::Value)>>> =
+    std::sync::OnceLock::new();
+
+/// Lo spazio di una cartella, diviso fra storico e tutto il resto.
+///
+/// Ricorsiva e sincrona: gira in `spawn_blocking`, perché su un disco lento e
+/// con molti progetti non deve tenere occupato l'esecutore asincrono.
+fn pesa(dir: &std::path::Path) -> (u64, u64) {
+    let (mut progetti, mut storico) = (0u64, 0u64);
+    let Ok(rd) = std::fs::read_dir(dir) else {
+        return (0, 0);
+    };
+    for e in rd.flatten() {
+        let Ok(tipo) = e.file_type() else { continue };
+        if tipo.is_dir() {
+            // `history/` è lo storico, ovunque si trovi nell'albero: è il
+            // nome che il runtime usa per i suoi database.
+            let (p, s) = pesa(&e.path());
+            if e.file_name() == "history" {
+                storico += p + s;
+            } else {
+                progetti += p;
+                storico += s;
+            }
+        } else if let Ok(m) = e.metadata() {
+            progetti += m.len();
+        }
+    }
+    (progetti, storico)
+}
+
+async fn risorse(State(s): State<AppState>, Extension(chi): Extension<AuthUser>) -> Response {
+    let id = match identita(&s) {
+        Ok(i) => i,
+        Err(r) => return r,
+    };
+    let mie = confine(&s, &chi).await;
+
+    let cella = MISURA.get_or_init(|| tokio::sync::Mutex::new(None));
+    let mut cache = cella.lock().await;
+    let adesso = sws_core::now_ms();
+    let fresca = cache
+        .as_ref()
+        .is_some_and(|(quando, _)| adesso.saturating_sub(*quando) < VALIDITA_MISURA_MS);
+
+    if !fresca {
+        let aziende = id.elenca_aziende().await.unwrap_or_default();
+        let radice = s.projects_root.as_ref().clone();
+        let misurato = tokio::task::spawn_blocking(move || {
+            let mut righe = Vec::new();
+            for a in &aziende {
+                // L'azienda implicita è la radice stessa: si pesano i suoi
+                // progetti, non le sottocartelle delle altre aziende.
+                let (progetti, storico) = if a.cartella.is_empty() {
+                    let mut p = 0u64;
+                    let mut st = 0u64;
+                    if let Ok(rd) = std::fs::read_dir(&radice) {
+                        for e in rd.flatten() {
+                            if !e.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                                continue;
+                            }
+                            // Una sottocartella che è di un'altra azienda non
+                            // è della radice: si salta, o verrebbe contata due
+                            // volte.
+                            let nome = e.file_name().to_string_lossy().to_string();
+                            if aziende.iter().any(|x| !x.cartella.is_empty() && x.cartella == nome) {
+                                continue;
+                            }
+                            let (pp, ss) = pesa(&e.path());
+                            p += pp;
+                            st += ss;
+                        }
+                    }
+                    (p, st)
+                } else {
+                    pesa(&radice.join(&a.cartella))
+                };
+                righe.push(serde_json::json!({
+                    "id": a.id,
+                    "nome": a.nome,
+                    "implicita": a.implicita,
+                    "progetti_byte": progetti,
+                    "storico_byte": storico,
+                    "max_byte": a.max_byte,
+                    "max_progetti_aperti": a.max_progetti,
+                }));
+            }
+            righe
+        })
+        .await
+        .unwrap_or_default();
+
+        let mut sys = sysinfo::System::new_all();
+        sys.refresh_all();
+        let dischi = sysinfo::Disks::new_with_refreshed_list();
+        let disco = dischi.list().first();
+        let macchina = serde_json::json!({
+            "disco_totale_byte": disco.map(|d| d.total_space()).unwrap_or(0),
+            "disco_libero_byte": disco.map(|d| d.available_space()).unwrap_or(0),
+            "ram_totale_byte": sys.total_memory(),
+            "ram_usata_byte": sys.used_memory(),
+            "cpu_percento": sys.global_cpu_info().cpu_usage(),
+        });
+        *cache = Some((adesso, serde_json::json!({"aziende": misurato, "macchina": macchina})));
+    }
+
+    let (quando, dati) = cache.clone().unwrap_or((adesso, serde_json::json!({})));
+    drop(cache);
+
+    let mut aziende = dati
+        .get("aziende")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+    if let Some(ids) = &mie {
+        aziende.retain(|a| a.get("id").and_then(|x| x.as_i64()).is_some_and(|x| ids.contains(&x)));
+    }
+
+    // Quanti progetti sono aperti **adesso**: su un'istanza sola, al più uno.
+    // Il tetto si configura e si mostra, applicarlo tocca al gateway (Fase 4):
+    // lo dice la risposta, e la console lo scrive accanto al numero — un campo
+    // inerte va bene, un campo inerte che finge di funzionare no.
+    let aperto_qui = s.project_dir.read().await.is_some();
+
+    Json(serde_json::json!({
+        "aziende": aziende,
+        // Lo stato della macchina non è di nessuna azienda: lo vede solo chi
+        // amministra la piattaforma.
+        "macchina": if mie.is_none() { dati.get("macchina").cloned() } else { None },
+        "misurato_ms": quando,
+        "validita_ms": VALIDITA_MISURA_MS,
+        "progetti_aperti_ora": if aperto_qui { 1 } else { 0 },
+        "progetti_aperti_si_applicano": false,
+    }))
+    .into_response()
 }

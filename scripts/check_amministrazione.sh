@@ -52,20 +52,46 @@ else
     esito ko "rotte fuori dal prefisso: ${fuori[*]}"
 fi
 
-# 2. il router monta il gruppo con TUTTE E DUE le guardie
-blocco=$(awk '/let amministrazione = crate::amministrazione::rotte\(\)/ {dentro=1}
+# 2. ogni rotta del modulo sta in UNO DEI DUE gruppi
+#
+#    Dal 08-10-2026 (Fase 3c) la console non e piu della sola piattaforma:
+#    `rotte_di_piattaforma()` tiene cio che non e di nessuna azienda (posta,
+#    catalogo marchi, creazione di un'azienda), `rotte_di_azienda()` cio che
+#    ogni handler confina a quel che chi guarda amministra.
+#
+#    Prima qui bastava «il router monta `rotte()`». Con due gruppi quella
+#    domanda non basta piu: una rotta nuova scritta nel modulo ma dimenticata
+#    fuori da entrambi non sarebbe raggiungibile — oppure, peggio, finirebbe
+#    nel gruppo sbagliato ed esisterebbe senza la protezione giusta.
+in_gruppi=$(awk '/pub fn rotte_di_(piattaforma|azienda)\(\)/ {dentro=1}
+                 dentro {print}
+                 dentro && /^\}/ {dentro=0}' "$MOD" | grep -oE '"/api/amministrazione[^"]*"' | tr -d '"' | sort -u)
+orfane=()
+for r in "${ROTTE[@]:-}"; do
+    echo "$in_gruppi" | grep -qxF "$r" || orfane+=("$r")
+done
+if [ "${#orfane[@]}" -eq 0 ]; then
+    esito ok "ogni rotta sta in uno dei due gruppi"
+else
+    esito ko "rotte in nessun gruppo (irraggiungibili o non protette): ${orfane[*]}"
+fi
+
+# 2b. e i due gruppi sono montati, ciascuno con la sua guardia
+blocco=$(awk '/let amministrazione = crate::amministrazione::rotte_di_piattaforma\(\)/ {dentro=1}
               dentro {print}
-              dentro && /;[[:space:]]*$/ {exit}' "$ROUTER")
+              dentro && /^[[:space:]]*\.route_layer\(middleware::from_fn_with_state\(state\.clone\(\), require_auth\)\);/ {exit}' "$ROUTER")
 if [ -z "$blocco" ]; then
-    esito ko "il router non monta più \`amministrazione::rotte()\`: le rotte esistono e non sono protette"
+    esito ko "il router non monta piu i due gruppi della console: le rotte esistono e non sono protette"
 else
     manca=()
+    echo "$blocco" | grep -q "rotte_di_azienda" || manca+=("rotte_di_azienda")
     echo "$blocco" | grep -q "require_amministratore_piattaforma" || manca+=("require_amministratore_piattaforma")
+    echo "$blocco" | grep -q "require_console" || manca+=("require_console")
     echo "$blocco" | grep -q "require_auth" || manca+=("require_auth")
     if [ "${#manca[@]}" -eq 0 ]; then
-        esito ok "il gruppo è dietro require_auth e require_amministratore_piattaforma"
+        esito ok "i due gruppi sono dietro require_auth, piu la guardia che gli spetta"
     else
-        esito ko "guardie mancanti sul gruppo: ${manca[*]}"
+        esito ko "mancano nel montaggio della console: ${manca[*]}"
     fi
 fi
 

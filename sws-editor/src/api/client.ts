@@ -802,6 +802,36 @@ export type Azienda = {
 /** Un'appartenenza: l'azienda e il ruolo che l'utente vi ha. */
 export type Appartenenza = { id: number; nome: string; implicita: boolean; ruolo: string };
 
+/** Quello che il sinottico delle risorse mostra. */
+export type RisorseConsole = {
+  aziende: {
+    id: number;
+    nome: string;
+    implicita: boolean;
+    progetti_byte: number;
+    storico_byte: number;
+    max_byte: number | null;
+    max_progetti_aperti: number | null;
+  }[];
+  /** Solo per l'amministratore di piattaforma: non e di nessuna azienda. */
+  macchina: {
+    disco_totale_byte: number;
+    disco_libero_byte: number;
+    ram_totale_byte: number;
+    ram_usata_byte: number;
+    cpu_percento: number;
+  } | null;
+  /** Quando la misura e stata presa, e per quanto vale: sommare un albero di
+   *  cartelle costa, quindi si misura una volta al minuto. Un dato vecchio
+   *  che si dichiara vecchio e utile. */
+  misurato_ms: number;
+  validita_ms: number;
+  progetti_aperti_ora: number;
+  /** Oggi falso: il tetto si configura e si mostra, applicarlo tocca al
+   *  gateway (Fase 4). La console lo scrive accanto al numero. */
+  progetti_aperti_si_applicano: boolean;
+};
+
 export type UtenteInstallazione = {
   /** Le aziende di cui fa parte. Viaggiano con l'utente e non su una chiamata
    *  a parte, perche la pagina deve poterle MOSTRARE accanto al nome: senza,
@@ -884,10 +914,22 @@ export const api = {
   /// Le aziende di chi e collegato. Non l'elenco della console, che e di
   /// tutte e lo vede solo l'amministratore di piattaforma: queste sono le
   /// proprie, e servono a decidere se mostrare una scelta.
+  /** Il marchio dell'azienda di chi e collegato: `null` = quello standard.
+   *  Si sa solo dopo l'accesso — prima del login non si sa di chi sara la
+   *  sessione, e `active.json` e uno per installazione. */
+  marchioMio: () =>
+    request<{ marchio: string | null }>("/api/identita/marchio"),
+
   mieAziende: () =>
     request<{ id: number; nome: string; implicita: boolean; ruolo: string }[]>(
       "/api/identita/mie-aziende",
     ),
+
+  /** Le risorse: la prima pagina della console. Chi amministra un'azienda ne
+   *  riceve una sola, e senza lo stato della macchina — quello non e di
+   *  nessuna azienda. */
+  amministrazioneRisorse: () =>
+    request<RisorseConsole>("/api/amministrazione/risorse"),
 
   amministrazioneAziende: () =>
     request<Azienda[]>("/api/amministrazione/aziende"),

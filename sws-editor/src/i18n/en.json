@@ -518,7 +518,8 @@
     "barraNAziende": "{{n}} companies",
     "altreAziende": "Other companies — visible to you as a platform administrator",
     "vistaGriglia": "Icons",
-    "vistaLista": "List"
+    "vistaLista": "List",
+    "barraIde": "Back to the editor"
   },
   "logs": {
     "history": "History…",
@@ -2756,13 +2757,14 @@
     "si": "yes",
     "no": "no",
     "nonPermesso": "This console is not for you",
-    "nonPermessoSpiegazione": "You need to be a platform administrator: that is who approves companies, and it is a different role from administering your own. Ask whoever administers this installation.",
+    "nonPermessoSpiegazione": "You need to be a platform administrator, or an administrator of at least one company. Ask whoever administers this installation.",
     "scheda": {
       "aziende": "Companies",
       "persone": "People",
       "installazione": "This installation",
       "marchi": "Brands",
-      "posta": "Mail"
+      "posta": "Mail",
+      "risorse": "Resources"
     },
     "stato": {
       "in_prova": "trial",
@@ -2789,7 +2791,19 @@
       "colonnaNome": "Company",
       "colonnaStato": "Status",
       "colonnaMarchio": "Brand",
-      "colonnaVersione": "Version"
+      "colonnaVersione": "Version",
+      "spazio": "Agreed space (GB)",
+      "progettiAperti": "Simultaneously open projects",
+      "senzaLimite": "no limit",
+      "progettiApertiAvviso": "The limit is agreed and visible, but not enforced yet: the gateway will enforce it, once each open project is its own container.",
+      "marchioEsclusivo": "A brand belongs to one company only: ones already assigned do not appear. If two need it, duplicate it under another name.",
+      "nome": "Name",
+      "nonSalvate": "unsaved changes",
+      "salva": "Save",
+      "salvataggio": "Saving…",
+      "annulla": "Cancel",
+      "abbandona": "There are unsaved changes on this company. Discard them?",
+      "soloLettura": "State, brand, version and resources are decided by whoever administers the platform: here you see them, you do not change them. You can change the name."
     },
     "persone": {
       "email": "Email",
@@ -2847,7 +2861,8 @@
       "delProdottoAvviso": "This brand ships with the product. Saving creates a copy belonging to this installation that covers it: the original stays underneath and comes back if you delete the copy.",
       "avanzato": "IDE defaults (JSON)",
       "avanzatoNota": "Available panels, data paths and shades: edited as text because they are structured lists, and seeing what you write is more honest than an editor that hides half of them.",
-      "jsonNonValido": "The defaults JSON is not valid:"
+      "jsonNonValido": "The defaults JSON is not valid:",
+      "soloLettura": "Your company brand is assigned by whoever administers the platform: here you see it, you do not change it."
     },
     "posta": {
       "host": "Server",
@@ -2864,6 +2879,22 @@
       "inviata": "Sent to {{a}}. If it does not arrive, check the spam folder too.",
       "provaNota": "Otherwise a wrong configuration shows up the day someone registers and receives nothing — and registration gets the blame.",
       "ovhAvviso": "On OVH VPS outbound port 25 is blocked: you need a relay on 587 (Infomaniak: mail.infomaniak.com). Without PTR, SPF and DKIM the mail lands in spam."
+    },
+    "risorse": {
+      "attendi": "Measuring resources…",
+      "spazio": "Space",
+      "progetti": "projects",
+      "storico": "history",
+      "progettiAperti": "Open projects",
+      "macchina": "This machine",
+      "disco": "Disk",
+      "ram": "Memory",
+      "cpu": "CPU",
+      "quasiEsaurito": "almost full",
+      "esaurito": "full",
+      "senzaTetto": "no agreed limit",
+      "tettoNonApplicato": "The limit is agreed but not enforced yet: the gateway will enforce it, once each open project is its own container.",
+      "misurato": "Measured at {{ora}}. Sizes are recomputed once a minute."
     }
   }
 }

@@ -55,6 +55,7 @@ import { useProjectWatcher } from "@/ws/projectWatcher";
 import { useBuildWatcher } from "@/ws/buildWatcher";
 import { useCertWatcher } from "@/ws/certWatcher";
 import { canEditProject, canConfigureProject } from "@/auth/permissions";
+import { useMarchioDellAzienda } from "@/branding/perAzienda";
 
 // Port 8444 — full IDE (canvas editor + ConfigView + project management).
 // Served via admin-main.tsx which calls setForceLocalApi(true) before render.
@@ -262,6 +263,8 @@ export function App() {
   const noActiveProject        = useAppStore((s) => s.noActiveProject);
   const setNoActiveProject     = useAppStore((s) => s.setNoActiveProject);
   const reAuthNeeded           = useAppStore((s) => s.reAuthNeeded);
+  // Il marchio segue l'azienda di chi e entrato, non l'installazione.
+  useMarchioDellAzienda(authToken);
   const setReAuthNeeded        = useAppStore((s) => s.setReAuthNeeded);
   const setProgettoHaUtenti    = useAppStore((s) => s.setProgettoHaUtenti);
   const setPages       = useAppStore((s) => s.setPages);
