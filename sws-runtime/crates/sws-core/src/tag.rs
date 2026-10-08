@@ -296,6 +296,31 @@ impl TagDb {
             (Some(s), TagValue::Int(v)) => TagValue::Float(s.to_eng(v as f64)),
             (_, v) => v,
         };
+        self.set_tipizzato(id, scaled, quality).await;
+    }
+
+    /// Come [`ingest`](Self::ingest) **senza la scalatura**: porta il valore al
+    /// tipo dichiarato e lo scrive.
+    ///
+    /// Serve a chi produce valori già in unità ingegneristiche — i tag
+    /// **derivati** (un'espressione) e i **generatori** d'onda — che non
+    /// devono passare da `raw→eng`: quella scala converte ciò che arriva dal
+    /// campo, e applicarla a un valore che è già ingegneristico lo
+    /// convertirebbe due volte.
+    ///
+    /// **Perché esiste.** Fino al 08-10-2026 quei due scrivevano con `set`
+    /// diretto, saltando ogni conversione: un generatore a rampa su un tag
+    /// dichiarato `u8` metteva in `TagDb` `41.333333333333336`, e l'IDE lo
+    /// mostrava così nella colonna «Live value». Segnalato dal maintainer.
+    /// La conversione esisteva già in due versioni — `coerce_for_write` per le
+    /// scritture utente (rifiuta ciò che perde informazione) e `ingest` per il
+    /// campo (arrotonda e satura) — e questi due percorsi non passavano da
+    /// nessuna delle due. Una regola applicata a due strade su quattro.
+    ///
+    /// Un generatore è una **sorgente** di valori, non una scrittura
+    /// dell'utente: la regola giusta è quella del campo, che arrotonda invece
+    /// di rifiutare. Un tag senza tipo dichiarato passa com'era.
+    pub async fn set_tipizzato(&self, id: TagId, scaled: TagValue, quality: TagQuality) {
         let tipo = self
             .data_types
             .read()
@@ -973,6 +998,71 @@ mod tests {
         // identità
         assert_eq!(coerce_value("bool", Bool(true)), Ok(Bool(true)));
         assert_eq!(coerce_value("string", Str("s".into())), Ok(Str("s".into())));
+    }
+
+    /// Un valore prodotto in casa — generatore o espressione — si porta al
+    /// tipo dichiarato come quello che arriva dal campo.
+    ///
+    /// Il caso vero: generatore a rampa 0..100 su un tag `u8`. Scriveva
+    /// `41.333333333333336` perche passava da `set` diretto, saltando ogni
+    /// conversione. Segnalato dal maintainer l'08-10-2026 guardando la
+    /// colonna «Live value».
+    #[tokio::test]
+    async fn un_valore_generato_prende_il_tipo_del_tag() {
+        let db = TagDb::new(16);
+        db.set_data_types(
+            [
+                ("rampa".to_string(), "u8".to_string()),
+                ("libero".to_string(), "f64".to_string()),
+            ]
+            .into(),
+        )
+        .await;
+
+        db.set_tipizzato("rampa".into(), TagValue::Float(41.333_333_333_333_336), TagQuality::Good)
+            .await;
+        assert_eq!(
+            db.get("rampa").await.map(|v| v.value),
+            Some(TagValue::Int(41)),
+            "un u8 non tiene 41,33"
+        );
+
+        // Un tag che il decimale lo vuole davvero non si tocca.
+        db.set_tipizzato("libero".into(), TagValue::Float(41.5), TagQuality::Good)
+            .await;
+        assert_eq!(db.get("libero").await.map(|v| v.value), Some(TagValue::Float(41.5)));
+
+        // Un tag senza tipo dichiarato passa com'era: creato al volo, nessun
+        // contratto da rispettare.
+        db.set_tipizzato("ignoto".into(), TagValue::Float(0.25), TagQuality::Good)
+            .await;
+        assert_eq!(db.get("ignoto").await.map(|v| v.value), Some(TagValue::Float(0.25)));
+    }
+
+    /// `set_tipizzato` NON applica la scala raw→eng, `ingest` sì.
+    ///
+    /// È la ragione per cui sono due funzioni e non una: un generatore
+    /// produce già unità ingegneristiche, e passarlo da `ingest` lo
+    /// convertirebbe due volte.
+    #[tokio::test]
+    async fn il_generato_non_passa_dalla_scala_del_campo() {
+        let db = TagDb::new(16);
+        db.set_data_types([("t".to_string(), "f64".to_string())].into())
+            .await;
+        db.set_scales([("t".to_string(), LinearScale { raw_min: 0.0, raw_max: 100.0, eng_min: 0.0, eng_max: 200.0 })].into())
+            .await;
+
+        // Dal campo: 50 raw diventa 100 ingegneristici.
+        db.ingest("t".into(), TagValue::Float(50.0), TagQuality::Good).await;
+        assert_eq!(db.get("t").await.map(|v| v.value), Some(TagValue::Float(100.0)));
+
+        // Prodotto in casa: 50 resta 50.
+        db.set_tipizzato("t".into(), TagValue::Float(50.0), TagQuality::Good).await;
+        assert_eq!(
+            db.get("t").await.map(|v| v.value),
+            Some(TagValue::Float(50.0)),
+            "la scala del campo e stata applicata a un valore gia ingegneristico"
+        );
     }
 
     /// Q27 — un tag fuori mappa non è vincolato; uno in mappa sì, e il

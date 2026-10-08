@@ -85,6 +85,17 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   progetti dell'azienda B. L'amministratore di piattaforma li vede tutti, in una sezione a parte e contrassegnati.
 
 ### Fixed
+- **Un salvataggio rifiutato nella configurazione adesso lo dice.** Variabili, allarmi, protocolli, ricette e tipi
+  salvavano dentro `try { … } finally { … }` **senza `catch`**: un 409 per conflitto di versione, un 401 o un 503
+  sparivano senza messaggio, e il pannello continuava a mostrare il valore appena scritto mentre il runtime restava
+  com'era. Gli errori vanno ora su `saveStatus`/`saveError` (accanto al pulsante di salvataggio) e sul banner di
+  conflitto che già esisteva. Guardia nuova `check_salvataggio_muto.sh`.
+- **Un tag `u8` non mostra più `41.333333333333336`.** I generatori d'onda e i tag derivati scrivevano in `TagDb`
+  con `set` diretto, saltando la conversione al tipo dichiarato. La conversione esisteva già in due versioni —
+  `coerce_for_write` per le scritture utente (rifiuta ciò che perde informazione) e `ingest` per i valori dal campo
+  (arrotonda e satura) — applicate ovunque tranne in quei due punti: due strade su quattro. Ora passano da
+  `set_tipizzato`, che è `ingest` **senza** la scalatura raw→eng, perché un generatore produce già unità
+  ingegneristiche e passarlo da `ingest` lo convertirebbe due volte. Guardia nuova `check_tipo_dei_valori.sh`.
 - **Dopo un log-out si torna all'elenco dei progetti, non dentro quello di prima.** Il progetto aperto è uno stato
   globale dell'istanza e non di chi è collegato: rientrando si ereditava il progetto di chi c'era prima — e poteva
   essere di un'azienda che il nuovo arrivato non può vedere, perché le rotte `/api/project/*` lavorano sull'attivo

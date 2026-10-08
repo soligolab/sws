@@ -17,6 +17,7 @@ import { sourceTagIds } from "@/tagCatalog";
 import { tagSorgenteSenzaVariabile } from "@/tag/riconciliaTag";
 import { useSezioneSincronizzata } from "@/config/useSezioneSincronizzata";
 import { TRANS_COMP, BarraConflittoSezione, S, SaveBar } from "@/config/comuni";
+import { segnalaSalvataggioFallito } from "@/config/salvataggioFallito";
 
 // ── TAG tab ───────────────────────────────────────────────────────────────────
 
@@ -262,6 +263,10 @@ export function TagsTab({ scheda }: { scheda: IdScheda }) {
       // esternamente" sulla stessa sessione che ha appena salvato.
       markSaveOk();
       setTimeout(() => setSaved(false), 4000);
+    } catch (e: unknown) {
+      // Un salvataggio rifiutato deve dirlo: prima qui c'era un `finally`
+      // nudo, e l'errore spariva. Vedi `segnalaSalvataggioFallito`.
+      segnalaSalvataggioFallito(e);
     } finally {
       setSaving(false);
     }

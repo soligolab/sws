@@ -22,6 +22,7 @@ import {
   dispositiviDi, eBusModbus, etichettaDispositivo, focusDispositivo, idElementiProtocolli, leggiFocus,
 } from "@/config/sorgenti/modbusDispositivi";
 import type { VoceElencoConfig } from "@/store";
+import { segnalaSalvataggioFallito } from "@/config/salvataggioFallito";
 
 // ── PROTOCOLS tab ─────────────────────────────────────────────────────────────
 
@@ -133,6 +134,10 @@ export function ProtocolsTab() {
       // scatta anche sulla sessione che ha appena salvato.
       markSaveOk();
       setTimeout(() => setSaved(false), 5000);
+    } catch (e: unknown) {
+      // Un salvataggio rifiutato deve dirlo: prima qui c'era un `finally`
+      // nudo, e l'errore spariva. Vedi `segnalaSalvataggioFallito`.
+      segnalaSalvataggioFallito(e);
     } finally {
       setSaving(false);
     }

@@ -807,7 +807,13 @@ async fn main() -> anyhow::Result<()> {
                         for (id, expr) in pairs {
                             match sws_pyscript::eval_expression(expr, snapshot.clone()).await {
                                 Ok(value) => {
-                                    db.set(id, value, TagQuality::Good).await;
+                                    // `set_tipizzato` e non `set`: un tag
+                                    // derivato dichiarato `i32` non deve
+                                    // tenere il 29,8 che l'espressione ha
+                                    // prodotto. Non `ingest`, che
+                                    // applicherebbe anche la scala raw→eng:
+                                    // qui il valore e gia ingegneristico.
+                                    db.set_tipizzato(id, value, TagQuality::Good).await;
                                 }
                                 Err(e) => {
                                     warn!(tag = %id, "derived tag eval error: {e}");
@@ -850,7 +856,12 @@ async fn main() -> anyhow::Result<()> {
                     .unwrap_or(0);
                 for (id, spec) in pairs {
                     let value = spec.value_at(now_ms);
-                    db.set(id, sws_core::TagValue::Float(value), TagQuality::Good)
+                    // Il generatore calcola in virgola mobile — una rampa e
+                    // una funzione continua del tempo — ma il tag ha un tipo
+                    // dichiarato, e quello comanda: una rampa 0..100 su un
+                    // `u8` vale 41, non 41,333333333333336. Segnalato dal
+                    // maintainer l'08-10-2026.
+                    db.set_tipizzato(id, sws_core::TagValue::Float(value), TagQuality::Good)
                         .await;
                 }
             }

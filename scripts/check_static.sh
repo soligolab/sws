@@ -49,6 +49,8 @@ STATICHE=(
     check_confinamento      # chi riceve un percorso da fuori lo confina nella radice dei progetti (Q46), tutti
     check_audit_attore      # ogni azione della console di amministrazione dice chi l'ha fatta
     check_indirizzo_progetto # chi riceve l'indirizzo di un progetto passa dal risolutore che verifica l'azienda
+    check_tipo_dei_valori   # un valore che entra in TagDb passa dal tipo dichiarato del tag
+    check_salvataggio_muto  # un salvataggio rifiutato lo dice, invece di sparire
     check_sonda             # la sonda del dispositivo (Q52) gira con sh -s e stampa solo fatti
     check_barra_allarmi     # alarm_banner: web e LVGL selezionano gli stessi stati ISA
     check_via_di_fuga       # la via di fuga STOP del pannello resta raggiungibile

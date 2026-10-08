@@ -10,6 +10,7 @@ import { useSezioneSincronizzata } from "@/config/useSezioneSincronizzata";
 import { CampoTestoTradotto } from "@/editor/CampoTestoTradotto";
 import { TRANS_COMP, BarraConflittoSezione, S, SaveBar } from "@/config/comuni";
 import { livelliDi, unisciAllarmi } from "./unisciAllarmi";
+import { segnalaSalvataggioFallito } from "@/config/salvataggioFallito";
 
 // ── ALARMS tab ────────────────────────────────────────────────────────────────
 
@@ -169,6 +170,10 @@ export function AlarmsTab() {
       // scatta anche sulla sessione che ha appena salvato.
       markSaveOk();
       setTimeout(() => setSaved(false), 4000);
+    } catch (e: unknown) {
+      // Un salvataggio rifiutato deve dirlo: prima qui c'era un `finally`
+      // nudo, e l'errore spariva. Vedi `segnalaSalvataggioFallito`.
+      segnalaSalvataggioFallito(e);
     } finally {
       setSaving(false);
     }

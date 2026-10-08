@@ -19,6 +19,10 @@
 versioni:
   - versione: "2.13.0"
     voci:
+      - it: "Se un salvataggio della configurazione viene rifiutato ora lo dice: prima spariva in silenzio e sembrava riuscito."
+        en: "If a configuration save is rejected it now says so: before it vanished silently and looked successful."
+      - it: "Una variabile intera resta intera: un generatore d'onda su un tag u8 o i16 non mostra più valori con la virgola."
+        en: "An integer variable stays integer: a waveform generator on a u8 or i16 tag no longer shows fractional values."
       - it: "Dopo il log-out si rientra sull'elenco dei progetti, non dentro quello aperto prima: così chi entra non si ritrova il lavoro di qualcun altro."
         en: "After logging out you come back to the project list, not into the project that was open: nobody inherits someone else's work."
       - it: "Ogni azienda può avere progetti con lo stesso nome di un'altra: i progetti ora si indirizzano per azienda, e chi non ne fa parte non li raggiunge."

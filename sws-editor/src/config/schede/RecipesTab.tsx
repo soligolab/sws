@@ -7,6 +7,7 @@ import { DataTable, type DataTableColumn } from "@/components/DataTable";
 import { TagInput } from "@/components/TagInput";
 import type { RecipeDef, RecipeSummary } from "@/types";
 import { S, SaveBar } from "@/config/comuni";
+import { segnalaSalvataggioFallito } from "@/config/salvataggioFallito";
 
 // ── RECIPES tab ───────────────────────────────────────────────────────────────
 
@@ -59,6 +60,10 @@ export function RecipesTab() {
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
       await loadList();
+    } catch (e: unknown) {
+      // Un salvataggio rifiutato deve dirlo: prima qui c'era un `finally`
+      // nudo, e l'errore spariva. Vedi `segnalaSalvataggioFallito`.
+      segnalaSalvataggioFallito(e);
     } finally { setLoading(false); }
   };
 

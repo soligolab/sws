@@ -21,6 +21,7 @@ import { FormaNonValida, foglieDi } from "@/tag/forma";
 import { motivoNomeIstanza, nomeIstanzaProposto } from "@/tag/istanze";
 import type { Membro, TagDataType, TypeDef } from "@/types";
 import { S, SaveBar, SezionePendente } from "@/config/comuni";
+import { segnalaSalvataggioFallito } from "@/config/salvataggioFallito";
 
 const IN: React.CSSProperties = {
   width: "100%", boxSizing: "border-box", background: "var(--brand-bg, #0f172a)",
@@ -166,6 +167,10 @@ export function TipiTab({ incorporata = false, onIstanzaCreata, variabiliToccate
       setSaved(true);
       markSaveOk();
       setTimeout(() => setSaved(false), 4000);
+    } catch (e: unknown) {
+      // Un salvataggio rifiutato deve dirlo: prima qui c'era un `finally`
+      // nudo, e l'errore spariva. Vedi `segnalaSalvataggioFallito`.
+      segnalaSalvataggioFallito(e);
     } finally {
       setSaving(false);
     }
