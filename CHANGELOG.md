@@ -27,6 +27,24 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   indirizzo pubblico. **Sui pannelli non cambia nulla**: lì gli utenti restano quelli del progetto.
 
 ### Added
+- **La console di amministrazione si apre anche a chi amministra un'azienda**, e gli mostra solo la sua: aziende,
+  persone, marchio. Posta e Questa installazione non compaiono affatto — non sono di nessuna azienda. Stato,
+  marchio, versione e risorse le decide la piattaforma e si vedono spente: un comando che non può riuscire non si
+  offre.
+- **Un sinottico delle risorse come prima pagina della console**: per azienda lo spazio — spaccato in *progetti* e
+  *storico*, perché chi arriva al limite ci arriva quasi sempre per lo storico — e i progetti aperti col loro tetto.
+  In fondo, solo per la piattaforma, lo stato della macchina. Le dimensioni si misurano una volta al minuto e la
+  pagina scrive quando: un dato vecchio che si dichiara vecchio è utile, uno che finge di essere fresco no.
+- **Le risorse concordate si impostano** nella scheda dell'azienda (spazio in GB, progetti aperti). Il tetto sui
+  progetti aperti è dichiaratamente **non ancora applicato**: lo farà rispettare il gateway.
+- **Il marchio segue l'azienda di chi entra**, non l'installazione: prima `branding/active.json` era uno solo e si
+  leggeva prima del login, quando non si sa ancora di chi sarà la sessione — per questo i preset dei dispositivi di
+  un marchio non arrivavano agli utenti dell'azienda a cui era assegnato. La schermata di accesso resta
+  sull'installazione: lì un marchio d'azienda non si può conoscere.
+- **Un marchio è di una sola azienda.** Assegnarlo a una seconda si rifiuta, dicendo di chi è: se due lo
+  condividessero, cambiarlo per una lo cambierebbe per entrambe senza che nessuna lo sappia.
+- Dalla console si esce: la barra con nome, azienda e uscita sta anche lì, e offre il ritorno all'editor. E dall'IDE
+  il link alla console compare anche a chi amministra un'azienda.
 - **Il pannello di un utente, nella console, si salva.** Prima ogni comando si applicava da solo appena lo toccavi —
   nessuna conferma, nessun riscontro — e nome e ruolo non si potevano cambiare affatto. Ora il pannello è un modulo:
   nome, ruolo, amministratore di piattaforma, appartenenze, reset della password e attivazione si modificano in
