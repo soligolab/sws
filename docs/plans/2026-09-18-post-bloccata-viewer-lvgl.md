@@ -112,7 +112,7 @@ in esecuzione, con un tocco vero.
 ## Dalla scheda Q55 — `reqwest` via `rt_handle.spawn()` si blocca per sempre nel viewer LVGL, solo per una POST che riceve 200
 
 *Aperta il 13-09-2026, scoperta durante il collaudo dal vivo di
-[Q36 parte 1](archive/2026-09-12-q36-min-role-lvgl.md) (sessione vera nel client LVGL).*
+[Q36 parte 1](../archive/2026-09-12-q36-min-role-lvgl.md) (sessione vera nel client LVGL).*
 
 **Context.** `sws_auth_keyboard_ready_cb` (`lvgl_render.rs`) chiamava `client::login()` — una
 POST `reqwest` — via `ctx.rt_handle.spawn(async move { ... })`, lo stesso pattern già in uso da

@@ -133,7 +133,10 @@ pub struct Azienda {
     /// La cartella sotto la radice dei progetti. Vuota = la radice stessa,
     /// che e il caso dell'azienda implicita.
     pub cartella: String,
-    pub max_progetti: Option<i64>,
+    /// Quanti progetti l'azienda puo tenere **aperti insieme**: ogni
+    /// progetto aperto e un container da avviare (maintainer, 08-10-2026).
+    /// Non il numero totale di progetti, che non e una quota.
+    pub max_progetti_aperti: Option<i64>,
     pub max_pannelli: Option<i64>,
     pub max_byte: Option<i64>,
     pub creata_ms: u64,
@@ -170,7 +173,7 @@ pub struct ModificaAzienda {
     #[serde(default, deserialize_with = "doppia_opzione")]
     pub versione_predefinita: Option<Option<String>>,
     #[serde(default, deserialize_with = "doppia_opzione")]
-    pub max_progetti: Option<Option<i64>>,
+    pub max_progetti_aperti: Option<Option<i64>>,
     #[serde(default, deserialize_with = "doppia_opzione")]
     pub max_pannelli: Option<Option<i64>>,
     #[serde(default, deserialize_with = "doppia_opzione")]
@@ -291,15 +294,29 @@ fn colonna_presente(conn: &Connection, tabella: &str, sql_alter: &str) -> bool {
     let Some(nome) = sql_alter.split("ADD COLUMN ").nth(1).and_then(|r| r.split(' ').next()) else {
         return true; // non so cosa aggiungere: meglio non provarci
     };
+    ha_colonna(conn, tabella, nome)
+}
+
+/// La domanda semplice: **questa tabella ha questa colonna?**
+///
+/// Separata da [`colonna_presente`], che prende un'istruzione `ADD COLUMN` e
+/// ne estrae il nome. Erano la stessa funzione, e il 09-10-2026 ci ho
+/// sbattuto: chiamandola con un nome di colonna nudo, lo `split("ADD COLUMN ")`
+/// non trova niente e la funzione risponde `true` — «c'e gia», che per un
+/// `ADD COLUMN` e la risposta prudente e per una domanda diretta e una
+/// bugia. La migrazione che dipendeva da quella risposta non e mai partita,
+/// in silenzio.
+///
+/// In caso di dubbio risponde `true`, come prima: chi la usa decide di **non**
+/// agire, e non agire su un'incertezza e piu sicuro che agire.
+fn ha_colonna(conn: &Connection, tabella: &str, nome: &str) -> bool {
     let mut q = match conn.prepare(&format!("PRAGMA table_info({tabella})")) {
         Ok(q) => q,
         Err(_) => return true,
     };
-    let trovata = q
-        .query_map([], |r| r.get::<_, String>(1))
+    q.query_map([], |r| r.get::<_, String>(1))
         .map(|righe| righe.flatten().any(|c| c == nome))
-        .unwrap_or(true);
-    trovata
+        .unwrap_or(true)
 }
 
 /// Lo schema. `user_version` di SQLite fa da numero di revisione: una migrazione futura guarda
@@ -372,7 +389,7 @@ CREATE TABLE IF NOT EXISTS aziende (
     cartella         TEXT    NOT NULL DEFAULT '',
     -- Quote (decisione 23). Anche queste senza effetto in 3a: le colonne ci
     -- sono, il conteggio arriva con la 3b.
-    max_progetti     INTEGER,
+    max_progetti_aperti INTEGER,
     max_pannelli     INTEGER,
     max_byte         INTEGER,
     creata_ms        INTEGER NOT NULL,
@@ -431,7 +448,27 @@ impl Identita {
                     conn.execute(sql, [])?;
                 }
             }
-            conn.pragma_update(None, "user_version", 2)?;
+            // v3: `max_progetti` diventa `max_progetti_aperti`.
+            //
+            // Non e un ritocco di stile. La colonna nasce dalla decisione 23
+            // come «numero di progetti» di un'azienda; l'08-10-2026 il
+            // maintainer ha ridefinito le quote — «non e un problema il
+            // numero di utenti ma lo spazio, il numero di progetti
+            // contemporanei aperti (quindi il numero di container da avviare)»
+            // — e l'interfaccia della Fase 3c ci e stata costruita sopra con
+            // il significato nuovo. Il nome diceva una cosa e il contenuto
+            // un'altra: e la stessa forma del guasto che ha prodotto la regola
+            // «un ramo alla volta», dove il conflitto non era nei file ma nel
+            // significato, e nessuno strumento lo vedeva.
+            if ha_colonna(&conn, "aziende", "max_progetti")
+                && !ha_colonna(&conn, "aziende", "max_progetti_aperti")
+            {
+                conn.execute(
+                    "ALTER TABLE aziende RENAME COLUMN max_progetti TO max_progetti_aperti",
+                    [],
+                )?;
+            }
+            conn.pragma_update(None, "user_version", 3)?;
             // Il file contiene hash di password e sessioni: non deve essere leggibile da altri.
             #[cfg(unix)]
             {
@@ -1222,7 +1259,7 @@ impl Identita {
                 marchio: None,
                 versione_predefinita: None,
                 implicita: false,
-                max_progetti: None,
+                max_progetti_aperti: None,
                 max_pannelli: None,
                 max_byte: None,
                 creata_ms: adesso,
@@ -1237,7 +1274,7 @@ impl Identita {
             let c = conn.lock().unwrap();
             let mut q = c.prepare(
                 "SELECT id, nome, stato, marchio, versione_predefinita, implicita,
-                        max_progetti, max_pannelli, max_byte, creata_ms, cartella
+                        max_progetti_aperti, max_pannelli, max_byte, creata_ms, cartella
                  FROM aziende ORDER BY implicita DESC, nome",
             )?;
             let righe = q
@@ -1249,7 +1286,7 @@ impl Identita {
                         marchio: r.get(3)?,
                         versione_predefinita: r.get(4)?,
                         implicita: r.get::<_, i64>(5)? != 0,
-                        max_progetti: r.get(6)?,
+                        max_progetti_aperti: r.get(6)?,
                         max_pannelli: r.get(7)?,
                         max_byte: r.get(8)?,
                         creata_ms: r.get::<_, i64>(9)? as u64,
@@ -1326,7 +1363,7 @@ impl Identita {
                 )?;
             }
             for (campo, valore) in [
-                ("max_progetti", m.max_progetti),
+                ("max_progetti_aperti", m.max_progetti_aperti),
                 ("max_pannelli", m.max_pannelli),
                 ("max_byte", m.max_byte),
             ] {
@@ -1660,6 +1697,51 @@ mod test {
             id2.valida(&token).await.is_some(),
             "la sessione non è sopravvissuta alla riapertura dell'archivio"
         );
+    }
+
+    /// Un archivio v2 si apre e la colonna prende il nome vero.
+    ///
+    /// `max_progetti` nasceva dalla decisione 23 come «numero di progetti»;
+    /// dall'08-10-2026 contiene «quanti se ne possono tenere **aperti
+    /// insieme**», che e un'altra cosa. Rinominarla non e stile: un nome che
+    /// dice il contrario del contenuto e il guasto che nessuno strumento
+    /// vede, finche qualcuno non legge il nome e ci crede.
+    #[tokio::test]
+    async fn la_colonna_delle_quote_prende_il_nome_vero() {
+        let d = tempfile::tempdir().unwrap();
+        let percorso = d.path().join("identita.db");
+
+        // Un archivio come lo scriveva la v2, con il nome vecchio e un valore
+        // dentro: il valore deve sopravvivere alla rinomina.
+        {
+            let c = rusqlite::Connection::open(&percorso).unwrap();
+            c.execute_batch(
+                "CREATE TABLE aziende (
+                    id INTEGER PRIMARY KEY, nome TEXT NOT NULL, stato TEXT NOT NULL DEFAULT 'in_prova',
+                    implicita INTEGER NOT NULL DEFAULT 0, marchio TEXT, versione_predefinita TEXT,
+                    max_progetti INTEGER, max_pannelli INTEGER, max_byte INTEGER,
+                    cartella TEXT NOT NULL DEFAULT '', creata_ms INTEGER NOT NULL DEFAULT 0,
+                    aggiornata_ms INTEGER NOT NULL DEFAULT 0);
+                 INSERT INTO aziende (id, nome, max_progetti) VALUES (1, 'Acme', 3);
+                 PRAGMA user_version = 2;",
+            )
+            .unwrap();
+        }
+
+        let id = Identita::apri(&percorso).await.unwrap();
+        let aziende = id.elenca_aziende().await.unwrap();
+        let acme = aziende.iter().find(|a| a.nome == "Acme").unwrap();
+        assert_eq!(
+            acme.max_progetti_aperti,
+            Some(3),
+            "il valore si e perso nella rinomina"
+        );
+
+        let versione: i64 = {
+            let c = id.conn.lock().unwrap();
+            c.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap()
+        };
+        assert_eq!(versione, 3);
     }
 
     /// Un marchio e di una sola azienda: assegnarlo a una seconda si rifiuta.

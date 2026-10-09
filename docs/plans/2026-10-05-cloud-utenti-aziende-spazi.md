@@ -173,8 +173,10 @@ prima che un token esista, e con il login dell'installazione quel vincolo cade.
   Q46 non si tocca — `dentro_radice` (`projects.rs:240`) continua a valere, su ogni cartella
   d'azienda invece che su una sola. **Questo chiude Q60** per il cloud: il workspace non lo sceglie
   l'utente, lo assegna la piattaforma; la forma «una radice alla volta» resta per il self-host.
-- Quote per azienda: progetti, pannelli, spazio (decisione 23). **Al superamento si blocca solo ciò
-  che crea** (decisione 24): un deploy e un pannello in servizio non si fermano mai.
+- Quote per azienda: **spazio** e **progetti aperti insieme** (09-10-2026, che supera la
+  decisione 23: il numero di progetti non serve, lo spazio lo copre; i pannelli si contano ma non
+  limitano). **Al superamento si blocca solo ciò che crea** (decisione 24): un deploy e un
+  pannello in servizio non si fermano mai.
 - Amministratore di piattaforma: approva le aziende (decisione 17).
 
 ### Fase 3c — i ruoli governano qualcosa, e l'amministratore vede solo la sua azienda
@@ -202,10 +204,10 @@ pulsante «approva» compare in 5.
 ### Fase 4 — il gateway
 
 - `sws-runtime --gateway`: serve la SPA pubblica, accesso, registrazione, pannello dell'azienda;
-  instrada `/p/<progetto>/*` al container del progetto, avviandolo a richiesta e **spegnendolo da
-  fermo**. Lo spegnimento non è una rifinitura: la decisione 23 ha scelto di *non* fare una quota di
-  «progetti aperti insieme», quindi è l'unica difesa che c'è, ed è ciò che rende sufficiente un
-  VPS-1 (decisione 39).
+  instrada `/p/<azienda>/<progetto>/*` al container del progetto, avviandolo a richiesta e
+  **spegnendolo da fermo**. Dal 09-10-2026 lo spegnimento non è più l'unica difesa — c'è anche il
+  tetto sui progetti aperti insieme — ma resta quello che rende sufficiente un VPS-1 (decisione
+  39): senza, ogni progetto mai aperto resterebbe un container acceso.
 - `--auth-delegata` sul figlio: accetta l'identità dall'intestazione del gateway **solo** da socket
   locale. È la riga che il piano del 27-09 segnala per nome — «`ide_only` dietro il gateway deve
   voler dire *l'autenticazione la fa il gateway*, e le due cose non vanno confuse».

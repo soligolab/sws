@@ -31,8 +31,12 @@ esistono, la console è confinata, i progetti si indirizzano per azienda e le qu
 fermano davvero. Resta dichiaratamente al gateway il tetto sui **progetti aperti**: è un limite su
 ciò che gira, non un conteggio in un database.
 
-**Prossima: la Fase 4 — il gateway.** Prima di scrivere codice va aperta una sessione di plan
-dedicata, come per 3a, 3b e 3c.
+**Prossima: la Fase 4 — il gateway**, che ha il suo piano —
+[il gateway](2026-10-09-fase-4-gateway.md), scritto il 09-10-2026 con le misure di quel giorno.
+**Non è approvato**: porta cinque domande per la sessione di plan, una **contraddizione da
+sciogliere** (la decisione 23 dice che «progetti aperti insieme» non è una quota, il maintainer
+l'08-10 ha detto il contrario e la 3c ha seguito lui), e un prerequisito che **non è soddisfatto**
+— l'immagine amd64 non è mai stata pubblicata su ghcr.
 
 (Questa riga diceva «nessun piano d'esecuzione in corso» dal 26-09.)
 

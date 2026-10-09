@@ -167,6 +167,12 @@ le sue parole, e ciò che è stato **misurato**; le proposte restano proposte fi
     *Nota:* «progetti aperti insieme» non è stata scelta come quota; ogni progetto aperto è un processo
     sulla VPS, quindi lo spegnimento dei processi inattivi diventa l'unica difesa — da tenere presente
     nel dimensionamento.
+    > **Superata il 09-10-2026.** Le quote sono due, non tre: **spazio** e **progetti aperti
+    > insieme**. Il numero di progetti sparisce, perché lo spazio lo copre già. I pannelli
+    > restano un dato da vedere, non un limite. E «progetti aperti insieme» diventa proprio la
+    > quota che qui si escludeva: ogni progetto aperto è un container, cioè memoria e CPU. Lo
+    > spegnimento dei fermi resta, ma non è più l'unica difesa — si somma al tetto. Vedi
+    > [Fase 4 — il gateway](2026-10-09-fase-4-gateway.md).
 24. **Al superamento si blocca solo ciò che crea** (nuovi progetti, pannelli, spazio): deploy e
     pannelli già in servizio non si fermano mai.
 
@@ -294,6 +300,8 @@ le sue parole, e ciò che è stato **misurato**; le proposte restano proposte fi
     e la decisione 23 ha scelto di *non* farne una quota, lasciando come unica difesa lo spegnimento
     dei processi inattivi (Fase 4 del piano d'esecuzione). Finché quello non c'è, dieci schede
     dimenticate sono dieci container vivi.
+    > **Dal 09-10-2026 è una quota**, e la difesa è doppia: il tetto per azienda più lo
+    > spegnimento dei fermi. Vedi [Fase 4](2026-10-09-fase-4-gateway.md).
 
     Tre vincoli operativi: **non si compila sul VPS** (una `target/` di questo workspace si mangia i
     40 GB da sola — build altrove, immagini su ghcr, il VPS fa `pull`); **datacenter UE**, perché con
@@ -322,8 +330,8 @@ le sue parole, e ciò che è stato **misurato**; le proposte restano proposte fi
     instrada **per nome host** verso i servizi della macchina, il gateway SWS fra questi. **Non**
     instrada verso i container dei progetti: quella non è una scelta per nome ma dipende
     dall'autenticazione (chi sei, di che azienda, puoi aprire questo progetto) e dal ciclo di vita
-    (avviarli a richiesta, spegnerli da fermi — l'unica difesa contro le schede dimenticate, visto che
-    «progetti aperti insieme» non è una quota, decisione 23). Due proxy in serie vanno bene; un proxy
+    (avviarli a richiesta, spegnerli da fermi — contro le schede dimenticate; dal 09-10-2026 si
+    somma al tetto per azienda, che la decisione 23 non prevedeva). Due proxy in serie vanno bene; un proxy
     che fa il mestiere del gateway no.
 
     **Trappola da configurare esplicitamente**: i **timeout di inattività**. Un proxy che chiude le
@@ -487,7 +495,7 @@ le sue parole, e ciò che è stato **misurato**; le proposte restano proposte fi
 
 Chiesto dal maintainer come parte di questo piano, poi **spostato in un piano suo** perché propedeutico
 («facilita lo sviluppo futuro») e chiudibile da solo, senza VPS né aziende:
-[2026-09-27-aggiornamento-runtime-e-bus-utente](2026-09-27-aggiornamento-runtime-e-bus-utente.md). Le decisioni
+[2026-09-27-aggiornamento-runtime-e-bus-utente](../archive/2026-09-27-aggiornamento-runtime-e-bus-utente.md). Le decisioni
 prese qui (numerate 30-35) vivono lì. **Va fatto prima** dei pezzi di questo piano: la VPN e l'abbinamento
 toccano lo stesso installer, e con gli aggiornamenti i pannelli seguono le versioni nuove senza SSH.
 

@@ -45,7 +45,7 @@ function bozzaDa(a: Azienda): Bozza {
     marchio: a.marchio ?? "",
     versione_predefinita: a.versione_predefinita ?? "",
     spazio_gb: a.max_byte !== null ? String(a.max_byte / GB) : "",
-    progetti_aperti: a.max_progetti !== null ? String(a.max_progetti) : "",
+    progetti_aperti: a.max_progetti_aperti !== null ? String(a.max_progetti_aperti) : "",
   };
 }
 
@@ -142,7 +142,7 @@ export function Aziende({ piattaforma = true }: { piattaforma?: boolean }) {
               marchio: bozza.marchio || null,
               versione_predefinita: bozza.versione_predefinita || null,
               max_byte: gb === "" ? null : Math.round(Number(gb) * GB),
-              max_progetti: pa === "" ? null : Math.round(Number(pa)),
+              max_progetti_aperti: pa === "" ? null : Math.round(Number(pa)),
             }
           : {}),
       });

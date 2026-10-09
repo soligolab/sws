@@ -799,7 +799,10 @@ export type Azienda = {
    *  progetto — quella e del progetto (decisione 44). Oggi inerte. */
   versione_predefinita: string | null;
   implicita: boolean;
-  max_progetti: number | null;
+  /** Quanti progetti l'azienda puo tenere APERTI insieme: ogni progetto
+   *  aperto e un container da avviare. Non il numero totale di progetti,
+   *  che non e una quota (maintainer, 08-10-2026). */
+  max_progetti_aperti: number | null;
   max_pannelli: number | null;
   max_byte: number | null;
   creata_ms: number;

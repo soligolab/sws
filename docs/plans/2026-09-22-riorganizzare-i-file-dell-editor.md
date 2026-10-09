@@ -9,7 +9,7 @@
 > piano d'esecuzione.
 >
 > **24-09-2026**: la parte su `ConfigView.tsx` è entrata nel piano
-> [configurazione ad albero](2026-09-24-configurazione-ad-albero-piano.md), passo 1 — decisa insieme all'albero,
+> [configurazione ad albero](../archive/2026-09-24-configurazione-ad-albero-piano.md), passo 1 — decisa insieme all'albero,
 > come chiedeva questo seme. Il resto (`EditorShell`, `SvgCanvas`, lo store, i colori nelle righe di elenco) resta qui.
 
 ## Misurato oggi (22-09-2026)

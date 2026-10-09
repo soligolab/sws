@@ -83,7 +83,8 @@ mergiando l'ultimo entra tutto:
 ```
 main
  └─ feat/3c-quote-che-fermano       le quote fermano; data/ora di build e revisione
-     └─ fix/cache-pagine-ingresso   la pagina d'ingresso non resta in cache; chiusura Fase 3
+     └─ fix/cache-pagine-ingresso   la pagina non resta in cache; chiusura Fase 3
+         └─ feat/4-gateway          rinomina max_progetti_aperti; piano della Fase 4
 ```
 
 `cargo check`, 483 test `sws-web`, 34 `sws-identita`, 1185 test del frontend, `pnpm build`,
@@ -98,12 +99,29 @@ limite da entrambe le porte, e quello che già gira non si ferma.
 **Resta dichiaratamente al gateway** il tetto sui *progetti aperti*: è un limite su ciò che gira,
 non un conteggio in un database. La console lo mostra e lo scrive accanto al numero.
 
+### Fase 4 aperta, e si ferma su un blocco concreto
+
+[Il piano](docs/plans/2026-10-09-fase-4-gateway.md) è scritto, **non approvato**: porta cinque
+domande per la sessione di plan e una **contraddizione da sciogliere** — la decisione 23 dice che
+«progetti aperti insieme» non è una quota, l'08-10 il maintainer ha detto il contrario e la 3c ha
+seguito lui.
+
+**Il primo passo concreto non aspetta nessuna decisione: pubblicare l'immagine amd64 su ghcr.** Il
+gateway gira su x86 e il tronco cloud lo chiede come prerequisito; la 2.12.0 ha pubblicato **solo
+arm64**. `scripts/build_container_x86_64.sh` esiste e sa già i tag `latest-amd64`/`rc-amd64`, il
+login su ghcr c'è (`mauro@soligo.net`) e l'albero è pulito: mancano **solo** l'autorizzazione del
+maintainer (pubblicare è un'azione verso l'esterno) e un occhio al disco, che è al 98% con 43 GB
+liberi.
+
 ### Da provare a schermo
 
 - Dalla console, uno spazio basso su un'azienda → avviso in cima all'elenco progetti e rifiuto
   chiaro alla creazione; poi rialzarlo e verificare che torni normale.
 - La riga di build: console → «Questa installazione», e in fondo al menu della barra dell'IDE.
 - Che la pagina non resti più in cache: dopo una ricompilazione basta un refresh normale.
+- Che le quote si leggano ancora dopo la rinomina della colonna (`max_progetti_aperti`): la
+  migrazione è girata sull'archivio vero, `user_version` è 3 e il valore sopravvive, ma a schermo
+  non l'ha ancora visto nessuno.
 
 ## ▶ Riprendere da qui — collaudo MCM sul TC620 dopo la 2.12.0 (2026-10-06)
 

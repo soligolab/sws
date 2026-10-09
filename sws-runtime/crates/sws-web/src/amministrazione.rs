@@ -153,7 +153,7 @@ async fn modifica_azienda(
         let riservati = m.stato.is_some()
             || m.marchio.is_some()
             || m.versione_predefinita.is_some()
-            || m.max_progetti.is_some()
+            || m.max_progetti_aperti.is_some()
             || m.max_pannelli.is_some()
             || m.max_byte.is_some();
         if riservati {
@@ -713,7 +713,7 @@ async fn risorse(State(s): State<AppState>, Extension(chi): Extension<AuthUser>)
                     "progetti_byte": progetti,
                     "storico_byte": storico,
                     "max_byte": a.max_byte,
-                    "max_progetti_aperti": a.max_progetti,
+                    "max_progetti_aperti": a.max_progetti_aperti,
                 }));
             }
             righe
