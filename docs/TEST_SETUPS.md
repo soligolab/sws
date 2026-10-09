@@ -7,8 +7,10 @@
 ## 0. Le macchine — quale è quale (leggere per prima)
 
 `session_start.sh` stampa `utente@hostname` in testa: questa tabella dice **dove sta** quella
-macchina e **quali dispositivi raggiunge**. Serve perché i nomi ingannano: l'host `ufficio` è il PC
-**di casa** (l'ufficio privato del maintainer), non quello del lavoro. Il 25-09-2026 una sessione ha
+macchina e **quali dispositivi raggiunge**. Serve perché i nomi ingannano, e il maintainer l'ha
+detto così (09-10-2026): «quando dico che sono a lavoro, in ufficio, sono sul server **theobroma**
+e ho accesso al **WP630**; a casa sono sul PC che si chiama **`ufficio`** — da cui l'ambiguità — e
+ho il **TC620**». Il 25-09-2026 una sessione ha
 creduto di essere «in ufficio» per il nome, e ha proposto di portare il lavoro «a casa» per provarlo
 sul TC620 — che era raggiungibile dalla macchina stessa.
 
@@ -18,9 +20,9 @@ dispositivo.
 
 | hostname | dove sta | utente, repo | raggiunge | note |
 |---|---|---|---|---|
-| `ufficio` | **casa** del maintainer (ufficio privato) — vedi la regola qui sotto | `max_xxv`, `/home/max_xxv/sws` | **TC620** di casa (`tc620-a-p3-c6-07aff9.local`, 192.168.1.204 il 26-09) | è la macchina della sezione 1 |
-| `frodo` | ufficio del lavoro, dev server headless | `pixsys`, `/home/pixsys/sws` | WP630 di prova (`192.168.1.x`), dispositivi Yocto della LAN ufficio | sezione 2 |
-| `theobroma` | ufficio del lavoro | `ut1`, `/home/ut1/sws` | — | **sola lettura**, disco al 99% (sezione 2) |
+| `ufficio` | **casa** del maintainer (il suo ufficio privato) — vedi la regola qui sotto | `max_xxv`, `/home/max_xxv/sws` | **TC620** di casa (`tc620-a-p3-c6-07aff9.local`, 192.168.1.204 il 26-09) | è la macchina della sezione 1 |
+| `theobroma` | **ufficio del lavoro** — è qui che si sviluppa quando il maintainer «è al lavoro» | `ut1`, `/home/ut1/sws` | **WP630** e i dispositivi Yocto della LAN ufficio | sezione 2. Il disco è quasi pieno per la build Yocto in `~/yocto`, che è voluta e non si tocca |
+| `frodo` | **offline** | `pixsys`, `/home/pixsys/sws` | — | Il server su cui il maintainer voleva spostarsi (piano del 31-08-2026, in archivio). **Non è recuperabile per ora**; lo ricostruirà in futuro. Finché è giù, non è una macchina SWS |
 | `vps-5ea9b77b.vps.ovh.net` | **VPS OVH**, datacenter UE | `debian` | Internet; i pannelli lo raggiungono **loro**, con una connessione uscente (decisione 38) | **Non è una macchina di sviluppo**: ospita `sws.soligo.net` (IDE) e `tunnel.soligo.net` (pannelli). Preso il 06-10-2026 — vedi sotto |
 
 ### Il VPS di `sws.soligo.net` (dal 06-10-2026)
@@ -100,15 +102,21 @@ Il cert TLS (`tls.crt`/`tls.key` in `.run/config/`) è persistente tra restart.
 
 ---
 
-## 2. Ufficio del lavoro — dev server `frodo`
+## 2. Ufficio del lavoro — dev server `theobroma`
 
-**Dal 2026-08-31 il dev server è `frodo`**: `pixsys@frodo.local`, repo a `/home/pixsys/sws`,
-Debian 13 trixie. Ha quattro interfacce; quella di lavoro è `ens18` (`192.168.0.224/23`, e la
-`/23` copre anche i pannelli su 192.168.1.x).
+**Il dev server del lavoro è `theobroma`**: `ut1@theobroma`, repo a `/home/ut1/sws`. Raggiunge il
+**WP630** e i dispositivi Yocto della LAN ufficio. È qui che si sviluppa quando il maintainer dice
+di «essere al lavoro».
 
-Il server precedente — `theobroma`, repo a `/home/ut1/sws` — è **intatto come via di ritorno** ma
-al 99% di disco: non ci si costruisce più nulla. Le sue trappole (e quelle di frodo) stanno nel
-referto `docs/archive/2026-08-31-trasloco-frodo.md`.
+> **Correzione del 09-10-2026.** Questa sezione diceva «dal 2026-08-31 il dev server è `frodo`», e
+> dava `theobroma` per una via di ritorno su cui «non ci si costruisce più nulla». Era falso da
+> tempo e ha portato fuori strada: il 09-10 una sessione ha proposto al maintainer di controllare
+> se un deploy fosse partito da frodo, che **è offline e per ora non recuperabile** — lo
+> ricostruirà in futuro. Il trasloco del 31-08 resta come referto in
+> `docs/archive/2026-08-31-trasloco-frodo.md`, ma descrive una macchina che non c'è.
+
+Il disco di `theobroma` è quasi pieno per la **build Yocto in `~/yocto`**, che è voluta: non è un
+problema da indagare e non si tocca.
 
 **Macchina headless** (nessun monitor diretto).
 
