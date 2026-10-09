@@ -110,14 +110,50 @@ decidere: la decisione 25 risponde già.
 - **Cosa ci dice il numero di pannelli.** Il maintainer: «può essere un dato statistico utile, non
   una quota, ma dobbiamo analizzare con un dettaglio maggiore cosa ci dice questa informazione».
   Fino ad allora la colonna `max_pannelli` non si tocca e la console non la mostra.
-- **Un container può avviarne un altro?** Podman rootless, accesso al socket. Da provare sul VPS.
-  Dal risultato dipende se il gateway resta un container o diventa un servizio della macchina.
+- ~~Un container può avviarne un altro?~~ **Sì, provato sul VPS il 09-10-2026.** Vedi sotto.
+
+## La prova sul VPS (09-10-2026): un container ne avvia un altro
+
+Fatta su `vps-5ea9b77b`, podman 5.4.2, socket rootless già attivo. Da dentro un container, via
+l'API di podman sul socket montato:
+
+```
+POST /v5.0.0/libpod/containers/create   → {"Id":"924b980d4cfa…"}
+POST /v5.0.0/libpod/containers/…/start  → HTTP 204
+podman logs                             → "sono-il-figlio"
+```
+
+Il figlio è stato creato, avviato, ha scritto, ed è stato rimosso. **Il gateway può essere un
+container dietro Traefik**, come deciso.
+
+### La trappola, che costerà mezz'ora a chi non la sa
+
+Il socket è `srw-rw---- debian debian`. In podman rootless l'utente *root dentro* il container
+corrisponde all'utente che l'ha avviato (`debian`), mentre un utente non-root dentro finisce in un
+subuid che con `debian` non c'entra nulla. La prima prova è fallita con `HTTP 000` proprio per
+questo: l'immagine usata gira come utente non privilegiato.
+
+Quindi **il container del gateway deve girare come root al suo interno** (che fuori resta
+`debian`, non root della macchina) per poter usare il socket. Nel `podman run` serve `--user 0` o
+un'immagine che parta già da root.
+
+Comandi della prova, per rifarla:
+
+```bash
+SOCK="$XDG_RUNTIME_DIR/podman/podman.sock"      # /run/user/1000/podman/podman.sock
+podman run --rm --user 0 -v "$SOCK:/run/podman/podman.sock" --security-opt label=disable \
+  docker.io/curlimages/curl:latest \
+  -s --unix-socket /run/podman/podman.sock http://d/v5.0.0/libpod/_ping
+```
+
+Sul VPS restano scaricate `alpine` e `curlimages/curl`, una decina di megabyte in tutto: servono a
+rifare la prova e non danno fastidio.
 
 ## Il primo passo concreto
 
-**Provare se un container può avviarne un altro**, sul VPS: podman rootless, accesso al socket.
-Da quella prova dipende se il gateway resta un container dietro Traefik (la scelta del 09-10) o
-deve diventare un servizio della macchina.
+**Scrivere il gateway.** Le due cose che lo precedevano sono fatte: l'immagine amd64 c'è
+(`2.13.0-rc.1-amd64` col lavoro del 09-10, oltre alla 2.12.0 già presente dal 06-10) e podman
+dentro un container funziona.
 
-L'immagine amd64 non è più un ostacolo: c'è dal 06-10, e il 09-10 è stata pubblicata anche
-`2.13.0-rc.1-amd64` con il lavoro di oggi, che è quella con cui si proverà il gateway.
+Resta da aprire la sessione di plan sul **dentro** del gateway: come instrada, dove tiene lo stato
+dei container avviati, come passa l'identità al figlio.

@@ -105,9 +105,14 @@ dei piani che dicevano il contrario sono stati corretti.
    solo i tag `arm64`, e le avevo prese per lo stato del registry. Il 09-10 è stata comunque
    pubblicata `2.13.0-rc.1-amd64` (più `rc-amd64` e il tag di commit `5827e946-amd64`) con il
    lavoro di oggi: è quella con cui si proverà il gateway.
-2. **Un container può avviarne un altro?** (podman rootless, socket, sul VPS). Se la risposta è
-   no, il gateway non può essere un container e la decisione di oggi va rifatta. **È rimasta
-   l'unica cosa da provare prima di scrivere codice.**
+2. ~~Un container può avviarne un altro?~~ **Sì, provato sul VPS il 09-10.** Create + start via
+   l'API di podman da dentro un container, e il figlio ha girato davvero. Il gateway può essere
+   un container dietro Traefik. **Trappola**: il container deve girare come root al suo interno
+   (fuori resta `debian`), o non raggiunge il socket — la prima prova è fallita per questo.
+
+**Non resta più niente da provare prima di scrivere il gateway.** Serve la sessione di plan sul
+suo funzionamento interno: come instrada, dove tiene lo stato dei container avviati, come passa
+l'identità al figlio.
 
 ### Da provare a schermo
 
