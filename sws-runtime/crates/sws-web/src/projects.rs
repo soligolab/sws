@@ -1596,6 +1596,23 @@ fn is_external(dir: &StdPath, root: &StdPath) -> bool {
 /// Ricorsiva e sincrona: va chiamata in `spawn_blocking`, perché su un disco
 /// lento e con molti progetti non deve tenere occupato l'esecutore asincrono.
 ///
+/// **Conta i byte dei file, non lo spazio occupato sul disco.** Non è lo
+/// stesso numero: il filesystem assegna blocchi interi e ogni cartella costa
+/// un inode, quindi `du` dà sempre di più. Misurato il 09-10-2026:
+///
+/// | progetto | byte dei file | sul disco | scarto |
+/// |---|---|---|---|
+/// | con storico vero, 84 MB | 84,2 MB | 84,3 MB | **0%** |
+/// | quasi vuoto | 0,04 MB | 0,07 MB | 47% |
+///
+/// Lo scarto conta solo sui progetti praticamente vuoti, che non si avvicinano
+/// a una quota in gigabyte. Su un progetto vero i due numeri coincidono, e
+/// contare i byte è più semplice e non dipende dal filesystem.
+///
+/// Lo si scrive perché inganna: provando le quote con progetti da pochi
+/// kilobyte, una soglia calcolata con `du` non scatta mai — e sembra un
+/// difetto del controllo.
+///
 /// Lo spacco non è un vezzo: chi arriva al limite ci arriva quasi sempre per
 /// lo storico, che cresce da solo nel tempo mentre i sinottici no. Dire «sei
 /// pieno» senza dire di cosa non aiuta a decidere cosa cancellare.
