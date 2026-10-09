@@ -96,11 +96,11 @@
 2. **I «progetti aperti» restano dichiaratamente non applicati**: li farà rispettare il gateway
    (Fase 4). Il tetto si concorda e si vede, e la console lo scrive accanto al numero.
 
-### Da provare quando capita
+### Provato
 
-- **Deploy su un dispositivo** dopo la 3b: è l'unico percorso dove un runtime più vecchio
-  incontra il nuovo indirizzo dei progetti. L'IDE gli manda la forma a un segmento, che resta
-  supportata apposta, e su un'istanza IDE quella forma lascia ora un avviso nei log.
+- **Deploy su un dispositivo dopo la 3b: funziona** (maintainer, 08-10-2026, vari progetti sul
+  WP630). Era l'unico percorso dove un runtime più vecchio incontra il nuovo indirizzo dei
+  progetti: l'IDE gli manda la forma a un segmento, che resta supportata apposta.
 
 ### Dati di prova su questa macchina
 
