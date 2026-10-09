@@ -1109,6 +1109,12 @@ pub fn build(
     // route template (not the raw URI) so cardinality stays bounded.
     app = app.layer(middleware::from_fn(crate::metrics::track_http_metrics));
 
+    // Che cosa il browser può tenersi. Senza, la pagina d'ingresso finisce in
+    // cache con la sola euristica del browser — e quella pagina nomina i
+    // bundle con l'hash, quindi trattiene indietro tutto il resto. Vedi
+    // `cache.rs`: è la causa di una classe intera di «serve un riavvio?».
+    app = app.layer(middleware::from_fn(crate::cache::intestazioni_cache));
+
     // Permissive CORS for the "editor on laptop → runtime on PX30" deployment
     // shape (ARCH-004). The editor sets the runtime URL via localStorage and
     // talks to a different origin; without this layer the browser blocks
@@ -1383,6 +1389,9 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
     let mut router = open
         .merge(gated)
         .layer(middleware::from_fn(crate::metrics::track_http_metrics))
+        // Stessa regola del router di amministrazione: anche il viewer serve
+        // una SPA, e la sua pagina d'ingresso nomina gli stessi bundle.
+        .layer(middleware::from_fn(crate::cache::intestazioni_cache))
         .layer(cors)
         .with_state(state);
 

@@ -113,6 +113,12 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   progetti dell'azienda B. L'amministratore di piattaforma li vede tutti, in una sezione a parte e contrassegnati.
 
 ### Fixed
+- **La pagina dell'IDE non resta più in cache.** Usciva con il solo `last-modified` e nessun `Cache-Control`:
+  il browser applicava la propria euristica e poteva tenersela, e quella pagina contiene i nomi dei bundle con
+  l'hash — quindi tenersi lei significa continuare a caricare il JavaScript vecchio anche quando sul disco c'è il
+  nuovo. È la causa di una classe intera di «serve un riavvio?». Ora le pagine d'ingresso si rivalidano sempre
+  (`no-cache`) e gli asset con l'hash nel nome si tengono per sempre (`immutable`) — è il rovescio della regola
+  istintiva, ed è quella giusta: se un asset cambia, cambia il suo nome.
 - **Un salvataggio rifiutato nella configurazione adesso lo dice.** Variabili, allarmi, protocolli, ricette e tipi
   salvavano dentro `try { … } finally { … }` **senza `catch`**: un 409 per conflitto di versione, un 401 o un 503
   sparivano senza messaggio, e il pannello continuava a mostrare il valore appena scritto mentre il runtime restava

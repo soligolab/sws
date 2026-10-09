@@ -25,11 +25,14 @@ ciascuna, ora in archivio: [aziende e console](../archive/2026-10-06-aziende-e-c
 esistono (l'implicita non si mostra), la console di amministrazione è un'applicazione a sé, e i
 progetti si indirizzano `/<azienda>/<nome>` passando da un risolutore che verifica l'appartenenza.
 
-**In corso: la Fase 3c** —
-[i ruoli confinano, e le quote contano](2026-10-08-fase-3c-ruoli-confinati-e-quote.md),
-**approvata l'08-10-2026** con cinque decisioni prese una alla volta. La parte nuova rispetto al
-tronco cloud è il **sinottico delle risorse** come prima pagina della console, che decide quali
-numeri tutto il resto deve produrre.
+**Fase 3 chiusa per intero** il 09-10-2026: 3a, 3b e
+[3c](../archive/2026-10-08-fase-3c-ruoli-confinati-e-quote.md) sono in archivio. Le aziende
+esistono, la console è confinata, i progetti si indirizzano per azienda e le quote di spazio
+fermano davvero. Resta dichiaratamente al gateway il tetto sui **progetti aperti**: è un limite su
+ciò che gira, non un conteggio in un database.
+
+**Prossima: la Fase 4 — il gateway.** Prima di scrivere codice va aperta una sessione di plan
+dedicata, come per 3a, 3b e 3c.
 
 (Questa riga diceva «nessun piano d'esecuzione in corso» dal 26-09.)
 

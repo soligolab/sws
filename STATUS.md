@@ -74,40 +74,36 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — prima metà della Fase 3c chiusa (2026-10-08)
+## ▶ Riprendere da qui — Fase 3 chiusa per intero, si apre la 4 (2026-10-09)
 
-`main` pushato. **Nessun ramo aperto.** `cargo check`, 476 test `sws-web`, 34 `sws-identita`,
-`pnpm build`, **39/39 guardie**: verdi. Tutto confermato a schermo dal maintainer.
+**Catena di rami annidati, non ancora mergiata** (istruzione del maintainer: «fai i rami annidati
+almeno fino a finire la fase 3 e iniziare la fase 4»). Ogni ramo parte dal precedente, quindi
+mergiando l'ultimo entra tutto:
 
-### Cos'è entrato oggi
+```
+main
+ └─ feat/3c-quote-che-fermano       le quote fermano; data/ora di build e revisione
+     └─ fix/cache-pagine-ingresso   la pagina d'ingresso non resta in cache; chiusura Fase 3
+```
 
-| squash | cosa |
-|---|---|
-| `59eb0ed6` | **Fasi 3a+3b**: aziende, console, progetti indirizzati `/<azienda>/<nome>` con verifica di appartenenza |
-| `8e9be5e1` | un valore generato prende il tipo del tag; un salvataggio rifiutato lo dice |
-| `21cdc3db` | **Fase 3c, prima metà**: console confinata per azienda, sinottico delle risorse, marchio che segue chi entra |
+`cargo check`, 483 test `sws-web`, 34 `sws-identita`, 1185 test del frontend, `pnpm build`,
+**40/40 guardie**: verdi. Manca la conferma a schermo del maintainer, che era via.
 
-### Cosa resta della 3c
+### Fase 3 chiusa
 
-1. **Le quote non si applicano ancora.** Il sinottico le mostra e la console le imposta, ma
-   nessuno rifiuta al limite: manca il controllo in `create_project` e nell'upload (spazio), e
-   manca l'avviso sopra la soglia dell'85% nel sinottico e in cima alla schermata progetti.
-   Decisione già presa: **avvisa prima, rifiuta al limite**, e quello che già gira non si ferma.
-2. **I «progetti aperti» restano dichiaratamente non applicati**: li farà rispettare il gateway
-   (Fase 4). Il tetto si concorda e si vede, e la console lo scrive accanto al numero.
+3a, 3b e 3c sono in archivio. Le aziende esistono, la console è confinata, i progetti si
+indirizzano `/<azienda>/<nome>` e le quote di spazio **fermano**: avviso sopra l'85%, rifiuto al
+limite da entrambe le porte, e quello che già gira non si ferma.
 
-### Provato
+**Resta dichiaratamente al gateway** il tetto sui *progetti aperti*: è un limite su ciò che gira,
+non un conteggio in un database. La console lo mostra e lo scrive accanto al numero.
 
-- **Deploy su un dispositivo dopo la 3b: funziona** (maintainer, 08-10-2026, vari progetti sul
-  WP630). Era l'unico percorso dove un runtime più vecchio incontra il nuovo indirizzo dei
-  progetti: l'IDE gli manda la forma a un segmento, che resta supportata apposta.
+### Da provare a schermo
 
-### Dati di prova su questa macchina
-
-Progetti in `~/sws_projects/pixsys/` (LVGL, LVGL_TEST, F2.2) e `~/sws_projects/sws/` (F3,
-fade-prova). `mauro@soligo.net` è amministratore di piattaforma e membro di *Questa
-installazione* e *sws*; `edp@pixsys.net` è amministratore della sola *pixsys* — è l'utente con
-cui si prova il confinamento. I marchi sono assegnati uno per azienda.
+- Dalla console, uno spazio basso su un'azienda → avviso in cima all'elenco progetti e rifiuto
+  chiaro alla creazione; poi rialzarlo e verificare che torni normale.
+- La riga di build: console → «Questa installazione», e in fondo al menu della barra dell'IDE.
+- Che la pagina non resti più in cache: dopo una ricompilazione basta un refresh normale.
 
 ## ▶ Riprendere da qui — collaudo MCM sul TC620 dopo la 2.12.0 (2026-10-06)
 

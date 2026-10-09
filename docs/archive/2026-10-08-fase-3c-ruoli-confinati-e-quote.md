@@ -1,8 +1,9 @@
 # Fase 3c — i ruoli confinano, e le quote contano
 
-> Dettaglio della **Fase 3c** del [tronco cloud](2026-10-05-cloud-utenti-aziende-spazi.md).
-> 3a e 3b sono chiuse e in archivio. **Approvato l'08-10-2026**: le decisioni in fondo sono del
-> maintainer, prese una alla volta.
+> Dettaglio della **Fase 3c** del [tronco cloud](../plans/2026-10-05-cloud-utenti-aziende-spazi.md).
+> **Archiviato il 09-10-2026**, a lavoro fatto e confermato a schermo. 3a e 3b sono chiuse e in
+> archivio anche loro. Approvato l'08-10-2026: le decisioni in fondo sono del maintainer, prese
+> una alla volta.
 
 ## Da dove nasce
 
