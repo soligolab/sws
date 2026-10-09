@@ -825,6 +825,15 @@ pub async fn create_project(
     };
     let chiave = crate::project_registry::riferimento(&segmento, &safe_name);
 
+    // **La quota, prima di scrivere.** Si rifiuta al limite, dopo aver
+    // avvisato sopra la soglia: un progetto nuovo e cio che fa crescere lo
+    // spazio, quindi e qui che si ferma. Quello che gia gira non si tocca —
+    // lo storico continua a scrivere, perche fermarlo perderebbe dati
+    // d'impianto (decisione del maintainer, 08-10-2026).
+    if let Some(rifiuto) = rifiuta_se_piena(&s, req.azienda_id).await {
+        return rifiuto;
+    }
+
     // L'unicità vale **dentro l'azienda**, non in tutta l'installazione: due
     // aziende possono avere un «impianto» ciascuna, ed è tutto il punto delle
     // cartelle per azienda. Prima la chiave era il nome nudo e la seconda
@@ -1582,6 +1591,176 @@ fn is_external(dir: &StdPath, root: &StdPath) -> bool {
 /// non muove dati e una migrazione che non puo perderli.
 ///
 /// Senza `azienda_id` si usa la radice, che e il comportamento di sempre.
+/// Lo spazio di una cartella, diviso fra **storico** e tutto il resto.
+///
+/// Ricorsiva e sincrona: va chiamata in `spawn_blocking`, perché su un disco
+/// lento e con molti progetti non deve tenere occupato l'esecutore asincrono.
+///
+/// Lo spacco non è un vezzo: chi arriva al limite ci arriva quasi sempre per
+/// lo storico, che cresce da solo nel tempo mentre i sinottici no. Dire «sei
+/// pieno» senza dire di cosa non aiuta a decidere cosa cancellare.
+pub fn pesa_cartella(dir: &StdPath) -> (u64, u64) {
+    let (mut progetti, mut storico) = (0u64, 0u64);
+    let Ok(rd) = std::fs::read_dir(dir) else {
+        return (0, 0);
+    };
+    for e in rd.flatten() {
+        let Ok(tipo) = e.file_type() else { continue };
+        if tipo.is_dir() {
+            // `history/` è lo storico, ovunque si trovi nell'albero: è il
+            // nome che il runtime usa per i suoi database.
+            let (p, st) = pesa_cartella(&e.path());
+            if e.file_name() == "history" {
+                storico += p + st;
+            } else {
+                progetti += p;
+                storico += st;
+            }
+        } else if let Ok(m) = e.metadata() {
+            progetti += m.len();
+        }
+    }
+    (progetti, storico)
+}
+
+/// Lo spazio occupato da un'azienda: `(progetti, storico)`.
+///
+/// L'azienda **implicita** è la radice stessa, quindi le sue sottocartelle
+/// che appartengono ad altre aziende vanno saltate — altrimenti il suo totale
+/// conterrebbe anche quello di tutte le altre, e la sua quota scatterebbe per
+/// colpa dei vicini.
+pub fn spazio_di_azienda(
+    radice: &StdPath,
+    azienda: &sws_identita::Azienda,
+    tutte: &[sws_identita::Azienda],
+) -> (u64, u64) {
+    if !azienda.cartella.is_empty() {
+        return pesa_cartella(&radice.join(&azienda.cartella));
+    }
+    let (mut p, mut st) = (0u64, 0u64);
+    let Ok(rd) = std::fs::read_dir(radice) else {
+        return (0, 0);
+    };
+    for e in rd.flatten() {
+        if !e.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+            continue;
+        }
+        let nome = e.file_name().to_string_lossy().to_string();
+        if tutte.iter().any(|x| !x.cartella.is_empty() && x.cartella == nome) {
+            continue;
+        }
+        let (pp, ss) = pesa_cartella(&e.path());
+        p += pp;
+        st += ss;
+    }
+    (p, st)
+}
+
+/// Sopra quale frazione della quota si **avvisa**, prima di rifiutare.
+///
+/// Decisione del maintainer dell'08-10-2026: avvisa prima, rifiuta al limite.
+/// Un limite che arriva addosso senza che nessuno l'abbia visto avvicinarsi
+/// arriva sempre mentre si sta facendo altro.
+pub const SOGLIA_AVVISO: f64 = 0.85;
+
+/// Lo stato della quota di spazio di un'azienda, per chi deve decidere.
+pub struct StatoQuota {
+    pub usato: u64,
+    pub massimo: Option<u64>,
+}
+
+impl StatoQuota {
+    pub fn frazione(&self) -> Option<f64> {
+        self.massimo
+            .filter(|m| *m > 0)
+            .map(|m| self.usato as f64 / m as f64)
+    }
+    pub fn piena(&self) -> bool {
+        self.frazione().is_some_and(|f| f >= 1.0)
+    }
+    pub fn vicina(&self) -> bool {
+        self.frazione().is_some_and(|f| f >= SOGLIA_AVVISO)
+    }
+}
+
+/// Lo spazio di un'azienda **adesso**, misurato sul momento.
+///
+/// Non si usa la misura in cache della console: quella vale un minuto, ed è
+/// giusta per un cruscotto che si guarda. Qui si sta decidendo se **rifiutare
+/// qualcosa a qualcuno**, e un rifiuto basato su un dato vecchio è sbagliato
+/// in tutte e due le direzioni — nega a chi ha appena liberato spazio, e
+/// concede a chi l'ha appena riempito.
+pub async fn quota_spazio(s: &AppState, azienda_id: Option<i64>) -> Option<StatoQuota> {
+    let identita = s.identita.as_ref()?;
+    let tutte = identita.elenca_aziende().await.ok()?;
+    // Senza azienda indicata si guarda l'implicita: è lì che nasce un
+    // progetto creato senza sceglierne una.
+    let azienda = match azienda_id {
+        Some(id) => tutte.iter().find(|a| a.id == id)?.clone(),
+        None => tutte.iter().find(|a| a.implicita)?.clone(),
+    };
+    let massimo = azienda.max_byte.and_then(|v| u64::try_from(v).ok());
+    // Nessun tetto: non c'è niente da misurare, e misurare costa.
+    massimo?;
+    let radice = s.projects_root.as_ref().clone();
+    let tutte2 = tutte.clone();
+    let (p, st) = tokio::task::spawn_blocking(move || {
+        spazio_di_azienda(&radice, &azienda, &tutte2)
+    })
+    .await
+    .ok()?;
+    Some(StatoQuota { usato: p + st, massimo })
+}
+
+/// Il rifiuto, se la quota è piena. `None` = si può procedere.
+///
+/// **Un posto solo.** Sono due le strade che fanno nascere un progetto —
+/// `create_project` e `upload_project_zip` — ed è esattamente la coppia su
+/// cui Q46 aveva corretto una e dimenticato l'altra per un mese. La regola
+/// sta qui, e `check_quota_progetti.sh` verifica che le attraversino
+/// entrambe.
+pub async fn rifiuta_se_piena(s: &AppState, azienda_id: Option<i64>) -> Option<Response> {
+    let stato = quota_spazio(s, azienda_id).await?;
+    if !stato.piena() {
+        return None;
+    }
+    // L'unita segue il numero. Con «0.0 GB di 0.0 GB» il rifiuto non dice
+    // niente, e un rifiuto e fatto del suo messaggio: e l'unica cosa che chi
+    // lo riceve puo usare per decidere cosa fare.
+    let misura = |b: u64| {
+        const U: [&str; 4] = ["KB", "MB", "GB", "TB"];
+        if b < 1024 {
+            return format!("{b} B");
+        }
+        let mut v = b as f64 / 1024.0;
+        let mut i = 0;
+        while v >= 1024.0 && i < U.len() - 1 {
+            v /= 1024.0;
+            i += 1;
+        }
+        if v < 10.0 {
+            format!("{v:.1} {}", U[i])
+        } else {
+            format!("{} {}", v.round(), U[i])
+        }
+    };
+    Some(
+        (
+            StatusCode::CONFLICT,
+            Json(serde_json::json!({
+                "error": "quota_spazio",
+                "detail": format!(
+                    "lo spazio dell'azienda è esaurito: {} di {}. \
+                     Libera spazio — spesso è lo storico — o chiedi un aumento.",
+                    misura(stato.usato),
+                    misura(stato.massimo.unwrap_or(0)),
+                ),
+            })),
+        )
+            .into_response(),
+    )
+}
+
 /// Il segmento dell'azienda ricavato da **dove sta** il progetto.
 ///
 /// Serve dove l'azienda non arriva come id ma come posizione sul disco —
@@ -2255,6 +2434,22 @@ pub async fn upload_project_zip(
     body: Bytes,
 ) -> Response {
     let _switch = s.project_switch_lock.lock().await;
+
+    // **La quota per prima, prima ancora di guardare lo zip.** L'upload e
+    // l'altra strada che fa nascere un progetto, e rifiutare dopo aver letto
+    // un archivio da cento megabyte e un rifiuto che costa quanto
+    // l'accettazione.
+    //
+    // In **deploy** non si ferma: li il progetto sta sostituendo se stesso su
+    // un dispositivo, non sta aggiungendo niente, e rifiutarlo lascerebbe un
+    // impianto a meta. L'upload arriva nella radice, cioe nell'azienda
+    // implicita.
+    if !q.deploy {
+        if let Some(rifiuto) = rifiuta_se_piena(&s, None).await {
+            return rifiuto;
+        }
+    }
+
     // 1. Parse the ZIP.
     let mut archive = match zip::ZipArchive::new(Cursor::new(body.as_ref())) {
         Ok(a) => a,
@@ -3498,6 +3693,41 @@ datastores:
     /// `create_project` era stato corretto il 09-09 con Q46, l'upload no — e
     /// il buco e rimasto aperto un mese, su una rotta che fino a ieri era
     /// perfino pre-auth.
+
+    /// La soglia che avvisa e il limite che rifiuta sono due cose diverse.
+    ///
+    /// Decisione del maintainer dell'08-10-2026: avvisa prima, rifiuta al
+    /// limite. Senza tetto non si avvisa e non si rifiuta — e il caso
+    /// normale, e misurare costerebbe per niente.
+    #[test]
+    fn la_quota_avvisa_prima_e_rifiuta_al_limite() {
+        use super::StatoQuota;
+        let q = |usato: u64, massimo: Option<u64>| StatoQuota { usato, massimo };
+
+        // Nessun tetto: niente da dire.
+        assert!(!q(1_000_000, None).vicina());
+        assert!(!q(1_000_000, None).piena());
+
+        // Sotto la soglia: silenzio.
+        assert!(!q(80, Some(100)).vicina());
+
+        // Dalla soglia in su: avvisa, ma non ferma.
+        assert!(q(85, Some(100)).vicina());
+        assert!(!q(85, Some(100)).piena());
+        assert!(q(99, Some(100)).vicina());
+        assert!(!q(99, Some(100)).piena());
+
+        // Al limite, e oltre: ferma. «Vicina» resta vero — chi e oltre e
+        // anche vicino, e l'avviso non deve sparire proprio quando serve.
+        assert!(q(100, Some(100)).piena());
+        assert!(q(100, Some(100)).vicina());
+        assert!(q(250, Some(100)).piena());
+
+        // Un tetto a zero non e una divisione per zero: e «nessun tetto»,
+        // perche un'azienda a cui si concede zero spazio non puo esistere e
+        // il valore e quasi certamente un errore di battitura.
+        assert!(!q(5, Some(0)).piena());
+    }
 
     /// La stessa regola, data in **cartelle** invece che in nomi: è così che
     /// la usa `risolvi_progetto` per decidere se un indirizzo è tuo.

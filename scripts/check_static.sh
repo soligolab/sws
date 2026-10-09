@@ -52,6 +52,7 @@ STATICHE=(
     check_tipo_dei_valori   # un valore che entra in TagDb passa dal tipo dichiarato del tag
     check_salvataggio_muto  # un salvataggio rifiutato lo dice, invece di sparire
     check_console_salva     # nella console si scrive col pulsante, non passando su un campo
+    check_quota_progetti    # chi fa nascere un progetto guarda la quota, da tutte e due le porte
     check_sonda             # la sonda del dispositivo (Q52) gira con sh -s e stampa solo fatti
     check_barra_allarmi     # alarm_banner: web e LVGL selezionano gli stessi stati ISA
     check_via_di_fuga       # la via di fuga STOP del pannello resta raggiungibile

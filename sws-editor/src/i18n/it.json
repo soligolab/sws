@@ -519,7 +519,11 @@
     "altreAziende": "Altre aziende — le vedi come amministratore di piattaforma",
     "vistaGriglia": "Icone",
     "vistaLista": "Elenco",
-    "barraIde": "Torna all'editor"
+    "barraIde": "Torna all'editor",
+    "spazioQuasiEsaurito": "Lo spazio di {{azienda}} sta finendo: {{usato}} di {{massimo}}. Spesso è lo storico a crescere — liberane un po' prima di restare fermo.",
+    "spazioEsaurito": "Lo spazio di {{azienda}} è esaurito: {{usato}} di {{massimo}}. Non si possono creare altri progetti finché non ne liberi — quelli aperti continuano a funzionare.",
+    "barraBuildTitolo": "Versione, revisione e data di build di questa pagina",
+    "barraPaginaVecchia": "Pagina vecchia: ricarica forzando"
   },
   "logs": {
     "history": "Storico…",
@@ -2845,7 +2849,10 @@
       "autenticazione": "Chiede le credenziali",
       "container": "In container",
       "host": "Macchina",
-      "arch": "Architettura"
+      "arch": "Architettura",
+      "buildRuntime": "Build del runtime",
+      "buildPagina": "Build di questa pagina",
+      "paginaVecchia": "Questa pagina è più vecchia del bundle che il server ha sul disco: il browser ne sta servendo una copia vecchia. Ricarica forzando (Ctrl+Shift+R)."
     },
     "marchi": {
       "nomeNuovo": "Nome del nuovo marchio",

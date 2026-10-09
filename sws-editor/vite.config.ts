@@ -1,5 +1,34 @@
+import { execSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
+
+// ── L'identità di QUESTO bundle ──────────────────────────────────────────────
+//
+// Fino al 09-10-2026 ogni «versione» visibile all'utente veniva dal binario
+// Rust (`runtime_version`, da `GET /api/system`): nessuna descriveva il
+// JavaScript in esecuzione. Con la pagina d'ingresso servita senza
+// `Cache-Control`, il browser può tenersi un `index-admin.html` vecchio — e
+// quello nomina i bundle con l'hash, quindi trattiene indietro tutto — mentre
+// il server è aggiornato. Il maintainer lo ha vissuto, e ha chiesto «una
+// data/ora di build e una revisione».
+//
+// Qui il timestamp si può incidere davvero: `vite.config.ts` viene valutato a
+// ogni build, a differenza di un `build.rs` di cargo che cargo riesegue solo
+// quando cambiano i suoi `rerun-if-changed` (per questo, lato Rust, la data è
+// la mtime del binario e non un valore inciso).
+const VERSIONE = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")).version;
+const GIT = (() => {
+  try {
+    return execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] })
+      .toString()
+      .trim();
+  } catch {
+    // Senza git — una build da sorgenti copiati — si dichiara di non saperlo
+    // invece di inventare: un «sconosciuta» leggibile, non un trattino muto.
+    return "sconosciuta";
+  }
+})();
 
 // Default proxy target for `pnpm dev`. The editor is an admin tool and connects
 // to the admin port (8444). Override at the shell with
@@ -10,6 +39,11 @@ const RUNTIME_TARGET = process.env.VITE_RUNTIME_URL ?? "https://localhost:8444";
 const WS_TARGET = RUNTIME_TARGET.replace(/^http/, "ws");
 
 export default defineConfig({
+  define: {
+    __SWS_VERSIONE__: JSON.stringify(VERSIONE),
+    __SWS_GIT__: JSON.stringify(GIT),
+    __SWS_BUILD_MS__: JSON.stringify(Date.now()),
+  },
   plugins: [react()],
   resolve: {
     alias: { "@": "/src" },

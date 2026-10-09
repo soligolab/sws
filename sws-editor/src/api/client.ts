@@ -432,6 +432,14 @@ export interface StatoQuadlet {
 
 export interface SystemStatus {
   runtime_version: string;
+  /** La revisione git da cui e stato compilato il binario, o «sconosciuta». */
+  runtime_git?: string;
+  /** Quando il binario e stato scritto su disco (mtime dell'eseguibile). */
+  runtime_build_ms?: number | null;
+  /** Quando e stato scritto il bundle che questo runtime servirebbe ADESSO.
+   *  Confrontandolo con la data incisa nella pagina in esecuzione si vede se
+   *  il browser ne sta servendo una vecchia. Vedi `@/versione`. */
+  spa_build_ms?: number | null;
   /** Opzionale: un runtime più vecchio, o senza le unit di installazione, non lo manda. */
   boot_image?: BootImageStato | null;
   /** L'ultima commutazione dello schermo del pannello (Fase 4, 29-09-2026). */
@@ -919,6 +927,19 @@ export const api = {
    *  sessione, e `active.json` e uno per installazione. */
   marchioMio: () =>
     request<{ marchio: string | null }>("/api/identita/marchio"),
+
+  /** Lo spazio delle MIE aziende, solo quelle con un tetto. Distinta da
+   *  `/api/amministrazione/risorse`, che e della console: questa la chiama
+   *  chiunque, perche l'avviso va in cima alla schermata progetti e quella
+   *  la vede anche uno sviluppatore. */
+  spazioMio: () =>
+    request<{
+      nome: string | null;
+      usato_byte: number;
+      max_byte: number;
+      vicina: boolean;
+      piena: boolean;
+    }[]>("/api/identita/spazio"),
 
   mieAziende: () =>
     request<{ id: number; nome: string; implicita: boolean; ruolo: string }[]>(

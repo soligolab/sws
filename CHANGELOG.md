@@ -27,6 +27,16 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   indirizzo pubblico. **Sui pannelli non cambia nulla**: lì gli utenti restano quelli del progetto.
 
 ### Added
+- **Data di build e revisione, per tutti e due gli artefatti.** «Questa installazione» nella console mostra ora la
+  build del **runtime** e quella **della pagina che stai guardando** — versione, revisione git e data — e avvisa
+  quando la seconda è più vecchia del bundle che il server ha sul disco, cioè quando il browser ne sta servendo una
+  copia vecchia. La stessa firma, in piccolo, sta in fondo al menu della barra dell'IDE, dove la domanda «quello
+  che vedo è aggiornato?» viene mentre si lavora.
+- **Le quote di spazio ora fermano davvero.** Sopra l'85% l'azienda vede un avviso in cima alla schermata dei
+  progetti e nel sinottico; al limite, creare un progetto o caricarne uno da ZIP viene rifiutato con un messaggio
+  che dice quanto si usa e quanto si ha. **Quello che già gira non si ferma**: i progetti aperti continuano, lo
+  storico continua a scrivere — fermarlo perderebbe dati d'impianto — e un **deploy** verso un dispositivo passa
+  comunque, perché lì il progetto sta sostituendo sé stesso e rifiutarlo lascerebbe un impianto a metà.
 - **La console di amministrazione si apre anche a chi amministra un'azienda**, e gli mostra solo la sua: aziende,
   persone, marchio. Posta e Questa installazione non compaiono affatto — non sono di nessuna azienda. Stato,
   marchio, versione e risorse le decide la piattaforma e si vedono spente: un comando che non può riuscire non si

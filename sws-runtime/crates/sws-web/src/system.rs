@@ -93,6 +93,27 @@ pub struct SystemStatus {
     /// impianto» è un giudizio che la UI deriva e che può cambiare, mentre
     /// «questa istanza ha un viewer» è una proprietà del processo.
     pub mode: &'static str,
+    /// La revisione git da cui è stato compilato il binario, o
+    /// `"sconosciuta"` quando si è costruito senza `.git` (il container copia
+    /// i sorgenti). Vedi `build.rs`.
+    pub runtime_git: &'static str,
+    /// Quando il binario è stato scritto su disco.
+    ///
+    /// È la **mtime dell'eseguibile**, non un timestamp inciso a compile
+    /// time: `build.rs` viene rieseguito solo quando cambiano i suoi
+    /// `rerun-if-changed`, quindi una data incisa lì resterebbe quella della
+    /// prima compilazione e mentirebbe a ogni ricompilazione successiva — che
+    /// è esattamente il dubbio da togliere. La mtime è vera per costruzione.
+    pub runtime_build_ms: Option<u64>,
+    /// Quando è stato scritto il bundle della SPA **che questo runtime
+    /// servirebbe adesso**, letto da `--www`.
+    ///
+    /// Serve a smascherare il caso che ha fatto nascere tutto questo: la
+    /// pagina aperta nel browser può essere più vecchia di quella sul disco,
+    /// perché `index-admin.html` esce senza `Cache-Control` e il browser se
+    /// la tiene. Confrontando questa data con quella incisa nel bundle in
+    /// esecuzione si vede subito, invece di sospettarlo.
+    pub spa_build_ms: Option<u64>,
     pub active_project: Option<String>,
     /// L'**indirizzo** del progetto aperto: `<azienda>/<nome>`, con `-` per
     /// l'azienda implicita.
@@ -255,6 +276,21 @@ pub fn detect_container_engine() -> Option<String> {
     .map(str::to_string)
 }
 
+/// La mtime di un file in millisecondi, se si riesce a leggerla.
+///
+/// `None` e non zero: un file che non c'è e un file del 1970 sono due cose
+/// diverse, e la console deve poter dire «non lo so» invece di mostrare una
+/// data falsa.
+fn mtime_ms(p: &Path) -> Option<u64> {
+    std::fs::metadata(p)
+        .ok()?
+        .modified()
+        .ok()?
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()
+        .map(|d| d.as_millis() as u64)
+}
+
 /// Il valore del campo `mode` a partire da `AppState::ide_only`.
 ///
 /// Una funzione e non un letterale nei due punti che lo costruiscono: le due
@@ -288,6 +324,8 @@ pub async fn compute_system_status(
     // Stessa ragione delle due sopra: serve a ricavare l'azienda dal percorso
     // del progetto aperto, e qui `AppState` non c'è.
     radice_progetti: &Path,
+    // E questa per la data del bundle servito.
+    www_dir: Option<&Path>,
 ) -> SystemStatus {
     let mut sys = System::new_all();
     sys.refresh_all();
@@ -341,6 +379,11 @@ pub async fn compute_system_status(
         segreti_separati: true,
         uptime_s: started_at.elapsed().as_secs(),
         mode: mode_label(ide_only),
+        runtime_git: env!("SWS_GIT_SHA"),
+        runtime_build_ms: mtime_ms(&std::env::current_exe().unwrap_or_default()),
+        // L'ingresso dell'IDE: è il file che nomina i bundle con l'hash,
+        // quindi è lui che, se cacheato, trattiene indietro tutto il resto.
+        spa_build_ms: www_dir.and_then(|d| mtime_ms(&d.join("index-admin.html"))),
         active_project,
         active_project_riferimento,
         project_saved_by,
@@ -479,6 +522,7 @@ pub async fn get_system_status(State(state): State<AppState>) -> Json<SystemStat
         crate::router::fonte_auth_corrente(&state).await
             != crate::router::FonteAutenticazione::Nessuna,
         state.projects_root.as_path(),
+        state.www_dir.as_deref().map(|d| d.as_path()),
     )
     .await;
     status.boot_image = boot_image;
@@ -968,6 +1012,7 @@ mod tests {
             false,
             false,
         Path::new("/tmp"),
+        None,
         )
         .await;
 
@@ -996,6 +1041,7 @@ mod tests {
             false,
             false,
         Path::new("/tmp"),
+        None,
         )
         .await;
         assert!(status.active_project.is_none());
@@ -1027,6 +1073,7 @@ mod tests {
             true,
             false,
         Path::new("/tmp"),
+        None,
         )
         .await;
         assert_eq!(ide.mode, "ide", "senza viewer l'istanza è un IDE");
@@ -1041,6 +1088,7 @@ mod tests {
             false,
             false,
         Path::new("/tmp"),
+        None,
         )
         .await;
         assert_eq!(
@@ -1107,6 +1155,7 @@ mod tests {
             false,
             false,
         Path::new("/tmp"),
+        None,
         )
         .await;
         assert_eq!(status.alarm_active_count, 1);

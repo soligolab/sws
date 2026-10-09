@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { useAppStore } from "@/store";
+import { identitaPagina, paginaVecchia } from "@/versione";
 
 /**
  * La barra sopra l'elenco dei progetti: chi sei, per conto di chi, e cosa
@@ -37,6 +38,10 @@ export function BarraIdentita({
   const clearAuth = useAppStore((s) => s.clearAuth);
   const [amministratore, setAmministratore] = useState(false);
   const [aziende, setAziende] = useState<{ nome: string; implicita: boolean; ruolo?: string }[]>([]);
+  // La firma della build, in fondo al menu. Non una schermata «info»: la
+  // domanda «quello che vedo e aggiornato?» viene mentre si lavora, e la
+  // risposta deve stare dove si e gia cliccato.
+  const [sistema, setSistema] = useState<import("@/api/client").SystemStatus | null>(null);
   const [aperto, setAperto] = useState(false);
   const box = useRef<HTMLDivElement | null>(null);
 
@@ -46,6 +51,7 @@ export function BarraIdentita({
       .then((me) => setAmministratore(me.amministratore_piattaforma === true))
       .catch(() => setAmministratore(false));
     api.mieAziende().then(setAziende).catch(() => setAziende([]));
+    api.getSystemStatus().then(setSistema).catch(() => setSistema(null));
   }, []);
 
   // Un menu che non si chiude cliccando fuori resta aperto sopra il contenuto
@@ -68,6 +74,8 @@ export function BarraIdentita({
   // la piattaforma: il ruolo lo porta gia `mie-aziende`, non serve chiederlo
   // di nuovo.
   const amministraUnAzienda = aziende.some((a) => a.ruolo === "amministratore");
+  const pagina = identitaPagina();
+  const vecchia = paginaVecchia(sistema);
   const proprie = aziende.filter((a) => !a.implicita);
   const etichettaAzienda =
     proprie.length === 0
@@ -176,6 +184,20 @@ export function BarraIdentita({
             <button style={{ ...voce, color: "var(--brand-danger-soft, #fca5a5)" }} onClick={esci}>
               {t("welcome.barraEsci")}
             </button>
+            <div style={{ height: 1, background: "var(--brand-surface-2, #334155)", margin: "4px 0" }} />
+            {/* La firma, in fondo e in piccolo: si legge quando la si cerca e
+                non disturba quando non serve. L'avviso invece si vede. */}
+            <div
+              style={{
+                padding: "6px 14px 4px", fontSize: 11, lineHeight: 1.5,
+                color: vecchia ? "var(--brand-warning-soft, #fbbf24)" : "var(--brand-text-subtle, #64748b)",
+              }}
+              title={t("welcome.barraBuildTitolo")}
+            >
+              {vecchia && <div style={{ marginBottom: 3 }}>⚠ {t("welcome.barraPaginaVecchia")}</div>}
+              {pagina.versione} · {pagina.git}
+              {pagina.costruitoMs !== null && ` · ${new Date(pagina.costruitoMs).toLocaleString()}`}
+            </div>
           </div>
         )}
       </div>

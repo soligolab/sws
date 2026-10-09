@@ -879,7 +879,8 @@ pub fn build(
         // Le proprie aziende: serve a decidere se mostrare una scelta, quindi
         // sta col gruppo self-service e non con la console.
         .route("/api/identita/mie-aziende", get(mie_aziende))
-        .route("/api/identita/marchio", get(marchio_mio));
+        .route("/api/identita/marchio", get(marchio_mio))
+        .route("/api/identita/spazio", get(spazio_mio));
 
     let protected = blocking
         .merge(self_service)
@@ -1497,6 +1498,52 @@ async fn mie_aziende(State(s): State<AppState>, req: Request) -> Response {
         })
         .collect();
     Json(mie).into_response()
+}
+
+/// `GET /api/identita/spazio` — lo spazio delle aziende di chi è collegato.
+///
+/// Distinta da `/api/amministrazione/risorse`, che è della **console** e
+/// chiede di amministrare qualcosa. Qui ci passa chiunque, perché l'avviso
+/// «lo spazio sta finendo» va in cima alla schermata dei progetti, e quella
+/// la vede anche uno sviluppatore — che è poi la persona a cui il prossimo
+/// progetto verrà rifiutato (decisione del maintainer: avvisa prima,
+/// rifiuta al limite).
+///
+/// Porta solo le aziende **con un tetto**: senza, non c'è niente da avvisare
+/// e si eviterebbe comunque di pesare le cartelle per nulla.
+async fn spazio_mio(State(s): State<AppState>, req: Request) -> Response {
+    let vuoto = || Json(Vec::<serde_json::Value>::new()).into_response();
+    let Some(id) = s.identita.as_ref() else { return vuoto() };
+    let Some(utente) = req.extensions().get::<AuthUser>().cloned() else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+    let Ok(utenti) = id.elenca().await else { return vuoto() };
+    let Some(io) = utenti.iter().find(|u| u.email == utente.username) else {
+        return vuoto();
+    };
+    let tutte = id.elenca_aziende().await.unwrap_or_default();
+    let mie: Vec<_> = id
+        .aziende_di(io.id)
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|(aid, _)| tutte.iter().find(|a| a.id == aid).cloned())
+        .filter(|a| a.max_byte.is_some_and(|m| m > 0))
+        .collect();
+    let mut fuori = Vec::new();
+    for a in mie {
+        let Some(stato) = crate::projects::quota_spazio(&s, Some(a.id)).await else {
+            continue;
+        };
+        fuori.push(serde_json::json!({
+            "nome": if a.implicita { serde_json::Value::Null } else { a.nome.clone().into() },
+            "usato_byte": stato.usato,
+            "max_byte": stato.massimo,
+            "vicina": stato.vicina(),
+            "piena": stato.piena(),
+        }));
+    }
+    Json(fuori).into_response()
 }
 
 /// `GET /api/identita/marchio` — il marchio di chi è collegato.

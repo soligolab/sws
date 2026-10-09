@@ -867,6 +867,11 @@ interface WelcomeScreenProps {
  *  la riga in lavorazione si identifica col riferimento. */
 type EditingState = { rif: string; name: string; mode: "rename" | "duplicate"; value: string };
 
+/** I byte in GB, come li legge una persona. */
+function gb(n: number): string {
+  return `${(n / 1_073_741_824).toFixed(1)} GB`;
+}
+
 /** Dove il browser ricorda se l'elenco era a griglia o a lista. */
 const VISTA_SALVATA = "sws.welcome.vista";
 
@@ -915,6 +920,15 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
   // schermata del cambio OBBLIGATO invece di una seconda copia del modulo:
   // due punti che scrivono la stessa password sono due punti che divergono.
   const [cambioPassword, setCambioPassword] = useState(false);
+  // L'avviso di spazio, in cima all'elenco (decisione del maintainer,
+  // 08-10-2026: avvisa prima, rifiuta al limite). Qui, perche e la schermata
+  // da cui si crea un progetto — cioe il gesto che verrebbe rifiutato.
+  const [spazio, setSpazio] = useState<
+    { nome: string | null; usato_byte: number; max_byte: number; vicina: boolean; piena: boolean }[]
+  >([]);
+  useEffect(() => {
+    api.spazioMio().then(setSpazio).catch(() => setSpazio([]));
+  }, []);
   // Griglia o lista. La griglia e la predefinita (richiesta del maintainer del
   // 07-10-2026: «l'elenco dei progetti potrebbe essere fatto ad icone stile
   // file browser?»), la lista resta perche con i percorsi lunghi e piu
@@ -1060,6 +1074,28 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
       {showInstalla && <InstallaRuntimeModal onClose={() => setShowInstalla(false)} />}
 
       <BarraIdentita onCambiaPassword={() => setCambioPassword(true)} />
+
+      {/* Solo chi e vicino o oltre: un avviso che c'e sempre non e un
+          avviso. */}
+      {spazio.filter((a) => a.vicina).map((a) => (
+        <div
+          key={a.nome ?? ""}
+          style={{
+            alignSelf: "stretch", margin: "0 0 18px", padding: "10px 20px",
+            fontSize: 13, lineHeight: 1.5,
+            color: a.piena ? "var(--brand-danger-soft, #fca5a5)" : "var(--brand-warning-soft, #fbbf24)",
+            background: a.piena ? "#7f1d1d33" : "#78350f33",
+            borderBottom: "1px solid var(--brand-surface-2, #334155)",
+          }}
+        >
+          {a.piena ? "✕ " : "⚠ "}
+          {t(a.piena ? "welcome.spazioEsaurito" : "welcome.spazioQuasiEsaurito", {
+            azienda: a.nome ?? t("welcome.aziendaQuestaInstallazione"),
+            usato: gb(a.usato_byte),
+            massimo: gb(a.max_byte),
+          })}
+        </div>
+      ))}
 
       {/* La griglia vuole spazio: con 480px starebbero tre piastrelle per
           riga e il resto della finestra resterebbe vuoto. La lista no — i

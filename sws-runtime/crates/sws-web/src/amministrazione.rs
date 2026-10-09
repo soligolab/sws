@@ -680,34 +680,6 @@ const VALIDITA_MISURA_MS: u64 = 60_000;
 static MISURA: std::sync::OnceLock<tokio::sync::Mutex<Option<(u64, serde_json::Value)>>> =
     std::sync::OnceLock::new();
 
-/// Lo spazio di una cartella, diviso fra storico e tutto il resto.
-///
-/// Ricorsiva e sincrona: gira in `spawn_blocking`, perché su un disco lento e
-/// con molti progetti non deve tenere occupato l'esecutore asincrono.
-fn pesa(dir: &std::path::Path) -> (u64, u64) {
-    let (mut progetti, mut storico) = (0u64, 0u64);
-    let Ok(rd) = std::fs::read_dir(dir) else {
-        return (0, 0);
-    };
-    for e in rd.flatten() {
-        let Ok(tipo) = e.file_type() else { continue };
-        if tipo.is_dir() {
-            // `history/` è lo storico, ovunque si trovi nell'albero: è il
-            // nome che il runtime usa per i suoi database.
-            let (p, s) = pesa(&e.path());
-            if e.file_name() == "history" {
-                storico += p + s;
-            } else {
-                progetti += p;
-                storico += s;
-            }
-        } else if let Ok(m) = e.metadata() {
-            progetti += m.len();
-        }
-    }
-    (progetti, storico)
-}
-
 async fn risorse(State(s): State<AppState>, Extension(chi): Extension<AuthUser>) -> Response {
     let id = match identita(&s) {
         Ok(i) => i,
@@ -728,32 +700,12 @@ async fn risorse(State(s): State<AppState>, Extension(chi): Extension<AuthUser>)
         let misurato = tokio::task::spawn_blocking(move || {
             let mut righe = Vec::new();
             for a in &aziende {
-                // L'azienda implicita è la radice stessa: si pesano i suoi
-                // progetti, non le sottocartelle delle altre aziende.
-                let (progetti, storico) = if a.cartella.is_empty() {
-                    let mut p = 0u64;
-                    let mut st = 0u64;
-                    if let Ok(rd) = std::fs::read_dir(&radice) {
-                        for e in rd.flatten() {
-                            if !e.file_type().map(|t| t.is_dir()).unwrap_or(false) {
-                                continue;
-                            }
-                            // Una sottocartella che è di un'altra azienda non
-                            // è della radice: si salta, o verrebbe contata due
-                            // volte.
-                            let nome = e.file_name().to_string_lossy().to_string();
-                            if aziende.iter().any(|x| !x.cartella.is_empty() && x.cartella == nome) {
-                                continue;
-                            }
-                            let (pp, ss) = pesa(&e.path());
-                            p += pp;
-                            st += ss;
-                        }
-                    }
-                    (p, st)
-                } else {
-                    pesa(&radice.join(&a.cartella))
-                };
+                // La stessa misura che usa chi RIFIUTA (`quota_spazio`), non
+                // una seconda copia: un cruscotto che conta in un modo e un
+                // rifiuto che conta in un altro si contraddicono, e chi li
+                // guarda non sa a quale credere.
+                let (progetti, storico) =
+                    crate::projects::spazio_di_azienda(&radice, a, &aziende);
                 righe.push(serde_json::json!({
                     "id": a.id,
                     "nome": a.nome,

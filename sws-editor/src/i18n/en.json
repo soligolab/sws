@@ -519,7 +519,11 @@
     "altreAziende": "Other companies — visible to you as a platform administrator",
     "vistaGriglia": "Icons",
     "vistaLista": "List",
-    "barraIde": "Back to the editor"
+    "barraIde": "Back to the editor",
+    "spazioQuasiEsaurito": "{{azienda}} is running out of space: {{usato}} of {{massimo}}. It is usually the history growing — free some before you get stuck.",
+    "spazioEsaurito": "{{azienda}} is out of space: {{usato}} of {{massimo}}. No new projects can be created until you free some — the open ones keep working.",
+    "barraBuildTitolo": "Version, revision and build date of this page",
+    "barraPaginaVecchia": "Stale page: force a reload"
   },
   "logs": {
     "history": "History…",
@@ -2845,7 +2849,10 @@
       "autenticazione": "Asks for credentials",
       "container": "In a container",
       "host": "Machine",
-      "arch": "Architecture"
+      "arch": "Architecture",
+      "buildRuntime": "Runtime build",
+      "buildPagina": "This page’s build",
+      "paginaVecchia": "This page is older than the bundle the server has on disk: your browser is serving a cached copy. Force a reload (Ctrl+Shift+R)."
     },
     "marchi": {
       "nomeNuovo": "Name of the new brand",
