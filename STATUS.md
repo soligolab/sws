@@ -74,54 +74,43 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
-## ▶ Riprendere da qui — Fase 3 chiusa per intero, si apre la 4 (2026-10-09)
+## ▶ Riprendere da qui — 2.13.0-rc.1, immagine amd64 (2026-10-09)
 
-**Catena di rami annidati, non ancora mergiata** (istruzione del maintainer: «fai i rami annidati
-almeno fino a finire la fase 3 e iniziare la fase 4»). Ogni ramo parte dal precedente, quindi
-mergiando l'ultimo entra tutto:
+`main` pushato, nessun ramo aperto. La catena di rami annidati di oggi è entrata in **tre squash**
+(`4bac6db0`, `552aaff0`, `209f3a75`). Versione alzata a **2.13.0-rc.1**: è una versione di prova,
+quindi il suo lavoro resta sotto `[Unreleased]` nel CHANGELOG.
 
-```
-main
- └─ feat/3c-quote-che-fermano       le quote fermano; data/ora di build e revisione
-     └─ fix/cache-pagine-ingresso   la pagina non resta in cache; chiusura Fase 3
-         └─ feat/4-gateway          rinomina max_progetti_aperti; piano della Fase 4
-```
+Verde: `cargo check`, 483 test `sws-web`, 35 `sws-identita`, 1185 del frontend, `pnpm build`,
+40/40 guardie. **Manca il collaudo a schermo**: il maintainer non ha ancora provato niente di
+oggi.
 
-`cargo check`, 483 test `sws-web`, 34 `sws-identita`, 1185 test del frontend, `pnpm build`,
-**40/40 guardie**: verdi. Manca la conferma a schermo del maintainer, che era via.
+### Cos'è entrato
 
-### Fase 3 chiusa
+| squash | cosa |
+|---|---|
+| `4bac6db0` | le quote di spazio fermano (avviso all'85%, rifiuto al limite da entrambe le porte); data di build e revisione per runtime e pagina |
+| `552aaff0` | la pagina d'ingresso non resta più in cache; Fase 3 chiusa, piano 3c in archivio |
+| `209f3a75` | `max_progetti_aperti` col nome vero (schema v3); specifiche della Fase 4 decise |
 
-3a, 3b e 3c sono in archivio. Le aziende esistono, la console è confinata, i progetti si
-indirizzano `/<azienda>/<nome>` e le quote di spazio **fermano**: avviso sopra l'85%, rifiuto al
-limite da entrambe le porte, e quello che già gira non si ferma.
+### La Fase 4
 
-**Resta dichiaratamente al gateway** il tetto sui *progetti aperti*: è un limite su ciò che gira,
-non un conteggio in un database. La console lo mostra e lo scrive accanto al numero.
+Le specifiche sono decise (vedi [il piano](docs/plans/2026-10-09-fase-4-gateway.md)). Le quote
+sono **due**: spazio e progetti aperti insieme. Questo supera la decisione 23, e i quattro punti
+dei piani che dicevano il contrario sono stati corretti.
 
-### Fase 4 aperta, e si ferma su un blocco concreto
+**Due cose da provare prima di scrivere codice del gateway:**
 
-[Il piano](docs/plans/2026-10-09-fase-4-gateway.md) è scritto, **non approvato**: porta cinque
-domande per la sessione di plan e una **contraddizione da sciogliere** — la decisione 23 dice che
-«progetti aperti insieme» non è una quota, l'08-10 il maintainer ha detto il contrario e la 3c ha
-seguito lui.
-
-**Il primo passo concreto non aspetta nessuna decisione: pubblicare l'immagine amd64 su ghcr.** Il
-gateway gira su x86 e il tronco cloud lo chiede come prerequisito; la 2.12.0 ha pubblicato **solo
-arm64**. `scripts/build_container_x86_64.sh` esiste e sa già i tag `latest-amd64`/`rc-amd64`, il
-login su ghcr c'è (`mauro@soligo.net`) e l'albero è pulito: mancano **solo** l'autorizzazione del
-maintainer (pubblicare è un'azione verso l'esterno) e un occhio al disco, che è al 98% con 43 GB
-liberi.
+1. **L'immagine amd64 su ghcr** — in corso con questa rc. Il gateway gira su x86 e finora si è
+   pubblicato solo `arm64`.
+2. **Un container può avviarne un altro?** (podman rootless, socket, sul VPS). Se la risposta è
+   no, il gateway non può essere un container e la decisione di oggi va rifatta.
 
 ### Da provare a schermo
 
-- Dalla console, uno spazio basso su un'azienda → avviso in cima all'elenco progetti e rifiuto
-  chiaro alla creazione; poi rialzarlo e verificare che torni normale.
+- Quote: metti uno spazio basso su un'azienda, verifica avviso e rifiuto, poi rialzalo.
 - La riga di build: console → «Questa installazione», e in fondo al menu della barra dell'IDE.
-- Che la pagina non resti più in cache: dopo una ricompilazione basta un refresh normale.
-- Che le quote si leggano ancora dopo la rinomina della colonna (`max_progetti_aperti`): la
-  migrazione è girata sull'archivio vero, `user_version` è 3 e il valore sopravvive, ma a schermo
-  non l'ha ancora visto nessuno.
+- Che la pagina non resti in cache: dopo una ricompilazione basta un refresh normale.
+- Che le quote si leggano ancora dopo la rinomina della colonna.
 
 ## ▶ Riprendere da qui — collaudo MCM sul TC620 dopo la 2.12.0 (2026-10-06)
 
