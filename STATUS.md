@@ -100,10 +100,14 @@ dei piani che dicevano il contrario sono stati corretti.
 
 **Due cose da provare prima di scrivere codice del gateway:**
 
-1. **L'immagine amd64 su ghcr** — in corso con questa rc. Il gateway gira su x86 e finora si è
-   pubblicato solo `arm64`.
+1. ~~L'immagine amd64 su ghcr~~ — **fatta, e non era nemmeno un ostacolo.** `2.12.0-amd64` e
+   `latest-amd64` erano sul registry dal 06-10: avevo letto le note di release, che elencavano
+   solo i tag `arm64`, e le avevo prese per lo stato del registry. Il 09-10 è stata comunque
+   pubblicata `2.13.0-rc.1-amd64` (più `rc-amd64` e il tag di commit `5827e946-amd64`) con il
+   lavoro di oggi: è quella con cui si proverà il gateway.
 2. **Un container può avviarne un altro?** (podman rootless, socket, sul VPS). Se la risposta è
-   no, il gateway non può essere un container e la decisione di oggi va rifatta.
+   no, il gateway non può essere un container e la decisione di oggi va rifatta. **È rimasta
+   l'unica cosa da provare prima di scrivere codice.**
 
 ### Da provare a schermo
 

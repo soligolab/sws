@@ -34,11 +34,16 @@ aperto resterebbe un container acceso.
    proxy inverso in `sws-runtime/crates/sws-runtime/src/main.rs`. Le opzioni di avvio attuali sono
    `--projects-root`, `--www`, `--viewer-port`, `--admin-port`, `--no-admin`,
    `--senza-autenticazione`.
-2. **Il prerequisito infrastrutturale NON è soddisfatto.** Il tronco cloud chiede un'immagine
-   **amd64** pubblicata su ghcr prima di questa fase: il gateway gira su un server x86. La 2.12.0
-   ha pubblicato **solo arm64** (`2.12.0-arm64`, `latest-arm64`, `rc-arm64`, più il tag di commit).
-   `scripts/build_container_x86_64.sh` esiste e sa già i tag `latest-amd64`/`rc-amd64`, ma nessuna
-   release li ha mossi.
+2. **Il prerequisito infrastrutturale è soddisfatto.** Il tronco cloud chiede un'immagine **amd64**
+   su ghcr prima di questa fase, perché il gateway gira su x86. C'è: `2.12.0-amd64` e
+   `latest-amd64` sono sul registry dal 06-10-2026, e dal 09-10 anche `2.13.0-rc.1-amd64` e
+   `rc-amd64` col lavoro di oggi.
+
+   > **Questo punto prima diceva il contrario**, e lo diceva sbagliando. L'avevo ricavato dalle
+   > note della release 2.12.0 in `STATUS.md`, che elencano solo i tag `arm64` — erano incomplete,
+   > e io ho preso un documento per lo stato del registry senza interrogare il registry. La
+   > verifica giusta costa un comando: `podman pull <tag>` riesce, su un tag inventato fallisce
+   > con «manifest unknown».
 3. **Il branding per azienda è già risolto a metà**, e non come previsto: dal 09-10-2026 il
    marchio segue chi entra via `GET /api/identita/marchio`, e il frontend ricarica il tema dopo
    l'accesso. Il gateway non deve più servire un `active.json` diverso per azienda — gli resta solo
@@ -110,9 +115,9 @@ decidere: la decisione 25 risponde già.
 
 ## Il primo passo concreto
 
-**Pubblicare l'immagine amd64 su ghcr.** Il gateway gira su x86 e la 2.12.0 ha pubblicato solo
-`arm64`. `scripts/build_container_x86_64.sh` esiste e conosce già i tag `latest-amd64` e
-`rc-amd64`; il login su ghcr c'è e l'albero è pulito. Serve l'autorizzazione del maintainer —
-pubblicare è un'azione verso l'esterno — e un occhio al disco, al 98%.
+**Provare se un container può avviarne un altro**, sul VPS: podman rootless, accesso al socket.
+Da quella prova dipende se il gateway resta un container dietro Traefik (la scelta del 09-10) o
+deve diventare un servizio della macchina.
 
-Poi la prova di podman dentro un container. Il codice del gateway viene dopo tutti e due.
+L'immagine amd64 non è più un ostacolo: c'è dal 06-10, e il 09-10 è stata pubblicata anche
+`2.13.0-rc.1-amd64` con il lavoro di oggi, che è quella con cui si proverà il gateway.
