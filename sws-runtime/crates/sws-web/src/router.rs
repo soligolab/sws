@@ -12,7 +12,7 @@ use axum::{
     http::{header, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
-    routing::{delete, get, post, put},
+    routing::{any, delete, get, post, put},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
@@ -119,6 +119,28 @@ pub struct AppState {
     /// pannelli, decisione CRA 4). Smette di valere da sé appena un utente
     /// esiste: la rotta che lo usa rifiuta se `ha_utenti`.
     pub token_primo_accesso: Option<Arc<String>>,
+    /// Il segreto che il gateway rimanda a ogni richiesta, quando questo
+    /// processo gira con `--auth-delegata`.
+    ///
+    /// `Some` vuol dire «chi sono lo dice il gateway»: l'archivio delle
+    /// identita qui non c'e' (si monta solo la cartella del progetto,
+    /// decisione 25). `main.rs` rifiuta di partire se la bandiera c'e' e il
+    /// segreto no.
+    pub segreto_gateway: Option<Arc<String>>,
+    /// La regia dei container, quando questo processo **è** il gateway
+    /// (`--gateway`).
+    ///
+    /// `Some` e `segreto_gateway: Some` sono i due lati opposti della stessa
+    /// cosa e non stanno mai insieme: qui si comanda podman e si sa chi sono
+    /// gli utenti, là si è comandati e l'identità arriva in un'intestazione.
+    pub regia: Option<Arc<crate::gateway::progetti::Regia>>,
+    /// Come questo container di progetto si fa riconoscere dal gateway quando
+    /// lo chiama (`gateway/ritorno.rs`). Vuoto fuori dal gateway.
+    pub ritorno: Arc<crate::gateway::ritorno::Ritorno>,
+    /// I pannelli collegati col tunnel, quando questo processo è il gateway.
+    pub tunnel: Option<Arc<crate::tunnel::multiplex::Registro>>,
+    /// Chi può entrare nel tunnel. Vedi `tunnel::gateway::Ammessi`.
+    pub pannelli_ammessi: Option<Arc<crate::tunnel::gateway::Ammessi>>,
     pub project_epoch: Arc<tokio::sync::watch::Sender<u64>>,
     pub functions: FunctionsRegistry,
     pub derived_tags: DerivedTagsRegistry,
@@ -270,6 +292,9 @@ pub fn build(
     identita: Option<sws_identita::Identita>,
     senza_auth_sviluppo: bool,
     token_primo_accesso: Option<Arc<String>>,
+    segreto_gateway: Option<String>,
+    regia: Option<Arc<crate::gateway::progetti::Regia>>,
+    pannelli_ammessi: Option<Arc<crate::tunnel::gateway::Ammessi>>,
     // Lo `AppState` torna al chiamante insieme ai due router: `main.rs` deve
     // avviare i servizi del progetto auto-aperto al boot (notifiche, script
     // globali) e quei supervisori vivono qui dentro.
@@ -287,6 +312,11 @@ pub fn build(
         identita,
         senza_auth_sviluppo,
         token_primo_accesso,
+        ritorno: Arc::new(crate::gateway::ritorno::Ritorno::dall_ambiente(segreto_gateway.is_some())),
+        segreto_gateway: segreto_gateway.map(Arc::new),
+        tunnel: regia.is_some().then(crate::tunnel::gateway::registro_nuovo),
+        pannelli_ammessi,
+        regia,
         db,
         bus,
         alarms,
@@ -1044,6 +1074,60 @@ pub fn build(
             post(identita_primo_amministratore),
         );
 
+    // ── Il gateway: i progetti sotto `/p/<azienda>/<progetto>/` ─────────────
+    //
+    // **Due gruppi, e la riga di taglio non è un dettaglio.** La radice del
+    // prefisso è il documento HTML dell'IDE, e una navigazione del browser non
+    // porta nessun token: quello lo aggiunge il codice della pagina, che non è
+    // ancora stato caricato. Se fosse protetta, ogni ricarica darebbe 401 e
+    // l'unico modo di entrare sarebbe passare dalla console — anche con una
+    // sessione valida. Il guscio non è privato: è la stessa SPA che la console
+    // serve a chiunque.
+    //
+    // Tutto il resto — `/api/…`, `/ws/…` — è il progetto, e lì il token c'è.
+    let (gateway_aperto, gateway_protetto) = if state.regia.is_some() {
+        let al_progetto = crate::gateway::rotte::inoltra_al_progetto;
+        (
+            Router::new()
+                .route("/p/:azienda/:progetto", any(al_progetto))
+                .route("/p/:azienda/:progetto/", any(al_progetto)),
+            Router::new()
+                .route("/p/:azienda/:progetto/*resto", any(al_progetto))
+                .route_layer(middleware::from_fn_with_state(state.clone(), require_auth)),
+        )
+    } else {
+        (Router::new(), Router::new())
+    };
+    let open = open.merge(gateway_aperto);
+    let protected = protected.merge(gateway_protetto);
+
+    // ── Il tunnel dei pannelli ──────────────────────────────────────────────
+    //
+    // `/tunnel/v1` è **pre-auth di necessità**, e si regge su una guardia sua:
+    // chi chiama è un pannello, non una persona, e non ha nessuna sessione da
+    // presentare. Si riconosce col token in `Authorization`, confrontato a
+    // tempo costante — vedi `tunnel::gateway::Ammessi`.
+    //
+    // `/dev/<pannello>/…` invece è l'IDE che parla col pannello, quindi sta
+    // dietro `require_auth` come ogni altra cosa che un utente chiama. Chi
+    // può parlare con quale pannello — cioè il legame con l'azienda — è la
+    // fetta dopo: oggi un pannello nel registro lo raggiunge chiunque sia
+    // entrato, e finché i pannelli si dichiarano in un file del gateway non
+    // c'è un'azienda a cui chiederlo.
+    let (tunnel_aperto, tunnel_protetto) = if state.tunnel.is_some() {
+        (
+            Router::new().route("/tunnel/v1", get(crate::tunnel::gateway::accetta)),
+            Router::new()
+                .route("/dev/:pannello/*resto", any(crate::tunnel::gateway::inoltra))
+                .route("/api/pannelli", get(crate::tunnel::gateway::collegati))
+                .route_layer(middleware::from_fn_with_state(state.clone(), auth_utente_o_figlio)),
+        )
+    } else {
+        (Router::new(), Router::new())
+    };
+    let open = open.merge(tunnel_aperto);
+    let protected = protected.merge(tunnel_protetto);
+
     // ── La porta stretta di `--no-admin` ─────────────────────────────────────
     //
     // Decisione del maintainer (2026-09-02): sul dispositivo l'IDE non è il
@@ -1440,6 +1524,11 @@ pub enum FonteAutenticazione {
     Progetto,
     /// `identita.db` dell'installazione: chi apre l'IDE.
     Installazione,
+    /// **Lo dice il gateway.** Un progetto aperto nel cloud gira in un
+    /// container suo, con montata solo la cartella del progetto (decisione
+    /// 25): `identita.db` qui non c'e', e chi sta lavorando glielo dice chi
+    /// sta davanti, in un'intestazione firmata con un segreto condiviso.
+    Delegata,
 }
 
 /// Decide la fonte. Funzione pura, così si prova senza alzare un server.
@@ -1448,7 +1537,15 @@ pub fn fonte_autenticazione(
     ha_utenti_progetto: bool,
     ha_identita: bool,
     senza_auth_sviluppo: bool,
+    auth_delegata: bool,
 ) -> FonteAutenticazione {
+    // **Prima di tutto**, e prima anche della scorciatoia di sviluppo: dietro
+    // un gateway non esiste nessun altro modo di sapere chi sei, e lasciare
+    // che un'altra regola vinca qui vorrebbe dire aprire il container a
+    // chiunque lo raggiunga.
+    if auth_delegata {
+        return FonteAutenticazione::Delegata;
+    }
     if senza_auth_sviluppo {
         return FonteAutenticazione::Nessuna;
     }
@@ -1537,7 +1634,9 @@ async fn spazio_mio(State(s): State<AppState>, req: Request) -> Response {
         .unwrap_or_default()
         .into_iter()
         .filter_map(|(aid, _)| tutte.iter().find(|a| a.id == aid).cloned())
-        .filter(|a| a.max_byte.is_some_and(|m| m > 0))
+        // Un tetto c'e' anche se e' zero: quello e' il piu' stretto di tutti,
+        // e l'azienda deve vederlo.
+        .filter(|a| a.max_byte.is_some())
         .collect();
     let mut fuori = Vec::new();
     for a in mie {
@@ -1601,12 +1700,19 @@ async fn marchio_mio(State(s): State<AppState>, req: Request) -> Response {
 /// e a quel punto nessun token può esistere. Non rivela nulla di utile a chi
 /// non è già davanti alla macchina — dice soltanto se un amministratore esiste.
 async fn identita_stato(State(s): State<AppState>) -> Response {
+    // `gateway` sta qui e non in una rotta sua perche' il frontend chiede
+    // gia' questo stato prima di decidere cosa mostrare, e la risposta cambia
+    // proprio quella decisione: aprire un progetto vuol dire andare su
+    // `/p/<azienda>/<nome>/` invece di cambiare il progetto attivo di questo
+    // processo. Una rotta in piu' sarebbe un secondo viaggio per un booleano.
+    let gateway = s.regia.is_some();
     let Some(id) = s.identita.as_ref() else {
-        return Json(serde_json::json!({"gestita": false})).into_response();
+        return Json(serde_json::json!({"gestita": false, "gateway": gateway})).into_response();
     };
     let ha = id.ha_utenti().await.unwrap_or(true);
     Json(serde_json::json!({
         "gestita": true,
+        "gateway": gateway,
         "serve_primo_amministratore": !ha,
     }))
     .into_response()
@@ -1721,7 +1827,47 @@ pub async fn fonte_auth_corrente(s: &AppState) -> FonteAutenticazione {
         s.auth.has_users().await,
         s.identita.is_some(),
         s.senza_auth_sviluppo,
+        s.segreto_gateway.is_some(),
     )
+}
+
+/// Chi sta lavorando, secondo il gateway.
+///
+/// Si crede all'intestazione `X-SWS-Utente` **solo** se arriva insieme al
+/// segreto concordato. Senza segreto giusto non si e anonimi: non si e
+/// nessuno, e la richiesta viene rifiutata dal chiamante.
+///
+/// Il confronto del segreto e a tempo costante: su un'intestazione che decide
+/// chi sei, un confronto che esce al primo byte diverso si puo misurare.
+fn utente_dal_gateway(req: &Request, atteso: &str) -> Option<AuthUser> {
+    let dato = req.headers().get("x-sws-gateway")?.to_str().ok()?;
+    if !confronto_costante(dato.as_bytes(), atteso.as_bytes()) {
+        return None;
+    }
+    let email = req.headers().get("x-sws-utente")?.to_str().ok()?.trim().to_string();
+    if email.is_empty() {
+        return None;
+    }
+    Some(AuthUser {
+        username: email,
+        // Dietro il gateway si lavora sul **proprio** progetto, gia filtrato
+        // da chi sta davanti: il ruolo fine lo decidera la Fase 5, qui serve
+        // poter lavorare. Stessa scelta, e stesso motivo, di
+        // `auth_user_da_identita`.
+        role: Role::Admin,
+        must_change_password: false,
+        allowed_zones: vec![],
+        // L'amministrazione della piattaforma non vive qui: la console sta
+        // sul gateway, non nel container di un progetto.
+        amministratore_piattaforma: false,
+    })
+}
+
+pub(crate) fn confronto_costante(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 
 /// Traduce un utente dell'installazione nel `Role` che il resto del router già
@@ -1790,6 +1936,30 @@ pub fn primo_utente_non_amministratore(ide_only: bool, ha_utenti: bool, ruolo: R
     !ide_only && !ha_utenti && ruolo != Role::Admin
 }
 
+/// Davanti a `/dev/<pannello>` e `/api/pannelli` sul gateway: o una persona
+/// (`require_auth`), o un **container di progetto** che si presenta con la sua
+/// chiave di ritorno (`gateway/ritorno.rs`, 10-10-2026). Il container chiama
+/// dal server e non ha una sessione; la chiave vale come «questa azienda».
+/// L'intestazione si toglie qui: oltre il gateway non serve a nessuno, e il
+/// pannello non deve vederla.
+async fn auth_utente_o_figlio(State(s): State<AppState>, mut req: Request, next: Next) -> Response {
+    let dato = req
+        .headers()
+        .get(crate::gateway::ritorno::INTESTAZIONE)
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_string);
+    if let Some(dato) = dato {
+        let segreto = s.regia.as_ref().map(|r| r.segreto().to_string()).unwrap_or_default();
+        let Some(chiamante) = crate::gateway::ritorno::verifica(&segreto, &dato) else {
+            return StatusCode::UNAUTHORIZED.into_response();
+        };
+        req.headers_mut().remove(crate::gateway::ritorno::INTESTAZIONE);
+        req.extensions_mut().insert(chiamante);
+        return next.run(req).await;
+    }
+    require_auth(State(s), req, next).await
+}
+
 async fn require_auth(State(s): State<AppState>, mut req: Request, next: Next) -> Response {
     let fonte = fonte_auth_corrente(&s).await;
 
@@ -1798,12 +1968,30 @@ async fn require_auth(State(s): State<AppState>, mut req: Request, next: Next) -
         return next.run(req).await;
     }
 
+    // Dietro il gateway non c'e nessun token da validare: l'identita arriva
+    // nell'intestazione, e il segreto e cio che la rende credibile. Si decide
+    // prima di cercare il token, perche un token qui non esiste proprio.
+    if fonte == FonteAutenticazione::Delegata {
+        let atteso = s.segreto_gateway.as_deref().cloned().unwrap_or_default();
+        let Some(utente) = utente_dal_gateway(&req, &atteso) else {
+            return StatusCode::UNAUTHORIZED.into_response();
+        };
+        // Il segreto è giusto, quindi anche l'origine viene dal gateway.
+        if let Some(o) = req.headers().get("x-sws-origine").and_then(|v| v.to_str().ok()) {
+            s.ritorno.ricorda_origine(o);
+        }
+        req.extensions_mut().insert(utente);
+        return next.run(req).await;
+    }
+
     let Some(token) = token_della_richiesta(&req) else {
         return StatusCode::UNAUTHORIZED.into_response();
     };
 
     let utente = match fonte {
-        FonteAutenticazione::Nessuna => unreachable!("gestita sopra"),
+        FonteAutenticazione::Nessuna | FonteAutenticazione::Delegata => {
+            unreachable!("gestite sopra")
+        }
         FonteAutenticazione::Progetto => s.auth.validate(&token).await.map(|i| AuthUser {
             username: i.username,
             role: i.role,
@@ -1960,11 +2148,31 @@ async fn optional_auth(State(s): State<AppState>, mut req: Request, next: Next) 
         return next.run(req).await;
     }
 
+    // Dietro il gateway l'identita arriva nell'intestazione, non in un token.
+    // Qui, a differenza di `require_auth`, un'intestazione mancante non e un
+    // rifiuto: questa e la porta del viewer, dove si entra anche anonimi in
+    // sola lettura. Senza segreto giusto si resta anonimi, e le rotte che
+    // scrivono continuano a chiedere un ruolo.
+    if fonte == FonteAutenticazione::Delegata {
+        let atteso = s.segreto_gateway.as_deref().cloned().unwrap_or_default();
+        let utente = utente_dal_gateway(&req, &atteso).unwrap_or_else(|| AuthUser {
+            username: String::new(),
+            role: Role::Viewer,
+            must_change_password: false,
+            allowed_zones: vec![],
+            amministratore_piattaforma: false,
+        });
+        req.extensions_mut().insert(utente);
+        return next.run(req).await;
+    }
+
     let token = token_della_richiesta(&req);
 
     let auth_user = if let Some(tok) = token {
         let trovato = match fonte {
-            FonteAutenticazione::Nessuna => unreachable!("gestita sopra"),
+            FonteAutenticazione::Nessuna | FonteAutenticazione::Delegata => {
+                unreachable!("gestite sopra")
+            }
             FonteAutenticazione::Progetto => s.auth.validate(&tok).await.map(|i| AuthUser {
                 username: i.username,
                 role: i.role,
@@ -10518,6 +10726,48 @@ mod primo_utente_tests {
         assert!(admin_sintetico().amministratore_piattaforma);
     }
 
+    /// Dietro il gateway vince la delega, su qualunque altra regola.
+    ///
+    /// Nel container di un progetto `identita.db` non c'e (si monta solo la
+    /// cartella del progetto, decisione 25): se un'altra regola vincesse
+    /// qui, il container finirebbe aperto a chiunque lo raggiunga.
+    #[test]
+    fn dietro_il_gateway_decide_il_gateway() {
+        // Qualunque combinazione: la delega passa davanti.
+        for ide in [true, false] {
+            for utenti in [true, false] {
+                for identita in [true, false] {
+                    for senza in [true, false] {
+                        assert_eq!(
+                            fonte_autenticazione(ide, utenti, identita, senza, true),
+                            F::Delegata,
+                            "ide={ide} utenti={utenti} identita={identita} senza={senza}"
+                        );
+                    }
+                }
+            }
+        }
+        // E senza delega niente cambia rispetto a prima.
+        assert_eq!(fonte_autenticazione(true, true, true, false, false), F::Installazione);
+    }
+
+    /// Il segreto si confronta a tempo costante, e uno sbagliato non passa.
+    ///
+    /// Su un'intestazione che decide **chi sei**, un confronto che esce al
+    /// primo byte diverso si puo misurare: si prova un carattere alla volta
+    /// e in poche migliaia di tentativi si ricostruisce il segreto.
+    #[test]
+    fn il_segreto_del_gateway_si_confronta_tutto() {
+        assert!(confronto_costante(b"abcdef0123456789", b"abcdef0123456789"));
+        assert!(!confronto_costante(b"abcdef0123456789", b"abcdef012345678X"));
+        // Lunghezze diverse: no, e senza leggere oltre.
+        assert!(!confronto_costante(b"abc", b"abcd"));
+        assert!(!confronto_costante(b"", b"x"));
+        // Due vuoti sono uguali, ma `utente_dal_gateway` non ci arriva mai:
+        // `main.rs` rifiuta di partire con un segreto piu corto di 16.
+        assert!(confronto_costante(b"", b""));
+    }
+
     #[test]
     fn un_ide_usa_gli_utenti_dell_installazione() {
         // Dal 06-10-2026. Prima qui si tornava «nessuna autenticazione» in
@@ -10525,27 +10775,27 @@ mod primo_utente_tests {
         // raggiungibile in rete senza password. Il guasto che quella scelta
         // curava — scrivere `users.yaml` e chiudersi fuori dal proprio editor —
         // resta curato, perché l'IDE non guarda più quell'elenco.
-        assert_eq!(fonte_autenticazione(true, true, true, false), F::Installazione);
-        assert_eq!(fonte_autenticazione(true, false, true, false), F::Installazione);
+        assert_eq!(fonte_autenticazione(true, true, true, false, false), F::Installazione);
+        assert_eq!(fonte_autenticazione(true, false, true, false, false), F::Installazione);
     }
 
     #[test]
     fn un_ide_non_torna_aperto_se_l_archivio_manca() {
         // Se per qualunque ragione l'archivio delle identità non c'è, si chiude
         // invece di aprire: un guasto non deve diventare una porta.
-        assert_eq!(fonte_autenticazione(true, true, false, false), F::Installazione);
+        assert_eq!(fonte_autenticazione(true, true, false, false, false), F::Installazione);
     }
 
     #[test]
     fn la_scorciatoia_di_sviluppo_vince_su_tutto() {
         // `--senza-autenticazione`, che `main.rs` accetta solo su loopback.
-        assert_eq!(fonte_autenticazione(true, true, true, true), F::Nessuna);
-        assert_eq!(fonte_autenticazione(false, true, false, true), F::Nessuna);
+        assert_eq!(fonte_autenticazione(true, true, true, true, false), F::Nessuna);
+        assert_eq!(fonte_autenticazione(false, true, false, true, false), F::Nessuna);
     }
 
     #[test]
     fn un_dispositivo_con_utenti_usa_quelli_del_progetto() {
-        assert_eq!(fonte_autenticazione(false, true, false, false), F::Progetto);
+        assert_eq!(fonte_autenticazione(false, true, false, false, false), F::Progetto);
     }
 
     #[test]
@@ -10553,7 +10803,7 @@ mod primo_utente_tests {
         // Invariato, e per ora: un pannello appena installato non può chiedere
         // un login che non esiste ancora. Sparisce in Fase 6, quando il primo
         // accesso sarà il codice di abbinamento (decisione CRA 4).
-        assert_eq!(fonte_autenticazione(false, false, false, false), F::Nessuna);
+        assert_eq!(fonte_autenticazione(false, false, false, false, false), F::Nessuna);
     }
 
     #[test]

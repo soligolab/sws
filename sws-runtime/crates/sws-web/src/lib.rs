@@ -5,6 +5,7 @@ pub mod backups;
 pub mod boot;
 pub mod boot_image;
 pub mod cache;
+pub mod gateway;
 pub mod catalogo;
 pub mod certificati;
 pub mod cron;
@@ -41,6 +42,7 @@ pub mod system;
 pub mod telegram;
 pub mod templates;
 pub mod traduttore;
+pub mod tunnel;
 pub mod validate;
 
 pub use global_scripts::GlobalScriptSupervisor;

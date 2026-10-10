@@ -1687,10 +1687,24 @@ pub struct StatoQuota {
 }
 
 impl StatoQuota {
+    /// **Assente = nessun limite, zero = niente spazio.**
+    ///
+    /// Sono due cose diverse e vanno lette diverse. Fino al 09-10-2026 qui
+    /// `0` valeva «nessun limite», con la scusa che un'azienda a cui si
+    /// concede zero spazio non puo' esistere e quindi era un errore di
+    /// battitura. Ma la stessa colonna, sui **progetti aperti**, ha `0` come
+    /// stato legittimo — un'azienda sospesa — e due letture opposte dello
+    /// stesso valore sono il modo in cui una delle due, un giorno, viene
+    /// applicata al posto sbagliato. Se ne tiene una sola: `NULL` non limita,
+    /// `0` non concede.
     pub fn frazione(&self) -> Option<f64> {
-        self.massimo
-            .filter(|m| *m > 0)
-            .map(|m| self.usato as f64 / m as f64)
+        match self.massimo {
+            None => None,
+            // Con tetto zero qualunque uso e' oltre: si evita la divisione
+            // per zero e si dice la cosa vera.
+            Some(0) => Some(1.0),
+            Some(m) => Some(self.usato as f64 / m as f64),
+        }
     }
     pub fn piena(&self) -> bool {
         self.frazione().is_some_and(|f| f >= 1.0)
@@ -1717,7 +1731,8 @@ pub async fn quota_spazio(s: &AppState, azienda_id: Option<i64>) -> Option<Stato
         None => tutte.iter().find(|a| a.implicita)?.clone(),
     };
     let massimo = azienda.max_byte.and_then(|v| u64::try_from(v).ok());
-    // Nessun tetto: non c'è niente da misurare, e misurare costa.
+    // Nessun tetto: non c'è niente da misurare, e misurare costa. Un tetto a
+    // **zero** invece e' un tetto, e il piu' stretto che ci sia.
     massimo?;
     let radice = s.projects_root.as_ref().clone();
     let tutte2 = tutte.clone();
@@ -3740,10 +3755,13 @@ datastores:
         assert!(q(100, Some(100)).vicina());
         assert!(q(250, Some(100)).piena());
 
-        // Un tetto a zero non e una divisione per zero: e «nessun tetto»,
-        // perche un'azienda a cui si concede zero spazio non puo esistere e
-        // il valore e quasi certamente un errore di battitura.
-        assert!(!q(5, Some(0)).piena());
+        // Tetto a zero: non e' «nessun tetto», e' «niente spazio». Fino al
+        // 09-10-2026 valeva il contrario, e contraddiceva la stessa colonna
+        // sui progetti aperti, dove zero e' uno stato legittimo.
+        assert!(q(5, Some(0)).piena());
+        assert!(q(0, Some(0)).piena());
+        // E assente resta assente: non limita niente.
+        assert!(!q(1_000_000, None).piena());
     }
 
     /// La stessa regola, data in **cartelle** invece che in nomi: è così che

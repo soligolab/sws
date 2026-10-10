@@ -76,6 +76,79 @@ il server di produzione blocca dopo poche richieste fallite in un'ora, e restare
 sta capendo è il modo peggiore di perdere tempo. A catena verificata, commentare quella riga **e
 svuotare `acme.json`** — che contiene anche l'account presso la CA, non solo i certificati.
 
+## Entrare nel VPS da una macchina nuova
+
+**Le password sono spente** (`sudo sshd -T | grep -i passwordauthentication` → `no`): si entra
+solo con una chiave già autorizzata. Questo ha una conseguenza che morde al momento sbagliato —
+**una macchina nuova non può autorizzarsi da sola**. `ssh-copy-id` chiede la password, e la
+password non c'è.
+
+Quindi la chiave di una macchina nuova si aggiunge **da una macchina che entra già**, prima di
+averne bisogno. Chi autorizza al 10-10-2026:
+
+```sh
+ssh debian@37.187.181.142 'ssh-keygen -lf ~/.ssh/authorized_keys'
+#   edp@pixsys.net                       → il dev server in ufficio (theobroma)
+#   ut1@windows per sws-vps              → la macchina Windows del maintainer
+#   max_xxv@ufficio (casa) per sws-vps   → il PC di casa (host `ufficio`), dal 10-10-2026
+```
+
+**L'impronta del server**, da confrontare la prima volta che una macchina si collega (non accettarla alla
+cieca: è l'unico momento in cui ci si accorge di parlare con la macchina sbagliata):
+
+```text
+ED25519  SHA256:PHO5hgDqiacWPMvFn/78GWwPjhb4gqS4DkMZZ6+kmfc
+ECDSA    SHA256:1A5CmGxUWXZnO1CGZef6oDXBs+aVWZkdLogoNHHYYuQ
+RSA      SHA256:pMhhuj+afI0mg3c7pj7lKOKOHW0rguQF7gDPGGn/7Nw
+```
+
+Sul server: `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`.
+
+### Aggiungere una macchina
+
+Sulla macchina nuova, prendere (o creare) la chiave pubblica:
+
+```sh
+ls ~/.ssh/id_*.pub || ssh-keygen -t ed25519 -C "$(whoami)@$(hostname) per sws-vps"
+cat ~/.ssh/id_ed25519.pub
+```
+
+Da una macchina **che entra già**, aggiungerla:
+
+```sh
+ssh debian@37.187.181.142 "echo 'ssh-ed25519 AAAA… commento' >> ~/.ssh/authorized_keys"
+```
+
+Poi, sulla macchina nuova, un alias che usi **solo** quella chiave — **fail2ban banna dopo pochi
+tentativi falliti**, e un client che prova una dopo l'altra tutte le chiavi di `~/.ssh` se li gioca
+da solo. Visto il 10-10-2026 dal PC di casa: due chiavi rifiutate, e dalla terza il server chiudeva
+la connessione prima ancora di provarla (ban per qualche minuto).
+
+```text
+# ~/.ssh/config
+Host sws-vps
+    HostName 37.187.181.142
+    User debian
+    IdentityFile ~/.ssh/id_ed25519_sws      # la chiave autorizzata, quale che sia sulla macchina
+    IdentitiesOnly yes
+```
+
+E **verificare prima di averne bisogno**:
+
+```sh
+ssh -o PasswordAuthentication=no debian@37.187.181.142 'hostname; echo accesso ok'
+```
+
+Il `-o PasswordAuthentication=no` non è pignoleria: senza, un fallimento della chiave si
+trasforma in una richiesta di password che non arriverà mai da nessuna parte, e si perde tempo a
+guardare il prompt sbagliato.
+
+### Se si resta fuori lo stesso
+
+Resta la **console KVM di OVH** dal pannello cliente: dà una tastiera sulla macchina come se si
+fosse davanti, senza passare da SSH. Da lì si aggiunge la chiave a mano. È lenta e scomoda, ed è
+esattamente il motivo per cui conviene autorizzare la macchina nuova *prima* di partire.
+
 ## Verifiche
 
 ```sh
@@ -85,12 +158,19 @@ podman info --format "{{.Host.CgroupManager}}"    # systemd (non cgroupfs)
 curl -s -o /dev/null -w "%{http_code} tls=%{ssl_verify_result}\n" https://sws.soligo.net/
 ```
 
-L'ultimo comando dà `404 tls=0` finché il gateway SWS non esiste: il certificato è valido e nessun
-router serve quel nome. **È lo stato corretto**, non un lavoro a metà.
+Dal 09-10-2026 l'ultimo comando dà `404 tls=0` **con dentro l'IDE**: lo stato 404 è come risponde
+ogni istanza SWS sulla radice (vedi `STATO.md`), non un router mancante. Per una verifica che dia
+200 netto, usare `/health`.
 
 ## Quello che qui non c'è ancora
 
-Il **gateway SWS** — Fase 4 del [piano del tronco cloud](../../docs/plans/2026-10-05-cloud-utenti-aziende-spazi.md) —
-e con lui il router per `sws.soligo.net` e quello per il tunnel dei pannelli su `tunnel.soligo.net`.
-Serve anche l'immagine **amd64** di `sws-runtime` pubblicata su ghcr: oggi la CI la costruisce solo
-come build di sviluppo.
+L'**abbinamento dei pannelli** col codice mostrato sullo schermo: oggi un pannello si dichiara a
+mano in `~/sws-vps/gateway-config/pannelli.yaml` (che **contiene segreti** e non sta in questa
+cartella).
+
+Il **gateway SWS** c'è dal 09-10-2026, e il **tunnel dei pannelli** dal 10-10: `quadlet/sws-gateway.container` e
+`traefik/dynamic/sws-gateway.yml`. Il perché di ogni scelta sta in [`STATO.md`](STATO.md), sezione
+«Il gateway SWS». In breve: serve anche `mkdir -p ~/sws-vps/progetti ~/sws-vps/gateway-config`
+prima di avviarlo, e il codice di primo accesso si legge con
+`journalctl --user -u sws-gateway`. Per i pannelli vedi «Il tunnel dei pannelli» in `STATO.md` e
+il capitolo 24 di `docs/HOWTO.md`.

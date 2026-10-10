@@ -52,6 +52,7 @@ import type {
   ConfigTraduzione,
   TypeDef,
 } from "@/types";
+import { prefissoGateway } from "./prefisso";
 import i18n from "i18next";
 
 // Runtime URL resolution order (ARCH-002):
@@ -89,6 +90,11 @@ export function setForceLocalApi(v: boolean) { _forceLocalApi = v; }
 export function isAdminBundle(): boolean { return _forceLocalApi; }
 
 export function getBaseUrl(): string {
+  // Sotto il gateway il prefisso vince su tutto, `_forceLocalApi` compreso:
+  // quello dice «stessa origine», e `/p/<azienda>/<progetto>` è la stessa
+  // origine — è solo il punto in cui, su quell'origine, vive questo progetto.
+  const pre = prefissoGateway();
+  if (pre) return pre;
   if (_forceLocalApi) return "";
   if (typeof window !== "undefined") {
     try {
@@ -277,6 +283,10 @@ export interface DiscoveredRuntime {
    *  quando è più vecchio di questa proprietà: i due casi non si distinguono,
    *  quindi l'assenza non va mostrata come "nativo". */
   container: string | null;
+  /** Pannello raggiunto attraverso il tunnel del gateway (IDE nel cloud,
+   *  10-10-2026): l'URL è `<gateway>/dev/<pannello>`, niente host SSH. Assente
+   *  nella ricerca in rete locale e sui runtime più vecchi. */
+  tunnel?: boolean;
 }
 
 /** Un avviso sullo stato del runtime. Rispecchia `Avviso` in
@@ -901,9 +911,12 @@ export const api = {
   /// Il primo accesso di un'installazione: serve a sapere QUALE schermata
   /// mostrare, quindi si chiama prima che un token possa esistere.
   identitaStato: () =>
-    request<{ gestita: boolean; serve_primo_amministratore?: boolean }>(
-      "/api/identita/stato",
-    ),
+    request<{
+      gestita: boolean;
+      serve_primo_amministratore?: boolean;
+      /** Questo processo è il gateway: i progetti si aprono in un container. */
+      gateway?: boolean;
+    }>("/api/identita/stato"),
 
   /// Crea il primo amministratore. Il `codice` è quello stampato all'avvio nei
   /// log del servizio: dimostra accesso alla macchina, non solo alla pagina.

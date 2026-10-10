@@ -17,6 +17,12 @@ serde_json.workspace   = true
 serde_yaml.workspace   = true
 tracing.workspace      = true
 anyhow.workspace       = true
+# Il client di podman del gateway (gateway/podman.rs): HTTP/1.1 a mano su un
+# socket unix, perche' reqwest i socket unix non li fa.
+hyper.workspace          = true
+hyper-util.workspace     = true
+http-body-util.workspace = true
+bytes.workspace          = true
 # Project import/export uses an in-memory ZIP. `default-features = false`
 # strips deflate / xz / zstd codecs — the bundle is a handful of small
 # YAML files so we store them uncompressed (`CompressionMethod::Stored`)
@@ -68,6 +74,7 @@ time                         = { workspace = true }
 chrono                       = { version = "0.4", default-features = false, features = ["clock", "std", "serde"] }
 # Utenti dell'installazione (chi apre l'IDE), distinti da quelli del progetto.
 sws-identita                 = { path = "../sws-identita" }
+yamux = "0.14"
 
 [dev-dependencies]
 rusqlite.workspace = true

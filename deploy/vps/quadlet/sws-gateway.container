@@ -1,0 +1,62 @@
+# Il gateway SWS — una porta sola davanti a tutti i progetti.
+#
+#   systemctl --user start|stop|status sws-gateway
+#   journalctl --user -u sws-gateway -f
+#
+# TRE COSE NON OVVIE, e tutte e tre sono gia' costate tempo a qualcuno.
+#
+# 1. IL SOCKET DI PODMAN. Il gateway avvia un container per ogni progetto
+#    aperto, quindi gli serve il socket — e chi controlla quel socket controlla
+#    la macchina (lo stesso motivo per cui a Traefik NON e' stato dato). Qui e'
+#    inevitabile: e' il mestiere di questo processo. Dentro il container si e'
+#    root, cioe' uid 0, quindi `/run/user/1000/...` non sarebbe il percorso che
+#    il programma cerca: si monta altrove e si dichiara XDG_RUNTIME_DIR.
+#
+# 2. I PROGETTI STANNO ALLO STESSO PERCORSO DENTRO E FUORI. Il gateway
+#    controlla che la cartella del progetto esista (e quel controllo avviene
+#    qui dentro), poi passa lo stesso percorso a podman come sorgente del bind
+#    mount del figlio — e podman lo risolve SULL'HOST. Con due percorsi diversi
+#    il controllo passerebbe e il container del progetto partirebbe vuoto.
+#    Montare la radice allo stesso posto toglie la differenza invece di
+#    gestirla. Vedi il campo `radice` in gateway/progetti.rs.
+#
+# 3. NESSUNA PORTA PUBBLICATA, NE' QUI NE' NEI FIGLI. Traefik raggiunge questo
+#    container per nome sulla rete sws-rete, e il gateway raggiunge i figli
+#    allo stesso modo (--gateway-rete). Dall'esterno della macchina un progetto
+#    non esiste: si passa di qui o non si passa.
+[Unit]
+Description=SWS — il gateway dei progetti
+After=network-online.target
+
+[Container]
+# Inchiodata al commit, non a un tag mobile: il gateway e i container dei
+# progetti devono essere la stessa versione, e `AutoUpdate=registry` su un tag
+# mobile li farebbe divergere a meta' aggiornamento. Si aggiorna a mano
+# cambiando questa riga e --gateway-immagine insieme.
+Image=ghcr.io/soligolab/sws-runtime:ff2d183f-amd64
+ContainerName=sws-gateway
+Network=sws-rete.network
+
+Volume=%h/sws-vps/gateway-config:/var/sws/config
+Volume=%h/sws-vps/progetti:%h/sws-vps/progetti
+Volume=%t/podman/podman.sock:/run/sws/podman/podman.sock
+Environment=XDG_RUNTIME_DIR=/run/sws
+
+# Niente --viewer-port: il gateway non fa girare nessun impianto, smista. E
+# niente --no-admin: l'IDE e' proprio quello che serve.
+Exec=--config /var/sws/config \
+     --projects-root %h/sws-vps/progetti \
+     --templates-root /var/sws/templates \
+     --catalog-root /var/sws/catalogo/dispositivi \
+     --www /var/sws/www \
+     --admin-port 8444 \
+     --gateway \
+     --gateway-immagine ghcr.io/soligolab/sws-runtime:ff2d183f-amd64 \
+     --gateway-rete sws-rete
+
+[Service]
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

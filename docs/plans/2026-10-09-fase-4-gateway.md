@@ -157,3 +157,58 @@ dentro un container funziona.
 
 Resta da aprire la sessione di plan sul **dentro** del gateway: come instrada, dove tiene lo stato
 dei container avviati, come passa l'identità al figlio.
+
+## Fatto il 09-10-2026 — il gateway esiste
+
+Ramo `feat/4a-gateway-podman`, tre commit.
+
+### Com'è fatto dentro
+
+Quattro moduli in `sws-runtime/crates/sws-web/src/gateway/`:
+
+| | |
+|---|---|
+| `podman.rs` | il client di podman: HTTP/1.1 a mano sul socket unix, perché reqwest i socket unix non li fa. Crea, avvia, ferma, rimuove, elenca **solo i container nostri** (prefisso `sws-p-` e l'etichetta `net.soligo.sws.progetto`). |
+| `progetti.rs` | `Regia`: chi è aperto, il tetto dell'azienda, il timer dei fermi, la riadozione dopo un riavvio. |
+| `inoltro.rs` | il proxy: HTTP in streaming e WebSocket, con la pulizia delle intestazioni. |
+| `rotte.rs` | `/p/<azienda>/<progetto>/…`: guscio, autorizzazione, accensione a richiesta. |
+
+### Le tre cose che non si indovinano
+
+**Il guscio della SPA lo serve il gateway, senza token.** Una navigazione del browser non ne porta
+nessuno: il token vive in `localStorage` e lo aggiunge il codice della pagina, che non è ancora
+stato caricato. Se la radice del prefisso fosse protetta, *ogni ricarica* darebbe 401 anche con una
+sessione valida. Il guscio non è privato — è la stessa SPA che la console serve a chiunque, e i
+suoi `/assets/` stanno già alla radice del sito. Tutto il resto sotto il prefisso è il progetto,
+passa da `require_auth` e viene rigirato al container.
+
+**L'identità la scrive il gateway, e le intestazioni del browser si buttano via prima.** Senza
+quella pulizia il segreto sarebbe decorativo: chiunque potrebbe mandare `X-SWS-Utente:
+qualcun-altro@esempio.it`, e il nostro segreto — aggiunto alla stessa richiesta — renderebbe
+credibile la sua intestazione. Provato nei due versi: attraverso il gateway l'intestazione falsa
+sparisce e il figlio vede l'utente vero; mandata dritta alla porta del container prende 401.
+Guardia `check_inoltro_identita.sh`, provata rossa due volte.
+
+**La radice dei progetti deve essere lo stesso percorso dentro e fuori dal gateway.** `apri`
+controlla che la cartella esista — e quel controllo avviene dove gira il gateway — poi passa lo
+stesso percorso a podman come sorgente del bind mount del figlio, e podman lo risolve **sull'host**.
+Con due percorsi diversi il controllo passa e il container del progetto parte vuoto. Nel quadlet la
+radice è montata allo stesso posto in tutti e due i lati.
+
+### Provato a mano, con un gateway locale e l'immagine 2.13.0-rc.1-amd64
+
+| | |
+|---|---|
+| `GET /p/-/impianto/` | 200, l'HTML dell'IDE |
+| `GET /p/-/impianto/api/project` | 200 col progetto vero, container creato e avviato, 0,8 s in tutto |
+| `GET /p/-/impianto/ws/tags` | 101 Switching Protocols |
+| `GET /p/-/nonesiste/api/project` | 404 |
+| `GET /p/acme/impianto/api/project` | 404 «azienda sconosciuta» |
+| la stessa richiesta dritta alla porta del figlio | 401 |
+
+### Cosa resta
+
+- La console mostra il tetto dei progetti aperti e permette di cambiarlo (oggi il campo c'è nel
+  database e nella console, ma nessuno vede quanti ne sono aperti adesso).
+- Chiudere un progetto a mano dalla console, senza aspettare i venti minuti.
+- Il branding **prima** del login, che è l'unico pezzo della decisione 43 ancora aperto.

@@ -62,7 +62,8 @@ pub async fn ws_relay_handler(
         }
     };
     let certificati = s.certificati.clone();
-    ws.on_upgrade(move |local| run_relay(local, target, sub, certificati))
+    let chiave = s.ritorno.per(&target.url);
+    ws.on_upgrade(move |local| run_relay(local, target, sub, certificati, chiave))
 }
 
 /// Codice di chiusura per «il remoto ha risposto, ma quella rotta non c'è».
@@ -216,6 +217,7 @@ async fn run_relay(
     target: crate::remote::RemoteTarget,
     sub: String,
     certificati: Arc<crate::certificati::ImprontaStore>,
+    chiave_ritorno: Option<String>,
 ) {
     // Build the remote WS URL. Tokens are UUID strings (hex + hyphens) — no
     // percent-encoding needed. If the token is empty the remote is in no-auth
@@ -235,6 +237,20 @@ async fn run_relay(
         format!("{ws_scheme}://{host_path}/ws/{sub}?token={}", target.token)
     };
 
+    // La chiave di ritorno, quando il remoto è un pannello dietro il gateway da
+    // cui arriva il lavoro (`gateway/ritorno.rs`).
+    let richiesta = {
+        use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+        let mut r = match remote_url.as_str().into_client_request() {
+            Ok(r) => r,
+            Err(e) => return fallito(local, &sub, &remote_url, e).await,
+        };
+        if let Some(v) = chiave_ritorno.as_deref().and_then(|c| c.parse().ok()) {
+            r.headers_mut().insert(crate::gateway::ritorno::INTESTAZIONE, v);
+        }
+        r
+    };
+
     // Q49: per wss:// la fiducia è per impronta, la stessa che ha memorizzato
     // «Connetti» — non «accetta tutto» come fino al 2026-09-09.
     let remote = if ws_scheme == "wss" {
@@ -246,7 +262,7 @@ async fn run_relay(
         ));
         let connector = tokio_tungstenite::Connector::Rustls(tls);
         match tokio_tungstenite::connect_async_tls_with_config(
-            &remote_url,
+            richiesta,
             None,
             false,
             Some(connector),
@@ -257,7 +273,7 @@ async fn run_relay(
             Err(e) => return fallito(local, &sub, &remote_url, e).await,
         }
     } else {
-        match tokio_tungstenite::connect_async(&remote_url).await {
+        match tokio_tungstenite::connect_async(richiesta).await {
             Ok((ws, _)) => ws,
             Err(e) => return fallito(local, &sub, &remote_url, e).await,
         }

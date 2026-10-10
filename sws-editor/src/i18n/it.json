@@ -1434,6 +1434,8 @@
     "installBinaryBtn": "🚀 Installa / Aggiorna binario",
     "deployRunning": "Deploy in corso…",
     "installBlockedByProbe": "La verifica ha trovato errori: leggi la lista sopra e correggi prima di installare",
+    "discoverTunnel": "tunnel",
+    "discoverTunnelTitle": "Collegato al gateway col tunnel: si raggiunge da qui anche se è dietro NAT.",
     "noRuntimeFound": "Nessun runtime trovato sulla rete locale.",
     "imageVariantFromConnected": "Variante {{variant}} proposta dall'architettura del dispositivo collegato — la verifica può correggerla",
     "devicesRegistered": "Dispositivi registrati",

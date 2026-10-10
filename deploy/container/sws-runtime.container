@@ -24,7 +24,7 @@
 # più basso di quello dell'immagine che gira mostra «configurazione del servizio
 # da aggiornare», e la si aggiorna dall'IDE o dal pannello — vedi
 # docs/plans/2026-10-02-quadlet-che-viaggia.md.
-Description=SWS runtime (container podman) [quadlet 3]
+Description=SWS runtime (container podman) [quadlet 4]
 Documentation=file:///data/user/sws-container/README
 After=network-online.target
 Wants=network-online.target
@@ -226,6 +226,33 @@ Timezone=local
 # l'installer uguale a `Image=`; il runtime ne ricava il canale e se è
 # un'installazione da archivio.
 Environment=SWS_IMAGE=ghcr.io/soligolab/sws-runtime:latest-arm64
+
+# ── Il tunnel verso il cloud (quadlet 4, 10-10-2026) ────────────────────────
+#
+# Un pannello in impianto sta dietro NAT: dal cloud non lo si raggiunge. Con
+# queste tre righe e' lui a chiamare il gateway, una volta, e a tenere aperta
+# quella chiamata; l'IDE nel cloud lo raggiunge su
+# `https://<gateway>/dev/<nome>/…` e da li' il deploy e' quello di sempre.
+#
+# **Tre `Environment=` e non argomenti in `Exec=`**, di proposito: `Exec=`
+# sovrascrive il CMD dell'immagine per intero, quindi aggiungerci qualcosa vuol
+# dire ricomporre a memoria tutta la riga di avvio su un pannello in campo — e
+# dimenticarsi `--www` significa una pagina bianca senza nessun indizio del
+# perche'. Le variabili si aggiungono senza toccare niente di quello che c'era.
+#
+# Le scrive `install-container.sh --tunnel … --tunnel-nome … --tunnel-token …`.
+# A mano: togliere i `#`, mettere i propri valori, poi
+#     systemctl --user daemon-reload && systemctl --user restart sws-runtime
+#
+# **O tutte e tre o nessuna**: con una sola il runtime *non parte*, ed e'
+# voluto — un pannello che crede di essere raggiungibile e non lo e' si scopre
+# il giorno che serve, e quel giorno di solito si e' lontani.
+#
+# Il token sta qui e non in `Exec=` anche per un'altra ragione: la riga di
+# comando di un processo la legge chiunque sul pannello con un `ps`.
+#Environment=SWS_TUNNEL_URL=wss://tunnel.soligo.net/tunnel/v1
+#Environment=SWS_TUNNEL_NOME=il-nome-di-questo-pannello
+#Environment=SWS_TUNNEL_TOKEN=il-token-che-ti-ha-dato-chi-amministra
 
 [Service]
 Restart=always

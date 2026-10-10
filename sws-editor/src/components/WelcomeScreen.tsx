@@ -961,10 +961,29 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
 
   useEffect(() => { loadProjects(); }, []);
 
+  // Nel cloud ogni progetto ha il suo container: aprirlo vuol dire **andarci**,
+  // non cambiare il progetto attivo di questo processo — che nel gateway non
+  // esiste nemmeno, perché il gateway non apre progetti, li smista.
+  const [gateway, setGateway] = useState(false);
+  useEffect(() => {
+    let vivo = true;
+    api.identitaStato()
+      .then((st) => { if (vivo) setGateway(!!st.gateway); })
+      .catch(() => { /* runtime vecchio: si continua col modello a istanza singola */ });
+    return () => { vivo = false; };
+  }, []);
+
   // Si apre per **riferimento**: `nome` resta solo per i messaggi.
   const handleOpen = async (rif: string, nome: string) => {
     setOpening(rif); setError(null);
     const name = nome;
+    if (gateway) {
+      // Con la barra finale: è la radice del progetto, e tutto quello che la
+      // pagina costruisce da `location.pathname` (il watcher della build, le
+      // chiamate con prefisso) deve partire da dentro, non dal livello sopra.
+      window.location.assign(`/p/${rif}/`);
+      return;
+    }
     try {
       await api.openProject(rif);
       // Q30: la versione vista è quella del progetto di **prima**. Tenerla

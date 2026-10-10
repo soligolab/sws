@@ -53,6 +53,8 @@ STATICHE=(
     check_salvataggio_muto  # un salvataggio rifiutato lo dice, invece di sparire
     check_console_salva     # nella console si scrive col pulsante, non passando su un campo
     check_quota_progetti    # chi fa nascere un progetto guarda la quota, da tutte e due le porte
+    check_inoltro_identita  # dietro il gateway chi sei lo dice il gateway, non la tua intestazione
+    check_pannello_confinato # il pannello di un'altra azienda non si raggiunge e non si vede
     check_sonda             # la sonda del dispositivo (Q52) gira con sh -s e stampa solo fatti
     check_barra_allarmi     # alarm_banner: web e LVGL selezionano gli stessi stati ISA
     check_via_di_fuga       # la via di fuga STOP del pannello resta raggiungibile

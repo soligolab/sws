@@ -132,8 +132,13 @@ EXPOSE 8443 8444
 # interrogava https e restava rosso per sempre.
 # NB: HEALTHCHECK non esiste nella spec OCI — va costruito con
 # `podman build --format docker`, altrimenti podman lo scarta con un warning.
+# Ripiego sulla 8444 (10-10-2026): un'istanza solo-IDE — il gateway nel cloud e
+# i container dei suoi progetti — non ha il viewer, la 8443 non ascolta e
+# risultava «unhealthy» per sempre; con `Notify=healthy` e l'aggiornamento
+# automatico sarebbe stato un ritorno indietro a ogni aggiornamento. Sui
+# pannelli la 8443 risponde e il ripiego non scatta mai.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD curl -fs http://localhost:8443/health || exit 1
+    CMD curl -fs http://localhost:8443/health || curl -fs http://localhost:8444/health || exit 1
 
 # Nessun entrypoint script: niente SWS_ADMIN_PASSWORD obbligatorio (il
 # no-auth mode è lo stato normale del PoC) e i flag stanno tutti nel CMD,

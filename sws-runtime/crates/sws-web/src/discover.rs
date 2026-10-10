@@ -24,6 +24,11 @@ pub struct DiscoveredRuntime {
     /// distinguono di proposito: annunciare "nativo" per un runtime che
     /// semplicemente non lo dice sarebbe un'affermazione senza prove.
     container: Option<String>,
+    /// Un pannello raggiunto attraverso il tunnel del gateway, non trovato in
+    /// rete locale (10-10-2026): niente host SSH da proporre, l'URL è
+    /// `<gateway>/dev/<pannello>`.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    tunnel: bool,
 }
 
 /// Scegli l'indirizzo da offrire, preferendo un IPv4 raggiungibile dalla rete.
@@ -102,11 +107,53 @@ fn prefer_new_address(old: &str, new: &str) -> bool {
 
 /// GET /api/discover — browse mDNS for _sws._tcp.local. services for ~2 s.
 /// Returns an array of runtimes found on the LAN.
-pub async fn discover_runtimes() -> impl IntoResponse {
+///
+/// Dietro il gateway (l'IDE nel cloud) la rete locale è quella del server e
+/// non ci sono pannelli: si chiede invece al gateway quali sono collegati col
+/// tunnel, con la chiave di ritorno (`gateway/ritorno.rs`). Il gateway li
+/// filtra per l'azienda del progetto.
+pub async fn discover_runtimes(
+    axum::extract::State(s): axum::extract::State<crate::router::AppState>,
+) -> impl IntoResponse {
+    if let Some(origine) = s.ritorno.origine_se_dietro_al_gateway() {
+        return Json(pannelli_del_tunnel(&s, &origine).await);
+    }
     let runtimes = tokio::task::spawn_blocking(|| browse_mdns_blocking(2))
         .await
         .unwrap_or_default();
     Json(runtimes)
+}
+
+async fn pannelli_del_tunnel(s: &crate::router::AppState, origine: &str) -> Vec<DiscoveredRuntime> {
+    let url = format!("{origine}/api/pannelli");
+    let Ok(client) = crate::remote::costruisci_client(s, &url, 10) else {
+        return vec![];
+    };
+    let nomi: Vec<String> = match client.get(&url).send().await {
+        Ok(r) if r.status().is_success() => r.json().await.unwrap_or_default(),
+        Ok(r) => {
+            tracing::warn!(stato = %r.status(), "pannelli del tunnel: il gateway ha rifiutato");
+            return vec![];
+        }
+        Err(e) => {
+            tracing::warn!(errore = %e, "pannelli del tunnel: gateway irraggiungibile");
+            return vec![];
+        }
+    };
+    nomi.into_iter().map(|n| voce_del_tunnel(origine, &n)).collect()
+}
+
+fn voce_del_tunnel(origine: &str, pannello: &str) -> DiscoveredRuntime {
+    let url = format!("{origine}/dev/{pannello}");
+    DiscoveredRuntime {
+        name: pannello.to_string(),
+        hostname: String::new(),
+        admin_url: url.clone(),
+        viewer_url: url,
+        version: None,
+        container: None,
+        tunnel: true,
+    }
 }
 
 fn browse_mdns_blocking(timeout_secs: u64) -> Vec<DiscoveredRuntime> {
@@ -184,6 +231,7 @@ fn browse_mdns_blocking(timeout_secs: u64) -> Vec<DiscoveredRuntime> {
                     viewer_url: format!("{}://{}:{}", scheme, ip, viewer_port),
                     version,
                     container,
+                    tunnel: false,
                 };
 
                 match seen.get(&fullname) {
@@ -592,5 +640,16 @@ mod tests_dispositivi {
         );
         let nomi: Vec<&str> = d.iter().map(|x| x.hostname.as_str()).collect();
         assert_eq!(nomi, vec!["alfa.local", "zeta.local"]);
+    }
+}
+
+#[cfg(test)]
+mod tunnel_tests {
+    #[test]
+    fn un_pannello_del_tunnel_si_raggiunge_dal_gateway() {
+        let v = serde_json::to_value(super::voce_del_tunnel("https://sws.soligo.net", "tc620-casa")).unwrap();
+        assert_eq!(v["admin_url"], "https://sws.soligo.net/dev/tc620-casa");
+        assert_eq!(v["hostname"], "");
+        assert_eq!(v["tunnel"], true);
     }
 }

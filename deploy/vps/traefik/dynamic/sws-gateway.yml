@@ -1,0 +1,21 @@
+# sws.soligo.net → il gateway SWS.
+#
+# Il TLS lo termina Traefik; da qui in poi si parla HTTP in chiaro dentro
+# sws-rete, che non esce dalla macchina. Il runtime accende il TLS da se' solo
+# se trova `tls.crt` nella sua cartella di configurazione: qui non c'e', ed e'
+# voluto — due terminazioni TLS in fila non aggiungono niente e tolgono il
+# certificato valido di Let's Encrypt.
+http:
+  routers:
+    sws:
+      rule: "Host(`sws.soligo.net`)"
+      entryPoints: [websecure]
+      service: sws-gateway
+      tls:
+        certResolver: letsencrypt
+
+  services:
+    sws-gateway:
+      loadBalancer:
+        servers:
+          - url: "http://sws-gateway:8444"

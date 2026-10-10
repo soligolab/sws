@@ -27,6 +27,38 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   indirizzo pubblico. **Sui pannelli non cambia nulla**: lì gli utenti restano quelli del progetto.
 
 ### Added
+- **Dall'IDE nel cloud si fa «Connetti» e deploy verso un pannello del tunnel.** Il container del progetto chiama
+  `/dev/<pannello>` dal server, senza sessione, e prendeva 401. Ora il gateway gli passa all'avvio una **chiave di
+  ritorno** (`SWS_CHIAVE_RITORNO`, HMAC del segreto del gateway su `<azienda>/<progetto>`, mai salvata) e a ogni
+  richiesta inoltrata l'origine pubblica (`X-SWS-Origine`). Il container rimanda la chiave in `X-SWS-Figlio` solo
+  verso quell'origine e solo su `/dev/…`, HTTP e websocket; il gateway la verifica, la toglie e lascia passare solo
+  verso i pannelli **della stessa azienda**. Il browser non può falsificare nessuna delle due intestazioni: il
+  gateway le toglie da tutto quello che arriva da fuori. Provato il 10-10-2026: deploy da `sws.soligo.net` al TC620
+  di casa attraverso il tunnel. **«Trova runtime»** dietro il gateway elenca i pannelli del tunnel dell'azienda
+  (pillola «tunnel», URL `<gateway>/dev/<pannello>`); in locale resta la ricerca mDNS di sempre.
+- **I tag dal vivo arrivano anche attraverso il tunnel.** Il gateway inoltrava il 101 del pannello ma non collegava
+  le due socket, così i websocket (`/ws/tags`, allarmi, log) restavano muti senza errori. Ora l'upgrade passa da
+  entrambi i lati; test end-to-end in memoria IDE → gateway → yamux → pannello.
+- **Il tunnel dei pannelli.** Un pannello in impianto sta dietro NAT e dal cloud non lo si raggiunge: adesso è lui a
+  chiamare il gateway e a tenere aperta quella chiamata. Sul dispositivo si configura con tre variabili d'ambiente
+  (`SWS_TUNNEL_URL`, `SWS_TUNNEL_NOME`, `SWS_TUNNEL_TOKEN`) che `install-container.sh --tunnel …` scrive nel quadlet
+  — e non con argomenti, perché `Exec=` sovrascrive il comando dell'immagine per intero e ricomporlo a memoria su un
+  pannello in campo è il modo migliore per dimenticarsi `--www`. Il token in una variabile ha un secondo motivo: la
+  riga di comando di un processo la legge chiunque sul pannello con un `ps`. L'IDE nel
+  cloud lo raggiunge su `https://<gateway>/dev/<pannello>/…`, e da lì connessione, deploy, utenti e backup sono quelli
+  di sempre — lo strato remoto non sa che esiste un tunnel. Sul gateway i pannelli ammessi si dichiarano in
+  `<config>/pannelli.yaml`, **ognuno con la propria azienda**: chi non è di quell'azienda prende 404 e non lo vede
+  nemmeno nell'elenco. L'abbinamento col codice mostrato dal pannello arriva dopo. Il processo **non parte** se
+  il tunnel è configurato a metà: un pannello che crede di essere raggiungibile e non lo è si scopre il giorno che
+  serve.
+- **Il gateway: una porta sola davanti a tutti i progetti** (`sws-runtime --gateway`). Ogni progetto aperto gira nel
+  suo container, raggiungibile su `/p/<azienda>/<progetto>/`: si accende alla prima richiesta e si spegne dopo venti
+  minuti senza nessuna finestra collegata (`--gateway-fermo-minuti`). Quante aperture insieme può avere un'azienda lo
+  decide `max_progetti_aperti` dalla console; al tetto si rifiuta, senza chiudere il progetto di qualcun altro per far
+  posto. Il container di un progetto vede **solo la cartella di quel progetto** e non l'archivio delle identità: chi
+  sta lavorando glielo dice il gateway in un'intestazione, che vale solo insieme a un segreto condiviso
+  (`--auth-delegata`, che senza quel segreto rifiuta di partire). Le stesse intestazioni, se arrivano dal browser,
+  vengono buttate via prima di inoltrare la richiesta.
 - **Data di build e revisione, per tutti e due gli artefatti.** «Questa installazione» nella console mostra ora la
   build del **runtime** e quella **della pagina che stai guardando** — versione, revisione git e data — e avvisa
   quando la seconda è più vecchia del bundle che il server ha sul disco, cioè quando il browser ne sta servendo una
@@ -113,6 +145,10 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   progetti dell'azienda B. L'amministratore di piattaforma li vede tutti, in una sezione a parte e contrassegnati.
 
 ### Fixed
+- **L'healthcheck dell'immagine non dà più «unhealthy» alle istanze solo-IDE.** Il gateway nel cloud e i container
+  dei suoi progetti non hanno il viewer: la 8443 non ascolta e il controllo restava rosso per sempre — con
+  `Notify=healthy` e l'aggiornamento automatico sarebbe stato un ritorno indietro a ogni aggiornamento. Ora ripiega
+  sulla 8444; sui pannelli non cambia niente.
 - **La pagina dell'IDE non resta più in cache.** Usciva con il solo `last-modified` e nessun `Cache-Control`:
   il browser applicava la propria euristica e poteva tenersela, e quella pagina contiene i nomi dei bundle con
   l'hash — quindi tenersi lei significa continuare a caricare il JavaScript vecchio anche quando sul disco c'è il

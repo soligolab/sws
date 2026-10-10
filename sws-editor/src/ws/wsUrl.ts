@@ -19,6 +19,7 @@
 // string.
 
 import { getAuthToken, getRuntimeBaseUrl } from "@/api/client";
+import { prefissoGateway } from "@/api/prefisso";
 import { useAppStore } from "@/store";
 
 /**
@@ -55,7 +56,7 @@ export function buildWsUrl(path: string, overrideEnvKey?: string): string {
     const sub = sottocanale;
     const scheme = typeof window !== "undefined" && window.location.protocol === "https:" ? "wss" : "ws";
     const host = typeof window !== "undefined" ? window.location.host : "localhost";
-    const relayBase = `${scheme}://${host}/ws/remote/${sub}`;
+    const relayBase = `${scheme}://${host}${prefissoGateway()}/ws/remote/${sub}`;
     const token = getAuthToken();
     return token ? `${relayBase}?token=${encodeURIComponent(token)}` : relayBase;
   }
@@ -68,7 +69,14 @@ export function buildWsUrl(path: string, overrideEnvKey?: string): string {
     base = override;
   } else {
     const runtimeBase = getRuntimeBaseUrl();
-    if (runtimeBase) {
+    if (runtimeBase?.startsWith("/")) {
+      // Il prefisso del gateway (`/p/<azienda>/<progetto>`): stessa origine
+      // della pagina, ma il percorso va davanti a quello del canale. Senza
+      // questo ramo il socket uscirebbe come `/p/a/n/ws/tags`, senza schema
+      // né host, e il `replace(/^http/)` non avrebbe niente da sostituire.
+      const scheme = window.location.protocol === "https:" ? "wss" : "ws";
+      base = `${scheme}://${window.location.host}${runtimeBase}${path}`;
+    } else if (runtimeBase) {
       base = `${runtimeBase.replace(/^http/, "ws")}${path}`;
     } else if (typeof window === "undefined") {
       base = `ws://localhost${path}`;

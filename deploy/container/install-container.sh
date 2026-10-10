@@ -29,6 +29,12 @@
 #   ./install-container.sh --pull-only         # procura l'immagine ed esce
 #   ./install-container.sh --image ARCHIVIO    # da archivio: dispositivi senza rete
 #   ./install-container.sh --bridge            # rete bridge: NIENTE discovery mDNS
+#   ./install-container.sh --pull \
+#       --tunnel wss://tunnel.soligo.net/tunnel/v1 \
+#       --tunnel-nome tc620-reparto-nord \
+#       --tunnel-token <token>                 # il pannello chiama il cloud: da li'
+#                                              # l'IDE lo raggiunge anche dietro NAT.
+#                                              # Tutti e tre o nessuno.
 #   ./install-container.sh --data /altro/path  # directory dati alternativa
 #   ./install-container.sh --migrate-volumes   # recupera i dati dai volumi nominati
 #                                              # delle installazioni pre-2026-07-28
@@ -65,6 +71,12 @@ TAG_EXPLICIT=0
 # 0 da `uname -m`. Era `latest-arm64` fisso, e su un dispositivo x86_64 scaricava
 # un'immagine che non parte — con l'installazione lanciata dall'IDE il dispositivo
 # non è quasi mai la macchina da cui si installa, quindi indovinare non va bene.
+# Il tunnel verso il cloud (10-10-2026). Vuoti = nessun tunnel, che resta il
+# default: un pannello che lavora da solo in impianto non deve chiamare niente.
+TUNNEL_URL=""
+TUNNEL_NOME=""
+TUNNEL_TOKEN=""
+
 REGISTRY_IMAGE="ghcr.io/soligolab/sws-runtime"
 REGISTRY_REF=""
 REGISTRY_REF_EXPLICIT=0
@@ -151,6 +163,13 @@ while [ $# -gt 0 ]; do
         --data)          DATA="$2"; shift 2 ;;
         --tag)           TAG="$2"; TAG_EXPLICIT=1; shift 2 ;;
         --bridge)        HOST_NETWORK=0; shift ;;
+        # Il tunnel verso il cloud: o tutti e tre o nessuno (vedi il controllo
+        # più sotto). Si scrivono come Environment= nel quadlet, non come
+        # argomenti: aggiungere a Exec= vorrebbe dire riscrivere per intero la
+        # riga di avvio dell'immagine.
+        --tunnel)        TUNNEL_URL="$2";   shift 2 ;;
+        --tunnel-nome)   TUNNEL_NOME="$2";  shift 2 ;;
+        --tunnel-token)  TUNNEL_TOKEN="$2"; shift 2 ;;
         # Accettata per compatibilità: era la flag da passare quando il default
         # era la rete bridge. Ora non cambia niente, ma non deve dare errore a
         # chi la ha nelle dita o in uno script.
@@ -164,6 +183,23 @@ while [ $# -gt 0 ]; do
 done
 
 command -v podman >/dev/null || { echo "ERRORE: podman non installato." >&2; exit 1; }
+
+# Il tunnel: o tutti e tre o nessuno, e si rifiuta QUI invece di scrivere un
+# quadlet che poi non parte. Il runtime fa lo stesso controllo all'avvio — ma
+# scoprirlo da un servizio che non parte, su un pannello appena installato, e'
+# molto peggio che leggerlo adesso.
+n_tunnel=0
+for v in "$TUNNEL_URL" "$TUNNEL_NOME" "$TUNNEL_TOKEN"; do [ -n "$v" ] && n_tunnel=$((n_tunnel + 1)); done
+if [ "$n_tunnel" -ne 0 ] && [ "$n_tunnel" -ne 3 ]; then
+    echo "ERRORE: il tunnel vuole --tunnel, --tunnel-nome e --tunnel-token insieme." >&2
+    echo "        Con uno solo il pannello non si collega a niente e il runtime non parte." >&2
+    exit 1
+fi
+if [ -n "$TUNNEL_TOKEN" ] && [ "${#TUNNEL_TOKEN}" -lt 16 ]; then
+    echo "ERRORE: --tunnel-token e' piu corto di 16 caratteri: non e' un segreto." >&2
+    echo "        Generane uno: head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n'" >&2
+    exit 1
+fi
 
 # ── Disinstallazione ──────────────────────────────────────────────────────────
 if [ "$UNINSTALL" -eq 1 ]; then
@@ -475,6 +511,16 @@ if [ "$AUTOSTART" -eq 1 ]; then
     # da archivio non ha un registry da seguire.
     sed -i "s|^Environment=SWS_IMAGE=.*|Environment=SWS_IMAGE=$TAG|" "$UNIT_DIR/$NAME.container"
     sed -i "s|/run/user/1000/bus|/run/user/$(id -u)/bus|g" "$UNIT_DIR/$NAME.container"
+    # Il tunnel: si tolgono i commenti alle tre righe e ci si mettono i valori.
+    # `|` come separatore di sed perché l'URL contiene `/`.
+    if [ -n "$TUNNEL_URL" ]; then
+        sed -i "s|^#Environment=SWS_TUNNEL_URL=.*|Environment=SWS_TUNNEL_URL=$TUNNEL_URL|" "$UNIT_DIR/$NAME.container"
+        sed -i "s|^#Environment=SWS_TUNNEL_NOME=.*|Environment=SWS_TUNNEL_NOME=$TUNNEL_NOME|" "$UNIT_DIR/$NAME.container"
+        sed -i "s|^#Environment=SWS_TUNNEL_TOKEN=.*|Environment=SWS_TUNNEL_TOKEN=$TUNNEL_TOKEN|" "$UNIT_DIR/$NAME.container"
+        # Il token è nel file, e il file lo legge chi legge la home: 600.
+        chmod 600 "$UNIT_DIR/$NAME.container"
+        echo "    tunnel: questo pannello chiamerà $TUNNEL_URL come «$TUNNEL_NOME»"
+    fi
     case "$TAG" in
         localhost/*)
             sed -i "s|^AutoUpdate=|#AutoUpdate=|" "$UNIT_DIR/$NAME.container"

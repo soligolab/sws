@@ -355,12 +355,19 @@ fn make_remote_client(s: &AppState, url: &str) -> reqwest::Client {
     costruisci_client(s, url, 60).expect("reqwest client")
 }
 
-fn costruisci_client(
+pub(crate) fn costruisci_client(
     s: &AppState,
     url: &str,
     timeout_s: u64,
 ) -> Result<reqwest::Client, reqwest::Error> {
     let mut b = reqwest::Client::builder().timeout(std::time::Duration::from_secs(timeout_s));
+    if let Some(chiave) = s.ritorno.per(url) {
+        let mut h = reqwest::header::HeaderMap::new();
+        if let Ok(v) = reqwest::header::HeaderValue::from_str(&chiave) {
+            h.insert(crate::gateway::ritorno::INTESTAZIONE, v);
+        }
+        b = b.default_headers(h);
+    }
     if url.starts_with("https://") {
         let host_port =
             crate::certificati::host_port_da_url(url).unwrap_or_else(|| url.to_string());

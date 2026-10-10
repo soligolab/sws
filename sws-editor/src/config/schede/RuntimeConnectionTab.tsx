@@ -610,7 +610,10 @@ export function RuntimeConnectionTab() {
                         // resolver del sistema operativo del backend, non dal
                         // browser. Se assente (runtime più vecchio di questo
                         // campo), ripiega sull'IP come prima.
-                        if (r.hostname) {
+                        if (r.tunnel) {
+                          // Dal tunnel non c'è un host da raggiungere in SSH:
+                          // l'host dell'URL sarebbe il gateway.
+                        } else if (r.hostname) {
                           scegliHost(r.hostname);
                         } else {
                           try { scegliHost(new URL(r.admin_url).hostname); } catch { /* invalid URL — leave Host SSH untouched */ }
@@ -628,6 +631,18 @@ export function RuntimeConnectionTab() {
                           non ha pill — e nemmeno uno più vecchio di questo
                           campo, che non lo annuncia: l'assenza non afferma
                           niente. */}
+                      {r.tunnel && (
+                        <span
+                          title={t("cfg.discoverTunnelTitle")}
+                          style={{
+                            fontSize: 10, lineHeight: 1.6, padding: "0 6px", borderRadius: 999,
+                            whiteSpace: "nowrap", flexShrink: 0,
+                            color: "var(--brand-primary, #38bdf8)",
+                            background: "var(--brand-surface, #1e293b)",
+                            border: "1px solid var(--brand-surface-2, #334155)",
+                          }}
+                        >{t("cfg.discoverTunnel")}</span>
+                      )}
                       {r.container && (
                         <span
                           title={t("cfgUi.containerRuntime", { name: r.container })}

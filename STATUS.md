@@ -74,6 +74,238 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — deploy dal cloud al TC620 funziona (2026-10-10, sera)
+
+- **Il TC620 di casa, resettato e installato da Cockpit come un cliente**, è nel tunnel come `tc620-casa`.
+- **Dall'IDE su `https://sws.soligo.net` «Connetti» + deploy verso `https://sws.soligo.net/dev/tc620-casa`
+  funzionano** — confermato dal maintainer. Prima dava 401: il container del progetto chiama `/dev/` dal server,
+  senza sessione. Rimedio scelto dal maintainer, «segreto per container»: `gateway/ritorno.rs` (`93a8bd74`).
+  Provato anche a mano dal container: senza chiave 401, chiave giusta 200, chiave falsa 401.
+- **VPS**: gateway e progetti su `93a8bd74-amd64` (quadlet nel repo aggiornato, `69b288cf`). ghcr: `rc-amd64` =
+  `93a8bd74`. Un container di progetto nato prima del cambio d'immagine **va rimosso** (`podman rm -f`) e il gateway
+  riavviato: al riavvio il gateway riadotta i container accesi così come sono, immagine e ambiente vecchi compresi.
+- Il maintainer ha detto che sul VPS i comandi operativi (restart, pull, rm) posso lanciarli io, finché non è
+  produzione vera.
+
+**Fatto dopo, la stessa notte (VPS su `ff2d183f-amd64`):**
+1. ~~Token di `tc620-casa`~~ — rigenerato (48 hex, `openssl rand`) e scritto direttamente in `pannelli.yaml` e
+   nella unit del pannello, mai stampato. Il vecchio non vale più.
+2. ~~«Trova runtime» nel cloud~~ — `e0b9e00c`: dietro il gateway elenca i pannelli del tunnel dell'azienda (pillola
+   «tunnel»); in locale resta mDNS. Confermato dal maintainer, che ha anche salvato il pannello fra i dispositivi.
+3. ~~Tag fermi con l'IDE nel cloud~~ — `9172df99`: il tunnel non portava i websocket (il 101 arrivava, le socket non
+   venivano cucite). Ora sì; verificato dal container: 101 e snapshot dei tag del TC620. **Da riconfermare
+   dall'IDE** (dopo il deploy il progetto è stato ricreato: rifare «Connetti»).
+4. ~~Healthcheck~~ — `ff2d183f`: ripiego sulla 8444 nei due Containerfile; gateway e progetto «healthy». Sui
+   pannelli non cambia niente (la 8443 risponde).
+
+**Ancora aperto:**
+- **Pinning TLS verso `sws.soligo.net`**: il container del progetto ha memorizzato l'impronta del certificato
+  Let's Encrypt al primo «Connetti». Let's Encrypt lo rinnova ogni ~60 giorni → «certificato cambiato» a ogni
+  rinnovo. Per l'origine del gateway (certificato pubblico valido) andrebbe usata la verifica normale delle CA.
+  Probabile seme/decisione.
+- Merge di `feat/4b-deploy-dal-cloud` (con 4a sotto) quando il maintainer lo decide; i commit del ramo non sono
+  pushati su origin.
+
+## ▶ Riprendere da qui — a casa, col TC620 appena resettato (2026-10-10)
+
+**Due rami aperti e pushati, `main` non toccato.** `feat/4a-gateway-podman` (il gateway) e
+`feat/4b-deploy-dal-cloud` annidato sopra (il tunnel): 22 commit in tutto. Il merge aspetta il
+collaudo del maintainer — scelta sua, 10-10-2026.
+
+A casa: `git fetch && git checkout feat/4b-deploy-dal-cloud`. Quello contiene anche 4a.
+
+Verde: `cargo check`, 513 test `sws-web`, `pnpm build`, **42** guardie statiche.
+
+### Cosa c'è in piedi adesso
+
+| | |
+|---|---|
+| `https://sws.soligo.net` | il gateway, immagine `ff2d183f-amd64` (dal 10-10 notte). Il maintainer ha fatto il primo accesso e ha un progetto aperto |
+| `https://tunnel.soligo.net/tunnel/v1` | il tunnel dei pannelli, stesso container, router Traefik suo |
+| `~/sws-vps/gateway-config/pannelli.yaml` | dichiara `tc620-casa`, azienda `-` (la radice: nessuna azienda esiste ancora) |
+| ghcr | `rc-amd64` = `a146d6f7`, `rc-arm64` = `983fbcfa` |
+
+**Il token del TC620** sta sul VPS in quel file. Rigenerarlo è un attimo, ma se serve lo stesso:
+`ssh debian@37.187.181.142 'grep token ~/sws-vps/gateway-config/pannelli.yaml'`.
+
+### Il prossimo passo, a casa
+
+Il TC620 ha appena avuto un **factory reset**: è il caso «cliente che installa SWS per la prima
+volta», che è esattamente quello che il maintainer voleva provare. La procedura è in
+[HOWTO §25](docs/HOWTO.md), da **Cockpit → Terminale** (l'installer si tira fuori dall'immagine
+stessa, non serve il repo sul pannello).
+
+Prima di installare, **una misura che serve al seme dell'identità hardware** e che si fa solo con
+il pannello davanti: i candidati per identificare la scatola (machine-id, MAC, CID della eMMC,
+seriale della CPU, device-tree). Il comando è in fondo a
+[docs/plans/2026-10-10-identita-del-pannello-e-token-ripetibile.md](docs/plans/2026-10-10-identita-del-pannello-e-token-ripetibile.md).
+Va fatta **prima** dell'installazione: un pannello appena resettato è il momento in cui si vede
+cosa sopravvive a un reset e cosa no, e quel momento non torna.
+
+### Accesso al VPS da casa — da verificare per primo
+
+Sul VPS le password sono spente: entra solo chi ha una chiave già autorizzata, e **una macchina
+nuova non può autorizzarsi da sola** (`ssh-copy-id` chiederebbe una password che non esiste). Le
+chiavi ammesse al 10-10-2026 sono due: `edp@pixsys.net` (il dev server in ufficio) e
+`ut1@windows per sws-vps`.
+
+Dal PC di casa, **prima di ogni altra cosa**:
+
+```sh
+ssh -o PasswordAuthentication=no debian@37.187.181.142 'hostname; echo accesso ok'
+```
+
+Se risponde, la seconda chiave è quella di casa e non serve altro. Se non risponde, la chiave va
+aggiunta **da una macchina che entra già** — cioè da questo dev server, non da casa. Procedura in
+[deploy/vps/README.md](deploy/vps/README.md), sezione «Entrare nel VPS da una macchina nuova».
+
+Per il collaudo del TC620 il VPS serve a due cose: leggere il token e dichiarare altri pannelli.
+Il token si può anche copiare adesso, così il primo giro non dipende dall'accesso.
+
+### Deciso oggi, da fare
+
+- **Installazione da Cockpit, tutt'e due le strade** (scelta del maintainer): il Terminale
+  funziona oggi; l'**installatore che parte da Cockpit** — un container che si avvia una volta,
+  scrive il quadlet vero e sparisce — è da scrivere. Serve perché il modulo podman di Cockpit non
+  sa esprimere 31 righe del quadlet del pannello (seriali, `UserNS=keep-id`,
+  `--group-add keep-groups`, `AutoUpdate`, `Notify=healthy`, `Timezone`): un pannello creato da lì
+  sarebbe senza Modbus RTU, senza immagine di accensione e senza aggiornamento.
+- **Fetta 2 del tunnel**: l'abbinamento col codice mostrato dal pannello. Il confine fra aziende
+  c'è già (guardia `check_pannello_confinato`); manca il modo di arrivarci senza scrivere a mano
+  un file sul gateway.
+- **Seme nuovo**: il pannello come entità del server, riconosciuta dall'hardware — da cui licenze
+  e ban. Vedi il piano citato sopra.
+
+### Pulito a mano su questa macchina
+
+Fermati i container e la rete di prova, e **tutti** i processi `sws-runtime` — compreso uno di
+collaudo rimasto in piedi dal 2 ottobre (`specchio-prova` da `~/sws_projects`). Se serviva, si
+rilancia con `./scripts/start_editor.sh`.
+
+## ▶ Riprendere da qui — il tunnel dei pannelli (2026-10-09, notte)
+
+Ramo **`feat/4b-deploy-dal-cloud`**, annidato su `feat/4a-gateway-podman`. Nessuno dei due è
+mergiato: aspettano il collaudo del maintainer.
+
+Richiesta del maintainer: «vorrei arrivare a poter connettere un pannello per fare il deploy».
+Quello è il tunnel, cioè la **Fase 6** aperta fuori ordine. La Fase 5 (registrazione, email, 2FA)
+resta dov'era.
+
+### Prima ho misurato cosa c'era già
+
+**Il deploy dal cloud funzionava già**, se il pannello è raggiungibile: IDE in un container dietro
+il gateway, finto pannello (`--no-admin`) su un altro container, `connect` + `deploy`, progetto
+arrivato sul disco. Questo chiude una domanda: tutto lo strato remoto compone `{base}/api/…` da
+`RemoteTarget.url` e non sa com'è fatto quel `base`. Al tunnel non serve cambiarlo, gli serve
+**esistere**.
+
+### Poi il tunnel, e passa un deploy
+
+Quattro moduli in `sws-runtime/crates/sws-web/src/tunnel/`: `filo.rs` (il WebSocket come flusso di
+byte), `multiplex.rs` (yamux e il registro dei pannelli), `pannello.rs` (chiama e si riconnette),
+`gateway.rs` (accetta, riconosce, instrada `/dev/<pannello>/…`).
+
+```
+pannelli collegati: ["tc620-di-prova"]
+/dev/tc620-di-prova/health: 200        ← attraverso il tunnel
+connect: {"ok":true}
+✓ Caricato come "f0b" · ✓ attivo · 🚀 Deploy completato!
+```
+
+**Due decisioni del maintainer**: multiplexer a stream invece di messaggi richiesta/risposta, e
+codice di abbinamento mostrato dal pannello. La seconda non è ancora implementata (fetta 2).
+
+### Dove si è fermato
+
+Due immagini in costruzione: **arm64** (serve ai pannelli veri — la 2.12.0 che hanno addosso non
+ha il tunnel) e **amd64** per il gateway. L'amd64 è stata fermata perché le due build si
+sarebbero scontrate su `sws-editor/dist`: **non si lanciano insieme**, tutt'e due fanno
+`pnpm build` nella stessa cartella.
+
+### Il prossimo passo
+
+1. Finire le due immagini e pubblicarle.
+2. Aggiornare il gateway sul VPS, copiare `traefik/dynamic/tunnel.yml`, scrivere
+   `pannelli.yaml`.
+3. Il pannello del maintainer: immagine arm64 nuova e tre argomenti nel quadlet — vedi
+   [HOWTO §24](docs/HOWTO.md).
+4. Poi la **fetta 2**, che è anche il primo buco di sicurezza da chiudere: oggi un pannello nel
+   registro lo raggiunge chiunque sia entrato nel gateway, perché finché i pannelli stanno in un
+   file non c'è un'azienda a cui chiederlo.
+
+## ▶ Riprendere da qui — il gateway gira (2026-10-09, sera)
+
+Ramo **`feat/4a-gateway-podman`** aperto, cinque commit, **non mergiato**: serve il collaudo del
+maintainer.
+
+Verde: `cargo check`, 500 test `sws-web`, 1189 del frontend, `pnpm build`, **41** guardie statiche
+(nuova: `check_inoltro_identita`). **Manca il collaudo del maintainer**: il gateway è acceso ma
+nessuno ci ha ancora lavorato dentro.
+
+### Cosa c'è adesso
+
+`sws-runtime --gateway` è una porta sola davanti a tutti i progetti: ogni progetto aperto gira nel
+suo container, si accende alla prima richiesta e si spegne dopo venti minuti senza nessuna
+finestra collegata.
+
+Quattro moduli in `sws-runtime/crates/sws-web/src/gateway/`: `podman.rs` (il client del socket),
+`progetti.rs` (chi è aperto, il tetto, i timer, la riadozione dopo un riavvio), `inoltro.rs` (il
+proxy HTTP e WebSocket), `rotte.rs` (`/p/<azienda>/<progetto>/…`).
+
+Le tre cose che non si indovinano stanno nel [piano](docs/plans/2026-10-09-fase-4-gateway.md), in
+fondo: il guscio della SPA servito **senza token** (una navigazione non ne porta), l'identità che
+scrive solo il gateway, e la radice dei progetti montata **allo stesso percorso** dentro e fuori.
+
+### Provato a mano, con un gateway locale
+
+`/p/-/impianto/` serve l'IDE; `/api/project` fa nascere il container e torna il progetto vero in
+0,8 s; `/ws/tags` passa a 101; progetto inesistente 404; azienda inesistente 404; la stessa
+richiesta mandata dritta alla porta del container prende 401, e un'intestazione `x-sws-utente`
+falsa attraverso il gateway viene buttata via.
+
+Due difetti trovati e chiusi prima del collaudo: il figlio veniva dichiarato aperto prima di
+ascoltare (502 alla prima richiesta, funzionante alla seconda), e dieci richieste parallele — cioè
+un browser che carica l'IDE — si cancellavano il container a vicenda.
+
+### `sws.soligo.net` è il gateway, dalle 19:30 del 09-10
+
+Immagine `3ba4f469-amd64` su ghcr, quadlet `sws-gateway.container`, router Traefik. Il perché di
+ogni scelta sta in [`deploy/vps/STATO.md`](deploy/vps/STATO.md), sezione «Il gateway SWS».
+
+**Il codice di primo accesso è nei log** (`journalctl --user -u sws-gateway`): l'amministratore lo
+crea il maintainer, così la password la sceglie lui. Sul VPS c'è già un progetto `dimostrazione`
+da aprire.
+
+Due cose da sapere prima di provarlo:
+
+- `https://sws.soligo.net/` risponde **404 con dentro l'IDE**. Lo fa ogni istanza SWS, non è il
+  gateway: `ServeDir` serve il guscio della SPA come «non trovato», verificato uguale su un
+  runtime normale. Lasciato com'è di proposito — con un 200, un bundle davvero mancante tornerebbe
+  HTML con stato 200 e il browser proverebbe a eseguirlo come JavaScript.
+- Dentro un progetto l'IDE vede solo quel progetto (vedi «Resta ruvido»).
+
+### La prova generale ha trovato due difetti che il modo corto nascondeva
+
+Il gateway **dentro** un container — socket di podman, rete, radice montata allo stesso percorso —
+è un'altra cosa dal gateway come processo normale, e ha ripagato subito:
+
+1. `netns: {nsmode: bridge}` mancava. Mettere `Networks` nella specifica non basta: il modo
+   predefinito di un container creato via API non è bridge, e podman rifiutava ogni creazione con
+   HTTP 500.
+2. Il figlio si chiamava per nome, e il nome non rispondeva. Podman registra il nome come alias di
+   rete solo quando il container nasce dalla riga di comando, non via API — e comunque risolverlo
+   vuole il risolutore della rete, che qui non c'è (podman 4 + CNI senza `dnsname`, `dns=false`)
+   mentre sul VPS sì. Adesso si va per **IP**, che podman sa dire dappertutto.
+
+Il secondo è il più istruttivo: sul VPS avrebbe funzionato lo stesso, quindi senza la prova locale
+nessuno se ne sarebbe accorto finché una macchina diversa non avesse smesso di funzionare.
+
+### Resta ruvido, e si sa
+
+Dentro il container di un progetto l'IDE vede **solo quel progetto**: se l'utente chiude il
+progetto dal menu si trova un elenco vuoto, e ne esce tornando alla console. Si sistema in Fase 5,
+quando l'IDE dietro il gateway saprà di essere dietro un gateway.
+
 ## ▶ Riprendere da qui — 2.13.0-rc.1, immagine amd64 (2026-10-09)
 
 `main` pushato, nessun ramo aperto. La catena di rami annidati di oggi è entrata in **tre squash**

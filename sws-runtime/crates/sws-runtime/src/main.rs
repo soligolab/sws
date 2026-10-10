@@ -148,6 +148,87 @@ struct Args {
     #[arg(long)]
     senza_autenticazione: bool,
 
+    /// **L'autenticazione la fa il gateway**, non questo processo.
+    ///
+    /// Un progetto aperto nel cloud gira in un container suo, con montata
+    /// **solo la cartella del progetto** (decisione 25): l'archivio delle
+    /// identita non lo vede, quindi da solo non saprebbe autenticare nessuno.
+    /// Chi sei glielo dice il gateway, in un'intestazione.
+    ///
+    /// Fidarsi di un'intestazione e sicuro **solo** se nessun altro puo'
+    /// mandarla. Per questo serve anche il segreto in `SWS_SEGRETO_GATEWAY`,
+    /// che il gateway passa al container quando lo crea e rimanda a ogni
+    /// richiesta: senza, il processo **rifiuta di partire**. Non parte aperto
+    /// e non parte «quasi protetto» — e il verso che conta, lo stesso di
+    /// `--senza-autenticazione`.
+    #[arg(long)]
+    auth_delegata: bool,
+
+    /// **Questo processo e il gateway**: una porta sola davanti a tutti i
+    /// progetti, ognuno nel suo container.
+    ///
+    /// E l'opposto esatto di `--auth-delegata`: qui si conoscono gli utenti e
+    /// si comanda podman, la si e comandati e l'identita arriva in
+    /// un'intestazione. Le due bandiere insieme non hanno senso e il processo
+    /// rifiuta di partire.
+    #[arg(long)]
+    gateway: bool,
+
+    /// L'immagine da avviare per ogni progetto, con `--gateway`.
+    ///
+    /// Di norma la stessa immagine che sta girando: il gateway e un container
+    /// come gli altri, e un figlio di versione diversa dal padre e una cosa
+    /// che si sceglie, non che capita.
+    #[arg(long, default_value = "ghcr.io/soligolab/sws-runtime:latest-amd64")]
+    gateway_immagine: String,
+
+    /// La rete podman su cui mettere i container dei progetti.
+    ///
+    /// Con la rete, il gateway li raggiunge per nome e **nessuna porta viene
+    /// pubblicata**: dall'esterno della macchina i progetti non esistono, si
+    /// passa di qui o non si passa. Senza, podman pubblica una porta su
+    /// `127.0.0.1` — serve quando il gateway gira come processo normale e non
+    /// come container, cioe mentre lo si sviluppa.
+    #[arg(long)]
+    gateway_rete: Option<String>,
+
+    /// Dopo quanti minuti senza nessuna finestra collegata si spegne il
+    /// container di un progetto.
+    #[arg(long, default_value_t = 20)]
+    gateway_fermo_minuti: u64,
+
+    /// **L'indirizzo del gateway a cui questo pannello si collega.**
+    ///
+    /// Un pannello sta nella rete di un cliente, dietro NAT: nessuno da fuori
+    /// puo' aprire una connessione verso di lui. Quindi chiama lui, una volta,
+    /// e tiene aperta quella chiamata — tutto quello che l'IDE nel cloud gli
+    /// chiede passa da li' dentro.
+    ///
+    /// Esempio: `wss://tunnel.soligo.net/tunnel/v1`.
+    ///
+    /// **Anche da variabile d'ambiente**, ed e' la strada buona sul
+    /// dispositivo: nel quadlet bastano tre righe `Environment=`, mentre
+    /// aggiungere argomenti vorrebbe dire riscrivere `Exec=` per intero —
+    /// cioe' ricomporre a memoria la riga di avvio su un pannello in campo,
+    /// che e' il modo migliore per dimenticarsi `--www` e ritrovarsi una
+    /// pagina bianca.
+    #[arg(long, env = "SWS_TUNNEL_URL")]
+    tunnel: Option<String>,
+
+    /// Il nome con cui questo pannello si presenta al gateway.
+    ///
+    /// Nella prima fetta lo si scrive a mano e deve combaciare con una riga di
+    /// `pannelli.yaml` sul gateway. Quando ci sara' l'abbinamento col codice,
+    /// questo lo scegliera' il gateway e il pannello se lo terra' da parte.
+    #[arg(long, env = "SWS_TUNNEL_NOME")]
+    tunnel_nome: Option<String>,
+
+    /// Il token che autorizza questo pannello. Anche da `SWS_TUNNEL_TOKEN`,
+    /// che e' il modo giusto su una macchina dove altri possono leggere la
+    /// riga di comando dei processi.
+    #[arg(long, env = "SWS_TUNNEL_TOKEN")]
+    tunnel_token: Option<String>,
+
     /// Plain HTTP port for the TLS certificate acceptance helper page.
     /// Serves a small interactive page (no cert needed) that guides the user
     /// to accept the self-signed certificate and then redirects to the HTTPS IDE.
@@ -1007,6 +1088,29 @@ async fn main() -> anyhow::Result<()> {
     let known_projects =
         Arc::new(sws_web::project_registry::ProjectRegistry::load(&config_dir, &args.projects_root).await);
 
+    // ── L'autenticazione delegata non parte senza il suo segreto ───────────
+    //
+    // Fidarsi di un'intestazione va bene solo se nessun altro puo' mandarla.
+    // Il segreto e' cio' che lo garantisce: lo genera il gateway, lo passa al
+    // container quando lo crea, e lo rimanda a ogni richiesta. Senza, qui si
+    // **rifiuta di partire** invece di accettare chiunque dica di essere
+    // chiunque — fallire chiuso e il punto di tutta la riga.
+    let segreto_gateway = if args.auth_delegata {
+        match std::env::var("SWS_SEGRETO_GATEWAY").ok().filter(|v| v.len() >= 16) {
+            Some(v) => Some(v),
+            None => {
+                error!(
+                    "--auth-delegata rifiutato: manca SWS_SEGRETO_GATEWAY (o e piu corto di 16 \
+                     caratteri). Senza, chiunque raggiunga questa istanza potrebbe dichiararsi \
+                     chi vuole in un'intestazione."
+                );
+                anyhow::bail!("--auth-delegata senza SWS_SEGRETO_GATEWAY");
+            }
+        }
+    } else {
+        None
+    };
+
     // ── La scorciatoia di sviluppo non deve poter vivere su un server ───────
     if args.senza_autenticazione {
         match detect_lan_ip() {
@@ -1032,7 +1136,12 @@ async fn main() -> anyhow::Result<()> {
     // Solo sulle istanze IDE: su un dispositivo gli utenti sono quelli del
     // progetto, che viaggiano col deploy. Due archivi, due scopi — mescolarli
     // e il guasto del 14-09-2026 (vedi il crate `sws-identita`).
-    let identita = if ide_only {
+    //
+    // **Non dietro il gateway.** Li l'identita la dice chi sta davanti, e
+    // aprire un archivio in un container di progetto vorrebbe dire crearne
+    // uno vuoto a ogni apertura — con dentro un codice di primo accesso che
+    // non serve a nessuno e che comparirebbe nei log.
+    let identita = if ide_only && segreto_gateway.is_none() {
         match sws_identita::Identita::apri(config_dir.join("identita.db")).await {
             Ok(i) => Some(i),
             Err(e) => {
@@ -1065,6 +1174,81 @@ async fn main() -> anyhow::Result<()> {
         }
         _ => None,
     };
+
+    // ── Il gateway ──────────────────────────────────────────────────────────
+    //
+    // Si costruisce qui perche' deve esistere **prima** del router: le rotte
+    // `/p/<azienda>/<progetto>/…` si registrano solo se c'e' una regia, e un
+    // gateway senza podman e' una porta che si apre sul vuoto.
+    let regia = if args.gateway {
+        if args.auth_delegata {
+            error!(
+                "--gateway e --auth-delegata insieme non hanno senso: il primo comanda i                  container, il secondo e' comandato da chi li ha creati."
+            );
+            anyhow::bail!("--gateway con --auth-delegata");
+        }
+        let Some(podman) = sws_web::gateway::podman::Podman::predefinito() else {
+            error!(
+                "--gateway rifiutato: nessun socket di podman. Su un utente normale si accende                  con `systemctl --user start podman.socket`."
+            );
+            anyhow::bail!("--gateway senza socket podman");
+        };
+        if !podman.raggiungibile().await {
+            error!("--gateway rifiutato: il socket di podman c'e' ma non risponde.");
+            anyhow::bail!("--gateway con podman muto");
+        }
+        // Il segreto sta su disco e non cambia fra due avvii: i container
+        // sopravvivono al gateway, e dopo un riavvio li si riprende in carico
+        // (`riadotta`) — con un segreto nuovo sarebbero tutti da buttare.
+        let segreto = sws_web::gateway::segreto_persistente(&config_dir)?;
+        let come = match &args.gateway_rete {
+            Some(r) => sws_web::gateway::progetti::ComeRaggiungere::Rete(r.clone()),
+            None => sws_web::gateway::progetti::ComeRaggiungere::PortaPubblicata,
+        };
+        let r = sws_web::gateway::progetti::Regia::nuova(
+            podman,
+            args.gateway_immagine.clone(),
+            args.projects_root.clone(),
+            come,
+            segreto,
+        )
+        .con_fermo_dopo(std::time::Duration::from_secs(args.gateway_fermo_minuti * 60));
+        let r = Arc::new(r);
+        match r.riadotta().await {
+            Ok(0) => info!("gateway acceso, nessun progetto da riprendere"),
+            Ok(n) => info!("gateway acceso, {n} progetti ripresi da prima del riavvio"),
+            Err(e) => warn!("gateway: non sono riuscito a rileggere i container esistenti: {e}"),
+        }
+        // Il giro di pulizia: un minuto e' abbastanza fitto perche' il tetto
+        // si liberi in fretta e abbastanza largo da non pesare.
+        let pulitore = r.clone();
+        tokio::spawn(async move {
+            let mut t = tokio::time::interval(std::time::Duration::from_secs(60));
+            loop {
+                t.tick().await;
+                for chiuso in pulitore.spegni_i_fermi().await {
+                    info!("gateway: {chiuso} spento, nessuno collegato");
+                }
+            }
+        });
+        Some(r)
+    } else {
+        None
+    };
+
+    // Chi puo' entrare nel tunnel, letto una volta all'avvio. Senza il file
+    // non entra nessuno, ed e' il verso giusto: un gateway che accetta tunnel
+    // da chiunque e' peggio di uno che non ne accetta nessuno.
+    let pannelli_ammessi = args.gateway.then(|| {
+        let f = config_dir.join("pannelli.yaml");
+        let a = sws_web::tunnel::gateway::Ammessi::da_file(&f);
+        if a.0.is_empty() {
+            info!(file = %f.display(), "nessun pannello dichiarato: il tunnel non accettera' nessuno");
+        } else {
+            info!(file = %f.display(), quanti = a.0.len(), "pannelli ammessi al tunnel");
+        }
+        Arc::new(a)
+    });
 
     let (runtime_app, admin_app, app_state) = sws_web::router::build(
         tag_db,
@@ -1101,6 +1285,9 @@ async fn main() -> anyhow::Result<()> {
         identita,
         args.senza_autenticazione,
         token_primo_accesso,
+        segreto_gateway,
+        regia,
+        pannelli_ammessi,
     );
 
     // Servizi del progetto auto-aperto al boot: canale Telegram, script globali,
@@ -1213,6 +1400,41 @@ async fn main() -> anyhow::Result<()> {
         }
         Some(l)
     };
+
+    // ── Il tunnel verso il gateway, se questo e' un pannello ────────────────
+    //
+    // Dopo che la porta di gestione e' in ascolto, perche' e' li' che il
+    // tunnel gira quello che riceve: aprirlo prima vorrebbe dire la prima
+    // richiesta su una porta che non risponde ancora.
+    //
+    // Tre cose devono esserci insieme: l'indirizzo, il nome e il token.
+    // Mancandone una il processo **non parte**, invece di partire senza
+    // tunnel: un pannello che crede di essere raggiungibile e non lo e' si
+    // scopre il giorno che serve, e quel giorno di solito si e' lontani.
+    match (&args.tunnel, &args.tunnel_nome, &args.tunnel_token) {
+        (None, None, None) => {}
+        (Some(url), Some(nome), Some(token)) if token.len() >= 16 => {
+            if args.no_admin || !ide_only {
+                info!(%url, pannello = %nome, "tunnel: chiamo il gateway");
+            }
+            sws_web::tunnel::pannello::tieni_aperto(
+                url.clone(),
+                nome.clone(),
+                token.clone(),
+                args.admin_port,
+            );
+        }
+        (Some(_), Some(_), Some(_)) => {
+            error!("--tunnel-token e' piu corto di 16 caratteri: non e' un segreto");
+            anyhow::bail!("token del tunnel troppo corto");
+        }
+        _ => {
+            error!(
+                "il tunnel vuole tutti e tre: --tunnel, --tunnel-nome e --tunnel-token                  (o SWS_TUNNEL_TOKEN). Con uno solo non si collega niente."
+            );
+            anyhow::bail!("configurazione del tunnel incompleta");
+        }
+    }
 
     // HTTP companion listener: plain HTTP, no TLS. Serves a cert-acceptance helper
     // page so users can approve the self-signed cert without knowing the /health URL.

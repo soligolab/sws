@@ -1,0 +1,25 @@
+# tunnel.soligo.net → il tunnel dei pannelli, sullo stesso gateway.
+#
+# Un nome diverso per la stessa macchina, e non è pignoleria: l'indirizzo del
+# gateway sta **dentro l'immagine del pannello** (decisione 13). Separarlo da
+# `sws.soligo.net` vuol dire poter spostare un giorno i pannelli su un'altra
+# macchina cambiando un record DNS, senza toccare i pannelli già installati —
+# che sono esattamente quelli che non si possono toccare.
+#
+# I timeout lunghi dell'entrypoint `websecure` (readTimeout e writeTimeout a
+# zero, idle a un'ora) servono proprio a questo: la connessione di un pannello
+# per natura sta zitta per ore, e coi valori predefiniti verrebbe chiusa.
+http:
+  routers:
+    tunnel:
+      rule: "Host(`tunnel.soligo.net`)"
+      entryPoints: [websecure]
+      service: sws-gateway-tunnel
+      tls:
+        certResolver: letsencrypt
+
+  services:
+    sws-gateway-tunnel:
+      loadBalancer:
+        servers:
+          - url: "http://sws-gateway:8444"

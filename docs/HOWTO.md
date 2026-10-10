@@ -1414,3 +1414,310 @@ catalogo lo elenca in fondo con l'errore.
 dispositivo dello stesso modello), una variabile istanza (es. `atr244_3`) e un dispositivo del bus con una mappatura
 per membro dei gruppi spuntati. Tipo e variabile si salvano subito; il dispositivo va salvato coi Protocolli.
 
+
+## 23. Provare il gateway in locale, senza VPS
+
+Il gateway (`sws-runtime --gateway`) mette ogni progetto in un container suo e lo serve sotto
+`/p/<azienda>/<progetto>/`. Per vederlo funzionare non serve il VPS: basta podman sulla propria
+macchina.
+
+### Serve prima
+
+Il socket di podman acceso — il gateway comanda i container di lì:
+
+```sh
+systemctl --user start podman.socket
+podman info --format '{{.Host.Security.Rootless}}'   # atteso: true
+```
+
+E un'immagine del runtime con dentro il gateway. La si costruisce con
+`./scripts/build_container_x86_64.sh` (senza `--push`): esce `localhost/sws-runtime:<versione>-amd64`.
+
+### Il modo più corto: gateway come processo normale
+
+Il gateway gira sulla macchina, i container dei progetti pubblicano una porta su `127.0.0.1` e il
+gateway li raggiunge lì.
+
+```sh
+mkdir -p /tmp/gw/progetti /tmp/gw/config
+cp -r .run-editor/projects/<un-progetto> /tmp/gw/progetti/impianto
+
+./sws-runtime/target/debug/sws-runtime \
+  --config /tmp/gw/config --projects-root /tmp/gw/progetti \
+  --templates-root templates --catalog-root deploy/catalogo/dispositivi \
+  --www sws-editor/dist --admin-port 8477 \
+  --senza-autenticazione \
+  --gateway --gateway-immagine localhost/sws-runtime:2.13.0-rc.1-amd64
+```
+
+Poi `http://127.0.0.1:8477/p/-/impianto/` nel browser. Il `-` è l'azienda implicita, cioè i
+progetti che stanno nella radice e non in una cartella d'azienda.
+
+> **Senza `tls.crt` nella cartella di configurazione il runtime parla HTTP in chiaro**, quindi
+> `http://` e non `https://`. Sul VPS è la stessa cosa e va bene: il TLS lo termina Traefik.
+
+### Il modo fedele: gateway dentro un container
+
+È come sta sul VPS, e serve a scoprire i guai che il modo corto nasconde.
+
+```sh
+podman network create sws-prova
+RAD=/tmp/gw/progetti        # lo STESSO percorso dentro e fuori, vedi sotto
+podman run -d --name sws-gateway-prova --network sws-prova \
+  -p 127.0.0.1:8479:8444 \
+  -e XDG_RUNTIME_DIR=/run/sws \
+  -v "$XDG_RUNTIME_DIR/podman/podman.sock:/run/sws/podman/podman.sock" \
+  -v /tmp/gw/config:/var/sws/config \
+  -v "$RAD:$RAD" \
+  localhost/sws-runtime:2.13.0-rc.1-amd64 \
+  --config /var/sws/config --projects-root "$RAD" \
+  --templates-root /var/sws/templates --catalog-root /var/sws/catalogo/dispositivi \
+  --www /var/sws/www --admin-port 8444 --senza-autenticazione \
+  --gateway --gateway-immagine localhost/sws-runtime:2.13.0-rc.1-amd64 \
+  --gateway-rete sws-prova
+```
+
+**Tre cose che fanno perdere mezz'ora se non si sanno.**
+
+1. **Il socket non va montato in `/run/user/1000/`.** Dentro il container si è uid 0, quindi il
+   programma cercherebbe `/run/user/0/podman/podman.sock`. Si monta dove si vuole e si dichiara
+   `XDG_RUNTIME_DIR`.
+2. **La radice dei progetti deve stare allo stesso percorso dentro e fuori.** Il gateway controlla
+   che la cartella esista (controllo fatto *dentro*), poi passa quel percorso a podman come
+   sorgente del bind mount del figlio, e podman lo risolve *fuori*. Con due percorsi diversi il
+   controllo passa e il container del progetto parte vuoto.
+3. **Il container del gateway deve girare come root al suo interno** — che fuori resta il proprio
+   utente, non root della macchina. Un utente non privilegiato dentro finisce in un subuid che col
+   proprietario del socket non c'entra nulla, e ogni chiamata a podman fallisce. L'immagine di SWS
+   parte già da root, quindi non serve `--user 0`; serve saperlo se si prova con un'altra immagine.
+
+### Cosa guardare
+
+```sh
+podman ps --format '{{.Names}} {{.Status}}'      # i figli si chiamano sws-p-<azienda>-<nome>
+podman logs -f sws-gateway-prova
+```
+
+Un progetto si spegne da solo venti minuti dopo che l'ultima finestra si è chiusa
+(`--gateway-fermo-minuti` per cambiarlo; con `1` la prova dura un minuto invece di venti).
+
+### Pulizia
+
+```sh
+podman rm -f sws-gateway-prova
+podman rm -f $(podman ps -aq --filter "name=^sws-p-")
+podman network rm sws-prova
+```
+
+## 24. Collegare un pannello al cloud col tunnel
+
+Un pannello in impianto sta dietro NAT: dal cloud non lo si raggiunge. È lui che chiama, una
+volta, e tiene aperta quella chiamata; tutto quello che l'IDE gli chiede passa da lì dentro.
+
+> **Prima fetta.** Oggi il pannello si dichiara a mano in un file sul gateway. L'abbinamento col
+> codice mostrato sullo schermo del pannello è il passo dopo — vedi
+> `docs/plans/2026-10-09-fase-6-tunnel-dei-pannelli.md`.
+
+### 1. Dichiarare il pannello sul gateway
+
+In `<config del gateway>/pannelli.yaml`, una voce per pannello:
+
+```yaml
+tc620-reparto-nord:
+  token: un-token-lungo-almeno-sedici-caratteri
+  azienda: acme          # la CARTELLA dell'azienda, la stessa di /p/<azienda>/…
+```
+
+**L'azienda non è un'etichetta: è chi può parlargli.** Un pannello governa l'impianto di un
+cliente, e senza quel legame lo raggiungerebbe chiunque sia entrato nel gateway. Chi non è di
+quell'azienda prende **404**, non 403, e non lo vede nemmeno nell'elenco: un 403 confermerebbe
+che quel pannello esiste.
+
+Il token si genera e non si inventa:
+
+```sh
+head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n'; echo
+```
+
+Vengono **scartati con un errore nei log** i pannelli col token più corto di 16 caratteri e
+quelli senza azienda: un file con dentro `token: 1234` darebbe l'impressione di aver configurato
+qualcosa, e «di nessuna azienda» finirebbe per voler dire «di tutte».
+
+Il file si legge all'avvio, quindi: `systemctl --user restart sws-gateway`.
+
+### 2. Accendere il tunnel sul pannello
+
+Tre valori, e servono tutti e tre. **Sul pannello si danno come variabili d'ambiente**, non come
+argomenti: `Exec=` nel quadlet sovrascrive il comando dell'immagine per intero, quindi
+aggiungerci qualcosa vuol dire ricomporre a memoria tutta la riga di avvio — e dimenticarsi
+`--www` significa una pagina bianca senza nessun indizio del perché.
+
+**Installazione nuova** (è anche la prima installazione di un cliente, vedi §25):
+
+```sh
+./install-container.sh --pull ghcr.io/soligolab/sws-runtime:rc-arm64 \
+  --tunnel       wss://tunnel.soligo.net/tunnel/v1 \
+  --tunnel-nome  tc620-reparto-nord \
+  --tunnel-token <il token>
+```
+
+**Pannello già installato**: nel suo `~/.config/containers/systemd/sws-runtime.container` le tre
+righe ci sono già, commentate. Togliere i `#`, metterci i propri valori, e
+
+```sh
+chmod 600 ~/.config/containers/systemd/sws-runtime.container   # dentro c'è un segreto
+systemctl --user daemon-reload && systemctl --user restart sws-runtime
+```
+
+**Con uno solo dei tre il processo non parte**, di proposito: un pannello che crede di essere
+raggiungibile e non lo è si scopre il giorno che serve, e quel giorno di solito si è lontani.
+L'installer rifiuta prima ancora di scrivere il file.
+
+### 3. Verificare
+
+Dal cloud:
+
+```sh
+curl -s https://sws.soligo.net/api/pannelli -H "Authorization: Bearer <token di sessione>"
+#   ["tc620-reparto-nord"]
+```
+
+E il pannello stesso, attraverso il tunnel:
+
+```sh
+curl -s -o /dev/null -w "%{http_code}\n" \
+  https://sws.soligo.net/dev/tc620-reparto-nord/health -H "Authorization: Bearer <token>"
+#   200
+```
+
+**503 invece di 404** quando il pannello non è collegato: il pannello esiste, non c'è adesso.
+
+### 4. Deploy
+
+Nell'IDE: Configurazione → Istanza → Device → Connessione → «Connetti», con l'URL
+
+```
+https://sws.soligo.net/dev/tc620-reparto-nord
+```
+
+Da lì in poi è il deploy di sempre. Lo strato remoto non sa che esiste un tunnel: compone
+`{base}/api/…` come ha sempre fatto, e `base` è quell'indirizzo.
+
+### Cosa guardare quando non va
+
+```sh
+journalctl --user -u sws-gateway -f | grep tunnel     # sul gateway
+journalctl -u sws-runtime -f        | grep tunnel     # sul pannello
+```
+
+Sul pannello, «tunnel non aperto: …» con l'attesa che raddoppia a ogni tentativo (da 2 a 60
+secondi) vuol dire che il gateway non risponde o il token non torna. Il gateway non dice **mai**
+se hai sbagliato il nome o il segreto: chi prova a indovinare non deve imparare niente da un
+tentativo fallito.
+
+## 25. Prima installazione su un pannello di un cliente, collegato al cloud
+
+Il caso: un TC620 (o WP630) appena tolto dalla scatola, nessun SWS sopra, e lo si vuole collegare
+a `sws.soligo.net` così che il progetto gli arrivi dal cloud senza aprire niente sul firewall del
+cliente.
+
+Due lati, e **l'ordine conta**: prima si dichiara il pannello sul gateway, poi lo si installa. Al
+contrario il pannello chiamerebbe e si sentirebbe rispondere 401, riprovando ogni volta un po' più
+tardi — funzionerebbe comunque quando il gateway viene sistemato, ma nel frattempo i log dicono
+«non riconosciuto» e sembra un guasto.
+
+### Lato cloud — chi amministra, una volta sola
+
+```sh
+# 1. un nome e un token per questo pannello
+head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n'; echo
+
+# 2. dichiararlo (sul VPS)
+$EDITOR ~/sws-vps/gateway-config/pannelli.yaml
+#   tc620-rossi-linea1:
+#     token: <il token generato>
+#     azienda: rossi            # la CARTELLA dell'azienda del cliente
+chmod 600 ~/sws-vps/gateway-config/pannelli.yaml
+systemctl --user restart sws-gateway
+```
+
+L'azienda **decide chi può parlargli**: chi non ne fa parte riceve 404 e non lo vede nemmeno
+nell'elenco. Un pannello dichiarato senza azienda viene scartato all'avvio con un errore nei log,
+perché «di nessuna azienda» finirebbe per voler dire «di tutte».
+
+### Lato pannello — una volta sola, sul dispositivo
+
+Serve podman (c'è già sui pannelli Pixsys) e la rete verso Internet. L'immagine è pubblica:
+nessuna credenziale.
+
+```sh
+ssh user@<ip del pannello>
+
+# L'installer sta DENTRO l'immagine, insieme ai quadlet che gli servono accanto:
+# si estrae la cartella intera, non il solo script (con il solo script l'installer
+# si ferma con «manca la unit quadlet …/sws-runtime.container» — visto sul TC620 il
+# 10-10-2026, alla prima prova da Cockpit).
+podman pull ghcr.io/soligolab/sws-runtime:rc-arm64
+mkdir -p ~/sws-install && cd ~/sws-install
+podman run --rm --entrypoint tar ghcr.io/soligolab/sws-runtime:rc-arm64 \
+  -C /usr/share/sws/quadlet -cf - . | tar -xf -
+#   immagini.sh  install-container.sh  sws-lvgl-viewer.container  sws-runtime.container
+
+./install-container.sh --pull ghcr.io/soligolab/sws-runtime:rc-arm64 \
+  --tunnel       wss://tunnel.soligo.net/tunnel/v1 \
+  --tunnel-nome  tc620-rossi-linea1 \
+  --tunnel-token <il token>
+```
+
+L'installer prepara `/data/user/sws/{config,projects,logs}`, scrive il quadlet, accende il linger
+(senza cui un container rootless non riparte dopo il reboot) e avvia il servizio. Il token finisce
+in una riga `Environment=` del quadlet, che viene messo a `600`.
+
+### Verificare, dai due lati
+
+Sul pannello:
+
+```sh
+journalctl --user -u sws-runtime -f | grep -i tunnel
+#   atteso: "tunnel aperto"
+```
+
+Dal cloud, dopo aver fatto l'accesso su `sws.soligo.net`, la console mostra il pannello fra i
+collegati. A mano:
+
+```sh
+curl -s https://sws.soligo.net/api/pannelli -H "Authorization: Bearer <token di sessione>"
+#   ["tc620-rossi-linea1"]
+```
+
+### Mandargli il progetto
+
+Nell'IDE su `sws.soligo.net`, aperto il progetto: Configurazione → Istanza → Device → Connessione
+→ «Connetti», con
+
+```
+https://sws.soligo.net/dev/tc620-rossi-linea1
+```
+
+poi Deploy. Da lì in poi è il deploy di sempre: utenti, backup, database, aggiornamenti passano
+tutti per la stessa strada.
+
+### Su un pannello che SWS ce l'ha già
+
+Lo stesso comando: l'installer riscrive il quadlet e riavvia, i dati in `/data/user/sws` non si
+toccano. Per ripartire davvero da zero — ed è la cosa giusta quando si vuole *provare* la prima
+installazione di un cliente:
+
+```sh
+./install-container.sh --uninstall --purge     # (!) cancella anche i progetti
+```
+
+### Quando non va
+
+| sintomo | cosa guardare |
+|---|---|
+| il servizio non parte affatto | `journalctl --user -u sws-runtime -n 50`. «il tunnel vuole tutti e tre» = una delle tre variabili manca |
+| «tunnel non aperto: … 401» | nome o token non combaciano con `pannelli.yaml`, o il gateway non è stato riavviato dopo averlo scritto |
+| «tunnel non aperto» con attesa che cresce | il gateway non risponde: l'attesa raddoppia da 2 a 60 secondi e il pannello continua a provare, non serve fare niente quando torna su |
+| il pannello non compare fra i collegati | sei di un'azienda diversa da quella dichiarata per quel pannello: l'elenco mostra solo i propri |
+| 503 su `/dev/<nome>/…` | il pannello è dichiarato ma adesso non è collegato |
