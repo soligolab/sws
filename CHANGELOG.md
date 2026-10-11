@@ -13,6 +13,50 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### ⚠ Compatibilità
 
+- **Un pannello senza utenti non è più aperto: aspetta l'abbinamento.** Fino a ieri un dispositivo senza `users.yaml`
+  dava a chiunque lo raggiungesse un Admin sintetico. Ora (decisione CRA 4) risponde 401 `abbinamento_richiesto` a
+  tutto, viewer compreso, tranne `GET /api/abbinamento` e `POST /api/abbinamento/rivendica`, e mostra un **codice di
+  abbinamento** `XXXX-XXXX-XXXX-XXXX` (Crockford base32, 80 bit) nel log all'avvio e al posto di ogni pagina. Il
+  codice crea l'**Admin del dispositivo** in `<config>/utenti_dispositivo.yaml`, fuori dal progetto: un deploy non
+  lo porta via, e vale accanto agli utenti del progetto. Un pannello **già in servizio** senza utenti, aggiornato, si
+  chiude finché non lo si abbina una volta: dall'IDE con «Connetti» (compare il campo del codice) o dalla sua
+  pagina. I pannelli con utenti nel progetto non cambiano; `--senza-autenticazione` resta la scorciatoia di sviluppo.
+  Il codice lo stampano anche `install-container.sh` alla fine e il **viewer LVGL**, che in attesa mostra una
+  schermata col codice al posto della pagina e riparte da sé ad abbinamento fatto.
+  Piano `docs/archive/2026-10-11-abbinamento-e-primo-accesso.md`, fette A, B e C.
+- **Un pannello nuovo chiama da solo il cloud e si abbina col codice** (fetta D). L'indirizzo del gateway sta
+  nell'immagine (`ENV SWS_TUNNEL_URL`, decisione 13; `install-container.sh --senza-cloud` lo spegne): senza nome e
+  token dichiarati il pannello si presenta al gateway **in attesa**, col codice e la sua identità hardware. Dall'IDE
+  nel cloud, «Abbina un pannello» in Connessione manda il codice al gateway con la chiave di ritorno del progetto; il
+  gateway gira la rivendica al pannello attraverso il suo tunnel insieme a nome e token, e il pannello si ricollega
+  da abbinato, nell'azienda del progetto. I pannelli abbinati stanno in `pannelli_abbinati.json` sul gateway (hw,
+  nome, azienda, stato); il token è `HMAC(segreto, hw)`, mai memorizzato; una scatola resettata rientra sulla stessa
+  riga; **sospeso e bandito vincono sul token** e il ban sopravvive a una riformattazione (console → Pannelli). Un
+  pannello che ha già utenti si abbina al cloud solo con il codice **e** le credenziali di un suo Admin.
+  `pannelli.yaml` resta valido.
+- **Dal cloud si abbina col solo codice: gli utenti arrivano col primo progetto** (fetta E, scelta del maintainer).
+  «Abbina un pannello» non crea più l'amministratore: il pannello prende nome e token e resta senza utenti — chiuso in
+  LAN, con pagina e schermo LVGL su «abbinato al cloud come …, in attesa del primo progetto». Fino al primo deploy lo
+  raggiunge solo il gateway, che firma le richieste nel tunnel con `X-SWS-Dal-Gateway = HMAC(token del pannello,
+  "dal-gateway")` (tolta da tutto ciò che arriva da fuori); con utenti la firma non vale più e si entra con le
+  credenziali del progetto. Il primo deploy si **ferma** (428 `serve-admin`) se il progetto non porta almeno un Admin,
+  e offre di aprire la scheda Utenti. Dopo l'abbinamento la finestra mostra il riepilogo del pannello (nome, collegato,
+  hostname, runtime, progetto) con **Rinomina** — anche in console → Pannelli — che cambia il nome nel tunnel su
+  gateway e pannello senza riabbinare (`POST /api/pannelli/:nome/rinomina`, `POST /api/abbinamento/nome` protetta dalla
+  firma). Un pannello che ha già utenti chiede ancora codice **e** credenziali di un suo Admin.
+- **Un deploy non butta più fuori chi è collegato al pannello.** Ogni deploy riapre il progetto, e riaprirlo
+  azzerava tutte le sessioni: l'IDE restava con un token morto (Istanza → Stato «runtime unavailable», sync successivi
+  401) e chi era loggato sullo schermo dell'impianto veniva buttato fuori. Ora `swap_store` tiene le sessioni degli
+  utenti che esistono ancora con stessa password, ruolo e zone; cadono solo quelle di utenti tolti o cambiati. Scelta
+  del maintainer, 11-10-2026.
+- **Dopo il primo deploy a un pannello del cloud i «sync» non falliscono più in silenzio.** Il primo progetto porta
+  gli utenti e da lì la firma del gateway non vale più: la connessione aperta senza credenziali prendeva 401 a ogni
+  deploy successivo («sync error»). Ora il deploy che porta i primi utenti lo dice e chiude quella connessione, e
+  «Connetti» senza credenziali verso un pannello che ha utenti si ferma chiedendole, invece di sembrare riuscito.
+- **Dopo l'abbinamento la pagina del pannello non mostra più il codice.** Mentre lo mostra, controlla lo stato ogni
+  5 s: quando il pannello viene abbinato da fuori (cloud o «Connetti» da un altro PC) compare «Pannello abbinato» col
+  nome nel cloud, e dopo 30 s — o toccando «Continua» — si prosegue sulla pagina normale. Richiesta del maintainer.
+
 - **I progetti si indirizzano per azienda**: `POST /api/projects/<azienda>/<nome>/open` e simili, con `-` per
   l'azienda implicita. **La forma a un segmento resta** (`/api/projects/<nome>/open`) e vale «azienda implicita»,
   perché è quella che l'IDE manda ai dispositivi: un pannello con un runtime più vecchio continua a ricevere il
@@ -151,6 +195,11 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   progetti dell'azienda B. L'amministratore di piattaforma li vede tutti, in una sezione a parte e contrassegnati.
 
 ### Fixed
+- **Lo schermo restava sulla pagina vecchia dopo la commutazione al web.** All'accensione il launcher avvia il browser
+  con l'URL salvato — su un pannello con CODESYS può essere Cockpit (`:9443`), scritto da CODESYS al giro prima. La
+  commutazione scriveva l'URL di SWS e poi chiamava `StartUnit`, che su un browser già attivo non fa niente: a schermo
+  restava Cockpit con la configurazione già giusta. Ora, se il browser gira su un URL diverso, lo riavvia. Visto sul
+  TC620 l'11-10-2026 appena spento `allow_url_override` di CODESYS.
 - **L'healthcheck dell'immagine non dà più «unhealthy» alle istanze solo-IDE.** Il gateway nel cloud e i container
   dei suoi progetti non hanno il viewer: la 8443 non ascolta e il controllo restava rosso per sempre — con
   `Notify=healthy` e l'aggiornamento automatico sarebbe stato un ritorno indietro a ogni aggiornamento. Ora ripiega

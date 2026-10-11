@@ -267,6 +267,19 @@ export interface DispositivoRete {
   sws: { presente: boolean; versione: string | null; container: string | null; admin_url: string | null };
 }
 
+/** Riepilogo di un pannello abbinato al cloud (fetta E dell'abbinamento). */
+export interface PannelloCloud {
+  nome: string;
+  url: string;
+  collegato: boolean;
+  /** Abbinato ma ancora senza utenti: li porterà il primo progetto. */
+  senza_utenti?: boolean | null;
+  hostname?: string | null;
+  versione?: string | null;
+  arch?: string | null;
+  progetto?: string | null;
+}
+
 export interface DiscoveredRuntime {
   name: string;
   /** Hostname mDNS pulito (es. "tc620-a-p3-c6-07aff9.local", senza punto
@@ -2305,11 +2318,55 @@ export const api = {
   // These calls hit the *local* runtime's proxy endpoints (see remote.rs).
   // The local runtime handles the actual connection to the remote device.
 
-  remoteConnect: (url: string, username?: string, password?: string) =>
+  /** Console del gateway: i pannelli abbinati, dichiarati e in attesa. */
+  pannelliAmministrazione: () => request<unknown>("/api/amministrazione/pannelli"),
+  statoPannello: (nome: string, stato: "attivo" | "sospeso" | "bandito") =>
+    request<void>(`/api/amministrazione/pannelli/${encodeURIComponent(nome)}/stato`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stato }),
+    }),
+  /** Questo IDE gira nel cloud, dietro il gateway? (abbinamento, fetta D) */
+  remoteCloud: () => request<{ cloud: boolean }>("/api/remote/cloud"),
+  /** Abbina al gateway il pannello che mostra `codice`: va all'azienda del
+   *  progetto, e il suo amministratore nasce con `username`/`password` (o, se ha
+   *  già utenti, sono quelli di un suo Admin). */
+  abbinaPannelloCloud: (codice: string, nome?: string, username?: string, password?: string) =>
+    request<{ nome: string; azienda: string; url?: string }>("/api/remote/abbina-cloud", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ codice, nome, username: username || undefined, password: password || undefined }),
+    }),
+  /** Il riepilogo di un pannello del cloud (nome, versione, progetto…). */
+  pannelloCloud: (nome: string) =>
+    request<PannelloCloud>(`/api/remote/pannello-cloud/${encodeURIComponent(nome)}`),
+  /** Rinomina nel cloud un pannello della stessa azienda del progetto. */
+  rinominaPannelloCloud: (nome: string, nuovo: string) =>
+    request<{ nome: string }>(`/api/remote/pannello-cloud/${encodeURIComponent(nome)}/rinomina`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nuovo }),
+    }),
+  /** Console del gateway: rinomina da amministratore della piattaforma. */
+  rinominaPannelloGateway: (nome: string, nuovo: string) =>
+    request<{ nome: string }>(`/api/pannelli/${encodeURIComponent(nome)}/rinomina`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nuovo }),
+    }),
+
+  /** `codice`: il codice di abbinamento, per un pannello in attesa (11-10-2026):
+   *  con utente e password crea il suo amministratore e si collega. */
+  remoteConnect: (url: string, username?: string, password?: string, codice?: string) =>
     request<{ ok: boolean; error?: string; nota?: string; azione?: string }>("/api/remote/connect", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url, username: username || undefined, password: password || undefined }),
+      body: JSON.stringify({
+        url,
+        username: username || undefined,
+        password: password || undefined,
+        codice: codice || undefined,
+      }),
     }),
 
   /** Toglie dal known_hosts di QUESTO PC la chiave di un dispositivo che ha

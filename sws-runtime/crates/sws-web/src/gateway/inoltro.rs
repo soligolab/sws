@@ -56,7 +56,7 @@ const SALTO_PER_SALTO: &[&str] = &[
 /// macchina comprimere non guadagna niente, quindi si chiede identity e il
 /// problema non si pone.
 const DA_TOGLIERE_ANDANDO: &[&str] =
-    &["x-sws-gateway", "x-sws-utente", "x-sws-origine", "x-sws-figlio", "accept-encoding"];
+    &["x-sws-gateway", "x-sws-utente", "x-sws-origine", "x-sws-figlio", "x-sws-dal-gateway", "accept-encoding"];
 
 /// Spezza `/p/<azienda>/<progetto>/<resto>` nelle sue tre parti.
 ///

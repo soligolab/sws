@@ -1,3 +1,4 @@
+pub mod abbinamento;
 pub mod ai;
 pub mod amministrazione;
 pub mod marchi;

@@ -127,6 +127,14 @@ RUN mkdir -p /var/sws/config /var/sws/projects
 # Prometheus, l'EXPOSE nell'immagine legacy è un residuo della spec.
 EXPOSE 8443 8444
 
+# L'indirizzo del gateway nel cloud (decisione 13, 11-10-2026): un pannello
+# nuovo lo chiama da solo e aspetta lì, col codice di abbinamento, che qualcuno
+# lo abbini dall'IDE nel cloud. Si cambia nel quadlet
+# (`Environment=SWS_TUNNEL_URL=…`) e si spegne lasciandolo vuoto
+# (`install-container.sh --senza-cloud`). Un IDE, il gateway e i container dei
+# progetti non lo usano: non hanno un codice di abbinamento.
+ENV SWS_TUNNEL_URL=wss://tunnel.soligo.net/tunnel/v1
+
 # http, non https: il runtime parte in HTTP finché non esiste config/tls.crt
 # (sws-runtime/src/main.rs, avvio del listener). L'healthcheck legacy
 # interrogava https e restava rosso per sempre.

@@ -77,6 +77,12 @@ pub struct AppState {
     pub registry: RegistryCell,
     pub py: PyEngine,
     pub auth: Arc<AuthState>,
+    /// L'**Admin del dispositivo** (11-10-2026): nasce con l'abbinamento e vive
+    /// in `<config>/utenti_dispositivo.yaml`, fuori dal progetto, così un
+    /// deploy non lo porta via. Vale accanto agli utenti del progetto.
+    pub auth_dispositivo: Arc<AuthState>,
+    /// Il codice di abbinamento di questo pannello (`abbinamento.rs`).
+    pub abbinamento: Arc<crate::abbinamento::Abbinamento>,
     pub supervisor: Arc<SourceSupervisor>,
     pub script_supervisor: ScriptSupervisorCell,
     /// Contatore che avanza a ogni modifica del PROGETTO (non dei tag): import,
@@ -141,6 +147,11 @@ pub struct AppState {
     pub tunnel: Option<Arc<crate::tunnel::multiplex::Registro>>,
     /// Chi può entrare nel tunnel. Vedi `tunnel::gateway::Ammessi`.
     pub pannelli_ammessi: Option<Arc<crate::tunnel::gateway::Ammessi>>,
+    /// I pannelli abbinati col codice (`tunnel/abbinati.rs`), quando questo
+    /// processo è il gateway.
+    pub pannelli_abbinati: Option<Arc<crate::tunnel::abbinati::Abbinati>>,
+    /// I pannelli collegati in attesa di abbinamento, per codice.
+    pub pannelli_in_attesa: Option<Arc<crate::tunnel::abbinati::InAttesa>>,
     pub project_epoch: Arc<tokio::sync::watch::Sender<u64>>,
     pub functions: FunctionsRegistry,
     pub derived_tags: DerivedTagsRegistry,
@@ -313,8 +324,19 @@ pub fn build(
         senza_auth_sviluppo,
         token_primo_accesso,
         ritorno: Arc::new(crate::gateway::ritorno::Ritorno::dall_ambiente(segreto_gateway.is_some())),
+        // Un pannello è ciò che non è né IDE, né gateway, né container dietro
+        // il gateway: solo lì esistono abbinamento e Admin del dispositivo.
+        abbinamento: Arc::new(crate::abbinamento::Abbinamento::apri(
+            &config_dir,
+            !ide_only && regia.is_none() && segreto_gateway.is_none(),
+        )),
+        auth_dispositivo: utenti_dispositivo(&config_dir, !ide_only && regia.is_none() && segreto_gateway.is_none()),
         segreto_gateway: segreto_gateway.map(Arc::new),
         tunnel: regia.is_some().then(crate::tunnel::gateway::registro_nuovo),
+        pannelli_abbinati: regia
+            .is_some()
+            .then(|| Arc::new(crate::tunnel::abbinati::Abbinati::apri(&config_dir))),
+        pannelli_in_attesa: regia.is_some().then(|| Arc::new(crate::tunnel::abbinati::InAttesa::default())),
         pannelli_ammessi,
         regia,
         db,
@@ -654,6 +676,11 @@ pub fn build(
             "/api/remote/connect",
             post(crate::remote::connect_remote).delete(crate::remote::disconnect_remote),
         )
+        // L'abbinamento col codice dal cloud (11-10-2026, fetta D).
+        .route("/api/remote/cloud", get(crate::remote::cloud))
+        .route("/api/remote/abbina-cloud", post(crate::remote::abbina_cloud))
+        .route("/api/remote/pannello-cloud/:nome", get(crate::remote::pannello_cloud))
+        .route("/api/remote/pannello-cloud/:nome/rinomina", post(crate::remote::rinomina_cloud))
         .route("/api/remote/status", get(crate::remote::remote_status))
         // Il catalogo Host (zone termiche, mount, interfacce) del dispositivo
         // connesso: è lì che il progetto girerà, non su questa macchina.
@@ -1058,6 +1085,13 @@ pub fn build(
         .route("/cert", get(get_cert))
         .route("/sw.js", sw_unregister)
         .route("/api/auth/login", post(login))
+        // Il codice di abbinamento (11-10-2026): pre-auth per costruzione — un
+        // pannello in attesa non ha nessuna credenziale da chiedere.
+        .route("/api/abbinamento", get(crate::abbinamento::stato))
+        .route("/api/abbinamento/rivendica", post(crate::abbinamento::rivendica))
+        // La Rinomina dal cloud (fetta E): fuori da `require_auth` perché la
+        // protegge la firma del gateway, che solo lui e il pannello conoscono.
+        .route("/api/abbinamento/nome", post(crate::abbinamento::rinomina))
         // Primo accesso dell'installazione: pre-auth per necessità — servono a
         // decidere QUALE schermata mostrare, e a quel punto nessun token può
         // esistere. La creazione è protetta dal codice stampato all'avvio e si
@@ -1120,7 +1154,25 @@ pub fn build(
             Router::new()
                 .route("/dev/:pannello/*resto", any(crate::tunnel::gateway::inoltra))
                 .route("/api/pannelli", get(crate::tunnel::gateway::collegati))
-                .route_layer(middleware::from_fn_with_state(state.clone(), auth_utente_o_figlio)),
+                // L'abbinamento col codice (11-10-2026): dall'IDE di un progetto
+                // (chiave di ritorno → l'azienda del progetto) o dalla piattaforma.
+                .route("/api/pannelli/abbina", post(crate::tunnel::gateway::abbina))
+                .route("/api/pannelli/:nome/rinomina", post(crate::tunnel::gateway::rinomina))
+                .route_layer(middleware::from_fn_with_state(state.clone(), auth_utente_o_figlio))
+                // Elenco e ban: solo chi amministra la piattaforma.
+                .merge(
+                    Router::new()
+                        .route(
+                            "/api/amministrazione/pannelli",
+                            get(crate::tunnel::gateway::elenco_amministrazione),
+                        )
+                        .route(
+                            "/api/amministrazione/pannelli/:nome/stato",
+                            post(crate::tunnel::gateway::imposta_stato),
+                        )
+                        .route_layer(middleware::from_fn(require_amministratore_piattaforma))
+                        .route_layer(middleware::from_fn_with_state(state.clone(), require_auth)),
+                ),
         )
     } else {
         (Router::new(), Router::new())
@@ -1374,7 +1426,12 @@ fn deploy_only_app(state: AppState) -> Router<AppState> {
         .route("/health", get(|| async { "ok" }))
         .route("/metrics", get(crate::metrics::get_metrics))
         .route("/cert", get(get_cert))
-        .route("/api/auth/login", post(login));
+        .route("/api/auth/login", post(login))
+        .route("/api/abbinamento", get(crate::abbinamento::stato))
+        .route("/api/abbinamento/rivendica", post(crate::abbinamento::rivendica))
+        // La Rinomina dal cloud arriva qui sui pannelli con `--no-admin`: il
+        // tunnel gira gli stream sulla porta di gestione (fetta E).
+        .route("/api/abbinamento/nome", post(crate::abbinamento::rinomina));
 
     // Lo stato **non** si applica qui: lo fa il chiamante alla fine, insieme al
     // CORS e al contatore HTTP. Applicarlo due volte non compila, e applicarlo
@@ -1463,6 +1520,8 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
         .route("/metrics", get(crate::metrics::get_metrics))
         .route("/cert", get(get_cert))
         .route("/api/auth/login", post(login))
+        .route("/api/abbinamento", get(crate::abbinamento::stato))
+        .route("/api/abbinamento/rivendica", post(crate::abbinamento::rivendica))
         .route("/api/project", get(get_project));
 
     let cors = CorsLayer::new()
@@ -1511,16 +1570,17 @@ fn build_runtime_inner(state: AppState, www_dir: Option<PathBuf>) -> Router {
 /// La risposta non è scegliere fra i due elenchi: è **tenerli separati**.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FonteAutenticazione {
-    /// Admin sintetico, nessuna credenziale richiesta. Due soli casi, e
-    /// nessuno dei due è «è un IDE»:
-    /// - `--senza-autenticazione`, scorciatoia dichiarata per lo sviluppo
-    ///   locale, che `main.rs` accetta solo su loopback;
-    /// - un **dispositivo** senza utenti, che non può chiedere un login che
-    ///   non esiste ancora. Sparirà in Fase 6, quando il primo accesso del
-    ///   pannello sarà il codice di abbinamento (decisione CRA 4).
+    /// Admin sintetico, nessuna credenziale richiesta. Ormai un caso solo:
+    /// `--senza-autenticazione`, scorciatoia dichiarata per lo sviluppo
+    /// locale, che `main.rs` accetta solo su loopback.
     Nessuna,
-    /// `users.yaml` del progetto: gli utenti d'impianto, che viaggiano col
-    /// deploy. È il caso del dispositivo.
+    /// Un **dispositivo** senza nessun utente (11-10-2026, decisione CRA 4).
+    /// Fino al 10-10 qui c'era «aperto a tutti, da Admin»; ora non entra
+    /// nessuno, nemmeno in lettura, e il pannello mostra il codice di
+    /// abbinamento: chi lo usa fissa la prima credenziale (`abbinamento.rs`).
+    InAttesa,
+    /// Gli utenti del dispositivo: quelli di `users.yaml` del progetto, che
+    /// viaggiano col deploy, e l'Admin del dispositivo nato all'abbinamento.
     Progetto,
     /// `identita.db` dell'installazione: chi apre l'IDE.
     Installazione,
@@ -1561,7 +1621,7 @@ pub fn fonte_autenticazione(
     if ha_utenti_progetto {
         FonteAutenticazione::Progetto
     } else {
-        FonteAutenticazione::Nessuna
+        FonteAutenticazione::InAttesa
     }
 }
 
@@ -1824,7 +1884,7 @@ async fn identita_primo_amministratore(
 pub async fn fonte_auth_corrente(s: &AppState) -> FonteAutenticazione {
     fonte_autenticazione(
         s.ide_only,
-        s.auth.has_users().await,
+        s.auth.has_users().await || s.auth_dispositivo.has_users().await,
         s.identita.is_some(),
         s.senza_auth_sviluppo,
         s.segreto_gateway.is_some(),
@@ -1907,6 +1967,69 @@ fn token_della_richiesta(req: &Request) -> Option<String> {
         })
 }
 
+/// Il token appartiene a un utente del dispositivo: del progetto o l'Admin
+/// nato all'abbinamento.
+async fn valida_utente_dispositivo(s: &AppState, token: &str) -> Option<AuthUser> {
+    let info = match s.auth.validate(token).await {
+        Some(i) => Some(i),
+        None => s.auth_dispositivo.validate(token).await,
+    }?;
+    Some(AuthUser {
+        username: info.username,
+        role: info.role,
+        must_change_password: info.must_change_password,
+        allowed_zones: info.allowed_zones,
+        // Gli utenti del dispositivo non amministrano la piattaforma: quel
+        // concetto nel loro elenco non esiste.
+        amministratore_piattaforma: false,
+    })
+}
+
+/// Il gateway di un pannello abbinato al cloud e ancora senza utenti (fetta E,
+/// 11-10-2026): la richiesta arriva dal tunnel con la firma del gateway, e vale
+/// da Admin finché il primo progetto non porta i suoi utenti. Con utenti questa
+/// funzione non viene nemmeno chiamata: si passa dalle credenziali.
+fn utente_dal_cloud(s: &AppState, req: &Request) -> Option<AuthUser> {
+    if !s.abbinamento.firma_valida(req.headers()) {
+        return None;
+    }
+    Some(AuthUser {
+        username: "cloud".to_string(),
+        role: Role::Admin,
+        must_change_password: false,
+        allowed_zones: vec![],
+        amministratore_piattaforma: false,
+    })
+}
+
+/// 401 con il motivo: il frontend, l'IDE che fa «Connetti» e il viewer LVGL
+/// lo riconoscono e mostrano il codice invece di un login.
+fn abbinamento_richiesto() -> Response {
+    (
+        StatusCode::UNAUTHORIZED,
+        Json(serde_json::json!({
+            "error": "abbinamento_richiesto",
+            "abbinamento_richiesto": true,
+            "detail": "questo pannello non ha ancora utenti: si abbina col codice mostrato sullo schermo",
+        })),
+    )
+        .into_response()
+}
+
+/// L'archivio dell'Admin del dispositivo. Fuori da un pannello è vuoto e in
+/// memoria: lì non esiste.
+fn utenti_dispositivo(config_dir: &std::path::Path, pannello: bool) -> Arc<AuthState> {
+    let ttl = std::time::Duration::from_secs(8 * 3600);
+    let finestra = std::time::Duration::from_secs(300);
+    if pannello {
+        match AuthState::new_persistent(config_dir.join("utenti_dispositivo.yaml"), vec![], ttl, 5, finestra) {
+            Ok(a) => return a,
+            Err(e) => tracing::error!("utenti del dispositivo illeggibili: {e}"),
+        }
+    }
+    AuthState::empty(ttl, 5, finestra)
+}
+
 fn admin_sintetico() -> AuthUser {
     AuthUser {
         username: "admin".to_string(),
@@ -1967,6 +2090,17 @@ async fn require_auth(State(s): State<AppState>, mut req: Request, next: Next) -
         req.extensions_mut().insert(admin_sintetico());
         return next.run(req).await;
     }
+    // In attesa: entra solo il gateway di un pannello già abbinato al cloud
+    // (fetta E), con la sua firma.
+    if fonte == FonteAutenticazione::InAttesa {
+        match utente_dal_cloud(&s, &req) {
+            Some(u) => {
+                req.extensions_mut().insert(u);
+                return next.run(req).await;
+            }
+            None => return abbinamento_richiesto(),
+        }
+    }
 
     // Dietro il gateway non c'e nessun token da validare: l'identita arriva
     // nell'intestazione, e il segreto e cio che la rende credibile. Si decide
@@ -1989,18 +2123,12 @@ async fn require_auth(State(s): State<AppState>, mut req: Request, next: Next) -
     };
 
     let utente = match fonte {
-        FonteAutenticazione::Nessuna | FonteAutenticazione::Delegata => {
+        FonteAutenticazione::Nessuna
+        | FonteAutenticazione::Delegata
+        | FonteAutenticazione::InAttesa => {
             unreachable!("gestite sopra")
         }
-        FonteAutenticazione::Progetto => s.auth.validate(&token).await.map(|i| AuthUser {
-            username: i.username,
-            role: i.role,
-            must_change_password: i.must_change_password,
-            allowed_zones: i.allowed_zones,
-            // Gli utenti del progetto non amministrano la piattaforma: quel
-            // concetto nel loro elenco non esiste.
-            amministratore_piattaforma: false,
-        }),
+        FonteAutenticazione::Progetto => valida_utente_dispositivo(&s, &token).await,
         FonteAutenticazione::Installazione => match s.identita.as_ref() {
             Some(id) => id.valida(&token).await.map(auth_user_da_identita),
             None => None,
@@ -2147,6 +2275,18 @@ async fn optional_auth(State(s): State<AppState>, mut req: Request, next: Next) 
         req.extensions_mut().insert(admin_sintetico());
         return next.run(req).await;
     }
+    // In attesa di abbinamento non si entra nemmeno in lettura: è il punto.
+    // In attesa: entra solo il gateway di un pannello già abbinato al cloud
+    // (fetta E), con la sua firma.
+    if fonte == FonteAutenticazione::InAttesa {
+        match utente_dal_cloud(&s, &req) {
+            Some(u) => {
+                req.extensions_mut().insert(u);
+                return next.run(req).await;
+            }
+            None => return abbinamento_richiesto(),
+        }
+    }
 
     // Dietro il gateway l'identita arriva nell'intestazione, non in un token.
     // Qui, a differenza di `require_auth`, un'intestazione mancante non e un
@@ -2170,16 +2310,12 @@ async fn optional_auth(State(s): State<AppState>, mut req: Request, next: Next) 
 
     let auth_user = if let Some(tok) = token {
         let trovato = match fonte {
-            FonteAutenticazione::Nessuna | FonteAutenticazione::Delegata => {
+            FonteAutenticazione::Nessuna
+            | FonteAutenticazione::Delegata
+            | FonteAutenticazione::InAttesa => {
                 unreachable!("gestite sopra")
             }
-            FonteAutenticazione::Progetto => s.auth.validate(&tok).await.map(|i| AuthUser {
-                username: i.username,
-                role: i.role,
-                must_change_password: i.must_change_password,
-                allowed_zones: i.allowed_zones,
-                amministratore_piattaforma: false,
-            }),
+            FonteAutenticazione::Progetto => valida_utente_dispositivo(&s, &tok).await,
             FonteAutenticazione::Installazione => match s.identita.as_ref() {
                 Some(id) => id.valida(&tok).await.map(auth_user_da_identita),
                 None => None,
@@ -2340,7 +2476,15 @@ async fn login(
         };
     }
 
-    match s.auth.login(&creds).await {
+    // Prima gli utenti del progetto, poi l'Admin del dispositivo. Un nome che
+    // c'è in tutti e due vince il progetto: è quello che il deploy ha portato.
+    let esito = match s.auth.login(&creds).await {
+        Err(LoginError::BadCredentials) if s.auth_dispositivo.has_users().await => {
+            s.auth_dispositivo.login(&creds).await
+        }
+        altro => altro,
+    };
+    match esito {
         Ok(ok) => {
             s.audit.log(
                 "auth.login",
@@ -2404,6 +2548,10 @@ async fn logout(State(s): State<AppState>, req: Request) -> StatusCode {
         // `auth.login` che il nome ce l'aveva. Una regola applicata a una
         // strada e non all'altra, come il cambio password del 07-10-2026.
         let mut actor = s.auth.validate(t).await.map(|si| si.username);
+        if actor.is_none() {
+            actor = s.auth_dispositivo.validate(t).await.map(|si| si.username);
+        }
+        s.auth_dispositivo.logout(t).await;
         if actor.is_none() {
             if let Some(id) = s.identita.as_ref() {
                 actor = id.valida(t).await.map(|u| u.email);
@@ -2486,7 +2634,11 @@ async fn create_user(
 ) -> Response {
     // Il primo account di un **dispositivo** dev'essere un Admin, o il pannello
     // nasce con l'autenticazione accesa e nessuno che possa amministrarlo.
-    if primo_utente_non_amministratore(s.ide_only, s.auth.has_users().await, body.role) {
+    if primo_utente_non_amministratore(
+        s.ide_only,
+        s.auth.has_users().await || s.auth_dispositivo.has_users().await,
+        body.role,
+    ) {
         return (
             StatusCode::CONFLICT,
             Json(serde_json::json!({
@@ -2552,12 +2704,13 @@ async fn verify_password_handler(
     Extension(user): Extension<AuthUser>,
     Json(body): Json<VerifyPasswordBody>,
 ) -> StatusCode {
-    if !s.auth.has_users().await {
+    if fonte_auth_corrente(&s).await == FonteAutenticazione::Nessuna {
         return StatusCode::NO_CONTENT;
     }
     if s.auth
         .verify_user_password(&user.username, &body.password)
         .await
+        || s.auth_dispositivo.verify_user_password(&user.username, &body.password).await
     {
         s.audit.log(
             "auth.reverify",
@@ -2632,7 +2785,14 @@ async fn change_password(State(s): State<AppState>, req: Request) -> Response {
         };
     }
 
-    match s.auth.change_password(&user.username, body).await {
+    // L'Admin del dispositivo non sta nel progetto: la stessa regola dell'IDE
+    // qui sopra, applicata anche a lui.
+    let archivio = if s.auth.list_users().await.iter().any(|u| u.username == user.username) {
+        &s.auth
+    } else {
+        &s.auth_dispositivo
+    };
+    match archivio.change_password(&user.username, body).await {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => user_error_to_response(e),
     }
@@ -10799,11 +10959,13 @@ mod primo_utente_tests {
     }
 
     #[test]
-    fn un_dispositivo_senza_utenti_resta_aperto() {
-        // Invariato, e per ora: un pannello appena installato non può chiedere
-        // un login che non esiste ancora. Sparisce in Fase 6, quando il primo
-        // accesso sarà il codice di abbinamento (decisione CRA 4).
-        assert_eq!(fonte_autenticazione(false, false, false, false, false), F::Nessuna);
+    fn un_dispositivo_senza_utenti_aspetta_l_abbinamento() {
+        // Dall'11-10-2026 (decisione CRA 4): fino al giorno prima qui c'era
+        // `Nessuna`, cioè un pannello appena installato aperto a tutti da
+        // Admin. Ora è chiuso e mostra il codice di abbinamento.
+        assert_eq!(fonte_autenticazione(false, false, false, false, false), F::InAttesa);
+        // La scorciatoia di sviluppo resta la sola via per un Admin sintetico.
+        assert_eq!(fonte_autenticazione(false, false, false, true, false), F::Nessuna);
     }
 
     #[test]

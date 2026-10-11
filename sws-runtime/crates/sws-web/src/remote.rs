@@ -26,6 +26,10 @@ pub struct ConnectBody {
     pub url: String,
     pub username: Option<String>,
     pub password: Option<String>,
+    /// Il codice di abbinamento del pannello (11-10-2026): se il pannello è in
+    /// attesa, con codice + utente + password si crea il suo Admin e si entra.
+    #[serde(default)]
+    pub codice: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -97,7 +101,92 @@ pub async fn connect_remote(
     // connect without a token (the remote is in no-auth / no-users mode).
     let username = body.username.as_deref().unwrap_or("").trim().to_string();
     let mut nota: Option<String> = None;
-    let token = if username.is_empty() {
+
+    // **Un pannello in attesa di abbinamento** (11-10-2026): non ha utenti e
+    // non lascia entrare nessuno. Senza codice si dice cosa serve; col codice
+    // si crea il suo Admin con le credenziali del modulo e si entra con quello.
+    // Un pannello più vecchio non ha la rotta: si va avanti come sempre.
+    let mut token_abbinamento: Option<String> = None;
+    // **Abbinato al cloud e ancora senza utenti** (fetta E): ci si entra solo
+    // dal gateway, che firma le richieste nel tunnel. Niente codice e niente
+    // credenziali da chiedere: gli utenti li porterà il primo progetto.
+    let stato = stato_abbinamento(&client, &url).await;
+    let cloud_senza_utenti = stato
+        .as_ref()
+        .and_then(|v| v.get("abbinato_cloud_senza_utenti").and_then(|b| b.as_bool()))
+        .unwrap_or(false);
+    if cloud_senza_utenti {
+        nota = Some(format!(
+            "{url} è abbinato al cloud e non ha ancora utenti: li porterà il primo progetto distribuito."
+        ));
+    } else if stato
+        .as_ref()
+        .and_then(|v| v.get("in_attesa").and_then(|b| b.as_bool()))
+        .unwrap_or(false)
+    {
+        let codice = body.codice.as_deref().unwrap_or("").trim();
+        let password = body.password.as_deref().unwrap_or("");
+        if codice.is_empty() || username.is_empty() || password.is_empty() {
+            return (
+                StatusCode::OK,
+                Json(ConnectResult {
+                    ok: false,
+                    nota: None,
+                    azione: Some(AZIONE_ABBINAMENTO),
+                    error: Some(format!(
+                        "{url} è un pannello nuovo, in attesa di abbinamento: inserisci il codice \
+                         mostrato sul suo schermo (o nel log) e scegli utente e password del suo \
+                         amministratore."
+                    )),
+                }),
+            );
+        }
+        match rivendica(&client, &url, codice, &username, password).await {
+            Ok(t) => {
+                nota = Some(format!(
+                    "{url} abbinato: «{username}» è il suo amministratore."
+                ));
+                token_abbinamento = Some(t);
+            }
+            Err(motivo) => {
+                return (
+                    StatusCode::OK,
+                    Json(ConnectResult {
+                        ok: false,
+                        nota: None,
+                        azione: Some(AZIONE_ABBINAMENTO),
+                        error: Some(motivo),
+                    }),
+                )
+            }
+        }
+    }
+
+    // Senza credenziali verso un pannello che ha utenti la sonda qui sotto
+    // passerebbe lo stesso (`/api/projects` è aperta sulla porta di gestione):
+    // la connessione sembrerebbe riuscita e poi ogni deploy prenderebbe 401.
+    // Visto l'11-10-2026 dopo il primo deploy di un pannello del cloud.
+    if token_abbinamento.is_none()
+        && !cloud_senza_utenti
+        && username.is_empty()
+        && !senza_utenti(&client, &url).await
+    {
+        return (
+            StatusCode::OK,
+            Json(ConnectResult {
+                ok: false,
+                nota: None,
+                azione: None,
+                error: Some(format!(
+                    "{url} ha i suoi utenti: inserisci utente e password (quelli del progetto distribuito)."
+                )),
+            }),
+        );
+    }
+
+    let token = if let Some(t) = token_abbinamento {
+        t
+    } else if cloud_senza_utenti || username.is_empty() {
         String::new()
     } else {
         let password = body.password.as_deref().unwrap_or("").to_string();
@@ -289,6 +378,172 @@ pub async fn connect_remote(
             azione: None,
         }),
     )
+}
+
+/// `GET /api/remote/cloud` — questo IDE gira nel cloud, dietro il gateway?
+/// Dice all'IDE se mostrare «Abbina un pannello» (11-10-2026, fetta D).
+pub async fn cloud(State(s): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!({ "cloud": s.ritorno.origine_se_dietro_al_gateway().is_some() }))
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AbbinaCloud {
+    codice: String,
+    #[serde(default)]
+    nome: Option<String>,
+    #[serde(default)]
+    username: Option<String>,
+    #[serde(default)]
+    password: Option<String>,
+}
+
+/// `POST /api/remote/abbina-cloud` — abbina al gateway il pannello che mostra
+/// quel codice. La chiamata parte da qui, il container del progetto, con la
+/// sua chiave di ritorno: il pannello va all'azienda del progetto.
+pub async fn abbina_cloud(
+    State(s): State<AppState>,
+    Json(b): Json<AbbinaCloud>,
+) -> (StatusCode, Json<serde_json::Value>) {
+    let Some(origine) = s.ritorno.origine_se_dietro_al_gateway() else {
+        return (
+            StatusCode::CONFLICT,
+            Json(serde_json::json!({ "error": "non_cloud", "detail": "questo IDE non gira nel cloud: un pannello in LAN si abbina con «Connetti» e il codice" })),
+        );
+    };
+    let url = format!("{origine}/api/pannelli/abbina");
+    let client = match costruisci_client(&s, &url, 30) {
+        Ok(c) => c,
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "detail": e.to_string() }))),
+    };
+    let r = match client
+        .post(&url)
+        .json(&serde_json::json!({ "codice": b.codice, "nome": b.nome, "username": b.username, "password": b.password }))
+        .send()
+        .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            return (
+                StatusCode::BAD_GATEWAY,
+                Json(serde_json::json!({ "detail": format!("il gateway non risponde: {e}") })),
+            )
+        }
+    };
+    let stato = StatusCode::from_u16(r.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
+    let v: serde_json::Value = r.json().await.unwrap_or_default();
+    (stato, Json(v))
+}
+
+/// `GET /api/remote/pannello-cloud/:nome` — il riepilogo di un pannello
+/// appena abbinato dal cloud (fetta E): nome, azienda, seriale, versione,
+/// progetto. Si chiede attraverso il gateway con la chiave di ritorno: il
+/// pannello risponde a `/api/system` finché non ha utenti (firma del gateway);
+/// dopo, resta quel che dice `/api/abbinamento`.
+pub async fn pannello_cloud(
+    State(s): State<AppState>,
+    axum::extract::Path(nome): axum::extract::Path<String>,
+) -> (StatusCode, Json<serde_json::Value>) {
+    let Some(origine) = s.ritorno.origine_se_dietro_al_gateway() else {
+        return (StatusCode::CONFLICT, Json(serde_json::json!({ "detail": "questo IDE non gira nel cloud" })));
+    };
+    let base = format!("{origine}/dev/{nome}");
+    let client = match costruisci_client(&s, &base, 15) {
+        Ok(c) => c,
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "detail": e.to_string() }))),
+    };
+    let abbinamento = stato_abbinamento(&client, &base).await;
+    let collegato = abbinamento.is_some();
+    let sistema: Option<serde_json::Value> = match client.get(format!("{base}/api/system")).send().await {
+        Ok(r) if r.status().is_success() => r.json().await.ok(),
+        _ => None,
+    };
+    let campo = |v: &Option<serde_json::Value>, k: &str| v.as_ref().and_then(|x| x.get(k)).cloned();
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "nome": nome,
+            "url": base,
+            "collegato": collegato,
+            "senza_utenti": campo(&abbinamento, "abbinato_cloud_senza_utenti"),
+            "hostname": campo(&sistema, "hostname").or_else(|| campo(&abbinamento, "nome")),
+            "versione": campo(&sistema, "runtime_version"),
+            "arch": campo(&sistema, "arch"),
+            "progetto": campo(&sistema, "active_project"),
+        })),
+    )
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RinominaCloud {
+    nuovo: String,
+}
+
+/// `POST /api/remote/pannello-cloud/:nome/rinomina` — al gateway, con la chiave
+/// di ritorno: il pannello deve essere della stessa azienda del progetto.
+pub async fn rinomina_cloud(
+    State(s): State<AppState>,
+    axum::extract::Path(nome): axum::extract::Path<String>,
+    Json(b): Json<RinominaCloud>,
+) -> (StatusCode, Json<serde_json::Value>) {
+    let Some(origine) = s.ritorno.origine_se_dietro_al_gateway() else {
+        return (StatusCode::CONFLICT, Json(serde_json::json!({ "detail": "questo IDE non gira nel cloud" })));
+    };
+    let url = format!("{origine}/api/pannelli/{nome}/rinomina");
+    let client = match costruisci_client(&s, &url, 30) {
+        Ok(c) => c,
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "detail": e.to_string() }))),
+    };
+    match client.post(&url).json(&serde_json::json!({ "nuovo": b.nuovo })).send().await {
+        Ok(r) => {
+            let stato = StatusCode::from_u16(r.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
+            (stato, Json(r.json().await.unwrap_or_default()))
+        }
+        Err(e) => (StatusCode::BAD_GATEWAY, Json(serde_json::json!({ "detail": format!("il gateway non risponde: {e}") }))),
+    }
+}
+
+/// `azione` di «Connetti» quando il pannello aspetta il codice di abbinamento.
+pub const AZIONE_ABBINAMENTO: &str = "abbinamento-richiesto";
+
+/// `GET /api/abbinamento` del target, se ce l'ha.
+async fn stato_abbinamento(client: &reqwest::Client, url: &str) -> Option<serde_json::Value> {
+    let r = client.get(format!("{url}/api/abbinamento")).send().await.ok()?;
+    if !r.status().is_success() {
+        return None;
+    }
+    r.json::<serde_json::Value>().await.ok()
+}
+
+/// Crea l'Admin del pannello col codice; il token di sessione, o il motivo.
+async fn rivendica(
+    client: &reqwest::Client,
+    url: &str,
+    codice: &str,
+    username: &str,
+    password: &str,
+) -> Result<String, String> {
+    let r = client
+        .post(format!("{url}/api/abbinamento/rivendica"))
+        .json(&serde_json::json!({ "codice": codice, "username": username, "password": password }))
+        .send()
+        .await
+        .map_err(|e| format!("{url} non risponde: {e}"))?;
+    let stato = r.status();
+    let v: serde_json::Value = r.json().await.unwrap_or_default();
+    if stato.is_success() {
+        return v
+            .get("token")
+            .and_then(|t| t.as_str())
+            .map(str::to_string)
+            .ok_or_else(|| "abbinato, ma il pannello non ha restituito una sessione: riprova «Connetti» con le stesse credenziali".to_string());
+    }
+    Err(v
+        .get("detail")
+        .and_then(|d| d.as_str())
+        .map(|d| format!("abbinamento rifiutato da {url}: {d}"))
+        .unwrap_or_else(|| format!("abbinamento rifiutato da {url} ({stato})")))
 }
 
 /// La decisione di `senza_utenti`, separata dalla rete perché è la parte che
@@ -1456,6 +1711,25 @@ pub async fn remote_delete_backup(
 }
 
 /// Username contenuti in un `users.yaml` (`{ users: [ { username, … } ] }`).
+/// `users.yaml` ha almeno un Admin?
+pub fn ha_admin(yaml: &str) -> bool {
+    serde_yaml::from_str::<serde_yaml::Value>(yaml)
+        .ok()
+        .and_then(|v| {
+            v["users"]
+                .as_sequence()
+                .map(|seq| seq.iter().any(|u| u["role"].as_str() == Some("Admin")))
+        })
+        .unwrap_or(false)
+}
+
+/// Il deploy va fermato perché lascerebbe il pannello senza nessun Admin?
+/// Solo se il pannello è in attesa (nessun utente) e il deploy non gli porta
+/// un Admin: perché il progetto non ne ha, o perché gli utenti non viaggiano.
+pub fn serve_admin(pannello_in_attesa: bool, porta_utenti: bool, progetto_ha_admin: bool) -> bool {
+    pannello_in_attesa && !(porta_utenti && progetto_ha_admin)
+}
+
 pub fn read_usernames(yaml: &str) -> Vec<String> {
     serde_yaml::from_str::<serde_yaml::Value>(yaml)
         .ok()
@@ -1732,6 +2006,29 @@ pub async fn remote_deploy(
         .map(|s| s.len())
         .unwrap_or(0);
 
+    // **Un pannello senza utenti li riceve da questo deploy** (fetta E,
+    // 11-10-2026). Senza almeno un Admin nel progetto resterebbe chiuso a tutti
+    // in impianto, schermo compreso: si ferma qui, senza toccare niente, e non
+    // si conferma — si corregge il progetto. Solo per i pannelli che hanno
+    // l'abbinamento (`in_attesa`): un runtime più vecchio fa come prima.
+    let pannello_in_attesa = stato_abbinamento(&client, &base)
+        .await
+        .and_then(|v| v.get("in_attesa").and_then(|b| b.as_bool()))
+        .unwrap_or(false);
+    let progetto_ha_admin = ha_admin(
+        &tokio::fs::read_to_string(proj_dir.join("users.yaml")).await.unwrap_or_default(),
+    );
+    if serve_admin(pannello_in_attesa, opz.replace_users, progetto_ha_admin) {
+        return (
+            StatusCode::PRECONDITION_REQUIRED,
+            Json(serde_json::json!({
+                "conferma": "serve-admin",
+                "detail": "il pannello non ha ancora utenti: questo progetto deve portarne almeno uno Admin, altrimenti in impianto non entrerebbe nessuno",
+            })),
+        )
+            .into_response();
+    }
+
     if !opz.confirm_no_users
         && serve_conferma(
             opz.replace_users,
@@ -1773,6 +2070,12 @@ pub async fn remote_deploy(
     }
 
     let (tx, rx) = tokio::sync::mpsc::channel::<String>(64);
+    // Il primo deploy verso un pannello abbinato al cloud e senza utenti (fetta
+    // E) gli porta gli utenti: da quel momento la firma del gateway non vale più
+    // e la connessione senza credenziali con cui si è entrati non apre niente.
+    let primo_deploy_cloud = pannello_in_attesa && target.token.is_empty();
+    let bersaglio = s.remote_target.clone();
+    let url_bersaglio = target.url.clone();
 
     tokio::spawn(async move {
         let _deploy_guard = deploy_guard;
@@ -2010,6 +2313,21 @@ pub async fn remote_deploy(
                     send("✓ Il dispositivo richiede il login.");
                 }
                 send("🚀 Deploy completato!");
+                if primo_deploy_cloud {
+                    // Visto nel collaudo dell'11-10-2026: il primo deploy
+                    // riusciva, i «sync» dopo davano errore senza spiegare
+                    // perché (401). Si dice, e si chiude la connessione: la
+                    // prossima la si apre con le credenziali del progetto.
+                    let mut g = bersaglio.write().await;
+                    if g.as_ref().is_some_and(|t| t.url == url_bersaglio) {
+                        *g = None;
+                    }
+                    send(
+                        "ⓘ Il pannello ora ha i suoi utenti, arrivati con questo progetto: la connessione \
+                         senza credenziali è chiusa. Per i prossimi deploy riconnettiti con utente e \
+                         password del progetto.",
+                    );
+                }
             }
             Ok(o) => send(&format!("✗ Attivazione fallita: {}", o.status())),
             Err(e) => send(&format!("✗ {e}")),
@@ -2378,4 +2696,24 @@ pub async fn dimentica_certificato(
             format!("dimenticato il certificato di {host}: al prossimo collegamento si memorizza quello nuovo")
         },
     })).into_response()
+}
+
+#[cfg(test)]
+mod tests_serve_admin {
+    use super::*;
+
+    #[test]
+    fn il_primo_deploy_deve_portare_un_admin() {
+        assert!(serve_admin(true, true, false), "progetto senza Admin");
+        assert!(serve_admin(true, false, true), "utenti che non viaggiano");
+        assert!(!serve_admin(true, true, true));
+        assert!(!serve_admin(false, true, false), "pannello che ha già utenti: regole di prima");
+    }
+
+    #[test]
+    fn admin_nel_file_degli_utenti() {
+        assert!(ha_admin("users:\n  - username: mauro\n    role: Admin\n"));
+        assert!(!ha_admin("users:\n  - username: op\n    role: Operator\n"));
+        assert!(!ha_admin(""));
+    }
 }

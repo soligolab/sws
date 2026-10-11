@@ -34,7 +34,11 @@
 #       --tunnel-nome tc620-reparto-nord \
 #       --tunnel-token <token>                 # il pannello chiama il cloud: da li'
 #                                              # l'IDE lo raggiunge anche dietro NAT.
-#                                              # Tutti e tre o nessuno.
+#                                              # Pannello dichiarato a mano sul gateway.
+#                                              # Dall'11-10-2026 non serve: il pannello
+#                                              # chiama da solo il gateway dell'immagine
+#                                              # e si abbina col codice dall'IDE nel cloud.
+#   ./install-container.sh --senza-cloud       # il pannello NON chiama il cloud
 #   ./install-container.sh --data /altro/path  # directory dati alternativa
 #   ./install-container.sh --migrate-volumes   # recupera i dati dai volumi nominati
 #                                              # delle installazioni pre-2026-07-28
@@ -76,6 +80,7 @@ TAG_EXPLICIT=0
 TUNNEL_URL=""
 TUNNEL_NOME=""
 TUNNEL_TOKEN=""
+SENZA_CLOUD=0
 
 REGISTRY_IMAGE="ghcr.io/soligolab/sws-runtime"
 REGISTRY_REF=""
@@ -170,6 +175,9 @@ while [ $# -gt 0 ]; do
         --tunnel)        TUNNEL_URL="$2";   shift 2 ;;
         --tunnel-nome)   TUNNEL_NOME="$2";  shift 2 ;;
         --tunnel-token)  TUNNEL_TOKEN="$2"; shift 2 ;;
+        # Nessun tunnel verso il cloud (11-10-2026): l'indirizzo sta
+        # nell'immagine, e un pannello che non deve chiamare fuori lo spegne.
+        --senza-cloud)   SENZA_CLOUD=1; shift ;;
         # Accettata per compatibilità: era la flag da passare quando il default
         # era la rete bridge. Ora non cambia niente, ma non deve dare errore a
         # chi la ha nelle dita o in uno script.
@@ -190,8 +198,10 @@ command -v podman >/dev/null || { echo "ERRORE: podman non installato." >&2; exi
 # molto peggio che leggerlo adesso.
 n_tunnel=0
 for v in "$TUNNEL_URL" "$TUNNEL_NOME" "$TUNNEL_TOKEN"; do [ -n "$v" ] && n_tunnel=$((n_tunnel + 1)); done
-if [ "$n_tunnel" -ne 0 ] && [ "$n_tunnel" -ne 3 ]; then
-    echo "ERRORE: il tunnel vuole --tunnel, --tunnel-nome e --tunnel-token insieme." >&2
+# Dall'11-10-2026 vale anche il solo --tunnel (un altro gateway): nome e token
+# li dà il gateway all'abbinamento col codice.
+if [ "$n_tunnel" -eq 2 ] || { [ "$n_tunnel" -eq 1 ] && [ -z "$TUNNEL_URL" ]; }; then
+    echo "ERRORE: il tunnel vuole --tunnel, --tunnel-nome e --tunnel-token insieme (o il solo --tunnel)." >&2
     echo "        Con uno solo il pannello non si collega a niente e il runtime non parte." >&2
     exit 1
 fi
@@ -513,13 +523,23 @@ if [ "$AUTOSTART" -eq 1 ]; then
     sed -i "s|/run/user/1000/bus|/run/user/$(id -u)/bus|g" "$UNIT_DIR/$NAME.container"
     # Il tunnel: si tolgono i commenti alle tre righe e ci si mettono i valori.
     # `|` come separatore di sed perché l'URL contiene `/`.
-    if [ -n "$TUNNEL_URL" ]; then
+    if [ "$SENZA_CLOUD" -eq 1 ]; then
+        sed -i "s|^#Environment=SWS_TUNNEL_URL=.*|Environment=SWS_TUNNEL_URL=|" "$UNIT_DIR/$NAME.container"
+        echo "    tunnel: spento (--senza-cloud), il pannello non chiama il cloud"
+    elif [ -n "$TUNNEL_URL" ]; then
         sed -i "s|^#Environment=SWS_TUNNEL_URL=.*|Environment=SWS_TUNNEL_URL=$TUNNEL_URL|" "$UNIT_DIR/$NAME.container"
-        sed -i "s|^#Environment=SWS_TUNNEL_NOME=.*|Environment=SWS_TUNNEL_NOME=$TUNNEL_NOME|" "$UNIT_DIR/$NAME.container"
-        sed -i "s|^#Environment=SWS_TUNNEL_TOKEN=.*|Environment=SWS_TUNNEL_TOKEN=$TUNNEL_TOKEN|" "$UNIT_DIR/$NAME.container"
-        # Il token è nel file, e il file lo legge chi legge la home: 600.
-        chmod 600 "$UNIT_DIR/$NAME.container"
-        echo "    tunnel: questo pannello chiamerà $TUNNEL_URL come «$TUNNEL_NOME»"
+        if [ -n "$TUNNEL_NOME" ]; then
+            sed -i "s|^#Environment=SWS_TUNNEL_NOME=.*|Environment=SWS_TUNNEL_NOME=$TUNNEL_NOME|" "$UNIT_DIR/$NAME.container"
+            sed -i "s|^#Environment=SWS_TUNNEL_TOKEN=.*|Environment=SWS_TUNNEL_TOKEN=$TUNNEL_TOKEN|" "$UNIT_DIR/$NAME.container"
+            # Il token è nel file, e il file lo legge chi legge la home: 600.
+            chmod 600 "$UNIT_DIR/$NAME.container"
+            echo "    tunnel: questo pannello chiamerà $TUNNEL_URL come «$TUNNEL_NOME»"
+        else
+            echo "    tunnel: questo pannello chiamerà $TUNNEL_URL e aspetterà l'abbinamento col codice"
+        fi
+    else
+        echo "    tunnel: il pannello chiama il cloud dell'immagine e aspetta l'abbinamento col codice"
+        echo "            (per non farlo: --senza-cloud)"
     fi
     case "$TAG" in
         localhost/*)
@@ -780,6 +800,22 @@ for i in $(seq 1 30); do
         for a in $IPS; do
             echo "    viewer : http://$a:8443     IDE : http://$a:8444"
         done
+        # Il codice di abbinamento (11-10-2026): un pannello senza utenti non
+        # lascia entrare nessuno finché qualcuno non ne crea l'amministratore.
+        # Si stampa qui perché è il primo posto in cui chi installa guarda.
+        CODICE="$( { curl -fs --max-time 2 http://localhost:8444/api/abbinamento \
+                     || curl -sk --max-time 2 https://localhost:8444/api/abbinamento; } 2>/dev/null \
+            | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("codice") or "" if d.get("in_attesa") else "")' 2>/dev/null || true)"
+        if [ -n "$CODICE" ]; then
+            echo
+            echo "    ┌───────────────────────────────────────────────┐"
+            echo "    │  CODICE DI ABBINAMENTO:  $CODICE  │"
+            echo "    └───────────────────────────────────────────────┘"
+            echo "    Il pannello non ha ancora utenti e non lascia entrare nessuno."
+            echo "    Inserisci il codice nell'IDE («Connetti», insieme a utente e password"
+            echo "    del suo amministratore) oppure apri la pagina del pannello qui sopra."
+            echo "    Lo mostrano anche lo schermo e il log: podman logs $NAME | grep -i abbinamento"
+        fi
         echo "    dati     : $DATA"
         echo "    immagine : $TAG"
         [ "$AUTOSTART" -eq 1 ] && echo "    stato    : systemctl --user status $NAME"

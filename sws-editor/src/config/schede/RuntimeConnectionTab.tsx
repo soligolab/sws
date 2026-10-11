@@ -1,3 +1,5 @@
+import { AbbinaPannelloCloud } from "@/config/schede/AbbinaPannelloCloud";
+import { gestisciServeAdmin } from "@/deployServeAdmin";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { api, getAuthToken, getBaseUrl, RuntimeUnavailableError, type DiscoveredRuntime, dimenticaVersioneProgetto } from "@/api/client";
@@ -73,6 +75,10 @@ export function RuntimeConnectionTab() {
   const [targetUser, setTargetUser] = useState(() => localStorage.getItem(RT_USER_KEY) ?? "");
   // La password resta qui, nello stato: mai in localStorage (2026-09-09).
   const [targetPass, setTargetPass] = useState("");
+  // Il codice di abbinamento (11-10-2026): compare solo quando il target ha
+  // risposto che è un pannello nuovo, in attesa. Come la password, mai salvato.
+  const [codiceAbbinamento, setCodiceAbbinamento] = useState("");
+  const [chiedeCodice, setChiedeCodice] = useState(false);
   const [status, setStatus]         = useState<"idle" | "connecting" | "connected" | "error">("idle");
   const [statusMsg, setStatusMsg]   = useState<string | null>(null);
   // Q49: «Connetti» si è fermato perché il certificato del dispositivo non è
@@ -180,8 +186,10 @@ export function RuntimeConnectionTab() {
       // accepts connections without authentication.
       const user = targetUser.trim() || undefined;
       const pass = targetPass || undefined;
-      const result = await api.remoteConnect(target, user, pass);
+      const result = await api.remoteConnect(target, user, pass, codiceAbbinamento.trim() || undefined);
       setCertificatoCambiato(result.azione === "certificato-cambiato");
+      if (result.azione === "abbinamento-richiesto") setChiedeCodice(true);
+      if (result.ok) { setChiedeCodice(false); setCodiceAbbinamento(""); }
       if (!result.ok) throw new Error(result.error ?? t("cfgUi.connectionFailed"));
       setStatus("connected");
       // La nota dice cosa è successo quando è riuscita ma non come chiedevi:
@@ -319,6 +327,10 @@ export function RuntimeConnectionTab() {
       // o il progetto non ha utenti e il dispositivo ne ha. La decisione è di
       // chi guarda lo schermo, non del codice.
       const d428 = res.status === 428 ? await res.clone().json().catch(() => ({} as any)) : null;
+      if (gestisciServeAdmin(d428)) {
+        setDeployLog((l) => [...l, "✗ " + t("abbinamento.serveAdminBreve")]);
+        return;
+      }
       if (d428?.conferma === "sostituisce-progetti" && !sostituzioneConfermata) {
         if (!window.confirm(testoSostituzione(d428.progetto, d428.progetti ?? []))) {
           setDeployLog((l) => [...l, "✗ " + t("cfg.deployAnnullato")]);
@@ -549,6 +561,15 @@ export function RuntimeConnectionTab() {
 
   return (
     <div style={{ padding: 24, maxWidth: 600, display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* L'abbinamento dal cloud (11-10-2026): solo dietro il gateway. Abbinato
+          il pannello, il suo indirizzo e l'utente finiscono qui sotto: resta
+          «Connetti». */}
+      <AbbinaPannelloCloud onAbbinato={(url) => {
+        if (connected) handleDisconnect();
+        setTargetUrl(url);
+        setTargetUser("");
+        setStatusMsg(t("abbinamento.cloudOraConnetti"));
+      }} />
       {/* Connection config */}
       <section>
         <div style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text-muted, #94a3b8)", marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>
@@ -701,6 +722,22 @@ export function RuntimeConnectionTab() {
           <span style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", lineHeight: 1.4 }}>
             {t("cfg.swsCredentialsHint")}
           </span>
+          {chiedeCodice && !connected && (
+            <div>
+              <label style={{ fontSize: 11, color: "var(--brand-warning-soft, #fbbf24)", display: "block", marginBottom: 4 }}>
+                {t("abbinamento.codiceConnetti")}
+              </label>
+              <input
+                data-testid="codice-abbinamento-connetti"
+                style={{ ...INPUT, width: "100%", boxSizing: "border-box", fontFamily: "ui-monospace, monospace", letterSpacing: 1 }}
+                placeholder="XXXX-XXXX-XXXX-XXXX" value={codiceAbbinamento} spellCheck={false}
+                onChange={(e) => setCodiceAbbinamento(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleConnect()} />
+              <span style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", lineHeight: 1.4 }}>
+                {t("abbinamento.codiceConnettiAiuto")}
+              </span>
+            </div>
+          )}
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             {!connected && (
               <button style={BTN_PRIMARY} onClick={handleConnect} disabled={status === "connecting"}>

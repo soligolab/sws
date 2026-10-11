@@ -12,6 +12,7 @@ import { applyBranding, loadBranding } from "@/branding";
 import { applyAppearance, getStoredMode, initThemeStorageListener, initThemeSystemListener } from "@/theme";
 import { dimenticaPasswordLegacy } from "@/passwordNelBrowser";
 import { useAppStore } from "@/store";
+import { CancelloAbbinamento } from "@/components/AbbinamentoScreen";
 
 export async function avvia(Radice: React.ComponentType, opzioni: { apiLocale?: boolean } = {}): Promise<void> {
   // Le pagine dell'IDE parlano sempre con il runtime che le serve, anche se
@@ -26,7 +27,11 @@ export async function avvia(Radice: React.ComponentType, opzioni: { apiLocale?: 
   initThemeStorageListener((mode) => useAppStore.setState({ themeMode: mode }));
   ReactDOM.createRoot(document.getElementById("root")!).render(
     <React.StrictMode>
-      <Radice />
+      {/* Un pannello in attesa di abbinamento mostra il codice e basta
+          (11-10-2026): vale per tutte e quattro le pagine. */}
+      <CancelloAbbinamento>
+        <Radice />
+      </CancelloAbbinamento>
     </React.StrictMode>,
   );
 }

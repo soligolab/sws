@@ -105,9 +105,17 @@ for frag, nome in [('"GetEnabled"', "disponibilità sondata con una lettura, non
     else: ko(f"manca: {nome}")
 
 print("=== 7. l'URL si imposta prima dello start, e c'è il ripiego ===")
-i_url, i_start = commuta.find("browser_url("), commuta.find('bus::unit(&sistema, "StartUnit", BROWSER)')
-if 0 <= i_url < i_start: ok("`SetUrl` prima dello `StartUnit` del browser")
+# Dall'11-10-2026 lo start è `StartUnit` o `RestartUnit` secondo
+# `browser_da_riavviare`: un browser già attivo su un altro URL si riavvia,
+# altrimenti resterebbe sulla pagina vecchia (visto sul TC620, Cockpit).
+i_url = commuta.find("browser_url(")
+i_start = commuta.find('bus::unit(&sistema, metodo, BROWSER)')
+if i_start < 0:
+    i_start = commuta.find('bus::unit(&sistema, "StartUnit", BROWSER)')
+if 0 <= i_url < i_start: ok("`SetUrl` prima dello start del browser")
 else: ko("l'URL non è più impostato prima dello start: il browser partirebbe sulla pagina vecchia")
+if "browser_da_riavviare(" in commuta and '"RestartUnit"' in commuta: ok("un browser già attivo su un altro URL si riavvia")
+else: ko("un browser già attivo su un altro URL non si riavvia più: resterebbe sulla pagina vecchia")
 if '"ripiego_lvgl"' in commuta: ok("se il browser non parte si ripiega su LVGL, e lo si dice")
 else: ko("il ripiego su LVGL è sparito: uno schermo nero al posto del motore sbagliato")
 if "SetUrl" in open(INSTALLER, encoding="utf-8").read(): ok("e l'installer imposta l'URL a sua volta (un factory reset lo riporta alla 9443)")

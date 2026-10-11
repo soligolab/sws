@@ -1307,6 +1307,22 @@ async fn main() -> anyhow::Result<()> {
     // cui il template è nato.
     app_state.supervisor.imposta_sola_lettura(ide_only);
 
+    // Il codice di abbinamento (11-10-2026): un pannello senza nessun utente
+    // non lascia entrare nessuno, e questa riga è il primo posto in cui chi lo
+    // ha appena installato lo trova (`journalctl`, `podman logs`, l'installer).
+    if sws_web::router::fonte_auth_corrente(&app_state).await
+        == sws_web::router::FonteAutenticazione::InAttesa
+    {
+        if let Some(c) = app_state.abbinamento.codice() {
+            warn!(
+                codice = %c,
+                "pannello in attesa di abbinamento: nessun utente, non entra nessuno. \
+                 Codice di abbinamento: {c} — inseriscilo nell'IDE («Connetti») o nella pagina \
+                 di questo pannello per creare l'amministratore"
+            );
+        }
+    }
+
     if let Some((notifications, global_scripts, languages)) = boot_services {
         sws_web::projects::start_project_services(
             &app_state,
@@ -1411,8 +1427,41 @@ async fn main() -> anyhow::Result<()> {
     // Mancandone una il processo **non parte**, invece di partire senza
     // tunnel: un pannello che crede di essere raggiungibile e non lo e' si
     // scopre il giorno che serve, e quel giorno di solito si e' lontani.
-    match (&args.tunnel, &args.tunnel_nome, &args.tunnel_token) {
+    // Dall'11-10-2026 c'è una quarta forma, la normale per un pannello nuovo:
+    // **solo l'indirizzo** (che sta nell'immagine, decisione 13). Nome e token
+    // li dà il gateway quando qualcuno abbina il pannello col codice; fino ad
+    // allora il pannello si presenta in attesa. Un indirizzo vuoto spegne il
+    // tunnel: è il modo di dire «questo pannello non chiama fuori».
+    let tunnel_url = args.tunnel.as_deref().map(str::trim).filter(|u| !u.is_empty()).map(str::to_string);
+    let tunnel_nome = args.tunnel_nome.as_deref().map(str::trim).filter(|u| !u.is_empty()).map(str::to_string);
+    let tunnel_token = args.tunnel_token.as_deref().map(str::trim).filter(|u| !u.is_empty()).map(str::to_string);
+    match (&tunnel_url, &tunnel_nome, &tunnel_token) {
         (None, None, None) => {}
+        (Some(url), None, None) => {
+            // Solo su un pannello: un IDE, il gateway e i container dietro il
+            // gateway non hanno un codice di abbinamento, e non chiamano.
+            if app_state.abbinamento.codice().is_some() {
+                let nome_proposto = std::fs::read_to_string("/etc/hostname")
+                    .map(|h| h.trim().to_string())
+                    .ok()
+                    .filter(|h| !h.is_empty())
+                    .unwrap_or_else(|| "pannello".to_string());
+                match app_state.abbinamento.tunnel() {
+                    Some((nome, _)) => info!(%url, pannello = %nome, "tunnel: chiamo il gateway (abbinato)"),
+                    None => info!(
+                        %url,
+                        codice = ?app_state.abbinamento.codice(),
+                        "tunnel: chiamo il gateway in attesa di abbinamento — il codice si inserisce nell'IDE nel cloud («Abbina un pannello»)"
+                    ),
+                }
+                sws_web::tunnel::pannello::tieni_aperto_abbinabile(
+                    url.clone(),
+                    app_state.abbinamento.clone(),
+                    nome_proposto,
+                    args.admin_port,
+                );
+            }
+        }
         (Some(url), Some(nome), Some(token)) if token.len() >= 16 => {
             if args.no_admin || !ide_only {
                 info!(%url, pannello = %nome, "tunnel: chiamo il gateway");

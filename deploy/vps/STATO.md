@@ -125,7 +125,7 @@ progetto aperto nel suo container.
 | | |
 |---|---|
 | unità | `sws-gateway.service` (quadlet `~/.config/containers/systemd/sws-gateway.container`) |
-| immagine | `ghcr.io/soligolab/sws-runtime:a4ff1c06-amd64`, inchiodata al commit (dal 10-10 sera: chiave di ritorno) |
+| immagine | `ghcr.io/soligolab/sws-runtime:1599b500-amd64`, inchiodata al commit (dal 10-10 sera: chiave di ritorno) |
 | router | `~/sws-vps/traefik/dynamic/sws-gateway.yml` → `http://sws-gateway:8444` |
 | progetti | `~/sws-vps/progetti` |
 | configurazione | `~/sws-vps/gateway-config` (ci stanno `identita.db` e il segreto del gateway) |

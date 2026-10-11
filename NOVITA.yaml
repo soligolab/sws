@@ -50,6 +50,12 @@ versioni:
     compatibilita:
       - it: "L'IDE adesso chiede le credenziali. Al primo avvio il servizio stampa nei log un codice di primo accesso: incollalo nell'IDE per creare l'amministratore. Sui pannelli non cambia nulla."
         en: "The IDE now asks for credentials. At first start the service prints a first-access code in its log: paste it into the IDE to create the administrator. Nothing changes on panels."
+      - it: "Un pannello senza utenti ora resta chiuso e mostra un codice di abbinamento (schermo, pagina e log): inseriscilo in «Connetti» dell'IDE, o nella pagina del pannello, per crearne l'amministratore."
+        en: "A panel without users now stays closed and shows a pairing code (screen, page and log): enter it in the IDE's «Connect», or on the panel's page, to create its administrator."
+      - it: "Un pannello nuovo collegato a internet si abbina dal cloud: inserisci il suo codice in «Abbina un pannello» e lo raggiungi anche dietro NAT. Per non farlo chiamare fuori: install-container.sh --senza-cloud."
+        en: "A new panel connected to the internet can be paired from the cloud: enter its code in «Pair a panel» and reach it even behind NAT. To keep it from calling out: install-container.sh --senza-cloud."
+      - it: "Dal cloud basta il codice: gli utenti del pannello arrivano col primo progetto, che deve portarne almeno uno Admin. Dopo l'abbinamento vedi il riepilogo del pannello e puoi rinominarlo."
+        en: "From the cloud the code is enough: the panel's users arrive with the first project, which must bring at least one Admin. After pairing you see the panel summary and can rename it."
 
   - versione: "2.12.0"
     voci:

@@ -118,10 +118,26 @@ pub async fn accetta(
     let (Some(ammessi), Some(registro)) = (s.pannelli_ammessi.as_ref(), s.tunnel.as_ref()) else {
         return (StatusCode::NOT_FOUND, "questo processo non accetta tunnel").into_response();
     };
-    let Some(nome) = ammessi.riconosci(&intestazioni) else {
-        // Nessun dettaglio: chi sbaglia il token non deve imparare se ha
-        // sbagliato il nome o il segreto.
-        return (StatusCode::UNAUTHORIZED, "non riconosciuto").into_response();
+
+    // **Un pannello in attesa di abbinamento** (11-10-2026): si presenta col
+    // codice e l'identità hardware. Entra in una sala d'attesa in memoria, per
+    // codice, da cui nessuna rotta lo raggiunge finché qualcuno non lo abbina.
+    if let Some(codice) = intestazioni.get("x-sws-attesa").and_then(|v| v.to_str().ok()) {
+        return accetta_in_attesa(&s, ws, codice, &intestazioni).await;
+    }
+
+    // Prima i dichiarati a mano (`pannelli.yaml`), poi gli abbinati col codice.
+    let nome = match ammessi.riconosci(&intestazioni) {
+        Some(n) => n,
+        None => match riconosci_abbinato(&s, &intestazioni) {
+            Ok(n) => n,
+            Err(crate::tunnel::abbinati::Rifiuto::NonAmmesso) => {
+                return (StatusCode::FORBIDDEN, "pannello sospeso o bandito").into_response();
+            }
+            // Nessun dettaglio: chi sbaglia il token non deve imparare se ha
+            // sbagliato il nome o il segreto.
+            Err(_) => return (StatusCode::UNAUTHORIZED, "non riconosciuto").into_response(),
+        },
     };
     let registro = registro.clone();
     ws.on_upgrade(move |socket| async move {
@@ -143,6 +159,81 @@ pub async fn accetta(
     })
 }
 
+/// Un pannello abbinato col codice: nome e token nelle stesse intestazioni dei
+/// dichiarati, il token ricalcolato dal segreto.
+fn riconosci_abbinato(
+    s: &crate::router::AppState,
+    intestazioni: &HeaderMap,
+) -> Result<String, crate::tunnel::abbinati::Rifiuto> {
+    use crate::tunnel::abbinati::Rifiuto;
+    let abbinati = s.pannelli_abbinati.as_ref().ok_or(Rifiuto::NonRiconosciuto)?;
+    let segreto = s.regia.as_ref().map(|r| r.segreto().to_string()).ok_or(Rifiuto::NonRiconosciuto)?;
+    let nome = intestazioni
+        .get("x-sws-pannello")
+        .and_then(|v| v.to_str().ok())
+        .ok_or(Rifiuto::NonRiconosciuto)?
+        .trim();
+    let token = intestazioni
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .ok_or(Rifiuto::NonRiconosciuto)?;
+    let p = abbinati.riconosci(&segreto, nome, token)?;
+    abbinati.visto(&p.nome);
+    Ok(p.nome)
+}
+
+async fn accetta_in_attesa(
+    s: &crate::router::AppState,
+    ws: axum::extract::ws::WebSocketUpgrade,
+    codice: &str,
+    intestazioni: &HeaderMap,
+) -> Response {
+    let (Some(attesa), Some(abbinati)) = (s.pannelli_in_attesa.clone(), s.pannelli_abbinati.clone()) else {
+        return (StatusCode::NOT_FOUND, "questo processo non abbina pannelli").into_response();
+    };
+    let Some(codice) = crate::abbinamento::normalizza(codice) else {
+        return (StatusCode::BAD_REQUEST, "codice non valido").into_response();
+    };
+    let testo = |n: &str| {
+        intestazioni
+            .get(n)
+            .and_then(|v| v.to_str().ok())
+            .map(|v| v.trim().chars().take(200).collect::<String>())
+            .filter(|v| !v.is_empty())
+    };
+    let Some(hw) = testo("x-sws-hw") else {
+        return (StatusCode::BAD_REQUEST, "manca l'identità hardware").into_response();
+    };
+    if abbinati.bandito(&hw) {
+        return (StatusCode::FORBIDDEN, "pannello bandito").into_response();
+    }
+    let nome_proposto = testo("x-sws-nome").unwrap_or_else(|| "pannello".into());
+    ws.on_upgrade(move |socket| async move {
+        let filo = Filo::nuovo(socket);
+        let (maniglia, in_arrivo) = avvia(filo, Verso::Chiama);
+        drop(in_arrivo);
+        let voce = crate::tunnel::abbinati::Attesa { maniglia: maniglia.clone(), hw: hw.clone(), nome_proposto };
+        if !attesa.entra(&codice, voce).await {
+            tracing::warn!("troppi pannelli in attesa: rifiuto");
+            return;
+        }
+        tracing::info!(%hw, "pannello in attesa di abbinamento collegato");
+        while maniglia.vivo() {
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        }
+        attesa.esce(&codice, &hw).await;
+    })
+}
+
+/// L'azienda di un pannello: dichiarato a mano o abbinato col codice.
+pub fn azienda_del_pannello(s: &crate::router::AppState, pannello: &str) -> Option<String> {
+    if let Some(a) = s.pannelli_ammessi.as_ref().and_then(|a| a.azienda_di(pannello)) {
+        return Some(a.to_string());
+    }
+    s.pannelli_abbinati.as_ref().and_then(|a| a.azienda_di(pannello))
+}
+
 /// Chi guarda può parlare con quel pannello?
 ///
 /// Si appoggia alle **stesse** appartenenze che filtrano i progetti, e di
@@ -153,12 +244,10 @@ async fn puo_parlargli(
     chi: Option<&crate::router::AuthUser>,
     pannello: &str,
 ) -> bool {
-    let Some(ammessi) = s.pannelli_ammessi.as_ref() else {
+    let Some(azienda) = azienda_del_pannello(s, pannello) else {
         return false;
     };
-    let Some(azienda) = ammessi.azienda_di(pannello) else {
-        return false;
-    };
+    let azienda = azienda.as_str();
     let app = crate::projects::appartenenze_di(s, chi).await;
     if app.fuori_dal_modello {
         // Nessun modello di identità qui dentro (admin sintetico, dispositivo):
@@ -192,7 +281,7 @@ pub async fn collegati(State(s): State<crate::router::AppState>, req: Request<Bo
     let mut miei = Vec::new();
     for p in r.collegati().await {
         let ok = match &figlio {
-            Some(f) => s.pannelli_ammessi.as_ref().and_then(|a| a.azienda_di(&p)).is_some_and(|az| az == f.azienda),
+            Some(f) => azienda_del_pannello(&s, &p).is_some_and(|az| az == f.azienda),
             None => puo_parlargli(&s, chi.as_ref(), &p).await,
         };
         if ok {
@@ -206,8 +295,12 @@ pub async fn collegati(State(s): State<crate::router::AppState>, req: Request<Bo
 pub async fn inoltra(
     State(s): State<crate::router::AppState>,
     Path((pannello, _resto)): Path<(String, String)>,
-    req: Request<Body>,
+    mut req: Request<Body>,
 ) -> Response {
+    // **La firma del gateway** (fetta E, 11-10-2026): chi chiama non deve
+    // poterla portare da fuori — si toglie sempre, e si rimette sotto, solo
+    // verso un pannello abbinato e solo dopo i controlli di sempre.
+    req.headers_mut().remove(crate::abbinamento::INTESTAZIONE_GATEWAY);
     let Some(registro) = s.tunnel.as_ref() else {
         return (StatusCode::NOT_FOUND, "questo processo non ha tunnel").into_response();
     };
@@ -221,11 +314,7 @@ pub async fn inoltra(
     // coi pannelli della **sua** azienda, e basta. Una persona passa dalle
     // appartenenze, come per i progetti.
     let consentito = match req.extensions().get::<crate::gateway::ritorno::Chiamante>() {
-        Some(figlio) => s
-            .pannelli_ammessi
-            .as_ref()
-            .and_then(|a| a.azienda_di(&pannello))
-            .is_some_and(|az| az == figlio.azienda),
+        Some(figlio) => azienda_del_pannello(&s, &pannello).is_some_and(|az| az == figlio.azienda),
         None => {
             let chi = req.extensions().get::<crate::router::AuthUser>().cloned();
             puo_parlargli(&s, chi.as_ref(), &pannello).await
@@ -245,6 +334,12 @@ pub async fn inoltra(
         )
             .into_response();
     };
+
+    if let Some(firma) = firma_per(&s, &pannello) {
+        if let Ok(v) = firma.parse() {
+            req.headers_mut().insert(crate::abbinamento::INTESTAZIONE_GATEWAY, v);
+        }
+    }
 
     let percorso = req.uri().path();
     let dentro = percorso
@@ -334,6 +429,329 @@ async fn attraverso(
         fuori = fuori.header(nome.clone(), valore.clone());
     }
     Ok(fuori.body(Body::new(corpo.map_err(axum::Error::new)))?)
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Abbina {
+    codice: String,
+    #[serde(default)]
+    nome: Option<String>,
+    /// Il primo amministratore del pannello, se è nuovo; un Admin esistente,
+    /// se il pannello ha già utenti. Il pannello decide quale dei due.
+    #[serde(default)]
+    username: Option<String>,
+    #[serde(default)]
+    password: Option<String>,
+    /// Solo per chi amministra la piattaforma: a quale azienda va il pannello.
+    #[serde(default)]
+    azienda: Option<String>,
+}
+
+/// `POST /api/pannelli/abbina` — abbina al gateway il pannello in attesa con
+/// quel codice (11-10-2026, fetta D).
+///
+/// Chi chiama: il container di un progetto con la sua chiave di ritorno (il
+/// pannello va all'azienda del progetto), o chi amministra la piattaforma
+/// (azienda nel corpo, `-` se manca). Il gateway prepara nome e token, li
+/// manda al pannello **attraverso il suo tunnel in attesa** insieme al codice
+/// e alle credenziali, e salva la riga solo se il pannello accetta: il
+/// pannello si tiene token e nome e si ricollega da abbinato.
+pub async fn abbina(State(s): State<crate::router::AppState>, req: Request<Body>) -> Response {
+    let errore = |stato: StatusCode, testo: &str| {
+        (stato, axum::Json(serde_json::json!({ "error": "abbinamento", "detail": testo }))).into_response()
+    };
+    let (Some(abbinati), Some(attesa), Some(registro)) =
+        (s.pannelli_abbinati.clone(), s.pannelli_in_attesa.clone(), s.tunnel.clone())
+    else {
+        return errore(StatusCode::NOT_FOUND, "questo processo non abbina pannelli");
+    };
+    let segreto = s.regia.as_ref().map(|r| r.segreto().to_string()).unwrap_or_default();
+    let figlio = req.extensions().get::<crate::gateway::ritorno::Chiamante>().cloned();
+    let chi = req.extensions().get::<crate::router::AuthUser>().cloned();
+    let origine = crate::gateway::ritorno::origine_della_richiesta(req.headers());
+    let corpo = match axum::body::to_bytes(req.into_body(), 16 * 1024).await {
+        Ok(b) => b,
+        Err(_) => return errore(StatusCode::BAD_REQUEST, "corpo illeggibile"),
+    };
+    let r: Abbina = match serde_json::from_slice(&corpo) {
+        Ok(r) => r,
+        Err(e) => return errore(StatusCode::BAD_REQUEST, &format!("json: {e}")),
+    };
+    let azienda = match (figlio, chi) {
+        (Some(f), _) => f.azienda,
+        (None, Some(u)) if u.amministratore_piattaforma => r
+            .azienda
+            .clone()
+            .unwrap_or_else(|| crate::project_registry::AZIENDA_IMPLICITA.to_string()),
+        _ => {
+            return errore(
+                StatusCode::FORBIDDEN,
+                "un pannello si abbina dall'IDE di un progetto, che lo lega alla sua azienda",
+            )
+        }
+    };
+    let Some(codice) = crate::abbinamento::normalizza(&r.codice) else {
+        return errore(StatusCode::BAD_REQUEST, "il codice ha la forma XXXX-XXXX-XXXX-XXXX");
+    };
+    let Some(in_attesa) = attesa.di(&codice).await else {
+        return errore(
+            StatusCode::NOT_FOUND,
+            "nessun pannello in attesa con questo codice: è acceso, collegato a internet, e il codice è quello che mostra adesso?",
+        );
+    };
+    let mut occupati: Vec<String> = registro.collegati().await;
+    if let Some(a) = s.pannelli_ammessi.as_ref() {
+        occupati.extend(a.0.keys().cloned());
+    }
+    let (pannello, token) = match abbinati.prepara(
+        &segreto,
+        &in_attesa.hw,
+        &azienda,
+        r.nome.as_deref(),
+        &in_attesa.nome_proposto,
+        &occupati,
+    ) {
+        Ok(x) => x,
+        Err(crate::tunnel::abbinati::ErroreAbbina::Bandito) => {
+            return errore(StatusCode::FORBIDDEN, "questo pannello è bandito")
+        }
+        Err(crate::tunnel::abbinati::ErroreAbbina::DiUnAltraAzienda) => {
+            return errore(
+                StatusCode::CONFLICT,
+                "questo pannello è già abbinato a un'altra azienda: lo può spostare solo chi amministra la piattaforma",
+            )
+        }
+        Err(crate::tunnel::abbinati::ErroreAbbina::NomeNonValido) => {
+            return errore(StatusCode::BAD_REQUEST, "nome non valido: lettere, cifre e trattini")
+        }
+    };
+
+    // Al pannello, attraverso il suo tunnel in attesa.
+    let mut verso = serde_json::json!({
+        "codice": codice,
+        "tunnel": { "nome": pannello.nome, "token": token },
+    });
+    // Utente e password solo se ci sono: dal cloud di norma non ci sono (fetta
+    // E, gli utenti arrivano col primo progetto).
+    if let Some(u) = r.username.as_deref().filter(|u| !u.trim().is_empty()) {
+        verso["username"] = serde_json::Value::String(u.to_string());
+    }
+    if let Some(p) = r.password.as_deref().filter(|p| !p.is_empty()) {
+        verso["password"] = serde_json::Value::String(p.to_string());
+    }
+    let richiesta = match Request::builder()
+        .method("POST")
+        .uri("/api/abbinamento/rivendica")
+        .header("content-type", "application/json")
+        .body(Body::from(verso.to_string()))
+    {
+        Ok(q) => q,
+        Err(e) => return errore(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string()),
+    };
+    let risposta = match attraverso(&in_attesa.maniglia, "/api/abbinamento/rivendica", "", richiesta).await {
+        Ok(x) => x,
+        Err(e) => return errore(StatusCode::BAD_GATEWAY, &format!("il pannello non risponde: {e}")),
+    };
+    let stato = risposta.status();
+    let dal_pannello: serde_json::Value = match axum::body::to_bytes(risposta.into_body(), 64 * 1024).await {
+        Ok(b) => serde_json::from_slice(&b).unwrap_or_default(),
+        Err(_) => serde_json::Value::Null,
+    };
+    if !stato.is_success() {
+        let motivo = dal_pannello
+            .get("detail")
+            .and_then(|d| d.as_str())
+            .unwrap_or("il pannello ha rifiutato l'abbinamento");
+        return errore(stato, motivo);
+    }
+    let nome = pannello.nome.clone();
+    if let Err(e) = abbinati.salva(pannello) {
+        return errore(StatusCode::INTERNAL_SERVER_ERROR, &format!("pannello abbinato ma non salvato: {e}"));
+    }
+    s.audit.log(
+        "pannello.abbinato",
+        None,
+        serde_json::json!({ "pannello": nome, "azienda": azienda, "hw": in_attesa.hw }),
+    );
+    tracing::info!(pannello = %nome, %azienda, "pannello abbinato col codice");
+    axum::Json(serde_json::json!({
+        "nome": nome,
+        "azienda": azienda,
+        "url": origine.map(|o| format!("{o}/dev/{nome}")),
+        "sessione": dal_pannello,
+    }))
+    .into_response()
+}
+
+/// `GET /api/amministrazione/pannelli` — i pannelli del gateway, per chi
+/// amministra la piattaforma: abbinati (con stato), dichiarati a mano,
+/// collegati adesso, e quanti aspettano un abbinamento.
+pub async fn elenco_amministrazione(State(s): State<crate::router::AppState>) -> Response {
+    let collegati = match s.tunnel.as_ref() {
+        Some(r) => r.collegati().await,
+        None => vec![],
+    };
+    let abbinati: Vec<_> = s
+        .pannelli_abbinati
+        .as_ref()
+        .map(|a| a.elenco())
+        .unwrap_or_default()
+        .into_iter()
+        .map(|p| {
+            let c = collegati.contains(&p.nome);
+            let mut v = serde_json::to_value(&p).unwrap_or_default();
+            v["collegato"] = serde_json::Value::Bool(c);
+            v
+        })
+        .collect();
+    let dichiarati: Vec<_> = s
+        .pannelli_ammessi
+        .as_ref()
+        .map(|a| {
+            let mut v: Vec<_> = a
+                .0
+                .iter()
+                .map(|(n, d)| serde_json::json!({ "nome": n, "azienda": d.azienda, "collegato": collegati.contains(n) }))
+                .collect();
+            v.sort_by(|x, y| x["nome"].as_str().cmp(&y["nome"].as_str()));
+            v
+        })
+        .unwrap_or_default();
+    let in_attesa = match s.pannelli_in_attesa.as_ref() {
+        Some(a) => a.quanti().await,
+        None => 0,
+    };
+    axum::Json(serde_json::json!({ "abbinati": abbinati, "dichiarati": dichiarati, "in_attesa": in_attesa }))
+        .into_response()
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NuovoStato {
+    stato: crate::tunnel::abbinati::StatoPannello,
+}
+
+/// `POST /api/amministrazione/pannelli/:nome/stato` — attivo, sospeso o
+/// bandito. Un pannello sospeso o bandito collegato adesso viene staccato.
+pub async fn imposta_stato(
+    State(s): State<crate::router::AppState>,
+    Path(nome): Path<String>,
+    axum::Json(n): axum::Json<NuovoStato>,
+) -> Response {
+    let Some(a) = s.pannelli_abbinati.as_ref() else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    match a.imposta_stato(&nome, n.stato) {
+        Ok(true) => {
+            if n.stato != crate::tunnel::abbinati::StatoPannello::Attivo {
+                if let Some(r) = s.tunnel.as_ref() {
+                    r.esce(&nome).await;
+                }
+            }
+            s.audit.log("pannello.stato", None, serde_json::json!({ "pannello": nome, "stato": n.stato }));
+            StatusCode::NO_CONTENT.into_response()
+        }
+        Ok(false) => StatusCode::NOT_FOUND.into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+/// La firma del gateway per un pannello abbinato col codice: `None` per i
+/// dichiarati a mano, che non la conoscono.
+fn firma_per(s: &crate::router::AppState, pannello: &str) -> Option<String> {
+    let p = s.pannelli_abbinati.as_ref()?.per_nome(pannello)?;
+    let segreto = s.regia.as_ref()?.segreto().to_string();
+    let token = crate::tunnel::abbinati::token_per(&segreto, &p.hw);
+    Some(crate::abbinamento::firma_gateway(&token))
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Rinomina {
+    nuovo: String,
+}
+
+/// `POST /api/pannelli/:nome/rinomina` — cambia il nome nel tunnel di un
+/// pannello abbinato (fetta E): prima sul pannello, attraverso il suo tunnel e
+/// con la firma, poi la riga. Il token non cambia: dipende dall'hardware.
+///
+/// Chi può: il container di un progetto della **stessa azienda** del pannello,
+/// o chi amministra la piattaforma.
+pub async fn rinomina(
+    State(s): State<crate::router::AppState>,
+    Path(nome): Path<String>,
+    req: Request<Body>,
+) -> Response {
+    let errore = |stato: StatusCode, testo: &str| {
+        (stato, axum::Json(serde_json::json!({ "error": "rinomina", "detail": testo }))).into_response()
+    };
+    let (Some(abbinati), Some(registro)) = (s.pannelli_abbinati.clone(), s.tunnel.clone()) else {
+        return errore(StatusCode::NOT_FOUND, "questo processo non ha pannelli");
+    };
+    let Some(riga) = abbinati.per_nome(&nome) else {
+        return errore(StatusCode::NOT_FOUND, "pannello non trovato");
+    };
+    let figlio = req.extensions().get::<crate::gateway::ritorno::Chiamante>().cloned();
+    let chi = req.extensions().get::<crate::router::AuthUser>().cloned();
+    let ammesso = match (&figlio, &chi) {
+        (Some(f), _) => f.azienda == riga.azienda,
+        (None, Some(u)) => u.amministratore_piattaforma,
+        _ => false,
+    };
+    if !ammesso {
+        return errore(StatusCode::NOT_FOUND, "pannello non trovato");
+    }
+    let corpo = match axum::body::to_bytes(req.into_body(), 4096).await {
+        Ok(b) => b,
+        Err(_) => return errore(StatusCode::BAD_REQUEST, "corpo illeggibile"),
+    };
+    let r: Rinomina = match serde_json::from_slice(&corpo) {
+        Ok(r) => r,
+        Err(e) => return errore(StatusCode::BAD_REQUEST, &format!("json: {e}")),
+    };
+    let Some(nuovo) = crate::tunnel::abbinati::normalizza_nome(&r.nuovo) else {
+        return errore(StatusCode::BAD_REQUEST, "nome non valido: lettere, cifre e trattini");
+    };
+    if nuovo == nome {
+        return axum::Json(serde_json::json!({ "nome": nome })).into_response();
+    }
+    let occupato = registro.collegati().await.contains(&nuovo)
+        || s.pannelli_ammessi.as_ref().is_some_and(|a| a.0.contains_key(&nuovo))
+        || abbinati.per_nome(&nuovo).is_some();
+    if occupato {
+        return errore(StatusCode::CONFLICT, &format!("il nome «{nuovo}» è già usato da un altro pannello"));
+    }
+    let Some(maniglia) = registro.di(&nome).await else {
+        return errore(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "il pannello non è collegato adesso: il nome si cambia sul pannello, che deve essere acceso",
+        );
+    };
+    let Some(firma) = firma_per(&s, &nome) else {
+        return errore(StatusCode::INTERNAL_SERVER_ERROR, "firma del gateway non disponibile");
+    };
+    let richiesta = match Request::builder()
+        .method("POST")
+        .uri("/api/abbinamento/nome")
+        .header("content-type", "application/json")
+        .header(crate::abbinamento::INTESTAZIONE_GATEWAY, firma)
+        .body(Body::from(serde_json::json!({ "nome": nuovo }).to_string()))
+    {
+        Ok(q) => q,
+        Err(e) => return errore(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string()),
+    };
+    match attraverso(&maniglia, "/api/abbinamento/nome", "", richiesta).await {
+        Ok(r) if r.status().is_success() => {}
+        Ok(r) => return errore(StatusCode::BAD_GATEWAY, &format!("il pannello ha rifiutato ({})", r.status())),
+        Err(e) => return errore(StatusCode::BAD_GATEWAY, &format!("il pannello non risponde: {e}")),
+    }
+    if let Err(e) = abbinati.rinomina(&nome, &nuovo) {
+        return errore(StatusCode::INTERNAL_SERVER_ERROR, &format!("pannello rinominato ma riga non salvata: {e}"));
+    }
+    s.audit.log("pannello.rinominato", None, serde_json::json!({ "da": nome, "a": nuovo }));
+    tracing::info!(da = %nome, a = %nuovo, "pannello rinominato");
+    axum::Json(serde_json::json!({ "nome": nuovo })).into_response()
 }
 
 /// Il registro vuoto da mettere in `AppState` quando il gateway è acceso.

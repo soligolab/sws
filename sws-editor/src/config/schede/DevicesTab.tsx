@@ -1,3 +1,4 @@
+import { gestisciServeAdmin } from "@/deployServeAdmin";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, RuntimeUnavailableError, type DispositivoRete } from "@/api/client";
@@ -81,6 +82,7 @@ async function deployToTarget(
           conferma?: string; utenti_dispositivo?: string[]; progetto?: string;
           progetti?: { nome: string; storico_byte?: number | null }[];
         };
+        if (gestisciServeAdmin(d)) throw new Error(i18n.t("abbinamento.serveAdminBreve"));
         if (d.conferma === "sostituisce-progetti" && !confermaSostituzione) {
           if (!window.confirm(testoSostituzione(d.progetto, d.progetti ?? []))) throw new Error(i18n.t("cfg.deployAnnullato"));
           confermaSostituzione = true;

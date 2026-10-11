@@ -443,8 +443,18 @@ impl AuthState {
     }
 
     /// Switch the backing `users.yaml` to a different project's path,
-    /// dropping all current sessions/failures and reloading users from
-    /// the new path (or from `seed` if the file is missing/empty).
+    /// reloading users from the new path (or from `seed` if the file is
+    /// missing/empty).
+    ///
+    /// **Le sessioni di chi non è cambiato sopravvivono** (11-10-2026, scelta
+    /// del maintainer). Fino ad allora qui si buttavano tutte: ogni deploy —
+    /// che riapre il progetto — lasciava l'IDE con un token morto (Stato del
+    /// pannello «runtime unavailable», sync successivi 401) e buttava fuori chi
+    /// era loggato sullo schermo dell'impianto. Ora resta valida la sessione
+    /// di un utente che nel nuovo elenco esiste ancora con **stesso** hash
+    /// della password, ruolo, zone e senza obbligo di cambiarla; cadono quelle
+    /// degli utenti tolti o cambiati, che è ciò che la vecchia regola voleva
+    /// davvero proteggere.
     /// Used by `POST /api/projects/:name/open` to retarget authentication
     /// without rebuilding the Arc.
     pub async fn swap_store(
@@ -469,8 +479,25 @@ impl AuthState {
             scrivi_users_file(&new_path, &new_users)?;
         }
 
-        *self.users.write().await = new_users;
-        self.sessions.write().await.clear();
+        let mut users = self.users.write().await;
+        let invariato = |nome: &str| match (users.get(nome), new_users.get(nome)) {
+            (Some(a), Some(b)) => {
+                a.password_hash == b.password_hash
+                    && a.role == b.role
+                    && a.allowed_zones == b.allowed_zones
+                    && !b.must_change_password
+            }
+            _ => false,
+        };
+        let mut sessions = self.sessions.write().await;
+        let prima = sessions.len();
+        sessions.retain(|_, sess| invariato(&sess.username));
+        if prima > 0 {
+            info!(tenute = sessions.len(), cadute = prima - sessions.len(), "auth: utenti ricaricati");
+        }
+        drop(sessions);
+        *users = new_users;
+        drop(users);
         self.failures.write().await.clear();
         *self.store_path.write().await = Some(new_path);
         Ok(())
@@ -925,6 +952,37 @@ mod tests {
         a.swap_store(pb, seed_admin()).await.unwrap();
         let nomi: Vec<String> = a.users.read().await.keys().cloned().collect();
         assert_eq!(nomi, vec!["operatore".to_string()]);
+    }
+
+    /// Un deploy dello stesso progetto (stessi utenti) non butta fuori chi è
+    /// collegato; un utente tolto o cambiato sì.
+    #[tokio::test]
+    async fn swap_store_tiene_le_sessioni_degli_utenti_invariati() {
+        let d = tempfile::tempdir().unwrap();
+        let p = users_yaml_con(d.path(), "admin");
+        let a = stato(p.clone(), vec![]);
+        let ok = a
+            .login(&Credentials { username: "admin".into(), password: "x".into() })
+            .await
+            .unwrap();
+        // Stesso file: la sessione resta.
+        a.swap_store(p.clone(), vec![]).await.unwrap();
+        assert!(a.validate(&ok.token).await.is_some(), "utente invariato: sessione tenuta");
+        // Password cambiata nel progetto distribuito: la sessione cade.
+        let altro = d.path().join("b");
+        std::fs::create_dir_all(&altro).unwrap();
+        let pb = users_yaml_con(&altro, "admin"); // hash nuovo (sale diverso)
+        a.swap_store(pb, vec![]).await.unwrap();
+        assert!(a.validate(&ok.token).await.is_none(), "password cambiata: sessione caduta");
+        // Utente tolto: cade anche quella.
+        let ok2 = a
+            .login(&Credentials { username: "admin".into(), password: "x".into() })
+            .await
+            .unwrap();
+        std::fs::create_dir_all(d.path().join("c")).unwrap();
+        let pc = users_yaml_con(&d.path().join("c"), "operatore");
+        a.swap_store(pc, vec![]).await.unwrap();
+        assert!(a.validate(&ok2.token).await.is_none(), "utente tolto: sessione caduta");
     }
 
     /// Senza il seed non c'è niente da scrivere, e il file non si tocca. Prima

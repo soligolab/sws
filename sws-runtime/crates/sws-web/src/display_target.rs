@@ -306,6 +306,11 @@ pub(crate) mod bus {
             .map_err(|e| format!("SetUrl: {e}"))
     }
 
+    pub async fn browser_url_attuale(c: &Connection) -> Option<String> {
+        let m = c.call_method(Some(PX), PX_BROWSER, Some(PX_IFACE), "GetUrl", &()).await.ok()?;
+        m.body().deserialize::<String>().ok()
+    }
+
     pub async fn codesys_override(c: &Connection) -> Option<bool> {
         let m = c.call_method(Some(PX), PX_BROWSER, Some(PX_IFACE), "GetCodesysAllowUrlOverride", &()).await.ok()?;
         m.body().deserialize::<bool>().ok()
@@ -397,13 +402,23 @@ async fn commuta(voluto: &'static str, azione: Azione) -> Option<&'static str> {
     let _ = bus::unit(&utente, "StopUnit", VIEWER).await; // se non gira, niente da fermare
     let url = std::env::var("SWS_VIEWER_URL").unwrap_or_else(|_| "http://127.0.0.1:8443".into());
     // Prima l'URL: il browser lo rilegge a ogni avvio.
+    let url_prima = bus::browser_url_attuale(&sistema).await;
     if let Err(e) = bus::browser_url(&sistema, &url).await {
         note.push(e);
     }
     if let Err(e) = bus::browser_abilitato(&sistema, true).await {
         note.push(e);
     }
-    if let Err(e) = bus::unit(&sistema, "StartUnit", BROWSER).await {
+    // **Il browser l'URL lo legge solo quando parte** (11-10-2026). Se sta già
+    // girando su un URL diverso — all'accensione il launcher lo avvia con
+    // quello salvato, che può essere quello che CODESYS ha scritto al giro
+    // prima — `StartUnit` non fa niente e lo schermo resta sulla pagina
+    // vecchia. Visto sul TC620 dopo aver spento `allow_url_override`: Cockpit
+    // a schermo con la configurazione già giusta. Si riavvia, come fa
+    // l'installer (regola polkit 17-chromium.rules).
+    let gia_attivo = bus::unit_attiva(&sistema, BROWSER).await;
+    let metodo = if browser_da_riavviare(gia_attivo, url_prima.as_deref(), &url) { "RestartUnit" } else { "StartUnit" };
+    if let Err(e) = bus::unit(&sistema, metodo, BROWSER).await {
         note.push(e);
     }
     // Un istante per fallire davvero: StartUnit torna quando il servizio è
@@ -422,8 +437,24 @@ async fn commuta(voluto: &'static str, azione: Azione) -> Option<&'static str> {
     Some(WEB)
 }
 
+/// Il browser va riavviato (e non solo avviato)? Solo se sta già girando su
+/// un URL diverso: riavviarlo quando mostra già la pagina giusta farebbe solo
+/// lampeggiare lo schermo.
+fn browser_da_riavviare(gia_attivo: bool, url_prima: Option<&str>, url: &str) -> bool {
+    gia_attivo && url_prima != Some(url)
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn il_browser_si_riavvia_solo_se_mostra_un_altro_url() {
+        let sws = "http://127.0.0.1:8443";
+        assert!(browser_da_riavviare(true, Some("http://127.0.0.1:9443"), sws), "Cockpit a schermo");
+        assert!(!browser_da_riavviare(true, Some(sws), sws), "già giusto: niente lampeggio");
+        assert!(!browser_da_riavviare(false, Some("http://127.0.0.1:9443"), sws), "spento: basta avviarlo");
+        assert!(browser_da_riavviare(true, None, sws), "URL illeggibile: meglio riavviare");
+    }
+
     #[test]
     fn la_sorveglianza_riavvia_il_viewer_solo_dopo_due_giri_spento_con_lvgl() {
         // Web: il viewer spento è giusto.

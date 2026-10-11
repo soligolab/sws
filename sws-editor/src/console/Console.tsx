@@ -12,6 +12,7 @@ import { Marchi } from "./Marchi";
 import { Posta } from "./Posta";
 import { Installazione } from "./Installazione";
 import { Risorse } from "./Risorse";
+import { Pannelli } from "./Pannelli";
 
 /**
  * La console di amministrazione della piattaforma.
@@ -26,13 +27,13 @@ import { Risorse } from "./Risorse";
  * stesso `localStorage["sws.auth"]`, quindi chi è già entrato nell'IDE si
  * ritrova dentro senza riautenticarsi.
  */
-type Scheda = "risorse" | "aziende" | "marchi" | "persone" | "posta" | "installazione";
+type Scheda = "risorse" | "aziende" | "marchi" | "persone" | "posta" | "pannelli" | "installazione";
 
 /** Le sezioni che non sono di nessuna azienda, e restano alla piattaforma.
  *
  *  Per gli altri **non compaiono**, invece di comparire e dare 403: un
  *  comando che non puo riuscire non si offre. */
-const SOLO_PIATTAFORMA: Scheda[] = ["posta", "installazione"];
+const SOLO_PIATTAFORMA: Scheda[] = ["posta", "pannelli", "installazione"];
 
 export function Console() {
   const { t } = useTranslation();
@@ -78,6 +79,12 @@ export function Console() {
       .then((me) => setPiattaforma(me.amministratore_piattaforma === true))
       .catch(() => setPiattaforma(false));
   }, [authToken]);
+  // I pannelli esistono solo sul gateway (11-10-2026): altrove la sezione
+  // non c'è, invece di comparire vuota.
+  const [gateway, setGateway] = useState(false);
+  useEffect(() => {
+    api.identitaStato().then((st) => setGateway(!!st.gateway)).catch(() => setGateway(false));
+  }, []);
 
   if (!authToken) return <LoginScreen />;
 
@@ -129,8 +136,9 @@ export function Console() {
           </div>
         </div>
         <nav style={{ padding: 8, display: "flex", flexDirection: "column", gap: 2 }}>
-          {(["risorse", "aziende", "marchi", "persone", "posta", "installazione"] as Scheda[])
+          {(["risorse", "aziende", "marchi", "persone", "posta", "pannelli", "installazione"] as Scheda[])
             .filter((s) => piattaforma || !SOLO_PIATTAFORMA.includes(s))
+            .filter((s) => s !== "pannelli" || gateway)
             .map((s) => (
             <button
               key={s}
@@ -155,6 +163,7 @@ export function Console() {
         {scheda === "marchi" && <Marchi piattaforma={piattaforma} />}
         {scheda === "persone" && <Persone />}
         {scheda === "posta" && <Posta />}
+        {scheda === "pannelli" && <Pannelli />}
         {scheda === "installazione" && <Installazione />}
       </main>
       </div>

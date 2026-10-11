@@ -24,7 +24,7 @@ use sha2::{Digest, Sha256};
 pub const INTESTAZIONE: &str = "x-sws-figlio";
 
 /// HMAC-SHA256 (RFC 2104), esadecimale.
-fn hmac_sha256_hex(chiave: &[u8], messaggio: &[u8]) -> String {
+pub(crate) fn hmac_sha256_hex(chiave: &[u8], messaggio: &[u8]) -> String {
     const BLOCCO: usize = 64;
     let mut k = [0u8; BLOCCO];
     if chiave.len() > BLOCCO {
@@ -95,7 +95,12 @@ pub fn origine_della_richiesta(h: &axum::http::HeaderMap) -> Option<String> {
 /// cui arriva il lavoro, e solo sui pannelli (`/dev/…`) o sul loro elenco.
 pub fn va_aggiunta(url: &str, origine: &str) -> bool {
     url.strip_prefix(origine)
-        .is_some_and(|resto| resto.starts_with("/dev/") || resto == "/api/pannelli")
+        .is_some_and(|resto| {
+            resto.starts_with("/dev/")
+                || resto == "/api/pannelli"
+                || resto == "/api/pannelli/abbina"
+                || (resto.starts_with("/api/pannelli/") && resto.ends_with("/rinomina"))
+        })
 }
 
 /// Il lato del container: la sua chiave (dall'ambiente) e l'origine pubblica
@@ -182,6 +187,8 @@ mod tests {
         assert!(!va_aggiunta("https://sws.soligo.net/p/acme/x/api", o));
         assert!(va_aggiunta("https://sws.soligo.net/api/pannelli", o));
         assert!(!va_aggiunta("https://sws.soligo.net/api/pannelli/x", o));
+        assert!(va_aggiunta("https://sws.soligo.net/api/pannelli/abbina", o));
+        assert!(va_aggiunta("https://sws.soligo.net/api/pannelli/tc620/rinomina", o));
         assert!(!va_aggiunta("https://sws.soligo.net.evil.com/dev/x", o));
         assert!(!va_aggiunta("https://192.168.1.10:8444/dev/x", o));
     }

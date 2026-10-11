@@ -74,6 +74,69 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — fetta E: dal cloud col solo codice, utenti col primo progetto (2026-10-11, notte)
+
+- Scelte del maintainer: niente utente all'abbinamento dal cloud; il gateway vale da Admin **solo finché il pannello
+  non ha utenti** (firma `X-SWS-Dal-Gateway`); primo deploy senza un Admin nel progetto **fermato** (428
+  `serve-admin`); dopo l'abbinamento riepilogo + Rinomina. Piano `docs/archive/2026-10-11-abbinamento-e-primo-accesso.md`
+  § «Fetta E».
+- **In servizio**: VPS `1599b500-amd64`, TC620 `47e2e571-arm64`. `tc620-casa` tolto da `pannelli.yaml` (copia in
+  `pannelli.yaml.prima-fetta-e`): il TC620 entra solo tramite l'abbinamento.
+- **Provato dal vivo** (da Claude, via intestazioni del gateway verso il container del progetto): abbinamento col solo
+  codice → riepilogo (runtime, progetto `f0b`, senza utenti) → Rinomina `tc620-casa-2` → `tc620-casa` → «Connetti» dal
+  cloud senza credenziali → deploy del progetto `dimostrazione` (senza utenti) fermato con `serve-admin` → firma falsa
+  dalla LAN 401. Due difetti trovati e corretti: `username: null` dal gateway (422), Rinomina assente nel router di
+  `--no-admin` (404).
+- **TC620 riportato in attesa** per il giro del maintainer: codice `KE31-H763-DE5P-KBDT`. Riabbinato alla stessa
+  azienda torna `tc620-casa` (stessa riga, seriale).
+- **Giro del maintainer**: «Abbina un pannello» col codice → riepilogo → «Usa in Connetti» → aggiungere un Admin al
+  progetto (scheda Utenti) → deploy → pagina/schermo passano da «in attesa del primo progetto» a «Pannello abbinato» e
+  poi alla pagina; da lì «Connetti» chiede le credenziali del progetto.
+- Non ancora visto dal vivo: le schermate (pagina locale e LVGL) di «in attesa del primo progetto» — coperte da vitest
+  e dal codice LVGL già provato con `--istantanea` per la schermata del codice.
+
+## ▶ Riprendere da qui — abbinamento completo (A+B+C+D), pronto per il collaudo (2026-10-11, sera)
+
+**Rami aperti, annidati**: `fix/tls-ca-prima-del-pin` → `feat/abbinamento-pannello` (piano
+`docs/archive/2026-10-11-abbinamento-e-primo-accesso.md`, tutte e quattro le fette). Niente pushato su git. Il merge
+aspetta il collaudo completo del maintainer (sua richiesta: «effettuerò un test completo al mio rientro»).
+
+**In servizio**: VPS su `f10c0fc1-amd64`, TC620 su `f10c0fc1-arm64` (`rc-arm64`).
+
+**Provato dal vivo da Claude (11-10)**: TC620 in attesa → sala d'attesa del gateway col seriale di fabbrica
+(`seriale:P052600C00292600014`) → «Abbina un pannello» del container del progetto → gateway → tunnel → pannello:
+nato l'Admin, nome `tc620-a-p3-c6-07aff9`, azienda `-`, ricollegato col nome nuovo, in «Trova runtime», login
+attraverso il tunnel 200. Poi **riportato allo stato «appena installato»** (tolti `utenti_dispositivo.yaml` e
+`abbinamento.json`): adesso mostra il codice `GXCR-65FM-4Y6C-T1H6`. La riga sul gateway (`pannelli_abbinati.json`)
+è rimasta apposta: riabbinandolo alla stessa azienda rientra sulla stessa riga (riconoscimento dopo un reset).
+
+**Il TC620 per la fetta D**: nella sua unit `SWS_TUNNEL_NOME` e `SWS_TUNNEL_TOKEN` sono **commentati** (copia
+della unit di prima in `~/sws-runtime.container.prima-fetta-d`), quindi chiama il gateway dell'immagine e aspetta
+l'abbinamento. `tc620-casa` in `pannelli.yaml` resta dichiarato ma nessuno lo usa più.
+
+**Traccia del collaudo** (il codice è sullo schermo, nella pagina `:8443`/`:8444` e nel log):
+1. schermo del TC620 (web): pagina col codice — se mostra la vecchia, ricaricare il browser del pannello;
+2. IDE su `sws.soligo.net` (prima il login, che stamattina non andava) → Configurazione → Connessione →
+   «Abbina un pannello»: codice, utente e password del nuovo Admin → «Connetti» → deploy, tag dal vivo;
+3. console → Pannelli: la riga, il pallino «collegato», e il ban (che lo stacca e lo rifiuta anche se riabbinato);
+4. in alternativa, in LAN: «Connetti» verso `http://tc620-a-p3-c6-07aff9.local:8444` col codice.
+
+**Scoperte strada facendo**: podman maschera `/sys/firmware` nel container → il seriale si legge da
+`/host/devicetree` (montato dall'installer); il codice dal cloud si consumava due volte (corretto, `f10c0fc1`).
+
+## ▶ Riprendere da qui — abbinamento col codice, fette A+B+C sul TC620 (2026-10-11)
+
+- Rami aperti, annidati: `fix/tls-ca-prima-del-pin` (verifica pubblica prima dell'impronta, provata dal vivo) →
+  `feat/abbinamento-pannello` (piano `docs/archive/2026-10-11-abbinamento-e-primo-accesso.md`, A+B+C fatte).
+- **TC620 di casa su `392d2542-arm64`**: il progetto `f0b` non ha utenti, quindi dopo l'aggiornamento il pannello è
+  **in attesa** (codice nel log, API 401) — il caso «pannello in servizio aggiornato». Tunnel collegato.
+- **VPS su `392d2542-amd64`**: dall'IDE cloud «Connetti» verso `https://sws.soligo.net/dev/tc620-casa` chiede il
+  codice; attraverso il tunnel il pannello risponde in attesa.
+- **Da fare**: collaudo del maintainer (schermo del TC620 — forse va ricaricato il browser —, abbinamento dalla pagina
+  o da «Connetti»); poi fetta D (abbinamento dal cloud senza dichiarare il pannello a mano), merge dei due rami.
+- Il login del maintainer su `sws.soligo.net` non andava stamattina: il servizio risponde normale (401 credenziali,
+  nessun blocco); da riprovare a mano, password scritta senza autocompletamento.
+
 ## ▶ Riprendere da qui — deploy dal cloud al TC620 funziona (2026-10-10, sera)
 
 - **Il TC620 di casa, resettato e installato da Cockpit come un cliente**, è nel tunnel come `tc620-casa`.
@@ -120,7 +183,7 @@ Verde: `cargo check`, 513 test `sws-web`, `pnpm build`, **42** guardie statiche.
 
 | | |
 |---|---|
-| `https://sws.soligo.net` | il gateway, immagine `a4ff1c06-amd64` (dall'11-10). Il maintainer ha fatto il primo accesso e ha un progetto aperto |
+| `https://sws.soligo.net` | il gateway, immagine `1599b500-amd64` (dall'11-10 notte, ramo abbinamento). Il maintainer ha fatto il primo accesso e ha un progetto aperto |
 | `https://tunnel.soligo.net/tunnel/v1` | il tunnel dei pannelli, stesso container, router Traefik suo |
 | `~/sws-vps/gateway-config/pannelli.yaml` | dichiara `tc620-casa`, azienda `-` (la radice: nessuna azienda esiste ancora) |
 | ghcr | `rc-amd64` = `a146d6f7`, `rc-arm64` = `983fbcfa` |

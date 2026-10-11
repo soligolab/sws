@@ -763,6 +763,14 @@ async function eseguiDeploy(completo: boolean, confermato = false, sostituzioneC
         conferma?: string; utenti_dispositivo?: string[]; progetto?: string;
         progetti?: { nome: string; storico_byte?: number | null }[];
       };
+      // Il pannello non ha utenti e il progetto non porta un Admin (fetta E):
+      // non si conferma, si corregge il progetto.
+      if (d.conferma === "serve-admin") {
+        const { gestisciServeAdmin } = await import("@/deployServeAdmin");
+        gestisciServeAdmin(d);
+        useAppStore.setState({ remoteDeployStatus: "error", remoteDeployErrore: i18n.t("abbinamento.serveAdminBreve") });
+        return;
+      }
       // Il deploy cancellerebbe progetti con un altro nome: si chiede, e
       // annullando non si tocca niente.
       if (d.conferma === "sostituisce-progetti" && !sostituzioneConfermata) {

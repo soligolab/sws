@@ -67,6 +67,19 @@ esito() {
 #                                        `Content-Security-Policy` +
 #                                        `nosniff`: un SVG caricato da terzi
 #                                        non deve poter eseguire script
+#   /api/abbinamento                     (11-10-2026) dice al pannello in
+#                                        attesa di mostrare il codice; il
+#                                        codice esce SOLO in attesa, cioè
+#                                        quando non c'è nessun utente
+#   /api/abbinamento/rivendica           il primo accesso del pannello:
+#                                        protetta dal codice (80 bit, limite
+#                                        ai tentativi), si chiude da sé appena
+#                                        un utente esiste
+#   /api/abbinamento/nome                (fetta E) la Rinomina dal cloud: senza
+#                                        sessione ma NON aperta — la protegge
+#                                        la firma del gateway (HMAC del token
+#                                        del tunnel), che conoscono solo
+#                                        gateway e pannello
 ATTESE=(
     "/health"
     "/metrics"
@@ -76,6 +89,9 @@ ATTESE=(
     "/api/identita/stato"
     "/api/identita/primo-amministratore"
     "/branding/:marchio/:file"
+    "/api/abbinamento"
+    "/api/abbinamento/rivendica"
+    "/api/abbinamento/nome"
 )
 
 echo "── Rotte raggiungibili senza credenziali ──"

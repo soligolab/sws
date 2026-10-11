@@ -107,6 +107,7 @@ mod prove_cartella_stato {
     }
 }
 
+mod abbinamento;
 mod aggiornamento;
 mod barre;
 mod client;
@@ -357,8 +358,28 @@ fn main() -> anyhow::Result<()> {
     // WS in background (avviato dentro spawn_tag_subscription) deve restare
     // vivo per tutta la finestra, non solo per la fetch iniziale.
     let rt = tokio::runtime::Runtime::new()?;
+    // Il pannello in attesa di abbinamento (11-10-2026): niente utenti, quindi
+    // pagine, tag e allarmi rispondono 401. Si mostra il codice al loro posto
+    // e si aspetta; ad abbinamento fatto il viewer riparte da sé.
+    let in_attesa = abbinamento::da_mostrare(&rt.block_on(abbinamento::stato(&args.base_url)));
+    if let Some(schermata) = in_attesa.clone() {
+        abbinamento::avvia_attesa(rt.handle().clone(), args.base_url.clone(), schermata);
+    }
     let (page, shared_tags, reload_flag, shared_alarms, lang_table, auth_required) =
         rt.block_on(async {
+            if let Some(schermata) = &in_attesa {
+                eprintln!("[abbinamento] pannello in attesa: {schermata:?}");
+                return anyhow::Ok((
+                    abbinamento::pagina_per(schermata)?,
+                    std::sync::Arc::new(std::sync::Mutex::new(client::TagSnapshot::default())),
+                    std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+                    std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+                    model::LanguageTable::default(),
+                    // Nessun login da offrire: in attesa non esiste nessuno con
+                    // cui entrare, e il pulsante sarebbe un vicolo cieco.
+                    false,
+                ));
+            }
             let page = match args.page.as_deref() {
                 Some(nome) => client::fetch_page(&args.base_url, nome).await?,
                 None => client::resolve_start_page(&args.base_url).await?,
