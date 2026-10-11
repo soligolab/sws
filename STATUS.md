@@ -99,10 +99,10 @@
    pannelli non cambia niente (la 8443 risponde).
 
 **Ancora aperto:**
-- **Pinning TLS verso `sws.soligo.net`**: il container del progetto ha memorizzato l'impronta del certificato
-  Let's Encrypt al primo «Connetti». Let's Encrypt lo rinnova ogni ~60 giorni → «certificato cambiato» a ogni
-  rinnovo. Per l'origine del gateway (certificato pubblico valido) andrebbe usata la verifica normale delle CA.
-  Probabile seme/decisione.
+- ~~Pinning TLS verso `sws.soligo.net`~~ — ramo `fix/tls-ca-prima-del-pin` (`a4ff1c06`, VPS su `a4ff1c06-amd64`):
+  prima la verifica con le autorità pubbliche, poi l'impronta. Provato dal vivo con un'impronta falsa piantata nel
+  container: la chiamata a `sws.soligo.net` passa e l'archivio resta com'era. **Da confermare dal maintainer, poi
+  merge.**
 - Merge di `feat/4b-deploy-dal-cloud` (con 4a sotto) quando il maintainer lo decide; i commit del ramo non sono
   pushati su origin.
 
@@ -120,7 +120,7 @@ Verde: `cargo check`, 513 test `sws-web`, `pnpm build`, **42** guardie statiche.
 
 | | |
 |---|---|
-| `https://sws.soligo.net` | il gateway, immagine `ff2d183f-amd64` (dal 10-10 notte). Il maintainer ha fatto il primo accesso e ha un progetto aperto |
+| `https://sws.soligo.net` | il gateway, immagine `a4ff1c06-amd64` (dall'11-10). Il maintainer ha fatto il primo accesso e ha un progetto aperto |
 | `https://tunnel.soligo.net/tunnel/v1` | il tunnel dei pannelli, stesso container, router Traefik suo |
 | `~/sws-vps/gateway-config/pannelli.yaml` | dichiara `tc620-casa`, azienda `-` (la radice: nessuna azienda esiste ancora) |
 | ghcr | `rc-amd64` = `a146d6f7`, `rc-arm64` = `983fbcfa` |

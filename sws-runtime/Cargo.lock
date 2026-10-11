@@ -3727,6 +3727,7 @@ name = "sws-core"
 version = "2.13.0-rc.1"
 dependencies = [
  "anyhow",
+ "rcgen",
  "rustls",
  "serde",
  "serde_json",
@@ -3737,6 +3738,7 @@ dependencies = [
  "tokio-util",
  "tracing",
  "unicode-properties",
+ "webpki-roots 1.0.9",
 ]
 
 [[package]]

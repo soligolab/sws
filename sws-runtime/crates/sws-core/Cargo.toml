@@ -16,8 +16,10 @@ anyhow.workspace     = true
 # workspace, sha2 pura Rust, nessun peso nuovo per la cross-compilazione.
 rustls.workspace     = true
 sha2.workspace       = true
+webpki-roots.workspace = true
 unicode-properties.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
+rcgen.workspace    = true
 tokio = { workspace = true, features = ["test-util"] }

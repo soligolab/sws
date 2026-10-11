@@ -33,7 +33,7 @@ After=network-online.target
 # progetti devono essere la stessa versione, e `AutoUpdate=registry` su un tag
 # mobile li farebbe divergere a meta' aggiornamento. Si aggiorna a mano
 # cambiando questa riga e --gateway-immagine insieme.
-Image=ghcr.io/soligolab/sws-runtime:ff2d183f-amd64
+Image=ghcr.io/soligolab/sws-runtime:a4ff1c06-amd64
 ContainerName=sws-gateway
 Network=sws-rete.network
 
@@ -51,7 +51,7 @@ Exec=--config /var/sws/config \
      --www /var/sws/www \
      --admin-port 8444 \
      --gateway \
-     --gateway-immagine ghcr.io/soligolab/sws-runtime:ff2d183f-amd64 \
+     --gateway-immagine ghcr.io/soligolab/sws-runtime:a4ff1c06-amd64 \
      --gateway-rete sws-rete
 
 [Service]

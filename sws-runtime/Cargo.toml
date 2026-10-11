@@ -76,6 +76,9 @@ serde_json  = "1"
 rustls        = { version = "0.23", features = ["ring"] }
 tokio-rustls  = "0.26"
 rcgen         = "0.13"
+# Le autorità pubbliche per `pin_tls` (10-10-2026): solo dati, nessun codice
+# nativo — niente peso per la cross-compilazione.
+webpki-roots  = "1"
 hyper          = { version = "1",   features = ["http1", "http2"] }
 hyper-util     = { version = "0.1", features = ["tokio", "server", "server-auto"] }
 # Per parlare con il socket di podman dal gateway: HTTP/1.1 su un socket unix.

@@ -135,6 +135,12 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   progetto; sui pannelli resta com'era, perché lì `admin` esiste davvero.
 
 ### Security
+- **Un certificato pubblico valido passa senza impronta; l'impronta resta per gli autofirmati.** «Connetti», il
+  relay dei websocket, MQTT e il viewer LVGL si fidavano solo per impronta memorizzata al primo contatto (Q49). Con
+  il gateway nel cloud (`sws.soligo.net`, Let's Encrypt) ogni rinnovo del certificato, ogni ~60 giorni, sarebbe
+  stato un «certificato cambiato». Ora si prova prima la verifica dei browser (autorità pubbliche di `webpki-roots`,
+  nome compreso); solo se fallisce — sempre, per un pannello in LAN — vale l'impronta come prima, rifiuto del
+  cambio incluso. Un'impronta già memorizzata per un host con certificato pubblico non conta più e non si tocca.
 - **Chi conosce il nome non apre più il progetto di un'altra azienda.** Il filtro per appartenenza viveva solo
   nell'elenco, e un elenco non è una guardia: `open`, `rename`, `duplicate` e `delete` prendevano un nome e lo
   risolvevano per conto loro, senza guardare a chi appartenesse. Ora passano tutte da un risolutore unico che
