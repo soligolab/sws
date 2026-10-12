@@ -180,6 +180,41 @@ il motivo dove è servito.
   obblighi da fabbricante. Il vincolo da rispettare da subito è architetturale, non normativo: il cloud deve
   restare *un modo di far girare l'IDE*, non un prodotto diverso.
 
+## 8. Stato al 12-10-2026 — rimisurato sul codice
+
+Rilettura dopo l'abbinamento del pannello (archivio `2026-10-11-abbinamento-e-primo-accesso.md`) e la
+gestione utenti dell'IDE. Misurato sul codice, non dedotto dal documento.
+
+**Chiuso o quasi**
+- Primo accesso del pannello (P1-4, requisito b/d): un pannello senza utenti è **chiuso** e si apre col codice di
+  abbinamento; niente Admin sintetico (resta solo `--senza-autenticazione`, sviluppo su loopback).
+- IDE con autenticazione (utenti dell'installazione) e gateway nel cloud che fa login e instradamento.
+- Rotte pre-auth come **lista bianca** dichiarata (`check_rotte_preauth.sh`). Residuo: `/metrics`.
+- MQTT: verifica del broker di default (CA o impronta TOFU); `insecure_skip_verify` solo esplicito.
+- Aggiornamenti automatici accesi di default (`AutoUpdate=registry`), istantanea e ritorno.
+- RestrictedPython nell'immagine.
+
+**Resta, nell'ordine proposto**
+
+*P0 — processo, art. 14 già applicabile*
+1. Contatti di sicurezza veri: `SECURITY.md` ha ancora `security@soligolab.example` e chiave PGP «placeholder»,
+   pagina avvisi segnaposto, nessun `security.txt`; periodo di supporto (5 anni dall'ultima release) da scrivere lì.
+2. Procedura art. 14 (24 h / 72 h / 14 gg): referente, dati, registrazione alla piattaforma ENISA.
+
+*P1 — sicuro per default, nel codice*
+3. **TLS acceso di default sul pannello** (oggi «plain HTTP mode» finché non si genera un certificato): la lacuna
+   tecnica più grande. Va disegnato con installer, «Connetti» e pinning (sessione di plan prima del codice).
+4. OPC-UA: `trust_all_certs` di default `true` (`sws-core/src/project.rs`) → `false` con fiducia esplicita.
+5. `/metrics` autenticato o solo su loopback.
+6. Reset di fabbrica dei dati (requisito m): progetti, storico, utenti, segreti, certificati.
+7. Sandbox Python obbligatoria: senza RestrictedPython gli script non partono (verificare il comportamento attuale).
+
+*P2 — catena di fornitura e documentazione*
+8. Firma delle immagini (cosign) e verifica sul pannello: nessuna delle due c'è.
+9. SBOM di prodotto per release; scansione dell'immagine in CI (il job Trivy è commentato, `ci.yml`).
+10. Valutazione del rischio, fascicolo tecnico (Allegato VII), capitolo «Sicurezza» del manuale.
+11. Header HTTP di sicurezza, limiti di richieste/dimensione sulle scritture, D-Bus ristretto, fuzzing dei parser.
+
 ## Fonti
 
 - Regolamento (UE) 2024/2847 (Cyber Resilience Act), GU L del 20-11-2024: <https://eur-lex.europa.eu/eli/reg/2024/2847/oj/eng>

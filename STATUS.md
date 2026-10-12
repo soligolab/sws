@@ -82,6 +82,12 @@
   progetto del maintainer e l'utente `admin` (password di prova: da cambiare).
 - **Prossimo passo**: immagine arm64 da `main` e collaudo sul TC620 di colore e assegnazioni (in particolare il
   ridisegno LVGL dello sfondo a un cambio della variabile, non visibile con `--istantanea`); poi archiviare il piano.
+- **CRA rimisurato il 12-10** (`docs/plans/2026-10-05-cra-gap-analysis.md` § 8): chiusi primo accesso, IDE
+  autenticato, lista bianca pre-auth, MQTT verificato, auto-update di default. Restano: **P0** contatti veri in
+  `SECURITY.md` + `security.txt` + procedura art. 14 (già in vigore); **P1** TLS di default sul pannello (sessione
+  di plan), OPC-UA `trust_all_certs` → `false`, `/metrics`, reset di fabbrica, sandbox Python obbligatoria; **P2**
+  firma immagini, SBOM, Trivy, valutazione del rischio. Proposta: P0 subito, poi plan del TLS di default.
+- Progetti locali copiati sul VPS e **verificati** (13 progetti, stessi file e byte) in `~/sws-vps/progetti/`.
 - Colore e assegnazioni (piano `docs/plans/2026-10-11-colore-e-assegnazioni.md`): tipo `color`,
   bottone con assegnazioni, sfondo pagina da variabile. Provato dal vivo (runtime di prova + browser senza schermo +
   `--istantanea` LVGL: primo disegno sì, il tocco produce le due scritture). **Non** visto: il ridisegno LVGL a un
@@ -89,7 +95,6 @@
 - Lo sfondo di un **oggetto** si lega con `bindings.fill` (non `bg_color`).
 - `tests/avvisoAggiornamento.test.tsx` è instabile (una volta su tre rosso, senza modifiche): tempi del test, da
   sistemare a parte.
-- Copia dei progetti locali sul VPS: `rsync` mancava sul VPS; comandi dati al maintainer (installare rsync o tar+ssh).
 
 ## ▶ Riprendere da qui — fetta E: dal cloud col solo codice, utenti col primo progetto (2026-10-11, notte)
 
