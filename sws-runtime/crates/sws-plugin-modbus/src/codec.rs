@@ -126,6 +126,9 @@ pub fn decodifica(tipo: Option<&TipoScalare>, regs: &[u16], ordine: OrdineModbus
     let a8 = |b: &[u8]| [b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]];
     use TipoScalare as T;
     Ok(match tipo {
+        // Un colore (11-10-2026) non sta su un registro: il validatore lo
+        // rifiuta come tipo di una mappatura, qui lo si dice se ci arriva.
+        T::Colore => return Err("un colore non si legge da un registro".into()),
         T::Bool => TagValue::Bool(regs[0] != 0),
         T::I8 | T::I16 => TagValue::Int(i16::from_be_bytes(a2(&b)) as i64),
         T::U8 | T::U16 => TagValue::Int(u16::from_be_bytes(a2(&b)) as i64),
@@ -179,6 +182,7 @@ pub fn codifica(tipo: Option<&TipoScalare>, v: &TagValue, ordine: OrdineModbus, 
         if x < lo || x > hi { Err(fuori(x)) } else { Ok(x) }
     };
     let mut b: Vec<u8> = match tipo {
+        T::Colore => return Err("un colore non si scrive su un registro".into()),
         T::Bool => vec![0, if numero(v).ok_or("valore non booleano")? != 0.0 { 1 } else { 0 }],
         T::I8 => (int_in(i8::MIN as i64, i8::MAX as i64)? as i16).to_be_bytes().to_vec(),
         T::I16 => (int_in(i16::MIN as i64, i16::MAX as i64)? as i16).to_be_bytes().to_vec(),

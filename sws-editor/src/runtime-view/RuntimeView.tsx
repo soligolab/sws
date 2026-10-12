@@ -6,7 +6,7 @@ import { SvgCanvas } from "@/canvas/SvgCanvas";
 import { collectTagIds } from "@/runtime-view/collectTagIds";
 import { paginePerNavigazione } from "@/boot/tipi";
 import { viewerFitScale, effectiveSizeMode } from "@/pageLayout";
-import { resolvePageBackground } from "@/theme";
+import { sfondoPagina } from "@/theme";
 import { LoginScreen } from "@/components/LoginScreen";
 import { RecipePanel } from "@/components/RecipePanel";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -202,7 +202,9 @@ export function RuntimeView() {
   // serie dei grafici, celle grid e figli faceplate inclusi. Il filtro server
   // è esatto: un tag non raccolto qui riceve lo snapshot e poi si congela.
   const pageTagIds = useMemo(
-    () => collectTagIds(currentPage?.objects ?? [], faceplates),
+    // Lo sfondo da variabile (11-10-2026) è un uso della pagina, non di un oggetto.
+    () => [...collectTagIds(currentPage?.objects ?? [], faceplates),
+      ...(currentPage?.background_tag ? [currentPage.background_tag] : [])],
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [currentPageId, pages, faceplates],
   );
@@ -477,7 +479,7 @@ export function RuntimeView() {
         <SvgCanvas
           objects={objects}
           tagValues={tagValues}
-          background={resolvePageBackground(currentPage?.background, currentPage?.background_dark, themeMode)}
+          background={sfondoPagina(currentPage, themeMode, tagValues)}
           customSymbols={customSymbols}
           faceplates={faceplates}
           pageWidth={currentPage?.width}

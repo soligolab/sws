@@ -774,6 +774,20 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
         // scala né storico — e l'editor ora crea i tag al salvataggio, quindi
         // dall'IDE non dovrebbe più capitare; capita da YAML a mano o da git.
         for (percorso, tag) in mappature_tag(src) {
+            // Un colore (11-10-2026) è un testo `#rrggbb`: su MQTT viaggia come
+            // testo, su un registro o un nodo di un PLC non ha un posto.
+            if !matches!(src, SourceDef::Mqtt(_))
+                && per_id.get(tag).is_some_and(|t| {
+                    matches!(sws_core::TipoScalare::parse(&t.data_type), Some(sws_core::TipoScalare::Colore))
+                })
+            {
+                out.push(Finding::err(
+                    format!("project.sources[{id}].{percorso}"),
+                    format!("la variabile `{tag}` è un colore: non si mappa su un protocollo di campo"),
+                    "un colore vive nelle variabili interne (o in MQTT, come testo): \
+                     togli la mappatura o cambia il tipo della variabile",
+                ));
+            }
             if !tag.is_empty() && !per_id.contains_key(tag) {
                 out.push(Finding::warn(
                     format!("project.sources[{id}].{percorso}"),
@@ -1028,6 +1042,30 @@ pub fn semantic(project: &Project, pages: &[SynopticPage]) -> Vec<Finding> {
                 &mqtt_per_tag,
             );
         }
+        // Lo sfondo da variabile (11-10-2026): la variabile esiste ed è un colore.
+        if let Some(tag) = p.background_tag.as_deref().filter(|t| !t.trim().is_empty()) {
+            match per_id.get(tag) {
+                None => out.push(Finding::err(
+                    format!("pages[{}].background_tag", p.name),
+                    format!("la variabile `{tag}` non è dichiarata"),
+                    "dichiarala come `color`, oppure correggi il nome",
+                )),
+                Some(td)
+                    if !matches!(
+                        sws_core::TipoScalare::parse(&td.data_type),
+                        Some(sws_core::TipoScalare::Colore)
+                    ) =>
+                {
+                    out.push(Finding::warn(
+                        format!("pages[{}].background_tag", p.name),
+                        format!("la variabile `{tag}` è `{}`, non `color`", td.data_type),
+                        "lo sfondo cambia solo quando il valore è un colore #rrggbb: \
+                         dichiarala `color`",
+                    ))
+                }
+                Some(_) => {}
+            }
+        }
         // Rischio R8 — e la ragione per cui questo avviso esiste. Rimpicciolire
         // una pagina, o aggiornare un progetto disegnato quando il fuori pagina
         // non voleva dire niente, disabilita in silenzio tutto quello che resta
@@ -1253,6 +1291,36 @@ fn controlla_oggetto(
                     "{msg} ma il tag `{}` è dichiarato `{}`",
                     td.id, tipo_scrittura
                 ),
+                atteso_per(tipo_scrittura),
+            ));
+        }
+    }
+
+    // Le assegnazioni di un bottone (11-10-2026): ogni variabile esiste e ogni
+    // valore sta nel suo tipo — stessa regola di `write_value`, per riga.
+    for (i, a) in o.assegnazioni.iter().flatten().enumerate() {
+        let dove = format!("{base}.assegnazioni[{i}]");
+        if a.tag.trim().is_empty() {
+            out.push(Finding::err(
+                format!("{dove}.tag"),
+                "un'assegnazione senza variabile",
+                "scegli la variabile, oppure togli la riga",
+            ));
+            continue;
+        }
+        let Some(td) = tags.get(a.tag.as_str()).copied() else {
+            out.push(Finding::err(
+                format!("{dove}.tag"),
+                format!("la variabile `{}` non è dichiarata", a.tag),
+                "dichiarala in project.tags, oppure correggi il nome",
+            ));
+            continue;
+        };
+        let tipo_scrittura = td.write_data_type.as_deref().unwrap_or(&td.data_type);
+        if let Some(msg) = incompatibile(&a.valore, tipo_scrittura) {
+            out.push(Finding::err(
+                format!("{dove}.valore"),
+                format!("{msg} ma la variabile `{}` è dichiarata `{}`", td.id, tipo_scrittura),
                 atteso_per(tipo_scrittura),
             ));
         }
@@ -1530,6 +1598,7 @@ fn incompatibile(v: &Value, data_type: &str) -> Option<String> {
         Some(Categoria::Intero) | Some(Categoria::Tempo) => v.as_i64().is_some(),
         Some(Categoria::Reale) => v.is_number(),
         Some(Categoria::Testo) => v.is_string(),
+        Some(Categoria::Colore) => v.as_str().is_some_and(|c| sws_core::tipo::normalizza_colore(c).is_some()),
         None => true,
     };
     if ok {
@@ -1551,6 +1620,7 @@ fn atteso_per(data_type: &str) -> String {
             "scrivi i millisecondi UTC dall'epoca, un intero senza virgolette"
         }
         Some(Categoria::Reale) => "scrivi un numero senza virgolette",
+        Some(Categoria::Colore) => "scrivi un colore esadecimale, tra virgolette: '#1e293b'",
         _ => "scrivi una stringa",
     }
     .to_string()
@@ -1619,7 +1689,7 @@ fn controlli_modbus<'a>(src: &'a SourceDef, id: &'a str, porte_rtu: &mut HashMap
     for (dove, r) in righe {
         let formato = r.formato.as_deref().map(|f| (f, sws_core::TipoScalare::parse(f)));
         if let Some((f, t)) = &formato {
-            if !matches!(t, Some(t) if !matches!(t, sws_core::TipoScalare::Stringa { .. } | sws_core::TipoScalare::DateTime)) {
+            if !matches!(t, Some(t) if !matches!(t, sws_core::TipoScalare::Stringa { .. } | sws_core::TipoScalare::DateTime | sws_core::TipoScalare::Colore)) {
                 out.push(Finding::err(
                     format!("project.sources[{id}].{dove}.formato"),
                     format!("formato `{f}` non è un tipo numerico"),

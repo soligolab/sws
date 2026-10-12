@@ -19,6 +19,8 @@
 versioni:
   - versione: "2.13.0"
     voci:
+      - it: "Nuovo tipo di variabile «color» e bottoni che assegnano: un tocco può scrivere più variabili, per esempio cambiare il colore di sfondo della pagina."
+        en: "New «color» variable type and assigning buttons: one tap can write several variables, for example change the page background colour."
       - it: "Se un salvataggio della configurazione viene rifiutato ora lo dice: prima spariva in silenzio e sembrava riuscito."
         en: "If a configuration save is rejected it now says so: before it vanished silently and looked successful."
       - it: "Una variabile intera resta intera: un generatore d'onda su un tag u8 o i16 non mostra più valori con la virgola."

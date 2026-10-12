@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import { QDOT_BUILTIN_TYPES, SvgCanvas, normalizeFaceplateParams, type CanvasViewApi } from "@/canvas/SvgCanvas";
 import { PALETTE } from "@/canvas/TrendCanvas";
-import { resolvePageBackground } from "@/theme";
+import { resolvePageBackground, sfondoPagina } from "@/theme";
 import { EditorToolbar } from "@/editor/EditorToolbar";
 import { registraAggiunta } from "@/editor/azioniEditor";
 import { PageTabs } from "@/editor/PageTabs";
@@ -20,6 +20,7 @@ import { PageTabs } from "@/editor/PageTabs";
 const FunctionEditor = lazy(() =>
   import("@/editor/FunctionEditor").then((m) => ({ default: m.FunctionEditor })));
 import { TagInput } from "@/components/TagInput";
+import { EditorAssegnazioni } from "@/editor/EditorAssegnazioni";
 import { BindableInput } from "@/components/BindableInput";
 import { ImageBrowser } from "@/components/ImageBrowser";
 import { SYMBOL_LIST } from "@/symbols/library";
@@ -682,7 +683,7 @@ export function EditorShell() {
         <SvgCanvas
           objects={objects}
           tagValues={tagValues}
-          background={resolvePageBackground(currentPage?.background, currentPage?.background_dark, themeMode)}
+          background={sfondoPagina(currentPage, themeMode, tagValues)}
           selectedId={selectedId}
           selectedIds={selectedIds}
           gridSize={gridSize}
@@ -957,6 +958,7 @@ export function EditorShell() {
               name={currentPage?.name ?? ""}
               background={currentPage?.background ?? "#1a1a2e"}
               background_dark={currentPage?.background_dark}
+              background_tag={currentPage?.background_tag}
               width={currentPage?.width}
               height={currentPage?.height}
               auto_rotate_skip={currentPage?.auto_rotate_skip}
@@ -1757,6 +1759,7 @@ function PageProps({
   name,
   background,
   background_dark,
+  background_tag,
   width,
   height,
   auto_rotate_skip,
@@ -1780,6 +1783,7 @@ function PageProps({
   name: string;
   background: string;
   background_dark?: string;
+  background_tag?: string;
   width?: number;
   height?: number;
   auto_rotate_skip?: boolean;
@@ -1789,7 +1793,7 @@ function PageProps({
   /** T-52 — quanti oggetti di questa pagina stanno interamente fuori dal
    *  foglio, e quindi non verranno disegnati a runtime. */
   offPageCount: number;
-  onChange: (patch: Partial<{ name: string; background: string; background_dark: string | undefined; width: number | undefined; height: number | undefined; auto_rotate_skip: boolean | undefined; zones: string[] | undefined }>) => void;
+  onChange: (patch: Partial<{ name: string; background: string; background_dark: string | undefined; background_tag: string | undefined; width: number | undefined; height: number | undefined; auto_rotate_skip: boolean | undefined; zones: string[] | undefined }>) => void;
 }) {
   const { t } = useTranslation();
   const ro = !!locked; // read-only when the page is locked
@@ -1851,6 +1855,16 @@ function PageProps({
           />
         </div>
       </div>
+      )}
+      {!boot && (
+        <div>
+          <div style={LABEL}>{t("props.backgroundTag")}</div>
+          <TagInput style={INPUT} placeholder={t("props.backgroundTagPlaceholder")} value={background_tag ?? ""}
+            tipoSuggerito="color" onChange={(v) => onChange({ background_tag: v || undefined })} />
+          <div style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", marginTop: 2, lineHeight: 1.4 }}>
+            {t("props.backgroundTagHint")}
+          </div>
+        </div>
       )}
       {boot && pageId && <BootEnabledToggle pageId={pageId} />}
       {boot && pageId && <AnteprimaPng pageId={pageId} />}
@@ -3385,6 +3399,14 @@ export function ObjectProps({
             <>
               {field(t("props.label"), <BindableInput obj={obj} propName="label" onChange={onChange}>{textInput("label")}</BindableInput>)}
               {field(t("props.labelColor"), <BindableInput obj={obj} propName="color" onChange={onChange}>{colorInput("color")}</BindableInput>)}
+              {/* Le assegnazioni (11-10-2026): con almeno una, il clic fa
+                  quelle e la modalità di prima non serve — non si mostra, così
+                  nessun campo scrive un dato che il clic non userebbe. */}
+              {field(t("props.assegnazioni"),
+                <EditorAssegnazioni value={obj.assegnazioni}
+                  onChange={(assegnazioni) => onChange({ assegnazioni })} />
+              )}
+              {!obj.assegnazioni?.length && (<>
               {field(t("props.buttonMode"), (
                 <select style={{ ...INPUT, cursor: "pointer" }} value={obj.button_mode ?? "write"}
                   onChange={(e) => onChange({ button_mode: e.target.value === "write" ? undefined : e.target.value as SynopticObject["button_mode"] })}>
@@ -3431,6 +3453,7 @@ export function ObjectProps({
                   />
                 </BindableInput>
               )}
+              </>)}
               {field(t("props.builtinAction"),
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                   <select

@@ -393,6 +393,11 @@ export interface SynopticObject {
    *  toggle: inverte il valore corrente; set/reset: scrive true/false;
    *  increment/decrement: corrente ± step, clampato a min/max. */
   button_mode?: "write" | "momentary" | "toggle" | "set" | "reset" | "increment" | "decrement";
+  /** Assegnazioni del bottone (11-10-2026, piano colore-e-assegnazioni): se
+   *  non vuoto, il clic scrive ognuna di queste variabili col suo valore, in
+   *  ordine, **al posto di** `button_mode`/`write_value`. Una conferma sola
+   *  (`require_confirm`) per tutto il clic. */
+  assegnazioni?: Assegnazione[];
   /** Valore scritto al rilascio in modalità momentary (default false). */
   release_value?: string | number | boolean;
   /** Chiedi conferma prima di ogni scrittura da questo oggetto (F3.2). */
@@ -835,6 +840,9 @@ export interface SynopticPage {
   /** Background used when the active theme is dark. Falls back to `background`
    *  when unset, so pages saved before this field existed render unchanged. */
   background_dark?: string;
+  /** Sfondo da una variabile `color` (11-10-2026): vince su `background` e
+   *  `background_dark` finché il valore è un colore valido. */
+  background_tag?: string;
   /** Canvas design width in px. Undefined = fluid (fills the container). */
   width?: number;
   /** Canvas design height in px. Undefined = fluid (fills the container). */
@@ -881,9 +889,16 @@ export interface CustomSymbol {
  *  `tag/tipiScalari.ts` più gli alias storici `int` (= i64) e `float` (= f64),
  *  che i progetti esistenti scrivono davvero. `string(N)` è ammesso nel file
  *  ma non enumerabile qui. */
+/** «variabile = valore» di un bottone che assegna. Il valore segue il tipo
+ *  della variabile (un colore è `#rrggbb`). */
+export interface Assegnazione {
+  tag: string;
+  valore: string | number | boolean;
+}
+
 export type TagDataType =
   | "bool" | "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64"
-  | "f32" | "f64" | "string" | "datetime"
+  | "f32" | "f64" | "string" | "datetime" | "color"
   | "int" | "float";
 
 /** Binding avanzato di una proprietà (F2, piano SCADA-widgets).

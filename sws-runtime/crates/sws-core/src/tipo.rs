@@ -32,6 +32,8 @@ pub enum Categoria {
     Reale,
     Testo,
     Tempo,
+    /// `#rrggbb` / `#rrggbbaa` in una stringa (11-10-2026).
+    Colore,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -53,12 +55,34 @@ pub enum TipoScalare {
     },
     /// Millisecondi UTC dall'epoca, in un `TagValue::Int` (D7).
     DateTime,
+    /// Un colore, `#rrggbb` o `#rrggbbaa` minuscolo, in un `TagValue::Str`
+    /// (11-10-2026, piano `docs/plans/2026-10-11-colore-e-assegnazioni.md`).
+    /// Solo esadecimale: un nome come «rosso» che il web capisce e LVGL no
+    /// sarebbe un colore diverso da uno schermo all'altro.
+    Colore,
+}
+
+/// Un colore come lo scrive una persona → la forma canonica (`#rrggbb` o
+/// `#rrggbbaa`, minuscolo), o `None`. Accetta anche le forme corte `#rgb` e
+/// `#rgba`, che si espandono.
+pub fn normalizza_colore(s: &str) -> Option<String> {
+    let h = s.trim().strip_prefix('#')?;
+    if !h.chars().all(|c| c.is_ascii_hexdigit()) {
+        return None;
+    }
+    let h = h.to_ascii_lowercase();
+    let lungo = match h.len() {
+        3 | 4 => h.chars().flat_map(|c| [c, c]).collect::<String>(),
+        6 | 8 => h,
+        _ => return None,
+    };
+    Some(format!("#{lungo}"))
 }
 
 /// I nomi canonici, nell'ordine della fixture. Gli alias non stanno qui.
 pub const NOMI: &[&str] = &[
     "bool", "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "f32", "f64", "string",
-    "datetime",
+    "datetime", "color",
 ];
 
 impl TipoScalare {
@@ -81,6 +105,7 @@ impl TipoScalare {
             "f64" | "float" => Self::F64,
             "string" => Self::Stringa { max_len: None },
             "datetime" => Self::DateTime,
+            "color" => Self::Colore,
             _ => {
                 let dentro = n.strip_prefix("string(")?.strip_suffix(')')?;
                 let len: u32 = dentro.trim().parse().ok()?;
@@ -109,6 +134,7 @@ impl TipoScalare {
             Self::Stringa { max_len: None } => "string".into(),
             Self::Stringa { max_len: Some(n) } => format!("string({n})"),
             Self::DateTime => "datetime".into(),
+            Self::Colore => "color".into(),
         }
     }
 
@@ -126,6 +152,7 @@ impl TipoScalare {
             Self::F32 | Self::F64 => Categoria::Reale,
             Self::Stringa { .. } => Categoria::Testo,
             Self::DateTime => Categoria::Tempo,
+            Self::Colore => Categoria::Colore,
         }
     }
 
@@ -137,7 +164,7 @@ impl TipoScalare {
             Self::I16 | Self::U16 => 16,
             Self::I32 | Self::U32 | Self::F32 => 32,
             Self::I64 | Self::U64 | Self::F64 | Self::DateTime => 64,
-            Self::Stringa { .. } => return None,
+            Self::Stringa { .. } | Self::Colore => return None,
         })
     }
 
@@ -174,6 +201,7 @@ impl TipoScalare {
             Categoria::Intero | Categoria::Tempo => TagValue::Int(0),
             Categoria::Reale => TagValue::Float(0.0),
             Categoria::Testo => TagValue::Str(String::new()),
+            Categoria::Colore => TagValue::Str("#000000".into()),
         }
     }
 
@@ -224,6 +252,10 @@ impl TipoScalare {
             (Categoria::Reale, Str(s)) => match s.trim().parse::<f64>() {
                 Ok(f) if f.is_finite() => self.reale(f),
                 _ => Err(descrivi(&Str(s))),
+            },
+            (Categoria::Colore, Str(s)) => match normalizza_colore(&s) {
+                Some(c) => Ok(Str(c)),
+                None => Err(format!("{} non è un colore #rrggbb", descrivi(&Str(s)))),
             },
             (Categoria::Testo, Str(s)) => match self {
                 Self::Stringa { max_len: Some(n) } if s.chars().count() > *n as usize => {
@@ -306,6 +338,10 @@ impl TipoScalare {
             (Categoria::Reale, Str(s)) => match s.trim().parse::<f64>() {
                 Ok(f) => reale(f),
                 Err(_) => Lettura::Rifiutato(descrivi(&Str(s))),
+            },
+            (Categoria::Colore, Str(s)) => match normalizza_colore(&s) {
+                Some(c) => Lettura::Ok(Str(c)),
+                None => Lettura::Rifiutato(descrivi(&Str(s))),
             },
             (Categoria::Testo, v @ (Str(_) | Int(_) | Float(_) | Bool(_))) => {
                 let s = match v {
@@ -435,6 +471,7 @@ mod tests {
                 Categoria::Reale => "reale",
                 Categoria::Testo => "testo",
                 Categoria::Tempo => "tempo",
+                Categoria::Colore => "colore",
             };
             if cat != t.categoria {
                 rotti.push(format!(
@@ -481,6 +518,21 @@ mod tests {
             rotti.len(),
             rotti.join("\n")
         );
+    }
+
+    #[test]
+    fn i_colori_si_normalizzano() {
+        assert_eq!(normalizza_colore("#1E293B").as_deref(), Some("#1e293b"));
+        assert_eq!(normalizza_colore(" #abc ").as_deref(), Some("#aabbcc"));
+        assert_eq!(normalizza_colore("#abcd").as_deref(), Some("#aabbccdd"));
+        assert_eq!(normalizza_colore("#11223380").as_deref(), Some("#11223380"));
+        for no in ["rosso", "1e293b", "#12345", "#gggggg", "", "#"] {
+            assert_eq!(normalizza_colore(no), None, "{no}");
+        }
+        // In lettura un colore che arriva da MQTT si normalizza; il resto non entra.
+        let t = TipoScalare::Colore;
+        assert_eq!(t.converti_lettura(TagValue::Str("#ABC".into())), Lettura::Ok(TagValue::Str("#aabbcc".into())));
+        assert!(matches!(t.converti_lettura(TagValue::Int(1)), Lettura::Rifiutato(_)));
     }
 
     #[test]

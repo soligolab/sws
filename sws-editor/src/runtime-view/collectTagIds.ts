@@ -94,6 +94,9 @@ export function collectTagIds(
     for (const s of obj.bar_series ?? []) addIf(ids, s.tag);
     for (const s of obj.pie_slices ?? []) addIf(ids, s.tag);
     for (const c of obj.grid_cells ?? []) visitCell(ids, c, visit);
+    // Le assegnazioni di un bottone (11-10-2026): le variabili che scrive
+    // sono usi veri — l'IDE le crea al salvataggio e la ricerca le trova.
+    for (const a of obj.assegnazioni ?? []) addIf(ids, a.tag);
 
     if (obj.type === "faceplate" && obj.faceplate_id && !faceplateStack.includes(obj.faceplate_id)) {
       const def = faceplates.find((f) => f.id === obj.faceplate_id);

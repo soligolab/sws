@@ -18,6 +18,11 @@ pub struct SynopticPage {
     /// audit, not from a specific bug report.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub background_dark: Option<String>,
+    /// Sfondo da una variabile `color` (11-10-2026, piano
+    /// colore-e-assegnazioni): vince su `background`/`background_dark` finché
+    /// il valore è un colore valido.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub background_tag: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub width: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -45,6 +50,13 @@ pub struct SynopticPage {
     /// silenzio** al round-trip: per questo sta nel mirror.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub kind: Option<String>,
+}
+
+/// «variabile = valore» di un bottone che assegna (11-10-2026).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Assegnazione {
+    pub tag: String,
+    pub valore: Value,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -115,6 +127,12 @@ pub struct SynopticObject {
     // F3 — pipeline di comando
     #[serde(skip_serializing_if = "Option::is_none")]
     pub button_mode: Option<String>,
+    /// Assegnazioni del bottone (11-10-2026, piano colore-e-assegnazioni):
+    /// `[{ tag, valore }]`, scritte in ordine al clic al posto di
+    /// `write_value`. Opaco qui come gli altri valori da scrivere: lo leggono
+    /// il viewer web e LVGL, lo controlla il validatore.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub assegnazioni: Option<Vec<Assegnazione>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub release_value: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -827,5 +845,23 @@ mod tests_fuori_pagina {
         let agganciata = r#"{"id":"p1","type":"pipe","x":0,"y":0,
             "points":[{"x":9000,"y":9000}],"to_obj_id":"tank"}"#;
         assert!(!oggetto(agganciata).is_off_page(&pg));
+    }
+}
+
+#[cfg(test)]
+mod tests_assegnazioni {
+    use super::*;
+
+    /// Il runtime non tiene i campi che non conosce: senza il campo, le
+    /// assegnazioni di un bottone sparivano al primo salvataggio della pagina.
+    #[test]
+    fn le_assegnazioni_sopravvivono_al_giro_del_runtime() {
+        let dentro = serde_json::json!({
+            "id": "b1", "type": "button", "x": 0.0, "y": 0.0,
+            "assegnazioni": [{ "tag": "sfondo", "valore": "#7f1d1d" }, { "tag": "modo", "valore": 2 }]
+        });
+        let o: SynopticObject = serde_json::from_value(dentro.clone()).unwrap();
+        let fuori = serde_json::to_value(&o).unwrap();
+        assert_eq!(fuori["assegnazioni"], dentro["assegnazioni"]);
     }
 }

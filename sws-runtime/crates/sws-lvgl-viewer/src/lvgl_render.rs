@@ -134,6 +134,15 @@ pub struct RenderSummary {
 /// stesso principio degli `Style` altrove in questo file.
 #[allow(dead_code)]
 pub enum LiveKind {
+    /// Lo sfondo della pagina preso da una variabile `color` (11-10-2026,
+    /// `background_tag`): si ridipinge lo schermo quando il valore cambia; un
+    /// valore che non è un colore lascia lo sfondo fisso della pagina.
+    SfondoPagina {
+        schermo: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+        tag: String,
+        fisso: Option<(u8, u8, u8)>,
+        applicato: Option<(u8, u8, u8)>,
+    },
     /// Come **sta** un oggetto: lampeggia, il suo dato è fermo da troppo, la
     /// qualità è cattiva, c'è un allarme sopra. La logica sta in `effects.rs`
     /// (pura, provata); qui ci sono solo i puntatori LVGL e lo stato già
@@ -697,8 +706,10 @@ pub struct TagCommand {
 /// semantica di `SvgCanvas.tsx` (`onWriteTag(obj.tag, obj.write_value ?? true)`)
 /// — non un contatore o altro comportamento specifico di LVGL.
 struct ButtonClickCtx {
-    tag: String,
-    write_value: TagValue,
+    /// Le scritture del clic: una sola per un bottone normale (`tag` +
+    /// `write_value`), una per assegnazione per un bottone che assegna
+    /// (11-10-2026). Una conferma sola per tutte.
+    scritture: Vec<(String, TagValue)>,
     tx: mpsc::Sender<TagCommand>,
     /// Se presente, il click **non** scrive: apre una finestra di conferma, e
     /// a scrivere è il pulsante di quella.
@@ -776,10 +787,7 @@ unsafe extern "C" fn sws_button_clicked_cb(e: *mut lvgl_sys::lv_event_t) {
     }
     let ctx = unsafe { &*(user_data as *const ButtonClickCtx) };
     let Some(c) = &ctx.conferma else {
-        let _ = ctx.tx.send(TagCommand {
-            tag: ctx.tag.clone(),
-            value: ctx.write_value.clone(),
-        });
+        manda_scritture(ctx);
         return;
     };
     // La finestra si crea al click e si distrugge alla risposta: tenerne una
@@ -802,7 +810,7 @@ unsafe extern "C" fn sws_button_clicked_cb(e: *mut lvgl_sys::lv_event_t) {
             // peggiore dei due esiti possibili.
             eprintln!(
                 "[conferma] impossibile creare la finestra per '{}': comando non eseguito",
-                ctx.tag
+                ctx.scritture.iter().map(|(t, _)| t.as_str()).collect::<Vec<_>>().join(", ")
             );
             return;
         }
@@ -858,12 +866,36 @@ unsafe extern "C" fn sws_conferma_cb(e: *mut lvgl_sys::lv_event_t) {
     let ctx = unsafe { &*(user_data as *const ButtonClickCtx) };
     let scelta = unsafe { lvgl_sys::lv_msgbox_get_active_btn(mbox) };
     if scelta == 1 {
-        let _ = ctx.tx.send(TagCommand {
-            tag: ctx.tag.clone(),
-            value: ctx.write_value.clone(),
-        });
+        manda_scritture(ctx);
     }
     unsafe { lvgl_sys::lv_msgbox_close(mbox) };
+}
+
+/// Una scrittura per voce, in ordine: una rifiutata non ferma le altre (ognuna
+/// è un comando a sé sul canale, come nel web).
+fn manda_scritture(ctx: &ButtonClickCtx) {
+    for (tag, value) in &ctx.scritture {
+        let _ = ctx.tx.send(TagCommand { tag: tag.clone(), value: value.clone() });
+    }
+}
+
+/// Le scritture di un bottone: le assegnazioni se ci sono, altrimenti
+/// `write_value` (default `true`) sul suo `tag`. Vuoto = il bottone non scrive.
+pub(crate) fn scritture_del_bottone(obj: &SynopticObject) -> Vec<(String, TagValue)> {
+    if let Some(a) = obj.assegnazioni.as_ref().filter(|a| !a.is_empty()) {
+        return a
+            .iter()
+            .filter(|x| !x.tag.trim().is_empty())
+            .filter_map(|x| serde_json::from_value::<TagValue>(x.valore.clone()).ok().map(|v| (x.tag.clone(), v)))
+            .collect();
+    }
+    let Some(tag) = &obj.tag else { return vec![] };
+    let write_value = obj
+        .write_value
+        .clone()
+        .and_then(|v| serde_json::from_value::<TagValue>(v).ok())
+        .unwrap_or(TagValue::Bool(true));
+    vec![(tag.clone(), write_value)]
 }
 
 /// `LV_EVENT_CLICKED` su un navbutton: stesso evento del bottone normale,
@@ -1445,6 +1477,16 @@ fn tag_value_as_f64(v: &TagValue) -> f64 {
         // questa funzione (niente NaN dentro le chiamate FFI); un widget si
         // lega a una foglia, non a una radice.
         TagValue::Array(_) | TagValue::Struct(_) => 0.0,
+    }
+}
+
+/// Il colore di uno sfondo da una variabile: solo un testo `#rrggbb`/`#rgb`
+/// (la trasparenza si ignora: uno schermo non ha niente dietro).
+fn sfondo_da_variabile(v: Option<&TagValue>) -> Option<(u8, u8, u8)> {
+    match v? {
+        // `#rrggbbaa`: si tengono i primi sei, la trasparenza non ha senso qui.
+        TagValue::Str(s) => parse_hex_color(s.trim().get(..7).unwrap_or(s.trim())),
+        _ => None,
     }
 }
 
@@ -3088,7 +3130,7 @@ fn render_text(
 /// nell'audit; qui servirebbe una tastiera e una sessione autenticata nel
 /// viewer, che oggi non c'è. Chi ha bisogno del motivo nell'audit deve usare il
 /// pannello web — detto qui perché non lo si scopra dal registro mancante.
-fn conferma_di(obj: &SynopticObject, valore: &TagValue) -> Option<Conferma> {
+fn conferma_di(obj: &SynopticObject, scritture: &[(String, TagValue)]) -> Option<Conferma> {
     let critico = obj.critical == Some(true);
     if obj.require_confirm != Some(true) && !critico {
         return None;
@@ -3098,11 +3140,17 @@ fn conferma_di(obj: &SynopticObject, valore: &TagValue) -> Option<Conferma> {
         .as_deref()
         .map(str::trim)
         .filter(|m| !m.is_empty());
-    let cosa = format!(
-        "Scrivere {} su {}?",
-        tag_value_as_string(valore),
-        obj.tag.as_deref().unwrap_or("?")
-    );
+    let cosa = match scritture {
+        [(tag, valore)] => format!("Scrivere {} su {}?", tag_value_as_string(valore), tag),
+        molte => format!(
+            "Scrivere {}?",
+            molte
+                .iter()
+                .map(|(t, v)| format!("{t} = {}", tag_value_as_string(v)))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+    };
     Some(Conferma {
         titolo: if critico {
             "Comando critico".to_string()
@@ -3149,21 +3197,15 @@ fn render_button(
         styles.push(lbl_style);
     }
 
-    if let Some(tag) = &obj.tag {
-        // Stessa semantica del bottone web (SvgCanvas.tsx): scrive
-        // write_value (default true) sul tag al click, non un'azione più
-        // ricca (niente script/azioni multiple — vedi Q14).
-        let write_value = obj
-            .write_value
-            .clone()
-            .and_then(|v| serde_json::from_value::<TagValue>(v).ok())
-            .unwrap_or(TagValue::Bool(true));
+    // Stessa semantica del bottone web (SvgCanvas.tsx): `write_value`
+    // (default true) sul tag, oppure — dall'11-10-2026 — le assegnazioni.
+    let scritture = scritture_del_bottone(obj);
+    if !scritture.is_empty() {
         let ptr = btn.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?;
         let ctx = leak_ctx(ButtonClickCtx {
-            tag: tag.clone(),
-            write_value: write_value.clone(),
+            conferma: conferma_di(obj, &scritture),
+            scritture,
             tx: tx.clone(),
-            conferma: conferma_di(obj, &write_value),
         });
         unsafe {
             lvgl_sys::lv_obj_add_event_cb(
@@ -11172,8 +11214,33 @@ pub fn render_page_objects(
             .map_err(|e| anyhow::anyhow!("raw: {e:?}"))?
             .as_ptr(),
     );
-    if let Some(bg) = &page.background {
+    // Lo sfondo da variabile, se la variabile ha già un colore, entra già nel
+    // primo disegno (11-10-2026); i cambi successivi li porta `SfondoPagina`.
+    let sfondo_iniziale = page
+        .background_tag
+        .as_deref()
+        .and_then(|t| tags.get(t))
+        .and_then(|tv| match &tv.value {
+            TagValue::Str(s) => Some(s.trim().get(..7).unwrap_or(s.trim()).to_string()),
+            _ => None,
+        })
+        .filter(|s| parse_hex_color(s).is_some());
+    if let Some(bg) = sfondo_iniziale.as_ref().or(page.background.as_ref()) {
         apply_bg_color(&mut screen, bg, &mut styles)?;
+    }
+    // Lo sfondo da variabile (11-10-2026): vince su `background` finché la
+    // variabile ha un colore valido.
+    if let Some(tag) = page.background_tag.as_ref().filter(|t| !t.trim().is_empty()) {
+        if let Ok(p) = screen.raw() {
+            live.push(LiveBinding {
+                kind: LiveKind::SfondoPagina {
+                    schermo: p,
+                    tag: tag.clone(),
+                    fisso: page.background.as_deref().and_then(parse_hex_color),
+                    applicato: None,
+                },
+            });
+        }
     }
 
     // Q18 — colore predefinito del testo dallo sfondo della pagina.
@@ -11636,6 +11703,19 @@ pub fn update_bindings(
         .lock()
         .unwrap_or_else(|e| e.into_inner())
         .clone();
+    for b in bindings.iter_mut() {
+        if let LiveKind::SfondoPagina { schermo, tag, fisso, applicato } = &mut b.kind {
+            let voluto = sfondo_da_variabile(tags.get(tag.as_str()).map(|tv| &tv.value)).or(*fisso);
+            if let Some(rgb) = voluto.filter(|v| Some(*v) != *applicato) {
+                unsafe {
+                    lvgl_sys::lv_obj_set_style_bg_color(schermo.as_ptr(), Color::from_rgb(rgb).into(), 0);
+                    lvgl_sys::lv_obj_set_style_bg_opa(schermo.as_ptr(), lvgl_sys::LV_OPA_COVER as u8, 0);
+                    lvgl_sys::lv_obj_invalidate(schermo.as_ptr());
+                }
+                *applicato = Some(rgb);
+            }
+        }
+    }
     for b in bindings {
         if let LiveKind::Effects {
             figli,
@@ -11693,6 +11773,8 @@ pub fn update_bindings(
             // `_ => {}`, che zittirebbe il compilatore anche sulle varianti che
             // verranno.
             LiveKind::Effects { .. } => {}
+            // Trattato dal giro dedicato in testa a `update_bindings`.
+            LiveKind::SfondoPagina { .. } => {}
             LiveKind::Motion {
                 widgets,
                 percorso,
@@ -12837,6 +12919,35 @@ fn update_alarm_banner(
 
 #[cfg(test)]
 mod binding_tests {
+    #[test]
+    fn lo_sfondo_da_variabile_vuole_un_colore() {
+        let v = |x: &str| TagValue::Str(x.into());
+        assert_eq!(sfondo_da_variabile(Some(&v("#7f1d1d"))), Some((0x7f, 0x1d, 0x1d)));
+        assert_eq!(sfondo_da_variabile(Some(&v("#7f1d1d80"))), Some((0x7f, 0x1d, 0x1d)), "la trasparenza si ignora");
+        assert_eq!(sfondo_da_variabile(Some(&v("rosso"))), None);
+        assert_eq!(sfondo_da_variabile(Some(&TagValue::Int(3))), None);
+        assert_eq!(sfondo_da_variabile(None), None);
+    }
+
+    #[test]
+    fn il_bottone_scrive_le_assegnazioni_o_il_suo_valore() {
+        // 11-10-2026: con le assegnazioni, quelle in ordine; senza, `write_value`
+        // sul `tag` come prima; senza niente, il bottone non scrive.
+        let o = |v: serde_json::Value| -> SynopticObject { serde_json::from_value(v).unwrap() };
+        let a = o(serde_json::json!({ "type": "button", "tag": "proprio", "assegnazioni": [
+            { "tag": "sfondo", "valore": "#7f1d1d" }, { "tag": "modo", "valore": 2 }, { "tag": "", "valore": 1 } ] }));
+        let s = scritture_del_bottone(&a);
+        assert_eq!(s.len(), 2, "la riga senza variabile si salta");
+        assert_eq!(s[0].0, "sfondo");
+        assert!(matches!(&s[0].1, TagValue::Str(c) if c == "#7f1d1d"));
+        assert_eq!(s[1].0, "modo");
+        let b = o(serde_json::json!({ "type": "button", "tag": "proprio", "write_value": 5 }));
+        let s = scritture_del_bottone(&b);
+        assert_eq!(s.len(), 1);
+        assert_eq!(s[0].0, "proprio");
+        assert!(scritture_del_bottone(&o(serde_json::json!({ "type": "button" }))).is_empty());
+    }
+
     use super::*;
     use serde_json::json;
 

@@ -74,6 +74,23 @@
 > Restano da guardare, su quella macchina, i rami di lavoro anteriori al 2026-08-31: non danno
 > fastidio finché nessuno li tocca, ma un push o un merge da lì rimetterebbe dentro dei doppioni.
 
+## ▶ Riprendere da qui — chiusura del 10/11-10: abbinamento, certificati, colore e assegnazioni (2026-10-12)
+
+- Su `main` e pushati: verifica pubblica dei certificati (`9a76a732`), abbinamento del pannello A–E (`d9c6418e`),
+  colore e assegnazioni (squash di `feat/colore-e-assegnazioni`, merge deciso dal maintainer a fine giornata).
+- In servizio: VPS `1599b500-amd64`, TC620 `1599b500-arm64` abbinato come `tc620-garage` (azienda `-`), con il
+  progetto del maintainer e l'utente `admin` (password di prova: da cambiare).
+- **Prossimo passo**: immagine arm64 da `main` e collaudo sul TC620 di colore e assegnazioni (in particolare il
+  ridisegno LVGL dello sfondo a un cambio della variabile, non visibile con `--istantanea`); poi archiviare il piano.
+- Colore e assegnazioni (piano `docs/plans/2026-10-11-colore-e-assegnazioni.md`): tipo `color`,
+  bottone con assegnazioni, sfondo pagina da variabile. Provato dal vivo (runtime di prova + browser senza schermo +
+  `--istantanea` LVGL: primo disegno sì, il tocco produce le due scritture). **Non** visto: il ridisegno LVGL a un
+  cambio della variabile su uno schermo vero (l'istantanea corre più veloce del tempo reale) — da vedere sul TC620.
+- Lo sfondo di un **oggetto** si lega con `bindings.fill` (non `bg_color`).
+- `tests/avvisoAggiornamento.test.tsx` è instabile (una volta su tre rosso, senza modifiche): tempi del test, da
+  sistemare a parte.
+- Copia dei progetti locali sul VPS: `rsync` mancava sul VPS; comandi dati al maintainer (installare rsync o tar+ssh).
+
 ## ▶ Riprendere da qui — fetta E: dal cloud col solo codice, utenti col primo progetto (2026-10-11, notte)
 
 - Scelte del maintainer: niente utente all'abbinamento dal cloud; il gateway vale da Admin **solo finché il pannello

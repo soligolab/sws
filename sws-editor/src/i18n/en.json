@@ -1104,7 +1104,15 @@
     "gruppoTipo": "The type",
     "gruppoPosizioneAspetto": "Position & appearance",
     "gruppoDatiCollegamenti": "Data & links",
-    "gruppoAnimazioneInterazione": "Animation & interaction"
+    "gruppoAnimazioneInterazione": "Animation & interaction",
+    "assegnazioni": "On click, assign",
+    "assegnaVariabile": "variable",
+    "assegnaTogli": "Remove",
+    "assegnaAggiungi": "assignment",
+    "assegnaNota": "On click these variables are written, in order; the button mode is not used. With «Ask confirmation» you confirm once.",
+    "backgroundTag": "Background from variable",
+    "backgroundTagPlaceholder": "color variable (optional)",
+    "backgroundTagHint": "If the variable holds a colour (#rrggbb), the page background follows its value; otherwise the one above stays."
   },
   "shortcut": {
     "navCanvas": "Canvas navigation",
@@ -2508,7 +2516,8 @@
       "unsigned": "Unsigned integers",
       "reali": "Reals",
       "testo": "Text",
-      "tempo": "Time"
+      "tempo": "Time",
+      "colore": "Colour"
     }
   },
   "tipiTab": {

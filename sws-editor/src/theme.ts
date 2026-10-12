@@ -195,6 +195,23 @@ export function resolvePageBackground(
   return resolveMode(mode) === "dark" ? (backgroundDark || background) : background;
 }
 
+/** Lo sfondo di una pagina **dal vivo** (11-10-2026): il colore della
+ *  variabile `background_tag`, se ne ha uno valido; altrimenti quello fisso
+ *  del tema. Una variabile assente o con un valore che non è un colore non
+ *  lascia la pagina senza sfondo. */
+export function sfondoPagina(
+  page: { background?: string; background_dark?: string; background_tag?: string } | undefined,
+  mode: ThemeMode,
+  tagValues: Record<string, { value?: unknown } | undefined>,
+): string | undefined {
+  const tag = page?.background_tag?.trim();
+  if (tag) {
+    const v = tagValues[tag]?.value;
+    if (typeof v === "string" && /^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(v.trim())) return v.trim();
+  }
+  return resolvePageBackground(page?.background, page?.background_dark, mode);
+}
+
 /** Luminanza relativa (WCAG) di un colore `#rgb`/`#rrggbb`, o `null` se non
  *  interpretabile — un colore che non si sa leggere non si può giudicare. */
 export function relativeLuminance(hex: string): number | null {

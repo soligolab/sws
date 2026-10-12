@@ -3435,9 +3435,20 @@ function SvgObjectCorpo(p: ObjProps) {
   // conferma configurabile, e per i comandi critici re-auth (password della
   // sessione) + motivo obbligatorio, entrambi registrati nell'audit.
   const guardedWrite = (tagId: string | undefined, value: string | number | boolean) => {
-    if (!tagId || isEditMode) return;
+    if (!tagId) return;
+    guardedWrites([[tagId, value]]);
+  };
+
+  /** Più scritture con un gesto solo (le assegnazioni di un bottone): una
+   *  conferma, una verifica della password e un motivo per tutte. */
+  const guardedWrites = (scritture: [string, string | number | boolean][]) => {
+    const valide = scritture.filter(([id]) => !!id);
+    if (!valide.length || isEditMode) return;
+    const descrizione = valide.length === 1
+      ? String(valide[0][1])
+      : valide.map(([id, v]) => `${id} = ${String(v)}`).join(", ");
     if (obj.require_confirm) {
-      const base = t("viewer.confirmWrite", { value: String(value) });
+      const base = t("viewer.confirmWrite", { value: descrizione });
       const msg = obj.confirm_message?.trim() ? `${obj.confirm_message}\n\n${base}` : base;
       if (!window.confirm(msg)) return;
     }
@@ -3452,9 +3463,11 @@ function SvgObjectCorpo(p: ObjProps) {
           return;
         }
         // Sempre via HTTP: il motivo viaggia nel body e finisce nell'audit.
-        api.writeTag(tagId, value, reason?.trim() || undefined)
-          .catch((e: unknown) => window.alert(
-            t("viewer.writeFailedDetail", { tag: tagId, message: e instanceof Error ? e.message : String(e) })));
+        for (const [id, v] of valide) {
+          api.writeTag(id, v, reason?.trim() || undefined)
+            .catch((e: unknown) => window.alert(
+              t("viewer.writeFailedDetail", { tag: id, message: e instanceof Error ? e.message : String(e) })));
+        }
       };
       const askReason = () => {
         const reason = obj.require_reason
@@ -3471,7 +3484,8 @@ function SvgObjectCorpo(p: ObjProps) {
         .catch(() => window.alert(t("viewer.reauthFailed")));
       return;
     }
-    onWriteTag?.(tagId, value);
+    // Una scrittura rifiutata non ferma le altre: ognuna va per conto suo.
+    for (const [id, v] of valide) onWriteTag?.(id, v);
   };
 
   const handleMouseDown = (e: React.MouseEvent<SVGElement>) => {
@@ -4123,6 +4137,11 @@ function SvgObjectCorpo(p: ObjProps) {
     // increment/decrement. Il momentary usa press/release; le altre il click.
     const mode = obj.button_mode ?? "write";
     const doCommand = () => {
+      // Le assegnazioni (11-10-2026): se ci sono, il clic fa quelle.
+      if (obj.assegnazioni?.length) {
+        guardedWrites(obj.assegnazioni.map((a) => [a.tag, a.valore] as [string, string | number | boolean]));
+        return;
+      }
       if (!obj.tag) return;
       const tv = tagValues[obj.tag];
       const cur = tv?.value;

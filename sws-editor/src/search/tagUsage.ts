@@ -94,6 +94,13 @@ export function buildTagUsage({
   // usa il tag, non solo dove cercarlo. Costa una scansione per oggetto, che
   // su una pagina vera sono decine, non migliaia.
   for (const pg of pages) {
+    // Lo sfondo da variabile (11-10-2026) è un uso della pagina stessa.
+    if (pg.background_tag?.trim()) {
+      add(pg.background_tag, {
+        where: i18n.t("tagUsage.page", { name: pg.name }),
+        categoria: "pagina", pageId: pg.id, oggetto: i18n.t("props.backgroundTag"),
+      });
+    }
     for (const obj of pg.objects) {
       // Il nome se c'è, altrimenti il **tipo**: l'id di un oggetto è generato
       // (`mub8v3dph67et`) e non dice niente a chi legge — misurato guardando

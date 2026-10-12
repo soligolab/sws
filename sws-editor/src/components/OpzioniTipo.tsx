@@ -5,7 +5,7 @@
 import { useTranslation } from "react-i18next";
 import { TIPI_SCALARI } from "@/tag/tipiScalari";
 
-const GRUPPI = ["bool", "signed", "unsigned", "reali", "testo", "tempo"] as const;
+const GRUPPI = ["bool", "signed", "unsigned", "reali", "testo", "tempo", "colore"] as const;
 
 export function OpzioniTipo() {
   const { t } = useTranslation();

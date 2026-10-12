@@ -31,7 +31,8 @@
     { "nome": "f32",      "categoria": "reale",  "bit": 32, "iniziale": 0.0 },
     { "nome": "f64",      "categoria": "reale",  "bit": 64, "iniziale": 0.0, "alias": ["float"] },
     { "nome": "string",   "categoria": "testo",  "iniziale": "", "parametrico": "string(N) = lunghezza massima N" },
-    { "nome": "datetime", "categoria": "tempo",  "bit": 64, "iniziale": 0, "nota": "millisecondi UTC dall'epoca (D7)" }
+    { "nome": "datetime", "categoria": "tempo",  "bit": 64, "iniziale": 0, "nota": "millisecondi UTC dall'epoca (D7)" },
+    { "nome": "color",    "categoria": "colore", "iniziale": "#000000", "nota": "#rrggbb o #rrggbbaa minuscolo; #rgb e #rgba si espandono; solo esadecimale (11-10-2026)" }
   ],
   "coercizioni": [
     { "tipo": "bool",      "ingresso": true,      "esito": true },
@@ -63,6 +64,12 @@
     { "tipo": "datetime",  "ingresso": 1700000000000, "esito": 1700000000000 },
     { "tipo": "datetime",  "ingresso": 1700000000000.0, "esito": 1700000000000 },
     { "tipo": "datetime",  "ingresso": -1,        "esito": "rifiuto" },
-    { "tipo": "datetime",  "ingresso": "2026-09-22T10:00:00Z", "esito": "rifiuto", "nota": "il parsing ISO arriva con la Fase 2 (serve `time` con la feature parsing)" }
+    { "tipo": "datetime",  "ingresso": "2026-09-22T10:00:00Z", "esito": "rifiuto", "nota": "il parsing ISO arriva con la Fase 2 (serve `time` con la feature parsing)" },
+    { "tipo": "color",     "ingresso": "#1E293B", "esito": "#1e293b", "nota": "normalizzato in minuscolo" },
+    { "tipo": "color",     "ingresso": "#abc",    "esito": "#aabbcc", "nota": "la forma corta si espande" },
+    { "tipo": "color",     "ingresso": "#11223380", "esito": "#11223380", "nota": "con trasparenza" },
+    { "tipo": "color",     "ingresso": "rosso",   "esito": "rifiuto", "nota": "solo esadecimale: un nome che LVGL non capisce" },
+    { "tipo": "color",     "ingresso": "#12345",  "esito": "rifiuto" },
+    { "tipo": "color",     "ingresso": 255,       "esito": "rifiuto" }
   ]
 }

@@ -1104,7 +1104,15 @@
     "gruppoTipo": "Il tipo",
     "gruppoPosizioneAspetto": "Posizione e aspetto",
     "gruppoDatiCollegamenti": "Dati e collegamenti",
-    "gruppoAnimazioneInterazione": "Animazione e interazione"
+    "gruppoAnimazioneInterazione": "Animazione e interazione",
+    "assegnazioni": "Al clic, assegna",
+    "assegnaVariabile": "variabile",
+    "assegnaTogli": "Togli",
+    "assegnaAggiungi": "assegnazione",
+    "assegnaNota": "Al clic si scrivono queste variabili, in ordine; la modalità del bottone non si usa. Con «Chiedi conferma» si conferma una volta sola.",
+    "backgroundTag": "Sfondo da variabile",
+    "backgroundTagPlaceholder": "variabile color (facoltativa)",
+    "backgroundTagHint": "Se la variabile contiene un colore (#rrggbb), lo sfondo della pagina segue il suo valore; altrimenti resta quello qui sopra."
   },
   "shortcut": {
     "navCanvas": "Navigazione canvas",
@@ -2508,7 +2516,8 @@
       "unsigned": "Interi senza segno",
       "reali": "Reali",
       "testo": "Testo",
-      "tempo": "Tempo"
+      "tempo": "Tempo",
+      "colore": "Colore"
     }
   },
   "tipiTab": {

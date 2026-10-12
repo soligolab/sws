@@ -50,12 +50,23 @@ pub struct SynopticPage {
     pub name: String,
     #[serde(default)]
     pub background: Option<String>,
+    /// Sfondo da una variabile `color` (11-10-2026): vince su `background`
+    /// finché il valore è un colore.
+    #[serde(default)]
+    pub background_tag: Option<String>,
     #[serde(default)]
     pub width: Option<f64>,
     #[serde(default)]
     pub height: Option<f64>,
     #[serde(default)]
     pub objects: Vec<SynopticObject>,
+}
+
+/// «variabile = valore» di un bottone che assegna.
+#[derive(Debug, Deserialize, Clone)]
+pub struct Assegnazione {
+    pub tag: String,
+    pub valore: serde_json::Value,
 }
 
 /// Valore grezzo di `on_value`: in TS è `boolean | string`. Confrontato con
@@ -119,6 +130,10 @@ pub struct SynopticObject {
     /// segue la stessa semantica del bottone web, non un contatore o altro
     /// comportamento inventato apposta per LVGL.
     pub write_value: Option<serde_json::Value>,
+    /// Assegnazioni del bottone (11-10-2026, piano colore-e-assegnazioni): se
+    /// non vuoto, il clic scrive ognuna di queste variabili, in ordine, al
+    /// posto di `write_value` sul `tag` — come `SvgCanvas.tsx`.
+    pub assegnazioni: Option<Vec<Assegnazione>>,
 
     // ── checkbox / radio ──
     /// Valore che rappresenta lo stato "checked" (default `true`, come

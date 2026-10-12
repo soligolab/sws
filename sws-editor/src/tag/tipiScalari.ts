@@ -8,14 +8,14 @@
 
 import type { TagDataType } from "@/types";
 
-export type CategoriaTipo = "bool" | "intero" | "reale" | "testo" | "tempo";
+export type CategoriaTipo = "bool" | "intero" | "reale" | "testo" | "tempo" | "colore";
 
 export interface TipoScalare {
   nome: string;
   categoria: CategoriaTipo;
   bit?: number;
   /** Gruppo della `<select>`: interi con segno, senza segno, reali, testo, tempo. */
-  gruppo: "bool" | "signed" | "unsigned" | "reali" | "testo" | "tempo";
+  gruppo: "bool" | "signed" | "unsigned" | "reali" | "testo" | "tempo" | "colore";
   alias?: string[];
 }
 
@@ -33,6 +33,7 @@ export const TIPI_SCALARI: readonly TipoScalare[] = [
   { nome: "f64", categoria: "reale", bit: 64, gruppo: "reali", alias: ["float"] },
   { nome: "string", categoria: "testo", gruppo: "testo" },
   { nome: "datetime", categoria: "tempo", bit: 64, gruppo: "tempo" },
+  { nome: "color", categoria: "colore", gruppo: "colore" },
 ];
 
 export const NOMI_TIPI = TIPI_SCALARI.map((t) => t.nome);
@@ -55,6 +56,16 @@ export function tipoDi(nome: string | undefined): TipoScalare | undefined {
 
 export function categoriaDi(nome: string | undefined): CategoriaTipo | undefined {
   return tipoDi(nome)?.categoria;
+}
+
+/** Un colore come lo scrive una persona → `#rrggbb`/`#rrggbbaa` minuscolo, o
+ *  `undefined`. Gemello di `sws_core::tipo::normalizza_colore` (11-10-2026):
+ *  `#rgb`/`#rgba` si espandono, solo esadecimale. */
+export function normalizzaColore(s: string | undefined | null): string | undefined {
+  const m = /^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.exec((s ?? "").trim());
+  if (!m) return undefined;
+  const h = m[1].toLowerCase();
+  return "#" + (h.length <= 4 ? h.split("").map((c) => c + c).join("") : h);
 }
 
 /** Il nome canonico come `TagDataType`, per chi deve scriverlo in un TagDef. */

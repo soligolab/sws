@@ -71,6 +71,13 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   indirizzo pubblico. **Sui pannelli non cambia nulla**: lì gli utenti restano quelli del progetto.
 
 ### Added
+- **Variabili colore e bottoni che assegnano** (piano `docs/plans/2026-10-11-colore-e-assegnazioni.md`). Tipo
+  scalare `color`: `#rrggbb`/`#rrggbbaa` minuscolo (`#rgb` si espande), solo esadecimale, validato dal runtime in
+  scrittura e in lettura; non si mappa su un protocollo di campo (MQTT sì, come testo). Un bottone può avere
+  **assegnazioni** «variabile = valore» eseguite in ordine al clic al posto della sua modalità, con una conferma sola
+  (web e LVGL; nell'editor il valore segue il tipo: selettore di colore, vero/falso, numero). La pagina può prendere lo
+  sfondo da una variabile (`background_tag`), con ripiego sullo sfondo fisso se il valore non è un colore; per un
+  oggetto si lega `fill`. Provato dal vivo con un runtime di prova, il browser senza schermo e `--istantanea` LVGL.
 - **Dall'IDE nel cloud si fa «Connetti» e deploy verso un pannello del tunnel.** Il container del progetto chiama
   `/dev/<pannello>` dal server, senza sessione, e prendeva 401. Ora il gateway gli passa all'avvio una **chiave di
   ritorno** (`SWS_CHIAVE_RITORNO`, HMAC del segreto del gateway su `<azienda>/<progetto>`, mai salvata) e a ogni
