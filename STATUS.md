@@ -11,6 +11,26 @@
 > in [`docs/history/STATUS-2026-07_08.md`](docs/history/STATUS-2026-07_08.md) — una riga ciascuna
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
+## ⏳ Alla prima occasione di build — due righe morte nei Cargo.toml (rilevato 2026-10-12)
+
+Verifica delle dipendenze Rust (`cargo machete` + confronto dichiarate/usate crate per crate):
+sono tutte usate davvero, tranne due avanzi. Troppo poco per un ramo a sé: si tolgono **dentro il
+primo ramo che tocca comunque i `Cargo.toml` o fa una build**, e si chiudono con la solita
+*definition of done*.
+
+1. **`abi_stable`** in `[workspace.dependencies]` di `sws-runtime/Cargo.toml` (sezione «Plugin
+   ABI»): nessun crate membro lo usa. Viene dallo scaffold iniziale, quando i plugin dovevano
+   essere `.so`; con Q3 sono diventati crate compilati dentro e `sws-plugin-api` è sparito, la riga
+   no. Costo zero oggi (non è nemmeno nel `Cargo.lock`): è solo pulizia.
+2. **Feature `trace` di `tower-http`**, sempre in `[workspace.dependencies]`: si usano solo
+   `cors` e `fs` (`sws-web/src/router.rs`), nessun `TraceLayer` da nessuna parte. Lasciare
+   `["cors", "fs"]`.
+
+Da **non** toccare, anche se un controllo automatico li segnala: `async-opcua` in
+sws-plugin-opcua (`cargo machete` lo dà inutilizzato perché la libreria si chiama `opcua`) e
+`chrono` accanto a `time` in sws-web (voluto: `chrono::Local` per la finestra di aggiornamento,
+spiegato nel suo `Cargo.toml`).
+
 > **⚠️ Seconda riscrittura, 2026-09-09.** I **15 commit dal 7 al 9 settembre** su `main`
 > (da `e7b47fc` a `9244bba`, storia vecchia) erano usciti come `pixsysedp <edp@pixsys.net>`
 > perché su theobroma nessuno aveva impostato l'identità locale al repo. Su istruzione del
