@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { paginaCentrata, schedaModulo } from "@/components/schermataAccesso";
 import { useAppStore, type Role } from "@/store";
@@ -174,8 +174,15 @@ function daMostrare(s: Stato | null): Stato | null {
 }
 
 /** Ogni quanto la pagina col codice richiede lo stato: l'abbinamento può
- *  arrivare da fuori (dal cloud, o da «Connetti» su un altro PC). */
-export const PASSO_CONTROLLO_MS = 5000;
+ *  arrivare da fuori (dal cloud, o da «Connetti» su un altro PC).
+ *
+ *  Due secondi e non cinque (maintainer, 12-10-2026, al collaudo sul WP630):
+ *  questo controllo è anche quello che fa comparire il progetto dopo il primo
+ *  deploy, e cinque secondi davanti a un pannello appena installato si vedono
+ *  tutti. È una richiesta ogni due secondi contro un server che sta sulla
+ *  stessa macchina, e solo finché il pannello non è abbinato — a regime questo
+ *  intervallo non esiste. */
+export const PASSO_CONTROLLO_MS = 2000;
 /** Quanto resta a schermo l'avviso «abbinato» prima di proseguire da solo: un
  *  pannello appeso al muro non deve restare fermo su un pulsante. */
 export const AVVISO_MS = 30000;
@@ -190,6 +197,12 @@ export const AVVISO_MS = 30000;
  * pannello viene abbinato da fuori, al posto del codice compare l'avviso
  * «abbinato» (richiesta del maintainer, 11-10-2026: il codice non deve restare
  * a schermo dopo l'abbinamento), e dopo un po' si prosegue.
+ *
+ * **L'avviso compare solo se si stava mostrando il codice.** Dalla schermata
+ * «in attesa del primo progetto» si passa dritti alla pagina: lì il pannello
+ * esce dall'attesa perché è arrivato un deploy, e chi l'ha fatto sa già cos'è
+ * successo — un pulsante «Continua» in mezzo è solo un pannello fermo che
+ * aspetta un dito (maintainer, 12-10-2026).
  */
 export function CancelloAbbinamento({ children }: { children: React.ReactNode }) {
   const [stato, setStato] = useState<Stato | null | "nessuno">(null);
@@ -204,13 +217,22 @@ export function CancelloAbbinamento({ children }: { children: React.ReactNode })
   }, []);
 
   const inAttesa = stato !== null && stato !== "nessuno";
+  // In un `ref` e non letto dalla chiusura: l'effetto dipende solo da
+  // `inAttesa`, quindi `stato` dentro l'intervallo sarebbe quello di quando
+  // l'intervallo è nato — e il passaggio «codice → attesa del progetto» non si
+  // vedrebbe.
+  const mostravaIlCodice = useRef(false);
+  mostravaIlCodice.current = stato !== null && stato !== "nessuno" && !!stato.codice;
   useEffect(() => {
     if (!inAttesa) return;
     const t = setInterval(() => {
       fetch("/api/abbinamento")
         .then((r) => (r.ok ? r.json() : null))
         .then((s: Stato | null) => {
-          if (s && !s.in_attesa) { setAbbinato(s); setStato("nessuno"); }
+          if (s && !s.in_attesa) {
+            if (mostravaIlCodice.current) setAbbinato(s);
+            setStato("nessuno");
+          }
           // Abbinato dal cloud mentre si mostrava il codice: niente più codice,
           // ora si aspetta il primo progetto.
           else if (s?.abbinato_cloud_senza_utenti) setStato((prima) => (prima !== "nessuno" && prima?.codice ? s : prima));

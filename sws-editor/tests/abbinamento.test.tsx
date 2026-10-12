@@ -78,7 +78,7 @@ describe("dopo l'abbinamento arrivato da fuori", () => {
       .mockReturnValue(risposta(200, { in_attesa: false, codice: null, nome: "tc620", cloud: "tc620-casa" }));
     render(<CancelloAbbinamento><div>pagina</div></CancelloAbbinamento>);
     await screen.findByTestId("codice-abbinamento");
-    await vi.advanceTimersByTimeAsync(5100);
+    await vi.advanceTimersByTimeAsync(2100);
     expect(await screen.findByTestId("avviso-abbinato")).toBeTruthy();
     expect(screen.queryByTestId("codice-abbinamento")).toBeNull();
     expect(screen.getByTestId("avviso-abbinato").textContent).toContain("tc620-casa");
@@ -101,8 +101,12 @@ describe("abbinato al cloud senza utenti (fetta E)", () => {
     expect(attesa.textContent).toContain("tc620-casa");
     expect(screen.queryByTestId("codice-abbinamento")).toBeNull();
     expect(document.querySelector('input[type="password"]')).toBeNull();
-    await vi.advanceTimersByTimeAsync(5100);
-    expect(await screen.findByTestId("avviso-abbinato")).toBeTruthy();
+    await vi.advanceTimersByTimeAsync(2100);
+    // Dritti alla pagina: nessun «Continua» da premere. Chi ha appena fatto il
+    // deploy sa gia' cos'e' successo, e un pannello appeso al muro non deve
+    // restare fermo ad aspettare un dito (maintainer, 12-10-2026).
+    expect(await screen.findByText("pagina")).toBeTruthy();
+    expect(screen.queryByTestId("avviso-abbinato")).toBeNull();
   });
 
   it("dal codice si passa all'attesa quando l'abbinamento arriva dal cloud", async () => {
@@ -111,7 +115,7 @@ describe("abbinato al cloud senza utenti (fetta E)", () => {
       .mockReturnValue(risposta(200, { in_attesa: true, codice: null, nome: "tc620", cloud: "tc620-casa", abbinato_cloud_senza_utenti: true }));
     render(<CancelloAbbinamento><div>pagina</div></CancelloAbbinamento>);
     await screen.findByTestId("codice-abbinamento");
-    await vi.advanceTimersByTimeAsync(5100);
+    await vi.advanceTimersByTimeAsync(2100);
     expect(await screen.findByTestId("attesa-primo-progetto")).toBeTruthy();
     expect(screen.queryByTestId("codice-abbinamento")).toBeNull();
   });

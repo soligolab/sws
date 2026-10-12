@@ -88,6 +88,26 @@ const GRIGLIA_NUMERICA: React.CSSProperties = {
   gap: 6,
 };
 
+/** Quanto deve restare largo un campo numerico, qualunque cosa gli stia
+ *  accanto: tre o quattro cifre **più** i 20px dello spinner, che dal
+ *  23-08-2026 e' sempre visibile per richiesta del maintainer. Sotto questa
+ *  soglia il campo c'e' ma non si usa. */
+const LARGHEZZA_MIN_NUMERO = 64;
+
+/** La riga «campo + chip del valore vuoto».
+ *
+ *  `flexWrap` e' il punto: quando il chip non ci sta accanto al campo scende
+ *  sotto, invece di schiacciarlo. Vale per tutti i widget che hanno un campo
+ *  con un vuoto voluto — trend, xy_plot, sparkline, bar_chart — perche' passano
+ *  tutti da `numInput`/`textInput`. */
+const RIGA_CON_CHIP: React.CSSProperties = {
+  display: "flex",
+  gap: 6,
+  rowGap: 2,
+  alignItems: "center",
+  flexWrap: "wrap",
+};
+
 const INPUT: React.CSSProperties = {
   width: "100%",
   background: "var(--brand-bg, #0f172a)",
@@ -2685,8 +2705,20 @@ export function ObjectProps({
     const r = regolaCampo(obj.type, key as string);
     return r && "vuoto" in r ? r.vuoto : undefined;
   };
+  // Il chip sta ACCANTO al campo finché ci sta, e sotto quando non ci sta.
+  //
+  // Prima non faceva né l'una né l'altra cosa: `flex: "none"` e
+  // `whiteSpace: "nowrap"` vogliono dire «non mi stringo e non vado a capo», e
+  // in una mezza colonna del pannello (~95px, con il pannello al suo minimo di
+  // 220px) il chip ne pretende ~105. A cedere era il vicino, cioè l'input, che
+  // spariva sotto lo spinner — segnalato dal maintainer il 12-10-2026 sui campi
+  // Y min/Y max del trend.
+  //
+  // Le tre proprietà qui sotto vanno **insieme** a `RIGA_CON_CHIP`: mandare a
+  // capo il contenitore senza lasciare che il chip si stringa sposta il
+  // problema dieci pixel più in basso e basta.
   const chipVuoto = (motivo: MotivoVuoto) => (
-    <span style={{ fontSize: 10, color: "var(--brand-text-muted, #94a3b8)", flex: "none", whiteSpace: "nowrap" }}
+    <span style={{ fontSize: 10, color: "var(--brand-text-muted, #94a3b8)", flexShrink: 1, minWidth: 0, lineHeight: 1.2 }}
       title={t(`props.vuotoHint.${motivo}`)}>
       {t(`props.vuoto.${motivo}`)}
     </span>
@@ -2697,7 +2729,9 @@ export function ObjectProps({
     const input = (
       <input
         type="number"
-        style={{ ...INPUT, ...(assente && !motivo ? { fontStyle: "italic", color: "var(--brand-text-muted, #94a3b8)" } : {}), ...(motivo ? { flex: 1, minWidth: 0 } : {}) }}
+        // `minWidth: LARGHEZZA_MIN_NUMERO` e non 0: e' la rete di sicurezza.
+        // Qualunque cosa succeda al chip accanto, il campo resta digitabile.
+        style={{ ...INPUT, ...(assente && !motivo ? { fontStyle: "italic", color: "var(--brand-text-muted, #94a3b8)" } : {}), ...(motivo ? { flex: "1 1 auto", minWidth: LARGHEZZA_MIN_NUMERO } : {}) }}
         value={mixedKeys.has(key) || motivo ? "" : (obj[key] !== undefined ? (obj[key] as number) : fallback)}
         placeholder={mixedKeys.has(key) ? "(vari)" : undefined}
         title={assente && !motivo ? t("props.valoreNonSalvato") : undefined}
@@ -2705,7 +2739,7 @@ export function ObjectProps({
       />
     );
     return motivo
-      ? <div style={{ display: "flex", gap: 6, alignItems: "center" }}>{input}{chipVuoto(motivo)}</div>
+      ? <div style={RIGA_CON_CHIP}>{input}{chipVuoto(motivo)}</div>
       : input;
   };
 
@@ -2728,7 +2762,7 @@ export function ObjectProps({
     const segnaposto = inTabella ? undefined : placeholder;
     const conChip = (el: React.ReactNode) => {
       if (!motivo) return el;
-      return <div style={{ display: "flex", gap: 6, alignItems: "center" }}><div style={{ flex: 1, minWidth: 0 }}>{el}</div>{chipVuoto(motivo)}</div>;
+      return <div style={RIGA_CON_CHIP}><div style={{ flex: 1, minWidth: 0 }}>{el}</div>{chipVuoto(motivo)}</div>;
     };
     if (TEXT_FIELDS.includes(key) && !mixedKeys.has(key)) {
       return conChip(
@@ -4078,12 +4112,19 @@ export function ObjectProps({
                 {t("shell.withoutAlwaysShowDateThe")}
               </p>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginTop: 8 }}>
+              <div style={{ ...GRIGLIA_NUMERICA, marginTop: 8 }}>
                 <div><div style={LABEL}>Y min</div><BindableInput obj={obj} propName="y_min" onChange={onChange}>{numInput("y_min", 0)}</BindableInput></div>
                 <div><div style={LABEL}>Y max</div><BindableInput obj={obj} propName="y_max" onChange={onChange}>{numInput("y_max", 100)}</BindableInput></div>
               </div>
+              {/* La frase diceva «Lascia Y min/max a 0 per autofit», ed era
+                  italiano cablato **e** in disaccordo col resto: il chip accanto
+                  al campo dice «vuoto = auto», e `predefinitiCampi.ts` dichiara
+                  `{ vuoto: "adatta" }`. `TrendCanvas` accetta tutt'e due le
+                  forme, ma insegnarne una che nessun'altra parte
+                  dell'interfaccia nomina manda a indovinare. Stessa chiave di
+                  xy_plot, quattro righe più sotto. */}
               <p style={{ fontSize: 10, color: "var(--brand-text-subtle, #94a3b8)", margin: "2px 0 0" }}>
-                Lascia Y min/max a 0 per autofit.
+                {t("shell.leaveMinMaxEmptyTo")}
               </p>
 
               {/* F5.2x: scala Y logaritmica (solo scala condivisa, dominio > 0). */}
@@ -4215,7 +4256,7 @@ export function ObjectProps({
               </button>
               {field(t("props.trailS"), <BindableInput obj={obj} propName="xy_trail_s" onChange={onChange}>{numInput("xy_trail_s", 30)}</BindableInput>)}
               {field(t("props.xySampleMs"), <BindableInput obj={obj} propName="xy_sample_ms" onChange={onChange}>{numInput("xy_sample_ms", 200)}</BindableInput>)}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+              <div style={GRIGLIA_NUMERICA}>
                 <div><div style={LABEL}>X min</div><BindableInput obj={obj} propName="xy_x_min" onChange={onChange}>{numInput("xy_x_min", 0)}</BindableInput></div>
                 <div><div style={LABEL}>X max</div><BindableInput obj={obj} propName="xy_x_max" onChange={onChange}>{numInput("xy_x_max", 100)}</BindableInput></div>
                 <div><div style={LABEL}>Y min</div><BindableInput obj={obj} propName="xy_y_min" onChange={onChange}>{numInput("xy_y_min", 0)}</BindableInput></div>

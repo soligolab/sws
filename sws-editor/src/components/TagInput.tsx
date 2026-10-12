@@ -68,6 +68,34 @@ export function statoTag(
  * Text input with a ▾ button that opens a filterable tag-picker dropdown.
  * Free-text entry is always allowed.
  */
+/** Quanto può allargarsi un elenco a tendina oltre il campo che lo apre.
+ *
+ * Il campo sta nel pannello delle proprietà, che è stretto: con la tendina
+ * larga quanto il campo, un id come `host.TemperatureSensor.value` si legge a
+ * metà e la scelta si fa a indovinare (segnalato dal maintainer il
+ * 12-10-2026, con uno schermo pieno di `host.Temperature…` identici).
+ *
+ * Cresce **verso sinistra** (`right: 0`), non verso destra: il pannello delle
+ * proprietà sta sul bordo destro della finestra, e allargarsi di là
+ * porterebbe il testo fuori schermo — cioè illeggibile uguale, ma senza
+ * nemmeno la barra di scorrimento a dirlo. */
+const LARGHEZZA_MAX_TENDINA = "min(520px, 80vw)";
+
+/** Lo stesso ancoraggio per le due tendine di questo componente: il
+ * completamento da tastiera e il selettore col filtro. Scriverlo una volta
+ * sola perché divergano è difficile: sono la stessa tendina vista in due
+ * momenti. */
+const ANCORAGGIO_TENDINA = {
+  position: "absolute",
+  top: "100%",
+  right: 0,
+  left: "auto",
+  minWidth: "100%",
+  width: "max-content",
+  maxWidth: LARGHEZZA_MAX_TENDINA,
+  zIndex: 9999,
+} as const;
+
 export function TagInput({ value, onChange, placeholder, style, tipoSuggerito }: TagInputProps) {
   const { t } = useTranslation();
   // Non solo `project.tags`: in molti progetti le variabili nascono dalle
@@ -206,7 +234,7 @@ export function TagInput({ value, onChange, placeholder, style, tipoSuggerito }:
         <div
           role="listbox"
           style={{
-            position: "absolute", top: "100%", left: 0, right: 0, zIndex: 9999,
+            ...ANCORAGGIO_TENDINA,
             background: "var(--brand-bg, #0f172a)",
             border: "1px solid var(--brand-surface-2, #334155)",
             borderRadius: 4, maxHeight: 200, overflowY: "auto",
@@ -225,7 +253,7 @@ export function TagInput({ value, onChange, placeholder, style, tipoSuggerito }:
               onMouseEnter={() => setEvidenziato(i)}
               onMouseDown={(e) => { e.preventDefault(); select(sg.id); }}
             >
-              <span style={{ color: "var(--brand-text, #e2e8f0)", fontFamily: "monospace", fontSize: 12 }}>
+              <span style={{ color: "var(--brand-text, #e2e8f0)", fontFamily: "monospace", fontSize: 12, flexShrink: 0 }}>
                 <span style={{ color: "var(--brand-text-subtle, #64748b)" }}>{sg.id.slice(0, value.trim().length)}</span>
                 {sg.id.slice(value.trim().length)}
               </span>
@@ -249,11 +277,7 @@ export function TagInput({ value, onChange, placeholder, style, tipoSuggerito }:
       {open && (
         <div
           style={{
-            position: "absolute",
-            top: "100%",
-            left: 0,
-            right: 0,
-            zIndex: 9999,
+            ...ANCORAGGIO_TENDINA,
             background: "var(--brand-bg, #0f172a)",
             border: "1px solid var(--brand-surface-2, #334155)",
             borderRadius: 4,
@@ -293,7 +317,11 @@ export function TagInput({ value, onChange, placeholder, style, tipoSuggerito }:
               onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = ""; }}
               onMouseDown={() => select(t.id)}
             >
-              <span style={{ color: "var(--brand-text, #e2e8f0)", fontFamily: "monospace", fontSize: 12 }}>
+              {/* Il nome non si stringe: quando la tendina tocca il suo tetto
+                  di larghezza, a cedere deve essere la descrizione — che ha i
+                  puntini — e non l'identificativo, che e' quello che si sta
+                  leggendo per scegliere. */}
+              <span style={{ color: "var(--brand-text, #e2e8f0)", fontFamily: "monospace", fontSize: 12, flexShrink: 0 }}>
                 {t.radice ? t.id.slice(t.radice.length) : t.id}
               </span>
               {t.description && (
