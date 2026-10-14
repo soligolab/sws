@@ -71,6 +71,19 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   indirizzo pubblico. **Sui pannelli non cambia nulla**: lì gli utenti restano quelli del progetto.
 
 ### Fixed
+
+- **Lo stato di un simbolo è una regola sola, web e pannello** (`tests/fixtures/stato-simbolo.json`).
+  Prima, sul pannello:
+  - un tag di testo come «on» valeva 0 e lasciava il simbolo spento;
+  - una voce di `symbol_states` che corrispondeva non bastava ad accenderlo;
+  - un testo non numerico entrava negli intervalli di `text_list` come se fosse 0.
+- **Nell'editor un clic sulle forme di un simbolo builtin lo seleziona**. Prima il clic arrivava
+  al canvas e deselezionava, perché l'hit-rect era sotto il disegno.
+- **Il validatore non segnala più ogni `symbol_id: custom:…`** come valore non ammesso.
+- **`check_simboli_lvgl.sh` fotografava la schermata di abbinamento.** Dall'11-10 un runtime senza
+  utenti chiede l'abbinamento, quindi la guardia dava verde su 40 schermate del codice. Ora parte
+  con `--senza-autenticazione`. Prova anche i simboli `lib:` e verifica che il livello del serbatoio
+  cambi i pixel solo dentro la sua finestra.
 - **Uscire da un progetto nel cloud non lo rende più irraggiungibile.** Il container di un progetto *è* quel
   progetto: chiuderlo lo lasciava acceso e vuoto, e chi tornava su quell'indirizzo trovava «nessun progetto» su un
   progetto che esiste. Nel cloud ora non si chiude, e il runtime rifiuta se qualcuno ci prova. Nella stessa famiglia:
@@ -86,6 +99,25 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 - **Dopo il primo invio di un progetto il pannello passa da solo alla pagina**, senza il pulsante «Continua».
 
 ### Added
+
+- **I simboli di libreria nel sinottico — la fetta verticale** (Fase 2 del
+  [piano](docs/plans/2026-10-14-motore-simboli-lib.md)). Un oggetto `symbol` con
+  `symbol_id: lib:<famiglia>/<slug>` si disegna dal manifesto su web e su LVGL:
+  - il corpo prende il colore di stato, ma solo se lo stato è legato;
+  - `fill_level_tag`/`fill_level` ritagliano la finestra del livello;
+  - `symbol_spin` fa girare il rotore attorno al centro dichiarato.
+
+  **Web** (`src/symbols/lib/`): strati iniettati uno per uno e id resi unici per istanza. Le
+  anteprime stanno nel picker, che ha un gruppo «Libreria» provvisorio, e un simbolo di libreria
+  nasce con le proporzioni del suo disegno.
+
+  **LVGL** (`simbolo_lib.rs`): un `lv_canvas` per strato.
+  - Il corpo si ri-rasterizza al cambio di colore, con una cache.
+  - Il liquido è rasterizzato una volta, pieno, dentro un contenitore che lo ritaglia.
+  - Il rotore è fatto di fotogrammi presi dalla simmetria, scelti con le tick LVGL, così
+    l'istantanea è ripetibile.
+
+  Validatore e vocabolario dell'IA conoscono gli id `lib:`, che leggono dal manifesto.
 
 - **Libreria di simboli SCADA 2.5D — il formato** (Fase 1 del
   [piano](docs/plans/2026-10-14-motore-simboli-lib.md)). Gli SVG di

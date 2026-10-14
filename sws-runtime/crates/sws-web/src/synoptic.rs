@@ -457,12 +457,12 @@ pub struct SynopticObject {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text_color_by_threshold: Option<bool>,
     // Built-in SCADA symbol (type === "symbol")
-    /// Quale simbolo disegnare: uno degli id della libreria (l'elenco completo
-    /// è in `FIELD_ENUMS`), oppure `custom:<id>` per un simbolo caricato nel
-    /// progetto. Attenzione: tredici della serie valvole e processo
-    /// (`valve_3way`, `check_valve`, `silo`, `conveyor`, `furnace`…) esistono
-    /// solo nel browser — sul pannello LVGL rendono un riquadro d'errore, vedi
-    /// Q15.
+    /// Quale simbolo disegnare: un builtin (`pump`, `valve`…), un simbolo della
+    /// libreria SCADA 2.5D (`lib:<famiglia>/<slug>`, con parti vive: il corpo
+    /// prende il colore di stato, `fill_level_tag` riempie i serbatoi,
+    /// `symbol_spin` fa girare i rotori) — l'elenco completo è in
+    /// `FIELD_ENUMS` — oppure `custom:<id>` per un simbolo caricato nel
+    /// progetto. Per un impianto nuovo preferire i `lib:`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub symbol_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

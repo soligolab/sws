@@ -1176,6 +1176,12 @@ fn controlla_oggetto(
             let Some(validi) = enums.get(k.as_str()) else {
                 continue;
             };
+            // Un simbolo custom del progetto non è nell'elenco chiuso (lo
+            // dichiara il progetto, non lo schema): fino al 14-10-2026 ogni
+            // `custom:` era segnalato come valore non ammesso.
+            if k == "symbol_id" && s.starts_with("custom:") {
+                continue;
+            }
             if !validi.contains(&s) {
                 out.push(Finding::err(
                     format!("{base}.{k}"),
@@ -1911,6 +1917,31 @@ mod tests {
             }
         }
         (project, pages)
+    }
+
+    /// `symbol_id`: i builtin e i `lib:` del manifesto passano, i `custom:` pure
+    /// (li dichiara il progetto), un id inventato no. Prima del 14-10-2026
+    /// anche ogni `custom:` era segnalato come valore non ammesso.
+    #[test]
+    fn i_simboli_di_libreria_e_custom_sono_ammessi() {
+        let project = con_script();
+        let pagina = |id: &str| -> SynopticPage {
+            serde_yaml::from_str(&format!(
+                "id: p\nname: P\nwidth: 100\nheight: 100\nobjects:\n  - {{ id: s, type: symbol, x: 0, y: 0, symbol_id: \"{id}\" }}\n"
+            ))
+            .unwrap()
+        };
+        let sul_simbolo = |id: &str| {
+            semantic(&project, &[pagina(id)])
+                .into_iter()
+                .filter(|f| f.path.ends_with(".symbol_id"))
+                .count()
+        };
+        assert_eq!(sul_simbolo("pump"), 0);
+        assert_eq!(sul_simbolo("lib:process/centrifugal-pump"), 0);
+        assert_eq!(sul_simbolo("custom:valvola-cliente"), 0);
+        assert_eq!(sul_simbolo("lib:process/non-esiste"), 1);
+        assert_eq!(sul_simbolo("pompa"), 1);
     }
 
     // ─────────────────────────────────────────────────────────────────────

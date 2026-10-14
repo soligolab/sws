@@ -1,0 +1,237 @@
+{
+  "_comment": "Stato di un simbolo dai suoi tag: lo verificano sws-editor/tests/statoSimbolo.test.ts e lvgl_render.rs. Piano: docs/plans/2026-10-14-motore-simboli-lib.md (M10). `tag` ha le chiavi «allarme» (alarm_tag) e «stato» (state_tag); una chiave assente = tag senza valore.",
+  "casi": [
+    {
+      "nome": "nessun tag: spento",
+      "tag": {},
+      "stati": [],
+      "atteso": {
+        "stato": "off",
+        "voce": null
+      }
+    },
+    {
+      "nome": "stato vero: acceso",
+      "tag": {
+        "stato": true
+      },
+      "stati": [],
+      "atteso": {
+        "stato": "on",
+        "voce": null
+      }
+    },
+    {
+      "nome": "stato 1: acceso",
+      "tag": {
+        "stato": 1
+      },
+      "stati": [],
+      "atteso": {
+        "stato": "on",
+        "voce": null
+      }
+    },
+    {
+      "nome": "stato 0: spento",
+      "tag": {
+        "stato": 0
+      },
+      "stati": [],
+      "atteso": {
+        "stato": "off",
+        "voce": null
+      }
+    },
+    {
+      "nome": "stato 2.5: acceso",
+      "tag": {
+        "stato": 2.5
+      },
+      "stati": [],
+      "atteso": {
+        "stato": "on",
+        "voce": null
+      }
+    },
+    {
+      "nome": "stato testo «on»: acceso (il pannello lo leggeva spento)",
+      "tag": {
+        "stato": "on"
+      },
+      "stati": [],
+      "atteso": {
+        "stato": "on",
+        "voce": null
+      }
+    },
+    {
+      "nome": "stato testo vuoto o di soli spazi: spento",
+      "tag": {
+        "stato": "  "
+      },
+      "stati": [],
+      "atteso": {
+        "stato": "off",
+        "voce": null
+      }
+    },
+    {
+      "nome": "allarme vero vince sullo stato",
+      "tag": {
+        "allarme": true,
+        "stato": true
+      },
+      "stati": [],
+      "atteso": {
+        "stato": "alarm",
+        "voce": null
+      }
+    },
+    {
+      "nome": "allarme 0 non è allarme",
+      "tag": {
+        "allarme": 0,
+        "stato": 1
+      },
+      "stati": [],
+      "atteso": {
+        "stato": "on",
+        "voce": null
+      }
+    },
+    {
+      "nome": "una voce degli stati che corrisponde vuol dire acceso",
+      "tag": {
+        "stato": 2
+      },
+      "stati": [
+        {
+          "value": 2,
+          "label": "Manuale",
+          "color": "#f59e0b"
+        }
+      ],
+      "atteso": {
+        "stato": "on",
+        "voce": 0
+      }
+    },
+    {
+      "nome": "anche se la voce corrisponde a 0",
+      "tag": {
+        "stato": 0
+      },
+      "stati": [
+        {
+          "value": 0,
+          "label": "Fermo per manutenzione",
+          "color": "#64748b"
+        },
+        {
+          "value": 2,
+          "label": "Manuale",
+          "color": "#f59e0b"
+        }
+      ],
+      "atteso": {
+        "stato": "on",
+        "voce": 0
+      }
+    },
+    {
+      "nome": "un intervallo [10, 20) contiene 15",
+      "tag": {
+        "stato": 15
+      },
+      "stati": [
+        {
+          "value": 2,
+          "label": "Manuale",
+          "color": "#f59e0b"
+        },
+        {
+          "value": "",
+          "label": "Carico",
+          "color": "#3b82f6",
+          "value_min": 10,
+          "value_max": 20
+        }
+      ],
+      "atteso": {
+        "stato": "on",
+        "voce": 1
+      }
+    },
+    {
+      "nome": "20 è fuori dall'intervallo: nessuna voce, ma è vero",
+      "tag": {
+        "stato": 20
+      },
+      "stati": [
+        {
+          "value": "",
+          "label": "Carico",
+          "color": "#3b82f6",
+          "value_min": 10,
+          "value_max": 20
+        }
+      ],
+      "atteso": {
+        "stato": "on",
+        "voce": null
+      }
+    },
+    {
+      "nome": "un testo non numerico non entra in un intervallo",
+      "tag": {
+        "stato": "abc"
+      },
+      "stati": [
+        {
+          "value": "",
+          "label": "Carico",
+          "color": "#3b82f6",
+          "value_min": 10,
+          "value_max": 20
+        }
+      ],
+      "atteso": {
+        "stato": "on",
+        "voce": null
+      }
+    },
+    {
+      "nome": "con l'allarme la voce si trova lo stesso (per etichetta e lampeggio)",
+      "tag": {
+        "allarme": true,
+        "stato": 2
+      },
+      "stati": [
+        {
+          "value": 2,
+          "label": "Manuale",
+          "color": "#f59e0b"
+        }
+      ],
+      "atteso": {
+        "stato": "alarm",
+        "voce": 0
+      }
+    },
+    {
+      "nome": "un composito non è vero",
+      "tag": {
+        "stato": [
+          1,
+          2
+        ]
+      },
+      "stati": [],
+      "atteso": {
+        "stato": "off",
+        "voce": null
+      }
+    }
+  ]
+}

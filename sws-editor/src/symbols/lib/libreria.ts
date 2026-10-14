@@ -1,0 +1,135 @@
+// La libreria di simboli nel browser: caricamento, cache, preparazione a strati.
+//
+// Il manifesto si scarica una volta. Gli SVG si scaricano alla prima richiesta
+// con `?v=<versione del manifesto>`: `/symbols` è servito senza Cache-Control, e
+// senza la versione un browser potrebbe tenersi il disegno di prima di un
+// aggiornamento. Piano: docs/plans/2026-10-14-motore-simboli-lib.md (Fase 2).
+
+import { useSyncExternalStore } from "react";
+import { applicaStile, type StileSimbolo } from "./applicaStile";
+import type { ManifestLib, SimboloLib } from "./manifest";
+
+export const BASE_LIB = "/symbols/lib/";
+export const CONTORNO_PREDEFINITO = "#1c2329";
+
+let manifesto: ManifestLib | null = null;
+let richiesto = false;
+const svgs = new Map<string, string>();
+const inCorso = new Set<string>();
+const ascoltatori = new Set<() => void>();
+let giro = 0;
+
+function avvisa() {
+  giro += 1;
+  for (const a of ascoltatori) a();
+}
+
+function iscrivi(a: () => void) {
+  ascoltatori.add(a);
+  return () => { ascoltatori.delete(a); };
+}
+
+function caricaManifesto() {
+  if (richiesto || typeof fetch === "undefined") return;
+  richiesto = true;
+  fetch(`${BASE_LIB}manifest.json`, { cache: "no-cache" })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((m: ManifestLib | null) => { if (m?.symbols) { manifesto = m; avvisa(); } })
+    .catch(() => { /* senza manifesto i `lib:` restano segnaposto */ });
+}
+
+function caricaSvg(s: SimboloLib) {
+  if (svgs.has(s.id) || inCorso.has(s.id) || !manifesto || typeof fetch === "undefined") return;
+  inCorso.add(s.id);
+  fetch(`${BASE_LIB}${s.file}?v=${manifesto.version}`)
+    .then((r) => (r.ok ? r.text() : ""))
+    .then((t) => { if (t.startsWith("<svg")) { svgs.set(s.id, t); avvisa(); } })
+    .catch(() => { /* resta il segnaposto */ })
+    .finally(() => inCorso.delete(s.id));
+}
+
+/** Il manifesto, o `null` finché non è arrivato. */
+export function useManifestoLib(): ManifestLib | null {
+  caricaManifesto();
+  useSyncExternalStore(iscrivi, () => giro, () => giro);
+  return manifesto;
+}
+
+/** Il simbolo e il suo SVG; `svg` è `undefined` finché non è arrivato. */
+export function useSimboloLib(id: string | undefined): { sim?: SimboloLib; svg?: string; manifesto: ManifestLib | null } {
+  const m = useManifestoLib();
+  const sim = id && m ? m.symbols.find((s) => s.id === id) : undefined;
+  if (sim) caricaSvg(sim);
+  return { sim, svg: sim ? svgs.get(sim.id) : undefined, manifesto: m };
+}
+
+/** Per i test: un manifesto e i suoi SVG già in memoria, senza rete. */
+export function impostaLibreriaPerTest(m: ManifestLib | null, file: Record<string, string> = {}) {
+  manifesto = m;
+  richiesto = true;
+  svgs.clear();
+  if (m) for (const s of m.symbols) if (file[s.file]) svgs.set(s.id, file[s.file]);
+  avvisa();
+}
+
+export function isLib(symbolId: string | undefined): boolean {
+  return !!symbolId && symbolId.startsWith("lib:");
+}
+
+// ── preparazione ───────────────────────────────────────────────────────────
+
+export interface StratoLib {
+  /** Id dello strato senza prefisso: `layer-0`, `body`, `rotor`, `level`… */
+  id: string;
+  parte: boolean;
+  markup: string;
+}
+
+export interface SimboloPreparato {
+  viewBox: string;
+  defs: string;
+  strati: StratoLib[];
+}
+
+/** Rende unici gli id per istanza: due pompe nella stessa pagina hanno gradienti
+ *  e strati con lo stesso nome, e `url(#…)` prenderebbe il primo. */
+export function prefissaId(markup: string, prefisso: string): string {
+  return markup
+    .replace(/ id="/g, ` id="${prefisso}-`)
+    .replace(/href="#/g, `href="#${prefisso}-`)
+    .replace(/url\(#/g, `url(#${prefisso}-`);
+}
+
+const STRATO = /^ {2}<g id="([^"]+)" data-layer="(static|part)"[^\n]*\n[\s\S]*?^ {2}<\/g>$/gm;
+
+/** Applica lo stile e divide l'SVG nei suoi strati, nel formato del generatore. */
+export function preparaSimbolo(svg: string, prefisso: string, stile: StileSimbolo): SimboloPreparato {
+  const conStile = applicaStile(svg, stile);
+  const viewBox = /viewBox="([^"]+)"/.exec(conStile)?.[1] ?? "0 0 100 100";
+  const defs = /<defs>([\s\S]*?)<\/defs>/.exec(conStile)?.[1] ?? "";
+  const strati: StratoLib[] = [];
+  for (const m of conStile.matchAll(STRATO)) {
+    strati.push({ id: m[1], parte: m[2] === "part", markup: prefissaId(m[0], prefisso) });
+  }
+  return { viewBox, defs: prefissaId(defs, prefisso), strati };
+}
+
+/** Lo stile che vale finché non c'è lo stile del progetto (Fase 4): quello del disegno. */
+export function stileDelDisegno(m: ManifestLib, corpo: string | null): StileSimbolo {
+  return { materials: m.materials, volume: 100, outline: { color: CONTORNO_PREDEFINITO, width: 1 }, body: corpo };
+}
+
+export function prefissoIstanza(objId: string): string {
+  return `sl-${objId.replace(/[^A-Za-z0-9_-]/g, "_")}`;
+}
+
+/** Il simbolo dal manifesto già caricato, fuori da React (creazione di un oggetto). */
+export function trovaSimboloLib(id: string): SimboloLib | undefined {
+  return manifesto?.symbols.find((s) => s.id === id);
+}
+
+/** Lo SVG già caricato (anteprime): `undefined` se non è ancora arrivato. */
+export function svgLibCaricato(s: SimboloLib): string | undefined {
+  caricaSvg(s);
+  return svgs.get(s.id);
+}

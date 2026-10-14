@@ -17,6 +17,12 @@
 # Le scrive chi fa il lavoro, insieme al lavoro; il maintainer le rivede al collaudo.
 
 versioni:
+  - versione: "2.14.0"
+    voci:
+      - it: "Prima parte della libreria di simboli SCADA 2.5D nel selettore dei simboli: il corpo prende il colore di stato, il serbatoio si riempie dal tag, la girante della pompa gira."
+        en: "First part of the 2.5D SCADA symbol library in the symbol picker: the body takes the state colour, the tank fills from its tag, the pump impeller spins."
+      - it: "Sul pannello un tag di testo come «on» accende il simbolo come nel browser, e nell'editor un clic sul disegno di un simbolo lo seleziona."
+        en: "On the panel a text tag such as «on» switches the symbol on as in the browser, and in the editor clicking a symbol's drawing selects it."
   - versione: "2.13.0"
     voci:
       - it: "Nuovo tipo di variabile «color» e bottoni che assegnano: un tocco può scrivere più variabili, per esempio cambiare il colore di sfondo della pagina."

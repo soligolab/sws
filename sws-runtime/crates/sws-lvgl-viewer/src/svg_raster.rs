@@ -133,16 +133,7 @@ pub fn rasterize(svg: &[u8], w: u32, h: u32, flip_h: bool, flip_v: bool) -> Opti
     // lasciarlo più piccolo, perché una valvola schiacciata sembra un'altra
     // valvola.
     let size = tree.size();
-    let scale = (w as f32 / size.width()).min(h as f32 / size.height());
-    let dx = (w as f32 - size.width() * scale) / 2.0;
-    let dy = (h as f32 - size.height() * scale) / 2.0;
-    let transform = specchia(
-        resvg::tiny_skia::Transform::from_translate(dx, dy).pre_scale(scale, scale),
-        w,
-        h,
-        flip_h,
-        flip_v,
-    );
+    let transform = trasformazione((size.width(), size.height()), w, h, flip_h, flip_v);
     resvg::render(&tree, transform, &mut pixmap.as_mut());
 
     Some(Raster {
@@ -150,6 +141,76 @@ pub fn rasterize(svg: &[u8], w: u32, h: u32, flip_h: bool, flip_v: bool) -> Opti
         height: h,
         pixels: pixmap.take(),
     })
+}
+
+/// Un riquadro in pixel dentro il riquadro `w`×`h` di un oggetto.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Ritaglio {
+    pub x: u32,
+    pub y: u32,
+    pub w: u32,
+    pub h: u32,
+}
+
+/// La trasformazione di [`rasterize`]: l'SVG di dimensioni `size` contenuto e
+/// centrato in `w`×`h`, con lo specchio. Esposta per i simboli di libreria, che
+/// disegnano uno strato alla volta e devono mettere ogni strato **esattamente**
+/// dove `rasterize` metterebbe il disegno intero.
+pub fn trasformazione(size: (f32, f32), w: u32, h: u32, flip_h: bool, flip_v: bool) -> resvg::tiny_skia::Transform {
+    let scale = (w as f32 / size.0).min(h as f32 / size.1);
+    let dx = (w as f32 - size.0 * scale) / 2.0;
+    let dy = (h as f32 - size.1 * scale) / 2.0;
+    specchia(
+        resvg::tiny_skia::Transform::from_translate(dx, dy).pre_scale(scale, scale),
+        w,
+        h,
+        flip_h,
+        flip_v,
+    )
+}
+
+/// Il riquadro in pixel che il disegno di `svg` occupa dentro `w`×`h`, bordi
+/// compresi e arrotondato verso l'esterno di un pixel. `None` se non disegna niente.
+pub fn ingombro(svg: &[u8], w: u32, h: u32, flip_h: bool, flip_v: bool) -> Option<Ritaglio> {
+    let tree = resvg::usvg::Tree::from_data(svg, &resvg::usvg::Options::default()).ok()?;
+    let b = tree.root().abs_stroke_bounding_box();
+    if b.width() <= 0.0 || b.height() <= 0.0 {
+        return None;
+    }
+    let t = trasformazione((tree.size().width(), tree.size().height()), w, h, flip_h, flip_v);
+    let mut pts = [
+        resvg::tiny_skia::Point::from_xy(b.left(), b.top()),
+        resvg::tiny_skia::Point::from_xy(b.right(), b.top()),
+        resvg::tiny_skia::Point::from_xy(b.left(), b.bottom()),
+        resvg::tiny_skia::Point::from_xy(b.right(), b.bottom()),
+    ];
+    t.map_points(&mut pts);
+    ritaglio_di(&pts, w, h)
+}
+
+/// Il riquadro, dentro `w`×`h`, che contiene i punti dati (già in pixel).
+pub fn ritaglio_di(pts: &[resvg::tiny_skia::Point], w: u32, h: u32) -> Option<Ritaglio> {
+    let x0 = pts.iter().map(|p| p.x).fold(f32::INFINITY, f32::min).floor() - 1.0;
+    let y0 = pts.iter().map(|p| p.y).fold(f32::INFINITY, f32::min).floor() - 1.0;
+    let x1 = pts.iter().map(|p| p.x).fold(f32::NEG_INFINITY, f32::max).ceil() + 1.0;
+    let y1 = pts.iter().map(|p| p.y).fold(f32::NEG_INFINITY, f32::max).ceil() + 1.0;
+    let (x0, y0) = (x0.max(0.0) as u32, y0.max(0.0) as u32);
+    let (x1, y1) = ((x1.max(0.0) as u32).min(w), (y1.max(0.0) as u32).min(h));
+    (x1 > x0 && y1 > y0).then_some(Ritaglio { x: x0, y: y0, w: x1 - x0, h: y1 - y0 })
+}
+
+/// Rasterizza solo il riquadro `r` di quello che [`rasterize`] disegnerebbe a
+/// `w`×`h`: stessa scala, stessa centratura, stesso specchio.
+pub fn rasterize_ritaglio(svg: &[u8], w: u32, h: u32, flip_h: bool, flip_v: bool, r: Ritaglio) -> Option<Raster> {
+    if w == 0 || h == 0 || w > MAX_SIDE || h > MAX_SIDE || r.w == 0 || r.h == 0 {
+        return None;
+    }
+    let tree = resvg::usvg::Tree::from_data(svg, &resvg::usvg::Options::default()).ok()?;
+    let mut pixmap = resvg::tiny_skia::Pixmap::new(r.w, r.h)?;
+    let t = resvg::tiny_skia::Transform::from_translate(-(r.x as f32), -(r.y as f32))
+        .pre_concat(trasformazione((tree.size().width(), tree.size().height()), w, h, flip_h, flip_v));
+    resvg::render(&tree, t, &mut pixmap.as_mut());
+    Some(Raster { width: r.w, height: r.h, pixels: pixmap.take() })
 }
 
 /// Rasterizza `svg` **stirato** a `w`×`h`, senza tenere le proporzioni: è lo

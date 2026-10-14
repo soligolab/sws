@@ -122,6 +122,7 @@ mod lvgl_render;
 mod model;
 mod net_worker;
 mod session;
+mod simbolo_lib;
 mod svg_assets;
 mod svg_raster;
 mod tabella;

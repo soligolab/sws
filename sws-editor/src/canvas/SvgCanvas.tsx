@@ -28,6 +28,10 @@ import { applyStateColor, parseSvg, sanitizeSvg } from "@/symbols/customSvg";
 import { trendTraces } from "@/canvas/trendModel";
 import { xySeriesOf } from "@/canvas/xyModel";
 import { SYMBOLS } from "@/symbols/library";
+import { isLib } from "@/symbols/lib/libreria";
+import { matchTextListEntry } from "@/canvas/textList";
+import { statoSimbolo, veroSimbolo } from "@/symbols/statoSimbolo";
+import { OggettoLib } from "@/symbols/lib/SimboloLib";
 import {
   PAGE_EDGE_RESIST_PX,
   isOffPage,
@@ -36,7 +40,7 @@ import {
   riquadroTestoSemplice,
   softClampToPage,
 } from "@/pageLayout";
-import type { AlarmSeverity, AlarmState, CustomSymbol, FaceplateDef, FaceplateParamDef, GridCell, PageSizeMode, PipePoint, Sample, SynopticObject, TableRow, TagDef, TagState, TextListEntry } from "@/types";
+import type { AlarmSeverity, AlarmState, CustomSymbol, FaceplateDef, FaceplateParamDef, GridCell, PageSizeMode, PipePoint, Sample, SynopticObject, TableRow, TagDef, TagState } from "@/types";
 import { fattoreFondoRespiro, luminositaValida, parametriLuminosita } from "./luce";
 import { puntiSvg, verticiPoligono } from "./forme";
 
@@ -387,27 +391,6 @@ function thresholdColor(
   return null;
 }
 
-/** Find the `text_list_entries` entry matching a live value — shared by
- *  `text_list` and `state_lamp`. An entry with either `value_min`/`value_max`
- *  set matches by range (half-open: `min <= v < max`, so adjacent buckets
- *  like [10,20) and [20,30) don't overlap); otherwise falls back to the
- *  original exact-value match, so existing saved entries keep working
- *  unchanged. First matching entry in array order wins. */
-function matchTextListEntry(
-  entries: TextListEntry[] | undefined,
-  liveVal: unknown,
-): TextListEntry | undefined {
-  const v = typeof liveVal === "number" ? liveVal : Number(liveVal);
-  return (entries ?? []).find((e) => {
-    if (e.value_min !== undefined || e.value_max !== undefined) {
-      if (!Number.isFinite(v)) return false;
-      if (e.value_min !== undefined && v < e.value_min) return false;
-      if (e.value_max !== undefined && v >= e.value_max) return false;
-      return true;
-    }
-    return String(e.value) === String(liveVal);
-  });
-}
 
 /** F1.3 — formattazione numerica strutturata. Specifiche supportate dentro
  *  `{value:…}` (sottoinsieme in stile Python, retro-compatibile):
@@ -5971,46 +5954,45 @@ function SvgObjectCorpo(p: ObjProps) {
     const customEntry = isCustom
       ? customSymbols.find((s) => s.id === obj.symbol_id!.slice(7))
       : undefined;
-    const meta = !isCustom && obj.symbol_id ? SYMBOLS[obj.symbol_id] : undefined;
+    // Fase 2 del piano dei simboli di libreria: `lib:<famiglia>/<slug>` viene
+    // dal manifesto di /symbols/lib/, con le parti vive (corpo, livello, rotore).
+    const libId = isLib(obj.symbol_id) ? obj.symbol_id : undefined;
+    const meta = !isCustom && !libId && obj.symbol_id ? SYMBOLS[obj.symbol_id] : undefined;
     const w = obj.width  ?? meta?.defaultWidth  ?? 80;
     const h = obj.height ?? meta?.defaultHeight ?? 80;
 
-    if (!meta && !customEntry) {
+    const segnaposto = (
+      <>
+        <rect x={obj.x} y={obj.y} width={w} height={h} rx={4}
+          fill="#0f172a" stroke={selected ? "#facc15" : "#7f1d1d"} strokeWidth={selected ? 2 : 1} />
+        <text x={obj.x + w / 2} y={obj.y + h / 2 + 4}
+          textAnchor="middle" fill="#fca5a5" fontSize={11}
+          style={{ pointerEvents: "none" }}>
+          simbolo?
+        </text>
+      </>
+    );
+    if (!meta && !customEntry && !libId) {
       return (
         <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
            style={{ cursor: editCursor }}>
           {selRect(obj.x, obj.y, w, h)}
-          <rect x={obj.x} y={obj.y} width={w} height={h} rx={4}
-            fill="#0f172a" stroke={selected ? "#facc15" : "#7f1d1d"} strokeWidth={selected ? 2 : 1} />
-          <text x={obj.x + w / 2} y={obj.y + h / 2 + 4}
-            textAnchor="middle" fill="#fca5a5" fontSize={11}
-            style={{ pointerEvents: "none" }}>
-            simbolo?
-          </text>
+          {segnaposto}
         </g>
       );
     }
 
-    const truthy = (id?: string) => {
-      if (!id) return false;
-      const tv = tagValues[id];
-      if (!tv) return false;
-      const v = tv.value;
-      if (typeof v === "boolean") return v;
-      if (typeof v === "number")  return v !== 0;
-      if (typeof v === "string")  return v.trim().length > 0;
-      return Boolean(v);
-    };
+    const truthy = (id?: string) => !!id && veroSimbolo(tagValues[id]?.value);
     // F6.6: mappa N-stati sul valore di state_tag (valore esatto o range,
-    // stesso matcher di text_list). L'allarme vince comunque.
-    const stateTagVal = obj.state_tag ? tagValues[obj.state_tag]?.value : undefined;
-    const stateEntry = (obj.symbol_states?.length && stateTagVal !== undefined)
-      ? matchTextListEntry(obj.symbol_states, stateTagVal)
-      : undefined;
-    const state =
-      truthy(obj.alarm_tag) ? "alarm" :
-      stateEntry ? "on" :
-      truthy(obj.state_tag) ? "on" : "off";
+    // stesso matcher di text_list). L'allarme vince comunque. La regola è una
+    // sola e la condivide il pannello (tests/fixtures/stato-simbolo.json).
+    const stato = statoSimbolo(
+      obj.alarm_tag ? tagValues[obj.alarm_tag]?.value : undefined,
+      obj.state_tag ? tagValues[obj.state_tag]?.value : undefined,
+      obj.symbol_states,
+    );
+    const stateEntry = stato.voce !== null ? obj.symbol_states![stato.voce] : undefined;
+    const state = stato.stato;
 
     const onColorEff = stateEntry?.color ?? coloreEffettivo(obj, "state_on_color");
     const badgeColor =
@@ -6049,7 +6031,22 @@ function SvgObjectCorpo(p: ObjProps) {
           style={{ cursor: editCursor }} />
         {applyTransform(obj, w, h, <>
           {bgLayer(obj.x, obj.y, w, h, 4)}
-          {customEntry?.svg ? (
+          {libId ? (
+            <g style={entryBlink ? { animation: "sws-obj-blink 800ms step-start infinite" } : undefined}
+              data-anim={entryBlink ? "1" : undefined}>
+              <OggettoLib symbolId={libId} objId={obj.id} x={obj.x} y={obj.y} w={w} h={h}
+                dataAnim={spinActive}
+                segnaposto={segnaposto}
+                valori={{
+                  // Il corpo prende il colore di stato solo se lo stato è legato:
+                  // altrimenti resta del suo materiale (decisione 4 del seme).
+                  corpo: (obj.state_tag || obj.alarm_tag || obj.symbol_states?.length) ? badgeColor : null,
+                  livello: level,
+                  gira: spinActive,
+                  periodoS: obj.symbol_spin_s ?? 2,
+                }} />
+            </g>
+          ) : customEntry?.svg ? (
             /* F6.9: simbolo custom multi-stato — markup inline con gli
                elementi colorable_ids ricolorati per stato. */
             (() => {
@@ -6087,6 +6084,10 @@ function SvgObjectCorpo(p: ObjProps) {
               preserveAspectRatio="xMidYMid meet" style={{ pointerEvents: "none" }} />
           )}
         </>)}
+        {/* Sopra il contenuto, solo in edit: i builtin disegnano forme che prendono
+            il clic, e senza questo un clic sul corpo del simbolo non lo selezionava
+            (pattern WYSIWYG, vedi hitRect). */}
+        {hitRect(obj.x, obj.y, w, h)}
         {/* Status badge — axis-aligned, outside transform so it stays top-right
             regardless of rotation/flip orientation. */}
         {(obj.state_tag || obj.alarm_tag) && (

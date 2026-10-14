@@ -497,6 +497,9 @@ pub enum LiveKind {
     /// (`off`/`on`/`alarm`, derivato da `state_tag`/`alarm_tag` come nel
     /// web) cambia davvero, non a ogni frame — un canvas redraw costa più
     /// di un `Style` refresh.
+    /// Simbolo di libreria (`lib:…`, Fase 2 del piano
+    /// docs/plans/2026-10-14-motore-simboli-lib.md): un canvas per strato.
+    SimboloLib(Box<VivoLib>),
     Symbol {
         canvas_ptr: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
         buf: Vec<u8>,
@@ -1967,8 +1970,18 @@ fn match_text_list_entry<'a>(
     let tv = tv?;
     let live_str = tag_value_as_string(&tv.value);
     let live_num = tag_value_as_f64(&tv.value);
+    // Come `Number(v)` sul web: un testo vuoto vale 0, uno non numerico (o un
+    // composito) non è un numero e non entra in nessun intervallo.
+    let numerico = match &tv.value {
+        TagValue::Str(s) => s.trim().is_empty() || s.trim().parse::<f64>().is_ok(),
+        TagValue::Array(_) | TagValue::Struct(_) => false,
+        _ => true,
+    };
     entries.iter().find(|e| {
         if e.value_min.is_some() || e.value_max.is_some() {
+            if !numerico {
+                return false;
+            }
             if let Some(min) = e.value_min {
                 if live_num < min {
                     return false;
@@ -9942,23 +9955,44 @@ fn angolo_rotazione(now_ms: u64, spin_s: f64) -> i16 {
     ((fase * 360.0).round() as i16 % 360) * 10
 }
 
+/// Lo stato di un simbolo e la voce di `symbol_states` che corrisponde: la
+/// regola di `sws-editor/src/symbols/statoSimbolo.ts`, con gli stessi casi
+/// (`tests/fixtures/stato-simbolo.json`).
+///
+/// Fino al 14-10-2026 qui un tag si leggeva con `tag_value_as_f64 != 0`: un
+/// testo «on» valeva 0 e il simbolo restava spento mentre il browser lo
+/// accendeva, e una voce degli stati che corrispondeva non bastava ad
+/// accenderlo (M10 del piano docs/plans/2026-10-14-motore-simboli-lib.md).
+fn stato_simbolo(
+    tags: &TagSnapshot,
+    state_tag: &Option<String>,
+    alarm_tag: &Option<String>,
+    stati: &[TextListEntry],
+) -> (SymbolState, Option<usize>) {
+    let vero = |tag: &Option<String>| lookup(tags, tag).is_some_and(|t| tag_value_as_bool(&t.value));
+    let voce = if stati.is_empty() {
+        None
+    } else {
+        match_text_list_entry(stati, lookup(tags, state_tag))
+            .and_then(|e| stati.iter().position(|x| std::ptr::eq(x, e)))
+    };
+    let stato = if vero(alarm_tag) {
+        SymbolState::Alarm
+    } else if voce.is_some() || vero(state_tag) {
+        SymbolState::On
+    } else {
+        SymbolState::Off
+    };
+    (stato, voce)
+}
+
 fn resolve_symbol_state(
     tags: &TagSnapshot,
     state_tag: &Option<String>,
     alarm_tag: &Option<String>,
+    stati: &[TextListEntry],
 ) -> SymbolState {
-    let truthy = |tag: &Option<String>| -> bool {
-        lookup(tags, tag)
-            .map(|t| tag_value_as_f64(&t.value) != 0.0)
-            .unwrap_or(false)
-    };
-    if truthy(alarm_tag) {
-        SymbolState::Alarm
-    } else if truthy(state_tag) {
-        SymbolState::On
-    } else {
-        SymbolState::Off
-    }
+    stato_simbolo(tags, state_tag, alarm_tag, stati).0
 }
 
 /// Disegna un SVG rasterizzato dentro un `lv_canvas` (D2, Q15 residuo + Q16).
@@ -10123,6 +10157,321 @@ fn render_svg_placeholder(
     Ok(())
 }
 
+// ── Simboli di libreria (`lib:…`) ─────────────────────────────────────────────
+//
+// La preparazione (strati, fotogrammi, finestra del livello) è in
+// `simbolo_lib.rs`, senza LVGL, ed è lì che si verifica. Qui si creano gli
+// oggetti e si aggiornano: un contenitore con la posizione e la misura
+// dell'oggetto, un `lv_canvas` per strato dentro.
+
+/// Lo strato `body`: il canvas, il suo buffer col colore del materiale, e la
+/// cache dei colori di stato già rasterizzati.
+pub struct CorpoLib {
+    canvas: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    dove: crate::svg_raster::Ritaglio,
+    materiale: Vec<u8>,
+    cache: crate::simbolo_lib::CacheCorpo,
+    colore: Option<(u8, u8, u8)>,
+}
+
+/// Lo strato `level`: il liquido pieno in un canvas, dentro un contenitore che
+/// ne mostra solo la parte bassa.
+pub struct LivelloLib {
+    scatola: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    canvas: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    finestra: crate::svg_raster::Ritaglio,
+    dove: crate::svg_raster::Ritaglio,
+    dal_basso: bool,
+    _buf: Vec<u8>,
+    ultimo_px: i32,
+}
+
+pub struct RotoreLib {
+    canvas: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    fotogrammi: Vec<Vec<u8>>,
+    dove: crate::svg_raster::Ritaglio,
+    symmetry: f64,
+    ultimo: usize,
+    /// Misura M2 (`SWS_ROTORE_ANGOLO=1`): un fotogramma solo, ruotato da LVGL
+    /// con `transform_angle` invece di scambiare i fotogrammi. Serve a
+    /// confrontare le due strade sul pannello; il predefinito sono i fotogrammi.
+    angolo: bool,
+}
+
+/// La variante di misura della rotazione (vedi `RotoreLib::angolo`).
+fn rotore_ad_angolo() -> bool {
+    std::env::var("SWS_ROTORE_ANGOLO").is_ok_and(|v| v == "1")
+}
+
+pub struct VivoLib {
+    corpo: Option<CorpoLib>,
+    livello: Option<LivelloLib>,
+    rotori: Vec<RotoreLib>,
+    /// I buffer degli strati fermi: LVGL legge da lì a ogni ridisegno.
+    fermi: Vec<Vec<u8>>,
+    svg: String,
+    manifesto: std::sync::Arc<sws_core::simboli_lib::ManifestLib>,
+    q: crate::simbolo_lib::Quadro,
+    state_tag: Option<String>,
+    alarm_tag: Option<String>,
+    stati: Vec<TextListEntry>,
+    off_color: String,
+    on_color: String,
+    alarm_color: String,
+    /// Lo stato è legato (state_tag, alarm_tag o stati): solo allora il corpo
+    /// prende il colore di stato, altrimenti resta del suo materiale — come sul web.
+    legato: bool,
+    fill_level: Option<f64>,
+    fill_level_tag: Option<String>,
+    scala_0_100: bool,
+    spin: Option<String>,
+    spin_tag: Option<String>,
+    spin_s: f64,
+}
+
+impl VivoLib {
+    fn byte(&self) -> usize {
+        self.fermi.iter().map(Vec::len).sum::<usize>()
+            + self.corpo.as_ref().map_or(0, |c| c.materiale.len())
+            + self.livello.as_ref().map_or(0, |l| l._buf.len())
+            + self.rotori.iter().map(|r| r.fotogrammi.iter().map(Vec::len).sum::<usize>()).sum::<usize>()
+    }
+}
+
+/// Un contenitore trasparente, senza stile del tema, che non scorre e non prende clic.
+unsafe fn contenitore_lib(
+    genitore: *mut lvgl_sys::lv_obj_t,
+    x: i16,
+    y: i16,
+    w: i16,
+    h: i16,
+) -> anyhow::Result<core::ptr::NonNull<lvgl_sys::lv_obj_t>> {
+    let p = lvgl_sys::lv_obj_create(genitore);
+    let nn = core::ptr::NonNull::new(p).ok_or_else(|| anyhow::anyhow!("lv_obj_create ha restituito null"))?;
+    lvgl_sys::lv_obj_remove_style(p, core::ptr::null_mut(), lvgl_sys::LV_PART_ANY | lvgl_sys::LV_STATE_ANY);
+    lvgl_sys::lv_obj_clear_flag(p, lvgl_sys::LV_OBJ_FLAG_CLICKABLE | lvgl_sys::LV_OBJ_FLAG_SCROLLABLE);
+    lvgl_sys::lv_obj_set_pos(p, x, y);
+    lvgl_sys::lv_obj_set_size(p, w, h);
+    Ok(nn)
+}
+
+/// Un `lv_canvas` che legge da `buf` (3 byte per pixel, vedi `svg_raster`).
+unsafe fn tela_lib(
+    genitore: *mut lvgl_sys::lv_obj_t,
+    x: i32,
+    y: i32,
+    r: crate::svg_raster::Ritaglio,
+    buf: &mut [u8],
+) -> anyhow::Result<core::ptr::NonNull<lvgl_sys::lv_obj_t>> {
+    let p = lvgl_sys::lv_canvas_create(genitore);
+    let nn = core::ptr::NonNull::new(p).ok_or_else(|| anyhow::anyhow!("lv_canvas_create ha restituito null"))?;
+    lvgl_sys::lv_canvas_set_buffer(
+        p,
+        buf.as_mut_ptr() as *mut std::ffi::c_void,
+        r.w as lvgl_sys::lv_coord_t,
+        r.h as lvgl_sys::lv_coord_t,
+        lvgl_sys::LV_IMG_CF_TRUE_COLOR_ALPHA as lvgl_sys::lv_img_cf_t,
+    );
+    lvgl_sys::lv_obj_set_pos(p, x as lvgl_sys::lv_coord_t, y as lvgl_sys::lv_coord_t);
+    Ok(nn)
+}
+
+unsafe fn cambia_buffer(canvas: core::ptr::NonNull<lvgl_sys::lv_obj_t>, r: crate::svg_raster::Ritaglio, buf: &mut [u8]) {
+    lvgl_sys::lv_canvas_set_buffer(
+        canvas.as_ptr(),
+        buf.as_mut_ptr() as *mut std::ffi::c_void,
+        r.w as lvgl_sys::lv_coord_t,
+        r.h as lvgl_sys::lv_coord_t,
+        lvgl_sys::LV_IMG_CF_TRUE_COLOR_ALPHA as lvgl_sys::lv_img_cf_t,
+    );
+    lvgl_sys::lv_obj_invalidate(canvas.as_ptr());
+}
+
+fn render_simbolo_lib(
+    screen: &mut lvgl::Obj,
+    obj: &SynopticObject,
+    tags: &TagSnapshot,
+    base_url: &str,
+    rt_handle: &tokio::runtime::Handle,
+) -> anyhow::Result<LiveBinding> {
+    use crate::simbolo_lib::{self as lib, PezzoStrato, Quadro};
+    let id = obj.symbol_id.as_deref().unwrap_or_default();
+    let manifesto = lib::manifesto(base_url, rt_handle)
+        .ok_or_else(|| anyhow::anyhow!("manifesto della libreria non disponibile"))?;
+    let sim = manifesto
+        .simbolo(id)
+        .ok_or_else(|| anyhow::anyhow!("{id}: non è nel manifesto di questo runtime"))?
+        .clone();
+    let svg = lib::svg_simbolo(base_url, rt_handle, &manifesto, &sim)
+        .ok_or_else(|| anyhow::anyhow!("{id}: SVG non scaricato"))?;
+    let w = obj.width.unwrap_or(sim.view_box[0]).round().clamp(8.0, 500.0) as i16;
+    let h = obj.height.unwrap_or(sim.view_box[1]).round().clamp(8.0, 500.0) as i16;
+    let q = Quadro { w: w as u32, h: h as u32, flip_h: obj.flip_h == Some(true), flip_v: obj.flip_v == Some(true) };
+    let t0 = std::time::Instant::now();
+    let prep = lib::prepara(&manifesto, &sim, &svg, q, None);
+    if std::env::var("SWS_MISURA_SIMBOLI").is_ok() {
+        eprintln!("[simboli-lib misura] {id} {w}x{h}: strati pronti in {:.1} ms", t0.elapsed().as_secs_f64() * 1e3);
+    }
+
+    let genitore = screen.raw().map_err(|e| anyhow::anyhow!("raw: {e:?}"))?.as_ptr();
+    let scatola = unsafe {
+        contenitore_lib(genitore, obj.x.unwrap_or(0.0).round() as i16, obj.y.unwrap_or(0.0).round() as i16, w, h)?
+    };
+    let mut vivo = VivoLib {
+        corpo: None,
+        livello: None,
+        rotori: Vec::new(),
+        fermi: Vec::new(),
+        svg,
+        manifesto: manifesto.clone(),
+        q,
+        state_tag: obj.state_tag.clone(),
+        alarm_tag: obj.alarm_tag.clone(),
+        stati: obj
+            .symbol_states
+            .clone()
+            .and_then(|v| serde_json::from_value::<Vec<TextListEntry>>(v).ok())
+            .unwrap_or_default(),
+        off_color: obj.state_off_color.clone().unwrap_or_else(|| predefinito_lvgl("symbol", "state_off_color").to_string()),
+        on_color: obj.state_on_color.clone().unwrap_or_else(|| predefinito_lvgl("symbol", "state_on_color").to_string()),
+        alarm_color: obj.state_alarm_color.clone().unwrap_or_else(|| predefinito_lvgl("symbol", "state_alarm_color").to_string()),
+        legato: false,
+        fill_level: obj.fill_level,
+        fill_level_tag: obj.fill_level_tag.clone(),
+        scala_0_100: obj.fill_level_scale.as_deref().unwrap_or("0-100") == "0-100",
+        spin: obj.symbol_spin.clone(),
+        spin_tag: obj.symbol_spin_tag.clone(),
+        spin_s: obj.symbol_spin_s.filter(|v| *v > 0.0).unwrap_or(2.0),
+    };
+    vivo.legato = vivo.state_tag.is_some() || vivo.alarm_tag.is_some() || !vivo.stati.is_empty();
+    for pezzo in prep.strati {
+        unsafe {
+            match pezzo {
+                PezzoStrato::Fermo(mut b) => {
+                    tela_lib(scatola.as_ptr(), b.dove.x as i32, b.dove.y as i32, b.dove, &mut b.buf)?;
+                    vivo.fermi.push(b.buf);
+                }
+                PezzoStrato::Corpo { mut bitmap } => {
+                    let canvas = tela_lib(scatola.as_ptr(), bitmap.dove.x as i32, bitmap.dove.y as i32, bitmap.dove, &mut bitmap.buf)?;
+                    vivo.corpo = Some(CorpoLib { canvas, dove: bitmap.dove, materiale: bitmap.buf, cache: Default::default(), colore: None });
+                }
+                PezzoStrato::Livello { mut bitmap, finestra, dal_basso } => {
+                    let sc = contenitore_lib(scatola.as_ptr(), finestra.x as i16, finestra.y as i16, finestra.w as i16, finestra.h as i16)?;
+                    let canvas = tela_lib(
+                        sc.as_ptr(),
+                        bitmap.dove.x as i32 - finestra.x as i32,
+                        bitmap.dove.y as i32 - finestra.y as i32,
+                        bitmap.dove,
+                        &mut bitmap.buf,
+                    )?;
+                    vivo.livello = Some(LivelloLib { scatola: sc, canvas, finestra, dove: bitmap.dove, dal_basso, _buf: bitmap.buf, ultimo_px: -1 });
+                }
+                PezzoStrato::Rotore { mut fotogrammi, dove, symmetry } => {
+                    let angolo = rotore_ad_angolo();
+                    if angolo {
+                        fotogrammi.truncate(1);
+                    }
+                    let canvas = tela_lib(scatola.as_ptr(), dove.x as i32, dove.y as i32, dove, &mut fotogrammi[0])?;
+                    if angolo {
+                        lvgl_sys::lv_obj_set_style_transform_pivot_x(canvas.as_ptr(), (dove.w / 2) as i16, 0);
+                        lvgl_sys::lv_obj_set_style_transform_pivot_y(canvas.as_ptr(), (dove.h / 2) as i16, 0);
+                    }
+                    vivo.rotori.push(RotoreLib { canvas, fotogrammi, dove, symmetry, ultimo: 0, angolo });
+                }
+            }
+        }
+    }
+    // La rotazione statica dell'oggetto: sul contenitore, attorno al centro.
+    let angolo = angolo_statico(obj.rotation);
+    if angolo != 0 {
+        unsafe {
+            lvgl_sys::lv_obj_set_style_transform_pivot_x(scatola.as_ptr(), w / 2, 0);
+            lvgl_sys::lv_obj_set_style_transform_pivot_y(scatola.as_ptr(), h / 2, 0);
+            lvgl_sys::lv_obj_set_style_transform_angle(scatola.as_ptr(), angolo, 0);
+        }
+    }
+    let mut b = LiveBinding { kind: LiveKind::SimboloLib(Box::new(vivo)) };
+    if let LiveKind::SimboloLib(v) = &mut b.kind {
+        aggiorna_simbolo_lib(v, tags);
+    }
+    Ok(b)
+}
+
+fn aggiorna_simbolo_lib(v: &mut VivoLib, tags: &TagSnapshot) {
+    let (stato, _voce) = stato_simbolo(tags, &v.state_tag, &v.alarm_tag, &v.stati);
+    // Corpo: colore di stato solo se lo stato è legato.
+    let colore = v.legato.then(|| {
+        colore_simbolo(stato, &v.stati, tags, &v.state_tag, &v.off_color, &v.on_color, &v.alarm_color)
+    });
+    if let Some(c) = v.corpo.as_mut() {
+        if c.colore != colore {
+            let dove = c.dove;
+            let buf: Option<&mut Vec<u8>> = match colore {
+                None => Some(&mut c.materiale),
+                Some(rgb) => {
+                    if c.cache.prendi(rgb).is_some() {
+                        c.cache.prendi(rgb)
+                    } else {
+                        crate::simbolo_lib::corpo_colorato(&v.manifesto, &v.svg, v.q, dove, Some(crate::simbolo_lib::esadecimale(rgb)))
+                            .map(|nuovo| c.cache.metti(rgb, nuovo, c.colore))
+                    }
+                }
+            };
+            if let Some(buf) = buf {
+                unsafe { cambia_buffer(c.canvas, dove, buf) };
+                c.colore = colore;
+            }
+        }
+    }
+    // Livello: come il web, dal tag o dal valore fisso; senza nessuno dei due
+    // il disegno com'è (pieno).
+    if let Some(l) = v.livello.as_mut() {
+        let grezzo = match v.fill_level_tag.as_deref().filter(|t| !t.is_empty()) {
+            Some(t) => tags.get(t).map(|tv| tag_value_as_f64(&tv.value)),
+            None => v.fill_level,
+        };
+        let frazione = grezzo
+            .filter(|x| x.is_finite())
+            .map(|x| if v.scala_0_100 { x / 100.0 } else { x })
+            .unwrap_or(1.0)
+            .clamp(0.0, 1.0);
+        let px = (l.finestra.h as f64 * frazione).round() as i32;
+        if px != l.ultimo_px {
+            let y_box = if l.dal_basso { l.finestra.y as i32 + l.finestra.h as i32 - px } else { l.finestra.y as i32 };
+            unsafe {
+                lvgl_sys::lv_obj_set_y(l.scatola.as_ptr(), y_box as lvgl_sys::lv_coord_t);
+                lvgl_sys::lv_obj_set_height(l.scatola.as_ptr(), px.max(0) as lvgl_sys::lv_coord_t);
+                lvgl_sys::lv_obj_set_pos(
+                    l.canvas.as_ptr(),
+                    (l.dove.x as i32 - l.finestra.x as i32) as lvgl_sys::lv_coord_t,
+                    (l.dove.y as i32 - y_box) as lvgl_sys::lv_coord_t,
+                );
+            }
+            l.ultimo_px = px;
+        }
+    }
+    // Rotori: il fotogramma dal tempo delle tick LVGL (non dall'orologio): due
+    // rotori con lo stesso periodo restano in fase, e l'istantanea è ripetibile.
+    let gira = deve_girare(v.spin.as_deref(), &v.spin_tag, stato, tags);
+    let ms = unsafe { lvgl_sys::lv_tick_get() } as u64;
+    for r in &mut v.rotori {
+        if r.angolo {
+            let a = if gira { angolo_rotazione(ms, v.spin_s) as usize } else { 0 };
+            if a != r.ultimo {
+                unsafe { lvgl_sys::lv_obj_set_style_transform_angle(r.canvas.as_ptr(), a as i16, 0) };
+                r.ultimo = a;
+            }
+            continue;
+        }
+        let k = if gira { crate::simbolo_lib::fotogramma(ms, v.spin_s, r.symmetry, r.fotogrammi.len()) } else { 0 };
+        if k != r.ultimo {
+            let dove = r.dove;
+            unsafe { cambia_buffer(r.canvas, dove, &mut r.fotogrammi[k]) };
+            r.ultimo = k;
+        }
+    }
+}
+
 /// `symbol`: canvas quadrato, ridisegnato solo quando lo stato cambia
 /// davvero (`update_bindings` confronta con `last_state`) — un redraw
 /// completo del canvas costa più di un semplice refresh di `Style`.
@@ -10202,7 +10551,7 @@ fn render_symbol(
             }
         },
     };
-    let state = resolve_symbol_state(tags, &obj.state_tag, &obj.alarm_tag);
+    let state = resolve_symbol_state(tags, &obj.state_tag, &obj.alarm_tag, &stati);
     let state_c = colore_simbolo(
         state,
         &stati,
@@ -10816,6 +11165,18 @@ fn dispatch_render(
         // Un simbolo è o una forma builtin disegnata con le primitive
         // (ricolorabile per stato), o un SVG da rasterizzare. `source_for`
         // distingue i due casi; lo stesso ramo serve il widget `image`.
+        "symbol" if obj.symbol_id.as_deref().is_some_and(|i| i.starts_with("lib:")) => {
+            match render_simbolo_lib(screen, obj, tags, base_url, rt_handle) {
+                Ok(b) => {
+                    live.push(b);
+                    Ok(())
+                }
+                Err(e) => {
+                    eprintln!("[simboli-lib] {}: {e}", obj.id.as_deref().unwrap_or("?"));
+                    render_svg_placeholder(screen, obj, styles)
+                }
+            }
+        }
         "symbol" | "image" => match crate::svg_assets::source_for_project(obj, base_url, rt_handle)
         {
             Some(src) => match render_svg_raster(screen, obj, &src, base_url, rt_handle) {
@@ -11681,6 +12042,7 @@ pub fn svg_bitmap_bytes(bindings: &[LiveBinding]) -> usize {
         .iter()
         .map(|b| match &b.kind {
             LiveKind::SvgRaster { buf, .. } => buf.len(),
+            LiveKind::SimboloLib(v) => v.byte(),
             _ => 0,
         })
         .sum()
@@ -11829,6 +12191,7 @@ pub fn update_bindings(
             // Sta fra i binding solo perché `buf` deve restare vivo quanto il
             // canvas.
             LiveKind::SvgRaster { .. } => {}
+            LiveKind::SimboloLib(v) => aggiorna_simbolo_lib(v, tags),
             LiveKind::Led {
                 ptr,
                 tag,
@@ -12345,7 +12708,7 @@ pub fn update_bindings(
                 angolo_base,
                 buf: _,
             } => {
-                let state = resolve_symbol_state(tags, state_tag, alarm_tag);
+                let state = resolve_symbol_state(tags, state_tag, alarm_tag, stati);
                 let rgb = colore_simbolo(
                     state,
                     stati,
@@ -14545,6 +14908,50 @@ mod binding_tests {
 /// divergevano in due punti: una entry senza valori dava il nome nudo della
 /// chiave sul web e `{{chiave}}` qui, e `{{a b}}` era un token qui e non sul
 /// web.
+#[cfg(test)]
+mod stato_simbolo_tests {
+    use super::*;
+
+    #[derive(serde::Deserialize)]
+    struct Caso {
+        nome: String,
+        tag: std::collections::BTreeMap<String, serde_json::Value>,
+        stati: Vec<TextListEntry>,
+        atteso: Atteso,
+    }
+    #[derive(serde::Deserialize)]
+    struct Atteso {
+        stato: String,
+        voce: Option<usize>,
+    }
+
+    /// I casi del web (`sws-editor/tests/statoSimbolo.test.ts`): lo stesso tag
+    /// deve accendere una pompa nel browser e sul pannello.
+    #[test]
+    fn i_casi_condivisi_col_web() {
+        #[derive(serde::Deserialize)]
+        struct F {
+            casi: Vec<Caso>,
+        }
+        let f: F = serde_json::from_str(include_str!("../../../../tests/fixtures/stato-simbolo.json")).unwrap();
+        assert!(f.casi.len() >= 10);
+        for c in f.casi {
+            let mut tags = TagSnapshot::new();
+            for (k, v) in &c.tag {
+                let value: TagValue = serde_json::from_value(v.clone()).unwrap();
+                tags.insert(k.clone(), TagSnapshotValue { value, quality: TagQuality::Good, ts: 0 });
+            }
+            let (stato, voce) = stato_simbolo(&tags, &Some("stato".into()), &Some("allarme".into()), &c.stati);
+            let nome = match stato {
+                SymbolState::Off => "off",
+                SymbolState::On => "on",
+                SymbolState::Alarm => "alarm",
+            };
+            assert_eq!((nome, voce), (c.atteso.stato.as_str(), c.atteso.voce), "caso «{}»", c.nome);
+        }
+    }
+}
+
 #[cfg(test)]
 mod colori_predefiniti_tests {
     use super::colori_predefiniti::{predefinito_lvgl, TABELLA};

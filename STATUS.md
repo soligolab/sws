@@ -12,6 +12,63 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — libreria di simboli SCADA: Fasi 1 e 2 fatte, da confermare (2026-10-14)
+
+Piani: [seme](docs/plans/2026-10-14-libreria-simboli-scada.md) (decisioni 1-19) e
+[esecuzione](docs/plans/2026-10-14-motore-simboli-lib.md) (M1-M11, sette fasi). Lavoro in un **worktree
+a parte**, `/home/ut1/sws-simboli`, perché sul checkout principale lavorava un'altra sessione.
+
+**Due rami, uno dentro l'altro, nessuno mergiato.** È l'opzione 2 della regola «un ramo alla volta»:
+`feat/simboli-lib-fetta` è annidato su `feat/simboli-lib-formato`.
+- `feat/simboli-lib-formato` (Fase 1, `936d8e88`):
+  - generatore `scripts/simboli/` e 16 campioni in `public/symbols/lib/` col manifesto;
+  - «applica stile» in TS e Rust, con la fixture `tests/fixtures/stile-simboli.json`;
+  - la guardia `check_libreria_simboli.sh`.
+
+  Tavola di confronto (artifact privato, versione 2): <https://claude.ai/artifact/BjDtv35fbe69bpBWyBBvkn>.
+- `feat/simboli-lib-fetta` (Fase 2): `lib:process/centrifugal-pump` e `lib:process/vertical-tank`
+  disegnati dal vivo su web e LVGL, con corpo di stato, livello e rotore.
+  - Le voci del picker sono in un gruppo «Libreria» provvisorio.
+  - Validatore e schema IA conoscono i `lib:`.
+  - La regola di stato è condivisa (`tests/fixtures/stato-simbolo.json`), e corregge il pannello
+    che leggeva «on» come spento.
+  - Corretto anche il clic che deselezionava i builtin.
+
+**Da fare per chiudere**:
+1. Confermare l'aspetto della Fase 1 sulla tavola.
+2. Provare la Fase 2 nell'IDE di prova, `http://192.168.0.201:8464`. È l'istanza 3, avviata dal
+   worktree; i progetti sono in `.run-editor-3/projects`. Nel picker c'è il gruppo «Libreria».
+3. Squash di `feat/simboli-lib-formato` su `main`, poi di `feat/simboli-lib-fetta`, e cancellazione
+   dei due rami. Il worktree si toglie con `git worktree remove /home/ut1/sws-simboli`.
+
+**Misura M2 sul WP630** (Cortex-A53, viewer release, 10 pompe da 140 px che girano, 1875 fotogrammi):
+
+| Strada | Costo per fotogramma |
+|---|---|
+| fotogrammi precalcolati (la strada scelta) | **0,88 ms** |
+| `lv_img_set_angle` sul solo rotore | 1,77 ms |
+| builtin di oggi (canvas intero ruotato) | 4,57 ms |
+
+Preparare gli strati di una pompa costa 20 ms. I fotogrammi sono confermati. La variante a angolo
+resta dietro `SWS_ROTORE_ANGOLO=1`, solo per rifare la misura su un'altra scheda, e
+`SWS_MISURA_SIMBOLI=1` stampa i tempi di preparazione.
+
+**⚠ Trovato strada facendo, da guardare**: dall'11-10 un runtime senza utenti è «da abbinare» e mostra
+il codice invece della pagina.
+- `check_simboli_lvgl.sh` fotografava 56 schermate di abbinamento e diceva verde. Corretto qui con
+  `--senza-autenticazione`.
+- **Altre 31 guardie con lo stack** avviano il runtime senza quel flag (elenco:
+  `grep -L -- --senza-autenticazione $(grep -l -- --admin-port scripts/check_*.sh)`).
+- Quelle che fotografano LVGL (`check_forme_lvgl`, `check_luce_lvgl`, `check_fade_raster`,
+  `check_fuori_pagina_lvgl`, `check_contrasto`) rischiano lo stesso falso verde. Non toccate: è un
+  lavoro a sé.
+
+**Prossimo**: Fase 3 del piano.
+- Lancetta, leva e spie su entrambi i viewer.
+- `symbol_parts` in tutti gli specchi e la sezione «Parti» dal manifesto.
+- Il picker per famiglia, con la ricerca.
+- Il lampeggio per voce di `symbol_states` su LVGL.
+
 ## ▶ Riprendere da qui — collaudo del WP630 da zero, e i difetti che ha fatto uscire (2026-10-12/14)
 
 Su `main`: tre squash del 12-10 (`9953836e` ritocchi dell'interfaccia, `7c104d6c` dipendenze morte,

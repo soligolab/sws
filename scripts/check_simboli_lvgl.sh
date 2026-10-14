@@ -45,8 +45,12 @@ LIMITE="${LIMITE:-20}"   # secondi per simbolo: uno sano ci mette ~0,1 s
 mkdir -p "$WORK"/{config,projects}
 trap '[ -f "$WORK/rt.pid" ] && kill "$(cat "$WORK/rt.pid")" 2>/dev/null; rm -rf "$WORK"' EXIT
 
+# `--senza-autenticazione`: dall'11-10-2026 un runtime senza utenti è «da
+# abbinare» e mostra il codice invece della pagina. Senza questo flag la guardia
+# fotografava 56 volte la schermata di abbinamento e diceva verde (trovato il
+# 14-10-2026 col livello del serbatoio, che non si muoveva).
 "$BIN" --config "$WORK/config" --projects-root "$WORK/projects" \
-  --templates-root "examples/templates" --www "$DIST" \
+  --templates-root "examples/templates" --www "$DIST" --senza-autenticazione \
   --viewer-port "$VP" --admin-port "$AP" > "$WORK/rt.log" 2>&1 &
 echo $! > "$WORK/rt.pid"
 su=0
@@ -63,6 +67,9 @@ curl -sf -X POST "$API/projects/simboli/open" > /dev/null
 # L'elenco viene dalla libreria dell'editor: è quello che la palette offre
 # davvero, ed è la stessa fonte che usa `check_lvgl_symbols.sh`.
 mapfile -t SIMBOLI < <(grep -oE 'id: "[a-z_0-9]+"' sws-editor/src/symbols/library.tsx | sed 's/id: "//; s/"//')
+# Più i simboli di libreria (`lib:…`, piano docs/plans/2026-10-14-motore-simboli-lib.md):
+# l'elenco è il manifesto generato, la stessa fonte del picker e del validatore.
+mapfile -t -O "${#SIMBOLI[@]}" SIMBOLI < <(python3 -c 'import json; [print(s["id"]) for s in json.load(open("sws-editor/public/symbols/lib/manifest.json"))["symbols"]]')
 if [ "${#SIMBOLI[@]}" -lt 10 ]; then
   echo "✗ letti solo ${#SIMBOLI[@]} simboli da sws-editor/src/symbols/library.tsx" >&2
   echo "  La forma delle voci è cambiata: questo controllo non sta più guardando niente." >&2
@@ -90,6 +97,14 @@ for s in "${SIMBOLI[@]}"; do
         --istantanea "$WORK/s.ppm" > "$WORK/s.log" 2>&1; then
     printf '  \033[31m✗\033[0m %-22s non ha finito entro %ss\n' "$s" "$LIMITE"
     bloccati+=("$s")
+    continue
+  fi
+  # Un simbolo di libreria che non si prepara (manifesto, SVG, strati) lascia un
+  # segnaposto grigio e una riga nel registro: senza guardare il registro il
+  # bordo del segnaposto passerebbe per un disegno.
+  if grep -q '\[simboli-lib\]' "$WORK/s.log"; then
+    printf '  \033[31m✗\033[0m %-22s non disegnato: %s\n' "$s" "$(grep -m1 '\[simboli-lib\]' "$WORK/s.log")"
+    vuoti+=("$s")
     continue
   fi
   # Ha disegnato qualcosa? Un simbolo che non lascia un pixel è un altro
@@ -126,6 +141,49 @@ PY
     fi
   fi
 done
+
+# ── il livello di un simbolo di libreria si muove solo dentro la sua finestra ──
+# Lo stesso serbatoio al 30 e al 70 %: i pixel che cambiano devono stare tutti
+# nella finestra del manifesto (31,40 18×80 nel disegno, qui a scala 1 dentro
+# un oggetto 80×160 messo a 50,30), e devono essere abbastanza da vedersi.
+livello_male=()
+for pct in 30 70; do
+  curl -sf -X PUT "$API/synoptics/Pagina%201" -H 'Content-Type: application/json' -d "{
+    \"id\":\"pagina-1\",\"name\":\"Pagina 1\",\"width\":200,\"height\":220,\"background\":\"#101820\",
+    \"objects\":[{\"id\":\"t\",\"type\":\"symbol\",\"x\":50,\"y\":30,\"width\":80,\"height\":160,
+      \"symbol_id\":\"lib:process/vertical-tank\",\"fill_level\":$pct}]}" > /dev/null
+  timeout "$LIMITE" "$LVGL" --base-url "http://localhost:$VP" --page "Pagina 1" \
+    --istantanea "$WORK/l$pct.ppm" > "$WORK/l$pct.log" 2>&1 || livello_male+=("istantanea al $pct% non finita")
+done
+if [ "${#livello_male[@]}" -eq 0 ]; then
+  esito=$(python3 - "$WORK/l30.ppm" "$WORK/l70.ppm" <<'PY'
+import sys, io
+def leggi(p):
+    d = io.open(p, "rb").read(); t = d.split(b"\n", 3)
+    w, h = map(int, t[1].split()); return w, h, t[3]
+w, h, a = leggi(sys.argv[1]); _, _, b = leggi(sys.argv[2])
+fuori = dentro = 0
+for y in range(h):
+    for x in range(w):
+        i = (y * w + x) * 3
+        if any(abs(a[i+k] - b[i+k]) > 12 for k in range(3)):
+            if 50 + 31 - 1 <= x < 50 + 31 + 18 + 1 and 30 + 40 - 1 <= y < 30 + 40 + 80 + 1:
+                dentro += 1
+            else:
+                fuori += 1
+print(dentro, fuori)
+PY
+)
+  read -r dentro fuori <<< "$esito"
+  if [ "$fuori" -gt 0 ]; then livello_male+=("$fuori pixel cambiati fuori dalla finestra del livello"); fi
+  if [ "$dentro" -lt 300 ]; then livello_male+=("solo $dentro pixel cambiati dentro la finestra: il livello non si muove"); fi
+fi
+if [ "${#livello_male[@]}" -gt 0 ]; then
+  for m in "${livello_male[@]}"; do printf '  \033[31m✗\033[0m livello lib:process/vertical-tank: %s\n' "$m"; done
+  vuoti+=("livello")
+else
+  printf '  \033[32m✓\033[0m livello lib:process/vertical-tank: dal 30 al 70 %% cambiano %s pixel, tutti nella finestra\n' "$dentro"
+fi
 
 echo
 if [ "${#bloccati[@]}" -gt 0 ]; then

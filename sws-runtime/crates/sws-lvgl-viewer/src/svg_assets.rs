@@ -138,6 +138,7 @@ fn cache() -> &'static std::sync::Mutex<HashMap<String, Option<Vec<u8>>>> {
 pub fn invalidate() {
     cache().lock().unwrap_or_else(|e| e.into_inner()).clear();
     *simboli().lock().unwrap_or_else(|e| e.into_inner()) = None;
+    crate::simbolo_lib::invalida();
 }
 
 /// I simboli custom del progetto, scaricati una volta sola.

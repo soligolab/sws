@@ -2,8 +2,13 @@
 
 > **Piano d'esecuzione, scritto il 14-10-2026 nella sessione plan approfondita che il seme
 > [libreria di simboli SCADA](2026-10-14-libreria-simboli-scada.md) chiedeva. Le decisioni M1–M11
-> sono del maintainer. Il piano attende il via per la Fase 1.** Le decisioni grafiche e di
-> prodotto (1–19) restano nel seme. Qui c'è il *come*.
+> sono del maintainer.** Le decisioni grafiche e di prodotto (1–19) restano nel seme. Qui c'è il
+> *come*.
+>
+> **Stato al 14-10-2026, sera**: Fase 1 fatta sul ramo `feat/simboli-lib-formato`. Fase 2 fatta
+> sul ramo `feat/simboli-lib-fetta`, **annidato** sul primo (regola «un ramo alla volta», opzione
+> 2), con la misura M2 sul WP630. Nessuno dei due è mergiato: aspettano la conferma del
+> maintainer, prima la Fase 1 (aspetto dei campioni), poi la 2.
 
 **Riassunto**: i disegni della libreria diventano oggetti `symbol` (`lib:<famiglia>/<slug>`). Le
 parti vive sono dichiarate in un manifesto generato e disegnate dai due viewer con strategie
@@ -244,6 +249,13 @@ Per oggetto si sovrascrivono:
    (M10).
 5. `check_simboli_lvgl.sh` si estende ai `lib:`, più una prova con l'istantanea: il livello al 30 e
    al 70 % cambia i pixel solo dentro la finestra.
+
+> **Fasi 1 e 2 fatte il 14-10-2026** (vedi STATUS.md). Misura M2 sul WP630: fotogrammi 0,88 ms per
+> fotogramma con 10 rotori, contro 1,77 ms di `lv_img_set_angle` e 4,57 ms dei builtin di oggi.
+> **M2 si chiude sui fotogrammi.** Scostamenti dal disegno:
+> - gli strati si dividono per testo, nel formato del generatore, e non con `resvg::render_node`:
+>   così il rotore ruota dentro l'SVG e il ritaglio si calcola su un SVG con un solo strato;
+> - la valvola di prova è alta 70 e non 60, per lasciare posto alla leva chiusa.
 
 **Fase 3 — Tutte le parti** (`feat/simboli-lib-parti`).
 1. `needle`, `lever` e `lamp-*` su entrambi i viewer.

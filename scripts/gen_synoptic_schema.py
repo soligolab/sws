@@ -42,6 +42,7 @@ SYNOPTIC_RS = f"{ROOT}/sws-runtime/crates/sws-web/src/synoptic.rs"
 PROJECT_RS = f"{ROOT}/sws-runtime/crates/sws-core/src/project.rs"
 TYPES_TS = f"{ROOT}/sws-editor/src/types/index.ts"
 SYMBOLS_TSX = f"{ROOT}/sws-editor/src/symbols/library.tsx"
+MANIFEST_LIB = f"{ROOT}/sws-editor/public/symbols/lib/manifest.json"
 # L'uso reale si raccoglie da **entrambe** le cartelle di progetti d'esempio.
 # Dal 17-09-2026 i banchi di prova non stanno più fra i template (non ne
 # rispettano le regole, e non devono), ma restano l'unico posto dove certi
@@ -207,7 +208,12 @@ def field_enums():
                          open(SYMBOLS_TSX, encoding="utf-8").read())
     if len(simboli) < 10:
         die(f"letti solo {len(simboli)} simboli da {SYMBOLS_TSX}: la forma delle voci è cambiata")
-    out["symbol_id"] = sorted(set(simboli))
+    # Sesta fonte (14-10-2026): i simboli di libreria `lib:<famiglia>/<slug>`,
+    # dal manifesto che scrive scripts/simboli/genera.py. Senza, il validatore
+    # rifiuterebbe ogni simbolo nuovo della palette.
+    import json
+    lib = [s["id"] for s in json.load(open(MANIFEST_LIB, encoding="utf-8"))["symbols"]]
+    out["symbol_id"] = sorted(set(simboli)) + sorted(lib)
     return out
 
 

@@ -28,6 +28,9 @@ import { ASPECT_RATIOS, editorFitSize, effectiveSizeMode, getDevicePresets, isOf
 import { getBrand, type DevicePreset } from "@/branding";
 import { genId } from "@/id";
 import type { SymbolMeta } from "@/symbols/library";
+import type { SimboloLib } from "@/symbols/lib/manifest";
+import { svgLibCaricato, trovaSimboloLib, useManifestoLib } from "@/symbols/lib/libreria";
+import { SimboloLibSvg } from "@/symbols/lib/SimboloLib";
 import { useAppStore } from "@/store";
 import { coloreAuto, estraiHex, predefinito, regola } from "@/coloriPredefiniti";
 import { oggettoNuovo } from "./oggettiNuovi";
@@ -125,12 +128,31 @@ const INPUT: React.CSSProperties = {
 
 type GalleryTile =
   | { kind: "builtin" | "vendored"; id: string; label: string; meta: SymbolMeta }
-  | { kind: "custom"; id: string; label: string; url: string };
+  | { kind: "custom"; id: string; label: string; url: string }
+  | { kind: "lib"; id: string; label: string; sim: SimboloLib };
+
+/** Anteprima di un simbolo di libreria, col disegno com'è (rotore fermo, livello pieno). */
+function AnteprimaLib({ sim }: { sim: SimboloLib }) {
+  const manifesto = useManifestoLib();
+  const svg = svgLibCaricato(sim);
+  if (!manifesto || !svg) return null;
+  return (
+    <svg width={40} height={38}>
+      <SimboloLibSvg sim={sim} svg={svg} manifesto={manifesto} prefisso={`anteprima-${sim.id.replace(/[^\w-]/g, "_")}`}
+        x={0} y={0} w={40} h={38} valori={{ corpo: null, livello: 0.6, gira: false, periodoS: 2 }} />
+    </svg>
+  );
+}
 
 function SymbolGallery({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const { t } = useTranslation();
   const customSymbols = useAppStore((s) => s.customSymbols);
+  const manifestoLib = useManifestoLib();
 
   const tiles: GalleryTile[] = [
+    // Provvisorio (Fase 2): un gruppo «Libreria» in testa. Il picker per famiglia
+    // e tipologia, con la ricerca, arriva con la Fase 3.
+    ...(manifestoLib?.symbols ?? []).map((sim) => ({ kind: "lib" as const, id: sim.id, label: t(sim.label), sim })),
     ...SYMBOL_LIST.map((m) => ({ kind: m.kind, id: m.id, label: m.label, meta: m } as GalleryTile)),
     ...customSymbols.map((s) => ({ kind: "custom" as const, id: `custom:${s.id}`, label: s.label, url: s.url })),
   ];
@@ -167,7 +189,9 @@ function SymbolGallery({ value, onChange }: { value: string; onChange: (v: strin
             }}
           >
             <div style={{ width: 44, height: 38, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              {isBi && (tile as { meta: SymbolMeta }).meta.render ? (
+              {tile.kind === "lib" ? (
+                <AnteprimaLib sim={tile.sim} />
+              ) : isBi && (tile as { meta: SymbolMeta }).meta.render ? (
                 <svg width={40} height={38} viewBox="0 0 100 100" style={{ overflow: "visible" }}>
                   {(tile as { meta: SymbolMeta }).meta.render!({ state: "on", off: "var(--brand-text-subtle, #64748b)", on: "var(--brand-success, #22c55e)", alarm: "var(--brand-danger, #ef4444)" })}
                 </svg>
@@ -678,12 +702,14 @@ export function EditorShell() {
       {symbolPickPos && (
         <SymbolPickerModal
           onPick={(symbolId) => {
+            // Un simbolo di libreria nasce con le proporzioni del suo disegno.
+            const lib = trovaSimboloLib(symbolId);
             addObject({
               type: "symbol",
               x: symbolPickPos.x,
               y: symbolPickPos.y,
-              width: 80,
-              height: 80,
+              width: lib ? lib.viewBox[0] : 80,
+              height: lib ? lib.viewBox[1] : 80,
               symbol_id: symbolId,
               state_off_color: predefinito("symbol", "state_off_color"),
               state_on_color: predefinito("symbol", "state_on_color"),
