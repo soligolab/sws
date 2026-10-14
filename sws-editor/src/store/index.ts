@@ -752,18 +752,34 @@ export function testoSostituzione(
   return i18n.t("cfg.deploySostituisceConfirm", { progetto: progetto ?? "?", elenco });
 }
 
-async function eseguiDeploy(completo: boolean, confermato = false, sostituzioneConfermata = false): Promise<void> {
+/** Il testo della conferma quando il pannello non conosce dei simboli di
+ *  libreria usati dal progetto (M9, 14-10-2026). Puro, per i test. */
+export function testoSimboliMancanti(simboli: string[], senzaLibreria: boolean): string {
+  const elenco = simboli.map((s) => `• ${s}`).join("\n");
+  return i18n.t(senzaLibreria ? "cfg.deploySimboliSenzaLibreria" : "cfg.deploySimboliMancanti", { n: simboli.length, elenco });
+}
+
+async function eseguiDeploy(completo: boolean, confermato = false, sostituzioneConfermata = false, simboliConfermati = false): Promise<void> {
   useAppStore.setState({ remoteDeployStatus: "syncing", remoteDeployErrore: null });
   let errore: string | null = null;
   try {
     const res = await api.deployToRuntime({
       replaceUsers: completo, conSegreti: completo, confirmNoUsers: confermato, confirmReplace: sostituzioneConfermata,
+      confirmMissingSymbols: simboliConfermati,
     });
     if (res.status === 428) {
       const d = await res.json().catch(() => ({} as Record<string, unknown>)) as {
         conferma?: string; utenti_dispositivo?: string[]; progetto?: string;
         progetti?: { nome: string; storico_byte?: number | null }[];
+        simboli?: string[]; senza_libreria?: boolean;
       };
+      // Il pannello non conosce dei simboli di libreria (M9): si avvisa, e si
+      // può procedere — li disegnerà come segnaposto.
+      if (d.conferma === "simboli-mancanti" && !simboliConfermati) {
+        if (window.confirm(testoSimboliMancanti(d.simboli ?? [], !!d.senza_libreria))) return eseguiDeploy(completo, confermato, sostituzioneConfermata, true);
+        useAppStore.setState({ remoteDeployStatus: "idle" });
+        return;
+      }
       // Il pannello non ha utenti e il progetto non porta un Admin (fetta E):
       // non si conferma, si corregge il progetto.
       if (d.conferma === "serve-admin") {
@@ -775,14 +791,14 @@ async function eseguiDeploy(completo: boolean, confermato = false, sostituzioneC
       // Il deploy cancellerebbe progetti con un altro nome: si chiede, e
       // annullando non si tocca niente.
       if (d.conferma === "sostituisce-progetti" && !sostituzioneConfermata) {
-        if (window.confirm(testoSostituzione(d.progetto, d.progetti ?? []))) return eseguiDeploy(completo, confermato, true);
+        if (window.confirm(testoSostituzione(d.progetto, d.progetti ?? []))) return eseguiDeploy(completo, confermato, true, simboliConfermati);
         useAppStore.setState({ remoteDeployStatus: "idle" });
         return;
       }
       if (completo && !confermato) {
         const elenco = Array.isArray(d?.utenti_dispositivo) && d.utenti_dispositivo.length
           ? d.utenti_dispositivo.join(", ") : i18n.t("cfg.deployNoUsersUnknown");
-        if (window.confirm(i18n.t("cfg.deployNoUsersConfirm", { utenti: elenco }))) return eseguiDeploy(true, true, sostituzioneConfermata);
+        if (window.confirm(i18n.t("cfg.deployNoUsersConfirm", { utenti: elenco }))) return eseguiDeploy(true, true, sostituzioneConfermata, simboliConfermati);
         useAppStore.setState({ remoteDeployStatus: "idle" });
         return;
       }

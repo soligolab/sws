@@ -1651,7 +1651,9 @@
     "eliminaDispositivoTenere": "Keeping them, a new device of the same model can take them back («From the catalog» → existing variable): charts, alarms and history using them stay.",
     "eliminaDispositivoSenzaVariabili": "The device has no variables of its own to delete.",
     "eliminaSoloDispositivo": "Only the device",
-    "eliminaConVariabili": "Device and variables"
+    "eliminaConVariabili": "Device and variables",
+    "deploySimboliMancanti": "The panel does not know {{n}} library symbols used by this project:\n{{elenco}}\n\nIt will show them as placeholders until you update SWS on the panel. Deploy anyway?",
+    "deploySimboliSenzaLibreria": "The panel runs a version of SWS without the symbol library: the project's {{n}} library symbols\n{{elenco}}\n\nwill be placeholders until you update it. Deploy anyway?"
   },
   "langtab": {
     "migrate": "Migrate texts…",

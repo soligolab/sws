@@ -19,6 +19,8 @@
 versioni:
   - versione: "2.14.0"
     voci:
+      - it: "Prima di un deploy l'IDE avvisa se il pannello non conosce alcuni simboli di libreria del progetto, e dice quali: si può procedere, e appariranno come segnaposto finché il pannello non è aggiornato."
+        en: "Before a deploy the IDE warns if the panel does not know some of the project's library symbols, and lists them: you can proceed, and they will be placeholders until the panel is updated."
       - it: "Nuova scheda Configurazione → Progetto → Stile: colori di stato, colori dei materiali, volume, contorno e animazioni dei simboli per tutto il progetto, con anteprima; ogni simbolo può sovrascriverli."
         en: "New Configuration → Project → Style tab: state colours, material colours, volume, outline and animations of symbols for the whole project, with preview; each symbol can override them."
       - it: "Simboli di libreria con parti vive: la lancetta del manometro segue il tag, la leva della valvola si apre e si chiude, le spie si accendono; il selettore dei simboli ha famiglie e ricerca."

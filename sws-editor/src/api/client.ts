@@ -2171,7 +2171,7 @@ export const api = {
    *  Unico punto in cui si compone il corpo: prima la `fetch` era scritta due
    *  volte (qui e nell'auto-deploy dello store), ed è così che i due percorsi
    *  divergono senza che nessuno se ne accorga. */
-  deployToRuntime: async (opts: { replaceUsers: boolean; confirmNoUsers?: boolean; conSegreti?: boolean; confirmReplace?: boolean }): Promise<Response> => {
+  deployToRuntime: async (opts: { replaceUsers: boolean; confirmNoUsers?: boolean; conSegreti?: boolean; confirmReplace?: boolean; confirmMissingSymbols?: boolean }): Promise<Response> => {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (TOKEN) headers["Authorization"] = `Bearer ${TOKEN}`;
     return fetch(`${getBaseUrl()}/api/remote/deploy`, {
@@ -2186,6 +2186,8 @@ export const api = {
         // Il deploy cancellerebbe dal pannello progetti con un altro nome: la
         // conferma l'ha data l'utente (03-10-2026).
         confirm_replace: opts.confirmReplace ?? false,
+        // Il pannello non conosce dei simboli di libreria e l'utente procede (M9).
+        confirm_missing_symbols: opts.confirmMissingSymbols ?? false,
       }),
     });
   },

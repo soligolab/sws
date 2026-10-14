@@ -3,7 +3,7 @@ import { gestisciServeAdmin } from "@/deployServeAdmin";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { api, getAuthToken, getBaseUrl, RuntimeUnavailableError, type DiscoveredRuntime, dimenticaVersioneProgetto } from "@/api/client";
-import { testoSostituzione } from "@/store";
+import { testoSimboliMancanti, testoSostituzione } from "@/store";
 import { dispositivoDaRuntime } from "@/config/dispositiviRegistrati";
 import { selectIsDirty, useAppStore } from "@/store";
 import { INSTALL_HOST, ricorda } from "@/config/campiDispositivo";
@@ -315,11 +315,12 @@ export function RuntimeConnectionTab() {
    *  l'utente ha risposto al `window.confirm` del 428, e allora la funzione si
    *  richiama **una sola volta**: il flag è già a `true` e il server non può
    *  chiedere di nuovo. */
-  const eseguiDeploy = async (confermato: boolean, sostituzioneConfermata = false): Promise<void> => {
+  const eseguiDeploy = async (confermato: boolean, sostituzioneConfermata = false, simboliConfermati = false): Promise<void> => {
       const res = await api.deployToRuntime({
         replaceUsers: sostituisciUtenti,
         confirmNoUsers: confermato,
         confirmReplace: sostituzioneConfermata,
+        confirmMissingSymbols: simboliConfermati,
       });
 
       // 428: il server ha guardato e si è fermato **prima** di toccare qualcosa.
@@ -327,6 +328,13 @@ export function RuntimeConnectionTab() {
       // o il progetto non ha utenti e il dispositivo ne ha. La decisione è di
       // chi guarda lo schermo, non del codice.
       const d428 = res.status === 428 ? await res.clone().json().catch(() => ({} as any)) : null;
+      if (d428?.conferma === "simboli-mancanti" && !simboliConfermati) {
+        if (!window.confirm(testoSimboliMancanti(d428.simboli ?? [], !!d428.senza_libreria))) {
+          setDeployLog((l) => [...l, "✗ " + t("cfg.deployAnnullato")]);
+          return;
+        }
+        return eseguiDeploy(confermato, sostituzioneConfermata, true);
+      }
       if (gestisciServeAdmin(d428)) {
         setDeployLog((l) => [...l, "✗ " + t("abbinamento.serveAdminBreve")]);
         return;
@@ -336,7 +344,7 @@ export function RuntimeConnectionTab() {
           setDeployLog((l) => [...l, "✗ " + t("cfg.deployAnnullato")]);
           return;
         }
-        return eseguiDeploy(confermato, true);
+        return eseguiDeploy(confermato, true, simboliConfermati);
       }
       if (res.status === 428 && !confermato) {
         const d = d428 ?? {};
@@ -347,7 +355,7 @@ export function RuntimeConnectionTab() {
           setDeployLog((l) => [...l, "✗ " + t("cfg.deployAnnullato")]);
           return;
         }
-        return eseguiDeploy(true, sostituzioneConfermata);
+        return eseguiDeploy(true, sostituzioneConfermata, simboliConfermati);
       }
 
       if (!res.ok || !res.body) {

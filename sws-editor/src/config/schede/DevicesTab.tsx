@@ -6,7 +6,7 @@ import { TabellaDispositivi } from "@/config/installazione/TabellaDispositivi";
 import { modoAccesso, spiegaCredenzialiMancanti } from "@/config/credenzialiDispositivo";
 import { CHIAVE_LEGACY, chiaveUrl, dispositivoDaRete, eGiaInLista, leggiListaLegacy, unisciDispositivo } from "@/config/dispositiviRegistrati";
 import type { SavedDevice } from "@/types";
-import { selectIsDirty, testoSostituzione, useAppStore } from "@/store";
+import { selectIsDirty, testoSostituzione, useAppStore, testoSimboliMancanti } from "@/store";
 import i18n from "@/i18n";
 import { RT_URL_KEY, RT_USER_KEY } from "@/config/schede/RuntimeConnectionTab";
 
@@ -73,15 +73,23 @@ async function deployToTarget(
     useAppStore.getState().setRemoteConnected(true, target);
     let confermaUtenti = false;
     let confermaSostituzione = false;
+    let confermaSimboli = false;
     for (;;) {
       const res = await api.deployToRuntime({
         replaceUsers: true, conSegreti: true, confirmNoUsers: confermaUtenti, confirmReplace: confermaSostituzione,
+        confirmMissingSymbols: confermaSimboli,
       });
       if (res.status === 428) {
         const d = await res.json().catch(() => ({})) as {
           conferma?: string; utenti_dispositivo?: string[]; progetto?: string;
           progetti?: { nome: string; storico_byte?: number | null }[];
+          simboli?: string[]; senza_libreria?: boolean;
         };
+        if (d.conferma === "simboli-mancanti" && !confermaSimboli) {
+          if (!window.confirm(testoSimboliMancanti(d.simboli ?? [], !!d.senza_libreria))) throw new Error(i18n.t("cfg.deployAnnullato"));
+          confermaSimboli = true;
+          continue;
+        }
         if (gestisciServeAdmin(d)) throw new Error(i18n.t("abbinamento.serveAdminBreve"));
         if (d.conferma === "sostituisce-progetti" && !confermaSostituzione) {
           if (!window.confirm(testoSostituzione(d.progetto, d.progetti ?? []))) throw new Error(i18n.t("cfg.deployAnnullato"));

@@ -1853,6 +1853,63 @@ pub struct DeployBody {
     /// ferma con un 428 `sostituisce-progetti`.
     #[serde(default)]
     pub confirm_replace: bool,
+    /// L'editor ha mostrato «il pannello non conosce questi simboli di
+    /// libreria» e l'utente ha detto di procedere (M9, 14-10-2026). Senza, il
+    /// caso si ferma con un 428 `simboli-mancanti`.
+    #[serde(default)]
+    pub confirm_missing_symbols: bool,
+}
+
+/// Gli id `lib:` usati dalle pagine e dai faceplate del progetto, in ordine.
+async fn simboli_lib_usati(dir: &std::path::Path) -> Vec<String> {
+    let mut usati = std::collections::BTreeSet::new();
+    for cartella in ["synoptics", "faceplates"] {
+        let Ok(mut rd) = tokio::fs::read_dir(dir.join(cartella)).await else { continue };
+        while let Ok(Some(e)) = rd.next_entry().await {
+            if e.path().extension().is_some_and(|x| x == "yaml" || x == "yml") {
+                if let Ok(testo) = tokio::fs::read_to_string(e.path()).await {
+                    if let Ok(v) = serde_yaml::from_str::<serde_yaml::Value>(&testo) {
+                        raccogli_simboli_lib(&v, &mut usati);
+                    }
+                }
+            }
+        }
+    }
+    usati.into_iter().collect()
+}
+
+/// Ogni `symbol_id: lib:…`, a qualunque profondità (celle di griglia, figli).
+pub(crate) fn raccogli_simboli_lib(v: &serde_yaml::Value, out: &mut std::collections::BTreeSet<String>) {
+    match v {
+        serde_yaml::Value::Mapping(m) => {
+            for (k, x) in m {
+                if k.as_str() == Some("symbol_id") {
+                    if let Some(id) = x.as_str().filter(|i| i.starts_with("lib:")) {
+                        out.insert(id.to_string());
+                    }
+                }
+                raccogli_simboli_lib(x, out);
+            }
+        }
+        serde_yaml::Value::Sequence(s) => s.iter().for_each(|x| raccogli_simboli_lib(x, out)),
+        _ => {}
+    }
+}
+
+/// Gli id del manifesto della libreria del pannello; `None` se non ne ha uno
+/// (un runtime di prima della libreria risponde 404 o con la SPA).
+async fn leggi_manifesto_pannello(client: &reqwest::Client, base: &str) -> Option<Vec<String>> {
+    let r = client.get(format!("{base}/symbols/lib/manifest.json")).send().await.ok()?;
+    if !r.status().is_success() {
+        return None;
+    }
+    let m: sws_core::simboli_lib::ManifestLib = r.json().await.ok()?;
+    Some(m.symbols.into_iter().map(|s| s.id).collect())
+}
+
+/// Gli usati che il pannello non conosce; senza manifesto, tutti.
+pub(crate) fn simboli_mancanti(usati: &[String], noti: Option<&Vec<String>>) -> Vec<String> {
+    usati.iter().filter(|u| !noti.is_some_and(|n| n.contains(u))).cloned().collect()
 }
 
 /// Un progetto sul pannello che il deploy cancellerebbe.
@@ -1910,6 +1967,7 @@ impl Default for DeployBody {
             confirm_no_users: false,
             con_segreti: true,
             confirm_replace: false,
+            confirm_missing_symbols: false,
         }
     }
 }
@@ -2066,6 +2124,30 @@ pub async fn remote_deploy(
                 })),
             )
                 .into_response();
+        }
+    }
+
+    // **Simboli di libreria che il pannello non conosce** (M9 del piano dei
+    // simboli di libreria): la libreria viaggia con l'immagine del runtime, non
+    // col progetto. Un pannello più vecchio li disegnerebbe come segnaposto: si
+    // dice quali, e si può procedere lo stesso. Gli alias dei builtin non
+    // contano: un pannello vecchio disegna il suo builtin.
+    if !opz.confirm_missing_symbols {
+        let usati = simboli_lib_usati(&proj_dir).await;
+        if !usati.is_empty() {
+            let noti = leggi_manifesto_pannello(&client, &base).await;
+            let mancanti = simboli_mancanti(&usati, noti.as_ref());
+            if !mancanti.is_empty() {
+                return (
+                    StatusCode::PRECONDITION_REQUIRED,
+                    Json(serde_json::json!({
+                        "conferma": "simboli-mancanti",
+                        "simboli": mancanti,
+                        "senza_libreria": noti.is_none(),
+                    })),
+                )
+                    .into_response();
+            }
         }
     }
 
@@ -2468,6 +2550,22 @@ mod tests {
 
     /// La conferma serve **solo** quando il deploy toglierebbe ogni account a un
     /// dispositivo che ne ha: è l'unico esito che lascia un pannello aperto.
+    #[test]
+    fn i_simboli_di_libreria_che_il_pannello_non_conosce() {
+        let pagina: serde_yaml::Value = serde_yaml::from_str(
+            "objects:\n  - { id: a, type: symbol, symbol_id: 'lib:process/centrifugal-pump' }\n  - { id: b, type: symbol, symbol_id: pump }\n  - id: g\n    type: grid\n    grid_cells:\n      - child: { id: c, type: symbol, symbol_id: 'lib:process/vertical-tank' }\n",
+        )
+        .unwrap();
+        let mut usati = std::collections::BTreeSet::new();
+        raccogli_simboli_lib(&pagina, &mut usati);
+        let usati: Vec<String> = usati.into_iter().collect();
+        assert_eq!(usati, ["lib:process/centrifugal-pump", "lib:process/vertical-tank"], "i builtin non contano, le celle sì");
+        let noti = vec!["lib:process/centrifugal-pump".to_string()];
+        assert_eq!(simboli_mancanti(&usati, Some(&noti)), ["lib:process/vertical-tank"]);
+        assert_eq!(simboli_mancanti(&usati, None), usati, "senza manifesto mancano tutti");
+        assert!(simboli_mancanti(&usati, Some(&usati.clone())).is_empty());
+    }
+
     #[test]
     fn la_conferma_serve_solo_se_il_pannello_resta_senza_account() {
         // Progetto con utenti: si sostituisce e basta, niente da confermare.

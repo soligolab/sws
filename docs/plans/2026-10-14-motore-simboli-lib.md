@@ -290,6 +290,9 @@ Per oggetto si sovrascrivono:
    con un manifesto parziale.
 2. `?v=` sugli URL e `Cache-Control: no-cache` per `/symbols/lib/`.
 
+> **Fase 5 fatta il 14-10-2026**, come da disegno. Un manifesto illeggibile (un runtime vecchio
+> risponde con la SPA, non con un 404) vale come «senza libreria».
+
 **Fase 6 — I 40 sostitutivi** (`feat/simboli-lib-sostitutivi`).
 1. Disegnare i 40 con `replaces`, risolvere gli alias nei due viewer e aggiungere il comando
    «Adatta proporzioni» (M4).

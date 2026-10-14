@@ -64,6 +64,13 @@ pub fn politica(percorso: &str, tipo: Option<&str>, gia_dichiarata: bool) -> Opt
     if percorso.starts_with("/assets/") {
         return Some(PER_SEMPRE);
     }
+    // La libreria di simboli (Fase 5 del piano dei simboli di libreria): il
+    // manifesto e gli SVG cambiano con l'aggiornamento del runtime sotto lo
+    // stesso URL. Il web chiede gli SVG con `?v=<versione del manifesto>`, ma il
+    // manifesto stesso, e chi lo legge senza versione, devono rivalidare.
+    if percorso.starts_with("/symbols/lib/") {
+        return Some(RIVALIDA);
+    }
     None
 }
 
@@ -85,6 +92,14 @@ pub async fn intestazioni_cache(req: Request, next: Next) -> Response {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn la_libreria_di_simboli_rivalida() {
+        assert_eq!(politica("/symbols/lib/manifest.json", Some("application/json"), false), Some(RIVALIDA));
+        assert_eq!(politica("/symbols/lib/process/centrifugal-pump.svg", Some("image/svg+xml"), false), Some(RIVALIDA));
+        assert_eq!(politica("/symbols/altro.svg", Some("image/svg+xml"), false), None);
+    }
+
     use super::*;
 
     const HTML: Option<&str> = Some("text/html; charset=utf-8");

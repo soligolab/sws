@@ -1651,7 +1651,9 @@
     "eliminaDispositivoTenere": "Tenendole, un dispositivo nuovo dello stesso modello le può riprendere («Dal catalogo» → variabile esistente): restano grafici, allarmi e storico che le usano.",
     "eliminaDispositivoSenzaVariabili": "Il dispositivo non ha variabili sue da eliminare.",
     "eliminaSoloDispositivo": "Solo il dispositivo",
-    "eliminaConVariabili": "Dispositivo e variabili"
+    "eliminaConVariabili": "Dispositivo e variabili",
+    "deploySimboliMancanti": "Il pannello non conosce {{n}} simboli della libreria usati da questo progetto:\n{{elenco}}\n\nLi mostrerà come segnaposto finché non aggiorni SWS sul pannello. Procedere con il deploy?",
+    "deploySimboliSenzaLibreria": "Il pannello ha una versione di SWS senza la libreria di simboli: i {{n}} simboli di libreria del progetto\n{{elenco}}\n\nsaranno segnaposto finché non lo aggiorni. Procedere con il deploy?"
   },
   "langtab": {
     "migrate": "Migra i testi…",

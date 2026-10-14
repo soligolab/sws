@@ -12,7 +12,14 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — libreria di simboli SCADA: Fasi 1-4 fatte (2026-10-14)
+## ▶ Riprendere da qui — libreria di simboli SCADA: Fasi 1-5 fatte (2026-10-14)
+
+**Fase 5** sul ramo `feat/simboli-lib-deploy`, annidato sulla 4:
+- l'avviso al deploy con l'elenco dei simboli di libreria che il pannello non conosce, che si può
+  confermare;
+- `no-cache` su `/symbols/lib/`.
+
+Cinque rami in fila: formato → fetta → parti → stile → deploy.
 
 **Fase 4** (lo stile del progetto) sul ramo `feat/stile-del-progetto`, annidato sulla 3:
 - la scheda Configurazione → Progetto → Stile, con l'anteprima;
@@ -90,8 +97,11 @@ il codice invece della pagina.
   `check_fuori_pagina_lvgl`, `check_contrasto`) rischiano lo stesso falso verde. Non toccate: è un
   lavoro a sé.
 
-**Prossimo**: Fase 5 del piano, l'avviso al deploy (manifesto del pannello contro i `lib:` usati) e la
-cache (`Cache-Control: no-cache` su `/symbols/lib/`).
+**Prossimo**: Fase 6 del piano:
+- disegnare i 31 sostitutivi dei builtin che mancano;
+- gli alias `replaces` nei due viewer;
+- il comando «Adatta proporzioni»;
+- poi togliere il JSX dei builtin e `draw_symbol`, con la voce di compatibilità in NOVITA.
 
 ## ▶ Riprendere da qui — collaudo del WP630 da zero, e i difetti che ha fatto uscire (2026-10-12/14)
 

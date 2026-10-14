@@ -103,6 +103,17 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Added
 
+- **Avviso al deploy per i simboli di libreria che il pannello non conosce** (Fase 5, M9).
+  - `remote_deploy` raccoglie i `symbol_id: lib:…` di pagine e faceplate (celle comprese) e li
+    confronta col `/symbols/lib/manifest.json` del pannello. Senza manifesto valgono come mancanti
+    tutti.
+  - Se ne mancano si ferma con un 428 `simboli-mancanti`, che li elenca. Si procede con
+    `confirm_missing_symbols`.
+  - Gestito nei tre punti che fanno il deploy: salvataggio, scheda Connessione, scheda Dispositivi.
+  - Gli alias dei builtin non contano.
+- **`/symbols/lib/` si rivalida** (`Cache-Control: no-cache`): manifesto e SVG cambiano sotto lo
+  stesso URL con l'aggiornamento del runtime.
+
 - **Lo stile dei simboli del progetto** (Fase 4 del
   [piano](docs/plans/2026-10-14-motore-simboli-lib.md)). È un campo tipizzato
   `project.symbol_style`, che si salva con `PUT /api/project/symbol-style` (versionato Q30,
