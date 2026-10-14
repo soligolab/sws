@@ -12,6 +12,45 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — le guardie con lo stack tornano verdi (2026-10-14, notte)
+
+**Ramo `fix/guardie-senza-autenticazione`**, nel worktree `/home/ut1/sws-guardie`, tre commit. Da
+collaudare e mergiare. Quasi tutto in `scripts/`; una sola correzione nel prodotto, l'istantanea (sotto).
+
+**Esito di `./scripts/verifica_completa.sh --solo-stack`**: 32 guardie su 33 verdi. Resta rossa
+`check_e2e`.
+
+**Cosa era rotto.** 31 guardie con lo stack su 33 erano rosse. Tutte rosse davvero, nessun falso
+verde. Due cause:
+- dal 06-10 l'IDE chiede le credenziali dell'installazione;
+- dall'11-10 un pannello senza utenti è «da abbinare» e risponde 401 a tutto.
+
+Più due mancanze della macchina: la CLI `sqlite3` (ora le guardie usano python3 se manca) e il
+Chromium di Playwright (installato con `pnpm exec playwright install chromium`).
+
+**Cosa ho fatto.**
+- 24 guardie che non provano l'autenticazione: `--senza-autenticazione`.
+- `check_forme_lvgl`: serve la libreria con `--www` e guarda la mandata della pompa nuova.
+- 7 guardie che provano l'autenticazione: entrano come una persona, con il nuovo
+  `scripts/accesso_guardie.sh` (primo amministratore dell'IDE, abbinamento del pannello).
+- Due asserzioni rovesciate di proposito, perché il comportamento è cambiato l'11-10:
+  - `check_deploy_preserve` caso 7: togliere gli utenti del progetto **non** apre più il pannello;
+  - `check_connessione_remota`: un pannello senza utenti chiede il codice invece di connettersi.
+- Il 409 «primo utente non Admin» non si raggiunge più dall'API di un dispositivo: quando si
+  può creare un utente, l'Admin del dispositivo c'è già. Resta nei test di `router.rs`.
+
+**Trovato strada facendo, nel prodotto: gli «occhi» dell'assistente erano ciechi dall'11-10.** Il banco
+di prova dell'istantanea è un pannello senza utenti, quindi «da abbinare»: il viewer fotografava il
+codice di abbinamento, sempre, a 800×480. Corretto in `istantanea.rs`: il banco nasce con un account che
+nessuno può usare (password casuale, non conservata). Non `--senza-autenticazione`, che sul cloud il
+runtime rifiuta.
+
+**Resta rosso: `check_e2e`, 4 test su 6.** Le spec Playwright fanno chiamate senza token e cercano
+testi dell'interfaccia che sono cambiati. Era già segnato «non è un gate» nel suo commento. È un
+lavoro sulle spec in `sws-editor/e2e/`, non sullo script.
+
+**Da fare**: collaudo del maintainer, squash su `main`, eliminare ramo e worktree.
+
 ## ▶ Riprendere da qui — libreria di simboli SCADA: tutte e sette le fasi su `main` (2026-10-14, sera)
 
 **Le Fasi 1–7 sono su `main`**: sette squash, dopo l'ok del maintainer. La libreria ha **138 simboli**
@@ -24,8 +63,7 @@ in quattro famiglie (178 disegnati sul pannello contando i 40 alias dei builtin 
 - **Niente pushato.**
 
 **Prossimi passi possibili**:
-- le 31 guardie con lo stack che non passano `--senza-autenticazione` (un runtime senza utenti è «da
-  abbinare» e la guardia fotografa la schermata di abbinamento): annotato, non corretto;
+- ~~le 31 guardie con lo stack senza `--senza-autenticazione`~~: fatto, vedi sopra;
 - il numero di versione è ancora `2.13.0-rc.3` mentre NOVITA ha il blocco `2.14.0`: si allinea al rilascio.
 
 ### Fasi 1-6 (14-10-2026)
