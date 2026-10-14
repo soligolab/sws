@@ -103,6 +103,25 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Added
 
+- **Lo stile dei simboli del progetto** (Fase 4 del
+  [piano](docs/plans/2026-10-14-motore-simboli-lib.md)). È un campo tipizzato
+  `project.symbol_style`, che si salva con `PUT /api/project/symbol-style` (versionato Q30,
+  validato, 400 sui valori fuori scala). Contiene:
+  - i colori di stato;
+  - i colori dei materiali della libreria;
+  - volume e contorno;
+  - secondi per giro, periodo del lampeggio e transizione del livello.
+
+  Si modifica in **Configurazione → Progetto → Stile**, con l'anteprima viva della bozza. La
+  precedenza è oggetto → progetto → disegno, con la regola in `tests/fixtures/stile-effettivo.json`,
+  `stileProgetto.ts` e `sws-core::stile_simboli::stile_effettivo`.
+
+  Le sovrascritture per oggetto (M7) sono `symbol_body_color`, `symbol_content_color`,
+  `symbol_volume`, `symbol_outline_color`, `symbol_outline_width`, `symbol_blink_ms` e
+  `symbol_level_transition_ms`, nella sezione «Stile di questo simbolo». Il pannello LVGL legge lo
+  stile da `/api/project` e lo applica, compresi i colori di stato dei builtin e la transizione del
+  livello.
+
 - **Le parti vive dei simboli di libreria** (Fase 3 del
   [piano](docs/plans/2026-10-14-motore-simboli-lib.md)). `symbol_parts` lega ogni parte del
   manifesto a un tag, ed è in TS, `synoptic.rs`, `model.rs` e nelle iscrizioni ai tag
@@ -268,6 +287,16 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   il motivo accanto a ciascuna, e la guardia fallisce se ne compare una fuori elenco.
 
 ### Changed
+
+- **I colori di stato dei simboli seguono lo stile del progetto** (M6). Sono `da_progetto` in
+  `colori-predefiniti.json`:
+  - non si scrivono più nel file, né alla creazione né all'apertura;
+  - all'apertura si tolgono quelli uguali al vecchio predefinito (`togliColoriDiProgetto`), che
+    erano stati scritti dai riempimenti dal 30-09.
+
+  L'aspetto non cambia, perché lo stile del progetto nasce con gli stessi tre colori. Un pannello
+  vecchio che riceve il file senza quei campi usa la sua tabella, che ha gli stessi valori. Nel
+  pannello proprietà il campo dice «da progetto» e ha il ↺ per tornarci.
 
 - Il booleano `senza_autenticazione(ide_only, ha_utenti)` è sostituito da un enum esplicito con tre fonti —
   `Nessuna`, `Progetto` (`users.yaml`), `Installazione` (`identita.db`). Confondeva due domande diverse: *esiste un

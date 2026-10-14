@@ -280,6 +280,11 @@ Per oggetto si sovrascrivono:
 4. Le sovrascritture per oggetto (M7) nel pannello proprietà.
 5. LVGL legge lo stile da `/api/project` e lo applica con la funzione Rust.
 
+> **Fase 4 fatta il 14-10-2026.** Scostamento dal disegno: i colori di stato non sono una regola
+> nuova `{progetto: chiave}` dentro `colori-predefiniti.json`. Sono un elenco a parte,
+> `da_progetto`, e i loro `hex` restano come ripiego. Così non è cambiato nessun test delle coppie
+> `lvgl` né la tabella del pannello.
+
 **Fase 5 — Avviso al deploy e cache** (`feat/simboli-lib-deploy`).
 1. Il controllo M9 in `remote_deploy`, con un test che usa un pannello finto senza manifesto e uno
    con un manifesto parziale.

@@ -1,0 +1,174 @@
+{
+  "_comment": "Lo stile effettivo di un simbolo di libreria: oggetto → progetto → disegno. Lo verificano sws-editor/tests/stileEffettivo.test.ts e sws-core/src/stile_simboli.rs. Piano: docs/plans/2026-10-14-motore-simboli-lib.md (Fase 4). `corpo_stato` è il colore di stato quando lo stato è legato.",
+  "materiali_disegno": {
+    "steel": "#9aa5af",
+    "body-pump": "#2f6fa8",
+    "liquid": "#2b8fd6"
+  },
+  "materiale_corpo": "body-pump",
+  "casi": [
+    {
+      "nome": "nessuno stile: quello del disegno",
+      "progetto": null,
+      "oggetto": {},
+      "corpo_stato": null,
+      "atteso": {
+        "materials": {
+          "steel": "#9aa5af",
+          "body-pump": "#2f6fa8",
+          "liquid": "#2b8fd6"
+        },
+        "volume": 100,
+        "outline": {
+          "color": "#1c2329",
+          "width": 1
+        },
+        "body": null
+      }
+    },
+    {
+      "nome": "lo stile del progetto ritinge e appiattisce",
+      "progetto": {
+        "materials": {
+          "steel": "#808890"
+        },
+        "volume": 40,
+        "outline_color": "#ffffff",
+        "outline_width": 1.5
+      },
+      "oggetto": {},
+      "corpo_stato": null,
+      "atteso": {
+        "materials": {
+          "steel": "#808890",
+          "body-pump": "#2f6fa8",
+          "liquid": "#2b8fd6"
+        },
+        "volume": 40,
+        "outline": {
+          "color": "#ffffff",
+          "width": 1.5
+        },
+        "body": null
+      }
+    },
+    {
+      "nome": "l'oggetto vince sul progetto",
+      "progetto": {
+        "volume": 40,
+        "outline_color": "#ffffff"
+      },
+      "oggetto": {
+        "symbol_volume": 80,
+        "symbol_outline_color": "#000000",
+        "symbol_outline_width": 2
+      },
+      "corpo_stato": null,
+      "atteso": {
+        "materials": {
+          "steel": "#9aa5af",
+          "body-pump": "#2f6fa8",
+          "liquid": "#2b8fd6"
+        },
+        "volume": 80,
+        "outline": {
+          "color": "#000000",
+          "width": 2
+        },
+        "body": null
+      }
+    },
+    {
+      "nome": "il colore del corpo dell'oggetto va sul materiale del corpo",
+      "progetto": {
+        "materials": {
+          "body-pump": "#123456"
+        }
+      },
+      "oggetto": {
+        "symbol_body_color": "#aa5500"
+      },
+      "corpo_stato": null,
+      "atteso": {
+        "materials": {
+          "steel": "#9aa5af",
+          "body-pump": "#aa5500",
+          "liquid": "#2b8fd6"
+        },
+        "volume": 100,
+        "outline": {
+          "color": "#1c2329",
+          "width": 1
+        },
+        "body": null
+      }
+    },
+    {
+      "nome": "il colore del contenuto va sul liquido",
+      "progetto": null,
+      "oggetto": {
+        "symbol_content_color": "#c08a1e"
+      },
+      "corpo_stato": null,
+      "atteso": {
+        "materials": {
+          "steel": "#9aa5af",
+          "body-pump": "#2f6fa8",
+          "liquid": "#c08a1e"
+        },
+        "volume": 100,
+        "outline": {
+          "color": "#1c2329",
+          "width": 1
+        },
+        "body": null
+      }
+    },
+    {
+      "nome": "il colore di stato vince su tutti i colori del corpo",
+      "progetto": {
+        "materials": {
+          "body-pump": "#123456"
+        }
+      },
+      "oggetto": {
+        "symbol_body_color": "#aa5500"
+      },
+      "corpo_stato": "#22c55e",
+      "atteso": {
+        "materials": {
+          "steel": "#9aa5af",
+          "body-pump": "#aa5500",
+          "liquid": "#2b8fd6"
+        },
+        "volume": 100,
+        "outline": {
+          "color": "#1c2329",
+          "width": 1
+        },
+        "body": "#22c55e"
+      }
+    },
+    {
+      "nome": "volume fuori scala nel progetto si ferma a 0..100",
+      "progetto": {
+        "volume": 250
+      },
+      "oggetto": {},
+      "corpo_stato": null,
+      "atteso": {
+        "materials": {
+          "steel": "#9aa5af",
+          "body-pump": "#2f6fa8",
+          "liquid": "#2b8fd6"
+        },
+        "volume": 100,
+        "outline": {
+          "color": "#1c2329",
+          "width": 1
+        },
+        "body": null
+      }
+    }
+  ]
+}

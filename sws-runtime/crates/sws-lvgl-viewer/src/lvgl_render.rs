@@ -10181,6 +10181,11 @@ pub struct CorpoLib {
 /// Lo strato `level`: il liquido pieno in un canvas, dentro un contenitore che
 /// ne mostra solo la parte bassa.
 pub struct LivelloLib {
+    /// Transizione (Fase 4): da `da_px` a `a_px` in `ms`, partita a `t0`.
+    ms: f64,
+    da_px: f64,
+    a_px: i32,
+    t0: u64,
     scatola: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
     canvas: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
     finestra: crate::svg_raster::Ritaglio,
@@ -10245,8 +10250,12 @@ pub struct VivoLib {
     /// I buffer degli strati fermi: LVGL legge da lì a ogni ridisegno.
     fermi: Vec<Vec<u8>>,
     svg: String,
-    manifesto: std::sync::Arc<sws_core::simboli_lib::ManifestLib>,
+    /// Lo stile effettivo senza colore di stato (Fase 4): il corpo si
+    /// ri-rasterizza con questo più il colore.
+    stile: sws_core::stile_simboli::StileSimbolo,
     q: crate::simbolo_lib::Quadro,
+    /// Periodo del lampeggio per voce, in ms (oggetto → progetto → 800).
+    lampo_ms: f64,
     state_tag: Option<String>,
     alarm_tag: Option<String>,
     stati: Vec<TextListEntry>,
@@ -10334,9 +10343,33 @@ fn periodo_legato(legame: Option<&serde_json::Value>, tags: &TagSnapshot) -> Opt
 
 /// L'opacità del lampeggio per voce (`img_opa`): 255 fermo, altrimenti 38 (il
 /// 15 % del web) per metà degli 800 ms e 255 per l'altra metà.
-fn lampeggio_voce(stati: &[TextListEntry], voce: Option<usize>, ms: u64) -> u8 {
+fn lampeggio_voce(stati: &[TextListEntry], voce: Option<usize>, ms: u64, periodo_ms: f64) -> u8 {
     let lampeggia = voce.and_then(|i| stati.get(i)).is_some_and(|e| e.blink == Some(true));
-    if lampeggia && ms % 800 < 400 { 38 } else { 255 }
+    let periodo = (periodo_ms.max(50.0)) as u64;
+    if lampeggia && ms % periodo < periodo / 2 { 38 } else { 255 }
+}
+
+/// Il colore di stato di un simbolo: oggetto → stile del progetto → tabella
+/// condivisa (`da_progetto` di `colori-predefiniti.json`, Fase 4).
+fn colore_di_stato(oggetto: Option<&str>, progetto: Option<&sws_core::project::StileSimboliProgetto>, campo: &str) -> String {
+    let dal_progetto = progetto.and_then(|p| match campo {
+        "state_off_color" => p.state_off_color.clone(),
+        "state_on_color" => p.state_on_color.clone(),
+        "state_alarm_color" => p.state_alarm_color.clone(),
+        _ => None,
+    });
+    oggetto
+        .map(str::to_string)
+        .or(dal_progetto)
+        .unwrap_or_else(|| predefinito_lvgl("symbol", campo).to_string())
+}
+
+/// Secondi per giro: oggetto → stile del progetto → 2, come sul web.
+fn periodo_predefinito(oggetto: Option<f64>, progetto: Option<&sws_core::project::StileSimboliProgetto>) -> f64 {
+    oggetto
+        .filter(|v| *v > 0.0)
+        .or(progetto.and_then(|p| p.spin_s).filter(|v| *v > 0.0))
+        .unwrap_or(2.0)
 }
 
 fn render_simbolo_lib(
@@ -10359,8 +10392,18 @@ fn render_simbolo_lib(
     let w = obj.width.unwrap_or(sim.view_box[0]).round().clamp(8.0, 500.0) as i16;
     let h = obj.height.unwrap_or(sim.view_box[1]).round().clamp(8.0, 500.0) as i16;
     let q = Quadro { w: w as u32, h: h as u32, flip_h: obj.flip_h == Some(true), flip_v: obj.flip_v == Some(true) };
+    // Lo stile: oggetto → progetto → disegno (Fase 4, `stile-effettivo.json`).
+    let progetto = lib::stile_progetto(base_url, rt_handle);
+    let sovrascritture = sws_core::stile_simboli::SovrascrittureSimbolo {
+        body_color: obj.symbol_body_color.clone(),
+        content_color: obj.symbol_content_color.clone(),
+        volume: obj.symbol_volume,
+        outline_color: obj.symbol_outline_color.clone(),
+        outline_width: obj.symbol_outline_width,
+    };
+    let stile = sws_core::stile_simboli::stile_effettivo(&manifesto.materials, &sim.body, progetto.as_deref(), &sovrascritture, None);
     let t0 = std::time::Instant::now();
-    let prep = lib::prepara(&manifesto, &sim, &svg, q, None);
+    let prep = lib::prepara(&sim, &svg, q, &stile);
     if std::env::var("SWS_MISURA_SIMBOLI").is_ok() {
         eprintln!("[simboli-lib misura] {id} {w}x{h}: strati pronti in {:.1} ms", t0.elapsed().as_secs_f64() * 1e3);
     }
@@ -10383,8 +10426,9 @@ fn render_simbolo_lib(
         rotori: Vec::new(),
         fermi: Vec::new(),
         svg,
-        manifesto: manifesto.clone(),
+        stile,
         q,
+        lampo_ms: obj.symbol_blink_ms.or(progetto.as_deref().and_then(|p| p.blink_ms)).filter(|v| *v > 0.0).unwrap_or(800.0),
         state_tag: obj.state_tag.clone(),
         alarm_tag: obj.alarm_tag.clone(),
         stati: obj
@@ -10392,16 +10436,16 @@ fn render_simbolo_lib(
             .clone()
             .and_then(|v| serde_json::from_value::<Vec<TextListEntry>>(v).ok())
             .unwrap_or_default(),
-        off_color: obj.state_off_color.clone().unwrap_or_else(|| predefinito_lvgl("symbol", "state_off_color").to_string()),
-        on_color: obj.state_on_color.clone().unwrap_or_else(|| predefinito_lvgl("symbol", "state_on_color").to_string()),
-        alarm_color: obj.state_alarm_color.clone().unwrap_or_else(|| predefinito_lvgl("symbol", "state_alarm_color").to_string()),
+        off_color: colore_di_stato(obj.state_off_color.as_deref(), progetto.as_deref(), "state_off_color"),
+        on_color: colore_di_stato(obj.state_on_color.as_deref(), progetto.as_deref(), "state_on_color"),
+        alarm_color: colore_di_stato(obj.state_alarm_color.as_deref(), progetto.as_deref(), "state_alarm_color"),
         legato: false,
         fill_level: obj.fill_level,
         fill_level_tag: obj.fill_level_tag.clone(),
         scala_0_100: obj.fill_level_scale.as_deref().unwrap_or("0-100") == "0-100",
         spin: obj.symbol_spin.clone(),
         spin_tag: obj.symbol_spin_tag.clone(),
-        spin_s: obj.symbol_spin_s.filter(|v| *v > 0.0).unwrap_or(2.0),
+        spin_s: periodo_predefinito(obj.symbol_spin_s, progetto.as_deref()),
     };
     vivo.legato = vivo.state_tag.is_some() || vivo.alarm_tag.is_some() || !vivo.stati.is_empty();
     for pezzo in prep.strati {
@@ -10424,7 +10468,11 @@ fn render_simbolo_lib(
                         bitmap.dove,
                         &mut bitmap.buf,
                     )?;
-                    vivo.livello = Some(LivelloLib { scatola: sc, canvas, finestra, dove: bitmap.dove, dal_basso, _buf: bitmap.buf, ultimo_px: -1 });
+                    vivo.livello = Some(LivelloLib {
+                        ms: obj.symbol_level_transition_ms.or(progetto.as_deref().and_then(|p| p.level_transition_ms)).unwrap_or(0.0).max(0.0),
+                        da_px: -1.0, a_px: -1, t0: 0,
+                        scatola: sc, canvas, finestra, dove: bitmap.dove, dal_basso, _buf: bitmap.buf, ultimo_px: -1,
+                    });
                 }
                 PezzoStrato::Perno { id, mut bitmap, perno } => {
                     let canvas = tela_lib(scatola.as_ptr(), bitmap.dove.x as i32, bitmap.dove.y as i32, bitmap.dove, &mut bitmap.buf)?;
@@ -10482,7 +10530,10 @@ fn aggiorna_simbolo_lib(v: &mut VivoLib, tags: &TagSnapshot) {
                     if c.cache.prendi(rgb).is_some() {
                         c.cache.prendi(rgb)
                     } else {
-                        crate::simbolo_lib::corpo_colorato(&v.manifesto, &v.svg, v.q, dove, Some(crate::simbolo_lib::esadecimale(rgb)))
+                        crate::simbolo_lib::corpo_colorato(&v.svg, v.q, dove, &sws_core::stile_simboli::StileSimbolo {
+                            body: Some(crate::simbolo_lib::esadecimale(rgb)),
+                            ..v.stile.clone()
+                        })
                             .map(|nuovo| c.cache.metti(rgb, nuovo, c.colore))
                     }
                 }
@@ -10505,7 +10556,20 @@ fn aggiorna_simbolo_lib(v: &mut VivoLib, tags: &TagSnapshot) {
             .map(|x| if v.scala_0_100 { x / 100.0 } else { x })
             .unwrap_or(1.0)
             .clamp(0.0, 1.0);
-        let px = (l.finestra.h as f64 * frazione).round() as i32;
+        let bersaglio = (l.finestra.h as f64 * frazione).round() as i32;
+        let ora = unsafe { lvgl_sys::lv_tick_get() } as u64;
+        if bersaglio != l.a_px {
+            // Riparte dal punto in cui è adesso, non da dove era diretto.
+            l.da_px = if l.ultimo_px < 0 { bersaglio as f64 } else { l.ultimo_px as f64 };
+            l.a_px = bersaglio;
+            l.t0 = ora;
+        }
+        let px = if l.ms > 0.0 {
+            let p = ((ora.saturating_sub(l.t0)) as f64 / l.ms).clamp(0.0, 1.0);
+            (l.da_px + (l.a_px as f64 - l.da_px) * p).round() as i32
+        } else {
+            l.a_px
+        };
         if px != l.ultimo_px {
             let y_box = if l.dal_basso { l.finestra.y as i32 + l.finestra.h as i32 - px } else { l.finestra.y as i32 };
             unsafe {
@@ -10558,7 +10622,7 @@ fn aggiorna_simbolo_lib(v: &mut VivoLib, tags: &TagSnapshot) {
     let ms = unsafe { lvgl_sys::lv_tick_get() } as u64;
     let spin_s = periodo_legato(v.spin_s_legame.as_ref(), tags).unwrap_or(v.spin_s);
     // Lampeggio della voce di `symbol_states` (M10): 800 ms, metà al 15 %.
-    let lampo = lampeggio_voce(&v.stati, voce, ms);
+    let lampo = lampeggio_voce(&v.stati, voce, ms, v.lampo_ms);
     if lampo != v.ultimo_lampo {
         let figli = unsafe { lvgl_sys::lv_obj_get_child_cnt(v.scatola.as_ptr()) };
         for i in 0..figli {
@@ -10598,6 +10662,7 @@ fn render_symbol(
     screen: &mut lvgl::Obj,
     obj: &SynopticObject,
     tags: &TagSnapshot,
+    progetto: Option<&sws_core::project::StileSimboliProgetto>,
 ) -> anyhow::Result<LiveBinding> {
     let symbol_id = obj.symbol_id.clone().unwrap_or_default();
     if symbol_id.starts_with("custom:") {
@@ -10639,18 +10704,10 @@ fn render_symbol(
         );
     }
 
-    let off_color = obj
-        .state_off_color
-        .clone()
-        .unwrap_or_else(|| predefinito_lvgl("symbol", "state_off_color").to_string());
-    let on_color = obj
-        .state_on_color
-        .clone()
-        .unwrap_or_else(|| predefinito_lvgl("symbol", "state_on_color").to_string());
-    let alarm_color = obj
-        .state_alarm_color
-        .clone()
-        .unwrap_or_else(|| predefinito_lvgl("symbol", "state_alarm_color").to_string());
+    // Oggetto → stile del progetto → tabella (Fase 4).
+    let off_color = colore_di_stato(obj.state_off_color.as_deref(), progetto, "state_off_color");
+    let on_color = colore_di_stato(obj.state_on_color.as_deref(), progetto, "state_on_color");
+    let alarm_color = colore_di_stato(obj.state_alarm_color.as_deref(), progetto, "state_alarm_color");
     // `symbol_states` resta `serde_json::Value` nel modello e si converte qui,
     // con tolleranza. Tipizzarlo nel modello significherebbe che un progetto
     // con una voce malformata non apre più **la pagina intera** — e finché il
@@ -10710,7 +10767,7 @@ fn render_symbol(
             last_rgb: Some(state_c),
             spin: obj.symbol_spin.clone(),
             spin_tag: obj.symbol_spin_tag.clone(),
-            spin_s: obj.symbol_spin_s.filter(|v| *v > 0.0).unwrap_or(2.0),
+            spin_s: periodo_predefinito(obj.symbol_spin_s, progetto),
             last_angolo: i16::MIN,
             angolo_base: angolo_statico(obj.rotation),
             spin_s_legame: obj.bindings.as_ref().and_then(|b| b.get("symbol_spin_s")).cloned(),
@@ -11311,7 +11368,8 @@ fn dispatch_render(
                 }
             },
             None if obj_type == "image" => render_svg_placeholder(screen, obj, styles),
-            None => render_symbol(screen, obj, tags).map(|b| live.push(b)),
+            None => render_symbol(screen, obj, tags, crate::simbolo_lib::stile_progetto(base_url, rt_handle).as_deref())
+                .map(|b| live.push(b)),
         },
         "grid" => render_grid(
             screen,
@@ -12832,7 +12890,7 @@ pub fn update_bindings(
                 buf: _,
             } => {
                 let (state, voce) = stato_simbolo(tags, state_tag, alarm_tag, stati);
-                let lampo = lampeggio_voce(stati, voce, unsafe { lvgl_sys::lv_tick_get() } as u64);
+                let lampo = lampeggio_voce(stati, voce, unsafe { lvgl_sys::lv_tick_get() } as u64, 800.0);
                 if lampo != *ultimo_lampo {
                     unsafe { lvgl_sys::lv_obj_set_style_img_opa(canvas_ptr.as_ptr(), lampo, 0) };
                     *ultimo_lampo = lampo;

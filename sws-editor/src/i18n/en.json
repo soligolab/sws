@@ -195,7 +195,8 @@
       "languages": "Languages",
       "ide": "IDE Preferences",
       "telegram": "Telegram",
-      "eventi": "What and where"
+      "eventi": "What and where",
+      "stile": "Style"
     },
     "sottorami": {
       "device": "Device",
@@ -1123,7 +1124,18 @@
     "parteLeva": "Lever open (tag)",
     "parteSpia": "Lamp {{id}} on (tag)",
     "parteMin": "Scale start",
-    "parteMax": "Scale end"
+    "parteMax": "Scale end",
+    "colorDaProgetto": "from project",
+    "colorDaProgettoHint": "This colour comes from the project style (Configuration → Project → Style). Choosing one here applies only to this object.",
+    "colorDaProgettoReset": "Back to the project style",
+    "stileOggetto": "Style of this symbol",
+    "stileCorpo": "Body colour",
+    "stileContenuto": "Content colour",
+    "stileVolume": "Volume (0–100)",
+    "stileContorno": "Outline colour",
+    "stileSpessore": "Outline width (factor)",
+    "stileLampeggio": "State blink (ms)",
+    "stileLivello": "Level transition (ms)"
   },
   "shortcut": {
     "navCanvas": "Canvas navigation",
@@ -3044,5 +3056,23 @@
         "building": "Building"
       }
     }
+  },
+  "stileTab": {
+    "intro": "The symbol style of this project: state colours, library material colours, 2.5D volume and outline, animation timings. An empty field means the default; each symbol can override what it needs from the properties panel.",
+    "stati": "State colours",
+    "resa": "Rendering",
+    "volume": "Volume",
+    "volumeHint": "At 0 library symbols become flat (ISA-101 style), at 100 they have the drawing's volume.",
+    "contorno": "Outline colour",
+    "spessore": "Outline width (factor, 1 = as drawn)",
+    "animazioni": "Animations",
+    "giro": "Seconds per rotor turn",
+    "lampeggio": "State blink (ms)",
+    "livello": "Level transition (ms, 0 = instant)",
+    "anteprima": "Preview",
+    "anteprimaHint": "With the draft, before saving. The pump is running, the tank at 60%.",
+    "materiali": "Library materials",
+    "predefinito": "default",
+    "ripristina": "Back to default"
   }
 }

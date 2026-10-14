@@ -411,6 +411,8 @@ pub fn build(
             put(update_project_notifications),
         )
         .route("/api/project/page-layout", put(update_project_page_layout))
+        // Lo stile dei simboli del progetto (Fase 4 del piano dei simboli di libreria).
+        .route("/api/project/symbol-style", put(update_project_symbol_style))
         // T-58 — il motore di rendering del progetto. Fino all'11-09-2026 si
         // sceglieva solo alla creazione e poi si cambiava editando
         // `project.yaml` a mano, con una trappola: il runtime riscrive il file
@@ -4391,6 +4393,7 @@ where
             saved_by: None,
             languages: Default::default(),
             page_layout: None,
+            symbol_style: None,
             target: None,
             auto_backup_interval_minutes: None,
             auto_backup_retention: None,
@@ -9552,6 +9555,94 @@ async fn update_project_page_layout(
         crate::boot_image::publish(&config_dir, &dir, crate::boot_image::Occasione::Modifica).await;
     }
     res
+}
+
+/// `PUT /api/project/symbol-style` — lo stile dei simboli del progetto. Corpo
+/// `null` = tutto predefinito. Un colore che non è `#rrggbb`, un volume fuori da
+/// 0..100 o una durata negativa sono un 400: è meglio dirlo qui che scoprire sul
+/// pannello un colore che LVGL scarta in silenzio.
+async fn update_project_symbol_style(
+    State(s): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    headers: axum::http::HeaderMap,
+    Json(stile): Json<Option<StileSimboliBody>>,
+) -> Response {
+    let stile = match stile.map(StileSimboliBody::valida).transpose() {
+        Ok(v) => v.filter(|x| *x != sws_core::project::StileSimboliProgetto::default()),
+        Err(e) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": e }))).into_response(),
+    };
+    let dir = match active_dir(&s).await {
+        Ok(d) => d,
+        Err(c) => return c.into_response(),
+    };
+    let res = patch_project_se(&s.project_write_lock, &dir, versione_attesa(&headers), |p| p.symbol_style = stile).await;
+    if res.status() == StatusCode::NO_CONTENT {
+        s.audit.log("project.change", Some(user.username), serde_json::json!({"what": "symbol_style"}));
+        // I viewer aperti devono ridisegnare i simboli con lo stile nuovo.
+        signal_project_changed(&s, "symbol_style");
+    }
+    res
+}
+
+#[derive(serde::Deserialize, Clone)]
+#[serde(deny_unknown_fields)] // Q9: payload solo-API, campi ignoti = 400
+struct StileSimboliBody {
+    #[serde(default)]
+    state_off_color: Option<String>,
+    #[serde(default)]
+    state_on_color: Option<String>,
+    #[serde(default)]
+    state_alarm_color: Option<String>,
+    #[serde(default)]
+    materials: std::collections::BTreeMap<String, String>,
+    #[serde(default)]
+    volume: Option<f64>,
+    #[serde(default)]
+    outline_color: Option<String>,
+    #[serde(default)]
+    outline_width: Option<f64>,
+    #[serde(default)]
+    spin_s: Option<f64>,
+    #[serde(default)]
+    blink_ms: Option<f64>,
+    #[serde(default)]
+    level_transition_ms: Option<f64>,
+}
+
+impl StileSimboliBody {
+    fn valida(self) -> Result<sws_core::project::StileSimboliProgetto, String> {
+        let hex = |nome: &str, v: Option<String>| -> Result<Option<String>, String> {
+            match v.map(|x| x.trim().to_ascii_lowercase()).filter(|x| !x.is_empty()) {
+                None => Ok(None),
+                Some(x) if x.len() == 7 && x.starts_with('#') && x[1..].chars().all(|c| c.is_ascii_hexdigit()) => Ok(Some(x)),
+                Some(x) => Err(format!("{nome}: «{x}» non è un colore #rrggbb")),
+            }
+        };
+        let mut materials = std::collections::BTreeMap::new();
+        for (k, v) in self.materials {
+            if let Some(c) = hex(&format!("materials.{k}"), Some(v))? {
+                materials.insert(k, c);
+            }
+        }
+        let fra = |nome: &str, v: Option<f64>, min: f64, max: f64| -> Result<Option<f64>, String> {
+            match v {
+                Some(x) if !x.is_finite() || x < min || x > max => Err(format!("{nome}: {x} fuori da {min}..{max}")),
+                v => Ok(v),
+            }
+        };
+        Ok(sws_core::project::StileSimboliProgetto {
+            state_off_color: hex("state_off_color", self.state_off_color)?,
+            state_on_color: hex("state_on_color", self.state_on_color)?,
+            state_alarm_color: hex("state_alarm_color", self.state_alarm_color)?,
+            materials,
+            volume: fra("volume", self.volume, 0.0, 100.0)?,
+            outline_color: hex("outline_color", self.outline_color)?,
+            outline_width: fra("outline_width", self.outline_width, 0.0, 10.0)?,
+            spin_s: fra("spin_s", self.spin_s, 0.05, 3600.0)?,
+            blink_ms: fra("blink_ms", self.blink_ms, 50.0, 60000.0)?,
+            level_transition_ms: fra("level_transition_ms", self.level_transition_ms, 0.0, 60000.0)?,
+        })
+    }
 }
 
 /// Il motore di rendering del progetto. `None` significa **togliere** il

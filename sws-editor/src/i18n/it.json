@@ -195,7 +195,8 @@
       "languages": "Lingue",
       "ide": "Preferenze IDE",
       "telegram": "Telegram",
-      "eventi": "Cosa e dove"
+      "eventi": "Cosa e dove",
+      "stile": "Stile"
     },
     "sottorami": {
       "device": "Device",
@@ -1123,7 +1124,18 @@
     "parteLeva": "Leva aperta (tag)",
     "parteSpia": "Spia {{id}} accesa (tag)",
     "parteMin": "Inizio scala",
-    "parteMax": "Fondo scala"
+    "parteMax": "Fondo scala",
+    "colorDaProgetto": "da progetto",
+    "colorDaProgettoHint": "Questo colore viene dallo stile del progetto (Configurazione → Progetto → Stile). Sceglierne uno qui vale solo per questo oggetto.",
+    "colorDaProgettoReset": "Torna allo stile del progetto",
+    "stileOggetto": "Stile di questo simbolo",
+    "stileCorpo": "Colore del corpo",
+    "stileContenuto": "Colore del contenuto",
+    "stileVolume": "Volume (0–100)",
+    "stileContorno": "Colore del contorno",
+    "stileSpessore": "Spessore del contorno (fattore)",
+    "stileLampeggio": "Lampeggio degli stati (ms)",
+    "stileLivello": "Transizione del livello (ms)"
   },
   "shortcut": {
     "navCanvas": "Navigazione canvas",
@@ -3044,5 +3056,23 @@
         "building": "Edificio"
       }
     }
+  },
+  "stileTab": {
+    "intro": "Lo stile dei simboli di questo progetto: i colori di stato, i colori dei materiali della libreria, il volume 2.5D e il contorno, i tempi delle animazioni. Un campo vuoto vale il predefinito; ogni simbolo può sovrascrivere quello che gli serve dal pannello proprietà.",
+    "stati": "Colori di stato",
+    "resa": "Resa",
+    "volume": "Volume",
+    "volumeHint": "A 0 i simboli di libreria diventano piatti (stile ISA-101), a 100 hanno il volume del disegno.",
+    "contorno": "Colore del contorno",
+    "spessore": "Spessore del contorno (fattore, 1 = com'è)",
+    "animazioni": "Animazioni",
+    "giro": "Secondi per giro dei rotori",
+    "lampeggio": "Lampeggio degli stati (ms)",
+    "livello": "Transizione del livello (ms, 0 = a scatto)",
+    "anteprima": "Anteprima",
+    "anteprimaHint": "Con la bozza, prima di salvare. La pompa è in marcia, il serbatoio al 60 %.",
+    "materiali": "Materiali della libreria",
+    "predefinito": "predefinito",
+    "ripristina": "Torna al predefinito"
   }
 }

@@ -21,12 +21,12 @@
 use std::sync::{Arc, Mutex, OnceLock};
 
 use sws_core::simboli_lib::{ManifestLib, ParteLib, SimboloLib};
-use sws_core::stile_simboli::{applica_stile, Contorno, StileSimbolo};
+use sws_core::stile_simboli::{applica_stile, StileSimbolo};
+#[cfg(test)]
+use sws_core::stile_simboli::Contorno;
 
 use crate::svg_assets::{self, SvgSource};
 use crate::svg_raster::{self, Ritaglio};
-
-pub const CONTORNO_PREDEFINITO: &str = "#1c2329";
 
 /// Gradi per fotogramma del rotore: 3° a 60 Hz di disegno restano fluidi fino a
 /// un giro ogni ~1,2 s; un rotore più veloce salta fotogrammi, non si ferma.
@@ -47,6 +47,42 @@ fn stato_manifesto() -> &'static Mutex<Option<Option<Arc<ManifestLib>>>> {
 /// aver portato un manifesto nuovo.
 pub fn invalida() {
     *stato_manifesto().lock().unwrap_or_else(|e| e.into_inner()) = None;
+    *stato_stile().lock().unwrap_or_else(|e| e.into_inner()) = None;
+}
+
+// ── lo stile del progetto ──────────────────────────────────────────────────
+
+type StileProgetto = sws_core::project::StileSimboliProgetto;
+static STILE: OnceLock<Mutex<Option<Option<Arc<StileProgetto>>>>> = OnceLock::new();
+
+fn stato_stile() -> &'static Mutex<Option<Option<Arc<StileProgetto>>>> {
+    STILE.get_or_init(Default::default)
+}
+
+/// `project.symbol_style` del runtime, letto una volta per progetto (Fase 4).
+/// Un progetto senza stile, o un runtime che non risponde, dà `None`: i simboli
+/// restano col loro disegno, come prima che lo stile esistesse.
+pub fn stile_progetto(base_url: &str, rt: &tokio::runtime::Handle) -> Option<Arc<StileProgetto>> {
+    let mut g = stato_stile().lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(s) = g.as_ref() {
+        return s.clone();
+    }
+    #[derive(serde::Deserialize)]
+    struct Progetto {
+        #[serde(default)]
+        symbol_style: Option<StileProgetto>,
+    }
+    let url = format!("{}/api/project", base_url.trim_end_matches('/'));
+    let letto: Option<Arc<StileProgetto>> = rt
+        .block_on(async {
+            let client = reqwest::Client::builder().danger_accept_invalid_certs(true).build().ok()?;
+            let resp = client.get(&url).send().await.ok()?;
+            resp.json::<Progetto>().await.ok()
+        })
+        .and_then(|p| p.symbol_style)
+        .map(Arc::new);
+    *g = Some(letto.clone());
+    letto
 }
 
 /// Il manifesto del runtime da cui si è presa la pagina, scaricato una volta.
@@ -128,12 +164,13 @@ pub fn svg_di_strato(testa: &str, markup: &str, rotazione: Option<(f64, f64, f64
     }
 }
 
-/// Lo stile che vale finché non c'è lo stile del progetto (Fase 4): quello del disegno.
+/// Lo stile del disegno, senza progetto né oggetto: per i test.
+#[cfg(test)]
 pub fn stile_del_disegno(m: &ManifestLib, corpo: Option<String>) -> StileSimbolo {
     StileSimbolo {
         materials: m.materials.clone(),
         volume: 100.0,
-        outline: Contorno { color: CONTORNO_PREDEFINITO.into(), width: 1.0 },
+        outline: Contorno { color: sws_core::stile_simboli::CONTORNO_DISEGNO.into(), width: 1.0 },
         body: corpo,
     }
 }
@@ -325,9 +362,9 @@ pub enum PezzoStrato {
     Rotore { fotogrammi: Vec<Vec<u8>>, dove: Ritaglio, symmetry: f64 },
 }
 
-/// Prepara tutti gli strati di `s` a `q`, con il corpo del colore dato.
-pub fn prepara(m: &ManifestLib, s: &SimboloLib, svg: &str, q: Quadro, corpo: Option<String>) -> Preparato {
-    let con_stile = applica_stile(svg, &stile_del_disegno(m, corpo));
+/// Prepara tutti gli strati di `s` a `q`, con lo stile dato (vedi `stile_effettivo`).
+pub fn prepara(s: &SimboloLib, svg: &str, q: Quadro, stile: &StileSimbolo) -> Preparato {
+    let con_stile = applica_stile(svg, stile);
     let d = dividi(&con_stile);
     let mut out = Vec::new();
     for (id, _parte, markup) in &d.strati {
@@ -383,9 +420,10 @@ pub fn prepara(m: &ManifestLib, s: &SimboloLib, svg: &str, q: Quadro, corpo: Opt
     Preparato { strati: out }
 }
 
-/// Solo lo strato `body` col colore dato, nello stesso riquadro di prima.
-pub fn corpo_colorato(m: &ManifestLib, svg: &str, q: Quadro, dove: Ritaglio, corpo: Option<String>) -> Option<Vec<u8>> {
-    let con_stile = applica_stile(svg, &stile_del_disegno(m, corpo));
+/// Solo lo strato `body` con lo stile dato (e il suo colore di stato), nello
+/// stesso riquadro di prima.
+pub fn corpo_colorato(svg: &str, q: Quadro, dove: Ritaglio, stile: &StileSimbolo) -> Option<Vec<u8>> {
+    let con_stile = applica_stile(svg, stile);
     let d = dividi(&con_stile);
     let (_, _, markup) = d.strati.iter().find(|(id, _, _)| id == "body")?;
     rasterizza(&svg_di_strato(&d.testa, markup, None), q, Some(dove)).map(|b| b.buf)
@@ -419,7 +457,7 @@ mod tests {
         let m = manifesto_incluso();
         let s = m.simbolo("lib:process/centrifugal-pump").unwrap();
         let q = Quadro { w: 160, h: 160, flip_h: false, flip_v: false };
-        let p = prepara(&m, s, POMPA, q, None);
+        let p = prepara(s, POMPA, q, &stile_del_disegno(&m, None));
         assert_eq!(p.strati.len(), 4);
         let intero = svg_raster::rasterize(POMPA.as_bytes(), 160, 160, false, false).unwrap();
         // Il pixel al centro del corpo (fuori dalla girante) ha il colore del
@@ -439,7 +477,7 @@ mod tests {
     fn il_rotore_ha_i_fotogrammi_della_sua_simmetria() {
         let m = manifesto_incluso();
         let s = m.simbolo("lib:process/centrifugal-pump").unwrap();
-        let p = prepara(&m, s, POMPA, Quadro { w: 80, h: 80, flip_h: false, flip_v: false }, None);
+        let p = prepara(s, POMPA, Quadro { w: 80, h: 80, flip_h: false, flip_v: false }, &stile_del_disegno(&m, None));
         let PezzoStrato::Rotore { fotogrammi, dove, symmetry } = &p.strati[3] else { panic!("il quarto strato è il rotore") };
         assert_eq!(*symmetry, 60.0);
         assert_eq!(fotogrammi.len(), 20);
@@ -472,7 +510,7 @@ mod tests {
         // Con lo specchio verticale il contenuto scende dall'alto.
         let (_, su) = finestra_livello(s.view_box, Quadro { w: 80, h: 160, flip_h: false, flip_v: true }, 31.0, 40.0, 18.0, 80.0);
         assert!(!su);
-        let p = prepara(&m, s, SERBATOIO, Quadro { w: 80, h: 160, flip_h: false, flip_v: false }, None);
+        let p = prepara(s, SERBATOIO, Quadro { w: 80, h: 160, flip_h: false, flip_v: false }, &stile_del_disegno(&m, None));
         assert!(p.strati.iter().any(|x| matches!(x, PezzoStrato::Livello { .. })));
     }
 
@@ -481,9 +519,9 @@ mod tests {
         let m = manifesto_incluso();
         let s = m.simbolo("lib:process/centrifugal-pump").unwrap();
         let q = Quadro { w: 80, h: 80, flip_h: false, flip_v: false };
-        let p = prepara(&m, s, POMPA, q, None);
+        let p = prepara(s, POMPA, q, &stile_del_disegno(&m, None));
         let PezzoStrato::Corpo { bitmap, .. } = &p.strati[1] else { panic!() };
-        let verde = corpo_colorato(&m, POMPA, q, bitmap.dove, Some("#22c55e".into())).unwrap();
+        let verde = corpo_colorato(POMPA, q, bitmap.dove, &stile_del_disegno(&m, Some("#22c55e".into()))).unwrap();
         assert_eq!(verde.len(), bitmap.buf.len());
         assert_ne!(verde, bitmap.buf);
     }
@@ -537,7 +575,7 @@ mod tests {
         ] {
             let s = m.simbolo(id).unwrap();
             let svg = std::fs::read_to_string(format!("{}/../../../sws-editor/public/symbols/lib/{file}", env!("CARGO_MANIFEST_DIR"))).unwrap();
-            let p = prepara(&m, s, &svg, q, None);
+            let p = prepara(s, &svg, q, &stile_del_disegno(&m, None));
             let perni: Vec<_> = p.strati.iter().filter_map(|x| if let PezzoStrato::Perno { perno, bitmap, .. } = x { Some((*perno, bitmap.dove)) } else { None }).collect();
             assert_eq!(perni.len(), attese, "{id}");
             let ((px, py), dove) = perni[0];
@@ -545,7 +583,7 @@ mod tests {
         }
         let s = m.simbolo("lib:machines/stack-light").unwrap();
         let svg = std::fs::read_to_string(format!("{}/../../../sws-editor/public/symbols/lib/machines/stack-light.svg", env!("CARGO_MANIFEST_DIR"))).unwrap();
-        let p = prepara(&m, s, &svg, Quadro { w: 30, h: 100, flip_h: false, flip_v: false }, None);
+        let p = prepara(s, &svg, Quadro { w: 30, h: 100, flip_h: false, flip_v: false }, &stile_del_disegno(&m, None));
         assert_eq!(p.strati.iter().filter(|x| matches!(x, PezzoStrato::Spia { .. })).count(), 3);
     }
 

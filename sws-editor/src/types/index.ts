@@ -286,6 +286,15 @@ export interface SynopticObject {
    *  la comanda. `min`/`max` solo per la lancetta (predefiniti 0 e 100). Piano
    *  docs/plans/2026-10-14-motore-simboli-lib.md, Fase 3 (M8). */
   symbol_parts?: Record<string, ParteLegata>;
+  /** Fase 4 (M7): sovrascritture dello stile del progetto per questo simbolo di
+   *  libreria. Vuoto = vale il progetto, poi il disegno. */
+  symbol_body_color?: string;
+  symbol_content_color?: string;
+  symbol_volume?: number;
+  symbol_outline_color?: string;
+  symbol_outline_width?: number;
+  symbol_blink_ms?: number;
+  symbol_level_transition_ms?: number;
   /** Flusso animato nella pipe (F6.10): tratteggio in movimento quando
    *  pipe_flow_tag è truthy (o sempre, se non impostato); velocità/direzione
    *  dal segno del valore quando numerico. */
@@ -1674,6 +1683,8 @@ export interface ProjectInfo {
   notifications?: NotificationConfig;
   languages?: LanguageTable;
   page_layout?: PageLayoutConfig;
+  /** Lo stile dei simboli del progetto (Fase 4 del piano dei simboli di libreria). */
+  symbol_style?: import("@/symbols/stileProgetto").StileSimboliProgetto;
   target?: ProjectTarget;
   /** Override per-progetto dell'intervallo di auto-backup (minuti). `undefined`
    *  = eredita il default di processo (`--auto-backup-interval-minutes`). */

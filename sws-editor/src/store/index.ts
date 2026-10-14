@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { impostaStileProgetto } from "@/symbols/stileProgetto";
 import i18n from "i18next";
 import { api, setAuthToken, ProjectChangedError, type RilievoProgetto } from "@/api/client";
 import { aggiungi, ordinaPagine, posizioneDi, riconcilia, rimuovi, sposta } from "@/pageTree";
@@ -8,7 +9,7 @@ import { genId } from "@/id";
 import { getStoredProjectLang, setStoredProjectLang, getStoredEditorPreviewLang, setStoredEditorPreviewLang } from "@/i18n/projectI18n";
 import { normalizeTrendObjects } from "@/canvas/trendModel";
 import { normalizeXyObjects } from "@/canvas/xyModel";
-import { normalizzaColoriOggetti } from "@/coloriPredefiniti";
+import { normalizzaColoriOggetti, togliColoriDiProgetto } from "@/coloriPredefiniti";
 import { riempiPredefinitiOggetti } from "@/predefinitiCampi";
 import { pianoCreazione } from "@/tag/riconciliaTag";
 import { motivoIdNonValido, rinomina, type EsitoRinomina } from "@/tag/rinominaTag";
@@ -1043,8 +1044,10 @@ export const useAppStore = create<AppState>((set, get) => {
     editorPreviewLang: getStoredEditorPreviewLang(),
     setEditorPreviewLang: (code) => { setStoredEditorPreviewLang(code); set({ editorPreviewLang: code }); },
 
-    setProject: (project) =>
-      set((s) => ({
+    setProject: (project) => {
+      // Lo stile dei simboli lo legge `coloreEffettivo`, che non passa dallo store.
+      impostaStileProgetto(project.symbol_style);
+      return set((s) => ({
         project,
         projectLoadError: null,
         customSymbols: project.custom_symbols ?? [],
@@ -1052,7 +1055,8 @@ export const useAppStore = create<AppState>((set, get) => {
         // Appena letto dal server: è questo l'albero che sta su disco, e da
         // qui si misura se il Salva ha qualcosa da scrivere.
         savedPageTree: project.page_layout?.page_tree ?? [],
-      })),
+      }));
+    },
     setProjectLoadError: (msg) => set({ projectLoadError: msg }),
 
     updateProjectTags: (tags) =>
@@ -1235,8 +1239,10 @@ export const useAppStore = create<AppState>((set, get) => {
           // E i predefiniti fissi mancanti scritti nel file (30-09-2026): un
           // valore che il file non dice, i due motori lo indovinano ciascuno
           // a modo suo — il `data_log` scuro sul web e bianco sul pannello.
+          // E i colori di stato dei simboli uguali al predefinito, che lo stesso
+          // riempimento aveva scritto: tolti, seguono lo stile del progetto (M6).
           const objs = riempiPredefinitiOggetti(
-            normalizzaColoriOggetti(normalizeXyObjects(normalizeTrendObjects(p.objects))),
+            togliColoriDiProgetto(normalizzaColoriOggetti(normalizeXyObjects(normalizeTrendObjects(p.objects)))),
           );
           return objs === p.objects ? p : { ...p, objects: objs };
         }),

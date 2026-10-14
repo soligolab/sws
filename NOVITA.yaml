@@ -19,6 +19,8 @@
 versioni:
   - versione: "2.14.0"
     voci:
+      - it: "Nuova scheda Configurazione → Progetto → Stile: colori di stato, colori dei materiali, volume, contorno e animazioni dei simboli per tutto il progetto, con anteprima; ogni simbolo può sovrascriverli."
+        en: "New Configuration → Project → Style tab: state colours, material colours, volume, outline and animations of symbols for the whole project, with preview; each symbol can override them."
       - it: "Simboli di libreria con parti vive: la lancetta del manometro segue il tag, la leva della valvola si apre e si chiude, le spie si accendono; il selettore dei simboli ha famiglie e ricerca."
         en: "Library symbols with live parts: the gauge needle follows its tag, the valve lever opens and closes, lamps switch on; the symbol picker has families and search."
       - it: "Il periodo di rotazione di un simbolo si può legare a un tag, per esempio la velocità dell'inverter di una ventola."

@@ -19,13 +19,13 @@ use std::collections::BTreeMap;
 
 use serde::Deserialize;
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct Contorno {
     pub color: String,
     pub width: f64,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct StileSimbolo {
     /// Colore per materiale; quelli assenti restano quelli del disegno.
     #[serde(default)]
@@ -36,6 +36,61 @@ pub struct StileSimbolo {
     /// Colore del corpo (di stato o scelto sull'oggetto); `None` = quello del materiale.
     #[serde(default)]
     pub body: Option<String>,
+}
+
+pub const CONTORNO_DISEGNO: &str = "#1c2329";
+/// Il materiale che `symbol_content_color` ritinge: il contenuto dei serbatoi.
+pub const MATERIALE_CONTENUTO: &str = "liquid";
+
+/// Le sovrascritture che un oggetto può fare allo stile del progetto (M7).
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct SovrascrittureSimbolo {
+    #[serde(default, rename = "symbol_body_color")]
+    pub body_color: Option<String>,
+    #[serde(default, rename = "symbol_content_color")]
+    pub content_color: Option<String>,
+    #[serde(default, rename = "symbol_volume")]
+    pub volume: Option<f64>,
+    #[serde(default, rename = "symbol_outline_color")]
+    pub outline_color: Option<String>,
+    #[serde(default, rename = "symbol_outline_width")]
+    pub outline_width: Option<f64>,
+}
+
+/// Lo stile effettivo di un simbolo: **oggetto → progetto → disegno**. È
+/// `stileEffettivo` di `sws-editor/src/symbols/stileProgetto.ts`; i casi sono in
+/// `tests/fixtures/stile-effettivo.json`.
+pub fn stile_effettivo(
+    materiali_disegno: &BTreeMap<String, String>,
+    materiale_corpo: &str,
+    progetto: Option<&crate::project::StileSimboliProgetto>,
+    oggetto: &SovrascrittureSimbolo,
+    corpo_stato: Option<String>,
+) -> StileSimbolo {
+    let mut materials = materiali_disegno.clone();
+    if let Some(p) = progetto {
+        materials.extend(p.materials.iter().map(|(k, v)| (k.clone(), v.clone())));
+    }
+    if let Some(c) = &oggetto.body_color {
+        materials.insert(materiale_corpo.to_string(), c.clone());
+    }
+    if let Some(c) = &oggetto.content_color {
+        materials.insert(MATERIALE_CONTENUTO.to_string(), c.clone());
+    }
+    let volume = oggetto.volume.or(progetto.and_then(|p| p.volume)).unwrap_or(100.0).clamp(0.0, 100.0);
+    StileSimbolo {
+        materials,
+        volume,
+        outline: Contorno {
+            color: oggetto
+                .outline_color
+                .clone()
+                .or_else(|| progetto.and_then(|p| p.outline_color.clone()))
+                .unwrap_or_else(|| CONTORNO_DISEGNO.to_string()),
+            width: oggetto.outline_width.or(progetto.and_then(|p| p.outline_width)).unwrap_or(1.0),
+        },
+        body: corpo_stato,
+    }
 }
 
 /// Numero → testo: tre decimali al più, niente zeri in coda. Uguale in TypeScript.
@@ -179,6 +234,30 @@ mod tests {
         assert!(f.casi.len() >= 3);
         for c in &f.casi {
             assert_eq!(applica_stile(&c.svg, &c.stile), c.atteso, "caso «{}»", c.nome);
+        }
+    }
+
+    /// I casi del web (`sws-editor/tests/stileEffettivo.test.ts`).
+    #[test]
+    fn lo_stile_effettivo_e_quello_del_web() {
+        #[derive(Deserialize)]
+        struct C {
+            nome: String,
+            progetto: Option<crate::project::StileSimboliProgetto>,
+            oggetto: SovrascrittureSimbolo,
+            corpo_stato: Option<String>,
+            atteso: StileSimbolo,
+        }
+        #[derive(Deserialize)]
+        struct F {
+            materiali_disegno: BTreeMap<String, String>,
+            materiale_corpo: String,
+            casi: Vec<C>,
+        }
+        let f: F = serde_json::from_str(include_str!("../../../../tests/fixtures/stile-effettivo.json")).unwrap();
+        for c in f.casi {
+            let s = stile_effettivo(&f.materiali_disegno, &f.materiale_corpo, c.progetto.as_ref(), &c.oggetto, c.corpo_stato);
+            assert_eq!(s, c.atteso, "caso «{}»", c.nome);
         }
     }
 

@@ -309,6 +309,22 @@ pub struct SynopticObject {
     /// tag è vero, spia accesa se il tag è vero.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub symbol_parts: Option<Value>,
+    /// Fase 4 (M7): sovrascritture dello stile del progetto per questo simbolo
+    /// di libreria. Assenti = vale `project.symbol_style`, poi il disegno.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub symbol_body_color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub symbol_content_color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub symbol_volume: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub symbol_outline_color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub symbol_outline_width: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub symbol_blink_ms: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub symbol_level_transition_ms: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pipe_flow: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]

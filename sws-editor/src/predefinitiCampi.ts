@@ -17,7 +17,7 @@
 //     dati, l'etichetta è il nome del tag…): il pannello lo dichiara.
 
 import type { SynopticObject, GridCell, SubCellEntry } from "@/types";
-import { PREDEFINITI } from "@/coloriPredefiniti";
+import { PREDEFINITI, daProgetto } from "@/coloriPredefiniti";
 
 export type MotivoVuoto =
   | "adatta" | "nome_tag" | "nessuna" | "codice_lingua" | "tacche_predefinite" | "dal_passo";
@@ -103,7 +103,8 @@ export function valorePredefinito(tipo: string, campo: string): number | string 
 export function fissiDelTipo(tipo: string): Record<string, number | string | boolean> {
   const out: Record<string, number | string | boolean> = {};
   for (const [campo, r] of Object.entries(PREDEFINITI[tipo] ?? {})) {
-    if ("hex" in r) out[campo] = r.hex;
+    // I colori che seguono lo stile del progetto non si scrivono (Fase 4, M6).
+    if ("hex" in r && !daProgetto(tipo, campo)) out[campo] = r.hex;
   }
   for (const [campo, r] of Object.entries(CAMPI[tipo] ?? {})) {
     if ("valore" in r) out[campo] = r.valore;

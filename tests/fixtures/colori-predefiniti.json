@@ -27,7 +27,13 @@
     "",
     "Regola scelta per i valori: ciò che un oggetto piazzato mostrava sul web il",
     "21-09-2026. Il tubo segue la pagina col tono grigio di allora, non col tono",
-    "testo: altrimenti ogni tubo esistente diventerebbe quasi bianco."
+    "testo: altrimenti ogni tubo esistente diventerebbe quasi bianco.",
+    "",
+    "`da_progetto` (14-10-2026, Fase 4 del piano dei simboli di libreria): i campi che",
+    "seguono lo stile del progetto (`project.symbol_style`). Non si scrivono nel file né",
+    "alla creazione né all'apertura; all'apertura un valore uguale al loro `hex` si",
+    "toglie (M6: lo avevano scritto i riempimenti dal 30-09, non una persona). Il colore",
+    "effettivo è oggetto → stile del progetto → `hex` della tabella, su web e pannello."
   ],
   "auto": {
     "testo":   { "scuro": "#e2e8f0", "chiaro": "#0f172a" },
@@ -99,6 +105,9 @@
     ["xy_plot", "bg_color"], ["kpi_tile", "bg_color"], ["alarm_history", "bg_color"],
     ["recipe_panel", "bg_color"], ["state_lamp", "text_list_default_color"], ["alarm_bell", "fill"],
     ["pipe", "state_alarm_color"], ["trend", "bg_color"], ["table", "bg_color"]
+  ],
+  "da_progetto": [
+    ["symbol", "state_off_color"], ["symbol", "state_on_color"], ["symbol", "state_alarm_color"]
   ],
   "casi_normalizzazione": [
     { "ingresso": "var(--brand-text, #e2e8f0)",           "atteso": null,      "nota": "il token del testo diventa automatico" },

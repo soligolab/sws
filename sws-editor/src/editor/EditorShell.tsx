@@ -31,8 +31,9 @@ import type { SymbolMeta } from "@/symbols/library";
 import type { SimboloLib } from "@/symbols/lib/manifest";
 import { isLib, svgLibCaricato, trovaSimboloLib, useManifestoLib, useSimboloLib } from "@/symbols/lib/libreria";
 import { SimboloLibSvg } from "@/symbols/lib/SimboloLib";
+import { CONTORNO_DISEGNO, useStileProgetto } from "@/symbols/stileProgetto";
 import { useAppStore } from "@/store";
-import { coloreAuto, estraiHex, predefinito, regola } from "@/coloriPredefiniti";
+import { coloreAuto, estraiHex, predefinito, regola, coloreDaProgetto, daProgetto } from "@/coloriPredefiniti";
 import { oggettoNuovo } from "./oggettiNuovi";
 import { CampoColore } from "./CampoColore";
 import { regolaCampo, type MotivoVuoto } from "@/predefinitiCampi";
@@ -738,9 +739,7 @@ export function EditorShell() {
               width: lib ? lib.viewBox[0] : 80,
               height: lib ? lib.viewBox[1] : 80,
               symbol_id: symbolId,
-              state_off_color: predefinito("symbol", "state_off_color"),
-              state_on_color: predefinito("symbol", "state_on_color"),
-              state_alarm_color: predefinito("symbol", "state_alarm_color"),
+              // I colori di stato non si scrivono: seguono lo stile del progetto (M6).
             });
             setSymbolPickPos(null);
           }}
@@ -2543,6 +2542,45 @@ function PartiSimboloLib({ obj, onChange }: { obj: SynopticObject; onChange: (pa
   );
 }
 
+/** Le sovrascritture dello stile del progetto per un simbolo di libreria (Fase 4,
+ *  M7). Vuoto = vale il progetto, poi il disegno: il segnaposto dice quale. */
+function StileOggettoLib({ obj, onChange }: { obj: SynopticObject; onChange: (patch: Partial<SynopticObject>) => void }) {
+  const { t } = useTranslation();
+  const { sim, manifesto } = useSimboloLib(isLib(obj.symbol_id) ? obj.symbol_id : undefined);
+  const progetto = useStileProgetto();
+  if (!sim || !manifesto) return null;
+  const haLivello = sim.parts.some((p) => p.kind === "level");
+  const colore = (campo: "symbol_body_color" | "symbol_content_color" | "symbol_outline_color", predef: string, etichetta: string) => (
+    <div>
+      <div style={LABEL}>{etichetta}</div>
+      {/* Lo stesso controllo dei colori «da progetto» dello stato: vuoto = il
+          colore che viene dallo stile del progetto o dal disegno, ↺ per tornarci. */}
+      <CampoColore valore={obj[campo]} regola={undefined} sfondo="#0f172a" daProgetto={predef}
+        onChange={(v) => onChange({ [campo]: v } as Partial<SynopticObject>)} />
+    </div>
+  );
+  const numero = (campo: "symbol_volume" | "symbol_outline_width" | "symbol_blink_ms" | "symbol_level_transition_ms", etichetta: string, predef: number, passo: number) => (
+    <div>
+      <div style={LABEL}>{etichetta}</div>
+      <input type="number" style={INPUT} step={passo} placeholder={`${predef} · ${t("props.colorDaProgetto")}`} value={obj[campo] ?? ""}
+        onChange={(e) => onChange({ [campo]: e.target.value.trim() === "" ? undefined : Number(e.target.value) } as Partial<SynopticObject>)} />
+    </div>
+  );
+  const materiale = (m: string) => progetto?.materials?.[m] ?? manifesto.materials[m] ?? "#808080";
+  return (
+    <>
+      <SottoTitolo chiave="stileOggetto" />
+      {colore("symbol_body_color", materiale(sim.body), t("props.stileCorpo"))}
+      {haLivello && colore("symbol_content_color", materiale("liquid"), t("props.stileContenuto"))}
+      {numero("symbol_volume", t("props.stileVolume"), progetto?.volume ?? 100, 5)}
+      {colore("symbol_outline_color", progetto?.outline_color ?? CONTORNO_DISEGNO, t("props.stileContorno"))}
+      {numero("symbol_outline_width", t("props.stileSpessore"), progetto?.outline_width ?? 1, 0.1)}
+      {(obj.symbol_states?.length ?? 0) > 0 && numero("symbol_blink_ms", t("props.stileLampeggio"), progetto?.blink_ms ?? 800, 50)}
+      {haLivello && numero("symbol_level_transition_ms", t("props.stileLivello"), progetto?.level_transition_ms ?? 0, 50)}
+    </>
+  );
+}
+
 function SottoTitolo({ chiave }: { chiave: string }) {
   const { t } = useTranslation();
   return (
@@ -2927,6 +2965,7 @@ export function ObjectProps({
       regola={regola(obj.type, key)}
       sfondo={sfondoPagina}
       mixed={mixedKeys.has(key)}
+      daProgetto={daProgetto(obj.type, key) ? coloreDaProgetto(obj.type, key) : undefined}
       onChange={(v) => onChange({ [key]: v } as Partial<SynopticObject>)}
     />
   );
@@ -4864,6 +4903,7 @@ export function ObjectProps({
               {/* Fase 3 del piano dei simboli di libreria (M8): le parti vive che
                   il disegno ha davvero, ognuna col suo tag. */}
               <PartiSimboloLib obj={obj} onChange={onChange} />
+              <StileOggettoLib obj={obj} onChange={onChange} />
               {field(t("props.tagState"),
                 <TagInput
                   style={INPUT} placeholder={t("props.exRunning")}

@@ -24,7 +24,7 @@ const INPUT: React.CSSProperties = {
 };
 
 export function CampoColore({
-  valore, regola, sfondo, mixed = false, onChange, style,
+  valore, regola, sfondo, mixed = false, onChange, style, daProgetto,
 }: {
   /** Il valore nel progetto, com'è (può essere un vecchio `var(…)`). */
   valore: unknown;
@@ -37,6 +37,9 @@ export function CampoColore({
   mixed?: boolean;
   /** `undefined` = torna automatico. */
   onChange: (v: string | undefined) => void;
+  /** Il campo segue lo stile del progetto (Fase 4): il colore che ne viene.
+   *  Senza valore nell'oggetto si mostra quello con la dicitura «da progetto». */
+  daProgetto?: string;
   style?: React.CSSProperties;
 }) {
   const { t } = useTranslation();
@@ -47,31 +50,33 @@ export function CampoColore({
   //   hex      → il predefinito della tabella: lo si mostra, con «predef.»
   //              (dopo `riempiPredefiniti` capita solo in casi rari);
   //   nessuno  → non si disegna;  derivato → calcolato da un altro colore.
-  const stato: "esplicito" | "auto" | "hex" | "nessuno" | "derivato" = esplicito
+  const stato: "esplicito" | "auto" | "hex" | "nessuno" | "derivato" | "progetto" = esplicito
     ? "esplicito"
+    : daProgetto ? "progetto"
     : !regola ? "auto"
     : "auto" in regola ? "auto"
     : "hex" in regola ? "hex"
     : regola.vuoto;
   const effettivo =
-    esplicito ?? (regola && "hex" in regola ? regola.hex
+    esplicito ?? daProgetto ?? (regola && "hex" in regola ? regola.hex
       : regola && "auto" in regola ? coloreAuto(regola.auto, sfondo)
       : !regola ? coloreAuto("testo", sfondo)
       : undefined);
   const perSwatch = estraiHex(effettivo) ?? "#808080";
   // Il ↺ riporta allo stato senza valore: c'è per ogni regola che ne ha uno
   // voluto (auto, nessuno, derivato), non per un predefinito fisso.
-  const haStatoVuoto = !!regola && !("hex" in regola);
+  const haStatoVuoto = (!!regola && !("hex" in regola)) || !!daProgetto;
   const etichetta: Record<string, [string, string]> = {
     auto: [t("props.colorAuto"), t("props.colorAutoHint")],
     hex: [t("props.colorPredefinito"), t("props.colorPredefinitoHint")],
     nessuno: [t("props.colorNessuno"), t("props.colorNessunoHint")],
     derivato: [t("props.colorDerivato"), t("props.colorDerivatoHint")],
+    progetto: [t("props.colorDaProgetto"), t("props.colorDaProgettoHint")],
   };
   const dichiarato = !mixed && stato !== "esplicito" ? etichetta[stato] : undefined;
   // Il colore che si vede davvero, scritto in chiaro (corsivo: non è nel file).
   const mostrato = mixed ? "" : stato === "esplicito" ? (typeof valore === "string" ? valore : "")
-    : stato === "auto" || stato === "hex" ? perSwatch : "";
+    : stato === "auto" || stato === "hex" || stato === "progetto" ? perSwatch : "";
 
   return (
     <div style={{ display: "flex", gap: 6, alignItems: "center", ...style }}>
@@ -103,7 +108,7 @@ export function CampoColore({
         <button
           type="button"
           onClick={() => onChange(undefined)}
-          title={regola && "vuoto" in regola
+          title={daProgetto ? t("props.colorDaProgettoReset") : regola && "vuoto" in regola
             ? t(regola.vuoto === "nessuno" ? "props.colorNessunoReset" : "props.colorDerivatoReset")
             : t("props.colorAutoReset")}
           style={{ ...INPUT, width: "auto", padding: "0 6px", cursor: "pointer", flex: "none" }}

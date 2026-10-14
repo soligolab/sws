@@ -81,6 +81,7 @@ export const SCHEDE = [
   { id: "notifications", ramo: "progetto",  icona: "✉", soloAdmin: false, portaBozza: true,  richiedeProgetto: false, sezione: "notifications", sottoRamo: "notifiche" },
   { id: "telegram",      ramo: "progetto",  icona: "💬", soloAdmin: false, portaBozza: true,  richiedeProgetto: false, sezione: "notifications", sottoRamo: "notifiche", ospite: "notifications" },
   { id: "eventi",        ramo: "progetto",  icona: "🔀", soloAdmin: false, portaBozza: true,  richiedeProgetto: false, sezione: "notifications", sottoRamo: "notifiche", ospite: "notifications" },
+  { id: "stile",         ramo: "progetto",  icona: "🎨", soloAdmin: false, portaBozza: true,  richiedeProgetto: true, sezione: "symbol_style" },
   { id: "languages",     ramo: "progetto",  icona: "🌐", soloAdmin: false, portaBozza: true,  richiedeProgetto: true, sezione: "languages"  },
   { id: "git",           ramo: "progetto",  icona: "🔀", soloAdmin: false, portaBozza: false, richiedeProgetto: false },
   { id: "datastores",    ramo: "dati",      icona: "🗄", soloAdmin: true,  portaBozza: true,  richiedeProgetto: false, elementi: true, sezione: "datastores" },

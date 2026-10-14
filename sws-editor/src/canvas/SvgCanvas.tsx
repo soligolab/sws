@@ -31,6 +31,7 @@ import { SYMBOLS } from "@/symbols/library";
 import { isLib } from "@/symbols/lib/libreria";
 import { matchTextListEntry } from "@/canvas/textList";
 import { statoSimbolo, veroSimbolo } from "@/symbols/statoSimbolo";
+import { animazioniEffettive, stileProgetto } from "@/symbols/stileProgetto";
 import { OggettoLib } from "@/symbols/lib/SimboloLib";
 import {
   PAGE_EDGE_RESIST_PX,
@@ -6015,11 +6016,14 @@ function SvgObjectCorpo(p: ObjProps) {
       (obj.symbol_spin === "on_state" && state === "on") ||
       (obj.symbol_spin === "tag" && truthy(obj.symbol_spin_tag))
     );
+    // Fase 4: i tempi vengono dall'oggetto, poi dallo stile del progetto.
+    const anim = animazioniEffettive(obj, stileProgetto());
     const spinStyle: React.CSSProperties | undefined = spinActive
-      ? { animation: `sws-spin ${obj.symbol_spin_s ?? 2}s linear infinite`, transformOrigin: "50px 50px" }
+      ? { animation: `sws-spin ${anim.spinS}s linear infinite`, transformOrigin: "50px 50px" }
       : undefined;
     // F6.6: lampeggio per stato (entry.blink), sopra il blink universale.
     const entryBlink = (!isEditMode || fxPreview) && !!stateEntry?.blink;
+    const blinkStyle = entryBlink ? { animation: `sws-obj-blink ${anim.blinkMs}ms step-start infinite` } : undefined;
 
     return (
       <g style={{ cursor: editCursor }}>
@@ -6032,8 +6036,7 @@ function SvgObjectCorpo(p: ObjProps) {
         {applyTransform(obj, w, h, <>
           {bgLayer(obj.x, obj.y, w, h, 4)}
           {libId ? (
-            <g style={entryBlink ? { animation: "sws-obj-blink 800ms step-start infinite" } : undefined}
-              data-anim={entryBlink ? "1" : undefined}>
+            <g style={blinkStyle} data-anim={entryBlink ? "1" : undefined}>
               <OggettoLib symbolId={libId} objId={obj.id} x={obj.x} y={obj.y} w={w} h={h}
                 dataAnim={spinActive}
                 legami={obj.symbol_parts}
@@ -6045,8 +6048,10 @@ function SvgObjectCorpo(p: ObjProps) {
                   corpo: (obj.state_tag || obj.alarm_tag || obj.symbol_states?.length) ? badgeColor : null,
                   livello: level,
                   gira: spinActive,
-                  periodoS: obj.symbol_spin_s ?? 2,
-                }} />
+                  periodoS: anim.spinS,
+                  livelloMs: anim.livelloMs,
+                }}
+                sovrascritture={obj} />
             </g>
           ) : customEntry?.svg ? (
             /* F6.9: simbolo custom multi-stato — markup inline con gli
@@ -6070,7 +6075,7 @@ function SvgObjectCorpo(p: ObjProps) {
           ) : meta!.kind === "builtin" && meta!.render ? (
             <svg x={obj.x} y={obj.y} width={w} height={h} viewBox="0 0 100 100"
               data-anim={spinActive || entryBlink ? "1" : undefined}
-              style={entryBlink ? { animation: "sws-obj-blink 800ms step-start infinite" } : undefined}>
+              style={blinkStyle}>
               <g style={spinStyle} data-anim={spinActive ? "1" : undefined}>
                 {meta!.render({
                   state,

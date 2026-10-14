@@ -2,8 +2,11 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
-  PREDEFINITI, coloreEffettivo, estraiHex, normalizzaColore, normalizzaColoriPagine, predefinito, regola,
+  DA_PROGETTO, PREDEFINITI, coloreEffettivo, estraiHex, normalizzaColore, normalizzaColoriPagine, predefinito, regola,
+  togliColoriDiProgetto,
 } from "../src/coloriPredefiniti";
+import { impostaStileProgetto } from "../src/symbols/stileProgetto";
+import { riempiPredefiniti } from "../src/predefinitiCampi";
 import { oggettoNuovo } from "../src/editor/oggettiNuovi";
 import { PALETTE_GROUPS } from "../src/editor/LeftPanel";
 import type { SynopticObject, SynopticPage } from "../src/types";
@@ -21,6 +24,7 @@ type Fixture = {
   auto: Record<string, { scuro: string; chiaro: string }>;
   predefiniti: Record<string, Record<string, Regola>>;
   lvgl: [string, string][];
+  da_progetto: [string, string][];
   casi_normalizzazione: { ingresso: string; atteso: string | null }[];
 };
 const fixture = JSON.parse(
@@ -38,7 +42,10 @@ describe("coloriPredefiniti — la tabella condivisa col pannello LVGL", () => {
 
   it("ogni coppia che LVGL disegna con un letterale è un hex fisso in tabella", () => {
     for (const [tipo, campo] of fixture.lvgl) {
-      expect(predefinito(tipo, campo), `${tipo}.${campo}`).toMatch(/^#[0-9a-f]{6}$/);
+      // La regola della tabella, non `predefinito`: un campo `da_progetto` ha il
+      // suo hex di ripiego anche se la creazione non lo scrive.
+      const r = regola(tipo, campo);
+      expect(r && "hex" in r ? r.hex : undefined, `${tipo}.${campo}`).toMatch(/^#[0-9a-f]{6}$/);
     }
   });
 
@@ -142,5 +149,43 @@ describe("normalizzaColoriPagine — i progetti vecchi si ripuliscono all'apertu
     const [p] = normalizzaColoriPagine([pagina([{ id: "a", type: "rect", x: 0, y: 0, fill: "#ABCDEF", stroke: "red" }])]);
     expect(p.objects[0].fill).toBe("#ABCDEF");
     expect(p.objects[0].stroke).toBe("red");
+  });
+});
+
+describe("colori da progetto (Fase 4, M6)", () => {
+  const simbolo = (extra: Partial<SynopticObject> = {}) =>
+    ({ id: "s", type: "symbol", x: 0, y: 0, symbol_id: "pump", ...extra }) as SynopticObject;
+
+  it("l'elenco è quello della fixture", () => {
+    expect(DA_PROGETTO.map((x) => [...x])).toEqual(fixture.da_progetto);
+  });
+
+  it("non si scrivono: né alla creazione né all'apertura", () => {
+    for (const [tipo, campo] of fixture.da_progetto) {
+      expect(predefinito(tipo, campo)).toBeUndefined();
+      expect((riempiPredefiniti(simbolo()) as unknown as Record<string, unknown>)[campo]).toBeUndefined();
+    }
+  });
+
+  it("valgono oggetto → stile del progetto → tabella", () => {
+    impostaStileProgetto(undefined);
+    expect(coloreEffettivo(simbolo(), "state_on_color")).toBe("#22c55e");
+    impostaStileProgetto({ state_on_color: "#00AAFF" });
+    expect(coloreEffettivo(simbolo(), "state_on_color")).toBe("#00aaff");
+    expect(coloreEffettivo(simbolo({ state_on_color: "#123456" }), "state_on_color")).toBe("#123456");
+    impostaStileProgetto(undefined);
+  });
+
+  it("all'apertura si tolgono quelli uguali al predefinito, anche dentro una griglia, e restano gli altri", () => {
+    const pompa = simbolo({ state_off_color: "#64748B", state_on_color: "#22c55e", state_alarm_color: "#ff0000" });
+    const griglia = { id: "g", type: "grid", x: 0, y: 0, grid_cells: [{ child: simbolo({ id: "c", state_on_color: "#22c55e" }) }] } as unknown as SynopticObject;
+    const [p, g] = togliColoriDiProgetto([pompa, griglia]);
+    expect(p.state_off_color).toBeUndefined();
+    expect(p.state_on_color).toBeUndefined();
+    expect(p.state_alarm_color).toBe("#ff0000");
+    expect((g.grid_cells![0].child as SynopticObject).state_on_color).toBeUndefined();
+    // Niente da togliere: stesso riferimento (il sorvegliante non scatta a vuoto).
+    const fermo = [simbolo({ state_on_color: "#abcdef" })];
+    expect(togliColoriDiProgetto(fermo)).toBe(fermo);
   });
 });

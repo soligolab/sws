@@ -623,7 +623,7 @@ const PATH_VERSIONATI = [
   "/api/project/tags", "/api/project/types", "/api/project/languages", "/api/project/sources",
   "/api/project/alarms", "/api/project/functions", "/api/project/custom-symbols",
   "/api/project/datastores", "/api/project/global-scripts",
-  "/api/project/notifications", "/api/project/page-layout", "/api/project/target",
+  "/api/project/notifications", "/api/project/page-layout", "/api/project/target", "/api/project/symbol-style",
   "/api/project/backup-config", "/api/project/tags/import-csv",
 ];
 
@@ -2088,6 +2088,14 @@ export const api = {
       method: "PUT",
       headers: { "Content-Type": "application/json", ...seVersionato("/api/project/target") },
       body: JSON.stringify(target),
+    }),
+
+  /** Lo stile dei simboli del progetto; `null` = tutto predefinito. */
+  updateSymbolStyle: (stile: import("@/symbols/stileProgetto").StileSimboliProgetto | null) =>
+    request<void>("/api/project/symbol-style", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...seVersionato("/api/project/symbol-style") },
+      body: JSON.stringify(stile),
     }),
 
   updatePageLayout: (config: PageLayoutConfig | null) =>

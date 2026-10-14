@@ -445,6 +445,14 @@ pub struct SynopticObject {
     pub symbol_spin_s: Option<f64>,
     /// Simboli di libreria: parte del manifesto → `{tag, min?, max?}` (Fase 3).
     pub symbol_parts: Option<serde_json::Value>,
+    /// Fase 4 (M7): sovrascritture dello stile del progetto.
+    pub symbol_body_color: Option<String>,
+    pub symbol_content_color: Option<String>,
+    pub symbol_volume: Option<f64>,
+    pub symbol_outline_color: Option<String>,
+    pub symbol_outline_width: Option<f64>,
+    pub symbol_blink_ms: Option<f64>,
+    pub symbol_level_transition_ms: Option<f64>,
 
     // ── Tubazioni ──
     pub pipe_flow: Option<bool>,

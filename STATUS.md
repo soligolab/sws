@@ -12,7 +12,20 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — libreria di simboli SCADA: Fasi 1-3 fatte (2026-10-14)
+## ▶ Riprendere da qui — libreria di simboli SCADA: Fasi 1-4 fatte (2026-10-14)
+
+**Fase 4** (lo stile del progetto) sul ramo `feat/stile-del-progetto`, annidato sulla 3:
+- la scheda Configurazione → Progetto → Stile, con l'anteprima;
+- `project.symbol_style` e `PUT /api/project/symbol-style`;
+- i colori di stato «da progetto», con la normalizzazione M6 all'apertura;
+- le sovrascritture per oggetto;
+- la transizione del livello.
+
+Provata sul pannello con l'istantanea: volume 0, tinte, contorno chiaro, colore di marcia del progetto
+su lib e builtin, sovrascritture dell'oggetto che vincono. **Quattro rami in fila, nessuno mergiato**:
+formato → fetta → parti → stile.
+
+### Fasi 1-3
 
 **Il maintainer ha provato la Fase 2 dal vivo** con l'IDE 8464 e il runtime di prova 8448/8447: il serbatoio
 segue uno slider. Ha chiesto il periodo di rotazione legabile a un tag, che è entrato nella Fase 3.
@@ -77,11 +90,8 @@ il codice invece della pagina.
   `check_fuori_pagina_lvgl`, `check_contrasto`) rischiano lo stesso falso verde. Non toccate: è un
   lavoro a sé.
 
-**Prossimo**: Fase 4 del piano, lo stile del progetto:
-- `symbol_style` in Rust e TS;
-- la scheda Configurazione → Progetto → Stile;
-- la regola «da progetto» e la normalizzazione M6 dei colori di stato scritti nei file;
-- le sovrascritture per oggetto.
+**Prossimo**: Fase 5 del piano, l'avviso al deploy (manifesto del pannello contro i `lib:` usati) e la
+cache (`Cache-Control: no-cache` su `/symbols/lib/`).
 
 ## ▶ Riprendere da qui — collaudo del WP630 da zero, e i difetti che ha fatto uscire (2026-10-12/14)
 

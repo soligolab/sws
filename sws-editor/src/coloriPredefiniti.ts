@@ -30,6 +30,7 @@
 
 import type { SynopticObject, SynopticPage } from "@/types";
 import { defaultObjectSubtleColor, defaultObjectTextColor } from "@/theme";
+import { stileProgetto } from "@/symbols/stileProgetto";
 
 export type Tono = "testo" | "sottile";
 export type Vuoto = "nessuno" | "derivato";
@@ -101,11 +102,64 @@ export function regola(tipo: string, campo: string): RegolaColore | undefined {
   return PREDEFINITI[tipo]?.[campo] ?? PREDEFINITI["*"]?.[campo];
 }
 
+/** I campi che seguono lo stile del progetto (`da_progetto` della fixture, Fase 4
+ *  del piano dei simboli di libreria): non si scrivono nel file, e valgono
+ *  oggetto → `project.symbol_style` → `hex` della tabella. */
+export const DA_PROGETTO: readonly (readonly [string, string])[] = [
+  ["symbol", "state_off_color"], ["symbol", "state_on_color"], ["symbol", "state_alarm_color"],
+];
+
+export function daProgetto(tipo: string, campo: string): boolean {
+  return DA_PROGETTO.some(([t, c]) => t === tipo && c === campo);
+}
+
 /** Solo i colori **fissi**: quello che la creazione scrive nel file. Per un
- *  campo automatico ritorna `undefined`, cioè «non scriverlo». */
+ *  campo automatico, o che segue lo stile del progetto, ritorna `undefined`,
+ *  cioè «non scriverlo». */
 export function predefinito(tipo: string, campo: string): string | undefined {
+  if (daProgetto(tipo, campo)) return undefined;
   const r = regola(tipo, campo);
   return r && "hex" in r ? r.hex : undefined;
+}
+
+/** Il colore che un campo `da_progetto` ha quando l'oggetto non ne dice uno:
+ *  lo stile del progetto, altrimenti la tabella. */
+export function coloreDaProgetto(tipo: string, campo: string): string | undefined {
+  const dalProgetto = normalizzaColore((stileProgetto() as Record<string, unknown> | undefined)?.[campo]);
+  if (dalProgetto) return dalProgetto;
+  const r = regola(tipo, campo);
+  return r && "hex" in r ? r.hex : undefined;
+}
+
+/** M6: all'apertura toglie i colori `da_progetto` uguali al loro predefinito di
+ *  tabella. Li aveva scritti `riempiPredefiniti` dal 30-09-2026 su ogni simbolo,
+ *  e finché restano nel file lo stile del progetto non li raggiunge mai. Chi
+ *  aveva scelto esattamente quel colore ottiene lo stesso disegno: lo stile del
+ *  progetto nasce coi colori della tabella. Ricorsiva come le altre passate
+ *  (figli delle celle compresi); stesso riferimento se non cambia niente. */
+export function togliColoriDiProgetto<T>(v: T): T {
+  if (Array.isArray(v)) {
+    let cambiato = false;
+    const out = v.map((x) => { const y = togliColoriDiProgetto(x); if (y !== x) cambiato = true; return y; });
+    return (cambiato ? out : v) as T;
+  }
+  if (v && typeof v === "object") {
+    const rec = v as Record<string, unknown>;
+    const tipo = typeof rec.type === "string" ? rec.type : undefined;
+    let out: Record<string, unknown> | null = null;
+    for (const [k, x] of Object.entries(rec)) {
+      if (tipo && daProgetto(tipo, k)) {
+        const r = regola(tipo, k);
+        if (r && "hex" in r && normalizzaColore(x) === r.hex) { out ??= { ...rec }; delete out[k]; continue; }
+      }
+      if (x && typeof x === "object") {
+        const y = togliColoriDiProgetto(x);
+        if (y !== x) { out ??= { ...rec }; out[k] = y; }
+      }
+    }
+    return (out ?? v) as T;
+  }
+  return v;
 }
 
 const HEX = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
@@ -217,6 +271,10 @@ export function coloreAuto(tono: Tono, sfondo: string | undefined): string {
 export function coloreEffettivo(obj: SynopticObject, campo: string, sfondo?: string): string {
   const esplicito = normalizzaColore((obj as unknown as Record<string, unknown>)[campo]);
   if (esplicito) return esplicito;
+  if (daProgetto(obj.type, campo)) {
+    const c = coloreDaProgetto(obj.type, campo);
+    if (c) return c;
+  }
   const r = regola(obj.type, campo) ?? { auto: "testo" as Tono };
   if ("hex" in r) return r.hex;
   // «Derivato» lo calcola chi disegna (da un altro colore): qui non c'è un

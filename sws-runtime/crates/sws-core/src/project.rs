@@ -1693,6 +1693,13 @@ pub struct Project {
     /// field existed already has literal per-page width/height).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub page_layout: Option<PageLayoutConfig>,
+    /// Lo stile dei simboli del progetto (Fase 4 del piano
+    /// docs/plans/2026-10-14-motore-simboli-lib.md): colori di stato, colori dei
+    /// materiali della libreria, volume e contorno, animazioni. Ogni campo
+    /// assente vale il predefinito; un oggetto può sovrascriverli. `None` = tutto
+    /// predefinito, cioè l'aspetto che i simboli avevano prima che esistesse.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub symbol_style: Option<StileSimboliProgetto>,
     /// Target di rendering del progetto: `None` = legacy/default = Web (ogni
     /// progetto creato prima di questo campo è implicitamente web). Guida
     /// il wizard di creazione progetto e il filtro della palette oggetti
@@ -1767,6 +1774,42 @@ pub struct PageTreeNode {
     pub id: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub children: Vec<PageTreeNode>,
+}
+
+/// Lo stile dei simboli a livello di progetto (`project.yaml`, `symbol_style`).
+///
+/// Precedenza, la stessa su web e pannello: **oggetto → progetto → predefinito**
+/// (la tabella `tests/fixtures/colori-predefiniti.json` per i colori di stato, il
+/// manifesto della libreria per i materiali). La regola è in
+/// `tests/fixtures/stile-effettivo.json`.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct StileSimboliProgetto {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub state_off_color: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub state_on_color: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub state_alarm_color: Option<String>,
+    /// Materiale della libreria → colore (`#rrggbb`). Solo quelli cambiati.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub materials: std::collections::BTreeMap<String, String>,
+    /// 0 = piatto, 100 = il volume del disegno.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub volume: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub outline_color: Option<String>,
+    /// Fattore sullo spessore del contorno del disegno (1 = com'è).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub outline_width: Option<f64>,
+    /// Secondi per giro dei rotori, se l'oggetto non dice il suo.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spin_s: Option<f64>,
+    /// Periodo del lampeggio per voce di `symbol_states`, in ms.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub blink_ms: Option<f64>,
+    /// Transizione del livello, in ms (0 = a scatto).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub level_transition_ms: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
