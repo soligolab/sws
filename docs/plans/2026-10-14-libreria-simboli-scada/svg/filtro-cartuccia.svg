@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="60" height="120" viewBox="0 0 60 120">
+  <defs>
+    <linearGradient id="filtro-cartuccia-steel-v" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#56616b"/><stop offset="0.18" stop-color="#eef2f5"/><stop offset="0.45" stop-color="#b3bcc4"/><stop offset="0.8" stop-color="#7b8690"/><stop offset="1" stop-color="#4b555e"/></linearGradient>
+    <linearGradient id="filtro-cartuccia-steel-h" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#56616b"/><stop offset="0.18" stop-color="#eef2f5"/><stop offset="0.45" stop-color="#b3bcc4"/><stop offset="0.8" stop-color="#7b8690"/><stop offset="1" stop-color="#4b555e"/></linearGradient>
+    <linearGradient id="filtro-cartuccia-dark-h" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#5c656e"/><stop offset="0.2" stop-color="#8a939b"/><stop offset="0.6" stop-color="#3e464d"/><stop offset="1" stop-color="#262c31"/></linearGradient>
+    <linearGradient id="filtro-cartuccia-shade-h" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#000" stop-opacity="0.25"/><stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/><stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/><stop offset="0.75" stop-color="#000" stop-opacity="0.12"/><stop offset="1" stop-color="#000" stop-opacity="0.45"/></linearGradient>
+    <radialGradient id="filtro-cartuccia-dial-r" cx=".4" cy=".35" r=".75"><stop offset="0" stop-color="#ffffff"/><stop offset="0.7" stop-color="#eef1f3"/><stop offset="1" stop-color="#c9d0d6"/></radialGradient>
+    <path id="filtro-cartuccia-s1" d="M12 22 Q12 10 30 10 Q48 10 48 22 Z"/>
+    <path id="filtro-cartuccia-s2" d="M10 26 L50 26 L50 92 Q50 102 30 102 Q10 102 10 92 Z"/>
+  </defs>
+  <g stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+  <rect x="4" y="35" width="8" height="10" fill="url(#filtro-cartuccia-steel-v)"/><rect x="0" y="32" width="4" height="16" rx="0.8" fill="url(#filtro-cartuccia-steel-h)"/><rect x="48" y="35" width="8" height="10" fill="url(#filtro-cartuccia-steel-v)"/><rect x="56" y="32" width="4" height="16" rx="0.8" fill="url(#filtro-cartuccia-steel-h)"/>
+  <rect x="12" y="98" width="4" height="22" fill="url(#filtro-cartuccia-dark-h)"/><rect x="44" y="98" width="4" height="22" fill="url(#filtro-cartuccia-dark-h)"/>
+  <rect x="27" y="100" width="6" height="10" fill="url(#filtro-cartuccia-steel-h)"/><rect x="24" y="108" width="12" height="5" rx="1" fill="#c8352e"/>
+  <rect x="28.5" y="2" width="3" height="10" fill="url(#filtro-cartuccia-steel-h)"/><circle cx="30" cy="6" r="5" fill="url(#filtro-cartuccia-dial-r)"/>
+  <g id="body" fill="#b4bec7"><use href="#filtro-cartuccia-s1"/><use href="#filtro-cartuccia-s2"/></g>
+  <g id="body-shade" stroke="none"><use href="#filtro-cartuccia-s1" fill="url(#filtro-cartuccia-shade-h)"/><use href="#filtro-cartuccia-s2" fill="url(#filtro-cartuccia-shade-h)"/></g>
+  <rect x="8" y="21" width="44" height="6" rx="1.5" fill="url(#filtro-cartuccia-steel-v)"/>
+  <g fill="none" stroke-opacity=".25"><path d="M18 50 L18 88"/><path d="M22 50 L22 88"/><path d="M26 50 L26 88"/><path d="M30 50 L30 88"/><path d="M34 50 L34 88"/><path d="M38 50 L38 88"/><path d="M42 50 L42 88"/></g>
+  </g>
+</svg>

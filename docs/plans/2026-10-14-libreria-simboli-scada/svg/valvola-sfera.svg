@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 60 60">
+  <defs>
+    <linearGradient id="valvola-sfera-steel-v" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#56616b"/><stop offset="0.18" stop-color="#eef2f5"/><stop offset="0.45" stop-color="#b3bcc4"/><stop offset="0.8" stop-color="#7b8690"/><stop offset="1" stop-color="#4b555e"/></linearGradient>
+    <linearGradient id="valvola-sfera-steel-h" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#56616b"/><stop offset="0.18" stop-color="#eef2f5"/><stop offset="0.45" stop-color="#b3bcc4"/><stop offset="0.8" stop-color="#7b8690"/><stop offset="1" stop-color="#4b555e"/></linearGradient>
+    <radialGradient id="valvola-sfera-steel-r" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#f4f7f9"/><stop offset="0.5" stop-color="#a7b1ba"/><stop offset="1" stop-color="#4f5a63"/></radialGradient>
+    <linearGradient id="valvola-sfera-shade-v" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity="0.25"/><stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/><stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/><stop offset="0.75" stop-color="#000" stop-opacity="0.12"/><stop offset="1" stop-color="#000" stop-opacity="0.45"/></linearGradient>
+    <linearGradient id="valvola-sfera-shade-h" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#000" stop-opacity="0.25"/><stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/><stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/><stop offset="0.75" stop-color="#000" stop-opacity="0.12"/><stop offset="1" stop-color="#000" stop-opacity="0.45"/></linearGradient>
+    <rect id="valvola-sfera-s1" x="25" y="22" width="10" height="9" rx="1.5"/>
+    <rect id="valvola-sfera-s2" x="16" y="28" width="28" height="24" rx="8"/>
+    <rect id="valvola-sfera-s3" x="22" y="10" width="36" height="7" rx="2"/>
+  </defs>
+  <g stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+  <rect x="4" y="35" width="14" height="10" fill="url(#valvola-sfera-steel-v)"/><rect x="0" y="32" width="4" height="16" rx="0.8" fill="url(#valvola-sfera-steel-h)"/><rect x="42" y="35" width="14" height="10" fill="url(#valvola-sfera-steel-v)"/><rect x="56" y="32" width="4" height="16" rx="0.8" fill="url(#valvola-sfera-steel-h)"/>
+  <rect x="27" y="17" width="6" height="8" fill="url(#valvola-sfera-steel-h)"/>
+  <g id="body" fill="#6b7c8a"><use href="#valvola-sfera-s1"/><use href="#valvola-sfera-s2"/></g>
+  <g id="body-shade" stroke="none"><use href="#valvola-sfera-s1" fill="url(#valvola-sfera-shade-h)"/><use href="#valvola-sfera-s2" fill="url(#valvola-sfera-shade-v)"/></g>
+  <path d="M22 40 L38 40" stroke-opacity=".35" fill="none"/>
+  <g id="lever" fill="#c8352e"><use href="#valvola-sfera-s3"/></g>
+  <g id="lever-shade" stroke="none"><use href="#valvola-sfera-s3" fill="url(#valvola-sfera-shade-v)"/></g>
+  <circle cx="30" cy="13.5" r="4" fill="url(#valvola-sfera-steel-r)"/>
+  </g>
+</svg>

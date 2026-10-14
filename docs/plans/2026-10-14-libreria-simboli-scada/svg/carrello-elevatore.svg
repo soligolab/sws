@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="100" viewBox="0 0 120 100">
+  <defs>
+    <linearGradient id="carrello-elevatore-steel-v" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#56616b"/><stop offset="0.18" stop-color="#eef2f5"/><stop offset="0.45" stop-color="#b3bcc4"/><stop offset="0.8" stop-color="#7b8690"/><stop offset="1" stop-color="#4b555e"/></linearGradient>
+    <linearGradient id="carrello-elevatore-dark-v" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5c656e"/><stop offset="0.2" stop-color="#8a939b"/><stop offset="0.6" stop-color="#3e464d"/><stop offset="1" stop-color="#262c31"/></linearGradient>
+    <linearGradient id="carrello-elevatore-dark-h" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#5c656e"/><stop offset="0.2" stop-color="#8a939b"/><stop offset="0.6" stop-color="#3e464d"/><stop offset="1" stop-color="#262c31"/></linearGradient>
+    <radialGradient id="carrello-elevatore-steel-r" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#f4f7f9"/><stop offset="0.5" stop-color="#a7b1ba"/><stop offset="1" stop-color="#4f5a63"/></radialGradient>
+    <radialGradient id="carrello-elevatore-rubber-r" cx=".4" cy=".35" r=".7"><stop offset="0" stop-color="#5a6066"/><stop offset="0.7" stop-color="#2a2d31"/><stop offset="1" stop-color="#141618"/></radialGradient>
+    <linearGradient id="carrello-elevatore-shade-v" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity="0.25"/><stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/><stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/><stop offset="0.75" stop-color="#000" stop-opacity="0.12"/><stop offset="1" stop-color="#000" stop-opacity="0.45"/></linearGradient>
+    <path id="carrello-elevatore-s1" d="M18 52 L84 52 L84 80 L14 80 Q8 80 8 72 L8 62 Q8 52 18 52 Z"/>
+  </defs>
+  <g stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+  <rect x="86" y="6" width="6" height="78" fill="url(#carrello-elevatore-dark-h)"/><rect x="92" y="54" width="5" height="28" fill="url(#carrello-elevatore-dark-h)"/><path d="M95 78 L118 78 L118 82 L93 82 Z" fill="url(#carrello-elevatore-steel-v)"/>
+  <path d="M32 52 L35 16 M75 52 L72 16" stroke="#2b3238" stroke-width="3.5" stroke-linecap="round" fill="none"/><rect x="29" y="12" width="48" height="5" rx="1.5" fill="url(#carrello-elevatore-dark-v)"/>
+  <path d="M40 52 L42 38 L52 38 L50 46 L56 52 Z" fill="#2a2d31"/><path d="M60 40 L66 52" stroke="#2a2d31" stroke-width="2.5" stroke-linecap="round"/>
+  <g id="body" fill="#e3a51a"><use href="#carrello-elevatore-s1"/></g>
+  <g id="body-shade" stroke="none"><use href="#carrello-elevatore-s1" fill="url(#carrello-elevatore-shade-v)"/></g>
+  <path d="M10 70 L84 70" stroke-opacity=".35" fill="none"/>
+  <circle cx="68" cy="86" r="12" fill="url(#carrello-elevatore-rubber-r)"/><circle cx="68" cy="86" r="5.4" fill="url(#carrello-elevatore-steel-r)"/>
+  <circle cx="26" cy="88" r="10" fill="url(#carrello-elevatore-rubber-r)"/><circle cx="26" cy="88" r="4.5" fill="url(#carrello-elevatore-steel-r)"/>
+  </g>
+</svg>

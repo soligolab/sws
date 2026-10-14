@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 60 60">
+  <defs>
+    <linearGradient id="curva-90-steel-v" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#56616b"/><stop offset="0.18" stop-color="#eef2f5"/><stop offset="0.45" stop-color="#b3bcc4"/><stop offset="0.8" stop-color="#7b8690"/><stop offset="1" stop-color="#4b555e"/></linearGradient>
+    <linearGradient id="curva-90-steel-h" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#56616b"/><stop offset="0.18" stop-color="#eef2f5"/><stop offset="0.45" stop-color="#b3bcc4"/><stop offset="0.8" stop-color="#7b8690"/><stop offset="1" stop-color="#4b555e"/></linearGradient>
+    <linearGradient id="curva-90-shade-v" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity="0.25"/><stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/><stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/><stop offset="0.75" stop-color="#000" stop-opacity="0.12"/><stop offset="1" stop-color="#000" stop-opacity="0.45"/></linearGradient>
+    <linearGradient id="curva-90-shade-h" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#000" stop-opacity="0.25"/><stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/><stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/><stop offset="0.75" stop-color="#000" stop-opacity="0.12"/><stop offset="1" stop-color="#000" stop-opacity="0.45"/></linearGradient>
+    <radialGradient id="curva-90-shade-r" cx=".36" cy=".3" r=".75"><stop offset="0" stop-color="#fff" stop-opacity="0.55"/><stop offset="0.5" stop-color="#fff" stop-opacity="0.05"/><stop offset="1" stop-color="#000" stop-opacity="0.45"/></radialGradient>
+    <rect id="curva-90-s1" x="4" y="25" width="6" height="10"/>
+    <path id="curva-90-s2" d="M10 25 A25 25 0 0 1 35 50 L25 50 A15 15 0 0 0 10 35 Z"/>
+    <rect id="curva-90-s3" x="25" y="50" width="10" height="6"/>
+  </defs>
+  <g stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+  <g id="body" fill="#9aa5af"><use href="#curva-90-s1"/><use href="#curva-90-s2"/><use href="#curva-90-s3"/></g>
+  <g id="body-shade" stroke="none"><use href="#curva-90-s1" fill="url(#curva-90-shade-v)"/><use href="#curva-90-s2" fill="url(#curva-90-shade-r)"/><use href="#curva-90-s3" fill="url(#curva-90-shade-h)"/></g>
+  <rect x="0" y="22" width="4" height="16" rx="0.8" fill="url(#curva-90-steel-h)"/><rect x="22" y="56" width="16" height="4" rx="0.8" fill="url(#curva-90-steel-v)"/>
+  </g>
+</svg>

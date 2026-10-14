@@ -1,0 +1,174 @@
+<title>Libreria SCADA 2.5D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: tavola tecnica — testata, banco di controllo, tre famiglie in griglia, specifiche in tabella. */
+:root {
+  --bg: #eef1f3; --surface: #ffffff; --fg: #1c2329; --muted: #5b6670; --rule: #d3d9de;
+  --accent: #2f6fa8; --chip: #e4e9ee; --chip-body: #d9e6f3;
+  --tile-chiaro: #e3e8ec; --tile-scuro: #1b2229; --tile-hmi: #b9bfc4;
+  --f-display: "IBM Plex Sans Condensed", "Arial Narrow", sans-serif;
+  --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #12171c; --surface: #1a2128; --fg: #e3e8ec; --muted: #98a3ad; --rule: #2c353d;
+  --accent: #6aa6de; --chip: #26303a; --chip-body: #1f3650; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #12171c; --surface: #1a2128; --fg: #e3e8ec; --muted: #98a3ad; --rule: #2c353d;
+  --accent: #6aa6de; --chip: #26303a; --chip-body: #1f3650; color-scheme: dark }
+body { background: var(--bg); color: var(--fg); font: 15px/1.55 var(--f-body); }
+.wrap { max-width: 1240px; margin: 0 auto; padding-inline: 20px; padding-block: 32px 64px; display: grid; gap: 40px; }
+h1, h2, h3 { font-family: var(--f-display); font-weight: 600; text-wrap: balance; margin: 0; letter-spacing: .01em; }
+h1 { font-size: 2.1rem; line-height: 1.15; }
+h2 { font-size: 1.35rem; }
+h3 { font-size: 1.02rem; line-height: 1.3; }
+p { margin: 0; }
+code, .mono { font-family: var(--f-mono); font-size: .86em; }
+.dim { color: var(--muted); }
+.lede { max-width: 68ch; display: grid; gap: 10px; }
+.lede p { color: var(--muted); }
+.eyebrow { font: 500 .75rem/1 var(--f-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+
+.banco { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 2; background: var(--bg); border-block: 1px solid var(--rule);
+  padding-block: 10px; display: flex; flex-wrap: wrap; gap: 14px 28px; align-items: center; }
+.ctl { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.ctl > span { font: 500 .72rem/1 var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-right: 4px; }
+.ctl button { font: 500 .85rem/1 var(--f-body); color: var(--fg); background: var(--surface); border: 1px solid var(--rule);
+  border-radius: 4px; padding: 7px 11px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+.ctl button[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.ctl button:disabled { opacity: .45; cursor: not-allowed; }
+.ctl button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sw { width: 10px; height: 10px; border-radius: 2px; display: inline-block; border: 1px solid #0003; }
+
+.famiglia { display: grid; gap: 16px; }
+.fam-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; border-bottom: 2px solid var(--fg); padding-bottom: 6px; }
+.griglia { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.card { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; display: grid; grid-template-rows: auto 1fr; min-width: 0; overflow: hidden; }
+.tile { background: var(--tile); height: 270px; display: grid; place-items: center; border-bottom: 1px solid var(--rule); transition: background .2s; }
+.tile .art { grid-area: 1 / 1; display: grid; place-items: center; max-width: 100%; }
+.tile svg, .tile img { max-width: 100%; height: auto; display: block; }
+.vista-pannello { visibility: hidden; }
+body[data-vista="pannello"] .vista-web { visibility: hidden; }
+body[data-vista="pannello"] .vista-pannello { visibility: visible; }
+body[data-fondo="chiaro"] { --tile: var(--tile-chiaro); }
+body[data-fondo="scuro"] { --tile: var(--tile-scuro); }
+body[data-fondo="hmi"] { --tile: var(--tile-hmi); }
+.meta { padding: 12px 14px 14px; display: grid; gap: 6px; align-content: start; }
+.cat { font: 500 .72rem/1 var(--f-mono); letter-spacing: .07em; text-transform: uppercase; color: var(--accent); }
+.file { font-size: .9rem; }
+.parti { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip { font: 400 .74rem/1 var(--f-mono); background: var(--chip); border-radius: 3px; padding: 4px 6px; }
+.chip-body { background: var(--chip-body); }
+.piano { font-size: .84rem; line-height: 1.45; }
+
+.spec { display: grid; gap: 16px; }
+.tabella { overflow-x: auto; border: 1px solid var(--rule); border-radius: 6px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 640px; }
+th, td { text-align: left; vertical-align: top; padding: 10px 14px; border-bottom: 1px solid var(--rule); }
+tr:last-child th, tr:last-child td { border-bottom: 0; }
+th { width: 190px; font: 600 .9rem/1.4 var(--f-display); letter-spacing: .02em; }
+td { font-size: .92rem; }
+td ul { margin: 0; padding-left: 18px; display: grid; gap: 3px; }
+.palette { display: flex; flex-wrap: wrap; gap: 10px 18px; }
+.pal { display: flex; gap: 8px; align-items: center; font-size: .85rem; }
+.pal i { width: 22px; height: 22px; border-radius: 3px; border: 1px solid #0004; display: inline-block; }
+.domande { display: grid; gap: 10px; max-width: 80ch; padding-left: 22px; margin: 0; }
+@media (prefers-reduced-motion: reduce) { .tile { transition: none; } }
+@media (max-width: 520px) { h1 { font-size: 1.7rem; } .tile { height: 220px; } }
+</style>
+
+<div class="wrap">
+  <header class="lede">
+    <p class="eyebrow">SWS · bozza da approvare · 12-10-2026</p>
+    <h1>Libreria SCADA 2.5D</h1>
+    <p>Un campione per ogni tipologia, per capire se siamo allineati prima di disegnare gli altri {{TOTALE}}. Le categorie seguono la tassonomia di AggreGate, ma i disegni sono tutti originali.</p>
+    <p>Prova i comandi qui sotto. <strong>Stato</strong> cambia solo il colore del gruppo <code>body</code> e il volume resta: è la convenzione che prepara gli SVG a diventare simboli con stati. <strong>Pannello</strong> mostra la stessa immagine rasterizzata con resvg 0.45, la libreria del viewer LVGL.</p>
+  </header>
+
+  <div class="banco" role="toolbar" aria-label="Opzioni di anteprima">
+    <div class="ctl" data-gruppo="stato"><span>Stato</span>
+      <button type="button" id="st-orig" data-v="" aria-pressed="true">Originale</button>
+      <button type="button" id="st-off" data-v="#64748b" aria-pressed="false"><i class="sw" style="background:#64748b"></i>Fermo</button>
+      <button type="button" id="st-on" data-v="#22c55e" aria-pressed="false"><i class="sw" style="background:#22c55e"></i>In marcia</button>
+      <button type="button" id="st-al" data-v="#ef4444" aria-pressed="false"><i class="sw" style="background:#ef4444"></i>Allarme</button>
+    </div>
+    <div class="ctl" data-gruppo="fondo"><span>Fondo</span>
+      <button type="button" id="fd-chiaro" data-v="chiaro" aria-pressed="true">Chiaro</button>
+      <button type="button" id="fd-hmi" data-v="hmi" aria-pressed="false">Grigio HMI</button>
+      <button type="button" id="fd-scuro" data-v="scuro" aria-pressed="false">Scuro</button>
+    </div>
+    <div class="ctl" data-gruppo="vista"><span>Disegno</span>
+      <button type="button" id="vi-web" data-v="web" aria-pressed="true">Browser</button>
+      <button type="button" id="vi-pan" data-v="pannello" aria-pressed="false">Pannello (resvg)</button>
+    </div>
+  </div>
+
+  {{SEZIONI}}
+
+  <section class="spec">
+    <header class="fam-h"><h2>Specifiche grafiche (bozza)</h2></header>
+    <div class="tabella"><table>
+      <tr><th>Vista e luce</th><td>Vista ortogonale (frontale o laterale), niente prospettiva né isometria, così i bocchelli si allineano ai tubi. Luce sempre dall'alto a sinistra. Il volume si fa con le sfumature e non ci sono ombre portate.</td></tr>
+      <tr><th>Griglia</th><td>Le dimensioni del viewBox sono multipli di 10, cioè lo snap dell'editor. Le taglie tipiche vanno da 60×60 (valvole, strumenti) a 160×80 (scambiatori, nastri). Il disegno resta sotto i 512 px per lato, il limite del pannello.</td></tr>
+      <tr><th>Attacchi</th><td>L'asse di ogni bocchello cade su un multiplo di 10 ed è a filo del bordo, così un tubo agganciato all'immagine centra la connessione. Le misure sono pensate per il tubo standard dell'editor (8 px): bocchello largo 10, flangia 14–16 × 4. L'ingresso è a sinistra, l'uscita a destra o in alto.</td></tr>
+      <tr><th>Contorno</th><td>Un tratto unico <code>#1c2329</code> da 1 px con giunti arrotondati su tutte le forme. Le linee di dettaglio (saldature, alette, fasci tubieri) usano lo stesso colore ma semitrasparente.</td></tr>
+      <tr><th>Materiali</th><td><div class="palette">
+        <span class="pal"><i style="background:linear-gradient(#56616b,#eef2f5 18%,#b3bcc4 45%,#7b8690 80%,#4b555e)"></i>Acciaio (tubi, flange)</span>
+        <span class="pal"><i style="background:linear-gradient(#5c656e,#8a939b 20%,#3e464d 60%,#262c31)"></i>Acciaio scuro (basamenti)</span>
+        <span class="pal"><i style="background:#b4bec7"></i>Inox (serbatoi)</span>
+        <span class="pal"><i style="background:#2f6fa8"></i>Blu macchina (pompe, ventilatori)</span>
+        <span class="pal"><i style="background:#5d6f7e"></i>Grigio motore</span>
+        <span class="pal"><i style="background:#c8cdd2"></i>RAL 7035 (armadi)</span>
+        <span class="pal"><i style="background:#e3a51a"></i>Giallo sicurezza</span>
+        <span class="pal"><i style="background:#c8352e"></i>Rosso comando</span>
+        <span class="pal"><i style="background:#2b8fd6"></i>Liquido</span>
+        <span class="pal"><i style="background:#2a2d31"></i>Gomma</span>
+      </div></td></tr>
+      <tr><th>Struttura SVG</th><td><ul>
+        <li><code>&lt;g id="body" fill="…"&gt;</code> contiene le forme principali, che non hanno un fill proprio. Sopra c'è <code>body-shade</code>, un velo di bianchi e neri trasparenti: ricolorando <code>body</code> il volume resta.</li>
+        <li>Le parti mobili hanno id fissi: <code>rotor</code> (con il centro su un punto di griglia), <code>lever</code>, <code>needle</code>, <code>level</code> (riempito al 60 %), <code>lamp-*</code>, <code>led</code>.</li>
+        <li>Gli id dei gradienti portano il nome del file come prefisso (<code>pompa-centrifuga-steel-v</code>), così più simboli inline nella stessa pagina non si pestano i piedi.</li>
+      </ul></td></tr>
+      <tr><th>Vietato</th><td><code>&lt;text&gt;</code> (il pannello non ha font), <code>&lt;style&gt;</code> e <code>animate</code> (li toglie il sanitizer dei simboli custom), filtri e immagini raster incorporate (resvg li ignora in silenzio), metadati Inkscape. Sono ammessi solo attributi di presentazione, gradienti e <code>&lt;use href="#…"&gt;</code> interni.</td></tr>
+      <tr><th>Nomi</th><td>Nomi file in italiano, minuscoli, col trattino: <code>&lt;oggetto&gt;-&lt;variante&gt;.svg</code>. L'etichetta nel catalogo viene dal nome del file.</td></tr>
+    </table></div>
+  </section>
+
+  <section class="spec">
+    <header class="fam-h"><h2>Da decidere insieme</h2></header>
+    <ol class="domande">
+      <li><strong>Lo stile ti convince?</strong> La resa dei materiali, il peso del contorno, la quantità di dettaglio. Se un campione stona, dimmi quale.</li>
+      <li><strong>Come le organizziamo nel catalogo?</strong> La mia proposta è una scheda per famiglia (tre cartelle: processo, elettrico, macchine). Una scheda per tipologia vorrebbe dire 16 schede.</li>
+      <li><strong>Varianti di stato come file a parte?</strong> Per esempio <code>valvola-sfera-chiusa.svg</code> accanto a quella aperta, utile finché sono immagini statiche. Oppure un solo file, aspettando i simboli con stati.</li>
+      <li><strong>I colori dei corpi vanno bene per famiglia?</strong> Pompe blu, motori grigi, armadi RAL 7035, inox per i serbatoi. L'alternativa è un unico colore neutro per tutto, così il colore resta tutto agli stati.</li>
+      <li><strong>Le liste «Poi»</strong> sono la mia proposta, circa {{TOTALE}} simboli in tutto. Aggiungi o togli quello che serve.</li>
+    </ol>
+  </section>
+</div>
+
+<script>
+(function () {
+  const corpi = Array.from(document.querySelectorAll('.vista-web [id="body"]'));
+  const originali = corpi.map(g => g.getAttribute('fill'));
+  function premi(gruppo, btn) {
+    gruppo.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b === btn)));
+  }
+  document.querySelectorAll('.ctl').forEach(gruppo => {
+    gruppo.addEventListener('click', ev => {
+      const btn = ev.target.closest('button'); if (!btn) return;
+      premi(gruppo, btn);
+      const v = btn.dataset.v, g = gruppo.dataset.gruppo;
+      if (g === 'stato') corpi.forEach((c, i) => c.setAttribute('fill', v || originali[i]));
+      if (g === 'fondo') document.body.dataset.fondo = v;
+      if (g === 'vista') {
+        document.body.dataset.vista = v;
+        const st = document.querySelector('[data-gruppo="stato"]');
+        st.querySelectorAll('button').forEach(b => b.disabled = v === 'pannello');
+      }
+    });
+  });
+  document.body.dataset.fondo = 'chiaro';
+  document.body.dataset.vista = 'web';
+})();
+</script>

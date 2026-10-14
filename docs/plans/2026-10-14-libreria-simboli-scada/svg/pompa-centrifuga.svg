@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80">
+  <defs>
+    <linearGradient id="pompa-centrifuga-steel-v" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#56616b"/><stop offset="0.18" stop-color="#eef2f5"/><stop offset="0.45" stop-color="#b3bcc4"/><stop offset="0.8" stop-color="#7b8690"/><stop offset="1" stop-color="#4b555e"/></linearGradient>
+    <linearGradient id="pompa-centrifuga-steel-h" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#56616b"/><stop offset="0.18" stop-color="#eef2f5"/><stop offset="0.45" stop-color="#b3bcc4"/><stop offset="0.8" stop-color="#7b8690"/><stop offset="1" stop-color="#4b555e"/></linearGradient>
+    <linearGradient id="pompa-centrifuga-dark-v" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5c656e"/><stop offset="0.2" stop-color="#8a939b"/><stop offset="0.6" stop-color="#3e464d"/><stop offset="1" stop-color="#262c31"/></linearGradient>
+    <radialGradient id="pompa-centrifuga-steel-r" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#f4f7f9"/><stop offset="0.5" stop-color="#a7b1ba"/><stop offset="1" stop-color="#4f5a63"/></radialGradient>
+    <radialGradient id="pompa-centrifuga-shade-r" cx=".36" cy=".3" r=".75"><stop offset="0" stop-color="#fff" stop-opacity="0.55"/><stop offset="0.5" stop-color="#fff" stop-opacity="0.05"/><stop offset="1" stop-color="#000" stop-opacity="0.45"/></radialGradient>
+    <circle id="pompa-centrifuga-s1" cx="40" cy="50" r="20"/>
+  </defs>
+  <g stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+  <rect x="4" y="45" width="20" height="10" fill="url(#pompa-centrifuga-steel-v)"/><rect x="0" y="42" width="4" height="16" rx="0.8" fill="url(#pompa-centrifuga-steel-h)"/>
+  <rect x="45" y="4" width="10" height="32" fill="url(#pompa-centrifuga-steel-h)"/><rect x="42" y="0" width="16" height="4" rx="0.8" fill="url(#pompa-centrifuga-steel-v)"/>
+  <path d="M30 66 L50 66 L55 74 L25 74 Z" fill="url(#pompa-centrifuga-dark-v)"/><rect x="12" y="74" width="56" height="6" rx="1" fill="url(#pompa-centrifuga-dark-v)"/>
+  <g id="body" fill="#2f6fa8"><use href="#pompa-centrifuga-s1"/></g>
+  <g id="body-shade" stroke="none"><use href="#pompa-centrifuga-s1" fill="url(#pompa-centrifuga-shade-r)"/></g>
+  <g stroke="none" fill="#1c2329" fill-opacity=".45"><circle cx="56.5" cy="50.0" r="1.1"/><circle cx="51.7" cy="61.7" r="1.1"/><circle cx="40.0" cy="66.5" r="1.1"/><circle cx="28.3" cy="61.7" r="1.1"/><circle cx="23.5" cy="50.0" r="1.1"/><circle cx="28.3" cy="38.3" r="1.1"/><circle cx="40.0" cy="33.5" r="1.1"/><circle cx="51.7" cy="38.3" r="1.1"/></g>
+  <g id="rotor"><circle cx="40" cy="50" r="10.5" fill="#1d3f62"/><g fill="none" stroke="#9cc1e6" stroke-width="1.4" stroke-linecap="round"><path d="M43.0 50.0 Q45.4 54.5 43.1 58.5"/><path d="M41.5 52.6 Q38.8 56.9 34.2 56.9"/><path d="M38.5 52.6 Q33.4 52.4 31.1 48.4"/><path d="M37.0 50.0 Q34.6 45.5 36.9 41.5"/><path d="M38.5 47.4 Q41.2 43.1 45.8 43.1"/><path d="M41.5 47.4 Q46.6 47.6 48.9 51.6"/></g><circle cx="40" cy="50" r="3.2" fill="url(#pompa-centrifuga-steel-r)"/></g>
+  </g>
+</svg>
