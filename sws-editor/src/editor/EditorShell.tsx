@@ -5,7 +5,7 @@ import { QDOT_BUILTIN_TYPES, SvgCanvas, normalizeFaceplateParams, type CanvasVie
 import { PALETTE } from "@/canvas/TrendCanvas";
 import { resolvePageBackground, sfondoPagina } from "@/theme";
 import { EditorToolbar } from "@/editor/EditorToolbar";
-import { registraAggiunta } from "@/editor/azioniEditor";
+import { registraAggiunta, type Preimpostato } from "@/editor/azioniEditor";
 import { PageTabs } from "@/editor/PageTabs";
 /** L'editor Python si carica **quando si apre una funzione**, non prima.
  *
@@ -27,8 +27,8 @@ import { ASPECT_RATIOS, editorFitSize, effectiveSizeMode, getDevicePresets, isOf
 import { getBrand, type DevicePreset } from "@/branding";
 import { genId } from "@/id";
 import type { SimboloLib } from "@/symbols/lib/manifest";
-import { svgLibCaricato, trovaSimboloLib, useManifestoLib, useSimboloLib } from "@/symbols/lib/libreria";
-import { SimboloLibSvg } from "@/symbols/lib/SimboloLib";
+import { trovaSimboloLib, useManifestoLib, useSimboloLib } from "@/symbols/lib/libreria";
+import { AnteprimaLib } from "@/symbols/lib/AnteprimaLib";
 import { CONTORNO_DISEGNO, useStileProgetto } from "@/symbols/stileProgetto";
 import { useAppStore } from "@/store";
 import { coloreAuto, estraiHex, predefinito, regola, coloreDaProgetto, daProgetto } from "@/coloriPredefiniti";
@@ -121,6 +121,19 @@ const INPUT: React.CSSProperties = {
   boxSizing: "border-box",
 };
 
+/** Un simbolo nuovo: uno di libreria nasce con le proporzioni del suo disegno.
+ *  I colori di stato non si scrivono: seguono lo stile del progetto (M6). Lo
+ *  usano il riquadro di scelta e il ramo «Simboli» di Strumenti. */
+export function oggettoSimbolo(symbolId: string, x: number, y: number): Omit<SynopticObject, "id"> {
+  const lib = trovaSimboloLib(symbolId);
+  return {
+    type: "symbol", x, y,
+    width: lib ? lib.viewBox[0] : 80,
+    height: lib ? lib.viewBox[1] : 80,
+    symbol_id: symbolId as SynopticObject["symbol_id"],
+  } as Omit<SynopticObject, "id">;
+}
+
 // ── SymbolGallery ─────────────────────────────────────────────────────────────
 // Visual grid picker — shows a mini SVG preview for built-in symbols and an
 // <img> for vendored/custom SVG files. Replaces the old plain <select>.
@@ -128,19 +141,6 @@ const INPUT: React.CSSProperties = {
 type GalleryTile =
   | { kind: "custom"; id: string; label: string; url: string }
   | { kind: "lib"; id: string; label: string; sim: SimboloLib };
-
-/** Anteprima di un simbolo di libreria, col disegno com'è (rotore fermo, livello pieno). */
-function AnteprimaLib({ sim }: { sim: SimboloLib }) {
-  const manifesto = useManifestoLib();
-  const svg = svgLibCaricato(sim);
-  if (!manifesto || !svg) return null;
-  return (
-    <svg width={40} height={38}>
-      <SimboloLibSvg sim={sim} svg={svg} manifesto={manifesto} prefisso={`anteprima-${sim.id.replace(/[^\w-]/g, "_")}`}
-        x={0} y={0} w={40} h={38} valori={{ corpo: null, livello: 0.6, gira: false, periodoS: 2 }} />
-    </svg>
-  );
-}
 
 function SymbolGallery({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const { t } = useTranslation();
@@ -647,8 +647,10 @@ export function EditorShell() {
     return { x: 60 + (n % 6) * 25, y: 60 + Math.floor(n / 6) * 25 };
   };
 
-  const handleAddObject = (type: SynopticObject["type"]) => {
+  const handleAddObject = (type: SynopticObject["type"], pre?: Preimpostato) => {
     const { x, y } = nextPos();
+    // Un simbolo già scelto (ramo «Simboli» di Strumenti) nasce subito.
+    if (type === "symbol" && pre?.symbol_id) { addObject(oggettoSimbolo(pre.symbol_id, x, y)); return; }
     // Due tipi chiedono prima qualcosa all'utente e si creano dopo la scelta.
     if (type === "image") { setPendingImagePos({ x, y }); return; }
     if (type === "symbol") { setSymbolPickPos({ x, y }); return; }
@@ -716,17 +718,7 @@ export function EditorShell() {
       {symbolPickPos && (
         <SymbolPickerModal
           onPick={(symbolId) => {
-            // Un simbolo di libreria nasce con le proporzioni del suo disegno.
-            const lib = trovaSimboloLib(symbolId);
-            addObject({
-              type: "symbol",
-              x: symbolPickPos.x,
-              y: symbolPickPos.y,
-              width: lib ? lib.viewBox[0] : 80,
-              height: lib ? lib.viewBox[1] : 80,
-              symbol_id: symbolId,
-              // I colori di stato non si scrivono: seguono lo stile del progetto (M6).
-            });
+            addObject(oggettoSimbolo(symbolId, symbolPickPos.x, symbolPickPos.y));
             setSymbolPickPos(null);
           }}
           onCancel={() => setSymbolPickPos(null)}

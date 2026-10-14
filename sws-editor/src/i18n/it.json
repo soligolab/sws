@@ -248,11 +248,16 @@
     "importFailed": "Importazione fallita: {{err}}",
     "palette": {
       "group": {
-        "Forme": "Forme",
-        "Controlli": "Controlli",
-        "Display": "Display",
-        "SCADA": "SCADA",
-        "Layout": "Layout"
+        "forme": "Forme",
+        "testoImmagini": "Testo e immagini",
+        "comandi": "Comandi",
+        "indicatori": "Indicatori",
+        "grafici": "Grafici",
+        "tabelle": "Tabelle e registri",
+        "allarmi": "Allarmi",
+        "navigazione": "Navigazione e lingua",
+        "impianto": "Impianto",
+        "simboli": "Simboli"
       },
       "item": {
         "alarm_banner": "Barra allarmi",
@@ -293,7 +298,8 @@
         "text_list": "Lista testi",
         "trend": "Trend",
         "xy_plot": "Grafico XY"
-      }
+      },
+      "sfogliaSimboli": "Sfoglia tutti i simboli…"
     },
     "searchAllPlaceholder": "Cerca nome / tipo / id / tag / testo…",
     "match_name": "nome",
@@ -1884,7 +1890,9 @@
     "newBootPage": "+ Nuova immagine di boot",
     "paletteBootHint": "Immagine di boot: solo oggetti statici (forme, linee, tubi, testo, immagini, simboli).",
     "strumenti": "Strumenti",
-    "strumentoAggiungi": "Clic per aggiungerlo alla pagina corrente"
+    "strumentoAggiungi": "Clic per aggiungerlo alla pagina corrente",
+    "filtroStrumenti": "Filtra strumenti e simboli",
+    "filtroNessuno": "Nessuno strumento per «{{q}}»"
   },
   "shell": {
     "offPage_one": "⚠ {{count}} oggetto è fuori dal foglio e non verrà disegnato a runtime. Trascinalo dentro il bordo tratteggiato per riattivarlo, oppure allarga la pagina.",
@@ -2368,7 +2376,9 @@
     "smtpTest": "Invia email di prova",
     "smtpTestInvio": "Invio…",
     "smtpTestTitle": "Manda un'email di prova con questi dati e aspetta la risposta del server: se qualcosa non va, il messaggio dice cosa. Senza destinatari di progetto la manda al mittente.",
-    "smtpTestInviata": "Inviata a {{a}}."
+    "smtpTestInviata": "Inviata a {{a}}.",
+    "iconSize": "Dimensione icone",
+    "iconSizeNote": "Le icone del menù Strumenti e le anteprime dei simboli: più grandi su monitor ad alta risoluzione o touch."
   },
   "boot": {
     "pngTooLarge": "PNG troppo grande ({{kb}} KB, max 5120 KB): non è stato caricato",

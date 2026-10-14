@@ -5,7 +5,8 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { UiLangSelect } from "@/components/UiLangSelect";
 import { chiudiAiStream } from "@/ws/aiStream";
 import type { AiConfig } from "@/types";
-import { useAppStore } from "@/store";
+import { MISURE_ICONE, useAppStore } from "@/store";
+import { IconaStrumento } from "@/editor/IconaStrumento";
 
 // ── Preferenze IDE ───────────────────────────────────────────────────────────
 //
@@ -236,6 +237,38 @@ function Box({ titolo, children }: { titolo: string; children: React.ReactNode }
   );
 }
 
+/** La misura delle icone di Strumenti (14-10-2026): sono vettoriali, quindi
+ *  quattro gradini bastano per adattarle al monitor — richiesta del maintainer. */
+function MisuraIconeSection() {
+  const { t } = useTranslation();
+  const misura = useAppStore((s) => s.misuraIcone);
+  const setMisura = useAppStore((s) => s.setMisuraIcone);
+  return (
+    <div style={{ background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface, #1e293b)", borderRadius: 6, padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+      <div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--brand-text, #e2e8f0)" }}>{t("cfgUi.iconSize")}</div>
+        <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", marginTop: 2 }}>{t("cfgUi.iconSizeNote")}</div>
+      </div>
+      <div role="radiogroup" aria-label={t("cfgUi.iconSize")} style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+        {MISURE_ICONE.map((px) => (
+          <button key={px} type="button" role="radio" aria-checked={misura === px} data-testid={`misura-icone-${px}`}
+            title={`${px} px`} onClick={() => setMisura(px)}
+            style={{
+              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", gap: 2,
+              width: 40, height: 52, padding: 4, borderRadius: 4, cursor: "pointer",
+              background: misura === px ? "var(--brand-surface-2, #334155)" : "transparent",
+              border: `1px solid ${misura === px ? "var(--brand-accent, #3b82f6)" : "var(--brand-surface-2, #334155)"}`,
+              color: "var(--brand-text, #e2e8f0)",
+            }}>
+            <IconaStrumento tipo="gauge" px={px} />
+            <span style={{ fontSize: 10 }}>{px}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function IdePreferencesTab() {
   const { t } = useTranslation();
   return (
@@ -257,9 +290,10 @@ export function IdePreferencesTab() {
         </div>
         <UiLangSelect />
       </div>
+      <MisuraIconeSection />
       <AssistenteSection />
       <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", lineHeight: 1.5 }}>
-        Nota: tema e lingua vivono in questo browser; la configurazione dell'assistente vive
+        Nota: tema, lingua e dimensione delle icone vivono in questo browser; l'assistente vive
         nel runtime locale, quindi vale per chiunque apra questo IDE.
       </div>
     </div>

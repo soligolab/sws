@@ -70,6 +70,7 @@ STATICHE=(
     check_tag_refs          # i campi-tag scalari di un oggetto: la stessa lista in Rust e in TS
     check_segreti           # i sette campi segreti: tabella sola, project.yaml a elenco chiuso, niente token nei log, template puliti
     check_libreria_simboli  # la libreria di simboli SCADA è quella del generatore: formato, materiali, parti, etichette
+    check_icone_strumenti   # le icone di Strumenti: una per tipo della palette, nessun doppione, niente emoji né colori cablati
     check_catalogo          # il catalogo dei dispositivi: JSON validi, include risolti, formati e bit sensati, due lingue, immagini leggere
 )
 

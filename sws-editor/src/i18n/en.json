@@ -248,11 +248,16 @@
     "importFailed": "Import failed: {{err}}",
     "palette": {
       "group": {
-        "Forme": "Shapes",
-        "Controlli": "Controls",
-        "Display": "Display",
-        "SCADA": "SCADA",
-        "Layout": "Layout"
+        "forme": "Shapes",
+        "testoImmagini": "Text and images",
+        "comandi": "Controls",
+        "indicatori": "Indicators",
+        "grafici": "Charts",
+        "tabelle": "Tables and logs",
+        "allarmi": "Alarms",
+        "navigazione": "Navigation and language",
+        "impianto": "Plant",
+        "simboli": "Symbols"
       },
       "item": {
         "alarm_banner": "Alarm banner",
@@ -293,7 +298,8 @@
         "text_list": "Text list",
         "trend": "Trend",
         "xy_plot": "XY plot"
-      }
+      },
+      "sfogliaSimboli": "Browse all symbols…"
     },
     "searchAllPlaceholder": "Search name / type / id / tag / text…",
     "match_name": "name",
@@ -1884,7 +1890,9 @@
     "newBootPage": "+ New boot image",
     "paletteBootHint": "Boot image: static objects only (shapes, lines, pipes, text, images, symbols).",
     "strumenti": "Tools",
-    "strumentoAggiungi": "Click to add it to the current page"
+    "strumentoAggiungi": "Click to add it to the current page",
+    "filtroStrumenti": "Filter tools and symbols",
+    "filtroNessuno": "No tool matches “{{q}}”"
   },
   "shell": {
     "offPage_one": "⚠ {{count}} object is off the sheet and will not be drawn at runtime. Drag it inside the dashed border to re-enable it, or enlarge the page.",
@@ -2368,7 +2376,9 @@
     "smtpTest": "Send test email",
     "smtpTestInvio": "Sending…",
     "smtpTestTitle": "Sends a test email with these settings and waits for the server's answer: if something is wrong, the message says what. With no project recipients it goes to the sender.",
-    "smtpTestInviata": "Sent to {{a}}."
+    "smtpTestInviata": "Sent to {{a}}.",
+    "iconSize": "Icon size",
+    "iconSizeNote": "Icons in the Tools menu and symbol previews: larger on high-resolution or touch monitors."
   },
   "boot": {
     "pngTooLarge": "PNG too large ({{kb}} KB, max 5120 KB): it was not uploaded",

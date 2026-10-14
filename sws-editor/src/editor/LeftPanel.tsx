@@ -8,6 +8,10 @@ import { findBrokenNavLinks, findOrphanPageIds } from "@/pageLayout";
 import { resolvePageBackground } from "@/theme";
 import { AlberoConfigurazione } from "./AlberoConfigurazione";
 import { aggiungiOggetto, persistiFunzioni } from "./azioniEditor";
+import { IconaStrumento } from "./IconaStrumento";
+import { AnteprimaLib } from "@/symbols/lib/AnteprimaLib";
+import { useManifestoLib } from "@/symbols/lib/libreria";
+import type { SimboloLib } from "@/symbols/lib/manifest";
 import { canConfigureProject, canEditProject } from "@/auth/permissions";
 import { IntestazioneSezione, PREFISSO_MEMORIA, TitoloVista, useSezioneAperta, colonneGuide, guideAlbero } from "./stilePannelli";
 import type { ObjectGroup, SynopticObject, SynopticPage } from "@/types";
@@ -638,69 +642,52 @@ function LinkReportModal({
 
 // ── Objects palette section ───────────────────────────────────────────────────
 
-interface PaletteItem { type: SynopticObject["type"]; label: string; icon: string }
+/** Una voce della palette: solo il tipo. Il nome lo dà `editor.palette.item.<tipo>`
+ *  (c'era anche un campo `label` in italiano, che non leggeva nessuno) e l'icona
+ *  la dà `iconeStrumenti.ts` (14-10-2026). */
+interface PaletteItem { type: SynopticObject["type"] }
 /** Un gruppo della palette, con **due** colori d'accento.
  *
  *  Quello scuro non è un lusso: i pastelli scelti per lo sfondo scuro
  *  (`#60a5fa`, `#34d399`…) su una superficie chiara arrivano a **1,8:1** di
- *  contrasto — le intestazioni «CONTROLLI», «DISPLAY», «FORME» erano quasi
- *  invisibili col tema chiaro, segnalate dal maintainer il 2026-09-06. Le
- *  tinte `colorLight` sono gli stessi colori due gradini più scuri, e stanno
- *  sopra 4,5:1 su `#f8fafc`. */
+ *  contrasto — le intestazioni erano quasi invisibili col tema chiaro,
+ *  segnalate dal maintainer il 2026-09-06. Le tinte `colorLight` sono gli
+ *  stessi colori due gradini più scuri, e stanno sopra 4,5:1 su `#f8fafc`. */
 interface PaletteGroup { category: string; color: string; colorLight: string; defaultOpen?: boolean; items: PaletteItem[] }
 
 /** Esportata perché è **l'elenco autorevole dei tipi piazzabili**: il test
  *  d'inventario dei campi (T-56) e chiunque debba iterare sui tipi deve
- *  leggerlo da qui, non riscriverlo — un secondo elenco diverge in silenzio. */
+ *  leggerlo da qui, non riscriverlo — un secondo elenco diverge in silenzio.
+ *
+ *  Gerarchia del 14-10-2026 (piano docs/plans/2026-10-14-strumenti-simboli-comandi.md):
+ *  prima c'erano cinque gruppi, e «Display» ne teneva 18 su 38 — non una
+ *  categoria, il posto di tutto ciò che non era una forma né un controllo.
+ *  Nessun tipo è cambiato: i gruppi sono nuovi, i tipi gli stessi. Le voci
+ *  restano scritte `{ type: "…" }`: è la forma che leggono le guardie
+ *  (`check_templates`, `check_demo_templates`, `check_i18n_ui`). */
 export const PALETTE_GROUPS: PaletteGroup[] = [
-  { category: "Forme", color: "#60a5fa", colorLight: "#2563eb", defaultOpen: true, items: [
-    { type: "rect",    label: "Rettangolo", icon: "▭" },
-    { type: "ellipse", label: "Ellisse",    icon: "○" },
-    { type: "line",    label: "Linea",      icon: "╱" },
-    { type: "polyline", label: "Polilinea", icon: "〰" },
-    { type: "polygon", label: "Poligono",   icon: "⬡" },
-    { type: "text",    label: "Testo",      icon: "T" },
-    { type: "image",   label: "Immagine",   icon: "🖼" },
-  ]},
-  { category: "Controlli", color: "#34d399", colorLight: "#047857", items: [
-    { type: "button",    label: "Bottone",  icon: "⊡" },
-    { type: "navbutton", label: "Nav page", icon: "↗" },
-    { type: "page_navigator", label: "Page navigator", icon: "☰" },
-    { type: "checkbox",  label: "Checkbox", icon: "☑" },
-    { type: "radio",     label: "Radio",    icon: "◉" },
-    { type: "slider",    label: "Slider",   icon: "↔" },
-    { type: "setpoint",  label: "Setpoint", icon: "🎯" },
-    { type: "lang_selector", label: "Lingua ▾", icon: "🌐" },
-    { type: "lang_button",   label: "Lingua btn", icon: "🏳" },
-  ]},
-  { category: "Display", color: "#fb923c", colorLight: "#c2410c", items: [
-    { type: "gauge",        label: "Gauge",      icon: "◔" },
-    { type: "led",          label: "LED",        icon: "●" },
-    { type: "state_lamp",   label: "Lampada multi-stato", icon: "🔴" },
-    { type: "progress_bar", label: "Progress",   icon: "▰" },
-    { type: "table",        label: "Tabella",    icon: "≡" },
-    { type: "trend",        label: "Trend",      icon: "∿" },
-    { type: "xy_plot",      label: "Grafico XY", icon: "✥" },
-    { type: "sparkline",    label: "Sparkline",  icon: "⌇" },
-    { type: "kpi_tile",     label: "KPI",        icon: "◧" },
-    { type: "data_log",     label: "Data log",   icon: "≣" },
-    { type: "text_list",    label: "Lista testi", icon: "≣" },
-    { type: "bar_chart",    label: "Bar Chart",  icon: "▐" },
-    { type: "pie_chart",    label: "Pie Chart",  icon: "◑" },
-    { type: "alarm_viewer", label: "Allarmi",    icon: "⚠" },
-    { type: "alarm_bell",   label: "Campanella allarmi", icon: "🔔" },
-    { type: "alarm_banner", label: "Barra allarmi", icon: "▬" },
-    { type: "alarm_history", label: "Storico allarmi", icon: "🕘" },
-    { type: "recipe_panel", label: "Ricette",     icon: "📋" },
-  ]},
-  { category: "SCADA", color: "#f472b6", colorLight: "#be185d", items: [
-    { type: "symbol",    label: "Simbolo",   icon: "⚙" },
-    { type: "pipe",      label: "Tubazione", icon: "⋯" },
-    { type: "faceplate", label: "Faceplate", icon: "🧩" },
-  ]},
-  { category: "Layout", color: "#a78bfa", colorLight: "#6d28d9", items: [
-    { type: "grid", label: "Griglia", icon: "⊞" },
-  ]},
+  { category: "forme", color: "#60a5fa", colorLight: "#2563eb", defaultOpen: true,
+    items: [{ type: "rect" }, { type: "ellipse" }, { type: "line" }, { type: "polyline" }, { type: "polygon" }] },
+  { category: "testoImmagini", color: "#93c5fd", colorLight: "#1d4ed8",
+    items: [{ type: "text" }, { type: "image" }] },
+  { category: "comandi", color: "#34d399", colorLight: "#047857",
+    items: [{ type: "button" }, { type: "checkbox" }, { type: "radio" }, { type: "slider" }, { type: "setpoint" }] },
+  { category: "indicatori", color: "#fb923c", colorLight: "#c2410c",
+    items: [{ type: "led" }, { type: "state_lamp" }, { type: "gauge" }, { type: "progress_bar" }, { type: "kpi_tile" }] },
+  { category: "grafici", color: "#fbbf24", colorLight: "#b45309",
+    items: [{ type: "trend" }, { type: "sparkline" }, { type: "xy_plot" }, { type: "bar_chart" }, { type: "pie_chart" }] },
+  { category: "tabelle", color: "#a3e635", colorLight: "#4d7c0f",
+    items: [{ type: "table" }, { type: "data_log" }, { type: "text_list" }, { type: "recipe_panel" }] },
+  { category: "allarmi", color: "#f87171", colorLight: "#b91c1c",
+    items: [{ type: "alarm_viewer" }, { type: "alarm_banner" }, { type: "alarm_bell" }, { type: "alarm_history" }] },
+  { category: "navigazione", color: "#22d3ee", colorLight: "#0e7490",
+    items: [{ type: "navbutton" }, { type: "page_navigator" }, { type: "lang_selector" }, { type: "lang_button" }] },
+  { category: "impianto", color: "#f472b6", colorLight: "#be185d",
+    items: [{ type: "pipe" }, { type: "faceplate" }, { type: "grid" }] },
+  // I simboli: un gruppo con la voce generica (il riquadro di scelta) e, sotto,
+  // la libreria per famiglia e tipologia (`RamoSimboli`).
+  { category: "simboli", color: "#c084fc", colorLight: "#7e22ce",
+    items: [{ type: "symbol" }] },
 ];
 
 /** Il colore d'accento del gruppo, scelto sul tema **risolto**.
@@ -720,67 +707,163 @@ function coloreGruppo(group: PaletteGroup, _mode: unknown): string {
   return chiaro ? group.colorLight : group.color;
 }
 
-/** Una categoria della palette come sotto-ramo di Strumenti (25-09-2026):
- *  una riga per oggetto, con l'icona nel colore del gruppo. Prima erano
- *  riquadri su due colonne (22-09): nell'albero unico ogni cosa è una riga. */
+/** Una riga di Strumenti: icona (o anteprima del simbolo), nome, e a destra
+ *  quello che serve (il segno «L», il gruppo nei risultati del filtro). */
+function RigaStrumento({ testid, icona, nome, sotto, nota, rientro, guide, onClick, titolo }: {
+  testid: string; icona: React.ReactNode; nome: string; sotto?: string; nota?: React.ReactNode;
+  rientro: number; guide: React.CSSProperties; onClick: () => void; titolo: string;
+}) {
+  return (
+    <button type="button" data-testid={testid} onClick={onClick} title={titolo}
+      style={{
+        width: "100%", display: "flex", alignItems: "center", gap: 7, padding: `2px 8px 2px ${rientro}px`,
+        border: "none", borderRadius: 4, background: "transparent", cursor: "pointer", textAlign: "left",
+        fontSize: 12, color: "var(--brand-text-muted, #94a3b8)", ...guide,
+      }}>
+      {icona}
+      <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{nome}</span>
+        {/* Il gruppo sotto il nome, non accanto: nel pannello stretto di default
+            accanto tagliava il nome a «Valvola …» (visto il 14-10-2026). */}
+        {sotto && <span style={{ fontSize: 10, color: "var(--brand-text-subtle, #64748b)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sotto}</span>}
+      </span>
+      {nota}
+    </button>
+  );
+}
+
+/** Il segno «L» degli oggetti che anche il pannello LVGL sa disegnare. */
+function SegnoLvgl() {
+  const { t } = useTranslation();
+  return (
+    <span title={t("editor.paletteLvglBadgeTitle")} style={{
+      flexShrink: 0, fontSize: 8, fontWeight: 700, lineHeight: 1,
+      color: "#0f172a", background: "#fbbf24", borderRadius: 2, padding: "1px 3px",
+    }}>L</span>
+  );
+}
+
+/** Intestazione apribile di un gruppo (o di una famiglia, o di una tipologia). */
+function IntestazioneGruppo({ testo, colore, aperto, commuta, rientro, guide, icona }: {
+  testo: string; colore?: string; aperto: boolean; commuta: () => void; rientro: number;
+  guide: React.CSSProperties; icona?: React.ReactNode;
+}) {
+  return (
+    <button type="button" onClick={commuta} aria-expanded={aperto}
+      style={{
+        width: "100%", display: "flex", alignItems: "center", gap: 6, padding: `3px 8px 3px ${rientro}px`,
+        border: "none", background: "transparent", cursor: "pointer", textAlign: "left", ...guide,
+      }}>
+      <span aria-hidden="true" style={{ fontSize: 9, width: 10, color: "var(--brand-text-subtle, #64748b)" }}>{aperto ? "▼" : "▶"}</span>
+      {icona}
+      <span style={{ fontSize: 11, fontWeight: 700, color: colore ?? "var(--brand-text-muted, #94a3b8)", letterSpacing: 0.5 }}>{testo}</span>
+    </button>
+  );
+}
+
+/** Una categoria della palette come sotto-ramo di Strumenti (25-09-2026): una
+ *  riga per oggetto, con l'icona nel colore del gruppo. Il gruppo «simboli»
+ *  porta sotto anche la libreria (14-10-2026). */
 function GruppoStrumenti({ group, showLvglBadge, ultimo }: { group: PaletteGroup; showLvglBadge: boolean; ultimo: boolean }) {
   const { t } = useTranslation();
   const themeMode = useAppStore((s) => s.themeMode);
+  const px = useAppStore((s) => s.misuraIcone);
   const [open, commuta] = useSezioneAperta(`strumenti.${group.category}`, group.defaultOpen ?? false);
   const colore = coloreGruppo(group, themeMode);
+  const simboli = group.category === "simboli";
   return (
     <div>
-      <button
-        type="button"
-        onClick={commuta}
-        aria-expanded={open}
-        style={{
-          width: "100%", display: "flex", alignItems: "center", gap: 6, padding: "3px 8px 3px 20px",
-          border: "none", background: "transparent", cursor: "pointer", textAlign: "left",
-          ...guideAlbero([], { x: 13, finoA: 18, ultimo: ultimo && !open }),
-        }}
-      >
-        <span aria-hidden="true" style={{ fontSize: 9, width: 10, color: "var(--brand-text-subtle, #64748b)" }}>{open ? "▼" : "▶"}</span>
-        <span style={{ fontSize: 11, fontWeight: 700, color: colore, letterSpacing: 0.5 }}>
-          {t(`editor.palette.group.${group.category}`)}
-        </span>
-      </button>
-      {open && group.items.map(({ type, icon }, iItem) => (
-        <button
-          key={type}
-          type="button"
-          data-testid={`strumento-${type}`}
-          onClick={() => aggiungiOggetto(type)}
-          title={t("leftPanel.strumentoAggiungi")}
-          style={{
-            width: "100%", display: "flex", alignItems: "center", gap: 6, padding: "3px 8px 3px 36px",
-            border: "none", borderRadius: 4, background: "transparent", cursor: "pointer", textAlign: "left",
-            fontSize: 12, color: "var(--brand-text-muted, #94a3b8)",
-            ...guideAlbero(ultimo ? [] : [13], {
-              x: 27, finoA: 34, ultimo: iItem === group.items.length - 1,
-            }),
-          }}
-        >
-          <span aria-hidden="true" style={{ width: 16, height: 16, lineHeight: "16px", fontSize: 13, textAlign: "center", color: colore, flexShrink: 0 }}>
-            {icon}
-          </span>
-          <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {t(`editor.palette.item.${type}`)}
-          </span>
-          {/* In fondo alla riga e non sopra l'icona: nei riquadri c'era spazio,
-              in una riga d'albero copriva l'icona. */}
-          {showLvglBadge && LVGL_SUPPORTED_TYPES.has(type) && (
-            <span
-              title={t("editor.paletteLvglBadgeTitle")}
-              style={{
-                flexShrink: 0, fontSize: 8, fontWeight: 700, lineHeight: 1,
-                color: "#0f172a", background: "#fbbf24", borderRadius: 2, padding: "1px 3px",
-              }}
-            >
-              L
-            </span>
-          )}
-        </button>
+      <IntestazioneGruppo testo={t(`editor.palette.group.${group.category}`)} colore={colore} aperto={open}
+        commuta={commuta} rientro={20} guide={guideAlbero([], { x: 13, finoA: 18, ultimo: ultimo && !open })} />
+      {open && group.items.map(({ type }, iItem) => (
+        <RigaStrumento key={type} testid={`strumento-${type}`}
+          icona={<IconaStrumento tipo={type} px={px} colore={colore} />}
+          nome={simboli ? t("editor.palette.sfogliaSimboli") : t(`editor.palette.item.${type}`)}
+          nota={showLvglBadge && LVGL_SUPPORTED_TYPES.has(type) ? <SegnoLvgl /> : undefined}
+          rientro={36} titolo={t("leftPanel.strumentoAggiungi")} onClick={() => aggiungiOggetto(type)}
+          guide={guideAlbero(ultimo ? [] : [13], { x: 27, finoA: 34, ultimo: !simboli && iItem === group.items.length - 1 })} />
+      ))}
+      {open && simboli && <RamoSimboli ultimoGruppo={ultimo} />}
+    </div>
+  );
+}
+
+/** I simboli di libreria come rami di Strumenti (14-10-2026, richiesta del
+ *  maintainer: «il pulsante symbol è un pulsante chiave di uno SCADA»):
+ *  famiglia ▸ tipologia ▸ simbolo, con l'anteprima al posto dell'icona. Un clic
+ *  e il simbolo nasce già scelto, senza riquadro. I simboli del progetto in
+ *  una famiglia a sé. */
+function RamoSimboli({ ultimoGruppo }: { ultimoGruppo: boolean }) {
+  const { t } = useTranslation();
+  const manifesto = useManifestoLib();
+  const custom = useAppStore((s) => s.customSymbols);
+  const famiglie = famiglieSimboli(manifesto?.symbols ?? []);
+  const voci = [...famiglie.map((f) => f.famiglia), ...(custom.length ? ["__progetto"] : [])];
+  return (
+    <>
+      {voci.map((f, i) => (
+        <FamigliaSimboli key={f} famiglia={f} tipologie={famiglie.find((x) => x.famiglia === f)?.tipologie ?? []}
+          ultima={i === voci.length - 1} ultimoGruppo={ultimoGruppo}
+          titolo={f === "__progetto" ? t("symbol.gruppoProgetto") : t(`symbols.lib.famiglia.${f}`)} />
+      ))}
+    </>
+  );
+}
+
+/** Le famiglie e le loro tipologie, nell'ordine del manifesto. */
+export function famiglieSimboli(simboli: readonly SimboloLib[]): { famiglia: string; tipologie: { tipo: string; simboli: SimboloLib[] }[] }[] {
+  const out: { famiglia: string; tipologie: { tipo: string; simboli: SimboloLib[] }[] }[] = [];
+  for (const s of simboli) {
+    let f = out.find((x) => x.famiglia === s.family);
+    if (!f) { f = { famiglia: s.family, tipologie: [] }; out.push(f); }
+    let k = f.tipologie.find((x) => x.tipo === s.kind);
+    if (!k) { k = { tipo: s.kind, simboli: [] }; f.tipologie.push(k); }
+    k.simboli.push(s);
+  }
+  return out;
+}
+
+function FamigliaSimboli({ famiglia, tipologie, titolo, ultima, ultimoGruppo }: {
+  famiglia: string; tipologie: { tipo: string; simboli: SimboloLib[] }[]; titolo: string; ultima: boolean; ultimoGruppo: boolean;
+}) {
+  const { t } = useTranslation();
+  const [aperta, commuta] = useSezioneAperta(`strumenti.simboli.${famiglia}`, false);
+  const custom = useAppStore((s) => s.customSymbols);
+  const px = useAppStore((s) => s.misuraIcone);
+  const esterne = ultimoGruppo ? [] : [13];
+  return (
+    <div>
+      <IntestazioneGruppo testo={titolo} aperto={aperta} commuta={commuta} rientro={36}
+        guide={guideAlbero(esterne, { x: 27, finoA: 34, ultimo: ultima && !aperta })} />
+      {aperta && famiglia === "__progetto" && custom.map((c, i) => (
+        <RigaStrumento key={c.id} testid={`simbolo-custom:${c.id}`} rientro={52} titolo={t("leftPanel.strumentoAggiungi")}
+          icona={<img src={c.url} alt="" draggable={false} style={{ width: px, height: px, objectFit: "contain", flexShrink: 0 }} />}
+          nome={c.label} onClick={() => aggiungiOggetto("symbol", { symbol_id: `custom:${c.id}` })}
+          guide={guideAlbero(ultima ? esterne : [...esterne, 27], { x: 43, finoA: 50, ultimo: i === custom.length - 1 })} />
+      ))}
+      {aperta && tipologie.map((k, i) => (
+        <TipologiaSimboli key={k.tipo} famiglia={famiglia} tipo={k.tipo} simboli={k.simboli}
+          ultima={i === tipologie.length - 1} esterne={ultima ? esterne : [...esterne, 27]} />
+      ))}
+    </div>
+  );
+}
+
+function TipologiaSimboli({ famiglia, tipo, simboli, ultima, esterne }: {
+  famiglia: string; tipo: string; simboli: SimboloLib[]; ultima: boolean; esterne: number[];
+}) {
+  const { t } = useTranslation();
+  const [aperta, commuta] = useSezioneAperta(`strumenti.simboli.${famiglia}.${tipo}`, false);
+  const px = useAppStore((s) => s.misuraIcone);
+  return (
+    <div>
+      <IntestazioneGruppo testo={t(`symbols.lib.tipo.${tipo}`)} aperto={aperta} commuta={commuta} rientro={52}
+        guide={guideAlbero(esterne, { x: 43, finoA: 50, ultimo: ultima && !aperta })} />
+      {aperta && simboli.map((s, i) => (
+        <RigaStrumento key={s.id} testid={`simbolo-${s.id}`} rientro={68} titolo={t("leftPanel.strumentoAggiungi")}
+          icona={<AnteprimaLib sim={s} w={Math.round(px * 1.15)} h={px} />}
+          nome={t(s.label)} onClick={() => aggiungiOggetto("symbol", { symbol_id: s.id })}
+          guide={guideAlbero(ultima ? esterne : [...esterne, 43], { x: 59, finoA: 66, ultimo: i === simboli.length - 1 })} />
       ))}
     </div>
   );
@@ -839,7 +922,7 @@ const LVGL_SUPPORTED_TYPES = new Set<SynopticObject["type"]>([
  *  già interpretare — evita di far piazzare qualcosa che poi nel viewer
  *  LVGL semplicemente non comparirà. Gruppi che restano senza item vengono
  *  nascosti del tutto invece di mostrare un accordion vuoto. */
-function paletteForTarget(isLvgl: boolean, paginaBoot = false): PaletteGroup[] {
+export function paletteForTarget(isLvgl: boolean, paginaBoot = false): PaletteGroup[] {
   // Una pagina di boot ammette solo gli oggetti statici: hanno la precedenza sul
   // motore di destinazione, perché il PNG lo produce il browser.
   if (paginaBoot) {
@@ -853,25 +936,99 @@ function paletteForTarget(isLvgl: boolean, paginaBoot = false): PaletteGroup[] {
     .filter((g) => g.items.length > 0);
 }
 
+/** Un risultato del filtro di Strumenti. */
+export type RisultatoStrumento =
+  | { kind: "tipo"; type: SynopticObject["type"]; nome: string; gruppo: string; category: string }
+  | { kind: "simbolo"; sim: SimboloLib; nome: string; gruppo: string };
+
+/** Il filtro di Strumenti (14-10-2026): cerca nei nomi **tradotti** — quelli che
+ *  si vedono — di strumenti e simboli, e nei nomi dei gruppi, delle famiglie e
+ *  delle tipologie. Puro, così si prova senza disegnare. Rispetta i gruppi già
+ *  filtrati per contesto (boot, LVGL): i simboli ci sono solo se c'è il tipo. */
+export function filtraStrumenti(
+  testo: string,
+  groups: readonly PaletteGroup[],
+  simboli: readonly SimboloLib[],
+  t: (k: string) => string,
+): RisultatoStrumento[] {
+  const q = testo.trim().toLocaleLowerCase();
+  if (!q) return [];
+  const passa = (...xs: string[]) => xs.some((x) => x.toLocaleLowerCase().includes(q));
+  const out: RisultatoStrumento[] = [];
+  for (const g of groups) {
+    const gruppo = t(`editor.palette.group.${g.category}`);
+    for (const { type } of g.items) {
+      const nome = type === "symbol" ? t("editor.palette.sfogliaSimboli") : t(`editor.palette.item.${type}`);
+      if (passa(nome, gruppo, type)) out.push({ kind: "tipo", type, nome, gruppo, category: g.category });
+    }
+  }
+  if (groups.some((g) => g.items.some((i) => i.type === "symbol"))) {
+    for (const sim of simboli) {
+      const nome = t(sim.label);
+      const famiglia = t(`symbols.lib.famiglia.${sim.family}`);
+      const tipo = t(`symbols.lib.tipo.${sim.kind}`);
+      if (passa(nome, famiglia, tipo)) out.push({ kind: "simbolo", sim, nome, gruppo: `${famiglia} › ${tipo}` });
+    }
+  }
+  return out;
+}
+
 /** Il ramo «Strumenti» dell'albero (25-09-2026): la palette, che fino a
  *  ieri era una vista a sé (➕). Sta in cima all'albero, prima dei rami di
  *  configurazione, e c'è anche in Configurazione: un oggetto cliccato lì
- *  riporta all'editor e si aggiunge alla pagina corrente. */
+ *  riporta all'editor e si aggiunge alla pagina corrente. Dal 14-10-2026 ha un
+ *  filtro in cima: con del testo mostra un elenco piatto dei risultati. */
 function RamoStrumenti() {
   const { t } = useTranslation();
   const targetKind = useAppStore((s) => s.project?.target?.kind);
   const isLvgl = targetKind === "lvgl_framebuffer" || targetKind === "lvgl_wayland";
   const paginaBoot = useAppStore((s) => eBoot(s.pages.find((p) => p.id === s.currentPageId)));
+  const themeMode = useAppStore((s) => s.themeMode);
+  const px = useAppStore((s) => s.misuraIcone);
+  const manifesto = useManifestoLib();
   const groups = paletteForTarget(isLvgl, paginaBoot);
   const [aperto, commuta] = useSezioneAperta("config.strumenti", true);
+  const [filtro, setFiltro] = useState("");
+  const risultati = filtraStrumenti(filtro, groups, manifesto?.symbols ?? [], t);
   const nota = { fontSize: 11, color: "var(--brand-text-subtle, #64748b)", padding: "0 8px 6px 20px" };
+  const coloreDi = (category: string) => {
+    const g = groups.find((x) => x.category === category);
+    return g ? coloreGruppo(g, themeMode) : undefined;
+  };
   return (
     <div style={{ padding: "0 8px" }}>
       <IntestazioneSezione titolo={t("leftPanel.strumenti")} icona="🧰" aperta={aperto} onToggle={commuta} />
       {aperto && (<>
+        <div style={{ padding: "0 8px 6px 20px" }}>
+          <input type="search" data-testid="filtro-strumenti" value={filtro} placeholder={t("leftPanel.filtroStrumenti")}
+            aria-label={t("leftPanel.filtroStrumenti")}
+            onChange={(e) => setFiltro(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Escape") setFiltro(""); }}
+            style={{
+              width: "100%", boxSizing: "border-box", fontSize: 12, padding: "4px 8px", borderRadius: 4,
+              background: "var(--brand-bg, #0f172a)", border: "1px solid var(--brand-surface-2, #334155)",
+              color: "var(--brand-text, #e2e8f0)",
+            }} />
+        </div>
         {paginaBoot && <div style={nota}>{t("leftPanel.paletteBootHint")}</div>}
         {!paginaBoot && isLvgl && <div style={nota}>{t("editor.paletteLvglHint")}</div>}
-        {groups.map((group) => (
+        {filtro.trim() ? (
+          risultati.length === 0
+            ? <div style={nota}>{t("leftPanel.filtroNessuno", { q: filtro })}</div>
+            : risultati.map((r) => r.kind === "tipo" ? (
+              <RigaStrumento key={`t-${r.type}`} testid={`strumento-${r.type}`} rientro={20}
+                icona={<IconaStrumento tipo={r.type} px={px} colore={coloreDi(r.category)} />}
+                nome={r.nome} titolo={t("leftPanel.strumentoAggiungi")} guide={{}}
+                sotto={r.gruppo}
+                onClick={() => aggiungiOggetto(r.type)} />
+            ) : (
+              <RigaStrumento key={`s-${r.sim.id}`} testid={`simbolo-${r.sim.id}`} rientro={20}
+                icona={<AnteprimaLib sim={r.sim} w={Math.round(px * 1.15)} h={px} />}
+                nome={r.nome} titolo={t("leftPanel.strumentoAggiungi")} guide={{}}
+                sotto={r.gruppo}
+                onClick={() => aggiungiOggetto("symbol", { symbol_id: r.sim.id })} />
+            ))
+        ) : groups.map((group) => (
           <GruppoStrumenti key={group.category} group={group} showLvglBadge={!isLvgl}
             ultimo={group === groups[groups.length - 1]} />
         ))}

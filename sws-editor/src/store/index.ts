@@ -240,6 +240,19 @@ export type AlignMode =
   | "distribute-x" | "distribute-y"
   | "match-width" | "match-height";
 
+/** Le misure possibili delle icone degli strumenti (preferenza dell'IDE). */
+export const MISURE_ICONE = [16, 20, 24, 28] as const;
+export type MisuraIcone = (typeof MISURE_ICONE)[number];
+const CHIAVE_MISURA_ICONE = "sws.ide.misuraIcone";
+/** 24 px se non c'è una scelta salvata (scelta del maintainer, 14-10-2026). */
+function misuraIconeSalvata(): MisuraIcone {
+  try {
+    const v = Number(localStorage.getItem(CHIAVE_MISURA_ICONE));
+    if ((MISURE_ICONE as readonly number[]).includes(v)) return v as MisuraIcone;
+  } catch { /* storage non disponibile */ }
+  return 24;
+}
+
 export type Role = "Viewer" | "Operator" | "Supervisor" | "Admin";
 export type AppMode = "edit" | "config";
 // L'elenco delle schede vive in `config/schede.ts`, il solo posto che lo dichiara.
@@ -430,6 +443,11 @@ interface AppState {
   /** Light/dark theme preference (persisted in localStorage by @/theme). */
   themeMode: ThemeMode;
   setThemeMode: (m: ThemeMode) => void;
+
+  /** Misura delle icone degli strumenti, in px (14-10-2026): una preferenza di
+   *  questo browser, per adattarsi a monitor diversi. */
+  misuraIcone: MisuraIcone;
+  setMisuraIcone: (px: MisuraIcone) => void;
 
   /** Lingua CORRENTE dei contenuti di progetto (tabella lingue, T-40).
    *  Asse indipendente dalla lingua UI. "" = usa il default della tabella. */
@@ -1053,6 +1071,12 @@ export const useAppStore = create<AppState>((set, get) => {
 
     themeMode: getStoredMode(),
     setThemeMode: (m) => { applyAppearance(m); set({ themeMode: m }); },
+
+    misuraIcone: misuraIconeSalvata(),
+    setMisuraIcone: (px) => {
+      try { localStorage.setItem(CHIAVE_MISURA_ICONE, String(px)); } catch { /* storage non disponibile */ }
+      set({ misuraIcone: px });
+    },
 
     projectLang: getStoredProjectLang(),
     setProjectLang: (code) => { setStoredProjectLang(code); set({ projectLang: code }); },

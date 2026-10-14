@@ -12,33 +12,36 @@ import { api } from "@/api/client";
 import { useAppStore } from "@/store";
 import type { SynopticObject } from "@/types";
 
-type Aggiungi = (type: SynopticObject["type"]) => void;
+/** Cosa si sa già dell'oggetto prima di crearlo: un simbolo scelto dal ramo
+ *  «Simboli» di Strumenti nasce col suo `symbol_id` (14-10-2026). */
+export type Preimpostato = { symbol_id?: string };
+type Aggiungi = (type: SynopticObject["type"], pre?: Preimpostato) => void;
 let aggiungi: Aggiungi | null = null;
 /** Un oggetto chiesto mentre l'editor non c'era (dalla Configurazione): lo
  *  aggiunge l'editor appena si monta. */
-let inAttesa: SynopticObject["type"] | null = null;
+let inAttesa: { type: SynopticObject["type"]; pre?: Preimpostato } | null = null;
 
 /** Lo chiama `EditorShell` a ogni disegno, e con `null` quando si smonta. */
 export function registraAggiunta(f: Aggiungi | null): void {
   aggiungi = f;
   if (f && inAttesa) {
-    const t = inAttesa;
+    const { type, pre } = inAttesa;
     inAttesa = null;
-    f(t);
+    f(type, pre);
   }
 }
 
 /** Il ramo Strumenti dell'albero. Dal 25-09-2026 si vede anche in
  *  Configurazione, dove non c'è un editor montato: lì un oggetto riporta
  *  all'editor, sulla pagina corrente, e si aggiunge appena l'editor c'è. */
-export function aggiungiOggetto(type: SynopticObject["type"]): void {
+export function aggiungiOggetto(type: SynopticObject["type"], pre?: Preimpostato): void {
   const st = useAppStore.getState();
   if (st.appMode === "config" || !aggiungi) {
-    inAttesa = type;
+    inAttesa = { type, pre };
     if (st.appMode === "config") st.setAppMode("edit");
     return;
   }
-  aggiungi(type);
+  aggiungi(type, pre);
 }
 
 /** Salva l'intera `project.functions`. La chiamano i verbi della vista

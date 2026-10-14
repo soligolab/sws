@@ -19,6 +19,8 @@
 versioni:
   - versione: "2.14.0"
     voci:
+      - it: "Menù Strumenti riorganizzato: dieci gruppi, icone nuove di misura regolabile nelle Preferenze IDE, simboli per famiglia e tipologia con anteprima, e un filtro per trovare tutto."
+        en: "Reorganised Tools menu: ten groups, new icons with a size you can set in IDE Preferences, symbols by family and type with previews, and a filter to find everything."
       - it: "Nuova libreria di simboli SCADA 2.5D: 138 disegni in quattro famiglie, compresi i 40 di sempre; il corpo prende il colore di stato, i serbatoi si riempiono dal tag, le giranti girano."
         en: "New 2.5D SCADA symbol library: 138 drawings in four families, including the 40 familiar ones; the body takes the state colour, tanks fill from their tag, impellers spin."
       - it: "Prima di un deploy l'IDE avvisa se il pannello non conosce alcuni simboli di libreria del progetto, e dice quali: si può procedere, e appariranno come segnaposto finché il pannello non è aggiornato."

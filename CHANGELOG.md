@@ -124,6 +124,16 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Added
 
+- **Menù Strumenti riorganizzato** (piano `docs/plans/2026-10-14-strumenti-simboli-comandi.md`, ramo 1):
+  - dieci gruppi al posto di cinque (Forme · Testo e immagini · Comandi · Indicatori · Grafici ·
+    Tabelle e registri · Allarmi · Navigazione e lingua · Impianto · Simboli); nessun tipo cambia;
+  - icone SVG nostre per i 38 tipi (`editor/iconeStrumenti.ts`) al posto di emoji e glifi Unicode;
+    misura 16/20/24/28 px nelle Preferenze IDE, 24 di default;
+  - i simboli di libreria come rami famiglia ▸ tipologia ▸ simbolo con anteprima: un clic crea il
+    simbolo già scelto (`aggiungiOggetto("symbol", { symbol_id })`); i simboli del progetto in «Del progetto»;
+  - filtro in cima a Strumenti sui nomi tradotti di strumenti, simboli, famiglie e tipologie; `Esc` lo svuota;
+  - guardia `check_icone_strumenti.sh`: un'icona per tipo della palette, nessun doppione, niente emoji.
+
 - **La libreria completa: 138 simboli** (Fase 7 del
   [piano](docs/archive/2026-10-14-motore-simboli-lib.md)). I 91 disegni che mancavano, in quattro
   lotti:
