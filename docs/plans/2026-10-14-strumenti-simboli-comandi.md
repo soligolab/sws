@@ -43,7 +43,7 @@ I due semi sono in archivio, con un rimando a questo piano.
 - Inventari che reagiranno: `tests/pannelloProprieta.test.tsx:96`, `tests/predefinitiCampi.test.ts:17`,
   `tests/fixtures/campiPannelloProprieta.json`.
 
-## Ramo 1 — `feat/strumenti-riorganizzati` (solo editor)
+## Ramo 1 — `feat/strumenti-riorganizzati` (solo editor) — ✅ su `main` (`ff9d07c1`, 14-10-2026)
 
 1. **Gerarchia nuova** (proposta, da confermare a schermo):
    Forme (rect, ellipse, line, polyline, polygon) · Testo e immagini (text, image) · Comandi (button, checkbox, radio,

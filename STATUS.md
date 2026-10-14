@@ -12,6 +12,18 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — Strumenti riorganizzato su `main`, si apre il ramo 2 (2026-10-14, sera)
+
+Piano [`docs/plans/2026-10-14-strumenti-simboli-comandi.md`](docs/plans/2026-10-14-strumenti-simboli-comandi.md).
+
+- **Ramo 1 chiuso** (squash `ff9d07c1`, ok del maintainer sugli screenshot): dieci gruppi, icone SVG
+  (`editor/iconeStrumenti.ts`, misura 16/20/24/28 nelle Preferenze IDE), simboli famiglia ▸ tipologia ▸
+  simbolo con anteprima, filtro in cima a Strumenti, guardia `check_icone_strumenti`. **Non pushato.**
+- **Prossimo**: ramo 2 `feat/simbolo-che-comanda` — le sette modalità del bottone su LVGL (oggi solo
+  `write`), poi il simbolo che comanda (modalità + assegnazioni anche su `type: symbol`).
+- Screenshot fatti con un'istanza di prova `--instance 7` (porta 8472) e Playwright: la ricetta di
+  accesso è `primo_amministratore_ide` di `scripts/accesso_guardie.sh`.
+
 ## ▶ Riprendere da qui — le guardie con lo stack tornano verdi (2026-10-14, notte) — su `main`
 
 **Su `main`** (squash `02ce2c35`, dopo l'ok del maintainer). Ramo e worktree eliminati; l'IDE 8460
