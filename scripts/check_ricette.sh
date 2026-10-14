@@ -66,14 +66,19 @@ setpoints:
     value: 7.0
 YAML
 
-SWS_ADMIN_USER=admin SWS_ADMIN_PASSWORD=admin1234 \
 "$BIN" --config "$WORK/config" --projects-root "$WORK/projects" \
   --templates-root "$REPO/examples/templates" --www "$REPO/sws-editor/dist" \
   --viewer-port "$((APORT + 1))" --admin-port "$APORT" > "$WORK/rt.log" 2>&1 &
 echo $! > "$WORK/rt.pid"
 for _ in $(seq 1 60); do curl -sf -o /dev/null "http://localhost:$APORT/health" && break; sleep 0.5; done
 
-python3 - "http://localhost:$APORT/api" <<'PY'
+# Dall'11-10-2026 un pannello senza utenti è «da abbinare» e non lascia
+# entrare nessuno, nemmeno per aprire il progetto: l'Admin nasce dal codice
+# di abbinamento, com'è sul campo. Prima lo seminava SWS_ADMIN_* all'apertura.
+. "$REPO/scripts/accesso_guardie.sh"
+TOKEN=$(abbina_pannello "$APORT" "$WORK/config" admin admin1234)
+
+python3 - "http://localhost:$APORT/api" "$TOKEN" <<'PY'
 import json, sys, urllib.request, urllib.error
 
 API = sys.argv[1]
@@ -99,9 +104,8 @@ def caso(nome, ok, extra=""):
 
 # Serve `--viewer-port`: senza, l'istanza è un IDE e dal 14-09-2026 un IDE non autentica (ogni
 # richiesta è admin sintetico) — la prova di ruolo non proverebbe niente.
-# Senza un progetto aperto il runtime non ha account (dall'11-09-2026 gli utenti appartengono al
-# progetto): l'apertura è anonima, e solo dopo ci sono utenti (il seme SWS_ADMIN_*) con cui entrare.
-st, _ = req("POST", "/projects/q17/open", {})
+# L'apertura la fa l'Admin del dispositivo, nato dall'abbinamento (sopra).
+st, _ = req("POST", "/projects/q17/open", {}, sys.argv[2])
 assert st < 300, f"open q17: {st}"
 # Aprire un progetto scambia lo user store (auth.swap_store) e INVALIDA le
 # sessioni — trappola già documentata in sws-editor/e2e/_env.ts. Si rientra.

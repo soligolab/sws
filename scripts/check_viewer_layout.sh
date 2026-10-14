@@ -49,7 +49,7 @@ fi
 
 "$BIN" --config "$WORK/config" --projects-root "$WORK/projects" \
   --templates-root "$REPO/examples/templates" --www "$DIST" \
-  --viewer-port "$VPORT" --admin-port "$APORT" > "$WORK/rt.log" 2>&1 &
+  --viewer-port "$VPORT" --senza-autenticazione --admin-port "$APORT" > "$WORK/rt.log" 2>&1 &
 echo $! > "$WORK/rt.pid"
 
 # Il runtime parte in HTTP puro finché non gli si dà un certificato: va bene,

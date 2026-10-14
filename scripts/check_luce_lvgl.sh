@@ -36,7 +36,7 @@ mkdir -p "$WORK"/{config,projects}
 trap '[ -f "$WORK/rt.pid" ] && kill "$(cat "$WORK/rt.pid")" 2>/dev/null; rm -rf "$WORK"' EXIT
 
 "$BIN" --config "$WORK/config" --projects-root "$WORK/projects" \
-  --templates-root "examples/templates" --viewer-port "$VP" --admin-port "$AP" \
+  --templates-root "examples/templates" --viewer-port "$VP" --senza-autenticazione --admin-port "$AP" \
   > "$WORK/rt.log" 2>&1 &
 echo $! > "$WORK/rt.pid"
 su=0

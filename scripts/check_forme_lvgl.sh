@@ -21,18 +21,22 @@ cd "$(dirname "$0")/.."
 
 BIN="sws-runtime/target/debug/sws-runtime"
 LVGL="sws-runtime/target/debug/sws-lvgl-viewer"
+DIST="sws-editor/dist"
 WORK="${TMPDIR:-/tmp}/sws-forme-lvgl.$$"
 AP="${APORT:-8688}"
 VP="${VPORT:-8689}"
 
 [ -x "$BIN" ]  || { echo "manca $BIN — esegui: cargo build -p sws-runtime" >&2; exit 1; }
 [ -x "$LVGL" ] || { echo "manca $LVGL — esegui: cargo build -p sws-lvgl-viewer" >&2; exit 1; }
+# Dal 14-10-2026 i simboli vengono dalla libreria (`/symbols/lib/`), che il
+# runtime serve da `--www`: senza, la pompa è un segnaposto vuoto.
+[ -d "$DIST/symbols/lib" ] || { echo "manca $DIST — esegui: cd sws-editor && pnpm build" >&2; exit 1; }
 
 mkdir -p "$WORK"/{config,projects}
 trap '[ -f "$WORK/rt.pid" ] && kill "$(cat "$WORK/rt.pid")" 2>/dev/null; rm -rf "$WORK"' EXIT
 
 "$BIN" --config "$WORK/config" --projects-root "$WORK/projects" \
-  --templates-root "examples/templates" --viewer-port "$VP" --admin-port "$AP" \
+  --templates-root "examples/templates" --www "$DIST" --viewer-port "$VP" --senza-autenticazione --admin-port "$AP" \
   > "$WORK/rt.log" 2>&1 &
 echo $! > "$WORK/rt.pid"
 su=0
@@ -85,6 +89,7 @@ def pixel(x, y):
 def vicino(c, atteso, t=24):
     return all(abs(a - b) <= t for a, b in zip(c, atteso))
 fondo = (0x10, 0x18, 0x20)
+metallo = (172, 180, 189)  # i tubi della pompa, sfumati: tolleranza 24
 casi = [
     ("esagono pieno al centro", (100, 100), (0x22, 0xc5, 0x5e)),
     ("stella piena al centro", (300, 100), (0xf5, 0x9e, 0x0b)),
@@ -101,18 +106,19 @@ casi = [
     # il contrario (rotazione statica su LVGL, Fase D del 26-09-2026).
     ("rettangolo ruotato di 90°: la barra è verticale", (400, 390), (0xa8, 0x55, 0xf7)),
     ("rettangolo ruotato di 90°: a destra del centro c'è il fondo", (480, 320), fondo),
-    # Lo specchio (02-10-2026). La pompa builtin ha il bocchettone a destra:
-    # specchiata deve averlo a sinistra. Si guarda proprio lì, perché il corpo
-    # è un cerchio — simmetrico, e quindi muto sullo specchio. I 33 simboli
-    # della libreria non sono SVG: sono disegnati con primitive alla
-    # dimensione finale, e si specchiano ribaltando il buffer del canvas.
+    # Lo specchio (02-10-2026). Si guarda un dettaglio asimmetrico, perché il
+    # corpo della pompa è un cerchio, simmetrico e quindi muto sullo specchio.
     #
-    # Pompa in (20,280) 120×120: il bocchettone sta a x≈84..98 su 100, cioè
-    # verso 20+108=128; specchiata (160,280) finisce verso 160+14=174.
-    ("la pompa ha il bocchettone a destra", (128, 338), (0x38, 0xbd, 0xf8)),
-    ("alla sua sinistra c'è il fondo", (26, 338), fondo),
-    ("la pompa specchiata ce l'ha a sinistra", (174, 338), (0x38, 0xbd, 0xf8)),
-    ("e a destra ha il fondo", (276, 338), fondo),
+    # Dal 14-10-2026 `pump` è un alias di `lib:process/centrifugal-pump`:
+    # aspirazione orizzontale a sinistra, mandata verticale in alto a destra,
+    # tubi di metallo grigio. Pompa in (20,280) 120×120: la mandata sta verso
+    # x=95 e sopra il corpo (y=305); specchiata (160,280) sta verso x=205.
+    ("la pompa ha la mandata in alto a destra", (95, 305), metallo),
+    ("alla sua sinistra c'è il fondo", (65, 305), fondo),
+    ("e l'aspirazione a sinistra", (35, 355), metallo),
+    ("la pompa specchiata ha la mandata in alto a sinistra", (205, 305), metallo),
+    ("e alla sua destra c'è il fondo", (235, 305), fondo),
+    ("e l'aspirazione a destra", (255, 355), metallo),
 ]
 for nome, (x, y), atteso in casi:
     c = pixel(x, y)

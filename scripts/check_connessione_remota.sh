@@ -12,7 +12,15 @@
 # perfettamente viva e per un utente (admin) la cui password non poteva
 # funzionare. Doppio vicolo cieco.
 #
-# Qui girano DUE runtime: uno con utenti (l'editor) e uno senza (il pannello).
+# Qui girano TRE runtime: l'editor, un pannello senza utenti e un dispositivo
+# con utenti.
+#
+# Dall'11-10-2026 un pannello senza utenti non è più «aperto»: è «da
+# abbinare», e la connessione senza codice risponde ok:false con l'azione
+# `abbinamento-richiesto`. Il punto della guardia non cambia: qualunque cosa
+# dica il pannello, l'editor non deve ricevere un 401, che leggerebbe come
+# «la TUA sessione è scaduta». E dal 06-10-2026 all'editor si entra con le
+# credenziali dell'installazione: la sessione da tenere viva è quella.
 #
 # Uso:
 #   cargo build -p sws-runtime
@@ -32,10 +40,9 @@ DEV="${DEV:-8673}"   # un dispositivo CON utenti: un'istanza runtime (con --view
 
 mkdir -p "$WORK"/{ide/config,ide/projects/lavoro,pan/config,pan/projects/pannello,dev/config,dev/projects/dispositivo}
 
-# Gli utenti appartengono al PROGETTO (aprirne uno scambia lo user store), non
-# al runtime: senza un progetto sul disco l'admin da seminare non ha dove
-# andare, e anche l'«editor» partirebbe in no-auth — cioè non proverebbe
-# niente. Due progetti minimi, uno per parte.
+# Gli utenti di un dispositivo appartengono al PROGETTO (aprirne uno scambia lo
+# user store): senza un progetto sul disco l'admin da seminare sul dispositivo
+# con utenti non avrebbe dove andare. Un progetto minimo per parte.
 for lato in ide/lavoro pan/pannello dev/dispositivo; do
   cat > "$WORK/${lato%%/*}/projects/${lato##*/}/project.yaml" <<YAML
 meta:
@@ -53,17 +60,17 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# L'editor: ha un admin, come la macchina di chi lavora.
-SWS_ADMIN_USER=admin SWS_ADMIN_PASSWORD=admin1234 \
+# L'editor: il suo amministratore nasce col codice di primo accesso (sotto).
 "$BIN" --config "$WORK/ide/config" --projects-root "$WORK/ide/projects" \
   --templates-root "$REPO/examples/templates" --www "$REPO/sws-editor/dist" \
   --admin-port "$IDE" > "$WORK/ide.log" 2>&1 &
 echo $! > "$WORK/ide.pid"
 
-# Il pannello: nessun utente definito — è il caso della segnalazione.
+# Il pannello: nessun utente definito — è il caso della segnalazione. Un
+# dispositivo vero (con --viewer-port): senza, sarebbe un IDE.
 "$BIN" --config "$WORK/pan/config" --projects-root "$WORK/pan/projects" \
   --templates-root "$REPO/examples/templates" --www "$REPO/sws-editor/dist" \
-  --admin-port "$PAN" > "$WORK/pan.log" 2>&1 &
+  --viewer-port "$((PAN + 3))" --admin-port "$PAN" > "$WORK/pan.log" 2>&1 &
 echo $! > "$WORK/pan.pid"
 
 # Il dispositivo con utenti. Dal 14-09-2026 l'editor non ha più utenti (non autentica), quindi
@@ -79,9 +86,13 @@ for p in "$IDE" "$PAN" "$DEV"; do
   for _ in $(seq 1 60); do curl -sf -o /dev/null "http://localhost:$p/health" && break; sleep 0.5; done
 done
 
-python3 - "$IDE" "$PAN" "$DEV" <<'PY'
+. "$REPO/scripts/accesso_guardie.sh"
+TOK=$(primo_amministratore_ide "$IDE" "$WORK/ide.log")
+CODICE=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["codice"])' "$WORK/pan/config/abbinamento.json")
+
+python3 - "$IDE" "$PAN" "$DEV" "$TOK" "$CODICE" <<'PY'
 import json, sys, urllib.request, urllib.error
-ide, pan, dev = sys.argv[1], sys.argv[2], sys.argv[3]
+ide, pan, dev, tok, codice = sys.argv[1:6]
 API = f"http://localhost:{ide}/api"
 
 def req(method, path, body=None, token=None):
@@ -104,9 +115,6 @@ def caso(nome, ok, extra=""):
     print(f"  {'✓' if ok else '✗'} {nome}" + ("" if ok else f" — {extra}"))
     if not ok: rossi += 1
 
-# Dal 14-09-2026 l'editor (un'istanza senza `--viewer-port`) non autentica: ogni richiesta è
-# admin sintetico e non c'è nessun accesso da fare. Il token è quindi vuoto.
-tok = None
 target = f"http://localhost:{pan}"
 
 print("== il pannello non ha utenti, ma il modulo ha ancora le credenziali ==")
@@ -114,18 +122,26 @@ st, body = req("POST", "/remote/connect",
                {"url": target, "username": "user", "password": "unaqualsiasi"}, tok)
 # IL punto: un 401 qui fa credere all'editor che sia scaduta la SUA sessione.
 caso("la risposta NON è 401 (era il modale «Sessione scaduta»)", st != 401, f"status {st}")
-caso("si connette lo stesso", st == 200 and body.get("ok") is True, f"{st}: {body}")
-caso("...e dice che le credenziali sono state ignorate",
-     isinstance(body, dict) and "non ha utenti" in (body.get("nota") or ""), f"{body}")
+caso("non si connette: chiede il codice di abbinamento",
+     st == 200 and body.get("ok") is False and body.get("azione") == "abbinamento-richiesto",
+     f"{st}: {body}")
 
 print("== la sessione dell'editor è rimasta viva ==")
 st, _ = req("GET", "/auth/whoami", token=tok)
 caso("whoami risponde ancora 200 col token di prima", st == 200, f"status {st}")
 
-print("== senza credenziali, come sempre ==")
-req("DELETE", "/remote/connect", None, tok)
+print("== senza credenziali, la stessa risposta ==")
 st, body = req("POST", "/remote/connect", {"url": target}, tok)
-caso("connessione anonima ok", st == 200 and body.get("ok") is True, f"{st}: {body}")
+caso("non è 401, e chiede il codice",
+     st == 200 and body.get("ok") is False and body.get("azione") == "abbinamento-richiesto",
+     f"{st}: {body}")
+
+print("== col codice si abbina, e si resta connessi ==")
+st, body = req("POST", "/remote/connect",
+               {"url": target, "codice": codice, "username": "capo", "password": "segretissima"}, tok)
+caso("connesso", st == 200 and body.get("ok") is True, f"{st}: {body}")
+caso("...e dice chi è il suo amministratore",
+     isinstance(body, dict) and "abbinato" in (body.get("nota") or ""), f"{body}")
 
 print("== e un dispositivo CON utenti rifiuta ancora, ma senza sbattere fuori ==")
 req("DELETE", "/remote/connect", None, tok)

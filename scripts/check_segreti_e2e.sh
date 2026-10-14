@@ -53,9 +53,14 @@ fi
 
 rm -rf "$SCR"; mkdir -p "$SCR"/src/{config,projects} "$SCR"/tgt/{config,projects}
 
+# `--senza-autenticazione` su tutt'e due: qui la domanda sono i segreti, non
+# chi entra. Dal 06-10-2026 l'IDE chiede le credenziali e dall'11-10-2026 un
+# dispositivo senza utenti non lascia entrare nessuno: senza il flag ogni
+# chiamata risponde 401 e i casi non provano niente.
 start() {  # $1=dir $2=porta [$3=porta viewer]
   "$BIN" --config "$SCR/$1/config" --projects-root "$SCR/$1/projects" \
-    --templates-root "$REPO/examples/templates" --admin-port "$2" ${3:+--viewer-port "$3"} \
+    --templates-root "$REPO/examples/templates" --senza-autenticazione \
+    --admin-port "$2" ${3:+--viewer-port "$3"} \
     > "$SCR/$1.log" 2>&1 &
   echo $!
 }

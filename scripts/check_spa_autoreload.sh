@@ -43,7 +43,7 @@ cp -r "$DIST"/. "$WORK/served"/
 
 "$BIN" --config "$WORK/config" --projects-root "$WORK/projects" \
   --templates-root "$REPO/examples/templates" --www "$WORK/served" \
-  --viewer-port "$VPORT" --admin-port "$APORT" > "$WORK/rt.log" 2>&1 &
+  --viewer-port "$VPORT" --senza-autenticazione --admin-port "$APORT" > "$WORK/rt.log" 2>&1 &
 echo $! > "$WORK/rt.pid"
 for _ in $(seq 1 40); do
   curl -sf -o /dev/null "http://localhost:$APORT/health" && break

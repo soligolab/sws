@@ -13,6 +13,15 @@
 # (prima pretendeva «utenti del dispositivo conservati»): chi la rilegge fra un
 # mese non sta guardando una regressione. La casella «Sostituisci anche gli
 # utenti» spenta è il caso 5.
+#
+# Dall'11-10-2026 un dispositivo senza utenti non è più «aperto»: è «da
+# abbinare», e il suo primo account (l'Admin del dispositivo) nasce dal codice
+# di abbinamento e vive in `<config>/utenti_dispositivo.yaml`, fuori dal
+# progetto. Qui il target si abbina subito e la sorgente si collega con
+# quell'Admin. Due asserzioni sono state **rovesciate di proposito** quel
+# giorno: il caso 4 non parte più da un dispositivo «in no-auth», e il caso 7
+# non pretende più che il pannello resti aperto dopo aver tolto gli utenti del
+# progetto — resta protetto dal suo Admin, ed è proprio il punto della modifica.
 set -u
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BIN="$REPO/sws-runtime/target/debug/sws-runtime"
@@ -24,13 +33,15 @@ rm -rf "$SCR"; mkdir -p "$SCR"/src/{config,projects} "$SCR"/tgt/{config,projects
 # $3 (facoltativa) = porta del viewer. Il DISPOSITIVO deve essere un'istanza runtime, cioè averne una:
 # senza `--viewer-port` l'istanza è un IDE e dal 14-09-2026 un IDE non autentica, quindi «un
 # dispositivo con account che rifiuta chi non ha credenziali» non esisterebbe.
-start() {  # $1=dir $2=porta [$3=porta viewer]
+# La SORGENTE parte con `--senza-autenticazione`: chi entra nell'IDE non è la
+# domanda di questa guardia, e dal 06-10-2026 l'IDE chiede le credenziali.
+start() {  # $1=dir $2=porta [$3=porta viewer] [$4=altro flag]
   "$BIN" --config "$SCR/$1/config" --projects-root "$SCR/$1/projects" \
-    --templates-root "$REPO/examples/templates" --admin-port "$2" ${3:+--viewer-port "$3"} \
+    --templates-root "$REPO/examples/templates" --admin-port "$2" ${3:+--viewer-port "$3"} ${4:-} \
     > "$SCR/$1.log" 2>&1 &
   echo $!
 }
-SRC_PID=$(start src "$SRC_PORT"); TGT_PID=$(start tgt "$TGT_PORT" "$((TGT_PORT + 1))")
+SRC_PID=$(start src "$SRC_PORT" "" --senza-autenticazione); TGT_PID=$(start tgt "$TGT_PORT" "$((TGT_PORT + 1))")
 trap 'kill -TERM "$SRC_PID" "$TGT_PID" 2>/dev/null' EXIT
 sleep 8
 
@@ -42,10 +53,10 @@ ESITO=0
 ok()   { echo "  ✓ $1"; }
 ko()   { echo "  ✗ $1"; ESITO=1; }
 # `users.yaml` scritto **solo su disco**: il runtime ha già aperto il progetto e
-# tiene gli account in memoria, quindi resta in no-auth e accetta il deploy
-# senza credenziali. Serve a provare la sola meccanica dei file. Quando invece
-# il dispositivo deve *dichiarare* i suoi utenti (casi 6 e 7) si passa dalla sua
-# API e ci si connette con quelle credenziali.
+# tiene gli account in memoria, quindi il file conta solo per quello che il
+# deploy ci fa sopra. Serve a provare la sola meccanica dei file; si entra
+# sempre con l'Admin del dispositivo. Quando invece il dispositivo deve
+# *dichiarare* gli utenti del progetto (casi 6 e 7) si passa dalla sua API.
 utente_su_disco() {  # $1=file $2=username $3=ruolo
   cat > "$1" <<EOF
 users:
@@ -56,11 +67,16 @@ EOF
 }
 
 echo "=== preparazione ==="
+. "$REPO/scripts/accesso_guardie.sh"
+TOK=$(abbina_pannello "$TGT_PORT" "$SCR/tgt/config" capo segretissima) \
+  && echo "  target abbinato: Admin del dispositivo «capo»" || ko "abbinamento del target rifiutato"
+AUT=(-H "Authorization: Bearer $TOK")
+CONNETTI='{"url":"http://localhost:'"$TGT_PORT"'","username":"capo","password":"segretissima"}'
 # Stesso nome sui due lati: è il caso del maintainer, ridistribuire un progetto.
 for pair in "$S src" "$T tgt"; do
   set -- $pair
-  curl -s -X POST "$1/projects" -H 'Content-Type: application/json' -d '{"name":"impianto"}' >/dev/null
-  curl -s -X POST "$1/projects/impianto/open" >/dev/null
+  curl -s "${AUT[@]}" -X POST "$1/projects" -H 'Content-Type: application/json' -d '{"name":"impianto"}' >/dev/null
+  curl -s "${AUT[@]}" -X POST "$1/projects/impianto/open" >/dev/null
 done
 
 # Storico riconoscibile sul TARGET (quello che il deploy non deve toccare).
@@ -95,8 +111,7 @@ echo "  contenuto cartella: $(ls -A "$SCR/tgt/projects/impianto" | tr '\n' ' ')"
 echo "  pagine sulla sorgente: $(ls "$SCR/src/projects/impianto/synoptics/" 2>/dev/null | tr '\n' ' ')"
 
 echo "=== 1. deploy con le impostazioni di default (la casella è accesa) ==="
-curl -s -X POST "$S/remote/connect" -H 'Content-Type: application/json' \
-  -d "{\"url\":\"http://localhost:$TGT_PORT\",\"username\":\"\",\"password\":\"\"}" | head -c 200; echo
+curl -s -X POST "$S/remote/connect" -H 'Content-Type: application/json' -d "$CONNETTI" | head -c 200; echo
 # Nessun corpo: `Option<Json<DeployBody>>` vale «default», cioè sostituisci.
 curl -s -N -X POST "$S/remote/deploy" 2>&1 | sed 's/^/  /'
 
@@ -125,17 +140,20 @@ grep -q operatore_dispositivo "$TGT_USERS" 2>/dev/null \
 ls "$SCR/tgt/projects/impianto/synoptics/" 2>/dev/null | grep -qi "nuova" \
   && ok "pagine aggiornate dal deploy" || ko "pagine NON aggiornate"
 
-echo "=== 2. utenti: dispositivo con account + connessione senza credenziali → deve rifiutare ==="
+echo "=== 2. utenti: connessione senza credenziali → deve rifiutare ==="
 # Si rimette un account solo-dispositivo (il caso 1 l'ha giustamente sostituito).
 utente_su_disco "$TGT_USERS" operatore_dispositivo Operator
-# Il runtime decide dallo store in memoria, non dal file: scrivere `users.yaml` da fuori non lo
-# cambia finché il progetto non si riapre (come già fanno i casi 4 e 5).
-curl -s -X POST "$T/projects/impianto/open" >/dev/null; sleep 1
-echo -n "  risposta: "; curl -s -X POST "$S/remote/users" | head -c 200; echo
+curl -s "${AUT[@]}" -X POST "$T/projects/impianto/open" >/dev/null; sleep 1
+curl -s -o /dev/null -X DELETE "$S/remote/connect"
+echo -n "  connessione anonima: "
+curl -s -X POST "$S/remote/connect" -H 'Content-Type: application/json' \
+  -d "{\"url\":\"http://localhost:$TGT_PORT\"}" | head -c 200; echo
+echo -n "  invio utenti: "; curl -s -X POST "$S/remote/users" | head -c 200; echo
 grep -q operatore_dispositivo "$TGT_USERS" 2>/dev/null \
   && ok "nulla è stato cambiato sul dispositivo" || ko "account del dispositivo alterati"
+curl -s -o /dev/null -X POST "$S/remote/connect" -H 'Content-Type: application/json' -d "$CONNETTI"
 
-echo "=== 3. rifiuto di una lista vuota (lascerebbe il dispositivo senza account) ==="
+echo "=== 3. rifiuto di una lista vuota (lascerebbe il progetto senza account) ==="
 cp "$SRC_USERS" "$SCR/src/users.yaml.bak"
 printf 'users: []\n' > "$SRC_USERS"
 echo -n "  risposta: "; curl -s -X POST "$S/remote/users" | head -c 160; echo
@@ -143,21 +161,19 @@ rimasti=$(grep -c username "$TGT_USERS" 2>/dev/null || echo 0)
 [ "$rimasti" -gt 0 ] && ok "il dispositivo ha ancora i suoi account ($rimasti)" || ko "account persi"
 cp "$SCR/src/users.yaml.bak" "$SRC_USERS"
 
-echo "=== 4. percorso felice: dispositivo senza account → invio consentito ==="
-# Si toglie users.yaml dal target e si riapre il progetto: il runtime torna in
-# no-auth, che è la condizione in cui il pulsante serve davvero (primo
-# allineamento di un dispositivo nuovo).
+echo "=== 4. percorso felice: progetto del dispositivo senza account → invio consentito ==="
+# Si toglie users.yaml dal target e si riapre il progetto: è il primo
+# allineamento di un dispositivo appena abbinato, che ha solo il suo Admin.
 rm -f "$TGT_USERS"
-curl -s -X POST "$T/projects/impianto/open" >/dev/null; sleep 1
+curl -s "${AUT[@]}" -X POST "$T/projects/impianto/open" >/dev/null; sleep 1
 echo -n "  invio: "; curl -s -X POST "$S/remote/users" | head -c 200; echo
 echo "  users.yaml sul target ora: $(grep username "$TGT_USERS" 2>/dev/null | sed 's/.*: //' | tr '\n' ' ')"
 grep -q admin_ide "$TGT_USERS" 2>/dev/null \
   && ok "utenti allineati su richiesta esplicita" || ko "allineamento non avvenuto"
 
 echo "=== 5. casella «Sostituisci anche gli utenti» spenta → account intatti ==="
-# Si riparte da un dispositivo pulito e in no-auth, con un account suo su disco.
 rm -f "$TGT_USERS"
-curl -s -X POST "$T/projects/impianto/open" >/dev/null; sleep 1
+curl -s "${AUT[@]}" -X POST "$T/projects/impianto/open" >/dev/null; sleep 1
 utente_su_disco "$TGT_USERS" operatore_dispositivo Operator
 curl -s -N -X POST "$S/remote/deploy" -H 'Content-Type: application/json' \
   -d '{"replace_users":false}' 2>&1 | tail -3 | sed 's/^/  /'
@@ -167,17 +183,16 @@ grep -q admin_ide "$TGT_USERS" 2>/dev/null \
   && ko "gli utenti del progetto sono arrivati lo stesso" || ok "gli utenti del progetto non sono arrivati"
 
 echo "=== 6. progetto senza utenti, senza conferma → 428 e niente toccato ==="
-# Qui il dispositivo deve **dichiarare** i suoi utenti, quindi l'account si crea
-# dalla sua API (entra in memoria) e la sorgente si riconnette con quelle
-# credenziali: è la situazione vera di un pannello in servizio.
+# Qui il dispositivo deve **dichiarare** gli utenti del progetto, quindi
+# l'account si crea dalla sua API (entra in memoria): è la situazione vera di
+# un pannello in servizio.
 rm -f "$TGT_USERS"
-curl -s -X POST "$T/projects/impianto/open" >/dev/null; sleep 1
-curl -s -o /dev/null -w "  crea admin sul dispositivo: %{http_code}\n" -X POST "$T/auth/users" \
-  -H 'Content-Type: application/json' \
+curl -s "${AUT[@]}" -X POST "$T/projects/impianto/open" >/dev/null; sleep 1
+curl -s -o /dev/null -w "  crea admin nel progetto del dispositivo: %{http_code}\n" -X POST "$T/auth/users" \
+  "${AUT[@]}" -H 'Content-Type: application/json' \
   -d '{"username":"admin_dispositivo","password":"Segreta-12345","role":"Admin","must_change_password":false}'
-echo -n "  riconnessione con le credenziali del dispositivo: "
-curl -s -X POST "$S/remote/connect" -H 'Content-Type: application/json' \
-  -d "{\"url\":\"http://localhost:$TGT_PORT\",\"username\":\"admin_dispositivo\",\"password\":\"Segreta-12345\"}" | head -c 200; echo
+echo -n "  riconnessione: "
+curl -s -X POST "$S/remote/connect" -H 'Content-Type: application/json' -d "$CONNETTI" | head -c 200; echo
 # Il progetto della sorgente perde gli utenti: il bundle non avrà l'entry.
 rm -f "$SRC_USERS"
 COD=$(curl -s -o "$SCR/resp428.json" -w '%{http_code}' -X POST "$S/remote/deploy" \
@@ -189,15 +204,18 @@ grep -q admin_dispositivo "$SCR/resp428.json" && ok "l'elenco degli account che 
 grep -q admin_dispositivo "$TGT_USERS" 2>/dev/null \
   && ok "users.yaml del dispositivo immutato" || ko "users.yaml toccato malgrado il 428"
 
-echo "=== 7. con la conferma → gli account spariscono e il pannello resta aperto ==="
+echo "=== 7. con la conferma → gli account del progetto spariscono, il pannello resta protetto ==="
 curl -s -N -X POST "$S/remote/deploy" -H 'Content-Type: application/json' \
   -d '{"confirm_no_users":true}' 2>&1 | tail -4 | sed 's/^/  /'
 [ -f "$TGT_USERS" ] && ko "users.yaml ancora presente sul dispositivo" || ok "users.yaml rimosso dal dispositivo"
-SYS=$(curl -s "$T/system")
-echo "  /api/system: $(echo "$SYS" | tr ',' '\n' | grep -i auth_required)"
-echo "$SYS" | grep -q '"auth_required":false' \
-  && ok "il dispositivo dichiara di essere senza password (conseguenza accettata)" \
-  || ko "auth_required non è false: lo stato dichiarato non combacia"
+# Fino al 10-10-2026 qui si pretendeva auth_required:false, «conseguenza
+# accettata». Dall'11-10 l'Admin del dispositivo sta fuori dal progetto e un
+# deploy non se lo porta via: il pannello resta chiuso a chi non ha credenziali.
+COD=$(curl -s -o /dev/null -w '%{http_code}' "$T/auth/users")
+[ "$COD" = "401" ] && ok "senza credenziali il dispositivo risponde 401: non si è aperto" \
+  || ko "senza credenziali il dispositivo risponde $COD: togliere gli utenti del progetto l'ha aperto"
+accedi "$TGT_PORT" capo segretissima >/dev/null \
+  && ok "e il suo Admin entra ancora" || ko "l'Admin del dispositivo non entra più"
 
 echo
 [ "$ESITO" = 0 ] && echo "=== TUTTO VERDE ===" || echo "=== CI SONO ASSERZIONI ROSSE ==="

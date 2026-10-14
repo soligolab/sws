@@ -35,7 +35,7 @@ set -u
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BIN="$REPO/sws-runtime/target/debug/sws-runtime"
 SCR="${TMPDIR:-/tmp}/sws-check-no-admin"
-rm -rf "$SCR"; mkdir -p "$SCR"/{a,b}/{config,projects}
+rm -rf "$SCR"; mkdir -p "$SCR"/{a,b,c}/{config,projects}
 
 [ -x "$BIN" ] || { echo "manca $BIN — esegui: cargo build -p sws-runtime" >&2; exit 1; }
 
@@ -52,21 +52,30 @@ WWW="$REPO/sws-editor/dist"
 WWW_ARGS=()
 [ -f "$WWW/index-admin.html" ] && WWW_ARGS=(--www "$WWW")
 
+# Le due istanze del confronto girano con `--senza-autenticazione`: dall'11-10-2026
+# un pannello senza utenti è «da abbinare» e risponde 401 a tutto, anche a una
+# rotta che non esiste — e un 401 non distingue «c'è» da «non c'è». La terza
+# (sotto) è il pannello vero, senza il flag, per la sonda dell'abbinamento.
 "$BIN" --config "$SCR/a/config" --projects-root "$SCR/a/projects" \
-  --templates-root "$REPO/examples/templates" \
+  --templates-root "$REPO/examples/templates" --senza-autenticazione \
   --viewer-port 8596 --admin-port 8597 --no-admin \
   "${WWW_ARGS[@]}" > "$SCR/stretta.log" 2>&1 &
 PA=$!
 "$BIN" --config "$SCR/b/config" --projects-root "$SCR/b/projects" \
-  --templates-root "$REPO/examples/templates" \
+  --templates-root "$REPO/examples/templates" --senza-autenticazione \
   --viewer-port 8598 --admin-port 8599 \
   "${WWW_ARGS[@]}" > "$SCR/normale.log" 2>&1 &
 PB=$!
-trap 'kill -TERM "$PA" "$PB" 2>/dev/null' EXIT
+"$BIN" --config "$SCR/c/config" --projects-root "$SCR/c/projects" \
+  --templates-root "$REPO/examples/templates" \
+  --viewer-port 8594 --admin-port 8595 --no-admin > "$SCR/nuovo.log" 2>&1 &
+PC=$!
+trap 'kill -TERM "$PA" "$PB" "$PC" 2>/dev/null' EXIT
 
 for _ in $(seq 1 60); do
     curl -sf -o /dev/null "http://localhost:8597/health" \
-      && curl -sf -o /dev/null "http://localhost:8599/health" && break
+      && curl -sf -o /dev/null "http://localhost:8599/health" \
+      && curl -sf -o /dev/null "http://localhost:8595/health" && break
     sleep 0.5
 done
 
@@ -105,8 +114,11 @@ for r in "GET /api/build/packages" "GET /api/fs/browse-dirs" "PUT /api/project/t
     cn=$(codice "$m" 8599 "$u")
     if [ "$cn" = "404" ]; then
         esito no "$u dà 404 anche sull'istanza normale: percorso sbagliato, prova inutile"
-    elif [ "$cs" = "404" ]; then
-        esito ok "$u assente sulla stretta (normale: $cn)"
+    elif [ "$cs" = "404" ] || [ "$cs" = "405" ]; then
+        # 405: dall'08-10-2026 c'è `DELETE /api/projects/:azienda/:nome`, quindi
+        # `POST /api/projects/pippo/duplicate` combacia col percorso ma con un
+        # altro metodo. Nessun gestore per questo metodo: assente lo stesso.
+        esito ok "$u assente sulla stretta ($cs; normale: $cn)"
     else
         esito no "$u è RAGGIUNGIBILE sulla stretta ($cs): l'IDE è rientrato"
     fi
@@ -190,6 +202,26 @@ else
     cn=$(codice GET 8599 "$SONDA")
     [ "$cn" != "404" ] && esito ok "e c'è anche sul router completo ($cn)" \
                        || esito no "la sonda $SONDA non esiste sul router completo: l'editor collegato a un PC di sviluppo non la troverebbe"
+fi
+
+echo "=== 2e. un pannello nuovo, in stretta, si fa abbinare dall'editor (11-10-2026) ==="
+# Il pannello appena installato non ha utenti e non lascia entrare nessuno:
+# l'editor lo riconosce con `stato_abbinamento` (remote.rs) e chiede il
+# codice. Come per 2d la rotta si legge dal sorgente, e si prova sull'istanza
+# senza `--senza-autenticazione`: è l'unica in cui il pannello è in attesa.
+SONDA_AB=$(sed -n '/async fn stato_abbinamento/,/^}/p' "$REPO/sws-runtime/crates/sws-web/src/remote.rs" \
+        | grep -o '{url}/[A-Za-z0-9/_-]*' | head -1 | sed 's/{url}//')
+if [ -z "$SONDA_AB" ]; then
+    esito no "non trovo quale rotta sonda `stato_abbinamento` in remote.rs: la guardia non sta verificando niente"
+else
+    if curl -s -m 5 "http://localhost:8595$SONDA_AB" | grep -q '"in_attesa":true'; then
+        esito ok "la sonda $SONDA_AB passa senza token e dichiara in_attesa:true"
+    else
+        esito no "la sonda $SONDA_AB non dichiara in_attesa:true sul pannello nuovo: l'editor non chiederà il codice"
+    fi
+    c=$(codice GET 8595 /api/projects)
+    [ "$c" = "401" ] && esito ok "e intanto non entra nessuno (/api/projects → 401)" \
+                     || esito no "il pannello nuovo risponde $c su /api/projects: è aperto"
 fi
 
 echo "=== 3. la SPA dell'IDE non viene servita ==="

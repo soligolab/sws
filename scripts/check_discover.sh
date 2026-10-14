@@ -58,7 +58,7 @@ caso() {
     # annuncia affatto, e il test passerebbe per il motivo sbagliato.
     "$BIN" --config "$WORK/$label/config" --projects-root "$WORK/$label/projects" \
         --templates-root "$REPO/examples/templates" \
-        --viewer-port "$vp" --admin-port "$ap" > "$WORK/$label.log" 2>&1 &
+        --viewer-port "$vp" --senza-autenticazione --admin-port "$ap" > "$WORK/$label.log" 2>&1 &
     echo $! > "$WORK/$label.pid"
 
     for _ in $(seq 1 40); do

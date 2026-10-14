@@ -28,7 +28,7 @@ SCR="${TMPDIR:-/tmp}/sws-check-target"
 PORT=8577
 rm -rf "$SCR"; mkdir -p "$SCR"/{config,projects}
 "$BIN" --config "$SCR/config" --projects-root "$SCR/projects" \
-  --templates-root "$REPO/examples/templates" --admin-port "$PORT" --viewer-port 8578 > "$SCR/log" 2>&1 &
+  --templates-root "$REPO/examples/templates" --senza-autenticazione --admin-port "$PORT" --viewer-port 8578 > "$SCR/log" 2>&1 &
 PID=$!
 trap 'kill -TERM "$PID" 2>/dev/null' EXIT
 sleep 8

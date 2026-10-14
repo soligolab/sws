@@ -36,7 +36,7 @@ if [[ "$(command -v python3)" == *".pyenv/shims"* ]]; then
 fi
 
 "$BIN" --config "$SCR/config" --projects-root "$SCR/projects" \
-  --templates-root "$REPO/examples/templates" --admin-port "$PORT" > "$SCR/rt.log" 2>&1 &
+  --templates-root "$REPO/examples/templates" --senza-autenticazione --admin-port "$PORT" > "$SCR/rt.log" 2>&1 &
 P=$!; trap 'kill -TERM "$P" 2>/dev/null' EXIT
 for _ in $(seq 1 40); do curl -sf -o /dev/null "http://localhost:$PORT/health" && break; sleep 0.5; done
 # Se non risponde, si ferma qui dicendo perche'. Una guardia che prosegue con un
@@ -161,7 +161,7 @@ PORT2=8582
 mkdir -p "$SCR/config2"
 prima5=$(sha256sum "$SCR/projects/p2/project.yaml" | cut -d' ' -f1)
 "$BIN" --config "$SCR/config2" --projects-root "$SCR/projects" \
-  --templates-root "$REPO/examples/templates" --admin-port "$PORT2" \
+  --templates-root "$REPO/examples/templates" --senza-autenticazione --admin-port "$PORT2" \
   --project "$SCR/projects/p2" > "$SCR/rt2.log" 2>&1 &
 P2=$!; trap 'kill -TERM "$P" "$P2" 2>/dev/null' EXIT
 for _ in $(seq 1 40); do curl -sf -o /dev/null "http://localhost:$PORT2/health" && break; sleep 0.5; done

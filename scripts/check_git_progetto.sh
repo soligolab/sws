@@ -68,7 +68,7 @@ scrivi_progetto 20; g commit -q -am "secondo"
 g config user.name Prova; g config user.email prova@sws.test
 
 "$BIN" --config "$WORK/config" --projects-root "$WORK/projects" \
-  --templates-root "$REPO/examples/templates" --admin-port "$APORT" \
+  --templates-root "$REPO/examples/templates" --senza-autenticazione --admin-port "$APORT" \
   --project "$P" > "$WORK/rt.log" 2>&1 &
 echo $! > "$WORK/rt.pid"
 for _ in $(seq 1 60); do curl -sf -o /dev/null "http://localhost:$APORT/health" && break; sleep 0.5; done

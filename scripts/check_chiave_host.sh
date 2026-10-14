@@ -119,7 +119,7 @@ fi
 # guardia tocchi il file vero di chi la lancia.
 HOME="$WORK" "$BIN" --config "$WORK/config" --projects-root "$WORK/projects" \
   --templates-root "$REPO/examples/templates" --www "$REPO/sws-editor/dist" \
-  --admin-port "$APORT" > "$WORK/rt.log" 2>&1 &
+  --senza-autenticazione --admin-port "$APORT" > "$WORK/rt.log" 2>&1 &
 echo $! > "$WORK/rt.pid"
 for _ in $(seq 1 60); do curl -sf -o /dev/null "http://localhost:$APORT/health" && break; sleep 0.5; done
 

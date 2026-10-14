@@ -50,7 +50,6 @@ cleanup() {
 }
 trap cleanup EXIT
 
-SWS_ADMIN_USER=admin SWS_ADMIN_PASSWORD=admin \
 "$BIN" --config "$WORK/config" --projects-root "$WORK/projects" \
   --templates-root "$REPO/examples/templates" --www "$DIST" \
   --viewer-port "$VPORT" --admin-port "$APORT" > "$WORK/rt.log" 2>&1 &
@@ -62,17 +61,25 @@ for _ in $(seq 1 40); do
 done
 
 API="http://localhost:$APORT/api"
+# Dall'11-10-2026 un pannello senza utenti è «da abbinare» e non lascia entrare
+# nessuno: l'Admin nasce dal codice di abbinamento, com'è sul campo (prima lo
+# seminava SWS_ADMIN_* all'apertura del progetto). La password ha almeno 8
+# caratteri, e la stessa la ricevono i test che fanno login.
+E2E_PASSWORD="admin-e2e-1234"
+. "$REPO/scripts/accesso_guardie.sh"
+TOKEN=$(abbina_pannello "$APORT" "$WORK/config" admin "$E2E_PASSWORD") || exit 1
+AUT=(-H "Authorization: Bearer $TOKEN")
 # Un progetto con contenuto: i test cliccano su oggetti del canvas, e su un
 # progetto vuoto fallirebbero per assenza di bersagli, non per una regressione.
-curl -sf -X POST "$API/projects" -H 'Content-Type: application/json' \
+curl -sf "${AUT[@]}" -X POST "$API/projects" -H 'Content-Type: application/json' \
   -d '{"name":"e2e","template":"demo-items-web"}' > /dev/null
 
-curl -sf -X POST "$API/projects/e2e/open" > /dev/null
+curl -sf "${AUT[@]}" -X POST "$API/projects/e2e/open" > /dev/null
 
 echo "== suite e2e (progetto Playwright: $PROJECT) =="
 cd "$REPO/sws-editor"
 SWS_E2E_ADMIN="http://localhost:$APORT" \
 SWS_E2E_VIEWER="http://localhost:$VPORT" \
 SWS_E2E_BASE_URL="http://localhost:$APORT" \
-SWS_ADMIN_USER=admin SWS_ADMIN_PASSWORD=admin \
+SWS_ADMIN_USER=admin SWS_ADMIN_PASSWORD="$E2E_PASSWORD" \
   pnpm exec playwright test --project="$PROJECT" "$@"

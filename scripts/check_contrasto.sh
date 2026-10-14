@@ -50,7 +50,7 @@ mkdir -p "$WORK"/{config,projects}
 trap '[ -f "$WORK/rt.pid" ] && kill "$(cat "$WORK/rt.pid")" 2>/dev/null; rm -rf "$WORK"' EXIT
 
 "$BIN" --config "$WORK/config" --projects-root "$WORK/projects" \
-  --templates-root "examples/templates" --www "$DIST" --admin-port "$AP" > "$WORK/rt.log" 2>&1 &
+  --templates-root "examples/templates" --www "$DIST" --senza-autenticazione --admin-port "$AP" > "$WORK/rt.log" 2>&1 &
 echo $! > "$WORK/rt.pid"
 su=0
 for _ in $(seq 1 40); do curl -sf -o /dev/null "http://localhost:$AP/health" && { su=1; break; }; sleep 0.5; done

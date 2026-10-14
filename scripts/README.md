@@ -239,6 +239,15 @@ che del lavoro vero **non** venga resettato.
 > (`--solo-stack` per le sole con stack): dura minuti, non secondi, e gli elenchi li legge da
 > `check_static.sh` invece di copiarli.
 
+**Come entra una guardia nel runtime che alza.** Dal 06-10-2026 l'IDE chiede le credenziali,
+dall'11-10-2026 un pannello senza utenti è «da abbinare» e risponde 401 a tutto. Il 14-10-2026
+erano rosse per questo 31 guardie su 33. Le regole da allora:
+
+- una guardia che **non** prova l'autenticazione passa `--senza-autenticazione` al runtime;
+- una che la prova non può (il flag spegne anche gli utenti che vuole vedere al lavoro): include
+  `scripts/accesso_guardie.sh` ed entra come una persona, con `primo_amministratore_ide` (il
+  codice di primo accesso dal log) o `abbina_pannello` (il codice di `abbinamento.json`).
+
 ## `check_static.sh` — le guardie che girano su file fermi
 
 Una parte gira su file fermi (YAML, sorgenti, tabelle, unit systemd, e un repo

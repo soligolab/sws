@@ -24,7 +24,12 @@ WORK="${TMPDIR:-/tmp}/sws-allarmi-ricarica.$$"
 AP="${APORT:-8692}"
 VP="${VPORT:-8693}"
 [ -x "$BIN" ] || { echo "manca $BIN — esegui: cargo build -p sws-runtime" >&2; exit 1; }
-command -v sqlite3 >/dev/null || { echo "manca sqlite3" >&2; exit 1; }
+# Senza la CLI di sqlite3 si legge con il modulo di python3, che le guardie
+# richiedono comunque: stesse righe, colonne separate da «|».
+command -v sqlite3 >/dev/null || sqlite3() {
+  python3 -c 'import sqlite3, sys
+for r in sqlite3.connect(sys.argv[1]).execute(sys.argv[2]): print("|".join(map(str, r)))' "$1" "$2"
+}
 
 mkdir -p "$WORK"/{config,projects/ricarica}
 trap '[ -f "$WORK/rt.pid" ] && kill "$(cat "$WORK/rt.pid")" 2>/dev/null; rm -rf "$WORK"' EXIT
@@ -47,7 +52,7 @@ datastores:
 YAML
 
 "$BIN" --config "$WORK/config" --projects-root "$WORK/projects" \
-  --templates-root "examples/templates" --admin-port "$AP" --viewer-port "$VP" \
+  --templates-root "examples/templates" --senza-autenticazione --admin-port "$AP" --viewer-port "$VP" \
   --project "$WORK/projects/ricarica" > "$WORK/rt.log" 2>&1 &
 echo $! > "$WORK/rt.pid"
 for _ in $(seq 1 60); do curl -sf -o /dev/null "http://localhost:$AP/health" && break; sleep 0.5; done

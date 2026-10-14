@@ -13,7 +13,7 @@ PORT=8577
 rm -rf "$SCR"; mkdir -p "$SCR"/{config,projects}
 
 "$BIN" --config "$SCR/config" --projects-root "$SCR/projects" \
-  --templates-root "$REPO/examples/templates" --admin-port "$PORT" > "$SCR/rt.log" 2>&1 &
+  --templates-root "$REPO/examples/templates" --senza-autenticazione --admin-port "$PORT" > "$SCR/rt.log" 2>&1 &
 P=$!; trap 'kill -TERM "$P" 2>/dev/null' EXIT
 sleep 7
 API="http://localhost:$PORT/api"

@@ -28,7 +28,12 @@ WORK="${TMPDIR:-/tmp}/sws-ide-quieto.$$"
 AP="${APORT:-8690}"
 VP="${VPORT:-8691}"
 [ -x "$BIN" ] || { echo "manca $BIN — esegui: cargo build -p sws-runtime" >&2; exit 1; }
-command -v sqlite3 >/dev/null || { echo "manca sqlite3" >&2; exit 1; }
+# Senza la CLI di sqlite3 si legge con il modulo di python3, che le guardie
+# richiedono comunque: stesse righe, colonne separate da «|».
+command -v sqlite3 >/dev/null || sqlite3() {
+  python3 -c 'import sqlite3, sys
+for r in sqlite3.connect(sys.argv[1]).execute(sys.argv[2]): print("|".join(map(str, r)))' "$1" "$2"
+}
 
 PID=""
 cleanup() { [ -n "$PID" ] && kill "$PID" 2>/dev/null; rm -rf "$WORK"; }
@@ -71,7 +76,7 @@ giro() {
   local extra=()
   [ "$modo" = "dispositivo" ] && extra=(--viewer-port "$VP")
   "$BIN" --config "$dir/config" --projects-root "$dir/projects" \
-    --templates-root "examples/templates" --admin-port "$AP" "${extra[@]}" \
+    --templates-root "examples/templates" --senza-autenticazione --admin-port "$AP" "${extra[@]}" \
     --project "$dir/projects/quieto" > "$dir/rt.log" 2>&1 &
   PID=$!
   for _ in $(seq 1 60); do curl -sf -o /dev/null "http://localhost:$AP/health" && break; sleep 0.5; done

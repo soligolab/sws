@@ -43,7 +43,7 @@ trap cleanup EXIT
 # IDE-only (nessun --viewer-port): qui interessa l'editor.
 "$BIN" --config "$WORK/config" --projects-root "$WORK/projects" \
   --templates-root "$REPO/examples/templates" --www "$DIST" \
-  --admin-port "$APORT" > "$WORK/rt.log" 2>&1 &
+  --senza-autenticazione --admin-port "$APORT" > "$WORK/rt.log" 2>&1 &
 echo $! > "$WORK/rt.pid"
 
 su=0

@@ -82,6 +82,17 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **L'istantanea dell'assistente fotografa di nuovo la pagina.** Dall'11-10 il suo banco di prova era un
+  pannello senza utenti, quindi «da abbinare»: il viewer fotografava il codice di abbinamento, a 800×480,
+  qualunque progetto si chiedesse. Ora il banco nasce con un account che nessuno può usare (password
+  casuale, non conservata), e il viewer legge la pagina come su un pannello abbinato.
+  `check_istantanea.sh` era rosso per questo.
+
+- **31 guardie con lo stack su 33 erano rosse**, sempre per l'autenticazione: l'IDE la chiede dal 06-10,
+  un pannello senza utenti aspetta l'abbinamento dall'11-10. Quelle che non la provano passano
+  `--senza-autenticazione`; le sette che la provano entrano come una persona, con il nuovo
+  `scripts/accesso_guardie.sh`. Resta rosso `check_e2e` (4 test su 6): sono le spec da aggiornare.
+
 - **Il lampeggio di una voce di `symbol_states` ora c'è anche sul pannello** (`img_opa`, 800 ms, come il
   web). Prima `TextListEntry` del viewer non aveva il campo `blink`.
 

@@ -12,14 +12,19 @@
 # l'IDE non ammette. Rotto era il punto in cui i pezzi si incontrano — ed è
 # l'unico posto che nessun test unitario guardava.
 #
-# Questa guardia prova la catena intera su **due runtime veri**, perché la
-# correzione è asimmetrica e una regola sola non basta:
+# Questa guardia prova la catena intera su **due runtime veri**:
 #
-#   - su un IDE (`--admin-port` senza `--viewer-port`) gli utenti governano il
-#     dispositivo, non l'editor: creare un Operator non deve chiudere niente;
-#   - su un dispositivo (`--viewer-port` presente) l'autenticazione si accende
-#     davvero, quindi il primo account dev'essere un Admin o il pannello nasce
-#     senza nessuno in grado di amministrarlo.
+#   - su un IDE (`--admin-port` senza `--viewer-port`) gli utenti del progetto
+#     governano il dispositivo, non l'editor: creare un Operator non deve
+#     chiudere niente. Dal 06-10-2026 all'IDE si entra con le credenziali
+#     dell'installazione, e sono quelle che devono continuare a funzionare;
+#   - su un dispositivo (`--viewer-port` presente) dall'11-10-2026 il primo
+#     account non si crea più dall'API: un pannello senza utenti è «da
+#     abbinare», non lascia entrare nessuno, e il primo account (un Admin del
+#     dispositivo) nasce dal codice di abbinamento. La regola «il primo utente
+#     di un dispositivo dev'essere un Admin» (409, `primo_utente_non_amministratore`)
+#     resta nel codice e nei test di `router.rs`, ma da qui non si raggiunge più:
+#     quando un utente si può creare, l'Admin c'è già.
 #
 # Uso:  ./scripts/check_primo_utente.sh
 set -u
@@ -49,26 +54,29 @@ ESITO=0
 ok() { echo "  ✓ $1"; }
 ko() { echo "  ✗ $1"; ESITO=1; }
 
-prepara() { # $1 = porta
-  curl -s -X POST "http://localhost:$1/api/projects" \
+. "$REPO/scripts/accesso_guardie.sh"
+
+prepara() { # $1 = porta, $2 = token
+  curl -s -X POST "http://localhost:$1/api/projects" -H "Authorization: Bearer $2" \
     -H 'Content-Type: application/json' -d '{"name":"prova"}' >/dev/null
-  curl -s -X POST "http://localhost:$1/api/projects/prova/open" >/dev/null
+  curl -s -X POST "http://localhost:$1/api/projects/prova/open" -H "Authorization: Bearer $2" >/dev/null
   sleep 1
 }
-crea() { # $1 = porta, $2 = utente, $3 = ruolo → stampa il codice HTTP
+crea() { # $1 = porta, $2 = utente, $3 = ruolo, $4 = token (facoltativo) → codice HTTP
   curl -s -o /dev/null -w '%{http_code}' -X POST "http://localhost:$1/api/auth/users" \
-    -H 'Content-Type: application/json' \
+    ${4:+-H "Authorization: Bearer $4"} -H 'Content-Type: application/json' \
     -d "{\"username\":\"$2\",\"password\":\"segretissima\",\"role\":\"$3\"}"
 }
-elenca() { # $1 = porta → codice HTTP di una GET **senza token**
-  curl -s -o /dev/null -w '%{http_code}' "http://localhost:$1/api/auth/users"
+elenca() { # $1 = porta, $2 = token (facoltativo) → codice HTTP di una GET
+  curl -s -o /dev/null -w '%{http_code}' ${2:+-H "Authorization: Bearer $2"} \
+    "http://localhost:$1/api/auth/users"
 }
 
-prepara "$PORT_IDE"
-prepara "$PORT_DEV"
+TOK_IDE=$(primo_amministratore_ide "$PORT_IDE" "$SCR/log-ide") || ko "IDE: niente primo amministratore"
+prepara "$PORT_IDE" "$TOK_IDE"
 
-echo "=== 1. IDE: il primo utente è un Operator, e va bene ==="
-COD=$(crea "$PORT_IDE" user Operator)
+echo "=== 1. IDE: il primo utente del progetto è un Operator, e va bene ==="
+COD=$(crea "$PORT_IDE" user Operator "$TOK_IDE")
 [ "$COD" = "201" ] && ok "POST /api/auth/users → 201" || ko "atteso 201, ricevuto $COD"
 [ -f "$SCR/ide/projects/prova/users.yaml" ] && ok "users.yaml scritto: viaggerà col deploy" \
   || ko "users.yaml non è stato scritto"
@@ -77,28 +85,27 @@ echo "=== 2. IDE: e la richiesta SUCCESSIVA continua a funzionare ==="
 # È il punto del guasto. Prima del 14-09-2026 qui si otteneva 401, l'editor
 # mostrava «Sessione scaduta», e il progetto diventava irraggiungibile perché
 # l'unico account era un Operator — che l'IDE non ammette.
-COD=$(elenca "$PORT_IDE")
-[ "$COD" = "200" ] && ok "GET /api/auth/users senza token → 200: l'IDE non si è chiuso fuori" \
+COD=$(elenca "$PORT_IDE" "$TOK_IDE")
+[ "$COD" = "200" ] && ok "GET /api/auth/users con la sessione dell'IDE → 200: l'IDE non si è chiuso fuori" \
   || ko "ricevuto $COD: l'IDE si è chiuso fuori da solo"
 
-echo "=== 3. Dispositivo: un primo utente non-Admin è rifiutato ==="
-COD=$(crea "$PORT_DEV" user Operator)
-[ "$COD" = "409" ] && ok "POST con ruolo Operator → 409" || ko "atteso 409, ricevuto $COD"
-[ ! -f "$SCR/dev/projects/prova/users.yaml" ] \
-  && ok "e non ha scritto users.yaml: il rifiuto è davvero un rifiuto" \
-  || ko "users.yaml è stato scritto lo stesso"
+echo "=== 3. Dispositivo nuovo: in attesa di abbinamento, non entra nessuno ==="
 COD=$(elenca "$PORT_DEV")
-[ "$COD" = "200" ] && ok "il dispositivo è ancora aperto, come prima del tentativo" \
-  || ko "ricevuto $COD: il tentativo rifiutato ha comunque acceso l'autenticazione"
+[ "$COD" = "401" ] && ok "GET senza token → 401" || ko "ricevuto $COD: un pannello senza utenti è aperto"
+COD=$(crea "$PORT_DEV" user Operator)
+[ "$COD" = "401" ] && ok "e il primo utente non si crea dall'API (401)" || ko "ricevuto $COD"
 
-echo "=== 4. Dispositivo: con un Admin si può, e da lì in poi si entra col login ==="
-COD=$(crea "$PORT_DEV" capo Admin)
-[ "$COD" = "201" ] && ok "POST con ruolo Admin → 201" || ko "atteso 201, ricevuto $COD"
+echo "=== 4. Dispositivo: abbinato, nasce l'Admin e da lì in poi si entra col login ==="
+TOK_DEV=$(abbina_pannello "$PORT_DEV" "$SCR/dev/config" capo segretissima) \
+  && ok "abbinamento col codice: nato l'Admin del dispositivo" || ko "abbinamento rifiutato"
+prepara "$PORT_DEV" "$TOK_DEV"
+COD=$(crea "$PORT_DEV" user Operator "$TOK_DEV")
+[ "$COD" = "201" ] && ok "con la sua sessione si crea un Operator → 201" || ko "atteso 201, ricevuto $COD"
 COD=$(elenca "$PORT_DEV")
 [ "$COD" = "401" ] && ok "GET senza token → 401: sul dispositivo l'autenticazione è accesa" \
   || ko "ricevuto $COD: il dispositivo non chiede il login"
-COD=$(crea "$PORT_DEV" user Operator)
-[ "$COD" = "401" ] && ok "e ora anche creare utenti vuole un token" || ko "ricevuto $COD"
+COD=$(crea "$PORT_DEV" altro Operator)
+[ "$COD" = "401" ] && ok "e creare utenti senza token resta vietato" || ko "ricevuto $COD"
 
 echo
 [ "$ESITO" = 0 ] \

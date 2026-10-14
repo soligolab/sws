@@ -106,6 +106,7 @@ pub async fn scatta(r: Richiesta) -> Result<Scatto, String> {
     copia_progetto(&r.progetto, &copia).await?;
 
     let porta = porta_libera()?;
+    abbina_banco(&tmp.path().join("config"))?;
 
     // `kill_on_drop`: qualunque cosa vada storta sotto, il runtime di prova
     // muore con questa funzione. Senza, un errore a metà lascerebbe un processo
@@ -312,6 +313,31 @@ async fn copia_progetto(da: &Path, a: &Path) -> Result<(), String> {
         .await
         .map_err(|e| format!("non riesco a scrivere la copia sterilizzata: {e}"))?;
     Ok(())
+}
+
+/// Dà al banco di prova un account che nessuno può usare.
+///
+/// Dall'11-10-2026 un pannello senza utenti è «da abbinare» e non lascia
+/// leggere niente: il viewer fotografava il codice di abbinamento al posto
+/// della pagina. La copia non porta `users.yaml`, quindi il banco nasceva
+/// sempre così, qualunque progetto si fotografasse.
+///
+/// Con un Admin del dispositivo il banco è un pannello abbinato, e il viewer
+/// legge la pagina come la legge sul campo. La password è casuale e non si
+/// conserva da nessuna parte. Non `--senza-autenticazione`: su una macchina
+/// raggiungibile da Internet (il cloud) il runtime la rifiuta, e a ragione.
+fn abbina_banco(config: &Path) -> Result<(), String> {
+    let password = crate::abbinamento::genera_codice()
+        .map_err(|e| format!("banco di prova: nessuna password casuale: {e}"))?;
+    let hash = sws_auth::hash_password(&password)
+        .map_err(|e| format!("banco di prova: hash della password: {e}"))?;
+    let file = serde_json::json!({
+        "users": [{ "username": "banco-di-prova", "password_hash": hash, "role": "Viewer" }]
+    });
+    let testo = serde_yaml::to_string(&file).map_err(|e| format!("banco di prova: {e}"))?;
+    std::fs::create_dir_all(config)
+        .and_then(|_| std::fs::write(config.join("utenti_dispositivo.yaml"), testo))
+        .map_err(|e| format!("banco di prova: non riesco a scrivere l'account: {e}"))
 }
 
 /// Toglie dal progetto del banco di prova tutto ciò che **toccherebbe il
