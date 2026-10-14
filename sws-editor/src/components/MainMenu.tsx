@@ -1,10 +1,11 @@
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api } from "@/api/client";
+import { api, dimenticaVersioneProgetto } from "@/api/client";
+import { prefissoGateway } from "@/api/prefisso";
 import { canConfigureProject } from "@/auth/permissions";
 import { DROP_ITEM, DROP_PANEL, DROP_SEP, HDR_BTN, useOutsideClose } from "@/components/headerStyles";
 import { pickInitialPageId } from "@/pageLayout";
-import { useAppStore } from "@/store";
+import { selectIsDirty, useAppStore } from "@/store";
 
 /**
  * The ☰ menu: project-level commands plus everything that is set once and
@@ -45,6 +46,7 @@ export function MainMenu({
   const ultimiTagCreati       = useAppStore((s) => s.ultimiTagCreati);
   const saveAll               = useAppStore((s) => s.saveAll);
   const project                = useAppStore((s) => s.project);
+  const dirty                 = useAppStore(selectIsDirty);
   const setProject            = useAppStore((s) => s.setProject);
   const setPages              = useAppStore((s) => s.setPages);
   const fileInputRef          = useRef<HTMLInputElement>(null);
@@ -55,6 +57,7 @@ export function MainMenu({
   const [includiSegreti, setIncludiSegreti] = useState(false);
   const [rebooting, setRebooting] = useState(false);
   const [renaming, setRenaming] = useState(false);
+  const [salvandoCome, setSalvandoCome] = useState(false);
 
   useOutsideClose(ref, open, () => setOpen(false));
 
@@ -93,6 +96,49 @@ export function MainMenu({
       setIoStat(t("menu.imported", { file: file.name, count: tagCount }));
     } catch (e: any) { setIoStat(`${t("header.error")}: ${e?.message ?? e}`); }
     finally { setIoBusy(null); setTimeout(() => setIoStat(null), 6000); }
+  };
+
+  /** «Salva come»: una copia con un nome nuovo, e ci si continua a lavorare.
+   *
+   *  Il duplicato esisteva gia' — nell'elenco dei progetti, col pulsante ⧉ —
+   *  ma da dentro l'editor non c'era modo di dire «questo, ma con un altro
+   *  nome» (segnalato dal maintainer il 12-10-2026). La rotta e' la stessa;
+   *  qui cambia dove si va dopo.
+   *
+   *  Le modifiche non salvate **non** finiscono nella copia: si duplica quello
+   *  che c'e' sul disco. Si avvisa prima invece di copiarlo a meta', perche'
+   *  una copia che non e' ne' il prima ne' il dopo e' la piu' difficile da
+   *  riconoscere piu' tardi. */
+  const handleSalvaCome = async () => {
+    const currentName = project?.meta.name ?? "";
+    if (dirty && !window.confirm(t("menu.salvaComeNonSalvato"))) return;
+    const nuovo = window.prompt(t("menu.salvaComePrompt"), `${currentName} (copia)`)?.trim();
+    if (!nuovo || nuovo === currentName) return;
+    setSalvandoCome(true); setIoStat(null);
+    try {
+      // Lo stesso motivo della rinomina: l'indirizzo del progetto aperto lo sa
+      // il server, non noi. Un nome nudo varrebbe «azienda implicita», e su un
+      // progetto in una cartella d'azienda sarebbe un 404.
+      const stato = await api.getSystemStatus();
+      const rif = stato.active_project_riferimento ?? `-/${currentName}`;
+      const azienda = rif.split("/")[0];
+      await api.duplicateProject(rif, nuovo);
+      // Si va sulla copia: «salva come» vuol dire che da adesso lavori li'.
+      const rifNuovo = `${azienda}/${nuovo}`;
+      if (prefissoGateway()) {
+        // Nel cloud ogni progetto e' un container suo: aprirlo e' andarci.
+        window.location.assign(`/p/${rifNuovo}/`);
+        return;
+      }
+      await api.openProject(rifNuovo);
+      dimenticaVersioneProgetto();
+      window.location.reload();
+    } catch (e: any) {
+      setIoStat(`${t("header.error")}: ${e?.message ?? e}`);
+      setTimeout(() => setIoStat(null), 6000);
+    } finally {
+      setSalvandoCome(false);
+    }
   };
 
   const handleRename = async () => {
@@ -202,6 +248,16 @@ export function MainMenu({
               onClick={() => { void handleRename(); setOpen(false); }}
             >
               {t("menu.renameProject")}
+            </button>
+          )}
+          {canConfigureProject(authRole) && (
+            <button
+              style={{ ...DROP_ITEM, opacity: salvandoCome ? 0.6 : 1 }}
+              disabled={salvandoCome}
+              onClick={() => { void handleSalvaCome(); setOpen(false); }}
+              title={t("menu.salvaComeTitle")}
+            >
+              {t("menu.salvaCome")}
             </button>
           )}
           <div style={DROP_SEP} />

@@ -12,6 +12,52 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
+## ▶ Riprendere da qui — collaudo del WP630 da zero, e i difetti che ha fatto uscire (2026-10-12/14)
+
+Su `main`: tre squash del 12-10 (`9953836e` ritocchi dell'interfaccia, `7c104d6c` dipendenze morte,
+`ec700541` versione 2.13.0-rc.2) più questo giro.
+
+**L'aggiornamento del pannello funziona, provato sul WP630**: installazione da zero dopo un factory
+reset, abbinamento col codice, poi l'IDE ha proposto la rc.2 e il maintainer l'ha approvata da lì.
+Non provato il **pilota automatico** (la finestra in `aggiornamento.yaml`): lì l'aggiornamento parte
+senza che nessuno prema niente, ed è un'altra strada.
+
+> **Il pannello confronta i numeri di versione, non le immagini.** Pubblicare codice nuovo sotto la
+> stessa versione lascia il pannello a dire «sei aggiornato» — con ragione. Ogni giro che si vuole
+> veder arrivare su un dispositivo vuole una `-rc` in più.
+
+### I difetti del cloud, tutti della stessa famiglia
+
+Una richiesta che **va al container ma riguarda il gateway**. Il container di un progetto ha
+montata solo la cartella di quel progetto: radice dei progetti vuota, nessun registro, nessun
+archivio delle identità.
+
+| cosa succedeva | adesso |
+|---|---|
+| chiudere il progetto lasciava il container **acceso e vuoto**, e chi rientrava trovava «nessun progetto» | nel cloud non si chiude; il server rifiuta con 409 se qualcun altro ci prova |
+| il logout non invalidava la sessione **sul gateway** | il logout va alla radice |
+| rinomina e duplica chiedevano a chi non sa niente dell'insieme | le rotte dell'insieme vanno al gateway; `open`/`close` restano al container |
+
+Guardia nuova `check_container_non_si_svuota`: controlla i due lati **e l'ordine delle due righe**
+in `App.tsx` — cioè l'errore che la prima correzione aveva fatto, chiudendo e *poi* guardando se
+era il cloud.
+
+### Da sapere per la prossima volta
+
+**Un container di progetto in uno stato sbagliato non si aggiusta riavviando il gateway: si
+butta.** All'avvio il gateway fa `riadotta`, che riprende i container vivi *così come sono* — e si
+è ripreso anche quello vuoto. Si rimuove il container (i dati stanno nel bind mount) e lo si lascia
+ricreare alla prima richiesta.
+
+### Il prossimo passo
+
+1. **Immagini rc.3** (amd64 per il VPS, arm64 per i pannelli) con le correzioni di questo giro:
+   senza, su `sws.soligo.net` gira ancora la rc.2 e queste cose non si vedono.
+2. Collaudo a schermo di: chiusura e logout dal cloud, elenco raggruppato per tecnologia e
+   risoluzione, «Salva come…», e il chip «auto» col pannello proprietà stretto al minimo.
+3. Poi il **P0 del CRA** (contatti in `SECURITY.md`, `security.txt`, procedura art. 14), che non
+   chiede nessun dispositivo.
+
 ## ▶ Riprendere da qui — chiusura del 10/11-10: abbinamento, certificati, colore e assegnazioni (2026-10-12)
 
 - Su `main` e pushati: verifica pubblica dei certificati (`9a76a732`), abbinamento del pannello A–E (`d9c6418e`),

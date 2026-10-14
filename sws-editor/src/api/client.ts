@@ -676,6 +676,32 @@ export function dimenticaVersioneProgetto() {
  *  un modale di riautenticazione che non c'entra. */
 const PARLA_CON_UN_ALTRO_RUNTIME = (path: string) => path.startsWith("/api/remote/");
 
+/** Le rotte che riguardano l'**insieme** dei progetti, non il progetto aperto.
+ *
+ *  Dentro il cloud l'IDE e' servito dal container di **un** progetto, che ha
+ *  montata solo la sua cartella: la sua radice dei progetti e' vuota, e non ha
+ *  nessun registro. Rinominare o duplicare da li' vorrebbe dire chiedere a chi
+ *  non sa niente dell'insieme — e il 12-10-2026 «Salva come» sarebbe nato gia'
+ *  rotto nel cloud. Queste vanno al **gateway**, cioe' alla radice del sito,
+ *  scavalcando il prefisso.
+ *
+ *  La regola si legge cosi': cosa c'e' **dentro** un progetto lo sa il
+ *  container; chi sono **tutti** i progetti lo sa il gateway. */
+export const sullInsiemeDeiProgetti = (path: string) => {
+  if (!/^\/api\/projects(\/|$)/.test(path)) return false;
+  // `open` e `close` fanno eccezione: non riguardano l'insieme ma il progetto
+  // **attivo** di chi serve questa pagina, che nel cloud e' il container. Nel
+  // cloud aprire un progetto e' per di piu' una navigazione, non una chiamata.
+  return !/\/(open|close)$/.test(path);
+};
+
+/** La base a cui mandare una richiesta: il prefisso del progetto, o la radice
+ *  per le rotte dell'insieme quando siamo nel cloud. */
+function baseDi(path: string): string {
+  if (prefissoGateway() && sullInsiemeDeiProgetti(path)) return "";
+  return getBaseUrl();
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   if (TOKEN) headers.set("Authorization", `Bearer ${TOKEN}`);
@@ -693,7 +719,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
   let res: Response;
   try {
-    res = await fetch(`${getBaseUrl()}${path}`, { ...init, headers });
+    res = await fetch(`${baseDi(path)}${path}`, { ...init, headers });
   } catch {
     // Network error (ECONNREFUSED, DNS failure, …) — runtime is not reachable.
     throw new RuntimeUnavailableError();
@@ -1067,6 +1093,23 @@ export const api = {
 
   logout: () =>
     request<void>("/api/auth/logout", { method: "POST" }),
+
+  /// Il logout **del gateway**, chiamato dalla radice del sito.
+  ///
+  /// Serve perche' dentro un progetto del cloud `request()` antepone il
+  /// prefisso `/p/<azienda>/<progetto>`, e la richiesta finirebbe sul
+  /// container di quel progetto — che con `--auth-delegata` non ha nessuna
+  /// sessione da invalidare. Risultato: il browser dimenticava il token e
+  /// sembrava fatta, ma la sessione sul gateway restava viva. E' l'unica
+  /// chiamata che deve scavalcare il prefisso di proposito, quindi sta qui con
+  /// scritto il perche' invece che in mezzo a un handler.
+  logoutDalGateway: async () => {
+    const token = getAuthToken();
+    await fetch("/api/auth/logout", {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+  },
 
   refresh: () =>
     request<{ expires_at_ms: number | null }>("/api/auth/refresh", { method: "POST" }),

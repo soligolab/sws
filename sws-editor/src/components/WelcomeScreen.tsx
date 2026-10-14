@@ -875,33 +875,52 @@ function gb(n: number): string {
 /** Dove il browser ricorda se l'elenco era a griglia o a lista. */
 const VISTA_SALVATA = "sws.welcome.vista";
 
+export type Gruppo = { titolo?: string; altra: boolean; elenco: ProjectListEntry[] };
+
+/** Il titolo di un gruppo: «WEB · 1024×600», «LVGL», oppure niente. */
+export function titoloGruppo(p: ProjectListEntry): string | undefined {
+  const motore = p.motore ? p.motore.toUpperCase() : undefined;
+  const pezzi = [motore, p.risoluzione || undefined].filter(Boolean);
+  return pezzi.length ? pezzi.join(" · ") : undefined;
+}
+
 /**
- * Raggruppa i progetti per azienda, con quelli **senza** azienda per primi.
+ * Raggruppa i progetti per **tecnologia e risoluzione** (maintainer,
+ * 12-10-2026): un progetto LVGL e uno web si somigliano nell'elenco e si
+ * scoprono diversi solo dopo averli aperti.
  *
- * I progetti dell'azienda implicita non hanno il campo: su un'installazione
- * singola finiscono tutti nel primo gruppo, che non ha titolo, e la schermata
- * resta identica a prima che le aziende esistessero. È il punto in cui si
- * decide che un concetto non si mostra a chi non ne ha bisogno.
+ * **Lo stacco delle aziende altrui resta**, e sta fuori dal raggruppamento.
+ * Quello non e' un modo di ordinare: e' la riga che dice «da qui in giu' non e'
+ * tuo» a chi amministra la piattaforma (scelta del maintainer, 07-10-2026).
+ * Mescolare i progetti di un altro cliente fra i propri perche' hanno la stessa
+ * risoluzione sarebbe proprio il guasto che quella riga evita.
+ *
+ * L'azienda, che prima era il titolo del gruppo, ora sta su ogni scheda: senza,
+ * cambiando il criterio si sarebbe persa un'informazione invece di
+ * aggiungerne due.
+ *
+ * Un progetto di cui non si sa niente (runtime piu' vecchio, `project.yaml`
+ * illeggibile) finisce in un gruppo senza titolo, che va **in fondo**: e' il
+ * posto giusto per «non classificato», e tiene la schermata identica a prima
+ * su un'installazione che quei campi non li manda.
  */
-function raggruppa(
-  progetti: ProjectListEntry[],
-): { azienda?: string; altra: boolean; elenco: ProjectListEntry[] }[] {
-  const gruppi = new Map<string, { azienda?: string; altra: boolean; elenco: ProjectListEntry[] }>();
+export function raggruppa(progetti: ProjectListEntry[]): Gruppo[] {
+  const gruppi = new Map<string, Gruppo>();
   for (const p of progetti) {
-    const azienda = p.azienda || undefined;
     const altra = p.altra_azienda === true;
-    const k = `${altra ? "1" : "0"}\u0000${azienda ?? ""}`;
+    const titolo = titoloGruppo(p);
+    const k = `${altra ? "1" : "0"}\u0000${titolo ?? ""}`;
     const g = gruppi.get(k);
     if (g) g.elenco.push(p);
-    else gruppi.set(k, { azienda, altra, elenco: [p] });
+    else gruppi.set(k, { titolo, altra, elenco: [p] });
   }
   return [...gruppi.values()].sort((a, b) => {
-    // Le aziende altrui in fondo, sempre: sono un di piu per chi amministra,
-    // non il motivo per cui si e aperta questa schermata.
     if (a.altra !== b.altra) return a.altra ? 1 : -1;
-    if (a.azienda === undefined) return -1;
-    if (b.azienda === undefined) return 1;
-    return a.azienda.localeCompare(b.azienda);
+    // Senza titolo in fondo: «non si sa» non e' una categoria da leggere per
+    // prima.
+    if (a.titolo === undefined) return 1;
+    if (b.titolo === undefined) return -1;
+    return a.titolo.localeCompare(b.titolo);
   });
 }
 
@@ -1170,7 +1189,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
               concetto che per lui non esiste. Il titolo compare solo dove c'e
               davvero un'azienda da nominare. */}
           {!loading && raggruppa(projects).map((g, i, tutti) => (
-            <div key={`${g.altra ? "1" : "0"}-${g.azienda ?? ""}`}>
+            <div key={`${g.altra ? "1" : "0"}-${g.titolo ?? ""}`}>
               {/* Lo stacco prima della PRIMA azienda altrui: tutto quello che
                   sta sotto non e tuo, e va detto una volta sola invece che
                   ripetuto su ogni riga (scelta del maintainer, 07-10-2026). */}
@@ -1186,15 +1205,13 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
                   <span>{t("welcome.altreAziende")}</span>
                 </div>
               )}
-              {g.azienda && (
-                <div style={{
-                  fontSize: 11, textTransform: "uppercase", letterSpacing: 0.6,
-                  color: "var(--brand-text-subtle, #64748b)",
-                  margin: "18px 0 6px", paddingLeft: 2,
-                }}>
-                  {g.azienda}
-                </div>
-              )}
+              <div style={{
+                fontSize: 11, textTransform: "uppercase", letterSpacing: 0.6,
+                color: "var(--brand-text-subtle, #64748b)",
+                margin: "18px 0 6px", paddingLeft: 2,
+              }}>
+                {g.titolo ?? t("welcome.senzaFormato")}
+              </div>
               <div style={vista === "griglia"
                 ? { display: "flex", flexWrap: "wrap", gap: 12, marginTop: 4 }
                 : {}}
@@ -1240,6 +1257,17 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
                 border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "1px 5px",
               }}>
                 {t("welcome.externalBadge")}
+              </span>
+            ) : null;
+
+            // L'azienda era il titolo del gruppo; adesso che i gruppi dicono
+            // altro, sta qui — o cambiando criterio si sarebbe persa.
+            const distintivoAzienda = p.azienda ? (
+              <span style={{
+                fontSize: 10, fontWeight: 500, color: "var(--brand-text-subtle, #64748b)",
+                border: "1px solid var(--brand-surface-2, #334155)", borderRadius: 4, padding: "1px 5px",
+              }}>
+                {p.azienda}
               </span>
             ) : null;
 
@@ -1350,7 +1378,11 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
                     {isOpening ? t("welcome.opening") : isBusy ? "…" : quando}
                   </div>
 
-                  {distintivoEsterno && <div style={{ marginTop: 5 }}>{distintivoEsterno}</div>}
+                  {(distintivoEsterno || distintivoAzienda) && (
+                    <div style={{ marginTop: 5, display: "flex", gap: 4, flexWrap: "wrap" }}>
+                      {distintivoAzienda}{distintivoEsterno}
+                    </div>
+                  )}
 
                   {isDuping && <div style={{ marginTop: 8, textAlign: "left" }}>{pannelloDuplica}</div>}
                 </div>
@@ -1381,6 +1413,7 @@ export function WelcomeScreen({ onProjectOpened }: WelcomeScreenProps) {
                     {isRenaming ? campoNome : (
                       <div style={{ fontWeight: 600, fontSize: 15, color: "var(--brand-text, #e2e8f0)", display: "flex", alignItems: "center", gap: 6 }}>
                         {p.name}
+                        {distintivoAzienda}
                         {distintivoEsterno}
                       </div>
                     )}

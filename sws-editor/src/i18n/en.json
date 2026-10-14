@@ -153,7 +153,11 @@
     "chatPanel": "AI assistant",
     "chatDetach": "Detach chat",
     "chatDetachHint": "Opens the chat in its own window. The conversation restarts: the runtime cannot transfer it.",
-    "chatDetachedHint": "The chat is in a separate window. Close that window to bring it back here."
+    "chatDetachedHint": "The chat is in a separate window. Close that window to bring it back here.",
+    "salvaCome": "Save as…",
+    "salvaComeTitle": "Make a copy of this project under a new name and keep working on the copy",
+    "salvaComePrompt": "Name of the copy:",
+    "salvaComeNonSalvato": "There are unsaved changes: the copy will hold the project as it is on disk, not what you see now. Go ahead?"
   },
   "roles": {
     "admin": "Admin",
@@ -523,7 +527,8 @@
     "spazioQuasiEsaurito": "{{azienda}} is running out of space: {{usato}} of {{massimo}}. It is usually the history growing — free some before you get stuck.",
     "spazioEsaurito": "{{azienda}} is out of space: {{usato}} of {{massimo}}. No new projects can be created until you free some — the open ones keep working.",
     "barraBuildTitolo": "Version, revision and build date of this page",
-    "barraPaginaVecchia": "Stale page: force a reload"
+    "barraPaginaVecchia": "Stale page: force a reload",
+    "senzaFormato": "no format"
   },
   "logs": {
     "history": "History…",

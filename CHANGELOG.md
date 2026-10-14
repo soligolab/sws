@@ -70,7 +70,27 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   esiste. Per lo sviluppo locale resta `--senza-autenticazione`, che il runtime **rifiuta** se la macchina ha un
   indirizzo pubblico. **Sui pannelli non cambia nulla**: lì gli utenti restano quelli del progetto.
 
+### Fixed
+- **Uscire da un progetto nel cloud non lo rende più irraggiungibile.** Il container di un progetto *è* quel
+  progetto: chiuderlo lo lasciava acceso e vuoto, e chi tornava su quell'indirizzo trovava «nessun progetto» su un
+  progetto che esiste. Nel cloud ora non si chiude, e il runtime rifiuta se qualcuno ci prova. Nella stessa famiglia:
+  il **logout** da dentro un progetto ora invalida davvero la sessione (prima la richiesta finiva sul container, che
+  con `--auth-delegata` non ne ha nessuna), e **rinomina** e **duplica** vanno al gateway invece che al container,
+  che della cartella degli altri progetti non sa niente.
+- **Il chip «auto · adatta ai dati» non schiaccia più il campo numerico** di Y min/Y max (trend, xy_plot, sparkline,
+  bar_chart): quando non ci sta accanto al campo va a capo sotto, invece di comprimerlo fino a farlo sparire sotto
+  lo spinner. Corretta anche la frase «Lascia Y min/max a 0 per autofit», che contraddiceva il chip: il campo si
+  lascia **vuoto**.
+- **La tendina delle variabili si allarga fino al contenuto** invece di restare larga quanto il campo, che nel
+  pannello proprietà rendeva illeggibile ogni id un po' lungo.
+- **Dopo il primo invio di un progetto il pannello passa da solo alla pagina**, senza il pulsante «Continua».
+
 ### Added
+- **L'elenco dei progetti dice tecnologia e risoluzione prima di aprirli**, e li raggruppa per quelle: «WEB ·
+  1024×600», «LVGL · 800×480». L'azienda, che prima era il titolo del gruppo, è ora un'etichetta sulla scheda, e i
+  progetti di un'azienda a cui non appartieni restano separati come prima.
+- **«Salva come…»** nel menu dell'editor: una copia del progetto con un nome nuovo, e si continua a lavorare sulla
+  copia. Con modifiche non salvate avvisa che la copia conterrà il progetto com'è sul disco.
 - **Variabili colore e bottoni che assegnano** (piano `docs/plans/2026-10-11-colore-e-assegnazioni.md`). Tipo
   scalare `color`: `#rrggbb`/`#rrggbbaa` minuscolo (`#rgb` si espande), solo esadecimale, validato dal runtime in
   scrittura e in lettura; non si mappa su un protocollo di campo (MQTT sì, come testo). Un bottone può avere

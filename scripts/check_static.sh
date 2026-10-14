@@ -55,6 +55,7 @@ STATICHE=(
     check_quota_progetti    # chi fa nascere un progetto guarda la quota, da tutte e due le porte
     check_inoltro_identita  # dietro il gateway chi sei lo dice il gateway, non la tua intestazione
     check_pannello_confinato # il pannello di un'altra azienda non si raggiunge e non si vede
+    check_container_non_si_svuota # nel cloud il progetto del container non si chiude
     check_sonda             # la sonda del dispositivo (Q52) gira con sh -s e stampa solo fatti
     check_barra_allarmi     # alarm_banner: web e LVGL selezionano gli stessi stati ISA
     check_via_di_fuga       # la via di fuga STOP del pannello resta raggiungibile

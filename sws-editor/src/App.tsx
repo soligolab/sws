@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, AuthError, NoProjectError, PasswordChangeRequiredError, RuntimeUnavailableError } from "@/api/client";
+import { prefissoGateway } from "@/api/prefisso";
 import { BarraAvviso } from "@/components/BarraAvviso";
 import { BannerProvaGit } from "@/components/BannerProvaGit";
 import { ChangePasswordScreen } from "@/components/ChangePasswordScreen";
@@ -556,8 +557,29 @@ export function App() {
   // resetDirty() before leaving: after a "close without saving" the store
   // still holds the modified pages, and a later F5 on the WelcomeScreen
   // would raise the beforeunload prompt for a project that is no longer open.
+  // Sotto il gateway chiudere un progetto vuol dire **uscire dal container**.
+  //
+  // L'IDE che stai guardando e' servito da `/p/<azienda>/<progetto>/`, cioe'
+  // dal container di quel progetto, che ha montata **solo la sua cartella**:
+  // la sua radice dei progetti e' vuota. Restando li' dopo la chiusura si
+  // vedeva un elenco senza niente dentro — segnalato dal maintainer il
+  // 12-10-2026, con l'indirizzo ancora a `/p/-/demo-items-web/`. L'elenco vero
+  // sta alla radice del sito, che e' il gateway.
+  const tornaAllaRadiceSeNelCloud = () => {
+    if (!prefissoGateway()) return false;
+    window.location.assign("/");
+    return true;
+  };
+
   const executeClose = async () => {
     resetDirty();
+    // **Prima di chiudere**, non dopo: nel cloud `closeProject` non va
+    // chiamata affatto. Il container *e'* il progetto — nasce con
+    // `--project /progetto` e non ne apre mai un altro — quindi chiuderlo lo
+    // lascia acceso e vuoto, e chi rientra su quell'indirizzo trova «nessun
+    // progetto» su un progetto che esiste. Visto il 12-10-2026 su
+    // `/p/-/CasaDomotica/`: dopo un logout il progetto non si riapriva piu'.
+    if (tornaAllaRadiceSeNelCloud()) return;
     try { await api.closeProject(); } catch { /* ignore */ }
     // NIENTE clearAuth: chiudere un progetto non e disconnettersi, e per
     // disconnettersi c'e gia `executeLogout`. Il `clearAuth` qui aveva senso
@@ -571,9 +593,23 @@ export function App() {
 
   const executeLogout = async () => {
     resetDirty();
-    try { await api.logout(); } catch { /* ignore */ }
-    try { await api.closeProject(); } catch { /* ignore */ }
+    // **La sessione da chiudere e' quella del gateway, non quella del figlio.**
+    // `api.logout()` passa da `getBaseUrl()`, che sotto il gateway ha il
+    // prefisso del progetto: la richiesta finiva sul container, che con
+    // `--auth-delegata` non ha nessuna sessione da invalidare. Il browser
+    // dimenticava il token e sembrava fatta, ma sul gateway la sessione
+    // restava viva — cioe' il logout non disconnetteva (visto il 12-10-2026
+    // guardando il difetto della chiusura, qui accanto).
+    const nelCloud = !!prefissoGateway();
+    try {
+      if (nelCloud) await api.logoutDalGateway();
+      else await api.logout();
+    } catch { /* ignore */ }
+    // Stessa ragione di `executeClose`: nel cloud il progetto del container
+    // non si chiude, o il container resta acceso e vuoto.
+    if (!nelCloud) { try { await api.closeProject(); } catch { /* ignore */ } }
     clearAuth();
+    if (nelCloud) { window.location.assign("/"); return; }
     setNoActiveProject(true);
   };
 

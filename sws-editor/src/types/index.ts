@@ -1945,6 +1945,15 @@ export interface ProjectListEntry {
    *  progetti sotto la cartella dell'azienda quella regola li avrebbe
    *  dichiarati esterni tutti. */
   external: boolean;
+  /** Quanto pesa lo storico del progetto, in byte. Assente da un runtime
+   *  piu vecchio. */
+  storico_byte?: number | null;
+  /** `"web"` o `"lvgl"`: il motore a cui il progetto e destinato. Serve a
+   *  scegliere PRIMA di aprire. Assente da un runtime piu vecchio. */
+  motore?: string | null;
+  /** `"1024×600"`, oppure il rapporto (`"16:9"`) per i progetti che ragionano
+   *  per proporzione. Assente quando il progetto non ne dichiara nessuna. */
+  risoluzione?: string | null;
 }
 
 export interface BrowseDirEntry {

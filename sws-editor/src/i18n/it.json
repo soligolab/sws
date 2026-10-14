@@ -153,7 +153,11 @@
     "chatPanel": "Assistente IA",
     "chatDetach": "Stacca la chat",
     "chatDetachHint": "Apre la chat in una finestra propria. La conversazione riparte da zero: il runtime non sa trasferirla.",
-    "chatDetachedHint": "La chat è in una finestra separata. Chiudi quella finestra per riportarla qui."
+    "chatDetachedHint": "La chat è in una finestra separata. Chiudi quella finestra per riportarla qui.",
+    "salvaCome": "Salva come…",
+    "salvaComeTitle": "Crea una copia di questo progetto con un nome nuovo e continua a lavorare sulla copia",
+    "salvaComePrompt": "Nome della copia:",
+    "salvaComeNonSalvato": "Ci sono modifiche non salvate: la copia conterrà il progetto com'è sul disco, non quello che vedi adesso. Procedo?"
   },
   "roles": {
     "admin": "Admin",
@@ -523,7 +527,8 @@
     "spazioQuasiEsaurito": "Lo spazio di {{azienda}} sta finendo: {{usato}} di {{massimo}}. Spesso è lo storico a crescere — liberane un po' prima di restare fermo.",
     "spazioEsaurito": "Lo spazio di {{azienda}} è esaurito: {{usato}} di {{massimo}}. Non si possono creare altri progetti finché non ne liberi — quelli aperti continuano a funzionare.",
     "barraBuildTitolo": "Versione, revisione e data di build di questa pagina",
-    "barraPaginaVecchia": "Pagina vecchia: ricarica forzando"
+    "barraPaginaVecchia": "Pagina vecchia: ricarica forzando",
+    "senzaFormato": "senza formato"
   },
   "logs": {
     "history": "Storico…",

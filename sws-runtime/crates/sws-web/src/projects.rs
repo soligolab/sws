@@ -196,6 +196,76 @@ pub struct ProjectListEntry {
     /// Assente da un runtime più vecchio.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub storico_byte: Option<u64>,
+    /// `"web"` o `"lvgl"`: il motore a cui il progetto è destinato.
+    ///
+    /// Serve a **scegliere prima di aprire** (richiesta del maintainer,
+    /// 12-10-2026): un progetto LVGL e uno web si somigliano nell'elenco e si
+    /// scoprono diversi solo dentro. I due LVGL (framebuffer e Wayland) qui
+    /// diventano uno solo: la domanda che si fa guardando l'elenco è «con che
+    /// motore si disegna», non «con che backend».
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub motore: Option<String>,
+    /// La misura dichiarata dal progetto: `"1024×600"`, oppure il rapporto
+    /// (`"16:9"`) quando il progetto ragiona per proporzione invece che per
+    /// pixel. `None` quando non ne dichiara nessuna (pagine fluide, o un
+    /// progetto che non ha ancora scelto).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub risoluzione: Option<String>,
+}
+
+/// I pochi campi di `project.yaml` che servono all'elenco.
+///
+/// Una struct apposta invece di leggere `sws_core::Project`: quella porta
+/// dentro tag, tipi, sorgenti e allarmi di ogni progetto a ogni elenco, e si
+/// rifiuta di leggere un file che non torna. Qui tutto è `default`, quindi un
+/// progetto a metà o scritto da una versione più nuova non fa sparire la sua
+/// riga — perde solo le due etichette.
+#[derive(Deserialize, Default)]
+struct SchedaTecnica {
+    #[serde(default)]
+    target: Option<TargetSoloTipo>,
+    #[serde(default)]
+    page_layout: Option<LayoutSoloMisure>,
+}
+
+#[derive(Deserialize, Default)]
+struct TargetSoloTipo {
+    #[serde(default)]
+    kind: Option<String>,
+}
+
+#[derive(Deserialize, Default)]
+struct LayoutSoloMisure {
+    #[serde(default)]
+    size_mode: Option<String>,
+    #[serde(default)]
+    aspect_ratio: Option<String>,
+    #[serde(default)]
+    default_width: Option<f64>,
+    #[serde(default)]
+    default_height: Option<f64>,
+}
+
+/// Motore e misura di un progetto, lette dal suo `project.yaml`.
+fn scheda_tecnica(progetto: &StdPath) -> (Option<String>, Option<String>) {
+    let Ok(testo) = std::fs::read_to_string(progetto.join("project.yaml")) else {
+        return (None, None);
+    };
+    let sch: SchedaTecnica = serde_yaml::from_str(&testo).unwrap_or_default();
+    let motore = match sch.target.and_then(|t| t.kind).as_deref() {
+        // `web` è il target di sempre: un progetto che non dichiara niente è
+        // web, e dirlo è più utile che lasciare la casella vuota.
+        None | Some("web") => Some("web".to_string()),
+        Some(_) => Some("lvgl".to_string()),
+    };
+    let risoluzione = sch.page_layout.and_then(|l| match (l.default_width, l.default_height) {
+        (Some(w), Some(h)) if w > 0.0 && h > 0.0 => Some(format!("{}×{}", w.round() as i64, h.round() as i64)),
+        // Niente pixel: se il progetto ragiona per proporzione, quella è la
+        // sua misura. Le pagine fluide non ne hanno, ed è giusto che la
+        // casella resti vuota invece di inventare un numero.
+        _ => (l.size_mode.as_deref() == Some("ratio")).then(|| l.aspect_ratio).flatten(),
+    });
+    (motore, risoluzione)
 }
 
 /// La somma dei file in `<progetto>/history/` (un livello: lì ci sono solo i
@@ -387,6 +457,8 @@ pub async fn list_projects(
                         last_opened_ms: None,
                         external: false,
                         storico_byte: None,
+                        motore: None,
+                        risoluzione: None,
                     },
                 );
             }
@@ -444,6 +516,8 @@ pub async fn list_projects(
                         last_opened_ms: None,
                         external: false,
                         storico_byte: None,
+                        motore: None,
+                        risoluzione: None,
                     },
                 );
             }
@@ -493,6 +567,8 @@ pub async fn list_projects(
                 last_opened_ms: Some(reg_entry.last_opened_ms),
                 external,
                 storico_byte: None,
+                motore: None,
+                risoluzione: None,
             },
         );
     }
@@ -500,7 +576,14 @@ pub async fn list_projects(
     let mut entries: Vec<ProjectListEntry> = per_riferimento.into_values().collect();
     marca_e_filtra_per_appartenenza(&s, chi.map(|e| e.0), &mut entries).await;
     for e in &mut entries {
-        e.storico_byte = peso_storico(StdPath::new(&e.path));
+        let dir = StdPath::new(&e.path);
+        e.storico_byte = peso_storico(dir);
+        // Una lettura per progetto, qui e non nei tre punti in cui le voci
+        // nascono: un posto solo da guardare quando una delle due etichette
+        // non torna.
+        let (motore, risoluzione) = scheda_tecnica(dir);
+        e.motore = motore;
+        e.risoluzione = risoluzione;
     }
     // Most recently opened first; untouched legacy entries (no registry
     // timestamp) sort after every timestamped one, alphabetically among
@@ -512,6 +595,65 @@ pub async fn list_projects(
             .then_with(|| a.name.cmp(&b.name))
     });
     Json(entries).into_response()
+}
+
+#[cfg(test)]
+mod scheda_tests {
+    use super::scheda_tecnica;
+
+    fn con(yaml: &str) -> (Option<String>, Option<String>) {
+        let d = tempfile::tempdir().unwrap();
+        std::fs::write(d.path().join("project.yaml"), yaml).unwrap();
+        scheda_tecnica(d.path())
+    }
+
+    #[test]
+    fn senza_target_e_web() {
+        // Un progetto che non dichiara niente e' web: e' il target di sempre.
+        let (m, _) = con("meta:\n  name: p\n  version: '1'\n");
+        assert_eq!(m.as_deref(), Some("web"));
+    }
+
+    #[test]
+    fn i_due_lvgl_diventano_uno() {
+        for k in ["lvgl_framebuffer", "lvgl_wayland"] {
+            let (m, _) = con(&format!("target:\n  kind: {k}\n"));
+            assert_eq!(m.as_deref(), Some("lvgl"), "{k}");
+        }
+    }
+
+    #[test]
+    fn la_misura_in_pixel_vince_sul_rapporto() {
+        let (_, r) = con("page_layout:\n  size_mode: ratio\n  aspect_ratio: '16:9'\n  default_width: 1024\n  default_height: 600\n");
+        assert_eq!(r.as_deref(), Some("1024×600"));
+    }
+
+    #[test]
+    fn senza_pixel_vale_il_rapporto() {
+        let (_, r) = con("page_layout:\n  size_mode: ratio\n  aspect_ratio: '16:9'\n");
+        assert_eq!(r.as_deref(), Some("16:9"));
+    }
+
+    #[test]
+    fn le_pagine_fluide_non_hanno_misura() {
+        // Meglio una casella vuota che un numero inventato.
+        let (_, r) = con("page_layout:\n  size_mode: fluid\n");
+        assert_eq!(r, None);
+    }
+
+    #[test]
+    fn un_progetto_illeggibile_perde_le_etichette_non_la_riga() {
+        // `deny_unknown_fields` o un parse severo avrebbero fatto sparire il
+        // progetto dall'elenco: qui si perdono solo le due etichette.
+        let (m, r) = con("questo: non e' un project.yaml\n  rotto: [");
+        assert_eq!((m.as_deref(), r), (Some("web"), None));
+    }
+
+    #[test]
+    fn senza_file_non_si_inventa_niente() {
+        let d = tempfile::tempdir().unwrap();
+        assert_eq!(scheda_tecnica(d.path()), (None, None));
+    }
 }
 
 /// Le aziende di chi sta guardando, lette una volta sola.
@@ -1525,6 +1667,26 @@ pub async fn open_project(
 /// Drops TagDb / AlarmDb / supervisor sources / functions / auth.
 /// All sessions become invalid.
 pub async fn close_project(State(s): State<AppState>) -> Response {
+    // **Dietro il gateway un progetto non si chiude.**
+    //
+    // Il container *e'* il progetto: nasce con `--project /progetto` e non ne
+    // apre mai un altro. Chiuderlo lo lascia acceso e **vuoto**, e chi rientra
+    // su quell'indirizzo trova «nessun progetto» su un progetto che esiste
+    // benissimo — succedeva dopo un logout, visto il 12-10-2026 su
+    // `/p/-/CasaDomotica/`. Non c'e' nemmeno niente da guadagnare: per
+    // lasciare un progetto nel cloud si va via dall'indirizzo, e il container
+    // si spegne da se' quando non lo guarda piu' nessuno.
+    //
+    // Qui e non solo nel browser perche' il browser non e' l'unico che puo'
+    // chiamare: un 409 che spiega e' meglio di un container che resta buono a
+    // niente finche' qualcuno non lo spegne a mano.
+    if s.segreto_gateway.is_some() {
+        return (
+            StatusCode::CONFLICT,
+            "questo processo serve un progetto solo: chiuderlo lo lascerebbe acceso e vuoto",
+        )
+            .into_response();
+    }
     let _switch = s.project_switch_lock.lock().await;
     // Check there's something to close.
     if active_dir(&s).await.is_err() {
