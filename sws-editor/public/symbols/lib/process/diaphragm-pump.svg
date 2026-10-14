@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="90" height="100" viewBox="0 0 90 100">
+  <defs>
+    <linearGradient id="diaphragm-pump-metal-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="diaphragm-pump-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="diaphragm-pump-dark-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <radialGradient id="diaphragm-pump-paint-r" cx="0.36" cy="0.3" r="0.75">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.55"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.05"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </radialGradient>
+    <radialGradient id="diaphragm-pump-metal-r" cx="0.35" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.13"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.46"/>
+    </radialGradient>
+    <rect id="diaphragm-pump-g1" x="40" y="4" width="10" height="10"/>
+    <rect id="diaphragm-pump-g2" x="37" y="0" width="16" height="4" rx="0.8"/>
+    <rect id="diaphragm-pump-g3" x="40" y="86" width="10" height="10"/>
+    <rect id="diaphragm-pump-g4" x="37" y="96" width="16" height="4" rx="0.8"/>
+    <rect id="diaphragm-pump-g5" x="12" y="12" width="66" height="10" rx="4"/>
+    <rect id="diaphragm-pump-g6" x="12" y="78" width="66" height="10" rx="4"/>
+    <rect id="diaphragm-pump-g7" x="38" y="40" width="14" height="20" rx="2"/>
+    <circle id="diaphragm-pump-g8" cx="24" cy="50" r="18"/>
+    <circle id="diaphragm-pump-g9" cx="66" cy="50" r="18"/>
+    <circle id="diaphragm-pump-g10" cx="24" cy="50" r="3"/>
+    <circle id="diaphragm-pump-g11" cx="66" cy="50" r="3"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#diaphragm-pump-g1" fill="#9aa5af" data-mat="steel"/>
+    <use href="#diaphragm-pump-g1" fill="url(#diaphragm-pump-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#diaphragm-pump-g2" fill="#9aa5af" data-mat="steel"/>
+    <use href="#diaphragm-pump-g2" fill="url(#diaphragm-pump-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#diaphragm-pump-g3" fill="#9aa5af" data-mat="steel"/>
+    <use href="#diaphragm-pump-g3" fill="url(#diaphragm-pump-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#diaphragm-pump-g4" fill="#9aa5af" data-mat="steel"/>
+    <use href="#diaphragm-pump-g4" fill="url(#diaphragm-pump-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#diaphragm-pump-g5" fill="#9aa5af" data-mat="steel"/>
+    <use href="#diaphragm-pump-g5" fill="url(#diaphragm-pump-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#diaphragm-pump-g6" fill="#9aa5af" data-mat="steel"/>
+    <use href="#diaphragm-pump-g6" fill="url(#diaphragm-pump-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#diaphragm-pump-g7" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#diaphragm-pump-g7" fill="url(#diaphragm-pump-dark-h)" stroke="none" opacity="1" data-shade="dark-h"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="body-pump" fill="#2f6fa8" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#diaphragm-pump-g8"/>
+    <use href="#diaphragm-pump-g8" fill="url(#diaphragm-pump-paint-r)" stroke="none" opacity="1" data-shade="paint-r"/>
+    <use href="#diaphragm-pump-g9"/>
+    <use href="#diaphragm-pump-g9" fill="url(#diaphragm-pump-paint-r)" stroke="none" opacity="1" data-shade="paint-r"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <circle cx="24" cy="50" r="11" fill="none" stroke-opacity="0.45"/>
+    <use href="#diaphragm-pump-g10" fill="#9aa5af" data-mat="steel"/>
+    <use href="#diaphragm-pump-g10" fill="url(#diaphragm-pump-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+    <circle cx="66" cy="50" r="11" fill="none" stroke-opacity="0.45"/>
+    <use href="#diaphragm-pump-g11" fill="#9aa5af" data-mat="steel"/>
+    <use href="#diaphragm-pump-g11" fill="url(#diaphragm-pump-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+  </g>
+</svg>

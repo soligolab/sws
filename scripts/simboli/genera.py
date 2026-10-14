@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generatore della libreria di simboli SCADA 2.5D.
 
-Piano: docs/plans/2026-10-14-motore-simboli-lib.md (Fase 1, «Formato»). Gli SVG
+Piano: docs/archive/2026-10-14-motore-simboli-lib.md (Fase 1, «Formato»). Gli SVG
 in `sws-editor/public/symbols/lib/` e il loro `manifest.json` escono **solo** da
 qui: non si ritoccano a mano, si cambia il disegno in `disegni.py` e si rigenera.
 
@@ -83,6 +83,9 @@ MATERIALI = {
     "appliance": "#e2e6ea",
     "wall": "#c9c2b6",
     "glass": "#9cc7e3",
+    "gas": "#2e7d4f",
+    "wood": "#b98a55",
+    "cardboard": "#c49a63",
 }
 
 # Veli: solo bianco e nero con opacità. I valori dei metalli sono calcolati

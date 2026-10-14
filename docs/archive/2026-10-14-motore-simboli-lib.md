@@ -5,7 +5,11 @@
 > sono del maintainer.** Le decisioni grafiche e di prodotto (1–19) restano nel seme. Qui c'è il
 > *come*.
 >
-> **Stato al 14-10-2026, sera**: Fase 1 fatta sul ramo `feat/simboli-lib-formato`. Fase 2 fatta
+> **Concluso il 14-10-2026, sera.** Tutte e sette le fasi sono fatte. Le Fasi 1–6 sono state confermate
+> dal maintainer e squashate su `main`. La Fase 7 (i 91 simboli che mancavano, in quattro lotti) sta
+> sul ramo `feat/simboli-lib-lotti`, in attesa del collaudo.
+>
+> **Stato di metà giornata**: Fase 1 fatta sul ramo `feat/simboli-lib-formato`. Fase 2 fatta
 > sul ramo `feat/simboli-lib-fetta`, **annidato** sul primo (regola «un ramo alla volta», opzione
 > 2), con la misura M2 sul WP630. Nessuno dei due è mergiato: aspettano la conferma del
 > maintainer, prima la Fase 1 (aspetto dei campioni), poi la 2.

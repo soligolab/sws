@@ -6,7 +6,7 @@
 // Fino al 14-10-2026 il pannello leggeva un tag di testo con `parse::<f64>()`:
 // «on» valeva 0 e il simbolo restava spento, mentre il browser lo accendeva; e
 // una voce degli stati che corrispondeva non bastava ad accenderlo (M10 del
-// piano docs/plans/2026-10-14-motore-simboli-lib.md).
+// piano docs/archive/2026-10-14-motore-simboli-lib.md).
 
 import { matchTextListEntry } from "@/canvas/textList";
 import type { TextListEntry } from "@/types";

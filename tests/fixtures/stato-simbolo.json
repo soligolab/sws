@@ -1,5 +1,5 @@
 {
-  "_comment": "Stato di un simbolo dai suoi tag: lo verificano sws-editor/tests/statoSimbolo.test.ts e lvgl_render.rs. Piano: docs/plans/2026-10-14-motore-simboli-lib.md (M10). `tag` ha le chiavi «allarme» (alarm_tag) e «stato» (state_tag); una chiave assente = tag senza valore.",
+  "_comment": "Stato di un simbolo dai suoi tag: lo verificano sws-editor/tests/statoSimbolo.test.ts e lvgl_render.rs. Piano: docs/archive/2026-10-14-motore-simboli-lib.md (M10). `tag` ha le chiavi «allarme» (alarm_tag) e «stato» (state_tag); una chiave assente = tag senza valore.",
   "casi": [
     {
       "nome": "nessun tag: spento",

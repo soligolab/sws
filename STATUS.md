@@ -12,7 +12,24 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — libreria di simboli SCADA: Fasi 1-6 fatte (2026-10-14)
+## ▶ Riprendere da qui — libreria di simboli SCADA: tutte e sette le fasi fatte (2026-10-14, sera)
+
+**Le Fasi 1–6 sono su `main`**: sei squash, dopo il «tutto ok» del maintainer.
+- Rami eliminati.
+- Prima di eliminarli ho verificato che fra `main` e l'ultimo ramo differissero solo i 5 file dell'altra
+  sessione.
+- Niente pushato.
+
+**La Fase 7 è sul ramo `feat/simboli-lib-lotti`**, nel worktree `/home/ut1/sws-simboli`. Ha i 91
+disegni che mancavano, quindi la libreria arriva a **138 simboli**. È da collaudare.
+- I servizi di prova girano da quel worktree: IDE `http://192.168.0.201:8464`, runtime 8448 e
+  viewer 8447. Hanno i dati di prima, e il pannello è già abbinato.
+- I piani sono conclusi e spostati in `docs/archive/`.
+
+**Da fare**: il collaudo dei lotti, poi lo squash di `feat/simboli-lib-lotti` e la rimozione del
+worktree.
+
+### Fasi 1-6 (14-10-2026)
 
 **6b fatta** dopo l'ok del maintainer sui sostitutivi: tolti `library.tsx`, `draw_symbol` (≈1300 righe) e `VENDORED`; gli id builtin sono alias per sempre (`BUILTIN_STORICI`).
 
@@ -60,8 +77,8 @@ fatti in ordine (formato, fetta, parti) quando quel checkout è libero.
 
 ### Fasi 1 e 2 (14-10-2026)
 
-Piani: [seme](docs/plans/2026-10-14-libreria-simboli-scada.md) (decisioni 1-19) e
-[esecuzione](docs/plans/2026-10-14-motore-simboli-lib.md) (M1-M11, sette fasi). Lavoro in un **worktree
+Piani: [seme](docs/archive/2026-10-14-libreria-simboli-scada.md) (decisioni 1-19) e
+[esecuzione](docs/archive/2026-10-14-motore-simboli-lib.md) (M1-M11, sette fasi). Lavoro in un **worktree
 a parte**, `/home/ut1/sws-simboli`, perché sul checkout principale lavorava un'altra sessione.
 
 **Due rami, uno dentro l'altro, nessuno mergiato.** È l'opzione 2 della regola «un ramo alla volta»:
@@ -109,7 +126,7 @@ il codice invece della pagina.
   `check_fuori_pagina_lvgl`, `check_contrasto`) rischiano lo stesso falso verde. Non toccate: è un
   lavoro a sé.
 
-**Prossimo**: la Fase 7, cioè il resto della libreria dalla lista del seme, a lotti per famiglia.
+**Fatto**: anche la Fase 7, vedi sopra.
 
 ## ▶ Riprendere da qui — collaudo del WP630 da zero, e i difetti che ha fatto uscire (2026-10-12/14)
 

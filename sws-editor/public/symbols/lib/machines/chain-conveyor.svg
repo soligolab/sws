@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="60" viewBox="0 0 160 60">
+  <defs>
+    <linearGradient id="chain-conveyor-dark-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <linearGradient id="chain-conveyor-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <radialGradient id="chain-conveyor-metal-r" cx="0.35" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.13"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.46"/>
+    </radialGradient>
+    <linearGradient id="chain-conveyor-paint-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <rect id="chain-conveyor-g1" x="24" y="30" width="6" height="26"/>
+    <rect id="chain-conveyor-g2" x="20" y="55" width="14" height="5" rx="1"/>
+    <rect id="chain-conveyor-g3" x="130" y="30" width="6" height="26"/>
+    <rect id="chain-conveyor-g4" x="126" y="55" width="14" height="5" rx="1"/>
+    <rect id="chain-conveyor-g5" x="4" y="8" width="152" height="24" rx="12"/>
+    <circle id="chain-conveyor-g6" cx="16" cy="20" r="9.5"/>
+    <circle id="chain-conveyor-g7" cx="144" cy="20" r="9.5"/>
+    <rect id="chain-conveyor-g8" x="26" y="13" width="108" height="14" rx="1.5"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#chain-conveyor-g1" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#chain-conveyor-g1" fill="url(#chain-conveyor-dark-h)" stroke="none" opacity="1" data-shade="dark-h"/>
+    <use href="#chain-conveyor-g2" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#chain-conveyor-g2" fill="url(#chain-conveyor-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <use href="#chain-conveyor-g3" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#chain-conveyor-g3" fill="url(#chain-conveyor-dark-h)" stroke="none" opacity="1" data-shade="dark-h"/>
+    <use href="#chain-conveyor-g4" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#chain-conveyor-g4" fill="url(#chain-conveyor-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <use href="#chain-conveyor-g5" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#chain-conveyor-g5" fill="url(#chain-conveyor-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <rect x="14" y="9" width="5" height="3" rx="1" fill="#9aa5af" data-mat="steel" stroke-width="0.5"/>
+    <rect x="14" y="28" width="5" height="3" rx="1" fill="#9aa5af" data-mat="steel" stroke-width="0.5"/>
+    <rect x="21" y="9" width="5" height="3" rx="1" fill="#9aa5af" data-mat="steel" stroke-width="0.5"/>
+    <rect x="21" y="28" width="5" height="3" rx="1" fill="#9aa5af" data-mat="steel" stroke-width="0.5"/>
+    <rect x="28" y="9" width="5" height="3" rx="1" fill="#9aa5af" data-mat="steel" stroke-width="0.5"/>
+    <rect x="28" y="28" width="5" height="3" rx="1" fill="#9aa5af" data-mat="steel" stroke-width="0.5"/>
+    <rect x="35" y="9" width="5" height="3" rx="1" fill="#9aa5af" data-mat="steel" stroke-width="0.5"/>
+    <rect x="35" y="28" width="5" height="3" rx="1" fill="#9aa5af" data-mat="steel" stroke-width="0.5"/>
+    <rect x="42" y="9" width="5" height="3" rx="1" fill="#9aa5af" data-mat="steel" stroke-width="0.5"/>
+    <rect x="42" y="28" width="5" height="3" rx="1" fill="#9aa5af" data-mat="steel" stroke-width="0.5"/>
+    <rect x="49" y="9" width="5" height="3" rx="1" fill="#9aa5af" data-mat="steel" stroke-width="0.5"/>
+    <rect x="49" y="28" width="5" height="3" rx="1" fill="#9aa5af" data-mat="steel" stroke-width="0.5"/>
+    <rect x="56" y="9" width="5" height="3" rx="1" fill="#9aa5af" data-mat="steel" stroke-width="0.5"/>
+    <rect x="56" y="28" width="5" height="3" rx="1" fill="#9aa5af" data-mat="steel" stroke-width="0.5"/>
+    <rect x="63" y="9" width="5" height="3" rx="1" fill="#9aa5af" data-mat="steel" stroke-width="0.5"/>
+    <rect x="63" y="28" width="5" height="3" rx="1" fill="#9aa5af" data-mat="steel" stroke-width="0.5"/>
+    <rect x="70" y="9" width="5" height="3" rx="1" fill="#9aa5af" data-mat="steel" stroke-width="0.5"/>
+    <rect x="70" y="28" width="5" height="3" rx="1" fill="#9aa5af" data-mat="steel" stroke-width="0.5"/>
+    <rect x="77" y="9" width="5" height="3" rx="1" fill="#9aa5af" data-mat="steel" stroke-width="0.5"/>
+    <rect x="77" y="28" width="5" height="3" rx="1" fill="#9aa5af" data-mat="steel" stroke-width="0.5"/>
+    <rect x="84" y="9" width="5" height="3" rx="1" fill="#9aa5af" data-mat="steel" stroke-width="0.5"/>
+    <rect x="84" y="28" width="5" height="3" rx="1" fill="#9aa5af" data-mat="steel" stroke-width="0.5"/>
+    <rect x="91" y="9" width="5" height="3" rx="1" fill="#9aa5af" data-mat="steel" stroke-width="0.5"/>
+    <rect x="91" y="28" width="5" height="3" rx="1" fill="#9aa5af" data-mat="steel" stroke-width="0.5"/>
+    <rect x="98" y="9" width="5" height="3" rx="1" fill="#9aa5af" data-mat="steel" stroke-width="0.5"/>
+    <rect x="98" y="28" width="5" height="3" rx="1" fill="#9aa5af" data-mat="steel" stroke-width="0.5"/>
+    <rect x="105" y="9" width="5" height="3" rx="1" fill="#9aa5af" data-mat="steel" stroke-width="0.5"/>
+    <rect x="105" y="28" width="5" height="3" rx="1" fill="#9aa5af" data-mat="steel" stroke-width="0.5"/>
+    <rect x="112" y="9" width="5" height="3" rx="1" fill="#9aa5af" data-mat="steel" stroke-width="0.5"/>
+    <rect x="112" y="28" width="5" height="3" rx="1" fill="#9aa5af" data-mat="steel" stroke-width="0.5"/>
+    <rect x="119" y="9" width="5" height="3" rx="1" fill="#9aa5af" data-mat="steel" stroke-width="0.5"/>
+    <rect x="119" y="28" width="5" height="3" rx="1" fill="#9aa5af" data-mat="steel" stroke-width="0.5"/>
+    <rect x="126" y="9" width="5" height="3" rx="1" fill="#9aa5af" data-mat="steel" stroke-width="0.5"/>
+    <rect x="126" y="28" width="5" height="3" rx="1" fill="#9aa5af" data-mat="steel" stroke-width="0.5"/>
+    <rect x="133" y="9" width="5" height="3" rx="1" fill="#9aa5af" data-mat="steel" stroke-width="0.5"/>
+    <rect x="133" y="28" width="5" height="3" rx="1" fill="#9aa5af" data-mat="steel" stroke-width="0.5"/>
+    <rect x="140" y="9" width="5" height="3" rx="1" fill="#9aa5af" data-mat="steel" stroke-width="0.5"/>
+    <rect x="140" y="28" width="5" height="3" rx="1" fill="#9aa5af" data-mat="steel" stroke-width="0.5"/>
+    <rect x="147" y="9" width="5" height="3" rx="1" fill="#9aa5af" data-mat="steel" stroke-width="0.5"/>
+    <rect x="147" y="28" width="5" height="3" rx="1" fill="#9aa5af" data-mat="steel" stroke-width="0.5"/>
+  </g>
+  <g id="rotor-1" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#chain-conveyor-g6" fill="#9aa5af" data-mat="steel"/>
+    <use href="#chain-conveyor-g6" fill="url(#chain-conveyor-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+    <circle cx="25.5" cy="20" r="1.6" fill="#4a545d" data-mat="steel-dark" stroke="none"/>
+    <circle cx="22.72" cy="13.28" r="1.6" fill="#4a545d" data-mat="steel-dark" stroke="none"/>
+    <circle cx="16" cy="10.5" r="1.6" fill="#4a545d" data-mat="steel-dark" stroke="none"/>
+    <circle cx="9.28" cy="13.28" r="1.6" fill="#4a545d" data-mat="steel-dark" stroke="none"/>
+    <circle cx="6.5" cy="20" r="1.6" fill="#4a545d" data-mat="steel-dark" stroke="none"/>
+    <circle cx="9.28" cy="26.72" r="1.6" fill="#4a545d" data-mat="steel-dark" stroke="none"/>
+    <circle cx="16" cy="29.5" r="1.6" fill="#4a545d" data-mat="steel-dark" stroke="none"/>
+    <circle cx="22.72" cy="26.72" r="1.6" fill="#4a545d" data-mat="steel-dark" stroke="none"/>
+    <circle cx="16" cy="20" r="2.5" fill="#4a545d" data-mat="steel-dark"/>
+  </g>
+  <g id="rotor-2" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#chain-conveyor-g7" fill="#9aa5af" data-mat="steel"/>
+    <use href="#chain-conveyor-g7" fill="url(#chain-conveyor-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+    <circle cx="153.5" cy="20" r="1.6" fill="#4a545d" data-mat="steel-dark" stroke="none"/>
+    <circle cx="150.72" cy="13.28" r="1.6" fill="#4a545d" data-mat="steel-dark" stroke="none"/>
+    <circle cx="144" cy="10.5" r="1.6" fill="#4a545d" data-mat="steel-dark" stroke="none"/>
+    <circle cx="137.28" cy="13.28" r="1.6" fill="#4a545d" data-mat="steel-dark" stroke="none"/>
+    <circle cx="134.5" cy="20" r="1.6" fill="#4a545d" data-mat="steel-dark" stroke="none"/>
+    <circle cx="137.28" cy="26.72" r="1.6" fill="#4a545d" data-mat="steel-dark" stroke="none"/>
+    <circle cx="144" cy="29.5" r="1.6" fill="#4a545d" data-mat="steel-dark" stroke="none"/>
+    <circle cx="150.72" cy="26.72" r="1.6" fill="#4a545d" data-mat="steel-dark" stroke="none"/>
+    <circle cx="144" cy="20" r="2.5" fill="#4a545d" data-mat="steel-dark"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="body-motor" fill="#5d6f7e" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#chain-conveyor-g8"/>
+    <use href="#chain-conveyor-g8" fill="url(#chain-conveyor-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+  </g>
+</svg>

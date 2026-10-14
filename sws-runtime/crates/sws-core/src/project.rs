@@ -1694,7 +1694,7 @@ pub struct Project {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub page_layout: Option<PageLayoutConfig>,
     /// Lo stile dei simboli del progetto (Fase 4 del piano
-    /// docs/plans/2026-10-14-motore-simboli-lib.md): colori di stato, colori dei
+    /// docs/archive/2026-10-14-motore-simboli-lib.md): colori di stato, colori dei
     /// materiali della libreria, volume e contorno, animazioni. Ogni campo
     /// assente vale il predefinito; un oggetto può sovrascriverli. `None` = tutto
     /// predefinito, cioè l'aspetto che i simboli avevano prima che esistesse.

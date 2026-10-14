@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="170" viewBox="0 0 100 170">
+  <defs>
+    <linearGradient id="wind-turbine-paint-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <linearGradient id="wind-turbine-paint-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <linearGradient id="wind-turbine-paint-d" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.35"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.3"/>
+    </linearGradient>
+    <radialGradient id="wind-turbine-metal-r" cx="0.35" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.13"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.46"/>
+    </radialGradient>
+    <path id="wind-turbine-g1" d="M46 50 L54 50 L58 166 L42 166 Z"/>
+    <rect id="wind-turbine-g2" x="38" y="32" width="30" height="14" rx="6"/>
+    <rect id="wind-turbine-g3" x="30" y="164" width="40" height="6" rx="1"/>
+    <path id="wind-turbine-g4" d="M33.48 36.46 Q33.48 24.39 40 3 Q41.68 25.1 40 39 Z"/>
+    <path id="wind-turbine-g5" d="M41.07 45.92 Q30.61 51.95 8.82 57 Q27.12 44.5 40 39 Z"/>
+    <path id="wind-turbine-g6" d="M45.46 34.62 Q55.91 40.65 71.18 57 Q51.2 47.4 40 39 Z"/>
+    <circle id="wind-turbine-g7" cx="40" cy="39" r="5"/>
+  </defs>
+  <g id="body" data-layer="part" data-mat="appliance" fill="#e2e6ea" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#wind-turbine-g1"/>
+    <use href="#wind-turbine-g1" fill="url(#wind-turbine-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+    <use href="#wind-turbine-g2"/>
+    <use href="#wind-turbine-g2" fill="url(#wind-turbine-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#wind-turbine-g3" fill="#c9c2b6" data-mat="wall"/>
+    <use href="#wind-turbine-g3" fill="url(#wind-turbine-paint-d)" stroke="none" opacity="1" data-shade="paint-d"/>
+  </g>
+  <g id="rotor" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#wind-turbine-g4" fill="#e2e6ea" data-mat="appliance" stroke-width="0.8"/>
+    <use href="#wind-turbine-g4" fill="url(#wind-turbine-paint-d)" stroke="none" opacity="1" data-shade="paint-d"/>
+    <use href="#wind-turbine-g5" fill="#e2e6ea" data-mat="appliance" stroke-width="0.8"/>
+    <use href="#wind-turbine-g5" fill="url(#wind-turbine-paint-d)" stroke="none" opacity="1" data-shade="paint-d"/>
+    <use href="#wind-turbine-g6" fill="#e2e6ea" data-mat="appliance" stroke-width="0.8"/>
+    <use href="#wind-turbine-g6" fill="url(#wind-turbine-paint-d)" stroke="none" opacity="1" data-shade="paint-d"/>
+    <use href="#wind-turbine-g7" fill="#9aa5af" data-mat="steel"/>
+    <use href="#wind-turbine-g7" fill="url(#wind-turbine-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+  </g>
+</svg>

@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="170" height="100" viewBox="0 0 170 100">
+  <defs>
+    <linearGradient id="generator-set-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <linearGradient id="generator-set-dark-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <linearGradient id="generator-set-paint-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <linearGradient id="generator-set-paint-d" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.35"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.3"/>
+    </linearGradient>
+    <radialGradient id="generator-set-glass-r" cx="0.35" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.3" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <rect id="generator-set-g1" x="4" y="86" width="162" height="14" rx="1"/>
+    <rect id="generator-set-g2" x="30" y="0" width="10" height="26"/>
+    <rect id="generator-set-g3" x="28" y="0" width="14" height="4" rx="1"/>
+    <rect id="generator-set-g4" x="8" y="24" width="98" height="62" rx="4"/>
+    <rect id="generator-set-g5" x="106" y="30" width="54" height="56" rx="8"/>
+    <rect id="generator-set-g6" x="64" y="34" width="34" height="22" rx="2"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#generator-set-g1" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#generator-set-g1" fill="url(#generator-set-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <use href="#generator-set-g2" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#generator-set-g2" fill="url(#generator-set-dark-h)" stroke="none" opacity="1" data-shade="dark-h"/>
+    <use href="#generator-set-g3" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#generator-set-g3" fill="url(#generator-set-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="safety-yellow" fill="#e3a51a" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#generator-set-g4"/>
+    <use href="#generator-set-g4" fill="url(#generator-set-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+    <use href="#generator-set-g5"/>
+    <use href="#generator-set-g5" fill="url(#generator-set-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <path d="M14 32 L14 80" fill="none" stroke-opacity="0.45"/>
+    <path d="M18 32 L18 80" fill="none" stroke-opacity="0.45"/>
+    <path d="M22 32 L22 80" fill="none" stroke-opacity="0.45"/>
+    <path d="M26 32 L26 80" fill="none" stroke-opacity="0.45"/>
+    <path d="M30 32 L30 80" fill="none" stroke-opacity="0.45"/>
+    <path d="M34 32 L34 80" fill="none" stroke-opacity="0.45"/>
+    <path d="M38 32 L38 80" fill="none" stroke-opacity="0.45"/>
+    <path d="M42 32 L42 80" fill="none" stroke-opacity="0.45"/>
+    <path d="M46 32 L46 80" fill="none" stroke-opacity="0.45"/>
+    <path d="M50 32 L50 80" fill="none" stroke-opacity="0.45"/>
+    <path d="M54 32 L54 80" fill="none" stroke-opacity="0.45"/>
+    <path d="M58 32 L58 80" fill="none" stroke-opacity="0.45"/>
+    <use href="#generator-set-g6" fill="#e2e6ea" data-mat="appliance"/>
+    <use href="#generator-set-g6" fill="url(#generator-set-paint-d)" stroke="none" opacity="1" data-shade="paint-d"/>
+    <rect x="68" y="38" width="26" height="10" rx="2" fill="#1d2a35" data-mat="glass-dark"/>
+    <path d="M72 43.0 L79.7 43.0 M82.3 43.0 L90 43.0" fill="none" stroke="#3fb950" data-mat-stroke="lamp-green" stroke-width="1.8" stroke-linecap="round"/>
+    <rect x="68" y="38" width="26" height="10" rx="2" fill="url(#generator-set-glass-r)" fill-opacity="0.4" stroke="none" opacity="1" data-shade="glass-r"/>
+    <circle cx="133" cy="58" r="12" fill="none" stroke-opacity="0.45"/>
+  </g>
+</svg>

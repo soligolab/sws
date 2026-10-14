@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="60" height="110" viewBox="0 0 60 110">
+  <defs>
+    <linearGradient id="ups-paint-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <radialGradient id="ups-glass-r" cx="0.35" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.3" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <rect id="ups-g1" x="6" y="4" width="48" height="102" rx="4"/>
+  </defs>
+  <g id="body" data-layer="part" data-mat="steel-dark" fill="#4a545d" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#ups-g1"/>
+    <use href="#ups-g1" fill="url(#ups-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <rect x="12" y="12" width="36" height="14" rx="2" fill="#1d2a35" data-mat="glass-dark"/>
+    <path d="M16 19.0 L28.2 19.0 M31.8 19.0 L44 19.0" fill="none" stroke="#3fb950" data-mat-stroke="lamp-green" stroke-width="1.8" stroke-linecap="round"/>
+    <rect x="12" y="12" width="36" height="14" rx="2" fill="url(#ups-glass-r)" fill-opacity="0.4" stroke="none" opacity="1" data-shade="glass-r"/>
+    <path d="M12 36 L48 36" fill="none" stroke-opacity="0.45"/>
+    <path d="M12 44 L48 44" fill="none" stroke-opacity="0.45"/>
+    <path d="M12 52 L48 52" fill="none" stroke-opacity="0.45"/>
+    <path d="M12 60 L48 60" fill="none" stroke-opacity="0.45"/>
+    <path d="M12 68 L48 68" fill="none" stroke-opacity="0.45"/>
+    <path d="M12 76 L48 76" fill="none" stroke-opacity="0.45"/>
+    <path d="M12 84 L48 84" fill="none" stroke-opacity="0.45"/>
+    <path d="M12 92 L48 92" fill="none" stroke-opacity="0.45"/>
+    <circle cx="30" cy="98" r="2.4" fill="#2f5a39" data-mat="lamp-green-off"/>
+  </g>
+  <g id="led" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <circle cx="30" cy="98" r="2.4" fill="#3fb950" data-mat="lamp-green"/>
+    <circle cx="30" cy="98" r="2.4" fill="url(#ups-glass-r)" stroke="none" opacity="1" data-shade="glass-r"/>
+  </g>
+</svg>

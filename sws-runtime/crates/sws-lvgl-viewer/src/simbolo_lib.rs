@@ -1,6 +1,6 @@
 //! I simboli di libreria (`lib:<famiglia>/<slug>`) sul pannello.
 //!
-//! Piano: `docs/plans/2026-10-14-motore-simboli-lib.md`, Fase 2. Lo stesso SVG
+//! Piano: `docs/archive/2026-10-14-motore-simboli-lib.md`, Fase 2. Lo stesso SVG
 //! che il web inietta strato per strato qui diventa **un `lv_canvas` per
 //! strato**, dentro un contenitore che ha la posizione e la misura dell'oggetto:
 //!

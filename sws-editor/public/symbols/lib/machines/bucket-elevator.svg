@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="90" height="170" viewBox="0 0 90 170">
+  <defs>
+    <linearGradient id="bucket-elevator-metal-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="bucket-elevator-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="bucket-elevator-paint-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <linearGradient id="bucket-elevator-paint-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <radialGradient id="bucket-elevator-glass-r" cx="0.35" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.3" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <path id="bucket-elevator-g1" d="M60 20 L86 34 L86 44 L60 34 Z"/>
+    <rect id="bucket-elevator-g2" x="0" y="145" width="14" height="10"/>
+    <rect id="bucket-elevator-g3" x="0" y="142" width="4" height="16" rx="0.8"/>
+    <rect id="bucket-elevator-g4" x="4" y="2" width="14" height="18" rx="3"/>
+    <rect id="bucket-elevator-g5" x="18" y="8" width="44" height="30" rx="8"/>
+    <rect id="bucket-elevator-g6" x="24" y="38" width="32" height="100"/>
+    <rect id="bucket-elevator-g7" x="14" y="136" width="52" height="30" rx="6"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#bucket-elevator-g1" fill="#9aa5af" data-mat="steel"/>
+    <use href="#bucket-elevator-g1" fill="url(#bucket-elevator-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#bucket-elevator-g2" fill="#9aa5af" data-mat="steel"/>
+    <use href="#bucket-elevator-g2" fill="url(#bucket-elevator-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#bucket-elevator-g3" fill="#9aa5af" data-mat="steel"/>
+    <use href="#bucket-elevator-g3" fill="url(#bucket-elevator-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#bucket-elevator-g4" fill="#5d6f7e" data-mat="body-motor"/>
+    <use href="#bucket-elevator-g4" fill="url(#bucket-elevator-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="body-motor" fill="#5d6f7e" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#bucket-elevator-g5"/>
+    <use href="#bucket-elevator-g5" fill="url(#bucket-elevator-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+    <use href="#bucket-elevator-g6"/>
+    <use href="#bucket-elevator-g6" fill="url(#bucket-elevator-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+    <use href="#bucket-elevator-g7"/>
+    <use href="#bucket-elevator-g7" fill="url(#bucket-elevator-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <rect x="30" y="44" width="20" height="88" rx="2" fill="#1d2a35" data-mat="glass-dark"/>
+    <path d="M34 48 L46 48 L44 54 L36 54 Z" fill="#e3a51a" data-mat="safety-yellow" stroke-width="0.6"/>
+    <path d="M34 60 L46 60 L44 66 L36 66 Z" fill="#e3a51a" data-mat="safety-yellow" stroke-width="0.6"/>
+    <path d="M34 72 L46 72 L44 78 L36 78 Z" fill="#e3a51a" data-mat="safety-yellow" stroke-width="0.6"/>
+    <path d="M34 84 L46 84 L44 90 L36 90 Z" fill="#e3a51a" data-mat="safety-yellow" stroke-width="0.6"/>
+    <path d="M34 96 L46 96 L44 102 L36 102 Z" fill="#e3a51a" data-mat="safety-yellow" stroke-width="0.6"/>
+    <path d="M34 108 L46 108 L44 114 L36 114 Z" fill="#e3a51a" data-mat="safety-yellow" stroke-width="0.6"/>
+    <path d="M34 120 L46 120 L44 126 L36 126 Z" fill="#e3a51a" data-mat="safety-yellow" stroke-width="0.6"/>
+    <rect x="30" y="44" width="20" height="88" rx="2" fill="url(#bucket-elevator-glass-r)" fill-opacity="0.3" stroke="none" opacity="1" data-shade="glass-r"/>
+  </g>
+</svg>

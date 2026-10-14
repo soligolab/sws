@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="70" height="70" viewBox="0 0 70 70">
+  <defs>
+    <radialGradient id="encoder-paint-r" cx="0.36" cy="0.3" r="0.75">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.55"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.05"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </radialGradient>
+    <linearGradient id="encoder-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <radialGradient id="encoder-metal-r" cx="0.35" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.13"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.46"/>
+    </radialGradient>
+    <circle id="encoder-g1" cx="32" cy="32" r="26"/>
+    <circle id="encoder-g2" cx="32" cy="32" r="18"/>
+    <circle id="encoder-g3" cx="32" cy="32" r="7"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <path d="M56 52 Q68 58 70 70" fill="none" stroke="#2a2d31" data-mat-stroke="rubber" stroke-width="3"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="steel" fill="#9aa5af" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#encoder-g1"/>
+    <use href="#encoder-g1" fill="url(#encoder-paint-r)" stroke="none" opacity="1" data-shade="paint-r"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#encoder-g2" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#encoder-g2" fill="url(#encoder-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+  </g>
+  <g id="rotor" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#encoder-g3" fill="#9aa5af" data-mat="steel"/>
+    <use href="#encoder-g3" fill="url(#encoder-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+    <rect x="29" y="25" width="6" height="3" fill="#4a545d" data-mat="steel-dark" stroke="none"/>
+  </g>
+  <g id="layer-2" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <circle cx="47.56" cy="16.44" r="1.8" fill="#4a545d" data-mat="steel-dark" stroke="none"/>
+    <circle cx="16.44" cy="16.44" r="1.8" fill="#4a545d" data-mat="steel-dark" stroke="none"/>
+    <circle cx="16.44" cy="47.56" r="1.8" fill="#4a545d" data-mat="steel-dark" stroke="none"/>
+    <circle cx="47.56" cy="47.56" r="1.8" fill="#4a545d" data-mat="steel-dark" stroke="none"/>
+  </g>
+</svg>

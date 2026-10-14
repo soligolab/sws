@@ -7,7 +7,7 @@
 # Gli SVG di `sws-editor/public/symbols/lib/` e il loro `manifest.json` sono un
 # prodotto di `scripts/simboli/genera.py`: palette dei materiali, veli, contorno
 # e geometria delle parti vive stanno lì, in un punto solo (decisione 14 del
-# piano docs/plans/2026-10-14-libreria-simboli-scada.md). Un ritocco a mano in
+# piano docs/archive/2026-10-14-libreria-simboli-scada.md). Un ritocco a mano in
 # Inkscape funziona sul web e rompe in silenzio quello che il motore si aspetta:
 # un materiale senza `data-mat` non si ritinge più, un velo senza `opacity="1"`
 # non segue il volume, un `<text>` sul pannello non si vede (resvg senza font),

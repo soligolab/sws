@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="60" height="40" viewBox="0 0 60 40">
+  <defs>
+    <linearGradient id="reducer-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="reducer-metal-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <path id="reducer-g1" d="M4 12 L22 12 L38 15 L56 15 L56 25 L38 25 L22 28 L4 28 Z"/>
+    <rect id="reducer-g2" x="0" y="8" width="4" height="24" rx="0.8"/>
+    <rect id="reducer-g3" x="56" y="12" width="4" height="16" rx="0.8"/>
+  </defs>
+  <g id="body" data-layer="part" data-mat="steel" fill="#9aa5af" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#reducer-g1"/>
+    <use href="#reducer-g1" fill="url(#reducer-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#reducer-g2" fill="#9aa5af" data-mat="steel"/>
+    <use href="#reducer-g2" fill="url(#reducer-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#reducer-g3" fill="#9aa5af" data-mat="steel"/>
+    <use href="#reducer-g3" fill="url(#reducer-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+  </g>
+</svg>

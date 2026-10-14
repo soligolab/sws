@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="80" height="30" viewBox="0 0 80 30">
+  <defs>
+    <linearGradient id="inductive-sensor-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <linearGradient id="inductive-sensor-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="inductive-sensor-metal-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="inductive-sensor-paint-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <radialGradient id="inductive-sensor-glass-r" cx="0.35" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.3" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <rect id="inductive-sensor-g1" x="6" y="9" width="10" height="12" rx="2"/>
+    <rect id="inductive-sensor-g2" x="16" y="7" width="52" height="16" rx="2"/>
+    <rect id="inductive-sensor-g3" x="40" y="4" width="8" height="22" rx="1"/>
+    <rect id="inductive-sensor-g4" x="68" y="8" width="10" height="14" rx="2"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <path d="M0 15 L8 15" fill="none" stroke="#2a2d31" data-mat-stroke="rubber" stroke-width="4"/>
+    <use href="#inductive-sensor-g1" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#inductive-sensor-g1" fill="url(#inductive-sensor-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="steel" fill="#9aa5af" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#inductive-sensor-g2"/>
+    <use href="#inductive-sensor-g2" fill="url(#inductive-sensor-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <path d="M20 7 L22 23" fill="none" stroke-opacity="0.25"/>
+    <path d="M23 7 L25 23" fill="none" stroke-opacity="0.25"/>
+    <path d="M26 7 L28 23" fill="none" stroke-opacity="0.25"/>
+    <path d="M29 7 L31 23" fill="none" stroke-opacity="0.25"/>
+    <path d="M32 7 L34 23" fill="none" stroke-opacity="0.25"/>
+    <path d="M35 7 L37 23" fill="none" stroke-opacity="0.25"/>
+    <path d="M38 7 L40 23" fill="none" stroke-opacity="0.25"/>
+    <path d="M41 7 L43 23" fill="none" stroke-opacity="0.25"/>
+    <path d="M44 7 L46 23" fill="none" stroke-opacity="0.25"/>
+    <path d="M47 7 L49 23" fill="none" stroke-opacity="0.25"/>
+    <path d="M50 7 L52 23" fill="none" stroke-opacity="0.25"/>
+    <path d="M53 7 L55 23" fill="none" stroke-opacity="0.25"/>
+    <path d="M56 7 L58 23" fill="none" stroke-opacity="0.25"/>
+    <path d="M59 7 L61 23" fill="none" stroke-opacity="0.25"/>
+    <path d="M62 7 L64 23" fill="none" stroke-opacity="0.25"/>
+    <use href="#inductive-sensor-g3" fill="#9aa5af" data-mat="steel"/>
+    <use href="#inductive-sensor-g3" fill="url(#inductive-sensor-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#inductive-sensor-g4" fill="#e3a51a" data-mat="safety-yellow"/>
+    <use href="#inductive-sensor-g4" fill="url(#inductive-sensor-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+    <circle cx="22" cy="15" r="2" fill="#6e5a2c" data-mat="lamp-amber-off"/>
+  </g>
+  <g id="led" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <circle cx="22" cy="15" r="2" fill="#e0a91b" data-mat="lamp-amber"/>
+    <circle cx="22" cy="15" r="2" fill="url(#inductive-sensor-glass-r)" stroke="none" opacity="1" data-shade="glass-r"/>
+  </g>
+</svg>

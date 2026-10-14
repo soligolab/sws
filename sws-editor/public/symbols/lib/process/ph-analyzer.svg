@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="80" height="110" viewBox="0 0 80 110">
+  <defs>
+    <linearGradient id="ph-analyzer-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <linearGradient id="ph-analyzer-paint-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <radialGradient id="ph-analyzer-glass-r" cx="0.35" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.3" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="ph-analyzer-paint-d" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.35"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.3"/>
+    </linearGradient>
+    <rect id="ph-analyzer-g1" x="34" y="66" width="12" height="8" rx="1.5"/>
+    <rect id="ph-analyzer-g2" x="36" y="74" width="8" height="26" rx="3"/>
+    <circle id="ph-analyzer-g3" cx="40" cy="102" r="5"/>
+    <rect id="ph-analyzer-g4" x="10" y="4" width="60" height="46" rx="4"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <path d="M40 50 L40 66" fill="none" stroke="#2a2d31" data-mat-stroke="rubber" stroke-width="2.4"/>
+    <use href="#ph-analyzer-g1" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#ph-analyzer-g1" fill="url(#ph-analyzer-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <use href="#ph-analyzer-g2" fill="#9cc7e3" data-mat="glass" fill-opacity="0.8"/>
+    <use href="#ph-analyzer-g2" fill="url(#ph-analyzer-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+    <use href="#ph-analyzer-g3" fill="#9cc7e3" data-mat="glass"/>
+    <use href="#ph-analyzer-g3" fill="url(#ph-analyzer-glass-r)" stroke="none" opacity="1" data-shade="glass-r"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="appliance" fill="#e2e6ea" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#ph-analyzer-g4"/>
+    <use href="#ph-analyzer-g4" fill="url(#ph-analyzer-paint-d)" stroke="none" opacity="1" data-shade="paint-d"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <rect x="18" y="12" width="44" height="22" rx="2" fill="#1d2a35" data-mat="glass-dark"/>
+    <path d="M24 23 L36 23 M42 23 L56 23" fill="none" stroke="#3fb950" data-mat-stroke="lamp-green" stroke-width="2" stroke-linecap="round"/>
+    <rect x="19" y="39" width="6" height="5" rx="1" fill="#4a545d" data-mat="steel-dark" stroke="none"/>
+    <rect x="31" y="39" width="6" height="5" rx="1" fill="#4a545d" data-mat="steel-dark" stroke="none"/>
+    <rect x="43" y="39" width="6" height="5" rx="1" fill="#4a545d" data-mat="steel-dark" stroke="none"/>
+    <rect x="55" y="39" width="6" height="5" rx="1" fill="#4a545d" data-mat="steel-dark" stroke="none"/>
+  </g>
+</svg>

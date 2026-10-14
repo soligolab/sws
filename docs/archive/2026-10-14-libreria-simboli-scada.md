@@ -118,7 +118,7 @@ incorporate. Vanno rigenerati con le regole qui sotto, vedi «Cosa cambia rispet
 - **Colori**: oggi non esiste uno stile di progetto. C'è una tabella unica di predefiniti per tipo
   (`coloriPredefiniti.ts`, fonte `tests/fixtures/colori-predefiniti.json`, confrontata anche da
   LVGL), il colore esplicito per oggetto e, dall'11-10, le variabili `color` legabili a `fill` e allo
-  sfondo della pagina ([piano](2026-10-11-colore-e-assegnazioni.md)). Lo stile del progetto (17, 18) è
+  sfondo della pagina ([piano](../plans/2026-10-11-colore-e-assegnazioni.md)). Lo stile del progetto (17, 18) è
   un livello nuovo fra la tabella e l'oggetto.
 - **Prova resvg**: i 16 campioni rasterizzati con un programmino su resvg 0.45.1 senza feature (lo
   stesso del viewer) si disegnano tutti, con gradienti, `<use>` e opacità. È servito a confermare

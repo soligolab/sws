@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="130" height="100" viewBox="0 0 130 100">
+  <defs>
+    <linearGradient id="piston-compressor-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <linearGradient id="piston-compressor-paint-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <linearGradient id="piston-compressor-paint-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <radialGradient id="piston-compressor-dial-r" cx="0.4" cy="0.35" r="0.75">
+      <stop offset="0" stop-color="#fff" stop-opacity="1"/>
+      <stop offset="0.7" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.14"/>
+    </radialGradient>
+    <path id="piston-compressor-g1" d="M20 86 L32 86 L34 96 L18 96 Z"/>
+    <path id="piston-compressor-g2" d="M96 86 L108 86 L110 96 L94 96 Z"/>
+    <rect id="piston-compressor-g3" x="70" y="18" width="34" height="30" rx="3"/>
+    <rect id="piston-compressor-g4" x="22" y="10" width="24" height="38" rx="3"/>
+    <path id="piston-compressor-g5" d="M46 26 L70 22 L70 44 L46 40 Z"/>
+    <path id="piston-compressor-g6" d="M24 48 L106 48 Q122 48 122 67 Q122 86 106 86 L24 86 Q8 86 8 67 Q8 48 24 48 Z"/>
+    <circle id="piston-compressor-g7" cx="112" cy="56" r="5"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#piston-compressor-g1" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#piston-compressor-g1" fill="url(#piston-compressor-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <use href="#piston-compressor-g2" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#piston-compressor-g2" fill="url(#piston-compressor-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <use href="#piston-compressor-g3" fill="#5d6f7e" data-mat="body-motor"/>
+    <use href="#piston-compressor-g3" fill="url(#piston-compressor-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+    <path d="M74 22 L74 45" fill="none" stroke-opacity="0.35"/>
+    <path d="M78 22 L78 45" fill="none" stroke-opacity="0.35"/>
+    <path d="M82 22 L82 45" fill="none" stroke-opacity="0.35"/>
+    <path d="M86 22 L86 45" fill="none" stroke-opacity="0.35"/>
+    <path d="M90 22 L90 45" fill="none" stroke-opacity="0.35"/>
+    <path d="M94 22 L94 45" fill="none" stroke-opacity="0.35"/>
+    <path d="M98 22 L98 45" fill="none" stroke-opacity="0.35"/>
+    <use href="#piston-compressor-g4" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#piston-compressor-g4" fill="url(#piston-compressor-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <path d="M22 14 L46 14" fill="none" stroke-opacity="0.35"/>
+    <path d="M22 18 L46 18" fill="none" stroke-opacity="0.35"/>
+    <path d="M22 22 L46 22" fill="none" stroke-opacity="0.35"/>
+    <path d="M22 26 L46 26" fill="none" stroke-opacity="0.35"/>
+    <path d="M22 30 L46 30" fill="none" stroke-opacity="0.35"/>
+    <use href="#piston-compressor-g5" fill="#e3a51a" data-mat="safety-yellow"/>
+    <use href="#piston-compressor-g5" fill="url(#piston-compressor-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="signal-red" fill="#c8352e" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#piston-compressor-g6"/>
+    <use href="#piston-compressor-g6" fill="url(#piston-compressor-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#piston-compressor-g7" fill="#eef1f3" data-mat="dial"/>
+    <use href="#piston-compressor-g7" fill="url(#piston-compressor-dial-r)" stroke="none" opacity="1" data-shade="dial-r"/>
+  </g>
+</svg>

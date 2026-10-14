@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="70" height="150" viewBox="0 0 70 150">
+  <defs>
+    <linearGradient id="utility-pole-paint-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <linearGradient id="utility-pole-paint-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <linearGradient id="utility-pole-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <rect id="utility-pole-g1" x="31" y="8" width="8" height="142"/>
+    <rect id="utility-pole-g2" x="4" y="16" width="62" height="6" rx="1"/>
+    <rect id="utility-pole-g3" x="40" y="52" width="22" height="32" rx="4"/>
+    <rect id="utility-pole-g4" x="40" y="50" width="22" height="4" rx="1"/>
+  </defs>
+  <g id="body" data-layer="part" data-mat="porcelain-shed" fill="#a0583a" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#utility-pole-g1"/>
+    <use href="#utility-pole-g1" fill="url(#utility-pole-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#utility-pole-g2" fill="#a0583a" data-mat="porcelain-shed"/>
+    <use href="#utility-pole-g2" fill="url(#utility-pole-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+    <rect x="5" y="8" width="6" height="9" fill="#8c4a2f" data-mat="porcelain"/>
+    <circle cx="8" cy="7" r="2.2" fill="#4a545d" data-mat="steel-dark"/>
+    <rect x="32" y="8" width="6" height="9" fill="#8c4a2f" data-mat="porcelain"/>
+    <circle cx="35" cy="7" r="2.2" fill="#4a545d" data-mat="steel-dark"/>
+    <rect x="59" y="8" width="6" height="9" fill="#8c4a2f" data-mat="porcelain"/>
+    <circle cx="62" cy="7" r="2.2" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#utility-pole-g3" fill="#8a9196" data-mat="transformer"/>
+    <use href="#utility-pole-g3" fill="url(#utility-pole-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+    <use href="#utility-pole-g4" fill="#9aa5af" data-mat="steel"/>
+    <use href="#utility-pole-g4" fill="url(#utility-pole-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <path d="M51 50 L51 22" fill="none" stroke="#4a545d" data-mat-stroke="steel-dark" stroke-width="1.4"/>
+  </g>
+</svg>

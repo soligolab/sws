@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="70" viewBox="0 0 50 70">
+  <defs>
+    <linearGradient id="drum-paint-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <linearGradient id="drum-metal-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <rect id="drum-g1" x="6" y="6" width="38" height="60" rx="4"/>
+    <rect id="drum-g2" x="4" y="4.5" width="42" height="4" rx="2"/>
+    <rect id="drum-g3" x="4" y="22.5" width="42" height="4" rx="2"/>
+    <rect id="drum-g4" x="4" y="44.5" width="42" height="4" rx="2"/>
+    <rect id="drum-g5" x="4" y="62.5" width="42" height="4" rx="2"/>
+  </defs>
+  <g id="body" data-layer="part" data-mat="body-pump" fill="#2f6fa8" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#drum-g1"/>
+    <use href="#drum-g1" fill="url(#drum-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#drum-g2" fill="#9aa5af" data-mat="steel"/>
+    <use href="#drum-g2" fill="url(#drum-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#drum-g3" fill="#9aa5af" data-mat="steel"/>
+    <use href="#drum-g3" fill="url(#drum-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#drum-g4" fill="#9aa5af" data-mat="steel"/>
+    <use href="#drum-g4" fill="url(#drum-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#drum-g5" fill="#9aa5af" data-mat="steel"/>
+    <use href="#drum-g5" fill="url(#drum-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <circle cx="34" cy="9" r="2.4" fill="#4a545d" data-mat="steel-dark" stroke="none"/>
+  </g>
+</svg>

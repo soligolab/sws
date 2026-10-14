@@ -3,7 +3,7 @@
 // Il manifesto si scarica una volta. Gli SVG si scaricano alla prima richiesta
 // con `?v=<versione del manifesto>`: `/symbols` è servito senza Cache-Control, e
 // senza la versione un browser potrebbe tenersi il disegno di prima di un
-// aggiornamento. Piano: docs/plans/2026-10-14-motore-simboli-lib.md (Fase 2).
+// aggiornamento. Piano: docs/archive/2026-10-14-motore-simboli-lib.md (Fase 2).
 
 import { useSyncExternalStore } from "react";
 import { applicaStile, type StileSimbolo } from "./applicaStile";

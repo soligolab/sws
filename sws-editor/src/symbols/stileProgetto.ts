@@ -1,5 +1,5 @@
 // Lo stile dei simboli del progetto (`project.symbol_style`, Fase 4 del piano
-// docs/plans/2026-10-14-motore-simboli-lib.md) e la regola che lo combina con
+// docs/archive/2026-10-14-motore-simboli-lib.md) e la regola che lo combina con
 // l'oggetto e col disegno: **oggetto → progetto → disegno**. La stessa regola è
 // in `sws-core/src/stile_simboli.rs` per il pannello; i casi stanno in
 // `tests/fixtures/stile-effettivo.json`.

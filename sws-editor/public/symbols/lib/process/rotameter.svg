@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="40" height="130" viewBox="0 0 40 130">
+  <defs>
+    <linearGradient id="rotameter-metal-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="rotameter-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="rotameter-paint-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <radialGradient id="rotameter-paint-r" cx="0.36" cy="0.3" r="0.75">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.55"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.05"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </radialGradient>
+    <rect id="rotameter-g1" x="15" y="0" width="10" height="12"/>
+    <rect id="rotameter-g2" x="15" y="118" width="10" height="12"/>
+    <rect id="rotameter-g3" x="6" y="10" width="28" height="10" rx="2"/>
+    <rect id="rotameter-g4" x="6" y="110" width="28" height="10" rx="2"/>
+    <path id="rotameter-g5" d="M12 20 L28 20 L24 110 L16 110 Z"/>
+    <path id="rotameter-g6" d="M14 60 L26 60 L20 70 Z"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#rotameter-g1" fill="#9aa5af" data-mat="steel"/>
+    <use href="#rotameter-g1" fill="url(#rotameter-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#rotameter-g2" fill="#9aa5af" data-mat="steel"/>
+    <use href="#rotameter-g2" fill="url(#rotameter-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="steel" fill="#9aa5af" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#rotameter-g3"/>
+    <use href="#rotameter-g3" fill="url(#rotameter-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#rotameter-g4"/>
+    <use href="#rotameter-g4" fill="url(#rotameter-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#rotameter-g5" fill="#9cc7e3" data-mat="glass" fill-opacity="0.6"/>
+    <use href="#rotameter-g5" fill="url(#rotameter-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+    <path d="M27 30 L31 30" fill="none" stroke-width="0.8"/>
+    <path d="M27 40 L31 40" fill="none" stroke-width="0.8"/>
+    <path d="M27 50 L31 50" fill="none" stroke-width="0.8"/>
+    <path d="M27 60 L31 60" fill="none" stroke-width="0.8"/>
+    <path d="M27 70 L31 70" fill="none" stroke-width="0.8"/>
+    <path d="M27 80 L31 80" fill="none" stroke-width="0.8"/>
+    <path d="M27 90 L31 90" fill="none" stroke-width="0.8"/>
+    <path d="M27 100 L31 100" fill="none" stroke-width="0.8"/>
+    <use href="#rotameter-g6" fill="#c8352e" data-mat="signal-red"/>
+    <use href="#rotameter-g6" fill="url(#rotameter-paint-r)" stroke="none" opacity="1" data-shade="paint-r"/>
+    <path d="M8 20 L8 110 M32 20 L32 110" fill="none" stroke="#4a545d" data-mat-stroke="steel-dark" stroke-width="1.6"/>
+  </g>
+</svg>

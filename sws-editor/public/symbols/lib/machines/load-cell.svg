@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="40" viewBox="0 0 100 40">
+  <defs>
+    <linearGradient id="load-cell-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="load-cell-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <rect id="load-cell-g1" x="4" y="8" width="86" height="24" rx="2"/>
+    <circle id="load-cell-g2" cx="24" cy="20" r="6"/>
+    <circle id="load-cell-g3" cx="70" cy="20" r="6"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <path d="M90 26 Q98 28 100 36" fill="none" stroke="#2a2d31" data-mat-stroke="rubber" stroke-width="3"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="steel" fill="#9aa5af" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#load-cell-g1"/>
+    <use href="#load-cell-g1" fill="url(#load-cell-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#load-cell-g2" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#load-cell-g2" fill="url(#load-cell-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <use href="#load-cell-g3" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#load-cell-g3" fill="url(#load-cell-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <rect x="40" y="14" width="16" height="12" rx="6" fill="#1d2a35" data-mat="glass-dark"/>
+  </g>
+</svg>

@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="60" height="90" viewBox="0 0 60 90">
+  <defs>
+    <linearGradient id="handwheel-valve-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="handwheel-valve-metal-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="handwheel-valve-paint-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <linearGradient id="handwheel-valve-paint-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <radialGradient id="handwheel-valve-paint-r" cx="0.36" cy="0.3" r="0.75">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.55"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.05"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </radialGradient>
+    <radialGradient id="handwheel-valve-metal-r" cx="0.35" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.13"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.46"/>
+    </radialGradient>
+    <rect id="handwheel-valve-g1" x="4" y="65" width="14" height="10"/>
+    <rect id="handwheel-valve-g2" x="0" y="62" width="4" height="16" rx="0.8"/>
+    <rect id="handwheel-valve-g3" x="42" y="65" width="14" height="10"/>
+    <rect id="handwheel-valve-g4" x="56" y="62" width="4" height="16" rx="0.8"/>
+    <rect id="handwheel-valve-g5" x="28.5" y="30" width="3" height="16"/>
+    <rect id="handwheel-valve-g6" x="22" y="44" width="16" height="16" rx="2"/>
+    <rect id="handwheel-valve-g7" x="16" y="58" width="28" height="24" rx="8"/>
+    <circle id="handwheel-valve-g8" cx="30" cy="18" r="16"/>
+    <circle id="handwheel-valve-g9" cx="30" cy="18" r="2.6"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#handwheel-valve-g1" fill="#9aa5af" data-mat="steel"/>
+    <use href="#handwheel-valve-g1" fill="url(#handwheel-valve-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#handwheel-valve-g2" fill="#9aa5af" data-mat="steel"/>
+    <use href="#handwheel-valve-g2" fill="url(#handwheel-valve-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#handwheel-valve-g3" fill="#9aa5af" data-mat="steel"/>
+    <use href="#handwheel-valve-g3" fill="url(#handwheel-valve-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#handwheel-valve-g4" fill="#9aa5af" data-mat="steel"/>
+    <use href="#handwheel-valve-g4" fill="url(#handwheel-valve-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#handwheel-valve-g5" fill="#9aa5af" data-mat="steel"/>
+    <use href="#handwheel-valve-g5" fill="url(#handwheel-valve-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="steel" fill="#9aa5af" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#handwheel-valve-g6"/>
+    <use href="#handwheel-valve-g6" fill="url(#handwheel-valve-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+    <use href="#handwheel-valve-g7"/>
+    <use href="#handwheel-valve-g7" fill="url(#handwheel-valve-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <path d="M22 70 L38 70" fill="none" stroke-opacity="0.35"/>
+    <use href="#handwheel-valve-g8" fill="#c8352e" data-mat="signal-red"/>
+    <use href="#handwheel-valve-g8" fill="url(#handwheel-valve-paint-r)" stroke="none" opacity="1" data-shade="paint-r"/>
+    <circle cx="30" cy="18" r="13" fill="none" stroke-opacity="0.5"/>
+    <path d="M30 18 L30 4" fill="none" stroke-width="1.6" stroke-linecap="round"/>
+    <path d="M30 18 L17.88 25" fill="none" stroke-width="1.6" stroke-linecap="round"/>
+    <path d="M30 18 L42.12 25" fill="none" stroke-width="1.6" stroke-linecap="round"/>
+    <use href="#handwheel-valve-g9" fill="#9aa5af" data-mat="steel"/>
+    <use href="#handwheel-valve-g9" fill="url(#handwheel-valve-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+  </g>
+</svg>

@@ -280,7 +280,7 @@ export interface SynopticObject {
   symbol_spin_s?: number;
   /** Simboli di libreria (`lib:…`): una parte viva del manifesto → il tag che
    *  la comanda. `min`/`max` solo per la lancetta (predefiniti 0 e 100). Piano
-   *  docs/plans/2026-10-14-motore-simboli-lib.md, Fase 3 (M8). */
+   *  docs/archive/2026-10-14-motore-simboli-lib.md, Fase 3 (M8). */
   symbol_parts?: Record<string, ParteLegata>;
   /** Fase 4 (M7): sovrascritture dello stile del progetto per questo simbolo di
    *  libreria. Vuoto = vale il progetto, poi il disegno. */

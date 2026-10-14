@@ -3,7 +3,7 @@
 //! Lo scrive `scripts/simboli/genera.py` insieme agli SVG; qui c'è la sua forma,
 //! la stessa di `sws-editor/src/symbols/lib/manifest.ts`. Lo leggono il
 //! validatore (quali `lib:` esistono) e il pannello LVGL (la geometria delle parti
-//! vive). Piano: `docs/plans/2026-10-14-motore-simboli-lib.md`.
+//! vive). Piano: `docs/archive/2026-10-14-motore-simboli-lib.md`.
 
 use std::collections::BTreeMap;
 

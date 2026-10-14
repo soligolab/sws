@@ -1,5 +1,5 @@
 // Configurazione → Progetto → Stile: lo stile dei simboli del progetto (Fase 4
-// del piano docs/plans/2026-10-14-motore-simboli-lib.md, decisioni 17, 18 e M5).
+// del piano docs/archive/2026-10-14-motore-simboli-lib.md, decisioni 17, 18 e M5).
 //
 // Quattro gruppi — stati, materiali, resa, animazioni — e un'anteprima viva di
 // alcuni simboli della libreria disegnati con la bozza, non con quanto salvato:

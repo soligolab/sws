@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="110" height="130" viewBox="0 0 110 130">
+  <defs>
+    <linearGradient id="mv-switchgear-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <linearGradient id="mv-switchgear-paint-d" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.35"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.3"/>
+    </linearGradient>
+    <linearGradient id="mv-switchgear-dark-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <radialGradient id="mv-switchgear-glass-r" cx="0.35" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.3" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <rect id="mv-switchgear-g1" x="4" y="122" width="102" height="8" rx="1"/>
+    <rect id="mv-switchgear-g2" x="4" y="4" width="32" height="118" rx="2"/>
+    <rect id="mv-switchgear-g3" x="40" y="4" width="32" height="118" rx="2"/>
+    <rect id="mv-switchgear-g4" x="76" y="4" width="32" height="118" rx="2"/>
+    <rect id="mv-switchgear-g5" x="28" y="80" width="4" height="16" rx="2"/>
+    <rect id="mv-switchgear-g6" x="64" y="80" width="4" height="16" rx="2"/>
+    <rect id="mv-switchgear-g7" x="100" y="80" width="4" height="16" rx="2"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#mv-switchgear-g1" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#mv-switchgear-g1" fill="url(#mv-switchgear-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="cabinet" fill="#c8cdd2" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#mv-switchgear-g2"/>
+    <use href="#mv-switchgear-g2" fill="url(#mv-switchgear-paint-d)" stroke="none" opacity="1" data-shade="paint-d"/>
+    <use href="#mv-switchgear-g3"/>
+    <use href="#mv-switchgear-g3" fill="url(#mv-switchgear-paint-d)" stroke="none" opacity="1" data-shade="paint-d"/>
+    <use href="#mv-switchgear-g4"/>
+    <use href="#mv-switchgear-g4" fill="url(#mv-switchgear-paint-d)" stroke="none" opacity="1" data-shade="paint-d"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <rect x="10" y="10" width="20" height="12" rx="1" fill="#1d2a35" data-mat="glass-dark"/>
+    <path d="M20 30 L20 60 M14 46 L26 40" fill="none" stroke="#4a545d" data-mat-stroke="steel-dark" stroke-width="1.6" stroke-linecap="round"/>
+    <circle cx="20" cy="68" r="3" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#mv-switchgear-g5" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#mv-switchgear-g5" fill="url(#mv-switchgear-dark-h)" stroke="none" opacity="1" data-shade="dark-h"/>
+    <rect x="46" y="10" width="20" height="12" rx="1" fill="#1d2a35" data-mat="glass-dark"/>
+    <path d="M56 30 L56 60 M50 46 L62 40" fill="none" stroke="#4a545d" data-mat-stroke="steel-dark" stroke-width="1.6" stroke-linecap="round"/>
+    <circle cx="56" cy="68" r="3" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#mv-switchgear-g6" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#mv-switchgear-g6" fill="url(#mv-switchgear-dark-h)" stroke="none" opacity="1" data-shade="dark-h"/>
+    <rect x="82" y="10" width="20" height="12" rx="1" fill="#1d2a35" data-mat="glass-dark"/>
+    <path d="M92 30 L92 60 M86 46 L98 40" fill="none" stroke="#4a545d" data-mat-stroke="steel-dark" stroke-width="1.6" stroke-linecap="round"/>
+    <circle cx="92" cy="68" r="3" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#mv-switchgear-g7" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#mv-switchgear-g7" fill="url(#mv-switchgear-dark-h)" stroke="none" opacity="1" data-shade="dark-h"/>
+    <circle cx="16" cy="16" r="3" fill="#6b3a37" data-mat="lamp-red-off"/>
+  </g>
+  <g id="lamp-1" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <circle cx="16" cy="16" r="3" fill="#d13c32" data-mat="lamp-red"/>
+    <circle cx="16" cy="16" r="3" fill="url(#mv-switchgear-glass-r)" stroke="none" opacity="1" data-shade="glass-r"/>
+  </g>
+  <g id="layer-2" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <circle cx="52" cy="16" r="3" fill="#2f5a39" data-mat="lamp-green-off"/>
+  </g>
+  <g id="lamp-2" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <circle cx="52" cy="16" r="3" fill="#3fb950" data-mat="lamp-green"/>
+    <circle cx="52" cy="16" r="3" fill="url(#mv-switchgear-glass-r)" stroke="none" opacity="1" data-shade="glass-r"/>
+  </g>
+  <g id="layer-3" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <circle cx="88" cy="16" r="3" fill="#2f5a39" data-mat="lamp-green-off"/>
+  </g>
+  <g id="lamp-3" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <circle cx="88" cy="16" r="3" fill="#3fb950" data-mat="lamp-green"/>
+    <circle cx="88" cy="16" r="3" fill="url(#mv-switchgear-glass-r)" stroke="none" opacity="1" data-shade="glass-r"/>
+  </g>
+  <g id="layer-4" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <path d="M56 100 L64 113 L48 113 Z" fill="#e0a91b" data-mat="warning-yellow"/>
+  </g>
+</svg>

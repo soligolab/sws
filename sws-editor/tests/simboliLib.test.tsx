@@ -1,5 +1,5 @@
 /** I simboli di libreria sul canvas web (Fase 2 del piano
- *  docs/plans/2026-10-14-motore-simboli-lib.md): strati con id unici per istanza,
+ *  docs/archive/2026-10-14-motore-simboli-lib.md): strati con id unici per istanza,
  *  corpo del colore di stato solo se lo stato è legato, livello ritagliato dal
  *  tag, rotore che gira sul centro del manifesto, clic che seleziona anche sopra
  *  le forme dei builtin. */

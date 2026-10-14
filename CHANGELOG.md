@@ -113,8 +113,22 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Added
 
+- **La libreria completa: 138 simboli** (Fase 7 del
+  [piano](docs/archive/2026-10-14-motore-simboli-lib.md)). I 91 disegni che mancavano, in quattro
+  lotti:
+
+  | Famiglia | Disegni nuovi | In tutto |
+  |---|---|---|
+  | Processo e fluidi | 42 | 68 |
+  | Elettrico ed energia | 19 | 26 |
+  | Macchine e movimentazione | 26 | 34 |
+  | Edificio e HVAC | 4 | 10 |
+
+  Sono tutti generati e hanno le parti vive dove servono: rotori, livelli, leve, lancette e spie.
+  `check_simboli_lvgl.sh` è verde su 178 simboli.
+
 - **I 31 sostitutivi dei builtin e gli alias** (Fase 6a del
-  [piano](docs/plans/2026-10-14-motore-simboli-lib.md)). La libreria arriva a 47 disegni, che
+  [piano](docs/archive/2026-10-14-motore-simboli-lib.md)). La libreria arriva a 47 disegni, che
   coprono tutti e 40 i builtin con `replaces`. Il disegno nuovo prende il posto dell'id vecchio in
   tre punti:
   - web: `cercaSimbolo`, `OggettoLib` col `ripiego`;
@@ -138,7 +152,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   stesso URL con l'aggiornamento del runtime.
 
 - **Lo stile dei simboli del progetto** (Fase 4 del
-  [piano](docs/plans/2026-10-14-motore-simboli-lib.md)). È un campo tipizzato
+  [piano](docs/archive/2026-10-14-motore-simboli-lib.md)). È un campo tipizzato
   `project.symbol_style`, che si salva con `PUT /api/project/symbol-style` (versionato Q30,
   validato, 400 sui valori fuori scala). Contiene:
   - i colori di stato;
@@ -157,7 +171,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   livello.
 
 - **Le parti vive dei simboli di libreria** (Fase 3 del
-  [piano](docs/plans/2026-10-14-motore-simboli-lib.md)). `symbol_parts` lega ogni parte del
+  [piano](docs/archive/2026-10-14-motore-simboli-lib.md)). `symbol_parts` lega ogni parte del
   manifesto a un tag, ed è in TS, `synoptic.rs`, `model.rs` e nelle iscrizioni ai tag
   (`collectTagIds`):
   - la lancetta è proporzionale fra `min` e `max`;
@@ -177,7 +191,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   i simboli.
 
 - **I simboli di libreria nel sinottico — la fetta verticale** (Fase 2 del
-  [piano](docs/plans/2026-10-14-motore-simboli-lib.md)). Un oggetto `symbol` con
+  [piano](docs/archive/2026-10-14-motore-simboli-lib.md)). Un oggetto `symbol` con
   `symbol_id: lib:<famiglia>/<slug>` si disegna dal manifesto su web e su LVGL:
   - il corpo prende il colore di stato, ma solo se lo stato è legato;
   - `fill_level_tag`/`fill_level` ritagliano la finestra del livello;
@@ -196,7 +210,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   Validatore e vocabolario dell'IA conoscono gli id `lib:`, che leggono dal manifesto.
 
 - **Libreria di simboli SCADA 2.5D — il formato** (Fase 1 del
-  [piano](docs/plans/2026-10-14-motore-simboli-lib.md)). Gli SVG di
+  [piano](docs/archive/2026-10-14-motore-simboli-lib.md)). Gli SVG di
   `sws-editor/public/symbols/lib/<famiglia>/<slug>.svg` e il loro `manifest.json` escono solo
   da `scripts/simboli/genera.py`:
   - strati statici e parti vive (`body`, `level`, `rotor`, `needle`, `lever`, `lamp-*`), con la
@@ -323,7 +337,7 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 ### Changed
 
 - **Ritirati i simboli builtin disegnati a mano** (Fase 6b del
-  [piano](docs/plans/2026-10-14-motore-simboli-lib.md)). Sono stati tolti:
+  [piano](docs/archive/2026-10-14-motore-simboli-lib.md)). Sono stati tolti:
   - `sws-editor/src/symbols/library.tsx`, cioè il JSX dei 40;
   - `draw_symbol`, `render_symbol`, `LiveKind::Symbol` e gli aiutanti `sym_*` in `lvgl_render.rs`
     (circa 1300 righe);

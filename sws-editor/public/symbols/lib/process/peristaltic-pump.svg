@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="80" height="90" viewBox="0 0 80 90">
+  <defs>
+    <linearGradient id="peristaltic-pump-metal-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="peristaltic-pump-paint-d" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.35"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.3"/>
+    </linearGradient>
+    <radialGradient id="peristaltic-pump-metal-r" cx="0.35" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.13"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.46"/>
+    </radialGradient>
+    <radialGradient id="peristaltic-pump-glass-r" cx="0.35" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.3" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <rect id="peristaltic-pump-g1" x="15" y="76" width="10" height="14"/>
+    <rect id="peristaltic-pump-g2" x="55" y="76" width="10" height="14"/>
+    <rect id="peristaltic-pump-g3" x="6" y="4" width="68" height="74" rx="6"/>
+    <circle id="peristaltic-pump-g4" cx="40" cy="22" r="4.5"/>
+    <circle id="peristaltic-pump-g5" cx="26.14" cy="46" r="4.5"/>
+    <circle id="peristaltic-pump-g6" cx="53.86" cy="46" r="4.5"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#peristaltic-pump-g1" fill="#9aa5af" data-mat="steel"/>
+    <use href="#peristaltic-pump-g1" fill="url(#peristaltic-pump-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#peristaltic-pump-g2" fill="#9aa5af" data-mat="steel"/>
+    <use href="#peristaltic-pump-g2" fill="url(#peristaltic-pump-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="appliance" fill="#e2e6ea" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#peristaltic-pump-g3"/>
+    <use href="#peristaltic-pump-g3" fill="url(#peristaltic-pump-paint-d)" stroke="none" opacity="1" data-shade="paint-d"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <circle cx="40" cy="38" r="26" fill="#1d2a35" data-mat="glass-dark"/>
+    <path d="M20 78 L20 46 A20 20 0 0 1 60 46 L60 78" fill="none" stroke="#2a2d31" data-mat-stroke="rubber" stroke-width="5" stroke-linecap="butt"/>
+  </g>
+  <g id="rotor" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <path d="M40 38 L40 22 M40 38 L26.1 46 M40 38 L53.9 46" fill="#9aa5af" data-mat="steel" stroke-width="3"/>
+    <use href="#peristaltic-pump-g4" fill="#9aa5af" data-mat="steel"/>
+    <use href="#peristaltic-pump-g4" fill="url(#peristaltic-pump-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+    <use href="#peristaltic-pump-g5" fill="#9aa5af" data-mat="steel"/>
+    <use href="#peristaltic-pump-g5" fill="url(#peristaltic-pump-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+    <use href="#peristaltic-pump-g6" fill="#9aa5af" data-mat="steel"/>
+    <use href="#peristaltic-pump-g6" fill="url(#peristaltic-pump-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+    <circle cx="40" cy="38" r="4" fill="#4a545d" data-mat="steel-dark"/>
+  </g>
+  <g id="layer-2" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <circle cx="40" cy="38" r="26" fill="url(#peristaltic-pump-glass-r)" fill-opacity="0.35" stroke="none" opacity="1" data-shade="glass-r"/>
+  </g>
+</svg>

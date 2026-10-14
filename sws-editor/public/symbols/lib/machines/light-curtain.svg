@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="60" height="150" viewBox="0 0 60 150">
+  <defs>
+    <linearGradient id="light-curtain-paint-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <radialGradient id="light-curtain-glass-r" cx="0.35" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.3" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <rect id="light-curtain-g1" x="18" y="4" width="24" height="140" rx="4"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <path d="M30 144 L30 150" fill="none" stroke="#2a2d31" data-mat-stroke="rubber" stroke-width="4"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="safety-yellow" fill="#e3a51a" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#light-curtain-g1"/>
+    <use href="#light-curtain-g1" fill="url(#light-curtain-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <rect x="24" y="12" width="12" height="116" rx="2" fill="#1d2a35" data-mat="glass-dark"/>
+    <circle cx="30" cy="18" r="2" fill="#6b3a37" data-mat="lamp-red-off" stroke="none"/>
+    <circle cx="30" cy="28" r="2" fill="#6b3a37" data-mat="lamp-red-off" stroke="none"/>
+    <circle cx="30" cy="38" r="2" fill="#6b3a37" data-mat="lamp-red-off" stroke="none"/>
+    <circle cx="30" cy="48" r="2" fill="#6b3a37" data-mat="lamp-red-off" stroke="none"/>
+    <circle cx="30" cy="58" r="2" fill="#6b3a37" data-mat="lamp-red-off" stroke="none"/>
+    <circle cx="30" cy="68" r="2" fill="#6b3a37" data-mat="lamp-red-off" stroke="none"/>
+    <circle cx="30" cy="78" r="2" fill="#6b3a37" data-mat="lamp-red-off" stroke="none"/>
+    <circle cx="30" cy="88" r="2" fill="#6b3a37" data-mat="lamp-red-off" stroke="none"/>
+    <circle cx="30" cy="98" r="2" fill="#6b3a37" data-mat="lamp-red-off" stroke="none"/>
+    <circle cx="30" cy="108" r="2" fill="#6b3a37" data-mat="lamp-red-off" stroke="none"/>
+    <circle cx="30" cy="118" r="2" fill="#6b3a37" data-mat="lamp-red-off" stroke="none"/>
+  </g>
+  <g id="lamp" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <circle cx="30" cy="18" r="2" fill="#d13c32" data-mat="lamp-red" stroke="none"/>
+    <circle cx="30" cy="28" r="2" fill="#d13c32" data-mat="lamp-red" stroke="none"/>
+    <circle cx="30" cy="38" r="2" fill="#d13c32" data-mat="lamp-red" stroke="none"/>
+    <circle cx="30" cy="48" r="2" fill="#d13c32" data-mat="lamp-red" stroke="none"/>
+    <circle cx="30" cy="58" r="2" fill="#d13c32" data-mat="lamp-red" stroke="none"/>
+    <circle cx="30" cy="68" r="2" fill="#d13c32" data-mat="lamp-red" stroke="none"/>
+    <circle cx="30" cy="78" r="2" fill="#d13c32" data-mat="lamp-red" stroke="none"/>
+    <circle cx="30" cy="88" r="2" fill="#d13c32" data-mat="lamp-red" stroke="none"/>
+    <circle cx="30" cy="98" r="2" fill="#d13c32" data-mat="lamp-red" stroke="none"/>
+    <circle cx="30" cy="108" r="2" fill="#d13c32" data-mat="lamp-red" stroke="none"/>
+    <circle cx="30" cy="118" r="2" fill="#d13c32" data-mat="lamp-red" stroke="none"/>
+  </g>
+  <g id="layer-2" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <circle cx="30" cy="136" r="2.4" fill="#2f5a39" data-mat="lamp-green-off"/>
+  </g>
+  <g id="led" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <circle cx="30" cy="136" r="2.4" fill="#3fb950" data-mat="lamp-green"/>
+    <circle cx="30" cy="136" r="2.4" fill="url(#light-curtain-glass-r)" stroke="none" opacity="1" data-shade="glass-r"/>
+  </g>
+</svg>

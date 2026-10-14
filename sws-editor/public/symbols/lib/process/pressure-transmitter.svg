@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="60" height="100" viewBox="0 0 60 100">
+  <defs>
+    <linearGradient id="pressure-transmitter-metal-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="pressure-transmitter-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <radialGradient id="pressure-transmitter-paint-r" cx="0.36" cy="0.3" r="0.75">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.55"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.05"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </radialGradient>
+    <radialGradient id="pressure-transmitter-glass-r" cx="0.35" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.3" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <rect id="pressure-transmitter-g1" x="25" y="82" width="10" height="18"/>
+    <rect id="pressure-transmitter-g2" x="14" y="64" width="32" height="18" rx="2"/>
+    <rect id="pressure-transmitter-g3" x="26" y="52" width="8" height="12"/>
+    <circle id="pressure-transmitter-g4" cx="30" cy="30" r="24"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#pressure-transmitter-g1" fill="#9aa5af" data-mat="steel"/>
+    <use href="#pressure-transmitter-g1" fill="url(#pressure-transmitter-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#pressure-transmitter-g2" fill="#9aa5af" data-mat="steel"/>
+    <use href="#pressure-transmitter-g2" fill="url(#pressure-transmitter-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#pressure-transmitter-g3" fill="#9aa5af" data-mat="steel"/>
+    <use href="#pressure-transmitter-g3" fill="url(#pressure-transmitter-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="instrument" fill="#4a7fb0" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#pressure-transmitter-g4"/>
+    <use href="#pressure-transmitter-g4" fill="url(#pressure-transmitter-paint-r)" stroke="none" opacity="1" data-shade="paint-r"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <circle cx="30" cy="30" r="15" fill="#1d2a35" data-mat="glass-dark"/>
+    <path d="M22 30 L38 30" fill="none" stroke="#3fb950" data-mat-stroke="lamp-green" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="30" cy="30" r="15" fill="url(#pressure-transmitter-glass-r)" fill-opacity="0.5" stroke="none" opacity="1" data-shade="glass-r"/>
+  </g>
+</svg>

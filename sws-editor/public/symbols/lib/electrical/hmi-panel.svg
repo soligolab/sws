@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="110" height="80" viewBox="0 0 110 80">
+  <defs>
+    <linearGradient id="hmi-panel-paint-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <radialGradient id="hmi-panel-glass-r" cx="0.35" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.3" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <rect id="hmi-panel-g1" x="4" y="4" width="102" height="72" rx="5"/>
+    <rect id="hmi-panel-g2" x="20" y="40" width="9" height="18"/>
+    <rect id="hmi-panel-g3" x="34" y="28" width="9" height="30"/>
+    <rect id="hmi-panel-g4" x="48" y="34" width="9" height="24"/>
+    <rect id="hmi-panel-g5" x="62" y="20" width="9" height="38"/>
+    <rect id="hmi-panel-g6" x="76" y="30" width="9" height="28"/>
+  </defs>
+  <g id="body" data-layer="part" data-mat="steel-dark" fill="#4a545d" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#hmi-panel-g1"/>
+    <use href="#hmi-panel-g1" fill="url(#hmi-panel-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <rect x="12" y="10" width="86" height="56" rx="2" fill="#1d2a35" data-mat="glass-dark"/>
+    <use href="#hmi-panel-g2" fill="#9cc7e3" data-mat="glass" stroke="none"/>
+    <use href="#hmi-panel-g2" fill="url(#hmi-panel-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+    <use href="#hmi-panel-g3" fill="#9cc7e3" data-mat="glass" stroke="none"/>
+    <use href="#hmi-panel-g3" fill="url(#hmi-panel-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+    <use href="#hmi-panel-g4" fill="#9cc7e3" data-mat="glass" stroke="none"/>
+    <use href="#hmi-panel-g4" fill="url(#hmi-panel-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+    <use href="#hmi-panel-g5" fill="#9cc7e3" data-mat="glass" stroke="none"/>
+    <use href="#hmi-panel-g5" fill="url(#hmi-panel-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+    <use href="#hmi-panel-g6" fill="#9cc7e3" data-mat="glass" stroke="none"/>
+    <use href="#hmi-panel-g6" fill="url(#hmi-panel-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+    <path d="M18 26 Q34 16 50 24 Q66 32 92 18" fill="none" stroke="#3fb950" data-mat-stroke="lamp-green" stroke-width="1.6"/>
+    <rect x="12" y="10" width="86" height="56" rx="2" fill="url(#hmi-panel-glass-r)" fill-opacity="0.35" stroke="none" opacity="1" data-shade="glass-r"/>
+    <circle cx="55" cy="71" r="1.8" fill="#3fb950" data-mat="lamp-green" stroke="none"/>
+  </g>
+</svg>

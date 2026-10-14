@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="110" height="70" viewBox="0 0 110 70">
+  <defs>
+    <linearGradient id="dc-motor-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <linearGradient id="dc-motor-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="dc-motor-paint-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <path id="dc-motor-g1" d="M28 58 L40 58 L42 68 L26 68 Z"/>
+    <path id="dc-motor-g2" d="M70 58 L82 58 L84 68 L68 68 Z"/>
+    <rect id="dc-motor-g3" x="94" y="30" width="16" height="10"/>
+    <rect id="dc-motor-g4" x="84" y="16" width="10" height="38" rx="2"/>
+    <rect id="dc-motor-g5" x="8" y="16" width="16" height="38" rx="4"/>
+    <rect id="dc-motor-g6" x="24" y="10" width="60" height="50" rx="6"/>
+    <rect id="dc-motor-g7" x="34" y="4" width="14" height="10" rx="2"/>
+    <rect id="dc-motor-g8" x="62" y="4" width="14" height="10" rx="2"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#dc-motor-g1" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#dc-motor-g1" fill="url(#dc-motor-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <use href="#dc-motor-g2" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#dc-motor-g2" fill="url(#dc-motor-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <use href="#dc-motor-g3" fill="#9aa5af" data-mat="steel"/>
+    <use href="#dc-motor-g3" fill="url(#dc-motor-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#dc-motor-g4" fill="#9aa5af" data-mat="steel"/>
+    <use href="#dc-motor-g4" fill="url(#dc-motor-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#dc-motor-g5" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#dc-motor-g5" fill="url(#dc-motor-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="signal-red" fill="#c8352e" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#dc-motor-g6"/>
+    <use href="#dc-motor-g6" fill="url(#dc-motor-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#dc-motor-g7" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#dc-motor-g7" fill="url(#dc-motor-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <use href="#dc-motor-g8" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#dc-motor-g8" fill="url(#dc-motor-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <rect x="44" y="28" width="20" height="12" rx="1" fill="#d7dde2" data-mat="label" stroke-width="0.8"/>
+  </g>
+</svg>

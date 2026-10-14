@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="100" viewBox="0 0 50 100">
+  <defs>
+    <linearGradient id="push-button-station-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <linearGradient id="push-button-station-paint-d" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.35"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.3"/>
+    </linearGradient>
+    <radialGradient id="push-button-station-paint-r" cx="0.36" cy="0.3" r="0.75">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.55"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.05"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </radialGradient>
+    <rect id="push-button-station-g1" x="19" y="92" width="12" height="8" rx="1"/>
+    <rect id="push-button-station-g2" x="6" y="4" width="38" height="88" rx="4"/>
+    <circle id="push-button-station-g3" cx="25" cy="22" r="7"/>
+    <circle id="push-button-station-g4" cx="25" cy="48" r="7"/>
+    <circle id="push-button-station-g5" cx="25" cy="74" r="8"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#push-button-station-g1" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#push-button-station-g1" fill="url(#push-button-station-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="appliance" fill="#e2e6ea" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#push-button-station-g2"/>
+    <use href="#push-button-station-g2" fill="url(#push-button-station-paint-d)" stroke="none" opacity="1" data-shade="paint-d"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <circle cx="25" cy="22" r="9" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#push-button-station-g3" fill="#3fb950" data-mat="lamp-green"/>
+    <use href="#push-button-station-g3" fill="url(#push-button-station-paint-r)" stroke="none" opacity="1" data-shade="paint-r"/>
+    <circle cx="25" cy="48" r="9" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#push-button-station-g4" fill="#c8352e" data-mat="signal-red"/>
+    <use href="#push-button-station-g4" fill="url(#push-button-station-paint-r)" stroke="none" opacity="1" data-shade="paint-r"/>
+    <use href="#push-button-station-g5" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#push-button-station-g5" fill="url(#push-button-station-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <rect x="23.5" y="66" width="3" height="16" rx="1.5" fill="#d7dde2" data-mat="label" stroke-width="0.6"/>
+  </g>
+</svg>

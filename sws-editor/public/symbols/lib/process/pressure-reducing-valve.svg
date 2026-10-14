@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="60" height="90" viewBox="0 0 60 90">
+  <defs>
+    <linearGradient id="pressure-reducing-valve-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="pressure-reducing-valve-metal-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="pressure-reducing-valve-paint-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <linearGradient id="pressure-reducing-valve-paint-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <rect id="pressure-reducing-valve-g1" x="4" y="65" width="14" height="10"/>
+    <rect id="pressure-reducing-valve-g2" x="0" y="62" width="4" height="16" rx="0.8"/>
+    <rect id="pressure-reducing-valve-g3" x="42" y="65" width="14" height="10"/>
+    <rect id="pressure-reducing-valve-g4" x="56" y="62" width="4" height="16" rx="0.8"/>
+    <rect id="pressure-reducing-valve-g5" x="28" y="2" width="4" height="12"/>
+    <rect id="pressure-reducing-valve-g6" x="20" y="12" width="20" height="32" rx="3"/>
+    <rect id="pressure-reducing-valve-g7" x="22" y="44" width="16" height="16" rx="2"/>
+    <rect id="pressure-reducing-valve-g8" x="16" y="58" width="28" height="24" rx="8"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#pressure-reducing-valve-g1" fill="#9aa5af" data-mat="steel"/>
+    <use href="#pressure-reducing-valve-g1" fill="url(#pressure-reducing-valve-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#pressure-reducing-valve-g2" fill="#9aa5af" data-mat="steel"/>
+    <use href="#pressure-reducing-valve-g2" fill="url(#pressure-reducing-valve-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#pressure-reducing-valve-g3" fill="#9aa5af" data-mat="steel"/>
+    <use href="#pressure-reducing-valve-g3" fill="url(#pressure-reducing-valve-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#pressure-reducing-valve-g4" fill="#9aa5af" data-mat="steel"/>
+    <use href="#pressure-reducing-valve-g4" fill="url(#pressure-reducing-valve-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#pressure-reducing-valve-g5" fill="#9aa5af" data-mat="steel"/>
+    <use href="#pressure-reducing-valve-g5" fill="url(#pressure-reducing-valve-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#pressure-reducing-valve-g6" fill="#2f6fa8" data-mat="body-pump"/>
+    <use href="#pressure-reducing-valve-g6" fill="url(#pressure-reducing-valve-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+    <path d="M24 18 L36 22 L24 26 L36 30 L24 34 L36 38" fill="none" stroke-width="1" stroke-opacity="0.7"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="steel" fill="#9aa5af" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#pressure-reducing-valve-g7"/>
+    <use href="#pressure-reducing-valve-g7" fill="url(#pressure-reducing-valve-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+    <use href="#pressure-reducing-valve-g8"/>
+    <use href="#pressure-reducing-valve-g8" fill="url(#pressure-reducing-valve-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <path d="M22 70 L38 70" fill="none" stroke-opacity="0.35"/>
+  </g>
+</svg>

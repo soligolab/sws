@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="80" height="90" viewBox="0 0 80 90">
+  <defs>
+    <linearGradient id="electric-motor-front-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <linearGradient id="electric-motor-front-paint-d" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.35"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.3"/>
+    </linearGradient>
+    <radialGradient id="electric-motor-front-paint-r" cx="0.36" cy="0.3" r="0.75">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.55"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.05"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </radialGradient>
+    <radialGradient id="electric-motor-front-metal-r" cx="0.35" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.13"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.46"/>
+    </radialGradient>
+    <path id="electric-motor-front-g1" d="M10 76 L24 76 L26 86 L8 86 Z"/>
+    <path id="electric-motor-front-g2" d="M56 76 L70 76 L72 86 L54 86 Z"/>
+    <rect id="electric-motor-front-g3" x="28" y="0" width="24" height="12" rx="1.5"/>
+    <circle id="electric-motor-front-g4" cx="40" cy="46" r="34"/>
+    <circle id="electric-motor-front-g5" cx="40" cy="46" r="16"/>
+    <circle id="electric-motor-front-g6" cx="40" cy="46" r="5"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#electric-motor-front-g1" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#electric-motor-front-g1" fill="url(#electric-motor-front-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <use href="#electric-motor-front-g2" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#electric-motor-front-g2" fill="url(#electric-motor-front-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <use href="#electric-motor-front-g3" fill="#5d6f7e" data-mat="body-motor"/>
+    <use href="#electric-motor-front-g3" fill="url(#electric-motor-front-paint-d)" stroke="none" opacity="1" data-shade="paint-d"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="body-motor" fill="#5d6f7e" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#electric-motor-front-g4"/>
+    <use href="#electric-motor-front-g4" fill="url(#electric-motor-front-paint-r)" stroke="none" opacity="1" data-shade="paint-r"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <path d="M66 46 L73 46" fill="none" stroke-opacity="0.35"/>
+    <path d="M64.43 37.11 L71.01 34.71" fill="none" stroke-opacity="0.35"/>
+    <path d="M59.92 29.29 L65.28 24.79" fill="none" stroke-opacity="0.35"/>
+    <path d="M53 23.48 L56.5 17.42" fill="none" stroke-opacity="0.35"/>
+    <path d="M44.51 20.39 L45.73 13.5" fill="none" stroke-opacity="0.35"/>
+    <path d="M35.49 20.39 L34.27 13.5" fill="none" stroke-opacity="0.35"/>
+    <path d="M27 23.48 L23.5 17.42" fill="none" stroke-opacity="0.35"/>
+    <path d="M20.08 29.29 L14.72 24.79" fill="none" stroke-opacity="0.35"/>
+    <path d="M15.57 37.11 L8.99 34.71" fill="none" stroke-opacity="0.35"/>
+    <path d="M14 46 L7 46" fill="none" stroke-opacity="0.35"/>
+    <path d="M15.57 54.89 L8.99 57.29" fill="none" stroke-opacity="0.35"/>
+    <path d="M20.08 62.71 L14.72 67.21" fill="none" stroke-opacity="0.35"/>
+    <path d="M27 68.52 L23.5 74.58" fill="none" stroke-opacity="0.35"/>
+    <path d="M35.49 71.61 L34.27 78.5" fill="none" stroke-opacity="0.35"/>
+    <path d="M44.51 71.61 L45.73 78.5" fill="none" stroke-opacity="0.35"/>
+    <path d="M53 68.52 L56.5 74.58" fill="none" stroke-opacity="0.35"/>
+    <path d="M59.92 62.71 L65.28 67.21" fill="none" stroke-opacity="0.35"/>
+    <path d="M64.43 54.89 L71.01 57.29" fill="none" stroke-opacity="0.35"/>
+    <use href="#electric-motor-front-g5" fill="#9aa5af" data-mat="steel"/>
+    <use href="#electric-motor-front-g5" fill="url(#electric-motor-front-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+    <use href="#electric-motor-front-g6" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#electric-motor-front-g6" fill="url(#electric-motor-front-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+  </g>
+</svg>

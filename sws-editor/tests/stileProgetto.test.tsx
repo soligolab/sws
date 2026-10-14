@@ -1,5 +1,5 @@
 /** Lo stile dei simboli del progetto (Fase 4 del piano
- *  docs/plans/2026-10-14-motore-simboli-lib.md): arriva al disegno, la scheda
+ *  docs/archive/2026-10-14-motore-simboli-lib.md): arriva al disegno, la scheda
  *  salva solo le scelte vere, e l'oggetto può sovrascriverlo. */
 import { render, screen, fireEvent, act, waitFor } from "@testing-library/react";
 import { describe, it, expect, beforeAll, afterEach, vi } from "vitest";

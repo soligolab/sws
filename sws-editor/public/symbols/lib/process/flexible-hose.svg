@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="30" viewBox="0 0 100 30">
+  <defs>
+    <radialGradient id="flexible-hose-rubber-r" cx="0.4" cy="0.35" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.23"/>
+      <stop offset="0.7" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.52"/>
+    </radialGradient>
+    <linearGradient id="flexible-hose-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="flexible-hose-metal-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <rect id="flexible-hose-g1" x="14" y="8" width="72" height="14" rx="7"/>
+    <rect id="flexible-hose-g2" x="0" y="9" width="14" height="12" rx="1"/>
+    <rect id="flexible-hose-g3" x="10" y="6" width="4" height="18" rx="1"/>
+    <rect id="flexible-hose-g4" x="86" y="9" width="14" height="12" rx="1"/>
+    <rect id="flexible-hose-g5" x="86" y="6" width="4" height="18" rx="1"/>
+  </defs>
+  <g id="body" data-layer="part" data-mat="rubber" fill="#2a2d31" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#flexible-hose-g1"/>
+    <use href="#flexible-hose-g1" fill="url(#flexible-hose-rubber-r)" stroke="none" opacity="1" data-shade="rubber-r"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <path d="M20 9 L20 21" fill="none" stroke-opacity="0.5"/>
+    <path d="M25 9 L25 21" fill="none" stroke-opacity="0.5"/>
+    <path d="M30 9 L30 21" fill="none" stroke-opacity="0.5"/>
+    <path d="M35 9 L35 21" fill="none" stroke-opacity="0.5"/>
+    <path d="M40 9 L40 21" fill="none" stroke-opacity="0.5"/>
+    <path d="M45 9 L45 21" fill="none" stroke-opacity="0.5"/>
+    <path d="M50 9 L50 21" fill="none" stroke-opacity="0.5"/>
+    <path d="M55 9 L55 21" fill="none" stroke-opacity="0.5"/>
+    <path d="M60 9 L60 21" fill="none" stroke-opacity="0.5"/>
+    <path d="M65 9 L65 21" fill="none" stroke-opacity="0.5"/>
+    <path d="M70 9 L70 21" fill="none" stroke-opacity="0.5"/>
+    <path d="M75 9 L75 21" fill="none" stroke-opacity="0.5"/>
+    <path d="M80 9 L80 21" fill="none" stroke-opacity="0.5"/>
+    <use href="#flexible-hose-g2" fill="#9aa5af" data-mat="steel"/>
+    <use href="#flexible-hose-g2" fill="url(#flexible-hose-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#flexible-hose-g3" fill="#9aa5af" data-mat="steel"/>
+    <use href="#flexible-hose-g3" fill="url(#flexible-hose-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#flexible-hose-g4" fill="#9aa5af" data-mat="steel"/>
+    <use href="#flexible-hose-g4" fill="url(#flexible-hose-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#flexible-hose-g5" fill="#9aa5af" data-mat="steel"/>
+    <use href="#flexible-hose-g5" fill="url(#flexible-hose-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+  </g>
+</svg>

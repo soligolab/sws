@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="90" height="110" viewBox="0 0 90 110">
+  <defs>
+    <linearGradient id="ibc-tote-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <linearGradient id="ibc-tote-paint-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <linearGradient id="ibc-tote-paint-d" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.35"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.3"/>
+    </linearGradient>
+    <linearGradient id="ibc-tote-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <rect id="ibc-tote-g1" x="4" y="96" width="82" height="14" rx="1"/>
+    <rect id="ibc-tote-g2" x="40" y="86" width="10" height="10" rx="1"/>
+    <rect id="ibc-tote-g3" x="10" y="12" width="70" height="80" rx="8"/>
+    <rect id="ibc-tote-g4" x="38" y="4" width="14" height="8" rx="2"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#ibc-tote-g1" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#ibc-tote-g1" fill="url(#ibc-tote-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <rect x="10" y="98" width="10" height="10" fill="#1d2a35" data-mat="glass-dark" stroke="none"/>
+    <rect x="40" y="98" width="10" height="10" fill="#1d2a35" data-mat="glass-dark" stroke="none"/>
+    <rect x="70" y="98" width="10" height="10" fill="#1d2a35" data-mat="glass-dark" stroke="none"/>
+    <use href="#ibc-tote-g2" fill="#e3a51a" data-mat="safety-yellow"/>
+    <use href="#ibc-tote-g2" fill="url(#ibc-tote-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="appliance" fill="#e2e6ea" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#ibc-tote-g3"/>
+    <use href="#ibc-tote-g3" fill="url(#ibc-tote-paint-d)" stroke="none" opacity="1" data-shade="paint-d"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#ibc-tote-g4" fill="#9aa5af" data-mat="steel"/>
+    <use href="#ibc-tote-g4" fill="url(#ibc-tote-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+  </g>
+  <g id="level" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <rect x="12" y="14" width="66" height="76" rx="6" fill="#2b8fd6" data-mat="liquid" fill-opacity="0.45" stroke="none"/>
+  </g>
+  <g id="layer-2" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <path d="M6 10 L84 10 L84 94 L6 94 Z M6 38 L84 38 M6 66 L84 66 M30 10 L30 94 M60 10 L60 94" fill="none" stroke="#9aa5af" data-mat-stroke="steel" stroke-width="1.6"/>
+  </g>
+</svg>

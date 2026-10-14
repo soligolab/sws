@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="110" height="120" viewBox="0 0 110 120">
+  <defs>
+    <linearGradient id="mill-metal-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="mill-paint-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <radialGradient id="mill-paint-r" cx="0.36" cy="0.3" r="0.75">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.55"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.05"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </radialGradient>
+    <radialGradient id="mill-metal-r" cx="0.35" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.13"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.46"/>
+    </radialGradient>
+    <path id="mill-g1" d="M30 4 L80 4 L70 30 L40 30 Z"/>
+    <rect id="mill-g2" x="45" y="96" width="20" height="24"/>
+    <rect id="mill-g3" x="76" y="54" width="30" height="30" rx="4"/>
+    <circle id="mill-g4" cx="52" cy="62" r="34"/>
+    <circle id="mill-g5" cx="52" cy="62" r="5"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#mill-g1" fill="#9aa5af" data-mat="steel"/>
+    <use href="#mill-g1" fill="url(#mill-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#mill-g2" fill="#9aa5af" data-mat="steel"/>
+    <use href="#mill-g2" fill="url(#mill-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#mill-g3" fill="#5d6f7e" data-mat="body-motor"/>
+    <use href="#mill-g3" fill="url(#mill-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+    <path d="M80 58 L80 81" fill="none" stroke-opacity="0.35"/>
+    <path d="M84 58 L84 81" fill="none" stroke-opacity="0.35"/>
+    <path d="M88 58 L88 81" fill="none" stroke-opacity="0.35"/>
+    <path d="M92 58 L92 81" fill="none" stroke-opacity="0.35"/>
+    <path d="M96 58 L96 81" fill="none" stroke-opacity="0.35"/>
+    <path d="M100 58 L100 81" fill="none" stroke-opacity="0.35"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="body-pump" fill="#2f6fa8" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#mill-g4"/>
+    <use href="#mill-g4" fill="url(#mill-paint-r)" stroke="none" opacity="1" data-shade="paint-r"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <circle cx="52" cy="62" r="18" fill="none" stroke-opacity="0.45"/>
+    <use href="#mill-g5" fill="#9aa5af" data-mat="steel"/>
+    <use href="#mill-g5" fill="url(#mill-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+  </g>
+</svg>

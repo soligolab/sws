@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="170" height="80" viewBox="0 0 170 80">
+  <defs>
+    <linearGradient id="extruder-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <linearGradient id="extruder-metal-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="extruder-paint-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <linearGradient id="extruder-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="extruder-dark-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <rect id="extruder-g1" x="4" y="68" width="162" height="12" rx="1"/>
+    <path id="extruder-g2" d="M66 4 L94 4 L86 26 L74 26 Z"/>
+    <rect id="extruder-g3" x="4" y="24" width="28" height="40" rx="4"/>
+    <rect id="extruder-g4" x="32" y="20" width="34" height="48" rx="4"/>
+    <rect id="extruder-g5" x="66" y="30" width="90" height="24" rx="3"/>
+    <rect id="extruder-g6" x="74" y="27" width="8" height="30" rx="1.5"/>
+    <rect id="extruder-g7" x="90" y="27" width="8" height="30" rx="1.5"/>
+    <rect id="extruder-g8" x="106" y="27" width="8" height="30" rx="1.5"/>
+    <rect id="extruder-g9" x="122" y="27" width="8" height="30" rx="1.5"/>
+    <rect id="extruder-g10" x="138" y="27" width="8" height="30" rx="1.5"/>
+    <rect id="extruder-g11" x="156" y="34" width="10" height="16" rx="2"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#extruder-g1" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#extruder-g1" fill="url(#extruder-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <use href="#extruder-g2" fill="#9aa5af" data-mat="steel"/>
+    <use href="#extruder-g2" fill="url(#extruder-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#extruder-g3" fill="#5d6f7e" data-mat="body-motor"/>
+    <use href="#extruder-g3" fill="url(#extruder-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+    <path d="M8 29 L8 60" fill="none" stroke-opacity="0.35"/>
+    <path d="M12 29 L12 60" fill="none" stroke-opacity="0.35"/>
+    <path d="M16 29 L16 60" fill="none" stroke-opacity="0.35"/>
+    <path d="M20 29 L20 60" fill="none" stroke-opacity="0.35"/>
+    <path d="M24 29 L24 60" fill="none" stroke-opacity="0.35"/>
+    <path d="M28 29 L28 60" fill="none" stroke-opacity="0.35"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="body-motor" fill="#5d6f7e" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#extruder-g4"/>
+    <use href="#extruder-g4" fill="url(#extruder-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#extruder-g5" fill="#9aa5af" data-mat="steel"/>
+    <use href="#extruder-g5" fill="url(#extruder-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#extruder-g6" fill="#b87333" data-mat="copper"/>
+    <use href="#extruder-g6" fill="url(#extruder-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#extruder-g7" fill="#b87333" data-mat="copper"/>
+    <use href="#extruder-g7" fill="url(#extruder-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#extruder-g8" fill="#b87333" data-mat="copper"/>
+    <use href="#extruder-g8" fill="url(#extruder-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#extruder-g9" fill="#b87333" data-mat="copper"/>
+    <use href="#extruder-g9" fill="url(#extruder-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#extruder-g10" fill="#b87333" data-mat="copper"/>
+    <use href="#extruder-g10" fill="url(#extruder-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#extruder-g11" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#extruder-g11" fill="url(#extruder-dark-h)" stroke="none" opacity="1" data-shade="dark-h"/>
+  </g>
+</svg>

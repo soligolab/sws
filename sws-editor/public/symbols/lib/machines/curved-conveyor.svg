@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120">
+  <defs>
+    <radialGradient id="curved-conveyor-rubber-r" cx="0.4" cy="0.35" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.23"/>
+      <stop offset="0.7" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.52"/>
+    </radialGradient>
+    <linearGradient id="curved-conveyor-paint-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <path id="curved-conveyor-g1" d="M10 110 L10 100 A90 90 0 0 1 100 10 L110 10 L110 46 L100 46 A54 54 0 0 0 46 100 L46 110 Z"/>
+    <path id="curved-conveyor-g2" d="M6 110 L6 100 A94 94 0 0 1 100 6 L110 6 L110 12 L100 12 A88 88 0 0 0 12 100 L12 110 Z"/>
+    <path id="curved-conveyor-g3" d="M40 110 L40 100 A60 60 0 0 1 100 40 L110 40 L110 50 L100 50 A50 50 0 0 0 50 100 L50 110 Z"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#curved-conveyor-g1" fill="#2a2d31" data-mat="rubber"/>
+    <use href="#curved-conveyor-g1" fill="url(#curved-conveyor-rubber-r)" stroke="none" opacity="1" data-shade="rubber-r"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="body-motor" fill="#5d6f7e" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#curved-conveyor-g2"/>
+    <use href="#curved-conveyor-g2" fill="url(#curved-conveyor-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+    <use href="#curved-conveyor-g3"/>
+    <use href="#curved-conveyor-g3" fill="url(#curved-conveyor-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <path d="M18.9 97.2 L48.6 101.37" fill="none" stroke-opacity="0.3"/>
+    <path d="M23.55 78.53 L51.74 88.79" fill="none" stroke-opacity="0.3"/>
+    <path d="M31.98 61.25 L57.42 77.15" fill="none" stroke-opacity="0.3"/>
+    <path d="M43.82 46.09 L65.4 66.93" fill="none" stroke-opacity="0.3"/>
+    <path d="M58.55 33.73 L75.33 58.6" fill="none" stroke-opacity="0.3"/>
+    <path d="M75.54 24.7 L86.77 52.51" fill="none" stroke-opacity="0.3"/>
+    <path d="M94.02 19.4 L99.23 48.94" fill="none" stroke-opacity="0.3"/>
+  </g>
+</svg>

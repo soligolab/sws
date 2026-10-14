@@ -1,5 +1,5 @@
 {
-  "_comment": "Casi di «applica stile» per i simboli di libreria: li verificano sws-editor/tests/stileSimboli.test.ts e sws-core/src/stile_simboli.rs. Piano: docs/plans/2026-10-14-motore-simboli-lib.md.",
+  "_comment": "Casi di «applica stile» per i simboli di libreria: li verificano sws-editor/tests/stileSimboli.test.ts e sws-core/src/stile_simboli.rs. Piano: docs/archive/2026-10-14-motore-simboli-lib.md.",
   "casi": [
     {
       "nome": "senza modifiche: lo stile del disegno lascia il testo identico",

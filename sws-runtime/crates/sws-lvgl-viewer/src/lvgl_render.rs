@@ -491,7 +491,7 @@ pub enum LiveKind {
         last_count: usize,
     },
     /// Simbolo di libreria (`lib:…`, o un id builtin che ne è alias): un
-    /// canvas per strato. Piano docs/plans/2026-10-14-motore-simboli-lib.md;
+    /// canvas per strato. Piano docs/archive/2026-10-14-motore-simboli-lib.md;
     /// dalla 6b è l'unico modo in cui il pannello disegna un `symbol`.
     SimboloLib(Box<VivoLib>),
     /// Movimento: i binding generici proprietà→tag applicati **a ogni frame**,
@@ -8718,7 +8718,7 @@ fn render_recipe_panel(
 }
 
 // I simboli builtin disegnati a mano (`draw_symbol`, Q15) sono stati tolti il
-// 14-10-2026 (Fase 6b del piano docs/plans/2026-10-14-motore-simboli-lib.md):
+// 14-10-2026 (Fase 6b del piano docs/archive/2026-10-14-motore-simboli-lib.md):
 // ogni id builtin è un alias di un disegno della libreria (`simbolo_lib.rs`).
 
 /// L'ordine di precedenza è quello del web: **l'allarme vince sempre**; poi, se
@@ -8803,7 +8803,7 @@ fn angolo_rotazione(now_ms: u64, spin_s: f64) -> i16 {
 /// Fino al 14-10-2026 qui un tag si leggeva con `tag_value_as_f64 != 0`: un
 /// testo «on» valeva 0 e il simbolo restava spento mentre il browser lo
 /// accendeva, e una voce degli stati che corrispondeva non bastava ad
-/// accenderlo (M10 del piano docs/plans/2026-10-14-motore-simboli-lib.md).
+/// accenderlo (M10 del piano docs/archive/2026-10-14-motore-simboli-lib.md).
 fn stato_simbolo(
     tags: &TagSnapshot,
     state_tag: &Option<String>,

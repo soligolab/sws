@@ -1,6 +1,6 @@
 """I disegni della libreria SCADA. Uno per funzione, raggruppati per famiglia.
 
-Regole (vedi genera.py e docs/plans/2026-10-14-libreria-simboli-scada.md):
+Regole (vedi genera.py e docs/archive/2026-10-14-libreria-simboli-scada.md):
 vista ortogonale, luce dall'alto a sinistra, viewBox multiplo di 10, attacchi con
 l'asse su multipli di 10 a filo del bordo (tubo 8: bocchello 10, flangia 14–16×4),
 ingresso a sinistra. Le parti vive sono strati propri, con la geometria che il
@@ -410,7 +410,10 @@ def tutti():
     # I sostitutivi dei builtin stanno in un modulo loro (Fase 6), che importa
     # gli aiutanti da qui: si caricano solo adesso, per non fare un ciclo.
     from disegni_sostitutivi import tutti as sostitutivi
-    return sostitutivi() + [f() for f in (
+    from disegni_processo import tutti as processo
+    from disegni_elettrico import tutti as elettrico
+    from disegni_macchine import tutti as macchine
+    return sostitutivi() + processo() + elettrico() + macchine() + [f() for f in (
         centrifugal_pump, ball_valve, vertical_tank, shell_tube_exchanger, cartridge_filter,
         pressure_gauge, elbow_90,
         electric_motor, electrical_cabinet, transformer, solar_panel,

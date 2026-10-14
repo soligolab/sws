@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="60" viewBox="0 0 120 60">
+  <defs>
+    <linearGradient id="fan-coil-paint-d" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.35"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.3"/>
+    </linearGradient>
+    <linearGradient id="fan-coil-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <radialGradient id="fan-coil-glass-r" cx="0.35" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.3" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <rect id="fan-coil-g1" x="4" y="6" width="112" height="48" rx="6"/>
+    <rect id="fan-coil-g2" x="12" y="36" width="96" height="10" rx="2"/>
+  </defs>
+  <g id="body" data-layer="part" data-mat="appliance" fill="#e2e6ea" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#fan-coil-g1"/>
+    <use href="#fan-coil-g1" fill="url(#fan-coil-paint-d)" stroke="none" opacity="1" data-shade="paint-d"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <path d="M14 12 L14 30" fill="none" stroke-opacity="0.5"/>
+    <path d="M18 12 L18 30" fill="none" stroke-opacity="0.5"/>
+    <path d="M22 12 L22 30" fill="none" stroke-opacity="0.5"/>
+    <path d="M26 12 L26 30" fill="none" stroke-opacity="0.5"/>
+    <path d="M30 12 L30 30" fill="none" stroke-opacity="0.5"/>
+    <path d="M34 12 L34 30" fill="none" stroke-opacity="0.5"/>
+    <path d="M38 12 L38 30" fill="none" stroke-opacity="0.5"/>
+    <path d="M42 12 L42 30" fill="none" stroke-opacity="0.5"/>
+    <path d="M46 12 L46 30" fill="none" stroke-opacity="0.5"/>
+    <path d="M50 12 L50 30" fill="none" stroke-opacity="0.5"/>
+    <path d="M54 12 L54 30" fill="none" stroke-opacity="0.5"/>
+    <path d="M58 12 L58 30" fill="none" stroke-opacity="0.5"/>
+    <path d="M62 12 L62 30" fill="none" stroke-opacity="0.5"/>
+    <path d="M66 12 L66 30" fill="none" stroke-opacity="0.5"/>
+    <path d="M70 12 L70 30" fill="none" stroke-opacity="0.5"/>
+    <path d="M74 12 L74 30" fill="none" stroke-opacity="0.5"/>
+    <path d="M78 12 L78 30" fill="none" stroke-opacity="0.5"/>
+    <path d="M82 12 L82 30" fill="none" stroke-opacity="0.5"/>
+    <path d="M86 12 L86 30" fill="none" stroke-opacity="0.5"/>
+    <path d="M90 12 L90 30" fill="none" stroke-opacity="0.5"/>
+    <path d="M94 12 L94 30" fill="none" stroke-opacity="0.5"/>
+    <path d="M98 12 L98 30" fill="none" stroke-opacity="0.5"/>
+    <path d="M102 12 L102 30" fill="none" stroke-opacity="0.5"/>
+    <use href="#fan-coil-g2" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#fan-coil-g2" fill="url(#fan-coil-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <circle cx="104" cy="16" r="2.2" fill="#2f5a39" data-mat="lamp-green-off"/>
+  </g>
+  <g id="led" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <circle cx="104" cy="16" r="2.2" fill="#3fb950" data-mat="lamp-green"/>
+    <circle cx="104" cy="16" r="2.2" fill="url(#fan-coil-glass-r)" stroke="none" opacity="1" data-shade="glass-r"/>
+  </g>
+</svg>

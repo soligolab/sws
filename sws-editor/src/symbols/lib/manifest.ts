@@ -2,7 +2,7 @@
 //
 // Lo scrive `scripts/simboli/genera.py`, insieme agli SVG: qui c'è solo la sua
 // forma. La stessa forma è in Rust (`sws-core/src/simboli_lib.rs`), che la usano
-// il validatore e il pannello LVGL. Piano: docs/plans/2026-10-14-motore-simboli-lib.md.
+// il validatore e il pannello LVGL. Piano: docs/archive/2026-10-14-motore-simboli-lib.md.
 
 export type FamigliaLib = "process" | "electrical" | "machines" | "building";
 

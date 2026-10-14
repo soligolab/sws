@@ -4,7 +4,7 @@
 //! È il gemello di `sws-editor/src/symbols/lib/applicaStile.ts`: devono dare **lo
 //! stesso testo**, byte per byte, perché web e pannello disegnano lo stesso
 //! progetto. I casi stanno in `tests/fixtures/stile-simboli.json` e li verificano
-//! entrambi. Piano: `docs/plans/2026-10-14-motore-simboli-lib.md`.
+//! entrambi. Piano: `docs/archive/2026-10-14-motore-simboli-lib.md`.
 //!
 //! Lavora sul formato che esce da `scripts/simboli/genera.py` (un tag per riga,
 //! attributi fra virgolette doppie) e tocca solo gli attributi:
