@@ -12,22 +12,21 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — libreria di simboli SCADA: tutte e sette le fasi fatte (2026-10-14, sera)
+## ▶ Riprendere da qui — libreria di simboli SCADA: tutte e sette le fasi su `main` (2026-10-14, sera)
 
-**Le Fasi 1–6 sono su `main`**: sei squash, dopo il «tutto ok» del maintainer.
-- Rami eliminati.
-- Prima di eliminarli ho verificato che fra `main` e l'ultimo ramo differissero solo i 5 file dell'altra
-  sessione.
-- Niente pushato.
+**Le Fasi 1–7 sono su `main`**: sette squash, dopo l'ok del maintainer. La libreria ha **138 simboli**
+in quattro famiglie (178 disegnati sul pannello contando i 40 alias dei builtin storici).
+- Rami e worktree `/home/ut1/sws-simboli` eliminati; alberi verificati identici prima di cancellare.
+- I servizi di prova del worktree (8464, 8447, 8448) sono spenti; i loro dati sono copiati in
+  `scratchpad/dati-prova` (non viaggiano con git).
+- IDE 8460 riacceso da `main` (brand Pixsys, progetti in `~/sws_projects`).
+- I piani sono conclusi e in `docs/archive/`.
+- **Niente pushato.**
 
-**La Fase 7 è sul ramo `feat/simboli-lib-lotti`**, nel worktree `/home/ut1/sws-simboli`. Ha i 91
-disegni che mancavano, quindi la libreria arriva a **138 simboli**. È da collaudare.
-- I servizi di prova girano da quel worktree: IDE `http://192.168.0.201:8464`, runtime 8448 e
-  viewer 8447. Hanno i dati di prima, e il pannello è già abbinato.
-- I piani sono conclusi e spostati in `docs/archive/`.
-
-**Da fare**: il collaudo dei lotti, poi lo squash di `feat/simboli-lib-lotti` e la rimozione del
-worktree.
+**Prossimi passi possibili**:
+- le 31 guardie con lo stack che non passano `--senza-autenticazione` (un runtime senza utenti è «da
+  abbinare» e la guardia fotografa la schermata di abbinamento): annotato, non corretto;
+- il numero di versione è ancora `2.13.0-rc.3` mentre NOVITA ha il blocco `2.14.0`: si allinea al rilascio.
 
 ### Fasi 1-6 (14-10-2026)
 
