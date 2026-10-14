@@ -15,7 +15,7 @@
 ## ▶ Riprendere da qui — le guardie con lo stack tornano verdi (2026-10-14, notte) — su `main`
 
 **Su `main`** (squash `02ce2c35`, dopo l'ok del maintainer). Ramo e worktree eliminati; l'IDE 8460
-riacceso da `main`. Niente pushato. Quasi tutto in `scripts/`; una sola correzione nel prodotto,
+riacceso da `main`. **Pushato** su origin a fine giornata. Quasi tutto in `scripts/`; una sola correzione nel prodotto,
 l'istantanea (sotto).
 
 **Esito di `./scripts/verifica_completa.sh --solo-stack`**: 32 guardie su 33 verdi. Resta rossa
@@ -50,7 +50,13 @@ runtime rifiuta.
 testi dell'interfaccia che sono cambiati. Era già segnato «non è un gate» nel suo commento. È un
 lavoro sulle spec in `sws-editor/e2e/`, non sullo script.
 
-**Da fare**: aggiornare le spec di `check_e2e`, quando capita.
+**Da fare**: aggiornare le spec di `check_e2e`, quando capita. Il collaudo del maintainer su questo
+lavoro non c'è stato («ora non ho tempo di riprovarlo»): se salta fuori un difetto, un ramo di fix da
+`main`.
+
+**Giornata chiusa il 14-10-2026 sera**: `cargo check`, `pnpm build` e `check_static` verdi, nessun ramo
+aperto, `main` pushato. Prossimo passo suggerito: le spec di `check_e2e`, o un collaudo sul WP630 della
+libreria di simboli (Fase 7) con dati veri.
 
 ## ▶ Riprendere da qui — libreria di simboli SCADA: tutte e sette le fasi su `main` (2026-10-14, sera)
 
@@ -61,7 +67,7 @@ in quattro famiglie (178 disegnati sul pannello contando i 40 alias dei builtin 
   `scratchpad/dati-prova` (non viaggiano con git).
 - IDE 8460 riacceso da `main` (brand Pixsys, progetti in `~/sws_projects`).
 - I piani sono conclusi e in `docs/archive/`.
-- **Niente pushato.**
+- **Pushato** su origin a fine giornata (14-10, sera).
 
 **Prossimi passi possibili**:
 - ~~le 31 guardie con lo stack senza `--senza-autenticazione`~~: fatto, vedi sopra;
