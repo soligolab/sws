@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="60" height="40" viewBox="0 0 60 40">
+  <defs>
+    <linearGradient id="photoelectric-sensor-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <linearGradient id="photoelectric-sensor-paint-d" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.35"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.3"/>
+    </linearGradient>
+    <radialGradient id="photoelectric-sensor-glass-r" cx="0.35" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.3" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <rect id="photoelectric-sensor-g1" x="3" y="14" width="7" height="12" rx="1.5"/>
+    <rect id="photoelectric-sensor-g2" x="10" y="6" width="34" height="28" rx="3"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <path d="M0 20 L4 20" fill="none" stroke="#2a2d31" data-mat-stroke="rubber" stroke-width="4"/>
+    <use href="#photoelectric-sensor-g1" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#photoelectric-sensor-g1" fill="url(#photoelectric-sensor-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="safety-yellow" fill="#e3a51a" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#photoelectric-sensor-g2"/>
+    <use href="#photoelectric-sensor-g2" fill="url(#photoelectric-sensor-paint-d)" stroke="none" opacity="1" data-shade="paint-d"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <rect x="44" y="10" width="7" height="20" rx="1.5" fill="#1d2a35" data-mat="glass-dark"/>
+    <rect x="44" y="10" width="7" height="20" rx="1.5" fill="url(#photoelectric-sensor-glass-r)" fill-opacity="0.6" stroke="none" opacity="1" data-shade="glass-r"/>
+    <circle cx="17" cy="12" r="2.3" fill="#2f5a39" data-mat="lamp-green-off"/>
+  </g>
+  <g id="led" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <circle cx="17" cy="12" r="2.3" fill="#3fb950" data-mat="lamp-green"/>
+    <circle cx="17" cy="12" r="2.3" fill="url(#photoelectric-sensor-glass-r)" stroke="none" opacity="1" data-shade="glass-r"/>
+  </g>
+  <g id="layer-2" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <path d="M54 15 L59 13" fill="none" stroke="#d13c32" data-mat-stroke="lamp-red" stroke-width="1.2" stroke-linecap="round" stroke-opacity="0.8"/>
+    <path d="M54 20 L59.5 20" fill="none" stroke="#d13c32" data-mat-stroke="lamp-red" stroke-width="1.2" stroke-linecap="round" stroke-opacity="0.8"/>
+    <path d="M54 25 L59 27" fill="none" stroke="#d13c32" data-mat-stroke="lamp-red" stroke-width="1.2" stroke-linecap="round" stroke-opacity="0.8"/>
+  </g>
+</svg>

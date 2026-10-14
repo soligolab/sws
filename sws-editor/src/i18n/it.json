@@ -2982,5 +2982,31 @@
       "rinomina": "Rinomina (il pannello deve essere collegato)",
       "nuovoNome": "Nuovo nome per «{{nome}}» (lettere, cifre, trattini):"
     }
+  },
+  "symbols": {
+    "lib": {
+      "process": {
+        "ball-valve": "Valvola a sfera",
+        "cartridge-filter": "Filtro a cartuccia",
+        "centrifugal-pump": "Pompa centrifuga",
+        "elbow-90": "Curva 90°",
+        "pressure-gauge": "Manometro",
+        "shell-tube-exchanger": "Scambiatore a fascio tubiero",
+        "vertical-tank": "Serbatoio verticale"
+      },
+      "electrical": {
+        "electric-motor": "Motore elettrico",
+        "electrical-cabinet": "Armadio elettrico",
+        "solar-panel": "Pannello fotovoltaico",
+        "transformer": "Trasformatore"
+      },
+      "machines": {
+        "belt-conveyor": "Nastro trasportatore",
+        "centrifugal-fan": "Ventilatore centrifugo",
+        "forklift": "Carrello elevatore",
+        "photoelectric-sensor": "Fotocellula",
+        "stack-light": "Colonna luminosa"
+      }
+    }
   }
 }

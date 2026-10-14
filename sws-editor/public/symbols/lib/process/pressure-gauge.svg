@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 60 60">
+  <defs>
+    <linearGradient id="pressure-gauge-metal-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="pressure-gauge-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <radialGradient id="pressure-gauge-paint-r" cx="0.36" cy="0.3" r="0.75">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.55"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.05"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </radialGradient>
+    <radialGradient id="pressure-gauge-dial-r" cx="0.4" cy="0.35" r="0.75">
+      <stop offset="0" stop-color="#fff" stop-opacity="1"/>
+      <stop offset="0.7" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.14"/>
+    </radialGradient>
+    <radialGradient id="pressure-gauge-metal-r" cx="0.35" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.13"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.46"/>
+    </radialGradient>
+    <radialGradient id="pressure-gauge-glass-r" cx="0.35" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.3" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <rect id="pressure-gauge-g1" x="27" y="52" width="6" height="8"/>
+    <path id="pressure-gauge-g2" d="M23 46 L37 46 L38 49 L37 53 L23 53 L22 49 Z"/>
+    <circle id="pressure-gauge-g3" cx="30" cy="26" r="23"/>
+    <circle id="pressure-gauge-g4" cx="30" cy="26" r="19"/>
+    <circle id="pressure-gauge-g5" cx="30" cy="26" r="2.2"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#pressure-gauge-g1" fill="#9aa5af" data-mat="steel"/>
+    <use href="#pressure-gauge-g1" fill="url(#pressure-gauge-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#pressure-gauge-g2" fill="#9aa5af" data-mat="steel"/>
+    <use href="#pressure-gauge-g2" fill="url(#pressure-gauge-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="steel" fill="#9aa5af" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#pressure-gauge-g3"/>
+    <use href="#pressure-gauge-g3" fill="url(#pressure-gauge-paint-r)" stroke="none" opacity="1" data-shade="paint-r"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#pressure-gauge-g4" fill="#eef1f3" data-mat="dial"/>
+    <use href="#pressure-gauge-g4" fill="url(#pressure-gauge-dial-r)" stroke="none" opacity="1" data-shade="dial-r"/>
+    <path d="M19.04 36.96 A15.5 15.5 0 1 1 45.31 23.58" fill="none" stroke="#3fae5a" data-mat-stroke="gauge-green" stroke-width="2.4" stroke-linecap="butt"/>
+    <path d="M45.31 23.58 A15.5 15.5 0 0 1 44.74 30.79" fill="none" stroke="#e0a91b" data-mat-stroke="warning-yellow" stroke-width="2.4" stroke-linecap="butt"/>
+    <path d="M44.74 30.79 A15.5 15.5 0 0 1 40.96 36.96" fill="none" stroke="#c8352e" data-mat-stroke="signal-red" stroke-width="2.4" stroke-linecap="butt"/>
+    <path d="M17.63 38.37 L20.81 35.19" fill="none" stroke-width="0.9" stroke-linecap="round"/>
+    <path d="M13.36 31.41 L16.21 30.48" fill="none" stroke-width="0.9" stroke-linecap="round"/>
+    <path d="M12.72 23.26 L15.68 23.73" fill="none" stroke-width="0.9" stroke-linecap="round"/>
+    <path d="M15.84 15.71 L18.27 17.48" fill="none" stroke-width="0.9" stroke-linecap="round"/>
+    <path d="M22.06 10.41 L23.42 13.08" fill="none" stroke-width="0.9" stroke-linecap="round"/>
+    <path d="M30 8.5 L30 13" fill="none" stroke-width="0.9" stroke-linecap="round"/>
+    <path d="M37.94 10.41 L36.58 13.08" fill="none" stroke-width="0.9" stroke-linecap="round"/>
+    <path d="M44.16 15.71 L41.73 17.48" fill="none" stroke-width="0.9" stroke-linecap="round"/>
+    <path d="M47.28 23.26 L44.32 23.73" fill="none" stroke-width="0.9" stroke-linecap="round"/>
+    <path d="M46.64 31.41 L43.79 30.48" fill="none" stroke-width="0.9" stroke-linecap="round"/>
+    <path d="M42.37 38.37 L39.19 35.19" fill="none" stroke-width="0.9" stroke-linecap="round"/>
+  </g>
+  <g id="needle" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <path d="M30 26 L30 12" fill="none" stroke="#c8352e" data-mat-stroke="signal-red" stroke-width="1.6" stroke-linecap="round"/>
+    <use href="#pressure-gauge-g5" fill="#9aa5af" data-mat="steel"/>
+    <use href="#pressure-gauge-g5" fill="url(#pressure-gauge-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+  </g>
+  <g id="layer-2" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <circle cx="30" cy="26" r="19" fill="url(#pressure-gauge-glass-r)" fill-opacity="0.5" stroke="none" opacity="1" data-shade="glass-r"/>
+  </g>
+</svg>

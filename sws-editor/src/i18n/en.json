@@ -2982,5 +2982,31 @@
       "rinomina": "Rename (the panel must be connected)",
       "nuovoNome": "New name for «{{nome}}» (letters, digits, dashes):"
     }
+  },
+  "symbols": {
+    "lib": {
+      "process": {
+        "ball-valve": "Ball valve",
+        "cartridge-filter": "Cartridge filter",
+        "centrifugal-pump": "Centrifugal pump",
+        "elbow-90": "90° elbow",
+        "pressure-gauge": "Pressure gauge",
+        "shell-tube-exchanger": "Shell and tube heat exchanger",
+        "vertical-tank": "Vertical tank"
+      },
+      "electrical": {
+        "electric-motor": "Electric motor",
+        "electrical-cabinet": "Electrical cabinet",
+        "solar-panel": "Solar panel",
+        "transformer": "Transformer"
+      },
+      "machines": {
+        "belt-conveyor": "Belt conveyor",
+        "centrifugal-fan": "Centrifugal fan",
+        "forklift": "Forklift",
+        "photoelectric-sensor": "Photoelectric sensor",
+        "stack-light": "Stack light"
+      }
+    }
   }
 }

@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="60" height="120" viewBox="0 0 60 120">
+  <defs>
+    <linearGradient id="cartridge-filter-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="cartridge-filter-metal-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="cartridge-filter-dark-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <radialGradient id="cartridge-filter-dial-r" cx="0.4" cy="0.35" r="0.75">
+      <stop offset="0" stop-color="#fff" stop-opacity="1"/>
+      <stop offset="0.7" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.14"/>
+    </radialGradient>
+    <linearGradient id="cartridge-filter-paint-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <rect id="cartridge-filter-g1" x="4" y="35" width="8" height="10"/>
+    <rect id="cartridge-filter-g2" x="0" y="32" width="4" height="16" rx="0.8"/>
+    <rect id="cartridge-filter-g3" x="48" y="35" width="8" height="10"/>
+    <rect id="cartridge-filter-g4" x="56" y="32" width="4" height="16" rx="0.8"/>
+    <rect id="cartridge-filter-g5" x="12" y="98" width="4" height="22"/>
+    <rect id="cartridge-filter-g6" x="44" y="98" width="4" height="22"/>
+    <rect id="cartridge-filter-g7" x="27" y="100" width="6" height="10"/>
+    <rect id="cartridge-filter-g8" x="28.5" y="2" width="3" height="10"/>
+    <circle id="cartridge-filter-g9" cx="30" cy="6" r="5"/>
+    <path id="cartridge-filter-g10" d="M12 22 Q12 10 30 10 Q48 10 48 22 Z"/>
+    <path id="cartridge-filter-g11" d="M10 26 L50 26 L50 92 Q50 102 30 102 Q10 102 10 92 Z"/>
+    <rect id="cartridge-filter-g12" x="8" y="21" width="44" height="6" rx="1.5"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#cartridge-filter-g1" fill="#9aa5af" data-mat="steel"/>
+    <use href="#cartridge-filter-g1" fill="url(#cartridge-filter-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#cartridge-filter-g2" fill="#9aa5af" data-mat="steel"/>
+    <use href="#cartridge-filter-g2" fill="url(#cartridge-filter-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#cartridge-filter-g3" fill="#9aa5af" data-mat="steel"/>
+    <use href="#cartridge-filter-g3" fill="url(#cartridge-filter-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#cartridge-filter-g4" fill="#9aa5af" data-mat="steel"/>
+    <use href="#cartridge-filter-g4" fill="url(#cartridge-filter-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#cartridge-filter-g5" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#cartridge-filter-g5" fill="url(#cartridge-filter-dark-h)" stroke="none" opacity="1" data-shade="dark-h"/>
+    <use href="#cartridge-filter-g6" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#cartridge-filter-g6" fill="url(#cartridge-filter-dark-h)" stroke="none" opacity="1" data-shade="dark-h"/>
+    <use href="#cartridge-filter-g7" fill="#9aa5af" data-mat="steel"/>
+    <use href="#cartridge-filter-g7" fill="url(#cartridge-filter-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <rect x="24" y="108" width="12" height="5" rx="1" fill="#c8352e" data-mat="signal-red"/>
+    <use href="#cartridge-filter-g8" fill="#9aa5af" data-mat="steel"/>
+    <use href="#cartridge-filter-g8" fill="url(#cartridge-filter-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#cartridge-filter-g9" fill="#eef1f3" data-mat="dial"/>
+    <use href="#cartridge-filter-g9" fill="url(#cartridge-filter-dial-r)" stroke="none" opacity="1" data-shade="dial-r"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="stainless" fill="#b4bec7" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#cartridge-filter-g10"/>
+    <use href="#cartridge-filter-g10" fill="url(#cartridge-filter-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+    <use href="#cartridge-filter-g11"/>
+    <use href="#cartridge-filter-g11" fill="url(#cartridge-filter-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#cartridge-filter-g12" fill="#9aa5af" data-mat="steel"/>
+    <use href="#cartridge-filter-g12" fill="url(#cartridge-filter-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <path d="M18 50 L18 88" fill="none" stroke-opacity="0.25"/>
+    <path d="M22 50 L22 88" fill="none" stroke-opacity="0.25"/>
+    <path d="M26 50 L26 88" fill="none" stroke-opacity="0.25"/>
+    <path d="M30 50 L30 88" fill="none" stroke-opacity="0.25"/>
+    <path d="M34 50 L34 88" fill="none" stroke-opacity="0.25"/>
+    <path d="M38 50 L38 88" fill="none" stroke-opacity="0.25"/>
+    <path d="M42 50 L42 88" fill="none" stroke-opacity="0.25"/>
+  </g>
+</svg>

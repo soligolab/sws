@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="30" height="100" viewBox="0 0 30 100">
+  <defs>
+    <linearGradient id="stack-light-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <linearGradient id="stack-light-metal-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="stack-light-paint-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <rect id="stack-light-g1" x="4" y="92" width="22" height="8" rx="1.5"/>
+    <rect id="stack-light-g2" x="12" y="68" width="6" height="25"/>
+    <path id="stack-light-g3" d="M6 14 Q6 6 15 6 Q24 6 24 14 Z"/>
+    <rect id="stack-light-g4" x="5" y="66" width="20" height="5" rx="1"/>
+    <rect id="stack-light-g5" x="6" y="15" width="18" height="15" rx="1"/>
+    <rect id="stack-light-g6" x="6" y="32" width="18" height="15" rx="1"/>
+    <rect id="stack-light-g7" x="6" y="49" width="18" height="15" rx="1"/>
+    <rect id="stack-light-g8" x="6" y="15" width="18" height="15" rx="1"/>
+    <rect id="stack-light-g9" x="6" y="32" width="18" height="15" rx="1"/>
+    <rect id="stack-light-g10" x="6" y="49" width="18" height="15" rx="1"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#stack-light-g1" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#stack-light-g1" fill="url(#stack-light-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <use href="#stack-light-g2" fill="#9aa5af" data-mat="steel"/>
+    <use href="#stack-light-g2" fill="url(#stack-light-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="steel-dark" fill="#4a545d" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#stack-light-g3"/>
+    <use href="#stack-light-g3" fill="url(#stack-light-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+    <use href="#stack-light-g4"/>
+    <use href="#stack-light-g4" fill="url(#stack-light-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#stack-light-g5" fill="#6b3a37" data-mat="lamp-red-off"/>
+    <use href="#stack-light-g5" fill="url(#stack-light-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+    <use href="#stack-light-g6" fill="#6e5a2c" data-mat="lamp-amber-off"/>
+    <use href="#stack-light-g6" fill="url(#stack-light-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+    <use href="#stack-light-g7" fill="#2f5a39" data-mat="lamp-green-off"/>
+    <use href="#stack-light-g7" fill="url(#stack-light-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+  </g>
+  <g id="lamp-red" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#stack-light-g8" fill="#d13c32" data-mat="lamp-red"/>
+    <use href="#stack-light-g8" fill="url(#stack-light-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+    <rect x="9" y="17" width="3" height="11" rx="1.5" fill="#fff" fill-opacity="0.35" stroke="none" opacity="1" data-shade="highlight"/>
+  </g>
+  <g id="lamp-amber" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#stack-light-g9" fill="#e0a91b" data-mat="lamp-amber"/>
+    <use href="#stack-light-g9" fill="url(#stack-light-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+    <rect x="9" y="34" width="3" height="11" rx="1.5" fill="#fff" fill-opacity="0.35" stroke="none" opacity="1" data-shade="highlight"/>
+  </g>
+  <g id="lamp-green" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#stack-light-g10" fill="#3fb950" data-mat="lamp-green"/>
+    <use href="#stack-light-g10" fill="url(#stack-light-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+    <rect x="9" y="51" width="3" height="11" rx="1.5" fill="#fff" fill-opacity="0.35" stroke="none" opacity="1" data-shade="highlight"/>
+  </g>
+  <g id="layer-2" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <rect x="5" y="30.5" width="20" height="2" rx="0.8" fill="#4a545d" data-mat="steel-dark"/>
+    <rect x="5" y="47.5" width="20" height="2" rx="0.8" fill="#4a545d" data-mat="steel-dark"/>
+  </g>
+</svg>

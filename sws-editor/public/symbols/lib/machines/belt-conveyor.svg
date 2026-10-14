@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="60" viewBox="0 0 160 60">
+  <defs>
+    <linearGradient id="belt-conveyor-dark-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <linearGradient id="belt-conveyor-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <radialGradient id="belt-conveyor-rubber-r" cx="0.4" cy="0.35" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.23"/>
+      <stop offset="0.7" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.52"/>
+    </radialGradient>
+    <radialGradient id="belt-conveyor-metal-r" cx="0.35" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.13"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.46"/>
+    </radialGradient>
+    <linearGradient id="belt-conveyor-paint-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <rect id="belt-conveyor-g1" x="24" y="30" width="6" height="26"/>
+    <rect id="belt-conveyor-g2" x="20" y="55" width="14" height="5" rx="1"/>
+    <rect id="belt-conveyor-g3" x="130" y="30" width="6" height="26"/>
+    <rect id="belt-conveyor-g4" x="126" y="55" width="14" height="5" rx="1"/>
+    <rect id="belt-conveyor-g5" x="4" y="8" width="152" height="24" rx="12"/>
+    <circle id="belt-conveyor-g6" cx="16" cy="20" r="9.5"/>
+    <circle id="belt-conveyor-g7" cx="144" cy="20" r="9.5"/>
+    <rect id="belt-conveyor-g8" x="26" y="13" width="108" height="14" rx="1.5"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#belt-conveyor-g1" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#belt-conveyor-g1" fill="url(#belt-conveyor-dark-h)" stroke="none" opacity="1" data-shade="dark-h"/>
+    <use href="#belt-conveyor-g2" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#belt-conveyor-g2" fill="url(#belt-conveyor-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <use href="#belt-conveyor-g3" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#belt-conveyor-g3" fill="url(#belt-conveyor-dark-h)" stroke="none" opacity="1" data-shade="dark-h"/>
+    <use href="#belt-conveyor-g4" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#belt-conveyor-g4" fill="url(#belt-conveyor-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <path d="M30 36 L130 50 M30 50 L130 36" fill="none" stroke="#4a545d" data-mat-stroke="steel-dark" stroke-width="2"/>
+    <use href="#belt-conveyor-g5" fill="#2a2d31" data-mat="rubber"/>
+    <use href="#belt-conveyor-g5" fill="url(#belt-conveyor-rubber-r)" stroke="none" opacity="1" data-shade="rubber-r"/>
+  </g>
+  <g id="rotor-1" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#belt-conveyor-g6" fill="#9aa5af" data-mat="steel"/>
+    <use href="#belt-conveyor-g6" fill="url(#belt-conveyor-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+    <path d="M9 20 L23 20 M16 13 L16 27" fill="none" stroke-opacity="0.5"/>
+    <circle cx="16" cy="20" r="2.5" fill="#4a545d" data-mat="steel-dark"/>
+  </g>
+  <g id="rotor-2" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#belt-conveyor-g7" fill="#9aa5af" data-mat="steel"/>
+    <use href="#belt-conveyor-g7" fill="url(#belt-conveyor-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+    <path d="M137 20 L151 20 M144 13 L144 27" fill="none" stroke-opacity="0.5"/>
+    <circle cx="144" cy="20" r="2.5" fill="#4a545d" data-mat="steel-dark"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="body-motor" fill="#5d6f7e" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#belt-conveyor-g8"/>
+    <use href="#belt-conveyor-g8" fill="url(#belt-conveyor-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <circle cx="36" cy="20" r="1.2" fill="#4a545d" data-mat="steel-dark" stroke="none"/>
+    <circle cx="52" cy="20" r="1.2" fill="#4a545d" data-mat="steel-dark" stroke="none"/>
+    <circle cx="68" cy="20" r="1.2" fill="#4a545d" data-mat="steel-dark" stroke="none"/>
+    <circle cx="84" cy="20" r="1.2" fill="#4a545d" data-mat="steel-dark" stroke="none"/>
+    <circle cx="100" cy="20" r="1.2" fill="#4a545d" data-mat="steel-dark" stroke="none"/>
+    <circle cx="116" cy="20" r="1.2" fill="#4a545d" data-mat="steel-dark" stroke="none"/>
+  </g>
+</svg>

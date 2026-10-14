@@ -1,0 +1,81 @@
+{
+  "_comment": "Casi di «applica stile» per i simboli di libreria: li verificano sws-editor/tests/stileSimboli.test.ts e sws-core/src/stile_simboli.rs. Piano: docs/plans/2026-10-14-motore-simboli-lib.md.",
+  "casi": [
+    {
+      "nome": "senza modifiche: lo stile del disegno lascia il testo identico",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20\" height=\"20\" viewBox=\"0 0 20 20\">\n  <defs>\n    <linearGradient id=\"x-metal-v\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\">\n      <stop offset=\"0\" stop-color=\"#fff\" stop-opacity=\"0.85\"/>\n    </linearGradient>\n    <rect id=\"x-g1\" x=\"1\" y=\"1\" width=\"8\" height=\"4\"/>\n    <circle id=\"x-g2\" cx=\"10\" cy=\"10\" r=\"6\"/>\n  </defs>\n  <g id=\"layer-0\" data-layer=\"static\" stroke=\"#1c2329\" stroke-width=\"1\" stroke-linejoin=\"round\">\n    <use href=\"#x-g1\" fill=\"#9aa5af\" data-mat=\"steel\"/>\n    <use href=\"#x-g1\" fill=\"url(#x-metal-v)\" stroke=\"none\" opacity=\"1\" data-shade=\"metal-v\"/>\n    <path d=\"M0 0 L5 5\" fill=\"none\" stroke=\"#7f9fc6\" data-mat-stroke=\"pv-grid\" stroke-width=\"0.7\"/>\n    <rect x=\"2\" y=\"2\" width=\"3\" height=\"3\" fill=\"#fff\" fill-opacity=\"0.18\" stroke=\"none\" opacity=\"1\" data-shade=\"highlight\"/>\n  </g>\n  <g id=\"body\" data-layer=\"part\" data-mat=\"body-pump\" fill=\"#2f6fa8\" stroke=\"#1c2329\" stroke-width=\"1\" stroke-linejoin=\"round\">\n    <use href=\"#x-g2\"/>\n    <use href=\"#x-g2\" fill=\"url(#x-metal-v)\" stroke=\"none\" opacity=\"1\" data-shade=\"paint-r\"/>\n  </g>\n</svg>\n",
+      "stile": {
+        "materials": {},
+        "volume": 100,
+        "outline": {
+          "color": "#1c2329",
+          "width": 1
+        },
+        "body": null
+      },
+      "atteso": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20\" height=\"20\" viewBox=\"0 0 20 20\">\n  <defs>\n    <linearGradient id=\"x-metal-v\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\">\n      <stop offset=\"0\" stop-color=\"#fff\" stop-opacity=\"0.85\"/>\n    </linearGradient>\n    <rect id=\"x-g1\" x=\"1\" y=\"1\" width=\"8\" height=\"4\"/>\n    <circle id=\"x-g2\" cx=\"10\" cy=\"10\" r=\"6\"/>\n  </defs>\n  <g id=\"layer-0\" data-layer=\"static\" stroke=\"#1c2329\" stroke-width=\"1\" stroke-linejoin=\"round\">\n    <use href=\"#x-g1\" fill=\"#9aa5af\" data-mat=\"steel\"/>\n    <use href=\"#x-g1\" fill=\"url(#x-metal-v)\" stroke=\"none\" opacity=\"1\" data-shade=\"metal-v\"/>\n    <path d=\"M0 0 L5 5\" fill=\"none\" stroke=\"#7f9fc6\" data-mat-stroke=\"pv-grid\" stroke-width=\"0.7\"/>\n    <rect x=\"2\" y=\"2\" width=\"3\" height=\"3\" fill=\"#fff\" fill-opacity=\"0.18\" stroke=\"none\" opacity=\"1\" data-shade=\"highlight\"/>\n  </g>\n  <g id=\"body\" data-layer=\"part\" data-mat=\"body-pump\" fill=\"#2f6fa8\" stroke=\"#1c2329\" stroke-width=\"1\" stroke-linejoin=\"round\">\n    <use href=\"#x-g2\"/>\n    <use href=\"#x-g2\" fill=\"url(#x-metal-v)\" stroke=\"none\" opacity=\"1\" data-shade=\"paint-r\"/>\n  </g>\n</svg>\n"
+    },
+    {
+      "nome": "materiali, volume al 40 %, contorno chiaro e più spesso",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20\" height=\"20\" viewBox=\"0 0 20 20\">\n  <defs>\n    <linearGradient id=\"x-metal-v\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\">\n      <stop offset=\"0\" stop-color=\"#fff\" stop-opacity=\"0.85\"/>\n    </linearGradient>\n    <rect id=\"x-g1\" x=\"1\" y=\"1\" width=\"8\" height=\"4\"/>\n    <circle id=\"x-g2\" cx=\"10\" cy=\"10\" r=\"6\"/>\n  </defs>\n  <g id=\"layer-0\" data-layer=\"static\" stroke=\"#1c2329\" stroke-width=\"1\" stroke-linejoin=\"round\">\n    <use href=\"#x-g1\" fill=\"#9aa5af\" data-mat=\"steel\"/>\n    <use href=\"#x-g1\" fill=\"url(#x-metal-v)\" stroke=\"none\" opacity=\"1\" data-shade=\"metal-v\"/>\n    <path d=\"M0 0 L5 5\" fill=\"none\" stroke=\"#7f9fc6\" data-mat-stroke=\"pv-grid\" stroke-width=\"0.7\"/>\n    <rect x=\"2\" y=\"2\" width=\"3\" height=\"3\" fill=\"#fff\" fill-opacity=\"0.18\" stroke=\"none\" opacity=\"1\" data-shade=\"highlight\"/>\n  </g>\n  <g id=\"body\" data-layer=\"part\" data-mat=\"body-pump\" fill=\"#2f6fa8\" stroke=\"#1c2329\" stroke-width=\"1\" stroke-linejoin=\"round\">\n    <use href=\"#x-g2\"/>\n    <use href=\"#x-g2\" fill=\"url(#x-metal-v)\" stroke=\"none\" opacity=\"1\" data-shade=\"paint-r\"/>\n  </g>\n</svg>\n",
+      "stile": {
+        "materials": {
+          "steel": "#808080",
+          "pv-grid": "#123456",
+          "body-pump": "#aa0000"
+        },
+        "volume": 40,
+        "outline": {
+          "color": "#ffffff",
+          "width": 1.5
+        },
+        "body": null
+      },
+      "atteso": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20\" height=\"20\" viewBox=\"0 0 20 20\">\n  <defs>\n    <linearGradient id=\"x-metal-v\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\">\n      <stop offset=\"0\" stop-color=\"#fff\" stop-opacity=\"0.85\"/>\n    </linearGradient>\n    <rect id=\"x-g1\" x=\"1\" y=\"1\" width=\"8\" height=\"4\"/>\n    <circle id=\"x-g2\" cx=\"10\" cy=\"10\" r=\"6\"/>\n  </defs>\n  <g id=\"layer-0\" data-layer=\"static\" stroke=\"#ffffff\" stroke-width=\"1.5\" stroke-linejoin=\"round\">\n    <use href=\"#x-g1\" fill=\"#808080\" data-mat=\"steel\"/>\n    <use href=\"#x-g1\" fill=\"url(#x-metal-v)\" stroke=\"none\" opacity=\"0.4\" data-shade=\"metal-v\"/>\n    <path d=\"M0 0 L5 5\" fill=\"none\" stroke=\"#123456\" data-mat-stroke=\"pv-grid\" stroke-width=\"1.05\"/>\n    <rect x=\"2\" y=\"2\" width=\"3\" height=\"3\" fill=\"#fff\" fill-opacity=\"0.18\" stroke=\"none\" opacity=\"0.4\" data-shade=\"highlight\"/>\n  </g>\n  <g id=\"body\" data-layer=\"part\" data-mat=\"body-pump\" fill=\"#aa0000\" stroke=\"#ffffff\" stroke-width=\"1.5\" stroke-linejoin=\"round\">\n    <use href=\"#x-g2\"/>\n    <use href=\"#x-g2\" fill=\"url(#x-metal-v)\" stroke=\"none\" opacity=\"0.4\" data-shade=\"paint-r\"/>\n  </g>\n</svg>\n"
+    },
+    {
+      "nome": "il colore del corpo (di stato) vince sul materiale del corpo",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20\" height=\"20\" viewBox=\"0 0 20 20\">\n  <defs>\n    <linearGradient id=\"x-metal-v\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\">\n      <stop offset=\"0\" stop-color=\"#fff\" stop-opacity=\"0.85\"/>\n    </linearGradient>\n    <rect id=\"x-g1\" x=\"1\" y=\"1\" width=\"8\" height=\"4\"/>\n    <circle id=\"x-g2\" cx=\"10\" cy=\"10\" r=\"6\"/>\n  </defs>\n  <g id=\"layer-0\" data-layer=\"static\" stroke=\"#1c2329\" stroke-width=\"1\" stroke-linejoin=\"round\">\n    <use href=\"#x-g1\" fill=\"#9aa5af\" data-mat=\"steel\"/>\n    <use href=\"#x-g1\" fill=\"url(#x-metal-v)\" stroke=\"none\" opacity=\"1\" data-shade=\"metal-v\"/>\n    <path d=\"M0 0 L5 5\" fill=\"none\" stroke=\"#7f9fc6\" data-mat-stroke=\"pv-grid\" stroke-width=\"0.7\"/>\n    <rect x=\"2\" y=\"2\" width=\"3\" height=\"3\" fill=\"#fff\" fill-opacity=\"0.18\" stroke=\"none\" opacity=\"1\" data-shade=\"highlight\"/>\n  </g>\n  <g id=\"body\" data-layer=\"part\" data-mat=\"body-pump\" fill=\"#2f6fa8\" stroke=\"#1c2329\" stroke-width=\"1\" stroke-linejoin=\"round\">\n    <use href=\"#x-g2\"/>\n    <use href=\"#x-g2\" fill=\"url(#x-metal-v)\" stroke=\"none\" opacity=\"1\" data-shade=\"paint-r\"/>\n  </g>\n</svg>\n",
+      "stile": {
+        "materials": {
+          "body-pump": "#aa0000"
+        },
+        "volume": 100,
+        "outline": {
+          "color": "#1c2329",
+          "width": 1
+        },
+        "body": "#22c55e"
+      },
+      "atteso": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20\" height=\"20\" viewBox=\"0 0 20 20\">\n  <defs>\n    <linearGradient id=\"x-metal-v\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\">\n      <stop offset=\"0\" stop-color=\"#fff\" stop-opacity=\"0.85\"/>\n    </linearGradient>\n    <rect id=\"x-g1\" x=\"1\" y=\"1\" width=\"8\" height=\"4\"/>\n    <circle id=\"x-g2\" cx=\"10\" cy=\"10\" r=\"6\"/>\n  </defs>\n  <g id=\"layer-0\" data-layer=\"static\" stroke=\"#1c2329\" stroke-width=\"1\" stroke-linejoin=\"round\">\n    <use href=\"#x-g1\" fill=\"#9aa5af\" data-mat=\"steel\"/>\n    <use href=\"#x-g1\" fill=\"url(#x-metal-v)\" stroke=\"none\" opacity=\"1\" data-shade=\"metal-v\"/>\n    <path d=\"M0 0 L5 5\" fill=\"none\" stroke=\"#7f9fc6\" data-mat-stroke=\"pv-grid\" stroke-width=\"0.7\"/>\n    <rect x=\"2\" y=\"2\" width=\"3\" height=\"3\" fill=\"#fff\" fill-opacity=\"0.18\" stroke=\"none\" opacity=\"1\" data-shade=\"highlight\"/>\n  </g>\n  <g id=\"body\" data-layer=\"part\" data-mat=\"body-pump\" fill=\"#22c55e\" stroke=\"#1c2329\" stroke-width=\"1\" stroke-linejoin=\"round\">\n    <use href=\"#x-g2\"/>\n    <use href=\"#x-g2\" fill=\"url(#x-metal-v)\" stroke=\"none\" opacity=\"1\" data-shade=\"paint-r\"/>\n  </g>\n</svg>\n"
+    },
+    {
+      "nome": "volume zero (piatto) e spessori con decimali periodici",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20\" height=\"20\" viewBox=\"0 0 20 20\">\n  <defs>\n    <linearGradient id=\"x-metal-v\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\">\n      <stop offset=\"0\" stop-color=\"#fff\" stop-opacity=\"0.85\"/>\n    </linearGradient>\n    <rect id=\"x-g1\" x=\"1\" y=\"1\" width=\"8\" height=\"4\"/>\n    <circle id=\"x-g2\" cx=\"10\" cy=\"10\" r=\"6\"/>\n  </defs>\n  <g id=\"layer-0\" data-layer=\"static\" stroke=\"#1c2329\" stroke-width=\"1\" stroke-linejoin=\"round\">\n    <use href=\"#x-g1\" fill=\"#9aa5af\" data-mat=\"steel\"/>\n    <use href=\"#x-g1\" fill=\"url(#x-metal-v)\" stroke=\"none\" opacity=\"1\" data-shade=\"metal-v\"/>\n    <path d=\"M0 0 L5 5\" fill=\"none\" stroke=\"#7f9fc6\" data-mat-stroke=\"pv-grid\" stroke-width=\"0.7\"/>\n    <rect x=\"2\" y=\"2\" width=\"3\" height=\"3\" fill=\"#fff\" fill-opacity=\"0.18\" stroke=\"none\" opacity=\"1\" data-shade=\"highlight\"/>\n  </g>\n  <g id=\"body\" data-layer=\"part\" data-mat=\"body-pump\" fill=\"#2f6fa8\" stroke=\"#1c2329\" stroke-width=\"1\" stroke-linejoin=\"round\">\n    <use href=\"#x-g2\"/>\n    <use href=\"#x-g2\" fill=\"url(#x-metal-v)\" stroke=\"none\" opacity=\"1\" data-shade=\"paint-r\"/>\n  </g>\n</svg>\n",
+      "stile": {
+        "materials": {},
+        "volume": 0,
+        "outline": {
+          "color": "#1c2329",
+          "width": 0.6667
+        },
+        "body": null
+      },
+      "atteso": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20\" height=\"20\" viewBox=\"0 0 20 20\">\n  <defs>\n    <linearGradient id=\"x-metal-v\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\">\n      <stop offset=\"0\" stop-color=\"#fff\" stop-opacity=\"0.85\"/>\n    </linearGradient>\n    <rect id=\"x-g1\" x=\"1\" y=\"1\" width=\"8\" height=\"4\"/>\n    <circle id=\"x-g2\" cx=\"10\" cy=\"10\" r=\"6\"/>\n  </defs>\n  <g id=\"layer-0\" data-layer=\"static\" stroke=\"#1c2329\" stroke-width=\"0.667\" stroke-linejoin=\"round\">\n    <use href=\"#x-g1\" fill=\"#9aa5af\" data-mat=\"steel\"/>\n    <use href=\"#x-g1\" fill=\"url(#x-metal-v)\" stroke=\"none\" opacity=\"0\" data-shade=\"metal-v\"/>\n    <path d=\"M0 0 L5 5\" fill=\"none\" stroke=\"#7f9fc6\" data-mat-stroke=\"pv-grid\" stroke-width=\"0.467\"/>\n    <rect x=\"2\" y=\"2\" width=\"3\" height=\"3\" fill=\"#fff\" fill-opacity=\"0.18\" stroke=\"none\" opacity=\"0\" data-shade=\"highlight\"/>\n  </g>\n  <g id=\"body\" data-layer=\"part\" data-mat=\"body-pump\" fill=\"#2f6fa8\" stroke=\"#1c2329\" stroke-width=\"0.667\" stroke-linejoin=\"round\">\n    <use href=\"#x-g2\"/>\n    <use href=\"#x-g2\" fill=\"url(#x-metal-v)\" stroke=\"none\" opacity=\"0\" data-shade=\"paint-r\"/>\n  </g>\n</svg>\n"
+    },
+    {
+      "nome": "volume fuori scala: si ferma a 0 e a 100",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20\" height=\"20\" viewBox=\"0 0 20 20\">\n  <defs>\n    <linearGradient id=\"x-metal-v\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\">\n      <stop offset=\"0\" stop-color=\"#fff\" stop-opacity=\"0.85\"/>\n    </linearGradient>\n    <rect id=\"x-g1\" x=\"1\" y=\"1\" width=\"8\" height=\"4\"/>\n    <circle id=\"x-g2\" cx=\"10\" cy=\"10\" r=\"6\"/>\n  </defs>\n  <g id=\"layer-0\" data-layer=\"static\" stroke=\"#1c2329\" stroke-width=\"1\" stroke-linejoin=\"round\">\n    <use href=\"#x-g1\" fill=\"#9aa5af\" data-mat=\"steel\"/>\n    <use href=\"#x-g1\" fill=\"url(#x-metal-v)\" stroke=\"none\" opacity=\"1\" data-shade=\"metal-v\"/>\n    <path d=\"M0 0 L5 5\" fill=\"none\" stroke=\"#7f9fc6\" data-mat-stroke=\"pv-grid\" stroke-width=\"0.7\"/>\n    <rect x=\"2\" y=\"2\" width=\"3\" height=\"3\" fill=\"#fff\" fill-opacity=\"0.18\" stroke=\"none\" opacity=\"1\" data-shade=\"highlight\"/>\n  </g>\n  <g id=\"body\" data-layer=\"part\" data-mat=\"body-pump\" fill=\"#2f6fa8\" stroke=\"#1c2329\" stroke-width=\"1\" stroke-linejoin=\"round\">\n    <use href=\"#x-g2\"/>\n    <use href=\"#x-g2\" fill=\"url(#x-metal-v)\" stroke=\"none\" opacity=\"1\" data-shade=\"paint-r\"/>\n  </g>\n</svg>\n",
+      "stile": {
+        "materials": {},
+        "volume": 140,
+        "outline": {
+          "color": "#1c2329",
+          "width": 1
+        },
+        "body": null
+      },
+      "atteso": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20\" height=\"20\" viewBox=\"0 0 20 20\">\n  <defs>\n    <linearGradient id=\"x-metal-v\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\">\n      <stop offset=\"0\" stop-color=\"#fff\" stop-opacity=\"0.85\"/>\n    </linearGradient>\n    <rect id=\"x-g1\" x=\"1\" y=\"1\" width=\"8\" height=\"4\"/>\n    <circle id=\"x-g2\" cx=\"10\" cy=\"10\" r=\"6\"/>\n  </defs>\n  <g id=\"layer-0\" data-layer=\"static\" stroke=\"#1c2329\" stroke-width=\"1\" stroke-linejoin=\"round\">\n    <use href=\"#x-g1\" fill=\"#9aa5af\" data-mat=\"steel\"/>\n    <use href=\"#x-g1\" fill=\"url(#x-metal-v)\" stroke=\"none\" opacity=\"1\" data-shade=\"metal-v\"/>\n    <path d=\"M0 0 L5 5\" fill=\"none\" stroke=\"#7f9fc6\" data-mat-stroke=\"pv-grid\" stroke-width=\"0.7\"/>\n    <rect x=\"2\" y=\"2\" width=\"3\" height=\"3\" fill=\"#fff\" fill-opacity=\"0.18\" stroke=\"none\" opacity=\"1\" data-shade=\"highlight\"/>\n  </g>\n  <g id=\"body\" data-layer=\"part\" data-mat=\"body-pump\" fill=\"#2f6fa8\" stroke=\"#1c2329\" stroke-width=\"1\" stroke-linejoin=\"round\">\n    <use href=\"#x-g2\"/>\n    <use href=\"#x-g2\" fill=\"url(#x-metal-v)\" stroke=\"none\" opacity=\"1\" data-shade=\"paint-r\"/>\n  </g>\n</svg>\n"
+    }
+  ]
+}

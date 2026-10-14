@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="80" viewBox="0 0 160 80">
+  <defs>
+    <linearGradient id="shell-tube-exchanger-metal-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="shell-tube-exchanger-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="shell-tube-exchanger-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <linearGradient id="shell-tube-exchanger-paint-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <rect id="shell-tube-exchanger-g1" x="15" y="4" width="10" height="12"/>
+    <rect id="shell-tube-exchanger-g2" x="12" y="0" width="16" height="4" rx="0.8"/>
+    <rect id="shell-tube-exchanger-g3" x="15" y="60" width="10" height="16"/>
+    <rect id="shell-tube-exchanger-g4" x="12" y="76" width="16" height="4" rx="0.8"/>
+    <rect id="shell-tube-exchanger-g5" x="55" y="4" width="10" height="14"/>
+    <rect id="shell-tube-exchanger-g6" x="52" y="0" width="16" height="4" rx="0.8"/>
+    <rect id="shell-tube-exchanger-g7" x="115" y="58" width="10" height="18"/>
+    <rect id="shell-tube-exchanger-g8" x="112" y="76" width="16" height="4" rx="0.8"/>
+    <path id="shell-tube-exchanger-g9" d="M44 58 L60 58 L64 76 L40 76 Z"/>
+    <rect id="shell-tube-exchanger-g10" x="36" y="76" width="32" height="4" rx="1"/>
+    <path id="shell-tube-exchanger-g11" d="M84 58 L100 58 L104 76 L80 76 Z"/>
+    <rect id="shell-tube-exchanger-g12" x="76" y="76" width="32" height="4" rx="1"/>
+    <rect id="shell-tube-exchanger-g13" x="4" y="10" width="6" height="56" rx="1"/>
+    <rect id="shell-tube-exchanger-g14" x="10" y="14" width="18" height="48"/>
+    <rect id="shell-tube-exchanger-g15" x="32" y="16" width="104" height="44"/>
+    <path id="shell-tube-exchanger-g16" d="M136 16 Q156 16 156 38 Q156 60 136 60 Z"/>
+    <rect id="shell-tube-exchanger-g17" x="28" y="10" width="4" height="56" rx="0.8"/>
+    <rect id="shell-tube-exchanger-g18" x="134" y="12" width="4" height="52" rx="0.8"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#shell-tube-exchanger-g1" fill="#9aa5af" data-mat="steel"/>
+    <use href="#shell-tube-exchanger-g1" fill="url(#shell-tube-exchanger-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#shell-tube-exchanger-g2" fill="#9aa5af" data-mat="steel"/>
+    <use href="#shell-tube-exchanger-g2" fill="url(#shell-tube-exchanger-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#shell-tube-exchanger-g3" fill="#9aa5af" data-mat="steel"/>
+    <use href="#shell-tube-exchanger-g3" fill="url(#shell-tube-exchanger-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#shell-tube-exchanger-g4" fill="#9aa5af" data-mat="steel"/>
+    <use href="#shell-tube-exchanger-g4" fill="url(#shell-tube-exchanger-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#shell-tube-exchanger-g5" fill="#9aa5af" data-mat="steel"/>
+    <use href="#shell-tube-exchanger-g5" fill="url(#shell-tube-exchanger-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#shell-tube-exchanger-g6" fill="#9aa5af" data-mat="steel"/>
+    <use href="#shell-tube-exchanger-g6" fill="url(#shell-tube-exchanger-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#shell-tube-exchanger-g7" fill="#9aa5af" data-mat="steel"/>
+    <use href="#shell-tube-exchanger-g7" fill="url(#shell-tube-exchanger-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#shell-tube-exchanger-g8" fill="#9aa5af" data-mat="steel"/>
+    <use href="#shell-tube-exchanger-g8" fill="url(#shell-tube-exchanger-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#shell-tube-exchanger-g9" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#shell-tube-exchanger-g9" fill="url(#shell-tube-exchanger-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <use href="#shell-tube-exchanger-g10" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#shell-tube-exchanger-g10" fill="url(#shell-tube-exchanger-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <use href="#shell-tube-exchanger-g11" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#shell-tube-exchanger-g11" fill="url(#shell-tube-exchanger-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <use href="#shell-tube-exchanger-g12" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#shell-tube-exchanger-g12" fill="url(#shell-tube-exchanger-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <use href="#shell-tube-exchanger-g13" fill="#9aa5af" data-mat="steel"/>
+    <use href="#shell-tube-exchanger-g13" fill="url(#shell-tube-exchanger-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="stainless" fill="#b4bec7" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#shell-tube-exchanger-g14"/>
+    <use href="#shell-tube-exchanger-g14" fill="url(#shell-tube-exchanger-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+    <use href="#shell-tube-exchanger-g15"/>
+    <use href="#shell-tube-exchanger-g15" fill="url(#shell-tube-exchanger-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+    <use href="#shell-tube-exchanger-g16"/>
+    <use href="#shell-tube-exchanger-g16" fill="url(#shell-tube-exchanger-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#shell-tube-exchanger-g17" fill="#9aa5af" data-mat="steel"/>
+    <use href="#shell-tube-exchanger-g17" fill="url(#shell-tube-exchanger-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#shell-tube-exchanger-g18" fill="#9aa5af" data-mat="steel"/>
+    <use href="#shell-tube-exchanger-g18" fill="url(#shell-tube-exchanger-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <path d="M36 24 L130 24" fill="none" stroke-opacity="0.22" stroke-dasharray="6 3"/>
+    <path d="M36 31 L130 31" fill="none" stroke-opacity="0.22" stroke-dasharray="6 3"/>
+    <path d="M36 38 L130 38" fill="none" stroke-opacity="0.22" stroke-dasharray="6 3"/>
+    <path d="M36 45 L130 45" fill="none" stroke-opacity="0.22" stroke-dasharray="6 3"/>
+    <path d="M36 52 L130 52" fill="none" stroke-opacity="0.22" stroke-dasharray="6 3"/>
+  </g>
+</svg>

@@ -86,6 +86,24 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 - **Dopo il primo invio di un progetto il pannello passa da solo alla pagina**, senza il pulsante «Continua».
 
 ### Added
+
+- **Libreria di simboli SCADA 2.5D — il formato** (Fase 1 del
+  [piano](docs/plans/2026-10-14-motore-simboli-lib.md)). Gli SVG di
+  `sws-editor/public/symbols/lib/<famiglia>/<slug>.svg` e il loro `manifest.json` escono solo
+  da `scripts/simboli/genera.py`:
+  - strati statici e parti vive (`body`, `level`, `rotor`, `needle`, `lever`, `lamp-*`), con la
+    geometria nel manifesto;
+  - ogni forma ha un colore piatto da un materiale con nome (`data-mat`) e un velo di bianchi e neri
+    (`data-shade`) per il volume.
+
+  «Applica stile» ritinge i materiali, regola il volume e il contorno. Ha due gemelli,
+  `src/symbols/lib/applicaStile.ts` e `sws-core/src/stile_simboli.rs`, verificati dalla stessa
+  fixture `tests/fixtures/stile-simboli.json`. Il manifesto ha la sua forma Rust in
+  `sws-core/src/simboli_lib.rs`.
+
+  Ci sono 16 campioni, uno per tipologia, con le etichette in `it.json` ed `en.json`. La guardia
+  nuova `check_libreria_simboli.sh` pretende che i file siano quelli del generatore e che il
+  formato sia rispettato. Nessuna interfaccia li usa ancora: arrivano con la Fase 2.
 - **L'elenco dei progetti dice tecnologia e risoluzione prima di aprirli**, e li raggruppa per quelle: «WEB ·
   1024×600», «LVGL · 800×480». L'azienda, che prima era il titolo del gruppo, è ora un'etichetta sulla scheda, e i
   progetti di un'azienda a cui non appartieni restano separati come prima.

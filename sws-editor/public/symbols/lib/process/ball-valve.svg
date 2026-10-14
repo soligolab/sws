@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="60" height="70" viewBox="0 0 60 70">
+  <defs>
+    <linearGradient id="ball-valve-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="ball-valve-metal-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="ball-valve-paint-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <linearGradient id="ball-valve-paint-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <radialGradient id="ball-valve-metal-r" cx="0.35" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.13"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.46"/>
+    </radialGradient>
+    <rect id="ball-valve-g1" x="4" y="45" width="14" height="10"/>
+    <rect id="ball-valve-g2" x="0" y="42" width="4" height="16" rx="0.8"/>
+    <rect id="ball-valve-g3" x="42" y="45" width="14" height="10"/>
+    <rect id="ball-valve-g4" x="56" y="42" width="4" height="16" rx="0.8"/>
+    <rect id="ball-valve-g5" x="27" y="26" width="6" height="8"/>
+    <rect id="ball-valve-g6" x="25" y="32" width="10" height="9" rx="1.5"/>
+    <rect id="ball-valve-g7" x="16" y="38" width="28" height="24" rx="8"/>
+    <rect id="ball-valve-g8" x="24" y="20.5" width="28" height="7" rx="2"/>
+    <circle id="ball-valve-g9" cx="30" cy="24" r="4"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#ball-valve-g1" fill="#9aa5af" data-mat="steel"/>
+    <use href="#ball-valve-g1" fill="url(#ball-valve-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#ball-valve-g2" fill="#9aa5af" data-mat="steel"/>
+    <use href="#ball-valve-g2" fill="url(#ball-valve-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#ball-valve-g3" fill="#9aa5af" data-mat="steel"/>
+    <use href="#ball-valve-g3" fill="url(#ball-valve-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#ball-valve-g4" fill="#9aa5af" data-mat="steel"/>
+    <use href="#ball-valve-g4" fill="url(#ball-valve-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#ball-valve-g5" fill="#9aa5af" data-mat="steel"/>
+    <use href="#ball-valve-g5" fill="url(#ball-valve-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="steel" fill="#9aa5af" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#ball-valve-g6"/>
+    <use href="#ball-valve-g6" fill="url(#ball-valve-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+    <use href="#ball-valve-g7"/>
+    <use href="#ball-valve-g7" fill="url(#ball-valve-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <path d="M22 50 L38 50" fill="none" stroke-opacity="0.35"/>
+  </g>
+  <g id="lever" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#ball-valve-g8" fill="#c8352e" data-mat="signal-red"/>
+    <use href="#ball-valve-g8" fill="url(#ball-valve-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+    <use href="#ball-valve-g9" fill="#9aa5af" data-mat="steel"/>
+    <use href="#ball-valve-g9" fill="url(#ball-valve-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+  </g>
+</svg>
