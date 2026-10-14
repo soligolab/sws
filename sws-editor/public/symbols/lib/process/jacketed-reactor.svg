@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="170" viewBox="0 0 100 170">
+  <defs>
+    <linearGradient id="jacketed-reactor-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="jacketed-reactor-metal-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="jacketed-reactor-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <linearGradient id="jacketed-reactor-paint-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <linearGradient id="jacketed-reactor-paint-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <radialGradient id="jacketed-reactor-metal-r" cx="0.35" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.13"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.46"/>
+    </radialGradient>
+    <rect id="jacketed-reactor-g1" x="4" y="105" width="12" height="10"/>
+    <rect id="jacketed-reactor-g2" x="0" y="102" width="4" height="16" rx="0.8"/>
+    <rect id="jacketed-reactor-g3" x="84" y="135" width="12" height="10"/>
+    <rect id="jacketed-reactor-g4" x="96" y="132" width="4" height="16" rx="0.8"/>
+    <rect id="jacketed-reactor-g5" x="45" y="152" width="10" height="14"/>
+    <rect id="jacketed-reactor-g6" x="43" y="166" width="14" height="4" rx="0.8"/>
+    <rect id="jacketed-reactor-g7" x="8" y="80" width="6" height="10" rx="1"/>
+    <rect id="jacketed-reactor-g8" x="86" y="80" width="6" height="10" rx="1"/>
+    <rect id="jacketed-reactor-g9" x="40" y="2" width="20" height="16" rx="3"/>
+    <rect id="jacketed-reactor-g10" x="36" y="18" width="28" height="6" rx="1.5"/>
+    <rect id="jacketed-reactor-g11" x="64" y="18" width="14" height="8" rx="1"/>
+    <path id="jacketed-reactor-g12" d="M14 44 Q14 26 50 24 Q86 26 86 44 L86 132 Q86 152 50 154 Q14 152 14 132 Z"/>
+    <rect id="jacketed-reactor-g13" x="35" y="52" width="30" height="76" rx="3"/>
+    <path id="jacketed-reactor-g14" d="M52.56 112 Q60.09 107.49 63.55 113.63 Q58.9 115.98 52.56 112 Z"/>
+    <path id="jacketed-reactor-g15" d="M48.72 114.22 Q48.86 122.99 41.81 122.92 Q42.11 117.72 48.72 114.22 Z"/>
+    <path id="jacketed-reactor-g16" d="M48.72 109.78 Q41.05 105.51 44.64 99.45 Q48.99 102.3 48.72 109.78 Z"/>
+    <circle id="jacketed-reactor-g17" cx="50" cy="112" r="3.2"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#jacketed-reactor-g1" fill="#9aa5af" data-mat="steel"/>
+    <use href="#jacketed-reactor-g1" fill="url(#jacketed-reactor-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#jacketed-reactor-g2" fill="#9aa5af" data-mat="steel"/>
+    <use href="#jacketed-reactor-g2" fill="url(#jacketed-reactor-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#jacketed-reactor-g3" fill="#9aa5af" data-mat="steel"/>
+    <use href="#jacketed-reactor-g3" fill="url(#jacketed-reactor-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#jacketed-reactor-g4" fill="#9aa5af" data-mat="steel"/>
+    <use href="#jacketed-reactor-g4" fill="url(#jacketed-reactor-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#jacketed-reactor-g5" fill="#9aa5af" data-mat="steel"/>
+    <use href="#jacketed-reactor-g5" fill="url(#jacketed-reactor-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#jacketed-reactor-g6" fill="#9aa5af" data-mat="steel"/>
+    <use href="#jacketed-reactor-g6" fill="url(#jacketed-reactor-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#jacketed-reactor-g7" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#jacketed-reactor-g7" fill="url(#jacketed-reactor-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <use href="#jacketed-reactor-g8" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#jacketed-reactor-g8" fill="url(#jacketed-reactor-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <use href="#jacketed-reactor-g9" fill="#5d6f7e" data-mat="body-motor"/>
+    <use href="#jacketed-reactor-g9" fill="url(#jacketed-reactor-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+    <use href="#jacketed-reactor-g10" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#jacketed-reactor-g10" fill="url(#jacketed-reactor-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <use href="#jacketed-reactor-g11" fill="#9aa5af" data-mat="steel"/>
+    <use href="#jacketed-reactor-g11" fill="url(#jacketed-reactor-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="stainless" fill="#b4bec7" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#jacketed-reactor-g12"/>
+    <use href="#jacketed-reactor-g12" fill="url(#jacketed-reactor-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <path d="M14 76 L86 76 L86 132 Q86 152 50 154 Q14 152 14 132 Z" fill="none" stroke-width="2.2" stroke-opacity="0.55"/>
+    <path d="M14 76 L86 76" fill="none" stroke-opacity="0.4"/>
+    <rect x="34" y="50" width="32" height="80" rx="4" fill="#1d2a35" data-mat="glass-dark"/>
+  </g>
+  <g id="level" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#jacketed-reactor-g13" fill="#2b8fd6" data-mat="liquid"/>
+    <use href="#jacketed-reactor-g13" fill="url(#jacketed-reactor-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+  </g>
+  <g id="layer-2" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <rect x="49" y="24" width="2" height="88" fill="#9aa5af" data-mat="steel" stroke-width="0.6"/>
+  </g>
+  <g id="rotor" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#jacketed-reactor-g14" fill="#9aa5af" data-mat="steel" stroke-width="0.8"/>
+    <use href="#jacketed-reactor-g14" fill="url(#jacketed-reactor-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+    <use href="#jacketed-reactor-g15" fill="#9aa5af" data-mat="steel" stroke-width="0.8"/>
+    <use href="#jacketed-reactor-g15" fill="url(#jacketed-reactor-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+    <use href="#jacketed-reactor-g16" fill="#9aa5af" data-mat="steel" stroke-width="0.8"/>
+    <use href="#jacketed-reactor-g16" fill="url(#jacketed-reactor-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+    <use href="#jacketed-reactor-g17" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#jacketed-reactor-g17" fill="url(#jacketed-reactor-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+  </g>
+  <g id="layer-3" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <rect x="37" y="52" width="4" height="76" rx="2" fill="#fff" fill-opacity="0.18" stroke="none" opacity="1" data-shade="highlight"/>
+  </g>
+</svg>

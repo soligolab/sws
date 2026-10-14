@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
+  <defs>
+    <radialGradient id="axial-fan-paint-r" cx="0.36" cy="0.3" r="0.75">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.55"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.05"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </radialGradient>
+    <radialGradient id="axial-fan-metal-r" cx="0.35" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.13"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.46"/>
+    </radialGradient>
+    <linearGradient id="axial-fan-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <circle id="axial-fan-g1" cx="50" cy="48" r="44"/>
+    <path id="axial-fan-g2" d="M55.6 48 Q76.39 36.22 85.44 52.27 Q73.28 58.4 55.6 48 Z"/>
+    <path id="axial-fan-g3" d="M51.73 53.33 Q69.36 69.46 56.89 83.03 Q47.31 73.36 51.73 53.33 Z"/>
+    <path id="axial-fan-g4" d="M45.47 51.29 Q35.58 73.04 18.81 65.38 Q25.05 53.27 45.47 51.29 Z"/>
+    <path id="axial-fan-g5" d="M45.47 44.71 Q21.72 42.02 23.84 23.71 Q37.27 25.9 45.47 44.71 Z"/>
+    <path id="axial-fan-g6" d="M51.73 42.67 Q46.95 19.26 65.02 15.61 Q67.08 29.07 51.73 42.67 Z"/>
+    <circle id="axial-fan-g7" cx="50" cy="48" r="7"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <path d="M30 84 L22 100 M70 84 L78 100" fill="none" stroke="#4a545d" data-mat-stroke="steel-dark" stroke-width="4" stroke-linecap="round"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="body-motor" fill="#5d6f7e" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#axial-fan-g1"/>
+    <use href="#axial-fan-g1" fill="url(#axial-fan-paint-r)" stroke="none" opacity="1" data-shade="paint-r"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <circle cx="50" cy="48" r="36" fill="#1d2a35" data-mat="glass-dark"/>
+  </g>
+  <g id="rotor" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#axial-fan-g2" fill="#9aa5af" data-mat="steel" stroke-width="0.8"/>
+    <use href="#axial-fan-g2" fill="url(#axial-fan-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+    <use href="#axial-fan-g3" fill="#9aa5af" data-mat="steel" stroke-width="0.8"/>
+    <use href="#axial-fan-g3" fill="url(#axial-fan-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+    <use href="#axial-fan-g4" fill="#9aa5af" data-mat="steel" stroke-width="0.8"/>
+    <use href="#axial-fan-g4" fill="url(#axial-fan-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+    <use href="#axial-fan-g5" fill="#9aa5af" data-mat="steel" stroke-width="0.8"/>
+    <use href="#axial-fan-g5" fill="url(#axial-fan-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+    <use href="#axial-fan-g6" fill="#9aa5af" data-mat="steel" stroke-width="0.8"/>
+    <use href="#axial-fan-g6" fill="url(#axial-fan-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+    <use href="#axial-fan-g7" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#axial-fan-g7" fill="url(#axial-fan-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+  </g>
+  <g id="layer-2" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <path d="M14 48 L86 48 M50 12 L50 84" fill="none" stroke-opacity="0.35"/>
+  </g>
+</svg>

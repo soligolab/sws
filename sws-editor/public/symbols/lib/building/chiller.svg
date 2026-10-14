@@ -1,0 +1,139 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="90" viewBox="0 0 160 90">
+  <defs>
+    <linearGradient id="chiller-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="chiller-metal-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="chiller-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <linearGradient id="chiller-paint-d" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.35"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.3"/>
+    </linearGradient>
+    <radialGradient id="chiller-metal-r" cx="0.35" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.13"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.46"/>
+    </radialGradient>
+    <rect id="chiller-g1" x="0" y="65" width="12" height="10"/>
+    <rect id="chiller-g2" x="0" y="62" width="4" height="16" rx="0.8"/>
+    <rect id="chiller-g3" x="148" y="65" width="12" height="10"/>
+    <rect id="chiller-g4" x="156" y="62" width="4" height="16" rx="0.8"/>
+    <rect id="chiller-g5" x="10" y="82" width="140" height="8" rx="1"/>
+    <rect id="chiller-g6" x="10" y="14" width="140" height="70" rx="3"/>
+    <rect id="chiller-g7" x="22" y="4" width="56" height="12" rx="2"/>
+    <rect id="chiller-g8" x="82" y="4" width="56" height="12" rx="2"/>
+    <circle id="chiller-g9" cx="50" cy="32" r="16"/>
+    <path id="chiller-g10" d="M52.8 32 Q60.87 27.15 64.59 33.76 Q59.59 36.28 52.8 32 Z"/>
+    <path id="chiller-g11" d="M50 34.8 Q54.85 42.87 48.24 46.59 Q45.72 41.59 50 34.8 Z"/>
+    <path id="chiller-g12" d="M47.2 32 Q39.13 36.85 35.41 30.24 Q40.41 27.72 47.2 32 Z"/>
+    <path id="chiller-g13" d="M50 29.2 Q45.15 21.13 51.76 17.41 Q54.28 22.41 50 29.2 Z"/>
+    <circle id="chiller-g14" cx="50" cy="32" r="3.5"/>
+    <circle id="chiller-g15" cx="110" cy="32" r="16"/>
+    <path id="chiller-g16" d="M112.8 32 Q120.87 27.15 124.59 33.76 Q119.59 36.28 112.8 32 Z"/>
+    <path id="chiller-g17" d="M110 34.8 Q114.85 42.87 108.24 46.59 Q105.72 41.59 110 34.8 Z"/>
+    <path id="chiller-g18" d="M107.2 32 Q99.13 36.85 95.41 30.24 Q100.41 27.72 107.2 32 Z"/>
+    <path id="chiller-g19" d="M110 29.2 Q105.15 21.13 111.76 17.41 Q114.28 22.41 110 29.2 Z"/>
+    <circle id="chiller-g20" cx="110" cy="32" r="3.5"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#chiller-g1" fill="#9aa5af" data-mat="steel"/>
+    <use href="#chiller-g1" fill="url(#chiller-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#chiller-g2" fill="#9aa5af" data-mat="steel"/>
+    <use href="#chiller-g2" fill="url(#chiller-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#chiller-g3" fill="#9aa5af" data-mat="steel"/>
+    <use href="#chiller-g3" fill="url(#chiller-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#chiller-g4" fill="#9aa5af" data-mat="steel"/>
+    <use href="#chiller-g4" fill="url(#chiller-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#chiller-g5" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#chiller-g5" fill="url(#chiller-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="appliance" fill="#e2e6ea" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#chiller-g6"/>
+    <use href="#chiller-g6" fill="url(#chiller-paint-d)" stroke="none" opacity="1" data-shade="paint-d"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#chiller-g7" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#chiller-g7" fill="url(#chiller-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <use href="#chiller-g8" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#chiller-g8" fill="url(#chiller-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <path d="M14 50 L14 80" fill="none" stroke-opacity="0.3"/>
+    <path d="M18 50 L18 80" fill="none" stroke-opacity="0.3"/>
+    <path d="M22 50 L22 80" fill="none" stroke-opacity="0.3"/>
+    <path d="M26 50 L26 80" fill="none" stroke-opacity="0.3"/>
+    <path d="M30 50 L30 80" fill="none" stroke-opacity="0.3"/>
+    <path d="M34 50 L34 80" fill="none" stroke-opacity="0.3"/>
+    <path d="M38 50 L38 80" fill="none" stroke-opacity="0.3"/>
+    <path d="M42 50 L42 80" fill="none" stroke-opacity="0.3"/>
+    <path d="M46 50 L46 80" fill="none" stroke-opacity="0.3"/>
+    <path d="M50 50 L50 80" fill="none" stroke-opacity="0.3"/>
+    <path d="M54 50 L54 80" fill="none" stroke-opacity="0.3"/>
+    <path d="M58 50 L58 80" fill="none" stroke-opacity="0.3"/>
+    <path d="M62 50 L62 80" fill="none" stroke-opacity="0.3"/>
+    <path d="M66 50 L66 80" fill="none" stroke-opacity="0.3"/>
+    <path d="M70 50 L70 80" fill="none" stroke-opacity="0.3"/>
+    <path d="M74 50 L74 80" fill="none" stroke-opacity="0.3"/>
+    <path d="M78 50 L78 80" fill="none" stroke-opacity="0.3"/>
+    <path d="M82 50 L82 80" fill="none" stroke-opacity="0.3"/>
+    <path d="M86 50 L86 80" fill="none" stroke-opacity="0.3"/>
+    <path d="M90 50 L90 80" fill="none" stroke-opacity="0.3"/>
+    <path d="M94 50 L94 80" fill="none" stroke-opacity="0.3"/>
+    <path d="M98 50 L98 80" fill="none" stroke-opacity="0.3"/>
+    <path d="M102 50 L102 80" fill="none" stroke-opacity="0.3"/>
+    <path d="M106 50 L106 80" fill="none" stroke-opacity="0.3"/>
+    <path d="M110 50 L110 80" fill="none" stroke-opacity="0.3"/>
+    <path d="M114 50 L114 80" fill="none" stroke-opacity="0.3"/>
+    <path d="M118 50 L118 80" fill="none" stroke-opacity="0.3"/>
+    <path d="M122 50 L122 80" fill="none" stroke-opacity="0.3"/>
+    <path d="M126 50 L126 80" fill="none" stroke-opacity="0.3"/>
+    <path d="M130 50 L130 80" fill="none" stroke-opacity="0.3"/>
+    <path d="M134 50 L134 80" fill="none" stroke-opacity="0.3"/>
+    <path d="M138 50 L138 80" fill="none" stroke-opacity="0.3"/>
+    <path d="M142 50 L142 80" fill="none" stroke-opacity="0.3"/>
+    <use href="#chiller-g9" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#chiller-g9" fill="url(#chiller-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+  </g>
+  <g id="rotor-1" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#chiller-g10" fill="#9aa5af" data-mat="steel" stroke-width="0.8"/>
+    <use href="#chiller-g10" fill="url(#chiller-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+    <use href="#chiller-g11" fill="#9aa5af" data-mat="steel" stroke-width="0.8"/>
+    <use href="#chiller-g11" fill="url(#chiller-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+    <use href="#chiller-g12" fill="#9aa5af" data-mat="steel" stroke-width="0.8"/>
+    <use href="#chiller-g12" fill="url(#chiller-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+    <use href="#chiller-g13" fill="#9aa5af" data-mat="steel" stroke-width="0.8"/>
+    <use href="#chiller-g13" fill="url(#chiller-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+    <use href="#chiller-g14" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#chiller-g14" fill="url(#chiller-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+  </g>
+  <g id="layer-2" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#chiller-g15" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#chiller-g15" fill="url(#chiller-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+  </g>
+  <g id="rotor-2" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#chiller-g16" fill="#9aa5af" data-mat="steel" stroke-width="0.8"/>
+    <use href="#chiller-g16" fill="url(#chiller-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+    <use href="#chiller-g17" fill="#9aa5af" data-mat="steel" stroke-width="0.8"/>
+    <use href="#chiller-g17" fill="url(#chiller-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+    <use href="#chiller-g18" fill="#9aa5af" data-mat="steel" stroke-width="0.8"/>
+    <use href="#chiller-g18" fill="url(#chiller-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+    <use href="#chiller-g19" fill="#9aa5af" data-mat="steel" stroke-width="0.8"/>
+    <use href="#chiller-g19" fill="url(#chiller-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+    <use href="#chiller-g20" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#chiller-g20" fill="url(#chiller-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+  </g>
+</svg>

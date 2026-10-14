@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="60" height="50" viewBox="0 0 60 50">
+  <defs>
+    <linearGradient id="check-valve-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="check-valve-metal-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="check-valve-paint-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <linearGradient id="check-valve-paint-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <rect id="check-valve-g1" x="4" y="25" width="14" height="10"/>
+    <rect id="check-valve-g2" x="0" y="22" width="4" height="16" rx="0.8"/>
+    <rect id="check-valve-g3" x="42" y="25" width="14" height="10"/>
+    <rect id="check-valve-g4" x="56" y="22" width="4" height="16" rx="0.8"/>
+    <rect id="check-valve-g5" x="24" y="12" width="12" height="7" rx="1.5"/>
+    <rect id="check-valve-g6" x="14" y="17" width="32" height="26" rx="10"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#check-valve-g1" fill="#9aa5af" data-mat="steel"/>
+    <use href="#check-valve-g1" fill="url(#check-valve-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#check-valve-g2" fill="#9aa5af" data-mat="steel"/>
+    <use href="#check-valve-g2" fill="url(#check-valve-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#check-valve-g3" fill="#9aa5af" data-mat="steel"/>
+    <use href="#check-valve-g3" fill="url(#check-valve-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#check-valve-g4" fill="#9aa5af" data-mat="steel"/>
+    <use href="#check-valve-g4" fill="url(#check-valve-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="steel" fill="#9aa5af" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#check-valve-g5"/>
+    <use href="#check-valve-g5" fill="url(#check-valve-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+    <use href="#check-valve-g6"/>
+    <use href="#check-valve-g6" fill="url(#check-valve-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <path d="M20 30 L38 30 M33 25 L39 30 L33 35" fill="none" stroke-width="1.4" stroke-linecap="round" stroke-opacity="0.7"/>
+    <circle cx="30" cy="15.5" r="1.6" fill="#4a545d" data-mat="steel-dark" stroke="none"/>
+  </g>
+</svg>

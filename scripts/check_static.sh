@@ -27,7 +27,6 @@ cd "$(dirname "$0")/.."
 
 # Girano su file fermi: nessuna porta in ascolto, nessun dispositivo.
 STATICHE=(
-    check_lvgl_symbols      # tabella simboli vendored: viewer contro editor
     check_lvgl_types        # badge «L» della palette contro il motore
     check_source_kinds      # i `kind` delle sorgenti: Rust contro IDE
     check_lvgl_parity       # campi del modello contro quelli disegnati

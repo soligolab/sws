@@ -13,6 +13,16 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### ⚠ Compatibilità
 
+- **I simboli dei sinottici esistenti cambiano aspetto.** Gli id builtin (`pump`, `valve`, `tank`…)
+  si disegnano col disegno 2.5D della libreria, contenuto e centrato nel riquadro di prima (M4). Per
+  ogni simbolo:
+  - senza stato legato, il corpo prende il colore del suo materiale;
+  - con lo stato legato, il colore di stato;
+  - la rotazione gira solo il rotore e non tutto il simbolo.
+
+  I file non cambiano, e un pannello vecchio disegna i suoi builtin. In NOVITA c'è la voce
+  `compatibilita`.
+
 - **Un pannello senza utenti non è più aperto: aspetta l'abbinamento.** Fino a ieri un dispositivo senza `users.yaml`
   dava a chiunque lo raggiungesse un Admin sintetico. Ora (decisione CRA 4) risponde 401 `abbinamento_richiesto` a
   tutto, viewer compreso, tranne `GET /api/abbinamento` e `POST /api/abbinamento/rivendica`, e mostra un **codice di
@@ -102,6 +112,19 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 - **Dopo il primo invio di un progetto il pannello passa da solo alla pagina**, senza il pulsante «Continua».
 
 ### Added
+
+- **I 31 sostitutivi dei builtin e gli alias** (Fase 6a del
+  [piano](docs/plans/2026-10-14-motore-simboli-lib.md)). La libreria arriva a 47 disegni, che
+  coprono tutti e 40 i builtin con `replaces`. Il disegno nuovo prende il posto dell'id vecchio in
+  tre punti:
+  - web: `cercaSimbolo`, `OggettoLib` col `ripiego`;
+  - LVGL: `simbolo_o_alias`, col builtin disegnato a mano come ripiego;
+  - pannello proprietà: parti e stile valgono anche per gli alias.
+
+  I file dei progetti non cambiano. Si aggiunge la famiglia «Edificio e HVAC», con i materiali
+  nuovi `bulk`, `body-boiler`, `body-furnace`, `flame`, `copper`, `charge`, `instrument`,
+  `appliance`, `wall` e `glass`. Il picker non offre due volte un builtin che ha un sostituto. Il
+  comando «Adatta le proporzioni al disegno» (M4) porta il riquadro alle proporzioni del disegno.
 
 - **Avviso al deploy per i simboli di libreria che il pannello non conosce** (Fase 5, M9).
   - `remote_deploy` raccoglie i `symbol_id: lib:…` di pagine e faceplate (celle comprese) e li
@@ -298,6 +321,19 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
   il motivo accanto a ciascuna, e la guardia fallisce se ne compare una fuori elenco.
 
 ### Changed
+
+- **Ritirati i simboli builtin disegnati a mano** (Fase 6b del
+  [piano](docs/plans/2026-10-14-motore-simboli-lib.md)). Sono stati tolti:
+  - `sws-editor/src/symbols/library.tsx`, cioè il JSX dei 40;
+  - `draw_symbol`, `render_symbol`, `LiveKind::Symbol` e gli aiutanti `sym_*` in `lvgl_render.rs`
+    (circa 1300 righe);
+  - la tabella `VENDORED`, vuota da Q40;
+  - la guardia `check_lvgl_symbols.sh`, che la confrontava.
+
+  Gli id builtin restano validi per sempre: sono alias della libreria, con l'elenco chiuso
+  `BUILTIN_STORICI` in `scripts/simboli/genera.py`, che la guardia della libreria verifica tutto. Lo
+  schema dell'IA e `check_simboli_lvgl.sh` leggono il manifesto. Senza la libreria il pannello
+  disegna un segnaposto e lo scrive nel registro.
 
 - **I colori di stato dei simboli seguono lo stile del progetto** (M6). Sono `da_progetto` in
   `colori-predefiniti.json`:

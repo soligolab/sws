@@ -1135,7 +1135,9 @@
     "stileContorno": "Outline colour",
     "stileSpessore": "Outline width (factor)",
     "stileLampeggio": "State blink (ms)",
-    "stileLivello": "Level transition (ms)"
+    "stileLivello": "Level transition (ms)",
+    "adattaProporzioni": "Fit the box to the drawing ({{w}}×{{h}})",
+    "adattaProporzioniHint": "The drawing is contained and centred in the box: this gives the box the drawing's proportions, keeping the width."
   },
   "shortcut": {
     "navCanvas": "Canvas navigation",
@@ -3010,25 +3012,50 @@
   "symbols": {
     "lib": {
       "process": {
+        "agitator": "Agitator",
         "ball-valve": "Ball valve",
+        "boiler": "Boiler",
         "cartridge-filter": "Cartridge filter",
         "centrifugal-pump": "Centrifugal pump",
+        "check-valve": "Check valve",
+        "column": "Column",
+        "cooling-tower": "Cooling tower",
+        "cyclone": "Cyclone",
         "elbow-90": "90° elbow",
+        "furnace": "Furnace",
+        "jacketed-reactor": "Jacketed reactor",
+        "magnetic-flowmeter": "Magnetic flowmeter",
+        "mixing-tank": "Mixing tank",
+        "motorized-valve": "Motorized valve",
+        "pneumatic-valve": "Pneumatic valve",
         "pressure-gauge": "Pressure gauge",
+        "radar-level-sensor": "Radar level sensor",
+        "relief-valve": "Relief valve",
+        "separator": "Separator",
         "shell-tube-exchanger": "Shell and tube heat exchanger",
-        "vertical-tank": "Vertical tank"
+        "silo": "Silo",
+        "thermometer": "Thermometer",
+        "three-way-valve": "Three-way valve",
+        "vertical-tank": "Vertical tank",
+        "y-strainer": "Y-strainer"
       },
       "electrical": {
+        "battery-rack": "Battery rack",
+        "circuit-breaker": "Circuit breaker",
         "electric-motor": "Electric motor",
         "electrical-cabinet": "Electrical cabinet",
         "solar-panel": "Solar panel",
-        "transformer": "Transformer"
+        "transformer": "Transformer",
+        "transmission-tower": "Transmission tower"
       },
       "machines": {
+        "axial-fan": "Axial fan",
         "belt-conveyor": "Belt conveyor",
+        "blower": "Blower",
         "centrifugal-fan": "Centrifugal fan",
         "forklift": "Forklift",
         "photoelectric-sensor": "Photoelectric sensor",
+        "screw-compressor": "Screw compressor",
         "stack-light": "Stack light"
       },
       "famiglia": {
@@ -3056,6 +3083,14 @@
         "signalling": "Signalling",
         "hvac": "HVAC",
         "building": "Building"
+      },
+      "building": {
+        "ceiling-light": "Ceiling light",
+        "chiller": "Chiller",
+        "garage-door": "Garage door",
+        "heat-pump": "Heat pump",
+        "roller-shutter": "Roller shutter",
+        "window": "Window"
       }
     }
   },

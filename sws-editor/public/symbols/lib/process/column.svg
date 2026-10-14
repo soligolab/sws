@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="60" height="200" viewBox="0 0 60 200">
+  <defs>
+    <linearGradient id="column-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="column-metal-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="column-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <linearGradient id="column-paint-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <rect id="column-g1" x="4" y="35" width="12" height="10"/>
+    <rect id="column-g2" x="0" y="32" width="4" height="16" rx="0.8"/>
+    <rect id="column-g3" x="4" y="95" width="12" height="10"/>
+    <rect id="column-g4" x="0" y="92" width="4" height="16" rx="0.8"/>
+    <rect id="column-g5" x="4" y="155" width="12" height="10"/>
+    <rect id="column-g6" x="0" y="152" width="4" height="16" rx="0.8"/>
+    <rect id="column-g7" x="25" y="4" width="10" height="12"/>
+    <rect id="column-g8" x="22" y="0" width="16" height="4" rx="0.8"/>
+    <rect id="column-g9" x="44" y="175" width="12" height="10"/>
+    <rect id="column-g10" x="56" y="172" width="4" height="16" rx="0.8"/>
+    <path id="column-g11" d="M18 182 L42 182 L46 196 L14 196 Z"/>
+    <rect id="column-g12" x="10" y="196" width="40" height="4" rx="1"/>
+    <path id="column-g13" d="M16 26 Q16 14 30 14 Q44 14 44 26 L44 174 Q44 186 30 186 Q16 186 16 174 Z"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#column-g1" fill="#9aa5af" data-mat="steel"/>
+    <use href="#column-g1" fill="url(#column-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#column-g2" fill="#9aa5af" data-mat="steel"/>
+    <use href="#column-g2" fill="url(#column-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#column-g3" fill="#9aa5af" data-mat="steel"/>
+    <use href="#column-g3" fill="url(#column-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#column-g4" fill="#9aa5af" data-mat="steel"/>
+    <use href="#column-g4" fill="url(#column-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#column-g5" fill="#9aa5af" data-mat="steel"/>
+    <use href="#column-g5" fill="url(#column-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#column-g6" fill="#9aa5af" data-mat="steel"/>
+    <use href="#column-g6" fill="url(#column-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#column-g7" fill="#9aa5af" data-mat="steel"/>
+    <use href="#column-g7" fill="url(#column-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#column-g8" fill="#9aa5af" data-mat="steel"/>
+    <use href="#column-g8" fill="url(#column-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#column-g9" fill="#9aa5af" data-mat="steel"/>
+    <use href="#column-g9" fill="url(#column-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#column-g10" fill="#9aa5af" data-mat="steel"/>
+    <use href="#column-g10" fill="url(#column-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#column-g11" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#column-g11" fill="url(#column-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <use href="#column-g12" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#column-g12" fill="url(#column-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="stainless" fill="#b4bec7" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#column-g13"/>
+    <use href="#column-g13" fill="url(#column-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <path d="M18 36 L42 36" fill="none" stroke-opacity="0.25" stroke-dasharray="4 2"/>
+    <path d="M18 50 L42 50" fill="none" stroke-opacity="0.25" stroke-dasharray="4 2"/>
+    <path d="M18 64 L42 64" fill="none" stroke-opacity="0.25" stroke-dasharray="4 2"/>
+    <path d="M18 78 L42 78" fill="none" stroke-opacity="0.25" stroke-dasharray="4 2"/>
+    <path d="M18 92 L42 92" fill="none" stroke-opacity="0.25" stroke-dasharray="4 2"/>
+    <path d="M18 106 L42 106" fill="none" stroke-opacity="0.25" stroke-dasharray="4 2"/>
+    <path d="M18 120 L42 120" fill="none" stroke-opacity="0.25" stroke-dasharray="4 2"/>
+    <path d="M18 134 L42 134" fill="none" stroke-opacity="0.25" stroke-dasharray="4 2"/>
+    <path d="M18 148 L42 148" fill="none" stroke-opacity="0.25" stroke-dasharray="4 2"/>
+    <path d="M18 162 L42 162" fill="none" stroke-opacity="0.25" stroke-dasharray="4 2"/>
+  </g>
+</svg>

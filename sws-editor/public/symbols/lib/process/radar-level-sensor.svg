@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="60" height="90" viewBox="0 0 60 90">
+  <defs>
+    <linearGradient id="radar-level-sensor-metal-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="radar-level-sensor-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="radar-level-sensor-paint-d" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.35"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.3"/>
+    </linearGradient>
+    <radialGradient id="radar-level-sensor-glass-r" cx="0.35" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.3" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <rect id="radar-level-sensor-g1" x="26" y="34" width="8" height="12"/>
+    <rect id="radar-level-sensor-g2" x="8" y="44" width="44" height="6" rx="1"/>
+    <path id="radar-level-sensor-g3" d="M22 50 L38 50 L46 88 L14 88 Z"/>
+    <rect id="radar-level-sensor-g4" x="12" y="4" width="36" height="32" rx="8"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#radar-level-sensor-g1" fill="#9aa5af" data-mat="steel"/>
+    <use href="#radar-level-sensor-g1" fill="url(#radar-level-sensor-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#radar-level-sensor-g2" fill="#9aa5af" data-mat="steel"/>
+    <use href="#radar-level-sensor-g2" fill="url(#radar-level-sensor-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#radar-level-sensor-g3" fill="#9aa5af" data-mat="steel"/>
+    <use href="#radar-level-sensor-g3" fill="url(#radar-level-sensor-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="instrument" fill="#4a7fb0" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#radar-level-sensor-g4"/>
+    <use href="#radar-level-sensor-g4" fill="url(#radar-level-sensor-paint-d)" stroke="none" opacity="1" data-shade="paint-d"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <circle cx="30" cy="20" r="7" fill="#1d2a35" data-mat="glass-dark"/>
+    <circle cx="30" cy="20" r="7" fill="url(#radar-level-sensor-glass-r)" fill-opacity="0.6" stroke="none" opacity="1" data-shade="glass-r"/>
+    <path d="M22 62 Q30 58 38 62 M20 72 Q30 67 40 72 M18 82 Q30 76 42 82" fill="none" stroke-opacity="0.45" stroke-linecap="round"/>
+  </g>
+</svg>

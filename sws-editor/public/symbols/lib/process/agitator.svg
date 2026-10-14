@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="60" height="120" viewBox="0 0 60 120">
+  <defs>
+    <linearGradient id="agitator-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="agitator-metal-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="agitator-paint-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <radialGradient id="agitator-metal-r" cx="0.35" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.13"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.46"/>
+    </radialGradient>
+    <linearGradient id="agitator-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <rect id="agitator-g1" x="10" y="30" width="40" height="8" rx="1.5"/>
+    <rect id="agitator-g2" x="28.5" y="38" width="3" height="60"/>
+    <rect id="agitator-g3" x="18" y="2" width="24" height="20" rx="3"/>
+    <rect id="agitator-g4" x="20" y="22" width="20" height="8" rx="1.5"/>
+    <path id="agitator-g5" d="M32.8 102 Q42.42 96.45 46.68 104.01 Q40.96 106.89 32.8 102 Z"/>
+    <path id="agitator-g6" d="M30 104.8 Q35.55 114.42 27.99 118.68 Q25.11 112.96 30 104.8 Z"/>
+    <path id="agitator-g7" d="M27.2 102 Q17.58 107.55 13.32 99.99 Q19.04 97.11 27.2 102 Z"/>
+    <path id="agitator-g8" d="M30 99.2 Q24.45 89.58 32.01 85.32 Q34.89 91.04 30 99.2 Z"/>
+    <circle id="agitator-g9" cx="30" cy="102" r="3.5"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#agitator-g1" fill="#9aa5af" data-mat="steel"/>
+    <use href="#agitator-g1" fill="url(#agitator-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#agitator-g2" fill="#9aa5af" data-mat="steel"/>
+    <use href="#agitator-g2" fill="url(#agitator-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="body-motor" fill="#5d6f7e" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#agitator-g3"/>
+    <use href="#agitator-g3" fill="url(#agitator-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+    <use href="#agitator-g4"/>
+    <use href="#agitator-g4" fill="url(#agitator-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+  </g>
+  <g id="rotor" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#agitator-g5" fill="#9aa5af" data-mat="steel" stroke-width="0.8"/>
+    <use href="#agitator-g5" fill="url(#agitator-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+    <use href="#agitator-g6" fill="#9aa5af" data-mat="steel" stroke-width="0.8"/>
+    <use href="#agitator-g6" fill="url(#agitator-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+    <use href="#agitator-g7" fill="#9aa5af" data-mat="steel" stroke-width="0.8"/>
+    <use href="#agitator-g7" fill="url(#agitator-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+    <use href="#agitator-g8" fill="#9aa5af" data-mat="steel" stroke-width="0.8"/>
+    <use href="#agitator-g8" fill="url(#agitator-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+    <use href="#agitator-g9" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#agitator-g9" fill="url(#agitator-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+  </g>
+</svg>

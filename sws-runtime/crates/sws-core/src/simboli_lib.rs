@@ -69,6 +69,12 @@ impl ManifestLib {
     pub fn simbolo(&self, id: &str) -> Option<&SimboloLib> {
         self.symbols.iter().find(|s| s.id == id)
     }
+
+    /// Per id `lib:…`, oppure per **alias**: il disegno che sostituisce il
+    /// builtin `id` (`replaces`, M3 del piano). Come `cercaSimbolo` sul web.
+    pub fn simbolo_o_alias(&self, id: &str) -> Option<&SimboloLib> {
+        self.simbolo(id).or_else(|| self.symbols.iter().find(|s| s.replaces.as_deref() == Some(id)))
+    }
 }
 
 /// Il manifesto com'è in questo checkout: per i test, che verificano che il file
@@ -88,6 +94,8 @@ mod tests {
         assert!(m.version.len() >= 8);
         let pompa = m.simbolo("lib:process/centrifugal-pump").expect("la pompa c'è");
         assert_eq!(pompa.replaces.as_deref(), Some("pump"));
+        assert_eq!(m.simbolo_o_alias("pump").map(|s| s.id.as_str()), Some("lib:process/centrifugal-pump"));
+        assert!(m.simbolo_o_alias("non-esiste").is_none());
         assert!(matches!(pompa.parts.as_slice(), [ParteLib::Rotor { symmetry, .. }] if *symmetry == 60.0));
         let serbatoio = m.simbolo("lib:process/vertical-tank").expect("il serbatoio c'è");
         assert!(serbatoio.parts.iter().any(|p| matches!(p, ParteLib::Level { .. })));

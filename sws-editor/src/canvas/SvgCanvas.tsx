@@ -27,8 +27,6 @@ import { evalExpr } from "@/expr/engine";
 import { applyStateColor, parseSvg, sanitizeSvg } from "@/symbols/customSvg";
 import { trendTraces } from "@/canvas/trendModel";
 import { xySeriesOf } from "@/canvas/xyModel";
-import { SYMBOLS } from "@/symbols/library";
-import { isLib } from "@/symbols/lib/libreria";
 import { matchTextListEntry } from "@/canvas/textList";
 import { statoSimbolo, veroSimbolo } from "@/symbols/statoSimbolo";
 import { animazioniEffettive, stileProgetto } from "@/symbols/stileProgetto";
@@ -5957,10 +5955,11 @@ function SvgObjectCorpo(p: ObjProps) {
       : undefined;
     // Fase 2 del piano dei simboli di libreria: `lib:<famiglia>/<slug>` viene
     // dal manifesto di /symbols/lib/, con le parti vive (corpo, livello, rotore).
-    const libId = isLib(obj.symbol_id) ? obj.symbol_id : undefined;
-    const meta = !isCustom && !libId && obj.symbol_id ? SYMBOLS[obj.symbol_id] : undefined;
-    const w = obj.width  ?? meta?.defaultWidth  ?? 80;
-    const h = obj.height ?? meta?.defaultHeight ?? 80;
+    // Dalla 6b anche un id builtin (`pump`) passa di qui: è un alias di un
+    // disegno della libreria (`replaces`), che `OggettoLib` risolve.
+    const libId = !isCustom && obj.symbol_id ? obj.symbol_id : undefined;
+    const w = obj.width  ?? 80;
+    const h = obj.height ?? 80;
 
     const segnaposto = (
       <>
@@ -5973,7 +5972,7 @@ function SvgObjectCorpo(p: ObjProps) {
         </text>
       </>
     );
-    if (!meta && !customEntry && !libId) {
+    if (!customEntry && !libId) {
       return (
         <g onMouseDown={handleMouseDown} onClick={(e) => e.stopPropagation()}
            style={{ cursor: editCursor }}>
@@ -6025,6 +6024,28 @@ function SvgObjectCorpo(p: ObjProps) {
     const entryBlink = (!isEditMode || fxPreview) && !!stateEntry?.blink;
     const blinkStyle = entryBlink ? { animation: `sws-obj-blink ${anim.blinkMs}ms step-start infinite` } : undefined;
 
+    // Un simbolo di libreria, per id `lib:` o per alias di un builtin (`ripiego`).
+    const disegnoLib = (id: string, ripiego?: React.ReactNode) => (
+      <g style={blinkStyle} data-anim={entryBlink ? "1" : undefined}>
+        <OggettoLib symbolId={id} objId={obj.id} x={obj.x} y={obj.y} w={w} h={h}
+          dataAnim={spinActive}
+          legami={obj.symbol_parts}
+          valoreTag={(t) => tagValues[t]?.value}
+          segnaposto={segnaposto}
+          ripiego={ripiego}
+          valori={{
+            // Il corpo prende il colore di stato solo se lo stato è legato:
+            // altrimenti resta del suo materiale (decisione 4 del seme).
+            corpo: (obj.state_tag || obj.alarm_tag || obj.symbol_states?.length) ? badgeColor : null,
+            livello: level,
+            gira: spinActive,
+            periodoS: anim.spinS,
+            livelloMs: anim.livelloMs,
+          }}
+          sovrascritture={obj} />
+      </g>
+    );
+
     return (
       <g style={{ cursor: editCursor }}>
         {selRect(obj.x, obj.y, w, h)}
@@ -6035,25 +6056,7 @@ function SvgObjectCorpo(p: ObjProps) {
           style={{ cursor: editCursor }} />
         {applyTransform(obj, w, h, <>
           {bgLayer(obj.x, obj.y, w, h, 4)}
-          {libId ? (
-            <g style={blinkStyle} data-anim={entryBlink ? "1" : undefined}>
-              <OggettoLib symbolId={libId} objId={obj.id} x={obj.x} y={obj.y} w={w} h={h}
-                dataAnim={spinActive}
-                legami={obj.symbol_parts}
-                valoreTag={(t) => tagValues[t]?.value}
-                segnaposto={segnaposto}
-                valori={{
-                  // Il corpo prende il colore di stato solo se lo stato è legato:
-                  // altrimenti resta del suo materiale (decisione 4 del seme).
-                  corpo: (obj.state_tag || obj.alarm_tag || obj.symbol_states?.length) ? badgeColor : null,
-                  livello: level,
-                  gira: spinActive,
-                  periodoS: anim.spinS,
-                  livelloMs: anim.livelloMs,
-                }}
-                sovrascritture={obj} />
-            </g>
-          ) : customEntry?.svg ? (
+          {customEntry?.svg ? (
             /* F6.9: simbolo custom multi-stato — markup inline con gli
                elementi colorable_ids ricolorati per stato. */
             (() => {
@@ -6072,24 +6075,7 @@ function SvgObjectCorpo(p: ObjProps) {
           ) : customEntry ? (
             <image href={customEntry.url} x={obj.x} y={obj.y} width={w} height={h}
               preserveAspectRatio="xMidYMid meet" style={{ pointerEvents: "none" }} />
-          ) : meta!.kind === "builtin" && meta!.render ? (
-            <svg x={obj.x} y={obj.y} width={w} height={h} viewBox="0 0 100 100"
-              data-anim={spinActive || entryBlink ? "1" : undefined}
-              style={blinkStyle}>
-              <g style={spinStyle} data-anim={spinActive ? "1" : undefined}>
-                {meta!.render({
-                  state,
-                  off:   coloreEffettivo(obj, "state_off_color"),
-                  on:    onColorEff,
-                  alarm: coloreEffettivo(obj, "state_alarm_color"),
-                  level,
-                })}
-              </g>
-            </svg>
-          ) : (
-            <image href={meta!.path} x={obj.x} y={obj.y} width={w} height={h}
-              preserveAspectRatio="xMidYMid meet" style={{ pointerEvents: "none" }} />
-          )}
+          ) : libId ? disegnoLib(libId) : null}
         </>)}
         {/* Sopra il contenuto, solo in edit: i builtin disegnano forme che prendono
             il clic, e senza questo un clic sul corpo del simbolo non lo selezionava

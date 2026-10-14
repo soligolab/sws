@@ -303,6 +303,12 @@ Per oggetto si sovrascrivono:
    inglese, e `CHANGELOG` sotto ⚠ Compatibilità. È il precedente Q40 fatto per bene: lì il cambio
    d'aspetto era passato in silenzio.
 
+> **Fase 6a fatta il 14-10-2026**: 31 sostitutivi, alias su web e LVGL con i builtin come ripiego,
+> «Adatta proporzioni», voce di compatibilità. **La 6b**, cioè il ritiro del JSX e di `draw_symbol`,
+> **aspetta la conferma del maintainer sui sostitutivi**: con gli alias i builtin non servono più
+> a disegnare, ma toglierli è il passo che non si annulla, e il ripiego tiene in piedi i pannelli
+> finché il manifesto non arriva.
+
 **Fase 7 — Il resto della libreria**, a lotti per famiglia, uno per sessione, dalla lista del seme.
 
 ## Rischi e cose da tenere d'occhio

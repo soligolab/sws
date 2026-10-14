@@ -121,6 +121,20 @@ describe("in edit, il clic seleziona anche sopra le forme del disegno (M10)", ()
   });
 });
 
+describe("alias dei builtin (Fase 6, M3)", () => {
+  it("un oggetto con symbol_id pump si disegna col disegno della libreria", () => {
+    const { container } = disegna(simbolo("pump"));
+    expect(container.querySelector("[data-simbolo-lib]")!.getAttribute("data-simbolo-lib")).toBe("lib:process/centrifugal-pump");
+  });
+
+  it("il disegno nuovo è contenuto e centrato nel riquadro vecchio (M4)", () => {
+    const { container } = disegna(simbolo("tank", { width: 80, height: 80 }));
+    const svg = container.querySelector("[data-simbolo-lib]")!;
+    expect(svg.getAttribute("preserveAspectRatio")).toBe("xMidYMid meet");
+    expect(svg.getAttribute("width")).toBe("80");
+  });
+});
+
 describe("parti vive sul canvas (Fase 3)", () => {
   it("la lancetta ruota col tag fra a0 e a1, sul perno del manifesto", () => {
     const { container } = disegna(

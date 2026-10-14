@@ -1,0 +1,110 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="80" height="160" viewBox="0 0 80 160">
+  <defs>
+    <linearGradient id="mixing-tank-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="mixing-tank-metal-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="mixing-tank-dark-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <linearGradient id="mixing-tank-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <linearGradient id="mixing-tank-paint-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <linearGradient id="mixing-tank-paint-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <radialGradient id="mixing-tank-metal-r" cx="0.35" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.13"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.46"/>
+    </radialGradient>
+    <rect id="mixing-tank-g1" x="66" y="135" width="10" height="10"/>
+    <rect id="mixing-tank-g2" x="76" y="132" width="4" height="16" rx="0.8"/>
+    <rect id="mixing-tank-g3" x="14" y="144" width="6" height="12"/>
+    <rect id="mixing-tank-g4" x="10" y="155" width="14" height="5" rx="1"/>
+    <rect id="mixing-tank-g5" x="60" y="144" width="6" height="12"/>
+    <rect id="mixing-tank-g6" x="56" y="155" width="14" height="5" rx="1"/>
+    <rect id="mixing-tank-g7" x="30" y="2" width="20" height="18" rx="3"/>
+    <rect id="mixing-tank-g8" x="26" y="20" width="28" height="6" rx="1.5"/>
+    <path id="mixing-tank-g9" d="M10 42 Q10 26 40 24 Q70 26 70 42 L70 138 Q70 154 40 156 Q10 154 10 138 Z"/>
+    <rect id="mixing-tank-g10" x="23" y="50" width="34" height="82" rx="3"/>
+    <path id="mixing-tank-g11" d="M42.56 118 Q50.09 113.49 53.55 119.63 Q48.9 121.98 42.56 118 Z"/>
+    <path id="mixing-tank-g12" d="M38.72 120.22 Q38.86 128.99 31.81 128.92 Q32.11 123.72 38.72 120.22 Z"/>
+    <path id="mixing-tank-g13" d="M38.72 115.78 Q31.05 111.51 34.64 105.45 Q38.99 108.3 38.72 115.78 Z"/>
+    <circle id="mixing-tank-g14" cx="40" cy="118" r="3.2"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#mixing-tank-g1" fill="#9aa5af" data-mat="steel"/>
+    <use href="#mixing-tank-g1" fill="url(#mixing-tank-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#mixing-tank-g2" fill="#9aa5af" data-mat="steel"/>
+    <use href="#mixing-tank-g2" fill="url(#mixing-tank-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#mixing-tank-g3" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#mixing-tank-g3" fill="url(#mixing-tank-dark-h)" stroke="none" opacity="1" data-shade="dark-h"/>
+    <use href="#mixing-tank-g4" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#mixing-tank-g4" fill="url(#mixing-tank-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <use href="#mixing-tank-g5" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#mixing-tank-g5" fill="url(#mixing-tank-dark-h)" stroke="none" opacity="1" data-shade="dark-h"/>
+    <use href="#mixing-tank-g6" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#mixing-tank-g6" fill="url(#mixing-tank-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <use href="#mixing-tank-g7" fill="#5d6f7e" data-mat="body-motor"/>
+    <use href="#mixing-tank-g7" fill="url(#mixing-tank-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+    <use href="#mixing-tank-g8" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#mixing-tank-g8" fill="url(#mixing-tank-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="stainless" fill="#b4bec7" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#mixing-tank-g9"/>
+    <use href="#mixing-tank-g9" fill="url(#mixing-tank-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <path d="M10 42 L70 42" fill="none" stroke-opacity="0.3"/>
+    <path d="M10 138 L70 138" fill="none" stroke-opacity="0.3"/>
+    <rect x="22" y="48" width="36" height="86" rx="4" fill="#1d2a35" data-mat="glass-dark"/>
+  </g>
+  <g id="level" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#mixing-tank-g10" fill="#2b8fd6" data-mat="liquid"/>
+    <use href="#mixing-tank-g10" fill="url(#mixing-tank-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+  </g>
+  <g id="layer-2" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <rect x="39" y="26" width="2" height="92" fill="#9aa5af" data-mat="steel" stroke-width="0.6"/>
+  </g>
+  <g id="rotor" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#mixing-tank-g11" fill="#9aa5af" data-mat="steel" stroke-width="0.8"/>
+    <use href="#mixing-tank-g11" fill="url(#mixing-tank-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+    <use href="#mixing-tank-g12" fill="#9aa5af" data-mat="steel" stroke-width="0.8"/>
+    <use href="#mixing-tank-g12" fill="url(#mixing-tank-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+    <use href="#mixing-tank-g13" fill="#9aa5af" data-mat="steel" stroke-width="0.8"/>
+    <use href="#mixing-tank-g13" fill="url(#mixing-tank-metal-r)" stroke="none" opacity="1" data-shade="metal-r"/>
+    <use href="#mixing-tank-g14" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#mixing-tank-g14" fill="url(#mixing-tank-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+  </g>
+  <g id="layer-3" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <rect x="25" y="50" width="4" height="82" rx="2" fill="#fff" fill-opacity="0.18" stroke="none" opacity="1" data-shade="highlight"/>
+  </g>
+</svg>

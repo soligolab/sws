@@ -8,33 +8,15 @@
 //! | simbolo *custom*   | `symbol_id` che inizia per `custom:` | dentro il progetto, spesso inline |
 //! | widget `image`     | `type == "image"` con `src` | URL, relativo al runtime o assoluto |
 //!
-//! Fino al 13-09-2026 c'era una terza sorgente, *vendored* (`symbol_id` in
-//! una tabella qui sotto, file statico servito dal runtime): l'ultima voce è
-//! uscita per Q40 lo stesso giorno — vedi `VENDORED` qui sotto, che resta
-//! come punto di innesto ma vuota. Tutti i 40 simboli della libreria sono
-//! ora *builtin*: ridisegnati con primitive LVGL e ricolorati per stato in
-//! `draw_symbol` (`lvgl_render.rs`). Una bitmap non saprebbe cambiare colore
-//! con lo stato senza rasterizzare una variante per colore — il motivo per
-//! cui questa tabella esisteva, e per cui un simbolo vendored futuro
-//! (un'icona che nessuno vuole ridisegnare a mano) tornerebbe a passare
-//! di qui.
+//! Fino al 13-09-2026 c'era una terza sorgente, *vendored* (una tabella
+//! `symbol_id` → file statico), vuota da Q40. Dal 14-10-2026 non c'è più: ogni
+//! simbolo che non è `custom:` viene dalla libreria (`simbolo_lib.rs`), anche gli
+//! id builtin storici, che ne sono alias.
 
 use std::collections::HashMap;
 
 use crate::model::{CustomSymbol, SynopticObject};
 
-/// I simboli *vendored*: `symbol_id` → file servito dal runtime.
-///
-/// Vuota dal 13-09-2026 (Q40): gli ultimi 7 (icone MDI: solar_panel,
-/// battery, transmission_tower, home_lightning, garage, window_open,
-/// roller_shade) sono diventati *builtin* — ridisegnati come icone
-/// stilizzate invece delle SVG originali esatte, per poterle colorare per
-/// stato. **Va tenuta allineata a `SYMBOLS` in
-/// `sws-editor/src/symbols/library.tsx`**: un simbolo vendored futuro va
-/// aggiunto qui E là con lo stesso `kind`. Il disallineamento lo intercetta
-/// `scripts/check_lvgl_symbols.sh`, che confronta questa tabella con quella
-/// dell'editor e con i file su disco.
-pub const VENDORED: &[(&str, &str)] = &[];
 
 /// Da dove prendere i byte dell'SVG di un oggetto.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -65,10 +47,8 @@ pub fn source_for(obj: &SynopticObject, custom: &[CustomSymbol]) -> Option<SvgSo
                     _ => None,
                 }
             } else {
-                VENDORED
-                    .iter()
-                    .find(|(k, _)| *k == id)
-                    .map(|(_, p)| SvgSource::Url(p.to_string()))
+                // Tutto il resto è della libreria (`simbolo_lib.rs`).
+                None
             }
         }
         // `lang_button`: la bandiera è lo sfondo del bottone. Il campo esisteva
@@ -271,30 +251,8 @@ mod tests {
         assert_eq!(
             source_for(&o, &[]),
             None,
-            "i builtin li disegna LVGL con le primitive"
+            "i builtin (alias) e i lib: li disegna la libreria, non questo modulo"
         );
-    }
-
-    /// Il caso che rompe la convenzione: un vendored può avere il file con un
-    /// nome diverso dall'id. Derivare il percorso dall'id lo lascerebbe muto.
-    ///
-    /// Dal 13-09-2026 (Q40) `VENDORED` è vuota — il ciclo qui sotto non gira
-    /// su niente e il test passa a vuoto, come
-    /// `svg_raster::i_simboli_vendored_veri_si_disegnano`. Resta scritto sul
-    /// meccanismo generico, non su un id fisso: il prossimo vendored che
-    /// entra in tabella porta con sé anche la sua verifica, senza bisogno di
-    /// toccare questo test.
-    #[test]
-    fn un_vendored_usa_il_percorso_della_tabella_non_lid() {
-        for (id, path) in VENDORED {
-            let mut o = obj("symbol");
-            o.symbol_id = Some((*id).to_string());
-            assert_eq!(
-                source_for(&o, &[]),
-                Some(SvgSource::Url((*path).to_string())),
-                "il file non si chiama come l'id"
-            );
-        }
     }
 
     #[test]

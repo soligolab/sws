@@ -23,13 +23,11 @@ import { TagInput } from "@/components/TagInput";
 import { EditorAssegnazioni } from "@/editor/EditorAssegnazioni";
 import { BindableInput } from "@/components/BindableInput";
 import { ImageBrowser } from "@/components/ImageBrowser";
-import { SYMBOL_LIST } from "@/symbols/library";
 import { ASPECT_RATIOS, editorFitSize, effectiveSizeMode, getDevicePresets, isOffPage, referenceResolutionFor, STANDARD_DEVICE_PRESETS, translateObject } from "@/pageLayout";
 import { getBrand, type DevicePreset } from "@/branding";
 import { genId } from "@/id";
-import type { SymbolMeta } from "@/symbols/library";
 import type { SimboloLib } from "@/symbols/lib/manifest";
-import { isLib, svgLibCaricato, trovaSimboloLib, useManifestoLib, useSimboloLib } from "@/symbols/lib/libreria";
+import { svgLibCaricato, trovaSimboloLib, useManifestoLib, useSimboloLib } from "@/symbols/lib/libreria";
 import { SimboloLibSvg } from "@/symbols/lib/SimboloLib";
 import { CONTORNO_DISEGNO, useStileProgetto } from "@/symbols/stileProgetto";
 import { useAppStore } from "@/store";
@@ -128,7 +126,6 @@ const INPUT: React.CSSProperties = {
 // <img> for vendored/custom SVG files. Replaces the old plain <select>.
 
 type GalleryTile =
-  | { kind: "builtin" | "vendored"; id: string; label: string; meta: SymbolMeta }
   | { kind: "custom"; id: string; label: string; url: string }
   | { kind: "lib"; id: string; label: string; sim: SimboloLib };
 
@@ -167,9 +164,6 @@ function SymbolGallery({ value, onChange }: { value: string; onChange: (v: strin
     if (!g) { g = { chiave, titolo: famiglia, sotto: tipo, tiles: [] }; gruppi.push(g); }
     g.tiles.push({ kind: "lib", id: sim.id, label, sim });
   }
-  const classici = SYMBOL_LIST.filter((m) => passa(m.label, m.id))
-    .map((m) => ({ kind: m.kind, id: m.id, label: m.label, meta: m } as GalleryTile));
-  if (classici.length) gruppi.push({ chiave: "builtin", titolo: t("symbol.gruppoClassici"), tiles: classici });
   const progetto = customSymbols.filter((s) => passa(s.label, s.id))
     .map((s) => ({ kind: "custom" as const, id: `custom:${s.id}`, label: s.label, url: s.url }));
   if (progetto.length) gruppi.push({ chiave: "custom", titolo: t("symbol.gruppoProgetto"), tiles: progetto });
@@ -179,8 +173,8 @@ function SymbolGallery({ value, onChange }: { value: string; onChange: (v: strin
       <input type="search" style={{ ...INPUT, width: "100%" }} placeholder={t("symbol.cerca")}
         value={cerca} onChange={(e) => setCerca(e.target.value)} aria-label={t("symbol.cerca")} />
       <div style={{ maxHeight: 320, overflowY: "auto", padding: 2, display: "flex", flexDirection: "column", gap: 6 }}>
-        {gruppi.length === 0 && (
-          <div style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", padding: 6 }}>{t("symbol.nessuno", { q: cerca })}</div>
+        {gruppi.length === 0 && q && (
+          <p style={{ fontSize: 11, color: "var(--brand-text-subtle, #64748b)", padding: 6, margin: 0 }}>{t("symbol.nessuno", { q: cerca })}</p>
         )}
         {gruppi.map((g, i) => (
           <div key={g.chiave}>
@@ -190,7 +184,10 @@ function SymbolGallery({ value, onChange }: { value: string; onChange: (v: strin
             )}
             {g.sotto && <h5 style={{ fontSize: 10, fontWeight: 400, color: "var(--brand-text-subtle, #64748b)", margin: "0 0 2px" }}>{g.sotto}</h5>}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 4 }}>
-              {g.tiles.map((tile) => <TesseraSimbolo key={tile.id} tile={tile} sel={value === tile.id} onChange={onChange} />)}
+              {g.tiles.map((tile) => (
+                <TesseraSimbolo key={tile.id} tile={tile} onChange={onChange}
+                  sel={value === tile.id || (tile.kind === "lib" && tile.sim.replaces === value)} />
+              ))}
             </div>
           </div>
         ))}
@@ -200,7 +197,6 @@ function SymbolGallery({ value, onChange }: { value: string; onChange: (v: strin
 }
 
 function TesseraSimbolo({ tile, sel, onChange }: { tile: GalleryTile; sel: boolean; onChange: (v: string) => void }) {
-  const isBi = tile.kind === "builtin";
   return (
     <button
       title={tile.label}
@@ -222,18 +218,8 @@ function TesseraSimbolo({ tile, sel, onChange }: { tile: GalleryTile; sel: boole
       <div style={{ width: 44, height: 38, display: "flex", alignItems: "center", justifyContent: "center" }}>
         {tile.kind === "lib" ? (
           <AnteprimaLib sim={tile.sim} />
-        ) : isBi && (tile as { meta: SymbolMeta }).meta.render ? (
-          <svg width={40} height={38} viewBox="0 0 100 100" style={{ overflow: "visible" }}>
-            {(tile as { meta: SymbolMeta }).meta.render!({ state: "on", off: "var(--brand-text-subtle, #64748b)", on: "var(--brand-success, #22c55e)", alarm: "var(--brand-danger, #ef4444)" })}
-          </svg>
         ) : (
-          <img
-            src={tile.kind === "custom"
-              ? (tile as Extract<GalleryTile, { kind: "custom" }>).url
-              : (tile as { meta: SymbolMeta }).meta.path}
-            style={{ width: 36, height: 34, objectFit: "contain" }}
-            draggable={false}
-          />
+          <img src={tile.url} style={{ width: 36, height: 34, objectFit: "contain" }} draggable={false} />
         )}
       </div>
       <span style={{
@@ -261,7 +247,7 @@ function SymbolPickerModal({ onPick, onCancel }: {
   onCancel: () => void;
 }) {
   const { t } = useTranslation();
-  const [selected, setSelected] = useState("pump");
+  const [selected, setSelected] = useState("lib:process/centrifugal-pump");
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -2490,9 +2476,28 @@ function MultiSelectionProps({
  *  libreria solo se il disegno ha quella parte; sugli altri simboli resta com'era.
  *  Manifesto non ancora arrivato: si mostra, meglio un campo in più che uno sparito. */
 function simboloLibHa(obj: SynopticObject, kind: "level" | "rotor"): boolean {
-  if (!isLib(obj.symbol_id)) return true;
-  const sim = trovaSimboloLib(obj.symbol_id!);
+  // Vale anche per un builtin che la libreria sostituisce (alias, Fase 6).
+  const sim = obj.symbol_id ? trovaSimboloLib(obj.symbol_id) : undefined;
   return !sim || sim.parts.some((p) => p.kind === kind);
+}
+
+/** M4: un simbolo vecchio in un riquadro quadrato mostra il disegno nuovo
+ *  contenuto e centrato; questo pulsante porta il riquadro alle proporzioni del
+ *  disegno, tenendo la larghezza. Compare solo se le proporzioni differiscono. */
+function AdattaProporzioni({ obj, onChange }: { obj: SynopticObject; onChange: (patch: Partial<SynopticObject>) => void }) {
+  const { t } = useTranslation();
+  const { sim } = useSimboloLib(obj.symbol_id);
+  const w = obj.width ?? 80;
+  const h = obj.height ?? 80;
+  if (!sim) return null;
+  const giusta = Math.round(w * sim.viewBox[1] / sim.viewBox[0]);
+  if (Math.abs(giusta - h) < 2) return null;
+  return (
+    <button type="button" style={{ ...INPUT, width: "100%", cursor: "pointer", marginBottom: 4 }}
+      title={t("props.adattaProporzioniHint")} onClick={() => onChange({ height: giusta })}>
+      {t("props.adattaProporzioni", { w, h: giusta })}
+    </button>
+  );
 }
 
 /** La sezione «Parti» di un simbolo di libreria: lancetta, leva e spie, una riga
@@ -2500,7 +2505,7 @@ function simboloLibHa(obj: SynopticObject, kind: "level" | "rotor"): boolean {
  *  (`fill_level_tag`, `symbol_spin`). */
 function PartiSimboloLib({ obj, onChange }: { obj: SynopticObject; onChange: (patch: Partial<SynopticObject>) => void }) {
   const { t } = useTranslation();
-  const { sim } = useSimboloLib(isLib(obj.symbol_id) ? obj.symbol_id : undefined);
+  const { sim } = useSimboloLib(obj.symbol_id);
   const parti = (sim?.parts ?? []).filter((p) => p.kind === "needle" || p.kind === "lever" || p.kind === "lamp");
   if (parti.length === 0) return null;
   const legami = obj.symbol_parts ?? {};
@@ -2546,7 +2551,7 @@ function PartiSimboloLib({ obj, onChange }: { obj: SynopticObject; onChange: (pa
  *  M7). Vuoto = vale il progetto, poi il disegno: il segnaposto dice quale. */
 function StileOggettoLib({ obj, onChange }: { obj: SynopticObject; onChange: (patch: Partial<SynopticObject>) => void }) {
   const { t } = useTranslation();
-  const { sim, manifesto } = useSimboloLib(isLib(obj.symbol_id) ? obj.symbol_id : undefined);
+  const { sim, manifesto } = useSimboloLib(obj.symbol_id);
   const progetto = useStileProgetto();
   if (!sim || !manifesto) return null;
   const haLivello = sim.parts.some((p) => p.kind === "level");
@@ -4898,10 +4903,11 @@ export function ObjectProps({
           {obj.type === "symbol" && (
             <>
               {field(t("props.symbol"),
-                <SymbolGallery value={obj.symbol_id ?? "pump"} onChange={(v) => onChange({ symbol_id: v as any })} />
+                <SymbolGallery value={obj.symbol_id ?? "lib:process/centrifugal-pump"} onChange={(v) => onChange({ symbol_id: v as any })} />
               )}
               {/* Fase 3 del piano dei simboli di libreria (M8): le parti vive che
                   il disegno ha davvero, ognuna col suo tag. */}
+              <AdattaProporzioni obj={obj} onChange={onChange} />
               <PartiSimboloLib obj={obj} onChange={onChange} />
               <StileOggettoLib obj={obj} onChange={onChange} />
               {field(t("props.tagState"),

@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="80" height="160" viewBox="0 0 80 160">
+  <defs>
+    <linearGradient id="silo-metal-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="silo-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="silo-dark-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <linearGradient id="silo-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <linearGradient id="silo-paint-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <rect id="silo-g1" x="35" y="132" width="10" height="14"/>
+    <rect id="silo-g2" x="33" y="146" width="14" height="4" rx="0.8"/>
+    <rect id="silo-g3" x="10" y="96" width="6" height="60"/>
+    <rect id="silo-g4" x="7" y="155" width="12" height="5" rx="1"/>
+    <rect id="silo-g5" x="64" y="96" width="6" height="60"/>
+    <rect id="silo-g6" x="61" y="155" width="12" height="5" rx="1"/>
+    <path id="silo-g7" d="M10 24 L40 6 L70 24 Z"/>
+    <path id="silo-g8" d="M10 24 L70 24 L70 98 L45 132 L35 132 L10 98 Z"/>
+    <rect id="silo-g9" x="32" y="32" width="16" height="60" rx="2"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#silo-g1" fill="#9aa5af" data-mat="steel"/>
+    <use href="#silo-g1" fill="url(#silo-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#silo-g2" fill="#9aa5af" data-mat="steel"/>
+    <use href="#silo-g2" fill="url(#silo-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#silo-g3" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#silo-g3" fill="url(#silo-dark-h)" stroke="none" opacity="1" data-shade="dark-h"/>
+    <use href="#silo-g4" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#silo-g4" fill="url(#silo-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <use href="#silo-g5" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#silo-g5" fill="url(#silo-dark-h)" stroke="none" opacity="1" data-shade="dark-h"/>
+    <use href="#silo-g6" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#silo-g6" fill="url(#silo-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <path d="M16 110 L64 140 M16 140 L64 110" fill="none" stroke="#4a545d" data-mat-stroke="steel-dark" stroke-width="2"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="stainless" fill="#b4bec7" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#silo-g7"/>
+    <use href="#silo-g7" fill="url(#silo-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+    <use href="#silo-g8"/>
+    <use href="#silo-g8" fill="url(#silo-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <path d="M10 48 L70 48" fill="none" stroke-opacity="0.3"/>
+    <path d="M10 72 L70 72" fill="none" stroke-opacity="0.3"/>
+    <path d="M10 98 L70 98" fill="none" stroke-opacity="0.3"/>
+    <rect x="31" y="30" width="18" height="64" rx="3" fill="#1d2a35" data-mat="glass-dark"/>
+  </g>
+  <g id="level" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#silo-g9" fill="#b9a37e" data-mat="bulk"/>
+    <use href="#silo-g9" fill="url(#silo-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+  </g>
+  <g id="layer-2" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <rect x="34" y="32" width="3" height="60" rx="1.5" fill="#fff" fill-opacity="0.18" stroke="none" opacity="1" data-shade="highlight"/>
+  </g>
+</svg>

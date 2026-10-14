@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="80" height="60" viewBox="0 0 80 60">
+  <defs>
+    <linearGradient id="magnetic-flowmeter-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="magnetic-flowmeter-metal-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="magnetic-flowmeter-paint-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <linearGradient id="magnetic-flowmeter-paint-d" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.35"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.3"/>
+    </linearGradient>
+    <radialGradient id="magnetic-flowmeter-glass-r" cx="0.35" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.3" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <rect id="magnetic-flowmeter-g1" x="4" y="45" width="10" height="10"/>
+    <rect id="magnetic-flowmeter-g2" x="0" y="42" width="4" height="16" rx="0.8"/>
+    <rect id="magnetic-flowmeter-g3" x="66" y="45" width="10" height="10"/>
+    <rect id="magnetic-flowmeter-g4" x="76" y="42" width="4" height="16" rx="0.8"/>
+    <rect id="magnetic-flowmeter-g5" x="12" y="38" width="4" height="24" rx="0.8"/>
+    <rect id="magnetic-flowmeter-g6" x="64" y="38" width="4" height="24" rx="0.8"/>
+    <rect id="magnetic-flowmeter-g7" x="35" y="22" width="10" height="12"/>
+    <rect id="magnetic-flowmeter-g8" x="16" y="36" width="48" height="24" rx="6"/>
+    <rect id="magnetic-flowmeter-g9" x="22" y="2" width="36" height="22" rx="4"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#magnetic-flowmeter-g1" fill="#9aa5af" data-mat="steel"/>
+    <use href="#magnetic-flowmeter-g1" fill="url(#magnetic-flowmeter-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#magnetic-flowmeter-g2" fill="#9aa5af" data-mat="steel"/>
+    <use href="#magnetic-flowmeter-g2" fill="url(#magnetic-flowmeter-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#magnetic-flowmeter-g3" fill="#9aa5af" data-mat="steel"/>
+    <use href="#magnetic-flowmeter-g3" fill="url(#magnetic-flowmeter-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#magnetic-flowmeter-g4" fill="#9aa5af" data-mat="steel"/>
+    <use href="#magnetic-flowmeter-g4" fill="url(#magnetic-flowmeter-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#magnetic-flowmeter-g5" fill="#9aa5af" data-mat="steel"/>
+    <use href="#magnetic-flowmeter-g5" fill="url(#magnetic-flowmeter-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#magnetic-flowmeter-g6" fill="#9aa5af" data-mat="steel"/>
+    <use href="#magnetic-flowmeter-g6" fill="url(#magnetic-flowmeter-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#magnetic-flowmeter-g7" fill="#9aa5af" data-mat="steel"/>
+    <use href="#magnetic-flowmeter-g7" fill="url(#magnetic-flowmeter-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="instrument" fill="#4a7fb0" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#magnetic-flowmeter-g8"/>
+    <use href="#magnetic-flowmeter-g8" fill="url(#magnetic-flowmeter-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+    <use href="#magnetic-flowmeter-g9"/>
+    <use href="#magnetic-flowmeter-g9" fill="url(#magnetic-flowmeter-paint-d)" stroke="none" opacity="1" data-shade="paint-d"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <rect x="27" y="6" width="26" height="12" rx="2" fill="#1d2a35" data-mat="glass-dark"/>
+    <rect x="27" y="6" width="26" height="12" rx="2" fill="url(#magnetic-flowmeter-glass-r)" fill-opacity="0.5" stroke="none" opacity="1" data-shade="glass-r"/>
+    <path d="M30 12 L38 12 M42 12 L50 12" fill="none" stroke="#3fb950" data-mat-stroke="lamp-green" stroke-width="1.6" stroke-linecap="round"/>
+  </g>
+</svg>

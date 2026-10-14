@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="80" height="120" viewBox="0 0 80 120">
+  <defs>
+    <linearGradient id="battery-rack-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <linearGradient id="battery-rack-paint-d" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.35"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.3"/>
+    </linearGradient>
+    <linearGradient id="battery-rack-paint-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <linearGradient id="battery-rack-paint-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <rect id="battery-rack-g1" x="6" y="112" width="68" height="8" rx="1"/>
+    <rect id="battery-rack-g2" x="4" y="4" width="72" height="108" rx="3"/>
+    <rect id="battery-rack-g3" x="10" y="10" width="44" height="20" rx="2"/>
+    <rect id="battery-rack-g4" x="10" y="34" width="44" height="20" rx="2"/>
+    <rect id="battery-rack-g5" x="10" y="58" width="44" height="20" rx="2"/>
+    <rect id="battery-rack-g6" x="10" y="82" width="44" height="20" rx="2"/>
+    <rect id="battery-rack-g7" x="61" y="12" width="8" height="88" rx="2"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#battery-rack-g1" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#battery-rack-g1" fill="url(#battery-rack-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="steel-dark" fill="#4a545d" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#battery-rack-g2"/>
+    <use href="#battery-rack-g2" fill="url(#battery-rack-paint-d)" stroke="none" opacity="1" data-shade="paint-d"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#battery-rack-g3" fill="#e2e6ea" data-mat="appliance"/>
+    <use href="#battery-rack-g3" fill="url(#battery-rack-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+    <rect x="16" y="8" width="5" height="3" rx="0.8" fill="#b87333" data-mat="copper"/>
+    <rect x="44" y="8" width="5" height="3" rx="0.8" fill="#b87333" data-mat="copper"/>
+    <use href="#battery-rack-g4" fill="#e2e6ea" data-mat="appliance"/>
+    <use href="#battery-rack-g4" fill="url(#battery-rack-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+    <rect x="16" y="32" width="5" height="3" rx="0.8" fill="#b87333" data-mat="copper"/>
+    <rect x="44" y="32" width="5" height="3" rx="0.8" fill="#b87333" data-mat="copper"/>
+    <use href="#battery-rack-g5" fill="#e2e6ea" data-mat="appliance"/>
+    <use href="#battery-rack-g5" fill="url(#battery-rack-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+    <rect x="16" y="56" width="5" height="3" rx="0.8" fill="#b87333" data-mat="copper"/>
+    <rect x="44" y="56" width="5" height="3" rx="0.8" fill="#b87333" data-mat="copper"/>
+    <use href="#battery-rack-g6" fill="#e2e6ea" data-mat="appliance"/>
+    <use href="#battery-rack-g6" fill="url(#battery-rack-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+    <rect x="16" y="80" width="5" height="3" rx="0.8" fill="#b87333" data-mat="copper"/>
+    <rect x="44" y="80" width="5" height="3" rx="0.8" fill="#b87333" data-mat="copper"/>
+    <rect x="60" y="10" width="10" height="92" rx="3" fill="#1d2a35" data-mat="glass-dark"/>
+  </g>
+  <g id="level" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#battery-rack-g7" fill="#3fb950" data-mat="charge"/>
+    <use href="#battery-rack-g7" fill="url(#battery-rack-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+  </g>
+  <g id="layer-2" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <rect x="62" y="12" width="2" height="88" rx="1" fill="#fff" fill-opacity="0.18" stroke="none" opacity="1" data-shade="highlight"/>
+  </g>
+</svg>

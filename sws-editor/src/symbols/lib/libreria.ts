@@ -60,7 +60,7 @@ export function useManifestoLib(): ManifestLib | null {
 /** Il simbolo e il suo SVG; `svg` è `undefined` finché non è arrivato. */
 export function useSimboloLib(id: string | undefined): { sim?: SimboloLib; svg?: string; manifesto: ManifestLib | null } {
   const m = useManifestoLib();
-  const sim = id && m ? m.symbols.find((s) => s.id === id) : undefined;
+  const sim = id && m ? cercaSimbolo(m, id) : undefined;
   if (sim) caricaSvg(sim);
   return { sim, svg: sim ? svgs.get(sim.id) : undefined, manifesto: m };
 }
@@ -125,9 +125,21 @@ export function prefissoIstanza(objId: string): string {
   return `sl-${objId.replace(/[^A-Za-z0-9_-]/g, "_")}`;
 }
 
+/** Il simbolo per id `lib:…`, oppure per **alias**: un id builtin (`pump`) che
+ *  un disegno della libreria sostituisce (`replaces`, M3 del piano). Così i
+ *  progetti esistenti non cambiano e prendono il disegno nuovo. */
+export function cercaSimbolo(m: ManifestLib, id: string): SimboloLib | undefined {
+  return m.symbols.find((s) => s.id === id) ?? m.symbols.find((s) => s.replaces === id);
+}
+
 /** Il simbolo dal manifesto già caricato, fuori da React (creazione di un oggetto). */
 export function trovaSimboloLib(id: string): SimboloLib | undefined {
-  return manifesto?.symbols.find((s) => s.id === id);
+  return manifesto ? cercaSimbolo(manifesto, id) : undefined;
+}
+
+/** Il builtin `id` ha un sostituto nella libreria? (Picker: non si offre due volte.) */
+export function haSostituto(id: string): boolean {
+  return !!manifesto?.symbols.some((s) => s.replaces === id);
 }
 
 /** Lo SVG già caricato (anteprime): `undefined` se non è ancora arrivato. */

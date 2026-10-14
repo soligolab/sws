@@ -58,14 +58,10 @@ export type SynopticObjectType =
   | "lang_selector"
   | "lang_button";
 
-/** Identifier of a SCADA symbol — either a hand-rolled JSX builtin or a
- *  vendored SVG file. The library at `@/symbols/library` maps ids to metadata
- *  (label, render function for builtins, asset path for vendored ones). */
+/** Identifier of a SCADA symbol: `lib:<famiglia>/<slug>` dalla libreria
+ *  (`public/symbols/lib/manifest.json`), un id builtin storico (`pump`…) che ne è
+ *  alias, oppure `custom:<id>` per un simbolo del progetto. */
 export type SymbolId = string;
-
-/** Source category for a SymbolMeta entry. Builtin = JSX in library.tsx,
- *  vendored = SVG file under `public/symbols/`. */
-export type SymbolKind = "builtin" | "vendored";
 
 /** Una zona colorata sull'arco di un gauge (F7.6): da `from` a `to` in unità
  *  del tag. Le zone si disegnano sul fondo scala, sotto l'arco del valore. */

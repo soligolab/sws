@@ -266,7 +266,7 @@ Quelle che girano su file fermi:
 
 | Guardia | Cosa impedisce |
 |---|---|
-| `check_lvgl_symbols.sh` | la tabella dei simboli vendored del viewer diverge da quella dell'editor (7 nomi file su 11 **non** coincidono con l'id) |
+| `check_libreria_simboli.sh` | la libreria di simboli SCADA non è quella del generatore: SVG ritoccati a mano, materiali fuori tabella, parti non dichiarate, un builtin storico senza sostituto, etichette mancanti |
 | `check_lvgl_types.sh` | il badge «L» della palette mente sui tipi che il pannello disegna |
 | `check_lvgl_parity.sh` | campi dichiarati nel modello e mai disegnati dal motore |
 | `check_vendor_patches.sh` | le patch al sorgente C vendored spariscono a un aggiornamento |

@@ -41,7 +41,6 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SYNOPTIC_RS = f"{ROOT}/sws-runtime/crates/sws-web/src/synoptic.rs"
 PROJECT_RS = f"{ROOT}/sws-runtime/crates/sws-core/src/project.rs"
 TYPES_TS = f"{ROOT}/sws-editor/src/types/index.ts"
-SYMBOLS_TSX = f"{ROOT}/sws-editor/src/symbols/library.tsx"
 MANIFEST_LIB = f"{ROOT}/sws-editor/public/symbols/lib/manifest.json"
 # L'uso reale si raccoglie da **entrambe** le cartelle di progetti d'esempio.
 # Dal 17-09-2026 i banchi di prova non stanno più fra i template (non ne
@@ -200,19 +199,18 @@ def field_enums():
     # sentito rispondere che l'oggetto non esiste, mentre `boiler` è in palette
     # da sempre.
     #
-    # La libreria dell'editor è la fonte di ciò che la palette offre davvero, ed
-    # è la stessa che usa `check_lvgl_symbols.sh`. Diventa la quinta fonte di
-    # questo generatore, e `check_synoptic_schema.sh` la tiene allineata come le
-    # altre quattro.
-    simboli = re.findall(r'id:\s*"([a-z_0-9]+)"',
-                         open(SYMBOLS_TSX, encoding="utf-8").read())
-    if len(simboli) < 10:
-        die(f"letti solo {len(simboli)} simboli da {SYMBOLS_TSX}: la forma delle voci è cambiata")
-    # Sesta fonte (14-10-2026): i simboli di libreria `lib:<famiglia>/<slug>`,
-    # dal manifesto che scrive scripts/simboli/genera.py. Senza, il validatore
-    # rifiuterebbe ogni simbolo nuovo della palette.
+    # La libreria è la fonte di ciò che la palette offre davvero: è la quinta
+    # fonte di questo generatore, e `check_synoptic_schema.sh` la tiene allineata
+    # come le altre quattro.
+    # Dalla Fase 6b del piano dei simboli di libreria la fonte è una sola, il
+    # manifesto: gli id builtin storici (`pump`…) sono i suoi `replaces`, cioè
+    # alias dei disegni della libreria, e restano validi nei progetti.
     import json
-    lib = [s["id"] for s in json.load(open(MANIFEST_LIB, encoding="utf-8"))["symbols"]]
+    voci = json.load(open(MANIFEST_LIB, encoding="utf-8"))["symbols"]
+    simboli = [v["replaces"] for v in voci if v.get("replaces")]
+    if len(simboli) < 10:
+        die(f"letti solo {len(simboli)} alias dal manifesto {MANIFEST_LIB}")
+    lib = [v["id"] for v in voci]
     out["symbol_id"] = sorted(set(simboli)) + sorted(lib)
     return out
 

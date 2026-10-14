@@ -397,45 +397,23 @@ mod tests {
         assert_eq!(buf[2], 128, "l'alfa deve restare quella di partenza");
     }
 
-    /// I simboli vendored veri, non un SVG di comodo — per quando
-    /// `VENDORED` (`svg_assets.rs`) tornerà a non essere vuota.
-    ///
-    /// Arrivano da librerie esterne (Material Design Icons, Equinor) e nessuno
-    /// li ha scritti per noi: possono usare costrutti che questa build di
-    /// `resvg` — senza feature testo, per non tirarsi dietro fontdb — non
-    /// gestisce. Il modo in cui fallirebbero è il peggiore possibile: l'SVG si
-    /// interpreta, la bitmap esce **vuota**, e sul pannello compare un
-    /// rettangolo trasparente che sembra un simbolo dimenticato.
-    ///
-    /// Quindi non basta che `rasterize` restituisca `Some`: si conta quanti
-    /// pixel hanno davvero dell'inchiostro. **Dal 13-09-2026 (Q40) questo
-    /// test non esercita niente**: gli ultimi 7 vendored sono diventati
-    /// builtin, `VENDORED` è vuota, il ciclo sotto gira zero volte. Resta qui
-    /// apposta — non cancellato — perché torni a valere da solo il giorno in
-    /// cui un simbolo vendored nuovo arriva in quella tabella, senza che
-    /// serva riscriverlo.
+    /// Tutti i disegni della libreria, interi: si interpretano e lasciano
+    /// inchiostro. Il modo in cui un SVG fallirebbe qui è il peggiore: si
+    /// interpreta, la bitmap esce **vuota**, e sul pannello compare un buco che
+    /// sembra un simbolo dimenticato. Prende il posto del test sui vendored,
+    /// che dal 13-09-2026 girava su una tabella vuota.
     #[test]
-    fn i_simboli_vendored_veri_si_disegnano() {
-        let radice = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../sws-editor/public/symbols");
-        let mut visti = 0;
-        for (id, path) in crate::svg_assets::VENDORED {
-            let file = radice.join(path.trim_start_matches("/symbols/"));
-            let svg = std::fs::read(&file)
-                .unwrap_or_else(|e| panic!("{id}: {} non leggibile: {e}", file.display()));
-            let r =
-                rasterize(&svg, 96, 96, false, false).unwrap_or_else(|| panic!("{id}: resvg non lo interpreta"));
+    fn i_simboli_della_libreria_si_disegnano() {
+        let radice = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../sws-editor/public/symbols/lib");
+        let m: sws_core::simboli_lib::ManifestLib =
+            serde_json::from_slice(&std::fs::read(radice.join("manifest.json")).unwrap()).unwrap();
+        assert!(m.symbols.len() >= 40);
+        for s in &m.symbols {
+            let svg = std::fs::read(radice.join(&s.file)).unwrap_or_else(|e| panic!("{}: {e}", s.id));
+            let r = rasterize(&svg, 96, 96, false, false).unwrap_or_else(|| panic!("{}: resvg non lo interpreta", s.id));
             let pieni = r.pixels.chunks_exact(4).filter(|p| p[3] > 16).count();
-            // Soglia al 10%, misurata il 2026-08-26 sugli undici vendored di
-            // allora (dal 23% al 55% di pixel pieni): lascia margine a un
-            // simbolo più esile senza lasciar passare una bitmap vuota.
-            assert!(
-                pieni > 96 * 96 / 10,
-                "{id}: rasterizzato ma quasi vuoto ({pieni} pixel su {}) — sul pannello sarebbe un buco",
-                96 * 96
-            );
-            visti += 1;
+            // Un disegno sottile (il traliccio, la curva) sta sopra il 5 %.
+            assert!(pieni > 96 * 96 / 20, "{}: quasi vuoto ({pieni} pixel su {})", s.id, 96 * 96);
         }
-        assert_eq!(visti, crate::svg_assets::VENDORED.len());
     }
 }

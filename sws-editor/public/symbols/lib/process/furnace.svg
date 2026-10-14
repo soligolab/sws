@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="120" viewBox="0 0 100 120">
+  <defs>
+    <linearGradient id="furnace-dark-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <linearGradient id="furnace-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <linearGradient id="furnace-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="furnace-metal-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="furnace-paint-d" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.35"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.3"/>
+    </linearGradient>
+    <radialGradient id="furnace-paint-r" cx="0.36" cy="0.3" r="0.75">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.55"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.05"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </radialGradient>
+    <radialGradient id="furnace-glass-r" cx="0.35" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/>
+      <stop offset="0.3" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <rect id="furnace-g1" x="40" y="0" width="20" height="34"/>
+    <rect id="furnace-g2" x="37" y="0" width="26" height="4" rx="1"/>
+    <rect id="furnace-g3" x="0" y="85" width="12" height="10"/>
+    <rect id="furnace-g4" x="0" y="82" width="4" height="16" rx="0.8"/>
+    <rect id="furnace-g5" x="88" y="45" width="8" height="10"/>
+    <rect id="furnace-g6" x="96" y="42" width="4" height="16" rx="0.8"/>
+    <rect id="furnace-g7" x="88" y="65" width="8" height="10"/>
+    <rect id="furnace-g8" x="96" y="62" width="4" height="16" rx="0.8"/>
+    <rect id="furnace-g9" x="8" y="112" width="84" height="8" rx="1"/>
+    <path id="furnace-g10" d="M12 44 L30 30 L70 30 L88 44 L88 112 L12 112 Z"/>
+    <path id="furnace-g11" d="M50 98 Q36 92 40 82 Q42 88 46 86 Q44 76 50 72 Q52 80 56 82 Q60 76 58 72 Q66 82 62 92 Q60 98 50 98 Z"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#furnace-g1" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#furnace-g1" fill="url(#furnace-dark-h)" stroke="none" opacity="1" data-shade="dark-h"/>
+    <use href="#furnace-g2" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#furnace-g2" fill="url(#furnace-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+    <use href="#furnace-g3" fill="#9aa5af" data-mat="steel"/>
+    <use href="#furnace-g3" fill="url(#furnace-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#furnace-g4" fill="#9aa5af" data-mat="steel"/>
+    <use href="#furnace-g4" fill="url(#furnace-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#furnace-g5" fill="#9aa5af" data-mat="steel"/>
+    <use href="#furnace-g5" fill="url(#furnace-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#furnace-g6" fill="#9aa5af" data-mat="steel"/>
+    <use href="#furnace-g6" fill="url(#furnace-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#furnace-g7" fill="#9aa5af" data-mat="steel"/>
+    <use href="#furnace-g7" fill="url(#furnace-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#furnace-g8" fill="#9aa5af" data-mat="steel"/>
+    <use href="#furnace-g8" fill="url(#furnace-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#furnace-g9" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#furnace-g9" fill="url(#furnace-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="body-furnace" fill="#6b4a3a" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#furnace-g10"/>
+    <use href="#furnace-g10" fill="url(#furnace-paint-d)" stroke="none" opacity="1" data-shade="paint-d"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <path d="M12 56 L88 56" fill="none" stroke-opacity="0.25"/>
+    <path d="M12 70 L88 70" fill="none" stroke-opacity="0.25"/>
+    <path d="M12 84 L88 84" fill="none" stroke-opacity="0.25"/>
+    <path d="M12 98 L88 98" fill="none" stroke-opacity="0.25"/>
+    <rect x="32" y="70" width="36" height="30" rx="3" fill="#1d2a35" data-mat="glass-dark"/>
+  </g>
+  <g id="flame" data-layer="part" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#furnace-g11" fill="#ff8c1a" data-mat="flame" stroke-width="0.6"/>
+    <use href="#furnace-g11" fill="url(#furnace-paint-r)" stroke="none" opacity="1" data-shade="paint-r"/>
+    <path d="M50 97 Q44 94 46 88 Q49 92 50 86 Q54 92 54 94 Q53 97 50 97 Z" fill="#ffd34d" data-mat="flame-core" stroke="none"/>
+  </g>
+  <g id="layer-2" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <rect x="32" y="70" width="36" height="30" rx="3" fill="url(#furnace-glass-r)" fill-opacity="0.35" stroke="none" opacity="1" data-shade="glass-r"/>
+  </g>
+</svg>

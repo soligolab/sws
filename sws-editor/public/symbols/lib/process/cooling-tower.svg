@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="120" viewBox="0 0 100 120">
+  <defs>
+    <linearGradient id="cooling-tower-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="cooling-tower-metal-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="cooling-tower-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <linearGradient id="cooling-tower-paint-d" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.35"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.3"/>
+    </linearGradient>
+    <rect id="cooling-tower-g1" x="0" y="35" width="12" height="10"/>
+    <rect id="cooling-tower-g2" x="0" y="32" width="4" height="16" rx="0.8"/>
+    <rect id="cooling-tower-g3" x="88" y="105" width="12" height="10"/>
+    <rect id="cooling-tower-g4" x="96" y="102" width="4" height="16" rx="0.8"/>
+    <path id="cooling-tower-g5" d="M26 26 L32 6 L68 6 L74 26 Z"/>
+    <rect id="cooling-tower-g6" x="28" y="4" width="44" height="4" rx="1"/>
+    <rect id="cooling-tower-g7" x="10" y="24" width="80" height="92" rx="2"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#cooling-tower-g1" fill="#9aa5af" data-mat="steel"/>
+    <use href="#cooling-tower-g1" fill="url(#cooling-tower-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#cooling-tower-g2" fill="#9aa5af" data-mat="steel"/>
+    <use href="#cooling-tower-g2" fill="url(#cooling-tower-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#cooling-tower-g3" fill="#9aa5af" data-mat="steel"/>
+    <use href="#cooling-tower-g3" fill="url(#cooling-tower-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#cooling-tower-g4" fill="#9aa5af" data-mat="steel"/>
+    <use href="#cooling-tower-g4" fill="url(#cooling-tower-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#cooling-tower-g5" fill="#9aa5af" data-mat="steel"/>
+    <use href="#cooling-tower-g5" fill="url(#cooling-tower-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#cooling-tower-g6" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#cooling-tower-g6" fill="url(#cooling-tower-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="appliance" fill="#e2e6ea" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#cooling-tower-g7"/>
+    <use href="#cooling-tower-g7" fill="url(#cooling-tower-paint-d)" stroke="none" opacity="1" data-shade="paint-d"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <path d="M14 80 L86 80" fill="none" stroke="#4a545d" data-mat-stroke="steel-dark" stroke-width="2" stroke-opacity="0.8"/>
+    <path d="M14 86 L86 86" fill="none" stroke="#4a545d" data-mat-stroke="steel-dark" stroke-width="2" stroke-opacity="0.8"/>
+    <path d="M14 92 L86 92" fill="none" stroke="#4a545d" data-mat-stroke="steel-dark" stroke-width="2" stroke-opacity="0.8"/>
+    <path d="M14 98 L86 98" fill="none" stroke="#4a545d" data-mat-stroke="steel-dark" stroke-width="2" stroke-opacity="0.8"/>
+    <path d="M14 104 L86 104" fill="none" stroke="#4a545d" data-mat-stroke="steel-dark" stroke-width="2" stroke-opacity="0.8"/>
+    <path d="M14 110 L86 110" fill="none" stroke="#4a545d" data-mat-stroke="steel-dark" stroke-width="2" stroke-opacity="0.8"/>
+    <path d="M10 72 L90 72" fill="none" stroke-opacity="0.4"/>
+    <rect x="30" y="34" width="40" height="26" rx="2" fill="#1d2a35" data-mat="glass-dark"/>
+    <path d="M34 36 L38 58" fill="none" stroke="#9cc7e3" data-mat-stroke="glass" stroke-width="1" stroke-opacity="0.7"/>
+    <path d="M40 36 L44 58" fill="none" stroke="#9cc7e3" data-mat-stroke="glass" stroke-width="1" stroke-opacity="0.7"/>
+    <path d="M46 36 L50 58" fill="none" stroke="#9cc7e3" data-mat-stroke="glass" stroke-width="1" stroke-opacity="0.7"/>
+    <path d="M52 36 L56 58" fill="none" stroke="#9cc7e3" data-mat-stroke="glass" stroke-width="1" stroke-opacity="0.7"/>
+    <path d="M58 36 L62 58" fill="none" stroke="#9cc7e3" data-mat-stroke="glass" stroke-width="1" stroke-opacity="0.7"/>
+    <path d="M64 36 L68 58" fill="none" stroke="#9cc7e3" data-mat-stroke="glass" stroke-width="1" stroke-opacity="0.7"/>
+  </g>
+</svg>

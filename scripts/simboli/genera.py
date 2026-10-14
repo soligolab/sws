@@ -72,6 +72,17 @@ MATERIALI = {
     "body-motor": "#5d6f7e",
     "cabinet": "#c8cdd2",
     "transformer": "#8a9196",
+    "bulk": "#b9a37e",
+    "body-boiler": "#a83a32",
+    "body-furnace": "#6b4a3a",
+    "flame": "#ff8c1a",
+    "flame-core": "#ffd34d",
+    "copper": "#b87333",
+    "charge": "#3fb950",
+    "instrument": "#4a7fb0",
+    "appliance": "#e2e6ea",
+    "wall": "#c9c2b6",
+    "glass": "#9cc7e3",
 }
 
 # Veli: solo bianco e nero con opacità. I valori dei metalli sono calcolati
@@ -280,9 +291,24 @@ def scrivi(dest: str, simboli) -> None:
         f.write(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n")
 
 
+# Gli id dei simboli builtin che esistevano prima della libreria. Dalla Fase 6b
+# (14-10-2026) non c'è più un disegno a mano per nessuno: sono **alias** di un
+# disegno della libreria (`replaces`), e stanno nei progetti dei clienti. Ognuno
+# deve avere esattamente un sostituto, per sempre: l'elenco è chiuso e non si
+# accorcia mai.
+BUILTIN_STORICI = (
+    "pump", "valve", "motor", "tank", "fan", "compressor", "level_sensor", "flow_meter",
+    "pressure_indicator", "breaker", "mixer", "heat_pump", "temperature_sensor", "boiler",
+    "agitator", "cooling_tower", "valve_motorized", "valve_pneumatic", "check_valve",
+    "valve_3way", "relief_valve", "strainer", "blower", "silo", "conveyor", "cyclone",
+    "column", "furnace", "chiller", "heat_exchanger", "separator", "reactor", "filter",
+    "solar_panel", "battery", "transmission_tower", "home_lightning", "garage",
+    "window_open", "roller_shade",
+)
+
+
 def _builtin_ids() -> set[str]:
-    t = open(os.path.join(RADICE, "sws-editor", "src", "symbols", "library.tsx"), encoding="utf-8").read()
-    return set(re.findall(r'id:\s*"([a-z_0-9]+)"', t))
+    return set(BUILTIN_STORICI)
 
 
 def _chiave(d: dict, chiave: str):
@@ -353,6 +379,9 @@ def regole(simboli) -> list[str]:
             trovato = _chiave(lingue[l], chiave)
             if trovato != atteso:
                 male.append(f"{nome}: {l}.json «{chiave}» = {trovato!r}, il generatore dice {atteso!r}")
+    for b in BUILTIN_STORICI:
+        if b not in sostituiti:
+            male.append(f"il builtin storico «{b}» non ha un sostituto (replaces): i progetti che lo usano mostrerebbero il segnaposto")
     usate = {"famiglia": {s.family for s in simboli}, "tipo": {s.tipo for s in simboli}}
     for gruppo, tabella in (("famiglia", ETICHETTE_FAMIGLIA), ("tipo", ETICHETTE_TIPO)):
         for k in sorted(usate[gruppo]):

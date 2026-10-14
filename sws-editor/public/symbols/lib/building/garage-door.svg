@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="90" viewBox="0 0 100 90">
+  <defs>
+    <linearGradient id="garage-door-paint-d" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.35"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.3"/>
+    </linearGradient>
+    <linearGradient id="garage-door-dark-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.37"/>
+      <stop offset="0.6" stop-color="#000" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.48"/>
+    </linearGradient>
+    <linearGradient id="garage-door-paint-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <rect id="garage-door-g1" x="0" y="0" width="100" height="90"/>
+    <rect id="garage-door-g2" x="8" y="10" width="84" height="80" rx="1"/>
+    <rect id="garage-door-g3" x="12" y="14" width="76" height="18" rx="1"/>
+    <rect id="garage-door-g4" x="12" y="33" width="76" height="18" rx="1"/>
+    <rect id="garage-door-g5" x="12" y="52" width="76" height="18" rx="1"/>
+    <rect id="garage-door-g6" x="12" y="71" width="76" height="18" rx="1"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#garage-door-g1" fill="#c9c2b6" data-mat="wall" stroke="none"/>
+    <use href="#garage-door-g1" fill="url(#garage-door-paint-d)" stroke="none" opacity="1" data-shade="paint-d"/>
+    <use href="#garage-door-g2" fill="#4a545d" data-mat="steel-dark"/>
+    <use href="#garage-door-g2" fill="url(#garage-door-dark-v)" stroke="none" opacity="1" data-shade="dark-v"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="appliance" fill="#e2e6ea" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#garage-door-g3"/>
+    <use href="#garage-door-g3" fill="url(#garage-door-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+    <use href="#garage-door-g4"/>
+    <use href="#garage-door-g4" fill="url(#garage-door-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+    <use href="#garage-door-g5"/>
+    <use href="#garage-door-g5" fill="url(#garage-door-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+    <use href="#garage-door-g6"/>
+    <use href="#garage-door-g6" fill="url(#garage-door-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <rect x="44" y="78" width="12" height="4" rx="1.5" fill="#4a545d" data-mat="steel-dark"/>
+  </g>
+</svg>

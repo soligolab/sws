@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="70" height="140" viewBox="0 0 70 140">
+  <defs>
+    <linearGradient id="cyclone-paint-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <linearGradient id="cyclone-metal-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="cyclone-metal-v" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.49"/>
+    </linearGradient>
+    <linearGradient id="cyclone-paint-h" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.25"/>
+      <stop offset="0.2" stop-color="#fff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.08"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </linearGradient>
+    <rect id="cyclone-g1" x="0" y="24" width="18" height="14"/>
+    <rect id="cyclone-g2" x="0" y="22" width="4" height="18" rx="0.8"/>
+    <rect id="cyclone-g3" x="30" y="4" width="10" height="18"/>
+    <rect id="cyclone-g4" x="27" y="0" width="16" height="4" rx="0.8"/>
+    <rect id="cyclone-g5" x="30" y="120" width="10" height="16"/>
+    <rect id="cyclone-g6" x="27" y="136" width="16" height="4" rx="0.8"/>
+    <path id="cyclone-g7" d="M14 20 L56 20 L56 60 L40 120 L30 120 L14 60 Z"/>
+  </defs>
+  <g id="layer-0" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#cyclone-g1" fill="#b4bec7" data-mat="stainless"/>
+    <use href="#cyclone-g1" fill="url(#cyclone-paint-v)" stroke="none" opacity="1" data-shade="paint-v"/>
+    <use href="#cyclone-g2" fill="#9aa5af" data-mat="steel"/>
+    <use href="#cyclone-g2" fill="url(#cyclone-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#cyclone-g3" fill="#9aa5af" data-mat="steel"/>
+    <use href="#cyclone-g3" fill="url(#cyclone-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#cyclone-g4" fill="#9aa5af" data-mat="steel"/>
+    <use href="#cyclone-g4" fill="url(#cyclone-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+    <use href="#cyclone-g5" fill="#9aa5af" data-mat="steel"/>
+    <use href="#cyclone-g5" fill="url(#cyclone-metal-h)" stroke="none" opacity="1" data-shade="metal-h"/>
+    <use href="#cyclone-g6" fill="#9aa5af" data-mat="steel"/>
+    <use href="#cyclone-g6" fill="url(#cyclone-metal-v)" stroke="none" opacity="1" data-shade="metal-v"/>
+  </g>
+  <g id="body" data-layer="part" data-mat="stainless" fill="#b4bec7" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <use href="#cyclone-g7"/>
+    <use href="#cyclone-g7" fill="url(#cyclone-paint-h)" stroke="none" opacity="1" data-shade="paint-h"/>
+  </g>
+  <g id="layer-1" data-layer="static" stroke="#1c2329" stroke-width="1" stroke-linejoin="round">
+    <path d="M14 60 L56 60" fill="none" stroke-opacity="0.35"/>
+    <path d="M22 66 Q35 74 48 66 M26 82 Q35 88 44 82 M30 98 Q35 102 40 98" fill="none" stroke-opacity="0.35" stroke-linecap="round"/>
+  </g>
+</svg>

@@ -1,6 +1,6 @@
 {
   "_comment": "Generato da scripts/simboli/genera.py — non modificare a mano.",
-  "version": "72060997443e",
+  "version": "1df03ebb9939",
   "materials": {
     "steel": "#9aa5af",
     "steel-dark": "#4a545d",
@@ -29,9 +29,47 @@
     "body-pump": "#2f6fa8",
     "body-motor": "#5d6f7e",
     "cabinet": "#c8cdd2",
-    "transformer": "#8a9196"
+    "transformer": "#8a9196",
+    "bulk": "#b9a37e",
+    "body-boiler": "#a83a32",
+    "body-furnace": "#6b4a3a",
+    "flame": "#ff8c1a",
+    "flame-core": "#ffd34d",
+    "copper": "#b87333",
+    "charge": "#3fb950",
+    "instrument": "#4a7fb0",
+    "appliance": "#e2e6ea",
+    "wall": "#c9c2b6",
+    "glass": "#9cc7e3"
   },
   "symbols": [
+    {
+      "id": "lib:process/agitator",
+      "file": "process/agitator.svg",
+      "family": "process",
+      "kind": "tanks",
+      "label": "symbols.lib.process.agitator",
+      "viewBox": [
+        60,
+        120
+      ],
+      "body": "body-motor",
+      "materials": [
+        "body-motor",
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "rotor",
+          "kind": "rotor",
+          "cx": 30,
+          "cy": 102,
+          "symmetry": 90
+        }
+      ],
+      "replaces": "agitator"
+    },
     {
       "id": "lib:process/ball-valve",
       "file": "process/ball-valve.svg",
@@ -58,6 +96,28 @@
         }
       ],
       "replaces": "valve"
+    },
+    {
+      "id": "lib:process/boiler",
+      "file": "process/boiler.svg",
+      "family": "process",
+      "kind": "heat-exchange",
+      "label": "symbols.lib.process.boiler",
+      "viewBox": [
+        120,
+        100
+      ],
+      "body": "body-boiler",
+      "materials": [
+        "body-boiler",
+        "glass-dark",
+        "label",
+        "signal-red",
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [],
+      "replaces": "boiler"
     },
     {
       "id": "lib:process/cartridge-filter",
@@ -110,6 +170,82 @@
       "replaces": "pump"
     },
     {
+      "id": "lib:process/check-valve",
+      "file": "process/check-valve.svg",
+      "family": "process",
+      "kind": "valves",
+      "label": "symbols.lib.process.check-valve",
+      "viewBox": [
+        60,
+        50
+      ],
+      "body": "steel",
+      "materials": [
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [],
+      "replaces": "check_valve"
+    },
+    {
+      "id": "lib:process/column",
+      "file": "process/column.svg",
+      "family": "process",
+      "kind": "filters",
+      "label": "symbols.lib.process.column",
+      "viewBox": [
+        60,
+        200
+      ],
+      "body": "stainless",
+      "materials": [
+        "stainless",
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [],
+      "replaces": "column"
+    },
+    {
+      "id": "lib:process/cooling-tower",
+      "file": "process/cooling-tower.svg",
+      "family": "process",
+      "kind": "heat-exchange",
+      "label": "symbols.lib.process.cooling-tower",
+      "viewBox": [
+        100,
+        120
+      ],
+      "body": "appliance",
+      "materials": [
+        "appliance",
+        "glass",
+        "glass-dark",
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [],
+      "replaces": "cooling_tower"
+    },
+    {
+      "id": "lib:process/cyclone",
+      "file": "process/cyclone.svg",
+      "family": "process",
+      "kind": "filters",
+      "label": "symbols.lib.process.cyclone",
+      "viewBox": [
+        70,
+        140
+      ],
+      "body": "stainless",
+      "materials": [
+        "stainless",
+        "steel"
+      ],
+      "parts": [],
+      "replaces": "cyclone"
+    },
+    {
       "id": "lib:process/elbow-90",
       "file": "process/elbow-90.svg",
       "family": "process",
@@ -124,6 +260,167 @@
         "steel"
       ],
       "parts": []
+    },
+    {
+      "id": "lib:process/furnace",
+      "file": "process/furnace.svg",
+      "family": "process",
+      "kind": "heat-exchange",
+      "label": "symbols.lib.process.furnace",
+      "viewBox": [
+        100,
+        120
+      ],
+      "body": "body-furnace",
+      "materials": [
+        "body-furnace",
+        "flame",
+        "flame-core",
+        "glass-dark",
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "flame",
+          "kind": "lamp"
+        }
+      ],
+      "replaces": "furnace"
+    },
+    {
+      "id": "lib:process/jacketed-reactor",
+      "file": "process/jacketed-reactor.svg",
+      "family": "process",
+      "kind": "tanks",
+      "label": "symbols.lib.process.jacketed-reactor",
+      "viewBox": [
+        100,
+        170
+      ],
+      "body": "stainless",
+      "materials": [
+        "body-motor",
+        "glass-dark",
+        "liquid",
+        "stainless",
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "level",
+          "kind": "level",
+          "x": 35,
+          "y": 52,
+          "w": 30,
+          "h": 76
+        },
+        {
+          "id": "rotor",
+          "kind": "rotor",
+          "cx": 50,
+          "cy": 112,
+          "symmetry": 120
+        }
+      ],
+      "replaces": "reactor"
+    },
+    {
+      "id": "lib:process/magnetic-flowmeter",
+      "file": "process/magnetic-flowmeter.svg",
+      "family": "process",
+      "kind": "instruments",
+      "label": "symbols.lib.process.magnetic-flowmeter",
+      "viewBox": [
+        80,
+        60
+      ],
+      "body": "instrument",
+      "materials": [
+        "glass-dark",
+        "instrument",
+        "lamp-green",
+        "steel"
+      ],
+      "parts": [],
+      "replaces": "flow_meter"
+    },
+    {
+      "id": "lib:process/mixing-tank",
+      "file": "process/mixing-tank.svg",
+      "family": "process",
+      "kind": "tanks",
+      "label": "symbols.lib.process.mixing-tank",
+      "viewBox": [
+        80,
+        160
+      ],
+      "body": "stainless",
+      "materials": [
+        "body-motor",
+        "glass-dark",
+        "liquid",
+        "stainless",
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "level",
+          "kind": "level",
+          "x": 23,
+          "y": 50,
+          "w": 34,
+          "h": 82
+        },
+        {
+          "id": "rotor",
+          "kind": "rotor",
+          "cx": 40,
+          "cy": 118,
+          "symmetry": 120
+        }
+      ],
+      "replaces": "mixer"
+    },
+    {
+      "id": "lib:process/motorized-valve",
+      "file": "process/motorized-valve.svg",
+      "family": "process",
+      "kind": "valves",
+      "label": "symbols.lib.process.motorized-valve",
+      "viewBox": [
+        60,
+        70
+      ],
+      "body": "steel",
+      "materials": [
+        "body-motor",
+        "glass-dark",
+        "lamp-green",
+        "steel"
+      ],
+      "parts": [],
+      "replaces": "valve_motorized"
+    },
+    {
+      "id": "lib:process/pneumatic-valve",
+      "file": "process/pneumatic-valve.svg",
+      "family": "process",
+      "kind": "valves",
+      "label": "symbols.lib.process.pneumatic-valve",
+      "viewBox": [
+        60,
+        80
+      ],
+      "body": "steel",
+      "materials": [
+        "body-pump",
+        "steel"
+      ],
+      "parts": [],
+      "replaces": "valve_pneumatic"
     },
     {
       "id": "lib:process/pressure-gauge",
@@ -156,6 +453,73 @@
       "replaces": "pressure_indicator"
     },
     {
+      "id": "lib:process/radar-level-sensor",
+      "file": "process/radar-level-sensor.svg",
+      "family": "process",
+      "kind": "instruments",
+      "label": "symbols.lib.process.radar-level-sensor",
+      "viewBox": [
+        60,
+        90
+      ],
+      "body": "instrument",
+      "materials": [
+        "glass-dark",
+        "instrument",
+        "steel"
+      ],
+      "parts": [],
+      "replaces": "level_sensor"
+    },
+    {
+      "id": "lib:process/relief-valve",
+      "file": "process/relief-valve.svg",
+      "family": "process",
+      "kind": "valves",
+      "label": "symbols.lib.process.relief-valve",
+      "viewBox": [
+        60,
+        90
+      ],
+      "body": "signal-red",
+      "materials": [
+        "signal-red",
+        "steel"
+      ],
+      "parts": [],
+      "replaces": "relief_valve"
+    },
+    {
+      "id": "lib:process/separator",
+      "file": "process/separator.svg",
+      "family": "process",
+      "kind": "filters",
+      "label": "symbols.lib.process.separator",
+      "viewBox": [
+        160,
+        80
+      ],
+      "body": "stainless",
+      "materials": [
+        "glass-dark",
+        "liquid",
+        "stainless",
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "level",
+          "kind": "level",
+          "x": 47,
+          "y": 27,
+          "w": 66,
+          "h": 28
+        }
+      ],
+      "replaces": "separator"
+    },
+    {
       "id": "lib:process/shell-tube-exchanger",
       "file": "process/shell-tube-exchanger.svg",
       "family": "process",
@@ -173,6 +537,91 @@
       ],
       "parts": [],
       "replaces": "heat_exchanger"
+    },
+    {
+      "id": "lib:process/silo",
+      "file": "process/silo.svg",
+      "family": "process",
+      "kind": "tanks",
+      "label": "symbols.lib.process.silo",
+      "viewBox": [
+        80,
+        160
+      ],
+      "body": "stainless",
+      "materials": [
+        "bulk",
+        "glass-dark",
+        "stainless",
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "level",
+          "kind": "level",
+          "x": 32,
+          "y": 32,
+          "w": 16,
+          "h": 60
+        }
+      ],
+      "replaces": "silo"
+    },
+    {
+      "id": "lib:process/thermometer",
+      "file": "process/thermometer.svg",
+      "family": "process",
+      "kind": "instruments",
+      "label": "symbols.lib.process.thermometer",
+      "viewBox": [
+        60,
+        90
+      ],
+      "body": "steel",
+      "materials": [
+        "dial",
+        "signal-red",
+        "steel"
+      ],
+      "parts": [
+        {
+          "id": "needle",
+          "kind": "needle",
+          "cx": 30,
+          "cy": 24,
+          "a0": -135,
+          "a1": 135
+        }
+      ],
+      "replaces": "temperature_sensor"
+    },
+    {
+      "id": "lib:process/three-way-valve",
+      "file": "process/three-way-valve.svg",
+      "family": "process",
+      "kind": "valves",
+      "label": "symbols.lib.process.three-way-valve",
+      "viewBox": [
+        60,
+        80
+      ],
+      "body": "steel",
+      "materials": [
+        "signal-red",
+        "steel"
+      ],
+      "parts": [
+        {
+          "id": "lever",
+          "kind": "lever",
+          "cx": 30,
+          "cy": 14,
+          "open": 0,
+          "closed": 180
+        }
+      ],
+      "replaces": "valve_3way"
     },
     {
       "id": "lib:process/vertical-tank",
@@ -203,6 +652,84 @@
         }
       ],
       "replaces": "tank"
+    },
+    {
+      "id": "lib:process/y-strainer",
+      "file": "process/y-strainer.svg",
+      "family": "process",
+      "kind": "filters",
+      "label": "symbols.lib.process.y-strainer",
+      "viewBox": [
+        80,
+        60
+      ],
+      "body": "steel",
+      "materials": [
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [],
+      "replaces": "strainer"
+    },
+    {
+      "id": "lib:electrical/battery-rack",
+      "file": "electrical/battery-rack.svg",
+      "family": "electrical",
+      "kind": "generation",
+      "label": "symbols.lib.electrical.battery-rack",
+      "viewBox": [
+        80,
+        120
+      ],
+      "body": "steel-dark",
+      "materials": [
+        "appliance",
+        "charge",
+        "copper",
+        "glass-dark",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "level",
+          "kind": "level",
+          "x": 61,
+          "y": 12,
+          "w": 8,
+          "h": 88
+        }
+      ],
+      "replaces": "battery"
+    },
+    {
+      "id": "lib:electrical/circuit-breaker",
+      "file": "electrical/circuit-breaker.svg",
+      "family": "electrical",
+      "kind": "cabinets",
+      "label": "symbols.lib.electrical.circuit-breaker",
+      "viewBox": [
+        50,
+        90
+      ],
+      "body": "steel-dark",
+      "materials": [
+        "copper",
+        "rubber",
+        "signal-red",
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "lever",
+          "kind": "lever",
+          "cx": 25,
+          "cy": 46,
+          "open": 0,
+          "closed": 180
+        }
+      ],
+      "replaces": "breaker"
     },
     {
       "id": "lib:electrical/electric-motor",
@@ -306,6 +833,53 @@
       "parts": []
     },
     {
+      "id": "lib:electrical/transmission-tower",
+      "file": "electrical/transmission-tower.svg",
+      "family": "electrical",
+      "kind": "distribution",
+      "label": "symbols.lib.electrical.transmission-tower",
+      "viewBox": [
+        80,
+        160
+      ],
+      "body": "steel",
+      "materials": [
+        "porcelain",
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [],
+      "replaces": "transmission_tower"
+    },
+    {
+      "id": "lib:machines/axial-fan",
+      "file": "machines/axial-fan.svg",
+      "family": "machines",
+      "kind": "machines",
+      "label": "symbols.lib.machines.axial-fan",
+      "viewBox": [
+        100,
+        100
+      ],
+      "body": "body-motor",
+      "materials": [
+        "body-motor",
+        "glass-dark",
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "rotor",
+          "kind": "rotor",
+          "cx": 50,
+          "cy": 48,
+          "symmetry": 72
+        }
+      ],
+      "replaces": "fan"
+    },
+    {
       "id": "lib:machines/belt-conveyor",
       "file": "machines/belt-conveyor.svg",
       "family": "machines",
@@ -339,6 +913,34 @@
         }
       ],
       "replaces": "conveyor"
+    },
+    {
+      "id": "lib:machines/blower",
+      "file": "machines/blower.svg",
+      "family": "machines",
+      "kind": "machines",
+      "label": "symbols.lib.machines.blower",
+      "viewBox": [
+        100,
+        100
+      ],
+      "body": "body-pump",
+      "materials": [
+        "body-pump",
+        "glass-dark",
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "rotor",
+          "kind": "rotor",
+          "cx": 50,
+          "cy": 54,
+          "symmetry": 180
+        }
+      ],
+      "replaces": "blower"
     },
     {
       "id": "lib:machines/centrifugal-fan",
@@ -415,6 +1017,26 @@
       ]
     },
     {
+      "id": "lib:machines/screw-compressor",
+      "file": "machines/screw-compressor.svg",
+      "family": "machines",
+      "kind": "machines",
+      "label": "symbols.lib.machines.screw-compressor",
+      "viewBox": [
+        140,
+        90
+      ],
+      "body": "body-pump",
+      "materials": [
+        "body-motor",
+        "body-pump",
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [],
+      "replaces": "compressor"
+    },
+    {
       "id": "lib:machines/stack-light",
       "file": "machines/stack-light.svg",
       "family": "machines",
@@ -449,6 +1071,153 @@
           "kind": "lamp"
         }
       ]
+    },
+    {
+      "id": "lib:building/ceiling-light",
+      "file": "building/ceiling-light.svg",
+      "family": "building",
+      "kind": "building",
+      "label": "symbols.lib.building.ceiling-light",
+      "viewBox": [
+        60,
+        70
+      ],
+      "body": "steel-dark",
+      "materials": [
+        "flame-core",
+        "glass-dark",
+        "rubber",
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "lamp",
+          "kind": "lamp"
+        }
+      ],
+      "replaces": "home_lightning"
+    },
+    {
+      "id": "lib:building/chiller",
+      "file": "building/chiller.svg",
+      "family": "building",
+      "kind": "hvac",
+      "label": "symbols.lib.building.chiller",
+      "viewBox": [
+        160,
+        90
+      ],
+      "body": "appliance",
+      "materials": [
+        "appliance",
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "rotor-1",
+          "kind": "rotor",
+          "cx": 50,
+          "cy": 32,
+          "symmetry": 90
+        },
+        {
+          "id": "rotor-2",
+          "kind": "rotor",
+          "cx": 110,
+          "cy": 32,
+          "symmetry": 90
+        }
+      ],
+      "replaces": "chiller"
+    },
+    {
+      "id": "lib:building/garage-door",
+      "file": "building/garage-door.svg",
+      "family": "building",
+      "kind": "building",
+      "label": "symbols.lib.building.garage-door",
+      "viewBox": [
+        100,
+        90
+      ],
+      "body": "appliance",
+      "materials": [
+        "appliance",
+        "steel-dark",
+        "wall"
+      ],
+      "parts": [],
+      "replaces": "garage"
+    },
+    {
+      "id": "lib:building/heat-pump",
+      "file": "building/heat-pump.svg",
+      "family": "building",
+      "kind": "hvac",
+      "label": "symbols.lib.building.heat-pump",
+      "viewBox": [
+        120,
+        90
+      ],
+      "body": "appliance",
+      "materials": [
+        "appliance",
+        "steel",
+        "steel-dark"
+      ],
+      "parts": [
+        {
+          "id": "rotor",
+          "kind": "rotor",
+          "cx": 42,
+          "cy": 44,
+          "symmetry": 90
+        }
+      ],
+      "replaces": "heat_pump"
+    },
+    {
+      "id": "lib:building/roller-shutter",
+      "file": "building/roller-shutter.svg",
+      "family": "building",
+      "kind": "building",
+      "label": "symbols.lib.building.roller-shutter",
+      "viewBox": [
+        80,
+        100
+      ],
+      "body": "appliance",
+      "materials": [
+        "appliance",
+        "glass",
+        "steel",
+        "wall"
+      ],
+      "parts": [],
+      "replaces": "roller_shade"
+    },
+    {
+      "id": "lib:building/window",
+      "file": "building/window.svg",
+      "family": "building",
+      "kind": "building",
+      "label": "symbols.lib.building.window",
+      "viewBox": [
+        80,
+        100
+      ],
+      "body": "appliance",
+      "materials": [
+        "appliance",
+        "glass",
+        "steel",
+        "steel-dark",
+        "wall"
+      ],
+      "parts": [],
+      "replaces": "window_open"
     }
   ]
 }

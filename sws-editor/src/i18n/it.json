@@ -1135,7 +1135,9 @@
     "stileContorno": "Colore del contorno",
     "stileSpessore": "Spessore del contorno (fattore)",
     "stileLampeggio": "Lampeggio degli stati (ms)",
-    "stileLivello": "Transizione del livello (ms)"
+    "stileLivello": "Transizione del livello (ms)",
+    "adattaProporzioni": "Adatta le proporzioni al disegno ({{w}}×{{h}})",
+    "adattaProporzioniHint": "Il disegno è contenuto e centrato nel riquadro: questo porta il riquadro alle proporzioni del disegno, tenendo la larghezza."
   },
   "shortcut": {
     "navCanvas": "Navigazione canvas",
@@ -3010,25 +3012,50 @@
   "symbols": {
     "lib": {
       "process": {
+        "agitator": "Agitatore",
         "ball-valve": "Valvola a sfera",
+        "boiler": "Caldaia",
         "cartridge-filter": "Filtro a cartuccia",
         "centrifugal-pump": "Pompa centrifuga",
+        "check-valve": "Valvola di ritegno",
+        "column": "Colonna",
+        "cooling-tower": "Torre evaporativa",
+        "cyclone": "Ciclone",
         "elbow-90": "Curva 90°",
+        "furnace": "Forno",
+        "jacketed-reactor": "Reattore incamiciato",
+        "magnetic-flowmeter": "Misuratore di portata",
+        "mixing-tank": "Serbatoio con agitatore",
+        "motorized-valve": "Valvola motorizzata",
+        "pneumatic-valve": "Valvola pneumatica",
         "pressure-gauge": "Manometro",
+        "radar-level-sensor": "Sensore di livello radar",
+        "relief-valve": "Valvola di sicurezza",
+        "separator": "Separatore",
         "shell-tube-exchanger": "Scambiatore a fascio tubiero",
-        "vertical-tank": "Serbatoio verticale"
+        "silo": "Silo",
+        "thermometer": "Termometro",
+        "three-way-valve": "Valvola a tre vie",
+        "vertical-tank": "Serbatoio verticale",
+        "y-strainer": "Filtro a Y"
       },
       "electrical": {
+        "battery-rack": "Rack batterie",
+        "circuit-breaker": "Interruttore",
         "electric-motor": "Motore elettrico",
         "electrical-cabinet": "Armadio elettrico",
         "solar-panel": "Pannello fotovoltaico",
-        "transformer": "Trasformatore"
+        "transformer": "Trasformatore",
+        "transmission-tower": "Traliccio"
       },
       "machines": {
+        "axial-fan": "Ventilatore assiale",
         "belt-conveyor": "Nastro trasportatore",
+        "blower": "Soffiante",
         "centrifugal-fan": "Ventilatore centrifugo",
         "forklift": "Carrello elevatore",
         "photoelectric-sensor": "Fotocellula",
+        "screw-compressor": "Compressore a vite",
         "stack-light": "Colonna luminosa"
       },
       "famiglia": {
@@ -3056,6 +3083,14 @@
         "signalling": "Segnalazione",
         "hvac": "HVAC",
         "building": "Edificio"
+      },
+      "building": {
+        "ceiling-light": "Lampada",
+        "chiller": "Refrigeratore",
+        "garage-door": "Porta del garage",
+        "heat-pump": "Pompa di calore",
+        "roller-shutter": "Tapparella",
+        "window": "Finestra"
       }
     }
   },

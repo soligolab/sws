@@ -407,7 +407,10 @@ def stack_light():
 
 
 def tutti():
-    return [f() for f in (
+    # I sostitutivi dei builtin stanno in un modulo loro (Fase 6), che importa
+    # gli aiutanti da qui: si caricano solo adesso, per non fare un ciclo.
+    from disegni_sostitutivi import tutti as sostitutivi
+    return sostitutivi() + [f() for f in (
         centrifugal_pump, ball_valve, vertical_tank, shell_tube_exchanger, cartridge_filter,
         pressure_gauge, elbow_90,
         electric_motor, electrical_cabinet, transformer, solar_panel,

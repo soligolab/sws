@@ -76,8 +76,12 @@ describe("pannello proprietà", () => {
     expect(screen.getByText("Style of this symbol")).toBeTruthy();
     expect(screen.getByText("Content colour")).toBeTruthy();
   });
-  it("un builtin no", () => {
+  it("un builtin sostituito dalla libreria (alias) ha lo stile del disegno nuovo", () => {
     pannello(pompa({ symbol_id: "pump" }));
+    expect(screen.getByText("Style of this symbol")).toBeTruthy();
+  });
+  it("un simbolo custom del progetto no", () => {
+    pannello(pompa({ symbol_id: "custom:valvola-cliente" }));
     expect(screen.queryByText("Style of this symbol")).toBeNull();
   });
 });

@@ -97,7 +97,7 @@ export function SimboloLibSvg({ sim, svg, manifesto, prefisso, x, y, w, h, valor
 /** Il simbolo `lib:` di un oggetto: chiede manifesto e SVG, e finché non ci
  *  sono non disegna niente. Un id che il manifesto non conosce (progetto fatto
  *  con una versione più nuova) mostra il segnaposto, come i builtin ignoti. */
-export function OggettoLib({ symbolId, objId, x, y, w, h, valori, legami, valoreTag, dataAnim, segnaposto, sovrascritture }: {
+export function OggettoLib({ symbolId, objId, x, y, w, h, valori, legami, valoreTag, dataAnim, segnaposto, sovrascritture, ripiego }: {
   symbolId: string;
   objId: string;
   x: number; y: number; w: number; h: number;
@@ -108,9 +108,13 @@ export function OggettoLib({ symbolId, objId, x, y, w, h, valori, legami, valore
   dataAnim?: boolean;
   segnaposto: React.ReactNode;
   sovrascritture?: SovrascrittureSimbolo;
+  /** Per un id builtin: cosa disegnare finché il manifesto non c'è, o se nessun
+   *  disegno della libreria lo sostituisce. */
+  ripiego?: React.ReactNode;
 }) {
   const { sim, svg, manifesto } = useSimboloLib(symbolId);
   const progetto = useStileProgetto();
+  if (ripiego !== undefined && (!manifesto || !sim)) return <>{ripiego}</>;
   if (manifesto && !sim) return <>{segnaposto}</>;
   if (!sim || !svg || !manifesto) return null;
   const parti = valoriParti(sim.parts, legami, valoreTag);

@@ -64,14 +64,12 @@ API="http://localhost:$AP/api"
 curl -sf -X POST "$API/projects" -H 'Content-Type: application/json' -d '{"name":"simboli"}' > /dev/null
 curl -sf -X POST "$API/projects/simboli/open" > /dev/null
 
-# L'elenco viene dalla libreria dell'editor: è quello che la palette offre
-# davvero, ed è la stessa fonte che usa `check_lvgl_symbols.sh`.
-mapfile -t SIMBOLI < <(grep -oE 'id: "[a-z_0-9]+"' sws-editor/src/symbols/library.tsx | sed 's/id: "//; s/"//')
-# Più i simboli di libreria (`lib:…`, piano docs/plans/2026-10-14-motore-simboli-lib.md):
-# l'elenco è il manifesto generato, la stessa fonte del picker e del validatore.
-mapfile -t -O "${#SIMBOLI[@]}" SIMBOLI < <(python3 -c 'import json; [print(s["id"]) for s in json.load(open("sws-editor/public/symbols/lib/manifest.json"))["symbols"]]')
+# L'elenco viene dal manifesto della libreria: gli id builtin storici (alias,
+# `replaces`) e i simboli `lib:` — la stessa fonte del picker e del validatore.
+# Dalla Fase 6b il pannello disegna gli uni e gli altri con la libreria.
+mapfile -t SIMBOLI < <(python3 -c 'import json; m=json.load(open("sws-editor/public/symbols/lib/manifest.json"))["symbols"]; [print(s["replaces"]) for s in m if s.get("replaces")]; [print(s["id"]) for s in m]')
 if [ "${#SIMBOLI[@]}" -lt 10 ]; then
-  echo "✗ letti solo ${#SIMBOLI[@]} simboli da sws-editor/src/symbols/library.tsx" >&2
+  echo "✗ letti solo ${#SIMBOLI[@]} simboli dal manifesto della libreria" >&2
   echo "  La forma delle voci è cambiata: questo controllo non sta più guardando niente." >&2
   exit 1
 fi

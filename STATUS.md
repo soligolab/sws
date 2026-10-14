@@ -12,7 +12,19 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — libreria di simboli SCADA: Fasi 1-5 fatte (2026-10-14)
+## ▶ Riprendere da qui — libreria di simboli SCADA: Fasi 1-6 fatte (2026-10-14)
+
+**6b fatta** dopo l'ok del maintainer sui sostitutivi: tolti `library.tsx`, `draw_symbol` (≈1300 righe) e `VENDORED`; gli id builtin sono alias per sempre (`BUILTIN_STORICI`).
+
+**Fase 6a** sul ramo `feat/simboli-lib-sostitutivi`, annidato sulla 5:
+- i 31 sostitutivi, quindi 47 disegni, e tutti e 40 i builtin con `replaces`;
+- gli alias su web e LVGL, col builtin di prima come ripiego;
+- il comando «Adatta le proporzioni»;
+- la voce `compatibilita` in NOVITA, perché l'aspetto dei sinottici esistenti cambia.
+
+`check_simboli_lvgl` è verde su 87 simboli. **Resta la 6b**: togliere il JSX dei builtin e `draw_symbol`,
+che oggi fanno da ripiego solo se il manifesto non arriva. Va decisa col maintainer dopo aver visto i
+sostitutivi: è il passo che non si annulla con un alias.
 
 **Fase 5** sul ramo `feat/simboli-lib-deploy`, annidato sulla 4:
 - l'avviso al deploy con l'elenco dei simboli di libreria che il pannello non conosce, che si può
@@ -97,11 +109,7 @@ il codice invece della pagina.
   `check_fuori_pagina_lvgl`, `check_contrasto`) rischiano lo stesso falso verde. Non toccate: è un
   lavoro a sé.
 
-**Prossimo**: Fase 6 del piano:
-- disegnare i 31 sostitutivi dei builtin che mancano;
-- gli alias `replaces` nei due viewer;
-- il comando «Adatta proporzioni»;
-- poi togliere il JSX dei builtin e `draw_symbol`, con la voce di compatibilità in NOVITA.
+**Prossimo**: la Fase 7, cioè il resto della libreria dalla lista del seme, a lotti per famiglia.
 
 ## ▶ Riprendere da qui — collaudo del WP630 da zero, e i difetti che ha fatto uscire (2026-10-12/14)
 
