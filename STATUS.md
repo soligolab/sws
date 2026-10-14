@@ -12,10 +12,11 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — le guardie con lo stack tornano verdi (2026-10-14, notte)
+## ▶ Riprendere da qui — le guardie con lo stack tornano verdi (2026-10-14, notte) — su `main`
 
-**Ramo `fix/guardie-senza-autenticazione`**, nel worktree `/home/ut1/sws-guardie`, tre commit. Da
-collaudare e mergiare. Quasi tutto in `scripts/`; una sola correzione nel prodotto, l'istantanea (sotto).
+**Su `main`** (squash `02ce2c35`, dopo l'ok del maintainer). Ramo e worktree eliminati; l'IDE 8460
+riacceso da `main`. Niente pushato. Quasi tutto in `scripts/`; una sola correzione nel prodotto,
+l'istantanea (sotto).
 
 **Esito di `./scripts/verifica_completa.sh --solo-stack`**: 32 guardie su 33 verdi. Resta rossa
 `check_e2e`.
@@ -49,7 +50,7 @@ runtime rifiuta.
 testi dell'interfaccia che sono cambiati. Era già segnato «non è un gate» nel suo commento. È un
 lavoro sulle spec in `sws-editor/e2e/`, non sullo script.
 
-**Da fare**: collaudo del maintainer, squash su `main`, eliminare ramo e worktree.
+**Da fare**: aggiornare le spec di `check_e2e`, quando capita.
 
 ## ▶ Riprendere da qui — libreria di simboli SCADA: tutte e sette le fasi su `main` (2026-10-14, sera)
 
