@@ -8,6 +8,8 @@
 import { useSyncExternalStore } from "react";
 import { applicaStile, type StileSimbolo } from "./applicaStile";
 import type { ManifestLib, SimboloLib } from "./manifest";
+import type { ParteLegata } from "@/types";
+import { veroSimbolo } from "@/symbols/statoSimbolo";
 
 export const BASE_LIB = "/symbols/lib/";
 export const CONTORNO_PREDEFINITO = "#1c2329";
@@ -132,4 +134,44 @@ export function trovaSimboloLib(id: string): SimboloLib | undefined {
 export function svgLibCaricato(s: SimboloLib): string | undefined {
   caricaSvg(s);
   return svgs.get(s.id);
+}
+
+// ── parti vive: lancetta, leva, spie ───────────────────────────────────────
+
+/** Il valore di una parte: `null` = come nel disegno (nessun legame, o nessun
+ *  valore leggibile). Stessa regola del pannello: i casi sono in
+ *  `tests/fixtures/parti-simbolo.json`. */
+export type ValoreParte = { frazione: number | null } | { aperta: boolean | null } | { accesa: boolean | null };
+
+function numeroParte(v: unknown): number | null {
+  if (typeof v === "boolean") return v ? 1 : 0;
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  if (typeof v === "string" && v.trim() !== "") {
+    const n = Number(v.trim());
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+export function valoriParti(
+  parti: SimboloLib["parts"],
+  legami: Record<string, ParteLegata> | undefined,
+  valore: (tag: string) => unknown,
+): Record<string, ValoreParte> {
+  const out: Record<string, ValoreParte> = {};
+  for (const p of parti) {
+    const l = legami?.[p.id];
+    const v = l?.tag ? valore(l.tag) : undefined;
+    if (p.kind === "needle") {
+      const n = numeroParte(v);
+      const min = l?.min ?? 0;
+      const max = l?.max ?? 100;
+      out[p.id] = { frazione: n === null || max === min ? null : Math.min(1, Math.max(0, (n - min) / (max - min))) };
+    } else if (p.kind === "lever") {
+      out[p.id] = { aperta: v === undefined ? null : veroSimbolo(v) };
+    } else if (p.kind === "lamp") {
+      out[p.id] = { accesa: v === undefined ? null : veroSimbolo(v) };
+    }
+  }
+  return out;
 }

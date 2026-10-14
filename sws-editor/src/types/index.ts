@@ -282,6 +282,10 @@ export interface SynopticObject {
   symbol_spin_tag?: string;
   /** Periodo di rotazione in secondi (default 2). */
   symbol_spin_s?: number;
+  /** Simboli di libreria (`lib:…`): una parte viva del manifesto → il tag che
+   *  la comanda. `min`/`max` solo per la lancetta (predefiniti 0 e 100). Piano
+   *  docs/plans/2026-10-14-motore-simboli-lib.md, Fase 3 (M8). */
+  symbol_parts?: Record<string, ParteLegata>;
   /** Flusso animato nella pipe (F6.10): tratteggio in movimento quando
    *  pipe_flow_tag è truthy (o sempre, se non impostato); velocità/direzione
    *  dal segno del valore quando numerico. */
@@ -2067,6 +2071,13 @@ export interface ContainerPackage {
   version: string;
   size_bytes: number;
   mtime_ms: number;
+}
+
+/** Il legame di una parte viva di un simbolo di libreria (lancetta, leva, spia). */
+export interface ParteLegata {
+  tag?: string;
+  min?: number;
+  max?: number;
 }
 
 export interface TextListEntry {

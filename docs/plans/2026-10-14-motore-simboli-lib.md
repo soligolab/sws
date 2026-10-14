@@ -266,6 +266,11 @@ Per oggetto si sovrascrivono:
    proporzioni del manifesto.
 5. Lampeggio per voce di `symbol_states` anche su LVGL (M10).
 
+> **Fase 3 fatta il 14-10-2026.** In più rispetto al piano, su richiesta del maintainer:
+> `bindings.symbol_spin_s`, cioè il periodo di rotazione legabile a un tag, su web e LVGL e per tutti
+> i simboli. Il lampeggio per voce sul pannello usa `img_opa`, così non si pesta con l'`opa` degli
+> effetti.
+
 **Fase 4 — Stile del progetto** (`feat/stile-del-progetto`).
 1. `symbol_style` in Rust, TS, endpoint e store, con i predefiniti uguali all'aspetto attuale.
 2. La scheda **Configurazione → Progetto → Stile** (M5): quattro sezioni e un'anteprima viva di

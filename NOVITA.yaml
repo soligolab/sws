@@ -19,6 +19,10 @@
 versioni:
   - versione: "2.14.0"
     voci:
+      - it: "Simboli di libreria con parti vive: la lancetta del manometro segue il tag, la leva della valvola si apre e si chiude, le spie si accendono; il selettore dei simboli ha famiglie e ricerca."
+        en: "Library symbols with live parts: the gauge needle follows its tag, the valve lever opens and closes, lamps switch on; the symbol picker has families and search."
+      - it: "Il periodo di rotazione di un simbolo si può legare a un tag, per esempio la velocità dell'inverter di una ventola."
+        en: "A symbol's spin period can be bound to a tag, for example the speed of a fan's inverter."
       - it: "Prima parte della libreria di simboli SCADA 2.5D nel selettore dei simboli: il corpo prende il colore di stato, il serbatoio si riempie dal tag, la girante della pompa gira."
         en: "First part of the 2.5D SCADA symbol library in the symbol picker: the body takes the state colour, the tank fills from its tag, the pump impeller spins."
       - it: "Sul pannello un tag di testo come «on» accende il simbolo come nel browser, e nell'editor un clic sul disegno di un simbolo lo seleziona."

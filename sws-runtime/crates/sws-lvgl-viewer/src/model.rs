@@ -443,6 +443,8 @@ pub struct SynopticObject {
     pub symbol_spin: Option<String>,
     pub symbol_spin_tag: Option<String>,
     pub symbol_spin_s: Option<f64>,
+    /// Simboli di libreria: parte del manifesto → `{tag, min?, max?}` (Fase 3).
+    pub symbol_parts: Option<serde_json::Value>,
 
     // ── Tubazioni ──
     pub pipe_flow: Option<bool>,
@@ -776,6 +778,9 @@ pub struct TextListEntry {
     pub value: serde_json::Value,
     pub label: String,
     pub color: Option<String>,
+    /// Lampeggio di questo stato (`symbol_states`): sul web c'era, qui no (M10).
+    #[serde(default)]
+    pub blink: Option<bool>,
     pub value_min: Option<f64>,
     pub value_max: Option<f64>,
 }

@@ -215,6 +215,66 @@ pub fn fotogramma(ms: u64, periodo_s: f64, symmetry: f64, n: usize) -> usize {
     (((gradi % symmetry) / symmetry * n as f64).floor() as usize).min(n - 1)
 }
 
+// ── i valori delle parti vive ──────────────────────────────────────────────
+
+/// Il valore di una parte; `None` dentro = come nel disegno. Stessa regola di
+/// `valoriParti` in `sws-editor/src/symbols/lib/libreria.ts`, con gli stessi
+/// casi (`tests/fixtures/parti-simbolo.json`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ValoreParte {
+    Frazione(Option<f64>),
+    Aperta(Option<bool>),
+    Accesa(Option<bool>),
+}
+
+use sws_core::tag::TagValue;
+
+fn vero(v: &TagValue) -> bool {
+    match v {
+        TagValue::Bool(b) => *b,
+        TagValue::Int(i) => *i != 0,
+        TagValue::Float(f) => *f != 0.0,
+        TagValue::Str(s) => !s.trim().is_empty(),
+        TagValue::Array(_) | TagValue::Struct(_) => false,
+    }
+}
+
+fn numero(v: &TagValue) -> Option<f64> {
+    match v {
+        TagValue::Bool(b) => Some(if *b { 1.0 } else { 0.0 }),
+        TagValue::Int(i) => Some(*i as f64),
+        TagValue::Float(f) => f.is_finite().then_some(*f),
+        TagValue::Str(s) if !s.trim().is_empty() => s.trim().parse::<f64>().ok().filter(|f| f.is_finite()),
+        _ => None,
+    }
+}
+
+pub fn valori_parti<'a>(
+    parti: &[ParteLib],
+    legami: Option<&serde_json::Value>,
+    valore: impl Fn(&str) -> Option<&'a TagValue>,
+) -> Vec<(String, ValoreParte)> {
+    let mut out = Vec::new();
+    for p in parti {
+        let l = legami.and_then(|m| m.get(p.id()));
+        let tag = l.and_then(|l| l.get("tag")).and_then(|t| t.as_str()).filter(|t| !t.is_empty());
+        let v = tag.and_then(&valore);
+        let valore = match p {
+            ParteLib::Needle { .. } => {
+                let min = l.and_then(|l| l.get("min")).and_then(|x| x.as_f64()).unwrap_or(0.0);
+                let max = l.and_then(|l| l.get("max")).and_then(|x| x.as_f64()).unwrap_or(100.0);
+                let f = v.and_then(numero).filter(|_| max != min).map(|n| ((n - min) / (max - min)).clamp(0.0, 1.0));
+                ValoreParte::Frazione(f)
+            }
+            ParteLib::Lever { .. } => ValoreParte::Aperta(v.map(vero)),
+            ParteLib::Lamp { .. } => ValoreParte::Accesa(v.map(vero)),
+            _ => continue,
+        };
+        out.push((p.id().to_string(), valore));
+    }
+    out
+}
+
 // ── la cache dei colori del corpo ──────────────────────────────────────────
 
 /// Le bitmap del corpo per colore. Un `Vec<u8>` spostato nella mappa non sposta
@@ -255,6 +315,11 @@ pub struct Preparato {
 
 pub enum PezzoStrato {
     Fermo(BitmapStrato),
+    /// Lancetta o leva: una bitmap quadrata attorno al perno, che LVGL ruota.
+    /// `perno` è in pixel dentro la bitmap.
+    Perno { id: String, bitmap: BitmapStrato, perno: (i16, i16) },
+    /// Una spia: accesa = visibile.
+    Spia { id: String, bitmap: BitmapStrato },
     Corpo { bitmap: BitmapStrato },
     Livello { bitmap: BitmapStrato, finestra: Ritaglio, dal_basso: bool },
     Rotore { fotogrammi: Vec<Vec<u8>>, dove: Ritaglio, symmetry: f64 },
@@ -294,8 +359,20 @@ pub fn prepara(m: &ManifestLib, s: &SimboloLib, svg: &str, q: Quadro, corpo: Opt
                     out.push(PezzoStrato::Corpo { bitmap });
                 }
             }
-            // Le altre parti (lancetta, leva, spie) arrivano con la Fase 3:
-            // fino ad allora si disegnano ferme, come nel disegno.
+            Some(ParteLib::Needle { cx, cy, .. } | ParteLib::Lever { cx, cy, .. }) => {
+                let Some(fermo) = svg_raster::ingombro(svg1.as_bytes(), q.w, q.h, q.flip_h, q.flip_v) else { continue };
+                let centro = in_pixel(s.view_box, q, *cx, *cy);
+                let dove = riquadro_rotore(fermo, centro, q);
+                if let Some(bitmap) = rasterizza(&svg1, q, Some(dove)) {
+                    let perno = ((centro.0 - dove.x as f32).round() as i16, (centro.1 - dove.y as f32).round() as i16);
+                    out.push(PezzoStrato::Perno { id: id.clone(), bitmap, perno });
+                }
+            }
+            Some(ParteLib::Lamp { .. }) => {
+                if let Some(bitmap) = rasterizza(&svg1, q, None) {
+                    out.push(PezzoStrato::Spia { id: id.clone(), bitmap });
+                }
+            }
             _ => {
                 if let Some(b) = rasterizza(&svg1, q, None) {
                     out.push(PezzoStrato::Fermo(b));
@@ -409,6 +486,67 @@ mod tests {
         let verde = corpo_colorato(&m, POMPA, q, bitmap.dove, Some("#22c55e".into())).unwrap();
         assert_eq!(verde.len(), bitmap.buf.len());
         assert_ne!(verde, bitmap.buf);
+    }
+
+    /// I casi del web (`sws-editor/tests/partiSimbolo.test.ts`).
+    #[test]
+    fn i_valori_delle_parti_sono_quelli_del_web() {
+        #[derive(serde::Deserialize)]
+        struct Caso {
+            nome: String,
+            legami: serde_json::Value,
+            tag: std::collections::BTreeMap<String, TagValue>,
+            atteso: std::collections::BTreeMap<String, serde_json::Value>,
+        }
+        #[derive(serde::Deserialize)]
+        struct F {
+            parti: Vec<ParteLib>,
+            casi: Vec<Caso>,
+        }
+        let f: F = serde_json::from_str(include_str!("../../../../tests/fixtures/parti-simbolo.json")).unwrap();
+        for c in &f.casi {
+            let v = valori_parti(&f.parti, Some(&c.legami), |t| c.tag.get(t));
+            for (id, atteso) in &c.atteso {
+                let trovato = v.iter().find(|(i, _)| i == id).map(|(_, x)| *x);
+                // I numeri si confrontano come numeri: in JSON 0 e 0.0 sono diversi.
+                let ok = match (trovato, atteso) {
+                    (Some(ValoreParte::Frazione(x)), a) => {
+                        let a = a.get("frazione").and_then(|v| v.as_f64());
+                        match (x, a) {
+                            (Some(x), Some(a)) => (x - a).abs() < 1e-9,
+                            (None, None) => true,
+                            _ => false,
+                        }
+                    }
+                    (Some(ValoreParte::Aperta(x)), a) => a.get("aperta").map(|v| v.as_bool()) == Some(x),
+                    (Some(ValoreParte::Accesa(x)), a) => a.get("accesa").map(|v| v.as_bool()) == Some(x),
+                    (None, _) => false,
+                };
+                assert!(ok, "caso «{}», parte {id}: {trovato:?} contro {atteso}", c.nome);
+            }
+        }
+    }
+
+    #[test]
+    fn manometro_valvola_e_colonna_hanno_le_loro_parti() {
+        let m = manifesto_incluso();
+        let q = Quadro { w: 120, h: 120, flip_h: false, flip_v: false };
+        for (id, file, attese) in [
+            ("lib:process/pressure-gauge", "process/pressure-gauge.svg", 1usize),
+            ("lib:process/ball-valve", "process/ball-valve.svg", 1),
+        ] {
+            let s = m.simbolo(id).unwrap();
+            let svg = std::fs::read_to_string(format!("{}/../../../sws-editor/public/symbols/lib/{file}", env!("CARGO_MANIFEST_DIR"))).unwrap();
+            let p = prepara(&m, s, &svg, q, None);
+            let perni: Vec<_> = p.strati.iter().filter_map(|x| if let PezzoStrato::Perno { perno, bitmap, .. } = x { Some((*perno, bitmap.dove)) } else { None }).collect();
+            assert_eq!(perni.len(), attese, "{id}");
+            let ((px, py), dove) = perni[0];
+            assert!(px > 0 && py > 0 && (px as u32) < dove.w && (py as u32) < dove.h, "{id}: perno {px},{py} fuori dalla bitmap {dove:?}");
+        }
+        let s = m.simbolo("lib:machines/stack-light").unwrap();
+        let svg = std::fs::read_to_string(format!("{}/../../../sws-editor/public/symbols/lib/machines/stack-light.svg", env!("CARGO_MANIFEST_DIR"))).unwrap();
+        let p = prepara(&m, s, &svg, Quadro { w: 30, h: 100, flip_h: false, flip_v: false }, None);
+        assert_eq!(p.strati.iter().filter(|x| matches!(x, PezzoStrato::Spia { .. })).count(), 3);
     }
 
     #[test]

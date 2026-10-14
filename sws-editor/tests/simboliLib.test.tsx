@@ -120,3 +120,29 @@ describe("in edit, il clic seleziona anche sopra le forme del disegno (M10)", ()
     expect(onSelect).toHaveBeenCalledWith("s1", false);
   });
 });
+
+describe("parti vive sul canvas (Fase 3)", () => {
+  it("la lancetta ruota col tag fra a0 e a1, sul perno del manifesto", () => {
+    const { container } = disegna(
+      simbolo("lib:process/pressure-gauge", { symbol_parts: { needle: { tag: "p", min: 0, max: 10 } } }),
+      { p: { value: 10 } },
+    );
+    const g = container.querySelector('[data-strato="needle"]') as SVGGElement;
+    expect(g.style.transform).toBe("rotate(135deg)");
+    expect(g.style.transformOrigin).toBe("30px 26px");
+  });
+
+  it("la leva va in chiusa quando il tag è falso", () => {
+    const { container } = disegna(simbolo("lib:process/ball-valve", { symbol_parts: { lever: { tag: "v" } } }), { v: { value: false } });
+    expect((container.querySelector('[data-strato="lever"]') as SVGGElement).style.transform).toBe("rotate(-90deg)");
+  });
+
+  it("una spia col tag falso si spegne, le altre restano come disegnate", () => {
+    const { container } = disegna(
+      simbolo("lib:machines/stack-light", { symbol_parts: { "lamp-red": { tag: "a" } } }),
+      { a: { value: false } },
+    );
+    expect(container.querySelector('[data-strato="lamp-red"]')!.getAttribute("opacity")).toBe("0");
+    expect(container.querySelector('[data-strato="lamp-green"]')!.getAttribute("opacity")).toBeNull();
+  });
+});

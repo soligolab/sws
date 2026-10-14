@@ -93,6 +93,36 @@ VELI = {
 }
 
 FAMIGLIE = ("process", "electrical", "machines", "building")
+
+# Etichette del picker: famiglia e tipologia (`kind` nel manifesto). Stanno in
+# it.json/en.json sotto `symbols.lib.famiglia` e `symbols.lib.tipo`; la guardia
+# verifica che ci siano, uguali a queste.
+ETICHETTE_FAMIGLIA = {
+    "process": ("Processo e fluidi", "Process and fluids"),
+    "electrical": ("Elettrico ed energia", "Electrical and power"),
+    "machines": ("Macchine e movimentazione", "Machines and handling"),
+    "building": ("Edificio e HVAC", "Building and HVAC"),
+}
+ETICHETTE_TIPO = {
+    "pumps": ("Pompe", "Pumps"),
+    "valves": ("Valvole", "Valves"),
+    "tanks": ("Serbatoi e reattori", "Tanks and reactors"),
+    "heat-exchange": ("Scambio termico", "Heat exchange"),
+    "filters": ("Filtri e separatori", "Filters and separators"),
+    "instruments": ("Strumenti", "Instruments"),
+    "piping": ("Tubi e raccordi", "Piping and fittings"),
+    "motors": ("Motori", "Motors"),
+    "cabinets": ("Quadri e automazione", "Cabinets and automation"),
+    "distribution": ("Distribuzione", "Distribution"),
+    "generation": ("Generazione e accumulo", "Generation and storage"),
+    "conveyors": ("Nastri", "Conveyors"),
+    "handling": ("Movimentazione", "Handling"),
+    "machines": ("Macchine e aria", "Machines and air"),
+    "sensors": ("Sensori", "Sensors"),
+    "signalling": ("Segnalazione", "Signalling"),
+    "hvac": ("HVAC", "HVAC"),
+    "building": ("Edificio", "Building"),
+}
 TIPI_PARTE = ("level", "rotor", "needle", "lever", "lamp")
 
 
@@ -316,11 +346,20 @@ def regole(simboli) -> list[str]:
             if s.replaces in sostituiti:
                 male.append(f"{nome}: «{s.replaces}» è già sostituito da {sostituiti[s.replaces]}")
             sostituiti[s.replaces] = nome
+        if s.tipo not in ETICHETTE_TIPO:
+            male.append(f"{nome}: tipologia «{s.tipo}» senza etichetta in ETICHETTE_TIPO")
         chiave = f"symbols.lib.{s.family}.{s.slug}"
         for l, atteso in (("it", s.it), ("en", s.en)):
             trovato = _chiave(lingue[l], chiave)
             if trovato != atteso:
                 male.append(f"{nome}: {l}.json «{chiave}» = {trovato!r}, il generatore dice {atteso!r}")
+    usate = {"famiglia": {s.family for s in simboli}, "tipo": {s.tipo for s in simboli}}
+    for gruppo, tabella in (("famiglia", ETICHETTE_FAMIGLIA), ("tipo", ETICHETTE_TIPO)):
+        for k in sorted(usate[gruppo]):
+            for i, l in enumerate(("it", "en")):
+                trovato = _chiave(lingue[l], f"symbols.lib.{gruppo}.{k}")
+                if k in tabella and trovato != tabella[k][i]:
+                    male.append(f"{l}.json «symbols.lib.{gruppo}.{k}» = {trovato!r}, il generatore dice {tabella[k][i]!r}")
     return male
 
 

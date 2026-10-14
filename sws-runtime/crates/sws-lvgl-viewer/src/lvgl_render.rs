@@ -538,6 +538,10 @@ pub enum LiveKind {
         /// La rotazione statica del simbolo: il giro le si **somma**, come sul
         /// web (la trasformata fuori, l'animazione dentro).
         angolo_base: i16,
+        /// `bindings.symbol_spin_s` (periodo legato a un tag) e ultimo lampeggio
+        /// per voce di `symbol_states`: vedi `VivoLib`.
+        spin_s_legame: Option<serde_json::Value>,
+        ultimo_lampo: u8,
     },
     /// Movimento: i binding generici proprietà→tag applicati **a ogni frame**,
     /// non solo alla creazione.
@@ -10203,8 +10207,39 @@ fn rotore_ad_angolo() -> bool {
     std::env::var("SWS_ROTORE_ANGOLO").is_ok_and(|v| v == "1")
 }
 
+/// Lancetta o leva: ruotata da LVGL sul perno, solo quando cambia il valore.
+pub struct PernoLib {
+    canvas: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    id: String,
+    _buf: Vec<u8>,
+    ultimo: i16,
+}
+
+pub struct SpiaLib {
+    canvas: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
+    id: String,
+    _buf: Vec<u8>,
+    accesa: bool,
+}
+
 pub struct VivoLib {
+    /// Il contenitore dell'oggetto: i canvas degli strati sono i suoi figli.
+    scatola: core::ptr::NonNull<lvgl_sys::lv_obj_t>,
     corpo: Option<CorpoLib>,
+    perni: Vec<PernoLib>,
+    spie: Vec<SpiaLib>,
+    /// Le parti del manifesto e i legami dell'oggetto (`symbol_parts`).
+    parti: Vec<sws_core::simboli_lib::ParteLib>,
+    legami: Option<serde_json::Value>,
+    /// Con lo specchio (uno solo dei due) una rotazione oraria diventa antioraria,
+    /// come sul web dove lo specchio sta fuori dalla rotazione.
+    verso: f64,
+    /// `bindings.symbol_spin_s`: il periodo legato a un tag (richiesta del
+    /// maintainer del 14-10-2026); senza valore vale `spin_s`.
+    spin_s_legame: Option<serde_json::Value>,
+    /// Ultima opacità del lampeggio per voce di `symbol_states` (img_opa, che
+    /// non è la proprietà usata dagli effetti).
+    ultimo_lampo: u8,
     livello: Option<LivelloLib>,
     rotori: Vec<RotoreLib>,
     /// I buffer degli strati fermi: LVGL legge da lì a ogni ridisegno.
@@ -10235,6 +10270,8 @@ impl VivoLib {
             + self.corpo.as_ref().map_or(0, |c| c.materiale.len())
             + self.livello.as_ref().map_or(0, |l| l._buf.len())
             + self.rotori.iter().map(|r| r.fotogrammi.iter().map(Vec::len).sum::<usize>()).sum::<usize>()
+            + self.perni.iter().map(|p| p._buf.len()).sum::<usize>()
+            + self.spie.iter().map(|p| p._buf.len()).sum::<usize>()
     }
 }
 
@@ -10287,6 +10324,21 @@ unsafe fn cambia_buffer(canvas: core::ptr::NonNull<lvgl_sys::lv_obj_t>, r: crate
     lvgl_sys::lv_obj_invalidate(canvas.as_ptr());
 }
 
+/// `bindings.symbol_spin_s` risolto: un periodo positivo, o `None` (resta lo statico).
+fn periodo_legato(legame: Option<&serde_json::Value>, tags: &TagSnapshot) -> Option<f64> {
+    legame
+        .and_then(|l| resolve_binding_value(l, tags))
+        .and_then(|x| x.as_f64().or_else(|| x.as_str().and_then(|s| s.trim().parse().ok())))
+        .filter(|s| s.is_finite() && *s > 0.0)
+}
+
+/// L'opacità del lampeggio per voce (`img_opa`): 255 fermo, altrimenti 38 (il
+/// 15 % del web) per metà degli 800 ms e 255 per l'altra metà.
+fn lampeggio_voce(stati: &[TextListEntry], voce: Option<usize>, ms: u64) -> u8 {
+    let lampeggia = voce.and_then(|i| stati.get(i)).is_some_and(|e| e.blink == Some(true));
+    if lampeggia && ms % 800 < 400 { 38 } else { 255 }
+}
+
 fn render_simbolo_lib(
     screen: &mut lvgl::Obj,
     obj: &SynopticObject,
@@ -10318,7 +10370,15 @@ fn render_simbolo_lib(
         contenitore_lib(genitore, obj.x.unwrap_or(0.0).round() as i16, obj.y.unwrap_or(0.0).round() as i16, w, h)?
     };
     let mut vivo = VivoLib {
+        scatola,
         corpo: None,
+        perni: Vec::new(),
+        spie: Vec::new(),
+        parti: sim.parts.clone(),
+        legami: obj.symbol_parts.clone(),
+        verso: if (obj.flip_h == Some(true)) != (obj.flip_v == Some(true)) { -1.0 } else { 1.0 },
+        spin_s_legame: obj.bindings.as_ref().and_then(|b| b.get("symbol_spin_s")).cloned(),
+        ultimo_lampo: 255,
         livello: None,
         rotori: Vec::new(),
         fermi: Vec::new(),
@@ -10366,6 +10426,16 @@ fn render_simbolo_lib(
                     )?;
                     vivo.livello = Some(LivelloLib { scatola: sc, canvas, finestra, dove: bitmap.dove, dal_basso, _buf: bitmap.buf, ultimo_px: -1 });
                 }
+                PezzoStrato::Perno { id, mut bitmap, perno } => {
+                    let canvas = tela_lib(scatola.as_ptr(), bitmap.dove.x as i32, bitmap.dove.y as i32, bitmap.dove, &mut bitmap.buf)?;
+                    lvgl_sys::lv_obj_set_style_transform_pivot_x(canvas.as_ptr(), perno.0, 0);
+                    lvgl_sys::lv_obj_set_style_transform_pivot_y(canvas.as_ptr(), perno.1, 0);
+                    vivo.perni.push(PernoLib { canvas, id, _buf: bitmap.buf, ultimo: 0 });
+                }
+                PezzoStrato::Spia { id, mut bitmap } => {
+                    let canvas = tela_lib(scatola.as_ptr(), bitmap.dove.x as i32, bitmap.dove.y as i32, bitmap.dove, &mut bitmap.buf)?;
+                    vivo.spie.push(SpiaLib { canvas, id, _buf: bitmap.buf, accesa: true });
+                }
                 PezzoStrato::Rotore { mut fotogrammi, dove, symmetry } => {
                     let angolo = rotore_ad_angolo();
                     if angolo {
@@ -10398,7 +10468,7 @@ fn render_simbolo_lib(
 }
 
 fn aggiorna_simbolo_lib(v: &mut VivoLib, tags: &TagSnapshot) {
-    let (stato, _voce) = stato_simbolo(tags, &v.state_tag, &v.alarm_tag, &v.stati);
+    let (stato, voce) = stato_simbolo(tags, &v.state_tag, &v.alarm_tag, &v.stati);
     // Corpo: colore di stato solo se lo stato è legato.
     let colore = v.legato.then(|| {
         colore_simbolo(stato, &v.stati, tags, &v.state_tag, &v.off_color, &v.on_color, &v.alarm_color)
@@ -10450,20 +10520,69 @@ fn aggiorna_simbolo_lib(v: &mut VivoLib, tags: &TagSnapshot) {
             l.ultimo_px = px;
         }
     }
+    // Lancetta, leva, spie (Fase 3): la regola di `simbolo_lib::valori_parti`.
+    if !v.perni.is_empty() || !v.spie.is_empty() {
+        use crate::simbolo_lib::ValoreParte;
+        let valori = crate::simbolo_lib::valori_parti(&v.parti, v.legami.as_ref(), |t| tags.get(t).map(|tv| &tv.value));
+        for p in &mut v.perni {
+            let gradi = match (v.parti.iter().find(|x| x.id() == p.id), valori.iter().find(|(i, _)| *i == p.id).map(|(_, x)| *x)) {
+                (Some(sws_core::simboli_lib::ParteLib::Needle { a0, a1, .. }), Some(ValoreParte::Frazione(Some(f)))) => a0 + (a1 - a0) * f,
+                (Some(sws_core::simboli_lib::ParteLib::Lever { open, closed, .. }), Some(ValoreParte::Aperta(Some(a)))) => {
+                    if a { *open } else { *closed }
+                }
+                _ => 0.0,
+            };
+            let decimi = ((gradi * v.verso * 10.0).round() as i64).rem_euclid(3600) as i16;
+            if decimi != p.ultimo {
+                unsafe { lvgl_sys::lv_obj_set_style_transform_angle(p.canvas.as_ptr(), decimi, 0) };
+                p.ultimo = decimi;
+            }
+        }
+        for sp in &mut v.spie {
+            let accesa = !matches!(valori.iter().find(|(i, _)| *i == sp.id).map(|(_, x)| *x), Some(ValoreParte::Accesa(Some(false))));
+            if accesa != sp.accesa {
+                unsafe {
+                    if accesa {
+                        lvgl_sys::lv_obj_clear_flag(sp.canvas.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN);
+                    } else {
+                        lvgl_sys::lv_obj_add_flag(sp.canvas.as_ptr(), lvgl_sys::LV_OBJ_FLAG_HIDDEN);
+                    }
+                }
+                sp.accesa = accesa;
+            }
+        }
+    }
     // Rotori: il fotogramma dal tempo delle tick LVGL (non dall'orologio): due
     // rotori con lo stesso periodo restano in fase, e l'istantanea è ripetibile.
     let gira = deve_girare(v.spin.as_deref(), &v.spin_tag, stato, tags);
     let ms = unsafe { lvgl_sys::lv_tick_get() } as u64;
+    let spin_s = periodo_legato(v.spin_s_legame.as_ref(), tags).unwrap_or(v.spin_s);
+    // Lampeggio della voce di `symbol_states` (M10): 800 ms, metà al 15 %.
+    let lampo = lampeggio_voce(&v.stati, voce, ms);
+    if lampo != v.ultimo_lampo {
+        let figli = unsafe { lvgl_sys::lv_obj_get_child_cnt(v.scatola.as_ptr()) };
+        for i in 0..figli {
+            unsafe {
+                let f = lvgl_sys::lv_obj_get_child(v.scatola.as_ptr(), i as i32);
+                lvgl_sys::lv_obj_set_style_img_opa(f, lampo, 0);
+                // Il livello è un canvas dentro un sotto-contenitore.
+                for j in 0..lvgl_sys::lv_obj_get_child_cnt(f) {
+                    lvgl_sys::lv_obj_set_style_img_opa(lvgl_sys::lv_obj_get_child(f, j as i32), lampo, 0);
+                }
+            }
+        }
+        v.ultimo_lampo = lampo;
+    }
     for r in &mut v.rotori {
         if r.angolo {
-            let a = if gira { angolo_rotazione(ms, v.spin_s) as usize } else { 0 };
+            let a = if gira { angolo_rotazione(ms, spin_s) as usize } else { 0 };
             if a != r.ultimo {
                 unsafe { lvgl_sys::lv_obj_set_style_transform_angle(r.canvas.as_ptr(), a as i16, 0) };
                 r.ultimo = a;
             }
             continue;
         }
-        let k = if gira { crate::simbolo_lib::fotogramma(ms, v.spin_s, r.symmetry, r.fotogrammi.len()) } else { 0 };
+        let k = if gira { crate::simbolo_lib::fotogramma(ms, spin_s, r.symmetry, r.fotogrammi.len()) } else { 0 };
         if k != r.ultimo {
             let dove = r.dove;
             unsafe { cambia_buffer(r.canvas, dove, &mut r.fotogrammi[k]) };
@@ -10594,6 +10713,8 @@ fn render_symbol(
             spin_s: obj.symbol_spin_s.filter(|v| *v > 0.0).unwrap_or(2.0),
             last_angolo: i16::MIN,
             angolo_base: angolo_statico(obj.rotation),
+            spin_s_legame: obj.bindings.as_ref().and_then(|b| b.get("symbol_spin_s")).cloned(),
+            ultimo_lampo: 255,
         },
     })
 }
@@ -12706,9 +12827,16 @@ pub fn update_bindings(
                 spin_s,
                 last_angolo,
                 angolo_base,
+                spin_s_legame,
+                ultimo_lampo,
                 buf: _,
             } => {
-                let state = resolve_symbol_state(tags, state_tag, alarm_tag, stati);
+                let (state, voce) = stato_simbolo(tags, state_tag, alarm_tag, stati);
+                let lampo = lampeggio_voce(stati, voce, unsafe { lvgl_sys::lv_tick_get() } as u64);
+                if lampo != *ultimo_lampo {
+                    unsafe { lvgl_sys::lv_obj_set_style_img_opa(canvas_ptr.as_ptr(), lampo, 0) };
+                    *ultimo_lampo = lampo;
+                }
                 let rgb = colore_simbolo(
                     state,
                     stati,
@@ -12729,7 +12857,8 @@ pub fn update_bindings(
                 }
                 let gira = deve_girare(spin.as_deref(), spin_tag, state, tags);
                 let angolo = if gira {
-                    (angolo_rotazione(client::now_unix_ms(), *spin_s) + *angolo_base).rem_euclid(3600)
+                    let periodo = periodo_legato(spin_s_legame.as_ref(), tags).unwrap_or(*spin_s);
+                    (angolo_rotazione(client::now_unix_ms(), periodo) + *angolo_base).rem_euclid(3600)
                 } else {
                     *angolo_base
                 };
@@ -13745,6 +13874,7 @@ mod binding_tests {
             value: json!(1),
             label: "x".into(),
             color: Some("#22c55e".into()),
+            blink: None,
             value_min: None,
             value_max: None,
         };
@@ -14721,6 +14851,7 @@ mod binding_tests {
             value: serde_json::json!("Auto"),
             label: "A".into(),
             color: Some("#00ff00".into()),
+            blink: None,
             value_min: None,
             value_max: None,
         }];

@@ -6036,6 +6036,8 @@ function SvgObjectCorpo(p: ObjProps) {
               data-anim={entryBlink ? "1" : undefined}>
               <OggettoLib symbolId={libId} objId={obj.id} x={obj.x} y={obj.y} w={w} h={h}
                 dataAnim={spinActive}
+                legami={obj.symbol_parts}
+                valoreTag={(t) => tagValues[t]?.value}
                 segnaposto={segnaposto}
                 valori={{
                   // Il corpo prende il colore di stato solo se lo stato è legato:

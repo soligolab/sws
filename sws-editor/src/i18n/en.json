@@ -1117,7 +1117,13 @@
     "assegnaNota": "On click these variables are written, in order; the button mode is not used. With «Ask confirmation» you confirm once.",
     "backgroundTag": "Background from variable",
     "backgroundTagPlaceholder": "color variable (optional)",
-    "backgroundTagHint": "If the variable holds a colour (#rrggbb), the page background follows its value; otherwise the one above stays."
+    "backgroundTagHint": "If the variable holds a colour (#rrggbb), the page background follows its value; otherwise the one above stays.",
+    "partiSimbolo": "Parts",
+    "parteLancetta": "Needle (tag)",
+    "parteLeva": "Lever open (tag)",
+    "parteSpia": "Lamp {{id}} on (tag)",
+    "parteMin": "Scale start",
+    "parteMax": "Scale end"
   },
   "shortcut": {
     "navCanvas": "Canvas navigation",
@@ -1155,7 +1161,11 @@
   },
   "symbol": {
     "choose": "Choose symbol",
-    "insert": "Insert"
+    "insert": "Insert",
+    "cerca": "Search a symbol…",
+    "gruppoClassici": "Classic symbols",
+    "gruppoProgetto": "Project symbols",
+    "nessuno": "No symbol matches «{{q}}»"
   },
   "characterPicker": {
     "open": "Insert a special character",
@@ -3006,6 +3016,32 @@
         "forklift": "Forklift",
         "photoelectric-sensor": "Photoelectric sensor",
         "stack-light": "Stack light"
+      },
+      "famiglia": {
+        "process": "Process and fluids",
+        "electrical": "Electrical and power",
+        "machines": "Machines and handling",
+        "building": "Building and HVAC"
+      },
+      "tipo": {
+        "pumps": "Pumps",
+        "valves": "Valves",
+        "tanks": "Tanks and reactors",
+        "heat-exchange": "Heat exchange",
+        "filters": "Filters and separators",
+        "instruments": "Instruments",
+        "piping": "Piping and fittings",
+        "motors": "Motors",
+        "cabinets": "Cabinets and automation",
+        "distribution": "Distribution",
+        "generation": "Generation and storage",
+        "conveyors": "Conveyors",
+        "handling": "Handling",
+        "machines": "Machines and air",
+        "sensors": "Sensors",
+        "signalling": "Signalling",
+        "hvac": "HVAC",
+        "building": "Building"
       }
     }
   }

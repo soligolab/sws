@@ -72,6 +72,9 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 
 ### Fixed
 
+- **Il lampeggio di una voce di `symbol_states` ora c'è anche sul pannello** (`img_opa`, 800 ms, come il
+  web). Prima `TextListEntry` del viewer non aveva il campo `blink`.
+
 - **Lo stato di un simbolo è una regola sola, web e pannello** (`tests/fixtures/stato-simbolo.json`).
   Prima, sul pannello:
   - un tag di testo come «on» valeva 0 e lasciava il simbolo spento;
@@ -99,6 +102,26 @@ prima) restano in CalVer `YYYY.M.PATCH`, non rinumerate retroattivamente.
 - **Dopo il primo invio di un progetto il pannello passa da solo alla pagina**, senza il pulsante «Continua».
 
 ### Added
+
+- **Le parti vive dei simboli di libreria** (Fase 3 del
+  [piano](docs/plans/2026-10-14-motore-simboli-lib.md)). `symbol_parts` lega ogni parte del
+  manifesto a un tag, ed è in TS, `synoptic.rs`, `model.rs` e nelle iscrizioni ai tag
+  (`collectTagIds`):
+  - la lancetta è proporzionale fra `min` e `max`;
+  - la leva è aperta quando il tag è vero;
+  - la spia è accesa quando il tag è vero.
+
+  La regola è una sola, con i casi in `tests/fixtures/parti-simbolo.json`. Sul pannello lancetta e
+  leva ruotano sul perno con `transform_angle`, solo quando cambia il valore, e le spie si
+  nascondono.
+
+  Nel pannello proprietà c'è una sezione «Parti» costruita dal manifesto. Livello e rotazione si
+  vedono solo sui simboli di libreria che hanno quella parte.
+
+  Il selettore dei simboli è diviso per famiglia e tipologia, ha la ricerca e le etichette tradotte
+  (`symbols.lib.famiglia`/`tipo`, verificate dalla guardia della libreria).
+- **«Periodo di rotazione» legabile a un tag** (`bindings.symbol_spin_s`), su web e LVGL, per tutti
+  i simboli.
 
 - **I simboli di libreria nel sinottico — la fetta verticale** (Fase 2 del
   [piano](docs/plans/2026-10-14-motore-simboli-lib.md)). Un oggetto `symbol` con

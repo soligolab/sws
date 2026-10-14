@@ -303,6 +303,12 @@ pub struct SynopticObject {
     pub symbol_spin_tag: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub symbol_spin_s: Option<f64>,
+    /// Le parti vive di un simbolo di libreria legate a un tag: id della parte
+    /// del manifesto → `{tag, min?, max?}` (min/max solo per la lancetta,
+    /// predefiniti 0 e 100). Lancetta proporzionale al valore, leva aperta se il
+    /// tag è vero, spia accesa se il tag è vero.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub symbol_parts: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pipe_flow: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]

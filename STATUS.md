@@ -12,7 +12,21 @@
 > resta in «Storico». Qui vive solo ciò che serve a riprendere il lavoro.
 
 
-## ▶ Riprendere da qui — libreria di simboli SCADA: Fasi 1 e 2 fatte, da confermare (2026-10-14)
+## ▶ Riprendere da qui — libreria di simboli SCADA: Fasi 1-3 fatte (2026-10-14)
+
+**Il maintainer ha provato la Fase 2 dal vivo** con l'IDE 8464 e il runtime di prova 8448/8447: il serbatoio
+segue uno slider. Ha chiesto il periodo di rotazione legabile a un tag, che è entrato nella Fase 3.
+**Fase 3** sul ramo `feat/simboli-lib-parti`, annidato sulla 2:
+- lancetta, leva e spie dal tag, su web e LVGL, con la fixture `parti-simbolo.json`;
+- la sezione «Parti» nel pannello proprietà;
+- il picker per famiglia e tipologia, con la ricerca;
+- il periodo di rotazione legabile a un tag;
+- il lampeggio per voce di `symbol_states` anche su LVGL.
+
+I tre rami **non sono mergiati**, perché `main` è aperto nel checkout dell'altra sessione: gli squash vanno
+fatti in ordine (formato, fetta, parti) quando quel checkout è libero.
+
+### Fasi 1 e 2 (14-10-2026)
 
 Piani: [seme](docs/plans/2026-10-14-libreria-simboli-scada.md) (decisioni 1-19) e
 [esecuzione](docs/plans/2026-10-14-motore-simboli-lib.md) (M1-M11, sette fasi). Lavoro in un **worktree
@@ -63,11 +77,11 @@ il codice invece della pagina.
   `check_fuori_pagina_lvgl`, `check_contrasto`) rischiano lo stesso falso verde. Non toccate: è un
   lavoro a sé.
 
-**Prossimo**: Fase 3 del piano.
-- Lancetta, leva e spie su entrambi i viewer.
-- `symbol_parts` in tutti gli specchi e la sezione «Parti» dal manifesto.
-- Il picker per famiglia, con la ricerca.
-- Il lampeggio per voce di `symbol_states` su LVGL.
+**Prossimo**: Fase 4 del piano, lo stile del progetto:
+- `symbol_style` in Rust e TS;
+- la scheda Configurazione → Progetto → Stile;
+- la regola «da progetto» e la normalizzazione M6 dei colori di stato scritti nei file;
+- le sovrascritture per oggetto.
 
 ## ▶ Riprendere da qui — collaudo del WP630 da zero, e i difetti che ha fatto uscire (2026-10-12/14)
 

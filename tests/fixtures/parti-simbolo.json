@@ -1,0 +1,327 @@
+{
+  "_comment": "Valori delle parti vive di un simbolo di libreria dai legami `symbol_parts`: li verificano sws-editor/tests/partiSimbolo.test.ts e simbolo_lib.rs. Piano: docs/plans/2026-10-14-motore-simboli-lib.md (Fase 3). `atteso` elenca solo le parti da controllare; `null` = come nel disegno.",
+  "parti": [
+    {
+      "id": "needle",
+      "kind": "needle",
+      "cx": 30,
+      "cy": 26,
+      "a0": -135,
+      "a1": 135
+    },
+    {
+      "id": "lever",
+      "kind": "lever",
+      "cx": 30,
+      "cy": 24,
+      "open": 0,
+      "closed": -90
+    },
+    {
+      "id": "lamp-red",
+      "kind": "lamp"
+    },
+    {
+      "id": "lamp-green",
+      "kind": "lamp"
+    },
+    {
+      "id": "rotor",
+      "kind": "rotor",
+      "cx": 40,
+      "cy": 50,
+      "symmetry": 60
+    }
+  ],
+  "casi": [
+    {
+      "nome": "nessun legame: tutto come disegnato",
+      "legami": {},
+      "tag": {},
+      "atteso": {
+        "needle": {
+          "frazione": null
+        },
+        "lever": {
+          "aperta": null
+        },
+        "lamp-red": {
+          "accesa": null
+        },
+        "lamp-green": {
+          "accesa": null
+        }
+      }
+    },
+    {
+      "nome": "lancetta: 25 su 0..100 è un quarto",
+      "legami": {
+        "needle": {
+          "tag": "p"
+        }
+      },
+      "tag": {
+        "p": 25
+      },
+      "atteso": {
+        "needle": {
+          "frazione": 0.25
+        }
+      }
+    },
+    {
+      "nome": "lancetta: scala propria 0..10 bar",
+      "legami": {
+        "needle": {
+          "tag": "p",
+          "min": 0,
+          "max": 10
+        }
+      },
+      "tag": {
+        "p": 7.5
+      },
+      "atteso": {
+        "needle": {
+          "frazione": 0.75
+        }
+      }
+    },
+    {
+      "nome": "lancetta: fuori scala si ferma ai fondoscala",
+      "legami": {
+        "needle": {
+          "tag": "p",
+          "min": 0,
+          "max": 10
+        }
+      },
+      "tag": {
+        "p": -3
+      },
+      "atteso": {
+        "needle": {
+          "frazione": 0
+        }
+      }
+    },
+    {
+      "nome": "lancetta: sopra il massimo",
+      "legami": {
+        "needle": {
+          "tag": "p",
+          "min": 0,
+          "max": 10
+        }
+      },
+      "tag": {
+        "p": 12
+      },
+      "atteso": {
+        "needle": {
+          "frazione": 1
+        }
+      }
+    },
+    {
+      "nome": "lancetta: un testo numerico vale come numero",
+      "legami": {
+        "needle": {
+          "tag": "p"
+        }
+      },
+      "tag": {
+        "p": " 50 "
+      },
+      "atteso": {
+        "needle": {
+          "frazione": 0.5
+        }
+      }
+    },
+    {
+      "nome": "lancetta: un testo non numerico la lascia com'è",
+      "legami": {
+        "needle": {
+          "tag": "p"
+        }
+      },
+      "tag": {
+        "p": "guasto"
+      },
+      "atteso": {
+        "needle": {
+          "frazione": null
+        }
+      }
+    },
+    {
+      "nome": "lancetta: tag legato ma senza valore",
+      "legami": {
+        "needle": {
+          "tag": "p"
+        }
+      },
+      "tag": {},
+      "atteso": {
+        "needle": {
+          "frazione": null
+        }
+      }
+    },
+    {
+      "nome": "lancetta: min e max uguali non dividono per zero",
+      "legami": {
+        "needle": {
+          "tag": "p",
+          "min": 5,
+          "max": 5
+        }
+      },
+      "tag": {
+        "p": 5
+      },
+      "atteso": {
+        "needle": {
+          "frazione": null
+        }
+      }
+    },
+    {
+      "nome": "lancetta: un booleano vale 0 o 1",
+      "legami": {
+        "needle": {
+          "tag": "p",
+          "min": 0,
+          "max": 1
+        }
+      },
+      "tag": {
+        "p": true
+      },
+      "atteso": {
+        "needle": {
+          "frazione": 1
+        }
+      }
+    },
+    {
+      "nome": "leva: tag vero è aperta",
+      "legami": {
+        "lever": {
+          "tag": "v"
+        }
+      },
+      "tag": {
+        "v": true
+      },
+      "atteso": {
+        "lever": {
+          "aperta": true
+        }
+      }
+    },
+    {
+      "nome": "leva: tag falso è chiusa",
+      "legami": {
+        "lever": {
+          "tag": "v"
+        }
+      },
+      "tag": {
+        "v": 0
+      },
+      "atteso": {
+        "lever": {
+          "aperta": false
+        }
+      }
+    },
+    {
+      "nome": "leva: testo «on» è aperta, come lo stato",
+      "legami": {
+        "lever": {
+          "tag": "v"
+        }
+      },
+      "tag": {
+        "v": "on"
+      },
+      "atteso": {
+        "lever": {
+          "aperta": true
+        }
+      }
+    },
+    {
+      "nome": "spia: tag falso è spenta, l'altra senza legame resta come disegnata",
+      "legami": {
+        "lamp-red": {
+          "tag": "a"
+        }
+      },
+      "tag": {
+        "a": false
+      },
+      "atteso": {
+        "lamp-red": {
+          "accesa": false
+        },
+        "lamp-green": {
+          "accesa": null
+        }
+      }
+    },
+    {
+      "nome": "spia: tag vero è accesa",
+      "legami": {
+        "lamp-green": {
+          "tag": "b"
+        }
+      },
+      "tag": {
+        "b": 1
+      },
+      "atteso": {
+        "lamp-green": {
+          "accesa": true
+        }
+      }
+    },
+    {
+      "nome": "un legame su una parte che il simbolo non ha si ignora",
+      "legami": {
+        "needle": {
+          "tag": "p"
+        },
+        "fantasma": {
+          "tag": "p"
+        }
+      },
+      "tag": {
+        "p": 50
+      },
+      "atteso": {
+        "needle": {
+          "frazione": 0.5
+        }
+      }
+    },
+    {
+      "nome": "un legame senza tag è come nessun legame",
+      "legami": {
+        "lever": {
+          "tag": ""
+        }
+      },
+      "tag": {
+        "": true
+      },
+      "atteso": {
+        "lever": {
+          "aperta": null
+        }
+      }
+    }
+  ]
+}

@@ -1117,7 +1117,13 @@
     "assegnaNota": "Al clic si scrivono queste variabili, in ordine; la modalità del bottone non si usa. Con «Chiedi conferma» si conferma una volta sola.",
     "backgroundTag": "Sfondo da variabile",
     "backgroundTagPlaceholder": "variabile color (facoltativa)",
-    "backgroundTagHint": "Se la variabile contiene un colore (#rrggbb), lo sfondo della pagina segue il suo valore; altrimenti resta quello qui sopra."
+    "backgroundTagHint": "Se la variabile contiene un colore (#rrggbb), lo sfondo della pagina segue il suo valore; altrimenti resta quello qui sopra.",
+    "partiSimbolo": "Parti",
+    "parteLancetta": "Lancetta (tag)",
+    "parteLeva": "Leva aperta (tag)",
+    "parteSpia": "Spia {{id}} accesa (tag)",
+    "parteMin": "Inizio scala",
+    "parteMax": "Fondo scala"
   },
   "shortcut": {
     "navCanvas": "Navigazione canvas",
@@ -1155,7 +1161,11 @@
   },
   "symbol": {
     "choose": "Scegli simbolo",
-    "insert": "Inserisci"
+    "insert": "Inserisci",
+    "cerca": "Cerca un simbolo…",
+    "gruppoClassici": "Simboli classici",
+    "gruppoProgetto": "Del progetto",
+    "nessuno": "Nessun simbolo per «{{q}}»"
   },
   "characterPicker": {
     "open": "Inserisci un carattere speciale",
@@ -3006,6 +3016,32 @@
         "forklift": "Carrello elevatore",
         "photoelectric-sensor": "Fotocellula",
         "stack-light": "Colonna luminosa"
+      },
+      "famiglia": {
+        "process": "Processo e fluidi",
+        "electrical": "Elettrico ed energia",
+        "machines": "Macchine e movimentazione",
+        "building": "Edificio e HVAC"
+      },
+      "tipo": {
+        "pumps": "Pompe",
+        "valves": "Valvole",
+        "tanks": "Serbatoi e reattori",
+        "heat-exchange": "Scambio termico",
+        "filters": "Filtri e separatori",
+        "instruments": "Strumenti",
+        "piping": "Tubi e raccordi",
+        "motors": "Motori",
+        "cabinets": "Quadri e automazione",
+        "distribution": "Distribuzione",
+        "generation": "Generazione e accumulo",
+        "conveyors": "Nastri",
+        "handling": "Movimentazione",
+        "machines": "Macchine e aria",
+        "sensors": "Sensori",
+        "signalling": "Segnalazione",
+        "hvac": "HVAC",
+        "building": "Edificio"
       }
     }
   }

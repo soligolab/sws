@@ -116,6 +116,7 @@ pub const OBJECT_FIELDS: &[Field] = &[
     Field { name: "symbol_spin", ty: "string", required: false, group: "F6.6/F6.10 — simboli N-stati, rotazione, flusso pipe", doc: "" },
     Field { name: "symbol_spin_tag", ty: "string", required: false, group: "F6.6/F6.10 — simboli N-stati, rotazione, flusso pipe", doc: "" },
     Field { name: "symbol_spin_s", ty: "number", required: false, group: "F6.6/F6.10 — simboli N-stati, rotazione, flusso pipe", doc: "" },
+    Field { name: "symbol_parts", ty: "any", required: false, group: "F6.6/F6.10 — simboli N-stati, rotazione, flusso pipe", doc: "Le parti vive di un simbolo di libreria legate a un tag: id della parte del manifesto → `{tag, min?, max?}` (min/max solo per la lancetta, predefiniti 0 e 100). Lancetta proporzionale al valore, leva aperta se il tag è vero, spia accesa se il tag è vero." },
     Field { name: "pipe_flow", ty: "bool", required: false, group: "F6.6/F6.10 — simboli N-stati, rotazione, flusso pipe", doc: "" },
     Field { name: "pipe_flow_tag", ty: "string", required: false, group: "F6.6/F6.10 — simboli N-stati, rotazione, flusso pipe", doc: "" },
     Field { name: "motion_path", ty: "any", required: false, group: "F6.6/F6.10 — simboli N-stati, rotazione, flusso pipe", doc: "" },
