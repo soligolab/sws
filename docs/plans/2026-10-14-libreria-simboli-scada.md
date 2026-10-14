@@ -1,6 +1,8 @@
 # Libreria di simboli SCADA 2.5D, e il motore che li anima
 
-> **Seme — decisioni prese il 14-10-2026, nessun codice scritto.** Lo stile grafico è approvato
+> **Seme — decisioni prese il 14-10-2026, nessun codice scritto. La sessione plan sul motore è
+> stata fatta lo stesso giorno: il *come* sta nel [piano d'esecuzione](2026-10-14-motore-simboli-lib.md)
+> (decisioni M1–M11, sette fasi).** Lo stile grafico è approvato
 > («mi piace molto»). Le decisioni qui sotto vengono da 21 domande a risposta multipla, una alla
 > volta, più la revisione finale che le ha confrontate con la tavola dei campioni.
 >
